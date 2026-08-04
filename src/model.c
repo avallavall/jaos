@@ -41,6 +41,8 @@ static void model_release_arrays(jaos_model *m)
     free(m->ar_start);
     free(m->ar_index);
     free(m->ar_value);
+    free(m->row_scale);
+    free(m->col_scale);
     memset(m, 0, sizeof *m);
 }
 

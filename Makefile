@@ -18,6 +18,10 @@ STD  := -std=c23
 WARN := -Wall -Wextra -Wpedantic
 INC  := -Iinclude
 
+# libm is the only thing JAOS links against beyond libc. Anyone linking
+# libjaos.a needs it too.
+LDLIBS := -lm
+
 RELEASE_CFLAGS := $(STD) $(WARN) -Werror -O2 -g -DNDEBUG
 DEV_CFLAGS     := $(STD) $(WARN) -Werror -g -Og
 ASAN_CFLAGS    := $(DEV_CFLAGS) -fsanitize=address,undefined -fno-omit-frame-pointer
@@ -78,10 +82,10 @@ $(B)/asan/unity.o: $(UNITY_DIR)/unity.c | $(B)/asan
 	$(CC) $(UNITY_CFLAGS) -fsanitize=address,undefined -fno-omit-frame-pointer -I$(UNITY_DIR) -c $< -o $@
 
 $(B)/dev/test_%: tests/test_%.c $(DEV_OBJ) $(B)/dev/unity.o $(HDRS) | $(B)/dev
-	$(CC) $(DEV_CFLAGS) $(TEST_INC) $< $(DEV_OBJ) $(B)/dev/unity.o -o $@
+	$(CC) $(DEV_CFLAGS) $(TEST_INC) $< $(DEV_OBJ) $(B)/dev/unity.o -o $@ $(LDLIBS)
 
 $(B)/asan/test_%: tests/test_%.c $(ASAN_OBJ) $(B)/asan/unity.o $(HDRS) | $(B)/asan
-	$(CC) $(ASAN_CFLAGS) $(TEST_INC) $< $(ASAN_OBJ) $(B)/asan/unity.o -o $@
+	$(CC) $(ASAN_CFLAGS) $(TEST_INC) $< $(ASAN_OBJ) $(B)/asan/unity.o -o $@ $(LDLIBS)
 
 test: $(DEV_TESTS)
 	@fail=0; for t in $(DEV_TESTS); do echo "== $$t"; ./$$t || fail=1; done; exit $$fail

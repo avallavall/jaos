@@ -37,6 +37,16 @@ struct jaos_model {
     int64_t *ar_index;  /* [num_nz]      */
     double  *ar_value;  /* [num_nz]      */
 
+    /* Scaling factors: row i and column j of A are conceptually multiplied
+     * by row_scale[i] and col_scale[j]. The stored matrix is never touched
+     * — it stays the authority the checker judges against (PLAN.md 2.5).
+     * Every factor is an exact power of two, so applying one is exact in
+     * IEEE arithmetic and introduces no rounding error of its own.
+     * Invalidated by any load. */
+    bool scale_valid;
+    double *row_scale;  /* [num_row] */
+    double *col_scale;  /* [num_col] */
+
     /* Detail message for the last failed operation; "" when it succeeded.
      * Sits outside the problem data on purpose: setting it never disturbs a
      * loaded model. */
@@ -76,5 +86,18 @@ JAOS_NODISCARD jaos_status jm_model_ensure_rowwise(jaos_model *m);
 /* Formats into m->err. NULL model is tolerated (message dropped). */
 [[gnu::format(printf, 2, 3)]]
 void jm_set_err(jaos_model *m, const char *fmt, ...);
+
+typedef enum {
+    JM_SCALE_NONE = 0,      /* all factors 1 */
+    JM_SCALE_CURTIS_REID,   /* default */
+    JM_SCALE_GEOMETRIC,     /* geometric-mean equilibration */
+} jm_scale_mode;
+
+/* Computes m->row_scale and m->col_scale. Deterministic: fixed iteration
+ * counts and fixed summation order, no clock, no randomness (D8). */
+JAOS_NODISCARD jaos_status jm_model_scale(jaos_model *m, jm_scale_mode mode);
+
+/* |a_k| after scaling, for the entry at index k of column j. */
+double jm_scaled_abs(const jaos_model *m, int64_t j, int64_t k);
 
 #endif /* JAOS_INTERNAL_H */

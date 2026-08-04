@@ -1,0 +1,301 @@
+/* Matrix scaling.
+ *
+ * Curtis-Reid [11] is the default. It chooses row exponents r and column
+ * exponents c minimising
+ *
+ *     sum over nonzeros of  (log2|a_ij| - r_i - c_j)^2
+ *
+ * whose normal equations are the symmetric positive semi-definite system
+ *
+ *     [ N  E ] [r]   [sigma]        N = diag(nonzeros per row)
+ *     [ E' M ] [c] = [tau  ]        M = diag(nonzeros per column)
+ *
+ * with E the 0/1 pattern of A, sigma_i and tau_j the row and column sums of
+ * log2|a_ij|. JAOS solves it with Jacobi-preconditioned conjugate
+ * gradients: every operation is a fixed-order pass over the CSC copy, so
+ * the result is bit-identical across runs and machines (D8).
+ *
+ * The system is singular — adding k to every r_i and subtracting it from
+ * every c_j leaves the objective unchanged — but it is consistent, and CG
+ * from a zero start stays in the range space. The invariant that matters,
+ * the scaled magnitude rho_i * |a_ij| * gamma_j, is unaffected by that
+ * freedom anyway.
+ *
+ * Exponents are rounded to integers and the factors are exact powers of
+ * two, so scaling multiplies mantissas by 1 and cannot introduce rounding
+ * error of its own. This is the point of scaling in a solver: fix the
+ * exponent range without perturbing the digits.
+ *
+ * The alternative mode is classic geometric-mean equilibration, kept
+ * because it behaves differently on matrices with a few extreme outliers.
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
+#include "jaos_internal.h"
+
+#include <math.h>
+#include <stdlib.h>
+
+/* Iteration caps. Fixed, not tuned against a clock: determinism first,
+ * and any change to these numbers must be justified by a measurement. */
+#define CR_MAX_ITER   30
+#define CR_TOL        1e-8
+#define GEO_MAX_PASS  20
+#define GEO_TOL       1e-3
+
+/* Keeps 2^-e representable with room to spare on both sides. */
+#define EXP_LIMIT     512
+
+static double pow2i(int e)
+{
+    if (e > EXP_LIMIT)
+        e = EXP_LIMIT;
+    if (e < -EXP_LIMIT)
+        e = -EXP_LIMIT;
+    return ldexp(1.0, e);
+}
+
+double jm_scaled_abs(const jaos_model *m, int64_t j, int64_t k)
+{
+    double v = fabs(m->a_value[k]);
+    if (m->scale_valid)
+        v *= m->row_scale[m->a_index[k]] * m->col_scale[j];
+    return v;
+}
+
+/* q = K p, where K is the normal-equation matrix described above. One pass
+ * over CSC produces both halves. */
+static void cr_matvec(const jaos_model *m, const double *nr, const double *nc,
+                      const double *pr, const double *pc,
+                      double *qr, double *qc)
+{
+    for (int64_t i = 0; i < m->num_row; i++)
+        qr[i] = nr[i] * pr[i];
+    for (int64_t j = 0; j < m->num_col; j++) {
+        double acc = nc[j] * pc[j];
+        double pcj = pc[j];
+        for (int64_t k = m->a_start[j]; k < m->a_start[j + 1]; k++) {
+            int64_t i = m->a_index[k];
+            qr[i] += pcj;
+            acc += pr[i];
+        }
+        qc[j] = acc;
+    }
+}
+
+static jaos_status scale_curtis_reid(jaos_model *m)
+{
+    const int64_t nrow = m->num_row, ncol = m->num_col;
+    jaos_status st = JAOS_OK;
+
+    /* nr, nc double up as the diagonal of K and as the Jacobi
+     * preconditioner; empty rows and columns get 1 so the division is
+     * defined, and their residual is zero, so they simply never move. */
+    double *nr = jm_calloc_array(nrow, sizeof(double));
+    double *nc = jm_calloc_array(ncol, sizeof(double));
+    double *sr = jm_calloc_array(nrow, sizeof(double)); /* sigma, then res */
+    double *sc = jm_calloc_array(ncol, sizeof(double)); /* tau,   then res */
+    double *r  = jm_calloc_array(nrow, sizeof(double));
+    double *c  = jm_calloc_array(ncol, sizeof(double));
+    double *zr = jm_calloc_array(nrow, sizeof(double));
+    double *zc = jm_calloc_array(ncol, sizeof(double));
+    double *pr = jm_calloc_array(nrow, sizeof(double));
+    double *pc = jm_calloc_array(ncol, sizeof(double));
+    double *qr = jm_calloc_array(nrow, sizeof(double));
+    double *qc = jm_calloc_array(ncol, sizeof(double));
+    if (!nr || !nc || !sr || !sc || !r || !c || !zr || !zc || !pr || !pc ||
+        !qr || !qc) {
+        st = JAOS_ERR_OUT_OF_MEMORY;
+        goto done;
+    }
+
+    for (int64_t j = 0; j < ncol; j++) {
+        for (int64_t k = m->a_start[j]; k < m->a_start[j + 1]; k++) {
+            int64_t i = m->a_index[k];
+            double l = log2(fabs(m->a_value[k])); /* loader dropped zeros */
+            nr[i] += 1.0;
+            nc[j] += 1.0;
+            sr[i] += l;
+            sc[j] += l;
+        }
+    }
+    for (int64_t i = 0; i < nrow; i++)
+        if (nr[i] == 0.0)
+            nr[i] = 1.0;
+    for (int64_t j = 0; j < ncol; j++)
+        if (nc[j] == 0.0)
+            nc[j] = 1.0;
+
+    /* CG from x = 0, so the initial residual is the right-hand side. */
+    double rz = 0.0;
+    for (int64_t i = 0; i < nrow; i++) {
+        zr[i] = sr[i] / nr[i];
+        pr[i] = zr[i];
+        rz += sr[i] * zr[i];
+    }
+    for (int64_t j = 0; j < ncol; j++) {
+        zc[j] = sc[j] / nc[j];
+        pc[j] = zc[j];
+        rz += sc[j] * zc[j];
+    }
+    const double rz0 = rz;
+
+    for (int it = 0; it < CR_MAX_ITER && rz > CR_TOL * CR_TOL * rz0 &&
+                     rz > 0.0; it++) {
+        cr_matvec(m, nr, nc, pr, pc, qr, qc);
+
+        double pq = 0.0;
+        for (int64_t i = 0; i < nrow; i++)
+            pq += pr[i] * qr[i];
+        for (int64_t j = 0; j < ncol; j++)
+            pq += pc[j] * qc[j];
+        if (!(pq > 0.0))
+            break; /* singular direction: the current iterate is good enough */
+
+        double alpha = rz / pq;
+        for (int64_t i = 0; i < nrow; i++) {
+            r[i] += alpha * pr[i];
+            sr[i] -= alpha * qr[i];
+        }
+        for (int64_t j = 0; j < ncol; j++) {
+            c[j] += alpha * pc[j];
+            sc[j] -= alpha * qc[j];
+        }
+
+        double rz_new = 0.0;
+        for (int64_t i = 0; i < nrow; i++) {
+            zr[i] = sr[i] / nr[i];
+            rz_new += sr[i] * zr[i];
+        }
+        for (int64_t j = 0; j < ncol; j++) {
+            zc[j] = sc[j] / nc[j];
+            rz_new += sc[j] * zc[j];
+        }
+        double beta = rz_new / rz;
+        for (int64_t i = 0; i < nrow; i++)
+            pr[i] = zr[i] + beta * pr[i];
+        for (int64_t j = 0; j < ncol; j++)
+            pc[j] = zc[j] + beta * pc[j];
+        rz = rz_new;
+    }
+
+    /* |a| ~ 2^(r+c), so the factors that drive it to 1 are the negated
+     * exponents, rounded so they stay exact powers of two. */
+    for (int64_t i = 0; i < nrow; i++)
+        m->row_scale[i] = pow2i(-(int)lround(r[i]));
+    for (int64_t j = 0; j < ncol; j++)
+        m->col_scale[j] = pow2i(-(int)lround(c[j]));
+
+done:
+    free(nr); free(nc); free(sr); free(sc); free(r); free(c);
+    free(zr); free(zc); free(pr); free(pc); free(qr); free(qc);
+    return st;
+}
+
+static jaos_status scale_geometric(jaos_model *m)
+{
+    const int64_t nrow = m->num_row, ncol = m->num_col;
+    double *rmin = jm_alloc_array(nrow, sizeof(double));
+    double *rmax = jm_alloc_array(nrow, sizeof(double));
+    if (!rmin || !rmax) {
+        free(rmin);
+        free(rmax);
+        return JAOS_ERR_OUT_OF_MEMORY;
+    }
+
+    /* Alternate row and column equilibration on the running scaled values,
+     * stopping when a pass stops changing the spread. */
+    double prev = HUGE_VAL;
+    for (int pass = 0; pass < GEO_MAX_PASS; pass++) {
+        for (int64_t i = 0; i < nrow; i++) {
+            rmin[i] = HUGE_VAL;
+            rmax[i] = 0.0;
+        }
+        for (int64_t j = 0; j < ncol; j++) {
+            for (int64_t k = m->a_start[j]; k < m->a_start[j + 1]; k++) {
+                int64_t i = m->a_index[k];
+                double v = fabs(m->a_value[k]) * m->row_scale[i] *
+                           m->col_scale[j];
+                if (v < rmin[i]) rmin[i] = v;
+                if (v > rmax[i]) rmax[i] = v;
+            }
+        }
+        double spread = 1.0;
+        for (int64_t i = 0; i < nrow; i++) {
+            if (rmax[i] == 0.0)
+                continue;
+            if (rmax[i] / rmin[i] > spread)
+                spread = rmax[i] / rmin[i];
+            m->row_scale[i] /= sqrt(rmin[i] * rmax[i]);
+        }
+
+        for (int64_t j = 0; j < ncol; j++) {
+            double cmin = HUGE_VAL, cmax = 0.0;
+            for (int64_t k = m->a_start[j]; k < m->a_start[j + 1]; k++) {
+                double v = fabs(m->a_value[k]) * m->row_scale[m->a_index[k]] *
+                           m->col_scale[j];
+                if (v < cmin) cmin = v;
+                if (v > cmax) cmax = v;
+            }
+            if (cmax > 0.0)
+                m->col_scale[j] /= sqrt(cmin * cmax);
+        }
+
+        if (spread <= 1.0 || prev / spread < 1.0 + GEO_TOL)
+            break;
+        prev = spread;
+    }
+
+    /* Snap to powers of two for the same exactness reason as Curtis-Reid. */
+    for (int64_t i = 0; i < nrow; i++)
+        m->row_scale[i] = pow2i((int)lround(log2(m->row_scale[i])));
+    for (int64_t j = 0; j < ncol; j++)
+        m->col_scale[j] = pow2i((int)lround(log2(m->col_scale[j])));
+
+    free(rmin);
+    free(rmax);
+    return JAOS_OK;
+}
+
+jaos_status jm_model_scale(jaos_model *m, jm_scale_mode mode)
+{
+    if (m == nullptr)
+        return JAOS_ERR_INVALID_INPUT;
+    if (mode != JM_SCALE_NONE && mode != JM_SCALE_CURTIS_REID &&
+        mode != JM_SCALE_GEOMETRIC)
+        return JAOS_ERR_INVALID_INPUT;
+
+    double *rs = jm_alloc_array(m->num_row, sizeof(double));
+    double *cs = jm_alloc_array(m->num_col, sizeof(double));
+    if (rs == nullptr || cs == nullptr) {
+        free(rs);
+        free(cs);
+        return JAOS_ERR_OUT_OF_MEMORY;
+    }
+    for (int64_t i = 0; i < m->num_row; i++)
+        rs[i] = 1.0;
+    for (int64_t j = 0; j < m->num_col; j++)
+        cs[j] = 1.0;
+
+    free(m->row_scale);
+    free(m->col_scale);
+    m->row_scale = rs;
+    m->col_scale = cs;
+    m->scale_valid = true;
+
+    jaos_status st = JAOS_OK;
+    if (mode == JM_SCALE_CURTIS_REID)
+        st = scale_curtis_reid(m);
+    else if (mode == JM_SCALE_GEOMETRIC)
+        st = scale_geometric(m);
+
+    if (st != JAOS_OK) {
+        /* Leave a usable identity scaling rather than a half-computed one. */
+        for (int64_t i = 0; i < m->num_row; i++)
+            m->row_scale[i] = 1.0;
+        for (int64_t j = 0; j < m->num_col; j++)
+            m->col_scale[j] = 1.0;
+        jm_set_err(m, "out of memory while scaling");
+    }
+    return st;
+}

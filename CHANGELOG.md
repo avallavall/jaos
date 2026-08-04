@@ -32,3 +32,6 @@ versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   forms including `free` and infinities. Ranged constraints, constants inside
   constraints and integer sections are recognized and rejected with line
   numbers.
+- Matrix scaling: Curtis-Reid by default, geometric-mean equilibration as an
+  option. Factors are exact powers of two, so applying them adds no rounding
+  error, and the stored matrix is left untouched. See `docs/scaling.md`.
