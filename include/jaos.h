@@ -124,6 +124,22 @@ JAOS_NODISCARD int64_t jaos_num_row(const jaos_model *m);
 JAOS_NODISCARD int64_t jaos_num_nz(const jaos_model *m);
 
 /* ------------------------------------------------------------------------- */
+/* File readers                                                              */
+/* ------------------------------------------------------------------------- */
+
+/* Reads an MPS file (fixed or free layout) into the model, replacing its
+ * contents. On failure the model's problem data is left as it was and
+ * jaos_model_error() carries a message with the offending line number.
+ * Dialect decisions are documented in docs/format-support.md. Integer
+ * markers and integer bound types are recognized and rejected until MILP
+ * support lands (PLAN.md, M3). */
+JAOS_NODISCARD jaos_status jaos_read_mps(jaos_model *m, const char *path);
+
+/* Detail message for the model's last failed operation, or "" when the last
+ * operation succeeded. Static storage inside the model; never NULL. */
+JAOS_NODISCARD const char *jaos_model_error(const jaos_model *m);
+
+/* ------------------------------------------------------------------------- */
 /* Independent solution checker                                              */
 /* ------------------------------------------------------------------------- */
 

@@ -22,3 +22,8 @@ versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Independent solution checker: judges a claimed primal (and optionally dual)
   solution against the model in original space — bound and activity violations,
   dual sign conditions including complementary slackness, and the objective gap.
+- MPS reader (`jaos_read_mps`): fixed and free layouts, RANGES, all continuous
+  BOUNDS types, OBJSENSE, objective constants, Fortran D exponents,
+  locale-independent number parsing; every rejection carries a line number via
+  `jaos_model_error`. Integer constructs are recognized and rejected until MILP
+  lands. Dialect decisions documented in `docs/format-support.md`.

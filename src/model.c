@@ -5,6 +5,8 @@
 #include "jaos_internal.h"
 
 #include <math.h>
+#include <stdarg.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -53,6 +55,21 @@ void jaos_model_free(jaos_model *m)
 int64_t jaos_num_col(const jaos_model *m) { return m ? m->num_col : 0; }
 int64_t jaos_num_row(const jaos_model *m) { return m ? m->num_row : 0; }
 int64_t jaos_num_nz(const jaos_model *m)  { return m ? m->num_nz : 0; }
+
+const char *jaos_model_error(const jaos_model *m)
+{
+    return m ? m->err : "";
+}
+
+void jm_set_err(jaos_model *m, const char *fmt, ...)
+{
+    if (m == nullptr)
+        return;
+    va_list ap;
+    va_start(ap, fmt);
+    vsnprintf(m->err, sizeof m->err, fmt, ap);
+    va_end(ap);
+}
 
 /* --------------------------------------------------------------------- */
 /* Loading                                                               */

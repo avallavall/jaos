@@ -36,6 +36,11 @@ struct jaos_model {
     int64_t *ar_start;  /* [num_row + 1] */
     int64_t *ar_index;  /* [num_nz]      */
     double  *ar_value;  /* [num_nz]      */
+
+    /* Detail message for the last failed operation; "" when it succeeded.
+     * Sits outside the problem data on purpose: setting it never disturbs a
+     * loaded model. */
+    char err[256];
 };
 
 /* Overflow-checked array allocation: n elements of elsize bytes.
@@ -46,5 +51,9 @@ void *jm_calloc_array(int64_t n, size_t elsize);
 
 /* Builds the CSR mirror if it is not current. */
 JAOS_NODISCARD jaos_status jm_model_ensure_rowwise(jaos_model *m);
+
+/* Formats into m->err. NULL model is tolerated (message dropped). */
+[[gnu::format(printf, 2, 3)]]
+void jm_set_err(jaos_model *m, const char *fmt, ...);
 
 #endif /* JAOS_INTERNAL_H */
