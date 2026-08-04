@@ -10,3 +10,6 @@ versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - `DECISIONS.md`: the durable record of closed design decisions — language and
   toolchain, dependency policy, determinism, problem scope, and the rules under
   which correctness and speed may be claimed.
+- `PLAN.md`: the staged build order for the whole declared scope, and a fully
+  specified first milestone — LP correctness on the Netlib set — with acceptance
+  criteria, draft tolerances and work-unit weights, and a verified bibliography.
