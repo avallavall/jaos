@@ -27,140 +27,6 @@
 #include <string.h>
 
 /* --------------------------------------------------------------------- */
-/* Growable arrays                                                       */
-/* --------------------------------------------------------------------- */
-
-/* Grows *arr (elements of elsize) to hold at least need elements. On
- * failure *arr is left untouched, so cleanup still frees the old block. */
-static bool grow(void **arr, int64_t *cap, int64_t need, size_t elsize)
-{
-    if (need <= *cap)
-        return true;
-    int64_t ncap = *cap < 16 ? 16 : *cap;
-    while (ncap < need)
-        if (ckd_mul(&ncap, ncap, (int64_t)2))
-            return false;
-    size_t bytes;
-    if (ckd_mul(&bytes, (size_t)ncap, elsize))
-        return false;
-    void *p = realloc(*arr, bytes);
-    if (p == nullptr)
-        return false;
-    *arr = p;
-    *cap = ncap;
-    return true;
-}
-
-#define GROW(a, cap, need) grow((void **)&(a), &(cap), (need), sizeof *(a))
-
-/* --------------------------------------------------------------------- */
-/* Name -> value map: FNV-1a, open addressing, names in one arena.       */
-/* Absence and value are separate, because the objective row lives in    */
-/* the map with a negative value.                                        */
-/* --------------------------------------------------------------------- */
-
-typedef struct {
-    char *pool;              /* all names, NUL-separated */
-    int64_t pool_len, pool_cap;
-    int64_t *off, *val;      /* entry e: name at pool+off[e], value val[e] */
-    int64_t n, cap;
-    int64_t *slot;           /* entry indices, -1 empty; power-of-two size */
-    int64_t nslot;
-} nmap;
-
-static uint64_t fnv1a(const char *s)
-{
-    uint64_t h = 0xcbf29ce484222325u;
-    for (; *s; s++) {
-        h ^= (unsigned char)*s;
-        h *= 0x100000001b3u;
-    }
-    return h;
-}
-
-static void nmap_free(nmap *m)
-{
-    free(m->pool);
-    free(m->off);
-    free(m->val);
-    free(m->slot);
-    memset(m, 0, sizeof *m);
-}
-
-static bool nmap_get(const nmap *m, const char *name, int64_t *val)
-{
-    if (m->nslot == 0)
-        return false;
-    uint64_t mask = (uint64_t)m->nslot - 1;
-    for (uint64_t i = fnv1a(name) & mask;; i = (i + 1) & mask) {
-        int64_t e = m->slot[i];
-        if (e < 0)
-            return false;
-        if (strcmp(m->pool + m->off[e], name) == 0) {
-            *val = m->val[e];
-            return true;
-        }
-    }
-}
-
-static bool nmap_rehash(nmap *m, int64_t nslot)
-{
-    int64_t *ns = jm_alloc_array(nslot, sizeof(int64_t));
-    if (ns == nullptr)
-        return false;
-    for (int64_t i = 0; i < nslot; i++)
-        ns[i] = -1;
-    uint64_t mask = (uint64_t)nslot - 1;
-    for (int64_t e = 0; e < m->n; e++) {
-        uint64_t i = fnv1a(m->pool + m->off[e]) & mask;
-        while (ns[i] >= 0)
-            i = (i + 1) & mask;
-        ns[i] = e;
-    }
-    free(m->slot);
-    m->slot = ns;
-    m->nslot = nslot;
-    return true;
-}
-
-/* The caller must have checked the name is absent. */
-static bool nmap_insert(nmap *m, const char *name, int64_t value)
-{
-    int64_t len = (int64_t)strlen(name) + 1;
-    if (!GROW(m->pool, m->pool_cap, m->pool_len + len))
-        return false;
-    if (m->n + 1 > m->cap) {
-        int64_t ncap = m->cap < 16 ? 16 : m->cap * 2;
-        int64_t *p = realloc(m->off, (size_t)ncap * sizeof *p);
-        if (p == nullptr)
-            return false;
-        m->off = p;
-        p = realloc(m->val, (size_t)ncap * sizeof *p);
-        if (p == nullptr)
-            return false;
-        m->val = p;
-        m->cap = ncap;
-    }
-    memcpy(m->pool + m->pool_len, name, (size_t)len);
-    m->off[m->n] = m->pool_len;
-    m->val[m->n] = value;
-    m->pool_len += len;
-    m->n++;
-
-    if (m->nslot == 0 && !nmap_rehash(m, 64))
-        return false;
-    if (m->n * 10 >= m->nslot * 7 && !nmap_rehash(m, m->nslot * 2))
-        return false;
-
-    uint64_t mask = (uint64_t)m->nslot - 1;
-    uint64_t i = fnv1a(name) & mask;
-    while (m->slot[i] >= 0)
-        i = (i + 1) & mask;
-    m->slot[i] = m->n - 1;
-    return true;
-}
-
-/* --------------------------------------------------------------------- */
 /* Tokens and numbers                                                    */
 /* --------------------------------------------------------------------- */
 
@@ -230,7 +96,7 @@ typedef struct {
     double obj_offset;
     bool obj_offset_seen;
 
-    nmap rmap;                      /* row name -> index, or OBJ_ROW */
+    jm_nmap rmap;                      /* row name -> index, or OBJ_ROW */
     char *rtype;                    /* per real row: L, G, E or N (free) */
     double *rhs;                    /* default 0 */
     double *range;                  /* NAN = no range */
@@ -239,7 +105,7 @@ typedef struct {
     int64_t rtype_cap, rhs_cap, range_cap, rflag_cap;
     bool have_obj;
 
-    nmap cmap;                      /* column name -> index */
+    jm_nmap cmap;                      /* column name -> index */
     double *cost, *cl, *cu;
     uint8_t *cflag;                 /* bit0: lower set, bit1: obj coef seen */
     int64_t ncol;
@@ -261,8 +127,8 @@ typedef struct {
 
 static void rd_free(rd *r)
 {
-    nmap_free(&r->rmap);
-    nmap_free(&r->cmap);
+    jm_nmap_free(&r->rmap);
+    jm_nmap_free(&r->cmap);
     free(r->rtype);
     free(r->rhs);
     free(r->range);
@@ -292,23 +158,23 @@ static jaos_status rd_rows_line(rd *r, char **tok, int nt)
     upcase(tok[0]);
     if (strlen(tok[0]) != 1 || strchr("NLGE", tok[0][0]) == nullptr)
         FAIL("line %" PRId64 ": unknown row type '%s'", r->lno, tok[0]);
-    if (nmap_get(&r->rmap, tok[1], &dummy))
+    if (jm_nmap_get(&r->rmap, tok[1], &dummy))
         FAIL("line %" PRId64 ": duplicate row name '%s'", r->lno, tok[1]);
 
     char t = tok[0][0];
     if (t == 'N' && !r->have_obj) {
         /* The first N row is the objective; it is not a matrix row. */
-        if (!nmap_insert(&r->rmap, tok[1], OBJ_ROW))
+        if (!jm_nmap_insert(&r->rmap, tok[1], OBJ_ROW))
             FAIL_OOM();
         r->have_obj = true;
         return JAOS_OK;
     }
-    if (!GROW(r->rtype, r->rtype_cap, r->nrow + 1) ||
-        !GROW(r->rhs, r->rhs_cap, r->nrow + 1) ||
-        !GROW(r->range, r->range_cap, r->nrow + 1) ||
-        !GROW(r->rflag, r->rflag_cap, r->nrow + 1))
+    if (!JM_GROW(r->rtype, r->rtype_cap, r->nrow + 1) ||
+        !JM_GROW(r->rhs, r->rhs_cap, r->nrow + 1) ||
+        !JM_GROW(r->range, r->range_cap, r->nrow + 1) ||
+        !JM_GROW(r->rflag, r->rflag_cap, r->nrow + 1))
         FAIL_OOM();
-    if (!nmap_insert(&r->rmap, tok[1], r->nrow))
+    if (!jm_nmap_insert(&r->rmap, tok[1], r->nrow))
         FAIL_OOM();
     r->rtype[r->nrow] = t;
     r->rhs[r->nrow] = 0.0;
@@ -344,17 +210,17 @@ static jaos_status rd_columns_line(rd *r, char **tok, int nt)
         j = r->ncol - 1;
     } else {
         int64_t dummy;
-        if (nmap_get(&r->cmap, tok[0], &dummy))
+        if (jm_nmap_get(&r->cmap, tok[0], &dummy))
             FAIL("line %" PRId64 ": column '%s' reappears; column entries "
                  "must be contiguous", r->lno, tok[0]);
         j = r->ncol;
-        if (!GROW(r->cost, r->cost_cap, j + 1) ||
-            !GROW(r->cl, r->cl_cap, j + 1) ||
-            !GROW(r->cu, r->cu_cap, j + 1) ||
-            !GROW(r->cflag, r->cflag_cap, j + 1) ||
-            !GROW(r->as, r->as_cap, j + 2))
+        if (!JM_GROW(r->cost, r->cost_cap, j + 1) ||
+            !JM_GROW(r->cl, r->cl_cap, j + 1) ||
+            !JM_GROW(r->cu, r->cu_cap, j + 1) ||
+            !JM_GROW(r->cflag, r->cflag_cap, j + 1) ||
+            !JM_GROW(r->as, r->as_cap, j + 2))
             FAIL_OOM();
-        if (!nmap_insert(&r->cmap, tok[0], j))
+        if (!jm_nmap_insert(&r->cmap, tok[0], j))
             FAIL_OOM();
         r->cost[j] = 0.0;
         r->cl[j] = 0.0;
@@ -369,7 +235,7 @@ static jaos_status rd_columns_line(rd *r, char **tok, int nt)
         if (!parse_num(tok[i + 1], &v))
             FAIL("line %" PRId64 ": bad number '%s'", r->lno, tok[i + 1]);
         int64_t row;
-        if (!nmap_get(&r->rmap, tok[i], &row))
+        if (!jm_nmap_get(&r->rmap, tok[i], &row))
             FAIL("line %" PRId64 ": unknown row '%s'", r->lno, tok[i]);
         if (row == OBJ_ROW) {
             if (r->cflag[j] & 2u)
@@ -383,8 +249,8 @@ static jaos_status rd_columns_line(rd *r, char **tok, int nt)
             FAIL("line %" PRId64 ": duplicate coefficient for row '%s' in "
                  "column '%s'", r->lno, tok[i], tok[0]);
         r->rowstamp[row] = j + 1;
-        if (!GROW(r->ai, r->ai_cap, r->nnz + 1) ||
-            !GROW(r->av, r->av_cap, r->nnz + 1))
+        if (!JM_GROW(r->ai, r->ai_cap, r->nnz + 1) ||
+            !JM_GROW(r->av, r->av_cap, r->nnz + 1))
             FAIL_OOM();
         r->ai[r->nnz] = row;
         r->av[r->nnz] = v;
@@ -414,7 +280,7 @@ static jaos_status rd_vector_line(rd *r, char **tok, int nt, bool is_range)
         if (!parse_num(tok[i + 1], &v))
             FAIL("line %" PRId64 ": bad number '%s'", r->lno, tok[i + 1]);
         int64_t row;
-        if (!nmap_get(&r->rmap, tok[i], &row))
+        if (!jm_nmap_get(&r->rmap, tok[i], &row))
             FAIL("line %" PRId64 ": unknown row '%s'", r->lno, tok[i]);
         if (row == OBJ_ROW) {
             if (is_range)
@@ -474,7 +340,7 @@ static jaos_status rd_bounds_line(rd *r, char **tok, int nt)
         return JAOS_OK; /* alternate set skipped */
 
     int64_t j;
-    if (!nmap_get(&r->cmap, tok[2], &j))
+    if (!jm_nmap_get(&r->cmap, tok[2], &j))
         FAIL("line %" PRId64 ": unknown column '%s'", r->lno, tok[2]);
 
     double v = 0.0;

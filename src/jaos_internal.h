@@ -49,6 +49,27 @@ struct jaos_model {
 void *jm_alloc_array(int64_t n, size_t elsize);
 void *jm_calloc_array(int64_t n, size_t elsize);
 
+/* Grows *arr (elements of elsize) to hold at least need elements; on
+ * failure *arr is untouched, so cleanup still frees the old block. */
+bool jm_grow(void **arr, int64_t *cap, int64_t need, size_t elsize);
+#define JM_GROW(a, cap, need) jm_grow((void **)&(a), &(cap), (need), sizeof *(a))
+
+/* Name -> value map for the readers: FNV-1a, open addressing, names kept in
+ * one arena. Absence and value are separate — values may be negative. */
+typedef struct {
+    char *pool;              /* all names, NUL-separated */
+    int64_t pool_len, pool_cap;
+    int64_t *off, *val;      /* entry e: name at pool+off[e], value val[e] */
+    int64_t n, cap;
+    int64_t *slot;           /* entry indices, -1 empty; power-of-two size */
+    int64_t nslot;
+} jm_nmap;
+
+void jm_nmap_free(jm_nmap *m);
+bool jm_nmap_get(const jm_nmap *m, const char *name, int64_t *val);
+/* The caller must have checked the name is absent. */
+bool jm_nmap_insert(jm_nmap *m, const char *name, int64_t value);
+
 /* Builds the CSR mirror if it is not current. */
 JAOS_NODISCARD jaos_status jm_model_ensure_rowwise(jaos_model *m);
 

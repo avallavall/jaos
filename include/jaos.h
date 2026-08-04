@@ -135,6 +135,12 @@ JAOS_NODISCARD int64_t jaos_num_nz(const jaos_model *m);
  * support lands (PLAN.md, M3). */
 JAOS_NODISCARD jaos_status jaos_read_mps(jaos_model *m, const char *path);
 
+/* Reads a CPLEX-style LP-format file into the model, replacing its
+ * contents. Same error contract as jaos_read_mps. Ranged constraints,
+ * constants inside constraints and integer sections are recognized and
+ * rejected; see docs/format-support.md for the dialect. */
+JAOS_NODISCARD jaos_status jaos_read_lp(jaos_model *m, const char *path);
+
 /* Detail message for the model's last failed operation, or "" when the last
  * operation succeeded. Static storage inside the model; never NULL. */
 JAOS_NODISCARD const char *jaos_model_error(const jaos_model *m);

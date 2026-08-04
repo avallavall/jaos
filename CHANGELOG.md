@@ -27,3 +27,8 @@ versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   locale-independent number parsing; every rejection carries a line number via
   `jaos_model_error`. Integer constructs are recognized and rejected until MILP
   lands. Dialect decisions documented in `docs/format-support.md`.
+- LP-format reader (`jaos_read_lp`): CPLEX-style core dialect with line-wrapped
+  expressions, labels, glued coefficients, repeated-variable summing, all bound
+  forms including `free` and infinities. Ranged constraints, constants inside
+  constraints and integer sections are recognized and rejected with line
+  numbers.

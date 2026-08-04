@@ -48,6 +48,32 @@ header is a line whose first character is non-blank, `*` opens a comment.
 
 ## LP
 
-Not implemented yet (next step of PLAN.md §2.8 step 3). The dialect target is
-the CPLEX-style core: objective, constraints, bounds; integrality sections
-recognized and rejected until M3.
+CPLEX-style core dialect, token-stream parsed: expressions wrap lines freely.
+
+- **Sections**: `Minimize`/`Maximize` (also `Min`/`Max`/`Minimum`/`Maximum`),
+  `Subject To` (also `Such That`, `ST`, `S.T.`), optional `Bounds`, `End`.
+  Keywords are case-insensitive and reserved — a variable may not be called
+  `free`, `st`, `end`, `inf`, etc.
+- **Comments**: `\` to end of line.
+- **Names**: start with a letter or `_`; continue with letters, digits, `_`
+  or `.`. Anything else is rejected loudly (so `3*x` reports the `*`).
+- **Terms**: coefficient and variable, multiplication implicit; `3x` and
+  `3 x` both work. A repeated variable inside one expression **sums**, as
+  algebra says it should (`x + x` is `2x`) — unlike the MPS reader, where a
+  duplicate entry in the data tables is an error.
+- **Objective**: optional label (`obj:`); bare constants allowed and add to
+  the objective offset; may be empty.
+- **Constraints**: optional label; linear expression, one of `<= < =< >= >
+  => =`, then a number. Constants inside the expression and ranged
+  (two-sided) constraints are recognized and rejected with a message.
+- **Bounds** forms: `l <= x <= u`, `l <= x`, `x <= u`, `x >= l`, `x = v`,
+  `x free`; `inf`/`infinity` with optional sign as values. Later statements
+  override earlier ones component-wise. Bounds on a variable that appears
+  nowhere else are an error (it is almost always a typo). Reversed forms
+  (`u >= x`) are rejected.
+- **Default bounds** are `[0, +inf)`, as in MPS.
+- **Integer sections** (`General`, `Integers`, `Binary`, ...): recognized
+  and rejected until M3. `Semi-continuous` and `SOS`: rejected.
+- **Numbers**: parsed under an explicit "C" locale, like MPS. No Fortran
+  `D` exponents here — they are not part of any LP dialect.
+- **`End` is required**; content after it is an error.
