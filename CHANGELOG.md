@@ -16,3 +16,9 @@ versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Build scaffold: `make all | test | sanitize | clean` on GCC 14 / C23; the
   public header `jaos.h` with status codes and version query; Unity v2.7.0
   vendored under `tests/` as the dev-time test harness.
+- Model core: create/load/query/free for LPs in bounded form, with validating
+  copy-on-load (sorted CSC, explicit zeros dropped, structural errors rejected)
+  and an internal row-wise mirror.
+- Independent solution checker: judges a claimed primal (and optionally dual)
+  solution against the model in original space — bound and activity violations,
+  dual sign conditions including complementary slackness, and the objective gap.

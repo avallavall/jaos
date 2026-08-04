@@ -8,6 +8,11 @@
 #ifndef JAOS_H
 #define JAOS_H
 
+#include <stdint.h>
+#ifndef __cplusplus
+#include <stdbool.h>
+#endif
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -57,6 +62,103 @@ typedef enum jaos_solve_status {
  * values outside the enum. */
 JAOS_NODISCARD const char *jaos_status_str(jaos_status s);
 JAOS_NODISCARD const char *jaos_solve_status_str(jaos_solve_status s);
+
+/* ------------------------------------------------------------------------- */
+/* Problem data                                                              */
+/* ------------------------------------------------------------------------- */
+
+/* The problem JAOS works on is the bounded form
+ *
+ *     optimize   c'x + c0
+ *     subject to rl <=  A x  <= ru        (row bounds)
+ *                xl <=   x   <= xu        (column bounds)
+ *
+ * which subsumes equalities (rl == ru), ranged rows, fixed and free
+ * variables. An absent bound is IEEE infinity of the right sign: use
+ * jaos_infinity(), or any value v with isinf(v). */
+
+/* Positive IEEE infinity, for absent bounds. */
+JAOS_NODISCARD double jaos_infinity(void);
+
+typedef enum jaos_obj_sense {
+    JAOS_MINIMIZE = 0,
+    JAOS_MAXIMIZE = 1,
+} jaos_obj_sense;
+
+/* Opaque. One model is used by one thread at a time; distinct models are
+ * fully independent. */
+typedef struct jaos_model jaos_model;
+
+/* Allocates an empty model into *out. Frees with jaos_model_free. */
+JAOS_NODISCARD jaos_status jaos_model_new(jaos_model **out);
+
+/* Frees a model and everything it owns. NULL is fine. */
+void jaos_model_free(jaos_model *m);
+
+/* Loads a complete problem, replacing whatever the model held. All data is
+ * copied; the caller's arrays are never retained.
+ *
+ * The matrix arrives in compressed sparse column form: a_start[num_col + 1]
+ * with a_start[0] == 0 and a_start[num_col] == num_nz; a_index holds row
+ * indices, a_value the coefficients. Column entries need not be sorted;
+ * JAOS sorts its copy. Explicit zeros are dropped. a_start may be NULL only
+ * when num_nz == 0, meaning an all-zero matrix.
+ *
+ * Rejected as JAOS_ERR_INVALID_INPUT: NaN anywhere; non-finite costs,
+ * offset or matrix values; row indices out of range; duplicate row indices
+ * within a column; inconsistent a_start. Inconsistent bounds (xl > xu) are
+ * NOT rejected — that is a legitimate, trivially infeasible model, and
+ * deciding feasibility is the solver's job, not the loader's. */
+JAOS_NODISCARD jaos_status jaos_load_lp(jaos_model *m,
+    int64_t num_col, int64_t num_row,
+    jaos_obj_sense sense, double obj_offset,
+    const double *col_cost,
+    const double *col_lower, const double *col_upper,
+    const double *row_lower, const double *row_upper,
+    int64_t num_nz, const int64_t *a_start, const int64_t *a_index,
+    const double *a_value);
+
+/* Dimension queries. NULL model reads as empty. */
+JAOS_NODISCARD int64_t jaos_num_col(const jaos_model *m);
+JAOS_NODISCARD int64_t jaos_num_row(const jaos_model *m);
+JAOS_NODISCARD int64_t jaos_num_nz(const jaos_model *m);
+
+/* ------------------------------------------------------------------------- */
+/* Independent solution checker                                              */
+/* ------------------------------------------------------------------------- */
+
+/* Verdict of jaos_check_solution. Violations are raw magnitudes, not
+ * pass/fail: the booleans compare them against the tolerance given. */
+typedef struct jaos_check_report {
+    double max_col_violation;   /* worst breach of a column bound          */
+    double max_row_violation;   /* worst breach of a row (activity) bound  */
+    double max_dual_violation;  /* worst breach of a dual sign condition,
+                                   including complementary slackness       */
+    double primal_objective;    /* c'x + c0, in the model's own sense      */
+    double dual_objective;      /* meaningful only when duals were given   */
+    double objective_gap;       /* |primal - dual| / max(1, |primal|)      */
+    bool primal_feasible;       /* violations within tolerance             */
+    bool dual_feasible;         /* sign conditions and gap within tol      */
+    bool checked_duals;         /* false when row_dual was NULL            */
+} jaos_check_report;
+
+/* Judges a claimed solution against the model as loaded — original space,
+ * no scaling, independent of any solver bookkeeping.
+ *
+ * col_value[num_col] is required. row_dual[num_row] is optional; without it
+ * only primal feasibility is checked.
+ *
+ * Dual convention: reduced costs are d = c - A'y. For minimization, at an
+ * optimum: y_i >= 0 where the row is at its lower bound, y_i <= 0 at its
+ * upper, y_i == 0 strictly inside; d_j likewise for columns. For
+ * maximization every sign flips. Fixed rows and columns (equal bounds)
+ * accept any multiplier sign.
+ *
+ * tol is an absolute tolerance on violations; the objective gap is compared
+ * as a relative quantity. */
+JAOS_NODISCARD jaos_status jaos_check_solution(const jaos_model *m,
+    const double *col_value, const double *row_dual, double tol,
+    jaos_check_report *out);
 
 #ifdef __cplusplus
 }

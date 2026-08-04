@@ -23,9 +23,16 @@ DEV_CFLAGS     := $(STD) $(WARN) -Werror -g -Og
 ASAN_CFLAGS    := $(DEV_CFLAGS) -fsanitize=address,undefined -fno-omit-frame-pointer
 
 # Vendored test framework: warnings on, -Werror off — not our code, dev-time
-# only (D15), never linked into the library.
+# only (D15), never linked into the library. UNITY_INCLUDE_DOUBLE enables the
+# double-precision assertions a solver test suite lives on; it must be seen
+# both by unity.c and by every test including unity.h.
 UNITY_DIR    := tests/vendor/unity
-UNITY_CFLAGS := $(STD) $(WARN) -g -Og
+UNITY_DEFS   := -DUNITY_INCLUDE_DOUBLE
+UNITY_CFLAGS := $(STD) $(WARN) -g -Og $(UNITY_DEFS)
+
+# Tests may include src/jaos_internal.h: white-box assertions on the data
+# structures are part of their job.
+TEST_INC := $(INC) -Isrc -I$(UNITY_DIR) $(UNITY_DEFS)
 
 SRC   := $(wildcard src/*.c)
 TESTS := $(wildcard tests/test_*.c)
@@ -43,19 +50,25 @@ ASAN_TESTS := $(TESTS:tests/%.c=$(B)/asan/%)
 
 .PHONY: all test sanitize clean
 
+# Keep intermediate objects; make otherwise deletes and rebuilds them
+# between targets.
+.SECONDARY:
+
 all: $(LIB)
 
 $(LIB): $(REL_OBJ)
 	$(AR) rcs $@ $^
 
-# Single public header for now; switch to -MMD generated deps when src/ grows.
-$(B)/release/%.o: src/%.c include/jaos.h | $(B)/release
+# Two headers for now; switch to -MMD generated deps when src/ grows.
+HDRS := include/jaos.h src/jaos_internal.h
+
+$(B)/release/%.o: src/%.c $(HDRS) | $(B)/release
 	$(CC) $(RELEASE_CFLAGS) $(INC) -c $< -o $@
 
-$(B)/dev/%.o: src/%.c include/jaos.h | $(B)/dev
+$(B)/dev/%.o: src/%.c $(HDRS) | $(B)/dev
 	$(CC) $(DEV_CFLAGS) $(INC) -c $< -o $@
 
-$(B)/asan/%.o: src/%.c include/jaos.h | $(B)/asan
+$(B)/asan/%.o: src/%.c $(HDRS) | $(B)/asan
 	$(CC) $(ASAN_CFLAGS) $(INC) -c $< -o $@
 
 $(B)/dev/unity.o: $(UNITY_DIR)/unity.c | $(B)/dev
@@ -64,11 +77,11 @@ $(B)/dev/unity.o: $(UNITY_DIR)/unity.c | $(B)/dev
 $(B)/asan/unity.o: $(UNITY_DIR)/unity.c | $(B)/asan
 	$(CC) $(UNITY_CFLAGS) -fsanitize=address,undefined -fno-omit-frame-pointer -I$(UNITY_DIR) -c $< -o $@
 
-$(B)/dev/test_%: tests/test_%.c $(DEV_OBJ) $(B)/dev/unity.o | $(B)/dev
-	$(CC) $(DEV_CFLAGS) $(INC) -I$(UNITY_DIR) $< $(DEV_OBJ) $(B)/dev/unity.o -o $@
+$(B)/dev/test_%: tests/test_%.c $(DEV_OBJ) $(B)/dev/unity.o $(HDRS) | $(B)/dev
+	$(CC) $(DEV_CFLAGS) $(TEST_INC) $< $(DEV_OBJ) $(B)/dev/unity.o -o $@
 
-$(B)/asan/test_%: tests/test_%.c $(ASAN_OBJ) $(B)/asan/unity.o | $(B)/asan
-	$(CC) $(ASAN_CFLAGS) $(INC) -I$(UNITY_DIR) $< $(ASAN_OBJ) $(B)/asan/unity.o -o $@
+$(B)/asan/test_%: tests/test_%.c $(ASAN_OBJ) $(B)/asan/unity.o $(HDRS) | $(B)/asan
+	$(CC) $(ASAN_CFLAGS) $(TEST_INC) $< $(ASAN_OBJ) $(B)/asan/unity.o -o $@
 
 test: $(DEV_TESTS)
 	@fail=0; for t in $(DEV_TESTS); do echo "== $$t"; ./$$t || fail=1; done; exit $$fail
