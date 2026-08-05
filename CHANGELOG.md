@@ -72,6 +72,11 @@ versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   longer stops an iteration short. It is swapped to its other bound and the
   step carries on, so a model whose answer fills one bounded column after
   another is solved in one long step instead of one step per column.
+- Steepest-edge pricing weights are checked against an exactly known value
+  every iteration, repaired where the exact one is available, and restarted
+  when they have drifted past being informative. Pricing that has quietly
+  stopped meaning anything costs iterations rather than answers, so nothing
+  else would have reported it.
 - Solving now runs on a scaled copy of the model, computing a Curtis-Reid
   scaling first if none was chosen, so a model whose coefficients span many
   orders of magnitude is solved on numbers that do not. The model itself is

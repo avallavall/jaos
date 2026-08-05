@@ -108,12 +108,29 @@ JAOS_NODISCARD jaos_status jm_dual_simplex(jaos_model *m);
  * B^-1 rho_r with rho_r = B^-T e_r, both dense of length n, both taken
  * against the basis *before* the change. alpha[r] is the pivot.
  *
- * Reachable from outside the simplex for one reason: a wrong recurrence
- * costs iterations and never a wrong answer, so no solve-level test can
- * catch it and the formula has to be checked against norms recomputed from
- * scratch. */
+ * `exact_r` is the true weight of row r, ||rho_r||^2. Nothing else is ever
+ * known exactly — recomputing all n weights costs n solves — but this one
+ * is free, because rho_r had to be built to price the row. It is used two
+ * ways: it replaces the carried estimate before the recurrence runs, so
+ * every weight the step produces is derived from a true value rather than
+ * from an estimate of one; and the disagreement between the two says how
+ * far the recurrence has drifted.
+ *
+ * `drift_factor` is how far apart the carried and exact weights may be
+ * before the estimates are declared worthless. Past it the weights are all
+ * reset to one and the recurrence is skipped: a neutral prior beats
+ * propagating numbers that have been shown to be wrong, and the exact
+ * value injected each iteration rebuilds the estimates from there. The
+ * test is symmetric, because a weight that has shrunk makes its row look
+ * urgent and is the more dangerous direction.
+ *
+ * Reachable from outside the simplex for one reason: a wrong weight costs
+ * iterations and never a wrong answer, so no solve-level test can catch
+ * it and both the formula and the restart have to be checked against norms
+ * recomputed from scratch. */
 void jm_dse_update(int64_t n, double *w, int64_t r,
-                   const double *alpha, const double *tau);
+                   const double *alpha, const double *tau,
+                   double exact_r, double drift_factor);
 
 /* Harris' two-pass ratio test [7], over n candidate breakpoints.
  *

@@ -151,6 +151,7 @@ changelog entry. Full formulas in `docs/tolerances.md` when written.
 | Markowitz threshold u | 0.1 |
 | Factor drop tolerance | 1e-14 |
 | Harris tolerance window | 1e-7 |
+| Steepest-edge weight drift factor | 10 |
 | Refactorization interval target | 64–128 iterations, stability-triggered earlier |
 | Netlib objective acceptance | \|obj − ref\| ≤ 1e-6 · max(1, \|ref\|) |
 | Checker tolerances (original space) | 1e-6 absolute on residuals, formulas to be published |
@@ -192,14 +193,10 @@ every solved test instance is put through the checker.
 
 Remaining, in the order they are expected to be taken:
 
-1. **Degeneracy handling**: deterministic bound perturbation, seeded and
-   removed at the end, plus steepest-edge weight resets on drift. The weights
-   are carried by a recurrence and never recomputed, so error in them
-   accumulates silently — it costs iterations, never correctness, which is
-   exactly why nothing else will surface it. The dual tolerance the ratio
-   test spends belongs here too: each step may push a reduced cost one
-   tolerance past feasible, and nothing yet repairs the ones that
-   accumulate. Cost shifting is the usual answer [1].
+1. **Degeneracy handling.** Steepest-edge weight resets are in. What remains
+   is the perturbation itself and the repair of what the ratio test spends —
+   see Q10, which has to close first, because §2.5.9 names a device that
+   does not fit the method that is built.
 2. **Netlib campaign**, instance by instance, with the determinism harness on
    throughout. This is the gate (§2.9), and it is where Q6 and the acceptance
    table get settled.
@@ -344,6 +341,26 @@ missed this".
   and cost magnitude present, in the same scaled space — or replacing
   artificial bounds with a phase 1 that does not need them (subproblem or
   cost shifting, per Koberstein [21]). It closes before the Netlib gate.
+- **Q10** — What breaks a stall in *this* method, and what repairs what the
+  ratio test spends. §2.5.9 calls for deterministic bound perturbation, and
+  that is the primal simplex's device: the primal stalls on a zero-length
+  primal step, and bounds are what a zero-length primal step is made of. The
+  dual simplex stalls somewhere else. Its progress per iteration is the dual
+  step times the violation being repaired, and the dual step is
+  `d_q / alpha_q`, so a zero-progress iteration is one whose entering
+  candidate already had a zero reduced cost. Bounds do not appear in
+  `d = c - y'A`, so no perturbation of them can move that off zero;
+  perturbing costs can. Bound flipping, already built, removes part of the
+  short-step behaviour but not this.
+
+  The same question carries the repair the ratio test needs. Every Harris
+  step may leave a reduced cost up to one tolerance past feasible and
+  nothing removes those. Cost shifting is the usual answer [1], and its hard
+  half is the end of it: once the shifts come off, the basis is primal
+  feasible and may be dual infeasible, which is the primal simplex's
+  situation, and there is no primal simplex before M6. Accepting the
+  residue, flipping the boxed columns it lands on, or re-entering through
+  phase 1 are three different answers and not the same decision.
 - **Q8** — How exact verification gets done, decided when M2 opens with
   certificate export. GMP is the obvious tool and D11 excludes it (LGPL),
   including for test-only use, since D15 exempts test dependencies from D2

@@ -435,50 +435,96 @@ static void exact_weights(double b[DSE_N][DSE_N], double *w)
     jm_lu_free(&lu);
 }
 
-static void test_dse_weights_match_recomputed_norms(void)
+/* The pivot the three weight tests below all share: a basis with nothing
+ * special about it beyond being nonsingular, an entering column that
+ * leaves the replacement nonsingular too, and the two transformed vectors
+ * the recurrence needs — both taken against the basis as it stands before
+ * the change, which is exactly how the simplex has them when it pivots.
+ *
+ * Fills `w` with the exact weights before the pivot, `expect` with the
+ * exact weights after it, and alpha/tau with what jm_dse_update consumes.
+ */
+constexpr int64_t DSE_ROW = 1;      /* the basis row the column enters at */
+
+static void dse_pivot_case(double *w, double *expect,
+                           double *alpha, double *tau)
 {
-    /* Nothing special about this basis beyond being nonsingular, and an
-     * entering column that leaves the replacement nonsingular too. */
     double b[DSE_N][DSE_N] = {
         {2.0, 1.0, 0.0},
         {0.0, 3.0, 1.0},
         {1.0, 0.0, 4.0},
     };
     const double aq[DSE_N] = {1.0, 2.0, 3.0};
-    const int64_t r = 1;            /* the basis row the column enters at */
 
-    double w[DSE_N];
     exact_weights(b, w);
 
-    /* alpha = B^-1 a_q and tau = B^-1 (B^-T e_r), both against the basis
-     * as it stands before the change — which is exactly how the simplex
-     * has them when it pivots. */
     csc3 c;
     jm_lu lu;
     factor3(b, &c, &lu);
 
-    double alpha[DSE_N];
-    memcpy(alpha, aq, sizeof alpha);
+    memcpy(alpha, aq, DSE_N * sizeof *alpha);
     jm_lu_ftran(&lu, alpha, nullptr);
 
-    double tau[DSE_N] = {0.0};
-    tau[r] = 1.0;
+    memset(tau, 0, DSE_N * sizeof *tau);
+    tau[DSE_ROW] = 1.0;
     jm_lu_btran(&lu, tau, nullptr);
     jm_lu_ftran(&lu, tau, nullptr);
     jm_lu_free(&lu);
 
-    jm_dse_update(DSE_N, w, r, alpha, tau);
-
     double after[DSE_N][DSE_N];
     memcpy(after, b, sizeof after);
     for (int64_t i = 0; i < DSE_N; i++)
-        after[i][r] = aq[i];
-
-    double expect[DSE_N];
+        after[i][DSE_ROW] = aq[i];
     exact_weights(after, expect);
+}
+
+static void test_dse_weights_match_recomputed_norms(void)
+{
+    double w[DSE_N], expect[DSE_N], alpha[DSE_N], tau[DSE_N];
+    dse_pivot_case(w, expect, alpha, tau);
+
+    jm_dse_update(DSE_N, w, DSE_ROW, alpha, tau, w[DSE_ROW], 10.0);
 
     for (int64_t i = 0; i < DSE_N; i++)
         TEST_ASSERT_DOUBLE_WITHIN(1e-9, expect[i], w[i]);
+}
+
+/* A carried weight that has slipped, but not far enough to be worthless,
+ * is repaired rather than propagated: the exact value is known for that
+ * one row, so the answer must be the same as if it had never slipped. */
+static void test_dse_repairs_a_carried_weight_that_slipped(void)
+{
+    double w[DSE_N], expect[DSE_N], alpha[DSE_N], tau[DSE_N];
+    dse_pivot_case(w, expect, alpha, tau);
+
+    double truth = w[DSE_ROW];
+    w[DSE_ROW] = truth * 1.5;       /* inside a factor of ten */
+
+    jm_dse_update(DSE_N, w, DSE_ROW, alpha, tau, truth, 10.0);
+
+    for (int64_t i = 0; i < DSE_N; i++)
+        TEST_ASSERT_DOUBLE_WITHIN(1e-9, expect[i], w[i]);
+}
+
+/* Past the factor there is nothing to repair with: the other weights are
+ * carried by the same recurrence that produced this one, so all of them
+ * are thrown away for the neutral prior. Both directions count — a weight
+ * that has shrunk makes its row look urgent, which is the worse of the
+ * two. */
+static void test_dse_restarts_when_the_carried_weight_has_drifted(void)
+{
+    for (int trial = 0; trial < 2; trial++) {
+        double w[DSE_N], expect[DSE_N], alpha[DSE_N], tau[DSE_N];
+        dse_pivot_case(w, expect, alpha, tau);
+
+        double truth = w[DSE_ROW];
+        w[DSE_ROW] = trial == 0 ? truth * 1e6 : truth * 1e-6;
+
+        jm_dse_update(DSE_N, w, DSE_ROW, alpha, tau, truth, 10.0);
+
+        for (int64_t i = 0; i < DSE_N; i++)
+            TEST_ASSERT_EQUAL_DOUBLE(1.0, w[i]);
+    }
 }
 
 /* ---- scaling ---------------------------------------------------------- */
@@ -781,6 +827,8 @@ int main(void)
     RUN_TEST(test_pricing_is_charged_to_the_work_counter);
     RUN_TEST(test_simultaneous_violations_of_wildly_different_size);
     RUN_TEST(test_dse_weights_match_recomputed_norms);
+    RUN_TEST(test_dse_repairs_a_carried_weight_that_slipped);
+    RUN_TEST(test_dse_restarts_when_the_carried_weight_has_drifted);
     RUN_TEST(test_scaling_changes_the_arithmetic_not_the_answer);
     RUN_TEST(test_answers_come_back_in_the_models_units);
     RUN_TEST(test_bound_flipping_fills_columns_in_one_step);

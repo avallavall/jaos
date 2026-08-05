@@ -59,6 +59,14 @@ constexpr double LU_UPDATE_TOL = 1e-9;
  * the truth are a separate matter, handled by resetting them (PLAN 2.8). */
 constexpr double DSE_MIN = 1e-12;
 
+/* How far a carried weight may sit from the exact one before the whole set
+ * is thrown away and restarted (PLAN 2.6). A draft, like the tolerances:
+ * too tight and the method keeps discarding usable information, too loose
+ * and it prices on numbers that no longer mean anything. A factor of ten
+ * is well outside what rounding produces and well inside what a single
+ * badly conditioned pivot can. */
+constexpr double DSE_DRIFT = 10.0;
+
 /* Refactorization interval. PLAN 2.5.5 also calls for stability triggers
  * (FTRAN/BTRAN residual checks); only the interval and the reactive
  * fallback on a failed update exist so far. */
@@ -544,15 +552,36 @@ static int64_t price_row(sx *s, bool *below, double *violation)
     return best;
 }
 
+/* Has a carried weight lost touch with the truth? A weight is the squared
+ * norm of a row of the inverse of a nonsingular matrix, so anything that
+ * is not finite and positive is already wrong, whichever side it sits on
+ * of any factor. */
+static bool weight_drifted(double carried, double exact, double factor)
+{
+    if (!isfinite(carried) || carried <= 0.0)
+        return true;
+    if (!isfinite(exact) || exact <= 0.0)
+        return true;
+    return carried > exact * factor || carried * factor < exact;
+}
+
 /* The weight recurrence. Row i of the new B^-1 is row i minus
  * (alpha_i / alpha_r) times row r, and row r becomes row r over alpha_r;
  * expanding the squared norms of those two statements gives everything
- * below, with tau_i = rho_i . rho_r supplying the cross term. Documented
- * in the header, which is also where the exported-for-testing rationale
- * lives. */
+ * below, with tau_i = rho_i . rho_r supplying the cross term. The exact
+ * weight and the restart it can trigger are documented in the header,
+ * which is also where the exported-for-testing rationale lives. */
 void jm_dse_update(int64_t n, double *w, int64_t r,
-                   const double *alpha, const double *tau)
+                   const double *alpha, const double *tau,
+                   double exact_r, double drift_factor)
 {
+    if (weight_drifted(w[r], exact_r, drift_factor)) {
+        for (int64_t i = 0; i < n; i++)
+            w[i] = 1.0;
+        return;
+    }
+    w[r] = exact_r;
+
     double pivot = alpha[r];
     if (pivot == 0.0)
         return;   /* the ratio test never picks one, and weights are a
@@ -825,8 +854,17 @@ static jaos_status pivot(sx *s, int64_t r, int64_t q, bool below,
      * it [8]. */
     memcpy(s->tau, s->rho, (size_t)s->nrow * sizeof *s->tau);
     jm_lu_ftran(&s->lu, s->tau, &s->work);
-    jm_dse_update(s->nrow, s->dse, r, s->col, s->tau);
-    jm_work_add(&s->work, s->nrow * JM_WORK_NONZERO);
+
+    /* One weight is known exactly at no cost: rho is row r of B^-1, so its
+     * squared norm is the very quantity the recurrence has been estimating
+     * for that row. Handing it over lets the step start from a true value,
+     * and lets the recurrence be caught when it has drifted away from one. */
+    double exact = 0.0;
+    for (int64_t i = 0; i < s->nrow; i++)
+        exact += s->rho[i] * s->rho[i];
+
+    jm_dse_update(s->nrow, s->dse, r, s->col, s->tau, exact, DSE_DRIFT);
+    jm_work_add(&s->work, 2 * s->nrow * JM_WORK_NONZERO);
 
     double q_value = nonbasic_value(s, q);
     for (int64_t i = 0; i < s->nrow; i++)
