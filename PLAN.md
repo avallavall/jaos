@@ -355,6 +355,32 @@ missed this".
   and cost magnitude present, in the same scaled space — or replacing
   artificial bounds with a phase 1 that does not need them (subproblem or
   cost shifting, per Koberstein [21]). It closes before the Netlib gate.
+
+  The first route was tried and reverted; what the attempt established,
+  measured on models run against the built library, narrows what a second
+  one may do:
+
+  - **Bounds and costs cannot go into one magnitude.** They carry
+    reciprocal scale factors, `1/gamma` and `gamma`, so a maximum over
+    both mixes unit systems and makes the answer depend on the objective's
+    scale. Multiplying every cost by 1e6 — which cannot move an LP's
+    optimum — moved it thirty percent, and the point was published
+    OPTIMAL with the checker reporting it primal infeasible.
+  - **A global maximum couples columns that share no row.** Sizing one
+    loan for the whole model lets a column appearing in no row at all
+    change another column's verdict. Whatever a loan is derived from has
+    to be something that column is actually connected to.
+  - **Any cap is a big-M by another name.** A ceiling low enough to keep
+    the arithmetic sane is the same constant for every model above it,
+    which is the fault being fixed, not a fix for it.
+  - **A test cannot land inside the cap.** The one written for it did,
+    so it would have passed against a hardcoded constant and proved
+    nothing about derivation.
+
+  A margin derived from data cannot promise that no model's optimum lies
+  past it, whatever it is derived from. What would is a phase 1 that
+  invents no bounds, or reading the unbounded verdict off a ray rather
+  than off a variable resting on an invented bound.
 - **Q10** — What breaks a stall in *this* method, and what repairs what the
   ratio test spends. §2.5.9 calls for deterministic bound perturbation, and
   that is the primal simplex's device: the primal stalls on a zero-length
