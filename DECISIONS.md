@@ -204,3 +204,42 @@ A dedicated measurement host will be needed once there is something worth measur
 same distribution, no desktop, nothing else running, CPU governor pinned to
 performance. It gets built then, not before. The value of a benchmark host is
 comparability over time, and that starts with the first number worth recording.
+
+## D18 — What the independent checker guarantees, and what it does not
+
+The checker is the oracle every solve is judged against, so what its
+independence actually rests on has to be stated rather than assumed. Three
+things:
+
+- **Independent inputs.** Only the model as loaded and the claimed solution
+  enter. No basis, no factorization, no solver state — a solver cannot pass
+  its reasoning in alongside its answer.
+- **Redundant identities.** Primal feasibility, dual sign conditions,
+  complementary slackness and the primal-dual gap are checked together and
+  constrain each other. The dual objective is accumulated from bounds while
+  activities come from a separate pass over the matrix, so a corrupted dot
+  product surfaces as a nonzero gap even where it also corrupts the reduced
+  costs. The system is overdetermined; one broken kernel cannot satisfy all
+  four at once.
+- **Better arithmetic.** Accumulation is in `long double`, so the oracle's own
+  rounding sits an order below what it is judging. A checker no more accurate
+  than the solver is partly measuring itself.
+
+It does **not** rest on the checker and the solver avoiding similar-looking
+code. That was the original justification and it was wrong: both were written
+by the same author with the same mental model, so duplication guards against
+typos, not against a misconception — and a misconception is exactly what a
+checker exists to catch. The two implementations stay apart for a different
+and better reason: sharing would make the checker link against solver
+internals, the coupling it exists to forbid. Once scaling reaches the solve
+path (Q7) they operate on different matrices regardless.
+
+The limit worth naming: the checker cannot detect a model the loader built
+wrongly. It reads the same stored matrix the solver does, so if that is wrong
+both agree about the wrong problem. Only external ground truth closes that,
+which is one of the things the Netlib gate is for.
+
+None of this holds unless the checker rejects what it should, so the suite
+feeds it wrong dual signs, broken complementarity, primal violations and wrong
+dual magnitudes, and requires each to be caught.
+

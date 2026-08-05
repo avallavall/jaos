@@ -233,6 +233,17 @@ rational optima for the Netlib problems (ZIB-Report 03-05, free PDF at
 instance not covered by [22] takes its reference from the Netlib readme and is
 marked as such.
 
+These references are load-bearing for a reason beyond convenience: they are
+the only part of the gate that can catch a model the readers built wrongly.
+The checker verifies a solution against the matrix JAOS stored, so a
+reader bug leaves checker and solver agreeing about the wrong problem (D18).
+An externally published optimum for a named instance is the one thing in the
+milestone that does not come from JAOS.
+
+Koch verified those values with exact rational arithmetic and, in doing so,
+found previously published reference values that were wrong — which is also
+the reason the gate cites him rather than the readme where they differ.
+
 **Tolerance context.** The §2.6 drafts sit at HiGHS's documented defaults (1e-7
 primal and dual feasibility); SoPlex defaults to 1e-6. Both verified against
 their documentation and source respectively — ours match the stricter of the two.

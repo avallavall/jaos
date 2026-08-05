@@ -193,9 +193,11 @@ static void var_column(const sx *s, int64_t v, double *out)
 /* rho' M_v, the pricing-row entry for variable v, charging the nonzeros it
  * touches (PLAN 2.7 weights pricing the same as any other solve traffic).
  *
- * src/check.c computes reduced costs with the same shape of loop. Leave
- * both: sharing one implementation would let a wrong pricing rule verify
- * itself, which is exactly what the checker exists to prevent. */
+ * src/check.c has a loop of similar shape. They stay apart because sharing
+ * would make the checker link against solver internals — this function
+ * takes solver state, handles logicals and bills work units, none of which
+ * the checker has any business seeing. See the header of src/check.c for
+ * what the checker's independence actually rests on; it is not this. */
 static double price_entry(sx *s, int64_t v)
 {
     if (v >= s->ncol) {
