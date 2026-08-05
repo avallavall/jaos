@@ -68,3 +68,7 @@ versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   amount of dual feasibility — one tolerance's worth — on a better
   conditioned one. Where many candidates block at the same point, which is
   most of a degenerate solve, this is what decides between them.
+- Bound flipping in the ratio test: a variable with two finite bounds no
+  longer stops an iteration short. It is swapped to its other bound and the
+  step carries on, so a model whose answer fills one bounded column after
+  another is solved in one long step instead of one step per column.

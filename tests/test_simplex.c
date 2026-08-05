@@ -481,6 +481,37 @@ static void test_dse_weights_match_recomputed_norms(void)
         TEST_ASSERT_DOUBLE_WITHIN(1e-9, expect[i], w[i]);
 }
 
+/* Eight boxed columns feeding one row:
+ *   min sum j*x_j  s.t. sum x_j >= 5.5, 0 <= x_j <= 1
+ * The answer is to fill the five cheapest columns and half-fill the sixth:
+ * 1+2+3+4+5 + 3 = 18.
+ *
+ * Every column starts at its lower bound and every one of them blocks the
+ * dual step in turn, so without bound flipping this is one iteration per
+ * column filled. With it the step passes each column by swapping it to its
+ * upper bound and carries on while the row is still short, and the whole
+ * model is one long step: five swaps and a single basis change. The
+ * iteration count is asserted for exactly that reason - it is the only
+ * place the long step is visible from outside. */
+static void test_bound_flipping_fills_columns_in_one_step(void)
+{
+    const double c[] = {1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0};
+    const double cl[] = {0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
+    const double cu[] = {1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0};
+    const double rl[] = {5.5}, ru[] = {INFINITY};
+    const int64_t as[] = {0, 1, 2, 3, 4, 5, 6, 7, 8};
+    const int64_t ai[] = {0, 0, 0, 0, 0, 0, 0, 0};
+    const double av[] = {1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0};
+
+    jaos_model *m = fresh();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_load_lp(m, 8, 1, JAOS_MINIMIZE, 0.0, c, cl, cu, rl, ru,
+                     8, as, ai, av));
+    solve_and_verify(m, 18.0);
+    TEST_ASSERT_EQUAL_INT64(1, jaos_iterations(m));
+    jaos_model_free(m);
+}
+
 /* ---- Harris' ratio test ---------------------------------------------- */
 
 /* Same argument as the weights above: which candidate the ratio test picks
@@ -641,6 +672,7 @@ int main(void)
     RUN_TEST(test_pricing_is_charged_to_the_work_counter);
     RUN_TEST(test_simultaneous_violations_of_wildly_different_size);
     RUN_TEST(test_dse_weights_match_recomputed_norms);
+    RUN_TEST(test_bound_flipping_fills_columns_in_one_step);
     RUN_TEST(test_harris_ignores_a_big_pivot_outside_the_window);
     RUN_TEST(test_harris_prefers_the_larger_pivot_inside_the_window);
     RUN_TEST(test_harris_on_a_degenerate_vertex_takes_the_best_pivot);

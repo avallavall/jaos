@@ -147,6 +147,7 @@ typedef struct {
      * arithmetic — jm_harris_pick sees only the second. */
     int64_t *cand;           /* [nvar] */
     double *rnum, *rden;     /* [nvar] */
+    double *rrange;          /* [nvar] width of the box, or infinity */
 
     /* Refactorization buffers, grown once and reused: a refactorization
      * every REFACTOR_EVERY iterations should not also be an allocation. */
@@ -169,7 +170,7 @@ static void sx_free(sx *s)
     free(s->status); free(s->basis); free(s->where);
     free(s->xb); free(s->d); free(s->dse);
     free(s->col); free(s->raw); free(s->rho); free(s->tau); free(s->alpha);
-    free(s->cand); free(s->rnum); free(s->rden);
+    free(s->cand); free(s->rnum); free(s->rden); free(s->rrange);
     free(s->bs); free(s->bi); free(s->bv);
     free(s->fake);
     jm_lu_free(&s->lu);
@@ -202,13 +203,14 @@ static jaos_status sx_init(sx *s, jaos_model *m)
     s->cand   = jm_alloc_array(s->nvar, sizeof(int64_t));
     s->rnum   = jm_alloc_array(s->nvar, sizeof(double));
     s->rden   = jm_alloc_array(s->nvar, sizeof(double));
+    s->rrange = jm_alloc_array(s->nvar, sizeof(double));
     s->bs     = jm_alloc_array(s->nrow + 1, sizeof(int64_t));
     s->fake   = jm_calloc_array(s->nvar, sizeof *s->fake);
 
     if (!s->lo || !s->up || !s->cost || !s->status || !s->basis ||
         !s->where || !s->xb || !s->d || !s->dse || !s->col || !s->raw ||
         !s->rho || !s->tau || !s->alpha || !s->cand || !s->rnum ||
-        !s->rden || !s->bs || !s->fake) {
+        !s->rden || !s->rrange || !s->bs || !s->fake) {
         sx_free(s);
         return JAOS_ERR_OUT_OF_MEMORY;
     }
@@ -470,8 +472,9 @@ static jaos_status refresh(sx *s, bool *ok)
  * largest determinant of how many iterations a real model takes [1].
  *
  * A variable cannot break both of its bounds at once, so the larger of the
- * two violations is the only candidate. */
-static int64_t price_row(sx *s, bool *below)
+ * two violations is the only candidate. *violation carries the size of the
+ * chosen one out: the ratio test spends it. */
+static int64_t price_row(sx *s, bool *below, double *violation)
 {
     int64_t best = -1;
     double best_score = 0.0;
@@ -491,6 +494,7 @@ static int64_t price_row(sx *s, bool *below)
             best_score = score;
             best = i;
             *below = under;
+            *violation = viol;
         }
     }
     jm_work_add(&s->work, s->nrow * JM_WORK_NONZERO);
@@ -523,13 +527,110 @@ void jm_dse_update(int64_t n, double *w, int64_t r,
     w[r] = wnew > DSE_MIN ? wnew : DSE_MIN;
 }
 
-/* Two passes of Harris [7] over the entering candidates.
+/* Bound flipping [19][1]. A candidate with two finite bounds does not have
+ * to stop the dual step. Swapping it to its other bound keeps it dual
+ * feasible — its reduced cost crosses zero exactly as the variable crosses
+ * to the side where the opposite sign is what feasibility means — and it
+ * moves row r towards its bound by |alpha| times the width of the box.
+ * While that still leaves the row short, the step can pass the breakpoint
+ * and carry on, so one long iteration replaces a run of short ones.
+ *
+ * `remaining` is the row's violation, spent down by each swap. The walk
+ * pops candidates in ascending ratio order with a linear scan per swap
+ * rather than sorting the whole set once: the number of swaps is small in
+ * practice and the sort would be paid on every iteration. That is a guess
+ * about the common case, and PLAN 2.11 records it as one.
+ *
+ * Retired candidates are swapped to the tail: [0, live) are still in play
+ * and [live, n) are to be flipped. A returned zero means every candidate
+ * was passed and the row is still short — no step blocks it, the dual is
+ * unbounded, and the primal has no feasible point.
+ *
+ * A fixed column, whose bounds coincide, falls out of this for free: its
+ * box has no width, so passing it costs nothing and it never blocks a step
+ * it could not constrain anyway. */
+static int64_t bfrt_walk(sx *s, int64_t n, double remaining)
+{
+    int64_t live = n;
+
+    while (live > 0) {
+        int64_t k = 0;
+        double least = HUGE_VAL;
+        for (int64_t j = 0; j < live; j++) {
+            double t = s->rnum[j] / s->rden[j];
+            if (t < least) {
+                least = t;
+                k = j;
+            }
+        }
+        jm_work_add(&s->work, live * JM_WORK_NONZERO);
+
+        double width = s->rrange[k];
+        if (!isfinite(width))
+            break;                     /* no other bound to swap to */
+        if (!(remaining - s->rden[k] * width > 0.0))
+            break;                     /* swapping would overshoot: it blocks */
+        remaining -= s->rden[k] * width;
+
+        live--;
+        int64_t ci = s->cand[k];
+        double a = s->rnum[k], b = s->rden[k], c = s->rrange[k];
+        s->cand[k]   = s->cand[live];   s->cand[live]   = ci;
+        s->rnum[k]   = s->rnum[live];   s->rnum[live]   = a;
+        s->rden[k]   = s->rden[live];   s->rden[live]   = b;
+        s->rrange[k] = s->rrange[live]; s->rrange[live] = c;
+    }
+    return live;
+}
+
+/* Swaps the retired candidates bound to bound and moves the primal point
+ * with them. x_B = -B^-1 N x_N, so a nonbasic moving by delta moves the
+ * basics by -B^-1 M_v delta; the moves are accumulated into one column and
+ * transformed once, because the cost of a solve is in the solve and not in
+ * the vector it is given. */
+static void apply_flips(sx *s, int64_t at, int64_t n)
+{
+    /* Borrowed: pivot() overwrites col with the entering column before
+     * reading it, and this is the last use before that. */
+    double *rhs = s->col;
+    memset(rhs, 0, (size_t)s->nrow * sizeof *rhs);
+
+    for (int64_t k = at; k < n; k++) {
+        int64_t v = s->cand[k];
+        double from = nonbasic_value(s, v);
+        s->status[v] = s->status[v] == JM_AT_LOWER ? JM_AT_UPPER
+                                                   : JM_AT_LOWER;
+        double delta = nonbasic_value(s, v) - from;
+        if (delta == 0.0)
+            continue;                  /* a fixed column: nothing moved */
+
+        if (v < s->ncol) {
+            const jaos_model *m = s->m;
+            for (int64_t p = m->a_start[v]; p < m->a_start[v + 1]; p++)
+                rhs[m->a_index[p]] += m->a_value[p] * delta;
+            jm_work_add(&s->work, (m->a_start[v + 1] - m->a_start[v]) *
+                                  JM_WORK_NONZERO);
+        } else {
+            rhs[v - s->ncol] -= delta;   /* column is -e_i */
+            jm_work_add(&s->work, JM_WORK_NONZERO);
+        }
+    }
+
+    jm_lu_ftran(&s->lu, rhs, &s->work);
+    for (int64_t i = 0; i < s->nrow; i++)
+        s->xb[i] -= rhs[i];
+    jm_work_add(&s->work, s->nrow * JM_WORK_NONZERO);
+}
+
+/* The ratio test: who may enter, how far the step may go, and which
+ * candidate takes it.
  *
  * The eligible set is a matter of signs: dx_B[r] = -a * dx_v, and dx_v's
  * direction is fixed by which bound v sits at, so only some entries push
  * row r the way it has to go. That part is solver state and lives here.
- * Which of the eligible ones wins is arithmetic, and lives in
- * jm_harris_pick.
+ * How far the step reaches is bfrt_walk, and which of the candidates still
+ * standing wins is jm_harris_pick — arithmetic, both of them, and neither
+ * needs to know what a basis is.
  *
  * The numerator is the distance from v's reduced cost to infeasibility,
  * not its magnitude: they differ when d has already drifted a hair past
@@ -538,9 +639,11 @@ void jm_dse_update(int64_t n, double *w, int64_t r,
  * direction. Clamped at zero, an already-infeasible cost blocks at once,
  * and the step that follows repairs it exactly.
  *
- * Bound flipping [19][1] goes here next: a boxed candidate need not stop
- * the step at all, it can swap bounds and let it continue. */
-static int64_t dual_ratio_test(sx *s, bool below, double *theta_out)
+ * The flips are applied here rather than reported outwards: they are part
+ * of the step, and a caller holding a half-taken step is a caller who can
+ * forget to finish it. */
+static int64_t dual_ratio_test(sx *s, bool below, double violation,
+                               double *theta_out)
 {
     int64_t n = 0;
 
@@ -569,6 +672,7 @@ static int64_t dual_ratio_test(sx *s, bool below, double *theta_out)
         s->cand[n] = v;
         s->rnum[n] = dist > 0.0 ? dist : 0.0;
         s->rden[n] = fabs(a);
+        s->rrange[n] = s->up[v] - s->lo[v];
         n++;
     }
     jm_work_add(&s->work, s->nvar * JM_WORK_NONZERO);
@@ -576,10 +680,17 @@ static int64_t dual_ratio_test(sx *s, bool below, double *theta_out)
     if (n == 0)
         return -1;
 
-    int64_t k = jm_harris_pick(n, s->rnum, s->rden, DUAL_TOL);
-    jm_work_add(&s->work, 2 * n * JM_WORK_NONZERO);
+    int64_t live = bfrt_walk(s, n, violation);
+    if (live == 0)
+        return -1;   /* nothing blocks the step; the model is infeasible */
 
+    int64_t k = jm_harris_pick(live, s->rnum, s->rden, DUAL_TOL);
+    jm_work_add(&s->work, 2 * live * JM_WORK_NONZERO);
     int64_t best = s->cand[k];
+
+    if (live < n)
+        apply_flips(s, live, n);
+
     /* The step that lands the winner's reduced cost exactly on zero. Every
      * other candidate inside the window ends at worst DUAL_TOL past
      * feasible, which is the whole of what Harris trades away. */
@@ -614,9 +725,11 @@ int64_t jm_harris_pick(int64_t n, const double *num, const double *den,
     return best;
 }
 
-/* Builds row r of B^-1 M and picks the entering variable from it. */
+/* Builds row r of B^-1 M and picks the entering variable from it. May also
+ * swap nonbasic variables between their bounds on the way — see
+ * dual_ratio_test — which moves the primal point but not the basis. */
 static int64_t price_and_select(sx *s, int64_t r, bool below,
-                                double *theta_dual)
+                                double violation, double *theta_dual)
 {
     memset(s->rho, 0, (size_t)s->nrow * sizeof *s->rho);
     s->rho[r] = 1.0;
@@ -625,7 +738,7 @@ static int64_t price_and_select(sx *s, int64_t r, bool below,
     for (int64_t v = 0; v < s->nvar; v++)
         s->alpha[v] = s->status[v] == JM_BASIC ? 0.0 : price_entry(s, v);
 
-    return dual_ratio_test(s, below, theta_dual);
+    return dual_ratio_test(s, below, violation, theta_dual);
 }
 
 /* Applies the basis change: q enters at position r, the variable there
@@ -757,7 +870,8 @@ static jaos_status run(sx *s, jaos_solve_status *out)
         }
 
         bool below = false;
-        int64_t r = price_row(s, &below);
+        double violation = 0.0;
+        int64_t r = price_row(s, &below, &violation);
         if (r < 0) {
             *out = leans_on_an_invented_bound(s) ? JAOS_SOLVE_UNBOUNDED
                                                  : JAOS_SOLVE_OPTIMAL;
@@ -765,7 +879,7 @@ static jaos_status run(sx *s, jaos_solve_status *out)
         }
 
         double theta_dual = 0.0;
-        int64_t q = price_and_select(s, r, below, &theta_dual);
+        int64_t q = price_and_select(s, r, below, violation, &theta_dual);
         if (q < 0) {
             /* No entering column can repair row r: the dual is unbounded,
              * so the primal has no feasible point. */

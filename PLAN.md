@@ -186,33 +186,30 @@ Built and closed, recorded in the changelog and its commits: scaffold, model
 core with the independent checker, MPS and LP readers, Curtis-Reid scaling,
 sparse LU with Forrest-Tomlin updates and the work counter in its kernels, and
 a dual simplex that solves bounded LPs with dual steepest-edge pricing, a
-Harris two-pass ratio test and a dual phase 1 by artificial bounds. `make
-test` covers all of it, and every solved test instance is put through the
-checker.
+Harris two-pass ratio test with bound flipping, and a dual phase 1 by
+artificial bounds. `make test` covers all of it, and every solved test
+instance is put through the checker.
 
 Remaining, in the order they are expected to be taken:
 
-1. **Bound flipping in the ratio test** [19][1]. Harris' two passes are in;
-   the long steps are not. A candidate with two finite bounds need not stop
-   the dual step at all — it can swap bounds and let it continue — which on
-   models full of boxed variables turns many short iterations into one long
-   one. It changes more than a choice: flipped variables move, so the primal
-   point moves with them.
-2. **Wire scaling into the solve path (Q7)**, which also puts the §2.6
+1. **Wire scaling into the solve path (Q7)**, which also puts the §2.6
    tolerances into the space they are specified for, and settles Q9 along the
    way if the artificial bound is derived from scaled magnitudes.
-3. **Degeneracy handling**: deterministic bound perturbation, seeded and
+2. **Degeneracy handling**: deterministic bound perturbation, seeded and
    removed at the end, plus steepest-edge weight resets on drift. The weights
    are carried by a recurrence and never recomputed, so error in them
    accumulates silently — it costs iterations, never correctness, which is
-   exactly why nothing else will surface it.
-4. **Netlib campaign**, instance by instance, with the determinism harness on
+   exactly why nothing else will surface it. The dual tolerance the ratio
+   test spends belongs here too: each step may push a reduced cost one
+   tolerance past feasible, and nothing yet repairs the ones that
+   accumulate. Cost shifting is the usual answer [1].
+3. **Netlib campaign**, instance by instance, with the determinism harness on
    throughout. This is the gate (§2.9), and it is where Q6 and the acceptance
    table get settled.
 
 A refactorization stability trigger (§2.5.5) is still missing: only the
 interval and the reactive fallback on a failed update exist. It belongs with
-step 4, where a real instance will finally exercise it.
+step 3, where a real instance will finally exercise it.
 
 §2.5.6's debugging fallback to max-infeasibility pricing is not built. There
 is nowhere to put the flag — the library has no options API and inventing one
@@ -308,6 +305,12 @@ missed this".
   buys a constant factor on a path that has no benchmark behind it yet.
 - **Finding the pivot row's entry inside a column is a scan.** Same missing
   row-to-position lookup as the erase above, on the factorization path.
+- **The ratio test's long step re-scans for each breakpoint.** Bound
+  flipping walks the candidates in ascending ratio order and finds each
+  one with a linear scan of those still standing, rather than sorting the
+  set once. That is the right trade when few candidates are passed and the
+  wrong one when many are, and which of those a real model does is exactly
+  what has not been measured.
 - **Two sparse-accumulator idioms coexist** in the elimination — a
   touched-list scatter and a stamp-based dedup — because they arose for
   different jobs. When the simplex needs its own scatter for pricing, all
