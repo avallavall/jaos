@@ -277,9 +277,11 @@ static void test_extreme_magnitudes_do_not_overflow(void)
         TEST_ASSERT_TRUE(spread(m) < before);
 
         /* This matrix needs more exponent range than JAOS expresses, and
-         * that has to be visible rather than passed off as success. */
+         * that has to be visible rather than passed off as success — on
+         * the flag, not on the error string, which stays reserved for
+         * failures. */
         TEST_ASSERT_TRUE(m->scale_clamped);
-        TEST_ASSERT_TRUE(strlen(jaos_model_error(m)) > 0);
+        TEST_ASSERT_EQUAL_STRING("", jaos_model_error(m));
         jaos_model_free(m);
     }
 }

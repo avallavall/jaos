@@ -162,10 +162,20 @@ solve budget and documented as such.
 
 | Event | Draft weight |
 |---|---|
-| Nonzero touched in FTRAN/BTRAN/pricing/update | 1 |
-| Nonzero eliminated during refactorization | 2 |
-| Fixed overhead per simplex iteration | 64 |
+| Nonzero touched in a solve, in pricing, or in an update | 1 |
+| Nonzero eliminated, in a factorization or in a basis update | 2 |
+| Fixed overhead per basis update | 64 |
+| Fixed overhead per simplex iteration | *see note* |
 | Fixed overhead per refactorization | 4096 |
+
+An elimination is charged by what it does, not by which routine runs it: the
+same axpy costs the same inside a factorization and inside a basis update.
+
+The per-iteration overhead has no number yet, deliberately. A dual simplex
+iteration performs exactly one basis update, so a separate per-iteration
+constant charged alongside the per-update one would bill a single event twice
+under two names. It is settled when the iteration exists and its non-update
+overhead — pricing, ratio test, bookkeeping — can be attributed on its own.
 
 Ratios calibrated before 1.0; frozen at 1.0; afterwards changes only at a major
 version (D16).
@@ -250,6 +260,22 @@ missed this".
   orientations. Memory for time, deliberately.
 - **The solves are dense in the working vector.** Hyper-sparsity [9] is
   already scheduled for M2 and is where this is addressed.
+- **`col_max_abs` is recomputed per pivot search.** A column's largest
+  magnitude only changes when the elimination rewrites that column, so it
+  could be cached and refreshed at that one point. Left alone because a
+  cache that is wrong is worse than a scan that is slow, and there is no
+  measurement yet to say how often the same untouched column is
+  re-examined.
+- **A basis update clears its dense row buffer over the whole dimension**
+  when triangularity says only positions at or after the outgoing slot can
+  be read. The narrower clear is correct but leans on that invariant, and
+  buys a constant factor on a path that has no benchmark behind it yet.
+- **Finding the pivot row's entry inside a column is a scan.** Same missing
+  row-to-position lookup as the erase above, on the factorization path.
+- **Two sparse-accumulator idioms coexist** in the elimination — a
+  touched-list scatter and a stamp-based dedup — because they arose for
+  different jobs. When the simplex needs its own scatter for pricing, all
+  three should become one shared mechanism rather than a third variant.
 
 ---
 

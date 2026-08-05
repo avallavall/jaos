@@ -50,7 +50,8 @@ struct jaos_model {
     /* Set when the exponent range a factor needed exceeded what JAOS is
      * willing to express, so the scaling actually applied is weaker than
      * the one computed. Silence here would let a caller believe the
-     * exponent range was fixed when it was not. */
+     * exponent range was fixed when it was not. This is a caveat on a
+     * success, so it travels here rather than in err. */
     bool scale_clamped;
 
     /* Detail message for the last failed operation; "" when it succeeded.
@@ -175,11 +176,11 @@ typedef struct {
     double  *u_diag;     /* [dim] */
 
     /* Forrest-Tomlin row transformations, in creation order. Each one is
-     * "y[target] -= factor * y[source]" during FTRAN. */
-    int64_t *ft_target;
+     * "y[target] -= factor * y[source]" during FTRAN: ft holds
+     * (target, factor), ft_source the matching sources. */
+    jm_svec ft;
     int64_t *ft_source;
-    double  *ft_factor;
-    int64_t ft_n, ft_cap;
+    int64_t ft_source_cap;
     int64_t n_updates;   /* updates applied since the last factorization */
 
     int64_t *slot_at;    /* slot_at[k] = slot currently at position k */
@@ -187,8 +188,14 @@ typedef struct {
 
     int64_t *perm_row;   /* slot s owns original row perm_row[s]       */
     int64_t *perm_col;   /* slot s owns basis column perm_col[s]       */
-    int64_t *inv_row;    /* original row i belongs to slot inv_row[i]  */
     int64_t *inv_col;    /* basis column j belongs to slot inv_col[j]  */
+
+    /* What counts as a structural zero, anchored to the basis matrix at
+     * factorization time. Updates reuse it rather than re-deriving a
+     * threshold from whichever column happens to be entering: otherwise
+     * "structurally absent" would drift with each spike's own norm
+     * instead of meaning one thing for one factorization. */
+    double drop;
 
     double *tmp;         /* [dim] solve workspace, owned */
     double *spike;       /* [dim] update workspace, owned */

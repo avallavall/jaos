@@ -22,8 +22,8 @@
 void setUp(void) {}
 void tearDown(void) {}
 
-#define MAXN 40
-#define PIVOT_TOL 0.1
+constexpr int    MAXN      = 40;
+constexpr double PIVOT_TOL = 0.1;
 
 /* ---- deterministic PRNG: xorshift64* --------------------------------- */
 
@@ -94,6 +94,15 @@ static void mat_mul_t(const mat *m, const double *x, double *out)
     }
 }
 
+/* Initialise and factor, asserting success. This block was verbatim at
+ * fifteen call sites; naming it also names what the assertion is for. */
+static void must_factor(const mat *m, jm_lu *lu, jm_work *w)
+{
+    jm_lu_init(lu);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jm_lu_factor(lu, m->n, m->start, m->index,
+                                                m->value, PIVOT_TOL, w));
+}
+
 static double max_abs_diff(const double *a, const double *b, int64_t n)
 {
     double d = 0.0;
@@ -154,10 +163,8 @@ static void test_identity_factors_and_solves_exactly(void)
     mat_pack(&m);
 
     jm_lu lu;
-    jm_lu_init(&lu);
     jm_work w = {0};
-    TEST_ASSERT_EQUAL_INT(JAOS_OK, jm_lu_factor(&lu, m.n, m.start, m.index,
-                                                m.value, PIVOT_TOL, &w));
+    must_factor(&m, &lu, &w);
     TEST_ASSERT_EQUAL_INT64(m.n, lu.rank);
 
     double x[MAXN];
@@ -183,10 +190,8 @@ static void test_permutation_matrix(void)
     mat_pack(&m);
 
     jm_lu lu;
-    jm_lu_init(&lu);
     jm_work w = {0};
-    TEST_ASSERT_EQUAL_INT(JAOS_OK, jm_lu_factor(&lu, m.n, m.start, m.index,
-                                                m.value, PIVOT_TOL, &w));
+    must_factor(&m, &lu, &w);
     TEST_ASSERT_EQUAL_INT64(m.n, lu.rank);
 
     rng_seed(11);
@@ -212,10 +217,8 @@ static void test_triangular_matrices(void)
         mat_pack(&m);
 
         jm_lu lu;
-        jm_lu_init(&lu);
         jm_work w = {0};
-        TEST_ASSERT_EQUAL_INT(JAOS_OK, jm_lu_factor(&lu, m.n, m.start,
-                                        m.index, m.value, PIVOT_TOL, &w));
+        must_factor(&m, &lu, &w);
         TEST_ASSERT_EQUAL_INT64(m.n, lu.rank);
         TEST_ASSERT_TRUE(solve_residual(&m, &lu, &w) < 1e-9);
         jm_lu_free(&lu);
@@ -236,10 +239,8 @@ static void test_random_matrices_solve_correctly(void)
             make_random(&m, n, densities[d]);
 
             jm_lu lu;
-            jm_lu_init(&lu);
             jm_work w = {0};
-            TEST_ASSERT_EQUAL_INT(JAOS_OK, jm_lu_factor(&lu, m.n, m.start,
-                                            m.index, m.value, PIVOT_TOL, &w));
+            must_factor(&m, &lu, &w);
             TEST_ASSERT_EQUAL_INT64(m.n, lu.rank);
 
             for (int rep = 0; rep < 3; rep++)
@@ -262,10 +263,8 @@ static void test_dense_matrices(void)
         make_random(&m, n, 1.0);
 
         jm_lu lu;
-        jm_lu_init(&lu);
         jm_work w = {0};
-        TEST_ASSERT_EQUAL_INT(JAOS_OK, jm_lu_factor(&lu, m.n, m.start, m.index,
-                                                    m.value, PIVOT_TOL, &w));
+        must_factor(&m, &lu, &w);
         TEST_ASSERT_EQUAL_INT64(m.n, lu.rank);
         TEST_ASSERT_TRUE(solve_residual(&m, &lu, &w) < 1e-8);
         jm_lu_free(&lu);
@@ -285,10 +284,8 @@ static void test_singular_matrices_are_reported_not_hidden(void)
         mat_pack(&m);
 
         jm_lu lu;
-        jm_lu_init(&lu);
         jm_work w = {0};
-        TEST_ASSERT_EQUAL_INT(JAOS_OK, jm_lu_factor(&lu, m.n, m.start, m.index,
-                                                    m.value, PIVOT_TOL, &w));
+        must_factor(&m, &lu, &w);
         TEST_ASSERT_EQUAL_INT64(3, lu.rank);
         jm_lu_free(&lu);
     }
@@ -303,10 +300,8 @@ static void test_singular_matrices_are_reported_not_hidden(void)
         mat_pack(&m);
 
         jm_lu lu;
-        jm_lu_init(&lu);
         jm_work w = {0};
-        TEST_ASSERT_EQUAL_INT(JAOS_OK, jm_lu_factor(&lu, m.n, m.start, m.index,
-                                                    m.value, PIVOT_TOL, &w));
+        must_factor(&m, &lu, &w);
         TEST_ASSERT_TRUE(lu.rank < m.n);
         jm_lu_free(&lu);
     }
@@ -329,10 +324,8 @@ static void test_markowitz_prefers_singletons(void)
     mat_pack(&m);
 
     jm_lu lu;
-    jm_lu_init(&lu);
     jm_work w = {0};
-    TEST_ASSERT_EQUAL_INT(JAOS_OK, jm_lu_factor(&lu, m.n, m.start, m.index,
-                                                m.value, PIVOT_TOL, &w));
+    must_factor(&m, &lu, &w);
     TEST_ASSERT_EQUAL_INT64(m.n, lu.rank);
     TEST_ASSERT_EQUAL_INT64(0, lu.perm_col[0]);
     TEST_ASSERT_EQUAL_INT64(2, lu.perm_row[0]);
@@ -469,10 +462,8 @@ static void test_nonsingular_pm1_matrix_reaches_full_rank(void)
     fill_pm1(&m, 8, v);
 
     jm_lu lu;
-    jm_lu_init(&lu);
     jm_work w = {0};
-    TEST_ASSERT_EQUAL_INT(JAOS_OK, jm_lu_factor(&lu, m.n, m.start, m.index,
-                                                m.value, PIVOT_TOL, &w));
+    must_factor(&m, &lu, &w);
     TEST_ASSERT_EQUAL_INT64(m.n, lu.rank);
     rng_seed(6);
     TEST_ASSERT_TRUE(solve_residual(&m, &lu, &w) < 1e-9);
@@ -525,10 +516,8 @@ static void test_random_pm1_matrices(void)
         }
 
         jm_lu lu;
-        jm_lu_init(&lu);
         jm_work w = {0};
-        TEST_ASSERT_EQUAL_INT(JAOS_OK, jm_lu_factor(&lu, m.n, m.start,
-                                        m.index, m.value, PIVOT_TOL, &w));
+        must_factor(&m, &lu, &w);
         if (nonsingular) {
             TEST_ASSERT_EQUAL_INT64(m.n, lu.rank);
             TEST_ASSERT_TRUE(solve_residual(&m, &lu, &w) < 1e-8);
@@ -542,7 +531,7 @@ static void test_random_pm1_matrices(void)
 
 /* ---- Forrest-Tomlin updates ------------------------------------------ */
 
-#define UPDATE_TOL 1e-9
+constexpr double UPDATE_TOL = 1e-9;
 
 /* Replaces column `c` of the dense reference with `col`. */
 static void mat_set_col(mat *m, int64_t c, const double *col)
@@ -560,10 +549,8 @@ static void test_update_matches_the_new_basis(void)
     make_random(&m, 10, 0.35);
 
     jm_lu lu;
-    jm_lu_init(&lu);
     jm_work w = {0};
-    TEST_ASSERT_EQUAL_INT(JAOS_OK, jm_lu_factor(&lu, m.n, m.start, m.index,
-                                                m.value, PIVOT_TOL, &w));
+    must_factor(&m, &lu, &w);
 
     double col[MAXN];
     for (int64_t i = 0; i < m.n; i++)
@@ -592,10 +579,8 @@ static void test_update_chain_agrees_with_refactorization(void)
         make_random(&m, n, 0.3);
 
         jm_lu lu;
-        jm_lu_init(&lu);
         jm_work w = {0};
-        TEST_ASSERT_EQUAL_INT(JAOS_OK, jm_lu_factor(&lu, m.n, m.start,
-                                        m.index, m.value, PIVOT_TOL, &w));
+        must_factor(&m, &lu, &w);
 
         for (int step = 0; step < 12; step++) {
             int64_t c = (int64_t)(rng_next() % (uint64_t)n);
@@ -664,10 +649,8 @@ static void test_update_refuses_a_singular_replacement(void)
     mat_pack(&m);
 
     jm_lu lu;
-    jm_lu_init(&lu);
     jm_work w = {0};
-    TEST_ASSERT_EQUAL_INT(JAOS_OK, jm_lu_factor(&lu, m.n, m.start, m.index,
-                                                m.value, PIVOT_TOL, &w));
+    must_factor(&m, &lu, &w);
 
     /* Make column 1 a copy of column 0: rank drops. */
     double col[3] = {1.0, 0.0, 0.0};
@@ -690,10 +673,8 @@ static void test_update_with_the_same_column_is_stable(void)
     make_random(&m, 8, 0.4);
 
     jm_lu lu;
-    jm_lu_init(&lu);
     jm_work w = {0};
-    TEST_ASSERT_EQUAL_INT(JAOS_OK, jm_lu_factor(&lu, m.n, m.start, m.index,
-                                                m.value, PIVOT_TOL, &w));
+    must_factor(&m, &lu, &w);
 
     for (int rep = 0; rep < 5; rep++) {
         double col[MAXN];
@@ -716,10 +697,8 @@ static void test_update_rejects_bad_arguments(void)
     mat_pack(&m);
 
     jm_lu lu;
-    jm_lu_init(&lu);
     jm_work w = {0};
-    TEST_ASSERT_EQUAL_INT(JAOS_OK, jm_lu_factor(&lu, m.n, m.start, m.index,
-                                                m.value, PIVOT_TOL, &w));
+    must_factor(&m, &lu, &w);
     double col[2] = {1.0, 1.0};
 
     TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT,
@@ -744,10 +723,8 @@ static void test_updates_are_bit_identical_across_runs(void)
         make_random(&m, 9, 0.35);
 
         jm_lu lu;
-        jm_lu_init(&lu);
         jm_work w = {0};
-        TEST_ASSERT_EQUAL_INT(JAOS_OK, jm_lu_factor(&lu, m.n, m.start,
-                                        m.index, m.value, PIVOT_TOL, &w));
+        must_factor(&m, &lu, &w);
         for (int step = 0; step < 4; step++) {
             double col[MAXN];
             for (int64_t i = 0; i < m.n; i++)

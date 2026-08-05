@@ -139,9 +139,7 @@ typedef struct {
     int64_t *seen;
     double *rowval;
 
-    /* Structural drop threshold, relative to the largest magnitude in the
-     * matrix. An absolute floor would declare a uniformly tiny basis
-     * singular, which is a different thing from being singular. */
+    /* Mirrors jm_lu.drop for the duration of the elimination. */
     double drop;
 } elim;
 
@@ -284,6 +282,47 @@ found:
     return true;
 }
 
+/* Rewrites the pivot row's pattern down to one entry per column that
+ * genuinely still carries a live value, caching each value found.
+ *
+ * The pattern is append-only, so it accumulates two kinds of lie: an exact
+ * cancellation leaves a column behind that no longer has an entry here,
+ * and later fill-in appends that same column a second time. Anything that
+ * counts once per pattern entry would then decrement a column's live count
+ * twice for one real entry, drifting it negative until a bucket index goes
+ * out of range. Caching the values also spares the U loop a second search
+ * for what this pass already found.
+ *
+ * `step` supplies a stamp that is unique per pivot, so duplicates are
+ * detected without clearing anything between steps. */
+static void compact_pivot_row(elim *e, int64_t pi, int64_t step)
+{
+    const int64_t stamp = step + 1;
+    int64_t keep = 0;
+
+    for (int64_t k = 0; k < e->row[pi].n; k++) {
+        int64_t j = e->row[pi].idx[k];
+        if (e->col_done[j] || e->seen[j] == stamp)
+            continue;
+        e->seen[j] = stamp;
+
+        const jm_svec *cv = &e->col[j];
+        double aij = 0.0;
+        for (int64_t q = 0; q < cv->n; q++)
+            if (cv->idx[q] == pi) {
+                aij = cv->val[q];
+                break;
+            }
+        if (aij == 0.0)
+            continue;
+
+        e->row[pi].idx[keep] = j;
+        e->rowval[keep] = aij;
+        keep++;
+    }
+    e->row[pi].n = keep;
+}
+
 /* --------------------------------------------------------------------- */
 /* Lifecycle                                                             */
 /* --------------------------------------------------------------------- */
@@ -305,24 +344,23 @@ void jm_lu_free(jm_lu *lu)
     free(lu->ucol);
     free(lu->l_start); free(lu->l_index); free(lu->l_value);
     free(lu->u_diag);
-    free(lu->ft_target); free(lu->ft_source); free(lu->ft_factor);
+    jm_svec_free(&lu->ft);
+    free(lu->ft_source);
     free(lu->slot_at); free(lu->pos_of);
     free(lu->perm_row); free(lu->perm_col);
-    free(lu->inv_row); free(lu->inv_col);
+    free(lu->inv_col);
     free(lu->tmp);
     free(lu->spike);
     memset(lu, 0, sizeof *lu);
 }
 
-static bool push_pair(int64_t **idx, double **val, int64_t *n, int64_t *cap,
-                      int64_t i, double x)
+/* Hands a jm_svec's storage over to a pair of raw arrays and empties the
+ * vector, so accumulating into a jm_svec costs no copy at the end. */
+static void svec_release(jm_svec *v, int64_t **idx, double **val)
 {
-    if (!grow_pair(idx, val, cap, *n + 1))
-        return false;
-    (*idx)[*n] = i;
-    (*val)[*n] = x;
-    (*n)++;
-    return true;
+    *idx = v->idx;
+    *val = v->val;
+    memset(v, 0, sizeof *v);
 }
 
 /* --------------------------------------------------------------------- */
@@ -366,15 +404,22 @@ jaos_status jm_lu_factor(jm_lu *lu, int64_t dim,
     elim e = {0};
     e.dim = dim;
     /* Relative, so a uniformly small matrix is factored rather than
-     * declared structurally empty. */
-    e.drop = mat_max * DROP_REL;
+     * declared structurally empty. Kept on the factorization so updates
+     * measure against the same yardstick. */
+    lu->drop = mat_max > 0.0 ? mat_max * DROP_REL : TINY;
+    e.drop = lu->drop;
 
-    /* U is collected compactly first — row s spans [us_start[s],
-     * us_start[s+1]) — then expanded into both orientations. */
+    /* L and U are accumulated into ordinary sparse vectors and their
+     * storage handed to the factorization at the end, so no growth code
+     * is written twice. U additionally needs its row boundaries while it
+     * is being built — row s spans [us_start[s], us_start[s+1]) — before
+     * it is expanded into both orientations. */
+    jm_svec lacc = {0}, uacc = {0};
     int64_t *us_start = jm_alloc_array(dim + 1, sizeof(int64_t));
-    int64_t *us_index = nullptr;
-    double *us_value = nullptr;
-    int64_t l_cap = 0, u_cap = 0, l_n = 0, u_n = 0;
+
+    /* Row -> slot, needed only to renumber L and U at the end. It is
+     * scratch, not state: no caller looks up a slot by row. */
+    int64_t *inv_row = jm_alloc_array(dim, sizeof(int64_t));
 
     lu->l_start  = jm_alloc_array(dim + 1, sizeof(int64_t));
     lu->u_diag   = jm_alloc_array(dim, sizeof(double));
@@ -384,7 +429,6 @@ jaos_status jm_lu_factor(jm_lu *lu, int64_t dim,
     lu->pos_of   = jm_alloc_array(dim, sizeof(int64_t));
     lu->perm_row = jm_alloc_array(dim, sizeof(int64_t));
     lu->perm_col = jm_alloc_array(dim, sizeof(int64_t));
-    lu->inv_row  = jm_alloc_array(dim, sizeof(int64_t));
     lu->inv_col  = jm_alloc_array(dim, sizeof(int64_t));
     lu->tmp      = jm_alloc_array(dim, sizeof(double));
     lu->spike    = jm_alloc_array(dim, sizeof(double));
@@ -407,9 +451,9 @@ jaos_status jm_lu_factor(jm_lu *lu, int64_t dim,
     e.seen      = jm_calloc_array(dim, sizeof(int64_t));
     e.rowval    = jm_alloc_array(dim, sizeof(double));
 
-    if (!us_start || !lu->l_start || !lu->u_diag || !lu->urow || !lu->ucol ||
-        !lu->slot_at || !lu->pos_of || !lu->perm_row || !lu->perm_col ||
-        !lu->inv_row || !lu->inv_col || !lu->tmp || !lu->spike ||
+    if (!us_start || !inv_row || !lu->l_start || !lu->u_diag || !lu->urow ||
+        !lu->ucol || !lu->slot_at || !lu->pos_of || !lu->perm_row ||
+        !lu->perm_col || !lu->inv_col || !lu->tmp || !lu->spike ||
         !e.col || !e.row || !e.col_cnt || !e.row_cnt || !e.col_done ||
         !e.row_done || !e.bhead || !e.bnext || !e.bprev || !e.in_bucket ||
         !e.work || !e.work_set || !e.touched || !e.piv_row || !e.piv_mult ||
@@ -419,7 +463,7 @@ jaos_status jm_lu_factor(jm_lu *lu, int64_t dim,
     }
 
     for (int64_t i = 0; i < dim; i++) {
-        lu->inv_row[i] = -1;
+        inv_row[i] = -1;
         lu->inv_col[i] = -1;
     }
     for (int64_t c = 0; c <= dim; c++)
@@ -450,12 +494,12 @@ jaos_status jm_lu_factor(jm_lu *lu, int64_t dim,
 
         lu->perm_row[step] = pi;
         lu->perm_col[step] = pj;
-        lu->inv_row[pi] = step;
+        inv_row[pi] = step;
         lu->inv_col[pj] = step;
         lu->u_diag[step] = pv;
 
         e.piv_n = 0;
-        lu->l_start[step] = l_n;
+        lu->l_start[step] = lacc.n;
         {
             const jm_svec *pcol = &e.col[pj];
             for (int64_t k = 0; k < pcol->n; k++) {
@@ -465,8 +509,7 @@ jaos_status jm_lu_factor(jm_lu *lu, int64_t dim,
                 double mult = pcol->val[k] / pv;
                 if (mult == 0.0)
                     continue;
-                if (!push_pair(&lu->l_index, &lu->l_value, &l_n, &l_cap,
-                               i, mult)) {
+                if (!jm_svec_push(&lacc, i, mult)) {
                     st = JAOS_ERR_OUT_OF_MEMORY;
                     goto done;
                 }
@@ -475,44 +518,12 @@ jaos_status jm_lu_factor(jm_lu *lu, int64_t dim,
                 e.piv_n++;
             }
         }
-        lu->l_start[step + 1] = l_n;
+        lu->l_start[step + 1] = lacc.n;
 
         e.col_done[pj] = true;
         bucket_remove(&e, pj);
 
-        /* Compact the pivot row's pattern before anything counts through
-         * it. The pattern is append-only: an exact cancellation leaves a
-         * stale column behind, and later fill-in appends that column a
-         * second time. Counting once per pattern entry then decrements
-         * col_cnt twice for one real entry, drifting it negative until a
-         * bucket index goes out of range. Keep one entry per column that
-         * genuinely still carries a live value in this row, caching that
-         * value so the U loop below need not search for it again. */
-        {
-            const int64_t stamp = step + 1;
-            int64_t keep = 0;
-            for (int64_t k = 0; k < e.row[pi].n; k++) {
-                int64_t j = e.row[pi].idx[k];
-                if (e.col_done[j] || e.seen[j] == stamp)
-                    continue;
-                e.seen[j] = stamp;
-
-                const jm_svec *cv = &e.col[j];
-                double aij = 0.0;
-                for (int64_t q = 0; q < cv->n; q++)
-                    if (cv->idx[q] == pi) {
-                        aij = cv->val[q];
-                        break;
-                    }
-                if (aij == 0.0)
-                    continue;
-
-                e.row[pi].idx[keep] = j;
-                e.rowval[keep] = aij;
-                keep++;
-            }
-            e.row[pi].n = keep;
-        }
+        compact_pivot_row(&e, pi, step);
 
         e.row_done[pi] = true;
         for (int64_t k = 0; k < e.col[pj].n; k++) {
@@ -525,13 +536,13 @@ jaos_status jm_lu_factor(jm_lu *lu, int64_t dim,
             bucket_move(&e, j, e.col_cnt[j] - 1);
         }
 
-        us_start[step] = u_n;
+        us_start[step] = uacc.n;
         for (int64_t rk = 0; rk < e.row[pi].n; rk++) {
             int64_t j = e.row[pi].idx[rk];
             jm_svec *cv = &e.col[j];
             double urow = e.rowval[rk];   /* found during compaction */
 
-            if (!push_pair(&us_index, &us_value, &u_n, &u_cap, j, urow)) {
+            if (!jm_svec_push(&uacc, j, urow)) {
                 st = JAOS_ERR_OUT_OF_MEMORY;
                 goto done;
             }
@@ -583,15 +594,15 @@ jaos_status jm_lu_factor(jm_lu *lu, int64_t dim,
             }
             bucket_move(&e, j, live);
         }
-        us_start[step + 1] = u_n;
+        us_start[step + 1] = uacc.n;
         lu->rank = step + 1;
     }
 
     for (int64_t step = lu->rank; step < dim; step++) {
-        lu->l_start[step] = l_n;
-        lu->l_start[step + 1] = l_n;
-        us_start[step] = u_n;
-        us_start[step + 1] = u_n;
+        lu->l_start[step] = lacc.n;
+        lu->l_start[step + 1] = lacc.n;
+        us_start[step] = uacc.n;
+        us_start[step + 1] = uacc.n;
         lu->u_diag[step] = 0.0;
         lu->perm_row[step] = -1;
         lu->perm_col[step] = -1;
@@ -607,12 +618,12 @@ jaos_status jm_lu_factor(jm_lu *lu, int64_t dim,
         /* Renumber into slot space. Every row an eta touches is pivoted
          * after its own step, and likewise for U's columns, so the map is
          * total on what was stored. */
-        for (int64_t k = 0; k < l_n; k++)
-            lu->l_index[k] = lu->inv_row[lu->l_index[k]];
+        for (int64_t k = 0; k < lacc.n; k++)
+            lacc.idx[k] = inv_row[lacc.idx[k]];
         for (int64_t s = 0; s < dim; s++) {
             for (int64_t k = us_start[s]; k < us_start[s + 1]; k++) {
-                int64_t c = lu->inv_col[us_index[k]];
-                double v = us_value[k];
+                int64_t c = lu->inv_col[uacc.idx[k]];
+                double v = uacc.val[k];
                 if (!jm_svec_push(&lu->urow[s], c, v) ||
                     !jm_svec_push(&lu->ucol[c], s, v)) {
                     st = JAOS_ERR_OUT_OF_MEMORY;
@@ -622,10 +633,15 @@ jaos_status jm_lu_factor(jm_lu *lu, int64_t dim,
         }
     }
 
+    /* L keeps the accumulator's storage; U's staging copy has served its
+     * purpose now that both orientations exist. */
+    svec_release(&lacc, &lu->l_index, &lu->l_value);
+
 done:
     free(us_start);
-    free(us_index);
-    free(us_value);
+    free(inv_row);
+    jm_svec_free(&lacc);   /* no-op after a successful release */
+    jm_svec_free(&uacc);
     elim_free(&e);
     if (st != JAOS_OK)
         jm_lu_free(lu);
@@ -657,9 +673,9 @@ static void ftran_prefix(const jm_lu *lu, const double *b, double *y,
     }
 
     /* E = E_t ... E_1, applied in creation order. */
-    for (int64_t k = 0; k < lu->ft_n; k++)
-        y[lu->ft_target[k]] -= lu->ft_factor[k] * y[lu->ft_source[k]];
-    jm_work_add(w, lu->ft_n * JM_WORK_NONZERO);
+    for (int64_t k = 0; k < lu->ft.n; k++)
+        y[lu->ft.idx[k]] -= lu->ft.val[k] * y[lu->ft_source[k]];
+    jm_work_add(w, lu->ft.n * JM_WORK_NONZERO);
 }
 
 void jm_lu_ftran(jm_lu *lu, double *x, jm_work *w)
@@ -717,9 +733,9 @@ void jm_lu_btran(jm_lu *lu, double *x, jm_work *w)
     /* E^T = E_1^T ... E_t^T: reverse order, and each transposed swaps the
      * roles of target and source. Getting this backwards produces
      * plausible residuals that are quietly wrong. */
-    for (int64_t k = lu->ft_n - 1; k >= 0; k--)
-        y[lu->ft_source[k]] -= lu->ft_factor[k] * y[lu->ft_target[k]];
-    jm_work_add(w, lu->ft_n * JM_WORK_NONZERO);
+    for (int64_t k = lu->ft.n - 1; k >= 0; k--)
+        y[lu->ft_source[k]] -= lu->ft.val[k] * y[lu->ft.idx[k]];
+    jm_work_add(w, lu->ft.n * JM_WORK_NONZERO);
 
     /* L' u = v, backward: L by columns is L' by rows, a dot product. L is
      * unit triangular, so there is no division. */
@@ -742,17 +758,15 @@ void jm_lu_btran(jm_lu *lu, double *x, jm_work *w)
 /* Appends one row transformation. The three arrays grow together. */
 static bool ft_push(jm_lu *lu, int64_t target, int64_t source, double factor)
 {
-    int64_t cap_src = lu->ft_cap;
-    if (!grow_pair(&lu->ft_target, &lu->ft_factor, &lu->ft_cap, lu->ft_n + 1) ||
-        !jm_grow((void **)&lu->ft_source, &cap_src, lu->ft_n + 1,
-                 sizeof *lu->ft_source))
+    /* (target, factor) is an ordinary index/value pair, so jm_svec carries
+     * it; source is one more parallel array, grown the same way pat_push
+     * grows its own. Two mechanisms with one capacity each beats one
+     * mechanism with three capacities to reconcile. */
+    if (!jm_svec_push(&lu->ft, target, factor))
         return false;
-    if (cap_src < lu->ft_cap)
-        lu->ft_cap = cap_src;
-    lu->ft_target[lu->ft_n] = target;
-    lu->ft_source[lu->ft_n] = source;
-    lu->ft_factor[lu->ft_n] = factor;
-    lu->ft_n++;
+    if (!JM_GROW(lu->ft_source, lu->ft_source_cap, lu->ft.n))
+        return false;
+    lu->ft_source[lu->ft.n - 1] = source;
     return true;
 }
 
@@ -780,14 +794,15 @@ jaos_status jm_lu_update(jm_lu *lu, int64_t col_out, const double *new_col,
     /* The spike is the entering column seen through everything left of U. */
     ftran_prefix(lu, new_col, sp, w);
 
+    /* The spike's largest magnitude is what the new pivot is judged
+     * against; the structural threshold stays the factorization's. */
     double mx = 0.0;
     for (int64_t s = 0; s < n; s++) {
         double a = fabs(sp[s]);
         if (a > mx)
             mx = a;
     }
-    /* Structural threshold for this update, scaled to the spike itself. */
-    const double drop = mx > 0.0 ? mx * DROP_REL : TINY;
+    const double drop = lu->drop;
 
     const int64_t p = lu->pos_of[s_out];
 
@@ -843,7 +858,10 @@ jaos_status jm_lu_update(jm_lu *lu, int64_t col_out, const double *new_col,
         const jm_svec *r = &lu->urow[s];
         for (int64_t q = 0; q < r->n; q++)
             row[r->idx[q]] -= factor * r->val[q];
-        jm_work_add(w, r->n * JM_WORK_NONZERO);
+        /* Same elimination axpy as the factorization performs, so it costs
+         * the same: the unit is defined by what the operation does, not by
+         * which routine happens to be running it (D16). */
+        jm_work_add(w, r->n * JM_WORK_ELIMINATED);
 
         if (!ft_push(lu, s_out, s, factor)) {
             lu->rank = -1;

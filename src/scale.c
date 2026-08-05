@@ -281,6 +281,15 @@ static jaos_status scale_geometric(jaos_model *m)
     return JAOS_OK;
 }
 
+static void identity_fill(jaos_model *m)
+{
+    for (int64_t i = 0; i < m->num_row; i++)
+        m->row_scale[i] = 1.0;
+    for (int64_t j = 0; j < m->num_col; j++)
+        m->col_scale[j] = 1.0;
+    m->scale_clamped = false;
+}
+
 jaos_status jm_model_scale(jaos_model *m, jm_scale_mode mode)
 {
     if (m == nullptr)
@@ -296,10 +305,6 @@ jaos_status jm_model_scale(jaos_model *m, jm_scale_mode mode)
         free(cs);
         return JAOS_ERR_OUT_OF_MEMORY;
     }
-    for (int64_t i = 0; i < m->num_row; i++)
-        rs[i] = 1.0;
-    for (int64_t j = 0; j < m->num_col; j++)
-        cs[j] = 1.0;
 
     free(m->row_scale);
     free(m->col_scale);
@@ -308,24 +313,24 @@ jaos_status jm_model_scale(jaos_model *m, jm_scale_mode mode)
     m->scale_valid = true;
     m->scale_clamped = false;
 
+    /* Both modes write every entry, so only the paths that compute nothing
+     * need the identity filled in. */
     jaos_status st = JAOS_OK;
     if (mode == JM_SCALE_CURTIS_REID)
         st = scale_curtis_reid(m);
     else if (mode == JM_SCALE_GEOMETRIC)
         st = scale_geometric(m);
+    else
+        identity_fill(m);
 
     if (st != JAOS_OK) {
-        /* Leave a usable identity scaling rather than a half-computed one. */
-        for (int64_t i = 0; i < m->num_row; i++)
-            m->row_scale[i] = 1.0;
-        for (int64_t j = 0; j < m->num_col; j++)
-            m->col_scale[j] = 1.0;
-        m->scale_clamped = false;
+        /* A usable identity scaling beats a half-computed one. */
+        identity_fill(m);
         jm_set_err(m, "out of memory while scaling");
-    } else if (m->scale_clamped) {
-        jm_set_err(m, "scaling clamped: the matrix needs a wider exponent "
-                      "range than JAOS expresses, so the spread is only "
-                      "partly corrected");
     }
+    /* A clamped scaling is a success with a caveat, and the caveat travels
+     * on m->scale_clamped. It deliberately does not touch m->err, which is
+     * documented as describing the last *failed* operation — a caller that
+     * reads err after a JAOS_OK return should find it empty. */
     return st;
 }
