@@ -18,12 +18,20 @@ STD  := -std=c23
 WARN := -Wall -Wextra -Wpedantic
 INC  := -Iinclude
 
+# D8 demands bit-identical runs across machines. C23 lets the compiler
+# contract a*b+c into a fused multiply-add wherever the target offers one,
+# and the kernels are made of exactly that pattern — so without this flag
+# the same model can produce different bits on aarch64 (baseline FMA) than
+# on x86-64 (none). Determinism is a recorded decision; the flag enforces
+# the IEEE-exact arithmetic it silently assumed.
+FP := -ffp-contract=off
+
 # libm is the only thing JAOS links against beyond libc. Anyone linking
 # libjaos.a needs it too.
 LDLIBS := -lm
 
-RELEASE_CFLAGS := $(STD) $(WARN) -Werror -O2 -g -DNDEBUG
-DEV_CFLAGS     := $(STD) $(WARN) -Werror -g -Og
+RELEASE_CFLAGS := $(STD) $(WARN) $(FP) -Werror -O2 -g -DNDEBUG
+DEV_CFLAGS     := $(STD) $(WARN) $(FP) -Werror -g -Og
 ASAN_CFLAGS    := $(DEV_CFLAGS) -fsanitize=address,undefined -fno-omit-frame-pointer
 
 # Vendored test framework: warnings on, -Werror off — not our code, dev-time
@@ -32,7 +40,7 @@ ASAN_CFLAGS    := $(DEV_CFLAGS) -fsanitize=address,undefined -fno-omit-frame-poi
 # both by unity.c and by every test including unity.h.
 UNITY_DIR    := tests/vendor/unity
 UNITY_DEFS   := -DUNITY_INCLUDE_DOUBLE
-UNITY_CFLAGS := $(STD) $(WARN) -g -Og $(UNITY_DEFS)
+UNITY_CFLAGS := $(STD) $(WARN) $(FP) -g -Og $(UNITY_DEFS)
 
 # Tests may include src/jaos_internal.h: white-box assertions on the data
 # structures are part of their job.

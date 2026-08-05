@@ -114,7 +114,11 @@ jaos_status jaos_solution(const jaos_model *m, double *col_value,
 {
     if (m == nullptr)
         return JAOS_ERR_INVALID_INPUT;
-    if (m->solve_status == JAOS_SOLVE_NOT_RUN || m->sol_col == nullptr)
+    /* Same rule as jaos_objective, for the same reason: a solve that
+     * found no optimum has no solution to hand out, and a buffer of
+     * zeros cannot be told apart from an answer that is genuinely
+     * zero. */
+    if (m->solve_status != JAOS_SOLVE_OPTIMAL || m->sol_col == nullptr)
         return JAOS_ERR_INVALID_INPUT;
 
     if (col_value)

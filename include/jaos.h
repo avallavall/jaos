@@ -173,9 +173,14 @@ JAOS_NODISCARD jaos_solve_status jaos_status_of(const jaos_model *m);
 JAOS_NODISCARD jaos_status jaos_objective(const jaos_model *m, double *out);
 
 /* Copies the solution into caller-provided buffers; any of them may be NULL.
- * col_value holds num_col entries, row_dual and row_activity num_row each.
- * The library never hands out pointers into its own storage, so there are no
- * lifetimes to track. */
+ * col_value and col_dual hold num_col entries, row_activity and row_dual
+ * num_row each. The library never hands out pointers into its own storage,
+ * so there are no lifetimes to track.
+ *
+ * Available only when the last solve found an optimum, under the same rule
+ * as jaos_objective: any other outcome returns JAOS_ERR_INVALID_INPUT,
+ * because a buffer of zeros cannot be told apart from an answer that is
+ * genuinely zero. */
 JAOS_NODISCARD jaos_status jaos_solution(const jaos_model *m,
     double *col_value, double *row_activity, double *row_dual,
     double *col_dual);

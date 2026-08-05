@@ -999,6 +999,17 @@ static void repair_dual_infeasibility(sx *s)
                 safe = false;
                 break;
             }
+            /* The bounds just tested include the invented ones, and a
+             * basic parked *on* an invented bound is the evidence of
+             * unboundedness — manufactured here, after the verdict was
+             * already read off. The swap that would do that is refused;
+             * no test constructs this, it takes a box ~1e10 wide, but
+             * the verdict must not depend on nobody ever building one. */
+            if ((s->fake[b] == FAKE_LO && x <= s->lo[b] + PRIMAL_TOL) ||
+                (s->fake[b] == FAKE_UP && x >= s->up[b] - PRIMAL_TOL)) {
+                safe = false;
+                break;
+            }
         }
         jm_work_add(&s->work, 2 * s->nrow * JM_WORK_NONZERO);
         if (!safe)
@@ -1125,14 +1136,29 @@ static jaos_status run(sx *s, jaos_solve_status *out)
  * times, and an allocation per solve would be pure churn. */
 static jaos_status ensure_solution_arrays(jaos_model *m)
 {
-    if (m->sol_col != nullptr)
+    if (m->sol_col != nullptr && m->sol_row != nullptr &&
+        m->sol_dual != nullptr && m->sol_redcost != nullptr)
         return JAOS_OK;
+
+    /* All four or none. A partial set — left behind when one of these
+     * allocations failed on an earlier solve — must not read as "already
+     * there", or this publish writes through the missing ones. */
+    free(m->sol_col);     m->sol_col = nullptr;
+    free(m->sol_row);     m->sol_row = nullptr;
+    free(m->sol_dual);    m->sol_dual = nullptr;
+    free(m->sol_redcost); m->sol_redcost = nullptr;
+
     m->sol_col     = jm_alloc_array(m->num_col, sizeof(double));
     m->sol_row     = jm_alloc_array(m->num_row, sizeof(double));
     m->sol_dual    = jm_alloc_array(m->num_row, sizeof(double));
     m->sol_redcost = jm_alloc_array(m->num_col, sizeof(double));
-    if (!m->sol_col || !m->sol_row || !m->sol_dual || !m->sol_redcost)
+    if (!m->sol_col || !m->sol_row || !m->sol_dual || !m->sol_redcost) {
+        free(m->sol_col);     m->sol_col = nullptr;
+        free(m->sol_row);     m->sol_row = nullptr;
+        free(m->sol_dual);    m->sol_dual = nullptr;
+        free(m->sol_redcost); m->sol_redcost = nullptr;
         return JAOS_ERR_OUT_OF_MEMORY;
+    }
     return JAOS_OK;
 }
 
@@ -1142,8 +1168,11 @@ static jaos_status publish(sx *s, jaos_solve_status status)
     const double sigma = (m->sense == JAOS_MAXIMIZE) ? -1.0 : 1.0;
 
     m->solve_status = status;
-    m->solve_work = s->work.units;
     m->solve_iters = s->iters;
+    /* The work snapshot is taken at the *end* of each path below, not
+     * here: publishing itself runs a kernel (the BTRAN for the duals),
+     * and a counter that reported everything except the last thing it
+     * did would be lying by one solve (D16). */
 
     jaos_status st = ensure_solution_arrays(m);
     if (st != JAOS_OK)
@@ -1157,6 +1186,7 @@ static jaos_status publish(sx *s, jaos_solve_status status)
         memset(m->sol_row, 0, (size_t)m->num_row * sizeof(double));
         memset(m->sol_dual, 0, (size_t)m->num_row * sizeof(double));
         memset(m->sol_redcost, 0, (size_t)m->num_col * sizeof(double));
+        m->solve_work = s->work.units;
         return JAOS_OK;
     }
 
@@ -1185,6 +1215,7 @@ static jaos_status publish(sx *s, jaos_solve_status status)
     for (int64_t j = 0; j < m->num_col; j++)
         obj += m->col_cost[j] * m->sol_col[j];
     m->objective = obj;
+    m->solve_work = s->work.units;
     return JAOS_OK;
 }
 

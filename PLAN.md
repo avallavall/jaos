@@ -301,6 +301,18 @@ missed this".
   buys a constant factor on a path that has no benchmark behind it yet.
 - **Finding the pivot row's entry inside a column is a scan.** Same missing
   row-to-position lookup as the erase above, on the factorization path.
+- **A column's live count can overcount after cancellations.** The
+  factorization's row patterns are append-only, and only the compacted
+  pivot row hands its columns a decrement — a column whose entry in the
+  pivot row cancelled earlier keeps the stale count. Markowitz then works
+  from a pessimistic estimate: pivot choice quality, never correctness,
+  and deterministic either way.
+- **Scaling's determinism across machines leans on libm.** The exponents
+  come from `log2`, whose last-ulp rounding IEEE does not pin down across
+  C libraries. They are rounded to whole powers of two, so only a result
+  landing within an ulp of an exact half-integer could differ — but "could
+  differ" is a claim the cross-machine harness has to test, not assume,
+  when the Netlib campaign runs it.
 - **The ratio test's long step re-scans for each breakpoint.** Bound
   flipping walks the candidates in ascending ratio order and finds each
   one with a linear scan of those still standing, rather than sorting the

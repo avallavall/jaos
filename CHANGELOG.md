@@ -5,6 +5,27 @@ versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Changed
+
+- `jaos_solution` now refuses to report anything for a solve that found no
+  optimum, under the same rule as `jaos_objective`: a buffer of zeros could
+  not be told apart from an answer that is genuinely zero.
+- Builds pin `-ffp-contract=off`. C23 lets the compiler fuse `a*b+c` where
+  the hardware offers it, which would make the same model produce different
+  bits on different machines — the determinism promise says exactly the
+  opposite.
+
+### Fixed
+
+- A failed solution-buffer allocation no longer leaves the model believing
+  the buffers exist: a later solve on the same model would have written
+  through the missing ones.
+- The published work count now includes the final kernel run of publishing
+  itself; it used to be taken one BTRAN too early.
+- Settling up can no longer park a basic variable on an artificial phase-1
+  bound: that would manufacture the evidence of unboundedness after the
+  verdict was already read.
+
 ### Added
 
 - `README.md`: what JAOS is, what it solves today, how to build it, and the

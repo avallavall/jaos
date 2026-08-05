@@ -167,6 +167,11 @@ static void test_infeasible_model_is_reported(void)
                      1, as, ai, av));
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
     TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_INFEASIBLE, jaos_status_of(m));
+
+    /* An infeasible model has no solution to hand out either. */
+    double x[1];
+    TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT,
+        jaos_solution(m, x, nullptr, nullptr, nullptr));
     jaos_model_free(m);
 }
 
@@ -228,10 +233,15 @@ static void test_unbounded_model_is_reported(void)
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
     TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_UNBOUNDED, jaos_status_of(m));
 
-    /* No objective is on offer for a solve that found no optimum. */
+    /* No objective and no solution are on offer for a solve that found no
+     * optimum: zeros handed out here would be indistinguishable from an
+     * answer that is genuinely zero. */
     double obj = 1234.0;
     TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT, jaos_objective(m, &obj));
     TEST_ASSERT_EQUAL_DOUBLE(1234.0, obj);   /* left untouched */
+    double x[1];
+    TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT,
+        jaos_solution(m, x, nullptr, nullptr, nullptr));
     jaos_model_free(m);
 }
 
@@ -317,10 +327,118 @@ static void test_zero_objective_is_distinguishable_from_no_answer(void)
     jaos_model_free(m);
 }
 
-/* Pricing must be charged to the work counter, not just the LU kernels:
- * PLAN 2.7 weights "nonzero touched ... in pricing" the same as any other
- * solve traffic, and a budget that ignored it would not bound the run. */
-static void test_pricing_is_charged_to_the_work_counter(void)
+/* A hundred rows to repair, one iteration each: the refactorization
+ * interval (64) falls in the middle, so this is the one test where the
+ * mid-solve refresh path — refactor, recompute primal and duals, carry the
+ * steepest-edge weights across — actually runs. Every other model in this
+ * file finishes in a handful of iterations and never touches it.
+ *
+ * The model: min sum x_i with a row x_i >= 1 per column, x in [0, 10],
+ * plus one coupling row sum x_i <= 200 so the basis matrix is not
+ * diagonal and the updates have something to do. Optimum: every x_i = 1,
+ * objective 100. Solved twice, and the two runs must agree bit for bit —
+ * determinism (D8) across a refactorization, not only across the short
+ * solves the other test pins. */
+static void test_a_long_solve_crosses_a_refactorization(void)
+{
+    enum { N = 100 };
+    double c[N], cl[N], cu[N];
+    double rl[N + 1], ru[N + 1];
+    int64_t as[N + 1], ai[2 * N];
+    double av[2 * N];
+
+    for (int64_t j = 0; j < N; j++) {
+        c[j] = 1.0;
+        cl[j] = 0.0;
+        cu[j] = 10.0;
+        rl[j] = 1.0;
+        ru[j] = INFINITY;
+        as[j] = 2 * j;
+        ai[2 * j] = j;          /* its own row */
+        av[2 * j] = 1.0;
+        ai[2 * j + 1] = N;      /* the coupling row */
+        av[2 * j + 1] = 1.0;
+    }
+    as[N] = 2 * N;
+    rl[N] = -INFINITY;
+    ru[N] = 200.0;
+
+    double obj[2];
+    int64_t iters[2], work[2];
+    for (int run = 0; run < 2; run++) {
+        jaos_model *m = fresh();
+        TEST_ASSERT_EQUAL_INT(JAOS_OK,
+            jaos_load_lp(m, N, N + 1, JAOS_MINIMIZE, 0.0, c, cl, cu, rl, ru,
+                         2 * N, as, ai, av));
+        solve_and_verify(m, 100.0);
+
+        /* One entering column per violated row, and the interval is 64:
+         * anything past it proves the mid-solve refresh ran. The exact
+         * count is pinned by the determinism assertion below instead. */
+        TEST_ASSERT_TRUE(jaos_iterations(m) > 64);
+
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(m, &obj[run]));
+        iters[run] = jaos_iterations(m);
+        work[run] = jaos_work_units(m);
+        jaos_model_free(m);
+    }
+    TEST_ASSERT_EQUAL_MEMORY(&obj[0], &obj[1], sizeof(double));
+    TEST_ASSERT_EQUAL_INT64(iters[0], iters[1]);
+    TEST_ASSERT_EQUAL_INT64(work[0], work[1]);
+}
+
+/* A free variable — no bounds, zero cost — is a status of its own
+ * (JM_FREE) with its own branches in pricing, the ratio test and the
+ * shifting, and no other model in this file has one.
+ *
+ *   min 2x  s.t.  x + z >= 4,  x - z >= -1,  x in [0, 10],  z free
+ *
+ * z must enter the basis: it is the only way either row moves. Both rows
+ * end tight — z >= 4 - x and z <= 1 + x force 4 - x <= 1 + x, so
+ * x = 1.5, z = 2.5, objective 3. The duals come from the two active rows:
+ * y1 + y2 = 2 (column x) and y1 - y2 = 0 (column z), so y = (1, 1). */
+static void test_free_variable_enters_and_settles(void)
+{
+    const double c[] = {2.0, 0.0};
+    const double cl[] = {0.0, -INFINITY};
+    const double cu[] = {10.0, INFINITY};
+    const double rl[] = {4.0, -1.0};
+    const double ru[] = {INFINITY, INFINITY};
+    const int64_t as[] = {0, 2, 4};
+    const int64_t ai[] = {0, 1, 0, 1};
+    const double av[] = {1.0, 1.0, 1.0, -1.0};
+
+    jaos_model *m = fresh();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_load_lp(m, 2, 2, JAOS_MINIMIZE, 0.0, c, cl, cu, rl, ru,
+                     4, as, ai, av));
+    solve_and_verify(m, 3.0);
+
+    double x[2], y[2];
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solution(m, x, nullptr, y, nullptr));
+    TEST_ASSERT_DOUBLE_WITHIN(1e-9, 1.5, x[0]);
+    TEST_ASSERT_DOUBLE_WITHIN(1e-9, 2.5, x[1]);
+    TEST_ASSERT_DOUBLE_WITHIN(1e-9, 1.0, y[0]);
+    TEST_ASSERT_DOUBLE_WITHIN(1e-9, 1.0, y[1]);
+    jaos_model_free(m);
+}
+
+/* The work accounting, pinned. PLAN 2.7 defines what gets charged —
+ * pricing, ratio test, eliminations, the fixed floors — and D16 makes the
+ * count deterministic, so for a fixed model the total is one exact number
+ * and any change to what is charged moves it.
+ *
+ * This replaces an assertion of `work > JM_WORK_FACTOR`, which was
+ * vacuous: a single factorization alone satisfies it, so deleting every
+ * charge outside the LU left it green.
+ *
+ * When this fails after a deliberate change to the algorithm or the
+ * weights, re-pin: the diff of this constant is the record of what the
+ * change did to the accounting. If it fails and you did not intend to
+ * change the accounting, that is the bug it exists to catch. */
+constexpr int64_t WORK_PINNED = 4411;
+
+static void test_work_accounting_is_pinned(void)
 {
     const double c[] = {2.0, 3.0, 4.0};
     const double cl[] = {0.0, 0.0, 0.0};
@@ -338,10 +456,8 @@ static void test_pricing_is_charged_to_the_work_counter(void)
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
     TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
 
-    /* Iterations happened, so pricing happened, so the counter must have
-     * moved well past the factorization's own fixed charge. */
     TEST_ASSERT_TRUE(jaos_iterations(m) > 0);
-    TEST_ASSERT_TRUE(jaos_work_units(m) > JM_WORK_FACTOR);
+    TEST_ASSERT_EQUAL_INT64(WORK_PINNED, jaos_work_units(m));
     jaos_model_free(m);
 }
 
@@ -885,7 +1001,9 @@ int main(void)
     RUN_TEST(test_maximise_without_column_upper_bounds);
     RUN_TEST(test_t1_mps_is_infeasible_and_says_so);
     RUN_TEST(test_zero_objective_is_distinguishable_from_no_answer);
-    RUN_TEST(test_pricing_is_charged_to_the_work_counter);
+    RUN_TEST(test_a_long_solve_crosses_a_refactorization);
+    RUN_TEST(test_free_variable_enters_and_settles);
+    RUN_TEST(test_work_accounting_is_pinned);
     RUN_TEST(test_simultaneous_violations_of_wildly_different_size);
     RUN_TEST(test_dse_weights_match_recomputed_norms);
     RUN_TEST(test_dse_repairs_a_carried_weight_that_slipped);
