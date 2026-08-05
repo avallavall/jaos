@@ -7,6 +7,9 @@ versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- `README.md`: what JAOS is, what it solves today, how to build it, and the
+  design commitments that constrain it.
+
 - `DECISIONS.md`: the durable record of closed design decisions — language and
   toolchain, dependency policy, determinism, problem scope, and the rules under
   which correctness and speed may be claimed.

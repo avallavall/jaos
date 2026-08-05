@@ -180,20 +180,37 @@ overhead — pricing, ratio test, bookkeeping — can be attributed on its own.
 Ratios calibrated before 1.0; frozen at 1.0; afterwards changes only at a major
 version (D16).
 
-### 2.8 Build order inside M1
+### 2.8 What is left inside M1
 
-Each step is testable before the next starts; the checker comes first because it
-is the oracle everything else is judged against.
+Built and closed, recorded in the changelog and its commits: scaffold, model
+core with the independent checker, MPS and LP readers, Curtis-Reid scaling,
+sparse LU with Forrest-Tomlin updates and the work counter in its kernels, and
+a dual simplex that solves bounded LPs with a dual phase 1 by artificial
+bounds. `make test` covers all of it, and every solved test instance is put
+through the checker.
 
-1. Scaffold: layout, Makefile, Unity vendored, `jaos.h` stub with status codes.
-2. Model core + CSC/CSR + **checker**, unit-tested on hand-built instances.
-3. Fixed MPS reader against golden tiny instances; then free MPS; then LP format.
-4. Scaling.
-5. LU + solves + FT updates, property-tested against a dense reference on small
-   random bases; work counter enters here, in the kernels.
-6. Dual simplex loop with fallback pricing on tiny problems; then DSE; then
-   Harris/BFRT; then dual phase 1; degeneracy handling.
-7. Netlib campaign, instance by instance, determinism harness on throughout.
+Remaining, in the order they are expected to be taken:
+
+1. **Dual steepest edge pricing** [8]. Today's rule picks the largest bound
+   violation, which is the cheapest thing that works and the wrong thing at
+   scale. This is the single largest determinant of how many iterations a
+   real model takes, and it replaces one function: `price_row`.
+2. **Harris two-pass ratio test with bound flipping** [7][19][1], replacing
+   `dual_ratio_test`. Buys numerical stability on degenerate vertices and the
+   long steps that bound flipping makes possible. The dual feasibility
+   tolerance from §2.6 arrives with it — it is what the first pass widens.
+3. **Wire scaling into the solve path (Q7)**, which also puts the §2.6
+   tolerances into the space they are specified for, and settles Q9 along the
+   way if the artificial bound is derived from scaled magnitudes.
+4. **Degeneracy handling**: deterministic bound perturbation, seeded and
+   removed at the end, plus DSE weight resets on drift.
+5. **Netlib campaign**, instance by instance, with the determinism harness on
+   throughout. This is the gate (§2.9), and it is where Q6 and the acceptance
+   table get settled.
+
+A refactorization stability trigger (§2.5.5) is still missing: only the
+interval and the reactive fallback on a failed update exist. It belongs with
+step 5, where a real instance will finally exercise it.
 
 ### 2.9 Acceptance gate for M1
 
