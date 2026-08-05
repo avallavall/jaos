@@ -28,6 +28,11 @@ versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- `docs/tolerances.md`: every number a solve compares against, which space it
+  acts in, and the formulas the independent checker judges with.
+- `docs/work-units.md`: what a work unit is, where each weight is charged, and
+  what sits outside the budget — so a work limit can be chosen rather than
+  guessed.
 - `README.md`: what JAOS is, what it solves today, how to build it, and the
   design commitments that constrain it.
 

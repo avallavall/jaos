@@ -43,7 +43,13 @@ jaos_model_free(m);
   the original problem without consulting any solver state.
 - **Two budgets**: a reproducible work limit counted in deterministic work
   units, and a wall-clock time limit. They are separate because only one of
-  them means the same thing on two machines.
+  them means the same thing on two machines. What a work unit is, and where
+  it is charged, is in [`docs/work-units.md`](docs/work-units.md).
+
+Every tolerance a solve compares against, and the formulas the checker
+judges with, are in [`docs/tolerances.md`](docs/tolerances.md). They are
+drafts until the Netlib gate closes, and the document says which are already
+known to need replacing.
 
 No performance claims appear here, or anywhere else in this repository, until
 they have been measured on a controlled machine. The benchmark campaign that
@@ -108,7 +114,7 @@ and the open questions.
 | [`DECISIONS.md`](DECISIONS.md) | Closed design decisions and the reasoning that closed them |
 | [`PLAN.md`](PLAN.md) | Build order, current milestone in detail, open questions |
 | [`CHANGELOG.md`](CHANGELOG.md) | What changed, for someone using this |
-| [`docs/`](docs/) | Format dialects, scaling |
+| [`docs/`](docs/) | Format dialects, scaling, tolerances, work units |
 | `include/jaos.h` | The public interface, and the only public header |
 
 ## Licence

@@ -61,7 +61,7 @@ include/jaos.h        public header, the only one
 src/                  library sources, flat until a second engine exists
 tests/                unit tests; tests/vendor/unity/ (D15); tests/data/ tiny golden instances
 bench/                netlib fetch script + sha256 manifest, acceptance runner, results/
-docs/                 format-support.md, work-units.md, tolerances.md
+docs/                 format-support.md, scaling.md, tolerances.md, work-units.md
 Makefile
 ```
 
@@ -142,7 +142,8 @@ record entry.
 ### 2.6 Tolerances — draft
 
 Draft values; frozen when the Netlib gate closes, and any later change is a
-changelog entry. Full formulas in `docs/tolerances.md` when written.
+changelog entry. Every one of them, where it acts and what it decides, plus
+the checker's formulas: `docs/tolerances.md`.
 
 | Quantity | Draft |
 |---|---|
@@ -159,7 +160,9 @@ changelog entry. Full formulas in `docs/tolerances.md` when written.
 ### 2.7 Work units — draft weights (D16)
 
 Deterministic integer counting in kernels only. Model loading is excluded from the
-solve budget and documented as such.
+solve budget and documented as such. Where each weight is actually charged, and
+what else sits outside the budget, is in `docs/work-units.md` — including the
+scaling computation, which a solve performs and no unit counts today.
 
 | Event | Draft weight |
 |---|---|
