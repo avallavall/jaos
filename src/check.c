@@ -78,12 +78,12 @@ static double sign_condition(double v, double lo, double hi, double w,
     if (w > 0.0) {
         if (!isfinite(lo))
             return w;          /* points at a bound that does not exist */
-        *dual_obj += (long double)w * (long double)lo;
+        *dual_obj += (long double)w * lo;
         return at_lo ? 0.0 : w;   /* positive w is only justified at lower */
     }
     if (!isfinite(hi))
         return -w;
-    *dual_obj += (long double)w * (long double)hi;
+    *dual_obj += (long double)w * hi;
     return at_hi ? 0.0 : -w;      /* negative w is only justified at upper */
 }
 
@@ -119,7 +119,7 @@ jaos_status jaos_check_solution(const jaos_model *m,
         if (xj == 0.0)
             continue;
         for (int64_t k = m->a_start[j]; k < m->a_start[j + 1]; k++)
-            act[m->a_index[k]] += (long double)m->a_value[k] * (long double)xj;
+            act[m->a_index[k]] += (long double)m->a_value[k] * xj;
     }
 
     /* Primal side. */
@@ -128,7 +128,7 @@ jaos_status jaos_check_solution(const jaos_model *m,
     for (int64_t j = 0; j < m->num_col; j++) {
         col_viol = max2(col_viol, interval_violation(col_value[j],
                                     m->col_lower[j], m->col_upper[j]));
-        primal_obj += (long double)m->col_cost[j] * (long double)col_value[j];
+        primal_obj += (long double)m->col_cost[j] * col_value[j];
     }
     for (int64_t i = 0; i < m->num_row; i++)
         row_viol = max2(row_viol, interval_violation((double)act[i],
@@ -155,8 +155,7 @@ jaos_status jaos_check_solution(const jaos_model *m,
             /* Reduced cost d_j = c_j - a_j' y, canonicalized. */
             long double dw = m->col_cost[j];
             for (int64_t k = m->a_start[j]; k < m->a_start[j + 1]; k++)
-                dw -= (long double)m->a_value[k] *
-                      (long double)row_dual[m->a_index[k]];
+                dw -= (long double)m->a_value[k] * row_dual[m->a_index[k]];
             double d = (double)dw;
             dual_viol = max2(dual_viol,
                 sign_condition(col_value[j], m->col_lower[j], m->col_upper[j],
@@ -166,11 +165,9 @@ jaos_status jaos_check_solution(const jaos_model *m,
         /* The gap is the identity that catches a corrupted dot product even
          * when the sign conditions it also corrupts still pass, so it is
          * formed at the wider precision and narrowed only at the end. */
-        long double true_dual_obj = (long double)sigma * dual_obj;
-        long double diff = primal_obj - true_dual_obj;
-        if (diff < 0)
-            diff = -diff;
-        long double scale = primal_obj < 0 ? -primal_obj : primal_obj;
+        long double true_dual_obj = sigma * dual_obj;
+        long double diff = fabsl(primal_obj - true_dual_obj);
+        long double scale = fabsl(primal_obj);
         double gap = (double)(diff / (scale > 1.0L ? scale : 1.0L));
 
         out->checked_duals = true;

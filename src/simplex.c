@@ -105,10 +105,12 @@ typedef struct {
     int64_t *basis;          /* [nrow] variable occupying each position */
     int64_t *where;          /* [nvar] basis position, or -1 */
 
-    /* Which bounds JAOS invented to get a dual feasible start, and on
-     * which side. An active one at the optimum means unbounded. */
-    bool *fake_lo, *fake_up;
-    bool any_fake;
+    /* Bounds JAOS invented to get a dual feasible start. A column is
+     * caught by exactly one branch of the cost-sign test, so one array
+     * says both whether a bound was lent and which side it went on — two
+     * parallel flags would encode an invariant the types do not. An
+     * active one at the optimum means unbounded. */
+    enum { NOT_FAKE = 0, FAKE_LO, FAKE_UP } *fake;
 
     double *xb;              /* [nrow] basic values */
     double *d;               /* [nvar] reduced costs */
@@ -145,7 +147,7 @@ static void sx_free(sx *s)
     free(s->xb); free(s->d);
     free(s->col); free(s->raw); free(s->rho); free(s->alpha);
     free(s->bs); free(s->bi); free(s->bv);
-    free(s->fake_lo); free(s->fake_up);
+    free(s->fake);
     jm_lu_free(&s->lu);
     memset(s, 0, sizeof *s);
 }
@@ -172,12 +174,11 @@ static jaos_status sx_init(sx *s, jaos_model *m)
     s->rho    = jm_calloc_array(s->nrow, sizeof(double));
     s->alpha  = jm_calloc_array(s->nvar, sizeof(double));
     s->bs     = jm_alloc_array(s->nrow + 1, sizeof(int64_t));
-    s->fake_lo = jm_calloc_array(s->nvar, sizeof(bool));
-    s->fake_up = jm_calloc_array(s->nvar, sizeof(bool));
+    s->fake   = jm_calloc_array(s->nvar, sizeof *s->fake);
 
     if (!s->lo || !s->up || !s->cost || !s->status || !s->basis ||
         !s->where || !s->xb || !s->d || !s->col || !s->raw || !s->rho ||
-        !s->alpha || !s->bs || !s->fake_lo || !s->fake_up) {
+        !s->alpha || !s->bs || !s->fake) {
         sx_free(s);
         return JAOS_ERR_OUT_OF_MEMORY;
     }
@@ -276,15 +277,13 @@ static void build_initial_basis(sx *s)
         if (s->cost[j] > 0.0) {
             if (!has_lo) {
                 s->lo[j] = -ARTIFICIAL_BOUND;
-                s->fake_lo[j] = true;
-                s->any_fake = true;
+                s->fake[j] = FAKE_LO;
             }
             s->status[j] = JM_AT_LOWER;
         } else if (s->cost[j] < 0.0) {
             if (!has_up) {
                 s->up[j] = ARTIFICIAL_BOUND;
-                s->fake_up[j] = true;
-                s->any_fake = true;
+                s->fake[j] = FAKE_UP;
             }
             s->status[j] = JM_AT_UPPER;
         } else if (has_lo) {
@@ -297,22 +296,21 @@ static void build_initial_basis(sx *s)
     }
 }
 
-/* Did the optimum come to rest against a bound JAOS invented? If so the
+/* Did the optimum come to rest against a bound JAOS invented? Runs once,
+ * when optimality is declared. If so the
  * objective wanted to keep going past something that was never there, and
  * the original problem is unbounded. Checked on the values as solved, so
  * the verdict rests on evidence rather than on a guess about which
  * variables looked suspicious. */
 static bool leans_on_an_invented_bound(const sx *s)
 {
-    if (!s->any_fake)
-        return false;
     for (int64_t j = 0; j < s->ncol; j++) {
-        if (!s->fake_lo[j] && !s->fake_up[j])
+        if (s->fake[j] == NOT_FAKE)
             continue;
         double v = var_value(s, j);
-        if (s->fake_lo[j] && v <= s->lo[j] + PRIMAL_TOL)
+        if (s->fake[j] == FAKE_LO && v <= s->lo[j] + PRIMAL_TOL)
             return true;
-        if (s->fake_up[j] && v >= s->up[j] - PRIMAL_TOL)
+        if (s->fake[j] == FAKE_UP && v >= s->up[j] - PRIMAL_TOL)
             return true;
     }
     return false;

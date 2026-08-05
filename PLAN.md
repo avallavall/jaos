@@ -306,6 +306,16 @@ missed this".
 - **Q6** — Netlib acquisition route: netlib's emps expander (a dev-time tool,
   needs D11 approval) versus a checksum-pinned unofficial mirror; decided when
   the manifest is first built.
+- **Q9** — Sizing the artificial bound that dual phase 1 lends a column whose
+  cost points at a bound it does not have. It is a fixed 1e10 while the
+  model's own magnitudes are unknown and unscaled (Q7). The consequence is
+  not a rounding error but a wrong answer: **a model whose genuine optimum
+  exceeds that bound is reported UNBOUNDED**, because the optimum comes to
+  rest on the invented bound and that is the evidence the verdict reads.
+  Closing this means either deriving the bound from the model — the largest
+  finite bound and cost magnitude present — or replacing artificial bounds
+  with a phase 1 that does not need them (subproblem or cost shifting, per
+  Koberstein [21]). It closes before the Netlib gate.
 - **Q8** — How exact verification gets done, decided when M2 opens with
   certificate export. GMP is the obvious tool and D11 excludes it (LGPL),
   including for test-only use, since D15 exempts test dependencies from D2

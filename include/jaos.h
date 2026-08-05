@@ -56,10 +56,6 @@ typedef enum jaos_solve_status {
     JAOS_SOLVE_WORK_LIMIT,
     JAOS_SOLVE_TIME_LIMIT,
     JAOS_SOLVE_NUMERICAL_ERROR,
-    /* A well-formed model this build cannot solve yet. It is not an
-     * invalid input and not a numerical failure — the model is fine and
-     * the solver is incomplete. jaos_model_error names what is missing. */
-    JAOS_SOLVE_UNSUPPORTED,
 } jaos_solve_status;
 
 /* Human-readable name for a status. Static storage; never NULL, including for

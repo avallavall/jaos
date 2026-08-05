@@ -19,11 +19,10 @@ const char *jaos_solve_status_str(jaos_solve_status s)
     case JAOS_SOLVE_NOT_RUN:         return "not run";
     case JAOS_SOLVE_OPTIMAL:         return "optimal";
     case JAOS_SOLVE_INFEASIBLE:      return "infeasible";
-    case JAOS_SOLVE_UNBOUNDED:      return "unbounded";
+    case JAOS_SOLVE_UNBOUNDED:       return "unbounded";
     case JAOS_SOLVE_WORK_LIMIT:      return "work limit reached";
     case JAOS_SOLVE_TIME_LIMIT:      return "time limit reached";
     case JAOS_SOLVE_NUMERICAL_ERROR: return "numerical error";
-    case JAOS_SOLVE_UNSUPPORTED:     return "not supported yet";
     }
     return "unknown status";
 }
