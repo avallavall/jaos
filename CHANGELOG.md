@@ -44,3 +44,10 @@ versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   quietly.
 - Deterministic work counter wired into the factorization and solve kernels —
   the currency of the reproducible budget.
+- Dual simplex: `jaos_solve` finds optimal solutions for linear programs with
+  bounds, ranged rows and equalities, in either objective sense, and reports
+  infeasible models as infeasible. Results come out through `jaos_solution`,
+  `jaos_objective` and `jaos_status_of`.
+- Budgets: `jaos_set_work_limit` (reproducible) and `jaos_set_time_limit`
+  (wall-clock), reported back through `jaos_work_units` and
+  `jaos_iterations`.

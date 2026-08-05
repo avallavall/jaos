@@ -146,6 +146,45 @@ JAOS_NODISCARD jaos_status jaos_read_lp(jaos_model *m, const char *path);
 JAOS_NODISCARD const char *jaos_model_error(const jaos_model *m);
 
 /* ------------------------------------------------------------------------- */
+/* Solving                                                                   */
+/* ------------------------------------------------------------------------- */
+
+/* Budgets. Both default to unlimited.
+ *
+ * The work limit is counted in deterministic work units and is reproducible
+ * across machines; the time limit is wall-clock and is not — where it cuts
+ * depends on the machine. That is why they are separate settings rather than
+ * one "limit" (DECISIONS.md, D8). The clock never influences which pivot is
+ * chosen; it only decides whether to stop at a checkpoint. */
+JAOS_NODISCARD jaos_status jaos_set_work_limit(jaos_model *m, int64_t units);
+JAOS_NODISCARD jaos_status jaos_set_time_limit(jaos_model *m, double seconds);
+
+/* Solves the model. The outcome is reported by jaos_solve_status, which the
+ * return value does not duplicate: JAOS_OK means the solve ran, not that it
+ * found an optimum. */
+JAOS_NODISCARD jaos_status jaos_solve(jaos_model *m);
+
+JAOS_NODISCARD jaos_solve_status jaos_status_of(const jaos_model *m);
+
+/* Objective value of the solution held by the model, including the constant
+ * term. Meaningless unless the last solve reached an optimum. */
+JAOS_NODISCARD double jaos_objective(const jaos_model *m);
+
+/* Copies the solution into caller-provided buffers; any of them may be NULL.
+ * col_value holds num_col entries, row_dual and row_activity num_row each.
+ * The library never hands out pointers into its own storage, so there are no
+ * lifetimes to track. */
+JAOS_NODISCARD jaos_status jaos_solution(const jaos_model *m,
+    double *col_value, double *row_activity, double *row_dual,
+    double *col_dual);
+
+/* Work units consumed by the last solve. */
+JAOS_NODISCARD int64_t jaos_work_units(const jaos_model *m);
+
+/* Simplex iterations performed by the last solve. */
+JAOS_NODISCARD int64_t jaos_iterations(const jaos_model *m);
+
+/* ------------------------------------------------------------------------- */
 /* Independent solution checker                                              */
 /* ------------------------------------------------------------------------- */
 

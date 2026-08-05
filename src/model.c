@@ -43,6 +43,10 @@ static void model_release_arrays(jaos_model *m)
     free(m->ar_value);
     free(m->row_scale);
     free(m->col_scale);
+    free(m->sol_col);
+    free(m->sol_row);
+    free(m->sol_dual);
+    free(m->sol_redcost);
     memset(m, 0, sizeof *m);
 }
 
@@ -61,6 +65,62 @@ int64_t jaos_num_nz(const jaos_model *m)  { return m ? m->num_nz : 0; }
 const char *jaos_model_error(const jaos_model *m)
 {
     return m ? m->err : "";
+}
+
+jaos_status jaos_set_work_limit(jaos_model *m, int64_t units)
+{
+    if (m == nullptr)
+        return JAOS_ERR_INVALID_INPUT;
+    m->work_limit = units;
+    return JAOS_OK;
+}
+
+jaos_status jaos_set_time_limit(jaos_model *m, double seconds)
+{
+    if (m == nullptr || isnan(seconds))
+        return JAOS_ERR_INVALID_INPUT;
+    m->time_limit = seconds;
+    return JAOS_OK;
+}
+
+jaos_status jaos_solve(jaos_model *m)
+{
+    if (m == nullptr)
+        return JAOS_ERR_INVALID_INPUT;
+    m->err[0] = '\0';
+    return jm_dual_simplex(m);
+}
+
+jaos_solve_status jaos_status_of(const jaos_model *m)
+{
+    return m ? m->solve_status : JAOS_SOLVE_NOT_RUN;
+}
+
+double jaos_objective(const jaos_model *m)
+{
+    return m ? m->objective : 0.0;
+}
+
+int64_t jaos_work_units(const jaos_model *m) { return m ? m->solve_work : 0; }
+int64_t jaos_iterations(const jaos_model *m) { return m ? m->solve_iters : 0; }
+
+jaos_status jaos_solution(const jaos_model *m, double *col_value,
+    double *row_activity, double *row_dual, double *col_dual)
+{
+    if (m == nullptr)
+        return JAOS_ERR_INVALID_INPUT;
+    if (m->solve_status == JAOS_SOLVE_NOT_RUN || m->sol_col == nullptr)
+        return JAOS_ERR_INVALID_INPUT;
+
+    if (col_value)
+        memcpy(col_value, m->sol_col, (size_t)m->num_col * sizeof(double));
+    if (row_activity)
+        memcpy(row_activity, m->sol_row, (size_t)m->num_row * sizeof(double));
+    if (row_dual)
+        memcpy(row_dual, m->sol_dual, (size_t)m->num_row * sizeof(double));
+    if (col_dual)
+        memcpy(col_dual, m->sol_redcost, (size_t)m->num_col * sizeof(double));
+    return JAOS_OK;
 }
 
 void jm_set_err(jaos_model *m, const char *fmt, ...)
@@ -227,7 +287,14 @@ jaos_status jaos_load_lp(jaos_model *m,
         return err;
     }
 
+    /* Budgets are solver configuration, not problem data: loading a new
+     * problem into the same model must not silently discard them. */
+    int64_t keep_work_limit = m->work_limit;
+    double keep_time_limit = m->time_limit;
+
     model_release_arrays(m);
+    m->work_limit = keep_work_limit;
+    m->time_limit = keep_time_limit;
     m->num_col = num_col;
     m->num_row = num_row;
     m->num_nz  = kept;

@@ -54,11 +54,43 @@ struct jaos_model {
      * success, so it travels here rather than in err. */
     bool scale_clamped;
 
+    /* Budgets and the record of the last solve. Kept on the model so a
+     * caller can query results without holding a solver handle. */
+    int64_t work_limit;      /* <= 0 means unlimited */
+    double time_limit;       /* <= 0 means unlimited */
+
+    jaos_solve_status solve_status;
+    double objective;
+    double *sol_col;         /* [num_col] primal values      */
+    double *sol_row;         /* [num_row] row activities     */
+    double *sol_dual;        /* [num_row] row duals          */
+    double *sol_redcost;     /* [num_col] reduced costs      */
+    int64_t solve_work;
+    int64_t solve_iters;
+
     /* Detail message for the last failed operation; "" when it succeeded.
      * Sits outside the problem data on purpose: setting it never disturbs a
      * loaded model. */
     char err[256];
 };
+
+/* --------------------------------------------------------------------- */
+/* Dual simplex                                                          */
+/* --------------------------------------------------------------------- */
+
+/* Where a nonbasic variable sits. A basic variable's value comes from the
+ * factorization; a nonbasic one is pinned to a bound, which is what makes
+ * the basis determine the point. */
+typedef enum {
+    JM_BASIC = 0,
+    JM_AT_LOWER,
+    JM_AT_UPPER,
+    JM_FREE,        /* nonbasic at zero, both bounds infinite */
+} jm_var_status;
+
+/* Runs the dual simplex on a scaled copy of the model and writes the
+ * outcome back into it (solve_status, objective, sol_*, counters). */
+JAOS_NODISCARD jaos_status jm_dual_simplex(jaos_model *m);
 
 /* Overflow-checked array allocation: n elements of elsize bytes.
  * Returns NULL on n < 0, size overflow, or exhaustion. n == 0 still returns
