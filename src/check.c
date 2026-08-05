@@ -28,9 +28,8 @@
  *
  * The reduced-cost loop here resembles the one in src/simplex.c, and they
  * stay apart: sharing would make this file link against solver internals,
- * the exact coupling it exists to forbid. They do not even read the same
- * numbers any more: the solver's loop runs on the scaled copy, this one on
- * the model as it was loaded.
+ * the exact coupling it exists to forbid. Once scaling is wired in (Q7)
+ * they operate on different matrices anyway.
  *
  * Everything is computed in minimize-canonical form: for maximization the
  * cost and the duals are negated internally (sigma), which turns the sign
