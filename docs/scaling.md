@@ -13,8 +13,23 @@ magnitudes `rho_i * |a_ij| * gamma_j` cluster around 1.
 
 **The stored matrix is never modified.** The factors live beside it, and the
 original matrix remains the authority the independent checker judges
-against. The solver will build its scaled working copy from these factors;
-the checker keeps working in original space.
+against. The solver builds a scaled working copy from these factors and runs
+the whole solve on it; the checker keeps working in original space.
+
+## What the solver does with them
+
+A solve that finds no scaling on the model computes one — Curtis-Reid — and
+a caller who has already chosen a mode keeps it. From there the working copy
+is the scaled problem throughout: matrix values, column bounds divided by
+their factor, row bounds multiplied by theirs, costs multiplied by the column
+factor. It is a change of variable, `x_j = gamma_j * xhat_j`, not an
+approximation, and the tolerances the solver applies are specified in that
+space.
+
+Answers come back in the caller's units: column values carry their factor,
+row activities divide theirs out, and the duals go the other way — row duals
+multiply by the row factor and reduced costs divide by the column factor,
+because a dual is a rate per unit of the thing it prices.
 
 ## Powers of two, always
 

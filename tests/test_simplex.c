@@ -481,6 +481,115 @@ static void test_dse_weights_match_recomputed_norms(void)
         TEST_ASSERT_DOUBLE_WITHIN(1e-9, expect[i], w[i]);
 }
 
+/* ---- scaling ---------------------------------------------------------- */
+
+/*   min 1e6 x1 + 1.5 x2 + 1e6 x3
+ *   s.t. 1e6 x1 +   x2 + 1e3 x3 >= 2
+ *        1e6 x1 + 2 x2 + 1e3 x3 >= 3
+ *        0 <= x <= 10
+ *
+ * Coefficients three orders of magnitude apart in both directions, which
+ * is what makes the scaling produce factors on rows and columns alike.
+ * Measured in what a unit of column 1 contributes — a = 1e6 x1 — the
+ * problem reads min a + 1.5 x2 + 1000 (1e3 x3) subject to a + x2 >= 2 and
+ * a + 2 x2 >= 3, whose unique optimum is a = 1, x2 = 1. So x1 = 1e-6,
+ * x2 = 1, x3 = 0 and the objective is 2.5; column 3 is priced at a
+ * thousand times what it contributes and never enters. */
+static jaos_model *badly_scaled_model(void)
+{
+    static const double c[] = {1e6, 1.5, 1e6};
+    static const double cl[] = {0.0, 0.0, 0.0};
+    static const double cu[] = {10.0, 10.0, 10.0};
+    static const double rl[] = {2.0, 3.0};
+    static const double ru[] = {INFINITY, INFINITY};
+    static const int64_t as[] = {0, 2, 4, 6};
+    static const int64_t ai[] = {0, 1, 0, 1, 0, 1};
+    static const double av[] = {1e6, 1e6, 1.0, 2.0, 1e3, 1e3};
+
+    jaos_model *m = fresh();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_load_lp(m, 3, 2, JAOS_MINIMIZE, 0.0, c, cl, cu, rl, ru,
+                     6, as, ai, av));
+    return m;
+}
+
+/* The solver works on a scaled copy, so the claim to test is that the
+ * change of variable is a change of variable: the same optimum comes out
+ * whether the arithmetic happened in the model's units or in scaled ones.
+ *
+ * Both halves of the scaling are asserted to be non-trivial first.
+ * Without that this test could pass by scaling nothing at all, which is
+ * the failure it exists to catch — and it very nearly did: the model it
+ * used before turned out to have every column factor equal to one. */
+static void test_scaling_changes_the_arithmetic_not_the_answer(void)
+{
+    jaos_model *plain = badly_scaled_model();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jm_model_scale(plain, JM_SCALE_NONE));
+    solve_and_verify(plain, 2.5);
+
+    jaos_model *scaled = badly_scaled_model();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jm_model_scale(scaled, JM_SCALE_CURTIS_REID));
+
+    bool rows_moved = false, cols_moved = false;
+    for (int64_t i = 0; i < jaos_num_row(scaled); i++)
+        if (scaled->row_scale[i] != 1.0)
+            rows_moved = true;
+    for (int64_t j = 0; j < jaos_num_col(scaled); j++)
+        if (scaled->col_scale[j] != 1.0)
+            cols_moved = true;
+    TEST_ASSERT_TRUE(rows_moved);
+    TEST_ASSERT_TRUE(cols_moved);
+
+    solve_and_verify(scaled, 2.5);
+
+    /* And the two agree with each other, not merely each with its own
+     * tolerance. */
+    double a = 0.0, b = 0.0;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(plain, &a));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(scaled, &b));
+    TEST_ASSERT_DOUBLE_WITHIN(1e-9, a, b);
+
+    jaos_model_free(plain);
+    jaos_model_free(scaled);
+}
+
+/* Every number the solver reports is computed in scaled units and has to
+ * arrive in the caller's. The checker covers the primal values and the
+ * objective; it does not cover the row activities or the reduced costs,
+ * because it recomputes those from the matrix and the duals rather than
+ * trusting what it is handed. So they are pinned here, against arithmetic
+ * done by hand.
+ *
+ * Both rows are tight at the optimum and columns 1 and 2 are basic, which
+ * fixes the duals: y0 + y1 = 1 from column 1 and y0 + 2 y1 = 1.5 from
+ * column 2, so y = (0.5, 0.5). Column 3 then prices at
+ * 1e6 - (0.5 + 0.5) * 1e3 = 999000. */
+static void test_answers_come_back_in_the_models_units(void)
+{
+    jaos_model *m = badly_scaled_model();
+    solve_and_verify(m, 2.5);     /* no mode chosen: the default applies */
+
+    double x[3], act[2], y[2], dj[3];
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solution(m, x, act, y, dj));
+
+    TEST_ASSERT_DOUBLE_WITHIN(1e-12, 1e-6, x[0]);
+    TEST_ASSERT_DOUBLE_WITHIN(1e-9, 1.0, x[1]);
+    TEST_ASSERT_DOUBLE_WITHIN(1e-9, 0.0, x[2]);
+
+    TEST_ASSERT_DOUBLE_WITHIN(1e-9, 2.0, act[0]);
+    TEST_ASSERT_DOUBLE_WITHIN(1e-9, 3.0, act[1]);
+
+    TEST_ASSERT_DOUBLE_WITHIN(1e-9, 0.5, y[0]);
+    TEST_ASSERT_DOUBLE_WITHIN(1e-9, 0.5, y[1]);
+
+    TEST_ASSERT_DOUBLE_WITHIN(1e-9, 0.0, dj[0]);
+    TEST_ASSERT_DOUBLE_WITHIN(1e-9, 0.0, dj[1]);
+    TEST_ASSERT_DOUBLE_WITHIN(1e-3, 999000.0, dj[2]);
+
+    jaos_model_free(m);
+}
+
 /* Eight boxed columns feeding one row:
  *   min sum j*x_j  s.t. sum x_j >= 5.5, 0 <= x_j <= 1
  * The answer is to fill the five cheapest columns and half-fill the sixth:
@@ -672,6 +781,8 @@ int main(void)
     RUN_TEST(test_pricing_is_charged_to_the_work_counter);
     RUN_TEST(test_simultaneous_violations_of_wildly_different_size);
     RUN_TEST(test_dse_weights_match_recomputed_norms);
+    RUN_TEST(test_scaling_changes_the_arithmetic_not_the_answer);
+    RUN_TEST(test_answers_come_back_in_the_models_units);
     RUN_TEST(test_bound_flipping_fills_columns_in_one_step);
     RUN_TEST(test_harris_ignores_a_big_pivot_outside_the_window);
     RUN_TEST(test_harris_prefers_the_larger_pivot_inside_the_window);

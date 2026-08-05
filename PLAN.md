@@ -183,19 +183,16 @@ version (D16).
 ### 2.8 What is left inside M1
 
 Built and closed, recorded in the changelog and its commits: scaffold, model
-core with the independent checker, MPS and LP readers, Curtis-Reid scaling,
-sparse LU with Forrest-Tomlin updates and the work counter in its kernels, and
-a dual simplex that solves bounded LPs with dual steepest-edge pricing, a
-Harris two-pass ratio test with bound flipping, and a dual phase 1 by
-artificial bounds. `make test` covers all of it, and every solved test
-instance is put through the checker.
+core with the independent checker, MPS and LP readers, sparse LU with
+Forrest-Tomlin updates and the work counter in its kernels, and a dual
+simplex that solves bounded LPs on a Curtis-Reid scaled copy, with dual
+steepest-edge pricing, a Harris two-pass ratio test with bound flipping,
+and a dual phase 1 by artificial bounds. `make test` covers all of it, and
+every solved test instance is put through the checker.
 
 Remaining, in the order they are expected to be taken:
 
-1. **Wire scaling into the solve path (Q7)**, which also puts the §2.6
-   tolerances into the space they are specified for, and settles Q9 along the
-   way if the artificial bound is derived from scaled magnitudes.
-2. **Degeneracy handling**: deterministic bound perturbation, seeded and
+1. **Degeneracy handling**: deterministic bound perturbation, seeded and
    removed at the end, plus steepest-edge weight resets on drift. The weights
    are carried by a recurrence and never recomputed, so error in them
    accumulates silently — it costs iterations, never correctness, which is
@@ -203,13 +200,13 @@ Remaining, in the order they are expected to be taken:
    test spends belongs here too: each step may push a reduced cost one
    tolerance past feasible, and nothing yet repairs the ones that
    accumulate. Cost shifting is the usual answer [1].
-3. **Netlib campaign**, instance by instance, with the determinism harness on
+2. **Netlib campaign**, instance by instance, with the determinism harness on
    throughout. This is the gate (§2.9), and it is where Q6 and the acceptance
    table get settled.
 
 A refactorization stability trigger (§2.5.5) is still missing: only the
 interval and the reactive fallback on a failed update exist. It belongs with
-step 3, where a real instance will finally exercise it.
+step 2, where a real instance will finally exercise it.
 
 §2.5.6's debugging fallback to max-infeasibility pricing is not built. There
 is nowhere to put the flag — the library has no options API and inventing one
@@ -337,15 +334,16 @@ missed this".
   needs D11 approval) versus a checksum-pinned unofficial mirror; decided when
   the manifest is first built.
 - **Q9** — Sizing the artificial bound that dual phase 1 lends a column whose
-  cost points at a bound it does not have. It is a fixed 1e10 while the
-  model's own magnitudes are unknown and unscaled (Q7). The consequence is
-  not a rounding error but a wrong answer: **a model whose genuine optimum
-  exceeds that bound is reported UNBOUNDED**, because the optimum comes to
-  rest on the invented bound and that is the evidence the verdict reads.
-  Closing this means either deriving the bound from the model — the largest
-  finite bound and cost magnitude present — or replacing artificial bounds
-  with a phase 1 that does not need them (subproblem or cost shifting, per
-  Koberstein [21]). It closes before the Netlib gate.
+  cost points at a bound it does not have. It is a fixed 1e10, now applied
+  in scaled space, which puts it on magnitudes that cluster around one but
+  does not make it a number the model chose. The consequence is not a
+  rounding error but a wrong answer: **a model whose genuine optimum exceeds
+  that bound is reported UNBOUNDED**, because the optimum comes to rest on
+  the invented bound and that is the evidence the verdict reads. Closing this
+  means either deriving the bound from the model — the largest finite bound
+  and cost magnitude present, in the same scaled space — or replacing
+  artificial bounds with a phase 1 that does not need them (subproblem or
+  cost shifting, per Koberstein [21]). It closes before the Netlib gate.
 - **Q8** — How exact verification gets done, decided when M2 opens with
   certificate export. GMP is the obvious tool and D11 excludes it (LGPL),
   including for test-only use, since D15 exempts test dependencies from D2
@@ -355,14 +353,6 @@ missed this".
   dependency, hardware does the work), or hand-rolled rationals used only to
   verify a final basis. Nothing in M1 depends on this: tolerances plus Koch's
   reference values close the Netlib gate.
-- **Q7** — Wiring scaling into the solve path. §2.5 says the solver works on
-  a scaled copy while the checker judges in original space, and the §2.6
-  tolerances are specified in scaled units. Scaling is built and tested but
-  the simplex still reads the model as loaded, so those tolerances currently
-  act on raw magnitudes. Closing this means deciding where the scaled copy
-  lives — a transformed working model, or factors applied on the fly — and it
-  closes before the Netlib gate, because several instances there are
-  unsolvable without it.
 
 ---
 

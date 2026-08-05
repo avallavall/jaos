@@ -91,10 +91,9 @@ typedef enum {
 /* Runs the dual simplex and writes the outcome back into the model
  * (solve_status, objective, sol_*, counters).
  *
- * It works on the model as loaded, not on a scaled copy: jm_model_scale
- * exists and is tested but is not wired into the solve path yet, which
- * also means the tolerances in simplex.c act on raw magnitudes rather
- * than scaled ones. PLAN.md Q7 carries it. */
+ * It works on a scaled copy of the model, computing the scaling first if
+ * the model does not already carry one; the model itself is never
+ * modified, and everything written back is in the model's own units. */
 JAOS_NODISCARD jaos_status jm_dual_simplex(jaos_model *m);
 
 /* Forrest-Goldfarb dual steepest-edge weight update [8].

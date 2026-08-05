@@ -36,9 +36,10 @@
 #include <string.h>
 #include <time.h>
 
-/* Draft tolerances (PLAN.md 2.6); frozen when the Netlib gate closes.
- * PLAN 2.6 specifies these in scaled space — see Q7: the solver does not
- * apply the scaling it computes yet, so today they act on raw values. */
+/* Draft tolerances (PLAN.md 2.6); frozen when the Netlib gate closes. They
+ * are specified in scaled space and that is where they act: the solver
+ * works on a scaled copy of the model throughout (see sx_init), and the
+ * checker judges the original. */
 constexpr double PRIMAL_TOL    = 1e-7;
 constexpr double PIVOT_MIN     = 1e-9;   /* smallest usable |alpha| */
 /* How far a reduced cost may be pushed past feasible in exchange for a
@@ -104,8 +105,15 @@ typedef struct {
     jaos_model *m;
     int64_t nrow, ncol, nvar;
 
-    /* Bounds and costs over all variables: structurals first, then the
-     * logicals that carry row activities. */
+    /* The matrix the solver actually works on: the model's values with the
+     * scaling applied, sharing the model's sparsity pattern because
+     * scaling never moves a nonzero. The model's own copy stays as loaded
+     * — it is what the checker judges against, and a solver that could
+     * rewrite it would be a solver marking its own homework. */
+    double *av;              /* [num_nz] */
+
+    /* Bounds and costs over all variables, likewise scaled: structurals
+     * first, then the logicals that carry row activities. */
     double *lo, *up, *cost;
 
     jm_var_status *status;   /* [nvar] */
@@ -166,6 +174,7 @@ typedef struct {
 
 static void sx_free(sx *s)
 {
+    free(s->av);
     free(s->lo); free(s->up); free(s->cost);
     free(s->status); free(s->basis); free(s->where);
     free(s->xb); free(s->d); free(s->dse);
@@ -177,6 +186,21 @@ static void sx_free(sx *s)
     memset(s, 0, sizeof *s);
 }
 
+/* Sets up the scaled working copy the whole solve runs on.
+ *
+ * Scaling row i by rho_i and column j by gamma_j is a change of variable,
+ * x_j = gamma_j * xhat_j, not an approximation: every factor is an exact
+ * power of two (see docs/scaling.md), so applying one adds no rounding
+ * error of its own and the scaled problem has exactly the solutions the
+ * original has. What it buys is that the tolerances of PLAN 2.6 mean the
+ * same thing on every row, which on a model whose coefficients span ten
+ * orders of magnitude is the difference between a solve and a guess.
+ *
+ * The model as loaded is never touched. The answers are put back into its
+ * units in publish(), and the checker reads the original.
+ *
+ * A caller who has already chosen a scaling keeps it; otherwise the
+ * default is Curtis-Reid (PLAN 2.5.3). */
 static jaos_status sx_init(sx *s, jaos_model *m)
 {
     memset(s, 0, sizeof *s);
@@ -186,6 +210,13 @@ static jaos_status sx_init(sx *s, jaos_model *m)
     s->ncol = m->num_col;
     s->nvar = m->num_col + m->num_row;
 
+    if (!m->scale_valid) {
+        jaos_status st = jm_model_scale(m, JM_SCALE_CURTIS_REID);
+        if (st != JAOS_OK)
+            return st;
+    }
+
+    s->av     = jm_alloc_array(m->num_nz, sizeof(double));
     s->lo     = jm_alloc_array(s->nvar, sizeof(double));
     s->up     = jm_alloc_array(s->nvar, sizeof(double));
     s->cost   = jm_calloc_array(s->nvar, sizeof(double));
@@ -207,7 +238,7 @@ static jaos_status sx_init(sx *s, jaos_model *m)
     s->bs     = jm_alloc_array(s->nrow + 1, sizeof(int64_t));
     s->fake   = jm_calloc_array(s->nvar, sizeof *s->fake);
 
-    if (!s->lo || !s->up || !s->cost || !s->status || !s->basis ||
+    if (!s->av || !s->lo || !s->up || !s->cost || !s->status || !s->basis ||
         !s->where || !s->xb || !s->d || !s->dse || !s->col || !s->raw ||
         !s->rho || !s->tau || !s->alpha || !s->cand || !s->rnum ||
         !s->rden || !s->rrange || !s->bs || !s->fake) {
@@ -215,15 +246,27 @@ static jaos_status sx_init(sx *s, jaos_model *m)
         return JAOS_ERR_OUT_OF_MEMORY;
     }
 
+    const double *rho = m->row_scale, *gamma = m->col_scale;
+
+    /* ahat_ij = rho_i * a_ij * gamma_j. */
+    for (int64_t j = 0; j < s->ncol; j++)
+        for (int64_t k = m->a_start[j]; k < m->a_start[j + 1]; k++)
+            s->av[k] = rho[m->a_index[k]] * m->a_value[k] * gamma[j];
+
+    /* A column's bounds are its own units divided out; its cost is what
+     * keeps the objective the same number. A row's bounds move with the
+     * row's factor, since that is what its activity was multiplied by.
+     * Infinities survive all of it — every factor is finite and positive,
+     * so no bound changes side. */
     const double sigma = (m->sense == JAOS_MAXIMIZE) ? -1.0 : 1.0;
     for (int64_t j = 0; j < s->ncol; j++) {
-        s->lo[j] = m->col_lower[j];
-        s->up[j] = m->col_upper[j];
-        s->cost[j] = sigma * m->col_cost[j];
+        s->lo[j] = m->col_lower[j] / gamma[j];
+        s->up[j] = m->col_upper[j] / gamma[j];
+        s->cost[j] = sigma * m->col_cost[j] * gamma[j];
     }
     for (int64_t i = 0; i < s->nrow; i++) {
-        s->lo[s->ncol + i] = m->row_lower[i];
-        s->up[s->ncol + i] = m->row_upper[i];
+        s->lo[s->ncol + i] = m->row_lower[i] * rho[i];
+        s->up[s->ncol + i] = m->row_upper[i] * rho[i];
         s->cost[s->ncol + i] = 0.0;
     }
     return JAOS_OK;
@@ -255,7 +298,7 @@ static void var_column(const sx *s, int64_t v, double *out)
     if (v < s->ncol) {
         const jaos_model *m = s->m;
         for (int64_t k = m->a_start[v]; k < m->a_start[v + 1]; k++)
-            out[m->a_index[k]] = m->a_value[k];
+            out[m->a_index[k]] = s->av[k];
     } else {
         out[v - s->ncol] = -1.0;   /* logicals enter as -I */
     }
@@ -278,7 +321,7 @@ static double price_entry(sx *s, int64_t v)
     const jaos_model *m = s->m;
     double a = 0.0;
     for (int64_t k = m->a_start[v]; k < m->a_start[v + 1]; k++)
-        a += s->rho[m->a_index[k]] * m->a_value[k];
+        a += s->rho[m->a_index[k]] * s->av[k];
     jm_work_add(&s->work, (m->a_start[v + 1] - m->a_start[v]) *
                           JM_WORK_NONZERO);
     return a;
@@ -374,7 +417,7 @@ static jaos_status refactorize(sx *s)
         if (v < s->ncol) {
             for (int64_t k = s->m->a_start[v]; k < s->m->a_start[v + 1]; k++) {
                 s->bi[p] = s->m->a_index[k];
-                s->bv[p] = s->m->a_value[k];
+                s->bv[p] = s->av[k];
                 p++;
             }
         } else {
@@ -408,7 +451,7 @@ static void compute_primal(sx *s)
         if (v < s->ncol) {
             const jaos_model *m = s->m;
             for (int64_t k = m->a_start[v]; k < m->a_start[v + 1]; k++)
-                rhs[m->a_index[k]] -= m->a_value[k] * val;
+                rhs[m->a_index[k]] -= s->av[k] * val;
             jm_work_add(&s->work, (m->a_start[v + 1] - m->a_start[v]) *
                                   JM_WORK_NONZERO);
         } else {
@@ -607,7 +650,7 @@ static void apply_flips(sx *s, int64_t at, int64_t n)
         if (v < s->ncol) {
             const jaos_model *m = s->m;
             for (int64_t p = m->a_start[v]; p < m->a_start[v + 1]; p++)
-                rhs[m->a_index[p]] += m->a_value[p] * delta;
+                rhs[m->a_index[p]] += s->av[p] * delta;
             jm_work_add(&s->work, (m->a_start[v + 1] - m->a_start[v]) *
                                   JM_WORK_NONZERO);
         } else {
@@ -939,11 +982,16 @@ static jaos_status publish(sx *s, jaos_solve_status status)
         return JAOS_OK;
     }
 
-    /* Every entry below is written, so no pre-zeroing is needed. */
+    /* Out of the scaled copy and back into the model's own units. A column
+     * carries its factor, a row activity divides its own out; the duals go
+     * the other way, because a dual is a rate per unit of the thing it
+     * prices. Every entry is written, so no pre-zeroing is needed. */
+    const double *rho = m->row_scale, *gamma = m->col_scale;
+
     for (int64_t j = 0; j < m->num_col; j++)
-        m->sol_col[j] = var_value(s, j);
+        m->sol_col[j] = gamma[j] * var_value(s, j);
     for (int64_t i = 0; i < m->num_row; i++)
-        m->sol_row[i] = var_value(s, m->num_col + i);
+        m->sol_row[i] = var_value(s, m->num_col + i) / rho[i];
 
     /* y = B^-T c_B, then undo the internal minimisation. */
     double *y = s->rho;
@@ -951,9 +999,9 @@ static jaos_status publish(sx *s, jaos_solve_status status)
         y[i] = s->cost[s->basis[i]];
     jm_lu_btran(&s->lu, y, &s->work);
     for (int64_t i = 0; i < m->num_row; i++)
-        m->sol_dual[i] = sigma * y[i];
+        m->sol_dual[i] = sigma * y[i] * rho[i];
     for (int64_t j = 0; j < m->num_col; j++)
-        m->sol_redcost[j] = sigma * s->d[j];
+        m->sol_redcost[j] = sigma * s->d[j] / gamma[j];
 
     double obj = m->obj_offset;
     for (int64_t j = 0; j < m->num_col; j++)
