@@ -345,6 +345,142 @@ static void test_pricing_is_charged_to_the_work_counter(void)
     jaos_model_free(m);
 }
 
+/* Three rows violated at once, by amounts three million apart, because the
+ * same constraints are written in different units:
+ *      x1 + x2       >= 2
+ *   1000 x2 + 1000 x3 >= 3000        (x2 + x3 >= 3)
+ *  0.001 x1 + 0.001 x3 >= 0.001      (x1 + x3 >= 1)
+ * minimising x1 + x2 + x3 over [0, 10]^3. Adding the three constraints
+ * gives 2(x1+x2+x3) >= 6, and x = (0, 2, 1) attains it: the optimum is 3,
+ * whichever order the rows are repaired in.
+ *
+ * The units are the point. A rule that ranks rows by raw violation sees
+ * one row breached by 3000 and another by a thousandth, and reads that as
+ * importance rather than as millimetres against kilometres. */
+static void test_simultaneous_violations_of_wildly_different_size(void)
+{
+    const double c[] = {1.0, 1.0, 1.0};
+    const double cl[] = {0.0, 0.0, 0.0};
+    const double cu[] = {10.0, 10.0, 10.0};
+    const double rl[] = {2.0, 3000.0, 0.001};
+    const double ru[] = {INFINITY, INFINITY, INFINITY};
+    /* x1: rows 0,2 ; x2: rows 0,1 ; x3: rows 1,2 */
+    const int64_t as[] = {0, 2, 4, 6};
+    const int64_t ai[] = {0, 2, 0, 1, 1, 2};
+    const double av[] = {1.0, 0.001, 1.0, 1000.0, 1000.0, 0.001};
+
+    jaos_model *m = fresh();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_load_lp(m, 3, 3, JAOS_MINIMIZE, 0.0, c, cl, cu, rl, ru,
+                     6, as, ai, av));
+    solve_and_verify(m, 3.0);
+    jaos_model_free(m);
+}
+
+/* ---- dual steepest-edge weights -------------------------------------- */
+
+/* The weight recurrence is a heuristic: get it wrong and JAOS still
+ * answers correctly, only slower, so no solve-level assertion can catch
+ * it. It is checked directly instead, against the row norms of B^-1
+ * recomputed from a factorization of the resulting basis — which shares no
+ * arithmetic with the recurrence under test. */
+
+constexpr int64_t DSE_N = 3;
+
+typedef struct {
+    int64_t start[DSE_N + 1];
+    int64_t index[DSE_N * DSE_N];
+    double  value[DSE_N * DSE_N];
+} csc3;
+
+static void pack3(double a[DSE_N][DSE_N], csc3 *out)
+{
+    int64_t nz = 0;
+    for (int64_t j = 0; j < DSE_N; j++) {
+        out->start[j] = nz;
+        for (int64_t i = 0; i < DSE_N; i++)
+            if (a[i][j] != 0.0) {
+                out->index[nz] = i;
+                out->value[nz] = a[i][j];
+                nz++;
+            }
+    }
+    out->start[DSE_N] = nz;
+}
+
+static void factor3(double a[DSE_N][DSE_N], csc3 *c, jm_lu *lu)
+{
+    pack3(a, c);
+    jm_lu_init(lu);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jm_lu_factor(lu, DSE_N, c->start, c->index,
+                                                c->value, 0.1, nullptr));
+    TEST_ASSERT_EQUAL_INT64(DSE_N, lu->rank);
+}
+
+/* ||row i of B^-1||^2, for every i. */
+static void exact_weights(double b[DSE_N][DSE_N], double *w)
+{
+    csc3 c;
+    jm_lu lu;
+    factor3(b, &c, &lu);
+    for (int64_t i = 0; i < DSE_N; i++) {
+        double rho[DSE_N] = {0.0};
+        rho[i] = 1.0;
+        jm_lu_btran(&lu, rho, nullptr);
+        double sum = 0.0;
+        for (int64_t k = 0; k < DSE_N; k++)
+            sum += rho[k] * rho[k];
+        w[i] = sum;
+    }
+    jm_lu_free(&lu);
+}
+
+static void test_dse_weights_match_recomputed_norms(void)
+{
+    /* Nothing special about this basis beyond being nonsingular, and an
+     * entering column that leaves the replacement nonsingular too. */
+    double b[DSE_N][DSE_N] = {
+        {2.0, 1.0, 0.0},
+        {0.0, 3.0, 1.0},
+        {1.0, 0.0, 4.0},
+    };
+    const double aq[DSE_N] = {1.0, 2.0, 3.0};
+    const int64_t r = 1;            /* the basis row the column enters at */
+
+    double w[DSE_N];
+    exact_weights(b, w);
+
+    /* alpha = B^-1 a_q and tau = B^-1 (B^-T e_r), both against the basis
+     * as it stands before the change — which is exactly how the simplex
+     * has them when it pivots. */
+    csc3 c;
+    jm_lu lu;
+    factor3(b, &c, &lu);
+
+    double alpha[DSE_N];
+    memcpy(alpha, aq, sizeof alpha);
+    jm_lu_ftran(&lu, alpha, nullptr);
+
+    double tau[DSE_N] = {0.0};
+    tau[r] = 1.0;
+    jm_lu_btran(&lu, tau, nullptr);
+    jm_lu_ftran(&lu, tau, nullptr);
+    jm_lu_free(&lu);
+
+    jm_dse_update(DSE_N, w, r, alpha, tau);
+
+    double after[DSE_N][DSE_N];
+    memcpy(after, b, sizeof after);
+    for (int64_t i = 0; i < DSE_N; i++)
+        after[i][r] = aq[i];
+
+    double expect[DSE_N];
+    exact_weights(after, expect);
+
+    for (int64_t i = 0; i < DSE_N; i++)
+        TEST_ASSERT_DOUBLE_WITHIN(1e-9, expect[i], w[i]);
+}
+
 /* Determinism (D8): the same model solved twice must produce the same
  * objective bit for bit, the same iteration count, and the same work. */
 static void test_solving_twice_is_bit_identical(void)
@@ -449,6 +585,8 @@ int main(void)
     RUN_TEST(test_t1_mps_is_infeasible_and_says_so);
     RUN_TEST(test_zero_objective_is_distinguishable_from_no_answer);
     RUN_TEST(test_pricing_is_charged_to_the_work_counter);
+    RUN_TEST(test_simultaneous_violations_of_wildly_different_size);
+    RUN_TEST(test_dse_weights_match_recomputed_norms);
     RUN_TEST(test_solving_twice_is_bit_identical);
     RUN_TEST(test_work_limit_stops_and_reports);
     RUN_TEST(test_budgets_survive_a_reload);

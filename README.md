@@ -32,9 +32,9 @@ jaos_model_free(m);
 - **Readers** for MPS (fixed and free layout) and CPLEX-style LP format,
   including ranged rows, all continuous bound types, objective constants and
   Fortran `D` exponents. Every rejection carries a line number and a reason.
-- **A dual simplex** with bounds, solving minimisation and maximisation,
-  equalities, ranged rows and free variables — reporting optimal, infeasible
-  and unbounded outcomes.
+- **A dual simplex** with bounds and dual steepest-edge pricing, solving
+  minimisation and maximisation, equalities, ranged rows and free variables —
+  reporting optimal, infeasible and unbounded outcomes.
 - **Sparse LU factorization** with Markowitz threshold pivoting and
   Forrest-Tomlin updates, so a basis change costs work proportional to the
   change rather than a refactorization.

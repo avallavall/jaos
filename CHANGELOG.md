@@ -60,3 +60,7 @@ versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   an explanation, rather than being rejected as invalid input.
 - `jaos_objective` reports through a status and an out-parameter, so a
   genuine objective of zero is distinguishable from having no answer.
+- Dual steepest-edge pricing: the solver picks which violated constraint to
+  repair by how far the repair actually travels, not by the size of the
+  violation as written. A model in mixed units no longer sends it after the
+  row with the smallest units first.

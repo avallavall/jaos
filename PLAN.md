@@ -185,32 +185,37 @@ version (D16).
 Built and closed, recorded in the changelog and its commits: scaffold, model
 core with the independent checker, MPS and LP readers, Curtis-Reid scaling,
 sparse LU with Forrest-Tomlin updates and the work counter in its kernels, and
-a dual simplex that solves bounded LPs with a dual phase 1 by artificial
-bounds. `make test` covers all of it, and every solved test instance is put
-through the checker.
+a dual simplex that solves bounded LPs with dual steepest-edge pricing and a
+dual phase 1 by artificial bounds. `make test` covers all of it, and every
+solved test instance is put through the checker.
 
 Remaining, in the order they are expected to be taken:
 
-1. **Dual steepest edge pricing** [8]. Today's rule picks the largest bound
-   violation, which is the cheapest thing that works and the wrong thing at
-   scale. This is the single largest determinant of how many iterations a
-   real model takes, and it replaces one function: `price_row`.
-2. **Harris two-pass ratio test with bound flipping** [7][19][1], replacing
+1. **Harris two-pass ratio test with bound flipping** [7][19][1], replacing
    `dual_ratio_test`. Buys numerical stability on degenerate vertices and the
    long steps that bound flipping makes possible. The dual feasibility
    tolerance from §2.6 arrives with it — it is what the first pass widens.
-3. **Wire scaling into the solve path (Q7)**, which also puts the §2.6
+2. **Wire scaling into the solve path (Q7)**, which also puts the §2.6
    tolerances into the space they are specified for, and settles Q9 along the
    way if the artificial bound is derived from scaled magnitudes.
-4. **Degeneracy handling**: deterministic bound perturbation, seeded and
-   removed at the end, plus DSE weight resets on drift.
-5. **Netlib campaign**, instance by instance, with the determinism harness on
+3. **Degeneracy handling**: deterministic bound perturbation, seeded and
+   removed at the end, plus steepest-edge weight resets on drift. The weights
+   are carried by a recurrence and never recomputed, so error in them
+   accumulates silently — it costs iterations, never correctness, which is
+   exactly why nothing else will surface it.
+4. **Netlib campaign**, instance by instance, with the determinism harness on
    throughout. This is the gate (§2.9), and it is where Q6 and the acceptance
    table get settled.
 
 A refactorization stability trigger (§2.5.5) is still missing: only the
 interval and the reactive fallback on a failed update exist. It belongs with
-step 5, where a real instance will finally exercise it.
+step 4, where a real instance will finally exercise it.
+
+§2.5.6's debugging fallback to max-infeasibility pricing is not built. There
+is nowhere to put the flag — the library has no options API and inventing one
+for a debugging aid is the wrong order — and the rule itself is one line: it
+is what steepest edge becomes when every weight is pinned at one. It waits for
+the first option the library needs for a reason of its own.
 
 ### 2.9 Acceptance gate for M1
 
@@ -309,8 +314,10 @@ missed this".
 
 ## 3. Open questions
 
-- **Q1** — Dual phase-1 method: chosen during §2.8 step 6 from [21][1], on Netlib
-  evidence.
+- **Q1** — Dual phase-1 method. Artificial bounds are what is built; whether
+  they survive the Netlib campaign, or a subproblem or cost-shifting method
+  from [21][1] has to replace them, is decided there on evidence. Q9 carries
+  the known way the present one gets an answer wrong.
 - **Q2** — LP and MPS dialect edge semantics (e.g., RANGES on E rows with a
   negative range value, a sub-case the public docs leave ambiguous): fixed as
   encountered, recorded in `docs/format-support.md`.

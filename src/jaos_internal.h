@@ -97,6 +97,25 @@ typedef enum {
  * than scaled ones. PLAN.md Q7 carries it. */
 JAOS_NODISCARD jaos_status jm_dual_simplex(jaos_model *m);
 
+/* Forrest-Goldfarb dual steepest-edge weight update [8].
+ *
+ * w[i] tracks ||row i of B^-1||^2, the length of the direction the dual
+ * method would move along if it chose row i. Dividing a bound violation by
+ * it turns a raw distance-to-feasibility into a distance measured in the
+ * units the step actually takes, which is what makes the row choice
+ * insensitive to how the model happens to be written.
+ *
+ * Column q enters the basis at row r. `alpha` is B^-1 M_q and `tau` is
+ * B^-1 rho_r with rho_r = B^-T e_r, both dense of length n, both taken
+ * against the basis *before* the change. alpha[r] is the pivot.
+ *
+ * Reachable from outside the simplex for one reason: a wrong recurrence
+ * costs iterations and never a wrong answer, so no solve-level test can
+ * catch it and the formula has to be checked against norms recomputed from
+ * scratch. */
+void jm_dse_update(int64_t n, double *w, int64_t r,
+                   const double *alpha, const double *tau);
+
 /* Overflow-checked array allocation: n elements of elsize bytes.
  * Returns NULL on n < 0, size overflow, or exhaustion. n == 0 still returns
  * a valid non-NULL allocation, so success is always non-NULL. */

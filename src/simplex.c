@@ -12,10 +12,9 @@
  * and bound creates thousands of times per solve — and because dual
  * steepest-edge pricing is what makes large models tractable [1].
  *
- * This is the correctness-first skeleton: largest-infeasibility pricing
- * and a textbook ratio test. Dual steepest edge [8], the Harris two-pass
- * test with bound flipping [7][19] and dual phase 1 [21] land on top of
- * it, each replacing one clearly separated decision.
+ * Pricing is dual steepest edge [8] and phase 1 is by artificial bounds
+ * (both below). The ratio test is still the textbook one; the Harris
+ * two-pass test with bound flipping [7][19] replaces exactly that.
  *
  * Sign conventions, stated once because every bug here is a sign bug:
  *   - x_B = -B^-1 N x_N, so moving a nonbasic by dx moves the basics by
@@ -50,6 +49,15 @@ constexpr double PIVOT_MIN     = 1e-9;   /* smallest usable |alpha| */
  * it unapplied would suggest a check that is not happening. */
 constexpr double LU_PIVOT_TOL  = 0.1;    /* Markowitz threshold */
 constexpr double LU_UPDATE_TOL = 1e-9;
+
+/* Floor on a steepest-edge weight. Every weight is the squared norm of a
+ * row of B^-1, so it is positive by construction; the recurrence that
+ * carries it forward subtracts, and subtraction can cancel a small true
+ * value to zero or below. The floor exists so that cancellation cannot
+ * divide by zero, and it is set far below any weight a nonsingular basis
+ * produces — it is a guard, not a tuning knob. Weights that drift from
+ * the truth are a separate matter, handled by resetting them (PLAN 2.8). */
+constexpr double DSE_MIN = 1e-12;
 
 /* Refactorization interval. PLAN 2.5.5 also calls for stability triggers
  * (FTRAN/BTRAN residual checks); only the interval and the reactive
@@ -115,6 +123,12 @@ typedef struct {
     double *xb;              /* [nrow] basic values */
     double *d;               /* [nvar] reduced costs */
 
+    /* Dual steepest-edge weights, one per basis position: dse[i] tracks
+     * ||row i of B^-1||^2. Carried across refactorizations — recomputing
+     * them exactly would cost one solve per row, which is the whole point
+     * of the recurrence. */
+    double *dse;             /* [nrow] */
+
     jm_lu lu;
     jm_work work;
 
@@ -123,6 +137,7 @@ typedef struct {
     double *col;
     double *raw;
     double *rho;             /* [nrow] row r of B^-1 */
+    double *tau;             /* [nrow] B^-1 rho, for the weight update */
     double *alpha;           /* [nvar] pricing row */
 
     /* Refactorization buffers, grown once and reused: a refactorization
@@ -144,8 +159,8 @@ static void sx_free(sx *s)
 {
     free(s->lo); free(s->up); free(s->cost);
     free(s->status); free(s->basis); free(s->where);
-    free(s->xb); free(s->d);
-    free(s->col); free(s->raw); free(s->rho); free(s->alpha);
+    free(s->xb); free(s->d); free(s->dse);
+    free(s->col); free(s->raw); free(s->rho); free(s->tau); free(s->alpha);
     free(s->bs); free(s->bi); free(s->bv);
     free(s->fake);
     jm_lu_free(&s->lu);
@@ -169,16 +184,18 @@ static jaos_status sx_init(sx *s, jaos_model *m)
     s->where  = jm_alloc_array(s->nvar, sizeof(int64_t));
     s->xb     = jm_calloc_array(s->nrow, sizeof(double));
     s->d      = jm_calloc_array(s->nvar, sizeof(double));
+    s->dse    = jm_alloc_array(s->nrow, sizeof(double));
     s->col    = jm_calloc_array(s->nrow, sizeof(double));
     s->raw    = jm_calloc_array(s->nrow, sizeof(double));
     s->rho    = jm_calloc_array(s->nrow, sizeof(double));
+    s->tau    = jm_calloc_array(s->nrow, sizeof(double));
     s->alpha  = jm_calloc_array(s->nvar, sizeof(double));
     s->bs     = jm_alloc_array(s->nrow + 1, sizeof(int64_t));
     s->fake   = jm_calloc_array(s->nvar, sizeof *s->fake);
 
     if (!s->lo || !s->up || !s->cost || !s->status || !s->basis ||
-        !s->where || !s->xb || !s->d || !s->col || !s->raw || !s->rho ||
-        !s->alpha || !s->bs || !s->fake) {
+        !s->where || !s->xb || !s->d || !s->dse || !s->col || !s->raw ||
+        !s->rho || !s->tau || !s->alpha || !s->bs || !s->fake) {
         sx_free(s);
         return JAOS_ERR_OUT_OF_MEMORY;
     }
@@ -266,6 +283,11 @@ static void build_initial_basis(sx *s)
         s->basis[i] = v;
         s->status[v] = JM_BASIC;
         s->where[v] = i;
+        /* B = -I, so row i of B^-1 is -e_i and its squared norm is exactly
+         * one. The steepest-edge recurrence starts from truth here rather
+         * than from an approximation, which is the reason the dual method
+         * is started from the slack basis at all. */
+        s->dse[i] = 1.0;
     }
     for (int64_t j = 0; j < s->ncol; j++) {
         s->where[j] = -1;
@@ -422,29 +444,70 @@ static jaos_status refresh(sx *s, bool *ok)
 /* One iteration                                                         */
 /* --------------------------------------------------------------------- */
 
-/* Largest bound violation among the basics. Returns -1 when primal
- * feasible; otherwise sets *below to which bound was breached. */
-static int64_t price_row(const sx *s, bool *below)
+/* Dual steepest-edge pricing [8]: among the basics that violate a bound,
+ * the one whose violation is largest measured along the direction the
+ * method would actually move — violation squared over the squared norm of
+ * that row of B^-1. Returns -1 when primal feasible; otherwise sets *below
+ * to which bound was breached.
+ *
+ * The raw violation on its own is not a distance: two rows a metre apart
+ * from feasibility differ by a factor of a thousand if one is written in
+ * millimetres, and the largest-violation rule would pick the millimetre
+ * row every time. The weight divides that unit out. This is the single
+ * largest determinant of how many iterations a real model takes [1].
+ *
+ * A variable cannot break both of its bounds at once, so the larger of the
+ * two violations is the only candidate. */
+static int64_t price_row(sx *s, bool *below)
 {
     int64_t best = -1;
-    double worst = PRIMAL_TOL;
+    double best_score = 0.0;
 
     for (int64_t i = 0; i < s->nrow; i++) {
         int64_t v = s->basis[i];
         double viol_lo = isfinite(s->lo[v]) ? s->lo[v] - s->xb[i] : 0.0;
         double viol_up = isfinite(s->up[v]) ? s->xb[i] - s->up[v] : 0.0;
-        if (viol_lo > worst) {
-            worst = viol_lo;
+
+        bool under = viol_lo >= viol_up;
+        double viol = under ? viol_lo : viol_up;
+        if (viol <= PRIMAL_TOL)
+            continue;
+
+        double score = viol * viol / s->dse[i];
+        if (score > best_score) {
+            best_score = score;
             best = i;
-            *below = true;
-        }
-        if (viol_up > worst) {
-            worst = viol_up;
-            best = i;
-            *below = false;
+            *below = under;
         }
     }
+    jm_work_add(&s->work, s->nrow * JM_WORK_NONZERO);
     return best;
+}
+
+/* The weight recurrence. Row i of the new B^-1 is row i minus
+ * (alpha_i / alpha_r) times row r, and row r becomes row r over alpha_r;
+ * expanding the squared norms of those two statements gives everything
+ * below, with tau_i = rho_i . rho_r supplying the cross term. Documented
+ * in the header, which is also where the exported-for-testing rationale
+ * lives. */
+void jm_dse_update(int64_t n, double *w, int64_t r,
+                   const double *alpha, const double *tau)
+{
+    double pivot = alpha[r];
+    if (pivot == 0.0)
+        return;   /* the ratio test never picks one, and weights are a
+                     heuristic: leaving them stale beats infinities */
+
+    double wr = w[r];
+    for (int64_t i = 0; i < n; i++) {
+        if (i == r || alpha[i] == 0.0)
+            continue;
+        double k = alpha[i] / pivot;
+        double wi = w[i] - 2.0 * k * tau[i] + k * k * wr;
+        w[i] = wi > DSE_MIN ? wi : DSE_MIN;
+    }
+    double wnew = wr / (pivot * pivot);
+    w[r] = wnew > DSE_MIN ? wnew : DSE_MIN;
 }
 
 /* Textbook dual ratio test: among the entries whose sign lets the basic in
@@ -537,6 +600,20 @@ static jaos_status pivot(sx *s, int64_t r, int64_t q, bool below,
     var_column(s, q, s->raw);
     memcpy(s->col, s->raw, (size_t)s->nrow * sizeof *s->col);
     jm_lu_ftran(&s->lu, s->col, &s->work);
+
+    /* Steepest-edge weights, while the old basis is still in force: both
+     * vectors the recurrence needs are solves against it, so this has to
+     * happen before the factorization is repaired below. rho still holds
+     * row r of B^-1 from price_and_select, which is the one piece of state
+     * this function inherits rather than derives.
+     *
+     * The second FTRAN is what exact weights cost, and it is the reason
+     * approximations of this rule exist at all; they trade iterations for
+     * it [8]. */
+    memcpy(s->tau, s->rho, (size_t)s->nrow * sizeof *s->tau);
+    jm_lu_ftran(&s->lu, s->tau, &s->work);
+    jm_dse_update(s->nrow, s->dse, r, s->col, s->tau);
+    jm_work_add(&s->work, s->nrow * JM_WORK_NONZERO);
 
     double q_value = nonbasic_value(s, q);
     for (int64_t i = 0; i < s->nrow; i++)
