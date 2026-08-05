@@ -306,6 +306,15 @@ missed this".
 - **Q6** — Netlib acquisition route: netlib's emps expander (a dev-time tool,
   needs D11 approval) versus a checksum-pinned unofficial mirror; decided when
   the manifest is first built.
+- **Q8** — How exact verification gets done, decided when M2 opens with
+  certificate export. GMP is the obvious tool and D11 excludes it (LGPL),
+  including for test-only use, since D15 exempts test dependencies from D2
+  but not from D11. The alternatives to weigh then: iterative refinement
+  (Gleixner et al. — machine arithmetic for almost everything, exactness only
+  at the end), interval arithmetic in plain `double` (rigorous bounds, no
+  dependency, hardware does the work), or hand-rolled rationals used only to
+  verify a final basis. Nothing in M1 depends on this: tolerances plus Koch's
+  reference values close the Netlib gate.
 - **Q7** — Wiring scaling into the solve path. §2.5 says the solver works on
   a scaled copy while the checker judges in original space, and the §2.6
   tolerances are specified in scaled units. Scaling is built and tested but

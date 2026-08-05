@@ -209,13 +209,12 @@ static void test_solving_a_model_read_from_mps(void)
     jaos_model_free(m);
 }
 
-/* A model whose costs push every column towards a bound that does not
- * exist has no dual feasible slack basis. Until dual phase 1 lands, that
- * must be reported plainly — an answer would be a guess. */
-static void test_model_needing_dual_phase_one_says_so(void)
+/* A genuinely unbounded model: min -x with x >= 0 and no ceiling, and a
+ * row that does not restrain it. Dual phase 1 lends x an artificial upper
+ * bound; the optimum settles on it, which is the evidence that the
+ * objective wanted to run past a bound that was never real. */
+static void test_unbounded_model_is_reported(void)
 {
-    /* min -x with x unbounded above: the reduced cost wants an upper
-     * bound to sit at, and there is none. */
     const double c[] = {-1.0};
     const double cl[] = {0.0}, cu[] = {INFINITY};
     const double rl[] = {0.0}, ru[] = {INFINITY};
@@ -226,16 +225,72 @@ static void test_model_needing_dual_phase_one_says_so(void)
     TEST_ASSERT_EQUAL_INT(JAOS_OK,
         jaos_load_lp(m, 1, 1, JAOS_MINIMIZE, 0.0, c, cl, cu, rl, ru,
                      1, as, ai, av));
-    /* The solve runs and reports what it could not do. The model is not
-     * invalid — the solver is incomplete, and those are different. */
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
-    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_UNSUPPORTED, jaos_status_of(m));
-    TEST_ASSERT_NOT_NULL(strstr(jaos_model_error(m), "phase 1"));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_UNBOUNDED, jaos_status_of(m));
 
-    /* And no objective is on offer for a solve that found none. */
+    /* No objective is on offer for a solve that found no optimum. */
     double obj = 1234.0;
     TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT, jaos_objective(m, &obj));
     TEST_ASSERT_EQUAL_DOUBLE(1234.0, obj);   /* left untouched */
+    jaos_model_free(m);
+}
+
+/* The same shape of column — cost pushing towards a missing bound — but
+ * held back by a constraint. The artificial bound is never reached, so it
+ * never mattered, and the answer is the real problem's.
+ *
+ *   min -x - 2y  s.t. x + y <= 4, x,y >= 0, neither bounded above
+ * Optimum puts everything on y: y = 4, objective -8. */
+static void test_missing_bound_that_a_row_restrains_solves_normally(void)
+{
+    const double c[] = {-1.0, -2.0};
+    const double cl[] = {0.0, 0.0};
+    const double cu[] = {INFINITY, INFINITY};
+    const double rl[] = {-INFINITY}, ru[] = {4.0};
+    const int64_t as[] = {0, 1, 2}, ai[] = {0, 0};
+    const double av[] = {1.0, 1.0};
+
+    jaos_model *m = fresh();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_load_lp(m, 2, 1, JAOS_MINIMIZE, 0.0, c, cl, cu, rl, ru,
+                     2, as, ai, av));
+    solve_and_verify(m, -8.0);
+    jaos_model_free(m);
+}
+
+/* Maximisation with no upper bounds is the same situation mirrored, and
+ * was the case that used to be refused outright.
+ *   max 3x + 2y  s.t. x + y <= 4, x <= 2  ->  x=2, y=2, objective 10 */
+static void test_maximise_without_column_upper_bounds(void)
+{
+    const double c[] = {3.0, 2.0};
+    const double cl[] = {0.0, 0.0};
+    const double cu[] = {INFINITY, INFINITY};
+    const double rl[] = {-INFINITY, -INFINITY}, ru[] = {4.0, 2.0};
+    const int64_t as[] = {0, 2, 3};
+    const int64_t ai[] = {0, 1, 0};
+    const double av[] = {1.0, 1.0, 1.0};
+
+    jaos_model *m = fresh();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_load_lp(m, 2, 2, JAOS_MAXIMIZE, 0.0, c, cl, cu, rl, ru,
+                     3, as, ai, av));
+    solve_and_verify(m, 10.0);
+    jaos_model_free(m);
+}
+
+/* t1.mps was written to exercise the reader and turns out to have no
+ * feasible point at all: EQ1 forces X3 = 7 + X2, so X2 >= -1 puts X3 at 6
+ * or more, while LIM2 caps X1 + X3 at 3.5 with X1 >= 0. Worth keeping
+ * exactly for that — an infeasibility that comes off disk through the
+ * reader, in a model nobody constructed to be infeasible. It also needs
+ * phase 1 to start, since X3 has a negative cost and no upper bound. */
+static void test_t1_mps_is_infeasible_and_says_so(void)
+{
+    jaos_model *m = fresh();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_read_mps(m, "tests/data/t1.mps"));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_INFEASIBLE, jaos_status_of(m));
     jaos_model_free(m);
 }
 
@@ -388,7 +443,10 @@ int main(void)
     RUN_TEST(test_infeasible_model_is_reported);
     RUN_TEST(test_three_by_three);
     RUN_TEST(test_solving_a_model_read_from_mps);
-    RUN_TEST(test_model_needing_dual_phase_one_says_so);
+    RUN_TEST(test_unbounded_model_is_reported);
+    RUN_TEST(test_missing_bound_that_a_row_restrains_solves_normally);
+    RUN_TEST(test_maximise_without_column_upper_bounds);
+    RUN_TEST(test_t1_mps_is_infeasible_and_says_so);
     RUN_TEST(test_zero_objective_is_distinguishable_from_no_answer);
     RUN_TEST(test_pricing_is_charged_to_the_work_counter);
     RUN_TEST(test_solving_twice_is_bit_identical);

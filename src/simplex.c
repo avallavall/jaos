@@ -41,8 +41,13 @@
  * PLAN 2.6 specifies these in scaled space — see Q7: the solver does not
  * apply the scaling it computes yet, so today they act on raw values. */
 constexpr double PRIMAL_TOL    = 1e-7;
-constexpr double DUAL_TOL      = 1e-7;
 constexpr double PIVOT_MIN     = 1e-9;   /* smallest usable |alpha| */
+/* PLAN 2.6 also specifies a dual feasibility tolerance. It has no use
+ * here yet: the dual simplex maintains dual feasibility by construction,
+ * and the ratio test compares ratios rather than testing costs against a
+ * threshold. It arrives with the Harris test, which needs exactly that
+ * kind of threshold to widen its first pass. Declaring it now and leaving
+ * it unapplied would suggest a check that is not happening. */
 constexpr double LU_PIVOT_TOL  = 0.1;    /* Markowitz threshold */
 constexpr double LU_UPDATE_TOL = 1e-9;
 
@@ -56,6 +61,31 @@ constexpr int64_t REFACTOR_EVERY = 64;
  * decides whether to stop — and at this granularity the syscall cost
  * disappears while the cutoff stays responsive. */
 constexpr int64_t TIME_CHECK_EVERY = 64;
+
+/* Dual phase 1 by artificial bounds.
+ *
+ * The slack basis is dual feasible only if every column has the bound its
+ * cost asks for. A column whose cost pushes it towards a bound that does
+ * not exist leaves the start dual infeasible, and the dual simplex has
+ * nowhere to begin.
+ *
+ * The repair: lend that column a finite bound. Solve the bounded problem —
+ * which is now dual feasible by construction — and read the answer. If no
+ * artificial bound is active at the optimum, it never constrained anything
+ * and the answer is the original problem's. If one is active, the objective
+ * wanted to keep going past a bound that was never real: the original
+ * problem is unbounded.
+ *
+ * Koberstein [21] compares this against subproblem and cost-shifting
+ * methods; those converge better on hard models, and replacing this is a
+ * later step. What matters now is that a whole class of models becomes
+ * solvable instead of refused, and that the unbounded verdict is read off
+ * evidence rather than guessed.
+ *
+ * The bound has to be large enough not to cut off a genuine optimum and
+ * small enough to stay numerically sane against the tolerances above. This
+ * value is a draft, like the tolerances themselves. */
+constexpr double ARTIFICIAL_BOUND = 1e10;
 
 /* A stop that is not a real limit, only a guard against a loop that fails
  * to terminate through a bug. Hitting it is a defect in JAOS, so it is
@@ -74,6 +104,11 @@ typedef struct {
     jm_var_status *status;   /* [nvar] */
     int64_t *basis;          /* [nrow] variable occupying each position */
     int64_t *where;          /* [nvar] basis position, or -1 */
+
+    /* Which bounds JAOS invented to get a dual feasible start, and on
+     * which side. An active one at the optimum means unbounded. */
+    bool *fake_lo, *fake_up;
+    bool any_fake;
 
     double *xb;              /* [nrow] basic values */
     double *d;               /* [nvar] reduced costs */
@@ -110,6 +145,7 @@ static void sx_free(sx *s)
     free(s->xb); free(s->d);
     free(s->col); free(s->raw); free(s->rho); free(s->alpha);
     free(s->bs); free(s->bi); free(s->bv);
+    free(s->fake_lo); free(s->fake_up);
     jm_lu_free(&s->lu);
     memset(s, 0, sizeof *s);
 }
@@ -136,10 +172,12 @@ static jaos_status sx_init(sx *s, jaos_model *m)
     s->rho    = jm_calloc_array(s->nrow, sizeof(double));
     s->alpha  = jm_calloc_array(s->nvar, sizeof(double));
     s->bs     = jm_alloc_array(s->nrow + 1, sizeof(int64_t));
+    s->fake_lo = jm_calloc_array(s->nvar, sizeof(bool));
+    s->fake_up = jm_calloc_array(s->nvar, sizeof(bool));
 
     if (!s->lo || !s->up || !s->cost || !s->status || !s->basis ||
         !s->where || !s->xb || !s->d || !s->col || !s->raw || !s->rho ||
-        !s->alpha || !s->bs) {
+        !s->alpha || !s->bs || !s->fake_lo || !s->fake_up) {
         sx_free(s);
         return JAOS_ERR_OUT_OF_MEMORY;
     }
@@ -214,11 +252,13 @@ static double price_entry(sx *s, int64_t v)
 }
 
 /* The slack basis: every logical basic, every structural pinned to the
- * bound that makes its reduced cost feasible. With B = -I this is
- * factorizable by inspection and dual feasible whenever each structural
- * has the bound its cost asks for — when one does not, the model needs a
- * dual phase 1, which is a later step of the plan. */
-static bool build_initial_basis(sx *s)
+ * bound that makes its reduced cost feasible. With B = -I this factors by
+ * inspection.
+ *
+ * A structural whose cost asks for a bound it does not have gets an
+ * artificial one, which is dual phase 1 (see ARTIFICIAL_BOUND above). The
+ * loan is recorded so the outcome can be read honestly afterwards. */
+static void build_initial_basis(sx *s)
 {
     for (int64_t i = 0; i < s->nrow; i++) {
         int64_t v = s->ncol + i;
@@ -231,28 +271,51 @@ static bool build_initial_basis(sx *s)
         bool has_lo = isfinite(s->lo[j]);
         bool has_up = isfinite(s->up[j]);
 
-        if (s->cost[j] >= 0.0 && has_lo)
+        /* A positive cost wants the variable low, a negative one wants it
+         * high; that is the bound its reduced cost is feasible at. */
+        if (s->cost[j] > 0.0) {
+            if (!has_lo) {
+                s->lo[j] = -ARTIFICIAL_BOUND;
+                s->fake_lo[j] = true;
+                s->any_fake = true;
+            }
             s->status[j] = JM_AT_LOWER;
-        else if (s->cost[j] <= 0.0 && has_up)
+        } else if (s->cost[j] < 0.0) {
+            if (!has_up) {
+                s->up[j] = ARTIFICIAL_BOUND;
+                s->fake_up[j] = true;
+                s->any_fake = true;
+            }
             s->status[j] = JM_AT_UPPER;
-        else if (has_lo)
-            s->status[j] = JM_AT_LOWER;
-        else if (has_up)
+        } else if (has_lo) {
+            s->status[j] = JM_AT_LOWER;   /* zero cost: either bound is fine */
+        } else if (has_up) {
             s->status[j] = JM_AT_UPPER;
-        else if (s->cost[j] == 0.0)
-            s->status[j] = JM_FREE;
-        else
-            return false;   /* needs dual phase 1 */
-
-        /* A bound chosen against the cost's sign leaves the start dual
-         * infeasible, which this skeleton cannot repair. */
-        double dj = s->cost[j];
-        if (s->status[j] == JM_AT_LOWER && dj < -DUAL_TOL)
-            return false;
-        if (s->status[j] == JM_AT_UPPER && dj > DUAL_TOL)
-            return false;
+        } else {
+            s->status[j] = JM_FREE;       /* zero cost, no bounds: d = 0 */
+        }
     }
-    return true;
+}
+
+/* Did the optimum come to rest against a bound JAOS invented? If so the
+ * objective wanted to keep going past something that was never there, and
+ * the original problem is unbounded. Checked on the values as solved, so
+ * the verdict rests on evidence rather than on a guess about which
+ * variables looked suspicious. */
+static bool leans_on_an_invented_bound(const sx *s)
+{
+    if (!s->any_fake)
+        return false;
+    for (int64_t j = 0; j < s->ncol; j++) {
+        if (!s->fake_lo[j] && !s->fake_up[j])
+            continue;
+        double v = var_value(s, j);
+        if (s->fake_lo[j] && v <= s->lo[j] + PRIMAL_TOL)
+            return true;
+        if (s->fake_up[j] && v >= s->up[j] - PRIMAL_TOL)
+            return true;
+    }
+    return false;
 }
 
 /* --------------------------------------------------------------------- */
@@ -564,7 +627,8 @@ static jaos_status run(sx *s, jaos_solve_status *out)
         bool below = false;
         int64_t r = price_row(s, &below);
         if (r < 0) {
-            *out = JAOS_SOLVE_OPTIMAL;
+            *out = leans_on_an_invented_bound(s) ? JAOS_SOLVE_UNBOUNDED
+                                                 : JAOS_SOLVE_OPTIMAL;
             return JAOS_OK;
         }
 
@@ -661,17 +725,7 @@ jaos_status jm_dual_simplex(jaos_model *m)
     clock_gettime(CLOCK_MONOTONIC, &s.started);
 
     jaos_solve_status outcome;
-    if (!build_initial_basis(&s)) {
-        /* A valid model this build cannot start on. Not an input error:
-         * the model is fine, the solver is missing a component. */
-        jm_set_err(m, "this model needs a dual phase 1, which is not "
-                      "implemented yet");
-        outcome = JAOS_SOLVE_UNSUPPORTED;
-        st = publish(&s, outcome);
-        sx_free(&s);
-        return st;
-    }
-
+    build_initial_basis(&s);
     st = run(&s, &outcome);
     if (st == JAOS_OK)
         st = publish(&s, outcome);
