@@ -107,7 +107,7 @@ static double max_abs_diff(const double *a, const double *b, int64_t n)
 
 /* Solve with the factorization, multiply back, report the worst residual
  * of both directions. */
-static double solve_residual(const mat *m, const jm_lu *lu, jm_work *w)
+static double solve_residual(const mat *m, jm_lu *lu, jm_work *w)
 {
     double b[MAXN], x[MAXN], back[MAXN];
     double worst = 0.0;
@@ -407,6 +407,139 @@ static void test_factor_rejects_bad_arguments(void)
     jm_lu_free(&lu);
 }
 
+/* ---- exact cancellation -----------------------------------------------
+ *
+ * Bases of +-1 entries — networks, assignment, set covering — cancel
+ * exactly during elimination, which random continuous values essentially
+ * never do. These two matrices are regression cases for a counting bug
+ * that survived the random suite precisely because of that.
+ */
+
+static void fill_pm1(mat *m, int64_t n, const int *vals)
+{
+    m->n = n;
+    memset(m->a, 0, sizeof m->a);
+    for (int64_t i = 0; i < n; i++)
+        for (int64_t j = 0; j < n; j++)
+            m->a[i][j] = (double)vals[i * n + j];
+    mat_pack(m);
+}
+
+static void test_exact_cancellation_does_not_corrupt_state(void)
+{
+    static const int v[36] = {
+         1,  1, -1,  1,  0,  0,
+        -1,  1,  0,  0,  1, -1,
+         1,  0,  1,  0,  1, -1,
+         0, -1, -1,  1,  0,  0,
+         0, -1, -1,  0,  1, -1,
+         0, -1,  1,  1,  1, -1,
+    };
+    mat m;
+    fill_pm1(&m, 6, v);
+
+    jm_lu lu;
+    jm_lu_init(&lu);
+    jm_work w = {0};
+    /* Dense partial pivoting puts this matrix at rank 5 (determinant 0),
+     * so the point here is not full rank — it is that the elimination
+     * reaches that verdict without trampling its own bookkeeping. */
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jm_lu_factor(&lu, m.n, m.start, m.index,
+                                                m.value, PIVOT_TOL, &w));
+    TEST_ASSERT_EQUAL_INT64(5, lu.rank);
+    jm_lu_free(&lu);
+}
+
+/* Nonsingular by dense partial pivoting (smallest pivot 1.0), so anything
+ * short of full rank here is the factorization losing track, not the
+ * matrix being degenerate. */
+static void test_nonsingular_pm1_matrix_reaches_full_rank(void)
+{
+    static const int v[64] = {
+         1,  0, -1,  0,  0,  0,  1,  1,
+         0, -1, -1, -1,  0,  1,  0,  1,
+         0,  0,  1,  0,  0, -1,  0, -1,
+         0,  0,  0,  1,  0,  0,  0,  0,
+         0,  0,  0,  0,  1,  0,  0,  0,
+        -1,  0,  0,  1,  0,  1,  0, -1,
+         0,  0, -1,  0,  0,  0,  1,  0,
+         0, -1,  0,  0,  0,  0,  0, -1,
+    };
+    mat m;
+    fill_pm1(&m, 8, v);
+
+    jm_lu lu;
+    jm_lu_init(&lu);
+    jm_work w = {0};
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jm_lu_factor(&lu, m.n, m.start, m.index,
+                                                m.value, PIVOT_TOL, &w));
+    TEST_ASSERT_EQUAL_INT64(m.n, lu.rank);
+    rng_seed(6);
+    TEST_ASSERT_TRUE(solve_residual(&m, &lu, &w) < 1e-9);
+    jm_lu_free(&lu);
+}
+
+/* Sweep random +-1 matrices: they cancel constantly, so this is the shape
+ * that exercises the bookkeeping the continuous suite cannot reach. Only
+ * nonsingular draws are asserted on, decided by dense partial pivoting. */
+static void test_random_pm1_matrices(void)
+{
+    int checked = 0;
+    for (int seed = 1; seed <= 400; seed++) {
+        rng_seed((uint64_t)seed * 7919u);
+        int64_t n = 4 + (int64_t)(rng_next() % 7);
+
+        mat m;
+        m.n = n;
+        memset(m.a, 0, sizeof m.a);
+        for (int64_t i = 0; i < n; i++)
+            for (int64_t j = 0; j < n; j++) {
+                uint64_t r = rng_next() % 3;
+                m.a[i][j] = r == 0 ? -1.0 : (r == 1 ? 0.0 : 1.0);
+            }
+        mat_pack(&m);
+
+        /* Dense partial-pivoting LU decides nonsingularity independently. */
+        double d[MAXN][MAXN];
+        memcpy(d, m.a, sizeof d);
+        bool nonsingular = true;
+        for (int64_t k = 0; k < n && nonsingular; k++) {
+            int64_t best = k;
+            for (int64_t i = k + 1; i < n; i++)
+                if (fabs(d[i][k]) > fabs(d[best][k]))
+                    best = i;
+            if (fabs(d[best][k]) < 1e-9) {
+                nonsingular = false;
+                break;
+            }
+            for (int64_t j = 0; j < n; j++) {
+                double t = d[k][j];
+                d[k][j] = d[best][j];
+                d[best][j] = t;
+            }
+            for (int64_t i = k + 1; i < n; i++) {
+                double f = d[i][k] / d[k][k];
+                for (int64_t j = k; j < n; j++)
+                    d[i][j] -= f * d[k][j];
+            }
+        }
+
+        jm_lu lu;
+        jm_lu_init(&lu);
+        jm_work w = {0};
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jm_lu_factor(&lu, m.n, m.start,
+                                        m.index, m.value, PIVOT_TOL, &w));
+        if (nonsingular) {
+            TEST_ASSERT_EQUAL_INT64(m.n, lu.rank);
+            TEST_ASSERT_TRUE(solve_residual(&m, &lu, &w) < 1e-8);
+            checked++;
+        }
+        jm_lu_free(&lu);
+    }
+    /* The sweep is worthless if it never drew a nonsingular matrix. */
+    TEST_ASSERT_TRUE(checked > 100);
+}
+
 /* ---- Forrest-Tomlin updates ------------------------------------------ */
 
 #define UPDATE_TOL 1e-9
@@ -452,6 +585,7 @@ static void test_update_matches_the_new_basis(void)
  * look plausible and are quietly wrong. */
 static void test_update_chain_agrees_with_refactorization(void)
 {
+    int applied = 0;
     for (int64_t n = 4; n <= 20; n += 4) {
         rng_seed((uint64_t)(n * 31 + 7));
         mat m;
@@ -478,6 +612,7 @@ static void test_update_chain_agrees_with_refactorization(void)
                 break;
             }
             TEST_ASSERT_EQUAL_INT(JAOS_OK, st);
+            applied++;
             mat_set_col(&m, c, col);
 
             /* Updated factorization solves the current basis... */
@@ -510,6 +645,10 @@ static void test_update_chain_agrees_with_refactorization(void)
         }
         jm_lu_free(&lu);
     }
+    /* Without this the test passes having compared nothing: break out on
+     * the first numerical refusal and every assertion above is skipped.
+     * A regression that made every update fail would look green. */
+    TEST_ASSERT_TRUE(applied >= 40);
 }
 
 /* Replacing a column by one that makes the basis singular must be
@@ -643,6 +782,9 @@ int main(void)
     RUN_TEST(test_markowitz_prefers_singletons);
     RUN_TEST(test_work_counter_moves_and_repeats);
     RUN_TEST(test_factor_rejects_bad_arguments);
+    RUN_TEST(test_exact_cancellation_does_not_corrupt_state);
+    RUN_TEST(test_nonsingular_pm1_matrix_reaches_full_rank);
+    RUN_TEST(test_random_pm1_matrices);
     RUN_TEST(test_update_matches_the_new_basis);
     RUN_TEST(test_update_chain_agrees_with_refactorization);
     RUN_TEST(test_update_refuses_a_singular_replacement);

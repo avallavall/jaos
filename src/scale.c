@@ -38,21 +38,36 @@
 
 /* Iteration caps. Fixed, not tuned against a clock: determinism first,
  * and any change to these numbers must be justified by a measurement. */
-#define CR_MAX_ITER   30
-#define CR_TOL        1e-8
-#define GEO_MAX_PASS  20
-#define GEO_TOL       1e-3
+constexpr int    CR_MAX_ITER  = 30;
+constexpr double CR_TOL       = 1e-8;
+constexpr int    GEO_MAX_PASS = 20;
+constexpr double GEO_TOL      = 1e-3;   /* in log2 units */
 
 /* Keeps 2^-e representable with room to spare on both sides. */
-#define EXP_LIMIT     512
+constexpr double EXP_LIMIT = 512.0;
 
-static double pow2i(int e)
+/* Turns a desired log2 exponent into an exact power-of-two factor,
+ * flagging the cases where the answer is not the one computed: a
+ * non-finite exponent, or one outside the range JAOS will express.
+ * Rounding before the range test keeps the result independent of how a
+ * platform converts an out-of-range double to int — an unchecked
+ * (int)lround(inf) is implementation-defined, which would put the factors
+ * outside D8's guarantee. */
+static double pow2_of(double exponent, bool *clamped)
 {
-    if (e > EXP_LIMIT)
-        e = EXP_LIMIT;
-    if (e < -EXP_LIMIT)
-        e = -EXP_LIMIT;
-    return ldexp(1.0, e);
+    if (!isfinite(exponent)) {
+        *clamped = true;
+        return 1.0;
+    }
+    double r = round(exponent);
+    if (r > EXP_LIMIT) {
+        r = EXP_LIMIT;
+        *clamped = true;
+    } else if (r < -EXP_LIMIT) {
+        r = -EXP_LIMIT;
+        *clamped = true;
+    }
+    return ldexp(1.0, (int)r);
 }
 
 double jm_scaled_abs(const jaos_model *m, int64_t j, int64_t k)
@@ -182,9 +197,9 @@ static jaos_status scale_curtis_reid(jaos_model *m)
     /* |a| ~ 2^(r+c), so the factors that drive it to 1 are the negated
      * exponents, rounded so they stay exact powers of two. */
     for (int64_t i = 0; i < nrow; i++)
-        m->row_scale[i] = pow2i(-(int)lround(r[i]));
+        m->row_scale[i] = pow2_of(-r[i], &m->scale_clamped);
     for (int64_t j = 0; j < ncol; j++)
-        m->col_scale[j] = pow2i(-(int)lround(c[j]));
+        m->col_scale[j] = pow2_of(-c[j], &m->scale_clamped);
 
 done:
     free(nr); free(nc); free(sr); free(sc); free(r); free(c);
@@ -192,68 +207,77 @@ done:
     return st;
 }
 
+/* Geometric-mean equilibration, carried out entirely on log2 exponents.
+ *
+ * The textbook form sets each factor to 1/sqrt(min*max) over the row or
+ * column. Formed that way the product overflows for perfectly finite
+ * input — a row holding 1e300 and 1e290 gives inf, whose square root is
+ * inf, whose reciprocal is 0, and log2(0) is -inf. What comes out then is
+ * whatever the platform does converting -inf to int, which is exactly the
+ * kind of answer D8 forbids. Working in log2 throughout, the same
+ * quantity is (min + max)/2 and nothing can overflow. */
 static jaos_status scale_geometric(jaos_model *m)
 {
     const int64_t nrow = m->num_row, ncol = m->num_col;
+
+    double *la = jm_alloc_array(m->num_nz, sizeof(double)); /* log2|a_k| */
+    double *lr = jm_calloc_array(nrow, sizeof(double));     /* row exponent */
+    double *lc = jm_calloc_array(ncol, sizeof(double));     /* col exponent */
     double *rmin = jm_alloc_array(nrow, sizeof(double));
     double *rmax = jm_alloc_array(nrow, sizeof(double));
-    if (!rmin || !rmax) {
-        free(rmin);
-        free(rmax);
+    if (!la || !lr || !lc || !rmin || !rmax) {
+        free(la); free(lr); free(lc); free(rmin); free(rmax);
         return JAOS_ERR_OUT_OF_MEMORY;
     }
+    for (int64_t k = 0; k < m->num_nz; k++)
+        la[k] = log2(fabs(m->a_value[k]));  /* loader dropped exact zeros */
 
-    /* Alternate row and column equilibration on the running scaled values,
-     * stopping when a pass stops changing the spread. */
-    double prev = HUGE_VAL;
+    double prev_spread = HUGE_VAL;
     for (int pass = 0; pass < GEO_MAX_PASS; pass++) {
         for (int64_t i = 0; i < nrow; i++) {
             rmin[i] = HUGE_VAL;
-            rmax[i] = 0.0;
+            rmax[i] = -HUGE_VAL;
         }
-        for (int64_t j = 0; j < ncol; j++) {
+        for (int64_t j = 0; j < ncol; j++)
             for (int64_t k = m->a_start[j]; k < m->a_start[j + 1]; k++) {
                 int64_t i = m->a_index[k];
-                double v = fabs(m->a_value[k]) * m->row_scale[i] *
-                           m->col_scale[j];
+                double v = la[k] + lr[i] + lc[j];
                 if (v < rmin[i]) rmin[i] = v;
                 if (v > rmax[i]) rmax[i] = v;
             }
-        }
-        double spread = 1.0;
+
+        double spread = 0.0;
         for (int64_t i = 0; i < nrow; i++) {
-            if (rmax[i] == 0.0)
-                continue;
-            if (rmax[i] / rmin[i] > spread)
-                spread = rmax[i] / rmin[i];
-            m->row_scale[i] /= sqrt(rmin[i] * rmax[i]);
+            if (rmax[i] == -HUGE_VAL)
+                continue;                      /* empty row */
+            if (rmax[i] - rmin[i] > spread)
+                spread = rmax[i] - rmin[i];
+            lr[i] -= 0.5 * (rmin[i] + rmax[i]);
         }
 
         for (int64_t j = 0; j < ncol; j++) {
-            double cmin = HUGE_VAL, cmax = 0.0;
+            double cmin = HUGE_VAL, cmax = -HUGE_VAL;
             for (int64_t k = m->a_start[j]; k < m->a_start[j + 1]; k++) {
-                double v = fabs(m->a_value[k]) * m->row_scale[m->a_index[k]] *
-                           m->col_scale[j];
+                double v = la[k] + lr[m->a_index[k]] + lc[j];
                 if (v < cmin) cmin = v;
                 if (v > cmax) cmax = v;
             }
-            if (cmax > 0.0)
-                m->col_scale[j] /= sqrt(cmin * cmax);
+            if (cmax != -HUGE_VAL)
+                lc[j] -= 0.5 * (cmin + cmax);
         }
 
-        if (spread <= 1.0 || prev / spread < 1.0 + GEO_TOL)
+        if (spread <= 0.0 || prev_spread - spread < GEO_TOL)
             break;
-        prev = spread;
+        prev_spread = spread;
     }
 
     /* Snap to powers of two for the same exactness reason as Curtis-Reid. */
     for (int64_t i = 0; i < nrow; i++)
-        m->row_scale[i] = pow2i((int)lround(log2(m->row_scale[i])));
+        m->row_scale[i] = pow2_of(lr[i], &m->scale_clamped);
     for (int64_t j = 0; j < ncol; j++)
-        m->col_scale[j] = pow2i((int)lround(log2(m->col_scale[j])));
+        m->col_scale[j] = pow2_of(lc[j], &m->scale_clamped);
 
-    free(rmin);
-    free(rmax);
+    free(la); free(lr); free(lc); free(rmin); free(rmax);
     return JAOS_OK;
 }
 
@@ -282,6 +306,7 @@ jaos_status jm_model_scale(jaos_model *m, jm_scale_mode mode)
     m->row_scale = rs;
     m->col_scale = cs;
     m->scale_valid = true;
+    m->scale_clamped = false;
 
     jaos_status st = JAOS_OK;
     if (mode == JM_SCALE_CURTIS_REID)
@@ -295,7 +320,12 @@ jaos_status jm_model_scale(jaos_model *m, jm_scale_mode mode)
             m->row_scale[i] = 1.0;
         for (int64_t j = 0; j < m->num_col; j++)
             m->col_scale[j] = 1.0;
+        m->scale_clamped = false;
         jm_set_err(m, "out of memory while scaling");
+    } else if (m->scale_clamped) {
+        jm_set_err(m, "scaling clamped: the matrix needs a wider exponent "
+                      "range than JAOS expresses, so the spread is only "
+                      "partly corrected");
     }
     return st;
 }

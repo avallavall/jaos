@@ -33,7 +33,7 @@
 #include <string.h>
 #include <strings.h>
 
-#define NAME_MAX_LEN 255
+constexpr int NAME_MAX_LEN = 255;
 
 typedef enum {
     T_EOF, T_NAME, T_NUM, T_PLUS, T_MINUS, T_LE, T_GE, T_EQ, T_COLON,

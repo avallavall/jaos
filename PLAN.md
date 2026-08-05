@@ -17,7 +17,7 @@ prerequisites exist.
 | Stage | Delivers | Gate |
 |---|---|---|
 | **M1 — LP correct** | MPS+LP readers, scaling, revised dual simplex, checker | Netlib set solved to reference values; see §2.9 |
-| **M2 — LP fast** | Presolve, hyper-sparsity [9], crash basis [12], pricing refinements, benchmark harness | Measured competitive gap vs open solvers on the measurement host |
+| **M2 — LP fast** | Presolve, hyper-sparsity [9], crash basis [12], pricing refinements, benchmark harness, and the deferred data-structure work of §2.11 | Measured competitive gap vs open solvers on the measurement host |
 | **M3 — MILP correct** | Branch & bound, reliability/pseudocost branching [14], warm-started dual simplex | MIPLIB 2017 easy subset: correct optima, correct infeasibility claims |
 | **M4 — MILP strong** | Cuts (Gomory [15], MIR [16], covers), MIP presolve [14], primal heuristics (FP [17], diving, RINS [18]) per D9 | MIPLIB benchmark subset coverage targets, fixed when M4 opens |
 | **M5 — Parallel deterministic** | `jaos_thread.h` (D13), deterministic parallel B&B per D8, opportunistic opt-in | Bit-identical parallel runs; measured speedup on measurement host |
@@ -231,6 +231,25 @@ their documentation and source respectively — ours match the stricter of the t
 within a 1065-instance collection (`miplib.zib.de`,
 doi:10.1007/s12532-020-00194-3). Instances carry per-instance licences (CC BY-SA
 4.0 as default per the MIPLIB 2017 paper) — fetched by script, never committed.
+
+### 2.11 Deferred by measurement, not by oversight
+
+Known costs, correct today, to be revisited in M2 with numbers rather than
+opinions (D17). Recording them here keeps "we chose this" distinct from "we
+missed this".
+
+- **Slot detachment in a basis update is quadratic.** `jm_svec_erase` scans,
+  and an update erases once per entry of the outgoing slot's row and column,
+  so a slot carrying `f` nonzeros costs O(f²) to unhook — on the hottest
+  path there is, with `f` growing until the next refactorization. A position
+  map removes the inner scan.
+- **Elimination storage is one growable array per column**, rather than a
+  single arena with compaction. Simpler to get right; more allocator traffic
+  and worse locality.
+- **U is stored twice**, by row and by column, because updates need both
+  orientations. Memory for time, deliberately.
+- **The solves are dense in the working vector.** Hyper-sparsity [9] is
+  already scheduled for M2 and is where this is addressed.
 
 ---
 

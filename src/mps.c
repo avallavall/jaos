@@ -30,7 +30,7 @@
 /* Tokens and numbers                                                    */
 /* --------------------------------------------------------------------- */
 
-#define MAXTOK 16
+constexpr int MAXTOK = 16;
 
 /* Splits in place; strips CR/LF. Returns token count, or -1 on overflow. */
 static int split(char *line, char *tok[])

@@ -11,6 +11,7 @@
 
 #include <math.h>
 #include <stdlib.h>
+#include <string.h>
 
 void setUp(void) {}
 void tearDown(void) {}
@@ -24,7 +25,9 @@ static jaos_model *build(int64_t nc, int64_t nr, const int64_t *as,
     double *rl = calloc((size_t)nr, sizeof(double));
     double *ru = malloc((size_t)nr * sizeof(double));
     TEST_ASSERT_NOT_NULL(cost);
+    TEST_ASSERT_NOT_NULL(cl);
     TEST_ASSERT_NOT_NULL(cu);
+    TEST_ASSERT_NOT_NULL(rl);
     TEST_ASSERT_NOT_NULL(ru);
     for (int64_t j = 0; j < nc; j++)
         cu[j] = INFINITY;
@@ -246,6 +249,86 @@ static void test_scale_rejects_bad_arguments(void)
     jaos_model_free(m);
 }
 
+/* Extreme but perfectly finite magnitudes. Forming sqrt(min*max) as a
+ * product overflows here, and the fallout — a factor of 0 or inf, then a
+ * platform-dependent conversion of +-inf to int — used to leave the
+ * geometric mode silently doing nothing at all. */
+static void test_extreme_magnitudes_do_not_overflow(void)
+{
+    const int64_t as[] = {0, 2, 4};
+    const int64_t ai[] = {0, 1, 0, 1};
+    const double  av[] = {1e300, 1e-300, 1e290, 1e-290};
+
+    for (int mode = 0; mode < 2; mode++) {
+        jm_scale_mode md = mode == 0 ? JM_SCALE_CURTIS_REID
+                                     : JM_SCALE_GEOMETRIC;
+        jaos_model *m = build(2, 2, as, ai, av, 4);
+        double before = spread(m);
+
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jm_model_scale(m, md));
+        assert_all_powers_of_two(m);
+
+        /* Every factor stays a usable finite positive number... */
+        for (int64_t i = 0; i < 2; i++) {
+            TEST_ASSERT_TRUE(isfinite(m->row_scale[i]) && m->row_scale[i] > 0);
+            TEST_ASSERT_TRUE(isfinite(m->col_scale[i]) && m->col_scale[i] > 0);
+        }
+        /* ...and the spread genuinely shrinks rather than staying put. */
+        TEST_ASSERT_TRUE(spread(m) < before);
+
+        /* This matrix needs more exponent range than JAOS expresses, and
+         * that has to be visible rather than passed off as success. */
+        TEST_ASSERT_TRUE(m->scale_clamped);
+        TEST_ASSERT_TRUE(strlen(jaos_model_error(m)) > 0);
+        jaos_model_free(m);
+    }
+}
+
+/* The underflow side of the same product: min*max going to zero produced
+ * an infinite factor, and a row that then never got scaled at all.
+ *
+ * These magnitudes do need more exponent range than JAOS expresses
+ * (log2(1e-170) is about -565, past the +-512 limit), so the clamp firing
+ * is correct here. What must not happen is the old outcome: a factor of
+ * inf, and the tiny row left exactly as it was. */
+static void test_underflowing_product_still_scales_the_row(void)
+{
+    const int64_t as[] = {0, 2, 4};
+    const int64_t ai[] = {0, 1, 0, 1};
+    const double  av[] = {1e-170, 1.0, 1e-160, 2.0};
+
+    jaos_model *m = build(2, 2, as, ai, av, 4);
+    double before = spread(m);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jm_model_scale(m, JM_SCALE_GEOMETRIC));
+    assert_all_powers_of_two(m);
+
+    /* Row 0 holds the tiny entries; it must have been lifted. */
+    TEST_ASSERT_TRUE(m->row_scale[0] > 1.0);
+    for (int64_t j = 0; j < 2; j++)
+        for (int64_t k = m->a_start[j]; k < m->a_start[j + 1]; k++)
+            TEST_ASSERT_TRUE(isfinite(jm_scaled_abs(m, j, k)));
+    TEST_ASSERT_TRUE(spread(m) < before);
+    /* Partly corrected, and saying so. */
+    TEST_ASSERT_TRUE(m->scale_clamped);
+    jaos_model_free(m);
+}
+
+/* An ordinary matrix must not raise the clamp flag. */
+static void test_ordinary_matrix_is_not_reported_as_clamped(void)
+{
+    const int64_t as[] = {0, 2, 4};
+    const int64_t ai[] = {0, 1, 0, 1};
+    const double  av[] = {1024.0, 0.03125, 128.0, 0.00390625};
+
+    for (int mode = 0; mode < 2; mode++) {
+        jaos_model *m = build(2, 2, as, ai, av, 4);
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jm_model_scale(m,
+            mode == 0 ? JM_SCALE_CURTIS_REID : JM_SCALE_GEOMETRIC));
+        TEST_ASSERT_FALSE(m->scale_clamped);
+        jaos_model_free(m);
+    }
+}
+
 int main(void)
 {
     UNITY_BEGIN();
@@ -258,5 +341,8 @@ int main(void)
     RUN_TEST(test_repeated_scaling_is_bit_identical);
     RUN_TEST(test_load_invalidates_scaling);
     RUN_TEST(test_scale_rejects_bad_arguments);
+    RUN_TEST(test_extreme_magnitudes_do_not_overflow);
+    RUN_TEST(test_underflowing_product_still_scales_the_row);
+    RUN_TEST(test_ordinary_matrix_is_not_reported_as_clamped);
     return UNITY_END();
 }

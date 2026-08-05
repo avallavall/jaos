@@ -47,6 +47,12 @@ struct jaos_model {
     double *row_scale;  /* [num_row] */
     double *col_scale;  /* [num_col] */
 
+    /* Set when the exponent range a factor needed exceeded what JAOS is
+     * willing to express, so the scaling actually applied is weaker than
+     * the one computed. Silence here would let a caller believe the
+     * exponent range was fixed when it was not. */
+    bool scale_clamped;
+
     /* Detail message for the last failed operation; "" when it succeeded.
      * Sits outside the problem data on purpose: setting it never disturbs a
      * loaded model. */
@@ -110,9 +116,10 @@ double jm_scaled_abs(const jaos_model *m, int64_t j, int64_t k);
  * from 1.0 on. */
 typedef struct { int64_t units; } jm_work;
 
-#define JM_WORK_NONZERO      1     /* one nonzero touched in a solve   */
-#define JM_WORK_ELIMINATED   2     /* one nonzero eliminated in factor */
-#define JM_WORK_FACTOR       4096  /* fixed cost of a refactorization  */
+constexpr int64_t JM_WORK_NONZERO    = 1;     /* nonzero touched in a solve */
+constexpr int64_t JM_WORK_ELIMINATED = 2;     /* nonzero eliminated, factor */
+constexpr int64_t JM_WORK_FACTOR     = 4096;  /* fixed cost, refactorization */
+constexpr int64_t JM_WORK_UPDATE     = 64;    /* fixed cost, basis update    */
 
 static inline void jm_work_add(jm_work *w, int64_t n)
 {
@@ -205,16 +212,31 @@ JAOS_NODISCARD jaos_status jm_lu_factor(jm_lu *lu, int64_t dim,
     double pivot_tol, jm_work *w);
 
 /* Solves B x = b (FTRAN) and B' x = b (BTRAN), in place on a dense vector
- * of length dim. Both require rank == dim; callers check once after
- * factoring rather than on every solve, because these run millions of
- * times and the branch would buy nothing. */
-void jm_lu_ftran(const jm_lu *lu, double *x, jm_work *w);
-void jm_lu_btran(const jm_lu *lu, double *x, jm_work *w);
+ * of length dim.
+ *
+ * The factorization is taken non-const because both solves scribble on its
+ * internal workspace. That also means they are not reentrant and two of
+ * them may not overlap on the same jm_lu — when M5 brings parallelism the
+ * workspace becomes a caller-supplied argument, but promising const now
+ * would be a lie a caller could act on.
+ *
+ * A factorization that is not full rank leaves x untouched: solving with
+ * one is meaningless, and a wrecked factorization is exactly what
+ * jm_lu_update leaves behind when it fails. */
+void jm_lu_ftran(jm_lu *lu, double *x, jm_work *w);
+void jm_lu_btran(jm_lu *lu, double *x, jm_work *w);
 
 /* Forrest-Tomlin update: basis column `col_out` is replaced by `new_col`,
  * a dense vector indexed by original row. Refactorizing from scratch after
- * every simplex iteration would cost more than the iteration; this instead
- * costs work proportional to the change [5].
+ * every simplex iteration would cost more than the iteration; this repairs
+ * the factorization instead [5].
+ *
+ * The elimination work is proportional to the change, but three passes are
+ * unavoidably O(dim) — clearing the dense row buffer, measuring the spike,
+ * and shifting positions — so the cost is that plus a floor. The work
+ * counter charges JM_WORK_UPDATE for the floor, the way jm_lu_factor
+ * charges JM_WORK_FACTOR, because a budget that ignored it would promise
+ * a run far cheaper than it is (D16).
  *
  * Returns JAOS_ERR_NUMERICAL when the replacement leaves a pivot too small
  * to trust — the new basis is singular or nearly so. By then the update

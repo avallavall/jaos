@@ -31,10 +31,15 @@
 
 /* Candidate columns inspected before the pivot search settles for the best
  * it has seen. Four is the classic compromise. */
-#define PIVOT_SEARCH_LIMIT 4
+constexpr int PIVOT_SEARCH_LIMIT = 4;
 
-/* Below this a value is treated as structurally absent. */
-#define DROP_TOL 1e-14
+/* A value below this fraction of the matrix's largest magnitude is treated
+ * as structurally absent. Relative, because an absolute floor would call a
+ * uniformly small basis singular — which is a different thing entirely. */
+constexpr double DROP_REL = 1e-14;
+
+/* Absolute floor used where no scale is available to compare against. */
+constexpr double TINY = 1e-300;
 
 /* --------------------------------------------------------------------- */
 /* Sparse vectors                                                        */
@@ -47,20 +52,27 @@ void jm_svec_free(jm_svec *v)
     memset(v, 0, sizeof *v);
 }
 
+/* Grows a parallel (index, value) pair of arrays. Everything in JAOS that
+ * grows an array goes through jm_grow, so the overflow check alloc.c
+ * promises is not something each call site gets to skip. The two-step
+ * dance matters: jm_grow leaves the pointer untouched when it fails, so a
+ * failure on the second array still leaves the first one freeable. */
+static bool grow_pair(int64_t **idx, double **val, int64_t *cap, int64_t need)
+{
+    int64_t cap_idx = *cap;
+    int64_t cap_val = *cap;
+    if (!jm_grow((void **)idx, &cap_idx, need, sizeof **idx))
+        return false;
+    if (!jm_grow((void **)val, &cap_val, need, sizeof **val))
+        return false;
+    *cap = cap_idx < cap_val ? cap_idx : cap_val;
+    return true;
+}
+
 bool jm_svec_push(jm_svec *v, int64_t i, double x)
 {
-    if (v->n == v->cap) {
-        int64_t nc = v->cap < 8 ? 8 : v->cap * 2;
-        int64_t *ni = realloc(v->idx, (size_t)nc * sizeof *ni);
-        if (ni == nullptr)
-            return false;
-        v->idx = ni;
-        double *nv = realloc(v->val, (size_t)nc * sizeof *nv);
-        if (nv == nullptr)
-            return false;
-        v->val = nv;
-        v->cap = nc;
-    }
+    if (!grow_pair(&v->idx, &v->val, &v->cap, v->n + 1))
+        return false;
     v->idx[v->n] = i;
     v->val[v->n] = x;
     v->n++;
@@ -69,7 +81,15 @@ bool jm_svec_push(jm_svec *v, int64_t i, double x)
 
 /* Removes index i by swapping the last entry into its place. Order is not
  * preserved, but it stays a deterministic function of the call history,
- * which is what D8 asks for. */
+ * which is what D8 asks for.
+ *
+ * Known cost: this is a linear scan, and jm_lu_update calls it once per
+ * entry of the outgoing slot's row and column, so detaching a slot holding
+ * f nonzeros is O(f^2) — on the simplex's hottest path, and f grows with
+ * every update because nothing compacts U between refactorizations. A
+ * position map removes the inner scan. It is not done here because D17
+ * says the change needs a measurement behind it, and there is nothing to
+ * measure until the simplex exists; PLAN.md carries it as M2 work. */
 void jm_svec_erase(jm_svec *v, int64_t i)
 {
     for (int64_t k = 0; k < v->n; k++) {
@@ -113,18 +133,22 @@ typedef struct {
     int64_t *piv_row;   /* live rows of the pivot column ... */
     double *piv_mult;   /* ... and their multipliers */
     int64_t piv_n;
+
+    /* Compacting the pivot row: `seen` stamps a column as already taken
+     * this step, `rowval` caches the value found for it. */
+    int64_t *seen;
+    double *rowval;
+
+    /* Structural drop threshold, relative to the largest magnitude in the
+     * matrix. An absolute floor would declare a uniformly tiny basis
+     * singular, which is a different thing from being singular. */
+    double drop;
 } elim;
 
 static bool pat_push(pat *p, int64_t j)
 {
-    if (p->n == p->cap) {
-        int64_t nc = p->cap < 8 ? 8 : p->cap * 2;
-        int64_t *ni = realloc(p->idx, (size_t)nc * sizeof *ni);
-        if (ni == nullptr)
-            return false;
-        p->idx = ni;
-        p->cap = nc;
-    }
+    if (!JM_GROW(p->idx, p->cap, p->n + 1))
+        return false;
     p->idx[p->n] = j;
     p->n++;
     return true;
@@ -153,6 +177,8 @@ static void elim_free(elim *e)
     free(e->touched);
     free(e->piv_row);
     free(e->piv_mult);
+    free(e->seen);
+    free(e->rowval);
     memset(e, 0, sizeof *e);
 }
 
@@ -210,10 +236,13 @@ static bool find_pivot(const elim *e, double tol, int64_t *pi, int64_t *pj,
     double best_val = 0.0;
     int examined = 0;
 
-    for (int64_t cnt = 1; cnt <= e->dim; cnt++) {
+    /* Counts start at zero: a column can legitimately reach zero live
+     * entries and must still be visited, or a nonsingular matrix comes
+     * back rank deficient. */
+    for (int64_t cnt = 0; cnt <= e->dim; cnt++) {
         for (int64_t j = e->bhead[cnt]; j >= 0; j = e->bnext[j]) {
             double mx = col_max_abs(e, j);
-            if (mx <= DROP_TOL)
+            if (mx <= e->drop)
                 continue;
 
             const jm_svec *v = &e->col[j];
@@ -224,7 +253,8 @@ static bool find_pivot(const elim *e, double tol, int64_t *pi, int64_t *pj,
                 double a = fabs(v->val[k]);
                 if (a < tol * mx)
                     continue;
-                int64_t cost = (e->row_cnt[i] - 1) * (cnt - 1);
+                int64_t live = e->row_cnt[i] < 1 ? 1 : e->row_cnt[i];
+                int64_t cost = (live - 1) * (cnt < 1 ? 0 : cnt - 1);
                 /* Ties go to the larger pivot: same fill, better stability. */
                 if (best_cost < 0 || cost < best_cost ||
                     (cost == best_cost && a > fabs(best_val))) {
@@ -240,7 +270,8 @@ static bool find_pivot(const elim *e, double tol, int64_t *pi, int64_t *pj,
             if (examined >= PIVOT_SEARCH_LIMIT && best_cost >= 0)
                 goto found;
         }
-        if (best_cost >= 0 && best_cost <= (cnt - 1) * (cnt - 1))
+        if (best_cost >= 0 && cnt >= 1 &&
+            best_cost <= (cnt - 1) * (cnt - 1))
             goto found;
     }
 
@@ -286,18 +317,8 @@ void jm_lu_free(jm_lu *lu)
 static bool push_pair(int64_t **idx, double **val, int64_t *n, int64_t *cap,
                       int64_t i, double x)
 {
-    if (*n == *cap) {
-        int64_t nc = *cap < 64 ? 64 : *cap * 2;
-        int64_t *ni = realloc(*idx, (size_t)nc * sizeof *ni);
-        if (ni == nullptr)
-            return false;
-        *idx = ni;
-        double *nv = realloc(*val, (size_t)nc * sizeof *nv);
-        if (nv == nullptr)
-            return false;
-        *val = nv;
-        *cap = nc;
-    }
+    if (!grow_pair(idx, val, cap, *n + 1))
+        return false;
     (*idx)[*n] = i;
     (*val)[*n] = x;
     (*n)++;
@@ -319,6 +340,23 @@ jaos_status jm_lu_factor(jm_lu *lu, int64_t dim,
     if (!(pivot_tol > 0.0 && pivot_tol <= 1.0))
         return JAOS_ERR_INVALID_INPUT;
 
+    /* Validate the structure before destroying what the caller already
+     * has, so INVALID_INPUT keeps its meaning: nothing happened. */
+    double mat_max = 0.0;
+    for (int64_t j = 0; j < dim; j++) {
+        if (start[j] > start[j + 1])
+            return JAOS_ERR_INVALID_INPUT;
+        for (int64_t k = start[j]; k < start[j + 1]; k++) {
+            if (index[k] < 0 || index[k] >= dim)
+                return JAOS_ERR_INVALID_INPUT;
+            double a = fabs(value[k]);
+            if (a > mat_max)
+                mat_max = a;
+        }
+    }
+    if (dim > 0 && start[0] != 0)
+        return JAOS_ERR_INVALID_INPUT;
+
     jm_work_add(w, JM_WORK_FACTOR);
 
     jm_lu_free(lu);
@@ -327,6 +365,9 @@ jaos_status jm_lu_factor(jm_lu *lu, int64_t dim,
     jaos_status st = JAOS_OK;
     elim e = {0};
     e.dim = dim;
+    /* Relative, so a uniformly small matrix is factored rather than
+     * declared structurally empty. */
+    e.drop = mat_max * DROP_REL;
 
     /* U is collected compactly first — row s spans [us_start[s],
      * us_start[s+1]) — then expanded into both orientations. */
@@ -363,13 +404,16 @@ jaos_status jm_lu_factor(jm_lu *lu, int64_t dim,
     e.touched   = jm_alloc_array(dim, sizeof(int64_t));
     e.piv_row   = jm_alloc_array(dim, sizeof(int64_t));
     e.piv_mult  = jm_alloc_array(dim, sizeof(double));
+    e.seen      = jm_calloc_array(dim, sizeof(int64_t));
+    e.rowval    = jm_alloc_array(dim, sizeof(double));
 
     if (!us_start || !lu->l_start || !lu->u_diag || !lu->urow || !lu->ucol ||
         !lu->slot_at || !lu->pos_of || !lu->perm_row || !lu->perm_col ||
         !lu->inv_row || !lu->inv_col || !lu->tmp || !lu->spike ||
         !e.col || !e.row || !e.col_cnt || !e.row_cnt || !e.col_done ||
         !e.row_done || !e.bhead || !e.bnext || !e.bprev || !e.in_bucket ||
-        !e.work || !e.work_set || !e.touched || !e.piv_row || !e.piv_mult) {
+        !e.work || !e.work_set || !e.touched || !e.piv_row || !e.piv_mult ||
+        !e.seen || !e.rowval) {
         st = JAOS_ERR_OUT_OF_MEMORY;
         goto done;
     }
@@ -384,13 +428,9 @@ jaos_status jm_lu_factor(jm_lu *lu, int64_t dim,
     for (int64_t j = 0; j < dim; j++) {
         for (int64_t k = start[j]; k < start[j + 1]; k++) {
             double v = value[k];
-            if (fabs(v) <= DROP_TOL)
+            if (fabs(v) <= e.drop)
                 continue;
             int64_t i = index[k];
-            if (i < 0 || i >= dim) {
-                st = JAOS_ERR_INVALID_INPUT;
-                goto done;
-            }
             if (!jm_svec_push(&e.col[j], i, v) || !pat_push(&e.row[i], j)) {
                 st = JAOS_ERR_OUT_OF_MEMORY;
                 goto done;
@@ -423,7 +463,7 @@ jaos_status jm_lu_factor(jm_lu *lu, int64_t dim,
                 if (i == pi || e.row_done[i])
                     continue;
                 double mult = pcol->val[k] / pv;
-                if (fabs(mult) <= DROP_TOL)
+                if (mult == 0.0)
                     continue;
                 if (!push_pair(&lu->l_index, &lu->l_value, &l_n, &l_cap,
                                i, mult)) {
@@ -437,9 +477,44 @@ jaos_status jm_lu_factor(jm_lu *lu, int64_t dim,
         }
         lu->l_start[step + 1] = l_n;
 
-        e.row_done[pi] = true;
         e.col_done[pj] = true;
         bucket_remove(&e, pj);
+
+        /* Compact the pivot row's pattern before anything counts through
+         * it. The pattern is append-only: an exact cancellation leaves a
+         * stale column behind, and later fill-in appends that column a
+         * second time. Counting once per pattern entry then decrements
+         * col_cnt twice for one real entry, drifting it negative until a
+         * bucket index goes out of range. Keep one entry per column that
+         * genuinely still carries a live value in this row, caching that
+         * value so the U loop below need not search for it again. */
+        {
+            const int64_t stamp = step + 1;
+            int64_t keep = 0;
+            for (int64_t k = 0; k < e.row[pi].n; k++) {
+                int64_t j = e.row[pi].idx[k];
+                if (e.col_done[j] || e.seen[j] == stamp)
+                    continue;
+                e.seen[j] = stamp;
+
+                const jm_svec *cv = &e.col[j];
+                double aij = 0.0;
+                for (int64_t q = 0; q < cv->n; q++)
+                    if (cv->idx[q] == pi) {
+                        aij = cv->val[q];
+                        break;
+                    }
+                if (aij == 0.0)
+                    continue;
+
+                e.row[pi].idx[keep] = j;
+                e.rowval[keep] = aij;
+                keep++;
+            }
+            e.row[pi].n = keep;
+        }
+
+        e.row_done[pi] = true;
         for (int64_t k = 0; k < e.col[pj].n; k++) {
             int64_t i = e.col[pj].idx[k];
             if (!e.row_done[i])
@@ -447,28 +522,14 @@ jaos_status jm_lu_factor(jm_lu *lu, int64_t dim,
         }
         for (int64_t k = 0; k < e.row[pi].n; k++) {
             int64_t j = e.row[pi].idx[k];
-            if (!e.col_done[j])
-                bucket_move(&e, j, e.col_cnt[j] - 1);
+            bucket_move(&e, j, e.col_cnt[j] - 1);
         }
 
         us_start[step] = u_n;
         for (int64_t rk = 0; rk < e.row[pi].n; rk++) {
             int64_t j = e.row[pi].idx[rk];
-            if (e.col_done[j])
-                continue;
-
             jm_svec *cv = &e.col[j];
-            double urow = 0.0;
-            bool found = false;
-            for (int64_t k = 0; k < cv->n; k++) {
-                if (cv->idx[k] == pi) {
-                    urow = cv->val[k];
-                    found = true;
-                    break;
-                }
-            }
-            if (!found || fabs(urow) <= DROP_TOL)
-                continue;  /* cancelled earlier; nothing to eliminate */
+            double urow = e.rowval[rk];   /* found during compaction */
 
             if (!push_pair(&us_index, &us_value, &u_n, &u_cap, j, urow)) {
                 st = JAOS_ERR_OUT_OF_MEMORY;
@@ -510,7 +571,7 @@ jaos_status jm_lu_factor(jm_lu *lu, int64_t dim,
                 double v = e.work[i];
                 e.work[i] = 0.0;
                 e.work_set[i] = false;
-                if (fabs(v) <= DROP_TOL) {
+                if (fabs(v) <= e.drop) {
                     e.row_cnt[i]--;          /* exact cancellation */
                     continue;
                 }
@@ -578,7 +639,7 @@ done:
 /* y = L^-1 P b, then the accumulated row transformations. Shared by FTRAN
  * and by the update, which needs exactly this prefix to form the spike. */
 static void ftran_prefix(const jm_lu *lu, const double *b, double *y,
-                         jm_work *w)
+                         jm_work *w)  /* reads only; y is caller-owned */
 {
     const int64_t n = lu->dim;
 
@@ -601,10 +662,13 @@ static void ftran_prefix(const jm_lu *lu, const double *b, double *y,
     jm_work_add(w, lu->ft_n * JM_WORK_NONZERO);
 }
 
-void jm_lu_ftran(const jm_lu *lu, double *x, jm_work *w)
+void jm_lu_ftran(jm_lu *lu, double *x, jm_work *w)
 {
     const int64_t n = lu->dim;
     double *y = lu->tmp;
+
+    if (lu->rank != n)
+        return;   /* singular, or wrecked by a failed update */
 
     ftran_prefix(lu, x, y, w);
 
@@ -626,10 +690,13 @@ void jm_lu_ftran(const jm_lu *lu, double *x, jm_work *w)
         x[lu->perm_col[s]] = y[s];
 }
 
-void jm_lu_btran(const jm_lu *lu, double *x, jm_work *w)
+void jm_lu_btran(jm_lu *lu, double *x, jm_work *w)
 {
     const int64_t n = lu->dim;
     double *y = lu->tmp;
+
+    if (lu->rank != n)
+        return;   /* singular, or wrecked by a failed update */
 
     /* B' = Q U' E^-T L' P, so this starts from the column permutation. */
     for (int64_t s = 0; s < n; s++)
@@ -675,22 +742,13 @@ void jm_lu_btran(const jm_lu *lu, double *x, jm_work *w)
 /* Appends one row transformation. The three arrays grow together. */
 static bool ft_push(jm_lu *lu, int64_t target, int64_t source, double factor)
 {
-    if (lu->ft_n == lu->ft_cap) {
-        int64_t nc = lu->ft_cap < 64 ? 64 : lu->ft_cap * 2;
-        int64_t *nt = realloc(lu->ft_target, (size_t)nc * sizeof *nt);
-        if (nt == nullptr)
-            return false;
-        lu->ft_target = nt;
-        int64_t *ns = realloc(lu->ft_source, (size_t)nc * sizeof *ns);
-        if (ns == nullptr)
-            return false;
-        lu->ft_source = ns;
-        double *nf = realloc(lu->ft_factor, (size_t)nc * sizeof *nf);
-        if (nf == nullptr)
-            return false;
-        lu->ft_factor = nf;
-        lu->ft_cap = nc;
-    }
+    int64_t cap_src = lu->ft_cap;
+    if (!grow_pair(&lu->ft_target, &lu->ft_factor, &lu->ft_cap, lu->ft_n + 1) ||
+        !jm_grow((void **)&lu->ft_source, &cap_src, lu->ft_n + 1,
+                 sizeof *lu->ft_source))
+        return false;
+    if (cap_src < lu->ft_cap)
+        lu->ft_cap = cap_src;
     lu->ft_target[lu->ft_n] = target;
     lu->ft_source[lu->ft_n] = source;
     lu->ft_factor[lu->ft_n] = factor;
@@ -715,6 +773,10 @@ jaos_status jm_lu_update(jm_lu *lu, int64_t col_out, const double *new_col,
     double *sp = lu->spike;
     double *row = lu->tmp;
 
+    /* Three O(dim) passes follow whatever the elimination costs; charge
+     * the floor so a work budget describes the run it actually buys. */
+    jm_work_add(w, JM_WORK_UPDATE);
+
     /* The spike is the entering column seen through everything left of U. */
     ftran_prefix(lu, new_col, sp, w);
 
@@ -724,6 +786,8 @@ jaos_status jm_lu_update(jm_lu *lu, int64_t col_out, const double *new_col,
         if (a > mx)
             mx = a;
     }
+    /* Structural threshold for this update, scaled to the spike itself. */
+    const double drop = mx > 0.0 ? mx * DROP_REL : TINY;
 
     const int64_t p = lu->pos_of[s_out];
 
@@ -747,7 +811,7 @@ jaos_status jm_lu_update(jm_lu *lu, int64_t col_out, const double *new_col,
      * off-diagonal entry of the spike sits above the diagonal, so the
      * column needs no elimination at all — only the row does. */
     for (int64_t s = 0; s < n; s++) {
-        if (s == s_out || fabs(sp[s]) <= DROP_TOL)
+        if (s == s_out || fabs(sp[s]) <= drop)
             continue;
         if (!jm_svec_push(&lu->ucol[s_out], s, sp[s]) ||
             !jm_svec_push(&lu->urow[s], s_out, sp[s])) {
@@ -770,7 +834,7 @@ jaos_status jm_lu_update(jm_lu *lu, int64_t col_out, const double *new_col,
      * later steps then handle. */
     for (int64_t k = p; k < n - 1; k++) {
         int64_t s = lu->slot_at[k];
-        if (fabs(row[s]) <= DROP_TOL) {
+        if (fabs(row[s]) <= drop) {
             row[s] = 0.0;
             continue;
         }
@@ -789,7 +853,7 @@ jaos_status jm_lu_update(jm_lu *lu, int64_t col_out, const double *new_col,
 
     double newdiag = row[s_out];
     row[s_out] = 0.0;
-    if (fabs(newdiag) <= DROP_TOL || fabs(newdiag) < min_pivot_ratio * mx) {
+    if (fabs(newdiag) <= TINY || fabs(newdiag) < min_pivot_ratio * mx) {
         /* U has already been rewritten; there is no old factorization to
          * fall back to. Mark it unusable so a stale solve cannot happen. */
         lu->rank = -1;
