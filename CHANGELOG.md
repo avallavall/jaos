@@ -25,6 +25,10 @@ versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Settling up can no longer park a basic variable on an artificial phase-1
   bound: that would manufacture the evidence of unboundedness after the
   verdict was already read.
+- A model whose genuine optimum ran past 1e10 came back UNBOUNDED. Dual
+  phase 1 lent columns that fixed bound and the solve stopped on the loan,
+  which is what the unbounded verdict is read from; the loan is now sized
+  from the magnitudes the model itself states.
 
 ### Added
 

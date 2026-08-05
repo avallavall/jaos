@@ -31,6 +31,7 @@
 
 #include "jaos_internal.h"
 
+#include <float.h>
 #include <math.h>
 #include <stdlib.h>
 #include <string.h>
@@ -99,9 +100,46 @@ constexpr int64_t TIME_CHECK_EVERY = 64;
  * evidence rather than guessed.
  *
  * The bound has to be large enough not to cut off a genuine optimum and
- * small enough to stay numerically sane against the tolerances above. This
- * value is a draft, like the tolerances themselves. */
-constexpr double ARTIFICIAL_BOUND = 1e10;
+ * small enough to stay numerically sane against the tolerances above. No
+ * single number is both. A fixed 1e10 stood here and failed on each side
+ * at once: the spacing between doubles at 1e10 is 2e-6, twenty times the
+ * primal tolerance the bound is compared against, and a model whose
+ * genuine optimum ran past 1e10 was reported UNBOUNDED — the optimum came
+ * to rest on the invented bound, and that is the evidence the verdict
+ * reads.
+ *
+ * So the bound comes from the model. The solve runs on a scaled copy whose
+ * matrix entries are of order one (docs/scaling.md), and there the largest
+ * magnitude the model mentions — any finite bound on any variable,
+ * structural or logical, and any cost — is the scale its solutions live
+ * on: a row activity is a sum of order-one coefficients times variables,
+ * held between row bounds the model states itself. HEADROOM is the margin
+ * over that scale.
+ *
+ * It is a margin and not a proof. A model can still have an optimum
+ * further out than its own numbers suggest — a bound derived from data
+ * cannot rule that out, and only a phase 1 that invents no bounds, or a
+ * ray certificate for the unbounded verdict, would. What it does rule out
+ * is the case where the model says plainly how big it is and the bound
+ * ignores it. The Netlib campaign is where the residue shows up, if there
+ * is any.
+ *
+ * Both numbers are draft, like the tolerances, and both are picked rather
+ * than tuned:
+ *
+ *   - HEADROOM is the largest round factor that keeps a model of magnitude
+ *     one inside the range where doubles still resolve PRIMAL_TOL. The
+ *     spacing at 1e8 is 1.5e-8, below the 1e-7 the bound is tested with;
+ *     one order further up it is not.
+ *   - CEILING is where a bound stops being a number at all: past
+ *     1/DBL_EPSILON, adding one to it changes nothing, so it is already
+ *     indistinguishable from infinity in the arithmetic that would test
+ *     it. A model that mentions magnitudes this large gets the ceiling and
+ *     with it a bound whose spacing is coarser than the tolerance — that
+ *     is the model's own doing, and it is visible in the answer rather
+ *     than hidden in a constant. */
+constexpr double ARTIFICIAL_HEADROOM = 1e8;
+constexpr double ARTIFICIAL_CEILING  = 1.0 / DBL_EPSILON;
 
 /* A stop that is not a real limit, only a guard against a loop that fails
  * to terminate through a bug. Hitting it is a defect in JAOS, so it is
@@ -341,15 +379,44 @@ static double price_entry(sx *s, int64_t v)
     return a;
 }
 
+/* The size of the invented bound, read off the scaled model as described
+ * above ARTIFICIAL_HEADROOM. Runs once, over bounds and costs as they are
+ * before any bound is lent — the loans are what it is sizing.
+ *
+ * The floor of one matters: without it a model of all-zero costs and
+ * all-zero bounds would size its loans at zero and pin every column that
+ * needs one to the origin. Scanning order is fixed and the maximum is
+ * order-independent anyway, so the result is deterministic (D8). */
+static double raised_by(double mag, double x)
+{
+    /* Infinities are the model declining to state a magnitude, not a huge
+     * one; they are what the loans are for in the first place. */
+    return (isfinite(x) && fabs(x) > mag) ? fabs(x) : mag;
+}
+
+static double artificial_bound(const sx *s)
+{
+    double mag = 1.0;
+    for (int64_t v = 0; v < s->nvar; v++) {
+        mag = raised_by(mag, s->lo[v]);
+        mag = raised_by(mag, s->up[v]);
+        mag = raised_by(mag, s->cost[v]);
+    }
+    double b = ARTIFICIAL_HEADROOM * mag;   /* may overflow to infinity */
+    return b < ARTIFICIAL_CEILING ? b : ARTIFICIAL_CEILING;
+}
+
 /* The slack basis: every logical basic, every structural pinned to the
  * bound that makes its reduced cost feasible. With B = -I this factors by
  * inspection.
  *
  * A structural whose cost asks for a bound it does not have gets an
- * artificial one, which is dual phase 1 (see ARTIFICIAL_BOUND above). The
- * loan is recorded so the outcome can be read honestly afterwards. */
+ * artificial one, which is dual phase 1 (see ARTIFICIAL_HEADROOM above).
+ * The loan is recorded so the outcome can be read honestly afterwards. */
 static void build_initial_basis(sx *s)
 {
+    const double big = artificial_bound(s);
+
     for (int64_t i = 0; i < s->nrow; i++) {
         int64_t v = s->ncol + i;
         s->basis[i] = v;
@@ -370,13 +437,13 @@ static void build_initial_basis(sx *s)
          * high; that is the bound its reduced cost is feasible at. */
         if (s->cost[j] > 0.0) {
             if (!has_lo) {
-                s->lo[j] = -ARTIFICIAL_BOUND;
+                s->lo[j] = -big;
                 s->fake[j] = FAKE_LO;
             }
             s->status[j] = JM_AT_LOWER;
         } else if (s->cost[j] < 0.0) {
             if (!has_up) {
-                s->up[j] = ARTIFICIAL_BOUND;
+                s->up[j] = big;
                 s->fake[j] = FAKE_UP;
             }
             s->status[j] = JM_AT_UPPER;
@@ -1003,8 +1070,9 @@ static void repair_dual_infeasibility(sx *s)
              * basic parked *on* an invented bound is the evidence of
              * unboundedness — manufactured here, after the verdict was
              * already read off. The swap that would do that is refused;
-             * no test constructs this, it takes a box ~1e10 wide, but
-             * the verdict must not depend on nobody ever building one. */
+             * no test constructs this, it takes a box as wide as an
+             * invented bound, but the verdict must not depend on nobody
+             * ever building one. */
             if ((s->fake[b] == FAKE_LO && x <= s->lo[b] + PRIMAL_TOL) ||
                 (s->fake[b] == FAKE_UP && x >= s->up[b] - PRIMAL_TOL)) {
                 safe = false;

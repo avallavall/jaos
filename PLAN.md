@@ -152,6 +152,7 @@ changelog entry. Full formulas in `docs/tolerances.md` when written.
 | Factor drop tolerance | 1e-14 |
 | Harris tolerance window | 1e-7 |
 | Steepest-edge weight drift factor | 10 |
+| Phase-1 artificial bound (scaled) | 1e8 × the largest magnitude the model states, capped where a bound stops being distinguishable from infinity |
 | Refactorization interval target | 64–128 iterations, stability-triggered earlier |
 | Netlib objective acceptance | \|obj − ref\| ≤ 1e-6 · max(1, \|ref\|) |
 | Checker tolerances (original space) | 1e-6 absolute on residuals, formulas to be published |
@@ -328,10 +329,14 @@ missed this".
 
 ## 3. Open questions
 
-- **Q1** — Dual phase-1 method. Artificial bounds are what is built; whether
-  they survive the Netlib campaign, or a subproblem or cost-shifting method
-  from [21][1] has to replace them, is decided there on evidence. Q9 carries
-  the known way the present one gets an answer wrong.
+- **Q1** — Dual phase-1 method. Artificial bounds are what is built, sized
+  from the model rather than fixed; whether they survive the Netlib
+  campaign, or a subproblem or cost-shifting method from [21][1] has to
+  replace them, is decided there on evidence. What sizing cannot promise is
+  that no model has an optimum further out than its own magnitudes suggest
+  — only a phase 1 that invents no bounds, or a ray certificate behind the
+  unbounded verdict, would, and the campaign is what says whether either is
+  needed.
 - **Q2** — LP and MPS dialect edge semantics (e.g., RANGES on E rows with a
   negative range value, a sub-case the public docs leave ambiguous): fixed as
   encountered, recorded in `docs/format-support.md`.
@@ -344,17 +349,6 @@ missed this".
 - **Q6** — Netlib acquisition route: netlib's emps expander (a dev-time tool,
   needs D11 approval) versus a checksum-pinned unofficial mirror; decided when
   the manifest is first built.
-- **Q9** — Sizing the artificial bound that dual phase 1 lends a column whose
-  cost points at a bound it does not have. It is a fixed 1e10, now applied
-  in scaled space, which puts it on magnitudes that cluster around one but
-  does not make it a number the model chose. The consequence is not a
-  rounding error but a wrong answer: **a model whose genuine optimum exceeds
-  that bound is reported UNBOUNDED**, because the optimum comes to rest on
-  the invented bound and that is the evidence the verdict reads. Closing this
-  means either deriving the bound from the model — the largest finite bound
-  and cost magnitude present, in the same scaled space — or replacing
-  artificial bounds with a phase 1 that does not need them (subproblem or
-  cost shifting, per Koberstein [21]). It closes before the Netlib gate.
 - **Q10** — What breaks a stall in *this* method, and what repairs what the
   ratio test spends. §2.5.9 calls for deterministic bound perturbation, and
   that is the primal simplex's device: the primal stalls on a zero-length

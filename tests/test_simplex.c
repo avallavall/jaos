@@ -268,6 +268,61 @@ static void test_missing_bound_that_a_row_restrains_solves_normally(void)
     jaos_model_free(m);
 }
 
+/* An optimum far past any fixed big-M, in a model that says plainly how
+ * big it is. This is the case a constant artificial bound got wrong: with
+ * 1e10 lent to x the solve stopped on the loan, and stopping on a loan is
+ * what the unbounded verdict is read from, so a model with a perfectly
+ * finite optimum came back UNBOUNDED. Sizing the loan from the model's own
+ * magnitudes is what fixes it.
+ *
+ *   min -x  s.t. x - y = 0, 0 <= x, 0 <= y <= 1e12
+ * x follows y to 1e12; the objective is -1e12.
+ *
+ * The arithmetic is exact all the way through — coefficients of one, a
+ * bound that is representable, scale factors that are powers of two — so
+ * this is checked to the same tolerance as any other model rather than to
+ * one widened for its size. */
+static void test_an_optimum_past_a_fixed_big_m_is_not_unbounded(void)
+{
+    const double c[] = {-1.0, 0.0};
+    const double cl[] = {0.0, 0.0}, cu[] = {INFINITY, 1e12};
+    const double rl[] = {0.0}, ru[] = {0.0};
+    const int64_t as[] = {0, 1, 2}, ai[] = {0, 0};
+    const double av[] = {1.0, -1.0};
+
+    jaos_model *m = fresh();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_load_lp(m, 2, 1, JAOS_MINIMIZE, 0.0, c, cl, cu, rl, ru,
+                     2, as, ai, av));
+    solve_and_verify(m, -1e12);
+    jaos_model_free(m);
+}
+
+/* The mirror of it: a model that mentions the same large magnitude but is
+ * genuinely unbounded. The loan grows with the model here too, and the
+ * verdict still has to come out UNBOUNDED — a bound sized to the data must
+ * not become a bound nothing can reach.
+ *
+ *   min -x  s.t. y <= 1e12, 0 <= x (in no row at all), 0 <= y
+ * Nothing restrains x. */
+static void test_a_big_model_that_is_genuinely_unbounded_still_says_so(void)
+{
+    const double c[] = {-1.0, 0.0};
+    const double cl[] = {0.0, 0.0}, cu[] = {INFINITY, INFINITY};
+    const double rl[] = {-INFINITY}, ru[] = {1e12};
+    /* x has no entries; y holds the row. */
+    const int64_t as[] = {0, 0, 1}, ai[] = {0};
+    const double av[] = {1.0};
+
+    jaos_model *m = fresh();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_load_lp(m, 2, 1, JAOS_MINIMIZE, 0.0, c, cl, cu, rl, ru,
+                     1, as, ai, av));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_UNBOUNDED, jaos_status_of(m));
+    jaos_model_free(m);
+}
+
 /* Maximisation with no upper bounds is the same situation mirrored, and
  * was the case that used to be refused outright.
  *   max 3x + 2y  s.t. x + y <= 4, x <= 2  ->  x=2, y=2, objective 10 */
@@ -998,6 +1053,8 @@ int main(void)
     RUN_TEST(test_solving_a_model_read_from_mps);
     RUN_TEST(test_unbounded_model_is_reported);
     RUN_TEST(test_missing_bound_that_a_row_restrains_solves_normally);
+    RUN_TEST(test_an_optimum_past_a_fixed_big_m_is_not_unbounded);
+    RUN_TEST(test_a_big_model_that_is_genuinely_unbounded_still_says_so);
     RUN_TEST(test_maximise_without_column_upper_bounds);
     RUN_TEST(test_t1_mps_is_infeasible_and_says_so);
     RUN_TEST(test_zero_objective_is_distinguishable_from_no_answer);
