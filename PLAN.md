@@ -295,6 +295,14 @@ missed this".
 - **Q6** — Netlib acquisition route: netlib's emps expander (a dev-time tool,
   needs D11 approval) versus a checksum-pinned unofficial mirror; decided when
   the manifest is first built.
+- **Q7** — Wiring scaling into the solve path. §2.5 says the solver works on
+  a scaled copy while the checker judges in original space, and the §2.6
+  tolerances are specified in scaled units. Scaling is built and tested but
+  the simplex still reads the model as loaded, so those tolerances currently
+  act on raw magnitudes. Closing this means deciding where the scaled copy
+  lives — a transformed working model, or factors applied on the fly — and it
+  closes before the Netlib gate, because several instances there are
+  unsolvable without it.
 
 ---
 

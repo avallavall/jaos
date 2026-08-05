@@ -50,4 +50,10 @@ versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   `jaos_objective` and `jaos_status_of`.
 - Budgets: `jaos_set_work_limit` (reproducible) and `jaos_set_time_limit`
   (wall-clock), reported back through `jaos_work_units` and
-  `jaos_iterations`.
+  `jaos_iterations`. Pricing and the ratio test are charged to the work
+  counter, so a work limit bounds the whole solve rather than only its
+  linear algebra.
+- A model this build cannot solve yet reports `JAOS_SOLVE_UNSUPPORTED` with
+  an explanation, rather than being rejected as invalid input.
+- `jaos_objective` reports through a status and an out-parameter, so a
+  genuine objective of zero is distinguishable from having no answer.

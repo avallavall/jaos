@@ -88,8 +88,13 @@ typedef enum {
     JM_FREE,        /* nonbasic at zero, both bounds infinite */
 } jm_var_status;
 
-/* Runs the dual simplex on a scaled copy of the model and writes the
- * outcome back into it (solve_status, objective, sol_*, counters). */
+/* Runs the dual simplex and writes the outcome back into the model
+ * (solve_status, objective, sol_*, counters).
+ *
+ * It works on the model as loaded, not on a scaled copy: jm_model_scale
+ * exists and is tested but is not wired into the solve path yet, which
+ * also means the tolerances in simplex.c act on raw magnitudes rather
+ * than scaled ones. PLAN.md Q7 carries it. */
 JAOS_NODISCARD jaos_status jm_dual_simplex(jaos_model *m);
 
 /* Overflow-checked array allocation: n elements of elsize bytes.

@@ -96,9 +96,14 @@ jaos_solve_status jaos_status_of(const jaos_model *m)
     return m ? m->solve_status : JAOS_SOLVE_NOT_RUN;
 }
 
-double jaos_objective(const jaos_model *m)
+jaos_status jaos_objective(const jaos_model *m, double *out)
 {
-    return m ? m->objective : 0.0;
+    if (m == nullptr || out == nullptr)
+        return JAOS_ERR_INVALID_INPUT;
+    if (m->solve_status != JAOS_SOLVE_OPTIMAL)
+        return JAOS_ERR_INVALID_INPUT;
+    *out = m->objective;
+    return JAOS_OK;
 }
 
 int64_t jaos_work_units(const jaos_model *m) { return m ? m->solve_work : 0; }

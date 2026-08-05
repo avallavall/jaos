@@ -56,6 +56,10 @@ typedef enum jaos_solve_status {
     JAOS_SOLVE_WORK_LIMIT,
     JAOS_SOLVE_TIME_LIMIT,
     JAOS_SOLVE_NUMERICAL_ERROR,
+    /* A well-formed model this build cannot solve yet. It is not an
+     * invalid input and not a numerical failure — the model is fine and
+     * the solver is incomplete. jaos_model_error names what is missing. */
+    JAOS_SOLVE_UNSUPPORTED,
 } jaos_solve_status;
 
 /* Human-readable name for a status. Static storage; never NULL, including for
@@ -167,8 +171,10 @@ JAOS_NODISCARD jaos_status jaos_solve(jaos_model *m);
 JAOS_NODISCARD jaos_solve_status jaos_status_of(const jaos_model *m);
 
 /* Objective value of the solution held by the model, including the constant
- * term. Meaningless unless the last solve reached an optimum. */
-JAOS_NODISCARD double jaos_objective(const jaos_model *m);
+ * term, into *out. Returns JAOS_ERR_INVALID_INPUT when no optimum is
+ * available, rather than a number that cannot be told apart from a genuine
+ * objective of zero. */
+JAOS_NODISCARD jaos_status jaos_objective(const jaos_model *m, double *out);
 
 /* Copies the solution into caller-provided buffers; any of them may be NULL.
  * col_value holds num_col entries, row_dual and row_activity num_row each.

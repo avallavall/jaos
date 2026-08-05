@@ -33,7 +33,10 @@ static void solve_and_verify(jaos_model *m, double expect_obj)
 {
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
     TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
-    TEST_ASSERT_DOUBLE_WITHIN(1e-6, expect_obj, jaos_objective(m));
+
+    double obj = 0.0;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(m, &obj));
+    TEST_ASSERT_DOUBLE_WITHIN(1e-6, expect_obj, obj);
 
     int64_t nc = jaos_num_col(m), nr = jaos_num_row(m);
     double *x = calloc((size_t)(nc > 0 ? nc : 1), sizeof(double));
@@ -223,8 +226,67 @@ static void test_model_needing_dual_phase_one_says_so(void)
     TEST_ASSERT_EQUAL_INT(JAOS_OK,
         jaos_load_lp(m, 1, 1, JAOS_MINIMIZE, 0.0, c, cl, cu, rl, ru,
                      1, as, ai, av));
-    TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT, jaos_solve(m));
+    /* The solve runs and reports what it could not do. The model is not
+     * invalid — the solver is incomplete, and those are different. */
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_UNSUPPORTED, jaos_status_of(m));
     TEST_ASSERT_NOT_NULL(strstr(jaos_model_error(m), "phase 1"));
+
+    /* And no objective is on offer for a solve that found none. */
+    double obj = 1234.0;
+    TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT, jaos_objective(m, &obj));
+    TEST_ASSERT_EQUAL_DOUBLE(1234.0, obj);   /* left untouched */
+    jaos_model_free(m);
+}
+
+/* An objective of exactly zero must be reported as an answer, not
+ * confused with "nothing to report". */
+static void test_zero_objective_is_distinguishable_from_no_answer(void)
+{
+    const double c[] = {0.0};
+    const double cl[] = {0.0}, cu[] = {1.0};
+    const double rl[] = {0.0}, ru[] = {1.0};
+    const int64_t as[] = {0, 1}, ai[] = {0};
+    const double av[] = {1.0};
+
+    jaos_model *m = fresh();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_load_lp(m, 1, 1, JAOS_MINIMIZE, 0.0, c, cl, cu, rl, ru,
+                     1, as, ai, av));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+
+    double obj = -1.0;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(m, &obj));
+    TEST_ASSERT_EQUAL_DOUBLE(0.0, obj);
+    jaos_model_free(m);
+}
+
+/* Pricing must be charged to the work counter, not just the LU kernels:
+ * PLAN 2.7 weights "nonzero touched ... in pricing" the same as any other
+ * solve traffic, and a budget that ignored it would not bound the run. */
+static void test_pricing_is_charged_to_the_work_counter(void)
+{
+    const double c[] = {2.0, 3.0, 4.0};
+    const double cl[] = {0.0, 0.0, 0.0};
+    const double cu[] = {100.0, 100.0, 100.0};
+    const double rl[] = {10.0, -INFINITY, -INFINITY};
+    const double ru[] = {INFINITY, 4.0, 3.0};
+    const int64_t as[] = {0, 2, 4, 5};
+    const int64_t ai[] = {0, 1, 0, 2, 0};
+    const double av[] = {1.0, 1.0, 1.0, 1.0, 1.0};
+
+    jaos_model *m = fresh();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_load_lp(m, 3, 3, JAOS_MINIMIZE, 0.0, c, cl, cu, rl, ru,
+                     5, as, ai, av));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+
+    /* Iterations happened, so pricing happened, so the counter must have
+     * moved well past the factorization's own fixed charge. */
+    TEST_ASSERT_TRUE(jaos_iterations(m) > 0);
+    TEST_ASSERT_TRUE(jaos_work_units(m) > JM_WORK_FACTOR);
     jaos_model_free(m);
 }
 
@@ -249,7 +311,7 @@ static void test_solving_twice_is_bit_identical(void)
             jaos_load_lp(m, 3, 3, JAOS_MINIMIZE, 0.0, c, cl, cu, rl, ru,
                          5, as, ai, av));
         TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
-        obj[run] = jaos_objective(m);
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(m, &obj[run]));
         iters[run] = jaos_iterations(m);
         work[run] = jaos_work_units(m);
         jaos_model_free(m);
@@ -327,6 +389,8 @@ int main(void)
     RUN_TEST(test_three_by_three);
     RUN_TEST(test_solving_a_model_read_from_mps);
     RUN_TEST(test_model_needing_dual_phase_one_says_so);
+    RUN_TEST(test_zero_objective_is_distinguishable_from_no_answer);
+    RUN_TEST(test_pricing_is_charged_to_the_work_counter);
     RUN_TEST(test_solving_twice_is_bit_identical);
     RUN_TEST(test_work_limit_stops_and_reports);
     RUN_TEST(test_budgets_survive_a_reload);

@@ -5,6 +5,12 @@
  * suite runs it after every solve, so no solver bug can approve itself
  * ("check the thing, not the wrapper").
  *
+ * DO NOT factor the reduced-cost loop below together with the identical
+ * one in src/simplex.c. The duplication is the point: the moment these two
+ * share an implementation, a solver whose pricing is wrong computes the
+ * same wrong number here and the check passes. Independence is worth more
+ * than the dozen lines it costs.
+ *
  * Everything is computed in minimize-canonical form: for maximization the
  * cost and the duals are negated internally (sigma), which turns the sign
  * conditions documented in jaos.h into one set of rules.
