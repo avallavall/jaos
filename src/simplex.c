@@ -121,8 +121,12 @@ typedef struct {
     double *av;              /* [num_nz] */
 
     /* Bounds and costs over all variables, likewise scaled: structurals
-     * first, then the logicals that carry row activities. */
+     * first, then the logicals that carry row activities. `cost` is the
+     * working cost, which is the model's plus whatever has been shifted
+     * into it; `shift` is the record of exactly that, so the loan can be
+     * called in at the end. */
     double *lo, *up, *cost;
+    double *shift;           /* [nvar] */
 
     jm_var_status *status;   /* [nvar] */
     int64_t *basis;          /* [nrow] variable occupying each position */
@@ -183,7 +187,7 @@ typedef struct {
 static void sx_free(sx *s)
 {
     free(s->av);
-    free(s->lo); free(s->up); free(s->cost);
+    free(s->lo); free(s->up); free(s->cost); free(s->shift);
     free(s->status); free(s->basis); free(s->where);
     free(s->xb); free(s->d); free(s->dse);
     free(s->col); free(s->raw); free(s->rho); free(s->tau); free(s->alpha);
@@ -228,6 +232,7 @@ static jaos_status sx_init(sx *s, jaos_model *m)
     s->lo     = jm_alloc_array(s->nvar, sizeof(double));
     s->up     = jm_alloc_array(s->nvar, sizeof(double));
     s->cost   = jm_calloc_array(s->nvar, sizeof(double));
+    s->shift  = jm_calloc_array(s->nvar, sizeof(double));
     s->status = jm_alloc_array(s->nvar, sizeof(jm_var_status));
     s->basis  = jm_alloc_array(s->nrow, sizeof(int64_t));
     s->where  = jm_alloc_array(s->nvar, sizeof(int64_t));
@@ -246,7 +251,8 @@ static jaos_status sx_init(sx *s, jaos_model *m)
     s->bs     = jm_alloc_array(s->nrow + 1, sizeof(int64_t));
     s->fake   = jm_calloc_array(s->nvar, sizeof *s->fake);
 
-    if (!s->av || !s->lo || !s->up || !s->cost || !s->status || !s->basis ||
+    if (!s->av || !s->lo || !s->up || !s->cost || !s->shift ||
+        !s->status || !s->basis ||
         !s->where || !s->xb || !s->d || !s->dse || !s->col || !s->raw ||
         !s->rho || !s->tau || !s->alpha || !s->cand || !s->rnum ||
         !s->rden || !s->rrange || !s->bs || !s->fake) {
@@ -813,6 +819,43 @@ static int64_t price_and_select(sx *s, int64_t r, bool below,
     return dual_ratio_test(s, below, violation, theta_dual);
 }
 
+/* Cost shifting [1]. Puts one nonbasic reduced cost back on the feasible
+ * side by moving its cost there, and writes down what it moved by.
+ *
+ * The Harris window is the one place the method spends dual feasibility,
+ * and until now nothing bought it back: a reduced cost pushed a tolerance
+ * past zero stayed there, and the next iteration could push it further.
+ * That is worse than untidy. The ratio test reads a cost already past zero
+ * as blocking immediately, and if such a candidate is the one chosen, the
+ * step it computes runs backwards — a dual step with the wrong sign, sized
+ * by however small the pivot happened to be.
+ *
+ * Shifting the cost of a *nonbasic* variable changes that variable's
+ * reduced cost and nothing else: the duals come from the basic costs
+ * alone. So the repair is exactly local, and the loan is recorded to be
+ * repaid in settle_shifts. */
+static void shift_to_feasible(sx *s, int64_t v)
+{
+    double need = 0.0;
+    if (s->status[v] == JM_AT_LOWER) {
+        if (s->d[v] < 0.0)
+            need = -s->d[v];        /* must stay non-negative */
+    } else if (s->status[v] == JM_AT_UPPER) {
+        if (s->d[v] > 0.0)
+            need = -s->d[v];        /* must stay non-positive */
+    } else if (s->status[v] == JM_FREE) {
+        need = -s->d[v];            /* must stay at zero */
+    } else {
+        return;                     /* basic: its reduced cost is zero */
+    }
+    if (need == 0.0)
+        return;
+
+    s->cost[v] += need;
+    s->shift[v] += need;
+    s->d[v] = 0.0;
+}
+
 /* Applies the basis change: q enters at position r, the variable there
  * leaves to the bound it violated. */
 static jaos_status pivot(sx *s, int64_t r, int64_t q, bool below,
@@ -826,11 +869,13 @@ static jaos_status pivot(sx *s, int64_t r, int64_t q, bool below,
      * exactly on the bound it violated. */
     double theta_primal = (s->xb[r] - bound) / alpha_q;
 
-    /* Reduced costs shift by the dual step along the pricing row. */
+    /* Reduced costs shift by the dual step along the pricing row, and any
+     * that the window pushed past feasible are bought back on the spot. */
     for (int64_t v = 0; v < s->nvar; v++) {
         if (s->status[v] == JM_BASIC || v == q)
             continue;
         s->d[v] -= theta_dual * s->alpha[v];
+        shift_to_feasible(s, v);
     }
     s->d[leaving] = -theta_dual;
     s->d[q] = 0.0;
@@ -878,6 +923,12 @@ static jaos_status pivot(sx *s, int64_t r, int64_t q, bool below,
     s->status[q] = JM_BASIC;
     s->where[q] = r;
 
+    /* The leaving variable's reduced cost is minus the dual step, which is
+     * feasible for the bound it left to — unless the step itself came out
+     * of a cost that was already past zero, which is the case the shifting
+     * exists to make impossible. Checked rather than assumed. */
+    shift_to_feasible(s, leaving);
+
     /* Repair the factorization, or schedule a rebuild. */
     if (s->lu.n_updates >= REFACTOR_EVERY) {
         s->needs_refactor = true;
@@ -890,6 +941,95 @@ static jaos_status pivot(sx *s, int64_t r, int64_t q, bool below,
         return JAOS_OK;
     }
     return ust;
+}
+
+/* --------------------------------------------------------------------- */
+/* Settling up                                                           */
+/* --------------------------------------------------------------------- */
+
+/* A nonbasic variable whose reduced cost came out on the wrong side can
+ * sometimes be put right for nothing: sitting at its other bound, the
+ * opposite sign is what feasibility means, so swapping it over fixes the
+ * condition exactly. What it does not fix is the primal — the variable
+ * moves by the whole width of its box, and the basics move with it — so
+ * the swap is only taken when it leaves every basic inside its bounds.
+ *
+ * Any wrong sign at all is worth swapping, with no tolerance to clear
+ * first, because a swap that passes the primal test cannot make the answer
+ * worse: the objective changes by the reduced cost times the move, and the
+ * two have opposite signs in both directions, so it can only go down. A
+ * threshold here would decline free improvements to avoid churn that costs
+ * nothing.
+ *
+ * A column carrying an invented bound is left alone. Moving one onto a
+ * bound that was never real would turn the unbounded verdict, already
+ * decided by then, into a lie.
+ *
+ * Whatever cannot be repaired this way stays in the reported reduced
+ * costs, where the independent checker will see it. Removing it properly
+ * means moving a nonbasic variable until something blocks, which is a
+ * primal simplex iteration, and there is no primal simplex before M6. */
+static void repair_dual_infeasibility(sx *s)
+{
+    for (int64_t v = 0; v < s->nvar; v++) {
+        if (s->status[v] == JM_BASIC || s->fake[v] != NOT_FAKE)
+            continue;
+
+        double to;
+        if (s->status[v] == JM_AT_LOWER && s->d[v] < 0.0)
+            to = s->up[v];
+        else if (s->status[v] == JM_AT_UPPER && s->d[v] > 0.0)
+            to = s->lo[v];
+        else
+            continue;
+        if (!isfinite(to))
+            continue;
+
+        double delta = to - nonbasic_value(s, v);
+        var_column(s, v, s->col);
+        for (int64_t i = 0; i < s->nrow; i++)
+            s->col[i] *= delta;
+        jm_lu_ftran(&s->lu, s->col, &s->work);
+
+        bool safe = true;
+        for (int64_t i = 0; i < s->nrow; i++) {
+            double x = s->xb[i] - s->col[i];
+            int64_t b = s->basis[i];
+            if (x < s->lo[b] - PRIMAL_TOL || x > s->up[b] + PRIMAL_TOL) {
+                safe = false;
+                break;
+            }
+        }
+        jm_work_add(&s->work, 2 * s->nrow * JM_WORK_NONZERO);
+        if (!safe)
+            continue;
+
+        for (int64_t i = 0; i < s->nrow; i++)
+            s->xb[i] -= s->col[i];
+        s->status[v] = s->status[v] == JM_AT_LOWER ? JM_AT_UPPER
+                                                   : JM_AT_LOWER;
+    }
+}
+
+/* Calls in every cost the solve borrowed, and recomputes the duals from
+ * the model's own costs so that what is published belongs to the problem
+ * that was asked about rather than to the one that was convenient. Then
+ * repairs what the true costs turn out to leave infeasible. */
+static void settle_shifts(sx *s)
+{
+    bool any = false;
+    for (int64_t v = 0; v < s->nvar; v++) {
+        if (s->shift[v] == 0.0)
+            continue;
+        s->cost[v] -= s->shift[v];
+        s->shift[v] = 0.0;
+        any = true;
+    }
+    if (!any)
+        return;
+
+    compute_duals(s);
+    repair_dual_infeasibility(s);
 }
 
 /* --------------------------------------------------------------------- */
@@ -1059,8 +1199,11 @@ jaos_status jm_dual_simplex(jaos_model *m)
     jaos_solve_status outcome;
     build_initial_basis(&s);
     st = run(&s, &outcome);
-    if (st == JAOS_OK)
+    if (st == JAOS_OK) {
+        if (outcome == JAOS_SOLVE_OPTIMAL)
+            settle_shifts(&s);
         st = publish(&s, outcome);
+    }
     sx_free(&s);
     return st;
 }

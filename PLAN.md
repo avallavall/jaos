@@ -191,19 +191,21 @@ steepest-edge pricing, a Harris two-pass ratio test with bound flipping,
 and a dual phase 1 by artificial bounds. `make test` covers all of it, and
 every solved test instance is put through the checker.
 
-Remaining, in the order they are expected to be taken:
+Remaining:
 
-1. **Degeneracy handling.** Steepest-edge weight resets are in. What remains
-   is the perturbation itself and the repair of what the ratio test spends —
-   see Q10, which has to close first, because §2.5.9 names a device that
-   does not fit the method that is built.
-2. **Netlib campaign**, instance by instance, with the determinism harness on
+1. **Netlib campaign**, instance by instance, with the determinism harness on
    throughout. This is the gate (§2.9), and it is where Q6 and the acceptance
    table get settled.
 
+Degeneracy handling is done as far as it can be done without evidence:
+steepest-edge weights repair and restart themselves, and what the ratio test
+spends in dual feasibility is now lent and called back rather than left
+lying. What is left of it is an anti-stall perturbation, which addresses a
+problem no instance has shown yet, and Q10 holds it until one does.
+
 A refactorization stability trigger (§2.5.5) is still missing: only the
 interval and the reactive fallback on a failed update exist. It belongs with
-step 2, where a real instance will finally exercise it.
+the campaign, where a real instance will finally exercise it.
 
 §2.5.6's debugging fallback to max-infeasibility pricing is not built. There
 is nowhere to put the flag — the library has no options API and inventing one
@@ -353,14 +355,19 @@ missed this".
   perturbing costs can. Bound flipping, already built, removes part of the
   short-step behaviour but not this.
 
-  The same question carries the repair the ratio test needs. Every Harris
-  step may leave a reduced cost up to one tolerance past feasible and
-  nothing removes those. Cost shifting is the usual answer [1], and its hard
-  half is the end of it: once the shifts come off, the basis is primal
-  feasible and may be dual infeasible, which is the primal simplex's
-  situation, and there is no primal simplex before M6. Accepting the
-  residue, flipping the boxed columns it lands on, or re-entering through
-  phase 1 are three different answers and not the same decision.
+  Held until an instance stalls. The device costs something on every model
+  and pays only on the ones that need it, and none has been seen. The
+  campaign is where one will turn up, and it will also say how much to
+  perturb — a number that has no evidence behind it today.
+
+  The repair half of this question is closed: costs are shifted and called
+  back, per the changelog. What it cannot close is the residue. Once the
+  shifts come off, the basis is primal feasible and may still be dual
+  infeasible, and the only repair that costs nothing is swapping a column
+  to its other bound. Removing the rest means moving a nonbasic variable
+  until something blocks, which is a primal simplex iteration and does not
+  exist before M6. Whatever is left shows up in the reported reduced costs,
+  where the checker sees it — so the gate will say whether it matters.
 - **Q8** — How exact verification gets done, decided when M2 opens with
   certificate export. GMP is the obvious tool and D11 excludes it (LGPL),
   including for test-only use, since D15 exempts test dependencies from D2

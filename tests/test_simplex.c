@@ -667,6 +667,67 @@ static void test_bound_flipping_fills_columns_in_one_step(void)
     jaos_model_free(m);
 }
 
+/* ---- cost shifting and settling up ------------------------------------ */
+
+/* A model built to make the ratio test spend dual feasibility and then to
+ * make both outcomes of settling up visible in one solve:
+ *
+ *   min 0 xA + 2e-8 xC + 5e-7 xB   s.t.  xA + xC + 10 xB >= 1
+ *   xA in [0, 100],  xC in [0, 0.001],  xB in [0, 100]
+ *
+ * Scaling is switched off, so the numbers below are the ones the solver
+ * sees. At the slack start every reduced cost is its cost and every pivot
+ * entry is minus its coefficient, so the candidates are A at ratio 0, C at
+ * 2e-8 and B at 5e-8. Bound flipping stops at A — swapping a box 100 wide
+ * would overshoot a violation of 1 — and Harris then takes B, whose pivot
+ * is ten times the others', for a step of 5e-8. That step pushes A and C
+ * past zero by 5e-8 and 3e-8, which is what the shifting buys back.
+ *
+ * Settling up hands both cases back. A wants to move to 100, which would
+ * drive the basic column to -9.9 and is refused. C wants to move to 0.001,
+ * which leaves the basic at 0.0999 and is taken. So the assertion that
+ * matters is on the two column values, not on an objective which is 5e-8
+ * either way. */
+static void test_settling_up_flips_what_is_free_and_leaves_the_rest(void)
+{
+    const double c[] = {0.0, 2e-8, 5e-7};
+    const double cl[] = {0.0, 0.0, 0.0};
+    const double cu[] = {100.0, 0.001, 100.0};
+    const double rl[] = {1.0}, ru[] = {INFINITY};
+    const int64_t as[] = {0, 1, 2, 3};
+    const int64_t ai[] = {0, 0, 0};
+    const double av[] = {1.0, 1.0, 10.0};
+
+    jaos_model *m = fresh();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_load_lp(m, 3, 1, JAOS_MINIMIZE, 0.0, c, cl, cu, rl, ru,
+                     3, as, ai, av));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jm_model_scale(m, JM_SCALE_NONE));
+
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+
+    double x[3], act[1];
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solution(m, x, act, nullptr, nullptr));
+
+    TEST_ASSERT_DOUBLE_WITHIN(1e-12, 0.0, x[0]);      /* refused */
+    TEST_ASSERT_DOUBLE_WITHIN(1e-12, 0.001, x[1]);    /* taken */
+    TEST_ASSERT_DOUBLE_WITHIN(1e-9, 0.0999, x[2]);
+    TEST_ASSERT_DOUBLE_WITHIN(1e-9, 1.0, act[0]);     /* still feasible */
+
+    /* And the answer is one the checker accepts in the model's own space,
+     * which is the point of settling up at all. */
+    double y[1];
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solution(m, x, nullptr, y, nullptr));
+    jaos_check_report rep;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_check_solution(m, x, y, CHECK_TOL, &rep));
+    TEST_ASSERT_TRUE(rep.primal_feasible);
+    TEST_ASSERT_TRUE(rep.dual_feasible);
+
+    jaos_model_free(m);
+}
+
 /* ---- Harris' ratio test ---------------------------------------------- */
 
 /* Same argument as the weights above: which candidate the ratio test picks
@@ -832,6 +893,7 @@ int main(void)
     RUN_TEST(test_scaling_changes_the_arithmetic_not_the_answer);
     RUN_TEST(test_answers_come_back_in_the_models_units);
     RUN_TEST(test_bound_flipping_fills_columns_in_one_step);
+    RUN_TEST(test_settling_up_flips_what_is_free_and_leaves_the_rest);
     RUN_TEST(test_harris_ignores_a_big_pivot_outside_the_window);
     RUN_TEST(test_harris_prefers_the_larger_pivot_inside_the_window);
     RUN_TEST(test_harris_on_a_degenerate_vertex_takes_the_best_pivot);

@@ -72,6 +72,13 @@ versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   longer stops an iteration short. It is swapped to its other bound and the
   step carries on, so a model whose answer fills one bounded column after
   another is solved in one long step instead of one step per column.
+- The dual feasibility the ratio test spends on better-conditioned pivots is
+  now lent rather than given away: the cost of the affected column is moved
+  just enough to keep it feasible, the loan is recorded, and it is called
+  back before any answer is reported, so what comes out belongs to the
+  problem that was asked about. Where calling it back leaves a column on the
+  wrong side, it is swapped to its other bound whenever that keeps the
+  solution feasible — which can only improve the objective.
 - Steepest-edge pricing weights are checked against an exactly known value
   every iteration, repaired where the exact one is available, and restarted
   when they have drifted past being informative. Pricing that has quietly
