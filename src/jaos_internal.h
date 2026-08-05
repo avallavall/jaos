@@ -100,4 +100,80 @@ JAOS_NODISCARD jaos_status jm_model_scale(jaos_model *m, jm_scale_mode mode);
 /* |a_k| after scaling, for the entry at index k of column j. */
 double jm_scaled_abs(const jaos_model *m, int64_t j, int64_t k);
 
+/* --------------------------------------------------------------------- */
+/* Deterministic work counter (D16)                                      */
+/* --------------------------------------------------------------------- */
+
+/* The reproducible budget's currency. Counted in the kernels, never
+ * derived from a clock, so a run consumes the same units on every machine.
+ * Weights are drafts until calibrated; the definition is public contract
+ * from 1.0 on. */
+typedef struct { int64_t units; } jm_work;
+
+#define JM_WORK_NONZERO      1     /* one nonzero touched in a solve   */
+#define JM_WORK_ELIMINATED   2     /* one nonzero eliminated in factor */
+#define JM_WORK_FACTOR       4096  /* fixed cost of a refactorization  */
+
+static inline void jm_work_add(jm_work *w, int64_t n)
+{
+    if (w != nullptr)
+        w->units += n;
+}
+
+/* --------------------------------------------------------------------- */
+/* Sparse LU factorization of a basis                                    */
+/* --------------------------------------------------------------------- */
+
+/* Factorization of a square matrix B as P B Q = L U, with L unit lower
+ * triangular and U upper triangular in pivot order.
+ *
+ * L is stored as one elimination eta per pivot step (the multipliers below
+ * that pivot); U as one row per pivot step, excluding its diagonal, which
+ * lives in u_diag. Both carry indices already renumbered into pivot space,
+ * so the solves never indirect through a permutation. */
+typedef struct {
+    int64_t dim;
+    int64_t rank;       /* pivots found; rank < dim means singular */
+
+    int64_t *l_start;   /* [dim + 1] */
+    int64_t *l_index;   /* pivot-space row positions, all > their step */
+    double  *l_value;
+
+    int64_t *u_start;   /* [dim + 1] */
+    int64_t *u_index;   /* pivot-space column positions, all > their step */
+    double  *u_value;
+    double  *u_diag;    /* [dim] */
+
+    int64_t *perm_row;  /* pivot k used original row perm_row[k]    */
+    int64_t *perm_col;  /* pivot k used original column perm_col[k] */
+    int64_t *inv_row;   /* original row i sits at pivot inv_row[i], or -1 */
+    int64_t *inv_col;
+
+    double *tmp;        /* [dim] solve workspace, owned */
+} jm_lu;
+
+void jm_lu_init(jm_lu *lu);
+void jm_lu_free(jm_lu *lu);
+
+/* Factors a dim x dim matrix given in compressed sparse column form.
+ * Markowitz ordering under a threshold stability test: a candidate pivot
+ * must be at least pivot_tol times the largest magnitude in its column,
+ * and among those the one whose elimination creates the least expected
+ * fill-in wins.
+ *
+ * A singular matrix is not an error — it is a fact the caller acts on, by
+ * replacing basis columns. JAOS_OK is returned with rank < dim, and the
+ * pivoted rows and columns are the first `rank` entries of perm_row and
+ * perm_col. */
+JAOS_NODISCARD jaos_status jm_lu_factor(jm_lu *lu, int64_t dim,
+    const int64_t *start, const int64_t *index, const double *value,
+    double pivot_tol, jm_work *w);
+
+/* Solves B x = b (FTRAN) and B' x = b (BTRAN), in place on a dense vector
+ * of length dim. Both require rank == dim; callers check once after
+ * factoring rather than on every solve, because these run millions of
+ * times and the branch would buy nothing. */
+void jm_lu_ftran(const jm_lu *lu, double *x, jm_work *w);
+void jm_lu_btran(const jm_lu *lu, double *x, jm_work *w);
+
 #endif /* JAOS_INTERNAL_H */

@@ -35,3 +35,8 @@ versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Matrix scaling: Curtis-Reid by default, geometric-mean equilibration as an
   option. Factors are exact powers of two, so applying them adds no rounding
   error, and the stored matrix is left untouched. See `docs/scaling.md`.
+- Sparse LU factorization with Markowitz threshold pivoting, and the forward
+  and transposed triangular solves built on it. A singular matrix is reported
+  through the factorization's rank rather than treated as a failure.
+- Deterministic work counter wired into the factorization and solve kernels —
+  the currency of the reproducible budget.
