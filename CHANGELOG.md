@@ -64,3 +64,7 @@ versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   repair by how far the repair actually travels, not by the size of the
   violation as written. A model in mixed units no longer sends it after the
   row with the smallest units first.
+- Harris' two-pass ratio test: the pivot is chosen by spending a bounded
+  amount of dual feasibility — one tolerance's worth — on a better
+  conditioned one. Where many candidates block at the same point, which is
+  most of a degenerate solve, this is what decides between them.

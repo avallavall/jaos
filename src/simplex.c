@@ -41,12 +41,11 @@
  * apply the scaling it computes yet, so today they act on raw values. */
 constexpr double PRIMAL_TOL    = 1e-7;
 constexpr double PIVOT_MIN     = 1e-9;   /* smallest usable |alpha| */
-/* PLAN 2.6 also specifies a dual feasibility tolerance. It has no use
- * here yet: the dual simplex maintains dual feasibility by construction,
- * and the ratio test compares ratios rather than testing costs against a
- * threshold. It arrives with the Harris test, which needs exactly that
- * kind of threshold to widen its first pass. Declaring it now and leaving
- * it unapplied would suggest a check that is not happening. */
+/* How far a reduced cost may be pushed past feasible in exchange for a
+ * better pivot. This is the width of the Harris window and the only place
+ * dual feasibility is traded for anything; outside the ratio test the dual
+ * simplex keeps it by construction. */
+constexpr double DUAL_TOL      = 1e-7;
 constexpr double LU_PIVOT_TOL  = 0.1;    /* Markowitz threshold */
 constexpr double LU_UPDATE_TOL = 1e-9;
 
@@ -140,6 +139,15 @@ typedef struct {
     double *tau;             /* [nrow] B^-1 rho, for the weight update */
     double *alpha;           /* [nvar] pricing row */
 
+    /* The ratio test's candidate set, filled once per iteration: which
+     * variables may enter (`cand`), how far each one's reduced cost is
+     * from infeasibility (`rnum`) and how big its pivot would be
+     * (`rden`). Kept apart from alpha because the eligibility rule is
+     * solver state and the choice between the eligible is pure
+     * arithmetic — jm_harris_pick sees only the second. */
+    int64_t *cand;           /* [nvar] */
+    double *rnum, *rden;     /* [nvar] */
+
     /* Refactorization buffers, grown once and reused: a refactorization
      * every REFACTOR_EVERY iterations should not also be an allocation. */
     int64_t *bs, *bi;
@@ -161,6 +169,7 @@ static void sx_free(sx *s)
     free(s->status); free(s->basis); free(s->where);
     free(s->xb); free(s->d); free(s->dse);
     free(s->col); free(s->raw); free(s->rho); free(s->tau); free(s->alpha);
+    free(s->cand); free(s->rnum); free(s->rden);
     free(s->bs); free(s->bi); free(s->bv);
     free(s->fake);
     jm_lu_free(&s->lu);
@@ -190,12 +199,16 @@ static jaos_status sx_init(sx *s, jaos_model *m)
     s->rho    = jm_calloc_array(s->nrow, sizeof(double));
     s->tau    = jm_calloc_array(s->nrow, sizeof(double));
     s->alpha  = jm_calloc_array(s->nvar, sizeof(double));
+    s->cand   = jm_alloc_array(s->nvar, sizeof(int64_t));
+    s->rnum   = jm_alloc_array(s->nvar, sizeof(double));
+    s->rden   = jm_alloc_array(s->nvar, sizeof(double));
     s->bs     = jm_alloc_array(s->nrow + 1, sizeof(int64_t));
     s->fake   = jm_calloc_array(s->nvar, sizeof *s->fake);
 
     if (!s->lo || !s->up || !s->cost || !s->status || !s->basis ||
         !s->where || !s->xb || !s->d || !s->dse || !s->col || !s->raw ||
-        !s->rho || !s->tau || !s->alpha || !s->bs || !s->fake) {
+        !s->rho || !s->tau || !s->alpha || !s->cand || !s->rnum ||
+        !s->rden || !s->bs || !s->fake) {
         sx_free(s);
         return JAOS_ERR_OUT_OF_MEMORY;
     }
@@ -510,50 +523,94 @@ void jm_dse_update(int64_t n, double *w, int64_t r,
     w[r] = wnew > DSE_MIN ? wnew : DSE_MIN;
 }
 
-/* Textbook dual ratio test: among the entries whose sign lets the basic in
- * row r move the right way, take the one whose reduced cost runs out
- * first. Harris and bound flipping replace exactly this function. */
+/* Two passes of Harris [7] over the entering candidates.
+ *
+ * The eligible set is a matter of signs: dx_B[r] = -a * dx_v, and dx_v's
+ * direction is fixed by which bound v sits at, so only some entries push
+ * row r the way it has to go. That part is solver state and lives here.
+ * Which of the eligible ones wins is arithmetic, and lives in
+ * jm_harris_pick.
+ *
+ * The numerator is the distance from v's reduced cost to infeasibility,
+ * not its magnitude: they differ when d has already drifted a hair past
+ * zero, and reading such a cost as "nearly blocking" rather than "already
+ * blocking" is what turns a rounding error into a step in the wrong
+ * direction. Clamped at zero, an already-infeasible cost blocks at once,
+ * and the step that follows repairs it exactly.
+ *
+ * Bound flipping [19][1] goes here next: a boxed candidate need not stop
+ * the step at all, it can swap bounds and let it continue. */
 static int64_t dual_ratio_test(sx *s, bool below, double *theta_out)
 {
-    int64_t best = -1;
-    double best_ratio = HUGE_VAL;
-    double best_pivot = 0.0;
-    int64_t examined = 0;
+    int64_t n = 0;
 
     for (int64_t v = 0; v < s->nvar; v++) {
         if (s->status[v] == JM_BASIC)
             continue;
-        examined++;
         double a = s->alpha[v];
         if (fabs(a) < PIVOT_MIN)
             continue;
 
-        /* dx_B[r] = -a * dx_v, and dx_v's sign is fixed by which bound v
-         * sits at. Keep only the entries that push row r the right way. */
         bool ok;
-        if (s->status[v] == JM_AT_LOWER)
+        double dist;
+        if (s->status[v] == JM_AT_LOWER) {
             ok = below ? (a < 0.0) : (a > 0.0);
-        else if (s->status[v] == JM_AT_UPPER)
+            dist = s->d[v];          /* must stay non-negative */
+        } else if (s->status[v] == JM_AT_UPPER) {
             ok = below ? (a > 0.0) : (a < 0.0);
-        else
-            ok = true;   /* free: may move either way */
+            dist = -s->d[v];         /* must stay non-positive */
+        } else {
+            ok = true;               /* free: may move either way */
+            dist = 0.0;              /* and must stay at zero */
+        }
         if (!ok)
             continue;
 
-        double ratio = fabs(s->d[v]) / fabs(a);
-        /* Ties go to the larger pivot: same step, better conditioning. */
-        if (ratio < best_ratio - 1e-12 ||
-            (ratio < best_ratio + 1e-12 && fabs(a) > fabs(best_pivot))) {
-            best_ratio = ratio;
-            best_pivot = a;
-            best = v;
+        s->cand[n] = v;
+        s->rnum[n] = dist > 0.0 ? dist : 0.0;
+        s->rden[n] = fabs(a);
+        n++;
+    }
+    jm_work_add(&s->work, s->nvar * JM_WORK_NONZERO);
+
+    if (n == 0)
+        return -1;
+
+    int64_t k = jm_harris_pick(n, s->rnum, s->rden, DUAL_TOL);
+    jm_work_add(&s->work, 2 * n * JM_WORK_NONZERO);
+
+    int64_t best = s->cand[k];
+    /* The step that lands the winner's reduced cost exactly on zero. Every
+     * other candidate inside the window ends at worst DUAL_TOL past
+     * feasible, which is the whole of what Harris trades away. */
+    *theta_out = s->d[best] / s->alpha[best];
+    return best;
+}
+
+/* Harris' window and the best-conditioned pivot inside it. Documented in
+ * the header, which is also where the reachable-from-outside rationale
+ * lives. */
+int64_t jm_harris_pick(int64_t n, const double *num, const double *den,
+                       double dual_tol)
+{
+    if (n <= 0)
+        return -1;
+
+    double window = HUGE_VAL;
+    for (int64_t k = 0; k < n; k++) {
+        double t = (num[k] + dual_tol) / den[k];
+        if (t < window)
+            window = t;
+    }
+
+    int64_t best = 0;
+    double best_den = 0.0;
+    for (int64_t k = 0; k < n; k++) {
+        if (num[k] / den[k] <= window && den[k] > best_den) {
+            best_den = den[k];
+            best = k;
         }
     }
-    jm_work_add(&s->work, examined * JM_WORK_NONZERO);
-
-    if (best < 0)
-        return -1;
-    *theta_out = s->d[best] / s->alpha[best];
     return best;
 }
 

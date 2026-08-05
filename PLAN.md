@@ -185,16 +185,19 @@ version (D16).
 Built and closed, recorded in the changelog and its commits: scaffold, model
 core with the independent checker, MPS and LP readers, Curtis-Reid scaling,
 sparse LU with Forrest-Tomlin updates and the work counter in its kernels, and
-a dual simplex that solves bounded LPs with dual steepest-edge pricing and a
-dual phase 1 by artificial bounds. `make test` covers all of it, and every
-solved test instance is put through the checker.
+a dual simplex that solves bounded LPs with dual steepest-edge pricing, a
+Harris two-pass ratio test and a dual phase 1 by artificial bounds. `make
+test` covers all of it, and every solved test instance is put through the
+checker.
 
 Remaining, in the order they are expected to be taken:
 
-1. **Harris two-pass ratio test with bound flipping** [7][19][1], replacing
-   `dual_ratio_test`. Buys numerical stability on degenerate vertices and the
-   long steps that bound flipping makes possible. The dual feasibility
-   tolerance from §2.6 arrives with it — it is what the first pass widens.
+1. **Bound flipping in the ratio test** [19][1]. Harris' two passes are in;
+   the long steps are not. A candidate with two finite bounds need not stop
+   the dual step at all — it can swap bounds and let it continue — which on
+   models full of boxed variables turns many short iterations into one long
+   one. It changes more than a choice: flipped variables move, so the primal
+   point moves with them.
 2. **Wire scaling into the solve path (Q7)**, which also puts the §2.6
    tolerances into the space they are specified for, and settles Q9 along the
    way if the artificial bound is derived from scaled magnitudes.

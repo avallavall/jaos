@@ -116,6 +116,34 @@ JAOS_NODISCARD jaos_status jm_dual_simplex(jaos_model *m);
 void jm_dse_update(int64_t n, double *w, int64_t r,
                    const double *alpha, const double *tau);
 
+/* Harris' two-pass ratio test [7], over n candidate breakpoints.
+ *
+ * num[k] is how far candidate k's reduced cost still is from crossing into
+ * infeasibility, never negative; den[k] is the magnitude of its pivot
+ * element, strictly positive. Their quotient is the step at which that
+ * candidate blocks.
+ *
+ * Pass one widens every numerator by dual_tol and takes the smallest
+ * quotient: the largest step that leaves no candidate more than the
+ * tolerance beyond feasible. Pass two returns the candidate with the
+ * largest pivot whose true, unwidened quotient still fits in that step.
+ * The trade is a bounded amount of dual infeasibility for a pivot that can
+ * be orders of magnitude better conditioned, and on a degenerate vertex —
+ * where many quotients are zero and the choice is otherwise arbitrary —
+ * that is the difference between progress and a stall.
+ *
+ * Returns an index into num/den, or -1 if n is not positive. The set it
+ * chooses from is never empty for n > 0: whichever candidate sets the
+ * window in pass one is inside its own window by construction.
+ *
+ * Separate from the simplex, and reachable, because it is a decision made
+ * entirely out of numbers: which candidates are eligible at all is solver
+ * state and sign conventions, but which eligible one wins is this, and a
+ * wrong answer here costs conditioning rather than correctness — nothing
+ * at the solve level would report it. */
+int64_t jm_harris_pick(int64_t n, const double *num, const double *den,
+                       double dual_tol);
+
 /* Overflow-checked array allocation: n elements of elsize bytes.
  * Returns NULL on n < 0, size overflow, or exhaustion. n == 0 still returns
  * a valid non-NULL allocation, so success is always non-NULL. */
