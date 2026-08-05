@@ -407,6 +407,230 @@ static void test_factor_rejects_bad_arguments(void)
     jm_lu_free(&lu);
 }
 
+/* ---- Forrest-Tomlin updates ------------------------------------------ */
+
+#define UPDATE_TOL 1e-9
+
+/* Replaces column `c` of the dense reference with `col`. */
+static void mat_set_col(mat *m, int64_t c, const double *col)
+{
+    for (int64_t i = 0; i < m->n; i++)
+        m->a[i][c] = col[i];
+    mat_pack(m);
+}
+
+/* A single update must leave solves agreeing with the new basis. */
+static void test_update_matches_the_new_basis(void)
+{
+    rng_seed(4242);
+    mat m;
+    make_random(&m, 10, 0.35);
+
+    jm_lu lu;
+    jm_lu_init(&lu);
+    jm_work w = {0};
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jm_lu_factor(&lu, m.n, m.start, m.index,
+                                                m.value, PIVOT_TOL, &w));
+
+    double col[MAXN];
+    for (int64_t i = 0; i < m.n; i++)
+        col[i] = (i % 3 == 0) ? rng_val() * 2.0 : 0.0;
+    col[4] = 3.0;   /* keep it well away from singular */
+
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jm_lu_update(&lu, 2, col, UPDATE_TOL, &w));
+    TEST_ASSERT_EQUAL_INT64(1, lu.n_updates);
+
+    mat_set_col(&m, 2, col);
+    TEST_ASSERT_TRUE(solve_residual(&m, &lu, &w) < 1e-8);
+    jm_lu_free(&lu);
+}
+
+/* The property that matters: a chain of updates must stay as good as
+ * refactorizing the same basis from scratch. This is where a transposed
+ * eta applied in the wrong order shows up — it produces residuals that
+ * look plausible and are quietly wrong. */
+static void test_update_chain_agrees_with_refactorization(void)
+{
+    for (int64_t n = 4; n <= 20; n += 4) {
+        rng_seed((uint64_t)(n * 31 + 7));
+        mat m;
+        make_random(&m, n, 0.3);
+
+        jm_lu lu;
+        jm_lu_init(&lu);
+        jm_work w = {0};
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jm_lu_factor(&lu, m.n, m.start,
+                                        m.index, m.value, PIVOT_TOL, &w));
+
+        for (int step = 0; step < 12; step++) {
+            int64_t c = (int64_t)(rng_next() % (uint64_t)n);
+
+            double col[MAXN];
+            for (int64_t i = 0; i < n; i++)
+                col[i] = ((rng_next() >> 11) % 4 == 0) ? rng_val() : 0.0;
+            col[c] = 3.0 + rng_val();   /* diagonally dominant entry */
+
+            jaos_status st = jm_lu_update(&lu, c, col, UPDATE_TOL, &w);
+            if (st == JAOS_ERR_NUMERICAL) {
+                /* Legitimate outcome; the contract says refactorize. */
+                TEST_ASSERT_TRUE(lu.rank < 0);
+                break;
+            }
+            TEST_ASSERT_EQUAL_INT(JAOS_OK, st);
+            mat_set_col(&m, c, col);
+
+            /* Updated factorization solves the current basis... */
+            TEST_ASSERT_TRUE(solve_residual(&m, &lu, &w) < 1e-7);
+
+            /* ...and so does a fresh factorization of it, to within the
+             * same tolerance, on the same right-hand sides. */
+            jm_lu fresh;
+            jm_lu_init(&fresh);
+            TEST_ASSERT_EQUAL_INT(JAOS_OK, jm_lu_factor(&fresh, m.n, m.start,
+                                            m.index, m.value, PIVOT_TOL, &w));
+            TEST_ASSERT_EQUAL_INT64(m.n, fresh.rank);
+
+            double b[MAXN], x1[MAXN], x2[MAXN];
+            for (int64_t i = 0; i < n; i++)
+                b[i] = rng_val() * 3.0;
+            memcpy(x1, b, sizeof(double) * (size_t)n);
+            memcpy(x2, b, sizeof(double) * (size_t)n);
+            jm_lu_ftran(&lu, x1, &w);
+            jm_lu_ftran(&fresh, x2, &w);
+            TEST_ASSERT_TRUE(max_abs_diff(x1, x2, n) < 1e-7);
+
+            memcpy(x1, b, sizeof(double) * (size_t)n);
+            memcpy(x2, b, sizeof(double) * (size_t)n);
+            jm_lu_btran(&lu, x1, &w);
+            jm_lu_btran(&fresh, x2, &w);
+            TEST_ASSERT_TRUE(max_abs_diff(x1, x2, n) < 1e-7);
+
+            jm_lu_free(&fresh);
+        }
+        jm_lu_free(&lu);
+    }
+}
+
+/* Replacing a column by one that makes the basis singular must be
+ * refused, and must not leave a factorization that quietly answers. */
+static void test_update_refuses_a_singular_replacement(void)
+{
+    mat m;
+    m.n = 3;
+    memset(m.a, 0, sizeof m.a);
+    m.a[0][0] = 1.0;
+    m.a[1][1] = 1.0;
+    m.a[2][2] = 1.0;
+    mat_pack(&m);
+
+    jm_lu lu;
+    jm_lu_init(&lu);
+    jm_work w = {0};
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jm_lu_factor(&lu, m.n, m.start, m.index,
+                                                m.value, PIVOT_TOL, &w));
+
+    /* Make column 1 a copy of column 0: rank drops. */
+    double col[3] = {1.0, 0.0, 0.0};
+    TEST_ASSERT_EQUAL_INT(JAOS_ERR_NUMERICAL,
+        jm_lu_update(&lu, 1, col, UPDATE_TOL, &w));
+    TEST_ASSERT_TRUE(lu.rank < 0);
+
+    /* A further update on a wrecked factorization is refused too. */
+    TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT,
+        jm_lu_update(&lu, 0, col, UPDATE_TOL, &w));
+    jm_lu_free(&lu);
+}
+
+/* Replacing a column by the one already there is a no-op numerically, and
+ * a good check that the spike machinery does not drift on its own. */
+static void test_update_with_the_same_column_is_stable(void)
+{
+    rng_seed(31337);
+    mat m;
+    make_random(&m, 8, 0.4);
+
+    jm_lu lu;
+    jm_lu_init(&lu);
+    jm_work w = {0};
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jm_lu_factor(&lu, m.n, m.start, m.index,
+                                                m.value, PIVOT_TOL, &w));
+
+    for (int rep = 0; rep < 5; rep++) {
+        double col[MAXN];
+        for (int64_t i = 0; i < m.n; i++)
+            col[i] = m.a[i][3];
+        TEST_ASSERT_EQUAL_INT(JAOS_OK,
+            jm_lu_update(&lu, 3, col, UPDATE_TOL, &w));
+        TEST_ASSERT_TRUE(solve_residual(&m, &lu, &w) < 1e-9);
+    }
+    jm_lu_free(&lu);
+}
+
+static void test_update_rejects_bad_arguments(void)
+{
+    mat m;
+    m.n = 2;
+    memset(m.a, 0, sizeof m.a);
+    m.a[0][0] = 1.0;
+    m.a[1][1] = 1.0;
+    mat_pack(&m);
+
+    jm_lu lu;
+    jm_lu_init(&lu);
+    jm_work w = {0};
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jm_lu_factor(&lu, m.n, m.start, m.index,
+                                                m.value, PIVOT_TOL, &w));
+    double col[2] = {1.0, 1.0};
+
+    TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT,
+        jm_lu_update(nullptr, 0, col, UPDATE_TOL, &w));
+    TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT,
+        jm_lu_update(&lu, 0, nullptr, UPDATE_TOL, &w));
+    TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT,
+        jm_lu_update(&lu, -1, col, UPDATE_TOL, &w));
+    TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT,
+        jm_lu_update(&lu, 2, col, UPDATE_TOL, &w));
+    TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT,
+        jm_lu_update(&lu, 0, col, 0.0, &w));
+    jm_lu_free(&lu);
+}
+
+static void test_updates_are_bit_identical_across_runs(void)
+{
+    double first[MAXN];
+    for (int run = 0; run < 2; run++) {
+        rng_seed(24680);
+        mat m;
+        make_random(&m, 9, 0.35);
+
+        jm_lu lu;
+        jm_lu_init(&lu);
+        jm_work w = {0};
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jm_lu_factor(&lu, m.n, m.start,
+                                        m.index, m.value, PIVOT_TOL, &w));
+        for (int step = 0; step < 4; step++) {
+            double col[MAXN];
+            for (int64_t i = 0; i < m.n; i++)
+                col[i] = (i % 2 == 0) ? (double)(i + step + 1) : 0.0;
+            col[step] = 2.5 + (double)step;
+            TEST_ASSERT_EQUAL_INT(JAOS_OK,
+                jm_lu_update(&lu, step, col, UPDATE_TOL, &w));
+        }
+        double x[MAXN];
+        for (int64_t i = 0; i < m.n; i++)
+            x[i] = 1.0 + (double)i;
+        jm_lu_ftran(&lu, x, &w);
+
+        if (run == 0)
+            memcpy(first, x, sizeof(double) * (size_t)m.n);
+        else
+            for (int64_t i = 0; i < m.n; i++)
+                TEST_ASSERT_EQUAL_MEMORY(&first[i], &x[i], sizeof(double));
+        jm_lu_free(&lu);
+    }
+}
+
 int main(void)
 {
     UNITY_BEGIN();
@@ -419,5 +643,11 @@ int main(void)
     RUN_TEST(test_markowitz_prefers_singletons);
     RUN_TEST(test_work_counter_moves_and_repeats);
     RUN_TEST(test_factor_rejects_bad_arguments);
+    RUN_TEST(test_update_matches_the_new_basis);
+    RUN_TEST(test_update_chain_agrees_with_refactorization);
+    RUN_TEST(test_update_refuses_a_singular_replacement);
+    RUN_TEST(test_update_with_the_same_column_is_stable);
+    RUN_TEST(test_update_rejects_bad_arguments);
+    RUN_TEST(test_updates_are_bit_identical_across_runs);
     return UNITY_END();
 }

@@ -124,32 +124,67 @@ static inline void jm_work_add(jm_work *w, int64_t n)
 /* Sparse LU factorization of a basis                                    */
 /* --------------------------------------------------------------------- */
 
-/* Factorization of a square matrix B as P B Q = L U, with L unit lower
- * triangular and U upper triangular in pivot order.
+/* A growable sparse vector: parallel index and value arrays. */
+typedef struct {
+    int64_t *idx;
+    double  *val;
+    int64_t n, cap;
+} jm_svec;
+
+void jm_svec_free(jm_svec *v);
+bool jm_svec_push(jm_svec *v, int64_t i, double x);
+void jm_svec_erase(jm_svec *v, int64_t i);   /* removes index i if present */
+
+/* Factorization of a square matrix B as
  *
- * L is stored as one elimination eta per pivot step (the multipliers below
- * that pivot); U as one row per pivot step, excluding its diagonal, which
- * lives in u_diag. Both carry indices already renumbered into pivot space,
- * so the solves never indirect through a permutation. */
+ *     B = P' L E^-1 U Q'
+ *
+ * where P and Q are permutations, L is unit lower triangular, U is upper
+ * triangular, and E is the product of the row transformations accumulated
+ * by Forrest-Tomlin updates (empty right after factoring).
+ *
+ * Everything is indexed by *slot*: slot s is the pivot taken at step s of
+ * the factorization, and it keeps its original row and its basis column
+ * for life. What an update changes is a slot's *position* in the
+ * triangular order, tracked by slot_at and pos_of. That indirection is
+ * what makes the cyclic permutation of an update cost O(dim) instead of
+ * touching every nonzero of U.
+ *
+ * U is held in both orientations at once because an update needs both: by
+ * column to install the spike, by row to eliminate it. */
 typedef struct {
     int64_t dim;
-    int64_t rank;       /* pivots found; rank < dim means singular */
+    int64_t rank;        /* pivots found; rank < dim means singular */
 
-    int64_t *l_start;   /* [dim + 1] */
-    int64_t *l_index;   /* pivot-space row positions, all > their step */
+    /* L: one elimination eta per slot, indices in slot space. Fixed once
+     * factored — updates never touch L. */
+    int64_t *l_start;    /* [dim + 1] */
+    int64_t *l_index;
     double  *l_value;
 
-    int64_t *u_start;   /* [dim + 1] */
-    int64_t *u_index;   /* pivot-space column positions, all > their step */
-    double  *u_value;
-    double  *u_diag;    /* [dim] */
+    /* U, by row and by column, indexed by slot. Diagonals live apart. */
+    jm_svec *urow;       /* [dim] */
+    jm_svec *ucol;       /* [dim] */
+    double  *u_diag;     /* [dim] */
 
-    int64_t *perm_row;  /* pivot k used original row perm_row[k]    */
-    int64_t *perm_col;  /* pivot k used original column perm_col[k] */
-    int64_t *inv_row;   /* original row i sits at pivot inv_row[i], or -1 */
-    int64_t *inv_col;
+    /* Forrest-Tomlin row transformations, in creation order. Each one is
+     * "y[target] -= factor * y[source]" during FTRAN. */
+    int64_t *ft_target;
+    int64_t *ft_source;
+    double  *ft_factor;
+    int64_t ft_n, ft_cap;
+    int64_t n_updates;   /* updates applied since the last factorization */
 
-    double *tmp;        /* [dim] solve workspace, owned */
+    int64_t *slot_at;    /* slot_at[k] = slot currently at position k */
+    int64_t *pos_of;     /* pos_of[s] = current position of slot s     */
+
+    int64_t *perm_row;   /* slot s owns original row perm_row[s]       */
+    int64_t *perm_col;   /* slot s owns basis column perm_col[s]       */
+    int64_t *inv_row;    /* original row i belongs to slot inv_row[i]  */
+    int64_t *inv_col;    /* basis column j belongs to slot inv_col[j]  */
+
+    double *tmp;         /* [dim] solve workspace, owned */
+    double *spike;       /* [dim] update workspace, owned */
 } jm_lu;
 
 void jm_lu_init(jm_lu *lu);
@@ -175,5 +210,27 @@ JAOS_NODISCARD jaos_status jm_lu_factor(jm_lu *lu, int64_t dim,
  * times and the branch would buy nothing. */
 void jm_lu_ftran(const jm_lu *lu, double *x, jm_work *w);
 void jm_lu_btran(const jm_lu *lu, double *x, jm_work *w);
+
+/* Forrest-Tomlin update: basis column `col_out` is replaced by `new_col`,
+ * a dense vector indexed by original row. Refactorizing from scratch after
+ * every simplex iteration would cost more than the iteration; this instead
+ * costs work proportional to the change [5].
+ *
+ * Returns JAOS_ERR_NUMERICAL when the replacement leaves a pivot too small
+ * to trust — the new basis is singular or nearly so. By then the update
+ * has already rewritten U, so the factorization is left marked unusable
+ * (rank < 0) and the caller must refactorize. Preserving the old
+ * factorization instead would mean simulating the whole elimination before
+ * committing to it, which costs more than the refactorization it saves.
+ *
+ * `min_pivot_ratio` is the floor on the new diagonal relative to the
+ * spike's largest magnitude. It is not Markowitz's threshold and should be
+ * far looser — after elimination a legitimate pivot can be orders of
+ * magnitude below the spike — so something like 1e-9 rather than 0.1.
+ *
+ * Updates accumulate both error and fill; the caller refactorizes on an
+ * interval, watching lu->n_updates. */
+JAOS_NODISCARD jaos_status jm_lu_update(jm_lu *lu, int64_t col_out,
+    const double *new_col, double min_pivot_ratio, jm_work *w);
 
 #endif /* JAOS_INTERNAL_H */

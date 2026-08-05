@@ -38,5 +38,9 @@ versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Sparse LU factorization with Markowitz threshold pivoting, and the forward
   and transposed triangular solves built on it. A singular matrix is reported
   through the factorization's rank rather than treated as a failure.
+- Forrest-Tomlin basis updates: replacing one basis column costs work
+  proportional to the change instead of a full refactorization. A replacement
+  that would leave an untrustworthy pivot is refused rather than accepted
+  quietly.
 - Deterministic work counter wired into the factorization and solve kernels —
   the currency of the reproducible budget.
