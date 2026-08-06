@@ -10,7 +10,8 @@
 # themselves stay out, licences and size both.
 /bench/instances/
 
-# Acceptance results are records of a particular run on a particular host.
-# The gate's own output is worth keeping; everything else here is not.
-/bench/results/*
-!/bench/results/.gitkeep
+# Acceptance results ARE committed (PLAN 2.9): every figure in them —
+# status, objective, iterations, work units — is deterministic (D8), so the
+# record reproduces on any machine and a diff of it is the history of what
+# the solver did to the reference set. No wall-clock number is in there to
+# make it host-specific (D17).

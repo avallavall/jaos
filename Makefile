@@ -113,10 +113,13 @@ $(B)/bench/run: bench/run.c $(LIB) | $(B)/bench
 bench: $(B)/bench/run
 
 # Instances are fetched and checksum-verified, never committed (PLAN 2.10).
+# The runner writes the record itself rather than being piped through tee:
+# a pipeline would report tee's exit status, and a gate that cannot fail the
+# build is not a gate.
 netlib: $(B)/bench/run
 	@bench/fetch.sh
 	@mkdir -p bench/results
-	./$(B)/bench/run | tee bench/results/netlib.txt
+	./$(B)/bench/run -o bench/results/netlib.txt
 
 $(B)/release $(B)/dev $(B)/asan $(B)/bench:
 	mkdir -p $@

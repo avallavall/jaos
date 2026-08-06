@@ -11,22 +11,48 @@
  * other consumer, and prints data rather than verdicts about speed. No
  * wall-clock number appears anywhere in its output, deliberately (D17).
  *
- * Usage: run [-d DIR] [-m MANIFEST] [instance ...]
+ * Usage: run [-d DIR] [-m MANIFEST] [-o FILE] [instance ...]
  *   -d DIR       where the .mps files are (default bench/instances)
  *   -m MANIFEST  manifest to read (default bench/netlib.manifest)
+ *   -o FILE      write the table here as well as to stdout
  *   instance     run only these; default is every instance in the manifest
  *
- * The table goes to stdout; redirect it to keep it. Exit status is zero only
- * when every instance run met every condition the gate asks of it.
+ * Exit status is zero only when every instance run met every condition the
+ * gate asks of it. That is why -o exists rather than a `| tee`: a pipeline
+ * reports the exit status of tee, so a gate that failed would come back
+ * successful, and a gate nobody can fail is not a gate.
  *
  * SPDX-License-Identifier: Apache-2.0
  */
 #include "jaos.h"
 
 #include <math.h>
+#include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+
+/* The table goes to stdout as it is produced, and to the record file if one
+ * was asked for. Both, or the caller has to choose between watching a long
+ * run and keeping its result. */
+static FILE *g_record = nullptr;
+
+[[gnu::format(printf, 1, 2)]]
+static void emit(const char *fmt, ...)
+{
+    va_list ap;
+    va_start(ap, fmt);
+    vprintf(fmt, ap);
+    va_end(ap);
+    fflush(stdout);
+
+    if (g_record != nullptr) {
+        va_start(ap, fmt);
+        vfprintf(g_record, fmt, ap);
+        va_end(ap);
+        fflush(g_record);
+    }
+}
 
 /* The gate's acceptance rule for an objective (PLAN 2.6). */
 static bool objective_accepted(double got, double ref)
@@ -68,7 +94,7 @@ typedef struct {
 
 /* One instance, start to finish. Returns false if anything the gate asks for
  * did not hold. */
-static bool run_one(const entry *e, const char *dir, FILE *out, tally *t)
+static bool run_one(const entry *e, const char *dir, tally *t)
 {
     char path[512];
     snprintf(path, sizeof path, "%s/%s.mps", dir, e->name);
@@ -81,7 +107,7 @@ static bool run_one(const entry *e, const char *dir, FILE *out, tally *t)
 
     jaos_status st = jaos_read_mps(m, path);
     if (st != JAOS_OK) {
-        fprintf(out, "%-12s READ-FAILED  %s | %s\n", e->name,
+        emit("%-12s READ-FAILED  %s | %s\n", e->name,
                 jaos_status_str(st),
                 jaos_model_error(m) ? jaos_model_error(m) : "");
         jaos_model_free(m);
@@ -98,7 +124,7 @@ static bool run_one(const entry *e, const char *dir, FILE *out, tally *t)
 
     st = jaos_solve(m);
     if (st != JAOS_OK) {
-        fprintf(out, "%-12s SOLVE-ERROR  %s | %s\n", e->name,
+        emit("%-12s SOLVE-ERROR  %s | %s\n", e->name,
                 jaos_status_str(st),
                 jaos_model_error(m) ? jaos_model_error(m) : "");
         jaos_model_free(m);
@@ -110,7 +136,7 @@ static bool run_one(const entry *e, const char *dir, FILE *out, tally *t)
     int64_t iters = jaos_iterations(m), work = jaos_work_units(m);
 
     if (ss != JAOS_SOLVE_OPTIMAL) {
-        fprintf(out, "%-12s %-10s rows=%lld cols=%lld shape=%s iters=%lld "
+        emit("%-12s %-10s rows=%lld cols=%lld shape=%s iters=%lld "
                      "work=%lld | %s\n",
                 e->name, jaos_solve_status_str(ss), (long long)nr,
                 (long long)nc, shape ? "ok" : "MISMATCH", (long long)iters,
@@ -161,8 +187,7 @@ static bool run_one(const entry *e, const char *dir, FILE *out, tally *t)
     if (det)
         t->deterministic++;
 
-    fprintf(out,
-            "%-12s optimal    rows=%lld cols=%lld shape=%s iters=%lld "
+    emit("%-12s optimal    rows=%lld cols=%lld shape=%s iters=%lld "
             "work=%lld obj=%.17g ref=%.17g[%s] objective=%s checker=%s"
             " (col=%.3g row=%.3g dual=%.3g gap=%.3g) det=%s digest=%016llx\n",
             e->name, (long long)nr, (long long)nc, shape ? "ok" : "MISMATCH",
@@ -192,14 +217,25 @@ int main(int argc, char **argv)
 {
     const char *dir = "bench/instances";
     const char *manifest = "bench/netlib.manifest";
+    const char *record = nullptr;
     int i = 1;
     for (; i < argc; i++) {
         if (strcmp(argv[i], "-d") == 0 && i + 1 < argc)
             dir = argv[++i];
         else if (strcmp(argv[i], "-m") == 0 && i + 1 < argc)
             manifest = argv[++i];
+        else if (strcmp(argv[i], "-o") == 0 && i + 1 < argc)
+            record = argv[++i];
         else
             break;
+    }
+
+    if (record != nullptr) {
+        g_record = fopen(record, "w");
+        if (g_record == nullptr) {
+            fprintf(stderr, "cannot write %s\n", record);
+            return 2;
+        }
     }
 
     FILE *mf = fopen(manifest, "r");
@@ -207,8 +243,6 @@ int main(int argc, char **argv)
         fprintf(stderr, "cannot read %s\n", manifest);
         return 2;
     }
-
-    FILE *out = stdout;
 
     tally t;
     memset(&t, 0, sizeof t);
@@ -230,20 +264,20 @@ int main(int argc, char **argv)
         if (!wanted(e.name, argc, argv, i))
             continue;
 
-        if (!run_one(&e, dir, out, &t))
+        if (!run_one(&e, dir, &t))
             all_ok = false;
-        fflush(out);
     }
     fclose(mf);
 
-    fprintf(out,
-            "\n%lld instances: %lld solved, %lld shape ok, %lld objective ok,"
+    emit("\n%lld instances: %lld solved, %lld shape ok, %lld objective ok,"
             " %lld checker ok, %lld deterministic, %lld failed\n",
             (long long)t.instances, (long long)t.solved,
             (long long)t.shape_ok, (long long)t.objective_ok,
             (long long)t.checker_ok, (long long)t.deterministic,
             (long long)t.failed);
-    fprintf(out, "gate: %s\n", all_ok && t.instances > 0 ? "PASS" : "NOT MET");
+    emit("gate: %s\n", all_ok && t.instances > 0 ? "PASS" : "NOT MET");
 
+    if (g_record != nullptr)
+        fclose(g_record);
     return all_ok && t.instances > 0 ? 0 : 1;
 }

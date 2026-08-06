@@ -196,9 +196,54 @@ every solved test instance is put through the checker.
 
 Remaining:
 
-1. **Netlib campaign**, instance by instance, with the determinism harness on
-   throughout. This is the gate (§2.9), and it is where Q6 and the acceptance
-   table get settled.
+1. **Netlib campaign.** `bench/` exists and the gate has been run once, end
+   to end, on all 94 instances of the standard set. It is not met. The record
+   is `bench/results/netlib.txt`; what it says, and what each line of it is
+   asking for, is below.
+
+   | | |
+   |---|---|
+   | shape correct | **94 / 94** |
+   | solved to optimal | 93 / 94 |
+   | objective within tolerance | 90 / 94 |
+   | independent checker green | 86 / 94 |
+   | deterministic across two solves | 93 / 94 |
+
+   The readers are the part that came out clean: every instance in the set
+   loads with exactly the row and column counts two independent canonical
+   sources agree on. Determinism holds everywhere a solve finished.
+
+   The eight failures are four different problems, and they do not share a
+   fix:
+
+   - **`e226` — the objective constant is applied with the wrong sign.** The
+     checker calls this solve perfect (gap 3e-17) and it is off by 7.113,
+     which is exactly the `RHS` entry the file carries on its objective row.
+     Removing that offset reproduces Koch's optimum to 4e-14. This is the
+     failure D18 says only external ground truth can catch, and it is Q2:
+     the sign convention for an objective RHS entry has to be settled from
+     the format documentation, not guessed. It is also the cheapest of the
+     four and the only one that is a plain defect rather than a numerical
+     question.
+   - **`grow15` — the solve does not terminate.** The internal iteration
+     guard trips at 189201 iterations, which the code correctly reports as a
+     JAOS defect rather than a hard model. This is the stall Q10 has been
+     waiting for an instance to produce, and now one has.
+   - **Dual conditions the checker rejects on seven instances** —
+     `etamacro`, `finnis`, `greenbea`, `nesm`, `pilot`, `pilot-ja`,
+     `pilot87`. The magnitudes split them in two: `finnis` at 28 and
+     `greenbea` at 2.66 are structural, while `etamacro` at 1.6e-6 and
+     `nesm` at 8e-6 sit just past a 1e-6 tolerance and may be calibration
+     rather than defect. Which is which is the first thing to establish,
+     because the answers differ: one is a bug, the other is §2.6 being
+     frozen at the wrong value.
+   - **`pilot` and `pilot87` miss the objective as well**, by 2e-4 and 6e-5
+     relative. These are the worst-conditioned instances in the set and are
+     expected to be last; they are listed apart because an objective error
+     is a different claim from a dual residue, even on the same instance.
+
+   None of this is a tolerance to be widened. §2.6 stays where it is until
+   there is a measurement on both sides of each number (D17).
 
 Degeneracy handling is done as far as it can be done without evidence:
 steepest-edge weights repair and restart themselves, and what the ratio test
@@ -343,6 +388,14 @@ missed this".
 - **Q2** — LP and MPS dialect edge semantics (e.g., RANGES on E rows with a
   negative range value, a sub-case the public docs leave ambiguous): fixed as
   encountered, recorded in `docs/format-support.md`.
+
+  One is now encountered rather than hypothetical. An `RHS` entry against the
+  objective row sets a constant, and the sign convention for it is not
+  agreed between implementations — some negate it, some do not. JAOS negates,
+  and `e226` says that is wrong: undoing the negation reproduces the
+  published optimum exactly. One instance is not a convention, though, so
+  this closes from the format documentation with `e226` as the check, not
+  from `e226` alone.
 - **Q3** — Whether any Netlib instance forces a minimal presolve into M1: decided
   by evidence during the campaign; if yes, the smallest presolve that closes the
   gate, and no more.
@@ -384,10 +437,14 @@ missed this".
   perturbing costs can. Bound flipping, already built, removes part of the
   short-step behaviour but not this.
 
-  Held until an instance stalls. The device costs something on every model
-  and pays only on the ones that need it, and none has been seen. The
-  campaign is where one will turn up, and it will also say how much to
-  perturb — a number that has no evidence behind it today.
+  One has now stalled: `grow15` runs to the internal iteration guard at
+  189201 iterations and is reported as the defect it is. So the device is no
+  longer held for lack of evidence — there is an instance to develop it
+  against, and one that will say whether the diagnosis above (a zero reduced
+  cost on the entering candidate, repairable by perturbing costs and not
+  bounds) is what is actually happening. How much to perturb is still a
+  number with nothing behind it, and `grow15` is now the thing that can put
+  something there.
 
   The repair half of this question is closed: costs are shifted and called
   back, per the changelog. What it cannot close is the residue. Once the
@@ -398,18 +455,18 @@ missed this".
   exist before M6. Whatever is left shows up in the reported reduced costs,
   where the checker sees it — so the gate will say whether it matters.
 
-  It has now been looked for and is not there. The measurement that went
-  hunting for it found something else entirely — optimality declared on
-  drifted values, since fixed (D20) — and once that was repaired the checker
-  accepted the duals of every one of the 1269 generated models that reach an
-  optimum, and of the Netlib instances tried so far. So the residue this
-  question predicted is, on the evidence available, zero.
+  It exists, and the campaign found it. Repairing D20 cleared it from all
+  1269 generated models that reach an optimum, but seven real instances
+  still publish duals the checker rejects: `finnis` at 28 and `greenbea` at
+  2.66 are far too large to be rounding, while `etamacro` at 1.6e-6 and
+  `nesm` at 8e-6 sit close enough to the 1e-6 tolerance that they may be
+  §2.6 mis-set rather than anything wrong.
 
-  That is not the same as absent. The argument above still says a shifted
-  cost can survive settling up, and the campaign is a far wider net than
-  3000 small generated models. What has changed is that there is nothing to
-  fix today, and a fix built now would be built for a symptom nobody can
-  produce.
+  Separating those two groups is the first job, because they have opposite
+  fixes and one of them is not a fix at all. What is already ruled out is
+  the explanation this question originally offered: the residue does not
+  track phase 1. `adlittle` needs 22 lent bounds of 97 columns and comes out
+  clean; `sc50a` needs one of 48 and did not, before D20.
 - **Q8** — How exact verification gets done, decided when M2 opens with
   certificate export. GMP is the obvious tool and D11 excludes it (LGPL),
   including for test-only use, since D15 exempts test dependencies from D2
