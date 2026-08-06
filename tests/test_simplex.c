@@ -268,6 +268,102 @@ static void test_missing_bound_that_a_row_restrains_solves_normally(void)
     jaos_model_free(m);
 }
 
+/* The pair below is the whole of the unbounded verdict, and the only thing
+ * that differs between them is the ceiling on the row.
+ *
+ *   min -x  s.t. x <= R, x >= 0, no column upper bound
+ *
+ * Either way dual phase 1 lends x an upper bound and the optimum of the
+ * bounded problem comes to rest exactly on it, so "a variable is sitting on
+ * a bound JAOS invented" cannot tell the two apart — which is precisely
+ * what the old verdict read. What tells them apart is whether letting x off
+ * that bound runs into anything: with R infinite nothing blocks and the
+ * model really is unbounded; with R finite the row blocks, and the model
+ * has a finite optimum at -R that this phase 1 cannot reach.
+ *
+ * This one is R infinite, and it passed before the ray existed too — it is
+ * here to hold the verdict that was already right. The one that moves is
+ * below it. */
+static void test_a_ray_is_what_proves_unbounded(void)
+{
+    const double c[] = {-1.0};
+    const double cl[] = {0.0}, cu[] = {INFINITY};
+    const double rl[] = {-INFINITY}, ru[] = {INFINITY};
+    const int64_t as[] = {0, 1}, ai[] = {0};
+    const double av[] = {1.0};
+
+    jaos_model *m = fresh();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_load_lp(m, 1, 1, JAOS_MINIMIZE, 0.0, c, cl, cu, rl, ru,
+                     1, as, ai, av));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_UNBOUNDED, jaos_status_of(m));
+    jaos_model_free(m);
+}
+
+/* The same model with the row capped, and the test that actually moved:
+ * against the old verdict it returns UNBOUNDED, which is a wrong answer
+ * rather than a missing one, on a model whose optimum is a perfectly
+ * ordinary -1e11.
+ *
+ * The cap is ten times ARTIFICIAL_BOUND, and that placement is the point.
+ * Enlarging the loan does not turn this green — at 1e12 the model solves to
+ * OPTIMAL and the assertion fails on the status instead — so the test
+ * cannot be satisfied by a constant that mimics the ray. Both halves were
+ * run: UNBOUNDED against the old code, OPTIMAL against a widened loan. */
+static void test_an_optimum_past_the_lent_bound_is_refused(void)
+{
+    const double c[] = {-1.0};
+    const double cl[] = {0.0}, cu[] = {INFINITY};
+    const double rl[] = {-INFINITY}, ru[] = {1e11};
+    const int64_t as[] = {0, 1}, ai[] = {0};
+    const double av[] = {1.0};
+
+    jaos_model *m = fresh();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_load_lp(m, 1, 1, JAOS_MINIMIZE, 0.0, c, cl, cu, rl, ru,
+                     1, as, ai, av));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_NUMERICAL_ERROR, jaos_status_of(m));
+
+    /* Refusing silently would be no better than answering wrongly: a
+     * caller has to be able to find out which column could not be sized. */
+    const char *err = jaos_model_error(m);
+    TEST_ASSERT_NOT_NULL(err);
+    TEST_ASSERT_NOT_NULL(strstr(err, "phase 1"));
+    jaos_model_free(m);
+}
+
+/* Both columns get a lent bound and neither is held by one at the end.
+ *
+ *   min -x - y  s.t. x + y <= 3, x,y >= 0, neither bounded above
+ *
+ * Every point on x + y = 3 is optimal at -3. One column ends up basic and
+ * the other nonbasic at its *real* lower bound, so no ray is ever computed
+ * — the verdict comes out of the third branch, the one that says the loans
+ * never mattered. Instrumenting the solve confirms that is the branch taken
+ * rather than the ray returning blocked.
+ *
+ * It is here because that branch is what every ordinary model reaches, and
+ * a verdict that only handled its own two interesting cases would fail on
+ * all the rest. */
+static void test_a_lent_bound_that_never_constrained_anything(void)
+{
+    const double c[] = {-1.0, -1.0};
+    const double cl[] = {0.0, 0.0};
+    const double cu[] = {INFINITY, INFINITY};
+    const double rl[] = {-INFINITY}, ru[] = {3.0};
+    const int64_t as[] = {0, 1, 2}, ai[] = {0, 0};
+    const double av[] = {1.0, 1.0};
+
+    jaos_model *m = fresh();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_load_lp(m, 2, 1, JAOS_MINIMIZE, 0.0, c, cl, cu, rl, ru,
+                     2, as, ai, av));
+    solve_and_verify(m, -3.0);
+    jaos_model_free(m);
+}
+
 /* Maximisation with no upper bounds is the same situation mirrored, and
  * was the case that used to be refused outright.
  *   max 3x + 2y  s.t. x + y <= 4, x <= 2  ->  x=2, y=2, objective 10 */
@@ -998,6 +1094,9 @@ int main(void)
     RUN_TEST(test_solving_a_model_read_from_mps);
     RUN_TEST(test_unbounded_model_is_reported);
     RUN_TEST(test_missing_bound_that_a_row_restrains_solves_normally);
+    RUN_TEST(test_a_ray_is_what_proves_unbounded);
+    RUN_TEST(test_an_optimum_past_the_lent_bound_is_refused);
+    RUN_TEST(test_a_lent_bound_that_never_constrained_anything);
     RUN_TEST(test_maximise_without_column_upper_bounds);
     RUN_TEST(test_t1_mps_is_infeasible_and_says_so);
     RUN_TEST(test_zero_objective_is_distinguishable_from_no_answer);

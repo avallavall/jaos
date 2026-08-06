@@ -347,43 +347,26 @@ missed this".
 - **Q6** — Netlib acquisition route: netlib's emps expander (a dev-time tool,
   needs D11 approval) versus a checksum-pinned unofficial mirror; decided when
   the manifest is first built.
-- **Q9** — Sizing the artificial bound that dual phase 1 lends a column whose
-  cost points at a bound it does not have. It is a fixed 1e10, now applied
-  in scaled space, which puts it on magnitudes that cluster around one but
-  does not make it a number the model chose. The consequence is not a
-  rounding error but a wrong answer: **a model whose genuine optimum exceeds
-  that bound is reported UNBOUNDED**, because the optimum comes to rest on
-  the invented bound and that is the evidence the verdict reads. Closing this
-  means either deriving the bound from the model — the largest finite bound
-  and cost magnitude present, in the same scaled space — or replacing
-  artificial bounds with a phase 1 that does not need them (subproblem or
-  cost shifting, per Koberstein [21]). It closes before the Netlib gate.
+- **Q9** — Reaching an optimum that lies past the bound dual phase 1 lends.
+  The verdict half of this is closed (D19): unboundedness is proven against
+  a ray now, so the size of the loan no longer decides whether an answer is
+  true, and a model the loan cuts off is refused rather than answered.
 
-  The first route was tried and reverted; what the attempt established,
-  measured on models run against the built library, narrows what a second
-  one may do:
+  What is left is that it *is* refused. The repair is to lift the loan and
+  re-solve, which keeps dual feasibility — the basis and the costs do not
+  move, only a nonbasic bound value — so the dual simplex can carry straight
+  on. The case that does not close that way is degenerate: a basic variable
+  already pressed against a real bound in the ray's direction blocks at zero
+  distance, so widening the loan buys no progress, and the move that does is
+  a primal pivot. That is M6 machinery.
 
-  - **Bounds and costs cannot go into one magnitude.** They carry
-    reciprocal scale factors, `1/gamma` and `gamma`, so a maximum over
-    both mixes unit systems and makes the answer depend on the objective's
-    scale. Multiplying every cost by 1e6 — which cannot move an LP's
-    optimum — moved it thirty percent, and the point was published
-    OPTIMAL with the checker reporting it primal infeasible.
-  - **A global maximum couples columns that share no row.** Sizing one
-    loan for the whole model lets a column appearing in no row at all
-    change another column's verdict. Whatever a loan is derived from has
-    to be something that column is actually connected to.
-  - **Any cap is a big-M by another name.** A ceiling low enough to keep
-    the arithmetic sane is the same constant for every model above it,
-    which is the fault being fixed, not a fix for it.
-  - **A test cannot land inside the cap.** The one written for it did,
-    so it would have passed against a hardcoded constant and proved
-    nothing about derivation.
-
-  A margin derived from data cannot promise that no model's optimum lies
-  past it, whatever it is derived from. What would is a phase 1 that
-  invents no bounds, or reading the unbounded verdict off a ray rather
-  than off a variable resting on an invented bound.
+  How often the refusal fires is known only for generated models — 46 of
+  3000 — and that number says nothing about real ones, because the generator
+  was written to put phase 1 to work rather than to resemble anything. So
+  this waits on the campaign, which is the first set of instances that will
+  mean something. If none lands here, the refusal costs nothing and the loan
+  is a performance parameter. If one does, it arrives with the model that
+  forced it, which is the only way to size the fix rather than guess it.
 - **Q10** — What breaks a stall in *this* method, and what repairs what the
   ratio test spends. §2.5.9 calls for deterministic bound perturbation, and
   that is the primal simplex's device: the primal stalls on a zero-length
@@ -409,6 +392,17 @@ missed this".
   until something blocks, which is a primal simplex iteration and does not
   exist before M6. Whatever is left shows up in the reported reduced costs,
   where the checker sees it — so the gate will say whether it matters.
+
+  A first measurement of that residue exists, taken on 3000 generated LPs
+  while D19 was being verified, and it is larger than "residue" suggests.
+  Of the models that solved to an optimum, the checker rejected the duals of
+  **266 of the 1047 that needed a lent bound, and 0 of the 222 that did
+  not** — a clean split, not a trend. The worst dual violation was 34, while
+  the worst objective gap over the same set stayed at 1.4e-5: the answers are
+  right and what is published alongside them is not. The split says the
+  residue belongs to phase 1 rather than to the ratio test, which is not
+  where this question put it. What in phase 1 produces it has not been
+  established, and no fix should be chosen before it is.
 - **Q8** — How exact verification gets done, decided when M2 opens with
   certificate export. GMP is the obvious tool and D11 excludes it (LGPL),
   including for test-only use, since D15 exempts test dependencies from D2

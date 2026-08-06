@@ -7,6 +7,12 @@ versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
+- A model whose optimum lies beyond the bound dual phase 1 lends is now
+  refused with a numerical error naming the column, rather than answered.
+  Reaching such an optimum needs a phase 1 that lends nothing, which is
+  still open; until then the solve says it cannot get there instead of
+  reporting the model unbounded.
+
 - `jaos_solution` now refuses to report anything for a solve that found no
   optimum, under the same rule as `jaos_objective`: a buffer of zeros could
   not be told apart from an answer that is genuinely zero.
@@ -25,6 +31,14 @@ versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Settling up can no longer park a basic variable on an artificial phase-1
   bound: that would manufacture the evidence of unboundedness after the
   verdict was already read.
+- An unbounded model is now identified by a direction along which the
+  objective has nothing to stop it, checked against the bounds the model
+  itself declares. It used to be identified by a variable coming to rest on
+  a bound the solver had invented, which a model with a large but perfectly
+  finite optimum does too — and such a model was reported unbounded. On a
+  sweep of 3000 generated LPs, 8 that were called unbounded now solve to an
+  optimum the independent checker accepts, and no model that already solved
+  changed its answer, its iteration count or its work units.
 
 ### Added
 

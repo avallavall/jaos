@@ -243,3 +243,46 @@ None of this holds unless the checker rejects what it should, so the suite
 feeds it wrong dual signs, broken complementarity, primal violations and wrong
 dual magnitudes, and requires each to be caught.
 
+## D19 — Unboundedness is read off a ray, never off an invented bound
+
+Dual phase 1 lends a finite bound to a column whose cost points at a bound it
+does not have. The first version of this read the verdict off where the
+optimum came to rest: a variable sitting on a lent bound meant the objective
+had wanted to run past something that was never there, so the model was
+declared unbounded.
+
+That confuses two different models. "The objective reached the bound we
+invented" is also what a model with a large but perfectly finite optimum
+does, and such a model was reported `UNBOUNDED` — a wrong answer, not a
+missing one, and a silent one.
+
+The verdict is therefore taken from a direction rather than from a position.
+Letting the column leave its lent bound moves the whole point along a
+straight line; that line is a ray of the original problem exactly when no
+basic variable runs into a bound **the model itself declared**. Lent bounds
+do not count, and undoing one needs no saved copy: a loan only ever replaced
+an infinity, since having no bound there is what made the column need one.
+
+Two consequences worth stating, because they are what the decision buys:
+
+- **The size of the lent bound no longer participates in any verdict.** It
+  decides how often the method has to give up, never whether an answer is
+  true. Sizing it is a performance question, which is where it belongs — the
+  attempt to derive it from the model, and why that failed, is recorded in
+  the working document.
+- **The remaining case is refused rather than answered.** A column the
+  objective still wants to push, stopped by a real constraint rather than by
+  infinity, means the true optimum lies past what this phase 1 can reach.
+  Reaching it means lifting the loan and re-solving, and the degenerate case
+  of that needs a primal pivot, which does not exist yet. A solver that
+  cannot get to the optimum says so; it does not substitute a verdict it can
+  reach for the one it cannot.
+
+Measured on a sweep of 3000 generated LPs against the previous
+implementation: of the 858 the old code called unbounded, 8 now reach an
+optimum the independent checker accepts, 46 are refused, and the rest are
+confirmed unbounded by a ray. Every model that already reached an optimum
+kept its status, objective, iteration count and work units unchanged, to the
+bit. Work units do move on the unbounded path, which now runs a solve it did
+not before — the counter has to bill it (D16).
+

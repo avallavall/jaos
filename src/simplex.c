@@ -88,19 +88,22 @@ constexpr int64_t TIME_CHECK_EVERY = 64;
  * The repair: lend that column a finite bound. Solve the bounded problem —
  * which is now dual feasible by construction — and read the answer. If no
  * artificial bound is active at the optimum, it never constrained anything
- * and the answer is the original problem's. If one is active, the objective
- * wanted to keep going past a bound that was never real: the original
- * problem is unbounded.
+ * and the answer is the original problem's. If one is active, the loan was
+ * reached, and what that means is classify_optimum's question rather than
+ * this constant's.
  *
  * Koberstein [21] compares this against subproblem and cost-shifting
  * methods; those converge better on hard models, and replacing this is a
  * later step. What matters now is that a whole class of models becomes
- * solvable instead of refused, and that the unbounded verdict is read off
- * evidence rather than guessed.
+ * solvable instead of refused.
  *
- * The bound has to be large enough not to cut off a genuine optimum and
- * small enough to stay numerically sane against the tolerances above. This
- * value is a draft, like the tolerances themselves. */
+ * The value wants to be large enough to keep the loan out of the way and
+ * small enough to stay numerically sane against the tolerances above; it
+ * is a draft, like the tolerances themselves. What it is deliberately not
+ * is load-bearing for any verdict — an optimum reached only because the
+ * loan was too tight is refused rather than answered, and unboundedness is
+ * proven against the model's own bounds. Sizing it is what makes a model
+ * solvable, not what makes an answer true. */
 constexpr double ARTIFICIAL_BOUND = 1e10;
 
 /* A stop that is not a real limit, only a guard against a loop that fails
@@ -135,8 +138,8 @@ typedef struct {
     /* Bounds JAOS invented to get a dual feasible start. A column is
      * caught by exactly one branch of the cost-sign test, so one array
      * says both whether a bound was lent and which side it went on — two
-     * parallel flags would encode an invariant the types do not. An
-     * active one at the optimum means unbounded. */
+     * parallel flags would encode an invariant the types do not. It is
+     * also what real_lower/real_upper undo the loan from. */
     enum { NOT_FAKE = 0, FAKE_LO, FAKE_UP } *fake;
 
     double *xb;              /* [nrow] basic values */
@@ -305,6 +308,23 @@ static double var_value(const sx *s, int64_t v)
                                     : nonbasic_value(s, v);
 }
 
+/* The bounds the model declared, as against the ones dual phase 1 lent.
+ *
+ * No copy is kept because none is needed: `lo` and `up` are written in
+ * exactly two places — sx_init, from the model, and build_initial_basis,
+ * where a loan overwrites one side — and a loan only ever replaced an
+ * infinity, since having no bound on that side is what made the column
+ * need one. So `fake` is enough to undo it. */
+static double real_lower(const sx *s, int64_t v)
+{
+    return s->fake[v] == FAKE_LO ? -HUGE_VAL : s->lo[v];
+}
+
+static double real_upper(const sx *s, int64_t v)
+{
+    return s->fake[v] == FAKE_UP ? HUGE_VAL : s->up[v];
+}
+
 /* Scatters variable v's column of M into a dense vector. */
 static void var_column(const sx *s, int64_t v, double *out)
 {
@@ -388,26 +408,6 @@ static void build_initial_basis(sx *s)
             s->status[j] = JM_FREE;       /* zero cost, no bounds: d = 0 */
         }
     }
-}
-
-/* Did the optimum come to rest against a bound JAOS invented? Runs once,
- * when optimality is declared. If so the
- * objective wanted to keep going past something that was never there, and
- * the original problem is unbounded. Checked on the values as solved, so
- * the verdict rests on evidence rather than on a guess about which
- * variables looked suspicious. */
-static bool leans_on_an_invented_bound(const sx *s)
-{
-    for (int64_t j = 0; j < s->ncol; j++) {
-        if (s->fake[j] == NOT_FAKE)
-            continue;
-        double v = var_value(s, j);
-        if (s->fake[j] == FAKE_LO && v <= s->lo[j] + PRIMAL_TOL)
-            return true;
-        if (s->fake[j] == FAKE_UP && v >= s->up[j] - PRIMAL_TOL)
-            return true;
-    }
-    return false;
 }
 
 /* --------------------------------------------------------------------- */
@@ -961,9 +961,11 @@ static jaos_status pivot(sx *s, int64_t r, int64_t q, bool below,
  * threshold here would decline free improvements to avoid churn that costs
  * nothing.
  *
- * A column carrying an invented bound is left alone. Moving one onto a
- * bound that was never real would turn the unbounded verdict, already
- * decided by then, into a lie.
+ * A column carrying an invented bound is left alone, and that exclusion is
+ * load-bearing twice over. Parking one on a bound the model never declared
+ * would publish a value nothing authorised; and it would plant exactly the
+ * evidence classify_optimum reads immediately after this runs, which is a
+ * solver arranging the proof of its own verdict.
  *
  * Whatever cannot be repaired this way stays in the reported reduced
  * costs, where the independent checker will see it. Removing it properly
@@ -1000,11 +1002,11 @@ static void repair_dual_infeasibility(sx *s)
                 break;
             }
             /* The bounds just tested include the invented ones, and a
-             * basic parked *on* an invented bound is the evidence of
-             * unboundedness — manufactured here, after the verdict was
-             * already read off. The swap that would do that is refused;
-             * no test constructs this, it takes a box ~1e10 wide, but
-             * the verdict must not depend on nobody ever building one. */
+             * basic left sitting *on* one would be published at a value
+             * the model never allowed. The swap that would do that is
+             * refused; no test constructs this, it takes a box ~1e10
+             * wide, but an answer must not depend on nobody ever
+             * building one. */
             if ((s->fake[b] == FAKE_LO && x <= s->lo[b] + PRIMAL_TOL) ||
                 (s->fake[b] == FAKE_UP && x >= s->up[b] - PRIMAL_TOL)) {
                 safe = false;
@@ -1041,6 +1043,124 @@ static void settle_shifts(sx *s)
 
     compute_duals(s);
     repair_dual_infeasibility(s);
+}
+
+/* --------------------------------------------------------------------- */
+/* Reading the verdict                                                   */
+/* --------------------------------------------------------------------- */
+
+/* Is this column still being held back by a bound JAOS invented?
+ *
+ * The bounded problem is at its optimum, and it differs from the original
+ * only where a bound was lent. So the two can only disagree where a loan is
+ * what stopped the objective, and the evidence for that is narrow: a
+ * *nonbasic* column resting on its invented bound whose reduced cost still
+ * points outwards. Every other nonbasic is held by a bound the model
+ * actually declared. A basic variable is not evidence at all — its reduced
+ * cost is zero by definition, so nothing improves by moving it, and one
+ * sitting on an invented bound is degeneracy rather than a blocked
+ * objective.
+ *
+ * "Points outwards" is measured against DUAL_TOL, the same tolerance the
+ * rest of the solve uses to decide whether a reduced cost is zero. Reading
+ * a cost this solver calls zero as a direction of improvement would be a
+ * verdict its own arithmetic disagrees with.
+ *
+ * The reduced costs are the model's own: this runs after settle_shifts has
+ * called in every borrowed cost, so `d` prices the problem that was asked
+ * about rather than the one the ratio test found convenient. */
+static bool held_by_an_invented_bound(const sx *s, int64_t j)
+{
+    if (s->fake[j] == FAKE_LO)
+        return s->status[j] == JM_AT_LOWER && s->d[j] > DUAL_TOL;
+    if (s->fake[j] == FAKE_UP)
+        return s->status[j] == JM_AT_UPPER && s->d[j] < -DUAL_TOL;
+    return false;
+}
+
+/* Would the objective actually run away if that bound were lifted?
+ *
+ * Letting column j leave its invented bound by t moves the basics along
+ * dx_B = -B^-1 M_j dx_j, so the point travels a straight line and the
+ * objective falls at a constant rate along it. The line is a ray of the
+ * *original* problem exactly when no basic runs into a bound the model
+ * itself declared — lent bounds do not count, and the one being lifted is
+ * infinite on that side by construction, which is why it was lent.
+ *
+ * This is what makes the verdict independent of ARTIFICIAL_BOUND. Resting
+ * on a lent bound says only that the loan was reached; a ray says the
+ * objective has nowhere to stop, and that is a statement about the model.
+ *
+ * An entry below PIVOT_MIN is not treated as a blocker, on the grounds the
+ * ratio test already refuses one as a pivot: it cannot be told apart from
+ * the zero exact arithmetic would have produced. The line has to be drawn
+ * somewhere and neither side is free — honouring noise refuses the verdict
+ * on models that genuinely run away, ignoring a true tiny entry claims one
+ * where a very distant bound really does block — so it is drawn where this
+ * solver already draws it rather than at a new number of its own. */
+static bool improves_without_limit(sx *s, int64_t j)
+{
+    var_column(s, j, s->col);
+    jm_lu_ftran(&s->lu, s->col, &s->work);
+
+    /* dx_j leaves a lower loan downwards and an upper loan upwards, and
+     * dx_B = -B^-1 M_j dx_j carries that sign across. */
+    const double sgn = (s->fake[j] == FAKE_LO) ? 1.0 : -1.0;
+
+    bool unlimited = true;
+    for (int64_t i = 0; i < s->nrow; i++) {
+        double step = sgn * s->col[i];
+        if (fabs(step) < PIVOT_MIN)
+            continue;
+        int64_t b = s->basis[i];
+        double limit = step > 0.0 ? real_upper(s, b) : real_lower(s, b);
+        if (isfinite(limit)) {
+            unlimited = false;
+            break;
+        }
+    }
+    jm_work_add(&s->work, s->nrow * JM_WORK_NONZERO);
+    return unlimited;
+}
+
+/* The verdict on a point the bounded problem calls optimal.
+ *
+ * Three outcomes, and the third is the honest one. If some column can leave
+ * its invented bound along a ray, the model is unbounded and that is now
+ * proven rather than inferred from where a variable came to rest. If no
+ * column is held by a loan at all, the loans never mattered and the answer
+ * is the original problem's.
+ *
+ * What is left is a column the objective wants to push further, stopped by
+ * a real constraint rather than by infinity: the true optimum lies past the
+ * bound phase 1 lent, and this method cannot reach it. Reaching it means
+ * lifting the loan and re-solving, and the degenerate case of that — a
+ * basic already pressed against a real bound in the ray's direction — needs
+ * a primal pivot, which does not exist before M6. So the solve refuses out
+ * loud instead. That is the whole change in kind: this used to be reported
+ * as UNBOUNDED, silently and wrongly, on a model with a perfectly good
+ * finite optimum. */
+static jaos_solve_status classify_optimum(sx *s)
+{
+    int64_t blocked = -1;
+
+    for (int64_t j = 0; j < s->ncol; j++) {
+        if (!held_by_an_invented_bound(s, j))
+            continue;
+        if (improves_without_limit(s, j))
+            return JAOS_SOLVE_UNBOUNDED;
+        if (blocked < 0)
+            blocked = j;
+    }
+
+    if (blocked < 0)
+        return JAOS_SOLVE_OPTIMAL;
+
+    jm_set_err(s->m, "column %lld improves past the bound dual phase 1 lent "
+                     "it, and a constraint stops it short of infinity: the "
+                     "optimum is finite but lies beyond the reach of this "
+                     "phase 1", (long long)blocked);
+    return JAOS_SOLVE_NUMERICAL_ERROR;
 }
 
 /* --------------------------------------------------------------------- */
@@ -1105,8 +1225,10 @@ static jaos_status run(sx *s, jaos_solve_status *out)
         double violation = 0.0;
         int64_t r = price_row(s, &below, &violation);
         if (r < 0) {
-            *out = leans_on_an_invented_bound(s) ? JAOS_SOLVE_UNBOUNDED
-                                                 : JAOS_SOLVE_OPTIMAL;
+            /* Optimal for the problem as bounded. Whether that is also the
+             * original's answer is classify_optimum's question, and it is
+             * asked once the borrowed costs have been called in. */
+            *out = JAOS_SOLVE_OPTIMAL;
             return JAOS_OK;
         }
 
@@ -1231,8 +1353,13 @@ jaos_status jm_dual_simplex(jaos_model *m)
     build_initial_basis(&s);
     st = run(&s, &outcome);
     if (st == JAOS_OK) {
-        if (outcome == JAOS_SOLVE_OPTIMAL)
+        /* Settle first, then judge. The verdict turns on reduced costs, so
+         * it has to read the model's own and not the shifted ones the
+         * ratio test worked with. */
+        if (outcome == JAOS_SOLVE_OPTIMAL) {
             settle_shifts(&s);
+            outcome = classify_optimum(&s);
+        }
         st = publish(&s, outcome);
     }
     sx_free(&s);
