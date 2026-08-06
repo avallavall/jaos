@@ -22,7 +22,7 @@ d6cube       optimal    rows=415 cols=6184 shape=ok iters=442 work=32149694 obj=
 degen2       optimal    rows=444 cols=534 shape=ok iters=578 work=7262520 obj=-1435.1780000000001 ref=-1435.1780000000001[koch] objective=ok checker=ok (col=8.88e-16 row=8.88e-16 dual=0 gap=5.57e-18) det=ok digest=09bc099e12dc46a5
 degen3       optimal    rows=1503 cols=1818 shape=ok iters=2423 work=129533313 obj=-987.29400000000066 ref=-987.29399999999998[koch] objective=ok checker=ok (col=2.66e-15 row=4e-15 dual=0 gap=6.75e-19) det=ok digest=5f38a9fe41229ba2
 dfl001       optimal    rows=6071 cols=12230 shape=ok iters=24220 work=3622638599 obj=11266396.046671392 ref=11266396.046671392[koch] objective=ok checker=ok (col=9.69e-14 row=7.11e-14 dual=0 gap=4.11e-17) det=ok digest=190eac0754d22a54
-e226         optimal    rows=223 cols=282 shape=ok iters=346 work=2816563 obj=-11.63892906637051 ref=-18.75192906637055[koch] objective=OUT-OF-TOLERANCE checker=ok (col=0 row=2.31e-14 dual=0 gap=3e-17) det=ok digest=9af074de61c76df4
+e226         optimal    rows=223 cols=282 shape=ok iters=346 work=2816563 obj=-11.63892906637051 ref=-11.638929066370551[koch] objective=ok checker=ok (col=0 row=2.31e-14 dual=0 gap=3e-17) det=ok digest=9af074de61c76df4
 etamacro     optimal    rows=400 cols=688 shape=ok iters=699 work=6497564 obj=-755.71523293834343 ref=-755.71523337491328[koch] objective=ok checker=REJECTED (col=0 row=2.58e-13 dual=1.56e-06 gap=4.31e-09) det=ok digest=5c021cac0fb50ac2
 fffff800     optimal    rows=524 cols=854 shape=ok iters=849 work=13456263 obj=555679.56481749646 ref=555679.56481749634[koch] objective=ok checker=ok (col=0 row=4.37e-11 dual=0 gap=1.13e-16) det=ok digest=b2925a03aee96cfa
 finnis       optimal    rows=497 cols=614 shape=ok iters=333 work=2400877 obj=172791.0655056356 ref=172791.06559561158[koch] objective=ok checker=REJECTED (col=0 row=8.44e-07 dual=28 gap=7.92e-11) det=ok digest=b318df37bfb1181d
@@ -93,5 +93,5 @@ vtp-base     optimal    rows=198 cols=203 shape=ok iters=132 work=499528 obj=129
 wood1p       optimal    rows=244 cols=2594 shape=ok iters=335 work=31533581 obj=1.4429024116630425 ref=1.4429024115734093[koch] objective=ok checker=ok (col=1.77e-11 row=1.19e-08 dual=0 gap=4.06e-17) det=ok digest=9da03810ad189948
 woodw        optimal    rows=1098 cols=8405 shape=ok iters=1713 work=132777288 obj=1.3044763330842297 ref=1.3044763330842293[koch] objective=ok checker=ok (col=0 row=6.8e-13 dual=0 gap=2.7e-16) det=ok digest=f611544d88b5a38a
 
-94 instances: 93 solved, 94 shape ok, 90 objective ok, 86 checker ok, 93 deterministic, 1 failed
+94 instances: 93 solved, 94 shape ok, 91 objective ok, 86 checker ok, 93 deterministic, 1 failed
 gate: NOT MET

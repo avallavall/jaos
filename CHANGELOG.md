@@ -31,6 +31,14 @@ versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Settling up can no longer park a basic variable on an artificial phase-1
   bound: that would manufacture the evidence of unboundedness after the
   verdict was already read.
+- The Netlib acceptance gate now accounts for the objective constant an MPS
+  file can declare through an `RHS` entry on its objective row. JAOS applies
+  it, following the convention CPLEX documents; the published Netlib optima
+  do not include it, so a correct answer differed from both reference sets
+  by exactly that constant on the one instance where it is visible. The
+  manifest carries the constant and the comparison allows for it. The reader
+  is unchanged, deliberately: dropping the constant would break every model
+  whose author meant it.
 - A solve no longer stops on values it carried rather than computed. Basic
   values and the factorization both drift as pivots accumulate, and
   optimality was being judged on the drifted ones — so a solve stopped

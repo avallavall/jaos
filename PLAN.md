@@ -216,15 +216,13 @@ Remaining:
    The eight failures are four different problems, and they do not share a
    fix:
 
-   - **`e226` — the objective constant is applied with the wrong sign.** The
-     checker calls this solve perfect (gap 3e-17) and it is off by 7.113,
-     which is exactly the `RHS` entry the file carries on its objective row.
-     Removing that offset reproduces Koch's optimum to 4e-14. This is the
-     failure D18 says only external ground truth can catch, and it is Q2:
-     the sign convention for an objective RHS entry has to be settled from
-     the format documentation, not guessed. It is also the cheapest of the
-     four and the only one that is a plain defect rather than a numerical
-     question.
+   - **`e226` — closed, and not where it looked.** The reader was right: the
+     objective constant follows the documented convention and always did.
+     What differs is the reference — neither published Netlib set includes
+     the constant, so a correct answer misses both by exactly it. The gate
+     records the constant per instance and compares against reference plus
+     constant; the reader was left alone on purpose, and `tests/test_mps.c`
+     now says why. Details in `docs/format-support.md`.
    - **`grow15` — the solve does not terminate.** The internal iteration
      guard trips at 189201 iterations, which the code correctly reports as a
      JAOS defect rather than a hard model. This is the stall Q10 has been
@@ -389,13 +387,15 @@ missed this".
   negative range value, a sub-case the public docs leave ambiguous): fixed as
   encountered, recorded in `docs/format-support.md`.
 
-  One is now encountered rather than hypothetical. An `RHS` entry against the
-  objective row sets a constant, and the sign convention for it is not
-  agreed between implementations — some negate it, some do not. JAOS negates,
-  and `e226` says that is wrong: undoing the negation reproduces the
-  published optimum exactly. One instance is not a convention, though, so
-  this closes from the format documentation with `e226` as the check, not
-  from `e226` alone.
+  One was encountered and closed, and the answer was that nothing needed
+  changing. An `RHS` entry on the objective row sets a constant; JAOS negates
+  it, which is what CPLEX documents. What the campaign actually found is that
+  the published Netlib optima omit that constant — both sets, so it is not
+  one source's slip — and `e226` is the only instance of the standard set
+  where that is visible. The gate carries the constant in its manifest rather
+  than the reader dropping it (`docs/format-support.md`). Recorded here
+  because the next such case will look the same: an instance disagreeing with
+  a reference is not evidence about which of them is wrong.
 - **Q3** — Whether any Netlib instance forces a minimal presolve into M1: decided
   by evidence during the campaign; if yes, the smallest presolve that closes the
   gate, and no more.

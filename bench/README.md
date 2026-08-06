@@ -73,6 +73,19 @@ proved — and falls back to the netlib readme only for `maros-r7` and
 `pilot87`, which his published results do not cover. The `source` column on
 each line says which.
 
+There is one thing both reference sets agree on and both leave out: an
+objective constant declared by an `RHS` entry on the objective row. JAOS
+applies it, under the convention CPLEX documents and
+`docs/format-support.md` records, so a correct answer differs from both
+published values by exactly the constant. The `objconst` column carries it
+and the gate compares against reference plus constant. It is nonzero on one
+instance of this set, `e226`; `grow7`, `grow15` and `grow22` carry the same
+entry with a value of zero, which is why nothing else shows it.
+
+Fixing that in the reader instead would have been the wrong trade: it would
+break every model whose author meant the constant, to agree with two
+reference sets that predate the convention.
+
 ## Cross-checks that were run once, on the way in
 
 The manifest's shapes are not simply Koch's word for it. Netlib's canonical

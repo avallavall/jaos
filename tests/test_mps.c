@@ -33,7 +33,19 @@ static void test_t1_fixed_layout_full_model(void)
     TEST_ASSERT_EQUAL_INT64(6, jaos_num_nz(m));
     TEST_ASSERT_EQUAL_INT(JAOS_MINIMIZE, m->sense);
 
-    /* RHS on the COST row is the negated objective constant. */
+    /* RHS on the COST row is the negated objective constant, which is
+     * CPLEX's documented convention and what docs/format-support.md records.
+     *
+     * This assertion is load-bearing against a specific mistake. The Netlib
+     * reference optima do not include this constant — neither the readme's
+     * nor Koch's — so on e226, the one instance of the standard set where
+     * the two conventions are distinguishable, a correct answer looks wrong
+     * against both published values by exactly the constant. The tempting
+     * repair is to make the reader drop it. That would trade every model
+     * whose author meant the constant for agreement with two reference sets
+     * that predate the convention, and this test is here to make that
+     * trade fail loudly. The gate handles it in bench/netlib.manifest
+     * instead. */
     TEST_ASSERT_EQUAL_DOUBLE(-3.5, m->obj_offset);
 
     const double want_cost[] = {1.0, 2.0, -1.0}; /* -1.0D0 read as -1.0 */

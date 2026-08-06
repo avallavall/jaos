@@ -85,6 +85,10 @@ typedef struct {
     int64_t rows, cols;
     double reference;
     char source[16];
+    /* The objective constant the file carries and JAOS applies, which both
+     * published reference sets leave out. See the manifest header: the two
+     * conventions differ on exactly one instance of this set. */
+    double objconst;
 } entry;
 
 typedef struct {
@@ -150,7 +154,8 @@ static bool run_one(const entry *e, const char *dir, tally *t)
 
     double obj = 0.0;
     (void)jaos_objective(m, &obj);
-    bool obj_ok = objective_accepted(obj, e->reference);
+    double expected = e->reference + e->objconst;
+    bool obj_ok = objective_accepted(obj, expected);
     if (obj_ok)
         t->objective_ok++;
 
@@ -191,7 +196,7 @@ static bool run_one(const entry *e, const char *dir, tally *t)
             "work=%lld obj=%.17g ref=%.17g[%s] objective=%s checker=%s"
             " (col=%.3g row=%.3g dual=%.3g gap=%.3g) det=%s digest=%016llx\n",
             e->name, (long long)nr, (long long)nc, shape ? "ok" : "MISMATCH",
-            (long long)iters, (long long)work, obj, e->reference, e->source,
+            (long long)iters, (long long)work, obj, expected, e->source,
             obj_ok ? "ok" : "OUT-OF-TOLERANCE", check_ok ? "ok" : "REJECTED",
             rep.max_col_violation, rep.max_row_violation,
             rep.max_dual_violation, rep.objective_gap,
@@ -256,8 +261,8 @@ int main(int argc, char **argv)
         memset(&e, 0, sizeof e);
         char sha[128];
         long long rows = 0, cols = 0;
-        if (sscanf(line, "%63s %127s %lld %lld %lf %15s", e.name, sha,
-                   &rows, &cols, &e.reference, e.source) != 6)
+        if (sscanf(line, "%63s %127s %lld %lld %lf %15s %lf", e.name, sha,
+                   &rows, &cols, &e.reference, e.source, &e.objconst) != 7)
             continue;
         e.rows = rows;
         e.cols = cols;

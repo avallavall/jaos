@@ -15,7 +15,23 @@ header is a line whose first character is non-blank, `*` opens a comment.
 - **Row types**: first `N` row is the objective; further `N` rows are kept as
   free rows (bounds ±inf), never dropped.
 - **RHS on the objective row** sets the objective constant to the *negated*
-  value, per classic MPS convention.
+  value, per classic MPS convention: `RHS obj -3.1415` means a constant of
+  `+3.1415`. This matches CPLEX's documented behaviour, and `tests/data/t1.mps`
+  pins it.
+
+  Worth knowing before anyone "fixes" it: **the published Netlib reference
+  optima do not include this constant.** Both of them — the netlib readme's
+  MINOS values and Koch's exact ones — report the objective without it, so on
+  the one instance of the standard set where the difference is visible
+  (`e226`, constant `7.113`) a correct JAOS answer differs from both published
+  values by exactly that amount. `grow7`, `grow15` and `grow22` carry the same
+  kind of entry with a value of zero, which is why no other instance shows it.
+
+  The acceptance gate handles this in `bench/netlib.manifest`, which records
+  the constant per instance and compares against reference plus constant. It
+  is deliberately not handled by making the reader drop the constant: that
+  would break every model whose author meant it, to agree with two reference
+  sets that predate the convention.
 - **Default RHS is 0** for rows never named in the RHS section.
 - **RANGES** with rhs `b` and range `r`:
   - `G` row: bounds `[b, b + |r|]`
