@@ -1,0 +1,120 @@
+# Netlib LP standard set — pinned instances and reference optima.
+#
+# Instance files never enter this repository (PLAN 2.10). This manifest is
+# what pins them: bench/fetch.sh downloads each one and refuses any whose
+# sha256 does not match the line below.
+#
+# Source of the instances: the dataset published alongside Thorsten Koch,
+# "The Final NETLIB-LP Results" (ZIB-Report 03-05), at
+# https://www.zib.de/koch/perplex/data/netlib/mps/ — plain MPS, gzipped.
+# The checksum is of the .mps.gz exactly as that server returns it.
+#
+# rows/cols are what JAOS must load: the constraint rows without the
+# objective row, and the structural columns. Both were cross-checked
+# against the canonical netlib PROBLEM SUMMARY TABLE, which counts the
+# objective row among its rows — they agree on every instance but boeing1,
+# where netlib carries one more free row than Koch's file does.
+#
+# reference is the optimal objective. Where source is "koch" it is the
+# nearest double to the exact rational Koch proved with rational
+# arithmetic. Where it is "netlib" it comes from the netlib readme, whose
+# values were computed with MINOS 5.3 and are not exact: Koch found eight
+# of them wrong by more than the gate's tolerance (80bau3b, ganges,
+# greenbea, greenbeb, nesm, pilot, pilot-we, scrs8), which is why his
+# values are preferred wherever they exist.
+#
+# name        sha256                                                            rows   cols  reference                 source
+25fv47        64d7a3cb8aeea5347e28934affe0eab1ac62267a052a1f5ef231d7947da989c3    821   1571  5501.845888286744        koch
+80bau3b       37f385ba26c9f9a2891b4d80d8aeeaf97af9219b09451c363e18ea4e0fd97c92   2262   9799  987224.1924090902        koch
+adlittle      379c68bdb0d12c1adccce618afa7abdceb6c27496c573dd6fc36d203f486f503     56     97  225494.9631623804        koch
+afiro         c60ff012c4f23b7bb42e3874ddf12e7b04beaf0a3d76bf2c2f89fdd33737923f     27     32  -464.75314285714285      koch
+agg           398b4f87f9f2f2b58b528db026647e0f3ae983f2d82752939f7012a3d6e26cf1    488    163  -35991767.28657651       koch
+agg2          6326d686be66254838345c74be4e057237f1696d424628d3553936cfaf560d5f    516    302  -20239252.35597711       koch
+agg3          962c48e84721d812ec65cfc81dc3c25ed013ed83ed0f88eb683ec4a35afb6d0b    516    302  10312115.935089225       koch
+bandm         29233e9308975faf8e900b2749e692bf265d066568ee8f77a5a2e02801cf319a    305    472  -158.62801845012063      koch
+beaconfd      7c97ce3e9bf9ecb48c5623b63c714884f800c7fa2c106803dbfab15482daadfb    173    262  33592.4858072            koch
+blend         9e4ac2ff1c46a4d674220bd223f2464aa8a10179d67f52960d5995c2ae3f4162     74     83  -30.81214984582822       koch
+bnl1          2959170dc64d3acd71c209f29c64b47fa09a1d960c42e45289165af63ee55db2    643   1175  1977.6295615228892       koch
+bnl2          fbd95d2aec45c44b7fd12e52b67538d50e6c6214a89f1309153399f355585c75   2324   3489  1811.2365403585452       koch
+boeing1       dd00cdbcd2b74d47c43bc737438a1321ecb47bac99022d5545731ab238730ccc    351    384  -335.21356750712664      koch
+boeing2       9ded463c2d0b30c065f8c40d5124f42bd886e58e97acb371c64a99ba473ba9f2    166    143  -315.0187280152029       koch
+bore3d        ff6de7f3dc726be41b04e7916802145173a10f0252f790a554ca765f4f32bdc6    233    315  1373.0803942084926       koch
+brandy        a009a241efa67e8be19f9d6d22dfdacd64ad18b4dd1870e174d9a3bf71126aad    220    249  1518.5098964881283       koch
+capri         13176380732fbd3c42e9039a414f60643603d9b185679ff30b86d7f1c46482c6    271    353  2690.012913768161        koch
+cycle         648d54ca7da4b1793a1f22f76362f7404b2efa2841ee444923af7eb170f26761   1903   2857  -5.226393024894102       koch
+czprob        42fe9efebc6ccf0cc999e36fd1eef239ac5223a773d15caa0a7e7148bcd8fe32    929   3523  2185196.6988565773       koch
+d2q06c        b995e78c979797a90311aea2bac8d907342d6c895dc5c624c9d9d49df5bd62da   2171   5167  122784.21081418946       koch
+d6cube        d03078e7a82fb8348116d516e9fc7515340b3a47c8ea53952d7529814a7822de    415   6184  315.4916666666667        koch
+degen2        62ab29024bee9352c5941256c7b9fb94fa4e26cbbbd1fb44009b5239040e29f0    444    534  -1435.178                koch
+degen3        67782c01a95ccc28422f90bacfd63c1926be481bb1a3a8880898d7df749bc95a   1503   1818  -987.294                 koch
+dfl001        a4941af75929f4f0555bd5f73390e00a035c12c998c523e2f3dfae16c3bfd18b   6071  12230  11266396.046671392       koch
+e226          e63a0eed88c6bbecada2b83578c4a023c37eeabf0915d29b2e6170083ec5779e    223    282  -18.75192906637055       koch
+etamacro      969b3203eead5d19943916b24484dd950361cf2212ebe5cc969d4df24548bc35    400    688  -755.7152333749133       koch
+fffff800      6f772a596905d59ec06caf23b7222beee22850e38b4b5e9c69763222763654f6    524    854  555679.5648174963        koch
+finnis        d990a6d99462b8afb9ad8893932f8dd134f3203245acbbc6b5540fc9467af451    497    614  172791.06559561158       koch
+fit1d         b2139cf9dc9b0491513bf9da8dbba0d7d0dc276c48858f32c2d75503c3fcc244     24   1026  -9146.378092420928       koch
+fit1p         ef2fb3ca57a365e53eb7385fb749ae62c249bbe34e62958681d79d8c5733038a    627   1677  9146.378092420928        koch
+fit2d         d23608213503782786ada93f1ba3590e6807f506238123df55b4fbe148cc9731     25  10500  -68464.29329383207       koch
+fit2p         8f6978b2fdf97efdbb91fdb70999c3e16f05bbe1ccdbf9f2adb46b300f831cc0   3000  13525  68464.29329383207        koch
+forplan       f2960b7410bcd77102c6baada82fa091c5f4f895db5a159320ccd4f0a3fd9a3d    161    421  -664.2189612722045       koch
+ganges        21dc79d8a7ecc91b70d51af44d9931be24f7bad049f58e21fc968c5d26221785   1309   1681  -109585.73612927811      koch
+gfrd-pnc      89aefda97179363f4c69073459d73f81f74a811d0cbc2bce1d0f5031581d8c8b    616   1092  6902235.999548809        koch
+greenbea      a0671c6015e299193ee07f1af9ae674c2adc584e729a5fdb2ce5c5d8cf60f24a   2392   5405  -72555248.12984599       koch
+greenbeb      9fc06f2c6de0c8d57f0f675324304dea4eee2919c9d8251d7f8bebcc58360d98   2392   5405  -4302260.261206587       koch
+grow15        43e0303a03e70a3c96bc62251dfc265c26053a7fe8234e1952cb2e45ba424c3a    300    645  -106870941.29357533      koch
+grow22        8fb04df8edd028230a199cecb7290281310af9cbe7e6a1cb4d05b2a4f8aa6c98    440    946  -160834336.48256296      koch
+grow7         ea284bdea8e2371ae4d65c8a4f14702c9db250947594713f227c1065d48a721b    140    301  -47787811.8147115        koch
+israel        58fd7e7cbc61f50175855d432726a46b82ff19b968c7cc5cd0cdf4c37b4c9e3e    174    142  -896644.8218630457       koch
+kb2           631b23c8e0936c265797f6eb11dbbc09c14ef3e3f50121af65e41e3208c3d97e     43     41  -1749.9001299062056      koch
+lotfi         05d8b58aeee884f4336565ab3ad7b683d234a16f594d10b657f378d2d2532d6a    153    308  -25.26470606188          koch
+maros         b4456ba94a52d4e3ca532a41936efb70a70c17bf265e5b0668678b61c137e11d    846   1443  -58063.743701125895      koch
+maros-r7      271d398bb1e7e33f50199bc95096def5c93a776d1ba98725b1e23aac7b8dee9a   3136   9408  1497185.1665             netlib
+modszk1       0f2b01ec048646970514b2190363d641eb725601c6a7f76dcccee6f31cfba5f7    687   1620  320.6197290643158        koch
+nesm          7bb4151b8ff6cb1d8ad56cda13c7fd4848bea1dab1c27c3ddc617661f15e75f5    662   2923  14076036.487562729       koch
+perold        4122a052203d7a279f728f99cedca4245a806d780405191f2a7ea0cf3426ea11    625   1376  -9380.755278235161       koch
+pilot         e860aff026a9942dab364f4bfffd920f043d44c24c7b491acdba9b3f21497610   1441   3652  -557.4897292840682       koch
+pilot-ja      eb93eb950250149d807036d4cafc4b1e6b173f2e25ac89033cd2e2673f5fa3e1    940   1988  -6113.136465581343       koch
+pilot-we      521da8a94d814b2b50262b99c71fd25713e281ea6d9c3d3a54302b116ef05821    722   2789  -2720107.532844964       koch
+pilot4        ab06fae36eda2c235a3e01708916c8c573f863e329cce4c890dd6e689752ed19    410   1000  -2581.1392588838885      koch
+pilot87       0e9fe778ace9d47c544cd5e4dd6aaed106e4c1af72af26ee51bfe4a7ed6ce1f7   2030   4883  301.71072827             netlib
+pilotnov      f29a591c80e8d278813cd710d4e7eef5f5e7efab72e21ecf5340fb90674144fd    975   2172  -4497.2761882188715      koch
+recipe        33ba2e2c49afa531de9a8fc316acf429adce512d2c6a8162635d5b0fa2a2a562     91    180  -266.616                 koch
+sc105         6adde55982fdd37412118be98f1c50a1870b56b4989931d1379239e2807ddf41    105    103  -52.202061211707246      koch
+sc205         ddf82219b31ec613a34da90d7556f41417522d2bf0f6c2c6c24efd7084eaec14    205    203  -52.202061211707246      koch
+sc50a         ab062f6811472de91585ee20624edcc7a6ef4e8258e62479739fece6047e3e28     50     48  -64.5750770585645        koch
+sc50b         d65bd082c0193d0ae007322dff7ee31947e329b9b7a1d34ae9b013d1dfd948b4     50     48  -70.0                    koch
+scagr25       72f3eb0d74c7bd0051a00d5cb7de464ed1859442ace05a6c7331c30b47f8e247    471    500  -14753433.060768522      koch
+scagr7        16c8a1a2303f83e796789bae7adab4ecb463a13efba0552ef68da1d49e796168    129    140  -2331389.824330984       koch
+scfxm1        a77482c54838f639c01ef1de5f7cffb97ff0434e8fff4d5df4167c0f97c72e14    330    457  18416.759028348944       koch
+scfxm2        fa41514c3bf4d44eb6dd2f7e34148aea8888d58ea9ac908f189b7144d9d0af01    660    914  36660.261564998815       koch
+scfxm3        d4d2ab21de83def6e746f9598b95d34040c284e87276788ad1b44220406d94b9    990   1371  54901.25454975145        koch
+scorpion      6cb3adba1162ef15cb83ec49d94471ee51b7daad65a87d0f5475e3452cdbbfff    388    358  1878.1248227381066       koch
+scrs8         3d0fb6c2fc319e37fe955044d0b963d3742d4c403adcd179f07cb4ac6c9ab994    490   1169  904.2969538007915        koch
+scsd1         36a9f90eec5fa33463bbd8cfd53f2f6c7347dacdbe9e3adc9fb0e1df91df8f59     77    760  8.666666674333365        koch
+scsd6         dcfdaf10f147ec682488ae61375321cbcc94a4b5459da532cf93cd1513064a62    147   1350  50.50000007714434        koch
+scsd8         c4c69b110475cf367513ac801c57e3f5b1042e1f1dbb3da0deee60850cde57fc    397   2750  904.9999999254644        koch
+sctap1        38c7fb581a24811e1f13acd11335dd2fe9c7fd07cfa4dca8866306ea9812b523    300    480  1412.25                  koch
+sctap2        4f0acabb9c4cb07dd08f9ce1e2b9e007e41f1a46dacfe734223902aa29321bfc   1090   1880  1724.807142857143        koch
+sctap3        59509c31b47064339416591d2a38e53c930641ca6722e65590ec5f37f30d0cc2   1480   2480  1424.0                   koch
+seba          831a02bfd00aee586415956a7848fbd4d91825f2a15555e251de188319e63338    515   1028  15711.6                  koch
+share1b       86106c2326915fa8be92e36301b0dbecf617bef8df1fa18864872127bd8b84a2    117    225  -76589.31857918568       koch
+share2b       e825508703227edff8caccacf808220b5d55117c05de5d2864f351bb83605603     96     79  -415.7322407414195       koch
+shell         cecdfaf32787a04e6d87bc60785310c8f0be9514254c7d4c96b53dc85756e3e7    536   1775  1208825346.0             koch
+ship04l       714f3788755c75e92907779169d92758a33cfb6362e77f68d402e0ef0ebb0102    402   2118  1793324.5379703557       koch
+ship04s       29b4efa0f9c91987d52be987f38835449d6c7797330f3db1fbacd4114c41c5ca    402   1458  1798714.7004453922       koch
+ship08l       2db1eb739e4bf3e06eb83f18726ff3e96ecfbabfae85229e80cebefcada60353    778   4283  1909055.2113891316       koch
+ship08s       f427693e0d1b3f6c66baf416af2e87e6603221c6e8906d7d0cce997ee07f6eed    778   2387  1920098.2105346196       koch
+ship12l       e1288adffd3f4a1428c0e555af9953e5b92ad54fb91f51237b82f97dd3e73f07   1151   5427  1470187.919329265        koch
+ship12s       a2bf613b731a6ce0417cf890efd506529a48e592790120c61a7a2c4a91a0f1e9   1151   2763  1489236.1344061291       koch
+sierra        c09681172fc02c832bacdd0fec857a9c0ff8c8bb824da4db4b44276fe499d7ae   1227   2036  15394362.18363193        koch
+stair         66f36a0baabb5bdca4ab38a7765611708431d03eac5eee1655ec8c26b4354d5c    356    467  -251.2669511929633       koch
+standata      6e03d7a02f5e324ede3fe7b49709f83c796a7e0e4d7ffb12ee86283bb006a780    359   1075  1257.6995                koch
+standmps      39934af54845674a913867208b647acdab2730ac641c5a4e8f4da79ff8741647    467   1075  1406.0175                koch
+stocfor1      c8267c661a4ddccac094d8a13e85429431c6e31dd48536c2b4f884b6e0072989    117    111  -41131.97621943641       koch
+stocfor2      78b31881c422182d549f01be6e8335c7b325bb61327c7c2d60ec1c0280e2d648   2157   2031  -39024.40853788203       koch
+stocfor3      492179a23cc766c2855704bb5214b72179d7856f5429cc90bf2c0285d5834820  16675  15695  -39976.783943649585      koch
+truss         1bf5b9e0b9ef87891c723fd3a3291b95e60b98975bbd7395e621fc0fe94b7060   1000   8806  458815.84718561673       koch
+tuff          2e8dd18934a1815f976940acd5f5f4e493cd86ef2312eca2953c76d0ec380d7c    333    587  0.29214776509361284      koch
+vtp-base      58bfc9ac65212ea8804a9973b27a8d92c4508ed709357cfaaee692736faf9ef9    198    203  129831.46246136137       koch
+wood1p        ba808ceb2913a150c6165cbe406d42b5213281d1a6b196a5a65047ed5be85532    244   2594  1.4429024115734093       koch
+woodw         bb63b9469b8ca38974bf2e6d262b88ebf870a69167a50c51593be132e53fee75   1098   8405  1.3044763330842293       koch

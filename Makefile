@@ -5,6 +5,8 @@
 #   all       release static library (default)
 #   test      build and run the unit suite (dev flags)
 #   sanitize  build and run the unit suite under ASan+UBSan
+#   bench     build the Netlib acceptance runner (bench/fetch.sh first)
+#   netlib    fetch the instances if needed, then run the gate
 #   clean     remove all build output
 
 # make predefines CC=cc, so ?= would never fire; override only the built-in
@@ -60,7 +62,7 @@ LIB := $(B)/release/libjaos.a
 DEV_TESTS  := $(TESTS:tests/%.c=$(B)/dev/%)
 ASAN_TESTS := $(TESTS:tests/%.c=$(B)/asan/%)
 
-.PHONY: all test sanitize clean
+.PHONY: all test sanitize bench netlib clean
 
 # Keep intermediate objects; make otherwise deletes and rebuilds them
 # between targets.
@@ -101,7 +103,22 @@ test: $(DEV_TESTS)
 sanitize: $(ASAN_TESTS)
 	@fail=0; for t in $(ASAN_TESTS); do echo "== $$t"; ./$$t || fail=1; done; exit $$fail
 
-$(B)/release $(B)/dev $(B)/asan:
+# The acceptance runner links the release library exactly as any other
+# consumer would — it gets no privileged view of the solver, which is the
+# point of running it at all. Built on demand, never by `all`: it is a bench
+# tool and not part of what JAOS ships.
+$(B)/bench/run: bench/run.c $(LIB) | $(B)/bench
+	$(CC) $(RELEASE_CFLAGS) $(INC) $< $(LIB) -o $@ $(LDLIBS)
+
+bench: $(B)/bench/run
+
+# Instances are fetched and checksum-verified, never committed (PLAN 2.10).
+netlib: $(B)/bench/run
+	@bench/fetch.sh
+	@mkdir -p bench/results
+	./$(B)/bench/run | tee bench/results/netlib.txt
+
+$(B)/release $(B)/dev $(B)/asan $(B)/bench:
 	mkdir -p $@
 
 clean:

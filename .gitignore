@@ -4,3 +4,13 @@
 
 # Build output
 /build/
+
+# Test instances are fetched and checksum-verified, never committed
+# (PLAN 2.10). bench/netlib.manifest is what pins them; the files
+# themselves stay out, licences and size both.
+/bench/instances/
+
+# Acceptance results are records of a particular run on a particular host.
+# The gate's own output is worth keeping; everything else here is not.
+/bench/results/*
+!/bench/results/.gitkeep
