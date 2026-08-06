@@ -286,3 +286,45 @@ kept its status, objective, iteration count and work units unchanged, to the
 bit. Work units do move on the unbounded path, which now runs a solve it did
 not before — the counter has to bill it (D16).
 
+## D20 — Optimality is not declared on carried numbers
+
+A dual simplex iteration updates the basic values in place and patches the
+factorization rather than rebuilding it. Both therefore drift, and the drift
+has a property that makes it worse than ordinary rounding: the test that
+would detect it is the very test being run. Optimality is declared when no
+basic value violates a bound, and it is declared *on those values*. A solve
+stops exactly when its numbers are wrong in the direction of looking
+feasible.
+
+This was not a theoretical worry. The first five Netlib instances JAOS ever
+read found it: `afiro` — 27 rows, the smallest problem in the set — finished
+with a row activity 1.8e-5 away from a bound it should have been sitting on.
+Measured in the solver's own scaled space, where its own primal tolerance is
+1e-7, that is 177 times outside it. `blend` was 288 times outside. The
+objective still looked plausible, which is how this survives casual
+inspection: it was right to six digits and wrong at the seventh.
+
+So a declaration of optimality is now a proposal, not a conclusion. The
+point is recomputed from a fresh factorization and priced again; only a
+second opinion, owing nothing to the arithmetic that produced the first,
+ends the solve. If the fresh numbers violate something after all, the loop
+carries on and repairs it — those are iterations the drift was concealing.
+
+The cost is one refactorization per solve, and the work counter bills it
+(D16): a three-row test model went from 4411 units to 8517, which is the
+factorization plus the pricing pass that follows it. On anything the size of
+a real instance the proportion vanishes, and it buys the only thing a solver
+sells.
+
+What it bought, measured: on 3000 generated LPs, the independent checker had
+been rejecting 364 of the 1269 models that reached an optimum — 202 on both
+primal and dual conditions. Afterwards it rejects none. 641 objectives moved,
+all of them towards exactness: −41.269232089702896 became −41.269230769230774,
+which is −536/13, and −2.0000000000000013 became −2. No model changed status.
+
+This is the end-of-solve half of the stability trigger PLAN 2.5.5 asks for.
+The other half — watching an FTRAN/BTRAN residual during the solve and
+refactorizing early — is not built, because no instance has yet shown it is
+needed, and the residual worth acting on is a number only instances can
+supply.
+

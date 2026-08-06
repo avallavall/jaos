@@ -31,6 +31,16 @@ versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Settling up can no longer park a basic variable on an artificial phase-1
   bound: that would manufacture the evidence of unboundedness after the
   verdict was already read.
+- A solve no longer stops on values it carried rather than computed. Basic
+  values and the factorization both drift as pivots accumulate, and
+  optimality was being judged on the drifted ones — so a solve stopped
+  exactly when its numbers looked feasible without being it. The point is
+  now recomputed from a fresh factorization and priced again before the
+  answer is accepted. On the first Netlib instances read, this is the
+  difference between a solution the independent checker rejects and one it
+  accepts: `afiro` finished 1.8e-5 away from a bound, 177 times outside the
+  solver's own tolerance. Costs one refactorization per solve, which the
+  work counter bills.
 - An unbounded model is now identified by a direction along which the
   objective has nothing to stop it, checked against the bounds the model
   itself declares. It used to be identified by a variable coming to rest on

@@ -364,6 +364,45 @@ static void test_a_lent_bound_that_never_constrained_anything(void)
     jaos_model_free(m);
 }
 
+/* Optimality declared on carried numbers rather than computed ones.
+ *
+ *   min 2a - 3b  s.t. 4a + b <= 19, -3a + b <= 13, a,b >= 0
+ *
+ * Both rows bind at a = 6/7, b = 109/7, where the objective is exactly -45.
+ * Small as it is, this model used to finish with reduced costs the
+ * independent checker rejected: x_B and the factorization are both carried
+ * forward by the pivots, and the test for optimality was applied to the
+ * carried values, which had drifted. Pricing the point again from a fresh
+ * factorization is what makes the published duals belong to the basis.
+ *
+ * Against the old code this fails twice over, and the objective goes first:
+ * -44.9999943 for an optimum that is exactly -45, an error of 6e-6 on a
+ * model of two rows. The checker rejects the duals as well. Both are the
+ * same drift seen from two sides, which is why the assertion is
+ * solve_and_verify rather than either one alone.
+ *
+ * What it cannot be satisfied by is a tolerance. The violation behind it
+ * sat far outside the solver's own, in the solver's own scaled space, so
+ * loosening anything would hide it rather than fix it. */
+static void test_optimality_is_rechecked_before_it_is_believed(void)
+{
+    const double c[] = {2.0, -3.0};
+    const double cl[] = {0.0, 0.0};
+    const double cu[] = {INFINITY, INFINITY};
+    const double rl[] = {-INFINITY, -INFINITY};
+    const double ru[] = {19.0, 13.0};
+    const int64_t as[] = {0, 2, 4};
+    const int64_t ai[] = {0, 1, 0, 1};
+    const double av[] = {4.0, -3.0, 1.0, 1.0};
+
+    jaos_model *m = fresh();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_load_lp(m, 2, 2, JAOS_MINIMIZE, 0.0, c, cl, cu, rl, ru,
+                     4, as, ai, av));
+    solve_and_verify(m, -45.0);
+    jaos_model_free(m);
+}
+
 /* Maximisation with no upper bounds is the same situation mirrored, and
  * was the case that used to be refused outright.
  *   max 3x + 2y  s.t. x + y <= 4, x <= 2  ->  x=2, y=2, objective 10 */
@@ -531,8 +570,12 @@ static void test_free_variable_enters_and_settles(void)
  * When this fails after a deliberate change to the algorithm or the
  * weights, re-pin: the diff of this constant is the record of what the
  * change did to the accounting. If it fails and you did not intend to
- * change the accounting, that is the bug it exists to catch. */
-constexpr int64_t WORK_PINNED = 4411;
+ * change the accounting, that is the bug it exists to catch.
+ *
+ * Last moved by the recheck that ends a solve (see run()): 4411 -> 8517,
+ * which is the one extra factorization it costs, plus the pricing pass
+ * that follows it. */
+constexpr int64_t WORK_PINNED = 8517;
 
 static void test_work_accounting_is_pinned(void)
 {
@@ -1097,6 +1140,7 @@ int main(void)
     RUN_TEST(test_a_ray_is_what_proves_unbounded);
     RUN_TEST(test_an_optimum_past_the_lent_bound_is_refused);
     RUN_TEST(test_a_lent_bound_that_never_constrained_anything);
+    RUN_TEST(test_optimality_is_rechecked_before_it_is_believed);
     RUN_TEST(test_maximise_without_column_upper_bounds);
     RUN_TEST(test_t1_mps_is_infeasible_and_says_so);
     RUN_TEST(test_zero_objective_is_distinguishable_from_no_answer);

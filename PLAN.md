@@ -206,9 +206,14 @@ spends in dual feasibility is now lent and called back rather than left
 lying. What is left of it is an anti-stall perturbation, which addresses a
 problem no instance has shown yet, and Q10 holds it until one does.
 
-A refactorization stability trigger (§2.5.5) is still missing: only the
-interval and the reactive fallback on a failed update exist. It belongs with
-the campaign, where a real instance will finally exercise it.
+Of §2.5.5's stability triggers, the one that ends a solve now exists: a
+declaration of optimality is re-priced from a fresh factorization before it
+is accepted, because the values it was read off are carried and drift (D20).
+What is still missing is a trigger that watches during the solve — an
+FTRAN/BTRAN residual check that refactorizes early. The first instances say
+the end-of-solve check is enough on its own; whether that survives larger
+models is for the campaign, and it is the campaign that would say what
+residual is worth acting on.
 
 §2.5.6's debugging fallback to max-infeasibility pricing is not built. There
 is nowhere to put the flag — the library has no options API and inventing one
@@ -393,16 +398,18 @@ missed this".
   exist before M6. Whatever is left shows up in the reported reduced costs,
   where the checker sees it — so the gate will say whether it matters.
 
-  A first measurement of that residue exists, taken on 3000 generated LPs
-  while D19 was being verified, and it is larger than "residue" suggests.
-  Of the models that solved to an optimum, the checker rejected the duals of
-  **266 of the 1047 that needed a lent bound, and 0 of the 222 that did
-  not** — a clean split, not a trend. The worst dual violation was 34, while
-  the worst objective gap over the same set stayed at 1.4e-5: the answers are
-  right and what is published alongside them is not. The split says the
-  residue belongs to phase 1 rather than to the ratio test, which is not
-  where this question put it. What in phase 1 produces it has not been
-  established, and no fix should be chosen before it is.
+  It has now been looked for and is not there. The measurement that went
+  hunting for it found something else entirely — optimality declared on
+  drifted values, since fixed (D20) — and once that was repaired the checker
+  accepted the duals of every one of the 1269 generated models that reach an
+  optimum, and of the Netlib instances tried so far. So the residue this
+  question predicted is, on the evidence available, zero.
+
+  That is not the same as absent. The argument above still says a shifted
+  cost can survive settling up, and the campaign is a far wider net than
+  3000 small generated models. What has changed is that there is nothing to
+  fix today, and a fix built now would be built for a symptom nobody can
+  produce.
 - **Q8** — How exact verification gets done, decided when M2 opens with
   certificate export. GMP is the obvious tool and D11 excludes it (LGPL),
   including for test-only use, since D15 exempts test dependencies from D2

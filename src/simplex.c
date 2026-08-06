@@ -181,6 +181,10 @@ typedef struct {
     struct timespec started;
     int64_t iters;
     bool needs_refactor;
+
+    /* Has optimality been re-checked against a freshly computed point since
+     * the last basis change? See the r < 0 branch in run(). */
+    bool verified;
 } sx;
 
 /* --------------------------------------------------------------------- */
@@ -1225,6 +1229,39 @@ static jaos_status run(sx *s, jaos_solve_status *out)
         double violation = 0.0;
         int64_t r = price_row(s, &below, &violation);
         if (r < 0) {
+            /* Nothing violates a bound — but the values that statement was
+             * read off are carried, not computed. x_B is updated in place
+             * by every pivot and the factorization is patched rather than
+             * rebuilt, so both drift, and the drift is invisible from the
+             * inside: the test that would notice it is the one being run.
+             * A solve can therefore stop on numbers that no basis supports,
+             * and it stops precisely when they are wrong in the direction
+             * of looking feasible.
+             *
+             * So a declaration of optimality is not accepted on carried
+             * numbers. Recompute the point from a fresh factorization and
+             * price it again; only a second opinion, taken from arithmetic
+             * that owes nothing to the first, ends the solve. If the fresh
+             * numbers do violate something, the loop simply carries on and
+             * repairs it — the iterations that the drift was hiding.
+             *
+             * This is PLAN 2.5.5's stability trigger arriving through the
+             * back door. It fires once per solve rather than watching a
+             * residual every iteration, which is the cheap half; whether
+             * the other half is needed is a question for instances, not for
+             * argument. The cost is one refactorization per solve, and the
+             * work counter bills it (D16). */
+            if (!s->verified) {
+                st = refresh(s, &ok);
+                if (st != JAOS_OK)
+                    return st;
+                if (!ok) {
+                    *out = JAOS_SOLVE_NUMERICAL_ERROR;
+                    return JAOS_OK;
+                }
+                s->verified = true;
+                continue;
+            }
             /* Optimal for the problem as bounded. Whether that is also the
              * original's answer is classify_optimum's question, and it is
              * asked once the borrowed costs have been called in. */
@@ -1241,6 +1278,9 @@ static jaos_status run(sx *s, jaos_solve_status *out)
             return JAOS_OK;
         }
 
+        /* The basis is about to change, so any verification of the point
+         * it implied is spent. */
+        s->verified = false;
         st = pivot(s, r, q, below, theta_dual);
         if (st != JAOS_OK)
             return st;
