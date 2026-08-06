@@ -48,12 +48,38 @@ jaos_model_free(m);
 
 Every tolerance a solve compares against, and the formulas the checker
 judges with, are in [`docs/tolerances.md`](docs/tolerances.md). They are
-drafts until the Netlib gate closes, and the document says which are already
-known to need replacing.
+drafts until the Netlib gate closes.
 
-No performance claims appear here, or anywhere else in this repository, until
-they have been measured on a controlled machine. The benchmark campaign that
-would produce them has not run yet.
+## How well it works today
+
+Not a claim — a run. `make netlib` fetches the 94 instances of the Netlib
+standard set, checksum-verified against a committed manifest, and judges
+each solve against the published optimum, the independent checker, and a
+second solve that has to agree bit for bit. The last result is committed at
+[`bench/results/netlib.txt`](bench/results/netlib.txt).
+
+| | |
+|---|---|
+| loads with the right shape | 94 / 94 |
+| solved to optimal | 93 / 94 |
+| objective within tolerance | 91 / 94 |
+| independent checker green | 86 / 94 |
+| identical across two solves | 93 / 94 |
+
+**The gate is not met**, and that is the honest summary of where JAOS is.
+One instance does not terminate. Seven return an answer the checker
+rejects — mostly on the dual conditions, two of them by margins far too
+large to be rounding. What each failure is, and which open question it
+belongs to, is in [`PLAN.md`](PLAN.md).
+
+The readers are the part that came out clean: every instance in the set
+loads with exactly the row and column counts two independent canonical
+sources agree on — which is the one thing the checker structurally cannot
+verify, since it reads the same stored matrix the solver does.
+
+No **performance** claim appears here or anywhere else in this repository.
+Speed needs a controlled machine before any number about it means anything,
+and that host does not exist yet. Nothing above is a timing.
 
 ## Building
 
@@ -63,8 +89,13 @@ Linux, GNU make, GCC 14 or newer. On Windows, build under WSL.
 make            # static library in build/release/libjaos.a
 make test       # unit tests
 make sanitize   # the same tests under AddressSanitizer + UndefinedBehaviorSanitizer
+make netlib     # fetch the Netlib set and run the acceptance gate
 make clean
 ```
+
+`make netlib` needs a network connection the first time; the instances are
+verified against a committed manifest and never enter the repository. See
+[`bench/README.md`](bench/README.md).
 
 Link against `build/release/libjaos.a` with `-lm`. The public interface is the
 single header `include/jaos.h`.
@@ -104,8 +135,9 @@ programming is explicitly out of scope — a different paradigm, not a later
 phase.
 
 The current milestone is LP correctness, whose gate is the Netlib test set
-solved to published reference values. [`PLAN.md`](PLAN.md) carries the staging
-and the open questions.
+solved to published reference values. That gate is built and running, and
+not yet met — the numbers above are where it stands. [`PLAN.md`](PLAN.md)
+carries the staging, the failures still open, and the questions behind them.
 
 ## Repository
 
@@ -115,6 +147,7 @@ and the open questions.
 | [`PLAN.md`](PLAN.md) | Build order, current milestone in detail, open questions |
 | [`CHANGELOG.md`](CHANGELOG.md) | What changed, for someone using this |
 | [`docs/`](docs/) | Format dialects, scaling, tolerances, work units |
+| [`bench/`](bench/) | The Netlib acceptance gate: pinned manifest, fetch script, runner, results |
 | `include/jaos.h` | The public interface, and the only public header |
 
 ## Licence

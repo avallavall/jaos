@@ -56,6 +56,24 @@ variable, the dual update charges one per variable, the steepest-edge
 weight update charges two per row, and each swap attempted while settling
 up charges two per row.
 
+**Ending a solve** is the largest single charge most solves make outside
+the iterations themselves, and it is worth knowing about before choosing a
+work limit. Optimality is not accepted on carried values (D20), so when the
+loop believes it is finished the point is recomputed from a fresh
+factorization and priced again: one full `JM_WORK_FACTOR` plus its
+eliminations, plus the two triangular solves and the pricing pass that
+follow. On a small model that can be most of the total — a three-row model
+in the test suite went from 4411 units to 8517 when this was introduced —
+and on anything the size of a real instance it disappears into the noise.
+It is charged rather than exempted because it is work the machine actually
+does, and a budget that hid it would promise a run cheaper than the one it
+buys.
+
+**Reading the unbounded verdict** charges an FTRAN and one per row, for
+each column still resting on a bound phase 1 lent it. Most solves charge
+nothing here, because most models need no lent bounds and most that do are
+not held by them at the end.
+
 ## What is outside the budget
 
 **Model loading is not charged.** Reading a file or calling `jaos_load_lp`

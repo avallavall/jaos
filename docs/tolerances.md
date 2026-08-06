@@ -26,13 +26,13 @@ Defined in `src/simplex.c` and `src/lu.c`.
 | `TINY` | 1e-300 | The same floor where no scale is available to compare against |
 | `DSE_MIN` | 1e-12 | Floor on a steepest-edge weight. Every weight is a squared norm and so positive by construction; the recurrence subtracts, and subtraction can cancel a small true value to zero. A guard against dividing by zero, not a tuning knob |
 | `DSE_DRIFT` | 10.0 | How far a carried weight may sit from the exact one before the whole set is discarded and restarted. Well outside what rounding produces, well inside what one badly conditioned pivot can |
-| `ARTIFICIAL_BOUND` | 1e10 | The bound dual phase 1 lends a column whose cost points at a bound it does not have. **Known to be wrong in both directions** — see PLAN.md Q9, which is open |
+| `ARTIFICIAL_BOUND` | 1e10 | The bound dual phase 1 lends a column whose cost points at a bound it does not have. No verdict depends on it (D19): unboundedness is proven against a ray, and a model this bound cuts off is refused rather than answered. So it decides how often the method has to give up, not whether an answer is true |
 
 Two more numbers in `src/simplex.c` are not tolerances but sit beside them:
 
 | Name | Value | What it decides |
 |---|---|---|
-| `REFACTOR_EVERY` | 64 | Basis updates before a refactorization. The stability trigger PLAN 2.5.5 also calls for does not exist yet; only this interval and the reactive fallback on a failed update do |
+| `REFACTOR_EVERY` | 64 | Basis updates before a refactorization. Alongside it: the reactive fallback on a failed update, and one more refactorization at the end of every solve, because optimality is not accepted on carried values (D20). The trigger PLAN 2.5.5 also calls for — watching an FTRAN/BTRAN residual *during* the solve — still does not exist |
 | `ITER_SANITY_FACTOR` | 200 | Times `rows + columns + 1`, an iteration ceiling that is not a limit but a guard against a non-terminating loop. Hitting it is a defect in JAOS and is reported as a library error, never as a solve outcome |
 
 ## The checker's tolerance
@@ -94,7 +94,31 @@ floating-point luck rather than about the solver.
 
 ## What is not settled
 
-The values above are drafts in the specific sense that no instance has
-argued with them yet. The Netlib campaign is where they are either
-confirmed or moved with a reason, and `ARTIFICIAL_BOUND` is already known
-to need replacing rather than adjusting.
+Instances have now argued with them. The Netlib gate has been run over the
+whole standard set (`bench/results/netlib.txt`), and 86 of 94 instances come
+back with the checker green at the tolerance above. The eight that do not
+split into two groups, and only one of the groups is about a tolerance:
+
+| Instance | worst dual violation | gap | |
+|---|---|---|---|
+| `finnis` | 28 | 8e-11 | far too large to be a tolerance |
+| `greenbea` | 2.66 | 7e-17 | likewise |
+| `pilot` | 0.019 | 1.7e-05 | likewise, and misses the objective too |
+| `pilot87` | 0.0096 | 6e-05 | likewise |
+| `nesm` | 8.0e-06 | 5e-11 | within one order of the tolerance |
+| `etamacro` | 1.6e-06 | 4e-09 | just past it |
+| `pilot-ja` | 0 | 1.9e-06 | fails on the gap alone, just past it |
+
+A dual violation of 28 is not a number that moves by widening 1e-6, and
+neither is one of 2.66. Those are defects to find. The last three are the
+only candidates for the tolerance itself being mis-set, and even there the
+question is which of the two spaces is wrong rather than what the digit
+should be — so nothing here is a case for loosening a number, which would
+convert four defects into eight passes and prove nothing (D17).
+
+`grow15` is the eighth failure and is not about tolerances at all: it does
+not terminate.
+
+The values also stay drafts in the original sense — nothing is frozen until
+the gate closes, and every one of them moves only with a measurement on both
+sides.

@@ -12,7 +12,6 @@ versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   Reaching such an optimum needs a phase 1 that lends nothing, which is
   still open; until then the solve says it cannot get there instead of
   reporting the model unbounded.
-
 - `jaos_solution` now refuses to report anything for a solve that found no
   optimum, under the same rule as `jaos_objective`: a buffer of zeros could
   not be told apart from an answer that is genuinely zero.
@@ -60,6 +59,15 @@ versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- `bench/`: the Netlib acceptance gate, runnable. `make netlib` fetches the
+  94 instances of the standard set — pinned by sha256 in a committed
+  manifest, never stored in the repository — and judges each solve against
+  the published optimum, the independent checker, and a second solve that
+  must agree bit for bit. Reference values are Thorsten Koch's exact
+  rationals where they exist; the netlib readme's differ from them beyond
+  the gate's tolerance on eight instances. The last full run is recorded in
+  `bench/results/netlib.txt` and the README summarises it. The gate is not
+  met yet, and the record is what says so.
 - `docs/tolerances.md`: every number a solve compares against, which space it
   acts in, and the formulas the independent checker judges with.
 - `docs/work-units.md`: what a work unit is, where each weight is charged, and
