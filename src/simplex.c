@@ -75,10 +75,11 @@ constexpr int64_t REFACTOR_EVERY = 64;
 
 /* Anti-stall cost perturbation (Q10). When grow15 stalls, a small
  * deterministic perturbation breaks degenerate cycles.
- * Strategy: perturb costs every PERTURB_INTERVAL iterations.
+ * Strategy: detect degenerate steps (|theta_dual| < threshold) and
+ * apply progressively larger perturbations when stuck in a cycle.
  * Perturbation is tracked in shift[] and removed at settlement. */
 constexpr double PERTURB_BASE = 1e-10;   /* base perturbation magnitude */
-constexpr int PERTURB_INTERVAL = 400;    /* apply every N iterations */
+constexpr int DEGENERATE_THRESHOLD = 300; /* consecutive degenerate steps before perturb */
 
 /* The clock is read once every this many iterations rather than every
  * iteration. Reading it cannot change which pivot is chosen (D8) — it only
@@ -198,6 +199,8 @@ typedef struct {
 
     /* Anti-stall state for grow15 (Q10) */
     int last_perturb_iter;
+    int degenerate_count;       /* consecutive degenerate steps */
+    int perturb_level;          /* current perturbation magnitude level */
 
     /* Crash basis: build a near-triangular initial basis with structural
      * columns. Enabled by default; only the simplest models gain nothing
@@ -1317,23 +1320,42 @@ static double perturb_hash(int64_t seed, int64_t v)
     return (double)((int64_t)(x % 2001)) / 1000.0 - 1.0;
 }
 
-/* Apply periodic anti-stall perturbation to break degenerate cycles.
- * Called every PERTURB_INTERVAL iterations. */
-__attribute__((unused))
-static void maybe_perturb(sx *s)
+/* Apply anti-stall perturbation when degenerate steps are detected.
+ * Called after each pivot with the dual step size. */
+static void check_and_perturb(sx *s, double theta_dual)
 {
-    if (s->iters - s->last_perturb_iter < PERTURB_INTERVAL)
+    /* A "degenerate" step is one with very small dual step size.
+     * This indicates the entering variable had near-zero reduced cost,
+     * which is the hallmark of degenerate cycling in dual simplex. */
+    bool degenerate = fabs(theta_dual) < 1e-12;
+    
+    if (degenerate) {
+        s->degenerate_count++;
+    } else {
+        /* Reset counter on non-degenerate step */
+        s->degenerate_count = 0;
+        return;
+    }
+    
+    /* Only perturb if we've seen many consecutive degenerate steps */
+    if (s->degenerate_count < DEGENERATE_THRESHOLD)
         return;
     
-    s->last_perturb_iter = s->iters;
+    /* Reset counter and bump perturbation level */
+    s->degenerate_count = 0;
+    s->perturb_level++;
     
-    /* Apply small perturbation to all nonbasic variables */
+    /* Apply perturbation with magnitude based on perturb_level.
+     * Each level doubles the perturbation size. */
+    double eps = PERTURB_BASE * (1LL << s->perturb_level);
+    if (eps > 1e-7) eps = 1e-7;  /* cap well below DUAL_TOL */
+    
     for (int64_t v = 0; v < s->nvar; v++) {
         if (s->status[v] == JM_BASIC)
             continue;
-        double delta = PERTURB_BASE * perturb_hash(s->iters, v);
+        double delta = eps * perturb_hash(s->iters, v);
         s->cost[v] += delta;
-        s->shift[v] += delta;  /* track so it gets removed at settlement */
+        s->shift[v] += delta;
     }
     
     /* Recompute duals after perturbation */
@@ -1492,8 +1514,6 @@ static jaos_status run(sx *s, jaos_solve_status *out)
     const int64_t iter_cap = ITER_SANITY_FACTOR * (s->nrow + s->ncol + 1);
 
     for (;;) {
-        /* Anti-stall: periodic perturbation (Q10) */
-        maybe_perturb(s);
         if (s->m->work_limit > 0 && s->work.units >= s->m->work_limit) {
             *out = JAOS_SOLVE_WORK_LIMIT;
             return JAOS_OK;
@@ -1574,6 +1594,11 @@ static jaos_status run(sx *s, jaos_solve_status *out)
             *out = JAOS_SOLVE_INFEASIBLE;
             return JAOS_OK;
         }
+
+        /* Anti-stall: check for degenerate steps and apply perturbation if needed.
+         * A degenerate step has |theta_dual| < 1e-12, indicating near-zero
+         * reduced cost and potential cycling. Perturb costs to break the cycle. */
+        check_and_perturb(s, theta_dual);
 
         /* The basis is about to change, so any verification of the point
          * it implied is spent. */
