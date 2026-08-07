@@ -24,6 +24,12 @@ versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   `-m`, `-b` and `-p` for that, and each set fetches into its own directory
   because `greenbea` names two different models across sets.
 
+  **Kennington passes outright: 16 of 16 on every condition**, including
+  ken-18 at 105127x154699 and osa-60 at 232966 columns, with the independent
+  checker green throughout. An order of magnitude past the standard set, so
+  whatever ails the seven open instances there, it is not that the readers
+  or the factorization stop working at scale.
+
   The infeasible set reports **28 of 29 correctly refused with no false
   optima anywhere**, which is the outcome it exists to measure. `gran`
   returns a numerical error instead of a verdict — it does not claim an

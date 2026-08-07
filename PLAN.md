@@ -352,12 +352,25 @@ Remaining:
    which the feasible one was repaired — which is why the sets are fetched
    into separate directories.
 
-3. **Kennington, pinned and first run.** 16 instances, much larger than
-   anything JAOS had loaded: `ken-18` at 105127×154699, `osa-60` at
-   10280×232966. Reference optima come from that directory's readme, computed
-   with Vanderbei's ALPO and carrying eight significant digits — enough
-   against a 1e-6 relative tolerance, but not Koch's exact rationals, and
-   marked `netlib` in the manifest for that reason.
+3. **Kennington — met.** 16 instances, much larger than anything JAOS had
+   loaded, and all sixteen pass every condition on the first run:
+
+   ```
+   16 instances: 16 solved, 16 shape ok, 16 objective ok, 16 checker ok,
+                 16 deterministic, 0 failed        gate: PASS
+   ```
+
+   `ken-18` is 105127×154699 and takes 113652 iterations; `osa-60` carries
+   232966 columns; `pds-20` costs 3.1e10 work units. An order of magnitude
+   past the standard set in every direction, with the independent checker
+   green throughout. Whatever ails the seven open instances of 1a, it is not
+   that the readers or the factorization stop working at scale.
+
+   Reference optima come from that directory's readme, computed with
+   Vanderbei's ALPO and carrying eight significant digits — enough against a
+   1e-6 relative tolerance, but not Koch's exact rationals, and marked
+   `netlib` in the manifest for that reason. An instance missing by less
+   than 1e-8 relative could not be judged against them.
 
 4. **Reader robustness is asserted, not tested.** §2.9.4 asks that truncated
    and corrupted input produce errors rather than crashes. `tests/data/`
@@ -405,7 +418,7 @@ in aggregate is what §2.8 has just finished being a lesson about.
 | # | Condition | Status |
 |---|---|---|
 | 1a | Netlib **standard** set: `OPTIMAL`, objective within §2.6 tolerance, checker green | **not met** — 93/94 solved, 91 objective, 87 checker |
-| 1b | **Kennington** subset, for correctness with no performance expectation | pinned and running; first results in `bench/results/netlib-kennington.txt` |
+| 1b | **Kennington** subset, for correctness with no performance expectation | **met** — 16/16, every condition, `ken-18` at 105127x154699 included |
 | 1c | **Infeasible** subset: classified `INFEASIBLE`, no false optima | **28/29** — no false optima anywhere; `gran` returns a numerical error instead of a verdict (§2.8.2) |
 | 2 | Determinism harness green on every instance (D8) | holds on all 93 that finish |
 | 3 | Full suite clean under ASan+UBSan | **met** |

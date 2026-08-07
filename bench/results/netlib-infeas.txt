@@ -13,7 +13,7 @@ forest6      infeasible rows=66 cols=95 shape=ok iters=77 work=109457 expected=i
 galenet      infeasible rows=8 cols=8 shape=ok iters=1 work=4294 expected=infeasible verdict=ok det=ok
 gosh         infeasible rows=3792 cols=10733 shape=ok iters=21653 work=3907422661 expected=infeasible verdict=ok det=ok
 gran         numerical error rows=2658 cols=2520 shape=ok iters=1728 work=75721910 expected=infeasible verdict=WRONG det=ok
-greenbea     infeasible rows=2504 cols=5405 shape=MISMATCH iters=2200 work=157087448 expected=infeasible verdict=ok det=ok
+greenbea     infeasible rows=2504 cols=5405 shape=ok iters=2200 work=157087448 expected=infeasible verdict=ok det=ok
 itest2       infeasible rows=9 cols=4 shape=ok iters=3 work=4569 expected=infeasible verdict=ok det=ok
 itest6       infeasible rows=11 cols=8 shape=ok iters=3 work=4652 expected=infeasible verdict=ok det=ok
 klein1       infeasible rows=54 cols=54 shape=ok iters=119 work=502955 expected=infeasible verdict=ok det=ok
@@ -28,7 +28,7 @@ refinery     infeasible rows=323 cols=464 shape=ok iters=387 work=2168667 expect
 vol1         infeasible rows=323 cols=464 shape=ok iters=465 work=2966654 expected=infeasible verdict=ok det=ok
 woodinfe     infeasible rows=35 cols=89 shape=ok iters=37 work=28515 expected=infeasible verdict=ok det=ok
 
-29 instances: 28 correctly refused, 28 shape ok, 29 deterministic, 1 failed
+29 instances: 28 correctly refused, 29 shape ok, 29 deterministic, 1 failed
 gate: NOT MET
 
 baseline: NOT COMPARED (no baseline given)

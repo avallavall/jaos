@@ -80,6 +80,13 @@ loads with exactly the row and column counts two independent canonical
 sources agree on — which is the one thing the checker structurally cannot
 verify, since it reads the same stored matrix the solver does.
 
+Two further sets the gate asks for now run as well. The 16 **Kennington**
+problems pass outright — 16/16 on every condition, `ken-18` included at
+105127 rows by 154699 columns, an order of magnitude past anything in the
+table above. The 29 **infeasible** instances are refused 28 times out of 29
+with no false optimum anywhere, which is the one thing that set exists to
+check; `gran` returns a numerical error rather than a verdict.
+
 Those five numbers are a summary, and a summary is the wrong instrument for
 noticing that a change broke something: while the gate is unmet it reports
 `NOT MET` either way, and the counts can stay put while one instance starts

@@ -1,0 +1,21 @@
+cre-a        optimal    rows=3516 cols=4067 shape=ok iters=2464 work=105766772 obj=23595407.060971621 ref=23595407[netlib] objective=ok checker=ok (col=6.39e-14 row=1.42e-14 dual=0 gap=1.09e-17) det=ok digest=cfd2c3ea79d3b1f1
+cre-b        optimal    rows=9648 cols=72447 shape=ok iters=14614 work=6975733401 obj=23129639.886832379 ref=23129640[netlib] objective=ok checker=ok (col=3.55e-14 row=2.84e-14 dual=0 gap=4.25e-18) det=ok digest=6e06e6867652b8f6
+cre-c        optimal    rows=3068 cols=3678 shape=ok iters=2407 work=92691313 obj=25275116.14088022 ref=25275116[netlib] objective=ok checker=ok (col=1.74e-13 row=2.03e-13 dual=0 gap=2.15e-17) det=ok digest=bd409a69ef632ad6
+cre-d        optimal    rows=8926 cols=69980 shape=ok iters=13587 work=6091058801 obj=24454969.764549244 ref=24454970[netlib] objective=ok checker=ok (col=3.52e-13 row=3.52e-13 dual=0 gap=1e-18) det=ok digest=93792c3e30822419
+ken-07       optimal    rows=2426 cols=3602 shape=ok iters=2960 work=88513433 obj=-679520443.38168859 ref=-679520440[netlib] objective=ok checker=ok (col=0 row=0 dual=0 gap=7.18e-16) det=ok digest=ae004d5a13196994
+ken-11       optimal    rows=14694 cols=21349 shape=ok iters=16953 work=2965455733 obj=-6972382262.5199938 ref=-6972382300[netlib] objective=ok checker=ok (col=0 row=0 dual=0 gap=2.92e-15) det=ok digest=a2718c4376d785c0
+ken-13       optimal    rows=28632 cols=42659 shape=ok iters=31444 work=10866152178 obj=-10257394789.48247 ref=-10257395000[netlib] objective=ok checker=ok (col=0 row=0 dual=0 gap=6.42e-15) det=ok digest=a0dba4221279481a
+ken-18       optimal    rows=105127 cols=154699 shape=ok iters=113652 work=142450367732 obj=-52217025287.396805 ref=-52217025000[netlib] objective=ok checker=ok (col=0 row=0 dual=0 gap=2.36e-14) det=ok digest=79290dc4090f2195
+osa-07       optimal    rows=1118 cols=23949 shape=ok iters=601 work=126315221 obj=535722.51729935093 ref=535722.52000000002[netlib] objective=ok checker=ok (col=0 row=2.84e-14 dual=0 gap=5.31e-18) det=ok digest=dab982a4b3dd6fc5
+osa-14       optimal    rows=2337 cols=52460 shape=ok iters=1281 work=580941783 obj=1106462.8447362538 ref=1106462.8[netlib] objective=ok checker=ok (col=0 row=5.97e-13 dual=0 gap=2.36e-18) det=ok digest=f055fedb8793270a
+osa-30       optimal    rows=4350 cols=100024 shape=ok iters=2628 work=2343562649 obj=2142139.8732097656 ref=2142139.8999999999[netlib] objective=ok checker=ok (col=0 row=0 dual=0 gap=5.31e-19) det=ok digest=1de939e2b3c3b1d9
+osa-60       optimal    rows=10280 cols=232966 shape=ok iters=6169 work=12956054511 obj=4044072.5031574406 ref=4044072.5[netlib] objective=ok checker=ok (col=0 row=0 dual=0 gap=1.29e-18) det=ok digest=833aa3fd2796098e
+pds-02       optimal    rows=2953 cols=7535 shape=ok iters=1970 work=96107915 obj=28857862010 ref=28857862000[netlib] objective=ok checker=ok (col=0 row=0 dual=0 gap=0) det=ok digest=7d4f025f66ac2561
+pds-06       optimal    rows=9881 cols=28655 shape=ok iters=9251 work=1642624920 obj=27761037600 ref=27761038000[netlib] objective=ok checker=ok (col=1.99e-13 row=6.14e-12 dual=0 gap=2.01e-19) det=ok digest=4b56fc7026c020db
+pds-10       optimal    rows=16558 cols=48763 shape=ok iters=17503 work=5262072371 obj=26727094976 ref=26727095000[netlib] objective=ok checker=ok (col=6.82e-13 row=6.82e-13 dual=0 gap=6.48e-18) det=ok digest=55e36ba44aa9f005
+pds-20       optimal    rows=33874 cols=105728 shape=ok iters=47785 work=31095847969 obj=23821658640 ref=23821659000[netlib] objective=ok checker=ok (col=9.66e-13 row=5.94e-12 dual=0 gap=2.49e-16) det=ok digest=18ee5bc34d4694e5
+
+16 instances: 16 solved, 16 shape ok, 16 objective ok, 16 checker ok, 16 deterministic, 0 failed
+gate: PASS
+
+baseline: NOT COMPARED (no baseline given)
