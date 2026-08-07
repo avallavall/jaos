@@ -77,6 +77,14 @@ loads with exactly the row and column counts two independent canonical
 sources agree on — which is the one thing the checker structurally cannot
 verify, since it reads the same stored matrix the solver does.
 
+Those five numbers are a summary, and a summary is the wrong instrument for
+noticing that a change broke something: while the gate is unmet it reports
+`NOT MET` either way, and the counts can stay put while one instance starts
+solving and another stops. So `make netlib` also diffs every instance
+against [`bench/netlib.baseline`](bench/netlib.baseline), which records what
+each one did last time, and fails on anything that got worse whatever the
+totals say. See [`bench/README.md`](bench/README.md).
+
 No **performance** claim appears here or anywhere else in this repository.
 Speed needs a controlled machine before any number about it means anything,
 and that host does not exist yet. Nothing above is a timing.
@@ -89,7 +97,7 @@ Linux, GNU make, GCC 14 or newer. On Windows, build under WSL.
 make            # static library in build/release/libjaos.a
 make test       # unit tests
 make sanitize   # the same tests under AddressSanitizer + UndefinedBehaviorSanitizer
-make netlib     # fetch the Netlib set and run the acceptance gate
+make netlib     # fetch the Netlib set, run the acceptance gate, diff against the baseline
 make clean
 ```
 
@@ -146,8 +154,8 @@ carries the staging, the failures still open, and the questions behind them.
 | [`DECISIONS.md`](DECISIONS.md) | Closed design decisions and the reasoning that closed them |
 | [`PLAN.md`](PLAN.md) | Build order, current milestone in detail, open questions |
 | [`CHANGELOG.md`](CHANGELOG.md) | What changed, for someone using this |
-| [`docs/`](docs/) | Format dialects, scaling, tolerances, work units |
-| [`bench/`](bench/) | The Netlib acceptance gate: pinned manifest, fetch script, runner, results |
+| [`docs/`](docs/) | Format dialects, scaling, tolerances, work units; `research/` for what was worked out but not committed to |
+| [`bench/`](bench/) | The Netlib acceptance gate: pinned manifest, per-instance baseline, fetch script, runner, results |
 | `include/jaos.h` | The public interface, and the only public header |
 
 ## Licence

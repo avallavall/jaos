@@ -3,7 +3,7 @@
 Working document per the working agreement: it holds only what is open. Detail
 exists only for the active milestone; later stages stay coarse until they open.
 Closed items leave for the changelog and the commit that closed them. Constraints
-referenced as D1–D17 live in `DECISIONS.md`.
+referenced as D1–D21 live in `DECISIONS.md`.
 
 ---
 
@@ -205,7 +205,7 @@ Remaining:
    |---|---|
    | shape correct | **94 / 94** |
    | solved to optimal | 93 / 94 |
-   | objective within tolerance | 90 / 94 |
+   | objective within tolerance | 91 / 94 |
    | independent checker green | 86 / 94 |
    | deterministic across two solves | 93 / 94 |
 
@@ -445,6 +445,37 @@ missed this".
   bounds) is what is actually happening. How much to perturb is still a
   number with nothing behind it, and `grow15` is now the thing that can put
   something there.
+
+  **Two attempts, both measured, both reverted (2026-08-07).** Neither is in
+  `main`; both are in the history and worth not repeating.
+
+  *Bland's rule in the ratio test.* Where two pivots inside the Harris window
+  are the same size the choice is arbitrary, and an arbitrary choice repeated
+  at a degenerate vertex is how a method cycles, so the smallest variable
+  index breaks the tie. It does not fix `grow15`, which still runs to the
+  guard, and it costs `grow22`, which stops terminating at all. The reason
+  the diagnosis above survives this is that Bland's rule addresses *which*
+  degenerate pivot is taken, and the stall here is that the pivot makes no
+  progress whichever one it is. Worth recording separately: the first version
+  of this tried the tie-break whenever a pivot was *not strictly better*
+  rather than when it was equal, which lets a pivot orders of magnitude worse
+  win on index alone and drags the standard down for the rest of the pass —
+  Bland's rule silently overruling Harris instead of breaking its ties.
+
+  *Cost perturbation, periodic and adaptive.* This one does fix `grow15` — it
+  reaches the optimum. It also makes `pilot-we` report a feasible problem as
+  infeasible, moves `pilotnov` to a checker rejection, and takes `grow22` from
+  2179 iterations to 167865. So the device works and the diagnosis holds; what
+  is missing is any principle for how much to perturb and when to stop, which
+  is the part this question said had nothing behind it and still does. A
+  perturbation large enough to break the stall is large enough to change what
+  the solver believes about other models, and until that trade is understood
+  rather than tuned, `grow15` stays open.
+
+  What the two attempts did settle is that this cannot be developed against
+  `grow15` alone. Both looked like progress on the instance in front of them
+  and were regressions on the set. `bench/netlib.baseline` exists because of
+  this: the third attempt gets told what it broke.
 
   The repair half of this question is closed: costs are shifted and called
   back, per the changelog. What it cannot close is the residue. Once the

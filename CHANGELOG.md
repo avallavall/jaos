@@ -5,8 +5,32 @@ versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- The Netlib gate records what every instance did, in
+  `bench/netlib.baseline`, and `make netlib` diffs against it. The gate's own
+  verdict is all-or-nothing and reads `NOT MET` for the whole of M1, so it
+  cannot answer the question every change raises — did this make anything
+  worse? Any of an instance's four predicates going from holding to not
+  holding now fails the run on its own, and so does work growing past 2×.
+  Improvements are reported too. `make netlib-baseline` rewrites the
+  baseline and is deliberately never a side effect of running the gate.
+
 ### Changed
 
+- The solver core is back to where it was on 2026-08-06, reverting ten
+  commits that had not been run against the Netlib set. Measured per
+  instance rather than by the summary line, they fixed `grow15` and `nesm`
+  and cost `pilot-we` (a feasible problem reported infeasible), `pilotnov`
+  (checker rejection) and `grow22` (2179 iterations to 167865). The summary
+  line was identical before and after, because the gains and losses
+  cancelled. `grow15` therefore remains open, and PLAN.md Q10 now carries
+  what the two attempts at it established.
+- `docs/plan-m2.md` is now `docs/research/plan-m2.md`, alongside the two
+  research notes it is built on. It is a proposal; `PLAN.md` is the plan.
+  Its speedup figures come from the literature and none has been measured
+  in JAOS, which under D17 is the difference between a reason to try
+  something and a claim about this solver.
 - A model whose optimum lies beyond the bound dual phase 1 lends is now
   refused with a numerical error naming the column, rather than answered.
   Reaching such an optimum needs a phase 1 that lends nothing, which is
@@ -22,6 +46,13 @@ versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- The release build, which `main` could not complete: `build_crash_basis`
+  declared `nsel` twice and left a variable unused, and `-Werror` refused
+  the object. The only reason anything built was an uncommitted change in a
+  working copy. Nothing depended on either variable — `nsel` was
+  incremented in two places and read in none.
+- A 648-byte leak across 13 allocations that AddressSanitizer reported in
+  the LU tests, gone with the revert of the code that introduced it.
 - A failed solution-buffer allocation no longer leaves the model believing
   the buffers exist: a later solve on the same model would have written
   through the missing ones.

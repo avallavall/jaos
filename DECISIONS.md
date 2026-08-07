@@ -328,3 +328,54 @@ refactorizing early — is not built, because no instance has yet shown it is
 needed, and the residual worth acting on is a number only instances can
 supply.
 
+
+## D21 — A gate that fails means nothing until it can fail differently
+
+The Netlib gate passes only when all 94 instances meet all four conditions, and
+that is the right rule for deciding whether M1 is finished. It is the wrong
+instrument for every change made on the way there, and the difference is not a
+matter of degree: for the whole of M1 the gate reports the same word regardless
+of what happened underneath it. A change that fixed one instance and broke two
+scores exactly like a change that did nothing.
+
+The summary counts do not save it either. They are sums, and sums cancel. Ten
+commits landed in August 2026 that fixed `grow15` and `nesm`, made `pilot-we`
+report a feasible problem as infeasible, moved `pilotnov` to a checker
+rejection, and took `grow22` from 2179 iterations to 167865. Before and after:
+
+    94 instances: 93 solved, 94 shape ok, 91 objective ok, 86 checker ok,
+    93 deterministic, 1 failed / gate: NOT MET
+
+Identical, digit for digit. The gate was working as specified. Nothing it was
+specified to do could have caught this.
+
+So a run is judged twice, against two questions that are not the same question:
+
+- **The gate** — is M1 finished? All-or-nothing, unchanged, and `NOT MET` until
+  it is not.
+- **The baseline** — did this change make anything worse? Per instance, against
+  `bench/netlib.baseline`, and it fails on the first predicate that stops
+  holding whatever the totals say.
+
+Work counts are in the baseline too, at a 2× allowance. Correctness is a
+predicate and regresses visibly; cost is a number and degrades quietly, which
+is the more dangerous of the two. An instance still reaching the same optimum
+after eighty times the iterations has not kept working — it has become a
+work-limit failure for every caller with a budget, and no predicate would say
+so.
+
+Two consequences follow, and both are the point rather than side effects:
+
+**Updating the baseline is a separate command.** `make netlib-baseline`, never
+`make netlib`. A baseline that refreshes itself records whatever just happened
+as correct, which is precisely the failure it exists to prevent — it would have
+absorbed all five changes above without a word.
+
+**Improvements are reported, not just regressions.** A record that only ever
+tightens is one nobody remembers to loosen, and an unexplained improvement is
+as much a reason to go and look as an unexplained regression.
+
+This does not lower the bar M1 has to clear. Every instance still has to meet
+every condition before the gate passes. It adds a second, weaker claim that can
+be true today — *nothing got worse* — because a bar that cannot be cleared for
+months is a bar that stops being read.
