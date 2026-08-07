@@ -67,6 +67,8 @@ struct jaos_model {
     double *sol_redcost;     /* [num_col] reduced costs      */
     int64_t solve_work;
     int64_t solve_iters;
+    int64_t solve_primal_iters;
+    int64_t solve_dual_iters;
 
     /* Detail message for the last failed operation; "" when it succeeded.
      * Sits outside the problem data on purpose: setting it never disturbs a

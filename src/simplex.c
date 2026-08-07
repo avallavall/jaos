@@ -32,6 +32,7 @@
 #include "jaos_internal.h"
 
 #include <math.h>
+#include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
@@ -72,6 +73,13 @@ constexpr double DSE_DRIFT = 10.0;
  * fallback on a failed update exist so far. */
 constexpr int64_t REFACTOR_EVERY = 64;
 
+/* Anti-stall cost perturbation (Q10). When grow15 stalls, a small
+ * deterministic perturbation breaks degenerate cycles.
+ * Strategy: perturb costs every PERTURB_INTERVAL iterations.
+ * Perturbation is tracked in shift[] and removed at settlement. */
+constexpr double PERTURB_BASE = 1e-10;   /* base perturbation magnitude */
+constexpr int PERTURB_INTERVAL = 400;    /* apply every N iterations */
+
 /* The clock is read once every this many iterations rather than every
  * iteration. Reading it cannot change which pivot is chosen (D8) — it only
  * decides whether to stop — and at this granularity the syscall cost
@@ -111,6 +119,9 @@ constexpr double ARTIFICIAL_BOUND = 1e10;
  * reported as a library error rather than as a solve outcome: a caller
  * must be able to tell "this model is hard" from "this code is wrong". */
 constexpr int64_t ITER_SANITY_FACTOR = 200;
+
+/* Which simplex method is currently running. */
+enum { SX_PRIMAL = 0, SX_DUAL };
 
 typedef struct {
     jaos_model *m;
@@ -180,7 +191,13 @@ typedef struct {
 
     struct timespec started;
     int64_t iters;
+    int phase;
+    int64_t primal_iters;
+    int64_t dual_iters;
     bool needs_refactor;
+
+    /* Anti-stall state for grow15 (Q10) */
+    int last_perturb_iter;
 
     /* Crash basis: build a near-triangular initial basis with structural
      * columns. Enabled by default; only the simplest models gain nothing
@@ -289,6 +306,7 @@ static jaos_status sx_init(sx *s, jaos_model *m)
     }
 
     s->crash_enabled = false;
+    s->phase         = SX_DUAL;
 
     const double *rho = m->row_scale, *gamma = m->col_scale;
 
@@ -1280,6 +1298,45 @@ static void settle_shifts(sx *s)
 }
 
 /* --------------------------------------------------------------------- */
+/* Anti-stall: deterministic cost perturbation (Q10)                   */
+/* --------------------------------------------------------------------- */
+
+/* Deterministic hash for anti-stall perturbation. Maps iteration count
+ * to a perturbation pattern that is the same across runs (D8). */
+static double perturb_hash(int64_t seed, int64_t v)
+{
+    uint64_t x = (uint64_t)seed * 0x9e3779b97f4a7c15ULL + (uint64_t)v * 0x6a09e667f3bcc909ULL;
+    x = (x ^ (x >> 33)) * 0xff51afd7ed558ccdULL;
+    x = (x ^ (x >> 33)) * 0xc4ceb9fe1a85ec53ULL;
+    x = x ^ (x >> 33);
+    return (double)((int64_t)(x % 2001)) / 1000.0 - 1.0;
+}
+
+/* Apply periodic anti-stall perturbation to break degenerate cycles.
+ * Called every PERTURB_INTERVAL iterations. */
+__attribute__((unused))
+static void maybe_perturb(sx *s)
+{
+    if (s->iters - s->last_perturb_iter < PERTURB_INTERVAL)
+        return;
+    
+    s->last_perturb_iter = s->iters;
+    
+    /* Apply small perturbation to all nonbasic variables */
+    for (int64_t v = 0; v < s->nvar; v++) {
+        if (s->status[v] == JM_BASIC)
+            continue;
+        double delta = PERTURB_BASE * perturb_hash(s->iters, v);
+        s->cost[v] += delta;
+        s->shift[v] += delta;  /* track so it gets removed at settlement */
+    }
+    
+    /* Recompute duals after perturbation */
+    compute_duals(s);
+    s->verified = false;
+}
+
+/* --------------------------------------------------------------------- */
 /* Reading the verdict                                                   */
 /* --------------------------------------------------------------------- */
 
@@ -1424,9 +1481,14 @@ static jaos_status run(sx *s, jaos_solve_status *out)
         return JAOS_OK;
     }
 
+    /* Initialize anti-stall tracking */
+    s->last_perturb_iter = 0;
+
     const int64_t iter_cap = ITER_SANITY_FACTOR * (s->nrow + s->ncol + 1);
 
     for (;;) {
+        /* Anti-stall: periodic perturbation (Q10) */
+        maybe_perturb(s);
         if (s->m->work_limit > 0 && s->work.units >= s->m->work_limit) {
             *out = JAOS_SOLVE_WORK_LIMIT;
             return JAOS_OK;
@@ -1516,6 +1578,10 @@ static jaos_status run(sx *s, jaos_solve_status *out)
             return st;
 
         s->iters++;
+        if (s->phase == SX_PRIMAL)
+            s->primal_iters++;
+        else
+            s->dual_iters++;
     }
 }
 
@@ -1561,6 +1627,8 @@ static jaos_status publish(sx *s, jaos_solve_status status)
 
     m->solve_status = status;
     m->solve_iters = s->iters;
+    m->solve_primal_iters = s->primal_iters;
+    m->solve_dual_iters   = s->dual_iters;
     /* The work snapshot is taken at the *end* of each path below, not
      * here: publishing itself runs a kernel (the BTRAN for the duals),
      * and a counter that reported everything except the last thing it
@@ -1662,4 +1730,16 @@ jaos_status jm_dual_simplex(jaos_model *m)
     }
     sx_free(&s);
     return st;
+}
+
+void jaos_get_iter_counts(const jaos_model *m,
+    int64_t *primal, int64_t *dual)
+{
+    if (!m) {
+        if (primal) *primal = 0;
+        if (dual)   *dual   = 0;
+        return;
+    }
+    if (primal) *primal = m->solve_primal_iters;
+    if (dual)   *dual   = m->solve_dual_iters;
 }
