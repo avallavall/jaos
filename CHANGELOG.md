@@ -185,16 +185,26 @@ versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   checker's "at a bound" test is absolute where only a relative test has
   meaning, and no double-precision answer can pass it on that row.
 
-  Q10 attributed the rest to cost shifting. Recording `shift[v]` before
-  `settle_shifts` zeroes it, beside the residue it was supposed to explain,
-  says the shifts account for one of three: `etamacro` at 4.890e-8 of residue
-  against 4.890e-8 of shift, visible to the checker only because the column's
-  scale of 1/32 turns it into 1.56e-6. `nesm` and `greenbea` remove shifts of
-  3e-19 and 4e-9 while their residues stand at −2.0e-6 and −1.33 scaled. Ten
-  of greenbea's columns sit at their lower bounds with scaled reduced costs
-  from −0.019 to −5.28, on a method whose invariant is that reduced costs
-  stay feasible. No cause is claimed for that; what is written down is that
-  the one previously claimed is not it.
+  Q10 attributed the rest to cost shifting, and it is right — but confirming
+  that took a second measurement, because the first asked the wrong question.
+  Reading `shift[v]` on the column that violates its sign condition says the
+  shifts explain one case of three. That test is wrong: `d_j = c_j − y' M_j`
+  with `y = B^-T c_B`, so a shift resting on a *basic* variable moves every
+  nonbasic reduced cost at once and the violating column need carry none of
+  its own. Measuring `d` on both sides of the settlement instead, every
+  offending column on `etamacro`, `nesm` and `greenbea` is dual feasible
+  before the shifts come off and infeasible after.
+
+  What that route costs is the finding. On `greenbea`, repaying shifts of at
+  most 7.09e-6 across 907 basic variables takes one reduced cost from +5.67
+  to −1.33 — a perturbation four orders below every tolerance in PLAN 2.6
+  arriving as a violation of five, with `B^-1` on that basis standing between
+  them. So the size of a residue is not evidence about the size of its cause,
+  which is what had kept `finnis` and `greenbea` in one group. A shift
+  reaches `c_B` because a variable shifted while nonbasic keeps the perturbed
+  cost when it enters the basis and the repayment waits for the end of the
+  solve; repaying at the moment of entry is the candidate repair, untested,
+  and it touches every instance.
 - `bench/README.md` and the manifest said Koch's results do not cover
   `maros-r7` and `pilot87`, so both take their reference from the netlib
   readme. His tables cover both. His value for `pilot87` is about

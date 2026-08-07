@@ -347,20 +347,43 @@ Remaining:
      also the reason `pilot`'s row 603 is rejected at a distance of 7e-6 on
      558 of traffic.
 
-     **Where each residue comes from, measured rather than reasoned.** The
-     obvious explanation for a published reduced cost with the wrong sign is
-     Q10's: the dual simplex shifts costs to hold dual feasibility, and what
-     the shifts were hiding reappears when they are called in. That is
-     testable — record `shift[v]` before `settle_shifts` zeroes it and print
-     it next to the residue it was supposed to explain. Done, and it holds
-     for exactly one of the four:
+     **Where each residue comes from, measured rather than reasoned — and
+     the first measurement asked the wrong question.** The obvious
+     explanation for a published reduced cost with the wrong sign is Q10's:
+     the dual simplex shifts costs to hold dual feasibility, and what the
+     shifts were hiding reappears when they are called in. Recording
+     `shift[v]` before `settle_shifts` zeroes it, beside the residue it was
+     supposed to explain, said the shifts accounted for one case of three.
 
-     | instance | scaled residue | shift removed | verdict |
-     |---|---|---|---|
-     | `etamacro` col 63 | 4.890e-8 | 4.890e-8 | the shift, to the last digit |
-     | `nesm` col 2667 | −2.00e-6 | 3e-19 | **not the shift** |
-     | `greenbea` col 4669 | −1.33 | 4e-9 | **not the shift** |
-     | `finnis` | *no residue at all* | — | not the solver |
+     That reading was wrong, and it was wrong because a reduced cost does
+     not only depend on its own column's cost. `d_j = c_j − y' M_j` and
+     `y = B^-T c_B`, so a shift resting on a *basic* variable moves every
+     nonbasic reduced cost at once, and the violating column need carry no
+     shift of its own at all. Measuring `d` on both sides of the settlement
+     rather than the shift on one column says so plainly:
+
+     | instance | d before settling | d after | own shift | shifts on the basis |
+     |---|---|---|---|---|
+     | `greenbea` col 4669 | **+5.67** | −1.33 | 4e-9 | 907 basics, max 7.09e-6 |
+     | `greenbea` col 4770 | **+15.0** | −5.28 | 1e-14 | " |
+     | `nesm` col 2667 | **+5.12e-5** | −2.00e-6 | 3e-19 | 187 basics, max 1.11e-6 |
+     | `etamacro` col 63 | 0 | +4.89e-8 | −4.89e-8 | 20 basics, max 4.35e-8 |
+     | `finnis` | *no residue at all* | — | — | — |
+
+     Every one of them is dual feasible before the shifts come off. So all
+     three are Q10's residue after all, by two routes: directly, through the
+     column's own shift, which is `etamacro`; and through the basis, which is
+     `greenbea` and `nesm` and is the one nobody had looked for.
+
+     **What that route costs is the finding.** On `greenbea`, removing
+     shifts of at most 7.09e-6 from 907 basic variables moves one reduced
+     cost from +5.67 to −1.33 — a swing of 7.0 out of a perturbation of
+     7e-6, an amplification of a millionfold. That is `B^-1` on a basis this
+     badly conditioned, and it says the size of the residue is not evidence
+     about the size of the cause. Q10 said the residue would survive to the
+     published reduced costs and that the free repair could not always reach
+     it. Both hold. What it did not anticipate is that a perturbation far
+     below every tolerance in §2.6 can arrive as a violation of five.
 
      **`finnis` produces no violated sign condition in scaled space.** Not a
      small one — none. Its rejection exists only in the checker's
@@ -378,34 +401,32 @@ Remaining:
      visible at all is that a tolerance held in scaled space is being read
      against one applied in the original.
 
-     **`greenbea` is not the shift residue, and this is the largest open
-     finding of the set.** Ten columns rest at their lower bounds with scaled
-     reduced costs from −0.019 to −5.28 — a violation five million times
-     `DUAL_TOL` on a method whose defining invariant is that reduced costs
-     stay feasible — and the shifts removed from all ten sum to less than
-     4e-9. Column 4669 is the worst the checker sees: lower bound 0, no upper
-     bound, zero cost, reduced cost −2.665 unscaled, so its multiplier points
-     at a bound the model never declared. The objective is nonetheless right
-     to 2e-7 relative, and the gap is 3.57e-17, because the checker adds no
-     dual term for a multiplier aimed at an infinity.
+     **`greenbea` is the same residue arriving through the basis, and it is
+     the largest open item of the set.** Ten columns rest at their lower
+     bounds with scaled reduced costs from −0.019 to −5.28, and every one of
+     them was dual feasible until `settle_shifts` ran. Column 4669 is the
+     worst the checker sees: lower bound 0, no upper bound, zero cost,
+     reduced cost −2.665 unscaled, so its multiplier points at a bound the
+     model never declared. The objective is nonetheless right to 2e-7
+     relative and the gap is 3.57e-17, because the checker adds no dual term
+     for a multiplier aimed at an infinity.
 
      So the solve ends on a basis that is dual infeasible by a wide margin,
      at a vertex that is primal optimal, and declares OPTIMAL. `nesm` is the
-     same thing two orders of magnitude smaller: −2.0e-6 scaled, twenty times
-     `DUAL_TOL`, and no shift behind it either.
+     same thing two orders of magnitude smaller.
 
-     What has *not* been established is why. The reduced costs are carried
-     between refactorizations and recomputed from scratch at each one, and
-     the recomputation is where these appear; `refresh` does not restore dual
-     feasibility after `compute_duals`, and the end-of-solve re-pricing (D20)
-     re-checks the *primal* side only, so nothing in the solve ever asks
-     whether the freshly computed reduced costs are still feasible. That is a
-     hypothesis with a measurement behind its premise and none behind its
-     conclusion, and it is written here as such. What is certain is that
-     `repair_dual_infeasibility` cannot clear it — column 4669 has no other
-     bound to flip to, and `nesm`'s is 95 units away — and that the move
-     which does is a nonbasic variable travelling until something blocks,
-     which §2.1 puts outside M1.
+     Where the amplification comes from is not mysterious, but it is not the
+     shifts' size either: a shift is repaid at the very end, and a variable
+     that was shifted while nonbasic keeps the perturbed cost when it enters
+     the basis, so `c_B` carries it and `y` is perturbed for the rest of the
+     solve. 907 of greenbea's basics are in that state at the finish. What is
+     *not* established is whether that is worth attacking inside M1 — the two
+     candidate repairs are to repay a shift the moment its variable becomes
+     basic, which moves the same perturbation earlier where the method can
+     react to it, or to leave the residue and clear it afterwards, which is a
+     nonbasic travelling until something blocks and is what §2.1 puts outside
+     M1. `repair_dual_infeasibility` cannot clear it either way: column 4669
+     has no other bound to flip to and `nesm`'s is 95 units away.
 
      **`pilot` and `pilot87` are simply less accurate**, and their gaps say
      so on their own — 8.3e-6 and 1.1e-5 against a 1e-6 tolerance, where
@@ -798,35 +819,42 @@ missed this".
   exist before M6. Whatever is left shows up in the reported reduced costs,
   where the checker sees it — so the gate will say whether it matters.
 
-  It exists, and the campaign found it — but not where this question put it,
-  and this is the paragraph that was wrong. §2.8.1 carries the measurement:
-  `shift[v]` was recorded before `settle_shifts` zeroed it and printed
-  beside the residue it was meant to explain. **Of the four instances whose
-  reduced costs the checker rejects, the shifts account for exactly one.**
+  **It exists, the campaign found it, and it is exactly this.** §2.8.1
+  carries the measurement: every column the checker rejects on `etamacro`,
+  `nesm` and `greenbea` is dual feasible immediately before `settle_shifts`
+  runs and infeasible immediately after. Three of the six, and the prediction
+  holds in both halves — the residue survives to the published reduced costs,
+  and `repair_dual_infeasibility` cannot always reach it (column 4669 of
+  greenbea has no other bound at all; `nesm`'s is 95 units away).
 
-  `etamacro` is it, and it is small: 4.890e-8 of scaled residue against
-  4.890e-8 of removed shift, agreeing to every digit printed. That is under
-  half of `DUAL_TOL`, so the solve considers it zero; it becomes visible only
-  because the column's scale is 1/32 and `publish` divides by it, turning
-  4.89e-8 into the 1.56e-6 the checker sees. The prediction was right about
-  the mechanism and right that the free repair cannot reach it — a flip to
-  the other bound would move the column 1.29 units and break the primal.
+  One thing this question got wrong, and it took two measurements to see.
+  Asking which shift explains a residue by reading `shift[v]` on the
+  violating column answers "none" for two of the three, and that is the wrong
+  question: `d_j = c_j − y' M_j` with `y = B^-T c_B`, so a shift resting on a
+  *basic* variable moves every nonbasic reduced cost at once and the
+  violating column need carry no shift of its own.
 
-  `nesm` and `greenbea` are **not** this. Their shifts come off at 3e-19 and
-  4e-9 while their residues stand at −2.0e-6 and −1.33 in scaled space, and
-  −1.33 is five million times `DUAL_TOL` on a method whose whole invariant is
-  that reduced costs stay feasible. Ten of greenbea's columns are in that
-  state. Whatever puts them there is not this question's answer, and §2.8.1
-  carries what is known about it, which is less than a cause.
+  **And that route amplifies.** On `greenbea`, repaying shifts of at most
+  7.09e-6 across 907 basic variables takes one reduced cost from +5.67 to
+  −1.33. A perturbation four orders below every tolerance in §2.6 arrives as
+  a violation of five, because `B^-1` on that basis is what stands between
+  them. So the size of a residue is not evidence about the size of its cause,
+  and "far too large to be rounding" — the sentence that put `finnis` and
+  `greenbea` in one group for months — was never a valid inference.
 
-  So the cure this question names — a nonbasic travelling until something
-  blocks, which is M6 machinery — is still the cure for all three. The
-  diagnosis is not. `finnis` was never in this group at all: it publishes no
-  violated sign condition in scaled space whatsoever, and belongs to the
-  checker's tolerance model. The remaining explanation this question
-  originally offered stays ruled out either way: the residue does not track
-  phase 1. `adlittle` needs 22 lent bounds of 97 columns and comes out clean;
-  `sc50a` needed one of 48 and did not, before D20.
+  How the shift reaches `c_B` is the part worth attacking: a variable shifted
+  while nonbasic keeps the perturbed cost when it enters the basis, and the
+  repayment waits until the solve is over. Repaying at the moment of entry
+  would move the same perturbation to where the method can still react to it.
+  That is untested and it touches every instance, so it is judged per
+  instance against `bench/netlib.baseline` or not at all.
+
+  `finnis` was never in this group: it publishes no violated sign condition
+  in scaled space whatsoever, and belongs to the checker's tolerance model.
+  The remaining explanation this question originally offered stays ruled out:
+  the residue does not track phase 1. `adlittle` needs 22 lent bounds of 97
+  columns and comes out clean; `sc50a` needed one of 48 and did not,
+  before D20.
 - **Q8** — How exact verification gets done, decided when M2 opens with
   certificate export. GMP is the obvious tool and D11 excludes it (LGPL),
   including for test-only use, since D15 exempts test dependencies from D2
