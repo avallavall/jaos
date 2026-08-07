@@ -854,12 +854,46 @@ missed this".
   and "far too large to be rounding" — the sentence that put `finnis` and
   `greenbea` in one group for months — was never a valid inference.
 
-  How the shift reaches `c_B` is the part worth attacking: a variable shifted
-  while nonbasic keeps the perturbed cost when it enters the basis, and the
-  repayment waits until the solve is over. Repaying at the moment of entry
-  would move the same perturbation to where the method can still react to it.
-  That is untested and it touches every instance, so it is judged per
-  instance against `bench/netlib.baseline` or not at all.
+  How the shift reaches `c_B` is what looked worth attacking. A shift lives
+  on a variable's cost, and where that cost sits decides what repaying it
+  costs: on a nonbasic column it enters exactly one reduced cost, its own, so
+  repaying moves one number; on a basic column it is part of `c_B`, and every
+  reduced cost is read off `y = B^-T c_B`, so repaying moves all of them
+  through `B^-1`. A variable shifted while nonbasic keeps the perturbed cost
+  when it enters the basis, and the repayment waits for the end of the solve.
+  So: repay earlier, while the method can still respond.
+
+  **Two attempts, both measured, both reverted (2026-08-07). Neither is in
+  `main`.** Both fail the same way, which is the useful part.
+
+  *Repay on entry, inside `pivot()`.* The correction is exact and cheap —
+  removing `sigma` from `c_q` moves `y` by `-(sigma/alpha_q) rho_r`, so every
+  reduced cost moves by `(sigma/alpha_q) alpha_v`, one more multiple of the
+  pricing row folded into the pass already there. It passed all 114 unit
+  tests and wrecked the campaign: `greenbea` — a feasible model — came back
+  INFEASIBLE, `nesm` went from 8.01e-6 to 1.17e6, `pilot` stopped solving.
+  The reason is in the formula. `alpha_q` is allowed down to `PIVOT_MIN`, so
+  a pivot of 1e-9 turns a repayment of 1e-6 into a kick of 1e3 through every
+  reduced cost in the model, and `shift_to_feasible` answers each kick with
+  fresh loans that are larger than the one just repaid.
+
+  *Repay at each refactorization instead*, where `compute_duals` rebuilds
+  everything from the factorization and no `sigma/alpha_q` term exists at
+  all. This looked like the right fix and is not: `greenbea` again came back
+  INFEASIBLE, `nesm` reached 190, `pilot87` reached 10.9 with a gap of 0.998.
+  Removing the division does not remove the amplification — `B^-1` is still
+  what stands between a 7e-6 perturbation and the reduced costs — and
+  applying it every 64 iterations rather than once means applying it two
+  hundred times over a solve like greenbea's, with the method chasing its own
+  noise between them.
+
+  What the two settle is that the residue cannot be repaid mid-solve on an
+  ill-conditioned basis at all: both attempts turned a small final violation
+  into a false infeasibility, which is a strictly worse failure than the one
+  they set out to fix. The cure this question already names — a nonbasic
+  travelling until something blocks, applied once the solve has finished and
+  the point is known — remains the only one that does not perturb the method
+  it is repairing. That is a primal pivot, and §2.1 puts it outside M1.
 
   `finnis` was never in this group: it publishes no violated sign condition
   in scaled space whatsoever, and belongs to the checker's tolerance model.

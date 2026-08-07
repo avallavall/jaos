@@ -235,11 +235,18 @@ versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   to −1.33 — a perturbation four orders below every tolerance in PLAN 2.6
   arriving as a violation of five, with `B^-1` on that basis standing between
   them. So the size of a residue is not evidence about the size of its cause,
-  which is what had kept `finnis` and `greenbea` in one group. A shift
-  reaches `c_B` because a variable shifted while nonbasic keeps the perturbed
-  cost when it enters the basis and the repayment waits for the end of the
-  solve; repaying at the moment of entry is the candidate repair, untested,
-  and it touches every instance.
+  which is what had kept `finnis` and `greenbea` in one group.
+
+  Repaying the loans earlier, so the method can still answer them, was the
+  obvious repair. It was tried twice and reverted twice, and PLAN Q10 keeps
+  both: on entry inside `pivot()`, where the exact correction carries
+  `sigma/alpha_q` and a pivot at `PIVOT_MIN` turns a 1e-6 repayment into a
+  1e3 kick; and at each refactorization, where no such division exists and
+  the amplification through `B^-1` remains anyway. Both passed all 114 unit
+  tests, and both reported `greenbea` — a feasible model — INFEASIBLE. A
+  small final dual violation traded for a false infeasibility is a strictly
+  worse answer, so the residue is not repaid mid-solve on an ill-conditioned
+  basis at all.
 - `bench/README.md` and the manifest said Koch's results do not cover
   `maros-r7` and `pilot87`, so both take their reference from the netlib
   readme. His tables cover both. His value for `pilot87` is about
