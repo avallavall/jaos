@@ -7,6 +7,19 @@ versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- The acceptance runner can judge a set whose instances are meant to be
+  refused. `-e infeasible` keeps the shape and determinism checks, drops the
+  reference objective and the checker — there is no solution to judge — and
+  fails an instance that comes back with an optimum, flagging it as a false
+  optimum. That is the only check anywhere in M1 that looks for a wrong
+  answer rather than confirming a right one, and the gate has been asking
+  for it since it was written (PLAN 2.9).
+- `bench/netlib-kennington.manifest` and `bench/netlib-infeas.manifest`,
+  with `make netlib-kennington` and `make netlib-infeas`. The manifests are
+  headers only: both sets are distributed by netlib in packed emps form,
+  Koch's plain-MPS mirror covers neither, and the acquisition route is open
+  (PLAN Q6). The targets fail today and say why. `bench/fetch.sh` now takes
+  `-m` and `-b` so it can serve any set once one is pinned.
 - The Netlib gate records what every instance did, in
   `bench/netlib.baseline`, and `make netlib` diffs against it. The gate's own
   verdict is all-or-nothing and reads `NOT MET` for the whole of M1, so it

@@ -320,6 +320,76 @@ Remaining:
    None of this is a tolerance to be widened. §2.6 stays where it is until
    there is a measurement on both sides of each number (D17).
 
+2. **Two of the gate's three instance sets are not built.** §2.9 asks for the
+   standard set, the Kennington subset and the infeasible subset. Only the
+   first exists: `bench/netlib.manifest` pins 94 instances and nothing else.
+   So the campaign that has been run covers the part of M1 that is easiest to
+   pass and skips the part designed to catch a whole class of error.
+
+   | set | instances | state |
+   |---|---|---|
+   | Netlib standard | 94 | built, running, gate not met |
+   | **Kennington** | **16** | **not pinned, not fetched, never run** |
+   | **Infeasible** | **29** | **not pinned, not fetched, never run** |
+
+   The infeasible set is the one that matters most and is missing. It asks a
+   question nothing else in the milestone asks: given a model with no
+   feasible point, does JAOS say so — and, more to the point, does it ever
+   report an optimum for one? That failure mode is not hypothetical here.
+   The revert of 2026-08-07 was forced by exactly its mirror image:
+   `pilot-we`, a feasible instance, being reported INFEASIBLE. Nothing in the
+   suite would have caught the reverse.
+
+   **Both are blocked on Q6, which is not as closed as it looked.** The
+   standard set is fetched from Koch's plain-MPS mirror, which is why the
+   expander question never had to be answered. Koch mirrors only the
+   instances his paper verified. Kennington and the infeasible set exist at
+   `netlib.org/lp/data/kennington/` and `netlib.org/lp/infeas/` **only in
+   netlib's packed "emps" form** — verified 2026-08-07 by fetching
+   `ken-07.gz` and `galenet` and reading their headers. Neither is plain MPS.
+   Expanding them needs one of:
+
+   - **netlib's own `emps`** (`emps.c` or `emps.f`, both at
+     `netlib.org/lp/data/`). A dev-time tool, never linked into the library,
+     but third-party source and therefore a D11 decision the maintainer
+     takes, not an implementation detail.
+   - **A JAOS expander written from the format**, which is what D2 would
+     normally say. The obstacle is that `lp/data/readme` documents no format
+     — it says to use `emps` — so the format would have to come from reading
+     `emps.c`, and D12 exists to avoid exactly that.
+   - **Another plain-MPS mirror**, pinned by checksum after a one-time
+     comparison against a canonical expansion. Cheapest if one exists that is
+     worth trusting; none has been looked for yet.
+
+   Reference values are a separate question for Kennington and are not needed
+   at all for the infeasible set, where the verdict *is* the reference: the
+   gate asks for `INFEASIBLE` and no false optimum. Whether Koch covers the
+   Kennington instances is unverified.
+
+3. **The runner only knows how to judge an optimum.** `bench/run.c` treats
+   anything that is not `OPTIMAL` as a failure, which is right for the
+   standard set and wrong for the infeasible one. Adding that set means a
+   second acceptance rule — expected status per instance, `INFEASIBLE` for
+   these — and a per-instance expectation column in the manifest. The
+   baseline machinery (D21) already carries status per instance and needs no
+   change.
+
+4. **Reader robustness is asserted, not tested.** §2.9.4 asks that truncated
+   and corrupted input produce errors rather than crashes. `tests/data/`
+   covers malformed *content* — bad numbers, unknown sections, missing
+   ENDATA — but nothing covers a file cut mid-record, a file of random
+   bytes, or one that is empty. That is a fuzz-shaped gap, not a missing
+   test case, and the sanitizer build is what would make it worth anything.
+
+5. **`pilot87` is judged against a wrong reference.** The manifest takes it
+   from the netlib readme because Koch was believed not to cover it; he does.
+   His value differs from the pinned one by 3.8e-4 where the tolerance is
+   3.0e-4. The instance fails on objective either way, so no verdict moves,
+   but it cannot be closed until the reference is right. `bench/README.md`
+   records what fixing it needs — the exact rationals, from a source that can
+   be verified, since parsing them out of the report PDF reproduced only 23
+   of the 92 values already known to be his.
+
 Degeneracy handling is done as far as it can be done without evidence:
 steepest-edge weights repair and restart themselves, and what the ratio test
 spends in dual feasibility is now lent and called back rather than left
@@ -343,18 +413,24 @@ the first option the library needs for a reason of its own.
 
 ### 2.9 Acceptance gate for M1
 
-All of the following, no exceptions:
+All of the following, no exceptions. The right-hand column is where each one
+actually stands as of 2026-08-07, because a gate whose status is only known
+in aggregate is what §2.8 has just finished being a lesson about.
 
-1. Every instance of the Netlib standard set: `OPTIMAL`, objective within tolerance
-   of the reference value (§2.6), checker green. Kennington subset included for
-   correctness with no performance expectation. Infeasible subset: classified
-   `INFEASIBLE`, no false optima.
-2. Determinism harness green on every instance (D8).
-3. Full suite clean under ASan+UBSan.
-4. Reader robustness smoke: truncated/corrupted inputs produce errors, never
-   crashes.
-5. Results recorded under `bench/results/` as data (status, objective, iterations,
-   work units) — no wall-clock claims anywhere (D17).
+| # | Condition | Status |
+|---|---|---|
+| 1a | Netlib **standard** set: `OPTIMAL`, objective within §2.6 tolerance, checker green | **not met** — 93/94 solved, 91 objective, 87 checker |
+| 1b | **Kennington** subset, for correctness with no performance expectation | **not started** — not pinned, not fetched (§2.8.2) |
+| 1c | **Infeasible** subset: classified `INFEASIBLE`, no false optima | **not started** — not pinned, and the runner cannot express the criterion (§2.8.3) |
+| 2 | Determinism harness green on every instance (D8) | holds on all 93 that finish |
+| 3 | Full suite clean under ASan+UBSan | **met** |
+| 4 | Reader robustness: truncated/corrupted input errors, never crashes | **not tested** (§2.8.4) |
+| 5 | Results recorded under `bench/results/` as data, no wall-clock (D17) | **met**, and diffed per instance against a baseline (D21) |
+
+Two of these seven were being read as one. "The gate" has meant condition 1a
+in every conversation so far, and 1b and 1c have no infrastructure behind
+them at all — which is worth stating plainly, because the distance to M1 is
+not the distance to closing seven instances.
 
 ### 2.10 Instance acquisition and reference values
 
@@ -482,6 +558,33 @@ missed this".
 - **Q6** — Netlib acquisition route: netlib's emps expander (a dev-time tool,
   needs D11 approval) versus a checksum-pinned unofficial mirror; decided when
   the manifest is first built.
+
+  **Half-closed, and the open half is now blocking.** The standard set took
+  the mirror route: Koch publishes plain MPS, `bench/fetch.sh` pins each file
+  by sha256, and no expander was needed. That answered the question for the
+  94 instances and for nothing else.
+
+  Koch mirrors only what his paper verified. The Kennington subset and the
+  infeasible subset are distributed by netlib **in packed emps form only** —
+  checked directly on 2026-08-07: `lp/data/kennington/ken-07.gz` and
+  `lp/infeas/galenet` both carry the packed header, not MPS. So the question
+  the mirror route deferred has come back for the two sets that are left, and
+  it is a maintainer's call under D11:
+
+  1. Use netlib's `emps.c` / `emps.f` as a dev-time tool. Third-party source,
+     never linked into the library, but D11 says an exception is never taken
+     unilaterally.
+  2. Write a JAOS expander. What D2 would normally say, except the format is
+     documented nowhere — `lp/data/readme` refers the reader to `emps` — so
+     it would have to be recovered from `emps.c`, which is what D12 forbids.
+     Recovering it from the packed files by inspection is possible and is a
+     different, larger job.
+  3. Find a plain-MPS mirror of both sets and pin it by checksum, after a
+     one-time comparison against a canonical expansion. Cheapest if a
+     trustworthy one exists; nobody has looked.
+
+  Whichever is chosen, the checksum pinning and the never-in-the-repo rule
+  (PLAN 2.10) stay exactly as they are.
 - **Q9** — Reaching an optimum that lies past the bound dual phase 1 lends.
   The verdict half of this is closed (D19): unboundedness is proven against
   a ray now, so the size of the loan no longer decides whether an answer is

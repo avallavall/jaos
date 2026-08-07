@@ -1,0 +1,34 @@
+# Netlib Kennington subset — NOT YET PINNED. See PLAN 2.8.2 and Q6.
+#
+# Sixteen larger problems from Carolan, Hill, Kennington, Niemi and Wichmann,
+# "An Empirical Evaluation of the KORBX Algorithms for Military Airlift
+# Applications", Operations Research 38(2), 1990, 240-248. The M1 gate wants
+# them for correctness only, with no performance expectation (PLAN 2.9).
+#
+# Run with:  build/bench/run -m bench/netlib-kennington.manifest
+#
+# Same blocker as the infeasible set. netlib.org/lp/data/kennington/ carries
+# these as .gz in packed emps form (verified 2026-08-07 by fetching ken-07.gz
+# and reading its header after gunzip: packed, not MPS). Koch's mirror does
+# not carry them. Q6 has to be decided before this file can be filled.
+#
+# Format is the standard manifest's:
+#
+#     name  sha256  rows  cols  reference  source  objconst
+#
+# The 16 instances:
+#
+#   cre-a   cre-b   cre-c   cre-d
+#   ken-07  ken-11  ken-13  ken-18
+#   osa-07  osa-14  osa-30  osa-60
+#   pds-02  pds-06  pds-10  pds-20
+#
+# Reference values are an open sub-question: whether Koch's exact rationals
+# cover these is unverified. If they do not, the fallback is the netlib
+# readme's PROBLEM SUMMARY TABLE, marked `netlib` in the source column like
+# any other — and read in the light of pilot87, where exactly that fallback
+# turned out to be outside the gate's own tolerance (bench/README.md).
+#
+# These are the largest instances JAOS will have loaded. Some carry tens of
+# thousands of columns, so this set is also the first real test of whether
+# anything in the readers or the factorization scales past the standard set.

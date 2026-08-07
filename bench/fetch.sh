@@ -6,16 +6,33 @@
 # pinned sha256 is refused rather than used: an acceptance run against an
 # instance nobody pinned proves nothing about the instance everyone else means.
 #
-# Usage:  bench/fetch.sh [destination]
+# Usage:  bench/fetch.sh [-m MANIFEST] [-b BASE_URL] [destination]
+#   -m MANIFEST  which set to fetch (default bench/netlib.manifest)
+#   -b BASE_URL  where its instances live, minus the /<name>.mps.gz
 # Default destination is bench/instances, which .gitignore excludes.
+#
+# The source is a parameter because the sets do not share one. The standard
+# set comes from Koch's plain-MPS mirror, which is why no expander was ever
+# needed; he mirrors only the instances his paper verified. The Kennington
+# and infeasible sets are distributed by netlib in packed emps form and have
+# no settled route yet (PLAN Q6) — this script will fetch them unchanged
+# once one exists, which is the whole reason the source is not hardcoded.
 #
 # SPDX-License-Identifier: Apache-2.0
 set -euo pipefail
 
 here=$(cd "$(dirname "$0")" && pwd)
 manifest="$here/netlib.manifest"
-dest=${1:-"$here/instances"}
 base=https://www.zib.de/koch/perplex/data/netlib/mps
+
+while [ $# -gt 0 ]; do
+    case "$1" in
+        -m) manifest=$2; shift 2 ;;
+        -b) base=$2; shift 2 ;;
+        *)  break ;;
+    esac
+done
+dest=${1:-"$here/instances"}
 
 for tool in curl sha256sum gunzip; do
     command -v "$tool" >/dev/null || { echo "need $tool" >&2; exit 1; }

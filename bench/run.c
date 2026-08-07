@@ -11,12 +11,17 @@
  * other consumer, and prints data rather than verdicts about speed. No
  * wall-clock number appears anywhere in its output, deliberately (D17).
  *
- * Usage: run [-d DIR] [-m MANIFEST] [-o FILE] [-b FILE] [-w FILE] [instance ...]
+ * Usage: run [-d DIR] [-m MANIFEST] [-o FILE] [-b FILE] [-w FILE]
+ *            [-e optimal|infeasible] [instance ...]
  *   -d DIR       where the .mps files are (default bench/instances)
  *   -m MANIFEST  manifest to read (default bench/netlib.manifest)
  *   -o FILE      write the table here as well as to stdout
  *   -b FILE      compare every instance against this baseline
  *   -w FILE      write a baseline from this run
+ *   -e WHAT      what the set expects: a verified optimum (default), or
+ *                INFEASIBLE for netlib's infeasible subset, where the
+ *                verdict is the reference and a reported optimum is the
+ *                failure being looked for
  *   instance     run only these; default is every instance in the manifest
  *
  * Exit status is zero only when every instance run met every condition the
@@ -222,10 +227,92 @@ static void record(const char *name, const char *status, bool solved,
     o->work = work;
 }
 
+/* What the gate expects an instance to come back as. The standard and
+ * Kennington sets are solved to a verified optimum; the infeasible set asks
+ * a different question entirely — that JAOS says a model with no feasible
+ * point has none, and never hands back an optimum for one. There is no
+ * reference objective for those and nothing for the checker to judge, so
+ * running them under the optimum rule would score every correct answer as a
+ * failure. */
+typedef enum { EXPECT_OPTIMAL, EXPECT_INFEASIBLE } expectation;
+
+static expectation g_expect = EXPECT_OPTIMAL;
+
+/* An instance whose only job is to be refused. Shape still has to hold — a
+ * reader that dropped the rows making it infeasible would "pass" for the
+ * wrong reason — and the answer still has to be reproducible (D8), so the
+ * model is solved twice and the two runs must agree. */
+static bool run_one_infeasible(const entry *e, const char *dir, tally *t)
+{
+    char path[512];
+    snprintf(path, sizeof path, "%s/%s.mps", dir, e->name);
+
+    jaos_model *m = nullptr;
+    if (jaos_model_new(&m) != JAOS_OK)
+        return false;
+    t->instances++;
+
+    jaos_status st = jaos_read_mps(m, path);
+    if (st != JAOS_OK) {
+        emit("%-12s READ-FAILED  %s | %s\n", e->name, jaos_status_str(st),
+             jaos_model_error(m) ? jaos_model_error(m) : "");
+        jaos_model_free(m);
+        t->failed++;
+        record(e->name, "READ-FAILED", false, false, false, false, false, 0, 0);
+        return false;
+    }
+
+    int64_t nr = jaos_num_row(m), nc = jaos_num_col(m);
+    bool shape = (nr == e->rows && nc == e->cols);
+    if (shape)
+        t->shape_ok++;
+
+    st = jaos_solve(m);
+    if (st != JAOS_OK) {
+        emit("%-12s SOLVE-ERROR  %s | %s\n", e->name, jaos_status_str(st),
+             jaos_model_error(m) ? jaos_model_error(m) : "");
+        jaos_model_free(m);
+        t->failed++;
+        record(e->name, "SOLVE-ERROR", false, shape, false, false, false, 0, 0);
+        return false;
+    }
+
+    jaos_solve_status ss = jaos_status_of(m);
+    int64_t iters = jaos_iterations(m), work = jaos_work_units(m);
+    bool refused = (ss == JAOS_SOLVE_INFEASIBLE);
+
+    /* Determinism over the verdict itself. */
+    st = jaos_solve(m);
+    bool det = (st == JAOS_OK && jaos_status_of(m) == ss &&
+                jaos_iterations(m) == iters && jaos_work_units(m) == work);
+    if (det)
+        t->deterministic++;
+    if (refused)
+        t->solved++;   /* "did what was asked of it" */
+    else
+        t->failed++;
+
+    emit("%-12s %-10s rows=%lld cols=%lld shape=%s iters=%lld work=%lld"
+         " expected=infeasible verdict=%s det=%s%s\n",
+         e->name, jaos_solve_status_str(ss), (long long)nr, (long long)nc,
+         shape ? "ok" : "MISMATCH", (long long)iters, (long long)work,
+         refused ? "ok" : "WRONG", det ? "ok" : "DIVERGED",
+         (ss == JAOS_SOLVE_OPTIMAL) ? "  <-- FALSE OPTIMUM" : "");
+
+    record(e->name, jaos_solve_status_str(ss), refused, shape, refused,
+           refused, det, (long long)iters, (long long)work);
+
+    jaos_model_free(m);
+    return shape && refused && det;
+}
+
 /* One instance, start to finish. Returns false if anything the gate asks for
  * did not hold. */
 static bool run_one(const entry *e, const char *dir, tally *t)
 {
+    if (g_expect == EXPECT_INFEASIBLE)
+        return run_one_infeasible(e, dir, t);
+
     char path[512];
     snprintf(path, sizeof path, "%s/%s.mps", dir, e->name);
 
@@ -443,6 +530,18 @@ int main(int argc, char **argv)
             baseline = argv[++i];
         else if (strcmp(argv[i], "-w") == 0 && i + 1 < argc)
             write_baseline = argv[++i];
+        else if (strcmp(argv[i], "-e") == 0 && i + 1 < argc) {
+            const char *want = argv[++i];
+            if (strcmp(want, "optimal") == 0)
+                g_expect = EXPECT_OPTIMAL;
+            else if (strcmp(want, "infeasible") == 0)
+                g_expect = EXPECT_INFEASIBLE;
+            else {
+                fprintf(stderr, "-e takes optimal or infeasible, not %s\n",
+                        want);
+                return 2;
+            }
+        }
         else
             break;
     }
@@ -498,12 +597,19 @@ int main(int argc, char **argv)
     }
     fclose(mf);
 
-    emit("\n%lld instances: %lld solved, %lld shape ok, %lld objective ok,"
-            " %lld checker ok, %lld deterministic, %lld failed\n",
-            (long long)t.instances, (long long)t.solved,
-            (long long)t.shape_ok, (long long)t.objective_ok,
-            (long long)t.checker_ok, (long long)t.deterministic,
-            (long long)t.failed);
+    if (g_expect == EXPECT_INFEASIBLE)
+        emit("\n%lld instances: %lld correctly refused, %lld shape ok,"
+                " %lld deterministic, %lld failed\n",
+                (long long)t.instances, (long long)t.solved,
+                (long long)t.shape_ok, (long long)t.deterministic,
+                (long long)t.failed);
+    else
+        emit("\n%lld instances: %lld solved, %lld shape ok, %lld objective ok,"
+                " %lld checker ok, %lld deterministic, %lld failed\n",
+                (long long)t.instances, (long long)t.solved,
+                (long long)t.shape_ok, (long long)t.objective_ok,
+                (long long)t.checker_ok, (long long)t.deterministic,
+                (long long)t.failed);
     emit("gate: %s\n", all_ok && t.instances > 0 ? "PASS" : "NOT MET");
 
     /* Two independent verdicts, and they answer different questions. The
@@ -531,8 +637,17 @@ int main(int argc, char **argv)
     if (g_record != nullptr)
         fclose(g_record);
 
-    if (t.instances == 0)
+    /* A manifest with no instance lines is not an empty run, it is a set
+     * nobody has pinned yet. Saying so beats a bare NOT MET on zero of
+     * zero, which reads like a bug in the runner. */
+    if (t.instances == 0) {
+        fprintf(stderr,
+                "%s lists no instances: nothing was run.\n"
+                "If this is the Kennington or infeasible set, it is not "
+                "pinned yet -- see PLAN Q6 and the header of that file.\n",
+                manifest);
         return 1;
+    }
     if (regressed > 0)
         return 1;
     return all_ok ? 0 : 1;

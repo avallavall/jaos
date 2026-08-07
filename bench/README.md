@@ -9,6 +9,41 @@ bench/fetch.sh      # download and verify the instances (once)
 make netlib         # build the runner, fetch if needed, run the gate
 ```
 
+## Three sets, one of which exists
+
+The M1 gate asks for three (PLAN 2.9), and only the first is built:
+
+| set | instances | what it asks | state |
+|---|---|---|---|
+| standard | 94 | solved to a verified optimum | running; gate not met |
+| Kennington | 16 | the same, for correctness only | **not pinned** |
+| infeasible | 29 | classified `INFEASIBLE`, no false optima | **not pinned** |
+
+```sh
+make netlib-kennington   # both fail today, saying why
+make netlib-infeas
+```
+
+The infeasible set is the one whose absence matters. Everything else here
+checks that a right answer is recognised; that set is the only thing checking
+that a *wrong* one is refused — specifically, that a model with no feasible
+point never comes back with an optimum. It is not a hypothetical failure
+mode: the revert of 2026-08-07 was forced by its mirror image, a feasible
+instance reported `INFEASIBLE`, and nothing in the suite would have caught
+the reverse.
+
+**The runner already handles it.** `-e infeasible` switches the acceptance
+rule: shape and determinism still hold, there is no reference objective and
+nothing for the checker to judge, and an instance coming back `optimal` is
+flagged `<-- FALSE OPTIMUM` and fails the run. Both directions are tested
+against instances in `tests/data/`.
+
+What is missing is the instances. Neither set is mirrored in plain MPS —
+netlib carries both in packed emps form only — so pinning them waits on
+PLAN Q6, which the standard set never had to answer because Koch publishes
+plain MPS for exactly the instances his paper verified. The two manifest
+files carry the full instance lists and the blocker in their headers.
+
 `make netlib` writes the per-instance table to `bench/results/netlib.txt` and
 exits non-zero unless every instance met every condition.
 

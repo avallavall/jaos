@@ -7,6 +7,9 @@
 #   sanitize  build and run the unit suite under ASan+UBSan
 #   bench     build the Netlib acceptance runner (bench/fetch.sh first)
 #   netlib    fetch the instances if needed, then run the gate
+#   netlib-baseline     rewrite what each instance is expected to do
+#   netlib-kennington   the Kennington subset (not pinned yet, PLAN Q6)
+#   netlib-infeas       the infeasible subset (not pinned yet, PLAN Q6)
 #   clean     remove all build output
 
 # make predefines CC=cc, so ?= would never fire; override only the built-in
@@ -62,7 +65,7 @@ LIB := $(B)/release/libjaos.a
 DEV_TESTS  := $(TESTS:tests/%.c=$(B)/dev/%)
 ASAN_TESTS := $(TESTS:tests/%.c=$(B)/asan/%)
 
-.PHONY: all test sanitize bench netlib netlib-baseline clean
+.PHONY: all test sanitize bench netlib netlib-baseline netlib-kennington netlib-infeas clean
 
 # Keep intermediate objects; make otherwise deletes and rebuilds them
 # between targets.
@@ -128,6 +131,23 @@ netlib-baseline: $(B)/bench/run
 	@bench/fetch.sh
 	@mkdir -p bench/results
 	./$(B)/bench/run -o bench/results/netlib.txt -w bench/netlib.baseline
+
+# The other two sets the M1 gate asks for (PLAN 2.9). Neither manifest is
+# pinned yet — both sets exist only in netlib's packed emps form and the
+# acquisition route is open (PLAN Q6) — so these targets fail today, and
+# they fail saying why rather than by being absent. The runner itself is
+# built and tested for both.
+netlib-kennington: $(B)/bench/run
+	@bench/fetch.sh -m bench/netlib-kennington.manifest
+	@mkdir -p bench/results
+	./$(B)/bench/run -m bench/netlib-kennington.manifest \
+		-o bench/results/netlib-kennington.txt
+
+netlib-infeas: $(B)/bench/run
+	@bench/fetch.sh -m bench/netlib-infeas.manifest
+	@mkdir -p bench/results
+	./$(B)/bench/run -m bench/netlib-infeas.manifest -e infeasible \
+		-o bench/results/netlib-infeas.txt
 
 $(B)/release $(B)/dev $(B)/asan $(B)/bench:
 	mkdir -p $@

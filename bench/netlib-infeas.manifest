@@ -1,0 +1,39 @@
+# Netlib infeasible subset — NOT YET PINNED. See PLAN 2.8.2 and Q6.
+#
+# This set asks the one question the standard set cannot: given a model with
+# no feasible point, does JAOS say so — and does it ever report an optimum
+# for one? Nothing else in M1 tests that direction. It is not hypothetical:
+# the revert of 2026-08-07 was forced by its mirror image, a feasible
+# instance (pilot-we) being reported INFEASIBLE, and no test in the suite
+# would have caught the reverse.
+#
+# Run with:  build/bench/run -m bench/netlib-infeas.manifest -e infeasible
+#
+# The runner is ready. The instances are not, and cannot be until Q6 is
+# decided: netlib distributes this set at netlib.org/lp/infeas/ in packed
+# emps form only (verified 2026-08-07 by fetching `galenet` and reading its
+# header), Koch's plain-MPS mirror does not carry it, and expanding it needs
+# either netlib's emps — third-party source, a D11 call for the maintainer —
+# or a plain-MPS mirror worth pinning. Nobody has looked for the latter.
+#
+# Format is the standard manifest's, so one parser serves both:
+#
+#     name  sha256  rows  cols  reference  source  objconst
+#
+# `reference` and `objconst` are unused here and are written 0.0: the verdict
+# IS the reference. `source` records where the instance came from. rows/cols
+# still matter — a reader that dropped the very rows making a model
+# infeasible would otherwise "pass" for exactly the wrong reason.
+#
+# The 29 instances, from netlib.org/lp/infeas/ (readme and changes are not
+# instances):
+#
+#   bgdbg1   bgetam   bgindy   bgprtr   box1     ceria3d  chemcom
+#   cplex1   cplex2   ex72a    ex73a    forest6  galenet  gosh
+#   gran     greenbea itest2   itest6   klein1   klein2   klein3
+#   mondou2  pang     pilot4i  qual     reactor  refinery vol1
+#   woodinfe
+#
+# Note `greenbea` here is NOT the greenbea of the standard set; it is a
+# different, infeasible model that happens to share the name. Whatever
+# fetches this set must keep the two apart on disk.
