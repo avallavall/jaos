@@ -436,14 +436,23 @@ static bool run_one(const entry *e, const char *dir, tally *t)
     if (det)
         t->deterministic++;
 
+    /* `rowrel` and `Q`/`N` decide nothing and are recorded anyway. The first
+     * is the row residue against what the row carries (D24). The second pair
+     * is the gap split by sign: the gap is |Q - N|, so a small one can be
+     * two large halves cancelling, and the record is where that would show
+     * up across ninety-four instances rather than on the one somebody
+     * thought to look at. */
     emit("%-12s optimal    rows=%lld cols=%lld shape=%s iters=%lld "
             "work=%lld obj=%.17g ref=%.17g[%s] objective=%s checker=%s"
-            " (col=%.3g row=%.3g dual=%.3g gap=%.3g) det=%s digest=%016llx\n",
+            " (col=%.3g row=%.3g rowrel=%.3g dual=%.3g gap=%.3g Q=%.3g"
+            " N=%.3g) det=%s digest=%016llx\n",
             e->name, (long long)nr, (long long)nc, shape ? "ok" : "MISMATCH",
             (long long)iters, (long long)work, obj, expected, e->source,
             obj_ok ? "ok" : "OUT-OF-TOLERANCE", check_ok ? "ok" : "REJECTED",
             rep.max_col_violation, rep.max_row_violation,
+            rep.max_row_violation_relative,
             rep.max_dual_violation, rep.objective_gap,
+            rep.gap_positive, rep.gap_negative,
             det ? "ok" : "DIVERGED", (unsigned long long)d1);
 
     record(e->name, "optimal", true, shape, obj_ok, check_ok, det,

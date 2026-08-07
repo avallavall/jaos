@@ -429,14 +429,70 @@ Remaining:
      shifts' size either: a shift is repaid at the very end, and a variable
      that was shifted while nonbasic keeps the perturbed cost when it enters
      the basis, so `c_B` carries it and `y` is perturbed for the rest of the
-     solve. 907 of greenbea's basics are in that state at the finish. What is
-     *not* established is whether that is worth attacking inside M1 — the two
-     candidate repairs are to repay a shift the moment its variable becomes
-     basic, which moves the same perturbation earlier where the method can
-     react to it, or to leave the residue and clear it afterwards, which is a
-     nonbasic travelling until something blocks and is what §2.1 puts outside
-     M1. `repair_dual_infeasibility` cannot clear it either way: column 4669
-     has no other bound to flip to and `nesm`'s is 95 units away.
+     solve. 907 of greenbea's basics are in that state at the finish. Both
+     candidate repairs that moved the repayment *earlier* were measured and
+     reverted (Q10): on a basis this ill-conditioned they turn a small final
+     violation into a false infeasibility.
+
+     **What worked instead was to move it later, and the set splits on one
+     property (D25).** After settling, put the nonbasic set back on the
+     feasible side of its sign conditions and run the dual simplex again from
+     there — sending a column to its other *real* bound rather than moving a
+     cost. Flipping breaks the primal, and primal infeasibility is what the
+     method exists to remove. Measured, after settling, over the residual
+     sign conditions each instance is left with:
+
+     | instance | residual | with a real opposite bound | outcome |
+     |---|---|---|---|
+     | `etamacro` | **0** | — | untouched, bit-identical |
+     | `greenbea` | 10 | **0** | untouched, bit-identical |
+     | `nesm` | 1 | 1 | **closed**: dual 8.01e-6 → 0 |
+     | `pilot` | 25 | 5 | dual 1.7e-2 → 8.0e-5, gap 8.3e-6 → 8.6e-13 |
+     | `pilot87` | 48 | 15 | dual 9.6e-3 → 3.3e-5, gap 6.0e-5 → 4.0e-8 |
+
+     The two that do not move are outside the mechanism by construction
+     rather than by bad luck, and for different reasons. `etamacro` has
+     nothing to repair — its breach is inside `DUAL_TOL` in scaled space and
+     is a scaling artefact, as recorded above. `greenbea`'s ten all rest at a
+     lower bound of 0 with no upper bound at all, so there is nowhere to send
+     them; that is the travelling nonbasic, and it is what §2.1 puts outside
+     M1.
+
+     **What the rounds do, measured, because two things about them were
+     assumed.** Exactly three instances of the 94 re-enter at all, and they
+     converge in one round (`nesm`), three (`pilot`) and six (`pilot87`).
+     Neither assumption held:
+
+     - *The round cap was deciding an answer.* It was first written as 4,
+       which is precisely where `pilot87` still had work to do. Running to
+       convergence instead takes its dual violation from 2.28e-4 to 3.33e-5,
+       its gap from 2.27e-7 to 4.03e-8 and its objective error from 3.21e-3
+       to 2.35e-3, for 182 extra iterations out of 50434 — better on every
+       measure for a third of one percent of the work. `SETTLE_ROUNDS` is
+       now 32 and is a backstop rather than a limit meant to bind (D25).
+     - *The residue does not fall monotonically*, so the loop must not be
+       allowed to judge its own progress. On `pilot` the worst breach
+       standing at the top of each round runs 4.65e-3, 4.79e-3, **7.85e-2**,
+       2.87e-6: round 2 begins seventeen times worse than the solve ended,
+       and it is the round that produces the final drop of three orders of
+       magnitude. A rule that kept the better of two consecutive points —
+       which is the obvious safety measure to reach for — would have stopped
+       after round 0 and thrown that away.
+
+     **The other candidate repair, `pilot-analysis.md` §6.1, is closed by
+     measurement rather than run.** It proposes capping accumulated
+     `|shift[v]|`. Instrumenting the distribution at the moment settling
+     repays it, on `greenbea`: 2901 variables carry a nonzero shift, of which
+     2407 are below 1e-9, 227 fall in `[1e-8, 1e-7)`, 42 in `[1e-7, 1e-6)`
+     and **three** exceed 1e-6, the largest being 7.09e-6. A cap at 1e-6
+     therefore touches three variables of 2901 — and not the ones that
+     matter: the offending columns' own shifts are 4e-9 and 1e-14, because
+     the residue arrives through the basis. On `etamacro`, where the residue
+     *is* the column's own shift, every shift in the solve falls below
+     `DUAL_TOL`; the cap that would bite there is narrower than the Harris
+     window that created it, which is not a cap on shifts but a narrower
+     window, a different change with a different cost and not what §6.1
+     proposes.
 
      **`pilot` and `pilot87` are simply less accurate**, and their gaps say
      so on their own — 8.3e-6 and 1.1e-5 against a 1e-6 tolerance, where
@@ -484,16 +540,30 @@ Remaining:
      the one form that would be safe if this is ever revisited — `min(tol,
      tol·s)`, narrowing rather than widening.
 
-     **What the argument did turn up, and is pending work.** The gap is
-     `|Q − N|`, with `Q` the positive terms and `N` what a within-tolerance
-     primal violation contributes negatively; the two cancel and the checker
-     cannot tell a small gap from two large halves. Built and run against the
-     checker as it stands, it reports `gap = 1.34e-14` on a point carrying
-     900 of each. Accumulating them apart costs two `long double` adds in a
-     loop that already holds both quantities, changes no verdict, and turns
-     `P − P* ≤ gap` from a consequence of an unchecked binary hypothesis into
-     `P − P* ≤ Q`, a bound the checker publishes. It needs two fields in
-     `jaos_check_report`, which is public.
+     **What the argument turned up, now built.** The gap is `|Q − N|`, with
+     `Q` the positive terms and `N` what a within-tolerance primal violation
+     contributes negatively; the two cancel and the checker cannot tell a
+     small gap from two large halves. Both halves are now accumulated apart
+     and published — `gap_positive` and `gap_negative` in
+     `jaos_check_report`, alongside `max_row_violation_relative`, which is
+     the relative primal residue D24 said it would keep in the report and out
+     of the predicate. Three public fields, two `long double` adds, no
+     verdict moved, and the record carries all of it per instance.
+
+     Putting it on the 94 turned the constructed case into a measured one,
+     and into a common case rather than a curiosity. On **35 of the 93
+     instances that reach an optimum, `Q` exceeds `|Q − N|` by more than a
+     factor of two** — `pilotnov` by 157, `greenbeb` by 34, `finnis` by 3.
+     The gap those instances report is not the bound they are entitled to.
+
+     The size matters before the ratio does: every one of those `Q` values is
+     tiny in absolute terms — 7.85e-10 on `pilotnov` against an objective of
+     order 4.5e3 — so the certificates were sound throughout and no verdict
+     was ever wrong. What changed is that soundness is now something the
+     record shows instead of something the identity was assumed to deliver.
+     `P − P* ≤ Q` is a bound a reader can check, on an instance that
+     *passes*, which is the only kind where this was ever going to be
+     visible.
    - **`pilot` and `pilot87` miss the objective as well**, by 2e-4 and 6e-5
      relative. These are the worst-conditioned instances in the set and are
      expected to be last; they are listed apart because an objective error
@@ -653,7 +723,7 @@ in aggregate is what §2.8 has just finished being a lesson about.
 
 | # | Condition | Status |
 |---|---|---|
-| 1a | Netlib **standard** set: `OPTIMAL`, objective within §2.6 tolerance, checker green | **not met** — 93/94 solved, 91 objective, 88 checker |
+| 1a | Netlib **standard** set: `OPTIMAL`, objective within §2.6 tolerance, checker green | **not met** — 93/94 solved, 91 objective, 89 checker |
 | 1b | **Kennington** subset, for correctness with no performance expectation | **met** — 16/16, every condition, `ken-18` at 105127x154699 included |
 | 1c | **Infeasible** subset: classified `INFEASIBLE`, no false optima | **met** — 29/29 refused, no false optima; `gran` closed by the basis repair (§2.8.2) |
 | 2 | Determinism harness green on every instance (D8) | holds on all 93 that finish |
@@ -667,40 +737,66 @@ at all — which is worth stating plainly, because the distance to M1 is not
 the distance to closing seven instances.
 
 **Six of the seven now hold.** What is left is condition 1a alone, and it is
-six instances of the standard 94: `grow15`, which does not terminate, and
-five the checker rejects. §2.8.1 records what each of those is, measured
+five instances of the standard 94: `grow15`, which does not terminate, and
+four the checker rejects. §2.8.1 records what each of those is, measured
 rather than grouped by the size of the number reported — because the number
 the checker reports is the magnitude of a multiplier and says nothing on its
 own about how far anything is from where it should be. That mistake cost
 `finnis` months in the wrong group; it was the most accurate answer of the
-six and is now closed by D23.
+six and was closed by D23.
 
 ### What happens next, in order
 
-1a is the only thing left, and the question it raises — whether M1's scope
-has to grow to close it — **is not answerable yet, because two in-scope
-repairs have never been run.** `docs/research/pilot-analysis.md` §6.3
-proposes re-entering the dual simplex from the settled basis, and §6.1 a cap
-on accumulated `|shift[v]|`. Neither needs a primal simplex. Both are
-distinct from the two repairs already measured and reverted, which repaid
-mid-solve (Q10).
+**Steps 1 and 2 are done.** Both in-scope repairs have now been run and the
+checker instrumented, so the scope question is answerable — which is the
+whole reason they came first.
 
-So, in order:
+- *§6.3, re-entry from the settled basis*, is built and is D25. It closes
+  `nesm` outright and improves `pilot` and `pilot87` by two orders of
+  magnitude on the dual violation, with **0 regressed, 1 improved, 0 new**
+  on the standard set and 0/0/0 on the other two. The failure both earlier
+  attempts produced — a feasible model returned INFEASIBLE — is structurally
+  refused: the settled point is saved, and a re-entry that ends in anything
+  but a second optimum is discarded.
+- *§6.1, a cap on accumulated `|shift[v]|`*, is closed by measurement rather
+  than by a run. §2.8.1 carries the distribution: on `greenbea` three
+  variables of 2901 exceed 1e-6 and the offending columns' own shifts are
+  4e-9 and 1e-14, so a cap cannot reach them; on `etamacro` every shift in
+  the solve is below `DUAL_TOL` and the cap that would bite is a narrower
+  Harris window rather than a cap.
+- *`Q` and `N`*, plus the relative primal residue, are in
+  `jaos_check_report` and in the record. No verdict moved, and `finnis`
+  immediately showed the cancellation the instrument exists to find.
 
-1. **Run §6.3, then §6.1.** Judge per instance against all three baselines
-   (D21). The bar that settles the scope question: two or more of
-   `greenbea`, `nesm`, `etamacro` closed with zero regressions. Watch for the
-   failure both earlier attempts produced — a feasible model reported
-   INFEASIBLE — because that is worse than what they set out to fix.
-2. **Instrument `Q` and `N`** in `src/check.c` (D24). Two fields in
-   `jaos_check_report`, which is public; no verdict moves.
-3. **Only then** open the scope question. It has two honest answers and the
-   evidence above decides between them: either a post-solve primal clean-up
-   enters M1 — a primal ratio test plus the basis change `pivot()` already
-   performs, not the primal simplex §2.1 excludes — or 1a is rewritten as a
-   closed register of exceptions, each carrying a measured mechanism, the
-   scope citation that puts its cure outside M1, and a frozen residual bound
-   that `make netlib-baseline` does not refresh.
+**The bar this was to be judged against is not met, and how it fails is the
+answer.** §2.9 asked for two or more of `greenbea`, `nesm`, `etamacro`
+closed. One is. But the two that remain are not near-misses to be tuned into
+passes — the measurement puts each of them outside the mechanism by
+construction:
+
+- `etamacro` has **no residual sign condition at all** after settling. There
+  is nothing for any post-solve repair to repair. Its rejection is
+  `4.89e-8` of scaled-space breach, inside what this solver calls zero,
+  divided by a column scale of `1/32` on the way out. That is the tolerance
+  question of §2.6, not a defect this route touches.
+- `greenbea`'s ten offending columns have **no other bound to move to** —
+  every one rests at a lower bound of 0 with no upper bound. Reaching them
+  means letting one enter the basis, and that is the travelling nonbasic
+  §2.1 excludes.
+
+So the scope question is now open with the evidence in hand, and it is
+narrower than it looked: not "does a post-solve clean-up belong in M1" — one
+does, and it is built — but **"does the clean-up of a column with no other
+bound belong in M1"**. That is a primal ratio test plus the basis change
+`pivot()` already performs. The two honest answers are unchanged:
+
+1. **It enters M1.** The scope grows by one ratio test, `greenbea` gets a
+   route, and `etamacro` still does not — so this cannot close 1a on its
+   own, and pairing it with the §2.6 tolerance question is what closing 1a
+   would take.
+2. **1a is rewritten as a closed register of exceptions**, each carrying a
+   measured mechanism, the scope citation that puts its cure outside M1, and
+   a frozen residual bound that `make netlib-baseline` does not refresh.
 
 One correction that removes an argument from the second option: on `pilot`,
 JAOS is **further from Koch than MINOS 5.3, OSL and CPLEX all are**, and all
@@ -997,10 +1093,36 @@ missed this".
   What the two settle is that the residue cannot be repaid mid-solve on an
   ill-conditioned basis at all: both attempts turned a small final violation
   into a false infeasibility, which is a strictly worse failure than the one
-  they set out to fix. The cure this question already names — a nonbasic
-  travelling until something blocks, applied once the solve has finished and
-  the point is known — remains the only one that does not perturb the method
-  it is repairing. That is a primal pivot, and §2.1 puts it outside M1.
+  they set out to fix.
+
+  **A third attempt, post-solve, and this one holds (D25).** Both of the
+  above perturb the method while it is running. The alternative is to let it
+  finish, settle, and only then put the nonbasic set back on the feasible
+  side of its sign conditions and run the method again from there — moving a
+  column to its *other real bound* rather than moving a cost. That is not a
+  primal pivot and it is inside M1: it is bound flipping, which the ratio
+  test already does, applied once at the end instead of mid-iteration. Where
+  a column has a real bound to go to, the flip breaks the primal, and primal
+  infeasibility is precisely what the dual simplex is for.
+
+  Measured: `nesm` closes outright — dual violation exactly 0, gap from
+  2.71e-11 to 1.93e-16, seven extra iterations — and `pilot` and `pilot87`
+  improve by two orders of magnitude on the dual without changing verdict.
+  Nothing regresses on any of the three sets. What guards the failure the
+  first two attempts produced is that the settled point is saved and any
+  re-entry not ending in a second optimum is thrown away; a model already
+  proved to have an optimum has not become infeasible, so that verdict is
+  evidence against the re-entry rather than about the model.
+
+  **So this question's own statement of what was left needed correcting.** It
+  said a nonbasic travelling until something blocks was the only remaining
+  cure. That is true only of a column with nowhere to rest — and the
+  measurement splits the set on exactly that line: `greenbea`'s ten offending
+  columns all sit at a lower bound of 0 with no upper bound at all, so
+  flipping has nothing to offer them and the travelling nonbasic is still
+  the only route; `nesm`'s one had a bound 380 units away and flipping
+  reached it. What is genuinely outside M1 is narrower than this question
+  claimed: not the repair, but the repair *of a column with no other bound*.
 
   `finnis` was never in this group: it publishes no violated sign condition
   in scaled space whatsoever, and belongs to the checker's tolerance model.

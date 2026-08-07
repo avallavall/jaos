@@ -140,10 +140,49 @@ Netlib set: 0 regressed, 0 improved, measured against the recorded baseline.
 within tolerance.
 
 Because every multiplier contributes, `P − D` is exactly
-`sum_v w_v (v_v − bound_v)` with every term non-negative — each one the
-complementary-slackness residue of a single variable. That is what gives an
-accepted solution a guarantee rather than a reassurance: `P − P* <= gap`,
-by weak duality, and the gap is reported.
+`sum_v w_v (v_v − bound_v)` — each term the complementary-slackness residue
+of a single variable. On a point that is *exactly* primal feasible every one
+of them is non-negative, and that is what gives an accepted solution a
+guarantee rather than a reassurance: `P − P* <= gap`, by weak duality.
+
+**The halves, and why the gap alone does not carry that guarantee.**
+Non-negativity is a property of feasibility, and the checker accepts points
+that are feasible only within `tol`. An entity sitting `d` outside its bound
+turns its own term negative, so the sum is a difference of two quantities and
+not an accumulation of one:
+
+```
+Q = sum of the terms that are >= 0        N = sum of |the terms that are < 0|
+P − D = Q − N,   gap = |Q − N| / (1 + |P| + |D|)
+```
+
+Both are reported, in the objective's own units, as `gap_positive` and
+`gap_negative`. Neither decides anything.
+
+They are there because `Q` and `N` cancel, and a gap has no way to say
+whether it is small because both halves are small or because two large ones
+met. The bound that survives the distinction is `P − P* <= Q`: it is the
+positive half alone, so a negative half cannot buy it down. `tests/test_check.c`
+builds the case where the gap reads zero on a point carrying 900 of each, and
+`finnis` shows the same shape at the size a real instance produces — a gap of
+`3.96e-11` over halves of `4.25e-5` and `2.89e-5`, which is to say the gap
+understates its own bound threefold.
+
+What this is *not* is a false acceptance, and D24 says so in the same breath
+as raising it: hiding a negative half costs an equal positive one, and the
+positive half is exactly what bounds the suboptimality. The two halves are an
+instrument for a question the gap could not be asked, not a repair to a hole
+in it.
+
+**The primal residue, relative.** `max_row_violation_relative` reports the
+worst row residue as a fraction of what that row carries — `sum_j |a_ij x_j|`,
+the same quantity the bound-proximity window is built from. It decides
+nothing, and D24 is the argument for why it is not allowed to: primal
+feasibility is the hypothesis the identity above stands on, so relaxing it
+would remove D23's licence rather than extend it. The measurement is kept
+because it is real — `finnis` clears the absolute 1e-6 bar with 16% of the
+margin to spare while its residue is a tenth of one ulp of the row it sits
+in, and the absolute number cannot tell that from a row carrying 0.7.
 
 The four tests are deliberately not independent. Activities come from a
 scatter over the matrix while the dual objective accumulates from bounds,
@@ -163,28 +202,37 @@ floating-point luck rather than about the solver.
 ## What is not settled
 
 Instances have now argued with them. The Netlib gate has been run over the
-whole standard set (`bench/results/netlib.txt`), and 86 of 94 instances come
-back with the checker green at the tolerance above. The eight that do not
-split into two groups, and only one of the groups is about a tolerance:
+whole standard set (`bench/results/netlib.txt`), and 89 of 94 instances come
+back with the checker green at the tolerance above. Three of the original
+eight failures closed, and none of the three closed by moving a number:
+`pilot-ja` was the checker dropping a contribution it should have kept
+(D21), `finnis` was a bound-proximity test judged absolutely on a row that
+cancels ten orders of magnitude (D23), and `nesm` was a settled basis the
+dual simplex had never been given back (D25).
+
+What is left:
 
 | Instance | worst dual violation | gap | |
 |---|---|---|---|
-| `finnis` | 28 | 8e-11 | far too large to be a tolerance |
-| `greenbea` | 2.66 | 7e-17 | likewise |
-| `pilot` | 0.019 | 1.7e-05 | likewise, and misses the objective too |
-| `pilot87` | 0.0096 | 6e-05 | likewise |
-| `nesm` | 8.0e-06 | 5e-11 | within one order of the tolerance |
-| `etamacro` | 1.6e-06 | 4e-09 | just past it |
-| `pilot-ja` | 0 | 1.9e-06 | fails on the gap alone, just past it |
+| `greenbea` | 2.66 | 3.6e-17 | far too large to be a tolerance |
+| `pilot` | 8.0e-05 | 8.6e-13 | likewise, and misses the objective too |
+| `pilot87` | 3.3e-05 | 4.0e-08 | likewise |
+| `etamacro` | 1.6e-06 | 1.9e-09 | just past it |
 
-A dual violation of 28 is not a number that moves by widening 1e-6, and
-neither is one of 2.66. Those are defects to find. The last three are the
-only candidates for the tolerance itself being mis-set, and even there the
-question is which of the two spaces is wrong rather than what the digit
-should be — so nothing here is a case for loosening a number, which would
-convert four defects into eight passes and prove nothing (D17).
+A dual violation of 2.66 is not a number that moves by widening 1e-6. That
+is a defect, and PLAN 2.8.1 has it measured: the residue arrives through the
+basis rather than through the offending column's own cost, amplified a
+millionfold by a `B^-1` that badly conditioned.
 
-`grow15` is the eighth failure and is not about tolerances at all: it does
+`etamacro` is the one candidate left for the tolerance itself being mis-set,
+and even there the question is which of the two spaces is wrong rather than
+what the digit should be: its breach is `4.89e-8` in scaled space, inside
+what the solver calls zero, and it arrives at `1.56e-6` only because
+`publish` divides by a column scale of `1/32`. Nothing here is a case for
+loosening a number, which would convert defects into passes and prove
+nothing (D17).
+
+`grow15` is the fifth failure and is not about tolerances at all: it does
 not terminate.
 
 The values also stay drafts in the original sense — nothing is frozen until

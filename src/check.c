@@ -92,9 +92,26 @@ static double interval_violation(double v, double lo, double hi)
  * including the ones exempt from the condition. A meaningful multiplier
  * pointing at an infinite bound is itself a dual violation; a negligible
  * one pointing there contributes nothing and violates nothing, which is
- * also why the infinite-bound test comes before any w * bound product. */
+ * also why the infinite-bound test comes before any w * bound product.
+ *
+ * And the same term again, split by sign. The identity the gap rests on is
+ * P - D = sum of w_v (v - bound_v), so the gap is the difference of two
+ * sums and not a sum: when a term is negative it cancels a positive one
+ * elsewhere and the total goes quiet while neither half does. Keeping them
+ * apart costs one add and is what makes the difference between "these two
+ * objectives agree" and "these two objectives agree because two large
+ * quantities cancelled" visible from outside (D24). */
+static void split_term(long double t, long double *pos, long double *neg)
+{
+    if (t > 0.0L)
+        *pos += t;
+    else
+        *neg -= t;    /* kept as a magnitude, so both halves are >= 0 */
+}
+
 static double sign_condition(double v, double lo, double hi, double w,
-                             double tol, double scale, long double *dual_obj)
+                             double tol, double scale, long double *dual_obj,
+                             long double *pos, long double *neg)
 {
     double window = tol * scale;
     bool at_lo = isfinite(lo) && v <= lo + window;
@@ -130,15 +147,17 @@ static double sign_condition(double v, double lo, double hi, double w,
         if (!isfinite(lo))
             return negligible ? 0.0 : w;
         *dual_obj += (long double)w * lo;
+        split_term((long double)w * ((long double)v - lo), pos, neg);
         return (negligible || at_lo) ? 0.0 : w;
     }
     if (w < 0.0) {
         if (!isfinite(hi))
             return negligible ? 0.0 : -w;
         *dual_obj += (long double)w * hi;
+        split_term((long double)w * ((long double)v - hi), pos, neg);
         return (negligible || at_hi) ? 0.0 : -w;
     }
-    return 0.0;
+    return 0.0;   /* a zero multiplier contributes to neither */
 }
 
 jaos_status jaos_check_solution(const jaos_model *m,
@@ -187,19 +206,33 @@ jaos_status jaos_check_solution(const jaos_model *m,
     }
 
     /* Primal side. */
-    double col_viol = 0.0, row_viol = 0.0;
+    double col_viol = 0.0, row_viol = 0.0, row_viol_rel = 0.0;
     long double primal_obj = m->obj_offset;
     for (int64_t j = 0; j < m->num_col; j++) {
         col_viol = max2(col_viol, interval_violation(col_value[j],
                                     m->col_lower[j], m->col_upper[j]));
         primal_obj += (long double)m->col_cost[j] * col_value[j];
     }
-    for (int64_t i = 0; i < m->num_row; i++)
-        row_viol = max2(row_viol, interval_violation((double)act[i],
-                                    m->row_lower[i], m->row_upper[i]));
+    for (int64_t i = 0; i < m->num_row; i++) {
+        double viol = interval_violation((double)act[i], m->row_lower[i],
+                                         m->row_upper[i]);
+        row_viol = max2(row_viol, viol);
+        /* The same residue against what the row is made of. A row summing
+         * terms that total 4.0e10 in magnitude cannot place its activity
+         * more finely than an ulp at that size, so 1e-6 of absolute
+         * residue on it is a different quantity from 1e-6 on a row
+         * carrying 0.7 — and the absolute test cannot tell them apart.
+         * D24 refused to make the *predicate* relative and keeps the
+         * measurement here instead, where it decides nothing: the biggest
+         * relative residue and the biggest absolute one need not even be
+         * the same row, and that is the point of reporting both. */
+        row_viol_rel = max2(row_viol_rel,
+                            viol / max2(1.0, (double)traffic[i]));
+    }
 
     out->max_col_violation = col_viol;
     out->max_row_violation = row_viol;
+    out->max_row_violation_relative = row_viol_rel;
     out->primal_objective = (double)primal_obj;
     out->primal_feasible = col_viol <= tol && row_viol <= tol;
 
@@ -208,12 +241,14 @@ jaos_status jaos_check_solution(const jaos_model *m,
         const double sigma = (m->sense == JAOS_MAXIMIZE) ? -1.0 : 1.0;
         double dual_viol = 0.0;
         long double dual_obj = sigma * m->obj_offset; /* canonical offset */
+        long double pos = 0.0L, neg = 0.0L;
 
         for (int64_t i = 0; i < m->num_row; i++)
             dual_viol = max2(dual_viol,
                 sign_condition((double)act[i], m->row_lower[i],
                                m->row_upper[i], sigma * row_dual[i], tol,
-                               max2(1.0, (double)traffic[i]), &dual_obj));
+                               max2(1.0, (double)traffic[i]), &dual_obj,
+                               &pos, &neg));
 
         for (int64_t j = 0; j < m->num_col; j++) {
             /* Reduced cost d_j = c_j - a_j' y, canonicalized. */
@@ -228,7 +263,7 @@ jaos_status jaos_check_solution(const jaos_model *m,
             dual_viol = max2(dual_viol,
                 sign_condition(col_value[j], m->col_lower[j], m->col_upper[j],
                                sigma * d, tol, max2(1.0, fabs(col_value[j])),
-                               &dual_obj));
+                               &dual_obj, &pos, &neg));
         }
 
         /* The gap is the identity that catches a corrupted dot product even
@@ -243,6 +278,15 @@ jaos_status jaos_check_solution(const jaos_model *m,
         out->max_dual_violation = dual_viol;
         out->dual_objective = (double)true_dual_obj;
         out->objective_gap = gap;
+        /* Reported in the objective's own units rather than against the
+         * scale above, because what they are for is the bound
+         * P - P* <= gap_positive, and a bound is only usable in the units
+         * of the thing it bounds. The gap is recovered from them by the
+         * division the line above does: |pos - neg| is the same quantity
+         * as `diff`, arrived at along an independent route, which is the
+         * kind of redundancy the rest of this file is built out of. */
+        out->gap_positive = (double)pos;
+        out->gap_negative = (double)neg;
         out->dual_feasible = dual_viol <= tol && gap <= tol;
     }
 

@@ -99,6 +99,17 @@ Four things, and three of them come from outside this solver:
 No wall-clock figure is produced anywhere. Speed is an M2 question and needs
 a controlled host before any number about it means anything (D17).
 
+**Three figures in the record judge nothing**, and are there because a
+verdict that only records its own outcome cannot be argued with later.
+`rowrel` is the worst row residue as a fraction of what that row carries;
+D24 refused to let the primal test become relative and keeps the measurement
+here instead. `Q` and `N` are the two sums the gap is the difference of —
+`gap = |Q − N| / (1 + |P| + |D|)` — so that a small gap can be told apart
+from two large halves cancelling, and so that `P − P* <= Q` is a bound a
+reader can check rather than a consequence of a hypothesis nobody is
+testing. Across the standard 94 the difference is not academic: on 35 of the
+93 instances that reach an optimum, `Q` is more than twice `|Q − N|`.
+
 ## The baseline, and the question the gate cannot answer
 
 The gate is all-or-nothing: until every instance meets every condition above

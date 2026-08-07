@@ -391,9 +391,150 @@ static void test_the_column_test_did_not_inherit_the_rows_scale(void)
     jaos_model_free(m);
 }
 
+/* ---- The gap is a difference, and the difference can hide its halves ---
+ *
+ * P - D = sum of w_v (v - bound_v). Every term is non-negative on a point
+ * that is exactly primal feasible, so the gap bounds the suboptimality. A
+ * primal violation the checker tolerates breaks that: its term is negative
+ * and cancels positive ones elsewhere, and the total goes to zero while
+ * neither half does.
+ *
+ * The model below is D24's construction, and it is built so that the two
+ * halves are equal and the gap vanishes:
+ *
+ *      min  1e9 x0 + 1e-7 x1   s.t.  x0 >= 1,  x0 >= 0,  0 <= x1 <= 9e9
+ *
+ * Judged at tol = 1e-6 with x = (1 - 9e-7, 9e9) and y = 1e9:
+ *
+ *   - The row is 9e-7 below its bound, inside the tolerance, so the point
+ *     passes as primal feasible. Its multiplier is 1e9, so its term is
+ *     1e9 * (-9e-7) = -900.
+ *   - x1's reduced cost is 1e-7, which is at or below tol, so D22 waives
+ *     its sign condition. It contributes 1e-7 * (9e9 - 0) = +900 anyway,
+ *     which is the rule D21 settled: a multiplier too small to impose a
+ *     condition still carries w * bound.
+ *
+ * The two cancel exactly. The gap reports zero on a point carrying 900 of
+ * each, which is what the gap alone cannot show and what the two halves
+ * are for. No verdict moves: this point is accepted before the change and
+ * after it, and the test asserts that too.
+ *
+ * Honesty about what this demonstrates, kept from D24: the cancellation,
+ * not a false acceptance. Nothing here is materially suboptimal — hiding a
+ * negative half costs an equal positive one, and the positive half is
+ * exactly what bounds the suboptimality. */
+static void test_the_gap_can_be_two_large_halves_cancelling(void)
+{
+    const double c[] = {1e9, 1e-7};
+    const double cl[] = {0.0, 0.0}, cu[] = {INFINITY, 9e9};
+    const double rl[] = {1.0}, ru[] = {INFINITY};
+    /* x1 appears in no row, so its reduced cost is its cost. */
+    const int64_t s[] = {0, 1, 1}, ix[] = {0};
+    const double v[] = {1.0};
+    jaos_model *m = nullptr;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_model_new(&m));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_load_lp(m, 2, 1, JAOS_MINIMIZE, 0.0, c, cl, cu, rl, ru,
+                     1, s, ix, v));
+
+    const double x[] = {1.0 - 9e-7, 9e9};
+    const double y[] = {1e9};
+    jaos_check_report r;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_check_solution(m, x, y, 1e-6, &r));
+
+    /* Accepted, exactly as before: 9e-7 of row violation is inside 1e-6,
+     * and the waived sign condition reports nothing. */
+    TEST_ASSERT_TRUE(r.primal_feasible);
+    TEST_ASSERT_TRUE(r.dual_feasible);
+    TEST_ASSERT_DOUBLE_WITHIN(1e-13, 9e-7, r.max_row_violation);
+    TEST_ASSERT_DOUBLE_WITHIN(1e-12, 0.0, r.max_dual_violation);
+
+    /* The gap is zero to the last bit the objectives can carry, on a point
+     * whose two halves are 900 each. */
+    TEST_ASSERT_TRUE(r.objective_gap < 1e-15);
+    TEST_ASSERT_DOUBLE_WITHIN(1e-3, 900.0, r.gap_positive);
+    TEST_ASSERT_DOUBLE_WITHIN(1e-3, 900.0, r.gap_negative);
+
+    /* And the halves are the gap, reached the other way round: the same
+     * quantity out of the term sum instead of out of the two objectives. */
+    double scale = 1.0 + fabs(r.primal_objective) + fabs(r.dual_objective);
+    TEST_ASSERT_DOUBLE_WITHIN(1e-15, r.objective_gap,
+                              fabs(r.gap_positive - r.gap_negative) / scale);
+    jaos_model_free(m);
+}
+
+/* The ordinary case, so that the halves are pinned where nothing cancels:
+ * on T1's true optimum every term is zero, and on the waived-but-costly
+ * point of the test above this one, the whole 0.1 of gap sits in the
+ * positive half with nothing against it. That is the shape an honest
+ * certificate has, and it is what makes the cancelling case tell apart. */
+static void test_a_clean_point_carries_no_negative_half(void)
+{
+    jaos_model *m = make_t1();
+    const double x[] = {0.5, 0.5};
+    const double y[] = {1.0};
+    jaos_check_report r;
+
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_check_solution(m, x, y, TOL, &r));
+    TEST_ASSERT_TRUE(r.dual_feasible);
+    TEST_ASSERT_DOUBLE_WITHIN(1e-15, 0.0, r.gap_positive);
+    TEST_ASSERT_DOUBLE_WITHIN(1e-15, 0.0, r.gap_negative);
+    jaos_model_free(m);
+}
+
+/* D24 keeps the relative row residue in the report and out of the
+ * predicate. `finnis` is the case it exists for: a row whose terms total
+ * 4.0e10 in magnitude, landing 8.44e-7 from its bound — 2.1e-17 of what it
+ * carries, a tenth of one ulp at that size.
+ *
+ * Those numbers cannot be built from two terms, and that is not a
+ * limitation of the test: one ulp at 4.0e10 is 7.6e-6, so a two-term
+ * difference at that size cannot land 8.44e-7 from anything. It takes a
+ * long sum for a residue to end up finer than the ulp of what it is made
+ * of. So the shape is reproduced at a scale where the arithmetic is exact
+ * and the ratio is what is under test:
+ *
+ *      x0 - x1 >= 0,  x0 = 1 - 2^-40,  x1 = 1,  coefficients +/- 1e6
+ *
+ * Activity -9.09e-7 against a lower bound of zero, out of traffic 2e6.
+ * Every quantity there is a power of two times an exact integer, so both
+ * figures are exact rather than approximately right. */
+static void test_the_relative_row_residue_is_reported_and_decides_nothing(void)
+{
+    const double c[] = {0.0, 0.0};
+    const double cl[] = {0.0, 0.0}, cu[] = {INFINITY, INFINITY};
+    const double rl[] = {0.0}, ru[] = {INFINITY};
+    const int64_t s[] = {0, 1, 2}, ix[] = {0, 0};
+    const double v[] = {1e6, -1e6};
+    jaos_model *m = nullptr;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_model_new(&m));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_load_lp(m, 2, 1, JAOS_MINIMIZE, 0.0, c, cl, cu, rl, ru,
+                     2, s, ix, v));
+
+    const double x[] = {1.0 - 0x1p-40, 1.0};
+    const double y[] = {0.0};
+    jaos_check_report r;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_check_solution(m, x, y, 1e-6, &r));
+
+    const double viol = 1e6 * 0x1p-40;            /* 9.0949...e-7 */
+    const double traffic = 2e6 - viol;
+    TEST_ASSERT_DOUBLE_WITHIN(1e-18, viol, r.max_row_violation);
+    TEST_ASSERT_DOUBLE_WITHIN(1e-24, viol / traffic,
+                              r.max_row_violation_relative);
+    /* 9.09e-7 is inside 1e-6, so the point passes — on the absolute test,
+     * and on that alone. The relative figure is 4.5e-13 and decides
+     * nothing; D24 is the argument for why it is not allowed to. */
+    TEST_ASSERT_TRUE(r.primal_feasible);
+    jaos_model_free(m);
+}
+
 int main(void)
 {
     UNITY_BEGIN();
+    RUN_TEST(test_the_gap_can_be_two_large_halves_cancelling);
+    RUN_TEST(test_a_clean_point_carries_no_negative_half);
+    RUN_TEST(test_the_relative_row_residue_is_reported_and_decides_nothing);
     RUN_TEST(test_a_row_at_its_bound_to_its_own_precision_is_accepted);
     RUN_TEST(test_a_row_genuinely_off_its_bound_is_still_reported);
     RUN_TEST(test_a_waived_row_that_still_costs_is_refused_by_the_gap);

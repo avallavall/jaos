@@ -583,8 +583,26 @@ at a bound 9e9 wide — it reports `gap = 1.34e-14` on a point carrying 900 of
 each. Accumulating `Q` and `N` separately costs two `long double` adds in a
 loop that already has both quantities in hand, changes no verdict, and turns
 `P - P* <= gap` from a consequence of an unchecked binary hypothesis into
-`P - P* <= Q`, a bound the checker publishes. That is pending work, not part
-of this decision.
+`P - P* <= Q`, a bound the checker publishes.
+
+**Both are now built** (`gap_positive`, `gap_negative` and
+`max_row_violation_relative` in `jaos_check_report`), and no verdict moved.
+The record carries all three per instance, and putting it on the standard 94
+turned the constructed case into a measured one — and a common one rather
+than a curiosity. On **35 of the 93 instances that reach an optimum, `Q`
+exceeds `|Q - N|` by more than a factor of two**: `pilotnov` by 157,
+`greenbeb` by 34, `finnis` by 3. The gap those instances report is not the
+bound they are entitled to; `Q` is, and it is up to 157 times larger.
+
+Read the size before the ratio, because the ratio on its own overstates the
+case. Every one of those `Q` values is tiny in absolute terms —
+`7.85e-10` on `pilotnov`, against an objective of order `4.5e3` — so the
+certificates were sound the whole time and no verdict was ever wrong. What
+changed is that "sound" is now something the record shows rather than
+something the identity was assumed to deliver. The construction that
+motivated this is still a demonstration of cancellation and not of a false
+acceptance; what the campaign adds is that the cancellation is the normal
+case, which is the part nobody would have guessed from one built example.
 
 Honesty about the limit of that construction: it demonstrates the
 cancellation, not a false acceptance. No materially suboptimal point has
@@ -598,3 +616,128 @@ into rejections, so it cannot invalidate a certificate the way widening
 does. It would put `nesm` in breach today, which is why it waits on Q10:
 turning a pending diagnosis into a gate failure destroys the information the
 diagnosis was going to give.
+
+---
+
+## D25 — A settled point is handed back to the method, and the method's answer is not trusted over the one it started from
+
+Settling the shifts is what turns a solve that was optimal for a convenient
+problem into an answer about the one that was asked. It can leave reduced
+costs pointing the wrong way, and by a wide margin: `greenbea` finishes with
+ten columns whose sign conditions are violated by up to 5.28, out of shifts
+that never exceed `7.09e-6` (PLAN 2.8.1). `repair_dual_infeasibility` swaps
+nonbasic variables between bounds and cannot reach any of it.
+
+**What is done.** After settling, every nonbasic whose reduced cost breaches
+its sign condition past `DUAL_TOL` is put right, and there are exactly two
+ways to do that:
+
+- one with a *real* bound on the other side is sent to it. Its reduced cost
+  is feasible for that bound instead, at no cost in accuracy, and the primal
+  breaks — which is the point, because primal infeasibility is what the dual
+  simplex exists to remove;
+- one without is shifted, exactly as the ratio test does mid-solve. This
+  moves nothing and hands the method no work; it is there so that the ones
+  that *can* move are not run past a ratio test whose candidates include
+  costs already on the wrong side of zero, which is the hazard cost shifting
+  exists to prevent in the first place.
+
+Then the dual simplex runs again from that point. A round that moves nothing
+does not happen at all — it would re-solve a point the method is already at
+and settle back to the residue it started from.
+
+**What makes it admissible is the fallback, not the attempt.** A model that
+has just been proved to have an optimum has not become infeasible. A
+re-entry that reports it has is reporting on itself: the flips are a
+starting point of its own choosing, and the dual simplex finding no feasible
+point from there says the choice was bad. So the settled point is saved
+first, and **anything other than a second optimum is discarded**. This is not
+defensive habit. It is the precise failure both earlier repairs of this
+residue produced — a feasible model returned INFEASIBLE, which is strictly
+worse than the defect being repaired — and refusing to publish it is the
+condition on which re-entering at all is safe.
+
+**What the guard does not cover.** A round's result is accepted for being a
+second optimum, not for being a better one — nothing compares the two. The
+re-entry runs the same method on shifted costs that the first pass did, so
+it settles to a residue of its own, and no argument from construction says
+that residue is smaller. That the answers improve is a measurement over
+139 instances across three sets, not a property of the loop.
+
+**A criterion of "keep the smaller violation" was considered and is
+refused, and the measurement is why.** The worst breach standing at the top
+of each round on `pilot`:
+
+| round | movable | stuck | worst breach |
+|---|---|---|---|
+| 0 | 5 | 20 | 4.65e-3 |
+| 1 | 2 | 23 | 4.79e-3 |
+| 2 | 9 | 15 | **7.85e-2** |
+| 3 | 0 | 7 | **2.87e-6** |
+
+The sequence is not monotone and it is not nearly monotone: round 2 begins
+seventeen times worse than the solve ended, and it is the round that
+produces the final drop of three orders of magnitude. A rule that kept the
+better of two consecutive points would have stopped after round 0 and thrown
+that away. So the loop is not permitted to judge its own progress — it runs
+until nothing is left to move — and what actually catches a worsening is the
+baseline (D21), which compares against a recorded run rather than against
+the previous round.
+
+Five arrays are saved (`status`, `basis`, `lo`, `up`, `fake`) because they
+are the whole of what a re-entry writes: `where` is the inverse of `basis`,
+the primal values are what `compute_primal` derives from the nonbasic ones,
+the reduced costs are what `compute_duals` derives from the costs, and the
+factorization is of `basis`. Restoring the five and rebuilding lands on the
+saved point bit for bit, which is what determinism (D8) requires of it.
+
+**Measured, on all three sets, per instance against their baselines (D21):**
+`nesm` goes from REJECTED to checker green, with its dual violation at
+exactly 0 rather than merely smaller and its gap falling from `2.71e-11` to
+`1.93e-16`. `pilot` and `pilot87` improve by two orders of magnitude on the
+dual and by seven and three on the gap without changing verdict. `greenbea`,
+`etamacro` and `finnis` are **bit-identical** — same digest, same iteration
+count. Standard set: 0 regressed, 1 improved, 0 new. Kennington and the
+infeasible set: 0/0/0, both still PASS.
+
+**What it cannot reach, and this is the part that decides scope.** The three
+instances that do not move are not unlucky, they are outside the mechanism by
+construction, and the measurement says which reason applies to each:
+
+| instance | residual sign conditions after settling | with a real opposite bound |
+|---|---|---|
+| `etamacro` | **0** | — |
+| `greenbea` | 10 | **0** |
+| `nesm` | 1 | 1 |
+| `pilot` | 25 | 5 |
+| `pilot87` | 48 | 15 |
+
+`etamacro` has nothing to repair: its breach is `4.89e-8` in scaled space,
+inside what this solver calls zero, and it becomes visible only because
+`publish` divides by a column scale of `1/32`. `greenbea`'s ten all rest at
+a lower bound of 0 with no upper bound at all, so there is nowhere to send
+them; reaching them means letting one enter the basis, which is a primal
+ratio test and is what PLAN 2.9 puts to the scope question rather than
+inside this decision.
+
+**`SETTLE_ROUNDS = 32` is a backstop, not a limit meant to bind**, and it
+took a measurement to say that rather than assume it. Only three of the
+standard 94 re-enter at all: `nesm` converges in one round, `pilot` in
+three, `pilot87` in six. The constant was first written as 4 — which is
+exactly where `pilot87` was still finding work, so it was not bounding a
+pathology, it was deciding an answer:
+
+| `pilot87` | stopped at 4 rounds | run to convergence |
+|---|---|---|
+| dual violation | 2.28e-4 | **3.33e-5** |
+| gap | 2.27e-7 | **4.03e-8** |
+| objective error | 3.21e-3 | **2.35e-3** |
+| iterations | 50434 | 50616 (+0.36%) |
+
+Better on every measure for a third of one percent of the work. A cap tight
+enough to bind is a cap choosing the answer, which is not what this is for —
+so it is set well clear of anything the set needs, in the same sense
+`ITER_SANITY_FACTOR` is. Termination does not depend on it: a round only
+begins if some column can still be moved, every round that moves something
+makes at least one pivot, and `iters` accumulates across rounds so the
+iteration cap in `run()` covers all of them together.

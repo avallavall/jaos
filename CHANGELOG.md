@@ -11,6 +11,29 @@ open, `bench/README.md` for the gate, and the commit each entry came from.
 
 ### Added
 
+- The dual simplex re-enters from the settled point. Once the borrowed costs
+  are called in, any nonbasic whose sign condition is breached and that has a
+  real bound on the other side is sent to it, and the method runs again from
+  there — bound flipping, which the ratio test already does, applied at the
+  end instead of mid-iteration. `nesm` goes from REJECTED to checker ok with
+  its dual violation at exactly 0; `pilot` and `pilot87` improve by two
+  orders of magnitude on the dual and by seven and three on the gap without
+  changing verdict. 0 regressed, 1 improved, 0 new on the standard 94; 0/0/0
+  on the other two sets, both still PASS. The settled point is saved first
+  and any re-entry not ending in a second optimum is discarded — a model just
+  proved to have an optimum has not become infeasible, and returning
+  INFEASIBLE for one is exactly how the two earlier repairs of this residue
+  failed. D25 carries the reasoning and what the mechanism cannot reach.
+- Three fields in `jaos_check_report`, all of which decide nothing.
+  `gap_positive` and `gap_negative` split the gap into the two sums it is the
+  difference of, so `P - P* <= Q` becomes a bound the checker publishes
+  instead of a consequence of a hypothesis nobody was testing; a gap can be
+  small because both halves are or because two large ones cancelled, and it
+  cannot say which. On the 94 that is not hypothetical: `finnis` reports a
+  gap of 3.96e-11 over halves of 4.25e-5 and 2.89e-5. `max_row_violation_relative`
+  is the row residue against what the row carries, which D24 said it would
+  keep in the report and out of the predicate. The record carries all three
+  per instance. No verdict moved (D24).
 - A fuzzer for both readers, `tests/test_fuzz.c`: truncation at every offset
   of every corpus file, seeded edits, random bytes, keyword salad, and named
   edge cases, each fed to both readers. 11543 cases in the suite, 1.6M under

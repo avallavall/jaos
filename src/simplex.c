@@ -112,6 +112,41 @@ constexpr double ARTIFICIAL_BOUND = 1e10;
  * must be able to tell "this model is hard" from "this code is wrong". */
 constexpr int64_t ITER_SANITY_FACTOR = 200;
 
+/* How many times a settled point may be handed back to the dual simplex.
+ *
+ * Settling the shifts is what turns a solve that was optimal for a
+ * convenient problem into an answer about the one that was asked, and it
+ * can leave reduced costs pointing the wrong way (PLAN 2.8.1). Re-entry
+ * repairs that by moving those columns and letting the method run again, so
+ * each round is a whole solve.
+ *
+ * This is a backstop and not a limit meant to bind, in the same sense as
+ * ITER_SANITY_FACTOR above. The loop has its own termination and it is the
+ * real one: a round only begins if some column can still be moved, and
+ * rounds stop finding any. Of the standard 94, three instances re-enter at
+ * all — `nesm` converges in one round, `pilot` in three, `pilot87` in six.
+ *
+ * The number was 4, which is how the measurement happened: `pilot87` ran
+ * out of rounds with work still to do, and stopping it there cost a factor
+ * of 6.8 on its dual violation and 5.6 on its gap for 0.36% of its
+ * iterations (PLAN 2.8.1). A cap tight enough to bind is a cap deciding the
+ * answer, which is not what this is for.
+ *
+ * Non-termination is guarded elsewhere and not by this number: every round
+ * that moves something makes at least one pivot, `iters` accumulates across
+ * rounds, and the iteration cap in run() covers all of them together. */
+constexpr int64_t SETTLE_ROUNDS = 32;
+
+/* Bounds JAOS invented to get a dual feasible start. A column is caught by
+ * exactly one branch of the cost-sign test, so one value says both whether
+ * a bound was lent and which side it went on — two parallel flags would
+ * encode an invariant the types do not. It is also what real_lower and
+ * real_upper undo the loan from.
+ *
+ * Named rather than left anonymous inside sx because the re-entry keeps a
+ * copy of it. */
+typedef enum { NOT_FAKE = 0, FAKE_LO, FAKE_UP } jm_fake;
+
 typedef struct {
     jaos_model *m;
     int64_t nrow, ncol, nvar;
@@ -135,12 +170,9 @@ typedef struct {
     int64_t *basis;          /* [nrow] variable occupying each position */
     int64_t *where;          /* [nvar] basis position, or -1 */
 
-    /* Bounds JAOS invented to get a dual feasible start. A column is
-     * caught by exactly one branch of the cost-sign test, so one array
-     * says both whether a bound was lent and which side it went on — two
-     * parallel flags would encode an invariant the types do not. It is
-     * also what real_lower/real_upper undo the loan from. */
-    enum { NOT_FAKE = 0, FAKE_LO, FAKE_UP } *fake;
+    /* Which bound, if any, JAOS lent each variable; see jm_fake above for
+     * why one value carries both halves of that. */
+    jm_fake *fake;
 
     double *xb;              /* [nrow] basic values */
     double *d;               /* [nvar] reduced costs */
@@ -178,6 +210,19 @@ typedef struct {
     double *bv;
     int64_t bi_cap, bv_cap;
 
+    /* The settled point, kept so that a re-entry which ends worse than it
+     * started can be undone. These five arrays are the whole of what a
+     * re-entry may write: everything else about a basis is derived from
+     * them, which is what makes restoring them enough (see save_settled).
+     *
+     * Allocated on the first re-entry rather than in sx_init, because most
+     * solves never have one — and a solver that is re-solved thousands of
+     * times by branch and bound should not pay for this per call. */
+    jm_var_status *sav_status;
+    int64_t *sav_basis;
+    double *sav_lo, *sav_up;
+    jm_fake *sav_fake;
+
     struct timespec started;
     int64_t iters;
     bool needs_refactor;
@@ -201,6 +246,8 @@ static void sx_free(sx *s)
     free(s->cand); free(s->rnum); free(s->rden); free(s->rrange);
     free(s->bs); free(s->bi); free(s->bv);
     free(s->fake);
+    free(s->sav_status); free(s->sav_basis);
+    free(s->sav_lo); free(s->sav_up); free(s->sav_fake);
     jm_lu_free(&s->lu);
     memset(s, 0, sizeof *s);
 }
@@ -1187,11 +1234,10 @@ static void repair_dual_infeasibility(sx *s)
     }
 }
 
-/* Calls in every cost the solve borrowed, and recomputes the duals from
- * the model's own costs so that what is published belongs to the problem
- * that was asked about rather than to the one that was convenient. Then
- * repairs what the true costs turn out to leave infeasible. */
-static void settle_shifts(sx *s)
+/* Calls in every cost the solve borrowed. Says whether anything was owed,
+ * because a solve that borrowed nothing has duals that already price the
+ * model's own costs and recomputing them would only add rounding. */
+static bool repay_shifts(sx *s)
 {
     bool any = false;
     for (int64_t v = 0; v < s->nvar; v++) {
@@ -1201,11 +1247,229 @@ static void settle_shifts(sx *s)
         s->shift[v] = 0.0;
         any = true;
     }
-    if (!any)
+    return any;
+}
+
+/* Calls in the loans and recomputes the duals from the model's own costs so
+ * that what is published belongs to the problem that was asked about rather
+ * than to the one that was convenient. Then repairs what the true costs
+ * turn out to leave infeasible. */
+static void settle_shifts(sx *s)
+{
+    if (!repay_shifts(s))
         return;
 
     compute_duals(s);
     repair_dual_infeasibility(s);
+}
+
+/* --------------------------------------------------------------------- */
+/* Re-entry after settling                                               */
+/* --------------------------------------------------------------------- */
+
+/* The solve loop, which a re-entry runs again from a point of its own
+ * choosing. Declared rather than moved: it belongs with the driver, and
+ * hoisting it above this section would put the method's main loop in the
+ * middle of the code that cleans up after it. */
+static jaos_status run(sx *s, jaos_solve_status *out);
+
+/* How far this nonbasic's reduced cost points the wrong way, or zero.
+ *
+ * Measured against DUAL_TOL because that is what the rest of the solve
+ * calls zero: a breach this solver's own arithmetic cannot distinguish from
+ * zero is not evidence of anything, and treating it as work to be done
+ * would have every solve re-entering forever. */
+static double dual_breach(const sx *s, int64_t v)
+{
+    switch (s->status[v]) {
+    case JM_AT_LOWER: return s->d[v] < -DUAL_TOL ? -s->d[v] : 0.0;
+    case JM_AT_UPPER: return s->d[v] > DUAL_TOL ? s->d[v] : 0.0;
+    case JM_FREE:     return fabs(s->d[v]) > DUAL_TOL ? fabs(s->d[v]) : 0.0;
+    case JM_BASIC:    break;
+    }
+    return 0.0;   /* basic: its reduced cost is zero by definition */
+}
+
+/* Everything a re-entry is allowed to write. Restoring these five and
+ * rebuilding from them lands on exactly the point that was saved:
+ * `where` is the inverse of `basis`, `xb` is what compute_primal derives
+ * from the nonbasic values, `d` is what compute_duals derives from the
+ * costs, and the factorization is of `basis`. None of the five is
+ * derived from anything else, and nothing else is not derived from them. */
+static bool save_settled(sx *s)
+{
+    if (s->sav_status == nullptr) {
+        s->sav_status = jm_alloc_array(s->nvar, sizeof *s->sav_status);
+        s->sav_basis  = jm_alloc_array(s->nrow, sizeof *s->sav_basis);
+        s->sav_lo     = jm_alloc_array(s->nvar, sizeof *s->sav_lo);
+        s->sav_up     = jm_alloc_array(s->nvar, sizeof *s->sav_up);
+        s->sav_fake   = jm_alloc_array(s->nvar, sizeof *s->sav_fake);
+        if (!s->sav_status || !s->sav_basis || !s->sav_lo || !s->sav_up ||
+            !s->sav_fake)
+            return false;
+    }
+    memcpy(s->sav_status, s->status, (size_t)s->nvar * sizeof *s->status);
+    memcpy(s->sav_basis, s->basis, (size_t)s->nrow * sizeof *s->basis);
+    memcpy(s->sav_lo, s->lo, (size_t)s->nvar * sizeof *s->lo);
+    memcpy(s->sav_up, s->up, (size_t)s->nvar * sizeof *s->up);
+    memcpy(s->sav_fake, s->fake, (size_t)s->nvar * sizeof *s->fake);
+    return true;
+}
+
+/* Puts back the saved point and rebuilds everything that hangs off it.
+ *
+ * The costs are returned to the model's own first: a re-entry that failed
+ * may have borrowed on its way there, and those loans belong to a solve
+ * that is being discarded. */
+static jaos_status restore_settled(sx *s, bool *ok)
+{
+    repay_shifts(s);
+    memcpy(s->status, s->sav_status, (size_t)s->nvar * sizeof *s->status);
+    memcpy(s->basis, s->sav_basis, (size_t)s->nrow * sizeof *s->basis);
+    memcpy(s->lo, s->sav_lo, (size_t)s->nvar * sizeof *s->lo);
+    memcpy(s->up, s->sav_up, (size_t)s->nvar * sizeof *s->up);
+    memcpy(s->fake, s->sav_fake, (size_t)s->nvar * sizeof *s->fake);
+
+    for (int64_t v = 0; v < s->nvar; v++)
+        s->where[v] = -1;
+    for (int64_t i = 0; i < s->nrow; i++)
+        s->where[s->basis[i]] = i;
+
+    s->needs_refactor = true;
+    return refresh(s, ok);
+}
+
+/* Makes the settled point dual feasible again.
+ *
+ * There are two ways to put a wrong-signed reduced cost right, and which
+ * one applies is a property of the column rather than a choice:
+ *
+ *   - A column with a real bound on the other side can be sent to it. Its
+ *     reduced cost is then feasible for that bound instead, at no cost in
+ *     accuracy, and the primal breaks — which is the point. Primal
+ *     infeasibility is what the dual simplex exists to remove, so this is
+ *     the move that gives it something to do.
+ *   - A column with no other real bound has nowhere to go, so its cost is
+ *     shifted instead, exactly as the ratio test does mid-solve. That
+ *     restores the invariant without moving the point, which means it
+ *     hands the method no work; it is here so that the ones that *can* be
+ *     moved are not run past a ratio test whose candidates include costs
+ *     already on the wrong side of zero.
+ *
+ * Only the first kind counts as movement, which is why `anything_to_move`
+ * is asked before any of this runs rather than after. A round that managed
+ * nothing but shifts would re-solve a point the method is already at and
+ * settle back to precisely the residue it started from, having borrowed
+ * costs on the way — and a verdict read off borrowed costs is the one thing
+ * settling exists to prevent. So a round with nothing to move does not
+ * begin. */
+static bool can_move(const sx *s, int64_t v)
+{
+    if (dual_breach(s, v) == 0.0 || s->status[v] == JM_FREE)
+        return false;
+    return isfinite(s->status[v] == JM_AT_LOWER ? real_upper(s, v)
+                                                : real_lower(s, v));
+}
+
+static bool anything_to_move(const sx *s)
+{
+    for (int64_t v = 0; v < s->nvar; v++)
+        if (can_move(s, v))
+            return true;
+    return false;
+}
+
+static void arm_reentry(sx *s)
+{
+    for (int64_t v = 0; v < s->nvar; v++) {
+        if (dual_breach(s, v) == 0.0)
+            continue;
+        if (!can_move(s, v)) {
+            shift_to_feasible(s, v);
+            continue;
+        }
+        s->status[v] = s->status[v] == JM_AT_LOWER ? JM_AT_UPPER
+                                                   : JM_AT_LOWER;
+    }
+}
+
+/* Hands a settled point back to the dual simplex.
+ *
+ * The residue settling leaves is not noise to be tolerated: on `greenbea` a
+ * perturbation of 7e-6 arrives as a violated sign condition of five
+ * (PLAN 2.8.1). But the point it leaves is a genuine one — primal feasible,
+ * and optimal for the costs the solve was working with — so the way to
+ * improve on it is to make it dual feasible again and let the method run,
+ * not to patch what it published.
+ *
+ * What makes this safe to attempt is the fallback rather than the attempt.
+ * A model that has just been proved to have an optimum has not become
+ * infeasible, and a re-entry that reports it has is reporting on itself:
+ * the flips it made are a starting point of its own choosing, and the dual
+ * simplex declaring no feasible point exists from there says the choice was
+ * bad, not that the model is. So anything other than a second optimum is
+ * discarded and the settled point stands. This is the failure both earlier
+ * repairs produced — a feasible model returned INFEASIBLE — and it is the
+ * reason the saved point exists at all rather than an afterthought about
+ * robustness.
+ *
+ * A round that ends in a library error (out of memory, a basis that cannot
+ * be factorized) is different in kind and propagates: those are not
+ * verdicts about the model either, but nothing about them says the saved
+ * point is still reachable.
+ *
+ * What this does *not* do, said plainly because the guard above invites the
+ * assumption: a round's result is accepted for being a second optimum, not
+ * for being a better one. Nothing here compares the two. The method that
+ * produced the new point works on shifted costs exactly as the first pass
+ * did, so it settles to a residue of its own and there is no argument from
+ * construction that the residue is smaller. That the answers do improve is
+ * a measurement across all three instance sets and not a property of this
+ * loop — which is what the baselines under bench/ are for, and the reason
+ * a criterion of "keep the smaller violation" was not invented here: the
+ * solver has no oracle, and picking a scalar for "better" would be a guess
+ * wearing the clothes of a guarantee. */
+static jaos_status reenter_after_settling(sx *s)
+{
+    for (int64_t round = 0; round < SETTLE_ROUNDS; round++) {
+        /* Asked before anything is saved, because the saving is what a solve
+         * with nothing to repair would otherwise pay for: five arrays over
+         * every variable, allocated on a path most solves never leave. On
+         * `ken-18` that is seven megabytes to copy in order to discover
+         * there was no work. */
+        if (!anything_to_move(s))
+            return JAOS_OK;
+        if (!save_settled(s))
+            return JAOS_ERR_OUT_OF_MEMORY;
+        arm_reentry(s);
+
+        /* The point has changed underneath the basis, so any verification
+         * of the old one is spent and the factorization has to be re-read
+         * before pricing believes anything. run() opens with a refresh,
+         * which does both. */
+        s->verified = false;
+        s->needs_refactor = true;
+
+        jaos_solve_status again = JAOS_SOLVE_NOT_RUN;
+        jaos_status st = run(s, &again);
+        if (st != JAOS_OK)
+            return st;
+
+        if (again == JAOS_SOLVE_OPTIMAL) {
+            settle_shifts(s);
+            continue;
+        }
+
+        bool ok = false;
+        st = restore_settled(s, &ok);
+        if (st != JAOS_OK)
+            return st;
+        if (!ok)
+            return JAOS_ERR_NUMERICAL;
+        settle_shifts(s);
+        return JAOS_OK;
+    }
+    return JAOS_OK;
 }
 
 /* --------------------------------------------------------------------- */
@@ -1557,9 +1821,12 @@ jaos_status jm_dual_simplex(jaos_model *m)
          * ratio test worked with. */
         if (outcome == JAOS_SOLVE_OPTIMAL) {
             settle_shifts(&s);
-            outcome = classify_optimum(&s);
+            st = reenter_after_settling(&s);
+            if (st == JAOS_OK)
+                outcome = classify_optimum(&s);
         }
-        st = publish(&s, outcome);
+        if (st == JAOS_OK)
+            st = publish(&s, outcome);
     }
     sx_free(&s);
     return st;

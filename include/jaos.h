@@ -200,12 +200,27 @@ JAOS_NODISCARD int64_t jaos_iterations(const jaos_model *m);
 typedef struct jaos_check_report {
     double max_col_violation;   /* worst breach of a column bound          */
     double max_row_violation;   /* worst breach of a row (activity) bound  */
+    double max_row_violation_relative;
+                                /* the same breach as a fraction of what
+                                   the row carries — sum of |a_ij x_j|.
+                                   Reported only; no verdict reads it     */
     double max_dual_violation;  /* worst breach of a dual sign condition,
                                    including complementary slackness       */
     double primal_objective;    /* c'x + c0, in the model's own sense      */
     double dual_objective;      /* meaningful only when duals were given   */
     double objective_gap;       /* |primal - dual|
                                    / (1 + |primal| + |dual|)              */
+    /* The two halves the gap is the difference of. P - D is a sum over
+       every row and column of w_v (v - bound_v); these accumulate the
+       non-negative terms and the magnitudes of the negative ones
+       separately, in the objective's own units. A negative term needs a
+       primal violation, so on an exactly feasible point gap_negative is
+       zero and gap_positive alone bounds the suboptimality:
+       P - P* <= gap_positive. When it is not zero the two cancel, and a
+       small objective_gap no longer says the point is nearly optimal —
+       which the gap on its own cannot show. Both decide nothing.        */
+    double gap_positive;
+    double gap_negative;
     bool primal_feasible;       /* violations within tolerance             */
     bool dual_feasible;         /* sign conditions and gap within tol      */
     bool checked_duals;         /* false when row_dual was NULL            */

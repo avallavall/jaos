@@ -8,6 +8,10 @@
 > Every number below comes from one recorded run and is only true of that run.
 > The analysis in §4 is reasoning about a mechanism and does not depend on the
 > exact digits; the digits are here so a later run can be compared against them.
+>
+> **Both proposals in §6.1 have since been answered (2026-08-08). Read §10
+> before acting on §6 or §9** — the figures in §1 and §2 are from before the
+> re-entry of §6.3 was built, and both instances have moved.
 
 ---
 
@@ -294,6 +298,107 @@ etamacro is 400×688, an order of magnitude smaller than pilot/pilot87. Its dual
 3. **Medium-term (M6):** Implement a full primal simplex, which naturally handles the post-solve dual cleanup. This is the architecturally correct fix.
 
 4. **Diagnostic:** Add a `JAOS_CHECK_TOL` parameter (or environment variable) to `run.c` to surface how large the dual violations actually are without the gate blocking. This helps track progress.
+
+---
+
+---
+
+## 10. What was run, and what it settled (2026-08-08)
+
+§6.3 was built and §6.1 was measured. Neither closes `pilot` or `pilot87`,
+and the reasons are worth more than the outcome.
+
+### 10.1 §6.3 — re-solve from the repaired point: built, and the section was
+wrong about why it would work
+
+The claim in §6.3 is that re-running the dual simplex from the settled basis
+works because "the basis is already dual infeasible for the true costs, so
+the dual simplex will immediately start repairing it." **That is backwards.**
+The dual simplex does not repair dual infeasibility — it *assumes* it as an
+invariant and repairs the primal. Handed a settled point, which is primal
+feasible, `price_row` returns -1 on the first call and the re-solve
+terminates having done nothing at all.
+
+What makes re-entry work is the step the section leaves out: dual
+feasibility has to be re-established *first*, and that is what moves the
+point. A nonbasic with a wrong-signed reduced cost and a real bound on the
+other side is sent to it — its reduced cost is then feasible for that bound,
+and the primal breaks, which is what gives the method something to do. One
+without a real opposite bound is shifted instead, which restores the
+invariant without moving anything.
+
+Measured on all three sets, per instance against their baselines:
+
+| Instance | dual violation | gap | objective |
+|----------|---------------|-----|-----------|
+| `nesm` | 8.01e-6 → **0** | 2.71e-11 → 1.93e-16 | now within tolerance; **checker green** |
+| `pilot` | 1.7e-2 → 8.0e-5 | 8.29e-6 → 8.6e-13 | -557.2721 → -557.2914 (ref -557.4897), still OUT |
+| `pilot87` | 9.6e-3 → 3.3e-5 | 6.01e-5 → 4.0e-8 | 301.71501 → 301.71270 (ref 301.71035), still OUT |
+| `greenbea` | unchanged | unchanged | bit-identical digest |
+| `etamacro` | unchanged | unchanged | bit-identical digest |
+
+`nesm` converges in one re-entry round, `pilot` in three and `pilot87` in
+six. That last number is the reason `SETTLE_ROUNDS` is 32 rather than the 4
+it was first written as: at 4, `pilot87` stopped with work still to do, at a
+dual violation of 2.3e-4 and a gap of 2.3e-7 — 6.8 and 5.6 times worse than
+where it converges, for 0.36% fewer iterations (D25).
+
+Standard set: 0 regressed, 1 improved, 0 new. Kennington and infeasible:
+0/0/0, both still PASS.
+
+The risk §6.3 names — "the re-solve could take many iterations or cycle" —
+is not the one that matters, and the run says so: `nesm` cost seven extra
+iterations and `pilot` eighty. The risk that matters is the re-entry
+returning INFEASIBLE on a feasible model, which is what the two mid-solve
+repairs did (PLAN Q10). It is refused structurally rather than avoided: the
+settled point is saved, and any re-entry not ending in a second optimum is
+discarded. See D25.
+
+### 10.2 Why `pilot` and `pilot87` are still out
+
+§4.4's account survives and is now quantified. After settling, `pilot` is
+left with 25 violated sign conditions and `pilot87` with 48. Only 5 and 15
+of those sit on columns with a real bound on the other side — the rest have
+nowhere to go. So re-entry repairs the fraction it can reach, which is why
+both improve by two orders of magnitude and neither closes.
+
+Note which quantity moved furthest: `pilot`'s gap fell from 8.29e-6 to
+8.6e-13, seven orders of magnitude, while its objective moved by 0.019 out
+of an error of 0.218. The duals and the primal now agree almost exactly
+about a vertex that is still the wrong one. That is consistent with §4.5 and
+sharpens it: the remaining error is not a broken certificate, it is the
+wrong basis.
+
+### 10.3 §6.1 — the shift cap: closed by measurement, not run
+
+§6.1 proposes capping accumulated `|shift[v]|`. The distribution says a cap
+cannot bite where it would need to. Instrumented at the moment settling
+repays them, on `greenbea`:
+
+| bucket | <1e-9 | <1e-8 | <1e-7 | <1e-6 | <1e-5 |
+|---|---|---|---|---|---|
+| variables | 2407 | 222 | 227 | 42 | 3 |
+
+2901 variables carry a shift; three exceed 1e-6 and the largest is 7.09e-6.
+A cap at 1e-6 touches three of 2901 — and not the ones that matter, because
+the offending columns' own shifts are 4e-9 and 1e-14: the residue arrives
+through the basis, not through the column's own cost (PLAN 2.8.1).
+
+On `etamacro`, where the residue *is* the column's own shift, every shift in
+the whole solve falls below `DUAL_TOL = 1e-7`, the largest being 4.89e-8. A
+cap that bites there is narrower than the Harris window that created the
+shift — which is not a cap on accumulation but a narrower window, a
+different change with a different cost, and not what §6.1 proposes.
+
+### 10.4 What §9 should now say
+
+§9.2's "re-solve loop" is done (§10.1). §9.4's diagnostic is done and went
+further than proposed: the checker publishes `gap_positive`, `gap_negative`
+and `max_row_violation_relative`, and the record carries them per instance
+(D24). §9.1 and §9.3 stand — with the correction that §9.3's full primal
+simplex is more than what is needed. What `greenbea` lacks is one primal
+ratio test plus the basis change `pivot()` already performs, which is the
+scope question PLAN 2.9 now holds open.
 
 ---
 
