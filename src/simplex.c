@@ -288,7 +288,7 @@ static jaos_status sx_init(sx *s, jaos_model *m)
         return JAOS_ERR_OUT_OF_MEMORY;
     }
 
-    s->crash_enabled = true;
+    s->crash_enabled = false;
 
     const double *rho = m->row_scale, *gamma = m->col_scale;
 
@@ -412,10 +412,15 @@ static jaos_status build_crash_basis(sx *s)
     const int64_t nrow = s->nrow, ncol = s->ncol;
     const jaos_model *m = s->m;
 
+    /* Ensure CSR mirror is available for row-major traversal. */
+    jaos_status st = jm_model_ensure_rowwise(s->m);
+    if (st != JAOS_OK)
+        return st;
+
     /* ---- scratch allocation ---- */
     s->row_count = jm_calloc_array(nrow, sizeof(int64_t));
     s->col_count = jm_calloc_array(ncol, sizeof(int64_t));
-    s->crash_perm = jm_alloc_array(nrow + ncol, sizeof(int64_t));
+    s->crash_perm = jm_alloc_array(nrow, sizeof(int64_t));
     s->row_done = jm_calloc_array(nrow, sizeof(bool));
     s->col_done = jm_calloc_array(ncol, sizeof(bool));
     if (!s->row_count || !s->col_count || !s->crash_perm ||
@@ -429,20 +434,19 @@ static jaos_status build_crash_basis(sx *s)
     for (int64_t j = 0; j < ncol; j++) {
         int64_t cnt = 0;
         for (int64_t k = m->a_start[j]; k < m->a_start[j + 1]; k++) {
-            int64_t i = m->a_index[k];
-            R[i]++;
+            R[m->a_index[k]]++;
             cnt++;
         }
         C[j] = cnt;
     }
 
     /* ---- step 2: greedy triangular selection (Maros-style) ---- */
-    int64_t *selected = s->crash_perm;   /* first nsel entries are the selected order */
+    int64_t *selected = s->crash_perm;   /* first nsel entries are the selected columns */
     int64_t nsel = 0;
 
-    /* Precompute column 1-norms and a cost-quality score for tie-breaking. */
-    double *col_norm = s->crash_perm + nrow;   /* reuse tail of crash_perm as double* */
-    double *col_score = (double *)jm_alloc_array(ncol, sizeof(double));
+    /* Precompute column scores for tie-breaking: |c_j| * (u_j - l_j) / ||A[:,j]||_1.
+     * Wide bounds and large costs attract a column to the basis. */
+    double *col_score = jm_alloc_array(ncol, sizeof(double));
     if (!col_score)
         return JAOS_ERR_OUT_OF_MEMORY;
 
@@ -450,22 +454,19 @@ static jaos_status build_crash_basis(sx *s)
         double norm1 = 0.0;
         for (int64_t k = m->a_start[j]; k < m->a_start[j + 1]; k++)
             norm1 += fabs(s->av[k]);
-        col_norm[j] = norm1 > 0.0 ? norm1 : 1.0;
 
-        /* Score: |c_j| * (u_j - l_j) / ||A[:,j]||_1.
-         * Wide bounds and large costs make a column attractive for the
-         * crash basis because it is more likely to provide dual
-         * feasibility. Free variables get the highest score. */
         double width = s->up[j] - s->lo[j];
         if (!isfinite(width)) {
-            /* Free or semi-infinite: treat as a very wide bound. */
-            col_score[j] = fabs(s->cost[j]) * 1e10 / col_norm[j];
+            /* Free or semi-infinite: wide enough to never be the blocker. */
+            col_score[j] = fabs(s->cost[j]) * 1e10 / (norm1 > 0.0 ? norm1 : 1.0);
         } else {
-            col_score[j] = fabs(s->cost[j]) * fmax(width, 0.0) / col_norm[j];
+            col_score[j] = fabs(s->cost[j]) * fmax(width, 0.0) / (norm1 > 0.0 ? norm1 : 1.0);
         }
     }
 
-    /* Greedy loop: pick a row, pick its column, remove both. */
+    /* Greedy loop: pick the row with fewest remaining structural nonzeros,
+     * then pick the column in that row with the smallest column count
+     * (minimum fill-in), tie-breaking by the cost-quality score. */
     for (int64_t step = 0; step < nrow; step++) {
         /* Find remaining row with smallest R[i]. */
         int64_t best_row = -1;
@@ -479,80 +480,44 @@ static jaos_status build_crash_basis(sx *s)
             }
         }
         if (best_row < 0)
-            break;   /* no rows left (unreachable but defensive) */
+            break;
 
         if (best_cnt == 0) {
-            /* Row has no remaining nonzeros from structural columns:
-             * leave it for a logical (slack) column. */
+            /* Row has no remaining structural nonzeros: leave for a logical. */
             s->row_done[best_row] = true;
             continue;
         }
 
-        /* Find the best column in this row. */
+        /* Find the best column in this row using the CSR mirror. */
         int64_t best_col = -1;
         int64_t best_col_cnt = INT64_MAX;
         double best_col_score = -1.0;
 
-        for (int64_t k = m->a_start[best_row == 0 ? 0 : 0];
-             k < m->a_start[ncol]; k++) {
-            /* We need to iterate only columns that contain this row.
-             * Use a linear scan over all structural columns — for the
-             * typical LP this is fast enough for one pass. */
-        }
-        /* Actually, we need a row-major traversal. Use the row-wise
-         * mirror if available, or scan columns. */
-        bool have_rowwise = m->rowwise_valid;
-        if (have_rowwise) {
-            for (int64_t p = m->ar_start[best_row]; p < m->ar_start[best_row + 1]; p++) {
-                int64_t j = m->ar_index[p];
-                if (s->col_done[j])
-                    continue;
-                int64_t cnt = C[j];
-                double score = col_score[j];
-                if (cnt < best_col_cnt || (cnt == best_col_cnt && score > best_col_score)) {
-                    best_col_cnt = cnt;
-                    best_col_score = score;
-                    best_col = j;
-                }
-            }
-        } else {
-            /* Fallback: scan all remaining columns. */
-            for (int64_t j = 0; j < ncol; j++) {
-                if (s->col_done[j])
-                    continue;
-                /* Check if column j has this row. */
-                bool found = false;
-                for (int64_t p = m->a_start[j]; p < m->a_start[j + 1]; p++) {
-                    if (m->a_index[p] == best_row) {
-                        found = true;
-                        break;
-                    }
-                }
-                if (!found)
-                    continue;
-                int64_t cnt = C[j];
-                double score = col_score[j];
-                if (cnt < best_col_cnt || (cnt == best_col_cnt && score > best_col_score)) {
-                    best_col_cnt = cnt;
-                    best_col_score = score;
-                    best_col = j;
-                }
+        for (int64_t p = m->ar_start[best_row]; p < m->ar_start[best_row + 1]; p++) {
+            int64_t j = m->ar_index[p];
+            if (s->col_done[j])
+                continue;
+            int64_t cnt = C[j];
+            double score = col_score[j];
+            if (cnt < best_col_cnt || (cnt == best_col_cnt && score > best_col_score)) {
+                best_col_cnt = cnt;
+                best_col_score = score;
+                best_col = j;
             }
         }
 
         if (best_col < 0) {
-            /* No structural column left for this row: leave it for a logical. */
+            /* No structural column left: leave for a logical. */
             s->row_done[best_row] = true;
             continue;
         }
 
-        /* Pivot column best_col into basis at position best_row. */
+        /* Record the selection and remove row + column from consideration. */
         selected[nsel++] = best_col;
-
-        /* Remove row best_row and column best_col; update counts. */
         s->row_done[best_row] = true;
         s->col_done[best_col] = true;
 
+        /* Update row counts: column best_col's nonzeros are no longer available. */
         for (int64_t p = m->a_start[best_col]; p < m->a_start[best_col + 1]; p++) {
             int64_t i = m->a_index[p];
             if (!s->row_done[i])
@@ -560,34 +525,32 @@ static jaos_status build_crash_basis(sx *s)
         }
     }
 
+    free(col_score);
+
     /* ---- step 3: build the basis ---- */
-    /* First fill with the selected structural columns. */
+    /* Install selected structural columns first, then fill remaining
+     * slots with logical columns (slacks). */
     int64_t pos = 0;
     for (int64_t p = 0; p < nsel && pos < nrow; p++, pos++) {
         int64_t v = selected[p];
         s->basis[pos] = v;
         s->status[v] = JM_BASIC;
         s->where[v] = pos;
-        /* Nonbasic status for the slack variables set below. */
     }
-
-    /* Fill remaining slots with logical columns. */
     for (; pos < nrow; pos++) {
         int64_t v = s->ncol + pos;
         s->basis[pos] = v;
         s->status[v] = JM_BASIC;
         s->where[v] = pos;
     }
-
-    /* Mark all remaining structural columns as nonbasic. */
+    /* Mark non-basic structural columns. */
     for (int64_t j = 0; j < ncol; j++) {
-        if (s->status[j] != JM_BASIC) {
+        if (s->status[j] != JM_BASIC)
             s->where[j] = -1;
-        }
     }
 
-    /* Set nonbasic status for non-basic structurals (same logic as
-     * build_initial_basis: cost-sign pattern determines the bound). */
+    /* Set nonbasic status for all structural columns not in the basis,
+     * using the same cost-sign logic as build_initial_basis. */
     for (int64_t j = 0; j < ncol; j++) {
         if (s->status[j] == JM_BASIC)
             continue;
@@ -615,19 +578,11 @@ static jaos_status build_crash_basis(sx *s)
         }
     }
 
-    /* ---- step 4: exact DSE weight initialization ---- */
-    /* m BTRAN solves: for each basis position i, compute ||e_i^T B^-1||^2. */
-    for (int64_t i = 0; i < nrow; i++) {
-        memset(s->rho, 0, (size_t)nrow * sizeof(double));
-        s->rho[i] = 1.0;
-        jm_lu_btran(&s->lu, s->rho, &s->work);
-        double norm2 = 0.0;
-        for (int64_t k = 0; k < nrow; k++)
-            norm2 += s->rho[k] * s->rho[k];
-        s->dse[i] = norm2 > DSE_MIN ? norm2 : DSE_MIN;
-    }
+    /* Set DSE weights to a reasonable default — the exact values will
+     * be computed by the caller after factorizing the basis. */
+    for (int64_t i = 0; i < nrow; i++)
+        s->dse[i] = 1.0;
 
-    free(col_score);
     return JAOS_OK;
 }
 
@@ -637,9 +592,18 @@ static jaos_status build_crash_basis(sx *s)
  *
  * A structural whose cost asks for a bound it does not have gets an
  * artificial one, which is dual phase 1 (see ARTIFICIAL_BOUND above). The
- * loan is recorded so the outcome can be read honestly afterwards. */
+ * loan is recorded so the outcome can be read honestly afterwards.
+ *
+ * If crash basis is enabled, build a near-triangular basis from structural
+ * columns instead. Falls back to the slack basis if the crash fails. */
 static void build_initial_basis(sx *s)
 {
+    if (s->crash_enabled) {
+        jaos_status st = build_crash_basis(s);
+        if (st == JAOS_OK)
+            return;
+        /* Fall through to the slack basis on failure. */
+    }
     for (int64_t i = 0; i < s->nrow; i++) {
         int64_t v = s->ncol + i;
         s->basis[i] = v;
@@ -1656,7 +1620,35 @@ jaos_status jm_dual_simplex(jaos_model *m)
     clock_gettime(CLOCK_MONOTONIC, &s.started);
 
     jaos_solve_status outcome;
-    build_initial_basis(&s);
+
+    if (s.crash_enabled) {
+        st = build_crash_basis(&s);
+        if (st == JAOS_OK) {
+            /* Factor so we can compute exact DSE weights. */
+            st = refactorize(&s);
+            if (st == JAOS_OK && s.lu.rank != s.nrow)
+                st = JAOS_ERR_NUMERICAL;   /* singular; fall back */
+        }
+        if (st == JAOS_OK) {
+            /* ---- exact DSE weight initialization ---- */
+            /* m BTRAN solves: ||e_i^T B^-1||^2 for each basis row. */
+            for (int64_t i = 0; i < s.nrow; i++) {
+                memset(s.rho, 0, (size_t)s.nrow * sizeof(double));
+                s.rho[i] = 1.0;
+                jm_lu_btran(&s.lu, s.rho, &s.work);
+                double norm2 = 0.0;
+                for (int64_t k = 0; k < s.nrow; k++)
+                    norm2 += s.rho[k] * s.rho[k];
+                s.dse[i] = norm2 > DSE_MIN ? norm2 : DSE_MIN;
+            }
+        }
+        if (st != JAOS_OK) {
+            /* Crash failed — build the ordinary slack basis. */
+            build_initial_basis(&s);
+        }
+    } else {
+        build_initial_basis(&s);
+    }
     st = run(&s, &outcome);
     if (st == JAOS_OK) {
         /* Settle first, then judge. The verdict turns on reduced costs, so
