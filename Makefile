@@ -62,7 +62,7 @@ LIB := $(B)/release/libjaos.a
 DEV_TESTS  := $(TESTS:tests/%.c=$(B)/dev/%)
 ASAN_TESTS := $(TESTS:tests/%.c=$(B)/asan/%)
 
-.PHONY: all test sanitize bench netlib clean
+.PHONY: all test sanitize bench netlib netlib-baseline clean
 
 # Keep intermediate objects; make otherwise deletes and rebuilds them
 # between targets.
@@ -119,7 +119,15 @@ bench: $(B)/bench/run
 netlib: $(B)/bench/run
 	@bench/fetch.sh
 	@mkdir -p bench/results
-	./$(B)/bench/run -o bench/results/netlib.txt
+	./$(B)/bench/run -o bench/results/netlib.txt -b bench/netlib.baseline
+
+# Rewrites what every instance is expected to do. Separate from `netlib`, and
+# never a side effect of it: a baseline that updates itself records whatever
+# just happened as correct, which is the one thing it must not do.
+netlib-baseline: $(B)/bench/run
+	@bench/fetch.sh
+	@mkdir -p bench/results
+	./$(B)/bench/run -o bench/results/netlib.txt -w bench/netlib.baseline
 
 $(B)/release $(B)/dev $(B)/asan $(B)/bench:
 	mkdir -p $@

@@ -1,8 +1,13 @@
 # Pilot / Pilot87 OUT-OF-TOLERANCE Analysis
 
 > Research into why the two largest Netlib instances fail the JAOS acceptance gate.
-> Date: 2026-08-07
-> Status: M1 gate — **not met** for these two instances
+> Written 2026-08-07; figures re-read from `bench/results/netlib.txt` the same day
+> against the state `main` is in now, after the M2 prototype was reverted.
+> Status: M1 gate — **not met** for these two instances.
+>
+> Every number below comes from one recorded run and is only true of that run.
+> The analysis in §4 is reasoning about a mechanism and does not depend on the
+> exact digits; the digits are here so a later run can be compared against them.
 
 ---
 
@@ -10,18 +15,18 @@
 
 | Instance | Rows | Cols | Nonzeros | Solver Obj | Reference Obj | Gate | Checker |
 |----------|------|------|----------|------------|--------------|------|---------|
-| `pilot` | 1441 | 3652 | 43220 | ≈ -557.38 | -557.4897292840682 (Koch) | **OUT-OF-TOLERANCE** | **REJECTED** |
-| `pilot87` | 2030 | 4883 | 73804 | ≈ 301.7156 | 301.71072827 (netlib) | **OUT-OF-TOLERANCE** | **REJECTED** |
+| `pilot` | 1441 | 3652 | 43220 | -557.27208765931482 | -557.4897292840682 (Koch) | **OUT-OF-TOLERANCE** | **REJECTED** |
+| `pilot87` | 2030 | 4883 | 73804 | 301.71500637546757 | 301.71072827 (netlib) | **OUT-OF-TOLERANCE** | **REJECTED** |
 
 **Conclusion: The solver genuinely produces wrong answers. This is NOT a tolerance issue.**
 
-The dual violations of 0.0001–0.02 in original space are 100–20,000× above the checker's 1e-6 tolerance. The objective errors are 16–200× above the gate's relative tolerance. These are structural numerical failures, not borderline precision cases.
+The dual violations of 0.0096 and 0.019 in original space are four orders of magnitude above the checker's 1e-6 tolerance. The objective errors are 14× and 390× the gate's relative tolerance. These are structural numerical failures, not borderline precision cases.
 
 ---
 
 ## 2. The Gate Mechanism
 
-### 2.1 Objective acceptance (`bench/run.c`, line 58–62)
+### 2.1 Objective acceptance (`objective_accepted` in `bench/run.c`)
 
 ```c
 static bool objective_accepted(double got, double ref)
@@ -35,10 +40,10 @@ For each instance:
 
 | Instance | Ref | Scale | Gate Tol | | Solver | Error | Error/Scale | × Tol |
 |----------|-----|-------|----------|---|--------|------|-------------|-------|
-| `pilot` | -557.49 | 557.49 | 5.57e-4 | | -557.38 | 0.11 | 2.0e-4 | **200×** |
-| `pilot87` | 301.71 | 301.71 | 3.02e-4 | | 301.72 | 0.0049 | 1.6e-5 | **16×** |
+| `pilot` | -557.4897 | 557.49 | 5.57e-4 | | -557.2721 | 0.2176 | 3.9e-4 | **390×** |
+| `pilot87` | 301.7107 | 301.71 | 3.02e-4 | | 301.7150 | 0.00428 | 1.4e-5 | **14×** |
 
-### 2.2 Checker tolerance (`bench/run.c`, line 65)
+### 2.2 Checker tolerance (`CHECK_TOL` in `bench/run.c`)
 
 ```c
 constexpr double CHECK_TOL = 1e-6;
@@ -54,10 +59,10 @@ The checker (`jaos_check_solution` in `src/check.c`) judges in **original space*
 
 | Instance | Row Violation | Col Violation | Dual Violation | Gap |
 |----------|-------------|-------------|---------------|-----|
-| `pilot` | small | 0 | **0.000125–0.019** | 1.7e-05 |
-| `pilot87` | small | 0 | **0.000455–0.0096** | 6e-05 |
+| `pilot` | 1.96e-05 | 0 | **0.019** | 1.66e-05 |
+| `pilot87` | 2.03e-08 | 0 | **0.00964** | 6.01e-05 |
 
-The dual violations are 100–19,000× above the 1e-6 checker tolerance. The gap is 1.7e-05 to 6e-05, which is 17–60× above the 1e-6 tolerance.
+The dual violations are roughly 10,000× and 19,000× the 1e-6 checker tolerance. The gaps, at 1.66e-05 and 6.01e-05, are 17× and 60× it. Note which of the two is the larger breach: the objective is nearly right and the duals are not close, and that asymmetry is what §4 is about.
 
 ---
 
@@ -75,9 +80,9 @@ The manifest (`bench/netlib.manifest`) uses **Koch's exact rational values** whe
 | CPLEX (Sparc) | -557.48972928 | 4.1e-9 | Near Koch |
 | OSL (MVS) | -557.41215293 | 0.078 | Off by 0.014% |
 | Netlib MINOS 5.3 | -557.40430007 | 0.085 | Off by 0.015% |
-| **JAOS** | **≈ -557.38** | **0.11** | **Off by 0.02%** |
+| **JAOS** | **-557.27208765931482** | **0.218** | **Off by 0.039%** |
 
-The netlib MINOS value was **wrong** for pilot (Koch found it in the set of 8 misreported values). The manifest correctly uses Koch's value. The solver's answer is worse than even the wrong netlib value.
+The netlib MINOS value was **wrong** for pilot (Koch found it in the set of 8 misreported values). The manifest correctly uses Koch's value. The solver's answer is worse than even the wrong netlib value — it is further from Koch than MINOS, OSL and CPLEX all are.
 
 ### 3.3 `pilot87` — netlib value, Koch agrees
 
@@ -86,9 +91,9 @@ The netlib MINOS value was **wrong** for pilot (Koch found it in the set of 8 mi
 | Netlib MINOS 5.3 | **301.71072827** | 0 | Manifest reference |
 | CPLEX/OSL | 301.71074161 | 1.3e-5 | Within gate tolerance |
 | Koch exact | 301.7107xxx | < 3e-4 | Within gate tolerance |
-| **JAOS** | **≈ 301.7156** | **0.0049** | **16× past tolerance** |
+| **JAOS** | **301.71500637546757** | **0.00428** | **14× past tolerance** |
 
-pilot87 was NOT in Koch's list of 8 misreported values, so his exact rational value is within the gate's 3.02e-4 tolerance of the netlib value. The solver's answer is 16× past that tolerance, making it definitively wrong.
+pilot87 was NOT in Koch's list of 8 misreported values, so his exact rational value is within the gate's 3.02e-4 tolerance of the netlib value. The solver's answer is 14× past that tolerance, making it definitively wrong.
 
 ### 3.4 Verdict on references
 
@@ -115,7 +120,7 @@ run() → price_row() returns -1 (no violation in scaled space)
 
 ### 4.2 The cost-shifting mechanism
 
-During the dual simplex, the Harris window (DUAL_TOL = 1e-7) allows reduced costs to be pushed past feasible in exchange for a larger pivot. Each such push is recorded as a **cost shift** (`shift_to_feasible()` in `src/simplex.c`, lines 846–869):
+During the dual simplex, the Harris window (DUAL_TOL = 1e-7) allows reduced costs to be pushed past feasible in exchange for a larger pivot. Each such push is recorded as a **cost shift** (`shift_to_feasible()` in `src/simplex.c`):
 
 ```c
 static void shift_to_feasible(sx *s, int64_t v)
@@ -131,7 +136,7 @@ The shifted costs accumulate over potentially thousands of iterations. The basis
 
 ### 4.3 The settle_shifts repair
 
-After the solve terminates, `settle_shifts()` (line 1043–1058) restores the true costs and recomputes the duals from scratch:
+After the solve terminates, `settle_shifts()` restores the true costs and recomputes the duals from scratch:
 
 ```c
 static void settle_shifts(sx *s)
@@ -146,7 +151,7 @@ static void settle_shifts(sx *s)
 }
 ```
 
-Then `repair_dual_infeasibility()` (line 986–1037) tries to fix dual infeasibility by **swapping nonbasic variables to their other bound**. This is a limited repair:
+Then `repair_dual_infeasibility()` tries to fix dual infeasibility by **swapping nonbasic variables to their other bound**. This is a limited repair:
 
 - It only swaps, never changes the basis.
 - A swap is refused if it makes any basic variable violate its bound.
@@ -161,7 +166,7 @@ The core problem is that **the basis is optimal for the shifted-cost problem, no
 3. On large, numerically challenging instances like pilot/pilot87, the accumulated shifts are significant, and the repaired point still has residual dual infeasibility.
 4. The duals reported by `publish()` are computed from the basis via BTRAN (`y = B^{-T} c_B`), but the basis is **wrong** — it was optimal for the shifted problem.
 
-**The dual violations of 1e-4 to 1e-2 in original space are direct evidence of this.** The duals are not the duals of the true optimum — they are the duals of a basis that is only optimal for a perturbed problem.
+**The dual violations of 0.0096 and 0.019 in original space are direct evidence of this.** The duals are not the duals of the true optimum — they are the duals of a basis that is only optimal for a perturbed problem.
 
 ### 4.5 Why the objective is also wrong
 
@@ -175,15 +180,15 @@ The objective error is a secondary effect. The primal point is close to the true
 
 | Tolerance | Value | Where |
 |-----------|-------|-------|
-| PRIMAL_TOL | 1e-7 | `src/simplex.c:43` |
-| DUAL_TOL | 1e-7 | `src/simplex.c:49` |
-| PIVOT_MIN | 1e-9 | `src/simplex.c:44` |
+| PRIMAL_TOL | 1e-7 | `src/simplex.c` |
+| DUAL_TOL | 1e-7 | `src/simplex.c` |
+| PIVOT_MIN | 1e-9 | `src/simplex.c` |
 
 ### 5.2 Checker tolerance (original space)
 
 | Tolerance | Value | Where |
 |-----------|-------|-------|
-| CHECK_TOL | 1e-6 | `bench/run.c:65` |
+| CHECK_TOL | 1e-6 | `bench/run.c` |
 
 ### 5.3 The scaling gap
 
@@ -197,10 +202,10 @@ A violation in scaled space of 1e-7 maps to a violation of `1e-7 / rho[i]` in or
 
 **Is the tolerance too tight?** No.
 
-- The dual violations (0.0001–0.02) are 100–20,000× above the 1e-6 checker tolerance.
-- One cannot argue that 1e-6 is too tight when the actual violations are 0.02 — you'd need tolerance 0.02 to pass, which is a meaningless threshold.
-- The objective errors (0.11 for pilot, 0.0049 for pilot87) are 16–200× above the gate tolerance.
-- Even if the gate tolerance were relaxed 10,000×, the solver would still fail on pilot because the objective error of 0.11 on |ref| 557.5 is 0.02% of the objective — a genuine error, not a rounding issue.
+- The dual violations (0.0096 and 0.019) are four orders of magnitude above the 1e-6 checker tolerance.
+- One cannot argue that 1e-6 is too tight when the actual violation is 0.019 — you'd need a tolerance of 0.019 to pass, which is a threshold that admits anything.
+- The objective errors (0.218 for pilot, 0.00428 for pilot87) are 390× and 14× the gate tolerance.
+- Even if the gate tolerance were relaxed 10,000×, the solver would still fail on pilot: an objective error of 0.218 on |ref| 557.5 is 0.039% of the objective — a genuine error, not a rounding issue.
 
 ---
 
@@ -250,8 +255,8 @@ The risk is that the re-solve could take many iterations or cycle — but both a
 - Large LP: 1441×3652, 43220 nonzeros.
 - **Historically difficult**: the netlib readme shows that MINOS 5.3, CPLEX, and OSL all found **different** optima (range -557.40 to -557.49). This is a textbook example of a degenerate LP where different solvers converge to different vertices.
 - Koch's exact rational value (-557.4897292840682) agrees with CPLEX, showing the netlib value was wrong for ~17 years.
-- The solver's answer (-557.38) is worse than all of them — it's not even converging to the wrong netlib vertex.
-- The dual violations (0.000125–0.019) indicate the answer is not a KKT point at all.
+- The solver's answer (-557.2721) is worse than all of them — it is not even converging to the wrong netlib vertex.
+- The dual violation of 0.019 indicates the answer is not a KKT point at all.
 
 ### 7.2 `pilot87`
 
@@ -259,8 +264,8 @@ The risk is that the re-solve could take many iterations or cycle — but both a
 - **Harder than pilot** according to Irv Lustig: "PILOT87 is considered to be harder than PILOT because of the bad scaling in the numerics."
 - The netlib readme notes "bad scaling" — a known issue with this instance.
 - Unlike pilot, the reference values agree (MINOS, CPLEX, and Koch are all within 1.3e-5 of each other).
-- The solver's objective error of 0.0049 on |ref| 301.71 is a 1.6e-5 relative error — small in absolute terms but 16× past the gate.
-- The dual violations (0.000455–0.0096) are again the tell: the basis is not optimal for the true costs.
+- The solver's objective error of 0.00428 on |ref| 301.71 is a 1.4e-5 relative error — small in absolute terms but 14× past the gate.
+- The dual violation of 0.00964 is again the tell: the basis is not optimal for the true costs.
 
 ---
 
@@ -270,9 +275,9 @@ The `etamacro` instance shows a milder version of the same problem:
 
 | Instance | Dual Violation | Gap | Status |
 |----------|---------------|-----|--------|
-| `etamacro` | 1.56e-06 | 3.85e-09 | Just past tolerance |
-| `pilot` | 0.000125–0.019 | 1.7e-05 | Far past tolerance |
-| `pilot87` | 0.000455–0.0096 | 6e-05 | Far past tolerance |
+| `etamacro` | 1.56e-06 | 4.31e-09 | Just past tolerance |
+| `pilot` | 0.019 | 1.66e-05 | Far past tolerance |
+| `pilot87` | 0.00964 | 6.01e-05 | Far past tolerance |
 
 etamacro is 400×688, an order of magnitude smaller than pilot/pilot87. Its dual violation is 1.56e-06 — just barely past the 1e-6 threshold. This is consistent with the cost-shift hypothesis: smaller instances accumulate less shift, so the settle/repair mechanism works better. The instances grow larger, the shifts grow, and the repair fails more catastrophically.
 

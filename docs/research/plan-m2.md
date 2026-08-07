@@ -1,9 +1,25 @@
-# M2 — LP Fast: Implementation Plan
+# M2 — LP Fast: a proposed implementation order
 
-> Based on research at `docs/research/hyper-sparsity.md` and `docs/research/crash-basis.md`.
-> Target: 5.6× geometric-mean speedup on hyper-sparse problems via Gilbert-Peierls
-> reach-based triangular solves, hyper-sparse PRICE/CHUZC, and a Koberstein dual crash basis.
-> M2 also addresses the deferred data-structure items from PLAN.md §2.11.
+> **This is a proposal, not the project's plan.** `PLAN.md` is, and its §1 table
+> is what defines M2. This document sits under `research/` for the same reason
+> its siblings do: it records what was worked out at a point in time, and
+> nothing here is committed to until M2 opens.
+>
+> Sources: `hyper-sparsity.md` and `crash-basis.md`, alongside this file.
+>
+> **On the speedup figures.** Every multiplier below — 5.6× geometric mean,
+> 14.9× on I-FTRAN, and the rest — is reported from the literature (Hall &
+> McKinnon 2005, Huangfu & Hall 2018) for *their* implementations on *their*
+> instances. None has been measured in JAOS, which under D17 means none may be
+> stated as something JAOS achieves or will achieve. They are here as the
+> reason a technique is worth trying, and that is the whole of their standing.
+> The measurement host Q4 asks for does not exist yet, so the numbers that
+> would settle it cannot be produced yet either.
+>
+> **Status as of 2026-08-07:** a prototype of components 1–3 and 7 was written
+> and reverted (see CHANGELOG). It regressed the Netlib set and never compiled
+> in release. Nothing from it survives in `main`, and the line references in
+> §4 point at a file that no longer reads that way — treat them as approximate.
 
 ---
 

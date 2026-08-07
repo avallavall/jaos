@@ -17,8 +17,9 @@ exits non-zero unless every instance met every condition.
 | File | |
 |---|---|
 | `netlib.manifest` | the instance list: pinned sha256, expected shape, reference optimum |
+| `netlib.baseline` | what each instance did last time, so a regression can be seen |
 | `fetch.sh` | downloads each instance and refuses any whose checksum does not match |
-| `run.c` | solves each one and judges it against the manifest and the checker |
+| `run.c` | solves each one and judges it against the manifest, the checker, and the baseline |
 | `results/` | output of a run; ignored by git except for this directory itself |
 
 The instance files never enter the repository (PLAN 2.10). The manifest is
@@ -57,6 +58,44 @@ Four things, and three of them come from outside this solver:
 
 No wall-clock figure is produced anywhere. Speed is an M2 question and needs
 a controlled host before any number about it means anything (D17).
+
+## The baseline, and the question the gate cannot answer
+
+The gate is all-or-nothing: until every instance meets every condition above
+it reports `NOT MET`, and it will keep reporting `NOT MET` for the whole of
+M1. That makes it useless for the question actually asked of every change
+along the way — *did this make anything worse?* A run that fixed one instance
+and broke two scores exactly like the run before it. Worse, the summary
+counts can come out identical when the gains and the losses cancel, which
+reads as "nothing happened" when two things did.
+
+That is not hypothetical. It is how ten commits reached `main` in August 2026
+carrying a wrong answer on `pilot-we`, a checker rejection on `pilotnov` and a
+seventy-sevenfold slowdown on `grow22`, under a summary line that never moved.
+
+So `bench/netlib.baseline` records what every instance did, and `make netlib`
+compares against it:
+
+```sh
+make netlib             # run the gate and diff every instance against the baseline
+make netlib-baseline    # rewrite the baseline from this run
+```
+
+Each instance is judged on the four predicates above plus its work count. Any
+of them going from holding to not holding is a regression and fails the run on
+its own, whatever the gate says. Work is allowed to grow by up to 2×; past
+that it is reported too, because an instance that still reaches the same
+optimum after eighty times the iterations has not kept working — it has become
+a work-limit failure for any caller with a budget.
+
+Improvements are printed as well as regressions. A baseline that only ever
+tightens is one nobody remembers to loosen.
+
+Updating it is a separate command on purpose, and never a side effect of
+running the gate. A baseline that rewrites itself records whatever just
+happened as correct, which is the one thing it must not do. Regenerate it when
+a change's effect on these numbers has been read and accepted — and say so in
+the commit.
 
 ## The reference values, and why Koch rather than netlib
 

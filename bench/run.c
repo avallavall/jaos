@@ -11,16 +11,26 @@
  * other consumer, and prints data rather than verdicts about speed. No
  * wall-clock number appears anywhere in its output, deliberately (D17).
  *
- * Usage: run [-d DIR] [-m MANIFEST] [-o FILE] [instance ...]
+ * Usage: run [-d DIR] [-m MANIFEST] [-o FILE] [-b FILE] [-w FILE] [instance ...]
  *   -d DIR       where the .mps files are (default bench/instances)
  *   -m MANIFEST  manifest to read (default bench/netlib.manifest)
  *   -o FILE      write the table here as well as to stdout
+ *   -b FILE      compare every instance against this baseline
+ *   -w FILE      write a baseline from this run
  *   instance     run only these; default is every instance in the manifest
  *
  * Exit status is zero only when every instance run met every condition the
- * gate asks of it. That is why -o exists rather than a `| tee`: a pipeline
- * reports the exit status of tee, so a gate that failed would come back
- * successful, and a gate nobody can fail is not a gate.
+ * gate asks of it, and nothing regressed against the baseline if one was
+ * given. That is why -o exists rather than a `| tee`: a pipeline reports the
+ * exit status of tee, so a gate that failed would come back successful, and
+ * a gate nobody can fail is not a gate.
+ *
+ * The baseline exists because the gate alone cannot fail informatively while
+ * M1 is open. Its verdict is all-or-nothing, so it reads NOT MET for a run
+ * that fixed one instance and broke two exactly as it does for a run that
+ * changed nothing — the summary counts even come out identical when the
+ * gains and losses happen to cancel. Comparing each instance against what it
+ * did last time is what turns that silence into a message.
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -96,6 +106,122 @@ typedef struct {
     int64_t shape_ok, failed;
 } tally;
 
+/* What one instance did, separated from how it is judged.
+ *
+ * The separation is the point. The gate's own verdict is all-or-nothing and
+ * stays NOT MET until every instance passes every condition, which means
+ * that for the whole of M1 it reports the same word whatever happens
+ * underneath it. A run where one instance started solving and another
+ * started failing scores exactly like the run before it — that is not a
+ * hypothetical, it is how ten commits of regressions reached main with the
+ * summary line unchanged. Judging each instance against what it did last
+ * time is what makes the difference visible. */
+typedef struct {
+    char name[64];
+    char status[24];    /* "optimal", "infeasible", "SOLVE-ERROR", ... */
+    bool solved;        /* reached a verified optimum */
+    bool shape, objective, checker, det;
+    long long iters, work;
+} outcome;
+
+/* How much more work an instance may do than it did at baseline before that
+ * counts as a regression in its own right. Correctness is a predicate and
+ * regresses visibly; cost is a number and degrades quietly, which is the
+ * more dangerous of the two. An instance that still reaches the same optimum
+ * after eighty times the iterations has not kept working — it has become a
+ * work-limit failure on any caller with a budget. */
+constexpr double WORK_REGRESSION_FACTOR = 2.0;
+
+constexpr int MAX_INSTANCES = 512;
+
+static outcome g_base[MAX_INSTANCES];
+static int g_nbase = 0;
+
+static outcome g_got[MAX_INSTANCES];
+static int g_ngot = 0;
+
+static const outcome *baseline_find(const char *name)
+{
+    for (int i = 0; i < g_nbase; i++)
+        if (strcmp(g_base[i].name, name) == 0)
+            return &g_base[i];
+    return nullptr;
+}
+
+/* One line per instance: name, status, four predicates as 0/1, then the two
+ * cost numbers. Fixed fields rather than the table format, because this file
+ * is read by a program and the table is read by a person. */
+static bool baseline_load(const char *path)
+{
+    FILE *f = fopen(path, "r");
+    if (f == nullptr)
+        return false;
+
+    char line[1024];
+    while (fgets(line, sizeof line, f) != nullptr && g_nbase < MAX_INSTANCES) {
+        if (line[0] == '#' || line[0] == '\n')
+            continue;
+        outcome o;
+        memset(&o, 0, sizeof o);
+        int solved = 0, shape = 0, obj = 0, chk = 0, det = 0;
+        if (sscanf(line, "%63s %23s %d %d %d %d %d %lld %lld",
+                   o.name, o.status, &solved, &shape, &obj, &chk, &det,
+                   &o.iters, &o.work) != 9)
+            continue;
+        o.solved = solved != 0;
+        o.shape = shape != 0;
+        o.objective = obj != 0;
+        o.checker = chk != 0;
+        o.det = det != 0;
+        g_base[g_nbase++] = o;
+    }
+    fclose(f);
+    return true;
+}
+
+static bool baseline_write(const char *path)
+{
+    FILE *f = fopen(path, "w");
+    if (f == nullptr) {
+        fprintf(stderr, "cannot write %s\n", path);
+        return false;
+    }
+    fprintf(f, "# What each instance did, as of this run. Regenerated only on\n"
+               "# purpose: `make netlib-baseline` after a change whose effect on\n"
+               "# these numbers has been read and accepted. A quiet update here\n"
+               "# is a regression nobody will ever be told about.\n"
+               "#\n"
+               "# name status solved shape objective checker det iters work\n");
+    for (int i = 0; i < g_ngot; i++) {
+        const outcome *o = &g_got[i];
+        fprintf(f, "%-12s %-12s %d %d %d %d %d %lld %lld\n",
+                o->name, o->status, o->solved ? 1 : 0, o->shape ? 1 : 0,
+                o->objective ? 1 : 0, o->checker ? 1 : 0, o->det ? 1 : 0,
+                o->iters, o->work);
+    }
+    fclose(f);
+    return true;
+}
+
+static void record(const char *name, const char *status, bool solved,
+                   bool shape, bool objective, bool checker, bool det,
+                   long long iters, long long work)
+{
+    if (g_ngot >= MAX_INSTANCES)
+        return;
+    outcome *o = &g_got[g_ngot++];
+    memset(o, 0, sizeof *o);
+    snprintf(o->name, sizeof o->name, "%s", name);
+    snprintf(o->status, sizeof o->status, "%s", status);
+    o->solved = solved;
+    o->shape = shape;
+    o->objective = objective;
+    o->checker = checker;
+    o->det = det;
+    o->iters = iters;
+    o->work = work;
+}
+
 /* One instance, start to finish. Returns false if anything the gate asks for
  * did not hold. */
 static bool run_one(const entry *e, const char *dir, tally *t)
@@ -116,6 +242,7 @@ static bool run_one(const entry *e, const char *dir, tally *t)
                 jaos_model_error(m) ? jaos_model_error(m) : "");
         jaos_model_free(m);
         t->failed++;
+        record(e->name, "READ-FAILED", false, false, false, false, false, 0, 0);
         return false;
     }
 
@@ -133,6 +260,7 @@ static bool run_one(const entry *e, const char *dir, tally *t)
                 jaos_model_error(m) ? jaos_model_error(m) : "");
         jaos_model_free(m);
         t->failed++;
+        record(e->name, "SOLVE-ERROR", false, shape, false, false, false, 0, 0);
         return false;
     }
 
@@ -146,6 +274,8 @@ static bool run_one(const entry *e, const char *dir, tally *t)
                 (long long)nc, shape ? "ok" : "MISMATCH", (long long)iters,
                 (long long)work,
                 jaos_model_error(m) ? jaos_model_error(m) : "");
+        record(e->name, jaos_solve_status_str(ss), false, shape, false, false,
+               false, (long long)iters, (long long)work);
         jaos_model_free(m);
         t->failed++;
         return false;
@@ -202,10 +332,86 @@ static bool run_one(const entry *e, const char *dir, tally *t)
             rep.max_dual_violation, rep.objective_gap,
             det ? "ok" : "DIVERGED", (unsigned long long)d1);
 
+    record(e->name, "optimal", true, shape, obj_ok, check_ok, det,
+           (long long)iters, (long long)work);
+
     free(x);
     free(y);
     jaos_model_free(m);
     return shape && obj_ok && check_ok && det;
+}
+
+/* Every instance this run against what it did at baseline. Returns the
+ * number of regressions; improvements are reported too, because a baseline
+ * that only ever tightens is one nobody will remember to loosen. */
+static int64_t compare_to_baseline(bool full_run)
+{
+    int64_t regressed = 0, improved = 0, fresh = 0;
+
+    emit("\n-- against baseline --\n");
+
+    for (int i = 0; i < g_ngot; i++) {
+        const outcome *g = &g_got[i];
+        const outcome *b = baseline_find(g->name);
+        if (b == nullptr) {
+            emit("%-12s NEW          not in baseline (%s)\n", g->name,
+                 g->status);
+            fresh++;
+            continue;
+        }
+
+        /* Each predicate on its own. A single line saying "worse" would
+         * lose which of them moved, and which one moved is the whole
+         * content of the message. */
+        struct { const char *what; bool was, now; } p[] = {
+            {"solved",    b->solved,    g->solved},
+            {"shape",     b->shape,     g->shape},
+            {"objective", b->objective, g->objective},
+            {"checker",   b->checker,   g->checker},
+            {"det",       b->det,       g->det},
+        };
+        for (size_t k = 0; k < sizeof p / sizeof p[0]; k++) {
+            if (p[k].was && !p[k].now) {
+                emit("%-12s REGRESSED    %s: yes -> no (%s -> %s)\n",
+                     g->name, p[k].what, b->status, g->status);
+                regressed++;
+            } else if (!p[k].was && p[k].now) {
+                emit("%-12s improved     %s: no -> yes (%s -> %s)\n",
+                     g->name, p[k].what, b->status, g->status);
+                improved++;
+            }
+        }
+
+        /* Cost, but only where it is still doing the work it used to: an
+         * instance that stopped solving has already been counted above, and
+         * the iterations it did not finish are not a second finding. */
+        if (b->solved && g->solved && b->work > 0 &&
+            (double)g->work > (double)b->work * WORK_REGRESSION_FACTOR) {
+            emit("%-12s REGRESSED    work: %lld -> %lld (%.1fx), "
+                 "iters %lld -> %lld\n",
+                 g->name, b->work, g->work,
+                 (double)g->work / (double)b->work, b->iters, g->iters);
+            regressed++;
+        }
+    }
+
+    /* Only when the whole set was asked for. Naming instances on the command
+     * line is how a single one gets looked at, and answering that with
+     * ninety-three lines about the ones not named would bury the answer. */
+    if (full_run) {
+        for (int i = 0; i < g_nbase; i++) {
+            bool seen = false;
+            for (int k = 0; k < g_ngot && !seen; k++)
+                seen = strcmp(g_base[i].name, g_got[k].name) == 0;
+            if (!seen)
+                emit("%-12s not run      in baseline, absent from this run\n",
+                     g_base[i].name);
+        }
+    }
+
+    emit("baseline: %lld regressed, %lld improved, %lld new\n",
+         (long long)regressed, (long long)improved, (long long)fresh);
+    return regressed;
 }
 
 static bool wanted(const char *name, int argc, char **argv, int first)
@@ -223,6 +429,8 @@ int main(int argc, char **argv)
     const char *dir = "bench/instances";
     const char *manifest = "bench/netlib.manifest";
     const char *record = nullptr;
+    const char *baseline = nullptr;
+    const char *write_baseline = nullptr;
     int i = 1;
     for (; i < argc; i++) {
         if (strcmp(argv[i], "-d") == 0 && i + 1 < argc)
@@ -231,8 +439,24 @@ int main(int argc, char **argv)
             manifest = argv[++i];
         else if (strcmp(argv[i], "-o") == 0 && i + 1 < argc)
             record = argv[++i];
+        else if (strcmp(argv[i], "-b") == 0 && i + 1 < argc)
+            baseline = argv[++i];
+        else if (strcmp(argv[i], "-w") == 0 && i + 1 < argc)
+            write_baseline = argv[++i];
         else
             break;
+    }
+
+    /* A baseline that was asked for and is not there is a hard error, not a
+     * comparison quietly skipped: the whole value of the check is that it
+     * cannot be passed by not happening. */
+    bool have_baseline = false;
+    if (baseline != nullptr) {
+        have_baseline = baseline_load(baseline);
+        if (!have_baseline) {
+            fprintf(stderr, "cannot read baseline %s\n", baseline);
+            return 2;
+        }
     }
 
     if (record != nullptr) {
@@ -282,7 +506,26 @@ int main(int argc, char **argv)
             (long long)t.failed);
     emit("gate: %s\n", all_ok && t.instances > 0 ? "PASS" : "NOT MET");
 
+    /* Two independent verdicts, and they answer different questions. The
+     * gate asks whether M1 is finished, and will say NOT MET every time
+     * until it is. The baseline asks whether this change made anything
+     * worse, which is the question that has an answer today. */
+    int64_t regressed = 0;
+    if (have_baseline)
+        regressed = compare_to_baseline(i >= argc);
+
+    if (write_baseline != nullptr && !baseline_write(write_baseline)) {
+        if (g_record != nullptr)
+            fclose(g_record);
+        return 2;
+    }
+
     if (g_record != nullptr)
         fclose(g_record);
-    return all_ok && t.instances > 0 ? 0 : 1;
+
+    if (t.instances == 0)
+        return 1;
+    if (regressed > 0)
+        return 1;
+    return all_ok ? 0 : 1;
 }
