@@ -463,8 +463,6 @@ static jaos_status build_crash_basis(sx *s)
     }
 
     /* ---- step 2: greedy triangular selection (Maros-style) ---- */
-    int64_t *selected = s->crash_perm;   /* first nsel entries are the selected columns */
-    int64_t nsel = 0;
 
     /* Precompute column scores for tie-breaking: |c_j| * (u_j - l_j) / ||A[:,j]||_1.
      * Wide bounds and large costs attract a column to the basis. */
@@ -540,7 +538,6 @@ static jaos_status build_crash_basis(sx *s)
         s->basis[best_row] = best_col;
         s->status[best_col] = JM_BASIC;
         s->where[best_col] = best_row;
-        nsel++;
         s->row_done[best_row] = true;
         s->col_done[best_col] = true;
 
@@ -566,11 +563,6 @@ static jaos_status build_crash_basis(sx *s)
             s->where[v] = i;
         }
     }
-    /* Count of structural columns selected */
-    int64_t nsel = 0;
-    for (int64_t i = 0; i < nrow; i++)
-        if (s->basis[i] < s->ncol)
-            nsel++;
     /* Mark non-basic structural columns. */
     for (int64_t j = 0; j < ncol; j++) {
         if (s->status[j] != JM_BASIC)
