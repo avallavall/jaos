@@ -191,6 +191,11 @@ JAOS_NODISCARD int64_t jaos_work_units(const jaos_model *m);
 /* Simplex iterations performed by the last solve. */
 JAOS_NODISCARD int64_t jaos_iterations(const jaos_model *m);
 
+/* Primal and dual simplex iteration counts of the last solve.
+ * Either out-pointer may be NULL. */
+void jaos_get_iter_counts(const jaos_model *m,
+    int64_t *primal, int64_t *dual);
+
 /* ------------------------------------------------------------------------- */
 /* Independent solution checker                                              */
 /* ------------------------------------------------------------------------- */
