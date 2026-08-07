@@ -1,0 +1,22 @@
+# What each instance did, as of this run. Regenerated only on
+# purpose: `make netlib-baseline` after a change whose effect on
+# these numbers has been read and accepted. A quiet update here
+# is a regression nobody will ever be told about.
+#
+# name status solved shape objective checker det iters work
+cre-a        optimal      1 1 1 1 1 2464 105766772
+cre-b        optimal      1 1 1 1 1 14614 6975733401
+cre-c        optimal      1 1 1 1 1 2407 92691313
+cre-d        optimal      1 1 1 1 1 13587 6091058801
+ken-07       optimal      1 1 1 1 1 2960 88513433
+ken-11       optimal      1 1 1 1 1 16953 2965455733
+ken-13       optimal      1 1 1 1 1 31444 10866152178
+ken-18       optimal      1 1 1 1 1 113652 142450367732
+osa-07       optimal      1 1 1 1 1 601 126315221
+osa-14       optimal      1 1 1 1 1 1281 580941783
+osa-30       optimal      1 1 1 1 1 2628 2343562649
+osa-60       optimal      1 1 1 1 1 6169 12956054511
+pds-02       optimal      1 1 1 1 1 1970 96107915
+pds-06       optimal      1 1 1 1 1 9251 1642624920
+pds-10       optimal      1 1 1 1 1 17503 5262072371
+pds-20       optimal      1 1 1 1 1 47785 31095847969

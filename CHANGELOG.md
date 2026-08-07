@@ -7,6 +7,40 @@ versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- A fuzzer for the two readers, `tests/test_fuzz.c`, which closes the M1
+  gate's condition 4 — truncated and corrupted input must produce errors and
+  never crash. That condition had been asserted and never tested:
+  `tests/data/` covers malformed *content*, one file per rejection class, and
+  every one of those files is well-formed enough to reach the check that
+  rejects it. Nothing was cut mid-record, no byte was flipped inside a
+  number, nothing was empty and nothing was random.
+
+  Five classes, all deterministic (D8) — the corpus is the sorted contents of
+  `tests/data`, the mutations come from a splitmix64 written out in the test
+  rather than `rand()`, so the same commit fuzzes the same bytes on every
+  machine and a failure reproduces from its case label: every prefix of every
+  corpus file, small random edits, uniform noise, random sequences of real
+  keywords, and named shapes at the sizes where a buffer decision changes.
+  Every case is offered to both readers, since an LP file handed to the MPS
+  reader is corrupted input by any definition. What is asserted is that the
+  reader returns one of the statuses its API declares, that a failed read
+  leaves the previous problem untouched, and that the same bytes read twice
+  give the same answer.
+
+  **11543 cases in the suite, 1623443 under `JAOS_FUZZ_SCALE=200`, all clean
+  under ASan+UBSan.** A fuzzer that finds nothing on its first run is not
+  evidence until it is shown to be able to find something, so the instrument
+  was checked the way the gate's rules are: `split()` in the MPS reader had
+  its bounds test changed from `n == MAXTOK` to `n > MAXTOK`, a one-token
+  stack overflow, and the fuzzer caught it at `src/mps.c:46` — in the
+  random-edit class, not in a hand-written case.
+- Baselines for the other two gate sets, and `make netlib-infeas-baseline`
+  and `make netlib-kennington-baseline` to rewrite them. `bench/netlib-infeas.baseline`
+  existed but nothing passed it to the runner, and Kennington had none at
+  all. Both of those gates report PASS, which is exactly the state in which a
+  summary line cannot show a change: an instance that still ends INFEASIBLE
+  after eighty times the work has regressed and only a per-instance diff says
+  so (D21).
 - The acceptance runner can judge a set whose instances are meant to be
   refused. `-e infeasible` keeps the shape and determinism checks, drops the
   reference objective and the checker — there is no solution to judge — and
@@ -100,6 +134,67 @@ versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- A basis the factorization finds singular is now repaired instead of ending
+  the solve. `jaos_internal.h` has always said that rank deficiency is a fact
+  the caller acts on by replacing basis columns, and the caller did not act
+  on it — `refresh()` reported `NUMERICAL_ERROR`, and with no message.
+
+  What the LU hands back is exactly the two lists the repair needs: the rows
+  it pivoted and the basis positions it used. Whatever is missing from those
+  lists is a row nothing covers and a column that turned out to depend on the
+  rest, equally many of each. Pairing them off and putting the logical of an
+  uncovered row into the dependent position gives a basis that is nonsingular
+  by construction rather than by hope — order the rows as (pivoted,
+  uncovered) and the result reads `[[P, 0], [Q, -I]]`, whose determinant is
+  `det P * det(-I)`, and P is nonsingular because triangularizing it is what
+  the factorization just did.
+
+  **`gran` of the infeasible set now returns INFEASIBLE**, the verdict it was
+  owed, after 2058 iterations; it used to give up at 1728. That takes the
+  infeasible gate from 28 of 29 to **29 of 29, PASS** — condition 1c of
+  PLAN 2.9 — and the standard set is untouched: 0 regressed, 0 improved, 0
+  new against `bench/netlib.baseline`. That it changes nothing elsewhere is
+  the point, not a disappointment: the repair only runs where the solve
+  previously ended, so no instance that already worked can take a different
+  path.
+
+  A singular basis is not something a model can cause. The dual simplex only
+  pivots on an alpha above `PIVOT_MIN`, so every basis it assembles is
+  nonsingular in exact arithmetic and a singular one is always the residue of
+  carried error — which is why no small test can produce one, and why the
+  new tests in `tests/test_simplex.c` cover the family `gran` belongs to
+  (rank-deficient constraint matrices, where the danger is a wrong verdict
+  rather than a crash) instead of claiming to exercise the repair itself.
+
+  The three sites that report a numerical error out of `refresh` now say what
+  happened and at which iteration. They used to publish `NUMERICAL_ERROR`
+  with an empty message, which is how `gran` cost a diagnosis: there was
+  nothing to read.
+- PLAN 2.8 and Q10 recorded a cause for the dual violations that the
+  measurement does not support, and both now carry the measurement instead.
+  The six instances the checker rejects had been grouped by the size of the
+  number reported, and that number is the magnitude of the offending
+  multiplier — it says nothing about how far anything is from where it
+  should be. Measured one at a time, against the distance from the bound and
+  the traffic through the row or column, they are four separate things:
+
+  `finnis`, reported at 28 and called structural, is the most accurate answer
+  of the six. Its row lands 1.52e-6 from a bound while carrying 4.0e10 of
+  traffic — a fifth of one ulp at that scale — its duality gap is 3.96e-11,
+  and it publishes no violated sign condition in scaled space at all. The
+  checker's "at a bound" test is absolute where only a relative test has
+  meaning, and no double-precision answer can pass it on that row.
+
+  Q10 attributed the rest to cost shifting. Recording `shift[v]` before
+  `settle_shifts` zeroes it, beside the residue it was supposed to explain,
+  says the shifts account for one of three: `etamacro` at 4.890e-8 of residue
+  against 4.890e-8 of shift, visible to the checker only because the column's
+  scale of 1/32 turns it into 1.56e-6. `nesm` and `greenbea` remove shifts of
+  3e-19 and 4e-9 while their residues stand at −2.0e-6 and −1.33 scaled. Ten
+  of greenbea's columns sit at their lower bounds with scaled reduced costs
+  from −0.019 to −5.28, on a method whose invariant is that reduced costs
+  stay feasible. No cause is claimed for that; what is written down is that
+  the one previously claimed is not it.
 - `bench/README.md` and the manifest said Koch's results do not cover
   `maros-r7` and `pilot87`, so both take their reference from the netlib
   readme. His tables cover both. His value for `pilot87` is about

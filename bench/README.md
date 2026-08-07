@@ -37,8 +37,14 @@ models must never share a path.
 
 ## Where the instances come from, and emps
 
-The standard set is Koch's plain-MPS mirror. He mirrors exactly the instances
-his paper verified, which is why no expander was ever needed for it.
+The standard set is Koch's plain-MPS mirror, the dataset published with
+Thorsten Koch, *The Final NETLIB-LP Results* (ZIB-Report 03-05), at
+`https://www.zib.de/koch/perplex/data/netlib/mps/` — plain MPS, gzipped, 94
+instances. He mirrors exactly the instances his paper verified, which is why
+no expander was ever needed for it, and it means the instances and the
+reference optima come from one source rather than two that have to be
+reconciled. Netlib's own copies of the same problems are in a packed format
+that needs its `emps` expander to read, so they are not usable directly.
 
 Kennington and the infeasible set are served by netlib in its packed form, so
 `fetch.sh` expands them with netlib's own `emps` — downloaded, verified
@@ -62,8 +68,8 @@ exits non-zero unless every instance met every condition.
 
 | File | |
 |---|---|
-| `netlib.manifest` | the instance list: pinned sha256, expected shape, reference optimum |
-| `netlib.baseline` | what each instance did last time, so a regression can be seen |
+| `netlib.manifest`, `netlib-kennington.manifest`, `netlib-infeas.manifest` | one instance list per set: pinned sha256, expected shape, reference optimum |
+| `netlib.baseline`, `netlib-kennington.baseline`, `netlib-infeas.baseline` | what each instance did last time, so a regression can be seen |
 | `fetch.sh` | downloads each instance and refuses any whose checksum does not match |
 | `run.c` | solves each one and judges it against the manifest, the checker, and the baseline |
 | `results/` | output of a run; ignored by git except for this directory itself |
@@ -71,18 +77,6 @@ exits non-zero unless every instance met every condition.
 The instance files never enter the repository (PLAN 2.10). The manifest is
 what stands in for them, so a checkout plus a network connection reproduces
 exactly the set any other checkout would run.
-
-## Where the instances come from
-
-The dataset published with Thorsten Koch, *The Final NETLIB-LP Results*
-(ZIB-Report 03-05), at `https://www.zib.de/koch/perplex/data/netlib/mps/`.
-Plain MPS, gzipped, 94 instances.
-
-Netlib's own copies are in a packed format that needs its `emps` expander to
-read, so they are not usable directly. Koch's are the same problems already
-expanded, from the work that produced the reference values this gate judges
-against — the instances and the optima come from one source rather than two
-that have to be reconciled.
 
 ## What each instance is judged on
 
@@ -125,6 +119,18 @@ compares against it:
 ```sh
 make netlib             # run the gate and diff every instance against the baseline
 make netlib-baseline    # rewrite the baseline from this run
+```
+
+All three sets have one, and the other two need it more rather than less.
+`make netlib` at least reports `NOT MET` for a reason that changes; the
+Kennington and infeasible gates both report `PASS`, which is the state in
+which the summary line is guaranteed to say nothing at all. An instance that
+still ends `INFEASIBLE` after eighty times the work has regressed, and only
+the per-instance diff can say so.
+
+```sh
+make netlib-infeas      make netlib-infeas-baseline
+make netlib-kennington  make netlib-kennington-baseline
 ```
 
 Each instance is judged on the four predicates above plus its work count. Any
@@ -211,9 +217,14 @@ expansions that PLAN 2.10 originally called for, which would have needed the
 
 ## What is not here
 
-The Kennington subset (16 instances) and the infeasible subset (29) are
-distributed only in netlib's packed format, and no institutional source
-republishes them as plain MPS. They are absent from this gate until that is
-resolved, which is an open question rather than a decision. Their loss is not
-equal: the infeasible set is the only thing that exercises the `INFEASIBLE`
-classification on models nobody constructed to be infeasible.
+Nothing of the M1 gate. All three sets are present and all three are pinned;
+what used to stand here — that Kennington and the infeasible subset were
+absent because netlib serves them packed and no institutional source
+republishes them as plain MPS — was resolved by using netlib's own `emps` as
+a dev-time tool (PLAN Q6), and the section is kept only so the record shows
+what changed rather than pretending the gap never existed.
+
+What is genuinely missing is one reference value: `pilot87` is judged against
+the netlib readme's optimum, which is itself outside this gate's tolerance of
+the exact one. See the section above; it is a defect of this directory and
+not of the solver.

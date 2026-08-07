@@ -8,8 +8,9 @@
 #   bench     build the Netlib acceptance runner (bench/fetch.sh first)
 #   netlib    fetch the instances if needed, then run the gate
 #   netlib-baseline     rewrite what each instance is expected to do
-#   netlib-kennington   the Kennington subset (not pinned yet, PLAN Q6)
-#   netlib-infeas       the infeasible subset (not pinned yet, PLAN Q6)
+#   netlib-kennington   the Kennington subset (PLAN 2.9 condition 1b)
+#   netlib-infeas       the infeasible subset (PLAN 2.9 condition 1c)
+#   netlib-kennington-baseline, netlib-infeas-baseline   rewrite those two
 #   clean     remove all build output
 
 # make predefines CC=cc, so ?= would never fire; override only the built-in
@@ -65,7 +66,8 @@ LIB := $(B)/release/libjaos.a
 DEV_TESTS  := $(TESTS:tests/%.c=$(B)/dev/%)
 ASAN_TESTS := $(TESTS:tests/%.c=$(B)/asan/%)
 
-.PHONY: all test sanitize bench netlib netlib-baseline netlib-kennington netlib-infeas clean
+.PHONY: all test sanitize bench netlib netlib-baseline netlib-kennington \
+	netlib-infeas netlib-kennington-baseline netlib-infeas-baseline clean
 
 # Keep intermediate objects; make otherwise deletes and rebuilds them
 # between targets.
@@ -139,6 +141,12 @@ netlib-baseline: $(B)/bench/run
 # Separate instance directories, not one shared: `greenbea` names a feasible
 # model in the standard set and a different, infeasible one in this set, and
 # two models must never share a path.
+#
+# Both are diffed per instance against their own baseline, for the same
+# reason the standard set is (D21): these two gates report PASS, and a gate
+# that already passes is exactly the one whose summary line cannot show a
+# change. An instance that still ends INFEASIBLE after eighty times the work
+# has regressed, and only the baseline says so.
 netlib-kennington: $(B)/bench/run
 	@bench/fetch.sh -m bench/netlib-kennington.manifest \
 		-b https://netlib.org/lp/data/kennington -p gz-emps \
@@ -146,6 +154,7 @@ netlib-kennington: $(B)/bench/run
 	@mkdir -p bench/results
 	./$(B)/bench/run -m bench/netlib-kennington.manifest \
 		-d bench/instances-kennington \
+		-b bench/netlib-kennington.baseline \
 		-o bench/results/netlib-kennington.txt
 
 netlib-infeas: $(B)/bench/run
@@ -155,6 +164,29 @@ netlib-infeas: $(B)/bench/run
 	@mkdir -p bench/results
 	./$(B)/bench/run -m bench/netlib-infeas.manifest -e infeasible \
 		-d bench/instances-infeas \
+		-b bench/netlib-infeas.baseline \
+		-o bench/results/netlib-infeas.txt
+
+# Rewriting those two, kept apart from running them for the reason
+# netlib-baseline is kept apart from netlib.
+netlib-kennington-baseline: $(B)/bench/run
+	@bench/fetch.sh -m bench/netlib-kennington.manifest \
+		-b https://netlib.org/lp/data/kennington -p gz-emps \
+		bench/instances-kennington
+	@mkdir -p bench/results
+	./$(B)/bench/run -m bench/netlib-kennington.manifest \
+		-d bench/instances-kennington \
+		-w bench/netlib-kennington.baseline \
+		-o bench/results/netlib-kennington.txt
+
+netlib-infeas-baseline: $(B)/bench/run
+	@bench/fetch.sh -m bench/netlib-infeas.manifest \
+		-b https://netlib.org/lp/infeas -p emps \
+		bench/instances-infeas
+	@mkdir -p bench/results
+	./$(B)/bench/run -m bench/netlib-infeas.manifest -e infeasible \
+		-d bench/instances-infeas \
+		-w bench/netlib-infeas.baseline \
 		-o bench/results/netlib-infeas.txt
 
 $(B)/release $(B)/dev $(B)/asan $(B)/bench:
