@@ -513,6 +513,14 @@ int main(int argc, char **argv)
     int64_t regressed = 0;
     if (have_baseline)
         regressed = compare_to_baseline(i >= argc);
+    else
+        /* Said out loud, and into the record file, because the alternative
+         * is a results file that looks exactly like a checked one. That is
+         * not hypothetical either: the record committed alongside the first
+         * baseline was from a different build than the baseline was, and
+         * nothing about the file said so. A run that compared against
+         * nothing should be readable as such a year later. */
+        emit("\nbaseline: NOT COMPARED (no baseline given)\n");
 
     if (write_baseline != nullptr && !baseline_write(write_baseline)) {
         if (g_record != nullptr)

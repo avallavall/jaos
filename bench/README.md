@@ -91,6 +91,12 @@ a work-limit failure for any caller with a budget.
 Improvements are printed as well as regressions. A baseline that only ever
 tightens is one nobody remembers to loosen.
 
+A run that compared against no baseline says so in its own record file, as
+`baseline: NOT COMPARED`. Without that line a results file produced by
+`make netlib-baseline` is indistinguishable from a checked one — which went
+wrong immediately, the first record committed next to a baseline having come
+from a different build than the baseline did.
+
 Updating it is a separate command on purpose, and never a side effect of
 running the gate. A baseline that rewrites itself records whatever just
 happened as correct, which is the one thing it must not do. Regenerate it when
