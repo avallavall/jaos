@@ -32,7 +32,6 @@
 #include "jaos_internal.h"
 
 #include <math.h>
-#include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
@@ -73,15 +72,6 @@ constexpr double DSE_DRIFT = 10.0;
  * fallback on a failed update exist so far. */
 constexpr int64_t REFACTOR_EVERY = 64;
 
-/* Anti-stall cost perturbation (Q10). When grow15 stalls, a small
- * deterministic perturbation breaks degenerate cycles.
- * Strategy: detect degenerate steps (|theta_dual| < threshold) and
- * apply progressively larger perturbations when stuck in a cycle.
- * Perturbation is tracked in shift[] and removed at settlement. */
-constexpr double PERTURB_BASE = 1e-10;   /* base perturbation magnitude */
-constexpr int DEGENERATE_THRESHOLD = 1000; /* consecutive degenerate steps before perturb - tuned for grow22 */
-constexpr double DEGENERATE_EPS = 1e-14;  /* threshold for detecting degenerate steps - stricter than before */
-
 /* The clock is read once every this many iterations rather than every
  * iteration. Reading it cannot change which pivot is chosen (D8) — it only
  * decides whether to stop — and at this granularity the syscall cost
@@ -121,9 +111,6 @@ constexpr double ARTIFICIAL_BOUND = 1e10;
  * reported as a library error rather than as a solve outcome: a caller
  * must be able to tell "this model is hard" from "this code is wrong". */
 constexpr int64_t ITER_SANITY_FACTOR = 200;
-
-/* Which simplex method is currently running. */
-enum { SX_PRIMAL = 0, SX_DUAL };
 
 typedef struct {
     jaos_model *m;
@@ -193,31 +180,7 @@ typedef struct {
 
     struct timespec started;
     int64_t iters;
-    int phase;
-    int64_t primal_iters;
-    int64_t dual_iters;
     bool needs_refactor;
-
-    /* Anti-stall state for grow15 (Q10) */
-    int last_perturb_iter;
-    int degenerate_count;       /* consecutive degenerate steps */
-    int perturb_level;          /* current perturbation magnitude level */
-
-    /* Crash basis: build a near-triangular initial basis with structural
-     * columns. Enabled by default; only the simplest models gain nothing
-     * from it. Set false to force the slack basis. */
-    bool crash_enabled;
-
-    /* Scratch for the Koberstein-style crash basis construction.
-     * row_count[i] and col_count[j] hold sparsity counts of structural
-     * columns remaining to be selected; row_done/col_done mark which ones
-     * are already accounted for. crash_perm carries the selected column
-     * order. Freed after build or never allocated when disabled. */
-    int64_t *row_count;
-    int64_t *col_count;
-    int64_t *crash_perm;
-    bool *row_done;
-    bool *col_done;
 
     /* Has optimality been re-checked against a freshly computed point since
      * the last basis change? See the r < 0 branch in run(). */
@@ -237,11 +200,6 @@ static void sx_free(sx *s)
     free(s->col); free(s->raw); free(s->rho); free(s->tau); free(s->alpha);
     free(s->cand); free(s->rnum); free(s->rden); free(s->rrange);
     free(s->bs); free(s->bi); free(s->bv);
-    free(s->row_count);
-    free(s->col_count);
-    free(s->crash_perm);
-    free(s->row_done);
-    free(s->col_done);
     free(s->fake);
     jm_lu_free(&s->lu);
     memset(s, 0, sizeof *s);
@@ -308,9 +266,6 @@ static jaos_status sx_init(sx *s, jaos_model *m)
         sx_free(s);
         return JAOS_ERR_OUT_OF_MEMORY;
     }
-
-    s->crash_enabled = false;
-    s->phase         = SX_DUAL;
 
     const double *rho = m->row_scale, *gamma = m->col_scale;
 
@@ -410,220 +365,15 @@ static double price_entry(sx *s, int64_t v)
     return a;
 }
 
-/* Koberstein-style dual crash basis [Koberstein 2008, §6.3].
- *
- * Builds a near-triangular initial basis by selecting structural columns
- * with favourable cost/sign patterns via a greedy Maros-style algorithm.
- * Only falls back to the slack basis if the crash fails (singular basis)
- * or is disabled. On success every basis position gets a structural or
- * logical column, and the DSE weights are initialised exactly.
- *
- * The algorithm:
- *   1. Count nonzeros per row and per structural column.
- *   2. Greedy triangular selection: repeatedly pick the remaining row with
- *      fewest nonzeros, choose its column by minimum fill-in, pivot it in.
- *   3. Fill remaining basis slots with logical columns.
- *   4. Compute exact DSE weights via m BTRAN solves.
- *   5. Return JAOS_OK so the caller calls refresh() to factor and compute
- *      the initial point.
- *
- * Returns JAOS_ERR_OUT_OF_MEMORY on allocation failure, JAOS_OK otherwise
- * (a singular basis is handled by falling back to the slack basis). */
-static jaos_status build_crash_basis(sx *s)
-{
-    const int64_t nrow = s->nrow, ncol = s->ncol;
-    const jaos_model *m = s->m;
-
-    /* Ensure CSR mirror is available for row-major traversal. */
-    jaos_status st = jm_model_ensure_rowwise(s->m);
-    if (st != JAOS_OK)
-        return st;
-
-    /* ---- scratch allocation ---- */
-    s->row_count = jm_calloc_array(nrow, sizeof(int64_t));
-    s->col_count = jm_calloc_array(ncol, sizeof(int64_t));
-    s->crash_perm = jm_alloc_array(nrow, sizeof(int64_t));
-    s->row_done = jm_calloc_array(nrow, sizeof(bool));
-    s->col_done = jm_calloc_array(ncol, sizeof(bool));
-    if (!s->row_count || !s->col_count || !s->crash_perm ||
-        !s->row_done || !s->col_done)
-        return JAOS_ERR_OUT_OF_MEMORY;
-
-    /* ---- step 1: count nonzeros per row and column ---- */
-    int64_t *R = s->row_count;
-    int64_t *C = s->col_count;
-
-    for (int64_t j = 0; j < ncol; j++) {
-        int64_t cnt = 0;
-        for (int64_t k = m->a_start[j]; k < m->a_start[j + 1]; k++) {
-            R[m->a_index[k]]++;
-            cnt++;
-        }
-        C[j] = cnt;
-    }
-
-    /* ---- step 2: greedy triangular selection (Maros-style) ---- */
-
-    /* Precompute column scores for tie-breaking: |c_j| * (u_j - l_j) / ||A[:,j]||_1.
-     * Wide bounds and large costs attract a column to the basis. */
-    double *col_score = jm_alloc_array(ncol, sizeof(double));
-    if (!col_score)
-        return JAOS_ERR_OUT_OF_MEMORY;
-
-    for (int64_t j = 0; j < ncol; j++) {
-        double norm1 = 0.0;
-        for (int64_t k = m->a_start[j]; k < m->a_start[j + 1]; k++)
-            norm1 += fabs(s->av[k]);
-
-        double width = s->up[j] - s->lo[j];
-        if (!isfinite(width)) {
-            /* Free or semi-infinite: wide enough to never be the blocker. */
-            col_score[j] = fabs(s->cost[j]) * 1e10 / (norm1 > 0.0 ? norm1 : 1.0);
-        } else {
-            col_score[j] = fabs(s->cost[j]) * fmax(width, 0.0) / (norm1 > 0.0 ? norm1 : 1.0);
-        }
-    }
-
-    /* Greedy loop: pick the row with fewest remaining structural nonzeros,
-     * then pick the column in that row with the smallest column count
-     * (minimum fill-in), tie-breaking by the cost-quality score. */
-    for (int64_t step = 0; step < nrow; step++) {
-        /* Find remaining row with smallest R[i]. */
-        int64_t best_row = -1;
-        int64_t best_cnt = INT64_MAX;
-        for (int64_t i = 0; i < nrow; i++) {
-            if (s->row_done[i])
-                continue;
-            if (R[i] < best_cnt) {
-                best_cnt = R[i];
-                best_row = i;
-            }
-        }
-        if (best_row < 0)
-            break;
-
-        if (best_cnt == 0) {
-            /* Row has no remaining structural nonzeros: leave for a logical. */
-            s->row_done[best_row] = true;
-            continue;
-        }
-
-        /* Find the best column in this row using the CSR mirror. */
-        int64_t best_col = -1;
-        int64_t best_col_cnt = INT64_MAX;
-        double best_col_score = -1.0;
-
-        for (int64_t p = m->ar_start[best_row]; p < m->ar_start[best_row + 1]; p++) {
-            int64_t j = m->ar_index[p];
-            if (s->col_done[j])
-                continue;
-            int64_t cnt = C[j];
-            double score = col_score[j];
-            if (cnt < best_col_cnt || (cnt == best_col_cnt && score > best_col_score)) {
-                best_col_cnt = cnt;
-                best_col_score = score;
-                best_col = j;
-            }
-        }
-
-        if (best_col < 0) {
-            /* No structural column left: leave for a logical. */
-            s->row_done[best_row] = true;
-            continue;
-        }
-
-        /* Record the selection and remove row + column from consideration.
-         * Place the column directly at the row's basis position to preserve
-         * triangularity (position best_row gets the column selected for it). */
-        s->basis[best_row] = best_col;
-        s->status[best_col] = JM_BASIC;
-        s->where[best_col] = best_row;
-        s->row_done[best_row] = true;
-        s->col_done[best_col] = true;
-
-        /* Update row counts: column best_col's nonzeros are no longer available. */
-        for (int64_t p = m->a_start[best_col]; p < m->a_start[best_col + 1]; p++) {
-            int64_t i = m->a_index[p];
-            if (!s->row_done[i])
-                R[i]--;
-        }
-    }
-
-    free(col_score);
-
-    /* ---- step 3: fill remaining basis positions with logicals ----
-     * Structural columns were placed at their row positions during selection.
-     * Rows that didn't get a structural column need a logical (slack). */
-    for (int64_t i = 0; i < nrow; i++) {
-        if (s->basis[i] == 0 && s->status[0] != JM_BASIC) {
-            /* This position wasn't filled - add logical for row i */
-            int64_t v = s->ncol + i;
-            s->basis[i] = v;
-            s->status[v] = JM_BASIC;
-            s->where[v] = i;
-        }
-    }
-    /* Mark non-basic structural columns. */
-    for (int64_t j = 0; j < ncol; j++) {
-        if (s->status[j] != JM_BASIC)
-            s->where[j] = -1;
-    }
-
-    /* Set nonbasic status for all structural columns not in the basis,
-     * using the same cost-sign logic as build_initial_basis. */
-    for (int64_t j = 0; j < ncol; j++) {
-        if (s->status[j] == JM_BASIC)
-            continue;
-        bool has_lo = isfinite(s->lo[j]);
-        bool has_up = isfinite(s->up[j]);
-
-        if (s->cost[j] > 0.0) {
-            if (!has_lo) {
-                s->lo[j] = -ARTIFICIAL_BOUND;
-                s->fake[j] = FAKE_LO;
-            }
-            s->status[j] = JM_AT_LOWER;
-        } else if (s->cost[j] < 0.0) {
-            if (!has_up) {
-                s->up[j] = ARTIFICIAL_BOUND;
-                s->fake[j] = FAKE_UP;
-            }
-            s->status[j] = JM_AT_UPPER;
-        } else if (has_lo) {
-            s->status[j] = JM_AT_LOWER;
-        } else if (has_up) {
-            s->status[j] = JM_AT_UPPER;
-        } else {
-            s->status[j] = JM_FREE;
-        }
-    }
-
-    /* Set DSE weights to a reasonable default — the exact values will
-     * be computed by the caller after factorizing the basis. */
-    for (int64_t i = 0; i < nrow; i++)
-        s->dse[i] = 1.0;
-
-    return JAOS_OK;
-}
-
 /* The slack basis: every logical basic, every structural pinned to the
  * bound that makes its reduced cost feasible. With B = -I this factors by
  * inspection.
  *
  * A structural whose cost asks for a bound it does not have gets an
  * artificial one, which is dual phase 1 (see ARTIFICIAL_BOUND above). The
- * loan is recorded so the outcome can be read honestly afterwards.
- *
- * If crash basis is enabled, build a near-triangular basis from structural
- * columns instead. Falls back to the slack basis if the crash fails. */
+ * loan is recorded so the outcome can be read honestly afterwards. */
 static void build_initial_basis(sx *s)
 {
-    if (s->crash_enabled) {
-        jaos_status st = build_crash_basis(s);
-        if (st == JAOS_OK)
-            return;
-        /* Fall through to the slack basis on failure. */
-    }
     for (int64_t i = 0; i < s->nrow; i++) {
         int64_t v = s->ncol + i;
         s->basis[i] = v;
@@ -1016,7 +766,7 @@ static int64_t dual_ratio_test(sx *s, bool below, double violation,
     if (live == 0)
         return -1;   /* nothing blocks the step; the model is infeasible */
 
-    int64_t k = jm_harris_pick(live, s->rnum, s->rden, s->cand, DUAL_TOL);
+    int64_t k = jm_harris_pick(live, s->rnum, s->rden, DUAL_TOL);
     jm_work_add(&s->work, 2 * live * JM_WORK_NONZERO);
     int64_t best = s->cand[k];
 
@@ -1034,7 +784,7 @@ static int64_t dual_ratio_test(sx *s, bool below, double violation,
  * the header, which is also where the reachable-from-outside rationale
  * lives. */
 int64_t jm_harris_pick(int64_t n, const double *num, const double *den,
-                       const int64_t *cand, double dual_tol)
+                       double dual_tol)
 {
     if (n <= 0)
         return -1;
@@ -1049,14 +799,9 @@ int64_t jm_harris_pick(int64_t n, const double *num, const double *den,
     int64_t best = 0;
     double best_den = 0.0;
     for (int64_t k = 0; k < n; k++) {
-        if (num[k] / den[k] <= window) {
-            if (den[k] > best_den + 1e-15) {
-                best_den = den[k];
-                best = k;
-            } else if (cand[k] < cand[best]) {
-                best_den = den[k];
-                best = k;
-            }
+        if (num[k] / den[k] <= window && den[k] > best_den) {
+            best_den = den[k];
+            best = k;
         }
     }
     return best;
@@ -1305,69 +1050,6 @@ static void settle_shifts(sx *s)
 }
 
 /* --------------------------------------------------------------------- */
-/* Anti-stall: deterministic cost perturbation (Q10)                   */
-/* --------------------------------------------------------------------- */
-
-/* Deterministic hash for anti-stall perturbation. Maps iteration count
- * to a perturbation pattern that is the same across runs (D8). */
-static double perturb_hash(int64_t seed, int64_t v)
-{
-    uint64_t x = (uint64_t)seed * 0x9e3779b97f4a7c15ULL + (uint64_t)v * 0x6a09e667f3bcc909ULL;
-    x = (x ^ (x >> 33)) * 0xff51afd7ed558ccdULL;
-    x = (x ^ (x >> 33)) * 0xc4ceb9fe1a85ec53ULL;
-    x = x ^ (x >> 33);
-    return (double)((int64_t)(x % 2001)) / 1000.0 - 1.0;
-}
-
-/* Apply anti-stall perturbation when degenerate steps are detected.
- * Called after each pivot with the dual step size. */
-static void check_and_perturb(sx *s, double theta_dual)
-{
-    /* A "degenerate" step is one with very small dual step size.
-     * This indicates the entering variable had near-zero reduced cost,
-     * which is the hallmark of degenerate cycling in dual simplex.
-     * Use DEGENERATE_EPS (1e-14) for stricter detection than before (1e-12). */
-    bool degenerate = fabs(theta_dual) < DEGENERATE_EPS;
-    
-    if (degenerate) {
-        s->degenerate_count++;
-    } else {
-        /* Reset counter on non-degenerate step */
-        s->degenerate_count = 0;
-        return;
-    }
-    
-    /* Only perturb if we've seen many consecutive degenerate steps */
-    if (s->degenerate_count < DEGENERATE_THRESHOLD)
-        return;
-    
-    /* Reset counter and bump perturbation level */
-    s->degenerate_count = 0;
-    
-    /* Cap perturb_level to prevent overflow and excessive perturbation */
-    if (s->perturb_level < 20)
-        s->perturb_level++;
-    
-    /* Apply perturbation with magnitude based on perturb_level.
-     * Use gradual growth (1.5x per level) instead of doubling to avoid
-     * overly aggressive perturbation that can break grow22. */
-    double eps = PERTURB_BASE * pow(1.5, s->perturb_level);
-    if (eps > 1e-8) eps = 1e-8;  /* cap below DUAL_TOL (1e-7) with margin */
-    
-    for (int64_t v = 0; v < s->nvar; v++) {
-        if (s->status[v] == JM_BASIC)
-            continue;
-        double delta = eps * perturb_hash(s->iters, v);
-        s->cost[v] += delta;
-        s->shift[v] += delta;
-    }
-    
-    /* Recompute duals after perturbation */
-    compute_duals(s);
-    s->verified = false;
-}
-
-/* --------------------------------------------------------------------- */
 /* Reading the verdict                                                   */
 /* --------------------------------------------------------------------- */
 
@@ -1512,9 +1194,6 @@ static jaos_status run(sx *s, jaos_solve_status *out)
         return JAOS_OK;
     }
 
-    /* Initialize anti-stall tracking */
-    s->last_perturb_iter = 0;
-
     const int64_t iter_cap = ITER_SANITY_FACTOR * (s->nrow + s->ncol + 1);
 
     for (;;) {
@@ -1607,16 +1286,6 @@ static jaos_status run(sx *s, jaos_solve_status *out)
             return st;
 
         s->iters++;
-
-        /* Anti-stall: check for degenerate steps and apply perturbation if needed.
-         * A degenerate step has |theta_dual| < DEGENERATE_EPS (1e-14), indicating near-zero
-         * reduced cost and potential cycling. Perturb costs to break the cycle.
-         * Applied AFTER the pivot so the state remains consistent. */
-        check_and_perturb(s, theta_dual);
-        if (s->phase == SX_PRIMAL)
-            s->primal_iters++;
-        else
-            s->dual_iters++;
     }
 }
 
@@ -1662,8 +1331,6 @@ static jaos_status publish(sx *s, jaos_solve_status status)
 
     m->solve_status = status;
     m->solve_iters = s->iters;
-    m->solve_primal_iters = s->primal_iters;
-    m->solve_dual_iters   = s->dual_iters;
     /* The work snapshot is taken at the *end* of each path below, not
      * here: publishing itself runs a kernel (the BTRAN for the duals),
      * and a counter that reported everything except the last thing it
@@ -1723,35 +1390,7 @@ jaos_status jm_dual_simplex(jaos_model *m)
     clock_gettime(CLOCK_MONOTONIC, &s.started);
 
     jaos_solve_status outcome;
-
-    if (s.crash_enabled) {
-        st = build_crash_basis(&s);
-        if (st == JAOS_OK) {
-            /* Factor so we can compute exact DSE weights. */
-            st = refactorize(&s);
-            if (st == JAOS_OK && s.lu.rank != s.nrow)
-                st = JAOS_ERR_NUMERICAL;   /* singular; fall back */
-        }
-        if (st == JAOS_OK) {
-            /* ---- exact DSE weight initialization ---- */
-            /* m BTRAN solves: ||e_i^T B^-1||^2 for each basis row. */
-            for (int64_t i = 0; i < s.nrow; i++) {
-                memset(s.rho, 0, (size_t)s.nrow * sizeof(double));
-                s.rho[i] = 1.0;
-                jm_lu_btran(&s.lu, s.rho, &s.work);
-                double norm2 = 0.0;
-                for (int64_t k = 0; k < s.nrow; k++)
-                    norm2 += s.rho[k] * s.rho[k];
-                s.dse[i] = norm2 > DSE_MIN ? norm2 : DSE_MIN;
-            }
-        }
-        if (st != JAOS_OK) {
-            /* Crash failed — build the ordinary slack basis. */
-            build_initial_basis(&s);
-        }
-    } else {
-        build_initial_basis(&s);
-    }
+    build_initial_basis(&s);
     st = run(&s, &outcome);
     if (st == JAOS_OK) {
         /* Settle first, then judge. The verdict turns on reduced costs, so
@@ -1765,16 +1404,4 @@ jaos_status jm_dual_simplex(jaos_model *m)
     }
     sx_free(&s);
     return st;
-}
-
-void jaos_get_iter_counts(const jaos_model *m,
-    int64_t *primal, int64_t *dual)
-{
-    if (!m) {
-        if (primal) *primal = 0;
-        if (dual)   *dual   = 0;
-        return;
-    }
-    if (primal) *primal = m->solve_primal_iters;
-    if (dual)   *dual   = m->solve_dual_iters;
 }

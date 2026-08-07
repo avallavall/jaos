@@ -42,32 +42,6 @@ constexpr double DROP_REL = 1e-14;
 constexpr double TINY = 1e-300;
 
 /* --------------------------------------------------------------------- */
-/* Density monitoring helpers (M2 component 1)                            */
-/* --------------------------------------------------------------------- */
-
-/* Updates the running density stats for the hyper-sparse gate. Called
- * at the end of each FTRAN or BTRAN after the result density is known. */
-static void update_density_stats(jm_lu *lu, bool is_ftran, int64_t nnz_result)
-{
-    int64_t *calls = is_ftran ? &lu->ftran_calls : &lu->btran_calls;
-    int64_t *dense = is_ftran ? &lu->ftran_dense : &lu->btran_dense;
-    double  *ema   = is_ftran ? &lu->ftran_density_ema : &lu->btran_density_ema;
-    bool    *hs    = is_ftran ? &lu->ftran_hyper_sparse : &lu->btran_hyper_sparse;
-
-    double dens = (double)nnz_result / (double)lu->dim;
-    if (*calls == 0) {
-        *ema = dens;
-    } else {
-        /* EMA with alpha = 0.1, smoothing over ~10 calls. */
-        *ema = 0.9 * *ema + 0.1 * dens;
-    }
-    (*calls)++;
-    if (dens > lu->density_threshold)
-        (*dense)++;
-    *hs = *ema < lu->density_threshold;
-}
-
-/* --------------------------------------------------------------------- */
 /* Sparse vectors                                                        */
 /* --------------------------------------------------------------------- */
 
@@ -356,7 +330,6 @@ static void compact_pivot_row(elim *e, int64_t pi, int64_t step)
 void jm_lu_init(jm_lu *lu)
 {
     memset(lu, 0, sizeof *lu);
-    lu->density_threshold = 0.10;
 }
 
 void jm_lu_free(jm_lu *lu)
@@ -378,8 +351,6 @@ void jm_lu_free(jm_lu *lu)
     free(lu->inv_col);
     free(lu->tmp);
     free(lu->spike);
-    free(lu->reach_mark);
-    free(lu->reach_work);
     memset(lu, 0, sizeof *lu);
 }
 
@@ -429,13 +400,6 @@ jaos_status jm_lu_factor(jm_lu *lu, int64_t dim,
     jm_lu_free(lu);
     lu->dim = dim;
 
-    /* Reset density monitoring stats for the new factorization. */
-    lu->ftran_calls = lu->btran_calls = 0;
-    lu->ftran_dense = lu->btran_dense = 0;
-    lu->ftran_density_ema = lu->btran_density_ema = 0.0;
-    lu->ftran_hyper_sparse = lu->btran_hyper_sparse = false;
-    lu->density_threshold = 0.10;
-
     jaos_status st = JAOS_OK;
     elim e = {0};
     e.dim = dim;
@@ -468,9 +432,6 @@ jaos_status jm_lu_factor(jm_lu *lu, int64_t dim,
     lu->inv_col  = jm_alloc_array(dim, sizeof(int64_t));
     lu->tmp      = jm_alloc_array(dim, sizeof(double));
     lu->spike    = jm_alloc_array(dim, sizeof(double));
-    lu->reach_mark = jm_calloc_array(dim, sizeof(int64_t));
-    lu->reach_work = jm_alloc_array(2 * dim, sizeof(int64_t));
-    lu->reach_stamp = 0;
 
     e.col       = jm_calloc_array(dim, sizeof(jm_svec));
     e.row       = jm_calloc_array(dim, sizeof(pat));
@@ -493,7 +454,6 @@ jaos_status jm_lu_factor(jm_lu *lu, int64_t dim,
     if (!us_start || !inv_row || !lu->l_start || !lu->u_diag || !lu->urow ||
         !lu->ucol || !lu->slot_at || !lu->pos_of || !lu->perm_row ||
         !lu->perm_col || !lu->inv_col || !lu->tmp || !lu->spike ||
-        !lu->reach_mark || !lu->reach_work ||
         !e.col || !e.row || !e.col_cnt || !e.row_cnt || !e.col_done ||
         !e.row_done || !e.bhead || !e.bnext || !e.bprev || !e.in_bucket ||
         !e.work || !e.work_set || !e.touched || !e.piv_row || !e.piv_mult ||
@@ -692,111 +652,24 @@ done:
 /* Triangular solves                                                     */
 /* --------------------------------------------------------------------- */
 
-/* DFS-based reach analysis for the column dependency graph of L.
- *
- * Starting from every column s where b[perm_row[s]] != 0, traverses the
- * implicit graph where column s has an edge to column i > s whenever
- * L[i][s] != 0. Returns the reachable set in postorder (reverse topological
- * order) in reach[0..nreach).
- *
- * A timestamp mark array avoids clearing between calls: mark[s] == stamp
- * means "already visited in this call". */
-static int64_t reach_l(const jm_lu *lu, const double *b,
-                        int64_t *mark, int64_t stamp,
-                        int64_t *reach, int64_t *stack)
-{
-    const int64_t n = lu->dim;
-    int64_t nreach = 0;
-
-    for (int64_t s = 0; s < n; s++) {
-        if (b[lu->perm_row[s]] == 0.0)
-            continue;
-        if (mark[s] == stamp)
-            continue;
-
-        /* Iterative DFS: push root, expand first unvisited child, backtrack
-         * when none remain. Postorder is collected on backtrack. */
-        int64_t sp = 0;
-        stack[sp++] = s;
-        mark[s] = stamp;
-
-        while (sp > 0) {
-            int64_t cur = stack[sp - 1];
-            bool found = false;
-            for (int64_t p = lu->l_start[cur]; p < lu->l_start[cur + 1]; p++) {
-                int64_t i = lu->l_index[p];
-                if (i > cur && mark[i] != stamp) {
-                    mark[i] = stamp;
-                    stack[sp++] = i;
-                    found = true;
-                    break;
-                }
-            }
-            if (!found) {
-                sp--;
-                reach[nreach++] = cur;
-            }
-        }
-    }
-    return nreach;
-}
-
-/* Forward substitution L^{-1} using only the reachable columns.
- *
- * y has already been initialized to b[perm_row[:]]. This function scatters
- * from the reachable columns in reverse postorder (topological order), so
- * the result is numerically identical to processing all columns. */
-static void solve_from_reach_l(const jm_lu *lu, double *y,
-                                const int64_t *reach, int64_t nreach)
-{
-    for (int64_t k = nreach - 1; k >= 0; k--) {
-        int64_t s = reach[k];
-        double ys = y[s];
-        if (ys == 0.0)
-            continue;
-        for (int64_t p = lu->l_start[s]; p < lu->l_start[s + 1]; p++)
-            y[lu->l_index[p]] -= lu->l_value[p] * ys;
-    }
-}
-
 /* y = L^-1 P b, then the accumulated row transformations. Shared by FTRAN
- * and by the update, which needs exactly this prefix to form the spike.
- *
- * Uses the Gilbert-Peierls hyper-sparse path when the running density EMA
- * indicates the result is likely to be sparse. */
+ * and by the update, which needs exactly this prefix to form the spike. */
 static void ftran_prefix(const jm_lu *lu, const double *b, double *y,
-                          jm_work *w)
+                         jm_work *w)  /* reads only; y is caller-owned */
 {
     const int64_t n = lu->dim;
 
     for (int64_t s = 0; s < n; s++)
         y[s] = b[lu->perm_row[s]];
 
-    if (lu->ftran_hyper_sparse) {
-        jm_lu *lw = (jm_lu *)lu;
-        int64_t stamp = lw->reach_stamp + 1;
-        if (stamp == 0) stamp = 1;
-        int64_t *reach = lw->reach_work;
-        int64_t *stack = lw->reach_work + n;
-        int64_t nreach = reach_l(lu, b, lw->reach_mark, stamp,
-                                  reach, stack);
-        solve_from_reach_l(lu, y, reach, nreach);
-        lw->reach_stamp = stamp;
-
-        int64_t work = 0;
-        for (int64_t k = 0; k < nreach; k++)
-            work += lu->l_start[reach[k] + 1] - lu->l_start[reach[k]];
-        jm_work_add(w, work * JM_WORK_NONZERO);
-    } else {
-        /* L by columns, so each step scatters. */
-        for (int64_t s = 0; s < n; s++) {
-            double ys = y[s];
-            if (ys == 0.0)
-                continue;
-            for (int64_t p = lu->l_start[s]; p < lu->l_start[s + 1]; p++)
-                y[lu->l_index[p]] -= lu->l_value[p] * ys;
-            jm_work_add(w, (lu->l_start[s + 1] - lu->l_start[s]) * JM_WORK_NONZERO);
-        }
+    /* L by columns, so each step scatters. */
+    for (int64_t s = 0; s < n; s++) {
+        double ys = y[s];
+        if (ys == 0.0)
+            continue;
+        for (int64_t p = lu->l_start[s]; p < lu->l_start[s + 1]; p++)
+            y[lu->l_index[p]] -= lu->l_value[p] * ys;
+        jm_work_add(w, (lu->l_start[s + 1] - lu->l_start[s]) * JM_WORK_NONZERO);
     }
 
     /* E = E_t ... E_1, applied in creation order. */
@@ -829,12 +702,6 @@ void jm_lu_ftran(jm_lu *lu, double *x, jm_work *w)
         jm_work_add(w, col->n * JM_WORK_NONZERO);
     }
 
-    /* Count nonzeros for density monitoring. */
-    int64_t ftran_nnz = 0;
-    for (int64_t s = 0; s < n; s++)
-        if (y[s] != 0.0) ftran_nnz++;
-    update_density_stats(lu, true, ftran_nnz);
-
     for (int64_t s = 0; s < n; s++)
         x[lu->perm_col[s]] = y[s];
 }
@@ -851,7 +718,8 @@ void jm_lu_btran(jm_lu *lu, double *x, jm_work *w)
     for (int64_t s = 0; s < n; s++)
         y[s] = x[lu->perm_col[s]];
 
-    /* Dense path: U' v = y, forward in position order. */
+    /* U' v = y, forward in position order. U by column is U' by row, so
+     * each step is a dot product over already-resolved slots. */
     for (int64_t k = 0; k < n; k++) {
         int64_t s = lu->slot_at[k];
         const jm_svec *col = &lu->ucol[s];
@@ -862,12 +730,15 @@ void jm_lu_btran(jm_lu *lu, double *x, jm_work *w)
         jm_work_add(w, col->n * JM_WORK_NONZERO);
     }
 
-    /* E^T = E_1^T ... E_t^T: reverse order. */
+    /* E^T = E_1^T ... E_t^T: reverse order, and each transposed swaps the
+     * roles of target and source. Getting this backwards produces
+     * plausible residuals that are quietly wrong. */
     for (int64_t k = lu->ft.n - 1; k >= 0; k--)
         y[lu->ft_source[k]] -= lu->ft.val[k] * y[lu->ft.idx[k]];
     jm_work_add(w, lu->ft.n * JM_WORK_NONZERO);
 
-    /* L' u = v, backward: L by columns is L' by rows. */
+    /* L' u = v, backward: L by columns is L' by rows, a dot product. L is
+     * unit triangular, so there is no division. */
     for (int64_t s = n - 1; s >= 0; s--) {
         double sum = y[s];
         for (int64_t p = lu->l_start[s]; p < lu->l_start[s + 1]; p++)
@@ -876,34 +747,8 @@ void jm_lu_btran(jm_lu *lu, double *x, jm_work *w)
         jm_work_add(w, (lu->l_start[s + 1] - lu->l_start[s]) * JM_WORK_NONZERO);
     }
 
-    /* Count nonzeros for density monitoring. */
-    int64_t btran_nnz = 0;
-    for (int64_t s = 0; s < n; s++)
-        if (y[s] != 0.0) btran_nnz++;
-    update_density_stats(lu, false, btran_nnz);
-
     for (int64_t s = 0; s < n; s++)
         x[lu->perm_row[s]] = y[s];
-}
-
-/* --------------------------------------------------------------------- */
-/* Density report (M2 component 1)                                        */
-/* --------------------------------------------------------------------- */
-
-void jm_lu_density_report(const jm_lu *lu, jm_lu_density_info *ftran,
-                          jm_lu_density_info *btran)
-{
-    ftran->calls            = lu->ftran_calls;
-    ftran->dense_calls      = lu->ftran_dense;
-    ftran->running_density  = lu->ftran_density_ema;
-    ftran->hyper_sparse     = lu->ftran_hyper_sparse;
-    ftran->density_threshold = lu->density_threshold;
-
-    btran->calls            = lu->btran_calls;
-    btran->dense_calls      = lu->btran_dense;
-    btran->running_density  = lu->btran_density_ema;
-    btran->hyper_sparse     = lu->btran_hyper_sparse;
-    btran->density_threshold = lu->density_threshold;
 }
 
 /* --------------------------------------------------------------------- */

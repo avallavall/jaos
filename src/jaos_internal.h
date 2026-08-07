@@ -67,8 +67,6 @@ struct jaos_model {
     double *sol_redcost;     /* [num_col] reduced costs      */
     int64_t solve_work;
     int64_t solve_iters;
-    int64_t solve_primal_iters;
-    int64_t solve_dual_iters;
 
     /* Detail message for the last failed operation; "" when it succeeded.
      * Sits outside the problem data on purpose: setting it never disturbs a
@@ -160,7 +158,7 @@ void jm_dse_update(int64_t n, double *w, int64_t r,
  * wrong answer here costs conditioning rather than correctness — nothing
  * at the solve level would report it. */
 int64_t jm_harris_pick(int64_t n, const double *num, const double *den,
-                       const int64_t *cand, double dual_tol);
+                       double dual_tol);
 
 /* Overflow-checked array allocation: n elements of elsize bytes.
  * Returns NULL on n < 0, size overflow, or exhaustion. n == 0 still returns
@@ -301,33 +299,7 @@ typedef struct {
 
     double *tmp;         /* [dim] solve workspace, owned */
     double *spike;       /* [dim] update workspace, owned */
-
-    /* Density monitoring for M2 hyper-sparsity gate.
-     * Reset by jm_lu_factor (after each refactorization). */
-    int64_t ftran_calls, btran_calls;
-    int64_t ftran_dense, btran_dense;
-    double  ftran_density_ema, btran_density_ema;
-    bool    ftran_hyper_sparse, btran_hyper_sparse;
-    double  density_threshold;   /* default 0.10 (10%) */
-
-    /* Gilbert-Peierls DFS reach analysis workspace (hyper-sparse FTRAN). */
-    int64_t reach_stamp;         /* timestamp, incremented each call */
-    int64_t *reach_mark;         /* [dim] mark array for DFS */
-    int64_t *reach_work;         /* [2*dim] reach output + stack */
 } jm_lu;
-
-/* Density report for M2 hyper-sparse gate. */
-typedef struct {
-    int64_t calls;
-    int64_t dense_calls;
-    double  running_density;
-    bool    hyper_sparse;
-    double  density_threshold;
-} jm_lu_density_info;
-
-/* Fills *ftran and *btran with the current density monitoring stats. */
-void jm_lu_density_report(const jm_lu *lu, jm_lu_density_info *ftran,
-                          jm_lu_density_info *btran);
 
 void jm_lu_init(jm_lu *lu);
 void jm_lu_free(jm_lu *lu);
