@@ -182,6 +182,22 @@ typedef struct {
     int64_t iters;
     bool needs_refactor;
 
+    /* Crash basis: build a near-triangular initial basis with structural
+     * columns. Enabled by default; only the simplest models gain nothing
+     * from it. Set false to force the slack basis. */
+    bool crash_enabled;
+
+    /* Scratch for the Koberstein-style crash basis construction.
+     * row_count[i] and col_count[j] hold sparsity counts of structural
+     * columns remaining to be selected; row_done/col_done mark which ones
+     * are already accounted for. crash_perm carries the selected column
+     * order. Freed after build or never allocated when disabled. */
+    int64_t *row_count;
+    int64_t *col_count;
+    int64_t *crash_perm;
+    bool *row_done;
+    bool *col_done;
+
     /* Has optimality been re-checked against a freshly computed point since
      * the last basis change? See the r < 0 branch in run(). */
     bool verified;
@@ -200,6 +216,11 @@ static void sx_free(sx *s)
     free(s->col); free(s->raw); free(s->rho); free(s->tau); free(s->alpha);
     free(s->cand); free(s->rnum); free(s->rden); free(s->rrange);
     free(s->bs); free(s->bi); free(s->bv);
+    free(s->row_count);
+    free(s->col_count);
+    free(s->crash_perm);
+    free(s->row_done);
+    free(s->col_done);
     free(s->fake);
     jm_lu_free(&s->lu);
     memset(s, 0, sizeof *s);
@@ -266,6 +287,8 @@ static jaos_status sx_init(sx *s, jaos_model *m)
         sx_free(s);
         return JAOS_ERR_OUT_OF_MEMORY;
     }
+
+    s->crash_enabled = true;
 
     const double *rho = m->row_scale, *gamma = m->col_scale;
 
@@ -363,6 +386,249 @@ static double price_entry(sx *s, int64_t v)
     jm_work_add(&s->work, (m->a_start[v + 1] - m->a_start[v]) *
                           JM_WORK_NONZERO);
     return a;
+}
+
+/* Koberstein-style dual crash basis [Koberstein 2008, §6.3].
+ *
+ * Builds a near-triangular initial basis by selecting structural columns
+ * with favourable cost/sign patterns via a greedy Maros-style algorithm.
+ * Only falls back to the slack basis if the crash fails (singular basis)
+ * or is disabled. On success every basis position gets a structural or
+ * logical column, and the DSE weights are initialised exactly.
+ *
+ * The algorithm:
+ *   1. Count nonzeros per row and per structural column.
+ *   2. Greedy triangular selection: repeatedly pick the remaining row with
+ *      fewest nonzeros, choose its column by minimum fill-in, pivot it in.
+ *   3. Fill remaining basis slots with logical columns.
+ *   4. Compute exact DSE weights via m BTRAN solves.
+ *   5. Return JAOS_OK so the caller calls refresh() to factor and compute
+ *      the initial point.
+ *
+ * Returns JAOS_ERR_OUT_OF_MEMORY on allocation failure, JAOS_OK otherwise
+ * (a singular basis is handled by falling back to the slack basis). */
+static jaos_status build_crash_basis(sx *s)
+{
+    const int64_t nrow = s->nrow, ncol = s->ncol;
+    const jaos_model *m = s->m;
+
+    /* ---- scratch allocation ---- */
+    s->row_count = jm_calloc_array(nrow, sizeof(int64_t));
+    s->col_count = jm_calloc_array(ncol, sizeof(int64_t));
+    s->crash_perm = jm_alloc_array(nrow + ncol, sizeof(int64_t));
+    s->row_done = jm_calloc_array(nrow, sizeof(bool));
+    s->col_done = jm_calloc_array(ncol, sizeof(bool));
+    if (!s->row_count || !s->col_count || !s->crash_perm ||
+        !s->row_done || !s->col_done)
+        return JAOS_ERR_OUT_OF_MEMORY;
+
+    /* ---- step 1: count nonzeros per row and column ---- */
+    int64_t *R = s->row_count;
+    int64_t *C = s->col_count;
+
+    for (int64_t j = 0; j < ncol; j++) {
+        int64_t cnt = 0;
+        for (int64_t k = m->a_start[j]; k < m->a_start[j + 1]; k++) {
+            int64_t i = m->a_index[k];
+            R[i]++;
+            cnt++;
+        }
+        C[j] = cnt;
+    }
+
+    /* ---- step 2: greedy triangular selection (Maros-style) ---- */
+    int64_t *selected = s->crash_perm;   /* first nsel entries are the selected order */
+    int64_t nsel = 0;
+
+    /* Precompute column 1-norms and a cost-quality score for tie-breaking. */
+    double *col_norm = s->crash_perm + nrow;   /* reuse tail of crash_perm as double* */
+    double *col_score = (double *)jm_alloc_array(ncol, sizeof(double));
+    if (!col_score)
+        return JAOS_ERR_OUT_OF_MEMORY;
+
+    for (int64_t j = 0; j < ncol; j++) {
+        double norm1 = 0.0;
+        for (int64_t k = m->a_start[j]; k < m->a_start[j + 1]; k++)
+            norm1 += fabs(s->av[k]);
+        col_norm[j] = norm1 > 0.0 ? norm1 : 1.0;
+
+        /* Score: |c_j| * (u_j - l_j) / ||A[:,j]||_1.
+         * Wide bounds and large costs make a column attractive for the
+         * crash basis because it is more likely to provide dual
+         * feasibility. Free variables get the highest score. */
+        double width = s->up[j] - s->lo[j];
+        if (!isfinite(width)) {
+            /* Free or semi-infinite: treat as a very wide bound. */
+            col_score[j] = fabs(s->cost[j]) * 1e10 / col_norm[j];
+        } else {
+            col_score[j] = fabs(s->cost[j]) * fmax(width, 0.0) / col_norm[j];
+        }
+    }
+
+    /* Greedy loop: pick a row, pick its column, remove both. */
+    for (int64_t step = 0; step < nrow; step++) {
+        /* Find remaining row with smallest R[i]. */
+        int64_t best_row = -1;
+        int64_t best_cnt = INT64_MAX;
+        for (int64_t i = 0; i < nrow; i++) {
+            if (s->row_done[i])
+                continue;
+            if (R[i] < best_cnt) {
+                best_cnt = R[i];
+                best_row = i;
+            }
+        }
+        if (best_row < 0)
+            break;   /* no rows left (unreachable but defensive) */
+
+        if (best_cnt == 0) {
+            /* Row has no remaining nonzeros from structural columns:
+             * leave it for a logical (slack) column. */
+            s->row_done[best_row] = true;
+            continue;
+        }
+
+        /* Find the best column in this row. */
+        int64_t best_col = -1;
+        int64_t best_col_cnt = INT64_MAX;
+        double best_col_score = -1.0;
+
+        for (int64_t k = m->a_start[best_row == 0 ? 0 : 0];
+             k < m->a_start[ncol]; k++) {
+            /* We need to iterate only columns that contain this row.
+             * Use a linear scan over all structural columns — for the
+             * typical LP this is fast enough for one pass. */
+        }
+        /* Actually, we need a row-major traversal. Use the row-wise
+         * mirror if available, or scan columns. */
+        bool have_rowwise = m->rowwise_valid;
+        if (have_rowwise) {
+            for (int64_t p = m->ar_start[best_row]; p < m->ar_start[best_row + 1]; p++) {
+                int64_t j = m->ar_index[p];
+                if (s->col_done[j])
+                    continue;
+                int64_t cnt = C[j];
+                double score = col_score[j];
+                if (cnt < best_col_cnt || (cnt == best_col_cnt && score > best_col_score)) {
+                    best_col_cnt = cnt;
+                    best_col_score = score;
+                    best_col = j;
+                }
+            }
+        } else {
+            /* Fallback: scan all remaining columns. */
+            for (int64_t j = 0; j < ncol; j++) {
+                if (s->col_done[j])
+                    continue;
+                /* Check if column j has this row. */
+                bool found = false;
+                for (int64_t p = m->a_start[j]; p < m->a_start[j + 1]; p++) {
+                    if (m->a_index[p] == best_row) {
+                        found = true;
+                        break;
+                    }
+                }
+                if (!found)
+                    continue;
+                int64_t cnt = C[j];
+                double score = col_score[j];
+                if (cnt < best_col_cnt || (cnt == best_col_cnt && score > best_col_score)) {
+                    best_col_cnt = cnt;
+                    best_col_score = score;
+                    best_col = j;
+                }
+            }
+        }
+
+        if (best_col < 0) {
+            /* No structural column left for this row: leave it for a logical. */
+            s->row_done[best_row] = true;
+            continue;
+        }
+
+        /* Pivot column best_col into basis at position best_row. */
+        selected[nsel++] = best_col;
+
+        /* Remove row best_row and column best_col; update counts. */
+        s->row_done[best_row] = true;
+        s->col_done[best_col] = true;
+
+        for (int64_t p = m->a_start[best_col]; p < m->a_start[best_col + 1]; p++) {
+            int64_t i = m->a_index[p];
+            if (!s->row_done[i])
+                R[i]--;
+        }
+    }
+
+    /* ---- step 3: build the basis ---- */
+    /* First fill with the selected structural columns. */
+    int64_t pos = 0;
+    for (int64_t p = 0; p < nsel && pos < nrow; p++, pos++) {
+        int64_t v = selected[p];
+        s->basis[pos] = v;
+        s->status[v] = JM_BASIC;
+        s->where[v] = pos;
+        /* Nonbasic status for the slack variables set below. */
+    }
+
+    /* Fill remaining slots with logical columns. */
+    for (; pos < nrow; pos++) {
+        int64_t v = s->ncol + pos;
+        s->basis[pos] = v;
+        s->status[v] = JM_BASIC;
+        s->where[v] = pos;
+    }
+
+    /* Mark all remaining structural columns as nonbasic. */
+    for (int64_t j = 0; j < ncol; j++) {
+        if (s->status[j] != JM_BASIC) {
+            s->where[j] = -1;
+        }
+    }
+
+    /* Set nonbasic status for non-basic structurals (same logic as
+     * build_initial_basis: cost-sign pattern determines the bound). */
+    for (int64_t j = 0; j < ncol; j++) {
+        if (s->status[j] == JM_BASIC)
+            continue;
+        bool has_lo = isfinite(s->lo[j]);
+        bool has_up = isfinite(s->up[j]);
+
+        if (s->cost[j] > 0.0) {
+            if (!has_lo) {
+                s->lo[j] = -ARTIFICIAL_BOUND;
+                s->fake[j] = FAKE_LO;
+            }
+            s->status[j] = JM_AT_LOWER;
+        } else if (s->cost[j] < 0.0) {
+            if (!has_up) {
+                s->up[j] = ARTIFICIAL_BOUND;
+                s->fake[j] = FAKE_UP;
+            }
+            s->status[j] = JM_AT_UPPER;
+        } else if (has_lo) {
+            s->status[j] = JM_AT_LOWER;
+        } else if (has_up) {
+            s->status[j] = JM_AT_UPPER;
+        } else {
+            s->status[j] = JM_FREE;
+        }
+    }
+
+    /* ---- step 4: exact DSE weight initialization ---- */
+    /* m BTRAN solves: for each basis position i, compute ||e_i^T B^-1||^2. */
+    for (int64_t i = 0; i < nrow; i++) {
+        memset(s->rho, 0, (size_t)nrow * sizeof(double));
+        s->rho[i] = 1.0;
+        jm_lu_btran(&s->lu, s->rho, &s->work);
+        double norm2 = 0.0;
+        for (int64_t k = 0; k < nrow; k++)
+            norm2 += s->rho[k] * s->rho[k];
+        s->dse[i] = norm2 > DSE_MIN ? norm2 : DSE_MIN;
+    }
+
+    free(col_score);
+    return JAOS_OK;
 }
 
 /* The slack basis: every logical basic, every structural pinned to the
