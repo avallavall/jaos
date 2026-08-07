@@ -444,6 +444,39 @@ Remaining:
      worst-conditioned models in the set and they miss the objective as well,
      which the next item takes separately. Whatever closes `finnis` will not
      close these.
+
+     **The primal test has the same shape of problem, and D23 deliberately
+     did not touch it.** `interval_violation` is still absolute. Measuring
+     the worst row violation against the traffic through that row, as D23
+     does for the sign condition:
+
+     | instance | row violation | traffic | relative | ulp(traffic) |
+     |---|---|---|---|---|
+     | `finnis` | 8.44e-7 | 4.0e10 | **2.1e-17** | 7.6e-6 |
+     | `greenbea` | 4.31e-9 | 6.6e8 | 6.6e-18 | 1.2e-7 |
+     | `adlittle` | 4.55e-13 | 2589 | 1.8e-16 | — |
+     | `25fv47` | 1.30e-12 | 1031 | 1.3e-15 | — |
+     | `nesm` | 1.00e-8 | 0.70 | **1.4e-8** | 1.1e-16 |
+     | `pilot` | 1.96e-5 | 1129 | **1.7e-8** | 2.3e-13 |
+
+     The absolute rule is **both too strict and too lax**, and which one it is
+     depends on nothing but the row's scale. `finnis` passes it by 16% of the
+     margin while its residue is a tenth of one ulp of the row — one more
+     rounding step in the wrong direction and a correct answer would be
+     refused on the primal too, as it already was on the dual. `nesm` passes
+     it comfortably at 1e-8 absolute while being a hundred million ulps out
+     relative to a row carrying 0.7.
+
+     Between the instances that are clearly fine (1e-15 to 1e-17 relative)
+     and the two that are clearly not (1.4e-8, 1.7e-8) there are seven orders
+     of magnitude of daylight, which is the measurement §2.6 has been waiting
+     for. What it is not is a free change: a relative primal test would move
+     verdicts in **both** directions — it would put `nesm` in breach where
+     the absolute rule clears it — and unlike the sign condition there is no
+     gap identity standing behind it. The gap catches a waived complementary
+     slackness; nothing catches a waived feasibility claim, because
+     feasibility is the claim. So this is a decision and not a patch, and it
+     is recorded here rather than acted on.
    - **`pilot` and `pilot87` miss the objective as well**, by 2e-4 and 6e-5
      relative. These are the worst-conditioned instances in the set and are
      expected to be last; they are listed apart because an objective error
