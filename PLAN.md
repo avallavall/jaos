@@ -235,6 +235,21 @@ Remaining:
      rather than defect. Which is which is the first thing to establish,
      because the answers differ: one is a bug, the other is §2.6 being
      frozen at the wrong value.
+
+     There is a specific hypothesis for the near-miss pair, worth writing
+     down before it is lost: the checker accumulates in `long double` and
+     the solver works in `double`, so a residual the solver reads as just
+     inside `CHECK_TOL` can come back from the checker just outside it. If
+     that is the mechanism, the fix is for the solver to settle against a
+     tightened bound — half of `CHECK_TOL`, say — and leave the other half
+     as margin for the more precise arithmetic. This was prototyped on an
+     unmerged branch and is not merged: that version carried debug
+     instrumentation, duplicated the tolerance into a third file, and
+     assigned `DSE_MIN` — the floor on a steepest-edge weight, which is a
+     squared norm — to a reduced cost. The idea is worth taking; that
+     implementation is not. Whatever replaces it is judged per instance
+     against `bench/netlib.baseline`, since a tolerance change touches
+     every instance at once and `etamacro` alone cannot say what it cost.
    - **`pilot` and `pilot87` miss the objective as well**, by 2e-4 and 6e-5
      relative. These are the worst-conditioned instances in the set and are
      expected to be last; they are listed apart because an objective error
