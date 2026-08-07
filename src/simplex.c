@@ -498,20 +498,179 @@ static void compute_duals(sx *s)
     }
 }
 
+/* Declared here rather than moved: the repair below needs it, and it belongs
+ * with the settling-up code where its reason is written out. */
+static void shift_to_feasible(sx *s, int64_t v);
+
+/* How many times one refresh will repair and refactor before giving up.
+ *
+ * One is enough in exact arithmetic — the proof is in repair_singular_basis
+ * — so this is a backstop against the repaired basis coming back deficient
+ * for a reason the proof does not cover, which is threshold pivoting
+ * declining a pivot the algebra says exists. It is not a budget to be tuned:
+ * a solve that needs a third pass has something else wrong with it. */
+constexpr int REPAIR_ATTEMPTS = 4;
+
+/* Puts a basis back together after the factorization finds it singular.
+ *
+ * The LU's contract (jaos_internal.h) is that rank < dim is a fact rather
+ * than an error, and that the caller acts on it by replacing basis columns.
+ * This is that caller. Until this existed the solve gave up instead, and
+ * `gran` of the infeasible set is what that cost: an INFEASIBLE verdict the
+ * model was owed, replaced by a numerical error after 1728 iterations.
+ *
+ * A rank-deficient factorization hands over exactly the two lists the
+ * repair needs. Slots 0..rank-1 name the rows that were pivoted and the
+ * basis positions that were used; whatever is missing from those lists is,
+ * on the row side, a row nothing covers, and on the column side, a column
+ * that turned out to depend on the others. There are equally many of each.
+ *
+ * The repair pairs them off and puts the logical of an uncovered row into
+ * the dependent position. That the result is nonsingular is not a hope. Sort
+ * the rows as (pivoted, uncovered) and the new basis reads
+ *
+ *     B' = [ P  0 ]
+ *          [ Q -I ]
+ *
+ * because a logical is a unit column and the rows it touches are exactly
+ * the ones P does not. P is nonsingular — triangularizing it is what the
+ * factorization just did — so det B' = det P * det(-I), which is not zero.
+ *
+ * The logical of an uncovered row cannot already be in the basis, so the
+ * pairing never installs the same variable twice. Its column is a singleton
+ * on that row; a factorization holding it would have had a pivot candidate
+ * of magnitude one whose threshold ratio is exactly one and whose Markowitz
+ * count is the smallest there is, so it would have taken it and covered the
+ * row. The check below is kept anyway: it costs one comparison on a path
+ * that runs once in a solve, and the alternative to checking is corrupting
+ * the basis if the reasoning is ever made wrong by a change elsewhere.
+ *
+ * The two mark arrays are allocated here and not kept in sx. Nearly every
+ * solve never calls this at all, and carrying two arrays per solve for a
+ * path that rare is the wrong trade — this is the opposite case from the
+ * refactorization buffers, which every solve uses many times.
+ *
+ * Returns false when nothing was repaired, which the caller must treat as
+ * the numerical failure it then is. */
+static bool repair_singular_basis(sx *s)
+{
+    const int64_t n = s->nrow;
+    const int64_t rank = s->lu.rank;
+
+    /* rank < 0 marks a factorization wrecked by a failed update; its
+     * permutations mean nothing and there is nothing here to read. */
+    if (rank < 0 || rank >= n)
+        return false;
+
+    bool *row_covered = jm_calloc_array(n, sizeof(bool));
+    bool *pos_used    = jm_calloc_array(n, sizeof(bool));
+    if (row_covered == nullptr || pos_used == nullptr) {
+        free(row_covered);
+        free(pos_used);
+        return false;
+    }
+
+    for (int64_t k = 0; k < rank; k++) {
+        row_covered[s->lu.perm_row[k]] = true;
+        pos_used[s->lu.perm_col[k]] = true;
+    }
+
+    bool done = true;
+    int64_t i = 0;
+    for (int64_t p = 0; p < n; p++) {
+        if (pos_used[p])
+            continue;
+        while (i < n && row_covered[i])
+            i++;
+        if (i >= n) {
+            /* Fewer uncovered rows than dependent columns: the two lists
+             * disagree about the same rank, so one of them is wrong and
+             * neither can be acted on. */
+            done = false;
+            break;
+        }
+
+        int64_t leaving  = s->basis[p];
+        int64_t entering = s->ncol + i;
+        if (s->status[entering] == JM_BASIC) {
+            done = false;
+            break;
+        }
+
+        /* Where the evicted variable is parked. A basic's reduced cost is
+         * zero, so both of its bounds are dual feasible and the choice is
+         * free; the lower one is taken first, which is the tie-break
+         * build_initial_basis already uses. A variable with neither bound
+         * becomes nonbasic free, and the shift in refresh is what keeps
+         * that dual feasible once its reduced cost exists. */
+        if (isfinite(s->lo[leaving]))
+            s->status[leaving] = JM_AT_LOWER;
+        else if (isfinite(s->up[leaving]))
+            s->status[leaving] = JM_AT_UPPER;
+        else
+            s->status[leaving] = JM_FREE;
+        s->where[leaving] = -1;
+
+        s->basis[p] = entering;
+        s->status[entering] = JM_BASIC;
+        s->where[entering] = p;
+        i++;
+    }
+
+    free(row_covered);
+    free(pos_used);
+    if (!done)
+        return false;
+
+    /* Every weight is the squared norm of a row of B^-1, and B^-1 has just
+     * changed in several columns at once. The recurrence has no way to
+     * carry weights across that, so they are restarted from the value the
+     * slack basis starts at rather than left describing a basis that no
+     * longer exists. Pricing quality is all this costs; no verdict depends
+     * on a weight. */
+    for (int64_t k = 0; k < n; k++)
+        s->dse[k] = 1.0;
+    return true;
+}
+
 /* Rebuild the factorization and everything derived from it. Returns false
- * when the basis will not factor, which for a basis the algorithm itself
- * assembled means the numerics have failed rather than the model. */
+ * when the basis will not factor and the repair above cannot put it right,
+ * which for a basis the algorithm itself assembled means the numerics have
+ * failed rather than the model. */
 static jaos_status refresh(sx *s, bool *ok)
 {
-    jaos_status st = refactorize(s);
-    if (st != JAOS_OK)
-        return st;
-    if (s->lu.rank != s->nrow) {
-        *ok = false;
-        return JAOS_OK;
+    bool repaired = false;
+
+    for (int attempt = 0;; attempt++) {
+        jaos_status st = refactorize(s);
+        if (st != JAOS_OK)
+            return st;
+        if (s->lu.rank == s->nrow)
+            break;
+        if (attempt + 1 >= REPAIR_ATTEMPTS || !repair_singular_basis(s)) {
+            jm_set_err(s->m, "the basis went singular at iteration %lld and "
+                             "could not be repaired: rank %lld of %lld",
+                       (long long)s->iters, (long long)s->lu.rank,
+                       (long long)s->nrow);
+            *ok = false;
+            return JAOS_OK;
+        }
+        repaired = true;
     }
+
     compute_primal(s);
     compute_duals(s);
+
+    /* The repair had to choose bounds for the variables it evicted before
+     * their reduced costs existed, so some of those costs are now on the
+     * wrong side. Shifting is the mechanism the method already uses for
+     * exactly this — every iteration does it in pivot() — and the shifts
+     * are called back before any verdict is read. Only after a repair:
+     * a solve that never went singular is left bit for bit as it was. */
+    if (repaired)
+        for (int64_t v = 0; v < s->nvar; v++)
+            shift_to_feasible(s, v);
+
     *ok = true;
     return JAOS_OK;
 }

@@ -1145,6 +1145,120 @@ static void test_queries_before_a_solve(void)
     jaos_model_free(m);
 }
 
+/* ---- Rank-deficient constraint matrices ----------------------------- *
+ *
+ * These do not reach the basis repair in src/simplex.c, and no small model
+ * can: the dual simplex only pivots on an alpha above PIVOT_MIN, so every
+ * basis it assembles is nonsingular in exact arithmetic, and a singular one
+ * is always the residue of carried error rather than a property of the
+ * model. The instance that actually produces one is `gran` of the
+ * infeasible set, at 2658 rows and 1728 iterations of drift.
+ *
+ * What these cover is the family that instance belongs to, where the danger
+ * is a wrong verdict and not a crash. A dependent row is satisfied for
+ * nothing, and a method that reads "no pivot available in this row" as "no
+ * feasible point" answers INFEASIBLE on a model with a perfectly good
+ * optimum — which is the exact failure the revert of 2026-08-07 was forced
+ * by. Each answer below is worked out by hand, and each infeasible one is
+ * infeasible for a reason no dependency explains away.
+ */
+
+/* Two identical rows. Optimum 2, at any point of the segment x + y == 2. */
+static void test_duplicate_rows_reach_the_same_optimum(void)
+{
+    const double c[] = {1.0, 1.0};
+    const double cl[] = {0.0, 0.0}, cu[] = {5.0, 5.0};
+    const double rl[] = {2.0, 2.0}, ru[] = {INFINITY, INFINITY};
+    const int64_t as[] = {0, 2, 4}, ai[] = {0, 1, 0, 1};
+    const double av[] = {1.0, 1.0, 1.0, 1.0};
+
+    jaos_model *m = fresh();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_load_lp(m, 2, 2, JAOS_MINIMIZE, 0.0, c, cl, cu, rl, ru,
+                     4, as, ai, av));
+    solve_and_verify(m, 2.0);
+    jaos_model_free(m);
+}
+
+/* r2 is r0 + r1 exactly, so the matrix has rank two over three rows and the
+ * third constraint adds nothing. min x+y+z with x+y >= 2, y+z >= 2 and
+ * x+2y+z >= 4: adding the first two gives obj >= 4 - y, and y <= obj since
+ * x and z are non-negative, so obj >= 2 — reached at y = 2, x = z = 0. */
+static void test_a_row_that_is_the_sum_of_two_others(void)
+{
+    const double c[] = {1.0, 1.0, 1.0};
+    const double cl[] = {0.0, 0.0, 0.0}, cu[] = {5.0, 5.0, 5.0};
+    const double rl[] = {2.0, 2.0, 4.0};
+    const double ru[] = {INFINITY, INFINITY, INFINITY};
+    const int64_t as[] = {0, 2, 5, 7};
+    const int64_t ai[] = {0, 2, 0, 1, 2, 1, 2};
+    const double av[] = {1.0, 1.0, 1.0, 1.0, 2.0, 1.0, 1.0};
+
+    jaos_model *m = fresh();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_load_lp(m, 3, 3, JAOS_MINIMIZE, 0.0, c, cl, cu, rl, ru,
+                     7, as, ai, av));
+    solve_and_verify(m, 2.0);
+    jaos_model_free(m);
+}
+
+/* The same row asked for two things at once: x + y >= 3 and x + y <= 1.
+ * Infeasible, and the proof needs no bound on any column — which is what
+ * makes it a statement about the dependency rather than about the box. */
+static void test_dependent_rows_that_contradict_each_other(void)
+{
+    const double c[] = {1.0, 1.0};
+    const double cl[] = {0.0, 0.0}, cu[] = {5.0, 5.0};
+    const double rl[] = {3.0, -INFINITY}, ru[] = {INFINITY, 1.0};
+    const int64_t as[] = {0, 2, 4}, ai[] = {0, 1, 0, 1};
+    const double av[] = {1.0, 1.0, 1.0, 1.0};
+
+    jaos_model *m = fresh();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_load_lp(m, 2, 2, JAOS_MINIMIZE, 0.0, c, cl, cu, rl, ru,
+                     4, as, ai, av));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_INFEASIBLE, jaos_status_of(m));
+    jaos_model_free(m);
+}
+
+/* A row no column reaches, demanding an activity of at least one. Its
+ * activity is identically zero, so the model is infeasible however the
+ * columns move — the case where the structural matrix does not span the
+ * row space at all, which is the shape the repair pairs its logicals to. */
+static void test_a_row_no_column_reaches(void)
+{
+    const double c[] = {1.0};
+    const double cl[] = {0.0}, cu[] = {1.0};
+    const double rl[] = {1.0}, ru[] = {2.0};
+    const int64_t as[] = {0, 0};
+
+    jaos_model *m = fresh();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_load_lp(m, 1, 1, JAOS_MINIMIZE, 0.0, c, cl, cu, rl, ru,
+                     0, as, nullptr, nullptr));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_INFEASIBLE, jaos_status_of(m));
+    jaos_model_free(m);
+}
+
+/* The same empty row, asking for something it can give: activity zero is
+ * inside [-1, 2], so the row is simply satisfied and the columns decide. */
+static void test_a_row_no_column_reaches_but_that_holds_anyway(void)
+{
+    const double c[] = {1.0};
+    const double cl[] = {-3.0}, cu[] = {1.0};
+    const double rl[] = {-1.0}, ru[] = {2.0};
+    const int64_t as[] = {0, 0};
+
+    jaos_model *m = fresh();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_load_lp(m, 1, 1, JAOS_MINIMIZE, 0.0, c, cl, cu, rl, ru,
+                     0, as, nullptr, nullptr));
+    solve_and_verify(m, -3.0);
+    jaos_model_free(m);
+}
+
 int main(void)
 {
     UNITY_BEGIN();
@@ -1184,5 +1298,10 @@ int main(void)
     RUN_TEST(test_work_limit_stops_and_reports);
     RUN_TEST(test_budgets_survive_a_reload);
     RUN_TEST(test_queries_before_a_solve);
+    RUN_TEST(test_duplicate_rows_reach_the_same_optimum);
+    RUN_TEST(test_a_row_that_is_the_sum_of_two_others);
+    RUN_TEST(test_dependent_rows_that_contradict_each_other);
+    RUN_TEST(test_a_row_no_column_reaches);
+    RUN_TEST(test_a_row_no_column_reaches_but_that_holds_anyway);
     return UNITY_END();
 }
