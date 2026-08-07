@@ -510,3 +510,91 @@ rejected to accepted, and clears the row condition on `pilot` without
 changing its verdict — `pilot` fails on the gap and on the objective, which
 this does not touch. Judged per instance against `bench/netlib.baseline`
 (D21), because a tolerance change touches every instance at once.
+
+## D24 — The primal feasibility test stays absolute
+
+D23 made the checker's bound-proximity test scale with what the value being
+tested is made of, and left `interval_violation` — the primal feasibility
+test — absolute. Measuring the same way on the primal side shows the
+absolute rule is wrong in both directions at once, which is what makes this
+worth writing down rather than leaving implicit:
+
+    instance   row violation   traffic   relative   ulp(traffic)
+    finnis        8.44e-7       4.0e10   2.1e-17      7.6e-6
+    adlittle      4.55e-13      2589     1.8e-16
+    nesm          1.00e-8       0.70     1.4e-8       1.1e-16
+    pilot         1.96e-5       1129     1.7e-8       2.3e-13
+
+`finnis` clears the 1e-6 bar with 16% of the margin to spare while its
+residue is a *tenth of one ulp* of the row it sits in — it is being asked to
+place a sum more precisely than the sum can be represented, and that it
+passes is luck rather than a property the solver controls. `adlittle` and
+`nesm` are the other extreme: 1e-6 absolute concedes them 2.2e6 and 1e8 ulps
+of their rows, so on those the rule is not measuring rounding at all.
+
+**The relative rule is nonetheless refused, and the first reason is
+sufficient on its own.**
+
+**It is D23's premise, not a test beside it.** D23's licence is the identity
+`P - D = sum of w_v (v - bound_v)` with every term non-negative, so that a
+waived sign condition still reaches the gap at full size. Non-negativity is
+not general: for `w > 0` the term is `w(v - lo)`, non-negative *if and only
+if* `v >= lo`. Primal feasibility is the hypothesis of the theorem. Relaxing
+it does not extend D23; it removes what D23 stands on — and the three tests
+that pin D23 in `tests/test_check.c` assert `primal_feasible` for exactly
+this reason. Worse than not being caught, an infeasible entity makes its
+term *negative*, so it offsets real residues elsewhere: the fungibility
+defect D22 already rejected in writing when it refused HiGHS's
+nearest-bound rule.
+
+**Nothing is gained.** Across the standard 94, exactly one instance has a
+row violation above 1e-6 — `pilot`, at 1.96e-5, already rejected on the gap
+and on the objective. The change buys no verdict and loses the one place the
+signal is true.
+
+**The window would be defined by the answer being judged.** Traffic is
+`sum_j |A_ij x_j|`, a function of `x`. Two different optima of one model
+would be judged against different feasible sets, and a row's window can be
+inflated at will by adding a zero-cost `+M`/`-M` column pair held at `T`:
+the activity does not move and the traffic grows by `2MT`. Under D23 that
+buys a waived diagnostic the gap still charges for; here it would buy a
+waived claim with nothing behind it.
+
+**The field keeps it absolute.** Gurobi documents its tolerances as absolute
+and explicitly independent of the scale of the quantities involved, pushing
+the burden onto the modeller's choice of units; HiGHS's
+`primal_feasibility_tolerance` is likewise absolute. And no defensible
+constant exists here anyway: keeping `pilot`'s signal needs below 1.74e-8,
+keeping `nesm` out of breach needs at least 1.43e-8 — a 21% slot fitted to
+this sample, which is what D17 exists to forbid.
+
+**What is done instead.** The measurement is real and it is kept, in the
+report rather than in the predicate: the row residue relative to its traffic
+is published alongside the absolute one and decides nothing. `finnis` at
+0.11 ulp is the recorded boundary case.
+
+Separately, and this is the finding the argument turned up: the gap is
+`|Q - N|`, where `Q` sums the positive terms and `N` the negative ones a
+within-tolerance primal violation contributes. The two cancel, and the
+checker cannot tell a small gap from two large halves. Constructed and run
+against the checker as it stands — a row violated by 9e-7 with a multiplier
+of 1e9, paired with a column whose reduced cost of 1e-7 is waived under D22
+at a bound 9e9 wide — it reports `gap = 1.34e-14` on a point carrying 900 of
+each. Accumulating `Q` and `N` separately costs two `long double` adds in a
+loop that already has both quantities in hand, changes no verdict, and turns
+`P - P* <= gap` from a consequence of an unchecked binary hypothesis into
+`P - P* <= Q`, a bound the checker publishes. That is pending work, not part
+of this decision.
+
+Honesty about the limit of that construction: it demonstrates the
+cancellation, not a false acceptance. No materially suboptimal point has
+been exhibited that the checker accepts, and there is a structural reason to
+expect difficulty — hiding `N` costs an equal `Q`, and `Q` is exactly what
+bounds the suboptimality.
+
+**If this is ever revisited**, the only scale-aware form that is safe for a
+certificate is `min(tol, tol*s)` — narrowing. It can only turn acceptances
+into rejections, so it cannot invalidate a certificate the way widening
+does. It would put `nesm` in breach today, which is why it waits on Q10:
+turning a pending diagnosis into a gate failure destroys the information the
+diagnosis was going to give.

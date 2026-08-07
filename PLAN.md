@@ -469,14 +469,31 @@ Remaining:
 
      Between the instances that are clearly fine (1e-15 to 1e-17 relative)
      and the two that are clearly not (1.4e-8, 1.7e-8) there are seven orders
-     of magnitude of daylight, which is the measurement §2.6 has been waiting
-     for. What it is not is a free change: a relative primal test would move
-     verdicts in **both** directions — it would put `nesm` in breach where
-     the absolute rule clears it — and unlike the sign condition there is no
-     gap identity standing behind it. The gap catches a waived complementary
-     slackness; nothing catches a waived feasibility claim, because
-     feasibility is the claim. So this is a decision and not a patch, and it
-     is recorded here rather than acted on.
+     of magnitude of daylight, which is the measurement §2.6 had been waiting
+     for.
+
+     **Closed by D24: the primal test stays absolute.** Not because the
+     measurement is wrong — it stands — but because primal feasibility is
+     the *hypothesis* of the identity D23 rests on. `P − D = Σ w_v (v −
+     bound_v)` has non-negative terms only where `v` is inside its bounds, so
+     relaxing that does not extend D23, it removes what D23 stands on; and an
+     infeasible entity's term turns negative, offsetting real residues
+     elsewhere — the fungibility defect D22 already refused in writing. It
+     also buys nothing: exactly one instance of the 94 exceeds 1e-6 on a row
+     (`pilot`, already rejected twice over). D24 carries the rest, including
+     the one form that would be safe if this is ever revisited — `min(tol,
+     tol·s)`, narrowing rather than widening.
+
+     **What the argument did turn up, and is pending work.** The gap is
+     `|Q − N|`, with `Q` the positive terms and `N` what a within-tolerance
+     primal violation contributes negatively; the two cancel and the checker
+     cannot tell a small gap from two large halves. Built and run against the
+     checker as it stands, it reports `gap = 1.34e-14` on a point carrying
+     900 of each. Accumulating them apart costs two `long double` adds in a
+     loop that already holds both quantities, changes no verdict, and turns
+     `P − P* ≤ gap` from a consequence of an unchecked binary hypothesis into
+     `P − P* ≤ Q`, a bound the checker publishes. It needs two fields in
+     `jaos_check_report`, which is public.
    - **`pilot` and `pilot87` miss the objective as well**, by 2e-4 and 6e-5
      relative. These are the worst-conditioned instances in the set and are
      expected to be last; they are listed apart because an objective error
@@ -657,6 +674,40 @@ the checker reports is the magnitude of a multiplier and says nothing on its
 own about how far anything is from where it should be. That mistake cost
 `finnis` months in the wrong group; it was the most accurate answer of the
 six and is now closed by D23.
+
+### What happens next, in order
+
+1a is the only thing left, and the question it raises — whether M1's scope
+has to grow to close it — **is not answerable yet, because two in-scope
+repairs have never been run.** `docs/research/pilot-analysis.md` §6.3
+proposes re-entering the dual simplex from the settled basis, and §6.1 a cap
+on accumulated `|shift[v]|`. Neither needs a primal simplex. Both are
+distinct from the two repairs already measured and reverted, which repaid
+mid-solve (Q10).
+
+So, in order:
+
+1. **Run §6.3, then §6.1.** Judge per instance against all three baselines
+   (D21). The bar that settles the scope question: two or more of
+   `greenbea`, `nesm`, `etamacro` closed with zero regressions. Watch for the
+   failure both earlier attempts produced — a feasible model reported
+   INFEASIBLE — because that is worse than what they set out to fix.
+2. **Instrument `Q` and `N`** in `src/check.c` (D24). Two fields in
+   `jaos_check_report`, which is public; no verdict moves.
+3. **Only then** open the scope question. It has two honest answers and the
+   evidence above decides between them: either a post-solve primal clean-up
+   enters M1 — a primal ratio test plus the basis change `pivot()` already
+   performs, not the primal simplex §2.1 excludes — or 1a is rewritten as a
+   closed register of exceptions, each carrying a measured mechanism, the
+   scope citation that puts its cure outside M1, and a frozen residual bound
+   that `make netlib-baseline` does not refresh.
+
+One correction that removes an argument from the second option: on `pilot`,
+JAOS is **further from Koch than MINOS 5.3, OSL and CPLEX all are**, and all
+three ran in double (`docs/research/pilot-analysis.md` §3.2). "The limit of
+double precision" is therefore not available as a justification for that
+instance. What is available is "the limit of M1's declared scope", which is
+a different claim and has to be argued as one.
 
 ### 2.10 Instance acquisition and reference values
 

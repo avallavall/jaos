@@ -82,6 +82,22 @@ versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
+- The checker's **primal** feasibility test stays absolute, and D24 records
+  why the obvious extension of D23 to it is refused. The measurement that
+  motivates the extension is real — the absolute rule concedes `adlittle`
+  2.2e6 ulps of its row while asking `finnis` for a tenth of one — but
+  primal feasibility is the *hypothesis* of the identity D23 rests on, not a
+  test beside it: `P - D = sum of w_v (v - bound_v)` has non-negative terms
+  only where `v` is inside its bounds. Relaxing it removes what D23 stands
+  on, and an infeasible entity's term turns negative and offsets real
+  residues elsewhere — the fungibility defect D22 already refused. It also
+  buys nothing: exactly one instance of the 94 exceeds 1e-6 on a row, and it
+  is already rejected twice over.
+
+  The argument turned up something that is worth having, recorded in D24 as
+  pending work: the gap is `|Q - N|`, and the two halves cancel. Built and
+  run against the checker as it stands, it reports `gap = 1.34e-14` on a
+  point carrying 900 of each.
 - The checker's bound-proximity test scales with what the value being tested
   is made of, rather than being absolute: the window is `tol * s`, with
   `s = max(1, sum_j |A_ij x_j|)` for a row and `max(1, |x_j|)` for a column.
@@ -169,6 +185,11 @@ versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- `jaos_check_solution`'s contract in the public header said "tol is an
+  absolute tolerance on violations" after D23 had already scaled the
+  bound-proximity test, so the one document a consumer reads was wrong. It
+  now says which half is which: absolute where it measures a residual,
+  scaled where it decides whether a value rests on a bound.
 - The acceptance runner reads the whole manifest before it solves anything,
   and closes the file first. It used to parse one line, solve that instance,
   then parse the next — holding the manifest open across the entire run,
