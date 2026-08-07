@@ -542,14 +542,37 @@ Remaining:
    by hand, which is the part that says the classes reach past the first
    rejection.
 
-5. **`pilot87` is judged against a wrong reference.** The manifest takes it
-   from the netlib readme because Koch was believed not to cover it; he does.
-   His value differs from the pinned one by 3.8e-4 where the tolerance is
-   3.0e-4. The instance fails on objective either way, so no verdict moves,
-   but it cannot be closed until the reference is right. `bench/README.md`
-   records what fixing it needs — the exact rationals, from a source that can
-   be verified, since parsing them out of the report PDF reproduced only 23
-   of the 92 values already known to be his.
+5. **`pilot87`'s reference — fixed, from the report's PostScript.** The
+   manifest took it and `maros-r7` from the netlib readme because Koch was
+   believed not to cover them; he does. The blocker was that his exact
+   rationals were published at `zib.de/koch/perplex`, which no longer
+   resolves, and that reading them off the report's PDF reproduced only 23 of
+   the 92 values already known to be his — not a source to set ground truth
+   from.
+
+   The same report's **PostScript** is a different matter. It is dvips
+   output and carries the whole table as literal strings, so the values come
+   out with nothing but the typesetting undone: `Fc(\000)` is the minus sign,
+   `Fa(:)` the decimal point, `Fq(n)` the exponent, and kerning splits both
+   names and mantissas across strings. `bench/koch-refs.py` does that and
+   `bench/koch-verify.py` checks the result against every reference pinned —
+   **82 reproduced exactly, double for double, and none in disagreement**, of
+   which eighty were pinned from Koch before any of this ran. That the same
+   pass reproduces eighty independently transcribed values bit for bit is
+   what makes the two it adds worth taking.
+
+   ```
+   pilot87    301.71072827  ->  301.7103473331105     relative 1.26e-6
+   maros-r7   1497185.1665  ->  1497185.166479644     relative 1.36e-11
+   ```
+
+   The gate's tolerance is 1e-6 relative, so `pilot87` really was being
+   judged against a reference outside tolerance of the exact optimum, and
+   `maros-r7` never was. Every line of the manifest is now sourced `koch`.
+   No verdict moves — 0 regressed, 0 improved on the standard set —
+   which is the expected outcome and not a disappointment: `pilot87` misses
+   its objective by fifteen tolerances against either number. What changes is
+   that the gate is now honest about what it is measuring against.
 
 Degeneracy handling is done as far as it can be done without evidence:
 steepest-edge weights repair and restart themselves, and what the ratio test

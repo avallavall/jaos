@@ -42,7 +42,7 @@ israel       optimal    rows=174 cols=142 shape=ok iters=118 work=900005 obj=-89
 kb2          optimal    rows=43 cols=41 shape=ok iters=53 work=74370 obj=-1749.9001299062058 ref=-1749.9001299062056[koch] objective=ok checker=ok (col=0 row=1.42e-12 dual=0 gap=2.06e-16) det=ok digest=ab2c422c45664313
 lotfi        optimal    rows=153 cols=308 shape=ok iters=241 work=1223182 obj=-25.264706061880002 ref=-25.264706061879998[koch] objective=ok checker=ok (col=0 row=1.67e-10 dual=0 gap=8.79e-18) det=ok digest=7c10349711f03d6a
 maros        optimal    rows=846 cols=1443 shape=ok iters=1447 work=35713040 obj=-58063.743701125917 ref=-58063.743701125895[koch] objective=ok checker=ok (col=3.01e-12 row=4.23e-10 dual=0 gap=8.46e-17) det=ok digest=4d421c479bf8150d
-maros-r7     optimal    rows=3136 cols=9408 shape=ok iters=10479 work=21528689456 obj=1497185.1664796425 ref=1497185.1665000001[netlib] objective=ok checker=ok (col=0 row=4.81e-10 dual=0 gap=7.7e-17) det=ok digest=79ac86b29b65aa7c
+maros-r7     optimal    rows=3136 cols=9408 shape=ok iters=10479 work=21528689456 obj=1497185.1664796425 ref=1497185.1664796439[koch] objective=ok checker=ok (col=0 row=4.81e-10 dual=0 gap=7.7e-17) det=ok digest=79ac86b29b65aa7c
 modszk1      optimal    rows=687 cols=1620 shape=ok iters=797 work=12691997 obj=320.61972906415781 ref=320.61972906431578[koch] objective=ok checker=ok (col=0 row=3.82e-11 dual=0 gap=2.88e-13) det=ok digest=5043e284f8c80165
 nesm         optimal    rows=662 cols=2923 shape=ok iters=2923 work=94266009 obj=14076036.487565618 ref=14076036.487562729[koch] objective=ok checker=REJECTED (col=0 row=1e-08 dual=8.01e-06 gap=2.71e-11) det=ok digest=a93625299d2c6863
 perold       optimal    rows=625 cols=1376 shape=ok iters=3228 work=100478458 obj=-9380.7552782358525 ref=-9380.7552782351613[koch] objective=ok checker=ok (col=1.11e-17 row=3.53e-10 dual=0 gap=3.85e-16) det=ok digest=87517b475664db7c
@@ -50,7 +50,7 @@ pilot        optimal    rows=1441 cols=3652 shape=ok iters=24625 work=5415162512
 pilot-ja     optimal    rows=940 cols=1988 shape=ok iters=3329 work=156272698 obj=-6113.1364655810712 ref=-6113.1364655813431[koch] objective=ok checker=ok (col=3.64e-12 row=4.92e-07 dual=0 gap=5.17e-16) det=ok digest=645761eb6dcc4da6
 pilot-we     optimal    rows=722 cols=2789 shape=ok iters=5739 work=215745900 obj=-2720107.5328449649 ref=-2720107.5328449639[koch] objective=ok checker=ok (col=6.66e-15 row=1.01e-09 dual=0 gap=2.26e-16) det=ok digest=a57ce60cee04c7d6
 pilot4       optimal    rows=410 cols=1000 shape=ok iters=685 work=17471054 obj=-2581.1392588838885 ref=-2581.1392588838885[koch] objective=ok checker=ok (col=0 row=2.18e-10 dual=0 gap=6.8e-17) det=ok digest=3ec0ab82e8be5c20
-pilot87      optimal    rows=2030 cols=4883 shape=ok iters=49962 work=22736794782 obj=301.71500637546757 ref=301.71072827[netlib] objective=OUT-OF-TOLERANCE checker=REJECTED (col=0 row=2.03e-08 dual=0.00964 gap=1.12e-05) det=ok digest=0395c5865bf8e60f
+pilot87      optimal    rows=2030 cols=4883 shape=ok iters=49962 work=22736794782 obj=301.71500637546757 ref=301.71034733311052[koch] objective=OUT-OF-TOLERANCE checker=REJECTED (col=0 row=2.03e-08 dual=0.00964 gap=1.12e-05) det=ok digest=0395c5865bf8e60f
 pilotnov     optimal    rows=975 cols=2172 shape=ok iters=3585 work=153486851 obj=-4497.2761882196501 ref=-4497.2761882188715[koch] objective=ok checker=ok (col=2.09e-12 row=5.88e-08 dual=0 gap=5.31e-16) det=ok digest=aa98235b451bc3de
 recipe       optimal    rows=91 cols=180 shape=ok iters=46 work=84461 obj=-266.61600000000027 ref=-266.61599999999999[koch] objective=ok checker=ok (col=0 row=0 dual=0 gap=1.22e-16) det=ok digest=6b64a3a29febbd80
 sc105        optimal    rows=105 cols=103 shape=ok iters=106 work=181398 obj=-52.202061211707246 ref=-52.202061211707246[koch] objective=ok checker=ok (col=0 row=2.27e-13 dual=0 gap=4.81e-17) det=ok digest=f5bcea96bcd427ae
@@ -96,6 +96,4 @@ woodw        optimal    rows=1098 cols=8405 shape=ok iters=1713 work=132777288 o
 94 instances: 93 solved, 94 shape ok, 91 objective ok, 88 checker ok, 93 deterministic, 1 failed
 gate: NOT MET
 
--- against baseline --
-finnis       improved     checker: no -> yes (optimal -> optimal)
-baseline: 0 regressed, 1 improved, 0 new
+baseline: NOT COMPARED (no baseline given)

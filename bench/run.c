@@ -242,10 +242,32 @@ static expectation g_expect = EXPECT_OPTIMAL;
  * reader that dropped the rows making it infeasible would "pass" for the
  * wrong reason — and the answer still has to be reproducible (D8), so the
  * model is solved twice and the two runs must agree. */
+/* Builds "<dir>/<name>.mps", and says so rather than truncating. A path cut
+ * short names a different file, and a gate that judges a file nobody asked
+ * for is worse than one that stops. Assembled by hand instead of with
+ * snprintf so that the bound is checked here rather than inferred. */
+static bool instance_path(char *buf, size_t cap, const char *dir,
+                          const char *name)
+{
+    size_t dl = strlen(dir), nl = strlen(name);
+    if (dl + nl + 6 > cap)      /* '/' + ".mps" + NUL */
+        return false;
+    memcpy(buf, dir, dl);
+    buf[dl] = '/';
+    memcpy(buf + dl + 1, name, nl);
+    memcpy(buf + dl + 1 + nl, ".mps", 5);
+    return true;
+}
+
 static bool run_one_infeasible(const entry *e, const char *dir, tally *t)
 {
     char path[512];
-    snprintf(path, sizeof path, "%s/%s.mps", dir, e->name);
+    if (!instance_path(path, sizeof path, dir, e->name)) {
+        emit("%-12s PATH-TOO-LONG\n", e->name);
+        t->instances++;
+        t->failed++;
+        return false;
+    }
 
     jaos_model *m = nullptr;
     if (jaos_model_new(&m) != JAOS_OK)
@@ -314,7 +336,12 @@ static bool run_one(const entry *e, const char *dir, tally *t)
         return run_one_infeasible(e, dir, t);
 
     char path[512];
-    snprintf(path, sizeof path, "%s/%s.mps", dir, e->name);
+    if (!instance_path(path, sizeof path, dir, e->name)) {
+        emit("%-12s PATH-TOO-LONG\n", e->name);
+        t->instances++;
+        t->failed++;
+        return false;
+    }
 
     jaos_model *m = nullptr;
     if (jaos_model_new(&m) != JAOS_OK)
@@ -576,26 +603,52 @@ int main(int argc, char **argv)
     memset(&t, 0, sizeof t);
     bool all_ok = true;
 
-    char line[1024];
-    while (fgets(line, sizeof line, mf) != nullptr) {
-        if (line[0] == '#' || line[0] == '\n')
-            continue;
-        entry e;
-        memset(&e, 0, sizeof e);
-        char sha[128];
-        long long rows = 0, cols = 0;
-        if (sscanf(line, "%63s %127s %lld %lld %lf %15s %lf", e.name, sha,
-                   &rows, &cols, &e.reference, e.source, &e.objconst) != 7)
-            continue;
-        e.rows = rows;
-        e.cols = cols;
-        if (!wanted(e.name, argc, argv, i))
-            continue;
-
-        if (!run_one(&e, dir, &t))
-            all_ok = false;
+    /* The whole manifest is read before the first instance is solved, and
+     * the file is closed before any of them runs.
+     *
+     * This used to parse one line, solve that instance, then parse the next,
+     * holding the file open across the entire run — minutes on this set,
+     * where ken-18 alone is half an hour. Anything that rewrites the
+     * manifest in that window shifts every byte offset after the edit, so
+     * the next fgets returns a line that straddles two real ones, sscanf
+     * still finds seven fields in it, and the run continues against a
+     * reference no line of the file ever carried. That happened: sctap2 was
+     * judged against 1725.0461628571429 where the manifest says
+     * 1724.807142857143, reported OUT-OF-TOLERANCE, and would have been
+     * written into the baseline as a regression that never occurred.
+     *
+     * The gate is the thing that decides whether the solver is right. It
+     * does not get to depend on nobody having touched a file for the last
+     * half hour. */
+    static entry manifest_entries[MAX_INSTANCES];
+    int n_entries = 0;
+    {
+        char line[1024];
+        while (n_entries < MAX_INSTANCES &&
+               fgets(line, sizeof line, mf) != nullptr) {
+            if (line[0] == '#' || line[0] == '\n')
+                continue;
+            entry e;
+            memset(&e, 0, sizeof e);
+            char sha[128];
+            long long rows = 0, cols = 0;
+            if (sscanf(line, "%63s %127s %lld %lld %lf %15s %lf", e.name, sha,
+                       &rows, &cols, &e.reference, e.source, &e.objconst) != 7)
+                continue;
+            e.rows = rows;
+            e.cols = cols;
+            manifest_entries[n_entries++] = e;
+        }
     }
     fclose(mf);
+
+    for (int k = 0; k < n_entries; k++) {
+        const entry *e = &manifest_entries[k];
+        if (!wanted(e->name, argc, argv, i))
+            continue;
+        if (!run_one(e, dir, &t))
+            all_ok = false;
+    }
 
     if (g_expect == EXPECT_INFEASIBLE)
         emit("\n%lld instances: %lld correctly refused, %lld shape ok,"

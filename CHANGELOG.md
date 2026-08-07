@@ -169,6 +169,29 @@ versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- The acceptance runner reads the whole manifest before it solves anything,
+  and closes the file first. It used to parse one line, solve that instance,
+  then parse the next — holding the manifest open across the entire run,
+  which on this set is minutes and on Kennington is half an hour.
+
+  Anything that rewrites the manifest inside that window shifts every byte
+  offset after the edit, so the next `fgets` returns a line straddling two
+  real ones, `sscanf` still finds seven fields in it, and the run carries on
+  against a reference no line of the file ever held. That is not
+  hypothetical: it happened here. `sctap2` was judged against
+  1725.0461628571429 where the manifest says 1724.807142857143, came back
+  OUT-OF-TOLERANCE, and was one commit away from being written into
+  `bench/netlib.baseline` as a regression that never occurred — the exact
+  silent-corruption failure the baseline exists to catch, arriving through
+  the baseline itself. Re-running that instance alone reproduced the correct
+  verdict immediately, which is what gave it away.
+
+  The gate decides whether the solver is right. It does not get to depend on
+  nobody having touched a file for the last half hour.
+
+  Instance paths are also assembled with an explicit bound check now instead
+  of being truncated by `snprintf`: a path cut short names a different file,
+  and a gate judging a file nobody asked for is worse than one that stops.
 - A basis the factorization finds singular is now repaired instead of ending
   the solve. `jaos_internal.h` has always said that rank deficiency is a fact
   the caller acts on by replacing basis columns, and the caller did not act
@@ -247,6 +270,35 @@ versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   small final dual violation traded for a false infeasibility is a strictly
   worse answer, so the residue is not repaid mid-solve on an ill-conditioned
   basis at all.
+- Every reference optimum in `bench/netlib.manifest` is now Koch's.
+  `maros-r7` and `pilot87` used to fall back to the netlib readme, and
+  `pilot87` was consequently being judged against a value 1.26e-6 away from
+  the exact optimum where the gate's tolerance is 1e-6 — a reference outside
+  tolerance of the thing it stands for.
+
+  The blocker was the source, not the arithmetic: Koch's exact rationals were
+  published at `zib.de/koch/perplex`, which no longer resolves, and reading
+  them off the report's PDF reproduced only 23 of the 92 values already known
+  to be his. The same report's **PostScript** turns out to carry the whole
+  table as literal strings — it is dvips output, so `Fc(\000)` is the minus
+  sign, `Fa(:)` the decimal point, `Fq(n)` the exponent, and only kerning
+  stands in the way, splitting names and mantissas across strings.
+
+  `bench/koch-refs.py` undoes that and `bench/koch-verify.py` checks the
+  result against every reference pinned: **82 reproduced exactly, double for
+  double, none in disagreement** — eighty of them pinned from Koch before any
+  of this ran. That one pass reproduces eighty independently transcribed
+  values bit for bit is the reason the two new ones are trustworthy, and it
+  is what the PDF attempt could not produce. Both scripts are dev-time tools; nothing builds or links them and
+  the library does not depend on Python.
+
+      pilot87    301.71072827  ->  301.7103473331105    relative 1.26e-6
+      maros-r7   1497185.1665  ->  1497185.166479644    relative 1.36e-11
+
+  No verdict moves: `pilot87` misses its objective by fifteen tolerances
+  against either number, and `maros-r7` was never in question. What changes
+  is that the gate is honest about what it measures against, and `maros-r7`
+  now agrees to fourteen significant digits where it agreed to eleven.
 - `bench/README.md` and the manifest said Koch's results do not cover
   `maros-r7` and `pilot87`, so both take their reference from the netlib
   readme. His tables cover both. His value for `pilot87` is about

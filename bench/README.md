@@ -165,29 +165,51 @@ tolerance on eight instances:
     80bau3b   ganges   greenbea   greenbeb   nesm   pilot   pilot-we   scrs8
 
 `greenbea` differs in the third significant figure. So the manifest takes
-Koch's value wherever it exists — the nearest double to the exact rational he
-proved — and falls back to the netlib readme for `maros-r7` and `pilot87`.
-The `source` column on each line says which.
+Koch's value everywhere: the nearest double to the exact rational he proved.
+The `source` column on each line says so.
 
-**That fallback is wrong and is a known defect.** Koch's tables do cover both:
-`pilot87` has a row like every other instance, and `maros-r7` is the one he
-singles out as the largest value in the set, needing 47040 bits — over 14,000
-decimal digits — for its exact rational. Reading his printed value for
-`pilot87` off the report gives roughly 301.71034733, against the 301.71072827
-this manifest carries from the netlib readme. The difference is about 3.8e-4,
-and the gate's tolerance on that instance is 3.0e-4: **`pilot87` is currently
-being judged against a reference that is itself outside tolerance of the exact
-optimum.** It fails the objective test either way, by 14 tolerances against
-netlib's value, so no verdict in `results/` changes — but the reference is
-wrong and the instance cannot be closed until it is fixed.
+**Where the last two came from.** `maros-r7` and `pilot87` used to fall back
+to the netlib readme, because Koch's exact rationals were published at
+`zib.de/koch/perplex` and that path no longer resolves, and because reading
+them off the report's PDF reproduced only 23 of the 92 values already known
+to be his — not enough to set ground truth with.
 
-It is left uncorrected on purpose. The values here have to be exact to the
-last bit a double can hold, and the only machine-readable source is the
-nominator/denominator pairs Koch published at `zib.de/koch/perplex`, which is
-no longer reachable at that path. Recovering the digits by parsing the report
-PDF was tried and reproduced only 23 of the 92 values already known to be his,
-so it is not trustworthy enough to set ground truth with. Under D17 a
-reference gets replaced from a source that can be verified, or not at all.
+The same report's **PostScript** is enough. It is dvips output and carries
+the whole table as literal strings, so the values come out with nothing but
+the typesetting undone — `Fc(\000)` is the minus sign, `Fa(:)` the decimal
+point, `Fq(n)` the exponent, and kerning splits names and mantissas across
+strings.
+
+```sh
+curl -O https://opus4.kobv.de/opus4-zib/files/727/ZR-03-05.ps
+python3 bench/koch-refs.py ZR-03-05.ps bench/netlib.manifest > refs.txt
+python3 bench/koch-verify.py refs.txt bench/netlib.manifest
+```
+
+`koch-verify.py` is the part that matters: it checks the extraction against
+every reference pinned here and reports **82 reproduced exactly, double for
+double, and none in disagreement**. Eighty of those were pinned from Koch
+before any of this ran, independently transcribed, and that is what validates
+the decoding rather than assuming it — the two new values come out of the
+same pass that reproduces eighty already-known ones bit for bit.
+
+The twelve it does not reach are rows whose names the reassembly fails to
+recover; they were already pinned and nothing here touches them. Both scripts
+are dev-time tools — nothing builds them, nothing links them, and the library
+does not depend on Python.
+
+```
+pilot87    301.71072827  ->  301.7103473331105     relative 1.26e-6
+maros-r7   1497185.1665  ->  1497185.166479644     relative 1.36e-11
+```
+
+The gate's tolerance is 1e-6 relative, so `pilot87` was being judged against
+a reference outside tolerance of the exact optimum. No verdict moves: it
+misses its objective by fifteen tolerances against either number. What
+changes is that the gate is now honest about what it measures against.
+
+`maros-r7` is the instance Koch singles out as the largest value in the set,
+needing 47040 bits — over 14,000 decimal digits — for its exact rational.
 
 There is one thing both reference sets agree on and both leave out: an
 objective constant declared by an `RHS` entry on the objective row. JAOS
@@ -224,7 +246,9 @@ republishes them as plain MPS — was resolved by using netlib's own `emps` as
 a dev-time tool (PLAN Q6), and the section is kept only so the record shows
 what changed rather than pretending the gap never existed.
 
-What is genuinely missing is one reference value: `pilot87` is judged against
-the netlib readme's optimum, which is itself outside this gate's tolerance of
-the exact one. See the section above; it is a defect of this directory and
-not of the solver.
+The one reference value that used to be missing is here too: every line of
+the manifest is now sourced `koch`, taken from the report's PostScript and
+checked against the 80 references already pinned. See the section above.
+
+What remains genuinely absent is exact verification of a *solution* rather
+than of an objective — that is PLAN Q8, and it opens with M2.

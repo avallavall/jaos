@@ -23,17 +23,22 @@
 # greenbea, greenbeb, nesm, pilot, pilot-we, scrs8), which is why his
 # values are preferred wherever they exist.
 #
-# The two lines still sourced "netlib" are a known defect, not a gap in
-# Koch's results: his tables cover maros-r7 and pilot87 like everything
-# else. His printed value for pilot87 is about 301.71034733 against the
-# 301.71072827 below, a difference of 3.8e-4 where the gate's tolerance on
-# that instance is 3.0e-4 — so pilot87 is being judged against a reference
-# outside tolerance of the exact optimum. The verdict does not change
-# either way, but the reference is wrong. Fixing it needs the exact
-# rationals, which were published at zib.de/koch/perplex and are no longer
-# reachable there; reading them off the report PDF reproduced only 23 of
-# the 92 values already known, so it is not a source to set ground truth
-# from. See bench/README.md.
+# Every line is now sourced "koch". The last two, maros-r7 and pilot87,
+# used to fall back to the netlib readme because the exact rationals were
+# published at zib.de/koch/perplex and that path no longer resolves, while
+# reading them off the report's PDF reproduced only 23 of the 92 values
+# already known — not a source to set ground truth from.
+#
+# The report's PostScript is. It is dvips output and carries the table as
+# literal strings, so the values come out with nothing but the typesetting
+# undone; bench/koch-refs.py does that and bench/koch-verify.py checks the
+# result against every value here. It reproduces 82 of them exactly, double
+# for double, and disagrees with none — and eighty of those were pinned from
+# Koch before it ran, which is what validates the decoding rather than
+# assuming it. pilot87 moves from 301.71072827 to 301.7103473331105,
+# a relative difference of 1.26e-6 where this gate's tolerance is 1e-6: the
+# old reference was outside tolerance of the exact optimum. maros-r7 moves
+# by 1.36e-11 and was never in question.
 #
 # objconst is the objective constant JAOS applies from the file's RHS entry
 # on the objective row, under the CPLEX convention the reader implements and
@@ -88,7 +93,7 @@ israel        58fd7e7cbc61f50175855d432726a46b82ff19b968c7cc5cd0cdf4c37b4c9e3e  
 kb2           631b23c8e0936c265797f6eb11dbbc09c14ef3e3f50121af65e41e3208c3d97e     43     41  -1749.9001299062056      koch    0.0
 lotfi         05d8b58aeee884f4336565ab3ad7b683d234a16f594d10b657f378d2d2532d6a    153    308  -25.26470606188          koch    0.0
 maros         b4456ba94a52d4e3ca532a41936efb70a70c17bf265e5b0668678b61c137e11d    846   1443  -58063.743701125895      koch    0.0
-maros-r7      271d398bb1e7e33f50199bc95096def5c93a776d1ba98725b1e23aac7b8dee9a   3136   9408  1497185.1665             netlib  0.0
+maros-r7      271d398bb1e7e33f50199bc95096def5c93a776d1ba98725b1e23aac7b8dee9a   3136   9408  1497185.166479644        koch    0.0
 modszk1       0f2b01ec048646970514b2190363d641eb725601c6a7f76dcccee6f31cfba5f7    687   1620  320.6197290643158        koch    0.0
 nesm          7bb4151b8ff6cb1d8ad56cda13c7fd4848bea1dab1c27c3ddc617661f15e75f5    662   2923  14076036.487562729       koch    0.0
 perold        4122a052203d7a279f728f99cedca4245a806d780405191f2a7ea0cf3426ea11    625   1376  -9380.755278235161       koch    0.0
@@ -96,7 +101,7 @@ pilot         e860aff026a9942dab364f4bfffd920f043d44c24c7b491acdba9b3f21497610  
 pilot-ja      eb93eb950250149d807036d4cafc4b1e6b173f2e25ac89033cd2e2673f5fa3e1    940   1988  -6113.136465581343       koch    0.0
 pilot-we      521da8a94d814b2b50262b99c71fd25713e281ea6d9c3d3a54302b116ef05821    722   2789  -2720107.532844964       koch    0.0
 pilot4        ab06fae36eda2c235a3e01708916c8c573f863e329cce4c890dd6e689752ed19    410   1000  -2581.1392588838885      koch    0.0
-pilot87       0e9fe778ace9d47c544cd5e4dd6aaed106e4c1af72af26ee51bfe4a7ed6ce1f7   2030   4883  301.71072827             netlib  0.0
+pilot87       0e9fe778ace9d47c544cd5e4dd6aaed106e4c1af72af26ee51bfe4a7ed6ce1f7   2030   4883  301.7103473331105        koch    0.0
 pilotnov      f29a591c80e8d278813cd710d4e7eef5f5e7efab72e21ecf5340fb90674144fd    975   2172  -4497.2761882188715      koch    0.0
 recipe        33ba2e2c49afa531de9a8fc316acf429adce512d2c6a8162635d5b0fa2a2a562     91    180  -266.616                 koch    0.0
 sc105         6adde55982fdd37412118be98f1c50a1870b56b4989931d1379239e2807ddf41    105    103  -52.202061211707246      koch    0.0
