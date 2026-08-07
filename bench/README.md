@@ -114,9 +114,28 @@ tolerance on eight instances:
 
 `greenbea` differs in the third significant figure. So the manifest takes
 Koch's value wherever it exists — the nearest double to the exact rational he
-proved — and falls back to the netlib readme only for `maros-r7` and
-`pilot87`, which his published results do not cover. The `source` column on
-each line says which.
+proved — and falls back to the netlib readme for `maros-r7` and `pilot87`.
+The `source` column on each line says which.
+
+**That fallback is wrong and is a known defect.** Koch's tables do cover both:
+`pilot87` has a row like every other instance, and `maros-r7` is the one he
+singles out as the largest value in the set, needing 47040 bits — over 14,000
+decimal digits — for its exact rational. Reading his printed value for
+`pilot87` off the report gives roughly 301.71034733, against the 301.71072827
+this manifest carries from the netlib readme. The difference is about 3.8e-4,
+and the gate's tolerance on that instance is 3.0e-4: **`pilot87` is currently
+being judged against a reference that is itself outside tolerance of the exact
+optimum.** It fails the objective test either way, by 14 tolerances against
+netlib's value, so no verdict in `results/` changes — but the reference is
+wrong and the instance cannot be closed until it is fixed.
+
+It is left uncorrected on purpose. The values here have to be exact to the
+last bit a double can hold, and the only machine-readable source is the
+nominator/denominator pairs Koch published at `zib.de/koch/perplex`, which is
+no longer reachable at that path. Recovering the digits by parsing the report
+PDF was tried and reproduced only 23 of the 92 values already known to be his,
+so it is not trustworthy enough to set ground truth with. Under D17 a
+reference gets replaced from a source that can be verified, or not at all.
 
 There is one thing both reference sets agree on and both leave out: an
 objective constant declared by an `RHS` entry on the objective row. JAOS

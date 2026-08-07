@@ -263,7 +263,38 @@ Remaining:
 
      **`etamacro` at 1.56e-6 and `nesm` at 8.01e-6** are the opposite case:
      their dual violations do not move at all as the checker's tolerance
-     drops, so those are real breaches, small but genuine. The hypothesis
+     drops, so those are real breaches, small but genuine.
+
+     They are also, and this was not known when the group was written, the
+     instances the reference work itself singles out. Koch [22] reports
+     that "the current development version of SoPlex using 10^-6 as
+     tolerance finds true optimal bases to all instances besides `d2q05c`,
+     `etamacro`, `nesm`, `dfl001`, and `pilot4`", settled only by moving
+     from 64-bit to 128-bit arithmetic; and that CPLEX 8.0 at default
+     settings misses `etamacro`, `d2q06c` and `scsd6`, needing tolerances
+     at 10^-9, aggressive scaling and preprocessing off.
+
+     Checked against the current run, which is the useful part:
+
+     | instance | SoPlex 1e-6 | CPLEX default | JAOS |
+     |---|---|---|---|
+     | `dfl001` | misses | — | **checker ok** |
+     | `pilot4` | misses | — | **checker ok** |
+     | `d2q06c` | — | misses | **checker ok** |
+     | `scsd6` | — | misses | **checker ok** |
+     | `nesm` | misses | — | REJECTED, dual 8.01e-6 |
+     | `etamacro` | misses | misses | REJECTED, dual 1.56e-6 |
+
+     (`d2q05c` is not in the standard 94.) So four of the six that the
+     reference solvers needed special settings for come out clean here,
+     and the two that do not are `nesm` and `etamacro` — with `etamacro`
+     the one instance that defeats CPLEX at defaults, SoPlex at 1e-6, and
+     JAOS alike. Failing there in double at a 1e-6 tolerance is documented
+     behaviour of the field rather than a JAOS peculiarity. That does not
+     make it acceptable; it says what closing it is likely to cost, and
+     that the answer is probably precision rather than a bug.
+
+     The hypothesis
      for them, worth writing down before it is lost, is that the checker
      accumulates in `long double` where the solver works in `double`, so a
      residual the solver reads as just inside `CHECK_TOL` comes back from

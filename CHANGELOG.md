@@ -18,6 +18,16 @@ versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
+- The checker's relative gap is now scaled by
+  `1 + |primal| + |dual|` rather than by `max(1, |primal|)`. Normalising by
+  one side alone reports a larger error the further the two objectives are
+  apart, which is backwards: the scale should say how big the numbers being
+  compared are, not how badly they disagree. This is the PDLP form HiGHS
+  adopted and the shape of the DIMACS error measures. It moved no verdict on
+  the Netlib set — 0 regressed, 0 improved against the recorded baseline —
+  which is the only reason it is in: a change to an acceptance criterion that
+  improved the score would have to be argued for on much more than
+  convention.
 - The independent checker no longer drops a multiplier from the dual
   objective for being small. Below the tolerance it is still held to no
   sign condition — requiring a variable onto a bound on the strength of a
@@ -60,6 +70,16 @@ versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- `bench/README.md` and the manifest said Koch's results do not cover
+  `maros-r7` and `pilot87`, so both take their reference from the netlib
+  readme. His tables cover both. His value for `pilot87` is about
+  301.71034733 against the 301.71072827 the manifest carries — a difference
+  of 3.8e-4 where the gate's tolerance on that instance is 3.0e-4, so it is
+  being judged against a reference outside tolerance of the exact optimum.
+  The verdict is unchanged either way and the reference is left alone: the
+  exact rationals were published at a URL that no longer resolves, and
+  parsing them out of the report PDF reproduced only 23 of the 92 values
+  already known to be his. Recorded rather than guessed.
 - The release build, which `main` could not complete: `build_crash_basis`
   declared `nsel` twice and left a variable unused, and `-Werror` refused
   the object. The only reason anything built was an uncommitted change in a

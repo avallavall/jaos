@@ -204,7 +204,8 @@ typedef struct jaos_check_report {
                                    including complementary slackness       */
     double primal_objective;    /* c'x + c0, in the model's own sense      */
     double dual_objective;      /* meaningful only when duals were given   */
-    double objective_gap;       /* |primal - dual| / max(1, |primal|)      */
+    double objective_gap;       /* |primal - dual|
+                                   / (1 + |primal| + |dual|)              */
     bool primal_feasible;       /* violations within tolerance             */
     bool dual_feasible;         /* sign conditions and gap within tol      */
     bool checked_duals;         /* false when row_dual was NULL            */

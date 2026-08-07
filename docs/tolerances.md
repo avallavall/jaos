@@ -93,8 +93,16 @@ dual objective, where `bound` is the one its sign points at. The gap is
 then relative:
 
 ```
-gap = |primal_objective − dual_objective| / max(1, |primal_objective|)
+gap = |primal_objective − dual_objective| / (1 + |primal_objective| + |dual_objective|)
 ```
+
+Both objectives appear in the scale, not just the primal. A relative measure
+that normalises by one side alone reports a larger error the further the two
+are apart, which is backwards — the scale should say how big the numbers being
+compared are, not how badly they disagree. This is the form PDLP uses, which
+HiGHS adopted for its own gap, and the same shape as the DIMACS error measures
+used to validate benchmark results. Changing to it moved no verdict on the
+Netlib set: 0 regressed, 0 improved, measured against the recorded baseline.
 
 `dual_feasible` is the largest dual violation and the gap both being
 within tolerance.

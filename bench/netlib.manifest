@@ -23,6 +23,18 @@
 # greenbea, greenbeb, nesm, pilot, pilot-we, scrs8), which is why his
 # values are preferred wherever they exist.
 #
+# The two lines still sourced "netlib" are a known defect, not a gap in
+# Koch's results: his tables cover maros-r7 and pilot87 like everything
+# else. His printed value for pilot87 is about 301.71034733 against the
+# 301.71072827 below, a difference of 3.8e-4 where the gate's tolerance on
+# that instance is 3.0e-4 — so pilot87 is being judged against a reference
+# outside tolerance of the exact optimum. The verdict does not change
+# either way, but the reference is wrong. Fixing it needs the exact
+# rationals, which were published at zib.de/koch/perplex and are no longer
+# reachable there; reading them off the report PDF reproduced only 23 of
+# the 92 values already known, so it is not a source to set ground truth
+# from. See bench/README.md.
+#
 # objconst is the objective constant JAOS applies from the file's RHS entry
 # on the objective row, under the CPLEX convention the reader implements and
 # docs/format-support.md records. Both published reference sets omit it, so

@@ -199,8 +199,8 @@ jaos_status jaos_check_solution(const jaos_model *m,
          * formed at the wider precision and narrowed only at the end. */
         long double true_dual_obj = sigma * dual_obj;
         long double diff = fabsl(primal_obj - true_dual_obj);
-        long double scale = fabsl(primal_obj);
-        double gap = (double)(diff / (scale > 1.0L ? scale : 1.0L));
+        long double scale = 1.0L + fabsl(primal_obj) + fabsl(true_dual_obj);
+        double gap = (double)(diff / scale);
 
         out->checked_duals = true;
         out->max_dual_violation = dual_viol;

@@ -229,7 +229,8 @@ static void test_a_waived_sign_condition_is_still_caught_by_the_gap(void)
 
     TEST_ASSERT_TRUE(r.primal_feasible);      /* it is feasible, just wrong */
     TEST_ASSERT_DOUBLE_WITHIN(1e-12, 0.0, r.max_dual_violation); /* waived */
-    TEST_ASSERT_DOUBLE_WITHIN(1e-9, 0.1, r.objective_gap);
+    /* 0.1 of absolute gap over a scale of 1 + |0.1| + |0| = 1.1. */
+    TEST_ASSERT_DOUBLE_WITHIN(1e-9, 0.1 / 1.1, r.objective_gap);
     TEST_ASSERT_FALSE(r.dual_feasible);
     jaos_model_free(m);
 }
