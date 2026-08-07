@@ -63,6 +63,14 @@ open, `bench/README.md` for the gate, and the commit each entry came from.
 
 ### Changed
 
+- Nothing about the repair threshold's space, and the measurement that says
+  why is recorded rather than the change. Reading it where the answer is
+  published instead of where the solver works closes `etamacro` and moves
+  nothing across the other 51 instances up to `pilot` — and takes `pilot87`
+  from a solve to a tripped iteration guard at 1382801 iterations against
+  50616. Two improved, two regressed, and both regressions are one instance
+  losing its answer. PLAN 2.8.1 carries the numbers; this is the third
+  repair of this residue to be measured and left out.
 - The checker's bound-proximity test scales with what the value being tested
   is made of: the window is `tol * s`, with `s = max(1, sum_j |A_ij x_j|)`
   for a row and `max(1, |x_j|)` for a column. Row 3 of Netlib's `finnis`

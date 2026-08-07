@@ -411,6 +411,41 @@ Remaining:
      visible at all is that a tolerance held in scaled space is being read
      against one applied in the original.
 
+     **Reading the repair threshold in the original space closes it, and
+     costs `pilot87` entirely. Measured 2026-08-08, not merged.** The
+     re-entry (D25) decides whether a breach is worth repairing by comparing
+     `d[v]` against `DUAL_TOL` — a number in the space the solver works in,
+     not the one the answer is published in. Judging it where it will be
+     read instead (`d[j]/gamma_j` for a column, `d[ncol+i]·rho_i` for a row
+     multiplier, which is exactly what `publish` emits) is the only change,
+     and it is the tightened-settling idea this section already called worth
+     taking:
+
+     | | result |
+     |---|---|
+     | `etamacro` | REJECTED → **checker ok**, dual 1.56e-6 → 0, 9 extra iterations |
+     | `nesm` | REJECTED → checker ok (it already was, by the flip) |
+     | 51 instances to `pilot` | nothing else moves, total work −0.0% |
+     | **`pilot87`** | **stops solving** — the iteration guard trips at 1382801, against 50616 |
+
+     Two improved, two regressed, and the two regressions are the same
+     instance losing its answer altogether. That is the shape both earlier
+     repairs of this residue took (Q10) and it is worse than the defect: a
+     model with a perfectly good optimum comes back as a JAOS defect. The
+     mechanism is not mysterious — a threshold read after dividing by a
+     small scale factor admits far more columns as movable, so rounds keep
+     finding work and 32 of them are 27 times the iterations the instance
+     needs.
+
+     What this settles is that the choice of space is load-bearing rather
+     than presentational, and that "settle against a tightened bound" is not
+     free: it buys `etamacro` at a price nobody had priced. What it does not
+     settle is whether some form of it survives — every variant that comes
+     to mind (require the breach in both spaces, cap the columns moved per
+     round, gate on the scale factor's distance from one) is a knob fitted
+     to this sample, which is what D17 exists to refuse. It waits for a
+     principle, not for a constant.
+
      **`greenbea` is the same residue arriving through the basis, and it is
      the largest open item of the set.** Ten columns rest at their lower
      bounds with scaled reduced costs from −0.019 to −5.28, and every one of
@@ -770,15 +805,24 @@ whole reason they came first.
 
 **The bar this was to be judged against is not met, and how it fails is the
 answer.** §2.9 asked for two or more of `greenbea`, `nesm`, `etamacro`
-closed. One is. But the two that remain are not near-misses to be tuned into
-passes — the measurement puts each of them outside the mechanism by
-construction:
+closed with zero regressions. One is. A second — `etamacro` — was reached
+by a one-line change of the space the repair threshold is read in, and that
+change costs `pilot87` its answer entirely (§2.8.1), so it fails the second
+half of the bar rather than the first. The two that remain are not
+near-misses to be tuned into passes:
 
-- `etamacro` has **no residual sign condition at all** after settling. There
-  is nothing for any post-solve repair to repair. Its rejection is
-  `4.89e-8` of scaled-space breach, inside what this solver calls zero,
-  divided by a column scale of `1/32` on the way out. That is the tolerance
-  question of §2.6, not a defect this route touches.
+- `etamacro` has **no residual sign condition at all** after settling, at
+  the threshold the re-entry uses. There is nothing for any post-solve
+  repair to repair. Its rejection is `4.89e-8` of scaled-space breach,
+  inside what this solver calls zero, divided by a column scale of `1/32`
+  on the way out. That is the tolerance question of §2.6, not a defect this
+  route touches.
+
+  That question has now been probed once and the probe is in §2.8.1:
+  reading the repair threshold where the answer is published rather than
+  where the solver works **closes `etamacro`** — and takes `pilot87` from a
+  solve to a tripped iteration guard. So `etamacro` is not out of reach; it
+  is reachable at a price, and the price is currently a whole instance.
 - `greenbea`'s ten offending columns have **no other bound to move to** —
   every one rests at a lower bound of 0 with no upper bound. Reaching them
   means letting one enter the basis, and that is the travelling nonbasic
