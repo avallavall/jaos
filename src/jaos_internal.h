@@ -307,6 +307,11 @@ typedef struct {
     double  ftran_density_ema, btran_density_ema;
     bool    ftran_hyper_sparse, btran_hyper_sparse;
     double  density_threshold;   /* default 0.10 (10%) */
+
+    /* Gilbert-Peierls DFS reach analysis workspace (hyper-sparse FTRAN). */
+    int64_t reach_stamp;         /* timestamp, incremented each call */
+    int64_t *reach_mark;         /* [dim] mark array for DFS */
+    int64_t *reach_work;         /* [2*dim] reach output + stack */
 } jm_lu;
 
 /* Density report for M2 hyper-sparse gate. */
