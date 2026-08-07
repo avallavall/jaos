@@ -255,9 +255,149 @@ static void test_check_rejects_bad_arguments(void)
     jaos_model_free(m);
 }
 
+/* ---- The scale on the bound-proximity test ------------------------- *
+ *
+ * A row activity is a sum, and a sum whose terms cancel cannot be pinned to
+ * an absolute tolerance. Row 3 of Netlib's `finnis` adds terms totalling
+ * 4.0e10 in magnitude and lands 1.5e-6 from its bound, where one ulp at
+ * 4.0e10 is 7.6e-6: judged absolutely at 1e-6 it is "not at its bound" and
+ * its multiplier of 28 is reported as a violation of 28. So the window is
+ * tol times what the row carries.
+ *
+ * That is a loosening, and it needs a case it must still reject or it is
+ * just a way of making a gate go green. The three below are that case and
+ * its two neighbours. They share one shape: a single column fixed at 1, so
+ * that its own sign condition accepts any multiplier and the row's is the
+ * only thing under test.
+ *
+ * What makes the loosening safe is that this test is a diagnostic and the
+ * gap is the proof. P - D = sum of w_v (v - bound_v) over every entity, each
+ * term non-negative on a primal-feasible point, so a row waived at distance
+ * d with multiplier w still contributes exactly w*d to the gap. The waiver
+ * cannot hide anything; it can only decline to report it twice.
+ */
+static jaos_model *make_scaled_row(double cost, double coef, double row_lo)
+{
+    const double c[] = {cost};
+    const double cl[] = {1.0}, cu[] = {1.0};   /* fixed: accepts any dual */
+    const double rl[] = {row_lo}, ru[] = {INFINITY};
+    const int64_t s[] = {0, 1}, ix[] = {0};
+    const double v[] = {coef};
+    jaos_model *m = nullptr;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_model_new(&m));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_load_lp(m, 1, 1, JAOS_MINIMIZE, 0.0, c, cl, cu, rl, ru,
+                     1, s, ix, v));
+    return m;
+}
+
+/* The finnis shape: activity 1e10, bound 1e-3 below it, so the distance is a
+ * thousand times the old absolute tolerance and 1e-7 of what the row
+ * carries. Accepted now; rejected before, on a solution that is right. */
+static void test_a_row_at_its_bound_to_its_own_precision_is_accepted(void)
+{
+    jaos_model *m = make_scaled_row(1e9, 1e10, 1e10 - 1e-3);
+    const double x[] = {1.0};
+    const double y[] = {28.0};
+
+    jaos_check_report r;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_check_solution(m, x, y, 1e-6, &r));
+
+    /* The distance is real and far above the absolute tolerance, which is
+     * what makes this test say something. */
+    TEST_ASSERT_TRUE(1e-3 > 1e-6);
+    TEST_ASSERT_TRUE(r.primal_feasible);
+    TEST_ASSERT_EQUAL_DOUBLE(0.0, r.max_dual_violation);
+    /* w*d = 28 * 1e-3 against an objective of 1e9: real, and negligible
+     * exactly as the identity says it should be. */
+    TEST_ASSERT_TRUE(r.objective_gap < 1e-6);
+    TEST_ASSERT_TRUE(r.dual_feasible);
+    jaos_model_free(m);
+}
+
+/* The same row a hundred thousand times further out — ten times the window
+ * the scale opens rather than a ten-thousandth of it. Still reported, at the
+ * full magnitude of the multiplier. The scale is a scale, not an amnesty. */
+static void test_a_row_genuinely_off_its_bound_is_still_reported(void)
+{
+    jaos_model *m = make_scaled_row(1e9, 1e10, 1e10 - 1e5);
+    const double x[] = {1.0};
+    const double y[] = {28.0};
+
+    jaos_check_report r;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_check_solution(m, x, y, 1e-6, &r));
+
+    TEST_ASSERT_TRUE(r.primal_feasible);
+    TEST_ASSERT_EQUAL_DOUBLE(28.0, r.max_dual_violation);
+    TEST_ASSERT_FALSE(r.dual_feasible);
+    jaos_model_free(m);
+}
+
+/* The one that had to be built. The sign condition IS waived here — the
+ * distance is half the window — and the answer is nonetheless refused,
+ * because w*d is 500 and the gap carries it at full size. Under the old
+ * absolute rule this was rejected on the sign condition; the point of the
+ * test is that removing that route does not open a way through.
+ *
+ * The numbers are exact: primal objective 0, dual objective -500, and
+ * 0 - (-500) is precisely 1000 * 0.5, which is the identity the waiver
+ * rests on, checked rather than asserted. */
+static void test_a_waived_row_that_still_costs_is_refused_by_the_gap(void)
+{
+    jaos_model *m = make_scaled_row(0.0, 1e6, 1e6 - 0.5);
+    const double x[] = {1.0};
+    const double y[] = {1000.0};
+
+    jaos_check_report r;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_check_solution(m, x, y, 1e-6, &r));
+
+    TEST_ASSERT_TRUE(r.primal_feasible);
+    /* Waived: the distance of 0.5 is inside the window of 1e-6 * 1e6. */
+    TEST_ASSERT_EQUAL_DOUBLE(0.0, r.max_dual_violation);
+    /* And refused anyway. */
+    TEST_ASSERT_EQUAL_DOUBLE(0.0, r.primal_objective);
+    TEST_ASSERT_EQUAL_DOUBLE(-500.0, r.dual_objective);
+    TEST_ASSERT_TRUE(r.objective_gap > 0.9);
+    TEST_ASSERT_FALSE(r.dual_feasible);
+    jaos_model_free(m);
+}
+
+/* A column value is one published number rather than a sum of cancelling
+ * terms, so its scale is its own magnitude and nothing more. This pins that
+ * the row argument was not quietly applied to columns as well: a column a
+ * long way from its bound with a real reduced cost stays a violation
+ * however large the row it sits in. */
+static void test_the_column_test_did_not_inherit_the_rows_scale(void)
+{
+    const double c[] = {1.0};
+    const double cl[] = {0.0}, cu[] = {1e6};
+    const double rl[] = {-INFINITY}, ru[] = {INFINITY};
+    const int64_t s[] = {0, 1}, ix[] = {0};
+    const double v[] = {1e10};
+    jaos_model *m = nullptr;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_model_new(&m));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_load_lp(m, 1, 1, JAOS_MINIMIZE, 0.0, c, cl, cu, rl, ru,
+                     1, s, ix, v));
+
+    /* x sits at 1, a million away from either bound, with d = 1: the sign
+     * condition wants it at its lower bound and it is not. */
+    const double x[] = {1.0};
+    const double y[] = {0.0};
+    jaos_check_report r;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_check_solution(m, x, y, 1e-6, &r));
+    TEST_ASSERT_EQUAL_DOUBLE(1.0, r.max_dual_violation);
+    TEST_ASSERT_FALSE(r.dual_feasible);
+    jaos_model_free(m);
+}
+
 int main(void)
 {
     UNITY_BEGIN();
+    RUN_TEST(test_a_row_at_its_bound_to_its_own_precision_is_accepted);
+    RUN_TEST(test_a_row_genuinely_off_its_bound_is_still_reported);
+    RUN_TEST(test_a_waived_row_that_still_costs_is_refused_by_the_gap);
+    RUN_TEST(test_the_column_test_did_not_inherit_the_rows_scale);
     RUN_TEST(test_t1_accepts_the_true_optimum);
     RUN_TEST(test_t1_flags_wrong_dual_sign);
     RUN_TEST(test_t1_flags_complementarity_break);

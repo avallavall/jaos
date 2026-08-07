@@ -155,7 +155,7 @@ the checker's formulas: `docs/tolerances.md`.
 | Steepest-edge weight drift factor | 10 |
 | Refactorization interval target | 64–128 iterations, stability-triggered earlier |
 | Netlib objective acceptance | \|obj − ref\| ≤ 1e-6 · max(1, \|ref\|) |
-| Checker tolerances (original space) | 1e-6 absolute on residuals, formulas to be published |
+| Checker tolerances (original space) | 1e-6 on residuals; the bound-proximity test scales with what the value is made of (D23). Formulas in `docs/tolerances.md` |
 
 ### 2.7 Work units — draft weights (D16)
 
@@ -206,7 +206,7 @@ Remaining:
    | shape correct | **94 / 94** |
    | solved to optimal | 93 / 94 |
    | objective within tolerance | 91 / 94 |
-   | independent checker green | 87 / 94 |
+   | independent checker green | 88 / 94 |
    | deterministic across two solves | 93 / 94 |
 
    The readers are the part that came out clean: every instance in the set
@@ -328,24 +328,34 @@ Remaining:
      | `pilot` | row 603 | 1.9e-2 | 7.01e-6 | 558 | 1.26e-8 | 8.29e-6 |
      | `pilot87` | col 4554 | 9.6e-3 | 0.197 | 0.242 | 0.814 | 1.12e-5 |
 
-     **`finnis` is not a solver defect and cannot be fixed in the solver.**
-     Row 3 is a `>= 0` row. Its activity comes out at 1.52e-6 from terms
-     whose magnitudes sum to 4.0e10, and one ulp at 4.0e10 is 7.6e-6 — the
-     residue is a fifth of a single rounding step at the scale the row
-     works at. The checker's "is it at its bound" test is `v <= lo + tol`
-     with `tol` absolute, so on this row it demands seventeen correct
-     decimal digits of a sum that cancels ten orders of magnitude. No
-     double-precision answer can pass it, and the duality gap agrees the
-     answer is right: 3.96e-11.
+     **`finnis` — closed, and it was never a solver defect.** Row 3 is a
+     `>= 0` row. Its activity comes out at 1.52e-6 from terms whose
+     magnitudes sum to 4.0e10, and one ulp at 4.0e10 is 7.6e-6 — the residue
+     is a fifth of a single rounding step at the scale the row works at. The
+     checker's "is it at its bound" test was `v <= lo + tol` with `tol`
+     absolute, so on this row it demanded seventeen correct decimal digits of
+     a sum that cancels ten orders of magnitude. No double-precision answer
+     could pass it, the duality gap said the answer was right at 3.96e-11,
+     and the solve published no violated sign condition in scaled space at
+     all.
 
-     So the defect is in the gate, not in the solve: an absolute tolerance
-     is being applied where only a relative one has meaning. That is not a
-     tolerance to widen — §2.6 stays where it is — it is a change to what
-     the checker's tolerance *is*, of the same weight as D21 and D22, and it
-     needs a decision record and an adversarial case built against it before
-     anything is edited. It is the largest single item left in 1a: it is
-     also the reason `pilot`'s row 603 is rejected at a distance of 7e-6 on
-     558 of traffic.
+     The window is now `tol · s`, with `s` the sum of the magnitudes of a
+     row's terms and `max(1, |x_j|)` for a column — D23, formulas in
+     `docs/tolerances.md`. What keeps it from being the gate made easier is
+     an identity rather than a convention: `P − D = Σ w_v (v − bound_v)` with
+     every term non-negative on a primal-feasible point, so a row waived at
+     distance `d` with multiplier `w` still contributes exactly `w · d` to
+     the gap. The waiver can decline to report a discrepancy twice; it cannot
+     hide one. `tests/test_check.c` carries the case where the sign condition
+     *is* waived and the answer is refused anyway on the gap, checked as
+     `0 − (−500)` against `1000 × 0.5`.
+
+     Measured on all three sets: `finnis` goes from REJECTED to checker ok
+     with its dual violation at exactly 0 rather than merely smaller, and
+     **nothing else moves at all** — 0 regressed, 1 improved, 0 new on the
+     standard 94; 0/0/0 on the other two. `pilot`'s row 603 also clears,
+     without changing its verdict: it fails on the gap and on the objective,
+     which none of this touches.
 
      **Where each residue comes from, measured rather than reasoned — and
      the first measurement asked the wrong question.** The obvious
@@ -570,7 +580,7 @@ in aggregate is what §2.8 has just finished being a lesson about.
 
 | # | Condition | Status |
 |---|---|---|
-| 1a | Netlib **standard** set: `OPTIMAL`, objective within §2.6 tolerance, checker green | **not met** — 93/94 solved, 91 objective, 87 checker |
+| 1a | Netlib **standard** set: `OPTIMAL`, objective within §2.6 tolerance, checker green | **not met** — 93/94 solved, 91 objective, 88 checker |
 | 1b | **Kennington** subset, for correctness with no performance expectation | **met** — 16/16, every condition, `ken-18` at 105127x154699 included |
 | 1c | **Infeasible** subset: classified `INFEASIBLE`, no false optima | **met** — 29/29 refused, no false optima; `gran` closed by the basis repair (§2.8.2) |
 | 2 | Determinism harness green on every instance (D8) | holds on all 93 that finish |
@@ -584,11 +594,13 @@ at all — which is worth stating plainly, because the distance to M1 is not
 the distance to closing seven instances.
 
 **Six of the seven now hold.** What is left is condition 1a alone, and it is
-seven instances of the standard 94: `grow15`, which does not terminate, and
-six the checker rejects. §2.8.1 records what each of those six actually is,
-measured rather than grouped by the size of the number reported — because
-the number the checker reports is the magnitude of a multiplier and says
-nothing on its own about how far anything is from where it should be.
+six instances of the standard 94: `grow15`, which does not terminate, and
+five the checker rejects. §2.8.1 records what each of those is, measured
+rather than grouped by the size of the number reported — because the number
+the checker reports is the magnitude of a multiplier and says nothing on its
+own about how far anything is from where it should be. That mistake cost
+`finnis` months in the wrong group; it was the most accurate answer of the
+six and is now closed by D23.
 
 ### 2.10 Instance acquisition and reference values
 

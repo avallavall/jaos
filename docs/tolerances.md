@@ -55,8 +55,8 @@ separately, and `primal_feasible` is both being within tolerance.
 
 ```
 |w| <= tol            no condition                    (negligible multiplier)
-w > 0                 requires v <= lo + tol          (at its lower bound)
-w < 0                 requires v >= hi - tol          (at its upper bound)
+w > 0                 requires v <= lo + tol · s      (at its lower bound)
+w < 0                 requires v >= hi - tol · s      (at its upper bound)
 ```
 
 which is dual feasibility and complementary slackness in one test: a
@@ -65,6 +65,38 @@ actually resting on. A multiplier pointing at an infinite bound is itself a
 violation, of exactly its own magnitude. Row multipliers are the duals as
 given; column multipliers are the reduced costs `d_j = c_j − A_j · y`,
 recomputed here from the original matrix.
+
+`s` is the scale of the value being tested, and it differs by kind:
+
+```
+row i      s = max(1, sum over j of |A_ij · x_j|)     the row's own traffic
+column j   s = max(1, |x_j|)
+```
+
+A row activity is a sum, and a sum whose terms cancel cannot be pinned to an
+absolute tolerance. Row 3 of Netlib's `finnis` adds terms totalling 4.0e10 in
+magnitude and comes to rest 1.5e-6 from its bound, where **one ulp at 4.0e10
+is 7.6e-6** — the residue is a fifth of a single rounding step at the scale
+the row works at. Judged absolutely at 1e-6, that row is "not at its bound"
+and its multiplier of 28 is reported as a violation of 28, on a solution
+whose duality gap is 3.96e-11. No double-precision answer can pass that test
+and no amount of solver work can produce one; the demand is for seventeen
+correct decimal digits of a sum that cancels ten orders of magnitude.
+
+A column value is one published number rather than a sum of cancelling
+terms, so it takes the ordinary mixed absolute/relative form and nothing
+more. The row case is the one that needed the argument.
+
+**Why the scale cannot excuse a wrong answer.** This test is a diagnostic;
+the gap below is the proof, and the two are tied together exactly. Since
+`P − D` is the sum of `w_v · (v − bound_v)`, a row waived here at distance
+`d` with multiplier `w` still contributes exactly `w · d` to the gap, at full
+size and with no cancellation available to it — every term of that sum is
+non-negative on a primal-feasible point. So the waiver can decline to report
+a discrepancy twice; it cannot hide one. `tests/test_check.c` builds the case
+where the sign condition is waived and the answer is refused anyway, with
+`0 − (−500)` checked against `1000 × 0.5`, and the case where a row genuinely
+off its bound is still reported at the full magnitude of its multiplier.
 
 The exemption is for the condition and for nothing else. **Every
 multiplier contributes to the dual objective below, including the ones

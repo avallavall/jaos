@@ -63,8 +63,29 @@ static double interval_violation(double v, double lo, double hi)
  *   at upper  -> w <= 0
  *   interior  -> w == 0   (this is complementary slackness)
  *   fixed     -> anything
- * "At a bound" is judged within tol, and a multiplier at or below tol is
- * held to no condition at all.
+ * "At a bound" is judged within tol * scale, and a multiplier at or below
+ * tol is held to no condition at all.
+ *
+ * `scale` is what the value being tested is made of, and it is not decoration.
+ * A row activity is a sum, and a sum that cancels cannot be pinned to an
+ * absolute tolerance: row 3 of Netlib's `finnis` adds terms whose magnitudes
+ * total 4.0e10 and lands 1.5e-6 from its bound, where one ulp at 4.0e10 is
+ * 7.6e-6. Judged absolutely at 1e-6 that row is "not at its bound" and its
+ * multiplier of 28 is reported as a violation of 28 — a demand for seventeen
+ * correct decimal digits, which no double-precision answer can meet and no
+ * amount of solver work can produce. The scale asks instead for the tolerance
+ * as a fraction of what the row actually carries.
+ *
+ * What stops that from being a licence is that this test is a diagnostic and
+ * not the proof. The proof is the gap, and the two are tied together
+ * exactly: P - D = sum over v of w_v (v - bound_v), so a value waived here at
+ * a distance d with a multiplier w contributes w * d to the gap, which is
+ * checked separately and is not relaxed by any of this. Waiving a large
+ * distance on a large multiplier therefore cannot certify a bad solution; it
+ * shows up in the gap at full size. What the scale removes is only the case
+ * where the distance is noise at the row's own precision, and there w * d is
+ * negligible by construction. tests/test_check.c builds the case that must
+ * still be rejected and confirms it is.
  *
  * Also accumulates the multiplier's contribution to the dual objective: w
  * picks the bound its sign points at, and every multiplier contributes,
@@ -73,10 +94,11 @@ static double interval_violation(double v, double lo, double hi)
  * one pointing there contributes nothing and violates nothing, which is
  * also why the infinite-bound test comes before any w * bound product. */
 static double sign_condition(double v, double lo, double hi, double w,
-                             double tol, long double *dual_obj)
+                             double tol, double scale, long double *dual_obj)
 {
-    bool at_lo = isfinite(lo) && v <= lo + tol;
-    bool at_hi = isfinite(hi) && v >= hi - tol;
+    double window = tol * scale;
+    bool at_lo = isfinite(lo) && v <= lo + window;
+    bool at_hi = isfinite(hi) && v >= hi - window;
 
     /* The magnitude exemption applies to the sign condition and stops
      * there. A multiplier indistinguishable from zero should not force a
@@ -144,14 +166,24 @@ jaos_status jaos_check_solution(const jaos_model *m,
      * Accumulated wider than the values being judged, so what the report
      * measures is the solver's error and not the checker's. */
     long double *act = jm_calloc_array(m->num_row, sizeof(long double));
-    if (act == nullptr)
+    /* What each activity is made of, accumulated in the same pass: the sum
+     * of the magnitudes of the terms, which is the scale the sum's own
+     * precision is set by. Only the dual sign conditions read it. */
+    long double *traffic = jm_calloc_array(m->num_row, sizeof(long double));
+    if (act == nullptr || traffic == nullptr) {
+        free(act);
+        free(traffic);
         return JAOS_ERR_OUT_OF_MEMORY;
+    }
     for (int64_t j = 0; j < m->num_col; j++) {
         double xj = col_value[j];
         if (xj == 0.0)
             continue;
-        for (int64_t k = m->a_start[j]; k < m->a_start[j + 1]; k++)
-            act[m->a_index[k]] += (long double)m->a_value[k] * xj;
+        for (int64_t k = m->a_start[j]; k < m->a_start[j + 1]; k++) {
+            long double term = (long double)m->a_value[k] * xj;
+            act[m->a_index[k]] += term;
+            traffic[m->a_index[k]] += fabsl(term);
+        }
     }
 
     /* Primal side. */
@@ -181,7 +213,7 @@ jaos_status jaos_check_solution(const jaos_model *m,
             dual_viol = max2(dual_viol,
                 sign_condition((double)act[i], m->row_lower[i],
                                m->row_upper[i], sigma * row_dual[i], tol,
-                               &dual_obj));
+                               max2(1.0, (double)traffic[i]), &dual_obj));
 
         for (int64_t j = 0; j < m->num_col; j++) {
             /* Reduced cost d_j = c_j - a_j' y, canonicalized. */
@@ -189,9 +221,14 @@ jaos_status jaos_check_solution(const jaos_model *m,
             for (int64_t k = m->a_start[j]; k < m->a_start[j + 1]; k++)
                 dw -= (long double)m->a_value[k] * row_dual[m->a_index[k]];
             double d = (double)dw;
+            /* A column value is not a sum of cancelling terms — it is one
+             * published number — so its scale is its own magnitude, which is
+             * the ordinary mixed absolute/relative form and not the argument
+             * above. The row case is the one that needed it. */
             dual_viol = max2(dual_viol,
                 sign_condition(col_value[j], m->col_lower[j], m->col_upper[j],
-                               sigma * d, tol, &dual_obj));
+                               sigma * d, tol, max2(1.0, fabs(col_value[j])),
+                               &dual_obj));
         }
 
         /* The gap is the identity that catches a corrupted dot product even
@@ -210,5 +247,6 @@ jaos_status jaos_check_solution(const jaos_model *m,
     }
 
     free(act);
+    free(traffic);
     return JAOS_OK;
 }

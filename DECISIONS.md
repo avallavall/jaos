@@ -446,3 +446,67 @@ basis is refused a certificate even when its primal point is fine, because the
 `y` it hands over does not prove what it claims. `tests/test_simplex.c` has one
 such case, where the same primal point is accepted the moment it is paired with
 the dual the optimal basis would have produced.
+
+## D23 — A bound-proximity test is judged against what the value is made of
+
+The checker asks whether a value rests on a bound, and used to ask it with an
+absolute tolerance: `v <= lo + tol`. For a column value that is right. For a
+row activity it is not, because a row activity is a sum, and how precisely a
+sum can be placed is set by the terms that went into it and not by the answer
+that came out.
+
+Row 3 of Netlib's `finnis` is the case that forced this. Its terms total
+4.0e10 in magnitude and cancel to 1.5e-6 above a bound of zero. **One ulp at
+4.0e10 is 7.6e-6.** The residue is a fifth of a single rounding step at the
+scale the row works at — which is to say the activity is zero as precisely as
+double precision is able to say so. Judged absolutely at 1e-6 the row is "not
+at its bound", its multiplier of 28 fails complementary slackness, and the
+checker reports a violation of 28 on a solution whose duality gap is
+3.96e-11 and which publishes no violated sign condition anywhere in the
+solver's own scaled space.
+
+That is not a tolerance that is too tight. It is a tolerance measured in the
+wrong units: it demands seventeen correct decimal digits of a sum that
+cancels ten orders of magnitude, so no double-precision answer can pass it
+and no amount of solver work can produce one. A gate condition that no
+correct implementation can meet is not measuring the implementation.
+
+So the window is `tol · s`, with `s = max(1, Σ_j |A_ij · x_j|)` for a row —
+the sum of the magnitudes of its terms — and `s = max(1, |x_j|)` for a
+column, which is the ordinary mixed form and unchanged in spirit. The
+formulas are published in `docs/tolerances.md`.
+
+**Why this is not the gate being made easier.** It is a loosening, and this
+repository has already had one of those go badly: a checker rule that passed
+98 unit tests and all 94 instances while certifying the entire polytope
+(D22). So the rule is admitted only with the case it must still reject.
+
+The argument is that the sign condition is a diagnostic and the gap is the
+proof, and the two are tied by an identity rather than by convention:
+
+```
+P − D = Σ_v w_v · (v − bound_v)
+```
+
+with every term non-negative on a primal-feasible point. A row waived at
+distance `d` with multiplier `w` therefore still contributes exactly `w · d`
+to the gap, at full size, with nothing available to cancel it. The waiver can
+decline to report a discrepancy a second time; it cannot conceal one. And the
+gap is not relaxed by any of this.
+
+`tests/test_check.c` carries the three cases that pin it:
+
+- a row waived by the scale whose `w · d` is 500, refused on the gap, with
+  `0 − (−500)` checked against `1000 × 0.5` so the identity is measured
+  rather than believed;
+- a row a hundred thousand times further out than the window, still reported
+  at the full magnitude of its multiplier — the scale is a scale, not an
+  amnesty;
+- a column far from its bound with a real reduced cost, still a violation,
+  confirming the row argument was not quietly applied to columns too.
+
+On the Netlib standard set this moves exactly one instance, `finnis`, from
+rejected to accepted, and clears the row condition on `pilot` without
+changing its verdict — `pilot` fails on the gap and on the objective, which
+this does not touch. Judged per instance against `bench/netlib.baseline`
+(D21), because a tolerance change touches every instance at once.

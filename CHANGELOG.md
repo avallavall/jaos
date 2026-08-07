@@ -82,6 +82,41 @@ versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
+- The checker's bound-proximity test scales with what the value being tested
+  is made of, rather than being absolute: the window is `tol * s`, with
+  `s = max(1, sum_j |A_ij x_j|)` for a row and `max(1, |x_j|)` for a column.
+  D23 records why, `docs/tolerances.md` carries the formulas.
+
+  A row activity is a sum, and how precisely a sum can be placed is set by
+  the terms that went into it. Row 3 of Netlib's `finnis` adds terms
+  totalling 4.0e10 in magnitude and cancels to 1.5e-6 above a bound of zero,
+  where one ulp at 4.0e10 is 7.6e-6 — the residue is a fifth of one rounding
+  step at the scale the row works at. Judged absolutely at 1e-6 that row was
+  "not at its bound", its multiplier of 28 failed complementary slackness,
+  and the checker reported a violation of 28 on a solution whose duality gap
+  is 3.96e-11 and which publishes no violated sign condition anywhere in the
+  solver's own scaled space. A gate condition no correct implementation can
+  meet is not measuring the implementation.
+
+  This is a loosening, and the last one of those certified the whole
+  polytope while passing 98 tests and all 94 instances (D22), so it is
+  admitted with the case it must still reject. The argument is an identity
+  rather than a convention: `P - D = sum_v w_v (v - bound_v)`, every term
+  non-negative on a primal-feasible point, so a row waived at distance `d`
+  with multiplier `w` still contributes exactly `w * d` to the gap, at full
+  size and with nothing to cancel it. `tests/test_check.c` builds a waived
+  row whose `w * d` is 500 and confirms the answer is refused anyway, with
+  `0 - (-500)` checked against `1000 * 0.5`; a row a hundred thousand times
+  past the window, still reported at the full magnitude of its multiplier;
+  and a column far from its bound, confirming the row argument was not
+  quietly applied to columns as well.
+
+  Measured on all three sets. `finnis` goes from REJECTED to checker ok with
+  its dual violation at exactly 0 rather than merely smaller, and nothing
+  else moves: 0 regressed, 1 improved, 0 new on the standard 94, and 0/0/0
+  on Kennington and the infeasible set. `pilot`'s row condition also clears
+  without changing its verdict — it fails on the gap and on the objective,
+  which this does not touch. Checker-green goes from 87 to 88.
 - The checker's relative gap is now scaled by
   `1 + |primal| + |dual|` rather than by `max(1, |primal|)`. Normalising by
   one side alone reports a larger error the further the two objectives are
