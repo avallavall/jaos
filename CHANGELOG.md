@@ -3,376 +3,154 @@
 All notable changes to JAOS. Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/);
 versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+Entries say what changed and what it cost. The reasoning lives where it
+belongs: `DECISIONS.md` for closed decisions, `PLAN.md` for what is still
+open, `bench/README.md` for the gate, and the commit each entry came from.
+
 ## [Unreleased]
 
 ### Added
 
-- A fuzzer for the two readers, `tests/test_fuzz.c`, which closes the M1
-  gate's condition 4 — truncated and corrupted input must produce errors and
-  never crash. That condition had been asserted and never tested:
-  `tests/data/` covers malformed *content*, one file per rejection class, and
-  every one of those files is well-formed enough to reach the check that
-  rejects it. Nothing was cut mid-record, no byte was flipped inside a
-  number, nothing was empty and nothing was random.
-
-  Five classes, all deterministic (D8) — the corpus is the sorted contents of
-  `tests/data`, the mutations come from a splitmix64 written out in the test
-  rather than `rand()`, so the same commit fuzzes the same bytes on every
-  machine and a failure reproduces from its case label: every prefix of every
-  corpus file, small random edits, uniform noise, random sequences of real
-  keywords, and named shapes at the sizes where a buffer decision changes.
-  Every case is offered to both readers, since an LP file handed to the MPS
-  reader is corrupted input by any definition. What is asserted is that the
-  reader returns one of the statuses its API declares, that a failed read
-  leaves the previous problem untouched, and that the same bytes read twice
-  give the same answer.
-
-  **11543 cases in the suite, 1623443 under `JAOS_FUZZ_SCALE=200`, all clean
-  under ASan+UBSan.** A fuzzer that finds nothing on its first run is not
-  evidence until it is shown to be able to find something, so the instrument
-  was checked the way the gate's rules are: `split()` in the MPS reader had
-  its bounds test changed from `n == MAXTOK` to `n > MAXTOK`, a one-token
-  stack overflow, and the fuzzer caught it at `src/mps.c:46` — in the
-  random-edit class, not in a hand-written case.
-- Baselines for the other two gate sets, and `make netlib-infeas-baseline`
-  and `make netlib-kennington-baseline` to rewrite them. `bench/netlib-infeas.baseline`
-  existed but nothing passed it to the runner, and Kennington had none at
-  all. Both of those gates report PASS, which is exactly the state in which a
-  summary line cannot show a change: an instance that still ends INFEASIBLE
-  after eighty times the work has regressed and only a per-instance diff says
-  so (D21).
-- The acceptance runner can judge a set whose instances are meant to be
-  refused. `-e infeasible` keeps the shape and determinism checks, drops the
-  reference objective and the checker — there is no solution to judge — and
-  fails an instance that comes back with an optimum, flagging it as a false
-  optimum. That is the only check anywhere in M1 that looks for a wrong
-  answer rather than confirming a right one, and the gate has been asking
-  for it since it was written (PLAN 2.9).
-- The two remaining instance sets of the M1 gate, pinned and running for the
-  first time: `bench/netlib-kennington.manifest` (16) and
-  `bench/netlib-infeas.manifest` (29), with `make netlib-kennington` and
-  `make netlib-infeas`. Both are served by netlib in packed form, so
-  `bench/fetch.sh` expands them with netlib's `emps` — fetched, verified
-  against a pinned sha256, built to a temporary directory and never stored
-  here, the same rule the instances follow (PLAN Q6, D11). `fetch.sh` takes
-  `-m`, `-b` and `-p` for that, and each set fetches into its own directory
-  because `greenbea` names two different models across sets.
-
-  **Kennington passes outright: 16 of 16 on every condition**, including
-  ken-18 at 105127x154699 and osa-60 at 232966 columns, with the independent
-  checker green throughout. An order of magnitude past the standard set, so
-  whatever ails the seven open instances there, it is not that the readers
-  or the factorization stop working at scale.
-
-  The infeasible set reports **28 of 29 correctly refused with no false
-  optima anywhere**, which is the outcome it exists to measure. `gran`
-  returns a numerical error instead of a verdict — it does not claim an
-  optimum, it fails to reach one — and is a new open item in PLAN 2.8. Its
-  shape check also caught a defect in the manifest on the first run:
-  `greenbea` carries 111 free rows beyond its objective row and JAOS loads
-  all of them, where the count first written had excluded every N row.
-- The Netlib gate records what every instance did, in
-  `bench/netlib.baseline`, and `make netlib` diffs against it. The gate's own
-  verdict is all-or-nothing and reads `NOT MET` for the whole of M1, so it
-  cannot answer the question every change raises — did this make anything
-  worse? Any of an instance's four predicates going from holding to not
-  holding now fails the run on its own, and so does work growing past 2×.
-  Improvements are reported too. `make netlib-baseline` rewrites the
-  baseline and is deliberately never a side effect of running the gate.
+- A fuzzer for both readers, `tests/test_fuzz.c`: truncation at every offset
+  of every corpus file, seeded edits, random bytes, keyword salad, and named
+  edge cases, each fed to both readers. 11543 cases in the suite, 1.6M under
+  `JAOS_FUZZ_SCALE=200`, clean under ASan+UBSan. Closes the M1 gate's
+  condition 4, which had been asserted and never tested (PLAN 2.8.4).
+- Baselines for the Kennington and infeasible sets, with
+  `make netlib-kennington-baseline` and `make netlib-infeas-baseline`. Both
+  gates report PASS, which is the state in which a summary line cannot show a
+  change (D21).
+- `bench/run.c` takes `-e infeasible`: shape and determinism still hold, the
+  reference objective and the checker drop out, and an instance returning an
+  optimum fails as a false optimum. The only check in M1 that looks for a
+  wrong answer rather than confirming a right one (PLAN 2.9).
+- The two remaining M1 instance sets, pinned and running:
+  `bench/netlib-kennington.manifest` (16) and `bench/netlib-infeas.manifest`
+  (29), expanded with netlib's `emps` — fetched and checksummed by
+  `bench/fetch.sh`, never stored here (PLAN Q6, D11). Kennington passes 16 of
+  16 on the first run; the infeasible set refused 28 of 29 with no false
+  optima. Each set fetches into its own directory, because `greenbea` names
+  two different models across sets.
+- `bench/netlib.baseline` records what every instance did, and `make netlib`
+  diffs against it. The gate's own verdict reads `NOT MET` for the whole of
+  M1, so it cannot answer the question every change raises — did this make
+  anything worse? Work may grow 2x before it counts as a regression.
+  `make netlib-baseline` rewrites it and is never a side effect of running
+  the gate (D21).
 
 ### Changed
 
-- The checker's **primal** feasibility test stays absolute, and D24 records
-  why the obvious extension of D23 to it is refused. The measurement that
-  motivates the extension is real — the absolute rule concedes `adlittle`
-  2.2e6 ulps of its row while asking `finnis` for a tenth of one — but
-  primal feasibility is the *hypothesis* of the identity D23 rests on, not a
-  test beside it: `P - D = sum of w_v (v - bound_v)` has non-negative terms
-  only where `v` is inside its bounds. Relaxing it removes what D23 stands
-  on, and an infeasible entity's term turns negative and offsets real
-  residues elsewhere — the fungibility defect D22 already refused. It also
-  buys nothing: exactly one instance of the 94 exceeds 1e-6 on a row, and it
-  is already rejected twice over.
-
-  The argument turned up something that is worth having, recorded in D24 as
-  pending work: the gap is `|Q - N|`, and the two halves cancel. Built and
-  run against the checker as it stands, it reports `gap = 1.34e-14` on a
-  point carrying 900 of each.
 - The checker's bound-proximity test scales with what the value being tested
-  is made of, rather than being absolute: the window is `tol * s`, with
-  `s = max(1, sum_j |A_ij x_j|)` for a row and `max(1, |x_j|)` for a column.
-  D23 records why, `docs/tolerances.md` carries the formulas.
-
-  A row activity is a sum, and how precisely a sum can be placed is set by
-  the terms that went into it. Row 3 of Netlib's `finnis` adds terms
-  totalling 4.0e10 in magnitude and cancels to 1.5e-6 above a bound of zero,
-  where one ulp at 4.0e10 is 7.6e-6 — the residue is a fifth of one rounding
-  step at the scale the row works at. Judged absolutely at 1e-6 that row was
-  "not at its bound", its multiplier of 28 failed complementary slackness,
-  and the checker reported a violation of 28 on a solution whose duality gap
-  is 3.96e-11 and which publishes no violated sign condition anywhere in the
-  solver's own scaled space. A gate condition no correct implementation can
-  meet is not measuring the implementation.
-
-  This is a loosening, and the last one of those certified the whole
-  polytope while passing 98 tests and all 94 instances (D22), so it is
-  admitted with the case it must still reject. The argument is an identity
-  rather than a convention: `P - D = sum_v w_v (v - bound_v)`, every term
-  non-negative on a primal-feasible point, so a row waived at distance `d`
-  with multiplier `w` still contributes exactly `w * d` to the gap, at full
-  size and with nothing to cancel it. `tests/test_check.c` builds a waived
-  row whose `w * d` is 500 and confirms the answer is refused anyway, with
-  `0 - (-500)` checked against `1000 * 0.5`; a row a hundred thousand times
-  past the window, still reported at the full magnitude of its multiplier;
-  and a column far from its bound, confirming the row argument was not
-  quietly applied to columns as well.
-
-  Measured on all three sets. `finnis` goes from REJECTED to checker ok with
-  its dual violation at exactly 0 rather than merely smaller, and nothing
-  else moves: 0 regressed, 1 improved, 0 new on the standard 94, and 0/0/0
-  on Kennington and the infeasible set. `pilot`'s row condition also clears
-  without changing its verdict — it fails on the gap and on the objective,
-  which this does not touch. Checker-green goes from 87 to 88.
-- The checker's relative gap is now scaled by
-  `1 + |primal| + |dual|` rather than by `max(1, |primal|)`. Normalising by
-  one side alone reports a larger error the further the two objectives are
-  apart, which is backwards: the scale should say how big the numbers being
-  compared are, not how badly they disagree. This is the PDLP form HiGHS
-  adopted and the shape of the DIMACS error measures. It moved no verdict on
-  the Netlib set — 0 regressed, 0 improved against the recorded baseline —
-  which is the only reason it is in: a change to an acceptance criterion that
-  improved the score would have to be argued for on much more than
-  convention.
-- The independent checker no longer drops a multiplier from the dual
-  objective for being small. Below the tolerance it is still held to no
-  sign condition — requiring a variable onto a bound on the strength of a
-  number indistinguishable from zero would reject solutions for their
-  rounding — but it contributes `w * bound` like any other, because what
-  gets dropped is small only if the bound is. A multiplier of 1e-7 on a
-  variable resting on a bound of 1e6 carries 0.1 of dual objective, and
-  losing it while the primal still counts its cost invented a relative gap
-  of 9% on a pair that was optimal on every count. That is what had been
-  rejecting `pilot-ja`, whose dual violation is exactly zero. Netlib
-  checker-green goes from 86 to 87 with no other instance moving. D22 has
-  the reasoning, including the two repairs that were implemented, measured
-  and rejected first — one of which passed the entire gate while being
-  vacuous. `docs/tolerances.md` carries the rule.
+  is made of: the window is `tol * s`, with `s = max(1, sum_j |A_ij x_j|)`
+  for a row and `max(1, |x_j|)` for a column. Row 3 of Netlib's `finnis`
+  carries 4.0e10 of traffic and was being asked to rest within 1e-6 of a
+  bound where one ulp is 7.6e-6. `finnis` goes from REJECTED to checker ok
+  and nothing else moves: 0 regressed, 1 improved, 0 new on the standard 94,
+  0/0/0 on the other two sets. D23 carries the identity that makes the
+  loosening safe and the case it must still reject; `docs/tolerances.md`
+  carries the formulas.
+- The checker's primal feasibility test stays absolute. Extending D23 to it
+  was measured and refused: primal feasibility is the hypothesis of the
+  identity D23 rests on rather than a test beside it, and exactly one
+  instance of the 94 exceeds 1e-6 on a row. D24 has the reasoning, and the
+  `Q`/`N` instrumentation the argument turned up as pending work.
+- The checker's relative gap is scaled by `1 + |primal| + |dual|` rather than
+  `max(1, |primal|)`, which reported a larger error the further the two
+  objectives were apart. This is the PDLP form HiGHS adopted. No verdict
+  moved on the Netlib set, which is the only reason it is in.
+- The checker no longer drops a small multiplier from the dual objective.
+  Below tolerance it is still held to no sign condition, but it contributes
+  `w * bound` like any other, because what gets dropped is small only if the
+  bound is. That is what had been rejecting `pilot-ja`, whose dual violation
+  is exactly zero; checker-green went from 86 to 87 with nothing else moving.
+  D22 has the reasoning, including two repairs that were measured and
+  rejected first — one of which passed the entire gate while being vacuous.
 - The solver core is back to where it was on 2026-08-06, reverting ten
-  commits that had not been run against the Netlib set. Measured per
-  instance rather than by the summary line, they fixed `grow15` and `nesm`
-  and cost `pilot-we` (a feasible problem reported infeasible), `pilotnov`
-  (checker rejection) and `grow22` (2179 iterations to 167865). The summary
-  line was identical before and after, because the gains and losses
-  cancelled. `grow15` therefore remains open, and PLAN.md Q10 now carries
-  what the two attempts at it established.
-- `docs/plan-m2.md` is now `docs/research/plan-m2.md`, alongside the two
-  research notes it is built on. It is a proposal; `PLAN.md` is the plan.
-  Its speedup figures come from the literature and none has been measured
-  in JAOS, which under D17 is the difference between a reason to try
-  something and a claim about this solver.
-- A model whose optimum lies beyond the bound dual phase 1 lends is now
-  refused with a numerical error naming the column, rather than answered.
-  Reaching such an optimum needs a phase 1 that lends nothing, which is
-  still open; until then the solve says it cannot get there instead of
-  reporting the model unbounded.
-- `jaos_solution` now refuses to report anything for a solve that found no
-  optimum, under the same rule as `jaos_objective`: a buffer of zeros could
-  not be told apart from an answer that is genuinely zero.
+  commits that had not been run against the Netlib set. Measured per instance
+  rather than by the summary line, they fixed `grow15` and `nesm` and cost
+  `pilot-we` (a feasible problem reported infeasible), `pilotnov` and
+  `grow22` (2179 iterations to 167865). The summary line was identical before
+  and after, because the gains and the losses cancelled.
+- A model whose optimum lies beyond the bound dual phase 1 lends is refused
+  with a numerical error naming the column, rather than answered. Reaching
+  such an optimum needs a phase 1 that lends nothing, which is still open
+  (PLAN Q9).
+- `jaos_solution` refuses to report anything for a solve that found no
+  optimum, under the same rule as `jaos_objective`: a buffer of zeros cannot
+  be told apart from an answer that is genuinely zero.
 - Builds pin `-ffp-contract=off`. C23 lets the compiler fuse `a*b+c` where
   the hardware offers it, which would make the same model produce different
-  bits on different machines — the determinism promise says exactly the
-  opposite.
+  bits on different machines — the opposite of what D8 promises.
+- `docs/plan-m2.md` is now `docs/research/plan-m2.md`, alongside the notes it
+  is built on. It is a proposal; `PLAN.md` is the plan. Its speedup figures
+  come from the literature and none has been measured in JAOS (D17).
 
 ### Fixed
 
-- `jaos_check_solution`'s contract in the public header said "tol is an
-  absolute tolerance on violations" after D23 had already scaled the
-  bound-proximity test, so the one document a consumer reads was wrong. It
-  now says which half is which: absolute where it measures a residual,
-  scaled where it decides whether a value rests on a bound.
-- The acceptance runner reads the whole manifest before it solves anything,
-  and closes the file first. It used to parse one line, solve that instance,
-  then parse the next — holding the manifest open across the entire run,
-  which on this set is minutes and on Kennington is half an hour.
-
-  Anything that rewrites the manifest inside that window shifts every byte
-  offset after the edit, so the next `fgets` returns a line straddling two
-  real ones, `sscanf` still finds seven fields in it, and the run carries on
-  against a reference no line of the file ever held. That is not
-  hypothetical: it happened here. `sctap2` was judged against
-  1725.0461628571429 where the manifest says 1724.807142857143, came back
-  OUT-OF-TOLERANCE, and was one commit away from being written into
-  `bench/netlib.baseline` as a regression that never occurred — the exact
-  silent-corruption failure the baseline exists to catch, arriving through
-  the baseline itself. Re-running that instance alone reproduced the correct
-  verdict immediately, which is what gave it away.
-
-  The gate decides whether the solver is right. It does not get to depend on
-  nobody having touched a file for the last half hour.
-
-  Instance paths are also assembled with an explicit bound check now instead
-  of being truncated by `snprintf`: a path cut short names a different file,
-  and a gate judging a file nobody asked for is worse than one that stops.
-- A basis the factorization finds singular is now repaired instead of ending
-  the solve. `jaos_internal.h` has always said that rank deficiency is a fact
-  the caller acts on by replacing basis columns, and the caller did not act
-  on it — `refresh()` reported `NUMERICAL_ERROR`, and with no message.
-
-  What the LU hands back is exactly the two lists the repair needs: the rows
-  it pivoted and the basis positions it used. Whatever is missing from those
-  lists is a row nothing covers and a column that turned out to depend on the
-  rest, equally many of each. Pairing them off and putting the logical of an
-  uncovered row into the dependent position gives a basis that is nonsingular
-  by construction rather than by hope — order the rows as (pivoted,
-  uncovered) and the result reads `[[P, 0], [Q, -I]]`, whose determinant is
-  `det P * det(-I)`, and P is nonsingular because triangularizing it is what
-  the factorization just did.
-
-  **`gran` of the infeasible set now returns INFEASIBLE**, the verdict it was
-  owed, after 2058 iterations; it used to give up at 1728. That takes the
-  infeasible gate from 28 of 29 to **29 of 29, PASS** — condition 1c of
-  PLAN 2.9 — and the standard set is untouched: 0 regressed, 0 improved, 0
-  new against `bench/netlib.baseline`. That it changes nothing elsewhere is
-  the point, not a disappointment: the repair only runs where the solve
-  previously ended, so no instance that already worked can take a different
-  path.
-
-  A singular basis is not something a model can cause. The dual simplex only
-  pivots on an alpha above `PIVOT_MIN`, so every basis it assembles is
-  nonsingular in exact arithmetic and a singular one is always the residue of
-  carried error — which is why no small test can produce one, and why the
-  new tests in `tests/test_simplex.c` cover the family `gran` belongs to
-  (rank-deficient constraint matrices, where the danger is a wrong verdict
-  rather than a crash) instead of claiming to exercise the repair itself.
-
-  The three sites that report a numerical error out of `refresh` now say what
-  happened and at which iteration. They used to publish `NUMERICAL_ERROR`
-  with an empty message, which is how `gran` cost a diagnosis: there was
-  nothing to read.
+- A basis the factorization finds singular is repaired rather than ending the
+  solve. `jaos_internal.h` had always said rank deficiency is a fact the
+  caller acts on by replacing basis columns, and the caller did not: pairing
+  the rows the factorization could not cover with the basis positions it
+  could not use gives a completion that is triangular by construction.
+  `gran` reaches INFEASIBLE where it used to give up after 1728 iterations,
+  taking the infeasible gate to 29 of 29, and no instance of the standard set
+  moves. PLAN 2.8.2 has the proof and why no unit test can produce one.
+- Every reference optimum in `bench/netlib.manifest` is now Koch's.
+  `maros-r7` and `pilot87` had fallen back to the netlib readme, so `pilot87`
+  was judged against a value 1.26e-6 from the exact optimum where this gate's
+  tolerance is 1e-6. The report's PostScript carries the table as literal
+  text where its PDF did not; `bench/koch-refs.py` extracts it and
+  `bench/koch-verify.py` reproduces 82 of the pinned references exactly with
+  none in disagreement. No verdict moves.
+- The acceptance runner reads the whole manifest before solving anything, and
+  closes the file first. It used to parse a line, solve that instance, then
+  parse the next, holding the file open across the run; a rewrite in that
+  window shifted every later byte offset and `sctap2` was judged against a
+  reference no line of the file ever carried. Instance paths are now
+  bound-checked rather than silently truncated.
 - PLAN 2.8 and Q10 recorded a cause for the dual violations that the
   measurement does not support, and both now carry the measurement instead.
-  The six instances the checker rejects had been grouped by the size of the
-  number reported, and that number is the magnitude of the offending
-  multiplier — it says nothing about how far anything is from where it
-  should be. Measured one at a time, against the distance from the bound and
-  the traffic through the row or column, they are four separate things:
-
-  `finnis`, reported at 28 and called structural, is the most accurate answer
-  of the six. Its row lands 1.52e-6 from a bound while carrying 4.0e10 of
-  traffic — a fifth of one ulp at that scale — its duality gap is 3.96e-11,
-  and it publishes no violated sign condition in scaled space at all. The
-  checker's "at a bound" test is absolute where only a relative test has
-  meaning, and no double-precision answer can pass it on that row.
-
-  Q10 attributed the rest to cost shifting, and it is right — but confirming
-  that took a second measurement, because the first asked the wrong question.
-  Reading `shift[v]` on the column that violates its sign condition says the
-  shifts explain one case of three. That test is wrong: `d_j = c_j − y' M_j`
-  with `y = B^-T c_B`, so a shift resting on a *basic* variable moves every
-  nonbasic reduced cost at once and the violating column need carry none of
-  its own. Measuring `d` on both sides of the settlement instead, every
-  offending column on `etamacro`, `nesm` and `greenbea` is dual feasible
-  before the shifts come off and infeasible after.
-
-  What that route costs is the finding. On `greenbea`, repaying shifts of at
-  most 7.09e-6 across 907 basic variables takes one reduced cost from +5.67
-  to −1.33 — a perturbation four orders below every tolerance in PLAN 2.6
-  arriving as a violation of five, with `B^-1` on that basis standing between
-  them. So the size of a residue is not evidence about the size of its cause,
-  which is what had kept `finnis` and `greenbea` in one group.
-
-  Repaying the loans earlier, so the method can still answer them, was the
-  obvious repair. It was tried twice and reverted twice, and PLAN Q10 keeps
-  both: on entry inside `pivot()`, where the exact correction carries
-  `sigma/alpha_q` and a pivot at `PIVOT_MIN` turns a 1e-6 repayment into a
-  1e3 kick; and at each refactorization, where no such division exists and
-  the amplification through `B^-1` remains anyway. Both passed all 114 unit
-  tests, and both reported `greenbea` — a feasible model — INFEASIBLE. A
-  small final dual violation traded for a false infeasibility is a strictly
-  worse answer, so the residue is not repaid mid-solve on an ill-conditioned
-  basis at all.
-- Every reference optimum in `bench/netlib.manifest` is now Koch's.
-  `maros-r7` and `pilot87` used to fall back to the netlib readme, and
-  `pilot87` was consequently being judged against a value 1.26e-6 away from
-  the exact optimum where the gate's tolerance is 1e-6 — a reference outside
-  tolerance of the thing it stands for.
-
-  The blocker was the source, not the arithmetic: Koch's exact rationals were
-  published at `zib.de/koch/perplex`, which no longer resolves, and reading
-  them off the report's PDF reproduced only 23 of the 92 values already known
-  to be his. The same report's **PostScript** turns out to carry the whole
-  table as literal strings — it is dvips output, so `Fc(\000)` is the minus
-  sign, `Fa(:)` the decimal point, `Fq(n)` the exponent, and only kerning
-  stands in the way, splitting names and mantissas across strings.
-
-  `bench/koch-refs.py` undoes that and `bench/koch-verify.py` checks the
-  result against every reference pinned: **82 reproduced exactly, double for
-  double, none in disagreement** — eighty of them pinned from Koch before any
-  of this ran. That one pass reproduces eighty independently transcribed
-  values bit for bit is the reason the two new ones are trustworthy, and it
-  is what the PDF attempt could not produce. Both scripts are dev-time tools; nothing builds or links them and
-  the library does not depend on Python.
-
-      pilot87    301.71072827  ->  301.7103473331105    relative 1.26e-6
-      maros-r7   1497185.1665  ->  1497185.166479644    relative 1.36e-11
-
-  No verdict moves: `pilot87` misses its objective by fifteen tolerances
-  against either number, and `maros-r7` was never in question. What changes
-  is that the gate is honest about what it measures against, and `maros-r7`
-  now agrees to fourteen significant digits where it agreed to eleven.
-- `bench/README.md` and the manifest said Koch's results do not cover
-  `maros-r7` and `pilot87`, so both take their reference from the netlib
-  readme. His tables cover both. His value for `pilot87` is about
-  301.71034733 against the 301.71072827 the manifest carries — a difference
-  of 3.8e-4 where the gate's tolerance on that instance is 3.0e-4, so it is
-  being judged against a reference outside tolerance of the exact optimum.
-  The verdict is unchanged either way and the reference is left alone: the
-  exact rationals were published at a URL that no longer resolves, and
-  parsing them out of the report PDF reproduced only 23 of the 92 values
-  already known to be his. Recorded rather than guessed.
-- The release build, which `main` could not complete: `build_crash_basis`
-  declared `nsel` twice and left a variable unused, and `-Werror` refused
-  the object. The only reason anything built was an uncommitted change in a
-  working copy. Nothing depended on either variable — `nsel` was
-  incremented in two places and read in none.
-- A 648-byte leak across 13 allocations that AddressSanitizer reported in
-  the LU tests, gone with the revert of the code that introduced it.
-- A failed solution-buffer allocation no longer leaves the model believing
-  the buffers exist: a later solve on the same model would have written
-  through the missing ones.
-- The published work count now includes the final kernel run of publishing
-  itself; it used to be taken one BTRAN too early.
-- Settling up can no longer park a basic variable on an artificial phase-1
-  bound: that would manufacture the evidence of unboundedness after the
-  verdict was already read.
-- The Netlib acceptance gate now accounts for the objective constant an MPS
-  file can declare through an `RHS` entry on its objective row. JAOS applies
-  it, following the convention CPLEX documents; the published Netlib optima
-  do not include it, so a correct answer differed from both reference sets
-  by exactly that constant on the one instance where it is visible. The
-  manifest carries the constant and the comparison allows for it. The reader
-  is unchanged, deliberately: dropping the constant would break every model
-  whose author meant it.
+  The six open instances had been grouped by the size of the number the
+  checker prints — which is a multiplier's magnitude, not a distance —
+  and measured one at a time they are four separate things. Two repairs for
+  the largest group were implemented, measured and reverted; both reported
+  `greenbea`, a feasible model, as INFEASIBLE.
+- `jaos_check_solution`'s contract in the public header said "tol is an
+  absolute tolerance on violations" after D23 had already scaled the
+  bound-proximity test. It now says which half is which.
 - A solve no longer stops on values it carried rather than computed. Basic
-  values and the factorization both drift as pivots accumulate, and
-  optimality was being judged on the drifted ones — so a solve stopped
-  exactly when its numbers looked feasible without being it. The point is
-  now recomputed from a fresh factorization and priced again before the
-  answer is accepted. On the first Netlib instances read, this is the
-  difference between a solution the independent checker rejects and one it
-  accepts: `afiro` finished 1.8e-5 away from a bound, 177 times outside the
-  solver's own tolerance. Costs one refactorization per solve, which the
-  work counter bills.
-- An unbounded model is now identified by a direction along which the
-  objective has nothing to stop it, checked against the bounds the model
-  itself declares. It used to be identified by a variable coming to rest on
-  a bound the solver had invented, which a model with a large but perfectly
-  finite optimum does too — and such a model was reported unbounded. On a
-  sweep of 3000 generated LPs, 8 that were called unbounded now solve to an
-  optimum the independent checker accepts, and no model that already solved
-  changed its answer, its iteration count or its work units.
+  values and the factorization both drift as pivots accumulate, so a solve
+  stopped exactly when its numbers looked feasible without being it. The
+  point is recomputed from a fresh factorization and priced again before the
+  answer is accepted — on `afiro`, the difference between finishing 1.8e-5
+  from a bound and finishing on it. Costs one refactorization per solve,
+  which the work counter bills (D20).
+- An unbounded model is identified by a direction along which the objective
+  has nothing to stop it, checked against the bounds the model declares. It
+  used to be identified by a variable coming to rest on a bound the solver
+  had invented, which a model with a large but finite optimum does too. On
+  3000 generated LPs, 8 called unbounded now solve to an optimum the checker
+  accepts, with no other model changing its answer or its work (D19).
+- The Netlib gate accounts for the objective constant an MPS file can declare
+  through an `RHS` entry on its objective row. JAOS applies it, following the
+  convention CPLEX documents; the published optima do not, so a correct
+  answer differed from both reference sets by exactly that constant on the
+  one instance where it is visible. The reader is unchanged, deliberately.
+- Settling up can no longer park a basic variable on an artificial phase-1
+  bound, which would manufacture the evidence of unboundedness after the
+  verdict was already read.
+- A failed solution-buffer allocation no longer leaves the model believing
+  the buffers exist; a later solve would have written through the missing
+  ones.
+- The published work count includes the final kernel run of publishing
+  itself. It used to be taken one BTRAN too early.
+- The release build, which `main` could not complete: `build_crash_basis`
+  declared `nsel` twice and left a variable unused, and `-Werror` refused the
+  object. Nothing depended on either variable.
+- A 648-byte leak across 13 allocations that AddressSanitizer reported in the
+  LU tests, gone with the revert of the code that introduced it.
 
-### Added
+### Added — the initial implementation
 
 - `bench/`: the Netlib acceptance gate, runnable. `make netlib` fetches the
   94 instances of the standard set — pinned by sha256 in a committed
