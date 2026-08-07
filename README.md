@@ -63,17 +63,17 @@ second solve that has to agree bit for bit. The last result is committed at
 | loads with the right shape | 94 / 94 |
 | solved to optimal | 93 / 94 |
 | objective within tolerance | 91 / 94 |
-| independent checker green | 86 / 94 |
+| independent checker green | 87 / 94 |
 | identical across two solves | 93 / 94 |
 
 **The gate is not met**, and that is the honest summary of where JAOS is.
-One instance does not terminate. Seven return an answer the checker
-rejects — mostly on the dual conditions, two of them by margins far too
-large to be rounding. One of the seven turns out to be the checker's
-fault rather than the solver's, and is counted as a failure anyway until
-that is fixed properly: grading yourself more kindly is not a result.
-What each failure is, and which open question it belongs to, is in
-[`PLAN.md`](PLAN.md).
+One instance does not terminate. Six return an answer the checker rejects
+— mostly on the dual conditions, two of them by margins far too large to
+be rounding. A seventh used to be on that list and was the checker's own
+fault: it discarded a multiplier too small to impose a sign condition
+from the dual objective as well, which on a wide bound is a real quantity,
+and invented a gap out of it. What each remaining failure is, and which
+open question it belongs to, is in [`PLAN.md`](PLAN.md).
 
 The readers are the part that came out clean: every instance in the set
 loads with exactly the row and column counts two independent canonical

@@ -63,29 +63,60 @@ static double interval_violation(double v, double lo, double hi)
  *   at upper  -> w <= 0
  *   interior  -> w == 0   (this is complementary slackness)
  *   fixed     -> anything
- * "At a bound" is judged within tol. Also accumulates the multiplier's
- * contribution to the dual objective: w picks the bound its sign points at;
- * a meaningful multiplier pointing at an infinite bound is itself a dual
- * violation. */
+ * "At a bound" is judged within tol, and a multiplier at or below tol is
+ * held to no condition at all.
+ *
+ * Also accumulates the multiplier's contribution to the dual objective: w
+ * picks the bound its sign points at, and every multiplier contributes,
+ * including the ones exempt from the condition. A meaningful multiplier
+ * pointing at an infinite bound is itself a dual violation; a negligible
+ * one pointing there contributes nothing and violates nothing, which is
+ * also why the infinite-bound test comes before any w * bound product. */
 static double sign_condition(double v, double lo, double hi, double w,
                              double tol, long double *dual_obj)
 {
     bool at_lo = isfinite(lo) && v <= lo + tol;
     bool at_hi = isfinite(hi) && v >= hi - tol;
 
-    if (fabs(w) <= tol)
-        return 0.0; /* negligible multiplier: no condition, no contribution */
+    /* The magnitude exemption applies to the sign condition and stops
+     * there. A multiplier indistinguishable from zero should not force a
+     * variable onto a bound — but it still contributes w * bound to the
+     * dual objective, because D(y) = sum_v min over the variable's range
+     * of w_v t is a function of y alone, and truncating its terms by
+     * magnitude is not part of that definition.
+     *
+     * Dropping them, which is what this used to do, discards a quantity
+     * that is small only if the bound is: a multiplier of 1e-7 on a
+     * variable resting on a bound of 1e6 carries 0.1 of dual objective,
+     * and losing it while the primal still counts c_j v_j invents a gap
+     * proportional to tol. That is what rejected pilot-ja.
+     *
+     * Two rules that also close that case were tried and are wrong.
+     * Contributing w * v makes every term vanish, so on a model whose
+     * multipliers all sit under tol the gap is identically zero for any
+     * feasible point — it certifies the whole polytope. Choosing the bound
+     * by which one v is nearest, as HiGHS does for its own diagnostic,
+     * produces negative terms that cancel real residuals elsewhere, and on
+     * a free variable computes (-inf + inf) * 0.5.
+     *
+     * Keeping the definition intact is what makes the gap mean something:
+     * P - D = sum_v w_v (v - bound_v), every term non-negative, so an
+     * accepted solution has P - P* <= gap proved by weak duality. */
+    bool negligible = fabs(w) <= tol;
 
     if (w > 0.0) {
         if (!isfinite(lo))
-            return w;          /* points at a bound that does not exist */
+            return negligible ? 0.0 : w;
         *dual_obj += (long double)w * lo;
-        return at_lo ? 0.0 : w;   /* positive w is only justified at lower */
+        return (negligible || at_lo) ? 0.0 : w;
     }
-    if (!isfinite(hi))
-        return -w;
-    *dual_obj += (long double)w * hi;
-    return at_hi ? 0.0 : -w;      /* negative w is only justified at upper */
+    if (w < 0.0) {
+        if (!isfinite(hi))
+            return negligible ? 0.0 : -w;
+        *dual_obj += (long double)w * hi;
+        return (negligible || at_hi) ? 0.0 : -w;
+    }
+    return 0.0;
 }
 
 jaos_status jaos_check_solution(const jaos_model *m,

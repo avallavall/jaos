@@ -18,6 +18,20 @@ versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
+- The independent checker no longer drops a multiplier from the dual
+  objective for being small. Below the tolerance it is still held to no
+  sign condition — requiring a variable onto a bound on the strength of a
+  number indistinguishable from zero would reject solutions for their
+  rounding — but it contributes `w * bound` like any other, because what
+  gets dropped is small only if the bound is. A multiplier of 1e-7 on a
+  variable resting on a bound of 1e6 carries 0.1 of dual objective, and
+  losing it while the primal still counts its cost invented a relative gap
+  of 9% on a pair that was optimal on every count. That is what had been
+  rejecting `pilot-ja`, whose dual violation is exactly zero. Netlib
+  checker-green goes from 86 to 87 with no other instance moving. D22 has
+  the reasoning, including the two repairs that were implemented, measured
+  and rejected first — one of which passed the entire gate while being
+  vacuous. `docs/tolerances.md` carries the rule.
 - The solver core is back to where it was on 2026-08-06, reverting ten
   commits that had not been run against the Netlib set. Measured per
   instance rather than by the summary line, they fixed `grow15` and `nesm`

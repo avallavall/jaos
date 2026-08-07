@@ -3,7 +3,7 @@
 Working document per the working agreement: it holds only what is open. Detail
 exists only for the active milestone; later stages stay coarse until they open.
 Closed items leave for the changelog and the commit that closed them. Constraints
-referenced as D1–D21 live in `DECISIONS.md`.
+referenced as D1–D22 live in `DECISIONS.md`.
 
 ---
 
@@ -206,15 +206,15 @@ Remaining:
    | shape correct | **94 / 94** |
    | solved to optimal | 93 / 94 |
    | objective within tolerance | 91 / 94 |
-   | independent checker green | 86 / 94 |
+   | independent checker green | 87 / 94 |
    | deterministic across two solves | 93 / 94 |
 
    The readers are the part that came out clean: every instance in the set
    loads with exactly the row and column counts two independent canonical
    sources agree on. Determinism holds everywhere a solve finished.
 
-   The eight failures are four different problems, and they do not share a
-   fix:
+   The seven remaining failures are three different problems, and they do
+   not share a fix:
 
    - **`e226` — closed, and not where it looked.** The reader was right: the
      objective constant follows the documented convention and always did.
@@ -228,44 +228,38 @@ Remaining:
      JAOS defect rather than a hard model. This is the stall Q10 has been
      waiting for an instance to produce, and now one has.
    - **Dual conditions the checker rejects on seven instances** —
-     `etamacro`, `finnis`, `greenbea`, `nesm`, `pilot`, `pilot-ja`,
-     `pilot87`. They were read as two groups by magnitude. They are three,
-     and the third one is not the solver's fault.
+     `etamacro`, `finnis`, `greenbea`, `nesm`, `pilot`, `pilot87`, plus
+     `pilot-ja` until it was closed. They were read as two groups by
+     magnitude. They were three, and the third one was not the solver's
+     fault at all.
 
-     **`pilot-ja` — the checker's gap test, not a wrong answer.** Its dual
-     violation is exactly zero; it is rejected on the gap alone, at
-     1.87e-6. Judging the *same* solution at smaller tolerances (solve
-     once, check repeatedly) gives:
+     **`pilot-ja` — closed, and it was the checker.** Its dual violation
+     was exactly zero; it was rejected on the gap alone, at 1.87e-6.
+     Judging the *same* solution at smaller tolerances gave 1.87e-6 at
+     1e-6, 1.99e-7 at 1e-7 and 9.36e-16 at 1e-8: a gap falling in
+     proportion to the threshold it is measured against, which is not
+     something a wrong answer does. The cause was one line in
+     `src/check.c` dropping a multiplier with `|w| <= tol` from the sign
+     conditions *and* from the dual objective, as though those were the
+     same claim. A multiplier too small to impose a sign condition still
+     carries `w · bound`, and that product grows with the bound. Every
+     multiplier now contributes; the exemption covers the condition only.
+     D21 records why, and `docs/tolerances.md` carries the rule.
 
-     | tol | dual violation | gap |
-     |---|---|---|
-     | 1e-6 | 0 | 1.87e-6 |
-     | 1e-7 | 0 | 1.99e-7 |
-     | 1e-8 | 0 | 9.36e-16 |
+     Two repairs that also close this case were tried and are wrong, kept
+     here because both look reasonable and one of them passed the whole
+     gate. Contributing `w · v` cancels the term — and on a model whose
+     multipliers all sit under `tol` the gap is then identically zero for
+     any feasible point, so the checker certifies the entire polytope. It
+     passed 98 unit tests and all 94 instances with a regression-free diff
+     before that was found. Choosing the bound nearest `v`, which is what
+     HiGHS does for its own diagnostic, manufactures negative terms that
+     offset real residues elsewhere, and evaluates `(-inf + inf) / 2` on a
+     free variable.
 
-     The gap falls with the tolerance, roughly in proportion, and then
-     collapses. That is not what a wrong answer does — a real gap does not
-     care what threshold it is measured against. The cause is in
-     `src/check.c`: a multiplier with `|w| <= tol` is dropped from the sign
-     conditions *and* from the dual objective, on one line, as though those
-     were the same claim. They are not. A multiplier too small to impose a
-     sign condition still contributes `w · bound`, and that product grows
-     with the bound — so on a model with wide bounds the discarded mass is
-     proportional to the tolerance, which is exactly the shape in the table.
-     At 1e-8 the dual objective settles on -6113.1364655810767 against a
-     primal of -6113.1364655810712: they agree to twelve figures, and
-     strong duality holds.
-
-     So `pilot-ja` is a defect in the oracle rather than in the solver, and
-     it is left open here rather than fixed on the spot. The checker is what
-     every solve is judged against (D18) and changing it so that a failing
-     instance passes is the one repair that must never be made casually. The
-     open question is what a negligible multiplier should contribute: not
-     `w · bound`, since its sign is noise at that magnitude, and not zero,
-     which is what produces this. `w · v`, the value the variable actually
-     holds, is the candidate — complementary slackness makes the two agree
-     wherever the multiplier is real. **`docs/tolerances.md` describes the
-     current rule and would have to change with it.**
+     What the fix does not change: `etamacro`, `nesm`, `finnis`,
+     `greenbea`, `pilot` and `pilot87` are unaffected, and the gate stays
+     at NOT MET. Checker-green goes from 86 to 87.
 
      **`etamacro` at 1.56e-6 and `nesm` at 8.01e-6** are the opposite case:
      their dual violations do not move at all as the checker's tolerance

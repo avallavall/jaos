@@ -970,13 +970,34 @@ static void test_settling_up_flips_what_is_free_and_leaves_the_rest(void)
     TEST_ASSERT_DOUBLE_WITHIN(1e-9, 0.0999, x[2]);
     TEST_ASSERT_DOUBLE_WITHIN(1e-9, 1.0, act[0]);     /* still feasible */
 
-    /* And the answer is one the checker accepts in the model's own space,
-     * which is the point of settling up at all. */
+    /* The primal point settling up produces is feasible in the model's own
+     * space, which is the point of settling up at all. */
     double y[1];
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solution(m, x, nullptr, y, nullptr));
     jaos_check_report rep;
     TEST_ASSERT_EQUAL_INT(JAOS_OK,
         jaos_check_solution(m, x, y, CHECK_TOL, &rep));
+    TEST_ASSERT_TRUE(rep.primal_feasible);
+
+    /* The dual certificate that comes with it does not carry, and the
+     * checker is right to say so. The solve stops on the basis with xB
+     * basic, which prices the row at y = 5e-8; the optimal basis has xA
+     * basic and prices it at zero. A row multiplier of 5e-8 makes xA's
+     * reduced cost -5e-8, pointing at an upper bound of 100 that xA is
+     * nowhere near, and 5e-8 * 100 is 5e-6 of unproven complementary
+     * slackness — past CHECK_TOL, so no certificate.
+     *
+     * It is the y that fails, not the x. Handed the dual the optimal basis
+     * would have produced, the same primal point is accepted, which is
+     * what pins the defect to where it belongs. That the solver stops on a
+     * suboptimal basis here is recorded in PLAN.md 2.8; it costs 5e-8 of
+     * objective and a certificate. */
+    TEST_ASSERT_FALSE(rep.dual_feasible);
+    TEST_ASSERT_DOUBLE_WITHIN(1e-7, 5e-6, rep.objective_gap);
+
+    double y_optimal[1] = {0.0};
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_check_solution(m, x, y_optimal, CHECK_TOL, &rep));
     TEST_ASSERT_TRUE(rep.primal_feasible);
     TEST_ASSERT_TRUE(rep.dual_feasible);
 

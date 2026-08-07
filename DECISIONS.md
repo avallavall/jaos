@@ -379,3 +379,70 @@ This does not lower the bar M1 has to clear. Every instance still has to meet
 every condition before the gate passes. It adds a second, weaker claim that can
 be true today — *nothing got worse* — because a bar that cannot be cleared for
 months is a bar that stops being read.
+
+## D22 — A tolerance excuses a condition, never a contribution
+
+The checker holds a multiplier `w` — a row dual, or a column's reduced cost —
+to a sign condition: positive means the variable rests on its lower bound,
+negative on its upper. Below a tolerance that condition is waived, because
+requiring a variable onto a bound on the strength of a number
+indistinguishable from zero would reject solutions for their rounding.
+
+The same line used to waive the multiplier's contribution to the dual
+objective. Those are not the same claim, and treating them as one made the
+oracle reject provably optimal answers.
+
+`D(y)` is the sum over variables of the least `w · t` attainable inside
+`[lo, hi]`. It is a function of `y` alone; which terms are large is not part
+of its definition. What a magnitude filter discards is `w · bound`, and that
+is small only if the bound is. Concretely, and this is a test in
+`tests/test_check.c`:
+
+```
+min  x1 + 1e-7 x3    s.t.  x1 >= 1,  0 <= x1 <= 10,  1e6 <= x3 <= 2e6
+```
+
+`x1 = 1`, `x3 = 1e6`, `y = 1`, `d1 = 0`, `d3 = 1e-7`. Complementary slackness
+holds exactly, strong duality holds exactly: `D = 1 + 0 + 1e-7·1e6 = 1.1 = P`.
+Every value is exact in binary floating point. Dropping `d3` leaves `D = 1`
+and a relative gap of 9% — on a pair that is optimal on every count. That is
+the shape that rejected `pilot-ja`, whose duals are exactly zero in violation
+and which failed on gap alone.
+
+Two repairs were implemented and measured before this one, and both are worse
+than the defect:
+
+**Contribute `w · v`.** The term cancels, so the multiplier can neither invent
+a gap nor conceal one — which sounds right and is fatal. On a model whose
+multipliers all fall under the tolerance, `sum_v w_v v_v = c'z − y'Mz = P`
+identically, so the gap is structurally zero for *every* feasible point and
+the checker certifies the whole polytope. It accepted a pair 100 units above
+an optimum of 1, and certified 2000 of 2000 random feasible points of a model
+whose true optimum none of them reached. It also passed 98 unit tests and all
+94 Netlib instances with a regression-free diff, which is the part worth
+remembering: a green gate is not a proof, and this one was measured green
+while being vacuous.
+
+**Contribute `w · (nearest bound to v)`**, which is what HiGHS computes for
+its own diagnostic. Choosing by primal position rather than by the sign of `w`
+produces negative terms, and a negative term offsets a real residue somewhere
+else in the model — the error becomes fungible. It is also discontinuous, the
+dual objective jumping by `|w| · range` as `v` crosses the midpoint, and on a
+free variable it evaluates `(-inf + inf) / 2`. HiGHS can afford this because
+there the quantity is informative; here it is the oracle.
+
+So the exemption covers the condition and stops. Every multiplier contributes
+`w · bound` with the bound picked by its sign, as the definition says, and the
+infinite-bound test comes first so that `0 · inf` is never formed.
+
+What that buys is the reason to prefer it over merely working: with every term
+present, `P − D` is exactly `sum_v w_v (v_v − bound_v)`, each term
+non-negative and each one a single variable's complementary-slackness residue.
+An accepted solution therefore carries `P − P* <= gap` by weak duality. The
+checker stops reporting a reassurance and reports a bound.
+
+The cost is real and is the right cost: a solver that stops on a suboptimal
+basis is refused a certificate even when its primal point is fine, because the
+`y` it hands over does not prove what it claims. `tests/test_simplex.c` has one
+such case, where the same primal point is accepted the moment it is paired with
+the dual the optimal basis would have produced.

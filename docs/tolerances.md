@@ -54,7 +54,7 @@ separately, and `primal_feasible` is both being within tolerance.
 `[lo, hi]`, in minimize-canonical form:
 
 ```
-|w| <= tol            no condition, no contribution   (negligible multiplier)
+|w| <= tol            no condition                    (negligible multiplier)
 w > 0                 requires v <= lo + tol          (at its lower bound)
 w < 0                 requires v >= hi - tol          (at its upper bound)
 ```
@@ -66,6 +66,28 @@ violation, of exactly its own magnitude. Row multipliers are the duals as
 given; column multipliers are the reduced costs `d_j = c_j − A_j · y`,
 recomputed here from the original matrix.
 
+The exemption is for the condition and for nothing else. **Every
+multiplier contributes to the dual objective below, including the ones
+held to no condition** — the only thing a negligible multiplier is spared
+is being required to rest on a bound.
+
+That distinction is not a detail. `D(y)` is defined as the sum over
+variables of the least `w · t` attainable in `[lo, hi]`, which makes it a
+function of `y` alone; dropping terms from it by their magnitude is not
+part of that definition. What gets dropped is `w · bound`, and that is
+small only if the bound is: a multiplier of `1e-7` on a variable resting on
+a bound of `1e6` carries `0.1` of dual objective. Discarding it while the
+primal still counts `c_j v_j` invents a gap proportional to the tolerance —
+which is what used to reject `pilot-ja`, whose duals are exactly correct.
+
+Two other rules close that case and are both wrong, recorded here because
+each looks reasonable. Contributing `w · v` makes the term cancel, so on a
+model whose multipliers all fall under `tol` the gap is identically zero
+for every feasible point and the checker certifies the whole polytope.
+Choosing the bound nearest `v`, which is what HiGHS does for its own
+diagnostic, produces negative terms that offset real residuals elsewhere in
+the model, and computes `(−inf + inf) / 2` on a free variable.
+
 **Gap.** As each multiplier is checked it contributes `w · bound` to the
 dual objective, where `bound` is the one its sign points at. The gap is
 then relative:
@@ -76,6 +98,12 @@ gap = |primal_objective − dual_objective| / max(1, |primal_objective|)
 
 `dual_feasible` is the largest dual violation and the gap both being
 within tolerance.
+
+Because every multiplier contributes, `P − D` is exactly
+`sum_v w_v (v_v − bound_v)` with every term non-negative — each one the
+complementary-slackness residue of a single variable. That is what gives an
+accepted solution a guarantee rather than a reassurance: `P − P* <= gap`,
+by weak duality, and the gap is reported.
 
 The four tests are deliberately not independent. Activities come from a
 scatter over the matrix while the dual objective accumulates from bounds,
