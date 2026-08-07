@@ -1,34 +1,53 @@
-# Netlib Kennington subset — NOT YET PINNED. See PLAN 2.8.2 and Q6.
+# Netlib Kennington subset — 16 instances, pinned.
 #
 # Sixteen larger problems from Carolan, Hill, Kennington, Niemi and Wichmann,
 # "An Empirical Evaluation of the KORBX Algorithms for Military Airlift
 # Applications", Operations Research 38(2), 1990, 240-248. The M1 gate wants
 # them for correctness only, with no performance expectation (PLAN 2.9).
 #
-# Run with:  build/bench/run -m bench/netlib-kennington.manifest
+#   make netlib-kennington
 #
-# Same blocker as the infeasible set. netlib.org/lp/data/kennington/ carries
-# these as .gz in packed emps form (verified 2026-08-07 by fetching ken-07.gz
-# and reading its header after gunzip: packed, not MPS). Koch's mirror does
-# not carry them. Q6 has to be decided before this file can be filled.
-#
-# Format is the standard manifest's:
+# Distributed at netlib.org/lp/data/kennington as gzipped packed files.
+# bench/fetch.sh gunzips and then expands them with netlib's emps, which it
+# downloads and checksum-verifies at fetch time and never stores here
+# (PLAN 2.10, Q6).
 #
 #     name  sha256  rows  cols  reference  source  objconst
 #
-# The 16 instances:
+# The sha256 is of the .gz exactly as netlib serves it.
 #
-#   cre-a   cre-b   cre-c   cre-d
-#   ken-07  ken-11  ken-13  ken-18
-#   osa-07  osa-14  osa-30  osa-60
-#   pds-02  pds-06  pds-10  pds-20
+# rows/cols are counted from the expanded MPS: constraint rows only, N rows
+# excluded, distinct COLUMNS names. Cross-checked against the statistics
+# table in that directory's readme, which agrees on every column count and
+# gives one more row throughout — the objective row, which it counts and
+# JAOS does not. That is the same offset the standard set showed against the
+# canonical PROBLEM SUMMARY TABLE.
 #
-# Reference values are an open sub-question: whether Koch's exact rationals
-# cover these is unverified. If they do not, the fallback is the netlib
-# readme's PROBLEM SUMMARY TABLE, marked `netlib` in the source column like
-# any other — and read in the light of pilot87, where exactly that fallback
-# turned out to be outside the gate's own tolerance (bench/README.md).
+# reference comes from the same readme, where the optima were computed with
+# Vanderbei's ALPO. They carry eight significant digits. The gate's tolerance
+# is 1e-6 relative, so there is room — but these are not Koch's exact
+# rationals, and an instance that misses by less than 1e-8 relative cannot be
+# judged against them. Marked `netlib` in the source column for that reason.
+# Whether Koch's results cover these is still unverified (bench/README.md).
 #
-# These are the largest instances JAOS will have loaded. Some carry tens of
-# thousands of columns, so this set is also the first real test of whether
-# anything in the readers or the factorization scales past the standard set.
+# These are much larger than anything else JAOS loads: ken-18 has 105127 rows
+# and 154699 columns, osa-60 has 232966 columns. This set is the first real
+# test of whether the readers and the factorization scale past the standard
+# set at all.
+#
+cre-a        ab1f59ad09e5b22d1bea20348f5c1898253b2f29505eee35313385f1ba552df8 3516 4067 2.3595407e+07 netlib 0.0
+cre-b        435c8b2f78614b9b550db07ccfb96c13c04ea0caeeeb18ce31da755449ea6de5 9648 72447 2.3129640e+07 netlib 0.0
+cre-c        448b9437ad545305cab246dd6f8e9484ed1e7fec6a8dafd4ceb0c7e23ad5acf6 3068 3678 2.5275116e+07 netlib 0.0
+cre-d        8c1fbf84e01770e4d3b469b10ce7041c22b39289696a0eaa6a0d206041ee98ea 8926 69980 2.4454970e+07 netlib 0.0
+ken-07       9bdd6e98a922e3d400cbfdf45adf7a4734a64df4a0b371f1dba391802a4828d5 2426 3602 -6.7952044e+08 netlib 0.0
+ken-11       5c5b40787e0a1f1c4d5de313908bacfec9b57ce83c2528c2bd7050f1ccd98d34 14694 21349 -6.9723823e+09 netlib 0.0
+ken-13       c9a42842f00ad05ecf7b3e65c27c147a650e6a381148faf1926aa75095a616c8 28632 42659 -1.0257395e+10 netlib 0.0
+ken-18       33f3563faf0e7b437033565e657065ac63f0a8b822a95ebbc523c8d9cf5cb201 105127 154699 -5.2217025e+10 netlib 0.0
+osa-07       ac38967f57dafaede2520d95fe2f321728e41d743dc45384f322089011a03b83 1118 23949 5.3572252e+05 netlib 0.0
+osa-14       49bf6a1547ad9c277d3da07dad5f12c408196e0c0a130023407b4bdd77d52658 2337 52460 1.1064628e+06 netlib 0.0
+osa-30       ca1c3125b6d2969e39e001b49c5d6b064daf5987059c3bc3a37f403214937d39 4350 100024 2.1421399e+06 netlib 0.0
+osa-60       f6ceb958c59ad0673dfc7ef17c7bf266c71c4d854819a3fc2a9d7da520d47ca1 10280 232966 4.0440725e+06 netlib 0.0
+pds-02       f79d268dc3dca73a810098715bb0ffd1113ed59e87449591f0d2721976f5a872 2953 7535 2.8857862e+10 netlib 0.0
+pds-06       02234bdebfa0eb68a4e68f6f796196a6c7dbb9df4c202f7e9abe837ef43e0756 9881 28655 2.7761038e+10 netlib 0.0
+pds-10       8ba7011728cc7237875be3468f6e3e4eb4d67c1b866cfc5855788bb84155c00f 16558 48763 2.6727095e+10 netlib 0.0
+pds-20       70f5504ae7e14e1c7aa7f9293d1c26e931e067010943f9e006ff9c955a4d71c6 33874 105728 2.3821659e+10 netlib 0.0

@@ -14,12 +14,23 @@ versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   optimum. That is the only check anywhere in M1 that looks for a wrong
   answer rather than confirming a right one, and the gate has been asking
   for it since it was written (PLAN 2.9).
-- `bench/netlib-kennington.manifest` and `bench/netlib-infeas.manifest`,
-  with `make netlib-kennington` and `make netlib-infeas`. The manifests are
-  headers only: both sets are distributed by netlib in packed emps form,
-  Koch's plain-MPS mirror covers neither, and the acquisition route is open
-  (PLAN Q6). The targets fail today and say why. `bench/fetch.sh` now takes
-  `-m` and `-b` so it can serve any set once one is pinned.
+- The two remaining instance sets of the M1 gate, pinned and running for the
+  first time: `bench/netlib-kennington.manifest` (16) and
+  `bench/netlib-infeas.manifest` (29), with `make netlib-kennington` and
+  `make netlib-infeas`. Both are served by netlib in packed form, so
+  `bench/fetch.sh` expands them with netlib's `emps` — fetched, verified
+  against a pinned sha256, built to a temporary directory and never stored
+  here, the same rule the instances follow (PLAN Q6, D11). `fetch.sh` takes
+  `-m`, `-b` and `-p` for that, and each set fetches into its own directory
+  because `greenbea` names two different models across sets.
+
+  The infeasible set reports **28 of 29 correctly refused with no false
+  optima anywhere**, which is the outcome it exists to measure. `gran`
+  returns a numerical error instead of a verdict — it does not claim an
+  optimum, it fails to reach one — and is a new open item in PLAN 2.8. Its
+  shape check also caught a defect in the manifest on the first run:
+  `greenbea` carries 111 free rows beyond its objective row and JAOS loads
+  all of them, where the count first written had excluded every N row.
 - The Netlib gate records what every instance did, in
   `bench/netlib.baseline`, and `make netlib` diffs against it. The gate's own
   verdict is all-or-nothing and reads `NOT MET` for the whole of M1, so it

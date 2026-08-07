@@ -9,40 +9,51 @@ bench/fetch.sh      # download and verify the instances (once)
 make netlib         # build the runner, fetch if needed, run the gate
 ```
 
-## Three sets, one of which exists
+## Three sets
 
-The M1 gate asks for three (PLAN 2.9), and only the first is built:
+The M1 gate asks for three (PLAN 2.9), and all three are now pinned:
 
-| set | instances | what it asks | state |
+| set | instances | what it asks | run with |
 |---|---|---|---|
-| standard | 94 | solved to a verified optimum | running; gate not met |
-| Kennington | 16 | the same, for correctness only | **not pinned** |
-| infeasible | 29 | classified `INFEASIBLE`, no false optima | **not pinned** |
+| standard | 94 | solved to a verified optimum | `make netlib` |
+| Kennington | 16 | the same, for correctness only | `make netlib-kennington` |
+| infeasible | 29 | classified `INFEASIBLE`, no false optima | `make netlib-infeas` |
+
+The infeasible set is the only thing in M1 that looks for a *wrong* answer
+rather than confirming a right one: it asks whether a model with no feasible
+point ever comes back with an optimum. Not a hypothetical failure mode — the
+revert of 2026-08-07 was forced by its mirror image, a feasible instance
+reported `INFEASIBLE`, and nothing in the suite caught it.
+
+`-e infeasible` switches the acceptance rule. Shape and determinism still
+hold; there is no reference objective and nothing for the checker to judge;
+an instance coming back `optimal` is flagged `<-- FALSE OPTIMUM` and fails
+the run.
+
+Each set fetches into its own directory. That is not tidiness: `greenbea`
+names a feasible model in the standard set and a different, infeasible one
+here — the original, from which the feasible version was repaired — and two
+models must never share a path.
+
+## Where the instances come from, and emps
+
+The standard set is Koch's plain-MPS mirror. He mirrors exactly the instances
+his paper verified, which is why no expander was ever needed for it.
+
+Kennington and the infeasible set are served by netlib in its packed form, so
+`fetch.sh` expands them with netlib's own `emps` — downloaded, verified
+against a pinned sha256, built into a temporary directory, and **never stored
+here**, exactly like the instances (PLAN 2.10). `emps.c` carries no licence,
+no copyright notice and no public-domain declaration, so redistributing it is
+not something an Apache-2.0 project can do cleanly; using it as a dev-time
+tool is. PLAN Q6 records the decision.
 
 ```sh
-make netlib-kennington   # both fail today, saying why
-make netlib-infeas
+bench/fetch.sh -m bench/netlib-infeas.manifest \
+    -b https://netlib.org/lp/infeas -p emps bench/instances-infeas
 ```
 
-The infeasible set is the one whose absence matters. Everything else here
-checks that a right answer is recognised; that set is the only thing checking
-that a *wrong* one is refused — specifically, that a model with no feasible
-point never comes back with an optimum. It is not a hypothetical failure
-mode: the revert of 2026-08-07 was forced by its mirror image, a feasible
-instance reported `INFEASIBLE`, and nothing in the suite would have caught
-the reverse.
-
-**The runner already handles it.** `-e infeasible` switches the acceptance
-rule: shape and determinism still hold, there is no reference objective and
-nothing for the checker to judge, and an instance coming back `optimal` is
-flagged `<-- FALSE OPTIMUM` and fails the run. Both directions are tested
-against instances in `tests/data/`.
-
-What is missing is the instances. Neither set is mirrored in plain MPS —
-netlib carries both in packed emps form only — so pinning them waits on
-PLAN Q6, which the standard set never had to answer because Koch publishes
-plain MPS for exactly the instances his paper verified. The two manifest
-files carry the full instance lists and the blocker in their headers.
+`-p` selects the pipeline: `mps-gz` (gunzip only), `gz-emps`, or `emps`.
 
 `make netlib` writes the per-instance table to `bench/results/netlib.txt` and
 exits non-zero unless every instance met every condition.

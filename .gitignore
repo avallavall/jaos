@@ -9,6 +9,8 @@
 # (PLAN 2.10). bench/netlib.manifest is what pins them; the files
 # themselves stay out, licences and size both.
 /bench/instances/
+/bench/instances-kennington/
+/bench/instances-infeas/
 
 # Acceptance results ARE committed (PLAN 2.9): every figure in them —
 # status, objective, iterations, work units — is deterministic (D8), so the

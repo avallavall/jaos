@@ -132,21 +132,29 @@ netlib-baseline: $(B)/bench/run
 	@mkdir -p bench/results
 	./$(B)/bench/run -o bench/results/netlib.txt -w bench/netlib.baseline
 
-# The other two sets the M1 gate asks for (PLAN 2.9). Neither manifest is
-# pinned yet — both sets exist only in netlib's packed emps form and the
-# acquisition route is open (PLAN Q6) — so these targets fail today, and
-# they fail saying why rather than by being absent. The runner itself is
-# built and tested for both.
+# The other two sets the M1 gate asks for (PLAN 2.9). Both are served by
+# netlib in its packed form and expanded with emps, which fetch.sh downloads
+# and checksum-verifies rather than storing (PLAN Q6, decided 2026-08-07).
+#
+# Separate instance directories, not one shared: `greenbea` names a feasible
+# model in the standard set and a different, infeasible one in this set, and
+# two models must never share a path.
 netlib-kennington: $(B)/bench/run
-	@bench/fetch.sh -m bench/netlib-kennington.manifest
+	@bench/fetch.sh -m bench/netlib-kennington.manifest \
+		-b https://netlib.org/lp/data/kennington -p gz-emps \
+		bench/instances-kennington
 	@mkdir -p bench/results
 	./$(B)/bench/run -m bench/netlib-kennington.manifest \
+		-d bench/instances-kennington \
 		-o bench/results/netlib-kennington.txt
 
 netlib-infeas: $(B)/bench/run
-	@bench/fetch.sh -m bench/netlib-infeas.manifest
+	@bench/fetch.sh -m bench/netlib-infeas.manifest \
+		-b https://netlib.org/lp/infeas -p emps \
+		bench/instances-infeas
 	@mkdir -p bench/results
 	./$(B)/bench/run -m bench/netlib-infeas.manifest -e infeasible \
+		-d bench/instances-infeas \
 		-o bench/results/netlib-infeas.txt
 
 $(B)/release $(B)/dev $(B)/asan $(B)/bench:

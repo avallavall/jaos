@@ -1,39 +1,65 @@
-# Netlib infeasible subset — NOT YET PINNED. See PLAN 2.8.2 and Q6.
+# Netlib infeasible subset — 29 instances, pinned.
 #
-# This set asks the one question the standard set cannot: given a model with
-# no feasible point, does JAOS say so — and does it ever report an optimum
-# for one? Nothing else in M1 tests that direction. It is not hypothetical:
-# the revert of 2026-08-07 was forced by its mirror image, a feasible
-# instance (pilot-we) being reported INFEASIBLE, and no test in the suite
-# would have caught the reverse.
+# This set asks the one question the rest of M1 cannot: given a model with no
+# feasible point, does JAOS say so — and does it ever report an optimum for
+# one? Everything else here checks that a right answer is recognised; this is
+# the only thing checking that a wrong one is refused. Not hypothetical: the
+# revert of 2026-08-07 was forced by its mirror image, a feasible instance
+# (pilot-we) reported INFEASIBLE, and nothing in the suite caught the reverse.
 #
-# Run with:  build/bench/run -m bench/netlib-infeas.manifest -e infeasible
+#   make netlib-infeas
 #
-# The runner is ready. The instances are not, and cannot be until Q6 is
-# decided: netlib distributes this set at netlib.org/lp/infeas/ in packed
-# emps form only (verified 2026-08-07 by fetching `galenet` and reading its
-# header), Koch's plain-MPS mirror does not carry it, and expanding it needs
-# either netlib's emps — third-party source, a D11 call for the maintainer —
-# or a plain-MPS mirror worth pinning. Nobody has looked for the latter.
+# Collected by John W. Chinneck (Carleton University), distributed at
+# netlib.org/lp/infeas in netlib's packed form. bench/fetch.sh expands them
+# with netlib's emps, which it downloads and checksum-verifies at fetch time
+# and never stores here (PLAN 2.10, Q6).
 #
-# Format is the standard manifest's, so one parser serves both:
+# Format matches netlib.manifest so one parser serves every set:
 #
 #     name  sha256  rows  cols  reference  source  objconst
 #
-# `reference` and `objconst` are unused here and are written 0.0: the verdict
-# IS the reference. `source` records where the instance came from. rows/cols
-# still matter — a reader that dropped the very rows making a model
-# infeasible would otherwise "pass" for exactly the wrong reason.
+# The sha256 is of the packed file exactly as netlib serves it, before emps.
+# `reference` and `objconst` are unused and written 0.0 — for this set the
+# verdict IS the reference, and the runner is told so with `-e infeasible`.
+# rows/cols still matter: a reader that dropped the very rows making a model
+# infeasible would otherwise pass for exactly the wrong reason. They are
+# counted from the expanded MPS as every row in ROWS but the objective. Free
+# rows count: `greenbea` carries 111 of them beyond its objective row, and
+# JAOS loads all of them, so excluding N rows wholesale gets it wrong by
+# exactly that many. The shape check caught it on the first run of this set,
+# which is the check doing its job on the manifest rather than on the reader.
 #
-# The 29 instances, from netlib.org/lp/infeas/ (readme and changes are not
-# instances):
+# Note: `greenbea` here is NOT the greenbea of the standard set. It is the
+# original, infeasible version; the feasible one was repaired from it by Bob
+# Fourer. Two different models, one name, and they must not share a filename
+# on disk.
 #
-#   bgdbg1   bgetam   bgindy   bgprtr   box1     ceria3d  chemcom
-#   cplex1   cplex2   ex72a    ex73a    forest6  galenet  gosh
-#   gran     greenbea itest2   itest6   klein1   klein2   klein3
-#   mondou2  pang     pilot4i  qual     reactor  refinery vol1
-#   woodinfe
-#
-# Note `greenbea` here is NOT the greenbea of the standard set; it is a
-# different, infeasible model that happens to share the name. Whatever
-# fetches this set must keep the two apart on disk.
+bgdbg1       38a256d497cc53fc87a7cd00c20985d57ff3b004452ebf889861874023132295 348 407 0.0 infeasible 0.0
+bgetam       cb8e7319fe4b73755479ed85c78fb0c056a76b80fdc969828fc93d598baf90e1 400 688 0.0 infeasible 0.0
+bgindy       fbd06dd6f43b825ec6229ac0ae3be59211444b2a34858527004edac4df6c096a 2671 10116 0.0 infeasible 0.0
+bgprtr       f689679f847022629226b7fb5572928d83af4d788e3802355eac924cef63a24f 20 34 0.0 infeasible 0.0
+box1         a93b9eda43a63cb55dd075fe735f85f0d8058928a1cff3720afbb3b00582cc53 231 261 0.0 infeasible 0.0
+ceria3d      564417a5887cf3701280314510ea78fc0606c69ebe343786ac80390ca01f80f1 3576 824 0.0 infeasible 0.0
+chemcom      705136b361a9c1611a7e9893a206270b8c29f2c559c9761adaf15613f426cb00 288 720 0.0 infeasible 0.0
+cplex1       d77e5cc99ee31c8b1b531f51249d3af4889a8f5a152c48b261c58169e22272ce 3005 3221 0.0 infeasible 0.0
+cplex2       9228a2861af534efa477901f106fb250fe7baa03dc5234f6c28408d4b73bab76 224 221 0.0 infeasible 0.0
+ex72a        35762c8878d81ec922a36f192654d728434bf10557dce5d67e3661d2d1e5ecc8 197 215 0.0 infeasible 0.0
+ex73a        96f3839cbcb7ed6836c376626af6c428c770b80a63eff9e5c2e7b08e6afe6d3b 193 211 0.0 infeasible 0.0
+forest6      702d5cb7a45f5554411f5a9e5b399f182ec4d350315ceda94df1677dbd5fcce3 66 95 0.0 infeasible 0.0
+galenet      75c0b630699466f0b324b682390442731b07acd4d612cd9f8508be4414e8ea11 8 8 0.0 infeasible 0.0
+gosh         a6ae960ca1bd6ef84c6f60dad813da50fa18e022adaa5e748b5b9bcd5f3eb813 3792 10733 0.0 infeasible 0.0
+gran         2d46e8d6267da96bc5be111985bce8e3881ecf0b583eb724d791398267b62fd4 2658 2520 0.0 infeasible 0.0
+greenbea     9b54a35528988fe1e77e93ba469b9e40fffbf7316212a643965697f1da223c6b 2504 5405 0.0 infeasible 0.0
+itest2       1d370f454e439a8cb473f4e74417ac84b1fcda7bb01ab6002948366fccbcbefd 9 4 0.0 infeasible 0.0
+itest6       208b7f934efa4c0e2bc0627b8d9758abdeb7d865f6c3bf137975b9b1a7fafacd 11 8 0.0 infeasible 0.0
+klein1       e8037d43c4a7777f1d064c7f45391f5638cc1f41a7110431a1fab6c0309350f2 54 54 0.0 infeasible 0.0
+klein2       5dfe71026e7d1ba330d0b4c3f1b2a693c9eeb640fda83946650ee4d3f8a91813 477 54 0.0 infeasible 0.0
+klein3       bc129362b85072f59f5ae9f0b7c5c8cf0d00f536a013de2e776b4d6dddd67f84 994 88 0.0 infeasible 0.0
+mondou2      716765804aa4bc6d06f222ded0362336f56b147d56302c2a1b01b559442763e5 312 604 0.0 infeasible 0.0
+pang         7d4a0ad5d658c006fb82a074c2898505864b248a131ecd10a09c59a62aab3346 361 460 0.0 infeasible 0.0
+pilot4i      b1ce36ebff76504978928aa64576734bd5f2e6a366de688eefeece3e6093bd5a 410 1000 0.0 infeasible 0.0
+qual         8bd158c008a088b8d4826953d799850c30428a1b2dfb848eaf002c83d2b8d584 323 464 0.0 infeasible 0.0
+reactor      f10a6d144d46badeadabe081d42f2f81d7f2dfbfa7348267013104109af12d66 318 637 0.0 infeasible 0.0
+refinery     e8cf960ecf339e9ac636aa9289eebddffe1c499e351144d6c4a88b81f24bf618 323 464 0.0 infeasible 0.0
+vol1         e395178f91b78c11a06c222eab8a91fbd240ebdcbd1143bd3a13b271e2228265 323 464 0.0 infeasible 0.0
+woodinfe     1e8aa75185626fd5318d1e304d6bfce557f9ee06b1f238c439a8f32ae48f5108 35 89 0.0 infeasible 0.0
