@@ -229,27 +229,64 @@ Remaining:
      waiting for an instance to produce, and now one has.
    - **Dual conditions the checker rejects on seven instances** —
      `etamacro`, `finnis`, `greenbea`, `nesm`, `pilot`, `pilot-ja`,
-     `pilot87`. The magnitudes split them in two: `finnis` at 28 and
-     `greenbea` at 2.66 are structural, while `etamacro` at 1.6e-6 and
-     `nesm` at 8e-6 sit just past a 1e-6 tolerance and may be calibration
-     rather than defect. Which is which is the first thing to establish,
-     because the answers differ: one is a bug, the other is §2.6 being
-     frozen at the wrong value.
+     `pilot87`. They were read as two groups by magnitude. They are three,
+     and the third one is not the solver's fault.
 
-     There is a specific hypothesis for the near-miss pair, worth writing
-     down before it is lost: the checker accumulates in `long double` and
-     the solver works in `double`, so a residual the solver reads as just
-     inside `CHECK_TOL` can come back from the checker just outside it. If
-     that is the mechanism, the fix is for the solver to settle against a
-     tightened bound — half of `CHECK_TOL`, say — and leave the other half
-     as margin for the more precise arithmetic. This was prototyped on an
-     unmerged branch and is not merged: that version carried debug
-     instrumentation, duplicated the tolerance into a third file, and
-     assigned `DSE_MIN` — the floor on a steepest-edge weight, which is a
-     squared norm — to a reduced cost. The idea is worth taking; that
-     implementation is not. Whatever replaces it is judged per instance
-     against `bench/netlib.baseline`, since a tolerance change touches
-     every instance at once and `etamacro` alone cannot say what it cost.
+     **`pilot-ja` — the checker's gap test, not a wrong answer.** Its dual
+     violation is exactly zero; it is rejected on the gap alone, at
+     1.87e-6. Judging the *same* solution at smaller tolerances (solve
+     once, check repeatedly) gives:
+
+     | tol | dual violation | gap |
+     |---|---|---|
+     | 1e-6 | 0 | 1.87e-6 |
+     | 1e-7 | 0 | 1.99e-7 |
+     | 1e-8 | 0 | 9.36e-16 |
+
+     The gap falls with the tolerance, roughly in proportion, and then
+     collapses. That is not what a wrong answer does — a real gap does not
+     care what threshold it is measured against. The cause is in
+     `src/check.c`: a multiplier with `|w| <= tol` is dropped from the sign
+     conditions *and* from the dual objective, on one line, as though those
+     were the same claim. They are not. A multiplier too small to impose a
+     sign condition still contributes `w · bound`, and that product grows
+     with the bound — so on a model with wide bounds the discarded mass is
+     proportional to the tolerance, which is exactly the shape in the table.
+     At 1e-8 the dual objective settles on -6113.1364655810767 against a
+     primal of -6113.1364655810712: they agree to twelve figures, and
+     strong duality holds.
+
+     So `pilot-ja` is a defect in the oracle rather than in the solver, and
+     it is left open here rather than fixed on the spot. The checker is what
+     every solve is judged against (D18) and changing it so that a failing
+     instance passes is the one repair that must never be made casually. The
+     open question is what a negligible multiplier should contribute: not
+     `w · bound`, since its sign is noise at that magnitude, and not zero,
+     which is what produces this. `w · v`, the value the variable actually
+     holds, is the candidate — complementary slackness makes the two agree
+     wherever the multiplier is real. **`docs/tolerances.md` describes the
+     current rule and would have to change with it.**
+
+     **`etamacro` at 1.56e-6 and `nesm` at 8.01e-6** are the opposite case:
+     their dual violations do not move at all as the checker's tolerance
+     drops, so those are real breaches, small but genuine. The hypothesis
+     for them, worth writing down before it is lost, is that the checker
+     accumulates in `long double` where the solver works in `double`, so a
+     residual the solver reads as just inside `CHECK_TOL` comes back from
+     the checker just outside it. The fix would be for the solver to settle
+     against a tightened bound — half of `CHECK_TOL`, say — and leave the
+     rest as margin. This was prototyped on an unmerged branch and is not
+     merged: that version carried debug instrumentation, duplicated the
+     tolerance into a third file, and assigned `DSE_MIN` — the floor on a
+     steepest-edge weight, which is a squared norm — to a reduced cost. The
+     idea is worth taking; that implementation is not. Whatever replaces it
+     is judged per instance against `bench/netlib.baseline`, since a
+     tolerance change touches every instance at once and `etamacro` alone
+     cannot say what it cost.
+
+     **`finnis` at 28, `greenbea` at 2.66**, and the dual violations on
+     `pilot` and `pilot87`, are structural and none of the above explains
+     them. They are the real work left in this group.
    - **`pilot` and `pilot87` miss the objective as well**, by 2e-4 and 6e-5
      relative. These are the worst-conditioned instances in the set and are
      expected to be last; they are listed apart because an objective error
