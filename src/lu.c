@@ -851,8 +851,7 @@ void jm_lu_btran(jm_lu *lu, double *x, jm_work *w)
     for (int64_t s = 0; s < n; s++)
         y[s] = x[lu->perm_col[s]];
 
-    /* U' v = y, forward in position order. U by column is U' by row, so
-     * each step is a dot product over already-resolved slots. */
+    /* Dense path: U' v = y, forward in position order. */
     for (int64_t k = 0; k < n; k++) {
         int64_t s = lu->slot_at[k];
         const jm_svec *col = &lu->ucol[s];
@@ -863,15 +862,12 @@ void jm_lu_btran(jm_lu *lu, double *x, jm_work *w)
         jm_work_add(w, col->n * JM_WORK_NONZERO);
     }
 
-    /* E^T = E_1^T ... E_t^T: reverse order, and each transposed swaps the
-     * roles of target and source. Getting this backwards produces
-     * plausible residuals that are quietly wrong. */
+    /* E^T = E_1^T ... E_t^T: reverse order. */
     for (int64_t k = lu->ft.n - 1; k >= 0; k--)
         y[lu->ft_source[k]] -= lu->ft.val[k] * y[lu->ft.idx[k]];
     jm_work_add(w, lu->ft.n * JM_WORK_NONZERO);
 
-    /* L' u = v, backward: L by columns is L' by rows, a dot product. L is
-     * unit triangular, so there is no division. */
+    /* L' u = v, backward: L by columns is L' by rows. */
     for (int64_t s = n - 1; s >= 0; s--) {
         double sum = y[s];
         for (int64_t p = lu->l_start[s]; p < lu->l_start[s + 1]; p++)
