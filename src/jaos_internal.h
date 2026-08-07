@@ -158,7 +158,7 @@ void jm_dse_update(int64_t n, double *w, int64_t r,
  * wrong answer here costs conditioning rather than correctness — nothing
  * at the solve level would report it. */
 int64_t jm_harris_pick(int64_t n, const double *num, const double *den,
-                       double dual_tol);
+                       const int64_t *cand, double dual_tol);
 
 /* Overflow-checked array allocation: n elements of elsize bytes.
  * Returns NULL on n < 0, size overflow, or exhaustion. n == 0 still returns

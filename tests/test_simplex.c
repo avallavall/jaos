@@ -999,7 +999,9 @@ static void test_harris_ignores_a_big_pivot_outside_the_window(void)
 {
     const double num[] = {1.0, 500.0};
     const double den[] = {1.0, 100.0};
-    TEST_ASSERT_EQUAL_INT64(0, jm_harris_pick(2, num, den, HARRIS_TOL));
+    const int64_t can[] = {0, 1};
+    (void)can;
+    TEST_ASSERT_EQUAL_INT64(0, jm_harris_pick(2, num, den, can, HARRIS_TOL));
 }
 
 /* The case the whole two-pass structure exists for. One candidate blocks
@@ -1014,8 +1016,10 @@ static void test_harris_prefers_the_larger_pivot_inside_the_window(void)
 {
     const double num[] = {0.0, 1e-8};
     const double den[] = {1e-8, 1.0};
-    TEST_ASSERT_EQUAL_INT64(1, jm_harris_pick(2, num, den, HARRIS_TOL));
-    TEST_ASSERT_EQUAL_INT64(0, jm_harris_pick(2, num, den, 0.0));
+    const int64_t can[] = {0, 1};
+    (void)can;
+    TEST_ASSERT_EQUAL_INT64(1, jm_harris_pick(2, num, den, can, HARRIS_TOL));
+    TEST_ASSERT_EQUAL_INT64(0, jm_harris_pick(2, num, den, can, 0.0));
 }
 
 /* A degenerate vertex: every candidate blocks at zero, so the step is zero
@@ -1024,7 +1028,9 @@ static void test_harris_on_a_degenerate_vertex_takes_the_best_pivot(void)
 {
     const double num[] = {0.0, 0.0, 0.0};
     const double den[] = {1.0, 7.0, 3.0};
-    TEST_ASSERT_EQUAL_INT64(1, jm_harris_pick(3, num, den, HARRIS_TOL));
+    const int64_t can[] = {0, 1, 2};
+    (void)can;
+    TEST_ASSERT_EQUAL_INT64(1, jm_harris_pick(3, num, den, can, HARRIS_TOL));
 }
 
 /* One candidate is the whole answer; no candidates is not an answer at all
@@ -1033,10 +1039,21 @@ static void test_harris_edge_counts(void)
 {
     const double num[] = {42.0};
     const double den[] = {0.5};
-    TEST_ASSERT_EQUAL_INT64(0, jm_harris_pick(1, num, den, HARRIS_TOL));
-    TEST_ASSERT_EQUAL_INT64(-1, jm_harris_pick(0, num, den, HARRIS_TOL));
+    const int64_t can[] = {0};
+    (void)can;
+    TEST_ASSERT_EQUAL_INT64(0, jm_harris_pick(1, num, den, can, HARRIS_TOL));
+    TEST_ASSERT_EQUAL_INT64(-1, jm_harris_pick(0, num, den, can, HARRIS_TOL));
 }
 
+
+/* Bland's rule tie-breaking: smaller cand index wins when den are equal. */
+static void test_harris_bland_tie_break(void)
+{
+    const double num[] = {0.0, 0.0};
+    const double den[] = {1.0, 1.0};
+    const int64_t can[] = {5, 3};
+    TEST_ASSERT_EQUAL_INT64(1, jm_harris_pick(2, num, den, can, HARRIS_TOL));
+}
 /* Determinism (D8): the same model solved twice must produce the same
  * objective bit for bit, the same iteration count, and the same work. */
 static void test_solving_twice_is_bit_identical(void)
@@ -1159,6 +1176,7 @@ int main(void)
     RUN_TEST(test_harris_prefers_the_larger_pivot_inside_the_window);
     RUN_TEST(test_harris_on_a_degenerate_vertex_takes_the_best_pivot);
     RUN_TEST(test_harris_edge_counts);
+    RUN_TEST(test_harris_bland_tie_break);
     RUN_TEST(test_solving_twice_is_bit_identical);
     RUN_TEST(test_work_limit_stops_and_reports);
     RUN_TEST(test_budgets_survive_a_reload);

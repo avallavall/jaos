@@ -996,7 +996,7 @@ static int64_t dual_ratio_test(sx *s, bool below, double violation,
     if (live == 0)
         return -1;   /* nothing blocks the step; the model is infeasible */
 
-    int64_t k = jm_harris_pick(live, s->rnum, s->rden, DUAL_TOL);
+    int64_t k = jm_harris_pick(live, s->rnum, s->rden, s->cand, DUAL_TOL);
     jm_work_add(&s->work, 2 * live * JM_WORK_NONZERO);
     int64_t best = s->cand[k];
 
@@ -1014,7 +1014,7 @@ static int64_t dual_ratio_test(sx *s, bool below, double violation,
  * the header, which is also where the reachable-from-outside rationale
  * lives. */
 int64_t jm_harris_pick(int64_t n, const double *num, const double *den,
-                       double dual_tol)
+                       const int64_t *cand, double dual_tol)
 {
     if (n <= 0)
         return -1;
@@ -1029,9 +1029,14 @@ int64_t jm_harris_pick(int64_t n, const double *num, const double *den,
     int64_t best = 0;
     double best_den = 0.0;
     for (int64_t k = 0; k < n; k++) {
-        if (num[k] / den[k] <= window && den[k] > best_den) {
-            best_den = den[k];
-            best = k;
+        if (num[k] / den[k] <= window) {
+            if (den[k] > best_den + 1e-15) {
+                best_den = den[k];
+                best = k;
+            } else if (cand[k] < cand[best]) {
+                best_den = den[k];
+                best = k;
+            }
         }
     }
     return best;
