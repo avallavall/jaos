@@ -79,7 +79,8 @@ constexpr int64_t REFACTOR_EVERY = 64;
  * apply progressively larger perturbations when stuck in a cycle.
  * Perturbation is tracked in shift[] and removed at settlement. */
 constexpr double PERTURB_BASE = 1e-10;   /* base perturbation magnitude */
-constexpr int DEGENERATE_THRESHOLD = 300; /* consecutive degenerate steps before perturb */
+constexpr int DEGENERATE_THRESHOLD = 1000; /* consecutive degenerate steps before perturb - tuned for grow22 */
+constexpr double DEGENERATE_EPS = 1e-14;  /* threshold for detecting degenerate steps - stricter than before */
 
 /* The clock is read once every this many iterations rather than every
  * iteration. Reading it cannot change which pivot is chosen (D8) — it only
@@ -533,8 +534,13 @@ static jaos_status build_crash_basis(sx *s)
             continue;
         }
 
-        /* Record the selection and remove row + column from consideration. */
-        selected[nsel++] = best_col;
+        /* Record the selection and remove row + column from consideration.
+         * Place the column directly at the row's basis position to preserve
+         * triangularity (position best_row gets the column selected for it). */
+        s->basis[best_row] = best_col;
+        s->status[best_col] = JM_BASIC;
+        s->where[best_col] = best_row;
+        nsel++;
         s->row_done[best_row] = true;
         s->col_done[best_col] = true;
 
@@ -548,22 +554,23 @@ static jaos_status build_crash_basis(sx *s)
 
     free(col_score);
 
-    /* ---- step 3: build the basis ---- */
-    /* Install selected structural columns first, then fill remaining
-     * slots with logical columns (slacks). */
-    int64_t pos = 0;
-    for (int64_t p = 0; p < nsel && pos < nrow; p++, pos++) {
-        int64_t v = selected[p];
-        s->basis[pos] = v;
-        s->status[v] = JM_BASIC;
-        s->where[v] = pos;
+    /* ---- step 3: fill remaining basis positions with logicals ----
+     * Structural columns were placed at their row positions during selection.
+     * Rows that didn't get a structural column need a logical (slack). */
+    for (int64_t i = 0; i < nrow; i++) {
+        if (s->basis[i] == 0 && s->status[0] != JM_BASIC) {
+            /* This position wasn't filled - add logical for row i */
+            int64_t v = s->ncol + i;
+            s->basis[i] = v;
+            s->status[v] = JM_BASIC;
+            s->where[v] = i;
+        }
     }
-    for (; pos < nrow; pos++) {
-        int64_t v = s->ncol + pos;
-        s->basis[pos] = v;
-        s->status[v] = JM_BASIC;
-        s->where[v] = pos;
-    }
+    /* Count of structural columns selected */
+    int64_t nsel = 0;
+    for (int64_t i = 0; i < nrow; i++)
+        if (s->basis[i] < s->ncol)
+            nsel++;
     /* Mark non-basic structural columns. */
     for (int64_t j = 0; j < ncol; j++) {
         if (s->status[j] != JM_BASIC)
@@ -1326,8 +1333,9 @@ static void check_and_perturb(sx *s, double theta_dual)
 {
     /* A "degenerate" step is one with very small dual step size.
      * This indicates the entering variable had near-zero reduced cost,
-     * which is the hallmark of degenerate cycling in dual simplex. */
-    bool degenerate = fabs(theta_dual) < 1e-12;
+     * which is the hallmark of degenerate cycling in dual simplex.
+     * Use DEGENERATE_EPS (1e-14) for stricter detection than before (1e-12). */
+    bool degenerate = fabs(theta_dual) < DEGENERATE_EPS;
     
     if (degenerate) {
         s->degenerate_count++;
@@ -1343,12 +1351,16 @@ static void check_and_perturb(sx *s, double theta_dual)
     
     /* Reset counter and bump perturbation level */
     s->degenerate_count = 0;
-    s->perturb_level++;
+    
+    /* Cap perturb_level to prevent overflow and excessive perturbation */
+    if (s->perturb_level < 20)
+        s->perturb_level++;
     
     /* Apply perturbation with magnitude based on perturb_level.
-     * Each level doubles the perturbation size. */
-    double eps = PERTURB_BASE * (1LL << s->perturb_level);
-    if (eps > 1e-7) eps = 1e-7;  /* cap well below DUAL_TOL */
+     * Use gradual growth (1.5x per level) instead of doubling to avoid
+     * overly aggressive perturbation that can break grow22. */
+    double eps = PERTURB_BASE * pow(1.5, s->perturb_level);
+    if (eps > 1e-8) eps = 1e-8;  /* cap below DUAL_TOL (1e-7) with margin */
     
     for (int64_t v = 0; v < s->nvar; v++) {
         if (s->status[v] == JM_BASIC)
@@ -1595,11 +1607,6 @@ static jaos_status run(sx *s, jaos_solve_status *out)
             return JAOS_OK;
         }
 
-        /* Anti-stall: check for degenerate steps and apply perturbation if needed.
-         * A degenerate step has |theta_dual| < 1e-12, indicating near-zero
-         * reduced cost and potential cycling. Perturb costs to break the cycle. */
-        check_and_perturb(s, theta_dual);
-
         /* The basis is about to change, so any verification of the point
          * it implied is spent. */
         s->verified = false;
@@ -1608,6 +1615,12 @@ static jaos_status run(sx *s, jaos_solve_status *out)
             return st;
 
         s->iters++;
+
+        /* Anti-stall: check for degenerate steps and apply perturbation if needed.
+         * A degenerate step has |theta_dual| < DEGENERATE_EPS (1e-14), indicating near-zero
+         * reduced cost and potential cycling. Perturb costs to break the cycle.
+         * Applied AFTER the pivot so the state remains consistent. */
+        check_and_perturb(s, theta_dual);
         if (s->phase == SX_PRIMAL)
             s->primal_iters++;
         else
