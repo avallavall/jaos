@@ -747,6 +747,109 @@ static void test_updates_are_bit_identical_across_runs(void)
     }
 }
 
+/* ---- density monitoring (M2 component 1) ------------------------------- */
+
+static void test_density_tracking_after_solves(void)
+{
+    /* Factor a dense 6×6 identity: every solve result is dense. */
+    mat m;
+    m.n = 6;
+    memset(m.a, 0, sizeof m.a);
+    for (int64_t i = 0; i < m.n; i++)
+        m.a[i][i] = 1.0;
+    mat_pack(&m);
+
+    jm_lu lu;
+    jm_work w = {0};
+    must_factor(&m, &lu, &w);
+
+    /* Stats are zero after a fresh factor. */
+    {
+        jm_lu_density_info ftran, btran;
+        jm_lu_density_report(&lu, &ftran, &btran);
+        TEST_ASSERT_EQUAL_INT64(0, ftran.calls);
+        TEST_ASSERT_EQUAL_INT64(0, btran.calls);
+        TEST_ASSERT_EQUAL_DOUBLE(0.10, ftran.density_threshold);
+        TEST_ASSERT_EQUAL_DOUBLE(0.10, btran.density_threshold);
+    }
+
+    /* FTRAN with a sparse RHS (1 nonzero out of 6): density = 1/6 ≈ 16.7%.
+     * Since 16.7% > threshold (10%), it counts as a dense call. */
+    double x[MAXN];
+    memset(x, 0, sizeof(double) * (size_t)m.n);
+    x[0] = 1.0;
+    jm_lu_ftran(&lu, x, &w);
+    {
+        jm_lu_density_info ftran, btran;
+        jm_lu_density_report(&lu, &ftran, &btran);
+        TEST_ASSERT_EQUAL_INT64(1, ftran.calls);
+        TEST_ASSERT_EQUAL_INT64(1, ftran.dense_calls);
+        TEST_ASSERT_FALSE(ftran.hyper_sparse);   /* EMA > threshold */
+        TEST_ASSERT_TRUE(ftran.running_density > 0.10);
+        TEST_ASSERT_EQUAL_INT64(0, btran.calls);  /* BTRAN untouched */
+    }
+
+    /* BTRAN with the same sparse RHS: also dense. */
+    memset(x, 0, sizeof(double) * (size_t)m.n);
+    x[3] = 1.0;
+    jm_lu_btran(&lu, x, &w);
+    {
+        jm_lu_density_info ftran, btran;
+        jm_lu_density_report(&lu, &ftran, &btran);
+        TEST_ASSERT_EQUAL_INT64(1, ftran.calls);   /* FTRAN unchanged */
+        TEST_ASSERT_EQUAL_INT64(1, btran.calls);
+        TEST_ASSERT_EQUAL_INT64(1, btran.dense_calls);
+        TEST_ASSERT_FALSE(btran.hyper_sparse);
+    }
+
+    /* A second FTRAN: EMA should be stable (both calls had same density). */
+    memset(x, 0, sizeof(double) * (size_t)m.n);
+    x[0] = 1.0;
+    jm_lu_ftran(&lu, x, &w);
+    {
+        jm_lu_density_info ftran, btran;
+        jm_lu_density_report(&lu, &ftran, &btran);
+        TEST_ASSERT_EQUAL_INT64(2, ftran.calls);
+        TEST_ASSERT_EQUAL_INT64(2, ftran.dense_calls);
+        /* EMA after two identical-density calls: 0.9*0.1667 + 0.1*0.1667 = 0.1667 */
+        TEST_ASSERT_TRUE(ftran.running_density > 0.10);
+    }
+
+    jm_lu_free(&lu);
+}
+
+static void test_density_resets_on_refactorization(void)
+{
+    /* Factor, do a solve, then factor again — stats must reset. */
+    mat m;
+    m.n = 4;
+    memset(m.a, 0, sizeof m.a);
+    for (int64_t i = 0; i < m.n; i++)
+        m.a[i][i] = 1.0;
+    mat_pack(&m);
+
+    jm_lu lu;
+    jm_work w = {0};
+    must_factor(&m, &lu, &w);
+
+    double x[MAXN];
+    memset(x, 0, sizeof(double) * (size_t)m.n);
+    x[0] = 1.0;
+    jm_lu_ftran(&lu, x, &w);
+
+    /* Refactorize — stats should reset. */
+    must_factor(&m, &lu, &w);
+    {
+        jm_lu_density_info ftran, btran;
+        jm_lu_density_report(&lu, &ftran, &btran);
+        TEST_ASSERT_EQUAL_INT64(0, ftran.calls);
+        TEST_ASSERT_EQUAL_INT64(0, btran.calls);
+        TEST_ASSERT_EQUAL_DOUBLE(0.0, ftran.running_density);
+    }
+
+    jm_lu_free(&lu);
+}
+
 int main(void)
 {
     UNITY_BEGIN();
@@ -768,5 +871,7 @@ int main(void)
     RUN_TEST(test_update_with_the_same_column_is_stable);
     RUN_TEST(test_update_rejects_bad_arguments);
     RUN_TEST(test_updates_are_bit_identical_across_runs);
+    RUN_TEST(test_density_tracking_after_solves);
+    RUN_TEST(test_density_resets_on_refactorization);
     return UNITY_END();
 }

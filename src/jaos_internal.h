@@ -299,7 +299,28 @@ typedef struct {
 
     double *tmp;         /* [dim] solve workspace, owned */
     double *spike;       /* [dim] update workspace, owned */
+
+    /* Density monitoring for M2 hyper-sparsity gate.
+     * Reset by jm_lu_factor (after each refactorization). */
+    int64_t ftran_calls, btran_calls;
+    int64_t ftran_dense, btran_dense;
+    double  ftran_density_ema, btran_density_ema;
+    bool    ftran_hyper_sparse, btran_hyper_sparse;
+    double  density_threshold;   /* default 0.10 (10%) */
 } jm_lu;
+
+/* Density report for M2 hyper-sparse gate. */
+typedef struct {
+    int64_t calls;
+    int64_t dense_calls;
+    double  running_density;
+    bool    hyper_sparse;
+    double  density_threshold;
+} jm_lu_density_info;
+
+/* Fills *ftran and *btran with the current density monitoring stats. */
+void jm_lu_density_report(const jm_lu *lu, jm_lu_density_info *ftran,
+                          jm_lu_density_info *btran);
 
 void jm_lu_init(jm_lu *lu);
 void jm_lu_free(jm_lu *lu);

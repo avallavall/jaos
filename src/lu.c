@@ -42,6 +42,32 @@ constexpr double DROP_REL = 1e-14;
 constexpr double TINY = 1e-300;
 
 /* --------------------------------------------------------------------- */
+/* Density monitoring helpers (M2 component 1)                            */
+/* --------------------------------------------------------------------- */
+
+/* Updates the running density stats for the hyper-sparse gate. Called
+ * at the end of each FTRAN or BTRAN after the result density is known. */
+static void update_density_stats(jm_lu *lu, bool is_ftran, int64_t nnz_result)
+{
+    int64_t *calls = is_ftran ? &lu->ftran_calls : &lu->btran_calls;
+    int64_t *dense = is_ftran ? &lu->ftran_dense : &lu->btran_dense;
+    double  *ema   = is_ftran ? &lu->ftran_density_ema : &lu->btran_density_ema;
+    bool    *hs    = is_ftran ? &lu->ftran_hyper_sparse : &lu->btran_hyper_sparse;
+
+    double dens = (double)nnz_result / (double)lu->dim;
+    if (*calls == 0) {
+        *ema = dens;
+    } else {
+        /* EMA with alpha = 0.1, smoothing over ~10 calls. */
+        *ema = 0.9 * *ema + 0.1 * dens;
+    }
+    (*calls)++;
+    if (dens > lu->density_threshold)
+        (*dense)++;
+    *hs = *ema < lu->density_threshold;
+}
+
+/* --------------------------------------------------------------------- */
 /* Sparse vectors                                                        */
 /* --------------------------------------------------------------------- */
 
@@ -330,6 +356,7 @@ static void compact_pivot_row(elim *e, int64_t pi, int64_t step)
 void jm_lu_init(jm_lu *lu)
 {
     memset(lu, 0, sizeof *lu);
+    lu->density_threshold = 0.10;
 }
 
 void jm_lu_free(jm_lu *lu)
@@ -399,6 +426,13 @@ jaos_status jm_lu_factor(jm_lu *lu, int64_t dim,
 
     jm_lu_free(lu);
     lu->dim = dim;
+
+    /* Reset density monitoring stats for the new factorization. */
+    lu->ftran_calls = lu->btran_calls = 0;
+    lu->ftran_dense = lu->btran_dense = 0;
+    lu->ftran_density_ema = lu->btran_density_ema = 0.0;
+    lu->ftran_hyper_sparse = lu->btran_hyper_sparse = false;
+    lu->density_threshold = 0.10;
 
     jaos_status st = JAOS_OK;
     elim e = {0};
@@ -702,6 +736,12 @@ void jm_lu_ftran(jm_lu *lu, double *x, jm_work *w)
         jm_work_add(w, col->n * JM_WORK_NONZERO);
     }
 
+    /* Count nonzeros for density monitoring. */
+    int64_t ftran_nnz = 0;
+    for (int64_t s = 0; s < n; s++)
+        if (y[s] != 0.0) ftran_nnz++;
+    update_density_stats(lu, true, ftran_nnz);
+
     for (int64_t s = 0; s < n; s++)
         x[lu->perm_col[s]] = y[s];
 }
@@ -747,8 +787,34 @@ void jm_lu_btran(jm_lu *lu, double *x, jm_work *w)
         jm_work_add(w, (lu->l_start[s + 1] - lu->l_start[s]) * JM_WORK_NONZERO);
     }
 
+    /* Count nonzeros for density monitoring. */
+    int64_t btran_nnz = 0;
+    for (int64_t s = 0; s < n; s++)
+        if (y[s] != 0.0) btran_nnz++;
+    update_density_stats(lu, false, btran_nnz);
+
     for (int64_t s = 0; s < n; s++)
         x[lu->perm_row[s]] = y[s];
+}
+
+/* --------------------------------------------------------------------- */
+/* Density report (M2 component 1)                                        */
+/* --------------------------------------------------------------------- */
+
+void jm_lu_density_report(const jm_lu *lu, jm_lu_density_info *ftran,
+                          jm_lu_density_info *btran)
+{
+    ftran->calls            = lu->ftran_calls;
+    ftran->dense_calls      = lu->ftran_dense;
+    ftran->running_density  = lu->ftran_density_ema;
+    ftran->hyper_sparse     = lu->ftran_hyper_sparse;
+    ftran->density_threshold = lu->density_threshold;
+
+    btran->calls            = lu->btran_calls;
+    btran->dense_calls      = lu->btran_dense;
+    btran->running_density  = lu->btran_density_ema;
+    btran->hyper_sparse     = lu->btran_hyper_sparse;
+    btran->density_threshold = lu->density_threshold;
 }
 
 /* --------------------------------------------------------------------- */
