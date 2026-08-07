@@ -223,8 +223,15 @@ typedef struct jaos_check_report {
  * maximization every sign flips. Fixed rows and columns (equal bounds)
  * accept any multiplier sign.
  *
- * tol is an absolute tolerance on violations; the objective gap is compared
- * as a relative quantity. */
+ * tol is absolute where it measures a residual — the primal violations
+ * above are magnitudes in the model's own units, and tol is compared
+ * against them directly. It is scaled where it decides whether a value
+ * rests on a bound: a row activity is a sum, and how precisely a sum can be
+ * placed is set by the terms that went into it, not by the total they came
+ * to. That window is tol times the sum of the magnitudes of the row's terms
+ * (times max(1, |x_j|) for a column). The objective gap is compared as a
+ * relative quantity. docs/tolerances.md carries every formula; DECISIONS.md
+ * D23 carries why the two are not the same kind of test. */
 JAOS_NODISCARD jaos_status jaos_check_solution(const jaos_model *m,
     const double *col_value, const double *row_dual, double tol,
     jaos_check_report *out);
