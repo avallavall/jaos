@@ -33,7 +33,7 @@ fit2p        optimal    rows=3000 cols=13525 shape=ok iters=4882 work=973653469 
 forplan      optimal    rows=161 cols=421 shape=ok iters=211 work=1869738 obj=-664.21896127220464 ref=-664.21896127220452[koch] objective=ok checker=ok (col=0 row=2.91e-12 rowrel=8.69e-17 dual=0 gap=3.18e-16 Q=3.01e-12 N=4.53e-13) det=ok digest=73892da8d88917fc
 ganges       optimal    rows=1309 cols=1681 shape=ok iters=1349 work=24267679 obj=-109585.73612927819 ref=-109585.73612927811[koch] objective=ok checker=ok (col=0 row=1.46e-11 rowrel=3.93e-16 dual=0 gap=2.05e-15 Q=8.31e-10 N=3.8e-10) det=ok digest=8d5201f1e19e82c0
 gfrd-pnc     optimal    rows=616 cols=1092 shape=ok iters=573 work=5699781 obj=6902235.9995488124 ref=6902235.9995488087[koch] objective=ok checker=ok (col=0 row=7.05e-12 rowrel=7.05e-12 dual=0 gap=8.37e-18 Q=2.96e-09 N=1.21e-09) det=ok digest=fc1b7895bf8ce6ad
-greenbea     optimal    rows=2392 cols=5405 shape=ok iters=14962 work=1296829127 obj=-72555248.129846007 ref=-72555248.129845992[koch] objective=ok checker=ok (col=1.3e-13 row=2.87e-08 rowrel=9.32e-13 dual=0 gap=2.02e-17 Q=9.88e-08 N=6.1e-08) det=ok digest=0e5c4431f6dbe8e7
+greenbea     optimal    rows=2392 cols=5405 shape=ok iters=14962 work=1296079725 obj=-72555248.129846036 ref=-72555248.129845992[koch] objective=ok checker=ok (col=1.15e-27 row=5.16e-08 rowrel=1.48e-16 dual=0 gap=9.22e-17 Q=8.89e-08 N=6.74e-08) det=ok digest=ac0045bda690732b
 greenbeb     optimal    rows=2392 cols=5405 shape=ok iters=9016 work=699790771 obj=-4302260.2612065859 ref=-4302260.2612065868[koch] objective=ok checker=ok (col=3.16e-26 row=9.83e-12 rowrel=1.63e-16 dual=0 gap=5.23e-18 Q=3.53e-10 N=1.88e-10) det=ok digest=be088708096b6df9
 grow15       optimal    rows=300 cols=645 shape=ok iters=21653 work=351786691 obj=-106870941.29357535 ref=-106870941.29357533[koch] objective=ok checker=ok (col=0 row=1.03e-10 rowrel=9.04e-16 dual=0 gap=1.93e-16 Q=4.9e-08 N=5.21e-09) det=ok digest=79c20cdb44cbfc3c
 grow22       optimal    rows=440 cols=946 shape=ok iters=2179 work=54308240 obj=-160834336.48256299 ref=-160834336.48256296[koch] objective=ok checker=ok (col=0 row=3.64e-10 rowrel=1.05e-14 dual=0 gap=1.89e-16 Q=7.49e-08 N=1.18e-08) det=ok digest=d7b4d03c4be3c0a1
@@ -46,11 +46,11 @@ maros-r7     optimal    rows=3136 cols=9408 shape=ok iters=10479 work=2152898325
 modszk1      optimal    rows=687 cols=1620 shape=ok iters=797 work=12700768 obj=320.61972906414127 ref=320.61972906431578[koch] objective=ok checker=ok (col=0 row=2.96e-11 rowrel=1.71e-16 dual=0 gap=3.14e-13 Q=5.38e-10 N=3.44e-10) det=ok digest=a54c113ee0f2e0c8
 nesm         optimal    rows=662 cols=2923 shape=ok iters=2930 work=94558377 obj=14076036.487562712 ref=14076036.487562729[koch] objective=ok checker=ok (col=0 row=1e-08 rowrel=1e-08 dual=0 gap=2.3e-16 Q=1.93e-08 N=8.93e-09) det=ok digest=7eb5fe76b13f7199
 perold       optimal    rows=625 cols=1376 shape=ok iters=3228 work=100498721 obj=-9380.7552782351595 ref=-9380.7552782351613[koch] objective=ok checker=ok (col=5.55e-18 row=1.87e-10 rowrel=3.04e-16 dual=0 gap=3.66e-14 Q=5.91e-10 N=2.7e-12) det=ok digest=6a2c2ee84071b8a5
-pilot        optimal    rows=1441 cols=3652 shape=ok iters=24784 work=5533266449 obj=-557.48970616317456 ref=-557.48972928406818[koch] objective=ok checker=ok (col=0 row=6.73e-13 rowrel=2.32e-16 dual=0 gap=1.32e-10 Q=5.91e-08 N=1.57e-13) det=ok digest=10fbe12f21d689b7
+pilot        optimal    rows=1441 cols=3652 shape=ok iters=25342 work=5744270939 obj=-557.48970616317422 ref=-557.48972928406818[koch] objective=ok checker=ok (col=0 row=9.09e-13 rowrel=3.48e-16 dual=0 gap=3.62e-11 Q=2.76e-08 N=1.36e-13) det=ok digest=7461123dedbd0bba
 pilot-ja     optimal    rows=940 cols=1988 shape=ok iters=3329 work=156303421 obj=-6113.1364655813441 ref=-6113.1364655813431[koch] objective=ok checker=ok (col=9.09e-13 row=3.03e-10 rowrel=3.43e-16 dual=0 gap=2.18e-14 Q=7.76e-11 N=1.29e-12) det=ok digest=1b31f1ee5521eea6
 pilot-we     optimal    rows=722 cols=2789 shape=ok iters=5739 work=215762829 obj=-2720107.5328449644 ref=-2720107.5328449639[koch] objective=ok checker=ok (col=8.63e-32 row=3.37e-10 rowrel=1.49e-16 dual=0 gap=3.76e-16 Q=6.35e-09 N=1.24e-09) det=ok digest=face0eb3b4c6a50c
 pilot4       optimal    rows=410 cols=1000 shape=ok iters=685 work=17486355 obj=-2581.1392588838889 ref=-2581.1392588838885[koch] objective=ok checker=ok (col=0 row=1.33e-10 rowrel=2.3e-16 dual=0 gap=2.18e-17 Q=2.92e-12 N=9.28e-13) det=ok digest=a8f9f22137cda6e2
-pilot87      optimal    rows=2030 cols=4883 shape=ok iters=50893 work=23747832220 obj=301.71262909440185 ref=301.71034733311052[koch] objective=OUT-OF-TOLERANCE checker=REJECTED (col=0 row=4.74e-09 rowrel=1.58e-10 dual=1.87e-05 gap=2.75e-08 Q=6.67e-10 N=4.16e-10) det=ok digest=5b3550ffb1a7118a
+pilot87      optimal    rows=2030 cols=4883 shape=ok iters=50850 work=23547935117 obj=301.71038732387791 ref=301.71034733311052[koch] objective=ok checker=ok (col=0 row=4.56e-12 rowrel=3.86e-16 dual=0 gap=4.88e-13 Q=3.26e-10 N=5.03e-14) det=ok digest=6dcc94b313ca4bb9
 pilotnov     optimal    rows=975 cols=2172 shape=ok iters=3585 work=153513735 obj=-4497.2761882188879 ref=-4497.2761882188715[koch] objective=ok checker=ok (col=9.64e-13 row=2.93e-09 rowrel=2.41e-10 dual=0 gap=8.53e-14 Q=7.85e-10 N=1.76e-11) det=ok digest=4d64a0139ca832a7
 recipe       optimal    rows=91 cols=180 shape=ok iters=46 work=84825 obj=-266.61600000000027 ref=-266.61599999999999[koch] objective=ok checker=ok (col=0 row=0 rowrel=0 dual=0 gap=1.22e-16 Q=7.7e-14 N=0) det=ok digest=6b64a3a29febbd80
 sc105        optimal    rows=105 cols=103 shape=ok iters=106 work=182542 obj=-52.202061211707246 ref=-52.202061211707246[koch] objective=ok checker=ok (col=0 row=4.26e-14 rowrel=7.28e-17 dual=0 gap=4.81e-17 Q=3.43e-14 N=1.73e-14) det=ok digest=a80e7dc11cc804e9
@@ -93,9 +93,11 @@ vtp-base     optimal    rows=198 cols=203 shape=ok iters=132 work=501303 obj=129
 wood1p       optimal    rows=244 cols=2594 shape=ok iters=335 work=31544992 obj=1.442902411573409 ref=1.4429024115734093[koch] objective=ok checker=ok (col=3.47e-17 row=2.65e-14 rowrel=1.25e-14 dual=0 gap=2.31e-11 Q=1.32e-14 N=1.73e-16) det=ok digest=076f0c80db1dd74a
 woodw        optimal    rows=1098 cols=8405 shape=ok iters=1713 work=132794505 obj=1.3044763330842295 ref=1.3044763330842293[koch] objective=ok checker=ok (col=0 row=4.36e-14 rowrel=1.23e-16 dual=0 gap=5.29e-18 Q=3.43e-16 N=1.68e-16) det=ok digest=8dc05447fd6bdaac
 
-94 instances: 94 solved, 94 shape ok, 93 objective ok, 93 checker ok, 94 deterministic, 0 failed
-gate: NOT MET
+94 instances: 94 solved, 94 shape ok, 94 objective ok, 94 checker ok, 94 deterministic, 0 failed
+gate: PASS
 
 -- against baseline --
 pilot        improved     checker: no -> yes (optimal -> optimal)
-baseline: 0 regressed, 1 improved, 0 new
+pilot87      improved     objective: no -> yes (optimal -> optimal)
+pilot87      improved     checker: no -> yes (optimal -> optimal)
+baseline: 0 regressed, 3 improved, 0 new

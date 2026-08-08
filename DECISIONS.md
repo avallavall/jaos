@@ -1148,3 +1148,77 @@ everything before it. Six of the seven instances the checker once rejected
 have now closed — `pilot-ja` (D21), `finnis` (D23), `nesm` (D25), `etamacro`
 (D27), `greenbea` (D28) and `pilot` here — and not one of them by moving a
 tolerance.
+
+---
+
+## D30 — The primal clean-up judges every candidate before it moves any of them, and against the costs the model owns
+
+D28 built `primal_cleanup` and closed `greenbea` with it in eight pivots. It
+had two defects, both invisible from the outcome, and together they were the
+whole of what stood between `pilot87` and the M1 gate.
+
+**The first is an aliased vector.** `wants_a_pivot` calls `column_traffic`,
+which reads `s->rho` expecting the duals `compute_duals` left there —
+`column_traffic`'s own comment says so, and warns that "price_and_select
+overwrites `rho` with a pricing row mid-solve, so this would be wrong if
+called from anywhere else". `primal_cleanup` is anywhere else: its first
+pivot builds row `r` of `B^-1` in `rho` and never puts the duals back.
+
+Measured on `pilot87`, every round: **12 candidates on entry, one pivot, zero
+candidates on exit.** Not fewer — none. The traffic computed from a pricing
+row is large enough that the noise test refuses every remaining column, so
+the loop could only ever take one pivot per call. `greenbea`'s eight pivots
+were eight separate rounds of the re-entry, which is exactly why nothing
+looked wrong.
+
+**The second is why fixing the first changed nothing.** Collecting the
+candidates up front, while `rho` is still the duals, leaves the run **bit for
+bit identical** — and that is the measurement that found the real mechanism.
+`pivot()` runs `shift_to_feasible` over every variable, and that routine sets
+`d[v] = 0` and books a loan. So the pivot before did not *repair* the other
+candidates' sign conditions; it **lent them away**. A routine whose entire
+job is the residue that settling reveals was reading costs that had just been
+papered over, and finding nothing to do.
+
+**The repair is to call in each candidate's own loan before judging it.**
+Shifting a nonbasic's cost moves only that variable's reduced cost — the
+duals come from the basic costs alone, which is the locality argument
+`shift_to_feasible` is already written on — so taking it back is exact and
+touches nothing else. It is the same act `settle_shifts` performs at the end,
+performed one column at a time at the moment that column is being decided.
+
+**And one piece of D29 was incomplete, which only this made visible.** D29
+refines the two solves at the refresh that verifies an optimum, on the
+grounds that the numbers there are the answer rather than an input to a pivot
+choice. That rule is right and it was applied to one caller of three. With
+`primal_cleanup` now taking several pivots, `pilot` began ending on the
+refresh that rebuilds *after* a clean-up — which was not refining — and its
+row residue came back at `1.89e-6`, the very number D29 had removed. The fix
+is not a new rule but the existing one applied where it belongs: every
+refresh whose result can be published refines, and there are three.
+
+**Measured on all three sets.**
+
+| | before | after |
+|---|---|---|
+| `pilot87` objective | 301.71262909440185 | **301.71038732387791** |
+| Koch's exact value | 301.71034733311052 | relative error `2.28e-3` → **`1.33e-7`** |
+| `pilot87` dual violation | 1.87e-5 | **0** |
+| `pilot87` gap | 2.75e-8 | 4.88e-13 |
+| `pilot87` work | 23747832220 | 23547935117 — it got *cheaper* |
+| `pilot87` checker | REJECTED | **ok** |
+
+Standard set: **0 regressed, 3 improved, 0 new**, and **`gate: PASS`** —
+94 of 94 solved, on objective, on the checker and deterministic. 92 of the 94
+take exactly their baseline iteration count; only `pilot` (+1.9%) and
+`pilot87` (−0.08%) move at all, and total work over the set falls 0.014%.
+The infeasible set is 0/0/0 and still PASS.
+
+**What the objective trajectory said, and it is the reason this was worth
+chasing rather than declaring an exception.** `pilot87` reached 301.71501 on
+its first settled point — `4.66e-3` above the optimum — and the re-entry
+recovered half of that in six rounds and then ground for twenty-five more,
+buying `7e-5`, not monotonically, before stopping at `SETTLE_ROUNDS`. D25
+records that cap as "a backstop and not a limit meant to bind". On `pilot87`
+it bound, and what it was capping was a loop that could take one pivot per
+round when twelve were waiting.

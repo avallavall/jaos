@@ -812,10 +812,12 @@ static bool repair_singular_basis(sx *s)
  * which for a basis the algorithm itself assembled means the numerics have
  * failed rather than the model.
  *
- * `refine` asks the two solves for one step of iterative refinement, and
- * exactly one caller asks for it: the refresh that verifies a declaration
- * of optimality (D20). The line between the two is not a cost-saving, it is
- * what the numbers are being used for (D29).
+ * `refine` asks the two solves for one step of iterative refinement, and the
+ * callers that ask are the ones whose result can be published: the refresh
+ * that verifies a declaration of optimality (D20), the one that rebuilds
+ * after a primal clean-up, and the one that restores a settled point. The
+ * line between those and the rest is not a cost-saving, it is what the
+ * numbers are being used for (D29).
  *
  * Mid-solve, x_B and y are inputs to a choice of pivot, and a trajectory is
  * not more correct for being computed from more accurate numbers. Refining
@@ -1554,7 +1556,7 @@ static jaos_status restore_settled(sx *s, bool *ok)
         s->where[s->basis[i]] = i;
 
     s->needs_refactor = true;
-    return refresh(s, ok, false);
+    return refresh(s, ok, true);
 }
 
 /* Makes the settled point dual feasible again.
@@ -1778,14 +1780,52 @@ static int64_t primal_ratio_test(sx *s, int64_t q, bool *below)
  * above has neither. The point stays primal feasible: the ratio test is
  * what makes it so. And the objective cannot rise: `d_q` points the way q
  * travels, so every step is a descent, and a degenerate step of zero
- * changes the basis without changing the point. */
+ * changes the basis without changing the point.
+ *
+ * **Which columns want one is decided before any of them gets one, and that
+ * is not an optimisation (D30).** `wants_a_pivot` reads `column_traffic`,
+ * which reads `s->rho` expecting the duals compute_duals left there — and
+ * the first pivot of this loop overwrites `rho` with a pricing row. Asking
+ * the question again after that is asking it of a vector that no longer
+ * means what the test assumes, and measured on `pilot87` the answer it gives
+ * is *no* for every remaining column, every time: 12 candidates on entry,
+ * one pivot, zero candidates on exit. The loop could only ever take one
+ * pivot per call. `greenbea`'s eight were eight separate rounds of the
+ * re-entry, which is why nothing looked wrong.
+ *
+ * So the candidates are collected first, while `rho` is still the duals, and
+ * what is re-checked per candidate reads only `d` and the loan against it —
+ * never `rho` again. */
 static jaos_status primal_cleanup(sx *s, int64_t *pivots)
 {
     *pivots = 0;
 
-    for (int64_t q = 0; q < s->nvar; q++) {
-        if (!wants_a_pivot(s, q))
-            continue;
+    /* Borrowed: `cand` is the dual ratio test's candidate set, and no dual
+     * iteration is in flight here. */
+    int64_t n = 0;
+    for (int64_t v = 0; v < s->nvar; v++)
+        if (wants_a_pivot(s, v))
+            s->cand[n++] = v;
+
+    for (int64_t k = 0; k < n; k++) {
+        int64_t q = s->cand[k];
+        if (s->status[q] == JM_BASIC)
+            continue;      /* an earlier pivot of this pass took it in */
+
+        /* Call in this column's own loan before judging it. `pivot()` runs
+         * shift_to_feasible over every variable, so the pivot before this
+         * one did not repair the other candidates' sign conditions — it lent
+         * them away, and a routine whose whole job is the residue settling
+         * reveals must not read a cost that has just been papered over.
+         * Shifting a nonbasic's cost moves only its own reduced cost, which
+         * is what makes taking it back here exact and local. */
+        if (s->shift[q] != 0.0) {
+            s->cost[q] -= s->shift[q];
+            s->d[q] -= s->shift[q];
+            s->shift[q] = 0.0;
+        }
+        if (dual_breach(s, q) == 0.0)
+            continue;      /* an earlier pivot of this pass really did fix it */
 
         bool below = false;
         int64_t r = primal_ratio_test(s, q, &below);
@@ -1877,7 +1917,7 @@ static jaos_status reenter_after_settling(sx *s)
             bool ok = false;
             s->verified = false;
             s->needs_refactor = true;
-            st = refresh(s, &ok, false);
+            st = refresh(s, &ok, true);
             if (st != JAOS_OK)
                 return st;
             if (!ok) {

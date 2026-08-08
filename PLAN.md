@@ -218,8 +218,8 @@ Remaining:
    |---|---|
    | shape correct | **94 / 94** |
    | solved to optimal | **94 / 94** |
-   | objective within tolerance | 93 / 94 |
-   | independent checker green | 93 / 94 |
+   | objective within tolerance | **94 / 94** |
+   | independent checker green | **94 / 94** |
    | deterministic across two solves | **94 / 94** |
 
    The readers are the part that came out clean: every instance in the set
@@ -869,7 +869,7 @@ in aggregate is what §2.8 has just finished being a lesson about.
 
 | # | Condition | Status |
 |---|---|---|
-| 1a | Netlib **standard** set: `OPTIMAL`, objective within §2.6 tolerance, checker green | **not met** — 94/94 solved, 93 objective, 93 checker |
+| 1a | Netlib **standard** set: `OPTIMAL`, objective within §2.6 tolerance, checker green | **met** — 94/94 solved, 94 objective, 94 checker, `gate: PASS` |
 | 1b | **Kennington** subset, for correctness with no performance expectation | **met** — 16/16, every condition, `ken-18` at 105127x154699 included |
 | 1c | **Infeasible** subset: classified `INFEASIBLE`, no false optima | **met** — 29/29 refused, no false optima; `gran` closed by the basis repair (§2.8.2) |
 | 2 | Determinism harness green on every instance (D8) | **met** — 94/94 on the standard set, 16/16 Kennington, 29/29 infeasible |
@@ -882,27 +882,35 @@ in every conversation so far, and 1b and 1c had no infrastructure behind them
 at all — which is worth stating plainly, because the distance to M1 is not
 the distance to closing seven instances.
 
-**Six of the seven now hold.** What is left is condition 1a alone, and it is
-**one instance of the standard 94**:
+**All seven now hold, and `make netlib` reports `gate: PASS`.** Every
+instance of the standard 94 solves, is deterministic, is within objective
+tolerance and is accepted by the independent checker.
 
-- **`pilot87`**, missing its objective by 7.6x — `2.28e-3` of error against a
-  tolerance of `3.02e-4`. Its dual violation is `1.87e-5` and its gap
-  `2.75e-8`. Nothing built so far moves it, and it is the worst-conditioned
-  model in the set.
+The last two closed within a day of each other and neither was a tolerance:
 
-- **`pilot` is closed (D29), and it was a residual of the basis solve.** It
-  had been rejected on one row lying `1.73e-6` outside its bound and on
-  nothing else, with its objective inside tolerance, its dual violation
-  exactly `0` and its gap `6.6e-14`. That looked like the *primal* residue
-  D24 is about, and measuring it said it was not: no basic variable is
-  outside its bound in the solver's own arithmetic, and the `1.73e-6` is the
-  disagreement between the solver's carried row activity and the checker's
-  recomputation of it. The residual of `x_B = -B^-1 (N x_N)` at the accepted
-  point is `7.06e-6` in the space the checker reads; one step of iterative
-  refinement leaves `9.09e-13`, and the row goes to `6.73e-13`.
-
-Every instance in the set now solves, every one is deterministic, and 93 of
-the 94 are within objective tolerance.
+- **`pilot` (D29) was a residual of the basis solve.** It had been rejected
+  on one row lying `1.73e-6` outside its bound and on nothing else, with its
+  objective inside tolerance, its dual violation exactly `0` and its gap
+  `6.6e-14`. That looked like the *primal* residue D24 is about, and
+  measuring it said it was not: no basic variable is outside its bound in the
+  solver's own arithmetic, and the `1.73e-6` is the disagreement between the
+  solver's carried row activity and the checker's recomputation of it. The
+  residual of `x_B = -B^-1 (N x_N)` at the accepted point is `7.06e-6` in the
+  space the checker reads; one step of iterative refinement leaves `9.09e-13`,
+  and the row goes to `6.73e-13`.
+- **`pilot87` (D30) was a clean-up loop that could take one pivot per call.**
+  Its objective was `2.28e-3` out against a tolerance of `3.02e-4` and its
+  dual violation `1.87e-5`, and it was read for a long time as the
+  worst-conditioned model in the set having simply run out of precision.
+  It had not. `primal_cleanup` asks `wants_a_pivot`, which reads the duals
+  out of `rho`; its own first pivot overwrites `rho` with a pricing row, so
+  from the second candidate onwards the question was being asked of the wrong
+  vector — 12 candidates on entry, one pivot, zero on exit, every round.
+  Underneath that, `pivot()` runs `shift_to_feasible` over every variable, so
+  the first pivot *lends away* the other candidates' sign conditions rather
+  than repairing them. Judging each candidate before any of them moves, and
+  calling in its own loan first, takes the objective to `1.33e-7` relative
+  and the dual violation to `0` — for less work than before.
 
 §2.8.1 records what each of the closures was, measured rather than grouped by
 the size of the number reported — because the number the checker reports is
@@ -911,20 +919,23 @@ anything is from where it should be. That mistake cost `finnis` months in the
 wrong group; it was the most accurate answer of the seven and was closed by
 D23.
 
-Worth stating because it changes what 1a is asking for. The remaining gap is
-no longer "the solver cannot finish" anywhere, and it is no longer "the
-solver reaches a wrong answer" anywhere except `pilot87`. Of the seven
-instances the checker once rejected, **six have closed and not one of them by
-moving a tolerance**: `pilot-ja` was a contribution the checker was dropping
-(D21), `finnis` a bound-proximity test judged absolutely on a row that
-cancels ten orders of magnitude (D23), `nesm` a settled basis the method had
-never been handed back (D25), `etamacro` a repair test reading the wrong
-quantity in the wrong space (D27), and `greenbea` a column with nowhere to
-rest, which needed a basis change rather than a move (D28). `grow15`, which
-was a different kind of failure, was a cycle read as a stall (D26).
+Of the seven instances the checker once rejected, **all seven have closed and
+not one of them by moving a tolerance**: `pilot-ja` was a contribution the
+checker was dropping (D21), `finnis` a bound-proximity test judged absolutely
+on a row that cancels ten orders of magnitude (D23), `nesm` a settled basis
+the method had never been handed back (D25), `etamacro` a repair test reading
+the wrong quantity in the wrong space (D27), `greenbea` a column with nowhere
+to rest, which needed a basis change rather than a move (D28), `pilot` a
+residual of the basis solve (D29) and `pilot87` a clean-up loop taking one
+pivot where twelve were waiting (D30). `grow15`, which was a different kind
+of failure, was a cycle read as a stall (D26).
 
-That is the strongest thing §2.6 has going for it: every failure anyone was
-tempted to blame on a number turned out to be something else.
+That is the strongest thing §2.6 has going for it: **every failure anyone was
+tempted to blame on a number turned out to be something else.** Not one of
+the eight was closed by widening a tolerance, and the two that were most
+readily explained as the limit of double precision — `etamacro`, which
+defeats CPLEX at defaults and SoPlex at 1e-6, and `pilot87`, the
+worst-conditioned model in the set — were both defects with a mechanism.
 
 ### What happens next, in order
 

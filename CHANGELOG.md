@@ -112,6 +112,15 @@ open, `bench/README.md` for the gate, and the commit each entry came from.
 
 ### Fixed
 
+- The primal clean-up decides which columns want a pivot before it moves any
+  of them, and calls in each candidate's own cost loan before judging it. It
+  had been able to take exactly one pivot per call: `wants_a_pivot` reads the
+  duals out of `rho`, which the first pivot overwrites with a pricing row, and
+  underneath that `pivot()` lends away every other candidate's sign condition.
+  `pilot87` goes from an objective `2.28e-3` out to `1.33e-7` relative, its
+  dual violation from `1.87e-5` to `0`, and it gets cheaper. **The standard
+  Netlib gate now reports PASS** — 94 of 94 on every condition. 0 regressed,
+  3 improved; 92 of the 94 keep their exact iteration count (D30).
 - The refresh that verifies a declaration of optimality refines its two
   solves — one step of iterative refinement on `x_B` and on `y`. `pilot` was
   rejected on a row `1.73e-6` outside its bound that no basic variable
