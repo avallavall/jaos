@@ -238,7 +238,10 @@ violation is exactly zero, the gap is `6.6e-14`. What refuses it is
 `interval_violation`, an absolute test, on a row 1.73 times the tolerance
 out. D24 refused to make that test relative for four reasons; D28 records
 that one of them — "the change buys no verdict, since `pilot` is rejected on
-the gap and the objective anyway" — has expired. The other three stand, and
+the gap and the objective anyway" — has expired, and what replaced it is
+stronger: the relative figure says `pilot`'s row is `6.93e-9` of what the row
+carries, against `8.21e-17` for `finnis`, so a relative window would wave
+through a violation that is real. The other three arguments stand, and
 the first is still sufficient on its own: primal feasibility is the
 hypothesis D23's identity rests on rather than a test beside it. The only
 form worth revisiting is the one D24 already names, `min(tol, tol·s)`, which

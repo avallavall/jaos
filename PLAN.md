@@ -879,8 +879,9 @@ the distance to closing seven instances.
 - **`pilot`**, rejected on one row lying `1.73e-6` outside its bound and on
   nothing else. Its objective is within tolerance, its dual violation is
   exactly `0` and its gap is `6.6e-14`. This is a *primal* residue and it is
-  the number D24 is about; D28 records that it retires one of D24's four
-  arguments, since that argument was "the change buys no verdict".
+  the number D24 is about. One of D24's four arguments expired with this —
+  it was "the change buys no verdict" — and the measurement that replaced it
+  says a relative rule would now buy the wrong one.
 - **`pilot87`**, still missing its objective by 7.6x — `2.28e-3` of error
   against a tolerance of `3.02e-4`. Its dual violation is `1.87e-5` and its
   gap `2.75e-8`. Nothing built so far moves it, and it is the
@@ -955,11 +956,16 @@ gate started with.**
    names: `min(tol, tol·s)`, which narrows and can only turn acceptances
    into rejections.
 
-   What has *not* been measured is where `pilot`'s row residue comes from now
-   that the basis is right. `1.73e-6` on a row is the primal side of the same
-   question §2.8.1 answered for the dual side by measuring traffic; nobody has
-   looked at it since the basis changed. That is the next measurement, and it
-   is cheap.
+   **Measured, and it is a real violation rather than rounding.** The
+   relative figure D24 put in the report answers it without a new run:
+   `pilot`'s row residue is `6.93e-9` of what the row carries, against
+   `8.21e-17` for `finnis`, `1.76e-16` for `adlittle` and `6.08e-14` for
+   `25fv47`. That is seven to nine orders above the band a healthy row sits
+   in — about 3e7 ulps of a row carrying 250. So `pilot`'s row really is
+   outside its bound, a relative window of `tol · s` would be `2.5e-4` wide
+   there and would wave it through, and D24's decision is now supported by a
+   measurement rather than by the absence of one. What is left on `pilot` is a
+   primal defect to find, not a tolerance to argue about.
 
 2. **`pilot87`, on its objective by 7.6x** — `2.28e-3` of error against
    `3.02e-4`. Its dual violation is `1.87e-5` and its gap `2.75e-8`, both

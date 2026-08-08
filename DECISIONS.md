@@ -610,6 +610,33 @@ been exhibited that the checker accepts, and there is a structural reason to
 expect difficulty — hiding `N` costs an equal `Q`, and `Q` is exactly what
 bounds the suboptimality.
 
+**One argument here expired and the measurement that replaced it is
+stronger (2026-08-08).** "Nothing is gained" rested on `pilot` being rejected
+on the gap and the objective as well, so that relaxing the row test bought no
+verdict. After D28 that is false: `pilot`'s objective is within tolerance and
+its dual violation is exactly zero, and the row is the only thing refusing it.
+A relative rule would now buy a verdict.
+
+It would buy the wrong one. `max_row_violation_relative`, which this decision
+put in the report, says so directly:
+
+| instance | row residue | relative to the row's traffic |
+|---|---|---|
+| `finnis` | 8.44e-7 | **8.21e-17** |
+| `adlittle` | 4.55e-13 | 1.76e-16 |
+| `25fv47` | 1.3e-12 | 6.08e-14 |
+| `nesm` | 1e-8 | 1e-8 |
+| **`pilot`** | **1.73e-6** | **6.93e-9** |
+
+`finnis` carries the larger absolute residue and is a *fraction of one ulp* of
+its row. `pilot` is seven to nine orders of magnitude above that band — about
+3e7 ulps of a row carrying 250. Its row is genuinely outside its bound, and a
+window of `tol · s` would be 2.5e-4 wide there and would wave through a real
+primal violation. So the decision stands on a measurement now rather than on
+the absence of one, and the "both too strict and too lax" finding above is
+unchanged: `finnis` still passes the absolute test on luck and `nesm` still
+passes it while 1e8 ulps out.
+
 **If this is ever revisited**, the only scale-aware form that is safe for a
 certificate is `min(tol, tol*s)` — narrowing. It can only turn acceptances
 into rejections, so it cannot invalidate a certificate the way widening
@@ -1013,8 +1040,14 @@ accordingly.** D24 refused to make the primal feasibility test relative, and
 one of its reasons was that the change *buys no verdict*: "exactly one
 instance of the 94 exceeds 1e-6 on a row — `pilot`, already rejected on the
 gap and on the objective." That premise is now false. `pilot` is rejected on
-the row alone. The other three arguments stand untouched, and the first of
-them is still sufficient on its own: primal feasibility is the hypothesis
-D23's identity rests on, not a test beside it. But the question is live again
-in a way it was not, and the safe form D24 names — `min(tol, tol·s)`,
-narrowing rather than widening — is the only one that could be revisited.
+the row alone, so a relative rule would buy a verdict.
+
+**It would buy the wrong one, and D24 now records the measurement.**
+`pilot`'s row residue is `6.93e-9` of what the row carries, where a healthy
+row sits at `1e-14` to `1e-17` — `finnis` carries a larger absolute residue at
+`8.21e-17` relative, a fraction of one ulp. `pilot`'s is about 3e7 ulps: the
+row is genuinely outside its bound. So the argument that expired has been
+replaced by a stronger one of the same shape, and D24's other three stand
+untouched — the first still sufficient alone, that primal feasibility is the
+hypothesis D23's identity rests on rather than a test beside it. What is left
+on `pilot` is a primal defect to find.

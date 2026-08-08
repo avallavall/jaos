@@ -39,7 +39,7 @@ fit2p        optimal      1 1 1 1 1 4882 973516665
 forplan      optimal      1 1 1 1 1 211 1867188
 ganges       optimal      1 1 1 1 1 1349 24246559
 gfrd-pnc     optimal      1 1 1 1 1 573 5695803
-greenbea     optimal      1 1 1 0 1 14954 1295279419
+greenbea     optimal      1 1 1 1 1 14962 1296788427
 greenbeb     optimal      1 1 1 1 1 9016 699748742
 grow15       optimal      1 1 1 1 1 21653 351767772
 grow22       optimal      1 1 1 1 1 2179 54279331
@@ -52,11 +52,11 @@ maros-r7     optimal      1 1 1 1 1 10479 21528689456
 modszk1      optimal      1 1 1 1 1 797 12691997
 nesm         optimal      1 1 1 1 1 2930 94540682
 perold       optimal      1 1 1 1 1 3228 100478458
-pilot        optimal      1 1 0 0 1 24705 5454585061
+pilot        optimal      1 1 1 0 1 24866 5559467003
 pilot-ja     optimal      1 1 1 1 1 3329 156272698
 pilot-we     optimal      1 1 1 1 1 5739 215745900
 pilot4       optimal      1 1 1 1 1 685 17471054
-pilot87      optimal      1 1 0 0 1 50616 23237603665
+pilot87      optimal      1 1 0 0 1 50893 23742552385
 pilotnov     optimal      1 1 1 1 1 3585 153486851
 recipe       optimal      1 1 1 1 1 46 84461
 sc105        optimal      1 1 1 1 1 106 181398
