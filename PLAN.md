@@ -206,7 +206,7 @@ Remaining:
    | shape correct | **94 / 94** |
    | solved to optimal | **94 / 94** |
    | objective within tolerance | 92 / 94 |
-   | independent checker green | 90 / 94 |
+   | independent checker green | 91 / 94 |
    | deterministic across two solves | **94 / 94** |
 
    The readers are the part that came out clean: every instance in the set
@@ -485,14 +485,13 @@ Remaining:
      is not merely tuning: it corrects a wrong answer on a model where no
      reference value is involved.
 
-     **And it is still wrong, because of what it does on `pds-20`.**
-     Instrumented there, the re-entry runs all 32 rounds without converging,
-     and **every column it flips has a reduced cost below `DUAL_TOL`** — the
-     smallest run from 2.2e-11 to 1.7e-10, three to four orders below what
-     this solver calls zero. Their contributions clear the threshold only
-     because the boxes are 900 to 4955 wide. Under the merged rule none of
-     those columns is movable and the re-entry never runs at all, which is
-     why `pds-20` costs 47785 iterations today.
+     **And on its own it is wrong, because of what it does to `pds-20`:
+     work 3.2x, 47785 iterations becoming 136750.** Instrumented there, the
+     re-entry runs all 32 rounds without converging, and **every column it
+     flips has a reduced cost below `DUAL_TOL`** — the smallest run from
+     2.2e-11 to 1.7e-10, three to four orders below what this solver calls
+     zero. Their contributions clear the threshold only because the boxes
+     are 900 to 4955 wide.
 
      So the contribution answers *is this worth moving* and answers it well;
      it does not answer *is there anything here at all*, and on a wide box it
@@ -500,15 +499,33 @@ Remaining:
      because its own reduced costs (3.06e-8, 4.89e-8) sit within half an
      order of `DUAL_TOL` rather than four below it.
 
-     **What a third attempt would have to establish**, and none of it is
-     available yet: a test for "this reduced cost is a number rather than
-     rounding" that does not simply exclude `etamacro`. `DUAL_TOL` on the
-     breach does exclude it. The shape D23 already uses is the candidate —
-     a reduced cost is meaningful when it exceeds the rounding of the dot
-     product that produced it, which is machine epsilon times the traffic
-     through the column, `sum_k |y_k a_kj|`. That is a computed quantity
-     rather than a constant, and it is the only version of this that would
-     not be a knob fitted to two instances. It has not been measured.
+     **The third attempt is the merged one, and it is D27.** What was
+     missing is a test for "this reduced cost is a number rather than
+     rounding" that does not simply exclude `etamacro` — `DUAL_TOL` on the
+     breach does exclude it. D23's own shape supplies it: `d_j = c_j −
+     y' M_j` is a sum, and a sum is known no more finely than the terms that
+     went into it, so a reduced cost means something where it stands above
+     `eps` times the traffic through its column. That is a computed
+     quantity, not a constant fitted to an instance, and it is not a second
+     test bolted on — a product is only as good as its factors, and on a
+     wide box the first factor was rounding.
+
+     Measured over both feasible sets, on every column the re-entry would
+     consider. Five instances of the 110 have any:
+
+     | instance | columns | `|d| / (eps · traffic)`, smallest |
+     |---|---|---|
+     | `etamacro` | 3 | **5.055e8** |
+     | `pilot87` | 15 | 6.985e10 |
+     | `pilot` | 5 | 6.339e11 |
+     | `nesm` | 1 | 3.199e13 |
+     | **`pds-20`** | 14 | **2.133** |
+
+     Seven orders of daylight, over 110 instances rather than the two the
+     previous paragraph was arguing from. `pds-20` keeps exactly one column
+     — the one whose traffic *equals* its `|d|`, a single term with nothing
+     to cancel, so its reduced cost is exact however small — and it flips
+     once and converges: 47786 iterations against a baseline of 47785.
 
      **`greenbea` is the same residue arriving through the basis, and it is
      the largest open item of the set.** Ten columns rest at their lower
@@ -822,7 +839,7 @@ in aggregate is what §2.8 has just finished being a lesson about.
 
 | # | Condition | Status |
 |---|---|---|
-| 1a | Netlib **standard** set: `OPTIMAL`, objective within §2.6 tolerance, checker green | **not met** — 94/94 solved, 92 objective, 90 checker |
+| 1a | Netlib **standard** set: `OPTIMAL`, objective within §2.6 tolerance, checker green | **not met** — 94/94 solved, 92 objective, 91 checker |
 | 1b | **Kennington** subset, for correctness with no performance expectation | **met** — 16/16, every condition, `ken-18` at 105127x154699 included |
 | 1c | **Infeasible** subset: classified `INFEASIBLE`, no false optima | **met** — 29/29 refused, no false optima; `gran` closed by the basis repair (§2.8.2) |
 | 2 | Determinism harness green on every instance (D8) | holds on all 93 that finish |
@@ -836,22 +853,32 @@ at all — which is worth stating plainly, because the distance to M1 is not
 the distance to closing seven instances.
 
 **Six of the seven now hold.** What is left is condition 1a alone, and it is
-**four instances of the standard 94, all of them answers rather than
-failures to answer**: `greenbea`, `etamacro`, `pilot` and `pilot87`, which
-the checker rejects, two of them also missing the objective. Every instance
-in the set now solves, and every one is deterministic — `grow15` was the
-last that did neither, and D26 closed it.
+**three instances of the standard 94, all of them answers rather than
+failures to answer**: `greenbea`, `pilot` and `pilot87`, which the checker
+rejects, the last two also missing the objective. Every instance in the set
+now solves, and every one is deterministic — `grow15` was the last that did
+neither, and D26 closed it.
 
-§2.8.1 records what each of the four is, measured rather than grouped by the
-size of the number reported — because the number the checker reports is the
-magnitude of a multiplier and says nothing on its own about how far anything
-is from where it should be. That mistake cost `finnis` months in the wrong
-group; it was the most accurate answer of the six and was closed by D23.
+§2.8.1 records what each of the three is, measured rather than grouped by
+the size of the number reported — because the number the checker reports is
+the magnitude of a multiplier and says nothing on its own about how far
+anything is from where it should be. That mistake cost `finnis` months in
+the wrong group; it was the most accurate answer of the seven and was closed
+by D23.
 
-Worth stating because it changes what 1a is asking for: the remaining gap is
-no longer "the solver cannot finish" anywhere. It is four certificates that
-do not carry, on models that all produce an answer, and three of the four
-sit within 1e-4 of their reference.
+Worth stating because it changes what 1a is asking for. The remaining gap is
+no longer "the solver cannot finish" anywhere; it is three certificates that
+do not carry, on models that all produce an answer. And of the seven
+instances the checker once rejected, **five closed and not one of them by
+moving a tolerance**: `pilot-ja` was a contribution the checker was dropping
+(D21), `finnis` a bound-proximity test judged absolutely on a row that
+cancels ten orders of magnitude (D23), `nesm` a settled basis the method had
+never been handed back (D25), and `etamacro` a repair test reading the wrong
+quantity in a space the answer is not published in (D27). `grow15`, which
+was a different kind of failure, was a cycle read as a stall (D26).
+
+That is the strongest thing §2.6 has going for it: every failure anyone was
+tempted to blame on a number turned out to be something else.
 
 ### What happens next, in order
 

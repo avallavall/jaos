@@ -845,3 +845,92 @@ repairs did not have — both changed every model in order to fix one.
 Bland's. Slower than the 11464 of Bland's throughout, and that is the trade
 being made deliberately — the 9460 are what buys every other instance its
 unchanged behaviour.
+
+---
+
+## D27 — The re-entry moves a column when its wrong sign costs objective, and when the reduced cost carrying it is a number
+
+D25 flips a nonbasic whose sign condition is breached past `DUAL_TOL`. That
+reads the breach in the space the solver works in, and the space is not a
+detail: `etamacro`'s breach is `4.89e-8` scaled — inside what this solver
+calls zero — and `1.56e-6` once `publish` divides by a column scale of
+`1/32`, which is past the checker's tolerance. One reading says leave it,
+the other says repair it, and both are the same number seen through a change
+of variable chosen for the solver's convenience.
+
+**Two attempts got this wrong before the third, and both are in PLAN 2.8.1
+because each one is what pointed at the next.**
+
+*Judge the breach in the published space.* Closes `etamacro`, moves nothing
+across 51 instances, and takes `pilot87` from a solve to a tripped iteration
+guard at 1382801 iterations against 50616. What it settles is not "use the
+other space" but that **any rule reading the breach has to pick one**.
+
+*Judge the contribution to the duality gap instead.* `P − D = sum_v w_v
+(v − bound_v)`, so a nonbasic on a bound with a wrong-signed reduced cost
+contributes `|d|` times the width of its box — and `publish` divides `d` by
+the same `gamma` it multiplies the value by, so that product is the same
+number in either space. No choice to make. It is also exactly what D24 made
+the checker publish as `Q`, and the two agree numerically: `etamacro`'s
+three movable breaches contribute `2.011e-6`, `6.26e-7` and `1.676e-7` in
+scaled space, summing to the `2.805e-6` reported in the original.
+
+That closed `etamacro` with the other 93 of the standard set bit-identical —
+and cost `pds-20` **3.2x its work**, 47785 iterations becoming 136750.
+Instrumented there, the re-entry runs all 32 rounds without converging and
+**every column it flips has a reduced cost below `DUAL_TOL`**, the smallest
+between `2.2e-11` and `1.7e-10`. Their contributions clear the threshold
+only because the boxes are 900 to 4955 wide.
+
+**So the contribution answers whether a move is worth making, and says
+nothing about whether there is anything there to move.** A product is only
+as good as its factors, and on a wide box the first factor was rounding.
+
+**The second half is not a second test.** `d_j = c_j − y' M_j` is a sum, and
+a sum is known no more finely than the terms that went into it — which is
+D23's argument for a row activity, read down a column. So `|d|` counts only
+where it stands above `eps` times the traffic through the column,
+`|c_j| + sum_k |y_k a_kj|`.
+
+**The margin has a measurement on both sides, over both feasible sets.**
+Of 110 instances, five have any column the re-entry would consider:
+
+| instance | columns | `\|d\| / (eps · traffic)`, smallest |
+|---|---|---|
+| `etamacro` | 3 | **5.055e8** |
+| `pilot87` | 15 | 6.985e10 |
+| `pilot` | 5 | 6.339e11 |
+| `nesm` | 1 | 3.199e13 |
+| **`pds-20`** | 14 | **2.133** |
+
+Seven orders of daylight between the columns that should move and the ones
+that should not, and `NOISE_MARGIN = 1e5` is the geometric middle of it. The
+behaviour saturates: `1e5` and `1e7` give identical answers on all three
+sets. `1e3` also works and costs `pds-20` 28% more work, which is what the
+margin buys.
+
+`pds-20` keeps exactly one column — the one whose traffic *equals* its `|d|`,
+a single term with nothing to cancel, so its reduced cost is exact however
+small. It flips once and converges: **47786 iterations against a baseline of
+47785**.
+
+**What none of this reaches, and why that is structural.** A column with no
+other real bound contributes nothing, by the same identity that gives the
+term — there is no `w · bound` for an infinite bound. `greenbea`'s ten
+columns are all of that kind. They are a dual violation with no objective
+behind them, and no threshold on either factor can see them; what they need
+is a primal pivot, which §2.1 excludes.
+
+**The evidence that matters most is not the campaign.**
+`tests/test_simplex.c` carries a hand-built three-column model whose optimum
+can be read off by eye: column A costs nothing and satisfies the only row on
+its own, so the answer is `x = (1, 0, 0)` at an objective of zero. The solver
+used to stop at `x = (0, 0.001, 0.0999)` and an objective of `4.997e-8`, on a
+basis whose duals could not be certified — A's reduced cost of `-5e-8`
+against an upper bound of `100` is `5e-6` of unproven complementary
+slackness, which is `Q` exactly. The test asserted that wrong answer and the
+failed certificate that came with it, and PLAN 2.8 recorded the defect.
+
+It now reaches `x = (1, 0, 0)`, objective zero, gap zero, both halves zero,
+in two iterations. A correct answer replacing a wrong one, on a model where
+nobody has to trust a reference value to see it.

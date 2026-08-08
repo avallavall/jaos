@@ -939,11 +939,30 @@ static void test_bound_flipping_fills_columns_in_one_step(void)
  * past zero by 5e-8 and 3e-8, which is what the shifting buys back.
  *
  * Settling up hands both cases back. A wants to move to 100, which would
- * drive the basic column to -9.9 and is refused. C wants to move to 0.001,
- * which leaves the basic at 0.0999 and is taken. So the assertion that
- * matters is on the two column values, not on an objective which is 5e-8
- * either way. */
-static void test_settling_up_flips_what_is_free_and_leaves_the_rest(void)
+ * drive the basic column to -9.9, so the free repair refuses it; C wants to
+ * move to 0.001, which leaves the basic at 0.0999 and is taken. That used
+ * to be the end of it, and this test used to assert the result: x = (0,
+ * 0.001, 0.0999) at an objective of 5e-8, primal feasible, with a dual
+ * certificate that does not carry.
+ *
+ * **It carries now, and the answer was wrong before.** A's reduced cost of
+ * -5e-8 points at an upper bound of 100 it is nowhere near, so its term in
+ * `P - D` is 5e-8 * 100 = 5e-6, and the re-entry moves a column when its
+ * term is worth moving (D27). Sending A to 100 breaks the primal by a mile
+ * and the dual simplex repairs it in one pivot, landing on A basic at 1.
+ *
+ * A's reduced cost also passes the other half of that test, which is what
+ * stops it being noise: the only term in `d_A` is `y * 1 = 5e-8`, so the
+ * traffic through the column is 5e-8 and the reduced cost stands 4.5e15
+ * times the rounding of its own dot product.
+ *
+ * That is the true optimum and it is checkable by hand: A costs nothing and
+ * satisfies the row on its own, so the objective is 0 and every other
+ * answer is worse. The solve used to stop 5e-8 above it on a basis whose
+ * duals could not be certified, which PLAN 2.8 recorded as a defect. This
+ * test is what closes it, and the reason it is worth more than the Netlib
+ * evidence is that nobody has to trust a reference value to read it. */
+static void test_settling_up_reaches_the_optimum_a_shifted_basis_hid(void)
 {
     const double c[] = {0.0, 2e-8, 5e-7};
     const double cl[] = {0.0, 0.0, 0.0};
@@ -965,41 +984,36 @@ static void test_settling_up_flips_what_is_free_and_leaves_the_rest(void)
     double x[3], act[1];
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solution(m, x, act, nullptr, nullptr));
 
-    TEST_ASSERT_DOUBLE_WITHIN(1e-12, 0.0, x[0]);      /* refused */
-    TEST_ASSERT_DOUBLE_WITHIN(1e-12, 0.001, x[1]);    /* taken */
-    TEST_ASSERT_DOUBLE_WITHIN(1e-9, 0.0999, x[2]);
-    TEST_ASSERT_DOUBLE_WITHIN(1e-9, 1.0, act[0]);     /* still feasible */
+    /* A alone, which is what costs nothing. */
+    TEST_ASSERT_DOUBLE_WITHIN(1e-12, 1.0, x[0]);
+    TEST_ASSERT_DOUBLE_WITHIN(1e-12, 0.0, x[1]);
+    TEST_ASSERT_DOUBLE_WITHIN(1e-12, 0.0, x[2]);
+    TEST_ASSERT_DOUBLE_WITHIN(1e-12, 1.0, act[0]);
 
-    /* The primal point settling up produces is feasible in the model's own
-     * space, which is the point of settling up at all. */
+    double obj = 0.0;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(m, &obj));
+    TEST_ASSERT_DOUBLE_WITHIN(1e-15, 0.0, obj);
+
+    /* And the certificate carries, which is the half that used to fail.
+     * The row prices at zero now; y = 5e-8 belonged to the basis the
+     * re-entry left behind. */
     double y[1];
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solution(m, x, nullptr, y, nullptr));
+    TEST_ASSERT_DOUBLE_WITHIN(1e-15, 0.0, y[0]);
+
     jaos_check_report rep;
     TEST_ASSERT_EQUAL_INT(JAOS_OK,
         jaos_check_solution(m, x, y, CHECK_TOL, &rep));
     TEST_ASSERT_TRUE(rep.primal_feasible);
-
-    /* The dual certificate that comes with it does not carry, and the
-     * checker is right to say so. The solve stops on the basis with xB
-     * basic, which prices the row at y = 5e-8; the optimal basis has xA
-     * basic and prices it at zero. A row multiplier of 5e-8 makes xA's
-     * reduced cost -5e-8, pointing at an upper bound of 100 that xA is
-     * nowhere near, and 5e-8 * 100 is 5e-6 of unproven complementary
-     * slackness — past CHECK_TOL, so no certificate.
-     *
-     * It is the y that fails, not the x. Handed the dual the optimal basis
-     * would have produced, the same primal point is accepted, which is
-     * what pins the defect to where it belongs. That the solver stops on a
-     * suboptimal basis here is recorded in PLAN.md 2.8; it costs 5e-8 of
-     * objective and a certificate. */
-    TEST_ASSERT_FALSE(rep.dual_feasible);
-    TEST_ASSERT_DOUBLE_WITHIN(1e-7, 5e-6, rep.objective_gap);
-
-    double y_optimal[1] = {0.0};
-    TEST_ASSERT_EQUAL_INT(JAOS_OK,
-        jaos_check_solution(m, x, y_optimal, CHECK_TOL, &rep));
-    TEST_ASSERT_TRUE(rep.primal_feasible);
     TEST_ASSERT_TRUE(rep.dual_feasible);
+    TEST_ASSERT_DOUBLE_WITHIN(1e-15, 0.0, rep.objective_gap);
+
+    /* Both halves of the gap are zero, not merely their difference. On the
+     * answer this test used to assert, `gap_positive` was 5e-6 — the whole
+     * of the suboptimality, and exactly the term the re-entry now reads to
+     * decide the flip (D24, D27). */
+    TEST_ASSERT_DOUBLE_WITHIN(1e-15, 0.0, rep.gap_positive);
+    TEST_ASSERT_DOUBLE_WITHIN(1e-15, 0.0, rep.gap_negative);
 
     jaos_model_free(m);
 }
@@ -1347,7 +1361,7 @@ int main(void)
     RUN_TEST(test_scaling_changes_the_arithmetic_not_the_answer);
     RUN_TEST(test_answers_come_back_in_the_models_units);
     RUN_TEST(test_bound_flipping_fills_columns_in_one_step);
-    RUN_TEST(test_settling_up_flips_what_is_free_and_leaves_the_rest);
+    RUN_TEST(test_settling_up_reaches_the_optimum_a_shifted_basis_hid);
     RUN_TEST(test_harris_ignores_a_big_pivot_outside_the_window);
     RUN_TEST(test_harris_prefers_the_larger_pivot_inside_the_window);
     RUN_TEST(test_harris_on_a_degenerate_vertex_takes_the_best_pivot);

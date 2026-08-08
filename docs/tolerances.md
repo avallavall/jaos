@@ -202,18 +202,26 @@ floating-point luck rather than about the solver.
 ## What is not settled
 
 Instances have now argued with them. The Netlib gate has been run over the
-whole standard set (`bench/results/netlib.txt`), and 90 of 94 instances come
-back with the checker green at the tolerance above. Four of the original
+whole standard set (`bench/results/netlib.txt`), and 91 of 94 instances come
+back with the checker green at the tolerance above. Five of the original
 eight failures closed, and **not one of them closed by moving a number**:
-`pilot-ja` was the checker dropping a contribution it should have kept
-(D21), `finnis` was a bound-proximity test judged absolutely on a row that
-cancels ten orders of magnitude (D23), `nesm` was a settled basis the dual
-simplex had never been given back (D25), and `grow15` was a cycle that had
-been read as a stall (D26).
 
-That is the case for leaving these numbers where they are, made by
-instances rather than by argument: every failure anyone was tempted to
-blame on a tolerance turned out to be something else.
+| instance | what it actually was | |
+|---|---|---|
+| `pilot-ja` | a contribution the checker was dropping | D21 |
+| `finnis` | a bound-proximity test judged absolutely on a row that cancels ten orders of magnitude | D23 |
+| `nesm` | a settled basis the dual simplex had never been handed back | D25 |
+| `grow15` | a cycle that had been read as a stall | D26 |
+| `etamacro` | a repair test reading the wrong quantity, in the wrong space | D27 |
+
+That is the case for leaving these numbers where they are, made by instances
+rather than by argument: every failure anyone was tempted to blame on a
+tolerance turned out to be something else. `etamacro` is the sharpest,
+because it genuinely was a question about a tolerance's *space* — its breach
+is `4.89e-8` scaled and `1.56e-6` published. The answer was not to change
+the tolerance or to pick a space, but to test a quantity that has neither:
+the term the breach contributes to the duality gap, which comes out the same
+number either way.
 
 What is left:
 
@@ -222,23 +230,13 @@ What is left:
 | `greenbea` | 2.66 | 3.6e-17 | far too large to be a tolerance |
 | `pilot` | 8.0e-05 | 8.6e-13 | likewise, and misses the objective too |
 | `pilot87` | 3.3e-05 | 4.0e-08 | likewise |
-| `etamacro` | 1.6e-06 | 1.9e-09 | just past it |
 
 A dual violation of 2.66 is not a number that moves by widening 1e-6. That
 is a defect, and PLAN 2.8.1 has it measured: the residue arrives through the
 basis rather than through the offending column's own cost, amplified a
-millionfold by a `B^-1` that badly conditioned.
-
-`etamacro` is the one candidate left for the tolerance itself being mis-set,
-and even there the question is which of the two spaces is wrong rather than
-what the digit should be: its breach is `4.89e-8` in scaled space, inside
-what the solver calls zero, and it arrives at `1.56e-6` only because
-`publish` divides by a column scale of `1/32`. Nothing here is a case for
-loosening a number, which would convert defects into passes and prove
+millionfold by a `B^-1` that badly conditioned. Nothing left here is a case
+for loosening a number, which would convert defects into passes and prove
 nothing (D17).
-
-There is no fifth. `grow15`, which used to be one and was never about
-tolerances, solves — it was cycling, not stalling (D26).
 
 The values also stay drafts in the original sense — nothing is frozen until
 the gate closes, and every one of them moves only with a measurement on both

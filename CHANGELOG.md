@@ -86,24 +86,35 @@ open, `bench/README.md` for the gate, and the commit each entry came from.
 
 ### Changed
 
-- Nothing about what the re-entry repairs, after two attempts that were
-  measured and left out. Both closed `etamacro`; PLAN 2.8.1 carries them.
+- The re-entry moves a column when its wrong sign costs objective and the
+  reduced cost carrying it is a number rather than rounding. `etamacro` goes
+  from REJECTED to checker ok for 9 extra iterations; every other instance
+  of the standard 94 is bit-identical and `pds-20` costs one iteration more
+  than its baseline. It took three attempts and the first two are in
+  PLAN 2.8.1 because each is what pointed at the next.
 
-  Reading the repair threshold where the answer is published rather than
-  where the solver works takes `pilot87` from a solve to a tripped iteration
-  guard at 1382801 iterations against 50616.
-
-  Judging instead on the term the breach contributes to `P - D` — `|d|`
-  times the width of the box, which is the same number in both spaces
+  The breach has no scale-free reading — `etamacro`'s is 4.89e-8 scaled and
+  1.56e-6 published, inside the solver's zero on one side of a change of
+  variable and past the checker's tolerance on the other — and judging it in
+  the published space takes `pilot87` from a solve to a tripped iteration
+  guard. What does have one is the term it contributes to `P - D`: `|d|`
+  times the width of the box, which comes out the same in either space
   because `publish` divides `d` by the same `gamma` it multiplies the value
-  by — got much further: `etamacro` closed for 9 extra iterations with the
-  other 93 of the standard set bit-identical, `pilot87` included, and it
-  corrected a hand-built test whose optimum is readable by eye. It costs
-  `pds-20` 3.2x its work. Instrumented there, every column it flips has a
-  reduced cost three to four orders of magnitude below `DUAL_TOL`, clearing
-  the threshold only because the boxes are thousands wide — so the rule
-  answers "is this worth moving" and not "is there anything here at all".
-  That is the fourth repair of this residue to be measured and left out.
+  by. It is also exactly what D24 made the checker publish as `Q`.
+
+  That alone cost `pds-20` 3.2x its work, by flipping columns whose reduced
+  costs are 1e-10 — rounding, carried by boxes a thousand wide. So `|d|`
+  counts only above `eps` times the traffic through its column, which is
+  D23's argument for a row read down a column, not a second test: a product
+  is only as good as its factors. Measured over both feasible sets, that
+  ratio is at least 5.055e8 on every column that should move and 2.1 to 36
+  on `pds-20`'s — seven orders of daylight, and the margin saturates. D27.
+
+  `tests/test_simplex.c` carries the case that matters more than the
+  campaign: a three-column model whose optimum is readable by eye at
+  `x = (1, 0, 0)` and objective zero. The solver used to stop at 4.997e-8
+  with a certificate that did not carry, and the test asserted that wrong
+  answer. It now reaches the optimum, gap zero, both halves zero.
 - The checker's bound-proximity test scales with what the value being tested
   is made of: the window is `tol * s`, with `s = max(1, sum_j |A_ij x_j|)`
   for a row and `max(1, |x_j|)` for a column. Row 3 of Netlib's `finnis`

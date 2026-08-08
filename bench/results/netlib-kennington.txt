@@ -13,7 +13,7 @@ osa-60       optimal    rows=10280 cols=232966 shape=ok iters=6169 work=12956054
 pds-02       optimal    rows=2953 cols=7535 shape=ok iters=1970 work=96107915 obj=28857862010 ref=28857862000[netlib] objective=ok checker=ok (col=0 row=0 rowrel=0 dual=0 gap=0 Q=0 N=0) det=ok digest=7d4f025f66ac2561
 pds-06       optimal    rows=9881 cols=28655 shape=ok iters=9251 work=1642624920 obj=27761037600 ref=27761038000[netlib] objective=ok checker=ok (col=1.99e-13 row=6.14e-12 rowrel=1.99e-13 dual=0 gap=2.01e-19 Q=8.18e-07 N=6.58e-08) det=ok digest=4b56fc7026c020db
 pds-10       optimal    rows=16558 cols=48763 shape=ok iters=17503 work=5262072371 obj=26727094976 ref=26727095000[netlib] objective=ok checker=ok (col=6.82e-13 row=6.82e-13 rowrel=6.82e-13 dual=0 gap=6.48e-18 Q=3.97e-07 N=3.72e-08) det=ok digest=55e36ba44aa9f005
-pds-20       optimal    rows=33874 cols=105728 shape=ok iters=47785 work=31095847969 obj=23821658640 ref=23821659000[netlib] objective=ok checker=ok (col=9.66e-13 row=5.94e-12 rowrel=9.66e-13 dual=0 gap=2.49e-16 Q=1.21e-05 N=1.44e-07) det=ok digest=18ee5bc34d4694e5
+pds-20       optimal    rows=33874 cols=105728 shape=ok iters=47786 work=31191212690 obj=23821658640 ref=23821659000[netlib] objective=ok checker=ok (col=9.66e-13 row=5.94e-12 rowrel=9.66e-13 dual=0 gap=2.46e-16 Q=1.2e-05 N=1.42e-07) det=ok digest=fa93f404bd37cd57
 
 16 instances: 16 solved, 16 shape ok, 16 objective ok, 16 checker ok, 16 deterministic, 0 failed
 gate: PASS

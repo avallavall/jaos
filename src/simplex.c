@@ -31,6 +31,7 @@
 
 #include "jaos_internal.h"
 
+#include <float.h>
 #include <math.h>
 #include <stdlib.h>
 #include <string.h>
@@ -130,6 +131,27 @@ constexpr int64_t ITER_SANITY_FACTOR = 200;
  * costs iterations, too large costs iterations, and neither costs
  * correctness. */
 constexpr int64_t STALL_FACTOR = 10;
+
+/* How far above the rounding of its own dot product a reduced cost has to
+ * stand before the re-entry will act on it.
+ *
+ * `d_j = c_j − y' M_j` is a sum, and a sum is known no more finely than the
+ * terms that went into it — the argument D23 makes for a row activity,
+ * applied to a column. So `eps` times the traffic through the column is
+ * where a reduced cost stops being a number and starts being what is left
+ * of cancellation, and this is the margin above that.
+ *
+ * Measured over both feasible sets, on every column the re-entry would
+ * consider moving. Five instances of the 110 have any: the ratio
+ * `|d| / (eps · traffic)` is at least 5.055e8 on `etamacro`, `nesm`,
+ * `pilot` and `pilot87`, and between 2.1 and 36 on `pds-20`, whose columns
+ * are rounding noise carried by boxes a thousand wide. Seven orders of
+ * daylight, and 1e5 is the geometric middle of it.
+ *
+ * The behaviour saturates: 1e5 and 1e7 give identical answers on all three
+ * sets, so the number is not sitting on an edge. 1e3 also works and costs
+ * `pds-20` 28% more work, which is what the margin is buying. */
+constexpr double NOISE_MARGIN = 1e5;
 
 /* How many times a settled point may be handed back to the dual simplex.
  *
@@ -1466,12 +1488,76 @@ static jaos_status restore_settled(sx *s, bool *ok)
  * costs on the way — and a verdict read off borrowed costs is the one thing
  * settling exists to prevent. So a round with nothing to move does not
  * begin. */
+
+/* Everything that went into `d_j`: `|c_j|` plus the magnitudes of the terms
+ * of `y' M_j`. It is the same quantity the checker calls a row's traffic,
+ * read down a column instead of along a row.
+ *
+ * `y` is read out of `s->rho`, which is where compute_duals leaves it. That
+ * is inherited state rather than derived, and it holds because every path
+ * into the re-entry passes through a refresh: run() will not report
+ * optimality without one (see the r < 0 branch), and settle_shifts
+ * recomputes on top of that whenever anything was owed. price_and_select
+ * overwrites `rho` with a pricing row mid-solve, so this would be wrong if
+ * called from anywhere else. */
+static double column_traffic(const sx *s, int64_t v)
+{
+    double t = fabs(s->cost[v]);
+    if (v >= s->ncol)
+        return t + fabs(s->rho[v - s->ncol]);   /* logicals enter as -I */
+
+    const jaos_model *m = s->m;
+    for (int64_t k = m->a_start[v]; k < m->a_start[v + 1]; k++)
+        t += fabs(s->rho[m->a_index[k]] * s->av[k]);
+    return t;
+}
+
+/* Worth a flip when the wrong sign carries objective behind it, and when
+ * the reduced cost carrying it is a number rather than rounding.
+ *
+ * **The objective part.** `P − D = sum_v w_v (v − bound_v)`, and for a
+ * nonbasic on a bound with a wrong-signed reduced cost the multiplier
+ * points at the *other* bound, so its term is `|d|` times the width of the
+ * box. That is what the checker publishes as `Q` (D24), and it is the
+ * quantity to test because it does not have a space: `publish` divides `d`
+ * by the same `gamma` it multiplies the value by, so the product is
+ * identical in scaled space and in the model's own. The breach on its own
+ * is not — `etamacro`'s reads 4.89e-8 scaled and 1.56e-6 published, inside
+ * this solver's zero on one side of a change of variable and past the
+ * checker's tolerance on the other. Choosing between those readings was
+ * measured and costs `pilot87` its answer (PLAN 2.8.1).
+ *
+ * **The rounding part, and it is not a second test.** A product is only
+ * as good as its factors: on `pds-20` the contribution alone flips columns
+ * whose reduced costs are 1e-10 — three orders below what this solver calls
+ * zero — because their boxes are a thousand wide, and 32 rounds of that
+ * cost the instance 3.2x its work. So `|d|` counts only where it stands
+ * above the rounding of the dot product that produced it. See NOISE_MARGIN
+ * for the measurement that places the line.
+ *
+ * A column with no other real bound contributes nothing, by the same
+ * identity that gives the term: there is no `w · bound` for an infinite
+ * bound. That is why `greenbea`'s ten are untouched by any of this — they
+ * are a dual violation with no objective behind it, and what they need is a
+ * primal pivot (§2.1). */
 static bool can_move(const sx *s, int64_t v)
 {
-    if (dual_breach(s, v) == 0.0 || s->status[v] == JM_FREE)
+    double wrong_way;
+    switch (s->status[v]) {
+    case JM_AT_LOWER: wrong_way = s->d[v] < 0.0 ? -s->d[v] : 0.0; break;
+    case JM_AT_UPPER: wrong_way = s->d[v] > 0.0 ? s->d[v] : 0.0; break;
+    default:          return false;   /* free, or basic: nowhere to send it */
+    }
+    if (wrong_way == 0.0)
         return false;
-    return isfinite(s->status[v] == JM_AT_LOWER ? real_upper(s, v)
-                                                : real_lower(s, v));
+    if (wrong_way <= NOISE_MARGIN * DBL_EPSILON * column_traffic(s, v))
+        return false;
+
+    double other = s->status[v] == JM_AT_LOWER ? real_upper(s, v)
+                                               : real_lower(s, v);
+    if (!isfinite(other))
+        return false;
+    return wrong_way * fabs(other - nonbasic_value(s, v)) > DUAL_TOL;
 }
 
 static bool anything_to_move(const sx *s)
@@ -1485,14 +1571,17 @@ static bool anything_to_move(const sx *s)
 static void arm_reentry(sx *s)
 {
     for (int64_t v = 0; v < s->nvar; v++) {
-        if (dual_breach(s, v) == 0.0)
-            continue;
-        if (!can_move(s, v)) {
+        if (can_move(s, v)) {
+            s->status[v] = s->status[v] == JM_AT_LOWER ? JM_AT_UPPER
+                                                       : JM_AT_LOWER;
+        } else if (dual_breach(s, v) != 0.0) {
+            /* Nowhere worth sending it, but its sign is still wrong and the
+             * ratio test must not meet a reduced cost already past zero.
+             * The shift threshold stays DUAL_TOL on the breach itself:
+             * what the solver calls zero is a different question from what
+             * is worth repairing. */
             shift_to_feasible(s, v);
-            continue;
         }
-        s->status[v] = s->status[v] == JM_AT_LOWER ? JM_AT_UPPER
-                                                   : JM_AT_LOWER;
     }
 }
 
