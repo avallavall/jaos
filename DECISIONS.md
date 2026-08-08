@@ -1222,3 +1222,65 @@ buying `7e-5`, not monotonically, before stopping at `SETTLE_ROUNDS`. D25
 records that cap as "a backstop and not a limit meant to bind". On `pilot87`
 it bound, and what it was capping was a loop that could take one pivot per
 round when twelve were waiting.
+
+---
+
+## D31 — What the campaign settled, and the tolerances freeze where they stand
+
+M1's gate is met on all three instance sets, and four questions that had been
+deliberately left open "until the campaign says" now have their answer. They
+close together because they close on one body of evidence.
+
+**The §2.6 tolerances are frozen.** They were drafts throughout, on the
+explicit terms that they would be frozen when the Netlib gate closed and that
+any later change would be a changelog entry. That condition is satisfied and
+the freeze takes effect at the values as they stand — not one of which was
+moved to close an instance.
+
+That last clause is the whole reason the freeze is worth anything. Eight
+instances were refused at some point and **every one closed as a defect with
+a mechanism**: a contribution the checker was dropping, a bound-proximity test
+judged absolutely on a row that cancels ten orders of magnitude, a settled
+basis the method had never been handed back, a cycle read as a stall, a repair
+test reading the wrong quantity in the wrong space, a column with nowhere to
+rest, a residual of the basis solve, and a clean-up loop taking one pivot
+where twelve were waiting. A tolerance that survived eight opportunities to be
+blamed and was never the culprit is a number with evidence behind it.
+
+**Q1 — dual phase 1 by artificial bounds survives.** The question was whether
+the lent-bound method would hold up against real instances or have to be
+replaced by a subproblem or cost-shifting method. It held: every instance of
+all three sets solves, and no failure anywhere in the campaign was traced to
+phase 1. Replacing it is now an M2 performance question and not a correctness
+one.
+
+**Q3 — no instance forces a presolve into M1.** The question reserved the
+right to add the smallest presolve that would close the gate. The gate closed
+without one. Presolve enters M2 as a performance matter, where it belongs.
+
+**Q9 — the refusal never fired.** A model whose optimum lies past the bound
+phase 1 lends is refused rather than answered, and how often that happens was
+known only for generated models (46 of 3000, from a generator written to
+provoke it). Across all 139 real instances it happened **zero** times. So the
+loan size is a performance parameter and not a correctness risk, and the
+refusal costs nothing today.
+
+**Q10's perturbation half closes, and on the absence of a demand rather than
+on a design.** §2.5.9 called for deterministic bound perturbation as an
+anti-stall device. The one instance that appeared to need it was cycling
+rather than stalling, and the cure for a cycle is exact and terminating where
+a perturbation is neither. No instance of the 139 asks for it, and "how much
+to perturb" remains a number with nothing behind it. It stays unbuilt.
+
+**The distinction that matters here, stated because it is easy to lose.** An
+unused device is not a validated one. Q9's refusal and Q10's perturbation
+close because nothing demanded them, which is a different and weaker fact than
+Q1 and Q3, which close because something was tried against real models and
+held. If a model ever lands on either, they reopen with that model in hand —
+which is the only way to size a fix rather than guess it.
+
+**What remains of M1 is not a solver question.** The per-iteration work weight
+of §2.7, deliberately left without a number until the iteration existed and
+its non-update overhead could be attributed on its own; and the public API
+shape of §2.4, which needs the maintainer's confirmation rather than a
+measurement.

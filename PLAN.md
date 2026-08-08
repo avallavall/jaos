@@ -3,7 +3,7 @@
 Working document per the working agreement: it holds only what is open. Detail
 exists only for the active milestone; later stages stay coarse until they open.
 Closed items leave for the changelog and the commit that closed them. Constraints
-referenced as D1–D22 live in `DECISIONS.md`.
+referenced as D<n> live in `DECISIONS.md`.
 
 ---
 
@@ -51,8 +51,7 @@ harness; Netlib acceptance runner. Plus, added deliberately after the gate
 demanded it: a **primal ratio test** used only to clean up after the dual
 solve has finished (D28).
 
-**Out, explicitly:** presolve (only if Netlib evidence forces a minimal one — open
-question Q3); **the primal simplex** — see below, the ratio test above is not
+**Out, explicitly:** presolve (no instance forced one, D31); **the primal simplex** — see below, the ratio test above is not
 it; crash basis; hyper-sparsity; parallelism; cuts; callbacks; bindings; file
 *writing*; certificate export; public CLI. The Netlib driver is a bench tool,
 not a product.
@@ -154,9 +153,14 @@ record entry.
 
 ### 2.6 Tolerances — draft
 
-Draft values; frozen when the Netlib gate closes, and any later change is a
-changelog entry. Every one of them, where it acts and what it decides, plus
-the checker's formulas: `docs/tolerances.md`.
+**Frozen (D31).** These were drafts on the explicit terms that they would
+freeze when the Netlib gate closed; it has, and they freeze at the values
+below. Any later change is a changelog entry. Every one of them, where it
+acts and what it decides, plus the checker's formulas: `docs/tolerances.md`.
+
+Not one of them was moved to close an instance. Eight instances were refused
+along the way and all eight turned out to be defects with a mechanism, which
+is the only thing that makes freezing these worth anything.
 
 | Quantity | Draft |
 |---|---|
@@ -592,10 +596,14 @@ missed this".
 
 ## 3. Open questions
 
-- **Q1** — Dual phase-1 method. Artificial bounds are what is built; whether
-  they survive the Netlib campaign, or a subproblem or cost-shifting method
-  from [21][1] has to replace them, is decided there on evidence. Q9 carries
-  the known way the present one gets an answer wrong.
+Q1, Q3, Q9 and Q10 closed with the Netlib campaign and are recorded in D31:
+dual phase 1 by artificial bounds survived it, no instance forced a presolve
+into M1, the refusal Q9 guarded against never fired on a real model, and no
+instance asked for the anti-stall perturbation Q10 held in reserve. The last
+two closed because nothing demanded them, which is weaker than the first two
+and reopens the moment a model lands on either.
+
+
 - **Q2** — LP and MPS dialect edge semantics (e.g., RANGES on E rows with a
   negative range value, a sub-case the public docs leave ambiguous): fixed as
   encountered, recorded in `docs/format-support.md`.
@@ -609,9 +617,6 @@ missed this".
   than the reader dropping it (`docs/format-support.md`). Recorded here
   because the next such case will look the same: an instance disagreeing with
   a reference is not evidence about which of them is wrong.
-- **Q3** — Whether any Netlib instance forces a minimal presolve into M1: decided
-  by evidence during the campaign; if yes, the smallest presolve that closes the
-  gate, and no more.
 - **Q4** — Measurement host (D17): set up when M2 opens.
 - **Q5** — NLP derivative strategy (AD, finite differences, user-supplied): gate
   decision when M8 opens; shapes the public API of that engine.
@@ -640,212 +645,6 @@ missed this".
   expander's logic has been read into anything here — which is also why
   option 2, writing an expander from a format `lp/data/readme` does not
   document, was the expensive one.
-- **Q9** — Reaching an optimum that lies past the bound dual phase 1 lends.
-  The verdict half of this is closed (D19): unboundedness is proven against
-  a ray now, so the size of the loan no longer decides whether an answer is
-  true, and a model the loan cuts off is refused rather than answered.
-
-  What is left is that it *is* refused. The repair is to lift the loan and
-  re-solve, which keeps dual feasibility — the basis and the costs do not
-  move, only a nonbasic bound value — so the dual simplex can carry straight
-  on. The case that does not close that way is degenerate: a basic variable
-  already pressed against a real bound in the ray's direction blocks at zero
-  distance, so widening the loan buys no progress, and the move that does is
-  a primal pivot. That is M6 machinery.
-
-  How often the refusal fires is known only for generated models — 46 of
-  3000 — and that number says nothing about real ones, because the generator
-  was written to put phase 1 to work rather than to resemble anything. So
-  this waits on the campaign, which is the first set of instances that will
-  mean something. If none lands here, the refusal costs nothing and the loan
-  is a performance parameter. If one does, it arrives with the model that
-  forced it, which is the only way to size the fix rather than guess it.
-- **Q10** — What breaks a stall in *this* method, and what repairs what the
-  ratio test spends. §2.5.9 calls for deterministic bound perturbation, and
-  that is the primal simplex's device: the primal stalls on a zero-length
-  primal step, and bounds are what a zero-length primal step is made of. The
-  dual simplex stalls somewhere else. Its progress per iteration is the dual
-  step times the violation being repaired, and the dual step is
-  `d_q / alpha_q`, so a zero-progress iteration is one whose entering
-  candidate already had a zero reduced cost. Bounds do not appear in
-  `d = c - y'A`, so no perturbation of them can move that off zero;
-  perturbing costs can. Bound flipping, already built, removes part of the
-  short-step behaviour but not this.
-
-  One had stalled: `grow15` ran to the internal iteration guard at 189201
-  iterations. **It is closed, and the diagnosis above was close but wrong
-  (D26).** Instrumented, the solve repeats bit for bit from iteration ~3000
-  — same total infeasibility to ten digits, same 43 violated rows, same
-  objective, exactly half the steps degenerate — and the pivot log inside
-  the repeat shows a **cycle of period four** over two rows and four
-  variables, with `xb` and both steepest-edge weights returning to identical
-  values every fourth iteration. Half of those iterations do take a real
-  step, of about 1.7e-6; the four cancel exactly. So this was never "no
-  iteration makes progress", and the cure a cycle has is not the cure a
-  stall has.
-
-  `grow15` now solves in 21653 iterations, at an objective matching Koch's
-  to sixteen digits, and `grow22`, `grow7` and `truss` come back with
-  identical digests. D26 carries the mechanism, the cost of Bland's rule as
-  a default (25x on `25fv47`, and `grow22` stops solving), and the
-  measurement that sets the trigger.
-
-  **What is left of this question is the perturbation half**, and it is
-  narrower than it was: the device is no longer needed for `grow15`, so
-  there is again no instance forcing it, and "how much to perturb" is again
-  a number with nothing behind it. It waits, as it did before, for a model
-  that needs it.
-
-  **Two attempts before that, both measured, both reverted (2026-08-07).**
-  Neither is in `main`; both are in the history and worth not repeating.
-
-  *Bland's rule in the ratio test.* Where two pivots inside the Harris window
-  are the same size the choice is arbitrary, and an arbitrary choice repeated
-  at a degenerate vertex is how a method cycles, so the smallest variable
-  index breaks the tie. It does not fix `grow15`, which still runs to the
-  guard, and it costs `grow22`, which stops terminating at all. Worth
-  recording separately: the first version of this tried the tie-break
-  whenever a pivot was *not strictly better* rather than when it was equal,
-  which lets a pivot orders of magnitude worse win on index alone and drags
-  the standard down for the rest of the pass — Bland's rule silently
-  overruling Harris instead of breaking its ties.
-
-  **This attempt was misnamed, and the name is why it read as a dead end.**
-  A smallest-index tie-break among equally sized pivots inside the Harris
-  window is not Bland's rule and carries none of its guarantee: that needs
-  the exact minimum quotient, no widening, and the index rule on the
-  *leaving* choice too. Built as the actual rule it solves `grow15` outright
-  (D26). What this attempt did establish stands unchanged and is half of why
-  D26 is a fallback rather than a default — it costs `grow22` its answer.
-
-  *Cost perturbation, periodic and adaptive.* This one does fix `grow15` — it
-  reaches the optimum. It also makes `pilot-we` report a feasible problem as
-  infeasible, moves `pilotnov` to a checker rejection, and takes `grow22` from
-  2179 iterations to 167865. So the device works; what is missing is any
-  principle for how much to perturb and when to stop, which is the part this
-  question said had nothing behind it and still does. A perturbation large
-  enough to break a cycle is large enough to change what the solver believes
-  about other models, and until that trade is understood rather than tuned,
-  it stays out.
-
-  In hindsight this is unsurprising rather than mysterious: perturbing costs
-  breaks a cycle by destroying the degeneracy that sustains it, and it does
-  that on every model whether or not one is cycling. D26 breaks the same
-  cycle by removing the freedom instead of the degeneracy, and only on the
-  model that is cycling. That is the whole difference between the two, and
-  it is why one is merged and the other is not.
-
-  What the two attempts did settle is that this cannot be developed against
-  `grow15` alone. Both looked like progress on the instance in front of them
-  and were regressions on the set. `bench/netlib.baseline` exists because of
-  this, and it is what told D26 that `grow22`, `grow7` and `truss` came back
-  bit-identical.
-
-  The repair half of this question is closed: costs are shifted and called
-  back, per the changelog. What it cannot close is the residue. Once the
-  shifts come off, the basis is primal feasible and may still be dual
-  infeasible, and the only repair that costs nothing is swapping a column
-  to its other bound. Removing the rest means moving a nonbasic variable
-  until something blocks, which is a primal simplex iteration and does not
-  exist before M6. Whatever is left shows up in the reported reduced costs,
-  where the checker sees it — so the gate will say whether it matters.
-
-  **It exists, the campaign found it, and it is exactly this.** §2.8.1
-  carries the measurement: every column the checker rejects on `etamacro`,
-  `nesm` and `greenbea` is dual feasible immediately before `settle_shifts`
-  runs and infeasible immediately after. Three of the six, and the prediction
-  holds in both halves — the residue survives to the published reduced costs,
-  and `repair_dual_infeasibility` cannot always reach it (column 4669 of
-  greenbea has no other bound at all; `nesm`'s is 95 units away).
-
-  One thing this question got wrong, and it took two measurements to see.
-  Asking which shift explains a residue by reading `shift[v]` on the
-  violating column answers "none" for two of the three, and that is the wrong
-  question: `d_j = c_j − y' M_j` with `y = B^-T c_B`, so a shift resting on a
-  *basic* variable moves every nonbasic reduced cost at once and the
-  violating column need carry no shift of its own.
-
-  **And that route amplifies.** On `greenbea`, repaying shifts of at most
-  7.09e-6 across 907 basic variables takes one reduced cost from +5.67 to
-  −1.33. A perturbation four orders below every tolerance in §2.6 arrives as
-  a violation of five, because `B^-1` on that basis is what stands between
-  them. So the size of a residue is not evidence about the size of its cause,
-  and "far too large to be rounding" — the sentence that put `finnis` and
-  `greenbea` in one group for months — was never a valid inference.
-
-  How the shift reaches `c_B` is what looked worth attacking. A shift lives
-  on a variable's cost, and where that cost sits decides what repaying it
-  costs: on a nonbasic column it enters exactly one reduced cost, its own, so
-  repaying moves one number; on a basic column it is part of `c_B`, and every
-  reduced cost is read off `y = B^-T c_B`, so repaying moves all of them
-  through `B^-1`. A variable shifted while nonbasic keeps the perturbed cost
-  when it enters the basis, and the repayment waits for the end of the solve.
-  So: repay earlier, while the method can still respond.
-
-  **Two attempts, both measured, both reverted (2026-08-07). Neither is in
-  `main`.** Both fail the same way, which is the useful part.
-
-  *Repay on entry, inside `pivot()`.* The correction is exact and cheap —
-  removing `sigma` from `c_q` moves `y` by `-(sigma/alpha_q) rho_r`, so every
-  reduced cost moves by `(sigma/alpha_q) alpha_v`, one more multiple of the
-  pricing row folded into the pass already there. It passed all 114 unit
-  tests and wrecked the campaign: `greenbea` — a feasible model — came back
-  INFEASIBLE, `nesm` went from 8.01e-6 to 1.17e6, `pilot` stopped solving.
-  The reason is in the formula. `alpha_q` is allowed down to `PIVOT_MIN`, so
-  a pivot of 1e-9 turns a repayment of 1e-6 into a kick of 1e3 through every
-  reduced cost in the model, and `shift_to_feasible` answers each kick with
-  fresh loans that are larger than the one just repaid.
-
-  *Repay at each refactorization instead*, where `compute_duals` rebuilds
-  everything from the factorization and no `sigma/alpha_q` term exists at
-  all. This looked like the right fix and is not: `greenbea` again came back
-  INFEASIBLE, `nesm` reached 190, `pilot87` reached 10.9 with a gap of 0.998.
-  Removing the division does not remove the amplification — `B^-1` is still
-  what stands between a 7e-6 perturbation and the reduced costs — and
-  applying it every 64 iterations rather than once means applying it two
-  hundred times over a solve like greenbea's, with the method chasing its own
-  noise between them.
-
-  What the two settle is that the residue cannot be repaid mid-solve on an
-  ill-conditioned basis at all: both attempts turned a small final violation
-  into a false infeasibility, which is a strictly worse failure than the one
-  they set out to fix.
-
-  **A third attempt, post-solve, and this one holds (D25).** Both of the
-  above perturb the method while it is running. The alternative is to let it
-  finish, settle, and only then put the nonbasic set back on the feasible
-  side of its sign conditions and run the method again from there — moving a
-  column to its *other real bound* rather than moving a cost. That is not a
-  primal pivot and it is inside M1: it is bound flipping, which the ratio
-  test already does, applied once at the end instead of mid-iteration. Where
-  a column has a real bound to go to, the flip breaks the primal, and primal
-  infeasibility is precisely what the dual simplex is for.
-
-  Measured: `nesm` closes outright — dual violation exactly 0, gap from
-  2.71e-11 to 1.93e-16, seven extra iterations — and `pilot` and `pilot87`
-  improve by two orders of magnitude on the dual without changing verdict.
-  Nothing regresses on any of the three sets. What guards the failure the
-  first two attempts produced is that the settled point is saved and any
-  re-entry not ending in a second optimum is thrown away; a model already
-  proved to have an optimum has not become infeasible, so that verdict is
-  evidence against the re-entry rather than about the model.
-
-  **So this question's own statement of what was left needed correcting.** It
-  said a nonbasic travelling until something blocks was the only remaining
-  cure. That is true only of a column with nowhere to rest — and the
-  measurement splits the set on exactly that line: `greenbea`'s ten offending
-  columns all sit at a lower bound of 0 with no upper bound at all, so
-  flipping has nothing to offer them and the travelling nonbasic is still
-  the only route; `nesm`'s one had a bound 380 units away and flipping
-  reached it. What is genuinely outside M1 is narrower than this question
-  claimed: not the repair, but the repair *of a column with no other bound*.
-
-  `finnis` was never in this group: it publishes no violated sign condition
-  in scaled space whatsoever, and belongs to the checker's tolerance model.
-  The remaining explanation this question originally offered stays ruled out:
-  the residue does not track phase 1. `adlittle` needs 22 lent bounds of 97
-  columns and comes out clean; `sc50a` needed one of 48 and did not,
-  before D20.
 - **Q8** — How exact verification gets done, decided when M2 opens with
   certificate export. GMP is the obvious tool and D11 excludes it (LGPL),
   including for test-only use, since D15 exempts test dependencies from D2
