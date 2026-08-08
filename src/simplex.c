@@ -231,6 +231,13 @@ typedef struct {
      * untransformed column the LU update needs. */
     double *col;
     double *raw;
+    /* The duals, and the pricing row. These are two different quantities
+     * and they get two different vectors, which is not a convenience: they
+     * shared one for a long time, every reader had to know which producer
+     * had run last, and the one function whose comment said so was called
+     * from the one place its comment forbade (D30). Separate storage makes
+     * that mistake impossible to write rather than possible to detect. */
+    double *y;               /* [nrow] the duals, B^-T c_B */
     double *rho;             /* [nrow] row r of B^-1 */
     double *tau;             /* [nrow] B^-1 rho, for the weight update */
     double *alpha;           /* [nvar] pricing row */
@@ -294,7 +301,8 @@ static void sx_free(sx *s)
     free(s->lo); free(s->up); free(s->cost); free(s->shift);
     free(s->status); free(s->basis); free(s->where);
     free(s->xb); free(s->d); free(s->dse);
-    free(s->col); free(s->raw); free(s->rho); free(s->tau); free(s->alpha);
+    free(s->col); free(s->raw); free(s->y); free(s->rho);
+    free(s->tau); free(s->alpha);
     free(s->cand); free(s->rnum); free(s->rden); free(s->rrange);
     free(s->bs); free(s->bi); free(s->bv);
     free(s->fake);
@@ -347,6 +355,7 @@ static jaos_status sx_init(sx *s, jaos_model *m)
     s->dse    = jm_alloc_array(s->nrow, sizeof(double));
     s->col    = jm_calloc_array(s->nrow, sizeof(double));
     s->raw    = jm_calloc_array(s->nrow, sizeof(double));
+    s->y      = jm_calloc_array(s->nrow, sizeof(double));
     s->rho    = jm_calloc_array(s->nrow, sizeof(double));
     s->tau    = jm_calloc_array(s->nrow, sizeof(double));
     s->alpha  = jm_calloc_array(s->nvar, sizeof(double));
@@ -360,7 +369,7 @@ static jaos_status sx_init(sx *s, jaos_model *m)
     if (!s->av || !s->lo || !s->up || !s->cost || !s->shift ||
         !s->status || !s->basis ||
         !s->where || !s->xb || !s->d || !s->dse || !s->col || !s->raw ||
-        !s->rho || !s->tau || !s->alpha || !s->cand || !s->rnum ||
+        !s->y || !s->rho || !s->tau || !s->alpha || !s->cand || !s->rnum ||
         !s->rden || !s->rrange || !s->bs || !s->fake) {
         sx_free(s);
         return JAOS_ERR_OUT_OF_MEMORY;
@@ -441,24 +450,29 @@ static void var_column(const sx *s, int64_t v, double *out)
     }
 }
 
-/* rho' M_v, the pricing-row entry for variable v, charging the nonzeros it
- * touches (PLAN 2.7 weights pricing the same as any other solve traffic).
+/* w' M_v for a dense row vector w, charging the nonzeros it touches (PLAN
+ * 2.7 weights pricing the same as any other solve traffic).
+ *
+ * The vector is a parameter rather than read from the solver state, because
+ * the two vectors it is called with mean entirely different things: with the
+ * duals it produces a reduced cost, with row r of B^-1 it produces a pricing
+ * row entry. Passing it makes each call site say which.
  *
  * src/check.c has a loop of similar shape. They stay apart because sharing
  * would make the checker link against solver internals — this function
  * takes solver state, handles logicals and bills work units, none of which
  * the checker has any business seeing. See the header of src/check.c for
  * what the checker's independence actually rests on; it is not this. */
-static double price_entry(sx *s, int64_t v)
+static double price_entry(sx *s, const double *w, int64_t v)
 {
     if (v >= s->ncol) {
         jm_work_add(&s->work, JM_WORK_NONZERO);
-        return -s->rho[v - s->ncol];
+        return -w[v - s->ncol];
     }
     const jaos_model *m = s->m;
     double a = 0.0;
     for (int64_t k = m->a_start[v]; k < m->a_start[v + 1]; k++)
-        a += s->rho[m->a_index[k]] * s->av[k];
+        a += w[m->a_index[k]] * s->av[k];
     jm_work_add(&s->work, (m->a_start[v + 1] - m->a_start[v]) *
                           JM_WORK_NONZERO);
     return a;
@@ -631,7 +645,7 @@ static void compute_primal(sx *s, bool refine)
  * neither — measured, and it is how this arrived (D29). */
 static void compute_duals(sx *s, bool refine)
 {
-    double *y = s->rho;
+    double *y = s->y;
     for (int64_t i = 0; i < s->nrow; i++)
         y[i] = s->cost[s->basis[i]];
     jm_lu_btran(&s->lu, y, &s->work);
@@ -668,7 +682,7 @@ static void compute_duals(sx *s, bool refine)
             s->d[v] = 0.0;
             continue;
         }
-        s->d[v] = s->cost[v] - price_entry(s, v);
+        s->d[v] = s->cost[v] - price_entry(s, s->y, v);
     }
 }
 
@@ -1244,7 +1258,8 @@ static int64_t price_and_select(sx *s, int64_t r, bool below,
     jm_lu_btran(&s->lu, s->rho, &s->work);
 
     for (int64_t v = 0; v < s->nvar; v++)
-        s->alpha[v] = s->status[v] == JM_BASIC ? 0.0 : price_entry(s, v);
+        s->alpha[v] = s->status[v] == JM_BASIC ? 0.0
+                                              : price_entry(s, s->rho, v);
 
     return dual_ratio_test(s, below, violation, theta_dual);
 }
@@ -1588,22 +1603,21 @@ static jaos_status restore_settled(sx *s, bool *ok)
  * of `y' M_j`. It is the same quantity the checker calls a row's traffic,
  * read down a column instead of along a row.
  *
- * `y` is read out of `s->rho`, which is where compute_duals leaves it. That
- * is inherited state rather than derived, and it holds because every path
- * into the re-entry passes through a refresh: run() will not report
- * optimality without one (see the r < 0 branch), and settle_shifts
- * recomputes on top of that whenever anything was owed. price_and_select
- * overwrites `rho` with a pricing row mid-solve, so this would be wrong if
- * called from anywhere else. */
+ * `y` is whatever compute_duals last left in `s->y`, which is inherited
+ * state rather than derived. Every path into the re-entry passes through a
+ * refresh, so it is the duals of a basis — but not necessarily of *this*
+ * basis once a clean-up has pivoted, which is why the candidates are chosen
+ * before any of them moves. It cannot be a pricing row: those live in
+ * `s->rho`, and they have since D30. */
 static double column_traffic(const sx *s, int64_t v)
 {
     double t = fabs(s->cost[v]);
     if (v >= s->ncol)
-        return t + fabs(s->rho[v - s->ncol]);   /* logicals enter as -I */
+        return t + fabs(s->y[v - s->ncol]);     /* logicals enter as -I */
 
     const jaos_model *m = s->m;
     for (int64_t k = m->a_start[v]; k < m->a_start[v + 1]; k++)
-        t += fabs(s->rho[m->a_index[k]] * s->av[k]);
+        t += fabs(s->y[m->a_index[k]] * s->av[k]);
     return t;
 }
 
@@ -1783,19 +1797,22 @@ static int64_t primal_ratio_test(sx *s, int64_t q, bool *below)
  * changes the basis without changing the point.
  *
  * **Which columns want one is decided before any of them gets one, and that
- * is not an optimisation (D30).** `wants_a_pivot` reads `column_traffic`,
- * which reads `s->rho` expecting the duals compute_duals left there — and
- * the first pivot of this loop overwrites `rho` with a pricing row. Asking
- * the question again after that is asking it of a vector that no longer
- * means what the test assumes, and measured on `pilot87` the answer it gives
- * is *no* for every remaining column, every time: 12 candidates on entry,
- * one pivot, zero candidates on exit. The loop could only ever take one
- * pivot per call. `greenbea`'s eight were eight separate rounds of the
- * re-entry, which is why nothing looked wrong.
+ * is not an optimisation (D30).** The candidate set is a snapshot of one
+ * point: the duals it is judged against belong to the basis on entry, and
+ * every pivot here changes that basis. Re-asking mid-loop would judge each
+ * column against a different point from the one that chose it.
  *
- * So the candidates are collected first, while `rho` is still the duals, and
- * what is re-checked per candidate reads only `d` and the loan against it —
- * never `rho` again. */
+ * It also used to be catastrophic rather than merely inconsistent, and that
+ * is worth keeping written down: `column_traffic` read the duals out of the
+ * same vector this function fills with a pricing row, so from the second
+ * candidate on it computed a threshold from the wrong quantity and refused
+ * every column. Measured on `pilot87`: 12 candidates on entry, one pivot,
+ * zero on exit, every round. The loop could only ever take one pivot per
+ * call, and `greenbea`'s eight were eight separate rounds of the re-entry,
+ * which is why nothing looked wrong. The duals now have their own vector, so
+ * that particular failure is no longer expressible.
+ *
+ * What is re-checked per candidate reads only `d` and the loan against it. */
 static jaos_status primal_cleanup(sx *s, int64_t *pivots)
 {
     *pivots = 0;
@@ -1836,7 +1853,8 @@ static jaos_status primal_cleanup(sx *s, int64_t *pivots)
         s->rho[r] = 1.0;
         jm_lu_btran(&s->lu, s->rho, &s->work);
         for (int64_t v = 0; v < s->nvar; v++)
-            s->alpha[v] = s->status[v] == JM_BASIC ? 0.0 : price_entry(s, v);
+            s->alpha[v] = s->status[v] == JM_BASIC ? 0.0
+                                              : price_entry(s, s->rho, v);
 
         if (fabs(s->alpha[q]) < PIVOT_MIN)
             continue;   /* the pricing row disagrees with the column: leave it */
@@ -2295,7 +2313,7 @@ static jaos_status publish(sx *s, jaos_solve_status status)
         m->sol_row[i] = var_value(s, m->num_col + i) / rho[i];
 
     /* y = B^-T c_B, then undo the internal minimisation. */
-    double *y = s->rho;
+    double *y = s->y;
     for (int64_t i = 0; i < s->nrow; i++)
         y[i] = s->cost[s->basis[i]];
     jm_lu_btran(&s->lu, y, &s->work);
