@@ -14,10 +14,9 @@ under `bench/results/` for that.
 
 ---
 
-`bench/` exists and the gate has been run once, end
-to end, on all 94 instances of the standard set. It is not met. The record
-is `bench/results/netlib.txt`; what it says, and what each line of it is
-asking for, is below.
+`bench/` exists and the gate has been run end to end on all 94 instances of
+the standard set. It is met. The record is `bench/results/netlib.txt`; what
+it says, and what each line of it is asking for, is below.
 
 | | |
 |---|---|

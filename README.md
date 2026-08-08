@@ -162,9 +162,10 @@ programming is explicitly out of scope — a different paradigm, not a later
 phase.
 
 The current milestone is LP correctness, whose gate is the Netlib test set
-solved to published reference values. That gate is built and running, and
-not yet met — the numbers above are where it stands. [`PLAN.md`](PLAN.md)
-carries the staging, the failures still open, and the questions behind them.
+solved to published reference values. That gate is built, running and met on
+all three instance sets — the numbers above are where it stands. What is left
+of the milestone is bookkeeping rather than solver work; [`PLAN.md`](PLAN.md)
+carries it, the staging, and the questions the next milestone opens on.
 
 ## Repository
 

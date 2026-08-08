@@ -296,8 +296,9 @@ against, and because two of them record a lesson rather than a result:
    `ken-18` is 105127×154699 and takes 113652 iterations; `osa-60` carries
    232966 columns; `pds-20` costs 3.1e10 work units. An order of magnitude
    past the standard set in every direction, with the independent checker
-   green throughout. Whatever ails the seven open instances of 1a, it is not
-   that the readers or the factorization stop working at scale.
+   green throughout. That answered something while seven instances of 1a were
+   still open: whatever ailed them, it was not that the readers or the
+   factorization stop working at scale.
 
    Reference optima come from that directory's readme, computed with
    Vanderbei's ALPO and carrying eight significant digits — enough against a
@@ -405,9 +406,9 @@ in aggregate is what §2.8 has just finished being a lesson about.
 | 4 | Reader robustness: truncated/corrupted input errors, never crashes | **met** — 1.6M fuzz cases clean under ASan+UBSan, on an instrument checked against an injected fault (§2.8.4) |
 | 5 | Results recorded under `bench/results/` as data, no wall-clock (D17) | **met**, and all three sets now diffed per instance against a baseline (D21) |
 
-Two of these seven were being read as one. "The gate" has meant condition 1a
-in every conversation so far, and 1b and 1c had no infrastructure behind them
-at all — which is worth stating plainly, because the distance to M1 is not
+Two of these seven were being read as one. "The gate" meant condition 1a in
+every conversation until late, and 1b and 1c had no infrastructure behind
+them at all — which is worth recording, because the distance to M1 was never
 the distance to closing seven instances.
 
 **All seven now hold, and `make netlib` reports `gate: PASS`.** Every

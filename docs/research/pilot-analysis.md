@@ -3,7 +3,9 @@
 > Research into why the two largest Netlib instances fail the JAOS acceptance gate.
 > Written 2026-08-07; figures re-read from `bench/results/netlib.txt` the same day
 > against the state `main` is in now, after the M2 prototype was reverted.
-> Status: M1 gate — **not met** for these two instances.
+> Status: **superseded**. Both instances closed on 2026-08-08 — `pilot` by D29,
+> `pilot87` by D30 — and the gate is met. What follows is the analysis as it
+> stood while they were open.
 >
 > Every number below comes from one recorded run and is only true of that run.
 > The analysis in §4 is reasoning about a mechanism and does not depend on the

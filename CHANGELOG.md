@@ -51,9 +51,10 @@ open, `bench/README.md` for the gate, and the commit each entry came from.
   optima. Each set fetches into its own directory, because `greenbea` names
   two different models across sets.
 - `bench/netlib.baseline` records what every instance did, and `make netlib`
-  diffs against it. The gate's own verdict reads `NOT MET` for the whole of
-  M1, so it cannot answer the question every change raises — did this make
-  anything worse? Work may grow 2x before it counts as a regression.
+  diffs against it. The gate's own verdict read `NOT MET` for almost the whole
+  of M1 and reads `PASS` now, and at neither end can it answer the question
+  every change raises — did this make anything worse? Work may grow 2x before
+  it counts as a regression.
   `make netlib-baseline` rewrites it and is never a side effect of running
   the gate (D21).
 
@@ -98,8 +99,9 @@ open, `bench/README.md` for the gate, and the commit each entry came from.
   and after, because the gains and the losses cancelled.
 - A model whose optimum lies beyond the bound dual phase 1 lends is refused
   with a numerical error naming the column, rather than answered. Reaching
-  such an optimum needs a phase 1 that lends nothing, which is still open
-  (PLAN Q9).
+  such an optimum needs a phase 1 that lends nothing. No instance of the 139
+  ever reached the lent bound, so the loan size is a performance parameter and
+  not a correctness risk, and Q9 closed on that (D31).
 - `jaos_solution` refuses to report anything for a solve that found no
   optimum, under the same rule as `jaos_objective`: a buffer of zeros cannot
   be told apart from an answer that is genuinely zero.
