@@ -1672,3 +1672,91 @@ version should be bit-identical and save the same work, which is the
 combination this attempt could not have.
 
 That is the next attempt, and it is a larger piece of work than this one was.
+
+---
+
+## D37 — A published zero is a zero, and the digest was lying about it
+
+Found while measuring D38, and it had to be fixed before D38 could be judged
+at all — which is the reason it gets its own entry rather than a line in
+someone else's.
+
+**The defect.** IEEE keeps two zeros, and which one a value lands on depends
+on the sign of whatever produced it. JAOS published whichever came out. So
+two solves could report the same optimum, agree on every digit of the
+objective, satisfy the checker identically — and differ in bytes, because one
+wrote `-0.0` where the other wrote `0.0`.
+
+That is a defect in the instrument this project leans on hardest. D21 made a
+per-instance record the way changes are judged, and a solution digest is its
+strongest single line: a change that should alter nothing must leave every
+digest identical. A digest that moves when the *number* has not moved makes
+that test report differences that are not differences.
+
+**How much it was lying by:** normalising the sign of published zeros, with
+no other change at all, moves **90 of the 94** digests on the standard set,
+while moving **zero work units and zero iterations**. Nine out of ten
+instances were publishing at least one signed zero.
+
+**What it cost to fix:** one comparison per published number, on `publish`,
+which runs once per solve.
+
+**Why this is not cosmetic.** D38 was measured first without it, came back
+with 89 moved digests, and read exactly like the scatter form D36 had already
+been rejected for. The difference is that D36 changed answers and D38 does
+not — and with a digest that cannot tell those two apart, the second one gets
+thrown away for the first one's crime. The fix is what let the two be told
+apart at all.
+
+---
+
+## D38 — BTRAN skips the slots it can prove are zero, and proves it by not touching them
+
+D36 rejected the cheap way to make BTRAN skip zeros: scattering over `urow`
+saved 54% of the pass and changed the order the sum accumulates in, which
+cost two feasible models a wrong INFEASIBLE and raised total work by half.
+The entry ended by saying the saving and the reordering were separable, and
+that predicting the pattern would get one without the other. It does.
+
+**The technique** [9], from Gilbert and Peierls. The U' pass computes
+`v[s] = (y[s] - sum over ucol[s]) / d[s]`, so `v[s]` can only be nonzero if
+`y[s]` is or if some `v[i]` feeding it is. The nonzero pattern is therefore
+the set reachable from `y`'s support along U's rows, and a depth-first search
+finds it in time proportional to that set. On the reference set it is about
+3% of the slots — 96.7% of them resolve to zero.
+
+**Why this one is bit-identical and the other was not.** The slots left out
+are exactly zero, not nearly zero: they start at zero and receive nothing. So
+every slot that *is* computed runs the same dot product, over the same
+column, in the same order, against the same values. What changes is how many
+of them run. Post-order fills the pattern from the back, which comes out as
+topological order, so each slot is still reached after everything it depends
+on.
+
+**Measured on all three sets, against a zero-normalised reference (D37).**
+
+| | standard | infeasible | Kennington |
+|---|---|---|---|
+| digests moved | **0 of 94** | — | — |
+| iteration counts moved | **0** | **0** | **0** |
+| instances broken | 0 | 0 | 0 |
+| work | **1.040x** less | **1.095x** less | **1.057x** less |
+| instances cheaper | 92 of 94 | — | **16 of 16** |
+
+Total across the three: 246,174,482,638 -> 233,820,190,281, **1.053x less**,
+and `ken-18` — the largest model JAOS solves, at 105127x154699 — comes down
+1.066x. Nothing anywhere gets more expensive than 1.000x.
+
+**What it costs, stated because the pinned test caught it.** The search is
+billed for the edges it walks, and on a three-row basis it walks nearly the
+whole of U to discover that nearly the whole of U is reachable: 8544 -> 8548.
+The technique costs most and saves least exactly where there is nothing to
+skip, which is why the question was settled on 139 real models and not on
+that test.
+
+**What remains.** The L' pass is untouched: only 4.1% of its entries sit
+under a zero, and L has no row-wise copy to search over. And the search
+itself still scans all `nrow` entries of `y` to find its roots, which is
+O(dim) the technique is supposed to avoid — the callers know the support and
+do not pass it. Both are smaller than what this took, and both are still
+there.

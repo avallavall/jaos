@@ -320,6 +320,18 @@ typedef struct {
 
     double *tmp;         /* [dim] solve workspace, owned */
     double *spike;       /* [dim] update workspace, owned */
+
+    /* Reachability workspace for BTRAN's U' pass. The slots whose value
+     * comes out zero are exactly those not reachable from the right-hand
+     * side's support in U's dependency graph, and on real bases that is
+     * almost all of them — so they are found by search rather than by
+     * computing zeros [9]. `mark` is stamped rather than cleared, because
+     * clearing it would cost the O(dim) the search exists to avoid. */
+    int64_t *mark;       /* [dim] visit stamp                            */
+    int64_t stamp;       /* current stamp; mark[s] == stamp means visited */
+    int64_t *dfs_node;   /* [dim] explicit DFS stack: node at each level  */
+    int64_t *dfs_next;   /* [dim] and how far into its row it has got     */
+    int64_t *pattern;    /* [dim] reachable slots, in topological order   */
 } jm_lu;
 
 void jm_lu_init(jm_lu *lu);

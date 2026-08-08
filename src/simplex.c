@@ -2355,6 +2355,24 @@ static jaos_status ensure_solution_arrays(jaos_model *m)
     return JAOS_OK;
 }
 
+/* A published zero is a zero.
+ *
+ * IEEE keeps two of them, and which one a value lands on depends on the sign
+ * of whatever produced it — so a solve can report -0.0 where an equivalent
+ * one reports 0.0, for the same variable at the same optimum. The number is
+ * the same and every test in the checker agrees they are the same; what
+ * differs is the bytes.
+ *
+ * That matters because a byte-for-byte comparison of two published solutions
+ * is this project's cheapest and strongest evidence that a change altered
+ * nothing (D21). An instrument that reports a difference where there is no
+ * difference in value is a worse instrument, and normalising here costs one
+ * comparison per published number on a path that runs once per solve. */
+static double published(double v)
+{
+    return v == 0.0 ? 0.0 : v;
+}
+
 /* The internal status and the published one carry the same four cases, and
  * are mapped rather than cast: they are two enums that happen to agree
  * today, and a silent renumbering of either would otherwise publish a wrong
@@ -2409,9 +2427,9 @@ static jaos_status publish(sx *s, jaos_solve_status status)
     const double *rho = m->row_scale, *gamma = m->col_scale;
 
     for (int64_t j = 0; j < m->num_col; j++)
-        m->sol_col[j] = gamma[j] * var_value(s, j);
+        m->sol_col[j] = published(gamma[j] * var_value(s, j));
     for (int64_t i = 0; i < m->num_row; i++)
-        m->sol_row[i] = var_value(s, m->num_col + i) / rho[i];
+        m->sol_row[i] = published(var_value(s, m->num_col + i) / rho[i]);
 
     /* y = B^-T c_B, then undo the internal minimisation. */
     double *y = s->y;
@@ -2419,9 +2437,9 @@ static jaos_status publish(sx *s, jaos_solve_status status)
         y[i] = s->cost[s->basis[i]];
     jm_lu_btran(&s->lu, y, &s->work);
     for (int64_t i = 0; i < m->num_row; i++)
-        m->sol_dual[i] = sigma * y[i] * rho[i];
+        m->sol_dual[i] = published(sigma * y[i] * rho[i]);
     for (int64_t j = 0; j < m->num_col; j++)
-        m->sol_redcost[j] = sigma * s->d[j] / gamma[j];
+        m->sol_redcost[j] = published(sigma * s->d[j] / gamma[j]);
 
     /* The basis is published unscaled in the only sense that applies to it:
      * scaling multiplies a column by a positive factor, which moves where a

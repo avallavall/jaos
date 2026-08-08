@@ -66,6 +66,17 @@ open, `bench/README.md` for the gate, and the commit each entry came from.
 
 ### Changed
 
+- BTRAN solves only the slots that can produce a nonzero, found by searching
+  the factor's dependency graph instead of computing zeros to discover they
+  are zero. 96.7% of them are. Work falls 1.040x on the standard set, 1.095x
+  on the infeasible one and 1.057x on Kennington — `ken-18` included — with
+  **no digest and no iteration count moving anywhere**, because the skipped
+  slots are exactly zero rather than nearly zero (D38).
+- A published zero is now always `+0.0`. `-0.0` is the same number and every
+  check agreed it was, but it made two identical answers differ in bytes —
+  which is what a solution digest compares. Normalising moves 90 of 94
+  digests and not one work unit, and without it D38 could not have been told
+  apart from a change that alters answers (D37).
 - Pricing walks the matrix by row instead of by column, so a zero in the
   pricing row skips a whole row of the matrix rather than being spread
   across every column that touches it. Total work over the 110 solved

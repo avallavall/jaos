@@ -558,11 +558,17 @@ missed this".
   that cancel the two orders are not comparable. Two feasible models came
   back INFEASIBLE and total work rose by half.
 
-  **The route that remains is the real one**: predict the result's pattern by
-  depth-first search over the factor's dependency graph [9], then skip the
-  slots outside it. Those are exactly zero rather than nearly zero, so every
-  slot still computed keeps the arithmetic it has now — the saving without
-  the reordering. Larger piece of work, and the one M2 should do.
+  **The route that remains was the real one, and it is built (D38).** The
+  BTRAN's U' pass now searches the factor's dependency graph for the slots
+  that can produce a nonzero and solves only those — bit-identical, because
+  the ones it skips are exactly zero. 1.04x to 1.10x less work across the
+  three sets, no digest and no iteration count moved.
+
+  Still open on the same path: the **L' pass** is untouched (only 4.1% of its
+  entries sit under a zero, and L has no row-wise copy to search), the
+  **FTRANs** skip zeros but still walk all `nrow` slots to find them, and the
+  search itself scans all of `y` for its roots because callers know the
+  support and do not pass it.
 - ~~**Row-wise pricing reads the entries of basic columns.**~~ **Measured, and
   the filter is refused.** It is what makes the fourteen dense-`rho`
   instances of D35 up to 5% more expensive, so the question was whether to

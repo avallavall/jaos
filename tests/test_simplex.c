@@ -572,7 +572,13 @@ static void test_free_variable_enters_and_settles(void)
  * change did to the accounting. If it fails and you did not intend to
  * change the accounting, that is the bug it exists to catch.
  *
- * Last moved by row-wise pricing (D35): 8535 -> 8544. The column-wise pass
+ * Last moved by BTRAN's reachability search (D36): 8544 -> 8548. The search
+ * is billed for the edges it walks, and on a three-row basis it walks almost
+ * the whole of U to discover that almost the whole of U is reachable. This
+ * test is where the technique costs the most and saves the least; the
+ * instance sets are where the question is settled.
+ *
+ * Before that, by row-wise pricing (D35): 8535 -> 8544. The column-wise pass
  * skipped a basic variable without reading it at all; the row-wise one walks
  * matrix rows, so it reads the entries of basic columns too and is charged
  * for them. On a three-row model with five nonzeros that is the whole of the
@@ -586,7 +592,7 @@ static void test_free_variable_enters_and_settles(void)
  * plus the two residuals they are computed from. Before that, by the recheck
  * itself: 4411 -> 8517, the one extra factorization it costs plus the
  * pricing pass that follows it. */
-constexpr int64_t WORK_PINNED = 8544;
+constexpr int64_t WORK_PINNED = 8548;
 
 static void test_work_accounting_is_pinned(void)
 {

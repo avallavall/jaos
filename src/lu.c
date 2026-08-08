@@ -351,6 +351,10 @@ void jm_lu_free(jm_lu *lu)
     free(lu->inv_col);
     free(lu->tmp);
     free(lu->spike);
+    free(lu->mark);
+    free(lu->dfs_node);
+    free(lu->dfs_next);
+    free(lu->pattern);
     memset(lu, 0, sizeof *lu);
 }
 
@@ -432,6 +436,13 @@ jaos_status jm_lu_factor(jm_lu *lu, int64_t dim,
     lu->inv_col  = jm_alloc_array(dim, sizeof(int64_t));
     lu->tmp      = jm_alloc_array(dim, sizeof(double));
     lu->spike    = jm_alloc_array(dim, sizeof(double));
+    /* mark starts zeroed and stamp at zero, so the first search's stamp of
+     * 1 matches nothing. */
+    lu->mark     = jm_calloc_array(dim, sizeof(int64_t));
+    lu->stamp    = 0;
+    lu->dfs_node = jm_alloc_array(dim, sizeof(int64_t));
+    lu->dfs_next = jm_alloc_array(dim, sizeof(int64_t));
+    lu->pattern  = jm_alloc_array(dim, sizeof(int64_t));
 
     e.col       = jm_calloc_array(dim, sizeof(jm_svec));
     e.row       = jm_calloc_array(dim, sizeof(pat));
@@ -454,6 +465,7 @@ jaos_status jm_lu_factor(jm_lu *lu, int64_t dim,
     if (!us_start || !inv_row || !lu->l_start || !lu->u_diag || !lu->urow ||
         !lu->ucol || !lu->slot_at || !lu->pos_of || !lu->perm_row ||
         !lu->perm_col || !lu->inv_col || !lu->tmp || !lu->spike ||
+        !lu->mark || !lu->dfs_node || !lu->dfs_next || !lu->pattern ||
         !e.col || !e.row || !e.col_cnt || !e.row_cnt || !e.col_done ||
         !e.row_done || !e.bhead || !e.bnext || !e.bprev || !e.in_bucket ||
         !e.work || !e.work_set || !e.touched || !e.piv_row || !e.piv_mult ||
@@ -706,6 +718,76 @@ void jm_lu_ftran(jm_lu *lu, double *x, jm_work *w)
         x[lu->perm_col[s]] = y[s];
 }
 
+/* Which slots the U' pass can produce a nonzero for, in an order where each
+ * one comes after everything it depends on.
+ *
+ * The pass computes v[s] = (y[s] - sum over ucol[s] of U[i][s]*v[i]) / d[s],
+ * so v[s] can only be nonzero if y[s] is, or if some v[i] feeding it is.
+ * The nonzero pattern is therefore the set reachable from y's support along
+ * U's rows, and a depth-first search finds it in time proportional to that
+ * set instead of to the dimension [9]. On the reference set it is about 3%
+ * of the slots.
+ *
+ * The slots left out are not nearly zero, they are exactly zero: they start
+ * at zero and receive nothing. That is what makes skipping them leave the
+ * arithmetic of every slot still computed bit-for-bit unchanged — the
+ * difference between this and the scatter form D36 measured and rejected.
+ *
+ * Post-order fills `pattern` from the back, which comes out as topological
+ * order: a slot is emitted only after every slot it feeds, so writing
+ * backwards puts it before them. Returns the index the pattern starts at —
+ * it occupies pattern[return .. dim-1], not the front of the array.
+ */
+static int64_t btran_u_pattern(jm_lu *lu, const double *y, jm_work *w)
+{
+    const int64_t n = lu->dim;
+    int64_t top = n;
+    int64_t edges = 0;
+
+    lu->stamp++;
+    for (int64_t root = 0; root < n; root++) {
+        if (y[root] == 0.0 || lu->mark[root] == lu->stamp)
+            continue;
+
+        lu->mark[root] = lu->stamp;
+        lu->dfs_node[0] = root;
+        lu->dfs_next[0] = 0;
+        int64_t sp = 1;
+
+        while (sp > 0) {
+            const int64_t t = lu->dfs_node[sp - 1];
+            const jm_svec *row = &lu->urow[t];
+            int64_t i = lu->dfs_next[sp - 1];
+            bool descended = false;
+
+            while (i < row->n) {
+                const int64_t c = row->idx[i];
+                i++;
+                edges++;
+                if (lu->mark[c] != lu->stamp) {
+                    lu->mark[c] = lu->stamp;
+                    lu->dfs_next[sp - 1] = i;
+                    lu->dfs_node[sp] = c;
+                    lu->dfs_next[sp] = 0;
+                    sp++;
+                    descended = true;
+                    break;
+                }
+            }
+            if (!descended) {
+                lu->dfs_next[sp - 1] = i;
+                sp--;
+                lu->pattern[--top] = t;
+            }
+        }
+    }
+
+    /* The search reads one matrix entry per edge it considers, so it is
+     * billed like any other kernel (D16). */
+    jm_work_add(w, edges * JM_WORK_NONZERO);
+    return top;
+}
+
 void jm_lu_btran(jm_lu *lu, double *x, jm_work *w)
 {
     const int64_t n = lu->dim;
@@ -718,10 +800,13 @@ void jm_lu_btran(jm_lu *lu, double *x, jm_work *w)
     for (int64_t s = 0; s < n; s++)
         y[s] = x[lu->perm_col[s]];
 
-    /* U' v = y, forward in position order. U by column is U' by row, so
-     * each step is a dot product over already-resolved slots. */
-    for (int64_t k = 0; k < n; k++) {
-        int64_t s = lu->slot_at[k];
+    /* U' v = y, over the slots that can produce a nonzero and no others.
+     * Each is still a dot product over already-resolved slots, in the same
+     * order over the same column, so what this changes is how many of them
+     * run — not what any one of them computes. */
+    const int64_t first = btran_u_pattern(lu, y, w);
+    for (int64_t k = first; k < n; k++) {
+        int64_t s = lu->pattern[k];
         const jm_svec *col = &lu->ucol[s];
         double sum = y[s];
         for (int64_t p = 0; p < col->n; p++)
