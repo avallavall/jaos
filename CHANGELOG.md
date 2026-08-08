@@ -11,77 +11,25 @@ open, `bench/README.md` for the gate, and the commit each entry came from.
 
 ### Added
 
-- A primal ratio test, used only to clean up after the dual solve has
-  finished. `greenbea` goes from REJECTED to checker ok for **eight pivots**,
-  its objective moving from -72555233.859378919 to -72555248.129846007 against
-  Koch's exact -72555248.129845992 — fifteen significant digits — and its dual
-  violation from 2.66 to 0. `pilot`'s objective comes inside tolerance from
-  390x outside it, with its dual violation at 0 and its gap at 6.6e-14.
-  Standard set 0 regressed, 2 improved, 0 new; Kennington and the infeasible
-  set 0/0/0, both still PASS, with fifteen of Kennington's sixteen
-  bit-identical.
-
-  This grows M1's declared scope, deliberately and by one thing. What is in is
-  a ratio test and the basis change `pivot()` already performs, on a column
-  the residue names. What stays out is everything that makes a primal
-  *method*: pricing to choose an entering column, a phase 1 of its own, its
-  own weights. A primal simplex chooses what enters; this is told. PLAN 2.1
-  now says where that line runs, because a line that moves once moves again by
-  drift if nobody writes down where it stopped.
-
-  It is what `greenbea`'s ten columns needed and what nothing else could
-  reach: they rest at a lower bound with no upper bound, so the term any
-  repair test could weigh — `w * bound` — does not exist for them. Two
-  guarantees come free that the re-entry of D25 does not have: the point stays
-  primal feasible, because that is what the ratio test is for, and the
-  objective cannot rise, because `d_q` points the way `q` travels. D28.
-
-- Bland's rule, as a fallback a detected cycle switches on. `grow15` had been
-  running to the internal iteration guard at 189201 iterations; instrumented,
-  it is a cycle of period four over two rows and four variables, repeating
-  bit for bit from iteration ~3000 — not the stall Q10 diagnosed, since half
-  its iterations take a real dual step of ~1.7e-6 and the four cancel
-  exactly. It now solves in 21653 iterations at an objective matching Koch's
-  to sixteen digits.
-
-  PLAN recorded that Bland's rule had been tried and did not fix it. What had
-  been tried was a smallest-index tie-break inside the Harris window, which
-  carries none of the guarantee: that needs the exact minimum quotient, no
-  widening, and the index rule on the leaving choice too. Built properly it
-  solves `grow15` outright — and cannot be the default, because it costs 25x
-  on `25fv47` and takes `grow22` from 2179 iterations to no answer at all.
-
-  So the trigger is failing to improve on the best total primal infeasibility
-  for `STALL_FACTOR` times `nrow + ncol + 1`, computed in a loop `price_row`
-  was already running, and it switches off again the moment the total
-  improves. The factor is 10 against a measured worst healthy plateau of 1.67
-  (`truss`) and a cycling one of 198 (`grow15`) — and it is a constant that
-  cannot change an answer, only how many iterations it takes to reach one.
-  Every instance that does not cycle is bit-identical. D26.
-
-- The dual simplex re-enters from the settled point. Once the borrowed costs
-  are called in, any nonbasic whose sign condition is breached and that has a
-  real bound on the other side is sent to it, and the method runs again from
-  there — bound flipping, which the ratio test already does, applied at the
-  end instead of mid-iteration. `nesm` goes from REJECTED to checker ok with
-  its dual violation at exactly 0; `pilot` and `pilot87` improve by two
-  orders of magnitude on the dual and by seven and three on the gap without
-  changing verdict. 0 regressed, 1 improved, 0 new on the standard 94; 0/0/0
-  on the other two sets, both still PASS. The settled point is saved first
-  and any re-entry not ending in a second optimum is discarded — a model just
-  proved to have an optimum has not become infeasible, and returning
-  INFEASIBLE for one is exactly how the two earlier repairs of this residue
-  failed. D25 carries the reasoning and what the mechanism cannot reach.
-- Three fields in `jaos_check_report`, all of which decide nothing.
-  `gap_positive` and `gap_negative` split the gap into the two sums it is the
-  difference of, so `P - P* <= Q` becomes a bound the checker publishes
-  instead of a consequence of a hypothesis nobody was testing; a gap can be
-  small because both halves are or because two large ones cancelled, and it
-  cannot say which. On the 94 that is not hypothetical: `finnis` reports a
-  gap of 3.96e-11 over halves of 4.25e-5 and 2.89e-5. `max_row_violation_relative`
-  is the row residue against what the row carries, which D24 said it would
-  keep in the report and out of the predicate. The record carries all three
-  per instance. No verdict moved (D24).
+- A primal ratio test, used only to clean up after the dual solve. `greenbea`
+  goes from REJECTED to checker ok in eight pivots, at fifteen significant
+  digits of Koch's value, and `pilot`'s objective comes inside tolerance from
+  390x outside it. Grows M1's declared scope by that ratio test and nothing
+  else; the primal simplex stays out (PLAN 2.1). 0 regressed, 2 improved on
+  the standard 94; 0/0/0 on the other two sets (D28).
+- Bland's rule as a fallback a detected cycle switches on. `grow15` had been
+  running to the iteration guard at 189201 iterations and now solves in 21653.
+  Costs nothing where nothing cycles: `grow22`, `grow7` and `truss` are
+  bit-identical (D26).
+- The dual simplex re-enters from the settled point, moving a nonbasic to its
+  other bound and running again. `nesm` goes from REJECTED to checker ok for
+  seven iterations; `pilot` and `pilot87` improve two orders of magnitude on
+  the dual violation. 0 regressed, 1 improved; 0/0/0 elsewhere (D25).
+- Three fields in `jaos_check_report`: `gap_positive` and `gap_negative` split
+  the gap into the two sums it is the difference of, and
+  `max_row_violation_relative` reports the row residue against the row's
+  traffic. No verdict reads any of them. The record carries all three per
+  instance (D24).
 - A fuzzer for both readers, `tests/test_fuzz.c`: truncation at every offset
   of every corpus file, seeded edits, random bytes, keyword salad, and named
   edge cases, each fed to both readers. 11543 cases in the suite, 1.6M under
@@ -111,35 +59,12 @@ open, `bench/README.md` for the gate, and the commit each entry came from.
 
 ### Changed
 
-- The re-entry moves a column when its wrong sign costs objective and the
-  reduced cost carrying it is a number rather than rounding. `etamacro` goes
-  from REJECTED to checker ok for 9 extra iterations; every other instance
-  of the standard 94 is bit-identical and `pds-20` costs one iteration more
-  than its baseline. It took three attempts and the first two are in
-  PLAN 2.8.1 because each is what pointed at the next.
-
-  The breach has no scale-free reading — `etamacro`'s is 4.89e-8 scaled and
-  1.56e-6 published, inside the solver's zero on one side of a change of
-  variable and past the checker's tolerance on the other — and judging it in
-  the published space takes `pilot87` from a solve to a tripped iteration
-  guard. What does have one is the term it contributes to `P - D`: `|d|`
-  times the width of the box, which comes out the same in either space
-  because `publish` divides `d` by the same `gamma` it multiplies the value
-  by. It is also exactly what D24 made the checker publish as `Q`.
-
-  That alone cost `pds-20` 3.2x its work, by flipping columns whose reduced
-  costs are 1e-10 — rounding, carried by boxes a thousand wide. So `|d|`
-  counts only above `eps` times the traffic through its column, which is
-  D23's argument for a row read down a column, not a second test: a product
-  is only as good as its factors. Measured over both feasible sets, that
-  ratio is at least 5.055e8 on every column that should move and 2.1 to 36
-  on `pds-20`'s — seven orders of daylight, and the margin saturates. D27.
-
-  `tests/test_simplex.c` carries the case that matters more than the
-  campaign: a three-column model whose optimum is readable by eye at
-  `x = (1, 0, 0)` and objective zero. The solver used to stop at 4.997e-8
-  with a certificate that did not carry, and the test asserted that wrong
-  answer. It now reaches the optimum, gap zero, both halves zero.
+- The re-entry weighs a column on what its wrong sign costs the objective,
+  not on the size of the breach. `etamacro` goes from REJECTED to checker ok
+  for 9 extra iterations; every other instance of the standard 94 is
+  bit-identical and `pds-20` costs one iteration more. Two earlier forms of
+  this were measured and left out, one of them costing `pds-20` 3.2x — both
+  in PLAN 2.8.1 (D27).
 - The checker's bound-proximity test scales with what the value being tested
   is made of: the window is `tol * s`, with `s = max(1, sum_j |A_ij x_j|)`
   for a row and `max(1, |x_j|)` for a column. Row 3 of Netlib's `finnis`
