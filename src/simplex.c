@@ -209,6 +209,14 @@ typedef struct {
      * rewrite it would be a solver marking its own homework. */
     double *av;              /* [num_nz] */
 
+    /* The same scaled values again, ordered by row rather than by column,
+     * over the model's CSR mirror. Pricing reads a row of B^-1 against
+     * every column, and that row is usually mostly zeros: walking the
+     * matrix by row lets the zeros be skipped, where walking it by column
+     * cannot (D35). Memory for work, deliberately, like U in the
+     * factorization. */
+    double *arv;             /* [num_nz], parallel to m->ar_index */
+
     /* Bounds and costs over all variables, likewise scaled: structurals
      * first, then the logicals that carry row activities. `cost` is the
      * working cost, which is the model's plus whatever has been shifted
@@ -307,7 +315,7 @@ typedef struct {
 
 static void sx_free(sx *s)
 {
-    free(s->av);
+    free(s->av); free(s->arv);
     free(s->lo); free(s->up); free(s->cost); free(s->shift);
     free(s->status); free(s->basis); free(s->where);
     free(s->xb); free(s->d); free(s->dse);
@@ -352,7 +360,16 @@ static jaos_status sx_init(sx *s, jaos_model *m)
             return st;
     }
 
+    /* Pricing walks the matrix by row (D35), so the mirror has to exist.
+     * It is built once per load and survives re-solves. */
+    {
+        jaos_status st = jm_model_ensure_rowwise(m);
+        if (st != JAOS_OK)
+            return st;
+    }
+
     s->av     = jm_alloc_array(m->num_nz, sizeof(double));
+    s->arv    = jm_alloc_array(m->num_nz, sizeof(double));
     s->lo     = jm_alloc_array(s->nvar, sizeof(double));
     s->up     = jm_alloc_array(s->nvar, sizeof(double));
     s->cost   = jm_calloc_array(s->nvar, sizeof(double));
@@ -376,7 +393,7 @@ static jaos_status sx_init(sx *s, jaos_model *m)
     s->bs     = jm_alloc_array(s->nrow + 1, sizeof(int64_t));
     s->fake   = jm_calloc_array(s->nvar, sizeof *s->fake);
 
-    if (!s->av || !s->lo || !s->up || !s->cost || !s->shift ||
+    if (!s->av || !s->arv || !s->lo || !s->up || !s->cost || !s->shift ||
         !s->status || !s->basis ||
         !s->where || !s->xb || !s->d || !s->dse || !s->col || !s->raw ||
         !s->y || !s->rho || !s->tau || !s->alpha || !s->cand || !s->rnum ||
@@ -391,6 +408,13 @@ static jaos_status sx_init(sx *s, jaos_model *m)
     for (int64_t j = 0; j < s->ncol; j++)
         for (int64_t k = m->a_start[j]; k < m->a_start[j + 1]; k++)
             s->av[k] = rho[m->a_index[k]] * m->a_value[k] * gamma[j];
+
+    /* The same product in the same order of operations, laid out by row.
+     * Same order matters: it is what lets the row-wise pricing pass produce
+     * bit-identical sums to the column-wise one it replaces. */
+    for (int64_t i = 0; i < s->nrow; i++)
+        for (int64_t p = m->ar_start[i]; p < m->ar_start[i + 1]; p++)
+            s->arv[p] = rho[i] * m->ar_value[p] * gamma[m->ar_index[p]];
 
     /* A column's bounds are its own units divided out; its cost is what
      * keeps the objective the same number. A row's bounds move with the
@@ -1260,6 +1284,48 @@ int64_t jm_harris_pick(int64_t n, const double *num, const double *den,
 /* Builds row r of B^-1 M and picks the entering variable from it. May also
  * swap nonbasic variables between their bounds on the way — see
  * dual_ratio_test — which moves the primal point but not the basis. */
+/* alpha = rho' M, for every variable at once.
+ *
+ * The column-wise form this replaces asked each column in turn for its dot
+ * product with rho, which costs the entire matrix every iteration no matter
+ * how sparse rho is. And rho is a row of B^-1: over the standard set its
+ * density is 0.24 at the median and 0.004 at the sparsest (D35). Walking by
+ * row instead lets one zero of rho skip a whole row of the matrix, which is
+ * the saving the column view structurally cannot express.
+ *
+ * The sums come out bit-identical to the column-wise ones, and that is by
+ * construction rather than by luck. Each column of the CSC copy is sorted by
+ * row index, and the rows here are visited in increasing order, so every
+ * column accumulates its terms in exactly the order it did before. A skipped
+ * row would have contributed `0.0 * a_ij`, which cannot change a sum it is
+ * added to — only the sign of a zero, which no test in the method reads. */
+static void price_all(sx *s)
+{
+    const jaos_model *m = s->m;
+    memset(s->alpha, 0, (size_t)s->nvar * sizeof *s->alpha);
+
+    int64_t touched = 0;
+    for (int64_t i = 0; i < s->nrow; i++) {
+        double w = s->rho[i];
+        if (w == 0.0)
+            continue;
+        s->alpha[s->ncol + i] = -w;   /* a logical's column is -e_i */
+        for (int64_t p = m->ar_start[i]; p < m->ar_start[i + 1]; p++)
+            s->alpha[m->ar_index[p]] += w * s->arv[p];
+        touched += m->ar_start[i + 1] - m->ar_start[i];
+    }
+
+    /* A basic variable prices to zero by definition, and the sweep above has
+     * no way to know which those are. */
+    for (int64_t i = 0; i < s->nrow; i++)
+        s->alpha[s->basis[i]] = 0.0;
+
+    /* Charged the way the column-wise pass was: the matrix entries actually
+     * read, plus one per row for the logicals. Neither form bills its own
+     * O(nvar) sweep, so the two are comparable (PLAN 2.11). */
+    jm_work_add(&s->work, (touched + s->nrow) * JM_WORK_NONZERO);
+}
+
 static int64_t price_and_select(sx *s, int64_t r, bool below,
                                 double violation, double *theta_dual)
 {
@@ -1267,9 +1333,7 @@ static int64_t price_and_select(sx *s, int64_t r, bool below,
     s->rho[r] = 1.0;
     jm_lu_btran(&s->lu, s->rho, &s->work);
 
-    for (int64_t v = 0; v < s->nvar; v++)
-        s->alpha[v] = s->status[v] == JM_BASIC ? 0.0
-                                              : price_entry(s, s->rho, v);
+    price_all(s);
 
     return dual_ratio_test(s, below, violation, theta_dual);
 }

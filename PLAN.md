@@ -548,7 +548,23 @@ missed this".
 - **U is stored twice**, by row and by column, because updates need both
   orientations. Memory for time, deliberately.
 - **The solves are dense in the working vector.** Hyper-sparsity [9] is
-  already scheduled for M2 and is where this is addressed.
+  already scheduled for M2 and is where this is addressed. Row-wise pricing
+  (D35) applied the same insight to the `rho' M` product, which is where the
+  units actually were, but it left the triangular solves themselves
+  untouched: their patterns are still walked in full rather than predicted
+  from the factor's dependency graph, and `rho`'s own support is still found
+  by scanning all `nrow` entries.
+- **Row-wise pricing reads the entries of basic columns**, which the
+  column-wise form skipped without touching. It is what makes the fourteen
+  dense-`rho` instances of D35 up to 5% more expensive. Filtering them would
+  cost a status test per entry on the hottest loop there is, to avoid reading
+  memory already in cache — a trade with no measurement on either side yet.
+- **Neither pricing form bills its own O(nvar) sweep.** The column-wise loop
+  charged per matrix entry and per logical; the row-wise one charges the same
+  way, so the two are comparable, but the clear of `alpha` and the reset of
+  the basic entries are real work no unit counts. Worth fixing when the
+  counter is next revised, and worth knowing before reading a pricing
+  measurement as exact.
 - **`col_max_abs` is recomputed per pivot search.** A column's largest
   magnitude only changes when the elimination rewrites that column, so it
   could be cached and refreshed at that one point. Left alone because a

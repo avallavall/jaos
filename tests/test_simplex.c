@@ -572,12 +572,21 @@ static void test_free_variable_enters_and_settles(void)
  * change did to the accounting. If it fails and you did not intend to
  * change the accounting, that is the bug it exists to catch.
  *
- * Last moved by the refinement that recheck now asks its two solves for
- * (D29): 8517 -> 8535, which is one extra FTRAN and one extra BTRAN over a
- * three-row basis, plus the two residuals they are computed from. Before
- * that, by the recheck itself: 4411 -> 8517, the one extra factorization it
- * costs plus the pricing pass that follows it. */
-constexpr int64_t WORK_PINNED = 8535;
+ * Last moved by row-wise pricing (D35): 8535 -> 8544. The column-wise pass
+ * skipped a basic variable without reading it at all; the row-wise one walks
+ * matrix rows, so it reads the entries of basic columns too and is charged
+ * for them. On a three-row model with five nonzeros that is the whole of the
+ * difference, and it goes the wrong way — the saving is in skipping rows
+ * where rho is zero, and on a model this small rho has no zeros to skip.
+ * Which way it goes on real models is the question the instance sets answer,
+ * not this test.
+ *
+ * Before that, by the refinement that recheck asks its two solves for (D29):
+ * 8517 -> 8535, one extra FTRAN and one extra BTRAN over a three-row basis
+ * plus the two residuals they are computed from. Before that, by the recheck
+ * itself: 4411 -> 8517, the one extra factorization it costs plus the
+ * pricing pass that follows it. */
+constexpr int64_t WORK_PINNED = 8544;
 
 static void test_work_accounting_is_pinned(void)
 {

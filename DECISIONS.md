@@ -1536,3 +1536,77 @@ Condition 2 of the M1 gate is unchanged in verdict and better founded in
 substance. What it verifies directly is still same-machine reproducibility —
 two solves in one process and one across runs. What it now also has is a
 bound on the only cross-machine mechanism anyone had identified.
+
+---
+
+## D35 — Pricing walks the matrix by row, and the answer does not move
+
+The first change of M2, and the one D32's attribution pointed at: 53% of all
+work units JAOS spends are the pricing row and the ratio test. Underneath
+that number was a loop that asked every column in turn for its dot product
+with `rho`, which costs the entire matrix on every iteration however sparse
+`rho` happens to be.
+
+`rho` is a row of `B^-1`. Measured over the standard set before touching
+anything, its density is **0.24 at the median and 0.004 at the sparsest**.
+The column view cannot use that: a zero of `rho` is spread across every
+column that touches the row, so no column can skip it. The row view can — one
+zero skips a whole row of the matrix.
+
+**What changed.** `price_all` accumulates `alpha = rho' M` by walking the CSR
+mirror over the rows where `rho` is nonzero, scattering into a dense `alpha`.
+The mirror is `jm_model_ensure_rowwise`, which existed, worked, and had never
+been called by anything: PLAN 2.5.1 has said since the beginning that the
+dual simplex prices rows and the column view feeds FTRAN, and until now only
+the second half was true.
+
+**The answer is bit-identical, by construction rather than by luck.** Each
+column of the CSC copy is sorted by row index, and the rows are visited in
+increasing order, so every column accumulates its terms in exactly the order
+the column-wise loop used. A skipped row would have contributed `0.0 * a_ij`,
+which cannot change a sum — only the sign of a zero, and no test in the
+method reads one. Confirmed rather than argued: **0 of 110 solution digests
+moved and 0 iteration counts moved**, across the standard and Kennington
+sets. Same search path, same answer, less arithmetic.
+
+**Measured on all three sets.**
+
+| | |
+|---|---|
+| Total work over 110 solved instances | 289,680,470,328 -> 243,168,942,577 |
+| Overall | **1.19x less** |
+| Instances that got cheaper | **96 of 110** |
+| Per-instance factor | min 0.95x, median 1.17x, max 2.21x (`osa-14`) |
+| Gate | PASS on all three sets, 0 regressed |
+
+**It costs something, and the cost is understood rather than absorbed.**
+Fourteen instances got more expensive, none by more than 5%: `grow7`,
+`stair`, `perold`, `pilot4`, `pilot87`, `pilot-we` among them. These are the
+models where `rho` is dense, so there are no rows to skip, and what remains
+is the one thing the row view does that the column view did not — it reads
+the entries of *basic* columns, because a row does not know which of its
+columns are in the basis. The column-wise loop skipped a basic variable
+without touching it at all.
+
+That is also why the whole-solve gain (1.19x) is smaller than the pricing
+pass's own (1.83x measured in isolation): the pricing pass is a bit over half
+of total work, and part of what the row form saves it hands back on basic
+columns.
+
+Filtering those out would cost a status test per entry, on the hottest loop
+there is, to save reading entries that are already in cache. That is a trade
+with a measurement behind neither side, so it is not made here.
+
+**The pinned work test caught it and was re-pinned deliberately** — 8535 ->
+8544 on a three-row model, which is the basic-column cost with none of the
+saving, because `rho` on three rows has no zeros to skip. A change detector
+that fires on a change this size is doing its job; the number it now carries
+is the record of what the accounting does, and the instance sets are where
+the question of whether it is worth it gets answered.
+
+**What this is not.** It is not hyper-sparsity in the sense of [9]. The
+triangular solves themselves are still dense in the working vector, and the
+pattern of `rho` is still discovered by scanning all `nrow` entries rather
+than predicted from the factor's dependency graph. Both remain open and both
+are larger wins than this one. This is the change that the same insight buys
+in the pricing product, where JAOS happened to be spending the most.

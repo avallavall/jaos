@@ -66,6 +66,12 @@ open, `bench/README.md` for the gate, and the commit each entry came from.
 
 ### Changed
 
+- Pricing walks the matrix by row instead of by column, so a zero in the
+  pricing row skips a whole row of the matrix rather than being spread
+  across every column that touches it. Total work over the 110 solved
+  reference instances falls 1.19x, 96 of them get cheaper, the best is 2.21x
+  and the worst 14 pay up to 5% — and **not one solution digest or iteration
+  count moves**, on any of the three sets (D35).
 - The claim that a different C library cannot change a JAOS answer is
   measured rather than argued. `log2` in the scaling was the only libm result
   IEEE leaves unpinned anywhere in the solver; perturbing it moves no scale
