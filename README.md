@@ -167,9 +167,13 @@ phase.
 
 The current milestone is LP correctness, whose gate is the Netlib test set
 solved to published reference values. That gate is built, running and met on
-all three instance sets — the numbers above are where it stands. What is left
-of the milestone is bookkeeping rather than solver work; [`PLAN.md`](PLAN.md)
-carries it, the staging, and the questions the next milestone opens on.
+all three instance sets — the numbers above are where it stands — and the
+bookkeeping that closing it triggered is done: the tolerances are frozen, the
+work-unit weights are settled, and the API conventions are a decision record
+rather than a draft. The next milestone is LP *speed*, and its first item is
+not code: nothing it delivers can be justified without a measurement host
+that does not exist yet. [`PLAN.md`](PLAN.md) carries the staging and the
+questions that opens.
 
 ## Repository
 
