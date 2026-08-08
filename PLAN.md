@@ -554,11 +554,15 @@ missed this".
   untouched: their patterns are still walked in full rather than predicted
   from the factor's dependency graph, and `rho`'s own support is still found
   by scanning all `nrow` entries.
-- **Row-wise pricing reads the entries of basic columns**, which the
-  column-wise form skipped without touching. It is what makes the fourteen
-  dense-`rho` instances of D35 up to 5% more expensive. Filtering them would
-  cost a status test per entry on the hottest loop there is, to avoid reading
-  memory already in cache — a trade with no measurement on either side yet.
+- ~~**Row-wise pricing reads the entries of basic columns.**~~ **Measured, and
+  the filter is refused.** It is what makes the fourteen dense-`rho`
+  instances of D35 up to 5% more expensive, so the question was whether to
+  skip them. 36.1% of the 6.23e9 entries the pricing sweep reads over the
+  standard set are in basic columns — a real ceiling — but the filter costs a
+  `status[v]` read on *every* entry, from a second array. Per entry that is
+  `0.64 x 5 + 0.36 x 2 = 3.92` memory accesses against 4 today: a wash, and
+  with worse locality, since it pulls another array into the scatter's
+  working set. Not worth a status test on the hottest loop there is.
 - **Neither pricing form bills its own O(nvar) sweep.** The column-wise loop
   charged per matrix entry and per logical; the row-wise one charges the same
   way, so the two are comparable, but the clear of `alpha` and the reset of
@@ -629,6 +633,36 @@ and reopens the moment a model lands on either.
   because the next such case will look the same: an instance disagreeing with
   a reference is not evidence about which of them is wrong.
 - **Q4** — Measurement host (D17): set up when M2 opens.
+- **Q11** — **Build targets for shipping: `release` and `native`.** Raised by
+  the maintainer, deferred deliberately, and recorded so the reasoning is not
+  re-derived. Today there is one build, `-O2 -g -DNDEBUG`, and it leaves
+  everything on the table that the work counter cannot see.
+
+  The split would be `release` — portable, reproducible across machines, and
+  the one the gate runs on — and `native`, which a user gets by building on
+  their own machine. Candidates for `native`, none of which touch the
+  arithmetic while `-ffp-contract=off` stands: `-O3`, `-flto`,
+  `-march=native -mtune=native`, `-fno-math-errno`, `--gc-sections`, and PGO
+  with `make netlib` as the profiling load — 139 real models of every size
+  are already the representative production workload, so no synthetic one has
+  to be invented. A separate and probably larger win is `restrict` on the
+  kernel pointers in `lu.c` and `simplex.c`, which is a code change rather
+  than a flag and is only safe if the non-aliasing claim is actually true.
+
+  Two things settled while it was raised. **`-g` costs nothing at run time**,
+  measured: the debug sections are not `ALLOC`, so with and without `-g` the
+  binary maps exactly 261,327 bytes on this machine while the file on disk
+  goes 311,816 -> 94,936. Stripping is worth doing for artefact size, and the
+  symbols belong in a separate file (`objcopy --only-keep-debug`) rather than
+  discarded, or a user's crash becomes undiagnosable. And **the hardening
+  flags Ubuntu enables by default must not be dropped from the readers**:
+  `mps.c` and `lpfmt.c` parse untrusted input, which is exactly where a
+  stack canary earns its cost. `lu.c` and `simplex.c` never see an
+  unvalidated byte.
+
+  What makes this tractable without Q4: that none of these change an answer
+  is verifiable today, by comparing solution digests over the 139 instances.
+  What they are worth in time is not, and that still needs the host.
 - **Q5** — NLP derivative strategy (AD, finite differences, user-supplied): gate
   decision when M8 opens; shapes the public API of that engine.
 - **Q6** — Netlib acquisition route: netlib's emps expander (a dev-time tool,
