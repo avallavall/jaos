@@ -47,6 +47,8 @@ static void model_release_arrays(jaos_model *m)
     free(m->sol_row);
     free(m->sol_dual);
     free(m->sol_redcost);
+    free(m->sol_col_status);
+    free(m->sol_row_status);
     memset(m, 0, sizeof *m);
 }
 
@@ -129,6 +131,23 @@ jaos_status jaos_solution(const jaos_model *m, double *col_value,
         memcpy(row_dual, m->sol_dual, (size_t)m->num_row * sizeof(double));
     if (col_dual)
         memcpy(col_dual, m->sol_redcost, (size_t)m->num_col * sizeof(double));
+    return JAOS_OK;
+}
+
+jaos_status jaos_basis(const jaos_model *m, jaos_basis_status *col_status,
+    jaos_basis_status *row_status)
+{
+    if (m == nullptr)
+        return JAOS_ERR_INVALID_INPUT;
+    if (m->solve_status != JAOS_SOLVE_OPTIMAL || m->sol_col_status == nullptr)
+        return JAOS_ERR_INVALID_INPUT;
+
+    if (col_status)
+        memcpy(col_status, m->sol_col_status,
+               (size_t)m->num_col * sizeof *col_status);
+    if (row_status)
+        memcpy(row_status, m->sol_row_status,
+               (size_t)m->num_row * sizeof *row_status);
     return JAOS_OK;
 }
 

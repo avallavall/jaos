@@ -185,6 +185,35 @@ JAOS_NODISCARD jaos_status jaos_solution(const jaos_model *m,
     double *col_value, double *row_activity, double *row_dual,
     double *col_dual);
 
+/* Where each variable rests in the basis behind the reported solution.
+ *
+ * A basic variable's value comes out of the factorization and may sit
+ * anywhere between its bounds; a nonbasic one is pinned to a bound, and that
+ * pinning is what makes a basis determine a point at all. The difference is
+ * not recoverable from the values: a basic variable that happens to land
+ * exactly on a bound reads identically to a nonbasic one resting there, and
+ * only one of the two is a constraint the optimum is actually held by. That
+ * is why this is reported rather than left to be inferred.
+ *
+ * A row is described by its activity, so JAOS_BASIS_AT_LOWER on row i means
+ * A_i x rests on rl_i. */
+typedef enum jaos_basis_status {
+    JAOS_BASIS_BASIC = 0,
+    JAOS_BASIS_AT_LOWER,
+    JAOS_BASIS_AT_UPPER,
+    JAOS_BASIS_FREE,   /* nonbasic at zero, both bounds infinite */
+} jaos_basis_status;
+
+/* Copies the basis into caller-provided buffers; either may be NULL.
+ * col_status holds num_col entries, row_status num_row.
+ *
+ * Available only when the last solve found an optimum, under the same rule
+ * as jaos_solution and for a sharper version of the same reason: a buffer of
+ * zeros does not read as missing, it reads as a solution in which everything
+ * is basic. Exactly num_row of the num_col + num_row statuses are basic. */
+JAOS_NODISCARD jaos_status jaos_basis(const jaos_model *m,
+    jaos_basis_status *col_status, jaos_basis_status *row_status);
+
 /* Work units consumed by the last solve. */
 JAOS_NODISCARD int64_t jaos_work_units(const jaos_model *m);
 

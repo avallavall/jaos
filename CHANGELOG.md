@@ -11,6 +11,12 @@ open, `bench/README.md` for the gate, and the commit each entry came from.
 
 ### Added
 
+- `jaos_basis` reports where every column and row activity rests in the basis
+  behind the answer — basic, at a bound, or free. It is the part of a
+  solution the values cannot carry: a basic variable sitting exactly on a
+  bound reads no differently from a nonbasic one resting there, and only one
+  of the two is a constraint the optimum is held by. PLAN 2.4 promised it and
+  M1 had not delivered it (D33).
 - A primal ratio test, used only to clean up after the dual solve. `greenbea`
   goes from REJECTED to checker ok in eight pivots, at fifteen significant
   digits of Koch's value, and `pilot`'s objective comes inside tolerance from
@@ -60,6 +66,11 @@ open, `bench/README.md` for the gate, and the commit each entry came from.
 
 ### Changed
 
+- The work-unit table loses its per-iteration row. The weight is zero and it
+  is measured, not assumed: the basis update turns out to be 1.8% of an
+  iteration rather than the whole of it, and the other 98% is already charged
+  by dimension. No figure anywhere moves — this is an attribution of the
+  units, not a reweighting of them (D32).
 - The re-entry weighs a column on what its wrong sign costs the objective,
   not on the size of the breach. `etamacro` goes from REJECTED to checker ok
   for 9 extra iterations; every other instance of the standard 94 is

@@ -2258,29 +2258,52 @@ static jaos_status run(sx *s, jaos_solve_status *out)
 static jaos_status ensure_solution_arrays(jaos_model *m)
 {
     if (m->sol_col != nullptr && m->sol_row != nullptr &&
-        m->sol_dual != nullptr && m->sol_redcost != nullptr)
+        m->sol_dual != nullptr && m->sol_redcost != nullptr &&
+        m->sol_col_status != nullptr && m->sol_row_status != nullptr)
         return JAOS_OK;
 
-    /* All four or none. A partial set — left behind when one of these
+    /* All six or none. A partial set — left behind when one of these
      * allocations failed on an earlier solve — must not read as "already
      * there", or this publish writes through the missing ones. */
-    free(m->sol_col);     m->sol_col = nullptr;
-    free(m->sol_row);     m->sol_row = nullptr;
-    free(m->sol_dual);    m->sol_dual = nullptr;
-    free(m->sol_redcost); m->sol_redcost = nullptr;
+    free(m->sol_col);        m->sol_col = nullptr;
+    free(m->sol_row);        m->sol_row = nullptr;
+    free(m->sol_dual);       m->sol_dual = nullptr;
+    free(m->sol_redcost);    m->sol_redcost = nullptr;
+    free(m->sol_col_status); m->sol_col_status = nullptr;
+    free(m->sol_row_status); m->sol_row_status = nullptr;
 
     m->sol_col     = jm_alloc_array(m->num_col, sizeof(double));
     m->sol_row     = jm_alloc_array(m->num_row, sizeof(double));
     m->sol_dual    = jm_alloc_array(m->num_row, sizeof(double));
     m->sol_redcost = jm_alloc_array(m->num_col, sizeof(double));
-    if (!m->sol_col || !m->sol_row || !m->sol_dual || !m->sol_redcost) {
-        free(m->sol_col);     m->sol_col = nullptr;
-        free(m->sol_row);     m->sol_row = nullptr;
-        free(m->sol_dual);    m->sol_dual = nullptr;
-        free(m->sol_redcost); m->sol_redcost = nullptr;
+    m->sol_col_status = jm_alloc_array(m->num_col, sizeof(jaos_basis_status));
+    m->sol_row_status = jm_alloc_array(m->num_row, sizeof(jaos_basis_status));
+    if (!m->sol_col || !m->sol_row || !m->sol_dual || !m->sol_redcost ||
+        !m->sol_col_status || !m->sol_row_status) {
+        free(m->sol_col);        m->sol_col = nullptr;
+        free(m->sol_row);        m->sol_row = nullptr;
+        free(m->sol_dual);       m->sol_dual = nullptr;
+        free(m->sol_redcost);    m->sol_redcost = nullptr;
+        free(m->sol_col_status); m->sol_col_status = nullptr;
+        free(m->sol_row_status); m->sol_row_status = nullptr;
         return JAOS_ERR_OUT_OF_MEMORY;
     }
     return JAOS_OK;
+}
+
+/* The internal status and the published one carry the same four cases, and
+ * are mapped rather than cast: they are two enums that happen to agree
+ * today, and a silent renumbering of either would otherwise publish a wrong
+ * basis with no compile error anywhere. */
+static jaos_basis_status published_status(jm_var_status st)
+{
+    switch (st) {
+    case JM_BASIC:    return JAOS_BASIS_BASIC;
+    case JM_AT_LOWER: return JAOS_BASIS_AT_LOWER;
+    case JM_AT_UPPER: return JAOS_BASIS_AT_UPPER;
+    case JM_FREE:     return JAOS_BASIS_FREE;
+    }
+    return JAOS_BASIS_BASIC;
 }
 
 static jaos_status publish(sx *s, jaos_solve_status status)
@@ -2307,6 +2330,10 @@ static jaos_status publish(sx *s, jaos_solve_status status)
         memset(m->sol_row, 0, (size_t)m->num_row * sizeof(double));
         memset(m->sol_dual, 0, (size_t)m->num_row * sizeof(double));
         memset(m->sol_redcost, 0, (size_t)m->num_col * sizeof(double));
+        memset(m->sol_col_status, 0,
+               (size_t)m->num_col * sizeof *m->sol_col_status);
+        memset(m->sol_row_status, 0,
+               (size_t)m->num_row * sizeof *m->sol_row_status);
         m->solve_work = s->work.units;
         return JAOS_OK;
     }
@@ -2331,6 +2358,16 @@ static jaos_status publish(sx *s, jaos_solve_status status)
         m->sol_dual[i] = sigma * y[i] * rho[i];
     for (int64_t j = 0; j < m->num_col; j++)
         m->sol_redcost[j] = sigma * s->d[j] / gamma[j];
+
+    /* The basis is published unscaled in the only sense that applies to it:
+     * scaling multiplies a column by a positive factor, which moves where a
+     * bound is but never which bound a variable rests on. So the statuses
+     * carry over from the scaled copy unchanged, and the logical of row i is
+     * that row's activity — the same variable sol_row[i] was read from. */
+    for (int64_t j = 0; j < m->num_col; j++)
+        m->sol_col_status[j] = published_status(s->status[j]);
+    for (int64_t i = 0; i < m->num_row; i++)
+        m->sol_row_status[i] = published_status(s->status[m->num_col + i]);
 
     double obj = m->obj_offset;
     for (int64_t j = 0; j < m->num_col; j++)

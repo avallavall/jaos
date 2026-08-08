@@ -65,6 +65,8 @@ struct jaos_model {
     double *sol_row;         /* [num_row] row activities     */
     double *sol_dual;        /* [num_row] row duals          */
     double *sol_redcost;     /* [num_col] reduced costs      */
+    jaos_basis_status *sol_col_status;  /* [num_col] where each column rests */
+    jaos_basis_status *sol_row_status;  /* [num_row] and each row activity   */
     int64_t solve_work;
     int64_t solve_iters;
 

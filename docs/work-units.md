@@ -92,14 +92,36 @@ iterations and can only stop a solve; it can never choose a pivot (D8).
 That separation is why the two budgets are separate calls with separate
 meanings, and why only one of them is reproducible.
 
-## The per-iteration cost that is deliberately absent
+## There is no per-iteration constant, and that is measured
 
-PLAN.md 2.7 lists a fixed overhead per simplex iteration with no number
-against it, and that is still the case. A dual simplex iteration performs
-exactly one basis update, so a separate per-iteration constant charged
-alongside the per-update one would bill a single event twice under two
-names. It gets a number when the non-update overhead of an iteration —
-pricing, ratio test, bookkeeping — can be attributed on its own.
+An iteration is charged entirely through the events above — the nonzeros its
+solves touch, the variables its bookkeeping sweeps, the rows its pricing
+scans, the update it ends with. There is no fixed charge for the iteration
+itself, and D32 is the measurement that settled it rather than an omission.
+
+Two things came out of attributing every unit to the phase that spent it,
+both worth knowing before choosing a work limit. **The basis update is 1.8%
+of an iteration**, not the bulk of it: over the standard 94 and the 16
+Kennington, the non-update work of an iteration runs from 4.4x the update's
+cost on the smallest model to 1450x on the largest. And **more than half of
+all work is the pricing row and the ratio test**, with another 27.5% in the
+dual update and the steepest-edge weights — which come to exactly
+`nvar + 2*nrow` per iteration, in every one of the 110 solves.
+
+That last figure is why the constant is zero rather than small. Every part
+of an iteration's cost scales with a dimension or with a count of nonzeros;
+none of it is a floor. A fixed charge would bill a second time for work the
+counter already sees.
+
+| Quantity | Where the units go |
+|---|---|
+| pricing row and ratio test | 53.09% |
+| dual update and steepest-edge weights | 27.52% |
+| the two FTRANs of a pivot | 6.80% |
+| the row scan that picks the infeasibility | 5.62% |
+| refactorization and the refreshes | 5.07% |
+| the basis update | 1.79% |
+| everything outside the solve loop | 0.11% |
 
 ## Determinism
 

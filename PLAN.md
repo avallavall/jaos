@@ -84,26 +84,10 @@ with `-fsanitize=address,undefined`.
 
 ### 2.4 Public API conventions
 
-Shape, not final signatures. Once the maintainer confirms, these become a decision
-record entry.
-
-- Single public header `include/jaos.h`; prefix `jaos_` / `JAOS_`; opaque
-  `jaos_model`.
-- `int64_t` for every index and count in the public API; `double` for values.
-  Internal storage may pack tighter; the ABI never does.
-- Every fallible function returns a `jaos_status`; results come out through
-  parameters. No global state; no errno games. Two models are fully independent.
-- Queries copy into caller-provided buffers. The library never hands out pointers
-  into its internals, so no hidden lifetimes exist.
-- The library owns its memory; `jaos_model_free` releases everything.
-- Two budgets, separate, per D8: work limit in work units (deterministic), time
-  limit in seconds (reporting and cutoff only at deterministic checkpoints — the
-  clock never picks a pivot).
-- Status values at minimum: `OPTIMAL`, `INFEASIBLE`, `UNBOUNDED`, `WORK_LIMIT`,
-  `TIME_LIMIT`, `NUMERICAL_ERROR`, `OUT_OF_MEMORY`, `INVALID_INPUT`.
-- Queryable after solve: objective, column values, row activities, duals, reduced
-  costs, basis statuses, iteration count, work units spent.
-- SemVer; version macros plus `jaos_version()`.
+**Closed — D33.** These were held here as a shape awaiting the maintainer's
+confirmation. It came, and the conventions, the two places the draft was
+wrong, and what is deliberately *not* frozen by any of it now live in
+`DECISIONS.md`. Nothing about the API is open.
 
 ### 2.5 Components and their literature anchors
 
@@ -186,17 +170,20 @@ scaling computation, which a solve performs and no unit counts today.
 | Nonzero touched in a solve, in pricing, or in an update | 1 |
 | Nonzero eliminated, in a factorization or in a basis update | 2 |
 | Fixed overhead per basis update | 64 |
-| Fixed overhead per simplex iteration | *see note* |
 | Fixed overhead per refactorization | 4096 |
 
 An elimination is charged by what it does, not by which routine runs it: the
 same axpy costs the same inside a factorization and inside a basis update.
 
-The per-iteration overhead has no number yet, deliberately. A dual simplex
-iteration performs exactly one basis update, so a separate per-iteration
-constant charged alongside the per-update one would bill a single event twice
-under two names. It is settled when the iteration exists and its non-update
-overhead — pricing, ratio test, bookkeeping — can be attributed on its own.
+**The per-iteration overhead had no number and now has none on purpose: it
+is zero, and the row is gone (D32).** The attribution it was waiting for was
+made — every charge assigned to the phase of the iteration that made it, on
+an instrument that leaves all 110 instances bit-identical — and it says the
+basis update is 1.8% of an iteration rather than the whole of it. So the
+double-billing the note feared was not the reason. The reason is that the
+other 98% is already charged, and charged by dimension: the bookkeeping is
+exactly `iters * (nvar + 2*nrow)` in 110 of 110 solves. There is no O(1)
+residue for a constant to stand for.
 
 Ratios calibrated before 1.0; frozen at 1.0; afterwards changes only at a major
 version (D16).
@@ -468,26 +455,30 @@ worst-conditioned model in the set — were both defects with a mechanism.
 
 ### What happens next
 
-**The gate is met.** All seven conditions of §2.9 hold on all three instance
-sets. What is left of M1 is the bookkeeping that closing it triggers, none of
-which is a solver change:
+**The gate is met, and the bookkeeping that closing it triggered is done.**
+All seven conditions of §2.9 hold on all three instance sets. The four items
+that remained were none of them a solver change, and all four have closed:
 
-1. **Freeze the §2.6 tolerances.** They have been drafts throughout, "frozen
-   when the Netlib gate closes". It has. After the freeze, any change to one
-   of them is a changelog entry.
-2. **Settle §2.7's per-iteration work weight.** It was deliberately left
-   without a number until the iteration existed and its non-update overhead
-   — pricing, ratio test, bookkeeping — could be attributed on its own.
-   It exists.
-3. **Close the open questions the campaign was going to decide.** Q1 (dual
-   phase 1 by artificial bounds survived it), Q3 (no instance forced a
+1. **The §2.6 tolerances are frozen (D31).** They were drafts throughout, on
+   the terms that they would freeze when the Netlib gate closed. Any change
+   to one of them is now a changelog entry.
+2. **§2.7's per-iteration work weight is settled at zero, and its row is
+   gone (D32).** The attribution it was waiting for was made: the basis
+   update turns out to be 1.8% of an iteration rather than the whole of it,
+   and the rest is already charged by dimension, so there is no O(1) residue
+   for a constant to represent.
+3. **The questions the campaign was going to decide are closed (D31).** Q1
+   (dual phase 1 by artificial bounds survived it), Q3 (no instance forced a
    presolve into M1), Q9 (no instance was refused for reaching the lent
    bound), Q10's perturbation half (no instance needs it — `grow15` was a
-   cycle, and D26 cures it without perturbing anything). Each closes on the
+   cycle, and D26 cures it without perturbing anything). Each closed on the
    campaign's evidence or on the absence of a model that demanded it, and
    the distinction matters: an unused device is not a validated one.
-4. **Turn §2.4's API shape into a decision record**, which needs the
-   maintainer's confirmation rather than a measurement.
+4. **§2.4's API shape is a decision record (D33).** Confirmed by the
+   maintainer, and two places where the draft was wrong were corrected
+   rather than recorded: the no-internal-pointers rule was narrowed to what
+   is actually true of it, and the basis statuses §2.4 promised were built
+   as `jaos_basis` instead of deferred.
 
 **Then M2 opens, and its first item is not code.** Everything M2 delivers —
 presolve, hyper-sparsity, a crash basis, pricing refinements, and the

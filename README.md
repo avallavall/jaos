@@ -39,6 +39,10 @@ jaos_model_free(m);
   Forrest-Tomlin updates, so a basis change costs work proportional to the
   change rather than a refactorization.
 - **Curtis-Reid scaling**, with geometric-mean equilibration as an option.
+- **The basis behind the answer**, not just the numbers: `jaos_basis` says
+  which columns and which row activities rest on a bound and which are basic
+  — that is, which constraints the optimum is actually held by, a question
+  the published values cannot answer on their own.
 - **An independent solution checker** that verifies a claimed solution against
   the original problem without consulting any solver state.
 - **Two budgets**: a reproducible work limit counted in deterministic work

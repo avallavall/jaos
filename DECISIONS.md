@@ -1308,3 +1308,162 @@ table above.
 The flat cost of the mechanism is now visible too: ninety of the 94 pay one
 round of asking and nothing else, which is two scans over the variables per
 solve.
+
+---
+
+## D32 — The fixed cost of a simplex iteration is zero, and the row leaves the table
+
+PLAN 2.7 has carried a work-unit weight with no number against it since the
+counter was written: *fixed overhead per simplex iteration*, marked "see
+note". The note said a dual simplex iteration performs exactly one basis
+update, so a constant charged per iteration alongside the per-update one
+would bill a single event twice under two names, and that it would get a
+number once the iteration's non-update overhead — pricing, ratio test,
+bookkeeping — could be attributed on its own.
+
+It can now, and the answer is that there is no number to give: **the weight
+is zero and the row leaves the table.**
+
+**How it was measured.** A `JAOS_DIAG` build attributes every charge to the
+phase of the iteration that made it, by setting an active bucket at the call
+sites in `run()` and `pivot()` and reading it in `jm_work_add`. Nothing else
+changes — no arithmetic, no loop order — so the instrument is checkable, and
+was checked: over the standard 94 and the 16 Kennington, **all 110 instances
+report identical iterations, identical work and identical solution digests**
+to the committed record. The buckets sum to the total exactly, with no
+unattributed remainder.
+
+**Where the units actually go**, over 289,680,470,328 units across those 110
+solves:
+
+| Phase of the iteration | Share |
+|---|---|
+| pricing row and ratio test (`price_and_select`) | **53.09%** |
+| dual update and steepest-edge weights | **27.52%** |
+| the two FTRANs | 6.80% |
+| the row scan that picks the infeasibility | 5.62% |
+| refactorization and the refreshes | 5.07% |
+| **the basis update** | **1.79%** |
+| everything outside the loop | 0.11% |
+
+**The premise behind the missing number was wrong, and the conclusion it was
+protecting is right anyway.** An iteration is not a basis update wearing
+another name: the update is 1.8% of it. The non-update overhead runs from
+4.4x the update's cost on the smallest model to **1450x** on the largest,
+median 32.5x. So a per-iteration constant would not have double-billed one
+event — the two really are different events, and one of them is marginal.
+
+What makes the weight zero is the other half. That non-update overhead is
+already charged, in full, and charged *dimensionally*: the bookkeeping comes
+to exactly `iters * (nvar + 2*nrow)` in **110 of 110 solves**, and every
+other charge is per nonzero touched. Divided by `nrow + nvar`, the
+per-iteration non-update cost sits between 3.40 and 68.12 across a dimension
+range of 86 to 364,953 — a span of 4245x — with no drift toward a floor at
+the small end, which is what a missing constant would look like. There is no
+O(1) residue for a constant to represent. Adding one would charge a second
+time for work already counted by its size.
+
+Both fixed weights that remain — `JM_WORK_UPDATE` at 64 and
+`JM_WORK_FACTOR` at 4096 — stay exactly as they are. They exist because a
+basis update and a factorization each have an O(dim) floor independent of how
+much they change, and that argument was never available for the iteration:
+an iteration's floor *is* its dimensional work, and that is billed.
+
+**A note for M2, which this measurement produced without being asked for
+it.** More than half of all work is the pricing row and the ratio test, and
+another 27.5% is two dense sweeps over every variable per iteration. That is
+what hyper-sparsity [9] addresses, and it is now measured rather than
+assumed. It changes no weight here; it says where M2 should look.
+
+---
+
+## D33 — The public API's shape, as decided rather than as drafted
+
+PLAN 2.4 has held the API as "shape, not final signatures", to become a
+decision record once the maintainer confirmed it. Confirmed, with the
+instruction that where the draft and good construction disagree, the more
+correct one wins. Two places, below.
+
+**What is decided.** One public header, `include/jaos.h`, prefix `jaos_` /
+`JAOS_`, opaque `jaos_model`. `int64_t` for every public index and count,
+`double` for every value; internal storage may pack tighter and the ABI never
+does. Every fallible function returns a `jaos_status` and results leave
+through parameters. No global state, no errno. Two models are fully
+independent. The library owns its memory and `jaos_model_free` releases all
+of it. Queries copy into caller-provided buffers. Two budgets, separate, per
+D8. SemVer, with version macros and `jaos_version()`.
+
+**Decided differently from the draft, and the draft was wrong.** 2.4 listed
+one flat set of statuses — OPTIMAL, INFEASIBLE, UNBOUNDED, WORK_LIMIT,
+TIME_LIMIT, NUMERICAL_ERROR, OUT_OF_MEMORY, INVALID_INPUT. The
+implementation splits them in two, and that split is the decision:
+`jaos_status` says whether the call did its job, `jaos_solve_status` says what
+the solve found. Hitting a work budget is not a failed call, and a flat enum
+forces every caller to sort those two questions out for itself. `JAOS_ERR_IO`
+and `JAOS_SOLVE_NOT_RUN` exist for the same reason: a file that cannot be
+read is not a file with bad content, and a model that has not been solved is
+not a model whose solve found nothing.
+
+**Correction 1 — the no-internal-pointers rule was stated too broadly, and is
+narrowed to what is true.** 2.4 says the library never hands out pointers into
+its internals, "so no hidden lifetimes exist". `jaos_model_error` returns a
+`const char *` into the model. The rule as written was therefore false, and
+the honest question is which of the two to change.
+
+The pointer stays, and the rule is restated: **no solution data leaves by
+pointer.** Every number a caller computes with is copied into a buffer the
+caller owns. The error message is diagnostic, not data, and the storage
+behind it is `char err[256]` embedded in the struct — not an allocation. So
+the pointer is stable for the entire life of the model and is invalidated
+only by `jaos_model_free`; what changes between calls is the text in it,
+never the address. That is a weaker claim than "no lifetimes" and a much
+stronger one than the usual C convention, where such a pointer dies at the
+next library call.
+
+The alternative — copying the message into a caller buffer — was rejected on
+correctness, not on effort. It gives the error path a length parameter, a
+truncation mode and a status of its own, so reading about a failure acquires
+its own way to fail. The diagnostic path should be the one path that cannot.
+
+**Correction 2 — the basis statuses 2.4 promised are built, because their
+absence was a real gap.** 2.4 lists basis statuses among what is queryable
+after a solve, and M1 did not expose them: `publish()` had the information and
+dropped it. The tempting reading is that nothing consumes them until
+warm-started branch and bound in M3, so they could be deferred.
+
+That reading is wrong, and the reason is that the basis is not a solver
+internal — it is the part of the answer the values cannot carry. A basic
+variable's value comes out of the factorization and may sit anywhere between
+its bounds; a nonbasic one is pinned to a bound, and that pinning is what
+makes a basis determine a point. A basic variable that lands exactly on a
+bound is indistinguishable, in the published values, from a nonbasic one
+resting there — and only one of the two is a constraint the optimum is held
+by. Withholding it means a caller cannot tell which constraints are active,
+which is an ordinary question to ask of an LP and not a warm-start feature.
+
+So `jaos_basis(m, col_status, row_status)` with its own `jaos_basis_status`
+enum, rather than a fifth buffer on `jaos_solution`: the statuses are a
+different kind of quantity from the doubles beside them, and one query per
+kind of answer keeps `jaos_solution` from growing a parameter of a different
+type. The internal and published enums are mapped through a `switch` rather
+than cast, so that renumbering either is a compile error and not a wrong
+basis published in silence. Rows are described by their activity, which the
+scaling cannot reorient: scaling multiplies a row by a positive factor,
+moving where a bound sits but never which bound an activity rests on.
+
+Availability follows `jaos_solution` — no optimum, no basis — and the reason
+is sharper: a zeroed buffer does not read as absent, it reads as a solution in
+which every variable is basic, which is not a thing a simplex can report.
+
+The tests were checked the way a predicate has to be here: with the mapping
+inverted at its one `switch`, `test_the_basis_names_which_rows_hold_the_optimum`
+fails on the swapped constant and
+`test_the_basis_agrees_with_the_values_it_came_with` fails on a row published
+`AT_UPPER` whose upper bound is infinite. A basis that describes a different
+point than the values beside it does not pass.
+
+**What is not decided here.** None of this freezes an ABI. The version is
+0.1.0-dev and SemVer permits 0.x to break; what is settled is the set of
+conventions every later signature has to satisfy, not the signatures
+themselves. The weights of D16 and D32 are the public contract that freezes at
+1.0; the header is not, yet.

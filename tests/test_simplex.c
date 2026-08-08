@@ -1442,6 +1442,132 @@ static void test_a_row_no_column_reaches_but_that_holds_anyway(void)
     jaos_model_free(m);
 }
 
+/* ---- The basis, which the values cannot carry ------------------------ *
+ *
+ *   min 2x + 3y   s.t.  r0: x + y >= 2
+ *                       r1: x + y <= 100
+ *                       r2: x      <= 1.5
+ *                       0 <= x, y <= 5
+ *
+ * x is the cheaper column, so it is used to its limit: x = 1.5, y = 0.5,
+ * objective 4.5, and that optimum is unique. r0 and r2 are what hold it
+ * there; r1 is nowhere near. Three rows means exactly three basic variables
+ * among the five, and which three is forced: neither column rests on a
+ * bound of its own, and neither does r1's activity. */
+static void test_the_basis_names_which_rows_hold_the_optimum(void)
+{
+    const double c[] = {2.0, 3.0};
+    const double cl[] = {0.0, 0.0}, cu[] = {5.0, 5.0};
+    const double rl[] = {2.0, -INFINITY, -INFINITY};
+    const double ru[] = {INFINITY, 100.0, 1.5};
+    /* x hits r0, r1 and r2; y hits r0 and r1. */
+    const int64_t as[] = {0, 3, 5};
+    const int64_t ai[] = {0, 1, 2, 0, 1};
+    const double av[] = {1.0, 1.0, 1.0, 1.0, 1.0};
+
+    jaos_model *m = fresh();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_load_lp(m, 2, 3, JAOS_MINIMIZE, 0.0, c, cl, cu, rl, ru,
+                     5, as, ai, av));
+    solve_and_verify(m, 4.5);
+
+    jaos_basis_status cs[2], rs[3];
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_basis(m, cs, rs));
+
+    TEST_ASSERT_EQUAL_INT(JAOS_BASIS_BASIC, cs[0]);     /* x = 1.5, off its bounds */
+    TEST_ASSERT_EQUAL_INT(JAOS_BASIS_BASIC, cs[1]);     /* y = 0.5, likewise       */
+    TEST_ASSERT_EQUAL_INT(JAOS_BASIS_AT_LOWER, rs[0]);  /* x + y == 2              */
+    TEST_ASSERT_EQUAL_INT(JAOS_BASIS_BASIC, rs[1]);     /* 2 is far from 100       */
+    TEST_ASSERT_EQUAL_INT(JAOS_BASIS_AT_UPPER, rs[2]);  /* x == 1.5                */
+
+    /* Either buffer may be left out, like every other query here. */
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_basis(m, nullptr, rs));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_basis(m, cs, nullptr));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_basis(m, nullptr, nullptr));
+    jaos_model_free(m);
+}
+
+/* What a consumer of jaos_basis is entitled to assume, checked against the
+ * values published beside it rather than against an expectation: exactly
+ * num_row variables are basic, and every nonbasic one sits on the bound its
+ * status names. A mapping that swapped the two bounds, or logicals
+ * published with the rows' orientation reversed, describes a different
+ * point and fails here instead of being believed. */
+static void test_the_basis_agrees_with_the_values_it_came_with(void)
+{
+    jaos_model *m = fresh();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_read_mps(m, "tests/data/solve1.mps"));
+    solve_and_verify(m, 29.0);
+
+    const int64_t nc = jaos_num_col(m), nr = jaos_num_row(m);
+    double *x = calloc((size_t)nc, sizeof *x);
+    double *act = calloc((size_t)nr, sizeof *act);
+    jaos_basis_status *cs = calloc((size_t)nc, sizeof *cs);
+    jaos_basis_status *rs = calloc((size_t)nr, sizeof *rs);
+    TEST_ASSERT_NOT_NULL(x);
+    TEST_ASSERT_NOT_NULL(act);
+    TEST_ASSERT_NOT_NULL(cs);
+    TEST_ASSERT_NOT_NULL(rs);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_solution(m, x, act, nullptr, nullptr));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_basis(m, cs, rs));
+
+    int64_t basic = 0;
+    for (int64_t j = 0; j < nc; j++) {
+        if (cs[j] == JAOS_BASIS_BASIC)
+            basic++;
+        else if (cs[j] == JAOS_BASIS_AT_LOWER)
+            TEST_ASSERT_DOUBLE_WITHIN(1e-9, m->col_lower[j], x[j]);
+        else if (cs[j] == JAOS_BASIS_AT_UPPER)
+            TEST_ASSERT_DOUBLE_WITHIN(1e-9, m->col_upper[j], x[j]);
+        else
+            TEST_ASSERT_DOUBLE_WITHIN(1e-9, 0.0, x[j]);
+    }
+    for (int64_t i = 0; i < nr; i++) {
+        if (rs[i] == JAOS_BASIS_BASIC)
+            basic++;
+        else if (rs[i] == JAOS_BASIS_AT_LOWER)
+            TEST_ASSERT_DOUBLE_WITHIN(1e-9, m->row_lower[i], act[i]);
+        else if (rs[i] == JAOS_BASIS_AT_UPPER)
+            TEST_ASSERT_DOUBLE_WITHIN(1e-9, m->row_upper[i], act[i]);
+        else
+            TEST_ASSERT_DOUBLE_WITHIN(1e-9, 0.0, act[i]);
+    }
+    TEST_ASSERT_EQUAL_INT64(nr, basic);
+
+    free(x);
+    free(act);
+    free(cs);
+    free(rs);
+    jaos_model_free(m);
+}
+
+/* No optimum, no basis — and the reason is sharper here than it is for the
+ * values. A buffer of zeros does not read as absent: it reads as a solution
+ * in which every variable is basic, which is not something a simplex can
+ * report at all. */
+static void test_the_basis_is_refused_when_there_is_no_optimum(void)
+{
+    jaos_basis_status cs[2], rs[1];
+    jaos_model *m = fresh();
+    TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT, jaos_basis(m, cs, rs));
+    TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT, jaos_basis(nullptr, cs, rs));
+
+    /* x + y >= 5 with both capped at 1: no feasible point. */
+    const double c[] = {1.0, 1.0};
+    const double cl[] = {0.0, 0.0}, cu[] = {1.0, 1.0};
+    const double rl[] = {5.0}, ru[] = {INFINITY};
+    const int64_t as[] = {0, 1, 2}, ai[] = {0, 0};
+    const double av[] = {1.0, 1.0};
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_load_lp(m, 2, 1, JAOS_MINIMIZE, 0.0, c, cl, cu, rl, ru,
+                     2, as, ai, av));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_INFEASIBLE, jaos_status_of(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT, jaos_basis(m, cs, rs));
+    jaos_model_free(m);
+}
+
 int main(void)
 {
     UNITY_BEGIN();
@@ -1486,6 +1612,9 @@ int main(void)
     RUN_TEST(test_work_limit_stops_and_reports);
     RUN_TEST(test_budgets_survive_a_reload);
     RUN_TEST(test_queries_before_a_solve);
+    RUN_TEST(test_the_basis_names_which_rows_hold_the_optimum);
+    RUN_TEST(test_the_basis_agrees_with_the_values_it_came_with);
+    RUN_TEST(test_the_basis_is_refused_when_there_is_no_optimum);
     RUN_TEST(test_duplicate_rows_reach_the_same_optimum);
     RUN_TEST(test_a_row_that_is_the_sum_of_two_others);
     RUN_TEST(test_dependent_rows_that_contradict_each_other);
