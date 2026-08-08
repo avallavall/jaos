@@ -1020,6 +1020,115 @@ static void test_settling_up_reaches_the_optimum_a_shifted_basis_hid(void)
     jaos_model_free(m);
 }
 
+/* A clean-up pass must act on every column it decided wants a pivot, not on
+ * the first one and then stop.
+ *
+ * It used to stop. The predicate that decides "this column wants a pivot"
+ * consulted the duals, and the first pivot of the pass overwrote the vector
+ * they lived in, so from the second candidate onwards the question was put
+ * to the wrong quantity and answered no. Underneath that, the basis change
+ * itself lends every other candidate's sign condition away — it sets the
+ * reduced cost to zero and books the loan — so even asking correctly finds
+ * nothing left to do unless the loan is called in first.
+ *
+ * Neither half is visible in a model built by hand: the state only arises
+ * where settling leaves a column at a bound with nothing on the other side,
+ * which needs a solve long enough to accumulate loans. So the model is
+ * generated — twenty rows, forty columns, half of them unbounded above, and
+ * costs small enough that the ratio test's window can push a reduced cost
+ * past zero. The seed is not arbitrary and not tuned to pass: it was found by
+ * sweeping, and it is one where the clean-up identifies two columns and
+ * pivots both, twice over.
+ *
+ * **What this can and cannot catch, because the first attempt at it caught
+ * nothing.** Re-introducing the defect leaves this model's answer correct and
+ * its iteration count identical: the same pivots still happen, one per round
+ * instead of several per call, and the re-entry simply goes round more times.
+ * The answer only breaks when the round cap runs out, and that needs a model
+ * needing more than thirty-two clean-up pivots — `pilot87` scale, not unit
+ * test scale. So an assertion on the answer alone passes either way and is
+ * worth nothing here.
+ *
+ * What does separate them is the cost of those extra rounds, each of which
+ * is a refactorization and a re-solve. Measured on this model: **58141 work
+ * units correct, 67416 with the defect**, and the bound below sits between
+ * them with room on both sides. That is the number this test actually
+ * guards; the checker assertions guard the answer, which no longer moves.
+ *
+ * The oracle for the answer is the independent checker rather than a pinned
+ * objective, because what went wrong was a certificate that did not carry. */
+static void test_a_clean_up_pass_dispatches_every_column_it_identified(void)
+{
+    constexpr int64_t NR = 20;
+    constexpr int64_t NC = 40;
+
+    double c[NC], cl[NC], cu[NC], rl[NR], ru[NR], av[NC * 4];
+    int64_t as[NC + 1], ai[NC * 4];
+
+    /* Deterministic and self-contained: a solve must not depend on a library
+     * PRNG, and a test model must not depend on one either. */
+    uint64_t st = 236;
+    #define NEXTU() (st = st * 6364136223846793005u + 1442695040888963407u, \
+                     (double)((st >> 11) & 0x1FFFFFFFFFFFFFu) / 9007199254740992.0)
+
+    int64_t nz = 0;
+    for (int64_t j = 0; j < NC; j++) {
+        as[j] = nz;
+        int per = 2 + (int)(NEXTU() * 3.0);
+        int64_t rows[8];
+        int nrows = 0;
+        for (int k = 0; k < per; k++) {
+            int64_t r = (int64_t)(NEXTU() * (double)NR);
+            bool dup = false;
+            for (int t = 0; t < nrows; t++)
+                if (rows[t] == r) dup = true;
+            if (!dup) rows[nrows++] = r;
+        }
+        for (int a = 1; a < nrows; a++) {          /* the reader wants them sorted */
+            int64_t v = rows[a];
+            int b = a - 1;
+            while (b >= 0 && rows[b] > v) { rows[b + 1] = rows[b]; b--; }
+            rows[b + 1] = v;
+        }
+        for (int k = 0; k < nrows; k++) {
+            ai[nz] = rows[k];
+            /* Positive throughout: a row of negatives against a positive
+             * lower bound has no feasible point, and an infeasible model
+             * never reaches the settling this is about. */
+            av[nz] = pow(10.0, NEXTU() * 2.0 - 1.0);
+            nz++;
+        }
+        c[j] = pow(10.0, -6.0 - NEXTU() * 3.0);
+        cl[j] = 0.0;
+        cu[j] = (j < NC / 2) ? INFINITY : 1.0 + NEXTU() * 10.0;
+    }
+    as[NC] = nz;
+    for (int64_t i = 0; i < NR; i++) { rl[i] = 1.0 + NEXTU(); ru[i] = INFINITY; }
+    #undef NEXTU
+
+    jaos_model *m = fresh();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_load_lp(m, NC, NR, JAOS_MINIMIZE, 0.0, c, cl, cu, rl, ru,
+                     nz, as, ai, av));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+
+    double x[NC], act[NR], y[NR], d[NC];
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solution(m, x, act, y, d));
+
+    jaos_check_report rep;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_check_solution(m, x, y, CHECK_TOL, &rep));
+    TEST_ASSERT_TRUE(rep.primal_feasible);
+    TEST_ASSERT_TRUE(rep.dual_feasible);
+
+    /* 58141 correct, 67416 with one pivot per call. Not a pinned value: a
+     * ceiling with a measurement on each side of it. */
+    TEST_ASSERT_TRUE(jaos_work_units(m) < 62000);
+
+    jaos_model_free(m);
+}
+
 /* ---- Harris' ratio test ---------------------------------------------- */
 
 /* Same argument as the weights above: which candidate the ratio test picks
@@ -1364,6 +1473,7 @@ int main(void)
     RUN_TEST(test_answers_come_back_in_the_models_units);
     RUN_TEST(test_bound_flipping_fills_columns_in_one_step);
     RUN_TEST(test_settling_up_reaches_the_optimum_a_shifted_basis_hid);
+    RUN_TEST(test_a_clean_up_pass_dispatches_every_column_it_identified);
     RUN_TEST(test_harris_ignores_a_big_pivot_outside_the_window);
     RUN_TEST(test_harris_prefers_the_larger_pivot_inside_the_window);
     RUN_TEST(test_harris_on_a_degenerate_vertex_takes_the_best_pivot);
