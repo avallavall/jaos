@@ -11,6 +11,29 @@ open, `bench/README.md` for the gate, and the commit each entry came from.
 
 ### Added
 
+- Bland's rule, as a fallback a detected cycle switches on. `grow15` had been
+  running to the internal iteration guard at 189201 iterations; instrumented,
+  it is a cycle of period four over two rows and four variables, repeating
+  bit for bit from iteration ~3000 — not the stall Q10 diagnosed, since half
+  its iterations take a real dual step of ~1.7e-6 and the four cancel
+  exactly. It now solves in 21653 iterations at an objective matching Koch's
+  to sixteen digits.
+
+  PLAN recorded that Bland's rule had been tried and did not fix it. What had
+  been tried was a smallest-index tie-break inside the Harris window, which
+  carries none of the guarantee: that needs the exact minimum quotient, no
+  widening, and the index rule on the leaving choice too. Built properly it
+  solves `grow15` outright — and cannot be the default, because it costs 25x
+  on `25fv47` and takes `grow22` from 2179 iterations to no answer at all.
+
+  So the trigger is failing to improve on the best total primal infeasibility
+  for `STALL_FACTOR` times `nrow + ncol + 1`, computed in a loop `price_row`
+  was already running, and it switches off again the moment the total
+  improves. The factor is 10 against a measured worst healthy plateau of 1.67
+  (`truss`) and a cycling one of 198 (`grow15`) — and it is a constant that
+  cannot change an answer, only how many iterations it takes to reach one.
+  Every instance that does not cycle is bit-identical. D26.
+
 - The dual simplex re-enters from the settled point. Once the borrowed costs
   are called in, any nonbasic whose sign condition is breached and that has a
   real bound on the other side is sent to it, and the method runs again from

@@ -1058,6 +1058,64 @@ static void test_harris_edge_counts(void)
     TEST_ASSERT_EQUAL_INT64(-1, jm_harris_pick(0, num, den, HARRIS_TOL));
 }
 
+/* ---- Bland's rule, for when Harris' has cycled -------------------------
+ *
+ * Same candidate set, same arithmetic, and deliberately the opposite
+ * priorities: no window to spend, and the index decides. The pair of tests
+ * below are the Harris cases above with their answers inverted, which is
+ * the point — this rule is worse at everything except terminating. */
+
+/* The degenerate vertex Harris' resolves by conditioning. Every candidate
+ * blocks at zero, so a rule that picks on pivot size is choosing freely,
+ * and free choices repeated at a degenerate vertex are what a cycle is
+ * made of. Bland's takes the lowest index and gives the freedom up. */
+static void test_bland_on_a_degenerate_vertex_takes_the_lowest_index(void)
+{
+    const int64_t var[] = {9, 4, 7};
+    const double num[] = {0.0, 0.0, 0.0};
+    const double den[] = {1.0, 7.0, 3.0};
+    TEST_ASSERT_EQUAL_INT64(1, jm_bland_pick(3, var, num, den));
+    /* Harris', on the same data, prefers the pivot of 7 — which happens to
+     * be the same candidate here. So a case where they differ: */
+    const int64_t var2[] = {2, 8};
+    const double num2[] = {0.0, 0.0};
+    const double den2[] = {1.0, 7.0};
+    TEST_ASSERT_EQUAL_INT64(0, jm_bland_pick(2, var2, num2, den2));
+    TEST_ASSERT_EQUAL_INT64(1, jm_harris_pick(2, num2, den2, HARRIS_TOL));
+}
+
+/* There is no window, so a candidate that blocks a hair earlier wins
+ * however badly conditioned it is. This is the Harris case above, and the
+ * answers are opposite: 1e-8 of step is not available to trade. */
+static void test_bland_has_no_window_to_trade(void)
+{
+    const int64_t var[] = {5, 1};
+    const double num[] = {0.0, 1e-8};
+    const double den[] = {1e-8, 1.0};
+    TEST_ASSERT_EQUAL_INT64(0, jm_bland_pick(2, var, num, den));
+    TEST_ASSERT_EQUAL_INT64(1, jm_harris_pick(2, num, den, HARRIS_TOL));
+}
+
+/* The index only breaks ties at the minimum. A lower-indexed candidate that
+ * blocks later does not win — that would leave a reduced cost past feasible
+ * and it is not what the rule says. */
+static void test_bland_does_not_let_the_index_beat_the_quotient(void)
+{
+    const int64_t var[] = {1, 9};
+    const double num[] = {5.0, 1.0};
+    const double den[] = {1.0, 1.0};
+    TEST_ASSERT_EQUAL_INT64(1, jm_bland_pick(2, var, num, den));
+}
+
+static void test_bland_edge_counts(void)
+{
+    const int64_t var[] = {3};
+    const double num[] = {42.0};
+    const double den[] = {0.5};
+    TEST_ASSERT_EQUAL_INT64(0, jm_bland_pick(1, var, num, den));
+    TEST_ASSERT_EQUAL_INT64(-1, jm_bland_pick(0, var, num, den));
+}
+
 /* Determinism (D8): the same model solved twice must produce the same
  * objective bit for bit, the same iteration count, and the same work. */
 static void test_solving_twice_is_bit_identical(void)
@@ -1294,6 +1352,10 @@ int main(void)
     RUN_TEST(test_harris_prefers_the_larger_pivot_inside_the_window);
     RUN_TEST(test_harris_on_a_degenerate_vertex_takes_the_best_pivot);
     RUN_TEST(test_harris_edge_counts);
+    RUN_TEST(test_bland_on_a_degenerate_vertex_takes_the_lowest_index);
+    RUN_TEST(test_bland_has_no_window_to_trade);
+    RUN_TEST(test_bland_does_not_let_the_index_beat_the_quotient);
+    RUN_TEST(test_bland_edge_counts);
     RUN_TEST(test_solving_twice_is_bit_identical);
     RUN_TEST(test_work_limit_stops_and_reports);
     RUN_TEST(test_budgets_survive_a_reload);

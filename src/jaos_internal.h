@@ -160,6 +160,25 @@ void jm_dse_update(int64_t n, double *w, int64_t r,
 int64_t jm_harris_pick(int64_t n, const double *num, const double *den,
                        double dual_tol);
 
+/* Bland's rule over the same candidate set, for when Harris' has cycled.
+ *
+ * Same num/den, and `var` carries each candidate's variable index. The rule
+ * is the smallest index among the candidates attaining the exact minimum
+ * quotient — no widening, so no candidate is left past feasible and the
+ * choice at a degenerate vertex stops being arbitrary. That is what makes it
+ * terminate, and it is also why it cannot be the default: without the
+ * window there is no room to prefer a better-conditioned pivot, and the
+ * iteration counts say what that costs (DECISIONS.md D26).
+ *
+ * The minimum is compared exactly rather than within a tolerance. A
+ * tolerance would hand back the freedom the rule exists to remove, and the
+ * quotients are a deterministic function of the same inputs, so exact
+ * equality is a meaningful test here rather than a hopeful one.
+ *
+ * Returns an index into the arrays, or -1 if n is not positive. */
+int64_t jm_bland_pick(int64_t n, const int64_t *var, const double *num,
+                      const double *den);
+
 /* Overflow-checked array allocation: n elements of elsize bytes.
  * Returns NULL on n < 0, size overflow, or exhaustion. n == 0 still returns
  * a valid non-NULL allocation, so success is always non-NULL. */

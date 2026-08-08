@@ -204,10 +204,10 @@ Remaining:
    | | |
    |---|---|
    | shape correct | **94 / 94** |
-   | solved to optimal | 93 / 94 |
-   | objective within tolerance | 91 / 94 |
-   | independent checker green | 88 / 94 |
-   | deterministic across two solves | 93 / 94 |
+   | solved to optimal | **94 / 94** |
+   | objective within tolerance | 92 / 94 |
+   | independent checker green | 90 / 94 |
+   | deterministic across two solves | **94 / 94** |
 
    The readers are the part that came out clean: every instance in the set
    loads with exactly the row and column counts two independent canonical
@@ -223,19 +223,35 @@ Remaining:
      records the constant per instance and compares against reference plus
      constant; the reader was left alone on purpose, and `tests/test_mps.c`
      now says why. Details in `docs/format-support.md`.
-   - **`grow15` — the solve does not terminate.** The internal iteration
-     guard trips at 189201 iterations, which the code correctly reports as a
-     JAOS defect rather than a hard model. This is the stall Q10 has been
-     waiting for an instance to produce, and now one has.
-   - **Dual conditions the checker rejects on seven instances** —
-     `etamacro`, `finnis`, `greenbea`, `nesm`, `pilot`, `pilot87`, plus
-     `pilot-ja` until it was closed. They were read as two groups by
-     magnitude, then as three. Measured one at a time they are **four**, and
-     grouping them by the size of the reported number was the mistake: what
-     the checker reports is `|w|`, the magnitude of the offending
-     multiplier, and a multiplier's magnitude says nothing about how far
-     anything is from where it should be. `finnis` is reported at 28 and is
-     the most accurate of the six.
+   - **`grow15` — closed, and it was a cycle rather than a stall.** The
+     internal iteration guard tripped at 189201 iterations, correctly
+     reported as a JAOS defect rather than a hard model. Q10 read it as the
+     stall it had been waiting for; instrumented, it is a **cycle of period
+     four** over two rows and four variables, repeating bit for bit from
+     iteration ~3000. Half its iterations take a real dual step of ~1.7e-6
+     and the four cancel exactly, so "no iteration makes progress" was not
+     what was happening.
+
+     Cycles have a cure stalls do not. Bland's rule — the real one: exact
+     minimum quotient, no Harris window, smallest index on *both* choices —
+     solves it. It cannot be the default, because it costs 25x on `25fv47`
+     and takes `grow22` from 2179 iterations to no answer at all, so it is a
+     fallback that a detected cycle switches on and progress switches off.
+     `grow15` solves in 21653 iterations at sixteen digits of Koch's value,
+     and every instance that does not cycle is bit-identical. D26 carries
+     the mechanism and the two-sided measurement that sets its one constant.
+   - **Dual conditions the checker rejected on seven instances** —
+     `etamacro`, `finnis`, `greenbea`, `nesm`, `pilot`, `pilot87` and
+     `pilot-ja`. Three are closed (`pilot-ja` by D21, `finnis` by D23,
+     `nesm` by D25) and four remain; each closure is recorded below with
+     what it turned out to be.
+
+     They were read as two groups by magnitude, then as three. Measured one
+     at a time they are **four distinct defects**, and grouping them by the
+     size of the reported number was the mistake: what the checker reports
+     is `|w|`, the magnitude of the offending multiplier, and a multiplier's
+     magnitude says nothing about how far anything is from where it should
+     be. `finnis` was reported at 28 and was the most accurate of the seven.
 
      **`pilot-ja` — closed, and it was the checker.** Its dual violation
      was exactly zero; it was rejected on the gap alone, at 1.87e-6.
@@ -758,7 +774,7 @@ in aggregate is what §2.8 has just finished being a lesson about.
 
 | # | Condition | Status |
 |---|---|---|
-| 1a | Netlib **standard** set: `OPTIMAL`, objective within §2.6 tolerance, checker green | **not met** — 93/94 solved, 91 objective, 89 checker |
+| 1a | Netlib **standard** set: `OPTIMAL`, objective within §2.6 tolerance, checker green | **not met** — 94/94 solved, 92 objective, 90 checker |
 | 1b | **Kennington** subset, for correctness with no performance expectation | **met** — 16/16, every condition, `ken-18` at 105127x154699 included |
 | 1c | **Infeasible** subset: classified `INFEASIBLE`, no false optima | **met** — 29/29 refused, no false optima; `gran` closed by the basis repair (§2.8.2) |
 | 2 | Determinism harness green on every instance (D8) | holds on all 93 that finish |
@@ -772,13 +788,22 @@ at all — which is worth stating plainly, because the distance to M1 is not
 the distance to closing seven instances.
 
 **Six of the seven now hold.** What is left is condition 1a alone, and it is
-five instances of the standard 94: `grow15`, which does not terminate, and
-four the checker rejects. §2.8.1 records what each of those is, measured
-rather than grouped by the size of the number reported — because the number
-the checker reports is the magnitude of a multiplier and says nothing on its
-own about how far anything is from where it should be. That mistake cost
-`finnis` months in the wrong group; it was the most accurate answer of the
-six and was closed by D23.
+**four instances of the standard 94, all of them answers rather than
+failures to answer**: `greenbea`, `etamacro`, `pilot` and `pilot87`, which
+the checker rejects, two of them also missing the objective. Every instance
+in the set now solves, and every one is deterministic — `grow15` was the
+last that did neither, and D26 closed it.
+
+§2.8.1 records what each of the four is, measured rather than grouped by the
+size of the number reported — because the number the checker reports is the
+magnitude of a multiplier and says nothing on its own about how far anything
+is from where it should be. That mistake cost `finnis` months in the wrong
+group; it was the most accurate answer of the six and was closed by D23.
+
+Worth stating because it changes what 1a is asking for: the remaining gap is
+no longer "the solver cannot finish" anywhere. It is four certificates that
+do not carry, on models that all produce an answer, and three of the four
+sit within 1e-4 of their reference.
 
 ### What happens next, in order
 
@@ -1029,45 +1054,74 @@ missed this".
   perturbing costs can. Bound flipping, already built, removes part of the
   short-step behaviour but not this.
 
-  One has now stalled: `grow15` runs to the internal iteration guard at
-  189201 iterations and is reported as the defect it is. So the device is no
-  longer held for lack of evidence — there is an instance to develop it
-  against, and one that will say whether the diagnosis above (a zero reduced
-  cost on the entering candidate, repairable by perturbing costs and not
-  bounds) is what is actually happening. How much to perturb is still a
-  number with nothing behind it, and `grow15` is now the thing that can put
-  something there.
+  One had stalled: `grow15` ran to the internal iteration guard at 189201
+  iterations. **It is closed, and the diagnosis above was close but wrong
+  (D26).** Instrumented, the solve repeats bit for bit from iteration ~3000
+  — same total infeasibility to ten digits, same 43 violated rows, same
+  objective, exactly half the steps degenerate — and the pivot log inside
+  the repeat shows a **cycle of period four** over two rows and four
+  variables, with `xb` and both steepest-edge weights returning to identical
+  values every fourth iteration. Half of those iterations do take a real
+  step, of about 1.7e-6; the four cancel exactly. So this was never "no
+  iteration makes progress", and the cure a cycle has is not the cure a
+  stall has.
 
-  **Two attempts, both measured, both reverted (2026-08-07).** Neither is in
-  `main`; both are in the history and worth not repeating.
+  `grow15` now solves in 21653 iterations, at an objective matching Koch's
+  to sixteen digits, and `grow22`, `grow7` and `truss` come back with
+  identical digests. D26 carries the mechanism, the cost of Bland's rule as
+  a default (25x on `25fv47`, and `grow22` stops solving), and the
+  measurement that sets the trigger.
+
+  **What is left of this question is the perturbation half**, and it is
+  narrower than it was: the device is no longer needed for `grow15`, so
+  there is again no instance forcing it, and "how much to perturb" is again
+  a number with nothing behind it. It waits, as it did before, for a model
+  that needs it.
+
+  **Two attempts before that, both measured, both reverted (2026-08-07).**
+  Neither is in `main`; both are in the history and worth not repeating.
 
   *Bland's rule in the ratio test.* Where two pivots inside the Harris window
   are the same size the choice is arbitrary, and an arbitrary choice repeated
   at a degenerate vertex is how a method cycles, so the smallest variable
   index breaks the tie. It does not fix `grow15`, which still runs to the
-  guard, and it costs `grow22`, which stops terminating at all. The reason
-  the diagnosis above survives this is that Bland's rule addresses *which*
-  degenerate pivot is taken, and the stall here is that the pivot makes no
-  progress whichever one it is. Worth recording separately: the first version
-  of this tried the tie-break whenever a pivot was *not strictly better*
-  rather than when it was equal, which lets a pivot orders of magnitude worse
-  win on index alone and drags the standard down for the rest of the pass —
-  Bland's rule silently overruling Harris instead of breaking its ties.
+  guard, and it costs `grow22`, which stops terminating at all. Worth
+  recording separately: the first version of this tried the tie-break
+  whenever a pivot was *not strictly better* rather than when it was equal,
+  which lets a pivot orders of magnitude worse win on index alone and drags
+  the standard down for the rest of the pass — Bland's rule silently
+  overruling Harris instead of breaking its ties.
+
+  **This attempt was misnamed, and the name is why it read as a dead end.**
+  A smallest-index tie-break among equally sized pivots inside the Harris
+  window is not Bland's rule and carries none of its guarantee: that needs
+  the exact minimum quotient, no widening, and the index rule on the
+  *leaving* choice too. Built as the actual rule it solves `grow15` outright
+  (D26). What this attempt did establish stands unchanged and is half of why
+  D26 is a fallback rather than a default — it costs `grow22` its answer.
 
   *Cost perturbation, periodic and adaptive.* This one does fix `grow15` — it
   reaches the optimum. It also makes `pilot-we` report a feasible problem as
   infeasible, moves `pilotnov` to a checker rejection, and takes `grow22` from
-  2179 iterations to 167865. So the device works and the diagnosis holds; what
-  is missing is any principle for how much to perturb and when to stop, which
-  is the part this question said had nothing behind it and still does. A
-  perturbation large enough to break the stall is large enough to change what
-  the solver believes about other models, and until that trade is understood
-  rather than tuned, `grow15` stays open.
+  2179 iterations to 167865. So the device works; what is missing is any
+  principle for how much to perturb and when to stop, which is the part this
+  question said had nothing behind it and still does. A perturbation large
+  enough to break a cycle is large enough to change what the solver believes
+  about other models, and until that trade is understood rather than tuned,
+  it stays out.
+
+  In hindsight this is unsurprising rather than mysterious: perturbing costs
+  breaks a cycle by destroying the degeneracy that sustains it, and it does
+  that on every model whether or not one is cycling. D26 breaks the same
+  cycle by removing the freedom instead of the degeneracy, and only on the
+  model that is cycling. That is the whole difference between the two, and
+  it is why one is merged and the other is not.
 
   What the two attempts did settle is that this cannot be developed against
   `grow15` alone. Both looked like progress on the instance in front of them
   and were regressions on the set. `bench/netlib.baseline` exists because of
-  this: the third attempt gets told what it broke.
+  this, and it is what told D26 that `grow22`, `grow7` and `truss` came back
+  bit-identical.
 
   The repair half of this question is closed: costs are shifted and called
   back, per the changelog. What it cannot close is the residue. Once the

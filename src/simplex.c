@@ -112,6 +112,25 @@ constexpr double ARTIFICIAL_BOUND = 1e10;
  * must be able to tell "this model is hard" from "this code is wrong". */
 constexpr int64_t ITER_SANITY_FACTOR = 200;
 
+/* How long a solve may fail to improve before it is treated as cycling, as
+ * a multiple of `nrow + ncol + 1` — the same normalisation the guard above
+ * uses, and for the same reason: a plateau that is long for a small model
+ * is nothing for a large one.
+ *
+ * The number has a measurement on both sides of it (D17). Across the
+ * standard 94, the longest plateau on an instance that terminates is
+ * `truss` at 1.67 of its size, and `dfl001` is next at 0.94; `grow15`,
+ * which cycles, sits at 198. There are two orders of magnitude of daylight
+ * between those, and 10 is six times clear of the worst healthy case and
+ * twenty times inside the cycling one.
+ *
+ * What makes this a safe constant, unlike the perturbation size Q10 is
+ * still waiting on, is that it cannot change an answer. It only decides
+ * when to switch to a rule that is itself exact and terminating; too small
+ * costs iterations, too large costs iterations, and neither costs
+ * correctness. */
+constexpr int64_t STALL_FACTOR = 10;
+
 /* How many times a settled point may be handed back to the dual simplex.
  *
  * Settling the shifts is what turns a solve that was optimal for a
@@ -230,6 +249,17 @@ typedef struct {
     /* Has optimality been re-checked against a freshly computed point since
      * the last basis change? See the r < 0 branch in run(). */
     bool verified;
+
+    /* Cycle detection. `infeas_best` is the smallest total primal
+     * infeasibility this solve has reached and `last_gain` the iteration
+     * that reached it; when the gap between that and now grows past
+     * STALL_FACTOR times the model's size, `bland` goes on and the pricing
+     * and ratio-test rules change under it. It goes off again the moment
+     * the total improves — see price_row, which computes the total for
+     * free in a loop it was already running. */
+    double infeas_best;
+    int64_t last_gain;
+    bool bland;
 } sx;
 
 /* --------------------------------------------------------------------- */
@@ -743,8 +773,15 @@ static jaos_status refresh(sx *s, bool *ok)
  * chosen one out: the ratio test spends it. */
 static int64_t price_row(sx *s, bool *below, double *violation)
 {
+    /* Decided before the loop, off the previous call's accounting, so that
+     * one iteration uses one rule throughout. */
+    if (!s->bland &&
+        s->iters - s->last_gain > STALL_FACTOR * (s->nrow + s->ncol + 1))
+        s->bland = true;
+
     int64_t best = -1;
     double best_score = 0.0;
+    double total = 0.0;
 
     for (int64_t i = 0; i < s->nrow; i++) {
         int64_t v = s->basis[i];
@@ -756,6 +793,23 @@ static int64_t price_row(sx *s, bool *below, double *violation)
         if (viol <= PRIMAL_TOL)
             continue;
 
+        total += viol;
+
+        /* Under Bland's rule the leaving variable is the lowest-indexed one
+         * that violates a bound, not the one that violates it most per unit
+         * of movement. The steepest-edge score is what makes a real model
+         * tractable and it is also a free choice among equals at a
+         * degenerate vertex, which is where a cycle comes from; the index
+         * rule has no freedom left to spend. */
+        if (s->bland) {
+            if (best < 0 || v < s->basis[best]) {
+                best = i;
+                *below = under;
+                *violation = viol;
+            }
+            continue;
+        }
+
         double score = viol * viol / s->dse[i];
         if (score > best_score) {
             best_score = score;
@@ -765,6 +819,21 @@ static int64_t price_row(sx *s, bool *below, double *violation)
         }
     }
     jm_work_add(&s->work, s->nrow * JM_WORK_NONZERO);
+
+    /* The measure of progress, and it is not the objective: the dual method
+     * drives primal infeasibility out, so that is the quantity a stalled
+     * solve stops moving. It is not monotone either, which is why this
+     * tracks the best reached rather than the last seen — a solve that gets
+     * worse and then better has made progress, and a cycle never improves
+     * on its own best at all.
+     *
+     * Improving turns Bland's rule back off. Its cost is real (D26) and it
+     * is worth paying only while the alternative is not working. */
+    if (total < s->infeas_best) {
+        s->infeas_best = total;
+        s->last_gain = s->iters;
+        s->bland = false;
+    }
     return best;
 }
 
@@ -968,6 +1037,18 @@ static int64_t dual_ratio_test(sx *s, bool below, double violation,
     if (n == 0)
         return -1;
 
+    /* Bland's rule takes the exact minimum quotient, so there is no window
+     * to trade and nothing to flip: bound flipping is part of the ratio
+     * test's freedom, and the freedom is what cycled. The candidate set is
+     * the same one; only the choice among it changes. */
+    if (s->bland) {
+        int64_t b = jm_bland_pick(n, s->cand, s->rnum, s->rden);
+        jm_work_add(&s->work, 2 * n * JM_WORK_NONZERO);
+        int64_t bv = s->cand[b];
+        *theta_out = s->d[bv] / s->alpha[bv];
+        return bv;
+    }
+
     int64_t live = bfrt_walk(s, n, violation);
     if (live == 0)
         return -1;   /* nothing blocks the step; the model is infeasible */
@@ -983,6 +1064,28 @@ static int64_t dual_ratio_test(sx *s, bool below, double violation,
      * other candidate inside the window ends at worst DUAL_TOL past
      * feasible, which is the whole of what Harris trades away. */
     *theta_out = s->d[best] / s->alpha[best];
+    return best;
+}
+
+/* Bland's rule over the same candidates. Documented in the header, beside
+ * Harris', because the two are the same decision made two ways. */
+int64_t jm_bland_pick(int64_t n, const int64_t *var, const double *num,
+                      const double *den)
+{
+    if (n <= 0)
+        return -1;
+
+    double least = HUGE_VAL;
+    for (int64_t k = 0; k < n; k++) {
+        double t = num[k] / den[k];
+        if (t < least)
+            least = t;
+    }
+
+    int64_t best = -1;
+    for (int64_t k = 0; k < n; k++)
+        if (num[k] / den[k] <= least && (best < 0 || var[k] < var[best]))
+            best = k;
     return best;
 }
 
@@ -1608,6 +1711,13 @@ static bool out_of_time(const sx *s)
 
 static jaos_status run(sx *s, jaos_solve_status *out)
 {
+    /* Each entry into the loop is its own solve as far as progress goes: a
+     * re-entry (D25) starts from a point of its own and must not inherit a
+     * plateau counted against the pass before it. */
+    s->infeas_best = HUGE_VAL;
+    s->last_gain = s->iters;
+    s->bland = false;
+
     bool ok = false;
     jaos_status st = refresh(s, &ok);
     if (st != JAOS_OK)

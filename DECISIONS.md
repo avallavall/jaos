@@ -741,3 +741,107 @@ so it is set well clear of anything the set needs, in the same sense
 begins if some column can still be moved, every round that moves something
 makes at least one pivot, and `iters` accumulates across rounds so the
 iteration cap in `run()` covers all of them together.
+
+---
+
+## D26 — Bland's rule is a fallback a detected cycle switches on, never the default
+
+`grow15` ran to the internal iteration guard at 189201 iterations and was
+reported as the JAOS defect it is. Q10 diagnosed it as a stall — iterations
+whose entering candidate already had a zero reduced cost, so the dual step
+`d_q / alpha_q` makes no progress — and proposed cost perturbation, which
+was measured, worked, broke three other instances and was reverted.
+
+**The diagnosis was close and not right, and the instrument says so
+plainly.** From iteration ~3000 the solve repeats bit for bit: every window
+of 2000 iterations reports the same total primal infeasibility to ten
+significant digits, the same 43 violated rows, the same objective, and
+exactly 1000 degenerate steps out of 2000. Logging the pivots inside the
+repeat gives a **cycle of period four** over two rows and four variables:
+
+    r=141: 398 leaves, 378 enters, theta = -1.21042e-06
+    r=196: 440 leaves, 420 enters, theta = +1.67711e-06
+    r=141: 378 leaves, 398 enters, theta = +7.83895e-09
+    r=196: 420 leaves, 440 enters, theta = -1.70297e-08
+
+with `xb` and the steepest-edge weight of each row returning to identical
+values every fourth iteration. So it is not that no iteration makes
+progress: half of them take a real step of about 1.7e-6, and the four steps
+cancel exactly. That is a cycle, and a cycle has a known cure that a stall
+does not.
+
+**PLAN records that Bland's rule was tried and did not fix `grow15`. What
+was tried was not Bland's rule.** It was a smallest-index tie-break among
+equally sized pivots *inside the Harris window*, which carries none of the
+guarantee: the guarantee needs the exact minimum quotient, no widening, and
+the smallest index on the *leaving* choice as well. Built properly — index
+rule on both choices, exact minimum ratio, no window and no bound flipping —
+`grow15` solves in 11464 iterations at an objective matching Koch's to
+sixteen digits.
+
+**It cannot be the default, and that is measured too:**
+
+| instance | dual steepest edge + Harris | Bland's throughout |
+|---|---|---|
+| `afiro` | 30 | 19 |
+| `adlittle` | 76 | 25 |
+| `bnl2` | 1904 | 830 |
+| `grow7` | 544 | 4696 |
+| `25fv47` | 9459 | **236918** |
+| `grow22` | 2179 | **iteration guard at 277401** |
+| `grow15` | **iteration guard at 189201** | **11464** |
+
+Twenty-five times the iterations on `25fv47`, and `grow22` stops solving
+altogether — which is precisely the failure the earlier attempt recorded, so
+that half of its finding stands.
+
+**So: run the fast rules, detect the cycle, switch, and switch back.** The
+detector is the total primal infeasibility, which `price_row` already has in
+hand — it visits every row and computes both violations, so the total costs
+one add in a loop that was already running. The trigger is failing to
+improve on the *best* total reached, not the last one, because the quantity
+is not monotone and a solve that gets worse and then better has made
+progress. Bland's goes off again the moment the best improves.
+
+**One thing changes shape under the fallback and it is worth stating.** The
+Harris path can declare a model infeasible from `bfrt_walk` retiring every
+candidate without one blocking; Bland's has no bound flipping, so that route
+does not exist while it is in force. It is not lost — infeasibility still
+reaches the same verdict through an empty candidate set, which is the
+condition both paths share — it is only detected a pivot or more later. A
+fallback that runs for a few thousand iterations on a cycling model is not
+where an infeasibility proof needs to be fast.
+
+**The threshold is the one constant, and it is safe in a way the
+perturbation size is not.** It cannot change an answer: it only decides when
+to switch to a rule that is itself exact and terminating, so too small costs
+iterations and too large costs iterations. Q10's perturbation had no such
+property, which is why it is still open and this is not.
+
+It is `STALL_FACTOR = 10` times `nrow + ncol + 1` — the normalisation
+`ITER_SANITY_FACTOR` already uses, because a plateau that is long for a
+small model is nothing for a large one. Measured across the standard 94, the
+longest plateau on an instance that terminates:
+
+| instance | plateau | of its size |
+|---|---|---|
+| `truss` | 16347 | **1.67** |
+| `dfl001` | 17224 | 0.94 |
+| `25fv47` | 1824 | 0.76 |
+| `maros-r7` | 8676 | 0.69 |
+| `grow15` | 187509 | **198** |
+
+Two orders of magnitude of daylight between the worst healthy plateau and
+the cycle. Ten is six times clear of `truss` and twenty times inside
+`grow15`, and the absolute figures are why the trigger is not absolute:
+`truss` spends 94% of a perfectly good solve on one plateau.
+
+**What it costs the instances that do not cycle is nothing, exactly.**
+`grow22`, `grow7` and `truss` come back with identical digests, identical
+iteration counts and identical work. That is the property the two reverted
+repairs did not have — both changed every model in order to fix one.
+
+`grow15` now solves in 21653 iterations: 9460 before the trigger fires, then
+Bland's. Slower than the 11464 of Bland's throughout, and that is the trade
+being made deliberately — the 9460 are what buys every other instance its
+unchanged behaviour.

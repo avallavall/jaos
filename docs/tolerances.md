@@ -202,13 +202,18 @@ floating-point luck rather than about the solver.
 ## What is not settled
 
 Instances have now argued with them. The Netlib gate has been run over the
-whole standard set (`bench/results/netlib.txt`), and 89 of 94 instances come
-back with the checker green at the tolerance above. Three of the original
-eight failures closed, and none of the three closed by moving a number:
+whole standard set (`bench/results/netlib.txt`), and 90 of 94 instances come
+back with the checker green at the tolerance above. Four of the original
+eight failures closed, and **not one of them closed by moving a number**:
 `pilot-ja` was the checker dropping a contribution it should have kept
 (D21), `finnis` was a bound-proximity test judged absolutely on a row that
-cancels ten orders of magnitude (D23), and `nesm` was a settled basis the
-dual simplex had never been given back (D25).
+cancels ten orders of magnitude (D23), `nesm` was a settled basis the dual
+simplex had never been given back (D25), and `grow15` was a cycle that had
+been read as a stall (D26).
+
+That is the case for leaving these numbers where they are, made by
+instances rather than by argument: every failure anyone was tempted to
+blame on a tolerance turned out to be something else.
 
 What is left:
 
@@ -232,8 +237,8 @@ what the solver calls zero, and it arrives at `1.56e-6` only because
 loosening a number, which would convert defects into passes and prove
 nothing (D17).
 
-`grow15` is the fifth failure and is not about tolerances at all: it does
-not terminate.
+There is no fifth. `grow15`, which used to be one and was never about
+tolerances, solves — it was cycling, not stalling (D26).
 
 The values also stay drafts in the original sense — nothing is frozen until
 the gate closes, and every one of them moves only with a measurement on both

@@ -35,7 +35,7 @@ ganges       optimal    rows=1309 cols=1681 shape=ok iters=1349 work=24246559 ob
 gfrd-pnc     optimal    rows=616 cols=1092 shape=ok iters=573 work=5695803 obj=6902235.9995488124 ref=6902235.9995488087[koch] objective=ok checker=ok (col=0 row=3.64e-12 rowrel=3.64e-12 dual=0 gap=2.57e-17 Q=2.72e-09 N=7.21e-10) det=ok digest=1478eb1c64491ac4
 greenbea     optimal    rows=2392 cols=5405 shape=ok iters=14954 work=1295279419 obj=-72555233.859378919 ref=-72555248.129845992[koch] objective=ok checker=REJECTED (col=4.39e-13 row=4.31e-09 rowrel=2.02e-10 dual=2.66 gap=3.57e-17 Q=1.26e-07 N=6.17e-08) det=ok digest=5d64ca23da4620dd
 greenbeb     optimal    rows=2392 cols=5405 shape=ok iters=9016 work=699748742 obj=-4302260.2612065859 ref=-4302260.2612065868[koch] objective=ok checker=ok (col=1.01e-12 row=1.29e-10 rowrel=4.39e-13 dual=0 gap=2.59e-17 Q=4.49e-10 N=4.62e-10) det=ok digest=25073fb4f3efd6b3
-grow15       SOLVE-ERROR  numerical error | internal iteration guard tripped after 189201 iterations; this is a JAOS defect
+grow15       optimal    rows=300 cols=645 shape=ok iters=21653 work=351767772 obj=-106870941.29357535 ref=-106870941.29357533[koch] objective=ok checker=ok (col=0 row=1.04e-09 rowrel=2.2e-15 dual=0 gap=1.71e-16 Q=5.15e-08 N=1.25e-08) det=ok digest=a10bdbd7fa9d93b6
 grow22       optimal    rows=440 cols=946 shape=ok iters=2179 work=54279331 obj=-160834336.48256296 ref=-160834336.48256296[koch] objective=ok checker=ok (col=0 row=3.68e-10 rowrel=3.04e-14 dual=0 gap=2.1e-16 Q=8.87e-08 N=1.9e-08) det=ok digest=910b215506f60c31
 grow7        optimal    rows=140 cols=301 shape=ok iters=544 work=6548389 obj=-47787811.814711504 ref=-47787811.814711504[koch] objective=ok checker=ok (col=0 row=9.59e-10 rowrel=1.07e-15 dual=0 gap=3.24e-16 Q=3.43e-08 N=3.97e-09) det=ok digest=ec19a91ce2d19868
 israel       optimal    rows=174 cols=142 shape=ok iters=118 work=900005 obj=-896644.82186304603 ref=-896644.82186304568[koch] objective=ok checker=ok (col=0 row=1.16e-10 rowrel=1.38e-16 dual=0 gap=1.3e-18 Q=1.06e-10 N=4e-11) det=ok digest=8fc47e39cca8a99d
@@ -93,9 +93,12 @@ vtp-base     optimal    rows=198 cols=203 shape=ok iters=132 work=499528 obj=129
 wood1p       optimal    rows=244 cols=2594 shape=ok iters=335 work=31533581 obj=1.4429024116630425 ref=1.4429024115734093[koch] objective=ok checker=ok (col=1.77e-11 row=1.19e-08 rowrel=1.19e-08 dual=0 gap=1.51e-17 Q=9.09e-11 N=1.25e-12) det=ok digest=9da03810ad189948
 woodw        optimal    rows=1098 cols=8405 shape=ok iters=1713 work=132777288 obj=1.3044763330842297 ref=1.3044763330842293[koch] objective=ok checker=ok (col=0 row=6.8e-13 rowrel=5.56e-13 dual=0 gap=9.76e-17 Q=1.37e-15 N=8.21e-16) det=ok digest=f611544d88b5a38a
 
-94 instances: 93 solved, 94 shape ok, 91 objective ok, 89 checker ok, 93 deterministic, 1 failed
+94 instances: 94 solved, 94 shape ok, 92 objective ok, 90 checker ok, 94 deterministic, 0 failed
 gate: NOT MET
 
 -- against baseline --
-nesm         improved     checker: no -> yes (optimal -> optimal)
-baseline: 0 regressed, 1 improved, 0 new
+grow15       improved     solved: no -> yes (SOLVE-ERROR -> optimal)
+grow15       improved     objective: no -> yes (SOLVE-ERROR -> optimal)
+grow15       improved     checker: no -> yes (SOLVE-ERROR -> optimal)
+grow15       improved     det: no -> yes (SOLVE-ERROR -> optimal)
+baseline: 0 regressed, 4 improved, 0 new
