@@ -202,8 +202,8 @@ floating-point luck rather than about the solver.
 ## What is not settled
 
 Instances have now argued with them. The Netlib gate has been run over the
-whole standard set (`bench/results/netlib.txt`), and 91 of 94 instances come
-back with the checker green at the tolerance above. Five of the original
+whole standard set (`bench/results/netlib.txt`), and 92 of 94 instances come
+back with the checker green at the tolerance above. Six of the original
 eight failures closed, and **not one of them closed by moving a number**:
 
 | instance | what it actually was | |
@@ -213,6 +213,7 @@ eight failures closed, and **not one of them closed by moving a number**:
 | `nesm` | a settled basis the dual simplex had never been handed back | D25 |
 | `grow15` | a cycle that had been read as a stall | D26 |
 | `etamacro` | a repair test reading the wrong quantity, in the wrong space | D27 |
+| `greenbea` | a column with nowhere to rest, needing a basis change rather than a move | D28 |
 
 That is the case for leaving these numbers where they are, made by instances
 rather than by argument: every failure anyone was tempted to blame on a
@@ -225,18 +226,27 @@ number either way.
 
 What is left:
 
-| Instance | worst dual violation | gap | |
-|---|---|---|---|
-| `greenbea` | 2.66 | 3.6e-17 | far too large to be a tolerance |
-| `pilot` | 8.0e-05 | 8.6e-13 | likewise, and misses the objective too |
-| `pilot87` | 3.3e-05 | 4.0e-08 | likewise |
+| Instance | what refuses it | |
+|---|---|---|
+| `pilot` | one row `1.73e-6` outside its bound | dual violation `0`, gap `6.6e-14`, objective within tolerance |
+| `pilot87` | its objective, by 7.6x | dual violation `1.87e-5`, gap `2.75e-8` |
 
-A dual violation of 2.66 is not a number that moves by widening 1e-6. That
-is a defect, and PLAN 2.8.1 has it measured: the residue arrives through the
-basis rather than through the offending column's own cost, amplified a
-millionfold by a `B^-1` that badly conditioned. Nothing left here is a case
-for loosening a number, which would convert defects into passes and prove
-nothing (D17).
+**`pilot` is now the one case where a tolerance is genuinely the question,
+and it is the primal one.** Everything else about that answer is right: the
+objective is inside `2.3e-5` of Koch against a bar of `5.6e-4`, the dual
+violation is exactly zero, the gap is `6.6e-14`. What refuses it is
+`interval_violation`, an absolute test, on a row 1.73 times the tolerance
+out. D24 refused to make that test relative for four reasons; D28 records
+that one of them — "the change buys no verdict, since `pilot` is rejected on
+the gap and the objective anyway" — has expired. The other three stand, and
+the first is still sufficient on its own: primal feasibility is the
+hypothesis D23's identity rests on rather than a test beside it. The only
+form worth revisiting is the one D24 already names, `min(tol, tol·s)`, which
+narrows.
+
+`pilot87` is not a tolerance question at all. An objective 7.6x outside the
+bar is a wrong answer, and loosening a number to admit it would convert a
+defect into a pass and prove nothing (D17).
 
 The values also stay drafts in the original sense — nothing is frozen until
 the gate closes, and every one of them moves only with a measurement on both

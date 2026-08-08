@@ -1585,6 +1585,141 @@ static void arm_reentry(sx *s)
     }
 }
 
+/* --------------------------------------------------------------------- */
+/* Primal clean-up, for a column with nowhere to rest                    */
+/* --------------------------------------------------------------------- */
+
+/* Is this column one that only a basis change can repair?
+ *
+ * The re-entry above moves a column to its other bound. A column that has
+ * no other real bound cannot be moved, and its term in `P − D` is zero by
+ * the same identity, so nothing the contribution test says applies to it.
+ * `greenbea` finishes with ten of them: at a lower bound of 0, no upper
+ * bound, reduced costs from −0.019 to −5.28 (PLAN 2.8.1). What they want is
+ * to travel until something stops them, and that is a basis change.
+ *
+ * The two filters that do apply are the ones about whether there is
+ * anything there: past DUAL_TOL, which is what the solver calls nonzero,
+ * and above the rounding of the dot product that produced it (D27). */
+static bool wants_a_pivot(const sx *s, int64_t v)
+{
+    if (dual_breach(s, v) == 0.0)
+        return false;
+    double wrong_way = s->status[v] == JM_AT_LOWER ? -s->d[v] : s->d[v];
+    if (wrong_way <= NOISE_MARGIN * DBL_EPSILON * column_traffic(s, v))
+        return false;
+    return !isfinite(s->status[v] == JM_AT_LOWER ? real_upper(s, v)
+                                                : real_lower(s, v));
+}
+
+/* How far column q can travel before a basic variable reaches a bound.
+ *
+ * `x_B = -B^-1 N x_N`, so moving q by `dx` moves the basics by
+ * `-B^-1 M_q dx`. q travels upwards off a lower bound and downwards off an
+ * upper one — the direction its reduced cost points — and each basic is
+ * stopped by whichever of its bounds lies that way.
+ *
+ * **Only bounds the model declared can stop it.** A basic brought to rest on
+ * a bound dual phase 1 lent would be published at a value the model never
+ * allowed, which is the case `repair_dual_infeasibility` refuses for the
+ * same reason. If nothing real blocks, this returns -1 and the column is
+ * left alone: the honest reading of that is an unbounded ray, and declaring
+ * one here — off a basis that has just been rebuilt twice — is exactly the
+ * class of verdict D19 requires proof for. Leaving the residue is the
+ * smaller error.
+ *
+ * Returns the blocking position, with *below saying which bound it lands
+ * on, or -1. */
+static int64_t primal_ratio_test(sx *s, int64_t q, bool *below)
+{
+    var_column(s, q, s->col);
+    jm_lu_ftran(&s->lu, s->col, &s->work);
+
+    const double dir = s->status[q] == JM_AT_LOWER ? 1.0 : -1.0;
+    int64_t best = -1;
+    double best_step = HUGE_VAL;
+
+    for (int64_t i = 0; i < s->nrow; i++) {
+        double move = -dir * s->col[i];      /* per unit q travels */
+        if (fabs(move) < PIVOT_MIN)
+            continue;                        /* cannot be told from zero */
+
+        int64_t b = s->basis[i];
+        double limit = move < 0.0 ? real_lower(s, b) : real_upper(s, b);
+        if (!isfinite(limit))
+            continue;
+
+        double step = (limit - s->xb[i]) / move;
+        if (step < 0.0)
+            step = 0.0;                      /* already there: degenerate */
+        if (step < best_step) {
+            best_step = step;
+            best = i;
+            *below = move < 0.0;
+        }
+    }
+    jm_work_add(&s->work, s->nrow * JM_WORK_NONZERO);
+    return best;
+}
+
+/* Lets every column that wants a pivot have one, and reports how many.
+ *
+ * This is a primal ratio test and the basis change `pivot()` already
+ * performs, which is the whole of what §2.1's exclusion of the primal
+ * simplex leaves room for: no primal pricing, no phase 1 of its own, no
+ * second set of weights. The entering column is chosen by the residue
+ * rather than by a pricing rule, so there is nothing here to price with.
+ *
+ * `pivot()` needs row r of `B^-1` in `rho` and the pricing row in `alpha`,
+ * which is what `price_and_select` normally leaves behind; the two lines
+ * that build them are repeated here rather than factored out, because
+ * pulling them into a helper would put the dual method's preamble in a
+ * function the dual method does not call.
+ *
+ * The step it computes is `(x_B[r] - bound) / alpha[q]`, and `alpha[q]` is
+ * row r of `B^-1 M` at column q — the same number the ratio test above
+ * blocked on. So the dual pivot and the primal one are one basis change
+ * differing only in which of `r` and `q` was chosen first.
+ *
+ * Two guarantees come free and are worth stating, because the re-entry
+ * above has neither. The point stays primal feasible: the ratio test is
+ * what makes it so. And the objective cannot rise: `d_q` points the way q
+ * travels, so every step is a descent, and a degenerate step of zero
+ * changes the basis without changing the point. */
+static jaos_status primal_cleanup(sx *s, int64_t *pivots)
+{
+    *pivots = 0;
+
+    for (int64_t q = 0; q < s->nvar; q++) {
+        if (!wants_a_pivot(s, q))
+            continue;
+
+        bool below = false;
+        int64_t r = primal_ratio_test(s, q, &below);
+        if (r < 0)
+            continue;
+
+        memset(s->rho, 0, (size_t)s->nrow * sizeof *s->rho);
+        s->rho[r] = 1.0;
+        jm_lu_btran(&s->lu, s->rho, &s->work);
+        for (int64_t v = 0; v < s->nvar; v++)
+            s->alpha[v] = s->status[v] == JM_BASIC ? 0.0 : price_entry(s, v);
+
+        if (fabs(s->alpha[q]) < PIVOT_MIN)
+            continue;   /* the pricing row disagrees with the column: leave it */
+
+        jaos_status st = pivot(s, r, q, below, s->d[q] / s->alpha[q]);
+        if (st != JAOS_OK)
+            return st;
+
+        /* Billed as the iterations they are, so the guard in run() covers
+         * them and the work counter does not under-report the solve (D16). */
+        s->iters++;
+        (*pivots)++;
+    }
+    return JAOS_OK;
+}
+
 /* Hands a settled point back to the dual simplex.
  *
  * The residue settling leaves is not noise to be tolerated: on `greenbea` a
@@ -1629,8 +1764,40 @@ static jaos_status reenter_after_settling(sx *s)
          * every variable, allocated on a path most solves never leave. On
          * `ken-18` that is seven megabytes to copy in order to discover
          * there was no work. */
-        if (!anything_to_move(s))
-            return JAOS_OK;
+        if (!anything_to_move(s)) {
+            /* Nothing left that moving repairs. What can remain is a column
+             * with nowhere to move to, and that needs a basis change. */
+            if (!save_settled(s))
+                return JAOS_ERR_OUT_OF_MEMORY;
+
+            int64_t pivots = 0;
+            jaos_status st = primal_cleanup(s, &pivots);
+            if (st != JAOS_OK)
+                return st;
+            if (pivots == 0)
+                return JAOS_OK;
+
+            /* The basis has changed under the point, and `rho` now holds a
+             * pricing row rather than the duals — which `column_traffic`
+             * reads. So nothing may look at the state again before a
+             * refresh rebuilds both from the factorization. */
+            bool ok = false;
+            s->verified = false;
+            s->needs_refactor = true;
+            st = refresh(s, &ok);
+            if (st != JAOS_OK)
+                return st;
+            if (!ok) {
+                st = restore_settled(s, &ok);
+                if (st != JAOS_OK)
+                    return st;
+                if (!ok)
+                    return JAOS_ERR_NUMERICAL;
+                return JAOS_OK;
+            }
+            settle_shifts(s);
+            continue;
+        }
         if (!save_settled(s))
             return JAOS_ERR_OUT_OF_MEMORY;
         arm_reentry(s);

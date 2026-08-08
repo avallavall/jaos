@@ -934,3 +934,87 @@ failed certificate that came with it, and PLAN 2.8 recorded the defect.
 It now reaches `x = (1, 0, 0)`, objective zero, gap zero, both halves zero,
 in two iterations. A correct answer replacing a wrong one, on a model where
 nobody has to trust a reference value to see it.
+
+---
+
+## D28 — A primal ratio test enters M1; the primal simplex does not
+
+PLAN 2.9's scope question had two honest answers, and the evidence for
+choosing between them was assembled by D25, D26 and D27: after those, five of
+the seven instances the checker once rejected had closed, and the two that
+remained were **not near-misses**. `greenbea` finished with ten columns at a
+lower bound of 0 with no upper bound at all, reduced costs from −0.019 to
+−5.28. Every mechanism built by then was structurally blind to them: the term
+D27 judges on is `w · bound`, and there is no such term for an infinite
+bound. There was nowhere to move them to. What they wanted was to travel
+until something stopped them.
+
+**The scope grows, and by exactly one thing.** A primal ratio test, feeding
+the basis change `pivot()` already performs. Nothing else: no pricing to
+choose an entering column, no phase 1 of its own, no second set of weights,
+and no use of it to solve anything. The entering column is named by the
+residue — it is the column whose sign condition is broken — so there is
+nothing here to price with. That is the distinction PLAN 2.1 now draws in
+writing, because a line that moves once will move again by drift if nobody
+writes down where it ended up.
+
+**The dual pivot and the primal one are the same basis change.** `pivot()`
+computes `theta_primal = (x_B[r] − bound) / alpha[q]`, and `alpha[q]` is row
+`r` of `B^-1 M` at column `q` — the very number the ratio test blocked on.
+The two methods differ only in which of `r` and `q` is chosen first: the dual
+picks a violating row and then asks what may enter, the primal picks a
+column and then asks what must leave. So this reuses `pivot()` unchanged.
+
+**Two guarantees come free, and the re-entry of D25 has neither.** The point
+stays primal feasible — that is what the ratio test is for. And the objective
+cannot rise: `d_q` points the way `q` travels, so every step is a descent and
+a degenerate step of zero changes the basis without moving the point. D25's
+result had to be accepted on being a second optimum rather than a better one;
+this one is better by construction.
+
+**Only bounds the model declared may block.** A basic brought to rest on a
+bound dual phase 1 lent would be published at a value the model never
+allowed, which is the case `repair_dual_infeasibility` already refuses. If
+nothing real blocks, the column is left alone. The honest reading of that
+situation is an unbounded ray, and declaring one off a basis that has been
+rebuilt twice is exactly the verdict D19 demands proof for — leaving the
+residue is the smaller error.
+
+**Measured on all three sets:**
+
+| | before | after |
+|---|---|---|
+| `greenbea` objective | −72555233.859378919 | **−72555248.129846007** |
+| Koch's exact value | −72555248.129845992 | *fifteen significant digits* |
+| `greenbea` dual violation | 2.66 | **0** |
+| `greenbea` checker | REJECTED | **ok**, for 8 extra iterations |
+| `pilot` objective | out of tolerance by 390x | **within it** — error 2.3e-5 against 5.6e-4 |
+| `pilot` dual violation | 7.97e-5 | **0** |
+| `pilot` gap | 8.6e-13 | 6.6e-14 |
+
+Standard set: **0 regressed, 2 improved, 0 new** — 94 of 94 solved, 93 of 94
+on objective, 92 of 94 on the checker, 94 of 94 deterministic. Kennington and
+the infeasible set: 0/0/0, both still PASS, and fifteen of Kennington's
+sixteen instances **bit-identical** (the sixteenth is `pds-20` at 1.003x,
+which is D27's one iteration and not this).
+
+`greenbea` was the largest open item of the set and it closed for eight
+pivots. `pilot`, which `docs/research/pilot-analysis.md` §3.2 recorded as
+*further from Koch than MINOS 5.3, OSL and CPLEX all are*, is no longer a
+wrong answer at all.
+
+**What is left of condition 1a is two instances and two different causes.**
+`pilot` is rejected on one row lying 1.73e-6 outside its bound and on nothing
+else — a *primal* residue, and the number D24 is about. `pilot87` still
+misses its objective by 7.6x, and nothing built here moves it.
+
+**This retires one of D24's four arguments and D24 should be read
+accordingly.** D24 refused to make the primal feasibility test relative, and
+one of its reasons was that the change *buys no verdict*: "exactly one
+instance of the 94 exceeds 1e-6 on a row — `pilot`, already rejected on the
+gap and on the objective." That premise is now false. `pilot` is rejected on
+the row alone. The other three arguments stand untouched, and the first of
+them is still sufficient on its own: primal feasibility is the hypothesis
+D23's identity rests on, not a test beside it. But the question is live again
+in a way it was not, and the safe form D24 names — `min(tol, tol·s)`,
+narrowing rather than widening — is the only one that could be revisited.

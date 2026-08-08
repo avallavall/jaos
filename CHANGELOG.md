@@ -11,6 +11,31 @@ open, `bench/README.md` for the gate, and the commit each entry came from.
 
 ### Added
 
+- A primal ratio test, used only to clean up after the dual solve has
+  finished. `greenbea` goes from REJECTED to checker ok for **eight pivots**,
+  its objective moving from -72555233.859378919 to -72555248.129846007 against
+  Koch's exact -72555248.129845992 — fifteen significant digits — and its dual
+  violation from 2.66 to 0. `pilot`'s objective comes inside tolerance from
+  390x outside it, with its dual violation at 0 and its gap at 6.6e-14.
+  Standard set 0 regressed, 2 improved, 0 new; Kennington and the infeasible
+  set 0/0/0, both still PASS, with fifteen of Kennington's sixteen
+  bit-identical.
+
+  This grows M1's declared scope, deliberately and by one thing. What is in is
+  a ratio test and the basis change `pivot()` already performs, on a column
+  the residue names. What stays out is everything that makes a primal
+  *method*: pricing to choose an entering column, a phase 1 of its own, its
+  own weights. A primal simplex chooses what enters; this is told. PLAN 2.1
+  now says where that line runs, because a line that moves once moves again by
+  drift if nobody writes down where it stopped.
+
+  It is what `greenbea`'s ten columns needed and what nothing else could
+  reach: they rest at a lower bound with no upper bound, so the term any
+  repair test could weigh — `w * bound` — does not exist for them. Two
+  guarantees come free that the re-entry of D25 does not have: the point stays
+  primal feasible, because that is what the ratio test is for, and the
+  objective cannot rise, because `d_q` points the way `q` travels. D28.
+
 - Bland's rule, as a fallback a detected cycle switches on. `grow15` had been
   running to the internal iteration guard at 189201 iterations; instrumented,
   it is a cycle of period four over two rows and four variables, repeating

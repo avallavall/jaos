@@ -47,12 +47,23 @@ steepest-edge pricing [8]; Harris two-pass ratio test with bound flipping
 [7][19][1]; dual phase 1 [21]; ranged rows and all bound types; infeasibility and
 unboundedness classification; independent solution checker; deterministic work
 counter (D16); Unity test suite (D15); Makefile (D14); sanitizer runs; determinism
-harness; Netlib acceptance runner.
+harness; Netlib acceptance runner. Plus, added deliberately after the gate
+demanded it: a **primal ratio test** used only to clean up after the dual
+solve has finished (D28).
 
 **Out, explicitly:** presolve (only if Netlib evidence forces a minimal one — open
-question Q3); primal simplex; crash basis; hyper-sparsity; parallelism; cuts;
-callbacks; bindings; file *writing*; certificate export; public CLI. The Netlib
-driver is a bench tool, not a product.
+question Q3); **the primal simplex** — see below, the ratio test above is not
+it; crash basis; hyper-sparsity; parallelism; cuts; callbacks; bindings; file
+*writing*; certificate export; public CLI. The Netlib driver is a bench tool,
+not a product.
+
+**Where that line now runs, because it moved once and should not move by
+drift.** What is in is a ratio test and the basis change `pivot()` already
+performs, applied to a column the residue names. What stays out is everything
+that makes a primal *method*: pricing to choose an entering column, a phase 1
+of its own, its own steepest-edge weights, and any use of it to solve rather
+than to finish. A primal simplex chooses what enters; this is told. D28
+carries what it bought and what it cost.
 
 ### 2.2 Repository layout
 
@@ -205,8 +216,8 @@ Remaining:
    |---|---|
    | shape correct | **94 / 94** |
    | solved to optimal | **94 / 94** |
-   | objective within tolerance | 92 / 94 |
-   | independent checker green | 91 / 94 |
+   | objective within tolerance | 93 / 94 |
+   | independent checker green | 92 / 94 |
    | deterministic across two solves | **94 / 94** |
 
    The readers are the part that came out clean: every instance in the set
@@ -527,19 +538,29 @@ Remaining:
      to cancel, so its reduced cost is exact however small — and it flips
      once and converges: 47786 iterations against a baseline of 47785.
 
-     **`greenbea` is the same residue arriving through the basis, and it is
-     the largest open item of the set.** Ten columns rest at their lower
-     bounds with scaled reduced costs from −0.019 to −5.28, and every one of
-     them was dual feasible until `settle_shifts` ran. Column 4669 is the
-     worst the checker sees: lower bound 0, no upper bound, zero cost,
-     reduced cost −2.665 unscaled, so its multiplier points at a bound the
-     model never declared. The objective is nonetheless right to 2e-7
-     relative and the gap is 3.57e-17, because the checker adds no dual term
-     for a multiplier aimed at an infinity.
+     **`greenbea` was the same residue arriving through the basis, and was
+     the largest open item of the set. Closed by D28.** Ten columns rested at
+     their lower bounds with scaled reduced costs from −0.019 to −5.28, and
+     every one of them was dual feasible until `settle_shifts` ran. Column
+     4669 was the worst the checker saw: lower bound 0, no upper bound, zero
+     cost, reduced cost −2.665 unscaled, so its multiplier pointed at a bound
+     the model never declared. The objective was nonetheless right to 2e-7
+     relative and the gap 3.57e-17, because the checker adds no dual term for
+     a multiplier aimed at an infinity.
 
-     So the solve ends on a basis that is dual infeasible by a wide margin,
-     at a vertex that is primal optimal, and declares OPTIMAL. `nesm` is the
-     same thing two orders of magnitude smaller.
+     So the solve ended on a basis that was dual infeasible by a wide margin,
+     at a vertex that was primal optimal, and declared OPTIMAL. `nesm` was the
+     same thing two orders of magnitude smaller, and D25 closed that one by
+     moving its column to the other bound it had.
+
+     `greenbea`'s ten had no other bound, which is what made them the hard
+     case and what made every threshold blind to them: the term a repair test
+     could weigh is `w · bound`, and there is none for an infinity. What they
+     needed was to travel until something stopped them — a primal ratio test,
+     which the scope question admitted (D28). Eight pivots. The objective goes
+     from −72555233.859378919 to **−72555248.129846007** against Koch's exact
+     −72555248.129845992, fifteen significant digits, and the dual violation
+     from 2.66 to **0**.
 
      Where the amplification comes from is not mysterious, but it is not the
      shifts' size either: a shift is repaid at the very end, and a variable
@@ -839,7 +860,7 @@ in aggregate is what §2.8 has just finished being a lesson about.
 
 | # | Condition | Status |
 |---|---|---|
-| 1a | Netlib **standard** set: `OPTIMAL`, objective within §2.6 tolerance, checker green | **not met** — 94/94 solved, 92 objective, 91 checker |
+| 1a | Netlib **standard** set: `OPTIMAL`, objective within §2.6 tolerance, checker green | **not met** — 94/94 solved, 93 objective, 92 checker |
 | 1b | **Kennington** subset, for correctness with no performance expectation | **met** — 16/16, every condition, `ken-18` at 105127x154699 included |
 | 1c | **Infeasible** subset: classified `INFEASIBLE`, no false optima | **met** — 29/29 refused, no false optima; `gran` closed by the basis repair (§2.8.2) |
 | 2 | Determinism harness green on every instance (D8) | holds on all 93 that finish |
@@ -853,28 +874,38 @@ at all — which is worth stating plainly, because the distance to M1 is not
 the distance to closing seven instances.
 
 **Six of the seven now hold.** What is left is condition 1a alone, and it is
-**three instances of the standard 94, all of them answers rather than
-failures to answer**: `greenbea`, `pilot` and `pilot87`, which the checker
-rejects, the last two also missing the objective. Every instance in the set
-now solves, and every one is deterministic — `grow15` was the last that did
-neither, and D26 closed it.
+**two instances of the standard 94, with two different causes**:
 
-§2.8.1 records what each of the three is, measured rather than grouped by
+- **`pilot`**, rejected on one row lying `1.73e-6` outside its bound and on
+  nothing else. Its objective is within tolerance, its dual violation is
+  exactly `0` and its gap is `6.6e-14`. This is a *primal* residue and it is
+  the number D24 is about; D28 records that it retires one of D24's four
+  arguments, since that argument was "the change buys no verdict".
+- **`pilot87`**, still missing its objective by 7.6x — `2.28e-3` of error
+  against a tolerance of `3.02e-4`. Its dual violation is `1.87e-5` and its
+  gap `2.75e-8`. Nothing built so far moves it, and it is the
+  worst-conditioned model in the set.
+
+Every instance in the set now solves, every one is deterministic, and 93 of
+the 94 are within objective tolerance.
+
+§2.8.1 records what each of the closures was, measured rather than grouped by
 the size of the number reported — because the number the checker reports is
 the magnitude of a multiplier and says nothing on its own about how far
-anything is from where it should be. That mistake cost `finnis` months in
-the wrong group; it was the most accurate answer of the seven and was closed
-by D23.
+anything is from where it should be. That mistake cost `finnis` months in the
+wrong group; it was the most accurate answer of the seven and was closed by
+D23.
 
 Worth stating because it changes what 1a is asking for. The remaining gap is
-no longer "the solver cannot finish" anywhere; it is three certificates that
-do not carry, on models that all produce an answer. And of the seven
-instances the checker once rejected, **five closed and not one of them by
+no longer "the solver cannot finish" anywhere, and it is no longer "the
+solver reaches a wrong answer" anywhere except `pilot87`. Of the seven
+instances the checker once rejected, **six have closed and not one of them by
 moving a tolerance**: `pilot-ja` was a contribution the checker was dropping
 (D21), `finnis` a bound-proximity test judged absolutely on a row that
 cancels ten orders of magnitude (D23), `nesm` a settled basis the method had
-never been handed back (D25), and `etamacro` a repair test reading the wrong
-quantity in a space the answer is not published in (D27). `grow15`, which
+never been handed back (D25), `etamacro` a repair test reading the wrong
+quantity in the wrong space (D27), and `greenbea` a column with nowhere to
+rest, which needed a basis change rather than a move (D28). `grow15`, which
 was a different kind of failure, was a cycle read as a stall (D26).
 
 That is the strongest thing §2.6 has going for it: every failure anyone was
@@ -882,72 +913,71 @@ tempted to blame on a number turned out to be something else.
 
 ### What happens next, in order
 
-**Steps 1 and 2 are done.** Both in-scope repairs have now been run and the
-checker instrumented, so the scope question is answerable — which is the
-whole reason they came first.
+**Steps 1, 2 and 3 are done.** The two in-scope repairs were run, the checker
+was instrumented, and the scope question that waited on them has been decided.
+The order mattered: without the measurements, step 3 could only have been
+argued.
 
-- *§6.3, re-entry from the settled basis*, is built and is D25. It closes
-  `nesm` outright and improves `pilot` and `pilot87` by two orders of
-  magnitude on the dual violation, with **0 regressed, 1 improved, 0 new**
-  on the standard set and 0/0/0 on the other two. The failure both earlier
-  attempts produced — a feasible model returned INFEASIBLE — is structurally
-  refused: the settled point is saved, and a re-entry that ends in anything
-  but a second optimum is discarded.
-- *§6.1, a cap on accumulated `|shift[v]|`*, is closed by measurement rather
+- *§6.3, re-entry from the settled basis* — built, D25. Closed `nesm`. The
+  failure both earlier attempts produced, a feasible model returned
+  INFEASIBLE, is structurally refused: the settled point is saved and a
+  re-entry that ends in anything but a second optimum is discarded.
+- *§6.1, a cap on accumulated `|shift[v]|`* — closed by measurement rather
   than by a run. §2.8.1 carries the distribution: on `greenbea` three
   variables of 2901 exceed 1e-6 and the offending columns' own shifts are
-  4e-9 and 1e-14, so a cap cannot reach them; on `etamacro` every shift in
-  the solve is below `DUAL_TOL` and the cap that would bite is a narrower
-  Harris window rather than a cap.
-- *`Q` and `N`*, plus the relative primal residue, are in
-  `jaos_check_report` and in the record. No verdict moved, and `finnis`
-  immediately showed the cancellation the instrument exists to find.
+  4e-9 and 1e-14, so a cap cannot reach them.
+- *`Q` and `N`*, plus the relative primal residue — in `jaos_check_report`
+  and in the record (D24). No verdict moved, and they turned out to be what
+  D27 needed: the quantity that decides a repair is the one the checker
+  publishes as `Q`.
+- *`grow15`* — not part of the plan and the largest single change. It was a
+  cycle of period four, not the stall Q10 diagnosed, and Bland's rule as a
+  detected-cycle fallback closes it (D26).
+- *`etamacro`* — closed by D27 after two attempts that were measured and
+  reverted, both recorded in §2.8.1 because each is what pointed at the next.
+- **The scope question — decided.** A primal ratio test enters M1; the primal
+  simplex stays out, and §2.1 now says in writing where that line runs. D28
+  carries it. `greenbea` closed for eight pivots, at fifteen significant
+  digits of Koch's exact value, and `pilot`'s objective came inside tolerance
+  from 390x outside it.
 
-**The bar this was to be judged against is not met, and how it fails is the
-answer.** §2.9 asked for two or more of `greenbea`, `nesm`, `etamacro`
-closed with zero regressions. One is. A second — `etamacro` — was reached
-by a one-line change of the space the repair threshold is read in, and that
-change costs `pilot87` its answer entirely (§2.8.1), so it fails the second
-half of the bar rather than the first. The two that remain are not
-near-misses to be tuned into passes:
+**What is left of 1a is two instances, and neither is the kind of failure the
+gate started with.**
 
-- `etamacro` has **no residual sign condition at all** after settling, at
-  the threshold the re-entry uses. There is nothing for any post-solve
-  repair to repair. Its rejection is `4.89e-8` of scaled-space breach,
-  inside what this solver calls zero, divided by a column scale of `1/32`
-  on the way out. That is the tolerance question of §2.6, not a defect this
-  route touches.
+1. **`pilot`, on one row at `1.73e-6`.** Its objective is right, its dual
+   violation is exactly zero, its gap is `6.6e-14`. The only thing refusing
+   it is `interval_violation`, an absolute test on a row 1.73 times the
+   tolerance out. This is D24's question and D28 records that one of D24's
+   four arguments — that a relative rule "buys no verdict" — is now false.
+   The other three stand, and the first is still sufficient on its own:
+   primal feasibility is the hypothesis D23's identity rests on, not a test
+   beside it. If it is revisited, the only safe form is the one D24 already
+   names: `min(tol, tol·s)`, which narrows and can only turn acceptances
+   into rejections.
 
-  That question has now been probed once and the probe is in §2.8.1:
-  reading the repair threshold where the answer is published rather than
-  where the solver works **closes `etamacro`** — and takes `pilot87` from a
-  solve to a tripped iteration guard. So `etamacro` is not out of reach; it
-  is reachable at a price, and the price is currently a whole instance.
-- `greenbea`'s ten offending columns have **no other bound to move to** —
-  every one rests at a lower bound of 0 with no upper bound. Reaching them
-  means letting one enter the basis, and that is the travelling nonbasic
-  §2.1 excludes.
+   What has *not* been measured is where `pilot`'s row residue comes from now
+   that the basis is right. `1.73e-6` on a row is the primal side of the same
+   question §2.8.1 answered for the dual side by measuring traffic; nobody has
+   looked at it since the basis changed. That is the next measurement, and it
+   is cheap.
 
-So the scope question is now open with the evidence in hand, and it is
-narrower than it looked: not "does a post-solve clean-up belong in M1" — one
-does, and it is built — but **"does the clean-up of a column with no other
-bound belong in M1"**. That is a primal ratio test plus the basis change
-`pivot()` already performs. The two honest answers are unchanged:
+2. **`pilot87`, on its objective by 7.6x** — `2.28e-3` of error against
+   `3.02e-4`. Its dual violation is `1.87e-5` and its gap `2.75e-8`, both
+   improved by an order of magnitude, and it is the worst-conditioned model
+   in the set. Nothing built so far moves it and no mechanism now in hand
+   points at it. Of the two, this is the one that may end up as an exception
+   with a measured mechanism and a frozen bound — which was option 2 of the
+   scope question, and it is available for one instance without being
+   available for the gate.
 
-1. **It enters M1.** The scope grows by one ratio test, `greenbea` gets a
-   route, and `etamacro` still does not — so this cannot close 1a on its
-   own, and pairing it with the §2.6 tolerance question is what closing 1a
-   would take.
-2. **1a is rewritten as a closed register of exceptions**, each carrying a
-   measured mechanism, the scope citation that puts its cure outside M1, and
-   a frozen residual bound that `make netlib-baseline` does not refresh.
-
-One correction that removes an argument from the second option: on `pilot`,
-JAOS is **further from Koch than MINOS 5.3, OSL and CPLEX all are**, and all
-three ran in double (`docs/research/pilot-analysis.md` §3.2). "The limit of
-double precision" is therefore not available as a justification for that
-instance. What is available is "the limit of M1's declared scope", which is
-a different claim and has to be argued as one.
+One correction that removes an argument from that option, and it has now
+half-expired: on `pilot`, JAOS *was* further from Koch than MINOS 5.3, OSL and
+CPLEX all are, and all three ran in double
+(`docs/research/pilot-analysis.md` §3.2). It no longer is — D28 brought it
+within `2.3e-5`. So "the limit of double precision" was never available for
+`pilot` and is now visibly not, which is worth remembering when the same
+argument is offered for `pilot87`: it needs to be made about `pilot87` and
+measured there, not inherited.
 
 ### 2.10 Instance acquisition and reference values
 
