@@ -1284,3 +1284,27 @@ of §2.7, deliberately left without a number until the iteration existed and
 its non-update overhead could be attributed on its own; and the public API
 shape of §2.4, which needs the maintainer's confirmation rather than a
 measurement.
+
+**Measured again after the repair, because D30 left a claim standing that is
+no longer true.** D30 recorded that `SETTLE_ROUNDS` bound on `pilot87`, which
+contradicted D25's description of it as "a backstop and not a limit meant to
+bind". Both were right about their own moment, and the resolution is that the
+cap was capping a defect rather than a solve. Instrumented over the standard
+94 after the fix:
+
+| | rounds per solve | clean-up pivots |
+|---|---|---|
+| 90 instances | 1 — open the loop, find nothing, leave | none |
+| `etamacro`, `nesm` | 2 | none |
+| `greenbea` | 2 | **8 in a single call**, where it used to take 8 rounds |
+| `pilot` | 12 | 15 across five calls |
+| `pilot87` | **16**, against a cap of 32 | 17 across three calls |
+
+Nothing binds anywhere, and the worst case sits at half the cap. D25's
+description holds again; its per-instance figures (`nesm` one round, `pilot`
+three, `pilot87` six) predate the primal clean-up and are superseded by the
+table above.
+
+The flat cost of the mechanism is now visible too: ninety of the 94 pay one
+round of asking and nothing else, which is two scans over the variables per
+solve.

@@ -163,15 +163,25 @@ constexpr double NOISE_MARGIN = 1e5;
  *
  * This is a backstop and not a limit meant to bind, in the same sense as
  * ITER_SANITY_FACTOR above. The loop has its own termination and it is the
- * real one: a round only begins if some column can still be moved, and
- * rounds stop finding any. Of the standard 94, three instances re-enter at
- * all — `nesm` converges in one round, `pilot` in three, `pilot87` in six.
+ * real one: a round only begins if some column can still be moved or
+ * pivoted, and rounds stop finding any.
  *
- * The number was 4, which is how the measurement happened: `pilot87` ran
- * out of rounds with work still to do, and stopping it there cost a factor
- * of 6.8 on its dual violation and 5.6 on its gap for 0.36% of its
- * iterations (PLAN 2.8.1). A cap tight enough to bind is a cap deciding the
- * answer, which is not what this is for.
+ * Measured over the standard 94, one round per solve is the flat cost of
+ * asking: ninety instances open the loop once, find nothing to move and
+ * leave. Four go further — `etamacro`, `greenbea` and `nesm` in two rounds,
+ * `pilot` in twelve, `pilot87` in sixteen — and three of those need a
+ * primal pivot: `greenbea` takes eight in a single call, `pilot` fifteen
+ * across five, `pilot87` seventeen across three.
+ *
+ * So the worst case sits at half the cap and nothing binds. It has bound
+ * twice, and both times the cap was capping a defect rather than a solve.
+ * At 4, `pilot87` ran out of rounds with work still to do, and stopping it
+ * there cost a factor of 6.8 on its dual violation and 5.6 on its gap for
+ * 0.36% of its iterations. At 32, it ran the loop out again — because the
+ * clean-up could only take one pivot per call (D30), so what should have
+ * been three calls was thirty-two rounds of one. A cap tight enough to bind
+ * is a cap deciding the answer, and both times the honest reading was that
+ * something below it was broken.
  *
  * Non-termination is guarded elsewhere and not by this number: every round
  * that moves something makes at least one pivot, `iters` accumulates across
