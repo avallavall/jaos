@@ -455,12 +455,60 @@ Remaining:
 
      What this settles is that the choice of space is load-bearing rather
      than presentational, and that "settle against a tightened bound" is not
-     free: it buys `etamacro` at a price nobody had priced. What it does not
-     settle is whether some form of it survives — every variant that comes
-     to mind (require the breach in both spaces, cap the columns moved per
-     round, gate on the scale factor's distance from one) is a knob fitted
-     to this sample, which is what D17 exists to refuse. It waits for a
-     principle, not for a constant.
+     free: it buys `etamacro` at a price nobody had priced.
+
+     **A second attempt on a quantity that has no space. Measured
+     2026-08-08, also reverted, and it got much further.** The point the
+     first attempt makes is that *any* rule reading the breach must pick a
+     space. There is one that need not: the term the breach contributes to
+     `P − D`, which for a nonbasic on a bound with a wrong-signed reduced
+     cost is `|d|` times the width of its box. `publish` divides `d` by the
+     same `gamma` it multiplies the value by, so the product is identical in
+     both spaces — and it is exactly what the checker now reports as `Q`.
+     Verified rather than argued: `etamacro`'s three movable breaches
+     contribute 2.011e-6, 6.26e-7 and 1.676e-7 in scaled space, summing to
+     the 2.805e-6 the checker publishes in the original.
+
+     Judged on the contribution instead of the breach:
+
+     | | |
+     |---|---|
+     | `etamacro` | REJECTED → **checker ok**, 9 extra iterations |
+     | the other 93 of the standard set | **bit-identical**, `pilot87` included |
+     | total work over the 94 | +0.0% |
+     | infeasible set | PASS, 0 regressed |
+     | **`pds-20`** (Kennington) | **work 3.2x, iterations 47785 → 136750** |
+
+     It also fixed a hand-built three-column test whose optimum is readable
+     by eye — the solver had been stopping 5e-8 above it with a certificate
+     that did not carry, and PLAN 2.8 recorded that as a defect. So the rule
+     is not merely tuning: it corrects a wrong answer on a model where no
+     reference value is involved.
+
+     **And it is still wrong, because of what it does on `pds-20`.**
+     Instrumented there, the re-entry runs all 32 rounds without converging,
+     and **every column it flips has a reduced cost below `DUAL_TOL`** — the
+     smallest run from 2.2e-11 to 1.7e-10, three to four orders below what
+     this solver calls zero. Their contributions clear the threshold only
+     because the boxes are 900 to 4955 wide. Under the merged rule none of
+     those columns is movable and the re-entry never runs at all, which is
+     why `pds-20` costs 47785 iterations today.
+
+     So the contribution answers *is this worth moving* and answers it well;
+     it does not answer *is there anything here at all*, and on a wide box it
+     multiplies rounding noise up past any threshold. `etamacro` hid that
+     because its own reduced costs (3.06e-8, 4.89e-8) sit within half an
+     order of `DUAL_TOL` rather than four below it.
+
+     **What a third attempt would have to establish**, and none of it is
+     available yet: a test for "this reduced cost is a number rather than
+     rounding" that does not simply exclude `etamacro`. `DUAL_TOL` on the
+     breach does exclude it. The shape D23 already uses is the candidate —
+     a reduced cost is meaningful when it exceeds the rounding of the dot
+     product that produced it, which is machine epsilon times the traffic
+     through the column, `sum_k |y_k a_kj|`. That is a computed quantity
+     rather than a constant, and it is the only version of this that would
+     not be a knob fitted to two instances. It has not been measured.
 
      **`greenbea` is the same residue arriving through the basis, and it is
      the largest open item of the set.** Ten columns rest at their lower

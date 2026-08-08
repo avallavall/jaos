@@ -86,14 +86,24 @@ open, `bench/README.md` for the gate, and the commit each entry came from.
 
 ### Changed
 
-- Nothing about the repair threshold's space, and the measurement that says
-  why is recorded rather than the change. Reading it where the answer is
-  published instead of where the solver works closes `etamacro` and moves
-  nothing across the other 51 instances up to `pilot` — and takes `pilot87`
-  from a solve to a tripped iteration guard at 1382801 iterations against
-  50616. Two improved, two regressed, and both regressions are one instance
-  losing its answer. PLAN 2.8.1 carries the numbers; this is the third
-  repair of this residue to be measured and left out.
+- Nothing about what the re-entry repairs, after two attempts that were
+  measured and left out. Both closed `etamacro`; PLAN 2.8.1 carries them.
+
+  Reading the repair threshold where the answer is published rather than
+  where the solver works takes `pilot87` from a solve to a tripped iteration
+  guard at 1382801 iterations against 50616.
+
+  Judging instead on the term the breach contributes to `P - D` — `|d|`
+  times the width of the box, which is the same number in both spaces
+  because `publish` divides `d` by the same `gamma` it multiplies the value
+  by — got much further: `etamacro` closed for 9 extra iterations with the
+  other 93 of the standard set bit-identical, `pilot87` included, and it
+  corrected a hand-built test whose optimum is readable by eye. It costs
+  `pds-20` 3.2x its work. Instrumented there, every column it flips has a
+  reduced cost three to four orders of magnitude below `DUAL_TOL`, clearing
+  the threshold only because the boxes are thousands wide — so the rule
+  answers "is this worth moving" and not "is there anything here at all".
+  That is the fourth repair of this residue to be measured and left out.
 - The checker's bound-proximity test scales with what the value being tested
   is made of: the window is `tol * s`, with `s = max(1, sum_j |A_ij x_j|)`
   for a row and `max(1, |x_j|)` for a column. Row 3 of Netlib's `finnis`
