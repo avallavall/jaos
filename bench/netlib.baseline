@@ -50,13 +50,13 @@ lotfi        optimal      1 1 1 1 1 241 1223182
 maros        optimal      1 1 1 1 1 1447 35713040
 maros-r7     optimal      1 1 1 1 1 10479 21528689456
 modszk1      optimal      1 1 1 1 1 797 12691997
-nesm         optimal      1 1 1 0 1 2923 94266009
+nesm         optimal      1 1 1 1 1 2930 94540682
 perold       optimal      1 1 1 1 1 3228 100478458
-pilot        optimal      1 1 0 0 1 24625 5415162512
+pilot        optimal      1 1 0 0 1 24705 5454585061
 pilot-ja     optimal      1 1 1 1 1 3329 156272698
 pilot-we     optimal      1 1 1 1 1 5739 215745900
 pilot4       optimal      1 1 1 1 1 685 17471054
-pilot87      optimal      1 1 0 0 1 49962 22736794782
+pilot87      optimal      1 1 0 0 1 50616 23237603665
 pilotnov     optimal      1 1 1 1 1 3585 153486851
 recipe       optimal      1 1 1 1 1 46 84461
 sc105        optimal      1 1 1 1 1 106 181398
