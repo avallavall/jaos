@@ -107,18 +107,26 @@ here instead. `Q` and `N` are the two sums the gap is the difference of —
 `gap = |Q − N| / (1 + |P| + |D|)` — so that a small gap can be told apart
 from two large halves cancelling, and so that `P − P* <= Q` is a bound a
 reader can check rather than a consequence of a hypothesis nobody is
-testing. Across the standard 94 the difference is not academic: on 35 of the
-93 instances that reach an optimum, `Q` is more than twice `|Q − N|`.
+testing. Across the standard 94 the difference is not academic: on 22 of the
+94 instances that reach an optimum, `Q` is more than twice `|Q − N|`, so the
+gap those instances report is not the bound they are entitled to. The count
+was 35 of 93 when this was first measured; it falls as the answers get more
+accurate, which is the direction it should move.
 
 ## The baseline, and the question the gate cannot answer
 
-The gate is all-or-nothing: until every instance meets every condition above
-it reports `NOT MET`, and it will keep reporting `NOT MET` for the whole of
-M1. That makes it useless for the question actually asked of every change
-along the way — *did this make anything worse?* A run that fixed one instance
-and broke two scores exactly like the run before it. Worse, the summary
-counts can come out identical when the gains and the losses cancel, which
-reads as "nothing happened" when two things did.
+The gate is all-or-nothing: it reports `NOT MET` until every instance meets
+every condition above, and it reported `NOT MET` for almost the whole of M1.
+That makes it useless for the question actually asked of every change along
+the way — *did this make anything worse?* A run that fixed one instance and
+broke two scores exactly like the run before it. Worse, the summary counts
+can come out identical when the gains and the losses cancel, which reads as
+"nothing happened" when two things did.
+
+All three sets now report `PASS`, which does not retire the problem — it is
+the state in which the summary line is *guaranteed* to say nothing. From here
+on, the per-instance diff is the only thing that can report a regression at
+all.
 
 That is not hypothetical. It is how ten commits reached `main` in August 2026
 carrying a wrong answer on `pilot-we`, a checker rejection on `pilotnov` and a
@@ -132,12 +140,9 @@ make netlib             # run the gate and diff every instance against the basel
 make netlib-baseline    # rewrite the baseline from this run
 ```
 
-All three sets have one, and the other two need it more rather than less.
-`make netlib` at least reports `NOT MET` for a reason that changes; the
-Kennington and infeasible gates both report `PASS`, which is the state in
-which the summary line is guaranteed to say nothing at all. An instance that
-still ends `INFEASIBLE` after eighty times the work has regressed, and only
-the per-instance diff can say so.
+All three sets have one, and now that all three pass they need it equally.
+An instance that still ends `INFEASIBLE` after eighty times the work has
+regressed, and only the per-instance diff can say so.
 
 ```sh
 make netlib-infeas      make netlib-infeas-baseline
