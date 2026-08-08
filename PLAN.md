@@ -547,13 +547,22 @@ missed this".
   and worse locality.
 - **U is stored twice**, by row and by column, because updates need both
   orientations. Memory for time, deliberately.
-- **The solves are dense in the working vector.** Hyper-sparsity [9] is
-  already scheduled for M2 and is where this is addressed. Row-wise pricing
-  (D35) applied the same insight to the `rho' M` product, which is where the
-  units actually were, but it left the triangular solves themselves
-  untouched: their patterns are still walked in full rather than predicted
-  from the factor's dependency graph, and `rho`'s own support is still found
-  by scanning all `nrow` entries.
+- **The solves are dense in the working vector**, and after D35 they are
+  where the work is: 45.8% of the standard set's units, 28.6% in `pivot`'s
+  two FTRANs and 17.2% in the BTRAN. FTRAN already skips a zero; BTRAN
+  cannot, because it resolves `U'` by dot products.
+
+  **The cheap version of the fix was tried and rejected (D36).** Scattering
+  over `urow` would skip 76.2% of the `U'` pass — 96.7% of its slots resolve
+  to exactly zero — but it buys that by reordering the sum, and on vectors
+  that cancel the two orders are not comparable. Two feasible models came
+  back INFEASIBLE and total work rose by half.
+
+  **The route that remains is the real one**: predict the result's pattern by
+  depth-first search over the factor's dependency graph [9], then skip the
+  slots outside it. Those are exactly zero rather than nearly zero, so every
+  slot still computed keeps the arithmetic it has now — the saving without
+  the reordering. Larger piece of work, and the one M2 should do.
 - ~~**Row-wise pricing reads the entries of basic columns.**~~ **Measured, and
   the filter is refused.** It is what makes the fourteen dense-`rho`
   instances of D35 up to 5% more expensive, so the question was whether to

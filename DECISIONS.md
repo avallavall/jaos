@@ -1610,3 +1610,65 @@ pattern of `rho` is still discovered by scanning all `nrow` entries rather
 than predicted from the factor's dependency graph. Both remain open and both
 are larger wins than this one. This is the change that the same insight buys
 in the pricing product, where JAOS happened to be spending the most.
+
+---
+
+## D36 — A scatter-form BTRAN is rejected: the saving is real and the arithmetic is not free
+
+The obvious next target after D35, refused on measurement. Recorded because
+the reasoning was sound, the prize was large, and it still failed — and the
+way it failed is the thing worth keeping.
+
+**The case for it.** After D35, attribution over the standard set puts 45.8%
+of all work in the triangular solves: 28.6% in `pivot`'s two FTRANs and
+17.2% in the BTRAN of the pricing row. FTRAN already skips a zero — both its
+L pass and its U pass `continue` when the value they would scatter is zero.
+BTRAN cannot: it resolves `U'` by dot products over `ucol`, and a dot product
+must read its whole column to discover it contributed nothing.
+
+Measured, that is a large amount of nothing. Over the standard set, **96.7%
+of the 818 million slots resolved in the `U'` pass come out exactly zero**,
+and 76.2% of the pass's entries could be skipped by a scatter — 54.1% of the
+whole BTRAN. U is already stored in both orientations for the update's sake,
+so the row view needed to scatter costs no memory that was not being paid.
+Per instance the U-pass saving ran from 63.4% to 99.7%, median 92.6%.
+
+**Why it was rejected.** Unlike D35, this changes the order the terms
+accumulate in, and a triangular solve is where that matters most. Built,
+tested — the whole suite passed, including all 18 LU tests — and run:
+
+| | before | after |
+|---|---|---|
+| `pilot-ja`, `pilot-we` | optimal | **INFEASIBLE**, and both are feasible |
+| `pilot` | checker ok | objective and checker fail |
+| total work, standard set | 65,216,017,395 | **98,552,422,298** |
+| `pilot87` | 50,850 iterations | 125,777 |
+| `grow7` | 544 iterations | 5,402 |
+| digests moved | | 54 of 94 |
+
+**A feasible model reported INFEASIBLE is the exact failure this project
+already learned to watch for**, and it appeared twice. The work went *up* by
+half, because the pricing row is what chooses a pivot: degrade it and the
+method makes worse choices, takes more iterations, and pays far more than
+the solve ever saved. Twelve instances got cheaper and the median improved;
+reading only those would have shipped it.
+
+**What the failure teaches, which is not "scatter is bad".** The saving was
+never the problem. The problem is that skipping was bought by reordering,
+and those are separable. A dot product accumulates one column's terms
+together; a scatter delivers them spread across the whole solve, interleaved
+with everything else. On vectors that cancel — which is what `B^-1` rows do —
+those two orders do not produce comparable error.
+
+**So the route to the same 54% runs through predicting the pattern instead of
+reordering the sum.** The slots whose value comes out zero are exactly those
+unreachable from the right-hand side's support in the dependency graph of the
+factor; a depth-first search finds them in time proportional to the result's
+size, which is the Gilbert-Peierls idea hyper-sparsity [9] is built on. Slots
+outside that pattern can then be skipped *without touching the arithmetic of
+the ones inside it* — they are exactly zero, not nearly zero — so the dot
+product stays exactly as it is for every slot that is actually computed. That
+version should be bit-identical and save the same work, which is the
+combination this attempt could not have.
+
+That is the next attempt, and it is a larger piece of work than this one was.
