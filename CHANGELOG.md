@@ -112,6 +112,13 @@ open, `bench/README.md` for the gate, and the commit each entry came from.
 
 ### Fixed
 
+- The refresh that verifies a declaration of optimality refines its two
+  solves — one step of iterative refinement on `x_B` and on `y`. `pilot` was
+  rejected on a row `1.73e-6` outside its bound that no basic variable
+  violates; it is the residual of the basis solve, and refining takes it to
+  `6.73e-13`. Checker goes from 92 to 93 of 94. The solve loop is deliberately
+  left unrefined: 93 of the 94 instances take exactly the iteration count they
+  took before, and total work falls 0.029% (D29).
 - A basis the factorization finds singular is repaired rather than ending the
   solve. `jaos_internal.h` had always said rank deficiency is a fact the
   caller acts on by replacing basis columns, and the caller did not: pairing

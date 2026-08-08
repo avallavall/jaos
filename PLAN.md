@@ -124,7 +124,9 @@ record entry.
 4. **Basis factorization.** LU with Markowitz threshold pivoting [4][6][20],
    sparsity-exploiting triangular solves [4]. Hyper-sparsity techniques [9] are M2.
 5. **Basis updates.** Forrest–Tomlin [5]; refactorization on an interval target
-   plus stability triggers (FTRAN/BTRAN residual checks).
+   plus stability triggers (FTRAN/BTRAN residual checks). What those checks
+   turned out to be worth, and where a residual is worth acting on rather than
+   only measuring, is settled in §2.8 by `pilot` (D20, D29).
 6. **Pricing.** Dual steepest edge [8] from the start — it is the workhorse that
    makes dual simplex competitive [1] — with a plain max-infeasibility fallback
    behind a flag for debugging.
@@ -217,15 +219,15 @@ Remaining:
    | shape correct | **94 / 94** |
    | solved to optimal | **94 / 94** |
    | objective within tolerance | 93 / 94 |
-   | independent checker green | 92 / 94 |
+   | independent checker green | 93 / 94 |
    | deterministic across two solves | **94 / 94** |
 
    The readers are the part that came out clean: every instance in the set
    loads with exactly the row and column counts two independent canonical
    sources agree on. Determinism holds everywhere a solve finished.
 
-   The seven remaining failures are three different problems, and they do
-   not share a fix:
+   The remaining failures were three different problems, and they did not
+   share a fix. All but one are closed:
 
    - **`e226` — closed, and not where it looked.** The reader was right: the
      objective constant follows the documented convention and always did.
@@ -837,14 +839,21 @@ spends in dual feasibility is now lent and called back rather than left
 lying. What is left of it is an anti-stall perturbation, which addresses a
 problem no instance has shown yet, and Q10 holds it until one does.
 
-Of §2.5.5's stability triggers, the one that ends a solve now exists: a
+Of §2.5.5's stability triggers, the one that ends a solve exists: a
 declaration of optimality is re-priced from a fresh factorization before it
-is accepted, because the values it was read off are carried and drift (D20).
-What is still missing is a trigger that watches during the solve — an
-FTRAN/BTRAN residual check that refactorizes early. The first instances say
-the end-of-solve check is enough on its own; whether that survives larger
-models is for the campaign, and it is the campaign that would say what
-residual is worth acting on.
+is accepted, because the values it was read off are carried and drift (D20),
+and that refresh now refines its two solves as well (D29).
+
+**The other one — a residual watched during the solve that refactorizes
+early — is answered rather than built, and the answer is that it was aimed
+at the wrong cause.** `pilot` is the instance that asked for it, and the
+residual it was rejected on is measured against a factorization that is
+already fresh, so no rule about *when* to rebuild could have reached it. What
+reaches it is refining the solve. And refining every solve rather than the
+last one was measured: `pilot-ja`, a model with a known finite optimum, comes
+back INFEASIBLE, and `pilot87` pays 4.5x the work. Mid-solve those two
+vectors choose a pivot; at the end they are the answer, and only the second
+is worth spending accuracy on.
 
 §2.5.6's debugging fallback to max-infeasibility pricing is not built. There
 is nowhere to put the flag — the library has no options API and inventing one
@@ -860,10 +869,10 @@ in aggregate is what §2.8 has just finished being a lesson about.
 
 | # | Condition | Status |
 |---|---|---|
-| 1a | Netlib **standard** set: `OPTIMAL`, objective within §2.6 tolerance, checker green | **not met** — 94/94 solved, 93 objective, 92 checker |
+| 1a | Netlib **standard** set: `OPTIMAL`, objective within §2.6 tolerance, checker green | **not met** — 94/94 solved, 93 objective, 93 checker |
 | 1b | **Kennington** subset, for correctness with no performance expectation | **met** — 16/16, every condition, `ken-18` at 105127x154699 included |
 | 1c | **Infeasible** subset: classified `INFEASIBLE`, no false optima | **met** — 29/29 refused, no false optima; `gran` closed by the basis repair (§2.8.2) |
-| 2 | Determinism harness green on every instance (D8) | holds on all 93 that finish |
+| 2 | Determinism harness green on every instance (D8) | **met** — 94/94 on the standard set, 16/16 Kennington, 29/29 infeasible |
 | 3 | Full suite clean under ASan+UBSan | **met** |
 | 4 | Reader robustness: truncated/corrupted input errors, never crashes | **met** — 1.6M fuzz cases clean under ASan+UBSan, on an instrument checked against an injected fault (§2.8.4) |
 | 5 | Results recorded under `bench/results/` as data, no wall-clock (D17) | **met**, and all three sets now diffed per instance against a baseline (D21) |
@@ -874,20 +883,23 @@ at all — which is worth stating plainly, because the distance to M1 is not
 the distance to closing seven instances.
 
 **Six of the seven now hold.** What is left is condition 1a alone, and it is
-**two instances of the standard 94, with two different causes**:
+**one instance of the standard 94**:
 
-- **`pilot`**, rejected on one row lying `1.73e-6` outside its bound and on
-  nothing else. Its objective is within tolerance, its dual violation is
-  exactly `0` and its gap is `6.6e-14`. This is a *primal* residue and it is
-  the number D24 is about — except that measuring it says it is not. No basic
-  variable is outside its bound in the solver's own arithmetic; the `1.73e-6`
-  is the gap between the solver's carried row activity and the checker's
-  recomputation of it, which makes it a residual of the basis solve and
-  §2.5.5's unbuilt stability trigger. See "What happens next".
-- **`pilot87`**, still missing its objective by 7.6x — `2.28e-3` of error
-  against a tolerance of `3.02e-4`. Its dual violation is `1.87e-5` and its
-  gap `2.75e-8`. Nothing built so far moves it, and it is the
-  worst-conditioned model in the set.
+- **`pilot87`**, missing its objective by 7.6x — `2.28e-3` of error against a
+  tolerance of `3.02e-4`. Its dual violation is `1.87e-5` and its gap
+  `2.75e-8`. Nothing built so far moves it, and it is the worst-conditioned
+  model in the set.
+
+- **`pilot` is closed (D29), and it was a residual of the basis solve.** It
+  had been rejected on one row lying `1.73e-6` outside its bound and on
+  nothing else, with its objective inside tolerance, its dual violation
+  exactly `0` and its gap `6.6e-14`. That looked like the *primal* residue
+  D24 is about, and measuring it said it was not: no basic variable is
+  outside its bound in the solver's own arithmetic, and the `1.73e-6` is the
+  disagreement between the solver's carried row activity and the checker's
+  recomputation of it. The residual of `x_B = -B^-1 (N x_N)` at the accepted
+  point is `7.06e-6` in the space the checker reads; one step of iterative
+  refinement leaves `9.09e-13`, and the row goes to `6.73e-13`.
 
 Every instance in the set now solves, every one is deterministic, and 93 of
 the 94 are within objective tolerance.
@@ -944,10 +956,14 @@ argued.
   digits of Koch's exact value, and `pilot`'s objective came inside tolerance
   from 390x outside it.
 
-**What is left of 1a is two instances, and neither is the kind of failure the
+**What is left of 1a is one instance, and it is not the kind of failure the
 gate started with.**
 
-1. **`pilot`, on one row at `1.73e-6`.** Its objective is right, its dual
+1. **`pilot` — closed by D29, and it was a residual of the basis solve.** What
+   follows is the record of how it was read before that, because both wrong
+   readings were reasonable and the second is the one §2.5.5 had written down.
+
+   **`pilot`, on one row at `1.73e-6`.** Its objective is right, its dual
    violation is exactly zero, its gap is `6.6e-14`. The only thing refusing
    it is `interval_violation`, an absolute test on a row 1.73 times the
    tolerance out. This is D24's question and D28 records that one of D24's
@@ -958,7 +974,8 @@ gate started with.**
    names: `min(tol, tol·s)`, which narrows and can only turn acceptances
    into rejections.
 
-   **Measured twice, and it is neither a tolerance nor a violated bound.**
+   **Measured three times. It is neither a tolerance nor a violated bound,
+   and it is not the trigger §2.5.5 named either.**
 
    First, the relative figure D24 put in the report, which needed no new run:
    `pilot`'s row residue is `6.93e-9` of what the row carries, against
@@ -980,24 +997,42 @@ gate started with.**
 
    That relocates the defect. It is not `interval_violation`, not `PRIMAL_TOL`
    and not a space mismatch: it is how accurately `B^-1` is applied on
-   `pilot`'s basis, and it is exactly what §2.5.5 asks for and does not have —
-   a stability trigger watching an FTRAN/BTRAN residual during the solve
-   rather than only refactorizing on an interval. D20 put half of that in
-   (one refactorization before optimality is accepted, which is why the
-   carried numbers are not the issue here); the other half is unbuilt.
+   `pilot`'s basis.
 
    It is also the one place D18's argument for an independent checker pays
    off in the direction nobody was watching: checker and solver agree about
    the model, and disagree about the arithmetic.
 
+   **And the cure §2.5.5 named is not the cure, which is the third
+   measurement.** This paragraph used to end by calling for a stability
+   trigger watching an FTRAN/BTRAN residual during the solve. But the
+   residual is measured against a factorization D20 has just rebuilt, so
+   refactorizing earlier cannot reach it — the error is the backward error of
+   the triangular solves on this basis, not drift in a patched LU. What
+   reaches it is **one step of iterative refinement** on that solve:
+   `7.06e-6` becomes `9.09e-13`, and the rejected row `1.73e-6` becomes
+   `6.73e-13`.
+
+   Where to apply it had a price on it. Refining every solve was measured and
+   is the sixth instance of the failure this milestone keeps producing:
+   `pilot-ja`, a model with a known finite optimum, comes back **INFEASIBLE**,
+   and `pilot87` pays **4.5x** the work. Refining only the primal is no better
+   in kind — it takes `pilot`'s dual violation from `0` to `0.0688`. What
+   holds is refining both solves, at the one refresh that verifies an optimum:
+   mid-solve the two vectors choose a pivot and a trajectory is not more
+   correct for better numbers, while at the end they *are* the answer. **93 of
+   the 94 instances take exactly the iteration count they took before**, and
+   total work over the set falls 0.029%; Kennington and the infeasible set are
+   0/0/0 and the infeasible record is byte for byte identical. D29 carries it.
+
 2. **`pilot87`, on its objective by 7.6x** — `2.28e-3` of error against
    `3.02e-4`. Its dual violation is `1.87e-5` and its gap `2.75e-8`, both
    improved by an order of magnitude, and it is the worst-conditioned model
    in the set. Nothing built so far moves it and no mechanism now in hand
-   points at it. Of the two, this is the one that may end up as an exception
-   with a measured mechanism and a frozen bound — which was option 2 of the
-   scope question, and it is available for one instance without being
-   available for the gate.
+   points at it. It is the whole of what stands between the standard set and
+   condition 1a, and it may end up as an exception with a measured mechanism
+   and a frozen bound — which was option 2 of the scope question, and it is
+   available for one instance without being available for the gate.
 
 One correction that removes an argument from that option, and it has now
 half-expired: on `pilot`, JAOS *was* further from Koch than MINOS 5.3, OSL and

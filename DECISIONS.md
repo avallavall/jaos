@@ -1051,3 +1051,100 @@ replaced by a stronger one of the same shape, and D24's other three stand
 untouched — the first still sufficient alone, that primal feasibility is the
 hypothesis D23's identity rests on rather than a test beside it. What is left
 on `pilot` is a primal defect to find.
+
+---
+
+## D29 — The refresh that verifies an optimum refines its two solves; the solve loop does not
+
+D28 left `pilot` rejected on one row lying `1.73e-6` outside its bound and on
+nothing else, and called it "a primal defect to find". It was found where
+PLAN 2.9 said it would be and turned out to be something PLAN 2.5.5 did not
+predict.
+
+**What the defect is.** No basic variable is outside its bound — the worst
+violation in the solver's own arithmetic is exactly `0`. The `1.73e-6` is the
+disagreement between two computations of one quantity: the checker's dot
+product `sum_j a_ij x_j`, and the solve `x_B = -B^-1 (N x_N)` that produced
+the row activity JAOS published. Measured at the point the answer is accepted,
+the residual of that solve is `7.06e-6` in the space the checker reads, where
+every healthy instance sits twelve orders lower. One step of iterative
+refinement — form `b - B x_B` against the basis columns, solve for the
+correction, add it — leaves `9.09e-13`.
+
+**Why refactorizing earlier could not have reached it.** 2.5.5 asks for "an
+FTRAN/BTRAN residual check that refactorizes early", and D20 already
+refactorizes once before accepting optimality, so the factorization this
+residual is measured against is *fresh*. The error is not in a patched LU
+that has drifted; it is the backward error of the triangular solves against a
+basis this badly conditioned. Nothing about when the factorization was built
+changes it. That half of 2.5.5 is answered by measurement rather than built:
+the trigger it describes is aimed at a cause that is not the one here.
+
+**Why not everywhere, which is the part with a price on it.** Refining every
+solve was measured, and it is the failure this repository has now produced six
+times: `pilot-ja`, a model with a known finite optimum, comes back
+**INFEASIBLE**, and `pilot87` pays **4.5x** the work (186147 iterations
+against 50893) for a verdict it already had.
+
+The line that survives is not a cost-saving, it is what the numbers are for.
+Mid-solve, `x_B` and `y` are inputs to a choice of pivot, and a trajectory is
+not more correct for being computed from more accurate numbers — it is merely
+a different trajectory, and the measurement says a worse one. At the moment
+optimality is declared, the same two vectors *are* the answer, and an answer
+is more correct for being more accurate. So this is the second half of D20's
+own argument rather than a new mechanism: D20 refuses to read a verdict off
+carried numbers, and this refuses to read one off an inaccurate solve of the
+fresh factorization those numbers were rebuilt from.
+
+**Why both solves and not the one that was broken.** Refining only the primal
+closes the row — `1.73e-6` to `2.11e-13` — and takes `pilot`'s dual violation
+from `0` to **`0.0688`** and its objective out of tolerance. A point read off
+an accurate `x_B` and an inaccurate `y` is not more consistent than one read
+off neither; the two travel together or not at all.
+
+**Why unconditional rather than triggered on a threshold.** A threshold would
+be a constant to justify on both sides (D17), and there is nothing to buy with
+it: the refinement is two solves and two residuals, once per solve, and the
+measurement below says what that costs. A rule with no number in it cannot be
+tuned to an instance, which is the property every repair in this file has been
+judged on.
+
+**Measured on all three sets.**
+
+| | before | after |
+|---|---|---|
+| `pilot` row residue | 1.73e-6 | **6.73e-13** |
+| `pilot` relative row residue | 6.93e-9 | 2.32e-16 |
+| `pilot` objective, relative error | 4.2e-9 | 9.4e-12 |
+| `pilot` checker | REJECTED | **ok** |
+| `pilot` work | 5559467003 | 5533266449 — it got *cheaper* |
+
+Standard set: **0 regressed, 1 improved, 0 new** — 94 of 94 solved, 93 of 94
+on objective, **93 of 94 on the checker**, 94 of 94 deterministic. **93 of the
+94 instances take exactly the iteration count they took before**; `pilot` is
+the only one whose path changes at all, and total work over the set falls by
+0.029%. The worst cost anywhere is `sc50a` at 1.012x — a 47-iteration model
+where one extra pair of solves is a measurable fraction of a small total — and
+every instance above a second of work is within 0.001%.
+
+The infeasible set is 0/0/0 and still PASS, and its record file comes back
+**byte for byte identical** — not merely equivalent. That is the change
+confining itself where it was aimed, confirmed structurally rather than by
+inspection: none of those 29 instances ever declares an optimum, so the one
+refresh that refines is the one that never runs there.
+
+Kennington is 0/0/0 and still PASS, 16 of 16 on every condition, with 15 of
+the 16 taking exactly their baseline iteration count; the sixteenth is
+`pds-20`'s one extra iteration, which is D27's and predates this. Its work
+rises 0.043%, and that number is the honest price of the change on models
+this size — two extra solves against a basis of 105127 rows, once per solve.
+Kennington is where this had to be checked rather than the standard set: it is
+what caught the fourth attempt at the shift residue, which looked perfect on
+the other two (PLAN 2.8.1).
+
+**What is left of condition 1a is one instance.** `pilot87`, missing its
+objective by 7.6x with a dual violation of `1.87e-5`, unmoved by this and by
+everything before it. Six of the seven instances the checker once rejected
+have now closed — `pilot-ja` (D21), `finnis` (D23), `nesm` (D25), `etamacro`
+(D27), `greenbea` (D28) and `pilot` here — and not one of them by moving a
+tolerance.

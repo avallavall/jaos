@@ -553,8 +553,37 @@ static jaos_status refactorize(sx *s)
     return JAOS_OK;
 }
 
-/* x_B = -B^-1 (N x_N). */
-static void compute_primal(sx *s)
+/* r -= B z, for a dense vector over the rows. The basis is held as a list
+ * of columns of M, so this walks the columns and scatters; there is no
+ * assembled B to multiply by. */
+static void subtract_basis_times(sx *s, double *r, const double *z)
+{
+    int64_t nz = 0;
+    for (int64_t i = 0; i < s->nrow; i++) {
+        double zi = z[i];
+        if (zi == 0.0)
+            continue;
+        int64_t v = s->basis[i];
+        if (v < s->ncol) {
+            const jaos_model *m = s->m;
+            for (int64_t k = m->a_start[v]; k < m->a_start[v + 1]; k++)
+                r[m->a_index[k]] -= s->av[k] * zi;
+            nz += m->a_start[v + 1] - m->a_start[v];
+        } else {
+            r[v - s->ncol] += zi;      /* the column is -e_i */
+            nz++;
+        }
+    }
+    jm_work_add(&s->work, nz * JM_WORK_NONZERO);
+}
+
+/* x_B = -B^-1 (N x_N).
+ *
+ * `refine` asks for one step of iterative refinement on that solve: the
+ * residual of the system is computed against the basis columns themselves
+ * and solved for again, and the correction added. See refresh() for which
+ * solves get it and why the rest do not. */
+static void compute_primal(sx *s, bool refine)
 {
     double *rhs = s->col;
     memset(rhs, 0, (size_t)s->nrow * sizeof *rhs);
@@ -576,17 +605,63 @@ static void compute_primal(sx *s)
             jm_work_add(&s->work, JM_WORK_NONZERO);
         }
     }
+
+    /* Borrowed: `raw` belongs to pivot(), which rebuilds it from scratch
+     * before every use, and no pivot is in flight while this runs. */
+    if (refine)
+        memcpy(s->raw, rhs, (size_t)s->nrow * sizeof *s->raw);
+
     jm_lu_ftran(&s->lu, rhs, &s->work);
     memcpy(s->xb, rhs, (size_t)s->nrow * sizeof *rhs);
+
+    if (!refine)
+        return;
+
+    double *r = s->raw;                /* holds b; becomes b - B x_B */
+    subtract_basis_times(s, r, s->xb);
+    jm_lu_ftran(&s->lu, r, &s->work);
+    for (int64_t i = 0; i < s->nrow; i++)
+        s->xb[i] += r[i];
+    jm_work_add(&s->work, s->nrow * JM_WORK_NONZERO);
 }
 
-/* d_N = c_N - y' M_N, with y = B^-T c_B. */
-static void compute_duals(sx *s)
+/* d_N = c_N - y' M_N, with y = B^-T c_B. `refine` as above, on the
+ * transposed solve: the two travel together, because a point read off an
+ * accurate x_B and an inaccurate y is not more consistent than one read off
+ * neither — measured, and it is how this arrived (D29). */
+static void compute_duals(sx *s, bool refine)
 {
     double *y = s->rho;
     for (int64_t i = 0; i < s->nrow; i++)
         y[i] = s->cost[s->basis[i]];
     jm_lu_btran(&s->lu, y, &s->work);
+
+    if (refine) {
+        /* Borrowed: `tau` is pivot()'s weight-update scratch, overwritten
+         * from `rho` before each use, so nothing here outlives this block. */
+        double *r = s->tau;
+        int64_t nz = 0;
+        for (int64_t i = 0; i < s->nrow; i++) {
+            int64_t v = s->basis[i];
+            double dot;
+            if (v < s->ncol) {
+                const jaos_model *m = s->m;
+                dot = 0.0;
+                for (int64_t k = m->a_start[v]; k < m->a_start[v + 1]; k++)
+                    dot += s->av[k] * y[m->a_index[k]];
+                nz += m->a_start[v + 1] - m->a_start[v];
+            } else {
+                dot = -y[v - s->ncol];
+                nz++;
+            }
+            r[i] = s->cost[v] - dot;
+        }
+        jm_work_add(&s->work, nz * JM_WORK_NONZERO);
+        jm_lu_btran(&s->lu, r, &s->work);
+        for (int64_t i = 0; i < s->nrow; i++)
+            y[i] += r[i];
+        jm_work_add(&s->work, s->nrow * JM_WORK_NONZERO);
+    }
 
     for (int64_t v = 0; v < s->nvar; v++) {
         if (s->status[v] == JM_BASIC) {
@@ -735,8 +810,26 @@ static bool repair_singular_basis(sx *s)
 /* Rebuild the factorization and everything derived from it. Returns false
  * when the basis will not factor and the repair above cannot put it right,
  * which for a basis the algorithm itself assembled means the numerics have
- * failed rather than the model. */
-static jaos_status refresh(sx *s, bool *ok)
+ * failed rather than the model.
+ *
+ * `refine` asks the two solves for one step of iterative refinement, and
+ * exactly one caller asks for it: the refresh that verifies a declaration
+ * of optimality (D20). The line between the two is not a cost-saving, it is
+ * what the numbers are being used for (D29).
+ *
+ * Mid-solve, x_B and y are inputs to a choice of pivot, and a trajectory is
+ * not more correct for being computed from more accurate numbers. Refining
+ * every refresh was measured: `pilot-ja`, a model with a known finite
+ * optimum, comes back INFEASIBLE, and `pilot87` pays 4.5x the work. At the
+ * end, the same two vectors are the answer, and an answer *is* more correct
+ * for being more accurate — `pilot`'s rejected row is a residual of this
+ * solve and nothing else (PLAN 2.9).
+ *
+ * So this is the second half of D20's argument rather than a new mechanism.
+ * D20 refuses to read a verdict off carried numbers; this refuses to read
+ * one off an inaccurate solve of the fresh factorization those numbers were
+ * rebuilt from. */
+static jaos_status refresh(sx *s, bool *ok, bool refine)
 {
     bool repaired = false;
 
@@ -757,8 +850,8 @@ static jaos_status refresh(sx *s, bool *ok)
         repaired = true;
     }
 
-    compute_primal(s);
-    compute_duals(s);
+    compute_primal(s, refine);
+    compute_duals(s, refine);
 
     /* The repair had to choose bounds for the variables it evicted before
      * their reduced costs existed, so some of those costs are now on the
@@ -1384,7 +1477,7 @@ static void settle_shifts(sx *s)
     if (!repay_shifts(s))
         return;
 
-    compute_duals(s);
+    compute_duals(s, false);
     repair_dual_infeasibility(s);
 }
 
@@ -1461,7 +1554,7 @@ static jaos_status restore_settled(sx *s, bool *ok)
         s->where[s->basis[i]] = i;
 
     s->needs_refactor = true;
-    return refresh(s, ok);
+    return refresh(s, ok, false);
 }
 
 /* Makes the settled point dual feasible again.
@@ -1784,7 +1877,7 @@ static jaos_status reenter_after_settling(sx *s)
             bool ok = false;
             s->verified = false;
             s->needs_refactor = true;
-            st = refresh(s, &ok);
+            st = refresh(s, &ok, false);
             if (st != JAOS_OK)
                 return st;
             if (!ok) {
@@ -1975,7 +2068,7 @@ static jaos_status run(sx *s, jaos_solve_status *out)
     s->bland = false;
 
     bool ok = false;
-    jaos_status st = refresh(s, &ok);
+    jaos_status st = refresh(s, &ok, false);
     if (st != JAOS_OK)
         return st;
     if (!ok) {
@@ -2005,7 +2098,7 @@ static jaos_status run(sx *s, jaos_solve_status *out)
         }
 
         if (s->needs_refactor) {
-            st = refresh(s, &ok);
+            st = refresh(s, &ok, false);
             if (st != JAOS_OK)
                 return st;
             if (!ok) {
@@ -2039,9 +2132,18 @@ static jaos_status run(sx *s, jaos_solve_status *out)
              * residual every iteration, which is the cheap half; whether
              * the other half is needed is a question for instances, not for
              * argument. The cost is one refactorization per solve, and the
-             * work counter bills it (D16). */
+             * work counter bills it (D16).
+             *
+             * An instance asked, and the answer was not what 2.5.5 predicted
+             * (D29). `pilot` was refused on a row that no basic variable
+             * violates: the disagreement is between the checker's dot
+             * product and the solve x_B = -B^-1 (N x_N) that produced the
+             * carried activity, on a factorization that is already fresh —
+             * so refactorizing earlier could not have reached it. What does
+             * is refining the solve, which is why this refresh is the one
+             * that asks for it. */
             if (!s->verified) {
-                st = refresh(s, &ok);
+                st = refresh(s, &ok, true);
                 if (st != JAOS_OK)
                     return st;
                 if (!ok) {

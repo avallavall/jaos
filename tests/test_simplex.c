@@ -572,10 +572,12 @@ static void test_free_variable_enters_and_settles(void)
  * change did to the accounting. If it fails and you did not intend to
  * change the accounting, that is the bug it exists to catch.
  *
- * Last moved by the recheck that ends a solve (see run()): 4411 -> 8517,
- * which is the one extra factorization it costs, plus the pricing pass
- * that follows it. */
-constexpr int64_t WORK_PINNED = 8517;
+ * Last moved by the refinement that recheck now asks its two solves for
+ * (D29): 8517 -> 8535, which is one extra FTRAN and one extra BTRAN over a
+ * three-row basis, plus the two residuals they are computed from. Before
+ * that, by the recheck itself: 4411 -> 8517, the one extra factorization it
+ * costs plus the pricing pass that follows it. */
+constexpr int64_t WORK_PINNED = 8535;
 
 static void test_work_accounting_is_pinned(void)
 {
