@@ -879,9 +879,11 @@ the distance to closing seven instances.
 - **`pilot`**, rejected on one row lying `1.73e-6` outside its bound and on
   nothing else. Its objective is within tolerance, its dual violation is
   exactly `0` and its gap is `6.6e-14`. This is a *primal* residue and it is
-  the number D24 is about. One of D24's four arguments expired with this —
-  it was "the change buys no verdict" — and the measurement that replaced it
-  says a relative rule would now buy the wrong one.
+  the number D24 is about — except that measuring it says it is not. No basic
+  variable is outside its bound in the solver's own arithmetic; the `1.73e-6`
+  is the gap between the solver's carried row activity and the checker's
+  recomputation of it, which makes it a residual of the basis solve and
+  §2.5.5's unbuilt stability trigger. See "What happens next".
 - **`pilot87`**, still missing its objective by 7.6x — `2.28e-3` of error
   against a tolerance of `3.02e-4`. Its dual violation is `1.87e-5` and its
   gap `2.75e-8`. Nothing built so far moves it, and it is the
@@ -956,16 +958,37 @@ gate started with.**
    names: `min(tol, tol·s)`, which narrows and can only turn acceptances
    into rejections.
 
-   **Measured, and it is a real violation rather than rounding.** The
-   relative figure D24 put in the report answers it without a new run:
+   **Measured twice, and it is neither a tolerance nor a violated bound.**
+
+   First, the relative figure D24 put in the report, which needed no new run:
    `pilot`'s row residue is `6.93e-9` of what the row carries, against
    `8.21e-17` for `finnis`, `1.76e-16` for `adlittle` and `6.08e-14` for
-   `25fv47`. That is seven to nine orders above the band a healthy row sits
-   in — about 3e7 ulps of a row carrying 250. So `pilot`'s row really is
-   outside its bound, a relative window of `tol · s` would be `2.5e-4` wide
-   there and would wave it through, and D24's decision is now supported by a
-   measurement rather than by the absence of one. What is left on `pilot` is a
-   primal defect to find, not a tolerance to argue about.
+   `25fv47` — seven to nine orders above the band a healthy row sits in, about
+   3e7 ulps of a row carrying 250. So a relative window of `tol · s` would be
+   `2.5e-4` wide there and would wave a real discrepancy through. D24 is
+   supported by a measurement now rather than by the absence of one.
+
+   Then the solver's own view of the same point, and this is the finding:
+   **no basic variable is outside its bound at all.** The worst violation in
+   scaled space is exactly `0`. So the `1.73e-6` is not a bound test failing
+   anywhere — it is the difference between two computations of one quantity.
+   The solver carries each row's activity in a logical variable obtained from
+   `x_B = -B^-1 (N x_N)` on the scaled copy; the checker recomputes
+   `sum_j a_ij x_j` from the matrix as loaded and the published `x`. They
+   disagree by `1.73e-6`, which is a **residual of the basis solve**, not a
+   primal infeasibility.
+
+   That relocates the defect. It is not `interval_violation`, not `PRIMAL_TOL`
+   and not a space mismatch: it is how accurately `B^-1` is applied on
+   `pilot`'s basis, and it is exactly what §2.5.5 asks for and does not have —
+   a stability trigger watching an FTRAN/BTRAN residual during the solve
+   rather than only refactorizing on an interval. D20 put half of that in
+   (one refactorization before optimality is accepted, which is why the
+   carried numbers are not the issue here); the other half is unbuilt.
+
+   It is also the one place D18's argument for an independent checker pays
+   off in the direction nobody was watching: checker and solver agree about
+   the model, and disagree about the arithmetic.
 
 2. **`pilot87`, on its objective by 7.6x** — `2.28e-3` of error against
    `3.02e-4`. Its dual violation is `1.87e-5` and its gap `2.75e-8`, both
