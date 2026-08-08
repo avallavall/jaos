@@ -66,6 +66,11 @@ open, `bench/README.md` for the gate, and the commit each entry came from.
 
 ### Changed
 
+- The claim that a different C library cannot change a JAOS answer is
+  measured rather than argued. `log2` in the scaling was the only libm result
+  IEEE leaves unpinned anywhere in the solver; perturbing it moves no scale
+  factor of the 139 instances until the offset is about 4x10^8 ulps, and the
+  probe was shown to fire before its silence was believed (D34).
 - The work-unit table loses its per-iteration row. The weight is zero and it
   is measured, not assumed: the basis update turns out to be 1.8% of an
   iteration rather than the whole of it, and the other 98% is already charged

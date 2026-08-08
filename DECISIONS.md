@@ -1467,3 +1467,72 @@ point than the values beside it does not pass.
 conventions every later signature has to satisfy, not the signatures
 themselves. The weights of D16 and D32 are the public contract that freezes at
 1.0; the header is not, yet.
+
+---
+
+## D34 — The one place D8 rested on an argument now rests on a measurement
+
+D8 promises the same result on every machine. Every mechanism behind that
+promise is structural — fixed iteration order, no clock, no address-dependent
+traversal, `-ffp-contract=off` so no FMA is contracted — except one, and
+PLAN 2.11 said so plainly: **the scaling's determinism leans on libm.** The
+exponents come from `log2`, whose last-ulp rounding IEEE does not pin down
+across C libraries. The note ended with the right instruction, which is that
+"could differ" is a claim a harness has to test rather than assume.
+
+It has been tested, and the answer is that no realistic libm can change a
+JAOS result. The margin is about **nine orders of magnitude**.
+
+**What was actually at risk, and why it is narrow.** `log2` appears twice in
+`src/scale.c` and nowhere else in the solver — no other translation unit
+calls a transcendental function at all. Both results feed exponents that
+`pow2_of` rounds to integers and turns into exact powers of two, so the only
+way a libm difference becomes a different answer is by tipping one of those
+`round()` calls across a half-integer. Everything after the rounding is
+exact: a power-of-two factor multiplies a mantissa by 1.
+
+**The measurement, which does not need a second machine and is stronger than
+having one.** Comparing two machines compares two libms. Perturbing `log2`
+by a controlled amount covers *every* libm within that amount. So the probe
+nudges `log2` and asks whether any of the 139 instances produces a different
+set of scale factors — hashed, compared bit for bit.
+
+| Perturbation of `log2` | Instances whose factors changed |
+|---|---|
+| ±1 ulp, ±4 ulps | **0 of 139** |
+| +1e-12 … +1e-6 | **0 of 139** |
+| +2e-6 | **0 of 139** |
+| +5e-6 | 2 |
+| +1e-5 | 4 |
+| +1e-4 | 10 |
+
+The tipping point is between **2e-6 and 5e-6** in log2 units. An ulp of
+`log2` over the range these matrices produce (|log2| up to about 33) is at
+most 7.1e-15, so a library would have to be wrong by roughly **4x10^8 ulps**
+before a single factor moved. Real implementations are specified within one
+or two, and several are correctly rounded.
+
+Measured alongside it, and it explains the result rather than merely
+agreeing with it: across 1,590,682 rounded exponents on those instances, the
+closest any one of them came to a tie was **4.29e-7** (`woodw`). Nothing sits
+near the edge.
+
+**The instrument was shown able to fire before its silence was believed.**
+At 1e-4 it reports ten changed instances by name — `25fv47`, `beaconfd`,
+`pilot` among them. A probe that had returned "all identical" at every level
+would have proved only that it was not looking.
+
+**What this does not establish.** It removes the one identified risk; it is
+not a second machine. JAOS has still only ever run on one architecture and
+one C library. Other divergence classes are handled by construction rather
+than by measurement — no FMA contraction, no `long double`, locale-independent
+number parsing in the readers, no address-ordered iteration — and those
+remain arguments, though of a kind that a compiler flag and a code rule can
+actually carry. If JAOS is ever built on another architecture, the
+determinism harness should be run there; what will not need re-testing is
+`log2`.
+
+Condition 2 of the M1 gate is unchanged in verdict and better founded in
+substance. What it verifies directly is still same-machine reproducibility —
+two solves in one process and one across runs. What it now also has is a
+bound on the only cross-machine mechanism anyone had identified.

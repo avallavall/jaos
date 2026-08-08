@@ -388,7 +388,7 @@ in aggregate is what §2.8 has just finished being a lesson about.
 | 1a | Netlib **standard** set: `OPTIMAL`, objective within §2.6 tolerance, checker green | **met** — 94/94 solved, 94 objective, 94 checker, `gate: PASS` |
 | 1b | **Kennington** subset, for correctness with no performance expectation | **met** — 16/16, every condition, `ken-18` at 105127x154699 included |
 | 1c | **Infeasible** subset: classified `INFEASIBLE`, no false optima | **met** — 29/29 refused, no false optima; `gran` closed by the basis repair (§2.8.2) |
-| 2 | Determinism harness green on every instance (D8) | **met** — 94/94 on the standard set, 16/16 Kennington, 29/29 infeasible |
+| 2 | Determinism harness green on every instance (D8) | **met** — 94/94 on the standard set, 16/16 Kennington, 29/29 infeasible. Same-machine by construction; the one cross-machine mechanism anyone identified is bounded by measurement (D34) |
 | 3 | Full suite clean under ASan+UBSan | **met** |
 | 4 | Reader robustness: truncated/corrupted input errors, never crashes | **met** — 1.6M fuzz cases clean under ASan+UBSan, on an instrument checked against an injected fault (§2.8.4) |
 | 5 | Results recorded under `bench/results/` as data, no wall-clock (D17) | **met**, and all three sets now diffed per instance against a baseline (D21) |
@@ -567,12 +567,15 @@ missed this".
   pivot row cancelled earlier keeps the stale count. Markowitz then works
   from a pessimistic estimate: pivot choice quality, never correctness,
   and deterministic either way.
-- **Scaling's determinism across machines leans on libm.** The exponents
-  come from `log2`, whose last-ulp rounding IEEE does not pin down across
-  C libraries. They are rounded to whole powers of two, so only a result
-  landing within an ulp of an exact half-integer could differ — but "could
-  differ" is a claim the cross-machine harness has to test, not assume,
-  when the Netlib campaign runs it.
+- ~~**Scaling's determinism across machines leans on libm.**~~ **Tested and
+  closed (D34).** It was the one part of D8 resting on an argument rather
+  than a measurement. Perturbing `log2` — which covers every library within
+  the perturbation, where comparing two machines would only compare two
+  libraries — moves not one scale factor of the 139 instances until the
+  offset reaches somewhere between 2e-6 and 5e-6 in log2 units, roughly
+  4x10^8 ulps. The closest any of 1,590,682 rounded exponents came to a tie
+  was 4.29e-7. The probe was shown to fire at 1e-4 before its silence was
+  taken for evidence.
 - **The ratio test's long step re-scans for each breakpoint.** Bound
   flipping walks the candidates in ascending ratio order and finds each
   one with a linear scan of those still standing, rather than sorting the
