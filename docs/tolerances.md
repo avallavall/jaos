@@ -1,8 +1,9 @@
 # Tolerances
 
 Every number a solve compares against, where it acts, and what it decides.
-All of them are drafts until the Netlib gate closes (PLAN.md 2.6); after
-that a change to any of them is a changelog entry.
+They were drafts until the Netlib gate closed (PLAN.md 2.6). It has, so they
+are frozen at the values below and a change to any of them is now a
+changelog entry.
 
 Two spaces are involved and confusing them is the way to misread every
 figure below. The solver runs on a **scaled copy** of the model, so its
@@ -247,10 +248,16 @@ hypothesis D23's identity rests on rather than a test beside it. The only
 form worth revisiting is the one D24 already names, `min(tol, tol·s)`, which
 narrows.
 
-`pilot87` is not a tolerance question at all. An objective 7.6x outside the
-bar is a wrong answer, and loosening a number to admit it would convert a
-defect into a pass and prove nothing (D17).
+`pilot87` was not a tolerance question at all, and it turned out not to be a
+precision one either: an objective 7.6x outside the bar was a wrong answer,
+and loosening a number to admit it would have converted a defect into a pass
+and proved nothing (D17). The defect was a clean-up loop dispatching one
+column of twelve (D30), and the objective now lands 1.33e-7 relative from
+Koch's exact value.
 
-The values also stay drafts in the original sense — nothing is frozen until
-the gate closes, and every one of them moves only with a measurement on both
-sides.
+That is the argument for the freeze rather than a footnote to it. Eight
+instances were refused across the campaign, every one was tempting to blame
+on a number, and every one was something else. A tolerance that survived
+eight opportunities to be the culprit and never was is a number with evidence
+behind it — which is what these now are (D31), and why moving one from here
+on takes a measurement on both sides and a changelog entry.

@@ -47,8 +47,9 @@ jaos_model_free(m);
   it is charged, is in [`docs/work-units.md`](docs/work-units.md).
 
 Every tolerance a solve compares against, and the formulas the checker
-judges with, are in [`docs/tolerances.md`](docs/tolerances.md). They are
-drafts until the Netlib gate closes.
+judges with, are in [`docs/tolerances.md`](docs/tolerances.md). They were
+drafts until the Netlib gate closed, and are now frozen: any change to one
+is a changelog entry.
 
 ## How well it works today
 
@@ -61,39 +62,47 @@ second solve that has to agree bit for bit. The last result is committed at
 | | |
 |---|---|
 | loads with the right shape | 94 / 94 |
-| solved to optimal | 93 / 94 |
-| objective within tolerance | 91 / 94 |
-| independent checker green | 87 / 94 |
-| identical across two solves | 93 / 94 |
+| solved to optimal | 94 / 94 |
+| objective within tolerance | 94 / 94 |
+| independent checker green | 94 / 94 |
+| identical across two solves | 94 / 94 |
 
-**The gate is not met**, and that is the honest summary of where JAOS is.
-One instance does not terminate. Six return an answer the checker rejects
-— mostly on the dual conditions, two of them by margins far too large to
-be rounding. A seventh used to be on that list and was the checker's own
-fault: it discarded a multiplier too small to impose a sign condition
-from the dual objective as well, which on a wide bound is a real quantity,
-and invented a gap out of it. What each remaining failure is, and which
-open question it belongs to, is in [`PLAN.md`](PLAN.md).
+**The gate is met.** Two further sets it asks for pass as well: the 16
+**Kennington** problems on every condition, `ken-18` included at 105127 rows
+by 154699 columns — an order of magnitude past anything in the table above —
+and the 29 **infeasible** instances refused every time, with no false optimum
+anywhere, which is the one thing that set exists to check.
 
-The readers are the part that came out clean: every instance in the set
+Eight instances were refused at some point along the way, and **not one of
+them was closed by widening a tolerance**. Each was a distinct defect with a
+mechanism: a contribution the checker was silently dropping, a
+bound-proximity test judged absolutely on a row whose terms cancel ten orders
+of magnitude, a settled basis the method had never been handed back, a cycle
+that had been read as a stall, a repair test weighing the wrong quantity in
+the wrong space, a column with nowhere to rest, a residual of the basis solve
+mistaken for a violated bound, and a clean-up loop taking one pivot where
+twelve were waiting. `DECISIONS.md` carries what each one turned out to be
+and `docs/research/netlib-campaign.md` the measurements, including the
+readings that were wrong on the way — each of which is what pointed at the
+next.
+
+Two of those eight were the ones most readily explained as the limit of
+double precision: `etamacro`, which defeats CPLEX at its defaults and SoPlex
+at 1e-6, and `pilot87`, the worst-conditioned model in the set. Both were
+defects.
+
+The readers are the part that came out clean on the first run: every instance
 loads with exactly the row and column counts two independent canonical
 sources agree on — which is the one thing the checker structurally cannot
 verify, since it reads the same stored matrix the solver does.
 
-Two further sets the gate asks for now run as well. The 16 **Kennington**
-problems pass outright — 16/16 on every condition, `ken-18` included at
-105127 rows by 154699 columns, an order of magnitude past anything in the
-table above. The 29 **infeasible** instances are refused 28 times out of 29
-with no false optimum anywhere, which is the one thing that set exists to
-check; `gran` returns a numerical error rather than a verdict.
-
 Those five numbers are a summary, and a summary is the wrong instrument for
-noticing that a change broke something: while the gate is unmet it reports
-`NOT MET` either way, and the counts can stay put while one instance starts
-solving and another stops. So `make netlib` also diffs every instance
-against [`bench/netlib.baseline`](bench/netlib.baseline), which records what
-each one did last time, and fails on anything that got worse whatever the
-totals say. See [`bench/README.md`](bench/README.md).
+noticing that a change broke something — now more than ever, since a gate
+that passes is precisely the one whose totals cannot move. So `make netlib`
+also diffs every instance against
+[`bench/netlib.baseline`](bench/netlib.baseline), which records what each one
+did last time, and fails on anything that got worse whatever the totals say.
+See [`bench/README.md`](bench/README.md).
 
 No **performance** claim appears here or anywhere else in this repository.
 Speed needs a controlled machine before any number about it means anything,
