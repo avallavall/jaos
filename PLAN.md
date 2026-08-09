@@ -658,23 +658,27 @@ disagree almost completely, and Kennington is 55% of the two totals.**
 
 | | standard 94 | **Kennington 16** |
 |---|---|---|
-| **inside the LU** | **77.30%** | **3.96%** |
-| **inside the simplex** | 22.70% | **96.04%** |
-| total units | 60,403,238,834 | 73,555,422,842 |
+| **inside the LU** | **77.80%** | **4.97%** |
+| **inside the simplex** | 22.20% | **95.03%** |
+| total units | 60,015,257,439 | 58,596,535,370 |
 
 Where each set actually spends it, by line:
 
 | standard 94 | | Kennington 16 | |
 |---|---|---|---|
-| FTRAN, `U` pass | 24.42% | `price_all`'s walk over `rho` | 27.45% |
-| factorization, eliminations | 20.76% | `price_row`, the infeasibility scan | 21.03% |
-| `price_all`, the `rho'M` product | 11.65% | `jm_dse_update`'s row sweep | 21.03% |
-| FTRAN, `L` pass | 8.22% | `apply_flips`, the `x_B` update | 7.50% |
-| basis update, eliminations | 5.50% | the dual update's dense sweep | 5.89% |
-| BTRAN, `U'` pass | 5.40% | the ratio test's dense sweep | 5.02% |
-| BTRAN, `L'` pass | 5.15% | Harris over the live candidates | 1.77% |
-| FTRAN, eta pass | 3.62% | ordering the pricing pattern | 1.65% |
-| BTRAN, reachability search | 3.05% | everything in the LU | 3.96% |
+| FTRAN, `U` pass | 24.57% | `price_row`, the infeasibility scan | 26.40% |
+| factorization, eliminations | 20.90% | `jm_dse_update`'s row sweep | 26.40% |
+| `price_all`, the `rho'M` product | 11.03% | `apply_flips`, the `x_B` update | 9.42% |
+| FTRAN, `L` pass | 8.27% | `price_all`, the `rho'M` product | 8.51% |
+| basis update, eliminations | 5.54% | the dual update's dense sweep | 7.39% |
+| BTRAN, `U'` pass | 5.44% | the ratio test's dense sweep | 6.31% |
+| BTRAN, `L'` pass | ~5.2% | Harris over the live candidates | 2.22% |
+| FTRAN, eta pass | ~3.6% | ordering the pricing pattern | 2.08% |
+| BTRAN, reachability search | ~3.0% | everything in the LU | 4.97% |
+
+D43 moved `price_all`'s row from 27.45% to 8.51% of Kennington, which is the
+one thing a re-attribution is for: the entry that was top of that column is
+now fourth, and two lines that were 21% each are now tied at 26% and first.
 
 **On the mid-sized models the cost is the triangular solves and the
 factorization — 77% of it, and not one of M2's seven entries has touched
@@ -770,17 +774,21 @@ whether it is zero or not. There are two, and both are gathers.
    it once is `nnz(L)` amortised over ~64 solves, against `nnz(L)` that pass
    pays on every one of them.
 
-2. **A pattern-returning FTRAN.**
+2. **A pattern-returning FTRAN — now the largest single change available.**
 
    | what it removes | standard | Kennington |
    |---|---|---|
-   | `jm_dse_update`'s row sweep | 1.33% | 21.03% |
-   | `apply_flips`' `x_B` update | — | 7.50% |
+   | `jm_dse_update`'s row sweep | ~1.3% | **26.40%** |
+   | `apply_flips`' `x_B` update | — | **9.42%** |
 
    Structurally the easier of the two — L and U are both stored by column,
    which is the orientation FTRAN scatters along, so nothing new has to be
    built — but worth almost nothing on the standard set, because what it
    removes there is unbilled walking rather than billed arithmetic.
+
+   Note what it is *not*: FTRAN's own `U` and `L` passes stay exactly as
+   expensive, for the reason at the top of this section. The prize is
+   entirely in the two callers that walk the result.
 
    **The trap both share.** FTRAN's passes are scatters, not the dot
    products D38 could reorder freely: `y[i]` accumulates from many sources
@@ -797,12 +805,15 @@ whether it is zero or not. There are two, and both are gathers.
    the per-column elimination arrays, the stale live counts — and none of
    them has been tried.
 
-4. **The row scan that picks the infeasibility**, 21.03% of Kennington and
-   the one item at the top of that column nothing above touches. A scan over
-   `nrow` with no sparsity to exploit, which is what partial and multiple
-   pricing exist for [1]. Both change the search path, so this is the first
-   item of M2 that cannot be judged on digests and needs the full gate to
-   say whether fewer units per iteration cost more iterations.
+4. **The row scan that picks the infeasibility**, now **26.40% of
+   Kennington** and tied for first there with item 2. Nothing above touches
+   it: it is a scan over `nrow` of `x_B` with no sparsity to exploit, which
+   is what partial and multiple pricing exist for [1]. Both change the
+   search path, so this is the first item of M2 that cannot be judged on
+   digests and needs the full gate to say whether fewer units per iteration
+   cost more iterations. Everything landed so far has been judged on
+   digests, so this one also needs a different standard of evidence, not
+   just a different measurement.
 
 Smaller items on the same path, all measured and all modest: the FTRAN and
 BTRAN eta passes apply 45.1% and 10.6% of their etas to a zero and are
