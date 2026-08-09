@@ -2289,6 +2289,19 @@ static jaos_status primal_cleanup(sx *s, int64_t *pivots)
          * them and the work counter does not under-report the solve (D16). */
         s->iters++;
         (*pivots)++;
+
+        /* `pivot()` reports a basis update that failed by asking for a
+         * rebuild and returning JAOS_OK, because the dual method's loop
+         * reads that flag before every iteration. This loop is the one
+         * place that pivots without going through it, and everything above
+         * reads the factorization: both triangular solves return without
+         * writing anything once it is wrecked, so the ratio test and the
+         * pricing row would be computed from whatever the buffers last
+         * held. Leaving now hands the remaining candidates to the next
+         * round — the caller refreshes whenever this loop took a pivot —
+         * rather than to a factorization that no longer exists. */
+        if (s->needs_refactor)
+            break;
     }
     return JAOS_OK;
 }

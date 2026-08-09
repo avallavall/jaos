@@ -66,6 +66,18 @@ open, `bench/README.md` for the gate, and the commit each entry came from.
 
 ### Fixed
 
+- A valid model could come back as `JAOS_ERR_INVALID_INPUT` — the code the
+  library reserves for a caller's mistake — from inside `jaos_solve`.
+  `pivot()` reports a failed basis update by asking for a rebuild and
+  returning success, and `primal_cleanup` was the one loop that pivoted
+  without reading that flag: both triangular solves return without writing
+  once the factorization is wrecked, so the ratio test and pricing row that
+  follow were computed from whatever the buffers last held, and the update's
+  own guard was what stopped it. The loop now leaves and lets the caller
+  refresh. `pilot` at a refactorization interval of 48 goes from that error
+  to `optimal`; the other eleven cells of the same sweep and all 139
+  reference instances are unchanged, digest for digest (D48).
+
 - A model with a finite optimum could be reported `INFEASIBLE`. The verdict
   is reached when no pivot clears `PIVOT_MIN`, and those are exactly the
   magnitudes that drift in a factorization patched by many updates — so

@@ -2677,3 +2677,76 @@ that would actually catch the defect.
 
 What this entry settles is that the case exists, that it is live on
 `etamacro` today, and that the cheap repair is refuted.
+
+## D48 — One loop pivoted without asking whether the factorization still existed
+
+Q12's third mode, and the only one of the four that was a plain defect
+rather than a question about what a tolerance means: `pilot` at a
+refactorization interval of 48 came back as `JAOS_ERR_INVALID_INPUT` out of
+`jaos_solve`, on a model that solves at every other interval.
+
+**Where it came from.** All ten of that status's return sites are in `lu.c`,
+so a throwaway build tagged each one. The one that fired is
+`jm_lu_update`'s `lu->rank != lu->dim` — the factorization had already been
+marked unusable before the call, and the trace shows the previous update was
+the first after a rebuild.
+
+**What that means.** `jm_lu_update` marks a factorization it has half
+rewritten as unusable and returns `JAOS_ERR_NUMERICAL`; `pivot()` turns that
+into `s->needs_refactor = true` and `JAOS_OK`, because the dual method's
+loop reads that flag before every iteration. **`primal_cleanup` is the one
+loop in the solver that pivots without going through it.** So after a failed
+update it carried on to the next candidate, and everything it does reads the
+factorization: `jm_lu_ftran` and `jm_lu_btran` both return without writing a
+value once `rank != dim`, so the ratio test ran on a stale buffer, the
+pricing row was priced from a `rho` that still held the unit vector it was
+seeded with, and `pivot()` rewrote `basis`, `status` and `where` from the
+result. The update's own guard was the only thing that stopped it, and it
+stopped it by reporting a caller error.
+
+**So the error was the backstop, not the defect.** No wrong answer escapes
+this path today — the guard fires before the corrupted basis can be read,
+and the caller refreshes whenever the loop took a pivot, so the one exit
+that skips the rebuild (`pivots == 0`) is unreachable after an update has
+failed. What escapes is a library error on a valid model, which is the one
+thing `JAOS_ERR_INVALID_INPUT` is documented not to mean.
+
+**The repair** is to leave the loop when the flag is raised. The remaining
+candidates are not lost: the caller rebuilds and the outer round re-derives
+the candidate set from the new point, which is what D30 established the
+candidate set is — a snapshot of one point, never re-asked mid-loop.
+
+**Evidence, and it is the sharpest shape this kind of change can take.** The
+path only runs where an update has failed inside the cleanup, and today
+every such solve ends in the error above, so no instance that passes can be
+taking it. That is a prediction rather than a hope, and it holds: **all 139
+reference instances come back identical to the committed record — status,
+objective, iteration count, work units, every checker figure and every
+solution digest.** The suite is 130 tests green.
+
+And on the sweep that found it, of twelve cells exactly one moved:
+
+| | 16 | 24 | 32 | **48** | 64 | 96 |
+|---|---|---|---|---|---|---|
+| `pilot` | = | = | = | **error -> optimal** | = | = |
+| `pilot87` | = | = | = | = | = | = |
+
+**What it does not fix, deliberately.** `pilot` at 48 now completes, and
+what it completes to is outside objective tolerance with the checker green —
+which is D47's mode, reached by a fourth trajectory. Converting a library
+error into a wrong answer the gate catches is the whole of what this entry
+claims.
+
+**The hazard underneath is still a sentence.** `jm_lu_ftran` and
+`jm_lu_btran` returning quietly on a wrecked factorization is documented in
+a comment and enforced by nothing, and this defect is what that costs: a
+caller that forgets computes with whatever the buffer held and finds out
+later, somewhere else. The rule this project keeps relearning is that a
+contract that matters must be an assert, a test or a structural
+impossibility. Making these two report rather than return is a wider change
+than this one and is not made here.
+
+**And the case that proves it is not in the suite.** It is a bench instance
+at a non-default constant, which no unit test reaches — the trajectory sweep
+of PLAN 3.6 is the only instrument that runs it, and it has now found two
+defects (D39, this one) that 139 instances at one setting did not.

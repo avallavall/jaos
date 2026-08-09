@@ -1020,9 +1020,12 @@ and reopens the moment a model lands on either.
   | 16 | ok | ok |
   | 24 | objective out of tolerance, **checker green** | checker REJECTED, dual 2.21e-4 |
   | 32 | objective out of tolerance, **checker green** | checker REJECTED, dual 1.69e-6 |
-  | 48 | **`JAOS_ERR_INVALID_INPUT` from `jaos_solve`** | ok |
+  | 48 | objective out of tolerance, **checker green** — was a library error until D48 | ok |
   | 64 | ok | ok |
   | 96 | objective out of tolerance, **checker green** | ok |
+
+  So `pilot` is wrong on four of the six intervals and right on two, and the
+  gate walks one of the two.
 
   1. **Closed — `pilot`'s silent wrong answer (D47).** At 24, 32 and 96 it
      stops 1.04e-3 above the optimum, at 24 and 32 on the same vertex to
@@ -1047,10 +1050,15 @@ and reopens the moment a model lands on either.
      bound on suboptimality that needs no reference value and would have
      caught this at 1.04e-3 — at the cost of giving the checker a basis and a
      factorization of its own (D47).
-  3. **Open — `pilot` at 48 returns a library error** on a model that solves
-     at every other interval. `JAOS_ERR_INVALID_INPUT` out of `jaos_solve`
-     means an internal caller passed something no caller should; the
-     worst-shaped of the four and undiagnosed.
+  3. **Closed — `pilot`'s library error at 48 (D48).** `pivot()` reports a
+     failed basis update by asking for a rebuild and returning success, and
+     `primal_cleanup` was the one loop that pivoted without reading that
+     flag — computing a ratio test and a pricing row from buffers two
+     triangular solves had declined to write. The update's own guard was the
+     backstop, and it fired as `JAOS_ERR_INVALID_INPUT`. The loop now
+     leaves. One cell of twelve moved in the sweep and all 139 reference
+     instances are unchanged, digest for digest. What `pilot` at 48 now
+     completes to is item 1's mode, reached by a fourth trajectory.
   4. **Open — `pilot87` checker-rejected at 24 and 32**, on dual violations
      the checker does catch (2.21e-4 and 1.69e-6). A different fault from
      item 1, and undiagnosed. At 128 and above it trips the iteration guard,
