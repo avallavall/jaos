@@ -2075,3 +2075,65 @@ dense side of the counter's own answer has not changed: work units cannot
 see the indirection, and every cost they cannot see pushes the true
 crossover the other way. Moving it on a 0.1% reading would be fitting a
 constant to a measurement that cannot see half the trade.
+
+---
+
+## D42 — The exact weight is summed over rho's pattern, which nobody had to go and find
+
+`pivot` charges `2 * nrow` per iteration for two loops that look alike and
+are not. Attributed on the tree D41 left, that pair is **34.8% of the
+Kennington set and 42.9% of `ken-18`**, which made it the largest single
+thing left — and the two halves turned out to need completely different
+work.
+
+| | standard 94 | Kennington 16 | `ken-18` |
+|---|---|---|---|
+| the `2 * nrow` charge | 2.6% of the set | 34.8% | 42.9% |
+| `rho` nonzero, of `nrow` | 32.61% | 1.02% | **0.08%** |
+| `col` nonzero, of `nrow` | 33.04% | 0.17% | **0.03%** |
+
+- `exact = ||rho||^2` sums a **BTRAN** result. Its pattern is free: the
+  first thing `price_all` does is walk the whole of `rho` in ascending order
+  looking for rows it can skip, so recording where the nonzeros are is one
+  store per nonzero on a loop that was running anyway.
+- `jm_dse_update` sweeps a **FTRAN** result. Nothing walks that vector
+  first, so this half needs the solve itself to hand over a pattern — the
+  reachability search of D38 applied to the forward direction. Still open.
+
+This entry is the first half only, and it is deliberately the cheap one.
+
+**Bit-identical by the simplest argument any of these changes has had.** The
+slots skipped contribute `0.0 * 0.0` to a running total that is a sum of
+squares and therefore never negative zero, so `x + 0.0` is exactly `x`.
+Ascending order is inherited rather than arranged, because the walk that
+recorded the pattern already was one. No ordering pass, no bitmap, no
+threshold: `nrow` positions can each be recorded once, so the list is a set
+already.
+
+**Cost.**
+
+| set | before | after | |
+|---|---|---|---|
+| standard 94 | 60,945,483,751 | 60,403,238,834 | 1.009x |
+| **Kennington 16** | 88,864,066,925 | **73,555,422,842** | **1.208x** |
+| infeasible 29 | 2,673,400,285 | 2,608,553,522 | 1.025x |
+
+**All 139 instances get cheaper, none stays level**, no iteration count
+moves and all 110 digests are unchanged. `ken-18` comes down 1.273x.
+
+**What the counter is overstating here, said plainly.** The saving is billed
+as `nrow` per iteration, but the `O(nrow)` walk this leans on still happens
+inside `price_all` — it is simply not charged, and PLAN 2.11 has recorded
+that neither pricing form bills its own sweep since before any of this. So
+the real saving is the multiply-and-add over every row, not the whole of
+what the counter credits. It is a real saving and a smaller one than
+1.208x. The half that would remove the walk as well is the FTRAN pattern,
+and that is the entry after this.
+
+**Where this leaves M2's arithmetic.** Since the commit where M1's gate
+first passed on all three sets, total work over the 139 reference instances
+has gone 293,987,935,333 -> 136,567,215,198, which is **2.153x** — and
+**3.043x on Kennington**, where 73% of it was. The standard set is 1.090x
+over the same span, and that gap is the whole content of PLAN 3.2: the
+mid-sized models spend their time in the triangular solves and the
+factorization, and none of M2's entries so far have touched either.

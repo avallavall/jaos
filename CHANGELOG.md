@@ -76,6 +76,14 @@ open, `bench/README.md` for the gate, and the commit each entry came from.
 
 ### Changed
 
+- The exact steepest-edge weight is summed over the pattern of the row it is
+  the norm of, instead of over the dimension. That pattern costs nothing to
+  have: pricing already walks the whole of `rho` in ascending order looking
+  for rows to skip. Work falls **1.208x on Kennington**, 1.009x on the
+  standard set and 1.025x on the infeasible one — all 139 instances cheaper,
+  no digest and no iteration count moved. The other half of the same charge,
+  the steepest-edge update itself, needs FTRAN to hand over a pattern and is
+  still open (D42).
 - The dual step walks the pricing row's pattern as well, which is the other
   and larger half of the same idea. It needed one thing the ratio test did
   not: the loop also repairs reduced costs that have drifted past their

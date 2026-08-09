@@ -290,6 +290,15 @@ typedef struct {
     int64_t anpat;
     uint64_t *amark;         /* [(nvar + 63) / 64] */
 
+    /* Where `rho` is nonzero, ascending, or `nrpat < 0` when nobody has
+     * looked. This one costs nothing to keep: price_all walks the whole of
+     * `rho` in that order already, to find the rows it can skip, so the
+     * pattern is a store per nonzero on a loop that was running anyway.
+     * Ordering it needs no work either — one row cannot be recorded twice
+     * and the walk is already ascending. */
+    int64_t *rpat;           /* [nrow] */
+    int64_t nrpat;
+
     /* The ratio test's candidate set, filled once per iteration: which
      * variables may enter (`cand`), how far each one's reduced cost is
      * from infeasibility (`rnum`) and how big its pivot would be
@@ -362,6 +371,7 @@ static void sx_free(sx *s)
     free(s->xb); free(s->d); free(s->dse);
     free(s->col); free(s->raw); free(s->y); free(s->rho);
     free(s->tau); free(s->alpha); free(s->apat); free(s->amark);
+    free(s->rpat);
     free(s->cand); free(s->rnum); free(s->rden); free(s->rrange);
     free(s->bs); free(s->bi); free(s->bv);
     free(s->fake);
@@ -429,7 +439,9 @@ static jaos_status sx_init(sx *s, jaos_model *m)
     s->alpha  = jm_calloc_array(s->nvar, sizeof(double));
     s->apat   = jm_alloc_array(s->nvar, sizeof(int64_t));
     s->amark  = jm_calloc_array((s->nvar + 63) / 64, sizeof(uint64_t));
+    s->rpat   = jm_alloc_array(s->nrow, sizeof(int64_t));
     s->anpat  = -1;          /* alpha is all zero, but nothing has said where */
+    s->nrpat  = -1;
     s->duals_dirty = true;   /* nothing has established the costs are feasible */
     s->cand   = jm_alloc_array(s->nvar, sizeof(int64_t));
     s->rnum   = jm_alloc_array(s->nvar, sizeof(double));
@@ -442,7 +454,7 @@ static jaos_status sx_init(sx *s, jaos_model *m)
         !s->status || !s->basis ||
         !s->where || !s->xb || !s->d || !s->dse || !s->col || !s->raw ||
         !s->y || !s->rho || !s->tau || !s->alpha || !s->apat || !s->amark ||
-        !s->cand || !s->rnum ||
+        !s->rpat || !s->cand || !s->rnum ||
         !s->rden || !s->rrange || !s->bs || !s->fake) {
         sx_free(s);
         return JAOS_ERR_OUT_OF_MEMORY;
@@ -1441,12 +1453,13 @@ static void price_all(sx *s)
      * a pattern too large to be worth walking is detected by having run out
      * of room rather than by a second pass to measure it. */
     const int64_t cap = s->nvar / SPARSE_ALPHA_DEN;
-    int64_t np = 0, touched = 0;
+    int64_t np = 0, touched = 0, nr = 0;
 
     for (int64_t i = 0; i < s->nrow; i++) {
         double w = s->rho[i];
         if (w == 0.0)
             continue;
+        s->rpat[nr++] = i;   /* free: this walk is happening either way */
         /* A logical's column is -e_i, so row i writes slot ncol+i and no
          * other row can: it is new to the pattern without being asked. */
         int64_t lg = s->ncol + i;
@@ -1478,6 +1491,7 @@ static void price_all(sx *s)
      * read, plus one per row for the logicals. Neither form bills its own
      * O(nvar) sweep, so the two are comparable (PLAN 2.11). */
     jm_work_add(&s->work, (touched + s->nrow) * JM_WORK_NONZERO);
+    s->nrpat = nr;
 
     if (np > cap) {
         s->anpat = -1;   /* too dense to be worth walking, and incomplete */
@@ -1607,13 +1621,28 @@ static jaos_status pivot(sx *s, int64_t r, int64_t q, bool below,
     /* One weight is known exactly at no cost: rho is row r of B^-1, so its
      * squared norm is the very quantity the recurrence has been estimating
      * for that row. Handing it over lets the step start from a true value,
-     * and lets the recurrence be caught when it has drifted away from one. */
+     * and lets the recurrence be caught when it has drifted away from one.
+     *
+     * Summed over rho's pattern where price_all left one. The zeros it skips
+     * contribute `0.0 * 0.0` to a running total that is a sum of squares and
+     * therefore never negative zero, so `x + 0.0` is exactly `x` and the
+     * total comes out bit for bit the same. Ascending order is inherited
+     * rather than arranged: the walk that recorded the pattern was one. */
     double exact = 0.0;
-    for (int64_t i = 0; i < s->nrow; i++)
-        exact += s->rho[i] * s->rho[i];
+    if (s->nrpat >= 0) {
+        for (int64_t k = 0; k < s->nrpat; k++) {
+            double v = s->rho[s->rpat[k]];
+            exact += v * v;
+        }
+        jm_work_add(&s->work, s->nrpat * JM_WORK_NONZERO);
+    } else {
+        for (int64_t i = 0; i < s->nrow; i++)
+            exact += s->rho[i] * s->rho[i];
+        jm_work_add(&s->work, s->nrow * JM_WORK_NONZERO);
+    }
 
     jm_dse_update(s->nrow, s->dse, r, s->col, s->tau, exact, DSE_DRIFT);
-    jm_work_add(&s->work, 2 * s->nrow * JM_WORK_NONZERO);
+    jm_work_add(&s->work, s->nrow * JM_WORK_NONZERO);
 
     double q_value = nonbasic_value(s, q);
     for (int64_t i = 0; i < s->nrow; i++)
@@ -2116,6 +2145,7 @@ static jaos_status primal_cleanup(sx *s, int64_t *pivots)
             s->alpha[v] = s->status[v] == JM_BASIC ? 0.0
                                               : price_entry(s, s->rho, v);
         s->anpat = -1;   /* written in full and behind price_all's back */
+        s->nrpat = -1;   /* and so is rho, by the BTRAN just above */
 
         if (fabs(s->alpha[q]) < PIVOT_MIN)
             continue;   /* the pricing row disagrees with the column: leave it */

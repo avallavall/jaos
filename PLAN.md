@@ -626,13 +626,15 @@ missed this".
 
 ## 3. Milestone 2 — LP fast
 
-**Open, and opened by work rather than by decision.** Six entries have
-landed against it (D35, D37, D38, D39, D40, D41) and total work over the 139
-reference instances has fallen about 1.9x without a single verdict, objective
-or iteration count changing anywhere. The last two are most of that: they
-took the Kennington set — which carries 73% of all work measured — from
-168,372,717,242 units to 88,864,066,925. What follows is the detail the
-working agreement asks for once a milestone is active.
+**Open, and opened by work rather than by decision.** Seven entries have
+landed against it (D35, D37, D38, D39, D40, D41, D42). Measured against the
+commit where M1's gate first passed on all three sets, total work over the
+139 reference instances has gone 293,987,935,333 -> 136,567,215,198, which
+is **2.153x** — and **3.043x on Kennington**, where 73% of it was — without
+a single verdict, objective, iteration count or solution digest changing
+anywhere. The standard set is 1.090x over the same span, and that gap is
+§3.2 in one number. What follows is the detail the working agreement asks
+for once a milestone is active.
 
 ### 3.1 The gate, and what blocks it
 
@@ -709,24 +711,40 @@ them, so skipping a variable is safe only where the repair would have done
 nothing — and `duals_dirty` is that name, armed by the two places that
 write a reduced cost outside a pivot.
 
+**Half of `pivot`'s `2 * nrow` charge is gone too (D42)**, and it was the
+half that came free: the exact steepest-edge weight is the norm of `rho`,
+and `price_all` already walks the whole of `rho` in ascending order, so
+recording the pattern is a store per nonzero on a loop that was running
+anyway. 1.208x on Kennington. The other half is item 1 below and needs real
+machinery.
+
 **What is left, in the order the measurements rank it.**
 
-1. **The steepest-edge weight update.** It sweeps every row to touch
-   **0.17%** of them on Kennington and 33% on the standard set, and unlike
-   the pricing row its input is an FTRAN result, so this one needs the
-   solve to hand over a pattern rather than a dense vector. That is
+1. **The steepest-edge weight update, and with it the FTRAN.** It sweeps
+   every row to touch **0.03%** of them on `ken-18` and 33% on the standard
+   set. Its input is an FTRAN result, so unlike D42's half there is nothing
+   already walking it: this needs the solve to hand over a pattern. That is
    hyper-sparsity proper [9] — the Gilbert–Peierls reachability search D38
-   built for BTRAN's `U'` pass, applied to FTRAN.
-2. **The FTRANs themselves** skip zeros but still walk all `nrow` slots to
-   find them, and D38's search scans all of `y` for its roots because
-   callers know the support and do not pass it. Both are answered by the
-   same item as 1.
-3. **The row scan that picks the infeasibility** charges one per row every
-   iteration and was 9.19% of Kennington's work before any of this; as a
-   share of what is left it is now larger. It is a different problem from
-   the ones above — a scan over `nrow` with no sparsity to exploit, which
-   is what partial and multiple pricing exist for [1] — and both change the
-   search path, so neither can be judged on digests.
+   built for BTRAN's `U'` pass, applied to the forward direction, where it
+   is structurally *easier* because both L and U are stored by column, which
+   is the orientation FTRAN scatters along.
+
+   The trap to plan for: FTRAN's passes are scatters, not the dot products
+   D38 could reorder freely. `y[i]` accumulates from many sources and the
+   order decides the bits, which is how D36 failed. Visiting the reachable
+   set in the same order the dense loop visits it — increasing slot for L,
+   decreasing position for U — keeps it exact, and that is an ordering
+   problem `jm_pattern_order` already solves.
+
+   It also removes the `O(nrow)` walks the FTRAN currently does to find its
+   own zeros, and those are what D42's saving is still leaning on.
+2. **The row scan that picks the infeasibility** charges one per row every
+   iteration, and was 9.19% of Kennington's work before any of M2; as a
+   share of what is left it is much larger now. It is a different problem
+   from item 1 — a scan over `nrow` with no sparsity to exploit, which is
+   what partial and multiple pricing exist for [1] — and both of those
+   change the search path, so neither can be judged on digests. It is the
+   first item of M2 that will need the full gate rather than a comparison.
 
 Smaller items on the same path, all measured and all modest: the FTRAN and
 BTRAN eta passes apply 45.1% and 10.6% of their etas to a zero and are

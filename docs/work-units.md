@@ -57,8 +57,9 @@ and the size of its pattern when it is not (D40) — and the dual update
 charges the same way, with one exception: it also sweeps every variable on
 the first iteration after anything rewrites a reduced cost outside a pivot,
 because that sweep is repairing rather than stepping (D41). The
-steepest-edge weight update charges two per row, and each swap attempted
-while settling up charges two per row.
+steepest-edge weight update charges one per row, the exact weight that feeds
+it charges one per slot it adds up rather than one per row (D42), and each
+swap attempted while settling up charges two per row.
 
 **Ordering the pricing row's pattern** charges one per position the scatter
 recorded, one per bitmap word the read-back looked at, and one per distinct
@@ -105,6 +106,14 @@ replaced. D40 makes the first of those much smaller on a sparse iteration
 without making it visible. On an iteration that ends up reading `alpha`
 densely it also records part of a pattern it then discards — bounded by a
 quarter of the variables, and unbilled for the same reason the clear is.
+
+**Nor does pricing bill its walk over the pricing row**, and D42 leans on
+that walk: the exact steepest-edge weight is charged for the slots it adds
+up because the walk that found them was going to happen anyway. The saving
+that produces is real — a multiply and an add per row that no longer run —
+and it is smaller than the counter credits it with, by exactly the cost of a
+walk the counter has never seen. Removing the walk as well is what a
+pattern-returning FTRAN would buy (PLAN 3.3).
 
 **The clock is never involved.** A time limit is read at most once every 64
 iterations and can only stop a solve; it can never choose a pivot (D8).

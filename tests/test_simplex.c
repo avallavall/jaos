@@ -572,11 +572,22 @@ static void test_free_variable_enters_and_settles(void)
  * change did to the accounting. If it fails and you did not intend to
  * change the accounting, that is the bug it exists to catch.
  *
- * Last moved by BTRAN's reachability search (D36): 8544 -> 8548. The search
- * is billed for the edges it walks, and on a three-row basis it walks almost
- * the whole of U to discover that almost the whole of U is reachable. This
- * test is where the technique costs the most and saves the least; the
- * instance sets are where the question is settled.
+ * Last moved by summing the exact steepest-edge weight over rho's pattern
+ * (D42): 8548 -> 8545. The norm is charged for the slots it adds up rather
+ * than for the dimension, and over this solve rho held three zeros in total.
+ * Three units is the whole of it because a three-row row of B^-1 has almost
+ * nothing to skip — the same shape of answer the two entries below give, and
+ * for the same reason.
+ *
+ * Neither D40 nor D41 moved it, which is itself the accounting working: both
+ * read the pricing row through its pattern only where the pattern is at most
+ * a quarter of the variables, and a quarter of six variables is one.
+ *
+ * Before that, by BTRAN's reachability search (D38): 8544 -> 8548. The
+ * search is billed for the edges it walks, and on a three-row basis it walks
+ * almost the whole of U to discover that almost the whole of U is
+ * reachable. This test is where the technique costs the most and saves the
+ * least; the instance sets are where the question is settled.
  *
  * Before that, by row-wise pricing (D35): 8535 -> 8544. The column-wise pass
  * skipped a basic variable without reading it at all; the row-wise one walks
@@ -592,7 +603,7 @@ static void test_free_variable_enters_and_settles(void)
  * plus the two residuals they are computed from. Before that, by the recheck
  * itself: 4411 -> 8517, the one extra factorization it costs plus the
  * pricing pass that follows it. */
-constexpr int64_t WORK_PINNED = 8548;
+constexpr int64_t WORK_PINNED = 8545;
 
 static void test_work_accounting_is_pinned(void)
 {
