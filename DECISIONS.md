@@ -1972,7 +1972,7 @@ concurrently, and it reproduces the sequential `-O2` gate's own record byte
 for byte on all three sets — checked, not assumed, at the
 `SPARSE_ALPHA_DEN = 4` point, down to Kennington's 128,912,974,652 units.
 Minutes instead of hours, which is what made sweeping eight settings worth
-doing at all (PLAN 3.6).
+doing at all (PLAN 3.7).
 
 It also produced one wrong reading on the way, which is recorded because
 the failure mode is generic: two sweep runs were launched over the same
@@ -2121,14 +2121,23 @@ already.
 **All 139 instances get cheaper, none stays level**, no iteration count
 moves and all 110 digests are unchanged. `ken-18` comes down 1.273x.
 
-**What the counter is overstating here, said plainly.** The saving is billed
-as `nrow` per iteration, but the `O(nrow)` walk this leans on still happens
-inside `price_all` — it is simply not charged, and PLAN 2.11 has recorded
-that neither pricing form bills its own sweep since before any of this. So
-the real saving is the multiply-and-add over every row, not the whole of
-what the counter credits. It is a real saving and a smaller one than
-1.208x. The half that would remove the walk as well is the FTRAN pattern,
-and that is the entry after this.
+**A caveat this entry first carried and then had to withdraw.** It said the
+counter was overstating the saving, because the `O(nrow)` walk the pattern
+comes from happens in `price_all` and goes unbilled. The attribution run
+that followed says otherwise: `price_all` charges `touched + nrow`, and on
+the row-wise pass that `nrow` term is not the logicals its comment named —
+only `nnz(rho)` logicals are written — it is that walk. So the walk is
+charged, in `price_all`, before and after this change alike, and what D42
+removed is a separate `nrow` of multiply-and-add. The saving is what the
+counter says it is.
+
+What `price_all` genuinely does not bill is the clear of `alpha` and the
+reset of its basic entries, both of which PLAN 2.11 has recorded since
+before any of M2. Neither is what this leans on.
+
+The withdrawn caveat is left here rather than deleted, because the way it
+was wrong is the ordinary way: it was reasoned from a comment instead of
+measured, and the comment had been true of the code it was written for.
 
 **Where this leaves M2's arithmetic.** Since the commit where M1's gate
 first passed on all three sets, total work over the 139 reference instances

@@ -107,13 +107,13 @@ without making it visible. On an iteration that ends up reading `alpha`
 densely it also records part of a pattern it then discards — bounded by a
 quarter of the variables, and unbilled for the same reason the clear is.
 
-**Nor does pricing bill its walk over the pricing row**, and D42 leans on
-that walk: the exact steepest-edge weight is charged for the slots it adds
-up because the walk that found them was going to happen anyway. The saving
-that produces is real — a multiply and an add per row that no longer run —
-and it is smaller than the counter credits it with, by exactly the cost of a
-walk the counter has never seen. Removing the walk as well is what a
-pattern-returning FTRAN would buy (PLAN 3.3).
+**Pricing does bill its walk over the pricing row**, which is worth stating
+because the charge is easy to misread. The row-wise pass charges
+`touched + nrow`; the second term was one per logical column in the
+column-wise form it replaced, and here only `nnz(rho)` logicals are written.
+What it matches instead is the walk over `rho` itself, which reads every row
+whether it skips it or not. On the Kennington set that single charge is 27%
+of everything billed.
 
 **The clock is never involved.** A time limit is read at most once every 64
 iterations and can only stop a solve; it can never choose a pivot (D8).

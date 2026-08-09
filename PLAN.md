@@ -650,34 +650,48 @@ touched, fewer eliminations, fewer refactorizations, fewer iterations.
 
 ### 3.2 Where the work actually is — and it is two different answers
 
-Attributed with a `JAOS_DIAG` build that assigns every charge to the phase
-that spent it, on the tree as of D38. **Read both columns before choosing a
-target: they disagree almost completely, and Kennington carries 73% of all
-work measured.**
-
-The shares below predate D40, which removed most of the ratio test's row
-from the Kennington column. The totals moved and the ranking did not, so it
-is left as measured rather than rescaled by arithmetic; the next attribution
-run replaces it.
+Attributed on the tree as of D42, with a `JAOS_DIAG` build that charges
+every work unit to the source line that billed it — by line rather than by
+named phase, so nothing can be mis-assigned by a region boundary drawn in
+the wrong place. **Read both columns before choosing a target. They now
+disagree almost completely, and Kennington is 55% of the two totals.**
 
 | | standard 94 | **Kennington 16** |
 |---|---|---|
-| dual update + DSE weights | 6.41% | **44.96%** |
-| ratio test | 8.79% | **31.23%** |
-| the `rho'M` product | 11.22% | 11.99% |
-| row scan for the infeasibility | 1.28% | 9.19% |
-| the two FTRANs | 29.76% | 0.61% |
-| refactorization + refreshes | 20.84% | 1.08% |
-| BTRAN of the pricing row | 13.73% | 0.64% |
-| basis update | 7.82% | 0.17% |
-| **triangular solves together** | **43.48%** | **1.25%** |
-| total units | 62,701,726,771 | 168,372,717,242 |
+| **inside the LU** | **77.30%** | **3.96%** |
+| **inside the simplex** | 22.70% | **96.04%** |
+| total units | 60,403,238,834 | 73,555,422,842 |
 
-On mid-sized models the cost is the triangular solves and the
-factorization. On the large ones it is two dense sweeps over every variable
-per iteration, and the solves barely register. **Measuring on the standard
-set and generalising is how this milestone's plan got its order wrong
-twice.**
+Where each set actually spends it, by line:
+
+| standard 94 | | Kennington 16 | |
+|---|---|---|---|
+| FTRAN, `U` pass | 24.42% | `price_all`'s walk over `rho` | 27.45% |
+| factorization, eliminations | 20.76% | `price_row`, the infeasibility scan | 21.03% |
+| `price_all`, the `rho'M` product | 11.65% | `jm_dse_update`'s row sweep | 21.03% |
+| FTRAN, `L` pass | 8.22% | `apply_flips`, the `x_B` update | 7.50% |
+| basis update, eliminations | 5.50% | the dual update's dense sweep | 5.89% |
+| BTRAN, `U'` pass | 5.40% | the ratio test's dense sweep | 5.02% |
+| BTRAN, `L'` pass | 5.15% | Harris over the live candidates | 1.77% |
+| FTRAN, eta pass | 3.62% | ordering the pricing pattern | 1.65% |
+| BTRAN, reachability search | 3.05% | everything in the LU | 3.96% |
+
+**On the mid-sized models the cost is the triangular solves and the
+factorization — 77% of it, and not one of M2's seven entries has touched
+either.** That is the whole of why the standard set is 1.090x since M1 while
+Kennington is 3.043x. It was predicted here before it was measured, which is
+the one thing this table has consistently got right.
+
+**On the large models what is left is five dense sweeps over the rows or the
+variables, and they are 83% of the set.** Three of the five — the walk over
+`rho`, the steepest-edge sweep, and `apply_flips`' update of `x_B` — are the
+same defect wearing three hats: a solve hands back a dense vector and the
+caller walks all of it to find the 0.1% that is nonzero.
+
+**Measuring on the standard set and generalising is how this milestone's
+plan got its order wrong twice**, and re-measuring is how it got it back:
+the ranking above was three changes stale when it was last used to choose a
+target.
 
 ### 3.3 Making the consumers of `alpha` sparse — half done
 
@@ -718,33 +732,47 @@ recording the pattern is a store per nonzero on a loop that was running
 anyway. 1.208x on Kennington. The other half is item 1 below and needs real
 machinery.
 
-**What is left, in the order the measurements rank it.**
+**What is left, ranked on §3.2's attribution rather than on the one it
+replaced.**
 
-1. **The steepest-edge weight update, and with it the FTRAN.** It sweeps
-   every row to touch **0.03%** of them on `ken-18` and 33% on the standard
-   set. Its input is an FTRAN result, so unlike D42's half there is nothing
-   already walking it: this needs the solve to hand over a pattern. That is
-   hyper-sparsity proper [9] — the Gilbert–Peierls reachability search D38
-   built for BTRAN's `U'` pass, applied to the forward direction, where it
-   is structurally *easier* because both L and U are stored by column, which
-   is the orientation FTRAN scatters along.
+1. **A solve that hands back a pattern, in both directions.** One change
+   answers four of the five entries at the top of the Kennington column and
+   the top of the standard one:
 
-   The trap to plan for: FTRAN's passes are scatters, not the dot products
-   D38 could reorder freely. `y[i]` accumulates from many sources and the
-   order decides the bits, which is how D36 failed. Visiting the reachable
-   set in the same order the dense loop visits it — increasing slot for L,
-   decreasing position for U — keeps it exact, and that is an ordering
-   problem `jm_pattern_order` already solves.
+   | what it removes | standard | Kennington |
+   |---|---|---|
+   | FTRAN's `U` and `L` passes walking every slot | 32.64% | — |
+   | `jm_dse_update`'s row sweep | 1.33% | 21.03% |
+   | `apply_flips`' `x_B` update | — | 7.50% |
+   | `price_all`'s walk over `rho` | 11.65% | 27.45% |
 
-   It also removes the `O(nrow)` walks the FTRAN currently does to find its
-   own zeros, and those are what D42's saving is still leaning on.
-2. **The row scan that picks the infeasibility** charges one per row every
-   iteration, and was 9.19% of Kennington's work before any of M2; as a
-   share of what is left it is much larger now. It is a different problem
-   from item 1 — a scan over `nrow` with no sparsity to exploit, which is
-   what partial and multiple pricing exist for [1] — and both of those
-   change the search path, so neither can be judged on digests. It is the
-   first item of M2 that will need the full gate rather than a comparison.
+   That is hyper-sparsity proper [9] — the Gilbert–Peierls reachability
+   search D38 built for BTRAN's `U'` pass, extended to the rest of both
+   solves. **The forward direction is structurally the easier one**: L and U
+   are both stored by column, which is the orientation FTRAN scatters
+   along, so no new copy of anything is needed. The backward direction still
+   wants a row-wise L, which is what D38 stopped at.
+
+   **The trap to plan for.** FTRAN's passes are scatters, not the dot
+   products D38 could reorder freely: `y[i]` accumulates from many sources
+   and the order decides the bits, which is exactly how D36 failed. Visiting
+   the reachable set in the order the dense loop visits it — increasing slot
+   for L, decreasing position for U — keeps it exact, and that is the
+   ordering problem `jm_pattern_order` already solves.
+
+2. **The factorization itself, 26.3% of the standard set** between its
+   eliminations and the basis update's. Untouched by all of M2, and the
+   larger half of why that set has barely moved. §2.11 has four measured
+   entries waiting here — the quadratic slot detachment, the missing
+   row-to-position lookup, the per-column elimination arrays, the stale
+   live counts — none of which has been tried.
+
+3. **The row scan that picks the infeasibility**, 21.03% of Kennington and
+   the one item at the top of that column item 1 does not touch. A scan over
+   `nrow` with no sparsity to exploit, which is what partial and multiple
+   pricing exist for [1]. Both change the search path, so this is the first
+   item of M2 that cannot be judged on digests and needs the full gate to
+   say whether fewer units per iteration cost more iterations.
 
 Smaller items on the same path, all measured and all modest: the FTRAN and
 BTRAN eta passes apply 45.1% and 10.6% of their etas to a zero and are
@@ -777,7 +805,29 @@ L' pass has 4.1% under a zero with no row-wise copy of L to search.
   towards dense, and the readings that would argue for moving it are
   fractions of a percent. Locating it exactly needs Q4.
 
-### 3.5 Method worth keeping: sweep the trajectory, not just the instances
+### 3.5 Method worth keeping: attribute by line, and re-attribute
+
+Two methods, and the second was learned the hard way this milestone.
+
+**Attribute by source line, not by named phase.** The `JAOS_DIAG` build
+routes every `jm_work_add` through its `__FILE__` and `__LINE__`. One edit
+to one inline function, no region boundaries to draw and therefore none to
+draw wrongly, and the result is finer than any set of names chosen in
+advance — §3.2's Kennington column separates three sweeps that a phase named
+"bookkeeping" would have merged.
+
+**It validates itself, and it must be made to.** The per-line sums have to
+reconstruct each solve's own total, and the totals have to reconstruct the
+committed baseline. Both are checked before the numbers are read; an
+attribution that does not add up is not evidence about anything.
+
+**Re-attribute after every entry that lands.** §3.2's previous table was
+used to choose a target three changes after it was measured, and by then it
+was describing a solver that no longer existed — the row it ranked first had
+fallen to a fifth of what it claimed. Nothing went wrong because the ranking
+happened to survive, which is not a reason it was safe.
+
+### 3.6 Method worth keeping: sweep the trajectory, not just the instances
 
 All 139 instances pass and always have — at one refactorization interval, so
 along one trajectory. The eight defects M1 closed were closed against that
@@ -788,7 +838,7 @@ margin.** It costs minutes with the parallel runner and it found D39.
 
 Q12 carries what it found and D39 did not close.
 
-### 3.6 Tooling that is not in the repository yet
+### 3.7 Tooling that is not in the repository yet
 
 Measurement was the bottleneck on the work above until it was fixed outside
 the tree, and the fix is worth bringing in. Instances are independent and the

@@ -1487,9 +1487,18 @@ static void price_all(sx *s)
     for (int64_t i = 0; i < s->nrow; i++)
         s->alpha[s->basis[i]] = 0.0;
 
-    /* Charged the way the column-wise pass was: the matrix entries actually
-     * read, plus one per row for the logicals. Neither form bills its own
-     * O(nvar) sweep, so the two are comparable (PLAN 2.11). */
+    /* The matrix entries actually read, plus one per row.
+     *
+     * That second term was inherited from the column-wise pass, where it was
+     * one per logical column priced. Here it is not: only a row whose `rho`
+     * is nonzero writes a logical, and there are `nr` of those. What the
+     * term does match is the walk over `rho` above, which reads every row
+     * whether it skips it or not — so the number is right and the reason it
+     * was right has changed. On the Kennington set this one charge is 27% of
+     * everything the solver bills, all of it that walk.
+     *
+     * Still not billed, and stated because it is the same size: the clear of
+     * `alpha` and the reset of its basic entries (PLAN 2.11). */
     jm_work_add(&s->work, (touched + s->nrow) * JM_WORK_NONZERO);
     s->nrpat = nr;
 
