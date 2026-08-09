@@ -181,6 +181,37 @@ int64_t jm_harris_pick(int64_t n, const double *num, const double *den,
 int64_t jm_bland_pick(int64_t n, const int64_t *var, const double *num,
                       const double *den);
 
+/* Turns a list of positions into the sorted, distinct list of them.
+ *
+ * `pos[0..n)` is what a scatter recorded on its way past: unordered, because
+ * the scatter visits rows and a row's columns are anywhere, and repeating,
+ * because a slot that cancels back to zero and is written again is recorded
+ * twice. The result is written over the input, ascending, each position
+ * once, and the count of them returned. `words` reports how many bitmap
+ * words the enumeration had to look at, which is the part of the cost that
+ * does not scale with n and which the caller bills.
+ *
+ * `mark` is a bitmap of at least (limit + 63) / 64 words, where `limit`
+ * bounds the positions; anything outside [0, limit) has nowhere to be
+ * recorded and is dropped. It must be all zero on entry and is all zero again
+ * on return — the routine clears exactly the words it set, so the caller
+ * allocates it once and never has to.
+ *
+ * A bitmap rather than a sort, and that is the whole reason this is worth
+ * having: a sort of k positions costs k log k comparisons and the pattern
+ * this exists for is read once per iteration, while a bitmap pass costs k
+ * to mark, one scan of the touched word range to read back, and hands over
+ * the duplicate removal for nothing. Ascending order is not a preference:
+ * every consumer of a pricing row breaks its ties by scan position, so a
+ * pattern in any other order silently moves the trajectory.
+ *
+ * Reachable from outside the simplex because a defect here is invisible
+ * from the solve: a dropped position leaves a variable out of a ratio test
+ * that would have been correct without it, and the answer is merely
+ * different rather than wrong. */
+int64_t jm_pattern_order(int64_t n, int64_t *pos, uint64_t *mark,
+                         int64_t limit, int64_t *words);
+
 /* Overflow-checked array allocation: n elements of elsize bytes.
  * Returns NULL on n < 0, size overflow, or exhaustion. n == 0 still returns
  * a valid non-NULL allocation, so success is always non-NULL. */

@@ -52,9 +52,17 @@ Scanning the candidates charges one per live candidate, and the Harris
 two-pass over them charges two.
 
 **Ratio test and bookkeeping**: building the candidate set charges one per
-variable, the dual update charges one per variable, the steepest-edge
-weight update charges two per row, and each swap attempted while settling
-up charges two per row.
+variable it looked at — every variable when the pricing row is read densely,
+and the size of its pattern when it is not (D40) — the dual update charges
+one per variable, the steepest-edge weight update charges two per row, and
+each swap attempted while settling up charges two per row.
+
+**Ordering the pricing row's pattern** charges one per position the scatter
+recorded, one per bitmap word the read-back looked at, and one per distinct
+position handed back. It is charged only on the iterations that take the
+sparse path, and it is what makes that path's saving honest: without it the
+counter would show a gain for reading `alpha` through a pattern of any size,
+including one large enough to cost more than the scan it replaces.
 
 **Ending a solve** is the largest single charge most solves make outside
 the iterations themselves, and it is worth knowing about before choosing a
@@ -86,6 +94,14 @@ statement. A solve computes a Curtis-Reid scaling when the model has none,
 and that computation — a Jacobi-preconditioned conjugate gradient over the
 matrix — is real work that no unit currently counts. It is stated here
 because it is true, not because it was decided.
+
+**Neither pricing form bills its own sweep over the variables**, and that
+predates D40: the clear of `alpha` and the reset of its basic entries are
+real work no unit counts, in the row-wise form as in the column-wise one it
+replaced. D40 makes the first of those much smaller on a sparse iteration
+without making it visible. On an iteration that ends up reading `alpha`
+densely it also records part of a pattern it then discards — bounded by a
+quarter of the variables, and unbilled for the same reason the clear is.
 
 **The clock is never involved.** A time limit is read at most once every 64
 iterations and can only stop a solve; it can never choose a pivot (D8).
@@ -122,6 +138,12 @@ counter already sees.
 | refactorization and the refreshes | 5.07% |
 | the basis update | 1.79% |
 | everything outside the solve loop | 0.11% |
+
+Those shares are as of D32 and predate D40, which took the ratio test's
+candidate scan off the first row wherever the pricing row is sparse — 1.31x
+less total work on the Kennington set. The ranking is unchanged and the
+figures are left as measured rather than rescaled by arithmetic; the next
+attribution run replaces them.
 
 ## Determinism
 

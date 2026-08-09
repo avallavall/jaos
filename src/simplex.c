@@ -68,6 +68,22 @@ constexpr double DSE_MIN = 1e-12;
  * badly conditioned pivot can. */
 constexpr double DSE_DRIFT = 10.0;
 
+/* When the pricing row is read through its pattern instead of in full.
+ *
+ * `alpha = rho' M` is dense storage holding a sparse vector: over the
+ * Kennington set its nonzeros are 0.1% of the variables on `ken-11` and
+ * 83.6% on `osa-60`, and the consumers scan all of them either way. Below
+ * this fraction the pattern is cheaper to walk than the array; above it the
+ * indirection costs more than it saves, and the dense loop — sequential,
+ * three arrays, no dependent loads — wins.
+ *
+ * A divisor rather than a fraction so that the crossover can be swept by
+ * changing one integer, which is how it was chosen (D40). What the sweep
+ * measures is work units, and those are blind to exactly the cache
+ * behaviour that decides the other side of the trade, so this is set on the
+ * conservative side of where the counter alone would put it. */
+constexpr int64_t SPARSE_ALPHA_DEN = 4;
+
 /* Refactorization interval. PLAN 2.5.5 also calls for stability triggers
  * (FTRAN/BTRAN residual checks); only the interval and the reactive
  * fallback on a failed update exist so far. */
@@ -260,6 +276,20 @@ typedef struct {
     double *tau;             /* [nrow] B^-1 rho, for the weight update */
     double *alpha;           /* [nvar] pricing row */
 
+    /* Where `alpha` can be nonzero, ascending and without repeats, or
+     * `anpat < 0` when that is not known and the array has to be read in
+     * full. Two things read it: the ratio test, which would otherwise scan
+     * every variable to find the few it can use, and the clear at the top of
+     * price_all, which would otherwise memset a quarter of a megabyte to
+     * erase a hundred numbers.
+     *
+     * `amark` is the bitmap jm_pattern_order orders the pattern through. It
+     * is zero everywhere between iterations, which is what lets it be
+     * allocated once; nothing reads it outside that call. */
+    int64_t *apat;           /* [nvar] */
+    int64_t anpat;
+    uint64_t *amark;         /* [(nvar + 63) / 64] */
+
     /* The ratio test's candidate set, filled once per iteration: which
      * variables may enter (`cand`), how far each one's reduced cost is
      * from infeasibility (`rnum`) and how big its pivot would be
@@ -320,7 +350,7 @@ static void sx_free(sx *s)
     free(s->status); free(s->basis); free(s->where);
     free(s->xb); free(s->d); free(s->dse);
     free(s->col); free(s->raw); free(s->y); free(s->rho);
-    free(s->tau); free(s->alpha);
+    free(s->tau); free(s->alpha); free(s->apat); free(s->amark);
     free(s->cand); free(s->rnum); free(s->rden); free(s->rrange);
     free(s->bs); free(s->bi); free(s->bv);
     free(s->fake);
@@ -386,6 +416,9 @@ static jaos_status sx_init(sx *s, jaos_model *m)
     s->rho    = jm_calloc_array(s->nrow, sizeof(double));
     s->tau    = jm_calloc_array(s->nrow, sizeof(double));
     s->alpha  = jm_calloc_array(s->nvar, sizeof(double));
+    s->apat   = jm_alloc_array(s->nvar, sizeof(int64_t));
+    s->amark  = jm_calloc_array((s->nvar + 63) / 64, sizeof(uint64_t));
+    s->anpat  = -1;          /* alpha is all zero, but nothing has said where */
     s->cand   = jm_alloc_array(s->nvar, sizeof(int64_t));
     s->rnum   = jm_alloc_array(s->nvar, sizeof(double));
     s->rden   = jm_alloc_array(s->nvar, sizeof(double));
@@ -396,7 +429,8 @@ static jaos_status sx_init(sx *s, jaos_model *m)
     if (!s->av || !s->arv || !s->lo || !s->up || !s->cost || !s->shift ||
         !s->status || !s->basis ||
         !s->where || !s->xb || !s->d || !s->dse || !s->col || !s->raw ||
-        !s->y || !s->rho || !s->tau || !s->alpha || !s->cand || !s->rnum ||
+        !s->y || !s->rho || !s->tau || !s->alpha || !s->apat || !s->amark ||
+        !s->cand || !s->rnum ||
         !s->rden || !s->rrange || !s->bs || !s->fake) {
         sx_free(s);
         return JAOS_ERR_OUT_OF_MEMORY;
@@ -1164,40 +1198,61 @@ static void apply_flips(sx *s, int64_t at, int64_t n)
  * The flips are applied here rather than reported outwards: they are part
  * of the step, and a caller holding a half-taken step is a caller who can
  * forget to finish it. */
+/* One variable's eligibility, and its place in the candidate arrays if it
+ * has one. Split out because the scan around it comes in two forms — over
+ * the pricing row's pattern where there is one, over every variable where
+ * there is not — and a rule this delicate must not be written twice. */
+static void admit_candidate(sx *s, int64_t v, bool below, int64_t *n)
+{
+    if (s->status[v] == JM_BASIC)
+        return;
+    double a = s->alpha[v];
+    if (fabs(a) < PIVOT_MIN)
+        return;
+
+    bool ok;
+    double dist;
+    if (s->status[v] == JM_AT_LOWER) {
+        ok = below ? (a < 0.0) : (a > 0.0);
+        dist = s->d[v];          /* must stay non-negative */
+    } else if (s->status[v] == JM_AT_UPPER) {
+        ok = below ? (a > 0.0) : (a < 0.0);
+        dist = -s->d[v];         /* must stay non-positive */
+    } else {
+        ok = true;               /* free: may move either way */
+        dist = 0.0;              /* and must stay at zero */
+    }
+    if (!ok)
+        return;
+
+    int64_t k = (*n)++;
+    s->cand[k] = v;
+    s->rnum[k] = dist > 0.0 ? dist : 0.0;
+    s->rden[k] = fabs(a);
+    s->rrange[k] = s->up[v] - s->lo[v];
+}
+
 static int64_t dual_ratio_test(sx *s, bool below, double violation,
                                double *theta_out)
 {
     int64_t n = 0;
 
-    for (int64_t v = 0; v < s->nvar; v++) {
-        if (s->status[v] == JM_BASIC)
-            continue;
-        double a = s->alpha[v];
-        if (fabs(a) < PIVOT_MIN)
-            continue;
-
-        bool ok;
-        double dist;
-        if (s->status[v] == JM_AT_LOWER) {
-            ok = below ? (a < 0.0) : (a > 0.0);
-            dist = s->d[v];          /* must stay non-negative */
-        } else if (s->status[v] == JM_AT_UPPER) {
-            ok = below ? (a > 0.0) : (a < 0.0);
-            dist = -s->d[v];         /* must stay non-positive */
-        } else {
-            ok = true;               /* free: may move either way */
-            dist = 0.0;              /* and must stay at zero */
-        }
-        if (!ok)
-            continue;
-
-        s->cand[n] = v;
-        s->rnum[n] = dist > 0.0 ? dist : 0.0;
-        s->rden[n] = fabs(a);
-        s->rrange[n] = s->up[v] - s->lo[v];
-        n++;
+    /* A variable outside the pattern has alpha exactly zero, which the
+     * PIVOT_MIN test rejects before anything else is read — so the two scans
+     * admit the same candidates, and the pattern being ascending puts them
+     * in the same array positions. That matters more than it looks:
+     * bfrt_walk and jm_harris_pick both break an exact tie by whichever
+     * candidate it meets first, and apply_flips adds up a column per flip in
+     * the order they stand. Any other order is a different trajectory. */
+    if (s->anpat >= 0) {
+        for (int64_t t = 0; t < s->anpat; t++)
+            admit_candidate(s, s->apat[t], below, &n);
+        jm_work_add(&s->work, s->anpat * JM_WORK_NONZERO);
+    } else {
+        for (int64_t v = 0; v < s->nvar; v++)
+            admit_candidate(s, v, below, &n);
+        jm_work_add(&s->work, s->nvar * JM_WORK_NONZERO);
     }
-    jm_work_add(&s->work, s->nvar * JM_WORK_NONZERO);
 
     if (n == 0)
         return -1;
@@ -1254,6 +1309,47 @@ int64_t jm_bland_pick(int64_t n, const int64_t *var, const double *num,
     return best;
 }
 
+/* A scatter's record of where it wrote, made ascending and distinct.
+ * Documented in the header, beside the two picks, and reachable for the
+ * same reason they are. */
+int64_t jm_pattern_order(int64_t n, int64_t *pos, uint64_t *mark,
+                         int64_t limit, int64_t *words)
+{
+    *words = 0;
+    if (n <= 0 || limit <= 0)
+        return 0;
+
+    /* The touched range, so that a pattern living in one corner of a large
+     * model does not pay for the whole bitmap on the way back out. */
+    int64_t lo = (limit + 63) / 64, hi = -1;
+    for (int64_t t = 0; t < n; t++) {
+        int64_t p = pos[t];
+        if (p < 0 || p >= limit)
+            continue;
+        int64_t w = p >> 6;
+        mark[w] |= UINT64_C(1) << (p & 63);
+        if (w < lo) lo = w;
+        if (w > hi) hi = w;
+    }
+
+    /* Reading back over the input is safe: every position is in the bitmap
+     * by now, and the distinct count can only be smaller than what went in,
+     * so the write index never overtakes anything still needed. */
+    int64_t k = 0;
+    for (int64_t w = lo; w <= hi; w++) {
+        uint64_t bits = mark[w];
+        if (bits == 0)
+            continue;
+        mark[w] = 0;
+        while (bits != 0) {
+            pos[k++] = (w << 6) + __builtin_ctzll(bits);
+            bits &= bits - 1;
+        }
+    }
+    *words = hi >= lo ? hi - lo + 1 : 0;
+    return k;
+}
+
 /* Harris' window and the best-conditioned pivot inside it. Documented in
  * the header, which is also where the reachable-from-outside rationale
  * lives. */
@@ -1302,21 +1398,61 @@ int64_t jm_harris_pick(int64_t n, const double *num, const double *den,
 static void price_all(sx *s)
 {
     const jaos_model *m = s->m;
-    memset(s->alpha, 0, (size_t)s->nvar * sizeof *s->alpha);
 
-    int64_t touched = 0;
+    /* Erasing the previous row. Where it was is known unless something
+     * wrote alpha behind this function's back, and on a hyper-sparse model
+     * the difference is the whole iteration: `ken-13` puts 143 numbers into
+     * 71291 slots, and the memset is larger than everything else it does. */
+    if (s->anpat < 0)
+        memset(s->alpha, 0, (size_t)s->nvar * sizeof *s->alpha);
+    else
+        for (int64_t k = 0; k < s->anpat; k++)
+            s->alpha[s->apat[k]] = 0.0;
+
+    /* Recording the pattern while scattering costs a comparison against a
+     * value the `+=` has already loaded, and a store on the slots that were
+     * zero. That is the cheapest form this can take: a second array read per
+     * matrix entry is what made the basic-column filter not worth having
+     * (D35), and this loop is the same loop.
+     *
+     * A slot can be recorded twice — cancel it back to exactly zero and the
+     * next write reads zero again — so what comes out is a list, not a set.
+     * jm_pattern_order makes it one.
+     *
+     * `np` counts what the scatter found and `cap` bounds what is kept, so
+     * a pattern too large to be worth walking is detected by having run out
+     * of room rather than by a second pass to measure it. */
+    const int64_t cap = s->nvar / SPARSE_ALPHA_DEN;
+    int64_t np = 0, touched = 0;
+
     for (int64_t i = 0; i < s->nrow; i++) {
         double w = s->rho[i];
         if (w == 0.0)
             continue;
-        s->alpha[s->ncol + i] = -w;   /* a logical's column is -e_i */
-        for (int64_t p = m->ar_start[i]; p < m->ar_start[i + 1]; p++)
-            s->alpha[m->ar_index[p]] += w * s->arv[p];
+        /* A logical's column is -e_i, so row i writes slot ncol+i and no
+         * other row can: it is new to the pattern without being asked. */
+        int64_t lg = s->ncol + i;
+        if (np < cap)
+            s->apat[np] = lg;
+        np++;
+        s->alpha[lg] = -w;
+        for (int64_t p = m->ar_start[i]; p < m->ar_start[i + 1]; p++) {
+            int64_t c = m->ar_index[p];
+            double prev = s->alpha[c];
+            if (prev == 0.0) {
+                if (np < cap)
+                    s->apat[np] = c;
+                np++;
+            }
+            s->alpha[c] = prev + w * s->arv[p];
+        }
         touched += m->ar_start[i + 1] - m->ar_start[i];
     }
 
     /* A basic variable prices to zero by definition, and the sweep above has
-     * no way to know which those are. */
+     * no way to know which those are. They stay in the pattern: it is what
+     * the next clear works from, and every consumer skips a basic variable
+     * on its status long before it looks at the number. */
     for (int64_t i = 0; i < s->nrow; i++)
         s->alpha[s->basis[i]] = 0.0;
 
@@ -1324,6 +1460,14 @@ static void price_all(sx *s)
      * read, plus one per row for the logicals. Neither form bills its own
      * O(nvar) sweep, so the two are comparable (PLAN 2.11). */
     jm_work_add(&s->work, (touched + s->nrow) * JM_WORK_NONZERO);
+
+    if (np > cap) {
+        s->anpat = -1;   /* too dense to be worth walking, and incomplete */
+        return;
+    }
+    int64_t words = 0;
+    s->anpat = jm_pattern_order(np, s->apat, s->amark, s->nvar, &words);
+    jm_work_add(&s->work, (np + words + s->anpat) * JM_WORK_NONZERO);
 }
 
 static int64_t price_and_select(sx *s, int64_t r, bool below,
@@ -1929,6 +2073,7 @@ static jaos_status primal_cleanup(sx *s, int64_t *pivots)
         for (int64_t v = 0; v < s->nvar; v++)
             s->alpha[v] = s->status[v] == JM_BASIC ? 0.0
                                               : price_entry(s, s->rho, v);
+        s->anpat = -1;   /* written in full and behind price_all's back */
 
         if (fabs(s->alpha[q]) < PIVOT_MIN)
             continue;   /* the pricing row disagrees with the column: leave it */

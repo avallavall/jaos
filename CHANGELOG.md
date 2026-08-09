@@ -76,6 +76,15 @@ open, `bench/README.md` for the gate, and the commit each entry came from.
 
 ### Changed
 
+- The pricing row is read through its pattern rather than in full wherever
+  that pattern is small. `alpha = rho' M` is dense storage holding a sparse
+  vector — 0.1% of the variables on `ken-18`, which is two thirds of the
+  Kennington set's dense sweeping on its own, against 83.6% on `osa-60` —
+  and both the ratio test's scan and the clear that starts the next
+  iteration walked every slot to find the few that were there. Work falls
+  **1.306x on Kennington**, 1.014x on the standard set and 1.012x on the
+  infeasible one; 138 of 139 instances get cheaper, none gets dearer, and
+  **no digest and no iteration count moves anywhere** (D40).
 - BTRAN solves only the slots that can produce a nonzero, found by searching
   the factor's dependency graph instead of computing zeros to discover they
   are zero. 96.7% of them are. Work falls 1.040x on the standard set, 1.095x

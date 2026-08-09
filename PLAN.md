@@ -626,10 +626,10 @@ missed this".
 
 ## 3. Milestone 2 — LP fast
 
-**Open, and opened by work rather than by decision.** Four entries have
-landed against it (D35, D37, D38, D39) and total work over the 139 reference
-instances has fallen about 1.24x without a single verdict, objective or
-iteration count changing. What follows is the detail the working agreement
+**Open, and opened by work rather than by decision.** Five entries have
+landed against it (D35, D37, D38, D39, D40) and total work over the 139
+reference instances has fallen about 1.5x without a single verdict, objective
+or iteration count changing. What follows is the detail the working agreement
 asks for once a milestone is active.
 
 ### 3.1 The gate, and what blocks it
@@ -651,6 +651,11 @@ that spent it, on the tree as of D38. **Read both columns before choosing a
 target: they disagree almost completely, and Kennington carries 73% of all
 work measured.**
 
+The shares below predate D40, which removed most of the ratio test's row
+from the Kennington column. The totals moved and the ranking did not, so it
+is left as measured rather than rescaled by arithmetic; the next attribution
+run replaces it.
+
 | | standard 94 | **Kennington 16** |
 |---|---|---|
 | dual update + DSE weights | 6.41% | **44.96%** |
@@ -670,23 +675,50 @@ per iteration, and the solves barely register. **Measuring on the standard
 set and generalising is how this milestone's plan got its order wrong
 twice.**
 
-### 3.3 The next target, specified
+### 3.3 Making the consumers of `alpha` sparse — half done
 
-**Make the consumers of `alpha` sparse.** D35 made the `rho'M` product
-walk rows so a zero of `rho` skips a matrix row, but everything downstream
-still walks all `nvar` entries: `dual_ratio_test` scans every variable to
-build its candidate set, `pivot` scans every variable for the dual update,
-and the steepest-edge update sweeps the rows. Together that is 76% of the
-work on the large models. It is exactly what [9] warns about — a sparse
-result feeding dense loops throws away what it bought.
+**The target.** D35 made the `rho'M` product walk rows so a zero of `rho`
+skips a matrix row, and everything downstream still walked all `nvar`
+entries: `dual_ratio_test` scanning every variable to build its candidate
+set, `pivot` scanning every variable for the dual update, the steepest-edge
+update sweeping the rows. Together, 76% of the work on the large models —
+exactly what [9] warns about, a sparse result feeding dense loops.
 
-**The obstacle, which decides how the change is judged.** `price_all` fills
-`alpha` by walking rows, so the pattern comes out unordered. The ratio test
-breaks ties by variable index (`jm_bland_pick`, and Harris' choice among
-equal quotients), so consuming an unordered pattern changes which candidate
-wins and moves the trajectory. Either the pattern is collected in index
-order, or it is sorted before use, or the change is no longer bit-identical
-and has to be judged on the full gate instead of on digests.
+**The ratio test's half is built (D40).** `price_all` records where it wrote
+for the price of a comparison against a value the `+=` already loaded,
+`jm_pattern_order` makes that ascending and distinct through a bitmap, and
+the ratio test walks it — as does the clear that starts the next iteration,
+which removes a `memset` of `nvar` doubles per iteration that no unit
+counted. 1.306x less work on Kennington, 1.014x on the standard set, 1.012x
+on the infeasible one, every digest and every iteration count unmoved.
+
+The obstacle this had to clear is worth keeping written down, because the
+remaining halves have the same one. `price_all` fills `alpha` by walking
+rows, so the pattern comes out unordered — and `bfrt_walk`,
+`jm_harris_pick` and `apply_flips` all break ties, or order a
+floating-point sum, by position in the candidate array. Ascending order is
+what makes the change bit-identical rather than merely defensible.
+
+**What is left, in the order the measurements rank it.**
+
+1. **`pivot`'s dual update.** The same `nvar` per iteration the ratio test
+   just stopped paying, still paid. The step itself only touches variables
+   with a nonzero `alpha`, but the loop also runs `shift_to_feasible` over
+   the ones it does not touch, so walking the pattern needs the invariant
+   that every nonbasic reduced cost was already dual feasible on entry —
+   which holds after a pivot and is broken by `compute_duals` and by
+   `primal_cleanup` calling a column's loan back in. A flag that forces one
+   dense pass after either keeps it exact.
+2. **The steepest-edge weight update.** It sweeps every row to touch
+   **0.17%** of them on Kennington and 33% on the standard set, and unlike
+   the pricing row its input is an FTRAN result, so this one needs the
+   solve to hand over a pattern rather than a dense vector. That is
+   hyper-sparsity proper [9] — the Gilbert–Peierls reachability search D38
+   built for BTRAN's `U'` pass, applied to FTRAN.
+3. **The FTRANs themselves** skip zeros but still walk all `nrow` slots to
+   find them, and D38's search scans all of `y` for its roots because
+   callers know the support and do not pass it. Both are answered by the
+   same item as 2.
 
 Smaller items on the same path, all measured and all modest: the FTRAN and
 BTRAN eta passes apply 45.1% and 10.6% of their etas to a zero and are
@@ -708,6 +740,13 @@ L' pass has 4.1% under a zero with no row-wise copy of L to search.
 - **Filtering basic columns out of the pricing sweep is refused**, measured:
   36.1% of entries are in basic columns, but the filter needs a `status[v]`
   read on every entry and comes to 3.92 memory accesses against 4 (D35).
+- **Reading `alpha` through its pattern always is worse than never doing
+  it** — 1.8% more work on the standard set, 10% on the infeasible one —
+  because ordering a pattern that covers most of the vector costs more than
+  the scan it replaces. The optimum is flat across a divisor of 2 to 6 and
+  `SPARSE_ALPHA_DEN` sits at 4, one notch to the dense side of the counter's
+  own answer, because every cost the counter cannot see pushes the true
+  crossover that way (D40). Locating it exactly needs Q4.
 
 ### 3.5 Method worth keeping: sweep the trajectory, not just the instances
 
@@ -730,9 +769,11 @@ runner can be built `-O3 -march=native -flto` and the instances solved
 concurrently, which takes the standard set from about eight minutes to
 ninety seconds and Kennington from thirty minutes to fifteen.
 
-Verified twice, on different trees, by producing records identical byte for
-byte to the sequential `-O2` runner — which also settles, for Q11, that
-those flags change no result over the 94.
+Verified three times now, on different trees, by producing records identical
+byte for byte to the sequential `-O2` runner — which also settles, for Q11,
+that those flags change no result over the 94. D40's threshold sweep is what
+it bought most recently: seven settings across two instance sets, which is
+hours sequentially and minutes this way.
 
 ---
 

@@ -1819,3 +1819,165 @@ verdict, and requiring the gate to hold across the range, measures something
 139 instances at one setting cannot: not whether the gate passes, but how
 much margin it passes with. It costs minutes with the parallel runner. It
 found this.
+
+---
+
+## D40 — The pricing row is read through its pattern, and the pattern costs a comparison
+
+PLAN 3.3 named this as M2's next target and said why: D35 made `alpha`
+cheap to *produce* by walking rows, and every consumer of it still walked
+all `nvar` entries. A sparse result feeding dense loops throws away what it
+bought, which is exactly what [9] warns about.
+
+**Measured before anything was written**, with a JAOS_DIAG build that counts
+the nonzeros of `alpha` against `nvar` on every iteration:
+
+| | standard 94 | Kennington 16 |
+|---|---|---|
+| pattern of `alpha` / `nvar` | 37.4% | **5.8%** |
+| ratio-test candidates / `nvar` | 15.8% | 1.5% |
+| per instance, median | 25.2% | 5.7% |
+| per instance, min .. max | 0.8 .. 99.1% | 0.1 .. 83.6% |
+
+The weighted numbers hide the finding, which is that **there is no typical
+density and both extremes carry real weight**. `ken-18` is 66% of all the
+dense sweeping the Kennington set does, on its own, and its pattern is
+0.1%. `osa-60` is 3% of it at 83.6%. On the standard set `stocfor3` is a
+quarter of the sweeping at 0.9% and `pilot87` is 15% of it at 65.8%. A
+change that assumes either shape is wrong on a third of the work.
+
+**What changed.** Three things, and only the first is new machinery.
+
+1. `price_all` records where it wrote while it writes. The scatter already
+   loads `alpha[c]` to add to it, so "was this slot zero" is a comparison
+   against a value in a register — no second array, which is the whole
+   difference between this and the basic-column filter D35 measured and
+   refused. A slot that cancels back to exactly zero and is written again
+   is recorded twice, so what comes out is a list rather than a set.
+2. `jm_pattern_order` makes it a set, ascending, through a bitmap: mark,
+   then read back over the touched word range, clearing as it goes.
+   **A bitmap rather than a sort.** A sort costs `k log k` on a pattern
+   that is read once, and duplicate removal comes free from a bitmap.
+3. The ratio test walks the pattern where there is one, and so does the
+   clear at the top of the next `price_all` — which quietly removes a
+   `memset` of `nvar` doubles per iteration that no work unit ever counted.
+
+**Ascending order is not tidiness, it is the correctness condition.**
+`bfrt_walk` takes the first strict minimum it meets, `jm_harris_pick` the
+first strict maximum inside its window, and `apply_flips` adds up one matrix
+column per flipped candidate in the order they stand. All three break ties —
+and, in the third case, order a floating-point sum — by position in the
+candidate array. The dense scan filled that array in ascending variable
+order, so any pattern in another order silently moves the trajectory. That
+is also why the pattern is not simply consumed as the scatter produced it.
+
+**Bit-identical, and confirmed rather than argued.** A variable outside the
+pattern has `alpha` exactly zero, which the `PIVOT_MIN` test rejects before
+anything else about it is read, so the two scans admit the same candidates
+into the same positions. Over all three sets: **every one of the 110
+published solution digests is unchanged, and not one iteration count moves
+on any of the 139 instances.**
+
+**Cost, against the committed baselines.**
+
+| set | work before | work after | |
+|---|---|---|---|
+| standard 94 | 62,701,726,771 | 61,853,786,287 | 1.014x |
+| **Kennington 16** | 168,372,717,242 | **128,912,974,652** | **1.306x** |
+| infeasible 29 | 2,746,818,868 | 2,713,834,320 | 1.012x |
+| all 139 | 233,821,262,881 | 193,480,595,259 | **1.209x** |
+
+138 of 139 instances get cheaper and none gets dearer. The best on
+Kennington are `pds-06` 1.393x, `pds-02` 1.385x, `ken-18` 1.344x; the worst
+are the four `osa-*`, which are the dense ones and stay on the dense path,
+at 1.01 to 1.04x. On the standard set the ceiling is `ship04l` at 1.411x
+and the floor is `pilot87`, 38% of that set's work and 66% dense, at
+1.0001x.
+
+**The threshold, swept.** The pattern is walked when it covers at most
+`nvar / SPARSE_ALPHA_DEN` slots. That constant is a number and it has a
+measurement on both sides. Sweeping it — every point solving the whole set,
+every point checked for status, iteration count, objective, checker,
+determinism and digest:
+
+| SPARSE_ALPHA_DEN | standard 94 | infeasible 29 |
+|---|---|---|
+| dense always | 62,701,726,771 (1.000x) | 2,746,818,868 (1.000x) |
+| 1 (sparse always) | 63,828,762,995 (**0.982x**) | 3,018,870,603 (**0.910x**) |
+| 2 | 61,877,454,651 (1.013x) | 2,727,662,783 (1.007x) |
+| 3 | 61,849,797,319 (1.014x) | 2,712,617,118 (1.013x) |
+| 4 | 61,853,786,287 (1.014x) | 2,713,834,320 (1.012x) |
+| 6 | 61,872,128,786 (1.013x) | 2,717,391,579 (1.011x) |
+| 8 | 61,887,517,817 (1.013x) | 2,721,158,185 (1.009x) |
+| 16 | 61,922,218,103 (1.013x) | 2,725,666,623 (1.008x) |
+
+Two things fall out of that table and neither was assumed beforehand.
+**Always taking the sparse path is measurably worse than never taking it** —
+1.8% more work on the standard set and 10% more on the infeasible one —
+because ordering a pattern that covers most of the vector costs more than
+the scan it replaces. And **the optimum is flat**: everything from 2 to 16
+is within 0.6% of everything else on both sets, with 3 nominally best. The
+only sharp edge in the whole range is the one at 1.
+
+Kennington was swept at three points, and it names which instances the
+threshold is protecting:
+
+| SPARSE_ALPHA_DEN | Kennington 16 |
+|---|---|
+| 1 | 132,365,009,905 (0.974x) |
+| 3 | 128,834,240,095 (1.001x) |
+| 4 | 128,912,974,652 (1.000x) |
+
+Between 3 and 4 nothing moves by more than 0.3% on any instance. Between 1
+and 4, **the four `osa-*` models pay 1.28x to 1.35x more work** — `osa-60`
+goes from 6.79e9 units to 9.17e9 — and every hyper-sparse instance in the
+set is unchanged to four figures. Those four are exactly the ones the
+diagnostic measured at 60.7% to 83.6% pattern density. The threshold does
+one job and the sweep shows it doing it.
+
+**It is set to 4, one notch to the dense side of where the counter puts
+it, and that is deliberate.** Work units are blind to exactly the thing
+that decides the other half of this trade: the sparse path replaces a
+sequential scan of three arrays with dependent loads into them, and no
+counter here can see a cache miss (D17). Every error the counter cannot
+measure pushes the true crossover towards *denser*, so the conservative
+choice is the higher divisor. Locating it properly needs Q4's host.
+
+**Verdicts do not move with the threshold**, which is the property that
+makes it a tuning knob rather than a decision: over 123 instances at eight
+settings, every status, iteration count, objective, checker result,
+determinism flag and digest is identical. What changes is only how `alpha`
+is read.
+
+**What this does not do.** Half of PLAN 3.3 is still open, and it is the
+larger half on the big models. `pivot` still scans every variable to apply
+the dual step, which is the same `nvar` per iteration this removed from the
+ratio test — but its loop also runs `shift_to_feasible` over variables the
+step did not touch, and skipping those needs the invariant that they were
+already dual feasible, which `compute_duals` and `primal_cleanup`'s loan
+call-in both break. The steepest-edge update still sweeps every row to
+touch 0.17% of them on Kennington, and that one needs the FTRAN to produce
+a pattern rather than a dense vector — hyper-sparsity proper [9], not this.
+
+**The instrument was checked before it was believed.** `jm_pattern_order`'s
+tests assert that the bitmap comes back all zero, and the fault that
+matters — dropping the clear, so the *next* iteration inherits positions
+nobody recorded — was injected and confirmed to fail four of the five
+cases. A test that only read the returned list would have passed with the
+leak inside it.
+
+**The parallel runner earned its place again.** All of the sweep above is
+one measurement per instance per setting, built `-O3 -march=native` and run
+concurrently, and it reproduces the sequential `-O2` gate's own record byte
+for byte on all three sets — checked, not assumed, at the
+`SPARSE_ALPHA_DEN = 4` point, down to Kennington's 128,912,974,652 units.
+Minutes instead of hours, which is what made sweeping eight settings worth
+doing at all (PLAN 3.6).
+
+It also produced one wrong reading on the way, which is recorded because
+the failure mode is generic: two sweep runs were launched over the same
+scratch directory and each deleted the other's work, and the point that
+came out of it was short two instances of ninety-four while looking like a
+perfectly ordinary total. Nothing about the numbers said so. **A sweep
+point is now discarded unless its instance count matches the manifest**,
+because a total is not evidence until it is a total of the right things.

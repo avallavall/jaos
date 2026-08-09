@@ -1256,6 +1256,97 @@ static void test_bland_edge_counts(void)
     TEST_ASSERT_EQUAL_INT64(-1, jm_bland_pick(0, var, num, den));
 }
 
+/* jm_pattern_order: the scatter's record of where it wrote, made into
+ * something a consumer can walk. Every property below is one that no solve
+ * would report — a dropped position only makes the answer different, and a
+ * bit left behind in the bitmap only corrupts the iteration after. */
+
+#define PAT_WORDS 8
+#define PAT_LIMIT (PAT_WORDS * 64)
+
+/* The bitmap must come back exactly as it went in, or the next call sees a
+ * position nobody recorded. Checked on every case below. */
+static void assert_mark_clean(const uint64_t *mark)
+{
+    for (int i = 0; i < PAT_WORDS; i++)
+        TEST_ASSERT_EQUAL_UINT64(0, mark[i]);
+}
+
+static void test_pattern_order_sorts_and_dedups(void)
+{
+    uint64_t mark[PAT_WORDS] = {0};
+    int64_t words = -1;
+    /* Out of order, one position three times, across four words. */
+    int64_t pos[] = {200, 5, 63, 5, 64, 130, 5, 0};
+    int64_t k = jm_pattern_order(8, pos, mark, PAT_LIMIT, &words);
+
+    TEST_ASSERT_EQUAL_INT64(6, k);
+    const int64_t want[] = {0, 5, 63, 64, 130, 200};
+    for (int i = 0; i < 6; i++)
+        TEST_ASSERT_EQUAL_INT64(want[i], pos[i]);
+    TEST_ASSERT_EQUAL_INT64(4, words);   /* words 0..3 inclusive */
+    assert_mark_clean(mark);
+}
+
+/* A pattern living in one corner must not pay for the whole bitmap: the
+ * scan starts at the first word touched, not at zero. */
+static void test_pattern_order_scans_only_the_touched_range(void)
+{
+    uint64_t mark[PAT_WORDS] = {0};
+    int64_t words = -1;
+    int64_t pos[] = {450, 449};
+    TEST_ASSERT_EQUAL_INT64(2, jm_pattern_order(2, pos, mark, PAT_LIMIT,
+                                                &words));
+    TEST_ASSERT_EQUAL_INT64(449, pos[0]);
+    TEST_ASSERT_EQUAL_INT64(450, pos[1]);
+    TEST_ASSERT_EQUAL_INT64(1, words);
+    assert_mark_clean(mark);
+}
+
+/* Nothing may be lost when the pattern is everything. */
+static void test_pattern_order_keeps_a_full_pattern(void)
+{
+    uint64_t mark[PAT_WORDS] = {0};
+    int64_t words = -1;
+    int64_t pos[PAT_LIMIT];
+    for (int64_t i = 0; i < PAT_LIMIT; i++)
+        pos[i] = PAT_LIMIT - 1 - i;          /* descending */
+
+    TEST_ASSERT_EQUAL_INT64(PAT_LIMIT,
+        jm_pattern_order(PAT_LIMIT, pos, mark, PAT_LIMIT, &words));
+    for (int64_t i = 0; i < PAT_LIMIT; i++)
+        TEST_ASSERT_EQUAL_INT64(i, pos[i]);
+    TEST_ASSERT_EQUAL_INT64(PAT_WORDS, words);
+    assert_mark_clean(mark);
+}
+
+/* A position with nowhere to be recorded is dropped rather than written
+ * past the end of the bitmap. */
+static void test_pattern_order_drops_what_it_cannot_hold(void)
+{
+    uint64_t mark[PAT_WORDS] = {0};
+    int64_t words = -1;
+    int64_t pos[] = {PAT_LIMIT, -1, 7, PAT_LIMIT + 1000};
+    TEST_ASSERT_EQUAL_INT64(1, jm_pattern_order(4, pos, mark, PAT_LIMIT,
+                                                &words));
+    TEST_ASSERT_EQUAL_INT64(7, pos[0]);
+    assert_mark_clean(mark);
+}
+
+static void test_pattern_order_edge_counts(void)
+{
+    uint64_t mark[PAT_WORDS] = {0};
+    int64_t words = -1;
+    int64_t pos[] = {3};
+
+    TEST_ASSERT_EQUAL_INT64(0, jm_pattern_order(0, pos, mark, PAT_LIMIT,
+                                                &words));
+    TEST_ASSERT_EQUAL_INT64(0, words);
+    TEST_ASSERT_EQUAL_INT64(0, jm_pattern_order(1, pos, mark, 0, &words));
+    TEST_ASSERT_EQUAL_INT64(0, words);
+    assert_mark_clean(mark);
+}
+
 /* Determinism (D8): the same model solved twice must produce the same
  * objective bit for bit, the same iteration count, and the same work. */
 static void test_solving_twice_is_bit_identical(void)
@@ -1623,6 +1714,11 @@ int main(void)
     RUN_TEST(test_bland_has_no_window_to_trade);
     RUN_TEST(test_bland_does_not_let_the_index_beat_the_quotient);
     RUN_TEST(test_bland_edge_counts);
+    RUN_TEST(test_pattern_order_sorts_and_dedups);
+    RUN_TEST(test_pattern_order_scans_only_the_touched_range);
+    RUN_TEST(test_pattern_order_keeps_a_full_pattern);
+    RUN_TEST(test_pattern_order_drops_what_it_cannot_hold);
+    RUN_TEST(test_pattern_order_edge_counts);
     RUN_TEST(test_solving_twice_is_bit_identical);
     RUN_TEST(test_work_limit_stops_and_reports);
     RUN_TEST(test_budgets_survive_a_reload);
