@@ -220,9 +220,20 @@ void *jm_alloc_array(int64_t n, size_t elsize);
 void *jm_calloc_array(int64_t n, size_t elsize);
 
 /* Grows *arr (elements of elsize) to hold at least need elements; on
- * failure *arr is untouched, so cleanup still frees the old block. */
+ * failure *arr is untouched, so cleanup still frees the old block.
+ *
+ * The macro answers the common case here rather than in `jm_grow`, and that
+ * is not a micro-optimisation: `jm_grow` lives in another translation unit,
+ * so in the build JAOS ships — `-O2`, no link-time optimisation — every
+ * append pays a call to discover it had capacity all along. On `fit2p` that
+ * discovery was 24% of every instruction the solver executed, and not one
+ * work unit charges for it (D55).
+ *
+ * `need` and `cap` are evaluated twice. Every call site passes plain field
+ * arithmetic, checked, and this header is not a public one. */
 bool jm_grow(void **arr, int64_t *cap, int64_t need, size_t elsize);
-#define JM_GROW(a, cap, need) jm_grow((void **)&(a), &(cap), (need), sizeof *(a))
+#define JM_GROW(a, cap, need) \
+    ((need) <= (cap) ? true : jm_grow((void **)&(a), &(cap), (need), sizeof *(a)))
 
 /* Name -> value map for the readers: FNV-1a, open addressing, names kept in
  * one arena. Absence and value are separate — values may be negative. */

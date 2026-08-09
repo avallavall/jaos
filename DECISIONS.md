@@ -3131,3 +3131,63 @@ the mechanism D45 named without being able to isolate it.
 factorization for `maros-r7` and everything like it, and whatever `fit2p`
 spends that nobody bills. The second is the one no internal instrument has
 ever been able to see, which is why it took an external clock to find it.
+
+## D55 — The shipping build paid 1.5x for a capacity check it could not inline
+
+D54 left `fit2p` spending six times the median real time per billed work unit
+with no internal instrument able to say why, and said the next question was
+for a profiler rather than the counter. It was.
+
+**The measurement.** callgrind on `fit2p` and on `truss` as a control, both
+bounded to the same 100 million work units so the comparison is of equal
+billed work:
+
+| | instructions | per billed unit | D1 miss rate |
+|---|---|---|---|
+| `fit2p` | 48,753,100,116 | **487** | 1.5% |
+| `truss` | 2,787,059,676 | 27.9 | 4.6% |
+
+**17.5x the instructions for the same billed work, and better cache
+behaviour.** So it was never cache — last-level misses are 0.0% on both. The
+counter was simply not counting what `fit2p` does.
+
+Where the instructions went, on `fit2p`: `jm_svec_push` 39.0%, `jm_lu_factor`
+33.0%, **`jm_grow` 24.1%**. On `truss` the same two array functions are 1.06%
+and 0.92%.
+
+**What it is.** `jm_svec_push` calls `grow_pair`, which calls `jm_grow`
+**twice on every append**, to be told there was capacity. `jm_grow` lives in
+`util.c`, so across a translation unit boundary it cannot be inlined, and the
+solver's hottest append pays two calls per element.
+
+**What removing it bought, and where.**
+
+| | `-O2`, the shipping build | `-O2 -flto` |
+|---|---|---|
+| `fit2p` | 12.869 s -> **8.419 s** (1.53x) | 8.655 -> 7.694 (1.13x) |
+| `maros-r7` | 50.547 s -> **36.722 s** (1.38x) | 37.164 -> 34.518 (1.08x) |
+| `25fv47` | 0.512 -> 0.489 (1.05x) | 0.491 -> 0.495 |
+| `truss` | 1.617 -> 1.600 (1.01x) | 1.658 -> 1.627 |
+
+All 139 reference instances are identical to the committed record — status,
+objective, iterations, work units, every checker figure and every digest —
+which is the expected outcome: nothing about the arithmetic changed.
+
+**And the method mistake, because it is the transferable part.** The profile
+was taken at `-O2` without LTO and the *first* attempt to confirm it was
+timed at `-O3 -march=native -flto`, where the change is worth nothing at all
+— the geometric mean over 26 instances came out 1.001x. Two different
+binaries, and the conclusion was almost thrown away. The rule the debug
+method already states and this ignored: **a diagnostic build's output is not
+a result until a clean build of the same flags confirms it.**
+
+**What it says about Q11.** `-flto` was on the candidate list for a `native`
+build. Most of what it was worth here is now captured portably: after the
+fix, LTO alone buys 1.087x on `fit2p`, 1.004x on `truss` and 1.003x on
+`25fv47`. The case for adding it to the shipping build is weaker than it was
+this morning, not stronger.
+
+**What it does not change.** The comparison figures of D52 and D53 stand
+exactly as measured: they build JAOS with the competitor's own flags, which
+include `-flto`, so this change moves none of them. The gap against HiGHS is
+still 4.13x. What moved is what a user of `libjaos.a` gets.

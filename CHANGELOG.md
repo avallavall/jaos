@@ -88,6 +88,14 @@ open, `bench/README.md` for the gate, and the commit each entry came from.
 
 ### Changed
 
+- Appending to a sparse vector tests its own capacity instead of calling
+  across a translation unit to be told there was room. `jm_svec_push` called
+  `jm_grow` twice per element and `jm_grow` lives in `util.c`, so in the
+  build JAOS ships — `-O2`, no LTO — that was 63% of every instruction
+  executed on `fit2p` and charged no work unit at all. **`fit2p` goes from
+  12.87 s to 8.42 s and `maros-r7` from 50.5 s to 36.7 s**; under `-flto` it
+  changes nothing, because the compiler was already doing it. All 139
+  reference instances identical, digest for digest (D55).
 - The FTRAN reports where its answer is nonzero too, and the steepest-edge
   recurrence and both updates of `x_B` walk that instead of every row. This
   one needed no ordering, because all three readers are elementwise — which

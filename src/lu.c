@@ -69,9 +69,23 @@ static bool grow_pair(int64_t **idx, double **val, int64_t *cap, int64_t need)
     return true;
 }
 
+/* The capacity test is here rather than inside `grow_pair` because this is
+ * the hottest append in the solver and `grow_pair` calls `jm_grow` twice,
+ * across a translation unit boundary, only to be told there was room.
+ *
+ * That boundary is the whole cost. **In the build JAOS ships** — `-O2`, no
+ * link-time optimisation — this function and the growth check under it were
+ * 63% of every instruction executed on `fit2p` against 2% on `truss`, and
+ * removing the call takes `fit2p` from 12.87 s to 8.42 s and `maros-r7` from
+ * 50.5 s to 36.7 s. Under `-flto` it changes nothing, because there the
+ * compiler had already done it. Not one work unit charges for any of it,
+ * which is why no internal measurement ever saw it (D55).
+ *
+ * `v->cap` is the *smaller* of the two arrays' capacities, which `grow_pair`
+ * maintains, so `n < cap` guarantees index `n` is writable in both. */
 bool jm_svec_push(jm_svec *v, int64_t i, double x)
 {
-    if (!grow_pair(&v->idx, &v->val, &v->cap, v->n + 1))
+    if (v->n == v->cap && !grow_pair(&v->idx, &v->val, &v->cap, v->n + 1))
         return false;
     v->idx[v->n] = i;
     v->val[v->n] = x;
