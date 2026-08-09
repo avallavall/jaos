@@ -682,6 +682,13 @@ either.** That is the whole of why the standard set is 1.090x since M1 while
 Kennington is 3.043x. It was predicted here before it was measured, which is
 the one thing this table has consistently got right.
 
+**Read the LU rows carefully before targeting them.** FTRAN's two passes and
+the eliminations are billed only for the slots they actually work on — they
+skip their zeros before charging anything. That is the solve itself, and no
+reachability search removes it. The LU rows that *are* reducible are the
+ones charged for every slot regardless: BTRAN's `L'` pass is the only one,
+at 5.15% here and 1.08% on Kennington.
+
 **On the large models what is left is five dense sweeps over the rows or the
 variables, and they are 83% of the set.** Three of the five — the walk over
 `rho`, the steepest-edge sweep, and `apply_flips`' update of `x_B` — are the
@@ -735,40 +742,66 @@ machinery.
 **What is left, ranked on §3.2's attribution rather than on the one it
 replaced.**
 
-1. **A solve that hands back a pattern, in both directions.** One change
-   answers four of the five entries at the top of the Kennington column and
-   the top of the standard one:
+**First, what a pattern cannot buy, because reading §3.2's top row the
+obvious way gets it backwards.** FTRAN's `U` pass is 24.42% of the standard
+set and its `L` pass 8.22%, and neither is a scan: both bill only for the
+slots they actually scatter from, having skipped the zeros already. That
+work is the solve. A pattern removes the *walk* between those slots, which
+is real time and **zero** work units. The same is true of the factorization's
+eliminations. So **77% of the standard set is arithmetic no reachability
+search can remove**, and the way to reduce it is fewer nonzeros in the
+factors or fewer solves — §2.11's list — not hyper-sparsity.
+
+The passes that a pattern does reduce are the ones billed for every slot
+whether it is zero or not. There are two, and both are gathers.
+
+1. **A pattern-returning BTRAN**, which is the larger prize on both sets.
 
    | what it removes | standard | Kennington |
    |---|---|---|
-   | FTRAN's `U` and `L` passes walking every slot | 32.64% | — |
+   | `price_all`'s walk over `rho` | 11.65% | 27.45% |
+   | BTRAN's `L'` pass, billed for every slot | 5.15% | 1.08% |
+
+   D38 built the reachability search for the `U'` pass and stopped at `L'`
+   because "L has no row-wise copy to search". That copy is cheaper than it
+   sounds: L does not change between refactorizations — the Forrest-Tomlin
+   update appends etas and leaves it alone — so transposing it once per
+   factorization is `nnz(L)` amortised over ~64 solves, against `nnz(L)`
+   that the `L'` pass pays on every one of them.
+
+   Getting the pattern out is what unlocks the bigger row: `price_all` walks
+   all `nrow` of `rho` to find the rows it can skip, and on Kennington that
+   one walk is 27% of everything the solver bills.
+
+2. **A pattern-returning FTRAN.**
+
+   | what it removes | standard | Kennington |
+   |---|---|---|
    | `jm_dse_update`'s row sweep | 1.33% | 21.03% |
    | `apply_flips`' `x_B` update | — | 7.50% |
-   | `price_all`'s walk over `rho` | 11.65% | 27.45% |
 
-   That is hyper-sparsity proper [9] — the Gilbert–Peierls reachability
-   search D38 built for BTRAN's `U'` pass, extended to the rest of both
-   solves. **The forward direction is structurally the easier one**: L and U
-   are both stored by column, which is the orientation FTRAN scatters
-   along, so no new copy of anything is needed. The backward direction still
-   wants a row-wise L, which is what D38 stopped at.
+   Structurally the easier of the two — L and U are both stored by column,
+   which is the orientation FTRAN scatters along, so nothing new has to be
+   built — but worth almost nothing on the standard set, because what it
+   removes there is unbilled walking rather than billed arithmetic.
 
-   **The trap to plan for.** FTRAN's passes are scatters, not the dot
+   **The trap both share.** FTRAN's passes are scatters, not the dot
    products D38 could reorder freely: `y[i]` accumulates from many sources
    and the order decides the bits, which is exactly how D36 failed. Visiting
    the reachable set in the order the dense loop visits it — increasing slot
    for L, decreasing position for U — keeps it exact, and that is the
    ordering problem `jm_pattern_order` already solves.
 
-2. **The factorization itself, 26.3% of the standard set** between its
-   eliminations and the basis update's. Untouched by all of M2, and the
-   larger half of why that set has barely moved. §2.11 has four measured
-   entries waiting here — the quadratic slot detachment, the missing
-   row-to-position lookup, the per-column elimination arrays, the stale
-   live counts — none of which has been tried.
+3. **The factorization itself, 26.3% of the standard set** between its
+   eliminations and the basis update's, plus the 32.6% of scatter those
+   factors then cost every solve. Untouched by all of M2, and the whole of
+   why that set has barely moved. §2.11 has four measured entries waiting
+   here — the quadratic slot detachment, the missing row-to-position lookup,
+   the per-column elimination arrays, the stale live counts — and none of
+   them has been tried.
 
-3. **The row scan that picks the infeasibility**, 21.03% of Kennington and
-   the one item at the top of that column item 1 does not touch. A scan over
+4. **The row scan that picks the infeasibility**, 21.03% of Kennington and
+   the one item at the top of that column nothing above touches. A scan over
    `nrow` with no sparsity to exploit, which is what partial and multiple
    pricing exist for [1]. Both change the search path, so this is the first
    item of M2 that cannot be judged on digests and needs the full gate to
