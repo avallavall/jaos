@@ -2536,3 +2536,108 @@ that needs a comparison against a published figure for the same bases, or
 against the two structural changes PLAN 2.11 still carries on the
 factorization path. What it does close is the cheap experiment, which is
 the one that would otherwise have been run again in six months.
+
+## D47 — A reduced cost is a rate, and the checker certifies a bound it cannot prove
+
+Q12 has held two failure modes since D39: `pilot` and `pilot87` fall outside
+objective tolerance or get checker-rejected at several refactorization
+intervals. This closes the first of them with a mechanism, and it is not a
+tolerance.
+
+**The failure, reproduced.** Sweeping `REFACTOR_EVERY` over 16, 24, 32, 48,
+64 and 96 with everything else untouched:
+
+| interval | `pilot` | `pilot87` |
+|---|---|---|
+| 16 | ok | ok |
+| 24 | **objective out of tolerance**, checker green | checker REJECTED, dual 2.21e-4 |
+| 32 | **objective out of tolerance**, checker green | checker REJECTED, dual 1.69e-6 |
+| 48 | **`JAOS_ERR_INVALID_INPUT` from `jaos_solve`** | ok |
+| 64 | ok | ok |
+| 96 | **objective out of tolerance**, checker green | ok |
+
+At 24 and 32 `pilot` stops at the same point to thirteen digits —
+-557.48869037164388 and -557.48869037164343 — from two different
+trajectories. That is a vertex, not drift.
+
+**What that vertex is.** Comparing it against the accepted answer at 64,
+column by column: column 1534 rests at its lower bound of 0 with reduced
+cost **-3.474054690510639e-07** and **no upper bound**, and at the true
+optimum it is **2990.3712634284152**. Column 1407 does the mirror image.
+The product is
+
+```
+3.474054690510639e-07 x 2990.3712634284152 = 1.03887e-3
+observed objective error                   = 1.03891e-3
+```
+
+**So the defect is that a reduced cost is a rate and is judged against an
+absolute tolerance.** What a wrong-signed reduced cost can buy is the rate
+times the distance the variable travels, and where the variable has no bound
+on that side the distance is set by the constraints rather than by the box —
+2990 here. A multiplier three times under the checker's 1e-6 threshold buys
+a thousand times it. This is D23's lesson in the dual space: D23 was a
+bound-proximity test judged absolutely on a row that cancels ten orders of
+magnitude, and this is a sign condition judged absolutely on a rate whose
+lever arm is unbounded.
+
+**What was ruled out, and how.** The reference is right — JAOS itself
+reaches Koch's value to 4e-11 at intervals 16 and 64. It is not a
+measurement artefact: the same saved answer judged at thresholds from 1e-4
+down to 1e-14 reports the same 3.474e-07 dual violation, appearing at 1e-7
+and never shrinking. It is not the primal residue either: `col` is 4.918e-08
+at 16, which is correct, and **0** at 96, which is wrong.
+
+**The checker cannot see it, for a second and independent reason.**
+`sign_condition` handles a wrong-signed multiplier on an infinite bound by
+returning early — before contributing anything to the dual objective. The
+term it skips is not small, it is minus infinity: the dual objective of a
+variable free in the improving direction is unbounded below. What the
+checker then compares against the primal objective is the dual objective of
+a *different* problem, one where that variable has a finite bound. So
+`jaos.h`'s documented guarantee, `P - P* <= gap_positive`, is not merely
+loose. It is false, and `check.c`'s own claim that `|pos - neg|` reaches the
+gap "along an independent route" fails at the same line.
+
+**Built small, because it can be.** Two variables and one constraint:
+minimise `-1e-7 x2` subject to `x1 + x2 <= 1e6`, both variables non-negative
+and unbounded above. The optimum is `-0.1`. Offer the checker the origin
+with a zero row dual, whose objective is 0:
+
+```
+checker primal_feasible    yes
+checker dual_feasible      yes
+checker max_dual_violation 0
+checker objective_gap      0
+checker gap_positive       0        <- and the true suboptimality is 0.1
+```
+
+The suboptimality is 1e5 times the tolerance and every number the checker
+reports is zero. Raising the row's bound raises the suboptimality without
+limit and changes not one of them. **The independent checker accepts an
+arbitrarily suboptimal point**, and the only reason the gate has never
+caught fire on it is Koch's reference values — which PLAN 2.10 already
+names as the one thing in the milestone that does not come from JAOS. It
+was right for a reason nobody had measured.
+
+**How live this is.** Over the 110 accepted answers of the standard and
+Kennington sets at the committed interval, 15 carry at least one dropped
+term above 1e-12, and **`etamacro` carries one at 2.25e-07** — the same
+order as the one that cost `pilot` 1.04e-3, in an answer the gate passes
+today. The others are roundoff: `scsd6` at 3.0e-08, `pilot87` at 1.43e-08,
+`pilot` at 8.62e-09, and everything else below 1e-9.
+
+**What this does not close.** Two of Q12's modes remain open and both are
+now reproducible: `pilot87` checker-rejected at 24 and 32 on dual violations
+the checker *does* catch, which is a different fault, and `pilot` returning
+`JAOS_ERR_INVALID_INPUT` from `jaos_solve` at 48 — a library error on a
+model that solves at every other interval, which is the worst-shaped of the
+three. Neither is diagnosed here.
+
+**And the repair is deliberately not in this entry.** The scale a reduced
+cost should be judged against is the traffic of the dot product that formed
+it, `|c_j| + sum |a_ij y_i|` — the same move D23 made for rows, and the file
+already argues for it there. That changes the dual violation on all 139
+instances, so it is a measured change with its own evidence: it must reject
+the two cases above and accept every answer the gate accepts today. What
+this entry fixes is that the case it must reject now exists.

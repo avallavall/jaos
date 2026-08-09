@@ -518,6 +518,13 @@ reader bug leaves checker and solver agreeing about the wrong problem (D18).
 An externally published optimum for a named instance is the one thing in the
 milestone that does not come from JAOS.
 
+**That turned out to be load-bearing for a second reason nobody had measured
+(D47).** The checker also fails to catch a whole class of *solver* error: a
+point arbitrarily far above the optimum, with every violation it reports
+reading zero, whenever the improving direction is unbounded. Two variables
+and one constraint are enough to build it. So for three of the trajectories
+in Q12 the reference value is not a redundant check — it is the only one.
+
 Koch verified those values with exact rational arithmetic and, in doing so,
 found previously published reference values that were wrong — which is also
 the reason the gate cites him rather than the readme where they differ.
@@ -1003,16 +1010,45 @@ and reopens the moment a model lands on either.
   because the next such case will look the same: an instance disagreeing with
   a reference is not evidence about which of them is wrong.
 - **Q4** — Measurement host (D17): set up when M2 opens.
-- **Q12** — **Two failure modes the trajectory sweep found and D39 did not
-  close.** Varying `REFACTOR_EVERY` across 16..256 walks trajectories the
-  gate never walks, and two things break that are not the verdict asymmetry
-  D39 fixed. `pilot` and `pilot87` fall outside objective tolerance or get
-  checker-rejected at several intervals — `pilot87` closed at 1.33e-7
-  relative against a 1e-6 tolerance, so seven times of margin, and another
-  path spends it. And at 128 and above `pilot87` trips the iteration guard,
-  which the solver's own message calls a JAOS defect. Neither is a tolerance
-  to widen; both need the instance in hand and the trajectory that produces
-  them, which the sweep now makes reproducible.
+- **Q12** — **Four failure modes the trajectory sweep found. One is closed
+  with a mechanism (D47), three are open and all are reproducible.** Varying
+  `REFACTOR_EVERY` across 16..256 walks trajectories the gate never walks,
+  and what breaks there is not the verdict asymmetry D39 fixed.
+
+  | interval | `pilot` | `pilot87` |
+  |---|---|---|
+  | 16 | ok | ok |
+  | 24 | objective out of tolerance, **checker green** | checker REJECTED, dual 2.21e-4 |
+  | 32 | objective out of tolerance, **checker green** | checker REJECTED, dual 1.69e-6 |
+  | 48 | **`JAOS_ERR_INVALID_INPUT` from `jaos_solve`** | ok |
+  | 64 | ok | ok |
+  | 96 | objective out of tolerance, **checker green** | ok |
+
+  1. **Closed — `pilot`'s silent wrong answer (D47).** At 24, 32 and 96 it
+     stops 1.04e-3 above the optimum, at 24 and 32 on the same vertex to
+     thirteen digits. One column rests at its lower bound with reduced cost
+     -3.474e-07 and no upper bound, and travels to 2990.37 to reach the real
+     optimum; the product is the error to four digits. A reduced cost is a
+     rate, and both the solver's dual test and the checker's judge it
+     absolutely. **The checker is structurally unable to catch this class**
+     — it drops the term from the dual objective instead of recognising it
+     as minus infinity — and D47 carries the two-variable case that proves
+     it, plus the measurement that `etamacro` carries the same shape at
+     2.25e-07 in an answer the gate passes today.
+  2. **Open — the repair.** Judge a reduced cost against the traffic of the
+     dot product that formed it, as D23 did for rows. It moves the dual
+     violation on all 139 instances, so it needs the full gate plus the two
+     cases it must reject.
+  3. **Open — `pilot` at 48 returns a library error** on a model that solves
+     at every other interval. `JAOS_ERR_INVALID_INPUT` out of `jaos_solve`
+     means an internal caller passed something no caller should; the
+     worst-shaped of the four and undiagnosed.
+  4. **Open — `pilot87` checker-rejected at 24 and 32**, on dual violations
+     the checker does catch (2.21e-4 and 1.69e-6). A different fault from
+     item 1, and undiagnosed. At 128 and above it trips the iteration guard,
+     which the solver's own message calls a JAOS defect.
+
+  None of the four is a tolerance to widen.
 
   Recorded with the method, because the method is the transferable part:
   varying a parameter that must not change any verdict, and requiring the
