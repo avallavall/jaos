@@ -64,6 +64,16 @@ open, `bench/README.md` for the gate, and the commit each entry came from.
   `make netlib-baseline` rewrites it and is never a side effect of running
   the gate (D21).
 
+### Fixed
+
+- A model with a finite optimum could be reported `INFEASIBLE`. The verdict
+  is reached when no pivot clears `PIVOT_MIN`, and those are exactly the
+  magnitudes that drift in a factorization patched by many updates — so
+  optimality was being re-checked against a fresh factorization (D20) while
+  infeasibility was accepted the first time it was reached. It now gets the
+  same second opinion. Costs 0.04% and moves no iteration count; the 29
+  genuinely infeasible models are still refused, 29 of 29 (D39).
+
 ### Changed
 
 - BTRAN solves only the slots that can produce a nonzero, found by searching

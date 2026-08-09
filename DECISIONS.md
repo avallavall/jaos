@@ -1760,3 +1760,62 @@ itself still scans all `nrow` entries of `y` to find its roots, which is
 O(dim) the technique is supposed to avoid — the callers know the support and
 do not pass it. Both are smaller than what this took, and both are still
 there.
+
+---
+
+## D39 — Infeasibility gets the second opinion optimality already got
+
+D20 settled that a declaration of optimality is not accepted on carried
+numbers: the point is recomputed from a fresh factorization and priced
+again, because `x_B` is updated in place by every pivot and the factors are
+patched rather than rebuilt, so both drift — and the drift is invisible from
+the inside, since the test that would notice it is the one being run.
+
+Every word of that applies to the other verdict, and it was not being
+applied. `INFEASIBLE` was accepted the first time it was reached.
+
+**The mechanism.** The dual is declared unbounded when the ratio test finds
+no candidate, which happens when no `|alpha_v|` clears `PIVOT_MIN`. `alpha`
+is `rho' M` and `rho` is a BTRAN against the patched factorization, so drift
+shrinks exactly the numbers the test thresholds. A factorization that has
+accumulated enough updates can therefore make every column look unusable,
+and the solve reports that a model with a published finite optimum has no
+feasible point.
+
+**It is not hypothetical, and finding it needed an experiment the gate does
+not run.** All 139 instances pass, and they always have — but they always
+run with the same refactorization interval, so they always walk the same
+trajectory, and the eight defects M1 closed were closed against that one
+trajectory. Sweeping `REFACTOR_EVERY` across 16..256 walks different ones.
+Before this change, seven of the eight values tried produced false
+infeasibility: `pilot-ja`, `pilot-we`, `pilot87`, `agg`, `greenbea` and
+`perold`, all with Koch references in the manifest.
+
+After it, false infeasibility survives at one value out of eight, and only
+at the extreme (256, sixteen times the tested interval).
+
+**Cost.** One refactorization on a solve that is ending anyway: **0.04%** on
+the infeasible set, and not one iteration count moves anywhere. The 29
+genuinely infeasible models are still refused, 29 of 29 — which is the risk
+in the other direction and the one that mattered to check.
+
+**What this does not fix, stated because the same sweep measured it.** Two
+other failure modes appear when the trajectory changes and neither is this
+one. `pilot` and `pilot87` — the worst-conditioned models in the set, the
+ones D29 and D30 were about — fall outside objective tolerance or get
+rejected by the checker at several intervals; `pilot87` closed at a relative
+error of 1.33e-7 against a tolerance of 1e-6, so seven times of margin, and
+another trajectory spends it. And at intervals of 128 and above `pilot87`
+trips the iteration guard, which the solver's own message calls a JAOS
+defect. Both are real, both are open, and neither is a tolerance to widen.
+
+**The interval stays at 64.** It is one of only two values that come out
+completely clean, and the ones that looked cheaper looked that way because
+`pilot87` — 38% of the standard set's work on its own — had dropped out of
+the total by failing.
+
+**A method worth keeping.** Varying a parameter that must not change any
+verdict, and requiring the gate to hold across the range, measures something
+139 instances at one setting cannot: not whether the gate passes, but how
+much margin it passes with. It costs minutes with the parallel runner. It
+found this.

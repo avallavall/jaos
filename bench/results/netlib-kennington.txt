@@ -18,4 +18,5 @@ pds-20       optimal    rows=33874 cols=105728 shape=ok iters=47786 work=2249981
 16 instances: 16 solved, 16 shape ok, 16 objective ok, 16 checker ok, 16 deterministic, 0 failed
 gate: PASS
 
-baseline: NOT COMPARED (no baseline given)
+-- against baseline --
+baseline: 0 regressed, 0 improved, 0 new

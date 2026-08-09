@@ -2295,8 +2295,40 @@ static jaos_status run(sx *s, jaos_solve_status *out)
         double theta_dual = 0.0;
         int64_t q = price_and_select(s, r, below, violation, &theta_dual);
         if (q < 0) {
-            /* No entering column can repair row r: the dual is unbounded,
-             * so the primal has no feasible point. */
+            /* No entering column can repair row r, which says the dual is
+             * unbounded and the primal therefore has no feasible point.
+             *
+             * That verdict is read off `alpha`, and `alpha` is a BTRAN
+             * against a factorization that has been patched by every update
+             * since the last rebuild — the same carried numbers D20 refuses
+             * to declare *optimality* on. The refusal belongs here too, and
+             * more so. An optimum accepted too early is an answer with
+             * error in it; an infeasibility accepted too early denies a
+             * model that has an answer at all, which is the one outcome the
+             * infeasible set exists to make impossible.
+             *
+             * The failure is not hypothetical and not rare. Every candidate
+             * is rejected when no |alpha_v| clears PIVOT_MIN, and drift in
+             * a patched factorization shrinks exactly those numbers. Sweep
+             * the refactorization interval and it appears at every value
+             * tried except the one in the tree: `pilot-ja`, `pilot-we`,
+             * `pilot87`, `agg`, `greenbea` and `perold` all come back
+             * INFEASIBLE with finite optima published for them (D39).
+             *
+             * So take a second opinion from a fresh factorization first. If
+             * the columns really are unusable they still will be, and the
+             * cost is one refactorization on a solve that is ending anyway. */
+            if (!s->verified) {
+                st = refresh(s, &ok, true);
+                if (st != JAOS_OK)
+                    return st;
+                if (!ok) {
+                    *out = JAOS_SOLVE_NUMERICAL_ERROR;
+                    return JAOS_OK;
+                }
+                s->verified = true;
+                continue;
+            }
             *out = JAOS_SOLVE_INFEASIBLE;
             return JAOS_OK;
         }

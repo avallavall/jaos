@@ -648,6 +648,21 @@ and reopens the moment a model lands on either.
   because the next such case will look the same: an instance disagreeing with
   a reference is not evidence about which of them is wrong.
 - **Q4** — Measurement host (D17): set up when M2 opens.
+- **Q12** — **Two failure modes the trajectory sweep found and D39 did not
+  close.** Varying `REFACTOR_EVERY` across 16..256 walks trajectories the
+  gate never walks, and two things break that are not the verdict asymmetry
+  D39 fixed. `pilot` and `pilot87` fall outside objective tolerance or get
+  checker-rejected at several intervals — `pilot87` closed at 1.33e-7
+  relative against a 1e-6 tolerance, so seven times of margin, and another
+  path spends it. And at 128 and above `pilot87` trips the iteration guard,
+  which the solver's own message calls a JAOS defect. Neither is a tolerance
+  to widen; both need the instance in hand and the trajectory that produces
+  them, which the sweep now makes reproducible.
+
+  Recorded with the method, because the method is the transferable part:
+  varying a parameter that must not change any verdict, and requiring the
+  gate to hold across the range, measures how much margin the gate passes
+  with. 139 instances at one setting cannot measure that.
 - **Q11** — **Build targets for shipping: `release` and `native`.** Raised by
   the maintainer, deferred deliberately, and recorded so the reasoning is not
   re-derived. Today there is one build, `-O2 -g -DNDEBUG`, and it leaves
