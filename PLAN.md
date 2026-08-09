@@ -59,9 +59,12 @@ HiGHS, SoPlex and Clp by checksum with their licences verified at fetch;
 `run-compare.sh` walks a rung and writes `bench/compare/results/`. `make
 compare` does the lot.
 
-**T0 against HiGHS 1.15.1: JAOS is 4.07x slower per solve** — 1.50x the
-iterations and **2.72x the cost of each one** — over the 19 instances above
-the 0.05 s floor, 94 of 94 verified against Koch on both sides.
+**T0 is measured against two rivals (D52, D53).** Against HiGHS 1.15.1, JAOS
+is 4.13x slower per solve — 1.50x the iterations and **2.76x** the cost of
+each. Against SoPlex 8.0.3 it is 1.42x slower on **0.65x** the iterations and
+**2.18x** per iteration, and it is faster on 10 of 23. The per-iteration ratio
+agrees between the two rivals instance by instance, which is what makes it a
+quantity rather than a quotient.
 
 **Q4 is downgraded from a blocker to a label.** It said the gate needs a
 dedicated measurement host, and it does — for a *published* figure. Comparing
@@ -69,10 +72,11 @@ on this machine with every line stamped as a development number is
 incomparably better than not comparing, which is where two milestones of
 speed work had already gone.
 
-Still open here: **SoPlex and Clp**, whose builds are written but unrun — Clp
-needs CoinUtils and Osi, which is a dependency chain rather than a repository
-— and **rungs T1 to T3**, which are what attribute the gap to presolve and to
-choosing the algorithm.
+Still open here: **Clp**, which needs CoinUtils and Osi — a dependency chain
+rather than a repository — and **rungs T1 to T3**, which are what attribute
+the gap to presolve and to choosing the algorithm. Also `grow15`, where JAOS
+takes 21.7x HiGHS's iterations: that is D26's cycle detection and Bland
+fallback, and this is the first measurement of what it costs.
 
 ---
 
@@ -132,13 +136,19 @@ Python first. Nothing to design until the C API stops moving.
 
 ## Phase 6 — Speed
 
-**The target is a cheaper iteration, not fewer of them (D52).** Against HiGHS
-at T0 the iteration counts are within 1.14x over the whole standard set and
-JAOS takes *fewer* on 47 of 94 — so the pricing rule, the ratio test and the
-pivot choice are competitive. What costs 2.72x is each iteration. `fit2p` and
-`maros-r7` take the same iterations as HiGHS and seventeen times as long, and
-`maros-r7` is the highest-fill instance in the set. An external clock now
-agrees with the internal attribution about where to work.
+**The target is a cheaper iteration, not fewer of them (D52, D53).** JAOS
+takes 35% *fewer* iterations than SoPlex and 50% more than HiGHS, and is
+slower than both — so the pricing rule, the ratio test and the pivot choice
+are competitive. What costs **2.2x to 2.8x** is each iteration, and the two
+rivals agree on that number instance by instance, which makes it a property
+of JAOS rather than of a comparison.
+
+Two regimes, not a spectrum: `maros-r7` and `fit2p` sit at **seventeen
+times** per iteration and everything else between 1.2x and 3.5x. `maros-r7`
+is the highest-fill instance in the set. **Find out what the seventeen is
+before touching the two** — they are unlikely to be the same defect, and one
+of them is worth an order of magnitude on the instances that dominate every
+total.
 
 **Read D45 before any figure below.** The work counter is optimistic by a
 factor that is not constant: M2 bought 2.953x in units and **1.866x in

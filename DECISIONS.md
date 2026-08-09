@@ -3023,3 +3023,62 @@ compared against another machine — it is WSL, and every line of the record
 says so. What a ratio of the same instance against the same instance on the
 same machine can say is what it says here, and Q4's host is still what would
 turn it into a figure anyone else can check.
+
+## D53 — Two rivals agree on what a JAOS iteration costs, and that makes it a number worth attacking
+
+D52 measured against HiGHS alone. SoPlex 8.0.3 joins the same rung, and what
+it adds is not a second opinion about the gap — it is the thing that turns
+"per-iteration cost" from an arithmetic artefact of one comparison into a
+property of JAOS.
+
+| tier T0 | vs HiGHS 1.15.1 | vs SoPlex 8.0.3 |
+|---|---|---|
+| instances above the 0.05 s floor | 19 | 23 |
+| **time per solve** | **4.13x** | **1.42x** |
+| iterations | 1.50x | **0.65x** |
+| **time per iteration** | **2.76x** | **2.18x** |
+| JAOS faster on | 0 of 19 | **10 of 23** |
+
+**JAOS takes 35% fewer iterations than SoPlex** and is still 1.42x slower.
+Against HiGHS it takes 50% more and is 4.13x slower. Both readings say the
+same thing from opposite directions: the search is not the problem.
+
+**And the per-iteration ratio is the same number whichever rival measures
+it.** Per instance, HiGHS first and SoPlex second:
+
+| | | |
+|---|---|---|
+| `maros-r7` | 17.3x | 17.0x |
+| `fit2p` | 17.5x | 21.6x |
+| `truss` | 1.5x | 1.5x |
+| `degen3` | 2.1x | 2.0x |
+| `25fv47` | 1.9x | 2.0x |
+| `stocfor3` | 6.6x | 1.4x |
+
+Two independently written solvers, different pricing rules, different ratio
+tests, different factorizations — and they agree on how much more a JAOS
+iteration costs on a given model. That is what makes this a quantity to
+attack rather than a quotient that happened to come out of a division.
+
+**Two regimes, not a spectrum.** `maros-r7` and `fit2p` sit at seventeen
+times; everything else lies between 1.2x and 3.5x. `maros-r7` is the
+highest-fill instance in the set at 4.801 against an average of 2.673 (D46).
+Whatever the seventeen is, it is not the same thing as the two.
+
+**What the iteration counts say on their own.** JAOS needs fewer iterations
+than SoPlex on sixteen of the twenty-six timed instances, and on `fit1p` a
+seventh of them. The dual steepest edge is doing its job. The exception is
+`grow15`, where JAOS takes **21.7x** HiGHS's iterations and 9.9x SoPlex's —
+that is the model D26 closed by adding Bland's rule to a detected cycle, and
+this is the first measurement of what that costs.
+
+**One thing that is not about JAOS.** SoPlex returns `pilot87` outside the
+gate's objective tolerance at this rung, on the model PLAN calls the
+worst-conditioned in the set. JAOS does not. Recorded because a comparison
+that only ever finds its own solver wanting is not being read carefully.
+
+**What it does not license.** Same as D52: WSL, development numbers, every
+line of the record says so, and the caveat in `soplex-T0.args` stands —
+SoPlex switches to the primal part-way through a solve and `-s0
+--int:algorithm=1` does not stop it, so its rung is a lower bound on the gap
+a fully dual-forced SoPlex would show.

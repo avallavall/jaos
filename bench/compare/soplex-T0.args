@@ -1,0 +1,20 @@
+# SoPlex at tier T0 — one argument per line, blank lines and # ignored.
+#
+# JAOS at T0 is: dual simplex, no presolve, no crash basis, one thread.
+#
+# Caveat worth recording rather than hiding: -s0 turns the simplifier off and
+# int:algorithm=1 asks for the dual, but SoPlex switches to the primal by
+# itself part-way through a solve — its own log shows the L rows becoming E
+# rows — and nothing here prevents that. So this rung handicaps SoPlex's
+# presolve away and its algorithm choice only partly. The gap it measures is
+# a lower bound on the gap a fully dual-forced SoPlex would show.
+#
+# solvemode 0 is the plain floating-point solve. The default is "auto", which
+# may run iterative refinement to sharpen the answer — a different amount of
+# work from the one JAOS does, and so not a comparison of simplexes.
+
+-s0
+--solvemode=0
+--int:algorithm=1
+-f1e-7
+-o1e-7

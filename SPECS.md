@@ -131,19 +131,29 @@ are twenty-three public functions and not one of them configures anything.
 | Determinism across two solves and across runs, all 139 | **pass** |
 | Full suite clean under ASan and UBSan | **pass** |
 | Reader robustness under fuzzing | **pass** |
-| Competitive gap against **HiGHS** at tier T0 | **measured: 4.07x slower** (D52) |
-| Competitive gap against SoPlex and Clp | not measured |
+| Competitive gap at tier T0 vs **HiGHS 1.15.1** | **measured: 4.13x slower** (D52, D53) |
+| Competitive gap at tier T0 vs **SoPlex 8.0.3** | **measured: 1.42x slower** |
+| Competitive gap vs Clp | not measured |
+| Rungs T1–T3, which price presolve and algorithm choice | not measured |
 | MIPLIB 2017 easy subset | not started |
 | MIPLIB 2017 benchmark subset | not started |
 
-**Everything above the last four is correctness, and correctness is table
-stakes.** The one that matters now has a number for the first time: against
-HiGHS with presolve off and the dual simplex forced on both sides, JAOS is
-**4.07x slower per solve** — and that decomposes into **1.50x the iterations
-and 2.72x the cost of each one**. Over the whole set the iteration counts are
-within 1.14x and JAOS takes *fewer* on 47 of 94.
+**Everything above these is correctness, and correctness is table stakes.**
+The gap now has numbers, and they decompose the same way against both rivals:
 
-So the simplex is competitive and the machinery under it is not. The target
-is a cheaper iteration, not fewer of them, and the extremes point straight at
-the factorization: `fit2p` and `maros-r7` take the same iterations as HiGHS
-and seventeen times as long.
+| tier T0 | vs HiGHS | vs SoPlex |
+|---|---|---|
+| time per solve | 4.13x | 1.42x |
+| iterations | 1.50x | **0.65x** |
+| **time per iteration** | **2.76x** | **2.18x** |
+| JAOS faster on | 0 of 19 | 10 of 23 |
+
+JAOS takes **35% fewer iterations than SoPlex** and is still slower. The
+search is competitive; each iteration costs two to three times what it
+should. And the per-iteration ratio comes out the same whichever rival
+measures it — `maros-r7` 17.3x and 17.0x, `truss` 1.5x and 1.5x — so it is a
+property of JAOS rather than of a comparison.
+
+**The target is a cheaper iteration, not fewer of them**, and the extremes
+point at the factorization: `maros-r7` and `fit2p` sit at seventeen times
+while everything else is between 1.2x and 3.5x.
