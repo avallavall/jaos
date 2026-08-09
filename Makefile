@@ -6,6 +6,8 @@
 #   test      build and run the unit suite (dev flags)
 #   sanitize  build and run the unit suite under ASan+UBSan
 #   bench     build the Netlib acceptance runner (bench/fetch.sh first)
+#   compare   time JAOS against the other solvers on one rung of the ladder
+#   compare-solvers   fetch, verify and build the competitors, nothing else
 #   netlib    fetch the instances if needed, then run the gate
 #   netlib-baseline     rewrite what each instance is expected to do
 #   netlib-kennington   the Kennington subset (PLAN 2.9 condition 1b)
@@ -66,7 +68,8 @@ LIB := $(B)/release/libjaos.a
 DEV_TESTS  := $(TESTS:tests/%.c=$(B)/dev/%)
 ASAN_TESTS := $(TESTS:tests/%.c=$(B)/asan/%)
 
-.PHONY: all test sanitize bench compare-build netlib netlib-baseline \
+.PHONY: all test sanitize bench compare-build compare-solvers compare \
+	netlib netlib-baseline \
 	netlib-kennington \
 	netlib-infeas netlib-kennington-baseline netlib-infeas-baseline clean
 
@@ -125,6 +128,16 @@ $(B)/bench/jaos_time: bench/compare/jaos_time.c $(LIB) | $(B)/bench
 	$(CC) $(RELEASE_CFLAGS) $(INC) $< $(LIB) -o $@ $(LDLIBS)
 
 compare-build: $(B)/bench/jaos_time
+
+# Fetch, checksum-verify and build the competitors, then time JAOS against
+# them on one rung of the ladder (bench/compare/README.md). Nothing either
+# target downloads enters the repository.
+compare-solvers:
+	@bench/compare/fetch-solvers.sh
+
+compare: $(B)/bench/jaos_time
+	@bench/compare/fetch-solvers.sh highs
+	@bench/compare/run-compare.sh $(COMPARE_ARGS)
 
 # Instances are fetched and checksum-verified, never committed (PLAN 2.10).
 # The runner writes the record itself rather than being piped through tee:

@@ -17,3 +17,8 @@
 # record reproduces on any machine and a diff of it is the history of what
 # the solver did to the reference set. No wall-clock number is in there to
 # make it host-specific (D17).
+
+# Competitor solvers are fetched, checksum-verified and built at dev time,
+# never committed — the same rule the instances follow. bench/compare/
+# solvers.manifest is what pins them.
+/bench/compare/solvers/

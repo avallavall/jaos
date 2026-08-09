@@ -53,20 +53,26 @@ judged only when the answer verifies; tolerances equalised explicitly;
 competitor versions pinned by checksum; two times per run, the solver's own
 and the process's; the minimum of N runs rather than the mean.
 
-What exists: that README and `jaos_time.c`, which times a JAOS solve. What is
-missing:
+**Built, and the first reading is taken (D52).** `solvers.manifest` pins
+HiGHS, SoPlex and Clp by checksum with their licences verified at fetch;
+`fetch-solvers.sh` builds them, dev-time only, nothing redistributed;
+`run-compare.sh` walks a rung and writes `bench/compare/results/`. `make
+compare` does the lot.
 
-- `solvers.manifest` — HiGHS, SoPlex and Clp pinned by checksum, licences
-  verified at fetch time rather than trusted.
-- a fetch-and-build script for them, dev-time only, nothing redistributed.
-- the runner that walks the ladder and writes `bench/compare/results/`.
-- the first reading: **T0 against all three on the standard set.**
+**T0 against HiGHS 1.15.1: JAOS is 4.07x slower per solve** — 1.50x the
+iterations and **2.72x the cost of each one** — over the 19 instances above
+the 0.05 s floor, 94 of 94 verified against Koch on both sides.
 
 **Q4 is downgraded from a blocker to a label.** It said the gate needs a
 dedicated measurement host, and it does — for a *published* figure. Comparing
 on this machine with every line stamped as a development number is
 incomparably better than not comparing, which is where two milestones of
-speed work have already been spent.
+speed work had already gone.
+
+Still open here: **SoPlex and Clp**, whose builds are written but unrun — Clp
+needs CoinUtils and Osi, which is a dependency chain rather than a repository
+— and **rungs T1 to T3**, which are what attribute the gap to presolve and to
+choosing the algorithm.
 
 ---
 
@@ -126,12 +132,20 @@ Python first. Nothing to design until the C API stops moving.
 
 ## Phase 6 — Speed
 
-**Read D45 before any figure in this section.** The work counter is
-optimistic by a factor that is not constant: M2 bought 2.953x in units and
-**1.866x in seconds**, and the error is not uniform — the `nvar` sweeps that
-were removed were expensive per unit and the `nrow` sweeps were nearly free,
-and both are billed at 1. Every percentage below is a share of *billed* work,
-and the LU rows have the most real work hiding behind them.
+**The target is a cheaper iteration, not fewer of them (D52).** Against HiGHS
+at T0 the iteration counts are within 1.14x over the whole standard set and
+JAOS takes *fewer* on 47 of 94 — so the pricing rule, the ratio test and the
+pivot choice are competitive. What costs 2.72x is each iteration. `fit2p` and
+`maros-r7` take the same iterations as HiGHS and seventeen times as long, and
+`maros-r7` is the highest-fill instance in the set. An external clock now
+agrees with the internal attribution about where to work.
+
+**Read D45 before any figure below.** The work counter is optimistic by a
+factor that is not constant: M2 bought 2.953x in units and **1.866x in
+seconds**, and the error is not uniform — the `nvar` sweeps that were removed
+were expensive per unit and the `nrow` sweeps nearly free, and both are billed
+at 1. Every percentage below is a share of *billed* work, and the LU rows have
+the most real work hiding behind them.
 
 ### Where the work is
 

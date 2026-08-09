@@ -131,11 +131,19 @@ are twenty-three public functions and not one of them configures anything.
 | Determinism across two solves and across runs, all 139 | **pass** |
 | Full suite clean under ASan and UBSan | **pass** |
 | Reader robustness under fuzzing | **pass** |
-| **Competitive gap against HiGHS, SoPlex and Clp** | **never measured** |
+| Competitive gap against **HiGHS** at tier T0 | **measured: 4.07x slower** (D52) |
+| Competitive gap against SoPlex and Clp | not measured |
 | MIPLIB 2017 easy subset | not started |
 | MIPLIB 2017 benchmark subset | not started |
 
-**The last three are the point.** Everything above them is correctness, and
-correctness is table stakes. JAOS has never once been timed against another
-solver, so its speed relative to the field is unknown — not slow, not fast,
-*unknown*. That is the first thing the plan fixes.
+**Everything above the last four is correctness, and correctness is table
+stakes.** The one that matters now has a number for the first time: against
+HiGHS with presolve off and the dual simplex forced on both sides, JAOS is
+**4.07x slower per solve** — and that decomposes into **1.50x the iterations
+and 2.72x the cost of each one**. Over the whole set the iteration counts are
+within 1.14x and JAOS takes *fewer* on 47 of 94.
+
+So the simplex is competitive and the machinery under it is not. The target
+is a cheaper iteration, not fewer of them, and the extremes point straight at
+the factorization: `fit2p` and `maros-r7` take the same iterations as HiGHS
+and seventeen times as long.

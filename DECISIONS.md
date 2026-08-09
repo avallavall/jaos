@@ -2962,3 +2962,64 @@ the question this raises is whether a cleanup pivot needs to borrow at all,
 or whether the loan can be bounded by what the pivot is worth. Neither is
 answered here, and both are cheaper to reason about now that the residue has
 a name instead of being attributed to arithmetic.
+
+## D52 — The first competitive measurement: 4.07x, and it is not the algorithm
+
+M2's gate has asked for a measured gap against open solvers since the
+milestone opened, and it had never been run. Q4 said the gate needs a
+dedicated host; that is true of a *published* figure and it had become a
+reason to keep optimising blind, so the host requirement is now a label on
+every line rather than a blocker.
+
+**The reading.** HiGHS 1.15.1, pinned by checksum and licence-verified at
+fetch, at tier T0 — presolve off, dual simplex forced, one thread, no
+crossover, tolerances equalised at 1e-7 on both sides. JAOS built with the
+same flags HiGHS's own Release build gets, so the comparison is of solvers
+and not of optimisation levels. Minimum of two runs. Standard set, 94 of 94
+verified against Koch on both sides.
+
+| | JAOS vs HiGHS |
+|---|---|
+| **time per solve** | **4.07x slower** |
+| iterations | 1.50x |
+| **time per iteration** | **2.72x** |
+
+Geometric means of per-instance ratios over the 19 instances above a 0.05 s
+floor — below it HiGHS reports its own time to two decimals and the ratio
+divides by a rounded zero. JAOS is faster on 0 of those 19. Totals over the
+verified set: 116.2 s against 14.9 s.
+
+**So the gap is not the algorithm.** Over all 94 instances the iteration
+ratio is 1.14x and **JAOS takes fewer iterations than HiGHS on 47 of them**.
+The pricing rule, the ratio test and the pivot choice are competitive. What
+costs four times as much is each iteration, and on the larger models JAOS
+also needs half again as many.
+
+**And the extremes say where.**
+
+| | time | iterations | per iteration |
+|---|---|---|---|
+| `maros-r7` | 41.4x | 2.34x | **17.7x** |
+| `fit2p` | 16.5x | 0.99x | **16.7x** |
+| `stocfor3` | 6.2x | 0.97x | 6.4x |
+| `pilot87` | 16.1x | 4.60x | 3.5x |
+| `dfl001` | 2.0x | 1.14x | 1.8x |
+| `truss` | 1.3x | 0.90x | 1.5x |
+
+`fit2p` takes the same number of iterations as HiGHS and seventeen times as
+long. `maros-r7` is the same story and is the highest-fill instance in the
+set — 4.801 against a set average of 2.673 (D46). The per-iteration cost
+spans 1.5x to 17.7x, and it tracks the factorization.
+
+**What this changes.** PLAN's phase 6 ranked its targets by billed work
+units, and D45 had already warned those are biased. This says the same thing
+from outside and sharpens it: **the target is not fewer iterations, it is a
+cheaper iteration**, and the LU is where the difference lives. The internal
+attribution put 77.8% of the standard set inside the LU; an external clock
+now agrees.
+
+**What it does not license.** Not one number here may be published or
+compared against another machine — it is WSL, and every line of the record
+says so. What a ratio of the same instance against the same instance on the
+same machine can say is what it says here, and Q4's host is still what would
+turn it into a figure anyone else can check.

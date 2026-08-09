@@ -1,0 +1,20 @@
+# HiGHS at tier T0 — handicapped to JAOS's feature set (bench/compare/README.md).
+#
+# JAOS at T0 is: dual simplex, no presolve, no crash basis, one thread.
+# Every option below exists to take one of those advantages away, so that
+# what the tier measures is the simplex and only the simplex.
+#
+# Tolerances are equalised explicitly rather than left at each solver's
+# default: HiGHS defaults to 1e-7 primal and dual and so does JAOS, but a
+# comparison that inherits two defaults is not a comparison of solvers.
+
+presolve = off
+solver = simplex
+simplex_strategy = 1
+parallel = off
+threads = 1
+run_crossover = off
+primal_feasibility_tolerance = 1e-7
+dual_feasibility_tolerance = 1e-7
+output_flag = true
+log_to_console = true

@@ -1,0 +1,26 @@
+# Competitor solvers — pinned by checksum, like the instances.
+#
+# Nothing here is redistributed. `fetch-solvers.sh` downloads each source
+# archive, refuses any whose sha256 does not match the line below, checks the
+# licence is still the one recorded, builds it into a scratch directory and
+# keeps only the binary. The sources and the binaries stay out of this
+# repository (.gitignore), for the same reason the instances do.
+#
+# Running another solver as a benchmark competitor is not what D12 forbids:
+# that rule is about writing JAOS's code from someone else's. No competitor's
+# source is read. The same distinction was drawn for netlib's `emps`.
+#
+# Licences are verified at fetch time rather than trusted, because they change
+# between versions.
+#
+# name     version    licence   sha256 of the source archive
+# url
+
+highs      1.15.1     MIT       a840d269dff2fafb371dd247df13ad5e026d7ce3b35ad3dc1eedd59bf0c2fb16
+https://github.com/ERGO-Code/HiGHS/archive/refs/tags/v1.15.1.tar.gz
+
+soplex     8.0.3      Apache-2.0 224eca4c49a2509a2a893a1d4b63e510e2ddb4ff374699cc6afc36f12af4e621
+https://github.com/scipopt/soplex/archive/refs/tags/v8.0.3.tar.gz
+
+clp        1.17.11    EPL-2.0   2c078e174dc1a7a308e091b6256fb34b4017897fc140ea707ba207b2913ea46d
+https://github.com/coin-or/Clp/archive/refs/tags/releases/1.17.11.tar.gz
