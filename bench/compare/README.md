@@ -1,8 +1,14 @@
 # The comparison harness
 
-M2's gate is a measured competitive gap against open solvers (PLAN 3.1).
-This is the machinery for it. Nothing here is part of what JAOS ships, and
-nothing here writes a file the gate reads.
+The gate JAOS is aiming at is a measured competitive gap against open
+solvers. This is the machinery for it. Nothing here is part of what JAOS
+ships, and nothing here writes a file the gate reads.
+
+**It has been run.** `results/T0.txt` holds the readings, and `make compare`
+reproduces them: against HiGHS 1.15.1 JAOS is 3.81x slower per solve and
+against SoPlex 8.0.3 1.36x, on 1.47x and 0.70x their iteration counts. See
+D52, D53 and D54 for what that decomposes into. Clp and the rungs above T0
+are not built yet.
 
 ## The record here is not the record
 

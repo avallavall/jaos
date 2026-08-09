@@ -5,7 +5,12 @@ dependencies, Apache 2.0, Linux and GCC only.
 
 **Version 0.1.0-dev.** It reads an LP from disk, solves it with a revised
 dual simplex, and proves the answer right. It does that correctly on all 139
-Netlib reference instances. It has never been timed against another solver.
+Netlib reference instances.
+
+Against the field, with presolve off and the dual simplex forced on both
+sides, it is **3.8x slower than HiGHS and 1.4x slower than SoPlex** — on
+**0.70x** SoPlex's iteration count, so the search is competitive and each
+iteration costs about twice what it should. `make compare` reproduces that.
 
 ## What it does today
 

@@ -4,6 +4,21 @@ What is open, in the order it will be done. What JAOS is meant to be is in
 `SPECS.md`; what has landed is in `CHANGELOG.md`; why is in `DECISIONS.md`.
 Constraints referenced as D*n* live there.
 
+**Where the old section numbers went.** This file used to carry a closed
+milestone in a `§2`, and comments in the source still cite it. Nothing was
+lost, but the numbers no longer resolve here:
+
+| cited as | now in |
+|---|---|
+| PLAN 2.1, 2.8, 2.9 — scope, what was built, the gate | `SPECS.md` |
+| PLAN 2.4 — the public API's shape | D33 |
+| PLAN 2.5.x — components and their literature anchors | `SPECS.md` §3, with the citation numbers |
+| PLAN 2.6 — tolerances | `docs/tolerances.md` |
+| PLAN 2.7 — work units | `docs/work-units.md` |
+| PLAN 2.10 — instances and reference values | `bench/README.md` |
+| PLAN 2.11 — deferred by measurement | phase 6 below |
+| PLAN 3.x — M2's attribution and method | phase 6 and "Method worth keeping" below |
+
 ## The order, and why it is this one
 
 | | phase | why here |
@@ -197,11 +212,15 @@ sum.
    elimination arrays against a single arena, and the stale live counts that
    make Markowitz choose on a pessimistic estimate.
 
-2. **Whatever `fit2p` spends that nobody bills** — six times the median cost
-   per work unit, on ordinary per-iteration billing. No internal instrument
-   has ever been able to see it, which is why it took an external clock to
-   find. The first question is what a profiler says, not what the counter
-   says, because the counter is what missed it.
+2. ~~**Whatever `fit2p` spends that nobody bills.**~~ **Closed (D55, D56),
+   and it was two things.** A capacity check that could not be inlined
+   across a translation unit, and an elimination that rebuilt every column
+   of every pivot row even when the pivot column had nothing to eliminate —
+   97% of `fit2p`'s pivots. Together, 12.87 s to 2.46 s in the shipping
+   build and 17.5x to 5.1x per iteration against HiGHS. Neither billed a
+   single work unit, which is why a profiler found them and no internal
+   instrument ever had. **The method that worked: profile at the flags being
+   timed, and attribute by source line.**
 3. **Partial and multiple pricing** — the row scan that picks the
    infeasibility is 26.4% of Kennington and has no sparsity to exploit.
    **The first change that cannot be judged on digests**: it moves the search

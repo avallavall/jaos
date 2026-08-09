@@ -57,6 +57,11 @@ and you have the argument. Jump to the entry for the numbers behind it.
 - **[D49](#d49-the-re-entry-loop-stops-making-progress-and-the-round-cap-is-what-ends-it)** — The re-entry loop stops making progress and the round cap is what ends it
 - **[D50](#d50-two-repairs-undo-each-other-and-the-loop-publishes-whichever-one-it-stopped-on)** — Two repairs undo each other, and the loop publishes whichever one it stopped on
 - **[D51](#d51-the-residue-is-the-loan-ledger)** — The residue is the loan ledger
+- **[D52](#d52-the-first-competitive-measurement-407x-and-it-is-not-the-algorithm)** — The first competitive measurement: 4.07x, and it is not the algorithm
+- **[D53](#d53-two-rivals-agree-on-what-a-jaos-iteration-costs-and-that-makes-it-a-number-worth-attacking)** — Two rivals agree on what a JAOS iteration costs, and that makes it a number worth attacking
+- **[D54](#d54-the-seventeen-is-two-different-things-and-only-one-of-them-is-visible-to-the-counter)** — The seventeen is two different things, and only one of them is visible to the counter
+- **[D55](#d55-the-shipping-build-paid-15x-for-a-capacity-check-it-could-not-inline)** — The shipping build paid 1.5x for a capacity check it could not inline
+- **[D56](#d56-the-elimination-rebuilt-every-column-of-every-pivot-row-including-when-there-was-nothing-to-eliminate)** — The elimination rebuilt every column of every pivot row, including when there was nothing to eliminate
 
 ---
 
