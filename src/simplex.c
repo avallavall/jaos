@@ -96,6 +96,15 @@ constexpr int64_t SPARSE_ALPHA_DEN = 4;
  * comparison inside a pass the solve was making anyway. */
 constexpr int64_t SPARSE_RHO_DEN = 4;
 
+/* And the same question a third time, for the entering column's FTRAN.
+ *
+ * Cheaper to answer than the other two: nothing has to be ordered, because
+ * every reader of this vector is elementwise, so the sparse form costs one
+ * indirection per nonzero against one sequential read per row. It pays
+ * further up than the other two for that reason, and the divisor is swept
+ * rather than argued (D44). */
+constexpr int64_t SPARSE_COL_DEN = 2;
+
 /* Refactorization interval. PLAN 2.5.5 also calls for stability triggers
  * (FTRAN/BTRAN residual checks); only the interval and the reactive
  * fallback on a failed update exist so far. */
@@ -311,6 +320,13 @@ typedef struct {
     int64_t nrpat;
     uint64_t *rmark;         /* [(nrow + 63) / 64] */
 
+    /* Where the entering column's FTRAN is nonzero, or `ncpat < 0` when it
+     * was too dense to be worth carrying. Unordered on purpose: the three
+     * things that read it — the steepest-edge recurrence and two updates of
+     * `x_B` — are all elementwise, so ordering would buy nothing. */
+    int64_t *cpat;           /* [nrow] */
+    int64_t ncpat;
+
     /* The ratio test's candidate set, filled once per iteration: which
      * variables may enter (`cand`), how far each one's reduced cost is
      * from infeasibility (`rnum`) and how big its pivot would be
@@ -383,7 +399,7 @@ static void sx_free(sx *s)
     free(s->xb); free(s->d); free(s->dse);
     free(s->col); free(s->raw); free(s->y); free(s->rho);
     free(s->tau); free(s->alpha); free(s->apat); free(s->amark);
-    free(s->rpat); free(s->rmark);
+    free(s->rpat); free(s->rmark); free(s->cpat);
     free(s->cand); free(s->rnum); free(s->rden); free(s->rrange);
     free(s->bs); free(s->bi); free(s->bv);
     free(s->fake);
@@ -453,6 +469,8 @@ static jaos_status sx_init(sx *s, jaos_model *m)
     s->amark  = jm_calloc_array((s->nvar + 63) / 64, sizeof(uint64_t));
     s->rpat   = jm_alloc_array(s->nrow, sizeof(int64_t));
     s->rmark  = jm_calloc_array((s->nrow + 63) / 64, sizeof(uint64_t));
+    s->cpat   = jm_alloc_array(s->nrow, sizeof(int64_t));
+    s->ncpat  = -1;
     s->anpat  = -1;          /* alpha is all zero, but nothing has said where */
     s->nrpat  = -1;
     s->duals_dirty = true;   /* nothing has established the costs are feasible */
@@ -467,7 +485,7 @@ static jaos_status sx_init(sx *s, jaos_model *m)
         !s->status || !s->basis ||
         !s->where || !s->xb || !s->d || !s->dse || !s->col || !s->raw ||
         !s->y || !s->rho || !s->tau || !s->alpha || !s->apat || !s->amark ||
-        !s->rpat || !s->rmark || !s->cand || !s->rnum ||
+        !s->rpat || !s->rmark || !s->cpat || !s->cand || !s->rnum ||
         !s->rden || !s->rrange || !s->bs || !s->fake) {
         sx_free(s);
         return JAOS_ERR_OUT_OF_MEMORY;
@@ -1100,12 +1118,13 @@ static bool weight_drifted(double carried, double exact, double factor)
  * which is also where the exported-for-testing rationale lives. */
 void jm_dse_update(int64_t n, double *w, int64_t r,
                    const double *alpha, const double *tau,
-                   double exact_r, double drift_factor)
+                   double exact_r, double drift_factor,
+                   const int64_t *pat, int64_t npat)
 {
     if (weight_drifted(w[r], exact_r, drift_factor)) {
         for (int64_t i = 0; i < n; i++)
             w[i] = 1.0;
-        return;
+        return;   /* a restart is every weight by definition, pattern or no */
     }
     w[r] = exact_r;
 
@@ -1115,11 +1134,18 @@ void jm_dse_update(int64_t n, double *w, int64_t r,
                      heuristic: leaving them stale beats infinities */
 
     double wr = w[r];
-    for (int64_t i = 0; i < n; i++) {
+    /* Only a row where alpha is nonzero moves, which the dense form finds by
+     * testing every row and the sparse one is told. Each row's new weight
+     * depends on its own old one and on nothing else here, so the two visit
+     * the same rows and compute the same numbers; what differs is how many
+     * rows are looked at to find them. */
+    const int64_t nvisit = pat != nullptr ? npat : n;
+    for (int64_t k = 0; k < nvisit; k++) {
+        int64_t i = pat != nullptr ? pat[k] : k;
         if (i == r || alpha[i] == 0.0)
             continue;
-        double k = alpha[i] / pivot;
-        double wi = w[i] - 2.0 * k * tau[i] + k * k * wr;
+        double kk = alpha[i] / pivot;
+        double wi = w[i] - 2.0 * kk * tau[i] + kk * kk * wr;
         w[i] = wi > DSE_MIN ? wi : DSE_MIN;
     }
     double wnew = wr / (pivot * pivot);
@@ -1215,10 +1241,19 @@ static void apply_flips(sx *s, int64_t at, int64_t n)
         }
     }
 
-    jm_lu_ftran(&s->lu, rhs, &s->work);
-    for (int64_t i = 0; i < s->nrow; i++)
-        s->xb[i] -= rhs[i];
-    jm_work_add(&s->work, s->nrow * JM_WORK_NONZERO);
+    /* Same borrowing as `col` above: `cpat` belongs to pivot, which fills it
+     * from its own FTRAN before reading it, and this runs first. */
+    int64_t nc = 0;
+    jm_lu_ftran_sparse(&s->lu, rhs, &s->work, s->cpat, &nc);
+    if (nc * SPARSE_COL_DEN <= s->nrow) {
+        for (int64_t k = 0; k < nc; k++)
+            s->xb[s->cpat[k]] -= rhs[s->cpat[k]];
+        jm_work_add(&s->work, nc * JM_WORK_NONZERO);
+    } else {
+        for (int64_t i = 0; i < s->nrow; i++)
+            s->xb[i] -= rhs[i];
+        jm_work_add(&s->work, s->nrow * JM_WORK_NONZERO);
+    }
 }
 
 /* The ratio test: who may enter, how far the step may go, and which
@@ -1675,7 +1710,11 @@ static jaos_status pivot(sx *s, int64_t r, int64_t q, bool below,
      * because the LU update wants it untransformed. */
     var_column(s, q, s->raw);
     memcpy(s->col, s->raw, (size_t)s->nrow * sizeof *s->col);
-    jm_lu_ftran(&s->lu, s->col, &s->work);
+    {
+        int64_t nc = 0;
+        jm_lu_ftran_sparse(&s->lu, s->col, &s->work, s->cpat, &nc);
+        s->ncpat = nc * SPARSE_COL_DEN <= s->nrow ? nc : -1;
+    }
 
     /* Steepest-edge weights, while the old basis is still in force: both
      * vectors the recurrence needs are solves against it, so this has to
@@ -1712,12 +1751,25 @@ static jaos_status pivot(sx *s, int64_t r, int64_t q, bool below,
         jm_work_add(&s->work, s->nrow * JM_WORK_NONZERO);
     }
 
-    jm_dse_update(s->nrow, s->dse, r, s->col, s->tau, exact, DSE_DRIFT);
-    jm_work_add(&s->work, s->nrow * JM_WORK_NONZERO);
+    const bool sparse_col = s->ncpat >= 0;
+    jm_dse_update(s->nrow, s->dse, r, s->col, s->tau, exact, DSE_DRIFT,
+                  sparse_col ? s->cpat : nullptr, s->ncpat);
+    jm_work_add(&s->work,
+                (sparse_col ? s->ncpat : s->nrow) * JM_WORK_NONZERO);
 
+    /* x_B moves by the entering column's step, and a row the column does not
+     * reach does not move: `theta_primal * 0.0` is a zero this subtracts from
+     * a value it leaves alone. Row r is written outright below either way. */
     double q_value = nonbasic_value(s, q);
-    for (int64_t i = 0; i < s->nrow; i++)
-        s->xb[i] -= theta_primal * s->col[i];
+    if (sparse_col) {
+        for (int64_t k = 0; k < s->ncpat; k++) {
+            int64_t i = s->cpat[k];
+            s->xb[i] -= theta_primal * s->col[i];
+        }
+    } else {
+        for (int64_t i = 0; i < s->nrow; i++)
+            s->xb[i] -= theta_primal * s->col[i];
+    }
     /* Position r now holds the entering variable, at its new value. */
     s->xb[r] = q_value + theta_primal;
 

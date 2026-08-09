@@ -2265,3 +2265,86 @@ come out unchanged, and it does.
 
 **Since M1's gate first passed**, the 139 have gone 293,987,935,333 ->
 121,199,605,388, which is **2.426x**, and **3.820x on Kennington**.
+
+---
+
+## D44 — The forward solve says where its answer is, and this one needed no ordering
+
+The re-attribution after D43 put two lines at the top of the Kennington
+column, tied at **26.40%** each: `price_row`'s scan for the infeasibility,
+and `jm_dse_update`'s sweep over every row. The second is an FTRAN result
+being walked to find the 0.03% of it that is nonzero on `ken-18`, and
+`apply_flips`' update of `x_B` is another 9.42% doing the same thing to
+another one.
+
+**Cheaper to build than D43, for a reason worth naming.** D43 had to order
+the pattern it produced, because `price_all`'s sums must accumulate in the
+order the column-wise pass used and any other order moves the trajectory.
+Nothing here does: the steepest-edge recurrence gives each row a weight from
+its own old weight and the pivot, and both updates of `x_B` subtract
+elementwise. So the pattern is used exactly as the solve produced it — no
+bitmap, no `jm_pattern_order`, no second pass.
+
+That also moves the crossover — and the sweep says it moves it off the end
+of the range, which makes this constant the weakest of the three and the
+entry says so rather than hiding it.
+
+| SPARSE_COL_DEN | standard 94 | infeasible 29 | Kennington 16 |
+|---|---|---|---|
+| never | 1.000x | 1.000x | — |
+| 1 (always) | **1.010x** | **1.034x** | 37,642,967,672 |
+| 2 | 1.009x | 1.034x | 37,642,967,672 |
+| 3 | 1.008x | 1.034x | — |
+| 4 | 1.008x | 1.025x | 37,642,967,672 |
+| 8 | 1.007x | 1.016x | — |
+
+**There is no crossover.** On the two smaller sets it is monotone: the more
+sparsely the vector is read the cheaper it gets, all the way to always. On
+Kennington 1, 2 and 4 are byte-identical with not one instance moving,
+because an FTRAN result 0.03% dense on `ken-18` never comes near any of
+those lines. That is the null result D43's sweep was predicted to give and
+did not, and here the prediction holds for the same reason it failed there:
+`rho` had individual iterations dense enough to cross `nrow/8`, and this
+vector does not.
+
+Which is what the mechanism said it would do. D40 and D43 both pay a fixed
+cost to order a pattern and have to earn it back, so both have a size below
+which the pattern is not worth having. This one pays nothing, so there is
+nothing to earn back and no size at which the dense loop wins **on the
+counter**.
+
+**The constant is 2 anyway, and it rests entirely on an argument the counter
+cannot check**: the sparse loop indexes three arrays through a pattern where
+the dense one reads one of them in order, and no work unit has ever seen a
+cache miss (D17). D43 could point at measurements on both sides of its
+plateau; this cannot point at either. The difference between 2 and 1 is
+0.13% on the standard set and 0.02% on the infeasible one, which is the size
+of thing worth giving up for a guess that might be wrong in the direction
+the counter is blind to. Q4's host is what would settle it.
+
+**What changed.** `jm_lu_ftran_sparse` records where its answer is nonzero
+during the pass that permutes it back, the same trade `jm_lu_btran_sparse`
+makes. `jm_dse_update` takes the pattern as an optional pair — the two forms
+visit the same rows and compute the same numbers, and what differs is how
+many rows are looked at to find them. `pivot`'s update of `x_B` and
+`apply_flips`' both walk it too.
+
+**Cost, against the baselines D43 left.**
+
+| set | before | after | |
+|---|---|---|---|
+| standard 94 | 60,015,257,439 | 59,416,297,353 | 1.010x |
+| **Kennington 16** | 58,596,535,370 | **37,642,967,672** | **1.557x** |
+| infeasible 29 | 2,587,812,579 | 2,496,192,696 | 1.037x |
+
+**The largest single entry of M2 so far.** 138 of 139 instances cheaper, one
+level, none dearer; no iteration count moved and all 110 digests unchanged.
+
+**The accounting did not move**, and that was checked the way D43's was: the
+pinned work test stayed at 8545 without being touched. The `x_B` update
+inside `pivot` was unbilled before this and stays unbilled; the one inside
+`apply_flips` was billed `nrow` and is now billed for what it walks.
+
+**Since M1's gate first passed**, the 139 have gone 293,987,935,333 ->
+99,555,457,721 — under a hundred billion for the first time, **2.953x** —
+and **5.946x on Kennington**.

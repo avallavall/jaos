@@ -626,15 +626,15 @@ missed this".
 
 ## 3. Milestone 2 — LP fast
 
-**Open, and opened by work rather than by decision.** Eight entries have
-landed against it (D35, D37, D38, D39, D40, D41, D42, D43). Measured against
-the commit where M1's gate first passed on all three sets, total work over
-the 139 reference instances has gone 293,987,935,333 -> 121,199,605,388,
-which is **2.426x** — and **3.820x on Kennington**, where 73% of it was —
-without a single verdict, objective, iteration count or solution digest
-changing anywhere. The standard set is 1.097x over the same span, and that
-gap is §3.2 in one number. What follows is the detail the working agreement
-asks for once a milestone is active.
+**Open, and opened by work rather than by decision.** Nine entries have
+landed against it (D35, D37, D38, D39, D40, D41, D42, D43, D44). Measured
+against the commit where M1's gate first passed on all three sets, total
+work over the 139 reference instances has gone 293,987,935,333 ->
+99,555,457,721, which is **2.953x** — and **5.946x on Kennington**, where
+73% of it was — without a single verdict, objective, iteration count or
+solution digest changing anywhere. The standard set is 1.108x over the same
+span, and that gap is §3.2 in one number. What follows is the detail the
+working agreement asks for once a milestone is active.
 
 ### 3.1 The gate, and what blocks it
 
@@ -774,21 +774,16 @@ whether it is zero or not. There are two, and both are gathers.
    it once is `nnz(L)` amortised over ~64 solves, against `nnz(L)` that pass
    pays on every one of them.
 
-2. **A pattern-returning FTRAN — now the largest single change available.**
+2. ~~**A pattern-returning FTRAN**~~ **— built (D44), and the largest entry
+   of M2 so far.** `jm_dse_update`'s row sweep was 26.40% of Kennington and
+   `apply_flips`' `x_B` update another 9.42%; both now walk the pattern the
+   solve reports. 1.557x on Kennington, 1.010x on the standard set, 1.037%
+   on the infeasible one, and it needed no ordering at all because every
+   reader of an FTRAN result here is elementwise.
 
-   | what it removes | standard | Kennington |
-   |---|---|---|
-   | `jm_dse_update`'s row sweep | ~1.3% | **26.40%** |
-   | `apply_flips`' `x_B` update | — | **9.42%** |
-
-   Structurally the easier of the two — L and U are both stored by column,
-   which is the orientation FTRAN scatters along, so nothing new has to be
-   built — but worth almost nothing on the standard set, because what it
-   removes there is unbilled walking rather than billed arithmetic.
-
-   Note what it is *not*: FTRAN's own `U` and `L` passes stay exactly as
-   expensive, for the reason at the top of this section. The prize is
-   entirely in the two callers that walk the result.
+   Nothing is left of this item. FTRAN's own `U` and `L` passes stay exactly
+   as expensive, for the reason at the top of this section — they are the
+   solve, not a scan of it.
 
    **The trap both share.** FTRAN's passes are scatters, not the dot
    products D38 could reorder freely: `y[i]` accumulates from many sources
@@ -835,6 +830,15 @@ L' pass has 4.1% under a zero with no row-wise copy of L to search.
 - **Filtering basic columns out of the pricing sweep is refused**, measured:
   36.1% of entries are in basic columns, but the filter needs a `status[v]`
   read on every entry and comes to 3.92 memory accesses against 4 (D35).
+- **`SPARSE_COL_DEN` is the one threshold with no measurement behind it**,
+  and it is 2 on an argument rather than a reading. Reading an FTRAN result
+  through its pattern needs no ordering, so there is no fixed cost to earn
+  back and no size at which the dense loop wins on the counter: the sweep is
+  monotone to "always" on two sets and byte-identical across 1, 2 and 4 on
+  Kennington (D44). What keeps it off 1 is that the sparse loop indexes
+  three arrays through a pattern where the dense one reads one in order, and
+  no work unit has ever seen a cache miss. Worth 0.13% if the guess is
+  wrong; Q4 is what would settle it.
 - **`SPARSE_RHO_DEN` stays at 4, with the plateau bounded on both sides by
   measurement rather than on one.** Ordering the pricing row's pattern
   whatever its size costs 0.4% on the infeasible set; refusing to order

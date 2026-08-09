@@ -76,6 +76,13 @@ open, `bench/README.md` for the gate, and the commit each entry came from.
 
 ### Changed
 
+- The FTRAN reports where its answer is nonzero too, and the steepest-edge
+  recurrence and both updates of `x_B` walk that instead of every row. This
+  one needed no ordering, because all three readers are elementwise — which
+  is why its threshold sits at half the other two. Work falls **1.557x on
+  Kennington**, 1.010x on the standard set and 1.037x on the infeasible one:
+  the largest single entry of M2 so far, with no digest and no iteration
+  count moved (D44).
 - The BTRAN reports where its answer is nonzero, taken from the pass that
   was already visiting every slot to permute it back, and pricing walks that
   instead of scanning the whole pricing row. On Kennington that scan was 27%

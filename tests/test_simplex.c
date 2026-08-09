@@ -776,7 +776,7 @@ static void test_dse_weights_match_recomputed_norms(void)
     double w[DSE_N], expect[DSE_N], alpha[DSE_N], tau[DSE_N];
     dse_pivot_case(w, expect, alpha, tau);
 
-    jm_dse_update(DSE_N, w, DSE_ROW, alpha, tau, w[DSE_ROW], 10.0);
+    jm_dse_update(DSE_N, w, DSE_ROW, alpha, tau, w[DSE_ROW], 10.0, nullptr, 0);
 
     for (int64_t i = 0; i < DSE_N; i++)
         TEST_ASSERT_DOUBLE_WITHIN(1e-9, expect[i], w[i]);
@@ -793,7 +793,7 @@ static void test_dse_repairs_a_carried_weight_that_slipped(void)
     double truth = w[DSE_ROW];
     w[DSE_ROW] = truth * 1.5;       /* inside a factor of ten */
 
-    jm_dse_update(DSE_N, w, DSE_ROW, alpha, tau, truth, 10.0);
+    jm_dse_update(DSE_N, w, DSE_ROW, alpha, tau, truth, 10.0, nullptr, 0);
 
     for (int64_t i = 0; i < DSE_N; i++)
         TEST_ASSERT_DOUBLE_WITHIN(1e-9, expect[i], w[i]);
@@ -813,7 +813,7 @@ static void test_dse_restarts_when_the_carried_weight_has_drifted(void)
         double truth = w[DSE_ROW];
         w[DSE_ROW] = trial == 0 ? truth * 1e6 : truth * 1e-6;
 
-        jm_dse_update(DSE_N, w, DSE_ROW, alpha, tau, truth, 10.0);
+        jm_dse_update(DSE_N, w, DSE_ROW, alpha, tau, truth, 10.0, nullptr, 0);
 
         for (int64_t i = 0; i < DSE_N; i++)
             TEST_ASSERT_EQUAL_DOUBLE(1.0, w[i]);

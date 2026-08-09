@@ -132,7 +132,8 @@ JAOS_NODISCARD jaos_status jm_dual_simplex(jaos_model *m);
  * recomputed from scratch. */
 void jm_dse_update(int64_t n, double *w, int64_t r,
                    const double *alpha, const double *tau,
-                   double exact_r, double drift_factor);
+                   double exact_r, double drift_factor,
+                   const int64_t *pat, int64_t npat);
 
 /* Harris' two-pass ratio test [7], over n candidate breakpoints.
  *
@@ -396,6 +397,15 @@ JAOS_NODISCARD jaos_status jm_lu_factor(jm_lu *lu, int64_t dim,
  * jm_lu_update leaves behind when it fails. */
 void jm_lu_ftran(jm_lu *lu, double *x, jm_work *w);
 void jm_lu_btran(jm_lu *lu, double *x, jm_work *w);
+
+/* The forward solve, additionally reporting where the answer is nonzero.
+ *
+ * `pat` takes at least `dim` entries and comes back holding `*npat` indices
+ * in whatever order the column permutation produced them. A null `pat` is
+ * exactly jm_lu_ftran. Unordered is enough here and ordered is not worth
+ * buying: everything that reads an FTRAN result is elementwise. */
+void jm_lu_ftran_sparse(jm_lu *lu, double *x, jm_work *w,
+                        int64_t *pat, int64_t *npat);
 
 /* The same solve, additionally reporting where the answer is nonzero.
  *

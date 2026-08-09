@@ -692,9 +692,17 @@ static void ftran_prefix(const jm_lu *lu, const double *b, double *y,
 
 void jm_lu_ftran(jm_lu *lu, double *x, jm_work *w)
 {
+    jm_lu_ftran_sparse(lu, x, w, nullptr, nullptr);
+}
+
+void jm_lu_ftran_sparse(jm_lu *lu, double *x, jm_work *w,
+                        int64_t *pat, int64_t *npat)
+{
     const int64_t n = lu->dim;
     double *y = lu->tmp;
 
+    if (npat != nullptr)
+        *npat = 0;
     if (lu->rank != n)
         return;   /* singular, or wrecked by a failed update */
 
@@ -714,8 +722,29 @@ void jm_lu_ftran(jm_lu *lu, double *x, jm_work *w)
         jm_work_add(w, col->n * JM_WORK_NONZERO);
     }
 
-    for (int64_t s = 0; s < n; s++)
-        x[lu->perm_col[s]] = y[s];
+    /* The permutation back, and — where asked — where the answer is nonzero,
+     * taken on the way past. Same trade jm_lu_btran_sparse makes and for the
+     * same reason: this loop writes every slot whatever happens, so it can
+     * say which ones carry a value for a comparison, and a caller left to
+     * find out for itself walks the whole vector again.
+     *
+     * Unordered, and no caller of this one needs it otherwise: what reads an
+     * FTRAN result here is the steepest-edge recurrence and two updates of
+     * `x_B`, all three of them elementwise. */
+    if (pat == nullptr) {
+        for (int64_t s = 0; s < n; s++)
+            x[lu->perm_col[s]] = y[s];
+        return;
+    }
+    int64_t k = 0;
+    for (int64_t s = 0; s < n; s++) {
+        const double v = y[s];
+        const int64_t row = lu->perm_col[s];
+        x[row] = v;
+        if (v != 0.0)
+            pat[k++] = row;
+    }
+    *npat = k;
 }
 
 /* Which slots the U' pass can produce a nonzero for, in an order where each
