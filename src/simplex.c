@@ -844,6 +844,14 @@ constexpr int REPAIR_ATTEMPTS = 4;
  * `gran` of the infeasible set is what that cost: an INFEASIBLE verdict the
  * model was owed, replaced by a numerical error after 1728 iterations.
  *
+ * **A singular basis is not something a model can cause.** Every basis the
+ * dual simplex assembles is nonsingular in exact arithmetic — it never
+ * pivots on an alpha below PIVOT_MIN — so one that will not factor is
+ * always carried error, and `gran`'s 2658 rows are the scale at which that
+ * finally accumulated. No unit test can construct one, which is why
+ * `tests/test_simplex.c` covers the family instead: rank-deficient
+ * constraint matrices, where the danger is a wrong verdict and not a crash.
+ *
  * A rank-deficient factorization hands over exactly the two lists the
  * repair needs. Slots 0..rank-1 name the rows that were pivoted and the
  * basis positions that were used; whatever is missing from those lists is,

@@ -190,164 +190,30 @@ version (D16).
 
 ### 2.8 What is left inside M1
 
-Built and closed, recorded in the changelog and its commits: scaffold, model
-core with the independent checker, MPS and LP readers, sparse LU with
-Forrest-Tomlin updates and the work counter in its kernels, and a dual
-simplex that solves bounded LPs on a Curtis-Reid scaled copy, with dual
-steepest-edge pricing, a Harris two-pass ratio test with bound flipping,
-and a dual phase 1 by artificial bounds. `make test` covers all of it, and
-every solved test instance is put through the checker.
+**Nothing. M1's gate is met on all three instance sets** — 94 standard, 16
+Kennington, 29 infeasible: every one solved or correctly refused, within
+objective tolerance, accepted by the independent checker, and deterministic
+across two solves and across runs. `make netlib` reports `gate: PASS`.
 
-**Nothing here is remaining any more — all five items below are met, and the
-gate they add up to is met.** They are kept for one more revision because the
-shape of what closed them is what §2.9's next milestone will be judged
-against, and because two of them record a lesson rather than a result:
+What was built: the scaffold, the model core with the independent checker,
+the MPS and LP readers, the sparse LU with Forrest-Tomlin updates and the
+work counter in its kernels, and a dual simplex on a Curtis-Reid scaled copy
+with dual steepest-edge pricing, a Harris two-pass ratio test with bound
+flipping, a dual phase 1 by artificial bounds, a cycle-triggered Bland
+fallback, a singular-basis repair, and a primal ratio test used only to clean
+up after the dual solve. Every entry is in `CHANGELOG.md` with what it cost
+and in `DECISIONS.md` with why.
 
-1. **Netlib standard set — met.** All 94 instances solve to `OPTIMAL`,
-   every objective is within the §2.6 tolerance, the independent checker
-   accepts every one, and every one is deterministic across two solves and
-   across runs. `make netlib` reports `gate: PASS`.
-
-   The readers were the part that came out clean on the very first run: every
-   instance loads with exactly the row and column counts two independent
-   canonical sources agree on.
-
-   Eight instances were refused at some point along the way and **not one of
-   them was closed by widening a tolerance** — `pilot-ja` (D21), `finnis`
-   (D23), `nesm` (D25), `grow15` (D26), `etamacro` (D27), `greenbea` (D28),
-   `pilot` (D29) and `pilot87` (D30). Each is a distinct defect with a
-   mechanism, and the two that were most readily explained as the limit of
-   double precision — `etamacro`, which defeats CPLEX at defaults and SoPlex
-   at 1e-6, and `pilot87`, the worst-conditioned model in the set — were both
-   defects.
-
-   `DECISIONS.md` carries what each one turned out to be.
-   `docs/research/netlib-campaign.md` carries the measurement record: what was
-   measured, in what order, and the readings that were wrong on the way,
-   because each wrong reading is what pointed at the next.
-
-2. **The infeasible set — met.** §2.9 asks for three instance sets and only
-   the standard one existed; the other two were pinned on 2026-08-07 after Q6
-   was decided. The first run refused 28 of 29; `gran` is now closed and the
-   set reports:
-
-   ```
-   29 instances: 29 correctly refused, 29 shape ok, 29 deterministic, 0 failed
-   gate: PASS
-   ```
-
-   **No false optima.** That was the risk this set exists to measure — a
-   model with no feasible point coming back with an answer — and it does not
-   happen anywhere in the 29. It is also not a hypothetical risk: the revert
-   of 2026-08-07 was forced by its mirror image, `pilot-we` being reported
-   INFEASIBLE when it is feasible, and nothing in the suite caught it.
-
-   **`gran`, and what it was.** It gave up after 1728 iterations with a
-   numerical error and no message. The cause was not phase 1 and not the
-   stall of Q10: its basis went singular, and the solve treated that as the
-   end. It is not. `jaos_internal.h` has said since the factorization was
-   written that rank deficiency is a fact the caller acts on by replacing
-   basis columns — the caller simply never did. The repair pairs the rows
-   the factorization could not cover with the basis positions it could not
-   use, and puts the logical of one into the other; the result is triangular
-   by construction, so it cannot fail for the same reason twice. `gran`
-   reaches INFEASIBLE in 2058 iterations, and no instance of the standard set
-   moves at all, which is what should happen: the repair only runs where a
-   solve previously stopped.
-
-   A singular basis is not something a model can cause. Every basis the dual
-   simplex assembles is nonsingular in exact arithmetic — it never pivots on
-   an alpha below `PIVOT_MIN` — so one that will not factor is always carried
-   error, and 2658 rows is the scale at which that finally accumulated. No
-   unit test can produce one, which is why `tests/test_simplex.c` covers the
-   family instead: rank-deficient constraint matrices, where the danger is a
-   wrong verdict rather than a crash.
-
-   The shape check earned its place immediately, and against the manifest
-   rather than the reader: `greenbea` here carries 111 free rows beyond its
-   objective row, JAOS loads all of them, and the first count written into
-   the manifest had excluded every `N` row wholesale. The gate flagged the
-   mismatch on the first run. Note also that this `greenbea` is a different
-   model from the standard set's — the original infeasible version, from
-   which the feasible one was repaired — which is why the sets are fetched
-   into separate directories.
-
-3. **Kennington — met.** 16 instances, much larger than anything JAOS had
-   loaded, and all sixteen pass every condition on the first run:
-
-   ```
-   16 instances: 16 solved, 16 shape ok, 16 objective ok, 16 checker ok,
-                 16 deterministic, 0 failed        gate: PASS
-   ```
-
-   `ken-18` is 105127×154699 and takes 113652 iterations; `osa-60` carries
-   232966 columns; `pds-20` costs 3.1e10 work units. An order of magnitude
-   past the standard set in every direction, with the independent checker
-   green throughout. That answered something while seven instances of 1a were
-   still open: whatever ailed them, it was not that the readers or the
-   factorization stop working at scale.
-
-   Reference optima come from that directory's readme, computed with
-   Vanderbei's ALPO and carrying eight significant digits — enough against a
-   1e-6 relative tolerance, but not Koch's exact rationals, and marked
-   `netlib` in the manifest for that reason. An instance missing by less
-   than 1e-8 relative could not be judged against them.
-
-4. **Reader robustness — met.** §2.9.4 asks that truncated and corrupted
-   input produce errors rather than crashes. `tests/data/` covers malformed
-   *content*, one file per rejection class, and every one of those files is
-   well-formed enough to reach the check that rejects it: nothing was cut
-   mid-record, no byte was flipped inside a number, nothing was empty and
-   nothing was random. That was a fuzz-shaped gap, and `tests/test_fuzz.c`
-   is the fuzzer. Every prefix of every corpus file, small seeded edits,
-   uniform noise, random sequences of real keywords, and named shapes at the
-   sizes where a buffer decision changes — each offered to both readers,
-   since an LP file handed to the MPS reader is corrupted input by any
-   definition.
-
-   11543 cases run in the suite and 1623443 at `JAOS_FUZZ_SCALE=200`, all
-   clean under ASan+UBSan, which is where the claim actually lives: without
-   the sanitizer this file proves only that the readers do not segfault.
-
-   A fuzzer that finds nothing is not evidence until it is shown able to
-   find something, so the instrument was checked the way §2.8's own lesson
-   demands. `split()` in the MPS reader had `n == MAXTOK` changed to
-   `n > MAXTOK`, a one-token stack overflow, and the fuzzer caught it at
-   `src/mps.c:46` — in the random-edit class rather than in any case written
-   by hand, which is the part that says the classes reach past the first
-   rejection.
-
-5. **`pilot87`'s reference — fixed, from the report's PostScript.** The
-   manifest took it and `maros-r7` from the netlib readme because Koch was
-   believed not to cover them; he does. The blocker was that his exact
-   rationals were published at `zib.de/koch/perplex`, which no longer
-   resolves, and that reading them off the report's PDF reproduced only 23 of
-   the 92 values already known to be his — not a source to set ground truth
-   from.
-
-   The same report's **PostScript** is a different matter. It is dvips
-   output and carries the whole table as literal strings, so the values come
-   out with nothing but the typesetting undone: `Fc(\000)` is the minus sign,
-   `Fa(:)` the decimal point, `Fq(n)` the exponent, and kerning splits both
-   names and mantissas across strings. `bench/koch-refs.py` does that and
-   `bench/koch-verify.py` checks the result against every reference pinned —
-   **82 reproduced exactly, double for double, and none in disagreement**, of
-   which eighty were pinned from Koch before any of this ran. That the same
-   pass reproduces eighty independently transcribed values bit for bit is
-   what makes the two it adds worth taking.
-
-   ```
-   pilot87    301.71072827  ->  301.7103473331105     relative 1.26e-6
-   maros-r7   1497185.1665  ->  1497185.166479644     relative 1.36e-11
-   ```
-
-   The gate's tolerance is 1e-6 relative, so `pilot87` really was being
-   judged against a reference outside tolerance of the exact optimum, and
-   `maros-r7` never was. Every line of the manifest is now sourced `koch`.
-   No verdict moves — 0 regressed, 0 improved on the standard set —
-   which is the expected outcome and not a disappointment: `pilot87` misses
-   its objective by fifteen tolerances against either number. What changes is
-   that the gate is now honest about what it is measuring against.
+**The one thing worth carrying forward rather than filing.** Eight instances
+were refused along the way — `pilot-ja` (D21), `finnis` (D23), `nesm` (D25),
+`grow15` (D26), `etamacro` (D27), `greenbea` (D28), `pilot` (D29) and
+`pilot87` (D30) — and **not one closed by widening a tolerance.** Each was a
+distinct defect with a mechanism, including the two most readily explained as
+the limit of double precision: `etamacro`, which defeats CPLEX at defaults
+and SoPlex at 1e-6, and `pilot87`, the worst-conditioned model in the set.
+`docs/research/netlib-campaign.md` carries the measurement record, including
+the readings that were wrong on the way, because each wrong reading is what
+pointed at the next.
 
 Degeneracy handling is done as far as it can be done without evidence:
 steepest-edge weights repair and restart themselves, and what the ratio test
@@ -381,112 +247,48 @@ the first option the library needs for a reason of its own.
 
 All of the following, no exceptions. The right-hand column is where each one
 actually stands as of 2026-08-07, because a gate whose status is only known
-in aggregate is what §2.8 has just finished being a lesson about.
+in aggregate is a lesson this milestone paid for once already.
 
 | # | Condition | Status |
 |---|---|---|
 | 1a | Netlib **standard** set: `OPTIMAL`, objective within §2.6 tolerance, checker green | **met** — 94/94 solved, 94 objective, 94 checker, `gate: PASS` |
 | 1b | **Kennington** subset, for correctness with no performance expectation | **met** — 16/16, every condition, `ken-18` at 105127x154699 included |
-| 1c | **Infeasible** subset: classified `INFEASIBLE`, no false optima | **met** — 29/29 refused, no false optima; `gran` closed by the basis repair (§2.8.2) |
+| 1c | **Infeasible** subset: classified `INFEASIBLE`, no false optima | **met** — 29/29 refused, no false optima; `gran` closed by the basis repair (CHANGELOG) |
 | 2 | Determinism harness green on every instance (D8) | **met** — 94/94 on the standard set, 16/16 Kennington, 29/29 infeasible. Same-machine by construction; the one cross-machine mechanism anyone identified is bounded by measurement (D34) |
 | 3 | Full suite clean under ASan+UBSan | **met** |
-| 4 | Reader robustness: truncated/corrupted input errors, never crashes | **met** — 1.6M fuzz cases clean under ASan+UBSan, on an instrument checked against an injected fault (§2.8.4) |
+| 4 | Reader robustness: truncated/corrupted input errors, never crashes | **met** — 1.6M fuzz cases clean under ASan+UBSan, on an instrument checked against an injected fault (CHANGELOG) |
 | 5 | Results recorded under `bench/results/` as data, no wall-clock (D17) | **met**, and all three sets now diffed per instance against a baseline (D21) |
 
 Two of these seven were being read as one. "The gate" meant condition 1a in
 every conversation until late, and 1b and 1c had no infrastructure behind
-them at all — which is worth recording, because the distance to M1 was never
-the distance to closing seven instances.
+them at all — worth recording, because the distance to M1 was never the
+distance to closing seven instances.
 
-**All seven now hold, and `make netlib` reports `gate: PASS`.** Every
-instance of the standard 94 solves, is deterministic, is within objective
-tolerance and is accepted by the independent checker.
+**All seven hold.** What each of the eight refused instances turned out to be
+is in `DECISIONS.md` (D21, D23, D25, D26, D27, D28, D29, D30) and summarised
+against the tolerances they were blamed on in `docs/tolerances.md`. One
+methodological point does not live in either and belongs here: the closures
+were grouped, for a long time, by the size of the number the checker
+reported — and that number is the magnitude of a multiplier, which says
+nothing on its own about how far anything is from where it should be. That
+mistake cost `finnis` months in the wrong group; it was the most accurate
+answer of the seven.
 
-The last two closed within a day of each other and neither was a tolerance:
-
-- **`pilot` (D29) was a residual of the basis solve.** It had been rejected
-  on one row lying `1.73e-6` outside its bound and on nothing else, with its
-  objective inside tolerance, its dual violation exactly `0` and its gap
-  `6.6e-14`. That looked like the *primal* residue D24 is about, and
-  measuring it said it was not: no basic variable is outside its bound in the
-  solver's own arithmetic, and the `1.73e-6` is the disagreement between the
-  solver's carried row activity and the checker's recomputation of it. The
-  residual of `x_B = -B^-1 (N x_N)` at the accepted point is `7.06e-6` in the
-  space the checker reads; one step of iterative refinement leaves `9.09e-13`,
-  and the row goes to `6.73e-13`.
-- **`pilot87` (D30) was a clean-up loop that could take one pivot per call.**
-  Its objective was `2.28e-3` out against a tolerance of `3.02e-4` and its
-  dual violation `1.87e-5`, and it was read for a long time as the
-  worst-conditioned model in the set having simply run out of precision.
-  It had not. `primal_cleanup` asks `wants_a_pivot`, which reads the duals
-  out of `rho`; its own first pivot overwrites `rho` with a pricing row, so
-  from the second candidate onwards the question was being asked of the wrong
-  vector — 12 candidates on entry, one pivot, zero on exit, every round.
-  Underneath that, `pivot()` runs `shift_to_feasible` over every variable, so
-  the first pivot *lends away* the other candidates' sign conditions rather
-  than repairing them. Judging each candidate before any of them moves, and
-  calling in its own loan first, takes the objective to `1.33e-7` relative
-  and the dual violation to `0` — for less work than before.
-
-§2.8.1 records what each of the closures was, measured rather than grouped by
-the size of the number reported — because the number the checker reports is
-the magnitude of a multiplier and says nothing on its own about how far
-anything is from where it should be. That mistake cost `finnis` months in the
-wrong group; it was the most accurate answer of the seven and was closed by
-D23.
-
-Of the seven instances the checker once rejected, **all seven have closed and
-not one of them by moving a tolerance**: `pilot-ja` was a contribution the
-checker was dropping (D21), `finnis` a bound-proximity test judged absolutely
-on a row that cancels ten orders of magnitude (D23), `nesm` a settled basis
-the method had never been handed back (D25), `etamacro` a repair test reading
-the wrong quantity in the wrong space (D27), `greenbea` a column with nowhere
-to rest, which needed a basis change rather than a move (D28), `pilot` a
-residual of the basis solve (D29) and `pilot87` a clean-up loop taking one
-pivot where twelve were waiting (D30). `grow15`, which was a different kind
-of failure, was a cycle read as a stall (D26).
-
-That is the strongest thing §2.6 has going for it: **every failure anyone was
-tempted to blame on a number turned out to be something else.** Not one of
-the eight was closed by widening a tolerance, and the two that were most
-readily explained as the limit of double precision — `etamacro`, which
-defeats CPLEX at defaults and SoPlex at 1e-6, and `pilot87`, the
-worst-conditioned model in the set — were both defects with a mechanism.
 
 ### What happens next
 
-**The gate is met, and the bookkeeping that closing it triggered is done.**
-All seven conditions of §2.9 hold on all three instance sets. The four items
-that remained were none of them a solver change, and all four have closed:
+**M1 is closed, bookkeeping included.** The four items that outlived the gate
+were none of them a solver change and all four are decision records: the §2.6
+tolerances froze where they stood (D31), §2.7's per-iteration work weight
+settled at zero and its row is gone (D32), the questions the campaign was
+going to decide are answered (D31), and §2.4's API shape is confirmed (D33).
 
-1. **The §2.6 tolerances are frozen (D31).** They were drafts throughout, on
-   the terms that they would freeze when the Netlib gate closed. Any change
-   to one of them is now a changelog entry.
-2. **§2.7's per-iteration work weight is settled at zero, and its row is
-   gone (D32).** The attribution it was waiting for was made: the basis
-   update turns out to be 1.8% of an iteration rather than the whole of it,
-   and the rest is already charged by dimension, so there is no O(1) residue
-   for a constant to represent.
-3. **The questions the campaign was going to decide are closed (D31).** Q1
-   (dual phase 1 by artificial bounds survived it), Q3 (no instance forced a
-   presolve into M1), Q9 (no instance was refused for reaching the lent
-   bound), Q10's perturbation half (no instance needs it — `grow15` was a
-   cycle, and D26 cures it without perturbing anything). Each closed on the
-   campaign's evidence or on the absence of a model that demanded it, and
-   the distinction matters: an unused device is not a validated one.
-4. **§2.4's API shape is a decision record (D33).** Confirmed by the
-   maintainer, and two places where the draft was wrong were corrected
-   rather than recorded: the no-internal-pointers rule was narrowed to what
-   is actually true of it, and the basis statuses §2.4 promised were built
-   as `jaos_basis` instead of deferred.
+**M2 is open, and its first item is not code.** Everything it delivers is a
+change only measurement can justify, and the deterministic work counter is
+blind to the largest part of what those changes buy — optimisation level,
+memory layout, cache behaviour. So **Q4, the measurement host, blocks the
+milestone** rather than accompanying it. Detail in §3.
 
-**Then M2 opens, and its first item is not code.** Everything M2 delivers —
-presolve, hyper-sparsity, a crash basis, pricing refinements, and the
-deferred data-structure work of §2.11 — is a change that only measurement can
-justify, and the deterministic work counter does not see the largest part of
-what those changes buy: optimisation level, memory layout and cache behaviour
-do not move it at all. So **Q4, the measurement host, blocks the milestone**
-rather than accompanying it.
 
 ### 2.10 Instance acquisition and reference values
 
@@ -1086,8 +888,15 @@ and reopens the moment a model lands on either.
      which lives in the solver's scaled space and reads 7.85e-07 where the
      checker reads 2.21e-4.
 
-     Underneath it and unanswered: why a move re-creates a breach of the size
-     the pivot just removed.
+     **Underneath it, answered (D51): the residue is the loan ledger.** The
+     worst breach a round publishes is the largest cost that round borrowed,
+     to six digits — 1.10301e-04 lent, 1.10302e-04 appearing — and the next
+     round lends the same figure straight back out. `pivot()` runs
+     `shift_to_feasible` over every variable, so every cleanup pivot borrows
+     in order to repair, and repaying is what creates the next round's work.
+     At interval 64 the borrowing shrinks to a single loan of 5.74e-08 and
+     the loop closes; at 24 it does not. So the question is not "which round
+     to keep" but whether a cleanup pivot needs to borrow at all.
 
      At 128 and above `pilot87` also trips the iteration guard, which the
      solver's own message calls a JAOS defect. Untouched.

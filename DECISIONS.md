@@ -2873,3 +2873,37 @@ the breach contributes to the duality gap.
 **Still not attributed:** why a move re-creates a breach of the same size it
 just cost two orders of magnitude to remove. That is the question underneath
 this one, and nothing here answers it.
+
+## D51 — The residue is the loan ledger
+
+D50 left one question: why a move re-creates a breach the size the pivot just
+removed. It is not drift and it is not rounding. **The worst breach a round
+publishes is the largest cost that round borrowed.**
+
+The dual simplex keeps dual feasibility by shifting a nonbasic's cost until
+its reduced cost is zero, recording the loan; `settle_shifts` calls every
+loan in at the end of a round and recomputes the duals from the model's own
+costs. Instrumenting that moment on `pilot87` at interval 24:
+
+| round | loans repaid | largest loan | worst breach that appears |
+|---|---|---|---|
+| 27 | 11 | 1.10301e-04 | **1.10302e-04** |
+| 29 | 11 | 2.74015e-05 | **2.74023e-05** |
+| 31 | 11 | 1.10301e-04 | **1.10302e-04** |
+
+Same number, six digits, every time. And the loan is re-borrowed
+immediately: round 28 opens by lending 1.10302e-04 back out — the figure it
+was just handed.
+
+So the cycle of D50 is a ledger that never clears. `pivot()` runs
+`shift_to_feasible` over every variable, so **every cleanup pivot borrows in
+order to repair**, and repaying is what creates the next round's work. The
+loop converges only where the borrowing shrinks faster than the pivoting
+repairs, which at interval 64 it does — the last round there repays a single
+loan of 5.74e-08 and leaves nothing breaching — and at 24 it does not.
+
+That reframes the repair. "Keep the best round" (D50) treats the symptom;
+the question this raises is whether a cleanup pivot needs to borrow at all,
+or whether the loan can be bounded by what the pivot is worth. Neither is
+answered here, and both are cheaper to reason about now that the residue has
+a name instead of being attributed to arithmetic.

@@ -40,7 +40,7 @@ open, `bench/README.md` for the gate, and the commit each entry came from.
   of every corpus file, seeded edits, random bytes, keyword salad, and named
   edge cases, each fed to both readers. 11543 cases in the suite, 1.6M under
   `JAOS_FUZZ_SCALE=200`, clean under ASan+UBSan. Closes the M1 gate's
-  condition 4, which had been asserted and never tested (PLAN 2.8.4).
+  condition 4, which had been asserted and never tested (PLAN 2.9).
 - Baselines for the Kennington and infeasible sets, with
   `make netlib-kennington-baseline` and `make netlib-infeas-baseline`. Both
   gates report PASS, which is the state in which a summary line cannot show a
@@ -162,7 +162,7 @@ open, `bench/README.md` for the gate, and the commit each entry came from.
   for 9 extra iterations; every other instance of the standard 94 is
   bit-identical and `pds-20` costs one iteration more. Two earlier forms of
   this were measured and left out, one of them costing `pds-20` 3.2x — both
-  in PLAN 2.8.1 (D27).
+  in D27.
 - The checker's bound-proximity test scales with what the value being tested
   is made of: the window is `tol * s`, with `s = max(1, sum_j |A_ij x_j|)`
   for a row and `max(1, |x_j|)` for a column. Row 3 of Netlib's `finnis`
@@ -234,7 +234,7 @@ open, `bench/README.md` for the gate, and the commit each entry came from.
   could not use gives a completion that is triangular by construction.
   `gran` reaches INFEASIBLE where it used to give up after 1728 iterations,
   taking the infeasible gate to 29 of 29, and no instance of the standard set
-  moves. PLAN 2.8.2 has the proof and why no unit test can produce one.
+  moves. `repair_singular_basis` carries the proof and why no unit test can produce one.
 - Every reference optimum in `bench/netlib.manifest` is now Koch's.
   `maros-r7` and `pilot87` had fallen back to the netlib readme, so `pilot87`
   was judged against a value 1.26e-6 from the exact optimum where this gate's
