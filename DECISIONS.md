@@ -2348,3 +2348,91 @@ inside `pivot` was unbilled before this and stays unbilled; the one inside
 **Since M1's gate first passed**, the 139 have gone 293,987,935,333 ->
 99,555,457,721 — under a hundred billion for the first time, **2.953x** —
 and **5.946x on Kennington**.
+
+---
+
+## D45 — The work counter is calibrated against a clock, and it is optimistic by a factor that is not constant
+
+Nine entries of M2 were accepted on work units because there was nothing
+else to accept them on: D17 excludes this machine for published figures and
+Q4's host does not exist. That left every one of them resting on an
+assumption nobody had tested — that a unit removed is time removed.
+
+**It is not, and the error is large.** Two experiments, both ratios of the
+same instance against itself on the same machine, so almost everything that
+makes this host unfit for absolute figures divides out.
+
+**How many units a second buys, over the standard 94.** From 5.86e7 on
+`fit2p` to 1.36e9 on `wood1p` — a spread of **23x**, and still **13x** among
+the fifteen instances long enough for the clock to be trusted. The direction
+is legible: models whose working set fits in cache buy far more units per
+second. `fit2d` is 25 rows by 10500 columns and flies; `stocfor3` has 32370
+variables at 0.9% density and is indirection from end to end.
+
+**What M2 has actually bought, M1's close against today.**
+
+| | work | **time** |
+|---|---|---|
+| standard 94 (the 26 above 50 ms) | 1.104x | **1.022x** |
+| **Kennington 16** | 5.946x | **2.220x** |
+| both, wall clock | — | 842.7 s -> 451.7 s, **1.866x** |
+
+`ken-18` alone goes 569.8 s -> 240.5 s. So the milestone is real and it is
+smaller than the counter says: **1.87x, against 2.95x claimed.**
+
+**Nine instances got slower while the counter said they got cheaper.**
+`greenbea` loses 8% of its time on 24% less billed work; `pilot`, `pilot87`
+and `pilot-we` lose 3-5%; `osa-30` and `osa-60` on Kennington gain nothing
+from a 2x work reduction. Every one of them is a model where the pricing row
+is dense, so the sparse machinery is collected and thrown away.
+
+**Which entry bought what, timed separately.** Each threshold turned off and
+on over a panel spanning both regimes:
+
+| | dense | sparse | Kennington | all |
+|---|---|---|---|---|
+| `SPARSE_ALPHA_DEN` = 4 (D40, D41) | 1.009x | 1.280x | **1.494x** | **1.245x** |
+| `SPARSE_RHO_DEN` = 4 (D43) | 0.999x | 1.006x | 1.019x | 1.008x |
+| `SPARSE_COL_DEN` = 2 (D44) | **0.987x** | 1.023x | 1.016x | 1.008x |
+| `SPARSE_COL_DEN` = 8 | 0.992x | 1.012x | **1.030x** | **1.012x** |
+
+**D40 and D41 delivered nearly all of the real speed. D42, D43 and D44
+delivered about 5% between them**, against work-unit claims of 1.208x,
+1.255x and 1.557x on Kennington.
+
+**The mechanism, and it is not the one this entry first reached for.** The
+tempting reading is sequential against random access. The sharper one is
+**how much real work sits behind a billed unit**. D40 removed sweeps over
+`nvar` in the ratio test and the dual update: a `status[]` byte, a `double`,
+a branch and a call, per unit. D42, D43 and D44 removed sweeps over `nrow`
+that are a contiguous `a[i] -= b * c[i]` — about the cheapest thing the
+counter ever charges one for. Both are billed at 1.
+
+**So the attribution table ranks targets by a metric biased against the LU.**
+PLAN 3.2 puts 77.8% of the standard set inside the factorization and the
+triangular solves, and those are the units with the most real work behind
+them — random access through a factor. The dense sweeps that M2 has spent
+nine entries removing were the cheap ones. That the standard set has moved
+1.104x in units and 1.022x in seconds while nothing has touched its LU is
+the same fact stated twice.
+
+**What changes.**
+
+- **`SPARSE_COL_DEN` goes from 2 to 8**, which is the first constant here
+  whose value contradicts its own work-unit sweep — that sweep was monotone
+  to "always" and wanted 1.
+- **`SPARSE_RHO_DEN` and `SPARSE_ALPHA_DEN` stay at 4**, now confirmed
+  against a clock rather than argued.
+- **A change is judged on three things from here**: digests for correctness,
+  work units for determinism and cross-machine comparability, and a
+  same-instance time ratio to catch the `greenbea` case. Two of the three
+  were already the rule; the third is what this entry adds, and it is
+  available today on a host D17 excludes for absolute figures, because a
+  ratio is not an absolute figure.
+
+**What this does not license.** No number here may be published or compared
+against another machine. WSL2 is a virtual machine with a memory balloon and
+the Windows scheduler underneath, and the ~13x unit-rate spread above is
+partly the machine and partly the models — this cannot say how much of
+each. Q4's host is still what separates them, and the competitive gap M2's
+gate asks for still needs it.

@@ -101,9 +101,17 @@ constexpr int64_t SPARSE_RHO_DEN = 4;
  * Cheaper to answer than the other two: nothing has to be ordered, because
  * every reader of this vector is elementwise, so the sparse form costs one
  * indirection per nonzero against one sequential read per row. It pays
- * further up than the other two for that reason, and the divisor is swept
- * rather than argued (D44). */
-constexpr int64_t SPARSE_COL_DEN = 2;
+ * further up than the other two for that reason (D44).
+ *
+ * **Set from seconds, not from work units, and they disagree** (D45). The
+ * unit sweep was monotone all the way to "always" and would have put this at
+ * 1; timed on the same machine, 8 beats 2 and 2 loses time on models where
+ * the pricing row is dense. What the counter cannot see is that the loop
+ * this replaces is a contiguous `a[i] -= b * c[i]` — about the cheapest unit
+ * it ever charges — so removing those units buys much less than removing the
+ * branchy per-variable ones D40 removed. It is the first constant in this
+ * solver whose value contradicts its own work-unit measurement. */
+constexpr int64_t SPARSE_COL_DEN = 8;
 
 /* Refactorization interval. PLAN 2.5.5 also calls for stability triggers
  * (FTRAN/BTRAN residual checks); only the interval and the reactive

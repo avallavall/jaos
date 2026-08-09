@@ -638,6 +638,15 @@ working agreement asks for once a milestone is active.
 
 ### 3.1 The gate, and what blocks it
 
+**Read D45 before reading any figure in this section.** The work counter has
+now been calibrated against a clock, by ratios of the same instance against
+itself, and it is optimistic by a factor that is not constant: M2 has bought
+2.953x in units and **1.866x in seconds**. Worse for planning, the error is
+not uniform — the `nvar` sweeps D40 removed were expensive per unit and the
+`nrow` sweeps D42, D43 and D44 removed were nearly free, and both are billed
+at 1. **Every percentage in §3.2 is a share of billed work, and the LU rows
+are the ones with the most real work hiding behind them.**
+
 M2's gate is a measured competitive gap against open solvers on the
 measurement host. **Q4 blocks it and nothing else will unblock it.** Every
 figure below is deterministic work units; the counter is blind to
