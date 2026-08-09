@@ -59,12 +59,12 @@ HiGHS, SoPlex and Clp by checksum with their licences verified at fetch;
 `run-compare.sh` walks a rung and writes `bench/compare/results/`. `make
 compare` does the lot.
 
-**T0 is measured against two rivals (D52, D53).** Against HiGHS 1.15.1, JAOS
-is 4.13x slower per solve — 1.50x the iterations and **2.76x** the cost of
-each. Against SoPlex 8.0.3 it is 1.42x slower on **0.65x** the iterations and
-**2.18x** per iteration, and it is faster on 10 of 23. The per-iteration ratio
-agrees between the two rivals instance by instance, which is what makes it a
-quantity rather than a quotient.
+**T0 is measured against two rivals (D52, D53), and re-measured after D55 and
+D56.** Against HiGHS 1.15.1, JAOS is **3.81x** slower per solve — 1.47x the
+iterations and **2.60x** the cost of each. Against SoPlex 8.0.3 it is **1.36x**
+slower on **0.70x** the iterations and **1.95x** per iteration, and faster on
+10 of 22. The per-iteration ratio agrees between the two rivals instance by
+instance, which is what makes it a quantity rather than a quotient.
 
 **Q4 is downgraded from a blocker to a label.** It said the gate needs a
 dedicated measurement host, and it does — for a *published* figure. Comparing
@@ -143,13 +143,19 @@ are competitive. What costs **2.2x to 2.8x** is each iteration, and the two
 rivals agree on that number instance by instance, which makes it a property
 of JAOS rather than of a comparison.
 
-**The seventeen turned out to be two different things (D54), and they need
-different work.** `maros-r7` bills two million work units an iteration, fifty
-times the median, at a *below*-median cost per unit: its iterations really are
-that expensive and the counter sees them. That is the factorization, and fill
-reduction is the lever. `fit2p` bills an ordinary 146k an iteration and takes
-six times the median per unit: something there costs real time and bills
-nothing.
+**The seventeen turned out to be two different things (D54), and one of them
+is closed.** `fit2p` billed an ordinary 146k units an iteration and took six
+times the median of real time per unit; that was two pieces of work nobody
+billed — a capacity check across a translation unit (D55) and an elimination
+rebuilding columns it had nothing to eliminate from (D56) — and it is down
+from 17.5x to **5.1x** per iteration against HiGHS.
+
+**`maros-r7` is the one left, alone at 16.5x**, and it is the opposite kind:
+two million billed units an iteration, fifty times the median, at a
+*below*-median cost per unit. Its iterations really are that expensive and the
+counter sees them. That is the factorization, and fill reduction is the lever
+— it carries 4.801 nonzeros in its factors per nonzero of the basis against a
+set average of 2.673.
 
 And the figure that governs this whole section: **the real cost of a billed
 unit spans 14.7x across the timed set**, 0.795 to 11.686 µs per thousand. A
