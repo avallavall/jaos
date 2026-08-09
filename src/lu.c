@@ -573,6 +573,37 @@ jaos_status jm_lu_factor(jm_lu *lu, int64_t dim,
                 goto done;
             }
 
+            /* Nothing to eliminate: the pivot column has no live row below
+             * the pivot, so no value in this column changes and no fill can
+             * appear. All the pass below would do is copy the column through
+             * `work` and push it back, so compact it where it stands.
+             *
+             * This is not a corner case. A basis that is already triangular
+             * has an empty `piv_row` at every step — on `fit2p`, L holds 101
+             * entries against 3000 pivots, so 97% of them land here — and
+             * the general path was rebuilding every column of every pivot
+             * row regardless: 344 million pushes for eleven factorizations
+             * of a matrix with 37,504 nonzeros (D56).
+             *
+             * Bit-identical, and it has to be. The values are untouched, so
+             * none can newly fall under `drop` — an entry only reaches here
+             * having survived an earlier compaction, which already applied
+             * that test. What is dropped is exactly what the general path
+             * drops, entries whose row is done, and in the same order. */
+            if (e.piv_n == 0) {
+                int64_t keep = 0;
+                for (int64_t k = 0; k < cv->n; k++) {
+                    if (e.row_done[cv->idx[k]])
+                        continue;
+                    cv->idx[keep] = cv->idx[k];
+                    cv->val[keep] = cv->val[k];
+                    keep++;
+                }
+                cv->n = keep;
+                bucket_move(&e, j, keep);
+                continue;
+            }
+
             int64_t nt = 0;
             for (int64_t k = 0; k < cv->n; k++) {
                 int64_t i = cv->idx[k];

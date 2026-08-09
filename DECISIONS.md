@@ -3191,3 +3191,57 @@ this morning, not stronger.
 exactly as measured: they build JAOS with the competitor's own flags, which
 include `-flto`, so this change moves none of them. The gap against HiGHS is
 still 4.13x. What moved is what a user of `libjaos.a` gets.
+
+## D56 — The elimination rebuilt every column of every pivot row, including when there was nothing to eliminate
+
+D55 removed 20 billion of `fit2p`'s 48.75 billion instructions and left the
+rest where the profiler had put it: `jm_lu_factor` at 56% and `jm_svec_push`
+at 37%. Line attribution says why. **`jm_svec_push` is called 344,189,600
+times** for eleven factorizations of a 3000-row basis holding 37,504
+nonzeros — about 830 appends per nonzero.
+
+**What the elimination does.** For each pivot, for each column of the pivot
+row, it scatters the column into a dense buffer, applies the pivot column's
+multipliers, and pushes the survivors back. The cost is the length of the
+column, twice, whatever the multipliers do.
+
+**And on a triangular basis the multipliers do nothing.** `piv_row` holds the
+live rows of the pivot column below the pivot; when the basis is already
+triangular there are none. On `fit2p`, L holds 101 entries against 3000
+pivots, so **97% of pivots have an empty `piv_row`** and the pass was
+scattering and rebuilding each column to copy it onto itself.
+
+**The repair** is to compact the column where it stands when `piv_n == 0`,
+and it must be bit-identical: no value changes, so none can newly fall under
+the drop tolerance — an entry only reaches that point having survived an
+earlier compaction, which already applied that test — and what is dropped is
+exactly what the general path drops, entries whose row is done, in the same
+order.
+
+**Measured.** All 139 reference instances identical to the committed record,
+digest for digest, 130 tests green.
+
+| | `-O2`, shipping | `-O2 -flto` |
+|---|---|---|
+| **`fit2p`** | 8.252 s -> **2.460 s** (3.35x) | 7.567 -> **2.402** (3.15x) |
+| `stocfor3` | 6.064 -> 5.878 (1.03x) | 1.02x |
+| `25fv47` | 0.495 -> 0.484 (1.02x) | 1.00x |
+| `maros-r7` | 36.750 -> 36.151 (1.02x) | 1.01x |
+| `truss` | 1.615 -> 1.596 (1.01x) | 1.00x |
+
+Surgical, which is what the reasoning predicted: it can only help a basis
+that is close to triangular, and `maros-r7` — the highest-fill instance in
+the set — is exactly where it cannot.
+
+**Unlike D55, LTO does not hide this one.** D55 was a call the compiler could
+inline given the whole program; this is work that did not need doing at all,
+and no optimiser can find that. The two together take `fit2p` from 12.869 s
+to 2.460 s in the shipping build, **5.2x**, and its gap against HiGHS at tier
+T0 from 16.5x to about 4.6x.
+
+**What it says about the work counter, again.** None of this billed a unit.
+`jm_work_add(w, JM_WORK_ELIMINATED)` is charged inside the multiplier loop,
+which for these pivots ran zero times — so the counter recorded the cheap
+factorization it should have been and the solver did something else entirely.
+That is now three findings deep in the same direction (D45, D54, this): the
+counter measures the algorithm, not the program.

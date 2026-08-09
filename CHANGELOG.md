@@ -88,6 +88,15 @@ open, `bench/README.md` for the gate, and the commit each entry came from.
 
 ### Changed
 
+- The elimination stops rebuilding a column when there is nothing to
+  eliminate. It scattered every column of every pivot row into a dense
+  buffer and pushed the survivors back regardless of what the pivot column
+  held — and on a basis that is already triangular it holds nothing, so the
+  pass was copying each column onto itself. On `fit2p` that was 97% of
+  pivots and 344 million appends per eleven factorizations. **`fit2p` goes
+  from 8.25 s to 2.46 s**, and with the entry below, from 12.87 s to 2.46 s.
+  Surgical by construction — `maros-r7`, the highest-fill instance, moves
+  1.02x. All 139 reference instances identical, digest for digest (D56).
 - Appending to a sparse vector tests its own capacity instead of calling
   across a translation unit to be told there was room. `jm_svec_push` called
   `jm_grow` twice per element and `jm_grow` lives in `util.c`, so in the
