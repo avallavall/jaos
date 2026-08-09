@@ -31,5 +31,4 @@ woodinfe     infeasible rows=35 cols=89 shape=ok iters=37 work=22566 expected=in
 29 instances: 29 correctly refused, 29 shape ok, 29 deterministic, 0 failed
 gate: PASS
 
--- against baseline --
-baseline: 0 regressed, 0 improved, 0 new
+baseline: NOT COMPARED (no baseline given)
