@@ -537,11 +537,26 @@ Known costs, correct today, to be revisited in M2 with numbers rather than
 opinions (D17). Recording them here keeps "we chose this" distinct from "we
 missed this".
 
-- **Slot detachment in a basis update is quadratic.** `jm_svec_erase` scans,
-  and an update erases once per entry of the outgoing slot's row and column,
-  so a slot carrying `f` nonzeros costs O(f²) to unhook — on the hottest
-  path there is, with `f` growing until the next refactorization. A position
-  map removes the inner scan.
+- ~~**Slot detachment in a basis update is quadratic.**~~ **Measured, and
+  refused.** It is quadratic — `jm_svec_erase` scans, and an update erases
+  once per entry of the outgoing slot's row and column — but the constant is
+  what decides, and nobody had put a number beside it since M1.
+
+  Over the standard 94: 10,587,006 erase calls walking **1,059,009,850**
+  array positions, a hundred per call, with `fit2p` at 571 per call and a
+  worst single scan of 2977. Over Kennington: 586,603 calls and 7,467,608
+  positions, twelve per call. So the behaviour is real and its cost is a
+  billion integer comparisons against 59.5e9 billed units — and a scan step
+  is cheaper than nearly everything the counter charges one for, so 1.78% of
+  the standard set's billed cost is an upper bound and the truth is well
+  under it. On Kennington it is **0.02%**, the exact inverse of every other
+  entry in M2.
+
+  A position map means the doubly linked sparse matrix of [4] — a reverse
+  link to maintain on every push and every erase, in the file where a
+  mistake is least visible. Days of delicate work in `lu.c` for under one
+  percent. Left as it is, and this is now a closed question rather than an
+  open item nobody had costed.
 - **Elimination storage is one growable array per column**, rather than a
   single arena with compaction. Simpler to get right; more allocator traffic
   and worse locality.
