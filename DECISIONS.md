@@ -3082,3 +3082,52 @@ line of the record says so, and the caveat in `soplex-T0.args` stands —
 SoPlex switches to the primal part-way through a solve and `-s0
 --int:algorithm=1` does not stop it, so its rung is a lower bound on the gap
 a fully dual-forced SoPlex would show.
+
+## D54 — The seventeen is two different things, and only one of them is visible to the counter
+
+D53 found two instances at seventeen times the per-iteration cost of a rival
+and everything else between 1.2x and 3.5x, and PLAN said to find out what the
+seventeen was before touching the two. Crossing the measured time per
+iteration against what the work counter billed for that iteration answers it.
+
+Over the 26 instances above the timing floor, in microseconds of real time
+per thousand billed work units:
+
+| | units per iteration | µs per 1000 units |
+|---|---|---|
+| `fit2p` | 146,449 | **11.686** |
+| `stocfor3` | 44,987 | 7.154 |
+| *median of the 26* | *40,406* | *1.895* |
+| `maros-r7` | **2,007,710** | 1.790 |
+| `truss` | 66,602 | 1.351 |
+| `fit2d` | 555,432 | **0.795** |
+
+**`maros-r7` is honest work.** It bills two million units an iteration, fifty
+times the median, and its time per unit is *below* the median. Its iterations
+really are that expensive and the counter says so. That is the factorization
+— it is the highest-fill instance in the set at 4.801 (D46) — and fill
+reduction is the lever.
+
+**`fit2p` is not.** It bills an ordinary 146k an iteration and takes 11.7 µs
+per thousand, six times the median. Something there costs real time and bills
+almost nothing.
+
+**And the general figure is the one that matters most.** The cost of a billed
+unit spans **0.795 to 11.686 µs — 14.7x — across the timed set**. D45
+measured 13x from the other direction and this ties it to the comparison: a
+ranking of targets by work units can be wrong by an order of magnitude
+depending on which instance carries the total, and two instances carry 74% of
+this one (D46).
+
+**What it is not.** Not the shape: `fit2d` is 420 columns per row and the
+cheapest unit in the set, `truss` is 8.8 and near the bottom, while
+`stocfor2` at 0.9 sits high. Not size alone either: `stocfor3` has five times
+`fit2p`'s rows and a better figure. What the top of the column has in common
+is sparse wide matrices whose entries scatter across many rows — units that
+are cheap to bill and expensive to fetch — which is a cache story and exactly
+the mechanism D45 named without being able to isolate it.
+
+**So phase 6 has two targets, not one**, and they need different work: the
+factorization for `maros-r7` and everything like it, and whatever `fit2p`
+spends that nobody bills. The second is the one no internal instrument has
+ever been able to see, which is why it took an external clock to find it.

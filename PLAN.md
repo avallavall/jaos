@@ -143,12 +143,18 @@ are competitive. What costs **2.2x to 2.8x** is each iteration, and the two
 rivals agree on that number instance by instance, which makes it a property
 of JAOS rather than of a comparison.
 
-Two regimes, not a spectrum: `maros-r7` and `fit2p` sit at **seventeen
-times** per iteration and everything else between 1.2x and 3.5x. `maros-r7`
-is the highest-fill instance in the set. **Find out what the seventeen is
-before touching the two** — they are unlikely to be the same defect, and one
-of them is worth an order of magnitude on the instances that dominate every
-total.
+**The seventeen turned out to be two different things (D54), and they need
+different work.** `maros-r7` bills two million work units an iteration, fifty
+times the median, at a *below*-median cost per unit: its iterations really are
+that expensive and the counter sees them. That is the factorization, and fill
+reduction is the lever. `fit2p` bills an ordinary 146k an iteration and takes
+six times the median per unit: something there costs real time and bills
+nothing.
+
+And the figure that governs this whole section: **the real cost of a billed
+unit spans 14.7x across the timed set**, 0.795 to 11.686 µs per thousand. A
+ranking by work units can be wrong by an order of magnitude depending on which
+instance carries the total — and two instances carry 74% of this one.
 
 **Read D45 before any figure below.** The work counter is optimistic by a
 factor that is not constant: M2 bought 2.953x in units and **1.866x in
@@ -176,24 +182,31 @@ sum.
 ### What is left, ranked
 
 1. **The factorization, and the scatter its factors cost every solve** —
-   77.8% of the standard set, untouched through all of M2. The factors carry
-   2.673x the nonzeros of the basis; two thirds of every factorization is
-   free triangularization and 31.8% is where Markowitz actually chooses
-   (D46). Live structural items: the missing row-to-position lookup on the
-   factorization path, the per-column elimination arrays against a single
-   arena, and the stale live counts that make Markowitz choose on a
-   pessimistic estimate.
-2. **Partial and multiple pricing** — the row scan that picks the
+   77.8% of the standard set, untouched through all of M2, and now confirmed
+   from outside: `maros-r7` bills 50x the median units per iteration and is
+   40x slower than HiGHS. The factors carry 2.673x the nonzeros of the basis;
+   two thirds of every factorization is free triangularization and 31.8% is
+   where Markowitz actually chooses (D46). Live structural items: the missing
+   row-to-position lookup on the factorization path, the per-column
+   elimination arrays against a single arena, and the stale live counts that
+   make Markowitz choose on a pessimistic estimate.
+
+2. **Whatever `fit2p` spends that nobody bills** — six times the median cost
+   per work unit, on ordinary per-iteration billing. No internal instrument
+   has ever been able to see it, which is why it took an external clock to
+   find. The first question is what a profiler says, not what the counter
+   says, because the counter is what missed it.
+3. **Partial and multiple pricing** — the row scan that picks the
    infeasibility is 26.4% of Kennington and has no sparsity to exploit.
    **The first change that cannot be judged on digests**: it moves the search
    path, so it needs the full gate and a different standard of evidence.
-3. **BTRAN's `L'` pass**, 5.15% of the standard set, billed for every slot.
+4. **BTRAN's `L'` pass**, 5.15% of the standard set, billed for every slot.
    Only 4.1% of its entries sit under a zero, so a reachability search over a
    row-wise copy of L can recover at most a fifth of a percent. Recorded so
    it is not costed again.
-4. **The eta passes** apply 45.1% and 10.6% of their etas to a zero and are
+5. **The eta passes** apply 45.1% and 10.6% of their etas to a zero and are
    charged for all of them — 1.69% of the standard set together.
-5. **A primal simplex**, which phase 4's crossover needs anyway.
+6. **A primal simplex**, which phase 4's crossover needs anyway.
 
 ---
 
