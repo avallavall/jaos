@@ -17,7 +17,7 @@ prerequisites exist.
 | Stage | Delivers | Gate |
 |---|---|---|
 | **M1 — LP correct** | MPS+LP readers, scaling, revised dual simplex, checker | Netlib set solved to reference values; see §2.9 |
-| **M2 — LP fast** | Presolve, hyper-sparsity [9], crash basis [12], pricing refinements, benchmark harness, and the deferred data-structure work of §2.11 | Measured competitive gap vs open solvers on the measurement host |
+| **M2 — LP fast** | Presolve, hyper-sparsity [9], pricing refinements, and the deferred data-structure work of §2.11. **Open — detail in §3**, where the measured attribution has already reordered this list and ruled a crash basis [12] out for now | Measured competitive gap vs open solvers on the measurement host; **blocked by Q4** |
 | **M3 — MILP correct** | Branch & bound, reliability/pseudocost branching [14], warm-started dual simplex | MIPLIB 2017 easy subset: correct optima, correct infeasibility claims |
 | **M4 — MILP strong** | Cuts (Gomory [15], MIR [16], covers), MIP presolve [14], primal heuristics (FP [17], diving, RINS [18]) per D9 | MIPLIB benchmark subset coverage targets, fixed when M4 opens |
 | **M5 — Parallel deterministic** | `jaos_thread.h` (D13), deterministic parallel B&B per D8, opportunistic opt-in | Bit-identical parallel runs; measured speedup on measurement host |
@@ -624,7 +624,119 @@ missed this".
 
 ---
 
-## 3. Open questions
+## 3. Milestone 2 — LP fast
+
+**Open, and opened by work rather than by decision.** Four entries have
+landed against it (D35, D37, D38, D39) and total work over the 139 reference
+instances has fallen about 1.24x without a single verdict, objective or
+iteration count changing. What follows is the detail the working agreement
+asks for once a milestone is active.
+
+### 3.1 The gate, and what blocks it
+
+M2's gate is a measured competitive gap against open solvers on the
+measurement host. **Q4 blocks it and nothing else will unblock it.** Every
+figure below is deterministic work units; the counter is blind to
+optimisation level, memory layout and cache behaviour, which is where the
+rest of the speed lives. No wall-clock claim belongs anywhere until that
+host exists (D17).
+
+What *can* be done without it is everything the counter sees: fewer nonzeros
+touched, fewer eliminations, fewer refactorizations, fewer iterations.
+
+### 3.2 Where the work actually is — and it is two different answers
+
+Attributed with a `JAOS_DIAG` build that assigns every charge to the phase
+that spent it, on the tree as of D38. **Read both columns before choosing a
+target: they disagree almost completely, and Kennington carries 73% of all
+work measured.**
+
+| | standard 94 | **Kennington 16** |
+|---|---|---|
+| dual update + DSE weights | 6.41% | **44.96%** |
+| ratio test | 8.79% | **31.23%** |
+| the `rho'M` product | 11.22% | 11.99% |
+| row scan for the infeasibility | 1.28% | 9.19% |
+| the two FTRANs | 29.76% | 0.61% |
+| refactorization + refreshes | 20.84% | 1.08% |
+| BTRAN of the pricing row | 13.73% | 0.64% |
+| basis update | 7.82% | 0.17% |
+| **triangular solves together** | **43.48%** | **1.25%** |
+| total units | 62,701,726,771 | 168,372,717,242 |
+
+On mid-sized models the cost is the triangular solves and the
+factorization. On the large ones it is two dense sweeps over every variable
+per iteration, and the solves barely register. **Measuring on the standard
+set and generalising is how this milestone's plan got its order wrong
+twice.**
+
+### 3.3 The next target, specified
+
+**Make the consumers of `alpha` sparse.** D35 made the `rho'M` product
+walk rows so a zero of `rho` skips a matrix row, but everything downstream
+still walks all `nvar` entries: `dual_ratio_test` scans every variable to
+build its candidate set, `pivot` scans every variable for the dual update,
+and the steepest-edge update sweeps the rows. Together that is 76% of the
+work on the large models. It is exactly what [9] warns about — a sparse
+result feeding dense loops throws away what it bought.
+
+**The obstacle, which decides how the change is judged.** `price_all` fills
+`alpha` by walking rows, so the pattern comes out unordered. The ratio test
+breaks ties by variable index (`jm_bland_pick`, and Harris' choice among
+equal quotients), so consuming an unordered pattern changes which candidate
+wins and moves the trajectory. Either the pattern is collected in index
+order, or it is sorted before use, or the change is no longer bit-identical
+and has to be judged on the full gate instead of on digests.
+
+Smaller items on the same path, all measured and all modest: the FTRAN and
+BTRAN eta passes apply 45.1% and 10.6% of their etas to a zero and are
+charged for all of them (1.69% of the standard set together), and BTRAN's
+L' pass has 4.1% under a zero with no row-wise copy of L to search.
+
+### 3.4 Settled during M2, so it is not re-derived
+
+- **The refactorization interval stays at 64.** Swept over 16..256: it is
+  one of only two values that come out completely clean, and the ones that
+  looked cheaper looked that way because `pilot87` — 38% of the standard
+  set's work on its own — had dropped out of the total by failing (D39).
+- **A crash basis [12] is not the cheap win the staging table implies.**
+  `build_initial_basis` starts from the slack basis for a stated reason: with
+  `B = -I` every steepest-edge weight starts at its exact value. A crash
+  basis destroys that, and exact weights for an arbitrary basis cost one
+  solve per row. Devex or a weight reset would pay for the crash in pricing
+  quality, at the start of the solve where it costs most iterations.
+- **Filtering basic columns out of the pricing sweep is refused**, measured:
+  36.1% of entries are in basic columns, but the filter needs a `status[v]`
+  read on every entry and comes to 3.92 memory accesses against 4 (D35).
+
+### 3.5 Method worth keeping: sweep the trajectory, not just the instances
+
+All 139 instances pass and always have — at one refactorization interval, so
+along one trajectory. The eight defects M1 closed were closed against that
+trajectory. Varying a parameter that must not change any verdict, and
+requiring the gate to hold across the range, measures something the instance
+sets at one setting cannot: **not whether the gate passes, but with how much
+margin.** It costs minutes with the parallel runner and it found D39.
+
+Q12 carries what it found and D39 did not close.
+
+### 3.6 Tooling that is not in the repository yet
+
+Measurement was the bottleneck on the work above until it was fixed outside
+the tree, and the fix is worth bringing in. Instances are independent and the
+figures — work units, digests, iteration counts — are integers that depend
+on neither the optimisation level nor on what else is running. So the bench
+runner can be built `-O3 -march=native -flto` and the instances solved
+concurrently, which takes the standard set from about eight minutes to
+ninety seconds and Kennington from thirty minutes to fifteen.
+
+Verified twice, on different trees, by producing records identical byte for
+byte to the sequential `-O2` runner — which also settles, for Q11, that
+those flags change no result over the 94.
+
+---
+
+## 4. Open questions
 
 Q1, Q3, Q9 and Q10 closed with the Netlib campaign and are recorded in D31:
 dual phase 1 by artificial bounds survived it, no instance forced a presolve
@@ -732,7 +844,7 @@ and reopens the moment a model lands on either.
 
 ---
 
-## 4. Bibliography
+## 5. Bibliography
 
 Verified citations — each checked against its publisher or archive before entering
 this list. Implementation works from these and their kin only (D12).
