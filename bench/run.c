@@ -6,10 +6,15 @@
  * independent checker. Then it solves the same model a second time and
  * requires the two runs to agree bit for bit (D8).
  *
- * This is the M1 gate (PLAN 2.9) as a program. It is a bench tool, not a
+ * This is the acceptance gate as a program. It is a bench tool, not a
  * product: it is not built by `make all`, links against the library like any
- * other consumer, and prints data rather than verdicts about speed. No
- * wall-clock number appears anywhere in its output, deliberately (D17).
+ * other consumer, and prints data rather than verdicts about speed.
+ *
+ * It shows the time each instance took, and **no wall-clock number reaches
+ * the record file or the baseline** — those stay deterministic, because a
+ * baseline that changes on every run cannot detect a regression. The seconds
+ * go to the console, where they answer the question the work counter cannot:
+ * whether the units a change removed were units that cost anything (D45).
  *
  * Usage: run [-d DIR] [-m MANIFEST] [-o FILE] [-b FILE] [-w FILE]
  *            [-e optimal|infeasible] [instance ...]
@@ -39,6 +44,9 @@
  *
  * SPDX-License-Identifier: Apache-2.0
  */
+/* `-std=c23` is strict ISO, which hides clock_gettime. */
+#define _POSIX_C_SOURCE 200809L
+
 #include "jaos.h"
 
 #include <math.h>
@@ -46,6 +54,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
 
 /* The table goes to stdout as it is produced, and to the record file if one
  * was asked for. Both, or the caller has to choose between watching a long
@@ -66,6 +75,40 @@ static void emit(const char *fmt, ...)
         vfprintf(g_record, fmt, ap);
         va_end(ap);
         fflush(g_record);
+    }
+}
+
+/* Seconds, and where they are allowed to go.
+ *
+ * The record this tool writes carries no wall-clock number and must not: a
+ * baseline that changes on every run cannot detect a regression, which is
+ * the one thing it exists to do. But a run that never shows its time hides
+ * the other half of every performance question, because the work counter is
+ * optimistic by a factor that is not constant (D45).
+ *
+ * So the time goes to the console and nowhere else. `stamp` prefixes each
+ * instance's line on stdout only, and `emit` writes the line itself to both
+ * stdout and the record — so the record file comes out byte-identical to
+ * what it was before this existed. */
+static double now_seconds(void)
+{
+    struct timespec t;
+    clock_gettime(CLOCK_MONOTONIC, &t);
+    return (double)t.tv_sec + (double)t.tv_nsec * 1e-9;
+}
+
+static double g_total_secs = 0.0;
+static double g_slowest_secs = 0.0;
+static char g_slowest[64] = "";
+
+static void stamp(const char *name, double secs)
+{
+    printf("[%8.3fs] ", secs);
+    fflush(stdout);
+    g_total_secs += secs;
+    if (secs > g_slowest_secs) {
+        g_slowest_secs = secs;
+        snprintf(g_slowest, sizeof g_slowest, "%s", name);
     }
 }
 
@@ -289,8 +332,11 @@ static bool run_one_infeasible(const entry *e, const char *dir, tally *t)
     if (shape)
         t->shape_ok++;
 
+    const double t0 = now_seconds();
     st = jaos_solve(m);
+    const double dt = now_seconds() - t0;
     if (st != JAOS_OK) {
+        stamp(e->name, dt);
         emit("%-12s SOLVE-ERROR  %s | %s\n", e->name, jaos_status_str(st),
              jaos_model_error(m) ? jaos_model_error(m) : "");
         jaos_model_free(m);
@@ -314,6 +360,7 @@ static bool run_one_infeasible(const entry *e, const char *dir, tally *t)
     else
         t->failed++;
 
+    stamp(e->name, dt);
     emit("%-12s %-10s rows=%lld cols=%lld shape=%s iters=%lld work=%lld"
          " expected=infeasible verdict=%s det=%s%s\n",
          e->name, jaos_solve_status_str(ss), (long long)nr, (long long)nc,
@@ -367,8 +414,11 @@ static bool run_one(const entry *e, const char *dir, tally *t)
     if (shape)
         t->shape_ok++;
 
+    const double t0 = now_seconds();
     st = jaos_solve(m);
+    const double dt = now_seconds() - t0;
     if (st != JAOS_OK) {
+        stamp(e->name, dt);
         emit("%-12s SOLVE-ERROR  %s | %s\n", e->name,
                 jaos_status_str(st),
                 jaos_model_error(m) ? jaos_model_error(m) : "");
@@ -382,6 +432,7 @@ static bool run_one(const entry *e, const char *dir, tally *t)
     int64_t iters = jaos_iterations(m), work = jaos_work_units(m);
 
     if (ss != JAOS_SOLVE_OPTIMAL) {
+        stamp(e->name, dt);
         emit("%-12s %-10s rows=%lld cols=%lld shape=%s iters=%lld "
                      "work=%lld | %s\n",
                 e->name, jaos_solve_status_str(ss), (long long)nr,
@@ -442,6 +493,7 @@ static bool run_one(const entry *e, const char *dir, tally *t)
      * two large halves cancelling, and the record is where that would show
      * up across ninety-four instances rather than on the one somebody
      * thought to look at. */
+    stamp(e->name, dt);
     emit("%-12s optimal    rows=%lld cols=%lld shape=%s iters=%lld "
             "work=%lld obj=%.17g ref=%.17g[%s] objective=%s checker=%s"
             " (col=%.3g row=%.3g rowrel=%.3g dual=%.3g gap=%.3g Q=%.3g"
@@ -673,6 +725,15 @@ int main(int argc, char **argv)
                 (long long)t.checker_ok, (long long)t.deterministic,
                 (long long)t.failed);
     emit("gate: %s\n", all_ok && t.instances > 0 ? "PASS" : "NOT MET");
+
+    /* Console only — see `stamp`. printf rather than emit, so the record
+     * file and the baseline never see a second. */
+    if (t.instances > 0) {
+        printf("time: %.3fs over %lld instances, slowest %s at %.3fs\n",
+               g_total_secs, (long long)t.instances,
+               g_slowest[0] ? g_slowest : "-", g_slowest_secs);
+        fflush(stdout);
+    }
 
     /* Two independent verdicts, and they answer different questions. The
      * gate asks whether M1 is finished, and will say NOT MET every time
