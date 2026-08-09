@@ -22,3 +22,6 @@
 # never committed — the same rule the instances follow. bench/compare/
 # solvers.manifest is what pins them.
 /bench/compare/solvers/
+
+# HiGHS writes this into the working directory when it runs.
+/Highs.log

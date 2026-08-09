@@ -177,6 +177,6 @@ if [ "$n" -gt 0 ]; then
             printf "best:  %s at %.2fx\n", bn, best }' "$out.ratios"
     echo "total solve time over the verified set: jaos ${total_j}s, highs ${total_h}s"
 fi
-mv -f "$out.ratios" "$out.ratios.txt" 2>/dev/null || true
+rm -f "$out.ratios"
 echo "record: $out"
 echo "NOTE: taken$under_wsl — a development number, not a published one."
