@@ -4,19 +4,19 @@
 # is a regression nobody will ever be told about.
 #
 # name status solved shape objective checker det iters work
-cre-a        optimal      1 1 1 1 1 2464 30857251
-cre-b        optimal      1 1 1 1 1 14614 2805441180
-cre-c        optimal      1 1 1 1 1 2407 34438742
-cre-d        optimal      1 1 1 1 1 13587 2295620958
-ken-07       optimal      1 1 1 1 1 2960 21836134
-ken-11       optimal      1 1 1 1 1 16953 688244149
-ken-13       optimal      1 1 1 1 1 31444 2533839257
-ken-18       optimal      1 1 1 1 1 113652 31838670177
-osa-07       optimal      1 1 1 1 1 601 52374317
-osa-14       optimal      1 1 1 1 1 1281 232871687
-osa-30       optimal      1 1 1 1 1 2628 1081703055
-osa-60       optimal      1 1 1 1 1 6169 6610083841
-pds-02       optimal      1 1 1 1 1 1970 19145707
-pds-06       optimal      1 1 1 1 1 9251 318700569
-pds-10       optimal      1 1 1 1 1 17503 1189047664
-pds-20       optimal      1 1 1 1 1 47786 8843660682
+cre-a        optimal      1 1 1 1 1 2464 22012836
+cre-b        optimal      1 1 1 1 1 14614 2661517639
+cre-c        optimal      1 1 1 1 1 2407 26925073
+cre-d        optimal      1 1 1 1 1 13587 2172863183
+ken-07       optimal      1 1 1 1 1 2960 11111531
+ken-11       optimal      1 1 1 1 1 16953 328523908
+ken-13       optimal      1 1 1 1 1 31444 1260301105
+ken-18       optimal      1 1 1 1 1 113652 15201480646
+osa-07       optimal      1 1 1 1 1 601 51720078
+osa-14       optimal      1 1 1 1 1 1281 229904186
+osa-30       optimal      1 1 1 1 1 2628 1070319626
+osa-60       optimal      1 1 1 1 1 6169 6546770920
+pds-02       optimal      1 1 1 1 1 1970 12002575
+pds-06       optimal      1 1 1 1 1 9251 212851757
+pds-10       optimal      1 1 1 1 1 17503 856902856
+pds-20       optimal      1 1 1 1 1 47786 6977759753
