@@ -76,6 +76,15 @@ open, `bench/README.md` for the gate, and the commit each entry came from.
 
 ### Changed
 
+- The BTRAN reports where its answer is nonzero, taken from the pass that
+  was already visiting every slot to permute it back, and pricing walks that
+  instead of scanning the whole pricing row. On Kennington that scan was 27%
+  of everything the solver billed. It needed a second loop of the same
+  length to go with it — the reset of basic slots — because one charge had
+  been standing for both. Work falls **1.255x on Kennington**, 1.007x on the
+  standard set and 1.008x on the infeasible one; **all 139 instances get
+  cheaper and none gets dearer**, with no digest and no iteration count
+  moved (D43).
 - The exact steepest-edge weight is summed over the pattern of the row it is
   the norm of, instead of over the dimension. That pattern costs nothing to
   have: pricing already walks the whole of `rho` in ascending order looking

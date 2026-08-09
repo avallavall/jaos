@@ -84,6 +84,18 @@ constexpr double DSE_DRIFT = 10.0;
  * conservative side of where the counter alone would put it. */
 constexpr int64_t SPARSE_ALPHA_DEN = 4;
 
+/* The same question for the pricing row itself, and it needed asking
+ * separately: `rho` is 32.6% nonzero over the standard set and 1.0% over
+ * Kennington, so a rule good for one is wrong for the other.
+ *
+ * Reading `rho` through a pattern costs marking it, emitting it in order,
+ * and walking it — about three touches per nonzero — against one per row
+ * for the scan it replaces. So it pays below roughly a third, and the
+ * divisor is swept rather than argued (D43). Above it the pattern is
+ * collected, found too large, and thrown away; the collection is a
+ * comparison inside a pass the solve was making anyway. */
+constexpr int64_t SPARSE_RHO_DEN = 4;
+
 /* Refactorization interval. PLAN 2.5.5 also calls for stability triggers
  * (FTRAN/BTRAN residual checks); only the interval and the reactive
  * fallback on a failed update exist so far. */
@@ -291,13 +303,13 @@ typedef struct {
     uint64_t *amark;         /* [(nvar + 63) / 64] */
 
     /* Where `rho` is nonzero, ascending, or `nrpat < 0` when nobody has
-     * looked. This one costs nothing to keep: price_all walks the whole of
-     * `rho` in that order already, to find the rows it can skip, so the
-     * pattern is a store per nonzero on a loop that was running anyway.
-     * Ordering it needs no work either — one row cannot be recorded twice
-     * and the walk is already ascending. */
+     * looked. The BTRAN reports it on the way out, from the pass that
+     * permutes the answer back and therefore visits every slot regardless;
+     * `rmark` is what puts it in ascending order, which is the order every
+     * consumer needs and the permutation does not give. */
     int64_t *rpat;           /* [nrow] */
     int64_t nrpat;
+    uint64_t *rmark;         /* [(nrow + 63) / 64] */
 
     /* The ratio test's candidate set, filled once per iteration: which
      * variables may enter (`cand`), how far each one's reduced cost is
@@ -371,7 +383,7 @@ static void sx_free(sx *s)
     free(s->xb); free(s->d); free(s->dse);
     free(s->col); free(s->raw); free(s->y); free(s->rho);
     free(s->tau); free(s->alpha); free(s->apat); free(s->amark);
-    free(s->rpat);
+    free(s->rpat); free(s->rmark);
     free(s->cand); free(s->rnum); free(s->rden); free(s->rrange);
     free(s->bs); free(s->bi); free(s->bv);
     free(s->fake);
@@ -440,6 +452,7 @@ static jaos_status sx_init(sx *s, jaos_model *m)
     s->apat   = jm_alloc_array(s->nvar, sizeof(int64_t));
     s->amark  = jm_calloc_array((s->nvar + 63) / 64, sizeof(uint64_t));
     s->rpat   = jm_alloc_array(s->nrow, sizeof(int64_t));
+    s->rmark  = jm_calloc_array((s->nrow + 63) / 64, sizeof(uint64_t));
     s->anpat  = -1;          /* alpha is all zero, but nothing has said where */
     s->nrpat  = -1;
     s->duals_dirty = true;   /* nothing has established the costs are feasible */
@@ -454,7 +467,7 @@ static jaos_status sx_init(sx *s, jaos_model *m)
         !s->status || !s->basis ||
         !s->where || !s->xb || !s->d || !s->dse || !s->col || !s->raw ||
         !s->y || !s->rho || !s->tau || !s->alpha || !s->apat || !s->amark ||
-        !s->rpat || !s->cand || !s->rnum ||
+        !s->rpat || !s->rmark || !s->cand || !s->rnum ||
         !s->rden || !s->rrange || !s->bs || !s->fake) {
         sx_free(s);
         return JAOS_ERR_OUT_OF_MEMORY;
@@ -1453,13 +1466,27 @@ static void price_all(sx *s)
      * a pattern too large to be worth walking is detected by having run out
      * of room rather than by a second pass to measure it. */
     const int64_t cap = s->nvar / SPARSE_ALPHA_DEN;
-    int64_t np = 0, touched = 0, nr = 0;
+    int64_t np = 0, touched = 0;
 
-    for (int64_t i = 0; i < s->nrow; i++) {
+    /* The rows to visit, ascending either way: `rpat` where price_and_select
+     * judged it worth ordering, and every row otherwise. The zeros a scan
+     * steps over would each contribute `0.0 * a_ij`, which is the same
+     * nothing the pattern skips (D35). */
+    const bool sparse_rows = s->nrpat >= 0;
+    const int64_t nvisit = sparse_rows ? s->nrpat : s->nrow;
+    int64_t nfound = 0;
+
+    for (int64_t k = 0; k < nvisit; k++) {
+        int64_t i = sparse_rows ? s->rpat[k] : k;
         double w = s->rho[i];
         if (w == 0.0)
             continue;
-        s->rpat[nr++] = i;   /* free: this walk is happening either way */
+        /* A scan that was going to happen anyway can leave the pattern
+         * behind it, ascending and complete, which is what pivot's exact
+         * weight reads (D42). Only the dense branch needs to: the sparse one
+         * is walking that very list. */
+        if (!sparse_rows)
+            s->rpat[nfound++] = i;
         /* A logical's column is -e_i, so row i writes slot ncol+i and no
          * other row can: it is new to the pattern without being asked. */
         int64_t lg = s->ncol + i;
@@ -1479,28 +1506,50 @@ static void price_all(sx *s)
         }
         touched += m->ar_start[i + 1] - m->ar_start[i];
     }
+    if (!sparse_rows)
+        s->nrpat = nfound;
 
     /* A basic variable prices to zero by definition, and the sweep above has
      * no way to know which those are. They stay in the pattern: it is what
      * the next clear works from, and every consumer skips a basic variable
-     * on its status long before it looks at the number. */
-    for (int64_t i = 0; i < s->nrow; i++)
-        s->alpha[s->basis[i]] = 0.0;
+     * on its status long before it looks at the number.
+     *
+     * Only a slot the scatter wrote can be anything but zero, so where the
+     * pattern is complete this is a walk over it rather than over every row.
+     * The `status` read that costs is per pattern entry, not per matrix
+     * entry — which is the whole difference between it and the filter D35
+     * measured and refused.
+     *
+     * Whether that is cheaper is a comparison of two loop lengths and needs
+     * no constant to decide: `np` slots written against `nrow` basis
+     * positions. On a model with far more columns than rows the pattern is
+     * the longer of the two and the basis walk wins. */
+    const bool sparse_zero = np <= cap && np < s->nrow;
+    if (sparse_zero) {
+        for (int64_t k = 0; k < np; k++) {
+            int64_t v = s->apat[k];
+            if (s->status[v] == JM_BASIC)
+                s->alpha[v] = 0.0;
+        }
+    } else {
+        for (int64_t i = 0; i < s->nrow; i++)
+            s->alpha[s->basis[i]] = 0.0;
+    }
 
-    /* The matrix entries actually read, plus one per row.
+    /* The matrix entries read, and the rows walked to read them.
      *
-     * That second term was inherited from the column-wise pass, where it was
-     * one per logical column priced. Here it is not: only a row whose `rho`
-     * is nonzero writes a logical, and there are `nr` of those. What the
-     * term does match is the walk over `rho` above, which reads every row
-     * whether it skips it or not — so the number is right and the reason it
-     * was right has changed. On the Kennington set this one charge is 27% of
-     * everything the solver bills, all of it that walk.
+     * That second term was `nrow` whatever `rho` looked like, because the
+     * walk was over every row; now it is the length of the walk actually
+     * made. On the Kennington set the old term was 27% of everything the
+     * solver billed.
      *
-     * Still not billed, and stated because it is the same size: the clear of
-     * `alpha` and the reset of its basic entries (PLAN 2.11). */
-    jm_work_add(&s->work, (touched + s->nrow) * JM_WORK_NONZERO);
-    s->nrpat = nr;
+     * The reset above is deliberately not charged, and neither is the clear
+     * at the top. Both were unbilled before this change and both got
+     * cheaper with it; billing them now would mix an accounting correction
+     * into a measurement, and the baseline diff could not tell the two
+     * apart. They belong with the rest of PLAN 2.11's unbilled sweeps until
+     * something charges all of them at once. */
+    jm_work_add(&s->work, (touched + nvisit) * JM_WORK_NONZERO);
 
     if (np > cap) {
         s->anpat = -1;   /* too dense to be worth walking, and incomplete */
@@ -1516,7 +1565,20 @@ static int64_t price_and_select(sx *s, int64_t r, bool below,
 {
     memset(s->rho, 0, (size_t)s->nrow * sizeof *s->rho);
     s->rho[r] = 1.0;
-    jm_lu_btran(&s->lu, s->rho, &s->work);
+
+    /* The solve says where its answer is; the ordering makes that ascending,
+     * which is what price_all's sums need to come out the way the column-wise
+     * pass produced them (D35). Both are paid in the size of the answer
+     * rather than in the size of the basis — which is only worth having when
+     * the answer is the smaller of the two. */
+    int64_t nr = 0, words = 0;
+    jm_lu_btran_sparse(&s->lu, s->rho, &s->work, s->rpat, &nr);
+    if (nr * SPARSE_RHO_DEN <= s->nrow) {
+        s->nrpat = jm_pattern_order(nr, s->rpat, s->rmark, s->nrow, &words);
+        jm_work_add(&s->work, (nr + words + s->nrpat) * JM_WORK_NONZERO);
+    } else {
+        s->nrpat = -1;   /* too dense to be worth ordering; scan instead */
+    }
 
     price_all(s);
 

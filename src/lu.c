@@ -790,9 +790,17 @@ static int64_t btran_u_pattern(jm_lu *lu, const double *y, jm_work *w)
 
 void jm_lu_btran(jm_lu *lu, double *x, jm_work *w)
 {
+    jm_lu_btran_sparse(lu, x, w, nullptr, nullptr);
+}
+
+void jm_lu_btran_sparse(jm_lu *lu, double *x, jm_work *w,
+                        int64_t *pat, int64_t *npat)
+{
     const int64_t n = lu->dim;
     double *y = lu->tmp;
 
+    if (npat != nullptr)
+        *npat = 0;
     if (lu->rank != n)
         return;   /* singular, or wrecked by a failed update */
 
@@ -832,8 +840,30 @@ void jm_lu_btran(jm_lu *lu, double *x, jm_work *w)
         jm_work_add(w, (lu->l_start[s + 1] - lu->l_start[s]) * JM_WORK_NONZERO);
     }
 
-    for (int64_t s = 0; s < n; s++)
-        x[lu->perm_row[s]] = y[s];
+    /* The permutation back into the caller's indexing, and — where asked —
+     * a record of where the answer is nonzero, taken on the way past.
+     *
+     * This loop writes every slot either way, so the record costs a
+     * comparison against a value already loaded and a store on the slots
+     * that carry something. It is the same trade price_all makes for the
+     * pricing row's pattern, in the one place that can make it for `rho`:
+     * the caller would otherwise scan the whole result to find out what
+     * this loop already knew. Unordered, because the permutation decides
+     * what order it comes out in and no caller wants that one. */
+    if (pat == nullptr) {
+        for (int64_t s = 0; s < n; s++)
+            x[lu->perm_row[s]] = y[s];
+        return;
+    }
+    int64_t k = 0;
+    for (int64_t s = 0; s < n; s++) {
+        const double v = y[s];
+        const int64_t row = lu->perm_row[s];
+        x[row] = v;
+        if (v != 0.0)
+            pat[k++] = row;
+    }
+    *npat = k;
 }
 
 /* --------------------------------------------------------------------- */

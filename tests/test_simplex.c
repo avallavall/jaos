@@ -572,6 +572,16 @@ static void test_free_variable_enters_and_settles(void)
  * change did to the accounting. If it fails and you did not intend to
  * change the accounting, that is the bug it exists to catch.
  *
+ * D43 did not move it, and that was worked for rather than lucky. The BTRAN
+ * reporting where its answer is nonzero went through three shapes here:
+ * 8566 when the pattern was ordered whatever its size, 8557 once the
+ * thresholds refused to order a dense one, and 8548 while the dense branch
+ * still forgot to leave the pattern behind for the exact weight. A basis
+ * this small takes the dense branch of every one of those decisions, so the
+ * accounting it sees must come out unchanged — and an entry whose baseline
+ * diff mixes an accounting correction into a measurement cannot be read at
+ * all. The number staying put is the evidence that it does not.
+ *
  * Last moved by summing the exact steepest-edge weight over rho's pattern
  * (D42): 8548 -> 8545. The norm is charged for the slots it adds up rather
  * than for the dimension, and over this solve rho held three zeros in total.

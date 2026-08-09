@@ -397,6 +397,21 @@ JAOS_NODISCARD jaos_status jm_lu_factor(jm_lu *lu, int64_t dim,
 void jm_lu_ftran(jm_lu *lu, double *x, jm_work *w);
 void jm_lu_btran(jm_lu *lu, double *x, jm_work *w);
 
+/* The same solve, additionally reporting where the answer is nonzero.
+ *
+ * `pat` takes at least `dim` entries and comes back holding `*npat` row
+ * indices, in whatever order the row permutation produced them — not
+ * ascending, and a caller that needs ascending has jm_pattern_order for it.
+ * A null `pat` is exactly jm_lu_btran.
+ *
+ * It exists because the alternative is worse. The solve's last pass already
+ * visits every slot to permute it back, so it can say which ones carry a
+ * value for the price of a comparison; a caller left to find out for itself
+ * scans the whole vector again. On the Kennington set that second scan was
+ * 27% of everything the solver billed. */
+void jm_lu_btran_sparse(jm_lu *lu, double *x, jm_work *w,
+                        int64_t *pat, int64_t *npat);
+
 /* Forrest-Tomlin update: basis column `col_out` is replaced by `new_col`,
  * a dense vector indexed by original row. Refactorizing from scratch after
  * every simplex iteration would cost more than the iteration; this repairs

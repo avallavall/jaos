@@ -2146,3 +2146,122 @@ has gone 293,987,935,333 -> 136,567,215,198, which is **2.153x** — and
 over the same span, and that gap is the whole content of PLAN 3.2: the
 mid-sized models spend their time in the triangular solves and the
 factorization, and none of M2's entries so far have touched either.
+
+---
+
+## D43 — The solve says where its answer is, and one charge had been standing for two loops
+
+The re-attribution that followed D42 put `price_all`'s walk over `rho` at
+**27.45% of the Kennington set and 11.65% of the standard one** — the single
+largest line in either. It is a scan of every row of a vector that is 1.0%
+nonzero on Kennington and 0.08% on `ken-18`, looking for the rows it can
+skip.
+
+**The trap, which nearly cost a third wrong target in two days.** That walk
+is not the only thing `price_all` does at the length of the basis: the reset
+that puts basic variables' slots back to zero is another, and the function
+bills `nrow` **once** for the pair. Removing only the walk would have left
+the remaining loop justifying the whole charge, and the counter would have
+credited a 27% saving for work that was still happening. Both had to go.
+
+**What changed.**
+
+- `jm_lu_btran_sparse` reports where its answer is nonzero. The solve's last
+  pass already visits every slot to permute it back into the caller's
+  indexing, so saying which ones carry a value costs a comparison against a
+  value it has already loaded. A caller left to find out for itself scans
+  the whole vector a second time; that second scan was the 27%.
+- The reset visits the slots the scatter wrote instead of the basis
+  positions, because no other slot can be anything but zero. The `status`
+  read this costs is per pattern entry, not per matrix entry — the whole
+  difference between it and the basic-column filter D35 refused.
+- `price_all` walks `rho`'s pattern, ascending, which `jm_pattern_order`
+  produces from what the BTRAN handed back in permutation order.
+
+**The first measurement was mixed, and it was read as a diagnosis rather
+than a verdict.**
+
+| | first form | with thresholds |
+|---|---|---|
+| standard 94 | 0.9930x, 60 of 94 dearer | **1.0065x, all 94 cheaper** |
+| Kennington 16 | 1.2384x, 6 dearer | **1.2553x, all 16 cheaper** |
+| infeasible 29 | 0.9632x, 11 dearer | **1.0080x, all 29 cheaper** |
+
+The cause was in numbers already measured. `rho` is 32.6% nonzero over the
+standard set, and ordering a pattern that size costs more than the scan it
+replaces. And the reset went from `nrow` to `np`, which on a model with far
+more columns than rows is the **larger** of the two.
+
+So both decisions became comparisons. The reset compares two loop lengths,
+`np` against `nrow`, and takes the shorter — no constant to fit, because
+both numbers are in hand. The ordering is gated by `SPARSE_RHO_DEN`. Above
+it the pattern is collected, found too large and thrown away, which costs
+nothing that was not already being spent inside the solve.
+
+**The threshold, swept**, every point checked for status, iteration count,
+objective, checker, determinism and digest, and every point identical on all
+six:
+
+| SPARSE_RHO_DEN | standard 94 | infeasible 29 |
+|---|---|---|
+| never order | 60,403,238,834 (1.000x) | 2,608,553,522 (1.000x) |
+| 1 (always) | 60,395,842,900 (1.000x) | 2,620,124,297 (**0.996x**) |
+| 2 | 60,030,319,943 (1.006x) | 2,596,230,529 (1.005x) |
+| 3 | 60,013,100,251 (1.007x) | 2,587,134,529 (1.008x) |
+| 4 | 60,015,257,439 (1.006x) | 2,587,812,579 (1.008x) |
+| 6 | 60,023,268,092 (1.006x) | 2,590,323,797 (1.007x) |
+| 8 | 60,027,430,249 (1.006x) | 2,591,843,685 (1.006x) |
+
+The never-order point reproduces D42's committed baseline to the digit,
+which is the check that the machinery costs nothing where the threshold
+refuses it.
+
+**Kennington was swept at three points as a prediction that failed**, and
+the failure is worth more than the confirmation would have been. `rho` is
+1.0% nonzero over that set, so `nr * DEN <= nrow` should hold for any
+divisor up to about a hundred and 2, 4 and 8 should have come out identical.
+They did not: 58,596,925,400, 58,596,535,370 and 58,765,607,674, with twelve
+and fourteen instances moving. **`rho` has no density per instance. It has
+one per iteration**, and at 8 enough individual iterations fall over the
+line to cost 0.3%. That is the same sentence this entry already used to
+explain why the threshold *helps* Kennington, applied to a prediction that
+had not been checked against it.
+
+**The constant stays at 4**, and now for a reason stronger than D40's. The
+plateau is bounded on both sides by measurement rather than on one: 1 is
+worse on the infeasible set, 8 is worse on Kennington, and 4 sits inside
+with margin in each direction. D40's argument still holds on top of that —
+the counter cannot see the indirection, so every cost it misses pushes the
+true crossover towards dense — and 3, which is nominally best on two sets by
+0.004% and 0.026%, is not a number to move a constant for.
+
+**Kennington came out better with the threshold than without**, which is the
+result that says what the mechanism is. The threshold does not only protect
+dense instances from a rule meant for sparse ones; it stops the ordering
+being spent on the dense *iterations inside* sparse instances. `rho` has no
+density per instance. It has one per iteration.
+
+**Cost, against the baselines D42 left.**
+
+| set | before | after | |
+|---|---|---|---|
+| standard 94 | 60,403,238,834 | 60,015,257,439 | 1.007x |
+| **Kennington 16** | 73,555,422,842 | **58,596,535,370** | **1.255x** |
+| infeasible 29 | 2,608,553,522 | 2,587,812,579 | 1.008x |
+
+**All 139 instances cheaper, none dearer**, no iteration count moved and all
+110 digests unchanged.
+
+**One decision here was about the accounting and it was made twice.** The
+first version billed the reset, which is more honest in the abstract and
+wrong in this entry: it mixes an accounting correction into a measurement,
+and a baseline diff carrying both cannot be read as either. So the reset
+stays unbilled, beside the clear of `alpha` and the rest of PLAN 2.11's
+sweeps, until something charges all of them at once. **The evidence that
+this came out right is the pinned work test not moving**: 8545, the value
+D42 left. It passed through 8566, 8557 and 8548 on the way. A three-row
+basis takes the dense branch of every decision above, so its total has to
+come out unchanged, and it does.
+
+**Since M1's gate first passed**, the 139 have gone 293,987,935,333 ->
+121,199,605,388, which is **2.426x**, and **3.820x on Kennington**.

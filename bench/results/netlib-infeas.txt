@@ -1,34 +1,35 @@
-bgdbg1       infeasible rows=348 cols=407 shape=ok iters=3 work=17954 expected=infeasible verdict=ok det=ok
-bgetam       infeasible rows=400 cols=688 shape=ok iters=14 work=38160 expected=infeasible verdict=ok det=ok
-bgindy       infeasible rows=2671 cols=10116 shape=ok iters=2 work=210333 expected=infeasible verdict=ok det=ok
-bgprtr       infeasible rows=20 cols=34 shape=ok iters=25 work=15474 expected=infeasible verdict=ok det=ok
-box1         infeasible rows=231 cols=261 shape=ok iters=16 work=30871 expected=infeasible verdict=ok det=ok
-ceria3d      infeasible rows=3576 cols=824 shape=ok iters=977 work=28550146 expected=infeasible verdict=ok det=ok
-chemcom      infeasible rows=288 cols=720 shape=ok iters=6 work=21978 expected=infeasible verdict=ok det=ok
-cplex1       infeasible rows=3005 cols=3221 shape=ok iters=1399 work=23925017 expected=infeasible verdict=ok det=ok
-cplex2       infeasible rows=224 cols=221 shape=ok iters=463 work=2915716 expected=infeasible verdict=ok det=ok
-ex72a        infeasible rows=197 cols=215 shape=ok iters=137 work=185101 expected=infeasible verdict=ok det=ok
-ex73a        infeasible rows=193 cols=211 shape=ok iters=100 work=113776 expected=infeasible verdict=ok det=ok
-forest6      infeasible rows=66 cols=95 shape=ok iters=77 work=97755 expected=infeasible verdict=ok det=ok
-galenet      infeasible rows=8 cols=8 shape=ok iters=1 work=8453 expected=infeasible verdict=ok det=ok
-gosh         infeasible rows=3792 cols=10733 shape=ok iters=21653 work=2374833756 expected=infeasible verdict=ok det=ok
-gran         infeasible rows=2658 cols=2520 shape=ok iters=2058 work=40499500 expected=infeasible verdict=ok det=ok
-greenbea     infeasible rows=2504 cols=5405 shape=ok iters=2200 work=98262168 expected=infeasible verdict=ok det=ok
-itest2       infeasible rows=9 cols=4 shape=ok iters=3 work=8726 expected=infeasible verdict=ok det=ok
-itest6       infeasible rows=11 cols=8 shape=ok iters=3 work=8821 expected=infeasible verdict=ok det=ok
-klein1       infeasible rows=54 cols=54 shape=ok iters=119 work=540432 expected=infeasible verdict=ok det=ok
-klein2       infeasible rows=477 cols=54 shape=ok iters=213 work=4024344 expected=infeasible verdict=ok det=ok
-klein3       infeasible rows=994 cols=88 shape=ok iters=395 work=17738083 expected=infeasible verdict=ok det=ok
-mondou2      infeasible rows=312 cols=604 shape=ok iters=280 work=511775 expected=infeasible verdict=ok det=ok
-pang         infeasible rows=361 cols=460 shape=ok iters=439 work=2218065 expected=infeasible verdict=ok det=ok
-pilot4i      infeasible rows=410 cols=1000 shape=ok iters=438 work=8377024 expected=infeasible verdict=ok det=ok
-qual         infeasible rows=323 cols=464 shape=ok iters=476 work=2082150 expected=infeasible verdict=ok det=ok
-reactor      infeasible rows=318 cols=637 shape=ok iters=44 work=78881 expected=infeasible verdict=ok det=ok
-refinery     infeasible rows=323 cols=464 shape=ok iters=387 work=1230419 expected=infeasible verdict=ok det=ok
-vol1         infeasible rows=323 cols=464 shape=ok iters=465 work=1987276 expected=infeasible verdict=ok det=ok
-woodinfe     infeasible rows=35 cols=89 shape=ok iters=37 work=21368 expected=infeasible verdict=ok det=ok
+bgdbg1       infeasible rows=348 cols=407 shape=ok iters=3 work=16268 expected=infeasible verdict=ok det=ok
+bgetam       infeasible rows=400 cols=688 shape=ok iters=14 work=32052 expected=infeasible verdict=ok det=ok
+bgindy       infeasible rows=2671 cols=10116 shape=ok iters=2 work=199737 expected=infeasible verdict=ok det=ok
+bgprtr       infeasible rows=20 cols=34 shape=ok iters=25 work=15218 expected=infeasible verdict=ok det=ok
+box1         infeasible rows=231 cols=261 shape=ok iters=16 work=27031 expected=infeasible verdict=ok det=ok
+ceria3d      infeasible rows=3576 cols=824 shape=ok iters=977 work=25887226 expected=infeasible verdict=ok det=ok
+chemcom      infeasible rows=288 cols=720 shape=ok iters=6 work=19806 expected=infeasible verdict=ok det=ok
+cplex1       infeasible rows=3005 cols=3221 shape=ok iters=1399 work=19885607 expected=infeasible verdict=ok det=ok
+cplex2       infeasible rows=224 cols=221 shape=ok iters=463 work=2887849 expected=infeasible verdict=ok det=ok
+ex72a        infeasible rows=197 cols=215 shape=ok iters=137 work=164643 expected=infeasible verdict=ok det=ok
+ex73a        infeasible rows=193 cols=211 shape=ok iters=100 work=96449 expected=infeasible verdict=ok det=ok
+forest6      infeasible rows=66 cols=95 shape=ok iters=77 work=96125 expected=infeasible verdict=ok det=ok
+galenet      infeasible rows=8 cols=8 shape=ok iters=1 work=8447 expected=infeasible verdict=ok det=ok
+gosh         infeasible rows=3792 cols=10733 shape=ok iters=21653 work=2368574103 expected=infeasible verdict=ok det=ok
+gran         infeasible rows=2658 cols=2520 shape=ok iters=2058 work=35604601 expected=infeasible verdict=ok det=ok
+greenbea     infeasible rows=2504 cols=5405 shape=ok iters=2200 work=96315600 expected=infeasible verdict=ok det=ok
+itest2       infeasible rows=9 cols=4 shape=ok iters=3 work=8714 expected=infeasible verdict=ok det=ok
+itest6       infeasible rows=11 cols=8 shape=ok iters=3 work=8806 expected=infeasible verdict=ok det=ok
+klein1       infeasible rows=54 cols=54 shape=ok iters=119 work=539941 expected=infeasible verdict=ok det=ok
+klein2       infeasible rows=477 cols=54 shape=ok iters=213 work=3964035 expected=infeasible verdict=ok det=ok
+klein3       infeasible rows=994 cols=88 shape=ok iters=395 work=17467847 expected=infeasible verdict=ok det=ok
+mondou2      infeasible rows=312 cols=604 shape=ok iters=280 work=432097 expected=infeasible verdict=ok det=ok
+pang         infeasible rows=361 cols=460 shape=ok iters=439 work=2148983 expected=infeasible verdict=ok det=ok
+pilot4i      infeasible rows=410 cols=1000 shape=ok iters=438 work=8316726 expected=infeasible verdict=ok det=ok
+qual         infeasible rows=323 cols=464 shape=ok iters=476 work=1983172 expected=infeasible verdict=ok det=ok
+reactor      infeasible rows=318 cols=637 shape=ok iters=44 work=64933 expected=infeasible verdict=ok det=ok
+refinery     infeasible rows=323 cols=464 shape=ok iters=387 work=1136781 expected=infeasible verdict=ok det=ok
+vol1         infeasible rows=323 cols=464 shape=ok iters=465 work=1889436 expected=infeasible verdict=ok det=ok
+woodinfe     infeasible rows=35 cols=89 shape=ok iters=37 work=20346 expected=infeasible verdict=ok det=ok
 
 29 instances: 29 correctly refused, 29 shape ok, 29 deterministic, 0 failed
 gate: PASS
 
-baseline: NOT COMPARED (no baseline given)
+-- against baseline --
+baseline: 0 regressed, 0 improved, 0 new

@@ -626,15 +626,15 @@ missed this".
 
 ## 3. Milestone 2 — LP fast
 
-**Open, and opened by work rather than by decision.** Seven entries have
-landed against it (D35, D37, D38, D39, D40, D41, D42). Measured against the
-commit where M1's gate first passed on all three sets, total work over the
-139 reference instances has gone 293,987,935,333 -> 136,567,215,198, which
-is **2.153x** — and **3.043x on Kennington**, where 73% of it was — without
-a single verdict, objective, iteration count or solution digest changing
-anywhere. The standard set is 1.090x over the same span, and that gap is
-§3.2 in one number. What follows is the detail the working agreement asks
-for once a milestone is active.
+**Open, and opened by work rather than by decision.** Eight entries have
+landed against it (D35, D37, D38, D39, D40, D41, D42, D43). Measured against
+the commit where M1's gate first passed on all three sets, total work over
+the 139 reference instances has gone 293,987,935,333 -> 121,199,605,388,
+which is **2.426x** — and **3.820x on Kennington**, where 73% of it was —
+without a single verdict, objective, iteration count or solution digest
+changing anywhere. The standard set is 1.097x over the same span, and that
+gap is §3.2 in one number. What follows is the detail the working agreement
+asks for once a milestone is active.
 
 ### 3.1 The gate, and what blocks it
 
@@ -755,23 +755,20 @@ factors or fewer solves — §2.11's list — not hyper-sparsity.
 The passes that a pattern does reduce are the ones billed for every slot
 whether it is zero or not. There are two, and both are gathers.
 
-1. **A pattern-returning BTRAN**, which is the larger prize on both sets.
+1. ~~**A pattern-returning BTRAN**~~ **— the larger half is built (D43).**
+   `price_all`'s walk over `rho` was 11.65% of the standard set and 27.45%
+   of Kennington, and it is gone: the solve's last pass already visits every
+   slot to permute it back, so it reports which ones carry a value for the
+   price of a comparison. 1.255x on Kennington, all 139 instances cheaper.
 
-   | what it removes | standard | Kennington |
-   |---|---|---|
-   | `price_all`'s walk over `rho` | 11.65% | 27.45% |
-   | BTRAN's `L'` pass, billed for every slot | 5.15% | 1.08% |
-
-   D38 built the reachability search for the `U'` pass and stopped at `L'`
-   because "L has no row-wise copy to search". That copy is cheaper than it
-   sounds: L does not change between refactorizations — the Forrest-Tomlin
-   update appends etas and leaves it alone — so transposing it once per
-   factorization is `nnz(L)` amortised over ~64 solves, against `nnz(L)`
-   that the `L'` pass pays on every one of them.
-
-   Getting the pattern out is what unlocks the bigger row: `price_all` walks
-   all `nrow` of `rho` to find the rows it can skip, and on Kennington that
-   one walk is 27% of everything the solver bills.
+   **What is left of this item** is the one thing that needed the row-wise L
+   after all: BTRAN's `L'` pass is billed for every slot whether it is zero
+   or not — 5.15% of the standard set, 1.08% of Kennington. D38 stopped
+   there because "L has no row-wise copy to search". That copy is cheaper
+   than it sounds: L does not change between refactorizations — the
+   Forrest-Tomlin update appends etas and leaves it alone — so transposing
+   it once is `nnz(L)` amortised over ~64 solves, against `nnz(L)` that pass
+   pays on every one of them.
 
 2. **A pattern-returning FTRAN.**
 
@@ -827,6 +824,15 @@ L' pass has 4.1% under a zero with no row-wise copy of L to search.
 - **Filtering basic columns out of the pricing sweep is refused**, measured:
   36.1% of entries are in basic columns, but the filter needs a `status[v]`
   read on every entry and comes to 3.92 memory accesses against 4 (D35).
+- **`SPARSE_RHO_DEN` stays at 4, with the plateau bounded on both sides by
+  measurement rather than on one.** Ordering the pricing row's pattern
+  whatever its size costs 0.4% on the infeasible set; refusing to order
+  anything above `nrow/8` costs 0.3% on Kennington. Everything from 2 to 6
+  is within 0.1% of everything else (D43). The Kennington half of that sweep
+  was run as a null test — `rho` is 1% nonzero there, so the divisor should
+  not have bound at all — and it was not null. That is how the density being
+  a per-iteration property rather than a per-instance one got measured
+  instead of assumed.
 - **Reading `alpha` through its pattern always was worse than never doing
   it** when one consumer read the pattern — 1.8% more work on the standard
   set, 10% on the infeasible one — because ordering a pattern that covers
