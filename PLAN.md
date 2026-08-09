@@ -599,12 +599,17 @@ missed this".
   the basic entries are real work no unit counts. Worth fixing when the
   counter is next revised, and worth knowing before reading a pricing
   measurement as exact.
-- **`col_max_abs` is recomputed per pivot search.** A column's largest
-  magnitude only changes when the elimination rewrites that column, so it
-  could be cached and refreshed at that one point. Left alone because a
-  cache that is wrong is worse than a scan that is slow, and there is no
-  measurement yet to say how often the same untouched column is
-  re-examined.
+- ~~**`col_max_abs` is recomputed per pivot search.**~~ **Measured, and
+  refused on the premise rather than on the cost (D46).** The entry said a
+  column's largest magnitude only changes when the elimination rewrites that
+  column, so it could be cached and refreshed at that one point. **That is
+  not true.** `row_done` retires entries the column still holds, so the
+  largest *live* magnitude falls without the column being written at all,
+  and a cache refreshed where columns are rewritten would be stale for every
+  column that merely lost a row — a stability decision made on a lie. The
+  cost, for the record, is 209,866,212 entries read over the standard set
+  against about 6.3e9 elimination operations: under 7%, and cheaper per step
+  than the axpy it is compared against.
 - **A basis update clears its dense row buffer over the whole dimension**
   when triangularity says only positions at or after the outgoing slot can
   be read. The narrower clear is correct but leans on that invariant, and
@@ -728,6 +733,19 @@ plan got its order wrong twice**, and re-measuring is how it got it back:
 the ranking above was three changes stale when it was last used to choose a
 target.
 
+**And read every total in this section as a statement about three models
+(D46).** `pilot87` is 38.8% of the standard set's work and `maros-r7`
+35.4% — 74.1% between them, 83.3% with `pilot`, 95.0% for eight of the
+ninety-four. `gosh` alone is 91.9% of the infeasible set. Kennington is
+`ken-18`. So a sum over a set is a weighted opinion about a handful of
+instances, which has now cost this milestone three times: D39's intervals
+looked cheaper because `pilot87` had failed out of the total, the ranking
+above went stale unnoticed, and D46's sweep reads 1.051x on the standard
+set's sum and 1.019x on its geometric mean. **A change that does not move
+every instance the same way is reported as a geometric mean of per-instance
+ratios**; the sum keeps its one job, diffing a tree against its own baseline
+instance by instance.
+
 ### 3.3 Making the consumers of `alpha` sparse — half done
 
 **The target.** D35 made the `rho'M` product walk rows so a zero of `rho`
@@ -819,10 +837,29 @@ whether it is zero or not. There are two, and both are gathers.
 3. **The factorization itself, 26.3% of the standard set** between its
    eliminations and the basis update's, plus the 32.6% of scatter those
    factors then cost every solve. Untouched by all of M2, and the whole of
-   why that set has barely moved. §2.11 has four measured entries waiting
-   here — the quadratic slot detachment, the missing row-to-position lookup,
-   the per-column elimination arrays, the stale live counts — and none of
-   them has been tried.
+   why that set has barely moved.
+
+   **It now has numbers, and they narrow it (D46).** The factors carry
+   **2.673x** the nonzeros of the basis on the standard set, **1.026x** on
+   Kennington and 1.239x on the infeasible set, and two thirds of every
+   factorization is triangularization at zero cost: 60.3% of pivots are
+   column singletons and 8.0% row singletons, leaving 31.8% where Markowitz
+   actually chooses. On Kennington that last figure is **2.7%** — its bases
+   are very nearly triangular already, which is the structural reason its LU
+   is 4.97% of its work rather than merely the attributed one.
+
+   **The cheap way in is closed.** `PIVOT_SEARCH_LIMIT` was swept over
+   1..32: one candidate is genuinely bad, and from two upwards the fill
+   moves within 1.2% of itself while the totals swing by 60% on trajectory
+   alone — on the infeasible set the setting with the *lowest* fill costs
+   5.8% *more* work per instance. So the fill is not something the candidate
+   limit reaches.
+
+   What is left here is structural: of §2.11's four entries on this path the
+   quadratic slot detachment is measured and refused, and three stand —
+   the missing row-to-position lookup, the per-column elimination arrays,
+   and the stale live counts. `col_max_abs`, a fifth, is refused too, and
+   on its premise rather than its cost.
 
 4. **The row scan that picks the infeasibility**, now **26.40% of
    Kennington** and tied for first there with item 2. Nothing above touches
@@ -845,6 +882,14 @@ L' pass has 4.1% under a zero with no row-wise copy of L to search.
   one of only two values that come out completely clean, and the ones that
   looked cheaper looked that way because `pilot87` — 38% of the standard
   set's work on its own — had dropped out of the total by failing (D39).
+- **`PIVOT_SEARCH_LIMIT` stays at 4**, swept over 1..32 on two sets and now
+  measured rather than inherited from "four is the classic compromise". One
+  candidate is bad — 3.447 fill against 2.673 and 2.1x the work — so the
+  search does need to look around, and above two nothing follows: the fill
+  moves within 1.2% while the sums swing 60% on trajectory, and on the
+  infeasible set the lowest fill of any setting costs 5.8% more work per
+  instance (D46). The factors carry 2.673x the basis's nonzeros on the standard
+  set, 1.026x on Kennington, and that is the same measurement.
 - **A crash basis [12] is not the cheap win the staging table implies.**
   `build_initial_basis` starts from the slack basis for a stated reason: with
   `B = -I` every steepest-edge weight starts at its exact value. A crash

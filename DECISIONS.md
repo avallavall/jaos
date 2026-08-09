@@ -2436,3 +2436,103 @@ the Windows scheduler underneath, and the ~13x unit-rate spread above is
 partly the machine and partly the models — this cannot say how much of
 each. Q4's host is still what separates them, and the competitive gap M2's
 gate asks for still needs it.
+
+## D46 — The factorization's fill is measured, the pivot search is confirmed at 4, and a set total is two instances
+
+PLAN 3.3's third item has been the largest untouched entry in M2 since the
+milestone opened: the factorization and the scatter its factors then cost
+every solve, 77.8% of the standard set's billed work, and D45 had just said
+those are the units with the most real work behind them. Nothing in that
+item had a number. This measures it.
+
+**The instrument.** A throwaway build counts, per instance: nonzeros in
+each basis as loaded, nonzeros in the finished L and U, pivots classified as
+column singleton / row singleton / Markowitz, fill-in events, entries the
+pivot search reads, updates and etas. One process per instance, both sets in
+parallel. It validates itself the way PLAN 3.5 demands — total work comes
+out at 59,511,697,769 on the standard set and 2,540,766,911 on the
+infeasible one, both equal to the committed baselines to the digit.
+
+**What the factorization actually costs.**
+
+| | standard 94 | Kennington 16 | infeasible 29 |
+|---|---|---|---|
+| fill ratio, (L+U)/B | **2.673** | **1.026** | 1.239 |
+| column singletons | 60.3% | **95.3%** | — |
+| row singletons | 8.0% | 2.0% | — |
+| Markowitz pivots | 31.8% | 2.7% | — |
+
+Two thirds of every factorization is triangularization that costs nothing,
+and on Kennington it is nearly the whole of it — 95.3% of its 238 million
+pivots are column singletons and its factors carry 2.6% more nonzeros than
+the basis does. **That is why its LU is 4.97% of its work**, and it is a
+structural reason rather than an attribution: there is no fill there to
+remove because there is no fill there to begin with.
+
+**The hypothesis this was aimed at, and its refutation.** `find_pivot`
+settles for the best of `PIVOT_SEARCH_LIMIT = 4` candidate columns, a
+constant carried since M1 on "four is the classic compromise" and never
+measured. If the search were under-powered, widening it would cut fill and
+fill would cut work. Swept over 1, 2, 4, 8, 16 and 32 on the standard set
+and 2, 4, 8, 16 on the infeasible one:
+
+| psl | std work | std fill | infeas work | infeas fill |
+|---|---|---|---|---|
+| 1 | 127.7e9 | 3.447 | — | — |
+| 2 | 63.3e9 | 2.472 | 2.729e9 | 1.274 |
+| **4** | **59.5e9** | **2.673** | **2.541e9** | **1.239** |
+| 8 | 56.6e9 | 2.588 | 1.869e9 | 1.219 |
+| 16 | 92.0e9 | 2.895 | 2.535e9 | 1.189 |
+| 32 | 83.8e9 | 2.720 | — | — |
+
+**One candidate is genuinely bad** — 3.447 fill and 2.1x the work — so the
+search does need to look around. From 2 upwards the fill moves within 1.2%
+of itself while the totals swing by 60%, and the causal chain breaks
+outright on the infeasible set: **psl=16 produces the lowest fill of any
+setting there and costs 5.8% more work per instance than psl=4 does**, on
+0.35% less fill. What moves is the trajectory, not the factorization. Per
+instance at psl=8 against 4: `25fv47` 4.55x cheaper,
+`greenbea` 2.78x, `perold` 3.29x — and `grow22` 7.7x dearer on 7.3x the
+iterations, `grow7` 3.0x, `nesm` 1.65x. Iteration counts move by factors of
+seven in both directions.
+
+So the geometric mean of per-instance work ratios is 1.019x at psl=8 and
+1.021x at 16, against a fill improvement of 1.15%. **`PIVOT_SEARCH_LIMIT`
+stays at 4**, now on a measurement rather than on a phrase, and the
+factorization's fill is not an ordering problem this constant can reach.
+
+**`col_max_abs` is refused for a second reason, and it is the load-bearing
+one.** PLAN 2.11 has it as a scan that could be cached. The scan is
+209,866,212 entries over the standard set, against about 6.3e9 elimination
+operations — under 7%, and a scan step is cheaper than an axpy. But the
+cost is not why it stays: **a column's largest live magnitude changes
+without the column being written**, because `row_done` retires entries the
+column still holds. A cache refreshed where the elimination rewrites a
+column would be stale for every column that merely lost a row, and a wrong
+pivot magnitude is a stability decision made on a lie. The entry closes on
+that, not on the percentage.
+
+**And the finding that outlives all of the above: a set total is two
+instances.** Over the standard 94, `pilot87` is 38.8% of the work and
+`maros-r7` 35.4% — **74.1% between them**, 83.3% with `pilot`, 95.0% for
+eight of the ninety-four. The infeasible 29 is worse: **`gosh` alone is
+91.9%**. Kennington is `ken-18`.
+
+Every "total work over the set" figure in PLAN 3 is therefore a weighted
+statement about three or four models, and this is the third time that has
+bitten: D39 found intervals that looked cheaper only because `pilot87` had
+dropped out of the total by failing, PLAN 3.2's ranking was three changes
+stale when it was last used, and the sweep above reads as a 1.051x win on
+the standard set's sum and a 1.019x wash on its geometric mean. **A change
+that does not move every instance in the same direction is reported as a
+geometric mean of per-instance ratios from here**, with the sum kept for
+what it is good for — comparing a tree against its own baseline instance by
+instance. `bench/compare/README.md` already committed to the geometric mean
+for the competitive gate; this is the same rule turned inward.
+
+**What this leaves open.** The fill is 2.673 and this says only that the
+candidate limit will not reduce it. It does not say the ordering is good —
+that needs a comparison against a published figure for the same bases, or
+against the two structural changes PLAN 2.11 still carries on the
+factorization path. What it does close is the cheap experiment, which is
+the one that would otherwise have been run again in six months.
