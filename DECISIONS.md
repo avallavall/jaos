@@ -1,7 +1,62 @@
 # Design decisions
 
-Closed decisions only, with the reasoning that closed them. Open questions do not
-live here — they live in the working session until they close.
+Closed decisions only, with the measurement that closed them. What is
+still open lives in `PLAN.md`; what a feature is lives in `SPECS.md`.
+
+Every heading below is the decision itself, not a topic — read the list
+and you have the argument. Jump to the entry for the numbers behind it.
+
+- **[D1](#d1-language-c23-gcc-linux)** — Language: C23, GCC, Linux
+- **[D2](#d2-no-external-dependencies)** — No external dependencies
+- **[D3](#d3-cpu-only)** — CPU only
+- **[D4](#d4-generic-solver)** — Generic solver
+- **[D5](#d5-a-library-that-does-not-know-its-consumers)** — A library that does not know its consumers
+- **[D6](#d6-scope-is-the-full-mathematical-programming-taxonomy)** — Scope is the full mathematical-programming taxonomy
+- **[D7](#d7-first-milestone)** — First milestone
+- **[D8](#d8-deterministic-by-default)** — Deterministic by default
+- **[D9](#d9-primal-heuristics-inside-metaheuristics-outside)** — Primal heuristics inside, metaheuristics outside
+- **[D10](#d10-constraint-programming-is-out-of-scope)** — Constraint programming is out of scope
+- **[D11](#d11-third-party-licences-and-who-authorises-an-exception)** — Third-party licences, and who authorises an exception
+- **[D12](#d12-implemented-from-the-literature-not-from-other-peoples-code)** — Implemented from the literature, not from other people's code
+- **[D13](#d13-threading-a-thin-layer-of-our-own-over-pthreads)** — Threading: a thin layer of our own over pthreads
+- **[D14](#d14-build-one-plain-makefile)** — Build: one plain Makefile
+- **[D15](#d15-test-only-dependencies-are-exempt-from-d2)** — Test-only dependencies are exempt from D2
+- **[D16](#d16-the-work-unit-is-a-public-contract)** — The work unit is a public contract
+- **[D17](#d17-no-claim-without-a-run)** — No claim without a run
+- **[D18](#d18-what-the-independent-checker-guarantees-and-what-it-does-not)** — What the independent checker guarantees, and what it does not
+- **[D19](#d19-unboundedness-is-read-off-a-ray-never-off-an-invented-bound)** — Unboundedness is read off a ray, never off an invented bound
+- **[D20](#d20-optimality-is-not-declared-on-carried-numbers)** — Optimality is not declared on carried numbers
+- **[D21](#d21-a-gate-that-fails-means-nothing-until-it-can-fail-differently)** — A gate that fails means nothing until it can fail differently
+- **[D22](#d22-a-tolerance-excuses-a-condition-never-a-contribution)** — A tolerance excuses a condition, never a contribution
+- **[D23](#d23-a-bound-proximity-test-is-judged-against-what-the-value-is-made-of)** — A bound-proximity test is judged against what the value is made of
+- **[D24](#d24-the-primal-feasibility-test-stays-absolute)** — The primal feasibility test stays absolute
+- **[D25](#d25-a-settled-point-is-handed-back-to-the-method-and-the-methods-answer-is-not-trusted-over-the-one-it-started-from)** — A settled point is handed back to the method, and the method's answer is not trusted over the one it started from
+- **[D26](#d26-blands-rule-is-a-fallback-a-detected-cycle-switches-on-never-the-default)** — Bland's rule is a fallback a detected cycle switches on, never the default
+- **[D27](#d27-the-re-entry-moves-a-column-when-its-wrong-sign-costs-objective-and-when-the-reduced-cost-carrying-it-is-a-number)** — The re-entry moves a column when its wrong sign costs objective, and when the reduced cost carrying it is a number
+- **[D28](#d28-a-primal-ratio-test-enters-m1-the-primal-simplex-does-not)** — A primal ratio test enters M1; the primal simplex does not
+- **[D29](#d29-the-refresh-that-verifies-an-optimum-refines-its-two-solves-the-solve-loop-does-not)** — The refresh that verifies an optimum refines its two solves; the solve loop does not
+- **[D30](#d30-the-primal-clean-up-judges-every-candidate-before-it-moves-any-of-them-and-against-the-costs-the-model-owns)** — The primal clean-up judges every candidate before it moves any of them, and against the costs the model owns
+- **[D31](#d31-what-the-campaign-settled-and-the-tolerances-freeze-where-they-stand)** — What the campaign settled, and the tolerances freeze where they stand
+- **[D32](#d32-the-fixed-cost-of-a-simplex-iteration-is-zero-and-the-row-leaves-the-table)** — The fixed cost of a simplex iteration is zero, and the row leaves the table
+- **[D33](#d33-the-public-apis-shape-as-decided-rather-than-as-drafted)** — The public API's shape, as decided rather than as drafted
+- **[D34](#d34-the-one-place-d8-rested-on-an-argument-now-rests-on-a-measurement)** — The one place D8 rested on an argument now rests on a measurement
+- **[D35](#d35-pricing-walks-the-matrix-by-row-and-the-answer-does-not-move)** — Pricing walks the matrix by row, and the answer does not move
+- **[D36](#d36-a-scatter-form-btran-is-rejected-the-saving-is-real-and-the-arithmetic-is-not-free)** — A scatter-form BTRAN is rejected: the saving is real and the arithmetic is not free
+- **[D37](#d37-a-published-zero-is-a-zero-and-the-digest-was-lying-about-it)** — A published zero is a zero, and the digest was lying about it
+- **[D38](#d38-btran-skips-the-slots-it-can-prove-are-zero-and-proves-it-by-not-touching-them)** — BTRAN skips the slots it can prove are zero, and proves it by not touching them
+- **[D39](#d39-infeasibility-gets-the-second-opinion-optimality-already-got)** — Infeasibility gets the second opinion optimality already got
+- **[D40](#d40-the-pricing-row-is-read-through-its-pattern-and-the-pattern-costs-a-comparison)** — The pricing row is read through its pattern, and the pattern costs a comparison
+- **[D41](#d41-the-dual-step-walks-the-pattern-too-and-an-invariant-is-what-makes-that-safe)** — The dual step walks the pattern too, and an invariant is what makes that safe
+- **[D42](#d42-the-exact-weight-is-summed-over-rhos-pattern-which-nobody-had-to-go-and-find)** — The exact weight is summed over rho's pattern, which nobody had to go and find
+- **[D43](#d43-the-solve-says-where-its-answer-is-and-one-charge-had-been-standing-for-two-loops)** — The solve says where its answer is, and one charge had been standing for two loops
+- **[D44](#d44-the-forward-solve-says-where-its-answer-is-and-this-one-needed-no-ordering)** — The forward solve says where its answer is, and this one needed no ordering
+- **[D45](#d45-the-work-counter-is-calibrated-against-a-clock-and-it-is-optimistic-by-a-factor-that-is-not-constant)** — The work counter is calibrated against a clock, and it is optimistic by a factor that is not constant
+- **[D46](#d46-the-factorizations-fill-is-measured-the-pivot-search-is-confirmed-at-4-and-a-set-total-is-two-instances)** — The factorization's fill is measured, the pivot search is confirmed at 4, and a set total is two instances
+- **[D47](#d47-a-reduced-cost-is-a-rate-and-the-checker-certifies-a-bound-it-cannot-prove)** — A reduced cost is a rate, and the checker certifies a bound it cannot prove
+- **[D48](#d48-one-loop-pivoted-without-asking-whether-the-factorization-still-existed)** — One loop pivoted without asking whether the factorization still existed
+- **[D49](#d49-the-re-entry-loop-stops-making-progress-and-the-round-cap-is-what-ends-it)** — The re-entry loop stops making progress and the round cap is what ends it
+- **[D50](#d50-two-repairs-undo-each-other-and-the-loop-publishes-whichever-one-it-stopped-on)** — Two repairs undo each other, and the loop publishes whichever one it stopped on
+- **[D51](#d51-the-residue-is-the-loan-ledger)** — The residue is the loan ledger
 
 ---
 
