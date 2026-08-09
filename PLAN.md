@@ -1059,10 +1059,25 @@ and reopens the moment a model lands on either.
      leaves. One cell of twelve moved in the sweep and all 139 reference
      instances are unchanged, digest for digest. What `pilot` at 48 now
      completes to is item 1's mode, reached by a fourth trajectory.
-  4. **Open — `pilot87` checker-rejected at 24 and 32**, on dual violations
-     the checker does catch (2.21e-4 and 1.69e-6). A different fault from
-     item 1, and undiagnosed. At 128 and above it trips the iteration guard,
-     which the solver's own message calls a JAOS defect.
+  4. **Open, with the mechanism found — `pilot87` checker-rejected at 24 and
+     32 (D49).** The settle/re-entry loop stops converging: from round 12 its
+     figures repeat with period four, five times, 56 iterations a turn, and
+     `SETTLE_ROUNDS = 32` is what ends it rather than any condition. At
+     interval 64 the same loop converges in sixteen rounds to zero breaches.
+     **A basis hash differs in every one of the thirty-two rounds**, so this
+     is degenerate rather than a repeated basis, and D26's cure — detect a
+     cycle by state hash, switch to Bland — would run straight past it.
+
+     The next measurement, and nothing here can be decided before it: the
+     loop's own worst breach at the last round is 7.85e-07 while the checker
+     calls the published point 2.21e-4, a factor of 280. `dual_breach` reads
+     a shifted cost in the scaled problem and the checker reads a reduced
+     cost in the original one, so until that factor is attributed no
+     threshold in this loop means what it looks like it means (D27's fault
+     class).
+
+     At 128 and above `pilot87` also trips the iteration guard, which the
+     solver's own message calls a JAOS defect. Untouched.
 
   None of the four is a tolerance to widen.
 

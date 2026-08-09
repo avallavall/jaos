@@ -2750,3 +2750,69 @@ than this one and is not made here.
 at a non-default constant, which no unit test reaches — the trajectory sweep
 of PLAN 3.6 is the only instrument that runs it, and it has now found two
 defects (D39, this one) that 139 instances at one setting did not.
+
+## D49 — The re-entry loop stops making progress and the round cap is what ends it
+
+Q12's fourth mode: `pilot87` is checker-rejected at refactorization intervals
+24 and 32, on dual violations of 2.21e-4 and 1.69e-6 — four orders above the
+tolerance, and unlike D47's mode the checker sees these perfectly well. It
+also costs 116071 iterations there against 50850 at the committed interval.
+
+**The trajectory, which is what a snapshot would have hidden.** One line per
+settle round: how many variables breach a sign condition, the worst of them,
+how many the cleanup wants to pivot, and whether anything can be repaired by
+moving.
+
+At interval 64 the loop converges. Sixteen rounds, the worst breach falling
+from 7.95e-4 to zero, and it exits because the cleanup finds nothing left to
+pivot:
+
+```
+ROUND  0  worst=0.000795338  breaching=48  wants=33
+ROUND  6  worst=8.3257e-06   breaching=12  wants=12   cleanup pivots=9
+ROUND 14  worst=8.53876e-06  breaching=2   wants=2    cleanup pivots=2
+ROUND 15  worst=0            breaching=0   wants=0    EXIT
+```
+
+At interval 24 it does not. From round 12 the figures repeat with period
+four, five times over, and the cap stops it:
+
+```
+ROUND 12  worst=0.000110302  breaching=6  wants=3
+ROUND 13  worst=1.87911e-06  breaching=4  wants=4   cleanup pivots=3
+ROUND 14  worst=2.74024e-05  breaching=5  wants=3
+ROUND 15  worst=7.84605e-07  breaching=3  wants=3   cleanup pivots=2
+ROUND 16  worst=0.000110302  breaching=6  wants=3      <- round 12 again
+...  rounds 20, 24 and 28 the same, 56 iterations per turn ...
+EXIT: SETTLE_ROUNDS cap of 32 rounds bound
+```
+
+**And the obvious repair is refuted before being written.** D26 cured
+`grow15` by detecting a cycle and switching to Bland's rule, and detecting a
+cycle means comparing a state hash. Hashing the basis and every variable's
+status here gives **a different value in every one of the thirty-two
+rounds** — including the five that agree on every figure above. So the loop
+is not revisiting a basis. It is revisiting the same breaches by a different
+route each time, which is degeneracy, and a cycle detector keyed on the
+basis would run past it exactly as the loop does.
+
+**What is established.** The loop makes no measurable progress after round
+11, spends the remaining twenty rounds not making it, and terminates on a
+constant rather than on a condition. `SETTLE_ROUNDS = 32` is doing the job
+a convergence test should be doing, which is the anti-pattern D26 named at
+the level of a simplex iteration and this is at the level of a round.
+
+**What is not, and it is the more interesting half.** The loop's own worst
+breach at the last round is **7.85e-07** and the checker's verdict on the
+point it publishes is **2.21e-4** — a factor of 280. Those are different
+quantities in different spaces: `dual_breach` measures a shifted cost in the
+scaled problem, and the checker measures a reduced cost in the original one.
+Until that factor is attributed, no threshold in this loop can be read as
+meaning what it appears to mean, and stopping the loop earlier or later
+cannot be judged. That is D27's fault class — a test reading the right
+quantity in the wrong space — and it is the next question rather than a
+conclusion here.
+
+Nothing is changed in this entry. Both remaining halves of Q12 now have a
+mechanism named and a specific next measurement, which is what the sweep of
+PLAN 3.6 exists to produce.
