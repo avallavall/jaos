@@ -66,7 +66,8 @@ LIB := $(B)/release/libjaos.a
 DEV_TESTS  := $(TESTS:tests/%.c=$(B)/dev/%)
 ASAN_TESTS := $(TESTS:tests/%.c=$(B)/asan/%)
 
-.PHONY: all test sanitize bench netlib netlib-baseline netlib-kennington \
+.PHONY: all test sanitize bench compare-build netlib netlib-baseline \
+	netlib-kennington \
 	netlib-infeas netlib-kennington-baseline netlib-infeas-baseline clean
 
 # Keep intermediate objects; make otherwise deletes and rebuilds them
@@ -116,6 +117,14 @@ $(B)/bench/run: bench/run.c $(LIB) | $(B)/bench
 	$(CC) $(RELEASE_CFLAGS) $(INC) $< $(LIB) -o $@ $(LDLIBS)
 
 bench: $(B)/bench/run
+
+# JAOS as one competitor among several (bench/compare/README.md). Built on
+# demand and kept apart from the gate's runner: it reports seconds, which no
+# file the gate reads is allowed to contain (D17).
+$(B)/bench/jaos_time: bench/compare/jaos_time.c $(LIB) | $(B)/bench
+	$(CC) $(RELEASE_CFLAGS) $(INC) $< $(LIB) -o $@ $(LDLIBS)
+
+compare-build: $(B)/bench/jaos_time
 
 # Instances are fetched and checksum-verified, never committed (PLAN 2.10).
 # The runner writes the record itself rather than being piped through tee:
