@@ -1035,10 +1035,18 @@ and reopens the moment a model lands on either.
      as minus infinity — and D47 carries the two-variable case that proves
      it, plus the measurement that `etamacro` carries the same shape at
      2.25e-07 in an answer the gate passes today.
-  2. **Open — the repair.** Judge a reduced cost against the traffic of the
-     dot product that formed it, as D23 did for rows. It moves the dual
-     violation on all 139 instances, so it needs the full gate plus the two
-     cases it must reject.
+  2. **Open — the repair, with the cheap one already refuted.** Judging a
+     reduced cost against the traffic of the dot product that formed it, as
+     D23 did for rows, separates nothing: the ratio is 1.4e-04 on the wrong
+     answer and 5.6e-04 and 1.0 on two the gate accepts. No local test on a
+     reduced cost can work, because what decides the damage is the distance
+     the variable travels. Two routes remain — report `gap_positive` as
+     `+inf` when the improving direction is unbounded, which is honest, free,
+     and says JAOS cannot certify 15 of its 110 accepted answers; or have the
+     checker compute `|d_j|` times the ratio-test step, a certified lower
+     bound on suboptimality that needs no reference value and would have
+     caught this at 1.04e-3 — at the cost of giving the checker a basis and a
+     factorization of its own (D47).
   3. **Open — `pilot` at 48 returns a library error** on a model that solves
      at every other interval. `JAOS_ERR_INVALID_INPUT` out of `jaos_solve`
      means an internal caller passed something no caller should; the

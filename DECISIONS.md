@@ -2634,10 +2634,46 @@ the checker *does* catch, which is a different fault, and `pilot` returning
 model that solves at every other interval, which is the worst-shaped of the
 three. Neither is diagnosed here.
 
-**And the repair is deliberately not in this entry.** The scale a reduced
-cost should be judged against is the traffic of the dot product that formed
-it, `|c_j| + sum |a_ij y_i|` — the same move D23 made for rows, and the file
-already argues for it there. That changes the dual violation on all 139
-instances, so it is a measured change with its own evidence: it must reject
-the two cases above and accept every answer the gate accepts today. What
-this entry fixes is that the case it must reject now exists.
+**The obvious repair was measured, and it does not work.** The scale a
+reduced cost should be judged against looks like the traffic of the dot
+product that formed it, `|c_j| + sum |a_ij y_i|` — the same move D23 made for
+rows, and the file already argues for it there. Measured on the offending
+columns:
+
+| answer | column | reduced cost | traffic | ratio |
+|---|---|---|---|---|
+| `pilot` at 32 — **the wrong one** | 1534 | -3.474e-07 | 2.400e-03 | **1.448e-04** |
+| `pilot` at 64 — accepted | 1407 | -8.619e-09 | 6.342e-03 | 1.359e-06 |
+| `pilot87` at 64 — accepted | 3406 | -1.432e-08 | 2.573e-05 | **5.565e-04** |
+| `etamacro` at 64 — accepted | 498, 511 | -2e-09, -1e-09 | 2e-09, 1e-09 | **1.0** |
+
+**It separates nothing.** The accepted answer for `pilot87` scores four
+times worse than the rejected one for `pilot`, and `etamacro` scores 1.0 —
+its reduced cost is a single well-determined term with no cancellation at
+all. Any threshold that catches the wrong answer rejects two the gate
+accepts today.
+
+**And the reason generalises past this one test.** A backward-error ratio
+asks whether the reduced cost is distinguishable from zero as a computation,
+and in every row above it is: these are genuine small nonzero reduced costs,
+not rounding noise. What separates a harmful one from a harmless one is the
+distance the variable travels, which is a property of the whole polytope and
+not of the column. **No local test on a reduced cost can do it**, and that
+is why the absolute threshold has survived: the alternatives that look
+principled are not better, they are differently arbitrary.
+
+That leaves two honest routes, and choosing between them is the open work.
+**Report the bound as void** — when a wrong-signed multiplier sits on an
+unbounded improving direction the dual objective is minus infinity and
+`gap_positive` is `+inf`, which costs nothing to compute and would say
+plainly that JAOS cannot certify optimality on 15 of its 110 accepted
+answers rather than reporting a small number instead. Or **compute what the
+column is worth**: `|d_j|` times the step a ratio test allows is a certified
+*lower* bound on the suboptimality, it needs no reference value, and it is
+1.04e-3 on `pilot` at 32 by the arithmetic at the top of this entry. That
+one needs `B^-1 a_j`, so the independent checker would need a basis and a
+factorization of its own — a real cost, against the only thing measured here
+that would actually catch the defect.
+
+What this entry settles is that the case exists, that it is live on
+`etamacro` today, and that the cheap repair is refuted.
