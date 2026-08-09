@@ -1,985 +1,285 @@
 # Plan
 
-Working document per the working agreement: it holds only what is open. Detail
-exists only for the active milestone; later stages stay coarse until they open.
-Closed items leave for the changelog and the commit that closed them. Constraints
-referenced as D<n> live in `DECISIONS.md`.
+What is open, in the order it will be done. What JAOS is meant to be is in
+`SPECS.md`; what has landed is in `CHANGELOG.md`; why is in `DECISIONS.md`.
+Constraints referenced as D*n* live there.
 
----
+## The order, and why it is this one
 
-## 1. Destination and staging
-
-The declared scope (D6) staged into milestones. Each has a single gate; a milestone
-is closed by its gate, never by the calendar. This refines D6's rough order with
-two insertions — deterministic parallelism and interior point — placed where their
-prerequisites exist.
-
-| Stage | Delivers | Gate |
+| | phase | why here |
 |---|---|---|
-| **M1 — LP correct** | MPS+LP readers, scaling, revised dual simplex, checker | Netlib set solved to reference values; see §2.9 |
-| **M2 — LP fast** | Presolve, hyper-sparsity [9], pricing refinements, and the deferred data-structure work of §2.11. **Open — detail in §3**, where the measured attribution has already reordered this list and ruled a crash basis [12] out for now | Measured competitive gap vs open solvers on the measurement host; **blocked by Q4** |
-| **M3 — MILP correct** | Branch & bound, reliability/pseudocost branching [14], warm-started dual simplex | MIPLIB 2017 easy subset: correct optima, correct infeasibility claims |
-| **M4 — MILP strong** | Cuts (Gomory [15], MIR [16], covers), MIP presolve [14], primal heuristics (FP [17], diving, RINS [18]) per D9 | MIPLIB benchmark subset coverage targets, fixed when M4 opens |
-| **M5 — Parallel deterministic** | `jaos_thread.h` (D13), deterministic parallel B&B per D8, opportunistic opt-in | Bit-identical parallel runs; measured speedup on measurement host |
-| **M6 — Interior point** | Barrier for LP, crossover, primal simplex | Large-LP set solved; clean basic solutions from crossover |
-| **M7 — Quadratic & conic** | Convex QP/MIQP, then QCQP/SOCP/MISOCP over the barrier machinery | Fixed when M7 opens |
-| **M8 — NLP** | Smooth constrained NLP; derivative-strategy decision is this stage's opening gate | CUTEst subset |
-| **M9 — MINLP** | Convex (outer approximation), then global non-convex (spatial B&B) | MINLPLib subsets |
-
-Network specializations (min-cost flow, transport, assignment) slot in after M4 as
-detection plus dedicated algorithms; they accelerate, they do not gate. SDP remains
-unscheduled (D6).
+| **1** | **Know where we stand** — time every run, and compare against HiGHS, SoPlex and Clp | Every speed decision so far has been taken blind. The only phase that changes what we know rather than what the code does. |
+| **2** | **Make it usable** — options, model modification, warm re-solve | Cheap, and it unblocks everything after it. Today a user can load, solve and read; nothing else. |
+| **3** | **Presolve** | The largest single algorithmic gap, and phase 1 will have said what it is worth. |
+| **4** | **Complete the product** — writing, callbacks, sensitivity, certificates | What turns a solver into a library. |
+| **5** | **Bindings** | Needs 2 and 4 to have stopped moving. |
+| **6** | **Speed** — the LU, partial pricing, the primal simplex | Deliberately after 1: the attribution below is in work units, and D45 showed those are biased against exactly the part that costs the most time. |
+| **7** | **The long ones** — barrier and crossover, deterministic parallelism, MILP | Each is a milestone of its own. |
 
 ---
 
-## 2. Milestone 1 — LP correctness
+## Phase 1 — Know where we stand
 
-**One sentence:** read a real instance from disk, solve it with a revised dual
-simplex, and prove the answer right — on the whole Netlib set, deterministically,
-with the work counter running from the first kernel.
+### 1.1 Time on every run
 
-### 2.1 In / out
+Work units make regressions detectable across machines; seconds say whether
+the units bought anything. The two records must never be confused.
 
-**In:** fixed and free MPS reader; LP-format reader (documented dialect subset);
-CSC model core with CSR mirror; Curtis–Reid scaling [11]; sparse LU with Markowitz
-pivoting [4][6]; Forrest–Tomlin updates [5] over Bartels–Golub LU [20]; dual
-steepest-edge pricing [8]; Harris two-pass ratio test with bound flipping
-[7][19][1]; dual phase 1 [21]; ranged rows and all bound types; infeasibility and
-unboundedness classification; independent solution checker; deterministic work
-counter (D16); Unity test suite (D15); Makefile (D14); sanitizer runs; determinism
-harness; Netlib acceptance runner. Plus, added deliberately after the gate
-demanded it: a **primal ratio test** used only to clean up after the dual
-solve has finished (D28).
+- `bench/run.c` prints elapsed seconds per instance and for the set, on every
+  run, to the console.
+- Seconds go to a side file that names the machine. **They never enter
+  `bench/results/*.txt` or any `.baseline`** — those stay deterministic,
+  because a baseline that changes every run cannot detect a regression.
+- A change is judged on three things from here (D45): solution digests for
+  correctness, work units for determinism and cross-machine comparability,
+  and a same-instance time ratio to catch the cases where the units lie.
 
-**Out, explicitly:** presolve (no instance forced one, D31); **the primal simplex** — see below, the ratio test above is not
-it; crash basis; hyper-sparsity; parallelism; cuts; callbacks; bindings; file
-*writing*; certificate export; public CLI. The Netlib driver is a bench tool,
-not a product.
+### 1.2 The parallel runner, into the repository
 
-**Where that line now runs, because it moved once and should not move by
-drift.** What is in is a ratio test and the basis change `pivot()` already
-performs, applied to a column the residue names. What stays out is everything
-that makes a primal *method*: pricing to choose an entering column, a phase 1
-of its own, its own steepest-edge weights, and any use of it to solve rather
-than to finish. A primal simplex chooses what enters; this is told. D28
-carries what it bought and what it cost.
+Instances are independent and every recorded figure is an integer that does
+not depend on the optimisation level, so the bench runner can be built
+`-O3 -march=native -flto` and the instances solved concurrently. That takes
+the standard set from about eight minutes to ninety seconds and Kennington
+from thirty minutes to fifteen. Verified three times on different trees by
+producing records identical byte for byte to the sequential `-O2` runner.
 
-### 2.2 Repository layout
+It has lived outside the tree since M2 opened. It becomes a make target.
 
-```
-include/jaos.h        public header, the only one
-src/                  library sources, flat until a second engine exists
-tests/                unit tests; tests/vendor/unity/ (D15); tests/data/ tiny golden instances
-bench/                netlib fetch script + sha256 manifest, acceptance runner, results/
-docs/                 format-support.md, scaling.md, tolerances.md, work-units.md
-Makefile
-```
+### 1.3 The comparison harness
 
-### 2.3 Toolchain
+`bench/compare/README.md` carries the design: a four-rung ladder where each
+rung's difference from the one below attributes the gap to one feature; times
+judged only when the answer verifies; tolerances equalised explicitly;
+competitor versions pinned by checksum; two times per run, the solver's own
+and the process's; the minimum of N runs rather than the mean.
 
-`CC ?= gcc-14`, `-std=c23` (D1). Dev builds `-Wall -Wextra -Wpedantic -Werror -g`;
-release `-O2 -g -DNDEBUG` — aggressive flags (`-O3`, `-march=`) are an M2 matter,
-because under D17 they require measurements to justify. `sanitize` target builds
-with `-fsanitize=address,undefined`.
+What exists: that README and `jaos_time.c`, which times a JAOS solve. What is
+missing:
 
-### 2.4 Public API conventions
+- `solvers.manifest` — HiGHS, SoPlex and Clp pinned by checksum, licences
+  verified at fetch time rather than trusted.
+- a fetch-and-build script for them, dev-time only, nothing redistributed.
+- the runner that walks the ladder and writes `bench/compare/results/`.
+- the first reading: **T0 against all three on the standard set.**
 
-**Closed — D33.** These were held here as a shape awaiting the maintainer's
-confirmation. It came, and the conventions, the two places the draft was
-wrong, and what is deliberately *not* frozen by any of it now live in
-`DECISIONS.md`. Nothing about the API is open.
+**Q4 is downgraded from a blocker to a label.** It said the gate needs a
+dedicated measurement host, and it does — for a *published* figure. Comparing
+on this machine with every line stamped as a development number is
+incomparably better than not comparing, which is where two milestones of
+speed work have already been spent.
 
-### 2.5 Components and their literature anchors
+---
 
-1. **Sparse core.** CSC storage plus a CSR mirror of A — the dual simplex prices
-   rows, the column view feeds FTRAN. Own locale-independent number parsing in the
-   readers: `strtod` under a comma-decimal locale silently corrupts instances, and
-   determinism (D8) extends to parsing.
-2. **Readers.** Fixed MPS with free-MPS autodetection; RANGES with per-row-type
-   semantics, all BOUNDS types, OBJSENSE, objective constants. Unsupported
-   constructs (SOS, indicators) are recognized and rejected with a clear message
-   and line number — never silently skipped. LP dialect: documented subset,
-   CPLEX-style core (objective, constraints, bounds, integrality sections parsed
-   and rejected until M3).
-3. **Scaling.** Curtis–Reid [11] as default, geometric-mean equilibration as
-   option. Solver tolerances live in scaled space; the checker judges in original
-   space.
-4. **Basis factorization.** LU with Markowitz threshold pivoting [4][6][20],
-   sparsity-exploiting triangular solves [4]. Hyper-sparsity techniques [9] are M2.
-5. **Basis updates.** Forrest–Tomlin [5]; refactorization on an interval target
-   plus stability triggers (FTRAN/BTRAN residual checks). What those checks
-   turned out to be worth, and where a residual is worth acting on rather than
-   only measuring, is settled in §2.8 by `pilot` (D20, D29).
-6. **Pricing.** Dual steepest edge [8] from the start — it is the workhorse that
-   makes dual simplex competitive [1] — with a plain max-infeasibility fallback
-   behind a flag for debugging.
-7. **Ratio test.** Harris two-pass [7] with bound-flipping [19][1], long-step
-   variants per Koberstein's treatment [1].
-8. **Dual phase 1.** Required for free variables and general starts. Method chosen
-   during implementation from the comparison in [21][1] — open question Q1, closed
-   by evidence, not preference.
-9. **Degeneracy and stability.** Harris tolerances; deterministic bound
-   perturbation (seeded, removed and cleaned up at end); DSE weight resets on
-   drift.
-10. **Classification.** Primal infeasibility proven via dual unboundedness; tiny
-    constructed tests for `UNBOUNDED`. Certificate export is M2.
-11. **Independent checker.** Reads the *original, unscaled* problem and the claimed
-    solution, and verifies status independently of the solver's own bookkeeping:
-    activities within row bounds, values within column bounds, dual feasibility
-    signs, complementary slackness, primal-dual objective agreement — formulas
-    published in `docs/tolerances.md`. Runs after every solve in the test suite.
-    This is "check the thing, not the wrapper" as a module.
-12. **Work counter (D16).** Counted in the kernels from the day the kernels exist,
-    never bolted on. Draft weights, §2.7.
-13. **Determinism harness (D8).** Every instance solved twice in-process and once
-    across runs; status, objective bits, iteration count, work units and a basis
-    hash must match exactly.
+## Phase 2 — Make it usable
 
-### 2.6 Tolerances — draft
+Nothing here is hard. All of it is missing.
 
-**Frozen (D31).** These were drafts on the explicit terms that they would
-freeze when the Netlib gate closed; it has, and they freeze at the values
-below. Any later change is a changelog entry. Every one of them, where it
-acts and what it decides, plus the checker's formulas: `docs/tolerances.md`.
+- **An options API.** Every tolerance, threshold and interval in the solver
+  is a compile-time constant today. The shape is the first decision: an
+  opaque options object passed to `jaos_solve`, or setters on the model.
+  Either way it must keep D8 — an option that changes an answer has to change
+  it identically on every machine.
+- **Logging.** The solver is silent. A verbosity level and a callback for the
+  line, so a caller can route it.
+- **Model modification** — add and delete rows and columns, change a bound, a
+  cost, a coefficient.
+- **Warm re-solve.** The dual simplex is the right method for it and none of
+  the plumbing exists: no way to keep a basis across a modification, no way
+  to hand one in.
+- **`jaos_set_basis`**, whose read side is already `jaos_basis`.
 
-Not one of them was moved to close an instance. Eight instances were refused
-along the way and all eight turned out to be defects with a mechanism, which
-is the only thing that makes freezing these worth anything.
+Two things phase 2 unblocks that are worth naming: the debugging fallback to
+max-infeasibility pricing has been waiting for somewhere to put a flag, and a
+caller cannot vary the checker's tolerance today, which is what made D47's
+diagnosis need a private driver.
 
-| Quantity | Draft |
+---
+
+## Phase 3 — Presolve
+
+Q3 closed presolve out of M1 because no instance needed it *for correctness*.
+It was never weighed for speed, and phase 1 will have said what the field
+gains from it.
+
+Scope when it opens: empty and singleton rows and columns, forcing and
+redundant constraints, bound tightening, fixed variables, duplicate rows and
+columns, dominated columns. And the postsolve that puts a solution back —
+which is where the correctness risk lives, not in the reductions.
+
+---
+
+## Phase 4 — Complete the product
+
+- Write MPS and LP; write a solution file.
+- Callbacks.
+- Sensitivity and ranging.
+- Infeasibility and unboundedness certificates, exportable.
+- Exact rational verification of a final basis (Q8).
+
+---
+
+## Phase 5 — Bindings
+
+Python first. Nothing to design until the C API stops moving.
+
+---
+
+## Phase 6 — Speed
+
+**Read D45 before any figure in this section.** The work counter is
+optimistic by a factor that is not constant: M2 bought 2.953x in units and
+**1.866x in seconds**, and the error is not uniform — the `nvar` sweeps that
+were removed were expensive per unit and the `nrow` sweeps were nearly free,
+and both are billed at 1. Every percentage below is a share of *billed* work,
+and the LU rows have the most real work hiding behind them.
+
+### Where the work is
+
+Attributed by source line. **Two different answers, and Kennington is 55% of
+the two totals.**
+
+| | standard 94 | Kennington 16 |
+|---|---|---|
+| inside the LU | **77.80%** | 4.97% |
+| inside the simplex | 22.20% | **95.03%** |
+
+Read every total as a statement about three models (D46): `pilot87` is 38.8%
+of the standard set and `maros-r7` 35.4% — 74.1% between them; `gosh` alone is
+91.9% of the infeasible set. **A change that does not move every instance the
+same way is reported as a geometric mean of per-instance ratios**, never as a
+sum.
+
+### What is left, ranked
+
+1. **The factorization, and the scatter its factors cost every solve** —
+   77.8% of the standard set, untouched through all of M2. The factors carry
+   2.673x the nonzeros of the basis; two thirds of every factorization is
+   free triangularization and 31.8% is where Markowitz actually chooses
+   (D46). Live structural items: the missing row-to-position lookup on the
+   factorization path, the per-column elimination arrays against a single
+   arena, and the stale live counts that make Markowitz choose on a
+   pessimistic estimate.
+2. **Partial and multiple pricing** — the row scan that picks the
+   infeasibility is 26.4% of Kennington and has no sparsity to exploit.
+   **The first change that cannot be judged on digests**: it moves the search
+   path, so it needs the full gate and a different standard of evidence.
+3. **BTRAN's `L'` pass**, 5.15% of the standard set, billed for every slot.
+   Only 4.1% of its entries sit under a zero, so a reachability search over a
+   row-wise copy of L can recover at most a fifth of a percent. Recorded so
+   it is not costed again.
+4. **The eta passes** apply 45.1% and 10.6% of their etas to a zero and are
+   charged for all of them — 1.69% of the standard set together.
+5. **A primal simplex**, which phase 4's crossover needs anyway.
+
+---
+
+## Phase 7 — The long ones
+
+Barrier for LP with crossover; deterministic parallel branch and bound with
+`jaos_thread.h` (D13, D8); MILP correctness on the MIPLIB 2017 easy subset,
+then cuts, MIP presolve and primal heuristics against the benchmark subset.
+Then convex QP and MIQP over the barrier machinery, then conic, then NLP —
+whose derivative strategy is that stage's opening decision (Q5) — then MINLP.
+Network specializations slot in as detection plus dedicated algorithms; they
+accelerate, they do not gate. SDP stays unscheduled.
+
+---
+
+## Known defects, carried
+
+Reproducible, diagnosed, not yet fixed. All three came out of varying
+`REFACTOR_EVERY` over 16..256, which walks trajectories the gate never walks.
+
+1. **The checker certifies a bound it cannot prove (D47).** Whenever a
+   wrong-signed multiplier sits on an unbounded improving direction the dual
+   objective is minus infinity and the term is silently dropped, so
+   `gap_positive` — documented as satisfying `P - P* <= gap_positive` — can
+   read zero on a point that is arbitrarily suboptimal. Two variables and one
+   constraint are enough to build it. Live on `etamacro` today at 2.25e-07.
+   The cheap repair, judging a reduced cost against its own dot-product
+   traffic, is measured and refuted: it separates nothing.
+2. **The re-entry loop does not always converge (D49, D50, D51).** Its two
+   repairs undo each other — the dual simplex borrows cost shifts to keep
+   dual feasibility, `settle_shifts` calls the loans in, and the largest loan
+   reappears as the worst breach, to six digits. `SETTLE_ROUNDS = 32` is what
+   ends it rather than any condition. The question is whether a cleanup pivot
+   needs to borrow at all.
+3. **`pilot87` trips the iteration guard at intervals of 128 and above**,
+   which the solver's own message calls a JAOS defect. Undiagnosed.
+
+---
+
+## Settled — do not re-derive
+
+Each was measured and closed; the measurement is in `DECISIONS.md`.
+
+| | |
 |---|---|
-| Primal feasibility (scaled) | 1e-7 |
-| Dual feasibility (scaled) | 1e-7 |
-| Markowitz threshold u | 0.1 |
-| Factor drop tolerance | 1e-14 |
-| Harris tolerance window | 1e-7 |
-| Steepest-edge weight drift factor | 10 |
-| Refactorization interval target | 64–128 iterations, stability-triggered earlier |
-| Netlib objective acceptance | \|obj − ref\| ≤ 1e-6 · max(1, \|ref\|) |
-| Checker tolerances (original space) | 1e-6 on residuals; the bound-proximity test scales with what the value is made of (D23). Formulas in `docs/tolerances.md` |
-
-### 2.7 Work units — draft weights (D16)
-
-Deterministic integer counting in kernels only. Model loading is excluded from the
-solve budget and documented as such. Where each weight is actually charged, and
-what else sits outside the budget, is in `docs/work-units.md` — including the
-scaling computation, which a solve performs and no unit counts today.
-
-| Event | Draft weight |
-|---|---|
-| Nonzero touched in a solve, in pricing, or in an update | 1 |
-| Nonzero eliminated, in a factorization or in a basis update | 2 |
-| Fixed overhead per basis update | 64 |
-| Fixed overhead per refactorization | 4096 |
-
-An elimination is charged by what it does, not by which routine runs it: the
-same axpy costs the same inside a factorization and inside a basis update.
-
-**The per-iteration overhead had no number and now has none on purpose: it
-is zero, and the row is gone (D32).** The attribution it was waiting for was
-made — every charge assigned to the phase of the iteration that made it, on
-an instrument that leaves all 110 instances bit-identical — and it says the
-basis update is 1.8% of an iteration rather than the whole of it. So the
-double-billing the note feared was not the reason. The reason is that the
-other 98% is already charged, and charged by dimension: the bookkeeping is
-exactly `iters * (nvar + 2*nrow)` in 110 of 110 solves. There is no O(1)
-residue for a constant to stand for.
-
-Ratios calibrated before 1.0; frozen at 1.0; afterwards changes only at a major
-version (D16).
-
-### 2.8 What is left inside M1
-
-**Nothing. M1's gate is met on all three instance sets** — 94 standard, 16
-Kennington, 29 infeasible: every one solved or correctly refused, within
-objective tolerance, accepted by the independent checker, and deterministic
-across two solves and across runs. `make netlib` reports `gate: PASS`.
-
-What was built: the scaffold, the model core with the independent checker,
-the MPS and LP readers, the sparse LU with Forrest-Tomlin updates and the
-work counter in its kernels, and a dual simplex on a Curtis-Reid scaled copy
-with dual steepest-edge pricing, a Harris two-pass ratio test with bound
-flipping, a dual phase 1 by artificial bounds, a cycle-triggered Bland
-fallback, a singular-basis repair, and a primal ratio test used only to clean
-up after the dual solve. Every entry is in `CHANGELOG.md` with what it cost
-and in `DECISIONS.md` with why.
-
-**The one thing worth carrying forward rather than filing.** Eight instances
-were refused along the way — `pilot-ja` (D21), `finnis` (D23), `nesm` (D25),
-`grow15` (D26), `etamacro` (D27), `greenbea` (D28), `pilot` (D29) and
-`pilot87` (D30) — and **not one closed by widening a tolerance.** Each was a
-distinct defect with a mechanism, including the two most readily explained as
-the limit of double precision: `etamacro`, which defeats CPLEX at defaults
-and SoPlex at 1e-6, and `pilot87`, the worst-conditioned model in the set.
-`docs/research/netlib-campaign.md` carries the measurement record, including
-the readings that were wrong on the way, because each wrong reading is what
-pointed at the next.
-
-Degeneracy handling is done as far as it can be done without evidence:
-steepest-edge weights repair and restart themselves, and what the ratio test
-spends in dual feasibility is now lent and called back rather than left
-lying. What is left of it is an anti-stall perturbation, which addresses a
-problem no instance has shown yet, and Q10 holds it until one does.
-
-Of §2.5.5's stability triggers, the one that ends a solve exists: a
-declaration of optimality is re-priced from a fresh factorization before it
-is accepted, because the values it was read off are carried and drift (D20),
-and that refresh now refines its two solves as well (D29).
-
-**The other one — a residual watched during the solve that refactorizes
-early — is answered rather than built, and the answer is that it was aimed
-at the wrong cause.** `pilot` is the instance that asked for it, and the
-residual it was rejected on is measured against a factorization that is
-already fresh, so no rule about *when* to rebuild could have reached it. What
-reaches it is refining the solve. And refining every solve rather than the
-last one was measured: `pilot-ja`, a model with a known finite optimum, comes
-back INFEASIBLE, and `pilot87` pays 4.5x the work. Mid-solve those two
-vectors choose a pivot; at the end they are the answer, and only the second
-is worth spending accuracy on.
-
-§2.5.6's debugging fallback to max-infeasibility pricing is not built. There
-is nowhere to put the flag — the library has no options API and inventing one
-for a debugging aid is the wrong order — and the rule itself is one line: it
-is what steepest edge becomes when every weight is pinned at one. It waits for
-the first option the library needs for a reason of its own.
-
-### 2.9 Acceptance gate for M1
-
-All of the following, no exceptions. The right-hand column is where each one
-actually stands as of 2026-08-07, because a gate whose status is only known
-in aggregate is a lesson this milestone paid for once already.
-
-| # | Condition | Status |
-|---|---|---|
-| 1a | Netlib **standard** set: `OPTIMAL`, objective within §2.6 tolerance, checker green | **met** — 94/94 solved, 94 objective, 94 checker, `gate: PASS` |
-| 1b | **Kennington** subset, for correctness with no performance expectation | **met** — 16/16, every condition, `ken-18` at 105127x154699 included |
-| 1c | **Infeasible** subset: classified `INFEASIBLE`, no false optima | **met** — 29/29 refused, no false optima; `gran` closed by the basis repair (CHANGELOG) |
-| 2 | Determinism harness green on every instance (D8) | **met** — 94/94 on the standard set, 16/16 Kennington, 29/29 infeasible. Same-machine by construction; the one cross-machine mechanism anyone identified is bounded by measurement (D34) |
-| 3 | Full suite clean under ASan+UBSan | **met** |
-| 4 | Reader robustness: truncated/corrupted input errors, never crashes | **met** — 1.6M fuzz cases clean under ASan+UBSan, on an instrument checked against an injected fault (CHANGELOG) |
-| 5 | Results recorded under `bench/results/` as data, no wall-clock (D17) | **met**, and all three sets now diffed per instance against a baseline (D21) |
-
-Two of these seven were being read as one. "The gate" meant condition 1a in
-every conversation until late, and 1b and 1c had no infrastructure behind
-them at all — worth recording, because the distance to M1 was never the
-distance to closing seven instances.
-
-**All seven hold.** What each of the eight refused instances turned out to be
-is in `DECISIONS.md` (D21, D23, D25, D26, D27, D28, D29, D30) and summarised
-against the tolerances they were blamed on in `docs/tolerances.md`. One
-methodological point does not live in either and belongs here: the closures
-were grouped, for a long time, by the size of the number the checker
-reported — and that number is the magnitude of a multiplier, which says
-nothing on its own about how far anything is from where it should be. That
-mistake cost `finnis` months in the wrong group; it was the most accurate
-answer of the seven.
-
-
-### What happens next
-
-**M1 is closed, bookkeeping included.** The four items that outlived the gate
-were none of them a solver change and all four are decision records: the §2.6
-tolerances froze where they stood (D31), §2.7's per-iteration work weight
-settled at zero and its row is gone (D32), the questions the campaign was
-going to decide are answered (D31), and §2.4's API shape is confirmed (D33).
-
-**M2 is open, and its first item is not code.** Everything it delivers is a
-change only measurement can justify, and the deterministic work counter is
-blind to the largest part of what those changes buy — optimisation level,
-memory layout, cache behaviour. So **Q4, the measurement host, blocks the
-milestone** rather than accompanying it. Detail in §3.
-
-
-### 2.10 Instance acquisition and reference values
-
-**Acquisition.** Instances are fetched by a `bench/` script and pinned by a sha256
-manifest committed to the repository; the instance files themselves never enter
-the repo. The canonical Netlib source (`netlib.org/lp/data`) distributes the
-standard set compressed in its historical "emps" form; plain-MPS mirrors exist but
-are unofficial. Two routes, chosen when the manifest is first built (Q6): expand
-the canonical files with netlib's own emps tool — a dev-time tool that enters only
-with maintainer approval per D11/D15 — or pin an unofficial plain-MPS mirror by
-checksum after a one-time comparison against canonical expansions.
-
-**Set sizes.** Standard feasible set circa 90–95 instances, Kennington subset 16,
-infeasible subset circa 29. Sources disagree on exact totals, so the built
-manifest is the authoritative count; no exact number is claimed before it exists
-(D17).
-
-**Reference values.** Optimal objectives from Koch [22], which reports exact
-rational optima for the Netlib problems (ZIB-Report 03-05, free PDF at
-`opus4.kobv.de/opus4-zib/files/727/ZR-03-05.pdf`). The acceptance table in
-`bench/` carries each instance's reference value with its source noted; any
-instance not covered by [22] takes its reference from the Netlib readme and is
-marked as such.
-
-These references are load-bearing for a reason beyond convenience: they are
-the only part of the gate that can catch a model the readers built wrongly.
-The checker verifies a solution against the matrix JAOS stored, so a
-reader bug leaves checker and solver agreeing about the wrong problem (D18).
-An externally published optimum for a named instance is the one thing in the
-milestone that does not come from JAOS.
-
-**That turned out to be load-bearing for a second reason nobody had measured
-(D47).** The checker also fails to catch a whole class of *solver* error: a
-point arbitrarily far above the optimum, with every violation it reports
-reading zero, whenever the improving direction is unbounded. Two variables
-and one constraint are enough to build it. So for three of the trajectories
-in Q12 the reference value is not a redundant check — it is the only one.
-
-Koch verified those values with exact rational arithmetic and, in doing so,
-found previously published reference values that were wrong — which is also
-the reason the gate cites him rather than the readme where they differ.
-
-**Tolerance context.** The §2.6 drafts sit at HiGHS's documented defaults (1e-7
-primal and dual feasibility); SoPlex defaults to 1e-6. Both verified against
-their documentation and source respectively — ours match the stricter of the two.
-
-**MILP, for the later gates (M3/M4).** MIPLIB 2017: a 240-instance benchmark set
-within a 1065-instance collection (`miplib.zib.de`,
-doi:10.1007/s12532-020-00194-3). Instances carry per-instance licences (CC BY-SA
-4.0 as default per the MIPLIB 2017 paper) — fetched by script, never committed.
-
-### 2.11 Deferred by measurement, not by oversight
-
-Known costs, correct today, to be revisited in M2 with numbers rather than
-opinions (D17). Recording them here keeps "we chose this" distinct from "we
-missed this".
-
-- ~~**Slot detachment in a basis update is quadratic.**~~ **Measured, and
-  refused.** It is quadratic — `jm_svec_erase` scans, and an update erases
-  once per entry of the outgoing slot's row and column — but the constant is
-  what decides, and nobody had put a number beside it since M1.
-
-  Over the standard 94: 10,587,006 erase calls walking **1,059,009,850**
-  array positions, a hundred per call, with `fit2p` at 571 per call and a
-  worst single scan of 2977. Over Kennington: 586,603 calls and 7,467,608
-  positions, twelve per call. So the behaviour is real and its cost is a
-  billion integer comparisons against 59.5e9 billed units — and a scan step
-  is cheaper than nearly everything the counter charges one for, so 1.78% of
-  the standard set's billed cost is an upper bound and the truth is well
-  under it. On Kennington it is **0.02%**, the exact inverse of every other
-  entry in M2.
-
-  A position map means the doubly linked sparse matrix of [4] — a reverse
-  link to maintain on every push and every erase, in the file where a
-  mistake is least visible. Days of delicate work in `lu.c` for under one
-  percent. Left as it is, and this is now a closed question rather than an
-  open item nobody had costed.
-- **Elimination storage is one growable array per column**, rather than a
-  single arena with compaction. Simpler to get right; more allocator traffic
-  and worse locality.
-- **U is stored twice**, by row and by column, because updates need both
-  orientations. Memory for time, deliberately.
-- **The solves are dense in the working vector**, and after D35 they are
-  where the work is: 45.8% of the standard set's units, 28.6% in `pivot`'s
-  two FTRANs and 17.2% in the BTRAN. FTRAN already skips a zero; BTRAN
-  cannot, because it resolves `U'` by dot products.
-
-  **The cheap version of the fix was tried and rejected (D36).** Scattering
-  over `urow` would skip 76.2% of the `U'` pass — 96.7% of its slots resolve
-  to exactly zero — but it buys that by reordering the sum, and on vectors
-  that cancel the two orders are not comparable. Two feasible models came
-  back INFEASIBLE and total work rose by half.
-
-  **The route that remains was the real one, and it is built (D38).** The
-  BTRAN's U' pass now searches the factor's dependency graph for the slots
-  that can produce a nonzero and solves only those — bit-identical, because
-  the ones it skips are exactly zero. 1.04x to 1.10x less work across the
-  three sets, no digest and no iteration count moved.
-
-  Still open on the same path: the **L' pass** is untouched (only 4.1% of its
-  entries sit under a zero, and L has no row-wise copy to search), the
-  **FTRANs** skip zeros but still walk all `nrow` slots to find them, and the
-  search itself scans all of `y` for its roots because callers know the
-  support and do not pass it.
-- ~~**Row-wise pricing reads the entries of basic columns.**~~ **Measured, and
-  the filter is refused.** It is what makes the fourteen dense-`rho`
-  instances of D35 up to 5% more expensive, so the question was whether to
-  skip them. 36.1% of the 6.23e9 entries the pricing sweep reads over the
-  standard set are in basic columns — a real ceiling — but the filter costs a
-  `status[v]` read on *every* entry, from a second array. Per entry that is
-  `0.64 x 5 + 0.36 x 2 = 3.92` memory accesses against 4 today: a wash, and
-  with worse locality, since it pulls another array into the scatter's
-  working set. Not worth a status test on the hottest loop there is.
-- **Neither pricing form bills its own O(nvar) sweep.** The column-wise loop
-  charged per matrix entry and per logical; the row-wise one charges the same
-  way, so the two are comparable, but the clear of `alpha` and the reset of
-  the basic entries are real work no unit counts. Worth fixing when the
-  counter is next revised, and worth knowing before reading a pricing
-  measurement as exact.
-- ~~**`col_max_abs` is recomputed per pivot search.**~~ **Measured, and
-  refused on the premise rather than on the cost (D46).** The entry said a
-  column's largest magnitude only changes when the elimination rewrites that
-  column, so it could be cached and refreshed at that one point. **That is
-  not true.** `row_done` retires entries the column still holds, so the
-  largest *live* magnitude falls without the column being written at all,
-  and a cache refreshed where columns are rewritten would be stale for every
-  column that merely lost a row — a stability decision made on a lie. The
-  cost, for the record, is 209,866,212 entries read over the standard set
-  against about 6.3e9 elimination operations: under 7%, and cheaper per step
-  than the axpy it is compared against.
-- **A basis update clears its dense row buffer over the whole dimension**
-  when triangularity says only positions at or after the outgoing slot can
-  be read. The narrower clear is correct but leans on that invariant, and
-  buys a constant factor on a path that has no benchmark behind it yet.
-- **Finding the pivot row's entry inside a column is a scan.** Same missing
-  row-to-position lookup as the erase above, on the factorization path.
-- **A column's live count can overcount after cancellations.** The
-  factorization's row patterns are append-only, and only the compacted
-  pivot row hands its columns a decrement — a column whose entry in the
-  pivot row cancelled earlier keeps the stale count. Markowitz then works
-  from a pessimistic estimate: pivot choice quality, never correctness,
-  and deterministic either way.
-- ~~**Scaling's determinism across machines leans on libm.**~~ **Tested and
-  closed (D34).** It was the one part of D8 resting on an argument rather
-  than a measurement. Perturbing `log2` — which covers every library within
-  the perturbation, where comparing two machines would only compare two
-  libraries — moves not one scale factor of the 139 instances until the
-  offset reaches somewhere between 2e-6 and 5e-6 in log2 units, roughly
-  4x10^8 ulps. The closest any of 1,590,682 rounded exponents came to a tie
-  was 4.29e-7. The probe was shown to fire at 1e-4 before its silence was
-  taken for evidence.
-- **The ratio test's long step re-scans for each breakpoint.** Bound
-  flipping walks the candidates in ascending ratio order and finds each
-  one with a linear scan of those still standing, rather than sorting the
-  set once. That is the right trade when few candidates are passed and the
-  wrong one when many are, and which of those a real model does is exactly
-  what has not been measured.
-- **Two sparse-accumulator idioms coexist** in the elimination — a
-  touched-list scatter and a stamp-based dedup — because they arose for
-  different jobs. When the simplex needs its own scatter for pricing, all
-  three should become one shared mechanism rather than a third variant.
+| `REFACTOR_EVERY` = 64 | swept 16..256; one of only two completely clean values (D39) |
+| `PIVOT_SEARCH_LIMIT` = 4 | swept 1..32 on two sets; above two the fill moves within 1.2% while totals swing 60% on trajectory alone (D46) |
+| `SPARSE_ALPHA_DEN` = 4, `SPARSE_RHO_DEN` = 4 | plateaus bounded on both sides by measurement (D40, D41, D43) |
+| `SPARSE_COL_DEN` = 8 | the first constant whose value contradicts its own work-unit sweep, moved on a clock (D45) |
+| A crash basis | refused: it destroys the exact starting steepest-edge weights `B = -I` gives, and exact weights for an arbitrary basis cost one solve per row |
+| Filtering basic columns out of the pricing sweep | refused: 3.92 memory accesses against 4, with worse locality (D35) |
+| The quadratic slot detachment in a basis update | refused: a billion integer comparisons against 59.5e9 billed units, 0.02% on Kennington |
+| Caching `col_max_abs` | refused on its premise: `row_done` retires entries without the column being written, so the cache would be stale (D46) |
+| A scatter-form BTRAN | refused: it reorders a cancelling sum, and two feasible models came back INFEASIBLE (D36) |
 
 ---
 
-## 3. Milestone 2 — LP fast
+## Method worth keeping
 
-**Open, and opened by work rather than by decision.** Nine entries have
-landed against it (D35, D37, D38, D39, D40, D41, D42, D43, D44). Measured
-against the commit where M1's gate first passed on all three sets, total
-work over the 139 reference instances has gone 293,987,935,333 ->
-99,555,457,721, which is **2.953x** — and **5.946x on Kennington**, where
-73% of it was — without a single verdict, objective, iteration count or
-solution digest changing anywhere. The standard set is 1.108x over the same
-span, and that gap is §3.2 in one number. What follows is the detail the
-working agreement asks for once a milestone is active.
-
-### 3.1 The gate, and what blocks it
-
-**Read D45 before reading any figure in this section.** The work counter has
-now been calibrated against a clock, by ratios of the same instance against
-itself, and it is optimistic by a factor that is not constant: M2 has bought
-2.953x in units and **1.866x in seconds**. Worse for planning, the error is
-not uniform — the `nvar` sweeps D40 removed were expensive per unit and the
-`nrow` sweeps D42, D43 and D44 removed were nearly free, and both are billed
-at 1. **Every percentage in §3.2 is a share of billed work, and the LU rows
-are the ones with the most real work hiding behind them.**
-
-M2's gate is a measured competitive gap against open solvers on the
-measurement host. **Q4 blocks it and nothing else will unblock it.** Every
-figure below is deterministic work units; the counter is blind to
-optimisation level, memory layout and cache behaviour, which is where the
-rest of the speed lives. No wall-clock claim belongs anywhere until that
-host exists (D17).
-
-What *can* be done without it is everything the counter sees: fewer nonzeros
-touched, fewer eliminations, fewer refactorizations, fewer iterations.
-
-### 3.2 Where the work actually is — and it is two different answers
-
-Attributed on the tree as of D42, with a `JAOS_DIAG` build that charges
-every work unit to the source line that billed it — by line rather than by
-named phase, so nothing can be mis-assigned by a region boundary drawn in
-the wrong place. **Read both columns before choosing a target. They now
-disagree almost completely, and Kennington is 55% of the two totals.**
-
-| | standard 94 | **Kennington 16** |
-|---|---|---|
-| **inside the LU** | **77.80%** | **4.97%** |
-| **inside the simplex** | 22.20% | **95.03%** |
-| total units | 60,015,257,439 | 58,596,535,370 |
-
-Where each set actually spends it, by line:
-
-| standard 94 | | Kennington 16 | |
-|---|---|---|---|
-| FTRAN, `U` pass | 24.57% | `price_row`, the infeasibility scan | 26.40% |
-| factorization, eliminations | 20.90% | `jm_dse_update`'s row sweep | 26.40% |
-| `price_all`, the `rho'M` product | 11.03% | `apply_flips`, the `x_B` update | 9.42% |
-| FTRAN, `L` pass | 8.27% | `price_all`, the `rho'M` product | 8.51% |
-| basis update, eliminations | 5.54% | the dual update's dense sweep | 7.39% |
-| BTRAN, `U'` pass | 5.44% | the ratio test's dense sweep | 6.31% |
-| BTRAN, `L'` pass | ~5.2% | Harris over the live candidates | 2.22% |
-| FTRAN, eta pass | ~3.6% | ordering the pricing pattern | 2.08% |
-| BTRAN, reachability search | ~3.0% | everything in the LU | 4.97% |
-
-D43 moved `price_all`'s row from 27.45% to 8.51% of Kennington, which is the
-one thing a re-attribution is for: the entry that was top of that column is
-now fourth, and two lines that were 21% each are now tied at 26% and first.
-
-**On the mid-sized models the cost is the triangular solves and the
-factorization — 77% of it, and not one of M2's seven entries has touched
-either.** That is the whole of why the standard set is 1.090x since M1 while
-Kennington is 3.043x. It was predicted here before it was measured, which is
-the one thing this table has consistently got right.
-
-**Read the LU rows carefully before targeting them.** FTRAN's two passes and
-the eliminations are billed only for the slots they actually work on — they
-skip their zeros before charging anything. That is the solve itself, and no
-reachability search removes it. The LU rows that *are* reducible are the
-ones charged for every slot regardless: BTRAN's `L'` pass is the only one,
-at 5.15% here and 1.08% on Kennington.
-
-**On the large models what is left is five dense sweeps over the rows or the
-variables, and they are 83% of the set.** Three of the five — the walk over
-`rho`, the steepest-edge sweep, and `apply_flips`' update of `x_B` — are the
-same defect wearing three hats: a solve hands back a dense vector and the
-caller walks all of it to find the 0.1% that is nonzero.
-
-**Measuring on the standard set and generalising is how this milestone's
-plan got its order wrong twice**, and re-measuring is how it got it back:
-the ranking above was three changes stale when it was last used to choose a
-target.
-
-**And read every total in this section as a statement about three models
-(D46).** `pilot87` is 38.8% of the standard set's work and `maros-r7`
-35.4% — 74.1% between them, 83.3% with `pilot`, 95.0% for eight of the
-ninety-four. `gosh` alone is 91.9% of the infeasible set. Kennington is
-`ken-18`. So a sum over a set is a weighted opinion about a handful of
-instances, which has now cost this milestone three times: D39's intervals
-looked cheaper because `pilot87` had failed out of the total, the ranking
-above went stale unnoticed, and D46's sweep reads 1.051x on the standard
-set's sum and 1.019x on its geometric mean. **A change that does not move
-every instance the same way is reported as a geometric mean of per-instance
-ratios**; the sum keeps its one job, diffing a tree against its own baseline
-instance by instance.
-
-### 3.3 Making the consumers of `alpha` sparse — half done
-
-**The target.** D35 made the `rho'M` product walk rows so a zero of `rho`
-skips a matrix row, and everything downstream still walked all `nvar`
-entries: `dual_ratio_test` scanning every variable to build its candidate
-set, `pivot` scanning every variable for the dual update, the steepest-edge
-update sweeping the rows. Together, 76% of the work on the large models —
-exactly what [9] warns about, a sparse result feeding dense loops.
-
-**The ratio test's half is built (D40).** `price_all` records where it wrote
-for the price of a comparison against a value the `+=` already loaded,
-`jm_pattern_order` makes that ascending and distinct through a bitmap, and
-the ratio test walks it — as does the clear that starts the next iteration,
-which removes a `memset` of `nvar` doubles per iteration that no unit
-counted. 1.306x less work on Kennington, 1.014x on the standard set, 1.012x
-on the infeasible one, every digest and every iteration count unmoved.
-
-The obstacle this had to clear is worth keeping written down, because the
-remaining halves have the same one. `price_all` fills `alpha` by walking
-rows, so the pattern comes out unordered — and `bfrt_walk`,
-`jm_harris_pick` and `apply_flips` all break ties, or order a
-floating-point sum, by position in the candidate array. Ascending order is
-what makes the change bit-identical rather than merely defensible.
-
-**`pivot`'s dual update is built too (D41)**, and it is the larger half:
-another 1.451x on Kennington, which takes that set to 1.895x cheaper than
-when M2's pricing work began. What it needed beyond D40's machinery was an
-invariant with a name — the loop repairs reduced costs as well as moving
-them, so skipping a variable is safe only where the repair would have done
-nothing — and `duals_dirty` is that name, armed by the two places that
-write a reduced cost outside a pivot.
-
-**Half of `pivot`'s `2 * nrow` charge is gone too (D42)**, and it was the
-half that came free: the exact steepest-edge weight is the norm of `rho`,
-and `price_all` already walks the whole of `rho` in ascending order, so
-recording the pattern is a store per nonzero on a loop that was running
-anyway. 1.208x on Kennington. The other half is item 1 below and needs real
-machinery.
-
-**What is left, ranked on §3.2's attribution rather than on the one it
-replaced.**
-
-**First, what a pattern cannot buy, because reading §3.2's top row the
-obvious way gets it backwards.** FTRAN's `U` pass is 24.42% of the standard
-set and its `L` pass 8.22%, and neither is a scan: both bill only for the
-slots they actually scatter from, having skipped the zeros already. That
-work is the solve. A pattern removes the *walk* between those slots, which
-is real time and **zero** work units. The same is true of the factorization's
-eliminations. So **77% of the standard set is arithmetic no reachability
-search can remove**, and the way to reduce it is fewer nonzeros in the
-factors or fewer solves — §2.11's list — not hyper-sparsity.
-
-The passes that a pattern does reduce are the ones billed for every slot
-whether it is zero or not. There are two, and both are gathers.
-
-1. ~~**A pattern-returning BTRAN**~~ **— the larger half is built (D43).**
-   `price_all`'s walk over `rho` was 11.65% of the standard set and 27.45%
-   of Kennington, and it is gone: the solve's last pass already visits every
-   slot to permute it back, so it reports which ones carry a value for the
-   price of a comparison. 1.255x on Kennington, all 139 instances cheaper.
-
-   **What is left of this item** is the one thing that needed the row-wise L
-   after all: BTRAN's `L'` pass is billed for every slot whether it is zero
-   or not — 5.15% of the standard set, 1.08% of Kennington. D38 stopped
-   there because "L has no row-wise copy to search". That copy is cheaper
-   than it sounds: L does not change between refactorizations — the
-   Forrest-Tomlin update appends etas and leaves it alone — so transposing
-   it once is `nnz(L)` amortised over ~64 solves, against `nnz(L)` that pass
-   pays on every one of them.
-
-2. ~~**A pattern-returning FTRAN**~~ **— built (D44), and the largest entry
-   of M2 so far.** `jm_dse_update`'s row sweep was 26.40% of Kennington and
-   `apply_flips`' `x_B` update another 9.42%; both now walk the pattern the
-   solve reports. 1.557x on Kennington, 1.010x on the standard set, 1.037%
-   on the infeasible one, and it needed no ordering at all because every
-   reader of an FTRAN result here is elementwise.
-
-   Nothing is left of this item. FTRAN's own `U` and `L` passes stay exactly
-   as expensive, for the reason at the top of this section — they are the
-   solve, not a scan of it.
-
-   **The trap both share.** FTRAN's passes are scatters, not the dot
-   products D38 could reorder freely: `y[i]` accumulates from many sources
-   and the order decides the bits, which is exactly how D36 failed. Visiting
-   the reachable set in the order the dense loop visits it — increasing slot
-   for L, decreasing position for U — keeps it exact, and that is the
-   ordering problem `jm_pattern_order` already solves.
-
-3. **The factorization itself, 26.3% of the standard set** between its
-   eliminations and the basis update's, plus the 32.6% of scatter those
-   factors then cost every solve. Untouched by all of M2, and the whole of
-   why that set has barely moved.
-
-   **It now has numbers, and they narrow it (D46).** The factors carry
-   **2.673x** the nonzeros of the basis on the standard set, **1.026x** on
-   Kennington and 1.239x on the infeasible set, and two thirds of every
-   factorization is triangularization at zero cost: 60.3% of pivots are
-   column singletons and 8.0% row singletons, leaving 31.8% where Markowitz
-   actually chooses. On Kennington that last figure is **2.7%** — its bases
-   are very nearly triangular already, which is the structural reason its LU
-   is 4.97% of its work rather than merely the attributed one.
-
-   **The cheap way in is closed.** `PIVOT_SEARCH_LIMIT` was swept over
-   1..32: one candidate is genuinely bad, and from two upwards the fill
-   moves within 1.2% of itself while the totals swing by 60% on trajectory
-   alone — on the infeasible set the setting with the *lowest* fill costs
-   5.8% *more* work per instance. So the fill is not something the candidate
-   limit reaches.
-
-   What is left here is structural: of §2.11's four entries on this path the
-   quadratic slot detachment is measured and refused, and three stand —
-   the missing row-to-position lookup, the per-column elimination arrays,
-   and the stale live counts. `col_max_abs`, a fifth, is refused too, and
-   on its premise rather than its cost.
-
-4. **The row scan that picks the infeasibility**, now **26.40% of
-   Kennington** and tied for first there with item 2. Nothing above touches
-   it: it is a scan over `nrow` of `x_B` with no sparsity to exploit, which
-   is what partial and multiple pricing exist for [1]. Both change the
-   search path, so this is the first item of M2 that cannot be judged on
-   digests and needs the full gate to say whether fewer units per iteration
-   cost more iterations. Everything landed so far has been judged on
-   digests, so this one also needs a different standard of evidence, not
-   just a different measurement.
-
-Smaller items on the same path, all measured and all modest: the FTRAN and
-BTRAN eta passes apply 45.1% and 10.6% of their etas to a zero and are
-charged for all of them (1.69% of the standard set together), and BTRAN's
-L' pass has 4.1% under a zero with no row-wise copy of L to search.
-
-### 3.4 Settled during M2, so it is not re-derived
-
-- **The refactorization interval stays at 64.** Swept over 16..256: it is
-  one of only two values that come out completely clean, and the ones that
-  looked cheaper looked that way because `pilot87` — 38% of the standard
-  set's work on its own — had dropped out of the total by failing (D39).
-- **`PIVOT_SEARCH_LIMIT` stays at 4**, swept over 1..32 on two sets and now
-  measured rather than inherited from "four is the classic compromise". One
-  candidate is bad — 3.447 fill against 2.673 and 2.1x the work — so the
-  search does need to look around, and above two nothing follows: the fill
-  moves within 1.2% while the sums swing 60% on trajectory, and on the
-  infeasible set the lowest fill of any setting costs 5.8% more work per
-  instance (D46). The factors carry 2.673x the basis's nonzeros on the standard
-  set, 1.026x on Kennington, and that is the same measurement.
-- **A crash basis [12] is not the cheap win the staging table implies.**
-  `build_initial_basis` starts from the slack basis for a stated reason: with
-  `B = -I` every steepest-edge weight starts at its exact value. A crash
-  basis destroys that, and exact weights for an arbitrary basis cost one
-  solve per row. Devex or a weight reset would pay for the crash in pricing
-  quality, at the start of the solve where it costs most iterations.
-- **Filtering basic columns out of the pricing sweep is refused**, measured:
-  36.1% of entries are in basic columns, but the filter needs a `status[v]`
-  read on every entry and comes to 3.92 memory accesses against 4 (D35).
-- **`SPARSE_COL_DEN` is the one threshold with no measurement behind it**,
-  and it is 2 on an argument rather than a reading. Reading an FTRAN result
-  through its pattern needs no ordering, so there is no fixed cost to earn
-  back and no size at which the dense loop wins on the counter: the sweep is
-  monotone to "always" on two sets and byte-identical across 1, 2 and 4 on
-  Kennington (D44). What keeps it off 1 is that the sparse loop indexes
-  three arrays through a pattern where the dense one reads one in order, and
-  no work unit has ever seen a cache miss. Worth 0.13% if the guess is
-  wrong; Q4 is what would settle it.
-- **`SPARSE_RHO_DEN` stays at 4, with the plateau bounded on both sides by
-  measurement rather than on one.** Ordering the pricing row's pattern
-  whatever its size costs 0.4% on the infeasible set; refusing to order
-  anything above `nrow/8` costs 0.3% on Kennington. Everything from 2 to 6
-  is within 0.1% of everything else (D43). The Kennington half of that sweep
-  was run as a null test — `rho` is 1% nonzero there, so the divisor should
-  not have bound at all — and it was not null. That is how the density being
-  a per-iteration property rather than a per-instance one got measured
-  instead of assumed.
-- **Reading `alpha` through its pattern always was worse than never doing
-  it** when one consumer read the pattern — 1.8% more work on the standard
-  set, 10% on the infeasible one — because ordering a pattern that covers
-  most of the vector costs more than the scan it replaces (D40). With two
-  consumers reading it that reverses, because the ordering is paid once and
-  amortised, and the crossover will move again with each further consumer
-  (D41). `SPARSE_ALPHA_DEN` stays at 4 regardless: the counter cannot see
-  the indirection, every cost it cannot see pushes the true crossover
-  towards dense, and the readings that would argue for moving it are
-  fractions of a percent. Locating it exactly needs Q4.
-
-### 3.5 Method worth keeping: attribute by line, and re-attribute
-
-Two methods, and the second was learned the hard way this milestone.
-
-**Attribute by source line, not by named phase.** The `JAOS_DIAG` build
-routes every `jm_work_add` through its `__FILE__` and `__LINE__`. One edit
-to one inline function, no region boundaries to draw and therefore none to
-draw wrongly, and the result is finer than any set of names chosen in
-advance — §3.2's Kennington column separates three sweeps that a phase named
-"bookkeeping" would have merged.
-
-**It validates itself, and it must be made to.** The per-line sums have to
-reconstruct each solve's own total, and the totals have to reconstruct the
-committed baseline. Both are checked before the numbers are read; an
-attribution that does not add up is not evidence about anything.
-
-**Re-attribute after every entry that lands.** §3.2's previous table was
-used to choose a target three changes after it was measured, and by then it
-was describing a solver that no longer existed — the row it ranked first had
-fallen to a fifth of what it claimed. Nothing went wrong because the ranking
-happened to survive, which is not a reason it was safe.
-
-### 3.6 Method worth keeping: sweep the trajectory, not just the instances
-
-All 139 instances pass and always have — at one refactorization interval, so
-along one trajectory. The eight defects M1 closed were closed against that
-trajectory. Varying a parameter that must not change any verdict, and
-requiring the gate to hold across the range, measures something the instance
-sets at one setting cannot: **not whether the gate passes, but with how much
-margin.** It costs minutes with the parallel runner and it found D39.
-
-Q12 carries what it found and D39 did not close.
-
-### 3.7 Tooling that is not in the repository yet
-
-Measurement was the bottleneck on the work above until it was fixed outside
-the tree, and the fix is worth bringing in. Instances are independent and the
-figures — work units, digests, iteration counts — are integers that depend
-on neither the optimisation level nor on what else is running. So the bench
-runner can be built `-O3 -march=native -flto` and the instances solved
-concurrently, which takes the standard set from about eight minutes to
-ninety seconds and Kennington from thirty minutes to fifteen.
-
-Verified three times now, on different trees, by producing records identical
-byte for byte to the sequential `-O2` runner — which also settles, for Q11,
-that those flags change no result over the 94. D40's threshold sweep is what
-it bought most recently: seven settings across two instance sets, which is
-hours sequentially and minutes this way.
+- **Attribute by source line, not by named phase.** One edit to one inline
+  function routes every work unit through its `__FILE__` and `__LINE__`. No
+  region boundaries to draw and therefore none to draw wrongly.
+- **Make the attribution validate itself.** Per-line sums must reconstruct
+  each solve's total and the totals must reconstruct the committed baseline,
+  both checked before the numbers are read.
+- **Re-attribute after every entry that lands.** A ranking three changes stale
+  describes a solver that no longer exists.
+- **Sweep the trajectory, not just the instances.** Varying a parameter that
+  must not change any verdict, and requiring the gate to hold across the
+  range, measures how much margin the gate passes with. It costs minutes with
+  the parallel runner and it has found three defects that 139 instances at one
+  setting did not.
+- **Report a geometric mean of per-instance ratios**, not a sum over the set.
+- **A green result is not a proof.** When changing a checker or a predicate,
+  build the case it must reject and confirm that it does.
+- **Measure before repairing.** Every failure in this project that looked like
+  a tolerance turned out to be something else.
 
 ---
 
-## 4. Open questions
+## Open questions
 
-Q1, Q3, Q9 and Q10 closed with the Netlib campaign and are recorded in D31:
-dual phase 1 by artificial bounds survived it, no instance forced a presolve
-into M1, the refusal Q9 guarded against never fired on a real model, and no
-instance asked for the anti-stall perturbation Q10 held in reserve. The last
-two closed because nothing demanded them, which is weaker than the first two
-and reopens the moment a model lands on either.
-
-
-- **Q2** — LP and MPS dialect edge semantics (e.g., RANGES on E rows with a
-  negative range value, a sub-case the public docs leave ambiguous): fixed as
-  encountered, recorded in `docs/format-support.md`.
-
-  One was encountered and closed, and the answer was that nothing needed
-  changing. An `RHS` entry on the objective row sets a constant; JAOS negates
-  it, which is what CPLEX documents. What the campaign actually found is that
-  the published Netlib optima omit that constant — both sets, so it is not
-  one source's slip — and `e226` is the only instance of the standard set
-  where that is visible. The gate carries the constant in its manifest rather
-  than the reader dropping it (`docs/format-support.md`). Recorded here
-  because the next such case will look the same: an instance disagreeing with
-  a reference is not evidence about which of them is wrong.
-- **Q4** — Measurement host (D17): set up when M2 opens.
-- **Q12** — **Four failure modes the trajectory sweep found. One is closed
-  with a mechanism (D47), three are open and all are reproducible.** Varying
-  `REFACTOR_EVERY` across 16..256 walks trajectories the gate never walks,
-  and what breaks there is not the verdict asymmetry D39 fixed.
-
-  | interval | `pilot` | `pilot87` |
-  |---|---|---|
-  | 16 | ok | ok |
-  | 24 | objective out of tolerance, **checker green** | checker REJECTED, dual 2.21e-4 |
-  | 32 | objective out of tolerance, **checker green** | checker REJECTED, dual 1.69e-6 |
-  | 48 | objective out of tolerance, **checker green** — was a library error until D48 | ok |
-  | 64 | ok | ok |
-  | 96 | objective out of tolerance, **checker green** | ok |
-
-  So `pilot` is wrong on four of the six intervals and right on two, and the
-  gate walks one of the two.
-
-  1. **Closed — `pilot`'s silent wrong answer (D47).** At 24, 32 and 96 it
-     stops 1.04e-3 above the optimum, at 24 and 32 on the same vertex to
-     thirteen digits. One column rests at its lower bound with reduced cost
-     -3.474e-07 and no upper bound, and travels to 2990.37 to reach the real
-     optimum; the product is the error to four digits. A reduced cost is a
-     rate, and both the solver's dual test and the checker's judge it
-     absolutely. **The checker is structurally unable to catch this class**
-     — it drops the term from the dual objective instead of recognising it
-     as minus infinity — and D47 carries the two-variable case that proves
-     it, plus the measurement that `etamacro` carries the same shape at
-     2.25e-07 in an answer the gate passes today.
-  2. **Open — the repair, with the cheap one already refuted.** Judging a
-     reduced cost against the traffic of the dot product that formed it, as
-     D23 did for rows, separates nothing: the ratio is 1.4e-04 on the wrong
-     answer and 5.6e-04 and 1.0 on two the gate accepts. No local test on a
-     reduced cost can work, because what decides the damage is the distance
-     the variable travels. Two routes remain — report `gap_positive` as
-     `+inf` when the improving direction is unbounded, which is honest, free,
-     and says JAOS cannot certify 15 of its 110 accepted answers; or have the
-     checker compute `|d_j|` times the ratio-test step, a certified lower
-     bound on suboptimality that needs no reference value and would have
-     caught this at 1.04e-3 — at the cost of giving the checker a basis and a
-     factorization of its own (D47).
-  3. **Closed — `pilot`'s library error at 48 (D48).** `pivot()` reports a
-     failed basis update by asking for a rebuild and returning success, and
-     `primal_cleanup` was the one loop that pivoted without reading that
-     flag — computing a ratio test and a pricing row from buffers two
-     triangular solves had declined to write. The update's own guard was the
-     backstop, and it fired as `JAOS_ERR_INVALID_INPUT`. The loop now
-     leaves. One cell of twelve moved in the sweep and all 139 reference
-     instances are unchanged, digest for digest. What `pilot` at 48 now
-     completes to is item 1's mode, reached by a fourth trajectory.
-  4. **Open, with the mechanism found — `pilot87` checker-rejected at 24 and
-     32 (D49).** The settle/re-entry loop stops converging: from round 12 its
-     figures repeat with period four, five times, 56 iterations a turn, and
-     `SETTLE_ROUNDS = 32` is what ends it rather than any condition. At
-     interval 64 the same loop converges in sixteen rounds to zero breaches.
-     **A basis hash differs in every one of the thirty-two rounds**, so this
-     is degenerate rather than a repeated basis, and D26's cure — detect a
-     cycle by state hash, switch to Bland — would run straight past it.
-
-     **What the pattern is (D50): two repairs undoing each other.** The
-     rounds alternate strictly between moving a breaching nonbasic to its
-     other bound and pivoting with `primal_cleanup`, and the residue
-     alternates with them — 1.1e-4 after a move, 1.9e-6 after a pivot, 2.7e-5
-     after the next move, 7.8e-7 after the next pivot, then 1.1e-4 again.
-     Pivoting removes two orders of magnitude and moving puts them back. The
-     columns differ every round and each cleanup pass is individually
-     correct, so what repeats is the level of the residue and nothing else.
-
-     That makes D25's rule — a round is accepted for being a second optimum,
-     never for being a better one — into a tie-break by round parity on this
-     trajectory. **Keeping the best round rather than the last** is the change
-     worth measuring; it moves published answers and so needs the full gate,
-     and what "better" means has to be the quantity with no space in it, the
-     term the breach contributes to the duality gap (D27), not `dual_breach`,
-     which lives in the solver's scaled space and reads 7.85e-07 where the
-     checker reads 2.21e-4.
-
-     **Underneath it, answered (D51): the residue is the loan ledger.** The
-     worst breach a round publishes is the largest cost that round borrowed,
-     to six digits — 1.10301e-04 lent, 1.10302e-04 appearing — and the next
-     round lends the same figure straight back out. `pivot()` runs
-     `shift_to_feasible` over every variable, so every cleanup pivot borrows
-     in order to repair, and repaying is what creates the next round's work.
-     At interval 64 the borrowing shrinks to a single loan of 5.74e-08 and
-     the loop closes; at 24 it does not. So the question is not "which round
-     to keep" but whether a cleanup pivot needs to borrow at all.
-
-     At 128 and above `pilot87` also trips the iteration guard, which the
-     solver's own message calls a JAOS defect. Untouched.
-
-  None of the four is a tolerance to widen.
-
-  Recorded with the method, because the method is the transferable part:
-  varying a parameter that must not change any verdict, and requiring the
-  gate to hold across the range, measures how much margin the gate passes
-  with. 139 instances at one setting cannot measure that.
-- **Q11** — **Build targets for shipping: `release` and `native`.** Raised by
-  the maintainer, deferred deliberately, and recorded so the reasoning is not
-  re-derived. Today there is one build, `-O2 -g -DNDEBUG`, and it leaves
-  everything on the table that the work counter cannot see.
-
-  The split would be `release` — portable, reproducible across machines, and
-  the one the gate runs on — and `native`, which a user gets by building on
-  their own machine. Candidates for `native`, none of which touch the
-  arithmetic while `-ffp-contract=off` stands: `-O3`, `-flto`,
-  `-march=native -mtune=native`, `-fno-math-errno`, `--gc-sections`, and PGO
-  with `make netlib` as the profiling load — 139 real models of every size
-  are already the representative production workload, so no synthetic one has
-  to be invented. A separate and probably larger win is `restrict` on the
-  kernel pointers in `lu.c` and `simplex.c`, which is a code change rather
-  than a flag and is only safe if the non-aliasing claim is actually true.
-
-  Two things settled while it was raised. **`-g` costs nothing at run time**,
-  measured: the debug sections are not `ALLOC`, so with and without `-g` the
-  binary maps exactly 261,327 bytes on this machine while the file on disk
-  goes 311,816 -> 94,936. Stripping is worth doing for artefact size, and the
-  symbols belong in a separate file (`objcopy --only-keep-debug`) rather than
-  discarded, or a user's crash becomes undiagnosable. And **the hardening
-  flags Ubuntu enables by default must not be dropped from the readers**:
-  `mps.c` and `lpfmt.c` parse untrusted input, which is exactly where a
-  stack canary earns its cost. `lu.c` and `simplex.c` never see an
-  unvalidated byte.
-
-  What makes this tractable without Q4: that none of these change an answer
-  is verifiable today, by comparing solution digests over the 139 instances.
-  What they are worth in time is not, and that still needs the host.
-- **Q5** — NLP derivative strategy (AD, finite differences, user-supplied): gate
-  decision when M8 opens; shapes the public API of that engine.
-- **Q6** — Netlib acquisition route: netlib's emps expander (a dev-time tool,
-  needs D11 approval) versus a checksum-pinned unofficial mirror; decided when
-  the manifest is first built.
-
-  **Closed, 2026-08-07, both halves.** The standard set took the mirror
-  route: Koch publishes plain MPS, `bench/fetch.sh` pins each file by sha256,
-  no expander needed. That answered the question for 94 instances and for
-  nothing else — Koch mirrors only what his paper verified, and netlib serves
-  the Kennington and infeasible sets in packed emps form only.
-
-  The maintainer decided to use netlib's `emps`. It is fetched by
-  `bench/fetch.sh`, pinned at
-  `fee41f544f6873a5e12bc598947828dc9964ef0676162e4df55e915760e2be22`, built
-  into a temporary directory, and **not stored in this repository** — the
-  same rule the instances follow (2.10). That detail is not incidental:
-  `emps.c` carries no licence, no copyright notice and no public-domain
-  declaration, so redistributing it is not something an Apache-2.0 project
-  can do cleanly, while using it as a dev-time tool is. Nothing about the
-  decision changes if that ever needs revisiting; only `fetch.sh` does.
-
-  D12 is untouched by this. The rule forbids writing JAOS code from other
-  people's source; running a format converter is not that. No part of the
-  expander's logic has been read into anything here — which is also why
-  option 2, writing an expander from a format `lp/data/readme` does not
-  document, was the expensive one.
-- **Q8** — How exact verification gets done, decided when M2 opens with
-  certificate export. GMP is the obvious tool and D11 excludes it (LGPL),
-  including for test-only use, since D15 exempts test dependencies from D2
-  but not from D11. The alternatives to weigh then: iterative refinement
-  (Gleixner et al. — machine arithmetic for almost everything, exactness only
-  at the end), interval arithmetic in plain `double` (rigorous bounds, no
-  dependency, hardware does the work), or hand-rolled rationals used only to
-  verify a final basis. Nothing in M1 depends on this: tolerances plus Koch's
-  reference values close the Netlib gate.
+- **Q2 — LP and MPS dialect edge semantics.** Fixed as encountered, recorded
+  in `docs/format-support.md`. One is closed: an `RHS` entry on the objective
+  row sets a constant, JAOS negates it as CPLEX documents, and the published
+  Netlib optima omit it — so the gate carries the constant in its manifest.
+  The next such case will look the same: an instance disagreeing with a
+  reference is not evidence about which of them is wrong.
+- **Q5 — NLP derivative strategy** (AD, finite differences, user-supplied).
+  Decided when phase 7 reaches NLP; it shapes that engine's public API.
+- **Q8 — how exact verification gets done.** GMP is the obvious tool and D11
+  excludes it. The alternatives to weigh: iterative refinement, interval
+  arithmetic in plain `double`, or hand-rolled rationals used only to verify a
+  final basis.
+- **Q11 — build targets for shipping**, `release` and `native`. Candidates for
+  `native`: `-O3`, `-flto`, `-march=native`, `-fno-math-errno`,
+  `--gc-sections`, and PGO with `make netlib` as the profiling load — 139 real
+  models are already the representative workload, so none has to be invented.
+  A separate and probably larger win is `restrict` on the kernel pointers,
+  which is a code change and only safe if the non-aliasing claim is true.
+  Settled while it was raised: `-g` costs nothing at run time, and the
+  hardening flags must not be dropped from the readers, which parse untrusted
+  input.
 
 ---
 
-## 5. Bibliography
+## Bibliography
 
-Verified citations — each checked against its publisher or archive before entering
-this list. Implementation works from these and their kin only (D12).
+Verified citations — each checked against its publisher or archive before
+entering this list. Implementation works from these and their kin only (D12).
 
 1. A. Koberstein, *The Dual Simplex Method: Techniques for a Fast and Stable
    Implementation*, PhD thesis, Universität Paderborn, 2005.
