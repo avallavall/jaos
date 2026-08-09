@@ -1068,13 +1068,26 @@ and reopens the moment a model lands on either.
      is degenerate rather than a repeated basis, and D26's cure — detect a
      cycle by state hash, switch to Bland — would run straight past it.
 
-     The next measurement, and nothing here can be decided before it: the
-     loop's own worst breach at the last round is 7.85e-07 while the checker
-     calls the published point 2.21e-4, a factor of 280. `dual_breach` reads
-     a shifted cost in the scaled problem and the checker reads a reduced
-     cost in the original one, so until that factor is attributed no
-     threshold in this loop means what it looks like it means (D27's fault
-     class).
+     **What the pattern is (D50): two repairs undoing each other.** The
+     rounds alternate strictly between moving a breaching nonbasic to its
+     other bound and pivoting with `primal_cleanup`, and the residue
+     alternates with them — 1.1e-4 after a move, 1.9e-6 after a pivot, 2.7e-5
+     after the next move, 7.8e-7 after the next pivot, then 1.1e-4 again.
+     Pivoting removes two orders of magnitude and moving puts them back. The
+     columns differ every round and each cleanup pass is individually
+     correct, so what repeats is the level of the residue and nothing else.
+
+     That makes D25's rule — a round is accepted for being a second optimum,
+     never for being a better one — into a tie-break by round parity on this
+     trajectory. **Keeping the best round rather than the last** is the change
+     worth measuring; it moves published answers and so needs the full gate,
+     and what "better" means has to be the quantity with no space in it, the
+     term the breach contributes to the duality gap (D27), not `dual_breach`,
+     which lives in the solver's scaled space and reads 7.85e-07 where the
+     checker reads 2.21e-4.
+
+     Underneath it and unanswered: why a move re-creates a breach of the size
+     the pivot just removed.
 
      At 128 and above `pilot87` also trips the iteration guard, which the
      solver's own message calls a JAOS defect. Untouched.

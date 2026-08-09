@@ -2816,3 +2816,60 @@ conclusion here.
 Nothing is changed in this entry. Both remaining halves of Q12 now have a
 mechanism named and a specific next measurement, which is what the sweep of
 PLAN 3.6 exists to produce.
+
+## D50 — Two repairs undo each other, and the loop publishes whichever one it stopped on
+
+D49 left `pilot87`'s non-convergence at interval 24 as a repeating pattern
+with no repeating basis. Logging what each round does, and why each cleanup
+candidate is or is not acted on, says what the pattern is.
+
+**The rounds alternate, strictly.** `anything_to_move` decides which of two
+repairs a round performs: move a breaching nonbasic to its other bound and
+let the dual simplex run again, or — when nothing can be moved — pivot with
+`primal_cleanup`. Through the whole cycle those alternate one for one, and
+the period of four is two such pairs.
+
+**And the two levels of residue belong to the two repairs.**
+
+| round | repair | worst breach |
+|---|---|---|
+| 12 | move | 1.10302e-04 |
+| 13 | pivot, 3 taken | 1.87911e-06 |
+| 14 | move | 2.74024e-05 |
+| 15 | pivot, 2 taken | 7.84605e-07 |
+| 16 | move | 1.10302e-04 |
+
+**Pivoting reduces the breach by two orders of magnitude and moving puts it
+back.** That is the whole of the cycle, repeated five times until
+`SETTLE_ROUNDS` stops it.
+
+**Nothing structural repeats, which is why no detector would find it.** The
+columns differ every round — 178, 280, 4513, 5940 in one cleanup and 179,
+181, 3082 in the next — and D49's basis hash differs in all thirty-two. Each
+cleanup pass also does its own job correctly: the one candidate it declines
+in each of those passes is declined because an earlier pivot of the same
+pass genuinely cleared its breach, which is the re-check D30 installed
+working as intended. **What repeats is the level of the residue and nothing
+else.** At interval 64 the same alternation converges to zero in sixteen
+rounds, so this is not the mechanism being wrong — it is the mechanism not
+terminating on this trajectory.
+
+**What this makes of an existing decision.** D25's loop accepts a round's
+result "for being a second optimum, not for being a better one — nothing
+here compares the two", and says plainly that the improvement is a
+measurement across three instance sets rather than a property of the
+construction. That measurement was taken on trajectories that converge. On
+one that oscillates between a good level and a bad one, not comparing means
+**the answer published is decided by where the round cap happens to fall**,
+and a constant chosen for being generous is not a tie-break rule.
+
+So the change worth measuring is keeping the best round rather than the
+last. It moves published answers wherever a later round is worse than an
+earlier one, so it needs the full gate and a decision about what "better"
+means — the dual breach is in the solver's scaled space, and D27 has already
+established that the quantity to compare is the one with no space, the term
+the breach contributes to the duality gap.
+
+**Still not attributed:** why a move re-creates a breach of the same size it
+just cost two orders of magnitude to remove. That is the question underneath
+this one, and nothing here answers it.
