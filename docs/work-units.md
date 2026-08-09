@@ -53,9 +53,12 @@ two-pass over them charges two.
 
 **Ratio test and bookkeeping**: building the candidate set charges one per
 variable it looked at — every variable when the pricing row is read densely,
-and the size of its pattern when it is not (D40) — the dual update charges
-one per variable, the steepest-edge weight update charges two per row, and
-each swap attempted while settling up charges two per row.
+and the size of its pattern when it is not (D40) — and the dual update
+charges the same way, with one exception: it also sweeps every variable on
+the first iteration after anything rewrites a reduced cost outside a pivot,
+because that sweep is repairing rather than stepping (D41). The
+steepest-edge weight update charges two per row, and each swap attempted
+while settling up charges two per row.
 
 **Ordering the pricing row's pattern** charges one per position the scatter
 recorded, one per bitmap word the read-back looked at, and one per distinct
@@ -121,8 +124,12 @@ of an iteration**, not the bulk of it: over the standard 94 and the 16
 Kennington, the non-update work of an iteration runs from 4.4x the update's
 cost on the smallest model to 1450x on the largest. And **more than half of
 all work is the pricing row and the ratio test**, with another 27.5% in the
-dual update and the steepest-edge weights — which come to exactly
-`nvar + 2*nrow` per iteration, in every one of the 110 solves.
+dual update and the steepest-edge weights — which came to exactly
+`nvar + 2*nrow` per iteration, in every one of the 110 solves. D41 replaced
+the `nvar` in that with the size of the pricing row's pattern on the
+iterations that have one, so the sum is no longer fixed by the dimensions;
+what has not changed is that every term of it is still a dimension or a
+count, which is the point the figure was making.
 
 That last figure is why the constant is zero rather than small. Every part
 of an iteration's cost scales with a dimension or with a count of nonzeros;
@@ -139,11 +146,12 @@ counter already sees.
 | the basis update | 1.79% |
 | everything outside the solve loop | 0.11% |
 
-Those shares are as of D32 and predate D40, which took the ratio test's
-candidate scan off the first row wherever the pricing row is sparse — 1.31x
-less total work on the Kennington set. The ranking is unchanged and the
-figures are left as measured rather than rescaled by arithmetic; the next
-attribution run replaces them.
+Those shares are as of D32 and predate D40 and D41, which between them took
+the ratio test's candidate scan and the dual update off the first two rows
+wherever the pricing row is sparse — 1.895x less total work on the
+Kennington set. The ranking has certainly moved; the figures are left as
+measured rather than rescaled by arithmetic, and the next attribution run
+replaces them.
 
 ## Determinism
 

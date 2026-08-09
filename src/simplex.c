@@ -327,6 +327,17 @@ typedef struct {
      * the last basis change? See the r < 0 branch in run(). */
     bool verified;
 
+    /* May some nonbasic reduced cost be dual infeasible?
+     *
+     * The dual step only moves the costs the pricing row touches, so a step
+     * driven by the row's pattern can skip the rest — but the same loop also
+     * runs shift_to_feasible, which is real repair on anything left breached
+     * by a computation that did not go through a pivot. Two do that:
+     * compute_duals, which rebuilds every cost from scratch, and
+     * primal_cleanup, which calls a column's loan back in. Either arms this,
+     * and the next dual update pays for one full sweep to disarm it. */
+    bool duals_dirty;
+
     /* Cycle detection. `infeas_best` is the smallest total primal
      * infeasibility this solve has reached and `last_gain` the iteration
      * that reached it; when the gap between that and now grows past
@@ -419,6 +430,7 @@ static jaos_status sx_init(sx *s, jaos_model *m)
     s->apat   = jm_alloc_array(s->nvar, sizeof(int64_t));
     s->amark  = jm_calloc_array((s->nvar + 63) / 64, sizeof(uint64_t));
     s->anpat  = -1;          /* alpha is all zero, but nothing has said where */
+    s->duals_dirty = true;   /* nothing has established the costs are feasible */
     s->cand   = jm_alloc_array(s->nvar, sizeof(int64_t));
     s->rnum   = jm_alloc_array(s->nvar, sizeof(double));
     s->rden   = jm_alloc_array(s->nvar, sizeof(double));
@@ -752,6 +764,12 @@ static void compute_duals(sx *s, bool refine)
         }
         s->d[v] = s->cost[v] - price_entry(s, s->y, v);
     }
+
+    /* These costs owe nothing to the shifting the solve has been doing, so
+     * any of them may now sit on the infeasible side of its bound. The next
+     * dual update is the thing that repairs that, and it has to look at all
+     * of them to find them. */
+    s->duals_dirty = true;
 }
 
 /* Declared here rather than moved: the repair below needs it, and it belongs
@@ -1519,6 +1537,17 @@ static void shift_to_feasible(sx *s, int64_t v)
     s->d[v] = 0.0;
 }
 
+/* One variable's share of the dual step, and the repair that follows it.
+ * Split out for the reason admit_candidate is: the loop around it comes in
+ * two forms and a rule this delicate must not be written twice. */
+static void update_dual(sx *s, int64_t v, int64_t q, double theta_dual)
+{
+    if (s->status[v] == JM_BASIC || v == q)
+        return;
+    s->d[v] -= theta_dual * s->alpha[v];
+    shift_to_feasible(s, v);
+}
+
 /* Applies the basis change: q enters at position r, the variable there
  * leaves to the bound it violated. */
 static jaos_status pivot(sx *s, int64_t r, int64_t q, bool below,
@@ -1533,16 +1562,28 @@ static jaos_status pivot(sx *s, int64_t r, int64_t q, bool below,
     double theta_primal = (s->xb[r] - bound) / alpha_q;
 
     /* Reduced costs shift by the dual step along the pricing row, and any
-     * that the window pushed past feasible are bought back on the spot. */
-    for (int64_t v = 0; v < s->nvar; v++) {
-        if (s->status[v] == JM_BASIC || v == q)
-            continue;
-        s->d[v] -= theta_dual * s->alpha[v];
-        shift_to_feasible(s, v);
+     * that the window pushed past feasible are bought back on the spot.
+     *
+     * A variable the pricing row does not touch takes no step — its share is
+     * `theta_dual * 0.0`, which leaves the value alone — so the pattern is
+     * enough to move every cost that moves. What the pattern is not enough
+     * for is the repair: `shift_to_feasible` is a no-op only on a cost that
+     * is already feasible, and that holds for everything this loop skips
+     * exactly while `duals_dirty` is clear. It is set by the two places that
+     * write a reduced cost without going through a pivot, and one full sweep
+     * clears it. */
+    if (s->duals_dirty || s->anpat < 0) {
+        for (int64_t v = 0; v < s->nvar; v++)
+            update_dual(s, v, q, theta_dual);
+        s->duals_dirty = false;
+        jm_work_add(&s->work, s->nvar * JM_WORK_NONZERO);
+    } else {
+        for (int64_t t = 0; t < s->anpat; t++)
+            update_dual(s, s->apat[t], q, theta_dual);
+        jm_work_add(&s->work, s->anpat * JM_WORK_NONZERO);
     }
     s->d[leaving] = -theta_dual;
     s->d[q] = 0.0;
-    jm_work_add(&s->work, s->nvar * JM_WORK_NONZERO);
 
     /* Basic values shift by dx_B = -B^-1 M_q dx_q — note the sign, it
      * comes straight from x_B = -B^-1 N x_N. The raw column is kept
@@ -2058,6 +2099,7 @@ static jaos_status primal_cleanup(sx *s, int64_t *pivots)
             s->cost[q] -= s->shift[q];
             s->d[q] -= s->shift[q];
             s->shift[q] = 0.0;
+            s->duals_dirty = true;   /* q's cost may now breach its bound */
         }
         if (dual_breach(s, q) == 0.0)
             continue;      /* an earlier pivot of this pass really did fix it */

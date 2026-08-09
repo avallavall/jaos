@@ -76,6 +76,15 @@ open, `bench/README.md` for the gate, and the commit each entry came from.
 
 ### Changed
 
+- The dual step walks the pricing row's pattern as well, which is the other
+  and larger half of the same idea. It needed one thing the ratio test did
+  not: the loop also repairs reduced costs that have drifted past their
+  bound, so skipping a variable is only safe where that repair would have
+  done nothing. `duals_dirty` names that condition and the two places that
+  break it pay one full sweep to restore it. Work falls **1.451x on
+  Kennington**, 1.015x on the standard set and 1.015x on the infeasible one,
+  again with **no digest and no iteration count moving**. Kennington is now
+  1.895x cheaper than when M2's pricing work began (D41).
 - The pricing row is read through its pattern rather than in full wherever
   that pattern is small. `alpha = rho' M` is dense storage holding a sparse
   vector — 0.1% of the variables on `ken-18`, which is two thirds of the

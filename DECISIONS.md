@@ -1981,3 +1981,97 @@ came out of it was short two instances of ninety-four while looking like a
 perfectly ordinary total. Nothing about the numbers said so. **A sweep
 point is now discarded unless its instance count matches the manifest**,
 because a total is not evidence until it is a total of the right things.
+
+---
+
+## D41 — The dual step walks the pattern too, and an invariant is what makes that safe
+
+The other half of PLAN 3.3, and the larger one. D40 stopped the ratio test
+scanning every variable; `pivot` was still doing it, for the same `nvar`
+per iteration, to apply the dual step.
+
+**Why it could not simply be given the same treatment.** The step itself is
+already sparse by construction — a variable the pricing row does not touch
+gets `d[v] -= theta_dual * 0.0`, which leaves the value alone. But the loop
+does a second thing on every variable it visits, and that one is not driven
+by `alpha` at all: `shift_to_feasible` puts a reduced cost that has drifted
+onto the infeasible side of its bound back where it belongs. Skipping a
+variable skips its repair, and a reduced cost left breached is not untidy —
+D28 records what it is. The ratio test reads a cost already past zero as
+blocking immediately, and a step computed from one runs backwards.
+
+**So the condition is named rather than hoped for.** Walking the pattern is
+correct exactly when every nonbasic cost the step does not touch is dual
+feasible already, because then the repair it skips would have done nothing.
+That holds after a pivot, by induction: the pivot repairs everything it
+moved, and nothing else moved. It is broken in exactly two places, and both
+were found by asking which code writes a reduced cost without going through
+a pivot:
+
+- `compute_duals`, which rebuilds every cost from the basis and owes
+  nothing to the shifting the solve has been doing;
+- `primal_cleanup`, which calls a column's own loan back in before judging
+  it — deliberately, and D30 is why.
+
+Each sets `duals_dirty`, and the next dual update pays for one full sweep
+to clear it. That costs `nvar` once per refactorization rather than once
+per iteration.
+
+**Bit-identical, over the whole gate.** All 110 published digests unchanged,
+all 139 iteration counts unchanged, all three sets PASS.
+
+One argument had to be checked rather than trusted, and the gate is what
+checked it. On the dense path `d[v] -= theta_dual * 0.0` can turn a `-0.0`
+into `+0.0`, and the sparse path leaves the `-0.0` standing. Every reader of
+a reduced cost compares it against zero or a tolerance, where the two are
+the same number, and `published` normalises the sign on the way out — which
+is D37, and D37 exists because a difference of exactly this kind once made
+two identical answers differ in bytes. The digests say the reasoning held.
+
+**Cost, against the baselines D40 left.**
+
+| set | before | after | |
+|---|---|---|---|
+| standard 94 | 61,853,786,287 | 60,945,483,751 | 1.015x |
+| **Kennington 16** | 128,912,974,652 | **88,864,066,925** | **1.451x** |
+| infeasible 29 | 2,713,834,320 | 2,673,400,285 | 1.015x |
+
+136 of 139 get cheaper and none gets dearer. Taken with D40, Kennington has
+gone 168,372,717,242 -> 88,864,066,925, which is **1.895x**, and the 139
+together 233,821,262,881 -> 152,482,950,961, or 1.533x.
+
+**The threshold sweep is the test this change most needed**, and it is a
+different test from the one it was for D40. At `SPARSE_ALPHA_DEN = 1`
+almost every iteration takes the sparse path in both consumers, so the
+invariant runs under far more pressure than the gate puts it under at 4,
+where a dense instance never exercises it at all. No unit test can stand in
+for that: the models in the suite are small enough that `nvar / 4` is one
+or two slots, so the suite runs the dense path almost exclusively.
+
+Swept over the standard and infeasible sets at dense-always, 1, 2 and 4 —
+**every status, iteration count, objective, checker result, determinism flag
+and digest identical at every setting.** The invariant holds where it is
+leaned on hardest.
+
+| SPARSE_ALPHA_DEN | standard 94 | infeasible 29 |
+|---|---|---|
+| dense always | 62,701,726,771 (1.000x) | 2,746,818,868 (1.000x) |
+| 1 | 62,604,789,725 (1.002x) | 2,871,034,741 (0.957x) |
+| 2 | 60,887,135,693 (1.030x) | 2,648,689,325 (1.037x) |
+| 4 | 60,945,483,751 (1.029x) | 2,673,400,285 (1.027x) |
+
+**The optimum moved, and the reason is worth having written down.** Under
+D40 alone, sparse-always cost 1.8% more than dense-always on the standard
+set; with two consumers reading the same pattern it costs 0.2% *less*. The
+ordering is paid once per iteration and amortised over everything that
+reads it, so each consumer that goes sparse shifts the crossover further
+towards sparse. That predicts the same again when the steepest-edge update
+follows.
+
+**The constant stays at 4 all the same.** The gain from 2 is 0.1% on the
+standard set and 0.9% on the infeasible one, Kennington — now 58% of all
+work — has not been swept on this tree, and D40's reason for sitting to the
+dense side of the counter's own answer has not changed: work units cannot
+see the indirection, and every cost they cannot see pushes the true
+crossover the other way. Moving it on a 0.1% reading would be fitting a
+constant to a measurement that cannot see half the trade.

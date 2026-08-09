@@ -626,11 +626,13 @@ missed this".
 
 ## 3. Milestone 2 — LP fast
 
-**Open, and opened by work rather than by decision.** Five entries have
-landed against it (D35, D37, D38, D39, D40) and total work over the 139
-reference instances has fallen about 1.5x without a single verdict, objective
-or iteration count changing. What follows is the detail the working agreement
-asks for once a milestone is active.
+**Open, and opened by work rather than by decision.** Six entries have
+landed against it (D35, D37, D38, D39, D40, D41) and total work over the 139
+reference instances has fallen about 1.9x without a single verdict, objective
+or iteration count changing anywhere. The last two are most of that: they
+took the Kennington set — which carries 73% of all work measured — from
+168,372,717,242 units to 88,864,066,925. What follows is the detail the
+working agreement asks for once a milestone is active.
 
 ### 3.1 The gate, and what blocks it
 
@@ -699,26 +701,32 @@ rows, so the pattern comes out unordered — and `bfrt_walk`,
 floating-point sum, by position in the candidate array. Ascending order is
 what makes the change bit-identical rather than merely defensible.
 
+**`pivot`'s dual update is built too (D41)**, and it is the larger half:
+another 1.451x on Kennington, which takes that set to 1.895x cheaper than
+when M2's pricing work began. What it needed beyond D40's machinery was an
+invariant with a name — the loop repairs reduced costs as well as moving
+them, so skipping a variable is safe only where the repair would have done
+nothing — and `duals_dirty` is that name, armed by the two places that
+write a reduced cost outside a pivot.
+
 **What is left, in the order the measurements rank it.**
 
-1. **`pivot`'s dual update.** The same `nvar` per iteration the ratio test
-   just stopped paying, still paid. The step itself only touches variables
-   with a nonzero `alpha`, but the loop also runs `shift_to_feasible` over
-   the ones it does not touch, so walking the pattern needs the invariant
-   that every nonbasic reduced cost was already dual feasible on entry —
-   which holds after a pivot and is broken by `compute_duals` and by
-   `primal_cleanup` calling a column's loan back in. A flag that forces one
-   dense pass after either keeps it exact.
-2. **The steepest-edge weight update.** It sweeps every row to touch
+1. **The steepest-edge weight update.** It sweeps every row to touch
    **0.17%** of them on Kennington and 33% on the standard set, and unlike
    the pricing row its input is an FTRAN result, so this one needs the
    solve to hand over a pattern rather than a dense vector. That is
    hyper-sparsity proper [9] — the Gilbert–Peierls reachability search D38
    built for BTRAN's `U'` pass, applied to FTRAN.
-3. **The FTRANs themselves** skip zeros but still walk all `nrow` slots to
+2. **The FTRANs themselves** skip zeros but still walk all `nrow` slots to
    find them, and D38's search scans all of `y` for its roots because
    callers know the support and do not pass it. Both are answered by the
-   same item as 2.
+   same item as 1.
+3. **The row scan that picks the infeasibility** charges one per row every
+   iteration and was 9.19% of Kennington's work before any of this; as a
+   share of what is left it is now larger. It is a different problem from
+   the ones above — a scan over `nrow` with no sparsity to exploit, which
+   is what partial and multiple pricing exist for [1] — and both change the
+   search path, so neither can be judged on digests.
 
 Smaller items on the same path, all measured and all modest: the FTRAN and
 BTRAN eta passes apply 45.1% and 10.6% of their etas to a zero and are
@@ -740,13 +748,16 @@ L' pass has 4.1% under a zero with no row-wise copy of L to search.
 - **Filtering basic columns out of the pricing sweep is refused**, measured:
   36.1% of entries are in basic columns, but the filter needs a `status[v]`
   read on every entry and comes to 3.92 memory accesses against 4 (D35).
-- **Reading `alpha` through its pattern always is worse than never doing
-  it** — 1.8% more work on the standard set, 10% on the infeasible one —
-  because ordering a pattern that covers most of the vector costs more than
-  the scan it replaces. The optimum is flat across a divisor of 2 to 6 and
-  `SPARSE_ALPHA_DEN` sits at 4, one notch to the dense side of the counter's
-  own answer, because every cost the counter cannot see pushes the true
-  crossover that way (D40). Locating it exactly needs Q4.
+- **Reading `alpha` through its pattern always was worse than never doing
+  it** when one consumer read the pattern — 1.8% more work on the standard
+  set, 10% on the infeasible one — because ordering a pattern that covers
+  most of the vector costs more than the scan it replaces (D40). With two
+  consumers reading it that reverses, because the ordering is paid once and
+  amortised, and the crossover will move again with each further consumer
+  (D41). `SPARSE_ALPHA_DEN` stays at 4 regardless: the counter cannot see
+  the indirection, every cost it cannot see pushes the true crossover
+  towards dense, and the readings that would argue for moving it are
+  fractions of a percent. Locating it exactly needs Q4.
 
 ### 3.5 Method worth keeping: sweep the trajectory, not just the instances
 
