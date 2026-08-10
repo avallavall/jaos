@@ -96,6 +96,15 @@ open, `bench/README.md` for the gate, and the commit each entry came from.
 
 ### Changed
 
+- The LU's elimination walks each column once, in place, instead of copying
+  it into a dense buffer and back out. The multipliers belong to the pivot
+  rather than to any one column, so they are scattered once per pivot and
+  every column of the pivot row meets them where it stands. On `maros-r7`
+  those two copies were 42% of the whole program against 6.5% for the
+  subtraction they carried. `maros-r7` 26.965 s -> 22.635 s (1.191x), and
+  **1.569x against where M2's speed work started this session**. All 139
+  digests, iteration counts and work units unmoved; clean under ASan and
+  UBSan (D59).
 - The LU's elimination asks for a column's capacity once per column instead
   of once per entry it writes. On `maros-r7` that append ran 1,552,126,296
   times for a quarter of the whole program's instructions, against 2.9% for

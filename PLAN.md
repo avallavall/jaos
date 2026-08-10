@@ -215,18 +215,28 @@ sum.
    `maros-r7` and 1.169x on `pilot87`** — the two instances that are 74.1% of
    the set's work — with all 139 digests unmoved.
 
-   What is left here, in the order the profile ranks it: the scatter into
-   `work` and the rebuild out of it, ~26% between them and inherent to
-   eliminating right-looking; the per-column arrays against a single arena;
-   and the stale live counts that make Markowitz choose on a pessimistic
-   estimate. The factors carry 2.673x the nonzeros of the basis; two thirds
-   of every factorization is free triangularization and 31.8% is where
-   Markowitz actually chooses (D46).
+   **The scatter is gone too (D59).** It was 42% of the program against 6.5%
+   for the subtraction it carried; the multipliers are scattered once per
+   pivot instead and each column is walked once in place. `maros-r7` is
+   **1.569x** and `pilot87` **1.214x** against where this session started,
+   with every digest, iteration count and work unit unmoved.
 
-   **Struck off: the missing row-to-position lookup.** `compact_pivot_row`
-   scans a column to find one row's entry, which is O(r·c) per pivot and
-   looked like the obvious defect. It is under 0.5% on `maros-r7`, the
-   instance built to expose it (D58). Not a candidate.
+   What is left here: the stale live counts that make Markowitz choose on a
+   pessimistic estimate, and the fill itself — the factors carry 2.673x the
+   nonzeros of the basis, two thirds of every factorization is free
+   triangularization and 31.8% is where Markowitz actually chooses (D46).
+   Beyond those two the remaining structure is inherent to eliminating
+   right-looking, and going further means left-looking, which is a rewrite
+   and needs its own decision.
+
+   **Struck off, both by measurement.** The missing row-to-position lookup:
+   `compact_pivot_row` scans a column to find one row's entry, which is
+   O(r·c) per pivot and looked like the obvious defect — it is under 0.5% on
+   `maros-r7`, the instance built to expose it (D58). And the per-column
+   arrays against a single arena: allocation is 0.73% and `_int_malloc`
+   0.30% on the same profile. The arena's remaining argument is locality,
+   which an instruction profile cannot see; that needs a cache simulation
+   before it is either costed or dropped.
 
 2. ~~**Whatever `fit2p` spends that nobody bills.**~~ **Closed (D55, D56),
    and it was two things.** A capacity check that could not be inlined

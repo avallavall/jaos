@@ -140,13 +140,17 @@ typedef struct {
     int64_t *bprev;
     bool *in_bucket;
 
-    double *work;
-    bool *work_set;
-    int64_t *touched;
-
     int64_t *piv_row;   /* live rows of the pivot column ... */
     double *piv_mult;   /* ... and their multipliers */
     int64_t piv_n;
+
+    /* The multipliers again, scattered by row. They belong to the pivot and
+     * not to any one column, so they are spread once per pivot and every
+     * column of the pivot row reads them where it stands. `hit` says which
+     * of them a column already had an entry for; what is left is its fill. */
+    double *mult_of;
+    bool *mult_set;
+    bool *hit;
 
     /* Compacting the pivot row: `seen` stamps a column as already taken
      * this step, `rowval` caches the value found for it. */
@@ -184,9 +188,9 @@ static void elim_free(elim *e)
     free(e->bnext);
     free(e->bprev);
     free(e->in_bucket);
-    free(e->work);
-    free(e->work_set);
-    free(e->touched);
+    free(e->mult_of);
+    free(e->mult_set);
+    free(e->hit);
     free(e->piv_row);
     free(e->piv_mult);
     free(e->seen);
@@ -468,9 +472,9 @@ jaos_status jm_lu_factor(jm_lu *lu, int64_t dim,
     e.bnext     = jm_alloc_array(dim, sizeof(int64_t));
     e.bprev     = jm_alloc_array(dim, sizeof(int64_t));
     e.in_bucket = jm_calloc_array(dim, sizeof(bool));
-    e.work      = jm_calloc_array(dim, sizeof(double));
-    e.work_set  = jm_calloc_array(dim, sizeof(bool));
-    e.touched   = jm_alloc_array(dim, sizeof(int64_t));
+    e.mult_of   = jm_calloc_array(dim, sizeof(double));
+    e.mult_set  = jm_calloc_array(dim, sizeof(bool));
+    e.hit       = jm_calloc_array(dim, sizeof(bool));
     e.piv_row   = jm_alloc_array(dim, sizeof(int64_t));
     e.piv_mult  = jm_alloc_array(dim, sizeof(double));
     e.seen      = jm_calloc_array(dim, sizeof(int64_t));
@@ -482,7 +486,7 @@ jaos_status jm_lu_factor(jm_lu *lu, int64_t dim,
         !lu->mark || !lu->dfs_node || !lu->dfs_next || !lu->pattern ||
         !e.col || !e.row || !e.col_cnt || !e.row_cnt || !e.col_done ||
         !e.row_done || !e.bhead || !e.bnext || !e.bprev || !e.in_bucket ||
-        !e.work || !e.work_set || !e.touched || !e.piv_row || !e.piv_mult ||
+        !e.mult_of || !e.mult_set || !e.hit || !e.piv_row || !e.piv_mult ||
         !e.seen || !e.rowval) {
         st = JAOS_ERR_OUT_OF_MEMORY;
         goto done;
@@ -562,6 +566,12 @@ jaos_status jm_lu_factor(jm_lu *lu, int64_t dim,
             bucket_move(&e, j, e.col_cnt[j] - 1);
         }
 
+        /* Once per pivot, not once per column of it. */
+        for (int64_t k = 0; k < e.piv_n; k++) {
+            e.mult_of[e.piv_row[k]] = e.piv_mult[k];
+            e.mult_set[e.piv_row[k]] = true;
+        }
+
         us_start[step] = uacc.n;
         for (int64_t rk = 0; rk < e.row[pi].n; rk++) {
             int64_t j = e.row[pi].idx[rk];
@@ -604,69 +614,91 @@ jaos_status jm_lu_factor(jm_lu *lu, int64_t dim,
                 continue;
             }
 
-            int64_t nt = 0;
+            /* One walk over the column, updating it where it stands.
+             *
+             * This used to scatter the column into a dense buffer, apply the
+             * multipliers there, and gather it back — two copies of every
+             * entry to carry an arithmetic that touches at most `piv_n` of
+             * them. On `maros-r7` the two copies were 42% of the whole
+             * program against 6.5% for the subtraction they existed to
+             * perform (D59). Scattering the multipliers instead costs
+             * `piv_n` per pivot rather than `|column|` per column.
+             *
+             * The order is what the rebuild produced and has to stay that
+             * way: the column's own surviving entries in their existing
+             * order, then the fill in `piv_row` order, which is where the
+             * gather appended it.
+             *
+             * `keep <= k` throughout, so writing the column while reading it
+             * cannot overtake itself. */
+            int64_t found = 0, keep = 0;
             for (int64_t k = 0; k < cv->n; k++) {
                 int64_t i = cv->idx[k];
                 if (e.row_done[i])
                     continue;
-                e.work[i] = cv->val[k];
-                e.work_set[i] = true;
-                e.touched[nt++] = i;
-            }
-
-            for (int64_t k = 0; k < e.piv_n; k++) {
-                int64_t i = e.piv_row[k];
-                double delta = e.piv_mult[k] * urow;
-                if (e.work_set[i]) {
-                    e.work[i] -= delta;
-                } else {
-                    e.work[i] = -delta;      /* fill-in */
-                    e.work_set[i] = true;
-                    e.touched[nt++] = i;
-                    if (!pat_push(&e.row[i], j)) {
-                        st = JAOS_ERR_OUT_OF_MEMORY;
-                        goto done;
-                    }
-                    e.row_cnt[i]++;
+                double v = cv->val[k];
+                if (e.mult_set[i]) {
+                    v -= e.mult_of[i] * urow;
+                    e.hit[i] = true;
+                    found++;
                 }
-                jm_work_add(w, JM_WORK_ELIMINATED);
-            }
-
-            /* The rebuild writes at most one entry per touched row and `nt`
-             * is already known, so the capacity is asked for once instead of
-             * once per entry.
-             *
-             * That is not a micro-optimisation here. This loop is where the
-             * elimination puts every column back, and on `maros-r7` it called
-             * `jm_svec_push` 1,552,126,296 times for a quarter of the whole
-             * program's instructions — against 2.9% for `work[i] -= delta`,
-             * the one line in this function that bills a work unit (D58).
-             *
-             * Bit-identical: same values, same order, same drop test. What
-             * moves is where the capacity is checked. */
-            if (nt > cv->cap &&
-                !grow_pair(&cv->idx, &cv->val, &cv->cap, nt)) {
-                st = JAOS_ERR_OUT_OF_MEMORY;
-                goto done;
-            }
-            int64_t live = 0;
-            for (int64_t k = 0; k < nt; k++) {
-                int64_t i = e.touched[k];
-                double v = e.work[i];
-                e.work[i] = 0.0;
-                e.work_set[i] = false;
                 if (fabs(v) <= e.drop) {
                     e.row_cnt[i]--;          /* exact cancellation */
                     continue;
                 }
-                cv->idx[live] = i;
-                cv->val[live] = v;
-                live++;
+                cv->idx[keep] = i;
+                cv->val[keep] = v;
+                keep++;
             }
-            cv->n = live;
-            bucket_move(&e, j, live);
+
+            /* Room for the fill before any of it is written. */
+            if (found < e.piv_n && keep + e.piv_n - found > cv->cap &&
+                !grow_pair(&cv->idx, &cv->val, &cv->cap,
+                           keep + e.piv_n - found)) {
+                st = JAOS_ERR_OUT_OF_MEMORY;
+                goto done;
+            }
+
+            /* The rows the pivot updates that this column did not have, and
+             * the clearing of `hit` for the ones it did — one walk for both,
+             * because both are over `piv_row`. */
+            for (int64_t k = 0; k < e.piv_n; k++) {
+                int64_t i = e.piv_row[k];
+                if (e.hit[i]) {
+                    e.hit[i] = false;
+                    continue;
+                }
+                double v = -(e.piv_mult[k] * urow);
+                if (!pat_push(&e.row[i], j)) {
+                    st = JAOS_ERR_OUT_OF_MEMORY;
+                    goto done;
+                }
+                e.row_cnt[i]++;
+                if (fabs(v) <= e.drop) {
+                    e.row_cnt[i]--;          /* fill that cancelled */
+                    continue;
+                }
+                cv->idx[keep] = i;
+                cv->val[keep] = v;
+                keep++;
+            }
+
+            /* Charged for what the elimination does, not for how it is
+             * arranged: one unit per multiplier per column, exactly as the
+             * two-pass form charged (D16). */
+            jm_work_add(w, e.piv_n * JM_WORK_ELIMINATED);
+
+            cv->n = keep;
+            bucket_move(&e, j, keep);
         }
         us_start[step + 1] = uacc.n;
+
+        /* The scatter is undone over the rows it touched, not over the
+         * dimension: the next pivot's columns read `mult_set` and must see
+         * only its own multipliers. */
+        for (int64_t k = 0; k < e.piv_n; k++)
+            e.mult_set[e.piv_row[k]] = false;
+
         lu->rank = step + 1;
     }
 

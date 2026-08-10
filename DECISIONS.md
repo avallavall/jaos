@@ -64,6 +64,7 @@ and you have the argument. Jump to the entry for the numbers behind it.
 - **[D56](#d56-the-elimination-rebuilt-every-column-of-every-pivot-row-including-when-there-was-nothing-to-eliminate)** — The elimination rebuilt every column of every pivot row, including when there was nothing to eliminate
 - **[D57](#d57-the-gate-runs-its-instances-at-once-because-nothing-it-records-is-a-second)** — The gate runs its instances at once, because nothing it records is a second
 - **[D58](#d58-the-elimination-asked-for-capacity-once-per-entry-it-wrote-and-the-entries-are-billions)** — The elimination asked for capacity once per entry it wrote, and the entries are billions
+- **[D59](#d59-the-multipliers-belong-to-the-pivot-so-the-column-stops-being-copied-twice-to-meet-them)** — The multipliers belong to the pivot, so the column stops being copied twice to meet them
 
 ---
 
@@ -3401,3 +3402,72 @@ carries for `maros-r7` was measured by the comparison harness, which builds
 JAOS with the competitor's flags. This changes the shipping build; whether it
 moves that figure is a question for `make compare`, not for arithmetic on
 this table.
+## D59 — The multipliers belong to the pivot, so the column stops being copied twice to meet them
+
+D58 removed the append and re-attributed what was left. On `maros-r7`, with
+the same 5e9 billed units and the same 4,876 iterations, the program had gone
+from 176.7 to 129.9 billion instructions and the shape of what remained was
+plain:
+
+| inside the elimination | share of the program |
+|---|---|
+| scattering the column into `work` | 17.9% |
+| gathering it back out | 24.0% |
+| **the subtraction the two exist to carry** | **6.5%** |
+
+**Two copies of every entry to perform an arithmetic that touches at most
+`piv_n` of them.** The copies are there because the multipliers were being
+met in a dense buffer — the column was spread out so that `piv_row` could be
+walked against it.
+
+**It is the wrong way round.** The multipliers belong to the pivot, not to
+any one column: the same `piv_n` values are applied to every column of the
+pivot row. Scattering *them* costs `piv_n` once per pivot; scattering the
+column costs its whole length once per column. So the column is walked once,
+in place, and the rows the pivot updates that it did not carry — its fill —
+are appended after it.
+
+**The order is the invariant, and it is preserved exactly.** The gather
+emitted the column's surviving entries in their existing order and then the
+fill in `piv_row` order, because that is the order it appended them to
+`touched`. The single walk emits the same two runs in the same two orders.
+Every value is the same subtraction of the same product: `v - mult*urow`,
+with `mult` copied from `piv_mult` rather than read from it.
+
+**And the same is true of what is charged.** The two-pass form billed one
+`JM_WORK_ELIMINATED` per multiplier per column, inside the loop. The single
+walk bills `piv_n` of them per column, in one call. A work counter that moved
+here would mean the arrangement had changed what the elimination does, which
+is the thing being denied.
+
+**Measured.** All 139 reference instances identical to the committed records,
+digest for digest, work unit for work unit. 130 tests green, and green under
+ASan and UBSan — which this change earns rather than assumes, because it
+writes the column it is reading and appends past the end of what was there.
+
+| | before | after | |
+|---|---|---|---|
+| **`maros-r7`** | 26.965 s | **22.635 s** | **1.191x** |
+| `pilot87` | 28.157 | 26.550 | 1.061x |
+| `greenbea` | 2.209 | 2.106 | 1.049x |
+| `d2q06c` | 0.998 | 0.964 | 1.034x |
+| `pilot` | 6.687 | 6.503 | 1.028x |
+| `fit2p` | 2.402 | 2.340 | 1.026x |
+| `ken-13`, `dfl001`, `stocfor3`, `truss`, `25fv47`, `80bau3b` | | | 1.007x down to 0.992x |
+
+**Geometric mean over the twelve: 1.030x.** `maros-r7` gains three times what
+`pilot87` does, and that is the shape the reasoning predicts: what is saved is
+one copy of each column per pivot of its row, so it scales with how long the
+columns are against how many multipliers meet them. `maros-r7` carries the
+highest fill in the set.
+
+**With D58, the two together.** `maros-r7` 35.512 s -> 22.635 s, **1.569x**,
+and `pilot87` 32.233 -> 26.550, **1.214x** — the two instances D46 measured
+as 74.1% of the standard set's work. Neither moved a digest, an iteration
+count or a work unit.
+
+**What the counter said about all of it: nothing.** Both changes are
+invisible to it by construction, and both were found by profiling the build
+that ships. That is now four in a row (D45, D54, D55/D56, this), and the
+conclusion has stopped being a surprise: **the work counter measures the
+algorithm, and the algorithm was never what was wrong.**
