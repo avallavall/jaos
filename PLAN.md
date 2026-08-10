@@ -573,10 +573,25 @@ Each was measured and closed; the measurement is in `DECISIONS.md`.
   0.987x and 1.004x, both inside the noise, so the public budget API is free.
 
   **Still open from this question, and it is a code change rather than a
-  flag**: `restrict` on the kernel pointers, safe only if the non-aliasing
-  claim is true — which is the part to establish first. `--gc-sections` and
-  `-fno-math-errno` were never measured and are now unlikely to matter, since
-  the flags between them are worth 3%.
+  flag**: `restrict` on the kernel pointers. **The non-aliasing claim is
+  established (D75)** — every vector the LU solves are handed is one of four
+  separately allocated buffers in `sx`, none ever assigned from another, and
+  the factorization's workspace is allocated inside `jm_lu`; the callers are a
+  closed set because the header is internal. The audit also moved where the
+  qualifier goes: on the signature it is a promise every future caller must
+  keep and it buys little, since the arrays the inner loops read are pointers
+  loaded out of `lu`; as local `restrict` copies inside the kernels the
+  promise is over one call and sits in the same screen as the loop.
+
+  What is left is the measurement, and it has a shape: `restrict` must move no
+  number at all, so the test is 139 identical digests and identical work
+  counts, with seconds the only thing left to read — which needs `-j 1` and a
+  same-machine ratio. Weigh it on `maros-r7`, `pilot87` and `dfl001`. Expect a
+  percentage, not a factor: every optimisation flag in the shipping build is
+  worth 3% together.
+
+  `--gc-sections` and `-fno-math-errno` were never measured and are now
+  unlikely to matter, for the same reason.
 
 ---
 

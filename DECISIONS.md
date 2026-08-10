@@ -4729,3 +4729,58 @@ What stays open is the loop itself, unchanged: `SETTLE_ROUNDS = 32` still ends
 it rather than a condition. What is now known is that the ratio test's clamp
 makes the loan redundant *as a guard*, so if a future repair wants it gone it
 can have it for free on 92 instances and owes `pilot87` an explanation.
+
+## D75 — The non-aliasing claim holds, and `restrict` belongs inside the kernel rather than on the API
+
+Q11 left `restrict` on the kernel pointers open, with the right instruction
+attached: it is "safe only if the non-aliasing claim is true — which is the
+part to establish first". Established here. The measurement is not run, and
+the last section says what it should be.
+
+**The claim, and why it is checkable at all.** `jm_lu_ftran`, `jm_lu_btran`,
+their sparse forms and `jm_lu_update` are declared in `jaos_internal.h`, so
+the set of callers is closed: `src/simplex.c` and the tests, nothing else, and
+no promise is being extracted from anybody outside this repository.
+
+**Every vector those solves are handed**, across all thirteen call sites in
+the solver: `s->col`, `s->y`, `s->rho`, `s->tau`, and two locals that are
+assignments of `s->tau` — `compute_duals`'s refinement residual borrows it,
+and says so. Each is its own `jm_alloc_array` or `jm_calloc_array` in
+`sx_init`, none is ever assigned from another, and the factorization's own
+storage — `tmp`, `spike`, `l_value`, `urow`, `ucol` — is allocated inside
+`jm_lu_factor`. **So no caller-supplied vector can alias the factorization's
+workspace.** The pattern arrays (`s->cpat`, `s->rpat`) are distinct
+allocations again, and of a different type. The tests pass distinct buffers
+too.
+
+**But the audit moves where the qualifier goes.** Writing `double *restrict x`
+in the *signature* makes it a promise every caller must keep, and it buys less
+than it looks: `lu` is a struct pointer, and the arrays the inner loops
+actually read — `lu->l_value`, `lu->tmp` — are pointers loaded out of it,
+which no qualifier on `lu` makes restrict-qualified. The form that would help
+is local:
+
+```c
+    double *restrict xr = x;
+    const double *restrict lv = lu->l_value;
+```
+
+inside the kernels, where the promise is over one call rather than over an
+API, and where it can be read and checked in the same screen as the loop it
+constrains. That is strictly the safer of the two and it is the one this audit
+supports: a contract the callers must honour is a contract that outlives the
+audit that justified it.
+
+**What the measurement has to be.** `restrict` must not move a single number —
+it changes what the compiler may keep in a register, not what is computed — so
+the acceptance test is that all 139 digests and every work-unit count are
+identical, and the only thing left to read is seconds. Seconds need `-j 1`
+(D57) and a same-machine ratio (D45), which is two sequential runs of the
+standard set. The instances to weigh it on are the ones the LU dominates:
+`maros-r7`, `pilot87` and `dfl001` are 77.8% of that set's work between the
+first two alone (D46).
+
+Left open deliberately rather than half-measured. Q11's own numbers set the
+expectation: every optimisation flag in the shipping build is worth 3%
+together, against 1.1122x for PGO, so this is a percentage and not a factor,
+and a percentage measured on a contended machine is not measured at all.
