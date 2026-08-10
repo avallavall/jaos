@@ -450,8 +450,18 @@ at one setting do not find are hiding.
    repairs undo each other — the dual simplex borrows cost shifts to keep
    dual feasibility, `settle_shifts` calls the loans in, and the largest loan
    reappears as the worst breach, to six digits. `SETTLE_ROUNDS = 32` is what
-   ends it rather than any condition. The question is whether a cleanup pivot
-   needs to borrow at all.
+   ends it rather than any condition.
+
+   **The question it left open — whether a clean-up pivot needs to borrow at
+   all — is answered and the direction is closed (D74).** Removing the loan
+   from `arm_reentry` leaves all 94 objectives, all 94 checker verdicts and 92
+   of 94 trajectories untouched, so it is not load-bearing for correctness and
+   the ratio test's clamp already guards the hazard the loan's own comment
+   cites. It is load-bearing for cost, and the cost is one instance: `pilot87`
+   pays **2.372x its iterations**, against 0.980x bought on `pilot`. And
+   `pilot87` is the instance the whole question is about — taking the borrow
+   away makes its non-convergence worse. Whatever repairs this loop, it is
+   not that.
 3. **`pilot87` trips the iteration guard at intervals of 128 and above**,
    which the solver's own message calls a JAOS defect. **Diagnosed (D72), and
    it is not a cycle.** Bland's rule engages twice and the second time runs
@@ -511,6 +521,8 @@ Each was measured and closed; the measurement is in `DECISIONS.md`.
 | The quadratic slot detachment in a basis update | refused: a billion integer comparisons against 59.5e9 billed units, 0.02% on Kennington |
 | Caching `col_max_abs` | refused on its premise: `row_done` retires entries without the column being written, so the cache would be stale (D46) |
 | A scatter-form BTRAN | refused: it reorders a cancelling sum, and two feasible models came back INFEASIBLE (D36) |
+| Dropping the loan the re-entry's clean-up takes | refused: correctness is untouched — 94 objectives, 94 checker verdicts, 92 of 94 trajectories identical — but `pilot87` pays **2.372x** its iterations for the 0.980x it buys `pilot` (D74) |
+| A certified suboptimality from moving one column alone | refused as a *verdict*: sound as a lower bound and never overclaims, but it reads the same ~1e-25 on four answers known to be 1.04e-3 wrong as on the correct ones. At a vertex the first tight row stops the column, and a vertex is what tight rows are (D73) |
 
 ---
 

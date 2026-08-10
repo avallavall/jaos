@@ -4679,3 +4679,53 @@ What survives, precisely:
   "independent" means. D47 costed it correctly. What this entry adds is the
   price of the cheap alternative, measured: on the one instance in this
   project known to be wrong, it is worth nothing.
+
+## D74 — Does the re-entry's clean-up need to borrow at all? Measured: yes, and `pilot87` is the whole price
+
+PLAN carries the re-entry loop as a defect: its two repairs undo each other,
+`SETTLE_ROUNDS = 32` is what ends it rather than any condition, and the
+question it leaves open is **whether a clean-up pivot needs to borrow at all**
+(D49, D50, D51). This answers that question and closes the direction.
+
+**Why it looked answerable.** `arm_reentry` shifts the cost of any column
+whose reduced cost points the wrong way and which it cannot flip, and the
+comment gives the reason: "the ratio test must not meet a reduced cost already
+past zero". That reason has since expired in place — `admit_candidate` clamps
+`rnum` at zero and its own comment says why, "an already-infeasible cost blocks
+at once, and the step that follows repairs it exactly". Two mechanisms for one
+hazard, one of them documented as the reason for the other.
+
+**Measured, on a copy of the sources with that one call removed**, over the
+whole standard set:
+
+| | committed | loan removed |
+|---|---|---|
+| optimal | 94 | 94 |
+| objective within tolerance | 94 | 94 |
+| checker green | 94 | 94 |
+| deterministic | 94 | 94 |
+| **instances whose iteration count moved** | — | **2 of 94** |
+| `pilot` | 25,342 | 24,825 — **0.980x** |
+| `pilot87` | 50,850 | 120,640 — **2.372x** |
+
+**So the loan is not load-bearing for correctness.** The gate passes without
+it, every objective and every checker verdict is unchanged, and ninety-two of
+the ninety-four instances do not notice: their trajectories are identical, which
+also says the loan is only ever taken on the handful of instances that open the
+re-entry loop more than once at all.
+
+**It is load-bearing for cost, and the cost is one instance.** Removing it buys
+`pilot` 2% and costs `pilot87` **2.372x its iterations** — and `pilot87` is
+precisely the instance whose re-entry loop D51 says does not converge. Taking
+the borrow away makes the non-convergence worse, which is the opposite of what
+the question was hoping for.
+
+**The direction is closed.** Not because the loan is elegant — two mechanisms
+guarding one hazard is still one too many — but because removing it is
+measured, changes no answer, and costs 2.37x on the one instance the whole
+question is about. Whatever repairs the re-entry loop, it is not this.
+
+What stays open is the loop itself, unchanged: `SETTLE_ROUNDS = 32` still ends
+it rather than a condition. What is now known is that the ratio test's clamp
+makes the loan redundant *as a guard*, so if a future repair wants it gone it
+can have it for free on 92 instances and owes `pilot87` an explanation.
