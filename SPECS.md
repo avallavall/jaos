@@ -77,8 +77,8 @@ those and their kin only — never another solver's source (D12).
 
 ## 4. Controlling a solve
 
-**This whole section is missing, and it is the gap a user feels first.** There
-are twenty-three public functions and not one of them configures anything.
+**Most of this section has landed.** It was the gap a user felt first — the
+whole API configured nothing at all — and what is left of it is callbacks.
 
 **What is controllable is the contract, not the method.** A caller sets what
 depends on their problem and which the solver cannot know: how much precision
@@ -93,8 +93,7 @@ asks them is a problem handed back to the caller.
 |---|---|---|
 | Work limit, time limit | **done** | |
 | Set the primal and dual tolerances | **done** | `jaos_set_primal_tolerance`, `jaos_set_dual_tolerance`; 0 restores the default |
-| The rest of the options API | **missing** | logging and callbacks |
-| Logging and verbosity | **missing** | the solver is silent |
+| Logging and verbosity | **done** | `jaos_set_log_callback`, `jaos_set_log_level`; four levels, silent until a callback is installed |
 | Callbacks | **missing** | |
 | Choose the algorithm | **out of scope** | the solver picks; see above |
 | Turn scaling off or pick the mode | **out of scope** | same, and it is a method question |

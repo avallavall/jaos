@@ -113,6 +113,45 @@ jaos_status jaos_set_dual_tolerance(jaos_model *m, double tol)
     return set_tolerance(m, tol, m ? &m->dual_tol : nullptr, "dual");
 }
 
+jaos_status jaos_set_log_callback(jaos_model *m, jaos_log_fn cb, void *user)
+{
+    if (m == nullptr)
+        return JAOS_ERR_INVALID_INPUT;
+    m->log_cb = cb;
+    m->log_user = user;
+    return JAOS_OK;
+}
+
+jaos_status jaos_set_log_level(jaos_model *m, jaos_log_level level)
+{
+    if (m == nullptr)
+        return JAOS_ERR_INVALID_INPUT;
+    if (level < JAOS_LOG_OFF || level > JAOS_LOG_DETAIL) {
+        jm_set_err(m, "log level %d is not one of the defined levels",
+                   (int)level);
+        return JAOS_ERR_INVALID_INPUT;
+    }
+    m->log_level = level;
+    return JAOS_OK;
+}
+
+/* One line out. Not called unless jm_logging_at said the level is wanted, so
+ * the formatting cost lands only on a caller who asked for the line.
+ *
+ * The buffer is a local: a log line is diagnostic, it is not solver state,
+ * and nothing in the library may hold a pointer to it afterwards. */
+void jm_log(const jaos_model *m, jaos_log_level level, const char *fmt, ...)
+{
+    if (!jm_logging_at(m, level))
+        return;
+    char line[256];
+    va_list ap;
+    va_start(ap, fmt);
+    vsnprintf(line, sizeof line, fmt, ap);
+    va_end(ap);
+    m->log_cb(m->log_user, level, line);
+}
+
 jaos_status jaos_solve(jaos_model *m)
 {
     if (m == nullptr)

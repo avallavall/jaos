@@ -70,6 +70,7 @@ and you have the argument. Jump to the entry for the numbers behind it.
 - **[D62](#d62-one-set-of-shipping-flags-chosen-by-measurement-and-the-counter-costs-nothing)** — One set of shipping flags, chosen by measurement, and the counter costs nothing
 - **[D63](#d63-the-gaps-iterations-are-weight-restarts-and-the-threshold-that-causes-them-is-what-keeps-the-answers-right)** — The gap's iterations are weight restarts, and the threshold that causes them is what keeps the answers right
 - **[D64](#d64-the-options-api-configures-the-contract-and-never-the-method-and-it-is-setters)** — The options API configures the contract and never the method, and it is setters
+- **[D65](#d65-the-solver-speaks-only-when-spoken-to-and-never-on-a-clock)** — The solver speaks only when spoken to, and never on a clock
 
 ---
 
@@ -3880,3 +3881,56 @@ model and preserves the budgets by listing them one by one; the new
 tolerances were not on that list, so anyone configuring before loading — the
 natural order to write it in — lost them silently. Fixed, and the reload test
 now asserts all four settings rather than one.
+
+## D65 — The solver speaks only when spoken to, and never on a clock
+
+The solver was silent, which for a library is the right default and an
+unusable one: a caller with a model that takes four minutes has no way to
+tell a slow solve from a stuck one.
+
+**No default destination.** A library that writes to stdout because nobody
+told it not to cannot be embedded in a server, a GUI, or another library. So
+`jaos_set_log_callback` installs one and there is no fallback: setting a
+level without a callback changes nothing, and passing NULL turns output off
+again. The line is valid for the duration of the call, like
+`jaos_model_error` and for the same reason — it is diagnostic, not data, and
+D33's rule is that no *solution* data leaves by pointer.
+
+**Four levels, and each earns its place.** `SUMMARY` opens and closes a
+solve. `PROGRESS` adds a line every thousand iterations. `DETAIL` adds the
+events that change how the solve behaves.
+
+**Paced by iterations, never by time.** A line every so many milliseconds
+would make the output depend on the machine, and output that differs between
+two runs of one model is what D8 exists to forbid. `LOG_EVERY` is a count.
+
+**Free when nobody is listening.** Every site tests an inline predicate
+before it formats anything, so a solve nobody is watching pays one comparison
+per site rather than one formatted string.
+
+**And the claim that had to be tested is not that lines come out.** It is
+that they change nothing. A solver that priced differently when someone was
+watching would be undebuggable. So the same model is solved silently and at
+`DETAIL`, and the objective, the primal values, the duals, the iteration
+count and the work units are compared **bit for bit** — not within a
+tolerance, because "close" is not the claim. All 139 reference instances are
+identical to the committed records with the logging compiled in.
+
+**What the closing summary reports, and why those three.** Refactorizations,
+weight restarts and stalls. That is not a decoration: **four separate
+diagnoses this milestone had to patch counters into the solver to learn how
+often the steepest-edge weights were being discarded** (D63), and a caller
+has no such option. `jm_dse_update` now returns whether it restarted, which
+makes an event that was invisible from outside into one the library reports.
+
+Cross-checked rather than trusted: the new counter reports 8299 restarts on
+`25fv47` and 682 on `grow15`, which are exactly the numbers the hand-patched
+diagnostic produced before it existed.
+
+**One defect the demo caught that the unit test could not.** The first
+progress line read `infeasibility inf`, because it was emitted before the
+pricing that computes the number. A three-column unit-test model never
+reaches a thousand iterations, so nothing in the suite could have shown it —
+it took running a real instance and reading the output. The line moved after
+the pricing and says "best infeasibility", which is the quantity that is
+actually kept.

@@ -11,6 +11,15 @@ open, `bench/README.md` for the gate, and the commit each entry came from.
 
 ### Added
 
+- `jaos_set_log_callback` and `jaos_set_log_level`: the solver stops being
+  silent. Four levels, and no default destination — nothing is written until
+  a callback is installed, because a library that writes to stdout cannot be
+  embedded. Paced by iteration count and never by a clock, so two runs of one
+  model produce the same lines. The closing line reports refactorizations,
+  weight restarts and stalls: the three events four diagnoses this milestone
+  had to patch counters into the solver to see. Solving at full verbosity
+  returns the same bits as solving silently, checked bit for bit and over all
+  139 instances (D65).
 - `jaos_set_primal_tolerance` and `jaos_set_dual_tolerance`: the first two
   settings a caller has beyond the budgets. Both default to 1e-7 and 0
   restores that; a value that is not finite and non-negative is refused with

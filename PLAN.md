@@ -132,8 +132,13 @@ to be inside.
   that is not a finite non-negative number refused rather than clamped. All
   139 digests unmoved, because a model that sets nothing behaves as before.
   What is left here is logging and callbacks.
-- **Logging.** The solver is silent. A verbosity level and a callback for the
-  line, so a caller can route it.
+- **Logging. Done (D65).** `jaos_set_log_callback` and `jaos_set_log_level`,
+  four levels, silent until a callback is installed — a library that writes
+  to stdout because nobody forbade it cannot be embedded. Paced by iteration
+  count and never by a clock, so two runs of one model produce the same
+  lines. The closing summary reports refactorizations, weight restarts and
+  stalls, which are the three events four separate diagnoses this milestone
+  had to instrument the solver by hand to see.
 - **Model modification** — add and delete rows and columns, change a bound, a
   cost, a coefficient.
 - **Warm re-solve.** The dual simplex is the right method for it and none of

@@ -63,6 +63,16 @@ typedef enum jaos_solve_status {
 JAOS_NODISCARD const char *jaos_status_str(jaos_status s);
 JAOS_NODISCARD const char *jaos_solve_status_str(jaos_solve_status s);
 
+/* How much the solver says about what it is doing. Silent by default: a
+ * library that writes to stdout because nobody asked it not to is a library
+ * that cannot be embedded. */
+typedef enum jaos_log_level {
+    JAOS_LOG_OFF = 0,
+    JAOS_LOG_SUMMARY,   /* one line when a solve starts, one when it ends */
+    JAOS_LOG_PROGRESS,  /* and the objective every so many iterations */
+    JAOS_LOG_DETAIL,    /* and the events that change how a solve behaves */
+} jaos_log_level;
+
 /* ------------------------------------------------------------------------- */
 /* Problem data                                                              */
 /* ------------------------------------------------------------------------- */
@@ -185,6 +195,32 @@ JAOS_NODISCARD jaos_status jaos_set_time_limit(jaos_model *m, double seconds);
  * machine. */
 JAOS_NODISCARD jaos_status jaos_set_primal_tolerance(jaos_model *m, double tol);
 JAOS_NODISCARD jaos_status jaos_set_dual_tolerance(jaos_model *m, double tol);
+
+/* Where the solver's output goes, and how much of it there is.
+ *
+ * There is no default destination. A library that writes to stdout because
+ * nobody told it not to cannot be embedded in a server, a GUI or another
+ * library, so JAOS says nothing at all until a callback is installed —
+ * setting a level without one changes nothing.
+ *
+ * `line` is a complete message with no trailing newline, valid only for the
+ * duration of the call: copy it if it must outlive that. `user` is handed
+ * back untouched. The callback must not call into JAOS on the same model.
+ *
+ * **Logging never changes an answer.** No message is produced by computing
+ * anything the solve did not already compute, no output is emitted from a
+ * decision point, and the level is not readable by the solver's arithmetic.
+ * A model solved at JAOS_LOG_DETAIL returns the same bits as the same model
+ * solved silently, which is D8 and is checked over all 139 reference
+ * instances rather than assumed.
+ *
+ * Passing NULL for `cb` turns output off again. */
+typedef void (*jaos_log_fn)(void *user, jaos_log_level level, const char *line);
+
+JAOS_NODISCARD jaos_status jaos_set_log_callback(jaos_model *m,
+                                                 jaos_log_fn cb, void *user);
+JAOS_NODISCARD jaos_status jaos_set_log_level(jaos_model *m,
+                                              jaos_log_level level);
 
 /* Solves the model. The outcome is reported by jaos_solve_status, which the
  * return value does not duplicate: JAOS_OK means the solve ran, not that it

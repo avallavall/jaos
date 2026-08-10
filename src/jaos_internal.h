@@ -70,6 +70,13 @@ struct jaos_model {
     double primal_tol;       /* <= 0 means PRIMAL_TOL */
     double dual_tol;         /* <= 0 means DUAL_TOL   */
 
+    /* Where output goes. No callback means no output, whatever the level:
+     * a library that writes somewhere the caller did not choose cannot be
+     * embedded. */
+    jaos_log_fn log_cb;
+    void *log_user;
+    jaos_log_level log_level;
+
     jaos_solve_status solve_status;
     double objective;
     double *sol_col;         /* [num_col] primal values      */
@@ -140,8 +147,15 @@ JAOS_NODISCARD jaos_status jm_dual_simplex(jaos_model *m);
  * Reachable from outside the simplex for one reason: a wrong weight costs
  * iterations and never a wrong answer, so no solve-level test can catch
  * it and both the formula and the restart have to be checked against norms
- * recomputed from scratch. */
-void jm_dse_update(int64_t n, double *w, int64_t r,
+ * recomputed from scratch.
+ *
+ * Returns true when it discarded the whole set rather than carrying it
+ * forward. That is not a detail: it is the difference between pricing by
+ * steepest edge and pricing by largest infeasibility, it happens on 80-93%
+ * of the iterations of four reference instances, and until D63 measured it
+ * nothing in the solver could say so. A caller watching a solve is told how
+ * many times it happened. */
+bool jm_dse_update(int64_t n, double *w, int64_t r,
                    const double *alpha, const double *tau,
                    double exact_r, double drift_factor,
                    const int64_t *pat, int64_t npat);
@@ -268,6 +282,20 @@ JAOS_NODISCARD jaos_status jm_model_ensure_rowwise(jaos_model *m);
 /* Formats into m->err. NULL model is tolerated (message dropped). */
 [[gnu::format(printf, 2, 3)]]
 void jm_set_err(jaos_model *m, const char *fmt, ...);
+
+/* Is anyone listening at this level? Every logging site tests this first, so
+ * that a solve nobody is watching pays one comparison per site and not one
+ * formatted string. Inline and in the header for that reason. */
+static inline bool jm_logging_at(const jaos_model *m, jaos_log_level level)
+{
+    return m != nullptr && m->log_cb != nullptr && m->log_level >= level;
+}
+
+/* Formats one line and hands it to the caller's callback. Does nothing when
+ * jm_logging_at is false, so a site may call it unguarded where the arguments
+ * are already at hand; guard it where computing them would cost anything. */
+[[gnu::format(printf, 3, 4)]]
+void jm_log(const jaos_model *m, jaos_log_level level, const char *fmt, ...);
 
 typedef enum {
     JM_SCALE_NONE = 0,      /* all factors 1 */

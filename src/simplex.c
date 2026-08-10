@@ -124,6 +124,11 @@ constexpr int64_t REFACTOR_EVERY = 64;
  * disappears while the cutoff stays responsive. */
 constexpr int64_t TIME_CHECK_EVERY = 64;
 
+/* How often a progress line is offered, in iterations. A count and not an
+ * interval: output paced by a clock differs between two runs of the same
+ * model, and the whole point of D8 is that nothing about a solve does. */
+constexpr int64_t LOG_EVERY = 1000;
+
 /* Dual phase 1 by artificial bounds.
  *
  * The slack basis is dual feasible only if every column has the bound its
@@ -401,6 +406,14 @@ typedef struct {
      * the model while it runs. */
     double primal_tol;
     double dual_tol;
+
+    /* What the solve did that a caller watching it would want to know, and
+     * that four diagnostics this milestone had to instrument by hand to see.
+     * Counted always — two increments against a solve that does millions of
+     * things — and reported only if someone is listening. */
+    int64_t n_refactor;
+    int64_t n_weight_restart;
+    int64_t n_bland;
 } sx;
 
 /* --------------------------------------------------------------------- */
@@ -1008,6 +1021,7 @@ static bool repair_singular_basis(sx *s)
 static jaos_status refresh(sx *s, bool *ok, bool refine)
 {
     bool repaired = false;
+    s->n_refactor++;
 
     for (int attempt = 0;; attempt++) {
         jaos_status st = refactorize(s);
@@ -1067,8 +1081,14 @@ static int64_t price_row(sx *s, bool *below, double *violation)
     /* Decided before the loop, off the previous call's accounting, so that
      * one iteration uses one rule throughout. */
     if (!s->bland &&
-        s->iters - s->last_gain > STALL_FACTOR * (s->nrow + s->ncol + 1))
+        s->iters - s->last_gain > STALL_FACTOR * (s->nrow + s->ncol + 1)) {
         s->bland = true;
+        s->n_bland++;
+        jm_log(s->m, JAOS_LOG_DETAIL,
+               "iter %lld: no progress for %lld iterations, switching to "
+               "Bland's rule", (long long)s->iters,
+               (long long)(s->iters - s->last_gain));
+    }
 
     int64_t best = -1;
     double best_score = 0.0;
@@ -1147,7 +1167,7 @@ static bool weight_drifted(double carried, double exact, double factor)
  * below, with tau_i = rho_i . rho_r supplying the cross term. The exact
  * weight and the restart it can trigger are documented in the header,
  * which is also where the exported-for-testing rationale lives. */
-void jm_dse_update(int64_t n, double *w, int64_t r,
+bool jm_dse_update(int64_t n, double *w, int64_t r,
                    const double *alpha, const double *tau,
                    double exact_r, double drift_factor,
                    const int64_t *pat, int64_t npat)
@@ -1155,14 +1175,14 @@ void jm_dse_update(int64_t n, double *w, int64_t r,
     if (weight_drifted(w[r], exact_r, drift_factor)) {
         for (int64_t i = 0; i < n; i++)
             w[i] = 1.0;
-        return;   /* a restart is every weight by definition, pattern or no */
+        return true;  /* a restart is every weight by definition, pattern or no */
     }
     w[r] = exact_r;
 
     double pivot = alpha[r];
     if (pivot == 0.0)
-        return;   /* the ratio test never picks one, and weights are a
-                     heuristic: leaving them stale beats infinities */
+        return false;   /* the ratio test never picks one, and weights are a
+                           heuristic: leaving them stale beats infinities */
 
     double wr = w[r];
     /* Only a row where alpha is nonzero moves, which the dense form finds by
@@ -1181,6 +1201,7 @@ void jm_dse_update(int64_t n, double *w, int64_t r,
     }
     double wnew = wr / (pivot * pivot);
     w[r] = wnew > DSE_MIN ? wnew : DSE_MIN;
+    return false;
 }
 
 /* Bound flipping [19][1]. A candidate with two finite bounds does not have
@@ -1783,8 +1804,9 @@ static jaos_status pivot(sx *s, int64_t r, int64_t q, bool below,
     }
 
     const bool sparse_col = s->ncpat >= 0;
-    jm_dse_update(s->nrow, s->dse, r, s->col, s->tau, exact, DSE_DRIFT,
-                  sparse_col ? s->cpat : nullptr, s->ncpat);
+    if (jm_dse_update(s->nrow, s->dse, r, s->col, s->tau, exact, DSE_DRIFT,
+                      sparse_col ? s->cpat : nullptr, s->ncpat))
+        s->n_weight_restart++;
     jm_work_add(&s->work,
                 (sparse_col ? s->ncpat : s->nrow) * JM_WORK_NONZERO);
 
@@ -2627,6 +2649,22 @@ static jaos_status run(sx *s, jaos_solve_status *out)
         bool below = false;
         double violation = 0.0;
         int64_t r = price_row(s, &below, &violation);
+
+        /* Progress, on a count and never on a clock: a line that appeared
+         * every so many milliseconds would make the output depend on the
+         * machine, and output that differs between two runs of the same
+         * model is the one thing D8 forbids.
+         *
+         * After the pricing rather than before it, so the first line carries
+         * a number instead of the infinity `infeas_best` starts at. It is
+         * the best total reached and says so — price_row computes the
+         * current total for the stall test and keeps only the best, and
+         * exposing the other one would mean carrying state for a log line. */
+        if (s->iters % LOG_EVERY == 0)
+            jm_log(s->m, JAOS_LOG_PROGRESS,
+                   "iter %lld: best infeasibility %.6g, work %lld",
+                   (long long)s->iters, s->infeas_best,
+                   (long long)s->work.units);
         if (r < 0) {
             /* Nothing violates a bound — but the values that statement was
              * read off are carried, not computed. x_B is updated in place
@@ -2884,6 +2922,12 @@ jaos_status jm_dual_simplex(jaos_model *m)
         return st;
     clock_gettime(CLOCK_MONOTONIC, &s.started);
 
+    jm_log(m, JAOS_LOG_SUMMARY,
+           "dual simplex: %lld rows, %lld columns, %lld nonzeros, "
+           "primal tol %.3g, dual tol %.3g",
+           (long long)m->num_row, (long long)m->num_col,
+           (long long)m->num_nz, s.primal_tol, s.dual_tol);
+
     jaos_solve_status outcome;
     build_initial_basis(&s);
     st = run(&s, &outcome);
@@ -2900,6 +2944,22 @@ jaos_status jm_dual_simplex(jaos_model *m)
         if (st == JAOS_OK)
             st = publish(&s, outcome);
     }
+
+    /* What the solve did, in the terms a caller can act on. The three counts
+     * are not decoration: four separate diagnoses this milestone had to
+     * instrument the solver by hand to learn how often the weights were
+     * being discarded, and a caller has no such option. */
+    if (st == JAOS_OK)
+        jm_log(m, JAOS_LOG_SUMMARY,
+               "%s after %lld iterations, %lld work units; "
+               "%lld refactorizations, %lld weight restarts, %lld stalls",
+               jaos_solve_status_str(outcome), (long long)s.iters,
+               (long long)s.work.units, (long long)s.n_refactor,
+               (long long)s.n_weight_restart, (long long)s.n_bland);
+    else
+        jm_log(m, JAOS_LOG_SUMMARY, "abandoned after %lld iterations: %s",
+               (long long)s.iters, jaos_status_str(st));
+
     sx_free(&s);
     return st;
 }

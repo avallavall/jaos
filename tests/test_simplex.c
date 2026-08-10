@@ -1530,6 +1530,121 @@ static void test_a_wide_primal_tolerance_accepts_a_point_it_should_not(void)
     jaos_model_free(m);
 }
 
+/* Logging.
+ *
+ * The claim that has to be tested is not that lines come out — it is that
+ * they change nothing. A solver that priced differently when someone was
+ * watching would be undebuggable, so the same model is solved silently and
+ * at full verbosity and the two answers are compared bit for bit. The
+ * reference sets check the same claim across 139 instances; this checks it
+ * where a failure would be readable. */
+static int64_t g_log_lines;
+static jaos_log_level g_log_max;
+static char g_log_last[256];
+
+static void collect_log(void *user, jaos_log_level level, const char *line)
+{
+    *(int *)user += 1;
+    g_log_lines++;
+    if (level > g_log_max)
+        g_log_max = level;
+    snprintf(g_log_last, sizeof g_log_last, "%s", line);
+}
+
+static jaos_model *log_model(void)
+{
+    /* Something with enough rows to take a few iterations. */
+    const double c[] = {-1.0, -2.0, -1.0};
+    const double cl[] = {0.0, 0.0, 0.0}, cu[] = {4.0, 4.0, 4.0};
+    const double rl[] = {-INFINITY, -INFINITY}, ru[] = {5.0, 6.0};
+    const int64_t as[] = {0, 2, 4, 6}, ai[] = {0, 1, 0, 1, 0, 1};
+    const double av[] = {1.0, 2.0, 2.0, 1.0, 1.0, 1.0};
+    jaos_model *m = fresh();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_load_lp(m, 3, 2, JAOS_MINIMIZE, 0.0, c, cl, cu, rl, ru,
+                     6, as, ai, av));
+    return m;
+}
+
+static void test_logging_says_nothing_until_it_is_asked_to(void)
+{
+    int hits = 0;
+    jaos_model *m = log_model();
+
+    /* A level with no callback is silent, and so is a callback at OFF. */
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_log_level(m, JAOS_LOG_DETAIL));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(0, hits);
+
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_log_callback(m, collect_log, &hits));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_log_level(m, JAOS_LOG_OFF));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(0, hits);
+
+    /* And at SUMMARY it speaks. */
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_log_level(m, JAOS_LOG_SUMMARY));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_TRUE(hits >= 2);          /* one opening, one closing */
+    TEST_ASSERT_TRUE(g_log_last[0] != '\0');
+
+    /* Turning the callback off again stops it. */
+    int after = hits;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_log_callback(m, nullptr, nullptr));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(after, hits);
+
+    jaos_model_free(m);
+}
+
+static void test_a_level_outside_the_enum_is_refused(void)
+{
+    jaos_model *m = fresh();
+    TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT,
+        jaos_set_log_level(m, (jaos_log_level)-1));
+    TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT,
+        jaos_set_log_level(m, (jaos_log_level)99));
+    TEST_ASSERT_TRUE(jaos_model_error(m)[0] != '\0');
+    TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT,
+        jaos_set_log_level(nullptr, JAOS_LOG_SUMMARY));
+    TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT,
+        jaos_set_log_callback(nullptr, collect_log, nullptr));
+    jaos_model_free(m);
+}
+
+static void test_watching_a_solve_does_not_change_it(void)
+{
+    jaos_model *quiet = log_model();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(quiet));
+    double qobj = 0.0;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(quiet, &qobj));
+    const int64_t qiters = jaos_iterations(quiet);
+    const int64_t qwork = jaos_work_units(quiet);
+    double qx[3] = {0}, qy[2] = {0};
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solution(quiet, qx, nullptr, qy, nullptr));
+
+    int hits = 0;
+    jaos_model *loud = log_model();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_log_callback(loud, collect_log, &hits));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_log_level(loud, JAOS_LOG_DETAIL));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(loud));
+    double lobj = 0.0;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(loud, &lobj));
+    double lx[3] = {0}, ly[2] = {0};
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solution(loud, lx, nullptr, ly, nullptr));
+
+    TEST_ASSERT_TRUE(hits > 0);
+    /* Bit for bit, not within a tolerance: the claim is that the arithmetic
+     * was untouched, and "close" would not be that claim. */
+    TEST_ASSERT_EQUAL_MEMORY(&qobj, &lobj, sizeof qobj);
+    TEST_ASSERT_EQUAL_MEMORY(qx, lx, sizeof qx);
+    TEST_ASSERT_EQUAL_MEMORY(qy, ly, sizeof qy);
+    TEST_ASSERT_EQUAL_INT64(qiters, jaos_iterations(loud));
+    TEST_ASSERT_EQUAL_INT64(qwork, jaos_work_units(loud));
+
+    jaos_model_free(quiet);
+    jaos_model_free(loud);
+}
+
 static void test_queries_before_a_solve(void)
 {
     jaos_model *m = fresh();
@@ -1836,6 +1951,9 @@ int main(void)
     RUN_TEST(test_a_tolerance_must_be_a_tolerance);
     RUN_TEST(test_an_untouched_model_carries_no_tolerance_of_its_own);
     RUN_TEST(test_a_wide_primal_tolerance_accepts_a_point_it_should_not);
+    RUN_TEST(test_logging_says_nothing_until_it_is_asked_to);
+    RUN_TEST(test_a_level_outside_the_enum_is_refused);
+    RUN_TEST(test_watching_a_solve_does_not_change_it);
     RUN_TEST(test_queries_before_a_solve);
     RUN_TEST(test_the_basis_names_which_rows_hold_the_optimum);
     RUN_TEST(test_the_basis_agrees_with_the_values_it_came_with);
