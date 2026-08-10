@@ -205,6 +205,133 @@ static void test_csr_mirror_matches_hand_transpose(void)
     jaos_model_free(m);
 }
 
+/* Changing a loaded problem.
+ *
+ * Three properties, and the order matters. That the modification is refused
+ * when it should be is the cheap one. That the new bound actually reaches
+ * the solve is what a stored-and-never-read setting would fail. And that the
+ * previous answer stops being readable is the one protecting against the
+ * failure this project is built against: a wrong number returned with full
+ * confidence, here because the caller changed the model and the model kept
+ * answering about the old one. */
+static jaos_model *bounded_model(void)
+{
+    /* min -x0 - x1  s.t.  x0 + x1 <= 3,  0 <= x <= 10.
+     * Optimum: anything on x0 + x1 = 3, objective -3. */
+    const double c[] = {-1.0, -1.0};
+    const double cl[] = {0.0, 0.0}, cu[] = {10.0, 10.0};
+    const double rl[] = {-INFINITY}, ru[] = {3.0};
+    const int64_t as[] = {0, 1, 2}, ai[] = {0, 0};
+    const double av[] = {1.0, 1.0};
+    jaos_model *m = nullptr;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_model_new(&m));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_load_lp(m, 2, 1, JAOS_MINIMIZE, 0.0, c, cl, cu, rl, ru,
+                     2, as, ai, av));
+    return m;
+}
+
+static double solved_objective(jaos_model *m)
+{
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+    double obj = 0.0;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(m, &obj));
+    return obj;
+}
+
+static void test_a_modification_out_of_range_is_refused(void)
+{
+    jaos_model *m = bounded_model();
+    TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT, jaos_set_col_cost(m, -1, 1.0));
+    TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT, jaos_set_col_cost(m, 2, 1.0));
+    TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT,
+        jaos_set_col_bounds(m, 2, 0.0, 1.0));
+    TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT,
+        jaos_set_row_bounds(m, 1, 0.0, 1.0));
+    TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT, jaos_set_col_cost(nullptr, 0, 1.0));
+    /* Costs must be finite; bounds may be infinite but not NaN. */
+    TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT, jaos_set_col_cost(m, 0, INFINITY));
+    TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT, jaos_set_col_cost(m, 0, NAN));
+    TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT,
+        jaos_set_col_bounds(m, 0, NAN, 1.0));
+    TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT,
+        jaos_set_row_bounds(m, 0, 0.0, NAN));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_col_bounds(m, 0, -INFINITY, INFINITY));
+    /* lower > upper is an infeasible model, not a bad call. */
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_col_bounds(m, 0, 5.0, 1.0));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_INFEASIBLE, jaos_status_of(m));
+    jaos_model_free(m);
+}
+
+static void test_a_changed_bound_reaches_the_solve(void)
+{
+    jaos_model *m = bounded_model();
+    TEST_ASSERT_DOUBLE_WITHIN(1e-9, -3.0, solved_objective(m));
+
+    /* Loosen the row: the optimum follows it. */
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_row_bounds(m, 0, -INFINITY, 7.0));
+    TEST_ASSERT_DOUBLE_WITHIN(1e-9, -7.0, solved_objective(m));
+
+    /* Cap a column: now the row cannot be filled by x0 alone. */
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_col_bounds(m, 0, 0.0, 2.0));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_col_bounds(m, 1, 0.0, 3.0));
+    TEST_ASSERT_DOUBLE_WITHIN(1e-9, -5.0, solved_objective(m));
+
+    /* Flip a cost: x1 stops being worth using. */
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_col_cost(m, 1, 1.0));
+    TEST_ASSERT_DOUBLE_WITHIN(1e-9, -2.0, solved_objective(m));
+    jaos_model_free(m);
+}
+
+static void test_a_modification_discards_the_answer(void)
+{
+    jaos_model *m = bounded_model();
+    TEST_ASSERT_DOUBLE_WITHIN(1e-9, -3.0, solved_objective(m));
+    TEST_ASSERT_EQUAL_INT64(1, jaos_iterations(m) > 0 ? 1 : 0);
+
+    double x[2] = {0.0, 0.0};
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solution(m, x, nullptr, nullptr, nullptr));
+
+    /* One bound moves, and the model stops answering about the old problem. */
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_row_bounds(m, 0, -INFINITY, 5.0));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_NOT_RUN, jaos_status_of(m));
+    double obj = 0.0;
+    TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT, jaos_objective(m, &obj));
+    TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT,
+        jaos_solution(m, x, nullptr, nullptr, nullptr));
+    TEST_ASSERT_EQUAL_INT64(0, jaos_iterations(m));
+    TEST_ASSERT_EQUAL_INT64(0, jaos_work_units(m));
+
+    /* And the same for a cost and for a column bound. */
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_col_cost(m, 0, -2.0));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_NOT_RUN, jaos_status_of(m));
+
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_col_bounds(m, 0, 0.0, 1.0));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_NOT_RUN, jaos_status_of(m));
+    jaos_model_free(m);
+}
+
+static void test_configuration_survives_a_modification(void)
+{
+    /* Budgets and tolerances are configuration, not problem data. A caller
+     * who set them before a change should not have to set them again. */
+    jaos_model *m = bounded_model();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_work_limit(m, 999));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_primal_tolerance(m, 1e-5));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_dual_tolerance(m, 1e-4));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_col_cost(m, 0, -3.0));
+    TEST_ASSERT_EQUAL_INT64(999, m->work_limit);
+    TEST_ASSERT_EQUAL_DOUBLE(1e-5, m->primal_tol);
+    TEST_ASSERT_EQUAL_DOUBLE(1e-4, m->dual_tol);
+    jaos_model_free(m);
+}
+
 int main(void)
 {
     UNITY_BEGIN();
@@ -217,5 +344,9 @@ int main(void)
     RUN_TEST(test_reload_replaces);
     RUN_TEST(test_empty_model_loads);
     RUN_TEST(test_csr_mirror_matches_hand_transpose);
+    RUN_TEST(test_a_modification_out_of_range_is_refused);
+    RUN_TEST(test_a_changed_bound_reaches_the_solve);
+    RUN_TEST(test_a_modification_discards_the_answer);
+    RUN_TEST(test_configuration_survives_a_modification);
     return UNITY_END();
 }

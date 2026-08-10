@@ -134,6 +134,35 @@ JAOS_NODISCARD int64_t jaos_num_row(const jaos_model *m);
 JAOS_NODISCARD int64_t jaos_num_nz(const jaos_model *m);
 
 /* ------------------------------------------------------------------------- */
+/* Changing a loaded problem                                                 */
+/* ------------------------------------------------------------------------- */
+
+/* Change one cost or one pair of bounds in place, leaving the rest of the
+ * model as it stands. Costs must be finite. Bounds may be infinite but never
+ * NaN, and `lower > upper` is accepted: that is a model with no feasible
+ * point, which the solve reports as infeasible, not a call to refuse — the
+ * same rule `jaos_load_lp` applies, so a model is buildable the same way by
+ * either route.
+ *
+ * **Any of these discards the answer the model is holding.** That answer was
+ * computed for the problem as it stood, and once a bound moves it describes a
+ * different problem; leaving it readable would let a caller change one number
+ * and read back the previous optimum with nothing to say it was stale.
+ * `jaos_status_of` reads JAOS_SOLVE_NOT_RUN afterwards and `jaos_solution`
+ * refuses, so the mistake surfaces at the call rather than as a number.
+ *
+ * Tolerances, budgets and logging settings are configuration and survive.
+ *
+ * Re-solving after a change starts from scratch today. Warm starting from
+ * the previous basis is what the dual simplex is for and is not built yet. */
+JAOS_NODISCARD jaos_status jaos_set_col_cost(jaos_model *m, int64_t col,
+                                             double cost);
+JAOS_NODISCARD jaos_status jaos_set_col_bounds(jaos_model *m, int64_t col,
+                                               double lower, double upper);
+JAOS_NODISCARD jaos_status jaos_set_row_bounds(jaos_model *m, int64_t row,
+                                               double lower, double upper);
+
+/* ------------------------------------------------------------------------- */
 /* File readers                                                              */
 /* ------------------------------------------------------------------------- */
 

@@ -113,6 +113,89 @@ jaos_status jaos_set_dual_tolerance(jaos_model *m, double tol)
     return set_tolerance(m, tol, m ? &m->dual_tol : nullptr, "dual");
 }
 
+/* Every modification goes through this.
+ *
+ * The answer on the model was computed for the problem as it stood, and the
+ * moment any of it moves that answer describes a different problem. Leaving
+ * it queryable would let a caller change a bound and read back the previous
+ * optimum with nothing to say it was stale — a wrong answer delivered with
+ * full confidence, which is the failure this project is built against.
+ *
+ * The solution arrays are freed rather than kept: `jaos_solution` reports
+ * JAOS_ERR_INVALID_INPUT when there is no optimum to copy, so a stale read
+ * becomes an error at the call rather than a number.
+ *
+ * What is *not* invalidated, and deliberately: the scaling and the row-wise
+ * mirror. Both are derived from the matrix alone — scale.c reads no bound
+ * and no cost — so changing a bound or a cost leaves them exactly correct.
+ * A modification that touches the matrix must invalidate them, and there is
+ * none yet. */
+static void model_answer_is_stale(jaos_model *m)
+{
+    free(m->sol_col);        m->sol_col = nullptr;
+    free(m->sol_row);        m->sol_row = nullptr;
+    free(m->sol_dual);       m->sol_dual = nullptr;
+    free(m->sol_redcost);    m->sol_redcost = nullptr;
+    free(m->sol_col_status); m->sol_col_status = nullptr;
+    free(m->sol_row_status); m->sol_row_status = nullptr;
+    m->solve_status = JAOS_SOLVE_NOT_RUN;
+    m->objective = 0.0;
+    m->solve_work = 0;
+    m->solve_iters = 0;
+}
+
+/* Bounds may be infinite but never NaN, and `lower > upper` is a model with
+ * no feasible point rather than a call to refuse — exactly the rule
+ * jaos_load_lp applies, because a modification that accepted less than a
+ * load would make the same model buildable one way and not the other. */
+static bool bound_pair_ok(double lower, double upper)
+{
+    return !isnan(lower) && !isnan(upper);
+}
+
+jaos_status jaos_set_col_cost(jaos_model *m, int64_t j, double cost)
+{
+    if (m == nullptr || j < 0 || j >= m->num_col)
+        return JAOS_ERR_INVALID_INPUT;
+    if (!isfinite(cost)) {
+        jm_set_err(m, "cost for column %lld must be finite", (long long)j);
+        return JAOS_ERR_INVALID_INPUT;
+    }
+    m->col_cost[j] = cost;
+    model_answer_is_stale(m);
+    return JAOS_OK;
+}
+
+jaos_status jaos_set_col_bounds(jaos_model *m, int64_t j,
+                                double lower, double upper)
+{
+    if (m == nullptr || j < 0 || j >= m->num_col)
+        return JAOS_ERR_INVALID_INPUT;
+    if (!bound_pair_ok(lower, upper)) {
+        jm_set_err(m, "bounds for column %lld must not be NaN", (long long)j);
+        return JAOS_ERR_INVALID_INPUT;
+    }
+    m->col_lower[j] = lower;
+    m->col_upper[j] = upper;
+    model_answer_is_stale(m);
+    return JAOS_OK;
+}
+
+jaos_status jaos_set_row_bounds(jaos_model *m, int64_t i,
+                                double lower, double upper)
+{
+    if (m == nullptr || i < 0 || i >= m->num_row)
+        return JAOS_ERR_INVALID_INPUT;
+    if (!bound_pair_ok(lower, upper)) {
+        jm_set_err(m, "bounds for row %lld must not be NaN", (long long)i);
+        return JAOS_ERR_INVALID_INPUT;
+    }
+    m->row_lower[i] = lower;
+    m->row_upper[i] = upper;
+    model_answer_is_stale(m);
+    return JAOS_OK;
+}
+
 jaos_status jaos_set_log_callback(jaos_model *m, jaos_log_fn cb, void *user)
 {
     if (m == nullptr)

@@ -11,6 +11,14 @@ open, `bench/README.md` for the gate, and the commit each entry came from.
 
 ### Added
 
+- `jaos_set_col_cost`, `jaos_set_col_bounds` and `jaos_set_row_bounds`: a
+  loaded model can be changed instead of rebuilt. Each one discards the
+  answer the model was holding — an optimum computed for the problem as it
+  stood describes a different problem once a bound moves, and reading it back
+  would be a wrong number returned with confidence. Neither touches the
+  matrix, so the scaling and the row-wise mirror stay correct and are left
+  alone. `lower > upper` is accepted and comes back infeasible, which is the
+  rule `jaos_load_lp` already applies (D66).
 - `jaos_set_log_callback` and `jaos_set_log_level`: the solver stops being
   silent. Four levels, and no default destination — nothing is written until
   a callback is installed, because a library that writes to stdout cannot be

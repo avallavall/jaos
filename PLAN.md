@@ -139,8 +139,17 @@ to be inside.
   lines. The closing summary reports refactorizations, weight restarts and
   stalls, which are the three events four separate diagnoses this milestone
   had to instrument the solver by hand to see.
-- **Model modification** — add and delete rows and columns, change a bound, a
-  cost, a coefficient.
+- **Model modification.** **Bounds and costs are in (D66):**
+  `jaos_set_col_cost`, `jaos_set_col_bounds`, `jaos_set_row_bounds`, each
+  discarding the answer the model was holding, because an optimum computed
+  for the problem as it stood describes a different problem the moment a
+  bound moves. Neither touches the matrix, so the scaling and the row-wise
+  mirror stay exactly correct and are deliberately left alone.
+
+  What is left: **changing a coefficient**, which does invalidate both of
+  those and is the reason it is separate work rather than a fourth setter;
+  and **adding and deleting rows and columns**, which restructures every
+  array the model owns.
 - **Warm re-solve.** The dual simplex is the right method for it and none of
   the plumbing exists: no way to keep a basis across a modification, no way
   to hand one in.

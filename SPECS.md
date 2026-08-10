@@ -52,7 +52,8 @@ missing.
 |---|---|---|
 | Dimension and nonzero queries | **done** | |
 | Add or delete rows and columns after load | **missing** | |
-| Change a bound, a cost or a coefficient | **missing** | |
+| Change a bound or a cost | **done** | `jaos_set_col_cost`, `jaos_set_col_bounds`, `jaos_set_row_bounds`; each discards the answer the model was holding |
+| Change a coefficient | **missing** | unlike bounds and costs it invalidates the scaling and the row-wise mirror |
 | Re-solve warm from the previous basis | **missing** | the dual simplex is the right method for it and none of the plumbing exists |
 | Load a starting basis | **missing** | |
 

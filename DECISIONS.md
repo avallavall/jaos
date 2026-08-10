@@ -71,6 +71,7 @@ and you have the argument. Jump to the entry for the numbers behind it.
 - **[D63](#d63-the-gaps-iterations-are-weight-restarts-and-the-threshold-that-causes-them-is-what-keeps-the-answers-right)** — The gap's iterations are weight restarts, and the threshold that causes them is what keeps the answers right
 - **[D64](#d64-the-options-api-configures-the-contract-and-never-the-method-and-it-is-setters)** — The options API configures the contract and never the method, and it is setters
 - **[D65](#d65-the-solver-speaks-only-when-spoken-to-and-never-on-a-clock)** — The solver speaks only when spoken to, and never on a clock
+- **[D66](#d66-changing-a-model-discards-its-answer-and-the-two-that-do-not-touch-the-matrix-leave-the-derived-data-alone)** — Changing a model discards its answer, and the two that do not touch the matrix leave the derived data alone
 
 ---
 
@@ -3934,3 +3935,46 @@ reaches a thousand iterations, so nothing in the suite could have shown it —
 it took running a real instance and reading the output. The line moved after
 the pricing and says "best infeasibility", which is the quantity that is
 actually kept.
+
+## D66 — Changing a model discards its answer, and the two that do not touch the matrix leave the derived data alone
+
+Three modifications land together — `jaos_set_col_cost`,
+`jaos_set_col_bounds`, `jaos_set_row_bounds` — and the decisions worth
+recording are not about their signatures.
+
+**A modification discards the answer.** The optimum on the model was computed
+for the problem as it stood, and the moment a bound moves it describes a
+different problem. Leaving it queryable would let a caller change one number
+and read back the previous answer with nothing to say it was stale: a wrong
+number returned with full confidence, which is the failure mode this project
+exists to refuse. The solution arrays are freed rather than flagged, so
+`jaos_solution` reports `JAOS_ERR_INVALID_INPUT` and `jaos_status_of` reads
+`JAOS_SOLVE_NOT_RUN` — the mistake surfaces at the call, not as a number.
+
+**What is not invalidated, and it is not an oversight.** The scaling and the
+row-wise mirror are derived from the matrix alone: `scale.c` reads no bound
+and no cost, checked rather than assumed. So a bound or a cost change leaves
+both exactly correct, and throwing them away would cost a Curtis-Reid pass
+per modification for nothing. **A modification that touches the matrix must
+invalidate them**, which is why changing a coefficient is separate work and
+not a fourth setter written the same afternoon.
+
+**`lower > upper` is accepted.** That is a model with no feasible point,
+which the solve reports as infeasible; it is not a call to refuse.
+`jaos_load_lp` applies exactly this rule — bounds may be infinite, never NaN,
+and their order is not judged — and a modification that accepted less than a
+load would make the same model buildable one way and not the other.
+Configuration survives: budgets, tolerances and logging are not problem data.
+
+**Both tests were shown able to fail before being believed**, which is the
+discipline this repository has a receipt for. Two faults injected into a
+throwaway copy, each the mistake most likely to be made here:
+
+| injected fault | caught by |
+|---|---|
+| the modification stores the value and forgets to discard the stale answer | `test_a_modification_discards_the_answer` |
+| the setter validates its argument and never stores it | `test_a_changed_bound_reaches_the_solve` |
+
+The second is the one that matters for a setter, and it is the same shape as
+the defect D64 found for real: a setting that is validated, stored and never
+consulted passes every test that only checks what it refuses.
