@@ -87,6 +87,7 @@ and you have the argument. Jump to the entry for the numbers behind it.
 - **[D79](#d79-a-callback-may-look-and-may-stop-a-solve-and-may-not-steer-one)** — A callback may look, and may stop a solve, and may not steer one
 - **[D80](#d80-the-comparison-was-timing-a-warm-re-solve-and-the-feature-that-broke-it-shipped-two-weeks-earlier)** — The comparison was timing a warm re-solve, and the feature that broke it shipped two weeks earlier
 - **[D81](#d81-the-ladder-is-climbed-presolve-is-worth-142x-and-a-primal-simplex-is-worth-nothing)** — The ladder is climbed: presolve is worth 1.42x, and a primal simplex is worth nothing
+- **[D82](#d82-partial-pricing-on-the-leaving-row-sweep-refused-it-saves-the-cheap-units-and-buys-the-expensive-ones)** — Partial pricing on the leaving-row sweep, refused: it saves the cheap units and buys the expensive ones
 
 ---
 
@@ -5219,3 +5220,104 @@ committed 3.70x and 1.31x. The first reproduces to 0.3%; the second is 3%
 out, which is above the floor and is the honest caveat on this entry: SoPlex's
 readings are noisier than HiGHS's, and its "faster on 10 of 22" against the
 recorded 11 of 22 moves for the same reason.
+
+## D82 — Partial pricing on the leaving-row sweep, refused: it saves the cheap units and buys the expensive ones
+
+Phase 6 item 3, and the first change in this solver that could not be judged
+on digests. It moves the search path, so it needed the full gate and a
+different standard of evidence, and the evidence refuses it twice over.
+
+**What was built.** `price_row` scans a rotating slice of the basic variables
+instead of all of them, taking the best steepest-edge candidate inside it and
+extending to the next slice only when a slice yields nothing. Two things were
+not negotiable and are worth keeping written down, because any future attempt
+has to honour both:
+
+- **Bland's rule cannot be given a slice.** It promises the globally
+  lowest-indexed violating variable, and that promise is the only thing
+  between a degenerate solve and a cycle (D26). A slice can return an index
+  higher than one it never examined, which is not Bland's rule on a budget —
+  it is a different rule with none of the guarantee. So Bland forces a full
+  sweep.
+- **The progress measure cannot be fed a partial total.** `total` is where
+  `infeas_best`, the stall counter and the Bland switch are written. A
+  slice's total is smaller for a reason that is not progress, so letting one
+  through would reset the stall counter every time the slice missed the
+  violations, turning the one detector that catches a cycle into a thing that
+  never fires. Full sweeps therefore happen on a fixed cadence too.
+
+The sweep was billed for what it read rather than for the dimension, because
+a sweep that charged a full pass for a slice would have hidden the whole
+effect in the unit this project measures in (D16).
+
+### The measurement
+
+Reference is the committed record, which is sound here and would not be for
+seconds: iterations and work units are deterministic integers, so they need
+no same-session pairing. Geometric mean of per-instance ratios.
+
+| | standard iters | standard work | Kennington iters | Kennington work |
+|---|---|---|---|---|
+| partitions = 2 | 1.031x | 1.005x | 1.099x | **0.891x** |
+| partitions = 8 | 1.037x | 1.006x | 1.243x | **0.897x** |
+| partitions = 32 | 1.126x | 1.111x | 1.343x | 1.070x |
+
+**The 11% Kennington saving is the interesting number, and it is not real.**
+It is exactly the failure D45 describes: the work counter bills one unit per
+row of the pricing sweep, and D45 measured those `nrow` sweeps as *nearly
+free* per unit while the `nvar` work they are traded against is expensive.
+This change removes seven-eighths of the cheapest units in the solver and
+pays for them with 10% to 24% more iterations, each of which drags in two
+triangular solves and a pricing row. A ratio of 0.891 in units is a loss in
+seconds, and the counter cannot see it — which is the whole reason D45 exists
+and why a same-instance time ratio is the third leg of a verdict here.
+
+### What actually closes it
+
+Correctness, at every setting that was cheap enough to be worth having.
+
+- **`pilot` publishes OPTIMAL on a wrong answer.** Objective −557.48693
+  against Koch's −557.48973: `objective=OUT-OF-TOLERANCE`, and **the checker
+  passes it**. That is D47's hole firing on a real instance rather than a
+  constructed one, and it is now the second known route to a wrong `pilot`
+  answer beside D73's refactorization intervals.
+- **`wood1p` is rejected by the checker**, dual infeasibility 1.73e+05, at
+  6061 iterations against 335 and 24.8x the work.
+- `d2q06c` 3.3x the work, `greenbeb` 2.3x, and `woodw` **131.66x** the
+  iterations at 32 partitions.
+
+The standard gate reads NOT MET at 2 and at 8 partitions, and PASS at 32.
+**That order is not a mistake and it is not an argument for 32**: which
+instances break is scattered rather than ordered in the parameter, exactly as
+D39 found sweeping `REFACTOR_EVERY` over 16..256, so a value that happens to
+pass is not a value that is safe. Choosing 32 on this evidence would be
+fitting a constant to whichever instances survived it, which is how this
+project loses weeks.
+
+### What is refused, and what is not
+
+**Partial pricing on the leaving-row sweep is refused and the code is
+reverted.** The idea is not that the sweep is free — it is that this sweep is
+the wrong one to make cheaper, because the units it saves are the ones that
+cost the least real time and the iterations it adds cost the most.
+
+**Multiple pricing is untouched and still open.** It is a different technique
+— select several candidates in one major iteration and run minor iterations
+over that subset — and it does not trade candidate quality for scan length in
+the same way. Nothing here measures it.
+
+Two things from this attempt are kept because they are useful to the next one.
+`EXTRA_CFLAGS` in the Makefile, so a method constant can be swept over a range
+without editing the source between runs. And the discipline of proving the
+restructuring is a bit-exact no-op *before* enabling anything: with
+`PRICE_MIN_ROWS` above every model in the sets, all 139 digests and work
+counts were identical, which is what made every number above attributable to
+partial pricing rather than to the rewrite.
+
+**And a note on how nearly this was not measured at all.** The first run of
+this sweep reported exactly 1.0000x at every setting on both sets, because
+`make` does not know that `CFLAGS` changed: after the first build the objects
+were newer than the sources and every later setting rebuilt nothing, so one
+binary was measured six times. The result was too clean to be a measurement.
+Every sweep here now opens with a canary — a setting that *must* move the
+numbers — and stops if it does not.

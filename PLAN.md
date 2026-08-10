@@ -396,14 +396,27 @@ sum.
    single work unit, which is why a profiler found them and no internal
    instrument ever had. **The method that worked: profile at the flags being
    timed, and attribute by source line.**
-3. **Partial and multiple pricing** — and it is now the top of this list for
-   the set figure, not the third item. The instance that decides the gap is
-   the ordinary one, and on `truss` the LU is 1.55% while the two dense
-   sweeps are 36.5% (D61). Both alternatives to pricing fewer variables have
-   been measured and refused: the pattern is not sparse enough to walk, and
-   inlining the helpers is slower. **The first change that cannot be judged
-   on digests** — it moves the search path, so it needs the full gate and a
-   different standard of evidence.
+3. **Multiple pricing.** Partial pricing on the leaving-row sweep was built,
+   swept and **refused (D82)**. It removes seven-eighths of the cheapest
+   units in the solver — D45 measured `nrow` sweeps as nearly free per unit —
+   and pays for them with 10% to 24% more iterations that each drag in two
+   triangular solves, so the 0.891x it shows in work units on Kennington is a
+   loss in seconds that the counter cannot see. Correctness closes it
+   regardless: `pilot` publishes OPTIMAL on an answer out of tolerance with
+   the checker green, `wood1p` is rejected outright, and `woodw` takes 131x
+   the iterations at the most aggressive setting.
+
+   What is left of this item is **multiple pricing**, which is a different
+   technique — several candidates chosen in one major iteration, then minor
+   iterations over that subset — and does not trade candidate quality for
+   scan length the same way. Unmeasured.
+
+   The context that put this item near the top still stands: on `truss` the
+   LU is 1.55% while the two dense sweeps are 36.5% (D61), and both
+   alternatives to scanning fewer variables were already refused — the
+   pattern is not sparse enough to walk, and inlining the helpers is slower.
+   What D82 adds is that the *row* sweep is the wrong half of that 36.5% to
+   attack.
 4. **`stocfor3` is a memory-traffic instance, and it is the fourth worst in
    the set.** 6.79x per iteration on 0.97x the iterations, never profiled
    until now. Where it goes: the triangular solves 43.0%, and **`memset` plus
@@ -581,6 +594,7 @@ Each was measured and closed; the measurement is in `DECISIONS.md`.
 | Dropping the loan the re-entry's clean-up takes | refused: correctness is untouched — 94 objectives, 94 checker verdicts, 92 of 94 trajectories identical — but `pilot87` pays **2.372x** its iterations for the 0.980x it buys `pilot` (D74) |
 | A certified suboptimality from moving one column alone | refused as a *verdict*: sound as a lower bound and never overclaims, but it reads the same ~1e-25 on four answers known to be 1.04e-3 wrong as on the correct ones. At a vertex the first tight row stops the column, and a vertex is what tight rows are (D73) |
 | `restrict` on the LU kernel pointers | refused: 139 digests and work counts identical, and **0.995x shipping against 1.0053x with `-flto` off** — the two builds disagree about the sign and both are inside the noise. The loops are indexed scatter and gather, and none may vectorise because none may reassociate; what made it safe is what made it worthless (D76) |
+| Partial pricing on the leaving-row sweep | refused: it saves the cheapest units in the solver — D45 measured `nrow` sweeps as nearly free per unit — and buys 10–24% more iterations that each cost two triangular solves, so 0.891x in Kennington work units is a loss in seconds. And it breaks correctness: `pilot` publishes OPTIMAL out of tolerance with the checker green, `wood1p` is rejected, `woodw` takes 131x the iterations (D82) |
 
 ---
 
