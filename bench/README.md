@@ -114,12 +114,17 @@ Four things, and three of them come from outside this solver:
    original unscaled problem (D18).
 4. **Determinism.** The model is solved twice and the two runs must agree on
    status, iteration count, work units, and the bits of the objective and of
-   every published value (D8).
+   every published value (D8). **The basis is cleared between them**, and that
+   is what keeps this a statement about the solver: a solve that finds an
+   optimum leaves its basis on the model, so without the clear the second run
+   is a warm re-solve, reaches the same optimum in no iterations, and reports
+   different work. All 94 instances said DIVERGED the day warm starting landed
+   and every one of them was still optimal (D68).
 
 No wall-clock figure is produced anywhere. Speed is an M2 question and needs
 a controlled host before any number about it means anything (D17).
 
-**Three figures in the record judge nothing**, and are there because a
+**Seven figures in the record judge nothing**, and are there because a
 verdict that only records its own outcome cannot be argued with later.
 `rowrel` is the worst row residue as a fraction of what that row carries;
 D24 refused to let the primal test become relative and keeps the measurement
@@ -132,6 +137,18 @@ testing. Across the standard 94 the difference is not academic: on 22 of the
 gap those instances report is not the bound they are entitled to. The count
 was 35 of 93 when this was first measured; it falls as the answers get more
 accurate, which is the direction it should move.
+
+The remaining four say whether `Q` is a bound at all. `drop` is the largest
+multiplier whose term the duality identity could not take — its sign points at
+an infinite bound, so the term is minus infinity and gets dropped, and `Q`
+then belongs to a different problem — and `cert` is whether any were dropped.
+**98 of the 110 accepted answers across both feasible sets are not certified**,
+and not one dropped multiplier reaches 1e-6, the tolerance the checker uses to
+call one nonzero: the whole exposure sits inside what it already calls zero
+(D71). `sub` is a certified lower bound on the suboptimality and `rays` counts
+the directions that could not be quantified; `sub` is sound and, on this
+evidence, uninformative — it reads the same on answers known to be wrong as on
+correct ones, because the step it uses cannot move at a vertex (D73).
 
 ## The baseline, and the question the gate cannot answer
 

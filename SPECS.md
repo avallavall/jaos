@@ -63,12 +63,12 @@ missing.
 
 | | status | |
 |---|---|---|
-| Dual simplex | **done** | steepest-edge pricing [8], Harris two-pass ratio test with bound flipping [7][19], dual phase 1 by artificial bounds [21], Bland fallback on a detected cycle |
+| Dual simplex | **done** | steepest-edge pricing [8], Harris two-pass ratio test with bound flipping [7][19], dual phase 1 by artificial bounds [21], Bland fallback on a detected stall — which catches a real cycle and then cannot always finish it off (D72) |
 | Sparse LU, Markowitz threshold pivoting | **done** | [4][6][20], Forrest-Tomlin updates [5], singular-basis repair |
 | Scaling | **done** | Curtis-Reid [11], geometric-mean equilibration as an option |
 | Hyper-sparsity in the triangular solves | **partial** | [9]: both solves report their pattern, the passes billed for every slot are not all reduced |
 | Presolve | **missing** | the largest single algorithmic gap |
-| Primal simplex | **missing** | needed for crossover, for warm starts, and for models the dual handles badly |
+| Primal simplex | **missing** | needed for crossover, for models the dual handles badly, and for the warm starts the dual cannot serve — a bound change leaves the previous basis dual feasible and a cost change does not. It is also what carried defect 4 needs: nothing can currently bring a nonbasic free variable back into the basis (D68) |
 | Crash basis | **missing** | [12]; measured once and refused: it destroys the exact starting steepest-edge weights the slack basis gives |
 | Partial and multiple pricing | **missing** | [1] |
 | Barrier and crossover | **missing** | not optional at large scale |
@@ -109,7 +109,8 @@ asks them is a problem handed back to the caller.
 | Where every variable rests in the basis | **done** | `jaos_basis` |
 | Iterations and work units | **done** | |
 | **Solve time** | **missing** | required by the premises above |
-| Independent solution checker | **partial** | it certifies a suboptimality bound it cannot prove whenever the improving direction is unbounded (D47) |
+| Independent solution checker | **partial** | it can still accept an arbitrarily suboptimal point when the improving direction is unbounded (D47), but it no longer does so silently: `gap_certified` says when the bound is not a bound, and 98 of 110 accepted answers are not certified (D71) |
+| A certified lower bound on suboptimality | **partial** | `certified_suboptimality`, sound and never overclaiming, but it reads the same ~1e-25 on answers known to be 1.04e-3 wrong as on correct ones — the step it uses cannot move at a vertex (D73) |
 | Sensitivity and ranging | **missing** | |
 | Infeasibility and unboundedness certificates | **missing** | |
 | Exact rational verification of a final basis | **missing** | |
@@ -139,7 +140,8 @@ asks them is a problem handed back to the caller.
 | Netlib standard set, 94 instances: optimal, objective within tolerance, checker green | **pass** |
 | Kennington subset, 16 instances | **pass** |
 | Netlib infeasible subset, 29 instances: refused, no false optima | **pass** |
-| Determinism across two solves and across runs, all 139 | **pass** |
+| Determinism across two solves and across runs, all 139 | **pass** — the second solve clears the basis first, or it would be a warm re-solve and would measure a sequence of calls rather than the solver (D68) |
+| Warm re-solve against cold, one branching step per instance | **measured: 0.0055 of the iterations, 0.0166 of the work** on 92 of the standard 94; 0.0006 and 0.0041 on 11 of Kennington's 16 (D69) |
 | Full suite clean under ASan and UBSan | **pass** |
 | Reader robustness under fuzzing | **pass** |
 | Competitive gap at tier T0 vs **HiGHS 1.15.1** | **measured: 3.70x slower** (D52, D53, D60) |

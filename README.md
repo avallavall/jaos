@@ -46,7 +46,7 @@ only partly there.
 
 There is no way to add or delete a row or a column after loading, write a
 file, or call it from anything but C. No presolve, no primal simplex, no
-barrier, no MILP. Thirty-three public functions, and the six that configure
+barrier, no MILP. Thirty-six public functions, and the six that configure
 anything set the contract — two tolerances, two budgets, and where the output
 goes and how much of it there is — never the method.
 

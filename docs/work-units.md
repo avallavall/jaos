@@ -7,6 +7,14 @@ same number of units on every machine — which is what makes
 
 Read `jaos_work_units` after a solve to see what it cost.
 
+**A budget that stops can be started again (D70).** A solve cut off by a work
+or time limit keeps the basis it stopped on, so raising the limit and calling
+`jaos_solve` again continues from there instead of walking back from the slack
+basis. There is no answer to read in between — the run did not produce one, and
+`jaos_basis` says so, because a stopping point is not a solution. Until that
+landed, a budget was a way to abandon work and nothing else, which is a strange
+thing to have built a deterministic counter for.
+
 ## The weights
 
 Defined in `src/jaos_internal.h`. Drafts until calibrated (PLAN.md 2.7);
