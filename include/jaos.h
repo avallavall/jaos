@@ -231,7 +231,13 @@ JAOS_NODISCARD const char *jaos_model_error(const jaos_model *m);
  * across machines; the time limit is wall-clock and is not — where it cuts
  * depends on the machine. That is why they are separate settings rather than
  * one "limit" (DECISIONS.md, D8). The clock never influences which pivot is
- * chosen; it only decides whether to stop at a checkpoint. */
+ * chosen; it only decides whether to stop at a checkpoint.
+ *
+ * Both are resumable. A solve that stops at either leaves the basis it stopped
+ * on where the next solve will find it, so raising the limit and calling
+ * jaos_solve again continues from there instead of starting over. There is no
+ * answer to read in between — the run did not produce one — and jaos_basis
+ * says so, because a stopping point is not a solution. See jaos_set_basis. */
 JAOS_NODISCARD jaos_status jaos_set_work_limit(jaos_model *m, int64_t units);
 JAOS_NODISCARD jaos_status jaos_set_time_limit(jaos_model *m, double seconds);
 
@@ -347,12 +353,20 @@ JAOS_NODISCARD jaos_status jaos_basis(const jaos_model *m,
  * half a basis does not say which variables are basic, so there is nothing
  * useful to do with one.
  *
- * **A solve that reaches an optimum sets this for itself.** Nothing needs to
- * be called for a re-solve to be warm: change a bound and solve again, and the
- * previous basis is where the second solve begins. This function is for the
- * cases that route cannot reach — a basis carried over from another model, one
- * saved to a file and read back, or the one a branch-and-bound node hands to
- * its children.
+ * **A solve sets this for itself.** Nothing needs to be called for a re-solve
+ * to be warm: change a bound and solve again, and the previous basis is where
+ * the second solve begins. This function is for the cases that route cannot
+ * reach — a basis carried over from another model, one saved to a file and
+ * read back, or the one a branch-and-bound node hands to its children.
+ *
+ * A solve that stopped at a work or time limit sets it too, which is what
+ * makes those budgets resumable: solve, raise the limit, solve again, and the
+ * second call continues rather than starting over. So does one that ended
+ * INFEASIBLE or UNBOUNDED — the model is answered, but the next model that
+ * differs from it by one bound has no closer place to begin. A solve
+ * abandoned for numerical reasons is the exception and leaves the previous
+ * basis untouched: it cannot corrupt an answer, but it is the one state this
+ * solver does not vouch for, and offering it would be recommending it.
  *
  * Refused as JAOS_ERR_INVALID_INPUT: a value that is not one of the four
  * statuses, and any count of basic variables other than num_row. Those are

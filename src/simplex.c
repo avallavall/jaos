@@ -3007,6 +3007,38 @@ static jaos_status publish(sx *s, jaos_solve_status status)
         memset(m->sol_row, 0, (size_t)m->num_row * sizeof(double));
         memset(m->sol_dual, 0, (size_t)m->num_row * sizeof(double));
         memset(m->sol_redcost, 0, (size_t)m->num_col * sizeof(double));
+
+        /* The basis is written, kept, and only then cleared, and the three
+         * steps are three different statements.
+         *
+         * Written and kept because a solve that ran out of budget stopped at
+         * a perfectly good basis, and starting the next one there is the
+         * whole reason a budget is a thing a caller can set: `jaos_solve`
+         * until the work limit, raise it, `jaos_solve` again, and the second
+         * call continues instead of beginning. The same holds for a verdict
+         * of infeasible or unbounded — the model is answered, but the next
+         * model a branch-and-bound builds differs from it by one bound, and
+         * that basis is the closest one there is.
+         *
+         * Cleared because `jaos_basis` publishes the basis *behind an answer*
+         * and there is no answer. A stopping point is not a solution, and the
+         * two must not be readable through the same call.
+         *
+         * A numerical failure is the one outcome left out. It cannot corrupt
+         * anything — a warm start is never a claim — but it is the one state
+         * this solver does not vouch for, and offering it as a starting point
+         * would be recommending it. */
+        if (status == JAOS_SOLVE_WORK_LIMIT ||
+            status == JAOS_SOLVE_TIME_LIMIT ||
+            status == JAOS_SOLVE_INFEASIBLE ||
+            status == JAOS_SOLVE_UNBOUNDED) {
+            for (int64_t j = 0; j < m->num_col; j++)
+                m->sol_col_status[j] = published_status(s->status[j]);
+            for (int64_t i = 0; i < m->num_row; i++)
+                m->sol_row_status[i] =
+                    published_status(s->status[m->num_col + i]);
+            (void)jm_model_remember_basis(m);
+        }
         memset(m->sol_col_status, 0,
                (size_t)m->num_col * sizeof *m->sol_col_status);
         memset(m->sol_row_status, 0,

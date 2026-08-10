@@ -4228,3 +4228,56 @@ minus-infinity columns and ten of them warm-start normally, which is the
 reasoning D68 gave — a free variable usually ends up basic — confirmed rather
 than assumed. Fixing the underlying defect (PLAN.md, carried defect 4) would
 recover `cycle` and nothing else on this set.
+
+## D70 — A budget that cannot be resumed is only half a budget
+
+D8 gave a caller two ways to stop a solve, and until now stopping was all they
+did. `jaos_solve` came back WORK_LIMIT, the run's work was thrown away, and
+raising the limit meant starting from the slack basis again. A budget whose
+only use is to abandon work is a strange thing to have built a deterministic
+work counter for.
+
+So `publish` keeps the basis for the outcomes that are not an answer, and it is
+three separate statements rather than one:
+
+**Written and kept** for WORK_LIMIT and TIME_LIMIT, because that is what makes
+a budget resumable — solve, raise the limit, solve again, and the second call
+continues. And for INFEASIBLE and UNBOUNDED, which is less obvious and is the
+branch-and-bound case: the model is answered, but the next node differs from it
+by one bound and there is no closer place for it to begin.
+
+**Cleared immediately after** from `sol_*_status`, because `jaos_basis`
+publishes the basis *behind an answer* and there is none. A stopping point is
+not a solution and the two must not come out of the same call. This is why the
+starting basis lives in its own arrays (D68) rather than being read back out of
+the published ones: here they hold different things and only one of them is a
+statement about the model.
+
+**Left out for JAOS_SOLVE_NUMERICAL_ERROR**, alone among the six. It could not
+corrupt anything — a warm start is never a claim, and the solve that follows
+proves optimality from scratch — but it is the one state this solver does not
+vouch for, and handing it over as a starting point would be recommending it.
+
+### The test that had to be able to fail
+
+"Solve with a budget, raise it, solve again, get the right answer" passes
+whether or not anything was resumed: a solve that stopped before its first
+pivot leaves the slack basis, and starting from the slack basis is what the
+solver did before any of this existed. Two assertions close that:
+
+- the interrupted run must have got **past its first iteration**, or the basis
+  it left is the one a cold start would have built anyway;
+- the resumed run must cost **fewer iterations than a whole cold solve**, which
+  is the only observation that says the first run's work was kept rather than
+  redone.
+
+### A defensive line that came due one commit later
+
+D68 added `jaos_clear_basis` to the acceptance runner's *infeasible* path as
+well as its optimal one, and said so in a comment: it made no difference then,
+because an INFEASIBLE solve published no basis, and it was written "so that the
+day a stopping point does get published for a non-optimal outcome this check
+does not quietly stop measuring what it says it measures." That day was the
+next commit. Without it, all sixteen infeasible instances would have started
+reporting DIVERGED, and the reading would have been a determinism regression
+rather than a feature landing.

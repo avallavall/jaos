@@ -176,10 +176,12 @@ to be inside.
   the free-nonbasic refusal firing, and it costs that instance the whole warm
   start; it is the only one of the eleven with free columns that pays.
 
-  What is left: **a stopping point for a solve that did not reach an
-  optimum.** Only `publish`'s optimal path writes a basis, so a run cut off
-  by a work or time limit carries nothing forward, and resuming it is exactly
-  what a budgeted solve is for.
+  **Budgets are resumable now too (D70).** A solve stopped by a work or time
+  limit keeps the basis it stopped on, so raising the limit and solving again
+  continues rather than starting over — a budget whose only use was to abandon
+  work was half a budget. INFEASIBLE and UNBOUNDED keep one as well, for the
+  branch-and-bound case; a numerical failure is the one outcome that keeps
+  none, because it is the one state this solver does not vouch for.
 
 **Two claims this section used to make, and both were wrong.** It said a
 caller cannot vary the checker's tolerance: `jaos_check_solution` has taken

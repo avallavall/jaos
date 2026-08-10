@@ -11,6 +11,15 @@ open, `bench/README.md` for the gate, and the commit each entry came from.
 
 ### Added
 
+- **Resumable budgets.** A solve stopped by a work or time limit keeps the
+  basis it stopped on, so raising the limit and calling `jaos_solve` again
+  continues instead of starting over — until now the run's work was thrown
+  away, which made a budget a way to abandon work and nothing else. An
+  INFEASIBLE or UNBOUNDED verdict keeps one too, for the branch-and-bound node
+  that differs by one bound. A numerical failure keeps none: it cannot corrupt
+  an answer, but it is the one state the solver does not vouch for. There is
+  still nothing to read in between, and `jaos_basis` still refuses — a
+  stopping point is not a solution (D70).
 - `make warm` and `bench/warm.c`: what warm re-solve buys, which the gate
   cannot say — the gate solves each instance once from a fresh load, and that
   is the one case warm starting does not touch. One branch-and-bound branching

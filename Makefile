@@ -187,6 +187,17 @@ warm: $(B)/bench/warm
 	@mkdir -p bench/results
 	./$(B)/bench/warm -j $(J) -o bench/results/warm.txt
 
+# The same campaign on the large set. Three solves per instance where the
+# gate does two, so it costs about half as much again as `netlib-kennington`.
+warm-kennington: $(B)/bench/warm
+	@bench/fetch.sh -m bench/netlib-kennington.manifest \
+		-b https://netlib.org/lp/data/kennington -p gz-emps \
+		bench/instances-kennington
+	@mkdir -p bench/results
+	./$(B)/bench/warm -j $(J) -m bench/netlib-kennington.manifest \
+		-d bench/instances-kennington \
+		-o bench/results/warm-kennington.txt
+
 # JAOS as one competitor among several (bench/compare/README.md). Built on
 # demand and kept apart from the gate's runner: it reports seconds, which no
 # file the gate reads is allowed to contain (D17).

@@ -2151,6 +2151,49 @@ static void test_clearing_the_basis_makes_the_next_solve_cold(void)
     jaos_model_free(m);
 }
 
+/* A budget is for stopping and coming back, and until the basis survived the
+ * stop it was only for stopping.
+ *
+ * The interrupted solve publishes no answer, because it has none — but the
+ * basis it stopped on is where the next one starts, so raising the limit and
+ * solving again continues instead of beginning. Two assertions make this a
+ * test of that rather than of the budget: the interrupted run has to have got
+ * past its first iteration, or the basis it left is the slack basis and
+ * "resuming" from it proves nothing; and the resumed run has to cost fewer
+ * iterations than a whole cold solve, which is the only evidence that the
+ * first run's work was kept. */
+static void test_a_budget_stop_can_be_resumed(void)
+{
+    jaos_model *m = fresh();
+    load_warm_model(m, 1.5);
+
+    solve_and_verify(m, 4.5);
+    const int64_t whole_work = jaos_work_units(m);
+    const int64_t whole_iters = jaos_iterations(m);
+
+    jaos_clear_basis(m);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_work_limit(m, whole_work / 2));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_WORK_LIMIT, jaos_status_of(m));
+    TEST_ASSERT_TRUE(jaos_iterations(m) > 0);
+
+    /* No answer to read, and no basis behind one: a stopping point is not a
+     * solution and must not be readable through the call that publishes one. */
+    double obj = 0.0;
+    jaos_basis_status cs[2], rs[3];
+    TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT, jaos_objective(m, &obj));
+    TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT, jaos_basis(m, cs, rs));
+    /* It is kept where the next solve looks, which is somewhere else. */
+    TEST_ASSERT_NOT_NULL(m->start_col_status);
+
+    watch_the_start(m);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_work_limit(m, 0));
+    solve_and_verify(m, 4.5);
+    TEST_ASSERT_NOT_NULL(strstr(g_start_line, "the basis on the model"));
+    TEST_ASSERT_TRUE(jaos_iterations(m) < whole_iters);
+    jaos_model_free(m);
+}
+
 /* A basis of nothing but structurally empty columns.
  *
  * The slack basis cannot reach this state — every logical carries an entry —
@@ -2249,6 +2292,7 @@ int main(void)
     RUN_TEST(test_a_hostile_basis_costs_iterations_and_not_the_answer);
     RUN_TEST(test_a_status_whose_bound_was_retired);
     RUN_TEST(test_clearing_the_basis_makes_the_next_solve_cold);
+    RUN_TEST(test_a_budget_stop_can_be_resumed);
     RUN_TEST(test_a_warm_basis_of_empty_columns_factors_and_is_infeasible);
     RUN_TEST(test_duplicate_rows_reach_the_same_optimum);
     RUN_TEST(test_a_row_that_is_the_sum_of_two_others);
