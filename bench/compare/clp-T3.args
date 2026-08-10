@@ -1,0 +1,7 @@
+# Clp at tier T3 — stock defaults. Only the tolerances survive, and they are
+# a harness rule at every rung rather than tuning.
+-primalTolerance
+1e-7
+-dualTolerance
+1e-7
+-solve

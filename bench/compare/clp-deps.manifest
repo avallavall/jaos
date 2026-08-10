@@ -1,0 +1,23 @@
+# Clp's dependency chain, in build order, pinned exactly like the solvers.
+#
+# Clp does not stand alone: it needs CoinUtils for its data structures and Osi
+# for the solver interface it implements. Those are libraries, not competitors,
+# so they live here rather than in solvers.manifest — the loop there builds a
+# binary and runs it, and neither of these is one.
+#
+# Same format: a data line, then the url on the line after it. Same rules —
+# the sha256 is the one that was actually downloaded, and the licence is
+# verified at fetch time rather than trusted.
+#
+# Versions are the ones contemporaneous with Clp 1.17.11. A newer CoinUtils is
+# not automatically compatible, and the point of pinning is that "the
+# comparison" does not move when somebody upstream tags a release.
+#
+# name     version    licence   sha256 of the source archive
+# url
+
+coinutils  2.11.12    EPL-2.0   eef1785d78639b228ae2de26b334129fe6a7d399c4ac6f8fc5bb9054ba00de64
+https://github.com/coin-or/CoinUtils/archive/refs/tags/releases/2.11.12.tar.gz
+
+osi        0.108.11   EPL-2.0   1063b6a057e80222e2ede3ef0c73c0c54697e0fee1d913e2bef530310c13a670
+https://github.com/coin-or/Osi/archive/refs/tags/releases/0.108.11.tar.gz

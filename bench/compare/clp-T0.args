@@ -1,0 +1,18 @@
+# Clp at tier T0 — handicapped to JAOS's feature set.
+#
+# JAOS at T0 is: dual simplex, no presolve, no crash basis. -dualsimplex is
+# the verb rather than an option, so it comes last: Clp reads its arguments
+# in order and the solve happens where the verb is.
+#
+# One token per line, because the harness passes these unquoted and Clp takes
+# its options as separate -name value pairs.
+
+-primalTolerance
+1e-7
+-dualTolerance
+1e-7
+-presolve
+off
+-crash
+off
+-dualsimplex

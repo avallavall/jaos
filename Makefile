@@ -91,8 +91,17 @@ endif
 # Set by the `pgo` target to instrument, then to consume what it recorded.
 PGO_CFLAGS ?=
 
-RELEASE_CFLAGS := $(STD) $(WARN) $(FP) -Werror $(SHIP) -g -DNDEBUG $(PGO_CFLAGS)
-DEV_CFLAGS     := $(STD) $(WARN) $(FP) -Werror -g -Og
+# A hook for sweeping a method constant over a range without editing the
+# source between runs — `make EXTRA_CFLAGS=-DPRICE_PARTITIONS_VALUE=4`. Empty
+# in every shipping build, and it is a development switch rather than an
+# option: which pricing rule runs is the method, and the method is not the
+# caller's to choose (D64). Sweeping a constant that must not change a verdict
+# is also how three defects were found that 139 instances at one setting did
+# not (D39, D47, D72).
+EXTRA_CFLAGS ?=
+
+RELEASE_CFLAGS := $(STD) $(WARN) $(FP) -Werror $(SHIP) -g -DNDEBUG $(PGO_CFLAGS) $(EXTRA_CFLAGS)
+DEV_CFLAGS     := $(STD) $(WARN) $(FP) -Werror -g -Og $(EXTRA_CFLAGS)
 ASAN_CFLAGS    := $(DEV_CFLAGS) -fsanitize=address,undefined -fno-omit-frame-pointer
 
 # Vendored test framework: warnings on, -Werror off — not our code, dev-time

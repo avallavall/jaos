@@ -24,3 +24,8 @@ https://github.com/scipopt/soplex/archive/refs/tags/v8.0.3.tar.gz
 
 clp        1.17.11    EPL-2.0   2c078e174dc1a7a308e091b6256fb34b4017897fc140ea707ba207b2913ea46d
 https://github.com/coin-or/Clp/archive/refs/tags/releases/1.17.11.tar.gz
+
+# Clp's own dependencies, pinned the same way and built into a scratch prefix
+# that nothing else sees. They are libraries rather than solvers, so they are
+# listed here for the record and read from clp-deps.manifest by build_clp —
+# putting them in the loop above would have it try to run a library.

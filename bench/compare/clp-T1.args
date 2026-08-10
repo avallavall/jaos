@@ -1,0 +1,12 @@
+# Clp at tier T1 — T0 with the algorithm choice given back.
+#
+# -solve instead of -dualsimplex: Clp picks. Everything else is held at T0.
+-primalTolerance
+1e-7
+-dualTolerance
+1e-7
+-presolve
+off
+-crash
+off
+-solve

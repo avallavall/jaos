@@ -78,11 +78,84 @@ build_soplex() {
     cp "$bin" "$outdir/soplex-$ver"
 }
 
-build_clp() {
-    echo "  clp: not built yet — it needs CoinUtils and Osi, which is a" >&2
-    echo "  dependency chain rather than a repository. Left for when the" >&2
-    echo "  first two readings exist." >&2
+# The licence an archive actually carries, checked rather than trusted,
+# because it changes between versions. Shared by the loop below and by Clp's
+# dependency chain, so the two cannot drift into checking different things.
+licence_ok() {   # dir expected-licence name
+    found=$(ls "$1" 2>/dev/null | grep -i -m1 '^licen[cs]e' || true)
+    if [ -z "$found" ]; then
+        echo "FAIL  $3: no licence file in the archive" >&2
+        return 1
+    fi
+    case "$2" in
+        MIT)        grep -qi 'MIT License'             "$1/$found" && return 0 ;;
+        Apache-2.0) grep -qi 'Apache License'          "$1/$found" && return 0 ;;
+        EPL-2.0)    grep -qi 'Eclipse Public License'  "$1/$found" && return 0 ;;
+    esac
+    echo "FAIL  $3: licence is not the $2 the manifest records" >&2
     return 1
+}
+
+# Clp needs CoinUtils and Osi, so it is a chain rather than a package: each is
+# fetched and checksum-verified on the same terms as a competitor, built
+# static into a scratch prefix that nothing outside this build sees, and found
+# by the next link through that prefix's pkg-config files.
+#
+# Nothing is installed on the machine and nothing enters the repository — the
+# prefix lives in the same mktemp directory the sources do and goes with it.
+build_clp() {
+    src=$1; ver=$2
+    prefix="$work/coin-prefix"
+    mkdir -p "$prefix"
+    export PKG_CONFIG_PATH="$prefix/lib/pkgconfig"
+
+    # Common configure flags. Static because only the binary is kept; the
+    # optional numerical libraries are off because the comparison is about
+    # the simplex, and each one is a dependency this project would otherwise
+    # be pulling in to measure something it is not measuring.
+    coin_flags="--prefix=$prefix --disable-shared --enable-static
+                --without-glpk --without-blas --without-lapack"
+
+    awk '
+        /^#/ || /^[[:space:]]*$/ { next }
+        !have { name=$1; ver=$2; lic=$3; sum=$4; have=1; next }
+        { print name "\t" ver "\t" lic "\t" sum "\t" $1; have=0 }
+    ' "$here/clp-deps.manifest" > "$work/deps.list"
+
+    while IFS='	' read -r dn dv dl ds du; do
+        echo "  dep   $dn $dv"
+        curl -fsSL "$du" -o "$work/$dn.tar.gz" \
+            || { echo "FAIL  $dn: download" >&2; return 1; }
+        got=$(sha256sum "$work/$dn.tar.gz" | cut -d' ' -f1)
+        if [ "$got" != "$ds" ]; then
+            echo "FAIL  $dn: sha256 mismatch" >&2
+            echo "      manifest $ds" >&2
+            echo "      got      $got" >&2
+            return 1
+        fi
+        mkdir -p "$work/$dn"
+        tar -xzf "$work/$dn.tar.gz" -C "$work/$dn" --strip-components=1
+        licence_ok "$work/$dn" "$dl" "$dn" || return 1
+
+        # shellcheck disable=SC2086
+        ( cd "$work/$dn" && ./configure $coin_flags ) \
+            > "$work/$dn-conf.log" 2>&1 \
+            || { echo "  $dn: configure failed" >&2; tail -20 "$work/$dn-conf.log" >&2; return 1; }
+        make -C "$work/$dn" -j "$jobs" > "$work/$dn-build.log" 2>&1 \
+            || { echo "  $dn: build failed" >&2; tail -25 "$work/$dn-build.log" >&2; return 1; }
+        make -C "$work/$dn" install > "$work/$dn-install.log" 2>&1 \
+            || { echo "  $dn: install failed" >&2; tail -15 "$work/$dn-install.log" >&2; return 1; }
+    done < "$work/deps.list"
+
+    # shellcheck disable=SC2086
+    ( cd "$src" && ./configure $coin_flags ) > "$work/clp-conf.log" 2>&1 \
+        || { echo "  clp: configure failed" >&2; tail -20 "$work/clp-conf.log" >&2; return 1; }
+    make -C "$src" -j "$jobs" > "$work/clp-build.log" 2>&1 \
+        || { echo "  clp: build failed" >&2; tail -25 "$work/clp-build.log" >&2; return 1; }
+
+    bin=$(find "$src" -type f -name clp -perm -u+x | head -1)
+    [ -n "$bin" ] || { echo "clp binary not found" >&2; return 1; }
+    cp "$bin" "$outdir/clp-$ver"
 }
 
 parse | while IFS='	' read -r name ver lic sum url; do
@@ -112,23 +185,7 @@ parse | while IFS='	' read -r name ver lic sum url; do
     mkdir -p "$work/$name"
     tar -xzf "$tgz" -C "$work/$name" --strip-components=1
 
-    # The licence is checked rather than trusted: it changes between versions.
-    found=$(ls "$work/$name" | grep -i -m1 '^licen[cs]e' || true)
-    if [ -z "$found" ]; then
-        echo "FAIL  $name: no licence file in the archive" >&2
-        continue
-    fi
-    case "$lic" in
-        MIT)        grep -qi 'MIT License' "$work/$name/$found" || lic_bad=1 ;;
-        Apache-2.0) grep -qi 'Apache License' "$work/$name/$found" || lic_bad=1 ;;
-        EPL-2.0)    grep -qi 'Eclipse Public License' "$work/$name/$found" || lic_bad=1 ;;
-        *)          lic_bad=1 ;;
-    esac
-    if [ "${lic_bad:-0}" = "1" ]; then
-        echo "FAIL  $name: licence is not the $lic the manifest records" >&2
-        lic_bad=0
-        continue
-    fi
+    licence_ok "$work/$name" "$lic" "$name" || continue
 
     echo "build $name $ver ($lic, $jobs jobs)"
     if "build_$name" "$work/$name" "$ver"; then

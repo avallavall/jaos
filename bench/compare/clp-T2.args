@@ -1,0 +1,8 @@
+# Clp at tier T2 — T1 with presolve switched on. One line differs.
+-primalTolerance
+1e-7
+-dualTolerance
+1e-7
+-crash
+off
+-solve

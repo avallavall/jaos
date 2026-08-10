@@ -155,6 +155,16 @@ run_competitor() {
                 /^Solving time/     {tm=$2}
                 END{printf "%s\t%s\t%s\t%s", (st?st:"none"), ob, it, tm}' "$log"
             ;;
+        clp)
+            # shellcheck disable=SC2046
+            "$bin" "$mps" $(tier_args clp) > "$log" 2>&1
+            # Clp's closing line carries all four numbers and is the only one
+            # that does: "Optimal objective 5501.845888 - 2111 iterations
+            # time 0.082". Whitespace fields, not the colon-separated ones
+            # the other two use, so this awk stands on its own.
+            awk '/ iterations time /{st=$1; ob=$3; it=$5; tm=$8}
+                 END{printf "%s\t%s\t%s\t%s", (st?st:"none"), ob, it, tm}' "$log"
+            ;;
         *)  printf 'unsupported\t0\t0\t0' ;;
     esac
 }
