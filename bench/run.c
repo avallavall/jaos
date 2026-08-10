@@ -534,10 +534,17 @@ static bool run_one(const entry *e, const char *dir, tally *t)
      * up across ninety-four instances rather than on the one somebody
      * thought to look at. */
     stamp(e->name, dt);
+    /* `drop` is the largest multiplier the duality identity could not take,
+     * and `cert` whether it took all of them. Neither decides anything here
+     * — the gate's verdict is unchanged by both — and they are recorded for
+     * the reason the gap's two halves are: this is the file where a property
+     * shows itself across ninety-four instances rather than on the one
+     * somebody thought to look at. What they say is whether `Q` is the bound
+     * on suboptimality it is documented as being (D47). */
     emit("%-12s optimal    rows=%lld cols=%lld shape=%s iters=%lld "
             "work=%lld obj=%.17g ref=%.17g[%s] objective=%s checker=%s"
             " (col=%.3g row=%.3g rowrel=%.3g dual=%.3g gap=%.3g Q=%.3g"
-            " N=%.3g) det=%s digest=%016llx\n",
+            " N=%.3g drop=%.3g cert=%s) det=%s digest=%016llx\n",
             e->name, (long long)nr, (long long)nc, shape ? "ok" : "MISMATCH",
             (long long)iters, (long long)work, obj, expected, e->source,
             obj_ok ? "ok" : "OUT-OF-TOLERANCE", check_ok ? "ok" : "REJECTED",
@@ -545,6 +552,7 @@ static bool run_one(const entry *e, const char *dir, tally *t)
             rep.max_row_violation_relative,
             rep.max_dual_violation, rep.objective_gap,
             rep.gap_positive, rep.gap_negative,
+            rep.max_dropped_multiplier, rep.gap_certified ? "yes" : "no",
             det ? "ok" : "DIVERGED", (unsigned long long)d1);
 
     record(e->name, "optimal", true, shape, obj_ok, check_ok, det,

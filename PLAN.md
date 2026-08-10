@@ -403,6 +403,25 @@ at one setting do not find are hiding.
    constraint are enough to build it. Live on `etamacro` today at 2.25e-07.
    The cheap repair, judging a reduced cost against its own dot-product
    traffic, is measured and refuted: it separates nothing.
+
+   **It no longer passes in silence (D71).** `gap_certified` and
+   `max_dropped_multiplier` report whether the identity was complete and by
+   how much it was not; neither decides anything and no verdict moved. The
+   measurement that came with them changes the shape of the repair: **98 of
+   the 110 accepted answers carry a dropped term**, not the 15 D47 estimated,
+   so "report the bound as void" would void the gate rather than annotate it.
+   And the distribution decays smoothly from 2.25e-07 to 1.35e-17 with no gap
+   in it, which refutes every threshold from a second direction. **Not one
+   dropped multiplier reaches 1e-6**, the tolerance the checker uses to call a
+   multiplier nonzero — the whole exposure sits inside what it already calls
+   zero.
+
+   What is left is D47's second route and it is now the only one with
+   evidence: `|d_j|` times the step a ratio test allows is a certified lower
+   bound on the suboptimality and needs no reference value. It needs
+   `B^-1 a_j`, so the checker would need a basis and a factorization of its
+   own — and an answer to what "independent" means once it shares machinery
+   with the solver.
 2. **The re-entry loop does not always converge (D49, D50, D51).** Its two
    repairs undo each other — the dual simplex borrows cost shifts to keep
    dual feasibility, `settle_shifts` calls the loans in, and the largest loan

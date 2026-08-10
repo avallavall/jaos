@@ -101,6 +101,35 @@ static double interval_violation(double v, double lo, double hi)
  * apart costs one add and is what makes the difference between "these two
  * objectives agree" and "these two objectives agree because two large
  * quantities cancelled" visible from outside (D24). */
+/* What the dual walk accumulates. Bundled rather than passed as five
+ * out-parameters, which is where a caller starts handing them over in the
+ * wrong order. */
+typedef struct {
+    long double dual_obj;
+    long double pos, neg;
+
+    /* The largest multiplier whose term the dual objective could not take,
+     * and how many there were.
+     *
+     * A multiplier whose sign points at an infinite bound has no `w * bound`
+     * to contribute — the term is minus infinity, because the dual objective
+     * of a variable free in the improving direction is unbounded below. The
+     * sum then belongs to a *different* problem, one where that variable had
+     * a finite bound, and `P - D = sum w_v (v - bound_v)` no longer holds for
+     * the problem that was asked about. So `gap_positive` stops being the
+     * bound it is documented as being, and nothing in the report used to say
+     * so (D47).
+     *
+     * These two are what says so. They decide nothing — no verdict reads
+     * them — because deciding would need a threshold, and D47 measured that
+     * no local test on a reduced cost separates the harmful case from the
+     * harmless one: what makes a dropped term cost anything is the distance
+     * the variable travels, which is a property of the polytope and not of
+     * the column. What the caller gets is the fact and its size. */
+    double dropped_max;
+    int64_t dropped_n;
+} dual_acc;
+
 static void split_term(long double t, long double *pos, long double *neg)
 {
     if (t > 0.0L)
@@ -109,9 +138,22 @@ static void split_term(long double t, long double *pos, long double *neg)
         *neg -= t;    /* kept as a magnitude, so both halves are >= 0 */
 }
 
+/* Records a term the dual objective could not take. Every nonzero multiplier
+ * pointing at an infinite bound counts, with no magnitude exemption: the
+ * exemption below is about whether a *sign condition* is violated, and this
+ * is about whether a *sum* is complete. A multiplier of 1e-15 is
+ * indistinguishable from zero as a sign test and still drops a term of minus
+ * infinity from an identity, and the whole content of D47 is that the two
+ * questions have different answers. */
+static void note_dropped(dual_acc *a, double w)
+{
+    a->dropped_n++;
+    if (fabs(w) > a->dropped_max)
+        a->dropped_max = fabs(w);
+}
+
 static double sign_condition(double v, double lo, double hi, double w,
-                             double tol, double scale, long double *dual_obj,
-                             long double *pos, long double *neg)
+                             double tol, double scale, dual_acc *a)
 {
     double window = tol * scale;
     bool at_lo = isfinite(lo) && v <= lo + window;
@@ -144,17 +186,21 @@ static double sign_condition(double v, double lo, double hi, double w,
     bool negligible = fabs(w) <= tol;
 
     if (w > 0.0) {
-        if (!isfinite(lo))
+        if (!isfinite(lo)) {
+            note_dropped(a, w);
             return negligible ? 0.0 : w;
-        *dual_obj += (long double)w * lo;
-        split_term((long double)w * ((long double)v - lo), pos, neg);
+        }
+        a->dual_obj += (long double)w * lo;
+        split_term((long double)w * ((long double)v - lo), &a->pos, &a->neg);
         return (negligible || at_lo) ? 0.0 : w;
     }
     if (w < 0.0) {
-        if (!isfinite(hi))
+        if (!isfinite(hi)) {
+            note_dropped(a, w);
             return negligible ? 0.0 : -w;
-        *dual_obj += (long double)w * hi;
-        split_term((long double)w * ((long double)v - hi), pos, neg);
+        }
+        a->dual_obj += (long double)w * hi;
+        split_term((long double)w * ((long double)v - hi), &a->pos, &a->neg);
         return (negligible || at_hi) ? 0.0 : -w;
     }
     return 0.0;   /* a zero multiplier contributes to neither */
@@ -240,15 +286,14 @@ jaos_status jaos_check_solution(const jaos_model *m,
     if (row_dual != nullptr) {
         const double sigma = (m->sense == JAOS_MAXIMIZE) ? -1.0 : 1.0;
         double dual_viol = 0.0;
-        long double dual_obj = sigma * m->obj_offset; /* canonical offset */
-        long double pos = 0.0L, neg = 0.0L;
+        dual_acc a = {0};
+        a.dual_obj = sigma * m->obj_offset;   /* canonical offset */
 
         for (int64_t i = 0; i < m->num_row; i++)
             dual_viol = max2(dual_viol,
                 sign_condition((double)act[i], m->row_lower[i],
                                m->row_upper[i], sigma * row_dual[i], tol,
-                               max2(1.0, (double)traffic[i]), &dual_obj,
-                               &pos, &neg));
+                               max2(1.0, (double)traffic[i]), &a));
 
         for (int64_t j = 0; j < m->num_col; j++) {
             /* Reduced cost d_j = c_j - a_j' y, canonicalized. */
@@ -263,13 +308,13 @@ jaos_status jaos_check_solution(const jaos_model *m,
             dual_viol = max2(dual_viol,
                 sign_condition(col_value[j], m->col_lower[j], m->col_upper[j],
                                sigma * d, tol, max2(1.0, fabs(col_value[j])),
-                               &dual_obj, &pos, &neg));
+                               &a));
         }
 
         /* The gap is the identity that catches a corrupted dot product even
          * when the sign conditions it also corrupts still pass, so it is
          * formed at the wider precision and narrowed only at the end. */
-        long double true_dual_obj = sigma * dual_obj;
+        long double true_dual_obj = sigma * a.dual_obj;
         long double diff = fabsl(primal_obj - true_dual_obj);
         long double scale = 1.0L + fabsl(primal_obj) + fabsl(true_dual_obj);
         double gap = (double)(diff / scale);
@@ -278,6 +323,13 @@ jaos_status jaos_check_solution(const jaos_model *m,
         out->max_dual_violation = dual_viol;
         out->dual_objective = (double)true_dual_obj;
         out->objective_gap = gap;
+        /* Whether the identity the two halves come from was complete. Not a
+         * verdict and not compared against anything: it says whether
+         * gap_positive is the bound it is documented as being, which is a
+         * different question from whether this point is good. */
+        out->max_dropped_multiplier = a.dropped_max;
+        out->dropped_terms = a.dropped_n;
+        out->gap_certified = a.dropped_n == 0;
         /* Reported in the objective's own units rather than against the
          * scale above, because what they are for is the bound
          * P - P* <= gap_positive, and a bound is only usable in the units
@@ -285,8 +337,8 @@ jaos_status jaos_check_solution(const jaos_model *m,
          * division the line above does: |pos - neg| is the same quantity
          * as `diff`, arrived at along an independent route, which is the
          * kind of redundancy the rest of this file is built out of. */
-        out->gap_positive = (double)pos;
-        out->gap_negative = (double)neg;
+        out->gap_positive = (double)a.pos;
+        out->gap_negative = (double)a.neg;
         out->dual_feasible = dual_viol <= tol && gap <= tol;
     }
 

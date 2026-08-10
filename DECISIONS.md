@@ -4318,3 +4318,92 @@ does not quietly stop measuring what it says it measures." That day was the
 next commit. Without it, all sixteen infeasible instances would have started
 reporting DIVERGED, and the reading would have been a determinism regression
 rather than a feature landing.
+
+## D71 — The checker says when its bound is not a bound, and the count is 98 of 110
+
+D47 established that `gap_positive` — documented in `jaos.h` as satisfying
+`P - P* <= gap_positive` — is not a bound whenever a multiplier's sign points
+at an infinite bound, because the term it owes the dual objective is minus
+infinity and gets dropped. It left two honest routes and said choosing between
+them was the open work. **Both need the same thing first, and nobody had it:
+the fact reported, and its size measured.** This does that and nothing else.
+
+`jaos_check_report` gains `gap_certified` — the identity took every term, so
+the bound holds — and `max_dropped_multiplier`, the largest one it could not
+take. **Neither decides anything.** No verdict reads them, the gate is
+untouched, and all three sets pass with 0 regressed. That restraint is not
+timidity: deciding needs a threshold, and the measurement below is the second
+independent refutation of every threshold there is.
+
+### The measurement, over the 110 accepted answers of both feasible sets
+
+**98 of 110 carry at least one dropped term.** D47 estimated 15, thresholding
+at 1e-12; the real count at that threshold is 22, and with no threshold at all
+it is 98. The distribution:
+
+| multipliers above | answers |
+|---|---|
+| 1e-6 — *the checker's own tolerance* | **0** |
+| 1e-7 | 1 — `etamacro` at 2.25e-07 |
+| 1e-8 | 5 |
+| 1e-9 | 6 |
+| 1e-10 | 9 |
+| 1e-11 | 18 |
+| 1e-12 | 22 |
+| 1e-13 | 43 |
+| 1e-14 | 72 |
+| 1e-15 | 84 |
+| anything at all | 98 |
+
+The largest is `etamacro` at **2.25e-07**, which reproduces D47's figure for
+the same instance exactly and is the same order as the 3.47e-07 that cost
+`pilot` 1.04e-3 of objective at a refactorization interval of 32.
+
+### Two things this changes, and one it confirms
+
+**Route A is not what D47 costed it at.** "Report the bound as void" would say
+JAOS cannot certify **98** of its 110 accepted answers, not 15. That is not an
+annotation on a gate, it is the gate. Anyone taking that route now knows the
+price before paying it, which is the whole reason to measure before repairing.
+
+**There is nowhere to put a threshold, and now that is a measurement rather
+than an argument.** D47 refuted the obvious one on four columns, by showing
+that a backward-error ratio scores an accepted answer four times worse than a
+rejected one. This refutes every threshold from a different direction: the
+distribution decays smoothly from 2.25e-07 to 1.35e-17 with no gap anywhere in
+it. There is no valley to cut at. Two independent refutations of the same
+class of repair is what closes a question rather than deferring it.
+
+**And the sharpest fact is the first row of that table.** Not one dropped
+multiplier in either feasible set reaches 1e-6 — the tolerance the checker
+uses to decide whether a multiplier is nonzero at all. So every one of them is
+a number this checker calls zero, and `pilot`'s 3.47e-07 was too. **The entire
+exposure lives inside what the checker already calls zero**, which is why no
+amount of tightening its sign test could ever have reached it.
+
+### What is left, and it is now the only route with evidence behind it
+
+D47's second route: `|d_j|` times the step a ratio test allows is a certified
+*lower* bound on the suboptimality, it needs no reference value, and it was
+1.04e-3 on `pilot` at 32. It needs `B^-1 a_j`, so the independent checker would
+need a basis and a factorization of its own — a real cost, and a real question
+about what "independent" then means, since the thing that verifies the answer
+would start sharing machinery with the thing that produced it.
+
+Until then the honest statement is the one D47 made and this measures: the
+Netlib gate means what it means because of Koch's reference values, which
+PLAN 2.10 already names as the one thing in the milestone that does not come
+from JAOS. **It was right for a reason nobody had measured, and the size of
+that reason is 98 of 110.**
+
+### Found in the same audit, and repaired
+
+`docs/tolerances.md` still listed `pilot` and `pilot87` as refused by the
+checker and counted "92 of 94 instances" green. Both closed two decisions ago
+— `pilot` by D29's iterative refinement, which took its row residue from
+1.73e-6 to 6.73e-13 on a solve that came out *cheaper*, and `pilot87` by D30 —
+and the document's own next paragraph narrated the `pilot87` repair while the
+table above it still called it outstanding. All 94 are green and have been for
+some time. In a repository whose first rule is that the design is written down
+and must not be reconstructed from the code, a document that contradicts both
+the code and itself is the most expensive kind of defect there is.

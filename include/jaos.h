@@ -445,14 +445,44 @@ typedef struct jaos_check_report {
        separately, in the objective's own units. A negative term needs a
        primal violation, so on an exactly feasible point gap_negative is
        zero and gap_positive alone bounds the suboptimality:
-       P - P* <= gap_positive. When it is not zero the two cancel, and a
-       small objective_gap no longer says the point is nearly optimal —
-       which the gap on its own cannot show. Both decide nothing.        */
+       P - P* <= gap_positive — but only when gap_certified below says the
+       sum it came from was complete. When gap_negative is not zero the two
+       cancel, and a small objective_gap no longer says the point is nearly
+       optimal, which the gap on its own cannot show. Both decide nothing. */
     double gap_positive;
     double gap_negative;
+
+    /* The largest multiplier whose term that sum could not take, and how
+       many there were.
+
+       A multiplier whose sign points at an infinite bound has no w * bound
+       to contribute: the term is minus infinity, because the dual objective
+       of a variable free in the improving direction is unbounded below.
+       Dropping it silently leaves dual_objective describing a *different*
+       problem — one where that variable had a finite bound — so the bound
+       above stops holding for the problem that was asked about.
+
+       That is not hypothetical. Two variables and one constraint are enough
+       to build a point that is arbitrarily suboptimal and on which every
+       number in this report reads zero, including gap_positive (D47). This
+       pair is what makes that case visible from outside.
+
+       Neither decides anything, and that is deliberate: deciding would need
+       a threshold on the multiplier, and what makes a dropped term cost
+       anything is the distance the variable would travel, which is a
+       property of the whole polytope and not of the column. No test on the
+       multiplier alone separates the harmful case from the harmless one —
+       measured, in D47. So the caller is given the fact and its size. */
+    double max_dropped_multiplier;
+    int64_t dropped_terms;
+
     bool primal_feasible;       /* violations within tolerance             */
     bool dual_feasible;         /* sign conditions and gap within tol      */
     bool checked_duals;         /* false when row_dual was NULL            */
+    /* No term was dropped, so gap_positive really is a bound on P - P*.
+       False does not mean the answer is wrong — most dropped multipliers
+       are roundoff — it means this report does not prove it right.        */
+    bool gap_certified;
 } jaos_check_report;
 
 /* Judges a claimed solution against the model as loaded — original space,

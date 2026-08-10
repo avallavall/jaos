@@ -175,6 +175,25 @@ positive half is exactly what bounds the suboptimality. The two halves are an
 instrument for a question the gap could not be asked, not a repair to a hole
 in it.
 
+**The hole is somewhere else, and it is in the identity rather than in the
+halves.** `P − D = sum_v w_v (v − bound_v)` needs every term, and a multiplier
+whose sign points at an *infinite* bound has none to give: the term is minus
+infinity, because the dual objective of a variable free in the improving
+direction is unbounded below. Dropping it leaves a sum belonging to a
+different problem — one where that variable had a finite bound — so `Q` stops
+bounding anything. Two variables and one constraint build a point that is
+arbitrarily suboptimal and on which `Q`, the gap and every violation all read
+zero (D47).
+
+`gap_certified` says whether the sum was complete, and `max_dropped_multiplier`
+how big the largest missing term's multiplier was. **Neither decides
+anything**, and that is not caution: D47 measured the obvious threshold —
+judging the multiplier against the traffic of the dot product that formed it,
+the same move D23 made for rows — and it separates nothing, because what makes
+a dropped term cost anything is the distance the variable would travel, which
+is a property of the polytope and not of the column. So the report states the
+fact and leaves the judgement where the information is.
+
 **The primal residue, relative.** `max_row_violation_relative` reports the
 worst row residue as a fraction of what that row carries — `sum_j |a_ij x_j|`,
 the same quantity the bound-proximity window is built from. It decides
@@ -203,9 +222,9 @@ floating-point luck rather than about the solver.
 ## What is not settled
 
 Instances have now argued with them. The Netlib gate has been run over the
-whole standard set (`bench/results/netlib.txt`), and 92 of 94 instances come
-back with the checker green at the tolerance above. Six of the original
-eight failures closed, and **not one of them closed by moving a number**:
+whole standard set (`bench/results/netlib.txt`), and **all 94 instances come
+back with the checker green** at the tolerance above. All eight of the
+original failures closed, and **not one of them closed by moving a number**:
 
 | instance | what it actually was | |
 |---|---|---|
@@ -215,6 +234,8 @@ eight failures closed, and **not one of them closed by moving a number**:
 | `grow15` | a cycle that had been read as a stall | D26 |
 | `etamacro` | a repair test reading the wrong quantity, in the wrong space | D27 |
 | `greenbea` | a column with nowhere to rest, needing a basis change rather than a move | D28 |
+| `pilot` | an answer read off an inaccurate solve of a fresh factorization | D29 |
+| `pilot87` | a clean-up loop dispatching one column of twelve | D30 |
 
 That is the case for leaving these numbers where they are, made by instances
 rather than by argument: every failure anyone was tempted to blame on a
@@ -225,28 +246,27 @@ the tolerance or to pick a space, but to test a quantity that has neither:
 the term the breach contributes to the duality gap, which comes out the same
 number either way.
 
-What is left:
+**Nothing is left of that list**, and the last two are worth a paragraph each
+because both were, at the time, the strongest case anyone had for moving a
+number.
 
-| Instance | what refuses it | |
-|---|---|---|
-| `pilot` | one row `1.73e-6` outside its bound | dual violation `0`, gap `6.6e-14`, objective within tolerance |
-| `pilot87` | its objective, by 7.6x | dual violation `1.87e-5`, gap `2.75e-8` |
+**`pilot` was the one case where a tolerance was genuinely the question, and
+it was the primal one.** Everything else about that answer was right: the
+objective inside `2.3e-5` of Koch against a bar of `5.6e-4`, the dual
+violation exactly zero, the gap `6.6e-14`. What refused it was
+`interval_violation`, an absolute test, on a row `1.73e-6` — 1.73 tolerances
+— outside its bound. D24 refused to make that test relative for four reasons;
+D28 recorded that one of them had expired, and what replaced it was stronger:
+the relative figure said `pilot`'s row was `6.93e-9` of what the row carries
+against `8.21e-17` for `finnis`, so a relative window would have waved through
+a violation that was real. **The row was real, and it was the answer that was
+wrong.** D29 refined both solves of the refresh that verifies an optimum, and
+the residue went from `1.73e-6` to `6.73e-13` — four hundred thousand times
+narrower than the window anyone was proposing to widen, on a solve that came
+out *cheaper*. It reads `9.09e-13` today.
 
-**`pilot` is now the one case where a tolerance is genuinely the question,
-and it is the primal one.** Everything else about that answer is right: the
-objective is inside `2.3e-5` of Koch against a bar of `5.6e-4`, the dual
-violation is exactly zero, the gap is `6.6e-14`. What refuses it is
-`interval_violation`, an absolute test, on a row 1.73 times the tolerance
-out. D24 refused to make that test relative for four reasons; D28 records
-that one of them — "the change buys no verdict, since `pilot` is rejected on
-the gap and the objective anyway" — has expired, and what replaced it is
-stronger: the relative figure says `pilot`'s row is `6.93e-9` of what the row
-carries, against `8.21e-17` for `finnis`, so a relative window would wave
-through a violation that is real. The other three arguments stand, and
-the first is still sufficient on its own: primal feasibility is the
-hypothesis D23's identity rests on rather than a test beside it. The only
-form worth revisiting is the one D24 already names, `min(tol, tol·s)`, which
-narrows.
+That is the whole argument of this section arriving at its own last case:
+the instance that most looked like a tolerance was not one either.
 
 `pilot87` was not a tolerance question at all, and it turned out not to be a
 precision one either: an objective 7.6x outside the bar was a wrong answer,

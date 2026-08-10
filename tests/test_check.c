@@ -235,6 +235,78 @@ static void test_a_waived_sign_condition_is_still_caught_by_the_gap(void)
     jaos_model_free(m);
 }
 
+/* The case the report used to have no way to describe (D47).
+ *
+ *      min  -1e-7 * x2   s.t.  x1 + x2 <= 1e6,  x1, x2 >= 0, both free above
+ *
+ * The optimum is -0.1 at x = (0, 1e6). Offer the checker the origin with a
+ * zero row dual and every number it reports is zero — including gap_positive,
+ * which jaos.h documents as bounding P - P*. The true suboptimality is 0.1,
+ * which is 1e5 tolerances. Raising the row's bound raises it without limit
+ * and changes not one of the numbers.
+ *
+ * The reason is one line in sign_condition: x2's reduced cost of -1e-7 points
+ * at an upper bound that does not exist, so the term it owes the dual
+ * objective is minus infinity, and dropping it leaves a sum that belongs to a
+ * different problem. Nothing local can separate this from roundoff — what
+ * makes it cost 0.1 is how far x2 would travel, which is a property of the
+ * polytope — so the report says the sum was incomplete rather than pretending
+ * to judge it.
+ *
+ * Both halves are asserted. The zeros, because they are still the honest
+ * output and a future change that quietly made them nonzero would be
+ * inventing a violation. And gap_certified, because without it this report
+ * claims a bound it cannot prove. */
+static void test_a_dropped_term_is_reported_rather_than_certified(void)
+{
+    const double c[] = {0.0, -1e-7};
+    const double cl[] = {0.0, 0.0}, cu[] = {INFINITY, INFINITY};
+    const double rl[] = {-INFINITY}, ru[] = {1e6};
+    const int64_t s[] = {0, 1, 2}, ix[] = {0, 0};
+    const double v[] = {1.0, 1.0};
+    jaos_model *m = nullptr;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_model_new(&m));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_load_lp(m, 2, 1, JAOS_MINIMIZE, 0.0, c, cl, cu, rl, ru,
+                     2, s, ix, v));
+
+    const double origin[] = {0.0, 0.0};
+    const double y0[] = {0.0};
+    jaos_check_report r;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_check_solution(m, origin, y0, 1e-6, &r));
+
+    /* Everything reads zero, on a point 0.1 away from optimal. */
+    TEST_ASSERT_TRUE(r.primal_feasible);
+    TEST_ASSERT_TRUE(r.dual_feasible);
+    TEST_ASSERT_DOUBLE_WITHIN(1e-15, 0.0, r.max_dual_violation);
+    TEST_ASSERT_DOUBLE_WITHIN(1e-15, 0.0, r.objective_gap);
+    TEST_ASSERT_DOUBLE_WITHIN(1e-15, 0.0, r.gap_positive);
+    TEST_ASSERT_DOUBLE_WITHIN(1e-15, 0.0, r.gap_negative);
+
+    /* And the report now says so instead of leaving the bound to be believed. */
+    TEST_ASSERT_FALSE(r.gap_certified);
+    TEST_ASSERT_EQUAL_INT64(1, r.dropped_terms);
+    TEST_ASSERT_DOUBLE_WITHIN(1e-15, 1e-7, r.max_dropped_multiplier);
+
+    /* The case it must NOT flag: the same model at its true optimum, where
+     * the row's multiplier points at a bound that exists and x1's points at
+     * its own lower bound. A predicate that were simply always false here
+     * would pass every assertion above and be worthless. */
+    const double best[] = {0.0, 1e6};
+    const double ybest[] = {-1e-7};
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_check_solution(m, best, ybest, 1e-6, &r));
+    TEST_ASSERT_TRUE(r.primal_feasible);
+    TEST_ASSERT_TRUE(r.dual_feasible);
+    TEST_ASSERT_TRUE(r.gap_certified);
+    TEST_ASSERT_EQUAL_INT64(0, r.dropped_terms);
+    TEST_ASSERT_DOUBLE_WITHIN(1e-15, 0.0, r.max_dropped_multiplier);
+    TEST_ASSERT_DOUBLE_WITHIN(1e-12, -0.1, r.primal_objective);
+    TEST_ASSERT_DOUBLE_WITHIN(1e-12, -0.1, r.dual_objective);
+    jaos_model_free(m);
+}
+
 static void test_check_rejects_bad_arguments(void)
 {
     jaos_model *m = make_t1();
@@ -547,6 +619,7 @@ int main(void)
     RUN_TEST(test_t2_flags_wrong_dual_magnitude);
     RUN_TEST(test_a_tiny_multiplier_on_a_large_bound_still_counts);
     RUN_TEST(test_a_waived_sign_condition_is_still_caught_by_the_gap);
+    RUN_TEST(test_a_dropped_term_is_reported_rather_than_certified);
     RUN_TEST(test_check_rejects_bad_arguments);
     return UNITY_END();
 }

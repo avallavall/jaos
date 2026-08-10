@@ -11,6 +11,18 @@ open, `bench/README.md` for the gate, and the commit each entry came from.
 
 ### Added
 
+- `jaos_check_report` gains `gap_certified` and `max_dropped_multiplier`: the
+  checker now says when `gap_positive` is not the bound on suboptimality that
+  `jaos.h` documents it as being. It stops being a bound whenever a
+  multiplier's sign points at an infinite bound, because the term it owes the
+  dual objective is minus infinity and gets dropped — two variables and one
+  constraint build a point that is arbitrarily suboptimal with every number in
+  the report reading zero. Neither field decides anything and no verdict
+  moved: three gates PASS, 0 regressed. **98 of the 110 accepted answers carry
+  a dropped term**, against the 15 D47 estimated, and not one of them reaches
+  1e-6 — the whole exposure sits inside what the checker already calls zero
+  (D71).
+
 - **Resumable budgets.** A solve stopped by a work or time limit keeps the
   basis it stopped on, so raising the limit and calling `jaos_solve` again
   continues instead of starting over — until now the run's work was thrown
@@ -149,6 +161,15 @@ open, `bench/README.md` for the gate, and the commit each entry came from.
   the gate (D21).
 
 ### Fixed
+
+- `docs/tolerances.md` listed `pilot` and `pilot87` as refused by the checker
+  and counted "92 of 94 instances" green. Both closed two decisions ago —
+  `pilot` by D29, `pilot87` by D30 — and the document's own next paragraph
+  narrated the second repair while the table above it still called it
+  outstanding. All 94 are green. In a repository whose first rule is that the
+  design is written down and must not be reconstructed from the code, a
+  document that contradicts both the code and itself is the expensive kind of
+  defect (D71).
 
 - A basis of nothing but structurally empty columns made `jaos_solve` fail
   instead of reporting the model infeasible. `refactorize` asked for capacity
