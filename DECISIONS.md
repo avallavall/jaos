@@ -4628,3 +4628,54 @@ No verdict reads either field, and the three gates pass with 0 regressed and
 first predicate in this checker that can fail an answer no tolerance rejects —
 and it needs an instance that fails it before it is worth deciding. None of
 the 110 does.
+
+### **Refuted, the same day, by the one instance that could test it**
+
+Everything above about *soundness* stands. The claim that the factorization
+"was never the obstacle" does not, and this is what refuted it.
+
+`pilot` at a refactorization interval of 32 is D47's own reproduction: it
+stops on a point 1.04e-3 away from the optimum with every checker number
+green. Swept over the intervals D47 used, in the tree as it stands today:
+
+| `REFACTOR_EVERY` | objective | `drop` | **`sub`** |
+|---|---|---|---|
+| 16 | ok | 8.62e-09 | 3.89e-32 |
+| 24 | **OUT-OF-TOLERANCE** | 3.47e-07 | 1.58e-31 |
+| 32 | **OUT-OF-TOLERANCE** | 3.47e-07 | **4.4e-20** |
+| 48 | **OUT-OF-TOLERANCE** | 3.47e-07 | 3.11e-24 |
+| 64 | ok | 8.62e-09 | 1.01e-31 |
+| 96 | **OUT-OF-TOLERANCE** | 3.47e-07 | 2.88e-31 |
+
+Four of six answers are wrong by 1.04e-3 and every one of them passes the
+checker. **The certificate reads the same nothing on the wrong answers as on
+the right ones.** It does not separate them; it carries no information at all.
+
+**And the reason is structural rather than bad luck.** A column moving on its
+own is stopped by the first row that is tight, and a vertex is *defined* by
+rows being tight — so at any vertex the move-alone step is essentially zero,
+whatever the reduced cost. The simplex direction travels because it lets the
+basic variables move to keep those rows satisfied, which is exactly the part
+that needs `B^-1 a_j`. Column 1534 wants to travel 2990; alone, it cannot
+travel at all.
+
+**So the 110-answer measurement above proves much less than it appeared to.**
+"Certifies nothing on 110 correct answers" read as "does not false-alarm"; it
+is better read as "cannot fire at a vertex", and the two are indistinguishable
+from that data. The constructed test in `tests/test_check.c` fires only
+because the point it judges is the origin with a row carrying 1e6 of slack —
+not a vertex of anything tight. **A green result is not a proof**, and this is
+what that rule costs when the only adversarial case is one you built yourself.
+
+What survives, precisely:
+
+- The number is a sound lower bound. It never overclaims, and 110 answers plus
+  a constructed case say so.
+- The split at `|w| <= tol` for unbounded rays stands, and so does the point
+  that a factorization would not help those five: a feasible ray is a feasible
+  ray whatever direction found it.
+- **Route B needs the simplex direction after all**, and therefore a basis and
+  a factorization inside the checker, and therefore an answer to what
+  "independent" means. D47 costed it correctly. What this entry adds is the
+  price of the cheap alternative, measured: on the one instance in this
+  project known to be wrong, it is worth nothing.

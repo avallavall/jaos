@@ -22,7 +22,12 @@ open, `bench/README.md` for the gate, and the commit each entry came from.
   zero. Largest certificate over all 110 reference answers: 4.98e-16, so it
   does not false-alarm; five instances carry a ray whose rate the checker
   calls zero, and those are counted rather than reported as infinite
-  suboptimality. Decides nothing yet (D73).
+  suboptimality. Decides nothing, and on the evidence it is not fit to: on
+  `pilot` at the refactorization intervals where this solver is known to
+  return an answer 1.04e-3 off with the checker green, it reads the same
+  ~1e-25 it reads on the correct answers. A column moving alone is stopped by
+  the first tight row and a vertex is what tight rows are, so it cannot fire
+  where simplex answers live. Sound, and uninformative (D73).
 - `jaos_check_report` gains `gap_certified` and `max_dropped_multiplier`: the
   checker now says when `gap_positive` is not the bound on suboptimality that
   `jaos.h` documents it as being. It stops being a bound whenever a

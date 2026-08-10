@@ -430,16 +430,22 @@ at one setting do not find are hiding.
    multiplier. Largest certificate over all 110 answers: **4.98e-16**. Five
    instances carry an unquantified ray.
 
-   **What is left is not machinery.** A column with an unbounded move-alone
-   step already has a feasible ray of the model; adding `B^-1 a_j` computes a
-   longer step but cannot make a rate of 1e-8 distinguishable from zero. So
-   105 of 110 are fully quantified with no factorization, and the 5 that are
-   not are unquantifiable for a reason no factorization fixes. The open
-   question is the one D47 named at the start and is now the only one:
-   **whether `certified_suboptimality` should be allowed to fail an answer.**
-   It would be the first predicate here that rejects a point no tolerance
-   rejects, and none of the 110 gives it the chance — so it needs an instance
-   before it needs a decision.
+   **And then the cheap version was refuted by the one instance that could
+   test it (D73).** `pilot` at intervals 24, 32, 48 and 96 returns an answer
+   1.04e-3 away from the optimum with every checker number green, and the
+   certificate reads between 4e-20 and 3e-31 there — the same as on the two
+   intervals that answer correctly. It separates nothing. The reason is
+   structural: a column moving alone is stopped by the first tight row, and a
+   vertex is what tight rows are, so at any vertex the step is essentially
+   zero however wrong the point is. The 110-answer measurement that looked
+   like "no false alarms" is better read as "cannot fire at a vertex".
+
+   What survives is that the number is a sound lower bound, and that a
+   factorization would not help the five unquantified rays. **Route B needs
+   the simplex direction after all** — a basis and a factorization inside the
+   checker, and an answer to what "independent" then means. D47 costed it
+   right; what is now measured is the price of the cheap alternative, which on
+   the one answer this project knows to be wrong is nothing.
 2. **The re-entry loop does not always converge (D49, D50, D51).** Its two
    repairs undo each other — the dual simplex borrows cost shifts to keep
    dual feasibility, `settle_shifts` calls the loans in, and the largest loan

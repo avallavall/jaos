@@ -494,13 +494,23 @@ typedef struct jaos_check_report {
        ray, which is a proof that the model is unbounded rather than that this
        point is suboptimal.
 
+       **A zero here says almost nothing, and the reason is structural.** A
+       column moving alone is stopped by the first row that is tight, and a
+       vertex is what having tight rows means — so at any vertex, which is
+       where every simplex answer sits, this is essentially zero however
+       wrong the point is. Measured: on four answers this solver is known to
+       get wrong by 1.04e-3, it reads between 4e-20 and 3e-31, the same as on
+       the correct ones (D73). A positive value is worth acting on; a small
+       one is not evidence of anything.
+
        Rows contribute nothing here. A row's activity cannot be moved on its
        own, so there is no single-entity direction to measure along, and what
        a dropped row multiplier is worth is the part that would need the
        factorization.
 
-       Decides nothing today. Read alongside dropped_terms: a large value on a
-       point the report otherwise accepts is the case D47 built.             */
+       Decides nothing today, and on the evidence it is not yet fit to: a
+       predicate that reads the same on a wrong answer as on a right one
+       cannot be a verdict.                                                  */
     double certified_suboptimality;
 
     /* Columns that could move without limit — no row ever stops them — but
