@@ -49,6 +49,8 @@ static void model_release_arrays(jaos_model *m)
     free(m->sol_redcost);
     free(m->sol_col_status);
     free(m->sol_row_status);
+    free(m->start_col_status);
+    free(m->start_row_status);
     memset(m, 0, sizeof *m);
 }
 
@@ -129,7 +131,14 @@ jaos_status jaos_set_dual_tolerance(jaos_model *m, double tol)
  * mirror. Both are derived from the matrix alone — scale.c reads no bound
  * and no cost — so changing a bound or a cost leaves them exactly correct.
  * A modification that touches the matrix must invalidate them, and there is
- * none yet. */
+ * none yet.
+ *
+ * Nor is the starting basis, and that one is not an omission but the point.
+ * The answer stops being true when a bound moves; the basis that produced it
+ * does not stop being a basis, and it is very probably close to the new
+ * problem's. Discarding it here would throw away the one thing that makes
+ * re-solving cheaper than solving, and it is why start_*_status is stored
+ * apart from sol_*_status in the first place (see jaos_internal.h). */
 static void model_answer_is_stale(jaos_model *m)
 {
     free(m->sol_col);        m->sol_col = nullptr;
@@ -379,6 +388,110 @@ jaos_status jaos_basis(const jaos_model *m, jaos_basis_status *col_status,
         memcpy(row_status, m->sol_row_status,
                (size_t)m->num_row * sizeof *row_status);
     return JAOS_OK;
+}
+
+/* Puts a basis where the next solve will find it. Allocates both arrays or
+ * neither, so `start_col_status != nullptr` is the whole test of whether a
+ * starting basis exists — two flags for one fact is an invariant the types
+ * would not be enforcing. */
+static jaos_status store_basis(jaos_model *m, const jaos_basis_status *col,
+                               const jaos_basis_status *row)
+{
+    if (m->start_col_status == nullptr || m->start_row_status == nullptr) {
+        free(m->start_col_status);
+        free(m->start_row_status);
+        m->start_col_status =
+            jm_alloc_array(m->num_col, sizeof *m->start_col_status);
+        m->start_row_status =
+            jm_alloc_array(m->num_row, sizeof *m->start_row_status);
+        if (m->start_col_status == nullptr || m->start_row_status == nullptr) {
+            free(m->start_col_status); m->start_col_status = nullptr;
+            free(m->start_row_status); m->start_row_status = nullptr;
+            return JAOS_ERR_OUT_OF_MEMORY;
+        }
+    }
+    if (m->num_col > 0)
+        memcpy(m->start_col_status, col,
+               (size_t)m->num_col * sizeof *m->start_col_status);
+    if (m->num_row > 0)
+        memcpy(m->start_row_status, row,
+               (size_t)m->num_row * sizeof *m->start_row_status);
+    return JAOS_OK;
+}
+
+jaos_status jm_model_remember_basis(jaos_model *m)
+{
+    if (m->sol_col_status == nullptr || m->sol_row_status == nullptr)
+        return JAOS_OK;   /* nothing to remember; not a failure */
+    return store_basis(m, m->sol_col_status, m->sol_row_status);
+}
+
+static bool status_in_range(jaos_basis_status s)
+{
+    return s == JAOS_BASIS_BASIC || s == JAOS_BASIS_AT_LOWER ||
+           s == JAOS_BASIS_AT_UPPER || s == JAOS_BASIS_FREE;
+}
+
+/* What this checks, and what it deliberately leaves to the solve.
+ *
+ * Checked here: that the values are statuses at all, and that exactly num_row
+ * of them are basic. Those are structural — they say whether the thing handed
+ * over is a basis, and no later event can make a wrong count right.
+ *
+ * Not checked here: whether a nonbasic's status names a bound the variable
+ * actually has, or whether the columns are linearly independent. Both depend
+ * on numbers that move underneath a stored basis — jaos_set_col_bounds can
+ * retire the very bound a status points at, and jaos_set_coefficient can turn
+ * a nonsingular basis singular — so the solve has to cope with both anyway
+ * (see build_initial_basis and repair_singular_basis). Refusing them here
+ * would make a basis handed in behave differently from the identical one a
+ * previous solve left behind, which is one rule too many for one object. */
+jaos_status jaos_set_basis(jaos_model *m, const jaos_basis_status *col_status,
+                           const jaos_basis_status *row_status)
+{
+    if (m == nullptr)
+        return JAOS_ERR_INVALID_INPUT;
+    if ((col_status == nullptr && m->num_col > 0) ||
+        (row_status == nullptr && m->num_row > 0)) {
+        jm_set_err(m, "a basis needs both halves: %lld column statuses and "
+                      "%lld row statuses",
+                   (long long)m->num_col, (long long)m->num_row);
+        return JAOS_ERR_INVALID_INPUT;
+    }
+
+    int64_t basic = 0;
+    for (int64_t j = 0; j < m->num_col; j++) {
+        if (!status_in_range(col_status[j])) {
+            jm_set_err(m, "column %lld has no such basis status: %d",
+                       (long long)j, (int)col_status[j]);
+            return JAOS_ERR_INVALID_INPUT;
+        }
+        basic += col_status[j] == JAOS_BASIS_BASIC;
+    }
+    for (int64_t i = 0; i < m->num_row; i++) {
+        if (!status_in_range(row_status[i])) {
+            jm_set_err(m, "row %lld has no such basis status: %d",
+                       (long long)i, (int)row_status[i]);
+            return JAOS_ERR_INVALID_INPUT;
+        }
+        basic += row_status[i] == JAOS_BASIS_BASIC;
+    }
+    if (basic != m->num_row) {
+        jm_set_err(m, "a model with %lld rows needs %lld basic variables, "
+                      "not %lld", (long long)m->num_row,
+                   (long long)m->num_row, (long long)basic);
+        return JAOS_ERR_INVALID_INPUT;
+    }
+
+    return store_basis(m, col_status, row_status);
+}
+
+void jaos_clear_basis(jaos_model *m)
+{
+    if (m == nullptr)
+        return;
+    free(m->start_col_status); m->start_col_status = nullptr;
+    free(m->start_row_status); m->start_row_status = nullptr;
 }
 
 void jm_set_err(jaos_model *m, const char *fmt, ...)

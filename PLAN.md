@@ -108,7 +108,9 @@ fallback, and this is the first measurement of what it costs.
 
 ## Phase 2 — Make it usable
 
-Nothing here is hard. All of it is missing.
+Nothing here is hard, and most of it has landed. What is left is adding and
+deleting rows and columns, and carrying a basis out of a solve that stopped
+short of an optimum.
 
 **The line this API is drawn on: it configures the contract, never the
 method.** What a caller may set is what depends on their problem and which
@@ -154,10 +156,20 @@ to be inside.
 
   What is left: **adding and deleting rows and columns**, which restructures
   every array the model owns.
-- **Warm re-solve.** The dual simplex is the right method for it and none of
-  the plumbing exists: no way to keep a basis across a modification, no way
-  to hand one in.
-- **`jaos_set_basis`**, whose read side is already `jaos_basis`.
+- **Warm re-solve. Done (D68), and it is one line of design:** the basis is
+  stored apart from the answer, so a modification discards one and keeps the
+  other. A solve that finds an optimum leaves its basis there and the next
+  solve resumes from it with nothing called; `jaos_set_basis` hands one in
+  from elsewhere and `jaos_clear_basis` forgets it. Dual feasibility comes
+  from cost shifting rather than from artificial bounds — `B = -I` is what
+  made a reduced cost a cost, and a warm basis does not have that — and the
+  weights restart at one, which is a prior here rather than the fact it is
+  cold. All 139 digests unmoved.
+
+  What is left: **a stopping point for a solve that did not reach an
+  optimum.** Only `publish`'s optimal path writes a basis, so a run cut off
+  by a work or time limit carries nothing forward, and resuming it is exactly
+  what a budgeted solve is for.
 
 **Two claims this section used to make, and both were wrong.** It said a
 caller cannot vary the checker's tolerance: `jaos_check_solution` has taken
@@ -360,8 +372,11 @@ accelerate, they do not gate. SDP stays unscheduled.
 
 ## Known defects, carried
 
-Reproducible, diagnosed, not yet fixed. All three came out of varying
-`REFACTOR_EVERY` over 16..256, which walks trajectories the gate never walks.
+Reproducible, diagnosed, not yet fixed. The first three came out of varying
+`REFACTOR_EVERY` over 16..256, which walks trajectories the gate never walks;
+the fourth out of a warm start, which reaches a *state* the gate never
+reaches. Both are the same lesson about where the defects that 139 instances
+at one setting do not find are hiding.
 
 1. **The checker certifies a bound it cannot prove (D47).** Whenever a
    wrong-signed multiplier sits on an unbounded improving direction the dual
@@ -379,6 +394,19 @@ Reproducible, diagnosed, not yet fixed. All three came out of varying
    needs to borrow at all.
 3. **`pilot87` trips the iteration guard at intervals of 128 and above**,
    which the solver's own message calls a JAOS defect. Undiagnosed.
+4. **A nonbasic free variable with a negative reduced cost is invisible
+   (D68).** `can_move` has nowhere to send a free variable and returns false;
+   `wants_a_pivot` computes its wrong-way direction as `status == AT_LOWER ?
+   -d : d`, which reads a free nonbasic as sitting at an upper bound, so a
+   positive reduced cost is repaired and a negative one is not;
+   `primal_ratio_test` takes the same branch and would move it the wrong way
+   if it got there. The point is then published as OPTIMAL when it is not.
+   Two variables and one row are enough to build it. Both existing producers
+   of free nonbasics can reach it — `build_initial_basis` for a zero-cost
+   unbounded column, `repair_singular_basis` for an evicted one — and warm
+   re-solve declines to become a third rather than fixing it, because the
+   repair is a primal step and belongs with phase 6 item 7. Not observed on
+   any of the 139 instances; found by construction.
 
 ---
 

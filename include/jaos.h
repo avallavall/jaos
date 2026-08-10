@@ -153,8 +153,13 @@ JAOS_NODISCARD int64_t jaos_num_nz(const jaos_model *m);
  *
  * Tolerances, budgets and logging settings are configuration and survive.
  *
- * Re-solving after a change starts from scratch today. Warm starting from
- * the previous basis is what the dual simplex is for and is not built yet. */
+ * **The basis survives too, and re-solving starts from it.** The answer stops
+ * being true when a bound moves; the basis it was read off does not stop
+ * being a basis, and for a small change it is usually near the new problem's.
+ * Starting there is what the dual simplex is for — moving a bound leaves
+ * every reduced cost where it was, so the basis is still dual feasible and
+ * the method resumes from a point it can use, rather than from the slack
+ * basis it would otherwise walk back to. See jaos_set_basis. */
 JAOS_NODISCARD jaos_status jaos_set_col_cost(jaos_model *m, int64_t col,
                                              double cost);
 JAOS_NODISCARD jaos_status jaos_set_col_bounds(jaos_model *m, int64_t col,
@@ -317,6 +322,63 @@ typedef enum jaos_basis_status {
  * is basic. Exactly num_row of the num_col + num_row statuses are basic. */
 JAOS_NODISCARD jaos_status jaos_basis(const jaos_model *m,
     jaos_basis_status *col_status, jaos_basis_status *row_status);
+
+/* Where the next solve starts. Both arrays are required, sized as above —
+ * half a basis does not say which variables are basic, so there is nothing
+ * useful to do with one.
+ *
+ * **A solve that reaches an optimum sets this for itself.** Nothing needs to
+ * be called for a re-solve to be warm: change a bound and solve again, and the
+ * previous basis is where the second solve begins. This function is for the
+ * cases that route cannot reach — a basis carried over from another model, one
+ * saved to a file and read back, or the one a branch-and-bound node hands to
+ * its children.
+ *
+ * Refused as JAOS_ERR_INVALID_INPUT: a value that is not one of the four
+ * statuses, and any count of basic variables other than num_row. Those are
+ * structural, and nothing that happens later can make a wrong count right.
+ *
+ * Two things are deliberately *not* refused, because a basis stored across a
+ * modification meets both and must keep working. A nonbasic status may name a
+ * bound the variable no longer has — jaos_set_col_bounds can retire it — and
+ * the basic columns may be linearly dependent. The solve repairs each: a
+ * status with no bound behind it is moved to the other bound, or to free; a
+ * singular basis has logicals put back into it until it factors. Both cost
+ * iterations and neither costs correctness.
+ *
+ * A warm start is a starting point and never a claim about the answer. The
+ * solve that follows proves optimality from scratch, so a basis that is wrong,
+ * stale or hostile costs time and cannot produce a wrong verdict.
+ *
+ * What it does change is which optimum is reported when a model has more than
+ * one: two runs from different starting bases can stop at different vertices,
+ * both optimal and both with the same objective. Determinism is unaffected —
+ * the same starting basis gives the same answer on every machine and every run
+ * (D8) — but "solve twice and compare the bits" is a statement about a
+ * sequence of calls, not about the model.
+ *
+ * Dropped by anything that loads a problem, since the indices then refer to a
+ * different model. Kept by every modification, which is the point of it. */
+JAOS_NODISCARD jaos_status jaos_set_basis(jaos_model *m,
+    const jaos_basis_status *col_status, const jaos_basis_status *row_status);
+
+/* Forgets the starting basis, so the next solve begins where a first solve
+ * would. NULL is fine, and so is a model that never had one.
+ *
+ * Without this, warm starting would be a one-way door: a model that has been
+ * solved once could never be solved from scratch again, and "what would this
+ * model do cold" would stop being a question its own library could answer.
+ * Three callers want it — one reproducing a result exactly, one escaping a
+ * warm start that turned out to be a bad one, and one timing the two against
+ * each other. JAOS's own acceptance gate is the third: it solves every
+ * reference instance twice and requires the two runs to agree bit for bit,
+ * which is a statement about the solver only if both runs start in the same
+ * place.
+ *
+ * Clearing is not `jaos_set_basis` with nulls. Passing one null there is half
+ * a basis and is refused, and a call that means "none" should not have to be
+ * spelled as a special case of a call that means "this one". */
+void jaos_clear_basis(jaos_model *m);
 
 /* Work units consumed by the last solve. */
 JAOS_NODISCARD int64_t jaos_work_units(const jaos_model *m);

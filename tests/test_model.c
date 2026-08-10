@@ -285,6 +285,34 @@ static void test_a_changed_bound_reaches_the_solve(void)
     jaos_model_free(m);
 }
 
+/* Which of the two things a solve leaves behind survives a change, and that
+ * difference is the whole of warm re-solve: one array outliving the other by
+ * exactly one modification.
+ *
+ * The answer does not survive — it described the problem as it stood. The
+ * basis does, because a bound moving does not stop a basis being a basis, and
+ * for a small change it is usually near the new problem's. A load ends both,
+ * since after it the indices name a different model. */
+static void test_the_basis_outlives_a_modification_and_not_a_load(void)
+{
+    jaos_model *m = bounded_model();
+    TEST_ASSERT_NULL(m->start_col_status);
+    TEST_ASSERT_DOUBLE_WITHIN(1e-9, -3.0, solved_objective(m));
+    TEST_ASSERT_NOT_NULL(m->start_col_status);
+    TEST_ASSERT_NOT_NULL(m->start_row_status);
+
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_row_bounds(m, 0, -INFINITY, 7.0));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_NOT_RUN, jaos_status_of(m));
+    TEST_ASSERT_NULL(m->sol_col_status);          /* the answer went */
+    TEST_ASSERT_NOT_NULL(m->start_col_status);    /* the basis stayed */
+    TEST_ASSERT_DOUBLE_WITHIN(1e-9, -7.0, solved_objective(m));
+
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, load_example(m));
+    TEST_ASSERT_NULL(m->start_col_status);
+    TEST_ASSERT_NULL(m->start_row_status);
+    jaos_model_free(m);
+}
+
 static void test_a_modification_discards_the_answer(void)
 {
     jaos_model *m = bounded_model();
@@ -448,6 +476,7 @@ int main(void)
     RUN_TEST(test_csr_mirror_matches_hand_transpose);
     RUN_TEST(test_a_modification_out_of_range_is_refused);
     RUN_TEST(test_a_changed_bound_reaches_the_solve);
+    RUN_TEST(test_the_basis_outlives_a_modification_and_not_a_load);
     RUN_TEST(test_a_modification_discards_the_answer);
     RUN_TEST(test_configuration_survives_a_modification);
     RUN_TEST(test_a_coefficient_replaces_inserts_and_deletes);

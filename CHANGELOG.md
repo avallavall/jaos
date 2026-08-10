@@ -11,6 +11,18 @@ open, `bench/README.md` for the gate, and the commit each entry came from.
 
 ### Added
 
+- **Warm re-solve.** A solve that reaches an optimum leaves its basis on the
+  model, and the next solve starts from it: change a bound and solve again,
+  and nothing has to be called. The basis is stored apart from the answer for
+  exactly this reason — the answer is discarded when the problem moves, the
+  basis is not. `jaos_set_basis` hands one in from elsewhere and
+  `jaos_clear_basis` forgets it, without which one solve would make every
+  later solve a re-solve for good. A basis that is wrong costs iterations and
+  never the answer; one that would leave a nonbasic variable with no bounds is
+  refused and the solve runs cold, because that pins a row's activity at zero
+  and this method cannot always price it back off. All 139 digests unmoved
+  (D68).
+
 - `jaos_set_coefficient`: one matrix entry can be changed, created or
   removed. Three operations under one name, because the stored matrix keeps
   its columns ascending by row index with no duplicates and no explicit
@@ -109,6 +121,14 @@ open, `bench/README.md` for the gate, and the commit each entry came from.
   the gate (D21).
 
 ### Fixed
+
+- A basis of nothing but structurally empty columns made `jaos_solve` fail
+  instead of reporting the model infeasible. `refactorize` asked for capacity
+  equal to the basis's nonzero count, and a request of zero leaves the arrays
+  unallocated, so the factorization was handed a null index array and refused
+  it as bad input. Unreachable from the slack basis, where every logical
+  carries an entry; a warm start reaches it by keeping a column basic after
+  the last coefficient in it is deleted (D68).
 
 - A valid model could come back as `JAOS_ERR_INVALID_INPUT` — the code the
   library reserves for a caller's mistake — from inside `jaos_solve`.

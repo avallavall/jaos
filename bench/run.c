@@ -373,7 +373,13 @@ static bool run_one_infeasible(const entry *e, const char *dir, tally *t)
     int64_t iters = jaos_iterations(m), work = jaos_work_units(m);
     bool refused = (ss == JAOS_SOLVE_INFEASIBLE);
 
-    /* Determinism over the verdict itself. */
+    /* Determinism over the verdict itself. The basis is cleared for the same
+     * reason it is in the optimal path, and not because it makes a difference
+     * here: a solve that ends INFEASIBLE publishes no basis, so there is
+     * nothing for the second one to resume from. It is written anyway, so that
+     * the day a stopping point does get published for a non-optimal outcome
+     * this check does not quietly stop measuring what it says it measures. */
+    jaos_clear_basis(m);
     st = jaos_solve(m);
     bool det = (st == JAOS_OK && jaos_status_of(m) == ss &&
                 jaos_iterations(m) == iters && jaos_work_units(m) == work);
@@ -494,7 +500,17 @@ static bool run_one(const entry *e, const char *dir, tally *t)
     d1 = digest(y, nr, d1);
 
     /* Second solve of the same model, in the same process. Same input, same
-     * parameters, same answer — every bit of it (D8). */
+     * parameters, same answer — every bit of it (D8).
+     *
+     * The basis is cleared first, and that is what makes the two runs the
+     * same input rather than two different ones. A solve that finds an optimum
+     * leaves its basis on the model for the next one to start from, so without
+     * this the second solve resumes from the first's answer, reaches the same
+     * optimum in no iterations and reports different work — which is a warm
+     * re-solve behaving correctly and says nothing at all about determinism.
+     * All ninety-four instances said DIVERGED the first time warm starting
+     * landed, and every one of them was still optimal. */
+    jaos_clear_basis(m);
     st = jaos_solve(m);
     double obj2 = 0.0;
     (void)jaos_objective(m, &obj2);

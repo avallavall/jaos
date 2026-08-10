@@ -88,6 +88,20 @@ struct jaos_model {
     int64_t solve_work;
     int64_t solve_iters;
 
+    /* The basis the next solve starts from, or null for the slack basis.
+     *
+     * Held apart from sol_*_status above, and that separation is the whole of
+     * warm re-solve: those two are an *answer*, and an answer is discarded the
+     * moment the problem moves. This is a *starting point*, and surviving
+     * exactly that move is what it is for — a caller who shifts one bound and
+     * re-solves is asking the dual simplex to do the thing it is best at.
+     *
+     * Written two ways and they mean the same thing: jaos_set_basis, and every
+     * solve that reaches an optimum. Dropped only by a load, which changes
+     * what the indices refer to. Both arrays or neither. */
+    jaos_basis_status *start_col_status;  /* [num_col] */
+    jaos_basis_status *start_row_status;  /* [num_row] */
+
     /* Detail message for the last failed operation; "" when it succeeded.
      * Sits outside the problem data on purpose: setting it never disturbs a
      * loaded model. */
@@ -278,6 +292,11 @@ bool jm_nmap_insert(jm_nmap *m, const char *name, int64_t value);
 
 /* Builds the CSR mirror if it is not current. */
 JAOS_NODISCARD jaos_status jm_model_ensure_rowwise(jaos_model *m);
+
+/* Keeps the basis just published as the one the next solve starts from.
+ * A model with no published basis is left alone and reports success: there is
+ * nothing to remember, which is not a failure. */
+JAOS_NODISCARD jaos_status jm_model_remember_basis(jaos_model *m);
 
 /* Formats into m->err. NULL model is tolerated (message dropped). */
 [[gnu::format(printf, 2, 3)]]

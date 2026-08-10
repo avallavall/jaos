@@ -377,6 +377,15 @@ typedef struct {
      * the last basis change? See the r < 0 branch in run(). */
     bool verified;
 
+    /* Does the next refresh owe a full sweep of shift_to_feasible?
+     *
+     * Set by a warm start and by nothing else. The cold start is dual
+     * feasible by construction and its first refresh must therefore leave the
+     * costs bit for bit alone — that is what makes every reference digest a
+     * test of this feature changing nothing. A warm basis has no such
+     * guarantee and the sweep is what buys it one, once. */
+    bool shift_pending;
+
     /* May some nonbasic reduced cost be dual infeasible?
      *
      * The dual step only moves the costs the pricing row touches, so a step
@@ -686,6 +695,123 @@ static void build_initial_basis(sx *s)
     }
 }
 
+/* The basis a previous solve or a caller left on the model, installed as the
+ * point this solve starts from. Returns false when there is none, or when
+ * what is there cannot be started from — the caller then builds the slack
+ * basis above, which is always available and always correct.
+ *
+ * A status naming a bound that is no longer finite is repaired rather than
+ * refused, because it is what a basis that was valid when it was stored looks
+ * like after the model moved under it: jaos_set_col_bounds can retire the very
+ * bound a variable was resting on, and a variable pinned to infinity has no
+ * value. It is moved to its other bound.
+ *
+ * **When there is no other bound the whole warm start is abandoned**, and that
+ * is a limitation of this solver rather than tidiness. A nonbasic variable
+ * with no bounds rests at zero, and for the logical of a row that means the
+ * row's activity is pinned at zero — a constraint the model does not have. The
+ * method then has to price it back off zero, and it cannot always: `can_move`
+ * has nowhere to send a free variable, and `wants_a_pivot` reads one as
+ * sitting at an upper bound, so it repairs a positive reduced cost and leaves
+ * a negative one alone. Constructed, it returns OPTIMAL on a point that is
+ * not: relaxing a row of `min 2x + 3y, x + y >= 2, x <= 1.5` to `x <= inf`
+ * publishes 6 where the optimum is 4, because x is held at zero by a logical
+ * nothing will move.
+ *
+ * So a warm start refuses to create one. Two things follow, and both are
+ * deliberate. A basis whose stored status was already free — a variable that
+ * had no bounds when the basis was recorded and still has none — is refused
+ * on the same rule, even though its reduced cost was zero at the optimum it
+ * came from, because nothing here can know whether a cost or a coefficient has
+ * moved since. And the defect itself is untouched: `build_initial_basis` and
+ * `repair_singular_basis` both still produce free nonbasics, so it is reachable
+ * without any of this and is recorded in PLAN.md as its own repair.
+ *
+ * A set of columns that no longer factors is repaired rather than refused, and
+ * nothing here can see it — refresh's repair_singular_basis does, and puts
+ * logicals back until it does.
+ *
+ * What it cannot do is establish dual feasibility. The slack basis gets that
+ * by construction; a warm basis has reduced costs that are not known until it
+ * is factored, so the repair happens where they are. The first refresh shifts
+ * every breached cost to the feasible side and writes down the loan, exactly
+ * as it already does after a singular repair, and settle_shifts calls all of
+ * it back before any verdict is read.
+ *
+ * No artificial bounds are lent here, and that is a decision rather than an
+ * omission. The cold start's loans are chosen by the sign of a cost, which is
+ * the reduced cost only because B = -I makes the duals zero; from a warm
+ * basis that reasoning does not hold, and sizing loans off the duals instead
+ * would stand a second dual phase 1 beside the one already running. Shifting
+ * is what this solver already uses to hold a basis it did not choose dual
+ * feasible, and it is repaid through a path that four instances exercise.
+ *
+ * The weights start at one, which here is a prior rather than a fact. B = -I
+ * makes every weight exactly one and that is the reason the cold start is the
+ * slack basis at all; an arbitrary basis has weights that cost one solve per
+ * row to know. One is the same neutral value repair_singular_basis restarts
+ * to after it changes several columns of B at once, and for the same reason:
+ * the exact weight injected each iteration rebuilds the estimates from there.
+ * It costs pricing quality on the early iterations and no verdict depends on
+ * a weight. */
+static bool build_warm_basis(sx *s)
+{
+    const jaos_model *m = s->m;
+    if (m->start_col_status == nullptr || m->start_row_status == nullptr)
+        return false;
+
+    /* Everything that would make this basis unusable, asked before a single
+     * field is written. The count is one of the two: both writers of a
+     * starting basis enforce it, so a mismatch means one of *them* is wrong
+     * rather than that the caller is — but the answer is still to fall back,
+     * because the cold start is always correct and corrupting `basis` is the
+     * alternative. */
+    int64_t nbasic = 0;
+    for (int64_t v = 0; v < s->nvar; v++) {
+        jaos_basis_status want =
+            v < s->ncol ? m->start_col_status[v]
+                        : m->start_row_status[v - s->ncol];
+        if (want == JAOS_BASIS_BASIC) {
+            nbasic++;
+        } else if (!isfinite(s->lo[v]) && !isfinite(s->up[v])) {
+            return false;   /* nowhere to rest but zero; see above */
+        }
+    }
+    if (nbasic != s->nrow)
+        return false;
+
+    int64_t p = 0;
+    for (int64_t v = 0; v < s->nvar; v++) {
+        jaos_basis_status want =
+            v < s->ncol ? m->start_col_status[v]
+                        : m->start_row_status[v - s->ncol];
+        if (want == JAOS_BASIS_BASIC) {
+            s->basis[p] = v;
+            s->status[v] = JM_BASIC;
+            s->where[v] = p;
+            p++;
+            continue;
+        }
+
+        /* Every nonbasic has at least one finite bound; the pass above
+         * refused the basis otherwise. The stored side is kept when it is
+         * still there, and the other one taken when it is not. */
+        s->where[v] = -1;
+        if (want == JAOS_BASIS_AT_UPPER && isfinite(s->up[v]))
+            s->status[v] = JM_AT_UPPER;
+        else if (isfinite(s->lo[v]))
+            s->status[v] = JM_AT_LOWER;
+        else
+            s->status[v] = JM_AT_UPPER;
+    }
+
+    for (int64_t i = 0; i < s->nrow; i++)
+        s->dse[i] = 1.0;
+
+    s->shift_pending = true;
+    return true;
+}
+
 /* --------------------------------------------------------------------- */
 /* Recomputation from the factorization                                  */
 /* --------------------------------------------------------------------- */
@@ -697,7 +823,16 @@ static jaos_status refactorize(sx *s)
         int64_t v = s->basis[i];
         nz += v < s->ncol ? s->m->a_start[v + 1] - s->m->a_start[v] : 1;
     }
-    if (!JM_GROW(s->bi, s->bi_cap, nz) || !JM_GROW(s->bv, s->bv_cap, nz))
+    /* At least one slot even when the basis has no entries at all, because
+     * jm_lu_factor is entitled to non-null arrays whenever dim > 0 and
+     * JM_GROW leaves a zero request unallocated. A basis of nothing but empty
+     * columns is where that happens; it is singular, which the factorization
+     * reports as a rank and the repair puts right, but it has to get as far
+     * as being factored to say so. The slack basis cannot reach it — every
+     * logical carries an entry — and a warm one can, which is how it was
+     * found. */
+    int64_t room = nz > 0 ? nz : 1;
+    if (!JM_GROW(s->bi, s->bi_cap, room) || !JM_GROW(s->bv, s->bv_cap, room))
         return JAOS_ERR_OUT_OF_MEMORY;
 
     int64_t p = 0;
@@ -1047,9 +1182,14 @@ static jaos_status refresh(sx *s, bool *ok, bool refine)
      * their reduced costs existed, so some of those costs are now on the
      * wrong side. Shifting is the mechanism the method already uses for
      * exactly this — every iteration does it in pivot() — and the shifts
-     * are called back before any verdict is read. Only after a repair:
-     * a solve that never went singular is left bit for bit as it was. */
-    if (repaired)
+     * are called back before any verdict is read. Only after a repair, or
+     * on the first refresh of a warm start, which is the same situation
+     * arrived at from the other direction: a basis nobody proved dual
+     * feasible before it was installed. A cold solve that never went
+     * singular is left bit for bit as it was. */
+    bool sweep = repaired || s->shift_pending;
+    s->shift_pending = false;
+    if (sweep)
         for (int64_t v = 0; v < s->nvar; v++)
             shift_to_feasible(s, v);
 
@@ -2911,6 +3051,17 @@ static jaos_status publish(sx *s, jaos_solve_status status)
         obj += m->col_cost[j] * m->sol_col[j];
     m->objective = obj;
     m->solve_work = s->work.units;
+
+    /* Where the next solve will start, unless the caller says otherwise.
+     *
+     * The failure is swallowed on purpose, and it is the only place in this
+     * file that swallows one. A starting basis is an optimisation and never a
+     * claim: losing it costs the *next* solve some iterations and costs this
+     * one nothing, while reporting it would abandon an answer that is already
+     * computed, already correct and already written where the caller reads
+     * it. The two are not the same kind of failure and must not get the same
+     * answer. */
+    (void)jm_model_remember_basis(m);
     return JAOS_OK;
 }
 
@@ -2929,7 +3080,11 @@ jaos_status jm_dual_simplex(jaos_model *m)
            (long long)m->num_nz, s.primal_tol, s.dual_tol);
 
     jaos_solve_status outcome;
-    build_initial_basis(&s);
+    bool warm = build_warm_basis(&s);
+    if (!warm)
+        build_initial_basis(&s);
+    jm_log(m, JAOS_LOG_DETAIL, "starting from %s",
+           warm ? "the basis on the model" : "the slack basis");
     st = run(&s, &outcome);
     if (st == JAOS_OK) {
         /* Settle first, then judge. The verdict turns on reduced costs, so

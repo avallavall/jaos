@@ -1900,6 +1900,291 @@ static void test_the_basis_is_refused_when_there_is_no_optimum(void)
     jaos_model_free(m);
 }
 
+/* ---- Warm re-solve --------------------------------------------------- *
+ *
+ * Every test below starts from the model the basis tests use:
+ *
+ *   min 2x + 3y   s.t.  r0: x + y >= 2
+ *                       r1: x + y <= 100
+ *                       r2: x      <= r2_upper
+ *                       0 <= x, y <= 5
+ *
+ * and for the same reason. Its optimum is unique, so a warm start cannot be
+ * judged correct by landing on a different vertex of a tie — which is exactly
+ * the mistake a warm start is in a position to make.
+ *
+ * At r2_upper = 1.5 the answer is x = 1.5, y = 0.5, objective 4.5, and the
+ * basis holding it is {x, y, r1} with r0 at its lower bound and r2 at its
+ * upper. */
+static void load_warm_model(jaos_model *m, double r2_upper)
+{
+    const double c[] = {2.0, 3.0};
+    const double cl[] = {0.0, 0.0}, cu[] = {5.0, 5.0};
+    const double rl[] = {2.0, -INFINITY, -INFINITY};
+    const double ru[] = {INFINITY, 100.0, r2_upper};
+    const int64_t as[] = {0, 3, 5};
+    const int64_t ai[] = {0, 1, 2, 0, 1};
+    const double av[] = {1.0, 1.0, 1.0, 1.0, 1.0};
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_load_lp(m, 2, 3, JAOS_MINIMIZE, 0.0, c, cl, cu, rl, ru,
+                     5, as, ai, av));
+}
+
+/* The same model solved twice. The second solve starts where the first
+ * finished and therefore has nothing left to do.
+ *
+ * Iterations are what says so, and nothing else can: an answer alone cannot
+ * tell a warm start from a cold one, since both reach the same optimum. A
+ * count of zero is the only observation that distinguishes "resumed" from
+ * "walked the whole way back". */
+static void test_re_solving_an_unchanged_model_costs_no_iterations(void)
+{
+    jaos_model *m = fresh();
+    load_warm_model(m, 1.5);
+
+    solve_and_verify(m, 4.5);
+    TEST_ASSERT_TRUE(jaos_iterations(m) > 0);
+
+    double first[2];
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_solution(m, first, nullptr, nullptr, nullptr));
+
+    solve_and_verify(m, 4.5);
+    TEST_ASSERT_EQUAL_INT64(0, jaos_iterations(m));
+
+    /* And it stops at the same point, not merely at one worth the same. */
+    double again[2];
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_solution(m, again, nullptr, nullptr, nullptr));
+    TEST_ASSERT_EQUAL_MEMORY(first, again, sizeof first);
+    jaos_model_free(m);
+}
+
+/* A bound moves, and the warm re-solve reaches the answer a model loaded at
+ * the new bound reaches from scratch. Two different trajectories, one
+ * optimum: that is the whole claim a warm start makes and the only one it is
+ * entitled to. The points are compared as numbers rather than as bits,
+ * because they come out of different factorizations with different shift
+ * histories behind them — equal optima, not equal arithmetic. */
+static void test_a_warm_re_solve_agrees_with_a_cold_one(void)
+{
+    jaos_model *warm = fresh();
+    load_warm_model(warm, 1.5);
+    solve_and_verify(warm, 4.5);
+
+    /* r2 tightens to x <= 1, so the expensive column takes up the slack:
+     * x = 1, y = 1, objective 5. */
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_row_bounds(warm, 2, -INFINITY, 1.0));
+    solve_and_verify(warm, 5.0);
+
+    jaos_model *cold = fresh();
+    load_warm_model(cold, 1.0);
+    solve_and_verify(cold, 5.0);
+
+    double a[2], b[2];
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_solution(warm, a, nullptr, nullptr, nullptr));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_solution(cold, b, nullptr, nullptr, nullptr));
+    TEST_ASSERT_DOUBLE_WITHIN(1e-9, b[0], a[0]);
+    TEST_ASSERT_DOUBLE_WITHIN(1e-9, b[1], a[1]);
+
+    jaos_model_free(warm);
+    jaos_model_free(cold);
+}
+
+/* What jaos_set_basis refuses, and the sharp end of accepting one: handed the
+ * optimal basis before it has ever run, the solve costs no iterations. That
+ * is a stronger statement than "it was accepted" — a basis that was validated
+ * and then dropped on the floor would pass every rejection test here and fail
+ * this one. */
+static void test_a_basis_handed_in_must_be_a_basis(void)
+{
+    jaos_model *m = fresh();
+    load_warm_model(m, 1.5);
+
+    jaos_basis_status cs[2] = {JAOS_BASIS_BASIC, JAOS_BASIS_BASIC};
+    jaos_basis_status rs[3] = {JAOS_BASIS_AT_LOWER, JAOS_BASIS_BASIC,
+                               JAOS_BASIS_AT_UPPER};
+
+    TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT,
+        jaos_set_basis(nullptr, cs, rs));
+    /* Half a basis does not say which variables are basic. */
+    TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT,
+        jaos_set_basis(m, nullptr, rs));
+    TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT,
+        jaos_set_basis(m, cs, nullptr));
+
+    jaos_basis_status bc[2], br[3];
+    memcpy(bc, cs, sizeof cs);
+    memcpy(br, rs, sizeof rs);
+    bc[0] = JAOS_BASIS_AT_LOWER;               /* two basic, and three rows */
+    TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT, jaos_set_basis(m, bc, br));
+
+    memcpy(bc, cs, sizeof cs);
+    br[0] = JAOS_BASIS_BASIC;                  /* four basic */
+    TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT, jaos_set_basis(m, bc, br));
+
+    memcpy(br, rs, sizeof rs);
+    bc[1] = (jaos_basis_status)17;             /* not a status at all */
+    TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT, jaos_set_basis(m, bc, br));
+
+    /* The one that is a basis is the optimal one, so there is nothing left
+     * for the solve to find. */
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_basis(m, cs, rs));
+    solve_and_verify(m, 4.5);
+    TEST_ASSERT_EQUAL_INT64(0, jaos_iterations(m));
+    jaos_model_free(m);
+}
+
+/* A basis that is wrong is not a wrong answer.
+ *
+ * Both structurals pinned to their upper bounds puts x at 5, which r2
+ * forbids, and leaves both reduced costs pointing the wrong way — primal
+ * infeasible and dual infeasible at once, which is the worst start this API
+ * can be handed. It costs iterations. It does not cost the optimum, and it
+ * must not, because a warm start is a starting point and never a claim: the
+ * solve that follows proves optimality from scratch. */
+static void test_a_hostile_basis_costs_iterations_and_not_the_answer(void)
+{
+    jaos_model *m = fresh();
+    load_warm_model(m, 1.5);
+
+    jaos_basis_status cs[2] = {JAOS_BASIS_AT_UPPER, JAOS_BASIS_AT_UPPER};
+    jaos_basis_status rs[3] = {JAOS_BASIS_BASIC, JAOS_BASIS_BASIC,
+                               JAOS_BASIS_BASIC};
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_basis(m, cs, rs));
+
+    solve_and_verify(m, 4.5);
+    TEST_ASSERT_TRUE(jaos_iterations(m) > 0);
+    jaos_model_free(m);
+}
+
+/* Which start a solve took, read off the line it logs at JAOS_LOG_DETAIL.
+ * The alternative is inferring it from an iteration count, which says the
+ * same thing only when the warm basis happens to already be optimal. */
+static char g_start_line[80];
+
+static void collect_start(void *user, jaos_log_level level, const char *line)
+{
+    (void)user;
+    (void)level;
+    if (strncmp(line, "starting from", 13) == 0)
+        snprintf(g_start_line, sizeof g_start_line, "%s", line);
+}
+
+static void watch_the_start(jaos_model *m)
+{
+    g_start_line[0] = '\0';
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_set_log_callback(m, collect_start, nullptr));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_log_level(m, JAOS_LOG_DETAIL));
+}
+
+/* Two ways a stored status can name a bound the model no longer has, and they
+ * get two different answers.
+ *
+ * r2's activity rests on an upper bound of 1.5. Give the row a lower bound
+ * instead and the status moves to it — there is still somewhere to rest, so
+ * the warm start holds.
+ *
+ * Take *both* bounds away and there is nowhere. A nonbasic with no bounds
+ * rests at zero, which pins that row's activity, and therefore x, at zero: a
+ * constraint this model does not have and one the method cannot always price
+ * its way out of. The whole warm start is dropped and the solve runs cold.
+ * Installed instead of refused, it published 6 where the optimum is 4, and
+ * called it optimal. */
+static void test_a_status_whose_bound_was_retired(void)
+{
+    jaos_model *m = fresh();
+    load_warm_model(m, 1.5);
+    solve_and_verify(m, 4.5);
+
+    jaos_basis_status rs[3];
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_basis(m, nullptr, rs));
+    TEST_ASSERT_EQUAL_INT(JAOS_BASIS_AT_UPPER, rs[2]);
+
+    /* x >= 1 now, and only its own bound of 5 caps it: x = 2, y = 0. */
+    watch_the_start(m);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_row_bounds(m, 2, 1.0, INFINITY));
+    solve_and_verify(m, 4.0);
+    TEST_ASSERT_NOT_NULL(strstr(g_start_line, "the basis on the model"));
+    jaos_model_free(m);
+
+    m = fresh();
+    load_warm_model(m, 1.5);
+    solve_and_verify(m, 4.5);
+
+    watch_the_start(m);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_set_row_bounds(m, 2, -INFINITY, INFINITY));
+    solve_and_verify(m, 4.0);
+    TEST_ASSERT_NOT_NULL(strstr(g_start_line, "the slack basis"));
+    jaos_model_free(m);
+}
+
+/* Clearing puts the model back where it started, and it has to be exact:
+ * the cleared solve costs the same iterations the first one did. Without a
+ * way to ask for it, one solve would turn every later solve into a re-solve
+ * for good, and "what does this model do cold" would stop being a question
+ * this library could answer about its own model. */
+static void test_clearing_the_basis_makes_the_next_solve_cold(void)
+{
+    jaos_model *m = fresh();
+    load_warm_model(m, 1.5);
+
+    solve_and_verify(m, 4.5);
+    const int64_t cold = jaos_iterations(m);
+    TEST_ASSERT_TRUE(cold > 0);
+
+    solve_and_verify(m, 4.5);
+    TEST_ASSERT_EQUAL_INT64(0, jaos_iterations(m));
+
+    jaos_clear_basis(m);
+    watch_the_start(m);
+    solve_and_verify(m, 4.5);
+    TEST_ASSERT_EQUAL_INT64(cold, jaos_iterations(m));
+    TEST_ASSERT_NOT_NULL(strstr(g_start_line, "the slack basis"));
+
+    jaos_clear_basis(m);        /* and clearing twice is not an error */
+    jaos_clear_basis(nullptr);
+    jaos_model_free(m);
+}
+
+/* A basis of nothing but structurally empty columns.
+ *
+ * The slack basis cannot reach this state — every logical carries an entry —
+ * and a warm one can, by keeping a column basic after the last coefficient in
+ * it is deleted. The matrix that reaches the factorization then has no
+ * entries at all, which is singular and has to be reported as a rank rather
+ * than refused as bad input. It was refused, once, and the answer was that
+ * the solve failed rather than that the model was infeasible. */
+static void test_a_warm_basis_of_empty_columns_factors_and_is_infeasible(void)
+{
+    const double c[] = {1.0};
+    const double cl[] = {0.0}, cu[] = {10.0};
+    const double rl[] = {6.0}, ru[] = {INFINITY};
+    const int64_t as[] = {0, 1}, ai[] = {0};
+    const double av[] = {2.0};
+
+    jaos_model *m = fresh();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_load_lp(m, 1, 1, JAOS_MINIMIZE, 0.0, c, cl, cu, rl, ru,
+                     1, as, ai, av));
+    solve_and_verify(m, 3.0);
+
+    /* x is basic at the optimum, and its only entry is now deleted. */
+    jaos_basis_status cs[1];
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_basis(m, cs, nullptr));
+    TEST_ASSERT_EQUAL_INT(JAOS_BASIS_BASIC, cs[0]);
+
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_coefficient(m, 0, 0, 0.0));
+    TEST_ASSERT_EQUAL_INT64(0, jaos_num_nz(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_INFEASIBLE, jaos_status_of(m));
+    jaos_model_free(m);
+}
+
 int main(void)
 {
     UNITY_BEGIN();
@@ -1958,6 +2243,13 @@ int main(void)
     RUN_TEST(test_the_basis_names_which_rows_hold_the_optimum);
     RUN_TEST(test_the_basis_agrees_with_the_values_it_came_with);
     RUN_TEST(test_the_basis_is_refused_when_there_is_no_optimum);
+    RUN_TEST(test_re_solving_an_unchanged_model_costs_no_iterations);
+    RUN_TEST(test_a_warm_re_solve_agrees_with_a_cold_one);
+    RUN_TEST(test_a_basis_handed_in_must_be_a_basis);
+    RUN_TEST(test_a_hostile_basis_costs_iterations_and_not_the_answer);
+    RUN_TEST(test_a_status_whose_bound_was_retired);
+    RUN_TEST(test_clearing_the_basis_makes_the_next_solve_cold);
+    RUN_TEST(test_a_warm_basis_of_empty_columns_factors_and_is_infeasible);
     RUN_TEST(test_duplicate_rows_reach_the_same_optimum);
     RUN_TEST(test_a_row_that_is_the_sum_of_two_others);
     RUN_TEST(test_dependent_rows_that_contradict_each_other);

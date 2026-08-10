@@ -4019,3 +4019,118 @@ test that only solved the model would pass on an unsorted column, because a
 two-entry matrix still gives the right answer. It asserts the invariant
 directly, on every column, which is what this repository means by an
 invariant being an assert rather than a comment.
+
+## D68 — A basis outlives the answer it produced, and that one line is warm re-solve
+
+The answer a solve leaves on the model is discarded the moment anything about
+the problem moves (D66): it described the problem as it stood, and reading it
+back afterwards would be a wrong number returned with confidence. The basis is
+the opposite. A bound moving does not stop a basis being a basis, and for a
+small change it is very probably near the new problem's. So the two are stored
+apart — `sol_*_status` is an answer, `start_*_status` is a starting point — and
+`model_answer_is_stale` frees the first and leaves the second. That separation
+is the entire feature; everything below is consequence.
+
+**Set two ways and they mean the same thing.** Every solve that reaches an
+optimum leaves its basis there, so nothing has to be called for a re-solve to
+be warm: change a bound, solve again, and the second solve resumes.
+`jaos_set_basis` is for what that route cannot reach — a basis from another
+model, one read back from a file, the one a branch-and-bound node hands its
+children. Only a load drops it, because after a load the indices name a
+different model.
+
+**`jaos_clear_basis` is not a convenience.** Without it warm starting is a
+one-way door: a model solved once could never be solved from scratch again,
+and "what does this model do cold" would stop being a question the library can
+answer about its own model. It is also what kept the acceptance gate honest —
+see below.
+
+**What the caller may hand in, and what is repaired instead of refused.**
+Refused: a value that is not one of the four statuses, and any count of basic
+variables other than `num_row`. Both are structural, and no later event can
+make a wrong count right. Repaired: a status naming a bound the variable no
+longer has, and a set of columns that no longer factors. Both are what a
+*stored* basis looks like after the model moved under it — `jaos_set_col_bounds`
+can retire the very bound a variable was resting on — so the solve has to cope
+with them regardless, and refusing them at the setter would make a basis handed
+in behave differently from the identical one a previous solve left behind.
+
+**Dual feasibility comes from cost shifting, not from artificial bounds.** The
+slack basis is dual feasible by construction: every nonbasic sits at the bound
+its cost asks for, and a column whose cost wants a bound it does not have is
+lent one. That reasoning is only available because `B = -I` makes the duals
+zero, so a reduced cost *is* a cost. From a warm basis it is not, and the
+reduced costs are not known until the basis is factored. So the repair happens
+where they are: the first refresh shifts every breached cost to the feasible
+side and writes down the loan, exactly as it already does after a singular
+basis repair, and `settle_shifts` calls all of it back before any verdict is
+read. Sizing loans off the duals instead would have stood a second dual phase 1
+beside the one already running, for a mechanism this solver already has.
+
+**The weights start at one, and here that is a prior rather than a fact.**
+`B = -I` makes every weight exactly one, which is the reason the cold start is
+the slack basis at all (and the reason a crash basis was refused). An arbitrary
+basis has weights that cost one solve per row to know. One is the same neutral
+value `repair_singular_basis` restarts to after it changes several columns of
+`B` at once, and for the same reason: the exact weight injected each iteration
+rebuilds the estimates from there. It costs pricing quality on the early
+iterations, and no verdict depends on a weight.
+
+### The wrong answer this was built to give, and the refusal that stops it
+
+A nonbasic variable with no finite bound on either side rests at zero. For the
+logical of a row that pins the row's activity at zero — a constraint the model
+does not have. Constructed:
+
+```
+min 2x + 3y   s.t.  x + y >= 2,  x + y <= 100,  x <= 1.5,  0 <= x,y <= 5
+```
+
+optimum 4.5. Relax the third row to `x <= inf` and re-solve warm: the stored
+status for that row was AT_UPPER, the upper bound is gone, there is no lower
+one, and installing it as free pins x at zero. The solve reports **OPTIMAL
+with objective 6**, where the optimum is 4.
+
+It cannot price its way out, and the reason is exact rather than probabilistic.
+`can_move` has nowhere to send a free variable and returns false for one.
+`wants_a_pivot` computes its wrong-way direction as `status == AT_LOWER ? -d :
+d`, so a free nonbasic is read as sitting at an upper bound: a positive reduced
+cost is repaired and a negative one is invisible. `primal_ratio_test` takes the
+same branch and would move it in the wrong direction if it got there.
+
+So a warm start refuses to create one — a nonbasic with no finite bound at all
+drops the whole warm basis and the solve runs cold, which is always correct.
+Two things follow and both are deliberate. A stored status that was *already*
+free is refused on the same rule, even though its reduced cost was zero at the
+optimum it came from, because nothing at install time can know whether a cost
+or a coefficient has moved since. And **the defect itself is untouched**:
+`build_initial_basis` produces free nonbasics for zero-cost unbounded columns
+and `repair_singular_basis` produces them for evicted ones, so it is reachable
+without any of this. It is carried in PLAN.md as its own repair, with its own
+measurement, and this decision only declines to widen it.
+
+### What the gate said
+
+All 139 digests unmoved, three sets, `gate: PASS` on each with 0 regressed.
+That is the claim that matters: a model solved once from a fresh load takes the
+same path it always did, and the reference sets are exactly that.
+
+**They said the opposite first, and were right to.** 93 of the standard 94 and
+all 16 Kennington instances came back `det: yes -> no`, every one of them still
+optimal. The runner solves each instance twice and requires the two runs to
+agree bit for bit — and the second solve had become a warm re-solve, reaching
+the same optimum in no iterations for different work. The check was measuring a
+sequence of calls and calling it a property of the solver. It now clears the
+basis first, which is what makes the two runs the same input; `jaos_clear_basis`
+exists partly because this needed it.
+
+### A latent defect, found because a warm basis can go where a cold one cannot
+
+`refactorize` asks for capacity equal to the basis's nonzero count, and
+`JM_GROW` leaves a request of zero unallocated — so a basis of nothing but
+structurally empty columns handed `jm_lu_factor` a null index array, which it
+correctly refuses as bad input. The solve then failed instead of reporting the
+model infeasible. The slack basis cannot reach that state, because every
+logical carries an entry; a warm one reaches it by keeping a column basic after
+the last coefficient in it is deleted. One slot is always asked for now, and a
+test pins it.

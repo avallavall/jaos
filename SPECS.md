@@ -54,8 +54,9 @@ missing.
 | Add or delete rows and columns after load | **missing** | |
 | Change a bound or a cost | **done** | `jaos_set_col_cost`, `jaos_set_col_bounds`, `jaos_set_row_bounds`; each discards the answer the model was holding |
 | Change a coefficient | **done** | `jaos_set_coefficient`; zero deletes the entry, a new index inserts one, and both derived copies are rebuilt |
-| Re-solve warm from the previous basis | **missing** | the dual simplex is the right method for it and none of the plumbing exists |
-| Load a starting basis | **missing** | |
+| Re-solve warm from the previous basis | **done** | automatic: an optimum leaves its basis on the model, a modification keeps it, a load drops it. `jaos_clear_basis` asks for a cold solve (D68) |
+| Load a starting basis | **done** | `jaos_set_basis`, the write side of `jaos_basis`. A wrong basis costs iterations and never the answer |
+| Resume from where a work or time limit stopped | **missing** | only an optimum publishes a basis, so there is no stopping point to carry |
 
 ## 3. Solving
 

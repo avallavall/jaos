@@ -35,16 +35,20 @@ LU with Forrest-Tomlin updates, a dual simplex with steepest-edge pricing and
 a Harris ratio test, and an independent checker that verifies every answer
 against the original unscaled problem.
 
+A loaded model can be changed one bound, cost or coefficient at a time, and
+re-solving starts from the basis the previous solve reached rather than from
+scratch.
+
 `SPECS.md` is the honest inventory: what exists, what does not, and what is
 only partly there.
 
 ## What it does not do
 
-There is no way to set a tolerance, choose an algorithm, modify a model after
-loading it, re-solve warm, write a file, or call it from anything but C.
-No presolve, no primal simplex, no barrier, no MILP. `SPECS.md` §4 is the
-shortest summary: twenty-three public functions and not one configures
-anything.
+There is no way to add or delete a row or a column after loading, write a
+file, or call it from anything but C. No presolve, no primal simplex, no
+barrier, no MILP. Thirty-three public functions, and the six that configure
+anything set the contract — two tolerances, two budgets, and where the output
+goes and how much of it there is — never the method.
 
 ## Build and test
 
