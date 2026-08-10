@@ -51,14 +51,19 @@ the units bought anything. The two records must never be confused.
 
 ### 1.2 The parallel runner, into the repository
 
-Instances are independent and every recorded figure is an integer that does
-not depend on the optimisation level, so the bench runner can be built
-`-O3 -march=native -flto` and the instances solved concurrently. That takes
-the standard set from about eight minutes to ninety seconds and Kennington
-from thirty minutes to fifteen. Verified three times on different trees by
-producing records identical byte for byte to the sequential `-O2` runner.
+**Done (D57).** `-j N` on the acceptance runner, `J=N` on every netlib make
+target. Instances are independent and every figure the record carries is an
+integer the solver computed, so solving them concurrently cannot move one:
+verified by diffing all 139 lines against the committed records, which came
+from sequential runs. Standard set 8 min -> 84 s, infeasible 2 min -> 9 s,
+Kennington 30 min -> 8 min 21 s.
 
-It has lived outside the tree since M2 opened. It becomes a make target.
+**The seconds are the one thing it invalidates**, and the runner says so on
+every parallel run. A time ratio (D45) still needs `J=1`.
+
+Not taken: building the runner `-O3 -march=native -flto`. It would have been
+a second change measured at the same time as this one, and the flags are
+Q11's question, not this one's.
 
 ### 1.3 The comparison harness
 

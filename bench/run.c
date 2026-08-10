@@ -17,7 +17,7 @@
  * whether the units a change removed were units that cost anything (D45).
  *
  * Usage: run [-d DIR] [-m MANIFEST] [-o FILE] [-b FILE] [-w FILE]
- *            [-e optimal|infeasible] [instance ...]
+ *            [-e optimal|infeasible] [-j N] [instance ...]
  *   -d DIR       where the .mps files are (default bench/instances)
  *   -m MANIFEST  manifest to read (default bench/netlib.manifest)
  *   -o FILE      write the table here as well as to stdout
@@ -27,7 +27,20 @@
  *                INFEASIBLE for netlib's infeasible subset, where the
  *                verdict is the reference and a reported optimum is the
  *                failure being looked for
+ *   -j N         solve up to N instances at once, one process each
  *   instance     run only these; default is every instance in the manifest
+ *
+ * `-j` is safe because everything this file records is an integer the solver
+ * computed: work units, iterations, digests, verdicts. None of them depends
+ * on what else the machine was doing, and the instances do not depend on each
+ * other, so the record is reassembled in manifest order and comes out
+ * byte-identical to a sequential run. That equivalence is the acceptance test
+ * for the flag and is checked by running both and diffing.
+ *
+ * **The seconds are the one thing `-j` does invalidate**, and it says so on
+ * the console when N > 1. Concurrent solves contend for memory bandwidth and
+ * cache, so each instance's time is inflated by an amount nobody measured.
+ * A time ratio (D45) has to come from a sequential run.
  *
  * Exit status is zero only when every instance run met every condition the
  * gate asks of it, and nothing regressed against the baseline if one was
@@ -54,21 +67,30 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/wait.h>
 #include <time.h>
+#include <unistd.h>
 
 /* The table goes to stdout as it is produced, and to the record file if one
  * was asked for. Both, or the caller has to choose between watching a long
  * run and keeping its result. */
 static FILE *g_record = nullptr;
 
+/* Set in a `-j` worker, which owns neither stream: its line goes to a file
+ * the parent reassembles in manifest order. Nothing else in this file knows
+ * it is running under `-j`. */
+static bool g_muted = false;
+
 [[gnu::format(printf, 1, 2)]]
 static void emit(const char *fmt, ...)
 {
     va_list ap;
-    va_start(ap, fmt);
-    vprintf(fmt, ap);
-    va_end(ap);
-    fflush(stdout);
+    if (!g_muted) {
+        va_start(ap, fmt);
+        vprintf(fmt, ap);
+        va_end(ap);
+        fflush(stdout);
+    }
 
     if (g_record != nullptr) {
         va_start(ap, fmt);
@@ -103,8 +125,10 @@ static char g_slowest[64] = "";
 
 static void stamp(const char *name, double secs)
 {
-    printf("[%8.3fs] ", secs);
-    fflush(stdout);
+    if (!g_muted) {
+        printf("[%8.3fs] ", secs);
+        fflush(stdout);
+    }
     g_total_secs += secs;
     if (secs > g_slowest_secs) {
         g_slowest_secs = secs;
@@ -589,6 +613,222 @@ static int64_t compare_to_baseline(bool full_run)
     return regressed;
 }
 
+/* One instance per process, N of them at a time.
+ *
+ * The instances are independent and every number this file records is an
+ * integer the solver computed, so running them concurrently changes the
+ * record in no way at all — which is the claim, and it is checked by diffing
+ * a `-j N` record against a `-j 1` one rather than by asserting it here.
+ *
+ * Each worker writes two files: the line it would have printed, and the
+ * bookkeeping the parent cannot see across a process boundary — its tally,
+ * its verdict, and the outcome the baseline comparison needs. The parent
+ * reads them back in manifest order, so the console, the record and the
+ * baseline all come out in the order they came out in before this existed. */
+
+static bool worker_path(char *buf, size_t cap, const char *dir, int k,
+                        const char *ext)
+{
+    int n = snprintf(buf, cap, "%s/%d.%s", dir, k, ext);
+    return n > 0 && (size_t)n < cap;
+}
+
+[[noreturn]]
+static void run_worker(const entry *e, const char *dir, const char *tmp, int k)
+{
+    /* The parent's record file is inherited open. It is not this process's to
+     * write or to close — closing it would flush a copy of its buffer into
+     * the file — so it is dropped without ceremony and `_exit` at the end
+     * skips every stream this process did not open. */
+    g_record = nullptr;
+    g_muted = true;
+    g_ngot = 0;
+    g_total_secs = 0.0;
+
+    char rp[512], mp[512];
+    if (!worker_path(rp, sizeof rp, tmp, k, "rec") ||
+        !worker_path(mp, sizeof mp, tmp, k, "meta"))
+        _exit(3);
+
+    g_record = fopen(rp, "w");
+    if (g_record == nullptr)
+        _exit(3);
+
+    tally ct;
+    memset(&ct, 0, sizeof ct);
+    bool ok = run_one(e, dir, &ct);
+
+    fclose(g_record);
+    g_record = nullptr;
+
+    FILE *mf = fopen(mp, "w");
+    if (mf == nullptr)
+        _exit(3);
+    fprintf(mf, "%d %d %.17g %lld %lld %lld %lld %lld %lld %lld\n",
+            ok ? 1 : 0, g_ngot, g_total_secs,
+            (long long)ct.instances, (long long)ct.solved,
+            (long long)ct.objective_ok, (long long)ct.checker_ok,
+            (long long)ct.deterministic, (long long)ct.shape_ok,
+            (long long)ct.failed);
+    if (g_ngot > 0) {
+        const outcome *o = &g_got[0];
+        fprintf(mf, "%s %s %d %d %d %d %d %lld %lld\n", o->name, o->status,
+                o->solved ? 1 : 0, o->shape ? 1 : 0, o->objective ? 1 : 0,
+                o->checker ? 1 : 0, o->det ? 1 : 0, o->iters, o->work);
+    }
+    fclose(mf);
+    _exit(0);
+}
+
+/* Reads back what one worker left. Returns false if it left nothing usable,
+ * which the caller reports as that instance failing — a worker that died is
+ * not an instance that passed. */
+static bool collect_worker(const entry *e, const char *tmp, int k, tally *t,
+                           bool *ok_out)
+{
+    char rp[512], mp[512];
+    if (!worker_path(rp, sizeof rp, tmp, k, "rec") ||
+        !worker_path(mp, sizeof mp, tmp, k, "meta"))
+        return false;
+
+    FILE *mf = fopen(mp, "r");
+    if (mf == nullptr)
+        return false;
+
+    int ok = 0, nout = 0;
+    double secs = 0.0;
+    long long inst = 0, solved = 0, objok = 0, chkok = 0, det = 0, shape = 0,
+              failed = 0;
+    if (fscanf(mf, "%d %d %lf %lld %lld %lld %lld %lld %lld %lld", &ok, &nout,
+               &secs, &inst, &solved, &objok, &chkok, &det, &shape,
+               &failed) != 10) {
+        fclose(mf);
+        return false;
+    }
+
+    if (nout > 0) {
+        char oname[64], ostat[24];
+        int s = 0, sh = 0, ob = 0, ck = 0, dt = 0;
+        long long it = 0, wk = 0;
+        if (fscanf(mf, "%63s %23s %d %d %d %d %d %lld %lld", oname, ostat, &s,
+                   &sh, &ob, &ck, &dt, &it, &wk) == 9)
+            record(oname, ostat, s != 0, sh != 0, ob != 0, ck != 0, dt != 0,
+                   it, wk);
+    }
+    fclose(mf);
+
+    t->instances += inst;
+    t->solved += solved;
+    t->objective_ok += objok;
+    t->checker_ok += chkok;
+    t->deterministic += det;
+    t->shape_ok += shape;
+    t->failed += failed;
+    *ok_out = ok != 0;
+
+    stamp(e->name, secs);
+
+    FILE *rf = fopen(rp, "r");
+    if (rf != nullptr) {
+        char line[2048];
+        while (fgets(line, sizeof line, rf) != nullptr)
+            emit("%s", line);
+        fclose(rf);
+    }
+    return true;
+}
+
+static bool run_parallel(const entry *ents, const int *sel, int nsel,
+                         const char *dir, int jobs, tally *t)
+{
+    char tmpl[] = "/tmp/jaos-bench-XXXXXX";
+    const char *tmp = mkdtemp(tmpl);
+    if (tmp == nullptr) {
+        fprintf(stderr, "cannot create a working directory for -j\n");
+        return false;
+    }
+
+    static pid_t pid_of[MAX_INSTANCES];
+    static int status_of[MAX_INSTANCES];
+    for (int i = 0; i < nsel; i++) {
+        pid_of[i] = -1;
+        status_of[i] = -1;
+    }
+
+    bool all_ok = true;
+    int running = 0, launched = 0, reaped = 0;
+    while (reaped < nsel) {
+        while (running < jobs && launched < nsel) {
+            /* Nothing of the parent's may still be sitting in a buffer when
+             * the address space is copied, or a worker exiting flushes a
+             * duplicate of it. */
+            fflush(stdout);
+            if (g_record != nullptr)
+                fflush(g_record);
+
+            pid_t p = fork();
+            if (p == 0)
+                run_worker(&ents[sel[launched]], dir, tmp, launched);
+            if (p < 0) {
+                fprintf(stderr, "fork failed for %s\n",
+                        ents[sel[launched]].name);
+                status_of[launched] = -2;
+                launched++;
+                reaped++;
+                all_ok = false;
+                continue;
+            }
+            pid_of[launched] = p;
+            launched++;
+            running++;
+        }
+        if (running == 0)
+            continue;
+
+        int st = 0;
+        pid_t done = waitpid(-1, &st, 0);
+        if (done < 0)
+            break;
+        for (int i = 0; i < launched; i++) {
+            if (pid_of[i] == done) {
+                status_of[i] = st;
+                break;
+            }
+        }
+        running--;
+        reaped++;
+    }
+
+    for (int i = 0; i < nsel; i++) {
+        const entry *e = &ents[sel[i]];
+        bool ok = false;
+        bool exited_clean = status_of[i] >= 0 && WIFEXITED(status_of[i]) &&
+                            WEXITSTATUS(status_of[i]) == 0;
+        if (!exited_clean || !collect_worker(e, tmp, i, t, &ok)) {
+            emit("%-12s WORKER-FAILED  no usable result from its process\n",
+                 e->name);
+            record(e->name, "WORKER-FAILED", false, false, false, false, false,
+                   0, 0);
+            t->instances++;
+            t->failed++;
+            all_ok = false;
+            continue;
+        }
+        if (!ok)
+            all_ok = false;
+    }
+
+    for (int i = 0; i < nsel; i++) {
+        char p[512];
+        if (worker_path(p, sizeof p, tmp, i, "rec"))
+            unlink(p);
+        if (worker_path(p, sizeof p, tmp, i, "meta"))
+            unlink(p);
+    }
+    rmdir(tmp);
+    return all_ok;
+}
+
 static bool wanted(const char *name, int argc, char **argv, int first)
 {
     if (first >= argc)
@@ -606,6 +846,7 @@ int main(int argc, char **argv)
     const char *record = nullptr;
     const char *baseline = nullptr;
     const char *write_baseline = nullptr;
+    int jobs = 1;
     int i = 1;
     for (; i < argc; i++) {
         if (strcmp(argv[i], "-d") == 0 && i + 1 < argc)
@@ -618,6 +859,15 @@ int main(int argc, char **argv)
             baseline = argv[++i];
         else if (strcmp(argv[i], "-w") == 0 && i + 1 < argc)
             write_baseline = argv[++i];
+        else if (strcmp(argv[i], "-j") == 0 && i + 1 < argc) {
+            jobs = atoi(argv[++i]);
+            if (jobs < 1) {
+                fprintf(stderr, "-j takes a positive count, not %s\n", argv[i]);
+                return 2;
+            }
+            if (jobs > MAX_INSTANCES)
+                jobs = MAX_INSTANCES;
+        }
         else if (strcmp(argv[i], "-e") == 0 && i + 1 < argc) {
             const char *want = argv[++i];
             if (strcmp(want, "optimal") == 0)
@@ -703,12 +953,20 @@ int main(int argc, char **argv)
     }
     fclose(mf);
 
-    for (int k = 0; k < n_entries; k++) {
-        const entry *e = &manifest_entries[k];
-        if (!wanted(e->name, argc, argv, i))
-            continue;
-        if (!run_one(e, dir, &t))
+    static int selected[MAX_INSTANCES];
+    int n_selected = 0;
+    for (int k = 0; k < n_entries; k++)
+        if (wanted(manifest_entries[k].name, argc, argv, i))
+            selected[n_selected++] = k;
+
+    if (jobs > 1 && n_selected > 1) {
+        if (!run_parallel(manifest_entries, selected, n_selected, dir, jobs,
+                          &t))
             all_ok = false;
+    } else {
+        for (int k = 0; k < n_selected; k++)
+            if (!run_one(&manifest_entries[selected[k]], dir, &t))
+                all_ok = false;
     }
 
     if (g_expect == EXPECT_INFEASIBLE)
@@ -732,6 +990,15 @@ int main(int argc, char **argv)
         printf("time: %.3fs over %lld instances, slowest %s at %.3fs\n",
                g_total_secs, (long long)t.instances,
                g_slowest[0] ? g_slowest : "-", g_slowest_secs);
+        /* Said every time rather than left to be remembered. These seconds
+         * are the sum of what each solve took while N of them were competing
+         * for the same caches and the same memory bandwidth, so they are
+         * inflated by an amount this program cannot know. The record above
+         * them is unaffected — it is integers — but a time ratio (D45) taken
+         * from this run would be measuring the scheduler. */
+        if (jobs > 1 && n_selected > 1)
+            printf("time: INFLATED -- %d solves ran at once. For a time"
+                   " ratio, rerun with -j 1.\n", jobs);
         fflush(stdout);
     }
 

@@ -14,6 +14,11 @@
 #   netlib-infeas       the infeasible subset (PLAN 2.9 condition 1c)
 #   netlib-kennington-baseline, netlib-infeas-baseline   rewrite those two
 #   clean     remove all build output
+#
+# J=N runs N instances at once in any of the netlib targets. The record comes
+# out byte-identical because everything in it is an integer the solver
+# computed — but the seconds printed alongside it do not, and the runner says
+# so. A time ratio needs J=1.
 
 # make predefines CC=cc, so ?= would never fire; override only the built-in
 # default while still honouring CC given via environment or command line.
@@ -21,6 +26,13 @@ ifeq ($(origin CC),default)
 CC := gcc-14
 endif
 AR ?= ar
+
+# How many instances the acceptance runner solves at once. One by default:
+# the sequential run is the one whose printed seconds mean anything, so the
+# faster mode is asked for rather than assumed. Ten is right for a six-core
+# machine on the standard set; the Kennington models are large enough that
+# memory, not cores, sets the limit — six to eight there.
+J ?= 1
 
 STD  := -std=c23
 WARN := -Wall -Wextra -Wpedantic
@@ -146,7 +158,7 @@ compare: $(B)/bench/jaos_time
 netlib: $(B)/bench/run
 	@bench/fetch.sh
 	@mkdir -p bench/results
-	./$(B)/bench/run -o bench/results/netlib.txt -b bench/netlib.baseline
+	./$(B)/bench/run -j $(J) -o bench/results/netlib.txt -b bench/netlib.baseline
 
 # Rewrites what every instance is expected to do. Separate from `netlib`, and
 # never a side effect of it: a baseline that updates itself records whatever
@@ -154,7 +166,7 @@ netlib: $(B)/bench/run
 netlib-baseline: $(B)/bench/run
 	@bench/fetch.sh
 	@mkdir -p bench/results
-	./$(B)/bench/run -o bench/results/netlib.txt -w bench/netlib.baseline
+	./$(B)/bench/run -j $(J) -o bench/results/netlib.txt -w bench/netlib.baseline
 
 # The other two sets the M1 gate asks for (PLAN 2.9). Both are served by
 # netlib in its packed form and expanded with emps, which fetch.sh downloads
@@ -174,7 +186,7 @@ netlib-kennington: $(B)/bench/run
 		-b https://netlib.org/lp/data/kennington -p gz-emps \
 		bench/instances-kennington
 	@mkdir -p bench/results
-	./$(B)/bench/run -m bench/netlib-kennington.manifest \
+	./$(B)/bench/run -j $(J) -m bench/netlib-kennington.manifest \
 		-d bench/instances-kennington \
 		-b bench/netlib-kennington.baseline \
 		-o bench/results/netlib-kennington.txt
@@ -184,7 +196,7 @@ netlib-infeas: $(B)/bench/run
 		-b https://netlib.org/lp/infeas -p emps \
 		bench/instances-infeas
 	@mkdir -p bench/results
-	./$(B)/bench/run -m bench/netlib-infeas.manifest -e infeasible \
+	./$(B)/bench/run -j $(J) -m bench/netlib-infeas.manifest -e infeasible \
 		-d bench/instances-infeas \
 		-b bench/netlib-infeas.baseline \
 		-o bench/results/netlib-infeas.txt
@@ -196,7 +208,7 @@ netlib-kennington-baseline: $(B)/bench/run
 		-b https://netlib.org/lp/data/kennington -p gz-emps \
 		bench/instances-kennington
 	@mkdir -p bench/results
-	./$(B)/bench/run -m bench/netlib-kennington.manifest \
+	./$(B)/bench/run -j $(J) -m bench/netlib-kennington.manifest \
 		-d bench/instances-kennington \
 		-w bench/netlib-kennington.baseline \
 		-o bench/results/netlib-kennington.txt
@@ -206,7 +218,7 @@ netlib-infeas-baseline: $(B)/bench/run
 		-b https://netlib.org/lp/infeas -p emps \
 		bench/instances-infeas
 	@mkdir -p bench/results
-	./$(B)/bench/run -m bench/netlib-infeas.manifest -e infeasible \
+	./$(B)/bench/run -j $(J) -m bench/netlib-infeas.manifest -e infeasible \
 		-d bench/instances-infeas \
 		-w bench/netlib-infeas.baseline \
 		-o bench/results/netlib-infeas.txt

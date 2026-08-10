@@ -62,6 +62,7 @@ and you have the argument. Jump to the entry for the numbers behind it.
 - **[D54](#d54-the-seventeen-is-two-different-things-and-only-one-of-them-is-visible-to-the-counter)** — The seventeen is two different things, and only one of them is visible to the counter
 - **[D55](#d55-the-shipping-build-paid-15x-for-a-capacity-check-it-could-not-inline)** — The shipping build paid 1.5x for a capacity check it could not inline
 - **[D56](#d56-the-elimination-rebuilt-every-column-of-every-pivot-row-including-when-there-was-nothing-to-eliminate)** — The elimination rebuilt every column of every pivot row, including when there was nothing to eliminate
+- **[D57](#d57-the-gate-runs-its-instances-at-once-because-nothing-it-records-is-a-second)** — The gate runs its instances at once, because nothing it records is a second
 
 ---
 
@@ -3250,3 +3251,67 @@ which for these pivots ran zero times — so the counter recorded the cheap
 factorization it should have been and the solver did something else entirely.
 That is now three findings deep in the same direction (D45, D54, this): the
 counter measures the algorithm, not the program.
+
+## D57 — The gate runs its instances at once, because nothing it records is a second
+
+Half an hour per measurement was breaking the work, and the fix had been
+sitting in the plan since M2 opened (PLAN 1.2) without being taken.
+
+**Why it is safe, and it is the whole argument.** Everything `bench/run.c`
+writes to a record is an integer the solver computed: the verdict, the shape,
+the iteration count, the work units, the solution digest. Not one of them can
+be moved by what else the machine is doing, and the instances do not depend
+on each other. So `-j N` forks one worker per instance, N of them alive at a
+time, and the parent reads their results back **in manifest order** — the
+console, the record file and the baseline all come out in the order they came
+out in before this existed.
+
+**Checked rather than asserted.** Every one of the 139 lines is byte-identical
+to the committed record, which was produced sequentially. The only difference
+in any of the three files is the last line, where these runs were given a
+baseline to compare against and the committed records were written by the
+`-baseline` targets, which are not.
+
+| set | sequential | `-j` | |
+|---|---|---|---|
+| standard 94 | ~8 min | **84 s** | `-j 10` |
+| infeasible 29 | ~2 min | **9 s** | `-j 10` |
+| Kennington 16 | ~30 min | **8 min 21 s** | `-j 6` |
+
+Kennington gains the least and cannot gain more: `ken-18` alone takes 261 s
+of the 501, so the set is bounded by its slowest instance however many cores
+are thrown at it. The other two are bounded by the core count, which is what
+`-j 10` on six cores is already exploiting.
+
+**What it does invalidate is the seconds**, and the runner says so on the
+console every time N > 1 rather than leaving it to be remembered. Concurrent
+solves compete for cache and memory bandwidth, so each instance's time is
+inflated by an amount this program cannot know. The record is untouched — it
+is integers — but the time ratio D45 made one of the three things a change is
+judged on has to come from `J=1`. A campaign that measures work units in
+parallel and then times one instance sequentially gets both, which is the
+intended shape.
+
+**A worker that dies is not an instance that passed.** If a process exits
+non-zero, is killed by a signal, or leaves no usable result, its instance is
+recorded `WORKER-FAILED` and the run fails. The alternative — a missing line
+— reads as a set that was never run.
+
+**And the gate was made to fail three ways before this was believed**, because
+139 green instances are exactly what a gate that stopped checking also
+produces:
+
+| built to be rejected | under `-j` |
+|---|---|
+| an instance costing 4x its baseline work | `REGRESSED work: 4973 -> 19894 (4.0x)`, exit 1 — same line as `-j 1` |
+| an instance whose file cannot be read | `READ-FAILED`, `gate: NOT MET`, exit 1 |
+| a worker killed before it writes anything | `WORKER-FAILED`, `gate: NOT MET`, exit 1 |
+
+The third needed the defect injected into a throwaway copy of the runner,
+which is the only way to find out whether that path works at all.
+
+**Not taken: the flags.** The runner could also be built `-O3 -march=native
+-flto`, which is where the remaining minute of the standard set is. That is
+two changes measured at once, and which flags a build carries is Q11's
+question. The parallelism is worth having on its own and is portable, which
+`-march=native` by construction is not.

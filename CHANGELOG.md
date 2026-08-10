@@ -11,6 +11,14 @@ open, `bench/README.md` for the gate, and the commit each entry came from.
 
 ### Added
 
+- `-j N` on the acceptance runner and `J=N` on every netlib make target: the
+  instances are solved N at a time, one process each, and the record is
+  reassembled in manifest order. All 139 lines come out byte-identical to the
+  sequential record. The standard set takes 84 s instead of eight minutes,
+  the infeasible set 9 s instead of two and Kennington 8 min 21 s instead of
+  thirty. The seconds printed alongside are
+  inflated by the contention and the runner says so on every parallel run
+  (D57).
 - `jaos_basis` reports where every column and row activity rests in the basis
   behind the answer — basic, at a bound, or free. It is the part of a
   solution the values cannot carry: a basic variable sitting exactly on a

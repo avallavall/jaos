@@ -7,7 +7,27 @@ nothing here is linked into the library.
 ```sh
 bench/fetch.sh      # download and verify the instances (once)
 make netlib         # build the runner, fetch if needed, run the gate
+make netlib J=10    # the same run, ten instances at a time
 ```
+
+## `J` — the same record, in a tenth of the time
+
+Every number the record carries is an integer the solver computed, and the
+instances do not depend on each other. So `J=N` solves N of them at once, one
+process each, and the parent reassembles the table in manifest order: the
+record comes out byte-identical to a sequential run, which is checked by
+diffing rather than asserted (D57). The standard set takes 84 s instead of
+eight minutes, the infeasible set 9 s instead of two minutes, Kennington
+8 min 21 s instead of thirty.
+
+**What `J` does invalidate is the seconds**, and the runner prints a line
+saying so on every parallel run. Concurrent solves compete for cache and
+memory bandwidth, so each one's time is inflated by an amount nobody
+measured. The record above it is unaffected — it is integers — but the time
+ratio a change is judged on (D45) has to come from `J=1`.
+
+Ten suits a six-core machine on the standard set. Kennington is bounded by
+memory rather than cores; six to eight there.
 
 ## Three sets
 
