@@ -83,6 +83,8 @@ and you have the argument. Jump to the entry for the numbers behind it.
 - **[D75](#d75-the-non-aliasing-claim-holds-and-restrict-belongs-inside-the-kernel-rather-than-on-the-api)** — The non-aliasing claim holds, and `restrict` belongs inside the kernel rather than on the API
 - **[D76](#d76-restrict-measured-and-refused-what-makes-it-safe-here-is-what-makes-it-worthless)** — `restrict` measured and refused: what makes it safe here is what makes it worthless
 - **[D77](#d77-a-dimension-change-keeps-the-basis-exactly-when-what-is-left-is-still-a-basis)** — A dimension change keeps the basis exactly when what is left is still a basis
+- **[D78](#d78-a-load-was-discarding-the-logging-callback-and-the-list-that-preserved-settings-was-the-defect)** — A load was discarding the logging callback, and the list that preserved settings was the defect
+- **[D79](#d79-a-callback-may-look-and-may-stop-a-solve-and-may-not-steer-one)** — A callback may look, and may stop a solve, and may not steer one
 
 ---
 
@@ -4967,3 +4969,119 @@ returned to 5 by deleting that column and to 4.5 by deleting the row. Each of
 those four numbers is hand-computed in the test's own comment, because a
 structural assertion about `a_start` cannot tell whether the scaling and the
 factorization saw the change.
+
+## D78 — A load was discarding the logging callback, and the list that preserved settings was the defect
+
+Found by reading, while adding a field next to the ones it affected. Not
+observed by any test, because the test that would have caught it is the one
+nobody writes: configure, *then* load.
+
+**The defect.** `model_release_arrays` ends in `memset(m, 0, sizeof *m)`, and
+`jaos_load_lp` put four values back across it — the two budgets and the two
+tolerances. `log_cb`, `log_user` and `log_level` were not among them. So
+
+```c
+jaos_set_log_callback(m, my_logger, ctx);
+jaos_set_log_level(m, JAOS_LOG_DETAIL);
+jaos_load_lp(m, ...);          /* the callback is gone here */
+jaos_solve(m);                 /* silence, and no way to tell why */
+```
+
+Configure-then-load is the natural order to write it in — it is the order the
+tolerance setters' own documentation implies — and it silently lost logging
+from D65 until now.
+
+**The comment beside that list had already predicted this**, in those words:
+"a setting that is added without being added to this list is lost by anyone
+who configures before loading — which is the natural order to write it in and
+is how the primal tolerance was found to be dropped." It happened once, was
+written down as a warning, and then happened again to the next setting added.
+A comment stating an invariant has a failure rate of 100% given enough time,
+and this is the receipt.
+
+**So the repair is not "add three more lines to the list."** That fixes the
+instance and leaves the mechanism, and the mechanism has now failed twice out
+of the three times it was exercised. Configuration moved into a `jm_config`
+sub-struct on the model, and `model_release_arrays` saves *that* across the
+wipe and puts it back. There is nothing to remember, because a setting added
+to the configuration is preserved by being inside the thing that is preserved.
+`jaos_load_lp` lost its save-and-restore block entirely.
+
+**Why this was safe to do mechanically.** 34 accesses across `src/` and the
+tests, and every one that moved is a compile error if it is missed — `m->work_limit`
+simply stops existing. The one thing to be careful of was the opposite
+direction: `sx` carries its own resolved `primal_tol` and `dual_tol` (the
+model's value or the built-in default), and a first pass moved those too.
+The compiler caught all nine.
+
+**Measured:** all 139 digests, iteration counts and work units unmoved across
+the three gates — a struct that changes where a field lives must change no
+number, and this is the check that says it did not. The regression test is
+`test_configuration_survives_a_load`, which sets a log callback, a progress
+callback, a work limit and a tolerance, *then* loads, and requires all four to
+still be in force.
+
+## D79 — A callback may look, and may stop a solve, and may not steer one
+
+The last gap in phase 2, and it was left until last because it is the only one
+that needed an answer rather than an implementation: what may a callback do to
+a solve in progress, and what happens to determinism if it can stop one.
+
+**What it may do: look, and ask to stop.** Not modify the model — the solver
+is holding a scaling, a factorization and a basis derived from the model as it
+stood, and changing the model underneath them leaves the two disagreeing with
+nothing able to notice. And not steer: which column prices, when to
+refactorize, whether a weight is worth carrying are the method, and D64's line
+puts the method on the solver's side. A caller cannot know those answers and
+being asked for them is a problem handed back.
+
+**Determinism, stated exactly, because "it stays deterministic" would be a
+dodge.** Two things hold and the second is the one that matters:
+
+1. *When* the question is put is reproducible. The callback is invoked on a
+   fixed iteration count and never on a clock — D65's rule for logging, for
+   the same reason. The same model asks at the same iterations on every
+   machine and every run.
+2. Given the same sequence of answers, the solve is bit-identical, because
+   nothing else about it depends on the callback existing.
+
+What the caller decides is the caller's. If they decide on a clock, their
+stopping point moves between runs — and **that is already true of
+`jaos_set_time_limit`**, which has shipped since M1. This generalises a
+precedent rather than breaking a rule: a callback that stops a solve *is* a
+budget, one whose rule lives in the caller instead of in a number, which is
+why the hook sits beside the budget checks and not somewhere of its own.
+
+**Stopping is not answering.** `JAOS_SOLVE_INTERRUPTED`, appended to the enum
+rather than inserted, so nothing below it renumbers for anyone who did not
+recompile. `jaos_solution` and `jaos_objective` refuse. It keeps the basis it
+stopped on and joins the list D70 wrote, so calling `jaos_solve` again
+continues instead of starting over — an interrupt a caller cannot resume from
+would be the half-budget D70 already rejected.
+
+**What a watcher is told, and the one thing it is not.** Iterations, work
+units, and the total primal infeasibility. **There is no objective, and its
+absence is the design:** a dual simplex carries a point that is not feasible
+until it finishes, so any objective reportable mid-solve is a number about a
+point this library does not vouch for, and D20 is the rule against handing
+those back. The infeasibility is not a substitute chosen for convenience — it
+is the measure the solver's own progress and stall detection are written in,
+so a watcher gets the real quantity rather than a plausible one. The first
+call, before anything has been priced, reports the infinity that measure
+starts at; that is documented rather than smoothed, because it is the true
+answer to "how close is it" before the question has been asked once.
+
+`PROGRESS_EVERY = 64` rather than `LOG_EVERY`'s 1000, because this one decides
+something and a caller who wants to interrupt wants it to take effect. 64 is
+already the granularity at which `TIME_CHECK_EVERY` settled that a stop is
+responsive enough. A model with no callback pays one predictable branch.
+
+**Measured:** all 139 digests, iteration counts and work units unmoved, which
+is the claim that installing the hook changed no arithmetic. Three tests: a
+watcher that always continues returns the same bits as no watcher — compared
+with `EQUAL_MEMORY` and not a tolerance, because the claim is that the
+arithmetic was untouched — and it asserts the watcher was actually called
+first, since one that is never asked passes everything without proving
+anything. A watcher that stops gets `INTERRUPTED`, is refused a solution,
+keeps its basis, and the next solve finishes to the same objective a cold
+solve reaches.

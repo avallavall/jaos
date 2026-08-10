@@ -1442,10 +1442,10 @@ static void test_budgets_survive_a_reload(void)
     TEST_ASSERT_EQUAL_INT(JAOS_OK,
         jaos_load_lp(m, 1, 1, JAOS_MINIMIZE, 0.0, c, cl, cu, rl, ru,
                      1, as, ai, av));
-    TEST_ASSERT_EQUAL_INT64(12345, m->work_limit);
-    TEST_ASSERT_EQUAL_DOUBLE(42.0, m->time_limit);
-    TEST_ASSERT_EQUAL_DOUBLE(1e-4, m->primal_tol);
-    TEST_ASSERT_EQUAL_DOUBLE(1e-5, m->dual_tol);
+    TEST_ASSERT_EQUAL_INT64(12345, m->cfg.work_limit);
+    TEST_ASSERT_EQUAL_DOUBLE(42.0, m->cfg.time_limit);
+    TEST_ASSERT_EQUAL_DOUBLE(1e-4, m->cfg.primal_tol);
+    TEST_ASSERT_EQUAL_DOUBLE(1e-5, m->cfg.dual_tol);
     jaos_model_free(m);
 }
 
@@ -1482,16 +1482,16 @@ static void test_a_tolerance_must_be_a_tolerance(void)
 static void test_an_untouched_model_carries_no_tolerance_of_its_own(void)
 {
     jaos_model *m = fresh();
-    TEST_ASSERT_EQUAL_DOUBLE(0.0, m->primal_tol);
-    TEST_ASSERT_EQUAL_DOUBLE(0.0, m->dual_tol);
+    TEST_ASSERT_EQUAL_DOUBLE(0.0, m->cfg.primal_tol);
+    TEST_ASSERT_EQUAL_DOUBLE(0.0, m->cfg.dual_tol);
     /* Set, then handed back with zero, which is the only way to say
      * "whatever you would have done" once a value has been given. */
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_primal_tolerance(m, 1e-3));
-    TEST_ASSERT_EQUAL_DOUBLE(1e-3, m->primal_tol);
+    TEST_ASSERT_EQUAL_DOUBLE(1e-3, m->cfg.primal_tol);
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_primal_tolerance(m, 0.0));
-    TEST_ASSERT_EQUAL_DOUBLE(0.0, m->primal_tol);
+    TEST_ASSERT_EQUAL_DOUBLE(0.0, m->cfg.primal_tol);
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_dual_tolerance(m, 1e-3));
-    TEST_ASSERT_EQUAL_DOUBLE(1e-3, m->dual_tol);
+    TEST_ASSERT_EQUAL_DOUBLE(1e-3, m->cfg.dual_tol);
     jaos_model_free(m);
 }
 
@@ -1643,6 +1643,150 @@ static void test_watching_a_solve_does_not_change_it(void)
 
     jaos_model_free(quiet);
     jaos_model_free(loud);
+}
+
+/* ---------------------------------------------------------------------- */
+/* Watching a solve, and stopping one                                      */
+/* ---------------------------------------------------------------------- */
+
+typedef struct {
+    int calls;
+    int stop_after;              /* -1 never */
+    int64_t last_iters;
+    int64_t last_work;
+    bool iters_on_the_beat;      /* every call landed on a fixed multiple */
+    bool work_never_went_back;
+} watcher;
+
+static jaos_callback_action watch(const jaos_progress *p, void *user)
+{
+    watcher *w = user;
+    if (p->work_units < w->last_work)
+        w->work_never_went_back = false;
+    if (p->iterations % 64 != 0)
+        w->iters_on_the_beat = false;
+    w->last_iters = p->iterations;
+    w->last_work = p->work_units;
+    w->calls++;
+    return (w->stop_after >= 0 && w->calls > w->stop_after)
+               ? JAOS_CALLBACK_STOP : JAOS_CALLBACK_CONTINUE;
+}
+
+static watcher fresh_watcher(int stop_after)
+{
+    return (watcher){.stop_after = stop_after, .iters_on_the_beat = true,
+                     .work_never_went_back = true};
+}
+
+static void test_a_watcher_is_asked_and_changes_nothing(void)
+{
+    jaos_model *quiet = log_model();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(quiet));
+    double qobj = 0.0;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(quiet, &qobj));
+    const int64_t qiters = jaos_iterations(quiet);
+    const int64_t qwork = jaos_work_units(quiet);
+    double qx[3] = {0}, qy[2] = {0};
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solution(quiet, qx, nullptr, qy, nullptr));
+
+    watcher w = fresh_watcher(-1);
+    jaos_model *seen = log_model();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_progress_callback(seen, watch, &w));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(seen));
+    double sobj = 0.0;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(seen, &sobj));
+    double sx_[3] = {0}, sy[2] = {0};
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solution(seen, sx_, nullptr, sy, nullptr));
+
+    /* The instrument, before the claim: a watcher that was never asked would
+     * pass every assertion below without proving anything. */
+    TEST_ASSERT_TRUE(w.calls > 0);
+    TEST_ASSERT_TRUE(w.iters_on_the_beat);
+    TEST_ASSERT_TRUE(w.work_never_went_back);
+
+    /* Bit for bit, for the reason the logging test gives: the claim is that
+     * the arithmetic was untouched, and "close" would not be that claim. */
+    TEST_ASSERT_EQUAL_MEMORY(&qobj, &sobj, sizeof qobj);
+    TEST_ASSERT_EQUAL_MEMORY(qx, sx_, sizeof qx);
+    TEST_ASSERT_EQUAL_MEMORY(qy, sy, sizeof qy);
+    TEST_ASSERT_EQUAL_INT64(qiters, jaos_iterations(seen));
+    TEST_ASSERT_EQUAL_INT64(qwork, jaos_work_units(seen));
+
+    jaos_model_free(quiet);
+    jaos_model_free(seen);
+}
+
+static void test_a_watcher_can_stop_a_solve_and_it_resumes(void)
+{
+    watcher w = fresh_watcher(0);          /* stop at the first question */
+    jaos_model *m = log_model();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_progress_callback(m, watch, &w));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_INTERRUPTED, jaos_status_of(m));
+    TEST_ASSERT_EQUAL_INT(1, w.calls);
+
+    /* A stopping point is not a solution, and the two are not readable
+     * through one call. */
+    double x[3] = {0};
+    TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT,
+        jaos_solution(m, x, nullptr, nullptr, nullptr));
+    double obj = 0.0;
+    TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT, jaos_objective(m, &obj));
+
+    /* But it kept where it stopped, exactly as a budget stop does. */
+    TEST_ASSERT_NOT_NULL(m->start_col_status);
+    TEST_ASSERT_NOT_NULL(m->start_row_status);
+
+    /* Stop asking, and the next solve finishes the job. */
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_set_progress_callback(m, nullptr, nullptr));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+
+    jaos_model *cold = log_model();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(cold));
+    double cobj = 0.0, robj = 0.0;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(cold, &cobj));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(m, &robj));
+    TEST_ASSERT_DOUBLE_WITHIN(1e-9, cobj, robj);
+
+    jaos_model_free(m);
+    jaos_model_free(cold);
+}
+
+/* The defect D78 found, kept from coming back: configuration is not problem
+ * data, so loading a problem must not silently discard it. Logging was lost
+ * this way from the day it landed. */
+static void test_configuration_survives_a_load(void)
+{
+    int hits = 0;
+    watcher w = fresh_watcher(-1);
+    jaos_model *m = fresh();
+
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_log_callback(m, collect_log, &hits));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_log_level(m, JAOS_LOG_DETAIL));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_progress_callback(m, watch, &w));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_work_limit(m, 1000000));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_primal_tolerance(m, 1e-8));
+
+    /* Configure first, load second — the order anyone writes it in. */
+    const double c[] = {-1.0, -2.0, -1.0};
+    const double cl[] = {0.0, 0.0, 0.0}, cu[] = {4.0, 4.0, 4.0};
+    const double rl[] = {-INFINITY, -INFINITY}, ru[] = {5.0, 6.0};
+    const int64_t as[] = {0, 2, 4, 6}, ai[] = {0, 1, 0, 1, 0, 1};
+    const double av[] = {1.0, 2.0, 2.0, 1.0, 1.0, 1.0};
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_load_lp(m, 3, 2, JAOS_MINIMIZE, 0.0, c, cl, cu, rl, ru,
+                     6, as, ai, av));
+
+    TEST_ASSERT_EQUAL_INT64(1000000, m->cfg.work_limit);
+    TEST_ASSERT_EQUAL_DOUBLE(1e-8, m->cfg.primal_tol);
+    TEST_ASSERT_EQUAL_INT(JAOS_LOG_DETAIL, m->cfg.log_level);
+
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_TRUE(hits > 0);     /* the callback survived the load */
+    TEST_ASSERT_TRUE(w.calls > 0);
+    jaos_model_free(m);
 }
 
 static void test_queries_before_a_solve(void)
@@ -2282,6 +2426,9 @@ int main(void)
     RUN_TEST(test_logging_says_nothing_until_it_is_asked_to);
     RUN_TEST(test_a_level_outside_the_enum_is_refused);
     RUN_TEST(test_watching_a_solve_does_not_change_it);
+    RUN_TEST(test_a_watcher_is_asked_and_changes_nothing);
+    RUN_TEST(test_a_watcher_can_stop_a_solve_and_it_resumes);
+    RUN_TEST(test_configuration_survives_a_load);
     RUN_TEST(test_queries_before_a_solve);
     RUN_TEST(test_the_basis_names_which_rows_hold_the_optimum);
     RUN_TEST(test_the_basis_agrees_with_the_values_it_came_with);

@@ -11,6 +11,31 @@ open, `bench/README.md` for the gate, and the commit each entry came from.
 
 ### Added
 
+- `jaos_set_progress_callback`: a solve can be watched, and stopped. A watcher
+  is told the iteration count, the work units and the total primal
+  infeasibility — and no objective, because a dual simplex carries a point it
+  cannot vouch for until it finishes and this library does not hand back
+  numbers it will not stand behind. It may look and it may stop; it may not
+  steer, and it may not touch the model. Asked every 64 iterations and never
+  on a clock, so *when* it is asked is reproducible and the same answers give
+  the same solve bit for bit — a callback that always continues returns the
+  same bits as no callback, over all 139. A stop is the new
+  `JAOS_SOLVE_INTERRUPTED`, appended to the enum rather than inserted, and it
+  keeps the basis it stopped on, so solving again resumes instead of starting
+  over (D79).
+
+### Fixed
+
+- **Loading a problem no longer discards the logging callback.** A model
+  configured before it was loaded lost `jaos_set_log_callback` and
+  `jaos_set_log_level` in silence — the natural order to write it in, and
+  broken since logging landed. The list of settings that survived a load was
+  the defect rather than its contents: the comment beside it had already
+  warned that a setting added without being added to the list would be lost,
+  and that is exactly what happened to the next setting added. Configuration
+  is now one sub-struct that the load saves and restores whole, so there is
+  nothing left to forget. All 139 digests unmoved (D78).
+
 - `jaos_add_rows`, `jaos_add_cols`, `jaos_delete_rows` and
   `jaos_delete_cols`: the problem itself can grow and shrink, not only its
   numbers. Additions append, so no existing index moves and the prefix of

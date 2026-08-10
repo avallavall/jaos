@@ -9,6 +9,40 @@
 
 #include <stddef.h>
 
+/* What a caller sets, as opposed to what a caller loads. The line between the
+ * two is the one D64 drew: this configures the contract — how much precision
+ * the data deserves, how long the caller will wait, where output goes, who
+ * gets asked whether to carry on — and never the method.
+ *
+ * Nothing here is problem data, so nothing here is discarded by a load. */
+typedef struct {
+    int64_t work_limit;      /* <= 0 means unlimited */
+    double time_limit;       /* <= 0 means unlimited */
+
+    /* The two tolerances a caller owns, in scaled space where the solver
+     * works. Zero means "the built-in default", so a model that never sets
+     * them behaves exactly as it did before they existed — which is what
+     * makes every digest in the reference sets a test of that claim.
+     *
+     * These two and no others. They say how much precision the caller's data
+     * deserves, which is a question about the problem; everything else in
+     * docs/tolerances.md is about the method and stays measured and fixed. */
+    double primal_tol;       /* <= 0 means PRIMAL_TOL */
+    double dual_tol;         /* <= 0 means DUAL_TOL   */
+
+    /* Where output goes. No callback means no output, whatever the level:
+     * a library that writes somewhere the caller did not choose cannot be
+     * embedded. */
+    jaos_log_fn log_cb;
+    void *log_user;
+    jaos_log_level log_level;
+
+    /* Who is asked, every PROGRESS_EVERY iterations, whether to carry on.
+     * No callback means nobody is asked and the solve runs to its own end. */
+    jaos_progress_fn progress_cb;
+    void *progress_user;
+} jm_config;
+
 struct jaos_model {
     int64_t num_col;
     int64_t num_row;
@@ -54,28 +88,22 @@ struct jaos_model {
      * success, so it travels here rather than in err. */
     bool scale_clamped;
 
-    /* Budgets and the record of the last solve. Kept on the model so a
-     * caller can query results without holding a solver handle. */
-    int64_t work_limit;      /* <= 0 means unlimited */
-    double time_limit;       /* <= 0 means unlimited */
-
-    /* The two tolerances a caller owns, in scaled space where the solver
-     * works. Zero means "the built-in default", so a model that never sets
-     * them behaves exactly as it did before they existed — which is what
-     * makes every digest in the reference sets a test of that claim.
+    /* Everything the caller configures, in one object, and the reason it is
+     * one object is a defect it has already caused twice.
      *
-     * These two and no others. They say how much precision the caller's data
-     * deserves, which is a question about the problem; everything else in
-     * docs/tolerances.md is about the method and stays measured and fixed. */
-    double primal_tol;       /* <= 0 means PRIMAL_TOL */
-    double dual_tol;         /* <= 0 means DUAL_TOL   */
-
-    /* Where output goes. No callback means no output, whatever the level:
-     * a library that writes somewhere the caller did not choose cannot be
-     * embedded. */
-    jaos_log_fn log_cb;
-    void *log_user;
-    jaos_log_level log_level;
+     * Loading a new problem into an existing model must replace the problem
+     * and keep the configuration — nobody who writes `set the tolerance, load
+     * the file, solve` expects the tolerance to be gone. That used to be a
+     * list of fields saved across the wipe and restored after it, and a list
+     * is a thing you can forget to add to: the primal tolerance was found
+     * missing from it once, and the logging callback was missing from it from
+     * D65 until it was noticed here, so a caller who installed a log callback
+     * before loading got silence and no way to tell why.
+     *
+     * As a sub-struct there is nothing to remember. `model_release_arrays`
+     * saves this and puts it back, and a setting added to it is preserved
+     * because it is inside the thing that gets preserved. */
+    jm_config cfg;
 
     jaos_solve_status solve_status;
     double objective;
@@ -307,7 +335,7 @@ void jm_set_err(jaos_model *m, const char *fmt, ...);
  * formatted string. Inline and in the header for that reason. */
 static inline bool jm_logging_at(const jaos_model *m, jaos_log_level level)
 {
-    return m != nullptr && m->log_cb != nullptr && m->log_level >= level;
+    return m != nullptr && m->cfg.log_cb != nullptr && m->cfg.log_level >= level;
 }
 
 /* Formats one line and hands it to the caller's callback. Does nothing when

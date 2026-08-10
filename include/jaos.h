@@ -56,6 +56,10 @@ typedef enum jaos_solve_status {
     JAOS_SOLVE_WORK_LIMIT,
     JAOS_SOLVE_TIME_LIMIT,
     JAOS_SOLVE_NUMERICAL_ERROR,
+    /* Appended, and appended on purpose: an enumerator inserted above this
+     * line would renumber every one below it for anyone who did not
+     * recompile. */
+    JAOS_SOLVE_INTERRUPTED,
 } jaos_solve_status;
 
 /* Human-readable name for a status. Static storage; never NULL, including for
@@ -348,6 +352,70 @@ JAOS_NODISCARD jaos_status jaos_set_log_callback(jaos_model *m,
                                                  jaos_log_fn cb, void *user);
 JAOS_NODISCARD jaos_status jaos_set_log_level(jaos_model *m,
                                               jaos_log_level level);
+
+/* ------------------------------------------------------------------------- */
+/* Watching a solve, and stopping one                                        */
+/* ------------------------------------------------------------------------- */
+
+typedef enum jaos_callback_action {
+    JAOS_CALLBACK_CONTINUE = 0,
+    JAOS_CALLBACK_STOP,
+} jaos_callback_action;
+
+/* What the solve can say about itself while it is still running.
+ *
+ * There is no objective here, and its absence is the design. A dual simplex
+ * carries a point that is not feasible until it finishes, so any objective it
+ * could report mid-solve is a number about a point the solver does not vouch
+ * for — and this library does not hand back numbers it will not stand behind
+ * (D20). What it does watch is the total primal infeasibility, which is the
+ * measure its own progress and stall detection are written in, so that is
+ * what a watcher gets: the real one, not a plausible one. */
+typedef struct jaos_progress {
+    int64_t iterations;
+    int64_t work_units;
+    /* The best total reached so far. The first call comes before anything has
+     * been priced, so it reports the infinity this starts at — that is not a
+     * placeholder, it is the true answer to "how close is it" before the
+     * question has been asked once. */
+    double primal_infeasibility;
+} jaos_progress;
+
+/* Called during a solve, and its return value decides whether the solve goes
+ * on. `user` is handed back untouched. Like the log callback it must not call
+ * into JAOS on the same model — the solver is holding a factorization, a
+ * scaling and a basis derived from the model as it stood, and changing the
+ * model underneath them leaves the two disagreeing with nothing to notice it.
+ *
+ * **A callback may look, and it may ask the solve to stop. It may not steer
+ * one.** Which column prices, when to refactorize, whether a weight is worth
+ * carrying: those are the method, and D64's line puts the method on this side
+ * of the wall. A caller cannot know the answers and being asked for them is a
+ * problem handed back.
+ *
+ * **What this does to determinism, exactly.** Asking is paced by iteration
+ * count and never by a clock, so *when* the question is put is itself
+ * reproducible; and given the same sequence of answers the solve is
+ * bit-identical, because nothing else about it depends on the callback
+ * existing. What the caller decides is the caller's, and if they decide on a
+ * clock then their stopping point moves — which is already true of
+ * jaos_set_time_limit, so this generalises a precedent rather than breaking a
+ * rule. A callback that always returns CONTINUE returns the same bits as no
+ * callback at all, over all 139 reference instances.
+ *
+ * **Stopping is not answering.** The solve ends as JAOS_SOLVE_INTERRUPTED,
+ * jaos_solution refuses, and there is nothing to read in between. It keeps
+ * the basis it stopped on, exactly as a budget stop does, so calling
+ * jaos_solve again continues from there rather than starting over.
+ *
+ * Passing NULL for `cb` means nobody is asked and the solve runs to its own
+ * end. */
+typedef jaos_callback_action (*jaos_progress_fn)(const jaos_progress *p,
+                                                 void *user);
+
+JAOS_NODISCARD jaos_status jaos_set_progress_callback(jaos_model *m,
+                                                      jaos_progress_fn cb,
+                                                      void *user);
 
 /* Solves the model. The outcome is reported by jaos_solve_status, which the
  * return value does not duplicate: JAOS_OK means the solve ran, not that it

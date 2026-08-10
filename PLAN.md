@@ -108,8 +108,8 @@ fallback, and this is the first measurement of what it costs.
 
 ## Phase 2 — Make it usable
 
-Nothing here is hard, and most of it has landed. **What is left is callbacks
-during a solve.**
+**Done.** Options, logging, model modification, warm re-solve, resumable
+budgets, adding and deleting rows and columns, and callbacks.
 
 **The line this API is drawn on: it configures the contract, never the
 method.** What a caller may set is what depends on their problem and which
@@ -132,10 +132,25 @@ to be inside.
   `jaos_set_dual_tolerance` are in, with 0 restoring the default and anything
   that is not a finite non-negative number refused rather than clamped. All
   139 digests unmoved, because a model that sets nothing behaves as before.
-  Logging landed with it (D65); **what is left here is callbacks** — a hook
-  the solver calls during a run rather than a value it reads before one, so
-  it has to answer what a callback may do to a solve in progress and what
-  happens to determinism if it can stop one.
+  Logging landed with it (D65).
+
+  **And callbacks are in (D79), with the question they were waiting on
+  answered.** A watcher may look and may ask the solve to stop; it may not
+  steer one and may not touch the model. Determinism holds in two parts:
+  *when* it is asked is a fixed iteration count and never a clock, so the
+  question itself is reproducible; and given the same answers the solve is
+  bit-identical. If the caller decides on a clock their stopping point moves,
+  which `jaos_set_time_limit` has already allowed since M1 — a stopping
+  callback *is* a budget whose rule lives in the caller, which is why it sits
+  beside the budget checks. A stop is `JAOS_SOLVE_INTERRUPTED` and keeps its
+  basis, so it resumes under D70.
+
+  **One defect fell out of it (D78).** A load was discarding the logging
+  callback: `jaos_load_lp` restored four named settings across the wipe and
+  logging was never added to the list. The comment beside that list had
+  predicted exactly this failure, and it happened anyway to the very next
+  setting added — so configuration became one sub-struct that the load saves
+  and restores whole, and the list is gone.
 - **Logging. Done (D65).** `jaos_set_log_callback` and `jaos_set_log_level`,
   four levels, silent until a callback is installed — a library that writes
   to stdout because nobody forbade it cannot be embedded. Paced by iteration

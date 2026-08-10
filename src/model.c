@@ -51,7 +51,15 @@ static void model_release_arrays(jaos_model *m)
     free(m->sol_row_status);
     free(m->start_col_status);
     free(m->start_row_status);
+    /* The problem goes; the configuration stays. Saved as one object rather
+     * than field by field, because field by field is a list and a list can be
+     * forgotten — the primal tolerance was missing from it once, and the log
+     * callback was missing from it from the day logging landed until D78
+     * noticed. jaos_model_free calls this too and then frees the struct, so
+     * putting the configuration back there is harmless. */
+    const jm_config cfg = m->cfg;
     memset(m, 0, sizeof *m);
+    m->cfg = cfg;
 }
 
 void jaos_model_free(jaos_model *m)
@@ -75,7 +83,7 @@ jaos_status jaos_set_work_limit(jaos_model *m, int64_t units)
 {
     if (m == nullptr)
         return JAOS_ERR_INVALID_INPUT;
-    m->work_limit = units;
+    m->cfg.work_limit = units;
     return JAOS_OK;
 }
 
@@ -83,7 +91,7 @@ jaos_status jaos_set_time_limit(jaos_model *m, double seconds)
 {
     if (m == nullptr || isnan(seconds))
         return JAOS_ERR_INVALID_INPUT;
-    m->time_limit = seconds;
+    m->cfg.time_limit = seconds;
     return JAOS_OK;
 }
 
@@ -107,12 +115,12 @@ static jaos_status set_tolerance(jaos_model *m, double value, double *slot,
 
 jaos_status jaos_set_primal_tolerance(jaos_model *m, double tol)
 {
-    return set_tolerance(m, tol, m ? &m->primal_tol : nullptr, "primal");
+    return set_tolerance(m, tol, m ? &m->cfg.primal_tol : nullptr, "primal");
 }
 
 jaos_status jaos_set_dual_tolerance(jaos_model *m, double tol)
 {
-    return set_tolerance(m, tol, m ? &m->dual_tol : nullptr, "dual");
+    return set_tolerance(m, tol, m ? &m->cfg.dual_tol : nullptr, "dual");
 }
 
 /* Every modification goes through this.
@@ -130,8 +138,10 @@ jaos_status jaos_set_dual_tolerance(jaos_model *m, double tol)
  * What is *not* invalidated, and deliberately: the scaling and the row-wise
  * mirror. Both are derived from the matrix alone — scale.c reads no bound
  * and no cost — so changing a bound or a cost leaves them exactly correct.
- * A modification that touches the matrix must invalidate them, and there is
- * none yet.
+ * A modification that touches the matrix must invalidate them, and there are
+ * five: jaos_set_coefficient and the four that move a dimension. All five go
+ * through model_matrix_is_stale, which is this plus both derived copies, so
+ * the two lists cannot drift apart.
  *
  * Nor is the starting basis, and that one is not an omission but the point.
  * The answer stops being true when a bound moves; the basis that produced it
@@ -325,8 +335,18 @@ jaos_status jaos_set_log_callback(jaos_model *m, jaos_log_fn cb, void *user)
 {
     if (m == nullptr)
         return JAOS_ERR_INVALID_INPUT;
-    m->log_cb = cb;
-    m->log_user = user;
+    m->cfg.log_cb = cb;
+    m->cfg.log_user = user;
+    return JAOS_OK;
+}
+
+jaos_status jaos_set_progress_callback(jaos_model *m, jaos_progress_fn cb,
+                                       void *user)
+{
+    if (m == nullptr)
+        return JAOS_ERR_INVALID_INPUT;
+    m->cfg.progress_cb = cb;
+    m->cfg.progress_user = user;
     return JAOS_OK;
 }
 
@@ -339,7 +359,7 @@ jaos_status jaos_set_log_level(jaos_model *m, jaos_log_level level)
                    (int)level);
         return JAOS_ERR_INVALID_INPUT;
     }
-    m->log_level = level;
+    m->cfg.log_level = level;
     return JAOS_OK;
 }
 
@@ -357,7 +377,7 @@ void jm_log(const jaos_model *m, jaos_log_level level, const char *fmt, ...)
     va_start(ap, fmt);
     vsnprintf(line, sizeof line, fmt, ap);
     va_end(ap);
-    m->log_cb(m->log_user, level, line);
+    m->cfg.log_cb(m->cfg.log_user, level, line);
 }
 
 jaos_status jaos_solve(jaos_model *m)
@@ -694,22 +714,9 @@ jaos_status jaos_load_lp(jaos_model *m,
         return err;
     }
 
-    /* Budgets and tolerances are solver configuration, not problem data:
-     * loading a new problem into the same model must not silently discard
-     * them. Every one of these has to be listed here, and a setting that is
-     * added without being added to this list is lost by anyone who
-     * configures before loading — which is the natural order to write it in
-     * and is how the primal tolerance was found to be dropped. */
-    int64_t keep_work_limit = m->work_limit;
-    double keep_time_limit = m->time_limit;
-    double keep_primal_tol = m->primal_tol;
-    double keep_dual_tol = m->dual_tol;
-
+    /* Configuration is not problem data, and model_release_arrays is now
+     * where that is enforced — there is nothing to list here any more. */
     model_release_arrays(m);
-    m->work_limit = keep_work_limit;
-    m->time_limit = keep_time_limit;
-    m->primal_tol = keep_primal_tol;
-    m->dual_tol = keep_dual_tol;
     m->num_col = num_col;
     m->num_row = num_row;
     m->num_nz  = kept;

@@ -129,6 +129,14 @@ constexpr int64_t TIME_CHECK_EVERY = 64;
  * model, and the whole point of D8 is that nothing about a solve does. */
 constexpr int64_t LOG_EVERY = 1000;
 
+/* How often a watcher is asked whether to carry on, in iterations. A count
+ * for LOG_EVERY's reason, and 64 rather than 1000 because this one decides
+ * something: a caller who wants to interrupt wants it to take effect, and
+ * TIME_CHECK_EVERY is already the granularity at which this solver has agreed
+ * a stop is responsive enough. The call is skipped entirely when nobody is
+ * watching, so a model with no callback pays one predictable branch. */
+constexpr int64_t PROGRESS_EVERY = 64;
+
 /* Dual phase 1 by artificial bounds.
  *
  * The slack basis is dual feasible only if every column has the bound its
@@ -475,8 +483,8 @@ static jaos_status sx_init(sx *s, jaos_model *m)
      * from beginning to end. Zero on the model means the caller never set
      * one, which is what makes an untouched model behave exactly as it did
      * before these existed. */
-    s->primal_tol = m->primal_tol > 0.0 ? m->primal_tol : PRIMAL_TOL;
-    s->dual_tol   = m->dual_tol   > 0.0 ? m->dual_tol   : DUAL_TOL;
+    s->primal_tol = m->cfg.primal_tol > 0.0 ? m->cfg.primal_tol : PRIMAL_TOL;
+    s->dual_tol   = m->cfg.dual_tol   > 0.0 ? m->cfg.dual_tol   : DUAL_TOL;
 
     if (!m->scale_valid) {
         jaos_status st = jm_model_scale(m, JM_SCALE_CURTIS_REID);
@@ -2727,14 +2735,14 @@ static jaos_solve_status classify_optimum(sx *s)
 
 static bool out_of_time(const sx *s)
 {
-    if (s->m->time_limit <= 0.0)
+    if (s->m->cfg.time_limit <= 0.0)
         return false;
     struct timespec now;
     if (clock_gettime(CLOCK_MONOTONIC, &now) != 0)
         return false;
     double elapsed = (double)(now.tv_sec - s->started.tv_sec) +
                      1e-9 * (double)(now.tv_nsec - s->started.tv_nsec);
-    return elapsed >= s->m->time_limit;
+    return elapsed >= s->m->cfg.time_limit;
 }
 
 static jaos_status run(sx *s, jaos_solve_status *out)
@@ -2758,13 +2766,33 @@ static jaos_status run(sx *s, jaos_solve_status *out)
     const int64_t iter_cap = ITER_SANITY_FACTOR * (s->nrow + s->ncol + 1);
 
     for (;;) {
-        if (s->m->work_limit > 0 && s->work.units >= s->m->work_limit) {
+        if (s->m->cfg.work_limit > 0 && s->work.units >= s->m->cfg.work_limit) {
             *out = JAOS_SOLVE_WORK_LIMIT;
             return JAOS_OK;
         }
         if (s->iters % TIME_CHECK_EVERY == 0 && out_of_time(s)) {
             *out = JAOS_SOLVE_TIME_LIMIT;
             return JAOS_OK;
+        }
+        /* Whoever is watching gets asked here, beside the budgets, because a
+         * callback that stops a solve *is* a budget — one whose rule lives in
+         * the caller instead of in a number. Asking on a fixed iteration
+         * count and never on a clock is what keeps the question itself
+         * reproducible: the same model puts it at the same iterations every
+         * run, so a callback that answers the same way twice gets the same
+         * solve twice, bit for bit. */
+        if (s->m->cfg.progress_cb != nullptr &&
+            s->iters % PROGRESS_EVERY == 0) {
+            const jaos_progress p = {
+                .iterations = s->iters,
+                .work_units = s->work.units,
+                .primal_infeasibility = s->infeas_best,
+            };
+            if (s->m->cfg.progress_cb(&p, s->m->cfg.progress_user) ==
+                JAOS_CALLBACK_STOP) {
+                *out = JAOS_SOLVE_INTERRUPTED;
+                return JAOS_OK;
+            }
         }
         if (s->iters > iter_cap) {
             /* A defect in JAOS, not a property of the model. Reporting it
@@ -3043,6 +3071,7 @@ static jaos_status publish(sx *s, jaos_solve_status status)
          * would be recommending it. */
         if (status == JAOS_SOLVE_WORK_LIMIT ||
             status == JAOS_SOLVE_TIME_LIMIT ||
+            status == JAOS_SOLVE_INTERRUPTED ||
             status == JAOS_SOLVE_INFEASIBLE ||
             status == JAOS_SOLVE_UNBOUNDED) {
             for (int64_t j = 0; j < m->num_col; j++)

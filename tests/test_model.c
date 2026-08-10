@@ -397,9 +397,9 @@ static void test_configuration_survives_a_modification(void)
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_primal_tolerance(m, 1e-5));
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_dual_tolerance(m, 1e-4));
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_col_cost(m, 0, -3.0));
-    TEST_ASSERT_EQUAL_INT64(999, m->work_limit);
-    TEST_ASSERT_EQUAL_DOUBLE(1e-5, m->primal_tol);
-    TEST_ASSERT_EQUAL_DOUBLE(1e-4, m->dual_tol);
+    TEST_ASSERT_EQUAL_INT64(999, m->cfg.work_limit);
+    TEST_ASSERT_EQUAL_DOUBLE(1e-5, m->cfg.primal_tol);
+    TEST_ASSERT_EQUAL_DOUBLE(1e-4, m->cfg.dual_tol);
     jaos_model_free(m);
 }
 

@@ -80,8 +80,8 @@ those and their kin only — never another solver's source (D12).
 
 ## 4. Controlling a solve
 
-**Most of this section has landed.** It was the gap a user felt first — the
-whole API configured nothing at all — and what is left of it is callbacks.
+**This section has landed.** It was the gap a user felt first — the whole API
+configured nothing at all.
 
 **What is controllable is the contract, not the method.** A caller sets what
 depends on their problem and which the solver cannot know: how much precision
@@ -97,7 +97,7 @@ asks them is a problem handed back to the caller.
 | Work limit, time limit | **done** | |
 | Set the primal and dual tolerances | **done** | `jaos_set_primal_tolerance`, `jaos_set_dual_tolerance`; 0 restores the default |
 | Logging and verbosity | **done** | `jaos_set_log_callback`, `jaos_set_log_level`; four levels, silent until a callback is installed |
-| Callbacks | **missing** | |
+| Callbacks | **done** | `jaos_set_progress_callback`; a watcher may look and may stop a solve, never steer one. Asked on a fixed iteration count, so *when* it is asked is reproducible; a stop is `JAOS_SOLVE_INTERRUPTED` and keeps its basis, so the next solve resumes (D79) |
 | Choose the algorithm | **out of scope** | the solver picks; see above |
 | Turn scaling off or pick the mode | **out of scope** | same, and it is a method question |
 
