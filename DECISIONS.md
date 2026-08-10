@@ -66,6 +66,7 @@ and you have the argument. Jump to the entry for the numbers behind it.
 - **[D58](#d58-the-elimination-asked-for-capacity-once-per-entry-it-wrote-and-the-entries-are-billions)** — The elimination asked for capacity once per entry it wrote, and the entries are billions
 - **[D59](#d59-the-multipliers-belong-to-the-pivot-so-the-column-stops-being-copied-twice-to-meet-them)** — The multipliers belong to the pivot, so the column stops being copied twice to meet them
 - **[D60](#d60-the-comparison-rebuilt-its-solver-only-when-its-own-driver-changed-so-it-measured-last-nights)** — The comparison rebuilt its solver only when its own driver changed, so it measured last night's
+- **[D61](#d61-the-pricing-row-has-no-sparsity-to-exploit-and-the-calls-around-it-are-not-the-cost-either)** — The pricing row has no sparsity to exploit, and the calls around it are not the cost either
 
 ---
 
@@ -3547,3 +3548,70 @@ different question from the one a per-instance mean asks.
 the truth: `run-compare.sh` itself and `DECISIONS.md` were modified when it
 ran. `src/` and `include/` were the committed `ccad702`, which is what the
 seconds are about.
+
+## D61 — The pricing row has no sparsity to exploit, and the calls around it are not the cost either
+
+The instance that decides the gap is not `maros-r7`. Against HiGHS the set
+figure is a geometric mean over eighteen instances, and D58 and D59 moved it
+2.9% by making one of them 1.5x faster. What sets it is the ordinary
+instance, and `truss` is one: **`jm_lu_factor` is 1.55% of it** against 64.8%
+of `maros-r7`. The two need different work.
+
+Where `truss` goes: `pivot` 36.8%, and inside it `update_dual` 14.9%,
+`admit_candidate` 14.3%, `shift_to_feasible` 7.3% — **162,603,092,
+162,456,002 and 146,993,159 calls** for 17,336 iterations. Two dense sweeps
+over every variable, once per iteration, which is what PLAN has said about
+Kennington all along and turns out to be true of the standard set too.
+
+**First hypothesis: the sweeps are dense when they need not be.** There is
+already a sparse path over the pricing row's pattern (D40, D41), taken when
+the pattern fits `nvar / SPARSE_ALPHA_DEN`. Instrumented, the dense path runs
+95.7% of the time on `truss`, 99.4% on `pilot87` — and almost never because
+`duals_dirty` was set. It is the width test.
+
+**Refuted by measuring the width.** The pattern is not sparse:
+
+| | mean pattern / `nvar` | dense-sweep variables, threshold `nvar/4` -> `nvar/1` |
+|---|---|---|
+| `pilot87` | **0.852** | 349M -> 300M |
+| `truss` | **0.833** | 164M -> 142M |
+| `25fv47` | 0.786 | 21M -> 18M |
+| `greenbea` | 0.716 | 106M -> 83M |
+| `dfl001` | 0.664 | 377M -> 294M |
+| `maros-r7` | 0.464 | 116M -> 61M |
+| `stocfor3` | **0.015** | 9M (already sparse) |
+| `fit2p` | **0.019** | 2M (already sparse) |
+
+The pricing row touches **83% of the variables** on `truss`. Walking a
+pattern that size costs an indirection and a random access per entry to skip
+17% of a sequential scan. Loosening the threshold to its maximum buys 1.15x
+in *variables visited* and would pay for it in locality — and the one
+instance where it looks worthwhile, `maros-r7` at 0.464, is exactly the
+"fitting a constant to one instance" this project forbids. **`SPARSE_ALPHA_DEN
+= 4` is confirmed where it stands, and this question is closed rather than
+re-costed.**
+
+**Second hypothesis: the calls are the cost.** 24.6 instructions for a status
+test, a comparison and four stores reads like call overhead, and the three
+functions are `static` in one translation unit with GCC declining to inline
+them. Forcing it with `[[gnu::always_inline]]` keeps the single definition
+the comments insist on — the rule is still written once — and removes 470
+million calls.
+
+**Also refuted, by the clock. Geometric mean 0.9969x — it is slower.**
+
+| `maros-r7` | `pilot87` | `truss` | `greenbea` | `dfl001` |
+|---|---|---|---|---|
+| 0.980x | 0.974x | 0.974x | 0.977x | 0.992x |
+
+Every instance that matters lost, and the two that gained are the smallest
+ones timed. The instructions were in the work, not in the call: three bodies
+inlined into two sweeps that already run 162 million times cost more in
+instruction cache than the calls cost in overhead. **Reverted.**
+
+**What this leaves.** The dense sweeps are not a defect to repair, they are
+the shape of the algorithm on these models: dual steepest edge prices every
+variable, and on the standard set every variable is genuinely touched. Making
+them cheaper means pricing fewer of them — partial and multiple pricing,
+which is PLAN phase 6 item 3 and the first change here that cannot be judged
+on digests, because it moves the search path.

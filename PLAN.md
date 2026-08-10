@@ -253,10 +253,14 @@ sum.
    single work unit, which is why a profiler found them and no internal
    instrument ever had. **The method that worked: profile at the flags being
    timed, and attribute by source line.**
-3. **Partial and multiple pricing** — the row scan that picks the
-   infeasibility is 26.4% of Kennington and has no sparsity to exploit.
-   **The first change that cannot be judged on digests**: it moves the search
-   path, so it needs the full gate and a different standard of evidence.
+3. **Partial and multiple pricing** — and it is now the top of this list for
+   the set figure, not the third item. The instance that decides the gap is
+   the ordinary one, and on `truss` the LU is 1.55% while the two dense
+   sweeps are 36.5% (D61). Both alternatives to pricing fewer variables have
+   been measured and refused: the pattern is not sparse enough to walk, and
+   inlining the helpers is slower. **The first change that cannot be judged
+   on digests** — it moves the search path, so it needs the full gate and a
+   different standard of evidence.
 4. **BTRAN's `L'` pass**, 5.15% of the standard set, billed for every slot.
    Only 4.1% of its entries sit under a zero, so a reachability search over a
    row-wise copy of L can recover at most a fifth of a percent. Recorded so
@@ -311,7 +315,8 @@ Each was measured and closed; the measurement is in `DECISIONS.md`.
 |---|---|
 | `REFACTOR_EVERY` = 64 | swept 16..256; one of only two completely clean values (D39) |
 | `PIVOT_SEARCH_LIMIT` = 4 | swept 1..32 on two sets; above two the fill moves within 1.2% while totals swing 60% on trajectory alone (D46) |
-| `SPARSE_ALPHA_DEN` = 4, `SPARSE_RHO_DEN` = 4 | plateaus bounded on both sides by measurement (D40, D41, D43) |
+| `SPARSE_ALPHA_DEN` = 4, `SPARSE_RHO_DEN` = 4 | plateaus bounded on both sides by measurement (D40, D41, D43); confirmed again from the other direction — the pricing row's pattern covers 83% of the variables on `truss` and 85% on `pilot87`, so there is no sparsity the threshold is refusing (D61) |
+| Forcing the two dense sweeps' helpers inline | refused: 470M calls removed and it is **slower**, 0.997x, losing on every instance that matters. The instructions are in the work, not in the call (D61) |
 | `SPARSE_COL_DEN` = 8 | the first constant whose value contradicts its own work-unit sweep, moved on a clock (D45) |
 | A crash basis | refused: it destroys the exact starting steepest-edge weights `B = -I` gives, and exact weights for an arbitrary basis cost one solve per row |
 | Filtering basic columns out of the pricing sweep | refused: 3.92 memory accesses against 4, with worse locality (D35) |
