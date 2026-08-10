@@ -363,15 +363,20 @@ Each was measured and closed; the measurement is in `DECISIONS.md`.
   excludes it. The alternatives to weigh: iterative refinement, interval
   arithmetic in plain `double`, or hand-rolled rationals used only to verify a
   final basis.
-- **Q11 — build targets for shipping**, `release` and `native`. Candidates for
-  `native`: `-O3`, `-flto`, `-march=native`, `-fno-math-errno`,
-  `--gc-sections`, and PGO with `make netlib` as the profiling load — 139 real
-  models are already the representative workload, so none has to be invented.
-  A separate and probably larger win is `restrict` on the kernel pointers,
-  which is a code change and only safe if the non-aliasing claim is true.
-  Settled while it was raised: `-g` costs nothing at run time, and the
-  hardening flags must not be dropped from the readers, which parse untrusted
-  input.
+- **Q11 — build targets for shipping. Closed (D62).** There is one set, not
+  two: `make` builds `-O3 -flto -g -DNDEBUG` and `make pgo` rebuilds it from
+  a profile. Measured over the whole standard set with every digest unmoved —
+  `-O3` 1.0055x, `-flto` 1.0330x, `-march=native` 1.0072x over LTO, **PGO
+  1.1122x**. `native` survives as `NATIVE=1` and is documented as
+  measured-and-it-did-not-pay; it also makes the archive undistributable.
+  Removing the work counter and the clock check was measured at the same time:
+  0.987x and 1.004x, both inside the noise, so the public budget API is free.
+
+  **Still open from this question, and it is a code change rather than a
+  flag**: `restrict` on the kernel pointers, safe only if the non-aliasing
+  claim is true — which is the part to establish first. `--gc-sections` and
+  `-fno-math-errno` were never measured and are now unlikely to matter, since
+  the flags between them are worth 3%.
 
 ---
 

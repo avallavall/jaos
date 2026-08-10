@@ -11,6 +11,12 @@ open, `bench/README.md` for the gate, and the commit each entry came from.
 
 ### Added
 
+- `make pgo`: compiles the library instrumented, solves the standard set with
+  it, and compiles again from the profile that produced. Worth **1.1122x**
+  over the plain shipping build — three times what every optimisation flag in
+  it is worth put together — with the gate green and all 94 digests unmoved.
+  Kept out of `make` because it takes minutes and needs the instances
+  downloaded first (D62).
 - `-j N` on the acceptance runner and `J=N` on every netlib make target: the
   instances are solved N at a time, one process each, and the record is
   reassembled in manifest order. All 139 lines come out byte-identical to the
@@ -96,6 +102,13 @@ open, `bench/README.md` for the gate, and the commit each entry came from.
 
 ### Changed
 
+- The shipping build is `-O3 -flto` instead of `-O2`, and there is one set of
+  flags rather than the two the plan proposed. Measured over the whole
+  standard set with every verdict, iteration count and digest unmoved: `-O3`
+  1.0055x, `-flto` 1.0330x, `-march=native` 1.0072x on top of LTO — noise,
+  and it makes the archive undistributable, so it stays as `NATIVE=1`.
+  Removing the work counter and the clock check was measured too, at 0.987x
+  and 1.004x: the public budget API is free (D62).
 - The LU's elimination walks each column once, in place, instead of copying
   it into a dense buffer and back out. The multipliers belong to the pivot
   rather than to any one column, so they are scattered once per pivot and

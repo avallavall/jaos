@@ -67,6 +67,7 @@ and you have the argument. Jump to the entry for the numbers behind it.
 - **[D59](#d59-the-multipliers-belong-to-the-pivot-so-the-column-stops-being-copied-twice-to-meet-them)** — The multipliers belong to the pivot, so the column stops being copied twice to meet them
 - **[D60](#d60-the-comparison-rebuilt-its-solver-only-when-its-own-driver-changed-so-it-measured-last-nights)** — The comparison rebuilt its solver only when its own driver changed, so it measured last night's
 - **[D61](#d61-the-pricing-row-has-no-sparsity-to-exploit-and-the-calls-around-it-are-not-the-cost-either)** — The pricing row has no sparsity to exploit, and the calls around it are not the cost either
+- **[D62](#d62-one-set-of-shipping-flags-chosen-by-measurement-and-the-counter-costs-nothing)** — One set of shipping flags, chosen by measurement, and the counter costs nothing
 
 ---
 
@@ -3615,3 +3616,77 @@ variable, and on the standard set every variable is genuinely touched. Making
 them cheaper means pricing fewer of them — partial and multiple pricing,
 which is PLAN phase 6 item 3 and the first change here that cannot be judged
 on digests, because it moves the search path.
+
+## D62 — One set of shipping flags, chosen by measurement, and the counter costs nothing
+
+Q11 had been open since M2 opened, carrying a list of candidates — `-O3`,
+`-flto`, `-march=native`, `--gc-sections`, PGO — and a proposal for two build
+targets, `release` and `native`. The list is now a table and the two targets
+are one.
+
+**Nothing here is a trade.** Every rung was run over the whole standard set
+first, and every verdict, iteration count and solution digest came back
+identical to the committed record. A flag that moved one would have been
+disqualified whatever it bought; none did. Timed sequentially at the shipping
+flags, minimum of three runs, geometric mean of per-instance ratios over
+eight instances:
+
+| | ratio | against |
+|---|---|---|
+| `-O3` | 1.0055x | `-O2` |
+| `-O3 -flto` | **1.0330x** | `-O2` |
+| `-march=native` | 1.0072x | `-O3 -flto` |
+| **PGO** | **1.1122x** | `-O3 -flto` |
+
+**LTO is the only flag that does anything, and PGO is worth three times all
+of them together.** PGO gains on every instance that costs anything —
+`truss` 1.246x, `maros-r7` 1.238x, `pilot87` 1.151x, `greenbea` 1.100x,
+`dfl001` 1.097x — which is what makes it a result rather than a mean.
+
+**`-march=native` is refused as a default, on two grounds and the weaker one
+is the speed.** At 1.0072x it is inside the noise of this harness. The
+stronger ground is that it produces a `libjaos.a` that dies with an illegal
+instruction on any older CPU, and this is a library meant to be linked by
+someone who did not build it. It survives as `NATIVE=1`, documented as
+measured-and-it-did-not-pay rather than as a tuning knob.
+
+**Two targets become one.** `release` and `native` were a plan to maintain
+two sets of flags for one library; the measurement says the second set is not
+different enough to exist. `make` builds `-O3 -flto -g -DNDEBUG` and `make
+pgo` rebuilds it from a profile. PGO is deliberately not what `make` does: it
+takes minutes rather than a second, and it cannot run before the instances
+are fetched — a library that will not build without downloading 139 models is
+one nobody can package.
+
+**The archive needs `gcc-ar`.** An archive of LTO objects keeps its symbols
+where only the linker plugin can see them, and plain `ar` writes an index
+including them only where the distribution configured the plugin in.
+`gcc-ar` loads it itself. Checked from the outside: a consumer compiled
+**without** `-flto` links the archive and runs, which is the only test that
+matters for a library.
+
+**And the question that was actually asked: what does the instrumentation
+cost?** The deterministic work counter is one inline function called from
+every kernel, and the wall clock is read once every 64 iterations. Removing
+each, and both:
+
+| | ratio vs keeping it |
+|---|---|
+| no work counter | **0.9872x** |
+| no clock check | 1.0038x |
+| neither | 0.9970x |
+
+**Nothing, and the counter's number is on the wrong side of one.** Removing
+code cannot make a program slower except through alignment and layout
+accidents, which is exactly what a 1.3% reading inside a ±5% per-instance
+spread is. So `jaos_work_units`, `jaos_set_work_limit` and
+`jaos_set_time_limit` — the public contract, and the only reproducible budget
+the library has — are free, and there is no compile-time switch worth adding
+to remove them.
+
+**One instrument correction, because it nearly became a false finding.** The
+first check reported the counter-less build as having moved all 94 digests.
+It had not: the record line carries `work=`, which reads zero without a
+counter, so every line differed while every digest matched. Comparing the
+whole line was the wrong comparison, and a check that answers a question
+nobody asked will eventually answer one somebody did.

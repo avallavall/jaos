@@ -13,19 +13,30 @@
 #   netlib-kennington   the Kennington subset (PLAN 2.9 condition 1b)
 #   netlib-infeas       the infeasible subset (PLAN 2.9 condition 1c)
 #   netlib-kennington-baseline, netlib-infeas-baseline   rewrite those two
+#   pgo       rebuild the library from a profile of it solving real models
 #   clean     remove all build output
 #
 # J=N runs N instances at once in any of the netlib targets. The record comes
 # out byte-identical because everything in it is an integer the solver
 # computed — but the seconds printed alongside it do not, and the runner says
 # so. A time ratio needs J=1.
+#
+# NATIVE=1 adds -march=native. LTO=0 removes -flto. Both are measured in D62
+# and both defaults are what that measurement chose; see README "Build".
 
 # make predefines CC=cc, so ?= would never fire; override only the built-in
 # default while still honouring CC given via environment or command line.
 ifeq ($(origin CC),default)
 CC := gcc-14
 endif
-AR ?= ar
+
+# An archive of LTO objects carries its symbols where only the linker plugin
+# can see them, and plain `ar` writes an index that includes them only where
+# the distribution configured the plugin in. `gcc-ar` loads it itself, so the
+# archive is linkable regardless of how the system's binutils were built.
+ifeq ($(origin AR),default)
+AR := $(subst gcc,gcc-ar,$(notdir $(CC)))
+endif
 
 # How many instances the acceptance runner solves at once. One by default:
 # the sequential run is the one whose printed seconds mean anything, so the
@@ -50,7 +61,37 @@ FP := -ffp-contract=off
 # libjaos.a needs it too.
 LDLIBS := -lm
 
-RELEASE_CFLAGS := $(STD) $(WARN) $(FP) -Werror -O2 -g -DNDEBUG
+# What a shipping build is made of. **One set of flags, not two** — a second
+# target nobody types is a second target that rots, and the measurement says
+# there is nothing to choose between anyway (D62). Every rung below was run
+# over the whole standard set with every verdict, iteration count and digest
+# unmoved, so none of them is trading an answer for a second:
+#
+#   -O3 over -O2                     1.0055x   noise
+#   + -flto                          1.0330x   the only flag that does anything
+#   + -march=native                  1.0072x   over LTO: noise, and unportable
+#   PGO on top of -O3 -flto          1.1122x   `make pgo`
+#
+# -g stays: it costs nothing at run time and it is what the profiler reads,
+# which is how four of this milestone's entries were found. -DNDEBUG is what
+# removes the assertions. The work counter and the clock cost 0.987x and
+# 1.004x — inside the noise in both directions — so neither is worth a
+# compile-time switch (D62).
+LTO    ?= 1
+NATIVE ?= 0
+
+SHIP := -O3
+ifeq ($(LTO),1)
+SHIP += -flto
+endif
+ifeq ($(NATIVE),1)
+SHIP += -march=native -mtune=native
+endif
+
+# Set by the `pgo` target to instrument, then to consume what it recorded.
+PGO_CFLAGS ?=
+
+RELEASE_CFLAGS := $(STD) $(WARN) $(FP) -Werror $(SHIP) -g -DNDEBUG $(PGO_CFLAGS)
 DEV_CFLAGS     := $(STD) $(WARN) $(FP) -Werror -g -Og
 ASAN_CFLAGS    := $(DEV_CFLAGS) -fsanitize=address,undefined -fno-omit-frame-pointer
 
@@ -83,7 +124,8 @@ ASAN_TESTS := $(TESTS:tests/%.c=$(B)/asan/%)
 .PHONY: all test sanitize bench compare-build compare-solvers compare \
 	netlib netlib-baseline \
 	netlib-kennington \
-	netlib-infeas netlib-kennington-baseline netlib-infeas-baseline clean
+	netlib-infeas netlib-kennington-baseline netlib-infeas-baseline \
+	pgo clean
 
 # Keep intermediate objects; make otherwise deletes and rebuilds them
 # between targets.
@@ -222,6 +264,42 @@ netlib-infeas-baseline: $(B)/bench/run
 		-d bench/instances-infeas \
 		-w bench/netlib-infeas.baseline \
 		-o bench/results/netlib-infeas.txt
+
+# Profile-guided rebuild: compile instrumented, solve real models with it,
+# then compile again with what that recorded. Worth 1.1122x over the plain
+# shipping build on the timed set, which is three times what every flag in it
+# is worth put together (D62).
+#
+# **Not what `make` does**, deliberately. It takes minutes rather than
+# seconds, and it cannot run at all until the instances have been fetched,
+# which needs the network. A library that will not build without downloading
+# 139 models from netlib is a library nobody can package.
+#
+# The load is the standard set, sequential. Sequential because each worker
+# process of `-j` would be writing the same .gcda files at the same time;
+# the whole set because the profile should describe the models JAOS is for,
+# and 94 real ones are already there to be described. PGO_LOAD overrides it
+# with a subset when a faster turnaround is wanted.
+PGO_DIR  := $(abspath $(B)/pgo)
+PGO_LOAD ?=
+
+.PHONY: pgo
+pgo:
+	@bench/fetch.sh
+	@echo "== PGO 1/3: instrumented build"
+	@rm -rf $(B)/release $(B)/bench $(PGO_DIR)
+	@mkdir -p $(PGO_DIR)
+	$(MAKE) --no-print-directory \
+		PGO_CFLAGS="-fprofile-generate -fprofile-dir=$(PGO_DIR)" $(B)/bench/run
+	@echo "== PGO 2/3: solving $(if $(PGO_LOAD),$(words $(PGO_LOAD)) instances,the standard set) to record a profile"
+	@./$(B)/bench/run -o /dev/null $(PGO_LOAD) > $(B)/pgo-load.log 2>&1 || true
+	@echo "   $$(ls $(PGO_DIR)/*.gcda 2>/dev/null | wc -l) profile files"
+	@echo "== PGO 3/3: rebuilding from the profile"
+	@rm -rf $(B)/release $(B)/bench
+	$(MAKE) --no-print-directory \
+		PGO_CFLAGS="-fprofile-use -fprofile-correction -fprofile-dir=$(PGO_DIR) -Wno-missing-profile" \
+		all
+	@echo "== $(LIB) is now built from a profile of $(if $(PGO_LOAD),$(words $(PGO_LOAD)),94) real models"
 
 $(B)/release $(B)/dev $(B)/asan $(B)/bench:
 	mkdir -p $@
