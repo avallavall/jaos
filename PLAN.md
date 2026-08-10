@@ -417,7 +417,25 @@ sum.
    What is left of this item is **multiple pricing**, which is a different
    technique — several candidates chosen in one major iteration, then minor
    iterations over that subset — and does not trade candidate quality for
-   scan length the same way. Unmeasured.
+   scan length the same way. Unmeasured, and **its premise is now doubtful
+   for a measured reason**: it saves the same leaving-row sweep, and D82
+   bounded that sweep at about 12% of billed work by removing seven-eighths
+   of it and watching the total move 10%. Twelve percent of the cheapest
+   units in the solver cannot close a 2.3x per-iteration gap.
+
+   **And the profile says the other dense sweep is the bigger one.** On
+   `truss` under callgrind, `admit_candidate` is **14.98%** of instructions
+   and `shift_to_feasible` 7.66%, against `ftran_prefix` at 6.68% and a bare
+   `memset` at 6.56%. `admit_candidate` is the ratio test's candidate
+   admission, called once per nonbasic variable of the pricing row, so it is
+   the O(`nvar`) half of D61's 36.5% — larger than the row sweep, never
+   examined, and untouched by either pricing technique. Restricting *its*
+   candidate set is a different and more dangerous change, because it decides
+   which column enters rather than which row leaves.
+
+   Caveat carried with those numbers: callgrind counts instructions, not
+   seconds, and cannot see locality — the same limit D58 and D61 stated. The
+   `memset` at 6.56% is the hyper-sparse clearing item 4 already names.
 
    The context that put this item near the top still stands: on `truss` the
    LU is 1.55% while the two dense sweeps are 36.5% (D61), and both
