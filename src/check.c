@@ -128,6 +128,30 @@ typedef struct {
      * the column. What the caller gets is the fact and its size. */
     double dropped_max;
     int64_t dropped_n;
+
+    /* The largest suboptimality any one dropped term certifies. See
+     * certified_step: it is `|w|` times a distance the point can actually
+     * travel, so it is a lower bound on `P - P*` and owes nothing to a
+     * reference value. Zero means nothing was certified, which is not the
+     * same as nothing being wrong. */
+    long double certified;
+
+    /* Dropped columns that can move without limit while every row stays
+     * inside its bounds, and whose multiplier this checker nevertheless calls
+     * zero.
+     *
+     * They are counted rather than certified, and the distinction is the
+     * whole reason this field exists. Where the step is finite the product
+     * `|w| * t` is self-limiting — a multiplier that is really roundoff
+     * certifies a roundoff-sized suboptimality and does no harm, which is
+     * what lets the certificate work with no threshold at all. Where the step
+     * is infinite the product is infinite for *any* nonzero multiplier,
+     * including 1e-17, so it stops being a certificate and becomes the
+     * question D47 proved cannot be answered locally: is this multiplier
+     * real? Reporting infinity there would claim five models of the reference
+     * set are unbounded when every one of them matches a published finite
+     * optimum. */
+    int64_t rays;
 } dual_acc;
 
 static void split_term(long double t, long double *pos, long double *neg)
@@ -150,6 +174,58 @@ static void note_dropped(dual_acc *a, double w)
     a->dropped_n++;
     if (fabs(w) > a->dropped_max)
         a->dropped_max = fabs(w);
+}
+
+/* How far column j can travel in direction `dir` before some row leaves its
+ * bounds, with **every other variable held exactly where it is**.
+ *
+ * That restriction is the whole point, and it is what makes the answer a
+ * certificate rather than an estimate. The simplex direction lets the basics
+ * absorb the move and travels further, but computing it needs `B^-1 a_j` —
+ * which is what D47 costed route B at, because the checker would then need a
+ * basis and a factorization of its own, and the thing that verifies the
+ * answer would start sharing machinery with the thing that produced it.
+ * Moving one column alone needs neither. It travels less far, so the
+ * suboptimality it certifies is smaller than the true one; a smaller *lower*
+ * bound is still a lower bound, and it is arrived at from the row activities
+ * this file already computes and nothing else.
+ *
+ * The column's own opposite bound never limits it: this is only ever called
+ * where that bound is infinite, which is what made the term droppable.
+ *
+ * Room is clamped at zero because the point being judged may sit a tolerance
+ * outside a bound, and a negative slack would otherwise certify a negative
+ * improvement — which is not a weaker claim, it is a wrong one.
+ *
+ * Returns HUGE_VAL when nothing blocks: the objective then improves without
+ * limit along a direction that is feasible at every point of it, which is a
+ * proof of unboundedness and not merely of suboptimality. */
+static long double certified_step(const jaos_model *m, int64_t j, double dir,
+                                  const long double *act)
+{
+    long double t = HUGE_VALL;
+    for (int64_t k = m->a_start[j]; k < m->a_start[j + 1]; k++) {
+        int64_t i = m->a_index[k];
+        long double per_t = (long double)m->a_value[k] * dir;
+        if (per_t == 0.0L)
+            continue;
+
+        long double room, limit;
+        if (per_t > 0.0L) {
+            if (!isfinite(m->row_upper[i]))
+                continue;
+            room = (long double)m->row_upper[i] - act[i];
+            limit = (room > 0.0L ? room : 0.0L) / per_t;
+        } else {
+            if (!isfinite(m->row_lower[i]))
+                continue;
+            room = act[i] - (long double)m->row_lower[i];
+            limit = (room > 0.0L ? room : 0.0L) / -per_t;
+        }
+        if (limit < t)
+            t = limit;
+    }
+    return t;
 }
 
 static double sign_condition(double v, double lo, double hi, double w,
@@ -309,6 +385,39 @@ jaos_status jaos_check_solution(const jaos_model *m,
                 sign_condition(col_value[j], m->col_lower[j], m->col_upper[j],
                                sigma * d, tol, max2(1.0, fabs(col_value[j])),
                                &a));
+
+            /* Where that call had to drop a term, this is where the matrix is
+             * in scope to say what the drop is worth. The condition is asked
+             * again rather than plumbed back out: it is two comparisons, and
+             * a field meaning "did the previous call drop" would be state
+             * that is only valid between two statements.
+             *
+             * Rows are not done, and that is a limitation rather than an
+             * oversight: a row's activity is not something that can be moved
+             * on its own, so there is no single-entity direction to measure a
+             * step along. What a dropped row multiplier is worth needs the
+             * simplex direction, which is the part that costs a
+             * factorization. */
+            const double w = sigma * d;
+            const bool drops = (w > 0.0 && !isfinite(m->col_lower[j])) ||
+                               (w < 0.0 && !isfinite(m->col_upper[j]));
+            if (drops) {
+                long double t = certified_step(m, j, w > 0.0 ? -1.0 : 1.0,
+                                               act);
+                if (isinf((double)t) && fabs(w) <= tol) {
+                    /* An unbounded ray whose rate this checker calls zero.
+                     * Counted, not certified — see dual_acc. The test is the
+                     * same `negligible` the sign condition uses, and reusing
+                     * it is the point: it is this checker's own definition of
+                     * a multiplier being nonzero, not a second number chosen
+                     * to make an awkward case go away. */
+                    a.rays++;
+                } else {
+                    long double gain = (long double)fabs(w) * t;
+                    if (gain > a.certified)
+                        a.certified = gain;
+                }
+            }
         }
 
         /* The gap is the identity that catches a corrupted dot product even
@@ -330,6 +439,8 @@ jaos_status jaos_check_solution(const jaos_model *m,
         out->max_dropped_multiplier = a.dropped_max;
         out->dropped_terms = a.dropped_n;
         out->gap_certified = a.dropped_n == 0;
+        out->certified_suboptimality = (double)a.certified;
+        out->unquantified_rays = a.rays;
         /* Reported in the objective's own units rather than against the
          * scale above, because what they are for is the bound
          * P - P* <= gap_positive, and a bound is only usable in the units

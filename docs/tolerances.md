@@ -191,8 +191,20 @@ anything**, and that is not caution: D47 measured the obvious threshold —
 judging the multiplier against the traffic of the dot product that formed it,
 the same move D23 made for rows — and it separates nothing, because what makes
 a dropped term cost anything is the distance the variable would travel, which
-is a property of the polytope and not of the column. So the report states the
-fact and leaves the judgement where the information is.
+is a property of the polytope and not of the column.
+
+**So the distance is computed instead of thresholded.** `certified_suboptimality`
+is `|w|` times how far that column can move on its own, with every other
+variable pinned where it is. Nothing else moving means no other bound can be
+broken, so the direction is feasible for its whole length and the number is a
+lower bound on `P − P*` rather than an estimate — arrived at with no basis, no
+factorization and no reference value (D73). Where that distance is finite the
+product is self-limiting, which is why this needs no threshold: a multiplier
+that is really roundoff certifies a roundoff-sized suboptimality. Where it is
+infinite the product is infinite for any nonzero multiplier at all, so those
+are counted in `unquantified_rays` instead of being reported as a certificate
+— split on this checker's own `|w| <= tol`, the definition of nonzero it
+already uses everywhere else.
 
 **The primal residue, relative.** `max_row_violation_relative` reports the
 worst row residue as a fraction of what that row carries — `sum_j |a_ij x_j|`,

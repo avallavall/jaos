@@ -289,6 +289,11 @@ static void test_a_dropped_term_is_reported_rather_than_certified(void)
     TEST_ASSERT_EQUAL_INT64(1, r.dropped_terms);
     TEST_ASSERT_DOUBLE_WITHIN(1e-15, 1e-7, r.max_dropped_multiplier);
 
+    /* And it says how much: x2 can travel to 1e6 with x1 held at 0, which the
+     * row permits exactly, and 1e-7 * 1e6 is 0.1 — the whole suboptimality,
+     * recovered without a basis, a factorization or a reference value. */
+    TEST_ASSERT_DOUBLE_WITHIN(1e-12, 0.1, r.certified_suboptimality);
+
     /* The case it must NOT flag: the same model at its true optimum, where
      * the row's multiplier points at a bound that exists and x1's points at
      * its own lower bound. A predicate that were simply always false here
@@ -302,8 +307,60 @@ static void test_a_dropped_term_is_reported_rather_than_certified(void)
     TEST_ASSERT_TRUE(r.gap_certified);
     TEST_ASSERT_EQUAL_INT64(0, r.dropped_terms);
     TEST_ASSERT_DOUBLE_WITHIN(1e-15, 0.0, r.max_dropped_multiplier);
+    TEST_ASSERT_DOUBLE_WITHIN(1e-15, 0.0, r.certified_suboptimality);
     TEST_ASSERT_DOUBLE_WITHIN(1e-12, -0.1, r.primal_objective);
     TEST_ASSERT_DOUBLE_WITHIN(1e-12, -0.1, r.dual_objective);
+    jaos_model_free(m);
+}
+
+/* When nothing blocks the move, the certificate stops being one.
+ *
+ *      min  c * x2   s.t.  x1 + x2 >= 1,  x1, x2 >= 0, both free above
+ *
+ * x2 can rise for ever and the row never objects, so the step is infinite and
+ * `|w| * t` is infinite for *any* nonzero rate — 1e-9 included. That is no
+ * longer a certificate; it is D47's unanswerable question wearing one, and
+ * five instances of JAOS's own reference set sit exactly there with published
+ * finite optima.
+ *
+ * So the split is on the checker's own definition of a nonzero multiplier and
+ * not on a number invented for the occasion. Below it the ray is counted;
+ * above it the model really is unbounded and infinity is the right answer.
+ * Both halves are built here, because a rule that only ever counted would
+ * hide a genuine unbounded model. */
+static void test_an_unbounded_ray_is_counted_unless_its_rate_is_real(void)
+{
+    const double cl[] = {0.0, 0.0}, cu[] = {INFINITY, INFINITY};
+    const double rl[] = {1.0}, ru[] = {INFINITY};
+    const int64_t s[] = {0, 1, 2}, ix[] = {0, 0};
+    const double v[] = {1.0, 1.0};
+    const double x[] = {1.0, 0.0};
+    const double y[] = {0.0};
+    jaos_check_report r;
+
+    /* A rate the checker calls zero: counted, and nothing is certified. */
+    const double tiny[] = {0.0, -1e-9};
+    jaos_model *m = nullptr;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_model_new(&m));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_load_lp(m, 2, 1, JAOS_MINIMIZE, 0.0, tiny, cl, cu, rl, ru,
+                     2, s, ix, v));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_check_solution(m, x, y, 1e-6, &r));
+    TEST_ASSERT_EQUAL_INT64(1, r.unquantified_rays);
+    TEST_ASSERT_DOUBLE_WITHIN(1e-15, 0.0, r.certified_suboptimality);
+    TEST_ASSERT_FALSE(r.gap_certified);
+    jaos_model_free(m);
+
+    /* A rate that is unmistakably real: the model is unbounded and saying so
+     * is correct, not a false alarm. */
+    const double real[] = {0.0, -1.0};
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_model_new(&m));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_load_lp(m, 2, 1, JAOS_MINIMIZE, 0.0, real, cl, cu, rl, ru,
+                     2, s, ix, v));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_check_solution(m, x, y, 1e-6, &r));
+    TEST_ASSERT_EQUAL_INT64(0, r.unquantified_rays);
+    TEST_ASSERT_TRUE(isinf(r.certified_suboptimality));
     jaos_model_free(m);
 }
 
@@ -620,6 +677,7 @@ int main(void)
     RUN_TEST(test_a_tiny_multiplier_on_a_large_bound_still_counts);
     RUN_TEST(test_a_waived_sign_condition_is_still_caught_by_the_gap);
     RUN_TEST(test_a_dropped_term_is_reported_rather_than_certified);
+    RUN_TEST(test_an_unbounded_ray_is_counted_unless_its_rate_is_real);
     RUN_TEST(test_check_rejects_bad_arguments);
     return UNITY_END();
 }

@@ -11,6 +11,18 @@ open, `bench/README.md` for the gate, and the commit each entry came from.
 
 ### Added
 
+- `jaos_check_report` gains `certified_suboptimality` and
+  `unquantified_rays`: how much better the objective provably gets, and how
+  many directions could not be quantified. The step comes from moving one
+  column on its own with every other variable pinned — feasible by
+  construction, so it is a guaranteed minimum and `|w| * t` is a certified
+  lower bound on `P - P*` needing **no basis, no factorization and no
+  reference value**, which is what D47 costed this route at. It recovers D47's
+  constructed case exactly, 0.1, on a point where every other number reads
+  zero. Largest certificate over all 110 reference answers: 4.98e-16, so it
+  does not false-alarm; five instances carry a ray whose rate the checker
+  calls zero, and those are counted rather than reported as infinite
+  suboptimality. Decides nothing yet (D73).
 - `jaos_check_report` gains `gap_certified` and `max_dropped_multiplier`: the
   checker now says when `gap_positive` is not the bound on suboptimality that
   `jaos.h` documents it as being. It stops being a bound whenever a

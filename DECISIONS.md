@@ -4534,3 +4534,97 @@ inventing it at the end of a diagnosis is how this project loses weeks.
 Note also what this is *not*: 128 is not the shipped interval, and at 64 the
 instance is clean. This is a latent defect a sweep exposed, which is the third
 time that sweep has paid for itself.
+
+## D73 — The certificate D47 wanted, without the factorization it thought it needed
+
+D47 left two routes and D71 measured the first one to death: 98 of 110 answers
+carry a dropped term, the distribution has no gap to threshold at, and voiding
+the bound would void the gate. This takes the second route, and finds that the
+expensive part of it was never the obstacle.
+
+### The step does not need `B^-1 a_j`
+
+D47's route B is `|d_j|` times the step a ratio test allows, and it costed that
+at a basis and a factorization inside the checker — with a real question
+attached about what "independent" means once the thing verifying the answer
+shares machinery with the thing that produced it.
+
+**Move the column on its own instead, with every other variable pinned where
+it is.** Every row's activity moves by `a_ij t`; the step is the smallest
+distance any row's own bound permits. The resulting point is feasible by
+construction — no other variable moved, so no other bound can be broken — so
+the distance is a *guaranteed minimum* rather than an estimate, and
+`|w| * t` is a certified lower bound on `P - P*`.
+
+It travels less far than the simplex direction, which lets the basics absorb
+the move. A smaller lower bound is still a lower bound. And it is computed
+from the row activities `check.c` already accumulates and nothing else: no
+basis, no factorization, no reference value, nothing borrowed from the solver.
+
+On D47's own constructed case it recovers **0.1 exactly** — the entire
+suboptimality of a point on which every other number in the report reads zero.
+
+### The first version was wrong, and the measurement is what said so
+
+Five instances came back `inf`: `sctap3`, `sctap2`, `scorpion`, `pilot87`,
+`finnis` — every one of them matching a published finite optimum.
+
+The reason is exact and it is worth stating as a rule. **Where the step is
+finite the product is self-limiting**: a multiplier that is really roundoff
+certifies a roundoff-sized suboptimality, so no threshold is needed anywhere
+and nothing can false-alarm. **Where the step is infinite the product is
+infinite for any nonzero multiplier at all**, 1e-17 included — at which point
+it has stopped being a certificate and has become D47's unanswerable question
+wearing one: is this multiplier real?
+
+So the two cases are split, on the checker's own `|w| <= tol` — the definition
+of "nonzero multiplier" it already uses everywhere else, not a number invented
+to make an awkward case go away. Below it the ray is counted; above it the
+model genuinely is unbounded and infinity is the right answer. Both halves are
+built in `tests/test_check.c`, because a rule that only ever counted would hide
+a real unbounded model.
+
+### What the reference sets say
+
+| | standard 94 + Kennington 16 |
+|---|---|
+| largest certified suboptimality, anywhere | **4.98e-16** (`d2q06c`) |
+| next | 3e-21 (`finnis`), then 1e-26 and below |
+| instances with an unquantified ray | **5 of 110** |
+| rays in total | 30 — `pilot87` 10, `sctap3` 8, `sctap2` 6, `scorpion` 4, `finnis` 2 |
+| infinite certificates | **0** |
+
+Certifying nothing on 110 answers that are all genuinely optimal is the
+correct outcome, and it is the one that says the instrument does not
+false-alarm. Its ability to fire is established by construction instead, which
+is the only place it can be: `tests/test_check.c` builds the point it must
+catch and it catches it to the last digit.
+
+### The part that reframes D47
+
+**105 of 110 answers are now fully quantified with no factorization at all,
+and the 5 that are not are unquantifiable for a reason a factorization would
+not fix.**
+
+That last clause is the finding. A column whose move-alone step is unbounded
+has a feasible ray of the *model* along it — no other variable moves, so no
+other bound can object. If its rate were truly nonzero the model would be
+unbounded, full stop. Adding `B^-1 a_j` computes a different, longer step; it
+does not make a rate of 1e-8 distinguishable from zero. So the machinery D47
+proposed would buy a better number on the 105 that already have one, and
+nothing at all on the 5 that do not.
+
+What is left is therefore not a missing factorization. It is the irreducible
+core D47 named from the start: **no local test can tell a small reduced cost
+that matters from one that does not**, and on these five that question is all
+there is. `jaos.h` now says so in the report rather than in a comment nobody
+reads.
+
+### Still deciding nothing
+
+No verdict reads either field, and the three gates pass with 0 regressed and
+139 digests identical. Whether `certified_suboptimality > tol` should make
+`dual_feasible` false is a real question and a separate one — it would be the
+first predicate in this checker that can fail an answer no tolerance rejects —
+and it needs an instance that fails it before it is worth deciding. None of
+the 110 does.

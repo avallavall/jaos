@@ -416,12 +416,30 @@ at one setting do not find are hiding.
    multiplier nonzero — the whole exposure sits inside what it already calls
    zero.
 
-   What is left is D47's second route and it is now the only one with
-   evidence: `|d_j|` times the step a ratio test allows is a certified lower
-   bound on the suboptimality and needs no reference value. It needs
-   `B^-1 a_j`, so the checker would need a basis and a factorization of its
-   own — and an answer to what "independent" means once it shares machinery
-   with the solver.
+   **The second route is taken, and it did not need the factorization (D73).**
+   Moving one column on its own with every other variable pinned gives a step
+   that needs no `B^-1 a_j`: the point is feasible by construction, so the
+   distance is a guaranteed minimum and `|w| * t` is a certified lower bound
+   on `P - P*`. It recovers D47's constructed case exactly — **0.1** — from
+   the row activities the checker already has.
+
+   Where the step is finite the product is self-limiting, so no threshold is
+   needed and nothing false-alarms; where it is infinite the product is
+   infinite for any nonzero multiplier and stops being a certificate, so those
+   are counted instead, split on the checker's own definition of a nonzero
+   multiplier. Largest certificate over all 110 answers: **4.98e-16**. Five
+   instances carry an unquantified ray.
+
+   **What is left is not machinery.** A column with an unbounded move-alone
+   step already has a feasible ray of the model; adding `B^-1 a_j` computes a
+   longer step but cannot make a rate of 1e-8 distinguishable from zero. So
+   105 of 110 are fully quantified with no factorization, and the 5 that are
+   not are unquantifiable for a reason no factorization fixes. The open
+   question is the one D47 named at the start and is now the only one:
+   **whether `certified_suboptimality` should be allowed to fail an answer.**
+   It would be the first predicate here that rejects a point no tolerance
+   rejects, and none of the 110 gives it the chance — so it needs an instance
+   before it needs a decision.
 2. **The re-entry loop does not always converge (D49, D50, D51).** Its two
    repairs undo each other — the dual simplex borrows cost shifts to keep
    dual feasibility, `settle_shifts` calls the loans in, and the largest loan

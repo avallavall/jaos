@@ -476,6 +476,50 @@ typedef struct jaos_check_report {
     double max_dropped_multiplier;
     int64_t dropped_terms;
 
+    /* How much better the objective provably gets, from the dropped terms
+       alone. A lower bound on P - P*, in the objective's own units, and a
+       certificate rather than an estimate: it is |w| times a distance the
+       point can actually travel, along a direction every point of which is
+       feasible. Zero means nothing was certified, which is emphatically not
+       the same as nothing being wrong.
+
+       The direction is one column moving on its own with every other
+       variable held where it is. That is why no factorization is needed and
+       why the checker keeps owing the solver nothing: the simplex direction
+       lets the basic variables absorb the move and travels further, but
+       computing it needs B^-1 a_j. Travelling less far certifies less
+       suboptimality, and a smaller lower bound is still a lower bound.
+
+       Infinity means the objective improves without limit along a feasible
+       ray, which is a proof that the model is unbounded rather than that this
+       point is suboptimal.
+
+       Rows contribute nothing here. A row's activity cannot be moved on its
+       own, so there is no single-entity direction to measure along, and what
+       a dropped row multiplier is worth is the part that would need the
+       factorization.
+
+       Decides nothing today. Read alongside dropped_terms: a large value on a
+       point the report otherwise accepts is the case D47 built.             */
+    double certified_suboptimality;
+
+    /* Columns that could move without limit — no row ever stops them — but
+       whose rate of improvement this checker calls zero.
+
+       Counted rather than folded into the value above, because the two are
+       different kinds of statement. With a finite step the product is
+       self-limiting: a multiplier that is really roundoff certifies a
+       roundoff-sized suboptimality, which is why the number above needs no
+       threshold to be safe. With an infinite step the product is infinite for
+       any nonzero multiplier at all, so it stops certifying anything and
+       becomes the question that has no local answer — is this multiplier
+       real? Five instances of JAOS's own reference set land here, every one
+       of them matching a published finite optimum.
+
+       A nonzero count means: there is a direction along which this model may
+       be unbounded, and this report cannot tell you whether it is.          */
+    int64_t unquantified_rays;
+
     bool primal_feasible;       /* violations within tolerance             */
     bool dual_feasible;         /* sign conditions and gap within tol      */
     bool checked_duals;         /* false when row_dual was NULL            */
