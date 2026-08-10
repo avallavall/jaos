@@ -393,6 +393,14 @@ typedef struct {
     double infeas_best;
     int64_t last_gain;
     bool bland;
+
+    /* The caller's two tolerances, resolved once against the defaults so
+     * that no site below has to remember which of the two to consult. They
+     * are read here rather than from the model on purpose: a solve works on
+     * one set of tolerances from start to finish, whatever anyone does to
+     * the model while it runs. */
+    double primal_tol;
+    double dual_tol;
 } sx;
 
 /* --------------------------------------------------------------------- */
@@ -440,6 +448,13 @@ static jaos_status sx_init(sx *s, jaos_model *m)
     s->nrow = m->num_row;
     s->ncol = m->num_col;
     s->nvar = m->num_col + m->num_row;
+
+    /* Resolved once, here, so that a solve runs on one pair of tolerances
+     * from beginning to end. Zero on the model means the caller never set
+     * one, which is what makes an untouched model behave exactly as it did
+     * before these existed. */
+    s->primal_tol = m->primal_tol > 0.0 ? m->primal_tol : PRIMAL_TOL;
+    s->dual_tol   = m->dual_tol   > 0.0 ? m->dual_tol   : DUAL_TOL;
 
     if (!m->scale_valid) {
         jaos_status st = jm_model_scale(m, JM_SCALE_CURTIS_REID);
@@ -1066,7 +1081,7 @@ static int64_t price_row(sx *s, bool *below, double *violation)
 
         bool under = viol_lo >= viol_up;
         double viol = under ? viol_lo : viol_up;
-        if (viol <= PRIMAL_TOL)
+        if (viol <= s->primal_tol)
             continue;
 
         total += viol;
@@ -1367,7 +1382,7 @@ static int64_t dual_ratio_test(sx *s, bool below, double violation,
     if (live == 0)
         return -1;   /* nothing blocks the step; the model is infeasible */
 
-    int64_t k = jm_harris_pick(live, s->rnum, s->rden, DUAL_TOL);
+    int64_t k = jm_harris_pick(live, s->rnum, s->rden, s->dual_tol);
     jm_work_add(&s->work, 2 * live * JM_WORK_NONZERO);
     int64_t best = s->cand[k];
 
@@ -1869,7 +1884,8 @@ static void repair_dual_infeasibility(sx *s)
         for (int64_t i = 0; i < s->nrow; i++) {
             double x = s->xb[i] - s->col[i];
             int64_t b = s->basis[i];
-            if (x < s->lo[b] - PRIMAL_TOL || x > s->up[b] + PRIMAL_TOL) {
+            if (x < s->lo[b] - s->primal_tol ||
+                x > s->up[b] + s->primal_tol) {
                 safe = false;
                 break;
             }
@@ -1879,8 +1895,8 @@ static void repair_dual_infeasibility(sx *s)
              * refused; no test constructs this, it takes a box ~1e10
              * wide, but an answer must not depend on nobody ever
              * building one. */
-            if ((s->fake[b] == FAKE_LO && x <= s->lo[b] + PRIMAL_TOL) ||
-                (s->fake[b] == FAKE_UP && x >= s->up[b] - PRIMAL_TOL)) {
+            if ((s->fake[b] == FAKE_LO && x <= s->lo[b] + s->primal_tol) ||
+                (s->fake[b] == FAKE_UP && x >= s->up[b] - s->primal_tol)) {
                 safe = false;
                 break;
             }
@@ -1944,9 +1960,9 @@ static jaos_status run(sx *s, jaos_solve_status *out);
 static double dual_breach(const sx *s, int64_t v)
 {
     switch (s->status[v]) {
-    case JM_AT_LOWER: return s->d[v] < -DUAL_TOL ? -s->d[v] : 0.0;
-    case JM_AT_UPPER: return s->d[v] > DUAL_TOL ? s->d[v] : 0.0;
-    case JM_FREE:     return fabs(s->d[v]) > DUAL_TOL ? fabs(s->d[v]) : 0.0;
+    case JM_AT_LOWER: return s->d[v] < -s->dual_tol ? -s->d[v] : 0.0;
+    case JM_AT_UPPER: return s->d[v] > s->dual_tol ? s->d[v] : 0.0;
+    case JM_FREE:     return fabs(s->d[v]) > s->dual_tol ? fabs(s->d[v]) : 0.0;
     case JM_BASIC:    break;
     }
     return 0.0;   /* basic: its reduced cost is zero by definition */
@@ -2093,7 +2109,7 @@ static bool can_move(const sx *s, int64_t v)
                                                : real_lower(s, v);
     if (!isfinite(other))
         return false;
-    return wrong_way * fabs(other - nonbasic_value(s, v)) > DUAL_TOL;
+    return wrong_way * fabs(other - nonbasic_value(s, v)) > s->dual_tol;
 }
 
 static bool anything_to_move(const sx *s)
@@ -2452,9 +2468,9 @@ static jaos_status reenter_after_settling(sx *s)
 static bool held_by_an_invented_bound(const sx *s, int64_t j)
 {
     if (s->fake[j] == FAKE_LO)
-        return s->status[j] == JM_AT_LOWER && s->d[j] > DUAL_TOL;
+        return s->status[j] == JM_AT_LOWER && s->d[j] > s->dual_tol;
     if (s->fake[j] == FAKE_UP)
-        return s->status[j] == JM_AT_UPPER && s->d[j] < -DUAL_TOL;
+        return s->status[j] == JM_AT_UPPER && s->d[j] < -s->dual_tol;
     return false;
 }
 

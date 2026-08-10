@@ -124,10 +124,14 @@ rule, which is why the adaptive work in phase 6 matters: the intelligence has
 to be inside.
 
 - **An options API**, for the contract only: tolerances, limits, logging,
-  callbacks. Every tolerance is a compile-time constant today. The shape is
-  the first decision — an opaque options object passed to `jaos_solve`, or
-  setters on the model — and either way it must keep D8: an option that
-  changes an answer has to change it identically on every machine.
+  callbacks. **The shape is decided and the tolerances have landed (D64):**
+  setters on the model, because `jaos_set_work_limit` and
+  `jaos_set_time_limit` already were, and a second mechanism would give two
+  ways to configure one thing. `jaos_set_primal_tolerance` and
+  `jaos_set_dual_tolerance` are in, with 0 restoring the default and anything
+  that is not a finite non-negative number refused rather than clamped. All
+  139 digests unmoved, because a model that sets nothing behaves as before.
+  What is left here is logging and callbacks.
 - **Logging.** The solver is silent. A verbosity level and a callback for the
   line, so a caller can route it.
 - **Model modification** — add and delete rows and columns, change a bound, a
@@ -137,13 +141,24 @@ to be inside.
   to hand one in.
 - **`jaos_set_basis`**, whose read side is already `jaos_basis`.
 
-Two things phase 2 unblocks that are worth naming. A caller cannot vary the
-checker's tolerance today, which is what made D47's diagnosis need a private
-driver — and that one is squarely a contract question, so it belongs in the
-API. The debugging fallback to max-infeasibility pricing also wants somewhere
-to live, but by the rule above it is **not** an option: it is a development
-tool and belongs behind a build-time switch or a private entry point, not in
-`jaos.h`.
+**Two claims this section used to make, and both were wrong.** It said a
+caller cannot vary the checker's tolerance: `jaos_check_solution` has taken
+`double tol` as a public parameter all along. And it attributed D47's
+diagnosis to that missing option — D47 needed `REFACTOR_EVERY` varied over
+16..256, which is a *method* constant and by the rule above is not going in
+the API at all. What those diagnoses actually need is a build-time switch or
+a private entry point for development, which is a different thing from an
+option and belongs nowhere near `jaos.h`. The same goes for the debugging
+fallback to max-infeasibility pricing.
+
+**So what the API actually owes a caller is short**, which is the point of
+drawing the line: `PRIMAL_TOL` and `DUAL_TOL` — the two every competing
+solver exposes and which the comparison harness already equalises explicitly
+across solvers — plus logging and callbacks. Everything else in
+`docs/tolerances.md` is method: `PIVOT_MIN`, `LU_PIVOT_TOL`,
+`LU_UPDATE_TOL`, `DROP_REL`, `DSE_MIN`, `DSE_DRIFT`, `REFACTOR_EVERY`,
+`ITER_SANITY_FACTOR`, `ARTIFICIAL_BOUND`. Each of those is measured and fixed
+and stays that way.
 
 ---
 

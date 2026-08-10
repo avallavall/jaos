@@ -69,6 +69,7 @@ and you have the argument. Jump to the entry for the numbers behind it.
 - **[D61](#d61-the-pricing-row-has-no-sparsity-to-exploit-and-the-calls-around-it-are-not-the-cost-either)** — The pricing row has no sparsity to exploit, and the calls around it are not the cost either
 - **[D62](#d62-one-set-of-shipping-flags-chosen-by-measurement-and-the-counter-costs-nothing)** — One set of shipping flags, chosen by measurement, and the counter costs nothing
 - **[D63](#d63-the-gaps-iterations-are-weight-restarts-and-the-threshold-that-causes-them-is-what-keeps-the-answers-right)** — The gap's iterations are weight restarts, and the threshold that causes them is what keeps the answers right
+- **[D64](#d64-the-options-api-configures-the-contract-and-never-the-method-and-it-is-setters)** — The options API configures the contract and never the method, and it is setters
 
 ---
 
@@ -3815,3 +3816,67 @@ The cure for the iteration-count half of the tail is not a better restart —
 every version of that tested so far trades one instance for another. It is a
 pricing rule that does not depend on an exact recurrence surviving:
 **Devex** [7], phase 6 item 6.
+
+## D64 — The options API configures the contract and never the method, and it is setters
+
+Phase 2 opened with the shape undecided — "an opaque options object passed to
+`jaos_solve`, or setters on the model" — and with a larger question behind it
+that the plan had not asked: *what* is a caller allowed to configure.
+
+**The rule, decided first because it shapes everything else.** A caller sets
+what depends on their problem and which the solver cannot know: how much
+precision their data deserves, how long they will wait, where log lines go.
+**How** the problem is solved is not theirs: the pricing rule, when a carried
+weight stops being worth keeping, when to refactorize, whether a sparse or a
+dense path is cheaper. Nobody linking this library can be expected to know
+whether their model wants Devex or steepest edge, and an option that asks
+them is a problem handed back to the caller. The solver has to be good enough
+to decide, which is also why the adaptive work D63 points at matters.
+
+That is already the practice — every constant in `docs/tolerances.md` is
+measured and fixed rather than exposed — and it is now the stated rule.
+`SPECS.md` moves "choose the algorithm" and "turn scaling off" from
+**missing** to **out of scope**.
+
+**So the API owes a caller two tolerances**, `PRIMAL_TOL` and `DUAL_TOL` —
+the two every competing solver exposes, and the two the comparison harness
+already equalises explicitly across solvers because a timing taken at
+different tolerances is not a comparison. Everything else in that table stays
+where it is.
+
+**Setters, not an options object.** `jaos_set_work_limit` and
+`jaos_set_time_limit` already are setters; adding an object would give two
+mechanisms for one job, and with the list this short it buys nothing. Each
+setter validates at the point of the mistake and leaves its reason in
+`jaos_model_error`, where an options object would validate at `jaos_solve`,
+one call away from the line that was wrong.
+
+**Refused rather than clamped.** A tolerance that is not finite and
+non-negative is an error, not a request to be helpful about. A solver that
+substitutes its own number reports success for a run its caller cannot
+reason about.
+
+**Zero means the default**, which is the only way to say "whatever you would
+have done" once a value has been set — and it is what makes the claim
+testable: a model that sets nothing must behave exactly as it did before
+these existed. **All 139 digests are identical to the committed records**,
+which is that claim as a measurement rather than an assurance.
+
+**Two claims this section used to make, and both were false.** It said a
+caller cannot vary the checker's tolerance: `jaos_check_solution` has taken
+`double tol` as a public parameter all along. And it attributed D47's
+diagnosis to that absence — D47 needed `REFACTOR_EVERY` varied over 16..256,
+a *method* constant that by the rule above is not going into the API at all.
+What those diagnoses need is a build-time switch or a private entry point,
+which is a different thing from an option.
+
+**And the test found a defect before the feature reached anyone.** The one
+that matters is not the validation test — a setting that is stored and never
+consulted passes that — but the one that shows the tolerance being *used*:
+`min x subject to x >= 5` starts five units outside the row, and a primal
+tolerance wider than five makes that starting point feasible, so the solve
+stops there and reports 0 instead of 5. It failed. `jaos_load_lp` resets the
+model and preserves the budgets by listing them one by one; the new
+tolerances were not on that list, so anyone configuring before loading — the
+natural order to write it in — lost them silently. Fixed, and the reload test
+now asserts all four settings rather than one.

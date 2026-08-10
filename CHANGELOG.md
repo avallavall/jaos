@@ -11,7 +11,14 @@ open, `bench/README.md` for the gate, and the commit each entry came from.
 
 ### Added
 
-- `make pgo`: compiles the library instrumented, solves the standard set with
+- `jaos_set_primal_tolerance` and `jaos_set_dual_tolerance`: the first two
+  settings a caller has beyond the budgets. Both default to 1e-7 and 0
+  restores that; a value that is not finite and non-negative is refused with
+  a reason rather than clamped. All 139 digests are unmoved, because a model
+  that sets nothing behaves exactly as before. The API configures the
+  contract — precision, limits, where output goes — and never the method:
+  which pricing rule, when a weight stops being worth carrying, when to
+  refactorize are the solver's to decide (D64).
   it, and compiles again from the profile that produced. Worth **1.1122x**
   over the plain shipping build — three times what every optimisation flag in
   it is worth put together — with the gate green and all 94 digests unmoved.

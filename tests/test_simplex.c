@@ -1433,10 +1433,100 @@ static void test_budgets_survive_a_reload(void)
 
     jaos_model *m = fresh();
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_work_limit(m, 12345));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_time_limit(m, 42.0));
+    /* Configuring before loading is the natural order to write, and every
+     * setting has to survive it. The primal tolerance did not, until this
+     * test's sibling caught it. */
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_primal_tolerance(m, 1e-4));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_dual_tolerance(m, 1e-5));
     TEST_ASSERT_EQUAL_INT(JAOS_OK,
         jaos_load_lp(m, 1, 1, JAOS_MINIMIZE, 0.0, c, cl, cu, rl, ru,
                      1, as, ai, av));
     TEST_ASSERT_EQUAL_INT64(12345, m->work_limit);
+    TEST_ASSERT_EQUAL_DOUBLE(42.0, m->time_limit);
+    TEST_ASSERT_EQUAL_DOUBLE(1e-4, m->primal_tol);
+    TEST_ASSERT_EQUAL_DOUBLE(1e-5, m->dual_tol);
+    jaos_model_free(m);
+}
+
+/* The two tolerances a caller owns.
+ *
+ * The first two tests are the ordinary ones: what is refused, and that an
+ * untouched model is unchanged. The third is the one that matters, because
+ * a setting that is stored and never consulted passes both of the others.
+ * `min x subject to x >= 5` starts at x = 0, five units outside the row, and
+ * a primal tolerance wider than five makes that starting point feasible —
+ * so the solver stops there and reports 0 instead of 5. Nothing but the
+ * tolerance reaching the feasibility test can produce that. */
+static void test_a_tolerance_must_be_a_tolerance(void)
+{
+    jaos_model *m = fresh();
+    TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT,
+        jaos_set_primal_tolerance(m, -1e-9));
+    TEST_ASSERT_TRUE(jaos_model_error(m)[0] != '\0');
+    TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT,
+        jaos_set_primal_tolerance(m, NAN));
+    TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT,
+        jaos_set_primal_tolerance(m, INFINITY));
+    TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT,
+        jaos_set_dual_tolerance(m, -1.0));
+    TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT,
+        jaos_set_dual_tolerance(m, NAN));
+    TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT,
+        jaos_set_primal_tolerance(nullptr, 1e-6));
+    TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT,
+        jaos_set_dual_tolerance(nullptr, 1e-6));
+    jaos_model_free(m);
+}
+
+static void test_an_untouched_model_carries_no_tolerance_of_its_own(void)
+{
+    jaos_model *m = fresh();
+    TEST_ASSERT_EQUAL_DOUBLE(0.0, m->primal_tol);
+    TEST_ASSERT_EQUAL_DOUBLE(0.0, m->dual_tol);
+    /* Set, then handed back with zero, which is the only way to say
+     * "whatever you would have done" once a value has been given. */
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_primal_tolerance(m, 1e-3));
+    TEST_ASSERT_EQUAL_DOUBLE(1e-3, m->primal_tol);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_primal_tolerance(m, 0.0));
+    TEST_ASSERT_EQUAL_DOUBLE(0.0, m->primal_tol);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_dual_tolerance(m, 1e-3));
+    TEST_ASSERT_EQUAL_DOUBLE(1e-3, m->dual_tol);
+    jaos_model_free(m);
+}
+
+static void test_a_wide_primal_tolerance_accepts_a_point_it_should_not(void)
+{
+    const double c[] = {1.0};
+    const double cl[] = {0.0}, cu[] = {10.0};
+    const double rl[] = {5.0}, ru[] = {INFINITY};
+    const int64_t as[] = {0, 1}, ai[] = {0};
+    const double av[] = {1.0};
+
+    /* Default: the row is repaired and the answer is 5. */
+    jaos_model *m = fresh();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_load_lp(m, 1, 1, JAOS_MINIMIZE, 0.0, c, cl, cu, rl, ru,
+                     1, as, ai, av));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+    double obj = 0.0;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(m, &obj));
+    TEST_ASSERT_DOUBLE_WITHIN(1e-9, 5.0, obj);
+    jaos_model_free(m);
+
+    /* A tolerance wider than the violation: the starting point is already
+     * "feasible" and the solve stops on it. */
+    m = fresh();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_primal_tolerance(m, 10.0));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_load_lp(m, 1, 1, JAOS_MINIMIZE, 0.0, c, cl, cu, rl, ru,
+                     1, as, ai, av));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(m, &obj));
+    TEST_ASSERT_DOUBLE_WITHIN(1e-9, 0.0, obj);
+    TEST_ASSERT_EQUAL_INT64(0, jaos_iterations(m));
     jaos_model_free(m);
 }
 
@@ -1743,6 +1833,9 @@ int main(void)
     RUN_TEST(test_solving_twice_is_bit_identical);
     RUN_TEST(test_work_limit_stops_and_reports);
     RUN_TEST(test_budgets_survive_a_reload);
+    RUN_TEST(test_a_tolerance_must_be_a_tolerance);
+    RUN_TEST(test_an_untouched_model_carries_no_tolerance_of_its_own);
+    RUN_TEST(test_a_wide_primal_tolerance_accepts_a_point_it_should_not);
     RUN_TEST(test_queries_before_a_solve);
     RUN_TEST(test_the_basis_names_which_rows_hold_the_optimum);
     RUN_TEST(test_the_basis_agrees_with_the_values_it_came_with);

@@ -92,8 +92,8 @@ asks them is a problem handed back to the caller.
 | | status | |
 |---|---|---|
 | Work limit, time limit | **done** | |
-| An options API of any kind | **missing** | |
-| Set tolerances | **missing** | every tolerance is a compile-time constant |
+| Set the primal and dual tolerances | **done** | `jaos_set_primal_tolerance`, `jaos_set_dual_tolerance`; 0 restores the default |
+| The rest of the options API | **missing** | logging and callbacks |
 | Logging and verbosity | **missing** | the solver is silent |
 | Callbacks | **missing** | |
 | Choose the algorithm | **out of scope** | the solver picks; see above |

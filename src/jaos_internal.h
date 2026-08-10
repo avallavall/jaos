@@ -59,6 +59,17 @@ struct jaos_model {
     int64_t work_limit;      /* <= 0 means unlimited */
     double time_limit;       /* <= 0 means unlimited */
 
+    /* The two tolerances a caller owns, in scaled space where the solver
+     * works. Zero means "the built-in default", so a model that never sets
+     * them behaves exactly as it did before they existed — which is what
+     * makes every digest in the reference sets a test of that claim.
+     *
+     * These two and no others. They say how much precision the caller's data
+     * deserves, which is a question about the problem; everything else in
+     * docs/tolerances.md is about the method and stays measured and fixed. */
+    double primal_tol;       /* <= 0 means PRIMAL_TOL */
+    double dual_tol;         /* <= 0 means DUAL_TOL   */
+
     jaos_solve_status solve_status;
     double objective;
     double *sol_col;         /* [num_col] primal values      */

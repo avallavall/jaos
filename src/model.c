@@ -85,6 +85,34 @@ jaos_status jaos_set_time_limit(jaos_model *m, double seconds)
     return JAOS_OK;
 }
 
+/* The two tolerances the caller owns. Rejected rather than clamped when they
+ * are not usable numbers: a solver that silently substitutes its own value
+ * for the one it was given reports success for a run the caller cannot
+ * reason about. Zero restores the default, which is the only way to say
+ * "whatever you would have done" once a value has been set. */
+static jaos_status set_tolerance(jaos_model *m, double value, double *slot,
+                                 const char *what)
+{
+    if (m == nullptr)
+        return JAOS_ERR_INVALID_INPUT;
+    if (!(isfinite(value) && value >= 0.0)) {
+        jm_set_err(m, "%s tolerance must be finite and non-negative", what);
+        return JAOS_ERR_INVALID_INPUT;
+    }
+    *slot = value;
+    return JAOS_OK;
+}
+
+jaos_status jaos_set_primal_tolerance(jaos_model *m, double tol)
+{
+    return set_tolerance(m, tol, m ? &m->primal_tol : nullptr, "primal");
+}
+
+jaos_status jaos_set_dual_tolerance(jaos_model *m, double tol)
+{
+    return set_tolerance(m, tol, m ? &m->dual_tol : nullptr, "dual");
+}
+
 jaos_status jaos_solve(jaos_model *m)
 {
     if (m == nullptr)
@@ -315,14 +343,22 @@ jaos_status jaos_load_lp(jaos_model *m,
         return err;
     }
 
-    /* Budgets are solver configuration, not problem data: loading a new
-     * problem into the same model must not silently discard them. */
+    /* Budgets and tolerances are solver configuration, not problem data:
+     * loading a new problem into the same model must not silently discard
+     * them. Every one of these has to be listed here, and a setting that is
+     * added without being added to this list is lost by anyone who
+     * configures before loading — which is the natural order to write it in
+     * and is how the primal tolerance was found to be dropped. */
     int64_t keep_work_limit = m->work_limit;
     double keep_time_limit = m->time_limit;
+    double keep_primal_tol = m->primal_tol;
+    double keep_dual_tol = m->dual_tol;
 
     model_release_arrays(m);
     m->work_limit = keep_work_limit;
     m->time_limit = keep_time_limit;
+    m->primal_tol = keep_primal_tol;
+    m->dual_tol = keep_dual_tol;
     m->num_col = num_col;
     m->num_row = num_row;
     m->num_nz  = kept;

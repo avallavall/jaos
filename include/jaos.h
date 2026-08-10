@@ -159,6 +159,33 @@ JAOS_NODISCARD const char *jaos_model_error(const jaos_model *m);
 JAOS_NODISCARD jaos_status jaos_set_work_limit(jaos_model *m, int64_t units);
 JAOS_NODISCARD jaos_status jaos_set_time_limit(jaos_model *m, double seconds);
 
+/* The two tolerances a caller owns. Both default to 1e-7; passing 0.0
+ * restores that default.
+ *
+ * The primal tolerance is how far a variable may sit outside its bounds and
+ * still count as feasible. The dual tolerance is how far a reduced cost may
+ * sit on the wrong side of zero. Together they say how much precision the
+ * data deserves — measured inputs and exact ones do not want the same answer,
+ * and the solver has no way to know which it was given.
+ *
+ * **These two, and nothing about how the problem is solved.** Which pricing
+ * rule, when a carried weight stops being worth keeping, when to refactorize,
+ * whether a sparse or a dense path is cheaper: those are the solver's to
+ * decide and are not settings. Nobody linking this library can be expected to
+ * know whether their model wants one or the other, and an option that asks
+ * hands back a problem that belongs here.
+ *
+ * Both act in the scaled space the solver works in, not in the units of the
+ * model as written; docs/tolerances.md says what that means for a coefficient
+ * range. A value that is not finite and non-negative is rejected rather than
+ * clamped, because a solver that quietly substitutes its own number reports
+ * success for a run its caller cannot reason about.
+ *
+ * D8 still holds: a tolerance changes the answer identically on every
+ * machine. */
+JAOS_NODISCARD jaos_status jaos_set_primal_tolerance(jaos_model *m, double tol);
+JAOS_NODISCARD jaos_status jaos_set_dual_tolerance(jaos_model *m, double tol);
+
 /* Solves the model. The outcome is reported by jaos_solve_status, which the
  * return value does not duplicate: JAOS_OK means the solve ran, not that it
  * found an optimum. */
