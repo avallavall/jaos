@@ -131,8 +131,8 @@ are twenty-three public functions and not one of them configures anything.
 | Determinism across two solves and across runs, all 139 | **pass** |
 | Full suite clean under ASan and UBSan | **pass** |
 | Reader robustness under fuzzing | **pass** |
-| Competitive gap at tier T0 vs **HiGHS 1.15.1** | **measured: 3.81x slower** (D52, D53) |
-| Competitive gap at tier T0 vs **SoPlex 8.0.3** | **measured: 1.36x slower** |
+| Competitive gap at tier T0 vs **HiGHS 1.15.1** | **measured: 3.70x slower** (D52, D53, D60) |
+| Competitive gap at tier T0 vs **SoPlex 8.0.3** | **measured: 1.31x slower**, faster on 11 of 22 |
 | Competitive gap vs Clp | not measured |
 | Rungs T1–T3, which price presolve and algorithm choice | not measured |
 | MIPLIB 2017 easy subset | not started |
@@ -143,19 +143,20 @@ The gap now has numbers, and they decompose the same way against both rivals:
 
 | tier T0 | vs HiGHS | vs SoPlex |
 |---|---|---|
-| time per solve | 3.81x | 1.36x |
+| time per solve | 3.70x | 1.31x |
 | iterations | 1.47x | **0.70x** |
-| **time per iteration** | **2.60x** | **1.95x** |
-| JAOS faster on | 0 of 18 | 10 of 22 |
+| **time per iteration** | **2.52x** | **1.87x** |
+| JAOS faster on | 0 of 18 | 11 of 22 |
 
-JAOS takes **35% fewer iterations than SoPlex** and is still slower. The
+JAOS takes **30% fewer iterations than SoPlex** and is still slower. The
 search is competitive; each iteration costs two to three times what it
 should. And the per-iteration ratio comes out the same whichever rival
-measures it — `maros-r7` 17.3x and 17.0x, `truss` 1.5x and 1.5x — so it is a
-property of JAOS rather than of a comparison.
+measures it — `truss` 1.5x and 1.5x — so it is a property of JAOS rather than
+of a comparison.
 
-**The target is a cheaper iteration, not fewer of them**, and the extreme
-points at the factorization: **`maros-r7` alone sits at 16.5x per iteration**
-while everything else is between 1.2x and 6x. `fit2p` used to be beside it at
-17.5x and is now 5.1x (D55, D56) — both of those were work the counter never
-billed.
+**The target is a cheaper iteration, not fewer of them.** The extreme has
+been the factorization throughout, and it is coming down: `fit2p` was 17.5x
+per iteration and is 5.0x (D55, D56), `maros-r7` was 16.5x and is **11.0x**
+(D58, D59). Everything else lies between 1.2x and 6x. Every one of those four
+entries was work the counter never billed, found by profiling the build that
+ships.

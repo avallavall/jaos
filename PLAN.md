@@ -79,12 +79,18 @@ HiGHS, SoPlex and Clp by checksum with their licences verified at fetch;
 `run-compare.sh` walks a rung and writes `bench/compare/results/`. `make
 compare` does the lot.
 
-**T0 is measured against two rivals (D52, D53), and re-measured after D55 and
-D56.** Against HiGHS 1.15.1, JAOS is **3.81x** slower per solve — 1.47x the
-iterations and **2.60x** the cost of each. Against SoPlex 8.0.3 it is **1.36x**
-slower on **0.70x** the iterations and **1.95x** per iteration, and faster on
-10 of 22. The per-iteration ratio agrees between the two rivals instance by
-instance, which is what makes it a quantity rather than a quotient.
+**T0 is measured against two rivals (D52, D53), and re-measured after D58 and
+D59 (D60).** Against HiGHS 1.15.1, JAOS is **3.70x** slower per solve — 1.47x
+the iterations and **2.52x** the cost of each. Against SoPlex 8.0.3 it is
+**1.31x** slower on **0.70x** the iterations and **1.87x** per iteration, and
+faster on 11 of 22. The per-iteration ratio agrees between the two rivals
+instance by instance, which is what makes it a quantity rather than a
+quotient.
+
+**The harness repeats itself to 1.3%** (D60), which is the floor any claim
+about these numbers has to clear. It also used to rebuild its JAOS only when
+its own driver changed, so it measured a stale binary and said nothing; that
+is repaired and every record now carries the commit it came from.
 
 **Q4 is downgraded from a blocker to a label.** It said the gate needs a
 dedicated measurement host, and it does — for a *published* figure. Comparing

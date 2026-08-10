@@ -66,8 +66,23 @@ FLOOR=0.05
 CMP_CFLAGS="-std=c23 -ffp-contract=off -O3 -march=native -flto -DNDEBUG"
 jaos=build/bench/jaos_time_cmp
 mkdir -p build/bench
-if [ ! -x "$jaos" ] || [ "$here/jaos_time.c" -nt "$jaos" ]; then
-    echo "building $jaos ($CMP_CFLAGS)"
+
+# Rebuilt when anything it is made of has moved, not only when its own source
+# has. This used to test `jaos_time.c` alone, so a change to `src/` measured
+# whatever binary was lying around — and the record it produced was
+# indistinguishable from a measurement of the tree that produced it. That is
+# not hypothetical: it happened, and the gap came back unchanged from a tree
+# that was 1.5x faster (D60).
+stale=""
+[ -x "$jaos" ] || stale="it does not exist"
+if [ -z "$stale" ]; then
+    for f in src/*.c src/*.h include/*.h "$here/jaos_time.c"; do
+        [ -e "$f" ] || continue
+        if [ "$f" -nt "$jaos" ]; then stale="$f is newer"; break; fi
+    done
+fi
+if [ -n "$stale" ]; then
+    echo "building $jaos ($stale)"
     gcc-14 $CMP_CFLAGS -Iinclude src/*.c "$here/jaos_time.c" -o "$jaos" -lm \
         || { echo "build failed" >&2; exit 2; }
 fi
@@ -78,9 +93,15 @@ log=$(mktemp); trap 'rm -f "$log" "$out".*.ratios' EXIT
 
 [ -n "$out" ] || out="$here/results/$tier.txt"
 mkdir -p "$(dirname "$out")"
+# Which tree these seconds came from, on the record itself. A comparison is
+# only ever read next to another one, and two records that do not say what
+# they measured cannot be subtracted (D60).
+tree_id=$(git rev-parse --short HEAD 2>/dev/null || echo unknown)
+tree_dirty=$(git status --porcelain src include bench/compare 2>/dev/null | head -1)
 {
     echo "# JAOS comparison, tier $tier, minimum of $repeats runs"
     echo "# machine: $machine$under_wsl"
+    echo "# tree: $tree_id${tree_dirty:+ WITH UNCOMMITTED CHANGES}"
     echo "# instance solver status objective iters solve_s process_s"
 } > "$out"
 

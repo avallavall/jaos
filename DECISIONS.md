@@ -65,6 +65,7 @@ and you have the argument. Jump to the entry for the numbers behind it.
 - **[D57](#d57-the-gate-runs-its-instances-at-once-because-nothing-it-records-is-a-second)** — The gate runs its instances at once, because nothing it records is a second
 - **[D58](#d58-the-elimination-asked-for-capacity-once-per-entry-it-wrote-and-the-entries-are-billions)** — The elimination asked for capacity once per entry it wrote, and the entries are billions
 - **[D59](#d59-the-multipliers-belong-to-the-pivot-so-the-column-stops-being-copied-twice-to-meet-them)** — The multipliers belong to the pivot, so the column stops being copied twice to meet them
+- **[D60](#d60-the-comparison-rebuilt-its-solver-only-when-its-own-driver-changed-so-it-measured-last-nights)** — The comparison rebuilt its solver only when its own driver changed, so it measured last night's
 
 ---
 
@@ -3471,3 +3472,78 @@ invisible to it by construction, and both were found by profiling the build
 that ships. That is now four in a row (D45, D54, D55/D56, this), and the
 conclusion has stopped being a surprise: **the work counter measures the
 algorithm, and the algorithm was never what was wrong.**
+
+## D60 — The comparison rebuilt its solver only when its own driver changed, so it measured last night's
+
+The gap against HiGHS was re-measured after D58 and D59 — the two entries
+that had just taken `maros-r7` from 35.5 s to 22.6 s — and it came back
+**3.86x against a committed 3.81x**. A tree 1.5x faster on its heaviest
+instance, and the comparison could not see it.
+
+**What it was.** `run-compare.sh` builds its own JAOS with the competitors'
+flags (`-O3 -march=native -flto`), because a comparison of solvers must not
+become a comparison of optimisation levels. It rebuilt that binary on one
+condition:
+
+```
+[ ! -x "$jaos" ] || [ "$here/jaos_time.c" -nt "$jaos" ]
+```
+
+**The driver, and nothing the driver is made of.** `jaos_time.c` had not
+changed since 2026-08-09; the binary was stamped 00:16:56 and `src/lu.c`
+08:10:44. Eight hours of solver went unmeasured, and the record that came out
+was indistinguishable in every respect from a measurement of the tree that
+produced it.
+
+**Why the committed record survives.** The binary was last built at 00:16:56,
+eleven seconds after D56 landed at 00:16:45 — so `bench/compare/results/T0.txt`
+does describe the tree it claims to. That is luck, not design: it happened
+because something had removed the binary that evening, not because anything
+checked.
+
+**The repair, in two parts.** The staleness test now covers every source the
+binary is made of and names the one that triggered it, so a rebuild is
+announced rather than silent. And the record carries the commit it was taken
+from, plus a `WITH UNCOMMITTED CHANGES` marker — because a comparison is only
+ever read next to another comparison, and two records that do not say what
+they measured cannot be subtracted.
+
+**What the failed run is worth, since it was paid for.** It is the same
+binary as the committed record, run a day later: 3.81x against 3.86x, 2.60x
+against 2.57x per iteration. **The harness repeats itself to about 1.3%**,
+which is the noise floor any future claim about the gap has to clear. Nothing
+else in this repository had measured that.
+
+**And the general rule, which is D17 arriving somewhere new.** Every other
+instrument here refuses to run rather than run on the wrong thing: the gate
+errors if a baseline is missing, the runner writes `NOT COMPARED` into the
+record when it had nothing to compare against. This one silently used what it
+found. A measurement tool has to make being wrong noisy.
+
+**The gap, re-measured on the tree that earned it.**
+
+| tier T0 | committed record | after D58 and D59 |
+|---|---|---|
+| vs HiGHS, time per solve | 3.81x | **3.70x** |
+| vs HiGHS, time per iteration | 2.60x | **2.52x** |
+| vs SoPlex, time per solve | 1.36x | **1.31x** |
+| vs SoPlex, time per iteration | 1.95x | **1.87x** |
+| JAOS faster than SoPlex on | 10 of 22 | **11 of 22** |
+| **`maros-r7` per iteration vs HiGHS** | **16.49x** | **10.98x** |
+| `pilot87` per iteration | 3.33x | 2.86x |
+
+`maros-r7` goes 35.052 s -> 23.072 s, **1.519x with `-O3 -march=native
+-flto`** against 1.569x at the shipping flags — so LTO does not hide these
+two, which is what D56 predicted for work that is removed rather than
+inlined.
+
+**The set figure moves 2.9% and the noise floor is 1.3%**, so it is real and
+it is small. Two instances improving cannot move a geometric mean over
+eighteen by much, and that is the mean behaving correctly rather than a
+disappointment: the same two instances are 74.1% of the *work*, which is a
+different question from the one a per-instance mean asks.
+
+**This record carries `WITH UNCOMMITTED CHANGES`** and the marker is telling
+the truth: `run-compare.sh` itself and `DECISIONS.md` were modified when it
+ran. `src/` and `include/` were the committed `ccad702`, which is what the
+seconds are about.
