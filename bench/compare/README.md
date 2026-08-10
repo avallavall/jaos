@@ -59,6 +59,23 @@ in a different costume already cost this project a wrong target three times
 - **Tolerances are equalised explicitly.** HiGHS defaults to 1e-7 primal and
   dual, SoPlex to 1e-6, JAOS sits at the stricter of the two (PLAN 2.10). A
   timing taken at different tolerances is not a comparison of solvers.
+
+  **And equal settings were checked to mean equal answers**, because they
+  need not: two solvers can spend the same tolerance differently, and a JAOS
+  that quietly delivered more precision than anyone asked for would be paying
+  for it in the time column. Against Koch's reference, with each solver's
+  full-precision output rather than its log line: `25fv47` JAOS 15.0 correct
+  digits against HiGHS 14.9, `bandm` 14.8 against 14.8, `capri` 15.8 against
+  ~16. **Equivalent.** JAOS is not being held to a stricter standard than the
+  gap credits it with.
+
+  The first attempt at that check said JAOS delivered 3.47 digits more, and
+  it was wrong in an instructive way: it compared the objectives as printed
+  in each solver's log, and HiGHS prints eleven significant digits while
+  SoPlex prints nine. It was measuring `printf`. The giveaway was in the
+  spread — every HiGHS reading fell between 10.0 and 12.1, every SoPlex one
+  between 8.4 and 10.3, each pinned just under its own format width, which is
+  not how accuracy is distributed.
 - **Competitor versions are pinned by checksum**, like the instances
   (PLAN 2.10). Otherwise "the competitive gap" moves on its own every time
   somebody upstream tags a release.
