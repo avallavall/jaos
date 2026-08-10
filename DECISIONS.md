@@ -88,6 +88,7 @@ and you have the argument. Jump to the entry for the numbers behind it.
 - **[D80](#d80-the-comparison-was-timing-a-warm-re-solve-and-the-feature-that-broke-it-shipped-two-weeks-earlier)** — The comparison was timing a warm re-solve, and the feature that broke it shipped two weeks earlier
 - **[D81](#d81-the-ladder-is-climbed-presolve-is-worth-142x-and-a-primal-simplex-is-worth-nothing)** — The ladder is climbed: presolve is worth 1.42x, and a primal simplex is worth nothing
 - **[D82](#d82-partial-pricing-on-the-leaving-row-sweep-refused-it-saves-the-cheap-units-and-buys-the-expensive-ones)** — Partial pricing on the leaving-row sweep, refused: it saves the cheap units and buys the expensive ones
+- **[D83](#d83-clp-is-the-third-reading-and-the-two-were-not-agreeing-by-coincidence)** — Clp is the third reading, and the two were not agreeing by coincidence
 
 ---
 
@@ -5321,3 +5322,44 @@ were newer than the sources and every later setting rebuilt nothing, so one
 binary was measured six times. The result was too clean to be a measurement.
 Every sweep here now opens with a canary — a setting that *must* move the
 numbers — and stops if it does not.
+
+## D83 — Clp is the third reading, and the two were not agreeing by coincidence
+
+The last open item in phase 1. `bench/compare/README.md` says why Clp is here:
+"the one that shows whether the other two agree by coincidence." It does not.
+
+All four rungs, three competitors, one session, one binary, on a still tree.
+
+| tier T0 | vs HiGHS 1.15.1 | vs SoPlex 8.0.3 | vs Clp 1.17.11 |
+|---|---|---|---|
+| time per solve | 3.72x | 1.34x | 3.77x |
+| iterations | 1.47x | **0.70x** | 1.67x |
+| **time per iteration** | **2.54x** | **1.92x** | **2.26x** |
+| JAOS faster on | 0 of 18 | 10 of 22 | 0 of 17 |
+| worst instance | `maros-r7` 25.7x | `maros-r7` 9.4x | `stocfor3` 14.6x |
+
+**The per-iteration ratio is the finding.** Three separately written dual
+simplexes — one from Huangfu and Hall's work, one from Wunderling's, one from
+Forrest's — put JAOS's cost per iteration at 2.54x, 1.92x and 2.26x. They
+disagree about everything else. Clp takes 1.67x JAOS's iteration count where
+SoPlex takes 0.70x, and Clp lands within 1.4% of HiGHS on total time while
+arriving there by a different route. **A quantity that survives three
+implementations disagreeing around it is a property of JAOS**, which is what
+this rung was built to establish and what the whole of phase 6 is aimed at.
+
+There is a pleasing detail in the lineage. Clp's principal author is John
+Forrest, and two entries in this project's own bibliography are his — [5],
+the Forrest-Tomlin update JAOS implements, and [8], the Forrest-Goldfarb
+steepest edge JAOS prices with. JAOS is built from this man's papers and has
+never read his code, which is the exact line D12 draws.
+
+**The rungs reproduce.** Taken in a fresh session with a third competitor
+added, presolve reads 1.421x for HiGHS against the 1.417x of D81 and 1.111x
+for SoPlex against 1.136x, and free algorithm choice reads 1.003x and 0.997x
+on iteration counts that are again exactly 1.000x. The control is clean:
+JAOS, byte-identical at every rung, reads 1.006x, 1.011x and 1.018x with
+iterations exactly 1.000x. D81 stands as measured.
+
+**Phase 1 is complete.** Every question it was opened to answer has a number:
+what the gap is, what it decomposes into, what presolve is worth, what a
+primal simplex is worth, and whether any of it is an artefact of one rival.

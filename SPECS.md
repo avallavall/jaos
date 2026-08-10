@@ -146,7 +146,7 @@ asks them is a problem handed back to the caller.
 | Reader robustness under fuzzing | **pass** |
 | Competitive gap at tier T0 vs **HiGHS 1.15.1** | **measured: 3.70x slower** (D52, D53, D60) |
 | Competitive gap at tier T0 vs **SoPlex 8.0.3** | **measured: 1.31x slower**, faster on 11 of 22 |
-| Competitive gap vs Clp | not measured |
+| Competitive gap at tier T0 vs **Clp 1.17.11** | **measured: 3.77x slower**, on 1.67x the iterations and 2.26x per iteration (D83) |
 | Rungs T1–T3, which price presolve and algorithm choice | **measured: presolve is worth 1.42x to HiGHS and 1.14x to SoPlex; free algorithm choice is worth nothing, on identical iteration counts** (D81) |
 | MIPLIB 2017 easy subset | not started |
 | MIPLIB 2017 benchmark subset | not started |
@@ -154,18 +154,19 @@ asks them is a problem handed back to the caller.
 **Everything above these is correctness, and correctness is table stakes.**
 The gap now has numbers, and they decompose the same way against both rivals:
 
-| tier T0 | vs HiGHS | vs SoPlex |
-|---|---|---|
-| time per solve | 3.70x | 1.31x |
-| iterations | 1.47x | **0.70x** |
-| **time per iteration** | **2.52x** | **1.87x** |
-| JAOS faster on | 0 of 18 | 11 of 22 |
+| tier T0 | vs HiGHS | vs SoPlex | vs Clp |
+|---|---|---|---|
+| time per solve | 3.72x | 1.34x | 3.77x |
+| iterations | 1.47x | **0.70x** | 1.67x |
+| **time per iteration** | **2.54x** | **1.92x** | **2.26x** |
+| JAOS faster on | 0 of 18 | 10 of 22 | 0 of 17 |
 
 JAOS takes **30% fewer iterations than SoPlex** and is still slower. The
 search is competitive; each iteration costs two to three times what it
-should. And the per-iteration ratio comes out the same whichever rival
-measures it — `truss` 1.5x and 1.5x — so it is a property of JAOS rather than
-of a comparison.
+should. **And three separately written dual simplexes agree on that while
+disagreeing about everything else** — Clp takes 1.67x JAOS's iterations where
+SoPlex takes 0.70x — so the per-iteration cost is a property of JAOS and not
+an artefact of one rival (D83).
 
 **It is two targets, and the set mean hides which is which (D63).** Per
 instance the tail splits in half:

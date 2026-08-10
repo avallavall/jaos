@@ -12,12 +12,13 @@ say what the missing features are worth: **free algorithm choice nothing, on
 identical iteration counts; presolve 1.42x against HiGHS and 1.14x against
 SoPlex; stock defaults nothing further** (D81).
 
-**Clp builds now and is not yet measured.** `build_clp` fetches CoinUtils and
-Osi alongside it — Clp does not stand alone, and the two are pinned by
-checksum in `clp-deps.manifest` on the same terms as a competitor. The rungs
-above were taken before it existed, so the four-rung set is re-run against
-all three the next time the tree is still: a rung difference is only a
-measurement when every side of it came from one session and one binary.
+**Clp is measured, and it did the job it was added for (D83).** 3.77x slower
+per solve on 1.67x the iterations and 2.26x per iteration. The three
+competitors disagree about the iteration count — 1.47x, 0.70x, 1.67x — and
+agree about the cost of an iteration, 2.54x, 1.92x, 2.26x. That is a property
+of JAOS rather than of any one rival, which is the whole reason a third
+reading exists. `build_clp` fetches CoinUtils and Osi alongside it, both
+pinned by checksum in `clp-deps.manifest` on the same terms as a competitor.
 
 **The measured repeatability of this harness is 1.4%**, and it comes from the
 best control available: JAOS is byte-identical at every rung, so its own

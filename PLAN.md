@@ -117,10 +117,18 @@ rung, it reads 1.007x, 1.014x and 1.012x with iterations exactly 1.000x, so
 **this harness repeats itself to 1.4%** and everything above except the
 presolve column is inside that.
 
-Still open here: **Clp**, which needs CoinUtils and Osi — a dependency chain
-rather than a repository. Also `grow15`, where JAOS takes 21.7x HiGHS's
-iterations: that is D26's cycle detection and Bland fallback, and this is the
-first measurement of what it costs.
+**Clp is in, and it was the point of the exercise (D83).** 3.77x slower per
+solve on 1.67x the iterations and **2.26x per iteration**. Three separately
+written dual simplexes now put the per-iteration cost at 2.54x, 1.92x and
+2.26x while disagreeing about everything else — Clp takes 1.67x JAOS's
+iterations where SoPlex takes 0.70x. A quantity that survives that much
+disagreement is a property of JAOS, which is exactly what phase 6 is aimed at.
+
+**Phase 1 is complete.** Every question it was opened to answer has a number.
+
+Still carried from here: `grow15`, where JAOS takes 21.7x HiGHS's iterations —
+that is D26's cycle detection and Bland fallback, and it remains the first and
+only measurement of what they cost.
 
 ---
 
