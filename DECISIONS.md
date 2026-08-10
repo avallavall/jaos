@@ -73,6 +73,15 @@ and you have the argument. Jump to the entry for the numbers behind it.
 - **[D65](#d65-the-solver-speaks-only-when-spoken-to-and-never-on-a-clock)** — The solver speaks only when spoken to, and never on a clock
 - **[D66](#d66-changing-a-model-discards-its-answer-and-the-two-that-do-not-touch-the-matrix-leave-the-derived-data-alone)** — Changing a model discards its answer, and the two that do not touch the matrix leave the derived data alone
 - **[D67](#d67-setting-a-coefficient-is-three-operations-because-the-stored-matrix-has-an-invariant)** — Setting a coefficient is three operations, because the stored matrix has an invariant
+- **[D68](#d68-a-basis-outlives-the-answer-it-produced-and-that-one-line-is-warm-re-solve)** — A basis outlives the answer it produced, and that one line is warm re-solve
+- **[D69](#d69-what-warm-re-solve-buys-182x-the-iterations-and-60x-the-work-on-a-branching-step)** — What warm re-solve buys: 182x the iterations and 60x the work, on a branching step
+- **[D70](#d70-a-budget-that-cannot-be-resumed-is-only-half-a-budget)** — A budget that cannot be resumed is only half a budget
+- **[D71](#d71-the-checker-says-when-its-bound-is-not-a-bound-and-the-count-is-98-of-110)** — The checker says when its bound is not a bound, and the count is 98 of 110
+- **[D72](#d72-pilot87s-iteration-guard-not-a-cycle-and-the-anti-cycling-rule-is-the-reason)** — `pilot87`'s iteration guard: not a cycle, and the anti-cycling rule is the reason
+- **[D73](#d73-the-certificate-d47-wanted-without-the-factorization-it-thought-it-needed)** — The certificate D47 wanted, without the factorization it thought it needed
+- **[D74](#d74-does-the-re-entrys-clean-up-need-to-borrow-at-all-measured-yes-and-pilot87-is-the-whole-price)** — Does the re-entry's clean-up need to borrow at all? Measured: yes, and `pilot87` is the whole price
+- **[D75](#d75-the-non-aliasing-claim-holds-and-restrict-belongs-inside-the-kernel-rather-than-on-the-api)** — The non-aliasing claim holds, and `restrict` belongs inside the kernel rather than on the API
+- **[D76](#d76-restrict-measured-and-refused-what-makes-it-safe-here-is-what-makes-it-worthless)** — `restrict` measured and refused: what makes it safe here is what makes it worthless
 
 ---
 
@@ -4784,3 +4793,85 @@ Left open deliberately rather than half-measured. Q11's own numbers set the
 expectation: every optimisation flag in the shipping build is worth 3%
 together, against 1.1122x for PGO, so this is a percentage and not a factor,
 and a percentage measured on a contended machine is not measured at all.
+
+## D76 — `restrict` measured and refused: what makes it safe here is what makes it worthless
+
+D75 established the non-aliasing claim and said where the qualifier belonged.
+This is the measurement it deferred, and the answer is no.
+
+**What was built.** Local `restrict` copies inside the kernels, exactly as
+D75 specified and never on a signature: `ftran_prefix`, both FTRAN and BTRAN
+sparse forms, `btran_u_pattern`, and `jm_lu_update`'s dense row copy and
+elimination. Every vector handed in, every array read out of `lu`, and the
+DFS workspace — including hoisting `lu->stamp`, which without the promise
+must be reloaded after each write to `mark`.
+
+**The correctness half passed exactly as it had to.** All three gates PASS
+with 0 regressed, 0 improved and 0 new, and `git diff` over the committed
+records is empty: 139 digests and every work-unit count byte-identical. That
+is the whole of what the work counter can say about this change, which is why
+seconds were the only evidence left.
+
+**The time ratio, `-j 1`, minimum of three alternating rounds, on the three
+instances the LU dominates:**
+
+| | shipping build | `-flto` removed |
+|---|---|---|
+| `dfl001` | 1.010x | 1.009x |
+| `maros-r7` | 0.982x | 0.995x |
+| `pilot87` | 0.992x | 1.012x |
+| **geometric mean** | **0.995x** | **1.0053x** |
+
+**The two builds disagree about the sign**, and every entry sits inside the
+run-to-run spread of the binary that produced it — 0.66% to 1.43% across the
+six sets of three, which is the same order as the 1.3% the comparison harness
+repeats itself to (D60). So the finding is not "a small win". It is that the
+effect is not resolvable from this machine's noise in either build, with the
+point estimate landing on either side depending on which build is asked.
+
+**The hypothesis this was run to test, and its refutation.** The obvious
+explanation for nothing happening in the shipping build was that `-flto`
+already proves what D75's audit proved by hand: the kernels sit behind an
+internal header, so whole-program analysis sees the closed set of callers.
+Removing LTO makes `lu.c` a single translation unit that genuinely cannot
+know a caller's vector is not `lu->tmp` — the case where the qualifier has
+the most to say. It said 1.0053x. **LTO is not what was absorbing it.**
+
+**What actually explains it.** The loops `restrict` constrains are indexed
+scatter and gather — `y[lidx[p]] -= lval[p] * ys`, `sum -= cval[p] *
+y[cidx[p]]`. What costs there is the dependent load, and `restrict` does not
+remove indirection; it removes redundant reloads of arrays that are not what
+the loop is waiting on. And no loop here can be vectorised whatever the
+compiler is told, because every one of them is a reduction or a scatter that
+would have to reassociate, and `-ffp-contract=off` with no
+`-fassociative-math` forbids exactly that. **The property that made the
+change safe — that it cannot move a number — is the property that makes it
+worthless: the transformations it unlocks are the ones this project has
+already forbidden.**
+
+**Refused, and the change reverted.** Not because it did nothing, but because
+doing nothing is not free. A `restrict` local is an unenforceable promise: no
+compiler checks it, no sanitizer catches it, and breaking it does not crash —
+it produces a value read from a register that no longer matches memory, on
+one instance, under optimisation, and not under `-O0`. Every future caller of
+the LU solves would inherit a constraint it cannot see, in return for
+something below the resolution of the instrument. That is the same trade D61
+refused when inlining removed 470 million calls and came back 0.997x.
+
+**What this does not establish.** Not that the effect is exactly zero — three
+rounds on three instances bounds it to roughly ±1% and no finer. A pinned,
+quiet measurement host could resolve it, and if one ever exists this is worth
+half an hour. It would still have to beat the maintenance cost, and at ±1% it
+does not.
+
+**One observation, deliberately not a finding.** The LTO=0 binaries came out
+*faster* than the LTO=1 ones on `maros-r7` and `pilot87` — 23.079 against
+23.972 and 26.797 against 27.416 — which contradicts D62's 1.0330x for
+`-flto`. The two campaigns ran minutes apart in separate sessions, so this is
+precisely the cross-run comparison D45 and D60 say is not evidence, and it is
+recorded here only so it is not discovered later and mistaken for one. D62
+measured LTO over the whole standard set; these are three instances. Both can
+be true. If it is worth settling, it needs its own same-session A/B.
+
+Q11 is now closed in full. `--gc-sections` and `-fno-math-errno` were never
+measured and this is the third reason in a row to expect nothing from them.

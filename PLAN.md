@@ -523,6 +523,7 @@ Each was measured and closed; the measurement is in `DECISIONS.md`.
 | A scatter-form BTRAN | refused: it reorders a cancelling sum, and two feasible models came back INFEASIBLE (D36) |
 | Dropping the loan the re-entry's clean-up takes | refused: correctness is untouched — 94 objectives, 94 checker verdicts, 92 of 94 trajectories identical — but `pilot87` pays **2.372x** its iterations for the 0.980x it buys `pilot` (D74) |
 | A certified suboptimality from moving one column alone | refused as a *verdict*: sound as a lower bound and never overclaims, but it reads the same ~1e-25 on four answers known to be 1.04e-3 wrong as on the correct ones. At a vertex the first tight row stops the column, and a vertex is what tight rows are (D73) |
+| `restrict` on the LU kernel pointers | refused: 139 digests and work counts identical, and **0.995x shipping against 1.0053x with `-flto` off** — the two builds disagree about the sign and both are inside the noise. The loops are indexed scatter and gather, and none may vectorise because none may reassociate; what made it safe is what made it worthless (D76) |
 
 ---
 
@@ -572,23 +573,23 @@ Each was measured and closed; the measurement is in `DECISIONS.md`.
   Removing the work counter and the clock check was measured at the same time:
   0.987x and 1.004x, both inside the noise, so the public budget API is free.
 
-  **Still open from this question, and it is a code change rather than a
-  flag**: `restrict` on the kernel pointers. **The non-aliasing claim is
-  established (D75)** — every vector the LU solves are handed is one of four
-  separately allocated buffers in `sx`, none ever assigned from another, and
-  the factorization's workspace is allocated inside `jm_lu`; the callers are a
-  closed set because the header is internal. The audit also moved where the
-  qualifier goes: on the signature it is a promise every future caller must
-  keep and it buys little, since the arrays the inner loops read are pointers
-  loaded out of `lu`; as local `restrict` copies inside the kernels the
-  promise is over one call and sits in the same screen as the loop.
+  **The last item under this question is closed too, and it was a refusal
+  (D76).** `restrict` on the kernel pointers was built exactly as D75
+  specified — locals inside the kernels, never on a signature — and measured.
+  The correctness half passed perfectly: 139 identical digests and identical
+  work counts, which is all the work counter can ever say about it. The
+  seconds say **0.995x in the shipping build and 1.0053x with `-flto`
+  removed** — the two builds disagree about the sign, and every entry is
+  inside the run-to-run spread of the binary that produced it. The `-flto`
+  run was there to test whether whole-program analysis had already absorbed
+  the qualifier, and it refuted that too.
 
-  What is left is the measurement, and it has a shape: `restrict` must move no
-  number at all, so the test is 139 identical digests and identical work
-  counts, with seconds the only thing left to read — which needs `-j 1` and a
-  same-machine ratio. Weigh it on `maros-r7`, `pilot87` and `dfl001`. Expect a
-  percentage, not a factor: every optimisation flag in the shipping build is
-  worth 3% together.
+  What explains it: the loops are indexed scatter and gather, where the cost
+  is the dependent load and not a reload `restrict` could remove, and none of
+  them may be vectorised anyway because every one would have to reassociate.
+  **The property that made the change safe is the property that made it
+  worthless.** Reverted, because an unenforceable promise every future caller
+  inherits is not free and ±1% does not buy it.
 
   `--gc-sections` and `-fno-math-errno` were never measured and are now
   unlikely to matter, for the same reason.
