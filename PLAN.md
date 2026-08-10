@@ -109,8 +109,7 @@ fallback, and this is the first measurement of what it costs.
 ## Phase 2 — Make it usable
 
 Nothing here is hard, and most of it has landed. What is left is adding and
-deleting rows and columns, and carrying a basis out of a solve that stopped
-short of an optimum.
+deleting rows and columns, and callbacks during a solve.
 
 **The line this API is drawn on: it configures the contract, never the
 method.** What a caller may set is what depends on their problem and which
@@ -133,7 +132,10 @@ to be inside.
   `jaos_set_dual_tolerance` are in, with 0 restoring the default and anything
   that is not a finite non-negative number refused rather than clamped. All
   139 digests unmoved, because a model that sets nothing behaves as before.
-  What is left here is logging and callbacks.
+  Logging landed with it (D65); **what is left here is callbacks** — a hook
+  the solver calls during a run rather than a value it reads before one, so
+  it has to answer what a callback may do to a solve in progress and what
+  happens to determinism if it can stop one.
 - **Logging. Done (D65).** `jaos_set_log_callback` and `jaos_set_log_level`,
   four levels, silent until a callback is installed — a library that writes
   to stdout because nobody forbade it cannot be embedded. Paced by iteration
