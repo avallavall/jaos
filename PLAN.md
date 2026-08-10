@@ -429,7 +429,28 @@ at one setting do not find are hiding.
    ends it rather than any condition. The question is whether a cleanup pivot
    needs to borrow at all.
 3. **`pilot87` trips the iteration guard at intervals of 128 and above**,
-   which the solver's own message calls a JAOS defect. Undiagnosed.
+   which the solver's own message calls a JAOS defect. **Diagnosed (D72), and
+   it is not a cycle.** Bland's rule engages twice and the second time runs
+   588,725 iterations without the total infeasibility improving once — over
+   **1,136,521 distinct** basis states in 1,136,538 iterations, so the rule is
+   doing exactly what it promises. With Bland *off* the solve does cycle, one
+   state revisited 11,379 times, and the stall detector catches that
+   correctly.
+
+   The defect is that **the anti-cycling rule and the progress measure are
+   about different quantities**. Bland's rule guarantees no basis repeats; the
+   solver only watches primal infeasibility, which a degenerate dual step does
+   not move. So a solve behaving exactly as the rule prescribes is
+   indistinguishable from a hang, `bland` can never switch off because
+   switching off needs the improvement that is not coming, and the guard fires
+   and blames a defect that is not there.
+
+   The cure is a progress measure that can see what the dual method is
+   actually making progress in — the dual objective, non-decreasing across a
+   dual step whether or not the primal infeasibility moves. That changes how
+   every solve measures progress, so it needs its own decision and its own
+   measurement over all three sets rather than being invented at the end of a
+   diagnosis. Latent: 128 is not the shipped interval and 64 is clean.
 4. **A nonbasic free variable with a negative reduced cost is invisible
    (D68).** `can_move` has nowhere to send a free variable and returns false;
    `wants_a_pivot` computes its wrong-way direction as `status == AT_LOWER ?

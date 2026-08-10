@@ -162,6 +162,16 @@ open, `bench/README.md` for the gate, and the commit each entry came from.
 
 ### Fixed
 
+- A solve that failed reported none of what it did. The three counts —
+  refactorizations, weight restarts, stalls — were logged on the success
+  branch only, which is the branch nobody has to investigate. And the
+  iteration guard said how many iterations it had taken and nothing else; it
+  now also says how long the total infeasibility has stood still and whether
+  Bland's rule was on, which is the difference between a cycle the
+  anti-cycling rule never caught and one it caught and could not finish.
+  Establishing which of those `pilot87` was took two runs and a throwaway
+  build (D72).
+
 - `docs/tolerances.md` listed `pilot` and `pilot87` as refused by the checker
   and counted "92 of 94 instances" green. Both closed two decisions ago —
   `pilot` by D29, `pilot87` by D30 — and the document's own next paragraph

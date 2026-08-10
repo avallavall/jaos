@@ -2769,10 +2769,23 @@ static jaos_status run(sx *s, jaos_solve_status *out)
         if (s->iters > iter_cap) {
             /* A defect in JAOS, not a property of the model. Reporting it
              * as a solve outcome would put it in the same bucket as an
-             * honestly hard problem. */
-            jm_set_err(s->m, "internal iteration guard tripped after "
-                             "%lld iterations; this is a JAOS defect",
-                       (long long)s->iters);
+             * honestly hard problem.
+             *
+             * The two numbers beside the count are what the next person has
+             * to know and used to have to instrument for. How long the total
+             * infeasibility has stood still separates a solve that is
+             * grinding from one that is stuck; whether Bland's rule was on
+             * separates a cycle the anti-cycling rule never caught from one
+             * it caught and could not finish off. Those are different
+             * defects with different cures, and `pilot87` at a
+             * refactorization interval of 128 is the second (D72). */
+            jm_set_err(s->m, "internal iteration guard tripped after %lld "
+                             "iterations, the last %lld without the total "
+                             "infeasibility improving%s; this is a JAOS "
+                             "defect",
+                       (long long)s->iters,
+                       (long long)(s->iters - s->last_gain),
+                       s->bland ? ", under Bland's rule" : "");
             return JAOS_ERR_NUMERICAL;
         }
 
@@ -3136,6 +3149,13 @@ jaos_status jm_dual_simplex(jaos_model *m)
      * are not decoration: four separate diagnoses this milestone had to
      * instrument the solver by hand to learn how often the weights were
      * being discarded, and a caller has no such option. */
+    /* The three counts go on both branches, and the failing one needs them
+     * more. A solve that ended is a solve nobody has to investigate; a solve
+     * that was abandoned is the one where "how many times were the weights
+     * discarded, and did it stall" is the first question anyone asks — and it
+     * was the one branch that did not answer it. Found while diagnosing the
+     * iteration guard, by wanting exactly these three numbers and being
+     * handed a sentence instead. */
     if (st == JAOS_OK)
         jm_log(m, JAOS_LOG_SUMMARY,
                "%s after %lld iterations, %lld work units; "
@@ -3144,8 +3164,12 @@ jaos_status jm_dual_simplex(jaos_model *m)
                (long long)s.work.units, (long long)s.n_refactor,
                (long long)s.n_weight_restart, (long long)s.n_bland);
     else
-        jm_log(m, JAOS_LOG_SUMMARY, "abandoned after %lld iterations: %s",
-               (long long)s.iters, jaos_status_str(st));
+        jm_log(m, JAOS_LOG_SUMMARY,
+               "abandoned after %lld iterations, %lld work units: %s; "
+               "%lld refactorizations, %lld weight restarts, %lld stalls",
+               (long long)s.iters, (long long)s.work.units,
+               jaos_status_str(st), (long long)s.n_refactor,
+               (long long)s.n_weight_restart, (long long)s.n_bland);
 
     sx_free(&s);
     return st;

@@ -4407,3 +4407,130 @@ table above it still called it outstanding. All 94 are green and have been for
 some time. In a repository whose first rule is that the design is written down
 and must not be reconstructed from the code, a document that contradicts both
 the code and itself is the most expensive kind of defect there is.
+
+## D72 — `pilot87`'s iteration guard: not a cycle, and the anti-cycling rule is the reason
+
+PLAN carried this as the one defect nobody had diagnosed: at a refactorization
+interval of 128 and above, `pilot87` trips the internal iteration guard and the
+solver's own message calls it a JAOS defect. This diagnoses it. It does not
+repair it, and the last section says why that is the honest stopping point.
+
+### Reproduced, against a control
+
+Both runs are `pilot87` with nothing changed but `REFACTOR_EVERY`, driven
+through the public API with logging at `JAOS_LOG_DETAIL` — no instrumentation
+was needed for any of this, because D65's logging is the instrument.
+
+| | interval 64 | interval 128 |
+|---|---|---|
+| outcome | optimal | **guard tripped** |
+| iterations | 50,850 | **1,382,801** |
+| work units | 23.1e9 | 242.1e9 |
+| refactorizations | 806 | 14,908 |
+| weight restarts | 47,538 (93.5%) | 849,164 (61.4%) |
+| stalls | **0** | **2** |
+
+The cap is `ITER_SANITY_FACTOR * (nrow + ncol + 1)` = 200 × 6914 = 1,382,800,
+so it fires on the first iteration past it. 27 times the healthy iteration
+count.
+
+### The trajectory, which is where the shape is
+
+Bland's rule engaged exactly twice, at iterations **96,766** and **794,076**,
+each after 69,141 iterations without the total primal infeasibility improving
+— `STALL_FACTOR` doing precisely what it is set to do (D17).
+
+| from | to | total infeasibility | |
+|---|---|---|---|
+| 28,000 | 96,766 | flat at 1195.99 | Bland off, then engaged |
+| 96,766 | ~644,000 | **still flat at 1195.99** | Bland on |
+| 645,000 | ~724,000 | falls to 3.18, jumps, churns | three re-entries |
+| 725,000 | 794,076 | flat at 25.4152 | Bland off, then engaged |
+| 794,076 | 1,382,801 | **still flat at 25.4152** | Bland on, guard fires |
+
+**The final stretch never improves once.** That is not read off the log's six
+digits: `bland` is turned off by exactly one condition, `total < infeas_best`,
+and the counter says Bland engaged twice in the whole solve. So across
+588,725 iterations the total infeasibility did not once dip below 25.4152.
+
+### The decisive test, and it refuted the obvious hypothesis
+
+A solve that repeats bit for bit is cycling; one that does not is merely slow,
+and the two have different cures. So a throwaway build hashed the basis and
+every variable's status once per iteration.
+
+| | iterations | distinct states | repeats |
+|---|---|---|---|
+| whole solve | 1,382,801 | 1,245,381 | 137,420 |
+| **under Bland's rule** | 1,136,538 | 1,136,521 | **17** |
+| with Bland off | 246,263 | — | 137,403 |
+
+**With Bland off the solver cycles, hard**: single states are revisited
+**11,379 times**, and 56% of the non-Bland iterations are revisits of a state
+already seen. **Under Bland it does not cycle at all** — 17 repeats in 1.14
+million iterations, which the five re-entry boundaries account for.
+
+So the hypothesis this went in with is dead. It was that the cost shifting the
+method does every iteration to hold dual feasibility changes the problem
+underneath Bland's rule, whose termination proof assumes a fixed objective —
+plausible, mechanical, and **wrong**: a rule that was not working would repeat
+a basis, and this one never does.
+
+Ruled out along the way, and cheaply, because it is the classic version of the
+same error: that only the *entering* choice follows the index rule while the
+row is still chosen by steepest edge, which is an implementation that is not
+Bland's rule at all. `price_row` takes the lowest-indexed violating row under
+`s->bland` and `dual_ratio_test` calls `jm_bland_pick`. Both choices follow the
+index.
+
+### What the defect is
+
+**The solver's anti-cycling rule and its progress measure are about different
+quantities, and on a degenerate enough instance they come apart completely.**
+
+Bland's rule guarantees that no basis repeats — and the hashes show it
+delivering exactly that, a million distinct vertices in a row. What it does not
+guarantee is that *primal infeasibility* falls, and that is the only quantity
+the solver watches. So the solve is behaving exactly as the rule prescribes
+while every instrument the solver owns reports a hang, `bland` can never switch
+off because switching off requires the improvement that is not coming, and the
+guard eventually fires and reports a defect that the evidence says is not
+there.
+
+The guard is not wrong to stop. It is wrong about why, and it was the only
+thing anyone had to go on.
+
+### Validating the instrument, which is the part that makes the rest usable
+
+The instrumented build and a clean one agree on **every** figure: 1,382,801
+iterations, 242,063,185,486 work units, 14,908 refactorizations, 849,164 weight
+restarts, 2 stalls. So the hashes describe the trajectory the solver actually
+walks and not one the hashing perturbed. Nothing here was believed off the
+diagnostic build alone.
+
+### What is repaired here, and what is not
+
+Repaired, because both are about the solver being able to say what happened:
+
+- **The three counts are reported when a solve fails**, not only when it
+  succeeds. They were on the success branch alone, which is the branch nobody
+  needs them on. This diagnosis wanted exactly those three numbers and was
+  handed a sentence.
+- **The guard says how long the infeasibility has stood still and whether
+  Bland's rule was on.** Those two numbers separate a cycle the rule never
+  caught from a cycle it caught and could not finish, which are different
+  defects, and establishing which one this was took two five-minute runs.
+
+Not repaired, and deliberately. The cure is a progress measure that can see
+what Bland's rule is actually making progress in — the dual objective, which
+is non-decreasing across a dual simplex step whether or not the primal
+infeasibility moves. That would let the solver distinguish "Bland is working
+and this instance is hard" from "nothing is happening", which is the
+distinction it currently cannot make and the reason this defect looked like
+non-termination. It is a change to how every solve measures progress, so it
+needs its own decision and its own measurement over all three sets, and
+inventing it at the end of a diagnosis is how this project loses weeks.
+
+Note also what this is *not*: 128 is not the shipped interval, and at 64 the
+instance is clean. This is a latent defect a sweep exposed, which is the third
+time that sweep has paid for itself.
