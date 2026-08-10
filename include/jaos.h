@@ -134,8 +134,28 @@ JAOS_NODISCARD int64_t jaos_num_row(const jaos_model *m);
 JAOS_NODISCARD int64_t jaos_num_nz(const jaos_model *m);
 
 /* ------------------------------------------------------------------------- */
-/* Changing a loaded problem                                                 */
+/* Reading and changing a loaded problem                                     */
 /* ------------------------------------------------------------------------- */
+
+/* Read back one cost or one pair of bounds. Either bound pointer may be NULL.
+ *
+ * These exist because the setters below do. A caller who built the model with
+ * jaos_load_lp already knows what is in it, but one who read it from a file
+ * does not — and telling that caller they may change a bound while giving them
+ * no way to see the bound they are changing is not an API, it is a trap. The
+ * first program to need them was JAOS's own: measuring what warm re-solve buys
+ * means applying a branch-and-bound branching step to a Netlib instance, and a
+ * branch is `x_j <= floor(x_j*)` only when floor(x_j*) is still above the
+ * column's own lower bound. That could not be asked.
+ *
+ * The values are the model's own, exactly as loaded or last set: no scaling,
+ * no substituted default, and an absent bound reads as an infinity. */
+JAOS_NODISCARD jaos_status jaos_col_cost(const jaos_model *m, int64_t col,
+                                         double *cost);
+JAOS_NODISCARD jaos_status jaos_col_bounds(const jaos_model *m, int64_t col,
+                                           double *lower, double *upper);
+JAOS_NODISCARD jaos_status jaos_row_bounds(const jaos_model *m, int64_t row,
+                                           double *lower, double *upper);
 
 /* Change one cost or one pair of bounds in place, leaving the rest of the
  * model as it stands. Costs must be finite. Bounds may be infinite but never

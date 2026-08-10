@@ -162,6 +162,42 @@ static bool bound_pair_ok(double lower, double upper)
     return !isnan(lower) && !isnan(upper);
 }
 
+/* Reading the problem back. Out of range is refused rather than answered with
+ * a default, for the reason jaos_objective refuses when there is no optimum: a
+ * number handed back for a column that does not exist cannot be told apart
+ * from one that does. */
+jaos_status jaos_col_cost(const jaos_model *m, int64_t j, double *cost)
+{
+    if (m == nullptr || cost == nullptr || j < 0 || j >= m->num_col)
+        return JAOS_ERR_INVALID_INPUT;
+    *cost = m->col_cost[j];
+    return JAOS_OK;
+}
+
+jaos_status jaos_col_bounds(const jaos_model *m, int64_t j,
+                            double *lower, double *upper)
+{
+    if (m == nullptr || j < 0 || j >= m->num_col)
+        return JAOS_ERR_INVALID_INPUT;
+    if (lower)
+        *lower = m->col_lower[j];
+    if (upper)
+        *upper = m->col_upper[j];
+    return JAOS_OK;
+}
+
+jaos_status jaos_row_bounds(const jaos_model *m, int64_t i,
+                            double *lower, double *upper)
+{
+    if (m == nullptr || i < 0 || i >= m->num_row)
+        return JAOS_ERR_INVALID_INPUT;
+    if (lower)
+        *lower = m->row_lower[i];
+    if (upper)
+        *upper = m->row_upper[i];
+    return JAOS_OK;
+}
+
 jaos_status jaos_set_col_cost(jaos_model *m, int64_t j, double cost)
 {
     if (m == nullptr || j < 0 || j >= m->num_col)

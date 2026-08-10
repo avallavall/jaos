@@ -175,6 +175,18 @@ $(B)/bench/run: bench/run.c $(LIB) | $(B)/bench
 
 bench: $(B)/bench/run
 
+# What warm re-solve buys, which the gate cannot say: the gate solves each
+# instance once from a fresh load, and that is the case warm starting does
+# not touch. Kept out of the gate for that reason and because it reports a
+# ratio rather than a verdict (bench/warm.c).
+$(B)/bench/warm: bench/warm.c $(LIB) | $(B)/bench
+	$(CC) $(RELEASE_CFLAGS) $(INC) $< $(LIB) -o $@ $(LDLIBS)
+
+warm: $(B)/bench/warm
+	@bench/fetch.sh
+	@mkdir -p bench/results
+	./$(B)/bench/warm -j $(J) -o bench/results/warm.txt
+
 # JAOS as one competitor among several (bench/compare/README.md). Built on
 # demand and kept apart from the gate's runner: it reports seconds, which no
 # file the gate reads is allowed to contain (D17).

@@ -51,6 +51,7 @@ missing.
 | | status | |
 |---|---|---|
 | Dimension and nonzero queries | **done** | |
+| Read a bound or a cost back | **done** | `jaos_col_cost`, `jaos_col_bounds`, `jaos_row_bounds`; a caller who read the model from a file could otherwise change a bound it cannot see |
 | Add or delete rows and columns after load | **missing** | |
 | Change a bound or a cost | **done** | `jaos_set_col_cost`, `jaos_set_col_bounds`, `jaos_set_row_bounds`; each discards the answer the model was holding |
 | Change a coefficient | **done** | `jaos_set_coefficient`; zero deletes the entry, a new index inserts one, and both derived copies are rebuilt |

@@ -4134,3 +4134,97 @@ model infeasible. The slack basis cannot reach that state, because every
 logical carries an entry; a warm one reaches it by keeping a column basic after
 the last coefficient in it is deleted. One slot is always asked for now, and a
 test pins it.
+
+## D69 — What warm re-solve buys: 182x the iterations and 60x the work, on a branching step
+
+D68 built warm re-solve and proved it changes nothing — 139 digests unmoved.
+That is the safety claim and it is the smaller half. The gate cannot make the
+other one: it solves each instance once from a fresh load, which is exactly the
+case warm starting does not touch. So `bench/warm.c` and `make warm`.
+
+### The perturbation is one branch-and-bound branching step
+
+Not a nudge with a size somebody picked. A branch is the workload that made
+the dual simplex the method of choice for re-solving, it is what phase 7 will
+do millions of times, and **its size comes from the model's own numbers rather
+than from a constant fitted here** — which is the difference between a
+measurement and a demonstration.
+
+The rule is deterministic (D8): the lowest-indexed structural column whose
+optimal value is not within 1e-6 of an integer, branched **down** to
+`x_j <= floor(x_j*)` when that leaves the column a box and **up** to
+`x_j >= ceil(x_j*)` when it does not. The previous optimum is cut off by
+construction, since `x_j*` lies strictly between floor and ceil.
+
+Each instance is then solved three times: an anchor solve from a fresh load,
+which is where both the basis and the branch come from; **warm**, resuming from
+that basis; and **cold**, the same perturbed model after `jaos_clear_basis`,
+which is the answer JAOS gave before D68 existed. The anchor is not one of the
+two numbers.
+
+### The result
+
+| | standard 94 |
+|---|---|
+| measured | 92 |
+| skipped | 2 — `recipe` and `shell`, every structural column integral at the optimum, so there is no branch to take |
+| disagreed, rejected, errored | **0, 0, 0** |
+| iterations, `(warm+1)/(cold+1)`, geometric mean | **0.0055** |
+| work units, warm/cold, geometric mean | **0.0166** |
+| best | `maros-r7`, 0.0001 of the work |
+| worst | `cycle`, 1.0000 |
+| took exactly one iteration | 53 of 92 |
+| took none at all | 1 of 92 |
+| took **more** iterations warm than cold | **0 of 92** |
+
+`grow15` is the shape of it: **1 iteration against 20305**. `25fv47` 3 against
+9714, `80bau3b` 1 against 3783.
+
+Iterations are reported as `(warm+1)/(cold+1)` because reaching the optimum in
+no iterations is the outcome the feature exists to produce and a geometric mean
+cannot hold a zero. The count of those is printed beside the mean rather than
+folded into it.
+
+**The two ratios are two orders of magnitude apart and that is the finding, not
+a discrepancy.** A warm solve that takes one pivot still pays two full
+refactorizations — the first one and D20's verification refresh — so its work
+floor is fixed while its iterations go to almost nothing. Warm starting removes
+iterations; it cannot remove the cost of proving the answer.
+
+### Three things checked before believing any of it
+
+**The cold number is honest.** If the branch made the model easier from
+scratch, the ratio would be measuring that instead. Cold-on-perturbed against
+the gate's own cold solve: `grow15` 20305 against 21653, `25fv47` 9714 against
+9459, `80bau3b` 3783 against 3836, `maros-r7` 9817 against 10479, `cycle` 1537
+against 1829. All within about 10%, in both directions.
+
+**The perturbation is real.** A branch that cut nothing off would leave the
+previous point optimal, warm would have nothing to do, and every ratio would be
+measuring a perturbation that never happened. The anchor objective is recorded
+for exactly this: **the optimum moved on 85 of 92**. The other seven kept the
+same objective at a different point — the branch cut off the vertex and an
+equivalent one existed — which is a genuine re-solve and not a no-op;
+`grow15` is one of them, at 1 iteration against 20305.
+
+**The answers agree.** Same verdict on all 92, objectives within 1e-6 relative,
+and every warm answer put through the independent checker. Warm starting is a
+starting point and never a claim, so a disagreement here would have been a
+defect rather than a trade-off. There were none.
+
+### `cycle` is the free-nonbasic refusal, costing exactly what it should
+
+`cycle` reports warm and cold **bit-identical**: 1537 iterations and 19993693
+work units both ways. That is the warm start declining to run at all and
+falling back to the slack basis, and it is the only path in `build_warm_basis`
+that can produce it — the other two fallbacks need a missing basis or a wrong
+count of basic variables, and neither can happen after an optimal solve. The
+instance carries seven `FR` columns, and one of them is nonbasic at the
+optimum.
+
+So D68's refusal has a price, and it is now measured: **one instance in 92 pays
+the whole warm start for it.** Eleven instances of the set carry free or
+minus-infinity columns and ten of them warm-start normally, which is the
+reasoning D68 gave — a free variable usually ends up basic — confirmed rather
+than assumed. Fixing the underlying defect (PLAN.md, carried defect 4) would
+recover `cycle` and nothing else on this set.

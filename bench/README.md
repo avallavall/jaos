@@ -273,6 +273,35 @@ That is what stands in for the byte-level comparison against canonical
 expansions that PLAN 2.10 originally called for, which would have needed the
 `emps` expander to perform.
 
+## `make warm` — the other question the gate cannot answer
+
+The gate solves each instance **once, from a fresh load**, which is precisely
+the case warm re-solve does not touch. So the gate can prove warm starting
+broke nothing and can never say what it is worth. `bench/warm.c` is what says.
+
+It applies one branch-and-bound branching step per instance — the lowest
+structural column whose optimal value is not an integer, branched down to
+`x_j <= floor(x_j*)` or up to `ceil(x_j*)` — and then solves the perturbed
+model twice: **warm**, resuming from the basis the anchor solve left, and
+**cold**, the same model after `jaos_clear_basis`. A branch rather than an
+arbitrary nudge, because its size comes from the model's own numbers and not
+from a constant chosen here, and because it is the workload phase 7 will run
+millions of times.
+
+It reports geometric means of per-instance ratios (D46), iterations as
+`(warm+1)/(cold+1)` so that a solve finishing in no iterations does not
+annihilate the mean, and — like the gate — **no wall-clock number reaches
+`bench/results/warm.txt`**. It fails when warm and cold disagree on a verdict
+or an objective, or when the independent checker refuses a warm answer: warm
+starting is a starting point and never a claim, so a disagreement is a defect
+rather than a trade-off.
+
+The reading is in D69. Two things it records that make the ratios mean
+anything: the cold number is checked against the gate's own iteration counts,
+so a branch that made the model easier from scratch would show; and the anchor
+objective is kept, so a branch that cut nothing off would show as an optimum
+that never moved.
+
 ## What is not here
 
 Nothing of the M1 gate. All three sets are present and all three are pinned;

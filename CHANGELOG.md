@@ -11,6 +11,21 @@ open, `bench/README.md` for the gate, and the commit each entry came from.
 
 ### Added
 
+- `make warm` and `bench/warm.c`: what warm re-solve buys, which the gate
+  cannot say — the gate solves each instance once from a fresh load, and that
+  is the one case warm starting does not touch. One branch-and-bound branching
+  step per instance, warm against cold on the same perturbed model:
+  **0.0055 of the iterations and 0.0166 of the work**, geometric means over 92
+  of the standard 94, no disagreements and nothing the checker refused.
+  `grow15` takes 1 iteration against 20305. Three checks before believing it —
+  the cold number matches the gate's own to within 10%, the branch moved the
+  optimum on 85 of 92, and every warm answer was verified independently (D69).
+- `jaos_col_cost`, `jaos_col_bounds` and `jaos_row_bounds`: the model can be
+  read back, not only written. A caller who loaded the model knows what is in
+  it; one who read it from a file does not, and being allowed to change a
+  bound with no way to see it is not an API. The first program to need them
+  was JAOS's own campaign, which cannot take a branching step without knowing
+  whether `floor(x_j*)` is still above the column's lower bound (D69).
 - **Warm re-solve.** A solve that reaches an optimum leaves its basis on the
   model, and the next solve starts from it: change a bound and solve again,
   and nothing has to be called. The basis is stored apart from the answer for

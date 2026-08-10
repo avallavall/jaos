@@ -285,6 +285,49 @@ static void test_a_changed_bound_reaches_the_solve(void)
     jaos_model_free(m);
 }
 
+/* A setter without a getter is a trap. A caller who built the model knows
+ * what is in it; one who read it from a file does not, and telling that
+ * caller they may change a bound while giving them no way to see the bound
+ * they are changing is not an API. The values are the model's own — no
+ * scaling, no substituted default, an absent bound reading as an infinity. */
+static void test_bounds_and_costs_read_back(void)
+{
+    jaos_model *m = bounded_model();
+    double lo = 0.0, hi = 0.0, c = 0.0;
+
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_col_cost(m, 0, &c));
+    TEST_ASSERT_EQUAL_DOUBLE(-1.0, c);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_col_bounds(m, 1, &lo, &hi));
+    TEST_ASSERT_EQUAL_DOUBLE(0.0, lo);
+    TEST_ASSERT_EQUAL_DOUBLE(10.0, hi);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_row_bounds(m, 0, &lo, &hi));
+    TEST_ASSERT_TRUE(lo == -INFINITY);
+    TEST_ASSERT_EQUAL_DOUBLE(3.0, hi);
+
+    /* What was set is what comes back. */
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_col_bounds(m, 0, 2.0, 7.0));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_col_cost(m, 0, 4.5));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_col_bounds(m, 0, &lo, &hi));
+    TEST_ASSERT_EQUAL_DOUBLE(2.0, lo);
+    TEST_ASSERT_EQUAL_DOUBLE(7.0, hi);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_col_cost(m, 0, &c));
+    TEST_ASSERT_EQUAL_DOUBLE(4.5, c);
+
+    /* Either bound may be left out; a cost has nowhere to go without one. */
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_col_bounds(m, 0, nullptr, nullptr));
+    TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT, jaos_col_cost(m, 0, nullptr));
+
+    /* Out of range is refused rather than answered with a default. */
+    TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT, jaos_col_cost(m, 2, &c));
+    TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT,
+        jaos_col_bounds(m, -1, &lo, &hi));
+    TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT,
+        jaos_row_bounds(m, 1, &lo, &hi));
+    TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT,
+        jaos_col_bounds(nullptr, 0, &lo, &hi));
+    jaos_model_free(m);
+}
+
 /* Which of the two things a solve leaves behind survives a change, and that
  * difference is the whole of warm re-solve: one array outliving the other by
  * exactly one modification.
@@ -476,6 +519,7 @@ int main(void)
     RUN_TEST(test_csr_mirror_matches_hand_transpose);
     RUN_TEST(test_a_modification_out_of_range_is_refused);
     RUN_TEST(test_a_changed_bound_reaches_the_solve);
+    RUN_TEST(test_bounds_and_costs_read_back);
     RUN_TEST(test_the_basis_outlives_a_modification_and_not_a_load);
     RUN_TEST(test_a_modification_discards_the_answer);
     RUN_TEST(test_configuration_survives_a_modification);

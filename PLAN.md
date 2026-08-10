@@ -166,6 +166,16 @@ to be inside.
   weights restart at one, which is a prior here rather than the fact it is
   cold. All 139 digests unmoved.
 
+  **And it is measured (D69).** One branch-and-bound branching step per
+  instance, warm against cold on the same perturbed model: **0.0055 of the
+  iterations and 0.0166 of the work**, geometric means over 92 of the standard
+  94, with 0 disagreements and 0 answers the checker refused. `grow15` takes 1
+  iteration against 20305. The two ratios are two orders apart because a warm
+  solve that takes one pivot still pays two full refactorizations — warm
+  starting removes iterations, not the cost of proving the answer. `cycle` is
+  the free-nonbasic refusal firing, and it costs that instance the whole warm
+  start; it is the only one of the eleven with free columns that pays.
+
   What is left: **a stopping point for a solve that did not reach an
   optimum.** Only `publish`'s optimal path writes a basis, so a run cut off
   by a work or time limit carries nothing forward, and resuming it is exactly
@@ -406,7 +416,9 @@ at one setting do not find are hiding.
    unbounded column, `repair_singular_basis` for an evicted one — and warm
    re-solve declines to become a third rather than fixing it, because the
    repair is a primal step and belongs with phase 6 item 7. Not observed on
-   any of the 139 instances; found by construction.
+   any of the 139 instances; found by construction. **What declining costs is
+   now measured: `cycle`, one instance in 92, loses its warm start entirely
+   (D69)** — which is also the size of the prize for repairing it.
 
 ---
 
