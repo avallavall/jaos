@@ -4,11 +4,24 @@ The gate JAOS is aiming at is a measured competitive gap against open
 solvers. This is the machinery for it. Nothing here is part of what JAOS
 ships, and nothing here writes a file the gate reads.
 
-**It has been run.** `results/T0.txt` holds the readings, and `make compare`
-reproduces them: against HiGHS 1.15.1 JAOS is 3.81x slower per solve and
-against SoPlex 8.0.3 1.36x, on 1.47x and 0.70x their iteration counts. See
-D52, D53 and D54 for what that decomposes into. Clp and the rungs above T0
-are not built yet.
+**It has been run, and all four rungs exist.** `results/T0.txt` through
+`T3.txt` hold the readings and `make compare` reproduces them. At T0, against
+HiGHS 1.15.1 JAOS is 3.71x slower per solve and against SoPlex 8.0.3 1.35x,
+on 1.47x and 0.70x their iteration counts (D52, D53, D60). The rungs above it
+say what the missing features are worth: **free algorithm choice nothing, on
+identical iteration counts; presolve 1.42x against HiGHS and 1.14x against
+SoPlex; stock defaults nothing further** (D81). Clp is not built yet.
+
+**The measured repeatability of this harness is 1.4%**, and it comes from the
+best control available: JAOS is byte-identical at every rung, so its own
+cross-rung ratio is a direct reading of the machine — 1.007x, 1.014x and
+1.012x with iterations exactly 1.000x. Any claim below that is a claim about
+the machine.
+
+**Read a rung difference against the competitor itself, not through JAOS.**
+JAOS is unchanged at every rung, so competitor-at-T2 against
+competitor-at-T1 measures presolve directly; a ratio of two JAOS-versus-them
+ratios says the same thing with two extra sources of noise in it.
 
 ## The record here is not the record
 

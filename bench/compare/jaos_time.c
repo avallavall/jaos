@@ -68,16 +68,25 @@ int main(int argc, char **argv)
      * the machine was; the minimum is the closest this can get to the run
      * with no interference in it, which is the quantity a comparison wants.
      *
-     * Solving the same model repeatedly is exactly what the solver is built
-     * to allow (the solution buffers survive a re-solve), and every run is
-     * bit-identical by D8 — so the only thing that varies between them is
-     * the machine, which is the point. */
+     * **Every run clears the basis first, and without that this program
+     * measures the wrong thing entirely.** Since D68 a solve that reaches an
+     * optimum leaves its basis on the model and the next solve resumes from
+     * it, so the second repeat here finished in one iteration and the
+     * minimum-of-N picked it: JAOS appeared to solve `25fv47` in 0.0015s and
+     * 0 iterations against a true 0.49s and 9459. Nothing failed and no
+     * number looked impossible on its own — only the ratio did.
+     *
+     * The gate already learned this and clears the basis between its two
+     * determinism solves for the same reason (SPECS.md §8). This program did
+     * not, so warm re-solve silently redefined what it was timing on the day
+     * it landed. Clearing is two frees and sits outside the timed region. */
     double best = -1.0;
     jaos_solve_status ss = JAOS_SOLVE_NOT_RUN;
     double obj = 0.0;
     long long iters = 0, work = 0;
 
     for (int i = 0; i < repeats; i++) {
+        jaos_clear_basis(m);
         double t0 = now_seconds();
         jaos_status st = jaos_solve(m);
         double dt = now_seconds() - t0;
@@ -90,8 +99,22 @@ int main(int argc, char **argv)
             best = dt;
         ss = jaos_status_of(m);
         (void)jaos_objective(m, &obj);
-        iters = (long long)jaos_iterations(m);
-        work = (long long)jaos_work_units(m);
+
+        /* The instrument checks itself, because the failure above was silent.
+         * Two cold solves of one model are bit-identical by D8, so the
+         * repeats must agree on iterations and work to the digit. If they do
+         * not, something is being carried between them and every second in
+         * this record is timing a different thing from the one it names —
+         * which is exactly what happened, and what nothing here noticed. */
+        const long long it = (long long)jaos_iterations(m);
+        const long long wk = (long long)jaos_work_units(m);
+        if (i > 0 && (it != iters || wk != work)) {
+            emit(name, "REPEATS-DISAGREE", dt, obj, it, wk);
+            jaos_model_free(m);
+            return 2;
+        }
+        iters = it;
+        work = wk;
     }
 
     emit(name, jaos_solve_status_str(ss), best, obj, iters, work);

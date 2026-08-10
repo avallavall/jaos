@@ -1,0 +1,19 @@
+# HiGHS at tier T2 — T1 with presolve switched on.
+#
+# T2 minus T1 is the price of JAOS having no presolve, and it is the number
+# phase 3 is waiting for: presolve was closed out of M1 because no instance
+# needed it for correctness, and it has never been weighed for speed.
+#
+# One line differs from T1. The crossover stays off and the thread count
+# stays at one, so that what this rung adds is presolve and not parallelism.
+
+presolve = on
+solver = simplex
+parallel = off
+threads = 1
+run_crossover = off
+primal_feasibility_tolerance = 1e-7
+dual_feasibility_tolerance = 1e-7
+output_flag = true
+log_to_console = true
+log_file = /dev/null

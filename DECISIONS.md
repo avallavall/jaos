@@ -85,6 +85,8 @@ and you have the argument. Jump to the entry for the numbers behind it.
 - **[D77](#d77-a-dimension-change-keeps-the-basis-exactly-when-what-is-left-is-still-a-basis)** — A dimension change keeps the basis exactly when what is left is still a basis
 - **[D78](#d78-a-load-was-discarding-the-logging-callback-and-the-list-that-preserved-settings-was-the-defect)** — A load was discarding the logging callback, and the list that preserved settings was the defect
 - **[D79](#d79-a-callback-may-look-and-may-stop-a-solve-and-may-not-steer-one)** — A callback may look, and may stop a solve, and may not steer one
+- **[D80](#d80-the-comparison-was-timing-a-warm-re-solve-and-the-feature-that-broke-it-shipped-two-weeks-earlier)** — The comparison was timing a warm re-solve, and the feature that broke it shipped two weeks earlier
+- **[D81](#d81-the-ladder-is-climbed-presolve-is-worth-142x-and-a-primal-simplex-is-worth-nothing)** — The ladder is climbed: presolve is worth 1.42x, and a primal simplex is worth nothing
 
 ---
 
@@ -5085,3 +5087,135 @@ first, since one that is never asked passes everything without proving
 anything. A watcher that stops gets `INTERRUPTED`, is refused a solution,
 keeps its basis, and the next solve finishes to the same objective a cold
 solve reaches.
+
+## D80 — The comparison was timing a warm re-solve, and the feature that broke it shipped two weeks earlier
+
+Found by running the rungs T1 to T3 and refusing to believe the summary line.
+
+**What the numbers said.** Every rung came back with JAOS ahead: 0.36x HiGHS's
+time at T1, 0.28x at T3, and "iterations 0.00x" with awk dividing by zero.
+Only one or two instances of ninety-four cleared the harness's 0.05s floor,
+where T0 had cleared eighteen. Each rung finished in three minutes instead of
+thirty.
+
+**What was true.** `bench/compare/jaos_time.c` solves one model `repeats`
+times and keeps the fastest, and since D68 a solve that reaches an optimum
+leaves its basis on the model for the next one to resume from. So the first
+repeat solved the problem and every later one re-solved it warm in a single
+iteration. The minimum of N picked the warm run, every time. On `25fv47`:
+**0.0015s and 0 iterations recorded, against a true 0.49s and 9459.**
+
+**Nothing failed, and no single number looked wrong.** A 0.0015s solve is not
+absurd on its own; an iteration count of 0 in a column of six-digit ones is
+only visibly wrong if someone reads that column. This is the third time this
+project has been handed a plausible table by an instrument that had quietly
+changed what it measures — D60 was a comparison rebuilding a stale binary,
+and D55 was work nobody billed.
+
+**Where the lesson already existed.** The gate hit this exact problem and
+solved it: its determinism check clears the basis between its two solves,
+"or it would be a warm re-solve and would measure a sequence of calls rather
+than the solver" (SPECS §8, D68). The comparison driver is a second program
+that solves the same model twice, nobody thought about it on the day, and it
+silently changed meaning. **A feature can redefine an instrument in a file
+that the feature never touches.**
+
+**The repair, and the guard that matters more.** `jaos_clear_basis` before
+each timed solve, outside the timed region. And then the instrument checks
+itself: two cold solves of one model are bit-identical by D8, so the repeats
+must agree on iterations and work to the digit, and a disagreement now emits
+`REPEATS-DISAGREE` and exits non-zero rather than being averaged into a
+minimum. That check costs nothing and would have caught this on the first run
+of the first rung.
+
+**What is and is not affected.** The committed `T0.txt` is sound: it was taken
+at `ccad702`, which predates warm re-solve, and its JAOS iteration counts
+match the gate's record instance for instance — `25fv47` 9459 in both. So
+D52, D53 and D60 stand. Everything measured by this harness *after* D68 landed
+and before this entry is void, which is the three rung files produced an hour
+ago and nothing else. All four rungs are being re-run together, T0 included:
+the committed T0 is valid but it was taken in a different session with a
+different driver, and a rung difference is only a measurement when both sides
+come from one session, one machine and one binary (D45).
+
+## D81 — The ladder is climbed: presolve is worth 1.42x, and a primal simplex is worth nothing
+
+Phase 1's last open item. T1 to T3 exist now, all four rungs taken in one
+session with one binary, and the two numbers the ladder was built to produce
+are in. One of them reorders the plan.
+
+**Read against the competitor itself, not through JAOS.** The harness reports
+JAOS-versus-competitor at each rung, and a difference of two such ratios is a
+weaker statement than it looks. Since JAOS is identical at every rung, the
+direct measurement is competitor-at-T2 against competitor-at-T1, per instance,
+geometric mean, over the instances where both rungs verified an answer and
+both are above the 0.05s floor.
+
+| step | what it removes | HiGHS | SoPlex |
+|---|---|---|---|
+| T0 → T1 | forcing the dual | 1.007x, **iterations 1.000x** | 0.976x, **iterations 1.000x** |
+| T1 → T2 | presolve off | **1.417x**, iterations 1.287x | **1.136x**, iterations 1.106x |
+| T2 → T3 | the remaining defaults | 0.997x | 0.999x |
+
+### A primal simplex is worth nothing here, and the iteration counts prove it
+
+T0 → T1 is not "small". **The iteration counts are identical — 1.000x, and the
+records differ only in their header line.** Given the freedom to choose,
+both competitors chose the dual simplex on every instance they were forced
+into it at T0. The rung does not measure a feature JAOS lacks being worth
+little; it measures the feature not being exercised at all, because on this
+set the dual *is* the right method and a mature solver's own strategy picker
+agrees.
+
+So **JAOS having no primal simplex costs it nothing on the standard set.**
+That does not remove it from the plan — phase 4's crossover needs one, and
+carried defect 4 needs a primal step to repair a nonbasic free variable — but
+it stops being a speed argument, and phase 6 item 7 should never again be
+justified as one.
+
+### Presolve is worth 1.42x, and that is smaller than the hole it was meant to fill
+
+T1 → T2 is the number phase 3 has been waiting for since Q3 closed presolve
+out of M1 for correctness reasons and never weighed it for speed. Presolve
+buys HiGHS **1.417x** and SoPlex **1.136x**, and about 1.29x and 1.11x of that
+is iterations it no longer has to run.
+
+Put beside the gap it is supposed to close: JAOS is **3.71x** slower than
+HiGHS at T0, where neither has presolve. A presolve as good as HiGHS's would
+take JAOS to roughly **2.6x**, and the per-iteration cost — 2.53x, and
+unmoved at 2.52x, 2.61x and 2.60x across all four rungs — would still be the
+whole of what is left.
+
+**That reorders the plan.** `PLAN.md` has presolve as phase 3 and the
+per-iteration work as phase 6, on the stated grounds that presolve is "the
+largest single algorithmic gap" and that phase 1 would say what it is worth.
+Phase 1 has now said: it is worth 1.42x against a per-iteration factor of
+2.53x that no rung moves. The cheaper iteration is the larger lever and it is
+also the one already in progress.
+
+T2 → T3 adds nothing (0.997x, 0.999x), which is worth recording so nobody
+costs it again: at this size the defaults a user gets are the presolve and
+nothing else. Parallelism does not appear because these models are too small
+for it to pay.
+
+### What validates all of it
+
+**JAOS is the control, and it is a good one.** JAOS is byte-identical at every
+rung, so its own cross-rung ratio is a direct reading of what this machine
+does to a repeated measurement: **1.007x, 1.014x and 1.012x over T1, T2 and
+T3 against T0, with iterations exactly 1.000x every time.** So the harness
+repeats itself to about **1.4%** across four separate sessions — measured,
+not assumed, and consistent with the 1.3% D60 estimated a different way. Every
+step above except the two presolve columns is inside that floor, which is the
+correct way to read "1.007x" as "nothing".
+
+And the answers are the right answers: JAOS's iteration count in the
+comparison record matches the gate's committed record instance for instance at
+every rung — `25fv47` 9459, `truss` 17336, `stocfor2` 2263 — which is the
+check D80 added after the harness spent an hour timing a warm re-solve.
+
+T0 re-measured at 3.71x against HiGHS and 1.35x against SoPlex, against the
+committed 3.70x and 1.31x. The first reproduces to 0.3%; the second is 3%
+out, which is above the floor and is the honest caveat on this entry: SoPlex's
+readings are noisier than HiGHS's, and its "faster on 10 of 22" against the
+recorded 11 of 22 moves for the same reason.

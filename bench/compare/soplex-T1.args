@@ -1,0 +1,18 @@
+# SoPlex at tier T1 — T0 with exactly one handicap removed.
+#
+# T1 lets the competitor choose its own algorithm, so --int:algorithm=1 is
+# gone and nothing else moves. The simplifier stays off and solvemode stays
+# at the plain floating-point solve.
+#
+# The caveat T0 records applies here in reverse and is worth keeping in view:
+# SoPlex already switched to the primal by itself part-way through some T0
+# solves, so T0 never fully forced the dual. That makes T1 minus T0 an
+# *under*-statement of what free algorithm choice is worth against SoPlex —
+# some of that value was already inside T0. Against HiGHS, which honours
+# simplex_strategy, the same difference is measured cleanly, which is why
+# both are run.
+
+-s0
+--solvemode=0
+-f1e-7
+-o1e-7

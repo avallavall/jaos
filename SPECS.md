@@ -67,8 +67,8 @@ missing.
 | Sparse LU, Markowitz threshold pivoting | **done** | [4][6][20], Forrest-Tomlin updates [5], singular-basis repair |
 | Scaling | **done** | Curtis-Reid [11], geometric-mean equilibration as an option |
 | Hyper-sparsity in the triangular solves | **partial** | [9]: both solves report their pattern, the passes billed for every slot are not all reduced |
-| Presolve | **missing** | the largest single algorithmic gap |
-| Primal simplex | **missing** | needed for crossover, for models the dual handles badly, and for the warm starts the dual cannot serve — a bound change leaves the previous basis dual feasible and a cost change does not. It is also what carried defect 4 needs: nothing can currently bring a nonbasic free variable back into the basis (D68) |
+| Presolve | **missing** | measured at 1.42x against HiGHS and 1.14x against SoPlex (D81) — real, and smaller than the 2.53x per-iteration gap no rung moves |
+| Primal simplex | **missing** | needed for crossover, for the warm starts the dual cannot serve, and for carried defect 4 — nothing can currently bring a nonbasic free variable back into the basis (D68). **Not a speed argument:** given free choice both rivals ran the dual on every instance, with iteration counts identical to being forced (D81) |
 | Crash basis | **missing** | [12]; measured once and refused: it destroys the exact starting steepest-edge weights the slack basis gives |
 | Partial and multiple pricing | **missing** | [1] |
 | Barrier and crossover | **missing** | not optional at large scale |
@@ -147,7 +147,7 @@ asks them is a problem handed back to the caller.
 | Competitive gap at tier T0 vs **HiGHS 1.15.1** | **measured: 3.70x slower** (D52, D53, D60) |
 | Competitive gap at tier T0 vs **SoPlex 8.0.3** | **measured: 1.31x slower**, faster on 11 of 22 |
 | Competitive gap vs Clp | not measured |
-| Rungs T1–T3, which price presolve and algorithm choice | not measured |
+| Rungs T1–T3, which price presolve and algorithm choice | **measured: presolve is worth 1.42x to HiGHS and 1.14x to SoPlex; free algorithm choice is worth nothing, on identical iteration counts** (D81) |
 | MIPLIB 2017 easy subset | not started |
 | MIPLIB 2017 benchmark subset | not started |
 

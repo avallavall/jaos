@@ -1,0 +1,10 @@
+# SoPlex at tier T2 — T1 with the simplifier switched on.
+#
+# -s0 is gone; that is the whole difference from T1, and T2 minus T1 is what
+# presolve is worth. solvemode stays at 0, because "auto" may run iterative
+# refinement and that is a different amount of work rather than a different
+# feature.
+
+--solvemode=0
+-f1e-7
+-o1e-7

@@ -98,11 +98,29 @@ on this machine with every line stamped as a development number is
 incomparably better than not comparing, which is where two milestones of
 speed work had already gone.
 
+**The ladder is climbed (D81).** All four rungs, one session, one binary,
+read against each competitor itself rather than through JAOS:
+
+| step | HiGHS | SoPlex |
+|---|---|---|
+| T0 → T1, free algorithm choice | 1.007x, **iterations 1.000x** | 0.976x, **iterations 1.000x** |
+| T1 → T2, presolve on | **1.417x** | **1.136x** |
+| T2 → T3, stock defaults | 0.997x | 0.999x |
+
+Two answers, and the second reorders this file. **A primal simplex is worth
+nothing here** — the iteration counts at T1 are identical to T0, so both
+rivals chose the dual when free to. And **presolve is worth 1.42x**, against
+a per-iteration gap of 2.53x that no rung moves.
+
+JAOS is the control and it validates the instrument: byte-identical at every
+rung, it reads 1.007x, 1.014x and 1.012x with iterations exactly 1.000x, so
+**this harness repeats itself to 1.4%** and everything above except the
+presolve column is inside that.
+
 Still open here: **Clp**, which needs CoinUtils and Osi — a dependency chain
-rather than a repository — and **rungs T1 to T3**, which are what attribute
-the gap to presolve and to choosing the algorithm. Also `grow15`, where JAOS
-takes 21.7x HiGHS's iterations: that is D26's cycle detection and Bland
-fallback, and this is the first measurement of what it costs.
+rather than a repository. Also `grow15`, where JAOS takes 21.7x HiGHS's
+iterations: that is D26's cycle detection and Bland fallback, and this is the
+first measurement of what it costs.
 
 ---
 
@@ -243,8 +261,16 @@ and stays that way.
 ## Phase 3 — Presolve
 
 Q3 closed presolve out of M1 because no instance needed it *for correctness*.
-It was never weighed for speed, and phase 1 will have said what the field
-gains from it.
+It was never weighed for speed, and phase 1 has now said what the field gains
+from it: **1.417x for HiGHS and 1.136x for SoPlex** (D81).
+
+**That is real and it is smaller than this phase's position implies.** JAOS is
+3.71x behind HiGHS with neither side presolving; a presolve as good as HiGHS's
+would take it to about 2.6x, and the per-iteration cost — 2.53x, unmoved at
+every rung — would be the whole of what remains. **The cheaper iteration is
+the larger lever**, so phase 6 item 3 now has a measured claim on going first,
+and this phase is no longer "the largest single algorithmic gap" it was
+described as when nothing had been measured.
 
 Scope when it opens: empty and singleton rows and columns, forcing and
 redundant constraints, bound tightening, fixed variables, duplicate rows and

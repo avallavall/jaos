@@ -1,0 +1,23 @@
+# HiGHS at tier T1 — T0 with exactly one handicap removed.
+#
+# T1 lets the competitor choose its own strategy. JAOS is unchanged at every
+# rung, so T1 minus T0 is the price of JAOS having only a dual simplex: what
+# a solver gains from being free to run the primal, or to switch, on the
+# instances where the dual is the wrong method.
+#
+# Everything else is held exactly as T0 has it, because a rung that moved two
+# things would attribute the difference to neither. Presolve stays off, the
+# crossover stays off, one thread, same tolerances.
+
+presolve = off
+solver = simplex
+# simplex_strategy is deliberately absent: this is the one line T0 sets and
+# this rung does not, and it is the whole of what the rung measures.
+parallel = off
+threads = 1
+run_crossover = off
+primal_feasibility_tolerance = 1e-7
+dual_feasibility_tolerance = 1e-7
+output_flag = true
+log_to_console = true
+log_file = /dev/null

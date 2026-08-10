@@ -1,0 +1,18 @@
+# HiGHS at tier T3 — stock defaults, which is what a user actually gets.
+#
+# Nothing is handicapped: the solver picks its algorithm, presolve is on,
+# parallelism and crossover are whatever it ships with. T3 minus T2 is
+# everything left over — mainly parallelism and the interior-point option —
+# and it is the only rung that answers "should I use this instead of JAOS".
+#
+# Two settings survive, and both are harness rules rather than tuning. The
+# tolerances stay equalised, because a timing taken at two different
+# tolerances is not a comparison of solvers at any rung. And the log is still
+# redirected, because without it HiGHS writes a Highs.log into the working
+# tree — ten thousand lines across one pass of the standard set.
+
+primal_feasibility_tolerance = 1e-7
+dual_feasibility_tolerance = 1e-7
+output_flag = true
+log_to_console = true
+log_file = /dev/null

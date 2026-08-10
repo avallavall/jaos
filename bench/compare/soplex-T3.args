@@ -1,0 +1,11 @@
+# SoPlex at tier T3 — stock defaults, which is what a user actually gets.
+#
+# solvemode goes back to its default of "auto", so iterative refinement is
+# allowed: at this rung the question is no longer "how do the simplexes
+# compare" but "what does a user get", and a user gets the refinement.
+#
+# The tolerances stay equalised, because that is a harness rule at every rung
+# and not a handicap.
+
+-f1e-7
+-o1e-7
