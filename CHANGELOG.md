@@ -11,6 +11,19 @@ open, `bench/README.md` for the gate, and the commit each entry came from.
 
 ### Added
 
+- `jaos_add_rows`, `jaos_add_cols`, `jaos_delete_rows` and
+  `jaos_delete_cols`: the problem itself can grow and shrink, not only its
+  numbers. Additions append, so no existing index moves and the prefix of
+  every array copies straight over; a new row is a transpose rather than an
+  append, and counting per column first makes it one rebuild instead of one
+  insertion per entry. Deletion takes a **set** of indices, because deleting
+  one at a time leaves the caller tracking a renumbering that shifts under
+  them — given the set, JAOS renumbers once and refuses an index named twice.
+  The stored basis survives exactly when what is left is still a basis, which
+  is the one rule `jaos_set_basis` already enforces: rows arrive basic and
+  columns nonbasic, so additions keep it and deletions usually do not. All 139
+  digests unmoved — no path the gate walks calls any of this (D77).
+
 - `jaos_check_report` gains `certified_suboptimality` and
   `unquantified_rays`: how much better the objective provably gets, and how
   many directions could not be quantified. The step comes from moving one

@@ -108,8 +108,8 @@ fallback, and this is the first measurement of what it costs.
 
 ## Phase 2 — Make it usable
 
-Nothing here is hard, and most of it has landed. What is left is adding and
-deleting rows and columns, and callbacks during a solve.
+Nothing here is hard, and most of it has landed. **What is left is callbacks
+during a solve.**
 
 **The line this API is drawn on: it configures the contract, never the
 method.** What a caller may set is what depends on their problem and which
@@ -156,8 +156,24 @@ to be inside.
   index inserts in sorted position, and both derived copies are discarded
   because both are computed from the matrix.
 
-  What is left: **adding and deleting rows and columns**, which restructures
-  every array the model owns.
+  **And the dimensions move now too (D77):** `jaos_add_rows`, `jaos_add_cols`,
+  `jaos_delete_rows`, `jaos_delete_cols`. Additions append, so no existing
+  index ever moves and the whole prefix of every array copies straight over;
+  a new row is a transpose of the addition rather than an append, and counting
+  per column first turns it into one rebuild instead of one insertion per
+  entry. Deletion takes a *set*, because deleting one at a time leaves the
+  caller tracking the renumbering and eventually getting it wrong.
+
+  The question this raised was what happens to the stored basis, and there is
+  one rule rather than four: **it survives exactly when what is left is still
+  a basis** — `num_row` basic variables, which is the invariant
+  `jaos_set_basis` already enforces. New rows arrive basic and new columns
+  nonbasic, so additions keep it by construction, which is the case that
+  matters because a basis made primal infeasible by a new constraint is what
+  the dual simplex resumes from best. Deleting normally breaks the count and
+  the basis goes. A new column with no finite bound drops it too, for D68's
+  reason: a nonbasic free variable is the one this solver cannot always price
+  back off.
 - **Warm re-solve. Done (D68), and it is one line of design:** the basis is
   stored apart from the answer, so a modification discards one and keeps the
   other. A solve that finds an optimum leaves its basis there and the next

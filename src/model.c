@@ -728,6 +728,565 @@ jaos_status jaos_load_lp(jaos_model *m,
 }
 
 /* --------------------------------------------------------------------- */
+/* Adding and deleting rows and columns                                  */
+/* --------------------------------------------------------------------- */
+
+/* Both derived copies are computed from the matrix, so any of the four below
+ * discards both — and neither is resized here, because jm_model_ensure_rowwise
+ * and the scaling each allocate fresh from the model's current dimensions and
+ * free what was there. */
+static void model_matrix_is_stale(jaos_model *m)
+{
+    m->rowwise_valid = false;
+    m->scale_valid = false;
+    m->scale_clamped = false;
+    model_answer_is_stale(m);
+}
+
+/* One rule for what a dimension change does to a stored basis, rather than a
+ * case for each of the four operations: a model with n rows needs n basic
+ * variables. That is exactly what jaos_set_basis enforces on a basis handed
+ * in, and it is structural — no later event makes a wrong count right.
+ *
+ * The adds are built to keep it: a new row arrives basic, which is where the
+ * slack basis puts it, and a new column arrives nonbasic. The deletes usually
+ * break it, and are meant to. A basis that no longer counts is not a worse
+ * starting point, it is not a basis, so it goes here rather than being left
+ * for build_warm_basis to reject — the model should never hold one it already
+ * knows is unusable. */
+static void basis_survives_or_goes(jaos_model *m)
+{
+    if (m->start_col_status == nullptr || m->start_row_status == nullptr)
+        return;
+    int64_t basic = 0;
+    for (int64_t j = 0; j < m->num_col; j++)
+        basic += m->start_col_status[j] == JAOS_BASIS_BASIC;
+    for (int64_t i = 0; i < m->num_row; i++)
+        basic += m->start_row_status[i] == JAOS_BASIS_BASIC;
+    if (basic != m->num_row)
+        jaos_clear_basis(m);
+}
+
+/* A set of indices to delete, checked as a set: in range, and each named
+ * once. A repeated index is refused rather than absorbed because a caller who
+ * has named one twice has lost track of what they are deleting, and the
+ * second deletion they think they are asking for is of something else.
+ *
+ * Returns the keep mask, which the caller owns, or null on a bad set. */
+static bool *deletion_mask(jaos_model *m, int64_t n_del, const int64_t *idx,
+                           int64_t n, const char *what)
+{
+    bool *keep = jm_alloc_array(n, sizeof(bool));
+    if (keep == nullptr)
+        return nullptr;
+    for (int64_t k = 0; k < n; k++)
+        keep[k] = true;
+
+    for (int64_t k = 0; k < n_del; k++) {
+        const int64_t v = idx[k];
+        if (v < 0 || v >= n) {
+            jm_set_err(m, "%s %lld is not a %s of this model",
+                       what, (long long)v, what);
+            free(keep);
+            return nullptr;
+        }
+        if (!keep[v]) {
+            jm_set_err(m, "%s %lld is named twice in one deletion",
+                       what, (long long)v);
+            free(keep);
+            return nullptr;
+        }
+        keep[v] = false;
+    }
+    return keep;
+}
+
+/* Where a nonbasic column rests when it arrives. A variable with no finite
+ * bound has nowhere to rest, and the answer is not to invent one — see
+ * jaos_add_cols. */
+static jaos_basis_status arriving_status(double lower, double upper)
+{
+    if (isfinite(lower))
+        return JAOS_BASIS_AT_LOWER;
+    if (isfinite(upper))
+        return JAOS_BASIS_AT_UPPER;
+    return JAOS_BASIS_FREE;
+}
+
+/* Growing the stored basis. Failing to allocate here loses the basis and not
+ * the operation: a starting basis is an optimisation, dropping one is always
+ * correct, and refusing an otherwise complete modification because the
+ * *hint* could not be extended would be trading a working call for a faster
+ * one that never happens. */
+static void basis_extend(jaos_basis_status **arr, int64_t old_n, int64_t add,
+                         const jaos_basis_status *fill, jaos_model *m)
+{
+    if (*arr == nullptr)
+        return;
+    jaos_basis_status *grown =
+        realloc(*arr, (size_t)(old_n + add) * sizeof **arr);
+    if (grown == nullptr) {
+        jaos_clear_basis(m);
+        return;
+    }
+    for (int64_t k = 0; k < add; k++)
+        grown[old_n + k] = fill[k];
+    *arr = grown;
+}
+
+jaos_status jaos_add_cols(jaos_model *m, int64_t num_new,
+    const double *col_cost, const double *col_lower, const double *col_upper,
+    int64_t num_nz, const int64_t *a_start, const int64_t *a_index,
+    const double *a_value)
+{
+    if (m == nullptr || num_new < 0 || num_nz < 0)
+        return JAOS_ERR_INVALID_INPUT;
+    if (num_new == 0)
+        return num_nz == 0 ? JAOS_OK : JAOS_ERR_INVALID_INPUT;
+    if (col_cost == nullptr || col_lower == nullptr || col_upper == nullptr)
+        return JAOS_ERR_INVALID_INPUT;
+
+    if (!all_finite(col_cost, num_new) ||
+        any_nan(col_lower, num_new) || any_nan(col_upper, num_new)) {
+        jm_set_err(m, "costs must be finite and bounds must not be NaN");
+        return JAOS_ERR_INVALID_INPUT;
+    }
+    if (a_start == nullptr) {
+        if (num_nz != 0)
+            return JAOS_ERR_INVALID_INPUT;
+    } else {
+        if (a_start[0] != 0 || a_start[num_new] != num_nz)
+            return JAOS_ERR_INVALID_INPUT;
+        for (int64_t j = 0; j < num_new; j++)
+            if (a_start[j] > a_start[j + 1])
+                return JAOS_ERR_INVALID_INPUT;
+    }
+    if (num_nz > 0 && (a_index == nullptr || a_value == nullptr))
+        return JAOS_ERR_INVALID_INPUT;
+    for (int64_t k = 0; k < num_nz; k++) {
+        if (a_index[k] < 0 || a_index[k] >= m->num_row) {
+            jm_set_err(m, "row index %lld is not a row of this model",
+                       (long long)a_index[k]);
+            return JAOS_ERR_INVALID_INPUT;
+        }
+        if (!isfinite(a_value[k]))
+            return JAOS_ERR_INVALID_INPUT;
+    }
+
+    int64_t kept = 0;
+    for (int64_t k = 0; k < num_nz; k++)
+        if (a_value[k] != 0.0)
+            kept++;
+
+    const int64_t ncol = m->num_col + num_new;
+    const int64_t nnz  = m->num_nz + kept;
+
+    /* Built whole before the model is touched, so a failure anywhere leaves
+     * it exactly as it was — jaos_load_lp's rule, and for the same reason. */
+    double  *cost = jm_alloc_array(ncol, sizeof(double));
+    double  *cl   = jm_alloc_array(ncol, sizeof(double));
+    double  *cu   = jm_alloc_array(ncol, sizeof(double));
+    int64_t *as   = jm_alloc_array(ncol + 1, sizeof(int64_t));
+    int64_t *ai   = jm_alloc_array(nnz, sizeof(int64_t));
+    double  *av   = jm_alloc_array(nnz, sizeof(double));
+    if (!cost || !cl || !cu || !as || !ai || !av) {
+        free(cost); free(cl); free(cu); free(as); free(ai); free(av);
+        return JAOS_ERR_OUT_OF_MEMORY;
+    }
+
+    memcpy(cost, m->col_cost,  (size_t)m->num_col * sizeof(double));
+    memcpy(cl,   m->col_lower, (size_t)m->num_col * sizeof(double));
+    memcpy(cu,   m->col_upper, (size_t)m->num_col * sizeof(double));
+    memcpy(cost + m->num_col, col_cost,  (size_t)num_new * sizeof(double));
+    memcpy(cl   + m->num_col, col_lower, (size_t)num_new * sizeof(double));
+    memcpy(cu   + m->num_col, col_upper, (size_t)num_new * sizeof(double));
+
+    /* The existing columns are untouched: appending changes no index below
+     * num_col, so the whole prefix of every array copies straight over. */
+    memcpy(as, m->a_start, (size_t)(m->num_col + 1) * sizeof(int64_t));
+    memcpy(ai, m->a_index, (size_t)m->num_nz * sizeof(int64_t));
+    memcpy(av, m->a_value, (size_t)m->num_nz * sizeof(double));
+
+    jaos_status err = JAOS_OK;
+    int64_t pos = m->num_nz;
+    for (int64_t j = 0; j < num_new; j++) {
+        const int64_t lo = a_start ? a_start[j] : 0;
+        const int64_t hi = a_start ? a_start[j + 1] : 0;
+        const int64_t begin = pos;
+        for (int64_t k = lo; k < hi; k++) {
+            if (a_value[k] != 0.0) {
+                ai[pos] = a_index[k];
+                av[pos] = a_value[k];
+                pos++;
+            }
+        }
+        sort_column(ai + begin, av + begin, pos - begin);
+        for (int64_t k = begin + 1; k < pos; k++) {
+            if (ai[k] == ai[k - 1]) {
+                jm_set_err(m, "new column %lld names row %lld twice",
+                           (long long)j, (long long)ai[k]);
+                err = JAOS_ERR_INVALID_INPUT;
+                break;
+            }
+        }
+        if (err != JAOS_OK)
+            break;
+        as[m->num_col + j + 1] = pos;
+    }
+    if (err != JAOS_OK) {
+        free(cost); free(cl); free(cu); free(as); free(ai); free(av);
+        return err;
+    }
+
+    /* Where each arriving column rests, decided before the swap so the basis
+     * can be dropped whole if any of them has nowhere to. */
+    jaos_basis_status *arriving = nullptr;
+    if (m->start_col_status != nullptr) {
+        arriving = jm_alloc_array(num_new, sizeof(jaos_basis_status));
+        if (arriving == nullptr) {
+            jaos_clear_basis(m);
+        } else {
+            for (int64_t j = 0; j < num_new; j++) {
+                arriving[j] = arriving_status(col_lower[j], col_upper[j]);
+                if (arriving[j] == JAOS_BASIS_FREE) {
+                    /* A nonbasic with no bounds is pinned at zero and this
+                     * solver cannot always price it back off (see
+                     * build_warm_basis). Refuse to create one. */
+                    free(arriving);
+                    arriving = nullptr;
+                    jaos_clear_basis(m);
+                    break;
+                }
+            }
+        }
+    }
+
+    free(m->col_cost);  free(m->col_lower); free(m->col_upper);
+    free(m->a_start);   free(m->a_index);   free(m->a_value);
+    m->col_cost = cost; m->col_lower = cl;  m->col_upper = cu;
+    m->a_start = as;    m->a_index = ai;    m->a_value = av;
+
+    if (arriving != nullptr) {
+        basis_extend(&m->start_col_status, m->num_col, num_new, arriving, m);
+        free(arriving);
+    }
+    m->num_col = ncol;
+    m->num_nz  = nnz;
+
+    model_matrix_is_stale(m);
+    basis_survives_or_goes(m);
+    return JAOS_OK;
+}
+
+jaos_status jaos_add_rows(jaos_model *m, int64_t num_new,
+    const double *row_lower, const double *row_upper,
+    int64_t num_nz, const int64_t *ar_start, const int64_t *ar_index,
+    const double *ar_value)
+{
+    if (m == nullptr || num_new < 0 || num_nz < 0)
+        return JAOS_ERR_INVALID_INPUT;
+    if (num_new == 0)
+        return num_nz == 0 ? JAOS_OK : JAOS_ERR_INVALID_INPUT;
+    if (row_lower == nullptr || row_upper == nullptr)
+        return JAOS_ERR_INVALID_INPUT;
+
+    if (any_nan(row_lower, num_new) || any_nan(row_upper, num_new)) {
+        jm_set_err(m, "row bounds must not be NaN");
+        return JAOS_ERR_INVALID_INPUT;
+    }
+    if (ar_start == nullptr) {
+        if (num_nz != 0)
+            return JAOS_ERR_INVALID_INPUT;
+    } else {
+        if (ar_start[0] != 0 || ar_start[num_new] != num_nz)
+            return JAOS_ERR_INVALID_INPUT;
+        for (int64_t i = 0; i < num_new; i++)
+            if (ar_start[i] > ar_start[i + 1])
+                return JAOS_ERR_INVALID_INPUT;
+    }
+    if (num_nz > 0 && (ar_index == nullptr || ar_value == nullptr))
+        return JAOS_ERR_INVALID_INPUT;
+    for (int64_t k = 0; k < num_nz; k++) {
+        if (ar_index[k] < 0 || ar_index[k] >= m->num_col) {
+            jm_set_err(m, "column index %lld is not a column of this model",
+                       (long long)ar_index[k]);
+            return JAOS_ERR_INVALID_INPUT;
+        }
+        if (!isfinite(ar_value[k]))
+            return JAOS_ERR_INVALID_INPUT;
+    }
+
+    /* The new rows arrive across and the matrix is stored down, so this is a
+     * transpose of the addition rather than an append: every column that any
+     * new row touches gains entries in the middle of the array. Counting per
+     * column first turns that into one rebuild instead of one insertion per
+     * entry, which is what jaos_set_coefficient would have cost. */
+    int64_t *added = jm_calloc_array(m->num_col, sizeof(int64_t));
+    if (added == nullptr)
+        return JAOS_ERR_OUT_OF_MEMORY;
+    int64_t kept = 0;
+    for (int64_t k = 0; k < num_nz; k++) {
+        if (ar_value[k] != 0.0) {
+            added[ar_index[k]]++;
+            kept++;
+        }
+    }
+
+    const int64_t nrow = m->num_row + num_new;
+    const int64_t nnz  = m->num_nz + kept;
+
+    double  *rl = jm_alloc_array(nrow, sizeof(double));
+    double  *ru = jm_alloc_array(nrow, sizeof(double));
+    int64_t *as = jm_alloc_array(m->num_col + 1, sizeof(int64_t));
+    int64_t *ai = jm_alloc_array(nnz, sizeof(int64_t));
+    double  *av = jm_alloc_array(nnz, sizeof(double));
+    int64_t *cursor = jm_alloc_array(m->num_col, sizeof(int64_t));
+    if (!rl || !ru || !as || !ai || !av || !cursor) {
+        free(added); free(rl); free(ru); free(as); free(ai); free(av);
+        free(cursor);
+        return JAOS_ERR_OUT_OF_MEMORY;
+    }
+
+    memcpy(rl, m->row_lower, (size_t)m->num_row * sizeof(double));
+    memcpy(ru, m->row_upper, (size_t)m->num_row * sizeof(double));
+    memcpy(rl + m->num_row, row_lower, (size_t)num_new * sizeof(double));
+    memcpy(ru + m->num_row, row_upper, (size_t)num_new * sizeof(double));
+
+    /* Old entries first in every column, then room for the new ones. Every
+     * new row index is at least num_row and every old one is below it, so
+     * appending inside the column keeps it ascending with no sort at all. */
+    as[0] = 0;
+    for (int64_t j = 0; j < m->num_col; j++) {
+        const int64_t old_len = m->a_start[j + 1] - m->a_start[j];
+        memcpy(ai + as[j], m->a_index + m->a_start[j],
+               (size_t)old_len * sizeof(int64_t));
+        memcpy(av + as[j], m->a_value + m->a_start[j],
+               (size_t)old_len * sizeof(double));
+        cursor[j] = as[j] + old_len;
+        as[j + 1] = cursor[j] + added[j];
+    }
+    free(added);
+
+    jaos_status err = JAOS_OK;
+    for (int64_t i = 0; i < num_new && err == JAOS_OK; i++) {
+        const int64_t lo = ar_start ? ar_start[i] : 0;
+        const int64_t hi = ar_start ? ar_start[i + 1] : 0;
+        for (int64_t k = lo; k < hi; k++) {
+            if (ar_value[k] == 0.0)
+                continue;
+            const int64_t j = ar_index[k];
+            /* Rows are walked in order, so a repeat inside one row is the
+             * only way two equal indices can land next to each other. */
+            if (cursor[j] > m->a_start[j + 1] - m->a_start[j] + as[j] &&
+                ai[cursor[j] - 1] == m->num_row + i) {
+                jm_set_err(m, "new row %lld names column %lld twice",
+                           (long long)i, (long long)j);
+                err = JAOS_ERR_INVALID_INPUT;
+                break;
+            }
+            ai[cursor[j]] = m->num_row + i;
+            av[cursor[j]] = ar_value[k];
+            cursor[j]++;
+        }
+    }
+    free(cursor);
+    if (err != JAOS_OK) {
+        free(rl); free(ru); free(as); free(ai); free(av);
+        return err;
+    }
+
+    free(m->row_lower); free(m->row_upper);
+    free(m->a_start);   free(m->a_index); free(m->a_value);
+    m->row_lower = rl;  m->row_upper = ru;
+    m->a_start = as;    m->a_index = ai;  m->a_value = av;
+
+    /* A new row's activity arrives basic, which is both where a slack basis
+     * puts it and what keeps the basic count equal to the row count. */
+    if (m->start_row_status != nullptr) {
+        jaos_basis_status *arriving =
+            jm_alloc_array(num_new, sizeof(jaos_basis_status));
+        if (arriving == nullptr) {
+            jaos_clear_basis(m);
+        } else {
+            for (int64_t i = 0; i < num_new; i++)
+                arriving[i] = JAOS_BASIS_BASIC;
+            basis_extend(&m->start_row_status, m->num_row, num_new,
+                         arriving, m);
+            free(arriving);
+        }
+    }
+    m->num_row = nrow;
+    m->num_nz  = nnz;
+
+    model_matrix_is_stale(m);
+    basis_survives_or_goes(m);
+    return JAOS_OK;
+}
+
+jaos_status jaos_delete_cols(jaos_model *m, int64_t num_del,
+                             const int64_t *cols)
+{
+    if (m == nullptr || num_del < 0)
+        return JAOS_ERR_INVALID_INPUT;
+    if (num_del == 0)
+        return JAOS_OK;
+    if (cols == nullptr)
+        return JAOS_ERR_INVALID_INPUT;
+
+    bool *keep = deletion_mask(m, num_del, cols, m->num_col, "column");
+    if (keep == nullptr)
+        return m->err[0] ? JAOS_ERR_INVALID_INPUT : JAOS_ERR_OUT_OF_MEMORY;
+
+    const int64_t ncol = m->num_col - num_del;
+    int64_t nnz = 0;
+    for (int64_t j = 0; j < m->num_col; j++)
+        if (keep[j])
+            nnz += m->a_start[j + 1] - m->a_start[j];
+
+    double  *cost = jm_alloc_array(ncol, sizeof(double));
+    double  *cl   = jm_alloc_array(ncol, sizeof(double));
+    double  *cu   = jm_alloc_array(ncol, sizeof(double));
+    int64_t *as   = jm_alloc_array(ncol + 1, sizeof(int64_t));
+    int64_t *ai   = jm_alloc_array(nnz, sizeof(int64_t));
+    double  *av   = jm_alloc_array(nnz, sizeof(double));
+    if (!cost || !cl || !cu || !as || !ai || !av) {
+        free(keep);
+        free(cost); free(cl); free(cu); free(as); free(ai); free(av);
+        return JAOS_ERR_OUT_OF_MEMORY;
+    }
+
+    /* What survives keeps its relative order, so one forward pass renumbers
+     * it: the columns a caller did not name come out in the order they went
+     * in, densely, and nothing they hold has to be rewritten. */
+    int64_t out = 0, pos = 0;
+    as[0] = 0;
+    for (int64_t j = 0; j < m->num_col; j++) {
+        if (!keep[j])
+            continue;
+        cost[out] = m->col_cost[j];
+        cl[out]   = m->col_lower[j];
+        cu[out]   = m->col_upper[j];
+        const int64_t len = m->a_start[j + 1] - m->a_start[j];
+        memcpy(ai + pos, m->a_index + m->a_start[j],
+               (size_t)len * sizeof(int64_t));
+        memcpy(av + pos, m->a_value + m->a_start[j],
+               (size_t)len * sizeof(double));
+        pos += len;
+        out++;
+        as[out] = pos;
+    }
+
+    if (m->start_col_status != nullptr) {
+        int64_t at = 0;
+        for (int64_t j = 0; j < m->num_col; j++)
+            if (keep[j])
+                m->start_col_status[at++] = m->start_col_status[j];
+    }
+    free(keep);
+
+    free(m->col_cost);  free(m->col_lower); free(m->col_upper);
+    free(m->a_start);   free(m->a_index);   free(m->a_value);
+    m->col_cost = cost; m->col_lower = cl;  m->col_upper = cu;
+    m->a_start = as;    m->a_index = ai;    m->a_value = av;
+    m->num_col = ncol;
+    m->num_nz  = nnz;
+
+    model_matrix_is_stale(m);
+    basis_survives_or_goes(m);
+    return JAOS_OK;
+}
+
+jaos_status jaos_delete_rows(jaos_model *m, int64_t num_del,
+                             const int64_t *rows)
+{
+    if (m == nullptr || num_del < 0)
+        return JAOS_ERR_INVALID_INPUT;
+    if (num_del == 0)
+        return JAOS_OK;
+    if (rows == nullptr)
+        return JAOS_ERR_INVALID_INPUT;
+
+    bool *keep = deletion_mask(m, num_del, rows, m->num_row, "row");
+    if (keep == nullptr)
+        return m->err[0] ? JAOS_ERR_INVALID_INPUT : JAOS_ERR_OUT_OF_MEMORY;
+
+    const int64_t nrow = m->num_row - num_del;
+
+    /* Deleting a row renumbers every row after it, and the matrix stores row
+     * indices, so every surviving entry has to be rewritten. The map is built
+     * once; doing it per entry is where the arithmetic would go wrong. */
+    int64_t *renum = jm_alloc_array(m->num_row, sizeof(int64_t));
+    if (renum == nullptr) {
+        free(keep);
+        return JAOS_ERR_OUT_OF_MEMORY;
+    }
+    int64_t next = 0;
+    for (int64_t i = 0; i < m->num_row; i++)
+        renum[i] = keep[i] ? next++ : -1;
+
+    int64_t nnz = 0;
+    for (int64_t k = 0; k < m->num_nz; k++)
+        if (keep[m->a_index[k]])
+            nnz++;
+
+    double  *rl = jm_alloc_array(nrow, sizeof(double));
+    double  *ru = jm_alloc_array(nrow, sizeof(double));
+    int64_t *as = jm_alloc_array(m->num_col + 1, sizeof(int64_t));
+    int64_t *ai = jm_alloc_array(nnz, sizeof(int64_t));
+    double  *av = jm_alloc_array(nnz, sizeof(double));
+    if (!rl || !ru || !as || !ai || !av) {
+        free(keep); free(renum);
+        free(rl); free(ru); free(as); free(ai); free(av);
+        return JAOS_ERR_OUT_OF_MEMORY;
+    }
+
+    int64_t out = 0;
+    for (int64_t i = 0; i < m->num_row; i++)
+        if (keep[i]) {
+            rl[out] = m->row_lower[i];
+            ru[out] = m->row_upper[i];
+            out++;
+        }
+
+    /* Columns keep their order and their identity; only what they point at
+     * moves. A column may end up empty, which is a column with no
+     * coefficients and not an error. */
+    int64_t pos = 0;
+    as[0] = 0;
+    for (int64_t j = 0; j < m->num_col; j++) {
+        for (int64_t k = m->a_start[j]; k < m->a_start[j + 1]; k++) {
+            const int64_t i = m->a_index[k];
+            if (!keep[i])
+                continue;
+            ai[pos] = renum[i];
+            av[pos] = m->a_value[k];
+            pos++;
+        }
+        as[j + 1] = pos;
+    }
+    free(renum);
+
+    if (m->start_row_status != nullptr) {
+        int64_t at = 0;
+        for (int64_t i = 0; i < m->num_row; i++)
+            if (keep[i])
+                m->start_row_status[at++] = m->start_row_status[i];
+    }
+    free(keep);
+
+    free(m->row_lower); free(m->row_upper);
+    free(m->a_start);   free(m->a_index); free(m->a_value);
+    m->row_lower = rl;  m->row_upper = ru;
+    m->a_start = as;    m->a_index = ai;  m->a_value = av;
+    m->num_row = nrow;
+    m->num_nz  = nnz;
+
+    model_matrix_is_stale(m);
+    basis_survives_or_goes(m);
+    return JAOS_OK;
+}
+
+/* --------------------------------------------------------------------- */
 /* CSR mirror                                                            */
 /* --------------------------------------------------------------------- */
 

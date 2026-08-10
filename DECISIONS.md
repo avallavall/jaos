@@ -82,6 +82,7 @@ and you have the argument. Jump to the entry for the numbers behind it.
 - **[D74](#d74-does-the-re-entrys-clean-up-need-to-borrow-at-all-measured-yes-and-pilot87-is-the-whole-price)** — Does the re-entry's clean-up need to borrow at all? Measured: yes, and `pilot87` is the whole price
 - **[D75](#d75-the-non-aliasing-claim-holds-and-restrict-belongs-inside-the-kernel-rather-than-on-the-api)** — The non-aliasing claim holds, and `restrict` belongs inside the kernel rather than on the API
 - **[D76](#d76-restrict-measured-and-refused-what-makes-it-safe-here-is-what-makes-it-worthless)** — `restrict` measured and refused: what makes it safe here is what makes it worthless
+- **[D77](#d77-a-dimension-change-keeps-the-basis-exactly-when-what-is-left-is-still-a-basis)** — A dimension change keeps the basis exactly when what is left is still a basis
 
 ---
 
@@ -4875,3 +4876,94 @@ be true. If it is worth settling, it needs its own same-session A/B.
 
 Q11 is now closed in full. `--gc-sections` and `-fno-math-errno` were never
 measured and this is the third reason in a row to expect nothing from them.
+
+## D77 — A dimension change keeps the basis exactly when what is left is still a basis
+
+The last structural gap in phase 2. `jaos_set_col_bounds` and
+`jaos_set_coefficient` change what the numbers are; this changes how many
+there are, which touches every array the model owns.
+
+**Additions append, and that is the whole of why they are cheap.** New columns
+occupy the indices above `num_col` and new rows above `num_row`, so no
+existing index moves, no stored index has to be rewritten, and the entire
+prefix of every array copies straight over. A caller holding column indices
+across the call still holds the right ones.
+
+**A new row is a transpose of the addition, not an append.** The matrix is
+stored down and a row arrives across, so every column the new rows touch
+gains entries. Doing that with `jaos_set_coefficient` would be one insertion
+per entry, each one a `memmove` of the tail and a walk of every later column
+start. Counting per column first makes it one rebuild: the new row indices
+are all at least `num_row` and every old one is below it, so appending inside
+each column keeps it ascending **with no sort at all**, and the loader's
+invariant holds for free.
+
+**Deletion takes a set, and that is a correctness decision rather than an
+ergonomic one.** Deleting renumbers everything after what was deleted, so a
+caller removing rows 2, 5 and 7 one at a time is deleting 2, then what was 6,
+then what was 9. Given the whole set, JAOS renumbers once. An index named
+twice is refused rather than absorbed: a caller who has named one twice has
+lost track of what they are deleting, and the second deletion they believe
+they are asking for is of something else.
+
+### The basis, which is the only part that needed deciding
+
+A stored basis is `num_col + num_row` statuses and a promise: exactly
+`num_row` of them are basic. `jaos_set_basis` enforces that on anything handed
+in, and `build_warm_basis` falls back to a cold start when it does not hold.
+Four operations times "keep it or drop it" is eight cases to argue, and the
+argument is the same one every time — so there is **one rule**: the basis
+survives exactly when what is left still counts.
+
+That is not a compromise, it is the definition. A basis whose count is wrong
+is not a weaker starting point, it is not a basis.
+
+What the rule then gives, without any case being written down:
+
+- **Adding rows keeps it.** A new row's activity arrives basic, which is where
+  the slack basis puts it, so basic and `num_row` grow together. This is the
+  case worth having — a basis made primal infeasible by a new constraint is
+  exactly the state the dual simplex is best at resuming from, and it is what
+  a cutting-plane loop does every round.
+- **Adding columns keeps it.** They arrive nonbasic at a bound; neither count
+  moves.
+- **Deleting normally does not**, and should not. Removing a row whose
+  activity was nonbasic, or a column that was basic, leaves a count that no
+  longer describes a basis.
+
+**One exception, and it is D68's.** A new column with no finite bound has
+nowhere to rest nonbasic, and a nonbasic free variable is the defect this
+solver already carries: `can_move` has nowhere to send one and `wants_a_pivot`
+reads it as sitting at an upper bound, so a negative reduced cost is never
+repaired. Warm re-solve already refuses to create one. So does this — the
+whole basis is dropped rather than one being manufactured. Dropping it on the
+spot rather than leaving it for `build_warm_basis` matters: the model should
+never hold a basis it already knows is unusable.
+
+**A failed allocation loses the basis and not the operation.** A starting
+basis is an optimisation and dropping one is always correct, so refusing an
+otherwise complete modification because the *hint* could not be extended
+would trade a working call for a faster one that never happens.
+
+### What was measured
+
+All 139 digests, iteration counts and work units unmoved across the three
+gates, which is the expected result and worth stating for what it rules out:
+no path the gate walks calls any of this, so a moved digest would have meant
+the new code had reached the solver through the model struct.
+
+Eight tests, and the two that matter are the ones built to be rejected: a new
+column with infinite bounds must drop the basis, and deleting the basic column
+must too. The second names which column is basic before deleting it — `x`
+rests at its upper bound so it is nonbasic, `y` sits strictly inside its
+bounds so it is basic, and one row means exactly one basic variable — because
+a test that deletes "whichever one happened to be basic" is a test that stops
+meaning anything the day the answer changes. The full suite runs clean under
+ASan and UBSan.
+
+The end-to-end case walks the whole path rather than the arrays: a model whose
+optimum is 4.5, cut to 5 by an added row, dropped to 2 by an added column,
+returned to 5 by deleting that column and to 4.5 by deleting the row. Each of
+those four numbers is hand-computed in the test's own comment, because a
+structural assertion about `a_start` cannot tell whether the scaling and the
+factorization saw the change.

@@ -505,6 +505,306 @@ static void test_a_changed_coefficient_reaches_the_solve(void)
     jaos_model_free(m);
 }
 
+/* ---------------------------------------------------------------------- */
+/* Adding and deleting rows and columns                                    */
+/* ---------------------------------------------------------------------- */
+
+/* min 2x + 3y  s.t.  x + y >= 2,  0 <= x <= 1.5,  0 <= y <= 10.
+ * Spend on x first because it is cheaper, and x runs out at 1.5:
+ * the optimum is x = 1.5, y = 0.5, objective 4.5. Every case below moves
+ * that number to somewhere else this comment can name. */
+static jaos_status load_two_var(jaos_model *m)
+{
+    static const double c[]  = {2.0, 3.0};
+    static const double cl[] = {0.0, 0.0}, cu[] = {1.5, 10.0};
+    static const double rl[] = {2.0}, ru[] = {INFINITY};
+    static const int64_t as[] = {0, 1, 2}, ai[] = {0, 0};
+    static const double av[] = {1.0, 1.0};
+    return jaos_load_lp(m, 2, 1, JAOS_MINIMIZE, 0.0, c, cl, cu, rl, ru,
+                        2, as, ai, av);
+}
+
+static void test_added_columns_append_and_leave_the_rest_alone(void)
+{
+    jaos_model *m = nullptr;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_model_new(&m));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, load_example(m));   /* 3 cols, 2 rows, 4 nz */
+
+    /* Two columns, the second deliberately unsorted and carrying an explicit
+     * zero, so the same invariant the loader keeps is checked on this path. */
+    const double c[]  = {5.0, 6.0};
+    const double cl[] = {0.0, 0.0}, cu[] = {1.0, 2.0};
+    const int64_t as[] = {0, 1, 4};
+    const int64_t ai[] = {1,   1, 0, 0};
+    const double  av[] = {7.0, 8.0, 9.0, 0.0};
+
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_add_cols(m, 2, c, cl, cu, 4, as, ai, av));
+    TEST_ASSERT_EQUAL_INT64(5, jaos_num_col(m));
+    TEST_ASSERT_EQUAL_INT64(2, jaos_num_row(m));
+    TEST_ASSERT_EQUAL_INT64(4 + 3, jaos_num_nz(m));   /* the zero was dropped */
+
+    /* The three original columns are bit-for-bit where they were: appending
+     * moves no index below num_col, which is the whole promise. */
+    TEST_ASSERT_EQUAL_INT64(0, m->a_start[0]);
+    TEST_ASSERT_EQUAL_INT64(1, m->a_start[1]);
+    TEST_ASSERT_EQUAL_INT64(2, m->a_start[2]);
+    TEST_ASSERT_EQUAL_INT64(4, m->a_start[3]);
+    TEST_ASSERT_EQUAL_DOUBLE(1.0, m->col_cost[0]);
+
+    /* The new ones, sorted by row index. */
+    TEST_ASSERT_EQUAL_INT64(5, m->a_start[4]);
+    TEST_ASSERT_EQUAL_INT64(7, m->a_start[5]);
+    TEST_ASSERT_EQUAL_INT64(1, m->a_index[4]);
+    TEST_ASSERT_EQUAL_DOUBLE(7.0, m->a_value[4]);
+    TEST_ASSERT_EQUAL_INT64(0, m->a_index[5]);
+    TEST_ASSERT_EQUAL_DOUBLE(9.0, m->a_value[5]);
+    TEST_ASSERT_EQUAL_INT64(1, m->a_index[6]);
+    TEST_ASSERT_EQUAL_DOUBLE(8.0, m->a_value[6]);
+    TEST_ASSERT_EQUAL_DOUBLE(6.0, m->col_cost[4]);
+    TEST_ASSERT_EQUAL_DOUBLE(2.0, m->col_upper[4]);
+    jaos_model_free(m);
+}
+
+static void test_added_rows_land_after_every_column_s_own_entries(void)
+{
+    jaos_model *m = nullptr;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_model_new(&m));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, load_example(m));
+
+    /* One row across columns 2 and 0, given in that order: the CSC copy must
+     * still come out ascending, and it does without a sort because every new
+     * row index is above every old one. */
+    const double rl[] = {1.0}, ru[] = {4.0};
+    const int64_t rs[] = {0, 2}, ri[] = {2, 0};
+    const double  rv[] = {11.0, 12.0};
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_add_rows(m, 1, rl, ru, 2, rs, ri, rv));
+
+    TEST_ASSERT_EQUAL_INT64(3, jaos_num_row(m));
+    TEST_ASSERT_EQUAL_INT64(4 + 2, jaos_num_nz(m));
+    TEST_ASSERT_EQUAL_DOUBLE(1.0, m->row_lower[2]);
+    TEST_ASSERT_EQUAL_DOUBLE(4.0, m->row_upper[2]);
+
+    for (int64_t j = 0; j < jaos_num_col(m); j++)
+        for (int64_t k = m->a_start[j] + 1; k < m->a_start[j + 1]; k++)
+            TEST_ASSERT_TRUE(m->a_index[k - 1] < m->a_index[k]);
+
+    /* Column 0 was (row 0, 1.0); it is now that plus the new row. */
+    TEST_ASSERT_EQUAL_INT64(2, m->a_start[1] - m->a_start[0]);
+    TEST_ASSERT_EQUAL_INT64(2, m->a_index[m->a_start[1] - 1]);
+    TEST_ASSERT_EQUAL_DOUBLE(12.0, m->a_value[m->a_start[1] - 1]);
+    jaos_model_free(m);
+}
+
+static void test_a_dimension_change_the_solve_can_see(void)
+{
+    jaos_model *m = nullptr;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_model_new(&m));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, load_two_var(m));
+    TEST_ASSERT_DOUBLE_WITHIN(1e-9, 4.5, solved_objective(m));
+
+    /* A cut: x <= 1. Now x = 1, y = 1 and the objective is 5. */
+    const double rl[] = {-INFINITY}, ru[] = {1.0};
+    const int64_t rs[] = {0, 1}, ri[] = {0};
+    const double  rv[] = {1.0};
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_add_rows(m, 1, rl, ru, 1, rs, ri, rv));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_NOT_RUN, jaos_status_of(m));
+    TEST_ASSERT_FALSE(m->rowwise_valid);
+    TEST_ASSERT_FALSE(m->scale_valid);
+    TEST_ASSERT_DOUBLE_WITHIN(1e-9, 5.0, solved_objective(m));
+
+    /* A cheaper way to satisfy the first row: z at cost 1. z = 2, and both
+     * of the others go to zero, so the objective is 2. */
+    const double c[] = {1.0}, zl[] = {0.0}, zu[] = {10.0};
+    const int64_t as[] = {0, 1}, ai[] = {0};
+    const double  av[] = {1.0};
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_add_cols(m, 1, c, zl, zu, 1, as, ai, av));
+    TEST_ASSERT_DOUBLE_WITHIN(1e-9, 2.0, solved_objective(m));
+
+    /* Take the cheap column away again and the cut is binding once more. */
+    const int64_t drop_col[] = {2};
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_delete_cols(m, 1, drop_col));
+    TEST_ASSERT_EQUAL_INT64(2, jaos_num_col(m));
+    TEST_ASSERT_DOUBLE_WITHIN(1e-9, 5.0, solved_objective(m));
+
+    /* And take the cut away: back to where the model started. */
+    const int64_t drop_row[] = {1};
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_delete_rows(m, 1, drop_row));
+    TEST_ASSERT_EQUAL_INT64(1, jaos_num_row(m));
+    TEST_ASSERT_DOUBLE_WITHIN(1e-9, 4.5, solved_objective(m));
+    jaos_model_free(m);
+}
+
+static void test_deleting_renumbers_what_survives(void)
+{
+    jaos_model *m = nullptr;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_model_new(&m));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, load_example(m));
+
+    /* Row 0 goes; row 1 becomes row 0, and every entry that named it has to
+     * be rewritten. The entries that named row 0 go with it. */
+    const int64_t del[] = {0};
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_delete_rows(m, 1, del));
+    TEST_ASSERT_EQUAL_INT64(1, jaos_num_row(m));
+    TEST_ASSERT_EQUAL_INT64(3, jaos_num_col(m));
+    TEST_ASSERT_EQUAL_INT64(2, jaos_num_nz(m));   /* was 4; two named row 0 */
+    for (int64_t k = 0; k < jaos_num_nz(m); k++)
+        TEST_ASSERT_EQUAL_INT64(0, m->a_index[k]);
+    /* Column 0 held only (row 0), so it is empty now — legal, not an error. */
+    TEST_ASSERT_EQUAL_INT64(0, m->a_start[1] - m->a_start[0]);
+    TEST_ASSERT_EQUAL_DOUBLE(3.0, m->a_value[0]);   /* column 1 kept its 3 */
+    jaos_model_free(m);
+}
+
+static void test_deleting_two_at_once_keeps_relative_order(void)
+{
+    jaos_model *m = nullptr;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_model_new(&m));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, load_example(m));
+
+    /* Named out of order on purpose: a set is a set. Columns 0 and 2 go, so
+     * the old column 1 — cost 1, one entry of 3.0 in row 1 — becomes 0. */
+    const int64_t del[] = {2, 0};
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_delete_cols(m, 2, del));
+    TEST_ASSERT_EQUAL_INT64(1, jaos_num_col(m));
+    TEST_ASSERT_EQUAL_INT64(1, jaos_num_nz(m));
+    TEST_ASSERT_EQUAL_INT64(1, m->a_index[0]);
+    TEST_ASSERT_EQUAL_DOUBLE(3.0, m->a_value[0]);
+    jaos_model_free(m);
+}
+
+static void test_a_dimension_change_refuses_what_it_must(void)
+{
+    jaos_model *m = nullptr;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_model_new(&m));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, load_example(m));
+
+    const double c[] = {1.0}, cl[] = {0.0}, cu[] = {1.0};
+    const int64_t as[] = {0, 1};
+    const double  av[] = {1.0};
+
+    /* A row index that is not a row of this model. */
+    const int64_t bad_row[] = {2};
+    TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT,
+        jaos_add_cols(m, 1, c, cl, cu, 1, as, bad_row, av));
+    /* A coefficient that is not a number. */
+    const int64_t ok_row[] = {0};
+    const double inf_v[] = {INFINITY};
+    TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT,
+        jaos_add_cols(m, 1, c, cl, cu, 1, as, ok_row, inf_v));
+    /* A bound that is not a number. */
+    const double nan_l[] = {NAN};
+    TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT,
+        jaos_add_cols(m, 1, c, nan_l, cu, 1, as, ok_row, av));
+    /* One column naming one row twice. */
+    const int64_t dup_as[] = {0, 2}, dup_ai[] = {1, 1};
+    const double  dup_av[] = {1.0, 2.0};
+    TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT,
+        jaos_add_cols(m, 1, c, cl, cu, 2, dup_as, dup_ai, dup_av));
+    /* One new row naming one column twice. */
+    const double rl[] = {0.0}, ru[] = {1.0};
+    TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT,
+        jaos_add_rows(m, 1, rl, ru, 2, dup_as, dup_ai, dup_av));
+    /* Entries offered for no columns at all. */
+    TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT,
+        jaos_add_cols(m, 0, c, cl, cu, 1, as, ok_row, av));
+
+    /* Deletion: out of range, and the same index twice. */
+    const int64_t oor[] = {3};
+    TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT, jaos_delete_cols(m, 1, oor));
+    const int64_t twice[] = {1, 1};
+    TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT,
+        jaos_delete_cols(m, 2, twice));
+
+    /* Every one of those left the model exactly as it was. */
+    TEST_ASSERT_EQUAL_INT64(3, jaos_num_col(m));
+    TEST_ASSERT_EQUAL_INT64(2, jaos_num_row(m));
+    TEST_ASSERT_EQUAL_INT64(4, jaos_num_nz(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    jaos_model_free(m);
+}
+
+static int64_t count_basic(const jaos_model *m)
+{
+    int64_t n = 0;
+    for (int64_t j = 0; j < m->num_col; j++)
+        n += m->start_col_status[j] == JAOS_BASIS_BASIC;
+    for (int64_t i = 0; i < m->num_row; i++)
+        n += m->start_row_status[i] == JAOS_BASIS_BASIC;
+    return n;
+}
+
+static void test_the_basis_survives_an_addition_and_still_counts(void)
+{
+    jaos_model *m = nullptr;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_model_new(&m));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, load_two_var(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_NOT_NULL(m->start_row_status);
+
+    const double rl[] = {-INFINITY}, ru[] = {1.0};
+    const int64_t rs[] = {0, 1}, ri[] = {0};
+    const double  rv[] = {1.0};
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_add_rows(m, 1, rl, ru, 1, rs, ri, rv));
+    TEST_ASSERT_NOT_NULL(m->start_row_status);
+    TEST_ASSERT_EQUAL_INT(JAOS_BASIS_BASIC, m->start_row_status[1]);
+    TEST_ASSERT_EQUAL_INT64(m->num_row, count_basic(m));
+
+    const double c[] = {1.0}, cl[] = {0.0}, cu[] = {10.0};
+    const int64_t as[] = {0, 1}, ai[] = {0};
+    const double  av[] = {1.0};
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_add_cols(m, 1, c, cl, cu, 1, as, ai, av));
+    TEST_ASSERT_NOT_NULL(m->start_col_status);
+    TEST_ASSERT_EQUAL_INT(JAOS_BASIS_AT_LOWER, m->start_col_status[2]);
+    TEST_ASSERT_EQUAL_INT64(m->num_row, count_basic(m));
+    jaos_model_free(m);
+}
+
+/* The two cases the rule has to reject, built rather than hoped for. */
+static void test_a_basis_that_would_stop_being_one_is_dropped(void)
+{
+    jaos_model *m = nullptr;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_model_new(&m));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, load_two_var(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_NOT_NULL(m->start_col_status);
+
+    /* A column with no finite bound has nowhere to rest nonbasic, and a
+     * nonbasic free variable is the one this solver cannot always price back
+     * off — so the whole basis goes rather than one being created. */
+    const double c[] = {1.0}, cl[] = {-INFINITY}, cu[] = {INFINITY};
+    const int64_t as[] = {0, 1}, ai[] = {0};
+    const double  av[] = {1.0};
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_add_cols(m, 1, c, cl, cu, 1, as, ai, av));
+    TEST_ASSERT_NULL(m->start_col_status);
+    TEST_ASSERT_NULL(m->start_row_status);
+
+    /* And deleting a basic column leaves a count that is no longer a basis. */
+    jaos_model *n = nullptr;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_model_new(&n));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, load_two_var(n));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(n));
+    int64_t basic_col = -1;
+    for (int64_t j = 0; j < n->num_col; j++)
+        if (n->start_col_status[j] == JAOS_BASIS_BASIC)
+            basic_col = j;
+    /* Which one it is, is decided and not incidental: x rests at its upper
+     * bound of 1.5 so it is nonbasic, y sits strictly inside [0, 10] so it is
+     * basic, and one row means exactly one basic variable. Asserting it here
+     * makes the rest of this test a statement rather than a guess. */
+    TEST_ASSERT_EQUAL_INT64(1, basic_col);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_delete_cols(n, 1, &basic_col));
+    TEST_ASSERT_NULL(n->start_col_status);
+
+    /* The solve after it is cold and still right — and right here means
+     * infeasible: all that is left is min 2x with x >= 2 and x <= 1.5. */
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(n));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_INFEASIBLE, jaos_status_of(n));
+    jaos_model_free(m);
+    jaos_model_free(n);
+}
+
 int main(void)
 {
     UNITY_BEGIN();
@@ -525,5 +825,13 @@ int main(void)
     RUN_TEST(test_configuration_survives_a_modification);
     RUN_TEST(test_a_coefficient_replaces_inserts_and_deletes);
     RUN_TEST(test_a_changed_coefficient_reaches_the_solve);
+    RUN_TEST(test_added_columns_append_and_leave_the_rest_alone);
+    RUN_TEST(test_added_rows_land_after_every_column_s_own_entries);
+    RUN_TEST(test_a_dimension_change_the_solve_can_see);
+    RUN_TEST(test_deleting_renumbers_what_survives);
+    RUN_TEST(test_deleting_two_at_once_keeps_relative_order);
+    RUN_TEST(test_a_dimension_change_refuses_what_it_must);
+    RUN_TEST(test_the_basis_survives_an_addition_and_still_counts);
+    RUN_TEST(test_a_basis_that_would_stop_being_one_is_dropped);
     return UNITY_END();
 }

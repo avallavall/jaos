@@ -199,6 +199,61 @@ JAOS_NODISCARD jaos_status jaos_set_row_bounds(jaos_model *m, int64_t row,
 JAOS_NODISCARD jaos_status jaos_set_coefficient(jaos_model *m, int64_t row,
                                                 int64_t col, double value);
 
+/* Grow or shrink the problem itself.
+ *
+ * New columns and rows are appended, so existing indices never move: the
+ * columns added by a call occupy jaos_num_col() .. jaos_num_col() + num_new - 1
+ * as it stood before it, and likewise for rows. The matrix argument follows
+ * jaos_load_lp exactly — the same layout, the same validation, the same
+ * dropping of explicit zeros — except that jaos_add_cols describes the new
+ * columns down (row indices into the *existing* rows) and jaos_add_rows
+ * describes the new rows across (column indices into the existing columns).
+ * Either may be empty: num_nz == 0 adds columns with no coefficients, which is
+ * what a column generation scheme wants before it knows them.
+ *
+ * Deletion takes a set of indices, not one index, and that is not a
+ * convenience. Deleting renumbers everything after what was deleted, so a
+ * caller removing three rows one at a time has to track the shift itself and
+ * will eventually get it wrong. Given the whole set, JAOS renumbers once. What
+ * survives keeps its relative order and is renumbered densely from zero.
+ * Repeated or out-of-range indices are refused rather than tolerated: a
+ * repeated index is a caller who has already lost track.
+ *
+ * **All four discard the answer**, for the reason the setters above do, and
+ * all four discard the row-wise mirror and the scaling, because all four
+ * change the matrix.
+ *
+ * **The starting basis survives exactly when what is left is still a basis.**
+ * There is one rule and it is the same one jaos_set_basis enforces: a model
+ * with n rows needs n basic variables. New rows arrive basic, which is where
+ * a slack basis puts them and which keeps the count right by construction, so
+ * adding rows keeps the basis — that is the case that matters, since a basis
+ * made primal infeasible by a new constraint is precisely what the dual
+ * simplex is best at resuming from. New columns arrive nonbasic at a bound,
+ * which also keeps the count. Deleting normally does not: remove a row whose
+ * activity was not basic, or a column that was, and the count no longer works
+ * out, so the basis is dropped and the next solve runs cold.
+ *
+ * A new column with no finite bound drops the basis too. A nonbasic variable
+ * with no bounds rests pinned at zero and this solver cannot always price it
+ * back off — the same refusal jaos_set_basis's consumer already makes, and
+ * keeping a basis known to be unusable would only move the cost to the solve.
+ */
+JAOS_NODISCARD jaos_status jaos_add_cols(jaos_model *m, int64_t num_new,
+    const double *col_cost, const double *col_lower, const double *col_upper,
+    int64_t num_nz, const int64_t *a_start, const int64_t *a_index,
+    const double *a_value);
+
+JAOS_NODISCARD jaos_status jaos_add_rows(jaos_model *m, int64_t num_new,
+    const double *row_lower, const double *row_upper,
+    int64_t num_nz, const int64_t *ar_start, const int64_t *ar_index,
+    const double *ar_value);
+
+JAOS_NODISCARD jaos_status jaos_delete_cols(jaos_model *m, int64_t num_del,
+                                            const int64_t *cols);
+JAOS_NODISCARD jaos_status jaos_delete_rows(jaos_model *m, int64_t num_del,
+                                            const int64_t *rows);
+
 /* ------------------------------------------------------------------------- */
 /* File readers                                                              */
 /* ------------------------------------------------------------------------- */
