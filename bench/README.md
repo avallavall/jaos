@@ -296,11 +296,21 @@ or an objective, or when the independent checker refuses a warm answer: warm
 starting is a starting point and never a claim, so a disagreement is a defect
 rather than a trade-off.
 
+`make warm-kennington` runs the same campaign on the large set, at about half
+as much again as `netlib-kennington` costs, since it solves three times per
+instance where the gate solves twice.
+
 The reading is in D69. Two things it records that make the ratios mean
 anything: the cold number is checked against the gate's own iteration counts,
 so a branch that made the model easier from scratch would show; and the anchor
 objective is kept, so a branch that cut nothing off would show as an optimum
 that never moved.
+
+It also skips more than it might look like it should — 2 instances of the
+standard set and 5 of Kennington, including all four `ken-*`. Those are models
+whose optimal values land on integers, so there is no fractional column to
+branch on. A skip is not evidence about warm starting in either direction, and
+the count is printed rather than averaged over.
 
 ## What is not here
 

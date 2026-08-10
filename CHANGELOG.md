@@ -24,11 +24,15 @@ open, `bench/README.md` for the gate, and the commit each entry came from.
   cannot say — the gate solves each instance once from a fresh load, and that
   is the one case warm starting does not touch. One branch-and-bound branching
   step per instance, warm against cold on the same perturbed model:
-  **0.0055 of the iterations and 0.0166 of the work**, geometric means over 92
-  of the standard 94, no disagreements and nothing the checker refused.
-  `grow15` takes 1 iteration against 20305. Three checks before believing it —
-  the cold number matches the gate's own to within 10%, the branch moved the
-  optimum on 85 of 92, and every warm answer was verified independently (D69).
+  **0.0055 of the iterations and 0.0166 of the work** over 92 of the standard
+  94, and **0.0006 and 0.0041** over 11 of Kennington's 16 — geometric means,
+  no disagreements and nothing the checker refused on either set. `grow15`
+  takes 1 iteration against 20305, `cre-b` 1 against 17132, and the work ratio
+  improves with model size because a warm solve's floor is two
+  refactorizations however big the problem. Three checks before believing it —
+  the cold number matches the gate's own iteration counts, the branch moved
+  the optimum on 85 of 92 and 7 of 11, and every warm answer was verified
+  independently. `make warm-kennington` runs the second set (D69).
 - `jaos_col_cost`, `jaos_col_bounds` and `jaos_row_bounds`: the model can be
   read back, not only written. A caller who loaded the model knows what is in
   it; one who read it from a file does not, and being allowed to change a

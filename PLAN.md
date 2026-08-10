@@ -168,13 +168,16 @@ to be inside.
 
   **And it is measured (D69).** One branch-and-bound branching step per
   instance, warm against cold on the same perturbed model: **0.0055 of the
-  iterations and 0.0166 of the work**, geometric means over 92 of the standard
-  94, with 0 disagreements and 0 answers the checker refused. `grow15` takes 1
-  iteration against 20305. The two ratios are two orders apart because a warm
-  solve that takes one pivot still pays two full refactorizations — warm
-  starting removes iterations, not the cost of proving the answer. `cycle` is
-  the free-nonbasic refusal firing, and it costs that instance the whole warm
-  start; it is the only one of the eleven with free columns that pays.
+  iterations and 0.0166 of the work** over 92 of the standard 94, and
+  **0.0006 and 0.0041** over 11 of Kennington's 16 — geometric means, with 0
+  disagreements and 0 answers the checker refused on either set. `grow15`
+  takes 1 iteration against 20305, `cre-b` 1 against 17132. The two ratios are
+  orders apart because a warm solve that takes one pivot still pays two full
+  refactorizations — warm starting removes iterations, not the cost of proving
+  the answer — and the gap narrows as the models get bigger, which is the
+  right direction. `cycle` is the free-nonbasic refusal firing, and it costs
+  that instance the whole warm start; it is the only one of the eleven with
+  free columns that pays, and Kennington pays nothing for it.
 
   **Budgets are resumable now too (D70).** A solve stopped by a work or time
   limit keeps the basis it stopped on, so raising the limit and solving again

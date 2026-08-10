@@ -1,0 +1,27 @@
+# instance    verdict   branch  warm=iters/work  cold=iters/work
+cre-a        ok        branch=x3<=13 warm=2/158045 cold=2434/20755741 verdict=optimal obj=23595407.243505381/23595407.243505381 before=23595407.060971618 moved=yes 
+cre-b        ok        branch=x5<=14 warm=1/1067639 cold=17132/3171888748 verdict=optimal obj=23129640.018463284/23129640.018463284 before=23129639.886832383 moved=yes 
+cre-c        ok        branch=x0<=0 warm=1/130607 cold=2393/27390866 verdict=optimal obj=25275120.770900194/25275120.770900201 before=25275116.14088022 moved=yes 
+cre-d        ok        branch=x1<=5 warm=4/1688315 cold=13783/2069541949 verdict=optimal obj=24454976.745696828/24454976.74569682 before=24454969.764549237 moved=yes 
+ken-07       skipped   every
+ken-11       skipped   every
+ken-13       skipped   every
+ken-18       skipped   every
+osa-07       ok        branch=x1818<=0 warm=1/354789 cold=601/51720964 verdict=optimal obj=535722.51729935093/535722.51729935105 before=535722.51729935105 moved=yes 
+osa-14       ok        branch=x21893<=0 warm=1/1156211 cold=1280/229745532 verdict=optimal obj=1106471.8452605626/1106471.8452605626 before=1106462.8447362541 moved=yes 
+osa-30       ok        branch=x51270<=0 warm=3/2703024 cold=2629/1070635275 verdict=optimal obj=2142145.4146565553/2142145.4146565553 before=2142139.8732097656 moved=yes 
+osa-60       ok        branch=x41732<=0 warm=1/5039690 cold=6169/6546800292 verdict=optimal obj=4044072.5031574406/4044072.5031574406 before=4044072.5031574406 moved=NO 
+pds-02       skipped   every
+pds-06       ok        branch=x3<=1098 warm=2/6417380 cold=8870/196560757 verdict=optimal obj=27761037600/27761037600 before=27761037600 moved=NO 
+pds-10       ok        branch=x3710<=333 warm=1/9926226 cold=17253/855100746 verdict=optimal obj=26727094976/26727094976 before=26727094976 moved=NO 
+pds-20       ok        branch=x710<=9 warm=87/150533736 cold=47963/7134855174 verdict=optimal obj=23821658640/23821658640 before=23821658640 moved=NO 
+
+-- warm against cold --
+measured 11, skipped 5, disagreed 0, rejected 0, errors 0
+iterations (warm+1)/(cold+1), geometric mean: 0.0006
+work units warm/cold, geometric mean:         0.0041
+work ratio, best  cre-b at 0.0003
+work ratio, worst pds-06 at 0.0326
+reached the optimum in no iterations at all:  0 of 11
+took more iterations warm than cold:          0 of 11
+the branch moved the optimum:                 7 of 11

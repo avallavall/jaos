@@ -4229,6 +4229,43 @@ reasoning D68 gave — a free variable usually ends up basic — confirmed rathe
 than assumed. Fixing the underlying defect (PLAN.md, carried defect 4) would
 recover `cycle` and nothing else on this set.
 
+### Kennington, and the ratio gets better as the models get bigger
+
+|  | standard 94 | Kennington 16 |
+|---|---|---|
+| measured | 92 | 11 |
+| skipped | 2 | 5 — all four `ken-*` and `pds-02` |
+| disagreed, rejected, errored | 0, 0, 0 | 0, 0, 0 |
+| iterations, geometric mean | 0.0055 | **0.0006** |
+| work units, geometric mean | 0.0166 | **0.0041** |
+| best | `maros-r7` 0.0001 | `cre-b` 0.0003 |
+| worst | `cycle` 1.0000 | `pds-06` 0.0326 |
+| took more iterations warm | 0 of 92 | 0 of 11 |
+
+`cre-b` takes **1 iteration against 17132**, `pds-10` 1 against 17253,
+`pds-20` 87 against 47963. Nothing fell back to the slack basis here: the
+free-nonbasic refusal costs this set nothing.
+
+**The work ratio is four times better than on the standard set, and that is
+the direction it should go.** A warm solve's floor is two refactorizations
+whatever the model; a cold solve's cost grows with the model. So the bigger
+the instance, the smaller the share of it that the floor is — which says warm
+starting scales with size rather than against it, and Kennington is 55% of the
+two sets' total work.
+
+Five of sixteen skipped is a large fraction and worth naming rather than
+averaging over: the four `ken-*` are network models whose optimal values land
+on integers, so there is no fractional column to branch on at all. They are not
+evidence about warm starting in either direction.
+
+The same two checks were run again. **The cold number is honest**: against the
+gate's own iteration counts, `osa-07` is 601 against 601 and `osa-60` 6169
+against 6169 — exact — with the rest within a few percent and `cre-b` the
+largest gap at 17132 against 14614. **The perturbation is real** on 7 of 11;
+the four that kept their objective (`osa-60`, `pds-06`, `pds-10`, `pds-20`)
+moved to an equally good vertex, which is a genuine re-solve — `pds-10` did it
+in 1 iteration where cold took 17253.
+
 ## D70 — A budget that cannot be resumed is only half a budget
 
 D8 gave a caller two ways to stop a solve, and until now stopping was all they
