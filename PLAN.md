@@ -331,6 +331,7 @@ Each was measured and closed; the measurement is in `DECISIONS.md`.
 |---|---|
 | `REFACTOR_EVERY` = 64 | swept 16..256; one of only two completely clean values (D39) |
 | `DSE_DRIFT` = 10 | swept 2..disabled and bounded on both sides: 2 returns `greenbea` INFEASIBLE, 100 costs `grow22` 7.2x, above that `pilot` loses its answer. The interior is one value wide (D63) |
+| Restarting the weights to the exact one rather than to 1.0 | refused: it is the right scale and it does buy `pilot` 0.76x, `greenbea` 0.79x and `grow15` 0.09x — and costs `grow22` **13.88x**. Third attempt to keep more weight information, third time `grow22` pays for it (D63) |
 | `PIVOT_SEARCH_LIMIT` = 4 | swept 1..32 on two sets; above two the fill moves within 1.2% while totals swing 60% on trajectory alone (D46) |
 | `SPARSE_ALPHA_DEN` = 4, `SPARSE_RHO_DEN` = 4 | plateaus bounded on both sides by measurement (D40, D41, D43); confirmed again from the other direction — the pricing row's pattern covers 83% of the variables on `truss` and 85% on `pilot87`, so there is no sparsity the threshold is refusing (D61) |
 | Forcing the two dense sweeps' helpers inline | refused: 470M calls removed and it is **slower**, 0.997x, losing on every instance that matters. The instructions are in the work, not in the call (D61) |

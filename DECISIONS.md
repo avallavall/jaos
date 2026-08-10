@@ -3778,3 +3778,40 @@ does not: the counter was inserted after the body of an `if` that has no
 braces, so it ran unconditionally. The restart counts above sit inside a
 braced block and are not affected. A diagnostic that reports something
 impossible is reporting on itself.
+
+**The restart's scale was tried, and it moves which instances pay.** The
+mechanism above says the cascade is self-inflicted: 1.0 is four decades below
+where these models' weights live, so the next drift test cannot help firing.
+The exact weight of the pivot row is known at that line and is the right
+scale, so restarting to it is the obvious repair. Measured over the standard
+set, gate PASS on all 94:
+
+| | iterations |
+|---|---|
+| `grow15` | **0.09x** |
+| `pilot` | 0.76x |
+| `greenbea` | 0.79x |
+| `25fv47` | 0.96x |
+| `pilot87` | 1.08x |
+| `truss` | 1.23x |
+| **`grow22`** | **13.88x** — 2179 iterations to 30251 |
+
+**Geometric mean 0.9968x. Refused.** It buys `pilot` and `greenbea` roughly
+what the mechanism predicted and takes `grow22` to fourteen times its work —
+and `grow22` is the same instance that broke at `DSE_DRIFT = 100` and again
+with the test disabled. Three separate attempts to keep more weight
+information have now cost that one model an order of magnitude, which makes
+it evidence about the method rather than about a constant: **on `grow22` the
+carried weights are actively harmful, and restarting to a scale that
+preserves them is what harms it.**
+
+So the restart to 1.0 is load-bearing in a way its own comment did not claim
+and nobody had measured: it is not only a guard against meaningless numbers,
+it is what stops a model whose weights mislead from following them. Left
+exactly where it is.
+
+**And the conclusion for the plan is unchanged and now better supported.**
+The cure for the iteration-count half of the tail is not a better restart —
+every version of that tested so far trades one instance for another. It is a
+pricing rule that does not depend on an exact recurrence surviving:
+**Devex** [7], phase 6 item 6.
