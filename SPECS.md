@@ -80,15 +80,24 @@ those and their kin only — never another solver's source (D12).
 **This whole section is missing, and it is the gap a user feels first.** There
 are twenty-three public functions and not one of them configures anything.
 
+**What is controllable is the contract, not the method.** A caller sets what
+depends on their problem and which the solver cannot know: how much precision
+their data deserves, how long they will wait, where log lines go. How the
+problem is solved is the solver's to decide — the pricing rule, when a
+carried weight stops being worth keeping, when to refactorize, whether a
+sparse or dense path is cheaper. Nobody linking this library can be expected
+to know whether their model wants Devex or steepest edge, and an option that
+asks them is a problem handed back to the caller.
+
 | | status | |
 |---|---|---|
 | Work limit, time limit | **done** | |
 | An options API of any kind | **missing** | |
 | Set tolerances | **missing** | every tolerance is a compile-time constant |
-| Choose the algorithm | **missing** | |
-| Turn scaling off or pick the mode | **missing** | |
 | Logging and verbosity | **missing** | the solver is silent |
 | Callbacks | **missing** | |
+| Choose the algorithm | **out of scope** | the solver picks; see above |
+| Turn scaling off or pick the mode | **out of scope** | same, and it is a method question |
 
 ## 5. Reading an answer
 

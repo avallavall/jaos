@@ -110,11 +110,24 @@ fallback, and this is the first measurement of what it costs.
 
 Nothing here is hard. All of it is missing.
 
-- **An options API.** Every tolerance, threshold and interval in the solver
-  is a compile-time constant today. The shape is the first decision: an
-  opaque options object passed to `jaos_solve`, or setters on the model.
-  Either way it must keep D8 — an option that changes an answer has to change
-  it identically on every machine.
+**The line this API is drawn on: it configures the contract, never the
+method.** What a caller may set is what depends on their problem and which
+the solver cannot know — how much precision their data deserves, how long
+they are willing to wait, where their log lines should go. What the solver
+decides for itself is everything about *how* it solves: the pricing rule,
+when a weight is no longer worth carrying, when to refactorize, whether a
+sparse or a dense path is cheaper. A caller cannot know whether their model
+wants Devex or steepest edge, and asking them is handing over a problem that
+belongs here. That is already the practice — every such constant in this
+solver is measured and fixed rather than exposed — and it is now the stated
+rule, which is why the adaptive work in phase 6 matters: the intelligence has
+to be inside.
+
+- **An options API**, for the contract only: tolerances, limits, logging,
+  callbacks. Every tolerance is a compile-time constant today. The shape is
+  the first decision — an opaque options object passed to `jaos_solve`, or
+  setters on the model — and either way it must keep D8: an option that
+  changes an answer has to change it identically on every machine.
 - **Logging.** The solver is silent. A verbosity level and a callback for the
   line, so a caller can route it.
 - **Model modification** — add and delete rows and columns, change a bound, a
@@ -124,10 +137,13 @@ Nothing here is hard. All of it is missing.
   to hand one in.
 - **`jaos_set_basis`**, whose read side is already `jaos_basis`.
 
-Two things phase 2 unblocks that are worth naming: the debugging fallback to
-max-infeasibility pricing has been waiting for somewhere to put a flag, and a
-caller cannot vary the checker's tolerance today, which is what made D47's
-diagnosis need a private driver.
+Two things phase 2 unblocks that are worth naming. A caller cannot vary the
+checker's tolerance today, which is what made D47's diagnosis need a private
+driver — and that one is squarely a contract question, so it belongs in the
+API. The debugging fallback to max-infeasibility pricing also wants somewhere
+to live, but by the rule above it is **not** an option: it is a development
+tool and belongs behind a build-time switch or a private entry point, not in
+`jaos.h`.
 
 ---
 
@@ -269,7 +285,17 @@ sum.
    inlining the helpers is slower. **The first change that cannot be judged
    on digests** — it moves the search path, so it needs the full gate and a
    different standard of evidence.
-4. **BTRAN's `L'` pass**, 5.15% of the standard set, billed for every slot.
+4. **`stocfor3` is a memory-traffic instance, and it is the fourth worst in
+   the set.** 6.79x per iteration on 0.97x the iterations, never profiled
+   until now. Where it goes: the triangular solves 43.0%, and **`memset` plus
+   `memcpy` plus `malloc` 18.8%** — against 11.3% for `dfl001` as a control.
+   That is the hyper-sparse case the pricing row's own comment already
+   names for `ken-13`: a model that puts a few hundred numbers into tens of
+   thousands of slots, where clearing and copying the dense vectors is larger
+   than the arithmetic. Measured and left; the repair is to keep the sparse
+   results sparse downstream rather than to make the clears faster.
+
+5. **BTRAN's `L'` pass**, 5.15% of the standard set, billed for every slot.
    Only 4.1% of its entries sit under a zero, so a reachability search over a
    row-wise copy of L can recover at most a fifth of a percent. Recorded so
    it is not costed again.
