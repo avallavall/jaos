@@ -96,6 +96,13 @@ open, `bench/README.md` for the gate, and the commit each entry came from.
 
 ### Changed
 
+- The LU's elimination asks for a column's capacity once per column instead
+  of once per entry it writes. On `maros-r7` that append ran 1,552,126,296
+  times for a quarter of the whole program's instructions, against 2.9% for
+  the one line in the same loop that bills a work unit. `maros-r7` 35.512 s
+  -> 27.711 s (1.281x) and `pilot87` 32.233 -> 27.562 (1.169x) — the two
+  instances that carry 74.1% of the standard set's work — with all 139
+  digests, iteration counts and work units unmoved (D58).
 - The elimination stops rebuilding a column when there is nothing to
   eliminate. It scattered every column of every pivot row into a dense
   buffer and pushed the survivors back regardless of what the pivot column

@@ -632,7 +632,23 @@ jaos_status jm_lu_factor(jm_lu *lu, int64_t dim,
                 jm_work_add(w, JM_WORK_ELIMINATED);
             }
 
-            cv->n = 0;
+            /* The rebuild writes at most one entry per touched row and `nt`
+             * is already known, so the capacity is asked for once instead of
+             * once per entry.
+             *
+             * That is not a micro-optimisation here. This loop is where the
+             * elimination puts every column back, and on `maros-r7` it called
+             * `jm_svec_push` 1,552,126,296 times for a quarter of the whole
+             * program's instructions — against 2.9% for `work[i] -= delta`,
+             * the one line in this function that bills a work unit (D58).
+             *
+             * Bit-identical: same values, same order, same drop test. What
+             * moves is where the capacity is checked. */
+            if (nt > cv->cap &&
+                !grow_pair(&cv->idx, &cv->val, &cv->cap, nt)) {
+                st = JAOS_ERR_OUT_OF_MEMORY;
+                goto done;
+            }
             int64_t live = 0;
             for (int64_t k = 0; k < nt; k++) {
                 int64_t i = e.touched[k];
@@ -643,12 +659,11 @@ jaos_status jm_lu_factor(jm_lu *lu, int64_t dim,
                     e.row_cnt[i]--;          /* exact cancellation */
                     continue;
                 }
-                if (!jm_svec_push(cv, i, v)) {
-                    st = JAOS_ERR_OUT_OF_MEMORY;
-                    goto done;
-                }
+                cv->idx[live] = i;
+                cv->val[live] = v;
                 live++;
             }
+            cv->n = live;
             bucket_move(&e, j, live);
         }
         us_start[step + 1] = uacc.n;

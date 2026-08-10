@@ -63,6 +63,7 @@ and you have the argument. Jump to the entry for the numbers behind it.
 - **[D55](#d55-the-shipping-build-paid-15x-for-a-capacity-check-it-could-not-inline)** — The shipping build paid 1.5x for a capacity check it could not inline
 - **[D56](#d56-the-elimination-rebuilt-every-column-of-every-pivot-row-including-when-there-was-nothing-to-eliminate)** — The elimination rebuilt every column of every pivot row, including when there was nothing to eliminate
 - **[D57](#d57-the-gate-runs-its-instances-at-once-because-nothing-it-records-is-a-second)** — The gate runs its instances at once, because nothing it records is a second
+- **[D58](#d58-the-elimination-asked-for-capacity-once-per-entry-it-wrote-and-the-entries-are-billions)** — The elimination asked for capacity once per entry it wrote, and the entries are billions
 
 ---
 
@@ -3315,3 +3316,88 @@ which is the only way to find out whether that path works at all.
 two changes measured at once, and which flags a build carries is Q11's
 question. The parallelism is worth having on its own and is portable, which
 `-march=native` by construction is not.
+## D58 — The elimination asked for capacity once per entry it wrote, and the entries are billions
+
+PLAN's ranking put the factorization first and said `maros-r7` was the
+instance to read it on: 50x the median billed units per iteration at a
+*below*-median cost per unit, which reads as work the counter can see. The
+profile says otherwise, and it is D55 and D56's finding a third time.
+
+**The measurement.** callgrind at the flags the library ships with — `-O2
+-g -DNDEBUG`, no LTO — on `maros-r7` bounded to 5e9 work units, which is
+4,876 of its 10,479 iterations, with `truss` as the control:
+
+| | `maros-r7` | `truss` |
+|---|---|---|
+| `jm_lu_factor` | **49.41%** | 1.55% |
+| `jm_svec_push` | **25.24%** | below 0.8% |
+| the two triangular solves | 15.19% | 16.42% |
+| `simplex.c:run` | 2.38% | 30.13% |
+
+**Three quarters of `maros-r7` is one function and the array append it
+calls.** By source line, inside the elimination:
+
+| line | share | |
+|---|---|---|
+| `jm_svec_push(cv, i, v)` in the column rebuild | **24.66%** | **1,552,126,296 calls** |
+| the drop test, the load, the loop, the counter | ~15% | the rest of the rebuild |
+| the scatter into `work` | ~11% | |
+| **`work[i] -= delta`** | **2.87%** | **the only line here that bills a unit** |
+
+28 instructions per append, and the append writes two words.
+
+**What it is.** The rebuild knows `nt` — the number of touched rows — before
+it starts, and every entry it writes comes from a distinct one, so `nt`
+bounds it exactly. It was asking `jm_svec_push` to check capacity on every
+single entry anyway, through a call the compiler does not inline because the
+function is external. Asking once per column instead of once per entry is the
+whole change.
+
+**Bit-identical, and it has to be.** Same values, same order, same drop test,
+same `row_cnt` decrements. What moves is where the capacity check happens.
+The failure mode it removes is also real: a push failing halfway through left
+a column half-rebuilt, and the reservation now fails before anything is
+written.
+
+**A hypothesis the profile refuted, which is why it was profiled.** The
+obvious suspect was `compact_pivot_row`, which scans a whole column to find
+one row's entry and is O(r·c) per pivot — the "missing row-to-position
+lookup" PLAN named as a live structural item. It does not appear at all: it
+is under 0.5% on the instance built to expose it. Measure before repairing.
+
+**Measured.** All 139 reference instances identical to the committed records
+— status, objective, iterations, work units, every checker figure and every
+digest. 130 tests green. Sequential timing, shipping flags, minimum of three
+runs each, against a build of the previous commit:
+
+| | before | after | |
+|---|---|---|---|
+| **`maros-r7`** | 35.512 s | **27.711 s** | **1.281x** |
+| **`pilot87`** | 32.233 s | **27.562 s** | **1.169x** |
+| `pilot` | 7.376 | 6.621 | 1.114x |
+| `25fv47` | 0.482 | 0.473 | 1.020x |
+| `80bau3b` | 0.204 | 0.200 | 1.017x |
+| `fit2p` | 2.374 | 2.350 | 1.010x |
+| `dfl001`, `stocfor3`, `ken-13`, `greenbea`, `d2q06c`, `truss` | | | 1.009x down to 0.993x |
+
+**Geometric mean over the twelve: 1.048x**, and that number is the honest one
+to lead with — but it is not what the change is worth. The two instances it
+moves are `pilot87` and `maros-r7`, which D46 measured as **74.1% of the
+standard set's total work between them**. A ranking by geometric mean and a
+ranking by where the work is disagree here, and both are reported rather than
+whichever flatters the change.
+
+Where it does nothing is where the reasoning said it would: the saving is one
+capacity check per entry rebuilt, so it scales with fill, and the instances
+with little of it — `truss` at 0.993x, `d2q06c` at 0.997x — sit inside the
+measurement noise in both directions.
+
+The profile predicted 25% of instructions; the clock returned 21.9% of
+`maros-r7`'s time. Close enough to say the profile was reading the right
+thing.
+
+**What it does not say.** The 16.5x per-iteration gap against HiGHS that PLAN
+carries for `maros-r7` was measured by the comparison harness, which builds
+JAOS with the competitor's flags. This changes the shipping build; whether it
+moves that figure is a question for `make compare`, not for arithmetic on
+this table.

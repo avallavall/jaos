@@ -208,14 +208,25 @@ sum.
 ### What is left, ranked
 
 1. **The factorization, and the scatter its factors cost every solve** —
-   77.8% of the standard set, untouched through all of M2, and now confirmed
-   from outside: `maros-r7` bills 50x the median units per iteration and is
-   40x slower than HiGHS. The factors carry 2.673x the nonzeros of the basis;
-   two thirds of every factorization is free triangularization and 31.8% is
-   where Markowitz actually chooses (D46). Live structural items: the missing
-   row-to-position lookup on the factorization path, the per-column
-   elimination arrays against a single arena, and the stale live counts that
-   make Markowitz choose on a pessimistic estimate.
+   77.8% of the standard set. **Opened and partly paid (D58).** The profile
+   says three quarters of `maros-r7` is `jm_lu_factor` plus the array append
+   it calls, and that the one line billing a work unit is 2.9% of it. Asking
+   for capacity once per column instead of once per entry bought **1.281x on
+   `maros-r7` and 1.169x on `pilot87`** — the two instances that are 74.1% of
+   the set's work — with all 139 digests unmoved.
+
+   What is left here, in the order the profile ranks it: the scatter into
+   `work` and the rebuild out of it, ~26% between them and inherent to
+   eliminating right-looking; the per-column arrays against a single arena;
+   and the stale live counts that make Markowitz choose on a pessimistic
+   estimate. The factors carry 2.673x the nonzeros of the basis; two thirds
+   of every factorization is free triangularization and 31.8% is where
+   Markowitz actually chooses (D46).
+
+   **Struck off: the missing row-to-position lookup.** `compact_pivot_row`
+   scans a column to find one row's entry, which is O(r·c) per pivot and
+   looked like the obvious defect. It is under 0.5% on `maros-r7`, the
+   instance built to expose it (D58). Not a candidate.
 
 2. ~~**Whatever `fit2p` spends that nobody bills.**~~ **Closed (D55, D56),
    and it was two things.** A capacity check that could not be inlined
