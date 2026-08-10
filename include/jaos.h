@@ -162,6 +162,18 @@ JAOS_NODISCARD jaos_status jaos_set_col_bounds(jaos_model *m, int64_t col,
 JAOS_NODISCARD jaos_status jaos_set_row_bounds(jaos_model *m, int64_t row,
                                                double lower, double upper);
 
+/* Change one matrix entry, which may create it or remove it. Setting a
+ * coefficient to exactly 0.0 deletes it, because the loaded model holds no
+ * explicit zeros — writing one in would leave a model that no longer matches
+ * what loading the same data would produce. Setting one where there was no
+ * entry inserts it. The value must be finite.
+ *
+ * Costs more than changing a bound: the row-wise mirror and the scaling are
+ * both computed from the matrix, so both are discarded and rebuilt on the
+ * next solve. Changing many entries before solving once pays that once. */
+JAOS_NODISCARD jaos_status jaos_set_coefficient(jaos_model *m, int64_t row,
+                                                int64_t col, double value);
+
 /* ------------------------------------------------------------------------- */
 /* File readers                                                              */
 /* ------------------------------------------------------------------------- */

@@ -11,6 +11,12 @@ open, `bench/README.md` for the gate, and the commit each entry came from.
 
 ### Added
 
+- `jaos_set_coefficient`: one matrix entry can be changed, created or
+  removed. Three operations under one name, because the stored matrix keeps
+  its columns ascending by row index with no duplicates and no explicit
+  zeros — so zero deletes the entry and a new index inserts one in sorted
+  position. Unlike a bound or a cost it invalidates the row-wise mirror and
+  the scaling, both of which are computed from the matrix (D67).
 - `jaos_set_col_cost`, `jaos_set_col_bounds` and `jaos_set_row_bounds`: a
   loaded model can be changed instead of rebuilt. Each one discards the
   answer the model was holding — an optimum computed for the problem as it

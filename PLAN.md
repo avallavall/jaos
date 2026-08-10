@@ -146,10 +146,14 @@ to be inside.
   bound moves. Neither touches the matrix, so the scaling and the row-wise
   mirror stay exactly correct and are deliberately left alone.
 
-  What is left: **changing a coefficient**, which does invalidate both of
-  those and is the reason it is separate work rather than a fourth setter;
-  and **adding and deleting rows and columns**, which restructures every
-  array the model owns.
+  **Coefficients are in too (D67):** `jaos_set_coefficient`, three operations
+  under one name because the stored matrix holds an invariant — columns
+  ascend by row index, no duplicates, no explicit zeros. Zero deletes, a new
+  index inserts in sorted position, and both derived copies are discarded
+  because both are computed from the matrix.
+
+  What is left: **adding and deleting rows and columns**, which restructures
+  every array the model owns.
 - **Warm re-solve.** The dual simplex is the right method for it and none of
   the plumbing exists: no way to keep a basis across a modification, no way
   to hand one in.

@@ -332,6 +332,108 @@ static void test_configuration_survives_a_modification(void)
     jaos_model_free(m);
 }
 
+/* Changing a coefficient is three operations, and the invariant it must not
+ * break is the one the whole library reads: within a column, entries ascend
+ * by row index, no duplicates, no explicit zeros. A test that only checked
+ * the solve would pass on a matrix that had quietly stopped being sorted. */
+static void test_a_coefficient_replaces_inserts_and_deletes(void)
+{
+    /*  A = [ 1  0 ]     one entry in column 0, one in column 1.
+     *      [ 0  3 ]                                              */
+    const double c[] = {1.0, 1.0};
+    const double cl[] = {0.0, 0.0}, cu[] = {10.0, 10.0};
+    const double rl[] = {1.0, 3.0}, ru[] = {INFINITY, INFINITY};
+    const int64_t as[] = {0, 1, 2}, ai[] = {0, 1};
+    const double av[] = {1.0, 3.0};
+    jaos_model *m = nullptr;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_model_new(&m));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_load_lp(m, 2, 2, JAOS_MINIMIZE, 0.0, c, cl, cu, rl, ru,
+                     2, as, ai, av));
+    TEST_ASSERT_EQUAL_INT64(2, jaos_num_nz(m));
+
+    /* Replace: no structural change. */
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_coefficient(m, 0, 0, 2.0));
+    TEST_ASSERT_EQUAL_INT64(2, jaos_num_nz(m));
+    TEST_ASSERT_EQUAL_DOUBLE(2.0, m->a_value[0]);
+
+    /* Insert into column 0, below the entry already there: it must land
+     * after it, not before, or the column stops being sorted. */
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_coefficient(m, 1, 0, 5.0));
+    TEST_ASSERT_EQUAL_INT64(3, jaos_num_nz(m));
+    TEST_ASSERT_EQUAL_INT64(0, m->a_start[0]);
+    TEST_ASSERT_EQUAL_INT64(2, m->a_start[1]);
+    TEST_ASSERT_EQUAL_INT64(3, m->a_start[2]);
+    TEST_ASSERT_EQUAL_INT64(0, m->a_index[0]);
+    TEST_ASSERT_EQUAL_INT64(1, m->a_index[1]);
+    TEST_ASSERT_EQUAL_DOUBLE(5.0, m->a_value[1]);
+
+    /* Insert above an existing entry: this is the one that goes first. */
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_coefficient(m, 0, 1, 7.0));
+    TEST_ASSERT_EQUAL_INT64(4, jaos_num_nz(m));
+    TEST_ASSERT_EQUAL_INT64(0, m->a_index[2]);
+    TEST_ASSERT_EQUAL_DOUBLE(7.0, m->a_value[2]);
+    TEST_ASSERT_EQUAL_INT64(1, m->a_index[3]);
+    TEST_ASSERT_EQUAL_DOUBLE(3.0, m->a_value[3]);
+
+    /* Zero deletes rather than storing a zero, because a loaded model has
+     * none and this one must stay indistinguishable from a loaded one. */
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_coefficient(m, 1, 0, 0.0));
+    TEST_ASSERT_EQUAL_INT64(3, jaos_num_nz(m));
+    TEST_ASSERT_EQUAL_INT64(1, m->a_start[1]);
+    for (int64_t k = 0; k < m->num_nz; k++)
+        TEST_ASSERT_TRUE(m->a_value[k] != 0.0);
+
+    /* Zeroing an entry that is not there changes nothing at all. */
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_coefficient(m, 1, 0, 0.0));
+    TEST_ASSERT_EQUAL_INT64(3, jaos_num_nz(m));
+
+    /* Every column still ascends, which is the invariant the readers, the
+     * checker and the factorization all assume. */
+    for (int64_t j = 0; j < m->num_col; j++)
+        for (int64_t k = m->a_start[j] + 1; k < m->a_start[j + 1]; k++)
+            TEST_ASSERT_TRUE(m->a_index[k - 1] < m->a_index[k]);
+
+    TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT,
+        jaos_set_coefficient(m, 0, 0, INFINITY));
+    TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT,
+        jaos_set_coefficient(m, 2, 0, 1.0));
+    TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT,
+        jaos_set_coefficient(m, 0, 2, 1.0));
+    jaos_model_free(m);
+}
+
+static void test_a_changed_coefficient_reaches_the_solve(void)
+{
+    /* min x  s.t.  a*x >= 6,  0 <= x <= 10. With a = 2 the answer is 3;
+     * with a = 3 it is 2. Nothing but the new coefficient reaching the
+     * factorization can move it. */
+    const double c[] = {1.0};
+    const double cl[] = {0.0}, cu[] = {10.0};
+    const double rl[] = {6.0}, ru[] = {INFINITY};
+    const int64_t as[] = {0, 1}, ai[] = {0};
+    const double av[] = {2.0};
+    jaos_model *m = nullptr;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_model_new(&m));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_load_lp(m, 1, 1, JAOS_MINIMIZE, 0.0, c, cl, cu, rl, ru,
+                     1, as, ai, av));
+    TEST_ASSERT_DOUBLE_WITHIN(1e-9, 3.0, solved_objective(m));
+
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_coefficient(m, 0, 0, 3.0));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_NOT_RUN, jaos_status_of(m));
+    TEST_ASSERT_FALSE(m->rowwise_valid);
+    TEST_ASSERT_FALSE(m->scale_valid);
+    TEST_ASSERT_DOUBLE_WITHIN(1e-9, 2.0, solved_objective(m));
+
+    /* Deleting the only entry leaves a row nothing can satisfy. */
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_coefficient(m, 0, 0, 0.0));
+    TEST_ASSERT_EQUAL_INT64(0, jaos_num_nz(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_INFEASIBLE, jaos_status_of(m));
+    jaos_model_free(m);
+}
+
 int main(void)
 {
     UNITY_BEGIN();
@@ -348,5 +450,7 @@ int main(void)
     RUN_TEST(test_a_changed_bound_reaches_the_solve);
     RUN_TEST(test_a_modification_discards_the_answer);
     RUN_TEST(test_configuration_survives_a_modification);
+    RUN_TEST(test_a_coefficient_replaces_inserts_and_deletes);
+    RUN_TEST(test_a_changed_coefficient_reaches_the_solve);
     return UNITY_END();
 }

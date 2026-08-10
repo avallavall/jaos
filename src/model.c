@@ -196,6 +196,86 @@ jaos_status jaos_set_row_bounds(jaos_model *m, int64_t i,
     return JAOS_OK;
 }
 
+/* Changing one entry of the matrix.
+ *
+ * The stored copy is the authority the checker judges against, and it holds
+ * an invariant the readers and the solver both rely on: within a column,
+ * entries ascend by row index, with no duplicates and no explicit zeros. So
+ * this is three operations wearing one name — replace where the entry
+ * exists, delete when the new value is zero, insert in sorted position where
+ * it does not. Writing a zero into the array instead of removing it would
+ * leave a model that loads differently from the one it came from.
+ *
+ * Unlike a bound or a cost, this invalidates both derived copies: the
+ * row-wise mirror holds the values, and the scaling was computed from the
+ * matrix that just changed. */
+jaos_status jaos_set_coefficient(jaos_model *m, int64_t row, int64_t col,
+                                 double value)
+{
+    if (m == nullptr || row < 0 || row >= m->num_row ||
+        col < 0 || col >= m->num_col)
+        return JAOS_ERR_INVALID_INPUT;
+    if (!isfinite(value)) {
+        jm_set_err(m, "coefficient (%lld, %lld) must be finite",
+                   (long long)row, (long long)col);
+        return JAOS_ERR_INVALID_INPUT;
+    }
+
+    /* Where it is, or where it would go: the column is sorted, so the first
+     * entry at or past `row` is both answers at once. */
+    int64_t at = m->a_start[col];
+    const int64_t end = m->a_start[col + 1];
+    while (at < end && m->a_index[at] < row)
+        at++;
+    const bool present = at < end && m->a_index[at] == row;
+
+    if (!present && value == 0.0)
+        return JAOS_OK;      /* a structural zero asked to stay one */
+
+    if (present && value != 0.0) {
+        m->a_value[at] = value;
+    } else if (present) {
+        /* Delete: close the gap and pull every later column start down. */
+        memmove(&m->a_index[at], &m->a_index[at + 1],
+                (size_t)(m->num_nz - at - 1) * sizeof *m->a_index);
+        memmove(&m->a_value[at], &m->a_value[at + 1],
+                (size_t)(m->num_nz - at - 1) * sizeof *m->a_value);
+        for (int64_t j = col + 1; j <= m->num_col; j++)
+            m->a_start[j]--;
+        m->num_nz--;
+    } else {
+        /* Insert. Both arrays are grown before either is written, so a
+         * failure here leaves the model exactly as it was rather than
+         * half-enlarged. */
+        int64_t *ni = realloc(m->a_index,
+                              (size_t)(m->num_nz + 1) * sizeof *m->a_index);
+        if (ni == nullptr)
+            return JAOS_ERR_OUT_OF_MEMORY;
+        m->a_index = ni;
+        double *nv = realloc(m->a_value,
+                             (size_t)(m->num_nz + 1) * sizeof *m->a_value);
+        if (nv == nullptr)
+            return JAOS_ERR_OUT_OF_MEMORY;
+        m->a_value = nv;
+
+        memmove(&m->a_index[at + 1], &m->a_index[at],
+                (size_t)(m->num_nz - at) * sizeof *m->a_index);
+        memmove(&m->a_value[at + 1], &m->a_value[at],
+                (size_t)(m->num_nz - at) * sizeof *m->a_value);
+        m->a_index[at] = row;
+        m->a_value[at] = value;
+        for (int64_t j = col + 1; j <= m->num_col; j++)
+            m->a_start[j]++;
+        m->num_nz++;
+    }
+
+    m->rowwise_valid = false;
+    m->scale_valid = false;
+    m->scale_clamped = false;
+    model_answer_is_stale(m);
+    return JAOS_OK;
+}
+
 jaos_status jaos_set_log_callback(jaos_model *m, jaos_log_fn cb, void *user)
 {
     if (m == nullptr)

@@ -72,6 +72,7 @@ and you have the argument. Jump to the entry for the numbers behind it.
 - **[D64](#d64-the-options-api-configures-the-contract-and-never-the-method-and-it-is-setters)** — The options API configures the contract and never the method, and it is setters
 - **[D65](#d65-the-solver-speaks-only-when-spoken-to-and-never-on-a-clock)** — The solver speaks only when spoken to, and never on a clock
 - **[D66](#d66-changing-a-model-discards-its-answer-and-the-two-that-do-not-touch-the-matrix-leave-the-derived-data-alone)** — Changing a model discards its answer, and the two that do not touch the matrix leave the derived data alone
+- **[D67](#d67-setting-a-coefficient-is-three-operations-because-the-stored-matrix-has-an-invariant)** — Setting a coefficient is three operations, because the stored matrix has an invariant
 
 ---
 
@@ -3978,3 +3979,43 @@ throwaway copy, each the mistake most likely to be made here:
 The second is the one that matters for a setter, and it is the same shape as
 the defect D64 found for real: a setting that is validated, stored and never
 consulted passes every test that only checks what it refuses.
+
+## D67 — Setting a coefficient is three operations, because the stored matrix has an invariant
+
+`jaos_set_coefficient` looks like a fourth setter beside the bounds and the
+cost. It is not, and the reason is worth recording so that the next person to
+touch the matrix does not treat it as one.
+
+**The stored copy is the authority the checker judges against**, and it holds
+an invariant every reader, the scaling and the factorization all assume:
+within a column, entries ascend by row index, with no duplicates and no
+explicit zeros. So one call is three operations — replace where the entry
+exists, **delete when the new value is zero**, insert in sorted position
+where it does not. Writing a zero into the array would leave a model that no
+longer matches the one loading the same data produces, which is a difference
+nothing downstream is prepared for.
+
+**And unlike a bound or a cost, it invalidates the derived copies.** The
+row-wise mirror carries the values and the scaling was computed from the
+matrix that just moved, so both are dropped and rebuilt on the next solve.
+That is the whole reason this is separate work from D66 rather than written
+the same afternoon: the two that leave the derived data alone and the one
+that cannot are different decisions, and collapsing them would have made the
+cheap case pay for the expensive one.
+
+Both arrays are grown before either is written, so an allocation failure
+leaves the model exactly as it was rather than half-enlarged.
+
+**Shown able to fail first.** The two mistakes this code is most likely to
+contain, injected into a throwaway copy:
+
+| injected fault | caught by |
+|---|---|
+| insert appends to the column instead of keeping it sorted | `test_a_coefficient_replaces_inserts_and_deletes` |
+| a zero is stored in place rather than deleting the entry | both coefficient tests |
+
+The sorted-order test is the one that would otherwise have been missing: a
+test that only solved the model would pass on an unsorted column, because a
+two-entry matrix still gives the right answer. It asserts the invariant
+directly, on every column, which is what this repository means by an
+invariant being an assert rather than a comment.
