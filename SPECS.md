@@ -154,9 +154,23 @@ should. And the per-iteration ratio comes out the same whichever rival
 measures it — `truss` 1.5x and 1.5x — so it is a property of JAOS rather than
 of a comparison.
 
-**The target is a cheaper iteration, not fewer of them.** The extreme has
-been the factorization throughout, and it is coming down: `fit2p` was 17.5x
-per iteration and is 5.0x (D55, D56), `maros-r7` was 16.5x and is **11.0x**
-(D58, D59). Everything else lies between 1.2x and 6x. Every one of those four
-entries was work the counter never billed, found by profiling the build that
-ships.
+**It is two targets, and the set mean hides which is which (D63).** Per
+instance the tail splits in half:
+
+| | time | iterations | per iteration |
+|---|---|---|---|
+| `maros-r7` | 25.6x | 2.3x | **11.0x** |
+| `pilot` | 13.4x | **4.7x** | 2.9x |
+| `pilot87` | 13.2x | **4.6x** | 2.9x |
+| `greenbea` | 8.1x | **2.9x** | 2.8x |
+
+**A cheaper iteration** is `maros-r7`'s problem, and it is coming down:
+`fit2p` was 17.5x per iteration and is 5.0x (D55, D56), `maros-r7` was 16.5x
+and is 11.0x (D58, D59). All four of those entries were work the counter
+never billed, found by profiling the build that ships.
+
+**Fewer iterations** is what `pilot`, `pilot87`, `25fv47` and `greenbea`
+need, and the cause is measured: steepest-edge weights are discarded on
+80–93% of their iterations, which prices them by largest infeasibility
+rather than by steepest edge. The threshold that discards them is bounded on
+both sides by correctness and cannot simply be loosened (D63).

@@ -68,6 +68,7 @@ and you have the argument. Jump to the entry for the numbers behind it.
 - **[D60](#d60-the-comparison-rebuilt-its-solver-only-when-its-own-driver-changed-so-it-measured-last-nights)** — The comparison rebuilt its solver only when its own driver changed, so it measured last night's
 - **[D61](#d61-the-pricing-row-has-no-sparsity-to-exploit-and-the-calls-around-it-are-not-the-cost-either)** — The pricing row has no sparsity to exploit, and the calls around it are not the cost either
 - **[D62](#d62-one-set-of-shipping-flags-chosen-by-measurement-and-the-counter-costs-nothing)** — One set of shipping flags, chosen by measurement, and the counter costs nothing
+- **[D63](#d63-the-gaps-iterations-are-weight-restarts-and-the-threshold-that-causes-them-is-what-keeps-the-answers-right)** — The gap's iterations are weight restarts, and the threshold that causes them is what keeps the answers right
 
 ---
 
@@ -3690,3 +3691,90 @@ It had not: the record line carries `work=`, which reads zero without a
 counter, so every line differed while every digest matched. Comparing the
 whole line was the wrong comparison, and a check that answers a question
 nobody asked will eventually answer one somebody did.
+
+## D63 — The gap's iterations are weight restarts, and the threshold that causes them is what keeps the answers right
+
+**The set figure hides its own shape.** 3.70x against HiGHS is a geometric
+mean over eighteen instances, and PLAN and SPECS have read the accompanying
+1.47x iteration ratio as "the search is competitive, the iteration is what
+costs". Instance by instance that is not what it says:
+
+| | time | **iterations** | per iteration |
+|---|---|---|---|
+| `pilot` | 13.42x | **4.66x** | 2.88x |
+| `pilot87` | 13.15x | **4.60x** | 2.86x |
+| `25fv47` | 5.44x | **3.00x** | 1.81x |
+| `greenbea` | 8.09x | **2.93x** | 2.76x |
+| `maros-r7` | 25.64x | 2.34x | **10.98x** |
+| `truss` | 1.33x | 0.90x | 1.47x |
+| `dfl001` | 2.09x | 1.14x | 1.83x |
+
+**Two regimes again, and only one of them is what the plan has been aiming
+at.** `maros-r7` is a per-iteration problem. `pilot`, `pilot87`, `25fv47` and
+`greenbea` are iteration-count problems, and between them they are most of
+the tail.
+
+**Where those iterations are not.** The re-entry loop D49–D51 documents as
+non-converging was the obvious suspect: it contributes **2.8% of `pilot`,
+1.7% of `pilot87`, 0.1% of `greenbea` and nothing at all elsewhere**. The
+extra iterations are in the first dual pass.
+
+**Where they are.** Steepest-edge weights are discarded wholesale — every
+weight set to 1.0 — whenever the carried weight for the pivot row sits a
+factor `DSE_DRIFT` from the exactly known one. Counted:
+
+| | weight restarts | iterations vs HiGHS |
+|---|---|---|
+| `pilot87` | **93%** of iterations | 4.60x |
+| `pilot` | **88%** | 4.66x |
+| `25fv47` | **88%** | 3.00x |
+| `greenbea` | **80%** | 2.93x |
+| `truss` | 31% | 0.90x |
+| `maros-r7` | 11% | 2.34x |
+| `dfl001` | **0%** | 1.14x |
+
+A solver that resets every weight to 1.0 nine times in ten is not pricing by
+steepest edge; it is pricing by largest infeasibility with extra steps. The
+ranking of restart frequency and the ranking of excess iterations are the
+same ranking.
+
+**And the mechanism is confirmed by removing it.** With the drift test
+disabled entirely, the four fall to **`25fv47` 0.31x, `pilot87` 0.36x,
+`greenbea` 0.40x, `pilot` 0.54x** of their iteration counts. The weights
+were the cause.
+
+**`DSE_DRIFT = 10.0` was a draft. It is now measured, and it stays.** Swept
+over the whole standard set, with the gate as the evidence because this moves
+the search path and no digest survives it:
+
+| | gate | what breaks |
+|---|---|---|
+| 2.0 | **NOT MET** | **`greenbea` returns INFEASIBLE** — a false infeasible, the one failure this project treats as catastrophic; `grow22` 6.2x |
+| **10.0** | **PASS** | nothing |
+| 100.0 | PASS | `grow22` 7.2x the work, 2179 -> 15689 iterations |
+| 1e4 | NOT MET | `pilot` outside objective tolerance |
+| 1e8 | NOT MET | `pilot` 6x its iterations, `greenbea` INFEASIBLE |
+| disabled | NOT MET | `pilot` outside tolerance, `grow22` 14.1x |
+
+**Both sides bounded, and the interior is one value wide.** Tighter loses a
+model to a false infeasible; looser costs `grow22` an order of magnitude and
+then costs `pilot` its answer. The restarts are not waste to be reclaimed —
+they are what stops a badly conditioned basis from pricing on numbers that
+have stopped meaning anything, which is exactly what the constant's own
+comment claimed without evidence. It now has evidence.
+
+**So the tail is not a threshold to retune.** It is that `pilot`, `pilot87`,
+`25fv47` and `greenbea` drift their weights on almost every iteration, and
+the cure has to be weights that survive — a more stable recurrence, better
+conditioning, or an approximation that does not pretend to be exact.
+**Devex** [7] is the candidate the literature offers: its weights are
+approximate by construction and reinitialised by design, so a basis that
+destroys an exact recurrence does not degrade it the same way. That is a
+pricing rule to build and measure, not a constant to move.
+
+**One instrument correction.** The same diagnostic build also counted Bland's
+rule and reported it switching on once per iteration on every instance. It
+does not: the counter was inserted after the body of an `if` that has no
+braces, so it ran unconditionally. The restart counts above sit inside a
+braced block and are not affected. A diagnostic that reports something
+impossible is reporting on itself.

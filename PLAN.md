@@ -162,12 +162,20 @@ Python first. Nothing to design until the C API stops moving.
 
 ## Phase 6 — Speed
 
-**The target is a cheaper iteration, not fewer of them (D52, D53).** JAOS
-takes 35% *fewer* iterations than SoPlex and 50% more than HiGHS, and is
-slower than both — so the pricing rule, the ratio test and the pivot choice
-are competitive. What costs **2.2x to 2.8x** is each iteration, and the two
-rivals agree on that number instance by instance, which makes it a property
-of JAOS rather than of a comparison.
+**It is two targets, and the set mean was hiding one of them (D63).** The
+1.47x iteration ratio against HiGHS is a geometric mean with a fat tail:
+`pilot` and `pilot87` take **4.6x** HiGHS's iterations, `25fv47` 3.0x and
+`greenbea` 2.9x, while `maros-r7` — the worst instance by time — takes only
+2.3x and costs **11.0x** per iteration.
+
+- **Cheaper iterations** is `maros-r7`'s problem and phase 6 item 1's work.
+- **Fewer iterations** is what the other four need, and D63 measured the
+  cause: their steepest-edge weights are discarded on 80–93% of iterations,
+  so they are priced by largest infeasibility with extra steps. Disabling the
+  discard takes them to 0.31x–0.54x of their iteration counts and breaks the
+  gate; the threshold is bounded on both sides by correctness. The cure is
+  weights that survive, not a looser threshold — **Devex [7]** is the
+  candidate, since its weights are approximate by construction.
 
 **The seventeen turned out to be two different things (D54), and one of them
 is closed.** `fit2p` billed an ordinary 146k units an iteration and took six
@@ -267,7 +275,15 @@ sum.
    it is not costed again.
 5. **The eta passes** apply 45.1% and 10.6% of their etas to a zero and are
    charged for all of them — 1.69% of the standard set together.
-6. **A primal simplex**, which phase 4's crossover needs anyway.
+6. **Devex pricing as an alternative to the exact recurrence** — the cure D63
+   points at for the iteration-count half of the tail. Its weights are
+   approximate by construction and reinitialised by design, so a basis that
+   destroys an exact recurrence does not degrade it the same way, and it
+   drops the second FTRAN per iteration [7]. Changes the search path: full
+   gate, and iteration count and per-iteration cost reported separately,
+   because trading one for the other is exactly what it does.
+
+7. **A primal simplex**, which phase 4's crossover needs anyway.
 
 ---
 
@@ -314,6 +330,7 @@ Each was measured and closed; the measurement is in `DECISIONS.md`.
 | | |
 |---|---|
 | `REFACTOR_EVERY` = 64 | swept 16..256; one of only two completely clean values (D39) |
+| `DSE_DRIFT` = 10 | swept 2..disabled and bounded on both sides: 2 returns `greenbea` INFEASIBLE, 100 costs `grow22` 7.2x, above that `pilot` loses its answer. The interior is one value wide (D63) |
 | `PIVOT_SEARCH_LIMIT` = 4 | swept 1..32 on two sets; above two the fill moves within 1.2% while totals swing 60% on trajectory alone (D46) |
 | `SPARSE_ALPHA_DEN` = 4, `SPARSE_RHO_DEN` = 4 | plateaus bounded on both sides by measurement (D40, D41, D43); confirmed again from the other direction — the pricing row's pattern covers 83% of the variables on `truss` and 85% on `pilot87`, so there is no sparsity the threshold is refusing (D61) |
 | Forcing the two dense sweeps' helpers inline | refused: 470M calls removed and it is **slower**, 0.997x, losing on every instance that matters. The instructions are in the work, not in the call (D61) |
