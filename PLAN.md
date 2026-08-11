@@ -21,15 +21,15 @@ lost, but the numbers no longer resolve here:
 
 ## The order, and why it is this one
 
-| | phase | why here |
+| | phase | state |
 |---|---|---|
-| **1** | **Know where we stand** — time every run, and compare against HiGHS, SoPlex and Clp | Every speed decision so far has been taken blind. The only phase that changes what we know rather than what the code does. |
-| **2** | **Make it usable** — options, model modification, warm re-solve | Cheap, and it unblocks everything after it. Today a user can load, solve and read; nothing else. |
-| **3** | **Presolve** | The largest single algorithmic gap, and phase 1 will have said what it is worth. |
-| **4** | **Complete the product** — writing, callbacks, sensitivity, certificates | What turns a solver into a library. |
-| **5** | **Bindings** | Needs 2 and 4 to have stopped moving. |
-| **6** | **Speed** — the LU, partial pricing, the primal simplex | Deliberately after 1: the attribution below is in work units, and D45 showed those are biased against exactly the part that costs the most time. |
-| **7** | **The long ones** — barrier and crossover, deterministic parallelism, MILP | Each is a milestone of its own. |
+| **1** | **Know where we stand** — time every run, and compare against HiGHS, SoPlex and Clp | **Complete.** Every speed decision before it was taken blind; now the gap has a number, a decomposition, and a price on each missing feature (D81, D83). |
+| **2** | **Make it usable** — options, model modification, warm re-solve, callbacks | **Complete.** A caller can configure the contract, change the problem in any way including its dimensions, watch a solve, stop it, and resume it. |
+| **3** | **Presolve** | Open. **Worth 1.42x, measured** — real, and smaller than this position implies: the per-iteration gap is 2.5x and no rung moves it (D81). |
+| **4** | **Complete the product** — writing, solve time, sensitivity, certificates | Open, and now the largest block of open work. Callbacks landed early in phase 2. |
+| **5** | **Bindings** | Open. Needs 2 and 4 to have stopped moving; 2 has. |
+| **6** | **Speed** — the LU, the ratio test, the primal simplex | Open, and reordered by what phase 1 measured. Both halves of pricing are now refused (D82, D84); the ratio test's candidate admission is the new head of the list. |
+| **7** | **The long ones** — barrier and crossover, deterministic parallelism, MILP | Open. Each is a milestone of its own. |
 
 ---
 
@@ -277,6 +277,9 @@ and stays that way.
 
 ## Phase 3 — Presolve
 
+**No longer "the largest single algorithmic gap".** That was written when
+nothing had been measured; D81 measured it.
+
 Q3 closed presolve out of M1 because no instance needed it *for correctness*.
 It was never weighed for speed, and phase 1 has now said what the field gains
 from it: **1.417x for HiGHS and 1.136x for SoPlex** (D81).
@@ -298,11 +301,22 @@ which is where the correctness risk lives, not in the reductions.
 
 ## Phase 4 — Complete the product
 
+**The next phase with open work, and the largest block of it.**
+
 - Write MPS and LP; write a solution file.
-- Callbacks.
+- **Solve time on the model.** `SPECS.md` §5 has carried this as missing since
+  M1 and the premises require it: every run reports wall-clock time, but the
+  *library* does not — `jaos_work_units` and `jaos_iterations` exist and there
+  is no `jaos_solve_time`, so a caller who is not the bench runner cannot get
+  the one number the comparison harness is entirely about. The smallest open
+  item here by far.
 - Sensitivity and ranging.
 - Infeasibility and unboundedness certificates, exportable.
 - Exact rational verification of a final basis (Q8).
+
+~~Callbacks.~~ **Landed early, in phase 2 (D79)** — they were the last gap in
+the options API and it was cheaper to finish that surface in one go than to
+leave one hook for later.
 
 ---
 
