@@ -531,7 +531,27 @@ accelerate, they do not gate. SDP stays unscheduled.
 
 ---
 
-## Known defects, carried
+## Known defects, carried — **and this is the next work**
+
+**Decided: the four below come before any new feature or any new speed
+attempt.** They are the only things in this file that are known to be wrong
+rather than merely absent, each one diagnosed, reproducible, and carrying the
+measurement that found it. Three of them were found by varying a parameter the
+gate never varies, and the fourth by construction — which is to say none of
+them will be found again by running the gate, and none of them will go away on
+its own.
+
+Two of them have already cost something measurable in this milestone. Defect 1
+is what let partial pricing publish a wrong answer on `pilot` with every
+checker number green (D82), so it is not a theoretical hole any more — it is
+the reason a bad change passed a check that exists to stop bad changes.
+Defect 4 is what costs `cycle` its entire warm start (D69).
+
+Ordering is not obvious and is deliberately left open: defect 3's cure changes
+how *every* solve measures progress, defect 1's needs a factorization inside
+the checker and an answer to what "independent" then means, and defect 4's
+repair is a primal step that phase 6 item 7 would supply anyway. Read all four
+before choosing, because two of them may share a cure.
 
 Reproducible, diagnosed, not yet fixed. The first three came out of varying
 `REFACTOR_EVERY` over 16..256, which walks trajectories the gate never walks;
