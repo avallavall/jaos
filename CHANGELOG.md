@@ -302,6 +302,26 @@ open, `bench/README.md` for the gate, and the commit each entry came from.
 
 ### Fixed
 
+- **A residue only a primal pivot can remove is no longer hidden by the
+  scaling.** `wants_a_pivot` and the primal clean-up's re-check asked for a
+  sign breach past `DUAL_TOL` in the solver's scaled space, while the answer is
+  judged in the model's own: on `pilot87` a logical with a reduced cost of
+  6.53e-09 scaled carries **1.67e-06 published**, because its row's scale
+  factor is 256, and the point went out as OPTIMAL with the checker refusing
+  it. They ask for a breach in **either** space now — the union and not the
+  published reading, because substituting drops twenty-six candidates across
+  that instance's three solves to gain two. `pilot87`'s gate answer and its
+  warm re-solve are bit-identical and `etamacro`'s certificate tightens 14x;
+  92 of 94 standard instances are untouched and all three gates read 0
+  regressed (D92).
+
+- **`bench/warm.c` ran the independent checker on the warm answer only**, so
+  the perturbed model's cold solve was the only published answer in this
+  repository that nothing judged — and it was the one that was wrong. It judges
+  both now and names which side was refused. Its parallel path also parsed a
+  failure note with `%79s`, so every note containing a space reached the
+  summary as its first word (D92).
+
 - **A pivot is refused when the factorization contradicts itself**, which is
   the stability trigger PLAN 2.5.5 asked for and never got. Each iteration
   already computes the pivot element twice — `alpha_q` by BTRAN, `col[r]` by

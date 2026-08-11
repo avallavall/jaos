@@ -326,9 +326,17 @@ It reports geometric means of per-instance ratios (D46), iterations as
 `(warm+1)/(cold+1)` so that a solve finishing in no iterations does not
 annihilate the mean, and — like the gate — **no wall-clock number reaches
 `bench/results/warm.txt`**. It fails when warm and cold disagree on a verdict
-or an objective, or when the independent checker refuses a warm answer: warm
-starting is a starting point and never a claim, so a disagreement is a defect
-rather than a trade-off.
+or an objective, or when the independent checker refuses **either** answer:
+warm starting is a starting point and never a claim, so a disagreement is a
+defect rather than a trade-off.
+
+**Both answers, and it used to be one.** Checking the warm answer alone looked
+sufficient because cold is the reference and the gate already checks cold
+answers — but the gate checks them on the models as *loaded*, and a branch has
+moved away from that. The perturbed model's cold solve was therefore the only
+published answer in this repository that nothing judged, and on `pilot87` it
+was the one that was wrong (D92). The verdict line names which side was
+refused, because "the pair was refused" does not say where to look.
 
 `make warm-kennington` runs the same campaign on the large set, at about half
 as much again as `netlib-kennington` costs, since it solves three times per

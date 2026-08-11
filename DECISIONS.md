@@ -97,6 +97,7 @@ and you have the argument. Jump to the entry for the numbers behind it.
 - **[D89](#d89-the-re-entry-loop-keeps-its-best-round-and-best-is-defensible-before-it-is-close)** — The re-entry loop keeps its best round, and "best" is defensible before it is close
 - **[D90](#d90-the-warm-start-stops-refusing-a-free-nonbasic-because-the-defect-it-was-avoiding-is-fixed)** — The warm start stops refusing a free nonbasic, because the defect it was avoiding is fixed
 - **[D91](#d91-the-bound-and-the-verdict-stop-being-one-number-and-d47-closes)** — The bound and the verdict stop being one number, and D47 closes
+- **[D92](#d92-a-residue-only-a-pivot-can-remove-was-hidden-by-the-scaling-and-the-repair-is-the-union-of-the-two-readings-rather-than-either-one)** — A residue only a pivot can remove was hidden by the scaling, and the repair is the union of the two readings rather than either one
 
 ---
 
@@ -6282,3 +6283,185 @@ genuinely hold. Making it a verdict needs more than one instance's worth of
 evidence about where the line sits, and that evidence does not exist yet —
 one more model known to be wrong would be worth more here than any amount of
 further argument.
+
+---
+
+## D92 — A residue only a pivot can remove was hidden by the scaling, and the repair is the union of the two readings rather than either one
+
+### The question, and both halves of how it was filed were wrong
+
+`PLAN.md` carried one open defect: *`pilot87`'s warm re-solve is measurably
+worse than its cold one*, with `make warm` exiting nonzero, the checker
+refusing the **warm** answer and accepting the cold one. Re-measured on the
+tree that carried the entry:
+
+- **`make warm` exits 0.** Zero rejections over 92 instances. D91 changed the
+  checker underneath the entry between it being written and being read.
+- The objective difference is real and unmoved: warm `301.77550257870354`,
+  cold `301.77545866851051`, warm 4.39e-5 higher on a minimisation.
+- **The checker refuses the cold answer**, not the warm one. Warm reads
+  `dual_feasible` with a violation of 0; cold carries **1.67213e-06** against
+  a tolerance of 1e-6.
+
+The entry said the opposite because the campaign could not have known.
+
+### The instrument judged one of the two answers it compares
+
+`bench/warm.c` ran the independent checker on the warm answer alone. The
+reasoning was that cold is the reference and the gate already checks cold
+answers — and the gate checks them on the models as **loaded**, which is the
+one case a branch has moved away from. So the perturbed model's cold solve was
+the only published answer in this repository that nothing judged, and it has
+been wrong for as long as warm re-solve has existed.
+
+It judges both now and names which side was refused, because "the pair was
+refused" does not say where to look and here it is the unexpected side. With
+that the defect has a size: **1 of 91 on the standard set, 0 of 11 on
+Kennington.**
+
+Fixed with it, because it made every parallel failure report misleading:
+`read_result` parsed the note with `%79s`, which stops at the first token, so
+`"path too long"` and `"first solve failed"` reached the summary as `path` and
+`first` under `-j`.
+
+### The defect
+
+Instrumented on a copy of the tree, reporting the worst breach in both spaces
+where the verdict is decided:
+
+```
+DIAG publish dual_tol=1e-07 solver_worst=0 (v=-1)
+     model_worst=1.67213e-06 (v=5940 d=6.53175e-09 gamma=256 status=AT_UPPER)
+```
+
+`v = 5940` is the logical of row 1057 (`ncol = 4883`), resting at its upper
+bound with a wrong-signed reduced cost. That cost is **6.53e-09 in the scaled
+space** — a hundredth of `DUAL_TOL` — and **1.67e-06 once published**, because
+the row's scale factor is 256; `6.53175e-09 * 256 = 1.6721e-06`, which is the
+checker's number to every digit it prints.
+
+Its other bound is infinite, so it cannot be flipped and its term in `P - D`
+is zero. What it needs is a primal pivot, which `primal_cleanup` exists to
+give it, and `wants_a_pivot` never offered one because it asked `dual_breach`,
+which applies `DUAL_TOL` in the scaled space.
+
+**This is D27's fault class and D27 resolved half of it.** D27 established that
+any rule reading the breach must pick a space, then arranged for `can_move` not
+to read the breach at all: it tests `|d|` times the width of the box, a product
+`publish` leaves invariant. That works wherever there is a box. The predicates
+serving the columns that have none were left on the scaled reading.
+
+**And D27's refusal of the other route had expired.** It refused judging the
+breach in the published space because that took `pilot87` from a solve to a
+tripped iteration guard at **1,382,801** iterations — the same instance and the
+same count D86 diagnosed four commits ago as the factorization having stopped
+describing the basis. The premise was gone, so the route was re-measured rather
+than re-argued, which is D90's shape.
+
+### The population, and it inverts the obvious diagnosis
+
+Substituting the published reading in the two predicates that select a
+clean-up pivot repairs the defect **and costs `pilot87` its suboptimality
+bound**: `Q` from 0.00682 to 26.8, the bound from 2.25e-05 to 0.0885, for 2.9x
+the work. The obvious reading is that the solver started chasing residue it
+should not. Counted at the candidate loop over `pilot87`'s three solves, that
+is not what happens:
+
+| phase | breached | **added** by the published reading | **dropped** by it |
+|---|---|---|---|
+| anchor, unperturbed | 20 | **0** | 3 |
+| warm | 23 | **0** | 11 |
+| cold, perturbed | 41 | **2** | 12 |
+
+The two added are the defect — `v=5940` (row, published 1.67e-06, gamma 256)
+and `v=68` (column, published 1.90e-07, gamma 4), both with no other bound.
+Every one of the twenty-six dropped is a column whose scale factor is **above
+one**, so a breach that is real in the arithmetic falls under `DUAL_TOL` once
+published; `v=2245` at gamma 0.0625 carries a scaled breach of 1.5e-06.
+
+**So the regression was the solver ceasing to repair residue it repairs
+today** — three clean-up pivots on the unperturbed solve, eleven on the warm
+one. Those pivots are what was holding the certificate up.
+
+### The repair: either, not instead
+
+`breached` asks whether there is a sign-condition breach in **either** space,
+and the two predicates that select a clean-up pivot ask it. Nothing today's
+code repairs is dropped, and the two columns that close the defect are added.
+
+Neither reading dominates, which is the argument rather than a compromise: a
+scale factor above one hides a breach from the caller's view, one below it
+hides a breach from the solver's, and the scaling is a change of variable
+chosen for the factorization's convenience. Repairing a residue the caller
+cannot see costs iterations; ignoring one the caller can see is a wrong
+answer. The union is conservative in the only direction that matters.
+
+The three questions about a breach are now answered in three places, which is
+the shape D27 was reaching for:
+
+| the question | what answers it | space |
+|---|---|---|
+| is this worth *moving* to its other bound | `can_move`, `|d|` times the box width | none — invariant |
+| is the answer *defensible* | `settled_dual_violation` | published only |
+| is there anything *there to repair* | `breached` | either |
+
+### What it cost
+
+**`pilot87` is bit-identical on the gate**, and so is its warm re-solve — 838
+iterations and 759,755,913 work units. The only solve of it that moves is the
+perturbed cold one: 120075 → **120318** iterations, 61.32e9 → 61.77e9 work
+units (**1.0073x**), objective 301.77545866851051 → 301.77545899031168, and the
+checker accepts it.
+
+**92 of the 94 standard instances are bit-identical.** The two that move are
+`etamacro` and `pilot`, two of the five D27 named as having any column the
+re-entry would consider, and neither regresses:
+
+| | `Q` | `rsub` | iterations | work |
+|---|---|---|---|---|
+| `etamacro` | 2.48e-06 → **1.73e-07** | 3.28e-09 → **2.29e-10** | 708 → 709 | 1.005x |
+| `pilot` | 0.0385 → 0.0387 | 6.9e-05 → 6.94e-05 | 25342 → 25886 | 1.036x |
+
+`etamacro`'s certificate tightens by a factor of **14** for one iteration —
+the same instance D27 opened on, and the direction that says the extra pivots
+are repairing something rather than disturbing it. `pilot` pays 3.6% of its
+work for a bound that does not move; its objective changes in the last digit,
+-557.48970616317422 to -557.48970616317433.
+
+All three gates read 0 regressed. `make warm` returns to 92 measured with 0
+rejections and `make warm-kennington` to 11 with 0. ASan+UBSan clean.
+
+### What was refuted on the way
+
+**Substituting the published reading for the scaled one**, at either scope.
+Both repair the defect and both are refused by the standard gate:
+
+| what reads the published space | perturbed `pilot87` | unperturbed `pilot87` |
+|---|---|---|
+| `dual_breach`, so every reader | fixed, cold 120075 → 51309 | bound 2.25e-05 → **0.0883**, `Q` **26.7**, work 0.9921x |
+| `wants_a_pivot` + the clean-up's re-check | fixed, cold 120075 → 50898 | bound → **0.0885**, `Q` **26.8**, work **2.917x** |
+
+Under both, `etamacro` and `pilot` land on **bit-identical digests**, which is
+what localised the trajectory change to the clean-up's selection and not to
+`arm_reentry`'s shifting — the first hypothesis, and wrong.
+
+**`settled_dual_violation` alone**, which is not a repair and is kept anyway.
+D89 built it to rank the re-entry's rounds "in the model's own space" and its
+comment said so, but it unscaled `dual_breach`'s *output*: the tolerance was
+applied scaled and only the survivors converted, so a breach inside `DUAL_TOL`
+scaled and outside it published arrived as an exact zero. It now applies the
+tolerance after the conversion. It repairs nothing here, for a structural
+reason — on this instance the re-entry finds nothing to move and takes no
+clean-up pivot, so there is a single candidate point and no ranking to get
+wrong — and it measured **94 of 94 bit-identical** with all three gates
+unmoved.
+
+### What is left open
+
+`pilot87`'s `gap_positive` moves between 0.0068 and 26.7 across variants whose
+objectives all sit within tolerance of Koch's reference and which all read
+`dual_feasible`. D91 already records why that number can be live at a correct
+optimum: an implied bound is sound but slack, and nothing puts the variable on
+it. Whether a `Q` of 26.7 is an answer getting worse or a bound going slack is
+not settled here, and it is what refused two of the three candidate repairs.
+Handed to `PLAN.md`.

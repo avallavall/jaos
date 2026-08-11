@@ -2222,6 +2222,71 @@ static double dual_breach(const sx *s, int64_t v)
     return 0.0;   /* basic: its reduced cost is zero by definition */
 }
 
+/* The same condition, read in the space the answer is **published** in.
+ *
+ * D27 stated this difficulty and resolved half of it. A reduced cost seen
+ * through the scaling is the same number under a change of variable chosen for
+ * the solver's convenience, and the two readings disagree about whether there
+ * is anything there at all: the term this exists for reads `6.53e-09` scaled
+ * on `pilot87` — a hundredth of what the solver calls zero — and `1.67e-06`
+ * once `publish` multiplies by a row scale of 256, which is past the tolerance
+ * the independent checker judges it at. D27's answer was that any rule reading
+ * the breach must pick one space, and it then arranged for `can_move` not to
+ * read the breach at all: it tests `|d|` times the width of the box, a product
+ * `publish` leaves invariant, so there is nothing to choose.
+ *
+ * **Neither reading may replace the other, and that is D92's whole result.**
+ * Substituting this for `dual_breach` in the predicates that select a
+ * clean-up pivot repairs the defect and costs `pilot87` its suboptimality
+ * bound — `Q` from 0.00682 to 26.8, for 2.9x the work. The reason is not the
+ * one it looks like. Counted over `pilot87`'s three solves, the published
+ * reading **adds two** candidates, both on the perturbed model and both the
+ * offender's kind, and **drops twenty-six**: three on the unperturbed solve,
+ * eleven on the warm one, twelve on the cold. Every dropped one is a column
+ * whose scale factor is above one, so a breach that is real in the arithmetic
+ * falls under DUAL_TOL once published. The regression was the solver ceasing
+ * to repair residue it repairs today, not chasing residue it should not.
+ *
+ * So the selection asks for **either** — see `breached`. A scale factor above
+ * one hides a breach from the caller's view, one below it hides a breach from
+ * the solver's, and neither view dominates. Repairing a residue the caller
+ * cannot see costs iterations; ignoring one the caller can see is a wrong
+ * answer, so the union is conservative in the only direction that matters.
+ *
+ * `settled_dual_violation` reads this one alone rather than the union,
+ * because it answers a different question — how defensible the point is to
+ * whoever receives it — and that question has only one space.
+ *
+ * The scale factors are per column and per row, always populated, and 1.0 when
+ * nothing was scaled, so this is one multiply and never a branch. */
+static double published_breach(const sx *s, int64_t v)
+{
+    const jaos_model *m = s->m;
+    const double d = v < s->ncol ? s->d[v] / m->col_scale[v]
+                                 : s->d[v] * m->row_scale[v - s->ncol];
+    switch (s->status[v]) {
+    case JM_AT_LOWER: return d < -s->dual_tol ? -d : 0.0;
+    case JM_AT_UPPER: return d > s->dual_tol ? d : 0.0;
+    case JM_FREE:     return fabs(d) > s->dual_tol ? fabs(d) : 0.0;
+    case JM_BASIC:    break;
+    }
+    return 0.0;   /* basic: its reduced cost is zero by definition */
+}
+
+/* Is there a sign-condition breach here at all — in either space?
+ *
+ * The question the clean-up's selection asks, and the only one of the three
+ * questions about a breach that takes the union. What is worth *moving* is
+ * D27's contribution test, which has no space; what makes an answer
+ * *defensible* is the published breach alone; what is *there to repair* is
+ * this, because the scaling is a change of variable and a residue does not
+ * stop existing by being looked at through one. See `published_breach` for
+ * the measurement that settled it (D92). */
+static bool breached(const sx *s, int64_t v)
+{
+    return dual_breach(s, v) != 0.0 || published_breach(s, v) != 0.0;
+}
+
 /* Everything a re-entry is allowed to write. Restoring these five and
  * rebuilding from them lands on exactly the point that was saved:
  * `where` is the inverse of `basis`, `xb` is what compute_primal derives
@@ -2282,17 +2347,21 @@ static double settled_objective(const sx *s)
  * numbers of two different rounds are not comparable when the columns that
  * breach differ between them, which D50 recorded that they do. Undoing the
  * scaling here is what makes the comparison mean anything, and it is also
- * exactly the quantity the independent checker will judge. */
+ * exactly the quantity the independent checker will judge.
+ *
+ * **It used to unscale `dual_breach`'s output, which is not the same thing and
+ * is why this function did not do what the paragraph above says it did.** The
+ * tolerance was applied in the scaled space and only the survivors converted,
+ * so a breach inside DUAL_TOL scaled and outside it published arrived here as
+ * an exact zero: the worst violation the point actually carried was invisible
+ * to the one number that ranks the rounds. `published_breach` applies the
+ * tolerance after the conversion, which is what "in the model's own space"
+ * meant all along (D92). */
 static double settled_dual_violation(const sx *s)
 {
-    const jaos_model *m = s->m;
     double worst = 0.0;
     for (int64_t v = 0; v < s->nvar; v++) {
-        double br = dual_breach(s, v);
-        if (br == 0.0)
-            continue;
-        br = v < m->num_col ? br / m->col_scale[v]
-                            : br * m->row_scale[v - m->num_col];
+        double br = published_breach(s, v);
         if (br > worst)
             worst = br;
     }
@@ -2521,7 +2590,14 @@ static void arm_reentry(sx *s)
              * ratio test must not meet a reduced cost already past zero.
              * The shift threshold stays DUAL_TOL on the breach itself:
              * what the solver calls zero is a different question from what
-             * is worth repairing. */
+             * is worth repairing.
+             *
+             * And it stays in the *scaled* space, because it is a statement
+             * about the arithmetic in flight rather than about the answer:
+             * the ratio test it protects works on scaled costs. Reading the
+             * published space here was measured — it shifts costs the scaling
+             * had hidden, which by this function's own argument hands the
+             * method no work, and it costs `pilot87` its certificate (D92). */
             shift_to_feasible(s, v);
         }
     }
@@ -2541,8 +2617,23 @@ static void arm_reentry(sx *s)
  * to travel until something stops them, and that is a basis change.
  *
  * The two filters that do apply are the ones about whether there is
- * anything there: past DUAL_TOL, which is what the solver calls nonzero,
- * and above the rounding of the dot product that produced it (D27).
+ * anything there: past DUAL_TOL in **either** space, which is `breached`, and
+ * above the rounding of the dot product that produced it (D27).
+ *
+ * The first used to read the scaled space alone, and that is the defect D92
+ * repairs: a logical of `pilot87` rested at its upper bound with a reduced
+ * cost of 6.53e-09 scaled and 1.67e-06 published, because the row's scale
+ * factor is 256. It has no other bound, so nothing could move it and its term
+ * in `P − D` is zero — a pivot was the only repair available and this
+ * predicate never offered one. Reading the published space *instead* was
+ * measured and refused: it drops twenty-six candidates across the same
+ * instance to gain two.
+ *
+ * The second filter stays scaled, and deliberately. It asks whether `|d|`
+ * stands above the rounding of `c_j − y' M_j`, which is a question about the
+ * arithmetic and belongs where the arithmetic happened; `column_traffic` is
+ * the scaled sum for the same reason, and a ratio of two scaled quantities has
+ * no space to get wrong.
  *
  * **A nonbasic free variable is the other kind, and it used to be invisible
  * here.** It has no bound in either direction, so it qualifies for the same
@@ -2553,11 +2644,11 @@ static void arm_reentry(sx *s)
  * upper bound, so it repaired a positive reduced cost and silently dropped a
  * negative one, and a point held at zero by a column nothing would move was
  * then published as OPTIMAL. `|d|` is what the two bounded cases already
- * computed — `dual_breach` above has already established the sign for them —
- * so this is the same number for everything except the case it repairs. */
+ * computed — `breached` above has already established the sign for them — so
+ * this is the same number for everything except the case it repairs. */
 static bool wants_a_pivot(const sx *s, int64_t v)
 {
-    if (dual_breach(s, v) == 0.0)
+    if (!breached(s, v))
         return false;
     double wrong_way = fabs(s->d[v]);
     if (wrong_way <= NOISE_MARGIN * DBL_EPSILON * column_traffic(s, v))
@@ -2577,7 +2668,7 @@ static bool wants_a_pivot(const sx *s, int64_t v)
  *
  * **The direction is read off the reduced cost rather than off the status**,
  * and that is the same rule stated once instead of twice. A column only
- * reaches here past `wants_a_pivot`, which is past `dual_breach`, so at a
+ * reaches here past `wants_a_pivot`, which is past `breached`, so at a
  * lower bound `d` is already known negative and at an upper bound already
  * positive — `d < 0` picks out exactly the two cases the status test used to
  * name. What it also picks out, and the status test could not, is a *free*
@@ -2699,7 +2790,7 @@ static jaos_status primal_cleanup(sx *s, int64_t *pivots)
             s->shift[q] = 0.0;
             s->duals_dirty = true;   /* q's cost may now breach its bound */
         }
-        if (dual_breach(s, q) == 0.0)
+        if (!breached(s, q))
             continue;      /* an earlier pivot of this pass really did fix it */
 
         bool below = false;

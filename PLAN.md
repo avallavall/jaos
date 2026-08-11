@@ -758,50 +758,77 @@ The test that pinned the refusal now pins the repair, and it uses D68's own
 example — the model whose comment said it would publish 6 where the optimum is
 4. It publishes 4, from the warm basis.
 
-**One thing the campaign surfaced belongs elsewhere.** `make warm` exits
-nonzero on a checker rejection of `pilot87`, and building each of the last
-three commits in turn puts it on D87 rather than on this: 0 rejections at D86,
-1 from D87's implied bounds onward, with the trajectory figures identical in
-all four. The rejection is correct — `pilot87`'s warm answer is 4.4e-5 worse
-than its cold one, a real suboptimality the checker used to accept in silence.
-That is the first evidence D87 catches something outside D47's constructed
-case, and it came from a campaign aimed at another question.
+**One thing the campaign surfaced belongs elsewhere**, and what this paragraph
+originally concluded from it was wrong — kept, corrected, because the mistake
+is instructive. `make warm` exited nonzero on a checker rejection of `pilot87`,
+and bisecting the last three commits put it on D87's implied bounds rather than
+on this, with the trajectory figures identical throughout. From that it was
+read as *the warm answer being 4.4e-5 worse and the checker having stopped
+accepting it in silence*.
+
+**The refused answer was the cold one (D92).** The warm answer verifies; the
+cold one carried a dual violation of 1.67e-06. The campaign could not have said
+so, because it ran the checker on the warm answer alone — so "which side was
+refused" was inferred from which side looked worse, and the objective is not
+what the checker was objecting to.
 
 ---
 
-## Known defects, carried — the one this session opened
+## Known defects, carried — none
 
-**`pilot87`'s warm re-solve is measurably worse than its cold one.** Found
-2026-08-11 by `make warm`, which exits nonzero on it, and it is a real defect
-rather than a campaign artefact:
+**The one the previous session opened is closed (D92), and both halves of how
+it was filed were wrong.** It read: *`pilot87`'s warm re-solve is measurably
+worse than its cold one*, `make warm` exiting nonzero, the checker refusing the
+warm answer and accepting the cold. On the tree that carried the entry `make
+warm` exited **0** — D91 had changed the checker underneath it — and the answer
+the checker refuses is the **cold** one, at a dual violation of 1.67e-06
+against a tolerance of 1e-06.
 
-```
-pilot87  REJECTED  warm=838/759755913  cold=120075/61322758828
-         obj  warm 301.77550257870354   cold 301.77545866851051
-```
+It was invisible because the campaign judged one of the two answers it
+compares. `bench/warm.c` checked the warm answer only, on the reasoning that
+the gate already checks cold ones — and the gate checks them on the models as
+*loaded*, which is the one case a branch has moved away from. **The perturbed
+model's cold solve was the only published answer in this repository that
+nothing judged.**
 
-The warm answer is **4.4e-5 worse** on the same perturbed model, and the
-independent checker refuses it while accepting the cold one. A warm start is
-documented as costing iterations and never the answer (`jaos_set_basis`), so
-this contradicts the contract.
+What it was: a logical resting at its upper bound with a reduced cost of
+6.53e-09 in the scaled space and **1.67e-06 once published**, because the row's
+scale factor is 256. With no other bound it cannot be flipped and its term in
+`P - D` is zero, so only a primal pivot repairs it — and `wants_a_pivot` asked
+`dual_breach`, which applies `DUAL_TOL` in the scaled space. D27's fault class,
+whose other half D27 closed and this half it left. D27's own refusal of the
+published reading had expired: it cost `pilot87` a tripped iteration guard at
+1,382,801 iterations, which is the count D86 closed.
 
-**It is not new behaviour, it is newly visible.** Built from each of the last
-four commits in turn: 0 rejections at D86, 1 from D87 onward, with the
-trajectory figures — 838 warm iterations against 120075 cold — identical in
-all four. The solver did not change; the checker stopped accepting it. So the
-defect is at least as old as warm re-solve and D87 is what surfaced it, which
-is the first evidence the implied bounds catch something outside D47's
-constructed case.
+The repair asks whether there is a breach in **either** space, and the union
+rather than the substitution is measured rather than chosen: substituting drops
+twenty-six candidates across `pilot87`'s three solves to gain two, and the
+twenty-six are clean-up pivots the solver takes today. `pilot87`'s gate answer
+and its warm re-solve are bit-identical; `etamacro`'s certificate tightens 14x;
+only the perturbed cold solve moves, by 0.2% of its iterations.
 
-What is not known: whether the warm point is a genuinely different local
-optimum of a degenerate problem, or whether the re-entry loop settles worse
-from a warm basis than from a cold one. The second would tie it to defect 2,
-whose oscillation D74 and D89 both left open. Nothing has been measured on
-this beyond the isolation above.
+---
 
-`make warm` is left failing rather than papered over: it reports a ratio and
-is not a gate (D90), so nothing downstream is blocked, and a campaign that
-hides a checker rejection would be worth less than one that fails.
+## Open, and it is what closing that defect exposed
+
+### `pilot87`'s suboptimality bound is not understood
+
+Not a defect with a reproduction, which is why it is here rather than above.
+Across the four variants D92 measured, `pilot87`'s `gap_positive` moves between
+**0.0068 and 26.7** while every one of those answers sits inside tolerance of
+Koch's reference and reads `dual_feasible`. D91 already records why the number
+can be live at a correct optimum — an implied bound is sound but slack, and
+nothing puts the variable on it — so a `Q` of 26.7 may be the answer getting
+worse or the bound going slack, and nothing separates them today.
+
+It matters because the gate watches it (D88's mechanism, D91's quantity) and it
+is what refused two of D92's three candidate repairs. A change detector on a
+quantity nobody can interpret is a gate that can only ever be obeyed.
+
+What would settle it is a second, independent estimate of `P - P*` on the same
+point. `certified_suboptimality` is **not** it, and that is measured: D73 found
+it reading ~1e-25 at a vertex however wrong the point is, for the structural
+reason that a column moving alone is stopped by the first tight row.
 
 ---
 
@@ -828,6 +855,8 @@ Each was measured and closed; the measurement is in `DECISIONS.md`.
 | `restrict` on the LU kernel pointers | refused: 139 digests and work counts identical, and **0.995x shipping against 1.0053x with `-flto` off** — the two builds disagree about the sign and both are inside the noise. The loops are indexed scatter and gather, and none may vectorise because none may reassociate; what made it safe is what made it worthless (D76) |
 | Partial pricing on the leaving-row sweep | refused: it saves the cheapest units in the solver — D45 measured `nrow` sweeps as nearly free per unit — and buys 10–24% more iterations that each cost two triangular solves, so 0.891x in Kennington work units is a loss in seconds. And it breaks correctness: `pilot` publishes OPTIMAL out of tolerance with the checker green, `wood1p` is rejected, `woodw` takes 131x the iterations (D82) |
 | Multiple pricing — a shortlist of K leaving rows, re-scored across minor iterations | refused: the standard gate reads NOT MET at **every** K, from 6 regressions at K=2 to 32 at K=8, with `brandy` at 140x its iterations. Kennington removes a third of the billed work for 8% more iterations, which is the one promising direction in the item and is untrusted for D45's reason — the units removed are the sweep's, and those are nearly free (D84) |
+| Judging the dual breach in the published space *instead of* the scaled one | refused twice, at both scopes. It repairs D92's defect and costs `pilot87` its suboptimality bound — 2.25e-05 to 0.0883 with every reader switched, to 0.0885 and **2.9x the work** with only the clean-up's two predicates. And the cause is not what it looks like: across `pilot87`'s three solves the published reading **adds 2** candidates and **removes 26**, every one of the 26 a column whose scale factor is above one. The regression is residue the solver stopped repairing, not residue it started chasing. The **union** of the two readings is what landed (D92) |
+| `settled_dual_violation` reading the published space | taken, and it repairs nothing: **94 of 94 bit-identical**, all three gates unmoved. It is a coherence fix — D89 documented that function as working in the model's own space while it unscaled `dual_breach`'s output, so a breach the scaling hid reached the round comparison as an exact zero (D92) |
 
 ---
 

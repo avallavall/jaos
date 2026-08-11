@@ -35,9 +35,18 @@
  * Warm and cold are the two numbers; the first solve is not one of them.
  *
  * Both must agree, and agreement is the gate rather than the speed: same
- * verdict, objectives within tolerance, and the warm answer put through the
+ * verdict, objectives within tolerance, and **both** answers put through the
  * independent checker. A warm start is a starting point and never a claim, so
  * a disagreement here is a defect and not a trade-off.
+ *
+ * Checking both is not symmetry for its own sake. This program used to judge
+ * the warm answer alone, on the reasoning that cold is the reference and the
+ * gate already checks cold answers — and the gate checks them on the models as
+ * *loaded*, which is the one case a branch has moved away from. So the
+ * perturbed model's cold solve was the only published answer in this
+ * repository that nothing judged, and it was wrong: `pilot87` published
+ * OPTIMAL on a point the checker refuses, and the campaign reported the pair
+ * as agreeing because it had only looked at the other one (D92).
  *
  * ## How the ratios are reported
  *
@@ -90,7 +99,7 @@ typedef enum {
     WARM_OK = 0,        /* both solved and agreed                        */
     WARM_SKIPPED,       /* nothing to branch on, or no first optimum     */
     WARM_DISAGREE,      /* warm and cold reached different answers       */
-    WARM_REJECTED,      /* the checker refused the warm answer           */
+    WARM_REJECTED,      /* the checker refused one of the two answers    */
     WARM_ERROR,         /* read or solve failed                          */
 } verdict;
 
@@ -114,6 +123,12 @@ typedef struct {
     int up;                      /* 1 branched up, 0 branched down    */
     double bound;
     long long iters_w, iters_c, work_w, work_c;
+    /* Whether the independent checker accepted each answer, recorded per side
+     * rather than folded into the verdict: "the pair was refused" does not say
+     * which half to go and look at, and on `pilot87` the answer is the one
+     * nobody suspected. 1 accepted, 0 refused, -1 not applicable — the status
+     * was not OPTIMAL, so there was no claim to judge. */
+    int check_w, check_c;
     double obj_w, obj_c;
     /* What the anchor solve reached, before the branch. Recorded for one
      * reason: without it, "warm took one iteration" is not evidence. A branch
@@ -191,6 +206,21 @@ static void fail(result *r, verdict v, const char *note)
     snprintf(r->note, sizeof r->note, "%s", note);
 }
 
+/* The answer the model is holding, through the independent checker. Returns 1
+ * accepted, 0 refused, and -1 when the status carries no claim to judge.
+ *
+ * `x` and `y` are the caller's, because it may want to keep the point. */
+static int verified(jaos_model *m, int status, double *x, double *y)
+{
+    if (status != (int)JAOS_SOLVE_OPTIMAL)
+        return -1;
+    jaos_check_report rep;
+    if (jaos_solution(m, x, nullptr, y, nullptr) != JAOS_OK ||
+        jaos_check_solution(m, x, y, CHECK_TOL, &rep) != JAOS_OK)
+        return 0;
+    return (rep.primal_feasible && rep.dual_feasible) ? 1 : 0;
+}
+
 /* Everything one instance contributes, measured. Never judges: the caller
  * prints and the summary counts. */
 static void measure_one(const entry *e, const char *dir, result *r)
@@ -198,6 +228,8 @@ static void measure_one(const entry *e, const char *dir, result *r)
     memset(r, 0, sizeof *r);
     snprintf(r->name, sizeof r->name, "%s", e->name);
     r->col = -1;
+    r->check_w = -1;
+    r->check_c = -1;
     r->verdict = (int)WARM_ERROR;
 
     char path[512];
@@ -277,14 +309,7 @@ static void measure_one(const entry *e, const char *dir, result *r)
     r->work_w = jaos_work_units(m);
     (void)jaos_objective(m, &r->obj_w);
 
-    bool warm_verified = true;
-    if (r->status_w == (int)JAOS_SOLVE_OPTIMAL) {
-        jaos_check_report rep;
-        if (jaos_solution(m, x, nullptr, y, nullptr) != JAOS_OK ||
-            jaos_check_solution(m, x, y, CHECK_TOL, &rep) != JAOS_OK ||
-            !rep.primal_feasible || !rep.dual_feasible)
-            warm_verified = false;
-    }
+    r->check_w = verified(m, r->status_w, x, y);
 
     /* Cold: the same perturbed model, with nothing carried into it. This is
      * the answer JAOS gave before there was a warm start at all. */
@@ -300,6 +325,7 @@ static void measure_one(const entry *e, const char *dir, result *r)
     r->iters_c = jaos_iterations(m);
     r->work_c = jaos_work_units(m);
     (void)jaos_objective(m, &r->obj_c);
+    r->check_c = verified(m, r->status_c, x, y);
 
     if (r->status_w != r->status_c) {
         fail(r, WARM_DISAGREE, "different verdicts");
@@ -310,8 +336,15 @@ static void measure_one(const entry *e, const char *dir, result *r)
         fail(r, WARM_DISAGREE, "different objectives");
         goto done;
     }
-    if (!warm_verified) {
-        fail(r, WARM_REJECTED, "checker refused the warm answer");
+    /* Which side was refused is named, because it decides where to look and
+     * the answer has been the unexpected one: on `pilot87` it is cold. */
+    if (r->check_w == 0 || r->check_c == 0) {
+        const char *which = r->check_w == 0
+                                ? (r->check_c == 0 ? "both" : "the-warm")
+                                : "the-cold";
+        char note[64];
+        snprintf(note, sizeof note, "checker-refused=%s", which);
+        fail(r, WARM_REJECTED, note);
         goto done;
     }
     r->verdict = (int)WARM_OK;
@@ -342,6 +375,11 @@ static void emit(const char *fmt, ...)
     }
 }
 
+static const char *check_str(int c)
+{
+    return c > 0 ? "ok" : c == 0 ? "REJECTED" : "n/a";
+}
+
 static void print_result(const result *r)
 {
     if (r->verdict != (int)WARM_OK && r->verdict != (int)WARM_DISAGREE &&
@@ -351,13 +389,15 @@ static void print_result(const result *r)
         return;
     }
     emit("%-12s %-9s branch=x%lld%s%.17g warm=%lld/%lld cold=%lld/%lld "
-         "verdict=%s obj=%.17g/%.17g before=%.17g moved=%s %s\n",
+         "verdict=%s obj=%.17g/%.17g before=%.17g moved=%s "
+         "checker=warm:%s/cold:%s %s\n",
          r->name, verdict_str((verdict)r->verdict), (long long)r->col,
          r->up ? ">=" : "<=", r->bound,
          r->iters_w, r->work_w, r->iters_c, r->work_c,
          jaos_solve_status_str((jaos_solve_status)r->status_w),
          r->obj_w, r->obj_c, r->obj_0,
-         r->obj_w != r->obj_0 ? "yes" : "NO", r->note);
+         r->obj_w != r->obj_0 ? "yes" : "NO",
+         check_str(r->check_w), check_str(r->check_c), r->note);
 }
 
 /* Seconds to the console only, never to the record: a file that changes on
@@ -384,12 +424,12 @@ static bool write_result(const char *p, const result *r)
     FILE *f = fopen(p, "w");
     if (f == nullptr)
         return false;
-    fprintf(f, "%s %d %d %d %lld %d %.17g %lld %lld %lld %lld %.17g %.17g "
-               "%.17g %.17g %.17g\n%s\n",
-            r->name, r->verdict, r->status_w, r->status_c, r->col, r->up,
-            r->bound, r->iters_w, r->iters_c, r->work_w, r->work_c, r->obj_w,
-            r->obj_c, r->obj_0, r->secs_w, r->secs_c,
-            r->note[0] ? r->note : "-");
+    fprintf(f, "%s %d %d %d %d %d %lld %d %.17g %lld %lld %lld %lld %.17g "
+               "%.17g %.17g %.17g %.17g\n%s\n",
+            r->name, r->verdict, r->status_w, r->status_c, r->check_w,
+            r->check_c, r->col, r->up, r->bound, r->iters_w, r->iters_c,
+            r->work_w, r->work_c, r->obj_w, r->obj_c, r->obj_0, r->secs_w,
+            r->secs_c, r->note[0] ? r->note : "-");
     fclose(f);
     return true;
 }
@@ -400,19 +440,24 @@ static bool read_result(const char *p, result *r)
     if (f == nullptr)
         return false;
     memset(r, 0, sizeof *r);
-    int n = fscanf(f, "%63s %d %d %d %lld %d %lf %lld %lld %lld %lld %lf %lf "
-                      "%lf %lf %lf",
-                   r->name, &r->verdict, &r->status_w, &r->status_c, &r->col,
-                   &r->up, &r->bound, &r->iters_w, &r->iters_c, &r->work_w,
-                   &r->work_c, &r->obj_w, &r->obj_c, &r->obj_0, &r->secs_w,
-                   &r->secs_c);
-    if (n == 16) {
+    int n = fscanf(f, "%63s %d %d %d %d %d %lld %d %lf %lld %lld %lld %lld "
+                      "%lf %lf %lf %lf %lf",
+                   r->name, &r->verdict, &r->status_w, &r->status_c,
+                   &r->check_w, &r->check_c, &r->col, &r->up, &r->bound,
+                   &r->iters_w, &r->iters_c, &r->work_w, &r->work_c,
+                   &r->obj_w, &r->obj_c, &r->obj_0, &r->secs_w, &r->secs_c);
+    if (n == 18) {
+        /* To the end of the line, not to the first space. `%79s` stopped at
+         * one token, so every note this program writes with a space in it —
+         * "path too long", "first solve failed" — reached the summary as its
+         * first word under -j and read as a different failure from the one
+         * that happened. */
         char note[80];
-        if (fscanf(f, "%79s", note) == 1 && strcmp(note, "-") != 0)
+        if (fscanf(f, " %79[^\n]", note) == 1 && strcmp(note, "-") != 0)
             snprintf(r->note, sizeof r->note, "%s", note);
     }
     fclose(f);
-    return n == 16;
+    return n == 18;
 }
 
 static bool run_parallel(const entry *ents, const int *sel, int nsel,
@@ -609,6 +654,7 @@ int main(int argc, char **argv)
      * the set: two instances are 74% of this set's total work, so a sum
      * reports what those two did and calls it what the change did (D46). */
     int measured = 0, skipped = 0, disagreed = 0, rejected = 0, errors = 0;
+    int rej_warm = 0, rej_cold = 0;
     int instant = 0, worse_iters = 0, moved = 0;
     double sum_iters = 0.0, sum_work = 0.0;
     double worst = -HUGE_VAL, best = HUGE_VAL;
@@ -618,7 +664,12 @@ int main(int argc, char **argv)
         switch ((verdict)r->verdict) {
         case WARM_SKIPPED:  skipped++;   continue;
         case WARM_DISAGREE: disagreed++; all_ok = false; continue;
-        case WARM_REJECTED: rejected++;  all_ok = false; continue;
+        case WARM_REJECTED:
+            rejected++;
+            if (r->check_w == 0) rej_warm++;
+            if (r->check_c == 0) rej_cold++;
+            all_ok = false;
+            continue;
         case WARM_ERROR:    errors++;    all_ok = false; continue;
         case WARM_OK:       break;
         }
@@ -641,6 +692,13 @@ int main(int argc, char **argv)
     emit("\n-- warm against cold --\n");
     emit("measured %d, skipped %d, disagreed %d, rejected %d, errors %d\n",
          measured, skipped, disagreed, rejected, errors);
+    /* Split, because the two are different defects. A refused warm answer says
+     * warm starting produced something cold would not have; a refused cold one
+     * says the solver publishes an unverifiable optimum on this model whatever
+     * it starts from, and warm starting is not involved at all. */
+    if (rejected > 0)
+        emit("  of those, warm refused %d, cold refused %d\n",
+             rej_warm, rej_cold);
     if (measured > 0) {
         emit("iterations (warm+1)/(cold+1), geometric mean: %.4f\n",
              exp(sum_iters / measured));

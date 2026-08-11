@@ -142,7 +142,7 @@ asks them is a problem handed back to the caller.
 | Kennington subset, 16 instances | **pass** |
 | Netlib infeasible subset, 29 instances: refused, no false optima | **pass** |
 | Determinism across two solves and across runs, all 139 | **pass** — the second solve clears the basis first, or it would be a warm re-solve and would measure a sequence of calls rather than the solver (D68) |
-| Warm re-solve against cold, one branching step per instance | **measured: 0.0055 of the iterations, 0.0166 of the work** on 92 of the standard 94; 0.0006 and 0.0041 on 11 of Kennington's 16 (D69) |
+| Warm re-solve against cold, one branching step per instance | **measured: 0.0052 of the iterations, 0.0162 of the work** on 92 of the standard 94; 0.0006 and 0.0041 on 11 of Kennington's 16 (D69, improved by D90). Both answers go through the independent checker, and 0 of either set is refused — the cold half of that was added by D92, which is what it caught |
 | Full suite clean under ASan and UBSan | **pass** |
 | Reader robustness under fuzzing | **pass** |
 | Competitive gap at tier T0 vs **HiGHS 1.15.1** | **measured: 3.72x slower** (D52, D53, D60, re-taken with three competitors in D83) |
