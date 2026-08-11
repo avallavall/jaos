@@ -79,18 +79,27 @@ HiGHS, SoPlex and Clp by checksum with their licences verified at fetch;
 `run-compare.sh` walks a rung and writes `bench/compare/results/`. `make
 compare` does the lot.
 
-**T0 is measured against two rivals (D52, D53), and re-measured after D58 and
-D59 (D60).** Against HiGHS 1.15.1, JAOS is **3.70x** slower per solve — 1.47x
-the iterations and **2.52x** the cost of each. Against SoPlex 8.0.3 it is
-**1.31x** slower on **0.70x** the iterations and **1.87x** per iteration, and
-faster on 11 of 22. The per-iteration ratio agrees between the two rivals
-instance by instance, which is what makes it a quantity rather than a
-quotient.
+**T0 is measured against three rivals** — first two (D52, D53), re-measured
+after D58 and D59 (D60), and re-taken with Clp in one session (D83). The
+committed record says **3.72x** slower than HiGHS 1.15.1 on 1.47x the
+iterations and **2.54x** the cost of each; **1.34x** slower than SoPlex 8.0.3
+on 0.70x and **1.92x**, faster on 10 of 22; **3.77x** slower than Clp 1.17.11
+on 1.67x and **2.26x**. The three disagree about the iteration count and agree
+about the cost of an iteration, which is what makes that a quantity rather
+than a quotient.
 
-**The harness repeats itself to 1.3%** (D60), which is the floor any claim
-about these numbers has to clear. It also used to rebuild its JAOS only when
-its own driver changed, so it measured a stale binary and said nothing; that
-is repaired and every record now carries the commit it came from.
+**The harness repeats itself to about 1.4%**, and that is measured rather than
+estimated: JAOS is byte-identical at every rung, so its own cross-rung ratio
+reads the machine directly — 1.006x, 1.011x and 1.018x with iterations exactly
+1.000x (D81, D83). D60 estimated 1.3% a different way.
+
+Two ways this harness has lied and both are repaired. It rebuilt its JAOS only
+when its own driver changed, so it measured a stale binary and said nothing
+(D60). And it timed a *warm re-solve* once a solve began leaving its basis
+behind, reporting `25fv47` at 0.0015s and 0 iterations against a true 0.49s
+and 9459 (D80). Every record now carries the commit it came from, the basis is
+cleared before each timed solve, and the driver aborts if two cold repeats
+disagree.
 
 **Q4 is downgraded from a blocker to a label.** It said the gate needs a
 dedicated measurement host, and it does — for a *published* figure. Comparing

@@ -144,8 +144,8 @@ asks them is a problem handed back to the caller.
 | Warm re-solve against cold, one branching step per instance | **measured: 0.0055 of the iterations, 0.0166 of the work** on 92 of the standard 94; 0.0006 and 0.0041 on 11 of Kennington's 16 (D69) |
 | Full suite clean under ASan and UBSan | **pass** |
 | Reader robustness under fuzzing | **pass** |
-| Competitive gap at tier T0 vs **HiGHS 1.15.1** | **measured: 3.70x slower** (D52, D53, D60) |
-| Competitive gap at tier T0 vs **SoPlex 8.0.3** | **measured: 1.31x slower**, faster on 11 of 22 |
+| Competitive gap at tier T0 vs **HiGHS 1.15.1** | **measured: 3.72x slower** (D52, D53, D60, re-taken with three competitors in D83) |
+| Competitive gap at tier T0 vs **SoPlex 8.0.3** | **measured: 1.34x slower**, faster on 10 of 22 |
 | Competitive gap at tier T0 vs **Clp 1.17.11** | **measured: 3.77x slower**, on 1.67x the iterations and 2.26x per iteration (D83) |
 | Rungs T1–T3, which price presolve and algorithm choice | **measured: presolve is worth 1.42x to HiGHS and 1.14x to SoPlex; free algorithm choice is worth nothing, on identical iteration counts** (D81) |
 | MIPLIB 2017 easy subset | not started |
