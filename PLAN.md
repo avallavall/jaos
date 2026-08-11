@@ -620,11 +620,30 @@ reaches rather than a trajectory.
    like "no false alarms" is better read as "cannot fire at a vertex".
 
    What survives is that the number is a sound lower bound, and that a
-   factorization would not help the five unquantified rays. **Route B needs
-   the simplex direction after all** — a basis and a factorization inside the
-   checker, and an answer to what "independent" then means. D47 costed it
-   right; what is now measured is the price of the cheap alternative, which on
-   the one answer this project knows to be wrong is nothing.
+   factorization would not help the five unquantified rays.
+
+   **Route B does not need a factorization, and that much is settled (D87).**
+   The dropped term is minus infinity only because the variable has no bound
+   on the improving side, and the rows frequently imply one: activity-based
+   tightening, from the model alone. An implied bound is satisfied by every
+   feasible point, so adding it moves neither the feasible region nor `P*`,
+   and a dual bound for the tightened problem holds for the original. D47's
+   constructed case is closed exactly — `gap_positive` goes from 0 to 0.1, the
+   true suboptimality — and certification over the gate roughly doubles, 12 of
+   110 to 27, with all 139 digests unmoved.
+
+   **And it is still open, because that does not reach `pilot`.** At intervals
+   24, 32 and 96 it publishes 1.04e-3 out of tolerance with every checker
+   number green, dropping the same 3.47e-07 term as before. The coverage says
+   why: row-at-a-time tightening bounds **38.4%** of the standard set's
+   unbounded columns and **24%** of `pilot`'s, and column 1534 — reduced cost
+   -3.474e-07, true value 2990.37 — is not among them. Its lever arm only
+   appears by combining rows, which is D47's own point that the cost is a
+   property of the polytope rather than of any row.
+
+   What would reach the rest is a bound from more than one row at once, which
+   is a small LP of its own. What is now excluded is the idea that any of this
+   needs the solver's basis.
 2. **The re-entry loop does not always converge (D49, D50, D51).** Its two
    repairs undo each other — the dual simplex borrows cost shifts to keep
    dual feasibility, `settle_shifts` calls the loans in, and the largest loan

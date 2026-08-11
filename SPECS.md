@@ -110,7 +110,7 @@ asks them is a problem handed back to the caller.
 | Where every variable rests in the basis | **done** | `jaos_basis` |
 | Iterations and work units | **done** | |
 | **Solve time** | **done** | `jaos_solve_time`, seconds of the last solve. The only number JAOS reports that is not reproducible, and the header says so and says not to diff it |
-| Independent solution checker | **partial** | it can still accept an arbitrarily suboptimal point when the improving direction is unbounded (D47), but it no longer does so silently: `gap_certified` says when the bound is not a bound, and 98 of 110 accepted answers are not certified (D71) |
+| Independent solution checker | **partial** | it bounds unbounded variables by what the rows imply, which closes D47's constructed case exactly and lifts certification from 12 of 110 accepted answers to 27 (D87). Still partial, and the remaining gap is the one that matters: row-at-a-time tightening reaches 38% of unbounded columns, and `pilot` at intervals 24/32/96 stays green on an answer 1.04e-3 out of tolerance because no single row bounds the column that costs it |
 | A certified lower bound on suboptimality | **partial** | `certified_suboptimality`, sound and never overclaiming, but it reads the same ~1e-25 on answers known to be 1.04e-3 wrong as on correct ones — the step it uses cannot move at a vertex (D73) |
 | Sensitivity and ranging | **missing** | |
 | Infeasibility and unboundedness certificates | **missing** | |

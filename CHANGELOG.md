@@ -239,6 +239,21 @@ open, `bench/README.md` for the gate, and the commit each entry came from.
   so a method constant can be swept over a range without editing the source
   between runs.
 
+### Changed
+
+- **The checker bounds unbounded variables by what the constraints imply**,
+  so a dual term that used to be minus infinity — and was dropped, taking
+  `gap_positive`'s guarantee with it — is finite wherever a row bounds the
+  column with the others inside their boxes. An implied bound is satisfied by
+  every feasible point, so adding it changes neither the feasible region nor
+  the optimum, and a dual bound for the tightened problem holds for the
+  original. Certification roughly doubles, 12 of 110 accepted answers to 27,
+  and D47's constructed case goes from every number reading zero on a point
+  0.1 from optimal to refusing it with `gap_positive` at exactly 0.1. All 139
+  digests unmoved. **It does not close D47:** `pilot` at intervals 24, 32 and
+  96 still reads green on an answer 1.04e-3 out of tolerance, because no
+  single row bounds the column that costs it (D87).
+
 ### Fixed
 
 - **A pivot is refused when the factorization contradicts itself**, which is

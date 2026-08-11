@@ -92,6 +92,7 @@ and you have the argument. Jump to the entry for the numbers behind it.
 - **[D84](#d84-multiple-pricing-refused-too-and-phase-6-item-3-closes-with-both-halves-measured)** — Multiple pricing, refused too, and phase 6 item 3 closes with both halves measured
 - **[D85](#d85-a-free-nonbasic-improves-in-the-direction-its-reduced-cost-points-and-the-status-was-never-able-to-say-which-that-was)** — A free nonbasic improves in the direction its reduced cost points, and the status was never able to say which that was
 - **[D86](#d86-pilot87s-iteration-guard-is-a-factorization-that-stopped-agreeing-with-itself-and-the-two-solves-each-iteration-already-pays-for-can-say-so)** — `pilot87`'s iteration guard is a factorization that stopped agreeing with itself, and the two solves each iteration already pays for can say so
+- **[D87](#d87-the-checker-bounds-what-the-rows-imply-which-closes-d47s-constructed-case-and-not-its-real-one)** — The checker bounds what the rows imply, which closes D47's constructed case and not its real one
 
 ---
 
@@ -5729,3 +5730,110 @@ Whether `REFACTOR_EVERY` should move is *not* decided here and should not be
 inferred from the table above. D39 chose 64 by sweeping correctness across
 16..256, and one instance solving at 160 is not that sweep. The trigger makes
 the interval safer; it does not re-open the question of its value.
+
+---
+
+## D87 — The checker bounds what the rows imply, which closes D47's constructed case and not its real one
+
+### The question
+
+D47 left the checker certifying a bound it cannot prove: where a wrong-signed
+multiplier sits on an unbounded improving direction the dual objective's term
+is minus infinity, `sign_condition` drops it, and `gap_positive` — documented
+in `jaos.h` as satisfying `P - P* <= gap_positive` — can read zero on a point
+that is arbitrarily suboptimal. Two routes were named. **Route A**, report the
+bound as void, was refuted by D71: 98 of 110 accepted answers carry a dropped
+term, so voiding would void the gate. **Route B**, compute what the column is
+worth, was costed at a basis and a factorization inside the checker, which D18
+forbids taking from the solver — and D73's cheap version of it was refuted
+because a column moving alone cannot move at a vertex.
+
+The open question was what "independent" would mean once the checker held a
+factorization. **It turns out not to need one**, and the answer is worth
+having even though it does not finish the job.
+
+### The observation
+
+The term is minus infinity because the variable has no bound on the improving
+side. But the rows frequently *imply* one. From `rl <= sum_k a_ik x_k <= ru`,
+holding every other variable inside its own box gives a finite range for `x_j`
+whenever the rest of that row is bounded the right way. That is the standard
+activity-based tightening a presolve does, and reading it uses **nothing but
+the model**.
+
+**It is sound for a reason worth stating precisely.** An implied bound is one
+every feasible point already satisfies, so adding it changes neither the
+feasible region nor `P*`. A dual bound valid for the tightened problem is
+therefore valid for the original — which is exactly the claim `gap_positive`
+was making and could not support. All three legs of D18 stand: independent
+inputs (model and claimed solution only), redundant identities (one more now),
+better arithmetic (`long double` throughout).
+
+### What it closes
+
+D47's constructed case, exactly. `min -1e-7 x2` subject to `x1 + x2 <= 1e6`
+with both variables non-negative and neither bounded above, offered the origin
+with a zero row dual:
+
+| row bound | true suboptimality | `gap_positive` before | after |
+|---|---|---|---|
+| 1e6 | 0.1 | **0** | **0.1** |
+| 1e8 | 10 | **0** | **10** |
+| 1e3 | 1e-4 | **0** | **1e-4** |
+
+`dropped_terms` goes to 0, `gap_certified` to true, and `dual_feasible` to
+**false**: the checker refuses the point it used to certify. The bound is now
+the true suboptimality to the digit, reached with no basis, no factorization
+and no reference value.
+
+Across the gate, certification roughly doubles: **12 of 110 accepted answers
+certified before, 27 after** — 7 to 17 on the standard set, 5 to 10 on
+Kennington. All 139 digests identical, all three gates PASS with 0 regressed,
+167 unit tests green. The feared failure — 98 previously dropped terms all
+becoming live and inflating the gap into false rejections — did not happen.
+
+### What it does not close, which is the case that mattered
+
+**`pilot` at refactorization intervals 24, 32 and 96 still publishes an answer
+1.04e-3 out of tolerance with every checker number green.**
+
+```
+interval 24  objective=OUT-OF-TOLERANCE  checker=ok  drop=3.47e-07  cert=no
+interval 32  objective=OUT-OF-TOLERANCE  checker=ok  drop=3.47e-07  cert=no
+interval 96  objective=OUT-OF-TOLERANCE  checker=ok  drop=3.47e-07  cert=no
+```
+
+The same term is dropped as before. The rows of `pilot` do not imply any
+finite bound on column 1534, whose reduced cost of -3.474e-07 and true value
+of 2990.37 are the whole of the error.
+
+**And the coverage says this is a mechanism limit rather than a near miss:**
+
+| | columns with no explicit bound | rows imply one |
+|---|---|---|
+| `pilot`, upper | 2409 | **588 (24%)** |
+| standard set, upper | 172611 | **66297 (38.4%)** |
+| standard set, lower | 380 | **175 (46.1%)** |
+
+Row-at-a-time tightening reaches about two fifths of the unbounded columns. It
+misses the one that costs `pilot` its answer, and the reason is the one D47
+already gave: what makes a dropped term expensive is how far the variable
+travels, and that is **a property of the polytope, not of any single row**.
+Column 1534's lever arm only appears by combining rows; no row bounds it
+alone.
+
+### What this settles, and what it hands on
+
+Settled: the implied bound is sound, cheap, independent, and worth having on
+its own terms — it doubles certification, closes the constructed case, and
+costs nothing measurable. It is kept.
+
+**Not settled: defect 1 remains open**, with its scope reduced rather than
+removed, and this entry is deliberately not written as closing it. The gap the
+repair leaves is exactly the cases where no single row bounds the column, and
+`pilot` sits in it. What would reach those is a bound derived from more than
+one row at a time — which is a small LP in its own right, and reopens D47's
+cost question in a different currency than the factorization it first named.
+
+The one thing this does remove is the argument that route B needs the solver's
+basis. It does not. Whatever closes the rest will not need one either.

@@ -235,29 +235,33 @@ static void test_a_waived_sign_condition_is_still_caught_by_the_gap(void)
     jaos_model_free(m);
 }
 
-/* The case the report used to have no way to describe (D47).
+/* D47's case, which the checker used to certify and now rejects (D87).
  *
  *      min  -1e-7 * x2   s.t.  x1 + x2 <= 1e6,  x1, x2 >= 0, both free above
  *
- * The optimum is -0.1 at x = (0, 1e6). Offer the checker the origin with a
- * zero row dual and every number it reports is zero — including gap_positive,
- * which jaos.h documents as bounding P - P*. The true suboptimality is 0.1,
- * which is 1e5 tolerances. Raising the row's bound raises it without limit
- * and changes not one of the numbers.
+ * The optimum is -0.1 at x = (0, 1e6). Offered the origin with a zero row
+ * dual, every number the checker reported used to be zero — including
+ * gap_positive, which jaos.h documents as bounding P - P*, on a point 0.1
+ * away from optimal. Raising the row's bound raised the suboptimality without
+ * limit and changed not one of them.
  *
- * The reason is one line in sign_condition: x2's reduced cost of -1e-7 points
+ * The cause was one line in sign_condition: x2's reduced cost of -1e-7 points
  * at an upper bound that does not exist, so the term it owes the dual
- * objective is minus infinity, and dropping it leaves a sum that belongs to a
- * different problem. Nothing local can separate this from roundoff — what
- * makes it cost 0.1 is how far x2 would travel, which is a property of the
- * polytope — so the report says the sum was incomplete rather than pretending
- * to judge it.
+ * objective is minus infinity and was dropped, leaving a sum belonging to a
+ * different problem.
  *
- * Both halves are asserted. The zeros, because they are still the honest
- * output and a future change that quietly made them nonzero would be
- * inventing a violation. And gap_certified, because without it this report
- * claims a bound it cannot prove. */
-static void test_a_dropped_term_is_reported_rather_than_certified(void)
+ * **What closed it is that the bound does exist — the row implies it.** With
+ * x1 held at its own lower bound of 0, `x1 + x2 <= 1e6` gives `x2 <= 1e6`,
+ * and every feasible point already satisfies that, so adding it changes
+ * neither the feasible region nor P*. The term is then `-1e-7 * 1e6` and
+ * gap_positive is 0.1 — the true suboptimality exactly, and reached with no
+ * basis, no factorization and no reference value.
+ *
+ * This test previously asserted the zeros and `gap_certified == false`, which
+ * pinned the defect as the honest description of a checker that could not do
+ * better. It is re-pinned deliberately: the numbers below are the repair, and
+ * a future change that returned them to zero would be reopening D47. */
+static void test_an_implied_bound_makes_the_dropped_term_finite(void)
 {
     const double c[] = {0.0, -1e-7};
     const double cl[] = {0.0, 0.0}, cu[] = {INFINITY, INFINITY};
@@ -276,22 +280,24 @@ static void test_a_dropped_term_is_reported_rather_than_certified(void)
     TEST_ASSERT_EQUAL_INT(JAOS_OK,
         jaos_check_solution(m, origin, y0, 1e-6, &r));
 
-    /* Everything reads zero, on a point 0.1 away from optimal. */
+    /* Feasible, and refused — which is the whole point of the entry. */
     TEST_ASSERT_TRUE(r.primal_feasible);
-    TEST_ASSERT_TRUE(r.dual_feasible);
-    TEST_ASSERT_DOUBLE_WITHIN(1e-15, 0.0, r.max_dual_violation);
-    TEST_ASSERT_DOUBLE_WITHIN(1e-15, 0.0, r.objective_gap);
-    TEST_ASSERT_DOUBLE_WITHIN(1e-15, 0.0, r.gap_positive);
+    TEST_ASSERT_FALSE(r.dual_feasible);
+
+    /* The bound is now a bound, and it is the true suboptimality to the digit
+     * rather than an order of magnitude near it. */
+    TEST_ASSERT_DOUBLE_WITHIN(1e-12, 0.1, r.gap_positive);
     TEST_ASSERT_DOUBLE_WITHIN(1e-15, 0.0, r.gap_negative);
 
-    /* And the report now says so instead of leaving the bound to be believed. */
-    TEST_ASSERT_FALSE(r.gap_certified);
-    TEST_ASSERT_EQUAL_INT64(1, r.dropped_terms);
-    TEST_ASSERT_DOUBLE_WITHIN(1e-15, 1e-7, r.max_dropped_multiplier);
+    /* And the identity is complete, so the bound may be believed: nothing was
+     * dropped, because nothing had to be. */
+    TEST_ASSERT_TRUE(r.gap_certified);
+    TEST_ASSERT_EQUAL_INT64(0, r.dropped_terms);
+    TEST_ASSERT_DOUBLE_WITHIN(1e-15, 0.0, r.max_dropped_multiplier);
 
-    /* And it says how much: x2 can travel to 1e6 with x1 held at 0, which the
-     * row permits exactly, and 1e-7 * 1e6 is 0.1 — the whole suboptimality,
-     * recovered without a basis, a factorization or a reference value. */
+    /* The suboptimality is now carried by gap_positive rather than by the
+     * single-column certificate, which D73 refuted as a verdict for reading
+     * ~1e-25 at a vertex. It still reports what one column alone can prove. */
     TEST_ASSERT_DOUBLE_WITHIN(1e-12, 0.1, r.certified_suboptimality);
 
     /* The case it must NOT flag: the same model at its true optimum, where
@@ -676,7 +682,7 @@ int main(void)
     RUN_TEST(test_t2_flags_wrong_dual_magnitude);
     RUN_TEST(test_a_tiny_multiplier_on_a_large_bound_still_counts);
     RUN_TEST(test_a_waived_sign_condition_is_still_caught_by_the_gap);
-    RUN_TEST(test_a_dropped_term_is_reported_rather_than_certified);
+    RUN_TEST(test_an_implied_bound_makes_the_dropped_term_finite);
     RUN_TEST(test_an_unbounded_ray_is_counted_unless_its_rate_is_real);
     RUN_TEST(test_check_rejects_bad_arguments);
     return UNITY_END();

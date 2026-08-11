@@ -228,6 +228,130 @@ static long double certified_step(const jaos_model *m, int64_t j, double dir,
     return t;
 }
 
+/* The bounds the constraints imply for a variable the model left unbounded.
+ *
+ * **Why this closes D47's hole, and why it needs no factorization.** The dual
+ * objective's term for a variable is `w * bound`, and where the bound on the
+ * improving side is infinite the term is minus infinity: `sign_condition`
+ * drops it, and `gap_positive` stops being the bound `jaos.h` documents.
+ * D47 read that as needing the simplex direction — how far the variable can
+ * actually travel — and costed route B at a basis and a factorization inside
+ * the checker, which D18 forbids taking from the solver.
+ *
+ * It does not need one. The rows already bound the variable, and reading that
+ * off them uses nothing but the model. From `rl <= sum_k a_ik x_k <= ru`,
+ * holding every other variable inside its own box gives a finite range for
+ * `x_j` whenever the rest of the row is bounded the right way — the standard
+ * activity-based tightening presolve does, applied here for a different
+ * purpose.
+ *
+ * **The bound it derives is implied, not imposed, and that is what makes it
+ * sound.** Every feasible point already satisfies it, so adding it changes
+ * neither the feasible region nor `P*`. A dual bound valid for the tightened
+ * problem is therefore valid for the original — which is exactly the claim
+ * `gap_positive` makes and could not support.
+ *
+ * On D47's own constructed case — `min -1e-7 x2` subject to `x1 + x2 <= 1e6`
+ * with both variables non-negative and neither bounded above — the row gives
+ * `x2 <= 1e6`, the dropped term becomes `-1e-7 * 1e6`, and `gap_positive`
+ * goes from 0 to **0.1**, which is the true suboptimality exactly.
+ *
+ * Where the rows imply nothing the bound stays infinite and the term is still
+ * dropped. That is the honest outcome and it is counted as before: this
+ * narrows the hole to the cases that genuinely have no finite lever, it does
+ * not pretend to close all of them.
+ *
+ * Accumulated in `long double` for the reason the rest of this file is: the
+ * oracle's rounding has to sit below what it judges. Terms that are infinite
+ * are counted rather than summed, so one unbounded variable in a row does not
+ * poison the bound for the others — the row can still bound `x_j` when `x_j`
+ * is the only unbounded term in it. */
+static void implied_bounds(const jaos_model *m, double *cl, double *cu,
+                           long double *lo_sum, long double *up_sum,
+                           int64_t *lo_inf, int64_t *up_inf)
+{
+    const int64_t nr = m->num_row, nc = m->num_col;
+
+    for (int64_t i = 0; i < nr; i++) {
+        lo_sum[i] = 0.0L;
+        up_sum[i] = 0.0L;
+        lo_inf[i] = 0;
+        up_inf[i] = 0;
+    }
+
+    /* Each row's activity range over the column boxes, infinities counted
+     * rather than propagated. */
+    for (int64_t j = 0; j < nc; j++) {
+        const double xl = m->col_lower[j], xu = m->col_upper[j];
+        for (int64_t k = m->a_start[j]; k < m->a_start[j + 1]; k++) {
+            const int64_t i = m->a_index[k];
+            const double aij = m->a_value[k];
+            const double t_lo = aij > 0.0 ? xl : xu;
+            const double t_up = aij > 0.0 ? xu : xl;
+            if (isfinite(t_lo))
+                lo_sum[i] += (long double)aij * t_lo;
+            else
+                lo_inf[i]++;
+            if (isfinite(t_up))
+                up_sum[i] += (long double)aij * t_up;
+            else
+                up_inf[i]++;
+        }
+    }
+
+    for (int64_t j = 0; j < nc; j++) {
+        cl[j] = m->col_lower[j];
+        cu[j] = m->col_upper[j];
+        const bool want_lo = !isfinite(cl[j]), want_up = !isfinite(cu[j]);
+        if (!want_lo && !want_up)
+            continue;
+
+        const double xl = m->col_lower[j], xu = m->col_upper[j];
+        for (int64_t k = m->a_start[j]; k < m->a_start[j + 1]; k++) {
+            const int64_t i = m->a_index[k];
+            const double aij = m->a_value[k];
+            if (aij == 0.0)
+                continue;
+
+            /* This column's own share of each end of the row's range, and
+             * whether the rest of the row is finite once it is taken out. */
+            const double t_lo = aij > 0.0 ? xl : xu;
+            const double t_up = aij > 0.0 ? xu : xl;
+            const bool rest_lo_finite =
+                lo_inf[i] == (isfinite(t_lo) ? 0 : 1);
+            const bool rest_up_finite =
+                up_inf[i] == (isfinite(t_up) ? 0 : 1);
+            const long double rest_lo =
+                lo_sum[i] - (isfinite(t_lo) ? (long double)aij * t_lo : 0.0L);
+            const long double rest_up =
+                up_sum[i] - (isfinite(t_up) ? (long double)aij * t_up : 0.0L);
+
+            /* a_ij x_j <= ru - min(rest)  and  a_ij x_j >= rl - max(rest).
+             * Dividing by a_ij swaps the two when it is negative. */
+            if (rest_lo_finite && isfinite(m->row_upper[i])) {
+                const long double lim =
+                    ((long double)m->row_upper[i] - rest_lo) / aij;
+                if (aij > 0.0) {
+                    if (want_up && (double)lim < cu[j])
+                        cu[j] = (double)lim;
+                } else if (want_lo && (double)lim > cl[j]) {
+                    cl[j] = (double)lim;
+                }
+            }
+            if (rest_up_finite && isfinite(m->row_lower[i])) {
+                const long double lim =
+                    ((long double)m->row_lower[i] - rest_up) / aij;
+                if (aij > 0.0) {
+                    if (want_lo && (double)lim > cl[j])
+                        cl[j] = (double)lim;
+                } else if (want_up && (double)lim < cu[j]) {
+                    cu[j] = (double)lim;
+                }
+            }
+        }
+    }
+}
+
 static double sign_condition(double v, double lo, double hi, double w,
                              double tol, double scale, dual_acc *a)
 {
@@ -365,11 +489,39 @@ jaos_status jaos_check_solution(const jaos_model *m,
         dual_acc a = {0};
         a.dual_obj = sigma * m->obj_offset;   /* canonical offset */
 
-        for (int64_t i = 0; i < m->num_row; i++)
+        /* What the constraints imply about the variables the model left
+         * unbounded, which is what stops the dual objective's term for them
+         * being minus infinity (D87). Allocation failure is not fatal: the
+         * bounds fall back to the model's own and the checker behaves exactly
+         * as it did before, which is a weaker report rather than a wrong one.
+         *
+         * A row's own range comes free with them — it is the activity range
+         * over the column boxes, which `implied_bounds` computes on the way —
+         * so a free row's multiplier stops being dropped too. */
+        double *icl = jm_calloc_array(m->num_col, sizeof(double));
+        double *icu = jm_calloc_array(m->num_col, sizeof(double));
+        long double *rlo = jm_calloc_array(m->num_row, sizeof(long double));
+        long double *rup = jm_calloc_array(m->num_row, sizeof(long double));
+        int64_t *rli = jm_calloc_array(m->num_row, sizeof(int64_t));
+        int64_t *rui = jm_calloc_array(m->num_row, sizeof(int64_t));
+        const bool implied = icl != nullptr && icu != nullptr &&
+                             rlo != nullptr && rup != nullptr &&
+                             rli != nullptr && rui != nullptr;
+        if (implied)
+            implied_bounds(m, icl, icu, rlo, rup, rli, rui);
+
+        for (int64_t i = 0; i < m->num_row; i++) {
+            double rl = m->row_lower[i], ru = m->row_upper[i];
+            if (implied) {
+                if (!isfinite(rl) && rli[i] == 0)
+                    rl = (double)rlo[i];
+                if (!isfinite(ru) && rui[i] == 0)
+                    ru = (double)rup[i];
+            }
             dual_viol = max2(dual_viol,
-                sign_condition((double)act[i], m->row_lower[i],
-                               m->row_upper[i], sigma * row_dual[i], tol,
-                               max2(1.0, (double)traffic[i]), &a));
+                sign_condition((double)act[i], rl, ru, sigma * row_dual[i],
+                               tol, max2(1.0, (double)traffic[i]), &a));
+        }
 
         for (int64_t j = 0; j < m->num_col; j++) {
             /* Reduced cost d_j = c_j - a_j' y, canonicalized. */
@@ -382,7 +534,9 @@ jaos_status jaos_check_solution(const jaos_model *m,
              * the ordinary mixed absolute/relative form and not the argument
              * above. The row case is the one that needed it. */
             dual_viol = max2(dual_viol,
-                sign_condition(col_value[j], m->col_lower[j], m->col_upper[j],
+                sign_condition(col_value[j],
+                               implied ? icl[j] : m->col_lower[j],
+                               implied ? icu[j] : m->col_upper[j],
                                sigma * d, tol, max2(1.0, fabs(col_value[j])),
                                &a));
 
@@ -451,6 +605,13 @@ jaos_status jaos_check_solution(const jaos_model *m,
         out->gap_positive = (double)a.pos;
         out->gap_negative = (double)a.neg;
         out->dual_feasible = dual_viol <= tol && gap <= tol;
+
+        free(icl);
+        free(icu);
+        free(rlo);
+        free(rup);
+        free(rli);
+        free(rui);
     }
 
     free(act);
