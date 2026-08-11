@@ -2334,6 +2334,15 @@ static void test_a_status_whose_bound_was_retired(void)
     TEST_ASSERT_NOT_NULL(strstr(g_start_line, "the basis on the model"));
     jaos_model_free(m);
 
+    /* Take *both* bounds away and the row's logical has nowhere to rest but
+     * zero, which pins that row's activity — and therefore x — at zero. This
+     * used to abandon the warm start, because the method could not price a
+     * free nonbasic back off zero and published 6 where the optimum is 4.
+     *
+     * It is D68's own example, and it is now the case that proves the two
+     * repairs meet: D85 taught the primal clean-up to move a free column in
+     * the direction its reduced cost points, so D90 could stop refusing to
+     * create one. The warm start holds and the answer is still 4. */
     m = fresh();
     load_warm_model(m, 1.5);
     solve_and_verify(m, 4.5);
@@ -2342,7 +2351,7 @@ static void test_a_status_whose_bound_was_retired(void)
     TEST_ASSERT_EQUAL_INT(JAOS_OK,
         jaos_set_row_bounds(m, 2, -INFINITY, INFINITY));
     solve_and_verify(m, 4.0);
-    TEST_ASSERT_NOT_NULL(strstr(g_start_line, "the slack basis"));
+    TEST_ASSERT_NOT_NULL(strstr(g_start_line, "the basis on the model"));
     jaos_model_free(m);
 }
 

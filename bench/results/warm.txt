@@ -16,7 +16,7 @@ boeing2      ok        branch=x9<=4 warm=1/17853 cold=108/315345 verdict=optimal
 bore3d       ok        branch=x0<=2 warm=10/62948 cold=199/880723 verdict=infeasible obj=0/0 before=1373.0803942084929 moved=yes 
 brandy       ok        branch=x0<=73 warm=3/63561 cold=273/1877226 verdict=optimal obj=1518.7456302031273/1518.7456302031276 before=1518.5098964881283 moved=yes 
 capri        ok        branch=x0<=5071 warm=1/32641 cold=339/822171 verdict=optimal obj=2690.0407563712965/2690.040756371297 before=2690.0129137681606 moved=yes 
-cycle        ok        branch=x2<=16 warm=1537/19993693 cold=1537/19993693 verdict=optimal obj=-5.2263930248941017/-5.2263930248941017 before=-5.2263930248941008 moved=yes 
+cycle        ok        branch=x2<=16 warm=16/2221915 cold=1537/19993693 verdict=optimal obj=-5.2263930248941017/-5.2263930248941017 before=-5.2263930248941008 moved=yes 
 czprob       ok        branch=x819<=190 warm=1/73767 cold=1425/19086680 verdict=optimal obj=2185196.733483748/2185196.7334837476 before=2185196.6988565782 moved=yes 
 d2q06c       ok        branch=x2<=133344 warm=1/642080 cold=20579/1731656019 verdict=optimal obj=122784.21081763944/122784.21081763945 before=122784.21081418933 moved=yes 
 d6cube       ok        branch=x93<=2 warm=1/285416 cold=440/26445928 verdict=optimal obj=315.49166666666673/315.49166666666684 before=315.4916666666669 moved=yes 
@@ -51,7 +51,7 @@ pilot        ok        branch=x3<=1018 warm=1/5495642 cold=22149/4504642188 verd
 pilot-ja     ok        branch=x2<=4 warm=1/532418 cold=2455/102419889 verdict=optimal obj=-6113.1312252141543/-6113.1312252141543 before=-6113.1364655813441 moved=yes 
 pilot-we     ok        branch=x0<=58 warm=23/1009573 cold=6326/230829362 verdict=optimal obj=-2719100.4894629596/-2719100.48946296 before=-2720107.5328449644 moved=yes 
 pilot4       ok        branch=x0<=0 warm=5/237874 cold=723/17939138 verdict=optimal obj=-2578.6069820768162/-2578.6069820768171 before=-2581.1392588838889 moved=yes 
-pilot87      ok        branch=x0<=8 warm=838/759755913 cold=120075/61322758828 verdict=optimal obj=301.77550257870354/301.77545866851051 before=301.71038732387791 moved=yes 
+pilot87      REJECTED  branch=x0<=8 warm=838/759755913 cold=120075/61322758828 verdict=optimal obj=301.77550257870354/301.77545866851051 before=301.71038732387791 moved=yes checker
 pilotnov     ok        branch=x2<=2 warm=2/271619 cold=3135/113945345 verdict=infeasible obj=0/0 before=-4497.2761882188879 moved=yes 
 recipe       skipped   every
 sc105        ok        branch=x1<=10 warm=1/13024 cold=105/132908 verdict=optimal obj=-52.100751786731252/-52.100751786731252 before=-52.202061211707246 moved=yes 
@@ -95,11 +95,11 @@ wood1p       ok        branch=x1944<=0 warm=103/10094015 cold=358/28933602 verdi
 woodw        ok        branch=x11<=0 warm=1/183416 cold=1721/92337153 verdict=optimal obj=1.3088124471865625/1.308812447186563 before=1.3044763330842295 moved=yes 
 
 -- warm against cold --
-measured 92, skipped 2, disagreed 0, rejected 0, errors 0
-iterations (warm+1)/(cold+1), geometric mean: 0.0055
-work units warm/cold, geometric mean:         0.0166
+measured 91, skipped 2, disagreed 0, rejected 1, errors 0
+iterations (warm+1)/(cold+1), geometric mean: 0.0052
+work units warm/cold, geometric mean:         0.0162
 work ratio, best  maros-r7 at 0.0001
-work ratio, worst cycle at 1.0000
-reached the optimum in no iterations at all:  1 of 92
-took more iterations warm than cold:          0 of 92
-the branch moved the optimum:                 85 of 92
+work ratio, worst afiro at 0.5688
+reached the optimum in no iterations at all:  1 of 91
+took more iterations warm than cold:          0 of 91
+the branch moved the optimum:                 84 of 91

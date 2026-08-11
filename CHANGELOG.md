@@ -241,6 +241,15 @@ open, `bench/README.md` for the gate, and the commit each entry came from.
 
 ### Changed
 
+- **A warm start no longer refuses a basis with a free nonbasic.** D68 put
+  that refusal in because the method could not price such a column back off
+  zero and would publish a suboptimal point as OPTIMAL; D85 repaired that, so
+  the refusal lost its premise. `cycle` goes from paying the full cold price —
+  1537 iterations, its warm figures identical to its cold ones — to 16
+  iterations and a ninth of the work. All 139 digests unmoved, since no cold
+  solve reaches this code. The test that pinned the refusal now pins the
+  repair, on D68's own example (D90).
+
 - **The re-entry loop publishes its best round rather than its last.** On a
   trajectory that oscillates the two are different, and which one got
   published was decided by where `SETTLE_ROUNDS` happened to fall. "Best" is

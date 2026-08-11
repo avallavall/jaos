@@ -95,6 +95,7 @@ and you have the argument. Jump to the entry for the numbers behind it.
 - **[D87](#d87-the-checker-bounds-what-the-rows-imply-which-closes-d47s-constructed-case-and-not-its-real-one)** — The checker bounds what the rows imply, which closes D47's constructed case and not its real one
 - **[D88](#d88-the-gate-watches-the-dropped-term-because-the-checker-cannot-judge-it-and-the-predicate-cannot-see-it)** — The gate watches the dropped term, because the checker cannot judge it and the predicate cannot see it
 - **[D89](#d89-the-re-entry-loop-keeps-its-best-round-and-best-is-defensible-before-it-is-close)** — The re-entry loop keeps its best round, and "best" is defensible before it is close
+- **[D90](#d90-the-warm-start-stops-refusing-a-free-nonbasic-because-the-defect-it-was-avoiding-is-fixed)** — The warm start stops refusing a free nonbasic, because the defect it was avoiding is fixed
 
 ---
 
@@ -6081,3 +6082,80 @@ in order to repair, and repaying is what creates the next round's work — and
 D74 refuted the obvious cure by measuring that removing the loan costs
 `pilot87` 2.372x its iterations. Nothing here changes that. What this removes
 is the consequence, which is the answer being chosen by a counter.
+
+---
+
+## D90 — The warm start stops refusing a free nonbasic, because the defect it was avoiding is fixed
+
+### The question
+
+D68 made `build_warm_basis` abandon any handed-in basis containing a nonbasic
+variable with neither bound. The reason was not tidiness and was written down
+at the time: such a variable rests at zero, which for a row's logical pins
+that row's activity at zero — a constraint the model does not have — and the
+method could not always price it back off. `wants_a_pivot` read a free
+nonbasic as sitting at an upper bound, so it repaired a positive reduced cost
+and dropped a negative one, and the point was published as OPTIMAL when it was
+not. That was carried defect 4.
+
+D85 repaired it. The premise of the refusal was therefore gone, and the price
+of keeping it had been measured two milestones earlier: D69 found `cycle`
+losing its **entire** warm start to it, one instance in 92.
+
+### What it buys
+
+| `cycle` | warm | cold |
+|---|---|---|
+| before | 1537 iterations, 19,993,693 units | 1537, 19,993,693 |
+| **after** | **16 iterations, 2,221,915 units** | 1537, 19,993,693 |
+
+Before the lift the warm figures *are* the cold ones, which is what a refused
+warm start looks like: the solve fell back and paid for the whole thing again.
+After it, 16 iterations against 1537 — **96x fewer**, and 9x less work.
+
+Over the standard set the geometric means improve from 0.0055 to **0.0052**
+in iterations and 0.0166 to **0.0162** in work. Small, because one instance in
+92 moved; the point is that the instance that moved went from paying full
+price to paying nothing.
+
+All three gates PASS with 0 regressed and every digest byte-identical: no cold
+solve reaches this code, so the acceptance record cannot move.
+
+### The test that proves the two repairs meet
+
+`test_a_status_whose_bound_was_retired` asserted that retiring both of a row's
+bounds sent the next solve to the slack basis — it pinned the refusal. It is
+re-pinned to assert the warm start now holds, and it is worth saying which
+model it uses: `min 2x + 3y` subject to `x + y >= 2` with a second row relaxed
+to free. **That is D68's own example**, the one whose comment said it would
+publish 6 where the optimum is 4. It publishes 4, from the warm basis.
+
+So the case that documented the defect is now the case that demonstrates the
+repair, which is the tightest form this kind of evidence takes.
+
+### What the campaign also turned up, and it belongs to D87
+
+`make warm` exits nonzero on one checker rejection: `pilot87`. That is **not
+this change**. Built from each of the last three commits in turn:
+
+| tree | rejections |
+|---|---|
+| D86, the stability trigger | **0** |
+| D87, the checker's implied bounds | **1** |
+| D89, the re-entry criterion | 1 |
+| this | 1 |
+
+and the trajectory figures are identical in all four — `warm=838/759755913`
+against `cold=120075/61322758828` — so the solver did not move. The verdict
+did.
+
+**And the verdict is right.** `pilot87`'s warm answer is 301.77550257870354
+against the cold 301.77545866851051: the warm point is **4.4e-5 worse**, which
+is a genuine suboptimality the checker used to accept in silence. D87 is what
+made it visible, on an instance nobody constructed. That is the first evidence
+that the implied bound catches something beyond D47's built case, and it
+arrived from a campaign aimed at a different question entirely.
+
+It is left failing rather than papered over. A checker rejection is what the
+warm campaign should report, and `make warm` is not a gate (it reports a
+ratio, not a verdict), so nothing downstream is blocked by it.

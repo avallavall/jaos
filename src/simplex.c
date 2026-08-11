@@ -765,31 +765,20 @@ static void build_initial_basis(sx *s)
  * bound a variable was resting on, and a variable pinned to infinity has no
  * value. It is moved to its other bound.
  *
- * **When there is no other bound the whole warm start is abandoned.** A
- * nonbasic variable with no bounds rests at zero, and for the logical of a row
- * that means the row's activity is pinned at zero — a constraint the model
- * does not have.
+ * **A nonbasic with no bounds is accepted, and rests free at zero (D90).**
+ * That used to abandon the whole warm start, and the reason was real: the
+ * method could not always price such a variable back off zero. `wants_a_pivot`
+ * read a free nonbasic as sitting at an upper bound, so it repaired a positive
+ * reduced cost and left a negative one alone, and the point was then published
+ * as OPTIMAL when it was not. D85 repaired that — both it and
+ * `primal_ratio_test` read the sign of the reduced cost now — so the premise
+ * of the refusal is gone and the refusal went with it.
  *
- * **The reason this refusal was written no longer holds, and it is kept for
- * now anyway (D85).** It went in because the method could not always price
- * such a variable back off zero: `wants_a_pivot` read a free nonbasic as
- * sitting at an upper bound, so it repaired a positive reduced cost and left a
- * negative one alone, and the point was then published as OPTIMAL when it was
- * not. That is repaired — both it and `primal_ratio_test` read the sign of the
- * reduced cost now — and the primal clean-up brings a free column back in.
- *
- * What is left is a question about warm starting rather than about
- * correctness, and it is open rather than settled: lifting this refusal moves
- * warm trajectories, so it cannot be judged by the gate's unmoved digests the
- * way D85 was, and it needs the warm campaigns. The prize is measured — D69
- * says `cycle`, one instance in 92, loses its entire warm start here. PLAN.md
- * carries it under the repair that closed the defect.
- *
- * The narrower case follows the same rule while it stands: a basis whose
- * stored status was already free — a variable that had no bounds when the
- * basis was recorded and still has none — is refused too, even though its
- * reduced cost was zero at the optimum it came from, because nothing here can
- * know whether a cost or a coefficient has moved since.
+ * What it costs is one row's worth of care: a free nonbasic pins its row's
+ * activity at zero, which is a constraint the model does not have, and the
+ * primal clean-up is what unpins it. What it buys was measured before it was
+ * taken: D69 found `cycle` losing its entire warm start to this refusal, one
+ * instance in 92.
  *
  * A set of columns that no longer factors is repaired rather than refused, and
  * nothing here can see it — refresh's repair_singular_basis does, and puts
@@ -835,11 +824,8 @@ static bool build_warm_basis(sx *s)
         jaos_basis_status want =
             v < s->ncol ? m->start_col_status[v]
                         : m->start_row_status[v - s->ncol];
-        if (want == JAOS_BASIS_BASIC) {
+        if (want == JAOS_BASIS_BASIC)
             nbasic++;
-        } else if (!isfinite(s->lo[v]) && !isfinite(s->up[v])) {
-            return false;   /* nowhere to rest but zero; see above */
-        }
     }
     if (nbasic != s->nrow)
         return false;
@@ -857,16 +843,18 @@ static bool build_warm_basis(sx *s)
             continue;
         }
 
-        /* Every nonbasic has at least one finite bound; the pass above
-         * refused the basis otherwise. The stored side is kept when it is
-         * still there, and the other one taken when it is not. */
+        /* The stored side is kept when it is still there, the other one taken
+         * when it is not, and **free when there is neither** — which is a
+         * point the method can now price off zero (D90). */
         s->where[v] = -1;
         if (want == JAOS_BASIS_AT_UPPER && isfinite(s->up[v]))
             s->status[v] = JM_AT_UPPER;
         else if (isfinite(s->lo[v]))
             s->status[v] = JM_AT_LOWER;
-        else
+        else if (isfinite(s->up[v]))
             s->status[v] = JM_AT_UPPER;
+        else
+            s->status[v] = JM_FREE;
     }
 
     for (int64_t i = 0; i < s->nrow; i++)

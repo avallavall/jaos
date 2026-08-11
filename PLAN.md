@@ -739,20 +739,30 @@ reaches rather than a trajectory.
    OPTIMAL** on a model whose optimum is -6, breaking a promise `jaos_set_basis`
    makes in the header.
 
-### Left open by that repair
+### Taken after it, and it paid (D90)
 
-**Whether the warm start still has to refuse a free nonbasic.**
-`build_warm_basis` abandons any handed-in basis containing a nonbasic
-variable with neither bound, and D68 put that refusal there *because of*
-defect 4 — the comment beside it names the defect as its own repair. The
-premise is now gone and the prize is measured: `cycle`, one instance in 92,
-loses its entire warm start to it (D69).
+**The warm start no longer refuses a free nonbasic.** `build_warm_basis`
+abandoned any handed-in basis containing a nonbasic variable with neither
+bound, and D68 put that refusal there *because of* defect 4 — the comment
+beside it named the defect as its own repair. With the defect closed the
+refusal lost its premise, and the prize D69 measured was collected: `cycle`
+goes from **1537 warm iterations, identical to its cold ones**, to **16**, and
+from 19,993,693 work units to 2,221,915. Set means improve 0.0055 to 0.0052
+and 0.0166 to 0.0162. All three gates PASS with every digest unmoved, since no
+cold solve reaches this code.
 
-Not taken with the repair, deliberately. It is a second change; unlike D85 it
-moves warm trajectories rather than nothing at all, so it cannot be judged by
-139 unmoved digests. It needs `make warm` and `make warm-kennington` beside
-the gate, with the ratios reported as geometric means of per-instance ratios
-(D46).
+The test that pinned the refusal now pins the repair, and it uses D68's own
+example — the model whose comment said it would publish 6 where the optimum is
+4. It publishes 4, from the warm basis.
+
+**One thing the campaign surfaced belongs elsewhere.** `make warm` exits
+nonzero on a checker rejection of `pilot87`, and building each of the last
+three commits in turn puts it on D87 rather than on this: 0 rejections at D86,
+1 from D87's implied bounds onward, with the trajectory figures identical in
+all four. The rejection is correct — `pilot87`'s warm answer is 4.4e-5 worse
+than its cold one, a real suboptimality the checker used to accept in silence.
+That is the first evidence D87 catches something outside D47's constructed
+case, and it came from a campaign aimed at another question.
 
 ---
 
