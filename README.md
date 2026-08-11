@@ -35,20 +35,26 @@ LU with Forrest-Tomlin updates, a dual simplex with steepest-edge pricing and
 a Harris ratio test, and an independent checker that verifies every answer
 against the original unscaled problem.
 
-A loaded model can be changed one bound, cost or coefficient at a time, and
-re-solving starts from the basis the previous solve reached rather than from
-scratch.
+A loaded model can be changed — one bound, cost or coefficient at a time, or
+by adding and deleting whole rows and columns — and re-solving starts from the
+basis the previous solve reached rather than from scratch. A solve can be
+watched while it runs and stopped from the callback, and a stopped solve keeps
+its basis, so raising the limit and solving again continues instead of
+beginning.
 
 `SPECS.md` is the honest inventory: what exists, what does not, and what is
 only partly there.
 
 ## What it does not do
 
-There is no way to add or delete a row or a column after loading, write a
-file, or call it from anything but C. No presolve, no primal simplex, no
-barrier, no MILP. Thirty-six public functions, and the six that configure
-anything set the contract — two tolerances, two budgets, and where the output
-goes and how much of it there is — never the method.
+There is no way to write a file, or to call it from anything but C. No
+presolve, no primal simplex, no barrier, no MILP. Forty-one public functions,
+and the seven that configure anything set the contract — two tolerances, two
+budgets, where the output goes and how much of it there is, and who gets asked
+whether to carry on — never the method. Which pricing rule runs, when to
+refactorize and whether a sparse or a dense path is cheaper are the solver's
+to decide, and every such constant in it is measured and fixed rather than
+exposed.
 
 ## Build and test
 
@@ -100,6 +106,13 @@ it, measure it there rather than assuming; on this one it did not pay.
 
 **`LTO=0`** drops `-flto` for a toolchain whose binutils have no linker
 plugin. You lose the 3.3%.
+
+**`EXTRA_CFLAGS`** is empty in every shipping build and exists for one job:
+sweeping a method constant over a range without editing the source between
+runs, which is the only kind of constant this project accepts. It is a
+development switch and not an option — which pricing rule runs is the method.
+Note that `make` cannot see a flag change, so a sweep must `make clean`
+between settings or it measures one binary several times.
 
 The archive is built with `gcc-ar`, not `ar`, because an archive of LTO
 objects keeps its symbols where only the plugin can see them. A consumer

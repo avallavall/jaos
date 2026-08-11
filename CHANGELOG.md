@@ -24,18 +24,6 @@ open, `bench/README.md` for the gate, and the commit each entry came from.
   keeps the basis it stopped on, so solving again resumes instead of starting
   over (D79).
 
-### Fixed
-
-- **Loading a problem no longer discards the logging callback.** A model
-  configured before it was loaded lost `jaos_set_log_callback` and
-  `jaos_set_log_level` in silence — the natural order to write it in, and
-  broken since logging landed. The list of settings that survived a load was
-  the defect rather than its contents: the comment beside it had already
-  warned that a setting added without being added to the list would be lost,
-  and that is exactly what happened to the next setting added. Configuration
-  is now one sub-struct that the load saves and restores whole, so there is
-  nothing left to forget. All 139 digests unmoved (D78).
-
 - `jaos_add_rows`, `jaos_add_cols`, `jaos_delete_rows` and
   `jaos_delete_cols`: the problem itself can grow and shrink, not only its
   numbers. Additions append, so no existing index moves and the prefix of
@@ -215,7 +203,41 @@ open, `bench/README.md` for the gate, and the commit each entry came from.
   `make netlib-baseline` rewrites it and is never a side effect of running
   the gate (D21).
 
+### Benchmark harness
+
+- **Rungs T1 to T3, and Clp as a third competitor.** The ladder now says what
+  the missing features are worth: free algorithm choice **nothing**, on
+  iteration counts identical to being forced; presolve **1.42x** against HiGHS
+  and **1.14x** against SoPlex; stock defaults nothing further (D81). Clp
+  builds through its own pinned CoinUtils and Osi chain, and its reading is
+  the point of having a third: the rivals disagree about JAOS's iteration
+  count — 1.47x, 0.70x, 1.67x — and agree about the cost of an iteration —
+  2.54x, 1.92x, 2.26x (D83).
+
+- **The comparison was timing a warm re-solve.** It solves each model N times
+  and keeps the fastest, and once a solve began leaving its basis behind every
+  repeat after the first re-solved warm in one iteration and the minimum
+  picked it — `25fv47` recorded 0.0015s and 0 iterations against a true 0.49s
+  and 9459. The basis is cleared before each timed solve now, and the driver
+  checks itself: cold repeats are bit-identical, so a disagreement in
+  iterations or work aborts rather than being averaged in. No library code was
+  involved and no committed figure was affected (D80).
+
+- `EXTRA_CFLAGS` on the release and dev builds, empty in every shipping build,
+  so a method constant can be swept over a range without editing the source
+  between runs.
+
 ### Fixed
+
+- **Loading a problem no longer discards the logging callback.** A model
+  configured before it was loaded lost `jaos_set_log_callback` and
+  `jaos_set_log_level` in silence — the natural order to write it in, and
+  broken since logging landed. The list of settings that survived a load was
+  the defect rather than its contents: the comment beside it had already
+  warned that a setting added without being added to the list would be lost,
+  and that is exactly what happened to the next setting added. Configuration
+  is now one sub-struct that the load saves and restores whole, so there is
+  nothing left to forget. All 139 digests unmoved (D78).
 
 - A solve that failed reported none of what it did. The three counts —
   refactorizations, weight restarts, stalls — were logged on the success
