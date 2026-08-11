@@ -68,7 +68,7 @@ missing.
 | Scaling | **done** | Curtis-Reid [11], geometric-mean equilibration as an option |
 | Hyper-sparsity in the triangular solves | **partial** | [9]: both solves report their pattern, the passes billed for every slot are not all reduced |
 | Presolve | **missing** | measured at 1.42x against HiGHS and 1.14x against SoPlex (D81) — real, and smaller than the 2.53x per-iteration gap no rung moves |
-| Primal simplex | **missing** | needed for crossover, for the warm starts the dual cannot serve, and for carried defect 4 — nothing can currently bring a nonbasic free variable back into the basis (D68). **Not a speed argument:** given free choice both rivals ran the dual on every instance, with iteration counts identical to being forced (D81) |
+| Primal simplex | **missing** | needed for crossover and for the warm starts the dual cannot serve. No longer needed for carried defect 4: the primal clean-up already owns a ratio test and a basis change, and reading the reduced cost's sign rather than the status is all a nonbasic free variable ever needed from it (D85). **Not a speed argument:** given free choice both rivals ran the dual on every instance, with iteration counts identical to being forced (D81) |
 | Crash basis | **missing** | [12]; measured once and refused: it destroys the exact starting steepest-edge weights the slack basis gives |
 | Partial and multiple pricing | **measured and refused** | [1]: both halves built and swept. The leaving-row sweep is the wrong thing to make cheaper — its units are the cheapest in the solver, and every scheme for scanning it less often pays in trajectory and in wrong answers (D82, D84) |
 | Barrier and crossover | **missing** | not optional at large scale |

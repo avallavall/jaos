@@ -2228,6 +2228,61 @@ static void test_a_hostile_basis_costs_iterations_and_not_the_answer(void)
     jaos_model_free(m);
 }
 
+/* A nonbasic free variable whose reduced cost is negative must not be
+ * invisible — the defect D68 recorded and PLAN.md carried as its fourth.
+ *
+ *   min -f      r0: f + 2g in [2, 6]      r1: h in [0, 1]
+ *   f free,     g in [0, 2],              h in [0, 1]
+ *
+ * The optimum is -6 at f = 6, g = 0, and a cold solve finds it.
+ *
+ * The hostile basis {f, g} is what reaches the state: both columns live in
+ * r0 alone, so it has rank 1, and repair_singular_basis evicts f — which has
+ * neither bound — to nonbasic free. That pins f at zero, and the point that
+ * results is *primal feasible*, so the dual method stops without an iteration
+ * and never gets the chance to price f back in. Everything then rests on the
+ * primal clean-up, which is where the defect lived: f's reduced cost is -1,
+ * and `wants_a_pivot` read a free variable as sitting at an upper bound, so
+ * it repaired a positive reduced cost and dropped a negative one.
+ *
+ * What this test asserts is the promise jaos_set_basis makes in the header:
+ * a hostile basis costs iterations and cannot produce a wrong verdict.
+ *
+ * Calibrated against the defect rather than written blind: before the repair
+ * this model published **0.0 with a verdict of OPTIMAL** — the checker caught
+ * the dual infeasibility, and nothing else did. Confirmed on an instrumented
+ * build, which also confirmed that the eviction happens and that
+ * `wants_a_pivot` returned false on a breach of 1. */
+static void test_a_free_nonbasic_with_a_negative_reduced_cost_is_repaired(void)
+{
+    const double inf = jaos_infinity();
+    const double cost[3] = {-1.0, 0.0, 0.0};
+    const double lo[3]   = {-inf, 0.0, 0.0};
+    const double up[3]   = { inf, 2.0, 1.0};
+    const double rlo[2]  = { 2.0, 0.0};
+    const double rup[2]  = { 6.0, 1.0};
+    const int64_t st[4]  = {0, 1, 2, 3};
+    const int64_t idx[3] = {0, 0, 1};
+    const double val[3]  = {1.0, 2.0, 1.0};
+
+    jaos_model *m = fresh();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_load_lp(m, 3, 2, JAOS_MINIMIZE, 0.0, cost, lo, up, rlo, rup,
+                     3, st, idx, val));
+
+    /* Cold first, so the expected value is the solver's own and not a number
+     * copied out of this comment. */
+    solve_and_verify(m, -6.0);
+
+    jaos_basis_status cs[3] = {JAOS_BASIS_BASIC, JAOS_BASIS_BASIC,
+                               JAOS_BASIS_AT_LOWER};
+    jaos_basis_status rs[2] = {JAOS_BASIS_AT_LOWER, JAOS_BASIS_AT_LOWER};
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_basis(m, cs, rs));
+
+    solve_and_verify(m, -6.0);
+    jaos_model_free(m);
+}
+
 /* Which start a solve took, read off the line it logs at JAOS_LOG_DETAIL.
  * The alternative is inferring it from an iteration count, which says the
  * same thing only when the warm basis happens to already be optimal. */
@@ -2462,6 +2517,7 @@ int main(void)
     RUN_TEST(test_a_warm_re_solve_agrees_with_a_cold_one);
     RUN_TEST(test_a_basis_handed_in_must_be_a_basis);
     RUN_TEST(test_a_hostile_basis_costs_iterations_and_not_the_answer);
+    RUN_TEST(test_a_free_nonbasic_with_a_negative_reduced_cost_is_repaired);
     RUN_TEST(test_a_status_whose_bound_was_retired);
     RUN_TEST(test_clearing_the_basis_makes_the_next_solve_cold);
     RUN_TEST(test_a_budget_stop_can_be_resumed);

@@ -714,26 +714,31 @@ static void build_initial_basis(sx *s)
  * bound a variable was resting on, and a variable pinned to infinity has no
  * value. It is moved to its other bound.
  *
- * **When there is no other bound the whole warm start is abandoned**, and that
- * is a limitation of this solver rather than tidiness. A nonbasic variable
- * with no bounds rests at zero, and for the logical of a row that means the
- * row's activity is pinned at zero — a constraint the model does not have. The
- * method then has to price it back off zero, and it cannot always: `can_move`
- * has nowhere to send a free variable, and `wants_a_pivot` reads one as
- * sitting at an upper bound, so it repairs a positive reduced cost and leaves
- * a negative one alone. Constructed, it returns OPTIMAL on a point that is
- * not: relaxing a row of `min 2x + 3y, x + y >= 2, x <= 1.5` to `x <= inf`
- * publishes 6 where the optimum is 4, because x is held at zero by a logical
- * nothing will move.
+ * **When there is no other bound the whole warm start is abandoned.** A
+ * nonbasic variable with no bounds rests at zero, and for the logical of a row
+ * that means the row's activity is pinned at zero — a constraint the model
+ * does not have.
  *
- * So a warm start refuses to create one. Two things follow, and both are
- * deliberate. A basis whose stored status was already free — a variable that
- * had no bounds when the basis was recorded and still has none — is refused
- * on the same rule, even though its reduced cost was zero at the optimum it
- * came from, because nothing here can know whether a cost or a coefficient has
- * moved since. And the defect itself is untouched: `build_initial_basis` and
- * `repair_singular_basis` both still produce free nonbasics, so it is reachable
- * without any of this and is recorded in PLAN.md as its own repair.
+ * **The reason this refusal was written no longer holds, and it is kept for
+ * now anyway (D85).** It went in because the method could not always price
+ * such a variable back off zero: `wants_a_pivot` read a free nonbasic as
+ * sitting at an upper bound, so it repaired a positive reduced cost and left a
+ * negative one alone, and the point was then published as OPTIMAL when it was
+ * not. That is repaired — both it and `primal_ratio_test` read the sign of the
+ * reduced cost now — and the primal clean-up brings a free column back in.
+ *
+ * What is left is a question about warm starting rather than about
+ * correctness, and it is open rather than settled: lifting this refusal moves
+ * warm trajectories, so it cannot be judged by the gate's unmoved digests the
+ * way D85 was, and it needs the warm campaigns. The prize is measured — D69
+ * says `cycle`, one instance in 92, loses its entire warm start here. PLAN.md
+ * carries it under the repair that closed the defect.
+ *
+ * The narrower case follows the same rule while it stands: a basis whose
+ * stored status was already free — a variable that had no bounds when the
+ * basis was recorded and still has none — is refused too, even though its
+ * reduced cost was zero at the optimum it came from, because nothing here can
+ * know whether a cost or a coefficient has moved since.
  *
  * A set of columns that no longer factors is repaired rather than refused, and
  * nothing here can see it — refresh's repair_singular_basis does, and puts
@@ -2322,14 +2327,28 @@ static void arm_reentry(sx *s)
  *
  * The two filters that do apply are the ones about whether there is
  * anything there: past DUAL_TOL, which is what the solver calls nonzero,
- * and above the rounding of the dot product that produced it (D27). */
+ * and above the rounding of the dot product that produced it (D27).
+ *
+ * **A nonbasic free variable is the other kind, and it used to be invisible
+ * here.** It has no bound in either direction, so it qualifies for the same
+ * reason `greenbea`'s ten do — only more so — and it is the one status whose
+ * reduced cost may be wrong in *either* sign, because zero is the only
+ * feasible value for it. The magnitude of the breach is therefore `|d|` and
+ * not a signed expression: the old form read a free variable as sitting at an
+ * upper bound, so it repaired a positive reduced cost and silently dropped a
+ * negative one, and a point held at zero by a column nothing would move was
+ * then published as OPTIMAL. `|d|` is what the two bounded cases already
+ * computed — `dual_breach` above has already established the sign for them —
+ * so this is the same number for everything except the case it repairs. */
 static bool wants_a_pivot(const sx *s, int64_t v)
 {
     if (dual_breach(s, v) == 0.0)
         return false;
-    double wrong_way = s->status[v] == JM_AT_LOWER ? -s->d[v] : s->d[v];
+    double wrong_way = fabs(s->d[v]);
     if (wrong_way <= NOISE_MARGIN * DBL_EPSILON * column_traffic(s, v))
         return false;
+    if (s->status[v] == JM_FREE)
+        return true;   /* no bound in either direction; nothing left to ask */
     return !isfinite(s->status[v] == JM_AT_LOWER ? real_upper(s, v)
                                                 : real_lower(s, v));
 }
@@ -2340,6 +2359,16 @@ static bool wants_a_pivot(const sx *s, int64_t v)
  * `-B^-1 M_q dx`. q travels upwards off a lower bound and downwards off an
  * upper one — the direction its reduced cost points — and each basic is
  * stopped by whichever of its bounds lies that way.
+ *
+ * **The direction is read off the reduced cost rather than off the status**,
+ * and that is the same rule stated once instead of twice. A column only
+ * reaches here past `wants_a_pivot`, which is past `dual_breach`, so at a
+ * lower bound `d` is already known negative and at an upper bound already
+ * positive — `d < 0` picks out exactly the two cases the status test used to
+ * name. What it also picks out, and the status test could not, is a *free*
+ * column: zero is its only feasible reduced cost, so which way it improves is
+ * a fact about `d` alone, and reading its status instead sent it downwards
+ * whichever sign it had.
  *
  * **Only bounds the model declared can stop it.** A basic brought to rest on
  * a bound dual phase 1 lent would be published at a value the model never
@@ -2357,7 +2386,7 @@ static int64_t primal_ratio_test(sx *s, int64_t q, bool *below)
     var_column(s, q, s->col);
     jm_lu_ftran(&s->lu, s->col, &s->work);
 
-    const double dir = s->status[q] == JM_AT_LOWER ? 1.0 : -1.0;
+    const double dir = s->d[q] < 0.0 ? 1.0 : -1.0;
     int64_t best = -1;
     double best_step = HUGE_VAL;
 

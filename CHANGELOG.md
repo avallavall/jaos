@@ -241,6 +241,17 @@ open, `bench/README.md` for the gate, and the commit each entry came from.
 
 ### Fixed
 
+- **A nonbasic free variable with a negative reduced cost is no longer
+  invisible**, which could publish a suboptimal point as OPTIMAL. Zero is the
+  only dual feasible reduced cost for a variable with neither bound, so it is
+  the one status whose cost can be wrong in either direction; `wants_a_pivot`
+  and `primal_ratio_test` both read the status instead, which puts a free
+  variable in the upper-bound branch and repairs one sign only. Both now read
+  the sign of the reduced cost, which is bit-identical for a bounded status —
+  `dual_breach` has already fixed the sign there — and all 139 digests, work
+  units and iteration counts are unmoved. On the constructed model the answer
+  goes from 0.0 to -6 (D85).
+
 - **Loading a problem no longer discards the logging callback.** A model
   configured before it was loaded lost `jaos_set_log_callback` and
   `jaos_set_log_level` in silence — the natural order to write it in, and

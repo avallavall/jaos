@@ -533,31 +533,36 @@ accelerate, they do not gate. SDP stays unscheduled.
 
 ## Known defects, carried — **and this is the next work**
 
-**Decided: the four below come before any new feature or any new speed
+**Decided: the three below come before any new feature or any new speed
 attempt.** They are the only things in this file that are known to be wrong
 rather than merely absent, each one diagnosed, reproducible, and carrying the
-measurement that found it. Three of them were found by varying a parameter the
-gate never varies, and the fourth by construction — which is to say none of
-them will be found again by running the gate, and none of them will go away on
-its own.
+measurement that found it. All three were found by varying a parameter the
+gate never varies — which is to say none of them will be found again by
+running the gate, and none of them will go away on its own.
 
-Two of them have already cost something measurable in this milestone. Defect 1
-is what let partial pricing publish a wrong answer on `pilot` with every
-checker number green (D82), so it is not a theoretical hole any more — it is
-the reason a bad change passed a check that exists to stop bad changes.
-Defect 4 is what costs `cycle` its entire warm start (D69).
+**The fourth is closed (D85).** A nonbasic free variable with a negative
+reduced cost was invisible to the primal clean-up, which could publish a
+suboptimal point as OPTIMAL; `wants_a_pivot` and `primal_ratio_test` now read
+the sign of the reduced cost rather than the status. All 139 digests unmoved,
+because the new form is bit-identical for every bounded status. It did not
+need the primal simplex it was expected to wait for.
+
+Defect 1 has already cost something measurable in this milestone: it is what
+let partial pricing publish a wrong answer on `pilot` with every checker
+number green (D82), so it is not a theoretical hole any more — it is the
+reason a bad change passed a check that exists to stop bad changes.
 
 Ordering is not obvious and is deliberately left open: defect 3's cure changes
-how *every* solve measures progress, defect 1's needs a factorization inside
-the checker and an answer to what "independent" then means, and defect 4's
-repair is a primal step that phase 6 item 7 would supply anyway. Read all four
-before choosing, because two of them may share a cure.
+how *every* solve measures progress, and defect 1's needs a factorization
+inside the checker and an answer to what "independent" then means. Read
+defects 2 and 3 together before choosing — both are about the solver failing
+to recognise its own progress, and they may share a cure.
 
-Reproducible, diagnosed, not yet fixed. The first three came out of varying
-`REFACTOR_EVERY` over 16..256, which walks trajectories the gate never walks;
-the fourth out of a warm start, which reaches a *state* the gate never
-reaches. Both are the same lesson about where the defects that 139 instances
-at one setting do not find are hiding.
+Reproducible, diagnosed, not yet fixed. All three came out of varying
+`REFACTOR_EVERY` over 16..256, which walks trajectories the gate never walks.
+That is the lesson about where the defects 139 instances at one setting do not
+find are hiding — and D85 is the other half of it, a *state* the gate never
+reaches rather than a trajectory.
 
 1. **The checker certifies a bound it cannot prove (D47).** Whenever a
    wrong-signed multiplier sits on an unbounded improving direction the dual
@@ -649,21 +654,31 @@ at one setting do not find are hiding.
    every solve measures progress, so it needs its own decision and its own
    measurement over all three sets rather than being invented at the end of a
    diagnosis. Latent: 128 is not the shipped interval and 64 is clean.
-4. **A nonbasic free variable with a negative reduced cost is invisible
-   (D68).** `can_move` has nowhere to send a free variable and returns false;
-   `wants_a_pivot` computes its wrong-way direction as `status == AT_LOWER ?
-   -d : d`, which reads a free nonbasic as sitting at an upper bound, so a
-   positive reduced cost is repaired and a negative one is not;
-   `primal_ratio_test` takes the same branch and would move it the wrong way
-   if it got there. The point is then published as OPTIMAL when it is not.
-   Two variables and one row are enough to build it. Both existing producers
-   of free nonbasics can reach it — `build_initial_basis` for a zero-cost
-   unbounded column, `repair_singular_basis` for an evicted one — and warm
-   re-solve declines to become a third rather than fixing it, because the
-   repair is a primal step and belongs with phase 6 item 7. Not observed on
-   any of the 139 instances; found by construction. **What declining costs is
-   now measured: `cycle`, one instance in 92, loses its warm start entirely
-   (D69)** — which is also the size of the prize for repairing it.
+~~4. **A nonbasic free variable with a negative reduced cost is
+   invisible.**~~ **Closed (D85)**, and it did not need the primal simplex it
+   was filed as waiting for — the primal clean-up already owns a ratio test
+   and a basis change. `wants_a_pivot` and `primal_ratio_test` read the sign
+   of the reduced cost instead of the status, which is bit-identical for a
+   bounded status because `dual_breach` has already fixed the sign there; all
+   139 digests, work units and iteration counts unmoved. Reproduced first:
+   handed a singular basis, the solver published **0.0 with a verdict of
+   OPTIMAL** on a model whose optimum is -6, breaking a promise `jaos_set_basis`
+   makes in the header.
+
+### Left open by that repair
+
+**Whether the warm start still has to refuse a free nonbasic.**
+`build_warm_basis` abandons any handed-in basis containing a nonbasic
+variable with neither bound, and D68 put that refusal there *because of*
+defect 4 — the comment beside it names the defect as its own repair. The
+premise is now gone and the prize is measured: `cycle`, one instance in 92,
+loses its entire warm start to it (D69).
+
+Not taken with the repair, deliberately. It is a second change; unlike D85 it
+moves warm trajectories rather than nothing at all, so it cannot be judged by
+139 unmoved digests. It needs `make warm` and `make warm-kennington` beside
+the gate, with the ratios reported as geometric means of per-instance ratios
+(D46).
 
 ---
 

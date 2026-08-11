@@ -90,6 +90,7 @@ and you have the argument. Jump to the entry for the numbers behind it.
 - **[D82](#d82-partial-pricing-on-the-leaving-row-sweep-refused-it-saves-the-cheap-units-and-buys-the-expensive-ones)** — Partial pricing on the leaving-row sweep, refused: it saves the cheap units and buys the expensive ones
 - **[D83](#d83-clp-is-the-third-reading-and-the-two-were-not-agreeing-by-coincidence)** — Clp is the third reading, and the two were not agreeing by coincidence
 - **[D84](#d84-multiple-pricing-refused-too-and-phase-6-item-3-closes-with-both-halves-measured)** — Multiple pricing, refused too, and phase 6 item 3 closes with both halves measured
+- **[D85](#d85-a-free-nonbasic-improves-in-the-direction-its-reduced-cost-points-and-the-status-was-never-able-to-say-which-that-was)** — A free nonbasic improves in the direction its reduced cost points, and the status was never able to say which that was
 
 ---
 
@@ -5440,3 +5441,131 @@ candidate set decides which column enters rather than which row leaves, which
 is a different and more dangerous change than either of the two refused here.
 Callgrind counts instructions and not seconds and cannot see locality, the
 limit D58 and D61 also stated.
+
+---
+
+## D85 — A free nonbasic improves in the direction its reduced cost points, and the status was never able to say which that was
+
+### The question
+
+`PLAN.md` carried this as the fourth of the known defects, found by
+construction in D68 and never observed on any of the 139 instances. A
+nonbasic *free* variable — one with neither bound, resting at zero — is dual
+feasible only at a reduced cost of exactly zero, so it is the one status whose
+reduced cost can be wrong in either direction. Three places read it and two
+read it wrongly:
+
+- `can_move` has nowhere to send a free variable and returns false. That is
+  correct and stays: moving to the other bound is what it does, and there is
+  no other bound.
+- `wants_a_pivot` computed the size of the breach as
+  `status == JM_AT_LOWER ? -d : d`, which puts a free variable in the
+  upper-bound branch. A positive reduced cost was therefore repaired and a
+  **negative one silently dropped**.
+- `primal_ratio_test` took the same branch for its direction,
+  `status == JM_AT_LOWER ? 1.0 : -1.0`, so had a free column ever reached it
+  with `d < 0` it would have travelled the wrong way.
+
+The expectation going in was that the state would be hard to reach, because
+D68 had found it by construction and 139 instances had not. That turned out to
+be right, and *why* it is right is the part worth having.
+
+### Why 139 instances never found it
+
+`admit_candidate` gives a free variable a ratio-test distance of exactly zero,
+so its Harris ratio is zero and it is inside the window on every iteration
+where the pricing row touches it at all. A free nonbasic is therefore the
+strongest candidate the dual ratio test can see, and the method takes it back
+into the basis at the first opportunity. Its column has to miss every pricing
+row of the rest of the solve to survive.
+
+So the state survives to the end only when **no dual iteration runs at all**
+after it is created — that is, when the point that creates it is already
+primal feasible. Two constructions were built before that was understood and
+both were repaired by the solver, correctly, on the way past:
+
+- A free *logical*, from a row with no bounds, evicted by
+  `repair_singular_basis`. It never got evicted: the eviction picks the
+  position the LU did not pivot on, and on a rank-1 basis of two singleton
+  columns the LU pivots on the higher position, so the *structural* column was
+  the one thrown out. Confirmed on an instrumented build —
+  `[repair] rank=1 p=0 leaving=1` — not deduced.
+- The same shape with the free column at the low position but the resulting
+  point primal infeasible. The dual method ran, `admit_candidate` admitted the
+  free column at distance zero, and it was priced back in within the iteration.
+
+### The construction that does reach it
+
+```
+min -f          r0:  f + 2g  in [2, 6]          r1:  h in [0, 1]
+f free,         g in [0, 2],                    h in [0, 1]
+```
+
+The optimum is **-6** at `f = 6, g = 0`, and a cold solve finds it.
+
+Handed the basis `{f, g}` through `jaos_set_basis`, both columns live in `r0`
+alone, so `B` has rank 1. `repair_singular_basis` pivots on the higher
+position and evicts `f`, which has neither bound, to `JM_FREE`. That pins `f`
+at zero, and the point that results — `g = 1`, everything else on a bound — is
+**primal feasible**, so the dual method stops without an iteration and the
+free column is never priced. Everything then rests on the primal clean-up.
+
+Measured on an instrumented copy of the sources, before the repair:
+
+```
+[repair] rank=1 p=0 leaving=0 entering=4 lo=-inf up=inf
+[cleanup] v=0 status=3 d=-1 breach=1 wants=0
+cold=-6   hostile=0   verdict=optimal
+```
+
+`dual_breach` sees the violation and reports 1. `wants_a_pivot` returns false
+on it. The solver publishes **0.0 with a verdict of OPTIMAL** where the
+optimum is -6 — and that breaks a promise `jaos_set_basis` makes in the
+header in as many words: a basis that is wrong, stale or hostile costs
+iterations and cannot produce a wrong verdict.
+
+### The repair, and why it cannot move anything else
+
+Both sites now read the sign of the reduced cost instead of the status:
+
+- `wants_a_pivot` measures the breach as `fabs(s->d[v])`.
+- `primal_ratio_test` takes its direction from `s->d[q] < 0.0 ? 1.0 : -1.0`.
+
+**Both are bit-identical to what they replaced for every bounded status**, and
+that is by construction rather than by measurement. A column reaches either
+site only past `dual_breach`, which has already established that `d < -DUAL_TOL`
+at a lower bound and `d > DUAL_TOL` at an upper one. So `fabs(d)` *is* the old
+signed expression there, and `d < 0` picks out exactly the two cases the status
+test named. The only input whose behaviour can change is the one the old form
+had no correct answer for.
+
+The measurement agrees, which is what makes the argument checkable rather than
+merely plausible: **all 139 digests, iteration counts and work units
+unmoved** — `bench/results/` regenerates byte-identical to the committed
+records across all three sets, 0 regressed and 0 improved on each. 73 unit
+tests and ASan+UBSan clean. On the constructed model the answer goes from 0.0
+to -6, matching the cold solve exactly.
+
+### What was refuted
+
+Nothing was refuted here, which is unusual enough to say plainly: the first
+plausible repair was the correct one. What was refuted is two *constructions*,
+above, and they cost more than the fix did. The lesson they carry is the one
+worth keeping — the free nonbasic is not hard to create, it is hard to make
+*survive*, because `admit_candidate` treats it as the best candidate in the
+model. Any future attempt to reproduce this class of defect has to arrange for
+zero dual iterations after the state appears, and the cheapest way to arrange
+that is a repaired singular basis whose resulting point is already feasible.
+
+### What is left open
+
+`build_warm_basis` refuses any handed-in basis containing a nonbasic variable
+with neither bound, and D68 put that refusal there *because of this defect* —
+the comment beside it names the defect as its own repair. The premise of the
+refusal is now gone, and lifting it is worth a measured amount: D69 says
+`cycle` loses its entire warm start to it, one instance in 92.
+
+That is deliberately not taken here. It is a second change, it moves warm
+trajectories rather than nothing at all, and it needs the warm campaigns
+(`make warm`, `make warm-kennington`) and not just the gate. Handed to
+`PLAN.md`.
