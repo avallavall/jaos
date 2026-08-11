@@ -93,6 +93,7 @@ and you have the argument. Jump to the entry for the numbers behind it.
 - **[D85](#d85-a-free-nonbasic-improves-in-the-direction-its-reduced-cost-points-and-the-status-was-never-able-to-say-which-that-was)** — A free nonbasic improves in the direction its reduced cost points, and the status was never able to say which that was
 - **[D86](#d86-pilot87s-iteration-guard-is-a-factorization-that-stopped-agreeing-with-itself-and-the-two-solves-each-iteration-already-pays-for-can-say-so)** — `pilot87`'s iteration guard is a factorization that stopped agreeing with itself, and the two solves each iteration already pays for can say so
 - **[D87](#d87-the-checker-bounds-what-the-rows-imply-which-closes-d47s-constructed-case-and-not-its-real-one)** — The checker bounds what the rows imply, which closes D47's constructed case and not its real one
+- **[D88](#d88-the-gate-watches-the-dropped-term-because-the-checker-cannot-judge-it-and-the-predicate-cannot-see-it)** — The gate watches the dropped term, because the checker cannot judge it and the predicate cannot see it
 
 ---
 
@@ -5892,3 +5893,89 @@ cost question in a different currency than the factorization it first named.
 
 The one thing this does remove is the argument that route B needs the solver's
 basis. It does not. Whatever closes the rest will not need one either.
+
+---
+
+## D88 — The gate watches the dropped term, because the checker cannot judge it and the predicate cannot see it
+
+### The question
+
+D87 left defect 1 open with its scope reduced: the checker bounds unbounded
+variables by what the rows imply, which closes D47's constructed case and
+lifts certification from 12 of 110 to 27, but `pilot` at refactorization
+intervals 24, 32 and 96 still reports `checker=ok` on an answer 1.04e-3 out of
+tolerance. Row-at-a-time tightening reaches 38.4% of unbounded columns and not
+the one that costs `pilot` its answer.
+
+Two routes remained. Derive the polytope direction inside the checker — the
+original route B, which needs a factorization of its own and therefore a
+second LU, since using `jm_lu_*` would link the checker against solver
+internals and is the coupling D18 exists to forbid. Or accept that the checker
+cannot judge a dropped term and make the *gate* watch it change.
+
+**The second was chosen with the maintainer, 2026-08-11.** It does not repair
+the checker and is not written up as doing so. It closes what the hole
+actually cost.
+
+### What the hole actually cost
+
+D82. Partial pricing published an answer out of tolerance on `pilot` with
+every checker number green, and this gate passed it. That is not a
+hypothetical about a guarantee; it is a bad change reaching a decision because
+the check meant to stop it could not see the quantity that had moved.
+
+Watching that quantity *change* needs none of the judgement the checker cannot
+make. D47 established that no local test on a reduced cost separates a harmful
+dropped term from a harmless one, because what makes one expensive is the
+distance the variable travels. But a **regression** in it is a different
+question, and an easy one.
+
+### Both constants are measured, on both sides
+
+`DROP_REGRESSION_FACTOR = 2.0`, `DROP_FLOOR = 1e-9`.
+
+**The quantity is as deterministic as a digest.** Across the solver change
+that closed defect 3 — which moved no answers — **0 of 94** dropped terms
+moved at all. Across the checker change of D87, 40 of 94 moved and every one
+of them **downwards**, worst growth 0.9176x. Nothing legitimate has been seen
+to grow one.
+
+**The case it has to catch is a factor of 40.** `pilot` carries 8.62e-09 where
+it is right and 3.47e-07 where it is wrong. A factor of 2 clears that with
+twenty times to spare, and there is no measured growth on the other side for
+it to collide with.
+
+**The floor keeps arithmetic noise out.** 82 of the standard set's 94
+instances carry a dropped term below 1e-9, decaying smoothly to 1e-17 (D71);
+ratios between those numbers mean nothing. `pilot` at its correct value sits
+at 8.62e-09, above the floor, so the case that matters is still compared.
+
+### The instrument was calibrated before being believed
+
+An instrument that finds nothing is worth nothing until it has been shown able
+to find something, so a real fault was injected: `pilot`'s baseline drop
+divided by 100.
+
+```
+pilot        REGRESSED    dropped term: 8.62e-11 -> 8.62e-09 (100.0x),
+                          the checker's bound is that much less of one
+baseline: 1 regressed, 0 improved, 0 new        (runner exits nonzero)
+```
+
+Caught, and the runner fails on it. Restored, and the gate returns to PASS
+with 0 regressed. A nine-field baseline written before this existed is still
+read, with its drop taken as "nothing to compare against" rather than as zero
+— an older baseline costs the reader that one check and not the whole run.
+
+### What this is not
+
+It is not a repair of the checker, and defect 1 stays open in `PLAN.md`. The
+checker still cannot certify `gap_positive` where no row bounds the column,
+`pilot` at 24, 32 and 96 still reads `checker=ok`, and a *first* run that is
+already wrong still passes — this catches the change from right to wrong, not
+wrongness itself.
+
+What closes the rest is unchanged from D87: not a better bound, but separating
+the two questions `objective_gap` currently answers at once — how far from
+optimal the point is, and how much of that can be certified. There is 41x of
+checker margin left to spend on it.

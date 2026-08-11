@@ -658,6 +658,20 @@ reaches rather than a trajectory.
    questions the gap answers at once — how far from optimal the point is, and
    how much of that can be certified — because as long as they share one
    number, every improvement to the second is paid for out of the first.
+
+   **What is closed meanwhile is the consequence rather than the defect
+   (D88).** The gate now carries the dropped term in its baselines and reports
+   growth past 2x above a floor of 1e-9 as a regression. That needs none of the
+   judgement the checker cannot make: D47 established that no local test
+   separates a harmful dropped term from a harmless one, but noticing one
+   *change* is a different question. It is what would have caught D82 — partial
+   pricing published an answer out of tolerance on `pilot` with every checker
+   number green, and this gate passed it. Both constants measured: a solver
+   change that moved no answers moved **0 of 94** dropped terms, and the case
+   to catch is a factor of **40**. Calibrated by injecting a fault.
+
+   It catches the change from right to wrong, not wrongness itself. A first
+   run that is already wrong still passes, which is why this defect stays here.
 2. **The re-entry loop does not always converge (D49, D50, D51).** Its two
    repairs undo each other — the dual simplex borrows cost shifts to keep
    dual feasibility, `settle_shifts` calls the loans in, and the largest loan

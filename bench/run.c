@@ -194,6 +194,12 @@ typedef struct {
     bool solved;        /* reached a verified optimum */
     bool shape, objective, checker, det;
     long long iters, work;
+    /* The largest multiplier the checker's dual objective could not take a
+     * term for. Tracked here because `checker` cannot see it: the whole of
+     * D47 is that such a term makes `gap_positive` stop being a bound while
+     * every verdict stays green, and D82 is the receipt — a change that
+     * published a wrong answer on `pilot` passed this gate. */
+    double drop;
 } outcome;
 
 /* How much more work an instance may do than it did at baseline before that
@@ -203,6 +209,35 @@ typedef struct {
  * after eighty times the iterations has not kept working — it has become a
  * work-limit failure on any caller with a budget. */
 constexpr double WORK_REGRESSION_FACTOR = 2.0;
+
+/* The same idea for the one correctness quantity no predicate covers: how far
+ * the checker's dual objective fell short of being a sum over the problem it
+ * was asked about (D47, D71, D88).
+ *
+ * **Why this needs watching at all.** The checker cannot judge a dropped term
+ * — D47 measured that no local test on a reduced cost separates the harmful
+ * case from the harmless one, because what makes one expensive is the
+ * distance the variable travels and that is a property of the polytope. So
+ * `checker` stays green while the guarantee behind it quietly stops holding.
+ * D82 is what that costs: partial pricing published an answer out of
+ * tolerance on `pilot` with every checker number green, and this gate passed
+ * it. Watching the quantity *change* needs none of the judgement the checker
+ * cannot make.
+ *
+ * **Both constants are measured.** Across a solver change that moved no
+ * answers, **0 of 94** dropped terms moved at all — the quantity is as
+ * deterministic as a digest, so a factor of 2 is enormously conservative. The
+ * case it has to catch is `pilot` going from 8.62e-09 where it is right to
+ * 3.47e-07 where it is wrong: a factor of **40**, which clears 2.0 with
+ * twenty times to spare.
+ *
+ * The floor keeps roundoff out. 82 of the standard set's 94 instances carry a
+ * dropped term below 1e-9, decaying smoothly to 1e-17 (D71); those are
+ * arithmetic noise and their ratios mean nothing. `pilot` at its correct
+ * value sits at 8.62e-09, above the floor, so the case that matters is still
+ * compared. */
+constexpr double DROP_REGRESSION_FACTOR = 2.0;
+constexpr double DROP_FLOOR = 1e-9;
 
 constexpr int MAX_INSTANCES = 512;
 
@@ -236,9 +271,16 @@ static bool baseline_load(const char *path)
         outcome o;
         memset(&o, 0, sizeof o);
         int solved = 0, shape = 0, obj = 0, chk = 0, det = 0;
-        if (sscanf(line, "%63s %23s %d %d %d %d %d %lld %lld",
-                   o.name, o.status, &solved, &shape, &obj, &chk, &det,
-                   &o.iters, &o.work) != 9)
+        /* A baseline written before the dropped term was tracked has nine
+         * fields. It is read rather than refused, and its drop reads as -1,
+         * which the comparison takes as "nothing to compare against" — an
+         * older baseline should cost the reader that one check, not the
+         * whole run. */
+        o.drop = -1.0;
+        int got = sscanf(line, "%63s %23s %d %d %d %d %d %lld %lld %lf",
+                         o.name, o.status, &solved, &shape, &obj, &chk, &det,
+                         &o.iters, &o.work, &o.drop);
+        if (got != 9 && got != 10)
             continue;
         o.solved = solved != 0;
         o.shape = shape != 0;
@@ -263,13 +305,16 @@ static bool baseline_write(const char *path)
                "# these numbers has been read and accepted. A quiet update here\n"
                "# is a regression nobody will ever be told about.\n"
                "#\n"
-               "# name status solved shape objective checker det iters work\n");
+               "# name status solved shape objective checker det iters work "
+               "dropped\n");
     for (int i = 0; i < g_ngot; i++) {
         const outcome *o = &g_got[i];
-        fprintf(f, "%-12s %-12s %d %d %d %d %d %lld %lld\n",
+        /* The dropped term at full precision, because it is compared as a
+         * number and a rounded one would make a ratio out of the rounding. */
+        fprintf(f, "%-12s %-12s %d %d %d %d %d %lld %lld %.17g\n",
                 o->name, o->status, o->solved ? 1 : 0, o->shape ? 1 : 0,
                 o->objective ? 1 : 0, o->checker ? 1 : 0, o->det ? 1 : 0,
-                o->iters, o->work);
+                o->iters, o->work, o->drop);
     }
     fclose(f);
     return true;
@@ -277,7 +322,7 @@ static bool baseline_write(const char *path)
 
 static void record(const char *name, const char *status, bool solved,
                    bool shape, bool objective, bool checker, bool det,
-                   long long iters, long long work)
+                   long long iters, long long work, double drop)
 {
     if (g_ngot >= MAX_INSTANCES)
         return;
@@ -292,6 +337,7 @@ static void record(const char *name, const char *status, bool solved,
     o->det = det;
     o->iters = iters;
     o->work = work;
+    o->drop = drop;
 }
 
 /* What the gate expects an instance to come back as. The standard and
@@ -347,7 +393,8 @@ static bool run_one_infeasible(const entry *e, const char *dir, tally *t)
              jaos_model_error(m) ? jaos_model_error(m) : "");
         jaos_model_free(m);
         t->failed++;
-        record(e->name, "READ-FAILED", false, false, false, false, false, 0, 0);
+        record(e->name, "READ-FAILED", false, false, false, false, false, 0, 0,
+               -1.0);
         return false;
     }
 
@@ -365,7 +412,8 @@ static bool run_one_infeasible(const entry *e, const char *dir, tally *t)
              jaos_model_error(m) ? jaos_model_error(m) : "");
         jaos_model_free(m);
         t->failed++;
-        record(e->name, "SOLVE-ERROR", false, shape, false, false, false, 0, 0);
+        record(e->name, "SOLVE-ERROR", false, shape, false, false, false, 0, 0,
+               -1.0);
         return false;
     }
 
@@ -399,7 +447,7 @@ static bool run_one_infeasible(const entry *e, const char *dir, tally *t)
          (ss == JAOS_SOLVE_OPTIMAL) ? "  <-- FALSE OPTIMUM" : "");
 
     record(e->name, jaos_solve_status_str(ss), refused, shape, refused,
-           refused, det, (long long)iters, (long long)work);
+           refused, det, (long long)iters, (long long)work, -1.0);
 
     jaos_model_free(m);
     return shape && refused && det;
@@ -433,7 +481,8 @@ static bool run_one(const entry *e, const char *dir, tally *t)
                 jaos_model_error(m) ? jaos_model_error(m) : "");
         jaos_model_free(m);
         t->failed++;
-        record(e->name, "READ-FAILED", false, false, false, false, false, 0, 0);
+        record(e->name, "READ-FAILED", false, false, false, false, false, 0, 0,
+               -1.0);
         return false;
     }
 
@@ -454,7 +503,8 @@ static bool run_one(const entry *e, const char *dir, tally *t)
                 jaos_model_error(m) ? jaos_model_error(m) : "");
         jaos_model_free(m);
         t->failed++;
-        record(e->name, "SOLVE-ERROR", false, shape, false, false, false, 0, 0);
+        record(e->name, "SOLVE-ERROR", false, shape, false, false, false, 0, 0,
+               -1.0);
         return false;
     }
 
@@ -470,7 +520,7 @@ static bool run_one(const entry *e, const char *dir, tally *t)
                 (long long)work,
                 jaos_model_error(m) ? jaos_model_error(m) : "");
         record(e->name, jaos_solve_status_str(ss), false, shape, false, false,
-               false, (long long)iters, (long long)work);
+               false, (long long)iters, (long long)work, -1.0);
         jaos_model_free(m);
         t->failed++;
         return false;
@@ -558,7 +608,8 @@ static bool run_one(const entry *e, const char *dir, tally *t)
             det ? "ok" : "DIVERGED", (unsigned long long)d1);
 
     record(e->name, "optimal", true, shape, obj_ok, check_ok, det,
-           (long long)iters, (long long)work);
+           (long long)iters, (long long)work,
+           rep.max_dropped_multiplier);
 
     free(x);
     free(y);
@@ -616,6 +667,21 @@ static int64_t compare_to_baseline(bool full_run)
                  "iters %lld -> %lld\n",
                  g->name, b->work, g->work,
                  (double)g->work / (double)b->work, b->iters, g->iters);
+            regressed++;
+        }
+
+        /* And the guarantee behind the `checker` predicate, which the
+         * predicate itself cannot report on. Same shape as work above and for
+         * the same reason: it degrades quietly. A baseline written before this
+         * was tracked carries -1 and is skipped rather than compared against a
+         * number that was never there. */
+        if (b->solved && g->solved && b->drop >= 0.0 &&
+            g->drop > DROP_FLOOR &&
+            g->drop > b->drop * DROP_REGRESSION_FACTOR) {
+            emit("%-12s REGRESSED    dropped term: %.3g -> %.3g (%.1fx), "
+                 "the checker's bound is that much less of one\n",
+                 g->name, b->drop, g->drop,
+                 b->drop > 0.0 ? g->drop / b->drop : HUGE_VAL);
             regressed++;
         }
     }
@@ -698,9 +764,10 @@ static void run_worker(const entry *e, const char *dir, const char *tmp, int k)
             (long long)ct.failed);
     if (g_ngot > 0) {
         const outcome *o = &g_got[0];
-        fprintf(mf, "%s %s %d %d %d %d %d %lld %lld\n", o->name, o->status,
-                o->solved ? 1 : 0, o->shape ? 1 : 0, o->objective ? 1 : 0,
-                o->checker ? 1 : 0, o->det ? 1 : 0, o->iters, o->work);
+        fprintf(mf, "%s %s %d %d %d %d %d %lld %lld %.17g\n", o->name,
+                o->status, o->solved ? 1 : 0, o->shape ? 1 : 0,
+                o->objective ? 1 : 0, o->checker ? 1 : 0, o->det ? 1 : 0,
+                o->iters, o->work, o->drop);
     }
     fclose(mf);
     _exit(0);
@@ -736,10 +803,11 @@ static bool collect_worker(const entry *e, const char *tmp, int k, tally *t,
         char oname[64], ostat[24];
         int s = 0, sh = 0, ob = 0, ck = 0, dt = 0;
         long long it = 0, wk = 0;
-        if (fscanf(mf, "%63s %23s %d %d %d %d %d %lld %lld", oname, ostat, &s,
-                   &sh, &ob, &ck, &dt, &it, &wk) == 9)
+        double dr = -1.0;
+        if (fscanf(mf, "%63s %23s %d %d %d %d %d %lld %lld %lf", oname, ostat,
+                   &s, &sh, &ob, &ck, &dt, &it, &wk, &dr) == 10)
             record(oname, ostat, s != 0, sh != 0, ob != 0, ck != 0, dt != 0,
-                   it, wk);
+                   it, wk, dr);
     }
     fclose(mf);
 
@@ -834,7 +902,7 @@ static bool run_parallel(const entry *ents, const int *sel, int nsel,
             emit("%-12s WORKER-FAILED  no usable result from its process\n",
                  e->name);
             record(e->name, "WORKER-FAILED", false, false, false, false, false,
-                   0, 0);
+                   0, 0, -1.0);
             t->instances++;
             t->failed++;
             all_ok = false;

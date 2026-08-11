@@ -241,6 +241,17 @@ open, `bench/README.md` for the gate, and the commit each entry came from.
 
 ### Changed
 
+- **The acceptance gate watches the checker's dropped term**, which is the one
+  correctness quantity no predicate covered. `checker` stays green while the
+  guarantee behind it stops holding — that is the whole of D47 — and D82 is
+  the receipt: a change that published an answer out of tolerance on `pilot`
+  passed this gate. Judging a dropped term needs knowledge the checker does
+  not have; noticing it *grow* does not. Baselines carry it, growth past 2x
+  above a floor of 1e-9 is a regression, and both constants are measured: a
+  solver change that moved no answers moved 0 of 94 dropped terms, while the
+  case this must catch is a factor of 40. Calibrated by injecting a fault and
+  confirming it is caught. Older nine-field baselines still read (D88).
+
 - **The checker bounds unbounded variables by what the constraints imply**,
   so a dual term that used to be minus infinity — and was dropped, taking
   `gap_positive`'s guarantee with it — is finite wherever a row bounds the

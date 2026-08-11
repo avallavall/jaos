@@ -193,6 +193,20 @@ that it is reported too, because an instance that still reaches the same
 optimum after eighty times the iterations has not kept working — it has become
 a work-limit failure for any caller with a budget.
 
+**And the checker's dropped term, which the `checker` predicate cannot see.**
+Where a multiplier points at a bound the model does not have, the dual
+objective has no term to take and `gap_positive` stops being the bound it is
+documented as being — while every verdict stays green (D47). Judging such a
+term needs knowledge the checker does not have; noticing it grow does not. It
+is carried in the baseline and growth past 2× above a floor of 1e-9 is a
+regression. Both numbers are measured: a solver change that moved no answers
+moved 0 of 94 dropped terms, and the case this exists to catch — `pilot` going
+from where it is right to where it is wrong — is a factor of 40 (D88).
+
+This is the check that would have caught D82, where a change published an
+answer out of tolerance with every checker number green and this gate passed
+it. It catches the move from right to wrong, not wrongness itself.
+
 Improvements are printed as well as regressions. A baseline that only ever
 tightens is one nobody remembers to loosen.
 

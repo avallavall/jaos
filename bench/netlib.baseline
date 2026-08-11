@@ -3,98 +3,98 @@
 # these numbers has been read and accepted. A quiet update here
 # is a regression nobody will ever be told about.
 #
-# name status solved shape objective checker det iters work
-25fv47       optimal      1 1 1 1 1 9459 332719794
-80bau3b      optimal      1 1 1 1 1 3836 75156696
-adlittle     optimal      1 1 1 1 1 76 158646
-afiro        optimal      1 1 1 1 1 30 19894
-agg          optimal      1 1 1 1 1 196 920941
-agg2         optimal      1 1 1 1 1 316 1976850
-agg3         optimal      1 1 1 1 1 317 1788782
-bandm        optimal      1 1 1 1 1 520 4669458
-beaconfd     optimal      1 1 1 1 1 99 137479
-blend        optimal      1 1 1 1 1 96 197135
-bnl1         optimal      1 1 1 1 1 856 9729755
-bnl2         optimal      1 1 1 1 1 1904 28106323
-boeing1      optimal      1 1 1 1 1 447 3000541
-boeing2      optimal      1 1 1 1 1 108 318371
-bore3d       optimal      1 1 1 1 1 197 741632
-brandy       optimal      1 1 1 1 1 280 1926970
-capri        optimal      1 1 1 1 1 338 816481
-cycle        optimal      1 1 1 1 1 1829 39690002
-czprob       optimal      1 1 1 1 1 1521 21279536
-d2q06c       optimal      1 1 1 1 1 7175 495831453
-d6cube       optimal      1 1 1 1 1 442 26718984
-degen2       optimal      1 1 1 1 1 578 5597730
-degen3       optimal      1 1 1 1 1 2423 82165258
-dfl001       optimal      1 1 1 1 1 24220 3165307574
-e226         optimal      1 1 1 1 1 346 2284673
-etamacro     optimal      1 1 1 1 1 708 4517773
-fffff800     optimal      1 1 1 1 1 849 9585748
-finnis       optimal      1 1 1 1 1 333 764148
-fit1d        optimal      1 1 1 1 1 66 1682919
-fit1p        optimal      1 1 1 1 1 805 19216680
-fit2d        optimal      1 1 1 1 1 131 72761597
-fit2p        optimal      1 1 1 1 1 4882 714964101
-forplan      optimal      1 1 1 1 1 211 1251602
-ganges       optimal      1 1 1 1 1 1349 3855334
-gfrd-pnc     optimal      1 1 1 1 1 573 3485629
-greenbea     optimal      1 1 1 1 1 14962 1065441545
-greenbeb     optimal      1 1 1 1 1 9016 515557652
-grow15       optimal      1 1 1 1 1 21653 261200830
-grow22       optimal      1 1 1 1 1 2179 44737584
-grow7        optimal      1 1 1 1 1 544 6437721
-israel       optimal      1 1 1 1 1 118 783086
-kb2          optimal      1 1 1 1 1 53 67418
-lotfi        optimal      1 1 1 1 1 241 1089803
-maros        optimal      1 1 1 1 1 1447 22087540
-maros-r7     optimal      1 1 1 1 1 10479 21038796573
-modszk1      optimal      1 1 1 1 1 797 10077259
-nesm         optimal      1 1 1 1 1 2930 67046001
-perold       optimal      1 1 1 1 1 3228 96523421
-pilot        optimal      1 1 1 1 1 25342 5475666287
-pilot-ja     optimal      1 1 1 1 1 3329 141371839
-pilot-we     optimal      1 1 1 1 1 5739 206015139
-pilot4       optimal      1 1 1 1 1 685 16875860
-pilot87      optimal      1 1 1 1 1 50850 23080192752
-pilotnov     optimal      1 1 1 1 1 3585 137470017
-recipe       optimal      1 1 1 1 1 46 23080
-sc105        optimal      1 1 1 1 1 106 135521
-sc205        optimal      1 1 1 1 1 226 576100
-sc50a        optimal      1 1 1 1 1 47 36601
-sc50b        optimal      1 1 1 1 1 52 39298
-scagr25      optimal      1 1 1 1 1 598 2946985
-scagr7       optimal      1 1 1 1 1 182 410000
-scfxm1       optimal      1 1 1 1 1 415 1785890
-scfxm2       optimal      1 1 1 1 1 974 6640783
-scfxm3       optimal      1 1 1 1 1 1499 11149980
-scorpion     optimal      1 1 1 1 1 327 667728
-scrs8        optimal      1 1 1 1 1 568 2673431
-scsd1        optimal      1 1 1 1 1 97 474986
-scsd6        optimal      1 1 1 1 1 235 1570102
-scsd8        optimal      1 1 1 1 1 742 9189661
-sctap1       optimal      1 1 1 1 1 290 650782
-sctap2       optimal      1 1 1 1 1 775 1869700
-sctap3       optimal      1 1 1 1 1 1002 2594852
-seba         optimal      1 1 1 1 1 438 735807
-share1b      optimal      1 1 1 1 1 179 555791
-share2b      optimal      1 1 1 1 1 103 212502
-shell        optimal      1 1 1 1 1 555 2827060
-ship04l      optimal      1 1 1 1 1 409 710560
-ship04s      optimal      1 1 1 1 1 409 581680
-ship08l      optimal      1 1 1 1 1 727 3238792
-ship08s      optimal      1 1 1 1 1 682 1970585
-ship12l      optimal      1 1 1 1 1 1200 6135626
-ship12s      optimal      1 1 1 1 1 1132 4369810
-sierra       optimal      1 1 1 1 1 610 1505412
-stair        optimal      1 1 1 1 1 489 10186539
-standata     optimal      1 1 1 1 1 72 122497
-standmps     optimal      1 1 1 1 1 220 380355
-stocfor1     optimal      1 1 1 1 1 130 325053
-stocfor2     optimal      1 1 1 1 1 2263 24801928
-stocfor3     optimal      1 1 1 1 1 18131 815652468
-truss        optimal      1 1 1 1 1 17336 1154610114
-tuff         optimal      1 1 1 1 1 286 1422821
-vtp-base     optimal      1 1 1 1 1 132 328685
-wood1p       optimal      1 1 1 1 1 335 25932496
-woodw        optimal      1 1 1 1 1 1713 90870892
+# name status solved shape objective checker det iters work dropped
+25fv47       optimal      1 1 1 1 1 9459 332719794 5.086445511404635e-14
+80bau3b      optimal      1 1 1 1 1 3836 75156696 1.498974555591559e-14
+adlittle     optimal      1 1 1 1 1 76 158646 4.0398240308547884e-14
+afiro        optimal      1 1 1 1 1 30 19894 5.5511151231257827e-17
+agg          optimal      1 1 1 1 1 196 920941 0
+agg2         optimal      1 1 1 1 1 316 1976850 0
+agg3         optimal      1 1 1 1 1 317 1788782 0
+bandm        optimal      1 1 1 1 1 520 4669458 4.7036159689373136e-14
+beaconfd     optimal      1 1 1 1 1 99 137479 1.7347234759768071e-17
+blend        optimal      1 1 1 1 1 96 197135 4.4408920985006262e-16
+bnl1         optimal      1 1 1 1 1 856 9729755 1.1501910535116622e-13
+bnl2         optimal      1 1 1 1 1 1904 28106323 6.475153529680866e-15
+boeing1      optimal      1 1 1 1 1 447 3000541 3.4694469519536142e-18
+boeing2      optimal      1 1 1 1 1 108 318371 0
+bore3d       optimal      1 1 1 1 1 197 741632 8.156669784042947e-15
+brandy       optimal      1 1 1 1 1 280 1926970 1.1867243299157337e-14
+capri        optimal      1 1 1 1 1 338 816481 4.6782022700142534e-14
+cycle        optimal      1 1 1 1 1 1829 39690002 1.6476586562555552e-14
+czprob       optimal      1 1 1 1 1 1521 21279536 0
+d2q06c       optimal      1 1 1 1 1 7175 495831453 1.8977441146317275e-13
+d6cube       optimal      1 1 1 1 1 442 26718984 0
+degen2       optimal      1 1 1 1 1 578 5597730 1.7763568394002505e-15
+degen3       optimal      1 1 1 1 1 2423 82165258 1.6653345369377348e-15
+dfl001       optimal      1 1 1 1 1 24220 3165307574 4.5565684558823705e-10
+e226         optimal      1 1 1 1 1 346 2284673 1.5042220941063889e-15
+etamacro     optimal      1 1 1 1 1 708 4517773 2.2495897139985111e-07
+fffff800     optimal      1 1 1 1 1 849 9585748 6.0063065632220969e-14
+finnis       optimal      1 1 1 1 1 333 764148 9.6121027803874881e-15
+fit1d        optimal      1 1 1 1 1 66 1682919 0
+fit1p        optimal      1 1 1 1 1 805 19216680 6.6613381477509392e-16
+fit2d        optimal      1 1 1 1 1 131 72761597 0
+fit2p        optimal      1 1 1 1 1 4882 714964101 4.0434322556848201e-13
+forplan      optimal      1 1 1 1 1 211 1251602 5.134781488891349e-15
+ganges       optimal      1 1 1 1 1 1349 3855334 1.9484414082171497e-14
+gfrd-pnc     optimal      1 1 1 1 1 573 3485629 6.7723604502134549e-15
+greenbea     optimal      1 1 1 1 1 14962 1065441545 2.9104474386087985e-11
+greenbeb     optimal      1 1 1 1 1 9016 515557652 6.2705396430828841e-13
+grow15       optimal      1 1 1 1 1 21653 261200830 0
+grow22       optimal      1 1 1 1 1 2179 44737584 0
+grow7        optimal      1 1 1 1 1 544 6437721 0
+israel       optimal      1 1 1 1 1 118 783086 2.7755575615628914e-17
+kb2          optimal      1 1 1 1 1 53 67418 8.4533888135979174e-19
+lotfi        optimal      1 1 1 1 1 241 1089803 4.4350645118235166e-17
+maros        optimal      1 1 1 1 1 1447 22087540 9.8377903046120707e-14
+maros-r7     optimal      1 1 1 1 1 10479 21038796573 9.9229672601616054e-15
+modszk1      optimal      1 1 1 1 1 797 10077259 4.0328851369508811e-14
+nesm         optimal      1 1 1 1 1 2930 67046001 5.552891479965183e-12
+perold       optimal      1 1 1 1 1 3228 96523421 2.8199508700366138e-12
+pilot        optimal      1 1 1 1 1 25342 5475666287 8.6186652070032669e-09
+pilot-ja     optimal      1 1 1 1 1 3329 141371839 1.3671655302950397e-11
+pilot-we     optimal      1 1 1 1 1 5739 206015139 1.255120452015035e-10
+pilot4       optimal      1 1 1 1 1 685 16875860 1.3402205912985479e-14
+pilot87      optimal      1 1 1 1 1 50850 23080192752 1.4316715309545382e-08
+pilotnov     optimal      1 1 1 1 1 3585 137470017 7.1557957535008116e-11
+recipe       optimal      1 1 1 1 1 46 23080 0
+sc105        optimal      1 1 1 1 1 106 135521 1.9027748127120603e-17
+sc205        optimal      1 1 1 1 1 226 576100 1.4018734090237572e-16
+sc50a        optimal      1 1 1 1 1 47 36601 1.0912494866066602e-16
+sc50b        optimal      1 1 1 1 1 52 39298 3.8516282177547545e-17
+scagr25      optimal      1 1 1 1 1 598 2946985 7.4718009557273035e-13
+scagr7       optimal      1 1 1 1 1 182 410000 1.6486811915683575e-13
+scfxm1       optimal      1 1 1 1 1 415 1785890 1.6188873158684558e-14
+scfxm2       optimal      1 1 1 1 1 974 6640783 6.0515828459450915e-15
+scfxm3       optimal      1 1 1 1 1 1499 11149980 6.0515828459450915e-15
+scorpion     optimal      1 1 1 1 1 327 667728 4.6421200217139358e-14
+scrs8        optimal      1 1 1 1 1 568 2673431 8.0030426730104409e-13
+scsd1        optimal      1 1 1 1 1 97 474986 1.8633899756537176e-08
+scsd6        optimal      1 1 1 1 1 235 1570102 2.9999998816740425e-08
+scsd8        optimal      1 1 1 1 1 742 9189661 6.3948846218409017e-14
+sctap1       optimal      1 1 1 1 1 290 650782 5.9396931817445875e-15
+sctap2       optimal      1 1 1 1 1 775 1869700 4.4408920985006262e-16
+sctap3       optimal      1 1 1 1 1 1002 2594852 2.2204460492503131e-16
+seba         optimal      1 1 1 1 1 438 735807 0
+share1b      optimal      1 1 1 1 1 179 555791 6.5464994536412746e-14
+share2b      optimal      1 1 1 1 1 103 212502 3.9523939676655573e-14
+shell        optimal      1 1 1 1 1 555 2827060 0
+ship04l      optimal      1 1 1 1 1 409 710560 1.1368683772161603e-13
+ship04s      optimal      1 1 1 1 1 409 581680 1.9895196601282805e-13
+ship08l      optimal      1 1 1 1 1 727 3238792 4.5474735088646412e-13
+ship08s      optimal      1 1 1 1 1 682 1970585 4.5474735088646412e-13
+ship12l      optimal      1 1 1 1 1 1200 6135626 4.8316906031686813e-13
+ship12s      optimal      1 1 1 1 1 1132 4369810 4.8316906031686813e-13
+sierra       optimal      1 1 1 1 1 610 1505412 0
+stair        optimal      1 1 1 1 1 489 10186539 7.6221852180619054e-15
+standata     optimal      1 1 1 1 1 72 122497 0
+standmps     optimal      1 1 1 1 1 220 380355 1.7763568394002505e-15
+stocfor1     optimal      1 1 1 1 1 130 325053 1.6248113965389166e-13
+stocfor2     optimal      1 1 1 1 1 2263 24801928 5.575921668832251e-14
+stocfor3     optimal      1 1 1 1 1 18131 815652468 4.9300841187260858e-14
+truss        optimal      1 1 1 1 1 17336 1154610114 2.934451293068463e-12
+tuff         optimal      1 1 1 1 1 286 1422821 1.3488152652077479e-17
+vtp-base     optimal      1 1 1 1 1 132 328685 1.3322676295501878e-15
+wood1p       optimal      1 1 1 1 1 335 25932496 0
+woodw        optimal      1 1 1 1 1 1713 90870892 3.8841542829293196e-16
