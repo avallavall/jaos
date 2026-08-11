@@ -6189,8 +6189,26 @@ of the problem as written. The verdict reads the second; the bound is the
 first. A slack implied bound can no longer cost a correct answer its verdict.
 
 With that, the propagation is free to be as good as it can be, and is iterated
-to a fixed point (at most `IMPLIED_ROUNDS = 8`, exiting early when a round
+to a fixed point (at most `IMPLIED_ROUNDS = 64`, exiting early when a round
 bounds nothing new).
+
+**That constant was swept, because the first version of this entry claimed a
+measurement it did not have.** 8 was chosen by nothing at all. Certified
+answers over the standard set, by round count:
+
+| rounds | 1 | 2 | 4 | 8 | 16 | 32 | 64 | 128 |
+|---|---|---|---|---|---|---|---|---|
+| certified | 17 | 23 | 32 | 38 | 46 | 47 | **48** | 48 |
+
+The propagation reaches its fixed point at 64, so 8 was cutting off ten
+answers that could have been certified. The cost is flat across the whole
+sweep — 119 s to 128 s against a gate that takes about 120 s — so the passes
+are free and there is nothing to trade against. The cap is therefore a safety
+stop rather than a choice: the loop exits when a round bounds nothing new, and
+64 is where that happens.
+
+The canary moved at every step, so the sweep measured eight binaries and not
+one binary eight times, which is the trap D82 fell into.
 
 ### What it closed
 

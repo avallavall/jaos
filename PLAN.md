@@ -769,6 +769,42 @@ case, and it came from a campaign aimed at another question.
 
 ---
 
+## Known defects, carried — the one this session opened
+
+**`pilot87`'s warm re-solve is measurably worse than its cold one.** Found
+2026-08-11 by `make warm`, which exits nonzero on it, and it is a real defect
+rather than a campaign artefact:
+
+```
+pilot87  REJECTED  warm=838/759755913  cold=120075/61322758828
+         obj  warm 301.77550257870354   cold 301.77545866851051
+```
+
+The warm answer is **4.4e-5 worse** on the same perturbed model, and the
+independent checker refuses it while accepting the cold one. A warm start is
+documented as costing iterations and never the answer (`jaos_set_basis`), so
+this contradicts the contract.
+
+**It is not new behaviour, it is newly visible.** Built from each of the last
+four commits in turn: 0 rejections at D86, 1 from D87 onward, with the
+trajectory figures — 838 warm iterations against 120075 cold — identical in
+all four. The solver did not change; the checker stopped accepting it. So the
+defect is at least as old as warm re-solve and D87 is what surfaced it, which
+is the first evidence the implied bounds catch something outside D47's
+constructed case.
+
+What is not known: whether the warm point is a genuinely different local
+optimum of a degenerate problem, or whether the re-entry loop settles worse
+from a warm basis than from a cold one. The second would tie it to defect 2,
+whose oscillation D74 and D89 both left open. Nothing has been measured on
+this beyond the isolation above.
+
+`make warm` is left failing rather than papered over: it reports a ratio and
+is not a gate (D90), so nothing downstream is blocked, and a campaign that
+hides a checker rejection would be worth less than one that fails.
+
+---
+
 ## Settled — do not re-derive
 
 Each was measured and closed; the measurement is in `DECISIONS.md`.

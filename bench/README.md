@@ -142,10 +142,13 @@ The remaining four say whether `Q` is a bound at all. `drop` is the largest
 multiplier whose term the duality identity could not take — its sign points at
 an infinite bound, so the term is minus infinity and gets dropped, and `Q`
 then belongs to a different problem — and `cert` is whether any were dropped.
-**98 of the 110 accepted answers across both feasible sets are not certified**,
-and not one dropped multiplier reaches 1e-6, the tolerance the checker uses to
-call one nonzero: the whole exposure sits inside what it already calls zero
-(D71). `sub` is a certified lower bound on the suboptimality and `rays` counts
+**54 of the 110 accepted answers across both feasible sets are now
+certified**, against 12 before the checker began bounding unbounded variables
+by what the rows imply — and the largest term the identity still cannot take
+is 3e-08, with everything below it at 1e-14 or smaller. What is left
+uncertified is arithmetic rather than structure (D91). `rsub` is that bound as
+a fraction of the objective; it reads 6.9e-05 where `pilot` is right and
+5.02e-03 where it is wrong, and the baseline watches it. `sub` is a certified lower bound on the suboptimality and `rays` counts
 the directions that could not be quantified; `sub` is sound and, on this
 evidence, uninformative — it reads the same on answers known to be wrong as on
 correct ones, because the step it uses cannot move at a vertex (D73).
@@ -193,15 +196,15 @@ that it is reported too, because an instance that still reaches the same
 optimum after eighty times the iterations has not kept working — it has become
 a work-limit failure for any caller with a budget.
 
-**And the checker's dropped term, which the `checker` predicate cannot see.**
-Where a multiplier points at a bound the model does not have, the dual
-objective has no term to take and `gap_positive` stops being the bound it is
-documented as being — while every verdict stays green (D47). Judging such a
-term needs knowledge the checker does not have; noticing it grow does not. It
-is carried in the baseline and growth past 2× above a floor of 1e-9 is a
-regression. Both numbers are measured: a solver change that moved no answers
-moved 0 of 94 dropped terms, and the case this exists to catch — `pilot` going
-from where it is right to where it is wrong — is a factor of 40 (D88).
+**And the suboptimality the answer carries, which no predicate can see.**
+The `checker` predicate reports sign conditions and the gap over bounds the
+model declared; it says nothing about how far from optimal the point may be,
+which is a separate quantity and the one D47 was about. `relative_suboptimality`
+is that bound as a fraction of the objective, it is carried in the baseline,
+and growth past 2× above a floor of 1e-9 is a regression. Both numbers are
+measured: the quantity is deterministic, and the case this exists to catch —
+`pilot` going from 6.9e-05 where it is right to 5.02e-03 where it is wrong —
+is a factor of 73 (D88, D91).
 
 This is the check that would have caught D82, where a change published an
 answer out of tolerance with every checker number green and this gate passed

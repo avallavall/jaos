@@ -244,9 +244,24 @@ static long double certified_step(const jaos_model *m, int64_t j, double dir,
     return t;
 }
 
-/* How many propagation rounds the implied bounds get. A constant this project
- * measures on both sides; the measurement is in D91. */
-constexpr int64_t IMPLIED_ROUNDS = 8;
+/* The cap on propagation rounds. Not a quality knob: the loop exits as soon
+ * as a round bounds nothing new, so this is the safety stop, and it is set
+ * where the propagation reaches its fixed point rather than anywhere useful
+ * work is still being cut off.
+ *
+ * Swept over the standard set, counting certified answers — the canary that
+ * had to move, and did:
+ *
+ *   rounds    1    2    4    8   16   32   64  128
+ *   certified 17   23   32   38   46   47   48   48
+ *
+ * 64 is where it stops changing. The cost is flat across the whole sweep,
+ * 119 s to 128 s against a gate that takes about 120 s, so the passes are
+ * indistinguishable from noise and there is nothing to trade against.
+ *
+ * 8 was here first, chosen by nothing, and it left ten answers uncertified
+ * (D91). */
+constexpr int64_t IMPLIED_ROUNDS = 64;
 
 /* The bounds the constraints imply for a variable the model left unbounded.
  *

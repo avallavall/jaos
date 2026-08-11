@@ -113,10 +113,11 @@ open, `bench/README.md` for the gate, and the commit each entry came from.
   basis is not. `jaos_set_basis` hands one in from elsewhere and
   `jaos_clear_basis` forgets it, without which one solve would make every
   later solve a re-solve for good. A basis that is wrong costs iterations and
-  never the answer; one that would leave a nonbasic variable with no bounds is
-  refused and the solve runs cold, because that pins a row's activity at zero
-  and this method cannot always price it back off. All 139 digests unmoved
-  (D68).
+  never the answer; one that would leave a nonbasic variable with no bounds was
+  refused and the solve ran cold, because that pins a row's activity at zero
+  and the method could not always price it back off — **that refusal is gone
+  as of D90**, once D85 taught the clean-up which way a free column improves.
+  All 139 digests unmoved (D68).
 
 - `jaos_set_coefficient`: one matrix entry can be changed, created or
   removed. Three operations under one name, because the stored matrix keeps
