@@ -113,10 +113,34 @@ constexpr int64_t SPARSE_RHO_DEN = 4;
  * solver whose value contradicts its own work-unit measurement. */
 constexpr int64_t SPARSE_COL_DEN = 8;
 
-/* Refactorization interval. PLAN 2.5.5 also calls for stability triggers
- * (FTRAN/BTRAN residual checks); only the interval and the reactive
- * fallback on a failed update exist so far. */
+/* Refactorization interval, and the stability trigger PLAN 2.5.5 asked for
+ * beside it. Until D86 only the interval and the reactive fallback on a
+ * failed update existed, and an interval alone cannot notice that it has
+ * become too long for a particular model. */
 constexpr int64_t REFACTOR_EVERY = 64;
+
+/* How far the two computations of the pivot element may disagree before the
+ * factorization they both came through stops being trusted.
+ *
+ * `alpha_q` is row r of `B^-1` dotted with column q, which arrives by BTRAN;
+ * `col[r]` is column q transformed by FTRAN. They are the same number in
+ * exact arithmetic, so their relative difference is not a heuristic about
+ * conditioning — it is the patched factorization contradicting itself, read
+ * off two solves the iteration was already paying for.
+ *
+ * **Measured on both sides, and the interval between them is wide (D86).**
+ * Over all 139 gate instances at the interval above, the worst disagreement
+ * any pivot produces is 7.83e-08 and **not one reaches 1e-7**. On `pilot87`
+ * at an interval of 128, where the solve grinds 1.38M iterations and the
+ * guard then blames a defect that is not there, it reaches **1.99** — two
+ * computations of one number differing by more than the number.
+ *
+ * The value inside that gap barely matters, which is the useful part: the
+ * first pivot to cross 1e-7, 1e-6, 1e-5, 1e-4 *and* 1e-3 is the same one,
+ * iteration 120880 of 1382801. The decay does not creep in, it arrives. So
+ * this sits in the middle of a four-decade plateau, 128x above the worst
+ * healthy pivot in the gate and 1e5 below the broken one. */
+constexpr double LU_AGREE_TOL = 1e-5;
 
 /* The clock is read once every this many iterations rather than every
  * iteration. Reading it cannot change which pivot is chosen (D8) — it only
@@ -431,6 +455,11 @@ typedef struct {
     int64_t n_refactor;
     int64_t n_weight_restart;
     int64_t n_bland;
+    /* Pivots declined because the factorization contradicted itself (D86).
+     * Worth its own count rather than folding into n_refactor: a rebuild on
+     * a schedule and a rebuild because the numbers stopped agreeing say
+     * different things about a model. */
+    int64_t n_stability;
 } sx;
 
 /* --------------------------------------------------------------------- */
@@ -1874,13 +1903,64 @@ static void update_dual(sx *s, int64_t v, int64_t q, double theta_dual)
 }
 
 /* Applies the basis change: q enters at position r, the variable there
- * leaves to the bound it violated. */
+ * leaves to the bound it violated.
+ *
+ * `*took` says whether it happened. A pivot declined for the stability
+ * reason below leaves every field exactly as it found them and asks for a
+ * refactorization instead, so the caller must not bill an iteration for it —
+ * nothing moved, and counting it would let a run of declines exhaust the
+ * iteration guard while reporting progress that was never made. */
 static jaos_status pivot(sx *s, int64_t r, int64_t q, bool below,
-                         double theta_dual)
+                         double theta_dual, bool *took)
 {
     int64_t leaving = s->basis[r];
     double bound = below ? s->lo[leaving] : s->up[leaving];
     double alpha_q = s->alpha[q];
+
+    /* The entering column, transformed. **This happens before anything is
+     * mutated, and that ordering is the stability trigger rather than tidiness
+     * (D86).** `col[r]` and `alpha_q` are the same number reached by two
+     * different solves against the same factorization, so comparing them is
+     * free evidence about whether that factorization still holds — but only
+     * while the iteration can still be abandoned. It used to run after the
+     * reduced costs had already been stepped, which left nothing to abandon.
+     *
+     * Moving it moves no arithmetic: the two share no buffers — `raw`, `col`
+     * and `cpat` against `d`, `shift` and `cost` — and the work units they
+     * bill are integers whose order of addition cannot change a total. The
+     * raw column is kept because the LU update wants it untransformed. */
+    var_column(s, q, s->raw);
+    memcpy(s->col, s->raw, (size_t)s->nrow * sizeof *s->col);
+    {
+        int64_t nc = 0;
+        jm_lu_ftran_sparse(&s->lu, s->col, &s->work, s->cpat, &nc);
+        s->ncpat = nc * SPARSE_COL_DEN <= s->nrow ? nc : -1;
+    }
+
+    /* Do the two agree? If they do not, the updates since the last rebuild
+     * have taken the factorization somewhere neither solve can be read off,
+     * and pivoting on either number puts a fiction into the basis. Ask for a
+     * rebuild and hand the iteration back unspent.
+     *
+     * **Only when a rebuild is a plausible cure**, which is what `n_updates`
+     * says. On a factorization that was just built from scratch the same
+     * disagreement means the basis itself is that badly conditioned, and
+     * rebuilding it again would produce the same numbers and the same
+     * refusal, forever. There the pivot is taken: it is the worse of two
+     * options and the only one that terminates, and the outcome is a solve
+     * that ends rather than a loop that does not. */
+    {
+        double a = fabs(alpha_q), c = fabs(s->col[r]);
+        double big = a > c ? a : c;
+        if (big > 0.0 && fabs(alpha_q - s->col[r]) > LU_AGREE_TOL * big &&
+            s->lu.n_updates > 0) {
+            s->needs_refactor = true;
+            s->n_stability++;
+            *took = false;
+            return JAOS_OK;
+        }
+    }
+    *took = true;
 
     /* Primal step: how far the entering variable moves so that row r lands
      * exactly on the bound it violated. */
@@ -1909,17 +1989,6 @@ static jaos_status pivot(sx *s, int64_t r, int64_t q, bool below,
     }
     s->d[leaving] = -theta_dual;
     s->d[q] = 0.0;
-
-    /* Basic values shift by dx_B = -B^-1 M_q dx_q — note the sign, it
-     * comes straight from x_B = -B^-1 N x_N. The raw column is kept
-     * because the LU update wants it untransformed. */
-    var_column(s, q, s->raw);
-    memcpy(s->col, s->raw, (size_t)s->nrow * sizeof *s->col);
-    {
-        int64_t nc = 0;
-        jm_lu_ftran_sparse(&s->lu, s->col, &s->work, s->cpat, &nc);
-        s->ncpat = nc * SPARSE_COL_DEN <= s->nrow ? nc : -1;
-    }
 
     /* Steepest-edge weights, while the old basis is still in force: both
      * vectors the recurrence needs are solves against it, so this has to
@@ -2504,9 +2573,17 @@ static jaos_status primal_cleanup(sx *s, int64_t *pivots)
         if (fabs(s->alpha[q]) < PIVOT_MIN)
             continue;   /* the pricing row disagrees with the column: leave it */
 
-        jaos_status st = pivot(s, r, q, below, s->d[q] / s->alpha[q]);
+        bool took = false;
+        jaos_status st = pivot(s, r, q, below, s->d[q] / s->alpha[q], &took);
         if (st != JAOS_OK)
             return st;
+        if (!took) {
+            /* The factorization contradicted itself and asked for a rebuild.
+             * Everything below reads it, so leave now and let the caller's
+             * refresh come round: this loop's candidates were chosen against
+             * a point that a rebuild is about to recompute anyway. */
+            break;
+        }
 
         /* Billed as the iterations they are, so the guard in run() covers
          * them and the work counter does not under-report the solve (D16). */
@@ -2851,11 +2928,13 @@ static jaos_status run(sx *s, jaos_solve_status *out)
              * refactorization interval of 128 is the second (D72). */
             jm_set_err(s->m, "internal iteration guard tripped after %lld "
                              "iterations, the last %lld without the total "
-                             "infeasibility improving%s; this is a JAOS "
+                             "infeasibility improving%s, %lld pivots declined "
+                             "on factorization disagreement; this is a JAOS "
                              "defect",
                        (long long)s->iters,
                        (long long)(s->iters - s->last_gain),
-                       s->bland ? ", under Bland's rule" : "");
+                       s->bland ? ", under Bland's rule" : "",
+                       (long long)s->n_stability);
             return JAOS_ERR_NUMERICAL;
         }
 
@@ -2982,9 +3061,17 @@ static jaos_status run(sx *s, jaos_solve_status *out)
         /* The basis is about to change, so any verification of the point
          * it implied is spent. */
         s->verified = false;
-        st = pivot(s, r, q, below, theta_dual);
+        bool took = false;
+        st = pivot(s, r, q, below, theta_dual, &took);
         if (st != JAOS_OK)
             return st;
+
+        /* A declined pivot changed nothing and costs no iteration. The top
+         * of this loop refactorizes and the row is priced again from numbers
+         * that agree with themselves. It cannot spin: a rebuild leaves
+         * `n_updates` at zero, and the check declines only above zero. */
+        if (!took)
+            continue;
 
         s->iters++;
     }
@@ -3236,17 +3323,21 @@ jaos_status jm_dual_simplex(jaos_model *m)
     if (st == JAOS_OK)
         jm_log(m, JAOS_LOG_SUMMARY,
                "%s after %lld iterations, %lld work units; "
-               "%lld refactorizations, %lld weight restarts, %lld stalls",
+               "%lld refactorizations, %lld weight restarts, %lld stalls, "
+               "%lld stability rebuilds",
                jaos_solve_status_str(outcome), (long long)s.iters,
                (long long)s.work.units, (long long)s.n_refactor,
-               (long long)s.n_weight_restart, (long long)s.n_bland);
+               (long long)s.n_weight_restart, (long long)s.n_bland,
+               (long long)s.n_stability);
     else
         jm_log(m, JAOS_LOG_SUMMARY,
                "abandoned after %lld iterations, %lld work units: %s; "
-               "%lld refactorizations, %lld weight restarts, %lld stalls",
+               "%lld refactorizations, %lld weight restarts, %lld stalls, "
+               "%lld stability rebuilds",
                (long long)s.iters, (long long)s.work.units,
                jaos_status_str(st), (long long)s.n_refactor,
-               (long long)s.n_weight_restart, (long long)s.n_bland);
+               (long long)s.n_weight_restart, (long long)s.n_bland,
+               (long long)s.n_stability);
 
     sx_free(&s);
     return st;

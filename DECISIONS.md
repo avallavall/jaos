@@ -91,6 +91,7 @@ and you have the argument. Jump to the entry for the numbers behind it.
 - **[D83](#d83-clp-is-the-third-reading-and-the-two-were-not-agreeing-by-coincidence)** — Clp is the third reading, and the two were not agreeing by coincidence
 - **[D84](#d84-multiple-pricing-refused-too-and-phase-6-item-3-closes-with-both-halves-measured)** — Multiple pricing, refused too, and phase 6 item 3 closes with both halves measured
 - **[D85](#d85-a-free-nonbasic-improves-in-the-direction-its-reduced-cost-points-and-the-status-was-never-able-to-say-which-that-was)** — A free nonbasic improves in the direction its reduced cost points, and the status was never able to say which that was
+- **[D86](#d86-pilot87s-iteration-guard-is-a-factorization-that-stopped-agreeing-with-itself-and-the-two-solves-each-iteration-already-pays-for-can-say-so)** — `pilot87`'s iteration guard is a factorization that stopped agreeing with itself, and the two solves each iteration already pays for can say so
 
 ---
 
@@ -5569,3 +5570,162 @@ That is deliberately not taken here. It is a second change, it moves warm
 trajectories rather than nothing at all, and it needs the warm campaigns
 (`make warm`, `make warm-kennington`) and not just the gate. Handed to
 `PLAN.md`.
+
+---
+
+## D86 — `pilot87`'s iteration guard is a factorization that stopped agreeing with itself, and the two solves each iteration already pays for can say so
+
+### The question
+
+`PLAN.md` carried this as the third of the known defects. D72 established what
+it is *not*: `pilot87` at a refactorization interval of 128 runs 588,725
+iterations under Bland's rule without total primal infeasibility improving
+once, over 1,136,521 **distinct** basis states, so the anti-cycling rule is
+doing exactly what it promises and there is no cycle. D72's conclusion was
+that the anti-cycling rule and the progress measure are about different
+quantities, and that the cure is a progress measure the dual method actually
+moves — the dual objective.
+
+That cure is refuted here, and so is the objection raised against it. What the
+measurements found instead is a different defect.
+
+### Two refutations, so neither is attempted again
+
+**The dual objective is not monotone on this solve.** Instrumented at interval
+128, **757,263 of 1,382,801 steps decrease it** — 55%. Signed movement is
++1.32e217 against −2.18e214. As a progress measure it would oscillate more
+than the primal infeasibility it was proposed to replace, not less.
+
+**And it is not because the steps are degenerate**, which was the obvious
+reason to expect it to be blind. Under Bland only **14.3%** of steps are dual
+degenerate, 162,962 against 973,576. The dual objective moves on the large
+majority of steps. It moves in both directions.
+
+That second measurement is what turned the investigation, because a dual step
+that *lowers* the dual objective is not a dual simplex step at all.
+
+### What it actually is
+
+`max |theta_dual|` at interval 128 is **1.21e213**, on a model whose optimum
+is 301.7. Reconstructed from the model's own costs, the basis objective jumps
+194 → −111379 → 105 → 11 → 30.9 → 6928 → 0, and sits at exactly 0 for the last
+500,000 iterations while `infeas_best` is pinned at 25.4152.
+
+The control settles it. The same instrument at three intervals:
+
+| interval | result | steps | max abs theta_dual | steps > 1e6 | max 1/abs alpha_q |
+|---|---|---|---|---|---|
+| 64 | optimal | 50,833 | **0.625** | **0** | 4.0e5 |
+| 96 | optimal | 45,629 | **0.623** | **0** | 1.5e5 |
+| 128 | guard | 1,382,801 | **1.21e213** | **930,897** | 1.0e9 |
+
+A healthy dual step here is about 0.6 and **not one of them exceeds 1e6** at
+either working interval. At 128 two thirds of all steps do. `theta_dual` is
+`d_q / alpha_q`, and `1/|alpha_q|` reaching 1e9 says where it comes from: the
+ratio test is being handed pivot elements by a factorization that no longer
+describes the basis. **Bland is not failing. It is grinding on numbers that
+stopped meaning anything**, and it explains D39's finding that 64 is one of
+only two completely clean values in a sweep of 16..256.
+
+This is the stability trigger PLAN 2.5.5 asked for and that was never built.
+`REFACTOR_EVERY`'s own comment said as much: "only the interval and the
+reactive fallback on a failed update exist so far". An interval alone cannot
+notice that it has become too long for a particular model.
+
+### The detector, which costs nothing to compute
+
+Each iteration already computes the pivot element twice, by two independent
+routes against the same factorization:
+
+- `alpha_q` — row *r* of `B^-1` dotted with column *q*, which arrives by BTRAN
+  as part of the pricing row.
+- `col[r]` — column *q* transformed by FTRAN, which the basis update needs
+  anyway.
+
+They are the same number in exact arithmetic. Their relative difference is
+therefore not a heuristic about conditioning: it is **the patched
+factorization contradicting itself**, read off work the iteration was already
+paying for. This is the standard safeguard in [1] and [2], and it is step 4 of
+this project's own debugging discipline — do two computations of one quantity
+agree.
+
+### The threshold, and the plateau that makes it robust
+
+Measured over **all 139 gate instances at the shipped interval**:
+
+| set | worst disagreement | pivots above 1e-7 |
+|---|---|---|
+| standard 94 | 2.55e-08 | **0** |
+| Kennington 16 | 3.49e-10 | **0** |
+| infeasible 29 | 7.83e-08 | **0** |
+| **all 139** | **7.83e-08** | **0** |
+
+Against **1.99** on `pilot87` at 128 — two computations of one number
+differing by more than the number itself.
+
+And the value inside that gap barely matters, which is the part worth having.
+The first pivot to cross 1e-7, 1e-6, 1e-5, 1e-4 **and** 1e-3 is the same one,
+**iteration 120880 of 1382801**. The decay does not creep in; it arrives. So
+the constant sits on a four-decade plateau, and `LU_AGREE_TOL = 1e-5` is its
+middle: 128x above the worst healthy pivot anywhere in the gate, 1e5 below the
+broken one.
+
+That crossing point is also why the detector is worth having rather than
+merely correct: it fires at **8.7% of the solve**, before the remaining 91% of
+the iterations are spent.
+
+### What the repair had to get right
+
+**The ordering, which is the design and not tidiness.** `pivot()` used to step
+every reduced cost before it FTRANed the entering column, so by the time both
+quantities existed the state was already half-changed and there was no
+iteration left to abandon. The FTRAN is hoisted above the dual update. That
+moves no arithmetic: the two share no buffers — `raw`, `col`, `cpat` against
+`d`, `shift`, `cost` — and the work units they bill are integers whose order
+of addition cannot change a total.
+
+**Termination, which is where the easy mistake is.** A pivot is declined only
+while `lu.n_updates > 0`. On a factorization just built from scratch the same
+disagreement means the *basis* is that badly conditioned, and rebuilding would
+produce the same numbers and the same refusal forever. There the pivot is
+taken: the worse of two options and the only one that ends.
+
+**Not billing a declined iteration.** Nothing moved, and counting it would let
+a run of declines exhaust the iteration guard while reporting progress that
+was never made.
+
+### What it cost
+
+**All 139 digests, work units and iteration counts unmoved**, across all three
+sets, `bench/results/` regenerating byte-identical to the committed records.
+That is by construction rather than by luck: no pivot anywhere in the gate
+reaches 1e-5, so the detector cannot fire there.
+
+And on the trajectories the gate does not walk, `pilot87`:
+
+| interval | before | after |
+|---|---|---|
+| 96 | optimal, 45,653 iters | optimal, 45,653 iters — unchanged |
+| **128** | **guard tripped, 1,382,801 iters** | **optimal, 214,631 iters** |
+| 160 | broken (D39) | optimal, 51,691 iters |
+| 256 | broken (D39) | **still broken** — abandoned after 25 minutes against 88 s at 128 |
+
+**256 is the honest limit of this and is stated rather than omitted.** The
+trigger makes a too-long interval survivable, not unbounded: past some point
+the updates accumulate faster than a disagreement-driven rebuild can clear
+them, and every iteration turns into a rebuild plus a wasted pivot. What that
+buys at 256 is a different failure — slow instead of wrong — which is an
+improvement in kind and not a cure.
+
+### What is left open
+
+The guard's message was separately wrong and is now corrected: it called a
+solve "a JAOS defect" while Bland was doing exactly what it promises. It now
+also reports how many pivots were declined, which is the number that
+distinguishes a model this trigger is working hard on from one that is simply
+large.
+
+Whether `REFACTOR_EVERY` should move is *not* decided here and should not be
+inferred from the table above. D39 chose 64 by sweeping correctness across
+16..256, and one instance solving at 160 is not that sweep. The trigger makes
+the interval safer; it does not re-open the question of its value.

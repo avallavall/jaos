@@ -241,6 +241,19 @@ open, `bench/README.md` for the gate, and the commit each entry came from.
 
 ### Fixed
 
+- **A pivot is refused when the factorization contradicts itself**, which is
+  the stability trigger PLAN 2.5.5 asked for and never got. Each iteration
+  already computes the pivot element twice — `alpha_q` by BTRAN, `col[r]` by
+  FTRAN — so the check is free; the entering column is now transformed before
+  anything is mutated, which is what leaves an iteration to abandon. Past
+  `LU_AGREE_TOL` the pivot is declined, unbilled, and a rebuild asked for,
+  unless the factorization was already fresh — where the basis itself is the
+  problem and declining forever would be the only alternative to proceeding.
+  `pilot87` at a refactorization interval of 128 went from tripping the
+  iteration guard after 1,382,801 iterations to OPTIMAL in 214,631; all 139
+  digests unmoved, because no pivot in the gate comes within four decades of
+  the threshold (D86).
+
 - **A nonbasic free variable with a negative reduced cost is no longer
   invisible**, which could publish a suboptimal point as OPTIMAL. Zero is the
   only dual feasible reduced cost for a variable with neither bound, so it is

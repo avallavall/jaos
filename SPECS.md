@@ -63,8 +63,9 @@ missing.
 
 | | status | |
 |---|---|---|
-| Dual simplex | **done** | steepest-edge pricing [8], Harris two-pass ratio test with bound flipping [7][19], dual phase 1 by artificial bounds [21], Bland fallback on a detected stall — which catches a real cycle and then cannot always finish it off (D72) |
+| Dual simplex | **done** | steepest-edge pricing [8], Harris two-pass ratio test with bound flipping [7][19], dual phase 1 by artificial bounds [21], Bland fallback on a detected stall. What looked like Bland failing to finish off a cycle (D72) was the factorization it was pivoting on having stopped describing the basis; the trigger above is the repair (D86) |
 | Sparse LU, Markowitz threshold pivoting | **done** | [4][6][20], Forrest-Tomlin updates [5], singular-basis repair |
+| Stability trigger on the triangular solves | **done** | the pivot element is computed twice each iteration, by BTRAN and by FTRAN; past `LU_AGREE_TOL` the pivot is declined unbilled and the factorization rebuilt. Free — both numbers are already paid for (D86) |
 | Scaling | **done** | Curtis-Reid [11], geometric-mean equilibration as an option |
 | Hyper-sparsity in the triangular solves | **partial** | [9]: both solves report their pattern, the passes billed for every slot are not all reduced |
 | Presolve | **missing** | measured at 1.42x against HiGHS and 1.14x against SoPlex (D81) — real, and smaller than the 2.53x per-iteration gap no rung moves |

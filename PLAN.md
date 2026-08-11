@@ -533,32 +533,42 @@ accelerate, they do not gate. SDP stays unscheduled.
 
 ## Known defects, carried — **and this is the next work**
 
-**Decided: the three below come before any new feature or any new speed
+**Decided: the two below come before any new feature or any new speed
 attempt.** They are the only things in this file that are known to be wrong
 rather than merely absent, each one diagnosed, reproducible, and carrying the
-measurement that found it. All three were found by varying a parameter the
-gate never varies — which is to say none of them will be found again by
-running the gate, and none of them will go away on its own.
+measurement that found it. Both were found by varying a parameter the gate
+never varies — which is to say neither will be found again by running the
+gate, and neither will go away on its own.
 
-**The fourth is closed (D85).** A nonbasic free variable with a negative
-reduced cost was invisible to the primal clean-up, which could publish a
-suboptimal point as OPTIMAL; `wants_a_pivot` and `primal_ratio_test` now read
-the sign of the reduced cost rather than the status. All 139 digests unmoved,
-because the new form is bit-identical for every bounded status. It did not
-need the primal simplex it was expected to wait for.
+**Two of the four are closed, and neither by the cure it was filed with.**
+
+Defect 4 (D85): a nonbasic free variable with a negative reduced cost was
+invisible to the primal clean-up, which could publish a suboptimal point as
+OPTIMAL. `wants_a_pivot` and `primal_ratio_test` now read the sign of the
+reduced cost rather than the status. It did not need the primal simplex it
+was expected to wait for.
+
+Defect 3 (D86): `pilot87`'s iteration guard was never about a progress
+measure. The factorization had stopped describing the basis — dual steps of
+1e213 on a model whose optimum is 301.7 — and nothing noticed. The pivot
+element is already computed twice each iteration, by BTRAN and by FTRAN, so
+their disagreement detects it for free. The progress measure D72 proposed was
+refuted on the way: it is not monotone.
+
+All 139 digests unmoved by both, for the same kind of reason — each repair
+provably cannot fire on any input the gate contains.
 
 Defect 1 has already cost something measurable in this milestone: it is what
 let partial pricing publish a wrong answer on `pilot` with every checker
 number green (D82), so it is not a theoretical hole any more — it is the
 reason a bad change passed a check that exists to stop bad changes.
 
-Ordering is not obvious and is deliberately left open: defect 3's cure changes
-how *every* solve measures progress, and defect 1's needs a factorization
-inside the checker and an answer to what "independent" then means. Read
-defects 2 and 3 together before choosing — both are about the solver failing
-to recognise its own progress, and they may share a cure.
+Ordering: defect 1 needs a factorization inside the checker and an answer to
+what "independent" then means, which is the larger open design question of the
+two. Defect 2 has a cure proposed and never tried (D50), with a prerequisite
+D49 stated and nobody has answered.
 
-Reproducible, diagnosed, not yet fixed. All three came out of varying
+Reproducible, diagnosed, not yet fixed. Both came out of varying
 `REFACTOR_EVERY` over 16..256, which walks trajectories the gate never walks.
 That is the lesson about where the defects 139 instances at one setting do not
 find are hiding — and D85 is the other half of it, a *state* the gate never
@@ -631,29 +641,33 @@ reaches rather than a trajectory.
    `pilot87` is the instance the whole question is about — taking the borrow
    away makes its non-convergence worse. Whatever repairs this loop, it is
    not that.
-3. **`pilot87` trips the iteration guard at intervals of 128 and above**,
-   which the solver's own message calls a JAOS defect. **Diagnosed (D72), and
-   it is not a cycle.** Bland's rule engages twice and the second time runs
-   588,725 iterations without the total infeasibility improving once — over
-   **1,136,521 distinct** basis states in 1,136,538 iterations, so the rule is
-   doing exactly what it promises. With Bland *off* the solve does cycle, one
-   state revisited 11,379 times, and the stall detector catches that
-   correctly.
+~~3. **`pilot87` trips the iteration guard at intervals of 128 and
+   above.**~~ **Closed (D86), and the cure D72 proposed was refuted on the
+   way.** D72 was right that it is not a cycle — Bland's rule runs 1,136,521
+   distinct basis states and is doing exactly what it promises. It was wrong
+   about why. The dual objective it proposed as the progress measure is **not
+   monotone here**: 55% of steps decrease it. And the reason is not
+   degeneracy, which was the obvious suspect — only 14.3% of the steps are
+   degenerate.
 
-   The defect is that **the anti-cycling rule and the progress measure are
-   about different quantities**. Bland's rule guarantees no basis repeats; the
-   solver only watches primal infeasibility, which a degenerate dual step does
-   not move. So a solve behaving exactly as the rule prescribes is
-   indistinguishable from a hang, `bland` can never switch off because
-   switching off needs the improvement that is not coming, and the guard fires
-   and blames a defect that is not there.
+   What it is: `max |theta_dual|` reaches **1.21e213** on a model whose
+   optimum is 301.7, with `1/|alpha_q|` at 1e9, while at the two working
+   intervals no step exceeds 1e6 at all. **The factorization had stopped
+   describing the basis and nothing noticed.** Bland was not failing; it was
+   grinding on numbers that had stopped meaning anything.
 
-   The cure is a progress measure that can see what the dual method is
-   actually making progress in — the dual objective, non-decreasing across a
-   dual step whether or not the primal infeasibility moves. That changes how
-   every solve measures progress, so it needs its own decision and its own
-   measurement over all three sets rather than being invented at the end of a
-   diagnosis. Latent: 128 is not the shipped interval and 64 is clean.
+   The repair is the stability trigger PLAN 2.5.5 asked for and never got, and
+   it costs nothing: the pivot element is already computed twice each
+   iteration, by BTRAN and by FTRAN, so their disagreement is free evidence.
+   `pilot87` at 128 goes from the guard after 1,382,801 iterations to OPTIMAL
+   in 214,631, with all 139 digests unmoved.
+
+   **Its limit is stated rather than omitted: 256 is still broken**, slow now
+   instead of wrong. Past some interval the updates accumulate faster than a
+   disagreement-driven rebuild clears them. That is an improvement in kind and
+   not a cure, and it does not reopen `REFACTOR_EVERY`'s value — D39 chose 64
+   by sweeping correctness over 16..256, and one instance solving at 160 is
+   not that sweep.
 ~~4. **A nonbasic free variable with a negative reduced cost is
    invisible.**~~ **Closed (D85)**, and it did not need the primal simplex it
    was filed as waiting for — the primal clean-up already owns a ratio test
