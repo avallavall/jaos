@@ -685,6 +685,19 @@ reaches rather than a trajectory.
    the ratio test's clamp already guards the hazard the loan's own comment
    cites. It is load-bearing for cost, and the cost is one instance: `pilot87`
    pays **2.372x its iterations**, against 0.980x bought on `pilot`. And
+   **Its consequence is closed, and the loop is smaller than this entry made
+   it sound (D89).** Measured per round on `pilot87` at interval 24: the
+   twenty wasted rounds cost **278 iterations of 116,071 — 0.24%**, and the
+   spread between the best round and the published one is 3.5e-8 relative. So
+   the oscillation is not expensive; what was wrong is that *which* round got
+   published was decided by where `SETTLE_ROUNDS` fell. The loop now keeps its
+   best round, lexicographically — defensible before close, because plain
+   lowest objective publishes a point the checker rejects — and both
+   quantities are compared in the model's own space. D49's factor of 280 is
+   attributed on the way: it is the per-column scaling, which cancels in
+   `breach * distance` and does not cancel in `breach`.
+
+   What remains open is the oscillation itself, and no cure is named for it.
    `pilot87` is the instance the whole question is about — taking the borrow
    away makes its non-convergence worse. Whatever repairs this loop, it is
    not that.

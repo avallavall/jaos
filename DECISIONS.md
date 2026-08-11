@@ -94,6 +94,7 @@ and you have the argument. Jump to the entry for the numbers behind it.
 - **[D86](#d86-pilot87s-iteration-guard-is-a-factorization-that-stopped-agreeing-with-itself-and-the-two-solves-each-iteration-already-pays-for-can-say-so)** — `pilot87`'s iteration guard is a factorization that stopped agreeing with itself, and the two solves each iteration already pays for can say so
 - **[D87](#d87-the-checker-bounds-what-the-rows-imply-which-closes-d47s-constructed-case-and-not-its-real-one)** — The checker bounds what the rows imply, which closes D47's constructed case and not its real one
 - **[D88](#d88-the-gate-watches-the-dropped-term-because-the-checker-cannot-judge-it-and-the-predicate-cannot-see-it)** — The gate watches the dropped term, because the checker cannot judge it and the predicate cannot see it
+- **[D89](#d89-the-re-entry-loop-keeps-its-best-round-and-best-is-defensible-before-it-is-close)** — The re-entry loop keeps its best round, and "best" is defensible before it is close
 
 ---
 
@@ -5979,3 +5980,104 @@ What closes the rest is unchanged from D87: not a better bound, but separating
 the two questions `objective_gap` currently answers at once — how far from
 optimal the point is, and how much of that can be certified. There is 41x of
 checker margin left to spend on it.
+
+---
+
+## D89 — The re-entry loop keeps its best round, and "best" is defensible before it is close
+
+### The question
+
+D49, D50 and D51 left the re-entry loop oscillating: on `pilot87` at a
+refactorization interval of 24 the rounds alternate move/pivot with period
+four from round 12 to round 31, and `SETTLE_ROUNDS = 32` is what ends it
+rather than any condition. D50's own proposal was to keep the best round
+rather than the last, and it was never tried, because the quantity to compare
+was unsettled — D49 had measured a factor of 280 between the loop's own
+`dual_breach` and the checker's verdict and said plainly that until that was
+attributed, no threshold in the loop means what it appears to.
+
+### What the measurement said first
+
+Instrumented per round on `pilot87` at 24:
+
+| round | objective | worst breach | gap contribution | breaching | unbounded |
+|---|---|---|---|---|---|
+| 9 | **301.710389698** | 1.28e-06 | 2.36e-04 | 3 | 1 |
+| 12, 16, 20, 24, 28 | 301.710400171 | 1.10e-04 | 3.16e-05 | 6 | 3 |
+| 15, 19, 23, 27, 31 | 301.710401037 | 7.85e-07 | 0 | 3 | 3 |
+| published | 301.710400171 | — | — | — | — |
+
+Three things came out of it, and two of them shrink the defect.
+
+**The cost of not converging is negligible.** The twenty wasted rounds consume
+278 iterations out of 116,071 — **0.24%**. The entry made this sound
+expensive; it is not.
+
+**The damage is arbitrariness, and it is small.** The best objective seen is
+1.05e-5 below what the loop published — 3.5e-8 relative, under the solver's
+own tolerances. What is actually wrong is that *which* of those rounds gets
+published is decided by where the cap falls.
+
+**And D49's factor of 280 is attributed.** Publishing divides a structural's
+reduced cost by `gamma_j` and multiplies its distance by the same `gamma_j`,
+so `breach * distance` is scale-free while `breach` alone is not — and the
+per-column factors differ between the rounds being compared, since D50
+recorded that the breaching columns change every round. Comparing raw
+`dual_breach` across rounds is a lottery weighted by the scaling. That answers
+the half D49 left open.
+
+### The first criterion was wrong, and the measurement said so
+
+Every round leaves a *primal feasible* point, so its objective is an upper
+bound on the optimum and the lowest one looks like the obvious winner. Built
+that way, `pilot87` at 24 publishes round 9 — objective 301.71038969768654,
+better by 1.05e-5 — and **the independent checker rejects it**, on a dual
+violation of 5.12e-06 against a tolerance of 1e-6.
+
+That is not an improvement. This solver's verdict is OPTIMAL, that verdict
+rests on dual feasibility, and publishing it over a point an independent check
+refuses is the thing the gate exists to prevent. A closer answer bought with a
+defensible one is a bad trade at any exchange rate.
+
+### The criterion that landed
+
+Lexicographic: **defensible first, close second.** A round whose dual
+violation is inside tolerance beats one that is not, whatever the objectives;
+between two inside, the lower objective; between two outside, the smaller
+violation. Both quantities are computed in the model's own space — the
+violation by undoing `gamma_j` and `rho_i` per column and per row — so neither
+comparison depends on the scaling.
+
+`pilot87` at 24 then publishes round 15:
+
+| | objective | worst breach (scaled) | checker |
+|---|---|---|---|
+| before | 301.710400171 | 1.10e-04 | — |
+| **after** | **301.710401037** | **7.85e-07** | **ok, dual = 0** |
+
+The objective is **8.7e-7 worse in absolute terms, 2.9e-9 relative**, and the
+dual violation is **140x smaller**. The published point carries a dual
+violation of exactly zero by the independent checker's reckoning.
+
+### What it costs and what it buys
+
+All three gates PASS, 0 regressed, and **no published answer in the gate moves
+at all** — at the shipped interval the loop converges, so it ends on its own
+best round and there is nothing to take. 167 unit tests green. The memory is a
+second copy of the five arrays that make a point, on a path most solves never
+enter.
+
+What it buys is not accuracy. It is that **the published answer stops
+depending on where `SETTLE_ROUNDS` falls.** The same model with a different
+cap now returns the same point, as long as the best round is inside the range.
+That is robustness rather than precision, and it is worth saying so plainly:
+this entry does not make the loop converge, and D74 already closed the
+direction that would have.
+
+### What is left open
+
+The oscillation itself. D51 named the mechanism — every cleanup pivot borrows
+in order to repair, and repaying is what creates the next round's work — and
+D74 refuted the obvious cure by measuring that removing the loan costs
+`pilot87` 2.372x its iterations. Nothing here changes that. What this removes
+is the consequence, which is the answer being chosen by a counter.

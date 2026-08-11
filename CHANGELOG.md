@@ -241,6 +241,19 @@ open, `bench/README.md` for the gate, and the commit each entry came from.
 
 ### Changed
 
+- **The re-entry loop publishes its best round rather than its last.** On a
+  trajectory that oscillates the two are different, and which one got
+  published was decided by where `SETTLE_ROUNDS` happened to fall. "Best" is
+  lexicographic — a round whose dual violation is inside tolerance beats one
+  that is not, and only then does the lower objective win — because the first
+  criterion tried, plain lowest objective, publishes a point the independent
+  checker rejects. Both quantities are compared in the model's own space,
+  since the scaling factors are per column and differ between the rounds being
+  compared. `pilot87` at a refactorization interval of 24 now publishes a
+  point whose dual violation the checker reads as zero, for 2.9e-9 relative of
+  objective. No answer in the gate moves: at the shipped interval the loop
+  converges and ends on its own best round (D89).
+
 - **The acceptance gate watches the checker's dropped term**, which is the one
   correctness quantity no predicate covered. `checker` stays green while the
   guarantee behind it stops holding — that is the whole of D47 — and D82 is

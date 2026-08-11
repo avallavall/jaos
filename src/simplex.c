@@ -401,6 +401,26 @@ typedef struct {
     double *sav_lo, *sav_up;
     jm_fake *sav_fake;
 
+    /* And the best point any round reached, which is a different question
+     * from the one above (D89). `sav_*` is where this round started, so a
+     * round that fails can be undone; these are the best seen anywhere in the
+     * loop, so a loop that oscillates does not publish whichever round the
+     * cap happened to land on.
+     *
+     * `bst_obj` is that point's objective on the model's own costs. Every
+     * round leaves a primal feasible point, so its objective is an upper
+     * bound on the optimum and the lowest one is the best answer — which is
+     * a guarantee rather than a scalar chosen for the occasion (D25). */
+    jm_var_status *bst_status;
+    int64_t *bst_basis;
+    double *bst_lo, *bst_up;
+    jm_fake *bst_fake;
+    double bst_obj;
+    /* And its worst dual sign violation in the model's own space, because
+     * being defensible outranks being close — see better_point. */
+    double bst_dviol;
+    bool bst_valid;
+
     struct timespec started;
     int64_t iters;
     bool needs_refactor;
@@ -480,6 +500,8 @@ static void sx_free(sx *s)
     free(s->fake);
     free(s->sav_status); free(s->sav_basis);
     free(s->sav_lo); free(s->sav_up); free(s->sav_fake);
+    free(s->bst_status); free(s->bst_basis);
+    free(s->bst_lo); free(s->bst_up); free(s->bst_fake);
     jm_lu_free(&s->lu);
     memset(s, 0, sizeof *s);
 }
@@ -2243,6 +2265,142 @@ static bool save_settled(sx *s)
  * The costs are returned to the model's own first: a re-entry that failed
  * may have borrowed on its way there, and those loans belong to a solve
  * that is being discarded. */
+/* The objective of the point as it stands, on the model's own costs.
+ *
+ * Called only where the loans are settled, so `cost` is the model's and the
+ * subtraction of `shift` is belt and braces rather than arithmetic that
+ * matters. Scaling cancels: a column's scaled cost is `c_j * gamma_j` and its
+ * scaled value `x_j / gamma_j`, so the product is the model's own — which is
+ * what makes this comparable across rounds without leaving the solver's
+ * space, and is the same cancellation D87 relies on. */
+static double settled_objective(const sx *s)
+{
+    double obj = 0.0;
+    for (int64_t v = 0; v < s->nvar; v++) {
+        double x = s->status[v] == JM_BASIC ? s->xb[s->where[v]]
+                                            : nonbasic_value(s, v);
+        obj += (s->cost[v] - s->shift[v]) * x;
+    }
+    return obj;
+}
+
+/* The worst dual sign violation the point carries, **in the model's own
+ * space** rather than the solver's.
+ *
+ * The space is the whole difficulty and getting it wrong is D27's fault class.
+ * `dual_breach` is a shifted cost in the scaled problem, and publishing
+ * divides a structural's reduced cost by `gamma_j` and multiplies a logical's
+ * by `rho_i` — per column and per row, not one global factor. So the scaled
+ * numbers of two different rounds are not comparable when the columns that
+ * breach differ between them, which D50 recorded that they do. Undoing the
+ * scaling here is what makes the comparison mean anything, and it is also
+ * exactly the quantity the independent checker will judge. */
+static double settled_dual_violation(const sx *s)
+{
+    const jaos_model *m = s->m;
+    double worst = 0.0;
+    for (int64_t v = 0; v < s->nvar; v++) {
+        double br = dual_breach(s, v);
+        if (br == 0.0)
+            continue;
+        br = v < m->num_col ? br / m->col_scale[v]
+                            : br * m->row_scale[v - m->num_col];
+        if (br > worst)
+            worst = br;
+    }
+    return worst;
+}
+
+/* Keeps the best point the loop has reached, and it is a different job from
+ * save_settled (D89).
+ *
+ * D25's loop accepts a round's result for being a second optimum, not a
+ * better one, and says plainly that nothing compares the two. That was
+ * measured on trajectories that converge. On one that oscillates — `pilot87`
+ * at a refactorization interval of 24 alternates between two levels of
+ * residue with period four, five times over — not comparing means **the
+ * answer published is decided by where the round cap falls**, and a constant
+ * chosen for being generous is not a tie-break rule.
+ *
+ * **What "better" means, and the first answer was wrong.** Every round leaves
+ * a primal feasible point, so its objective is an upper bound on the optimum
+ * and the lowest one looks like the obvious winner. Measured, that publishes
+ * a point the independent checker *rejects*: on `pilot87` at interval 24 the
+ * best objective belongs to a round carrying a dual violation of 5.12e-06,
+ * five times what the checker calls zero. Trading a defensible answer for a
+ * closer one is not an improvement in a solver whose verdict is OPTIMAL —
+ * that verdict rests on dual feasibility, and publishing it over something an
+ * independent check refuses is the thing the gate exists to prevent.
+ *
+ * So the order is lexicographic: **be defensible first, be close second.** A
+ * round whose dual violation is inside tolerance beats one that is not,
+ * whatever their objectives; between two that are, the lower objective wins;
+ * between two that are not, the smaller violation. Both quantities are in the
+ * model's own space, so neither comparison depends on the scaling.
+ *
+ * D50 asked for keep-the-best and left it untried because the quantity to
+ * compare was unsettled. It had `dual_breach` in mind, which would have been
+ * wrong twice over: the wrong space, and the wrong question. */
+static bool better_point(double tol, double dviol_a, double obj_a,
+                         double dviol_b, double obj_b)
+{
+    const bool a_ok = dviol_a <= tol, b_ok = dviol_b <= tol;
+    if (a_ok != b_ok)
+        return a_ok;
+    return a_ok ? obj_a < obj_b : dviol_a < dviol_b;
+}
+
+static bool save_best(sx *s)
+{
+    if (s->bst_status == nullptr) {
+        s->bst_status = jm_alloc_array(s->nvar, sizeof *s->bst_status);
+        s->bst_basis  = jm_alloc_array(s->nrow, sizeof *s->bst_basis);
+        s->bst_lo     = jm_alloc_array(s->nvar, sizeof *s->bst_lo);
+        s->bst_up     = jm_alloc_array(s->nvar, sizeof *s->bst_up);
+        s->bst_fake   = jm_alloc_array(s->nvar, sizeof *s->bst_fake);
+        if (!s->bst_status || !s->bst_basis || !s->bst_lo || !s->bst_up ||
+            !s->bst_fake)
+            return false;
+    }
+    memcpy(s->bst_status, s->status, (size_t)s->nvar * sizeof *s->status);
+    memcpy(s->bst_basis, s->basis, (size_t)s->nrow * sizeof *s->basis);
+    memcpy(s->bst_lo, s->lo, (size_t)s->nvar * sizeof *s->lo);
+    memcpy(s->bst_up, s->up, (size_t)s->nvar * sizeof *s->up);
+    memcpy(s->bst_fake, s->fake, (size_t)s->nvar * sizeof *s->fake);
+    s->bst_obj = settled_objective(s);
+    s->bst_dviol = settled_dual_violation(s);
+    s->bst_valid = true;
+    return true;
+}
+
+/* Offers the best point to the loop, and takes it only if it beats where the
+ * loop actually stopped. Silent when it does not, which is the common case: a
+ * converging trajectory ends on its own best round. */
+static jaos_status take_best_if_better(sx *s, bool *ok)
+{
+    *ok = true;
+    if (!s->bst_valid ||
+        !better_point(s->dual_tol, s->bst_dviol, s->bst_obj,
+                      settled_dual_violation(s), settled_objective(s)))
+        return JAOS_OK;
+
+    repay_shifts(s);
+    memcpy(s->status, s->bst_status, (size_t)s->nvar * sizeof *s->status);
+    memcpy(s->basis, s->bst_basis, (size_t)s->nrow * sizeof *s->basis);
+    memcpy(s->lo, s->bst_lo, (size_t)s->nvar * sizeof *s->lo);
+    memcpy(s->up, s->bst_up, (size_t)s->nvar * sizeof *s->up);
+    memcpy(s->fake, s->bst_fake, (size_t)s->nvar * sizeof *s->fake);
+
+    for (int64_t v = 0; v < s->nvar; v++)
+        s->where[v] = -1;
+    for (int64_t i = 0; i < s->nrow; i++)
+        s->where[s->basis[i]] = i;
+
+    s->needs_refactor = true;
+    s->verified = false;
+    return refresh(s, ok, true);
+}
+
 static jaos_status restore_settled(sx *s, bool *ok)
 {
     repay_shifts(s);
@@ -2644,6 +2802,14 @@ static jaos_status primal_cleanup(sx *s, int64_t *pivots)
  * wearing the clothes of a guarantee. */
 static jaos_status reenter_after_settling(sx *s)
 {
+    /* The point on entry is a candidate like any other, and on a converging
+     * trajectory it is often beaten immediately. Recorded before the first
+     * round so that a loop which only ever makes things worse still publishes
+     * what it was given (D89). */
+    s->bst_valid = false;
+    if (!save_best(s))
+        return JAOS_ERR_OUT_OF_MEMORY;
+
     for (int64_t round = 0; round < SETTLE_ROUNDS; round++) {
         /* Asked before anything is saved, because the saving is what a solve
          * with nothing to repair would otherwise pay for: five arrays over
@@ -2660,8 +2826,16 @@ static jaos_status reenter_after_settling(sx *s)
             jaos_status st = primal_cleanup(s, &pivots);
             if (st != JAOS_OK)
                 return st;
-            if (pivots == 0)
-                return JAOS_OK;
+            if (pivots == 0) {
+                /* The loop has run out of work rather than out of rounds,
+                 * which is the ending it is built for. Even so the best point
+                 * may be behind it, so it is offered here too. */
+                bool ok = false;
+                st = take_best_if_better(s, &ok);
+                if (st != JAOS_OK)
+                    return st;
+                return ok ? JAOS_OK : JAOS_ERR_NUMERICAL;
+            }
 
             /* The basis has changed under the point, and `rho` now holds a
              * pricing row rather than the duals — which `column_traffic`
@@ -2682,6 +2856,10 @@ static jaos_status reenter_after_settling(sx *s)
                 return JAOS_OK;
             }
             settle_shifts(s);
+            if (better_point(s->dual_tol, settled_dual_violation(s),
+                             settled_objective(s), s->bst_dviol, s->bst_obj) &&
+                !save_best(s))
+                return JAOS_ERR_OUT_OF_MEMORY;
             continue;
         }
         if (!save_settled(s))
@@ -2702,6 +2880,10 @@ static jaos_status reenter_after_settling(sx *s)
 
         if (again == JAOS_SOLVE_OPTIMAL) {
             settle_shifts(s);
+            if (better_point(s->dual_tol, settled_dual_violation(s),
+                             settled_objective(s), s->bst_dviol, s->bst_obj) &&
+                !save_best(s))
+                return JAOS_ERR_OUT_OF_MEMORY;
             continue;
         }
 
@@ -2712,9 +2894,20 @@ static jaos_status reenter_after_settling(sx *s)
         if (!ok)
             return JAOS_ERR_NUMERICAL;
         settle_shifts(s);
-        return JAOS_OK;
+        st = take_best_if_better(s, &ok);
+        if (st != JAOS_OK)
+            return st;
+        return ok ? JAOS_OK : JAOS_ERR_NUMERICAL;
     }
-    return JAOS_OK;
+
+    /* The rounds ran out, which is the case this exists for: the loop was
+     * oscillating and stopped on whichever round the cap landed on. Publish
+     * the best one instead (D89). */
+    bool ok = false;
+    jaos_status st = take_best_if_better(s, &ok);
+    if (st != JAOS_OK)
+        return st;
+    return ok ? JAOS_OK : JAOS_ERR_NUMERICAL;
 }
 
 /* --------------------------------------------------------------------- */
