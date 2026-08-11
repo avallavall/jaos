@@ -108,6 +108,22 @@ typedef struct {
     long double dual_obj;
     long double pos, neg;
 
+    /* The same two sums restricted to bounds the *model declared* (D91).
+     *
+     * An implied bound is sound — every feasible point satisfies it, so it
+     * moves neither the feasible region nor P* — but it is **slack**, and
+     * nothing puts the variable on it. Its term `w (v - bound)` is therefore
+     * live at an optimum, measuring how loose the bound is rather than how
+     * wrong the point is. Feeding that into the verdict is what made D87
+     * refuse to iterate the propagation: tightening harder made the gap
+     * worse, which is backwards.
+     *
+     * So the two questions are separated. `pos`/`neg` carry every term and
+     * bound the suboptimality, which is what D47 asked for. These carry only
+     * the terms that must vanish at an optimum of the problem as it was
+     * written, and that is what the verdict reads. */
+    long double pos_model, neg_model;
+
     /* The largest multiplier whose term the dual objective could not take,
      * and how many there were.
      *
@@ -228,6 +244,10 @@ static long double certified_step(const jaos_model *m, int64_t j, double dir,
     return t;
 }
 
+/* How many propagation rounds the implied bounds get. A constant this project
+ * measures on both sides; the measurement is in D91. */
+constexpr int64_t IMPLIED_ROUNDS = 8;
+
 /* The bounds the constraints imply for a variable the model left unbounded.
  *
  * **Why this closes D47's hole, and why it needs no factorization.** The dual
@@ -272,6 +292,30 @@ static void implied_bounds(const jaos_model *m, double *cl, double *cu,
 {
     const int64_t nr = m->num_row, nc = m->num_col;
 
+    for (int64_t j = 0; j < nc; j++) {
+        cl[j] = m->col_lower[j];
+        cu[j] = m->col_upper[j];
+    }
+
+    /* **Iterated, because one pass is not what the rows know (D91).** A bound
+     * derived this round makes its row's activity range finite where it was
+     * not, which lets the next round reach a column the first could not. That
+     * is ordinary constraint propagation.
+     *
+     * It was refused once, in D87, and for a reason that no longer applies:
+     * more bounds meant more terms in the gap, and the verdict read that gap,
+     * so tightening harder rejected correct answers. The verdict now reads
+     * only the terms from bounds the model declared, so a slack implied bound
+     * can no longer cost an answer its verdict — and the propagation is free
+     * to be as good as it can be.
+     *
+     * Only ever tightened, never loosened: each round starts from what the
+     * last left, and a bound is written only where it improves on what is
+     * there. The sequence is monotone, so stopping early is safe — an earlier
+     * round's bounds are as sound as a later one's, just weaker. */
+    for (int64_t pass = 0; pass < IMPLIED_ROUNDS; pass++) {
+    bool moved = false;
+
     for (int64_t i = 0; i < nr; i++) {
         lo_sum[i] = 0.0L;
         up_sum[i] = 0.0L;
@@ -282,7 +326,7 @@ static void implied_bounds(const jaos_model *m, double *cl, double *cu,
     /* Each row's activity range over the column boxes, infinities counted
      * rather than propagated. */
     for (int64_t j = 0; j < nc; j++) {
-        const double xl = m->col_lower[j], xu = m->col_upper[j];
+        const double xl = cl[j], xu = cu[j];
         for (int64_t k = m->a_start[j]; k < m->a_start[j + 1]; k++) {
             const int64_t i = m->a_index[k];
             const double aij = m->a_value[k];
@@ -300,13 +344,11 @@ static void implied_bounds(const jaos_model *m, double *cl, double *cu,
     }
 
     for (int64_t j = 0; j < nc; j++) {
-        cl[j] = m->col_lower[j];
-        cu[j] = m->col_upper[j];
         const bool want_lo = !isfinite(cl[j]), want_up = !isfinite(cu[j]);
         if (!want_lo && !want_up)
             continue;
 
-        const double xl = m->col_lower[j], xu = m->col_upper[j];
+        const double xl = cl[j], xu = cu[j];
         for (int64_t k = m->a_start[j]; k < m->a_start[j + 1]; k++) {
             const int64_t i = m->a_index[k];
             const double aij = m->a_value[k];
@@ -332,28 +374,39 @@ static void implied_bounds(const jaos_model *m, double *cl, double *cu,
                 const long double lim =
                     ((long double)m->row_upper[i] - rest_lo) / aij;
                 if (aij > 0.0) {
-                    if (want_up && (double)lim < cu[j])
+                    if (want_up && (double)lim < cu[j]) {
                         cu[j] = (double)lim;
+                        moved = true;
+                    }
                 } else if (want_lo && (double)lim > cl[j]) {
                     cl[j] = (double)lim;
+                    moved = true;
                 }
             }
             if (rest_up_finite && isfinite(m->row_lower[i])) {
                 const long double lim =
                     ((long double)m->row_lower[i] - rest_up) / aij;
                 if (aij > 0.0) {
-                    if (want_lo && (double)lim > cl[j])
+                    if (want_lo && (double)lim > cl[j]) {
                         cl[j] = (double)lim;
+                        moved = true;
+                    }
                 } else if (want_up && (double)lim < cu[j]) {
                     cu[j] = (double)lim;
+                    moved = true;
                 }
             }
         }
     }
+
+    if (!moved)
+        break;   /* a round that bounded nothing new cannot enable another */
+    }
 }
 
 static double sign_condition(double v, double lo, double hi, double w,
-                             double tol, double scale, dual_acc *a)
+                             double tol, double scale, dual_acc *a,
+                             bool lo_implied, bool hi_implied)
 {
     double window = tol * scale;
     bool at_lo = isfinite(lo) && v <= lo + window;
@@ -391,7 +444,10 @@ static double sign_condition(double v, double lo, double hi, double w,
             return negligible ? 0.0 : w;
         }
         a->dual_obj += (long double)w * lo;
-        split_term((long double)w * ((long double)v - lo), &a->pos, &a->neg);
+        const long double t = (long double)w * ((long double)v - lo);
+        split_term(t, &a->pos, &a->neg);
+        if (!lo_implied)
+            split_term(t, &a->pos_model, &a->neg_model);
         return (negligible || at_lo) ? 0.0 : w;
     }
     if (w < 0.0) {
@@ -400,7 +456,10 @@ static double sign_condition(double v, double lo, double hi, double w,
             return negligible ? 0.0 : -w;
         }
         a->dual_obj += (long double)w * hi;
-        split_term((long double)w * ((long double)v - hi), &a->pos, &a->neg);
+        const long double t = (long double)w * ((long double)v - hi);
+        split_term(t, &a->pos, &a->neg);
+        if (!hi_implied)
+            split_term(t, &a->pos_model, &a->neg_model);
         return (negligible || at_hi) ? 0.0 : -w;
     }
     return 0.0;   /* a zero multiplier contributes to neither */
@@ -512,15 +571,21 @@ jaos_status jaos_check_solution(const jaos_model *m,
 
         for (int64_t i = 0; i < m->num_row; i++) {
             double rl = m->row_lower[i], ru = m->row_upper[i];
+            bool rl_imp = false, ru_imp = false;
             if (implied) {
-                if (!isfinite(rl) && rli[i] == 0)
+                if (!isfinite(rl) && rli[i] == 0) {
                     rl = (double)rlo[i];
-                if (!isfinite(ru) && rui[i] == 0)
+                    rl_imp = true;
+                }
+                if (!isfinite(ru) && rui[i] == 0) {
                     ru = (double)rup[i];
+                    ru_imp = true;
+                }
             }
             dual_viol = max2(dual_viol,
                 sign_condition((double)act[i], rl, ru, sigma * row_dual[i],
-                               tol, max2(1.0, (double)traffic[i]), &a));
+                               tol, max2(1.0, (double)traffic[i]), &a,
+                               rl_imp, ru_imp));
         }
 
         for (int64_t j = 0; j < m->num_col; j++) {
@@ -538,7 +603,9 @@ jaos_status jaos_check_solution(const jaos_model *m,
                                implied ? icl[j] : m->col_lower[j],
                                implied ? icu[j] : m->col_upper[j],
                                sigma * d, tol, max2(1.0, fabs(col_value[j])),
-                               &a));
+                               &a,
+                               implied && !isfinite(m->col_lower[j]),
+                               implied && !isfinite(m->col_upper[j])));
 
             /* Where that call had to drop a term, this is where the matrix is
              * in scope to say what the drop is worth. The condition is asked
@@ -576,16 +643,33 @@ jaos_status jaos_check_solution(const jaos_model *m,
 
         /* The gap is the identity that catches a corrupted dot product even
          * when the sign conditions it also corrupts still pass, so it is
-         * formed at the wider precision and narrowed only at the end. */
+         * formed at the wider precision and narrowed only at the end.
+         *
+         * **Two gaps, because they answer two questions (D91).** The one the
+         * verdict reads is over bounds the model declared, where every term
+         * must vanish at an optimum, so a nonzero value means the point is
+         * wrong. The other includes the implied bounds and is what bounds the
+         * suboptimality; a term there can be live purely because the implied
+         * bound is slack, so reading it as a verdict would reject correct
+         * answers — measured, in D87, where iterating the propagation
+         * rejected `pilot` at the intervals where it is right. */
         long double true_dual_obj = sigma * a.dual_obj;
-        long double diff = fabsl(primal_obj - true_dual_obj);
         long double scale = 1.0L + fabsl(primal_obj) + fabsl(true_dual_obj);
-        double gap = (double)(diff / scale);
+        double gap = (double)(fabsl(a.pos_model - a.neg_model) / scale);
 
         out->checked_duals = true;
         out->max_dual_violation = dual_viol;
         out->dual_objective = (double)true_dual_obj;
         out->objective_gap = gap;
+
+        /* The suboptimality bound, relative to the objective it bounds. An
+         * absolute bound says nothing without the magnitude it sits beside:
+         * 1e-4 on an objective of 3e2 and 1e-4 on one of 3e-4 are different
+         * claims. This is the number that catches a point which is genuinely
+         * far from optimal while every sign condition holds, which is what
+         * D47 was about. */
+        out->relative_suboptimality =
+            (double)(a.pos / (1.0L + fabsl(primal_obj)));
         /* Whether the identity the two halves come from was complete. Not a
          * verdict and not compared against anything: it says whether
          * gap_positive is the bound it is documented as being, which is a

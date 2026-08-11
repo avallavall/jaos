@@ -241,6 +241,18 @@ open, `bench/README.md` for the gate, and the commit each entry came from.
 
 ### Changed
 
+- **The checker separates the suboptimality bound from the verdict**, which is
+  what closes D47. A bound implied by the rows is sound but slack, so its term
+  in the duality identity survives at an optimum and measures the bound rather
+  than the point; feeding that to `dual_feasible` rejected correct answers, so
+  the verdict now reads only terms from bounds the model declared and the
+  bound keeps every term. With that the propagation is safe to iterate, and
+  certification goes from 12 of 110 accepted answers to **54** — `etamacro`,
+  the case D47 named as live at 2.25e-07, is now certified with nothing
+  dropped. New `relative_suboptimality` reads 6.9e-05 where `pilot` is right
+  and 5.02e-03 where it is wrong; the gate watches it in place of the dropped
+  term, which propagation has reduced to noise (D91).
+
 - **A warm start no longer refuses a basis with a free nonbasic.** D68 put
   that refusal in because the method could not price such a column back off
   zero and would publish a suboptimal point as OPTIMAL; D85 repaired that, so

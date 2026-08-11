@@ -96,6 +96,7 @@ and you have the argument. Jump to the entry for the numbers behind it.
 - **[D88](#d88-the-gate-watches-the-dropped-term-because-the-checker-cannot-judge-it-and-the-predicate-cannot-see-it)** — The gate watches the dropped term, because the checker cannot judge it and the predicate cannot see it
 - **[D89](#d89-the-re-entry-loop-keeps-its-best-round-and-best-is-defensible-before-it-is-close)** — The re-entry loop keeps its best round, and "best" is defensible before it is close
 - **[D90](#d90-the-warm-start-stops-refusing-a-free-nonbasic-because-the-defect-it-was-avoiding-is-fixed)** — The warm start stops refusing a free nonbasic, because the defect it was avoiding is fixed
+- **[D91](#d91-the-bound-and-the-verdict-stop-being-one-number-and-d47-closes)** — The bound and the verdict stop being one number, and D47 closes
 
 ---
 
@@ -6159,3 +6160,107 @@ arrived from a campaign aimed at a different question entirely.
 It is left failing rather than papered over. A checker rejection is what the
 warm campaign should report, and `make warm` is not a gate (it reports a
 ratio, not a verdict), so nothing downstream is blocked by it.
+
+---
+
+## D91 — The bound and the verdict stop being one number, and D47 closes
+
+### The question
+
+D87 left defect 1 open with a diagnosis rather than a cure. The checker bounds
+unbounded variables by what the rows imply, which is sound — every feasible
+point satisfies an implied bound, so it moves neither the feasible region nor
+`P*` — but the bound is **slack**, and nothing puts the variable on it. Its
+term in `P - D = sum_v w_v (v - bound_v)` therefore survives at an optimum,
+measuring the bound's looseness rather than the point's error.
+
+`dual_feasible` read that gap. So tightening the bounds made the verdict
+worse: iterated propagation rejected `pilot` at the intervals where it is
+*right*, including the shipped one. D87 recorded the constraint that follows —
+as long as the gap answers two questions at once, every improvement to the
+second is paid out of the first — and left the redesign as the next attempt.
+
+### The separation
+
+Two sums instead of one. `pos`/`neg` carry **every** term and bound the
+suboptimality, which is what D47 asked for. `pos_model`/`neg_model` carry only
+the terms from bounds **the model declared**, which must vanish at an optimum
+of the problem as written. The verdict reads the second; the bound is the
+first. A slack implied bound can no longer cost a correct answer its verdict.
+
+With that, the propagation is free to be as good as it can be, and is iterated
+to a fixed point (at most `IMPLIED_ROUNDS = 8`, exiting early when a round
+bounds nothing new).
+
+### What it closed
+
+**`etamacro`, which D47 named as the live case at 2.25e-07:**
+
+```
+before:  drop=2.25e-07  cert=no
+after:   drop=0         cert=yes   rsub=3.28e-09
+```
+
+**Certification across the gate**, which is the defect's own words — the
+checker certifying a bound it cannot prove:
+
+| | certified |
+|---|---|
+| before this session (D71) | 12 of 110 |
+| one-pass implied bounds (D87) | 27 |
+| **propagated, verdict separated** | **54 of 110** — 38 of 94 standard, **16 of 16** Kennington |
+
+The largest surviving dropped term over the standard set falls from 2.25e-07
+to **3e-08**, and everything below it is 1e-14 or smaller. What the checker
+still cannot account for is arithmetic noise rather than structure.
+
+### The bound separates the case D47 was built from
+
+`relative_suboptimality` — `gap_positive` over `1 + |P|`, because an absolute
+bound says nothing without the magnitude beside it:
+
+| `pilot` at interval | objective | relative bound |
+|---|---|---|
+| 16, 64 | ok | **6.9e-05** |
+| 24, 32, 96 | **out of tolerance by 1.04e-3** | **5.02e-03** |
+
+A factor of **73**, and 6.9e-05 is also the worst value anywhere in the gate,
+so nothing legitimate sits near the bad case. Kennington's worst is 4.72e-14.
+
+**The verdict does not read it, deliberately.** Two data points of "wrong" —
+and they are one defect seen three times — is not a measurement a threshold
+can be set from, and a constant fitted to one instance is how this project
+loses weeks. What reads it is the gate, by the D88 mechanism: carried in the
+baseline, growth past 2x above a floor of 1e-9 is a regression. That needs no
+absolute threshold at all, and the 73x separation clears the factor of 2 with
+thirty-six times to spare. It replaces the dropped term as the watched
+quantity, which after propagation is noise and no longer informative.
+
+Calibrated by injection, as D88 was: `pilot`'s baseline value divided by 100
+is reported as `REGRESSED ... 100.0x` and the runner exits nonzero.
+
+### One verdict changed meaning, and it is worth stating
+
+On D47's constructed case `dual_feasible` is now **true**. That is correct and
+was always correct: x2's reduced cost of -1e-7 is below the tolerance with
+which this checker decides a multiplier is nonzero at all, so there is no sign
+violation to find. **That is why D47 was never a tolerance bug**, and why no
+verdict on sign conditions could ever have caught it. What catches it is the
+bound — 0.1 relative — and `jaos.h` now says which field answers which
+question.
+
+### What it cost
+
+167 unit tests green. Three gates PASS, 0 regressed, after regenerating the
+baselines. The predicates were verified unchanged first: the old baselines
+report four differences and every one of them is on the numeric column, whose
+meaning changed from dropped term to relative bound — no predicate moved.
+
+### What is left
+
+Not the defect. `pilot` at 24, 32 and 96 still reports `checker=ok`, because
+the bound at 5.02e-03 is not read as a verdict and the sign conditions
+genuinely hold. Making it a verdict needs more than one instance's worth of
+evidence about where the line sits, and that evidence does not exist yet —
+one more model known to be wrong would be worth more here than any amount of
+further argument.

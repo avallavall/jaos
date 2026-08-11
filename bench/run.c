@@ -194,12 +194,12 @@ typedef struct {
     bool solved;        /* reached a verified optimum */
     bool shape, objective, checker, det;
     long long iters, work;
-    /* The largest multiplier the checker's dual objective could not take a
-     * term for. Tracked here because `checker` cannot see it: the whole of
+    /* The suboptimality this answer carries as a fraction of its own
+     * objective. Tracked here because `checker` cannot see it: the whole of
      * D47 is that such a term makes `gap_positive` stop being a bound while
      * every verdict stays green, and D82 is the receipt — a change that
      * published a wrong answer on `pilot` passed this gate. */
-    double drop;
+    double rsub;
 } outcome;
 
 /* How much more work an instance may do than it did at baseline before that
@@ -210,9 +210,9 @@ typedef struct {
  * work-limit failure on any caller with a budget. */
 constexpr double WORK_REGRESSION_FACTOR = 2.0;
 
-/* The same idea for the one correctness quantity no predicate covers: how far
- * the checker's dual objective fell short of being a sum over the problem it
- * was asked about (D47, D71, D88).
+/* The same idea for the one correctness quantity no predicate covers: how
+ * far from optimal this answer may be, as a fraction of its own objective
+ * (D47, D88, D91).
  *
  * **Why this needs watching at all.** The checker cannot judge a dropped term
  * — D47 measured that no local test on a reduced cost separates the harmful
@@ -224,20 +224,25 @@ constexpr double WORK_REGRESSION_FACTOR = 2.0;
  * it. Watching the quantity *change* needs none of the judgement the checker
  * cannot make.
  *
- * **Both constants are measured.** Across a solver change that moved no
- * answers, **0 of 94** dropped terms moved at all — the quantity is as
- * deterministic as a digest, so a factor of 2 is enormously conservative. The
- * case it has to catch is `pilot` going from 8.62e-09 where it is right to
- * 3.47e-07 where it is wrong: a factor of **40**, which clears 2.0 with
- * twenty times to spare.
+ * **This watches the bound rather than the dropped term, and that is the D91
+ * change.** With the implied bounds propagated, the dropped terms fall to
+ * arithmetic noise — the largest over the standard set is 3e-08 and most sit
+ * near 1e-16 — so there is little left there to watch. What carries the
+ * information now is `relative_suboptimality`, which is a real quantity on
+ * every answer.
  *
- * The floor keeps roundoff out. 82 of the standard set's 94 instances carry a
- * dropped term below 1e-9, decaying smoothly to 1e-17 (D71); those are
- * arithmetic noise and their ratios mean nothing. `pilot` at its correct
- * value sits at 8.62e-09, above the floor, so the case that matters is still
- * compared. */
-constexpr double DROP_REGRESSION_FACTOR = 2.0;
-constexpr double DROP_FLOOR = 1e-9;
+ * **Both constants are measured.** The quantity is deterministic, so a factor
+ * of 2 is conservative by construction rather than by luck. The case it has
+ * to catch is `pilot` going from **6.9e-05** at the intervals where it is
+ * right to **5.02e-03** at the three where it is wrong — a factor of **73**,
+ * which clears 2.0 with thirty-six times to spare. 6.9e-05 is also the worst
+ * value anywhere in the gate, so nothing legitimate sits near the bad case.
+ *
+ * The floor keeps roundoff out: Kennington's worst is 4.72e-14 and most of
+ * the standard set sits below 1e-8, where ratios mean nothing. `pilot` at its
+ * correct value is far above it, so the case that matters is still compared. */
+constexpr double RSUB_REGRESSION_FACTOR = 2.0;
+constexpr double RSUB_FLOOR = 1e-9;
 
 constexpr int MAX_INSTANCES = 512;
 
@@ -276,10 +281,10 @@ static bool baseline_load(const char *path)
          * which the comparison takes as "nothing to compare against" — an
          * older baseline should cost the reader that one check, not the
          * whole run. */
-        o.drop = -1.0;
+        o.rsub = -1.0;
         int got = sscanf(line, "%63s %23s %d %d %d %d %d %lld %lld %lf",
                          o.name, o.status, &solved, &shape, &obj, &chk, &det,
-                         &o.iters, &o.work, &o.drop);
+                         &o.iters, &o.work, &o.rsub);
         if (got != 9 && got != 10)
             continue;
         o.solved = solved != 0;
@@ -314,7 +319,7 @@ static bool baseline_write(const char *path)
         fprintf(f, "%-12s %-12s %d %d %d %d %d %lld %lld %.17g\n",
                 o->name, o->status, o->solved ? 1 : 0, o->shape ? 1 : 0,
                 o->objective ? 1 : 0, o->checker ? 1 : 0, o->det ? 1 : 0,
-                o->iters, o->work, o->drop);
+                o->iters, o->work, o->rsub);
     }
     fclose(f);
     return true;
@@ -322,7 +327,7 @@ static bool baseline_write(const char *path)
 
 static void record(const char *name, const char *status, bool solved,
                    bool shape, bool objective, bool checker, bool det,
-                   long long iters, long long work, double drop)
+                   long long iters, long long work, double rsub)
 {
     if (g_ngot >= MAX_INSTANCES)
         return;
@@ -337,7 +342,7 @@ static void record(const char *name, const char *status, bool solved,
     o->det = det;
     o->iters = iters;
     o->work = work;
-    o->drop = drop;
+    o->rsub = rsub;
 }
 
 /* What the gate expects an instance to come back as. The standard and
@@ -594,7 +599,7 @@ static bool run_one(const entry *e, const char *dir, tally *t)
     emit("%-12s optimal    rows=%lld cols=%lld shape=%s iters=%lld "
             "work=%lld obj=%.17g ref=%.17g[%s] objective=%s checker=%s"
             " (col=%.3g row=%.3g rowrel=%.3g dual=%.3g gap=%.3g Q=%.3g"
-            " N=%.3g drop=%.3g cert=%s sub=%.3g rays=%lld)"
+            " N=%.3g drop=%.3g cert=%s sub=%.3g rays=%lld rsub=%.3g)"
             " det=%s digest=%016llx\n",
             e->name, (long long)nr, (long long)nc, shape ? "ok" : "MISMATCH",
             (long long)iters, (long long)work, obj, expected, e->source,
@@ -605,11 +610,12 @@ static bool run_one(const entry *e, const char *dir, tally *t)
             rep.gap_positive, rep.gap_negative,
             rep.max_dropped_multiplier, rep.gap_certified ? "yes" : "no",
             rep.certified_suboptimality, (long long)rep.unquantified_rays,
+            rep.relative_suboptimality,
             det ? "ok" : "DIVERGED", (unsigned long long)d1);
 
     record(e->name, "optimal", true, shape, obj_ok, check_ok, det,
            (long long)iters, (long long)work,
-           rep.max_dropped_multiplier);
+           rep.relative_suboptimality);
 
     free(x);
     free(y);
@@ -675,13 +681,13 @@ static int64_t compare_to_baseline(bool full_run)
          * the same reason: it degrades quietly. A baseline written before this
          * was tracked carries -1 and is skipped rather than compared against a
          * number that was never there. */
-        if (b->solved && g->solved && b->drop >= 0.0 &&
-            g->drop > DROP_FLOOR &&
-            g->drop > b->drop * DROP_REGRESSION_FACTOR) {
-            emit("%-12s REGRESSED    dropped term: %.3g -> %.3g (%.1fx), "
-                 "the checker's bound is that much less of one\n",
-                 g->name, b->drop, g->drop,
-                 b->drop > 0.0 ? g->drop / b->drop : HUGE_VAL);
+        if (b->solved && g->solved && b->rsub >= 0.0 &&
+            g->rsub > RSUB_FLOOR &&
+            g->rsub > b->rsub * RSUB_REGRESSION_FACTOR) {
+            emit("%-12s REGRESSED    suboptimality bound: %.3g -> %.3g "
+                 "(%.1fx relative to its own objective)\n",
+                 g->name, b->rsub, g->rsub,
+                 b->rsub > 0.0 ? g->rsub / b->rsub : HUGE_VAL);
             regressed++;
         }
     }
@@ -767,7 +773,7 @@ static void run_worker(const entry *e, const char *dir, const char *tmp, int k)
         fprintf(mf, "%s %s %d %d %d %d %d %lld %lld %.17g\n", o->name,
                 o->status, o->solved ? 1 : 0, o->shape ? 1 : 0,
                 o->objective ? 1 : 0, o->checker ? 1 : 0, o->det ? 1 : 0,
-                o->iters, o->work, o->drop);
+                o->iters, o->work, o->rsub);
     }
     fclose(mf);
     _exit(0);

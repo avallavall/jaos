@@ -280,14 +280,21 @@ static void test_an_implied_bound_makes_the_dropped_term_finite(void)
     TEST_ASSERT_EQUAL_INT(JAOS_OK,
         jaos_check_solution(m, origin, y0, 1e-6, &r));
 
-    /* Feasible, and refused — which is the whole point of the entry. */
+    /* Feasible, and the sign conditions of the problem *as declared* hold —
+     * x2's reduced cost of -1e-7 is under the tolerance that decides whether
+     * a multiplier is nonzero at all, so nothing here is a violation. That is
+     * why no verdict on signs could ever catch this point, and why D47 was
+     * not a tolerance bug. */
     TEST_ASSERT_TRUE(r.primal_feasible);
-    TEST_ASSERT_FALSE(r.dual_feasible);
+    TEST_ASSERT_TRUE(r.dual_feasible);
+    TEST_ASSERT_DOUBLE_WITHIN(1e-15, 0.0, r.max_dual_violation);
 
-    /* The bound is now a bound, and it is the true suboptimality to the digit
-     * rather than an order of magnitude near it. */
+    /* **What catches it is the bound, and the bound is now a bound.** 0.1 is
+     * the true suboptimality to the digit, and against an objective of 0 that
+     * is 0.1 relative — five orders past anything a caller would accept. */
     TEST_ASSERT_DOUBLE_WITHIN(1e-12, 0.1, r.gap_positive);
     TEST_ASSERT_DOUBLE_WITHIN(1e-15, 0.0, r.gap_negative);
+    TEST_ASSERT_DOUBLE_WITHIN(1e-12, 0.1, r.relative_suboptimality);
 
     /* And the identity is complete, so the bound may be believed: nothing was
      * dropped, because nothing had to be. */
@@ -316,6 +323,9 @@ static void test_an_implied_bound_makes_the_dropped_term_finite(void)
     TEST_ASSERT_DOUBLE_WITHIN(1e-15, 0.0, r.certified_suboptimality);
     TEST_ASSERT_DOUBLE_WITHIN(1e-12, -0.1, r.primal_objective);
     TEST_ASSERT_DOUBLE_WITHIN(1e-12, -0.1, r.dual_objective);
+    /* And the bound that flagged the bad point reads zero on the good one,
+     * which is what makes it a separator rather than an alarm. */
+    TEST_ASSERT_DOUBLE_WITHIN(1e-15, 0.0, r.relative_suboptimality);
     jaos_model_free(m);
 }
 

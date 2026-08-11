@@ -672,8 +672,28 @@ typedef struct jaos_check_report {
        be unbounded, and this report cannot tell you whether it is.          */
     int64_t unquantified_rays;
 
+    /* gap_positive as a fraction of the objective it bounds: an absolute
+       bound means nothing without the magnitude beside it, since 1e-4 on an
+       objective of 3e2 and 1e-4 on one of 3e-4 are different claims.
+
+       This is the number that catches a point far from optimal while every
+       sign condition holds, which is the case D47 built and D87 could not
+       reach. It is only as strong as gap_certified says: where a term was
+       dropped it bounds nothing. */
+    double relative_suboptimality;
+
     bool primal_feasible;       /* violations within tolerance             */
-    bool dual_feasible;         /* sign conditions and gap within tol      */
+    /* Sign conditions, and the gap over bounds THE MODEL DECLARED.
+
+       That restriction is deliberate. The checker bounds variables the model
+       left unbounded by what the rows imply, which is sound — every feasible
+       point satisfies an implied bound, so it moves neither the feasible
+       region nor the optimum — but slack: nothing puts the variable on such
+       a bound, so its term survives at an optimum and measures the bound's
+       looseness rather than the point's error. Feeding that into the verdict
+       rejects correct answers, measured (D87, D91). The suboptimality bound
+       above uses every term; this uses the ones that must vanish.          */
+    bool dual_feasible;
     bool checked_duals;         /* false when row_dual was NULL            */
     /* No term was dropped, so gap_positive really is a bound on P - P*.
        False does not mean the answer is wrong — most dropped multipliers

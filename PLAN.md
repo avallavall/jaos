@@ -531,10 +531,11 @@ accelerate, they do not gate. SDP stays unscheduled.
 
 ---
 
-## Known defects, carried — **and this is the next work**
+## Known defects, carried — **all four are now closed**
 
-**Decided: the two below come before any new feature or any new speed
-attempt.** They are the only things in this file that are known to be wrong
+**All four are now closed.** What follows is kept as the record of how,
+because three of the four were closed by a route their own entry did not
+propose, and the refuted routes are worth more than the ones that worked. They are the only things in this file that are known to be wrong
 rather than merely absent, each one diagnosed, reproducible, and carrying the
 measurement that found it. Both were found by varying a parameter the gate
 never varies — which is to say neither will be found again by running the
@@ -573,6 +574,8 @@ Reproducible, diagnosed, not yet fixed. Both came out of varying
 That is the lesson about where the defects 139 instances at one setting do not
 find are hiding — and D85 is the other half of it, a *state* the gate never
 reaches rather than a trajectory.
+
+~~1. **The checker certifies a bound it cannot prove (D47).**~~ **Closed (D91).** The bound and the verdict stopped being one number: the verdict reads only terms from bounds the model declared, so the implied bounds could be propagated to a fixed point without a slack bound costing a correct answer its verdict. Certification goes from 12 of 110 accepted answers to **54**, `etamacro` — the case named below as live — from `drop=2.25e-07 cert=no` to `cert=yes` with nothing dropped, and the largest term the identity still cannot take is 3e-08. `relative_suboptimality` reads 6.9e-05 where `pilot` is right and 5.02e-03 where it is wrong, a factor of 73, and the gate watches it by D88's mechanism rather than any verdict reading it — one defect seen three times is not evidence a threshold can be set from. What follows is the history, kept because three refuted routes are worth more than the one that worked.
 
 1. **The checker certifies a bound it cannot prove (D47).** Whenever a
    wrong-signed multiplier sits on an unbounded improving direction the dual
