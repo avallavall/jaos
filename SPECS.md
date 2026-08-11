@@ -70,7 +70,7 @@ missing.
 | Presolve | **missing** | measured at 1.42x against HiGHS and 1.14x against SoPlex (D81) — real, and smaller than the 2.53x per-iteration gap no rung moves |
 | Primal simplex | **missing** | needed for crossover, for the warm starts the dual cannot serve, and for carried defect 4 — nothing can currently bring a nonbasic free variable back into the basis (D68). **Not a speed argument:** given free choice both rivals ran the dual on every instance, with iteration counts identical to being forced (D81) |
 | Crash basis | **missing** | [12]; measured once and refused: it destroys the exact starting steepest-edge weights the slack basis gives |
-| Partial and multiple pricing | **missing** | [1] |
+| Partial and multiple pricing | **measured and refused** | [1]: both halves built and swept. The leaving-row sweep is the wrong thing to make cheaper — its units are the cheapest in the solver, and every scheme for scanning it less often pays in trajectory and in wrong answers (D82, D84) |
 | Barrier and crossover | **missing** | not optional at large scale |
 | MILP: branch and bound, cuts, heuristics | **missing** | [14][15][16][17][18] |
 | Deterministic parallelism | **missing** | [10][13] |

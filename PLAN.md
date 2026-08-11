@@ -404,8 +404,9 @@ sum.
    single work unit, which is why a profiler found them and no internal
    instrument ever had. **The method that worked: profile at the flags being
    timed, and attribute by source line.**
-3. **Multiple pricing.** Partial pricing on the leaving-row sweep was built,
-   swept and **refused (D82)**. It removes seven-eighths of the cheapest
+3. ~~**Partial and multiple pricing.**~~ **Closed — both halves measured and
+   both refused.** Partial pricing on the leaving-row sweep was built, swept
+   and **refused (D82)**. It removes seven-eighths of the cheapest
    units in the solver — D45 measured `nrow` sweeps as nearly free per unit —
    and pays for them with 10% to 24% more iterations that each drag in two
    triangular solves, so the 0.891x it shows in work units on Kennington is a
@@ -414,14 +415,22 @@ sum.
    the checker green, `wood1p` is rejected outright, and `woodw` takes 131x
    the iterations at the most aggressive setting.
 
-   What is left of this item is **multiple pricing**, which is a different
-   technique — several candidates chosen in one major iteration, then minor
-   iterations over that subset — and does not trade candidate quality for
-   scan length the same way. Unmeasured, and **its premise is now doubtful
-   for a measured reason**: it saves the same leaving-row sweep, and D82
-   bounded that sweep at about 12% of billed work by removing seven-eighths
-   of it and watching the total move 10%. Twelve percent of the cheapest
-   units in the solver cannot close a 2.3x per-iteration gap.
+   **Multiple pricing was built and measured too, and is also refused
+   (D84).** A major sweep sets aside the K best rows and the minor iterations
+   re-score that shortlist instead of sweeping. The standard gate reads NOT
+   MET at every K — 6 instances regressed at K=2, 32 at K=8 — with `brandy` at
+   140x its iterations and `wood1p` at 89x, and the cost is monotone in K.
+   On Kennington it removes a third of the billed work for 8% more iterations,
+   which is a far better trade than partial pricing's 0.897x and is the one
+   direction in this item that pointed somewhere; it is not trusted, because
+   the units removed are the sweep's and D45 measured those as nearly free.
+   That was left unconverted to seconds deliberately: it cannot change a
+   verdict already settled by wrong answers on the other set.
+
+   **So the item is closed as a speed lever, and the same fact closed it
+   twice: the leaving-row sweep is the wrong thing to make cheaper.** Its
+   units are the cheapest in the solver and every scheme for scanning it less
+   often pays in trajectory.
 
    **And the profile says the other dense sweep is the bigger one.** On
    `truss` under callgrind, `admit_candidate` is **14.98%** of instructions
@@ -443,6 +452,24 @@ sum.
    pattern is not sparse enough to walk, and inlining the helpers is slower.
    What D82 adds is that the *row* sweep is the wrong half of that 36.5% to
    attack.
+3a. **The ratio test's candidate admission, which nothing has looked at.**
+   The new head of this list, and it arrived by profiling the premise of the
+   item above rather than by opinion. On `truss` under callgrind
+   `admit_candidate` is **14.98%** of instructions and `shift_to_feasible`
+   7.66%, against `ftran_prefix` at 6.68% and a bare `memset` at 6.56%.
+   `admit_candidate` runs once per nonbasic variable of the pricing row, so
+   it is the O(`nvar`) half of D61's 36.5% — the half neither refused pricing
+   scheme touched, and the larger one.
+
+   It is also the more dangerous half, which is why it is stated rather than
+   started: restricting its candidate set decides which *column enters*, not
+   which row leaves, so it moves the ratio test rather than the search order
+   and Harris's two-pass guarantees are what would be at risk. Needs its own
+   decision before any code.
+
+   Instructions are not seconds and callgrind cannot see locality — the limit
+   D58 and D61 both stated, and `perf` is not installed on this machine.
+
 4. **`stocfor3` is a memory-traffic instance, and it is the fourth worst in
    the set.** 6.79x per iteration on 0.97x the iterations, never profiled
    until now. Where it goes: the triangular solves 43.0%, and **`memset` plus
@@ -621,6 +648,7 @@ Each was measured and closed; the measurement is in `DECISIONS.md`.
 | A certified suboptimality from moving one column alone | refused as a *verdict*: sound as a lower bound and never overclaims, but it reads the same ~1e-25 on four answers known to be 1.04e-3 wrong as on the correct ones. At a vertex the first tight row stops the column, and a vertex is what tight rows are (D73) |
 | `restrict` on the LU kernel pointers | refused: 139 digests and work counts identical, and **0.995x shipping against 1.0053x with `-flto` off** — the two builds disagree about the sign and both are inside the noise. The loops are indexed scatter and gather, and none may vectorise because none may reassociate; what made it safe is what made it worthless (D76) |
 | Partial pricing on the leaving-row sweep | refused: it saves the cheapest units in the solver — D45 measured `nrow` sweeps as nearly free per unit — and buys 10–24% more iterations that each cost two triangular solves, so 0.891x in Kennington work units is a loss in seconds. And it breaks correctness: `pilot` publishes OPTIMAL out of tolerance with the checker green, `wood1p` is rejected, `woodw` takes 131x the iterations (D82) |
+| Multiple pricing — a shortlist of K leaving rows, re-scored across minor iterations | refused: the standard gate reads NOT MET at **every** K, from 6 regressions at K=2 to 32 at K=8, with `brandy` at 140x its iterations. Kennington removes a third of the billed work for 8% more iterations, which is the one promising direction in the item and is untrusted for D45's reason — the units removed are the sweep's, and those are nearly free (D84) |
 
 ---
 

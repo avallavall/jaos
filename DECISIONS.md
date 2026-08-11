@@ -89,6 +89,7 @@ and you have the argument. Jump to the entry for the numbers behind it.
 - **[D81](#d81-the-ladder-is-climbed-presolve-is-worth-142x-and-a-primal-simplex-is-worth-nothing)** — The ladder is climbed: presolve is worth 1.42x, and a primal simplex is worth nothing
 - **[D82](#d82-partial-pricing-on-the-leaving-row-sweep-refused-it-saves-the-cheap-units-and-buys-the-expensive-ones)** — Partial pricing on the leaving-row sweep, refused: it saves the cheap units and buys the expensive ones
 - **[D83](#d83-clp-is-the-third-reading-and-the-two-were-not-agreeing-by-coincidence)** — Clp is the third reading, and the two were not agreeing by coincidence
+- **[D84](#d84-multiple-pricing-refused-too-and-phase-6-item-3-closes-with-both-halves-measured)** — Multiple pricing, refused too, and phase 6 item 3 closes with both halves measured
 
 ---
 
@@ -5363,3 +5364,79 @@ iterations exactly 1.000x. D81 stands as measured.
 **Phase 1 is complete.** Every question it was opened to answer has a number:
 what the gap is, what it decomposes into, what presolve is worth, what a
 primal simplex is worth, and whether any of it is an artefact of one rival.
+
+## D84 — Multiple pricing, refused too, and phase 6 item 3 closes with both halves measured
+
+D82 refused partial pricing and said multiple pricing was untouched and still
+open, because it is a different technique. It was built and measured. It is
+also refused, and for a different reason, which is why the entry is worth
+having rather than folding into D82.
+
+**What was built.** A major iteration sweeps every basic variable and sets
+aside the K best leaving rows; the minor iterations that follow re-score that
+shortlist and take the best row still violating a bound, without sweeping
+again. Nothing stored is trusted: between two pivots x_B moves and every
+steepest-edge weight is updated, so a candidate's violation is recomputed and
+re-scored at the moment it is used, and a row that has become feasible is
+dropped. Bland's rule never reads the shortlist, for the reason D82 gives.
+
+**K = 1 is the technique switched off by construction** — one candidate set
+aside, used immediately, a fresh sweep next iteration — so the no-op check is
+a setting rather than a separate build. It confirmed: three gates ran, 139
+digests and work counts identical. Every number below is therefore the
+technique and not the restructuring.
+
+### The measurement
+
+| K | standard iters | standard work | worst standard | Kennington iters | Kennington work |
+|---|---|---|---|---|---|
+| 2 | 1.176x | 1.139x | `wood1p` 88.7x | 1.034x | **0.819x** |
+| 4 | 1.269x | 1.263x | `fffff800` 32.5x | 1.079x | **0.747x** |
+| 8 | 1.486x | 1.517x | `brandy` 140.7x | 1.078x | **0.667x** |
+| 16 | 1.560x | 1.673x | `woodw` 128.0x | 1.077x | 0.666x |
+
+**The standard set closes it.** The gate reads NOT MET at every setting — 6
+instances regressed at K=2, 21 at K=4, 32 at K=8 — and the cost is monotone in
+K in both iterations and work. Individual instances come apart: `brandy` at
+140x its iterations, `wood1p` at 89x, `woodw` at 128x. There is no value of K
+that is merely a worse trade; the mildest setting already fails.
+
+**And the Kennington column is the honest tension in this entry.** A third of
+the billed work removed for 8% more iterations is a much better trade than
+partial pricing ever showed — D82 managed 0.897x — and on the largest models
+the sweep is genuinely large: `ken-18` has 105,127 rows, so an O(`nrow`) pass
+per pivot is a real share of what gets billed.
+
+It is not trusted, for D45's reason and not from suspicion of the number
+itself. The units removed are the pricing sweep's, one per row, and D45
+measured `nrow` sweeps as nearly free per unit while the work they trade
+against is expensive. So a 0.667x in units is an unknown in seconds, and the
+one measurement that would settle it — a same-instance time ratio at `-j 1` on
+Kennington — was not taken, **because it cannot change the verdict**: the
+technique fails the standard gate at every setting, and a technique that
+returns wrong answers is not accepted on the strength of being fast on the
+other set.
+
+That is worth writing down precisely, because it is the one direction in this
+item that pointed somewhere. If a future attempt confines a pricing shortlist
+to models where the sweep dominates — and `PRICE_MIN_ROWS` in D82's build was
+exactly such a gate, never combined with this — the Kennington column is where
+to look first, and seconds rather than units are what it has to produce.
+
+### What phase 6 item 3 now knows
+
+Both halves are measured and both are refused. The item is closed as a *speed*
+lever, and what closed it is the same fact twice: **the leaving-row sweep is
+the wrong thing to make cheaper.** Its units are the cheapest in the solver,
+and every scheme for scanning it less often pays in trajectory — worse
+candidates, more iterations, and on this evidence wrong answers.
+
+The profile taken while checking this item's premise says where to look
+instead. On `truss` under callgrind, `admit_candidate` is **14.98%** of
+instructions against `ftran_prefix` at 6.68%, and it is the ratio test's
+candidate admission — called once per nonbasic variable of the pricing row,
+the O(`nvar`) half of D61's 36.5%, never examined. Restricting *that*
+candidate set decides which column enters rather than which row leaves, which
+is a different and more dangerous change than either of the two refused here.
+Callgrind counts instructions and not seconds and cannot see locality, the
+limit D58 and D61 also stated.
