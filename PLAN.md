@@ -304,12 +304,10 @@ which is where the correctness risk lives, not in the reductions.
 **The next phase with open work, and the largest block of it.**
 
 - Write MPS and LP; write a solution file.
-- **Solve time on the model.** `SPECS.md` §5 has carried this as missing since
-  M1 and the premises require it: every run reports wall-clock time, but the
-  *library* does not — `jaos_work_units` and `jaos_iterations` exist and there
-  is no `jaos_solve_time`, so a caller who is not the bench runner cannot get
-  the one number the comparison harness is entirely about. The smallest open
-  item here by far.
+- ~~Solve time on the model.~~ **Done.** `jaos_solve_time`, which `SPECS.md`
+  had carried as missing since M1 while the premises required it. It shares a
+  clock reader with the time limit, so the figure a caller reads and the one
+  the budget was judged against cannot drift apart.
 - Sensitivity and ranging.
 - Infeasibility and unboundedness certificates, exportable.
 - Exact rational verification of a final basis (Q8).

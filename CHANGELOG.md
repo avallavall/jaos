@@ -11,6 +11,18 @@ open, `bench/README.md` for the gate, and the commit each entry came from.
 
 ### Added
 
+- `jaos_solve_time`: seconds the last solve took. `SPECS.md` had carried this
+  as missing since M1 while the premises required it — every run reported wall
+  clock and the library did not, so anyone who was not JAOS's own bench runner
+  could not get the number the whole competitive comparison is about. It
+  covers the same span as the work counter, taken beside it at the end of
+  publishing so neither is short by one BTRAN, and it shares one clock reader
+  with the time limit so the figure a caller sees and the figure the budget
+  was judged against cannot drift. Retired with the rest of the answer when
+  the model is modified: seconds for a withdrawn result are a number about
+  nothing. **The only non-reproducible number in the API**, and the header
+  says so and says not to diff it against a stored one.
+
 - `jaos_set_progress_callback`: a solve can be watched, and stopped. A watcher
   is told the iteration count, the work units and the total primal
   infeasibility — and no objective, because a dual simplex carries a point it

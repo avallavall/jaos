@@ -115,6 +115,10 @@ struct jaos_model {
     jaos_basis_status *sol_row_status;  /* [num_row] and each row activity   */
     int64_t solve_work;
     int64_t solve_iters;
+    /* Seconds the last solve took. The one number on this struct that is not
+     * reproducible, which is why nothing inside the solver may read it back:
+     * it is written at the end of a solve and only ever handed to a caller. */
+    double solve_time;
 
     /* The basis the next solve starts from, or null for the slack basis.
      *

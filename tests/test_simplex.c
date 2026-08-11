@@ -1789,6 +1789,30 @@ static void test_configuration_survives_a_load(void)
     jaos_model_free(m);
 }
 
+/* What can be asserted about a clock without the test becoming a flake: that
+ * it starts at zero, that it is finite and not negative after a solve, that a
+ * modification retires it along with the rest of the answer, and that a model
+ * that never solved reports nothing. Not how long anything took. */
+static void test_solve_time_is_reported_and_retired(void)
+{
+    jaos_model *m = log_model();
+    TEST_ASSERT_EQUAL_DOUBLE(0.0, jaos_solve_time(m));
+    TEST_ASSERT_EQUAL_DOUBLE(0.0, jaos_solve_time(nullptr));
+
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    const double t = jaos_solve_time(m);
+    TEST_ASSERT_TRUE(t >= 0.0);
+    TEST_ASSERT_TRUE(isfinite(t));
+
+    /* The answer is stale after a modification and so is the time it took to
+     * reach it: reporting seconds for a solve whose result has been withdrawn
+     * would be a number about nothing. */
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_col_bounds(m, 0, 0.0, 1.0));
+    TEST_ASSERT_EQUAL_DOUBLE(0.0, jaos_solve_time(m));
+    TEST_ASSERT_EQUAL_INT64(0, jaos_work_units(m));
+    jaos_model_free(m);
+}
+
 static void test_queries_before_a_solve(void)
 {
     jaos_model *m = fresh();
@@ -2429,6 +2453,7 @@ int main(void)
     RUN_TEST(test_a_watcher_is_asked_and_changes_nothing);
     RUN_TEST(test_a_watcher_can_stop_a_solve_and_it_resumes);
     RUN_TEST(test_configuration_survives_a_load);
+    RUN_TEST(test_solve_time_is_reported_and_retired);
     RUN_TEST(test_queries_before_a_solve);
     RUN_TEST(test_the_basis_names_which_rows_hold_the_optimum);
     RUN_TEST(test_the_basis_agrees_with_the_values_it_came_with);

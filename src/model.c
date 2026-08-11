@@ -161,6 +161,7 @@ static void model_answer_is_stale(jaos_model *m)
     m->objective = 0.0;
     m->solve_work = 0;
     m->solve_iters = 0;
+    m->solve_time = 0.0;
 }
 
 /* Bounds may be infinite but never NaN, and `lower > upper` is a model with
@@ -405,6 +406,7 @@ jaos_status jaos_objective(const jaos_model *m, double *out)
 
 int64_t jaos_work_units(const jaos_model *m) { return m ? m->solve_work : 0; }
 int64_t jaos_iterations(const jaos_model *m) { return m ? m->solve_iters : 0; }
+double  jaos_solve_time(const jaos_model *m) { return m ? m->solve_time : 0.0; }
 
 jaos_status jaos_solution(const jaos_model *m, double *col_value,
     double *row_activity, double *row_dual, double *col_dual)

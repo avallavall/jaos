@@ -543,6 +543,25 @@ JAOS_NODISCARD int64_t jaos_work_units(const jaos_model *m);
 /* Simplex iterations performed by the last solve. */
 JAOS_NODISCARD int64_t jaos_iterations(const jaos_model *m);
 
+/* Seconds the last solve took, 0 if none has run. Wall clock, monotonic, and
+ * excluding the read that loaded the model — the same span the work counter
+ * covers, so the two describe one thing.
+ *
+ * **This is the only number JAOS reports that is not reproducible**, and it is
+ * offered anyway because it answers a question the other two cannot. Work
+ * units are identical on every machine and in every run, which is what makes
+ * them a regression test; they are also biased, by a factor that is not
+ * constant, against exactly the work that costs the most real time. A change
+ * that halves the units and doubles the seconds has happened here. So the two
+ * are read together, and neither on its own.
+ *
+ * The consequence for a caller who records results: **do not put this in a
+ * file you diff against later.** JAOS keeps its own acceptance records free of
+ * wall-clock numbers for that reason — a baseline that changes on every run
+ * cannot detect a regression — and keeps its competitive timings in a
+ * different place that says which machine produced them. */
+JAOS_NODISCARD double jaos_solve_time(const jaos_model *m);
+
 /* ------------------------------------------------------------------------- */
 /* Independent solution checker                                              */
 /* ------------------------------------------------------------------------- */

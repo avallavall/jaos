@@ -2733,16 +2733,29 @@ static jaos_solve_status classify_optimum(sx *s)
 /* Driver                                                                */
 /* --------------------------------------------------------------------- */
 
+/* Seconds since this solve started, and the only thing in the solver that
+ * reads a clock. Two callers: the budget, which is the one place a clock is
+ * allowed to end something a caller asked to be ended; and the figure
+ * published at the end. They share this so the number a caller reads and the
+ * number the limit was judged against cannot drift apart.
+ *
+ * A failed `clock_gettime` reads as zero elapsed. That makes the budget
+ * infinite rather than instantly exhausted, which is the safe direction: a
+ * solve that cannot read the clock should finish, not be cut off. */
+static double elapsed_seconds(const sx *s)
+{
+    struct timespec now;
+    if (clock_gettime(CLOCK_MONOTONIC, &now) != 0)
+        return 0.0;
+    return (double)(now.tv_sec - s->started.tv_sec) +
+           1e-9 * (double)(now.tv_nsec - s->started.tv_nsec);
+}
+
 static bool out_of_time(const sx *s)
 {
     if (s->m->cfg.time_limit <= 0.0)
         return false;
-    struct timespec now;
-    if (clock_gettime(CLOCK_MONOTONIC, &now) != 0)
-        return false;
-    double elapsed = (double)(now.tv_sec - s->started.tv_sec) +
-                     1e-9 * (double)(now.tv_nsec - s->started.tv_nsec);
-    return elapsed >= s->m->cfg.time_limit;
+    return elapsed_seconds(s) >= s->m->cfg.time_limit;
 }
 
 static jaos_status run(sx *s, jaos_solve_status *out)
@@ -3086,6 +3099,11 @@ static jaos_status publish(sx *s, jaos_solve_status status)
         memset(m->sol_row_status, 0,
                (size_t)m->num_row * sizeof *m->sol_row_status);
         m->solve_work = s->work.units;
+        /* Taken beside the work snapshot and for its reason: publishing runs
+         * a kernel, so a figure taken before it would be short by one BTRAN.
+         * Seconds are a development number here as everywhere -- reported,
+         * never entering a baseline (D17). */
+        m->solve_time = elapsed_seconds(s);
         return JAOS_OK;
     }
 
@@ -3125,6 +3143,7 @@ static jaos_status publish(sx *s, jaos_solve_status status)
         obj += m->col_cost[j] * m->sol_col[j];
     m->objective = obj;
     m->solve_work = s->work.units;
+    m->solve_time = elapsed_seconds(s);
 
     /* Where the next solve will start, unless the caller says otherwise.
      *
