@@ -5822,11 +5822,66 @@ travels, and that is **a property of the polytope, not of any single row**.
 Column 1534's lever arm only appears by combining rows; no row bounds it
 alone.
 
+### Iterating the propagation is refuted, and it is refuted the interesting way
+
+The obvious extension is to iterate: a bound derived this round makes its
+row's range finite, which should let the next round reach a column the first
+could not — ordinary constraint propagation, and it would plainly bound more
+of `pilot`'s 2409 unbounded columns than 588.
+
+It was built and measured at eight rounds. **It rejects the intervals where
+`pilot` is right**:
+
+| interval | objective | checker | gap |
+|---|---|---|---|
+| 16 | ok | **REJECTED** | 3.45e-05 |
+| 24 | out of tolerance | REJECTED | 0.0025 |
+| **64 — the shipped one** | **ok** | **REJECTED** | 3.45e-05 |
+| 96 | out of tolerance | REJECTED | 0.0025 |
+
+It does separate — 0.0025 against 3.45e-05 is a factor of 72 — but both are
+past `CHECK_TOL`, so the gate breaks.
+
+**And the reason is the part worth keeping.** An implied bound is *sound* but
+*slack*. The gap identity is `P - D = sum_v w_v (v - bound_v)`, and every term
+is zero at an optimum because complementary slackness puts each variable on
+the bound its multiplier points at. A variable does not rest on its *implied*
+bound — nothing put it there — so `w_v (v - bound_v)` is a live term measuring
+the slack of the bound rather than the badness of the point. The published
+duals are optimal for the original problem, not for the tightened one.
+
+So the gap stops being a statement about the answer alone and becomes one
+about the answer *and* how well the rows happen to bound the model. Tightening
+harder makes it worse, not better, which is the opposite of the intuition that
+motivates iterating.
+
+### The margin, which is smaller than it was
+
+That effect is present at one round too, and the honest figure is:
+
+| | worst gap over the gate | margin against `CHECK_TOL` = 1e-6 |
+|---|---|---|
+| before | 5.09e-11 | 19600x |
+| **after, one round** | **2.43e-08** | **41x** |
+| eight rounds | 3.45e-05 | **rejects** |
+
+One round costs three of the four and a half orders of margin the checker had.
+41x is a real margin and the gate passes on it, but it is no longer roomy, and
+a future change that adds terms to the dual objective has much less room than
+this one did. That is stated here rather than discovered later.
+
 ### What this settles, and what it hands on
 
 Settled: the implied bound is sound, cheap, independent, and worth having on
 its own terms — it doubles certification, closes the constructed case, and
-costs nothing measurable. It is kept.
+costs nothing measurable. It is kept at **one** round.
+
+Also settled, and it is a constraint on every future attempt: **the gap cannot
+absorb slack bounds.** Anything that makes `gap_positive` a true bound by
+adding terms will spend the checker's margin, and there is now 41x of it. What
+would break that trade is separating the two questions the gap currently
+answers at once — how far from optimal the point is, and how well the bound
+can be certified — which is a redesign of the report and needs its own entry.
 
 **Not settled: defect 1 remains open**, with its scope reduced rather than
 removed, and this entry is deliberately not written as closing it. The gap the

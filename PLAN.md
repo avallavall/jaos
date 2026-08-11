@@ -644,6 +644,20 @@ reaches rather than a trajectory.
    What would reach the rest is a bound from more than one row at once, which
    is a small LP of its own. What is now excluded is the idea that any of this
    needs the solver's basis.
+
+   **And iterating the propagation is refuted, which bounds the whole
+   direction (D87).** Eight rounds bound far more columns and reject `pilot`
+   at the intervals where it is *right*, including the shipped 64. The reason
+   generalises: an implied bound is sound but slack, and a variable does not
+   rest on it, so its term in `P - D` measures the bound's slack rather than
+   the point's error. Tightening harder makes the gap worse. One round already
+   spends three of the checker's four and a half orders of margin — worst gap
+   over the gate goes 5.09e-11 to **2.43e-08** against a tolerance of 1e-6.
+
+   So the next attempt is not a better bound. It is separating the two
+   questions the gap answers at once — how far from optimal the point is, and
+   how much of that can be certified — because as long as they share one
+   number, every improvement to the second is paid for out of the first.
 2. **The re-entry loop does not always converge (D49, D50, D51).** Its two
    repairs undo each other — the dual simplex borrows cost shifts to keep
    dual feasibility, `settle_shifts` calls the loans in, and the largest loan
