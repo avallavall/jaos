@@ -25,7 +25,7 @@ Source paths are relative to the repository root.
 - source: bench/README.md
 - `rowrel` is the worst row residue as a fraction of what that row carries; D24 refused to let the primal test become relative and keeps the measurement here instead.
 - `Q` and `N` are the two sums the gap is the difference of, so a small gap can be told apart from two large halves cancelling. On 22 of the 94 instances that reach an optimum, `Q` is more than twice `|Q − N|` — the count was 35 of 93 when first measured and falls as the answers get more accurate.
-- `drop` is the largest multiplier whose term the duality identity could not take; `cert` is whether any were dropped. 54 of 110 accepted answers are now certified, against 12 before the checker began bounding unbounded variables by what the rows imply, and the largest term the identity still cannot take is 3e-08.
+- `drop` is the largest multiplier whose term the duality identity could not take; `cert` is whether any were dropped. 64 of 110 accepted answers are now certified, against 12 before the checker began bounding unbounded variables by what the rows imply, and the largest term the identity still cannot take is 3e-08.
 - `rsub` is that bound as a fraction of the objective: 6.9e-05 where `pilot` is right and 5.02e-03 where it is wrong.
 - `sub` is a certified lower bound on suboptimality and `rays` counts directions that could not be quantified; `sub` is sound and, on this evidence, uninformative.
 

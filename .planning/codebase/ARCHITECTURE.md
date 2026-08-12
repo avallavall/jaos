@@ -3,6 +3,42 @@
 
 **Analysis Date:** 2026-08-12
 
+> ## ⚠ Line numbers in this document are stale. Symbol names are not.
+>
+> Every `src/simplex.c` citation here was **correct when written**, against
+> `2b07de1`. Phase 1 then added 219 lines to that file and 38 to
+> `src/jaos_internal.h`, so the citations no longer land:
+>
+> | cited here | actually at |
+> |---|---|
+> | `jm_dual_simplex` `:3549` | **3762** |
+> | `publish` `:3428` | **3641** |
+> | `run` `:3139` | **3352** |
+> | `elapsed_seconds` `:3123` | **3336** |
+> | `classify_optimum` `:3087` | **3300** |
+> | `reenter_after_settling` `:2882` | **3095** |
+> | `pivot` `:1923` | **2122** |
+> | `refresh` `:1208` | **1268** |
+> | `refactorize` `:871` | **929** |
+> | `build_warm_basis` `:810` | **863** |
+> | `build_initial_basis` `:715` | **763** |
+> | `sx_init` `:524` | **556** |
+> | `sx_free` `:489` | **516** |
+> | `jm_work` `jaos_internal.h:372` | **410** |
+>
+> Roughly: `+213` above old `simplex.c:2882`, `+1` below `simplex.c:34`, `+38`
+> above `jaos_internal.h:287`. **Grep for the symbol; do not trust the number.**
+> `src/model.c`, `src/check.c`, `src/mps.c`, `src/lpfmt.c`, `include/jaos.h` and
+> `Makefile` citations are untouched and still correct.
+>
+> Also missing by omission: the nonbasic bitmap (`s->nbmark`,
+> `jm_nonbasic_build/insert/remove/expand`) is phase 1's entire deliverable and
+> appears nowhere below.
+>
+> This is why line numbers do not belong in prose that outlives a phase. Fixing
+> them here would buy one phase; the same table would be wrong again after
+> phase 2.
+
 ## System Overview
 
 ```text

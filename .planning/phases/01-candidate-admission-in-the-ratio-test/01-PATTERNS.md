@@ -129,7 +129,15 @@ static void admit_candidate(sx *s, int64_t v, bool below, int64_t *n)
 
 ### 2. The call sites where the list must be maintained
 
-Twenty `s->status[v] = ...` assignment sites total in `src/simplex.c`; six change basis *membership* (transition into or out of `JM_BASIC`) and are where the new list/bitmap needs a hook. The other fourteen (grouped into three "no" rows below) only toggle between the two bound-status values and touch neither `JM_BASIC` nor `s->basis`/`s->where`.
+> **CORRECTION (added after phase 1 closed): six is wrong, the answer is eight.**
+> This table counts only `s->status[v] = ...` *assignment* sites. Two further
+> sites change membership by `memcpy` and carry no assignment at all —
+> `take_best_if_better` (`src/simplex.c:2631`) and `restore_settled` (`:2656`) —
+> and both need a `jm_nonbasic_build` after their `where` rebuild. `01-RESEARCH.md`
+> reached the same wrong six independently. The implementation hooks eight
+> (`01-01-SUMMARY.md`, commit `f2ed4bc`).
+
+Twenty `s->status[v] = ...` assignment sites total in `src/simplex.c`; six change basis *membership* (transition into or out of `JM_BASIC`) **by assignment** — see the correction above for the two that do it by `memcpy` — and are where the new list/bitmap needs a hook. The other fourteen (grouped into three "no" rows below) only toggle between the two bound-status values and touch neither `JM_BASIC` nor `s->basis`/`s->where`.
 
 | Line(s) | Function | Transition | Membership? | Frequency |
 |---|---|---|---|---|

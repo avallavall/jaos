@@ -123,9 +123,24 @@ dual_ratio_test(s, below, violation, theta_out)
 
 The dense branch is the only one this phase touches (`src/simplex.c:1573-1577`); the pattern branch, `bfrt_walk`, `jm_harris_pick`, and `apply_flips`'s own logic are out of scope (CONTEXT.md `<domain>`).
 
-### Exhaustive site table: every place `s->status[v]` is assigned
+### Site table: every place `s->status[v]` is assigned — **INCOMPLETE, SHORT BY TWO**
 
-Compiled from a `Grep` over `src/simplex.c` for assignment (not comparison) forms, then read in context — this is CONTEXT.md's research question 3, "the single most useful concrete output you can produce." `[VERIFIED: src/simplex.c]`, line numbers as read this session.
+> **CORRECTION (added after phase 1 closed).** This table was labelled
+> "exhaustive" and `[VERIFIED]` and it is **neither**. It lists six
+> membership-changing sites. There are **eight**. The two it misses —
+> `take_best_if_better` (`src/simplex.c:2631`) and `restore_settled` (`:2656`) —
+> change membership by `memcpy` and carry no assignment form at all, so the
+> grep this table was compiled from could not see them. `01-PATTERNS.md`
+> independently reproduced the same six; the planner caught it by reading the
+> code paths instead (`8ef1e70`, `01-01-PLAN.md:132-164`).
+>
+> Hooking only these six would have desynchronised the bitmap on every
+> `take_best_if_better`/`restore_settled` path and changed published answers
+> with no test able to see it. Kept as written, with this warning, because the
+> failure is the useful part: **a grep over assignment forms cannot enumerate
+> membership changes in C, and a table that says `[VERIFIED]` is trusted.**
+
+Compiled from a `Grep` over `src/simplex.c` for assignment (not comparison) forms, then read in context — this is CONTEXT.md's research question 3, "the single most useful concrete output you can produce." Line numbers as read that session.
 
 | Line(s) | Function | Transition | Changes list membership? | Frequency |
 |---|---|---|---|---|

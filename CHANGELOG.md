@@ -118,7 +118,7 @@ from.
   refused and the solve ran cold, because that pins a row's activity at zero
   and the method could not always price it back off — **that refusal is gone
   as of D90**, once D85 taught the clean-up which way a free column improves.
-  All 139 digests unmoved (D68).
+  All 139 answers unmoved (D68).
 
 - `jaos_set_coefficient`: one matrix entry can be changed, created or
   removed. Three operations under one name, because the stored matrix keeps
@@ -146,7 +146,7 @@ from.
 - `jaos_set_primal_tolerance` and `jaos_set_dual_tolerance`: the first two
   settings a caller has beyond the budgets. Both default to 1e-7 and 0
   restores that; a value that is not finite and non-negative is refused with
-  a reason rather than clamped. All 139 digests are unmoved, because a model
+  a reason rather than clamped. All 139 answers are unmoved, because a model
   that sets nothing behaves exactly as before. The API configures the
   contract — precision, limits, where output goes — and never the method:
   which pricing rule, when a weight stops being worth carrying, when to
@@ -256,7 +256,7 @@ from.
   than the point; feeding that to `dual_feasible` rejected correct answers, so
   the verdict now reads only terms from bounds the model declared and the
   bound keeps every term. With that the propagation is safe to iterate, and
-  certification goes from 12 of 110 accepted answers to **54** — `etamacro`,
+  certification goes from 12 of 110 accepted answers to **64** — `etamacro`,
   the case D47 named as live at 2.25e-07, is now certified with nothing
   dropped. New `relative_suboptimality` reads 6.9e-05 where `pilot` is right
   and 5.02e-03 where it is wrong; the gate watches it in place of the dropped
@@ -267,7 +267,7 @@ from.
   zero and would publish a suboptimal point as OPTIMAL; D85 repaired that, so
   the refusal lost its premise. `cycle` goes from paying the full cold price —
   1537 iterations, its warm figures identical to its cold ones — to 16
-  iterations and a ninth of the work. All 139 digests unmoved, since no cold
+  iterations and a ninth of the work. All 139 answers unmoved, since no cold
   solve reaches this code. The test that pinned the refusal now pins the
   repair, on D68's own example (D90).
 
@@ -350,7 +350,7 @@ from.
   and `primal_ratio_test` both read the status instead, which puts a free
   variable in the upper-bound branch and repairs one sign only. Both now read
   the sign of the reduced cost, which is bit-identical for a bounded status —
-  `dual_breach` has already fixed the sign there — and all 139 digests, work
+  `dual_breach` has already fixed the sign there — and all 139 answers, work
   units and iteration counts are unmoved. On the constructed model the answer
   goes from 0.0 to -6 (D85).
 
@@ -362,7 +362,7 @@ from.
   warned that a setting added without being added to the list would be lost,
   and that is exactly what happened to the next setting added. Configuration
   is now one sub-struct that the load saves and restores whole, so there is
-  nothing left to forget. All 139 digests unmoved (D78).
+  nothing left to forget. All 139 answers unmoved (D78).
 
 - A solve that failed reported none of what it did. The three counts —
   refactorizations, weight restarts, stalls — were logged on the success

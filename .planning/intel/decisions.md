@@ -554,7 +554,7 @@ Source paths are relative to the repository root.
 ## D91 — The bound and the verdict stop being one number, and D47 closes
 - source: DECISIONS.md
 - status: locked
-- decision: The bound and the verdict stop being one number, and D47 closes. `pos`/`neg` carry every term and bound the suboptimality; `pos_model`/`neg_model` carry only terms from bounds the model declared and are what the verdict reads. Propagation iterated to a fixed point at `IMPLIED_ROUNDS = 64`. Certification goes to 54 of 110; `relative_suboptimality` replaces the dropped term as the watched quantity and no verdict reads it.
+- decision: The bound and the verdict stop being one number, and D47 closes. `pos`/`neg` carry every term and bound the suboptimality; `pos_model`/`neg_model` carry only terms from bounds the model declared and are what the verdict reads. Propagation iterated to a fixed point at `IMPLIED_ROUNDS = 64`. Certification goes to 64 of 110; `relative_suboptimality` replaces the dropped term as the watched quantity and no verdict reads it.
 - scope: checker verdict/bound separation, IMPLIED_ROUNDS, carried defect 1 closure
 
 ## D92 — A residue only a pivot can remove was hidden by the scaling, and the repair is the union of the two readings rather than either one

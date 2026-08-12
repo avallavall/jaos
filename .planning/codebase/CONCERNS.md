@@ -296,24 +296,25 @@ citations) against the headings in `DECISIONS.md`.
 
 ## Anything genuinely surprising
 
-- **`CLAUDE.md` and the entire `.claude/` directory — the skills, the
-  subagents (`jaos-measurer`, `numerics-reviewer`, `literature-scout`), and
-  every procedural rule described in this very prompt — are excluded from
-  version control.** `.gitignore:2-3` reads `.claude/` and `/CLAUDE.md`
-  explicitly, with the comment "local working config and instructions, not
-  part of the project." Verified with `git ls-files` (empty) and
-  `git check-ignore -v CLAUDE.md` (confirms the ignore rule). `PLAN.md`,
-  `SPECS.md`, `DECISIONS.md` and `CHANGELOG.md` — the four documents this
-  file was told to treat as authoritative — *are* tracked. This means the
-  project's entire measurement discipline, the tolerance-changing rules, the
-  "measure before repairing" habit, and the skill routing table all live
-  only on whichever machine has them locally; cloning this repository gets
-  none of it, and nothing in the tracked history would tell a new
-  contributor these rules exist at all. Whether this is intentional
-  (keeping AI-tooling config out of the shipped library) or an oversight is
-  not something the repository itself can answer, but the asymmetry — rules
-  this detailed, this load-bearing, and this completely absent from `git
-  log` — is worth surfacing.
+- ~~**`CLAUDE.md` and the entire `.claude/` directory … are excluded from
+  version control.**~~ **RESOLVED 2026-08-12 — this finding is now false, and
+  it was acted on.** It was correct when written: `.gitignore` did exclude both,
+  so the measurement discipline, the tolerance rules and the skill routing
+  table lived only on one machine, and a clone got none of it. Commits
+  `0c99249` and `7df2d00` reversed it. `CLAUDE.md`, the three subagents, the
+  seven project skills and `jaos-measure`'s three scripts are tracked —
+  14 files — and `.gitignore` now says so in as many words.
+
+  Two files are still deliberately excluded, for stated reasons:
+  `settings.local.json`, because it sets `defaultMode: bypassPermissions` and
+  committing it would impose "run without asking" on anyone who clones this;
+  and `scheduled_tasks.lock`, which is a session id and a pid rewritten every
+  run.
+
+  Worth keeping the finding visible rather than deleting it: the audit that
+  closed it also found `geomean.py` — the only runnable form of D46 — among the
+  untracked files, and `preflight.sh`, which is the whole of T-01-08's
+  mitigation.
 - **Third-party competitor solver binaries (HiGHS, SoPlex, Clp) live under
   `bench/compare/solvers/` on disk but are correctly gitignored**
   (`.gitignore` line for `/bench/compare/solvers/`) and pinned instead by

@@ -1,6 +1,6 @@
 /* What warm re-solve buys, measured on the reference instances.
  *
- * D68 built it and showed it changes nothing: all 139 digests unmoved. That
+ * D68 built it and showed it changes nothing: all 139 answers unmoved. That
  * is the safety claim and it is not the interesting one. This program asks
  * the other question — when the model moves a little, does starting from the
  * previous basis cost less than starting from the slack basis? — and it is

@@ -3890,7 +3890,7 @@ reason about.
 **Zero means the default**, which is the only way to say "whatever you would
 have done" once a value has been set — and it is what makes the claim
 testable: a model that sets nothing must behave exactly as it did before
-these existed. **All 139 digests are identical to the committed records**,
+these existed. **All 139 answers are identical to the committed records**,
 which is that claim as a measurement rather than an assurance.
 
 **Two claims this section used to make, and both were false.** It said a
@@ -4139,7 +4139,7 @@ measurement, and this decision only declines to widen it.
 
 ### What the gate said
 
-All 139 digests unmoved, three sets, `gate: PASS` on each with 0 regressed.
+All 139 answers unmoved, three sets, `gate: PASS` on each with 0 regressed.
 That is the claim that matters: a model solved once from a fresh load takes the
 same path it always did, and the reference sets are exactly that.
 
@@ -4165,7 +4165,7 @@ test pins it.
 
 ## D69 — What warm re-solve buys: 182x the iterations and 60x the work, on a branching step
 
-D68 built warm re-solve and proved it changes nothing — 139 digests unmoved.
+D68 built warm re-solve and proved it changes nothing — 139 answers unmoved.
 That is the safety claim and it is the smaller half. The gate cannot make the
 other one: it solves each instance once from a fresh load, which is exactly the
 case warm starting does not touch. So `bench/warm.c` and `make warm`.
@@ -4651,7 +4651,7 @@ reads.
 ### Still deciding nothing
 
 No verdict reads either field, and the three gates pass with 0 regressed and
-139 digests identical. Whether `certified_suboptimality > tol` should make
+139 answers identical. Whether `certified_suboptimality > tol` should make
 `dual_feasible` false is a real question and a separate one — it would be the
 first predicate in this checker that can fail an answer no tolerance rejects —
 and it needs an instance that fails it before it is worth deciding. None of
@@ -4801,7 +4801,7 @@ audit that justified it.
 
 **What the measurement has to be.** `restrict` must not move a single number —
 it changes what the compiler may keep in a register, not what is computed — so
-the acceptance test is that all 139 digests and every work-unit count are
+the acceptance test is that all 139 answers and every work-unit count are
 identical, and the only thing left to read is seconds. Seconds need `-j 1`
 (D57) and a same-machine ratio (D45), which is two sequential runs of the
 standard set. The instances to weigh it on are the ones the LU dominates:
@@ -4827,7 +4827,7 @@ must be reloaded after each write to `mark`.
 
 **The correctness half passed exactly as it had to.** All three gates PASS
 with 0 regressed, 0 improved and 0 new, and `git diff` over the committed
-records is empty: 139 digests and every work-unit count byte-identical. That
+records is empty: 139 answers and every work-unit count byte-identical. That
 is the whole of what the work counter can say about this change, which is why
 seconds were the only evidence left.
 
@@ -4965,7 +4965,7 @@ would trade a working call for a faster one that never happens.
 
 ### What was measured
 
-All 139 digests, iteration counts and work units unmoved across the three
+All 139 answers, iteration counts and work units unmoved across the three
 gates, which is the expected result and worth stating for what it rules out:
 no path the gate walks calls any of this, so a moved digest would have meant
 the new code had reached the solver through the model struct.
@@ -5030,7 +5030,7 @@ direction: `sx` carries its own resolved `primal_tol` and `dual_tol` (the
 model's value or the built-in default), and a first pass moved those too.
 The compiler caught all nine.
 
-**Measured:** all 139 digests, iteration counts and work units unmoved across
+**Measured:** all 139 answers, iteration counts and work units unmoved across
 the three gates — a struct that changes where a field lives must change no
 number, and this is the check that says it did not. The regression test is
 `test_configuration_survives_a_load`, which sets a log callback, a progress
@@ -5092,7 +5092,7 @@ something and a caller who wants to interrupt wants it to take effect. 64 is
 already the granularity at which `TIME_CHECK_EVERY` settled that a stop is
 responsive enough. A model with no callback pays one predictable branch.
 
-**Measured:** all 139 digests, iteration counts and work units unmoved, which
+**Measured:** all 139 answers, iteration counts and work units unmoved, which
 is the claim that installing the hook changed no arithmetic. Three tests: a
 watcher that always continues returns the same bits as no watcher — compared
 with `EQUAL_MEMORY` and not a tolerance, because the claim is that the
@@ -5323,7 +5323,7 @@ Two things from this attempt are kept because they are useful to the next one.
 `EXTRA_CFLAGS` in the Makefile, so a method constant can be swept over a range
 without editing the source between runs. And the discipline of proving the
 restructuring is a bit-exact no-op *before* enabling anything: with
-`PRICE_MIN_ROWS` above every model in the sets, all 139 digests and work
+`PRICE_MIN_ROWS` above every model in the sets, all 139 answers and work
 counts were identical, which is what made every number above attributable to
 partial pricing rather than to the rewrite.
 
@@ -5550,7 +5550,7 @@ test named. The only input whose behaviour can change is the one the old form
 had no correct answer for.
 
 The measurement agrees, which is what makes the argument checkable rather than
-merely plausible: **all 139 digests, iteration counts and work units
+merely plausible: **all 139 answers, iteration counts and work units
 unmoved** — `bench/results/` regenerates byte-identical to the committed
 records across all three sets, 0 regressed and 0 improved on each. 73 unit
 tests and ASan+UBSan clean. On the constructed model the answer goes from 0.0
@@ -5705,7 +5705,7 @@ was never made.
 
 ### What it cost
 
-**All 139 digests, work units and iteration counts unmoved**, across all three
+**All 139 answers, work units and iteration counts unmoved**, across all three
 sets, `bench/results/` regenerating byte-identical to the committed records.
 That is by construction rather than by luck: no pivot anywhere in the gate
 reaches 1e-5, so the detector cannot fire there.
@@ -5796,7 +5796,7 @@ and no reference value.
 
 Across the gate, certification roughly doubles: **12 of 110 accepted answers
 certified before, 27 after** — 7 to 17 on the standard set, 5 to 10 on
-Kennington. All 139 digests identical, all three gates PASS with 0 regressed,
+Kennington. All 139 answers identical, all three gates PASS with 0 regressed,
 167 unit tests green. The feared failure — 98 previously dropped terms all
 becoming live and inflating the gap into false rejections — did not happen.
 
@@ -6230,7 +6230,7 @@ checker certifying a bound it cannot prove:
 |---|---|
 | before this session (D71) | 12 of 110 |
 | one-pass implied bounds (D87) | 27 |
-| **propagated, verdict separated** | **54 of 110** — 38 of 94 standard, **16 of 16** Kennington |
+| **propagated, verdict separated** | **64 of 110** — 48 of 94 standard, **16 of 16** Kennington |
 
 The largest surviving dropped term over the standard set falls from 2.25e-07
 to **3e-08**, and everything below it is 1e-14 or smaller. What the checker

@@ -10,7 +10,7 @@ last_updated: "2026-08-12T18:57:34.608Z"
 last_activity: 2026-08-12
 last_activity_desc: Executed 01-05 — D93 closed and indexed with the measurement on both sides, the 4.2% derivation traced to D81, the null result stated as 110 digests + 29 infeasibility verdicts over 139 instances, and an audit correction appended to 01-04-SUMMARY.md
 progress:
-  total_phases: 1
+  total_phases: 5
   completed_phases: 1
   total_plans: 5
   completed_plans: 5
@@ -23,7 +23,7 @@ progress:
 See: .planning/PROJECT.md (updated 2026-08-12)
 
 **Core value:** A correct answer, bit-identical on every machine and every run, proved by a checker that had no access to the solver that produced it.
-**Current focus:** Phase 01 — candidate-admission-in-the-ratio-test
+**Current focus:** Phase 2 — Presolve and postsolve
 **Milestone:** M2 — LP competitiveness
 
 ## Current Position
@@ -33,7 +33,7 @@ Plan: Not started
 Status: Ready to plan
 Last activity: 2026-08-12 — Phase 01 complete, transitioned to Phase 2
 
-Progress: [██████████] 100%
+Progress: [██░░░░░░░░] 20%
 
 ## Performance Metrics
 
@@ -117,11 +117,17 @@ Taken during execution of 01-01:
   replaced, so the pattern/dense equivalence claim at `simplex.c:1562-1568` now
   has a run-time proof on every solve in the suite
 
-- **A missed `jm_nonbasic_remove` is a performance fault, not a correctness
-  one** — the bitmap becomes a superset and `admit_candidate` rejects the
-  extras, so the D-08 assertion is silent and correct to be. The
-  correctness-dangerous fault is a missed `jm_nonbasic_insert`, and that is
-  what the assertion was calibrated against
+- ~~**A missed `jm_nonbasic_remove` is a performance fault, not a correctness
+  one**~~ — **this was falsified inside the same phase and is corrected in
+  `62ac240`.** It held against the tree `f2ed4bc` left: a superset bitmap
+  changes no candidate, because `admit_candidate` rejects `JM_BASIC` first, so
+  the D-08 assertion was silent and right to be. Then `b65d9f2` made the dense
+  branch bill `visited`, and a superset began inflating `s->work.units` — which
+  is compared against `cfg.work_limit`, so the same model stops at a different
+  point and publishes a different answer. Closed by
+  `assert(visited == s->nvar - s->nrow)`, calibrated against the fault the
+  cross-check is silent on. See D93's amendment. Neither plan's reading was
+  wrong alone; the defect lived between them
 
 Taken during execution of 01-02:
 
@@ -200,7 +206,7 @@ Taken during execution of 01-05:
   428 insertions to `DECISIONS.md` and 0 deletions; the seven forward citations
   in `src/simplex.c`, `docs/work-units.md` and `tests/test_simplex.c` resolve
 
-- **"All 139 digests unmoved" is false and was not written**, though the plan's
+- **"All 139 answers unmoved" is false and was not written**, though the plan's
   own `must_have` required the sentence. Re-read from the record files: 94
   netlib + 16 Kennington lines carry `digest=` and the 29 infeasible lines
   carry **none** — their invariant is `expected=infeasible verdict=ok det=ok`.

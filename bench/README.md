@@ -39,6 +39,19 @@ The M1 gate asks for three (PLAN 2.9), and all three are now pinned:
 | Kennington | 16 | the same, for correctness only | `make netlib-kennington` |
 | infeasible | 29 | classified `INFEASIBLE`, no false optima | `make netlib-infeas` |
 
+**139 instances, 139 answers, 110 digests.** This file owns those numbers and
+everything else should cite rather than restate them. The distinction is not
+pedantry: only the 94 standard and 16 Kennington instances produce a **solution
+digest**, because only they have a solution. The 29 infeasible ones produce a
+**refusal verdict** — `expected=infeasible verdict=ok det=ok` — and carry no
+`digest=` field at all, which `grep -c digest=` will confirm.
+
+So "all 139 answers unmoved" is the true claim and the strong one. "All 139
+digests" is not: it invites a reader to check 139 against the record and find
+110. That phrase was in 47 places across this repository and wrong in every one
+of them; D93 states the precise form, and this table is where the composition
+lives.
+
 The infeasible set is the only thing in M1 that looks for a *wrong* answer
 rather than confirming a right one: it asks whether a model with no feasible
 point ever comes back with an optimum. Not a hypothetical failure mode — the
