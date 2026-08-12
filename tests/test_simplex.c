@@ -582,7 +582,19 @@ static void test_free_variable_enters_and_settles(void)
  * diff mixes an accounting correction into a measurement cannot be read at
  * all. The number staying put is the evidence that it does not.
  *
- * Last moved by summing the exact steepest-edge weight over rho's pattern
+ * Last moved by the ratio test's dense branch charging the variables its
+ * scan actually visited rather than the dimension (D93): 8545 -> 8536. The
+ * bitmap walk that replaced the scan over [0, nvar) reaches only the
+ * nonbasic variables, so billing `nvar` for it charged for variables the
+ * scan no longer reads. Nine units is the whole of it, and the arithmetic
+ * closes exactly: three iterations, each taking a dense ratio test, each now
+ * billing this model's three nonbasic variables instead of its six variables
+ * — 3 x (6 - 3). That it closes exactly is also the evidence that the dense
+ * branch is taken on every one of the three, which is what the D40/D41 note
+ * below would predict: a quarter of six variables is one, and the pricing
+ * row's pattern is never that small.
+ *
+ * Before that, by summing the exact steepest-edge weight over rho's pattern
  * (D42): 8548 -> 8545. The norm is charged for the slots it adds up rather
  * than for the dimension, and over this solve rho held three zeros in total.
  * Three units is the whole of it because a three-row row of B^-1 has almost
@@ -613,7 +625,7 @@ static void test_free_variable_enters_and_settles(void)
  * plus the two residuals they are computed from. Before that, by the recheck
  * itself: 4411 -> 8517, the one extra factorization it costs plus the
  * pricing pass that follows it. */
-constexpr int64_t WORK_PINNED = 8545;
+constexpr int64_t WORK_PINNED = 8536;
 
 static void test_work_accounting_is_pinned(void)
 {
@@ -1086,10 +1098,14 @@ static void test_settling_up_reaches_the_optimum_a_shifted_basis_hid(void)
  * worth nothing here.
  *
  * What does separate them is the cost of those extra rounds, each of which
- * is a refactorization and a re-solve. Measured on this model: **58141 work
- * units correct, 67416 with the defect**, and the bound below sits between
+ * is a refactorization and a re-solve. Measured on this model: **60701 work
+ * units correct, 64633 with the defect**, and the bound below sits between
  * them with room on both sides. That is the number this test actually
  * guards; the checker assertions guard the answer, which no longer moves.
+ *
+ * Both figures were re-measured under D93's accounting; the room on either
+ * side of the bound is narrower than the 58141/67416 they replace, and the
+ * note at the assertion says by how much and why.
  *
  * The oracle for the answer is the independent checker rather than a pinned
  * objective, because what went wrong was a certificate that did not carry. */
@@ -1158,8 +1174,19 @@ static void test_a_clean_up_pass_dispatches_every_column_it_identified(void)
     TEST_ASSERT_TRUE(rep.primal_feasible);
     TEST_ASSERT_TRUE(rep.dual_feasible);
 
-    /* 58141 correct, 67416 with one pivot per call. Not a pinned value: a
-     * ceiling with a measurement on each side of it. */
+    /* 60701 correct, 64633 with one pivot per call. Not a pinned value: a
+     * ceiling with a measurement on each side of it, and both sides were
+     * re-measured on this tree under D93's accounting rather than carried.
+     *
+     * They replace 58141 and 67416, and only 240 units of that move is D93's:
+     * the correct side measured 60941 immediately before the dense ratio test
+     * stopped billing `nvar`, and 60701 after. The other ~2800 had accumulated
+     * since the pair was last measured, unnoticed, because a ceiling is
+     * consulted only when it trips and nothing re-measures it on the way up.
+     * The margin is now 1299 units where it was 3859, and the gap the test
+     * lives on has closed from 16% to 6.5%. Left at 62000 because it still
+     * separates the two; moving it would need a measurement of its own rather
+     * than headroom chosen by eye. */
     TEST_ASSERT_TRUE(jaos_work_units(m) < 62000);
 
     jaos_model_free(m);

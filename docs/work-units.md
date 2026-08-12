@@ -60,11 +60,17 @@ Scanning the candidates charges one per live candidate, and the Harris
 two-pass over them charges two.
 
 **Ratio test and bookkeeping**: building the candidate set charges one per
-variable it looked at — every variable when the pricing row is read densely,
-and the size of its pattern when it is not (D40) — and the dual update
-charges the same way, with one exception: it also sweeps every variable on
-the first iteration after anything rewrites a reduced cost outside a pivot,
-because that sweep is repairing rather than stepping (D41). The
+variable it looked at — the nonbasic ones when the pricing row is read
+densely, because that scan walks the nonbasic set and never reaches a basic
+variable at all (D93), and the size of its pattern when it is not (D40). The
+dual update charges by the same rule and arrives at a different number: its
+dense form still walks the whole range, reading every variable's status to
+find out whether it has a cost to step, so every variable is one it looked
+at. Two charges that no longer match, from the same rule applied to two
+loops, one of which was taught to skip. The dual update also sweeps every
+variable on the first iteration after anything rewrites a reduced cost
+outside a pivot, because that sweep is repairing rather than stepping
+(D41). The
 steepest-edge weight update charges one per row, the exact weight that feeds
 it charges one per slot it adds up rather than one per row (D42), and each
 swap attempted while settling up charges two per row.
@@ -115,6 +121,17 @@ without making it visible. On an iteration that ends up reading `alpha`
 densely it also records part of a pattern it then discards — bounded by a
 quarter of the variables, and unbilled for the same reason the clear is.
 
+**The nonbasic bitmap's words are not billed either.** The dense candidate
+scan reads one machine word per 64 variables to find the bits that are set,
+and only the bits it finds are charged (D93). A word is not a variable, the
+rule above is one per variable looked at, and a second currency for the
+skipping would need a rate — which is a number with no measurement on either
+side of it. The consequence is worth stating rather than leaving to be
+discovered: on a model whose nonbasic set is a small fraction of its
+variables the scan bills almost nothing while still paying `nvar/64` reads,
+so the floor under that charge is real and invisible. It is stated here for
+the same reason the unbilled `alpha` sweep above is.
+
 **Pricing does bill its walk over the pricing row**, which is worth stating
 because the charge is easy to misread. The row-wise pass charges
 `touched + nrow`; the second term was one per logical column in the
@@ -163,12 +180,14 @@ counter already sees.
 | the basis update | 1.79% |
 | everything outside the solve loop | 0.11% |
 
-Those shares are as of D32 and predate D40 and D41, which between them took
+Those shares are as of D32 and predate D40, D41 and D93. The first two took
 the ratio test's candidate scan and the dual update off the first two rows
 wherever the pricing row is sparse — 1.895x less total work on the
-Kennington set. The ranking has certainly moved; the figures are left as
-measured rather than rescaled by arithmetic, and the next attribution run
-replaces them.
+Kennington set — and D93 takes that same scan down on the iterations where
+the row is read densely, which are exactly the ones the other two do not
+reach. The ranking has certainly moved; the figures are left as measured
+rather than rescaled by arithmetic, and the next attribution run replaces
+them.
 
 ## Determinism
 

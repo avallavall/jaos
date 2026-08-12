@@ -1638,11 +1638,22 @@ static int64_t dual_ratio_test(sx *s, bool below, double violation,
             admit_candidate(s, s->apat[t], below, &n);
         jm_work_add(&s->work, s->anpat * JM_WORK_NONZERO);
     } else {
-        /* How many variables were actually handed to admit_candidate. Read
-         * by nothing yet: what the counter charges is D-09 and belongs to
-         * the plan after this one, and moving the charge and the scan in one
-         * step would leave nothing able to say which of the two did it. */
-        [[maybe_unused]] int64_t visited = 0;
+        /* How many variables were actually handed to admit_candidate, which
+         * is what this branch is charged for (D93). Both branches now bill
+         * the same rule — one per variable looked at — where this one used
+         * to bill s->nvar for a walk that stopped visiting every variable
+         * the moment it became a walk over nbmark. Charging the dimension
+         * for a scan that no longer reads it would have hidden the whole of
+         * this phase's saving in the one currency the project measures in
+         * (D16).
+         *
+         * The bitmap words themselves are not charged. A word is not a
+         * variable, and the rate at which one would be worth counting has no
+         * measurement on either side of it; the skipping is the mechanism
+         * that produces the saving rather than work done on a variable. It
+         * joins the pricing form's own sweep over the variables, which
+         * docs/work-units.md records as real work that no unit counts. */
+        int64_t visited = 0;
         int64_t nwords = (s->nvar + 63) / 64;
         for (int64_t w = 0; w < nwords; w++) {
             uint64_t bits = s->nbmark[w];
@@ -1653,7 +1664,7 @@ static int64_t dual_ratio_test(sx *s, bool below, double violation,
                 visited++;
             }
         }
-        jm_work_add(&s->work, s->nvar * JM_WORK_NONZERO);
+        jm_work_add(&s->work, visited * JM_WORK_NONZERO);
     }
 
 #ifndef NDEBUG
