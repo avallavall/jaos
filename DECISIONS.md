@@ -6865,6 +6865,55 @@ be cited as evidence that walking a nonbasic set is faster than walking the
 model; what it is evidence for is that doing so changes no answer, and that
 deciding whether it is faster needs a host this project does not have.
 
+### An amendment: the cross-check's silence stopped being correct partway through this phase
+
+Recorded after the phase's gates had run, from an independent numerics review of
+the landed diff. It is in this entry rather than a new one because it corrects a
+claim this entry makes.
+
+Above, and in `01-01-SUMMARY.md`, the D-08 cross-check's silence on a no-op
+`jm_nonbasic_remove` is called correct on the grounds that a superset bitmap
+changes no candidate — `admit_candidate` rejects `JM_BASIC` on its first line —
+so a missed removal is a performance fault and not a correctness one. That
+reasoning was sound when it was written, against the tree `f2ed4bc` left.
+
+**`b65d9f2` falsified it, and nobody noticed because the two plans were read
+separately.** Once the dense branch bills `visited` rather than `s->nvar`, a
+superset bitmap inflates `s->work.units` — the currency the gate reads and
+`bench/results/*.txt` pins — and `work_units` is tested against
+`cfg.work_limit`. A caller with a limit set therefore stops at a different point
+and **publishes a different answer on the same model**. That is not a
+performance fault. The same applies to a `progress_cb` budget keyed on work.
+
+The instrument could not see it because it compares candidate *sets* rather than
+the invariant. The fix is the invariant, and it is O(1) — exactly `nrow`
+variables carry `JM_BASIC` wherever the dense branch runs, so the bitmap's
+popcount is invariantly `nvar - nrow`:
+
+```c
+assert(visited == s->nvar - s->nrow);
+```
+
+Calibrated the way `jaos-testing` requires rather than assumed: with
+`jm_nonbasic_remove` made a no-op — the fault this entry's own table records the
+cross-check as *silent* on — the new assertion aborts at
+`src/simplex.c:1686`. Reverted, `make test` (78+4+12), `make sanitize` and
+`make all` are green again.
+
+**No measurement in this entry moved, and this was checked on the binary rather
+than argued from `NDEBUG`.** The `.text` section of `build/bench/run` — the
+linked campaign binary, after LTO — is 97,059 bytes with an identical SHA-256
+built from either source. Only the whole-file hash differs, which is the `-g`
+line table shifted by the nineteen added lines. Comparing `build/release/*.o`
+would have proved nothing: `SHIP` carries `-flto`, so those objects hold GIMPLE
+bytecode and have no `.text` at all.
+
+What this does not catch is a compensating pair — one missed insert and one
+missed remove inside the same window. The direct bitmap-against-status
+comparison would, at the same `O(nvar)` the debug block already spends. It is
+not added: no such pair has been constructed, and a check nobody has seen fail
+is not yet evidence of anything.
+
 ### What is left open
 
 `PLAN.md` is archived since 2026-08-12; open work lives in

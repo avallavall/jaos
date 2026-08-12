@@ -1665,6 +1665,25 @@ static int64_t dual_ratio_test(sx *s, bool below, double violation,
             }
         }
         jm_work_add(&s->work, visited * JM_WORK_NONZERO);
+
+        /* The bitmap's popcount is invariant wherever this branch runs:
+         * exactly nrow variables carry JM_BASIC, so exactly nvar - nrow do
+         * not. build_warm_basis enforces the count, repair_singular_basis
+         * refuses an already-basic entering, and pivot swaps one for one.
+         *
+         * This is not redundant with the dn == n cross-check below, which
+         * cannot see the fault this catches. That check compares candidate
+         * SETS, and admit_candidate rejects JM_BASIC on its first line — so
+         * a superset bitmap (a missed jm_nonbasic_remove, or a ninth
+         * membership site added without its hook) yields an identical
+         * candidate set and the cross-check stays silent. D93 recorded that
+         * silence as correct because a superset was then only a performance
+         * fault. It stopped being one the moment the line above started
+         * billing `visited`: an inflated count moves s->work.units, which is
+         * the gate's currency and is compared against cfg.work_limit, so the
+         * same model can stop at a different point and publish a different
+         * answer. A count check is O(1) and closes both directions. */
+        assert(visited == s->nvar - s->nrow);
     }
 
 #ifndef NDEBUG
