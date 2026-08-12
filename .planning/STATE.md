@@ -4,16 +4,16 @@ milestone: v1.0
 milestone_name: milestone
 current_phase: 01
 current_phase_name: candidate-admission-in-the-ratio-test
-status: executing
-stopped_at: "Completed 01-04-PLAN.md. VERDICT INCONCLUSIVE at 0.9709x against 4.2%; callgrind says instructions rose 1.60%. Next: 01-05 (D93, the changelog and SPECS.md)"
-last_updated: "2026-08-12T16:07:04.437Z"
+status: phase-complete
+stopped_at: "Completed 01-05-PLAN.md. Phase 01 is closed: D93 is written and indexed, the changelog and SPECS.md are current, and all four roadmap criteria are met. Next: Phase 02 (presolve and postsolve) — no plans exist yet"
+last_updated: "2026-08-12T17:05:00.000Z"
 last_activity: 2026-08-12
-last_activity_desc: "Executed 01-04 — VERDICT INCONCLUSIVE. The J=1 time ratio over the standard set is 0.9709x against a 4.2% bar, six readings run 2.16%-4.07% and none reaches it, the host's own repeatability is 6.27%, and callgrind says instructions rose 1.60%"
+last_activity_desc: "Executed 01-05 — D93 closed and indexed with the measurement on both sides, the 4.2% derivation traced to D81, the null result stated as 110 digests + 29 infeasibility verdicts over 139 instances, and an audit correction appended to 01-04-SUMMARY.md"
 progress:
   total_phases: 1
-  completed_phases: 0
+  completed_phases: 1
   total_plans: 5
-  completed_plans: 4
+  completed_plans: 5
 ---
 
 # Project State
@@ -28,26 +28,26 @@ See: .planning/PROJECT.md (updated 2026-08-12)
 
 ## Current Position
 
-Phase: 01 (candidate-admission-in-the-ratio-test) — EXECUTING
+Phase: 01 (candidate-admission-in-the-ratio-test) — **COMPLETE**
 Plan: 5 of 5
-Status: Executing Phase 01 — 01-01 through 01-04 complete. The measurement that decides the phase is taken and it is INCONCLUSIVE; 01-05 writes D93 as a refusal
-Last activity: 2026-08-12 — 01-04 landed (the verdict, no source file touched)
+Status: Phase 01 closed. All five plans executed and all four roadmap criteria met. D93 is written, indexed and cited from the three source files that were pointing at it forward
+Last activity: 2026-08-12 — 01-05 landed (D93, the changelog, SPECS.md, and the audit correction on 01-04-SUMMARY.md)
 
-Progress: [████████░░] 80%
+Progress: [██████████] 100%
 
 ## Performance Metrics
 
 **Velocity:**
 
-- Total plans completed: 4
-- Average duration: ~41 min
-- Total execution time: ~165 min
+- Total plans completed: 5
+- Average duration: ~40 min
+- Total execution time: ~200 min
 
 **By Phase:**
 
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
-| 01 | 4 | ~165 min | ~41 min |
+| 01 | 5 | ~200 min | ~40 min |
 
 **Per-Plan Metrics:**
 
@@ -57,6 +57,7 @@ Progress: [████████░░] 80%
 | 01-02 | ~22 min | 1 | 3 | 1 |
 | 01-03 | ~55 min | 2 | 8 | 2 |
 | 01-04 | ~75 min | 3 | 1 | 1 |
+| 01-05 | ~35 min | 2 | 4 | 3 |
 
 **Recent Trend:**
 
@@ -71,6 +72,11 @@ Progress: [████████░░] 80%
   of WSL machine time**: 12 sequential `J=1` passes over the standard set, two
   callgrind runs and three builds. No field of the estimate models that, and a
   plan whose deliverable is a number will always look free to a token estimate.
+- **01-05 is the one plan the estimate could see**, and it is the shape that
+  explains the other four: 12,300 realized against 45,000 estimated, under by
+  3.7x rather than by 10x. A documentation plan's length is set by the number
+  of things that have to be recorded, and that number was known in advance. No
+  machine time at all — it builds nothing and runs no campaign.
 
 *Updated after each plan completion*
 
@@ -184,18 +190,36 @@ Taken during execution of 01-04:
   0.9987x on the clock, against work ratios of 0.9956x and 0.9987x. A time
   ratio taken on D46's two names alone would have read 0.998x — nothing
 
+Taken during execution of 01-05:
+
+- **D93 is closed and its heading names the finding rather than the verdict** —
+  the bar cannot be measured on this host, which is what the negative control
+  establishes and is *not* the same claim as the candidate missing the bar.
+  428 insertions to `DECISIONS.md` and 0 deletions; the seven forward citations
+  in `src/simplex.c`, `docs/work-units.md` and `tests/test_simplex.c` resolve
+
+- **"All 139 digests unmoved" is false and was not written**, though the plan's
+  own `must_have` required the sentence. Re-read from the record files: 94
+  netlib + 16 Kennington lines carry `digest=` and the 29 infeasible lines
+  carry **none** — their invariant is `expected=infeasible verdict=ok det=ok`.
+  **The correct claim is 110 digests and 29 infeasibility verdicts over 139
+  instances**, and `DECISIONS.md` already said 110 in four earlier entries, so
+  writing 139 would have contradicted the file it was being added to
+
+- **An independent audit accepted the verdict and refuted three of its stated
+  grounds**, and both facts are recorded. The estimator-independence claim is
+  false on the plan's literal three-round protocol (rounds 4–6 read 5.12%, over
+  the bar); the negative control was in the data and was never run; and the
+  callgrind profile contains two solves, so the per-call figures are 6.0 and
+  3.41 rather than 12.0 and 6.82. **A marked correction section was appended to
+  `01-04-SUMMARY.md`** rather than merged into it
+
+- **`SPECS.md`'s competitive-gap figures were checked and deliberately left.**
+  `bench/compare` did not run in this phase, so none was re-measured; each
+  keeps the citation that dates it. That they are pre-phase is stated as a
+  caveat rather than repaired by an invented correction
+
 ### Pending Todos
-
-- **`01-05` must number its decision D93**, not one past whatever
-  `DECISIONS.md` ends at when it runs. Four files already cite D93:
-  `src/simplex.c`, `docs/work-units.md` and two places in
-  `tests/test_simplex.c`. `jaos-record` warns that source comments cite
-  decision headings, so a different number leaves four dangling references.
-
-- **`01-05` must not write "iterations" for the dense-branch count.** The
-  quotient `work_saved / rows` counts calls to `dual_ratio_test`, and `galenet`
-  makes 2 of them in a solve that reports one iteration. The distinction holds
-  on 1 instance in 139, which is exactly the kind that gets rounded away.
 
 - **Nothing in the repository reads the `baseline: NOT COMPARED` line.** It
   exists so a record produced by a `-w` run can be told from a checked one, and
@@ -203,16 +227,22 @@ Taken during execution of 01-04:
   set's record (`64efcc6:bench/results/netlib.txt`). Fixed there by 01-03's
   confirming run; the missing check is two lines and belongs in
   `preflight.sh`. Not added in 01-03, because a tooling edit mid-plan
-  invalidates the campaign.
+  invalidates the campaign. **Handed on by D93.**
 
-- **`01-05` must cite D81 for the 1.4%, not D83.** `01-04-PLAN.md` says D83
-  twice and `DECISIONS.md` puts the figure in D81. D83 carries a *different*
-  1.4% — Clp within 1.4% of HiGHS on total time — which is the likely source of
-  the slip and would read as confirmation to anyone who grepped.
+- **`bench/run.c` prints seconds as `%8.3f`.** 8 instances of the standard set
+  carry no time ratio and 42 more read exactly 1.0000x, so every future time
+  ratio on this set is half made of instances that cannot show the difference.
+  A two-line change, not made mid-measurement. **Handed on by D93.**
 
-- **`01-05` must not write that the change saves instructions.** It does not:
-  callgrind on `truss` reads 1.60% *more*. What fell is `admit_candidate`'s
-  share alone, and the caller took five times that back.
+- **`galenet` makes two calls to `dual_ratio_test` in a solve reporting one
+  iteration.** The quotient `work_saved / rows` counts calls, not iterations —
+  a distinction that holds on 1 instance in 139 and is exactly the kind that
+  gets rounded away. Recorded in D93; not chased.
+
+- **Phase 02 has no plans.** `/gsd-plan-phase` is the next action, and its
+  Open Question is already on the roadmap: T0 is "the simplex and only the
+  simplex", so presolve contributes nothing to the M2 close criterion as
+  stated, and nothing says how the ladder is recalibrated once JAOS has one.
 
 ### Blockers/Concerns
 
@@ -269,30 +299,31 @@ Taken during execution of 01-04:
 
 ## Session Continuity
 
-Last session: 2026-08-12T16:07:04.425Z
-Stopped at: Completed 01-04-PLAN.md. VERDICT INCONCLUSIVE at 0.9709x against 4.2%; callgrind says instructions rose 1.60%. Next: 01-05 (D93, the changelog and SPECS.md)
-Resume file: .planning/phases/01-candidate-admission-in-the-ratio-test/01-05-PLAN.md
+Last session: 2026-08-12T17:05:00.000Z
+Stopped at: Completed 01-05-PLAN.md. Phase 01 is closed — D93 written and indexed, changelog and SPECS.md current, all four roadmap criteria met
+Resume file: None
 
-Next: execute 01-05 (D93, the changelog entry, and the `SPECS.md` figures this
-phase moved). **Roadmap criteria 3 and 4 are both met**, so every measurement
-the phase owes exists and D93 is the only thing left.
+Next: **plan Phase 02 (presolve and postsolve).** No plans exist for it yet.
 
-**D93 is refusal-shaped, and it carries two findings rather than one.** The
-verdict is INCONCLUSIVE — 0.9709x against a 4.2% bar, with no reading of the
-data reaching it — so the phase does not close with a yes, and D82 and D84 are
-the models for how that is written. The second finding is not a refusal but a
-fact: **callgrind says the change costs 1.60% more instructions on `truss`**,
-because `admit_candidate` sheds 199M and the caller it is inlined into gains
-995M. It pays 6.82 instructions on each of 145.9M visits to save exactly 12.0
-on each of 16.6M skips. D93 must not say it saves instructions.
+**Phase 01 closed on a refusal-shaped entry that is not quite a refusal.** D93
+records that the ratio test's dense scan walks the nonbasic set, that no answer
+moved anywhere in the record — 110 digests, 29 infeasibility verdicts, 139
+iteration counts, five records byte-identical once the work field is masked —
+that the change **costs 1.60% more instructions on `truss`**, and that the 4.2%
+bar it was to be judged against **cannot be measured on this host**. The code
+stays under the developer's pre-authorisation of 2026-08-12.
 
-Three numbers 01-05 should not have to re-derive. The 1.4% behind the threshold
-is **D81's**, not D83's. This reading's own repeatability is **6.27%**, so the
-bar is three times a figure four times smaller than the noise. And `pilot87` and
-`maros-r7` read **0.9972x and 0.9987x** on the clock — 01-03 predicted from
-their work ratios that D46's two names would show nothing, and they showed
-nothing.
+**The one thing every later phase inherits is the negative control.** Eight
+standard-set instances have bit-identical work under both binaries, so the
+change provably cannot speed them up, and they read **0.9699x paired and
+0.9356x pooled** — a 3.0–6.4% "improvement" where the truth is zero, the same
+size as the 2.91% headline. Any future same-instance time ratio on this host
+without a control of that shape is not measuring what it thinks it is. Two
+companions to it: **running order alone is worth 2.4 percentage points**, so an
+alternation in one direction only measures the order; and the plan's literal
+three-round protocol would have read **5.12% and reported ACCEPT** in the
+parent-first order.
 
-The phase does not roll on to the next candidate path either way: restricting
-the candidate set ahead of `bfrt_walk` and `jm_harris_pick` stays deferred
-(D-04).
+The phase does not roll on to the next candidate path: restricting the
+candidate set ahead of `bfrt_walk` and `jm_harris_pick` stays deferred (D-04),
+available as its own decision and explicitly **not refused**.

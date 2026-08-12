@@ -23,7 +23,7 @@ one, one carries half of one.
 
 ### Ratio test
 
-- [ ] **REQ-ratio-test-candidate-admission**: `admit_candidate` runs once per
+- [x] **REQ-ratio-test-candidate-admission**: `admit_candidate` runs once per
   nonbasic variable of the pricing row and is 14.98% of instructions on `truss`
   under callgrind, against `ftran_prefix` at 6.68% — the O(`nvar`) half of D61's
   36.5%, the half neither refused pricing scheme touched, and the larger one.
@@ -33,6 +33,14 @@ one, one carries half of one.
     any code".
   - *Caveat carried from the source:* instructions are not seconds and callgrind
     cannot see locality; `perf` is not installed on the development machine.
+  - *Closed 2026-08-12 by **D93**, Phase 1.* The dense scan walks a maintained
+    nonbasic set; no answer moved (110 digests, 29 infeasibility verdicts, 139
+    iteration counts); the `J=1` time ratio reads 0.9709x against a 4.2% bar and
+    the instruction total rose 1.60%. **INCONCLUSIVE, and the finding is that
+    the bar cannot be tested on this host** — a negative control on eight
+    instances the change provably cannot help reads a 3.0–6.4% "improvement".
+    The caveat above was borne out exactly: callgrind found the saving relocated
+    rather than removed. Code kept under pre-authorisation.
 
 ### Presolve
 
@@ -225,7 +233,7 @@ Excluded by closed decision, not deferred.
 
 | Requirement | Phase | Acceptance in source | Status |
 |-------------|-------|----------------------|--------|
-| REQ-ratio-test-candidate-admission | Phase 1 | absent (decision required first) | Pending |
+| REQ-ratio-test-candidate-admission | Phase 1 | absent (decision required first) — derived in planning as 4.2%, three times D81's measured repeatability | **Complete** (D93; verdict INCONCLUSIVE, code kept) |
 | REQ-presolve | Phase 2 | absent | Pending |
 | REQ-lu-fill-and-markowitz | Phase 3 | absent | Pending |
 | REQ-hyper-sparse-downstream-results | Phase 3 | absent | Pending |

@@ -604,3 +604,106 @@ sources rather than this document:
 
 One commit, because this plan modifies no repository file. There is no per-task
 commit to pair with it: Tasks 1 and 2 produce numbers, not diffs.
+
+---
+
+# CORRECTIONS — appended 2026-08-12 by plan `01-05`, from an independent audit
+
+**Everything above this line is as `f1698fd` committed it and has not been
+edited.** This section is appended rather than merged, because a summary that
+is quietly corrected cannot be told from one that was right.
+
+An independent `jaos-measurer` audit recomputed this plan's result from the 12
+raw timing logs and both callgrind annotations. **It ACCEPTS the INCONCLUSIVE
+verdict** — every route it took lands there — and the arithmetic above
+reproduced exactly: all six readings, the ratio of totals, `truss` 1.496 →
+1.460, control 4, the running-order split, and every callgrind headline
+including the 24 functions identical to the digit.
+
+**Three of the stated grounds do not hold, and D93 does not repeat them.**
+
+## 1. "The verdict does not depend on the choice of estimator" is false as written
+
+It holds only among estimators that pool all six rounds. **The plan's literal
+protocol — pooled minimum over three alternating rounds — reads 1.01% on rounds
+1–3 and 5.12% on rounds 4–6, and 5.12% crosses the 4.2% bar.** A conforming
+three-round run in the parent-first order would have reported ACCEPT.
+
+The verdict is stable because six rounds were run in two orders, **not** because
+the arithmetic is robust. This is the single most important thing the plan
+learned, and it is what D93 carries in its place.
+
+## 2. The negative control was in the data and was never run
+
+Nine standard-set instances have bit-identical work under both binaries —
+`01-03` identifies them as never taking the dense branch — so the change
+**provably cannot speed them up**. The eight that carry a time ratio read:
+
+| reading | the eight | the true answer |
+|---|---|---|
+| paired by round | **0.9699x** — 3.0% | **0.0%** |
+| pooled minimum | **0.9356x** — 6.4% | **0.0%** |
+
+A 3.0–6.4% "improvement" where the improvement is zero, against a 2.91%
+headline. Two of them appear in this document's own tables: `stocfor3` at
+0.9533x, listed as a place the change bites, and `fit2p` at 1.0322x, listed as
+"genuinely mixed, and large enough to mean it". **Neither reading can be true.**
+
+Three more figures the audit produced: a bootstrap confidence interval on the
+protocol figure of **[−4.21%, −1.72%]**; on the largest defensible reading,
+**P(≥4.2%) = 0.41**; and single-round readings spanning **5.13 percentage
+points**.
+
+**So the right finding is "the bar cannot be tested on this host", not "the
+candidate missed the bar."** That is the framing D93 takes.
+
+## 3. The callgrind profile contains two solves, not one
+
+The annotation shows `simplex.c:run (2x)` at 99.82% of instructions — the bench
+runner re-solves each instance to establish `det=ok`.
+
+**Unaffected, and standing as written above:** the +1.60% program total and the
+5:1 paid-against-saved ratio. Both builds re-solve, so these are ratios of
+numerators that scale together.
+
+**Wrong by a factor of two:** every per-call figure, which divides a two-solve
+numerator by a one-solve denominator.
+
+| stated above | correct |
+|---|---|
+| 12.0 instructions saved per skipped call | **6.0** |
+| 6.82 instructions paid per visit | **3.41** |
+
+And the showpiece — that `01-03`'s derived call count and callgrind's measured
+trip count "agree to the digit, by two instruments that share nothing" — is
+**two errors cancelling.** It divided 291,778,004 by 2 on the assumption of two
+instructions per source line; callgrind's own call count on the adjacent line
+says 291,778,004 **calls**, which is two solves' worth of 145,889,002 visits.
+The per-solve figure **16,567 is correct** — it is corroborated by the work
+saving divided by the row count and by D61's 162,456,002 — but the reasoning
+given for it is not, and D93 does not reproduce that claim.
+
+## One point in the change's favour that this plan did not report
+
+Over the 25 clock-visible instances, log work ratio against log time ratio gives
+**r = +0.684 with a permutation p of 0.0003**, and **r = +0.848 on the 10
+largest**. Work saved does predict time saved. Over the full 86 the slope
+collapses to **+0.15 with a fitted intercept of −2.24%**, so most of the
+headline is intercept rather than response — the negative control seen from the
+other side. D93 records both halves.
+
+## Two factual slips
+
+- **The parent's source tree is `2b07de1`'s, not `64efcc6`'s.** The section
+  "Which commit is the parent, and why" ends by saying `2b07de1` touches only
+  `.planning/` "so the parent's source tree is `64efcc6`'s". `64efcc6` is
+  `docs(01-02)`, three commits *after* both source edits. The executor's actual
+  command was `git archive 2b07de1`, which is correct; only the sentence is
+  wrong. The control-3b line naming `64efcc6:bench/netlib.baseline` is right —
+  that baseline predates `01-03`'s rewrite and is the parent's.
+- **Five of the nine "faster in k/6" counts understate the candidate:**
+  `perold` 4 not 2, `d6cube` 2 not 1, `fit1p` 3 not 1, `stocfor2` 3 not 2,
+  `woodw` 4 not 2. Recounted from the 12 raw logs.
+
+*Appended by `01-05`. The audit is recorded here rather than in D93 because a
+committed document left wrong is worse than one left incomplete.*

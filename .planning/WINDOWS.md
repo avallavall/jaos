@@ -1,10 +1,10 @@
 ---
 schema_version: 1
-open_count: 1
+open_count: 0
 waived_count: 0
-fixed_count: 0
+fixed_count: 1
 total_count: 1
-last_updated: 2026-08-12T16:09:15.812Z
+last_updated: 2026-08-12T16:50:03.570Z
 ---
 
 # Broken Windows Ledger
@@ -15,7 +15,7 @@ last_updated: 2026-08-12T16:09:15.812Z
 
 | id | phase | kind | file | line | description | status | reason | recorded_at | resolved_at |
 |----|-------|------|------|------|-------------|--------|--------|-------------|-------------|
-| 1 | 01 | deviation | .planning/phases/01-candidate-admission-in-the-ratio-test/01-04-PLAN.md |  | 01-04 Task 3 requires spawning the jaos-measurer subagent; the executor context had no agent-spawning tool, so its checklist was run inline by the same context that produced the numbers. Independent read still owed. | open |  | 2026-08-12T16:09:15.812Z |  |
+| 1 | 01 | deviation | .planning/phases/01-candidate-admission-in-the-ratio-test/01-04-PLAN.md |  | 01-04 Task 3 requires spawning the jaos-measurer subagent; the executor context had no agent-spawning tool, so its checklist was run inline by the same context that produced the numbers. Independent read still owed. | fixed |  | 2026-08-12T16:09:15.812Z | 2026-08-12T16:50:03.570Z |
 
 ````json
 [
@@ -26,10 +26,10 @@ last_updated: 2026-08-12T16:09:15.812Z
     "file": ".planning/phases/01-candidate-admission-in-the-ratio-test/01-04-PLAN.md",
     "line": null,
     "description": "01-04 Task 3 requires spawning the jaos-measurer subagent; the executor context had no agent-spawning tool, so its checklist was run inline by the same context that produced the numbers. Independent read still owed.",
-    "status": "open",
+    "status": "fixed",
     "reason": "",
     "recorded_at": "2026-08-12T16:09:15.812Z",
-    "resolved_at": null
+    "resolved_at": "2026-08-12T16:50:03.570Z"
   }
 ]
 ````
