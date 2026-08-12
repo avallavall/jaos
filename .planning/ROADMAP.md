@@ -47,13 +47,13 @@ of them may introduce a number without a measurement on both sides of it.
   1. A closed decision states how candidates are admitted and carries the measurement on both sides that chose it — and it exists before any implementation commit does, because PLAN.md states this item "needs its own decision before any code".
   2. That decision says what the chosen rule does to Harris's two-pass guarantee, and the case it must refuse is built and confirmed refused rather than assumed absent.
   3. `admit_candidate`'s cost is re-read on `truss` against the 14.98% of instructions it stood at, and reported beside a `J=1` same-instance time ratio — instructions are not seconds, and callgrind cannot see locality.
-  4. All three netlib campaigns report PASS, and the per-instance baseline diff shows no regression on any of the 139 instances, on any of the four predicates or the work count.
+  4. All three netlib campaigns report PASS, and the per-instance baseline diff shows no regression on any of the 139 instances, on any of the four predicates or the work count. — **MET by 01-03** (44c0ef6, e8c2f58): three PASS at J=12, 0 regressed / 0 improved / 0 new on all three, 139 digests unmoved, iterations 1.0000x per instance, work down on 118 and up on none.
 **Plans:** 5 plans
 
 Plans:
 - [x] 01-01-PLAN.md — the nonbasic bitmap wired end to end: storage, maintenance at all eight membership sites, the list-driven dense scan, a debug-build cross-check against the scan it replaces, and the unit tests shown to reject a broken maintenance sequence
 - [x] 01-02-PLAN.md — the work charge counts what the scan visited, behind the one-way gate the work-unit contract earns, with `docs/work-units.md` landing alongside it
-- [ ] 01-03-PLAN.md — all three campaigns, 139 digests confirmed unmoved, and only then the three baselines rewritten and confirmed by a following gate run
+- [x] 01-03-PLAN.md — all three campaigns, 139 digests confirmed unmoved, and only then the three baselines rewritten and confirmed by a following gate run
 - [ ] 01-04-PLAN.md — the `J=1` same-instance time ratio as a geometric mean over the standard set, callgrind on `truss` beside it, read against 4.2%
 - [ ] 01-05-PLAN.md — D93 with the measurement on both sides, the changelog entry, and the `SPECS.md` figures this phase moved
 

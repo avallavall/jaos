@@ -5,15 +5,15 @@ milestone_name: milestone
 current_phase: 01
 current_phase_name: candidate-admission-in-the-ratio-test
 status: executing
-stopped_at: "Completed 01-02-PLAN.md. Every source edit of phase 01 is landed and the tree is clean. Next: 01-03 (the three campaigns, digests first, then the baselines)"
-last_updated: "2026-08-12T14:26:00.000Z"
+stopped_at: "Completed 01-03-PLAN.md. All 139 digests confirmed unmoved and the three baselines rewritten and confirmed. Next: 01-04 (the J=1 time ratio and callgrind on truss)"
+last_updated: "2026-08-12T17:05:00.000Z"
 last_activity: 2026-08-12
-last_activity_desc: "Executed 01-02 — the dense ratio test bills what it visits, docs/work-units.md landed with it, WORK_PINNED 8545->8536, and the <62000 ceiling's pair re-measured after finding it had drifted 2800 units"
+last_activity_desc: "Executed 01-03 — three gates PASS, 139 digests unmoved, iterations 1.0000x per instance, work down on 118 and up on none, the three baselines rewritten in their own commit after the confirmation"
 progress:
   total_phases: 1
   completed_phases: 0
   total_plans: 5
-  completed_plans: 2
+  completed_plans: 3
 ---
 
 # Project State
@@ -29,32 +29,34 @@ See: .planning/PROJECT.md (updated 2026-08-12)
 ## Current Position
 
 Phase: 01 (candidate-admission-in-the-ratio-test) — EXECUTING
-Plan: 3 of 5
-Status: Executing Phase 01 — 01-01 and 01-02 complete; the phase's source edits are finished
-Last activity: 2026-08-12 — 01-02 landed (b65d9f2)
+Plan: 4 of 5
+Status: Executing Phase 01 — 01-01 through 01-03 complete; the source edits are finished and the record and baselines are settled
+Last activity: 2026-08-12 — 01-03 landed (44c0ef6, e8c2f58)
 
-Progress: [████░░░░░░] 40%
+Progress: [██████░░░░] 60%
 
 ## Performance Metrics
 
 **Velocity:**
 
-- Total plans completed: 2
-- Average duration: ~18 min
-- Total execution time: ~35 min
+- Total plans completed: 3
+- Average duration: ~30 min
+- Total execution time: ~90 min
 
 **By Phase:**
 
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
-| 01 | 2 | ~35 min | ~18 min |
+| 01 | 3 | ~90 min | ~30 min |
 
 **Recent Trend:**
 
-- Last 5 plans: 01-01 (~13 min, 2 tasks, 3 files, 2 commits), 01-02 (~22 min, 1 task, 3 files, 1 commit)
-- Trend: a one-task plan cost more than a two-task one. The diff was 9 lines
-  of code; the time went on four measure-revert cycles under WSL to read
-  figures Unity does not print. Task count does not predict duration here.
+- Last 5 plans: 01-01 (~13 min, 2 tasks, 3 files, 2 commits), 01-02 (~22 min, 1 task, 3 files, 1 commit), 01-03 (~55 min, 2 tasks, 8 files, 2 commits)
+- Trend: duration is set by machine time, not by task count or diff size.
+  01-02 was 9 lines of code and cost 22 minutes in measure-revert cycles;
+  01-03 wrote no code at all and cost 55, of which **34.4 min was campaign
+  time under WSL** that no estimate models. Kennington alone is ~8 min and
+  this plan ran it three times.
 
 *Updated after each plan completion*
 
@@ -113,6 +115,25 @@ Taken during execution of 01-02:
   2.1% under the bound — a stale pair could no longer answer whether 62000 still
   separates correct from broken. It does: 60701 < 62000 < 64633
 
+Taken during execution of 01-03:
+
+- **The digest confirmation got its own commit before the rewrite ran**
+  (44c0ef6, then e8c2f58), so D-06's ordering is a fact `git log` can be asked
+  rather than a claim a summary makes about itself
+- **Work is the only thing that moved, on all five records**, proved by masking
+  the work field and diffing end to end against 64efcc6 rather than by reading
+  `record_diff.py`'s per-instance list — which has a reporting gap on
+  sub-threshold `drop` changes. Iterations are 1.0000x per instance, not merely
+  in the mean
+- **The saving is an exact whole multiple of the row count on all 139
+  instances**, which inverts to the number of dense-branch calls without
+  instrumenting anything. It counts **calls, not iterations**: `galenet` makes 2
+  in a solve reporting `iters=1`, so `dual_ratio_test` runs somewhere that is
+  not a counted iteration
+- **D46 was wrong in both directions on the same change** — the ratio of totals
+  understates it on the standard set (0.9933x against a per-instance 0.9779x)
+  and overstates it on the infeasible set (0.9669x against 0.9857x)
+
 ### Pending Todos
 
 - **`01-05` must number its decision D93**, not one past whatever
@@ -120,6 +141,19 @@ Taken during execution of 01-02:
   `src/simplex.c`, `docs/work-units.md` and two places in
   `tests/test_simplex.c`. `jaos-record` warns that source comments cite
   decision headings, so a different number leaves four dangling references.
+
+- **`01-05` must not write "iterations" for the dense-branch count.** The
+  quotient `work_saved / rows` counts calls to `dual_ratio_test`, and `galenet`
+  makes 2 of them in a solve that reports one iteration. The distinction holds
+  on 1 instance in 139, which is exactly the kind that gets rounded away.
+
+- **Nothing in the repository reads the `baseline: NOT COMPARED` line.** It
+  exists so a record produced by a `-w` run can be told from a checked one, and
+  it went unread long enough for such a record to sit committed as the standard
+  set's record (`64efcc6:bench/results/netlib.txt`). Fixed there by 01-03's
+  confirming run; the missing check is two lines and belongs in
+  `preflight.sh`. Not added in 01-03, because a tooling edit mid-plan
+  invalidates the campaign.
 
 ### Blockers/Concerns
 
@@ -163,15 +197,19 @@ Taken during execution of 01-02:
 
 ## Session Continuity
 
-Last session: 2026-08-12T14:26:00.000Z
-Stopped at: Completed 01-02-PLAN.md — the dense branch bills its visited count, `docs/work-units.md` landed in the same commit, `WORK_PINNED` 8545 -> 8536 with the derivation, and the `<62000` ceiling re-measured on both sides. `make test` (78+4+12), `make sanitize` and `make all` all green.
-Resume file: .planning/phases/01-candidate-admission-in-the-ratio-test/01-03-PLAN.md
+Last session: 2026-08-12T17:05:00.000Z
+Stopped at: Completed 01-03-PLAN.md — all three gates PASS at J=12, 139 digests unmoved, iterations 1.0000x on every instance individually, work down on 118 and up on none. The three baselines rewritten in their own commit (e8c2f58) after the confirmation was already committed (44c0ef6), and a confirming gate run diffs clean against them.
+Resume file: .planning/phases/01-candidate-admission-in-the-ratio-test/01-04-PLAN.md
 
-Next: execute 01-03 (the three campaigns). **The tree is now settled — every
-source edit of phase 01 is committed and the working tree is clean, so a
-campaign launched from here is valid for the tree that produced it.** All three
-baselines are stale by a known cause: every dense-ratio-test work figure in
-them comes from the previous definition. D-06's ordering still binds — confirm
-the 139 digests unmoved first, then rewrite. The expected work diff is down or
-unchanged on every instance, never up; an instance whose work rises is a defect
-rather than a re-definition.
+Next: execute 01-04 (the `J=1` same-instance time ratio, and callgrind on
+`truss` against 14.98%). **Roadmap criterion 4 is met and the record and the
+baselines now come from one build**, so the next per-instance diff shows only
+what 01-04 does.
+
+Two things 01-04 needs that 01-03 produced. **Every second in 01-03 is a `J=12`
+number and useless to it** — D45's ratio needs `-j 1`, two binaries in one
+session, alternated, minimum over three or more rounds. And **the two instances
+that carry 74% of the standard set barely move**: `pilot87` 0.9956x,
+`maros-r7` 0.9987x. `truss` — the instance criterion 3 names — does take the
+dense branch, at 0.9857x. Choosing instances by D46's names alone would pick
+the two where this change is nearly invisible.
