@@ -1,6 +1,8 @@
-# Claude Code: local working config and instructions, not part of the project
+# Claude Code: local working config, not part of the project. CLAUDE.md itself
+# IS committed — it carries project rules (WSL-only builds, the determinism
+# constraints, which document takes which kind of reasoning) that are the
+# project's, not one machine's.
 .claude/
-/CLAUDE.md
 
 # Build output
 /build/
