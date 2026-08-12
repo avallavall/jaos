@@ -2,11 +2,11 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-current_phase: 1
-current_phase_name: Candidate admission in the ratio test
-status: planning
+current_phase: 01
+current_phase_name: candidate-admission-in-the-ratio-test
+status: executing
 stopped_at: "Phase 1 planned and verified — 5 plans, 5 waves, VERIFICATION PASSED. Not executed. Next: /gsd-execute-phase 1 (waves 2 and 4 are blocking checkpoints; 01-03 ~27 min and 01-04 ~50 min of WSL time, J=1 for the ratio)"
-last_updated: "2026-08-12T12:56:02.341Z"
+last_updated: "2026-08-12T13:39:16.684Z"
 last_activity: 2026-08-12
 last_activity_desc: Ingested the JAOS planning record (10 documents) and created PROJECT.md, REQUIREMENTS.md, ROADMAP.md
 progress:
@@ -23,15 +23,15 @@ progress:
 See: .planning/PROJECT.md (updated 2026-08-12)
 
 **Core value:** A correct answer, bit-identical on every machine and every run, proved by a checker that had no access to the solver that produced it.
-**Current focus:** Phase 1 — Candidate admission in the ratio test
+**Current focus:** Phase 01 — candidate-admission-in-the-ratio-test
 **Milestone:** M2 — LP competitiveness
 
 ## Current Position
 
-Phase: 1 of 5 (Candidate admission in the ratio test)
-Plan: 0 of TBD in current phase
-Status: Ready to plan
-Last activity: 2026-08-12 — Ingested the JAOS planning record (10 documents) and created PROJECT.md, REQUIREMENTS.md, ROADMAP.md
+Phase: 01 (candidate-admission-in-the-ratio-test) — EXECUTING
+Plan: 1 of 5
+Status: Executing Phase 01
+Last activity: 2026-08-12 — Phase 01 execution started
 
 Progress: [░░░░░░░░░░] 0%
 
