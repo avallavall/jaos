@@ -28,6 +28,7 @@ of them may introduce a number without a measurement on both sides of it.
 ## Phases
 
 **Phase Numbering:**
+
 - Integer phases (1, 2, 3): Planned milestone work
 - Decimal phases (2.1, 2.2): Urgent insertions (marked with INSERTED)
 
@@ -40,79 +41,96 @@ of them may introduce a number without a measurement on both sides of it.
 ## Phase Details
 
 ### Phase 1: Candidate admission in the ratio test
+
 **Goal**: How the ratio test admits candidates is settled by a measured comparison, and the settled rule is in the solver without weakening what Harris's two passes guarantee.
 **Depends on**: Nothing (first phase)
 **Requirements**: REQ-ratio-test-candidate-admission
 **Success Criteria** (what must be TRUE):
+
   1. A closed decision states how candidates are admitted and carries the measurement on both sides that chose it — and it exists before any implementation commit does, because PLAN.md states this item "needs its own decision before any code".
   2. That decision says what the chosen rule does to Harris's two-pass guarantee, and the case it must refuse is built and confirmed refused rather than assumed absent.
-  3. `admit_candidate`'s cost is re-read on `truss` against the 14.98% of instructions it stood at, and reported beside a `J=1` same-instance time ratio — instructions are not seconds, and callgrind cannot see locality.
+  3. `admit_candidate`'s cost is re-read on `truss` against the 14.98% of instructions it stood at, and reported beside a `J=1` same-instance time ratio — instructions are not seconds, and callgrind cannot see locality. — **MET by 01-04**: callgrind on both binaries in one session puts `admit_candidate` at **14.79% → 14.20%** (the parent reproducing D84's 14.98% to within 0.19pp), against `ftran_prefix` at 6.59% → 6.64%. Beside it, the `J=1` time ratio over the standard set is **0.9709x** (geometric mean of per-instance ratios; ratio of totals 0.9847x, not the result), `truss` 0.9759x. **And the instruction total ROSE 1.60%** — `admit_candidate` sheds 199M while the caller it is inlined into gains 995M, which is a relocation rather than a saving and is exactly what reporting the two beside each other exists to catch.
   4. All three netlib campaigns report PASS, and the per-instance baseline diff shows no regression on any of the 139 instances, on any of the four predicates or the work count. — **MET by 01-03** (44c0ef6, e8c2f58): three PASS at J=12, 0 regressed / 0 improved / 0 new on all three, 139 digests unmoved, iterations 1.0000x per instance, work down on 118 and up on none.
-**Plans:** 5 plans
+
+**Plans:** 4/5 plans executed
 
 Plans:
+
 - [x] 01-01-PLAN.md — the nonbasic bitmap wired end to end: storage, maintenance at all eight membership sites, the list-driven dense scan, a debug-build cross-check against the scan it replaces, and the unit tests shown to reject a broken maintenance sequence
 - [x] 01-02-PLAN.md — the work charge counts what the scan visited, behind the one-way gate the work-unit contract earns, with `docs/work-units.md` landing alongside it
 - [x] 01-03-PLAN.md — all three campaigns, 139 digests confirmed unmoved, and only then the three baselines rewritten and confirmed by a following gate run
-- [ ] 01-04-PLAN.md — the `J=1` same-instance time ratio as a geometric mean over the standard set, callgrind on `truss` beside it, read against 4.2%
+- [x] 01-04-PLAN.md — the `J=1` same-instance time ratio as a geometric mean over the standard set, callgrind on `truss` beside it, read against 4.2%
 - [ ] 01-05-PLAN.md — D93 with the measurement on both sides, the changelog entry, and the `SPECS.md` figures this phase moved
 
 **Acceptance in source**: absent, and a decision is required before implementation. Deriving a numeric target is plan-phase work; the threshold the plans measure against is D-13's 4.2% — three times the harness's measured repeatability — and `01-05` is required to show that derivation rather than assert it.
 **Acceptance derived in planning**: ACCEPT at a geometric mean of per-instance `J=1` time ratios of 4.2% or better over the standard set, with all 139 digests unmoved. Below 4.2% the phase reports INCONCLUSIVE and closes with a refusal entry rather than a yes (D-04, D-13).
+**Acceptance measured**: **INCONCLUSIVE** (01-04). The digests are unmoved — all 139, confirmed by 01-03 — and the time ratio is **0.9709x, a 2.91% improvement, against a 4.2% bar**. Six defensible readings of the same data run from 2.16% to 4.07% and none reaches it, so the verdict does not turn on the choice of estimator. Two caveats belong with it: the host's own repeatability, measured the way D81 measured the 1.4% the bar is three times, is **6.27%** — larger than the bar; and callgrind says the instruction total **rose 1.60%**. The code stays under the developer's pre-authorisation of 2026-08-12; `01-05` writes D93 as a refusal.
 **Ordering note**: this phase precedes presolve by explicit decision (WARNING 1, resolved). D81 measured presolve at 1.417x/1.136x against a per-iteration gap of 2.53x that no rung moves, and says in as many words that this reorders the plan. PLAN.md's phase numbers were never changed; this roadmap changes them.
 **Closed ground**: D82 and D84 refused both halves of phase 6 item 3 — partial pricing on the leaving-row sweep and multiple pricing — on correctness rather than on a trade. This is the half neither touched, and D84's own profile is what points here.
 
 ### Phase 2: Presolve and postsolve
+
 **Goal**: A model can be reduced before the simplex sees it, and a solution to the reduced model comes back as a solution to the one the caller loaded.
 **Depends on**: Phase 1
 **Requirements**: REQ-presolve
 **Success Criteria** (what must be TRUE):
+
   1. A caller loading any of the 139 reference instances gets the same verdict, and an objective inside the gate's tolerance of Koch's reference, whether the reductions fire or not.
   2. Postsolve returns values, activities, duals and reduced costs in the original model's rows and columns, and the independent checker — which reads the model as loaded and has no access to the reduced one — accepts all 139. The correctness risk lives here, not in the reductions.
   3. Each reduction reports what it removed, so what presolve is worth on the standard set is a measured number *for JAOS* rather than one carried over from D81's reading of two competitors.
   4. Determinism holds across two solves with the basis cleared between them: status, iteration count, work units and the bits of every published value agree.
+
 **Plans**: TBD
 **Acceptance in source**: absent — no numeric target is stated for JAOS's own presolve.
 **Open question this phase inherits**: T0 is defined as "the simplex and only the simplex", presolve off on both sides. See Open Questions below — presolve's contribution to the *stated* M2 close criterion is zero at that rung, and nothing in the ingest set says how the ladder is recalibrated once JAOS has one.
 **Code note**: there is no presolve module in the tree today. The checker's independence is structural — `src/check.c` has no include chain to `scale.c`, `lu.c` or `simplex.c` — and a presolve must not be the thing that creates one.
 
 ### Phase 3: The factorization and the solves that read it
+
 **Goal**: An iteration costs less, because the factors carry less fill and a sparse result stays sparse downstream of the solve that produced it.
 **Depends on**: Phase 2
 **Requirements**: REQ-lu-fill-and-markowitz, REQ-hyper-sparse-downstream-results
 **Success Criteria** (what must be TRUE):
+
   1. Markowitz chooses on live counts that are current rather than stale, and the fill the factors carry is reported per instance against the 2.673 nonzeros-per-basis-nonzero the set stands at, and the 4.801 `maros-r7` stands at.
   2. `stocfor3`'s per-iteration cost is re-read with `dfl001` as the control it was measured against, and the share spent in `memset` plus `memcpy` plus `malloc` is reported against the 18.8% before.
   3. Every figure is a geometric mean of per-instance ratios rather than a sum over the set, and the instances that move against the mean are named rather than averaged away.
   4. All three campaigns PASS with no per-instance regression; work units carry the verdict on determinism and a `J=1` time ratio says whether the units bought anything.
+
 **Plans**: TBD
 **Acceptance in source**: absent for both requirements.
 **Bounded**: going further than the stale live counts and the fill means left-looking elimination, which PLAN.md calls a rewrite needing its own decision. That decision may be written in this phase; the rewrite is not started in it.
 **Struck off by measurement — do not re-cost**: `compact_pivot_row`'s missing row-to-position lookup (under 0.5% on `maros-r7`) and per-column arrays against a single arena (allocation 0.73%, `_int_malloc` 0.30%). The arena's remaining argument is locality and needs a cache simulation before it is either costed or dropped.
 
 ### Phase 4: The search path
+
 **Goal**: JAOS spends fewer iterations on the instances measured to spend extra ones, and the re-entry loop's oscillation stops being unexplained.
 **Depends on**: Phase 3
 **Requirements**: REQ-devex-pricing, REQ-reentry-oscillation
 **Success Criteria** (what must be TRUE):
+
   1. Devex pricing runs in place of the exact steepest-edge recurrence, the full gate passes, and iteration count and per-iteration cost are reported separately — trading one for the other is exactly what Devex does.
   2. `pilot`, `pilot87`, `25fv47` and `greenbea` — the four discarding their steepest-edge weights on 80–93% of their iterations (D63) — are reported individually, not folded into a set mean.
   3. Why `pilot87`'s re-entry loop oscillates has a written mechanism with a measurement behind it. Either a cure survives the full gate, or the direction is closed the way D74 closed the last one — by measuring what it costs, not by declaring the cost small.
   4. All three campaigns PASS with no per-instance regression, and the published answer still does not depend on where `SETTLE_ROUNDS` falls (D89).
+
 **Plans**: TBD
 **Acceptance in source**: stated for Devex (full gate, with iteration count and per-iteration cost reported separately). Absent for the oscillation — no cure is named.
 **On the oscillation, honestly**: its measured cost is 278 iterations of 116,071 on `pilot87` at interval 24 — 0.24% (D89). That is small, and "accepted limitation" was a defensible reading of the source. It is in this milestone as open work by explicit decision, and its first deliverable is investigative rather than implementation. D51 named the mechanism (every clean-up pivot borrows to repair, and repaying creates the next round's work); D74 closed the only cure proposed, at 2.372x `pilot87`'s iterations for the 0.980x it bought `pilot`; D89 removed the consequence and states plainly that it "does not make the loop converge".
 **Closed ground**: restarting the weights to the exact one rather than 1.0 is refused (D63), and `DSE_DRIFT = 10.0` is bounded on both sides with an interior one value wide.
 
 ### Phase 5: Close M2
+
 **Goal**: The competitive claim is made on numbers that can close a gate, with both halves of the close criterion stated rather than one.
 **Depends on**: Phase 4
 **Requirements**: REQ-m2-competitive-gate
 **Success Criteria** (what must be TRUE):
+
   1. The per-instance guard factor is either a number with a measurement on both sides of it, or the criterion is recorded as closing on the geometric mean alone — and whichever it is, is written down with what decided it. **It is unset today and no number for it appears anywhere in this roadmap.**
   2. The T0 comparison is re-run against HiGHS 1.15.1, SoPlex 8.0.3 and Clp 1.17.11 at their pinned checksums, with tolerances equalised explicitly and every competitor run judged by the same verified-answer rule JAOS is — a time without a verified answer is discarded.
   3. The result is reported as a geometric mean of per-instance time ratios over the standard set, taken on a host that satisfies D17: a number taken under WSL is a development number and cannot close this gate.
   4. Any instance failing the guard, if a guard exists, is named rather than averaged away — and the rung each record was taken under travels with it.
+
 **Plans**: TBD
 **Acceptance in source**: partially stated. "Strictly faster than the best competitor at T0 on the geometric mean" is precise; the guard factor is written as "a stated factor" and no factor is stated anywhere in the ten ingested documents.
 **Standing**: 3.72x vs HiGHS, 1.34x vs SoPlex, 3.77x vs Clp at T0 (D83). Measured repeatability of the harness is 1.4%; any claim below that is a claim about the machine.
@@ -171,7 +189,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Candidate admission in the ratio test | 2/5 | In progress | - |
+| 1. Candidate admission in the ratio test | 4/5 | In Progress|  |
 | 2. Presolve and postsolve | 0/TBD | Not started | - |
 | 3. The factorization and the solves that read it | 0/TBD | Not started | - |
 | 4. The search path | 0/TBD | Not started | - |
