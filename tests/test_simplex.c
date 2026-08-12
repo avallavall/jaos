@@ -1368,6 +1368,207 @@ static void test_pattern_order_edge_counts(void)
     assert_mark_clean(mark);
 }
 
+/* ---- The nonbasic set the ratio test walks --------------------------- */
+
+/* The bitmap that holds `{v : status[v] != JM_BASIC}`, which the dual ratio
+ * test's dense branch walks instead of every variable in the model. Every
+ * property below is one no solve would report: a variable dropped from the
+ * set is left out of a ratio test that would have been correct with it, so
+ * the solve carries on and publishes an answer that is merely different.
+ *
+ * Note what is NOT asserted here. This bitmap is persistent by design and
+ * nothing clears it on the way out, so assert_mark_clean above is the wrong
+ * check for it — running it here would fail a correct implementation. */
+
+#define NB_WORDS 4
+#define NB_VARS (NB_WORDS * 64)
+
+/* The property every maintenance sequence has to end in: the bitmap expands
+ * to exactly the variables the status array says are not basic, in exactly
+ * that order. A predicate rather than an assertion because the last test in
+ * this cluster is the one that needs the case where it does not hold. */
+static bool expansion_matches_status(int64_t nvar,
+                                     const jm_var_status *status,
+                                     const uint64_t *mark)
+{
+    uint64_t rebuilt[NB_WORDS] = {0};
+    int64_t want[NB_VARS], got[NB_VARS];
+
+    int64_t nwant = jm_nonbasic_build(nvar, status, rebuilt);
+    if (jm_nonbasic_expand(nvar, rebuilt, want) != nwant)
+        return false;
+    if (jm_nonbasic_expand(nvar, mark, got) != nwant)
+        return false;
+    for (int64_t k = 0; k < nwant; k++)
+        if (want[k] != got[k])
+            return false;
+    return true;
+}
+
+/* Membership, and never "has a finite bound". A rule keyed on the bounds
+ * drops every nonbasic free variable — and a free variable is admitted to
+ * the ratio test with a zero numerator and may move either way, so losing
+ * one costs a candidate rather than raising an error. */
+static void test_nonbasic_build_keeps_free_variables(void)
+{
+    jm_var_status status[NB_VARS];
+    uint64_t mark[NB_WORDS] = {0};
+    int64_t out[NB_VARS];
+
+    for (int64_t v = 0; v < NB_VARS; v++)
+        status[v] = JM_BASIC;
+    status[3]   = JM_AT_LOWER;
+    status[70]  = JM_AT_UPPER;
+    status[131] = JM_FREE;          /* the two a bound-keyed rule loses */
+    status[255] = JM_FREE;
+
+    TEST_ASSERT_EQUAL_INT64(4, jm_nonbasic_build(NB_VARS, status, mark));
+    TEST_ASSERT_EQUAL_INT64(4, jm_nonbasic_expand(NB_VARS, mark, out));
+
+    const int64_t want[] = {3, 70, 131, 255};
+    for (int i = 0; i < 4; i++)
+        TEST_ASSERT_EQUAL_INT64(want[i], out[i]);
+
+    /* And nothing basic crept in, which the count above cannot see on its
+     * own: two errors that cancel would leave it at four. */
+    for (int64_t v = 0; v < NB_VARS; v++) {
+        bool set = ((mark[v >> 6] >> (v & 63)) & 1) != 0;
+        if (status[v] == JM_BASIC)
+            TEST_ASSERT_FALSE(set);
+        else
+            TEST_ASSERT_TRUE(set);
+    }
+}
+
+/* Bit position is the variable index, so ascending is what the walk gives
+ * rather than what a sort restores. It has to be: bfrt_walk, jm_harris_pick
+ * and apply_flips each break an exact tie by whichever candidate they meet
+ * first, so any other order is a different trajectory. */
+static void test_nonbasic_expand_is_ascending_across_words(void)
+{
+    uint64_t mark[NB_WORDS] = {0};
+    int64_t out[NB_VARS];
+
+    /* Inserted back to front and out of word order, on purpose, including
+     * both variables either side of every word boundary. */
+    const int64_t put[] = {255, 64, 192, 0, 63, 128, 191, 65};
+    for (size_t i = 0; i < sizeof put / sizeof *put; i++)
+        jm_nonbasic_insert(mark, put[i]);
+
+    TEST_ASSERT_EQUAL_INT64(8, jm_nonbasic_expand(NB_VARS, mark, out));
+    const int64_t want[] = {0, 63, 64, 65, 128, 191, 192, 255};
+    for (int i = 0; i < 8; i++)
+        TEST_ASSERT_EQUAL_INT64(want[i], out[i]);
+    for (int i = 1; i < 8; i++)
+        TEST_ASSERT_TRUE(out[i] > out[i - 1]);
+}
+
+/* No bit set, one bit set, every bit set. The first is the state where the
+ * ratio test admits nothing and has to return -1 exactly as the dense scan
+ * did; the last is where the bitmap saves nothing and has to stay right
+ * anyway. */
+static void test_nonbasic_expand_handles_the_degenerate_counts(void)
+{
+    jm_var_status status[NB_VARS];
+    /* Deliberately not zeroed: jm_nonbasic_build writes every word, and a
+     * build that only set bits would leave whatever was here. */
+    uint64_t mark[NB_WORDS];
+    int64_t out[NB_VARS];
+
+    for (int64_t v = 0; v < NB_VARS; v++)
+        status[v] = JM_BASIC;
+    out[0] = -7;
+    TEST_ASSERT_EQUAL_INT64(0, jm_nonbasic_build(NB_VARS, status, mark));
+    TEST_ASSERT_EQUAL_INT64(0, jm_nonbasic_expand(NB_VARS, mark, out));
+    TEST_ASSERT_EQUAL_INT64(-7, out[0]);        /* nothing was written */
+
+    /* Exactly one, in the last word, where an off-by-one in the word count
+     * loses it. */
+    status[NB_VARS - 1] = JM_AT_UPPER;
+    TEST_ASSERT_EQUAL_INT64(1, jm_nonbasic_build(NB_VARS, status, mark));
+    TEST_ASSERT_EQUAL_INT64(1, jm_nonbasic_expand(NB_VARS, mark, out));
+    TEST_ASSERT_EQUAL_INT64(NB_VARS - 1, out[0]);
+
+    for (int64_t v = 0; v < NB_VARS; v++)
+        status[v] = JM_AT_LOWER;
+    TEST_ASSERT_EQUAL_INT64(NB_VARS, jm_nonbasic_build(NB_VARS, status, mark));
+    TEST_ASSERT_EQUAL_INT64(NB_VARS, jm_nonbasic_expand(NB_VARS, mark, out));
+    for (int64_t v = 0; v < NB_VARS; v++)
+        TEST_ASSERT_EQUAL_INT64(v, out[v]);
+}
+
+/* The sequence the maintenance actually runs, with the two variables
+ * interleaved: A leaves the set, B enters it from inside the gap A left, B
+ * leaves again, A comes back. An insertion-ordered structure has to compute
+ * where B goes and can get it wrong; a bitmap has no position to compute,
+ * which is the reason this representation was chosen over a list. */
+static void test_nonbasic_survives_interleaved_eviction(void)
+{
+    jm_var_status status[NB_VARS];
+    uint64_t mark[NB_WORDS] = {0};
+
+    for (int64_t v = 0; v < NB_VARS; v++)
+        status[v] = (v % 3 == 0) ? JM_BASIC : JM_AT_LOWER;
+    status[100] = JM_FREE;
+    jm_nonbasic_build(NB_VARS, status, mark);
+    TEST_ASSERT_TRUE(expansion_matches_status(NB_VARS, status, mark));
+
+    /* A = 98 enters the basis and leaves the set. Its neighbours in the set
+     * are 97 and 100, and the gap it leaves behind spans 98 and 99. */
+    status[98] = JM_BASIC;
+    jm_nonbasic_remove(mark, 98);
+    TEST_ASSERT_TRUE(expansion_matches_status(NB_VARS, status, mark));
+
+    /* B = 99 lands inside that gap — the position a list would have to find
+     * by walking from a neighbour that has just been unlinked. */
+    status[99] = JM_AT_UPPER;
+    jm_nonbasic_insert(mark, 99);
+    TEST_ASSERT_TRUE(expansion_matches_status(NB_VARS, status, mark));
+
+    status[99] = JM_BASIC;
+    jm_nonbasic_remove(mark, 99);
+    status[98] = JM_AT_LOWER;
+    jm_nonbasic_insert(mark, 98);
+    TEST_ASSERT_TRUE(expansion_matches_status(NB_VARS, status, mark));
+
+    /* An insert and a remove of the same variable are exact inverses — the
+     * words come back bit for bit, not merely expanding to the same list. */
+    uint64_t before[NB_WORDS];
+    for (int i = 0; i < NB_WORDS; i++)
+        before[i] = mark[i];
+    jm_nonbasic_insert(mark, 42);       /* 42 is basic, so this is a lie */
+    jm_nonbasic_remove(mark, 42);       /* and this takes it back exactly */
+    for (int i = 0; i < NB_WORDS; i++)
+        TEST_ASSERT_EQUAL_UINT64(before[i], mark[i]);
+}
+
+/* The instrument, pointed at the failure this representation is actually
+ * vulnerable to. A bitmap has no neighbour pointer to go stale, so the only
+ * way it desynchronises is a hook nobody called — which is exactly what the
+ * two memcpy restore sites in simplex.c look like, since a wholesale copy
+ * over `status` carries no assignment for a reader to notice.
+ *
+ * If this test passes, every test above it is asserting nothing. */
+static void test_nonbasic_notices_a_missed_hook(void)
+{
+    jm_var_status status[NB_VARS];
+    uint64_t mark[NB_WORDS] = {0};
+
+    for (int64_t v = 0; v < NB_VARS; v++)
+        status[v] = (v % 3 == 0) ? JM_BASIC : JM_AT_LOWER;
+    jm_nonbasic_build(NB_VARS, status, mark);
+
+    status[98] = JM_BASIC;
+    jm_nonbasic_remove(mark, 98);
+    status[99] = JM_AT_UPPER;           /* and the hook that never ran */
+    TEST_ASSERT_FALSE(expansion_matches_status(NB_VARS, status, mark));
+
+    /* Calling it puts the two back into agreement, so what was caught above
+     * was the missing call and not the sequence around it. */
+    jm_nonbasic_insert(mark, 99);
+    TEST_ASSERT_TRUE(expansion_matches_status(NB_VARS, status, mark));
+}
+
 /* Determinism (D8): the same model solved twice must produce the same
  * objective bit for bit, the same iteration count, and the same work. */
 static void test_solving_twice_is_bit_identical(void)
@@ -2505,6 +2706,11 @@ int main(void)
     RUN_TEST(test_pattern_order_keeps_a_full_pattern);
     RUN_TEST(test_pattern_order_drops_what_it_cannot_hold);
     RUN_TEST(test_pattern_order_edge_counts);
+    RUN_TEST(test_nonbasic_build_keeps_free_variables);
+    RUN_TEST(test_nonbasic_expand_is_ascending_across_words);
+    RUN_TEST(test_nonbasic_expand_handles_the_degenerate_counts);
+    RUN_TEST(test_nonbasic_survives_interleaved_eviction);
+    RUN_TEST(test_nonbasic_notices_a_missed_hook);
     RUN_TEST(test_solving_twice_is_bit_identical);
     RUN_TEST(test_work_limit_stops_and_reports);
     RUN_TEST(test_budgets_survive_a_reload);
