@@ -48,8 +48,17 @@ of them may introduce a number without a measurement on both sides of it.
   2. That decision says what the chosen rule does to Harris's two-pass guarantee, and the case it must refuse is built and confirmed refused rather than assumed absent.
   3. `admit_candidate`'s cost is re-read on `truss` against the 14.98% of instructions it stood at, and reported beside a `J=1` same-instance time ratio — instructions are not seconds, and callgrind cannot see locality.
   4. All three netlib campaigns report PASS, and the per-instance baseline diff shows no regression on any of the 139 instances, on any of the four predicates or the work count.
-**Plans**: TBD
-**Acceptance in source**: absent, and a decision is required before implementation. Deriving a numeric target is plan-phase work; none is carried here.
+**Plans:** 5 plans
+
+Plans:
+- [ ] 01-01-PLAN.md — the nonbasic bitmap wired end to end: storage, maintenance at all eight membership sites, the list-driven dense scan, a debug-build cross-check against the scan it replaces, and the unit tests shown to reject a broken maintenance sequence
+- [ ] 01-02-PLAN.md — the work charge counts what the scan visited, behind the one-way gate the work-unit contract earns, with `docs/work-units.md` landing alongside it
+- [ ] 01-03-PLAN.md — all three campaigns, 139 digests confirmed unmoved, and only then the three baselines rewritten and confirmed by a following gate run
+- [ ] 01-04-PLAN.md — the `J=1` same-instance time ratio as a geometric mean over the standard set, callgrind on `truss` beside it, read against 4.2%
+- [ ] 01-05-PLAN.md — D93 with the measurement on both sides, the changelog entry, and the `SPECS.md` figures this phase moved
+
+**Acceptance in source**: absent, and a decision is required before implementation. Deriving a numeric target is plan-phase work; the threshold the plans measure against is D-13's 4.2% — three times the harness's measured repeatability — and `01-05` is required to show that derivation rather than assert it.
+**Acceptance derived in planning**: ACCEPT at a geometric mean of per-instance `J=1` time ratios of 4.2% or better over the standard set, with all 139 digests unmoved. Below 4.2% the phase reports INCONCLUSIVE and closes with a refusal entry rather than a yes (D-04, D-13).
 **Ordering note**: this phase precedes presolve by explicit decision (WARNING 1, resolved). D81 measured presolve at 1.417x/1.136x against a per-iteration gap of 2.53x that no rung moves, and says in as many words that this reorders the plan. PLAN.md's phase numbers were never changed; this roadmap changes them.
 **Closed ground**: D82 and D84 refused both halves of phase 6 item 3 — partial pricing on the leaving-row sweep and multiple pricing — on correctness rather than on a trade. This is the half neither touched, and D84's own profile is what points here.
 
@@ -162,7 +171,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Candidate admission in the ratio test | 0/TBD | Not started | - |
+| 1. Candidate admission in the ratio test | 0/5 | Planned | - |
 | 2. Presolve and postsolve | 0/TBD | Not started | - |
 | 3. The factorization and the solves that read it | 0/TBD | Not started | - |
 | 4. The search path | 0/TBD | Not started | - |
