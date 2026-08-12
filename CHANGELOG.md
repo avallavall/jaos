@@ -4,8 +4,9 @@ All notable changes to JAOS. Format follows [Keep a Changelog](https://keepachan
 versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 Entries say what changed and what it cost. The reasoning lives where it
-belongs: `DECISIONS.md` for closed decisions, `PLAN.md` for what is still
-open, `bench/README.md` for the gate, and the commit each entry came from.
+belongs: `DECISIONS.md` for closed decisions, `.planning/ROADMAP.md` for what
+is still open, `bench/README.md` for the gate, and the commit each entry came
+from.
 
 ## [Unreleased]
 

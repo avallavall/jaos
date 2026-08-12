@@ -4,9 +4,9 @@ A mathematical-programming solver written from scratch in C23, competitive
 with the serious open solvers and usable as a library by someone who did not
 write it.
 
-This file is the target. `PLAN.md` is the order the work happens in,
-`CHANGELOG.md` what has landed, `DECISIONS.md` why. Nothing is in scope that
-is not on this page.
+This file is the target. `.planning/ROADMAP.md` is the order the work happens
+in, `CHANGELOG.md` what has landed, `DECISIONS.md` why. Nothing is in scope
+that is not on this page.
 
 ## Premises
 
@@ -76,8 +76,9 @@ missing.
 | MILP: branch and bound, cuts, heuristics | **missing** | [14][15][16][17][18] |
 | Deterministic parallelism | **missing** | [10][13] |
 
-Citation numbers are the bibliography in `PLAN.md`. Implementation works from
-those and their kin only — never another solver's source (D12).
+Citation numbers are the bibliography in `docs/archive/PLAN.md`.
+Implementation works from those and their kin only — never another solver's
+source (D12).
 
 ## 4. Controlling a solve
 

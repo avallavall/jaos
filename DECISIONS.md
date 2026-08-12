@@ -1,7 +1,9 @@
 # Design decisions
 
 Closed decisions only, with the measurement that closed them. What is
-still open lives in `PLAN.md`; what a feature is lives in `SPECS.md`.
+still open lives in `.planning/ROADMAP.md`; what a feature is lives in
+`SPECS.md`. Entries below that name `PLAN.md` are describing the state at the
+time they closed — it is archived at `docs/archive/PLAN.md` since 2026-08-12.
 
 Every heading below is the decision itself, not a topic — read the list
 and you have the argument. Jump to the entry for the numbers behind it.

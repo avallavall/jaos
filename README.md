@@ -141,7 +141,7 @@ docs/            formats, tolerances, scaling, work units
 ## The documents, and which to read
 
 - **`SPECS.md`** — what JAOS is built to be, and where every feature stands.
-- **`PLAN.md`** — what is open, in the order it will be done.
+- **`.planning/ROADMAP.md`** — what is open, in the order it will be done.
 - **`CHANGELOG.md`** — what landed and what it cost.
 - **`DECISIONS.md`** — why. Every closed decision with the measurement that
   closed it.
