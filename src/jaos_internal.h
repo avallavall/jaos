@@ -284,6 +284,44 @@ int64_t jm_bland_pick(int64_t n, const int64_t *var, const double *num,
 int64_t jm_pattern_order(int64_t n, int64_t *pos, uint64_t *mark,
                          int64_t limit, int64_t *words);
 
+/* The nonbasic set as a bitmap, and the four operations that keep it equal
+ * to `{v : status[v] != JM_BASIC}`.
+ *
+ * `mark` is a bitmap of (nvar + 63) / 64 words with bit v set exactly when
+ * variable v is not basic. `jm_nonbasic_build` writes every one of those
+ * words from `status[0..nvar)` and returns how many bits it set;
+ * `jm_nonbasic_insert` and `jm_nonbasic_remove` set and clear bit v, which
+ * is what one variable leaving and one entering the basis each cost;
+ * `jm_nonbasic_expand` writes the set positions ascending into `out` and
+ * returns how many there were. A non-positive `nvar` has no words, so both
+ * of the two that take one build nothing and return zero.
+ *
+ * Membership, and never "has a finite bound". A nonbasic free variable is
+ * in the set exactly as a bounded one is — it reaches the ratio test with a
+ * zero numerator and may move either way — so a rule keyed on bounds rather
+ * than on JM_BASIC would drop every one of them and the drop would look
+ * like a different answer rather than a wrong one.
+ *
+ * Unlike jm_pattern_order's bitmap this one is persistent: it holds its
+ * contents between iterations, no reader clears it, and jm_nonbasic_build
+ * is the only thing that ever writes it wholesale. The caller allocates it
+ * once and the sites that move a variable into or out of the basis maintain
+ * it by hand.
+ *
+ * Reachable from outside the simplex for the reason jm_pattern_order is: a
+ * bitmap that has drifted from `status` is invisible from the solve. A
+ * variable missing from it is left out of a ratio test that would have been
+ * correct with it, so the solve runs on to an answer that is merely
+ * different, and nothing short of a solution digest reports it.
+ * jm_nonbasic_expand exists to be the testable mirror of the walk in the
+ * ratio test; the ratio test walks the words itself rather than calling it,
+ * because materialising an index array is the traffic the bitmap removes. */
+int64_t jm_nonbasic_build(int64_t nvar, const jm_var_status *status,
+                          uint64_t *mark);
+void jm_nonbasic_insert(uint64_t *mark, int64_t v);
+void jm_nonbasic_remove(uint64_t *mark, int64_t v);
+int64_t jm_nonbasic_expand(int64_t nvar, const uint64_t *mark, int64_t *out);
+
 /* Overflow-checked array allocation: n elements of elsize bytes.
  * Returns NULL on n < 0, size overflow, or exhaustion. n == 0 still returns
  * a valid non-NULL allocation, so success is always non-NULL. */

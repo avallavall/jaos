@@ -31,6 +31,7 @@
 
 #include "jaos_internal.h"
 
+#include <assert.h>
 #include <float.h>
 #include <math.h>
 #include <stdlib.h>
@@ -356,6 +357,21 @@ typedef struct {
     int64_t anpat;
     uint64_t *amark;         /* [(nvar + 63) / 64] */
 
+    /* Which variables are not basic, one bit each: bit v is set exactly when
+     * `status[v] != JM_BASIC`. Membership, and never "has a finite bound" —
+     * a nonbasic free variable belongs here like any other. It is what the
+     * ratio test's dense branch walks instead of every variable in the
+     * model, which is nearly all of what that branch used to do.
+     *
+     * `amark` above is zero between iterations and clears the words it sets;
+     * this one is the opposite and deliberately so. It is persistent, it
+     * survives every iteration, and clearing it would destroy the thing it
+     * is for. jm_nonbasic_build is the only routine that writes it
+     * wholesale; the eight sites that move a variable into or out of the
+     * basis each maintain it by hand, and those eight are the only places it
+     * can drift. */
+    uint64_t *nbmark;        /* [(nvar + 63) / 64] */
+
     /* Where `rho` is nonzero, ascending, or `nrpat < 0` when nobody has
      * looked. The BTRAN reports it on the way out, from the pass that
      * permutes the answer back and therefore visits every slot regardless;
@@ -381,6 +397,17 @@ typedef struct {
     int64_t *cand;           /* [nvar] */
     double *rnum, *rden;     /* [nvar] */
     double *rrange;          /* [nvar] width of the box, or infinity */
+
+#ifndef NDEBUG
+    /* Where the candidate set the bitmap walk produced is parked, just long
+     * enough for the scan it replaced to be run over the same state and
+     * compared against it entry for entry (D-08). Present in every dev and
+     * sanitizer build and in no shipped one, so no gate binary carries
+     * them. */
+    int64_t *dbg_cand;               /* [nvar] */
+    double *dbg_rnum, *dbg_rden;     /* [nvar] */
+    double *dbg_rrange;              /* [nvar] */
+#endif
 
     /* Refactorization buffers, grown once and reused: a refactorization
      * every REFACTOR_EVERY iterations should not also be an allocation. */
@@ -494,8 +521,13 @@ static void sx_free(sx *s)
     free(s->xb); free(s->d); free(s->dse);
     free(s->col); free(s->raw); free(s->y); free(s->rho);
     free(s->tau); free(s->alpha); free(s->apat); free(s->amark);
+    free(s->nbmark);
     free(s->rpat); free(s->rmark); free(s->cpat);
     free(s->cand); free(s->rnum); free(s->rden); free(s->rrange);
+#ifndef NDEBUG
+    free(s->dbg_cand); free(s->dbg_rnum); free(s->dbg_rden);
+    free(s->dbg_rrange);
+#endif
     free(s->bs); free(s->bi); free(s->bv);
     free(s->fake);
     free(s->sav_status); free(s->sav_basis);
@@ -571,6 +603,7 @@ static jaos_status sx_init(sx *s, jaos_model *m)
     s->alpha  = jm_calloc_array(s->nvar, sizeof(double));
     s->apat   = jm_alloc_array(s->nvar, sizeof(int64_t));
     s->amark  = jm_calloc_array((s->nvar + 63) / 64, sizeof(uint64_t));
+    s->nbmark = jm_calloc_array((s->nvar + 63) / 64, sizeof(uint64_t));
     s->rpat   = jm_alloc_array(s->nrow, sizeof(int64_t));
     s->rmark  = jm_calloc_array((s->nrow + 63) / 64, sizeof(uint64_t));
     s->cpat   = jm_alloc_array(s->nrow, sizeof(int64_t));
@@ -589,11 +622,26 @@ static jaos_status sx_init(sx *s, jaos_model *m)
         !s->status || !s->basis ||
         !s->where || !s->xb || !s->d || !s->dse || !s->col || !s->raw ||
         !s->y || !s->rho || !s->tau || !s->alpha || !s->apat || !s->amark ||
+        !s->nbmark ||
         !s->rpat || !s->rmark || !s->cpat || !s->cand || !s->rnum ||
         !s->rden || !s->rrange || !s->bs || !s->fake) {
         sx_free(s);
         return JAOS_ERR_OUT_OF_MEMORY;
     }
+
+#ifndef NDEBUG
+    /* The scratch the D-08 cross-check compares through. Allocated in its own
+     * block rather than folded into the chain above so that the release
+     * build's allocation list is the release build's, unchanged. */
+    s->dbg_cand   = jm_alloc_array(s->nvar, sizeof(int64_t));
+    s->dbg_rnum   = jm_alloc_array(s->nvar, sizeof(double));
+    s->dbg_rden   = jm_alloc_array(s->nvar, sizeof(double));
+    s->dbg_rrange = jm_alloc_array(s->nvar, sizeof(double));
+    if (!s->dbg_cand || !s->dbg_rnum || !s->dbg_rden || !s->dbg_rrange) {
+        sx_free(s);
+        return JAOS_ERR_OUT_OF_MEMORY;
+    }
+#endif
 
     const double *rho = m->row_scale, *gamma = m->col_scale;
 
@@ -752,6 +800,11 @@ static void build_initial_basis(sx *s)
             s->status[j] = JM_FREE;       /* zero cost, no bounds: d = 0 */
         }
     }
+
+    /* Every logical is basic and every structural is not, which is the whole
+     * of what the bitmap has to say. Built rather than patched: this pair of
+     * loops is the membership state, not a change to one. */
+    jm_nonbasic_build(s->nvar, s->status, s->nbmark);
 }
 
 /* The basis a previous solve or a caller left on the model, installed as the
@@ -856,6 +909,11 @@ static bool build_warm_basis(sx *s)
         else
             s->status[v] = JM_FREE;
     }
+
+    /* Same reason as in build_initial_basis: the loop above is the whole
+     * membership state, so the bitmap is built from it rather than patched.
+     * Every return before this point is taken before any status is written. */
+    jm_nonbasic_build(s->nvar, s->status, s->nbmark);
 
     for (int64_t i = 0; i < s->nrow; i++)
         s->dse[i] = 1.0;
@@ -1157,10 +1215,12 @@ static bool repair_singular_basis(sx *s)
             s->status[leaving] = JM_AT_UPPER;
         else
             s->status[leaving] = JM_FREE;
+        jm_nonbasic_insert(s->nbmark, leaving);
         s->where[leaving] = -1;
 
         s->basis[p] = entering;
         s->status[entering] = JM_BASIC;
+        jm_nonbasic_remove(s->nbmark, entering);
         s->where[entering] = p;
         i++;
     }
@@ -1565,16 +1625,74 @@ static int64_t dual_ratio_test(sx *s, bool below, double violation,
      * in the same array positions. That matters more than it looks:
      * bfrt_walk and jm_harris_pick both break an exact tie by whichever
      * candidate it meets first, and apply_flips adds up a column per flip in
-     * the order they stand. Any other order is a different trajectory. */
+     * the order they stand. Any other order is a different trajectory.
+     *
+     * The same argument carries the branch below it. `nbmark` holds every
+     * variable that is not basic, and a basic one is what admit_candidate's
+     * first test rejects — so walking the bitmap admits the candidates the
+     * walk over [0, nvar) admitted, and walking it in bit order puts them
+     * where that walk put them. Ascending by construction, because the bit
+     * position *is* the variable index: there is no order to restore. */
     if (s->anpat >= 0) {
         for (int64_t t = 0; t < s->anpat; t++)
             admit_candidate(s, s->apat[t], below, &n);
         jm_work_add(&s->work, s->anpat * JM_WORK_NONZERO);
     } else {
-        for (int64_t v = 0; v < s->nvar; v++)
-            admit_candidate(s, v, below, &n);
+        /* How many variables were actually handed to admit_candidate. Read
+         * by nothing yet: what the counter charges is D-09 and belongs to
+         * the plan after this one, and moving the charge and the scan in one
+         * step would leave nothing able to say which of the two did it. */
+        [[maybe_unused]] int64_t visited = 0;
+        int64_t nwords = (s->nvar + 63) / 64;
+        for (int64_t w = 0; w < nwords; w++) {
+            uint64_t bits = s->nbmark[w];
+            while (bits != 0) {
+                admit_candidate(s, (w << 6) + __builtin_ctzll(bits), below,
+                                &n);
+                bits &= bits - 1;
+                visited++;
+            }
+        }
         jm_work_add(&s->work, s->nvar * JM_WORK_NONZERO);
     }
+
+#ifndef NDEBUG
+    /* D-08: both scans, over the state that produced them.
+     *
+     * The bitmap is maintained by hand at eight sites, and a drift at any of
+     * them is invisible from the solve — a variable dropped from the set is
+     * left out of a ratio test that would have been correct with it, so the
+     * solve carries on and publishes an answer that is merely different.
+     * Only a solution digest says so, and by then the run is over. So every
+     * iteration of every dev and sanitizer build runs the scan the branch
+     * above replaced and requires the two candidate sets to agree in count
+     * and position for position. D30 is why this is an assertion and not a
+     * comment: that contract was documented correctly, prominently, in the
+     * function it protected, and was violated anyway.
+     *
+     * It charges no work, deliberately. A second jm_work_add here would give
+     * a dev build a different accounting from the release build that
+     * produces every gate number, and the pinned work test would then be
+     * pinned to a figure no gate ever sees. */
+    {
+        for (int64_t k = 0; k < n; k++) {
+            s->dbg_cand[k]   = s->cand[k];
+            s->dbg_rnum[k]   = s->rnum[k];
+            s->dbg_rden[k]   = s->rden[k];
+            s->dbg_rrange[k] = s->rrange[k];
+        }
+        int64_t dn = 0;
+        for (int64_t v = 0; v < s->nvar; v++)
+            admit_candidate(s, v, below, &dn);
+        assert(dn == n);
+        for (int64_t k = 0; k < n; k++) {
+            assert(s->cand[k] == s->dbg_cand[k]);
+            assert(s->rnum[k] == s->dbg_rnum[k]);
+            assert(s->rden[k] == s->dbg_rden[k]);
+            assert(s->rrange[k] == s->dbg_rrange[k]);
+        }
+    }
+#endif
 
     if (n == 0)
         return -1;
@@ -1669,6 +1787,57 @@ int64_t jm_pattern_order(int64_t n, int64_t *pos, uint64_t *mark,
         }
     }
     *words = hi >= lo ? hi - lo + 1 : 0;
+    return k;
+}
+
+/* The nonbasic set as a bitmap. Documented in the header, beside the two
+ * picks and the pattern order, and reachable for the same reason they are.
+ *
+ * Note the one way these differ from jm_pattern_order: the bitmap they carry
+ * is persistent and nothing here clears it. See the header, and the comment
+ * on `nbmark` in sx. */
+int64_t jm_nonbasic_build(int64_t nvar, const jm_var_status *status,
+                          uint64_t *mark)
+{
+    int64_t nwords = (nvar + 63) / 64;
+    for (int64_t w = 0; w < nwords; w++)
+        mark[w] = 0;
+
+    /* Membership, not bounds: everything that is not JM_BASIC belongs here,
+     * JM_FREE included. */
+    int64_t k = 0;
+    for (int64_t v = 0; v < nvar; v++) {
+        if (status[v] == JM_BASIC)
+            continue;
+        mark[v >> 6] |= UINT64_C(1) << (v & 63);
+        k++;
+    }
+    return k;
+}
+
+void jm_nonbasic_insert(uint64_t *mark, int64_t v)
+{
+    mark[v >> 6] |= UINT64_C(1) << (v & 63);
+}
+
+void jm_nonbasic_remove(uint64_t *mark, int64_t v)
+{
+    mark[v >> 6] &= ~(UINT64_C(1) << (v & 63));
+}
+
+/* The testable mirror of the walk in dual_ratio_test — the same words in the
+ * same order, materialised. The ratio test does not call it: an index array
+ * is exactly the traffic the bitmap exists to remove. */
+int64_t jm_nonbasic_expand(int64_t nvar, const uint64_t *mark, int64_t *out)
+{
+    int64_t nwords = (nvar + 63) / 64, k = 0;
+    for (int64_t w = 0; w < nwords; w++) {
+        uint64_t bits = mark[w];
+        while (bits != 0) {
+            out[k++] = (w << 6) + __builtin_ctzll(bits);
+            bits &= bits - 1;
+        }
+    }
     return k;
 }
 
@@ -2058,10 +2227,16 @@ static jaos_status pivot(sx *s, int64_t r, int64_t q, bool below,
     /* Position r now holds the entering variable, at its new value. */
     s->xb[r] = q_value + theta_primal;
 
+    /* The bitmap moves with the status, on the same lines, so that the pair
+     * cannot drift apart: one variable leaves the basis and joins the set,
+     * one enters it and leaves the set. This is the site that runs every
+     * iteration and the one the whole scheme rests on. */
     s->status[leaving] = below ? JM_AT_LOWER : JM_AT_UPPER;
+    jm_nonbasic_insert(s->nbmark, leaving);
     s->where[leaving] = -1;
     s->basis[r] = q;
     s->status[q] = JM_BASIC;
+    jm_nonbasic_remove(s->nbmark, q);
     s->where[q] = r;
 
     /* The leaving variable's reduced cost is minus the dual step, which is
@@ -2452,6 +2627,12 @@ static jaos_status take_best_if_better(sx *s, bool *ok)
         s->where[v] = -1;
     for (int64_t i = 0; i < s->nrow; i++)
         s->where[s->basis[i]] = i;
+    /* The memcpy above replaced every status at once, so the bitmap is
+     * rebuilt here for exactly the reason `where` is: what it described no
+     * longer exists, and a restore carries no assignment for anything to
+     * hook. This site and the one in restore_settled are the two the
+     * research's table of assignment forms cannot see. */
+    jm_nonbasic_build(s->nvar, s->status, s->nbmark);
 
     s->needs_refactor = true;
     s->verified = false;
@@ -2471,6 +2652,8 @@ static jaos_status restore_settled(sx *s, bool *ok)
         s->where[v] = -1;
     for (int64_t i = 0; i < s->nrow; i++)
         s->where[s->basis[i]] = i;
+    /* And here, for the reason given in take_best_if_better. */
+    jm_nonbasic_build(s->nvar, s->status, s->nbmark);
 
     s->needs_refactor = true;
     return refresh(s, ok, true);
