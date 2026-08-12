@@ -114,6 +114,12 @@ truth was.
 The verdict is stated with confidence only because it does not depend on which
 estimator is chosen. The plan's protocol figure is the first row.
 
+> **This sentence is wrong and is corrected below — see `CORRECTIONS` §1.** It
+> holds only among estimators that pool all six rounds. On the protocol as
+> literally written, three alternating rounds, rounds 4–6 read **5.12% and cross
+> the bar**. The verdict is stable because six rounds were run in two orders, not
+> because the arithmetic is robust.
+
 | reading | instances | geomean | improvement |
 |---|---|---|---|
 | **pooled minimum, all rateable — the protocol figure** | **86** | **0.9709x** | **2.91%** |

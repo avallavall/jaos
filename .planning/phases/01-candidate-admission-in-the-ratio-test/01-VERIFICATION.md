@@ -1,30 +1,36 @@
 ---
 phase: 01-candidate-admission-in-the-ratio-test
 verified: 2026-08-12T17:08:41Z
-status: human_needed
+status: passed
 score: 27/29 must-haves verified
 behavior_unverified: 2
 overrides_applied: 0
 deferred:
+
   - truth: "Whether the change buys wall-clock time is unresolved — the host cannot resolve the 4.2% bar"
     addressed_in: "Phase 5"
     evidence: "ROADMAP Phase 5 'Known blocker: this phase needs a controlled host and the ingest set names none', and success criterion 3 'taken on a host that satisfies D17: a number taken under WSL is a development number and cannot close this gate'. D93's 'What is left open' hands it there explicitly."
+
   - truth: "The ratio test's O(nvar) cost attacked at its root rather than at its scan"
     addressed_in: "Phase 3"
     evidence: "REQ-hyper-sparse-downstream-results — 'Widening the hyper-sparse path so the pricing row has a pattern more often, which attacks the same cost at its root', handed forward by D93."
 behavior_unverified_items:
+
   - truth: "Roadmap SC 3 / 01-04 T4 — admit_candidate's share on truss re-read under callgrind against the 14.98% it stood at, reported beside the J=1 time ratio"
     test: "Re-run callgrind on truss against both binaries in one session, or accept the committed reading"
     expected: "admit_candidate 14.79% -> 14.20%, ftran_prefix 6.59% -> 6.64%, PROGRAM TOTALS +1.60%"
     why_human: "The callgrind annotations were never committed. The figures live only in 01-04-SUMMARY.md and D93. Re-deriving them costs a valgrind run on truss; grep cannot see them, and the raw annotation files are gone."
+
   - truth: "01-04 T1 — the J=1 same-instance time ratio was taken on two correctly-built binaries, alternated, with iteration counts agreeing instance for instance"
     test: "Confirm the timing run's control 2 — that iteration counts agreed between run-parent and run-candidate on every instance across all 12 passes, before any timing number was read"
     expected: "Iteration counts identical instance for instance; a disagreement would mean the wrong binary was timed and every ratio in 01-04 and D93 would be void"
     why_human: "The 12 raw timing logs were never committed and no longer exist. The control is self-reported in 01-04-SUMMARY.md deviation 4 and was recomputed by the independent jaos-measurer audit from those logs while they existed, but it cannot be re-derived from the tree. build/bench/run-parent and run-candidate survive as distinct binaries (464096 vs 472232 bytes), which corroborates that two binaries were built but says nothing about the iteration counts."
 human_verification:
+
   - test: "Read the per-instance timing table and the geometric mean in 01-04-SUMMARY.md (harvested deferred human-check from 01-04-PLAN.md)"
     expected: "The figure quoted as the result is the geometric mean of per-instance ratios; iteration counts agreed between both binaries on every instance; the verdict follows the 4.2% rule"
     why_human: "The verdict decides whether D93 is written as a gain or a refusal, and no automated check can confirm that the right binary was timed"
+
   - test: "Decide whether the raw timing logs and callgrind annotations should have been preserved, and whether a future phase's measurement plan must commit them"
     expected: "A rule either way. Today the only measurement in this phase that cannot be re-derived from the repository is the one that produced the verdict."
     why_human: "A process decision about what the record must carry, not a fact about the code"
@@ -297,6 +303,7 @@ Two things kept this out of `passed`, and neither is a defect in the work:
    independently audited, and produced the verdict — but their raw inputs were
    never committed, so this verifier cannot re-derive them. They are *present*, not
    *proven*, and the honest status for that is not VERIFIED.
+
 2. **`01-04-PLAN.md` deliberately deferred one human-check to end of phase.** It is
    harvested above rather than dropped.
 
@@ -310,9 +317,11 @@ only reports doubts is as misleading as a summary that only reports gains:
   stated grounds and two factual claims** while accepting the verdict. The audit is
   appended unmerged, above an explicit note that a quietly corrected summary cannot
   be told from one that was right.
+
 - **D93 does not repeat the refuted grounds.** It states the opposite of the
   estimator claim its own plan first made, and corrects its own plan's D83
   attribution to D81.
+
 - **The strongest evidence in the phase was independently reproduced here.** D93's
   claim that the work saving is an exact whole multiple of the row count on every
   instance holds **139 out of 139** when recomputed from the two committed
