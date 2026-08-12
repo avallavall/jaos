@@ -93,8 +93,25 @@ The protocol, and every clause of it has a reason:
   1.1122x for PGO (D62). A "factor" from a flag is a measurement error until
   proven otherwise.
 
-The harness repeats itself to 1.3% (D60). Any claim smaller than that is a
-claim about the machine.
+**The noise floor is not one number, and the smallest one is the wrong one to
+reach for.** Three figures are in circulation and they measure different things:
+
+| figure | what it is |
+|---|---|
+| **1.3%** (D60) | estimated on the harness, one way |
+| **1.4%** (D81) | measured across four separate sessions, and consistent with D60's 1.3% |
+| **6.27%** (D93) | what *this* Windows/WSL host actually repeats to, measured the way D81 measured its 1.4% |
+
+Any claim smaller than the floor of the host you are on is a claim about the
+machine. On this host that floor is **6.27%**, not 1.3% — D93 reached
+INCONCLUSIVE on a 2.91% reading for exactly this reason, and a negative control
+of instances the change provably could not speed up read 3.0–6.4%. Quoting
+D60's 1.3% here would have made that false result look like a comfortable pass.
+
+Derived bars inherit the same problem: D-13's 4.2% is `3 × 1.4%` (**D81's**
+repeatability — *not* D83's, whose 1.4% is Clp landing within 1.4% of HiGHS on
+total time, a different quantity). A bar of 4.2% cannot be tested on a host
+whose own repeatability is 6.27%; say so rather than reporting a verdict.
 
 ## Run all three instance sets, and let the largest decide
 

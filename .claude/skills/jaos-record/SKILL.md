@@ -17,19 +17,37 @@ Four documents, and the split is by *kind of statement*, never by topic.
 | the statement | goes in |
 |---|---|
 | this feature exists / is partial / is missing | `SPECS.md` |
-| this is open, and here is where it sits in the order | `PLAN.md` |
+| this is open, and here is where it sits in the order | `.planning/ROADMAP.md` |
 | this is closed, and here is the measurement that closed it | `DECISIONS.md` |
 | this changed, and this is what it cost | `CHANGELOG.md` |
+| this number was measured | the record that produced it — see below |
+
+**`PLAN.md` is archived** at `docs/archive/PLAN.md` since 2026-08-12. Cite its
+sections when a source comment already does — the redirect table keeps those
+alive — but never write open work into it. Open work goes to
+`.planning/ROADMAP.md`.
+
+**A measured number has an owner, and everything else cites rather than
+restates it.** This is the rule the project learned the expensive way: an audit
+found the certification count wrong in five documents at once, because a
+derived total (`38 + 16 = 54`) was copied as a literal and one addend moved
+underneath it. The counts that never drifted are the ones with a single stated
+owner and no arithmetic on top — the instance sizes 94/16/29, owned by
+`bench/README.md` — and the ones that live in executable form, like
+`WORK_PINNED` and the work ceiling in `tests/test_simplex.c`, which came
+through six-for-six across every document. Prefer a pointer to a figure.
+Never restate a *derived* total; give the addends their owner and let the
+reader add.
 
 The two mistakes that actually happen:
 
 - **Reasoning in the changelog.** The changelog is a changelog. Two to six
   lines, what changed and what it cost, and a `(Dn)` pointing at where the
   argument lives. If an entry is arguing, it is in the wrong file.
-- **A closed question left in `PLAN.md`.** When a decision closes, the plan
-  loses the open item and gains either nothing or a row in **Settled — do not
-  re-derive**. A plan that still lists what is finished cannot be read for
-  what is next, which is the only thing it is for.
+- **A closed question left open in `.planning/ROADMAP.md`.** When a decision
+  closes, the roadmap loses the open item and gains either nothing or a line
+  recording what closed it. A roadmap that still lists what is finished cannot
+  be read for what is next, which is the only thing it is for.
 
 A refusal is a closed decision, not an absence. "Measured and rejected" is
 the most valuable kind of entry this project has — it is what stops the same
@@ -52,12 +70,16 @@ Then, in the body, all four of these or it is not finished:
    those two.
 3. **What was refuted.** Anything tried that did not work, and why it did
    not, in enough detail that nobody re-tries it. This is the part that pays.
-4. **What is left open**, handed explicitly to `PLAN.md`.
+4. **What is left open**, handed explicitly to `.planning/ROADMAP.md`.
 
 Add the index line at the top of the file, with the anchor: headings are
 linked from the index and cited from source comments, so **a heading that
-changes breaks live references** — 79 citations across 29 decisions today.
-Number the entry one past the last; never renumber.
+changes breaks live references** — several hundred citations across most of
+the entries. Do not restate that count here: three separate audits counting it
+got three different answers, because it changes on every commit and the scope
+("which directories?") is never stated the same way twice. If you need the
+number, measure it; do not inherit it. Number the entry one past the last;
+never renumber.
 
 ## What the changelog entry looks like
 
@@ -75,9 +97,15 @@ pointer. Not the reasoning, not the alternatives, not the measurement table.
 
 ## The cost belongs in the entry, and so does the null result
 
-Every entry states what it cost, and "nothing" is a result: *all 139 digests
-unmoved* is a claim, it is checkable, and it is the strongest sentence
-available about a change that was meant to be invisible. An entry that
+Every entry states what it cost, and "nothing" is a result: *110 solution
+digests and 29 infeasibility verdicts unmoved, over 139 instances* is a claim,
+it is checkable, and it is the strongest sentence available about a change that
+was meant to be invisible. Say it that way and not as "all 139 digests" — 139
+is the **instance** count; only the 94 standard and 16 Kennington instances
+produce a solution digest, and the 29 infeasible ones produce a refusal verdict
+(`expected=infeasible verdict=ok det=ok`). The loose form is not merely
+imprecise: it is what a reader checks against `grep -c digest=` and finds
+missing. An entry that
 reports only what was gained is half an entry.
 
 ## The commit
@@ -110,6 +138,6 @@ documents for later is how the two get out of step.
 Check the *status tables*, not just the prose. `SPECS.md` carries a status
 per feature and a bars-it-has-to-clear table with measured figures in it; a
 change that moves a measured figure and leaves the table alone has made the
-table wrong rather than stale. The same goes for `PLAN.md`'s ranked list in
-phase 6 — re-attribute after every entry that lands, because a ranking three
-changes stale describes a solver that no longer exists.
+table wrong rather than stale. The same goes for `.planning/ROADMAP.md`'s phase
+ordering and its open questions — re-attribute after every entry that lands,
+because a ranking three changes stale describes a solver that no longer exists.

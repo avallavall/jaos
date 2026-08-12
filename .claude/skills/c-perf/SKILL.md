@@ -151,11 +151,15 @@ safe rather than dangerous:
 - Prefer loops whose trip count the compiler can see. A data-dependent
   `break` blocks vectorisation — sometimes that is the right trade, and
   sometimes the condition can be hoisted or the loop split.
-- `-O2` versus `-O3`, LTO and PGO are real and this project cannot yet
-  measure them, because they move wall-clock time and not the deterministic
-  work counter. They need a pinned measurement host. Until then they are
-  proposals, not findings — and whatever else they do, **they must not move a
-  single result digest.**
+- `-O2` versus `-O3`, LTO and PGO move wall-clock time and not the
+  deterministic work counter, so the work counter cannot judge them. **They
+  have been measured** (D62, and the table is in `Makefile:68-79`): `-O3` over
+  `-O2` 1.0055x, `+flto` 1.0330x, `+march=native` 1.0072x, PGO **1.1122x**.
+  `make pgo` exists. Read those as same-session A/B ratios on one machine, not
+  as portable numbers — and note what D93 later established about this host in
+  particular: its own repeatability is 6.27%, so a flag worth less than that
+  cannot be separated from noise here. Whatever else they do, **they must not
+  move a single result digest.**
 - `-g` in release costs nothing at run time. Keep it.
 
 ## Integer arithmetic

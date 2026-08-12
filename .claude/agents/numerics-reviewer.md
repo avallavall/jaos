@@ -52,7 +52,7 @@ under a second name is already the pattern `compute_duals` uses, and it is
 exactly the shape that goes wrong when a third borrower appears.
 
 **`restrict` is not in this tree, and putting it back is a finding.** It was
-built across the LU kernels, measured, and refused: 139 identical digests and
+built across the LU kernels, measured, and refused: every answer identical and
 0.995x in the shipping build against 1.0053x with `-flto` off — the two
 disagreeing about the sign, both inside the noise (D76). The loops are
 indexed scatter and gather, and none of them may vectorise because none may
