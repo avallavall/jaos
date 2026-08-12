@@ -119,11 +119,22 @@ acceptance through postsolve. Plan the verification around those.
   — **Rejected alternative:** adding checks to `src/check.c`. That would give
   the checker knowledge of the reduced model and destroy the structural
   independence that makes it an oracle.
-- **D-12: Criterion 4 is proved by extending the double solve `bench/run.c`
-  already performs.** It currently requires bit-identical digests across the
-  two solves; it must also require equal iterations and equal work units.
-  Presolve introduces state between solves, and the runner is the only place
-  that already looks twice.
+- **D-12: Criterion 4 is already enforced by `bench/run.c`, and this was
+  written down wrong the first time.** The original D-12 said the runner
+  "currently requires bit-identical digests" and must be extended to compare
+  iterations and work units. It already compares them, on both paths:
+  `bench/run.c:437-438` requires `jaos_iterations(m) == iters &&
+  jaos_work_units(m) == work` on the infeasible path, and `:574-577` requires
+  iterations, work units, a `memcmp` of the objective **and** digest equality
+  on the optimal path — after `jaos_clear_basis`, exactly as criterion 4
+  words it. Found by the phase researcher and confirmed against the source
+  before this correction was written.
+  **What D-12 actually asks for, therefore, is narrower:** whatever *new* path
+  presolve introduces must be covered by the same check. The candidate is a
+  presolve-only short-circuit — a model proved infeasible, or fully solved, by
+  the reductions alone, returning before the simplex runs. That path publishes
+  a result the existing double solve has never seen. The plan must say whether
+  it exists, and if it does, that it is judged the same way.
 
 ### What is reported and what number closes the phase
 
@@ -240,8 +251,10 @@ that resolution. Beyond them:
 - **The checker needs nothing added.** It derives activities by a column-order
   CSC scatter-add in long double and reports magnitudes rather than a boolean,
   so it already tells postsolve *how* wrong rather than only *whether*.
-- **`bench/run.c` already solves twice and requires identical digests** — D-12
-  is an extension of a mechanism that exists, not a new one.
+- **`bench/run.c` already solves twice and already enforces criterion 4 in
+  full** — status, iterations, work units, the objective's bits and the digest,
+  after `jaos_clear_basis`. See the corrected D-12: the work is covering the
+  new path presolve may introduce, not rebuilding the check.
 - **`jm_work` is a single accounting entry point**, so D-14 is a bounded set
   of call sites.
 - **`jm_alloc_array`/`jm_calloc_array`** are the only allocation paths in the
