@@ -52,7 +52,7 @@ of them may introduce a number without a measurement on both sides of it.
   3. `admit_candidate`'s cost is re-read on `truss` against the 14.98% of instructions it stood at, and reported beside a `J=1` same-instance time ratio — instructions are not seconds, and callgrind cannot see locality. — **MET by 01-04**: callgrind on both binaries in one session puts `admit_candidate` at **14.79% → 14.20%** (the parent reproducing D84's 14.98% to within 0.19pp), against `ftran_prefix` at 6.59% → 6.64%. Beside it, the `J=1` time ratio over the standard set is **0.9709x** (geometric mean of per-instance ratios; ratio of totals 0.9847x, not the result), `truss` 0.9759x. **And the instruction total ROSE 1.60%** — `admit_candidate` sheds 199M while the caller it is inlined into gains 995M, which is a relocation rather than a saving and is exactly what reporting the two beside each other exists to catch.
   4. All three netlib campaigns report PASS, and the per-instance baseline diff shows no regression on any of the 139 instances, on any of the four predicates or the work count. — **MET by 01-03** (44c0ef6, e8c2f58): three PASS at J=12, 0 regressed / 0 improved / 0 new on all three, 110 solution digests and 29 infeasibility verdicts unmoved over the 139 instances, iterations 1.0000x per instance, work down on 118 and up on none.
 
-**Plans:** 5/5 plans executed
+**Plans:** 5/5 plans complete
 
 Plans:
 
@@ -190,7 +190,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Candidate admission in the ratio test | 4/5 | In Progress|  |
+| 1. Candidate admission in the ratio test | 5/5 | Complete    | 2026-08-12 |
 | 2. Presolve and postsolve | 0/TBD | Not started | - |
 | 3. The factorization and the solves that read it | 0/TBD | Not started | - |
 | 4. The search path | 0/TBD | Not started | - |

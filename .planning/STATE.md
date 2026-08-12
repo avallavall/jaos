@@ -2,13 +2,13 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-current_phase: 01
-current_phase_name: candidate-admission-in-the-ratio-test
-status: phase-complete
-stopped_at: "Completed 01-05-PLAN.md. Phase 01 is closed: D93 is written and indexed, the changelog and SPECS.md are current, and all four roadmap criteria are met. Next: Phase 02 (presolve and postsolve) — no plans exist yet"
-last_updated: "2026-08-12T17:05:00.000Z"
+current_phase: 2
+current_phase_name: Presolve and postsolve
+status: planning
+stopped_at: Completed 01-05-PLAN.md. Phase 01 is closed — D93 written and indexed, changelog and SPECS.md current, all four roadmap criteria met
+last_updated: "2026-08-12T18:57:34.608Z"
 last_activity: 2026-08-12
-last_activity_desc: "Executed 01-05 — D93 closed and indexed with the measurement on both sides, the 4.2% derivation traced to D81, the null result stated as 110 digests + 29 infeasibility verdicts over 139 instances, and an audit correction appended to 01-04-SUMMARY.md"
+last_activity_desc: Executed 01-05 — D93 closed and indexed with the measurement on both sides, the 4.2% derivation traced to D81, the null result stated as 110 digests + 29 infeasibility verdicts over 139 instances, and an audit correction appended to 01-04-SUMMARY.md
 progress:
   total_phases: 1
   completed_phases: 1
@@ -28,10 +28,10 @@ See: .planning/PROJECT.md (updated 2026-08-12)
 
 ## Current Position
 
-Phase: 01 (candidate-admission-in-the-ratio-test) — **COMPLETE**
-Plan: 5 of 5
-Status: Phase 01 closed. All five plans executed and all four roadmap criteria met. D93 is written, indexed and cited from the three source files that were pointing at it forward
-Last activity: 2026-08-12 — 01-05 landed (D93, the changelog, SPECS.md, and the audit correction on 01-04-SUMMARY.md)
+Phase: 2 — Presolve and postsolve
+Plan: Not started
+Status: Ready to plan
+Last activity: 2026-08-12 — Phase 01 complete, transitioned to Phase 2
 
 Progress: [██████████] 100%
 
@@ -47,7 +47,7 @@ Progress: [██████████] 100%
 
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
-| 01 | 5 | ~200 min | ~40 min |
+| 01 | 5 | - | - |
 
 **Per-Plan Metrics:**
 
@@ -66,12 +66,14 @@ Progress: [██████████] 100%
   01-03 wrote no code at all and cost 55, of which **34.4 min was campaign
   time under WSL** that no estimate models. Kennington alone is ~8 min and
   this plan ran it three times.
+
 - **01-04 is the extreme of that trend.** It modified no repository file by
   design, so its whole diff is one summary — 7,400 tokens against an estimate
   of 70,000, an order of magnitude over. What it actually cost is **47 minutes
   of WSL machine time**: 12 sequential `J=1` passes over the standard set, two
   callgrind runs and three builds. No field of the estimate models that, and a
   plan whose deliverable is a number will always look free to a token estimate.
+
 - **01-05 is the one plan the estimate could see**, and it is the shape that
   explains the other four: 16,400 realized against 45,000 estimated, under by
   2.7x rather than by 10x. A documentation plan's length is set by the number
