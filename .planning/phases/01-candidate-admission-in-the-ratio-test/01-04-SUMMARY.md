@@ -600,4 +600,7 @@ sources rather than this document:
 
 | Hash | Message |
 |---|---|
-| _(this document)_ | `docs(01-04): the time ratio is below the bar, and callgrind says the instructions went up` |
+| `f1698fd` | docs(01-04): the time ratio is below the bar, and the instructions went up |
+
+One commit, because this plan modifies no repository file. There is no per-task
+commit to pair with it: Tasks 1 and 2 produce numbers, not diffs.
