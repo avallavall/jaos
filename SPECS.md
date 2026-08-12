@@ -63,7 +63,7 @@ missing.
 
 | | status | |
 |---|---|---|
-| Dual simplex | **done** | steepest-edge pricing [8], Harris two-pass ratio test with bound flipping [7][19], dual phase 1 by artificial bounds [21], Bland fallback on a detected stall. What looked like Bland failing to finish off a cycle (D72) was the factorization it was pivoting on having stopped describing the basis; the trigger above is the repair (D86) |
+| Dual simplex | **done** | steepest-edge pricing [8], Harris two-pass ratio test with bound flipping [7][19], dual phase 1 by artificial bounds [21], Bland fallback on a detected stall. What looked like Bland failing to finish off a cycle (D72) was the factorization it was pivoting on having stopped describing the basis; the trigger above is the repair (D86). The ratio test's dense branch enumerates its candidates from a maintained nonbasic set rather than from the whole model — the same candidates in the same order, which is what keeps it out of what Harris's two passes guarantee, and it is not established that it buys time (D93) |
 | Sparse LU, Markowitz threshold pivoting | **done** | [4][6][20], Forrest-Tomlin updates [5], singular-basis repair |
 | Stability trigger on the triangular solves | **done** | the pivot element is computed twice each iteration, by BTRAN and by FTRAN; past `LU_AGREE_TOL` the pivot is declined unbilled and the factorization rebuilt. Free — both numbers are already paid for (D86) |
 | Scaling | **done** | Curtis-Reid [11], geometric-mean equilibration as an option |
@@ -143,7 +143,7 @@ asks them is a problem handed back to the caller.
 | Kennington subset, 16 instances | **pass** |
 | Netlib infeasible subset, 29 instances: refused, no false optima | **pass** |
 | Determinism across two solves and across runs, all 139 | **pass** — the second solve clears the basis first, or it would be a warm re-solve and would measure a sequence of calls rather than the solver (D68) |
-| Warm re-solve against cold, one branching step per instance | **measured: 0.0052 of the iterations, 0.0162 of the work** on 92 of the standard 94; 0.0006 and 0.0041 on 11 of Kennington's 16 (D69, improved by D90). Both answers go through the independent checker, and 0 of either set is refused — the cold half of that was added by D92, which is what it caught |
+| Warm re-solve against cold, one branching step per instance | **measured: 0.0052 of the iterations, 0.0164 of the work** on 92 of the standard 94; 0.0006 and 0.0041 on 11 of Kennington's 16 (D69, improved by D90). Both answers go through the independent checker, and 0 of either set is refused — the cold half of that was added by D92, which is what it caught. The standard-set work figure read 0.0162 before D93 redefined what the dense ratio test charges, and rose because a cold solve makes thousands of dense calls where a warm re-solve makes a handful, so the saving comes mostly off the denominator |
 | Full suite clean under ASan and UBSan | **pass** |
 | Reader robustness under fuzzing | **pass** |
 | Competitive gap at tier T0 vs **HiGHS 1.15.1** | **measured: 3.72x slower** (D52, D53, D60, re-taken with three competitors in D83) |

@@ -243,6 +243,13 @@ from.
 
 ### Changed
 
+- **The dual ratio test's dense scan walks the nonbasic set** rather than every
+  variable, and bills what it visited rather than the dimension. The trajectory
+  is identical on all 139 instances — 110 digests and 29 infeasibility verdicts
+  unmoved — so the work counts fell because the charge was redefined underneath
+  it, not because the solver took a different path. It costs 1.60% more
+  instructions on `truss` and buys no time this host can resolve (D93).
+
 - **The checker separates the suboptimality bound from the verdict**, which is
   what closes D47. A bound implied by the rows is sound but slack, so its term
   in the duality identity survives at an optimum and measures the bound rather
