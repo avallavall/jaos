@@ -1,12 +1,19 @@
 ---
-gsd_state_version: '1.0'
+gsd_state_version: 1.0
+milestone: v1.0
+milestone_name: milestone
+current_phase: 1
+current_phase_name: Candidate admission in the ratio test
 status: planning
+stopped_at: Phase 1 context gathered
+last_updated: "2026-08-12T11:45:03.906Z"
+last_activity: 2026-08-12
+last_activity_desc: Ingested the JAOS planning record (10 documents) and created PROJECT.md, REQUIREMENTS.md, ROADMAP.md
 progress:
-  total_phases: 5
+  total_phases: 1
   completed_phases: 0
   total_plans: 0
   completed_plans: 0
-  percent: 0
 ---
 
 # Project State
@@ -31,6 +38,7 @@ Progress: [░░░░░░░░░░] 0%
 ## Performance Metrics
 
 **Velocity:**
+
 - Total plans completed: 0
 - Average duration: —
 - Total execution time: —
@@ -42,6 +50,7 @@ Progress: [░░░░░░░░░░] 0%
 | - | - | - | - |
 
 **Recent Trend:**
+
 - Last 5 plans: none yet
 - Trend: —
 
@@ -62,10 +71,13 @@ Roadmap-level decisions taken at milestone opening:
 - **Candidate admission before presolve** (WARNING 1) — D81 measured presolve at
   1.417x/1.136x against a per-iteration gap of 2.53x, and says that reorders
   the plan
+
 - **The candidate-admission decision is the first deliverable, before any code**
   — PLAN.md item 3a says so outright
+
 - **The re-entry oscillation is roadmap work** (WARNING 2), not an accepted
   limitation, despite a measured cost of 0.24% on `pilot87` and no cure named
+
 - **The M2 per-instance guard factor stays absent until measured** (WARNING 3)
   — no number is invented anywhere in these artifacts
 
@@ -79,14 +91,18 @@ None yet.
   a gate, and the machine that builds and measures JAOS is a Windows host
   running WSL. Phase 5 cannot produce its closing number without one. Phases 1–4
   are unaffected.
+
 - **[Phase 5] The M2 guard factor is unset** and must be measured or explicitly
   dropped from the criterion. It is not to be guessed.
+
 - **[Phase 2 → Phase 5] T0 is "the simplex and only the simplex."** Presolve
   contributes nothing to the close criterion as stated; how the ladder is
   recalibrated once JAOS has a presolve is undecided in the source.
+
 - **[All phases] Five of seven v1 requirements carry no acceptance criterion.**
   That is `PLAN.md`'s own state, not an extraction gap. Deriving each is
   plan-phase work.
+
 - **[All phases] The gate cannot see the defect class that produced three of
   last milestone's four closures** — those came from sweeping `REFACTOR_EVERY`
   over 16..256, which no target automates. `make clean` between settings or the
@@ -103,8 +119,8 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-08-12
-Stopped at: Roadmap written; 7 v1 requirements mapped across 5 phases, coverage 7/7
-Resume file: None
+Last session: 2026-08-12T11:45:03.899Z
+Stopped at: Phase 1 context gathered
+Resume file: .planning/phases/01-candidate-admission-in-the-ratio-test/01-CONTEXT.md
 
 Next: `/gsd-plan-phase 1`
