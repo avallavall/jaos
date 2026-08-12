@@ -266,14 +266,30 @@ Whatever the new list/bitmap is, it is sized off `s->nvar` exactly like `apat`/`
 
 **If this table is empty:** N/A — see above.
 
-## Open Questions
+## Open Questions (RESOLVED)
+
+Both were closed by the planner in `01-01-PLAN.md`'s `<design_decisions>`
+section. They are kept here with their reasoning intact, because the trade-off
+each states is what D93 has to account for.
 
 1. **Which representation — bitmap or explicit ordered list/array?**
+   → **Resolved: a persistent bitmap `s->nbmark`.** See `01-01-PLAN.md`
+   `<design_decisions>`. Maintenance is one bit flip — O(1) outright rather than
+   amortised — ascending order falls out of bit position so there is no
+   insertion position to compute, Pitfall 1's stale-neighbour failure cannot be
+   written at all, and the scan stays ascending-sequential over `alpha[]`, which
+   is what D-11 actually measures.
    - What we know: a bitmap walked with `__builtin_ctzll` gives O(1) membership toggling with no reinsertion-position problem at all, and is structurally identical to a mechanism (`jm_pattern_order`/`amark`) this codebase has already built, shipped, and measured. An explicit sorted array or linked list is more literally "a list of nonbasic variables" (CONTEXT.md's own phrase) but needs a real predecessor/successor argument to be correct under interleaved insert/delete — the naive version is shown broken in Pitfall 1.
    - What's unclear: whether the bitmap's per-scan cost (proportional to the touched *range* in 64-bit words, like `jm_pattern_order`'s `lo`/`hi` tracking at `src/simplex.c:1646-1655`) or an explicit list's cost (proportional to the *count* of nonbasic variables, if a correct O(1) construction is used) is actually cheaper on this project's instance mix — this is exactly the kind of thing D-11's same-instance time ratio is positioned to answer, but only after one is built.
    - Recommendation: research could not close this because it is a genuine design trade-off CONTEXT.md deliberately left open, not a gap in available information. The planner should pick one, and if it is the linked-list route, budget explicit time to prove (not assume) the reinsertion primitive is correct — a unit test built the way `jm_pattern_order`'s are, exercising the interleaved-eviction case from Pitfall 1, is the natural instrument.
 
 2. **Where does the differential-equivalence test (D-07) actually live, given `sx`/`admit_candidate`/`dual_ratio_test` are unreachable from `tests/test_simplex.c` today?**
+   → **Resolved: exactly the two layers this section recommends.** See
+   `01-01-PLAN.md` `<design_decisions>`. Plain-array unit tests for the
+   maintenance primitives in `tests/test_simplex.c`, in a new cluster after
+   `test_pattern_order_*`; and the D-08 cross-check as a `#ifndef NDEBUG` block
+   inside `simplex.c` that re-runs the dense loop into debug scratch and
+   compares all four candidate arrays position for position.
    - What we know: the codebase's own precedent (`jm_bland_pick`/`jm_harris_pick`/`jm_pattern_order`) is to split delicate logic into non-`static`, `jm_`-prefixed, plain-array functions specifically so it is testable without `sx`.
    - What's unclear: whether the *maintenance* primitives alone (insert/remove) can be tested that way while the *end-to-end* dense-scan-vs-list-scan comparison (which needs a real `sx` with real `alpha`, `d`, bounds, etc. to be a meaningful equivalence test rather than a bookkeeping test) is better done as the D-08 runtime assertion itself, exercised indirectly by running the existing `bench`/gate campaigns rather than as a separate unit test.
    - Recommendation: treat D-07 and D-08 as two layers, not one artifact — a plain-array unit test for list-maintenance correctness (buildable and testable today, no visibility problem), plus a `#ifndef NDEBUG` runtime cross-check inside `simplex.c` itself that is exercised by every existing `make test`/`make sanitize`/`make netlib*` run once the change lands, which is where the "same solver state" comparison CONTEXT.md asks for is actually cheap to get right.
