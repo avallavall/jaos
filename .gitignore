@@ -1,8 +1,21 @@
-# Claude Code: local working config, not part of the project. CLAUDE.md itself
-# IS committed — it carries project rules (WSL-only builds, the determinism
-# constraints, which document takes which kind of reasoning) that are the
-# project's, not one machine's.
-.claude/
+# Claude Code. CLAUDE.md and the project knowledge under .claude/ — the seven
+# skills, the three subagents, and jaos-measure's three scripts — ARE committed.
+# They are the project's and not one machine's, CLAUDE.md routes to them by
+# name, and geomean.py is what enforces D46 (a geometric mean of per-instance
+# ratios, never a total over a set). A clone that lacks them gets instructions
+# pointing at tooling that is not there.
+#
+# Two files stay out, for different reasons.
+#
+# settings.local.json sets defaultMode: bypassPermissions. That is a permission
+# posture chosen for this machine; committing it would silently impose "run
+# without asking" on anyone who clones this repository and opens it in Claude
+# Code. It is also the file Claude Code designates as the personal override.
+/.claude/settings.local.json
+#
+# scheduled_tasks.lock is a session id, a pid and a timestamp, rewritten on
+# every run — pure diff churn, and it says which machine ran what and when.
+/.claude/scheduled_tasks.lock
 
 # Build output
 /build/
