@@ -1,0 +1,39 @@
+{
+  "source_path": "C:/Users/vall-/Desktop/projectes/jaos/README.md",
+  "type": "DOC",
+  "confidence": "high",
+  "manifest_override": true,
+  "title": "JAOS — Just Another Optimization Solver",
+  "summary": "Public overview of JAOS: what the C23 dual-simplex LP solver does today, what it does not, how to build it, and which documents to read.",
+  "scope": [
+    "revised dual simplex",
+    "public C API (jaos.h)",
+    "fixed and free MPS",
+    "LP format subset",
+    "Curtis-Reid scaling",
+    "sparse LU with Forrest-Tomlin updates",
+    "steepest-edge pricing",
+    "Harris ratio test",
+    "independent solution checker",
+    "model modification and warm re-solve",
+    "solve callback and work/time limits",
+    "Netlib acceptance sets",
+    "build flags (-O3, -flto, -march=native, PGO, LTO=0, NATIVE=1, EXTRA_CFLAGS)",
+    "repository layout",
+    "comparison against HiGHS and SoPlex"
+  ],
+  "cross_refs": [
+    "SPECS.md",
+    "PLAN.md",
+    "CHANGELOG.md",
+    "DECISIONS.md",
+    "bench/README.md",
+    "bench/compare/README.md",
+    "LICENSE",
+    "include/jaos.h",
+    "bench/fetch.sh"
+  ],
+  "locked": false,
+  "precedence": 5,
+  "notes": ""
+}

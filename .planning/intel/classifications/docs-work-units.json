@@ -1,0 +1,39 @@
+{
+  "source_path": "C:/Users/vall-/Desktop/projectes/jaos/docs/work-units.md",
+  "type": "DOC",
+  "confidence": "high",
+  "manifest_override": true,
+  "title": "Work units",
+  "summary": "Reference for JAOS work units: the deterministic solve budget currency, the four weight constants, where each charge is made, and what falls outside the budget.",
+  "scope": [
+    "work units",
+    "reproducible work budget",
+    "jaos_set_work_limit",
+    "jaos_work_units",
+    "jaos_solve",
+    "jaos_basis",
+    "JM_WORK_NONZERO",
+    "JM_WORK_ELIMINATED",
+    "JM_WORK_UPDATE",
+    "JM_WORK_FACTOR",
+    "LU factorization",
+    "triangular solves (FTRAN/BTRAN)",
+    "basis update (Forrest-Tomlin)",
+    "pricing row",
+    "ratio test",
+    "steepest-edge weights",
+    "dual update",
+    "Curtis-Reid scaling",
+    "time limit",
+    "determinism",
+    "src/lu.c",
+    "src/simplex.c",
+    "src/jaos_internal.h"
+  ],
+  "cross_refs": [
+    "PLAN.md"
+  ],
+  "locked": false,
+  "precedence": 3,
+  "notes": "Typed DOC by manifest (.planning/ingest-manifest.yaml, precedence 3) — authoritative, heuristics skipped. Content is prose-heavy reference/rationale, consistent with DOC. Ambiguity worth recording for the synthesizer: the doc carries SPEC-flavoured signals — a weight-constant table (JM_WORK_* with fixed integer weights), a per-kernel charging contract, and the statement that the weight definition 'becomes public contract at 1.0, and after that the ratios change only at a major version'. It also states the weights are 'Drafts until calibrated (PLAN.md 2.7)', so a SPEC-like reading would be premature. Cites decision IDs D8, D16, D20, D32, D40, D41, D42, D70 as the closing measurements; the string 'DECISIONS.md' is not written literally, so those are not recorded as cross_refs. Source-file mentions (src/lu.c, src/simplex.c, src/jaos_internal.h) are code, not docs, so they are in scope rather than cross_refs. Filename note: written as docs-work-units.json — the spec's {slug}-{source_hash} SHA-256 suffix could not be computed (no shell tool available to this agent); the path-derived slug is collision-free for this manifest, whose only repeated basename is README.md."
+}

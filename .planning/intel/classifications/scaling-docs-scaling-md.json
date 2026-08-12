@@ -1,0 +1,27 @@
+{
+  "source_path": "C:/Users/vall-/Desktop/projectes/jaos/docs/scaling.md",
+  "type": "DOC",
+  "confidence": "high",
+  "manifest_override": true,
+  "title": "Scaling",
+  "summary": "How JAOS computes and applies row/column scale factors — Curtis-Reid by default, geometric-mean optional — as exact powers of two without modifying the stored matrix.",
+  "scope": [
+    "scaling",
+    "row factors",
+    "column factors",
+    "scaled working copy",
+    "Curtis-Reid scaling",
+    "geometric-mean equilibration",
+    "powers of two",
+    "Jacobi-preconditioned conjugate gradients",
+    "independent checker",
+    "duals and reduced costs",
+    "Netlib instances"
+  ],
+  "cross_refs": [
+    "PLAN.md"
+  ],
+  "locked": false,
+  "precedence": 3,
+  "notes": ""
+}
