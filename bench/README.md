@@ -225,6 +225,32 @@ happened as correct, which is the one thing it must not do. Regenerate it when
 a change's effect on these numbers has been read and accepted — and say so in
 the commit.
 
+## A verdict commits its readings
+
+The seconds never enter `bench/results/*.txt` or a baseline. That rule is not
+relaxed by anything here, and it is the reason this section exists rather than
+the record simply widening to hold them: a baseline that changes every run
+cannot detect a regression.
+
+But a plan whose *deliverable is a verdict* — a same-instance time ratio, a
+profile, anything the record cannot carry — has to leave its raw readings
+somewhere, or the one number that decided the phase becomes the one number
+nobody can check. They go in
+`.planning/phases/<phase>/<plan>-MEASUREMENT/`: the timing logs, any callgrind
+annotations, and the analysis script that turned them into the figure.
+
+Phase 1 is why. Verification re-derived 27 of its 29 must-haves straight from
+the repository, and the two it could not were the measurement that decided the
+phase — the twelve timing logs and both callgrind annotations had never been
+committed. An independent audit of that verdict found a negative control
+sitting unused in the campaign record, worth more than the verdict itself, and
+it could only run because the logs happened to still be in a scratchpad. By the
+time anyone looked again they were gone, and they are not recoverable.
+
+The point is not distrust of whoever took the measurement. It is that a
+geometric mean is one line and the data under it is a thousand, and the line is
+the part that cannot be re-read.
+
 ## The reference values, and why Koch rather than netlib
 
 Netlib's own readme carries a table of optima computed with MINOS 5.3. Koch
