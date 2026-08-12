@@ -73,8 +73,8 @@ Progress: [██████████] 100%
   callgrind runs and three builds. No field of the estimate models that, and a
   plan whose deliverable is a number will always look free to a token estimate.
 - **01-05 is the one plan the estimate could see**, and it is the shape that
-  explains the other four: 12,300 realized against 45,000 estimated, under by
-  3.7x rather than by 10x. A documentation plan's length is set by the number
+  explains the other four: 16,400 realized against 45,000 estimated, under by
+  2.7x rather than by 10x. A documentation plan's length is set by the number
   of things that have to be recorded, and that number was known in advance. No
   machine time at all — it builds nothing and runs no campaign.
 

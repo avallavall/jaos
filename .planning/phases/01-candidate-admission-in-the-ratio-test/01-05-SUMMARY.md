@@ -47,9 +47,9 @@ metrics:
   completed: 2026-08-12
 
 actuals:
-  tokens: 12300
+  tokens: 16400
   tasks: 2
-  commits: 3
+  commits: 4
 ---
 
 # Phase 01 Plan 05: D93, and the record it closes on Summary
@@ -98,8 +98,9 @@ was renumbered and no heading moved, which matters because 79 citations across
 ### The five things the entry was told not to get wrong, and did not
 
 1. **Numbered D93 specifically**, not one past whatever the file ended at.
-   Four files cite it forward — `src/simplex.c:1642`, `docs/work-units.md` at
-   three places, and `tests/test_simplex.c` at three. All resolve now.
+   It was cited forward from **three files and nine lines**, counted rather
+   than carried: `src/simplex.c` 1, `tests/test_simplex.c` 4,
+   `docs/work-units.md` 4. All resolve now.
 2. **The 4.2% is three times D81's 1.4%**, shown as a derivation rather than
    asserted, with D81 quoted for what its 1.4% actually measures. D83's 1.4% —
    Clp within 1.4% of HiGHS on total time — is named as the different quantity
@@ -325,7 +326,15 @@ The register's four entries and where each was enforced:
 ## Estimate vs actuals
 
 The plan estimated `tokens: 45000` at `confidence: low`. The realized diff is
-**12,300** on the chars/4 scale ADR-2629 specifies — under by a factor of 3.7.
+65,466 characters — **16,400** on the chars/4 scale ADR-2629 specifies — under
+by a factor of 2.7.
+
+**That figure is 4,100 higher than the one this summary first carried.** 12,300
+was computed before this summary and the four state files were written, which
+is to say it was an estimate of the plan's own tail wearing the label of a
+measurement. Corrected against `git diff dc7f881..HEAD` after the final commit
+and recorded unadjusted, because a flattered actual corrupts every later
+projection.
 
 This is the first plan of the phase where the estimate was in the right
 neighbourhood, and it is worth saying why: the deliverable is prose whose length
