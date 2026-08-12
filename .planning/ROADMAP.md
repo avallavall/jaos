@@ -51,8 +51,8 @@ of them may introduce a number without a measurement on both sides of it.
 **Plans:** 5 plans
 
 Plans:
-- [ ] 01-01-PLAN.md — the nonbasic bitmap wired end to end: storage, maintenance at all eight membership sites, the list-driven dense scan, a debug-build cross-check against the scan it replaces, and the unit tests shown to reject a broken maintenance sequence
-- [ ] 01-02-PLAN.md — the work charge counts what the scan visited, behind the one-way gate the work-unit contract earns, with `docs/work-units.md` landing alongside it
+- [x] 01-01-PLAN.md — the nonbasic bitmap wired end to end: storage, maintenance at all eight membership sites, the list-driven dense scan, a debug-build cross-check against the scan it replaces, and the unit tests shown to reject a broken maintenance sequence
+- [x] 01-02-PLAN.md — the work charge counts what the scan visited, behind the one-way gate the work-unit contract earns, with `docs/work-units.md` landing alongside it
 - [ ] 01-03-PLAN.md — all three campaigns, 139 digests confirmed unmoved, and only then the three baselines rewritten and confirmed by a following gate run
 - [ ] 01-04-PLAN.md — the `J=1` same-instance time ratio as a geometric mean over the standard set, callgrind on `truss` beside it, read against 4.2%
 - [ ] 01-05-PLAN.md — D93 with the measurement on both sides, the changelog entry, and the `SPECS.md` figures this phase moved
@@ -171,7 +171,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Candidate admission in the ratio test | 1/5 | In progress | - |
+| 1. Candidate admission in the ratio test | 2/5 | In progress | - |
 | 2. Presolve and postsolve | 0/TBD | Not started | - |
 | 3. The factorization and the solves that read it | 0/TBD | Not started | - |
 | 4. The search path | 0/TBD | Not started | - |
