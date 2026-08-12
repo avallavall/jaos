@@ -31,8 +31,23 @@ import sys
 from pathlib import Path
 
 WORK_RATIO_LIMIT = 2.0   # bench/README.md: work may grow up to 2x
-DROP_RATIO_LIMIT = 2.0   # and so may the checker's dropped term,
-DROP_FLOOR = 1e-9        # above this floor (D88)
+
+# The quantity behind the `checker` predicate, which the predicate itself
+# cannot report on because it degrades quietly. These mirror
+# RSUB_REGRESSION_FACTOR and RSUB_FLOOR in bench/run.c:244-245 and must keep
+# mirroring them -- two copies of one threshold in two languages have already
+# diverged once here, which is how this check came to be missing.
+RSUB_RATIO_LIMIT = 2.0
+RSUB_FLOOR = 1e-9
+
+# D88 watched the checker's *dropped term*. D91 moved the watch: with the
+# implied bounds propagated the dropped terms fell to arithmetic noise, and
+# relative_suboptimality is what carries the information now (bench/run.c:227-244,
+# bench/README.md:199-207). The drop check below is kept as a cheap secondary --
+# it costs nothing and a dropped term that grows is still worth seeing -- but
+# `rsub` is the one that decides.
+DROP_RATIO_LIMIT = 2.0
+DROP_FLOOR = 1e-9
 
 PREDICATES = ("shape", "objective", "checker", "det")
 
@@ -42,7 +57,7 @@ PREDICATES = ("shape", "objective", "checker", "det")
 # regression, but it must still be printed: an instance counted as "moved"
 # with nothing shown is a report that cannot be acted on.
 STRUCTURAL = {"status", "rows", "cols", "iters", "work", "digest", "drop",
-              "_source"} | set(PREDICATES)
+              "rsub", "_source"} | set(PREDICATES)
 
 # 25fv47  optimal  rows=821 ... iters=9459 work=332719794 ... digest=5c6a...
 LINE_RE = re.compile(r"^(?P<name>[A-Za-z0-9][A-Za-z0-9_.\-]*)\s+(?P<status>[a-z_]+)\s")
@@ -149,6 +164,20 @@ def compare(old, new):
             moved = True
             if nd > DROP_FLOOR and (od <= 0 or nd / od > DROP_RATIO_LIMIT):
                 findings.append(("DROP", n, "%.6g -> %.6g  (D88 threshold)" % (od, nd)))
+
+        # The D91 watch. Same shape as run.c's, including its guard: a record
+        # written before rsub was tracked carries -1, and comparing against a
+        # number that was never there is worse than not comparing.
+        orr, nr = num(o, "rsub"), num(w, "rsub")
+        if orr is not None and nr is not None and orr != nr:
+            moved = True
+            if orr >= 0.0 and nr > RSUB_FLOOR and (
+                    orr <= 0 or nr / orr > RSUB_RATIO_LIMIT):
+                findings.append(("RSUB", n, "suboptimality bound %.6g -> %.6g  "
+                                            "(%.1fx, D91 threshold)"
+                                 % (orr, nr, nr / orr if orr > 0 else float("inf"))))
+            else:
+                notes.append(("RSUB", n, "%.6g -> %.6g" % (orr, nr)))
 
         if "digest" in o and "digest" in w and o["digest"] != w["digest"]:
             notes.append(("DIGEST", n, "%s -> %s" % (o["digest"], w["digest"])))
