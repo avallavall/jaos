@@ -86,6 +86,30 @@ Plans:
 **Open question this phase inherits**: T0 is defined as "the simplex and only the simplex", presolve off on both sides. See Open Questions below — presolve's contribution to the *stated* M2 close criterion is zero at that rung, and nothing in the ingest set says how the ladder is recalibrated once JAOS has one.
 **Code note**: there is no presolve module in the tree today. The checker's independence is structural — `src/check.c` has no include chain to `scale.c`, `lu.c` or `simplex.c` — and a presolve must not be the thing that creates one.
 
+**Required plan tasks — the planner must write these in, and they are not optional** (see CLAUDE.md, "Two reviews every phase owes itself"):
+
+  - A **`numerics-reviewer`** task on the postsolve diff, placed *after* the code
+    lands and *before* the campaigns run. Criterion 2 says the correctness risk
+    lives in postsolve, not in the reductions, and postsolve maps values,
+    activities, duals and reduced costs back into the caller's row and column
+    indices — an off-by-one there is a plausible wrong answer, not a crash.
+  - A **`jaos-measurer`** task as the verdict step, so the numbers are judged by
+    a context that did not produce them.
+
+  Phase 1 is the evidence. Its two most valuable findings — that the D-08
+  cross-check was blind to a superset bitmap, and that a negative control sitting
+  unused in the campaign record made the headline 2.91% indistinguishable from
+  noise — both came from these two agents. **Neither is spawned by any GSD
+  workflow**; they run only when a plan says so, and phase 1's plans did not say
+  so. Both findings arrived after the phase's own gates had already passed.
+
+**Phase 1's safety net does not carry over, and the planner must not assume it.**
+Phase 1 could assert "every answer unmoved, work down on 118 and up on none",
+because the change was designed to be invisible. Presolve reduces the model the
+simplex sees, so **iteration counts and work units change on every instance by
+design**. What remains is the digests, the verdicts and the checker's acceptance
+through postsolve. Plan the verification around that, not around the work column.
+
 ### Phase 3: The factorization and the solves that read it
 
 **Goal**: An iteration costs less, because the factors carry less fill and a sparse result stays sparse downstream of the solve that produced it.

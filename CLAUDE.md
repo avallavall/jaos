@@ -125,6 +125,33 @@ this one:
 | `numerics-reviewer` | reviews a diff for the defect classes tests do not catch — borrowed scratch, reproducibility, tolerance space, repairs that hide a residue |
 | `literature-scout` | finds and verifies published technique, with citations checked against the publisher |
 
+### Two reviews every phase owes itself
+
+**No GSD workflow spawns any of the three agents above.** The `code-review`
+capability dispatches a generic reviewer, not `numerics-reviewer`. They run only
+when a plan contains a task saying so — which means a phase planned without one
+is a phase where nobody re-reads the work.
+
+So every phase that touches solver internals must plan in two tasks:
+
+- **`numerics-reviewer` on the diff**, after the code lands and *before* the
+  campaigns — a campaign is only valid for the tree that produced it, and a
+  finding after the campaign costs the campaign.
+- **`jaos-measurer` on the finished numbers**, as the verdict step, so the
+  figures are judged by a context that did not produce them.
+
+This is not process for its own sake. Phase 1's two most valuable findings both
+came from these agents and from nowhere else: the D-08 cross-check was blind to
+a superset bitmap — which `b65d9f2`, inside that same phase, turned from benign
+into answer-affecting through `cfg.work_limit` — and a negative control was
+sitting unused in the committed campaign record, showing 3.0–6.4% "improvement"
+on instances the change provably could not speed up, against a 2.91% headline.
+
+Both arrived **after** the phase's own gates had passed, and both were found by
+re-reading finished work rather than by any document. Of the six substantive
+catches traced across phase 1, four came from execution deviating from its own
+plan or from an independent agent — not from the planning documents.
+
 ## Working habits
 
 - **Measure before repairing.** Every failure in this project that looked
