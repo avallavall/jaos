@@ -6773,7 +6773,7 @@ keyed on bound status, which is the same mistake wearing the opposite sign.
 
 **A site table built by grepping for assignments to the status array is
 incomplete.** It finds six membership-changing sites; there are **eight**.
-`take_best_if_better` (`src/simplex.c:2635`) and `restore_settled` (`:2656`)
+`take_best_if_better` (`src/simplex.c:2631`) and `restore_settled` (`:2656`)
 each restore the whole status array by `memcpy` and carry no assignment form at
 all. A membership structure left stale across either of them desynchronises
 silently — the solve continues and the answer is merely different. Both rebuild
@@ -6812,7 +6812,7 @@ construction, which is why this phase is not the refused half of D82 and D84.**
 `admit_candidate`'s body — the `JM_BASIC` test, `PIVOT_MIN`, the per-status sign
 test, the clamped numerator — is untouched, verified against the diff. The
 bitmap is walked ascending in `v`, exactly as `for (v = 0; v < nvar; v++)`
-produced, and the contract at `src/simplex.c:1562-1568` says why that is not a
+produced, and the contract at `src/simplex.c:1622-1635` says why that is not a
 detail: `bfrt_walk`, `jm_harris_pick` and `apply_flips` each break an exact tie
 by whichever candidate they meet first, so any other order is a different
 trajectory.
@@ -6824,7 +6824,7 @@ Two faults, both injected and both reverted:
 | injected fault | what caught it |
 |---|---|
 | `jm_nonbasic_remove` made a no-op | two unit tests — `test_nonbasic_survives_interleaved_eviction` and `test_nonbasic_notices_a_missed_hook`. The run-time cross-check was **silent, and correctly so** |
-| `jm_nonbasic_insert` made a no-op | the run-time cross-check aborted a solve: `src/simplex.c:1687: dual_ratio_test: Assertion 'dn == n' failed` |
+| `jm_nonbasic_insert` made a no-op | the run-time cross-check aborted a solve: `src/simplex.c:1698: dual_ratio_test: Assertion 'dn == n' failed` |
 
 `test_nonbasic_notices_a_missed_hook` is the deliberately broken maintenance
 sequence: it runs the eviction sequence with one hook omitted and asserts the
