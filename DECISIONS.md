@@ -100,6 +100,7 @@ and you have the argument. Jump to the entry for the numbers behind it.
 - **[D90](#d90-the-warm-start-stops-refusing-a-free-nonbasic-because-the-defect-it-was-avoiding-is-fixed)** — The warm start stops refusing a free nonbasic, because the defect it was avoiding is fixed
 - **[D91](#d91-the-bound-and-the-verdict-stop-being-one-number-and-d47-closes)** — The bound and the verdict stop being one number, and D47 closes
 - **[D92](#d92-a-residue-only-a-pivot-can-remove-was-hidden-by-the-scaling-and-the-repair-is-the-union-of-the-two-readings-rather-than-either-one)** — A residue only a pivot can remove was hidden by the scaling, and the repair is the union of the two readings rather than either one
+- **[D93](#d93-the-ratio-tests-dense-scan-walks-the-nonbasic-set-and-the-bar-it-was-to-be-judged-against-cannot-be-measured-on-this-host)** — The ratio test's dense scan walks the nonbasic set, and the bar it was to be judged against cannot be measured on this host
 
 ---
 
@@ -6467,3 +6468,430 @@ optimum: an implied bound is sound but slack, and nothing puts the variable on
 it. Whether a `Q` of 26.7 is an answer getting worse or a bound going slack is
 not settled here, and it is what refused two of the three candidate repairs.
 Handed to `PLAN.md`.
+
+---
+
+## D93 — The ratio test's dense scan walks the nonbasic set, and the bar it was to be judged against cannot be measured on this host
+
+### The question, and what was expected
+
+D84 refused multiple pricing and, in refusing it, pointed here. The profile it
+took while checking its own premise put `admit_candidate` at **14.98% of
+instructions on `truss`** against `ftran_prefix` at 6.68% — called once per
+variable of the pricing row, the O(`nvar`) half of D61's 36.5%, and the half
+neither D82 nor D84 touched. `PLAN.md` phase 6 item 3a carried it with an
+instruction attached: it "needs its own decision before any code".
+
+On `truss` the model has 9806 variables and 1000 rows, so 10.2% of what the
+dense scan visits is basic and can only be rejected. **The expectation was that
+not visiting them would show as a time saving** — the rejections are the large
+majority of the calls, `admit_candidate`'s basic test is its first line, and a
+tenth of the calls removed against a function that is a seventh of the program
+looked like it should be visible on a clock.
+
+It is not visible on this clock, and the reason is not that the effect is
+smaller than expected. **It is that this host cannot resolve an effect of this
+size at all**, which took a control nobody had asked for to establish.
+
+### The decision came before the code, and the pre-code record is on disk
+
+The source item required this one to have its own decision before any
+implementation. That decision was taken and written down in
+`.planning/phases/01-candidate-admission-in-the-ratio-test/01-CONTEXT.md` on
+**2026-08-12**, as thirteen numbered items D-01 through D-13 — what would be
+changed, what would not, how it would be verified, and what threshold the
+result would be read against — and it was committed before the first
+implementation commit `f2ed4bc` existed. D93 is that decision closed with the
+measurement, not a decision reconstructed after the fact from what the code
+turned out to do. D-04 in particular pre-authorised the refusal path: if the
+measurement did not pay, the phase would close with an entry shaped like D82
+and D84 rather than roll on to the next candidate path.
+
+### What was built
+
+A persistent bitmap `s->nbmark`, one `uint64_t` per 64 variables, holding
+exactly `{v : status[v] != JM_BASIC}`, walked by the dense branch of
+`dual_ratio_test` in place of `for (v = 0; v < nvar; v++)`. Maintained at eight
+membership sites, rebuilt nowhere else, and cross-checked at run time in every
+non-`NDEBUG` build against the scan it replaced — once per iteration, over both
+branches, charging no work. `admit_candidate`'s body is untouched (D-02).
+
+Commits: `f2ed4bc` (the walk), `ebe052f` (the tests and their calibration),
+`b65d9f2` (the charge), `44c0ef6` and `e8c2f58` (the campaigns and the
+baselines).
+
+### The null result, and it is the strongest sentence in this entry
+
+The change was designed to be an observable no-op, so what it did *not* move is
+the claim worth checking, and it is checkable:
+
+**110 solution digests unmoved and 29 infeasibility verdicts unmoved, over 139
+instances, zero answers changed.** The counts are not interchangeable and the
+distinction is worth keeping: 94 standard plus 16 Kennington instances publish
+a `digest=` field and all 110 are bit-identical to the committed record; the 29
+infeasible instances publish no digest at all, and their invariant is
+`expected=infeasible verdict=ok det=ok`, every field of which is unmoved. 139 is
+the instance count, not the digest count.
+
+It is stronger than that. **Iterations are 1.0000x on every instance
+individually**, not merely in the mean — including `pilot87`'s 50,850 and
+`ken-18`'s 113,652. A digest is evidence about the endpoint; an identical
+iteration count on a 113,652-iteration solve is evidence about the whole path.
+And with the work field masked, **every per-instance line of all five records is
+byte-identical** to the pre-phase record, with a canary confirming the mask does
+not hide a real change. The only column that moved anywhere is the one the
+accounting deliberately changed.
+
+The warm campaigns agree: 92 of 94 and 11 of 16 measured, 0 disagreed, 0
+rejected by the independent checker on either side of any pair. `build_warm_basis`
+is one of the eight membership sites and the gate never loads a basis, so those
+two runs are the only cover that site gets.
+
+### The work counter, and the definition change underneath it
+
+D16 makes the work unit a public contract, so what the dense branch charges is
+part of the record and changing it is one-way. It charged `s->nvar`; it now
+charges what the scan actually visited. **Dense-scan work figures recorded
+before `b65d9f2` are not comparable with those after — they are not smaller,
+they are differently defined.**
+
+Both sides, on named instances, from the committed baselines at `64efcc6` and
+at `e8c2f58`:
+
+| instance | rows | before | after | ratio |
+|---|---|---|---|---|
+| `truss` | 1000 | 1,154,610,114 | 1,138,043,114 | 0.9857x |
+| `gfrd-pnc` | 616 | 3,485,629 | 3,287,277 | **0.9431x**, the largest fall on the set |
+| `stocfor3` | 32370 vars | 815,652,468 | 815,652,468 | **1.0000x — it never takes the dense branch** |
+
+The pinned six-variable model in the unit suite moved 8545 → 8536, and the nine
+units close exactly: 3 iterations × (6 variables − 3 nonbasic).
+
+Per set, as a geometric mean of per-instance ratios (D46): standard
+**0.9779x**, infeasible **0.9857x**, Kennington **0.9860x**. Down on 118
+instances and **up on none**, which is what `visited <= nvar` requires. 21
+instances never take the dense branch at all and their work is unchanged.
+
+**The saving is an exact whole multiple of the row count on all 139 instances**,
+which inverts to the number of dense-branch calls without instrumenting
+anything — `truss` 16,567,000 / 1000 = **16,567 calls**, `gfrd-pnc` 198,352 /
+616 = 322. A saving that was not this quantity would land on a multiple by
+chance about one time in `nrow`, so 139 hits is a confirmation of the edit
+stronger than anything in the unit suite. The quotient counts **calls to
+`dual_ratio_test`, not iterations**: `galenet` makes 2 of them in a solve that
+reports `iters=1`, so at least one call happens somewhere that is not a counted
+iteration.
+
+### The threshold, derived rather than asserted, and the citation that has to be right
+
+D-13 fixed the bar at **4.2%**, and it is not a preference:
+
+> 4.2% = 3 × 1.4%, where 1.4% is the repeatability **D81** measured on this
+> harness — JAOS byte-identical at every rung of `bench/compare`, its own
+> cross-rung ratios reading 1.007x, 1.014x and 1.012x over four separate
+> sessions with iterations exactly 1.000x.
+
+**The 1.4% is D81's and not D83's**, and the distinction matters because D83
+also carries a 1.4% — "Clp lands within 1.4% of HiGHS on total time" — which is
+a different quantity in a different table and reads as confirmation to anyone
+who greps for the figure. The phase's own plan documents made that slip twice.
+
+The second figure in circulation is **D60's 1.3%**, estimated a different way on
+the same harness; D81 records its own 1.4% as consistent with it. Three times
+1.3% would be 3.9%. **Nothing in this entry turns on the reconciliation**: no
+reading of the data lands between 3.9% and 4.2%.
+
+### The time ratio, which is the verdict D45 asks for
+
+Same-instance, same-session, `J=1`, both binaries built by identical procedure
+from `git archive` — the parent from `2b07de1`, the pre-phase tree, and the
+candidate from `HEAD`. Six rounds, three in each running order. Geometric mean
+of per-instance ratios over the standard set:
+
+**0.9709x — a 2.91% improvement, against a 4.2% bar.** The ratio of totals
+beside it reads 0.9847x and is *not* the answer (D46): `pilot87` and `maros-r7`
+are 74% of this set's work and are exactly where this change is invisible.
+`truss` on its own line, 1.496s → 1.460s, **0.9759x**. It is where the cost was
+found and it does not decide alone.
+
+Where it bites and where it does not, named rather than averaged: `dfl001`
+0.9136x, `greenbea` 0.9505x, `greenbeb` 0.9513x, `d2q06c` 0.9701x, `25fv47`
+0.9887x — against `pilot87` **0.9972x** and `maros-r7` **0.9987x**, whose work
+ratios of 0.9956x and 0.9987x predicted precisely that. A time ratio taken on
+D46's two names alone would have read 0.998x and called the change dead. Moving
+the other way: `modszk1` 1.0588x, `perold` 1.0583x, `d6cube` 1.0571x, `fit2p`
+1.0322x, and `pilot` at 1.0490x which is a minimum-estimator artifact — it is
+faster in 5 of 6 paired rounds.
+
+Two limits on the instrument, both stated rather than smoothed. The runner
+prints seconds as `%8.3f`, so **8 of the 94 carry no ratio at all** —
+`adlittle afiro blend kb2 recipe sc105 sc50a sc50b`, excluded and named rather
+than floored at half a quantum — and **42 more read exactly 1.0000x** because
+both minima land on the same millisecond. Half the geometric mean is made of
+instances that could not have shown a difference of this size whatever the
+truth was.
+
+### The verdict does not depend on the estimator — but it does depend on having run six rounds
+
+Six defensible readings of the pooled data run from 2.16% to 4.07% and none
+reaches 4.2%, so among estimators that pool all six rounds the verdict is
+stable. **That is the whole of what stability was established for, and it is
+narrower than it sounds.**
+
+The protocol as originally written asks for three alternating rounds. Run
+literally, pooled minimum over three:
+
+| three rounds | reading |
+|---|---|
+| rounds 1–3, candidate first | **1.01%** |
+| rounds 4–6, parent first | **5.12% — over the bar** |
+
+**A conforming three-round run in the parent-first order would have reported
+ACCEPT.** The reason is running order: within a round the two binaries run
+adjacent in time and the second slot is the faster one, so an alternation that
+puts the same binary first every round hands the other a systematic advantage.
+Measured, that advantage is **2.4 percentage points** — the same size as the
+effect being measured (rounds 1–3 read 0.9865x paired, rounds 4–6 0.9624x).
+
+This is the most transferable thing the phase learned. **Any same-instance time
+ratio on this host that alternates in one direction only is measuring the
+order.**
+
+### The negative control, which is what actually closes this
+
+It was in the data and nobody ran it. **Nine standard-set instances have
+bit-identical work under both binaries** — `01-03` identifies them as never
+taking the dense branch, and unchanged work *means* zero dense calls, since a
+single one would strictly reduce the charge. The change therefore **provably
+cannot speed them up**. Eight of the nine carry a time ratio:
+
+| reading | the eight | the true answer |
+|---|---|---|
+| paired by round | **0.9699x** — a 3.0% "improvement" | **0.0%** |
+| pooled minimum | **0.9356x** — a 6.4% "improvement" | **0.0%** |
+
+**A 3.0% to 6.4% improvement on instances where the improvement is zero, against
+a 2.91% headline.** Two of them appear in the phase's own tables of where the
+change bites: `stocfor3` at 0.9533x, read as a place the change works, and
+`fit2p` at 1.0322x, read as "genuinely mixed". Neither reading can be true.
+
+That is why the finding here is **"the bar cannot be tested on this host"**
+rather than "the candidate missed the bar". Three further readings agree:
+
+- the same binary against itself across rounds, measured the way D81 measured
+  its 1.4%, reads **6.27%** over the 86 rateable instances, **8.67%** over the
+  25 the clock can see, and **9.68%** over the 10 largest — restricting to
+  substantial instances makes it worse, so it is the host and not quantization;
+- a bootstrap confidence interval on the protocol figure is
+  **[−4.21%, −1.72%]**, and on the largest defensible reading the probability
+  of clearing 4.2% is **0.41**;
+- single-round readings span **5.13 percentage points**.
+
+**The bar is three times a repeatability figure four times smaller than the one
+this reading actually exhibits.** D17 already refused this host for published
+figures; what this entry adds is the price, in the currency of a specific gate.
+
+### Callgrind: the change costs instructions
+
+Both binaries under callgrind on `truss` at `-j 1`, in one session. Running the
+parent too was not in the plan and is what makes the reading mean anything —
+D84's 14.98% records no build, so a fresh number compared against it alone
+compares two unknowns. The parent reproduces D84 to within 0.19 of a
+percentage point, which is what licences the rest.
+
+| | parent | candidate | delta |
+|---|---|---|---|
+| `admit_candidate` | 8,060,038,036 (14.79%) | 7,861,234,036 (14.20%) | −198,804,000 |
+| `simplex.c:run`, what the scan inlines into | 18,714,996,570 (34.33%) | 19,709,931,702 (35.59%) | **+994,935,132** |
+| `ftran_prefix`, the nominated control | 3,594,648,962 (6.59%) | 3,679,427,488 (6.64%) | +84,778,526 |
+| **PROGRAM TOTALS** | **54,507,175,480** | **55,377,182,992** | **+870,007,512** |
+
+**The candidate executes 1.60% MORE instructions.** `admit_candidate`'s share
+did fall, and the caller took back five times what the callee shed. **That is a
+relocation, not a saving**, and it is only visible because both numbers were
+taken. Any future reading of this change that reports the 14.79% → 14.20% alone
+is reporting the half that flatters it.
+
+**The profile contains two solves, not one.** The bench runner re-solves each
+instance to establish `det=ok`, so the annotation shows `simplex.c:run (2x)` at
+99.82% of instructions. Both builds do it, so the +1.60% and the 5:1 ratio are
+unaffected — they are ratios of two numerators that scale together. **Per-call
+figures are not**, and the per-solve arithmetic is:
+
+- 16,567 dense calls per solve on `truss`, each skipping 1000 basics and
+  visiting 8806 nonbasics, so 16,567,000 skips and 145,889,002 visits per solve
+  — and 291,778,004, twice the latter, is what callgrind's call count records on
+  the bitmap loop;
+- the skipped calls are `admit_candidate`'s cheapest path, one status load and a
+  return: 198,804,000 / 33,134,000 = **6.0 instructions saved per skipped call**;
+- the bitmap machinery costs 994,935,132 / 291,778,004 = **3.41 instructions
+  more per variable still visited**;
+- so it pays 3.41 on 145.9M visits per solve to save 6.0 on 16.6M skips.
+  **995M paid against 199M saved.** The bet was that skipping a tenth of the
+  variables would pay for the indirection, and on instruction count it does not,
+  by a factor of five.
+
+The 16,567 is corroborated twice over: it is the work saving divided by the row
+count, computed from two committed baselines that never saw a profiler, and
+16,567 × 9806 = **162,456,002**, which is the `admit_candidate` call count D61
+recorded on `truss` in an entirely different session.
+
+Callgrind's own controls are better than the one that was nominated.
+`ftran_prefix` moved 2.36% without being touched, because LTO privatised it
+differently between the two builds (`ftran_prefix.lto_priv.0` against plain
+`ftran_prefix`) — under `-flto` no function is truly untouched. But **24
+functions above 1e6 instructions are identical to the digit in both binaries**,
+`shift_to_feasible` at 4,417,992,736 among them. A control that cannot change is
+worth more than any headline in the same table.
+
+### One reading in the change's favour, and its limit
+
+Over the 25 instances the clock can actually see, log work ratio against log
+time ratio gives **r = +0.684 with a permutation p of 0.0003**, rising to
+**+0.848 on the 10 largest**. Work saved does predict time saved, on the
+instances where either can be measured, and that is a real dose-response rather
+than a story fitted to a mean.
+
+Over all 86 rateable instances the slope collapses to **+0.15 against a fitted
+intercept of −2.24%**. So most of the 2.91% headline is intercept and not
+response — an offset applying equally to instances the change cannot touch,
+which is the negative control seen from the other side. Both halves belong in
+the record; either alone misleads.
+
+### What was refuted
+
+The part that pays, in enough detail that nobody re-derives it.
+
+**The membership invariant is that a variable is not basic, and never that it
+has a finite bound.** A structure keyed on bound status silently drops every
+free variable, and `JM_FREE` is assigned at three sites (`src/simplex.c:800`,
+`:910`, `:1217`). The corollary held in the other direction too: the three
+bound-flip sites — `apply_flips`, `repair_dual_infeasibility`, `arm_reentry` —
+were deliberately left unhooked, because they toggle `JM_AT_LOWER` against
+`JM_AT_UPPER` and never touch `JM_BASIC`. Hooking them would be maintenance
+keyed on bound status, which is the same mistake wearing the opposite sign.
+
+**A site table built by grepping for assignments to the status array is
+incomplete.** It finds six membership-changing sites; there are **eight**.
+`take_best_if_better` (`src/simplex.c:2635`) and `restore_settled` (`:2656`)
+each restore the whole status array by `memcpy` and carry no assignment form at
+all. A membership structure left stale across either of them desynchronises
+silently — the solve continues and the answer is merely different. Both rebuild
+`s->where` from `s->basis` immediately after the restore, and the membership
+rebuild belongs in exactly that place for exactly the same reason.
+
+**A missed `remove` is a performance fault and not a correctness one, and the
+run-time cross-check is right to be silent on it.** It leaves the bitmap a
+superset of the nonbasic set; the extras are basic; `admit_candidate`'s first
+test rejects a basic variable; the candidate set is identical. The
+correctness-dangerous fault is a missed `insert` — a nonbasic variable dropped
+from the bitmap is never offered to the ratio test at all. Anyone calibrating
+this instrument on a missed `remove` and reading its silence as a pass will
+leave it uncalibrated.
+
+**The work charge in `pivot` is not the same charge and must not be made to
+match.** `src/simplex.c:2174` still bills `s->nvar` and is correct to: that loop
+walks `[0, nvar)` and reads every variable's status through `update_dual`, so
+the dimension *is* what it looked at. A plan criterion requiring no remaining
+`nvar * JM_WORK_NONZERO` in the file was refused on those grounds; meeting it
+would have altered work units on every instance in every campaign with nothing
+pinned to catch it.
+
+**And the estimator claim this phase first made about itself does not hold.**
+"The verdict does not depend on the choice of estimator" is true only among
+estimators that pool all six rounds; on the protocol as literally written it is
+false, and 5.12% is on the wrong side of the bar. The stability that licences a
+verdict here comes from having run six rounds in two orders, not from the
+arithmetic being robust.
+
+### Harris's two passes, and the case that had to be refused
+
+The two-pass ratio test's guarantee is a function of the candidate set and the
+order the candidates arrive in, and nothing else. **Both are preserved by
+construction, which is why this phase is not the refused half of D82 and D84.**
+`admit_candidate`'s body — the `JM_BASIC` test, `PIVOT_MIN`, the per-status sign
+test, the clamped numerator — is untouched, verified against the diff. The
+bitmap is walked ascending in `v`, exactly as `for (v = 0; v < nvar; v++)`
+produced, and the contract at `src/simplex.c:1562-1568` says why that is not a
+detail: `bfrt_walk`, `jm_harris_pick` and `apply_flips` each break an exact tie
+by whichever candidate they meet first, so any other order is a different
+trajectory.
+
+**Preserved by construction is a claim, so the case the instrument must refuse
+was built and confirmed refused before its passing was treated as evidence.**
+Two faults, both injected and both reverted:
+
+| injected fault | what caught it |
+|---|---|
+| `jm_nonbasic_remove` made a no-op | two unit tests — `test_nonbasic_survives_interleaved_eviction` and `test_nonbasic_notices_a_missed_hook`. The run-time cross-check was **silent, and correctly so** |
+| `jm_nonbasic_insert` made a no-op | the run-time cross-check aborted a solve: `src/simplex.c:1687: dual_ratio_test: Assertion 'dn == n' failed` |
+
+`test_nonbasic_notices_a_missed_hook` is the deliberately broken maintenance
+sequence: it runs the eviction sequence with one hook omitted and asserts the
+bitmap does **not** match the status array, then asserts it does once the hook
+runs. A predicate rather than an assertion helper, precisely so the negative
+case can use it.
+
+The cross-check runs over the pattern branch as well as the dense one, which
+makes it a run-time proof of the pre-existing pattern/dense equivalence claim
+that had never had one. It costs nothing shipped: absence of the assertion text
+was confirmed on the release object, not assumed from the `#ifndef NDEBUG`.
+
+And the strongest evidence that the order held is not an assertion at all —
+it is 139 iteration counts identical to the digit on real instances.
+
+### The verdict, and why the code stayed
+
+**INCONCLUSIVE.** The measurement did not reach its bar, and the honest reason
+is that the bar is not reachable on this host rather than that the candidate
+fell short of it.
+
+**The code stays in the tree**, under the developer's pre-authorisation of
+2026-08-12 taken before execution began and over the stated alternative of
+reverting. What justifies keeping a structure on evidence that did not clear a
+threshold, said plainly:
+
+- it is a **proven observable no-op** on every published answer — 110 digests,
+  29 infeasibility verdicts, 139 iteration counts, five records byte-identical
+  once the work field is masked;
+- work fell on 118 instances and **rose on none**;
+- it is determinism-safe by construction, and the cross-check it brought is
+  permanent cover for an equivalence claim the solver had been asserting in a
+  comment since before this phase.
+
+**What is unproven is that it buys wall-clock time**, and one instrument says it
+costs instructions. This entry is not a claim that it pays. Nothing here should
+be cited as evidence that walking a nonbasic set is faster than walking the
+model; what it is evidence for is that doing so changes no answer, and that
+deciding whether it is faster needs a host this project does not have.
+
+### What is left open
+
+`PLAN.md` is archived since 2026-08-12; open work lives in
+`.planning/ROADMAP.md`, and these go there.
+
+- **Restricting the candidate set ahead of `bfrt_walk` and `jm_harris_pick`** —
+  the higher-ceiling, higher-risk path, and the only one that puts Harris's
+  guarantees at stake. Not attempted here and **not refused**. It remains
+  available as its own decision, and it would need one.
+- **Widening the hyper-sparse path** so the pricing row has a pattern more
+  often, which attacks the same cost at its root. Phase 3,
+  `REQ-hyper-sparse-downstream-results`.
+- **A trajectory sweep over `REFACTOR_EVERY`.** Raised as the roadmap's Open
+  Question 5 and not scheduled here, though this phase changed the pivot path.
+  D39 and D82 both found that which instances break is scattered rather than
+  ordered in a method constant.
+- **A host that can resolve 4.2%.** Phase 5 already carries this as a blocker
+  under D17; the negative control above is the first measurement of what its
+  absence costs a specific gate rather than a statement of principle.
+- **The runner's `%8.3f`.** 8 instances of the standard set carry no time ratio
+  and 42 more read exactly 1.0000x. Every future time ratio on this set inherits
+  that. It is a two-line change to `bench/run.c`, not made here because a source
+  edit mid-measurement invalidates the measurement.
+- **Nothing in the repository reads the `baseline: NOT COMPARED` line**, which
+  exists so a record produced by a `-w` run can be told from a checked one. It
+  went unread long enough for such a record to sit committed as the standard
+  set's own record. `preflight.sh` is where the check belongs.
+- **`galenet` makes two calls to `dual_ratio_test` in a solve reporting one
+  iteration.** A small unrecorded fact about where the ratio test runs, not a
+  defect, and not chased here.
