@@ -6922,7 +6922,7 @@ is not yet evidence of anything.
 ### What is left open
 
 `PLAN.md` is archived since 2026-08-12; open work lives in
-`.planning/ROADMAP.md`, and these go there.
+`TODO.md`, and these went there.
 
 - **Restricting the candidate set ahead of `bfrt_walk` and `jm_harris_pick`** —
   the higher-ceiling, higher-risk path, and the only one that puts Harris's
