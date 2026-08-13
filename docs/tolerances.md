@@ -251,7 +251,7 @@ sum equals a bound. That is not a judgement and has nothing to tune: the only
 thing that can separate two numbers that should be equal is the rounding in
 the sum, so the window is a small multiple of `DBL_EPSILON` times the traffic
 through it. Making it a tunable instead cost 02-04 a campaign, and the raw
-readings are in `.planning/phases/02-presolve-and-postsolve/02-04-MEASUREMENT/`.
+readings are in `bench/measurements/02-04/`.
 
 **Bound tightening is not here because it does not ship.** 02-04 built the
 family, measured six variants of it against the standard set and refused all

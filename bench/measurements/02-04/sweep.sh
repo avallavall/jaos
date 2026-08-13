@@ -4,8 +4,8 @@
 # on both sides").
 #
 # Run from inside WSL, from the repository root:
-#     bash .planning/phases/02-presolve-and-postsolve/02-04-MEASUREMENT/sweep.sh eps
-#     bash .planning/phases/02-presolve-and-postsolve/02-04-MEASUREMENT/sweep.sh rounds EPSVALUE
+#     bash bench/measurements/02-04/sweep.sh eps
+#     bash bench/measurements/02-04/sweep.sh rounds EPSVALUE
 #
 # Two rules this script exists to enforce, because both have been got wrong
 # in this repository before and both fail silently:
@@ -24,7 +24,7 @@ set -u
 
 REPO=$(git rev-parse --show-toplevel) || exit 1
 cd "$REPO" || exit 1
-OUT=$REPO/.planning/phases/02-presolve-and-postsolve/02-04-MEASUREMENT
+OUT=$REPO/bench/measurements/02-04
 mkdir -p "$OUT"
 
 MODE=${1:-eps}

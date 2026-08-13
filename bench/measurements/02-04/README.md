@@ -8,9 +8,9 @@ without trusting the summary.
 ## How to reproduce
 
 ```sh
-bash .planning/phases/02-presolve-and-postsolve/02-04-MEASUREMENT/sweep.sh eps
-bash .planning/phases/02-presolve-and-postsolve/02-04-MEASUREMENT/sweep.sh rounds 1e-9
-bash .planning/phases/02-presolve-and-postsolve/02-04-MEASUREMENT/summarise.sh
+bash bench/measurements/02-04/sweep.sh eps
+bash bench/measurements/02-04/sweep.sh rounds 1e-9
+bash bench/measurements/02-04/summarise.sh
 ```
 
 `sweep.sh` runs `make clean` between every setting and builds `canary.c`

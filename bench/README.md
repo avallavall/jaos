@@ -249,7 +249,7 @@ But a plan whose *deliverable is a verdict* — a same-instance time ratio, a
 profile, anything the record cannot carry — has to leave its raw readings
 somewhere, or the one number that decided the phase becomes the one number
 nobody can check. They go in
-`.planning/phases/<phase>/<plan>-MEASUREMENT/`: the timing logs, any callgrind
+`bench/measurements/<id>/`: the timing logs, any callgrind
 annotations, and the analysis script that turned them into the figure.
 
 Phase 1 is why. Verification re-derived 27 of its 29 must-haves straight from

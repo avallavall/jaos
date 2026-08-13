@@ -1784,7 +1784,7 @@ static jaos_model *make_cascading_chain(int64_t n)
  * between settings, rows removed 6060, 7178, 7549, 7596, 7598, 7598, 7598,
  * 7598 and the cost flat at 97.2 s to 103.6 s. What last moved this count
  * was that sweep, and nothing since. The raw readings are in
- * .planning/phases/02-presolve-and-postsolve/02-04-MEASUREMENT/. */
+ * bench/measurements/02-04/. */
 static void test_the_round_cap_is_the_one_its_sweep_set(void)
 {
     jaos_model *m = make_cascading_chain(40);
