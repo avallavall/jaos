@@ -167,20 +167,39 @@ then, do not — a refusal whose premise has not changed just fails again.
   own decision before any code.
 - `galenet` makes two `dual_ratio_test` calls in a one-iteration solve —
   calls are not iterations in any work-saved arithmetic (D93).
-- **The basis `jm_postsolve_solved` publishes can break the count promise.**
-  `jaos.h` promises exactly `num_row` of the `num_col + num_row` statuses are
-  basic. Measured: a row frozen by a singleton column survives to that path
-  and is published basic, and so is a singleton column recovered strictly
-  inside its own box — a one-row model of that shape publishes 2 basic
-  against `num_row = 1`, and the two-row model in
-  `test_singleton_col_between_two_removals_solved_path` publishes 3 against 2.
-  The status is at least defined now (it was read from the heap until F1's
-  fix). Cost is a lost warm start, not a wrong answer: `build_warm_basis`
-  falls back to cold when the count does not hold, and no checker or digest
-  reads a status. The fix is not a blanket value — the row's status pairs
-  with where its singleton column landed, the column takes the bound the row
-  imposed and the row takes the one it rests on — and it wants its own
-  measurement, on `make warm` and `make warm-kennington`, since it changes
-  what every re-solve starts from. `jm_postsolve_expand` needs the same
-  question asked: there a relaxed row's status comes from the reduced solve,
-  which computed it against the RELAXED bounds.
+- **A frozen row is never rechecked, so an infeasible model can be published
+  OPTIMAL.** `min x0 s.t. x0 + x1 = 100, x0 in [4,4], x1 in [0,3]` has no
+  feasible point, and `-DJAOS_NO_PRESOLVE` says so. With presolve on, the
+  singleton column relaxes row0 and freezes it; the row pass
+  (`src/presolve.c:595`) and the activity pass (883) both skip a frozen row,
+  so nothing revisits it, and the replay's intersection comes out empty. Under
+  `-DNDEBUG`, which is how `bench/run` is built, it publishes `x1 = 96`
+  against a box of `[0,3]` — OPTIMAL, `max_col_violation = 93`. With asserts
+  live it aborts on `assert(want_lo <= want_hi)`. Reachable through both
+  postsolve paths. Predates 02-05 (HEAD judged against the original pair and
+  came out empty the same way). This is the catastrophe `netlib-infeas`
+  exists to catch and none of its 29 instances has the shape: **the repair
+  needs an instance of this shape added to that set**, or the set cannot see
+  it. Found by review, 2026-08-14; the comment in `ps_replay_one` states the
+  premise that fails.
+- **The basis the singleton-column family publishes breaks the count
+  promise.** `jaos.h` promises exactly `num_row` of the `num_col + num_row`
+  statuses are basic. It does not hold when the replay recovers the column
+  strictly inside its own box: the column is published basic, and so is the
+  row it was relaxed out of, which is one basic too many. Minimum case, on
+  the `jm_postsolve_expand` path: `min x0 s.t. x0 + x1 = 7, x0 in [0,20],
+  x1 in [0,100] cost 0` publishes 2 basic against `num_row = 1`, where
+  `-DJAOS_NO_PRESOLVE` publishes row0 `AT_LOWER` and 1. The two-row
+  `jm_postsolve_solved` model in
+  `test_singleton_col_between_two_removals_solved_path` publishes 3 against
+  2, and that test pins the count so the repair announces itself. When the
+  column lands on its own bound instead, the count is right —
+  `make_singleton_col_model` is that case. So the discriminator is which
+  bound determined the value, which `ps_replay_one` has already computed
+  when it picks `want_lo`; `JM_PS_FREE_COL_SINGLETON` derives its row's
+  status as the mirror of its column's, with the row-count argument written
+  beside it (`src/presolve.c` 1619-1634), and that is the pattern. Cost is a
+  lost warm start, not a wrong answer — `build_warm_basis` falls back to cold
+  when the count does not hold, and no checker or digest reads a status — so
+  the repair is measured on `make warm` and `make warm-kennington`, which is
+  what it changes.

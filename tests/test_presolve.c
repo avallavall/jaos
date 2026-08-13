@@ -1086,18 +1086,22 @@ static void test_singleton_col_between_two_removals_solved_path(void)
     const double expected_x1 = 13.0;
     TEST_ASSERT_EQUAL_MEMORY(&expected_x1, &x[1], sizeof x[1]);
 
-    /* row0 is the surviving frozen row: nothing but this path's own
-     * initialisation writes its status, so this asserts the value is
-     * DEFINED, not that it is the best one. Pinned deliberately, with
-     * what it currently costs: three of these six statuses are basic
-     * against num_row = 2, so the published basis breaks jaos.h's count
-     * promise and the next solve falls back to a cold start. The change
-     * that pairs a frozen row's status with where its singleton column
-     * landed is what moves these two numbers, and TODO.md carries it —
-     * re-pin them there, not here, and not reflexively. */
+    /* The basis this publishes is wrong, and pinned as a change
+     * detector rather than as a contract. jaos.h promises exactly
+     * num_row of the num_col + num_row statuses are basic; three of
+     * these six are, against num_row = 2. The same model built with
+     * -DJAOS_NO_PRESOLVE publishes row0 AT_LOWER and two basic, which
+     * is the right answer: row0's activity rests on its bound, and
+     * neither singleton column left a basic slot free, both having been
+     * recovered strictly inside their own box.
+     *
+     * Not asserted here: WHICH status row0 carries. That is what the
+     * repair changes, and a test demanding today's value would fail the
+     * person fixing it. The count is what says the repair landed —
+     * expect this 3 to become 2. TODO.md carries the defect; re-pin
+     * there, deliberately. */
     jaos_basis_status cs[4], rs[2];
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_basis(m, cs, rs));
-    TEST_ASSERT_EQUAL_INT(JAOS_BASIS_BASIC, rs[0]);
     int64_t basic = 0;
     for (int64_t j = 0; j < 4; j++) basic += (cs[j] == JAOS_BASIS_BASIC);
     for (int64_t i = 0; i < 2; i++) basic += (rs[i] == JAOS_BASIS_BASIC);

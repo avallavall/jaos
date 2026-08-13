@@ -1540,14 +1540,24 @@ static void ps_replay_one(jaos_model *orig, const jm_presolve *p, int64_t r)
          * recorded bounds describe the same set of columns, which the
          * original bounds do not.
          *
-         * The recorded pair is reachable by construction. When this
-         * record was pushed the row was relaxed to [row_lo - cmax,
-         * row_hi - cmin], and every later push kept the row satisfiable,
-         * so the partial activity arriving here lies in that relaxed
-         * range — exactly the set from which some point of this column's
-         * own box brings the row back inside [row_lo, row_hi]. That is
-         * what the intersection below computes, and why it is never
-         * empty.
+         * The recorded pair is what the intersection below is computed
+         * against. When this record was pushed the row was relaxed to
+         * [row_lo - cmax, row_hi - cmin]; if the partial activity
+         * arriving here lies in that relaxed range, it lies in exactly
+         * the set from which some point of this column's own box brings
+         * the row back inside [row_lo, row_hi], and the intersection is
+         * non-empty.
+         *
+         * That premise is the row still being satisfiable, and it is NOT
+         * checked anywhere once the row is frozen: both the row pass and
+         * the activity pass skip a frozen row, so nothing revisits it
+         * for infeasibility after the relaxation widened it. A model
+         * where the row cannot be satisfied at all reaches here with an
+         * empty intersection — `min x0 s.t. x0 + x1 = 100, x0 in [4,4],
+         * x1 in [0,3]` is infeasible, and this publishes x1 = 96 under
+         * -DNDEBUG (how bench/run is built) or trips the assert below
+         * otherwise. That defect predates this record's own bounds and
+         * is not repaired here; TODO.md carries it.
          *
          * Each record replayed after this one closes its own gap the
          * same way: a fixed column adds back the a*v it subtracted from
