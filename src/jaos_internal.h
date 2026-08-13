@@ -509,7 +509,14 @@ typedef enum {
  *     (see jm_postsolve_expand).
  *   JM_PS_SINGLETON_COL: index=row (which survives, relaxed), index2=the
  *     column removed, coef=the entry's coefficient, lo/hi=the column's own
- *     bounds at the moment it was removed.
+ *     bounds at the moment it was removed, row_lo/row_hi=the row's own
+ *     current bounds at that same moment, BEFORE this record's relaxation.
+ *     The replay runs mid-LIFO, when sol_row[index] holds the columns
+ *     that were live at push time except index2 itself, so the push-time
+ *     pair is the only one that activity can be judged against; the
+ *     original pair only becomes the right target once every
+ *     earlier-pushed record has replayed (see ps_replay_one, which
+ *     carries the containment argument).
  *   JM_PS_FREE_COL_SINGLETON: index=row (removed), index2=column (removed),
  *     coef=the entry's coefficient, lo/hi=the row's own *current* (already
  *     shifted by every value-determined column removed before it) bounds at
@@ -538,6 +545,7 @@ typedef struct {
     double cost;
     double coef;
     double lo, hi;
+    double row_lo, row_hi;
     bool row_tightens_lo, row_tightens_hi;
 } jm_presolve_rec;
 

@@ -849,7 +849,8 @@ JAOS_NODISCARD jaos_status jm_presolve_run(const jaos_model *m, jm_presolve *p,
                     if (!ps_push(p, (jm_presolve_rec){
                             .tag = JM_PS_SINGLETON_COL,
                             .index = i, .index2 = j, .coef = a,
-                            .lo = cur_cl[j], .hi = cur_cu[j] })) {
+                            .lo = cur_cl[j], .hi = cur_cu[j],
+                            .row_lo = cur_rl[i], .row_hi = cur_ru[i] })) {
                         ret = JAOS_ERR_OUT_OF_MEMORY;
                         goto cleanup_scratch;
                     }
@@ -1529,16 +1530,34 @@ static void ps_replay_one(jaos_model *orig, const jm_presolve *p, int64_t r)
         assert(i >= 0 && i < orig->num_row);
         assert(j >= 0 && j < orig->num_col);
 
-        /* Row i survived (it was only relaxed, never removed), so its
-         * dual and its "rest" activity (every OTHER live column's
-         * contribution) are already final, copied in by the caller's own
-         * row loop before any arena replay ran. x_j, cost 0, is recovered
-         * as whichever point of its own range brings the row's FULL
-         * activity back inside its ORIGINAL bounds -- always possible by
-         * construction of the relaxation this record's own forward pass
-         * computed. */
+        /* Row i survived (it was only relaxed, never removed), but its
+         * activity is NOT final here: this replay runs mid-LIFO, so
+         * sol_row[i] holds the columns that were live when this record
+         * was pushed, except this record's own j — every column removed
+         * BEFORE it replays AFTER this one and has not added its share
+         * yet. So x_j is judged against the row bounds recorded at that
+         * same moment, never the original pair: partial activity and
+         * recorded bounds describe the same set of columns, which the
+         * original bounds do not.
+         *
+         * The recorded pair is reachable by construction. When this
+         * record was pushed the row was relaxed to [row_lo - cmax,
+         * row_hi - cmin], and every later push kept the row satisfiable,
+         * so the partial activity arriving here lies in that relaxed
+         * range — exactly the set from which some point of this column's
+         * own box brings the row back inside [row_lo, row_hi]. That is
+         * what the intersection below computes, and why it is never
+         * empty.
+         *
+         * Each record replayed after this one closes its own gap the
+         * same way: a fixed column adds back the a*v it subtracted from
+         * both ends, and an earlier singleton column adds the point of
+         * its own range that lands inside the pair IT recorded. Those
+         * two pairs differ (a relaxation moves the ends by cmax and cmin,
+         * which are not equal), so this is containment at each step, not
+         * one shift undone. */
         const double rest = orig->sol_row[i];
-        const double rl = orig->row_lower[i], ru = orig->row_upper[i];
+        const double rl = rec->row_lo, ru = rec->row_hi;
         double lo_j, hi_j;
         if (rec->coef > 0.0) {
             lo_j = isfinite(rl) ? (rl - rest) / rec->coef : -HUGE_VAL;
@@ -1926,6 +1945,34 @@ JAOS_NODISCARD jaos_status jm_postsolve_solved(jm_presolve *p)
 
     memset(orig->sol_row, 0, (size_t)orig->num_row * sizeof(double));
     memset(orig->sol_dual, 0, (size_t)orig->num_row * sizeof(double));
+    /* This outcome is decided by rcol == 0 alone, so a ROW can still
+     * survive here — a row frozen by a singleton column keeps its slot
+     * while every one of its columns leaves. No replay writes a surviving
+     * row's status (its tag's own row is the one it removes), and
+     * jm_model_ensure_solution_arrays allocates without zeroing, so
+     * without this the status published for such a row, and copied into
+     * the next solve's warm start by jm_model_remember_basis below, is
+     * whatever the heap held. ASan and UBSan do not see an uninitialised
+     * read, which is why this survived the loop; valgrind on
+     * tests/test_presolve.c's solved-path case reports it.
+     *
+     * Zero is BASIC. That makes the published status DEFINED, which is
+     * what this memset is for, and it is all it claims: it does not make
+     * the basis satisfy jaos.h's promise that exactly num_row of the
+     * num_col + num_row statuses are basic. Measured on this path, a
+     * frozen surviving row and a singleton column recovered strictly
+     * inside its own box are BOTH basic, so a one-row model of that
+     * shape publishes 2. An over-count costs a warm start and not an
+     * answer — build_warm_basis falls back to cold when the count does
+     * not hold — and the right status for such a row pairs with where
+     * its singleton column landed, which is its own change with its own
+     * measurement. TODO.md carries it. */
+    memset(orig->sol_row_status, 0,
+           (size_t)orig->num_row * sizeof *orig->sol_row_status);
+    memset(orig->sol_col_status, 0,
+           (size_t)orig->num_col * sizeof *orig->sol_col_status);
+    static_assert(JAOS_BASIS_BASIC == 0,
+                  "the two memsets above publish BASIC by writing zero");
 
     for (int64_t r = p->arena_len - 1; r >= 0; r--)
         ps_replay_one(orig, p, r);

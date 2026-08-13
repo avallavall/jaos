@@ -167,3 +167,20 @@ then, do not — a refusal whose premise has not changed just fails again.
   own decision before any code.
 - `galenet` makes two `dual_ratio_test` calls in a one-iteration solve —
   calls are not iterations in any work-saved arithmetic (D93).
+- **The basis `jm_postsolve_solved` publishes can break the count promise.**
+  `jaos.h` promises exactly `num_row` of the `num_col + num_row` statuses are
+  basic. Measured: a row frozen by a singleton column survives to that path
+  and is published basic, and so is a singleton column recovered strictly
+  inside its own box — a one-row model of that shape publishes 2 basic
+  against `num_row = 1`, and the two-row model in
+  `test_singleton_col_between_two_removals_solved_path` publishes 3 against 2.
+  The status is at least defined now (it was read from the heap until F1's
+  fix). Cost is a lost warm start, not a wrong answer: `build_warm_basis`
+  falls back to cold when the count does not hold, and no checker or digest
+  reads a status. The fix is not a blanket value — the row's status pairs
+  with where its singleton column landed, the column takes the bound the row
+  imposed and the row takes the one it rests on — and it wants its own
+  measurement, on `make warm` and `make warm-kennington`, since it changes
+  what every re-solve starts from. `jm_postsolve_expand` needs the same
+  question asked: there a relaxed row's status comes from the reduced solve,
+  which computed it against the RELAXED bounds.

@@ -973,6 +973,225 @@ static void test_singleton_col_index_off_by_one(void)
 #endif
 }
 
+/* -- Singleton col composed with an earlier removal ------------------------
+ *
+ * min 2*x0 + x2 + 3*x3  s.t.  row0: x0 + x1 = 10   row1: x2 + x3 >= 1
+ * x0 in [4, 4] (loaded fixed); x1 in [0, 100], cost 0; x2, x3 in [0, 5].
+ *
+ * x0 fixes first (FIXED_COL, shifting row0's bounds to [6, 6]), THEN x1
+ * fires as a bounded singleton col — so x1's record replays BEFORE x0's
+ * adds its 4 back into row0's activity. The replay must judge x1 against
+ * the shifted pair [6, 6] it recorded, not the original [10, 10]: against
+ * the original it publishes x1 = 10, x0's replay then adds 4, and the row
+ * ends at 14 — a row violation of exactly 4.0 that the objective cannot
+ * see (x1's cost is 0). Written after a real defect: this shape is
+ * 02-03's gate rejection, 16 of 19 instances (on ken-07 every violated
+ * row read viol == the later-replayed contributions, exactly — review of
+ * 2026-08-13). row1/x2/x3 keep the reduced model nonempty so the replay
+ * runs on the ordinary jm_postsolve_expand path the gate exercises. By
+ * hand: x = {4, 6, 1, 0}, y = {0, 1}, obj = 9. */
+static void test_singleton_col_after_fixed_col(void)
+{
+#if defined(JAOS_PRESOLVE_FAULT_OFFBYONE) || defined(JAOS_PRESOLVE_FAULT_WRONGDUAL)
+    TEST_IGNORE_MESSAGE("positive test — skipped under either fault build");
+#else
+    const double c[]  = {2.0, 0.0, 1.0, 3.0};
+    const double cl[] = {4.0, 0.0, 0.0, 0.0}, cu[] = {4.0, 100.0, 5.0, 5.0};
+    const double rl[] = {10.0, 1.0}, ru[] = {10.0, INFINITY};
+    /* col0: row0.  col1: row0.  col2: row1.  col3: row1. */
+    const int64_t s[]  = {0, 1, 2, 3, 4};
+    const int64_t ix[] = {0, 0, 1, 1};
+    const double v[]   = {1.0, 1.0, 1.0, 1.0};
+    jaos_model *m = nullptr;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_model_new(&m));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_load_lp(m, 4, 2, JAOS_MINIMIZE, 0.0, c, cl, cu, rl, ru,
+                     4, s, ix, v));
+
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+
+    const double expected_obj = 9.0;
+    double obj = 0.0;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(m, &obj));
+    TEST_ASSERT_EQUAL_MEMORY(&expected_obj, &obj, sizeof obj);
+
+    double x[4], y[2], dj[4];
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solution(m, x, nullptr, y, dj));
+    const double expected_x1 = 6.0;
+    TEST_ASSERT_EQUAL_MEMORY(&expected_x1, &x[1], sizeof x[1]);
+
+    jaos_check_report r;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_check_solution(m, x, y, TOL, &r));
+    TEST_ASSERT_TRUE(r.primal_feasible);
+    TEST_ASSERT_TRUE(r.dual_feasible);
+
+    jaos_model_free(m);
+#endif
+}
+
+/* -- Two removals around one singleton col, jm_postsolve_solved path -------
+ *
+ * min 7*x0 + 5*x2 + x3  s.t.  row0: x0 + x1 + x2 = 20   row1: x2 = 3
+ * x0 in [4, 4]; x1 in [0, 100], cost 0; x2 in [0, 10]; x3 in [2, 5],
+ * in no row at all.
+ *
+ * Both halves of the replay's invariant, which the sibling test above
+ * only half exercises (there `rest` is still 0 when the singleton col
+ * replays). Here row1 folds x2 to [3, 3] and x2 then fixes, so x2's
+ * record is pushed AFTER x1's and replays BEFORE it: `rest` is 3, not 0,
+ * when x1 is recovered. x0 fixes BEFORE x1, so its 4 is still missing at
+ * that moment and its shift is in the recorded pair ([16, 16], not the
+ * original [20, 20]). Judging against the original pair publishes
+ * x1 = 20 - 3 = 17 and leaves row0 at 24 — a row violation of exactly
+ * 4.0 the objective cannot see, x1's cost being 0.
+ *
+ * Every column leaves, so rcol == 0 and postsolve runs on the
+ * jm_postsolve_solved path. That path seeds no activity at all, which
+ * makes the replay the ONLY source of `rest` here; none of the 19 gate
+ * rejections of 2026-08-13 took it. row0 survives the whole way, frozen
+ * by x1's relaxation, so its published basis status also comes from
+ * nowhere but that path's own initialisation — asserted below, since a
+ * status left unwritten there is read from the heap and copied into the
+ * next solve's warm start (valgrind sees it; ASan and UBSan do not).
+ * By hand: x = {4, 13, 3, 2}, obj = 45. */
+static void test_singleton_col_between_two_removals_solved_path(void)
+{
+#if defined(JAOS_PRESOLVE_FAULT_OFFBYONE) || defined(JAOS_PRESOLVE_FAULT_WRONGDUAL)
+    TEST_IGNORE_MESSAGE("positive test — skipped under either fault build");
+#else
+    const double c[]  = {7.0, 0.0, 5.0, 1.0};
+    const double cl[] = {4.0, 0.0, 0.0, 2.0}, cu[] = {4.0, 100.0, 10.0, 5.0};
+    const double rl[] = {20.0, 3.0}, ru[] = {20.0, 3.0};
+    /* col0: row0.  col1: row0.  col2: row0, row1.  col3: none. */
+    const int64_t s[]  = {0, 1, 2, 4, 4};
+    const int64_t ix[] = {0, 0, 0, 1};
+    const double v[]   = {1.0, 1.0, 1.0, 1.0};
+    jaos_model *m = nullptr;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_model_new(&m));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_load_lp(m, 4, 2, JAOS_MINIMIZE, 0.0, c, cl, cu, rl, ru,
+                     4, s, ix, v));
+
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+
+    const double expected_obj = 45.0;
+    double obj = 0.0;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(m, &obj));
+    TEST_ASSERT_EQUAL_MEMORY(&expected_obj, &obj, sizeof obj);
+
+    double x[4], y[2], dj[4];
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solution(m, x, nullptr, y, dj));
+    const double expected_x1 = 13.0;
+    TEST_ASSERT_EQUAL_MEMORY(&expected_x1, &x[1], sizeof x[1]);
+
+    /* row0 is the surviving frozen row: nothing but this path's own
+     * initialisation writes its status, so this asserts the value is
+     * DEFINED, not that it is the best one. Pinned deliberately, with
+     * what it currently costs: three of these six statuses are basic
+     * against num_row = 2, so the published basis breaks jaos.h's count
+     * promise and the next solve falls back to a cold start. The change
+     * that pairs a frozen row's status with where its singleton column
+     * landed is what moves these two numbers, and TODO.md carries it —
+     * re-pin them there, not here, and not reflexively. */
+    jaos_basis_status cs[4], rs[2];
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_basis(m, cs, rs));
+    TEST_ASSERT_EQUAL_INT(JAOS_BASIS_BASIC, rs[0]);
+    int64_t basic = 0;
+    for (int64_t j = 0; j < 4; j++) basic += (cs[j] == JAOS_BASIS_BASIC);
+    for (int64_t i = 0; i < 2; i++) basic += (rs[i] == JAOS_BASIS_BASIC);
+    TEST_ASSERT_EQUAL_INT64(3, basic);
+
+    jaos_check_report r;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_check_solution(m, x, y, TOL, &r));
+    TEST_ASSERT_TRUE(r.primal_feasible);
+    TEST_ASSERT_TRUE(r.dual_feasible);
+
+    jaos_model_free(m);
+#endif
+}
+
+/* -- Two singleton cols on one row -----------------------------------------
+ *
+ * min 3*x0 + x3 + 2*x4  s.t.  row0: x0 + x1 + x2 = 10   row1: x3 + x4 >= 1
+ * x0 in [4, 4]; x1 in [0, 100], cost 0; x2 in [0, 3], cost 0;
+ * x3, x4 in [0, 5].
+ *
+ * The stacked shape. Nothing stops it: the bounded singleton col at
+ * src/presolve.c checks !free_col and never row_frozen[i], so x2 fires
+ * on a row x1 has already frozen, in the same column pass. Each record
+ * then records a DIFFERENT pair — x1's is [6, 6] (x0's shift only), x2's
+ * is [-94, 6] (x1's relaxation too) — which is the case where "the later
+ * replay undoes its own shift" is false and containment is what carries
+ * it: a relaxation moves the two ends by cmax and cmin, and those are
+ * not equal.
+ *
+ * This is also the shape that makes the OLD code abort rather than
+ * answer: against the original [10, 10] pair, x2's intersection comes
+ * out empty (want_lo = 10 > want_hi = 3), so assert(want_lo <= want_hi)
+ * fires under the dev build the suite uses, and -DNDEBUG (how
+ * bench/run is built) publishes x2 = 10 against a box of [0, 3] — a
+ * COLUMN bound violation of 7.0 alongside the row's 4.0, which neither
+ * other new test produces. row1 keeps the reduced model non-empty so
+ * this runs on jm_postsolve_expand. By hand: x = {4, 6, 0, 1, 0},
+ * obj = 13. */
+static void test_two_singleton_cols_on_one_row(void)
+{
+#if defined(JAOS_PRESOLVE_FAULT_OFFBYONE) || defined(JAOS_PRESOLVE_FAULT_WRONGDUAL)
+    TEST_IGNORE_MESSAGE("positive test — skipped under either fault build");
+#else
+    const double c[]  = {3.0, 0.0, 0.0, 1.0, 2.0};
+    const double cl[] = {4.0, 0.0, 0.0, 0.0, 0.0};
+    const double cu[] = {4.0, 100.0, 3.0, 5.0, 5.0};
+    const double rl[] = {10.0, 1.0}, ru[] = {10.0, INFINITY};
+    /* col0: row0.  col1: row0.  col2: row0.  col3: row1.  col4: row1. */
+    const int64_t s[]  = {0, 1, 2, 3, 4, 5};
+    const int64_t ix[] = {0, 0, 0, 1, 1};
+    const double v[]   = {1.0, 1.0, 1.0, 1.0, 1.0};
+    jaos_model *m = nullptr;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_model_new(&m));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_load_lp(m, 5, 2, JAOS_MINIMIZE, 0.0, c, cl, cu, rl, ru,
+                     5, s, ix, v));
+
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+
+    const double expected_obj = 13.0;
+    double obj = 0.0;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(m, &obj));
+    TEST_ASSERT_EQUAL_MEMORY(&expected_obj, &obj, sizeof obj);
+
+    double x[5], y[2], dj[5];
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solution(m, x, nullptr, y, dj));
+    const double expected_x1 = 6.0, expected_x2 = 0.0;
+    TEST_ASSERT_EQUAL_MEMORY(&expected_x1, &x[1], sizeof x[1]);
+    TEST_ASSERT_EQUAL_MEMORY(&expected_x2, &x[2], sizeof x[2]);
+
+    jaos_check_report r;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_check_solution(m, x, y, TOL, &r));
+    TEST_ASSERT_TRUE(r.primal_feasible);
+    TEST_ASSERT_TRUE(r.dual_feasible);
+    jaos_model_free(m);
+
+    /* Both columns really did fire the family, on the same row: without
+     * this the answer above stays right for a reason the test stopped
+     * covering the day either one is caught by some other reduction. */
+    jaos_model *m2 = nullptr;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_model_new(&m2));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_load_lp(m2, 5, 2, JAOS_MINIMIZE, 0.0, c, cl, cu, rl, ru,
+                     5, s, ix, v));
+    jm_presolve p;
+    jm_presolve_init(&p);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jm_presolve_run(m2, &p, nullptr));
+    TEST_ASSERT_EQUAL_INT64(2, p.counts.singleton_col);
+    jm_presolve_free(&p);
+    jaos_model_free(m2);
+#endif
+}
+
 /* -- Free column singleton -------------------------------------------------
  *
  * min 2*x0  s.t.  row0: x0 + x1 = 5
@@ -1864,6 +2083,9 @@ int main(void)
     RUN_TEST(test_singleton_row_wrong_dual);
     RUN_TEST(test_singleton_col_round_trip);
     RUN_TEST(test_singleton_col_index_off_by_one);
+    RUN_TEST(test_singleton_col_after_fixed_col);
+    RUN_TEST(test_singleton_col_between_two_removals_solved_path);
+    RUN_TEST(test_two_singleton_cols_on_one_row);
     RUN_TEST(test_free_col_singleton_round_trip);
     RUN_TEST(test_free_col_singleton_index_off_by_one);
 
