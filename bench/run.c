@@ -61,6 +61,10 @@
 #define _POSIX_C_SOURCE 200809L
 
 #include "jaos.h"
+/* jaos_model's presolve_num_row/col/nz only — see the Makefile's -Isrc
+ * comment for why this runner, and not a caller, may reach past jaos.h
+ * (D-13). Nothing else in jaos_internal.h is used here. */
+#include "jaos_internal.h"
 
 #include <math.h>
 #include <stdarg.h>
@@ -444,10 +448,21 @@ static bool run_one_infeasible(const entry *e, const char *dir, tally *t)
         t->failed++;
 
     stamp(e->name, dt);
+    /* presolve= is emitted unconditionally, including on a build with
+     * JAOS_NO_PRESOLVE defined -- there it reports the original dimensions
+     * on both sides of the arrow, since presolve_num_row/col/nz default to
+     * the model's own whenever nothing fired (D-13). A field on one build
+     * and not the other would turn the negative control's own diff into a
+     * format diff, which is the one instrument this phase cannot afford to
+     * blunt. */
     emit("%-12s %-10s rows=%lld cols=%lld shape=%s iters=%lld work=%lld"
+         " presolve=%lld/%lld/%lld->%lld/%lld/%lld"
          " expected=infeasible verdict=%s det=%s%s\n",
          e->name, jaos_solve_status_str(ss), (long long)nr, (long long)nc,
          shape ? "ok" : "MISMATCH", (long long)iters, (long long)work,
+         (long long)nr, (long long)nc, (long long)jaos_num_nz(m),
+         (long long)m->presolve_num_row, (long long)m->presolve_num_col,
+         (long long)m->presolve_num_nz,
          refused ? "ok" : "WRONG", det ? "ok" : "DIVERGED",
          (ss == JAOS_SOLVE_OPTIMAL) ? "  <-- FALSE OPTIMUM" : "");
 
@@ -596,13 +611,25 @@ static bool run_one(const entry *e, const char *dir, tally *t)
      * shows itself across ninety-four instances rather than on the one
      * somebody thought to look at. What they say is whether `Q` is the bound
      * on suboptimality it is documented as being (D47). */
+    /* presolve= is emitted unconditionally, including on a build with
+     * JAOS_NO_PRESOLVE defined -- there it reports the original dimensions
+     * on both sides of the arrow, since presolve_num_row/col/nz default to
+     * the model's own whenever nothing fired (D-13). A field on one build
+     * and not the other would turn the negative control's own diff into a
+     * format diff, which is the one instrument this phase cannot afford to
+     * blunt. */
     emit("%-12s optimal    rows=%lld cols=%lld shape=%s iters=%lld "
-            "work=%lld obj=%.17g ref=%.17g[%s] objective=%s checker=%s"
+            "work=%lld presolve=%lld/%lld/%lld->%lld/%lld/%lld"
+            " obj=%.17g ref=%.17g[%s] objective=%s checker=%s"
             " (col=%.3g row=%.3g rowrel=%.3g dual=%.3g gap=%.3g Q=%.3g"
             " N=%.3g drop=%.3g cert=%s sub=%.3g rays=%lld rsub=%.3g)"
             " det=%s digest=%016llx\n",
             e->name, (long long)nr, (long long)nc, shape ? "ok" : "MISMATCH",
-            (long long)iters, (long long)work, obj, expected, e->source,
+            (long long)iters, (long long)work,
+            (long long)nr, (long long)nc, (long long)jaos_num_nz(m),
+            (long long)m->presolve_num_row, (long long)m->presolve_num_col,
+            (long long)m->presolve_num_nz,
+            obj, expected, e->source,
             obj_ok ? "ok" : "OUT-OF-TOLERANCE", check_ok ? "ok" : "REJECTED",
             rep.max_col_violation, rep.max_row_violation,
             rep.max_row_violation_relative,

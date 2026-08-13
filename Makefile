@@ -176,11 +176,20 @@ sanitize: $(ASAN_TESTS)
 	@fail=0; for t in $(ASAN_TESTS); do echo "== $$t"; ./$$t || fail=1; done; exit $$fail
 
 # The acceptance runner links the release library exactly as any other
-# consumer would — it gets no privileged view of the solver, which is the
-# point of running it at all. Built on demand, never by `all`: it is a bench
+# consumer would — same headers, same archive, no separate build path for
+# the thing that judges it. Built on demand, never by `all`: it is a bench
 # tool and not part of what JAOS ships.
+#
+# -Isrc is the one deliberate exception (D-13): jaos_internal.h's own
+# jm_presolve_counts and jaos_model's presolve_num_row/col/nz are not, and
+# must not become, public API (D64) — but D-13 also requires this runner to
+# print what each reduction removed into the record, and the counter that
+# says so lives nowhere a public header could reach. This runner is in-tree
+# tooling reading the solver it ships beside, the same relationship tests/
+# already has to it (TEST_INC below); it is not a caller judged by the same
+# rule jaos.h enforces on everyone else.
 $(B)/bench/run: bench/run.c $(LIB) | $(B)/bench
-	$(CC) $(RELEASE_CFLAGS) $(INC) $< $(LIB) -o $@ $(LDLIBS)
+	$(CC) $(RELEASE_CFLAGS) $(INC) -Isrc $< $(LIB) -o $@ $(LDLIBS)
 
 bench: $(B)/bench/run
 

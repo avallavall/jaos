@@ -3812,6 +3812,24 @@ jaos_status jm_dual_simplex(jaos_model *m)
         jm_presolve_free(&p);
         return pst;
     }
+
+    /* Presolve ran first, so it reports first — beside the "dual simplex:"
+     * summary line below and before it, and printed even on the SOLVED
+     * path, which never reaches that line at all. The reduced dimensions
+     * and non-zero counters only (D-13): a model nothing fired on says so
+     * in a few words rather than eleven zeros. */
+    if (p.outcome == JM_PRESOLVE_NONE) {
+        jm_log(m, JAOS_LOG_SUMMARY, "presolve: nothing fired");
+    } else {
+        jm_log(m, JAOS_LOG_SUMMARY,
+               "presolve: %lld rows, %lld columns, %lld nonzeros -> "
+               "%lld rows, %lld columns, %lld nonzeros; "
+               "fixed_col=%lld rounds=%lld",
+               (long long)m->num_row, (long long)m->num_col,
+               (long long)m->num_nz, (long long)p.reduced.num_row,
+               (long long)p.reduced.num_col, (long long)p.reduced.num_nz,
+               (long long)p.counts.fixed_col, (long long)p.counts.rounds);
+    }
 #endif
 
     if (p.outcome == JM_PRESOLVE_SOLVED) {
@@ -3827,6 +3845,9 @@ jaos_status jm_dual_simplex(jaos_model *m)
      * only place that distinction is made; everything below reads `target`
      * and does not know or care which case it is in. */
     jaos_model *target = (p.outcome == JM_PRESOLVE_REDUCED) ? &p.reduced : m;
+    m->presolve_num_row = target->num_row;
+    m->presolve_num_col = target->num_col;
+    m->presolve_num_nz  = target->num_nz;
 
     sx s;
     jaos_status st = sx_init(&s, target);

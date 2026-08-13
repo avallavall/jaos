@@ -120,6 +120,15 @@ struct jaos_model {
      * it is written at the end of a solve and only ever handed to a caller. */
     double solve_time;
 
+    /* What the last solve's presolve pass actually gave the simplex: the
+     * reduced dimensions, or this model's own when nothing fired — which is
+     * always, under a JAOS_NO_PRESOLVE build. Reporting only, exactly like
+     * solve_work/solve_iters above: written at the end of every solve and
+     * read back by nothing inside the solver. Not part of the public API
+     * (D-13, D64) — bench/run.c reads these directly because it is in-tree
+     * tooling, not a consumer, the same reason tests/ may (Makefile). */
+    int64_t presolve_num_row, presolve_num_col, presolve_num_nz;
+
     /* The basis the next solve starts from, or null for the slack basis.
      *
      * Held apart from sol_*_status above, and that separation is the whole of

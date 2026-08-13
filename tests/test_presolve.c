@@ -143,6 +143,42 @@ static void test_postsolved_basis_has_exactly_num_row_basic_entries(void)
 #endif
 }
 
+/* D-13's white-box test: the counter reads an exact integer for the model
+ * it was handed, not a floor a single reduction firing would also satisfy.
+ * jm_presolve_run is called directly rather than through jaos_solve, since
+ * jm_presolve is solve-local and never escapes a public call (D-08) — the
+ * same kind of direct access tests already have to jm_lu and the nonbasic
+ * bitmap. Unaffected by JAOS_PRESOLVE_FAULT_OFFBYONE: that guard lives
+ * entirely in postsolve's replay, and this test never reaches postsolve. */
+static void test_fixed_col_counter_is_exact(void)
+{
+    jaos_model *m = make_one_fixed_column();   /* exactly one fixed column */
+
+    jm_presolve p;
+    jm_presolve_init(&p);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jm_presolve_run(m, &p, nullptr));
+    TEST_ASSERT_EQUAL_INT(JM_PRESOLVE_REDUCED, p.outcome);
+    TEST_ASSERT_EQUAL_INT64(1, p.counts.fixed_col);
+    TEST_ASSERT_EQUAL_INT64(1, p.counts.rounds);
+    /* Declared for the other seven families and zero until the plan that
+     * makes each fire (D-13) — checked directly so a future reduction that
+     * forgets to increment its own field is caught here, not inferred from
+     * a total that moved for an unrelated reason. */
+    TEST_ASSERT_EQUAL_INT64(0, p.counts.empty_row);
+    TEST_ASSERT_EQUAL_INT64(0, p.counts.empty_col);
+    TEST_ASSERT_EQUAL_INT64(0, p.counts.singleton_row);
+    TEST_ASSERT_EQUAL_INT64(0, p.counts.singleton_col);
+    TEST_ASSERT_EQUAL_INT64(0, p.counts.forcing_row);
+    TEST_ASSERT_EQUAL_INT64(0, p.counts.redundant_row);
+    TEST_ASSERT_EQUAL_INT64(0, p.counts.tightened_bound);
+    TEST_ASSERT_EQUAL_INT64(0, p.counts.duplicate_row);
+    TEST_ASSERT_EQUAL_INT64(0, p.counts.duplicate_col);
+    TEST_ASSERT_EQUAL_INT64(0, p.counts.dominated_col);
+
+    jm_presolve_free(&p);
+    jaos_model_free(m);
+}
+
 /* min 2*x0 + 3*x1  s.t.  x0 + x1 <= 10,  x0 fixed at 1, x1 fixed at 4.
  * Every column presolve fixes: outcome is JM_PRESOLVE_SOLVED, no sx is
  * built and the simplex never runs. By hand: objective is 2*1 + 3*4 = 14,
@@ -403,6 +439,7 @@ int main(void)
     UNITY_BEGIN();
     RUN_TEST(test_fixed_column_round_trip);
     RUN_TEST(test_postsolved_basis_has_exactly_num_row_basic_entries);
+    RUN_TEST(test_fixed_col_counter_is_exact);
     RUN_TEST(test_all_columns_fixed_solves_with_no_iterations);
     RUN_TEST(test_original_arrays_survive_a_reducing_solve);
     RUN_TEST(test_fixed_column_index_map_off_by_one);

@@ -178,6 +178,16 @@ JAOS_NODISCARD jaos_status jm_presolve_run(const jaos_model *m, jm_presolve *p,
         !p->reduced.row_upper || !p->reduced.a_start)
         return JAOS_ERR_OUT_OF_MEMORY;
 
+    /* Plain double, deliberately, after a long double accumulator was
+     * tried here and measured out (02-01-SUMMARY.md): it did not change
+     * finnis's residual at all -- confirming the gap between the two
+     * builds is a different pivot path on a genuinely reduced problem, not
+     * lost precision in this shift -- and it roughly doubled pilot87's
+     * iteration count (50850 -> 117653 on the standard set, `netlib`
+     * campaign, both builds otherwise identical). A change with no
+     * measured benefit and a measured cost on the set's most re-entry-
+     * sensitive instance (D74, D89, D92) is not kept on the theory that it
+     * should help. */
     for (int64_t i = 0; i < rrow; i++) {
         p->reduced.row_lower[i] = m->row_lower[i];
         p->reduced.row_upper[i] = m->row_upper[i];
@@ -408,6 +418,9 @@ JAOS_NODISCARD jaos_status jm_postsolve_solved(jm_presolve *p)
      * claim that the work took no time. */
     orig->solve_time   = 0.0;
     orig->objective = p->reduced.obj_offset;
+    orig->presolve_num_row = p->reduced.num_row;
+    orig->presolve_num_col = p->reduced.num_col;
+    orig->presolve_num_nz  = p->reduced.num_nz;
 
     memset(orig->sol_row, 0, (size_t)orig->num_row * sizeof(double));
     memset(orig->sol_dual, 0, (size_t)orig->num_row * sizeof(double));
