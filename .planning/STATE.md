@@ -5,15 +5,15 @@ milestone_name: milestone
 current_phase: 2
 current_phase_name: Presolve and postsolve
 status: executing
-stopped_at: Completed 01-05-PLAN.md. Phase 01 is closed — D93 written and indexed, changelog and SPECS.md current, all four roadmap criteria met
-last_updated: "2026-08-13T01:46:10.853Z"
-last_activity: 2026-08-12
-last_activity_desc: Executed 01-05 — D93 closed and indexed with the measurement on both sides, the 4.2% derivation traced to D81, the null result stated as 110 digests + 29 infeasibility verdicts over 139 instances, and an audit correction appended to 01-04-SUMMARY.md
+stopped_at: Completed 02-01-PLAN.md. D-01's scaffolding is proved end to end — reduced model, postsolve arena, the fixed-column reduction, the negative-test instrument, and the per-instance record — with two findings handed to 02-09 (the finnis exception to D24) and to 02-03..02-05 (trajectory movement is not a defect)
+last_updated: "2026-08-13T06:45:00.000Z"
+last_activity: 2026-08-13
+last_activity_desc: Executed 02-01 — presolve/postsolve scaffolding, the fault-injection instrument, and the standard-set campaign with its one recorded checker exception (finnis, D24) and one caught-before-shipped near-miss (a long-double accumulator that cost pilot87 2.3x its work and was dropped)
 progress:
   total_phases: 2
   completed_phases: 1
   total_plans: 14
-  completed_plans: 5
+  completed_plans: 6
 ---
 
 # Project State
@@ -28,26 +28,27 @@ See: .planning/PROJECT.md (updated 2026-08-12)
 
 ## Current Position
 
-Phase: 2 — Presolve and postsolve
-Plan: Not started
-Status: Ready to execute
-Last activity: 2026-08-12 — Phase 01 complete, transitioned to Phase 2
+Phase: 2 (Presolve and postsolve) — EXECUTING
+Plan: 2 of 9 (01 complete)
+Status: Executing Phase 2
+Last activity: 2026-08-13 — Executed 02-01 (presolve scaffolding, D-10 instrument, standard-set campaign)
 
-Progress: [██░░░░░░░░] 20%
+Progress: [██▓░░░░░░░] 21%
 
 ## Performance Metrics
 
 **Velocity:**
 
-- Total plans completed: 5
-- Average duration: ~40 min
-- Total execution time: ~200 min
+- Total plans completed: 6
+- Average duration: ~68 min
+- Total execution time: ~370 min
 
 **By Phase:**
 
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
 | 01 | 5 | - | - |
+| 02 | 1 | - | - |
 
 **Per-Plan Metrics:**
 
@@ -58,6 +59,7 @@ Progress: [██░░░░░░░░] 20%
 | 01-03 | ~55 min | 2 | 8 | 2 |
 | 01-04 | ~75 min | 3 | 1 | 1 |
 | 01-05 | ~35 min | 2 | 4 | 3 |
+| 02-01 | ~170 min | 3 | 7 | 6 |
 
 **Recent Trend:**
 
@@ -79,6 +81,18 @@ Progress: [██░░░░░░░░] 20%
   2.7x rather than by 10x. A documentation plan's length is set by the number
   of things that have to be recorded, and that number was known in advance. No
   machine time at all — it builds nothing and runs no campaign.
+
+- **02-01 is 01-03's pattern at a different scale: four full `J=12` campaigns
+  of all three sets**, not because the plan asked for four but because a
+  checkpoint-driven investigation did — one campaign found `finnis`, a second
+  confirmed the tree, a third isolated an unplanned regression on `pilot87`
+  to a specific line by A/B rebuild, and a fourth produced the record that
+  was actually committed. Each `netlib`+`netlib-infeas`+`netlib-kennington`
+  round is itself ~9–10 min at `J=12`; four of them is most of the 170.
+  What the estimate could not see is that this plan's own `<verify>` asked
+  for a campaign that was going to find something — D-01's whole rationale
+  is that postsolve correctness is the part nothing else catches, and it
+  did not stay abstract.
 
 *Updated after each plan completion*
 
@@ -227,6 +241,38 @@ Taken during execution of 01-05:
   keeps the citation that dates it. That they are pre-phase is stated as a
   caveat rather than repaired by an invented correction
 
+Taken during execution of 02-01:
+
+- **`bench/run.c` gains `-Isrc` (Makefile), a deviation from the plan's
+  declared `files_modified`.** D-13 requires the runner to print the
+  reduced dimensions and the counter struct has no public API by design
+  (D64); the only way to satisfy both was letting this one in-tree tool
+  read two reporting-only `jaos_model` fields directly. Confirmed at
+  checkpoint rather than assumed
+
+- **A long-double accumulator for presolve's row-bound/objective-offset
+  shift was tried, measured, and dropped** — not refused as an idea, removed
+  from this plan specifically, because it was unplanned, did not fix the
+  problem it was tried for, and cost `pilot87` 2.3x its work. See
+  STATE.md's Blockers/Concerns and 02-01-SUMMARY.md for the three-way
+  measurement
+
+- **`finnis`'s checker rejection under presolve is real, isolated to one
+  instance, and not a defect** — confirmed by an `EXTRA_CFLAGS=
+  -DJAOS_NO_PRESOLVE` control reproducing `DECISIONS.md` D24's own
+  documented value on the nose, and by D24's own admission that the
+  presolve-off pass was "luck". D24's "nothing is gained" reason for
+  keeping the primal feasibility test absolute no longer holds the way it
+  did when D24 closed — flagged for 02-09's `DECISIONS.md` entry, not
+  reopened here
+
+- **02-01's Task 3 acceptance criterion of "0 regressed, 0 improved, 0 new"
+  was retired and replaced**, because no correct implementation of even
+  this plan's one, simplest reduction can meet it against a baseline taken
+  before presolve existed. The replacement: `netlib-infeas` and
+  `netlib-kennington` clean, `netlib` clean except four named instances,
+  each accounted for rather than waived
+
 ### Pending Todos
 
 - **Nothing in the repository reads the `baseline: NOT COMPARED` line.** It
@@ -296,6 +342,64 @@ Taken during execution of 01-05:
   over 16..256, which no target automates. `make clean` between settings or the
   sweep measures one binary N times.
 
+- **[Phase 2, waves 3–9] The phase-2 gate policy, and the one named exception
+  to it.** Presolve-off must stay bit-identical to the three committed
+  baselines — that is the regression detector, and 02-01 confirmed it holds:
+  `EXTRA_CFLAGS=-DJAOS_NO_PRESOLVE` reproduces every one of `netlib`,
+  `netlib-infeas` and `netlib-kennington` exactly. Presolve-on is judged on
+  verdict, objective against Koch's reference and checker acceptance — not
+  on bit-identity to those baselines, and not on the baseline's own 2x
+  work-ratio rule, which predates presolve and does not know it exists.
+  **Every remaining reduction family will move work units on the instances it
+  touches, and that is by design (CONTEXT.md), not a regression to chase.**
+
+  02-01's own single reduction (columns fixed as loaded) already shows this
+  on 4 of the 26 standard-set instances it fires on, in the committed code:
+  - `etamacro` — work 4377214 -> 11943717 (2.7x), iters 709 -> 1322
+  - `greenbeb` — work 499796764 -> 999939308 (2.0x), iters 9016 -> 14675
+  - `pilotnov` — suboptimality bound 6.52e-13 -> 6.48e-09 (9930x, relative to
+    its own objective)
+  - `finnis` — **the one recorded checker exception.** Its objective, dual
+    conditions and relative row residue (`rowrel`, D24) are all clean; only
+    the *absolute* primal row-proximity test flips, from `row=8.44e-07`
+    (matching the historical, presolve-off value exactly) to `row=3.76e-06` —
+    both a fraction of one ulp of a row whose terms total 4.0e10 (one ulp
+    there is 7.6e-6), and `DECISIONS.md` D24 already named finnis's
+    presolve-off pass as "luck rather than a property the solver controls."
+    Root-caused in 02-01-SUMMARY.md, not a defect in that plan's own code —
+    confirmed by an `EXTRA_CFLAGS=-DJAOS_NO_PRESOLVE` control reproducing the
+    documented D24 value on the nose.
+
+  **A near-miss, caught rather than shipped: a long-double accumulator for
+  the row-bound/objective-offset shift was tried and dropped.** It was an
+  unplanned change, made mid-investigation of `finnis` and not asked for
+  by 02-01-PLAN.md. It did not move finnis's residual at all — confirming
+  the gap between builds is a different pivot path on a genuinely reduced
+  problem, not lost precision in that shift — and cost `pilot87`,
+  DECISIONS.md's own established amplifier (D74, D89, D92), **2.3x its
+  work and 2.2x its iterations**:
+
+  | build | iters | work | vs baseline |
+  |---|---|---|---|
+  | committed baseline (presolve-off) | 50850 | 22,977,661,512 | — |
+  | committed code (presolve-on, no long double) | 53621 | 24,983,178,548 | 1.05x / 1.09x, `checker=ok`, not flagged |
+  | with the long-double accumulator | 117653 | 58,042,043,010 | 2.31x / 2.53x, flagged REGRESSED |
+
+  Found only because the campaigns were re-run against the exact tree about
+  to be committed, and then only because the regressed lines were counted
+  rather than the report read — the first, accumulator-era campaign had
+  already been read and reported without noticing `pilot87` was in it.
+  **Had that record been committed as written, a 2.3x cost from an
+  unplanned change would have entered the tree labelled as presolve's
+  ordinary noise, on the one instance this file already carries with an
+  explicit trigger.** `pilot87` does not regress in the committed code —
+  the four above are the phase's real inheritance, not five.
+
+  **A `DECISIONS.md` entry is owed on this and is 02-09's to write** — see
+  02-01-SUMMARY.md's "What plan 02-09 owes" for what it has to contain,
+  including that D24's "nothing is gained" reason for keeping the primal
+  test absolute no longer holds in the same way it did when D24 closed.
+
 ## Deferred Items
 
 | Category | Item | Status | Deferred At |
@@ -307,31 +411,41 @@ Taken during execution of 01-05:
 
 ## Session Continuity
 
-Last session: 2026-08-12T17:05:00.000Z
-Stopped at: Completed 01-05-PLAN.md. Phase 01 is closed — D93 written and indexed, changelog and SPECS.md current, all four roadmap criteria met
+Last session: 2026-08-13T06:45:00.000Z
+Stopped at: Completed 02-01-PLAN.md. D-01's scaffolding proved end to end: reduced model, postsolve arena, the fixed-column reduction, the negative-test instrument (D-10), the per-instance record (D-13). Two findings handed forward, neither a defect.
 Resume file: None
 
-Next: **plan Phase 02 (presolve and postsolve).** No plans exist for it yet.
+Next: **plan or execute 02-02** (this phase's next plan — presolve billed by `jm_work`, per D-14). `.planning/phases/02-presolve-and-postsolve/` carries 02-01's PLAN and SUMMARY; 02-02 onward do not exist yet.
 
-**Phase 01 closed on a refusal-shaped entry that is not quite a refusal.** D93
-records that the ratio test's dense scan walks the nonbasic set, that no answer
-moved anywhere in the record — 110 digests, 29 infeasibility verdicts, 139
-iteration counts, five records byte-identical once the work field is masked —
-that the change **costs 1.60% more instructions on `truss`**, and that the 4.2%
-bar it was to be judged against **cannot be measured on this host**. The code
-stays under the developer's pre-authorisation of 2026-08-12.
+**02-01 closed with two findings, both handed forward rather than resolved locally.**
 
-**The one thing every later phase inherits is the negative control.** Eight
-standard-set instances have bit-identical work under both binaries, so the
-change provably cannot speed them up, and they read **0.9699x paired and
-0.9356x pooled** — a 3.0–6.4% "improvement" where the truth is zero, the same
-size as the 2.91% headline. Any future same-instance time ratio on this host
-without a control of that shape is not measuring what it thinks it is. Two
-companions to it: **running order alone is worth 2.4 percentage points**, so an
-alternation in one direction only measures the order; and the plan's literal
-three-round protocol would have read **5.12% and reported ACCEPT** in the
-parent-first order.
+1. **`finnis`'s checker verdict is presolve-path-dependent, and it is the one
+   recorded exception to an otherwise clean gate.** `netlib-infeas` (29/29) and
+   `netlib-kennington` (16/16) are clean against their committed baselines;
+   `netlib` regresses on 4 of the 26 standard-set instances presolve actually
+   reduces — `etamacro`, `greenbeb` and `pilotnov` are ordinary trajectory
+   movement (CONTEXT.md says every remaining family will produce this), and
+   `finnis` alone is a checker flip, root-caused to `DECISIONS.md` D24's own
+   "luck" — the absolute primal row test sitting at 0.13 ulp of a row whose
+   terms total 4.0e10. **02-09 owes `DECISIONS.md` an entry**; see
+   02-01-SUMMARY.md for what it has to contain.
 
-The phase does not roll on to the next candidate path: restricting the
-candidate set ahead of `bfrt_walk` and `jm_harris_pick` stays deferred (D-04),
-available as its own decision and explicitly **not refused**.
+2. **A long-double accumulator was tried, found to cost `pilot87` 2.3x its
+   work with no offsetting benefit, and dropped before it was committed** —
+   caught only because the campaigns were re-run against the exact tree
+   about to ship and the regressed lines were counted rather than the
+   report read. The near-miss is recorded in STATE.md's Blockers/Concerns
+   and in 02-01-SUMMARY.md, not because the code shipped, but because the
+   measurement is worth more than the mistake it prevented.
+
+**What 02-03 through 02-05 inherit:** 02-01's own reduction was expected to
+be near-inert on well-posed instances and was not — removing a column already
+pinned by equal bounds removes a pivot path that was pointless but
+trajectory-altering, and 4 of the 26 instances it touches show it. The
+remaining seven reduction families should expect trajectory movement as the
+default outcome of firing correctly, not treat it as evidence of a bug.
+
+Phase 01's negative control (the same-instance time-ratio floor, 0.9699x
+paired / 0.9356x pooled) and its running-order warning (2.4 percentage
+points) both still stand for any future time ratio on this host; 02-01 took
+no time ratio and does not add to that record.
