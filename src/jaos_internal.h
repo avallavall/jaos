@@ -451,7 +451,13 @@ typedef struct {
     int64_t empty_row;
     int64_t empty_col;
     int64_t singleton_row;
-    int64_t singleton_col;
+    int64_t singleton_col;          /* bounded singleton column only */
+    int64_t free_col_singleton;     /* the free-column-singleton, counted
+                                      * apart from singleton_col above since
+                                      * it is a bigger structural win (one
+                                      * row and one column, not one column) —
+                                      * folding the two together would make
+                                      * the D-13 counts unreadable */
     int64_t forcing_row;
     int64_t redundant_row;
     int64_t tightened_bound;
@@ -461,33 +467,62 @@ typedef struct {
     int64_t rounds;
 } jm_presolve_counts;
 
-/* One postsolve record kind per reduction family. This plan adds the first
- * of eight; later plans add one member each and change nothing else about
- * the arena (D-01, D-07). */
+/* One postsolve record kind per reduction family. 02-01 shipped the first;
+ * this plan (02-03) adds five more — the four structural families plus the
+ * free-column-singleton's own tag, since it restores a row and a column
+ * from one record and is not a variant of any other tag (D-01, D-07). */
 typedef enum {
-    JM_PS_FIXED_COL,   /* a column presolve fixed as loaded */
+    JM_PS_FIXED_COL,            /* a column presolve fixed as loaded */
+    JM_PS_EMPTY_ROW,            /* a row with no live entry */
+    JM_PS_EMPTY_COL,            /* a column with no live entry */
+    JM_PS_SINGLETON_ROW,        /* a row with exactly one live entry */
+    JM_PS_SINGLETON_COL,        /* a bounded column with one live, cost-0
+                                  * entry; its row survives, relaxed */
+    JM_PS_FREE_COL_SINGLETON,   /* a free, cost-0 column whose one live row
+                                  * is itself a mutual singleton on it;
+                                  * removes both in one record */
 } jm_presolve_tag;
 
 /* One tagged, append-only postsolve record: what an original row or column
  * needs to be restored. `index` is always an ORIGINAL row or column index —
- * never a reduced one, so replay never has to know which reduction pushed a
- * record in order to interpret it. `value` and `cost` are read differently
- * by different tags; JM_PS_FIXED_COL is the only one today and reads them
- * as documented on jm_postsolve_expand: the column's fixed value and its
- * own cost. */
+ * never a reduced one. Every other field is read differently by different
+ * tags, documented per tag where jm_postsolve_expand and jm_postsolve_solved
+ * read them:
+ *
+ *   JM_PS_FIXED_COL, JM_PS_EMPTY_COL: index=column, value=the fixed value,
+ *     cost=the column's own cost.
+ *   JM_PS_EMPTY_ROW: index=row. Nothing else is read — an empty row's
+ *     activity, dual and status are always zero/zero/basic.
+ *   JM_PS_SINGLETON_ROW: index=row, index2=the column its one entry named,
+ *     coef=that entry's coefficient. row_tightens_lo/hi record which side(s)
+ *     of the column's bound the row's own implied bound actually won at the
+ *     moment of intersection — the discriminator the dual recovery needs
+ *     (see jm_postsolve_expand).
+ *   JM_PS_SINGLETON_COL: index=row (which survives, relaxed), index2=the
+ *     column removed, coef=the entry's coefficient, lo/hi=the column's own
+ *     bounds at the moment it was removed.
+ *   JM_PS_FREE_COL_SINGLETON: index=row (removed), index2=column (removed),
+ *     coef=the entry's coefficient, lo/hi=the row's own *current* (already
+ *     shifted by every value-determined column removed before it) bounds at
+ *     the moment both were removed. */
 typedef struct {
     jm_presolve_tag tag;
     int64_t index;
+    int64_t index2;
     double value;
     double cost;
+    double coef;
+    double lo, hi;
+    bool row_tightens_lo, row_tightens_hi;
 } jm_presolve_rec;
 
 /* What presolve decided about the model as a whole. NONE and REDUCED are
- * the two a caller-visible solve can end up taking; SOLVED short-circuits
- * the simplex entirely. This plan produces NONE, REDUCED and SOLVED;
- * INFEASIBLE and UNBOUNDED are declared now and produced starting 02-03, so
- * every switch over this enum is complete from the first commit rather than
- * growing a case nine plans from now. */
+ * the two a caller-visible solve can end up taking; INFEASIBLE, UNBOUNDED
+ * and SOLVED all short-circuit the simplex entirely — declared complete
+ * from 02-01's first commit so every switch over this enum never grows a
+ * case later; INFEASIBLE and UNBOUNDED are produced starting 02-03 (empty
+ * row / singleton row for the former, empty column for the latter — the
+ * only family permitted to report it, D19). */
 typedef enum {
     JM_PRESOLVE_NONE,
     JM_PRESOLVE_REDUCED,
@@ -507,10 +542,9 @@ typedef enum {
  *
  * orig_col/orig_row map a reduced index to the original one it came from;
  * col_map/row_map are the inverse, original index to reduced index or -1
- * when the reduction removed it. This plan's only family removes columns,
- * so row space is untouched and orig_row/row_map are the identity — kept
- * anyway so a row-removing reduction has somewhere to write starting with
- * the next plan.
+ * when a reduction removed it — row_map stopped being the identity in
+ * 02-03, once empty rows, singleton rows and the free-column-singleton's
+ * paired row all became reductions that remove one.
  *
  * `orig` is the caller's own model: the non-const write target
  * jm_postsolve_expand needs and jm_presolve_run — which only ever reads
@@ -549,6 +583,13 @@ JAOS_NODISCARD jaos_status jm_postsolve_expand(jm_presolve *p);
  * iteration, for the outcome where every column presolve fixed
  * (JM_PRESOLVE_SOLVED). */
 JAOS_NODISCARD jaos_status jm_postsolve_solved(jm_presolve *p);
+
+/* Publishes JAOS_SOLVE_INFEASIBLE or JAOS_SOLVE_UNBOUNDED with no sx built
+ * and no simplex iteration, for JM_PRESOLVE_INFEASIBLE/JM_PRESOLVE_UNBOUNDED
+ * — the short-circuit D-12 asks this plan to confirm bench/run.c's
+ * double-solve determinism check already reaches. */
+JAOS_NODISCARD jaos_status jm_postsolve_infeasible_or_unbounded(
+    jm_presolve *p, jaos_solve_status status);
 
 /* --------------------------------------------------------------------- */
 /* Sparse LU factorization of a basis                                    */
