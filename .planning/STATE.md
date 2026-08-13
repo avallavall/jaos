@@ -434,6 +434,41 @@ Taken during execution of 02-02:
   including that D24's "nothing is gained" reason for keeping the primal
   test absolute no longer holds in the same way it did when D24 closed.
 
+- **[Phase 2, waves 4 and 5 especially] A build without `make clean` between
+  settings silently measures the previous binary.** 02-02 hit this in practice,
+  not in theory: re-running the default build after an
+  `EXTRA_CFLAGS=-DJAOS_NO_PRESOLVE` build reused stale object files and reported
+  the wrong work figure. It was caught before either pinned value was
+  finalized, and both were then confirmed across two independent clean
+  rebuilds — 8202 under presolve, 8206 without.
+
+  This is already the standing rule for this project and it now has a second
+  receipt: three of the previous milestone's four defect closures came from
+  sweeping `REFACTOR_EVERY` over 16..256, and the same trap is why that sweep
+  needs `make clean` between settings **and a canary that must move**. Without
+  both, a sweep of N settings measures one binary N times and reports a flat
+  line that looks like a result.
+
+  **02-04 and 02-05 each carry a full sweep** — the fixed-point round cap and
+  two duplicate-detection tolerances. Neither can be believed without a clean
+  rebuild between settings and a value that is known in advance to change.
+  Put the `make clean` in the measurement script, not in the operator's memory.
+
+- **[Phase 2, waves 3 through 9] The generic "mark requirements complete from
+  frontmatter" step marks `REQ-presolve` complete after any single plan.** Every
+  plan in this phase lists `requirements: [REQ-presolve]`, and the step reads
+  that as authority to flip the requirement to `[x]` in
+  `.planning/REQUIREMENTS.md`. 02-02 tripped it and reverted the file before
+  committing; `REQ-presolve` is still `[ ]` and Pending, which is correct —
+  it spans all nine plans and two are done.
+
+  It will fire again on every remaining plan. The distinction the step does not
+  make is between a requirement scoped to one plan and one scoped to a whole
+  phase. Until a plan actually completes the requirement, revert
+  `.planning/REQUIREMENTS.md` before committing and say so in the summary.
+  `02-09` is the plan that may legitimately mark it complete, and only if the
+  phase's own criteria are met by then.
+
 ## Deferred Items
 
 | Category | Item | Status | Deferred At |
