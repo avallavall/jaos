@@ -434,6 +434,67 @@ static void test_original_index_invariant_across_all_six_arrays(void)
 #endif
 }
 
+/* D-14's pinned change detector (02-02 checkpoint: nonzero-only). The model
+ * above -- one fixed column, x1, touching exactly one nonzero in row 0 --
+ * costs a measurably *different* total under presolve than it did before
+ * this plan, not necessarily a larger one: presolve's own charge (+1, the
+ * nonzero it visits) is smaller than what it saves the reduced model's own
+ * solve (a 2-column, 1-row factorization and price instead of a 3-column
+ * one), so the net here is a 4-unit drop, 8206 -> 8202. Both figures are
+ * measured, not derived from each other. The two branches below are the
+ * same model's total with the charge and without it: run under both
+ * `make -j12 test` and `EXTRA_CFLAGS=-DJAOS_NO_PRESOLVE test` (the plan's
+ * own <verify>), so together they are the pair that proves the new figure
+ * is presolve's charge and not a change to something else. See
+ * docs/work-units.md's presolve entry for what each charge counts. */
+#if defined(JAOS_NO_PRESOLVE)
+/* Unchanged by 02-02: presolve never runs under this build, so this is the
+ * tree's pre-02-02 figure for this model, carried forward as the negative
+ * control -- the same role EXTRA_CFLAGS=-DJAOS_NO_PRESOLVE plays for every
+ * other presolve claim in this file. Measured, not derived. */
+constexpr int64_t PRESOLVE_MODEL_WORK_PINNED = 8206;
+#else
+/* x1's one nonzero costs JM_WORK_NONZERO=1 while jm_presolve_run shifts
+ * row 0's bound by it -- the round's own charge, nonzero-only per the
+ * 02-02 checkpoint. The rest is the reduced model's own solve: 0
+ * iterations (the cold-start slack basis is already feasible), one
+ * settle-and-recheck factorization and price over what presolve left, 1
+ * row and 2 columns rather than 3. First pinned by 02-02, which is the
+ * first plan that charges anything here at all -- 02-01 already reduced
+ * this model but billed it nothing, and nothing pinned the resulting
+ * figure. Measured, not derived. */
+constexpr int64_t PRESOLVE_MODEL_WORK_PINNED = 8202;
+#endif
+
+static void test_presolve_bills_the_work_counter(void)
+{
+    jaos_model *m = make_one_fixed_column();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+    TEST_ASSERT_EQUAL_INT64(PRESOLVE_MODEL_WORK_PINNED, jaos_work_units(m));
+    jaos_model_free(m);
+}
+
+/* Acceptance criterion, not merely the counters' own arithmetic: two solves
+ * of the same model with the basis cleared between them report equal work
+ * units, the same way bench/run.c's own double solve already checks on
+ * every instance in every campaign (D-12). Checked directly here too
+ * because it is presolve's charge under test, not the simplex's. */
+static void test_presolve_work_is_deterministic_across_re_solves(void)
+{
+    jaos_model *m = make_one_fixed_column();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+    const int64_t first = jaos_work_units(m);
+
+    jaos_clear_basis(m);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+    TEST_ASSERT_EQUAL_INT64(first, jaos_work_units(m));
+
+    jaos_model_free(m);
+}
+
 int main(void)
 {
     UNITY_BEGIN();
@@ -444,5 +505,7 @@ int main(void)
     RUN_TEST(test_original_arrays_survive_a_reducing_solve);
     RUN_TEST(test_fixed_column_index_map_off_by_one);
     RUN_TEST(test_original_index_invariant_across_all_six_arrays);
+    RUN_TEST(test_presolve_bills_the_work_counter);
+    RUN_TEST(test_presolve_work_is_deterministic_across_re_solves);
     return UNITY_END();
 }

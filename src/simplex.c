@@ -3798,6 +3798,15 @@ jaos_status jm_dual_simplex(jaos_model *m)
     jm_presolve_init(&p);
     p.orig = m;
 
+    /* D-14: presolve's own charge, on the accumulator sx_init's own s.work
+     * continues below rather than a second, separate one -- one solve, one
+     * total, the same way jaos_work_units already reads a single figure
+     * regardless of how many kernels contributed to it. Declared here,
+     * outside the switch below, so it is always {0} rather than
+     * conditionally uninitialized: under JAOS_NO_PRESOLVE it simply never
+     * moves, and seeding s.work with a zero is the same as not seeding it. */
+    jm_work pre_work = {0};
+
 #if !defined(JAOS_NO_PRESOLVE)
     /* A development switch, not an option (D64): which reductions fire is
      * the method, and the method is not the caller's to choose. Sweeping a
@@ -3807,7 +3816,7 @@ jaos_status jm_dual_simplex(jaos_model *m)
      * itself — `make EXTRA_CFLAGS=-DJAOS_NO_PRESOLVE`. With it defined,
      * src/presolve.c compiles to nothing that runs and the solver takes
      * exactly the path it took before this existed (D-03, D-09). */
-    jaos_status pst = jm_presolve_run(m, &p, nullptr);
+    jaos_status pst = jm_presolve_run(m, &p, &pre_work);
     if (pst != JAOS_OK) {
         jm_presolve_free(&p);
         return pst;
@@ -3855,6 +3864,12 @@ jaos_status jm_dual_simplex(jaos_model *m)
         jm_presolve_free(&p);
         return st;
     }
+    /* sx_init's own memset just zeroed s.work; seed it with what presolve
+     * already charged (D-14) so the two are one accumulator and not two
+     * that happen to get added together later -- publish()'s own
+     * m->solve_work = s->work.units is then presolve's units plus the
+     * solve's, in the same total a work limit is compared against. */
+    s.work = pre_work;
     clock_gettime(CLOCK_MONOTONIC, &s.started);
 
     jm_log(m, JAOS_LOG_SUMMARY,

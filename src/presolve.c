@@ -100,7 +100,13 @@ void jm_presolve_free(jm_presolve *p)
 JAOS_NODISCARD jaos_status jm_presolve_run(const jaos_model *m, jm_presolve *p,
                                            jm_work *w)
 {
-    (void)w;   /* presolve's own cost is billed starting 02-02 */
+    /* D-14, rate chosen at the 02-02 checkpoint (nonzero-only): the only
+     * charge presolve makes is JM_WORK_NONZERO per nonzero a round actually
+     * visits while computing a reduction -- below, at the row-bound shift.
+     * Column-level bookkeeping (this classification pass itself, and the
+     * reduced model's own construction in Pass 2/3) is deliberately
+     * unbilled; see docs/work-units.md's presolve entry for both halves of
+     * that line. */
 
     /* This plan's one family: a column whose bounds arrived exactly equal.
      * No bound tightening happens here — a column becomes fixed only by
@@ -217,6 +223,11 @@ JAOS_NODISCARD jaos_status jm_presolve_run(const jaos_model *m, jm_presolve *p,
             p->reduced.row_lower[i] -= m->a_value[k] * v;
             p->reduced.row_upper[i] -= m->a_value[k] * v;
         }
+        /* The round's own charge (D-14): one JM_WORK_NONZERO per entry of
+         * this fixed column, the same nonzeros the loop above just visited
+         * to shift the rows they touch. Nothing else in this function bills
+         * anything -- see docs/work-units.md. */
+        jm_work_add(w, (m->a_start[j + 1] - m->a_start[j]) * JM_WORK_NONZERO);
 
         if (!JM_GROW(p->arena, p->arena_cap, p->arena_len + 1))
             return JAOS_ERR_OUT_OF_MEMORY;
@@ -229,6 +240,14 @@ JAOS_NODISCARD jaos_status jm_presolve_run(const jaos_model *m, jm_presolve *p,
     }
     p->counts.rounds = 1;
     assert(rj == rcol);
+
+    /* Pass 2 and Pass 3 build the reduced model: the CSC prefix below, then
+     * every surviving column's nonzeros copied into it verbatim. Charged
+     * nothing, deliberately (D-14 checkpoint, 02-02): the reduced-model copy
+     * is a one-time structural cost, the same kind of floor the two existing
+     * unbilled sweeps in docs/work-units.md already are, not the round's own
+     * work of computing a reduction. A rate for it would be a number with no
+     * measurement on either side. */
 
     /* Pass 2: the reduced CSC prefix, one surviving column's worth of
      * nonzeros at a time, in the same order orig_col already fixed. */
@@ -282,6 +301,14 @@ JAOS_NODISCARD jaos_status jm_presolve_run(const jaos_model *m, jm_presolve *p,
     }
 
     p->outcome = (rcol == 0) ? JM_PRESOLVE_SOLVED : JM_PRESOLVE_REDUCED;
+    /* Recorded on `reduced` so the SOLVED path (jm_postsolve_solved, below)
+     * has presolve's own charge to publish even though no sx ever runs to
+     * report one itself. On the REDUCED path this is overwritten by
+     * publish()'s own m->solve_work = s->work.units once the reduced
+     * model's solve finishes -- s->work started from this same total
+     * (jm_dual_simplex threads it in before sx_init), so nothing here is
+     * lost, only superseded by the fuller figure. */
+    p->reduced.solve_work = (w != nullptr) ? w->units : 0;
     return JAOS_OK;
 }
 
@@ -410,7 +437,10 @@ JAOS_NODISCARD jaos_status jm_postsolve_solved(jm_presolve *p)
      * that violates a row is 02-03's, not this plan's). */
     orig->solve_status = JAOS_SOLVE_OPTIMAL;
     orig->solve_iters  = 0;
-    orig->solve_work   = 0;   /* presolve's own cost is billed starting 02-02 */
+    /* presolve's own charge (D-14): jm_presolve_run already recorded it on
+     * `reduced` for exactly this path -- no sx is built here, so nothing
+     * else in this function would otherwise report it. */
+    orig->solve_work   = p->reduced.solve_work;
     /* No clock is read here. Seconds are a development number that is
      * reported and never enters a baseline (D17); presolve's own cost,
      * timed or billed, starts being counted at all in 02-02. A presolve-only
