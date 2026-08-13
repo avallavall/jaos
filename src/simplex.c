@@ -3568,8 +3568,13 @@ static jaos_status run(sx *s, jaos_solve_status *out)
 
 /* Solution buffers are kept across solves and only resized when the model
  * changes shape: branch and bound re-solves the same model thousands of
- * times, and an allocation per solve would be pure churn. */
-static jaos_status ensure_solution_arrays(jaos_model *m)
+ * times, and an allocation per solve would be pure churn.
+ *
+ * Not static: jm_postsolve_expand and jm_postsolve_solved (src/presolve.c)
+ * call it on the caller's own model exactly as publish() calls it here on
+ * whichever model this solve actually ran on — a presolve-reduced solve has
+ * two models to ensure buffers on, not one. */
+jaos_status jm_model_ensure_solution_arrays(jaos_model *m)
 {
     if (m->sol_col != nullptr && m->sol_row != nullptr &&
         m->sol_dual != nullptr && m->sol_redcost != nullptr &&
@@ -3638,10 +3643,17 @@ static jaos_basis_status published_status(jm_var_status st)
     return JAOS_BASIS_BASIC;
 }
 
-static jaos_status publish(sx *s, jaos_solve_status status)
+/* `p` is the presolve workspace for this solve, always non-null: NONE when
+ * nothing was reduced, in which case m == s->m already IS the caller's
+ * model and every loop below writes straight into it exactly as before
+ * presolve existed. `(void)p` covers the JAOS_NO_PRESOLVE build, where the
+ * postsolve-expand call below is compiled out and p would otherwise go
+ * unread (D-03). */
+static jaos_status publish(sx *s, jaos_solve_status status, jm_presolve *p)
 {
     jaos_model *m = s->m;
     const double sigma = (m->sense == JAOS_MAXIMIZE) ? -1.0 : 1.0;
+    (void)p;
 
     m->solve_status = status;
     m->solve_iters = s->iters;
@@ -3650,7 +3662,7 @@ static jaos_status publish(sx *s, jaos_solve_status status)
      * and a counter that reported everything except the last thing it
      * did would be lying by one solve (D16). */
 
-    jaos_status st = ensure_solution_arrays(m);
+    jaos_status st = jm_model_ensure_solution_arrays(m);
     if (st != JAOS_OK)
         return st;
 
@@ -3705,6 +3717,13 @@ static jaos_status publish(sx *s, jaos_solve_status status)
          * Seconds are a development number here as everywhere -- reported,
          * never entering a baseline (D17). */
         m->solve_time = elapsed_seconds(s);
+#if !defined(JAOS_NO_PRESOLVE)
+        if (p->outcome == JM_PRESOLVE_REDUCED) {
+            jaos_status pst = jm_postsolve_expand(p);
+            if (pst != JAOS_OK)
+                return pst;
+        }
+#endif
         return JAOS_OK;
     }
 
@@ -3756,15 +3775,65 @@ static jaos_status publish(sx *s, jaos_solve_status status)
      * it. The two are not the same kind of failure and must not get the same
      * answer. */
     (void)jm_model_remember_basis(m);
+
+#if !defined(JAOS_NO_PRESOLVE)
+    /* m is the reduced model here whenever p->outcome is REDUCED (s->m was
+     * set to &p->reduced in jm_dual_simplex); everything above just wrote a
+     * complete, correct answer in REDUCED indices onto it. This is where
+     * that answer crosses back into the caller's own row and column space
+     * (D-08) — the same kind of boundary the scaled-to-original unit
+     * conversion above already crosses, just for indices instead of units. */
+    if (p->outcome == JM_PRESOLVE_REDUCED) {
+        jaos_status pst = jm_postsolve_expand(p);
+        if (pst != JAOS_OK)
+            return pst;
+    }
+#endif
     return JAOS_OK;
 }
 
 jaos_status jm_dual_simplex(jaos_model *m)
 {
-    sx s;
-    jaos_status st = sx_init(&s, m);
-    if (st != JAOS_OK)
+    jm_presolve p;
+    jm_presolve_init(&p);
+    p.orig = m;
+
+#if !defined(JAOS_NO_PRESOLVE)
+    /* A development switch, not an option (D64): which reductions fire is
+     * the method, and the method is not the caller's to choose. Sweeping a
+     * constant that must not change a verdict is how three defects were
+     * found that 139 instances at one setting did not (D39, D47, D72); this
+     * switch is what makes the equivalent sweep possible for presolve
+     * itself — `make EXTRA_CFLAGS=-DJAOS_NO_PRESOLVE`. With it defined,
+     * src/presolve.c compiles to nothing that runs and the solver takes
+     * exactly the path it took before this existed (D-03, D-09). */
+    jaos_status pst = jm_presolve_run(m, &p, nullptr);
+    if (pst != JAOS_OK) {
+        jm_presolve_free(&p);
+        return pst;
+    }
+#endif
+
+    if (p.outcome == JM_PRESOLVE_SOLVED) {
+        /* Every column presolve fixed: nothing is left for the simplex to
+         * run on. No sx is built and run() never executes. */
+        jaos_status st = jm_postsolve_solved(&p);
+        jm_presolve_free(&p);
         return st;
+    }
+
+    /* The scaled working copy is built from the reduced model when presolve
+     * reduced one, and from the caller's own model otherwise — this is the
+     * only place that distinction is made; everything below reads `target`
+     * and does not know or care which case it is in. */
+    jaos_model *target = (p.outcome == JM_PRESOLVE_REDUCED) ? &p.reduced : m;
+
+    sx s;
+    jaos_status st = sx_init(&s, target);
+    if (st != JAOS_OK) {
+        jm_presolve_free(&p);
+        return st;
+    }
     clock_gettime(CLOCK_MONOTONIC, &s.started);
 
     jm_log(m, JAOS_LOG_SUMMARY,
@@ -3791,7 +3860,7 @@ jaos_status jm_dual_simplex(jaos_model *m)
                 outcome = classify_optimum(&s);
         }
         if (st == JAOS_OK)
-            st = publish(&s, outcome);
+            st = publish(&s, outcome, &p);
     }
 
     /* What the solve did, in the terms a caller can act on. The three counts
@@ -3825,5 +3894,6 @@ jaos_status jm_dual_simplex(jaos_model *m)
                (long long)s.n_stability);
 
     sx_free(&s);
+    jm_presolve_free(&p);
     return st;
 }

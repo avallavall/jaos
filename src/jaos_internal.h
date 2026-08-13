@@ -363,6 +363,13 @@ bool jm_nmap_insert(jm_nmap *m, const char *name, int64_t value);
 /* Builds the CSR mirror if it is not current. */
 JAOS_NODISCARD jaos_status jm_model_ensure_rowwise(jaos_model *m);
 
+/* Allocates m's six sol_* arrays if any is missing, all six or none (a
+ * partial set left behind by an earlier failed allocation must not read as
+ * "already there"). Shared by publish() and jm_postsolve_expand, since a
+ * presolve-reduced solve has to ensure them on the caller's own model
+ * exactly as an unreduced one ensures them on itself. */
+JAOS_NODISCARD jaos_status jm_model_ensure_solution_arrays(jaos_model *m);
+
 /* Keeps the basis just published as the one the next solve starts from.
  * A model with no published basis is left alone and reports success: there is
  * nothing to remember, which is not a failure. */
@@ -419,6 +426,120 @@ static inline void jm_work_add(jm_work *w, int64_t n)
     if (w != nullptr)
         w->units += n;
 }
+
+/* --------------------------------------------------------------------- */
+/* Presolve and postsolve (D-01)                                         */
+/* --------------------------------------------------------------------- */
+
+/* What each reduction removed. Declared in full now, though this plan makes
+ * only fixed_col and rounds move — every other field stays zero until the
+ * plan that makes its family fire. That is deliberate: the record format
+ * settles once here rather than changing under the campaign baselines nine
+ * times (D-13). Logged at JAOS_LOG_SUMMARY and printed by bench/run.c;
+ * tests are white-box and read the fields directly. */
+typedef struct {
+    int64_t fixed_col;
+    int64_t empty_row;
+    int64_t empty_col;
+    int64_t singleton_row;
+    int64_t singleton_col;
+    int64_t forcing_row;
+    int64_t redundant_row;
+    int64_t tightened_bound;
+    int64_t duplicate_row;
+    int64_t duplicate_col;
+    int64_t dominated_col;
+    int64_t rounds;
+} jm_presolve_counts;
+
+/* One postsolve record kind per reduction family. This plan adds the first
+ * of eight; later plans add one member each and change nothing else about
+ * the arena (D-01, D-07). */
+typedef enum {
+    JM_PS_FIXED_COL,   /* a column presolve fixed as loaded */
+} jm_presolve_tag;
+
+/* One tagged, append-only postsolve record: what an original row or column
+ * needs to be restored. `index` is always an ORIGINAL row or column index —
+ * never a reduced one, so replay never has to know which reduction pushed a
+ * record in order to interpret it. `value` and `cost` are read differently
+ * by different tags; JM_PS_FIXED_COL is the only one today and reads them
+ * as documented on jm_postsolve_expand: the column's fixed value and its
+ * own cost. */
+typedef struct {
+    jm_presolve_tag tag;
+    int64_t index;
+    double value;
+    double cost;
+} jm_presolve_rec;
+
+/* What presolve decided about the model as a whole. NONE and REDUCED are
+ * the two a caller-visible solve can end up taking; SOLVED short-circuits
+ * the simplex entirely. This plan produces NONE, REDUCED and SOLVED;
+ * INFEASIBLE and UNBOUNDED are declared now and produced starting 02-03, so
+ * every switch over this enum is complete from the first commit rather than
+ * growing a case nine plans from now. */
+typedef enum {
+    JM_PRESOLVE_NONE,
+    JM_PRESOLVE_REDUCED,
+    JM_PRESOLVE_INFEASIBLE,
+    JM_PRESOLVE_UNBOUNDED,
+    JM_PRESOLVE_SOLVED,
+} jm_presolve_outcome;
+
+/* The solve-local presolve workspace (D-08): built inside jm_dual_simplex,
+ * consumed before publish returns, freed with sx.
+ *
+ * `reduced` is a jaos_model VALUE, not a pointer — sx_init already knows how
+ * to build a working copy of a problem from a jaos_model, and this is that
+ * same move one layer up, before scaling exists (D-04, D-06). Every array on
+ * it is presolve-owned; none aliases the caller's model, which is what makes
+ * jm_presolve_free safe without ever handing `reduced` to jaos_model_free.
+ *
+ * orig_col/orig_row map a reduced index to the original one it came from;
+ * col_map/row_map are the inverse, original index to reduced index or -1
+ * when the reduction removed it. This plan's only family removes columns,
+ * so row space is untouched and orig_row/row_map are the identity — kept
+ * anyway so a row-removing reduction has somewhere to write starting with
+ * the next plan.
+ *
+ * `orig` is the caller's own model: the non-const write target
+ * jm_postsolve_expand needs and jm_presolve_run — which only ever reads
+ * through a const pointer, matching D-06 at the type level — cannot supply.
+ * jm_dual_simplex sets it directly; nothing inside presolve.c needs to. */
+typedef struct {
+    jaos_model reduced;
+    int64_t *orig_col, *orig_row;
+    int64_t *col_map, *row_map;
+    jm_presolve_rec *arena;
+    int64_t arena_len, arena_cap;
+    jm_presolve_counts counts;
+    jm_presolve_outcome outcome;
+    jaos_model *orig;
+} jm_presolve;
+
+void jm_presolve_init(jm_presolve *p);
+void jm_presolve_free(jm_presolve *p);
+
+/* Builds the reduced model in p->reduced from m as loaded — unscaled,
+ * before sx_init runs (D-04) — and never writes to m (D-06). `w` is billed
+ * starting 02-02; this plan accepts it and charges nothing. */
+JAOS_NODISCARD jaos_status jm_presolve_run(const jaos_model *m, jm_presolve *p,
+                                           jm_work *w);
+
+/* Walks p's arena strictly LIFO (D-07) and writes p->orig's sol_col,
+ * sol_row, sol_dual, sol_redcost, sol_col_status and sol_row_status in
+ * ORIGINAL indices, from whatever the reduced solve left in p->reduced.
+ * Also copies solve_status/iters/work/time and, on an optimal outcome,
+ * remembers the postsolved basis on p->orig — D-08's mapping back into
+ * original indices. Called from publish(), before it returns, only when
+ * p->outcome == JM_PRESOLVE_REDUCED. */
+JAOS_NODISCARD jaos_status jm_postsolve_expand(jm_presolve *p);
+
+/* Publishes a presolve-only answer with no sx built and no simplex
+ * iteration, for the outcome where every column presolve fixed
+ * (JM_PRESOLVE_SOLVED). */
+JAOS_NODISCARD jaos_status jm_postsolve_solved(jm_presolve *p);
 
 /* --------------------------------------------------------------------- */
 /* Sparse LU factorization of a basis                                    */
