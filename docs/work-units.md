@@ -39,7 +39,33 @@ promise a run far cheaper than the one it buys.
 
 ## Where it is charged
 
-Everything below is in `src/lu.c` and `src/simplex.c`. Nothing else counts.
+Everything below is in `src/lu.c`, `src/presolve.c` and `src/simplex.c`.
+Nothing else counts.
+
+**Presolve is one-way, and this is the door (D-14, 02-02).** A work figure
+read before presolve existed and one read after are not comparable on any
+model presolve actually reduces — the model a solve billed then is not the
+model a solve bills now. Every historical figure in `DECISIONS.md` and every
+figure in the three committed baselines was taken before this paragraph
+existed, on every one of the 26 standard-set instances 02-01's own reduction
+already touches. Read them as figures about two different problems, because
+on those instances they are. The rewrite that acknowledges this in the
+baselines themselves is `02-07`'s own task, deliberately not a side effect
+of landing this section.
+
+**Presolve** (`jm_presolve_run`): `JM_WORK_NONZERO` per nonzero a round
+actually visits while computing a reduction — for the one family this phase
+ships so far (a column fixed as loaded), the entries of that column, visited
+once each while its cost and its matrix contribution shift the rows it
+touches. Charged onto the same `jm_work` the reduced model's own solve then
+continues (`jm_dual_simplex` seeds `sx`'s accumulator with presolve's total
+before `sx_init` runs), so a caller's `jaos_set_work_limit` sees one total
+for the whole solve and not two — the reason D-14 exists at all: an
+inflated or omitted total is compared against the same budget that decides
+where a solve stops, and phase 1 (D93's amendment) is the standing example
+of what that costs when it goes silently wrong. Nothing else in
+`src/presolve.c` bills anything; see "What is outside the budget" below for
+what that leaves.
 
 **Factorization** (`jm_lu_factor`): `JM_WORK_FACTOR` once on entry, plus
 `JM_WORK_ELIMINATED` per nonzero the elimination produces.
@@ -120,6 +146,22 @@ replaced. D40 makes the first of those much smaller on a sparse iteration
 without making it visible. On an iteration that ends up reading `alpha`
 densely it also records part of a pattern it then discards — bounded by a
 quarter of the variables, and unbilled for the same reason the clear is.
+
+**Presolve's own bookkeeping is not billed, and neither is building the
+reduced model (D-14, 02-02).** The classification pass that decides which
+column is fixed reads every column once regardless of whether it fires —
+an O(rows + cols) floor per round, the same shape the two fixed factorization
+and update costs above rest on, but with no rate chosen for it: this phase's
+one round fires or it does not, and inventing a per-round constant from a
+single round would be fitting a number to one instance, which is the
+mistake this project's first rule exists to prevent. The reduced model's own
+construction — the CSC prefix and the copy of every surviving column's
+nonzeros into it — is a one-time structural cost and is unbilled for the
+same reason: it is real work, it is not a reduction being computed, and no
+measurement exists for what a rate on it should be. Both floors are real and
+invisible in the counter the same way the `nvar/64`-read floor below is; a
+model presolve barely reduces pays nearly all of this and is billed almost
+nothing for it.
 
 **The nonbasic bitmap's words are not billed either.** The dense candidate
 scan reads one machine word per 64 variables to find the bits that are set,
