@@ -81,7 +81,7 @@ Plans:
   3. Each reduction reports what it removed, so what presolve is worth on the standard set is a measured number *for JAOS* rather than one carried over from D81's reading of two competitors.
   4. Determinism holds across two solves with the basis cleared between them: status, iteration count, work units and the bits of every published value agree.
 
-**Plans:** 4/9 plans executed
+**Plans:** 4/10 plans executed
 
 **Criterion 2 is currently false, and it was already false before 02-04.**
 The checker refuses 15 of the 94 standard-set answers and 4 of the 16
@@ -98,6 +98,7 @@ Plans:
 - [x] 02-02-PLAN.md — presolve bills the same work counter every kernel bills, behind the one-way gate the work-unit contract earns, with `docs/work-units.md` landing alongside it (D-14)
 - [x] 02-03-PLAN.md — empty and singleton rows and columns, the path that publishes without a simplex run, and whether the existing double solve reaches it (D-12 as corrected)
 - [x] 02-04-PLAN.md — one activity-range routine read three ways: infeasible, forcing, redundant. The fourth reading it was written around, bound tightening, was built six ways and refused every time — every design returns INFEASIBLE on models that have an optimum, and nine epsilon settings moved none of it (see 02-04-SUMMARY.md and 02-04-MEASUREMENT/). `JM_PRESOLVE_ROUNDS = 16` and `PRESOLVE_TIGHTEN_EPS = 1e-9`, each set by a sweep with a canary that had to move and did, both written up in `docs/tolerances.md` (D-02, D91). Also found: **the standard set was already failing before this plan** — `8425acc` reads 78 checker ok of 94 and 8 of 16 on Kennington, against 93 and 16 in the records 02-01 committed, because 02-03 scoped its verification to the infeasible set. This tree reads 79 and 12
+- [ ] 02-04.1-PLAN.md — the fifteen dual rejections, attributed. A bisection over three trees puts the whole 93-to-78 fall inside 02-03's diff, so `numerics-reviewer` reads that diff with the evidence in hand, a diagnostic build names the recovery site, and the repair carries the test that would have caught it. Inserted after 02-04 because 02-05 would otherwise build two more families on a replay nobody has read
 - [ ] 02-05-PLAN.md — duplicate rows and columns, dominated columns, the two detection tolerances swept, and the near-ties built rather than hoped absent
 - [ ] 02-06-PLAN.md — `numerics-reviewer` on the whole postsolve diff, after the code lands and before any campaign, with a disposition for every finding
 - [ ] 02-07-PLAN.md — all three sets with the reductions firing, the D-09 negative control with them compiled out, and only then the three baselines rewritten and confirmed by a following gate run
@@ -239,7 +240,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Candidate admission in the ratio test | 5/5 | Complete    | 2026-08-12 |
-| 2. Presolve and postsolve | 3/9 | In Progress|  |
+| 2. Presolve and postsolve | 4/10 | In Progress|  |
 | 3. The factorization and the solves that read it | 0/TBD | Not started | - |
 | 4. The search path | 0/TBD | Not started | - |
 | 5. Close M2 | 0/TBD | Not started | - |
