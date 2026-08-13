@@ -307,6 +307,55 @@ Taken during execution of 02-02:
 
 ### Pending Todos
 
+- **Feature expansion, agreed 2026-08-13. Decide the shape before planning
+  anything, and do it after phase 2 closes.** The developer's stated goal is a
+  correct, fast, multi-purpose solver with the widest range of features expected
+  of a general-purpose solver, and is willing to spend months on it.
+  `docs/feature-matrix.md` was written to make that measurable: it lists what
+  the field offers and where JAOS stands, so a closed phase can be checked
+  against it.
+
+  **What the matrix already says, and it is the reason this is a decision and
+  not a task list.** M2 moves exactly one row of that page, the presolve one.
+  M2's success criterion is a time ratio, so when it closes the feature matrix
+  will look almost identical. If features are the goal, the roadmap after M2
+  has to say so explicitly.
+
+  **Three questions have to be answered before a milestone is written:**
+
+  1. **Do the two premises stay absolute?** No external code, and bit-identical
+     results on every machine. They are what makes JAOS distinctive and they
+     multiply the cost of every feature. A barrier method needs a sparse
+     Cholesky; Clp uses an external one because writing a competitive one is a
+     project in itself. Compressed input needs zlib or an inflate written here.
+     This tension has to be resolved deliberately, not discovered halfway
+     through.
+
+  2. **What does "best" mean, in a form that can be reached?** Matching Gurobi
+     is not realistic. "The best open solver that returns identical results on
+     every machine and ships its own independent checker" is a position nobody
+     occupies — Gurobi's own documentation states it is not deterministic
+     across machines, and none of the others ships a checker.
+
+  3. **Does M2 finish as scoped?** The argument for yes: the per-iteration cost
+     is 2.5x and everything built on the LP pays it. A MILP solver solves the LP
+     thousands of times per model, so fixing speed before adding breadth is the
+     cheaper order.
+
+  **Proposed sequence, if the answers point that way:** finish M2 · then the
+  cheap breadth that closes many cells with no research risk (write MPS, write
+  LP, write a solution file, Python bindings, sensitivity and ranging,
+  infeasibility certificates) · then the foundations (primal simplex, then
+  barrier with crossover) · then MILP · then QP, SOCP, NLP and MINLP. A
+  cheaper differentiator worth considering early: emitting VIPR-format
+  certificates, which only SCIP 10.0 does today and which JAOS is half way to
+  already because it ships a checker.
+
+  **Mechanism:** `SPECS.md` gains the target list from the matrix, not only the
+  current status; a new milestone is written in GSD with its own requirements;
+  and `docs/feature-matrix.md` becomes the scoreboard, so "did this phase
+  improve the product" is answerable by looking at one page.
+
 - **Documentation clean-up, agreed 2026-08-13, scheduled for after phase 2
   closes.** The repository's prose is hard to read. The problem is concentrated
   in the decision headings: 55 of the 93 headings in `DECISIONS.md` are written
