@@ -2,18 +2,18 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-current_phase: 2
-current_phase_name: Presolve and postsolve
+current_phase: 02
+current_phase_name: presolve-and-postsolve
 status: executing
-stopped_at: Completed 02-03-PLAN.md. Empty/singleton rows and columns landed via a cascading round loop; the free-column-singleton is scoped to cost-0 mutual singletons; two bugs found by running (warm-start vs status-correction, JAOS_BASIS_FREE misuse) are fixed; bench/run.c confirmed unchanged, netlib-infeas gate policy corrected (two new named regressions, verdict/det unaffected).
-last_updated: "2026-08-13T09:50:45.511Z"
+stopped_at: Completed 02-04-PLAN.md. One activity-range routine read three ways (infeasible, forcing, redundant); bound tightening built six ways, measured six times and NOT shipped because every design returns INFEASIBLE on models that have an optimum. JM_PRESOLVE_ROUNDS=16 and PRESOLVE_TIGHTEN_EPS=1e-9 set by sweeps with canaries that had to move. Found: the standard set was already failing before this plan (8425acc reads 78/94 checker ok and 8/16 Kennington, against 93 and 16 in 02-01's records) because 02-03 verified only the infeasible set; this tree reads 79 and 12.
+last_updated: "2026-08-13T18:40:00.000Z"
 last_activity: 2026-08-13
-last_activity_desc: Executed 02-02 — the D-14 checkpoint (nonzero-only) closed and implemented, presolve bills jm_work, a pinned test fixes the one-fixed-column model at 8202 (on) / 8206 (off), docs/work-units.md gains the entry and two new unbilled floors, no baseline touched
+last_activity_desc: Executed 02-04 — the activity-range machinery lands as three families, the fourth is refused by measurement, both constants are swept, and the phase's real state is now visible: the checker refuses 15 standard-set and 4 Kennington answers, inherited at 16 and 8
 progress:
   total_phases: 2
   completed_phases: 1
   total_plans: 14
-  completed_plans: 8
+  completed_plans: 9
 ---
 
 # Project State
@@ -23,17 +23,17 @@ progress:
 See: .planning/PROJECT.md (updated 2026-08-12)
 
 **Core value:** A correct answer, bit-identical on every machine and every run, proved by a checker that had no access to the solver that produced it.
-**Current focus:** Phase 2 — Presolve and postsolve
+**Current focus:** Phase 02 — presolve-and-postsolve
 **Milestone:** M2 — LP competitiveness
 
 ## Current Position
 
-Phase: 2 (Presolve and postsolve) — EXECUTING
-Plan: 4 of 9 (01, 02 complete)
-Status: Ready to execute
-Last activity: 2026-08-13 — Executed 02-02 (D-14 checkpoint closed, presolve bills jm_work, pinned test 8202/8206)
+Phase: 02 (presolve-and-postsolve) — EXECUTING
+Plan: 5 of 9 (01, 02, 03, 04 complete)
+Status: Ready to execute 02-05
+Last activity: 2026-08-13 — Executed 02-04 (activity range, both constants swept, bound tightening refused by measurement)
 
-Progress: [██████░░░░] 57%
+Progress: [██████░░░░] 64%
 
 ## Performance Metrics
 
@@ -108,6 +108,7 @@ Progress: [██████░░░░] 57%
 | Plan | Duration | Tasks | Files |
 |------|----------|-------|-------|
 | Phase 02 P03 | ~230 min | 3 tasks | 6 files |
+| Phase 02 P04 | ~300 min | 3 tasks | 5 files + 128-file measurement dir |
 
 ## Accumulated Context
 
@@ -314,6 +315,47 @@ Taken during execution of 02-02:
 - [Phase ?]: Free-column-singleton restricted to a mutual singleton (row has no other live entry either) — this is what lets postsolve recover the column's value from the row's own already-shifted bounds alone, with no arena-replay-ordering hazard; also found the row-pass always wins the race for a degree-1 row regardless of the column's properties, so the mutual check now runs inside the row-pass itself, not only the column-pass fallback
 - [Phase ?]: netlib-infeas's phase-2 gate policy corrected: it is no longer bit-identical against the pre-02-03 baseline (greenbea and pilot4i now show genuine trajectory movement, work 3.1x and 2.3x), joining the standard set's existing four named regressions from 02-01. All 29 instances still read verdict=ok det=ok -- presolve changing the model the simplex sees, by design, not a correctness defect
 - [Phase ?]: Two bugs found only by running, not by design: a row-tightened column's status-correction (needed for the row-count invariant) broke warm-starting until the warm-start mapping was made to reconstruct reduced-space status independently; JAOS_BASIS_FREE was published for a nonzero free-column-singleton value (FREE means nonbasic at zero) until JAOS_NO_PRESOLVE disagreeing with itself on the same model caught it
+
+Taken during execution of 02-04:
+
+- **Bound tightening is measured and refused, not deferred.** Six designs
+  against the standard set — the bound reasoned with but never published,
+  published, published with the outward rounding at DBL_EPSILON, published
+  without the collapse-to-fixed, published with the row window at
+  DBL_EPSILON — and every one returns INFEASIBLE on models that have an
+  optimum (`pilot`, `pilot87`, `agg`, `maros`). Nine epsilon settings from
+  1e-12 to 1e-4 moved none of it. The other three readings of the same
+  activity range ship and measure better than the tree they came from.
+  02-09 owes a `DECISIONS.md` entry; the evidence is in
+  `02-04-MEASUREMENT/`
+
+- **The activity sum is Neumaier-compensated `double`, not `long double`,
+  against the plan's explicit instruction.** The checker may use `long
+  double` because its arithmetic never reaches the answer; presolve's
+  decides which reduced model the simplex sees. D34 lists "no `long
+  double`" among the four construction rules the cross-machine determinism
+  claim rests on, and it appears nowhere in this tree outside
+  `src/check.c`
+
+- **Two windows, two jobs, never the same constant.** Whether two numbers
+  that should be equal differ is `DBL_EPSILON` times the traffic that
+  produced them and is not tunable; whether an improvement is worth taking
+  is a judgement, and that is all `PRESOLVE_TIGHTEN_EPS` governs.
+  Conflating them declared every row whose minimum activity came within
+  1e-3 of its upper bound to be forcing, and a forcing row pins every
+  column in it
+
+- **`JM_PRESOLVE_ROUNDS = 16`** (rows removed 6060, 7178, 7549, 7596, 7598,
+  7598, 7598, 7598 at 1, 2, 4, 8, 16, 32, 64, 128; cost flat 97.2–103.6 s)
+  and **`PRESOLVE_TIGHTEN_EPS = 1e-9`** (nothing moves across 1e-12 to
+  1e-4, with a canary that flips inside the grid, so the plateau is at
+  least nine decades wide and neither edge was found)
+
+- **Three campaigns were spent on wrong hypotheses before the tree was
+  instrumented.** The epsilon, then the outward rounding, then the row
+  window. A throwaway build printing which of the four sites set
+  `JM_PRESOLVE_INFEASIBLE` answered it in one run. `jaos-debug`'s own rule,
+  applied three campaigns late
 
 ### Pending Todos
 
@@ -581,6 +623,44 @@ Taken during execution of 02-02:
 
 - [Phase 2, waves 4-9] netlib-infeas is no longer guaranteed clean against its baseline -- 02-03 added two named regressions (greenbea, pilot4i, both trajectory-only, verdict/det unaffected). 02-07's baseline rewrite must account for four standard-set regressions (02-01) plus these two infeasible-set ones, six total, not four.
 
+- **[Phase 2, waves 5 onward] THE GATE DOES NOT PASS, and it did not pass
+  before 02-04 either.** This is the phase's most important open fact and it
+  was invisible until 02-04 ran the standard set for the first time since
+  02-01.
+
+  | set | 02-01's committed record | 8425acc (after 02-03) | after 02-04 |
+  |---|---|---|---|
+  | netlib | 1 rejected (`finnis`) | 16 rejected | 15 rejected |
+  | netlib-kennington | 0 rejected | 8 rejected | 4 rejected |
+  | netlib-infeas | gate PASS | — | gate PASS |
+
+  Every one of the 94 standard-set objectives matches Koch's reference and
+  every instance is deterministic. What fails is the checker's **dual sign
+  condition on a postsolved answer** — the defect class this phase's own
+  boundary names as the real risk, now with a count rather than a concern.
+
+  **02-03 shipped 15 of the 16 and nobody knew**, because its Task 3
+  `<verify>` was scoped to `netlib-infeas` and its summary said so. 02-04
+  improves both sets and is the plan that found it, by building `8425acc`
+  in a scratch tree and pointing its runner at this tree's instances. Every
+  instance is named in `02-04-MEASUREMENT/`.
+
+  **What this changes downstream.** `02-06`'s `numerics-reviewer` pass has
+  19 concrete rejections to read rather than a diff to inspect. `02-07`
+  cannot rewrite a baseline for a gate that does not pass, and its
+  regression count is 26 (netlib) + 1 (`bgindy`, infeasible set) + 4
+  (Kennington), not six. `02-08`'s D-15 figure would be a number about a
+  solver whose answers 19 instances refuse to certify.
+
+- **[Phase 2, wave 5] Bound tightening is refused, not deferred.** 02-04
+  built it six ways and every one returns INFEASIBLE on models that have an
+  optimum. `02-05` should not reach for it as a prerequisite for duplicate
+  or dominated columns, and anyone relighting it needs the two things
+  02-04-SUMMARY.md names first: a derivation of why the implied bound
+  over-tightens on `pilot`, `pilot87`, `agg` and `maros`, and a dual
+  postsolve for an imposed bound. `jm_presolve_counts.tightened_bound` is
+  pinned at zero by a test so relighting it without a campaign fails.
+
 ## Deferred Items
 
 | Category | Item | Status | Deferred At |
@@ -592,43 +672,40 @@ Taken during execution of 02-02:
 
 ## Session Continuity
 
-Last session: 2026-08-13T09:50:45.499Z
-Stopped at: Completed 02-03-PLAN.md. Empty/singleton rows and columns landed via a cascading round loop; the free-column-singleton is scoped to cost-0 mutual singletons; two bugs found by running (warm-start vs status-correction, JAOS_BASIS_FREE misuse) are fixed; bench/run.c confirmed unchanged, netlib-infeas gate policy corrected (two new named regressions, verdict/det unaffected).
+Last session: 2026-08-13T18:40:00.000Z
+Stopped at: Completed 02-04-PLAN.md. One activity-range routine read three ways (infeasible, forcing, redundant); bound tightening built six ways and refused by measurement; JM_PRESOLVE_ROUNDS=16 and PRESOLVE_TIGHTEN_EPS=1e-9 set by sweeps with canaries that had to move; docs/tolerances.md names a third space.
 Resume file: None
 
-Next: **plan or execute 02-03** (this phase's next plan — empty and singleton rows and columns, the path that publishes without a simplex run, and whether the existing double solve reaches it, per D-12 as corrected). `.planning/phases/02-presolve-and-postsolve/` carries 02-01's and 02-02's PLAN and SUMMARY; 02-03 onward do not exist yet.
+Next: **plan or execute 02-05** (duplicate rows and columns, dominated
+columns, and the two detection tolerances swept). Read 02-04-SUMMARY.md
+first — it changes what 02-05 can assume.
 
-**02-02 closed the D-14 checkpoint (nonzero-only) and landed the charge it authorized.** The one-fixed-column model costs 8202 work units under presolve and 8206 without it, both pinned by an exact test and measured under WSL with a `make clean` between the two builds (a stale-object-file trap from skipping that step was caught before either figure was finalized — see 02-02-SUMMARY.md's Deviations). Presolve's own per-round classification scan and the reduced model's one-time construction copy are recorded as unbilled floors in `docs/work-units.md`, beside the two already there. No baseline touched; `02-07` still owns that rewrite. `02-09` now owes a `DECISIONS.md` entry for this rate too, alongside the `finnis`/D24 entry `02-01` already flagged.
+**02-04's headline is not its own code.** It is that the standard set was
+already failing before this plan and nobody had run it: `8425acc` reads 78
+checker ok of 94 and 8 of 16 on Kennington, against 93 and 16 in the records
+02-01 committed. 02-03 scoped its verification to the infeasible set and said
+so; the other two sets went unrun. This tree reads 79 and 12, so 02-04
+improves both, but the gate does not pass on either and `02-06` and `02-07`
+both inherit that. See Blockers/Concerns above for the table and what it
+changes downstream.
 
-**02-01 closed with two findings, both handed forward rather than resolved locally.**
+**02-04's own second finding is a family refused rather than shipped.** Bound
+tightening — the reading the plan was written around, and three of its
+`must_haves` with it — was built six ways and returns INFEASIBLE on models
+that have an optimum in every one of them. The three readings that do ship
+(infeasible, forcing, redundant) measure better than the tree they came from
+on all three sets. `02-09` owes a `DECISIONS.md` entry for it, which is now
+the fourth that phase owes.
 
-1. **`finnis`'s checker verdict is presolve-path-dependent, and it is the one
-   recorded exception to an otherwise clean gate.** `netlib-infeas` (29/29) and
-   `netlib-kennington` (16/16) are clean against their committed baselines;
-   `netlib` regresses on 4 of the 26 standard-set instances presolve actually
-   reduces — `etamacro`, `greenbeb` and `pilotnov` are ordinary trajectory
-   movement (CONTEXT.md says every remaining family will produce this), and
-   `finnis` alone is a checker flip, root-caused to `DECISIONS.md` D24's own
-   "luck" — the absolute primal row test sitting at 0.13 ulp of a row whose
-   terms total 4.0e10. **02-09 owes `DECISIONS.md` an entry**; see
-   02-01-SUMMARY.md for what it has to contain.
-
-2. **A long-double accumulator was tried, found to cost `pilot87` 2.3x its
-   work with no offsetting benefit, and dropped before it was committed** —
-   caught only because the campaigns were re-run against the exact tree
-   about to ship and the regressed lines were counted rather than the
-   report read. The near-miss is recorded in STATE.md's Blockers/Concerns
-   and in 02-01-SUMMARY.md, not because the code shipped, but because the
-   measurement is worth more than the mistake it prevented.
-
-**What 02-03 through 02-05 inherit:** 02-01's own reduction was expected to
-be near-inert on well-posed instances and was not — removing a column already
-pinned by equal bounds removes a pivot path that was pointless but
-trajectory-altering, and 4 of the 26 instances it touches show it. The
-remaining seven reduction families should expect trajectory movement as the
-default outcome of firing correctly, not treat it as evidence of a bug.
+**Both constants are measured.** `JM_PRESOLVE_ROUNDS = 16` where the
+propagation stops changing, `PRESOLVE_TIGHTEN_EPS = 1e-9` inside a plateau at
+least nine decades wide, each with a canary that had to move and did, each
+written up beside its constant and in `docs/tolerances.md`. The raw readings
+for 17 settings, the family isolation and the attribution runs are committed
+in `.planning/phases/02-presolve-and-postsolve/02-04-MEASUREMENT/`. No
+baseline and no file under `bench/results/` was touched.
 
 Phase 01's negative control (the same-instance time-ratio floor, 0.9699x
 paired / 0.9356x pooled) and its running-order warning (2.4 percentage
-points) both still stand for any future time ratio on this host; 02-01 took
+points) both still stand for any future time ratio on this host; 02-04 took
 no time ratio and does not add to that record.

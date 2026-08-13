@@ -259,6 +259,17 @@ T-02-11 does not arise: no activity-range bound is imposed, so no tightening can
 
 Estimated 85,000 tokens at `confidence: low`. Realized **23,500** on the chars/4 scale over the source, test and documentation diff — under by 3.6x, and for the third plan running the estimate could not see what the plan actually cost. The diff is small because five of the six bound-tightening designs were deleted rather than shipped. What this plan cost is **machine time and wrong hypotheses**: two sweeps of 9 and 8 settings, a four-way family isolation, three attribution campaigns against the parent commit, and three campaigns spent on the wrong constant before the tree was instrumented. `confidence: low` was right again.
 
+## Self-Check: PASSED
+
+1. `src/presolve.c`, `src/jaos_internal.h`, `tests/test_presolve.c`, `docs/tolerances.md`, `docs/work-units.md` present at the paths named.
+2. `.planning/phases/02-presolve-and-postsolve/02-04-MEASUREMENT/` present with 128 files, including `sweep.sh`, `canary.c`, `summarise.sh`, `README.md` and `final-netlib.txt`.
+3. `git log --oneline --all`: `7c7375c`, `c268fdc`, `88949f4` all present.
+4. Neither constant's comment still says PROVISIONAL (`grep -c PROVISIONAL src/presolve.c` reads 0), and the shipped values are `JAOS_PRESOLVE_TIGHTEN_EPS_VALUE 1e-9` and `JAOS_PRESOLVE_ROUNDS_VALUE 16`.
+5. `git status --porcelain bench/` is empty — no baseline and no record touched.
+6. `git status --porcelain .planning/REQUIREMENTS.md` is empty — the generic mark-requirements-complete step did not fire, and `REQ-presolve` is still `[ ]`.
+7. `make -j12 test`, `make -j12 sanitize`, `make -j12 EXTRA_CFLAGS=-DJAOS_NO_PRESOLVE test` all exit 0; `test_presolve` built in isolation under each fault switch exits 0.
+8. All three campaigns run against the committed baselines with `-o` into the measurement directory: `netlib-infeas` reads `gate: PASS`, the other two read `gate: NOT MET` on the checker and both read better than `8425acc`.
+
 ---
 *Phase: 02-presolve-and-postsolve*
 *Completed: 2026-08-13*
