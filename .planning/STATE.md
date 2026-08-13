@@ -307,6 +307,33 @@ Taken during execution of 02-02:
 
 ### Pending Todos
 
+- **Documentation clean-up, agreed 2026-08-13, scheduled for after phase 2
+  closes.** The repository's prose is hard to read. The problem is concentrated
+  in the decision headings: 55 of the 93 headings in `DECISIONS.md` are written
+  as an aphorism, with a claim, a comma and a twist. Example: "D85 — A free
+  nonbasic improves in the direction its reduced cost points, and the status was
+  never able to say which that was." A reader looking for the decision that
+  covers a topic has to parse the whole sentence to find out.
+
+  The bodies are in better shape. They carry numbers, they are ordered and they
+  read. The README is fine. So the job is the headings and the occasional
+  concluding sentence, not a rewrite of 13,000 lines.
+
+  Scope and constraints when it is done:
+
+  - **All public documentation is already in English.** This was checked: the
+    accented characters in `DECISIONS.md`, `docs/` and `bench/README.md` are
+    mathematical symbols (`×`, `·`, `±`, `µ`, `−`), not Spanish text. Nothing
+    needs translating.
+  - **No number and no citation may change.** These documents exist to hold
+    measurements. Before editing anything, extract every figure and every
+    cross-reference, and check the same set survives the rewrite. A prose
+    clean-up can drop a figure and nobody would notice.
+  - **The `D-NN` identifiers do not change.** They are cited from source
+    comments across `src/`, `include/`, `tests/` and `docs/`.
+  - It is scheduled for after phase 2 because phase 2 will add more text of the
+    same kind, and one pass over the finished set is cheaper than two.
+
 - **Nothing in the repository reads the `baseline: NOT COMPARED` line.** It
   exists so a record produced by a `-w` run can be told from a checked one, and
   it went unread long enough for such a record to sit committed as the standard
