@@ -51,15 +51,15 @@ acceptance through postsolve. Plan the verification around those.
   — **Rationale:** the correctness machinery is the part that can be wrong in
   a way nothing catches. Proving it while the model is nearly unchanged is the
   only moment it can be proved cheaply.
-- **D-02: Presolve iterates to a fixed point, with a deterministic round cap
-  that is measured rather than chosen.** Reductions cascade — removing a
+- **D-02: Presolve iterates to a fixed point, under a measured round cap.** The
+  cap is deterministic and is measured rather than chosen. Reductions cascade — removing a
   singleton column creates an empty row — so a single pass leaves most of the
   value uncollected. The cap follows the precedent already in the tree:
   `IMPLIED_ROUNDS = 64` (`src/check.c:264`), set by sweeping the standard set
   and recorded in `docs/tolerances.md` with the sweep that set it (D91). The
   sweep is a deliverable of this phase, not an assumption of it.
-- **D-03: Presolve is switched off by a build-time `-D` constant in
-  `src/presolve.c`. It never becomes a public API option.** D64 draws the line
+- **D-03: Presolve is switched off by a build-time `-D` constant.** It lives in
+  `src/presolve.c` and never becomes a public API option. D64 draws the line
   at contract versus method, and `ARCHITECTURE.md` names "folding a method
   choice into a caller-facing option" as an anti-pattern with this exact
   shape. `Makefile:94-101` already carries `EXTRA_CFLAGS` for sweeps. The
@@ -73,20 +73,20 @@ acceptance through postsolve. Plan the verification around those.
 
 ### Where it lives, what it owns, and how the solution comes back
 
-- **D-05: A new module, `src/presolve.c`, with prototypes in
-  `src/jaos_internal.h`.** `src/simplex.c` is already 3,829 lines. There is no
+- **D-05: A new module, `src/presolve.c`.** Its prototypes go in
+  `src/jaos_internal.h`. `src/simplex.c` is already 3,829 lines. There is no
   per-module header in this tree, so no include cycle is possible by
   construction.
-- **D-06: Presolve builds a reduced problem alongside the model and never
-  mutates `jaos_model`'s authoritative CSC arrays.** This is what keeps
+- **D-06: Presolve builds a reduced problem and never mutates the model.**
+  `jaos_model`'s authoritative CSC arrays are untouched. This is what keeps
   `src/check.c` reading the model as loaded (criterion 2, D18), and it is the
   same move `sx_init` already makes when it builds the scaled working copy.
   — **Rejected alternative:** mutate in place and restore afterwards. Any
   early return — work limit, time limit, `JAOS_ERR_NUMERICAL` — leaves the
   caller's model reduced, and the paths that return early are exactly the ones
   nobody exercises by hand.
-- **D-07: The postsolve record is one append-only arena of tagged records,
-  replayed strictly LIFO**, each carrying the original row or column index it
+- **D-07: The postsolve record is a tagged arena, replayed strictly LIFO.** It
+  is append-only, each record carrying the original row or column index it
   restores. The replay order is then the only order there is, which is what
   makes it deterministic by construction rather than by discipline.
 - **D-08: The postsolve stack is solve-local.** Built inside
@@ -119,8 +119,8 @@ acceptance through postsolve. Plan the verification around those.
   — **Rejected alternative:** adding checks to `src/check.c`. That would give
   the checker knowledge of the reduced model and destroy the structural
   independence that makes it an oracle.
-- **D-12: Criterion 4 is already enforced by `bench/run.c`, and this was
-  written down wrong the first time.** The original D-12 said the runner
+- **D-12: Criterion 4 is already enforced by `bench/run.c`.** This was written
+  down wrong the first time. The original D-12 said the runner
   "currently requires bit-identical digests" and must be extended to compare
   iterations and work units. It already compares them, on both paths:
   `bench/run.c:437-438` requires `jaos_iterations(m) == iters &&
@@ -138,8 +138,9 @@ acceptance through postsolve. Plan the verification around those.
 
 ### What is reported and what number closes the phase
 
-- **D-13: Each reduction reports what it removed through a per-family counter
-  struct in `src/jaos_internal.h`**, logged at `JAOS_LOG_SUMMARY` and printed
+- **D-13: Each reduction reports what it removed, via a per-family counter.**
+  The counter struct lives in `src/jaos_internal.h`, is logged at
+  `JAOS_LOG_SUMMARY` and is printed
   by `bench/run.c` into the record. No public API — that is scope, and it is
   D64. The tests are white-box and read the struct directly.
 - **D-14: Presolve bills the same `jm_work` counter every other kernel bills.**
