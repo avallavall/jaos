@@ -1,7 +1,7 @@
 # Design decisions
 
 Closed decisions only, with the measurement that closed them. What is
-still open lives in `.planning/ROADMAP.md`; what a feature is lives in
+still open lives in `TODO.md`; what a feature is lives in
 `SPECS.md`. Entries below that name `PLAN.md` are describing the state at the
 time they closed — it is archived at `docs/archive/PLAN.md` since 2026-08-12.
 
@@ -101,6 +101,11 @@ and you have the argument. Jump to the entry for the numbers behind it.
 - **[D91](#d91-the-bound-and-the-verdict-stop-being-one-number-and-d47-closes)** — The bound and the verdict stop being one number, and D47 closes
 - **[D92](#d92-a-residue-only-a-pivot-can-remove-was-hidden-by-the-scaling-and-the-repair-is-the-union-of-the-two-readings-rather-than-either-one)** — A residue only a pivot can remove was hidden by the scaling, and the repair is the union of the two readings rather than either one
 - **[D93](#d93-the-ratio-tests-dense-scan-walks-the-nonbasic-set-and-the-bar-it-was-to-be-judged-against-cannot-be-measured-on-this-host)** — The ratio test's dense scan walks the nonbasic set, and the bar it was to be judged against cannot be measured on this host
+- **[D94](#d94-d24s-nothing-is-gained-reason-expired-with-presolve-and-finnis-is-the-recorded-exception-on-the-absolute-row-test)** — D24's "nothing is gained" reason expired with presolve, and finnis is the recorded exception on the absolute row test
+- **[D95](#d95-the-singleton-column-families-fire-only-at-cost-0-and-the-free-column-singleton-only-on-a-mutual-singleton)** — The singleton-column families fire only at cost 0, and the free-column-singleton only on a mutual singleton
+- **[D96](#d96-presolves-gate-the-off-build-must-reproduce-the-baselines-bit-for-bit-and-the-on-build-is-judged-on-verdicts-not-bit-identity)** — Presolve's gate: the off-build must reproduce the baselines bit for bit, and the on-build is judged on verdicts, not bit-identity
+- **[D97](#d97-bound-tightening-is-refused-every-design-returns-infeasible-on-models-that-have-an-optimum)** — Bound tightening is refused: every design returns INFEASIBLE on models that have an optimum
+- **[D98](#d98-the-planning-layer-is-retired-the-record-is-five-documents-and-the-process-is-the-loop-in-claudemd)** — The planning layer is retired: the record is five documents, and the process is the loop in CLAUDE.md
 
 ---
 
@@ -6944,3 +6949,196 @@ is not yet evidence of anything.
 - **`galenet` makes two calls to `dual_ratio_test` in a solve reporting one
   iteration.** A small unrecorded fact about where the ratio test runs, not a
   defect, and not chased here.
+
+## D94 — D24's "nothing is gained" reason expired with presolve, and finnis is the recorded exception on the absolute row test
+
+**The question.** D24 kept the checker's primal row-proximity test absolute
+rather than relative, on the grounds that relativising it gained nothing —
+every instance passed either way — while naming `finnis`'s pass "luck rather
+than a property the solver controls". 02-01 landed the first presolve
+reduction (columns fixed as loaded) and had to ask whether that luck survives
+a reduced model.
+
+**The measurement.** It does not. With presolve on, `finnis` flips the
+absolute test: `row=8.44e-07` off, `row=3.76e-06` on. Both readings are a
+fraction of one ulp of a row whose terms total 4.0e10 — one ulp there is
+7.6e-6 — and the objective, the dual conditions and `rowrel` (D24's own
+relative reading) are clean on both sides. The control build,
+`EXTRA_CFLAGS=-DJAOS_NO_PRESOLVE`, reproduces the documented D24 value on the
+nose, so the flip is presolve's different pivot path on a genuinely reduced
+model and not a defect in the reduction.
+
+**What was refuted on the way.** A long-double accumulator for the
+row-bound/objective-offset shift, tried mid-investigation on the guess that
+the shift was losing precision. It moved `finnis`'s residual not at all and
+cost `pilot87` — this file's own established amplifier (D74, D89, D92) —
+2.31x its work and 2.53x its iterations:
+
+| build | iters | work |
+|---|---|---|
+| baseline, presolve off | 50850 | 22,977,661,512 |
+| committed code, presolve on | 53621 | 24,983,178,548 |
+| with the long-double accumulator | 117653 | 58,042,043,010 |
+
+**What closed.** The absolute test stays absolute and the tolerance is not
+widened; `finnis` is its one named exception under presolve, and `rowrel` is
+the reading that decides. D24's structure stands; its "nothing is gained"
+sentence does not, and this entry is where that is recorded.
+
+**Distinct from the open defect.** At HEAD `finnis` is also among the 15
+standard-set answers the checker refuses on the dual sign condition. That is
+the postsolve dual-recovery defect (`TODO.md` #1), a different failure than
+the absolute-row flip this entry closes.
+
+## D95 — The singleton-column families fire only at cost 0, and the free-column-singleton only on a mutual singleton
+
+**The question.** REQ-presolve lists singleton columns without qualification.
+Can a nonzero-cost singleton column be eliminated by pushing it to its
+favourable bound and letting its row absorb the difference?
+
+**Refuted by counterexample, before any code.**
+
+```
+minimize x_j   s.t.   x_j + y = 5,   x_j in [0, 10],   y in [-2, 0]
+```
+
+The favourable (cost-minimizing) bound gives `x_j = 0`, forcing `y = 5` —
+outside `y`'s own box. The true optimum is `x_j = 5`, forced by the row.
+Which bound is optimal is decided by the row's dual, information a presolve
+pass does not have before the reduced solve, so the naive elimination can
+manufacture infeasibility in a feasible model. The families fire only at
+cost 0, where no choice exists.
+
+**The second restriction came from running, not from the design.** The
+free-column-singleton fires only when its row is also a singleton — a mutual
+singleton. Two findings forced it:
+
+1. The row-pass always wins the race for a degree-1 row, so the non-mutual
+   case was dead code, reachable only through a same-round race. The mutual
+   check now runs inside the row-pass; the column-pass's own check covers the
+   race.
+2. Mutuality is what lets postsolve recover the column's value from the
+   row's own already-shifted bounds alone, with no dependency on any other
+   column's final value and therefore no arena-replay-ordering hazard.
+
+A third rule travels with them: a row that had a bounded singleton column
+relaxed out of it is frozen against every other row-removing family for the
+rest of the run — its bounds then describe a range the removed column still
+needs, not a determined value.
+
+**Evidence.** 02-03's diff (`9aba410`); five round-trip tests with
+must-fail-first siblings in `tests/test_presolve.c`; the scope stated in
+`src/presolve.c`'s file header. Left open, unmeasured: whether a
+dual-informed elimination after the reduced solve could lift the cost-0
+restriction. Nothing currently needs it.
+
+## D96 — Presolve's gate: the off-build must reproduce the baselines bit for bit, and the on-build is judged on verdicts, not bit-identity
+
+**The question.** What does "no regression" mean once presolve deliberately
+changes the model the simplex sees, on a gate whose baselines were committed
+before presolve existed?
+
+**The policy, with a measurement on each side.**
+
+- `EXTRA_CFLAGS=-DJAOS_NO_PRESOLVE` must reproduce all three committed
+  baselines exactly. It does — confirmed by 02-01 when the guard was new and
+  reconfirmed since. This is the regression detector, and it is bit-exact.
+- Presolve-on is judged on verdict, objective against Koch's reference,
+  checker acceptance and determinism. The baseline's own 2x work-ratio rule
+  predates presolve and does not apply to instances presolve touches: a
+  reduction that removes structure moves work on purpose. At `d861b22` that
+  is 26 standard-set lines (`etamacro` work 2.7x, `greenbeb` 2.0x,
+  `pilotnov`'s suboptimality bound 9930x among them), `bgindy` on the
+  infeasible set (work 2.0x, iterations unmoved), and 4 Kennington lines.
+  Which instances move swims as families land — 02-03's snapshot had
+  `greenbea` 3.1x and `pilot4i` 2.3x instead of `bgindy` — and that is the
+  design, not drift to chase.
+
+**What the policy does not cover.** Checker rejections. The 15 + 4 dual-side
+rejections standing at HEAD are a defect (`TODO.md` #1), not tolerated
+movement, and no baseline is rewritten while the gate is red. The deliberate
+three-baseline rewrite happens once the phase's families are in and the gate
+passes, by the `*-baseline` targets and confirmed by a following gate run.
+
+## D97 — Bound tightening is refused: every design returns INFEASIBLE on models that have an optimum
+
+**The question.** The activity range's fourth reading — imposing on a column
+the bound the rest of its row implies — was the family 02-04 was written
+around, because it is what lets forcing, redundant and fixed-column cascade.
+Six designs were built and measured against the standard set.
+
+**The measurement.**
+
+| design | solved | objective ok | checker ok | refused |
+|---|---|---|---|---|
+| tightening off (what ships) | 94/94 | 94 | 79 | — |
+| bound reasoned with, never published | 92/94 | 92 | 75 | `pilot`, `pilot87` |
+| bound published | 90/94 | 90 | 52 | `agg`, `pilot`, `pilot87` |
+| published, outward rounding at `DBL_EPSILON` | 89/94 | 89 | 48 | `agg`, `maros`, `pilot`, `pilot87` |
+| published, no collapse-to-fixed | 91/94 | 91 | 48 | `pilot`, `pilot87` |
+| published, row window at `DBL_EPSILON` | 89/94 | 89 | 48 | `agg`, `maros`, `pilot`, `pilot87` |
+
+Nine epsilon settings from 1e-12 to 1e-4 moved none of it. The last row is
+what settles the attribution: with every window reduced to the arithmetic's
+own error, four models still come back INFEASIBLE, so the implied bounds
+themselves over-tighten on those models — not the comparisons around them.
+
+**The worked case.** `pilot` row 1095, an equality row on one column. A
+forcing row pinned column 3554 at 1.15, its own upper bound, while row 1095
+needed it at 0; the row went empty holding -1.15 and presolve correctly
+declared the model those boxes describe infeasible. The boxes were wrong
+because tightening had narrowed them first.
+
+**What ships instead.** The three other readings of the same range —
+infeasible, forcing, redundant — measuring better than the tree they came
+from on all three sets. `jm_presolve_counts.tightened_bound` stays declared,
+stays zero, and is pinned at zero by a test, so relighting the family
+without redoing the campaign fails.
+
+**For whoever tries again, in the order the evidence puts it:** first a
+derivation of why the implied bound over-tightens on `pilot`, `pilot87`,
+`agg` and `maros` specifically — it is not the epsilon and not the rounding,
+both measured on both sides; second, a dual postsolve for an imposed bound —
+a column resting at a presolve-derived bound is interior to the caller's own
+box, where the checker requires a zero reduced cost that only the implying
+row's multiplier can pay, which is sound in exact arithmetic and not
+otherwise; third, both under a campaign, because every design in the table
+looked right when it was written. Raw readings: `bench/measurements/02-04/`.
+
+## D98 — The planning layer is retired: the record is five documents, and the process is the loop in CLAUDE.md
+
+**The question.** The GSD layer under `.planning/` — ROADMAP, REQUIREMENTS, a
+37 KB STATE file, ten plan files of 20-30 KB, summaries, research, validation
+matrices and two index systems — existed to keep this project coherent. Did
+what it cost buy that?
+
+**The measurement, in costs.**
+
+- 3.5 MB and 194 files of process, several times the solver's own source.
+- STATE.md carried "Plan: 4 of 9 (01, 02 complete)" in its body while its own
+  frontmatter recorded 02-03 complete — same file, same day.
+- Token estimates missed by 3.6x to 10x on four of the seven executed plans
+  (01-04: 7,400 realized against 70,000 estimated; 02-04: 23,500 against
+  85,000), because WSL machine time — which set every real duration — appears
+  in no estimate field.
+- Inserting one diagnostic plan required renumbering six files, because a
+  wave is an integer.
+- The apparatus did not prevent the one failure it existed to prevent: 02-03
+  ran one instance set of three while a 24 KB plan, a validation matrix and
+  an orchestrator all watched, and 15 checker rejections crossed a wave
+  unseen. What found them was the standing habit of running all three sets,
+  which lives in a skill, not in a plan.
+
+**The decision.** Five documents are the record: `SPECS.md` for what,
+`TODO.md` for what is next, `DECISIONS.md` for why closed questions closed,
+`CHANGELOG.md` for what landed, and `docs/` plus `bench/` for the contracts
+and the evidence — raw readings under `bench/measurements/<id>/`. The
+per-change process is the loop in `CLAUDE.md`. GSD is not used in this
+repository. `docs/archive/PLAN.md` stays archived because 88 comments cite
+it by section.
+
+**What was kept from the layer, and how.** Every open item and standing debt
+moved to `TODO.md`; D94-D97 above were written from the phase summaries
+before deletion; the raw measurement records moved to
+`bench/measurements/02-04/`. Everything deleted remains reachable in git
+history.
