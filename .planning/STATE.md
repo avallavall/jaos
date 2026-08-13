@@ -5,15 +5,15 @@ milestone_name: milestone
 current_phase: 2
 current_phase_name: Presolve and postsolve
 status: executing
-stopped_at: Completed 02-02-PLAN.md. D-14's checkpoint closed (nonzero-only), presolve bills jm_work, pinned test fixes 8202 (on) / 8206 (off), docs/work-units.md updated. No baseline touched.
-last_updated: "2026-08-13T07:24:16.736Z"
+stopped_at: Completed 02-03-PLAN.md. Empty/singleton rows and columns landed via a cascading round loop; the free-column-singleton is scoped to cost-0 mutual singletons; two bugs found by running (warm-start vs status-correction, JAOS_BASIS_FREE misuse) are fixed; bench/run.c confirmed unchanged, netlib-infeas gate policy corrected (two new named regressions, verdict/det unaffected).
+last_updated: "2026-08-13T09:50:45.511Z"
 last_activity: 2026-08-13
 last_activity_desc: Executed 02-02 — the D-14 checkpoint (nonzero-only) closed and implemented, presolve bills jm_work, a pinned test fixes the one-fixed-column model at 8202 (on) / 8206 (off), docs/work-units.md gains the entry and two new unbilled floors, no baseline touched
 progress:
   total_phases: 2
   completed_phases: 1
   total_plans: 14
-  completed_plans: 7
+  completed_plans: 8
 ---
 
 # Project State
@@ -29,11 +29,11 @@ See: .planning/PROJECT.md (updated 2026-08-12)
 ## Current Position
 
 Phase: 2 (Presolve and postsolve) — EXECUTING
-Plan: 3 of 9 (01, 02 complete)
+Plan: 4 of 9 (01, 02 complete)
 Status: Ready to execute
 Last activity: 2026-08-13 — Executed 02-02 (D-14 checkpoint closed, presolve bills jm_work, pinned test 8202/8206)
 
-Progress: [█████░░░░░] 50%
+Progress: [██████░░░░] 57%
 
 ## Performance Metrics
 
@@ -103,6 +103,11 @@ Progress: [█████░░░░░] 50%
   measure honestly, not twelve.
 
 *Updated after each plan completion*
+**Per-Plan Metrics:**
+
+| Plan | Duration | Tasks | Files |
+|------|----------|-------|-------|
+| Phase 02 P03 | ~230 min | 3 tasks | 6 files |
 
 ## Accumulated Context
 
@@ -305,6 +310,11 @@ Taken during execution of 02-02:
   `jm_dual_simplex` now seeds `sx`'s own `s.work` from presolve's total
   right after `sx_init`'s memset
 
+- [Phase ?]: Singleton column (bounded and free-column-singleton) restricted to cost 0 — a nonzero-cost singleton column's elimination needs the row's dual to decide which bound is optimal, information a pure presolve pass does not have; a worked counterexample shows the naive push-to-favourable-bound approach can manufacture infeasibility in a feasible problem
+- [Phase ?]: Free-column-singleton restricted to a mutual singleton (row has no other live entry either) — this is what lets postsolve recover the column's value from the row's own already-shifted bounds alone, with no arena-replay-ordering hazard; also found the row-pass always wins the race for a degree-1 row regardless of the column's properties, so the mutual check now runs inside the row-pass itself, not only the column-pass fallback
+- [Phase ?]: netlib-infeas's phase-2 gate policy corrected: it is no longer bit-identical against the pre-02-03 baseline (greenbea and pilot4i now show genuine trajectory movement, work 3.1x and 2.3x), joining the standard set's existing four named regressions from 02-01. All 29 instances still read verdict=ok det=ok -- presolve changing the model the simplex sees, by design, not a correctness defect
+- [Phase ?]: Two bugs found only by running, not by design: a row-tightened column's status-correction (needed for the row-count invariant) broke warm-starting until the warm-start mapping was made to reconstruct reduced-space status independently; JAOS_BASIS_FREE was published for a nonzero free-column-singleton value (FREE means nonbasic at zero) until JAOS_NO_PRESOLVE disagreeing with itself on the same model caught it
+
 ### Pending Todos
 
 - **Feature expansion, agreed 2026-08-13. Decide the shape before planning
@@ -374,12 +384,15 @@ Taken during execution of 02-02:
     accented characters in `DECISIONS.md`, `docs/` and `bench/README.md` are
     mathematical symbols (`×`, `·`, `±`, `µ`, `−`), not Spanish text. Nothing
     needs translating.
+
   - **No number and no citation may change.** These documents exist to hold
     measurements. Before editing anything, extract every figure and every
     cross-reference, and check the same set survives the rewrite. A prose
     clean-up can drop a figure and nobody would notice.
+
   - **The `D-NN` identifiers do not change.** They are cited from source
     comments across `src/`, `include/`, `tests/` and `docs/`.
+
   - It is scheduled for after phase 2 because phase 2 will add more text of the
     same kind, and one pass over the finished set is cheaper than two.
 
@@ -545,6 +558,8 @@ Taken during execution of 02-02:
   `02-09` is the plan that may legitimately mark it complete, and only if the
   phase's own criteria are met by then.
 
+- [Phase 2, waves 4-9] netlib-infeas is no longer guaranteed clean against its baseline -- 02-03 added two named regressions (greenbea, pilot4i, both trajectory-only, verdict/det unaffected). 02-07's baseline rewrite must account for four standard-set regressions (02-01) plus these two infeasible-set ones, six total, not four.
+
 ## Deferred Items
 
 | Category | Item | Status | Deferred At |
@@ -556,8 +571,8 @@ Taken during execution of 02-02:
 
 ## Session Continuity
 
-Last session: 2026-08-13T07:24:16.724Z
-Stopped at: Completed 02-02-PLAN.md. D-14's checkpoint closed (nonzero-only), presolve bills jm_work, pinned test fixes 8202 (on) / 8206 (off), docs/work-units.md updated. No baseline touched.
+Last session: 2026-08-13T09:50:45.499Z
+Stopped at: Completed 02-03-PLAN.md. Empty/singleton rows and columns landed via a cascading round loop; the free-column-singleton is scoped to cost-0 mutual singletons; two bugs found by running (warm-start vs status-correction, JAOS_BASIS_FREE misuse) are fixed; bench/run.c confirmed unchanged, netlib-infeas gate policy corrected (two new named regressions, verdict/det unaffected).
 Resume file: None
 
 Next: **plan or execute 02-03** (this phase's next plan — empty and singleton rows and columns, the path that publishes without a simplex run, and whether the existing double solve reaches it, per D-12 as corrected). `.planning/phases/02-presolve-and-postsolve/` carries 02-01's and 02-02's PLAN and SUMMARY; 02-03 onward do not exist yet.
