@@ -81,12 +81,12 @@ Plans:
   3. Each reduction reports what it removed, so what presolve is worth on the standard set is a measured number *for JAOS* rather than one carried over from D81's reading of two competitors.
   4. Determinism holds across two solves with the basis cleared between them: status, iteration count, work units and the bits of every published value agree.
 
-**Plans:** 9 plans (1/9 complete)
+**Plans:** 9 plans (2/9 complete)
 
 Plans:
 
 - [x] 02-01-PLAN.md — the scaffolding proved end to end: reduced model, postsolve arena, one trivially-correct reduction, the build switch, the round-trip test shown to reject an off-by-one map, and the per-family counters in the record (D-01). Also found: `finnis`'s checker rejection (D24's expired "nothing is gained" reason, flagged for 02-09) and a caught-before-shipped near-miss (a long-double accumulator costing `pilot87` 2.3x work, measured and dropped). See 02-01-SUMMARY.md.
-- [ ] 02-02-PLAN.md — presolve bills the same work counter every kernel bills, behind the one-way gate the work-unit contract earns, with `docs/work-units.md` landing alongside it (D-14)
+- [x] 02-02-PLAN.md — presolve bills the same work counter every kernel bills, behind the one-way gate the work-unit contract earns, with `docs/work-units.md` landing alongside it (D-14)
 - [ ] 02-03-PLAN.md — empty and singleton rows and columns, the path that publishes without a simplex run, and whether the existing double solve reaches it (D-12 as corrected)
 - [ ] 02-04-PLAN.md — one activity-range routine read three ways (forcing, redundant, bound tightening), the fixed-point round cap set by a sweep with a canary that had to move, and presolve's tolerance space in `docs/tolerances.md` (D-02)
 - [ ] 02-05-PLAN.md — duplicate rows and columns, dominated columns, the two detection tolerances swept, and the near-ties built rather than hoped absent
@@ -107,6 +107,7 @@ Plans:
     lives in postsolve, not in the reductions, and postsolve maps values,
     activities, duals and reduced costs back into the caller's row and column
     indices — an off-by-one there is a plausible wrong answer, not a crash.
+
   - A **`jaos-measurer`** task as the verdict step, so the numbers are judged by
     a context that did not produce them.
 
@@ -229,7 +230,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Candidate admission in the ratio test | 5/5 | Complete    | 2026-08-12 |
-| 2. Presolve and postsolve | 0/9 | Planned | - |
+| 2. Presolve and postsolve | 2/9 | In Progress  | -          |
 | 3. The factorization and the solves that read it | 0/TBD | Not started | - |
 | 4. The search path | 0/TBD | Not started | - |
 | 5. Close M2 | 0/TBD | Not started | - |

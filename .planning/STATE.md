@@ -5,15 +5,15 @@ milestone_name: milestone
 current_phase: 2
 current_phase_name: Presolve and postsolve
 status: executing
-stopped_at: Completed 02-01-PLAN.md. D-01's scaffolding is proved end to end — reduced model, postsolve arena, the fixed-column reduction, the negative-test instrument, and the per-instance record — with two findings handed to 02-09 (the finnis exception to D24) and to 02-03..02-05 (trajectory movement is not a defect)
-last_updated: "2026-08-13T06:45:00.000Z"
+stopped_at: Completed 02-02-PLAN.md. D-14's checkpoint closed (nonzero-only), presolve bills jm_work, pinned test fixes 8202 (on) / 8206 (off), docs/work-units.md updated. No baseline touched.
+last_updated: "2026-08-13T07:24:16.736Z"
 last_activity: 2026-08-13
-last_activity_desc: Executed 02-01 — presolve/postsolve scaffolding, the fault-injection instrument, and the standard-set campaign with its one recorded checker exception (finnis, D24) and one caught-before-shipped near-miss (a long-double accumulator that cost pilot87 2.3x its work and was dropped)
+last_activity_desc: Executed 02-02 — the D-14 checkpoint (nonzero-only) closed and implemented, presolve bills jm_work, a pinned test fixes the one-fixed-column model at 8202 (on) / 8206 (off), docs/work-units.md gains the entry and two new unbilled floors, no baseline touched
 progress:
   total_phases: 2
   completed_phases: 1
   total_plans: 14
-  completed_plans: 6
+  completed_plans: 7
 ---
 
 # Project State
@@ -29,26 +29,26 @@ See: .planning/PROJECT.md (updated 2026-08-12)
 ## Current Position
 
 Phase: 2 (Presolve and postsolve) — EXECUTING
-Plan: 2 of 9 (01 complete)
-Status: Executing Phase 2
-Last activity: 2026-08-13 — Executed 02-01 (presolve scaffolding, D-10 instrument, standard-set campaign)
+Plan: 3 of 9 (01, 02 complete)
+Status: Ready to execute
+Last activity: 2026-08-13 — Executed 02-02 (D-14 checkpoint closed, presolve bills jm_work, pinned test 8202/8206)
 
-Progress: [██▓░░░░░░░] 21%
+Progress: [█████░░░░░] 50%
 
 ## Performance Metrics
 
 **Velocity:**
 
-- Total plans completed: 6
-- Average duration: ~68 min
-- Total execution time: ~370 min
+- Total plans completed: 7
+- Average duration: ~56 min
+- Total execution time: ~390 min
 
 **By Phase:**
 
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
 | 01 | 5 | - | - |
-| 02 | 1 | - | - |
+| 02 | 2 | - | - |
 
 **Per-Plan Metrics:**
 
@@ -60,6 +60,7 @@ Progress: [██▓░░░░░░░] 21%
 | 01-04 | ~75 min | 3 | 1 | 1 |
 | 01-05 | ~35 min | 2 | 4 | 3 |
 | 02-01 | ~170 min | 3 | 7 | 6 |
+| 02-02 | ~20 min | 3 | 4 | 2 |
 
 **Recent Trend:**
 
@@ -93,6 +94,13 @@ Progress: [██▓░░░░░░░] 21%
   for a campaign that was going to find something — D-01's whole rationale
   is that postsolve correctness is the part nothing else catches, and it
   did not stay abstract.
+
+- **02-02 is the shortest plan of either phase so far**, and the reason is
+  the opposite of 01-04's: it runs no campaign at all, only two unit-test
+  builds. Its own machine-time cost was a `make clean` discipline check
+  (see 02-02-SUMMARY.md's Deviations) rather than minutes of solving —
+  the two pinned constants (8202, 8206) took two clean rebuild cycles to
+  measure honestly, not twelve.
 
 *Updated after each plan completion*
 
@@ -273,6 +281,30 @@ Taken during execution of 02-01:
   `netlib-kennington` clean, `netlib` clean except four named instances,
   each accounted for rather than waived
 
+Taken during execution of 02-02:
+
+- **Checkpoint (Task 1), developer's selection: nonzero-only.**
+  `JM_WORK_NONZERO` per nonzero a round actually visits (a fixed column's
+  row-bound shift), nothing else — no `JM_WORK_ELIMINATED` on removal, no
+  per-round fixed cost, no new `JM_WORK_*` constant
+
+- **Presolve's per-round classification scan and the reduced model's
+  one-time construction copy are billed nothing** — recorded in
+  `docs/work-units.md` beside the `alpha` sweep and the `nvar/64`-read
+  floor, for the same reason: real work, not a reduction being computed,
+  no measurement to set a rate from
+
+- **The one-fixed-column test model costs 8202 work units under presolve
+  and 8206 without it** (`JAOS_NO_PRESOLVE`) — presolve's own +1 nonzero
+  charge is smaller than what the reduced solve then saves. Both measured
+  under WSL with a `make clean` between builds, not derived
+
+- **`src/simplex.c` required editing despite not being in
+  `02-02-PLAN.md`'s `files_modified`** — `jm_presolve_run`'s `nullptr`
+  work pointer had to become real for any charge to take effect, and
+  `jm_dual_simplex` now seeds `sx`'s own `s.work` from presolve's total
+  right after `sx_init`'s memset
+
 ### Pending Todos
 
 - **Nothing in the repository reads the `baseline: NOT COMPARED` line.** It
@@ -355,10 +387,12 @@ Taken during execution of 02-01:
 
   02-01's own single reduction (columns fixed as loaded) already shows this
   on 4 of the 26 standard-set instances it fires on, in the committed code:
+
   - `etamacro` — work 4377214 -> 11943717 (2.7x), iters 709 -> 1322
   - `greenbeb` — work 499796764 -> 999939308 (2.0x), iters 9016 -> 14675
   - `pilotnov` — suboptimality bound 6.52e-13 -> 6.48e-09 (9930x, relative to
     its own objective)
+
   - `finnis` — **the one recorded checker exception.** Its objective, dual
     conditions and relative row residue (`rowrel`, D24) are all clean; only
     the *absolute* primal row-proximity test flips, from `row=8.44e-07`
@@ -411,11 +445,13 @@ Taken during execution of 02-01:
 
 ## Session Continuity
 
-Last session: 2026-08-13T06:45:00.000Z
-Stopped at: Completed 02-01-PLAN.md. D-01's scaffolding proved end to end: reduced model, postsolve arena, the fixed-column reduction, the negative-test instrument (D-10), the per-instance record (D-13). Two findings handed forward, neither a defect.
+Last session: 2026-08-13T07:24:16.724Z
+Stopped at: Completed 02-02-PLAN.md. D-14's checkpoint closed (nonzero-only), presolve bills jm_work, pinned test fixes 8202 (on) / 8206 (off), docs/work-units.md updated. No baseline touched.
 Resume file: None
 
-Next: **plan or execute 02-02** (this phase's next plan — presolve billed by `jm_work`, per D-14). `.planning/phases/02-presolve-and-postsolve/` carries 02-01's PLAN and SUMMARY; 02-02 onward do not exist yet.
+Next: **plan or execute 02-03** (this phase's next plan — empty and singleton rows and columns, the path that publishes without a simplex run, and whether the existing double solve reaches it, per D-12 as corrected). `.planning/phases/02-presolve-and-postsolve/` carries 02-01's and 02-02's PLAN and SUMMARY; 02-03 onward do not exist yet.
+
+**02-02 closed the D-14 checkpoint (nonzero-only) and landed the charge it authorized.** The one-fixed-column model costs 8202 work units under presolve and 8206 without it, both pinned by an exact test and measured under WSL with a `make clean` between the two builds (a stale-object-file trap from skipping that step was caught before either figure was finalized — see 02-02-SUMMARY.md's Deviations). Presolve's own per-round classification scan and the reduced model's one-time construction copy are recorded as unbilled floors in `docs/work-units.md`, beside the two already there. No baseline touched; `02-07` still owns that rewrite. `02-09` now owes a `DECISIONS.md` entry for this rate too, alongside the `finnis`/D24 entry `02-01` already flagged.
 
 **02-01 closed with two findings, both handed forward rather than resolved locally.**
 
