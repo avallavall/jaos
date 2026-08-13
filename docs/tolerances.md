@@ -5,12 +5,17 @@ They were drafts until the Netlib gate closed (PLAN.md 2.6). It has, so they
 are frozen at the values below and a change to any of them is now a
 changelog entry.
 
-Two spaces are involved and confusing them is the way to misread every
+Three spaces are involved and confusing them is the way to misread every
 figure below. The solver runs on a **scaled copy** of the model, so its
 tolerances are magnitudes in scaled space (see `docs/scaling.md`). The
 independent checker runs on the **model as loaded**, so its tolerance is a
-magnitude in the units the caller wrote. Neither is converted into the
-other; they are separate judgements, which is the point of having both.
+magnitude in the units the caller wrote. Presolve also runs on the model as
+loaded, and runs there *before the scaling exists* — so its constants are
+magnitudes in the caller's own units too, but they are not the checker's
+either: the checker's is a caller's diagnostic choice for judging a finished
+answer, and presolve's decide what the solver is handed in the first place.
+None of the three is converted into another; they are separate judgements,
+which is the point of having them apart.
 
 ## The solver's tolerances
 
@@ -223,6 +228,36 @@ scatter over the matrix while the dual objective accumulates from bounds,
 so a corrupted dot product shows up as a nonzero gap even when it also
 corrupts the reduced costs it would have to fool. The system is
 overdetermined; one broken kernel cannot satisfy all of it.
+
+## Presolve's tolerances
+
+Defined in `src/presolve.c`. Presolve runs on the model as loaded, before
+`sx_init` computes any scaling (D-04), so nothing here is comparable with the
+solver's table above — those are magnitudes in scaled space and the scaling
+depends on a matrix presolve has just changed. Nor is the checker's `tol`
+usable here: it is a number the caller supplies to judge a finished answer,
+and it was never measured for deciding whether to fold a bound. Every
+constant below is new and each arrives with its own sweep.
+
+| Name | Value | What it decides |
+|---|---|---|
+| `PRESOLVE_TIGHTEN_EPS` | 1e-9 | Whether a residue left by a running difference is a number. Two decisions use it: has a singleton row's fold genuinely emptied a column's interval, or only closed it to within rounding; and does an emptied row's bounds still admit zero after every column removed from it shifted them. In both cases the window is this value times the traffic that produced the residue, never this value alone (D23's argument, in presolve's own space). Swept over the standard set with `make clean` between settings, at 1e-12, 1e-11, 1e-10, 1e-9, 1e-8, 1e-7, 1e-6, 1e-5, 1e-4: solved 94, objective ok 94, checker ok 79 and 7596 rows / 24693 columns removed at every one of them. The canary is what makes that flat line a reading rather than a broken instrument — a model whose fold conflicts with its column's own bound by 1e-8 is refused below 2e-9 and solved above it, and it flips inside the grid. So the plateau is at least nine decades wide with neither edge found, and 1e-9 is taken because it is interior to the grid and is where the canary flips |
+| `JM_PRESOLVE_ROUNDS` | 16 | Cap on presolve's fixed-point rounds (D-02) — a safety stop and not a quality knob, since the loop exits as soon as a round changes nothing, and it lands on top of the structural backstop `num_row + num_col + 1` rather than above it. Set where the propagation reaches its fixed point: swept over the standard set, rows removed go 6060, 7178, 7549, 7596, 7598, 7598, 7598, 7598 at 1, 2, 4, 8, 16, 32, 64, 128 rounds, and columns removed 22671, 24300, 24629, 24693, 24695, 24695, 24695, 24695. The canary is a chain of 200 singleton rows built to resolve one link per round, and it reads 1, 2, 4, 8, 16, 32, 64, 128. The cost is flat across the whole sweep — 97.2 s to 103.6 s at `J=12` against a set that takes about 99 s — so there is nothing to trade against |
+
+**One number in `src/presolve.c` is deliberately not in this table.** The
+three readings of a row's activity range — the model is infeasible, the row
+is forced to an extreme, the row can never bind — each ask whether a computed
+sum equals a bound. That is not a judgement and has nothing to tune: the only
+thing that can separate two numbers that should be equal is the rounding in
+the sum, so the window is a small multiple of `DBL_EPSILON` times the traffic
+through it. Making it a tunable instead cost 02-04 a campaign, and the raw
+readings are in `.planning/phases/02-presolve-and-postsolve/02-04-MEASUREMENT/`.
+
+**Bound tightening is not here because it does not ship.** 02-04 built the
+family, measured six variants of it against the standard set and refused all
+six: every one returned INFEASIBLE on models that have an optimum. The
+evidence is in the same directory and the reasoning is in `src/presolve.c`
+beside the reading that would have been the fourth.
 
 ## Acceptance, for the Netlib gate
 
