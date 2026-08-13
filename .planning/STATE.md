@@ -331,7 +331,28 @@ Taken during execution of 02-02:
   will look almost identical. If features are the goal, the roadmap after M2
   has to say so explicitly.
 
-  **Three questions have to be answered before a milestone is written:**
+  **Two of the three questions below were answered on 2026-08-13. They are
+  decisions now, not open items, and the milestone is written against them:**
+
+  - **The two premises stay absolute, with no exceptions.** No external code,
+    and bit-identical results on every machine. Everything that follows is
+    planned under that cost: a sparse Cholesky for the barrier method is
+    written here and is deterministic, compressed input needs an inflate
+    written here or the row stays empty, and any parallelism is deterministic
+    by design rather than by luck. A feature that cannot be built under these
+    two rules is not built.
+
+  - **The goal is the best open solver that returns identical results on every
+    machine and ships its own independent checker.** Not matching Gurobi. This
+    is a position nobody occupies today and it is measurable: Gurobi's own
+    documentation states it is not deterministic across machines, and none of
+    the solvers in `docs/feature-matrix.md` ships a checker. Breadth of
+    features serves that goal; it does not replace it.
+
+  The third question — whether M2 finishes as scoped — is still open and is
+  answered when phase 2 closes.
+
+  **The three questions as originally posed, kept for the reasoning:**
 
   1. **Do the two premises stay absolute?** No external code, and bit-identical
      results on every machine. They are what makes JAOS distinctive and they
