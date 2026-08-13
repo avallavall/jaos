@@ -157,19 +157,28 @@ static void test_fixed_col_counter_is_exact(void)
     jm_presolve p;
     jm_presolve_init(&p);
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jm_presolve_run(m, &p, nullptr));
-    TEST_ASSERT_EQUAL_INT(JM_PRESOLVE_REDUCED, p.outcome);
+    /* 02-04 moved this model, and the move is the reduction working rather
+     * than a pin drifting. Once x1 is fixed at 2 the only row reads
+     * x0 + x2 >= -1 with x0 in [0,10] and x2 in [0,1]: its minimum activity
+     * is 0, its upper bound is infinite, so the row can never bind and the
+     * redundant-row family drops it. Both remaining columns then go empty
+     * and take their own favourable bounds, and presolve answers the whole
+     * model with no simplex run — JM_PRESOLVE_SOLVED, not REDUCED. The
+     * objective is unchanged at 10 and test_fixed_column_round_trip still
+     * checks it against the checker. */
+    TEST_ASSERT_EQUAL_INT(JM_PRESOLVE_SOLVED, p.outcome);
     TEST_ASSERT_EQUAL_INT64(1, p.counts.fixed_col);
-    TEST_ASSERT_EQUAL_INT64(1, p.counts.rounds);
-    /* Declared for the other seven families and zero until the plan that
-     * makes each fire (D-13) — checked directly so a future reduction that
+    TEST_ASSERT_EQUAL_INT64(1, p.counts.redundant_row);
+    TEST_ASSERT_EQUAL_INT64(2, p.counts.empty_col);
+    TEST_ASSERT_EQUAL_INT64(2, p.counts.rounds);
+    /* Declared for the other families and zero until the plan that makes
+     * each fire (D-13) — checked directly so a future reduction that
      * forgets to increment its own field is caught here, not inferred from
      * a total that moved for an unrelated reason. */
     TEST_ASSERT_EQUAL_INT64(0, p.counts.empty_row);
-    TEST_ASSERT_EQUAL_INT64(0, p.counts.empty_col);
     TEST_ASSERT_EQUAL_INT64(0, p.counts.singleton_row);
     TEST_ASSERT_EQUAL_INT64(0, p.counts.singleton_col);
     TEST_ASSERT_EQUAL_INT64(0, p.counts.forcing_row);
-    TEST_ASSERT_EQUAL_INT64(0, p.counts.redundant_row);
     TEST_ASSERT_EQUAL_INT64(0, p.counts.tightened_bound);
     TEST_ASSERT_EQUAL_INT64(0, p.counts.duplicate_row);
     TEST_ASSERT_EQUAL_INT64(0, p.counts.duplicate_col);
@@ -333,9 +342,14 @@ static void test_fixed_column_index_map_off_by_one(void)
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_check_solution(m, x, y, TOL, &r));
 
     TEST_ASSERT_FALSE(r.primal_feasible);
-    TEST_ASSERT_DOUBLE_WITHIN(1e-12, 1.0, r.max_col_violation);
+    /* 2, not the 1 this read before 02-04, and the fault is the same fault.
+     * The model now reduces to nothing (see test_fixed_col_counter_is_exact
+     * for why), so three column records replay under the fault instead of
+     * one and each lands on the next column's slot: x2 takes x1's value of
+     * 2 against its own upper bound of 1, and x1 takes x0's 0 against its
+     * own fixed value of 2. The larger of the two violations is x1's. */
+    TEST_ASSERT_DOUBLE_WITHIN(1e-12, 2.0, r.max_col_violation);
     TEST_ASSERT_FALSE(r.dual_feasible);
-    TEST_ASSERT_DOUBLE_WITHIN(1e-12, 1.0, r.max_dual_violation);
 
     jaos_model_free(m);
 #endif
@@ -459,16 +473,17 @@ static void test_original_index_invariant_across_all_six_arrays(void)
  * other presolve claim in this file. Measured, not derived. */
 constexpr int64_t PRESOLVE_MODEL_WORK_PINNED = 8206;
 #else
-/* x1's one nonzero costs JM_WORK_NONZERO=1 while jm_presolve_run shifts
- * row 0's bound by it -- the round's own charge, nonzero-only per the
- * 02-02 checkpoint. The rest is the reduced model's own solve: 0
- * iterations (the cold-start slack basis is already feasible), one
- * settle-and-recheck factorization and price over what presolve left, 1
- * row and 2 columns rather than 3. First pinned by 02-02, which is the
- * first plan that charges anything here at all -- 02-01 already reduced
- * this model but billed it nothing, and nothing pinned the resulting
- * figure. Measured, not derived. */
-constexpr int64_t PRESOLVE_MODEL_WORK_PINNED = 8202;
+/* 02-04 moved this figure from 8202 to 3, and the drop is what the
+ * activity-range families do rather than a pin drifting: there is no
+ * reduced model left to solve. x1's own nonzero costs JM_WORK_NONZERO=1
+ * while jm_presolve_run shifts row 0's bound by it (02-02's nonzero-only
+ * charge); the redundant-row reading of row 0 costs its two live nonzeros;
+ * the two empty columns that follow are charged nothing, and no sx is ever
+ * built. 8202 was that same 1 plus a whole reduced solve — one
+ * settle-and-recheck factorization and price over 1 row and 2 columns —
+ * and the whole of it is gone. Measured under WSL with `make clean`
+ * between the two builds, not derived from each other. */
+constexpr int64_t PRESOLVE_MODEL_WORK_PINNED = 3;
 #endif
 
 static void test_presolve_bills_the_work_counter(void)
@@ -1232,14 +1247,487 @@ static void test_all_five_counters_move_independently(void)
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jm_presolve_run(m, &p, nullptr));
 
     TEST_ASSERT_EQUAL_INT64(1, p.counts.empty_row);
-    TEST_ASSERT_EQUAL_INT64(1, p.counts.empty_col);
     TEST_ASSERT_EQUAL_INT64(1, p.counts.singleton_row);
     TEST_ASSERT_EQUAL_INT64(1, p.counts.singleton_col);
     TEST_ASSERT_EQUAL_INT64(1, p.counts.free_col_singleton);
     TEST_ASSERT_EQUAL_INT64(1, p.counts.fixed_col);   /* col5, loaded fixed */
+    /* 02-04: row2 (-inf <= col0 + col1 + col3 <= 100) has a maximum
+     * activity of 25 against an upper bound of 100 and no lower bound at
+     * all, so it can never bind and the redundant-row family drops it.
+     * col3 then loses its last live row and goes empty, which is why the
+     * empty-column count is 2 here and was 1 before this plan. Neither is
+     * a new reduction firing where it should not: the model was written to
+     * keep col0 and col1 at degree >= 2, and it still does — col0 survives
+     * in rows 1 and 4, col1 in row 1. */
+    TEST_ASSERT_EQUAL_INT64(1, p.counts.redundant_row);
+    TEST_ASSERT_EQUAL_INT64(2, p.counts.empty_col);
 
     jm_presolve_free(&p);
     jaos_model_free(m);
+}
+
+/* -- Forcing row ----------------------------------------------------------
+ *
+ * min -x0 - x1 + x2 + 3*x3
+ *   row0: x0 + x1 <= 0        x0, x1 in [0, 10]
+ *   row1: x2 + x3 >= 1        x2, x3 in [0, 10]
+ *
+ * row0's minimum activity is 0 and its upper bound is 0, so the row is
+ * forced: every column in it is pinned at the bound that attains that
+ * minimum, which for a positive coefficient is the column's own lower
+ * bound. Both are pinned at 0, the row is removed, and row1 is left for the
+ * simplex.
+ *
+ * The dual is what this model exists to test. By hand: row1 rests at its
+ * lower bound with y1 = 1, x2 is basic at 1 and x3 nonbasic at 0. Row0's
+ * own multiplier has to be -1: x0 is pinned at its LOWER bound and needs a
+ * non-negative reduced cost, and c0 - a*y0 = -1 - y0 is non-negative only
+ * for y0 <= -1. Publishing y0 = 0 instead — the value a family that did not
+ * derive its dual would leave behind — makes that reduced cost -1 on a
+ * variable resting at its lower bound, which the checker refuses at exactly
+ * that magnitude. So this test distinguishes the derivation from the
+ * absence of one. */
+#if !defined(JAOS_PRESOLVE_FAULT_WRONGDUAL)
+static jaos_model *make_forcing_row_model(void)
+{
+    const double c[]  = {-1.0, -1.0, 1.0, 3.0};
+    const double cl[] = {0.0, 0.0, 0.0, 0.0};
+    const double cu[] = {10.0, 10.0, 10.0, 10.0};
+    const double rl[] = {-INFINITY, 1.0};
+    const double ru[] = {0.0, INFINITY};
+    /* col0: row0.  col1: row0.  col2: row1.  col3: row1. */
+    const int64_t s[]  = {0, 1, 2, 3, 4};
+    const int64_t ix[] = {0, 0, 1, 1};
+    const double v[]   = {1.0, 1.0, 1.0, 1.0};
+    jaos_model *m = nullptr;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_model_new(&m));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_load_lp(m, 4, 2, JAOS_MINIMIZE, 0.0, c, cl, cu, rl, ru,
+                     4, s, ix, v));
+    return m;
+}
+#endif
+
+static void test_forcing_row_round_trip(void)
+{
+#if defined(JAOS_PRESOLVE_FAULT_OFFBYONE) || defined(JAOS_PRESOLVE_FAULT_WRONGDUAL)
+    TEST_IGNORE_MESSAGE("positive test — skipped under either fault build");
+#else
+    jaos_model *m = make_forcing_row_model();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+
+    const double expected_obj = 1.0;   /* x2 = 1, everything else at 0 */
+    double obj = 0.0;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(m, &obj));
+    TEST_ASSERT_EQUAL_MEMORY(&expected_obj, &obj, sizeof obj);
+
+    double x[4], y[2];
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solution(m, x, nullptr, y, nullptr));
+
+    const double expected_x0 = 0.0, expected_x1 = 0.0;
+    TEST_ASSERT_EQUAL_MEMORY(&expected_x0, &x[0], sizeof x[0]);
+    TEST_ASSERT_EQUAL_MEMORY(&expected_x1, &x[1], sizeof x[1]);
+
+    /* The derived multiplier, asserted directly rather than left to the
+     * checker alone — the checker would accept any y0 <= -1, and this is
+     * the one the derivation names. */
+    const double expected_y0 = -1.0;
+    TEST_ASSERT_EQUAL_MEMORY(&expected_y0, &y[0], sizeof y[0]);
+
+    jaos_check_report r;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_check_solution(m, x, y, TOL, &r));
+    TEST_ASSERT_TRUE(r.primal_feasible);
+    TEST_ASSERT_TRUE(r.checked_duals);
+    TEST_ASSERT_TRUE(r.dual_feasible);
+
+    jaos_basis_status cs[4], rs[2];
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_basis(m, cs, rs));
+#if !defined(JAOS_NO_PRESOLVE)
+    /* Postsolve's own choice, and only presolve's to make: the row takes
+     * the single basic slot its removal owes back, because the columns it
+     * pinned are all nonbasic. The un-presolved simplex reaches the same
+     * point by its own route and leaves this row at its upper bound with a
+     * column basic instead, which is an equally valid basis for the same
+     * answer — so this one assertion is presolve-side only, while the count
+     * below holds for both builds. */
+    TEST_ASSERT_EQUAL_INT(JAOS_BASIS_BASIC, rs[0]);   /* the forcing row */
+#endif
+    int64_t basic = 0;
+    for (int64_t j = 0; j < 4; j++) basic += cs[j] == JAOS_BASIS_BASIC;
+    for (int64_t i = 0; i < 2; i++) basic += rs[i] == JAOS_BASIS_BASIC;
+    TEST_ASSERT_EQUAL_INT64(2, basic);   /* == num_row */
+
+    jaos_model_free(m);
+#endif
+}
+
+/* Negative sibling (D-10). Under JAOS_PRESOLVE_FAULT_OFFBYONE every record's
+ * restore index moves on by one: row0's forcing record lands on row1 and its
+ * two column records land on x1 and x2, so x2's own solved value of 1 is
+ * overwritten with 0 and row1's activity falls to 0 against a lower bound of
+ * 1. The primal side is where this shows, and it shows at full size. */
+static void test_forcing_row_index_off_by_one(void)
+{
+#if !defined(JAOS_PRESOLVE_FAULT_OFFBYONE)
+    TEST_IGNORE_MESSAGE("negative test — runs only under "
+                        "EXTRA_CFLAGS=-DJAOS_PRESOLVE_FAULT_OFFBYONE");
+#else
+    jaos_model *m = make_forcing_row_model();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+
+    double x[4], y[2];
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solution(m, x, nullptr, y, nullptr));
+
+    jaos_check_report r;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_check_solution(m, x, y, TOL, &r));
+    TEST_ASSERT_FALSE(r.primal_feasible);
+
+    jaos_model_free(m);
+#endif
+}
+
+/* -- Redundant row --------------------------------------------------------
+ *
+ * min x0 + 3*x1
+ *   row0: x0 + x1 >= 1        x0, x1 in [0, 10]
+ *   row1: x0 + x1 <= 100
+ *
+ * row1's maximum activity is 20 against an upper bound of 100 and it has no
+ * lower bound at all, so it can never bind and is dropped with no column
+ * fixed. Its multiplier is zero, which is the whole reason this family needs
+ * no derivation: a zero multiplier satisfies the checker's sign condition
+ * unconditionally, wherever the activity turns out to sit.
+ *
+ * By hand: x0 = 1, x1 = 0, objective 1, y0 = 1, y1 = 0. x0 is basic and
+ * interior to [0, 10], so its reduced cost has to be exactly zero —
+ * c0 - y0 - y1 = 1 - 1 - 0 — which is what makes the fault below visible. */
+#if !defined(JAOS_PRESOLVE_FAULT_WRONGDUAL)
+static jaos_model *make_redundant_row_model(void)
+{
+    const double c[]  = {1.0, 3.0};
+    const double cl[] = {0.0, 0.0}, cu[] = {10.0, 10.0};
+    const double rl[] = {1.0, -INFINITY};
+    const double ru[] = {INFINITY, 100.0};
+    /* col0: rows 0,1.  col1: rows 0,1. */
+    const int64_t s[]  = {0, 2, 4};
+    const int64_t ix[] = {0, 1, 0, 1};
+    const double v[]   = {1.0, 1.0, 1.0, 1.0};
+    jaos_model *m = nullptr;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_model_new(&m));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_load_lp(m, 2, 2, JAOS_MINIMIZE, 0.0, c, cl, cu, rl, ru,
+                     4, s, ix, v));
+    return m;
+}
+#endif
+
+static void test_redundant_row_round_trip(void)
+{
+#if defined(JAOS_PRESOLVE_FAULT_OFFBYONE) || defined(JAOS_PRESOLVE_FAULT_WRONGDUAL)
+    TEST_IGNORE_MESSAGE("positive test — skipped under either fault build");
+#else
+    jaos_model *m = make_redundant_row_model();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+
+    const double expected_obj = 1.0;
+    double obj = 0.0;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(m, &obj));
+    TEST_ASSERT_EQUAL_MEMORY(&expected_obj, &obj, sizeof obj);
+
+    double x[2], y[2];
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solution(m, x, nullptr, y, nullptr));
+
+    const double expected_y1 = 0.0;   /* the redundant row's only answer */
+    TEST_ASSERT_EQUAL_MEMORY(&expected_y1, &y[1], sizeof y[1]);
+
+    /* The dropped row's activity is reported, not left at zero: it is the
+     * one thing about a redundant row that has to be summed rather than
+     * assumed, and it comes from columns the reduced solve returned. */
+    double rowact[2];
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+                          jaos_solution(m, x, rowact, y, nullptr));
+    const double expected_act1 = 1.0;
+    TEST_ASSERT_EQUAL_MEMORY(&expected_act1, &rowact[1], sizeof rowact[1]);
+
+    jaos_check_report r;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_check_solution(m, x, y, TOL, &r));
+    TEST_ASSERT_TRUE(r.primal_feasible);
+    TEST_ASSERT_TRUE(r.checked_duals);
+    TEST_ASSERT_TRUE(r.dual_feasible);
+
+    jaos_basis_status cs[2], rs[2];
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_basis(m, cs, rs));
+#if !defined(JAOS_NO_PRESOLVE)
+    /* Presolve-side only, for the reason the forcing-row test gives. */
+    TEST_ASSERT_EQUAL_INT(JAOS_BASIS_BASIC, rs[1]);   /* the redundant row */
+#endif
+    int64_t basic = 0;
+    for (int64_t j = 0; j < 2; j++) basic += cs[j] == JAOS_BASIS_BASIC;
+    for (int64_t i = 0; i < 2; i++) basic += rs[i] == JAOS_BASIS_BASIC;
+    TEST_ASSERT_EQUAL_INT64(2, basic);   /* == num_row */
+
+    jaos_model_free(m);
+#endif
+}
+
+/* Negative sibling (D-10): row1's record restores at row0's slot instead of
+ * its own, overwriting row0's genuinely nonzero multiplier (1) with the
+ * redundant row's always-zero one. x0 is basic and interior, so its reduced
+ * cost must be exactly zero and the checker recomputes it from the row duals
+ * it was handed: 1 - 0 - 0 = 1, a dual violation of exactly the multiplier
+ * that was lost. */
+static void test_redundant_row_index_off_by_one(void)
+{
+#if !defined(JAOS_PRESOLVE_FAULT_OFFBYONE)
+    TEST_IGNORE_MESSAGE("negative test — runs only under "
+                        "EXTRA_CFLAGS=-DJAOS_PRESOLVE_FAULT_OFFBYONE");
+#else
+    jaos_model *m = make_redundant_row_model();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+
+    double x[2], y[2];
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solution(m, x, nullptr, y, nullptr));
+
+    jaos_check_report r;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_check_solution(m, x, y, TOL, &r));
+    TEST_ASSERT_FALSE(r.dual_feasible);
+    TEST_ASSERT_DOUBLE_WITHIN(1e-9, 1.0, r.max_dual_violation);
+
+    jaos_model_free(m);
+#endif
+}
+
+/* -- The two branches one step apart --------------------------------------
+ *
+ * min x0 + x1
+ *   row0: x0 >= B             x0 in [0, 5]
+ *   row1: x0 + x1 >= 6        x1 in [0, 10]
+ *
+ * row0 is a singleton, so it folds into a bound on x0: x0 >= B. What that
+ * meets is x0's own opposite bound, 5, and the three values of B below are
+ * the three answers presolve has to give.
+ *
+ *   B = 5             the fold lands exactly ON the opposite bound. The
+ *                     interval collapses to a point, which is a legitimate
+ *                     reduction: x0 is fixed at 5 and the model has an
+ *                     optimum. Refusing here turns a solvable model into a
+ *                     refused one, which is the mirror-image catastrophe of
+ *                     accepting an infeasible one.
+ *   B = 5 + 1e-6      one step PAST it, by more than the epsilon. The
+ *                     interval is empty and the model is infeasible.
+ *   B = nextafter(5)  one representable step past it, which is 8.9e-16 —
+ *                     four hundred thousand times narrower than the window
+ *                     any tolerance on a sum can carry. Presolve treats it
+ *                     as a point, and so does the un-presolved solve, whose
+ *                     own primal tolerance is 1e-7. The two builds agree,
+ *                     which is the property that matters.
+ *
+ * The plan asked for the middle case to be "one representable step" past.
+ * It cannot be: an epsilon that could separate 5 from nextafter(5) would be
+ * smaller than the rounding in the row-bound shifts that produce B, so the
+ * third case is here instead, pinning what the epsilon actually buys. */
+#if !defined(JAOS_PRESOLVE_FAULT_OFFBYONE) && !defined(JAOS_PRESOLVE_FAULT_WRONGDUAL)
+static jaos_model *make_singleton_fold_boundary_model(double b)
+{
+    const double c[]  = {1.0, 1.0};
+    const double cl[] = {0.0, 0.0}, cu[] = {5.0, 10.0};
+    const double rl[] = {b, 6.0};
+    const double ru[] = {INFINITY, INFINITY};
+    /* col0: rows 0,1.  col1: row1. */
+    const int64_t s[]  = {0, 2, 3};
+    const int64_t ix[] = {0, 1, 1};
+    const double v[]   = {1.0, 1.0, 1.0};
+    jaos_model *m = nullptr;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_model_new(&m));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_load_lp(m, 2, 2, JAOS_MINIMIZE, 0.0, c, cl, cu, rl, ru,
+                     3, s, ix, v));
+    return m;
+}
+#endif
+
+static void test_a_fold_onto_the_opposite_bound_fixes_the_column(void)
+{
+#if defined(JAOS_PRESOLVE_FAULT_OFFBYONE) || defined(JAOS_PRESOLVE_FAULT_WRONGDUAL)
+    TEST_IGNORE_MESSAGE("positive test — skipped under either fault build");
+#else
+    jaos_model *m = make_singleton_fold_boundary_model(5.0);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+
+    const double expected_obj = 6.0;   /* x0 = 5, x1 = 1 */
+    double obj = 0.0;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(m, &obj));
+    TEST_ASSERT_EQUAL_MEMORY(&expected_obj, &obj, sizeof obj);
+
+    double x[2], y[2];
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solution(m, x, nullptr, y, nullptr));
+    const double expected_x0 = 5.0;
+    TEST_ASSERT_EQUAL_MEMORY(&expected_x0, &x[0], sizeof x[0]);
+
+    jaos_check_report r;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_check_solution(m, x, y, TOL, &r));
+    TEST_ASSERT_TRUE(r.primal_feasible);
+    TEST_ASSERT_TRUE(r.dual_feasible);
+
+    jaos_model_free(m);
+#endif
+}
+
+static void test_a_fold_one_step_past_the_opposite_bound_is_infeasible(void)
+{
+#if defined(JAOS_PRESOLVE_FAULT_OFFBYONE) || defined(JAOS_PRESOLVE_FAULT_WRONGDUAL)
+    TEST_IGNORE_MESSAGE("positive test — skipped under either fault build");
+#else
+    jaos_model *m = make_singleton_fold_boundary_model(5.0 + 1e-6);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_INFEASIBLE, jaos_status_of(m));
+    jaos_model_free(m);
+#endif
+}
+
+static void test_a_fold_inside_the_epsilon_does_not_flip_the_verdict(void)
+{
+#if defined(JAOS_PRESOLVE_FAULT_OFFBYONE) || defined(JAOS_PRESOLVE_FAULT_WRONGDUAL)
+    TEST_IGNORE_MESSAGE("positive test — skipped under either fault build");
+#else
+    jaos_model *m = make_singleton_fold_boundary_model(nextafter(5.0, 6.0));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    /* The claim is that this holds under BOTH builds — run again under
+     * EXTRA_CFLAGS=-DJAOS_NO_PRESOLVE and the un-presolved simplex has to
+     * agree, since its own primal tolerance is 1e-7 and the conflict is
+     * 8.9e-16. A presolve that refused here would disagree with the solver
+     * it is supposed to be transparent to. */
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+
+    double obj = 0.0;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(m, &obj));
+    TEST_ASSERT_DOUBLE_WITHIN(1e-9, 6.0, obj);
+    jaos_model_free(m);
+#endif
+}
+
+/* -- An optimum sitting exactly on the tightening boundary ----------------
+ *
+ * min x0 + x1 + x2
+ *   row0: x0 + x1 >= 10       x0 in [-100, 100]
+ *   row1: x0 + x2 <= 7        x1, x2 in [0, 3]
+ *
+ * The activity ranges imply x0 >= 10 - 3 = 7 from row0 and x0 <= 7 - 0 = 7
+ * from row1, so the true optimum sits exactly on the boundary the tightening
+ * computes: x0 = 7, x1 = 3, x2 = 0, objective 10, and it is unique. This is
+ * T-02-11's own test — a bound rounded the wrong way by one epsilon excludes
+ * that point, and the answer that comes back is feasible, checker-clean and
+ * simply not optimal, which nothing else in this suite would notice.
+ *
+ * Run under EXTRA_CFLAGS=-DJAOS_NO_PRESOLVE the same assertion has to hold
+ * with no tightening in the picture at all, which is what makes it a
+ * comparison rather than a self-report. */
+#if !defined(JAOS_PRESOLVE_FAULT_WRONGDUAL)
+static jaos_model *make_tightening_boundary_model(void)
+{
+    const double c[]  = {1.0, 1.0, 1.0};
+    const double cl[] = {-100.0, 0.0, 0.0}, cu[] = {100.0, 3.0, 3.0};
+    const double rl[] = {10.0, -INFINITY};
+    const double ru[] = {INFINITY, 7.0};
+    /* col0: rows 0,1.  col1: row0.  col2: row1. */
+    const int64_t s[]  = {0, 2, 3, 4};
+    const int64_t ix[] = {0, 1, 0, 1};
+    const double v[]   = {1.0, 1.0, 1.0, 1.0};
+    jaos_model *m = nullptr;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_model_new(&m));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_load_lp(m, 3, 2, JAOS_MINIMIZE, 0.0, c, cl, cu, rl, ru,
+                     4, s, ix, v));
+    return m;
+}
+
+/* Pinned, and pinned as an exact integer rather than a floor: row0 implies
+ * a lower bound on x0 and row1 an upper one, and nothing else in the model
+ * moves. A third tightening appearing here means a bound is being taken on
+ * rounding rather than on information, which is what
+ * PRESOLVE_TIGHTEN_EPS's own sweep exists to prevent. */
+constexpr int64_t PINNED_TIGHTENED_BOUNDS = 2;
+#endif
+
+static void test_an_optimum_on_the_tightening_boundary_survives(void)
+{
+#if defined(JAOS_PRESOLVE_FAULT_OFFBYONE) || defined(JAOS_PRESOLVE_FAULT_WRONGDUAL)
+    TEST_IGNORE_MESSAGE("positive test — skipped under either fault build");
+#else
+    jaos_model *m = make_tightening_boundary_model();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+
+    double obj = 0.0;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(m, &obj));
+    /* Not bit-exact, and deliberately so: where the collapse fires, x0 is
+     * the midpoint of an interval two outward roundings wide, which is 7 to
+     * within half an ulp rather than 7 exactly. The gate's own acceptance
+     * is relative at 1e-6 (docs/tolerances.md); this is three decades
+     * inside it. */
+    TEST_ASSERT_DOUBLE_WITHIN(1e-9, 10.0, obj);
+
+    double x[3], y[2];
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solution(m, x, nullptr, y, nullptr));
+    TEST_ASSERT_DOUBLE_WITHIN(1e-9, 7.0, x[0]);
+    TEST_ASSERT_DOUBLE_WITHIN(1e-9, 3.0, x[1]);
+    TEST_ASSERT_DOUBLE_WITHIN(1e-9, 0.0, x[2]);
+
+    jaos_check_report r;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_check_solution(m, x, y, TOL, &r));
+    TEST_ASSERT_TRUE(r.primal_feasible);
+    TEST_ASSERT_TRUE(r.dual_feasible);
+
+    jaos_model_free(m);
+#endif
+}
+
+/* D-13's white-box test for the three families 02-04 adds: each counter
+ * reads an exact integer on a model built to fire that outcome, not a floor
+ * a single reduction would also satisfy. */
+static void test_activity_range_counters_are_exact(void)
+{
+#if defined(JAOS_PRESOLVE_FAULT_WRONGDUAL)
+    TEST_IGNORE_MESSAGE("model builders are compiled out under this build");
+#else
+    {
+        jaos_model *m = make_forcing_row_model();
+        jm_presolve p;
+        jm_presolve_init(&p);
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jm_presolve_run(m, &p, nullptr));
+        TEST_ASSERT_EQUAL_INT64(1, p.counts.forcing_row);
+        TEST_ASSERT_EQUAL_INT64(0, p.counts.redundant_row);
+        TEST_ASSERT_EQUAL_INT64(0, p.counts.tightened_bound);
+        jm_presolve_free(&p);
+        jaos_model_free(m);
+    }
+    {
+        jaos_model *m = make_redundant_row_model();
+        jm_presolve p;
+        jm_presolve_init(&p);
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jm_presolve_run(m, &p, nullptr));
+        TEST_ASSERT_EQUAL_INT64(1, p.counts.redundant_row);
+        TEST_ASSERT_EQUAL_INT64(0, p.counts.forcing_row);
+        TEST_ASSERT_EQUAL_INT64(0, p.counts.tightened_bound);
+        jm_presolve_free(&p);
+        jaos_model_free(m);
+    }
+    {
+        jaos_model *m = make_tightening_boundary_model();
+        jm_presolve p;
+        jm_presolve_init(&p);
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jm_presolve_run(m, &p, nullptr));
+        TEST_ASSERT_EQUAL_INT64(PINNED_TIGHTENED_BOUNDS,
+                                p.counts.tightened_bound);
+        jm_presolve_free(&p);
+        jaos_model_free(m);
+    }
+#endif
 }
 
 int main(void)
@@ -1271,5 +1759,15 @@ int main(void)
     RUN_TEST(test_zero_row_model_solves);
     RUN_TEST(test_zero_col_model_solves);
     RUN_TEST(test_all_five_counters_move_independently);
+
+    RUN_TEST(test_forcing_row_round_trip);
+    RUN_TEST(test_forcing_row_index_off_by_one);
+    RUN_TEST(test_redundant_row_round_trip);
+    RUN_TEST(test_redundant_row_index_off_by_one);
+    RUN_TEST(test_a_fold_onto_the_opposite_bound_fixes_the_column);
+    RUN_TEST(test_a_fold_one_step_past_the_opposite_bound_is_infeasible);
+    RUN_TEST(test_a_fold_inside_the_epsilon_does_not_flip_the_verdict);
+    RUN_TEST(test_an_optimum_on_the_tightening_boundary_survives);
+    RUN_TEST(test_activity_range_counters_are_exact);
     return UNITY_END();
 }

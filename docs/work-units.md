@@ -54,10 +54,15 @@ baselines themselves is `02-07`'s own task, deliberately not a side effect
 of landing this section.
 
 **Presolve** (`jm_presolve_run`): `JM_WORK_NONZERO` per nonzero a round
-actually visits while computing a reduction — for the one family this phase
-ships so far (a column fixed as loaded), the entries of that column, visited
-once each while its cost and its matrix contribution shift the rows it
-touches. Charged onto the same `jm_work` the reduced model's own solve then
+actually visits while computing a reduction — the entries of a column being
+fixed, visited once each while its cost and its matrix contribution shift the
+rows it touches, and one per live entry of a row whose activity range is
+computed. The range charge is the one that scales differently from the rest:
+it is paid on every live row of every round, not once per reduction, because
+the range is what the round reads to decide whether there is a reduction at
+all (02-04). A round that finds nothing therefore still bills the whole live
+matrix once, which is the honest figure — that scan is the work. Charged onto
+the same `jm_work` the reduced model's own solve then
 continues (`jm_dual_simplex` seeds `sx`'s accumulator with presolve's total
 before `sx_init` runs), so a caller's `jaos_set_work_limit` sees one total
 for the whole solve and not two — the reason D-14 exists at all: an

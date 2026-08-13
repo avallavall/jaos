@@ -55,6 +55,50 @@
  * without a review-worthy derivation is exactly the failure shape the
  * phase boundary names as the real risk (postsolve, not the reductions).
  *
+ * 02-04 adds the activity-range machinery: one routine (ps_row_range)
+ * computing what a row can reach given the current column boxes, read four
+ * ways — the model is infeasible, the row is forced to an extreme, the row
+ * can never bind, or the row bounds a variable. It is the same algorithm
+ * src/check.c's implied_bounds already runs as a read-only diagnostic, with
+ * two differences that both come from this one changing the answer rather
+ * than reporting on it.
+ *
+ *   - The sum is accumulated with Neumaier compensation in `double`, not in
+ *     `long double`. See ps_acc below: `long double` is architecture-
+ *     dependent and D34 lists avoiding it among the construction rules the
+ *     cross-machine determinism claim rests on. The checker may use it
+ *     because its arithmetic never reaches the answer; presolve's does.
+ *
+ *   - **An activity-range tightening is used to reason with and is never
+ *     published.** This file now carries two column boxes: cur_* is what
+ *     presolve reasons over and pub_* is what the reduced model hands the
+ *     simplex. A bound derived from a row is implied by that row, and the
+ *     row is still in the reduced problem, so imposing the bound as well
+ *     would add nothing to the feasible region — and it would cost
+ *     something real. A column resting at a presolve-invented bound with a
+ *     nonzero reduced cost is interior in the caller's own box, where the
+ *     checker's sign condition requires that reduced cost to be zero, and
+ *     the only thing that can pay for it is the implying row's multiplier.
+ *     Shifting that multiplier is sound only when every other column in the
+ *     row sits exactly at its own extreme, which holds in exact arithmetic
+ *     and not otherwise. Not publishing the bound removes the whole class,
+ *     and it also removes T-02-11 outright: the region the simplex searches
+ *     is never narrowed by a tightening, so no tightening can exclude the
+ *     optimum from it. The tightening still pays, through the reductions it
+ *     cascades into — forcing, redundant, infeasible, and the fixed column
+ *     it produces when the implied box collapses to a point.
+ *
+ *     The singleton-row fold (02-03) is the one family that MUST publish
+ *     its bound, because it removes the row: the constraint survives only
+ *     as that bound. Its own dual recovery is already written for exactly
+ *     that case (row_tightens_lo/hi).
+ *
+ *   - Forcing rows fire only when every column they pin lands on a bound
+ *     the ORIGINAL column had, and only when none of those columns still
+ *     has an entry in an already-removed row that carries a multiplier.
+ *     Both restrictions exist so the row's own dual (ps_replay_one,
+ *     JM_PS_FORCING_ROW) is a derivation with nothing stale in it.
+ *
  * SPDX-License-Identifier: Apache-2.0
  */
 #include "jaos_internal.h"
@@ -99,6 +143,83 @@ static int64_t ps_restore_index(int64_t index, int64_t dim)
     (void)dim;
     return index;
 #endif
+}
+
+/* --------------------------------------------------------------------- */
+/* Presolve's own tolerance space, and the two constants in it           */
+/* --------------------------------------------------------------------- */
+
+/* Presolve runs on the model as loaded, before scaling exists (D-04). That
+ * is a THIRD tolerance space, and nothing converts into it: the solver's
+ * PRIMAL_TOL/DUAL_TOL are magnitudes in scaled space and sx does not exist
+ * yet when this file runs, and the checker's tol is a caller's diagnostic
+ * choice for judging a finished answer. Neither was ever measured for
+ * deciding whether to fold a bound, so neither is borrowed here — see
+ * docs/tolerances.md's presolve section.
+ *
+ * Both constants below are reachable through the Makefile's EXTRA_CFLAGS
+ * hook, the same way PRICE_PARTITIONS_VALUE is, so a sweep varies them
+ * without editing this file between runs.
+ *
+ * PROVISIONAL — the value below was written before the sweep that sets it.
+ * 02-04's Task 2 replaces this paragraph with the sweep table. A constant
+ * whose comment still says provisional has not been measured. */
+#ifndef JAOS_PRESOLVE_TIGHTEN_EPS_VALUE
+#define JAOS_PRESOLVE_TIGHTEN_EPS_VALUE 1e-9
+#endif
+constexpr double PRESOLVE_TIGHTEN_EPS = JAOS_PRESOLVE_TIGHTEN_EPS_VALUE;
+
+/* The cap on presolve's fixed-point rounds (D-02), following the precedent
+ * IMPLIED_ROUNDS set in src/check.c:264: a safety stop rather than a quality
+ * knob, since the loop already exits as soon as a round changes nothing. It
+ * lands on top of 02-03's structural backstop (num_row + num_col + 1),
+ * never above it.
+ *
+ * PROVISIONAL — same rule as the epsilon above: 02-04's Task 2 owns the
+ * sweep, and this paragraph is what the sweep table replaces. */
+#ifndef JAOS_PRESOLVE_ROUNDS_VALUE
+#define JAOS_PRESOLVE_ROUNDS_VALUE 8
+#endif
+constexpr int64_t JM_PRESOLVE_ROUNDS = JAOS_PRESOLVE_ROUNDS_VALUE;
+
+/* --------------------------------------------------------------------- */
+/* A compensated accumulator for the row activity range                  */
+/* --------------------------------------------------------------------- */
+
+/* An activity range is a sum of many terms of differing magnitude, so the
+ * cancellation is real and a naive `double` accumulation loses digits
+ * exactly where the range decides something.
+ *
+ * src/check.c accumulates its own activities in `long double` for that
+ * reason and is right to: it is a diagnostic, and its arithmetic never
+ * reaches the answer. **Presolve's does.** The range computed here decides
+ * which rows are removed and which bounds are folded, so it is part of the
+ * reproducible path, and `long double` is 80-bit on x86-64 and 128-bit or
+ * plain `double` elsewhere — the same source would build a different reduced
+ * model on a different architecture. D34 lists "no `long double`" among the
+ * four construction rules the cross-machine determinism claim rests on,
+ * alongside no FMA contraction and no address-ordered iteration, and
+ * `long double` appears nowhere in this tree outside src/check.c.
+ *
+ * Neumaier compensation buys the accuracy without the type: it is portable,
+ * deterministic, costs about a factor of two, and removes the dominant error
+ * term of a long accumulation. `-ffp-contract=off` in the Makefile is what
+ * makes the two-term error recovery exact rather than approximate. */
+typedef struct {
+    double sum, comp;
+} ps_acc;
+
+static void ps_acc_add(ps_acc *a, double t)
+{
+    const double s = a->sum + t;
+    a->comp += (fabs(a->sum) >= fabs(t)) ? ((a->sum - s) + t)
+                                         : ((t - s) + a->sum);
+    a->sum = s;
+}
+
+static double ps_acc_value(const ps_acc *a)
+{
+    return a->sum + a->comp;
 }
 
 /* --------------------------------------------------------------------- */
@@ -148,6 +269,99 @@ static bool ps_build_rowwise(const jaos_model *m, ps_rowwise *rw)
 static void ps_free_rowwise(ps_rowwise *rw)
 {
     free(rw->rs); free(rw->ridx); free(rw->rval);
+}
+
+/* --------------------------------------------------------------------- */
+/* The row activity range — one computation, read three ways             */
+/* --------------------------------------------------------------------- */
+
+/* What a row can reach given the current column boxes. `lo_sum`/`hi_sum`
+ * are the FINITE part of each end and `lo_inf`/`hi_inf` count the terms that
+ * made that end infinite, kept apart rather than folded together for the
+ * reason src/check.c's implied_bounds keeps them apart: one unbounded column
+ * must not poison the range for the others, because the row can still bound
+ * a column when that column is the only unbounded term in it.
+ *
+ * `traffic` is the sum of the magnitudes of the terms that formed the two
+ * ends. It is the scale a residue of this row has to be judged against —
+ * D23's argument, and fp-numerics': a computed sum carries an uncertainty on
+ * the order of eps times the traffic through it, so an absolute test on a
+ * row whose terms total 4e10 is asking for seventeen correct decimal digits
+ * of a quantity that has fifteen. Every comparison this file makes against a
+ * row activity is therefore PRESOLVE_TIGHTEN_EPS times max(1, traffic), and
+ * never PRESOLVE_TIGHTEN_EPS on its own. */
+typedef struct {
+    double lo_sum, hi_sum;
+    int64_t lo_inf, hi_inf;
+    double traffic;
+} ps_range;
+
+static ps_range ps_row_range(const ps_rowwise *rw, int64_t i,
+                             const double *cl, const double *cu,
+                             const bool *col_dead)
+{
+    ps_acc lo = {0.0, 0.0}, hi = {0.0, 0.0}, tr = {0.0, 0.0};
+    ps_range r = {0.0, 0.0, 0, 0, 0.0};
+
+    for (int64_t k = rw->rs[i]; k < rw->rs[i + 1]; k++) {
+        const int64_t j = rw->ridx[k];
+        if (col_dead[j])
+            continue;
+        const double a = rw->rval[k];
+        if (a == 0.0)
+            continue;   /* the term is exactly zero, and 0 * inf is a NaN */
+
+        const double t_lo = a > 0.0 ? cl[j] : cu[j];
+        const double t_hi = a > 0.0 ? cu[j] : cl[j];
+        if (isfinite(t_lo)) {
+            ps_acc_add(&lo, a * t_lo);
+            ps_acc_add(&tr, fabs(a * t_lo));
+        } else {
+            r.lo_inf++;
+        }
+        if (isfinite(t_hi)) {
+            ps_acc_add(&hi, a * t_hi);
+            ps_acc_add(&tr, fabs(a * t_hi));
+        } else {
+            r.hi_inf++;
+        }
+    }
+
+    r.lo_sum = ps_acc_value(&lo);
+    r.hi_sum = ps_acc_value(&hi);
+    r.traffic = ps_acc_value(&tr);
+    return r;
+}
+
+/* The two ends as numbers, infinite where a term made them so. */
+static double ps_min_act(const ps_range *r)
+{
+    return r->lo_inf > 0 ? -HUGE_VAL : r->lo_sum;
+}
+
+static double ps_max_act(const ps_range *r)
+{
+    return r->hi_inf > 0 ? HUGE_VAL : r->hi_sum;
+}
+
+/* The window every comparison against this row's activity uses. */
+static double ps_row_tol(const ps_range *r)
+{
+    return PRESOLVE_TIGHTEN_EPS * (r->traffic > 1.0 ? r->traffic : 1.0);
+}
+
+/* The window a comparison between two BOUNDS uses. Infinities are skipped
+ * rather than propagated: a scale of infinity would make every subsequent
+ * comparison pass, which is the failure mode where an infeasible model is
+ * quietly accepted. */
+static double ps_bound_scale(double a, double b)
+{
+    double s = 1.0;
+    if (isfinite(a) && fabs(a) > s)
+        s = fabs(a);
+    if (isfinite(b) && fabs(b) > s)
+        s = fabs(b);
+    return s;
 }
 
 /* --------------------------------------------------------------------- */
@@ -245,17 +459,29 @@ JAOS_NODISCARD jaos_status jm_presolve_run(const jaos_model *m, jm_presolve *p,
     bool *col_dead = jm_calloc_array(nc, sizeof *col_dead);
     bool *row_dead = jm_calloc_array(nr, sizeof *row_dead);
     bool *row_frozen = jm_calloc_array(nr, sizeof *row_frozen);
+    /* Set for a column that still has an entry in a row already removed by
+     * a family whose multiplier is not zero by construction. The forcing
+     * row's own dual derivation reads every other row's multiplier, and a
+     * row removed earlier in forward time replays LATER, so its slot still
+     * reads zero at that moment — this is what keeps that derivation off
+     * such a row rather than nearly right on it. */
+    bool *col_pending_dual = jm_calloc_array(nc, sizeof *col_pending_dual);
     double *cur_cl = jm_alloc_array(nc, sizeof *cur_cl);
     double *cur_cu = jm_alloc_array(nc, sizeof *cur_cu);
+    /* The box presolve REASONS with (cur_*) and the box it PUBLISHES for a
+     * surviving column (pub_*) are not the same box, and the difference is
+     * this plan's one deliberate scope restriction — see the file header. */
+    double *pub_cl = jm_alloc_array(nc, sizeof *pub_cl);
+    double *pub_cu = jm_alloc_array(nc, sizeof *pub_cu);
     double *cur_rl = jm_alloc_array(nr, sizeof *cur_rl);
     double *cur_ru = jm_alloc_array(nr, sizeof *cur_ru);
     int64_t *col_deg = jm_alloc_array(nc, sizeof *col_deg);
     int64_t *row_deg = jm_alloc_array(nr, sizeof *row_deg);
     ps_rowwise rw = {0};
 
-    bool ok = col_dead && row_dead && row_frozen && cur_cl && cur_cu &&
-              cur_rl && cur_ru && col_deg && row_deg &&
-              ps_build_rowwise(m, &rw);
+    bool ok = col_dead && row_dead && row_frozen && col_pending_dual &&
+              cur_cl && cur_cu && pub_cl && pub_cu && cur_rl && cur_ru &&
+              col_deg && row_deg && ps_build_rowwise(m, &rw);
 
     jaos_status ret = JAOS_OK;
     if (!ok) {
@@ -266,6 +492,8 @@ JAOS_NODISCARD jaos_status jm_presolve_run(const jaos_model *m, jm_presolve *p,
     for (int64_t j = 0; j < nc; j++) {
         cur_cl[j] = m->col_lower[j];
         cur_cu[j] = m->col_upper[j];
+        pub_cl[j] = m->col_lower[j];
+        pub_cu[j] = m->col_upper[j];
         col_deg[j] = m->a_start[j + 1] - m->a_start[j];
     }
     for (int64_t i = 0; i < nr; i++) {
@@ -277,12 +505,16 @@ JAOS_NODISCARD jaos_status jm_presolve_run(const jaos_model *m, jm_presolve *p,
     p->outcome = JM_PRESOLVE_NONE;
 
     {
-    /* Bounded by num_row + num_col: every round that changes anything
-     * removes at least one row or column, so no round can be productive
-     * more than that many times (T-02-10). D-02's own, *measured* cap
-     * lands on top of this structural one in 02-04 — this is the
-     * correctness backstop, not the tuned value. */
-    const int64_t cap = nr + nc + 1;
+    /* Two caps, and the tighter one wins. The structural one — every round
+     * that changes anything removes at least one row or column, so no round
+     * can be productive more than num_row + num_col times (T-02-10) — is
+     * the correctness backstop 02-03 built. JM_PRESOLVE_ROUNDS is D-02's
+     * measured stop on top of it: the propagation reaches a fixed point long
+     * before the structural bound on any real model, and the sweep that set
+     * it is in the comment above the constant. */
+    int64_t cap = nr + nc + 1;
+    if (JM_PRESOLVE_ROUNDS < cap)
+        cap = JM_PRESOLVE_ROUNDS;
     int64_t rounds_done = 0;
 
     for (int64_t round = 0; round < cap; round++) {
@@ -294,10 +526,11 @@ JAOS_NODISCARD jaos_status jm_presolve_run(const jaos_model *m, jm_presolve *p,
                 continue;
 
             if (row_deg[i] == 0) {
-                /* Exact comparison, on purpose — see the singleton-row
-                 * intersection check below for why: this plan does not
-                 * borrow a tolerance from either existing space, and
-                 * 02-04 is where presolve's own is measured. */
+                /* An empty row's activity is exactly 0 — no sum, no
+                 * cancellation, nothing to be uncertain about — so the
+                 * comparison stays exact and PRESOLVE_TIGHTEN_EPS has no
+                 * business here. The window exists for quantities that are
+                 * sums; this one is not. */
                 if (0.0 < cur_rl[i] || 0.0 > cur_ru[i]) {
                     p->outcome = JM_PRESOLVE_INFEASIBLE;
                     goto done;
@@ -361,25 +594,52 @@ JAOS_NODISCARD jaos_status jm_presolve_run(const jaos_model *m, jm_presolve *p,
                     implied_hi = isfinite(cur_rl[i]) ? cur_rl[i] / a : HUGE_VAL;
                 }
 
-                const bool tightens_lo = implied_lo > cur_cl[j];
-                const bool tightens_hi = implied_hi < cur_cu[j];
-                const double new_lo = tightens_lo ? implied_lo : cur_cl[j];
-                const double new_hi = tightens_hi ? implied_hi : cur_cu[j];
+                /* Against the PUBLISHED box, because row_tightens_lo/hi is
+                 * read by postsolve to decide whether the bound x_j came to
+                 * rest at is one the original column had — and the original
+                 * column's bounds are pub_*, never cur_*. The intersection
+                 * itself is taken over cur_*, which is at least as tight,
+                 * so nothing is lost from the reasoning. */
+                const bool tightens_lo = implied_lo > pub_cl[j];
+                const bool tightens_hi = implied_hi < pub_cu[j];
+                const double new_lo = implied_lo > cur_cl[j] ? implied_lo
+                                                             : cur_cl[j];
+                const double new_hi = implied_hi < cur_cu[j] ? implied_hi
+                                                             : cur_cu[j];
 
                 jm_work_add(w, JM_WORK_NONZERO);
 
-                /* Exact comparison, on purpose: presolve's own tolerance
-                 * space is a new one (D-04, unscaled model space), and
-                 * 02-04 owns the sweep that measures it. Until that
-                 * constant exists, an intersection that has collapsed at
-                 * all is infeasible — no epsilon is borrowed from either
-                 * of the two tolerance spaces that already exist
-                 * (PRIMAL_TOL/DUAL_TOL, scaled; the checker's caller-
-                 * supplied tol, original but diagnostic), since neither
-                 * was measured for this decision. */
-                if (new_lo > new_hi) {
+                /* 02-03 left an exact comparison here as a placeholder,
+                 * because presolve's own tolerance space did not exist
+                 * yet and no constant was going to be borrowed from the
+                 * two that did. PRESOLVE_TIGHTEN_EPS is that constant;
+                 * this is the one place in the file that used to compare
+                 * exactly and no longer does.
+                 *
+                 * The two branches below are one step apart and each says
+                 * which verdict it produces, because a single comparison
+                 * deciding both is where an off-by-one epsilon turns a
+                 * solvable model into a refused one. */
+                double fold_lo = new_lo, fold_hi = new_hi;
+                const double btol =
+                    PRESOLVE_TIGHTEN_EPS * ps_bound_scale(new_lo, new_hi);
+
+                if (new_lo > new_hi + btol) {
+                    /* PAST the opposite bound. The intersection is empty by
+                     * more than rounding in the row-bound shifts can
+                     * explain, so the model has no feasible point. */
                     p->outcome = JM_PRESOLVE_INFEASIBLE;
                     goto done;
+                }
+                if (new_lo > new_hi) {
+                    /* ON the opposite bound, within the epsilon. The
+                     * interval collapsed to a point — a legitimate
+                     * reduction, not a refusal: the column is fixed and the
+                     * fixed-column rule below takes it on this same round's
+                     * column pass. The midpoint is what a collapsed
+                     * interval is worth and is symmetric in the two ends,
+                     * so it does not depend on which side was tightened. */
+                    fold_lo = fold_hi = 0.5 * (new_lo + new_hi);
                 }
 
                 if (!ps_push(p, (jm_presolve_rec){
@@ -390,10 +650,30 @@ JAOS_NODISCARD jaos_status jm_presolve_run(const jaos_model *m, jm_presolve *p,
                     ret = JAOS_ERR_OUT_OF_MEMORY;
                     goto cleanup_scratch;
                 }
-                cur_cl[j] = new_lo;
-                cur_cu[j] = new_hi;
+                cur_cl[j] = fold_lo;
+                cur_cu[j] = fold_hi;
+                /* Published as well as reasoned with, and this is the one
+                 * family where that is obligatory: row i is being removed,
+                 * so the constraint it carried survives only as this bound.
+                 * The activity-range family below is the opposite case —
+                 * its rows stay, so its bounds are never published. Only
+                 * the part of the fold the ROW is responsible for goes into
+                 * the published box; an activity-range tightening already
+                 * sitting in cur_* does not become publishable by being
+                 * intersected with a row fold. */
+                if (tightens_lo && implied_lo > pub_cl[j])
+                    pub_cl[j] = implied_lo;
+                if (tightens_hi && implied_hi < pub_cu[j])
+                    pub_cu[j] = implied_hi;
+                if (fold_lo == fold_hi) {
+                    /* Collapsed: the column is about to be fixed anyway, so
+                     * the two boxes agree on the one value that is left. */
+                    pub_cl[j] = fold_lo;
+                    pub_cu[j] = fold_hi;
+                }
                 row_dead[i] = true;
                 col_deg[j]--;
+                col_pending_dual[j] = true;
                 p->counts.singleton_row++;
                 changed = true;
             }
@@ -517,6 +797,314 @@ JAOS_NODISCARD jaos_status jm_presolve_run(const jaos_model *m, jm_presolve *p,
             }
         }
 
+        /* --- Activity pass: forcing, redundant, bound tightening. ---- */
+        /* One range per row, read four ways, in this order because the
+         * first three are cheaper and two of them remove the row outright.
+         * Rows of degree 0 and 1 are already consumed above; a frozen row
+         * is skipped for 02-03's reason (its bounds stand for a range a
+         * removed column may still need, not a determined value). */
+        for (int64_t i = 0; i < nr; i++) {
+            if (row_dead[i] || row_frozen[i] || row_deg[i] < 2)
+                continue;
+
+            const ps_range rg =
+                ps_row_range(&rw, i, cur_cl, cur_cu, col_dead);
+            jm_work_add(w, row_deg[i] * JM_WORK_NONZERO);
+
+            const double rtol = ps_row_tol(&rg);
+            const double min_act = ps_min_act(&rg);
+            const double max_act = ps_max_act(&rg);
+            const double rl = cur_rl[i], ru = cur_ru[i];
+
+            /* 1. INFEASIBLE. The row cannot be satisfied by any point of
+             *    the current boxes, so the model has no feasible point. No
+             *    column is fixed on this branch. */
+            if ((isfinite(ru) && min_act > ru + rtol) ||
+                (isfinite(rl) && max_act < rl - rtol)) {
+                p->outcome = JM_PRESOLVE_INFEASIBLE;
+                goto done;
+            }
+
+            /* 2. FORCING. The range touches one of the row's own bounds, so
+             *    every live column in it is pinned at the bound that attains
+             *    that extreme. `force_hi` is the minimum activity reaching
+             *    the row's UPPER bound; `force_lo` the maximum reaching its
+             *    LOWER one. */
+            const bool force_hi = isfinite(ru) && min_act >= ru - rtol;
+            const bool force_lo = isfinite(rl) && max_act <= rl + rtol;
+            if (force_hi || force_lo) {
+                /* Fired only when every column's attaining bound is one the
+                 * ORIGINAL column had. A column pinned at an activity-range
+                 * bound would be pinned somewhere the caller's own box does
+                 * not name, and postsolve has no multiplier to explain that
+                 * with — the row's own dual (computed below) can only pay
+                 * for a genuine bound. Cheap to check and it keeps the
+                 * family's dual recovery a derivation rather than a hope. */
+                bool at_own_bounds = true;
+                for (int64_t k = rw.rs[i]; k < rw.rs[i + 1]; k++) {
+                    const int64_t j = rw.ridx[k];
+                    if (col_dead[j] || rw.rval[k] == 0.0)
+                        continue;
+                    if (col_pending_dual[j]) {
+                        /* This column's reduced cost cannot be read off yet
+                         * at postsolve time — see col_pending_dual. */
+                        at_own_bounds = false;
+                        break;
+                    }
+                    const bool want_lo =
+                        force_hi ? (rw.rval[k] > 0.0) : (rw.rval[k] < 0.0);
+                    if (want_lo ? (cur_cl[j] != pub_cl[j])
+                                : (cur_cu[j] != pub_cu[j])) {
+                        at_own_bounds = false;
+                        break;
+                    }
+                }
+
+                if (at_own_bounds) {
+                    int64_t nfix = 0;
+                    bool oom = false;
+                    for (int64_t k = rw.rs[i]; k < rw.rs[i + 1]; k++) {
+                        const int64_t j = rw.ridx[k];
+                        if (col_dead[j])
+                            continue;
+                        if (rw.rval[k] == 0.0) {
+                            /* Contributes nothing to the range and is not
+                             * pinned by it, but its entry in this row dies
+                             * with the row like any other — and this row
+                             * does carry a multiplier, so the column it
+                             * leaves behind is one no later forcing row may
+                             * derive a dual through. */
+                            col_deg[j]--;
+                            col_pending_dual[j] = true;
+                            continue;
+                        }
+                        const bool want_lo = force_hi ? (rw.rval[k] > 0.0)
+                                                      : (rw.rval[k] < 0.0);
+                        const double v = want_lo ? cur_cl[j] : cur_cu[j];
+                        assert(isfinite(v));
+
+                        p->reduced.obj_offset += m->col_cost[j] * v;
+                        jm_work_add(w, (m->a_start[j + 1] - m->a_start[j]) *
+                                       JM_WORK_NONZERO);
+                        for (int64_t kk = m->a_start[j];
+                             kk < m->a_start[j + 1]; kk++) {
+                            const int64_t ii = m->a_index[kk];
+                            if (row_dead[ii])
+                                continue;
+                            cur_rl[ii] -= m->a_value[kk] * v;
+                            cur_ru[ii] -= m->a_value[kk] * v;
+                            row_deg[ii]--;
+                        }
+                        /* JM_PS_FIXED_COL, not a tag of its own: a column
+                         * this pins is a fixed column and its replay is
+                         * already written and already tested. `coef` is the
+                         * one extra thing the row's own record needs back. */
+                        if (!ps_push(p, (jm_presolve_rec){
+                                .tag = JM_PS_FIXED_COL, .index = j,
+                                .value = v, .cost = m->col_cost[j],
+                                .coef = rw.rval[k] })) {
+                            oom = true;
+                            break;
+                        }
+                        col_dead[j] = true;
+                        nfix++;
+                    }
+                    if (oom) {
+                        ret = JAOS_ERR_OUT_OF_MEMORY;
+                        goto cleanup_scratch;
+                    }
+                    /* Pushed AFTER its columns, so the LIFO walk replays it
+                     * BEFORE them: the row's multiplier has to be in place
+                     * when each column's reduced cost is derived from it. */
+                    if (!ps_push(p, (jm_presolve_rec){
+                            .tag = JM_PS_FORCING_ROW, .index = i,
+                            .index2 = nfix,
+                            .row_tightens_hi = force_hi })) {
+                        ret = JAOS_ERR_OUT_OF_MEMORY;
+                        goto cleanup_scratch;
+                    }
+                    row_dead[i] = true;
+                    p->counts.forcing_row++;
+                    changed = true;
+                    continue;
+                }
+            }
+
+            /* 3. REDUNDANT. The whole range lies inside the row's bounds,
+             *    so the row can never bind and is dropped with no column
+             *    fixed. Its multiplier is zero, which satisfies its own
+             *    sign condition unconditionally — the one family here whose
+             *    dual recovery needs no derivation at all. */
+            if ((!isfinite(rl) || min_act >= rl - rtol) &&
+                (!isfinite(ru) || max_act <= ru + rtol)) {
+                if (!ps_push(p, (jm_presolve_rec){
+                        .tag = JM_PS_REDUNDANT_ROW, .index = i })) {
+                    ret = JAOS_ERR_OUT_OF_MEMORY;
+                    goto cleanup_scratch;
+                }
+                for (int64_t k = rw.rs[i]; k < rw.rs[i + 1]; k++)
+                    if (!col_dead[rw.ridx[k]])
+                        col_deg[rw.ridx[k]]--;
+                row_dead[i] = true;
+                p->counts.redundant_row++;
+                changed = true;
+                continue;
+            }
+
+            /* 4. BOUND TIGHTENING. What the rest of the row leaves for each
+             *    live column. Taken only when strictly tighter than the
+             *    bound the column already carries, by more than the epsilon,
+             *    and then rounded AWAY from tightening by one epsilon rather
+             *    than toward it.
+             *
+             *    That asymmetry is the whole point. src/check.c's version of
+             *    this propagation is read-only: a bound a shade too tight
+             *    there costs a certification and D91 already paid for it.
+             *    Here it would narrow the region the simplex searches, and a
+             *    region that excludes the true optimum produces an answer
+             *    that is feasible, checker-clean and simply not optimal —
+             *    nothing downstream is looking for that (T-02-11). Rounding
+             *    outward makes the bound weaker than the implication, which
+             *    can only ever cost a reduction. */
+            for (int64_t k = rw.rs[i]; k < rw.rs[i + 1]; k++) {
+                const int64_t j = rw.ridx[k];
+                if (col_dead[j])
+                    continue;
+                const double a = rw.rval[k];
+                if (a == 0.0)
+                    continue;
+
+                const double t_lo = a > 0.0 ? cur_cl[j] : cur_cu[j];
+                const double t_hi = a > 0.0 ? cur_cu[j] : cur_cl[j];
+                const bool rest_lo_finite =
+                    rg.lo_inf == (isfinite(t_lo) ? 0 : 1);
+                const bool rest_hi_finite =
+                    rg.hi_inf == (isfinite(t_hi) ? 0 : 1);
+                const double rest_lo =
+                    rg.lo_sum - (isfinite(t_lo) ? a * t_lo : 0.0);
+                const double rest_hi =
+                    rg.hi_sum - (isfinite(t_hi) ? a * t_hi : 0.0);
+
+                /* Two different windows, for two different questions, and
+                 * conflating them is what makes this family either useless
+                 * or unsound.
+                 *
+                 * `ctol` answers "is this improvement bigger than the noise
+                 * in the computation that produced it?". The uncertainty in
+                 * (bound - rest) is eps times the row's traffic; dividing by
+                 * a_ij carries it into the column's own units. On a row
+                 * whose terms total 4e10 that window is wide, and it should
+                 * be — a tightening smaller than it is rounding, not
+                 * information. This one only ever refuses reductions.
+                 *
+                 * `out` is how far the accepted bound is then rounded AWAY
+                 * from tightening, and it is a fraction of the bound itself
+                 * rather than of the row's traffic. Rounding outward by a
+                 * row-sized window would move the bound by 10 on a row like
+                 * that, which is not a safety margin, it is a different
+                 * bound. */
+                const double ctol = PRESOLVE_TIGHTEN_EPS *
+                    ((rg.traffic / fabs(a)) > 1.0 ? rg.traffic / fabs(a)
+                                                  : 1.0);
+                bool moved = false;
+
+                if (rest_lo_finite && isfinite(ru)) {
+                    const double lim = (ru - rest_lo) / a;
+                    const double out =
+                        PRESOLVE_TIGHTEN_EPS * ps_bound_scale(lim, lim);
+                    if (a > 0.0) {
+                        if (lim < cur_cu[j] - ctol && lim + out < cur_cu[j]) {
+                            cur_cu[j] = lim + out;
+                            moved = true;
+                        }
+                    } else if (lim > cur_cl[j] + ctol && lim - out > cur_cl[j]) {
+                        cur_cl[j] = lim - out;
+                        moved = true;
+                    }
+                }
+                if (rest_hi_finite && isfinite(rl)) {
+                    const double lim = (rl - rest_hi) / a;
+                    const double out =
+                        PRESOLVE_TIGHTEN_EPS * ps_bound_scale(lim, lim);
+                    if (a > 0.0) {
+                        if (lim > cur_cl[j] + ctol && lim - out > cur_cl[j]) {
+                            cur_cl[j] = lim - out;
+                            moved = true;
+                        }
+                    } else if (lim < cur_cu[j] - ctol && lim + out < cur_cu[j]) {
+                        cur_cu[j] = lim + out;
+                        moved = true;
+                    }
+                }
+                if (!moved)
+                    continue;
+
+                jm_work_add(w, JM_WORK_NONZERO);
+                p->counts.tightened_bound++;
+                changed = true;
+
+                /* The same two branches, one step apart, that the
+                 * singleton-row fold above carries, for the same reason.
+                 *
+                 * The window is TWICE the outward rounding, and the factor
+                 * is derived rather than fitted: each side of the interval
+                 * may carry one outward rounding of its own, so an interval
+                 * that was exactly a point before rounding is at most two
+                 * roundings wide after it. A window of one would refuse to
+                 * see the collapse it just created. */
+                const double btol = 2.0 * PRESOLVE_TIGHTEN_EPS *
+                                    ps_bound_scale(cur_cl[j], cur_cu[j]);
+                if (cur_cl[j] > cur_cu[j] + btol) {
+                    /* PAST the opposite bound: no feasible point. Reachable
+                     * only across two different rows — within one row the
+                     * lower and upper candidates cannot cross, since that
+                     * would need the row's own lower bound above its upper
+                     * one — and even then the other row's range reading
+                     * usually reports the infeasibility first. Kept as the
+                     * guard it is rather than removed as unreachable. */
+                    p->outcome = JM_PRESOLVE_INFEASIBLE;
+                    goto done;
+                }
+                if (cur_cl[j] >= cur_cu[j] - btol) {
+                    /* ON the opposite bound, within the epsilon: the box
+                     * collapsed and the constraints have determined x_j. */
+                    const double v = 0.5 * (cur_cl[j] + cur_cu[j]);
+                    p->reduced.obj_offset += m->col_cost[j] * v;
+                    jm_work_add(w, (m->a_start[j + 1] - m->a_start[j]) *
+                                   JM_WORK_NONZERO);
+                    for (int64_t kk = m->a_start[j];
+                         kk < m->a_start[j + 1]; kk++) {
+                        const int64_t ii = m->a_index[kk];
+                        if (row_dead[ii])
+                            continue;
+                        cur_rl[ii] -= m->a_value[kk] * v;
+                        cur_ru[ii] -= m->a_value[kk] * v;
+                        row_deg[ii]--;
+                    }
+                    if (!ps_push(p, (jm_presolve_rec){
+                            .tag = JM_PS_TIGHTENED_BOUND, .index = j,
+                            .value = v, .cost = m->col_cost[j] })) {
+                        ret = JAOS_ERR_OUT_OF_MEMORY;
+                        goto cleanup_scratch;
+                    }
+                    cur_cl[j] = v;
+                    cur_cu[j] = v;
+                    col_dead[j] = true;
+                    p->counts.fixed_col++;
+                    /* The range and the row's own bounds were both read
+                     * before this column was fixed and both are now stale
+                     * by its contribution. Every further bound this row
+                     * would derive in the same pass is derived from them,
+                     * and while a stale range only ever yields a WEAKER
+                     * bound (the column's contribution is still counted at
+                     * its widest), a bound nobody can explain later is not
+                     * worth the two lines it saves. The next round reads
+                     * the row again from scratch. */
+                    break;
+                }
+            }
+        }
+
         if (!changed)
             break;
         rounds_done++;
@@ -560,9 +1148,16 @@ JAOS_NODISCARD jaos_status jm_presolve_run(const jaos_model *m, jm_presolve *p,
     }
     assert(rj == rcol && ri == rrow);
 
-    if (p->counts.rounds == 0 && rcol == nc && rrow == nr) {
-        /* Nothing fired at all: NONE, exactly as before this plan (no
-         * reduced model built, publish() takes the un-presolved path). */
+    if (rcol == nc && rrow == nr) {
+        /* Nothing was removed: NONE, and no reduced model is built (publish
+         * takes the un-presolved path). The round counter is deliberately
+         * not part of this test any more. An activity-range tightening
+         * makes a round productive without removing anything, and it is
+         * never published, so a run that only tightened has left the model
+         * the simplex sees exactly as it was — copying it would cost a
+         * model-sized allocation to hand back what the caller already
+         * had. Nothing else can survive a round unchanged in both counts:
+         * every other family removes a row or a column. */
         p->outcome = JM_PRESOLVE_NONE;
         goto cleanup_scratch;
     }
@@ -634,8 +1229,10 @@ JAOS_NODISCARD jaos_status jm_presolve_run(const jaos_model *m, jm_presolve *p,
     for (int64_t rj2 = 0; rj2 < rcol; rj2++) {
         const int64_t j = p->orig_col[rj2];
         p->reduced.col_cost[rj2]  = m->col_cost[j];
-        p->reduced.col_lower[rj2] = cur_cl[j];
-        p->reduced.col_upper[rj2] = cur_cu[j];
+        /* pub_*, not cur_*: an activity-range tightening is used to reason
+         * with and is never handed to the simplex — see the file header. */
+        p->reduced.col_lower[rj2] = pub_cl[j];
+        p->reduced.col_upper[rj2] = pub_cu[j];
         int64_t n = 0;
         for (int64_t k = m->a_start[j]; k < m->a_start[j + 1]; k++)
             if (!row_dead[m->a_index[k]])
@@ -733,9 +1330,9 @@ JAOS_NODISCARD jaos_status jm_presolve_run(const jaos_model *m, jm_presolve *p,
                  * (BASIC or out of range); fall back to comparing the
                  * column's last published value against the bound this
                  * round's own tightening just computed. */
-                if (m->sol_col[j] == cur_cl[j])
+                if (m->sol_col[j] == pub_cl[j])
                     p->reduced.start_col_status[rjj] = JAOS_BASIS_AT_LOWER;
-                else if (m->sol_col[j] == cur_cu[j])
+                else if (m->sol_col[j] == pub_cu[j])
                     p->reduced.start_col_status[rjj] = JAOS_BASIS_AT_UPPER;
             }
         }
@@ -758,7 +1355,9 @@ done:
 
 cleanup_scratch:
     free(col_dead); free(row_dead); free(row_frozen);
-    free(cur_cl); free(cur_cu); free(cur_rl); free(cur_ru);
+    free(col_pending_dual);
+    free(cur_cl); free(cur_cu); free(pub_cl); free(pub_cu);
+    free(cur_rl); free(cur_ru);
     free(col_deg); free(row_deg);
     ps_free_rowwise(&rw);
     return ret;
@@ -776,10 +1375,13 @@ cleanup_scratch:
  * sol_col/sol_col_status already hold for SURVIVING rows/columns before
  * this loop starts — solved has none, expand has whatever the reduced
  * solve published, mapped in by each caller before this runs. */
-static void ps_replay_one(jaos_model *orig, const jm_presolve_rec *rec)
+static void ps_replay_one(jaos_model *orig, const jm_presolve *p, int64_t r)
 {
+    const jm_presolve_rec *rec = &p->arena[r];
+
     switch (rec->tag) {
     case JM_PS_FIXED_COL:
+    case JM_PS_TIGHTENED_BOUND:
     case JM_PS_EMPTY_COL: {
         const int64_t j = ps_restore_index(rec->index, orig->num_col);
         assert(j >= 0 && j < orig->num_col);
@@ -879,29 +1481,62 @@ static void ps_replay_one(jaos_model *orig, const jm_presolve_rec *rec)
          * exactly the sign the reduced solve's own dual feasibility at
          * that bound already guarantees — see 02-03-SUMMARY.md for the
          * full derivation this comment summarizes. */
-        const jaos_basis_status st = orig->sol_col_status[j];
+        /* 02-04 replaced 02-03's status-based discriminator with the
+         * question the checker actually asks, because the status stopped
+         * being able to answer it. 02-03 read sol_col_status[j] and
+         * row_tightens_lo/hi to decide whether x_j was resting at a bound
+         * the row induced or at one the column already had. That works
+         * while the reduced solve is what put x_j where it is. It stops
+         * working once presolve determines x_j itself: a column the fold
+         * pinned to a point is republished by the fixed-column rule with
+         * whichever of AT_LOWER/AT_UPPER matches its ORIGINAL bounds, and
+         * that status no longer says anything about which side the row was
+         * responsible for. A model where the row induces a lower bound of 3
+         * on a column whose own upper bound is also 3 lands in exactly that
+         * hole, and 02-04's own activity-range families produce it.
+         *
+         * The question, asked directly: does leaving this row's multiplier
+         * at zero already satisfy x_j's sign condition? The test is exact
+         * rather than windowed — a nonzero multiplier has to point at a
+         * bound the value is resting on, and "resting on" for a value
+         * presolve itself assigned is equality. Being conservative here
+         * costs nothing: the repair below is sound whenever it is taken.
+         *
+         * Where zero does not work, the row absorbs the whole reduced cost:
+         * y_i = d'_j / a_ij makes d_j exactly zero, which satisfies x_j's
+         * condition at ANY value. The row's own condition comes out right
+         * by construction rather than by luck. A positive d'_j means the
+         * reduced solve had x_j resting at the folded LOWER bound, and it
+         * is not the column's own (or zero would have worked), so it is the
+         * row's — which for a_ij > 0 means a_ij·x_j = rl_i, the row resting
+         * at its lower bound, where a positive multiplier is exactly what
+         * is permitted; and y_i = d'_j / a_ij is positive. For a_ij < 0 the
+         * same folded lower bound comes from ru_i, the row rests at its
+         * upper bound where a negative multiplier is permitted, and
+         * dividing by a negative a_ij delivers one. The two d'_j < 0 cases
+         * are the mirror image. */
+        const double d0 = orig->sol_redcost[j];
+        const double v0 = orig->sol_col[j];
+        const bool zero_works =
+            d0 == 0.0 ||
+            (d0 > 0.0 && v0 == orig->col_lower[j]) ||
+            (d0 < 0.0 && v0 == orig->col_upper[j]);
+
         double y_i;
-        if (st == JAOS_BASIS_BASIC || st == JAOS_BASIS_FREE) {
+        if (zero_works) {
             y_i = 0.0;
-            orig->sol_redcost[j] = 0.0;
-        } else if ((st == JAOS_BASIS_AT_LOWER && rec->row_tightens_lo) ||
-                  (st == JAOS_BASIS_AT_UPPER && rec->row_tightens_hi)) {
-            /* x_j rests at the bound the ROW induced, tighter than (or
-             * equal to) x_j's own original bound on that side. In the
-             * ORIGINAL problem that bound does not exist, so x_j is
-             * interior there — publishing AT_LOWER/AT_UPPER as the reduced
-             * solve reported it would claim a bound the original column
-             * never had; the row-count invariant a caller reads jaos_basis
-             * against would be counting a genuinely interior variable as
-             * nonbasic. */
-            y_i = orig->sol_redcost[j] / rec->coef;
+            /* orig->sol_redcost[j] already holds d'_j, and the status the
+             * column arrived with is the one its own bounds justify. */
+        } else {
+            /* x_j rests at a bound the ROW induced. In the ORIGINAL problem
+             * that bound does not exist, so x_j is interior there —
+             * publishing AT_LOWER/AT_UPPER as the reduced solve reported it
+             * would claim a bound the original column never had, and the
+             * row-count invariant a caller reads jaos_basis against would
+             * be counting a genuinely interior variable as nonbasic. */
+            y_i = d0 / rec->coef;
             orig->sol_redcost[j] = 0.0;
             orig->sol_col_status[j] = JAOS_BASIS_BASIC;
-        } else {
-            y_i = 0.0;
-            /* orig->sol_redcost[j] already holds d'_j; status is already
-             * whichever of AT_LOWER/AT_UPPER matches x_j's own original
-             * bound, unchanged. */
         }
 #if defined(JAOS_PRESOLVE_FAULT_WRONGDUAL)
         /* D-10's per-family fault for singleton row: this family's real
@@ -1034,6 +1669,100 @@ static void ps_replay_one(jaos_model *orig, const jm_presolve_rec *rec)
         orig->sol_row_status[i] =
             (orig->sol_col_status[j] == JAOS_BASIS_FREE)
                 ? JAOS_BASIS_BASIC : JAOS_BASIS_AT_LOWER;
+        break;
+    }
+
+    case JM_PS_REDUNDANT_ROW: {
+        const int64_t i = ps_restore_index(rec->index, orig->num_row);
+        assert(i >= 0 && i < orig->num_row);
+
+        /* The cleanest of the three: a row whose activity range lies wholly
+         * inside its own bounds can never bind, so it carries no multiplier
+         * and y_i = 0 satisfies sign_condition unconditionally — the trivial
+         * w == 0 case, whatever the activity turns out to be. Removing it
+         * changed no other column's reduced cost either, since every d_j is
+         * c_j minus a sum in which this row's term is now zero.
+         *
+         * Its activity is NOT assigned here. jm_postsolve_expand seeds every
+         * dead row with the surviving columns' contributions before this walk
+         * starts, and every removed column adds its own share when its record
+         * replays, so this slot is already accumulating and an assignment
+         * would wipe whichever half arrived first.
+         *
+         * BASIC because of the row-count invariant: this record removes one
+         * row and no column, so restoring it has to add back exactly one
+         * basic entry, and the row is the only thing it restores. */
+        orig->sol_dual[i] = 0.0;
+        orig->sol_row_status[i] = JAOS_BASIS_BASIC;
+        break;
+    }
+
+    case JM_PS_FORCING_ROW: {
+        const int64_t i = ps_restore_index(rec->index, orig->num_row);
+        assert(i >= 0 && i < orig->num_row);
+
+        /* The one family here whose dual is a derivation rather than a zero.
+         *
+         * Row i's range touched one of its own bounds, so every live column
+         * in it was pinned at the bound attaining that extreme, and each of
+         * those bounds is one the ORIGINAL column had (checked before the
+         * family fires). Each pinned column therefore carries a one-sided
+         * sign requirement: at its lower bound d_j >= 0, at its upper bound
+         * d_j <= 0. With this row's multiplier still zero, d_j reads
+         * d_j^0 = c_j - sum_k a_kj y_k, and setting y_i moves it by
+         * -a_ij * y_i.
+         *
+         * Take the row forced at its UPPER bound (the minimum activity
+         * reached it). Then a_ij > 0 pins x_j at its lower bound, needing
+         * d_j^0 - a_ij y_i >= 0, i.e. y_i <= d_j^0 / a_ij; and a_ij < 0 pins
+         * x_j at its upper bound, needing d_j^0 - a_ij y_i <= 0, which after
+         * dividing by the negative a_ij is the SAME inequality. So one
+         * bound serves every column in the row: y_i = min over j of
+         * d_j^0 / a_ij, and the row resting at its upper bound requires
+         * y_i <= 0 in its own right, so the minimum is taken with 0. The
+         * lower-bound case is the mirror image with max and >= 0.
+         *
+         * Moving y_i in that direction can only push every other d_j in the
+         * row further into its own permitted side, which is why one value
+         * satisfies all of them at once rather than trading them off.
+         *
+         * The columns are the `index2` records IMMEDIATELY BEFORE this one
+         * in the arena — pushed there by the forward pass precisely so this
+         * record replays first and their own reduced costs, computed after
+         * it, already see the multiplier it chose.
+         *
+         * What this does not control: a row removed EARLIER in forward time
+         * replays LATER, so its own multiplier still reads zero here and a
+         * d_j^0 above is stale by that row's contribution. The forward pass
+         * refuses to fire this family when any of its columns touches such a
+         * row, which is what makes the derivation exact rather than nearly
+         * exact. */
+        double y = 0.0;
+        for (int64_t t = 1; t <= rec->index2; t++) {
+            const jm_presolve_rec *cr = &p->arena[r - t];
+            assert(cr->tag == JM_PS_FIXED_COL);
+            const int64_t j = cr->index;
+            assert(j >= 0 && j < orig->num_col);
+
+            double d0 = cr->cost;
+            for (int64_t k = orig->a_start[j]; k < orig->a_start[j + 1]; k++)
+                d0 -= orig->a_value[k] * orig->sol_dual[orig->a_index[k]];
+
+            const double lim = d0 / cr->coef;
+            if (t == 1)
+                y = lim;
+            else if (rec->row_tightens_hi ? (lim < y) : (lim > y))
+                y = lim;
+        }
+        if (rec->row_tightens_hi ? (y > 0.0) : (y < 0.0))
+            y = 0.0;
+
+        orig->sol_dual[i] = ps_published(y);
+        /* Row-count invariant: this record and the `index2` fixed-column
+         * records before it remove one row and index2 columns between them,
+         * and the columns are all nonbasic, so the row takes the single
+         * basic slot the restoration owes. */
+        orig->sol_row_status[i] = JAOS_BASIS_BASIC;
         break;
     }
     }
@@ -1177,9 +1906,31 @@ JAOS_NODISCARD jaos_status jm_postsolve_expand(jm_presolve *p)
         orig->sol_redcost[j] = red->sol_redcost[rj];
     }
 
+    /* Every dead row's activity is seeded with what the SURVIVING columns
+     * contribute to it, because those columns push no record and so add
+     * nothing during the replay below. A removed column adds its own share
+     * when its record replays, and the two halves can arrive in either
+     * order, which is why a row-removing tag accumulates into this slot
+     * rather than assigning to it.
+     *
+     * Only dead rows: a surviving row's activity came from the reduced
+     * solve a few lines above and is already the original problem's, since
+     * a removed column's contribution was folded into that row's bounds
+     * rather than left in its activity. */
+    for (int64_t j = 0; j < orig->num_col; j++) {
+        if (p->col_map[j] < 0)
+            continue;
+        const double xv = orig->sol_col[j];
+        for (int64_t k = orig->a_start[j]; k < orig->a_start[j + 1]; k++) {
+            const int64_t i = orig->a_index[k];
+            if (p->row_map[i] < 0)
+                orig->sol_row[i] += orig->a_value[k] * xv;
+        }
+    }
+
     /* Strictly LIFO (D-07). */
     for (int64_t r = p->arena_len - 1; r >= 0; r--)
-        ps_replay_one(orig, &p->arena[r]);
+        ps_replay_one(orig, p, r);
 
     (void)jm_model_remember_basis(orig);
     return JAOS_OK;
@@ -1218,7 +1969,7 @@ JAOS_NODISCARD jaos_status jm_postsolve_solved(jm_presolve *p)
     memset(orig->sol_dual, 0, (size_t)orig->num_row * sizeof(double));
 
     for (int64_t r = p->arena_len - 1; r >= 0; r--)
-        ps_replay_one(orig, &p->arena[r]);
+        ps_replay_one(orig, p, r);
 
     (void)jm_model_remember_basis(orig);
     return JAOS_OK;

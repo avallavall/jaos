@@ -481,6 +481,15 @@ typedef enum {
     JM_PS_FREE_COL_SINGLETON,   /* a free, cost-0 column whose one live row
                                   * is itself a mutual singleton on it;
                                   * removes both in one record */
+    JM_PS_REDUNDANT_ROW,        /* a row whose whole activity range lies
+                                  * inside its own bounds: it can never bind */
+    JM_PS_FORCING_ROW,          /* a row whose activity range touches one of
+                                  * its own bounds exactly, fixing every live
+                                  * column in it at the bound that attains
+                                  * that extreme */
+    JM_PS_TIGHTENED_BOUND,      /* a column whose implied box collapsed to a
+                                  * point under activity-range tightening, so
+                                  * the constraints determine its value */
 } jm_presolve_tag;
 
 /* One tagged, append-only postsolve record: what an original row or column
@@ -490,7 +499,10 @@ typedef enum {
  * read them:
  *
  *   JM_PS_FIXED_COL, JM_PS_EMPTY_COL: index=column, value=the fixed value,
- *     cost=the column's own cost.
+ *     cost=the column's own cost. A JM_PS_FIXED_COL pushed by a forcing row
+ *     also carries coef=its coefficient in that row, which the forcing row's
+ *     own record reads back to size its multiplier; every other producer of
+ *     this tag leaves coef at zero and no reader of those looks at it.
  *   JM_PS_EMPTY_ROW: index=row. Nothing else is read — an empty row's
  *     activity, dual and status are always zero/zero/basic.
  *   JM_PS_SINGLETON_ROW: index=row, index2=the column its one entry named,
@@ -504,7 +516,21 @@ typedef enum {
  *   JM_PS_FREE_COL_SINGLETON: index=row (removed), index2=column (removed),
  *     coef=the entry's coefficient, lo/hi=the row's own *current* (already
  *     shifted by every value-determined column removed before it) bounds at
- *     the moment both were removed. */
+ *     the moment both were removed.
+ *   JM_PS_REDUNDANT_ROW: index=row. Nothing else is read. Its dual is zero
+ *     by construction — a row that can never bind carries no multiplier —
+ *     and its activity is summed at replay from the columns that survived.
+ *   JM_PS_FORCING_ROW: index=row (removed), index2=how many records
+ *     IMMEDIATELY BEFORE this one in the arena are the columns this row
+ *     fixed. row_tightens_hi says which of the row's own bounds the range
+ *     attained: true for the upper bound (minimum activity reached it),
+ *     false for the lower (maximum activity reached it). That is the sign
+ *     the row's own multiplier has to take, and the preceding records are
+ *     what its magnitude is computed from — see ps_replay_one.
+ *   JM_PS_TIGHTENED_BOUND: index=column, value=the point its implied box
+ *     collapsed to, cost=the column's own cost. Read exactly like
+ *     JM_PS_FIXED_COL; the tag is separate so D-13's counters can tell a
+ *     column that arrived fixed from one the constraints determined. */
 typedef struct {
     jm_presolve_tag tag;
     int64_t index;
