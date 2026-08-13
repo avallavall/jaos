@@ -27,8 +27,73 @@ Non-negotiable, and they shape everything below.
   machines; the seconds say whether the units bought anything. Seconds are
   development numbers and are labelled as such — they never enter a baseline.
 
+Two decisions taken on 2026-08-13 fix how the premises apply as the project
+grows, because both were about to become expensive:
+
+- **The first two premises are absolute, with no exceptions.** Everything
+  planned from here is costed under them. A barrier method needs a sparse
+  Cholesky factorization: it is written here, and it is deterministic. Reading
+  compressed input needs an inflate written here, or the feature stays absent.
+  Any parallelism is deterministic by design rather than by luck. A feature
+  that cannot be built under these two rules is not built. This is what makes
+  each feature two to five times more expensive than it is elsewhere, and it is
+  accepted deliberately.
+
+- **The goal is the best open solver that returns identical results on every
+  machine and ships its own independent checker.** Not matching Gurobi, which
+  is not reachable. The stated goal is reachable and nobody occupies it today:
+  Gurobi's documentation states it is deterministic on one machine but not
+  across machines, and none of the solvers in `docs/feature-matrix.md` ships a
+  checker. Breadth of features serves that goal; it does not replace it.
+
 Status is **done**, **partial** or **missing**. "Partial" always says what is
 missing.
+
+---
+
+## 0. The target, and where JAOS stands against it
+
+The sections below say what JAOS has. They do not say what a general-purpose
+solver is expected to have, so on their own they cannot tell anyone whether the
+target is the right target. `docs/feature-matrix.md` is the other half: the
+feature list the field is measured on, with JAOS, HiGHS, SoPlex, Clp, SCIP,
+Gurobi and Hexaly side by side. It is written from what the field offers, not
+from what JAOS has, so most of it is empty for JAOS on purpose.
+
+**Read it at the close of every phase.** If a phase closed and moved no cell on
+that page, the phase improved the code and not the product. That is sometimes
+the right thing to do, but it should be known rather than assumed.
+
+What the matrix says today, in short:
+
+**JAOS is an LP solver.** Nine areas are measured — problem classes, LP
+algorithms, model handling, mixed-integer machinery, parallelism, correctness
+and verification, input and output, language bindings, and solve control. JAOS
+is present in four of them and absent from the rest. That is expected at
+0.1.0-dev.
+
+**Three things JAOS has that the field mostly does not.** Bit-identical results
+across machines, which Gurobi explicitly does not promise. An independent
+checker shipped with the solver, which none of the others ship. A budget counted
+in reproducible work units rather than seconds. All three come from the same
+premise, and together they are the project's actual distinguishing feature.
+
+**One place where JAOS is behind where it believed it was ahead.** Verification
+is this project's own subject, and two solvers are further along it. SoPlex has
+solved LPs exactly over the rationals since version 2.1 and added precision
+boosting in 6.0. SCIP 10.0 solves mixed-integer problems with no numerical
+tolerances at all and emits a certificate in VIPR format that an external
+program verifies in exact rational arithmetic. JAOS's checker is a good
+floating-point checker judging against tolerances. It is not a proof. Section 5
+below lists exact rational verification as missing; this is what it is missing
+against, and emitting a VIPR-format certificate would put JAOS in a club of two
+for much less work than the mixed-integer sections would cost.
+
+**The current milestone moves one row of that page.** M2 is about speed, and its
+success criterion is a time ratio. Only the presolve rows change when it closes.
+That is a deliberate choice and not an oversight, but it means the roadmap after
+M2 has to state whether breadth becomes the goal, because M2's own criterion
+does not measure it.
 
 ---
 
