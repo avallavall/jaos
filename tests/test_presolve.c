@@ -1645,13 +1645,6 @@ static jaos_model *make_tightening_boundary_model(void)
                      4, s, ix, v));
     return m;
 }
-
-/* Pinned, and pinned as an exact integer rather than a floor: row0 implies
- * a lower bound on x0 and row1 an upper one, and nothing else in the model
- * moves. A third tightening appearing here means a bound is being taken on
- * rounding rather than on information, which is what
- * PRESOLVE_TIGHTEN_EPS's own sweep exists to prevent. */
-constexpr int64_t PINNED_TIGHTENED_BOUNDS = 2;
 #endif
 
 static void test_an_optimum_on_the_tightening_boundary_survives(void)
@@ -1722,8 +1715,127 @@ static void test_activity_range_counters_are_exact(void)
         jm_presolve p;
         jm_presolve_init(&p);
         TEST_ASSERT_EQUAL_INT(JAOS_OK, jm_presolve_run(m, &p, nullptr));
-        TEST_ASSERT_EQUAL_INT64(PINNED_TIGHTENED_BOUNDS,
-                                p.counts.tightened_bound);
+        /* Zero, and pinned as zero on purpose: 02-04 built the bound
+         * tightening family, measured it against the standard set and did
+         * not ship it (src/presolve.c says why, at the reading that would
+         * have been the fourth). A nonzero here means someone lit it again
+         * without re-running the campaign that refused it. */
+        TEST_ASSERT_EQUAL_INT64(0, p.counts.tightened_bound);
+        jm_presolve_free(&p);
+        jaos_model_free(m);
+    }
+#endif
+}
+
+/* -- The two constants, pinned to the sweeps that set them ----------------
+ *
+ * docs/tolerances.md carries presolve's constants with the sweep behind
+ * each. A document cannot fail, so these two tests do it instead: each
+ * pins an exact integer or an exact verdict that moves the moment its
+ * constant does, so retuning one silently is not available.
+ *
+ * Both call jm_presolve_run directly rather than jaos_solve, which is what
+ * lets them mean the same thing under EXTRA_CFLAGS=-DJAOS_NO_PRESOLVE — the
+ * constants live in this file whether or not the solver consults it. */
+
+/* A chain of `n` singleton rows, each resolving one link per round:
+ *   row 0: x_0 = 1;  row k: -x_{k-1} + x_k = 0.
+ * Longer than the cap on purpose, so what it reports IS the cap. */
+static jaos_model *make_cascading_chain(int64_t n)
+{
+    double *c = calloc((size_t)n, sizeof *c);
+    double *cl = calloc((size_t)n, sizeof *cl);
+    double *cu = calloc((size_t)n, sizeof *cu);
+    double *rl = calloc((size_t)n, sizeof *rl);
+    double *ru = calloc((size_t)n, sizeof *ru);
+    int64_t *s = calloc((size_t)n + 1, sizeof *s);
+    int64_t *ix = calloc(2 * (size_t)n, sizeof *ix);
+    double *v = calloc(2 * (size_t)n, sizeof *v);
+    TEST_ASSERT_NOT_NULL(c); TEST_ASSERT_NOT_NULL(cl);
+    TEST_ASSERT_NOT_NULL(cu); TEST_ASSERT_NOT_NULL(rl);
+    TEST_ASSERT_NOT_NULL(ru); TEST_ASSERT_NOT_NULL(s);
+    TEST_ASSERT_NOT_NULL(ix); TEST_ASSERT_NOT_NULL(v);
+
+    int64_t nz = 0;
+    for (int64_t j = 0; j < n; j++) {
+        c[j] = 1.0;
+        cl[j] = 0.0;
+        cu[j] = 100.0;
+        s[j] = nz;
+        ix[nz] = j;   v[nz] = 1.0;   nz++;
+        if (j < n - 1) { ix[nz] = j + 1; v[nz] = -1.0; nz++; }
+    }
+    s[n] = nz;
+    rl[0] = 1.0; ru[0] = 1.0;
+    for (int64_t i = 1; i < n; i++) { rl[i] = 0.0; ru[i] = 0.0; }
+
+    jaos_model *m = nullptr;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_model_new(&m));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_load_lp(m, n, n, JAOS_MINIMIZE, 0.0, c, cl, cu, rl, ru,
+                     nz, s, ix, v));
+    free(c); free(cl); free(cu); free(rl); free(ru);
+    free(s); free(ix); free(v);
+    return m;
+}
+
+/* JM_PRESOLVE_ROUNDS = 16, set where the propagation stops changing: swept
+ * over the standard set at 1, 2, 4, 8, 16, 32, 64, 128 with `make clean`
+ * between settings, rows removed 6060, 7178, 7549, 7596, 7598, 7598, 7598,
+ * 7598 and the cost flat at 97.2 s to 103.6 s. What last moved this count
+ * was that sweep, and nothing since. The raw readings are in
+ * .planning/phases/02-presolve-and-postsolve/02-04-MEASUREMENT/. */
+static void test_the_round_cap_is_the_one_its_sweep_set(void)
+{
+    jaos_model *m = make_cascading_chain(40);
+    jm_presolve p;
+    jm_presolve_init(&p);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jm_presolve_run(m, &p, nullptr));
+    /* Exact, not a floor: the chain is 40 links long and resolves one per
+     * round, so this reads the cap and nothing else. */
+    TEST_ASSERT_EQUAL_INT64(16, p.counts.rounds);
+    TEST_ASSERT_EQUAL_INT64(16, p.counts.fixed_col);
+    TEST_ASSERT_EQUAL_INT64(16, p.counts.singleton_row);
+    jm_presolve_free(&p);
+    jaos_model_free(m);
+}
+
+/* PRESOLVE_TIGHTEN_EPS = 1e-9, and this is the pair that separates it. The
+ * model is make_singleton_fold_boundary_model's: a singleton row folding to
+ * a lower bound on x0 that meets x0's own upper bound of 5, so the window
+ * the constant sets is 1e-9 times 5.
+ *
+ * A conflict of 1e-8 is outside it and the model is refused; a conflict of
+ * 1e-10 is inside it and the interval collapses to a point. Move the
+ * constant one decade either way and one of the two verdicts flips. Swept
+ * over the standard set at 1e-12 through 1e-4 with nothing moving at any
+ * setting — which is why these two readings, not the campaign, are what
+ * hold the value in place. */
+static void test_the_tightening_epsilon_is_the_one_its_sweep_set(void)
+{
+#if defined(JAOS_PRESOLVE_FAULT_OFFBYONE) || defined(JAOS_PRESOLVE_FAULT_WRONGDUAL)
+    TEST_IGNORE_MESSAGE("model builder is compiled out under either fault "
+                        "build");
+#else
+    {
+        jaos_model *m = make_singleton_fold_boundary_model(5.0 + 1e-8);
+        jm_presolve p;
+        jm_presolve_init(&p);
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jm_presolve_run(m, &p, nullptr));
+        TEST_ASSERT_EQUAL_INT(JM_PRESOLVE_INFEASIBLE, p.outcome);
+        jm_presolve_free(&p);
+        jaos_model_free(m);
+    }
+    {
+        jaos_model *m = make_singleton_fold_boundary_model(5.0 + 1e-10);
+        jm_presolve p;
+        jm_presolve_init(&p);
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jm_presolve_run(m, &p, nullptr));
+        TEST_ASSERT_NOT_EQUAL_INT(JM_PRESOLVE_INFEASIBLE, p.outcome);
+        /* Two, not one: row 0's fold collapses x0's interval and the
+         * fixed-column rule takes it, which drops row 1 to a singleton
+         * that the next round folds as well. */
+        TEST_ASSERT_EQUAL_INT64(2, p.counts.singleton_row);
         jm_presolve_free(&p);
         jaos_model_free(m);
     }
@@ -1769,5 +1881,7 @@ int main(void)
     RUN_TEST(test_a_fold_inside_the_epsilon_does_not_flip_the_verdict);
     RUN_TEST(test_an_optimum_on_the_tightening_boundary_survives);
     RUN_TEST(test_activity_range_counters_are_exact);
+    RUN_TEST(test_the_round_cap_is_the_one_its_sweep_set);
+    RUN_TEST(test_the_tightening_epsilon_is_the_one_its_sweep_set);
     return UNITY_END();
 }

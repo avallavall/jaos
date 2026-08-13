@@ -1,0 +1,18 @@
+mkdir -p build/release
+mkdir -p build/bench
+gcc-14 -std=c23 -Wall -Wextra -Wpedantic -ffp-contract=off -Werror -O3 -flto -g -DNDEBUG  -DJAOS_PRESOLVE_TIGHTEN_EPS_VALUE=1e-9 -DJAOS_PRESOLVE_ROUNDS_VALUE=8 -Iinclude -c src/alloc.c -o build/release/alloc.o
+gcc-14 -std=c23 -Wall -Wextra -Wpedantic -ffp-contract=off -Werror -O3 -flto -g -DNDEBUG  -DJAOS_PRESOLVE_TIGHTEN_EPS_VALUE=1e-9 -DJAOS_PRESOLVE_ROUNDS_VALUE=8 -Iinclude -c src/check.c -o build/release/check.o
+gcc-14 -std=c23 -Wall -Wextra -Wpedantic -ffp-contract=off -Werror -O3 -flto -g -DNDEBUG  -DJAOS_PRESOLVE_TIGHTEN_EPS_VALUE=1e-9 -DJAOS_PRESOLVE_ROUNDS_VALUE=8 -Iinclude -c src/lpfmt.c -o build/release/lpfmt.o
+gcc-14 -std=c23 -Wall -Wextra -Wpedantic -ffp-contract=off -Werror -O3 -flto -g -DNDEBUG  -DJAOS_PRESOLVE_TIGHTEN_EPS_VALUE=1e-9 -DJAOS_PRESOLVE_ROUNDS_VALUE=8 -Iinclude -c src/lu.c -o build/release/lu.o
+gcc-14 -std=c23 -Wall -Wextra -Wpedantic -ffp-contract=off -Werror -O3 -flto -g -DNDEBUG  -DJAOS_PRESOLVE_TIGHTEN_EPS_VALUE=1e-9 -DJAOS_PRESOLVE_ROUNDS_VALUE=8 -Iinclude -c src/model.c -o build/release/model.o
+gcc-14 -std=c23 -Wall -Wextra -Wpedantic -ffp-contract=off -Werror -O3 -flto -g -DNDEBUG  -DJAOS_PRESOLVE_TIGHTEN_EPS_VALUE=1e-9 -DJAOS_PRESOLVE_ROUNDS_VALUE=8 -Iinclude -c src/mps.c -o build/release/mps.o
+gcc-14 -std=c23 -Wall -Wextra -Wpedantic -ffp-contract=off -Werror -O3 -flto -g -DNDEBUG  -DJAOS_PRESOLVE_TIGHTEN_EPS_VALUE=1e-9 -DJAOS_PRESOLVE_ROUNDS_VALUE=8 -Iinclude -c src/presolve.c -o build/release/presolve.o
+gcc-14 -std=c23 -Wall -Wextra -Wpedantic -ffp-contract=off -Werror -O3 -flto -g -DNDEBUG  -DJAOS_PRESOLVE_TIGHTEN_EPS_VALUE=1e-9 -DJAOS_PRESOLVE_ROUNDS_VALUE=8 -Iinclude -c src/scale.c -o build/release/scale.o
+gcc-14 -std=c23 -Wall -Wextra -Wpedantic -ffp-contract=off -Werror -O3 -flto -g -DNDEBUG  -DJAOS_PRESOLVE_TIGHTEN_EPS_VALUE=1e-9 -DJAOS_PRESOLVE_ROUNDS_VALUE=8 -Iinclude -c src/simplex.c -o build/release/simplex.o
+gcc-14 -std=c23 -Wall -Wextra -Wpedantic -ffp-contract=off -Werror -O3 -flto -g -DNDEBUG  -DJAOS_PRESOLVE_TIGHTEN_EPS_VALUE=1e-9 -DJAOS_PRESOLVE_ROUNDS_VALUE=8 -Iinclude -c src/status.c -o build/release/status.o
+gcc-14 -std=c23 -Wall -Wextra -Wpedantic -ffp-contract=off -Werror -O3 -flto -g -DNDEBUG  -DJAOS_PRESOLVE_TIGHTEN_EPS_VALUE=1e-9 -DJAOS_PRESOLVE_ROUNDS_VALUE=8 -Iinclude -c src/util.c -o build/release/util.o
+gcc-14 -std=c23 -Wall -Wextra -Wpedantic -ffp-contract=off -Werror -O3 -flto -g -DNDEBUG  -DJAOS_PRESOLVE_TIGHTEN_EPS_VALUE=1e-9 -DJAOS_PRESOLVE_ROUNDS_VALUE=8 -Iinclude -c src/version.c -o build/release/version.o
+gcc-ar-14 rcs build/release/libjaos.a build/release/alloc.o build/release/check.o build/release/lpfmt.o build/release/lu.o build/release/model.o build/release/mps.o build/release/presolve.o build/release/scale.o build/release/simplex.o build/release/status.o build/release/util.o build/release/version.o
+gcc-14 -std=c23 -Wall -Wextra -Wpedantic -ffp-contract=off -Werror -O3 -flto -g -DNDEBUG  -DJAOS_PRESOLVE_TIGHTEN_EPS_VALUE=1e-9 -DJAOS_PRESOLVE_ROUNDS_VALUE=8 -Iinclude -Isrc bench/run.c build/release/libjaos.a -o build/bench/run -lm
+lto-wrapper: warning: using serial compilation of 2 LTRANS jobs
+lto-wrapper: note: see the ‘-flto’ option documentation for more information

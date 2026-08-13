@@ -1,0 +1,2 @@
+canary_rounds chain=200 rounds=8 fixed_col=8 singleton_row=8 outcome=1
+canary_eps outcome=4 fixed_col=1 singleton_row=2

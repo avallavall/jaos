@@ -487,9 +487,6 @@ typedef enum {
                                   * its own bounds exactly, fixing every live
                                   * column in it at the bound that attains
                                   * that extreme */
-    JM_PS_TIGHTENED_BOUND,      /* a column whose implied box collapsed to a
-                                  * point under activity-range tightening, so
-                                  * the constraints determine its value */
 } jm_presolve_tag;
 
 /* One tagged, append-only postsolve record: what an original row or column
@@ -527,10 +524,12 @@ typedef enum {
  *     false for the lower (maximum activity reached it). That is the sign
  *     the row's own multiplier has to take, and the preceding records are
  *     what its magnitude is computed from — see ps_replay_one.
- *   JM_PS_TIGHTENED_BOUND: index=column, value=the point its implied box
- *     collapsed to, cost=the column's own cost. Read exactly like
- *     JM_PS_FIXED_COL; the tag is separate so D-13's counters can tell a
- *     column that arrived fixed from one the constraints determined. */
+ *
+ * There is no tag for bound tightening. 02-04 built the family, measured it
+ * and did not ship it — see the block that says so in src/presolve.c and
+ * 02-04-SUMMARY.md. `jm_presolve_counts.tightened_bound` stays declared and
+ * stays zero, the same way every other unfired family's field did between
+ * 02-01 and the plan that lit it. */
 typedef struct {
     jm_presolve_tag tag;
     int64_t index;
