@@ -3,34 +3,57 @@
 A mathematical-programming solver written from scratch in C23. No external
 dependencies, Apache 2.0, Linux/GCC only.
 
-## Read these before changing anything
+## The record — five documents, and where a statement goes
 
 The design is written down. Do not reconstruct it from the code.
 
 - `SPECS.md` — what JAOS is built to be, and where every feature stands
-- `.planning/ROADMAP.md` — what is open, in the order it will be done
-- `DECISIONS.md` — closed decisions and the measurement that closed them
-- `CHANGELOG.md` — what changed and what it cost, a few lines per entry
-- `bench/README.md` — the acceptance gate
-- `bench/compare/README.md` — how JAOS is compared against other solvers
-- `docs/` — tolerances, work units, scaling, format support
+- `TODO.md` — what is open, in the order it should happen
+- `DECISIONS.md` — closed decisions and the measurement that closed each.
+  Append-only; number one past the last, never renumber. A refusal is a
+  closed decision, and the most valuable kind of entry this file has.
+- `CHANGELOG.md` — what changed and what it cost, 2–6 lines per entry
+- `docs/` — tolerances, work units, scaling, format support: the contracts
+  behind every constant in the code
+- `bench/` — the gate (`README.md`), the cross-solver comparison
+  (`compare/`), and raw measurement records (`measurements/<id>/`)
 
-Reasoning about a **closed** decision goes in `DECISIONS.md`. What is still
-**open** goes in `.planning/`. A feature's existence or absence goes in
-`SPECS.md`. The changelog is a changelog, not a decision record.
+A statement lives in exactly one of them; the others point at it. A measured
+number has one owner — never restate a derived total.
 
-**`PLAN.md` is archived** at `docs/archive/PLAN.md` since 2026-08-12, replaced
-by `.planning/ROADMAP.md` + `.planning/REQUIREMENTS.md`. Do not plan from it.
-It is kept because 88 comments across `src/`, `include/`, `tests/` and `docs/`
-cite it by section number, and its redirect table is what makes `PLAN 2.5` and
-the rest resolve. It also disagrees with the roadmap on three points **on
-purpose** — phase order, whether the re-entry oscillation is open work, and
-several defects `DECISIONS.md` has since closed. Where they differ, the
-roadmap wins; `.planning/INGEST-CONFLICTS.md` records why for each.
+There is no `.planning/` and no GSD in this repository (retired 2026-08-13,
+D98). If a `/gsd-*` command is invoked here, say so and point at `TODO.md`.
+`PLAN.md` stays archived at `docs/archive/PLAN.md` only because 88 comments
+cite it by section number; never plan from it.
 
-`.planning/` is GSD's. `ROADMAP.md` and `REQUIREMENTS.md` are what is open,
-`intel/` is the ingest of the documents above, and `codebase/` is a map of the
-tree written by `/gsd-map-codebase`.
+## The loop — every change goes through this
+
+1. **Finish every source edit first.** A campaign is only valid for the tree
+   that produced it; even a comment edit mid-run invalidates it.
+2. `make test && make sanitize` under WSL.
+3. **If solver internals changed: `numerics-reviewer` on the diff, before any
+   campaign.** A finding after the campaign costs the campaign. Every finding
+   gets a disposition: fixed, refused with the reason, or carried with a
+   destination.
+4. **All three sets, every time**: `make netlib netlib-infeas
+   netlib-kennington J=12`. Read the per-instance diff against the committed
+   baselines with the `jaos-measure` scripts, never the summary line alone.
+   Digests prove correctness and no-ops; work units are the cost; a time
+   ratio only where units cannot see the change (`J=1`, minimum over
+   alternating rounds, geometric mean — and this host repeats to 6.27%, D93).
+5. **Land it**: commit; a `CHANGELOG.md` entry; a `DECISIONS.md` entry if a
+   measurement closed a question; the `SPECS.md` row if a feature moved; any
+   new constant carries its sweep beside it in the source and in
+   `docs/tolerances.md`; raw readings that decided a verdict go to
+   `bench/measurements/<id>/` so the verdict is re-derivable.
+6. **Baselines are rewritten only by the `*-baseline` targets**, deliberately,
+   after the change is read and accepted — never as a side effect, and never
+   while the gate is red.
+7. Cross the item off `TODO.md` in the same commit.
+
+A verdict that accepts or rejects a candidate is judged by `jaos-measurer` in
+a context that did not produce the numbers. Phase 1's two most valuable
+findings came from these independent re-reads and from nowhere else.
 
 ## Build and test — WSL only
 
@@ -73,31 +96,19 @@ does not persist between `wsl` invocations.
 - **No dependencies, and no code read from other solvers.** Papers, theses
   and textbooks only. Two exceptions exist, both closed and neither extended:
   netlib's `emps` as a dev-time converter, and Unity for the test suite.
-  The rule reaches the tooling too: an installed third-party skill carrying
-  executable scripts runs on the machine that builds and measures this solver,
-  was never pinned by checksum and appears in no manifest. Read its `scripts/`
+  The rule reaches the tooling too: read a third-party skill's `scripts/`
   before it runs once — `skill-authoring` carries the procedure.
 - **Work units are the unit of cost, and every run also reports its time.**
   The units make regressions detectable across machines and go in the
-  record; the seconds say whether the units bought anything, are printed on
-  every run, and **never enter `bench/results/*.txt` or a baseline** — a
-  baseline that changes every run cannot detect a regression.
+  record; the seconds say whether the units bought anything, and **never
+  enter `bench/results/*.txt` or a baseline** — a baseline that changes every
+  run cannot detect a regression.
 - **A change is judged on three things** (D45): solution digests for
   correctness, work units for determinism, and a same-instance time ratio to
   catch what the other two cannot see.
-- **A plan whose deliverable is a verdict commits its raw readings.** The
-  seconds still never enter `bench/results/*.txt` or a baseline — that rule is
-  unchanged. They go in a separate per-phase directory,
-  `.planning/phases/<phase>/<plan>-MEASUREMENT/`, holding the timing logs, any
-  callgrind annotations and the analysis script, so the verdict is re-derivable
-  by someone who does not trust the summary. Phase 1 is why: 27 of its 29
-  must-haves were re-derived from the repository and the two that could not be
-  were the measurement that decided the phase. The audit that found its
-  negative control only worked because the logs happened to still be in a
-  scratchpad, and by the time anyone looked again they were gone.
+
 ## The skills, and the moment each one is for
 
-A skill nobody routes to is one you are relying on the description to summon.
 Load these at the moment named, not when the work is already finished.
 
 | at this moment | load |
@@ -113,44 +124,17 @@ Load these at the moment named, not when the work is already finished.
 
 The two performance skills are not interchangeable. `sparse-simplex-perf` is
 the factor-of-N question — what the solver does. `c-perf` is the percentage
-question — how the C does it, once the algorithm is settled. Reaching for
-`c-perf` first is the standard way to spend a week buying 3%.
+question — how the C does it, once the algorithm is settled.
 
-And the three subagents, each for work better done in a context that is not
-this one:
+The three subagents, each for work better done in a context that is not this
+one — nothing spawns them automatically; the loop's steps 3 and the verdict
+line above are where they run:
 
 | | |
 |---|---|
 | `jaos-measurer` | runs every set on a finished candidate and returns ACCEPT / REJECT / INCONCLUSIVE with the per-instance evidence |
 | `numerics-reviewer` | reviews a diff for the defect classes tests do not catch — borrowed scratch, reproducibility, tolerance space, repairs that hide a residue |
 | `literature-scout` | finds and verifies published technique, with citations checked against the publisher |
-
-### Two reviews every phase owes itself
-
-**No GSD workflow spawns any of the three agents above.** The `code-review`
-capability dispatches a generic reviewer, not `numerics-reviewer`. They run only
-when a plan contains a task saying so — which means a phase planned without one
-is a phase where nobody re-reads the work.
-
-So every phase that touches solver internals must plan in two tasks:
-
-- **`numerics-reviewer` on the diff**, after the code lands and *before* the
-  campaigns — a campaign is only valid for the tree that produced it, and a
-  finding after the campaign costs the campaign.
-- **`jaos-measurer` on the finished numbers**, as the verdict step, so the
-  figures are judged by a context that did not produce them.
-
-This is not process for its own sake. Phase 1's two most valuable findings both
-came from these agents and from nowhere else: the D-08 cross-check was blind to
-a superset bitmap — which `b65d9f2`, inside that same phase, turned from benign
-into answer-affecting through `cfg.work_limit` — and a negative control was
-sitting unused in the committed campaign record, showing 3.0–6.4% "improvement"
-on instances the change provably could not speed up, against a 2.91% headline.
-
-Both arrived **after** the phase's own gates had passed, and both were found by
-re-reading finished work rather than by any document. Of the six substantive
-catches traced across phase 1, four came from execution deviating from its own
-plan or from an independent agent — not from the planning documents.
 
 ## Working habits
 
@@ -160,8 +144,5 @@ plan or from an independent agent — not from the planning documents.
   build the case it must reject and confirm it does.
 - **Report a geometric mean of per-instance ratios**, never a sum over a set:
   two instances are 74% of the standard set's total (D46).
-- **Finish every source edit before launching a campaign.** A run takes tens
-  of minutes and is only valid for the tree that produced it.
-- **Never rewrite a baseline as a side effect** of running a gate.
 - Commits are at Claude's discretion; **pushes always need explicit
   approval**.

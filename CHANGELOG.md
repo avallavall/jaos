@@ -4,13 +4,32 @@ All notable changes to JAOS. Format follows [Keep a Changelog](https://keepachan
 versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 Entries say what changed and what it cost. The reasoning lives where it
-belongs: `DECISIONS.md` for closed decisions, `.planning/ROADMAP.md` for what
-is still open, `bench/README.md` for the gate, and the commit each entry came
-from.
+belongs: `DECISIONS.md` for closed decisions, `TODO.md` for what is still
+open, `bench/README.md` for the gate, and the commit each entry came from.
 
 ## [Unreleased]
 
+### Changed
+
+- The planning layer is retired (D98). The record is `SPECS.md`, `TODO.md`,
+  `DECISIONS.md`, this file, `docs/` and `bench/`; the per-change process is
+  the loop in `CLAUDE.md`; raw measurement records live in
+  `bench/measurements/<id>/`. `.planning/` (194 files) is deleted, its open
+  items moved to `TODO.md` and its owed decision entries written (D94–D97).
+
 ### Added
+
+- Presolve and postsolve, first five reduction families: empty rows and
+  columns, singleton rows, cost-0 singleton columns (D95), fixed columns,
+  forcing and redundant rows, behind a cascading round loop with measured
+  caps (`JM_PRESOLVE_ROUNDS = 16`, `PRESOLVE_TIGHTEN_EPS = 1e-9`, each swept
+  with a canary). A model presolve solves outright publishes with no simplex
+  run. `EXTRA_CFLAGS=-DJAOS_NO_PRESOLVE` compiles it out and reproduces the
+  pre-presolve baselines bit for bit (D96). Bound tightening was built six
+  ways, measured and refused (D97). Work moves by design on touched
+  instances; the checker currently refuses 15+4 postsolved answers on the
+  dual sign condition — open, `TODO.md` #1, and the gate stays red until it
+  closes.
 
 - `jaos_solve_time`: seconds the last solve took. `SPECS.md` had carried this
   as missing since M1 while the premises required it — every run reported wall

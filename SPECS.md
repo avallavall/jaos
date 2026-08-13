@@ -4,9 +4,13 @@ A mathematical-programming solver written from scratch in C23, competitive
 with the serious open solvers and usable as a library by someone who did not
 write it.
 
-This file is the target. `.planning/ROADMAP.md` is the order the work happens
-in, `CHANGELOG.md` what has landed, `DECISIONS.md` why. Nothing is in scope
-that is not on this page.
+This file is the target. `TODO.md` is the order the work happens in,
+`CHANGELOG.md` what has landed, `DECISIONS.md` why. Nothing is in scope that
+is not on this page.
+
+The core value, unchanged since M1: a correct answer, bit-identical on every
+machine and every run, proved by a checker that had no access to the solver
+that produced it.
 
 ## Premises
 
@@ -133,7 +137,7 @@ does not measure it.
 | Stability trigger on the triangular solves | **done** | the pivot element is computed twice each iteration, by BTRAN and by FTRAN; past `LU_AGREE_TOL` the pivot is declined unbilled and the factorization rebuilt. Free — both numbers are already paid for (D86) |
 | Scaling | **done** | Curtis-Reid [11], geometric-mean equilibration as an option |
 | Hyper-sparsity in the triangular solves | **partial** | [9]: both solves report their pattern, the passes billed for every slot are not all reduced |
-| Presolve | **missing** | measured at 1.42x against HiGHS and 1.14x against SoPlex (D81) — real, and smaller than the 2.53x per-iteration gap no rung moves |
+| Presolve | **partial** | five families live behind a cascading round loop: empty rows and columns, singleton rows, cost-0 singleton columns (D95), fixed columns, forcing and redundant rows — both caps measured (`JM_PRESOLVE_ROUNDS = 16`, `PRESOLVE_TIGHTEN_EPS = 1e-9`, `docs/tolerances.md`). `EXTRA_CFLAGS=-DJAOS_NO_PRESOLVE` compiles it out and reproduces the pre-presolve baselines bit for bit (D96). Missing: duplicate rows and columns, dominated columns. Refused: bound tightening, measured six ways (D97). Open: postsolve's dual recovery is refused by the checker on 15+4 instances — `TODO.md` #1. Field value: 1.42x to HiGHS, 1.14x to SoPlex (D81) |
 | Primal simplex | **missing** | needed for crossover and for the warm starts the dual cannot serve. No longer needed for carried defect 4: the primal clean-up already owns a ratio test and a basis change, and reading the reduced cost's sign rather than the status is all a nonbasic free variable ever needed from it (D85). **Not a speed argument:** given free choice both rivals ran the dual on every instance, with iteration counts identical to being forced (D81) |
 | Crash basis | **missing** | [12]; measured once and refused: it destroys the exact starting steepest-edge weights the slack basis gives |
 | Partial and multiple pricing | **measured and refused** | [1]: both halves built and swept. The leaving-row sweep is the wrong thing to make cheaper — its units are the cheapest in the solver, and every scheme for scanning it less often pays in trajectory and in wrong answers (D82, D84) |
@@ -204,8 +208,8 @@ asks them is a problem handed back to the caller.
 
 | | status |
 |---|---|
-| Netlib standard set, 94 instances: optimal, objective within tolerance, checker green | **pass** |
-| Kennington subset, 16 instances | **pass** |
+| Netlib standard set, 94 instances: optimal, objective within tolerance, checker green | **red at HEAD** — 94 solved, 94 objectives match Koch, 79/94 checker ok; the 15 rejections are a postsolve dual-recovery defect (`TODO.md` #1). The committed baseline record reads 93/94 |
+| Kennington subset, 16 instances | **red at HEAD** — 16 solved, 16 objectives ok, 12/16 checker ok; same defect, 4 instances |
 | Netlib infeasible subset, 29 instances: refused, no false optima | **pass** |
 | Determinism across two solves and across runs, all 139 | **pass** — the second solve clears the basis first, or it would be a warm re-solve and would measure a sequence of calls rather than the solver (D68) |
 | Warm re-solve against cold, one branching step per instance | **measured: 0.0052 of the iterations, 0.0164 of the work** on 92 of the standard 94; 0.0006 and 0.0041 on 11 of Kennington's 16 (D69, improved by D90). Both answers go through the independent checker, and 0 of either set is refused — the cold half of that was added by D92, which is what it caught. The standard-set work figure read 0.0162 before D93 redefined what the dense ratio test charges, and rose because a cold solve makes thousands of dense calls where a warm re-solve makes a handful, so the saving comes mostly off the denominator |

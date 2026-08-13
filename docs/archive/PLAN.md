@@ -1,24 +1,24 @@
 # Plan — archived 2026-08-12
 
-**Superseded by `.planning/`.** What is open now lives in
-`.planning/ROADMAP.md` and `.planning/REQUIREMENTS.md`, seeded from this file
-by `/gsd-ingest-docs`. This copy is kept for two reasons and neither is
-planning: 88 comments in `src/`, `include/`, `tests/` and `docs/` cite it by
-section number, and the table below is what makes those citations resolve.
+**Superseded.** What is open now lives in `TODO.md` at the repository root.
+(This file was first superseded by a `.planning/` layer on 2026-08-12; that
+layer was itself retired on 2026-08-13, D98.) This copy is kept for two
+reasons and neither is planning: 88 comments in `src/`, `include/`, `tests/`
+and `docs/` cite it by section number, and the table below is what makes
+those citations resolve.
 
-**Three things it says that the roadmap deliberately contradicts.** Each was
-decided at the ingest gate against this file's own wording, so read the
-roadmap and not this document where they disagree:
+**Three things it says that were deliberately overruled.** Each was decided
+at the ingest gate against this file's own wording, so read `TODO.md` and
+`DECISIONS.md` rather than this document where they disagree:
 
 - The phase table numbers presolve as phase 3 and the per-iteration work as
-  phase 6. The roadmap reverses them — D81 measured the values and says in as
+  phase 6. The order was reversed — D81 measured the values and says in as
   many words that this reorders the plan.
 - The carried-defect section states both "all four are now closed" and "two of
-  the four are closed". Defect 2's re-entry oscillation is open, and it is
-  roadmap work rather than an accepted limitation.
+  the four are closed". Defect 2's re-entry oscillation is open work
+  (`TODO.md` §3), not an accepted limitation.
 - Several paragraphs describe defects that `DECISIONS.md` has since closed —
-  D85, D86, D87 and D91. `.planning/INGEST-CONFLICTS.md` lists all six such
-  auto-resolutions with the decision that wins each one.
+  D85, D86, D87 and D91 are the decisions that win each one.
 
 What JAOS is meant to be is in `SPECS.md`; what has landed is in
 `CHANGELOG.md`; why is in `DECISIONS.md`. Constraints referenced as D*n* live

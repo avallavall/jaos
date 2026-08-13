@@ -3,7 +3,7 @@
 The M1 acceptance gate on the standard Netlib set, from the first end-to-end
 run to `gate: PASS`. This is the measurement record, not the plan and not the
 decisions: `DECISIONS.md` carries what each measurement decided (D19–D30) and
-`.planning/ROADMAP.md` carries what is still open. It lives here because several of the
+`TODO.md` carries what is still open. It lives here because several of the
 measurements below exist nowhere else, and because the sequence itself turned
 out to be the most useful thing the campaign produced — every failure that was
 tempting to blame on a tolerance was something else, and each wrong reading is

@@ -17,7 +17,7 @@ Four documents, and the split is by *kind of statement*, never by topic.
 | the statement | goes in |
 |---|---|
 | this feature exists / is partial / is missing | `SPECS.md` |
-| this is open, and here is where it sits in the order | `.planning/ROADMAP.md` |
+| this is open, and here is where it sits in the order | `TODO.md` |
 | this is closed, and here is the measurement that closed it | `DECISIONS.md` |
 | this changed, and this is what it cost | `CHANGELOG.md` |
 | this number was measured | the record that produced it — see below |
@@ -25,7 +25,7 @@ Four documents, and the split is by *kind of statement*, never by topic.
 **`PLAN.md` is archived** at `docs/archive/PLAN.md` since 2026-08-12. Cite its
 sections when a source comment already does — the redirect table keeps those
 alive — but never write open work into it. Open work goes to
-`.planning/ROADMAP.md`.
+`TODO.md`.
 
 **A measured number has an owner, and everything else cites rather than
 restates it.** This is the rule the project learned the expensive way: an audit
@@ -44,7 +44,7 @@ The two mistakes that actually happen:
 - **Reasoning in the changelog.** The changelog is a changelog. Two to six
   lines, what changed and what it cost, and a `(Dn)` pointing at where the
   argument lives. If an entry is arguing, it is in the wrong file.
-- **A closed question left open in `.planning/ROADMAP.md`.** When a decision
+- **A closed question left open in `TODO.md`.** When a decision
   closes, the roadmap loses the open item and gains either nothing or a line
   recording what closed it. A roadmap that still lists what is finished cannot
   be read for what is next, which is the only thing it is for.
@@ -70,7 +70,7 @@ Then, in the body, all four of these or it is not finished:
    those two.
 3. **What was refuted.** Anything tried that did not work, and why it did
    not, in enough detail that nobody re-tries it. This is the part that pays.
-4. **What is left open**, handed explicitly to `.planning/ROADMAP.md`.
+4. **What is left open**, handed explicitly to `TODO.md`.
 
 Add the index line at the top of the file, with the anchor: headings are
 linked from the index and cited from source comments, so **a heading that
@@ -138,6 +138,6 @@ documents for later is how the two get out of step.
 Check the *status tables*, not just the prose. `SPECS.md` carries a status
 per feature and a bars-it-has-to-clear table with measured figures in it; a
 change that moves a measured figure and leaves the table alone has made the
-table wrong rather than stale. The same goes for `.planning/ROADMAP.md`'s phase
+table wrong rather than stale. The same goes for `TODO.md`'s phase
 ordering and its open questions — re-attribute after every entry that lands,
 because a ranking three changes stale describes a solver that no longer exists.
