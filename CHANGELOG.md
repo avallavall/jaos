@@ -27,9 +27,9 @@ open, `bench/README.md` for the gate, and the commit each entry came from.
   run. `EXTRA_CFLAGS=-DJAOS_NO_PRESOLVE` compiles it out and reproduces the
   pre-presolve baselines bit for bit (D96). Bound tightening was built six
   ways, measured and refused (D97). Work moves by design on touched
-  instances; the checker currently refuses 15+4 postsolved answers on the
-  dual sign condition — open, `TODO.md` #1, and the gate stays red until it
-  closes.
+  instances; the checker currently refuses 15+4 postsolved answers, on
+  mixed row and dual terms — open, `TODO.md` #1, and the gate stays red
+  until it closes.
 
 - `jaos_solve_time`: seconds the last solve took. `SPECS.md` had carried this
   as missing since M1 while the premises required it — every run reported wall

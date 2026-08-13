@@ -11,4 +11,4 @@ baseline.
 
 | directory | what it decided |
 |---|---|
-| `02-04/` | presolve's two constants (`JM_PRESOLVE_ROUNDS = 16`, `PRESOLVE_TIGHTEN_EPS = 1e-9`, both swept with canaries), the refusal of bound tightening (D97), and the attribution of the checker's dual rejections to the 02-03 diff (`TODO.md` #1) |
+| `02-04/` | presolve's two constants (`JM_PRESOLVE_ROUNDS = 16`, `PRESOLVE_TIGHTEN_EPS = 1e-9`, both swept with canaries), the refusal of bound tightening (D97), and the attribution of the checker's rejections to the 02-03 diff (`TODO.md` #1) |

@@ -6986,9 +6986,10 @@ the reading that decides. D24's structure stands; its "nothing is gained"
 sentence does not, and this entry is where that is recorded.
 
 **Distinct from the open defect.** At HEAD `finnis` is also among the 15
-standard-set answers the checker refuses on the dual sign condition. That is
-the postsolve dual-recovery defect (`TODO.md` #1), a different failure than
-the absolute-row flip this entry closes.
+standard-set answers the checker refuses — its terms there are `row=3.64e+03`
+and `dual=66.2`, orders of magnitude past anything this entry discusses. That
+is the open postsolve defect (`TODO.md` #1), a different failure than the
+absolute-row flip this entry closes.
 
 ## D95 — The singleton-column families fire only at cost 0, and the free-column-singleton only on a mutual singleton
 
@@ -7054,7 +7055,7 @@ before presolve existed?
   `greenbea` 3.1x and `pilot4i` 2.3x instead of `bgindy` — and that is the
   design, not drift to chase.
 
-**What the policy does not cover.** Checker rejections. The 15 + 4 dual-side
+**What the policy does not cover.** Checker rejections. The 15 + 4
 rejections standing at HEAD are a defect (`TODO.md` #1), not tolerated
 movement, and no baseline is rewritten while the gate is red. The deliberate
 three-baseline rewrite happens once the phase's families are in and the gate

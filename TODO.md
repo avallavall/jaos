@@ -5,12 +5,20 @@ says why closed questions closed, `CHANGELOG.md` says what landed, `bench/`
 says what it costs. This file says what is next. When something lands, its
 line leaves this file in the same commit.
 
-## 1. The postsolve dual-recovery defect — the gate is red
+## 1. The postsolve defect — the gate is red
 
-15 standard-set and 4 Kennington answers are refused by the checker on its
-dual sign condition. All 110 objectives match Koch's reference and all 139
-instances are deterministic, so the primal side is right and the published
-multipliers are wrong. Presolve compiled off (`EXTRA_CFLAGS=-DJAOS_NO_PRESOLVE`)
+15 standard-set and 4 Kennington answers are refused by the checker, and the
+failing terms are mixed, not dual-only. Pure row residuals with `dual=0` on
+`czprob`, `share1b`, `tuff` and all four `ken-*` (row up to 1.9e+04, and the
+four Kennington instances read `rowrel=0.333` exactly — one signature). Pure
+dual and gap terms on `bnl1`, `bnl2`, `e226`. Both at once on `25fv47`,
+`finnis`, `lotfi`, `perold`, `pilot-we`, `vtp-base`. Per-instance terms:
+`bench/measurements/02-04/final-netlib.gate` and `final-netlib-kennington.gate`.
+
+All objectives match Koch's reference and all 139 instances are
+deterministic. On the row-residual instances the published point itself
+violates rows, so postsolve reconstructs x wrong there, not only the
+multipliers. Presolve compiled off (`EXTRA_CFLAGS=-DJAOS_NO_PRESOLVE`)
 reproduces all three baselines bit for bit (D96), so the defect is in what
 postsolve publishes.
 
@@ -31,13 +39,16 @@ Kennington: `ken-07 ken-11 ken-13 ken-18`.
 
 The approach, in order:
 
-1. `numerics-reviewer` on `git diff 03c28c9..8425acc` with the table and the
-   instance lists in hand. The families are empty row/column, singleton
-   row/column and the mutual free-column-singleton; the question per family is
-   whether the multiplier it publishes satisfies the checker's sign rule for
-   the status the variable came back with. One case is already found and
-   fixed — the singleton row's stale status discriminator — and its
-   derivation-in-a-comment in `src/presolve.c` is the pattern to follow.
+1. `numerics-reviewer` on `git diff 03c28c9..8425acc` with the table, the
+   instance lists and the per-instance terms in hand. The families are empty
+   row/column, singleton row/column and the mutual free-column-singleton; the
+   question per family is whether the value and the multiplier it publishes
+   satisfy the checker for the status published. The row-residual group says
+   at least one family reconstructs the primal point or a shifted row bound
+   wrong; the `rowrel=0.333` signature on all four `ken-*` is the strongest
+   single lead. One case is already found and fixed — the singleton row's
+   stale status discriminator — and its derivation-in-a-comment in
+   `src/presolve.c` is the pattern to follow.
 2. A throwaway traced build on one small rejected instance (`vtp-base` prints
    `dual=2.58e+03` against an objective of 1.3e+05): print every replayed
    record — family, row/column, multiplier, status, what the sign rule wants.
