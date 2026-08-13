@@ -49,7 +49,9 @@ cite it by section number; never plan from it.
 6. **Baselines are rewritten only by the `*-baseline` targets**, deliberately,
    after the change is read and accepted — never as a side effect, and never
    while the gate is red.
-7. Cross the item off `TODO.md` in the same commit.
+7. Cross the item off `TODO.md` in the same commit — and check TODO's
+   refusals table: if the change satisfies a reopen condition, that question
+   is live again. A refusal's premise can expire (D24 did, caught by D94).
 
 A verdict that accepts or rejects a candidate is judged by `jaos-measurer` in
 a context that did not produce the numbers. Phase 1's two most valuable

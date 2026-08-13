@@ -126,6 +126,26 @@ rational verification, GMP is excluded (D11); the methods to weigh are
 iterative refinement, interval arithmetic in double, or hand-rolled
 rationals for the final basis only.
 
+## Refusals and deferrals — what would reopen each
+
+A refusal is a measurement, and a measurement is valid while its premises
+hold. D24's reason expired when presolve landed, and it was caught by an
+accident rather than a checklist (D94). This table is the checklist: when a
+change satisfies a condition in the right column, re-ask that question. Until
+then, do not — a refusal whose premise has not changed just fails again.
+
+| decision | what was refused or deferred | reopens when |
+|---|---|---|
+| D97 | bound tightening — INFEASIBLE on models with an optimum, six designs | the over-tightening on `pilot`/`pilot87`/`agg`/`maros` is derived, AND a dual postsolve for an imposed bound exists; then only under a campaign |
+| SPECS §3 | crash basis — destroys the exact slack-basis steepest-edge weights | pricing stops starting from exact steepest-edge weights; REQ-devex-pricing landing is the trigger |
+| D74 | removing the re-entry loan — 2.372x `pilot87` iterations for 0.980x `pilot` | the oscillation mechanism itself changes (phase 4's investigation) |
+| D63 | restarting weights to exact instead of 1.0 | the pricing rule changes; Devex would replace the question |
+| D95 | eliminating nonzero-cost singleton columns | a dual-informed elimination design exists (the lift condition is in the entry) |
+| D93 | the 4.2% time bar — unmeasurable on this host | a controlled host that satisfies D17 |
+| D92/backlog | `pilot87`'s suboptimality bound, not understood | it blocks a gate (trigger already recorded) |
+| D82, D84 | partial and multiple pricing | nothing scheduled — refused on wrong answers, not on a trade; a new scheme is a new decision, not a retry |
+| D34, D11, D2 | `long double`, GMP, any external code | never, while the two absolute premises stand (locked 2026-08-13) |
+
 ## Standing debts — small, real, none blocks the sections above
 
 - `bench/run.c` prints seconds as `%8.3f`: 8 standard-set instances carry no
