@@ -36,6 +36,25 @@ static double ps_published(double v)
     return v == 0.0 ? 0.0 : v;
 }
 
+/* The instrument-validation hook (D-10, jaos-testing's "validate the
+ * instrument before believing it"): under this build-time guard, every
+ * JM_PS_FIXED_COL record's restore index reads one past where it actually
+ * belongs. Compiled to the identity in every build that is not this one.
+ * It exists so the round-trip test's positive result can be shown to
+ * depend on the index actually being right, rather than on the checker
+ * merely being unable to tell the difference -- see tests/test_presolve.c
+ * for where this is caught and by which report field. Reached from both
+ * postsolve replay loops, since a record's index means the same thing to
+ * either one. */
+static int64_t fixed_col_restore_index(const jm_presolve_rec *rec)
+{
+#if defined(JAOS_PRESOLVE_FAULT_OFFBYONE)
+    return rec->index + 1;
+#else
+    return rec->index;
+#endif
+}
+
 void jm_presolve_init(jm_presolve *p)
 {
     memset(p, 0, sizeof *p);
@@ -328,7 +347,7 @@ JAOS_NODISCARD jaos_status jm_postsolve_expand(jm_presolve *p)
         const jm_presolve_rec *rec = &p->arena[r];
         switch (rec->tag) {
         case JM_PS_FIXED_COL: {
-            const int64_t j = rec->index;
+            const int64_t j = fixed_col_restore_index(rec);
             assert(j >= 0 && j < orig->num_col);
 
             orig->sol_col[j] = ps_published(rec->value);
@@ -397,7 +416,7 @@ JAOS_NODISCARD jaos_status jm_postsolve_solved(jm_presolve *p)
         const jm_presolve_rec *rec = &p->arena[r];
         switch (rec->tag) {
         case JM_PS_FIXED_COL: {
-            const int64_t j = rec->index;
+            const int64_t j = fixed_col_restore_index(rec);
             assert(j >= 0 && j < orig->num_col);
 
             orig->sol_col[j] = ps_published(rec->value);
