@@ -3826,25 +3826,64 @@ jaos_status jm_dual_simplex(jaos_model *m)
      * summary line below and before it, and printed even on the SOLVED
      * path, which never reaches that line at all. The reduced dimensions
      * and non-zero counters only (D-13): a model nothing fired on says so
-     * in a few words rather than eleven zeros. */
+     * in a few words rather than fifteen zeros. INFEASIBLE/UNBOUNDED never
+     * reach a compacted `reduced`, so they get their own, dimension-free
+     * line rather than print zeros that would read as "reduced to
+     * nothing" when the real story is "refused outright". */
     if (p.outcome == JM_PRESOLVE_NONE) {
         jm_log(m, JAOS_LOG_SUMMARY, "presolve: nothing fired");
+    } else if (p.outcome == JM_PRESOLVE_INFEASIBLE ||
+              p.outcome == JM_PRESOLVE_UNBOUNDED) {
+        jm_log(m, JAOS_LOG_SUMMARY,
+               "presolve: %s, no simplex run; "
+               "empty_row=%lld empty_col=%lld singleton_row=%lld "
+               "singleton_col=%lld free_col_singleton=%lld rounds=%lld",
+               p.outcome == JM_PRESOLVE_INFEASIBLE ? "infeasible"
+                                                    : "unbounded",
+               (long long)p.counts.empty_row, (long long)p.counts.empty_col,
+               (long long)p.counts.singleton_row,
+               (long long)p.counts.singleton_col,
+               (long long)p.counts.free_col_singleton,
+               (long long)p.counts.rounds);
     } else {
         jm_log(m, JAOS_LOG_SUMMARY,
                "presolve: %lld rows, %lld columns, %lld nonzeros -> "
                "%lld rows, %lld columns, %lld nonzeros; "
-               "fixed_col=%lld rounds=%lld",
+               "fixed_col=%lld empty_row=%lld empty_col=%lld "
+               "singleton_row=%lld singleton_col=%lld "
+               "free_col_singleton=%lld rounds=%lld",
                (long long)m->num_row, (long long)m->num_col,
                (long long)m->num_nz, (long long)p.reduced.num_row,
                (long long)p.reduced.num_col, (long long)p.reduced.num_nz,
-               (long long)p.counts.fixed_col, (long long)p.counts.rounds);
+               (long long)p.counts.fixed_col, (long long)p.counts.empty_row,
+               (long long)p.counts.empty_col,
+               (long long)p.counts.singleton_row,
+               (long long)p.counts.singleton_col,
+               (long long)p.counts.free_col_singleton,
+               (long long)p.counts.rounds);
     }
 #endif
 
     if (p.outcome == JM_PRESOLVE_SOLVED) {
-        /* Every column presolve fixed: nothing is left for the simplex to
-         * run on. No sx is built and run() never executes. */
+        /* Every column presolve fixed, emptied or eliminated: nothing is
+         * left for the simplex to run on. No sx is built and run() never
+         * executes. */
         jaos_status st = jm_postsolve_solved(&p);
+        jm_presolve_free(&p);
+        return st;
+    }
+
+    if (p.outcome == JM_PRESOLVE_INFEASIBLE ||
+        p.outcome == JM_PRESOLVE_UNBOUNDED) {
+        /* Proved by the reductions alone (an empty row or a singleton
+         * row's collapsed bound for infeasibility; an empty column's
+         * favourable-bound-at-infinity for unboundedness, D19's one
+         * exception) — no basis is ever built either. This is the path
+         * D-12 asks this plan to confirm bench/run.c's double-solve
+         * determinism check already reaches. */
+        const jaos_solve_status status = (p.outcome == JM_PRESOLVE_INFEASIBLE)
+            ? JAOS_SOLVE_INFEASIBLE : JAOS_SOLVE_UNBOUNDED;
+        jaos_status st = jm_postsolve_infeasible_or_unbounded(&p, status);
         jm_presolve_free(&p);
         return st;
     }
