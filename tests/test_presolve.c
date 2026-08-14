@@ -1473,6 +1473,64 @@ static void test_the_implied_free_counter_reads_its_three_models(void)
 }
 #endif
 
+/* -- A range row whose shifted bounds collapse is not an equality ----------
+ *
+ * min x1
+ *   row0:  1e17*x0 + x1 + x2  in [1, 2]     x0 fixed at 1, x1 cost 1
+ *   row1:        x2 + x3      >= 0
+ *   x1 in [-1e18, 1e18], x2 and x3 in [0, 1]
+ *
+ * x0 is fixed as loaded, so it leaves in the first column pass and takes
+ * exactly 1e17 off both of row0's bounds. `ulp(1e17)` is 16, so `1 - 1e17`
+ * and `2 - 1e17` are the same double: the row's own width is gone and
+ * `cur_rl == cur_ru` reads true on a row the caller wrote as a range.
+ *
+ * x1 is then a degree-1 column with a nonzero cost, so the D95 families
+ * decline it and it reaches the implied free column singleton. Testing only
+ * the current pair, that family fired and pinned an activity the model had
+ * only bounded. It now tests the ORIGINAL pair as well and declines.
+ *
+ * x2 keeps a live entry in row1 so row0 never drops to degree 1, which is
+ * what stops the singleton-row fold from consuming it first and makes the
+ * counter below say something about this family rather than that one.
+ *
+ * **The answer this model publishes is wrong either way, and that is not
+ * what is asserted.** The width was destroyed by the shift, before any
+ * family looked at the row. What is asserted is the family staying inside
+ * the scope its measurement covers. `TODO.md` carries the shift.
+ */
+#if !defined(JAOS_NO_PRESOLVE)
+static void test_a_range_row_that_shifted_into_an_equality_is_declined(void)
+{
+    const double c[]  = {0.0, 1.0, 0.0, 0.0};
+    const double cl[] = {1.0, -1e18, 0.0, 0.0};
+    const double cu[] = {1.0, 1e18, 1.0, 1.0};
+    const double rl[] = {1.0, 0.0}, ru[] = {2.0, INFINITY};
+    /* col0: row0.  col1: row0.  col2: rows 0,1.  col3: row1. */
+    const int64_t s[]  = {0, 1, 2, 4, 5};
+    const int64_t ix[] = {0,   0,   0, 1,   1};
+    const double v[]   = {1e17, 1.0, 1.0, 1.0, 1.0};
+    jaos_model *m = nullptr;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_model_new(&m));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_load_lp(m, 4, 2, JAOS_MINIMIZE, 0.0, c, cl, cu, rl, ru,
+                     5, s, ix, v));
+
+    /* The shift really does collapse the pair — asserted rather than
+     * assumed, because a test that stops discriminating when a coefficient
+     * changes is worse than no test. */
+    TEST_ASSERT_EQUAL_DOUBLE(1.0 - 1e17, 2.0 - 1e17);
+
+    jm_presolve p;
+    jm_presolve_init(&p);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jm_presolve_run(m, &p, nullptr));
+    TEST_ASSERT_EQUAL_INT64(1, p.counts.fixed_col);      /* x0 did leave */
+    TEST_ASSERT_EQUAL_INT64(0, p.counts.implied_free_col);
+    jm_presolve_free(&p);
+    jaos_model_free(m);
+}
+#endif
+
 /* The canary's own answer, so a margin change that flips it cannot also
  * change what the model publishes without being noticed. */
 static void test_an_implied_bound_at_exact_equality_is_declined(void)
@@ -1493,6 +1551,78 @@ static void test_an_implied_bound_at_exact_equality_is_declined(void)
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solution(m, x, nullptr, y, nullptr));
     const double ex0 = 2.0;
     TEST_ASSERT_EQUAL_MEMORY(&ex0, &x[0], sizeof x[0]);
+
+    jaos_check_report r;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_check_solution(m, x, y, TOL, &r));
+    TEST_ASSERT_TRUE(r.primal_feasible);
+    TEST_ASSERT_TRUE(r.dual_feasible);
+
+    jaos_model_free(m);
+#endif
+}
+
+/* -- The row activity two older families were leaving short ------------------
+ *
+ * min x2
+ *   row0 (==):  x0 + x1 = 10          x0 free, cost 0
+ *   row1 (>=):  x1 + x2 >= 1          x1 in [0, 1], x2 in [0, 0.5], cost 0/1
+ *
+ * x0 is free, cost 0 and the only entry in row0, but row0 has a second live
+ * entry, so the mutual-singleton branch declines it and it falls through to
+ * the implied free column singleton, which fires with y0 = 0. x1 is then a
+ * bounded cost-0 singleton in row1 and leaves by JM_PS_SINGLETON_COL.
+ *
+ * That is the ordering the defect needs. x1 was live in row0 when the
+ * substitution fired, so row0's recorded bound does NOT net it out, and
+ * JM_PS_SINGLETON_COL used to write only its own row — leaving row0's
+ * activity short by x1's share at the moment the substitution's own replay
+ * divides by it.
+ *
+ * Before the repair this published x0 = 10 and missed row0 by 1.0. The
+ * objective is 0 either way and correct either way, and every column sits
+ * inside its own box either way, so nothing but a row could catch it. That is
+ * why it survived three campaigns: no digest covers a row activity
+ * (bench/run.c hashes the columns and the duals) and the checker recomputes
+ * its own from the columns it is handed.
+ *
+ * Written from numerics-reviewer's own reproducer, 2026-08-15, after it
+ * pointed out the repair had landed with the gate's checker column on
+ * greenbeb, modszk1 and tuff as its whole cover. */
+static void test_a_removed_column_pays_every_row_it_touches(void)
+{
+#if defined(JAOS_PRESOLVE_FAULT_OFFBYONE) || defined(JAOS_PRESOLVE_FAULT_WRONGDUAL)
+    TEST_IGNORE_MESSAGE("positive test — skipped under either fault build");
+#else
+    const double c[]  = {0.0, 0.0, 1.0};
+    const double cl[] = {-INFINITY, 0.0, 0.0};
+    const double cu[] = {INFINITY, 1.0, 0.5};
+    const double rl[] = {10.0, 1.0}, ru[] = {10.0, INFINITY};
+    /* col0: row0.  col1: rows 0,1.  col2: row1. */
+    const int64_t s[]  = {0, 1, 3, 4};
+    const int64_t ix[] = {0,   0, 1,   1};
+    const double v[]   = {1.0, 1.0, 1.0, 1.0};
+    jaos_model *m = nullptr;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_model_new(&m));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_load_lp(m, 3, 2, JAOS_MINIMIZE, 0.0, c, cl, cu, rl, ru,
+                     4, s, ix, v));
+
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+
+    double x[3], row[2], y[2];
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solution(m, x, row, y, nullptr));
+
+    /* The published row activity, which is the thing that was wrong and the
+     * one output no predicate of the three instance sets reads. Asserted
+     * before the values, because a solve that gets x right and row0 wrong is
+     * exactly what shipped. */
+    const double erow0 = 10.0;
+    TEST_ASSERT_EQUAL_MEMORY(&erow0, &row[0], sizeof row[0]);
+
+    /* And the same number recomputed from the columns, which is what the
+     * checker would do. The two agreeing is the whole point. */
+    TEST_ASSERT_DOUBLE_WITHIN(1e-12, 10.0, x[0] + x[1]);
 
     jaos_check_report r;
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_check_solution(m, x, y, TOL, &r));
@@ -2927,9 +3057,11 @@ int main(void)
     RUN_TEST(test_an_implied_free_column_is_substituted_out);
     RUN_TEST(test_an_implied_bound_outside_the_box_is_refused);
     RUN_TEST(test_an_implied_bound_at_exact_equality_is_declined);
+    RUN_TEST(test_a_removed_column_pays_every_row_it_touches);
     RUN_TEST(test_implied_free_col_index_off_by_one);
 #if !defined(JAOS_NO_PRESOLVE)
     RUN_TEST(test_the_implied_free_counter_reads_its_three_models);
+    RUN_TEST(test_a_range_row_that_shifted_into_an_equality_is_declined);
 #endif
 
     RUN_TEST(test_empty_row_reports_infeasible);

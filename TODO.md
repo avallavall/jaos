@@ -60,7 +60,31 @@ carries no error to protect against. Removing the floor would take those and
 leave the rest declined. It needs `d2q06c` explained first: 2.2163x from
 removing more rows is the same unexplained shape as §1c and §2.
 
-### 1c. `greenbeb`, `scfxm3` and `forplan` cost more, and not in proportion
+### 1c. The margin covers the forward sum's error and not the recovery's
+
+`PRESOLVE_IMPLIED_FREE_ULPS` is sized on the error in `ilo`/`iup`, which
+`numerics-reviewer` confirms it covers with about 4x slack in every regime
+asked of it. The recovery is a different quantity and nothing sizes it.
+
+`x_j` comes back from `sol_row[i]`, accumulated in plain `double` with no
+compensation and in replay order. For a row of `n` live terms that error
+reaches about `n * eps * traffic / |a|`, while the margin promises
+`8 * eps * traffic / |a|`. On a row of 500 entries with traffic 1e8 that is
+**1.1e-5 against 1.8e-8**.
+
+The symptom is not the silent one. The model is not relaxed and the objective
+is not too good; `x_j` lands a little outside a bound that was supposed to be
+non-binding, so it shows as a small COLUMN violation. It also needs the
+optimum at the vertex where every other column sits on the extreme bound
+`ilo` was computed from, which narrows it without removing it.
+
+Two settlements, either of which is a measurement rather than a guess: scale
+the constant by the row's live degree, or compensate the postsolve
+accumulation with `ps_acc`. **Clamping the recovered `x_j` into the box is not
+one of them** — that hides the row residue instead of removing it, which is
+the shape D103's own repair was refused for.
+
+### 1d. `greenbeb`, `scfxm3` and `forplan` cost more, and not in proportion
 
 ```
 greenbeb   3.79e8 -> 5.74e8 work   1.5126x    3 rows and 10 columns removed
@@ -76,7 +100,7 @@ measured says which way a firing goes on a model that has not been run.
 `WORK_REGRESSION_FACTOR`), so the gate reports `0 regressed` and cannot see
 any of this. It came out of the per-instance diff.
 
-### 1d. `maros-r7`'s iteration got 15.7x cheaper and the model only shrank 31%
+### 1e. `maros-r7`'s iteration got 15.7x cheaper and the model only shrank 31%
 
 Work falls 64.0x while iterations fall 4.07x, so the cost of an iteration
 falls 15.7x. The model loses 31% of its rows and 31% of its nonzeros. That
@@ -359,6 +383,32 @@ then, do not — a refusal whose premise has not changed just fails again.
   had to come after D102: clamping first would have masked the gap of 93 as
   though it were rounding. Measured 2026-08-14, readings in
   `bench/measurements/02-08/`.
+- **A row's own width can be destroyed by the shift that removes a column,
+  and no family is involved.** `cur_rl[i]` and `cur_ru[i]` are running
+  differences, so a row the caller wrote as `[1, 2]` reads as a single number
+  once a fixed column takes 1e17 off both: `ulp(1e17)` is 16, and `1 - 1e17`
+  and `2 - 1e17` are the same double. The row handed to the simplex has lost
+  its own width, and the answer is wrong by up to that width whatever
+  presolve does next. `row_traffic[i]` is exactly the quantity that would say
+  when this has happened and no site compares against it for this purpose.
+  The implied free column singleton now declines such a row
+  (`test_a_range_row_that_shifted_into_an_equality_is_declined`), which keeps
+  that family inside its measured scope and does not repair this. Found by
+  `numerics-reviewer`, 2026-08-15.
+
+- **Two assignments in the replay are correct by an argument no assert
+  states.** `JM_PS_EMPTY_ROW` writes `sol_row[i] = 0.0` and
+  `JM_PS_SINGLETON_ROW` writes `sol_row[i] = rec->coef * xv`, where every
+  other producer accumulates. Both hold today: an empty row had every column
+  dead before it fired, and a singleton row had exactly one live column, so
+  neither can be overwriting a share that already arrived. Both depend on
+  arena order rather than on anything checked, and this class has now cost one
+  campaign (D106). The cheap enforcement `numerics-reviewer` proposes is one
+  debug-build pass at the end of `jm_postsolve_expand`: recompute every row's
+  activity from `sol_col` and assert it matches `sol_row`. That is the
+  predicate the checker already applies, extended from the instances that
+  reach it to all of them.
+
 - **`row_traffic[i]` saturates to `+inf` and never recovers.** The relaxation
   at `src/presolve.c` adds `max(|cmax|, |cmin|)` to it, and a column with a
   half-infinite box makes that infinite. Measured: all 117 standard-set rows

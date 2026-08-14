@@ -1097,7 +1097,33 @@ JAOS_NODISCARD jaos_status jm_presolve_run(const jaos_model *m, jm_presolve *p,
                 const int64_t i = m->a_index[m->a_start[j]];
                 const double a = m->a_value[m->a_start[j]];
 
+                /* The equality is asked of the ORIGINAL pair as well as of
+                 * the current one, and the original test is the one that
+                 * makes it true. cur_rl and cur_ru are running differences:
+                 * every value-determined column removed from this row
+                 * subtracted its contribution from both, and two bounds that
+                 * differ can round to the same number once the difference is
+                 * large enough. Row [1, 2] with a fixed column contributing
+                 * 1e17 is the case -- ulp(1e17) is 16, so 1 - 1e17 and
+                 * 2 - 1e17 are the same double, the row reads as an equality
+                 * it never was, and this family pins an activity the model
+                 * only ever bounded.
+                 *
+                 * The extra test costs nothing and excludes only that
+                 * collapse: both bounds take identical shifts, so a genuine
+                 * equality is still equal after any number of them.
+                 *
+                 * What it does NOT do is make that model right, and saying so
+                 * here is the point. Once the shift has collapsed [1, 2] to a
+                 * single double, the row the simplex is handed has lost its
+                 * own width whatever this family decides, and the answer is
+                 * wrong by up to that width with no family involved. This
+                 * test keeps the family inside the scope it was measured in
+                 * -- rows the CALLER wrote as equalities -- and TODO.md
+                 * carries the shift itself. Found by numerics-reviewer,
+                 * 2026-08-15. */
                 if (a != 0.0 && !row_dead[i] && !row_frozen[i] &&
+                    m->row_lower[i] == m->row_upper[i] &&
                     isfinite(cur_rl[i]) && cur_rl[i] == cur_ru[i]) {
                     const double b = cur_rl[i];
                     const ps_range rg =
