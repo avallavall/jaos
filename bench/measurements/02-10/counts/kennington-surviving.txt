@@ -1,0 +1,16 @@
+cre-a DOUBLETON liverows=3074 livecols=4057 eqrows=244 dbl=59 dblfree=0 subnz=349 totalnz=14602
+cre-b DOUBLETON liverows=5336 livecols=31818 eqrows=772 dbl=98 dblfree=0 subnz=635 totalnz=107685
+cre-c DOUBLETON liverows=2584 livecols=3592 eqrows=235 dbl=42 dblfree=0 subnz=230 totalnz=12613
+cre-d DOUBLETON liverows=4102 livecols=25188 eqrows=689 dbl=64 dblfree=0 subnz=376 totalnz=83321
+ken-07 DOUBLETON liverows=1437 livecols=2597 eqrows=1421 dbl=490 dblfree=0 subnz=980 totalnz=5978
+ken-11 DOUBLETON liverows=10085 livecols=16698 eqrows=10043 dbl=4356 dblfree=0 subnz=9196 totalnz=38478
+ken-13 DOUBLETON liverows=22534 livecols=36504 eqrows=22477 dbl=11492 dblfree=0 subnz=23322 totalnz=82641
+ken-18 DOUBLETON liverows=78862 livecols=128304 eqrows=78732 dbl=38880 dblfree=0 subnz=82944 totalnz=298728
+osa-07 DOUBLETON liverows=1081 livecols=23949 eqrows=0 dbl=0 dblfree=0 subnz=0 totalnz=88235
+osa-14 DOUBLETON liverows=2300 livecols=52460 eqrows=0 dbl=0 dblfree=0 subnz=0 totalnz=194416
+osa-30 DOUBLETON liverows=4313 livecols=100024 eqrows=0 dbl=0 dblfree=0 subnz=0 totalnz=373091
+osa-60 DOUBLETON liverows=10243 livecols=232965 eqrows=0 dbl=0 dblfree=0 subnz=0 totalnz=839112
+pds-02 DOUBLETON liverows=2609 livecols=7172 eqrows=2442 dbl=418 dblfree=0 subnz=902 totalnz=15587
+pds-06 DOUBLETON liverows=9156 livecols=27852 eqrows=8536 dbl=924 dblfree=0 subnz=2222 totalnz=60500
+pds-10 DOUBLETON liverows=15648 livecols=47729 eqrows=14597 dbl=1298 dblfree=0 subnz=3278 totalnz=103719
+pds-20 DOUBLETON liverows=32287 livecols=103981 eqrows=30088 dbl=2261 dblfree=0 subnz=5985 totalnz=225342

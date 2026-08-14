@@ -107,13 +107,34 @@ Against D101's 0.15% for the three deferred families this is fifty to a
 hundred and ninety times larger, which makes it a different proposition rather
 than a fourth deferral.
 
-**Before any code, two measurements.** These counts are an upper bound: they
-are the model as the reader hands it over, and the five live families run
-first. `bench/measurements/02-07/`'s counter is the instrument that measures a
-residue properly, at presolve's exit, and extending it to this family is the
-first step. Second, a substitution changes the matrix rather than only
-removing from it — it can create fill — so what it costs has to be measured
-beside what it removes.
+**Measured at presolve's exit, and that is where it stops being simple.**
+The five live families barely touch these rows — 6504 to 6153 on netlib,
+72459 to 60382 on Kennington — so the population survives to where a sixth
+family would run. But a doubleton is substituted by eliminating one endpoint,
+and unless that endpoint is free its bounds must be transferred onto the
+survivor, which is bound tightening.
+
+| set | surviving | share of live rows | with a free endpoint |
+|---|---|---|---|
+| netlib | 6153 | 8.55% | **19** |
+| Kennington | 60382 | 29.36% | **0** |
+
+**99.7% of the family is behind D97**, which refused bound tightening in six
+designs, every one returning INFEASIBLE on a model that has an optimum. What
+is buildable today is 19 rows across six netlib instances.
+
+So this is not "build doubletons next". It is that **the prize behind D97 is
+much larger than D97 knew**: it weighed bound tightening on its own, and this
+is a second family that cannot exist without it. D97's reopen condition
+already says what would settle it — derive the over-tightening on
+`pilot`/`pilot87`/`agg`/`maros`, and have a dual postsolve for an imposed
+bound. That work now buys two families instead of one.
+
+The remaining cost question is unchanged and still unmeasured: a substitution
+adds the eliminated column's terms into the survivor's rows, so it creates
+fill. `subnz` says a non-interacting pass would remove 2.65% of netlib's
+nonzeros and 5.13% of Kennington's, against row shares three times larger,
+and neither figure accounts for fill.
 
 ## 1d. What HiGHS finds in `maros-r7` is none of the eight families
 
@@ -158,7 +179,7 @@ then, do not — a refusal whose premise has not changed just fails again.
 | decision | what was refused or deferred | reopens when |
 |---|---|---|
 | D101 | duplicate rows, duplicate columns, dominated columns — 0.15% left to remove on these 139 models | a model population where `bench/measurements/02-07/`'s counter reports a non-trivial share. The condition is executable, not a matter of opinion. Three pieces of the work have no published source and would have to be derived with their own tests |
-| D97 | bound tightening — INFEASIBLE on models with an optimum, six designs | the over-tightening on `pilot`/`pilot87`/`agg`/`maros` is derived, AND a dual postsolve for an imposed bound exists; then only under a campaign |
+| D97 | bound tightening — INFEASIBLE on models with an optimum, six designs | the over-tightening on `pilot`/`pilot87`/`agg`/`maros` is derived, AND a dual postsolve for an imposed bound exists; then only under a campaign. **The condition is unchanged and the prize is not**: doubleton substitution needs the same machinery, and it is 8.55% of netlib's live rows and 29.36% of Kennington's, of which 19 rows in total can be built without it (§1c). D97 weighed this feature alone; it now unlocks two |
 | SPECS §3 | crash basis — destroys the exact slack-basis steepest-edge weights | pricing stops starting from exact steepest-edge weights; REQ-devex-pricing landing is the trigger |
 | D74 | removing the re-entry loan — 2.372x `pilot87` iterations for 0.980x `pilot` | the oscillation mechanism itself changes (phase 4's investigation) |
 | D63 | restarting weights to exact instead of 1.0 | the pricing rule changes; Devex would replace the question |

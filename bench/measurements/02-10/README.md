@@ -74,10 +74,47 @@ is a different proposition.
 
 **Upper bound, not an estimate.** These are the rows in the model as the
 reader hands it over. JAOS's five families run first and some of these rows
-will already be gone when a doubleton pass would see them. The instrument that
-measures the residue properly is `bench/measurements/02-07/`'s counter, which
-runs at presolve's exit; extending it to this family is the next measurement,
-not this one.
+will already be gone when a doubleton pass would see them.
+
+## The residue, and it is where the family stops being simple
+
+`diag_doubleton.inc` is the same instrument at presolve's own exit, on the
+model presolve publishes. `run-doubleton.sh` builds it into a copy of the tree
+and runs it; the repository is not modified. It refuses to report until
+`validate_doubleton.c` reproduces a six-column hand answer,
+`eqrows=3 dbl=3 dblfree=1 subnz=6`.
+
+| set | surviving | share of live rows | **with a free endpoint** |
+|---|---|---|---|
+| netlib | 6153 | **8.55%** | **19** |
+| Kennington | 60382 | **29.36%** | **0** |
+
+The five live families barely touch them: 6504 as loaded to 6153 surviving on
+netlib, 72459 to 60382 on Kennington. So the population is real and it is
+still there when a sixth family would run.
+
+**The last column is the finding.** A doubleton `a*x_p + b*x_q == c` is
+substituted by eliminating one endpoint. Where that endpoint is free — box
+`(-inf, +inf)` — the substitution needs nothing else: the variable had no
+bound to violate. Where it is not, its bounds have to be transferred onto the
+survivor, and that is bound tightening, which **D97 refused in six designs,
+every one of which returned INFEASIBLE on models that have an optimum**.
+
+19 of 6153, and 0 of 60382. **99.7% of this family is behind D97**, and the
+part that is not is six instances of netlib: `capri` 6, `pilot-we` 9, and one
+each on `greenbeb`, `perold`, `pilot-ja` and `stair`.
+
+So the reading does not say "build doubletons next". It says the prize behind
+D97 is far larger than D97 knew when it refused — D97 weighed bound tightening
+on its own, and this is a second family that cannot exist without it. That is
+a reason to re-derive the over-tightening D97 recorded, which is already its
+stated reopen condition, and not a reason to reopen it by assertion.
+
+`subnz`, the nonzeros one non-interacting pass could remove, reads 20686 of
+781125 on netlib (2.65%) and 130419 of 2544048 on Kennington (5.13%). Rows
+matter more than nonzeros for an iteration count, but the figure is here
+because it is the one that would be quoted otherwise, and it is smaller than
+the row share by a factor of three.
 
 ## The instrument, and the two faults it caught in itself
 

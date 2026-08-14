@@ -1,0 +1,2 @@
+EXPECT eqrows=3 dbl=3 dblfree=1 subnz=6
+status=optimal

@@ -1,0 +1,94 @@
+25fv47 DOUBLETON liverows=777 livecols=1539 eqrows=486 dbl=53 dblfree=0 subnz=167 totalnz=10241
+80bau3b DOUBLETON liverows=2022 livecols=9077 eqrows=0 dbl=0 dblfree=0 subnz=0 totalnz=19861
+adlittle DOUBLETON liverows=53 livecols=95 eqrows=13 dbl=0 dblfree=0 subnz=0 totalnz=373
+afiro DOUBLETON liverows=25 livecols=32 eqrows=8 dbl=2 dblfree=0 subnz=4 totalnz=81
+agg DOUBLETON liverows=412 livecols=147 eqrows=32 dbl=1 dblfree=0 subnz=2 totalnz=2098
+agg2 DOUBLETON liverows=481 livecols=301 eqrows=60 dbl=1 dblfree=0 subnz=2 totalnz=4238
+agg3 DOUBLETON liverows=481 livecols=301 eqrows=60 dbl=1 dblfree=0 subnz=2 totalnz=4254
+bandm DOUBLETON liverows=250 livecols=276 eqrows=117 dbl=29 dblfree=0 subnz=171 totalnz=1807
+beaconfd DOUBLETON liverows=111 livecols=170 eqrows=82 dbl=7 dblfree=0 subnz=91 totalnz=2023
+blend DOUBLETON liverows=72 livecols=81 eqrows=41 dbl=8 dblfree=0 subnz=61 totalnz=487
+bnl1 DOUBLETON liverows=564 livecols=1099 eqrows=215 dbl=83 dblfree=0 subnz=285 totalnz=4822
+bnl2 DOUBLETON liverows=2109 livecols=3252 eqrows=1178 dbl=744 dblfree=0 subnz=2672 totalnz=13388
+boeing1 DOUBLETON liverows=298 livecols=369 eqrows=3 dbl=0 dblfree=0 subnz=0 totalnz=2743
+boeing2 DOUBLETON liverows=125 livecols=143 eqrows=4 dbl=0 dblfree=0 subnz=0 totalnz=801
+bore3d DOUBLETON liverows=139 livecols=158 eqrows=127 dbl=53 dblfree=0 subnz=182 totalnz=697
+brandy DOUBLETON liverows=123 livecols=193 eqrows=89 dbl=4 dblfree=0 subnz=24 totalnz=1870
+capri DOUBLETON liverows=255 livecols=320 eqrows=125 dbl=28 dblfree=6 subnz=108 totalnz=1589
+cycle DOUBLETON liverows=1551 livecols=2279 eqrows=911 dbl=193 dblfree=0 subnz=731 totalnz=15198
+czprob DOUBLETON liverows=689 livecols=2753 eqrows=645 dbl=197 dblfree=0 subnz=591 totalnz=8320
+d2q06c DOUBLETON liverows=2098 livecols=4880 eqrows=1221 dbl=98 dblfree=0 subnz=154 totalnz=32044
+d6cube DOUBLETON liverows=403 livecols=6183 eqrows=403 dbl=0 dblfree=0 subnz=0 totalnz=37696
+degen2 DOUBLETON no-line
+degen3 DOUBLETON no-line
+dfl001 DOUBLETON liverows=6071 livecols=11496 eqrows=5337 dbl=15 dblfree=0 subnz=35 totalnz=34898
+e226 DOUBLETON liverows=162 livecols=258 eqrows=29 dbl=2 dblfree=0 subnz=17 totalnz=2306
+etamacro DOUBLETON liverows=334 livecols=516 eqrows=181 dbl=15 dblfree=0 subnz=48 totalnz=1842
+fffff800 DOUBLETON liverows=476 livecols=817 eqrows=313 dbl=10 dblfree=0 subnz=74 totalnz=6042
+finnis DOUBLETON liverows=398 livecols=518 eqrows=32 dbl=16 dblfree=0 subnz=27 totalnz=1883
+fit1d DOUBLETON no-line
+fit1p DOUBLETON liverows=627 livecols=1050 eqrows=0 dbl=0 dblfree=0 subnz=0 totalnz=9241
+fit2d DOUBLETON no-line
+fit2p DOUBLETON liverows=3000 livecols=10525 eqrows=0 dbl=0 dblfree=0 subnz=0 totalnz=47284
+forplan DOUBLETON liverows=133 livecols=397 eqrows=71 dbl=2 dblfree=0 subnz=2 totalnz=4406
+ganges DOUBLETON liverows=1125 livecols=1389 eqrows=992 dbl=252 dblfree=0 subnz=1380 totalnz=6436
+gfrd-pnc DOUBLETON liverows=590 livecols=1064 eqrows=520 dbl=130 dblfree=0 subnz=260 totalnz=2323
+greenbea DOUBLETON liverows=1952 livecols=4115 eqrows=1764 dbl=414 dblfree=0 subnz=1902 totalnz=24036
+greenbeb DOUBLETON liverows=1950 livecols=4106 eqrows=1764 dbl=414 dblfree=1 subnz=1888 totalnz=23976
+grow15 DOUBLETON liverows=300 livecols=625 eqrows=280 dbl=0 dblfree=0 subnz=0 totalnz=5600
+grow22 DOUBLETON liverows=440 livecols=926 eqrows=420 dbl=0 dblfree=0 subnz=0 totalnz=8232
+grow7 DOUBLETON liverows=140 livecols=281 eqrows=120 dbl=0 dblfree=0 subnz=0 totalnz=2592
+israel DOUBLETON liverows=163 livecols=142 eqrows=0 dbl=0 dblfree=0 subnz=0 totalnz=2258
+kb2 DOUBLETON liverows=43 livecols=36 eqrows=11 dbl=4 dblfree=0 subnz=13 totalnz=281
+lotfi DOUBLETON liverows=134 livecols=292 eqrows=79 dbl=6 dblfree=0 subnz=6 totalnz=1009
+maros-r7 DOUBLETON no-line
+maros DOUBLETON liverows=693 livecols=1083 eqrows=248 dbl=69 dblfree=0 subnz=155 totalnz=7208
+modszk1 DOUBLETON liverows=685 livecols=1593 eqrows=659 dbl=34 dblfree=0 subnz=68 totalnz=3141
+nesm DOUBLETON liverows=646 livecols=2690 eqrows=422 dbl=0 dblfree=0 subnz=0 totalnz=13004
+perold DOUBLETON liverows=600 livecols=1180 eqrows=390 dbl=27 dblfree=1 subnz=83 totalnz=5562
+pilot-ja DOUBLETON liverows=832 livecols=1495 eqrows=502 dbl=47 dblfree=1 subnz=146 totalnz=11257
+pilot-we DOUBLETON liverows=705 livecols=2457 eqrows=522 dbl=45 dblfree=9 subnz=164 totalnz=8517
+pilot DOUBLETON liverows=1392 livecols=3371 eqrows=200 dbl=8 dblfree=0 subnz=20 totalnz=40793
+pilot4 DOUBLETON liverows=397 livecols=864 eqrows=217 dbl=18 dblfree=0 subnz=114 totalnz=4902
+pilot87 DOUBLETON liverows=1994 livecols=4606 eqrows=207 dbl=6 dblfree=0 subnz=17 totalnz=70507
+pilotnov DOUBLETON liverows=871 livecols=1811 eqrows=543 dbl=37 dblfree=0 subnz=86 totalnz=11768
+recipe DOUBLETON liverows=75 livecols=123 eqrows=37 dbl=0 dblfree=0 subnz=0 totalnz=582
+sc105 DOUBLETON liverows=104 livecols=103 eqrows=45 dbl=13 dblfree=0 subnz=36 totalnz=280
+sc205 DOUBLETON liverows=203 livecols=202 eqrows=90 dbl=22 dblfree=0 subnz=63 totalnz=550
+sc50a DOUBLETON liverows=49 livecols=48 eqrows=20 dbl=8 dblfree=0 subnz=21 totalnz=130
+sc50b DOUBLETON liverows=48 livecols=48 eqrows=20 dbl=8 dblfree=0 subnz=19 totalnz=118
+scagr25 DOUBLETON liverows=347 livecols=474 eqrows=274 dbl=81 dblfree=0 subnz=283 totalnz=1398
+scagr7 DOUBLETON liverows=95 livecols=132 eqrows=76 dbl=27 dblfree=0 subnz=85 totalnz=372
+scfxm1 DOUBLETON liverows=282 livecols=419 eqrows=156 dbl=12 dblfree=0 subnz=38 totalnz=2459
+scfxm2 DOUBLETON liverows=564 livecols=838 eqrows=312 dbl=24 dblfree=0 subnz=76 totalnz=4923
+scfxm3 DOUBLETON liverows=846 livecols=1257 eqrows=468 dbl=36 dblfree=0 subnz=114 totalnz=7387
+scorpion DOUBLETON liverows=292 livecols=325 eqrows=256 dbl=62 dblfree=0 subnz=139 totalnz=1221
+scrs8 DOUBLETON liverows=450 livecols=1083 eqrows=305 dbl=18 dblfree=0 subnz=30 totalnz=2980
+scsd1 DOUBLETON no-line
+scsd6 DOUBLETON no-line
+scsd8 DOUBLETON no-line
+sctap1 DOUBLETON liverows=284 livecols=360 eqrows=0 dbl=0 dblfree=0 subnz=0 totalnz=1518
+sctap2 DOUBLETON liverows=1033 livecols=1410 eqrows=0 dbl=0 dblfree=0 subnz=0 totalnz=6019
+sctap3 DOUBLETON liverows=1408 livecols=1860 eqrows=0 dbl=0 dblfree=0 subnz=0 totalnz=7975
+seba DOUBLETON liverows=477 livecols=592 eqrows=109 dbl=0 dblfree=0 subnz=0 totalnz=3808
+share1b DOUBLETON liverows=110 livecols=208 eqrows=72 dbl=9 dblfree=0 subnz=79 totalnz=1106
+share2b DOUBLETON liverows=93 livecols=79 eqrows=13 dbl=0 dblfree=0 subnz=0 totalnz=691
+shell DOUBLETON liverows=487 livecols=1476 eqrows=485 dbl=121 dblfree=0 subnz=242 totalnz=2958
+ship04l DOUBLETON liverows=317 livecols=1915 eqrows=277 dbl=4 dblfree=0 subnz=12 totalnz=5695
+ship04s DOUBLETON liverows=241 livecols=1291 eqrows=201 dbl=28 dblfree=0 subnz=84 totalnz=3823
+ship08l DOUBLETON liverows=520 livecols=3149 eqrows=448 dbl=0 dblfree=0 subnz=0 totalnz=9346
+ship08s DOUBLETON liverows=326 livecols=1632 eqrows=254 dbl=40 dblfree=0 subnz=120 totalnz=4795
+ship12l DOUBLETON liverows=687 livecols=4224 eqrows=586 dbl=0 dblfree=0 subnz=0 totalnz=12507
+ship12s DOUBLETON liverows=417 livecols=1996 eqrows=316 dbl=72 dblfree=0 subnz=216 totalnz=5823
+sierra DOUBLETON liverows=1212 livecols=2016 eqrows=523 dbl=90 dblfree=0 subnz=245 totalnz=7242
+stair DOUBLETON liverows=356 livecols=385 eqrows=209 dbl=39 dblfree=1 subnz=111 totalnz=3666
+standata DOUBLETON liverows=301 livecols=1014 eqrows=148 dbl=16 dblfree=0 subnz=44 totalnz=2819
+standmps DOUBLETON liverows=409 livecols=1014 eqrows=256 dbl=16 dblfree=0 subnz=44 totalnz=3467
+stocfor1 DOUBLETON liverows=98 livecols=100 eqrows=52 dbl=15 dblfree=0 subnz=48 totalnz=398
+stocfor2 DOUBLETON liverows=2129 livecols=2015 eqrows=1127 dbl=264 dblfree=0 subnz=756 totalnz=8255
+stocfor3 DOUBLETON liverows=16617 livecols=15663 eqrows=8797 dbl=2032 dblfree=0 subnz=5920 totalnz=64567
+truss DOUBLETON no-line
+tuff DOUBLETON liverows=286 livecols=512 eqrows=203 dbl=18 dblfree=0 subnz=42 totalnz=4273
+vtp-base DOUBLETON liverows=54 livecols=82 eqrows=42 dbl=1 dblfree=0 subnz=3 totalnz=303
+wood1p DOUBLETON liverows=171 livecols=1801 eqrows=170 dbl=0 dblfree=0 subnz=0 totalnz=48577
+woodw DOUBLETON liverows=723 livecols=5286 eqrows=546 dbl=4 dblfree=0 subnz=64 totalnz=23159
