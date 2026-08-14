@@ -2830,6 +2830,7 @@ static void test_a_fold_onto_the_box_at_scale_still_collapses(void)
  * By hand: x0 = 2, x1 = 2, objective 10. x0 rests on the bound r1 produced,
  * so r1 is the row owed the multiplier. -DJAOS_NO_PRESOLVE publishes
  * y = [2, 1] and d = [0, 0], and so must this. */
+#if !defined(JAOS_PRESOLVE_FAULT_OFFBYONE) && !defined(JAOS_PRESOLVE_FAULT_WRONGDUAL)
 static jaos_model *make_maximised_singleton_row_model(void)
 {
     const double c[]  = {3.0, 2.0};
@@ -2845,9 +2846,13 @@ static jaos_model *make_maximised_singleton_row_model(void)
                      3, s, ix, v));
     return m;
 }
+#endif
 
 static void test_a_maximised_singleton_row_is_owed_its_multiplier(void)
 {
+#if defined(JAOS_PRESOLVE_FAULT_OFFBYONE) || defined(JAOS_PRESOLVE_FAULT_WRONGDUAL)
+    TEST_IGNORE_MESSAGE("positive test — skipped under either fault build");
+#else
     jaos_model *m = make_maximised_singleton_row_model();
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
     TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
@@ -2878,6 +2883,7 @@ static void test_a_maximised_singleton_row_is_owed_its_multiplier(void)
     TEST_ASSERT_TRUE(r.dual_feasible);
 
     jaos_model_free(m);
+#endif
 }
 
 /*   max x1,  x1 in [lo, hi],  x1 in no row at all (an empty column).
@@ -2906,6 +2912,9 @@ static jaos_model *make_maximised_empty_column(double lo, double hi)
 
 static void test_a_maximised_empty_column_takes_its_upper_bound(void)
 {
+#if defined(JAOS_PRESOLVE_FAULT_OFFBYONE) || defined(JAOS_PRESOLVE_FAULT_WRONGDUAL)
+    TEST_IGNORE_MESSAGE("positive test — skipped under either fault build");
+#else
     jaos_model *m = make_maximised_empty_column(0.0, 5.0);
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
     TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
@@ -2921,6 +2930,7 @@ static void test_a_maximised_empty_column_takes_its_upper_bound(void)
     const double expected_x1 = 5.0;
     TEST_ASSERT_EQUAL_MEMORY(&expected_x1, &x[1], sizeof x[1]);
     jaos_model_free(m);
+#endif
 }
 
 static void test_a_maximised_empty_column_is_not_unbounded_downwards(void)

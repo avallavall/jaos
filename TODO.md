@@ -383,6 +383,28 @@ then, do not — a refusal whose premise has not changed just fails again.
   had to come after D102: clamping first would have masked the gap of 93 as
   though it were rounding. Measured 2026-08-14, readings in
   `bench/measurements/02-08/`.
+- **`make test EXTRA_CFLAGS=-DJAOS_NO_PRESOLVE` is RED, and was before this
+  plan touched anything.** Two tests fail:
+  `test_singleton_col_between_two_removals_solved_path` (expects 3 basic, gets
+  2) and `test_a_fold_onto_the_box_at_scale_still_collapses` (expects 1, gets
+  2). Both are white-box tests pinning presolve's own behaviour, and presolve
+  compiles out of that build, so neither can hold there. Confirmed on a
+  worktree at the commit before this plan started, same two, same messages.
+  The reference build is the project's only oracle for output no predicate of
+  the three sets reads (`jaos-testing`), so a red one is not a small thing:
+  it means nobody runs it, and nobody has. The repair is a guard on each,
+  the same `#if !defined(JAOS_NO_PRESOLVE)` the counter tests already carry.
+
+- **Two positive tests had no fault-build guard.** `make test
+  EXTRA_CFLAGS=-DJAOS_PRESOLVE_FAULT_OFFBYONE` did not compile at all until
+  2026-08-15 (`make_frozen_row_infeasible_model`, fixed), and once it did,
+  `test_a_maximised_singleton_row_is_owed_its_multiplier` and
+  `test_a_maximised_empty_column_takes_its_upper_bound` failed because a
+  fault build is meant to break exactly what they assert. Both now carry the
+  guard every other positive test in the file has. **All seven off-by-one
+  negative tests pass**, which is the first time that has been true since the
+  compile broke.
+
 - **A row's own width can be destroyed by the shift that removes a column,
   and no family is involved.** `cur_rl[i]` and `cur_ru[i]` are running
   differences, so a row the caller wrote as `[1, 2]` reads as a single number
