@@ -1311,6 +1311,227 @@ static void test_free_col_singleton_index_off_by_one(void)
 #endif
 }
 
+/* -- Implied free column singleton (D105) ---------------------------------
+ *
+ * min 3*x0 + x1 + x2
+ *   row0 (==):  x0 + x1 + x2 = 6
+ *   row1 (>=):  x1 + x2 >= 1
+ *   x1, x2 in [0, 2]
+ *
+ * x0 has one matrix entry and it is in row0, an equality. The rest of row0
+ * reaches [0, 4], so the row already confines x0 to [2, 6]. Whether the
+ * family fires is decided by x0's own box alone, and the three models below
+ * differ in nothing else:
+ *
+ *   lower bound   implied box    fires   optimum
+ *   -100          [2, 6]         yes     x0 = 2, obj 10
+ *      4          [2, 6]         no      x0 = 4, obj 14
+ *      2          [2, 6]         no      x0 = 2, obj 10
+ *
+ * The middle one is the case the family MUST refuse. Substituting there
+ * drops the bound x0 >= 4, which is the bound the optimum rests on: the
+ * relaxed model answers 10 at x0 = 2, a full 4 below the true optimum and
+ * one unit outside x0's own declared box. Nothing about that announces
+ * itself — the objective is better, not worse, and a -DJAOS_NO_PRESOLVE
+ * build would be the one reporting the larger number.
+ *
+ * The last one is the margin's own canary. The row implies exactly x0 >= 2
+ * and the column declares exactly x0 >= 2, so a margin of zero fires and any
+ * margin above zero declines. It is written down here because the same flip
+ * is what the sweep reads on `maros-r7`: 4 of its 984 candidate rows sit at
+ * this exact equality, so 984 at zero and 980 at anything above it.
+ *
+ * By hand, after substitution on the first model: y0 = c0/a = 3, the two
+ * surviving costs become 1 - 3 = -2 each, and the offset takes 3*6 = 18. The
+ * reduced problem is min -2*x1 - 2*x2 + 18 over the same row1, whose optimum
+ * puts both at their upper bound of 2, so x0 = 6 - 4 = 2 and the objective
+ * is 18 - 8 = 10. Every quantity is an integer a double holds exactly, so
+ * these are the same numbers a presolve-off build computes. */
+static jaos_model *make_implied_free_col_model(double x0_lower)
+{
+    const double c[]  = {3.0, 1.0, 1.0};
+    const double cl[] = {x0_lower, 0.0, 0.0};
+    const double cu[] = {100.0, 2.0, 2.0};
+    const double rl[] = {6.0, 1.0}, ru[] = {6.0, INFINITY};
+    /* col0: row0.  col1: rows 0,1.  col2: rows 0,1. */
+    const int64_t s[]  = {0, 1, 3, 5};
+    const int64_t ix[] = {0,   0, 1,   0, 1};
+    const double v[]   = {1.0, 1.0, 1.0, 1.0, 1.0};
+    jaos_model *m = nullptr;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_model_new(&m));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_load_lp(m, 3, 2, JAOS_MINIMIZE, 0.0, c, cl, cu, rl, ru,
+                     5, s, ix, v));
+    return m;
+}
+
+static void test_an_implied_free_column_is_substituted_out(void)
+{
+#if defined(JAOS_PRESOLVE_FAULT_OFFBYONE) || defined(JAOS_PRESOLVE_FAULT_WRONGDUAL)
+    TEST_IGNORE_MESSAGE("positive test — skipped under either fault build");
+#else
+    jaos_model *m = make_implied_free_col_model(-100.0);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+
+    const double expected_obj = 10.0;
+    double obj = 0.0;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(m, &obj));
+    TEST_ASSERT_EQUAL_MEMORY(&expected_obj, &obj, sizeof obj);
+
+    double x[3], y[2], dj[3];
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solution(m, x, nullptr, y, dj));
+    const double ex0 = 2.0, ex1 = 2.0, ex2 = 2.0;
+    const double ey0 = 3.0, ey1 = 0.0, ed0 = 0.0;
+    TEST_ASSERT_EQUAL_MEMORY(&ex0, &x[0], sizeof x[0]);
+    TEST_ASSERT_EQUAL_MEMORY(&ex1, &x[1], sizeof x[1]);
+    TEST_ASSERT_EQUAL_MEMORY(&ex2, &x[2], sizeof x[2]);
+    TEST_ASSERT_EQUAL_MEMORY(&ey0, &y[0], sizeof y[0]);
+    TEST_ASSERT_EQUAL_MEMORY(&ey1, &y[1], sizeof y[1]);
+    /* x0 is strictly inside its own box, so nothing but zero is permitted
+     * here — this is the whole reason the elimination is exact. */
+    TEST_ASSERT_EQUAL_MEMORY(&ed0, &dj[0], sizeof dj[0]);
+
+    jaos_basis_status cs[3], rs[2];
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_basis(m, cs, rs));
+    TEST_ASSERT_EQUAL_INT(JAOS_BASIS_BASIC, cs[0]);
+    /* jaos.h promises exactly num_row of the num_col + num_row statuses are
+     * basic, and this record restores one row and one column, so it has to
+     * add back exactly one basic entry between the two. Pinned here because
+     * a family that publishes one basic too many costs the next solve its
+     * warm start silently (TODO.md carries the singleton column's own
+     * version of this defect). */
+    int64_t nbasic = 0;
+    for (int64_t k = 0; k < 3; k++)
+        if (cs[k] == JAOS_BASIS_BASIC) nbasic++;
+    for (int64_t k = 0; k < 2; k++)
+        if (rs[k] == JAOS_BASIS_BASIC) nbasic++;
+    TEST_ASSERT_EQUAL_INT64(2, nbasic);
+
+    jaos_check_report r;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_check_solution(m, x, y, TOL, &r));
+    TEST_ASSERT_TRUE(r.primal_feasible);
+    TEST_ASSERT_TRUE(r.dual_feasible);
+
+    jaos_model_free(m);
+#endif
+}
+
+/* The case the family must reject, and the reason it is worth a test of its
+ * own: firing here is not caught by anything else in this suite. The answer
+ * comes back OPTIMAL, the checker is handed a point that satisfies every
+ * row, and the objective is BETTER than the truth. */
+static void test_an_implied_bound_outside_the_box_is_refused(void)
+{
+#if defined(JAOS_PRESOLVE_FAULT_OFFBYONE) || defined(JAOS_PRESOLVE_FAULT_WRONGDUAL)
+    TEST_IGNORE_MESSAGE("positive test — skipped under either fault build");
+#else
+    jaos_model *m = make_implied_free_col_model(4.0);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+
+    const double expected_obj = 14.0;
+    double obj = 0.0;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(m, &obj));
+    TEST_ASSERT_EQUAL_MEMORY(&expected_obj, &obj, sizeof obj);
+
+    /* x1 and x2 are not separately determined here — every split of their
+     * sum costs the same — so only x0 is asserted, and it is the one the
+     * refused reduction would have got wrong. */
+    double x[3], y[2];
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solution(m, x, nullptr, y, nullptr));
+    const double ex0 = 4.0;
+    TEST_ASSERT_EQUAL_MEMORY(&ex0, &x[0], sizeof x[0]);
+
+    jaos_check_report r;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_check_solution(m, x, y, TOL, &r));
+    TEST_ASSERT_TRUE(r.primal_feasible);
+    TEST_ASSERT_TRUE(r.dual_feasible);
+
+    jaos_model_free(m);
+#endif
+}
+
+#if !defined(JAOS_NO_PRESOLVE)
+/* The three counts side by side, which is the only place the middle model's
+ * refusal and the canary's refusal can be told apart from "the family is not
+ * built yet". A change that stops the family firing at all still passes both
+ * value tests above; it fails here. */
+static void test_the_implied_free_counter_reads_its_three_models(void)
+{
+    const double lowers[3] = {-100.0, 4.0, 2.0};
+    const int64_t expect[3] = {1, 0, 0};
+    for (int t = 0; t < 3; t++) {
+        jaos_model *m = make_implied_free_col_model(lowers[t]);
+        jm_presolve p;
+        jm_presolve_init(&p);
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jm_presolve_run(m, &p, nullptr));
+        TEST_ASSERT_EQUAL_INT64(expect[t], p.counts.implied_free_col);
+        jm_presolve_free(&p);
+        jaos_model_free(m);
+    }
+}
+#endif
+
+/* The canary's own answer, so a margin change that flips it cannot also
+ * change what the model publishes without being noticed. */
+static void test_an_implied_bound_at_exact_equality_is_declined(void)
+{
+#if defined(JAOS_PRESOLVE_FAULT_OFFBYONE) || defined(JAOS_PRESOLVE_FAULT_WRONGDUAL)
+    TEST_IGNORE_MESSAGE("positive test — skipped under either fault build");
+#else
+    jaos_model *m = make_implied_free_col_model(2.0);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+
+    const double expected_obj = 10.0;
+    double obj = 0.0;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(m, &obj));
+    TEST_ASSERT_EQUAL_MEMORY(&expected_obj, &obj, sizeof obj);
+
+    double x[3], y[2];
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solution(m, x, nullptr, y, nullptr));
+    const double ex0 = 2.0;
+    TEST_ASSERT_EQUAL_MEMORY(&ex0, &x[0], sizeof x[0]);
+
+    jaos_check_report r;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_check_solution(m, x, y, TOL, &r));
+    TEST_ASSERT_TRUE(r.primal_feasible);
+    TEST_ASSERT_TRUE(r.dual_feasible);
+
+    jaos_model_free(m);
+#endif
+}
+
+/* Negative sibling: the record's row index reads 1 instead of 0, so row0's
+ * multiplier of 3 lands on row1 and row0 keeps the zero it was initialised
+ * with. x0's own value survives that unharmed — row1 carries the same two
+ * columns, so the sum subtracted comes out the same — and the fault is
+ * caught on x0's reduced cost instead. The checker recomputes it from the
+ * duals it was handed: 3 - 1*0 = 3, against a column sitting strictly
+ * inside its own box, where the only permitted value is zero. */
+static void test_implied_free_col_index_off_by_one(void)
+{
+#if !defined(JAOS_PRESOLVE_FAULT_OFFBYONE)
+    TEST_IGNORE_MESSAGE("negative test — runs only under "
+                        "EXTRA_CFLAGS=-DJAOS_PRESOLVE_FAULT_OFFBYONE");
+#else
+    jaos_model *m = make_implied_free_col_model(-100.0);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+
+    double x[3], y[2];
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solution(m, x, nullptr, y, nullptr));
+
+    jaos_check_report r;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_check_solution(m, x, y, TOL, &r));
+    TEST_ASSERT_FALSE(r.dual_feasible);
+    TEST_ASSERT_DOUBLE_WITHIN(1e-9, 3.0, r.max_dual_violation);
+
+    jaos_model_free(m);
+#endif
+}
+
 /* -- Reduced to nothing: the cases no existing test in this tree reaches -- */
 
 /* A model presolve proves infeasible before the simplex ever runs: an
@@ -2210,6 +2431,15 @@ static void test_two_folds_wrong_dual(void)
  * once the answer is INFEASIBLE, so the 93 is described here rather than
  * measured: it is what `jaos_check_solution` read from the point the old code
  * published, and `bench/measurements/02-08/` holds that reading. */
+/* Guarded like every other fixture in this file whose only callers are
+ * positive tests. Both of them compile out under either fault build, and
+ * -Werror=unused-function then refuses the whole translation unit: from the
+ * commit that added this model until now, `make test
+ * EXTRA_CFLAGS=-DJAOS_PRESOLVE_FAULT_OFFBYONE` did not build at all, so the
+ * instrument-validation hook every family's negative test depends on could
+ * not be run. Nothing announced it, because the plain build and the
+ * reference build are the two that CI and the loop actually run. */
+#if !defined(JAOS_PRESOLVE_FAULT_OFFBYONE) && !defined(JAOS_PRESOLVE_FAULT_WRONGDUAL)
 static jaos_model *make_frozen_row_infeasible_model(void)
 {
     const double c[]  = {1.0, 0.0};
@@ -2227,6 +2457,7 @@ static jaos_model *make_frozen_row_infeasible_model(void)
                      2, s, ix, v));
     return m;
 }
+#endif
 
 static void test_a_frozen_row_that_cannot_be_satisfied_is_infeasible(void)
 {
@@ -2692,6 +2923,14 @@ int main(void)
     RUN_TEST(test_two_singleton_cols_on_one_row);
     RUN_TEST(test_free_col_singleton_round_trip);
     RUN_TEST(test_free_col_singleton_index_off_by_one);
+
+    RUN_TEST(test_an_implied_free_column_is_substituted_out);
+    RUN_TEST(test_an_implied_bound_outside_the_box_is_refused);
+    RUN_TEST(test_an_implied_bound_at_exact_equality_is_declined);
+    RUN_TEST(test_implied_free_col_index_off_by_one);
+#if !defined(JAOS_NO_PRESOLVE)
+    RUN_TEST(test_the_implied_free_counter_reads_its_three_models);
+#endif
 
     RUN_TEST(test_empty_row_reports_infeasible);
     RUN_TEST(test_zero_row_model_solves);

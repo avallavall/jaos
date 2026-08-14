@@ -460,6 +460,10 @@ typedef struct {
                                       * the D-13 counts unreadable */
     int64_t forcing_row;
     int64_t redundant_row;
+    int64_t implied_free_col;       /* the implied free column singleton: a
+                                      * column whose one entry's row already
+                                      * confines it strictly inside its own
+                                      * box, substituted out exactly (D105) */
     int64_t tightened_bound;
     int64_t duplicate_row;
     int64_t duplicate_col;
@@ -487,6 +491,10 @@ typedef enum {
                                   * its own bounds exactly, fixing every live
                                   * column in it at the bound that attains
                                   * that extreme */
+    JM_PS_IMPLIED_FREE_COL,     /* a column with one matrix entry, in an
+                                  * equality row that already confines it
+                                  * strictly inside its own box: substituted
+                                  * out exactly, and the row goes with it */
 } jm_presolve_tag;
 
 /* One tagged, append-only postsolve record: what an original row or column
@@ -534,6 +542,14 @@ typedef enum {
  *     false for the lower (maximum activity reached it). That is the sign
  *     the row's own multiplier has to take, and the preceding records are
  *     what its magnitude is computed from — see ps_replay_one.
+ *   JM_PS_IMPLIED_FREE_COL: index=row (removed), index2=column (removed),
+ *     coef=the entry's coefficient, value=the row's own *current* bound at
+ *     the moment it fired (the row is an equality, so its two bounds are
+ *     equal, and both are already net of every value-determined column
+ *     removed from it before this), cost=the column's cost in the CURRENT
+ *     objective at that same moment. lo/hi are the implied box the row put
+ *     on the column; nothing reads them back and they are recorded so a
+ *     failing instance can be read without re-deriving them.
  *
  * There is no tag for bound tightening. 02-04 built the family, measured it
  * and did not ship it — see the block that says so in src/presolve.c and

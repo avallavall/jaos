@@ -361,16 +361,22 @@ typedef struct {
     double traffic;
 } ps_range;
 
+/* `skip` names one live column to leave out of the sum, or -1 for none. The
+ * implied free column singleton needs the row's range with its OWN term
+ * removed, and taking the full range and subtracting the term back out is a
+ * cancellation whose residue is exactly what that family must not misread.
+ * Every other caller passes -1, and the loop below is then bit-identical to
+ * what it was before the parameter existed. */
 static ps_range ps_row_range(const ps_rowwise *rw, int64_t i,
                              const double *cl, const double *cu,
-                             const bool *col_dead)
+                             const bool *col_dead, int64_t skip)
 {
     ps_acc lo = {0.0, 0.0}, hi = {0.0, 0.0}, tr = {0.0, 0.0};
     ps_range r = {0.0, 0.0, 0, 0, 0.0};
 
     for (int64_t k = rw->rs[i]; k < rw->rs[i + 1]; k++) {
         const int64_t j = rw->ridx[k];
-        if (col_dead[j])
+        if (col_dead[j] || j == skip)
             continue;
         const double a = rw->rval[k];
         if (a == 0.0)
@@ -453,6 +459,42 @@ static double ps_round_tol(double scale)
 static double ps_row_tol(const ps_range *r)
 {
     return 8.0 * DBL_EPSILON * (r->traffic > 1.0 ? r->traffic : 1.0);
+}
+
+/* The margin the implied free column singleton declines borderline cases by,
+ * and it is a separate constant from the two above because it is asked a
+ * question neither of them is asked.
+ *
+ * The other windows answer "is this residue rounding?", where being wrong
+ * either way is loud: too wide and a feasible model comes back INFEASIBLE.
+ * This one answers "does the row's implied box lie INSIDE the column's own
+ * box?", and being wrong is silent. A firing that should not have fired
+ * drops a bound that was real, relaxes the model, and publishes an objective
+ * that is too good — no digest comparison against a -DJAOS_NO_PRESOLVE build
+ * would look wrong, because the reference build would be the one refusing.
+ * So the margin is subtracted from the column's own bounds rather than added
+ * to the implied ones: at exact equality the family declines.
+ *
+ * What it has to cover is the error in ilo/iup, and that is the row sum's
+ * residue divided by the coefficient. The sum is compensated, so its residue
+ * is DBL_EPSILON times the traffic through it; the bound b enters the
+ * numerator too; and the division by a_ij scales both. Hence
+ * max(1, |b|, traffic) / |a_ij|, in ulps, the same shape ps_round_tol has.
+ *
+ * Swept beside its use, and the canary is in the instance rather than in a
+ * model built for it: 4 of `maros-r7`'s 984 candidate rows sit at EXACT
+ * equality, so any setting strictly above zero reads 980 and zero reads 984.
+ * Reachable through EXTRA_CFLAGS like the other two. */
+#ifndef JAOS_PRESOLVE_IMPLIED_FREE_ULPS_VALUE
+#define JAOS_PRESOLVE_IMPLIED_FREE_ULPS_VALUE 8
+#endif
+constexpr double PRESOLVE_IMPLIED_FREE_ULPS =
+    JAOS_PRESOLVE_IMPLIED_FREE_ULPS_VALUE;
+
+static double ps_implied_free_margin(double scale)
+{
+    return PRESOLVE_IMPLIED_FREE_ULPS * DBL_EPSILON *
+           (scale > 1.0 ? scale : 1.0);
 }
 
 /* The window a comparison between two BOUNDS uses. Infinities are skipped
@@ -990,8 +1032,129 @@ JAOS_NODISCARD jaos_status jm_presolve_run(const jaos_model *m, jm_presolve *p,
                     continue;
                 }
                 /* Free column, but its row still has other live entries:
-                 * out of this plan's scope (see file header). Leave both
-                 * alone; a future plan or the simplex itself resolves it. */
+                 * the cost-0 families stop here. The implied free column
+                 * singleton below takes it, and a free column is the
+                 * trivial case of implied free — both its own bounds are
+                 * infinite, so no implied bound can fail to lie inside
+                 * them. */
+            }
+
+            /* --- Implied free column singleton (D105). ---------------- */
+            /*
+             * Column j has one matrix entry, a_ij, in an equality row i.
+             * Once the row's other terms are accounted for, the row already
+             * confines x_j to a box. When that box lies strictly inside the
+             * column's own box, the column's own bounds can never bind, so
+             * the column can be substituted out exactly:
+             *
+             *     x_j = ( b_i - sum_{k != j} a_ik x_k ) / a_ij
+             *
+             * and the row goes with it. Nothing is narrowed and nothing is
+             * published: the implied box is read as a predicate and then
+             * discarded, which is what separates this from the bound
+             * tightening D97 refused. D97's dual-postsolve obstacle does not
+             * arise either, because the eliminated column is free.
+             *
+             * Four restrictions, each with its own reason:
+             *
+             *   - The column's ORIGINAL degree is 1, not just its live one.
+             *     x_j is interior, so d_j = 0 is forced, and d_j is
+             *     c_j - sum over EVERY original row this column touches. One
+             *     entry makes y_i = c_j / a_ij the whole of that equation
+             *     rather than one term of it.
+             *   - The row is an equality. An inequality would leave x_j
+             *     undetermined by its own row, and would put a sign
+             *     condition on y_i that c_j / a_ij has no reason to satisfy.
+             *   - The row is not frozen. A frozen row's bounds stand for a
+             *     range a removed column may still need, not a determined
+             *     value, so there is no b_i to substitute with.
+             *   - The margin, above.
+             *
+             * The objective is where this differs from every family before
+             * it: eliminating j pushes its cost onto the row's other
+             * columns, c_k -= (c_j / a_ij) * a_ik, which is why cur_cost
+             * exists. No matrix fill — the other columns only LOSE their
+             * entry in row i — and that is what makes the singleton case
+             * cheap where doubleton substitution is not.
+             *
+             * No sigma. The substitution is an algebraic identity and the
+             * test is about bounds; both are the same in either sense, and
+             * an equality row's multiplier has no sign to canonicalise.
+             *
+             * col_pending_dual is deliberately NOT set on the columns this
+             * leaves behind, and that is the one place a reader should stop.
+             * The flag exists because a row removed earlier in forward time
+             * replays LATER, so its multiplier still reads zero when a
+             * column's reduced cost is derived. Here the two errors cancel
+             * exactly: a column k removed after this one carries the cost
+             * c_k - (c_j / a_ij) * a_ik in its record, and reads
+             * sol_dual[i] == 0 at replay, so
+             * rec->cost - sum_l a_lk y_l lands on the true d_k. The
+             * cancellation is bit-exact because the replay divides the same
+             * two numbers this loop does. */
+            if (col_deg[j] == 1 &&
+                m->a_start[j + 1] - m->a_start[j] == 1) {
+                const int64_t i = m->a_index[m->a_start[j]];
+                const double a = m->a_value[m->a_start[j]];
+
+                if (a != 0.0 && !row_dead[i] && !row_frozen[i] &&
+                    isfinite(cur_rl[i]) && cur_rl[i] == cur_ru[i]) {
+                    const double b = cur_rl[i];
+                    const ps_range rg =
+                        ps_row_range(&rw, i, cur_cl, cur_cu, col_dead, j);
+                    jm_work_add(w, row_deg[i] * JM_WORK_NONZERO);
+
+                    const double minact = ps_min_act(&rg);
+                    const double maxact = ps_max_act(&rg);
+                    /* a_ij * x_j lies in [b - maxact, b - minact]. An
+                     * infinite activity leaves its side open rather than
+                     * producing inf - inf. */
+                    const double loside = isfinite(maxact) ? b - maxact
+                                                           : -HUGE_VAL;
+                    const double upside = isfinite(minact) ? b - minact
+                                                           : HUGE_VAL;
+                    double ilo, iup;
+                    if (a > 0.0) {
+                        ilo = loside / a;
+                        iup = upside / a;
+                    } else {
+                        ilo = upside / a;
+                        iup = loside / a;
+                    }
+
+                    const double margin = ps_implied_free_margin(
+                        ps_bound_scale(b, rg.traffic) / fabs(a));
+                    const bool lo_ok = !isfinite(cur_cl[j]) ||
+                                       ilo >= cur_cl[j] + margin;
+                    const bool up_ok = !isfinite(cur_cu[j]) ||
+                                       iup <= cur_cu[j] - margin;
+
+                    if (lo_ok && up_ok) {
+                        const double yi = cur_cost[j] / a;
+                        if (!ps_push(p, (jm_presolve_rec){
+                                .tag = JM_PS_IMPLIED_FREE_COL,
+                                .index = i, .index2 = j, .coef = a,
+                                .value = b, .cost = cur_cost[j],
+                                .lo = ilo, .hi = iup })) {
+                            ret = JAOS_ERR_OUT_OF_MEMORY;
+                            goto cleanup_scratch;
+                        }
+                        p->reduced.obj_offset += yi * b;
+                        jm_work_add(w, row_deg[i] * JM_WORK_NONZERO);
+                        for (int64_t kk = rw.rs[i]; kk < rw.rs[i + 1]; kk++) {
+                            const int64_t k2 = rw.ridx[kk];
+                            if (k2 == j || col_dead[k2])
+                                continue;
+                            cur_cost[k2] -= yi * rw.rval[kk];
+                            col_deg[k2]--;
+                        }
+                        col_dead[j] = true;
+                        row_dead[i] = true;
+                        p->counts.implied_free_col++;
+                        changed = true;
+                        continue;
+                    }
+                }
             }
         }
 
@@ -1006,7 +1169,7 @@ JAOS_NODISCARD jaos_status jm_presolve_run(const jaos_model *m, jm_presolve *p,
                 continue;
 
             const ps_range rg =
-                ps_row_range(&rw, i, cur_cl, cur_cu, col_dead);
+                ps_row_range(&rw, i, cur_cl, cur_cu, col_dead, -1);
             jm_work_add(w, row_deg[i] * JM_WORK_NONZERO);
 
             const double rtol = ps_row_tol(&rg);
@@ -1224,7 +1387,8 @@ JAOS_NODISCARD jaos_status jm_presolve_run(const jaos_model *m, jm_presolve *p,
         if (row_dead[i] || !row_frozen[i])
             continue;
 
-        const ps_range rg = ps_row_range(&rw, i, cur_cl, cur_cu, col_dead);
+        const ps_range rg = ps_row_range(&rw, i, cur_cl, cur_cu, col_dead,
+                                         -1);
         /* Charged over the entries walked, not the live degree the activity
          * pass charges: there every row has degree 2 or more and the two
          * agree closely, here the rows whose live degree has collapsed are
@@ -1953,6 +2117,59 @@ static void ps_replay_one(jaos_model *orig, const jm_presolve *p, int64_t r)
         break;
     }
 
+    case JM_PS_IMPLIED_FREE_COL: {
+        const int64_t i = ps_restore_index(rec->index, orig->num_row);
+        const int64_t j = rec->index2;
+        assert(i >= 0 && i < orig->num_row);
+        assert(j >= 0 && j < orig->num_col);
+
+        /* orig->sol_row[i] at THIS moment holds exactly the sum this
+         * record needs to subtract, and that is not a coincidence:
+         *
+         *   - a column of row i that survived the reduced solve had its
+         *     share seeded into this slot before the walk started;
+         *   - a column removed AFTER this record was pushed sits at a
+         *     higher arena index, so it replayed already and has added its
+         *     share;
+         *   - a column removed BEFORE this record was pushed replays later
+         *     and has added nothing yet -- which is right, because its
+         *     contribution was subtracted from rec->value when it left.
+         *
+         * So sol_row[i] is the sum over exactly the columns that were live
+         * in row i when this fired, other than j itself, and
+         * x_j = (b_i - that) / a_ij is the row's own equation. The share is
+         * then accumulated rather than assigned, because the columns
+         * removed earlier still have theirs to add. */
+        const double xv = (rec->value - orig->sol_row[i]) / rec->coef;
+
+        /* x_j is strictly inside its own box (that is what the family
+         * checked before firing), so its own bounds cannot bind and its
+         * reduced cost must be exactly zero. d_j = c_j - a_ij * y_i then
+         * gives the row's multiplier in one division. Row i is an equality,
+         * so no sign condition stands in the way of whatever that is.
+         *
+         * rec->cost is the column's cost in the objective the reduced
+         * problem was built from, and rec->coef its coefficient, so this
+         * division reproduces the forward pass's own bit for bit -- which
+         * is what makes the other columns' reduced costs come out right
+         * without this row ever being visited by them. */
+        const double yi = rec->cost / rec->coef;
+
+        orig->sol_col[j] = ps_published(xv);
+        orig->sol_redcost[j] = 0.0;
+        orig->sol_dual[i] = ps_published(yi);
+        orig->sol_row[i] = ps_published(orig->sol_row[i] + rec->coef * xv);
+        /* The row-count promise, the same argument JM_PS_FREE_COL_SINGLETON
+         * makes: this record restores one row and one column, so exactly
+         * one of the two is basic. x_j is the one that is -- it sits
+         * strictly inside its own box, and jaos.h has no status for that
+         * other than BASIC. Row i is an equality, so both its bounds are
+         * the same number and AT_LOWER names it correctly. */
+        orig->sol_col_status[j] = JAOS_BASIS_BASIC;
+        orig->sol_row_status[i] = JAOS_BASIS_AT_LOWER;
+        break;
+    }
+
     case JM_PS_REDUNDANT_ROW: {
         const int64_t i = ps_restore_index(rec->index, orig->num_row);
         assert(i >= 0 && i < orig->num_row);
@@ -2147,6 +2364,11 @@ JAOS_NODISCARD jaos_status jm_postsolve_expand(jm_presolve *p)
             const jm_presolve_rec *rec = &p->arena[r];
             if (rec->tag == JM_PS_FREE_COL_SINGLETON) {
                 orig->sol_col_status[rec->index2] = JAOS_BASIS_FREE;
+            } else if (rec->tag == JM_PS_IMPLIED_FREE_COL) {
+                /* The same pair the optimal path publishes for this tag,
+                 * for the same row-count reason. */
+                orig->sol_col_status[rec->index2] = JAOS_BASIS_BASIC;
+                orig->sol_row_status[rec->index] = JAOS_BASIS_AT_LOWER;
             } else if (rec->tag == JM_PS_SINGLETON_ROW) {
                 orig->sol_row_status[rec->index] =
                     rec->row_tightens_hi ? JAOS_BASIS_AT_UPPER :
