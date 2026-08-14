@@ -49,6 +49,38 @@ netlib baseline predates presolve, so `grow22`, `grow7` and `bgindy` appear
 as work regressions there. Those are 02-03's, unchanged by this work and
 already recorded in `02-04/`. No baseline is rewritten while the gate is red.
 
+## `vectors/` — what the record cannot hold
+
+The record carries a digest of `x` and `y`, so it can say a solution moved
+and never which half or by how much. These are the two vectors dumped from
+both libraries, `-old` at `28ab979` and `-new` at the fix, for the nine
+instances D99 and `TODO.md` #1 make a numeric claim about. `checkfull.c` is
+the driver that also prints the checker's terms to 17 digits, which is where
+`max_dual_violation` being bit-identical on all five remaining rejections
+comes from.
+
+They answer three questions the digest raised and could not settle:
+
+- `25fv47-old.y` against `25fv47-new.y`: entry 338 goes from
+  0.5927293667749798 to exactly 0. The multiplier moved while the violation
+  figure did not, which is why `TODO.md` #1 refuses to read an unchanged
+  maximum as an unchanged vector.
+- `nesm`, `pilot4`, `standata`, `standmps`: `y` bit-identical in all four,
+  and `x` moving 1, 8, 6 and 8 entries. `nesm`'s single entry moves 4.26e-14,
+  so it is the same point with a digest turned over by rounding; the other
+  three move by up to 3.75, 10 and 10 and are genuinely different feasible
+  points.
+- `bnl1`, `bnl2`, `e226`: both vectors identical entry for entry, which is
+  the strong form of "this change does not touch them".
+
+## `valgrind/no-memset.log` — the uninitialised basis status
+
+Taken with the fix applied and only the two `memset` calls in
+`jm_postsolve_solved` removed, which is the tree that reproduces it. Removing
+the whole fix instead does not: the test then fails on its value assertion
+first and Unity longjmps out before `jaos_basis` is reached. That tree is not
+committed — delete the two memsets and rebuild to get it back.
+
 ## `no-presolve/` — what the five remaining rejections are
 
 `five-rejected-nopresolve.txt` is `25fv47 bnl1 bnl2 e226 vtp-base` built with

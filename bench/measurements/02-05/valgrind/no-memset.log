@@ -1,0 +1,72 @@
+==396== Memcheck, a memory error detector
+==396== Copyright (C) 2002-2022, and GNU GPL'd, by Julian Seward et al.
+==396== Using Valgrind-3.22.0 and LibVEX; rerun with -h for copyright info
+==396== Command: ./build/dev/test_presolve
+==396== 
+==396== Conditional jump or move depends on uninitialised value(s)
+==396==    at 0x127F58: UnityAssertEqualIntNumber (unity.c:797)
+==396==    by 0x10EE34: test_singleton_col_between_two_removals_solved_path (test_presolve.c:1108)
+==396==    by 0x12A3DA: UnityDefaultTestRun (unity.c:2502)
+==396==    by 0x110B72: main (test_presolve.c:2091)
+==396==  Uninitialised value was created by a heap allocation
+==396==    at 0x4846828: malloc (in /usr/libexec/valgrind/vgpreload_memcheck-amd64-linux.so)
+==396==    by 0x110D63: jm_alloc_array (alloc.c:20)
+==396==    by 0x126008: jm_model_ensure_solution_arrays (simplex.c:3599)
+==396==    by 0x11F84C: jm_postsolve_solved (presolve.c:1931)
+==396==    by 0x1268C7: jm_dual_simplex (simplex.c:3871)
+==396==    by 0x117134: jaos_solve (model.c:389)
+==396==    by 0x10EC3E: test_singleton_col_between_two_removals_solved_path (test_presolve.c:1076)
+==396==    by 0x12A3DA: UnityDefaultTestRun (unity.c:2502)
+==396==    by 0x110B72: main (test_presolve.c:2091)
+==396== 
+tests/test_presolve.c:2071:test_fixed_column_round_trip:PASS
+tests/test_presolve.c:2072:test_postsolved_basis_has_exactly_num_row_basic_entries:PASS
+tests/test_presolve.c:2073:test_fixed_col_counter_is_exact:PASS
+tests/test_presolve.c:2074:test_all_columns_fixed_solves_with_no_iterations:PASS
+tests/test_presolve.c:2075:test_original_arrays_survive_a_reducing_solve:PASS
+tests/test_presolve.c:312:test_fixed_column_index_map_off_by_one:IGNORE: negative test \xE2\x80\x94 runs only under EXTRA_CFLAGS=-DJAOS_PRESOLVE_FAULT_OFFBYONE
+tests/test_presolve.c:2077:test_original_index_invariant_across_all_six_arrays:PASS
+tests/test_presolve.c:2078:test_presolve_bills_the_work_counter:PASS
+tests/test_presolve.c:2079:test_presolve_work_is_deterministic_across_re_solves:PASS
+tests/test_presolve.c:2081:test_empty_row_round_trip:PASS
+tests/test_presolve.c:617:test_empty_row_index_off_by_one:IGNORE: negative test \xE2\x80\x94 runs only under EXTRA_CFLAGS=-DJAOS_PRESOLVE_FAULT_OFFBYONE
+tests/test_presolve.c:2083:test_empty_col_round_trip:PASS
+tests/test_presolve.c:712:test_empty_col_index_off_by_one:IGNORE: negative test \xE2\x80\x94 runs only under EXTRA_CFLAGS=-DJAOS_PRESOLVE_FAULT_OFFBYONE
+tests/test_presolve.c:2085:test_empty_col_reports_unbounded:PASS
+tests/test_presolve.c:2086:test_singleton_row_round_trip:PASS
+tests/test_presolve.c:846:test_singleton_row_wrong_dual:IGNORE: negative test \xE2\x80\x94 runs only under EXTRA_CFLAGS=-DJAOS_PRESOLVE_FAULT_WRONGDUAL
+tests/test_presolve.c:2088:test_singleton_col_round_trip:PASS
+tests/test_presolve.c:945:test_singleton_col_index_off_by_one:IGNORE: negative test \xE2\x80\x94 runs only under EXTRA_CFLAGS=-DJAOS_PRESOLVE_FAULT_OFFBYONE
+tests/test_presolve.c:2090:test_singleton_col_after_fixed_col:PASS
+tests/test_presolve.c:2091:test_singleton_col_between_two_removals_solved_path:PASS
+tests/test_presolve.c:2092:test_two_singleton_cols_on_one_row:PASS
+tests/test_presolve.c:2093:test_free_col_singleton_round_trip:PASS
+tests/test_presolve.c:1286:test_free_col_singleton_index_off_by_one:IGNORE: negative test \xE2\x80\x94 runs only under EXTRA_CFLAGS=-DJAOS_PRESOLVE_FAULT_OFFBYONE
+tests/test_presolve.c:2096:test_empty_row_reports_infeasible:PASS
+tests/test_presolve.c:2097:test_zero_row_model_solves:PASS
+tests/test_presolve.c:2098:test_zero_col_model_solves:PASS
+tests/test_presolve.c:2099:test_all_five_counters_move_independently:PASS
+tests/test_presolve.c:2101:test_forcing_row_round_trip:PASS
+tests/test_presolve.c:1596:test_forcing_row_index_off_by_one:IGNORE: negative test \xE2\x80\x94 runs only under EXTRA_CFLAGS=-DJAOS_PRESOLVE_FAULT_OFFBYONE
+tests/test_presolve.c:2103:test_redundant_row_round_trip:PASS
+tests/test_presolve.c:1708:test_redundant_row_index_off_by_one:IGNORE: negative test \xE2\x80\x94 runs only under EXTRA_CFLAGS=-DJAOS_PRESOLVE_FAULT_OFFBYONE
+tests/test_presolve.c:2105:test_a_fold_onto_the_opposite_bound_fixes_the_column:PASS
+tests/test_presolve.c:2106:test_a_fold_one_step_past_the_opposite_bound_is_infeasible:PASS
+tests/test_presolve.c:2107:test_a_fold_inside_the_epsilon_does_not_flip_the_verdict:PASS
+tests/test_presolve.c:2108:test_an_optimum_on_the_tightening_boundary_survives:PASS
+tests/test_presolve.c:2109:test_activity_range_counters_are_exact:PASS
+tests/test_presolve.c:2110:test_the_round_cap_is_the_one_its_sweep_set:PASS
+tests/test_presolve.c:2111:test_the_tightening_epsilon_is_the_one_its_sweep_set:PASS
+
+-----------------------
+38 Tests 0 Failures 8 Ignored 
+OK
+==396== 
+==396== HEAP SUMMARY:
+==396==     in use at exit: 0 bytes in 0 blocks
+==396==   total heap usage: 2,893 allocs, 2,893 frees, 136,944 bytes allocated
+==396== 
+==396== For a detailed leak analysis, rerun with: --leak-check=full
+==396== 
+==396== For lists of detected and suppressed errors, rerun with: -s
+==396== ERROR SUMMARY: 1 errors from 1 contexts (suppressed: 0 from 0)
