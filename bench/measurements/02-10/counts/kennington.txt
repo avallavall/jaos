@@ -1,0 +1,176 @@
+bench/instances-kennington/cre-a.mps rows=3516   cols=4067  
+  equality rows      335  (9.5% of rows)
+    of degree 2      59   <- doubleton equations
+    of degree 3      39
+    of degree 4+     146
+  rows of degree 2   1430  (any sense)
+  columns free       0
+  columns half-bound 4067
+  columns boxed      0
+  columns fixed      0
+
+bench/instances-kennington/cre-b.mps rows=9648   cols=72447 
+  equality rows      4958  (51.4% of rows)
+    of degree 2      94   <- doubleton equations
+    of degree 3      58
+    of degree 4+     2394
+  rows of degree 2   106  (any sense)
+  columns free       0
+  columns half-bound 72447
+  columns boxed      0
+  columns fixed      0
+
+bench/instances-kennington/cre-c.mps rows=3068   cols=3678  
+  equality rows      335  (10.9% of rows)
+    of degree 2      46   <- doubleton equations
+    of degree 3      34
+    of degree 4+     162
+  rows of degree 2   1182  (any sense)
+  columns free       0
+  columns half-bound 3678
+  columns boxed      0
+  columns fixed      0
+
+bench/instances-kennington/cre-d.mps rows=8926   cols=69980 
+  equality rows      4958  (55.5% of rows)
+    of degree 2      76   <- doubleton equations
+    of degree 3      54
+    of degree 4+     2358
+  rows of degree 2   88  (any sense)
+  columns free       0
+  columns half-bound 69980
+  columns boxed      0
+  columns fixed      0
+
+bench/instances-kennington/ken-07.mps rows=2426   cols=3602  
+  equality rows      2426  (100.0% of rows)
+    of degree 2      735   <- doubleton equations
+    of degree 3      196
+    of degree 4+     760
+  rows of degree 2   735  (any sense)
+  columns free       0
+  columns half-bound 0
+  columns boxed      3602
+  columns fixed      0
+
+bench/instances-kennington/ken-11.mps rows=14694  cols=21349 
+  equality rows      14694  (100.0% of rows)
+    of degree 2      5082   <- doubleton equations
+    of degree 3      1331
+    of degree 4+     5135
+  rows of degree 2   5082  (any sense)
+  columns free       0
+  columns half-bound 0
+  columns boxed      21349
+  columns fixed      0
+
+bench/instances-kennington/ken-13.mps rows=28632  cols=42659 
+  equality rows      28632  (100.0% of rows)
+    of degree 2      11661   <- doubleton equations
+    of degree 3      1521
+    of degree 4+     10211
+  rows of degree 2   11661  (any sense)
+  columns free       0
+  columns half-bound 0
+  columns boxed      42659
+  columns fixed      0
+
+bench/instances-kennington/ken-18.mps rows=105127 cols=154699
+  equality rows      105127  (100.0% of rows)
+    of degree 2      48276   <- doubleton equations
+    of degree 3      5508
+    of degree 4+     37087
+  rows of degree 2   48276  (any sense)
+  columns free       0
+  columns half-bound 0
+  columns boxed      154699
+  columns fixed      0
+
+bench/instances-kennington/osa-07.mps rows=1118   cols=23949 
+  equality rows      0  (0.0% of rows)
+    of degree 2      0   <- doubleton equations
+    of degree 3      0
+    of degree 4+     0
+  rows of degree 2   0  (any sense)
+  columns free       0
+  columns half-bound 23949
+  columns boxed      0
+  columns fixed      0
+
+bench/instances-kennington/osa-14.mps rows=2337   cols=52460 
+  equality rows      0  (0.0% of rows)
+    of degree 2      0   <- doubleton equations
+    of degree 3      0
+    of degree 4+     0
+  rows of degree 2   0  (any sense)
+  columns free       0
+  columns half-bound 52460
+  columns boxed      0
+  columns fixed      0
+
+bench/instances-kennington/osa-30.mps rows=4350   cols=100024
+  equality rows      0  (0.0% of rows)
+    of degree 2      0   <- doubleton equations
+    of degree 3      0
+    of degree 4+     0
+  rows of degree 2   0  (any sense)
+  columns free       0
+  columns half-bound 100024
+  columns boxed      0
+  columns fixed      0
+
+bench/instances-kennington/osa-60.mps rows=10280  cols=232966
+  equality rows      0  (0.0% of rows)
+    of degree 2      0   <- doubleton equations
+    of degree 3      0
+    of degree 4+     0
+  rows of degree 2   0  (any sense)
+  columns free       0
+  columns half-bound 232966
+  columns boxed      0
+  columns fixed      0
+
+bench/instances-kennington/pds-02.mps rows=2953   cols=7535  
+  equality rows      2772  (93.9% of rows)
+    of degree 2      572   <- doubleton equations
+    of degree 3      462
+    of degree 4+     1573
+  rows of degree 2   572  (any sense)
+  columns free       0
+  columns half-bound 5401
+  columns boxed      2134
+  columns fixed      0
+
+bench/instances-kennington/pds-06.mps rows=9881   cols=28655 
+  equality rows      9185  (93.0% of rows)
+    of degree 2      1243   <- doubleton equations
+    of degree 3      1617
+    of degree 4+     6061
+  rows of degree 2   1243  (any sense)
+  columns free       0
+  columns half-bound 19415
+  columns boxed      9240
+  columns fixed      0
+
+bench/instances-kennington/pds-10.mps rows=16558  cols=48763 
+  equality rows      15389  (92.9% of rows)
+    of degree 2      1705   <- doubleton equations
+    of degree 3      2838
+    of degree 4+     10527
+  rows of degree 2   1705  (any sense)
+  columns free       0
+  columns half-bound 32615
+  columns boxed      16148
+  columns fixed      0
+
+bench/instances-kennington/pds-20.mps rows=33874  cols=105728
+  equality rows      31427  (92.8% of rows)
+    of degree 2      2910   <- doubleton equations
+    of degree 3      5889
+    of degree 4+     22004
+  rows of degree 2   2910  (any sense)
+  columns free       0
+  columns half-bound 70840
+  columns boxed      34888
+  columns fixed      0
+

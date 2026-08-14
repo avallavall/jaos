@@ -1,0 +1,3 @@
+Presolve reductions: rows 2152(-984); columns 6605(-2803); nonzeros 80194(-64654) 
+Model status        : Optimal
+Objective value     :  1.4971851665e+06

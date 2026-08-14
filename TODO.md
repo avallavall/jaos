@@ -86,10 +86,48 @@ particular round.
   0.739x, HiGHS 0.692x, Clp 0.670x, SoPlex 0.906x — but on `maros-r7` HiGHS
   reads 0.378x and halves its iteration count while JAOS reads 1.065x and
   removes nothing, and `stocfor3` is 0.198x against 0.965x. Those two are the
-  worst instances in the whole comparison. This is a question about which
-  families fire on which models, and `bench/measurements/02-07/`'s counter
-  already reports what the three deferred families would remove; it says 0.15%
-  overall (D101) and has never been read per instance on these two.
+  worst instances in the whole comparison. Measured, in
+  `bench/measurements/02-10/`: on `maros-r7` HiGHS removes 984 rows, 2803
+  columns and **45% of the nonzeros**, where JAOS removes not one of any.
+
+## 1c. Doubleton equalities: a family nobody has counted (opened by D104)
+
+An `==` row with exactly two entries. One variable is substituted out, the row
+goes, and every nonzero the substituted column had goes with it. It is not one
+of the five live families and not one of the three D101 deferred, so no
+measurement in this repository has ever counted it. On the model as loaded:
+
+| set | doubleton equality rows | of all rows | instances carrying one |
+|---|---|---|---|
+| netlib | 6504 | **7.53%** | 67 of 94 |
+| Kennington | 72459 | **28.15%** | 12 of 16 |
+
+`ken-18` alone carries 48276, and it is the slowest instance in that set.
+Against D101's 0.15% for the three deferred families this is fifty to a
+hundred and ninety times larger, which makes it a different proposition rather
+than a fourth deferral.
+
+**Before any code, two measurements.** These counts are an upper bound: they
+are the model as the reader hands it over, and the five live families run
+first. `bench/measurements/02-07/`'s counter is the instrument that measures a
+residue properly, at presolve's exit, and extending it to this family is the
+first step. Second, a substitution changes the matrix rather than only
+removing from it — it can create fill — so what it costs has to be measured
+beside what it removes.
+
+## 1d. What HiGHS finds in `maros-r7` is none of the eight families
+
+Open, and stated as unanswered rather than guessed at. `maros-r7` and `truss`
+are indistinguishable on every structural count taken so far: 100% equality
+rows, all of degree 4 or more, zero doubletons, zero degree-2 rows, zero free
+columns. HiGHS reduces `maros-r7` by 31% of its rows and `truss` by nothing.
+The 02-07 counter reads `remrow=0 remcol=0 dualfix=0` on `maros-r7`, so it is
+not a duplicate row, a duplicate column or a dominated column either.
+
+Whatever it is, JAOS has never scoped it. The next move is `literature-scout`
+on what a published presolve does to a model of that shape — every column
+half-bounded, every row an equality of degree 4 or more — with citations
+checked, rather than another guess measured.
 
 ## 3. After M2 — feature expansion (decided 2026-08-13)
 

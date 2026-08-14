@@ -1,0 +1,1034 @@
+bench/instances/25fv47.mps rows=821    cols=1571  
+  equality rows      516  (62.9% of rows)
+    of degree 2      55   <- doubleton equations
+    of degree 3      45
+    of degree 4+     393
+  rows of degree 2   63  (any sense)
+  columns free       0
+  columns half-bound 1571
+  columns boxed      0
+  columns fixed      0
+
+bench/instances/80bau3b.mps rows=2262   cols=9799  
+  equality rows      0  (0.0% of rows)
+    of degree 2      0   <- doubleton equations
+    of degree 3      0
+    of degree 4+     0
+  rows of degree 2   367  (any sense)
+  columns free       0
+  columns half-bound 6315
+  columns boxed      2986
+  columns fixed      498
+
+bench/instances/adlittle.mps rows=56     cols=97    
+  equality rows      15  (26.8% of rows)
+    of degree 2      0   <- doubleton equations
+    of degree 3      1
+    of degree 4+     13
+  rows of degree 2   7  (any sense)
+  columns free       0
+  columns half-bound 97
+  columns boxed      0
+  columns fixed      0
+
+bench/instances/afiro.mps rows=27     cols=32    
+  equality rows      8  (29.6% of rows)
+    of degree 2      2   <- doubleton equations
+    of degree 3      1
+    of degree 4+     5
+  rows of degree 2   16  (any sense)
+  columns free       0
+  columns half-bound 32
+  columns boxed      0
+  columns fixed      0
+
+bench/instances/agg.mps rows=488    cols=163   
+  equality rows      36  (7.4% of rows)
+    of degree 2      1   <- doubleton equations
+    of degree 3      3
+    of degree 4+     32
+  rows of degree 2   104  (any sense)
+  columns free       0
+  columns half-bound 163
+  columns boxed      0
+  columns fixed      0
+
+bench/instances/agg2.mps rows=516    cols=302   
+  equality rows      60  (11.6% of rows)
+    of degree 2      1   <- doubleton equations
+    of degree 3      4
+    of degree 4+     55
+  rows of degree 2   68  (any sense)
+  columns free       0
+  columns half-bound 302
+  columns boxed      0
+  columns fixed      0
+
+bench/instances/agg3.mps rows=516    cols=302   
+  equality rows      60  (11.6% of rows)
+    of degree 2      1   <- doubleton equations
+    of degree 3      4
+    of degree 4+     55
+  rows of degree 2   68  (any sense)
+  columns free       0
+  columns half-bound 302
+  columns boxed      0
+  columns fixed      0
+
+bench/instances/bandm.mps rows=305    cols=472   
+  equality rows      305  (100.0% of rows)
+    of degree 2      55   <- doubleton equations
+    of degree 3      29
+    of degree 4+     185
+  rows of degree 2   55  (any sense)
+  columns free       0
+  columns half-bound 472
+  columns boxed      0
+  columns fixed      0
+
+bench/instances/beaconfd.mps rows=173    cols=262   
+  equality rows      140  (80.9% of rows)
+    of degree 2      29   <- doubleton equations
+    of degree 3      20
+    of degree 4+     66
+  rows of degree 2   62  (any sense)
+  columns free       0
+  columns half-bound 262
+  columns boxed      0
+  columns fixed      0
+
+bench/instances/blend.mps rows=74     cols=83    
+  equality rows      43  (58.1% of rows)
+    of degree 2      8   <- doubleton equations
+    of degree 3      7
+    of degree 4+     28
+  rows of degree 2   10  (any sense)
+  columns free       0
+  columns half-bound 83
+  columns boxed      0
+  columns fixed      0
+
+bench/instances/bnl1.mps rows=643    cols=1175  
+  equality rows      232  (36.1% of rows)
+    of degree 2      86   <- doubleton equations
+    of degree 3      30
+    of degree 4+     115
+  rows of degree 2   177  (any sense)
+  columns free       0
+  columns half-bound 1175
+  columns boxed      0
+  columns fixed      0
+
+bench/instances/bnl2.mps rows=2324   cols=3489  
+  equality rows      1327  (57.1% of rows)
+    of degree 2      849   <- doubleton equations
+    of degree 3      190
+    of degree 4+     276
+  rows of degree 2   1056  (any sense)
+  columns free       0
+  columns half-bound 3489
+  columns boxed      0
+  columns fixed      0
+
+bench/instances/boeing1.mps rows=351    cols=384   
+  equality rows      9  (2.6% of rows)
+    of degree 2      1   <- doubleton equations
+    of degree 3      1
+    of degree 4+     6
+  rows of degree 2   40  (any sense)
+  columns free       0
+  columns half-bound 228
+  columns boxed      156
+  columns fixed      0
+
+bench/instances/boeing2.mps rows=166    cols=143   
+  equality rows      4  (2.4% of rows)
+    of degree 2      0   <- doubleton equations
+    of degree 3      0
+    of degree 4+     4
+  rows of degree 2   25  (any sense)
+  columns free       0
+  columns half-bound 89
+  columns boxed      54
+  columns fixed      0
+
+bench/instances/bore3d.mps rows=233    cols=315   
+  equality rows      214  (91.8% of rows)
+    of degree 2      56   <- doubleton equations
+    of degree 3      20
+    of degree 4+     107
+  rows of degree 2   63  (any sense)
+  columns free       0
+  columns half-bound 303
+  columns boxed      11
+  columns fixed      1
+
+bench/instances/brandy.mps rows=220    cols=249   
+  equality rows      166  (75.5% of rows)
+    of degree 2      8   <- doubleton equations
+    of degree 3      7
+    of degree 4+     91
+  rows of degree 2   15  (any sense)
+  columns free       0
+  columns half-bound 249
+  columns boxed      0
+  columns fixed      0
+
+bench/instances/capri.mps rows=271    cols=353   
+  equality rows      142  (52.4% of rows)
+    of degree 2      33   <- doubleton equations
+    of degree 3      40
+    of degree 4+     64
+  rows of degree 2   81  (any sense)
+  columns free       14
+  columns half-bound 192
+  columns boxed      131
+  columns fixed      16
+
+bench/instances/cycle.mps rows=1903   cols=2857  
+  equality rows      1389  (73.0% of rows)
+    of degree 2      321   <- doubleton equations
+    of degree 3      192
+    of degree 4+     780
+  rows of degree 2   370  (any sense)
+  columns free       7
+  columns half-bound 2773
+  columns boxed      77
+  columns fixed      0
+
+bench/instances/czprob.mps rows=929    cols=3523  
+  equality rows      890  (95.8% of rows)
+    of degree 2      196   <- doubleton equations
+    of degree 3      145
+    of degree 4+     359
+  rows of degree 2   197  (any sense)
+  columns free       0
+  columns half-bound 3294
+  columns boxed      0
+  columns fixed      229
+
+bench/instances/d2q06c.mps rows=2171   cols=5167  
+  equality rows      1507  (69.4% of rows)
+    of degree 2      100   <- doubleton equations
+    of degree 3      165
+    of degree 4+     1232
+  rows of degree 2   149  (any sense)
+  columns free       0
+  columns half-bound 5167
+  columns boxed      0
+  columns fixed      0
+
+bench/instances/d6cube.mps rows=415    cols=6184  
+  equality rows      415  (100.0% of rows)
+    of degree 2      0   <- doubleton equations
+    of degree 3      0
+    of degree 4+     403
+  rows of degree 2   0  (any sense)
+  columns free       0
+  columns half-bound 6184
+  columns boxed      0
+  columns fixed      0
+
+bench/instances/degen2.mps rows=444    cols=534   
+  equality rows      221  (49.8% of rows)
+    of degree 2      61   <- doubleton equations
+    of degree 3      118
+    of degree 4+     42
+  rows of degree 2   67  (any sense)
+  columns free       0
+  columns half-bound 534
+  columns boxed      0
+  columns fixed      0
+
+bench/instances/degen3.mps rows=1503   cols=1818  
+  equality rows      717  (47.7% of rows)
+    of degree 2      91   <- doubleton equations
+    of degree 3      476
+    of degree 4+     150
+  rows of degree 2   91  (any sense)
+  columns free       0
+  columns half-bound 1818
+  columns boxed      0
+  columns fixed      0
+
+bench/instances/dfl001.mps rows=6071   cols=12230 
+  equality rows      6071  (100.0% of rows)
+    of degree 2      15   <- doubleton equations
+    of degree 3      1804
+    of degree 4+     4252
+  rows of degree 2   15  (any sense)
+  columns free       0
+  columns half-bound 12217
+  columns boxed      13
+  columns fixed      0
+
+bench/instances/e226.mps rows=223    cols=282   
+  equality rows      33  (14.8% of rows)
+    of degree 2      2   <- doubleton equations
+    of degree 3      6
+    of degree 4+     22
+  rows of degree 2   32  (any sense)
+  columns free       0
+  columns half-bound 282
+  columns boxed      0
+  columns fixed      0
+
+bench/instances/etamacro.mps rows=400    cols=688   
+  equality rows      272  (68.0% of rows)
+    of degree 2      16   <- doubleton equations
+    of degree 3      66
+    of degree 4+     190
+  rows of degree 2   16  (any sense)
+  columns free       0
+  columns half-bound 471
+  columns boxed      135
+  columns fixed      82
+
+bench/instances/fffff800.mps rows=524    cols=854   
+  equality rows      350  (66.8% of rows)
+    of degree 2      23   <- doubleton equations
+    of degree 3      75
+    of degree 4+     229
+  rows of degree 2   40  (any sense)
+  columns free       0
+  columns half-bound 854
+  columns boxed      0
+  columns fixed      0
+
+bench/instances/finnis.mps rows=497    cols=614   
+  equality rows      47  (9.5% of rows)
+    of degree 2      20   <- doubleton equations
+    of degree 3      14
+    of degree 4+     13
+  rows of degree 2   200  (any sense)
+  columns free       0
+  columns half-bound 533
+  columns boxed      36
+  columns fixed      45
+
+bench/instances/fit1d.mps rows=24     cols=1026  
+  equality rows      1  (4.2% of rows)
+    of degree 2      0   <- doubleton equations
+    of degree 3      0
+    of degree 4+     1
+  rows of degree 2   0  (any sense)
+  columns free       0
+  columns half-bound 0
+  columns boxed      1026
+  columns fixed      0
+
+bench/instances/fit1p.mps rows=627    cols=1677  
+  equality rows      627  (100.0% of rows)
+    of degree 2      0   <- doubleton equations
+    of degree 3      0
+    of degree 4+     627
+  rows of degree 2   0  (any sense)
+  columns free       0
+  columns half-bound 1278
+  columns boxed      399
+  columns fixed      0
+
+bench/instances/fit2d.mps rows=25     cols=10500 
+  equality rows      1  (4.0% of rows)
+    of degree 2      0   <- doubleton equations
+    of degree 3      0
+    of degree 4+     1
+  rows of degree 2   0  (any sense)
+  columns free       0
+  columns half-bound 0
+  columns boxed      10500
+  columns fixed      0
+
+bench/instances/fit2p.mps rows=3000   cols=13525 
+  equality rows      3000  (100.0% of rows)
+    of degree 2      0   <- doubleton equations
+    of degree 3      0
+    of degree 4+     3000
+  rows of degree 2   0  (any sense)
+  columns free       0
+  columns half-bound 6025
+  columns boxed      7500
+  columns fixed      0
+
+bench/instances/forplan.mps rows=161    cols=421   
+  equality rows      90  (55.9% of rows)
+    of degree 2      0   <- doubleton equations
+    of degree 3      3
+    of degree 4+     87
+  rows of degree 2   21  (any sense)
+  columns free       0
+  columns half-bound 397
+  columns boxed      21
+  columns fixed      3
+
+bench/instances/ganges.mps rows=1309   cols=1681  
+  equality rows      1284  (98.1% of rows)
+    of degree 2      192   <- doubleton equations
+    of degree 3      492
+    of degree 4+     428
+  rows of degree 2   192  (any sense)
+  columns free       0
+  columns half-bound 1284
+  columns boxed      397
+  columns fixed      0
+
+bench/instances/gfrd-pnc.mps rows=616    cols=1092  
+  equality rows      548  (89.0% of rows)
+    of degree 2      136   <- doubleton equations
+    of degree 3      64
+    of degree 4+     332
+  rows of degree 2   180  (any sense)
+  columns free       0
+  columns half-bound 834
+  columns boxed      258
+  columns fixed      0
+
+bench/instances/greenbea.mps rows=2392   cols=5405  
+  equality rows      2199  (91.9% of rows)
+    of degree 2      371   <- doubleton equations
+    of degree 3      598
+    of degree 4+     1156
+  rows of degree 2   371  (any sense)
+  columns free       0
+  columns half-bound 5012
+  columns boxed      290
+  columns fixed      103
+
+bench/instances/greenbeb.mps rows=2392   cols=5405  
+  equality rows      2199  (91.9% of rows)
+    of degree 2      371   <- doubleton equations
+    of degree 3      598
+    of degree 4+     1156
+  rows of degree 2   371  (any sense)
+  columns free       4
+  columns half-bound 4995
+  columns boxed      291
+  columns fixed      115
+
+bench/instances/grow15.mps rows=300    cols=645   
+  equality rows      300  (100.0% of rows)
+    of degree 2      0   <- doubleton equations
+    of degree 3      0
+    of degree 4+     300
+  rows of degree 2   0  (any sense)
+  columns free       0
+  columns half-bound 45
+  columns boxed      600
+  columns fixed      0
+
+bench/instances/grow22.mps rows=440    cols=946   
+  equality rows      440  (100.0% of rows)
+    of degree 2      0   <- doubleton equations
+    of degree 3      0
+    of degree 4+     440
+  rows of degree 2   0  (any sense)
+  columns free       0
+  columns half-bound 66
+  columns boxed      880
+  columns fixed      0
+
+bench/instances/grow7.mps rows=140    cols=301   
+  equality rows      140  (100.0% of rows)
+    of degree 2      0   <- doubleton equations
+    of degree 3      0
+    of degree 4+     140
+  rows of degree 2   0  (any sense)
+  columns free       0
+  columns half-bound 21
+  columns boxed      280
+  columns fixed      0
+
+bench/instances/israel.mps rows=174    cols=142   
+  equality rows      0  (0.0% of rows)
+    of degree 2      0   <- doubleton equations
+    of degree 3      0
+    of degree 4+     0
+  rows of degree 2   9  (any sense)
+  columns free       0
+  columns half-bound 142
+  columns boxed      0
+  columns fixed      0
+
+bench/instances/kb2.mps rows=43     cols=41    
+  equality rows      16  (37.2% of rows)
+    of degree 2      4   <- doubleton equations
+    of degree 3      0
+    of degree 4+     12
+  rows of degree 2   6  (any sense)
+  columns free       0
+  columns half-bound 32
+  columns boxed      9
+  columns fixed      0
+
+bench/instances/lotfi.mps rows=153    cols=308   
+  equality rows      95  (62.1% of rows)
+    of degree 2      12   <- doubleton equations
+    of degree 3      5
+    of degree 4+     76
+  rows of degree 2   55  (any sense)
+  columns free       0
+  columns half-bound 308
+  columns boxed      0
+  columns fixed      0
+
+bench/instances/maros-r7.mps rows=3136   cols=9408  
+  equality rows      3136  (100.0% of rows)
+    of degree 2      0   <- doubleton equations
+    of degree 3      0
+    of degree 4+     3136
+  rows of degree 2   0  (any sense)
+  columns free       0
+  columns half-bound 9408
+  columns boxed      0
+  columns fixed      0
+
+bench/instances/maros.mps rows=846    cols=1443  
+  equality rows      323  (38.2% of rows)
+    of degree 2      82   <- doubleton equations
+    of degree 3      55
+    of degree 4+     185
+  rows of degree 2   154  (any sense)
+  columns free       0
+  columns half-bound 1408
+  columns boxed      0
+  columns fixed      35
+
+bench/instances/modszk1.mps rows=687    cols=1620  
+  equality rows      687  (100.0% of rows)
+    of degree 2      34   <- doubleton equations
+    of degree 3      45
+    of degree 4+     606
+  rows of degree 2   34  (any sense)
+  columns free       2
+  columns half-bound 1618
+  columns boxed      0
+  columns fixed      0
+
+bench/instances/nesm.mps rows=662    cols=2923  
+  equality rows      480  (72.5% of rows)
+    of degree 2      0   <- doubleton equations
+    of degree 3      8
+    of degree 4+     472
+  rows of degree 2   102  (any sense)
+  columns free       0
+  columns half-bound 1240
+  columns boxed      1508
+  columns fixed      175
+
+bench/instances/perold.mps rows=625    cols=1376  
+  equality rows      495  (79.2% of rows)
+    of degree 2      34   <- doubleton equations
+    of degree 3      34
+    of degree 4+     425
+  rows of degree 2   57  (any sense)
+  columns free       88
+  columns half-bound 958
+  columns boxed      266
+  columns fixed      64
+
+bench/instances/pilot-ja.mps rows=940    cols=1988  
+  equality rows      661  (70.3% of rows)
+    of degree 2      53   <- doubleton equations
+    of degree 3      60
+    of degree 4+     546
+  rows of degree 2   113  (any sense)
+  columns free       88
+  columns half-bound 1250
+  columns boxed      339
+  columns fixed      311
+
+bench/instances/pilot-we.mps rows=722    cols=2789  
+  equality rows      583  (80.7% of rows)
+    of degree 2      46   <- doubleton equations
+    of degree 3      31
+    of degree 4+     506
+  rows of degree 2   76  (any sense)
+  columns free       80
+  columns half-bound 2337
+  columns boxed      294
+  columns fixed      78
+
+bench/instances/pilot.mps rows=1441   cols=3652  
+  equality rows      233  (16.2% of rows)
+    of degree 2      5   <- doubleton equations
+    of degree 3      30
+    of degree 4+     197
+  rows of degree 2   101  (any sense)
+  columns free       0
+  columns half-bound 2409
+  columns boxed      1040
+  columns fixed      203
+
+bench/instances/pilot4.mps rows=410    cols=1000  
+  equality rows      287  (70.0% of rows)
+    of degree 2      12   <- doubleton equations
+    of degree 3      34
+    of degree 4+     233
+  rows of degree 2   44  (any sense)
+  columns free       88
+  columns half-bound 635
+  columns boxed      247
+  columns fixed      30
+
+bench/instances/pilot87.mps rows=2030   cols=4883  
+  equality rows      233  (11.5% of rows)
+    of degree 2      5   <- doubleton equations
+    of degree 3      20
+    of degree 4+     207
+  rows of degree 2   151  (any sense)
+  columns free       0
+  columns half-bound 3085
+  columns boxed      1578
+  columns fixed      220
+
+bench/instances/pilotnov.mps rows=975    cols=2172  
+  equality rows      701  (71.9% of rows)
+    of degree 2      44   <- doubleton equations
+    of degree 3      61
+    of degree 4+     594
+  rows of degree 2   106  (any sense)
+  columns free       0
+  columns half-bound 1628
+  columns boxed      340
+  columns fixed      204
+
+bench/instances/recipe.mps rows=91     cols=180   
+  equality rows      67  (73.6% of rows)
+    of degree 2      1   <- doubleton equations
+    of degree 3      11
+    of degree 4+     55
+  rows of degree 2   1  (any sense)
+  columns free       0
+  columns half-bound 85
+  columns boxed      69
+  columns fixed      26
+
+bench/instances/sc105.mps rows=105    cols=103   
+  equality rows      45  (42.9% of rows)
+    of degree 2      13   <- doubleton equations
+    of degree 3      32
+    of degree 4+     0
+  rows of degree 2   50  (any sense)
+  columns free       0
+  columns half-bound 103
+  columns boxed      0
+  columns fixed      0
+
+bench/instances/sc205.mps rows=205    cols=203   
+  equality rows      91  (44.4% of rows)
+    of degree 2      22   <- doubleton equations
+    of degree 3      68
+    of degree 4+     0
+  rows of degree 2   95  (any sense)
+  columns free       0
+  columns half-bound 203
+  columns boxed      0
+  columns fixed      0
+
+bench/instances/sc50a.mps rows=50     cols=48    
+  equality rows      20  (40.0% of rows)
+    of degree 2      8   <- doubleton equations
+    of degree 3      12
+    of degree 4+     0
+  rows of degree 2   25  (any sense)
+  columns free       0
+  columns half-bound 48
+  columns boxed      0
+  columns fixed      0
+
+bench/instances/sc50b.mps rows=50     cols=48    
+  equality rows      20  (40.0% of rows)
+    of degree 2      8   <- doubleton equations
+    of degree 3      12
+    of degree 4+     0
+  rows of degree 2   30  (any sense)
+  columns free       0
+  columns half-bound 48
+  columns boxed      0
+  columns fixed      0
+
+bench/instances/scagr25.mps rows=471    cols=500   
+  equality rows      300  (63.7% of rows)
+    of degree 2      78   <- doubleton equations
+    of degree 3      97
+    of degree 4+     124
+  rows of degree 2   127  (any sense)
+  columns free       0
+  columns half-bound 500
+  columns boxed      0
+  columns fixed      0
+
+bench/instances/scagr7.mps rows=129    cols=140   
+  equality rows      84  (65.1% of rows)
+    of degree 2      24   <- doubleton equations
+    of degree 3      25
+    of degree 4+     34
+  rows of degree 2   37  (any sense)
+  columns free       0
+  columns half-bound 140
+  columns boxed      0
+  columns fixed      0
+
+bench/instances/scfxm1.mps rows=330    cols=457   
+  equality rows      187  (56.7% of rows)
+    of degree 2      11   <- doubleton equations
+    of degree 3      24
+    of degree 4+     144
+  rows of degree 2   27  (any sense)
+  columns free       0
+  columns half-bound 457
+  columns boxed      0
+  columns fixed      0
+
+bench/instances/scfxm2.mps rows=660    cols=914   
+  equality rows      374  (56.7% of rows)
+    of degree 2      22   <- doubleton equations
+    of degree 3      48
+    of degree 4+     288
+  rows of degree 2   54  (any sense)
+  columns free       0
+  columns half-bound 914
+  columns boxed      0
+  columns fixed      0
+
+bench/instances/scfxm3.mps rows=990    cols=1371  
+  equality rows      561  (56.7% of rows)
+    of degree 2      33   <- doubleton equations
+    of degree 3      72
+    of degree 4+     432
+  rows of degree 2   81  (any sense)
+  columns free       0
+  columns half-bound 1371
+  columns boxed      0
+  columns fixed      0
+
+bench/instances/scorpion.mps rows=388    cols=358   
+  equality rows      280  (72.2% of rows)
+    of degree 2      50   <- doubleton equations
+    of degree 3      13
+    of degree 4+     204
+  rows of degree 2   54  (any sense)
+  columns free       0
+  columns half-bound 358
+  columns boxed      0
+  columns fixed      0
+
+bench/instances/scrs8.mps rows=490    cols=1169  
+  equality rows      384  (78.4% of rows)
+    of degree 2      36   <- doubleton equations
+    of degree 3      271
+    of degree 4+     72
+  rows of degree 2   52  (any sense)
+  columns free       0
+  columns half-bound 1169
+  columns boxed      0
+  columns fixed      0
+
+bench/instances/scsd1.mps rows=77     cols=760   
+  equality rows      77  (100.0% of rows)
+    of degree 2      0   <- doubleton equations
+    of degree 3      0
+    of degree 4+     77
+  rows of degree 2   0  (any sense)
+  columns free       0
+  columns half-bound 760
+  columns boxed      0
+  columns fixed      0
+
+bench/instances/scsd6.mps rows=147    cols=1350  
+  equality rows      147  (100.0% of rows)
+    of degree 2      0   <- doubleton equations
+    of degree 3      0
+    of degree 4+     147
+  rows of degree 2   0  (any sense)
+  columns free       0
+  columns half-bound 1350
+  columns boxed      0
+  columns fixed      0
+
+bench/instances/scsd8.mps rows=397    cols=2750  
+  equality rows      397  (100.0% of rows)
+    of degree 2      0   <- doubleton equations
+    of degree 3      0
+    of degree 4+     397
+  rows of degree 2   0  (any sense)
+  columns free       0
+  columns half-bound 2750
+  columns boxed      0
+  columns fixed      0
+
+bench/instances/sctap1.mps rows=300    cols=480   
+  equality rows      120  (40.0% of rows)
+    of degree 2      0   <- doubleton equations
+    of degree 3      120
+    of degree 4+     0
+  rows of degree 2   0  (any sense)
+  columns free       0
+  columns half-bound 480
+  columns boxed      0
+  columns fixed      0
+
+bench/instances/sctap2.mps rows=1090   cols=1880  
+  equality rows      470  (43.1% of rows)
+    of degree 2      0   <- doubleton equations
+    of degree 3      470
+    of degree 4+     0
+  rows of degree 2   0  (any sense)
+  columns free       0
+  columns half-bound 1880
+  columns boxed      0
+  columns fixed      0
+
+bench/instances/sctap3.mps rows=1480   cols=2480  
+  equality rows      620  (41.9% of rows)
+    of degree 2      0   <- doubleton equations
+    of degree 3      620
+    of degree 4+     0
+  rows of degree 2   0  (any sense)
+  columns free       0
+  columns half-bound 2480
+  columns boxed      0
+  columns fixed      0
+
+bench/instances/seba.mps rows=515    cols=1028  
+  equality rows      507  (98.4% of rows)
+    of degree 2      52   <- doubleton equations
+    of degree 3      68
+    of degree 4+     387
+  rows of degree 2   58  (any sense)
+  columns free       0
+  columns half-bound 521
+  columns boxed      507
+  columns fixed      0
+
+bench/instances/share1b.mps rows=117    cols=225   
+  equality rows      89  (76.1% of rows)
+    of degree 2      12   <- doubleton equations
+    of degree 3      10
+    of degree 4+     62
+  rows of degree 2   14  (any sense)
+  columns free       0
+  columns half-bound 225
+  columns boxed      0
+  columns fixed      0
+
+bench/instances/share2b.mps rows=96     cols=79    
+  equality rows      13  (13.5% of rows)
+    of degree 2      0   <- doubleton equations
+    of degree 3      6
+    of degree 4+     7
+  rows of degree 2   14  (any sense)
+  columns free       0
+  columns half-bound 79
+  columns boxed      0
+  columns fixed      0
+
+bench/instances/shell.mps rows=536    cols=1775  
+  equality rows      534  (99.6% of rows)
+    of degree 2      95   <- doubleton equations
+    of degree 3      139
+    of degree 4+     300
+  rows of degree 2   95  (any sense)
+  columns free       0
+  columns half-bound 1408
+  columns boxed      117
+  columns fixed      250
+
+bench/instances/ship04l.mps rows=402    cols=2118  
+  equality rows      354  (88.1% of rows)
+    of degree 2      8   <- doubleton equations
+    of degree 3      0
+    of degree 4+     300
+  rows of degree 2   16  (any sense)
+  columns free       0
+  columns half-bound 2118
+  columns boxed      0
+  columns fixed      0
+
+bench/instances/ship04s.mps rows=402    cols=1458  
+  equality rows      354  (88.1% of rows)
+    of degree 2      40   <- doubleton equations
+    of degree 3      0
+    of degree 4+     180
+  rows of degree 2   48  (any sense)
+  columns free       0
+  columns half-bound 1458
+  columns boxed      0
+  columns fixed      0
+
+bench/instances/ship08l.mps rows=778    cols=4283  
+  equality rows      698  (89.7% of rows)
+    of degree 2      0   <- doubleton equations
+    of degree 3      0
+    of degree 4+     608
+  rows of degree 2   0  (any sense)
+  columns free       0
+  columns half-bound 4283
+  columns boxed      0
+  columns fixed      0
+
+bench/instances/ship08s.mps rows=778    cols=2387  
+  equality rows      698  (89.7% of rows)
+    of degree 2      64   <- doubleton equations
+    of degree 3      0
+    of degree 4+     272
+  rows of degree 2   64  (any sense)
+  columns free       0
+  columns half-bound 2387
+  columns boxed      0
+  columns fixed      0
+
+bench/instances/ship12l.mps rows=1151   cols=5427  
+  equality rows      1045  (90.8% of rows)
+    of degree 2      0   <- doubleton equations
+    of degree 3      0
+    of degree 4+     732
+  rows of degree 2   0  (any sense)
+  columns free       0
+  columns half-bound 5427
+  columns boxed      0
+  columns fixed      0
+
+bench/instances/ship12s.mps rows=1151   cols=2763  
+  equality rows      1045  (90.8% of rows)
+    of degree 2      96   <- doubleton equations
+    of degree 3      0
+    of degree 4+     264
+  rows of degree 2   96  (any sense)
+  columns free       0
+  columns half-bound 2763
+  columns boxed      0
+  columns fixed      0
+
+bench/instances/sierra.mps rows=1227   cols=2036  
+  equality rows      528  (43.0% of rows)
+    of degree 2      90   <- doubleton equations
+    of degree 3      80
+    of degree 4+     358
+  rows of degree 2   385  (any sense)
+  columns free       0
+  columns half-bound 0
+  columns boxed      2016
+  columns fixed      20
+
+bench/instances/stair.mps rows=356    cols=467   
+  equality rows      209  (58.7% of rows)
+    of degree 2      31   <- doubleton equations
+    of degree 3      118
+    of degree 4+     60
+  rows of degree 2   32  (any sense)
+  columns free       6
+  columns half-bound 373
+  columns boxed      6
+  columns fixed      82
+
+bench/instances/standata.mps rows=359    cols=1075  
+  equality rows      160  (44.6% of rows)
+    of degree 2      12   <- doubleton equations
+    of degree 3      4
+    of degree 4+     144
+  rows of degree 2   160  (any sense)
+  columns free       0
+  columns half-bound 955
+  columns boxed      104
+  columns fixed      16
+
+bench/instances/standmps.mps rows=467    cols=1075  
+  equality rows      268  (57.4% of rows)
+    of degree 2      12   <- doubleton equations
+    of degree 3      4
+    of degree 4+     252
+  rows of degree 2   160  (any sense)
+  columns free       0
+  columns half-bound 955
+  columns boxed      104
+  columns fixed      16
+
+bench/instances/stocfor1.mps rows=117    cols=111   
+  equality rows      63  (53.8% of rows)
+    of degree 2      12   <- doubleton equations
+    of degree 3      24
+    of degree 4+     19
+  rows of degree 2   54  (any sense)
+  columns free       0
+  columns half-bound 111
+  columns boxed      0
+  columns fixed      0
+
+bench/instances/stocfor2.mps rows=2157   cols=2031  
+  equality rows      1143  (53.0% of rows)
+    of degree 2      252   <- doubleton equations
+    of degree 3      504
+    of degree 4+     379
+  rows of degree 2   1014  (any sense)
+  columns free       0
+  columns half-bound 2031
+  columns boxed      0
+  columns fixed      0
+
+bench/instances/stocfor3.mps rows=16675  cols=15695 
+  equality rows      8829  (52.9% of rows)
+    of degree 2      1960   <- doubleton equations
+    of degree 3      3920
+    of degree 4+     2941
+  rows of degree 2   7846  (any sense)
+  columns free       0
+  columns half-bound 15695
+  columns boxed      0
+  columns fixed      0
+
+bench/instances/truss.mps rows=1000   cols=8806  
+  equality rows      1000  (100.0% of rows)
+    of degree 2      0   <- doubleton equations
+    of degree 3      0
+    of degree 4+     1000
+  rows of degree 2   0  (any sense)
+  columns free       0
+  columns half-bound 8806
+  columns boxed      0
+  columns fixed      0
+
+bench/instances/tuff.mps rows=333    cols=587   
+  equality rows      292  (87.7% of rows)
+    of degree 2      27   <- doubleton equations
+    of degree 3      36
+    of degree 4+     196
+  rows of degree 2   48  (any sense)
+  columns free       2
+  columns half-bound 556
+  columns boxed      26
+  columns fixed      3
+
+bench/instances/vtp-base.mps rows=198    cols=203   
+  equality rows      55  (27.8% of rows)
+    of degree 2      0   <- doubleton equations
+    of degree 3      0
+    of degree 4+     53
+  rows of degree 2   98  (any sense)
+  columns free       1
+  columns half-bound 119
+  columns boxed      65
+  columns fixed      18
+
+bench/instances/wood1p.mps rows=244    cols=2594  
+  equality rows      243  (99.6% of rows)
+    of degree 2      0   <- doubleton equations
+    of degree 3      0
+    of degree 4+     243
+  rows of degree 2   0  (any sense)
+  columns free       0
+  columns half-bound 2594
+  columns boxed      0
+  columns fixed      0
+
+bench/instances/woodw.mps rows=1098   cols=8405  
+  equality rows      1085  (98.8% of rows)
+    of degree 2      4   <- doubleton equations
+    of degree 3      0
+    of degree 4+     1081
+  rows of degree 2   4  (any sense)
+  columns free       0
+  columns half-bound 8405
+  columns boxed      0
+  columns fixed      0
+

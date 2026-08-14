@@ -1,0 +1,4 @@
+Presolve reductions: rows 1000(-0); columns 8806(-0); nonzeros 27836(-0) - Not reduced
+Problem not reduced by presolve: solving the LP
+Model status        : Optimal
+Objective value     :  4.5881584719e+05
