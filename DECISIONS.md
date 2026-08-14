@@ -7628,11 +7628,19 @@ residue it is about to judge divided by `DBL_EPSILON * scale` — so the printed
 number is the residue in ulps of that site's own scale, directly comparable
 with the ulp count in the window. Over all three sets:
 
-| site | sites reached | residue > 0 |
+| site | probe lines | residue > 0 |
 |---|---|---|
 | emptied row | 13150 | 0 |
 | fold collapse | 8 | 8 |
 | frozen row | 19082 | 4 |
+
+**"Probe lines", not "sites reached", and the difference is only in the
+middle row.** The emptied-row and frozen-row probes print on every reach; the
+fold probe prints only when the fold actually collapsed, so its 8 is
+collapses. Independent instrumentation counts that site 18388 times on netlib
+and the infeasible set alone. The residue reading is unaffected — the probe
+measures the violating direction by construction — but a column headed "sites
+reached" claimed a coverage the number does not describe.
 
 All twelve positive residues are on `netlib-infeas`, and the smallest is
 3.69e8 ulps. So no feasible model among the 139 puts a residue anywhere in
@@ -7655,6 +7663,22 @@ windows. It establishes that the new windows are set where nothing on these
 139 models is near them. It cannot on its own establish that the old and new
 windows agree, because it never ran under the old ones. Two runs of the three
 sets, one per tree, are what establishes that, and they are what was done.
+
+**And a no-op can be true trivially, which the campaign also cannot rule
+out.** If the changed branches never execute, identical records prove only
+that dead code is dead. The independent re-read settled it by instrumenting a
+copy of `presolve.c` that computes BOTH windows at each site and counts every
+decision where they would disagree. Over about 38,900 decisions on netlib and
+the infeasible set: **zero disagreements**, and the traffic term that can
+widen the window fires **166 times**. So the new formula is exercised and
+still agrees everywhere. That is the statement this entry should have rested
+on from the start. The non-finite-traffic fallback fires zero times, which
+matches the source calling it unreachable today.
+
+Its first attempt at that instrument read all zeros, and that was a broken
+instrument rather than a result: `bench/run.c` forks per instance and the
+children `_exit()`, so nothing that runs at destruction time survives. Worth
+recording here because any future counter hung off the runner meets it.
 
 The same campaign carries what presolve itself is worth, which `TODO.md` had
 open: geometric means of per-instance ratios, presolve on over off, work
