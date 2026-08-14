@@ -241,12 +241,12 @@ constant below is new and each arrives with its own sweep.
 
 | Name | Value | What it decides |
 |---|---|---|
-| `PRESOLVE_TIGHTEN_EPS` | 1e-9 | Whether a residue left by a running difference is a number. Two decisions use it: has a singleton row's fold genuinely emptied a column's interval, or only closed it to within rounding; and does an emptied row's bounds still admit zero after every column removed from it shifted them. In both cases the window is this value times the traffic that produced the residue, never this value alone (D23's argument, in presolve's own space). Swept over the standard set with `make clean` between settings, at 1e-12, 1e-11, 1e-10, 1e-9, 1e-8, 1e-7, 1e-6, 1e-5, 1e-4: solved 94, objective ok 94, checker ok 79 and 7596 rows / 24693 columns removed at every one of them. The canary is what makes that flat line a reading rather than a broken instrument — a model whose fold conflicts with its column's own bound by 1e-8 is refused below 2e-9 and solved above it, and it flips inside the grid. So the plateau is at least nine decades wide with neither edge found, and 1e-9 is taken because it is interior to the grid and is where the canary flips |
+| `PRESOLVE_ROUND_ULPS` | 8 | Whether a residue left by a running difference is a number, at all three sites that ask: has a singleton row's fold genuinely emptied a column's interval; do an emptied row's bounds still admit zero after every column removed from it shifted them; and has a frozen row's activity range left its own bounds. The window is this many `DBL_EPSILON` times the scale that produced the residue, never this value alone (D23's argument, in presolve's own space). The scale is the row's traffic at the first two sites and `ps_bound_scale` at the third, for the reason below. Set from a measurement of the residues themselves rather than from a sweep: instrumenting all three sites over all three sets reads 32240 sites, of which 12 carry a residue above zero, **all twelve on `netlib-infeas`** and none below 3.69e8 ulps. So no feasible model on the 139 puts a residue anywhere in (0, 3.69e8 ulps], the constant may be set anywhere in that interval, and 8 is taken because it is where `ps_row_tol` already is. Swept 1, 2, 4, 8, 16, 64, 256 with `make clean` between settings: solved 94, objective ok 94, checker ok 94 and 7598 rows / 24695 columns removed at every one. The canary flips four times inside the grid and the seven binaries have seven distinct md5s — the second check is the one that matters, because the canary's four conflicts do not separate 2 from 4 or 8 from 16 (D103) |
 | `JM_PRESOLVE_ROUNDS` | 16 | Cap on presolve's fixed-point rounds (D-02) — a safety stop and not a quality knob, since the loop exits as soon as a round changes nothing, and it lands on top of the structural backstop `num_row + num_col + 1` rather than above it. Set where the propagation reaches its fixed point: swept over the standard set, rows removed go 6060, 7178, 7549, 7596, 7598, 7598, 7598, 7598 at 1, 2, 4, 8, 16, 32, 64, 128 rounds, and columns removed 22671, 24300, 24629, 24693, 24695, 24695, 24695, 24695. The canary is a chain of 200 singleton rows built to resolve one link per round, and it reads 1, 2, 4, 8, 16, 32, 64, 128. The cost is flat across the whole sweep — 97.2 s to 103.6 s at `J=12` against a set that takes about 99 s — so there is nothing to trade against |
 
-**`PRESOLVE_TIGHTEN_EPS` gained a third decision, and it is the one whose
-coverage has a stated limit.** The pass that tests a frozen row for
-feasibility after the round loop uses this same constant, scaled by
+**The third site keeps its own scale, and that is the part of the old
+`PRESOLVE_TIGHTEN_EPS` entry that survived.** The pass that tests a frozen row
+for feasibility after the round loop scales by
 `ps_bound_scale(cur_rl[i], cur_ru[i])` rather than by the row's traffic. Both
 choices are forced. Traffic cannot be used because `row_traffic[i]` saturates
 to `+inf` the first time a column with a half-infinite box is relaxed out of
@@ -261,22 +261,40 @@ running differences that every removed column shifted by its own `a*v`. So the
 coverage condition is a ratio, not an absolute:
 
 > accumulated shift / `ps_bound_scale(cur_rl, cur_ru)` ≤
-> `PRESOLVE_TIGHTEN_EPS / (8 * DBL_EPSILON)` = 5.6295e5
+> `PRESOLVE_ROUND_ULPS` = 8
 
 Measured over the 8293 frozen rows the standard set produces: worst ratio
 **2.718e-4** (`finnis` row 99), or 4.834e-4 counting one rounding per stored
-entry rather than the eight the proxy assumes. Margin to the limit **3679x**,
-or 2069x pessimistically. No row exceeds it.
+entry rather than the eight the proxy assumes.
 
 The scale mostly recovers itself, which is why the margin is so wide: in an
 emptied frozen row one bound falls to zero and the other retains the magnitude
 that was subtracted, so `ps_bound_scale` returns the shift. `greenbea` row 57
 carries 660 of shift and reads `cur_rl = -660, cur_ru = 0`. The 60 rows of
 8293 where that does not happen are the ones with an infinite bound, where the
-scale falls to its floor of 1 and the constant factor above is what covers
-them; their largest shift is 153. Both sides of the sweep are measured: no row
-of the 94 fires with this window, and `galenet` and `pilot4i` are still caught
-with margins of 3.3e8 and 1e9 (D102).
+scale falls to its floor of 1; their largest shift is 153.
+
+**That proxy is what the constant used to rest on, and it bounds the window
+from one side only.** It says the window is not too tight. Nothing in it says
+the window is not too wide, and at 1e-9 it was: on a row of magnitude 1e9 the
+window is 1.0, and
+
+```
+min x0  s.t.  x0 + x1 == 1e9 + 1,  x0 in [0.5, 0.5],  x1 in [0, 1e9]
+```
+
+is infeasible by 0.5 and walked straight through it, reaching
+`jm_postsolve_solved` and publishing OPTIMAL with `x1` half a unit above its
+own declared upper bound. The model's ratio is about 1.0, far inside the
+5.6295e5 the proxy allowed, so no amount of tightening the proxy would have
+found it (D103).
+
+The residue measurement replaced the proxy on both sides. Of the 19082 frozen
+rows across all three sets, exactly 4 carry a residue above zero and all four
+are on `netlib-infeas` at 1.5e15 ulps or more, so a window of 8 refuses
+everything that should be refused and nothing else. `galenet` and `pilot4i`
+are still caught (D102), now with margins larger than D102 recorded rather
+than smaller.
 
 **One number in `src/presolve.c` is deliberately not in this table.** The
 three readings of a row's activity range — the model is infeasible, the row
@@ -286,6 +304,15 @@ thing that can separate two numbers that should be equal is the rounding in
 the sum, so the window is a small multiple of `DBL_EPSILON` times the traffic
 through it. Making it a tunable instead cost 02-04 a campaign, and the raw
 readings are in `bench/measurements/02-04/`.
+
+`ps_row_tol` therefore keeps its own literal 8 and does NOT read
+`PRESOLVE_ROUND_ULPS`, though the two agree today. 02-09 routed it through the
+shared function for a few hours and put those three readings on the
+`EXTRA_CFLAGS` hook, which review caught: `make netlib
+EXTRA_CFLAGS=-DJAOS_PRESOLVE_ROUND_ULPS_VALUE=64` reproduced 02-04's failure,
+`pilot` INFEASIBLE with column 3554 pinned. Two constants that happen to be
+equal are not one constant. If they ever have to move together, that is a
+decision with a measurement behind it and not a shared symbol.
 
 **Bound tightening is not here because it does not ship.** 02-04 built the
 family, measured six variants of it against the standard set and refused all

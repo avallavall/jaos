@@ -21,6 +21,25 @@ open, `bench/README.md` for the gate, and the commit each entry came from.
 
 ### Fixed
 
+- Presolve reads the model's sense. Every cost-direction and dual-sign rule in
+  the file was stated for MINIMIZE, which is the canonical form `src/check.c`
+  and `src/simplex.c` convert into, and presolve was the stage that did not
+  convert. `max x1` with `x1` an empty column of cost 1 in `[0, 5]` published
+  objective 0 instead of 5, and in `[-inf, 5]` reported UNBOUNDED on a model
+  whose optimum is 5. netlib is entirely MINIMIZE and `tests/test_presolve.c`
+  had zero MAXIMIZE cases, so neither the gate nor the suite could see it.
+  110 solution digests and 29 infeasibility verdicts unmoved (D103).
+
+- `PRESOLVE_ROUND_ULPS = 8` replaces `PRESOLVE_TIGHTEN_EPS = 1e-9` at the
+  three sites that ask whether a residue is rounding, and the old constant is
+  deleted rather than left unread. The window is relative, so at model scale
+  1e-9 stopped being small: a row missed by 1.5 came back OPTIMAL, a column
+  published a fifth of a unit above its own declared upper bound, and D102's
+  frozen-row test was walked through by a model infeasible by 0.5. Nothing on
+  the three sets moves, because no feasible model among them carries a residue
+  at any of the three sites — the twelve that do are all on `netlib-infeas`
+  and none is below 3.69e8 ulps against a window of 8 (D103).
+
 - A relaxed row is tested for feasibility once the boxes are final, so an
   infeasible model is no longer published OPTIMAL. Both the row pass and the
   activity pass skip a frozen row, correctly, and between them nothing asked
@@ -78,13 +97,19 @@ open, `bench/README.md` for the gate, and the commit each entry came from.
 - Presolve and postsolve, first five reduction families: empty rows and
   columns, singleton rows, cost-0 singleton columns (D95), fixed columns,
   forcing and redundant rows, behind a cascading round loop with measured
-  caps (`JM_PRESOLVE_ROUNDS = 16`, `PRESOLVE_TIGHTEN_EPS = 1e-9`, each swept
-  with a canary). A model presolve solves outright publishes with no simplex
-  run. `EXTRA_CFLAGS=-DJAOS_NO_PRESOLVE` compiles it out and reproduces the
+  caps (`JM_PRESOLVE_ROUNDS = 16`, `PRESOLVE_ROUND_ULPS = 8`, each swept with
+  a canary). A model presolve solves outright publishes with no simplex run.
+  `EXTRA_CFLAGS=-DJAOS_NO_PRESOLVE` compiles it out and reproduces the
   pre-presolve baselines bit for bit (D96). Bound tightening was built six
-  ways, measured and refused (D97). Work moves by design on touched
-  instances. The checker's remaining refusals were dual-side and closed by
-  D99 and D100.
+  ways, measured and refused (D97). The checker's remaining refusals were
+  dual-side and closed by D99 and D100.
+  **What it cost, presolve on against presolve off**, geometric mean of
+  per-instance ratios: work 0.810x on the standard set, 0.651x on Kennington,
+  0.084x on the infeasible set where ten models never reach the simplex.
+  Seconds on the six instances it removes the most from, `J=1`, minimum of
+  three alternating rounds: 0.2915x against a negative control of 0.9934x
+  (D103). Two instances get much worse and are handed to `TODO.md`: `grow22`
+  11.16x work and 2180 to 16382 iterations, `grow7` 8.56x and 545 to 4805.
 
 - `jaos_solve_time`: seconds the last solve took. `SPECS.md` had carried this
   as missing since M1 while the premises required it — every run reported wall

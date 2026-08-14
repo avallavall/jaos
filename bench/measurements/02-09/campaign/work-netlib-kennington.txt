@@ -1,0 +1,24 @@
+work: /mnt/c/Users/vall-/AppData/Local/Temp/claude/C--Users-vall--Desktop-projectes-jaos/5d91d0a2-b4c5-4c6f-92a6-cfdcd8265db7/scratchpad/campaign/off/netlib-kennington.txt -> /mnt/c/Users/vall-/AppData/Local/Temp/claude/C--Users-vall--Desktop-projectes-jaos/5d91d0a2-b4c5-4c6f-92a6-cfdcd8265db7/scratchpad/campaign/on/netlib-kennington.txt
+------------------------------------------------------------
+  cre-d             2.11332e+09 -> 2.37701e+08      0.1125x
+  cre-b              2.5866e+09 -> 6.59271e+08      0.2549x
+  ken-07            1.11115e+07 -> 4.42613e+06      0.3983x
+  ken-11            3.28524e+08 -> 1.45516e+08      0.4429x
+  ken-18            1.51967e+10 -> 7.82776e+09      0.5151x
+  ken-13            1.25904e+09 -> 7.47061e+08      0.5934x
+  cre-c             2.55138e+07 -> 2.15216e+07      0.8435x
+  pds-02            1.20026e+07 -> 1.07444e+07      0.8952x
+  pds-10            8.38507e+08 -> 7.63118e+08      0.9101x
+  pds-20            6.79887e+09 -> 6.18789e+09      0.9101x
+  osa-30            1.06031e+09 -> 9.84836e+08      0.9288x
+  cre-a             2.14432e+07 -> 2.01341e+07      0.9389x
+  osa-07            5.11913e+07 -> 4.91298e+07      0.9597x
+  osa-14            2.27504e+08 -> 2.36478e+08      1.0394x
+  pds-06            2.12812e+08 -> 2.30279e+08      1.0821x
+  osa-60            6.48784e+09 -> 7.31924e+09      1.1281x
+------------------------------------------------------------
+  instances averaged   16
+  GEOMETRIC MEAN       0.6505x     <-- this is the result
+  best  cre-d          0.1125x
+  worst osa-60         1.1281x
+  ratio of totals      0.6834x     <-- NOT the result (D46): two instances are 74% of the standard set

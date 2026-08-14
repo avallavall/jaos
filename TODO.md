@@ -14,23 +14,45 @@ table below carries the reopen condition, and the counter that tests it is
 committed at `bench/measurements/02-07/`. Presolve is complete at five
 families.
 
-- `numerics-reviewer` over the whole presolve/postsolve diff. D100's review
-  covered the dual recovery only; the four earlier families have never been
-  read as one diff. Every finding gets a disposition: fixed with its commit,
-  refused with its reason, or carried with its destination.
-- All three sets plus the presolve-off negative control, then the deliberate
-  three-baseline rewrite (`make netlib-baseline` and siblings), confirmed by a
-  following gate run. Known by-design movements at `d861b22`: 26 netlib + 1
-  infeasible (`bgindy`) + 4 Kennington (D96). The gate has been green since
-  D100, so the rewrite is no longer blocked by it; it stays a deliberate act
-  taken after the change is read and accepted, never a side effect.
-- Presolve's measured number (the D-15 figure): work ratio and `J=1` time
-  ratio reported separately, negative control beside them, raw readings to
-  `bench/measurements/`, judged by `jaos-measurer`. The runner's second
-  resolution no longer blocks this: it prints six decimals since D100's
-  follow-up, so the fast half of the set carries a ratio at all.
-- Close-out: CHANGELOG entry updated, SPECS presolve row updated, this
-  section deleted.
+Done, and not to be re-costed: the whole diff was read as one by
+`numerics-reviewer` and produced D103, which repaired two defects it found and
+one it introduced. All three sets ran under both settings with the
+presolve-off control passing, and presolve's measured number (the D-15 figure)
+is in D103 and `bench/measurements/02-09/`.
+
+What is left:
+
+- **The deliberate three-baseline rewrite** (`make netlib-baseline` and
+  siblings), confirmed by a following gate run. Known by-design movements at
+  `d861b22`: 26 netlib + 1 infeasible (`bgindy`) + 4 Kennington (D96). The
+  gate has been green since D100 and the records have been bit-identical
+  across D103, so nothing blocks it; it stays a deliberate act taken after the
+  change is read and accepted, never a side effect.
+- A verdict from `jaos-measurer` on D103's campaign, read in a context that
+  did not produce the numbers.
+- Close-out: SPECS presolve row updated, this section deleted.
+
+## 1b. Presolve makes `grow22` and `grow7` far worse (opened by D103)
+
+Not a regression from D103 — the records either side of it are bit-identical —
+so this arrived with presolve and has never been asked about.
+
+```
+grow22   4.4e7 -> 4.9e8 work   11.16x    2180 -> 16382 iterations   7.51x
+grow7    6.4e6 -> 5.5e7 work    8.56x     545 ->  4805 iterations   8.82x
+```
+
+They are the only two instances of 94 past 2x, and they set the standard set's
+worst case while its geometric mean is 0.810x. The question is why a reduced
+model is so much worse for the simplex than the model it replaced: the same
+reductions on the other 92 instances cost nothing like this, so it is a
+property of what these two become rather than of a family being expensive.
+Both are `grow` models, which is the first thing to check.
+
+Nothing here is a candidate repair yet. The first move is to find which
+family produces the reduction that costs them, which the per-family counters
+already report, and whether the extra iterations start immediately or after a
+particular round.
 
 ## 2. After presolve — the rest of M2, in order
 
@@ -121,7 +143,7 @@ then, do not — a refusal whose premise has not changed just fails again.
   regression. Rewriting it is the same deliberate act as rewriting a gate
   baseline, with the same precondition.
 - **A collapsed fold leaves a bound no record owns.** When a singleton row's
-  intersection collapses inside `PRESOLVE_TIGHTEN_EPS`, `src/presolve.c` puts
+  intersection collapses inside the fold's rounding window, `src/presolve.c` puts
   the midpoint of the two ends into both folded bounds, and that midpoint is
   no row's implied bound. The record that collapsed carries it and can still
   be paid; the record that produced the other side keeps its own value and
@@ -135,6 +157,15 @@ then, do not — a refusal whose premise has not changed just fails again.
   not a patch — the midpoint is deliberate and symmetric in the two ends, and
   whatever replaces it has to keep that. Found by `numerics-reviewer` and
   re-run independently, 2026-08-14.
+  **D103 gave this a stated size, and it is not bounded.** The midpoint is
+  unclamped, so the published value can sit up to half the window outside a
+  bound the caller stated: `4 * DBL_EPSILON * row_traffic[i] / |a|`. The
+  traffic term is new with D103 and nothing caps it. A row whose fixed column
+  left at `a*v = 1e9` and whose surviving singleton has `a = 1e-6` reads 0.89.
+  `tests/test_presolve.c`'s `test_a_fold_onto_the_box_at_scale_still_collapses`
+  documents the shape with the measured 2.4e-7 rather than asserting
+  containment, and says in as many words that its own bound holds only because
+  that model's traffic is zero.
 - **The other half of `assert(want_lo <= want_hi)`: an empty intersection of
   an ulp.** D102 closed the half where the model really is infeasible. The
   half that remains is rounding: 11 of the 94 standard instances reach
@@ -153,13 +184,17 @@ then, do not — a refusal whose premise has not changed just fails again.
   at `src/presolve.c` adds `max(|cmax|, |cmin|)` to it, and a column with a
   half-infinite box makes that infinite. Measured: all 117 standard-set rows
   that reach the frozen-row test at exactly zero margin carry
-  `row_traffic == inf`. It is harmless today because its only reader skips
-  frozen rows, but that reader's window becomes infinite on those rows, which
-  is the shape where an infeasible model is quietly accepted. What should
-  accumulate is the finite part actually subtracted from `cur_rl`/`cur_ru`.
-  Fixing it changes that reader's behaviour on existing reductions, so it
-  needs its own measurement rather than riding along. Found by
-  `numerics-reviewer`, refused as out of scope for D102 with that reason.
+  `row_traffic == inf`. What should accumulate is the finite part actually
+  subtracted from `cur_rl`/`cur_ru`. Fixing it changes the frozen-row test's
+  behaviour on existing reductions, so it needs its own measurement rather
+  than riding along. Found by `numerics-reviewer`, refused as out of scope for
+  D102 with that reason.
+  **D103 did not change its severity and the source now says why.** The two
+  sites that read the traffic guard against an infinite value, and both guards
+  are unreachable: the only site that can saturate it sets `row_frozen[i]`
+  four lines later, `row_frozen` is never cleared, and the round loop's row
+  pass skips a frozen row. They are guards against a sixth family that relaxes
+  a row without freezing it, and they are labelled as that in the file.
 - **The basis the singleton-column family publishes breaks the count
   promise.** `jaos.h` promises exactly `num_row` of the `num_col + num_row`
   statuses are basic. It does not hold when the replay recovers the column

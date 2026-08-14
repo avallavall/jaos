@@ -110,6 +110,7 @@ and you have the argument. Jump to the entry for the numbers behind it.
 - **[D100](#d100-several-rows-can-fold-into-one-column-and-the-multiplier-is-owed-to-the-one-whose-bound-the-column-rests-on)** — Several rows can fold into one column, and the multiplier is owed to the one whose bound the column rests on
 - **[D101](#d101-the-last-three-presolve-families-have-015-left-to-remove-on-this-instance-set-which-defers-them-rather-than-refusing-them)** — The last three presolve families have 0.15% left to remove on this instance set, which defers them rather than refusing them
 - **[D102](#d102-a-relaxed-row-is-skipped-by-every-pass-that-could-refuse-it-so-an-infeasible-model-was-published-optimal)** — A relaxed row is skipped by every pass that could refuse it, so an infeasible model was published OPTIMAL
+- **[D103](#d103-presolve-was-written-for-one-objective-sense-and-one-tolerance-answered-a-question-that-has-no-tolerance)** — Presolve was written for one objective sense, and one tolerance answered a question that has no tolerance
 
 ---
 
@@ -7528,3 +7529,148 @@ which is the other half of the assert and wants the published value clamped to
 the column's own box — deliberately after this entry, because clamping first
 would have masked a gap of 93 as if it were rounding; and `row_traffic`'s
 saturation.
+
+## D103 — Presolve was written for one objective sense, and one tolerance answered a question that has no tolerance
+
+Two defects, found by reviewing the whole presolve diff as one rather than
+family by family, and both confirmed by running a model against the
+`-DJAOS_NO_PRESOLVE` reference before either was believed. Each published
+OPTIMAL where the reference gives the right verdict. The raw readings are in
+`bench/measurements/02-09/`.
+
+### The first question: what does presolve do with a MAXIMIZE model?
+
+Nobody had asked. `src/presolve.c` did not contain the word `sense`. The
+canonical form the rest of the solver works in is minimise — `src/check.c` and
+`src/simplex.c` each build `sigma = (sense == MAXIMIZE) ? -1 : 1` and apply it
+to every multiplier and every reduced cost — and presolve was the one stage
+that skipped the conversion. Every rule in it that reads a cost sign or a dual
+sign was therefore inverted on such a model.
+
+Measured, against the reference build:
+
+| model | presolve | `-DJAOS_NO_PRESOLVE` |
+|---|---|---|
+| `max x1`, `x1` an empty column, cost 1, box `[0, 5]` | OPTIMAL, obj **0** | OPTIMAL, obj **5** |
+| the same, box `[-inf, 5]` | **UNBOUNDED** | OPTIMAL, obj 5 |
+| `tests/test_simplex.c`'s `test_maximise_without_column_upper_bounds` | dual `[2, 0]`, redcost `[1, 0]` | dual `[2, 1]`, redcost `[0, 0]` |
+
+The third row is a test the project already shipped, and it passed. The
+checker's own implied bound on `x` made the sign condition true regardless of
+which side the reduced cost sat on, so a wrong dual satisfied it.
+
+**Why no gate could see it.** Netlib is entirely MINIMIZE — all 139 models of
+all three sets — and `tests/test_presolve.c` had zero MAXIMIZE cases. A green
+gate and a green suite were both compatible with half of the public
+`jaos_sense` enum being wrong.
+
+The repair applies sigma to the questions and not to the stored values:
+`d_j = c_j - a_ij y_i` holds in the model's own space whatever the sense, so a
+multiplier is derived unflipped and canonicalised only where a sign is
+compared. On a MINIMIZE model sigma is 1.0 and multiplying a double by 1.0 is
+exact, so the change is bit-identical there by construction — which the
+campaign then confirmed rather than assumed.
+
+### The second question: is 1e-9 a tolerance, or a number somebody picked?
+
+`PRESOLVE_TIGHTEN_EPS` was the window at three sites. All three ask the same
+thing: this residue came out of a running difference of terms, is it a number
+or is it what is left of cancellation? That question has no knob. The answer
+is `DBL_EPSILON` times the traffic that produced the residue, which is what
+`ps_row_tol` has said since 02-04 and what its own comment in the file argues
+at length. 1e-9 is 5.6e5 times wider than that.
+
+The window is relative, so the gap is not academic at model scale. Three
+models, each minimal, each refused by the reference build:
+
+| model | what presolve published |
+|---|---|
+| `1e9*x0 + 1e9*x1 == 2e9 + 1.5`, `x0` and `x1` fixed at 1 | OPTIMAL, row missed by 1.5 |
+| `min x1 s.t. x1 >= 1e9 + 0.4`, `x1 in [0, 1e9]` | OPTIMAL, `x1 = 1000000000.2` |
+| `min x0 s.t. x0 + x1 == 1e9 + 1`, `x0` fixed at 0.5, `x1 in [0, 1e9]` | OPTIMAL, `x1` 0.5 above its own bound |
+
+The second publishes a value a fifth of a unit outside a bound the caller
+stated. The third is the frozen-row test D102 landed the day before: the same
+half D102 closed, escaping through the window instead of around the test.
+
+### The measurement that set the constant, and why the sweep could not
+
+`PRESOLVE_ROUND_ULPS = 8` replaces it at all three sites. The old constant is
+deleted; `-Werror` refused to keep an unread `constexpr`, which is the right
+answer, because a tunable that moves nothing is D82's shape exactly.
+
+**A sweep was the wrong instrument here and had already run.** The nine-decade
+plateau recorded against `PRESOLVE_TIGHTEN_EPS` (1e-12 to 1e-4, nothing
+moving) was a true reading and it could not have found any of this: its canary
+conflicts by 1e-8 on a unit-scale model, so it calibrates the window's
+absolute floor and says nothing about a model whose scale multiplies the
+window up to 1.0.
+
+What answered it was measuring the residues themselves. A patched copy of
+`src/presolve.c`, built outside the repository, printing at each site the
+residue it is about to judge divided by `DBL_EPSILON * scale` — so the printed
+number is the residue in ulps of that site's own scale, directly comparable
+with the ulp count in the window. Over all three sets:
+
+| site | sites reached | residue > 0 |
+|---|---|---|
+| emptied row | 13150 | 0 |
+| fold collapse | 8 | 8 |
+| frozen row | 19082 | 4 |
+
+All twelve positive residues are on `netlib-infeas`, and the smallest is
+3.69e8 ulps. So no feasible model among the 139 puts a residue anywhere in
+`(0, 3.69e8 ulps]`, the constant may be set anywhere in that interval, and 8
+is taken because it is where `ps_row_tol` already is and because it counts
+roundings rather than naming a magnitude. Swept 1 through 256 for the record:
+flat, with four canary flips inside the grid and seven distinct binaries.
+
+### What the campaign said
+
+Every record bit-identical to the one committed before the change: 94, 29 and
+16 instances, 0 digests moved. Which is what the residue measurement predicted
+— with no feasible model carrying a residue at any site, no window can change
+a verdict. The `-DJAOS_NO_PRESOLVE` control reproduces all three pre-presolve
+baselines with 0 regressed, 0 improved, 0 new.
+
+The same campaign carries what presolve itself is worth, which `TODO.md` had
+open: geometric means of per-instance ratios, presolve on over off, work
+0.810x standard / 0.651x Kennington / 0.084x infeasible, and seconds 0.2915x
+over the six instances presolve removes the most from against a negative
+control reading 0.9934x. The per-instance tables are in
+`bench/measurements/02-09/`.
+
+### What was refuted
+
+1. *Sharing one function between `ps_round_tol` and `ps_row_tol`.* They have
+   the same shape and, today, the same number, so the first repair unified
+   them — and thereby put the three activity-range readings on the
+   `EXTRA_CFLAGS` hook, which `docs/tolerances.md` says in as many words must
+   not happen. `make netlib EXTRA_CFLAGS=-DJAOS_PRESOLVE_ROUND_ULPS_VALUE=64`
+   reproduced 02-04's failure: `pilot` INFEASIBLE, column 3554 pinned. Caught
+   by review, not by the suite. Two constants that happen to be equal are not
+   one constant.
+2. *Trusting the coverage proxy in `docs/tolerances.md` for the third site.*
+   It bounds accumulated shift against `ps_bound_scale` and reported a 3679x
+   margin, which reads like comfort and is a one-sided statement: it says the
+   window is not too tight. The model that broke the site has a ratio of about
+   1.0, deep inside the allowed 5.6295e5.
+3. *Reading the residue measurement as "the residues are small".* It is not
+   that. The probe measures the violating direction only, so a feasible row
+   reads exactly 0 by construction. The claim it supports is the interval one
+   above, and nothing stronger.
+4. *A canary alone proving a sweep reached the binary.* Four conflicts do not
+   separate every adjacent pair of a grid that steps by 2 in places and by 4
+   in others: 2 and 4 read alike, 8 and 16 read alike. Seven distinct md5s is
+   what settles it.
+
+### What is left open
+
+Handed to `TODO.md`: `grow22` and `grow7`, which presolve makes 11.16x and
+8.56x more expensive in work and 7.5x and 8.8x in iterations. They arrived
+with presolve rather than with this change — the records here are
+bit-identical to the ones committed before it — and nothing has yet asked why
+a reduced model is so much worse for the simplex than the model it replaced.
+The two window guards against an infinite `row_traffic` are unreachable today
+and stated as such in the source; the saturation itself is unchanged and still
+carried.
