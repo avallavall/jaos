@@ -55,6 +55,16 @@ It is concentrated rather than spread: `cre-a` alone holds 222 of Kennington's
 298 removable rows, and `d6cube` holds 735 of netlib's 1450 removable columns
 — about 12% of that one model's columns.
 
+**The test is for a scalar multiple, not for equality**, and it is worth
+saying plainly because the sentence about an "exact within-bucket comparison"
+in `diag_families.inc` was read the other way by a careful reader on
+2026-08-14. "Exact" there means the hash bucket is never trusted on its own —
+every pair inside it is compared entry by entry. `diag_parallel` derives a
+scalar from the first nonzero pair and tests every entry against that
+multiple. A counter that only found identical rows would read zero on a model
+full of parallel ones and the zero would mean nothing; this one's zero is a
+reading, which is what D101 and D105 both lean on.
+
 **The tolerance barely matters here.** Each count is reported at tau = 0,
 1e-12, 1e-9 and 1e-6. On netlib the removable rows go 142 to 151 across that
 whole range and the columns 1450 to 1471; on Kennington nothing moves at all.
