@@ -505,8 +505,11 @@ typedef enum {
  *   JM_PS_SINGLETON_ROW: index=row, index2=the column its one entry named,
  *     coef=that entry's coefficient. row_tightens_lo/hi record which side(s)
  *     of the column's bound the row's own implied bound actually won at the
- *     moment of intersection — the discriminator the dual recovery needs
- *     (see jm_postsolve_expand).
+ *     moment of intersection, and lo/hi are the bounds the column was left
+ *     carrying after that intersection. Several rows can fold into one
+ *     column, so which side won is not on its own enough to say which row
+ *     owns the bound x_j finally rests on; the recorded pair is what
+ *     separates them (see ps_replay_one).
  *   JM_PS_SINGLETON_COL: index=row (which survives, relaxed), index2=the
  *     column removed, coef=the entry's coefficient, lo/hi=the column's own
  *     bounds at the moment it was removed, row_lo/row_hi=the row's own

@@ -1,0 +1,35 @@
+2c2
+< 25fv47       REJECTED  branch=x0<=53 warm=4/282948 cold=11862/392886832 verdict=optimal obj=5501.8483493406511/5501.8483493406511 before=5501.8458882867499 moved=yes checker=warm:REJECTED/cold:REJECTED checker-refused=both
+---
+> 25fv47       ok        branch=x0<=53 warm=4/282948 cold=11862/392886832 verdict=optimal obj=5501.8483493406511/5501.8483493406511 before=5501.8458882867499 moved=yes checker=warm:ok/cold:ok 
+12,13c12,13
+< bnl1         REJECTED  branch=x0<=82 warm=6/151622 cold=789/6726981 verdict=optimal obj=1977.6940564409342/1977.6940564409344 before=1977.629561522888 moved=yes checker=warm:REJECTED/cold:REJECTED checker-refused=both
+< bnl2         REJECTED  branch=x0<=41 warm=2/223782 cold=1752/21310654 verdict=optimal obj=1811.5132693153248/1811.5132693153246 before=1811.2365403585479 moved=yes checker=warm:REJECTED/cold:REJECTED checker-refused=both
+---
+> bnl1         ok        branch=x0<=82 warm=6/151622 cold=789/6726981 verdict=optimal obj=1977.6940564409342/1977.6940564409344 before=1977.629561522888 moved=yes checker=warm:ok/cold:ok 
+> bnl2         ok        branch=x0<=41 warm=2/223782 cold=1752/21310654 verdict=optimal obj=1811.5132693153248/1811.5132693153246 before=1811.2365403585479 moved=yes checker=warm:ok/cold:ok 
+26c26
+< e226         REJECTED  branch=x0<=0 warm=7/69209 cold=266/1564407 verdict=optimal obj=-9.5442841573696953/-9.5442841573696864 before=-11.63892906637053 moved=yes checker=warm:REJECTED/cold:REJECTED checker-refused=both
+---
+> e226         ok        branch=x0<=0 warm=7/69209 cold=266/1564407 verdict=optimal obj=-9.5442841573696953/-9.5442841573696864 before=-11.63892906637053 moved=yes checker=warm:ok/cold:ok 
+93c93
+< vtp-base     REJECTED  branch=x0<=102730 warm=53/74170 cold=53/74170 verdict=optimal obj=129831.67323971359/129831.67323971359 before=129831.46246136134 moved=yes checker=warm:REJECTED/cold:REJECTED checker-refused=both
+---
+> vtp-base     ok        branch=x0<=102730 warm=53/74170 cold=53/74170 verdict=optimal obj=129831.67323971359/129831.67323971359 before=129831.46246136134 moved=yes checker=warm:ok/cold:ok 
+98,101c98,100
+< measured 87, skipped 2, disagreed 0, rejected 5, errors 0
+<   of those, warm refused 5, cold refused 5
+< iterations (warm+1)/(cold+1), geometric mean: 0.0256
+< work units warm/cold, geometric mean:         0.0698
+---
+> measured 92, skipped 2, disagreed 0, rejected 0, errors 0
+> iterations (warm+1)/(cold+1), geometric mean: 0.0245
+> work units warm/cold, geometric mean:         0.0658
+104,106c103,105
+< reached the optimum in no iterations at all:  5 of 87
+< took more iterations warm than cold:          0 of 87
+< the branch moved the optimum:                 78 of 87
+---
+> reached the optimum in no iterations at all:  5 of 92
+> took more iterations warm than cold:          0 of 92
+> the branch moved the optimum:                 83 of 92

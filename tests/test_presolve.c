@@ -2072,6 +2072,112 @@ static void test_the_tightening_epsilon_is_the_one_its_sweep_set(void)
 #endif
 }
 
+/* -- Two singleton rows folding into one column ---------------------------
+ *
+ *   min  x0 + x1
+ *   r0:  x0        >= 2       singleton: tightens x0's lower to 2
+ *   r1:  x0        <= 10      singleton: tightens x0's upper to 10
+ *   r2:  x0 + x1   <= 100     survives, and keeps x0 from becoming an empty
+ *                             column, which would take the SOLVED path instead
+ *   x0, x1 in [0, inf), both cost 1.
+ *
+ * By hand: x0 = 2, x1 = 0, objective 2. x0 rests on the lower bound r0
+ * produced, so r0 is the row owed the multiplier and y_r0 = 1 exactly. r1's
+ * activity is 2 against (-inf, 10] — strictly interior — so y_r1 must be
+ * exactly 0, and any nonzero value there is a dual violation of that size.
+ *
+ * The order is what this protects. r0 is pushed first and therefore replays
+ * LAST, so r1 is the record that reaches the reduced cost first. Before the
+ * bound-ownership test, r1 took the whole of it (y_r1 = 1, and r0 then found
+ * a zero and published none) — the defect this model is the minimum case of,
+ * and the one five standard-set instances were rejected on: 25fv47, bnl1,
+ * bnl2, e226 and vtp-base. The multipliers are asserted per row rather than
+ * through the checker alone, because two wrong duals whose sum is right
+ * would pass a checker and still be wrong. */
+#if !defined(JAOS_PRESOLVE_FAULT_OFFBYONE)
+static jaos_model *make_two_folds_one_column_model(void)
+{
+    const double c[] = {1.0, 1.0};
+    const double cl[] = {0.0, 0.0};
+    const double cu[] = {INFINITY, INFINITY};
+    const double rl[] = {2.0, -INFINITY, -INFINITY};
+    const double ru[] = {INFINITY, 10.0, 100.0};
+    const int64_t s[] = {0, 3, 4};
+    const int64_t ix[] = {0, 1, 2, 2};
+    const double v[] = {1.0, 1.0, 1.0, 1.0};
+    jaos_model *m = nullptr;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_model_new(&m));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_load_lp(m, 2, 3, JAOS_MINIMIZE, 0.0, c, cl, cu, rl, ru,
+                     4, s, ix, v));
+    return m;
+}
+#endif
+
+static void test_two_folds_the_owning_row_takes_the_multiplier(void)
+{
+#if defined(JAOS_PRESOLVE_FAULT_OFFBYONE) || defined(JAOS_PRESOLVE_FAULT_WRONGDUAL)
+    TEST_IGNORE_MESSAGE("positive test — skipped under either fault build");
+#else
+    jaos_model *m = make_two_folds_one_column_model();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+
+    double x[2], y[3], dj[2];
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solution(m, x, nullptr, y, dj));
+
+    const double expected_x0 = 2.0, expected_x1 = 0.0;
+    TEST_ASSERT_EQUAL_MEMORY(&expected_x0, &x[0], sizeof x[0]);
+    TEST_ASSERT_EQUAL_MEMORY(&expected_x1, &x[1], sizeof x[1]);
+
+    /* The whole point: r0 carries it, r1 carries nothing, r2 is interior. */
+    const double expected_y0 = 1.0, expected_y1 = 0.0, expected_y2 = 0.0;
+    TEST_ASSERT_EQUAL_MEMORY(&expected_y0, &y[0], sizeof y[0]);
+    TEST_ASSERT_EQUAL_MEMORY(&expected_y1, &y[1], sizeof y[1]);
+    TEST_ASSERT_EQUAL_MEMORY(&expected_y2, &y[2], sizeof y[2]);
+
+    jaos_check_report r;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_check_solution(m, x, y, TOL, &r));
+    TEST_ASSERT_TRUE(r.primal_feasible);
+    TEST_ASSERT_TRUE(r.dual_feasible);
+
+    jaos_model_free(m);
+#endif
+}
+
+/* What the CHECKER must refuse, which is not the same as a detector for the
+ * rule above. Under JAOS_PRESOLVE_FAULT_WRONGDUAL the multiplier is taken
+ * unconditionally — what r1 did before the ownership test existed — and the
+ * checker has to report it at exactly the multiplier's own magnitude. A rule
+ * that let this through would let every multiplier of this shape through.
+ *
+ * This test passes against the pre-fix code too, and that is a property of
+ * the checker rather than a hole in the test: jaos_check_solution is handed
+ * x and y and recomputes d_j itself, so the same violation of 1 lands on the
+ * column there and on row 1 here. The positive test above is the change
+ * detector — it reports 1 before the fix and 0 after. */
+static void test_two_folds_wrong_dual(void)
+{
+#if !defined(JAOS_PRESOLVE_FAULT_WRONGDUAL)
+    TEST_IGNORE_MESSAGE("negative test — runs only under "
+                        "EXTRA_CFLAGS=-DJAOS_PRESOLVE_FAULT_WRONGDUAL");
+#else
+    jaos_model *m = make_two_folds_one_column_model();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+
+    double x[2], y[3];
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solution(m, x, nullptr, y, nullptr));
+
+    jaos_check_report r;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_check_solution(m, x, y, TOL, &r));
+    TEST_ASSERT_FALSE(r.dual_feasible);
+    TEST_ASSERT_DOUBLE_WITHIN(1e-9, 1.0, r.max_dual_violation);
+
+    jaos_model_free(m);
+#endif
+}
+
 int main(void)
 {
     UNITY_BEGIN();
@@ -2092,6 +2198,8 @@ int main(void)
     RUN_TEST(test_empty_col_reports_unbounded);
     RUN_TEST(test_singleton_row_round_trip);
     RUN_TEST(test_singleton_row_wrong_dual);
+    RUN_TEST(test_two_folds_the_owning_row_takes_the_multiplier);
+    RUN_TEST(test_two_folds_wrong_dual);
     RUN_TEST(test_singleton_col_round_trip);
     RUN_TEST(test_singleton_col_index_off_by_one);
     RUN_TEST(test_singleton_col_after_fixed_col);

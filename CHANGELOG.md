@@ -11,6 +11,16 @@ open, `bench/README.md` for the gate, and the commit each entry came from.
 
 ### Fixed
 
+- A folded singleton row's multiplier now goes to the row whose bound the
+  column rests on. Several rows can fold into one column, the replay reaches
+  them in LIFO order, and the test that chose between them read the column and
+  never the row, so the first record took the whole reduced cost and the row
+  that owed it published zero. Standard set 89/94 to 94/94 checker ok, which
+  closes the gate; 127 of the 139 records bit-identical and `netlib-infeas`
+  entirely so; no work unit, iteration count or presolve dimension moved on any
+  set. Seven further records move their digest, a dual moving between two
+  dual-feasible assignments, and the published basis moves on three instances
+  with `warm` unmoved on all three (D100).
 - A cost-0 singleton column is recovered against the row bounds recorded when
   it left, not the row's original pair. The replay is LIFO, so the columns
   removed before it had not yet added their share to the activity it was
@@ -18,8 +28,8 @@ open, `bench/README.md` for the gate, and the commit each entry came from.
   (D99). Standard set 79/94 to 89/94 checker ok, Kennington 12/16 to 16/16 and
   back to no field differing from its pre-defect baseline, the 29 infeasible
   lines unmoved; no work unit, iteration count or presolve dimension moved on
-  any instance of any set. Five rejections remain, dual-side and independent
-  (`TODO.md` #1); the gate stays red.
+  any instance of any set. Five rejections remained after it, dual-side and
+  independent, and D100 closed them.
 - `jm_postsolve_solved` initialises the basis statuses it publishes. The
   arrays are allocated without zeroing and no replay writes a surviving frozen
   row's status, so what went out there — and into the next solve's warm start
@@ -45,9 +55,8 @@ open, `bench/README.md` for the gate, and the commit each entry came from.
   run. `EXTRA_CFLAGS=-DJAOS_NO_PRESOLVE` compiles it out and reproduces the
   pre-presolve baselines bit for bit (D96). Bound tightening was built six
   ways, measured and refused (D97). Work moves by design on touched
-  instances; the checker still refuses postsolved answers on dual terms —
-  open, `TODO.md` #1, which owns the count, and the gate stays red until it
-  closes.
+  instances. The checker's remaining refusals were dual-side and closed by
+  D99 and D100.
 
 - `jaos_solve_time`: seconds the last solve took. `SPECS.md` had carried this
   as missing since M1 while the premises required it — every run reported wall

@@ -5,78 +5,7 @@ says why closed questions closed, `CHANGELOG.md` says what landed, `bench/`
 says what it costs. This file says what is next. When something lands, its
 line leaves this file in the same commit.
 
-## 1. The postsolve defect — the gate is red, on a dual term only
-
-**Five standard-set answers are refused by the checker and no Kennington one
-is: `25fv47`, `bnl1`, `bnl2`, `e226`, `vtp-base`.** This file owns that
-count; other documents point here rather than restating it. Per-instance
-terms: `bench/measurements/02-05/gate/final-netlib.txt`.
-
-Every failing term is dual. The primal point is certified on all 94, every
-objective matches its published reference (94 against Koch, Kennington's 16
-against netlib's own values, and the 29 infeasible models have none) and all
-139 instances are deterministic — so what is left is the multipliers, not the
-reconstruction. The row-residual half was a different defect and is closed
-(D99): it was the bounded singleton column judged against bounds that had
-stopped describing its row, and fixing it moved 14 instances to ok without
-moving a single work unit.
-
-The defect is in presolve's own dual recovery, and that is measured rather
-than inferred. Compiled with `EXTRA_CFLAGS=-DJAOS_NO_PRESOLVE` — canary: the
-`presolve=` field must come back unreduced, and it does — all five are
-checker ok with `dual=0` and rows at 1e-13
-(`bench/measurements/02-05/no-presolve/`). With presolve on they carry `dual`
-0.0705, 6.12, 9.81, 1.16 and 1.32e+03.
-
-`bnl1`, `bnl2` and `e226` are bit-identical across D99's fix — the record
-line, and `x` and `y` dumped and compared entry by entry — so nothing that
-change touched is involved in them. On `25fv47` and `vtp-base` the primal
-residual collapsed (4.32 to 3.5e-13, 1.9e+04 to 2.23e-11). The
-`max_dual_violation` is bit-identical at 17 digits on all five: 6.1221772946311033,
-0.070451146994220337, 9.8102420146394795, 1.1645190903954061 and 1320.1986408.
-
-Do not read that as "the multipliers did not move". On `vtp-base` `y` is
-bit-identical, so there it holds. On `25fv47` `y` DID move — `y[338]` went
-from 0.5927293667749798 to exactly 0 — and the violation figure came out the
-same anyway. An unchanged maximum is not an unchanged vector, and whichever
-site is repaired here has to be judged on `y` itself.
-
-The whole fall is still inside 02-03's diff (`9aba410`). Bisection, each tree
-built detached and run against the committed baseline:
-
-| tree | checker ok | rejected |
-|---|---|---|
-| `03c28c9` — end of 02-02 | 93/94 | 1 (`finnis`, D94) |
-| `8425acc` — end of 02-03 | 78/94 | 16 |
-| `d861b22` — end of 02-04 | 79/94 | 15 |
-| `541f7dd` — D99 | 89/94 | 5 |
-
-The approach, in order:
-
-1. Four sites can produce a `max_dual_violation` here and the label matters,
-   because each leads to a different repair: the singleton row's recovery,
-   the forcing row's derivation, the `d_j = -a_ij * y_i` the singleton column
-   publishes, and the duals the simplex publishes on surviving rows. Separate
-   them before repairing.
-2. The recorded lead, from the attribution
-   (`bench/measurements/02-05/attribution-02-03/`): on `bnl1`, `bnl2`, `e226`
-   and `vtp-base` the worst dual violation sits on a row the arena removed as
-   `JM_PS_SINGLETON_ROW`, with the kept column strictly interior, reduced
-   cost 0 and status 0. The `zero_works` test at `src/presolve.c` reads
-   `sol_redcost[j]` as the reduced solve's, and three other producers can
-   have written it first — a second instance of the stale-read class 02-04
-   repaired once and D99 found again in the primal.
-3. Reading the flags is necessary and not sufficient: `finnis` had
-   `row_tightens_hi` set and its multiplier was still wrong, because two rows
-   tightened and only the tighter one is responsible.
-4. The fix, with a test shown failing on the pre-fix code first, and the
-   dual-side case the checker must reject built deliberately.
-
-Prohibited: widening any tolerance, clamping a recovered value, reverting a
-reduction family. The objectives are already right; a tolerance that admits a
-wrong multiplier admits every wrong multiplier of that size.
-
-## 2. Presolve, to finish (REQ-presolve)
+## 1. Presolve, to finish (REQ-presolve)
 
 - Duplicate rows, duplicate columns, dominated columns — the last three
   families. Both detection tolerances swept (`make clean` between settings, a
@@ -91,8 +20,9 @@ wrong multiplier admits every wrong multiplier of that size.
 - All three sets plus the presolve-off negative control, then the deliberate
   three-baseline rewrite (`make netlib-baseline` and siblings), confirmed by a
   following gate run. Known by-design movements at `d861b22`: 26 netlib + 1
-  infeasible (`bgindy`) + 4 Kennington (D96), minus whatever #1's fix changes.
-  No rewrite while the gate is red.
+  infeasible (`bgindy`) + 4 Kennington (D96). The gate has been green since
+  D100, so the rewrite is no longer blocked by it; it stays a deliberate act
+  taken after the change is read and accepted, never a side effect.
 - Presolve's measured number (the D-15 figure): work ratio and `J=1` time
   ratio reported separately, negative control beside them, raw readings to
   `bench/measurements/`, judged by `jaos-measurer`. The runner prints seconds
@@ -100,7 +30,7 @@ wrong multiplier admits every wrong multiplier of that size.
 - Close-out: CHANGELOG entry updated, SPECS presolve row updated, this
   section deleted.
 
-## 3. After presolve — the rest of M2, in order
+## 2. After presolve — the rest of M2, in order
 
 - **Factorization** (REQ-lu-fill-and-markowitz, REQ-hyper-sparse-downstream):
   the stale live counts Markowitz chooses on, and the fill — factors carry
@@ -124,7 +54,7 @@ wrong multiplier admits every wrong multiplier of that size.
   is undecided (`bench/compare/README.md`). Standing: 3.72x HiGHS, 1.34x
   SoPlex, 3.77x Clp (D83).
 
-## 4. After M2 — feature expansion (decided 2026-08-13)
+## 3. After M2 — feature expansion (decided 2026-08-13)
 
 Two decisions are locked: the two premises are absolute (no external code,
 bit-identical everywhere; a feature that cannot be built under them is not
@@ -183,6 +113,35 @@ then, do not — a refusal whose premise has not changed just fails again.
   own decision before any code.
 - `galenet` makes two `dual_ratio_test` calls in a one-iteration solve —
   calls are not iterations in any work-saved arithmetic (D93).
+- **`assert(want_lo <= want_hi)` fires on `bnl1` and `finnis`.** With
+  assertions live both abort inside `ps_replay_one`. It predates D100 and
+  fires identically against the code that change replaced, so the dual
+  recovery is not the cause. No gate can see it: the release build and
+  `bench/run` carry `-DNDEBUG`, and `make sanitize` keeps assertions but runs
+  no instances. Two of the 94 abort the build the project otherwise treats as
+  the stricter of the two. Measured on both trees, 2026-08-14.
+- **The `warm` record predates presolve.** `bench/results/warm.txt` and its
+  Kennington sibling were last written at `44c0ef6`, an 01-03 commit, so a
+  diff against them reports the whole of presolve and cannot isolate a later
+  change. It read 92 of 98 instances moved and flagged `scrs8` as a
+  regression, where the movement against HEAD was five lines and no
+  regression. Rewriting it is the same deliberate act as rewriting a gate
+  baseline, with the same precondition.
+- **A collapsed fold leaves a bound no record owns.** When a singleton row's
+  intersection collapses inside `PRESOLVE_TIGHTEN_EPS`, `src/presolve.c` puts
+  the midpoint of the two ends into both folded bounds, and that midpoint is
+  no row's implied bound. The record that collapsed carries it and can still
+  be paid; the record that produced the other side keeps its own value and
+  compares unequal for ever. When the reduced cost's sign points at that
+  other side, no record pays and the cost is left on a column strictly inside
+  its own box. `min x0 + x1 + x2 s.t. x0 >= 5, x0 <= 5 - 1e-13, x1 + x2 >= 3,
+  x0 in [0, 10]` publishes `x0 = 4.9999999999999503` with
+  `max_dual_violation = 1`. **Not a regression**: the pre-fix code refuses it
+  by the same magnitude on row 1 rather than on the column, measured on both
+  trees. The repair is a decision about what a collapsed record should record,
+  not a patch — the midpoint is deliberate and symmetric in the two ends, and
+  whatever replaces it has to keep that. Found by `numerics-reviewer` and
+  re-run independently, 2026-08-14.
 - **A frozen row is never rechecked, so an infeasible model can be published
   OPTIMAL.** `min x0 s.t. x0 + x1 = 100, x0 in [4,4], x1 in [0,3]` has no
   feasible point, and `-DJAOS_NO_PRESOLVE` says so. With presolve on, the

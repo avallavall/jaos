@@ -107,6 +107,7 @@ and you have the argument. Jump to the entry for the numbers behind it.
 - **[D97](#d97-bound-tightening-is-refused-every-design-returns-infeasible-on-models-that-have-an-optimum)** — Bound tightening is refused: every design returns INFEASIBLE on models that have an optimum
 - **[D98](#d98-the-planning-layer-is-retired-the-record-is-five-documents-and-the-process-is-the-loop-in-claudemd)** — The planning layer is retired: the record is five documents, and the process is the loop in CLAUDE.md
 - **[D99](#d99-the-singleton-column-was-judged-against-bounds-that-had-stopped-describing-its-row-and-that-is-the-whole-of-the-row-residual-defect)** — The singleton column was judged against bounds that had stopped describing its row, and that is the whole of the row-residual defect
+- **[D100](#d100-several-rows-can-fold-into-one-column-and-the-multiplier-is-owed-to-the-one-whose-bound-the-column-rests-on)** — Several rows can fold into one column, and the multiplier is owed to the one whose bound the column rests on
 
 ---
 
@@ -7277,3 +7278,98 @@ status surfaced.
    shape appears in any of the three sets, so the measurement says nothing
    about it, and a set with no instance is not a proof. `pilot87` was
    recorded as fitting by shape, never verified, and passes now too.
+
+## D100 — Several rows can fold into one column, and the multiplier is owed to the one whose bound the column rests on
+
+**The question.** D99 closed the row-residual half of the postsolve defect and
+left five standard-set instances refused on a dual term: `25fv47`, `bnl1`,
+`bnl2`, `e226`, `vtp-base`. The primal point was certified on all 94, every
+objective matched its published reference, all 139 instances were
+deterministic, and all five came back checker ok with `dual = 0` under
+`-DJAOS_NO_PRESOLVE` (D96's off-build), which placed the defect in presolve's
+own dual recovery. Four sites can produce a `max_dual_violation` and each
+leads to a different repair, so the label had to be established before
+anything was changed. The recorded lead was the `zero_works` test reading a
+`sol_redcost[j]` three other producers can have written first.
+
+**The measurement.** Raw readings: `bench/measurements/02-06/`.
+
+*Attribution.* A `JAOS_DIAG` build printing one line per `JM_PS_SINGLETON_ROW`
+record in replay order — every input to every predicate that decides its
+multiplier — with `src/check.c` instrumented to name the worst dual term.
+The build reproduces all five `max_dual_violation` figures at 17 digits,
+which is what says the instrument is faithful. Every offending term is a row;
+none is a column.
+
+The shape is the same in all five, and it is not the recorded lead. Two
+`SINGLETON_ROW` records fold into one column. The replay is LIFO, which is not
+the order they tightened in, and `zero_works` reads the column and never the
+row, so it is true or false for both alike. The record replayed first takes
+the whole reduced cost whether or not its own row produced the bound `x_j`
+rests on; the row that did produce it then finds `d0` already zeroed:
+
+| instance | row that took it | its tl/th | row that owns the bound | its tl/th | published |
+|---|---|---|---|---|---|
+| `25fv47` | 696 | 0/0 | 695, an equality at 17 | 1/1 | -6.1221772946311033 |
+| `bnl1` | 638 | 0/1 | 636, lower at 110 | 1/0 | +0.070451146994220337 |
+| `bnl2` | 13 | 0/0 | 6 | 0/1 | +9.8102420146394795 |
+| `e226` | 14 | 0/0 | 13 | 0/1 | -1.1645190903954061 |
+| `vtp-base` | 176 | 0/0 | 175 | 0/1 | +1320.1986408 |
+
+*The fix.* The record carries `lo`/`hi`: the bounds the column is left with
+after that fold. The replay asks the question directly — does `x_j` rest on
+the bound THIS row produced, on the side `d0`'s sign needs? The comparison is
+exact and that is not an approximation standing in for a tolerance: a nonbasic
+column rests on its bound bit for bit, and `rec->lo`/`hi` is the same
+computation that produced it. No constant is introduced. Both numbers are in
+the original space, since presolve runs before scaling. A row whose fold was
+later overwritten by a tighter one compares unequal and declines, which leaves
+the reduced cost intact for the record that does own the bound. The order
+stops mattering.
+
+*What it cost.* All three sets at `J=12`. Standard set 94/94 checker ok, from
+89/94; the five move REJECTED to ok and their `rsub` collapses (`vtp-base`
+4.23 to 1.81e-15). 127 of the 139 records are bit-identical to the committed
+record and `netlib-infeas` is entirely so. **No work unit, iteration count or
+presolve dimension moved on any instance of any set** — geometric mean
+1.0000x on all three. Twelve records move their digest: the five, plus
+`bore3d`, `d2q06c`, `fffff800`, `finnis`, `standmps`, `cre-a` and `cre-c`.
+The change writes `sol_dual`, `sol_redcost` and `sol_col_status` and never
+`sol_col`, so `x` is unchanged on all 139 and only `y` moved; the checker
+recomputes `d_j` from `y`, where a wrong multiplier would land on the column,
+and reads `dual = 0` exactly on all seven before and after. `make warm`: the
+same five go checker-refused to ok, every other field on their lines is
+bit-identical, and `make warm-kennington` is identical line for line.
+
+*The basis, which no gate reads.* `jaos_basis` compared across all 110 optimal
+instances: three move, each losing exactly one basic column (`d2q06c`,
+`fffff800`, `cre-c`). The `basic == num_row` invariant was already broken on
+66 of the 94 standard and 12 of the 16 Kennington instances, **with the same
+counts on both sides of the change** — none that held is broken and none that
+was broken is fixed. `warm` is unmoved on all three, which is where the cost
+of a moved basis is measured.
+
+**What was refuted.**
+
+1. *Reading `row_tightens_lo/hi` alone.* `bnl1`'s row 638 has
+   `row_tightens_hi` set and is still not the owner, because the column ends
+   up resting on the lower bound row 636 imposed. Two rows can tighten and
+   only the one whose bound survives is owed the multiplier.
+2. *An assert at the decline site*, proposed by the review: fire when a record
+   declines with `d0 != 0` and `v0` strictly inside the column's original
+   bounds. It fires on a legitimate decline — `bnl1`'s row 638 declines with
+   `d0 = 0.070451146994220337` and `v0 = 110`, interior to `[0, inf)`, and row
+   636 pays immediately after. The postcondition it wants is global to the
+   whole replay, and `jaos_check_solution` already computes it.
+3. *Reading a campaign by the checker's own reported terms.* An exploratory
+   sweep comparing the five report fields over the 94 found exactly the five
+   and would have supported "the other 89 are unchanged". Seven of those 89
+   had moved their duals. Only the digest sees it, and this is the second time
+   after D99 that an unchanged figure was nearly read as an unchanged vector.
+
+**What is left open**, handed to `TODO.md`: the collapsed fold whose midpoint
+is no row's implied bound, refused by this code and by the code it replaced
+alike; `assert(want_lo <= want_hi)` firing on `bnl1` and `finnis` when
+assertions are live, which predates this change and which no gate can see
+because the release build carries `-DNDEBUG`; and the `warm` record last
+written before presolve existed, which makes any diff against it unreadable.

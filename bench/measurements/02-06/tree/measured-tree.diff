@@ -1,0 +1,354 @@
+diff --git a/TODO.md b/TODO.md
+index 9f7423b..c9bac30 100644
+--- a/TODO.md
++++ b/TODO.md
+@@ -183,6 +183,21 @@ then, do not — a refusal whose premise has not changed just fails again.
+   own decision before any code.
+ - `galenet` makes two `dual_ratio_test` calls in a one-iteration solve —
+   calls are not iterations in any work-saved arithmetic (D93).
++- **A collapsed fold leaves a bound no record owns.** When a singleton row's
++  intersection collapses inside `PRESOLVE_TIGHTEN_EPS`, `src/presolve.c` puts
++  the midpoint of the two ends into both folded bounds, and that midpoint is
++  no row's implied bound. The record that collapsed carries it and can still
++  be paid; the record that produced the other side keeps its own value and
++  compares unequal for ever. When the reduced cost's sign points at that
++  other side, no record pays and the cost is left on a column strictly inside
++  its own box. `min x0 + x1 + x2 s.t. x0 >= 5, x0 <= 5 - 1e-13, x1 + x2 >= 3,
++  x0 in [0, 10]` publishes `x0 = 4.9999999999999503` with
++  `max_dual_violation = 1`. **Not a regression**: the pre-fix code refuses it
++  by the same magnitude on row 1 rather than on the column, measured on both
++  trees. The repair is a decision about what a collapsed record should record,
++  not a patch — the midpoint is deliberate and symmetric in the two ends, and
++  whatever replaces it has to keep that. Found by `numerics-reviewer` and
++  re-run independently, 2026-08-14.
+ - **A frozen row is never rechecked, so an infeasible model can be published
+   OPTIMAL.** `min x0 s.t. x0 + x1 = 100, x0 in [4,4], x1 in [0,3]` has no
+   feasible point, and `-DJAOS_NO_PRESOLVE` says so. With presolve on, the
+diff --git a/bench/results/netlib-kennington.txt b/bench/results/netlib-kennington.txt
+index 7007ce1..e69de29 100644
+--- a/bench/results/netlib-kennington.txt
++++ b/bench/results/netlib-kennington.txt
+@@ -1,22 +0,0 @@
+-cre-a        optimal    rows=3516 cols=4067 shape=ok iters=2487 work=20134103 presolve=3516/4067/14987->3074/4057/14602 obj=23595407.060971618 ref=23595407[netlib] objective=ok checker=ok (col=8.88e-15 row=2.27e-13 rowrel=6.23e-15 dual=0 gap=3.58e-17 Q=1.32e-07 N=9.43e-10 drop=0 cert=yes sub=6.42e-12 rays=0 rsub=5.59e-15) det=ok digest=77073b735675a975
+-cre-b        optimal    rows=9648 cols=72447 shape=ok iters=8864 work=659271034 presolve=9648/72447/256095->5336/31818/107685 obj=23129639.886832379 ref=23129640[netlib] objective=ok checker=ok (col=4.88e-14 row=2.05e-13 rowrel=2.05e-13 dual=0 gap=2.39e-17 Q=4.35e-07 N=8.18e-10 drop=0 cert=yes sub=4.04e-28 rays=0 rsub=1.88e-14) det=ok digest=c348d671dc12207d
+-cre-c        optimal    rows=3068 cols=3678 shape=ok iters=2336 work=21521556 presolve=3068/3678/13244->2584/3592/12613 obj=25275116.140880212 ref=25275116[netlib] objective=ok checker=ok (col=5.83e-14 row=1.14e-13 rowrel=3.36e-15 dual=0 gap=2.97e-17 Q=1.97e-07 N=1.36e-09 drop=0 cert=yes sub=1.36e-26 rays=0 rsub=7.78e-15) det=ok digest=08a5d8a3eab9ee0a
+-cre-d        optimal    rows=8926 cols=69980 shape=ok iters=6142 work=237700843 presolve=8926/69980/242646->4102/25188/83321 obj=24454969.764549244 ref=24454970[netlib] objective=ok checker=ok (col=8.71e-14 row=4.62e-14 rowrel=3.48e-15 dual=0 gap=2.66e-17 Q=4.73e-07 N=6.16e-10 drop=0 cert=yes sub=1.76e-26 rays=0 rsub=1.93e-14) det=ok digest=b96e47f53e27ecfd
+-ken-07       optimal    rows=2426 cols=3602 shape=ok iters=1777 work=4424880 presolve=2426/3602/8404->1446/2597/5978 obj=-679520443.38168764 ref=-679520440[netlib] objective=ok checker=ok (col=0 row=0 rowrel=0 dual=0 gap=8.29e-16 Q=1.13e-06 N=0 drop=0 cert=yes sub=0 rays=0 rsub=1.66e-15) det=ok digest=1da801dab407b327
+-ken-11       optimal    rows=14694 cols=21349 shape=ok iters=10831 work=145509300 presolve=14694/21349/49058->10096/16698/38478 obj=-6972382262.5199699 ref=-6972382300[netlib] objective=ok checker=ok (col=0 row=0 rowrel=0 dual=0 gap=2.67e-15 Q=3.72e-05 N=0 drop=0 cert=yes sub=0 rays=0 rsub=5.33e-15) det=ok digest=b2654ae94003b880
+-ken-13       optimal    rows=28632 cols=42659 shape=ok iters=23728 work=747048700 presolve=28632/42659/97246->22548/36504/82641 obj=-10257394789.48241 ref=-10257395000[netlib] objective=ok checker=ok (col=0 row=0 rowrel=0 dual=0 gap=6.37e-15 Q=0.000131 N=0 drop=0 cert=yes sub=0 rays=0 rsub=1.27e-14) det=ok digest=b113ffaf36ac21f9
+-ken-18       optimal    rows=105127 cols=154699 shape=ok iters=77812 work=7827707718 presolve=105127/154699/358171->78883/128304/298728 obj=-52217025287.396873 ref=-52217025000[netlib] objective=ok checker=ok (col=0 row=0 rowrel=0 dual=0 gap=2.09e-14 Q=0.00219 N=0 drop=0 cert=yes sub=0 rays=0 rsub=4.19e-14) det=ok digest=f02d0d5032557320
+-osa-07       optimal    rows=1118 cols=23949 shape=ok iters=600 work=49129756 presolve=1118/23949/143694->1081/23949/88235 obj=535722.51729935093 ref=535722.52000000002[netlib] objective=ok checker=ok (col=0 row=1.42e-14 rowrel=1.13e-16 dual=0 gap=1.26e-17 Q=1.37e-11 N=1.47e-13 drop=0 cert=yes sub=3.18e-30 rays=0 rsub=2.55e-17) det=ok digest=6d63523d42cec01b
+-osa-14       optimal    rows=2337 cols=52460 shape=ok iters=1294 work=236478368 presolve=2337/52460/314760->2300/52460/194416 obj=1106462.8447362538 ref=1106462.8[netlib] objective=ok checker=ok (col=0 row=3.98e-13 rowrel=1.59e-15 dual=0 gap=9.52e-18 Q=2.28e-11 N=6.26e-13 drop=0 cert=yes sub=0 rays=0 rsub=2.06e-17) det=ok digest=a33df76df56ec82b
+-osa-30       optimal    rows=4350 cols=100024 shape=ok iters=2645 work=984835527 presolve=4350/100024/600138->4313/100024/373091 obj=2142139.8732097656 ref=2142139.8999999999[netlib] objective=ok checker=ok (col=0 row=0 rowrel=0 dual=0 gap=9.78e-18 Q=4.89e-11 N=0 drop=0 cert=yes sub=0 rays=0 rsub=2.29e-17) det=ok digest=2d38570a790cbba2
+-osa-60       optimal    rows=10280 cols=232966 shape=ok iters=7119 work=7319240033 presolve=10280/232966/1397793->10243/232965/839112 obj=4044072.5031574406 ref=4044072.5[netlib] objective=ok checker=ok (col=0 row=0 rowrel=0 dual=0 gap=1.14e-17 Q=1.01e-10 N=0 drop=0 cert=yes sub=0 rays=0 rsub=2.5e-17) det=ok digest=7e9a0cb8313a3b69
+-pds-02       optimal    rows=2953 cols=7535 shape=ok iters=1910 work=10744411 presolve=2953/7535/16390->2609/7172/15587 obj=28857862010 ref=28857862000[netlib] objective=ok checker=ok (col=0 row=0 rowrel=0 dual=0 gap=0 Q=0 N=0 drop=0 cert=yes sub=0 rays=0 rsub=0) det=ok digest=6d49a48d6e8ffabd
+-pds-06       optimal    rows=9881 cols=28655 shape=ok iters=9171 work=230279104 presolve=9881/28655/62524->9156/27852/60500 obj=27761037600 ref=27761038000[netlib] objective=ok checker=ok (col=4.26e-14 row=5.68e-14 rowrel=4.26e-14 dual=0 gap=2.85e-17 Q=8.49e-06 N=1.43e-08 drop=0 cert=yes sub=0 rays=0 rsub=3.06e-16) det=ok digest=db4ef13954db348e
+-pds-10       optimal    rows=16558 cols=48763 shape=ok iters=16522 work=763117711 presolve=16558/48763/106436->15648/47729/103719 obj=26727094976 ref=26727095000[netlib] objective=ok checker=ok (col=2.84e-14 row=4.66e-12 rowrel=2.84e-14 dual=0 gap=4.53e-19 Q=1.4e-07 N=2.78e-08 drop=0 cert=yes sub=0 rays=0 rsub=5.24e-18) det=ok digest=d9e16561b2f7474a
+-pds-20       optimal    rows=33874 cols=105728 shape=ok iters=44471 work=6187887333 presolve=33874/105728/230200->32287/103981/225342 obj=23821658639.999996 ref=23821659000[netlib] objective=ok checker=ok (col=8.81e-13 row=5.9e-12 rowrel=8.81e-13 dual=0 gap=2.21e-16 Q=1.76e-05 N=1.35e-07 drop=0 cert=yes sub=4.29e-23 rays=0 rsub=7.4e-16) det=ok digest=f9be7eb799d08dc3
+-
+-16 instances: 16 solved, 16 shape ok, 16 objective ok, 16 checker ok, 16 deterministic, 0 failed
+-gate: PASS
+-
+--- against baseline --
+-baseline: 0 regressed, 0 improved, 0 new
+diff --git a/bench/results/netlib.txt b/bench/results/netlib.txt
+index bdb9f0f..b225358 100644
+--- a/bench/results/netlib.txt
++++ b/bench/results/netlib.txt
+@@ -1,4 +1,4 @@
+-25fv47       optimal    rows=821 cols=1571 shape=ok iters=4087 work=113487557 presolve=821/1571/10400->777/1539/10241 obj=5501.8458882867499 ref=5501.8458882867444[koch] objective=ok checker=REJECTED (col=0 row=3.5e-13 rowrel=2.2e-16 dual=6.12 gap=0.00842 Q=91.8 N=2.4e-12 drop=1.6e-16 cert=no sub=1.8e-28 rays=0 rsub=0.0167) det=ok digest=2300b3339b31bf64
++25fv47       optimal    rows=821 cols=1571 shape=ok iters=4087 work=113487557 presolve=821/1571/10400->777/1539/10241 obj=5501.8458882867499 ref=5501.8458882867444[koch] objective=ok checker=ok (col=0 row=3.5e-13 rowrel=2.2e-16 dual=0 gap=1.14e-15 Q=2.79e-10 N=2.4e-12 drop=1.6e-16 cert=no sub=1.8e-28 rays=0 rsub=5.06e-14) det=ok digest=72e8ffac357e2924
+ 80bau3b      optimal    rows=2262 cols=9799 shape=ok iters=3535 work=61217231 presolve=2262/9799/21002->2022/9077/19861 obj=987224.19240909105 ref=987224.19240909023[koch] objective=ok checker=ok (col=0 row=1.25e-12 rowrel=2.03e-16 dual=0 gap=6.03e-17 Q=3.1e-08 N=1.7e-10 drop=8.52e-15 cert=no sub=2e-27 rays=0 rsub=3.14e-14) det=ok digest=b1b6e95e29f002fe
+ adlittle     optimal    rows=56 cols=97 shape=ok iters=71 work=141738 presolve=56/97/383->53/95/373 obj=225494.96316238024 ref=225494.96316238039[koch] objective=ok checker=ok (col=0 row=2.27e-13 rowrel=1.29e-16 dual=0 gap=1.09e-16 Q=3.66e-10 N=2.12e-11 drop=0 cert=yes sub=2.4e-28 rays=0 rsub=1.62e-15) det=ok digest=f6518a96036b4d17
+ afiro        optimal    rows=27 cols=32 shape=ok iters=18 work=13019 presolve=27/32/83->25/32/81 obj=-464.75314285714285 ref=-464.75314285714285[koch] objective=ok checker=ok (col=0 row=4.26e-14 rowrel=5.89e-17 dual=0 gap=1.65e-17 Q=3.35e-15 N=1.56e-14 drop=0 cert=yes sub=0 rays=0 rsub=7.2e-18) det=ok digest=b288b49a4d712221
+@@ -8,24 +8,24 @@ agg3         optimal    rows=516 cols=302 shape=ok iters=406 work=2775335 presol
+ bandm        optimal    rows=305 cols=472 shape=ok iters=390 work=3146320 presolve=305/472/2494->251/276/1807 obj=-158.62801845012075 ref=-158.62801845012063[koch] objective=ok checker=ok (col=0 row=1.3e-13 rowrel=1.88e-16 dual=0 gap=3.87e-16 Q=1.58e-12 N=4.63e-14 drop=0 cert=yes sub=2.18e-32 rays=0 rsub=9.89e-15) det=ok digest=bf23d5bd88f86dfa
+ beaconfd     optimal    rows=173 cols=262 shape=ok iters=89 work=93229 presolve=173/262/3375->111/170/2023 obj=33592.485807199999 ref=33592.485807199999[koch] objective=ok checker=ok (col=0 row=1.92e-11 rowrel=1.59e-16 dual=0 gap=1.8e-17 Q=2.76e-12 N=1.39e-12 drop=0 cert=yes sub=1.16e-31 rays=0 rsub=8.22e-17) det=ok digest=bb24995b394cdc09
+ blend        optimal    rows=74 cols=83 shape=ok iters=99 work=201809 presolve=74/83/491->72/81/487 obj=-30.81214984582823 ref=-30.81214984582822[koch] objective=ok checker=ok (col=0 row=4.77e-15 rowrel=8.58e-17 dual=0 gap=2.35e-16 Q=7.85e-14 N=1.46e-14 drop=3.06e-16 cert=no sub=7.01e-33 rays=0 rsub=2.47e-15) det=ok digest=caf5fa30514fd3a8
+-bnl1         optimal    rows=643 cols=1175 shape=ok iters=791 work=7469589 presolve=643/1175/5121->564/1099/4822 obj=1977.629561522888 ref=1977.6295615228892[koch] objective=ok checker=REJECTED (col=0 row=2.13e-13 rowrel=4.39e-16 dual=0.0705 gap=1.26e-16 Q=15.4 N=5.88e-13 drop=0 cert=yes sub=6.86e-30 rays=0 rsub=0.00779) det=ok digest=9e412b3910135205
+-bnl2         optimal    rows=2324 cols=3489 shape=ok iters=1746 work=21654376 presolve=2324/3489/13999->2114/3252/13388 obj=1811.2365403585479 ref=1811.2365403585452[koch] objective=ok checker=REJECTED (col=9.92e-31 row=2.06e-13 rowrel=2.13e-16 dual=9.81 gap=0.00042 Q=95.3 N=1.56e-13 drop=0 cert=yes sub=3.87e-31 rays=0 rsub=0.0526) det=ok digest=ec615358af0f6806
++bnl1         optimal    rows=643 cols=1175 shape=ok iters=791 work=7469589 presolve=643/1175/5121->564/1099/4822 obj=1977.629561522888 ref=1977.6295615228892[koch] objective=ok checker=ok (col=0 row=2.13e-13 rowrel=4.39e-16 dual=0 gap=1.26e-16 Q=1.78e-11 N=5.88e-13 drop=0 cert=yes sub=6.86e-30 rays=0 rsub=8.99e-15) det=ok digest=a9be7da74e11462e
++bnl2         optimal    rows=2324 cols=3489 shape=ok iters=1746 work=21654376 presolve=2324/3489/13999->2114/3252/13388 obj=1811.2365403585479 ref=1811.2365403585452[koch] objective=ok checker=ok (col=9.92e-31 row=2.06e-13 rowrel=2.13e-16 dual=0 gap=1.08e-16 Q=5.52e-12 N=1.56e-13 drop=0 cert=yes sub=3.87e-31 rays=0 rsub=3.05e-15) det=ok digest=421419c74d01dad2
+ boeing1      optimal    rows=351 cols=384 shape=ok iters=370 work=1885965 presolve=351/384/3485->298/369/2743 obj=-335.21356750712675 ref=-335.21356750712664[koch] objective=ok checker=ok (col=0 row=8.53e-14 rowrel=1.3e-16 dual=0 gap=1.91e-16 Q=1.96e-13 N=7.12e-15 drop=0 cert=yes sub=3.24e-32 rays=0 rsub=5.84e-16) det=ok digest=04428920c442e95d
+ boeing2      optimal    rows=166 cols=143 shape=ok iters=116 work=311622 presolve=166/143/1196->125/143/801 obj=-315.01872801520273 ref=-315.0187280152029[koch] objective=ok checker=ok (col=0 row=8.53e-14 rowrel=9.9e-17 dual=0 gap=5.12e-17 Q=5.39e-14 N=4e-15 drop=0 cert=yes sub=1.54e-32 rays=0 rsub=1.71e-16) det=ok digest=46c9955e917419e0
+-bore3d       optimal    rows=233 cols=315 shape=ok iters=137 work=345529 presolve=233/315/1429->139/158/697 obj=1373.0803942084926 ref=1373.0803942084926[koch] objective=ok checker=ok (col=0 row=1.06e-12 rowrel=1.04e-16 dual=0 gap=4.6e-17 Q=4.66e-10 N=3.11e-14 drop=3.43e-19 cert=no sub=6.93e-33 rays=0 rsub=3.39e-13) det=ok digest=148a49002f807fa7
++bore3d       optimal    rows=233 cols=315 shape=ok iters=137 work=345529 presolve=233/315/1429->139/158/697 obj=1373.0803942084926 ref=1373.0803942084926[koch] objective=ok checker=ok (col=0 row=1.06e-12 rowrel=1.04e-16 dual=0 gap=4.6e-17 Q=4.66e-10 N=3.11e-14 drop=3.43e-19 cert=no sub=6.93e-33 rays=0 rsub=3.39e-13) det=ok digest=4ece5643a07d5120
+ brandy       optimal    rows=220 cols=249 shape=ok iters=237 work=1475398 presolve=220/249/2148->123/193/1870 obj=1518.5098964881283 ref=1518.5098964881283[koch] objective=ok checker=ok (col=0 row=3.8e-13 rowrel=1.58e-16 dual=0 gap=1.92e-16 Q=3.08e-12 N=2.02e-13 drop=1.47e-15 cert=no sub=1.21e-31 rays=0 rsub=2.03e-15) det=ok digest=077b28e618cea452
+ capri        optimal    rows=271 cols=353 shape=ok iters=280 work=508011 presolve=271/353/1767->255/320/1589 obj=2690.0129137681606 ref=2690.0129137681611[koch] objective=ok checker=ok (col=0 row=3.22e-13 rowrel=1.42e-16 dual=0 gap=2.58e-16 Q=4.52e-12 N=1.35e-12 drop=1.18e-16 cert=no sub=5.28e-30 rays=0 rsub=1.68e-15) det=ok digest=e4c4679402d480aa
+ cycle        optimal    rows=1903 cols=2857 shape=ok iters=1146 work=16557170 presolve=1903/2857/20720->1572/2279/15198 obj=-5.2263930248941008 ref=-5.2263930248941017[koch] objective=ok checker=ok (col=9.86e-32 row=2.09e-12 rowrel=1.35e-16 dual=0 gap=5.54e-17 Q=4.07e-11 N=1.06e-16 drop=0 cert=yes sub=0 rays=0 rsub=6.53e-12) det=ok digest=934d3bfd5cb2ce9a
+ czprob       optimal    rows=929 cols=3523 shape=ok iters=1154 work=13048193 presolve=929/3523/10669->689/2753/8320 obj=2185196.6988565768 ref=2185196.6988565773[koch] objective=ok checker=ok (col=0 row=8.99e-13 rowrel=3.21e-16 dual=0 gap=7.29e-18 Q=1.16e-10 N=1.18e-10 drop=0 cert=yes sub=2.19e-29 rays=0 rsub=5.33e-17) det=ok digest=ea040c99182ade27
+-d2q06c       optimal    rows=2171 cols=5167 shape=ok iters=6740 work=428583083 presolve=2171/5167/32417->2098/4880/32044 obj=122784.21081418933 ref=122784.21081418946[koch] objective=ok checker=ok (col=1.45e-26 row=1.53e-11 rowrel=2.68e-16 dual=0 gap=2.87e-16 Q=6.6e-08 N=2.94e-11 drop=1.15e-13 cert=no sub=4.98e-16 rays=0 rsub=5.38e-13) det=ok digest=9e1eeeab5848ad8c
++d2q06c       optimal    rows=2171 cols=5167 shape=ok iters=6740 work=428583083 presolve=2171/5167/32417->2098/4880/32044 obj=122784.21081418933 ref=122784.21081418946[koch] objective=ok checker=ok (col=1.45e-26 row=1.53e-11 rowrel=2.68e-16 dual=0 gap=2.87e-16 Q=6.6e-08 N=2.94e-11 drop=1.15e-13 cert=no sub=4.98e-16 rays=0 rsub=5.38e-13) det=ok digest=6875f28fb10884d8
+ d6cube       optimal    rows=415 cols=6184 shape=ok iters=420 work=25069490 presolve=415/6184/37704->403/6183/37696 obj=315.49166666666684 ref=315.49166666666667[koch] objective=ok checker=ok (col=5.87e-13 row=1.82e-12 rowrel=5.23e-13 dual=0 gap=1.05e-16 Q=2.21e-11 N=1.95e-14 drop=0 cert=yes sub=1.31e-45 rays=0 rsub=6.99e-14) det=ok digest=d4e5e3535bb076c9
+ degen2       optimal    rows=444 cols=534 shape=ok iters=578 work=5416116 presolve=444/534/3978->444/534/3978 obj=-1435.1779999999999 ref=-1435.1780000000001[koch] objective=ok checker=ok (col=4.44e-16 row=1.55e-15 rowrel=3.11e-16 dual=0 gap=1.94e-17 Q=1.31e-13 N=7.57e-15 drop=0 cert=yes sub=1.11e-32 rays=0 rsub=9.14e-17) det=ok digest=3048ed0e392fcfe9
+ degen3       optimal    rows=1503 cols=1818 shape=ok iters=2423 work=79618271 presolve=1503/1818/24646->1503/1818/24646 obj=-987.29400000000021 ref=-987.29399999999998[koch] objective=ok checker=ok (col=5.77e-15 row=5.77e-15 rowrel=5.77e-15 dual=0 gap=4.62e-17 Q=3.25e-13 N=5.22e-15 drop=0 cert=yes sub=3.02e-31 rays=0 rsub=3.29e-16) det=ok digest=ab3fd3f42a7f1b5a
+ dfl001       optimal    rows=6071 cols=12230 shape=ok iters=22854 work=2912682888 presolve=6071/12230/35632->6071/11496/34898 obj=11266396.046671377 ref=11266396.046671392[koch] objective=ok checker=ok (col=5.57e-14 row=4.72e-14 rowrel=4.72e-14 dual=0 gap=3.4e-16 Q=3.4e-06 N=3.52e-09 drop=7.26e-10 cert=no sub=1.39e-26 rays=0 rsub=3.01e-13) det=ok digest=0085a0850f439d6a
+-e226         optimal    rows=223 cols=282 shape=ok iters=266 work=1541217 presolve=223/282/2578->162/258/2306 obj=-11.63892906637053 ref=-11.638929066370551[koch] objective=ok checker=REJECTED (col=0 row=5.68e-14 rowrel=1.46e-16 dual=1.16 gap=0.00138 Q=0.0336 N=5.55e-15 drop=4.32e-17 cert=no sub=3.3e-33 rays=0 rsub=0.00266) det=ok digest=29de7744ab7a514f
++e226         optimal    rows=223 cols=282 shape=ok iters=266 work=1541217 presolve=223/282/2578->162/258/2306 obj=-11.63892906637053 ref=-11.638929066370551[koch] objective=ok checker=ok (col=0 row=5.68e-14 rowrel=1.46e-16 dual=0 gap=3.49e-16 Q=2.51e-13 N=5.55e-15 drop=4.32e-17 cert=no sub=3.3e-33 rays=0 rsub=1.99e-14) det=ok digest=656a64c32e31c359
+ etamacro     optimal    rows=400 cols=688 shape=ok iters=568 work=3329745 presolve=400/688/2409->340/516/1842 obj=-755.71523336176347 ref=-755.71523337491328[koch] objective=ok checker=ok (col=2.22e-16 row=1.64e-13 rowrel=1.27e-16 dual=0 gap=3.98e-11 Q=1.34e-07 N=6.29e-14 drop=0 cert=yes sub=8.61e-31 rays=0 rsub=1.77e-10) det=ok digest=ebd1490f789db571
+-fffff800     optimal    rows=524 cols=854 shape=ok iters=850 work=6818607 presolve=524/854/6227->476/817/6042 obj=555679.56481749634 ref=555679.56481749634[koch] objective=ok checker=ok (col=0 row=2.41e-11 rowrel=4.59e-16 dual=0 gap=6.79e-17 Q=6.18e-08 N=1.58e-10 drop=0 cert=yes sub=4.49e-29 rays=0 rsub=1.11e-13) det=ok digest=2bc8efc6791013d3
+-finnis       optimal    rows=497 cols=614 shape=ok iters=281 work=524338 presolve=497/614/2310->399/518/1883 obj=172791.06564493725 ref=172791.06559561158[koch] objective=ok checker=ok (col=0 row=8.44e-07 rowrel=5.51e-16 dual=0 gap=2.21e-10 Q=0.000105 N=2.89e-05 drop=1.67e-14 cert=no sub=3e-21 rays=2 rsub=6.08e-10) det=ok digest=0eadba58ecc19de0
++fffff800     optimal    rows=524 cols=854 shape=ok iters=850 work=6818607 presolve=524/854/6227->476/817/6042 obj=555679.56481749634 ref=555679.56481749634[koch] objective=ok checker=ok (col=0 row=2.41e-11 rowrel=4.59e-16 dual=0 gap=6.79e-17 Q=6.18e-08 N=1.58e-10 drop=0 cert=yes sub=4.49e-29 rays=0 rsub=1.11e-13) det=ok digest=a4c8dc8999918d7d
++finnis       optimal    rows=497 cols=614 shape=ok iters=281 work=524338 presolve=497/614/2310->399/518/1883 obj=172791.06564493725 ref=172791.06559561158[koch] objective=ok checker=ok (col=0 row=8.44e-07 rowrel=5.51e-16 dual=0 gap=2.21e-10 Q=0.000105 N=2.89e-05 drop=1.67e-14 cert=no sub=1.17e-13 rays=2 rsub=6.08e-10) det=ok digest=9ea14ac08ce3d2fa
+ fit1d        optimal    rows=24 cols=1026 shape=ok iters=66 work=1694739 presolve=24/1026/13404->24/1026/13404 obj=-9146.3780924209277 ref=-9146.3780924209277[koch] objective=ok checker=ok (col=0 row=1.32e-14 rowrel=6.73e-17 dual=0 gap=1.84e-17 Q=3.72e-13 N=3.56e-14 drop=0 cert=yes sub=0 rays=0 rsub=4.07e-17) det=ok digest=d72b7a8338ca068a
+ fit1p        optimal    rows=627 cols=1677 shape=ok iters=494 work=13338448 presolve=627/1677/9868->627/1050/9241 obj=9146.378092420935 ref=9146.3780924209277[koch] objective=ok checker=ok (col=0 row=5.51e-14 rowrel=1.64e-16 dual=0 gap=1.43e-19 Q=3.7e-13 N=3.68e-13 drop=2.84e-14 cert=no sub=0 rays=0 rsub=4.05e-17) det=ok digest=a109f2bedbd7e007
+ fit2d        optimal    rows=25 cols=10500 shape=ok iters=131 work=72887365 presolve=25/10500/129018->25/10500/129018 obj=-68464.293293832103 ref=-68464.293293832074[koch] objective=ok checker=ok (col=0 row=1.43e-13 rowrel=5.69e-17 dual=0 gap=5.05e-18 Q=4.78e-13 N=1.17e-12 drop=0 cert=yes sub=0 rays=0 rsub=6.98e-18) det=ok digest=8dc916003c27fc19
+@@ -83,30 +83,20 @@ ship12s      optimal    rows=1151 cols=2763 shape=ok iters=657 work=1550928 pres
+ sierra       optimal    rows=1227 cols=2036 shape=ok iters=610 work=1514026 presolve=1227/2036/7302->1212/2016/7242 obj=15394362.183631929 ref=15394362.183631931[koch] objective=ok checker=ok (col=2.32e-13 row=3.16e-13 rowrel=2.32e-13 dual=0 gap=2.78e-15 Q=8.61e-08 N=5.6e-10 drop=0 cert=yes sub=0 rays=0 rsub=5.59e-15) det=ok digest=118e999092d31e4e
+ stair        optimal    rows=356 cols=467 shape=ok iters=569 work=11701827 presolve=356/467/3856->356/385/3666 obj=-251.26695119296332 ref=-251.26695119296329[koch] objective=ok checker=ok (col=0 row=8.53e-14 rowrel=1.42e-16 dual=0 gap=1.31e-15 Q=1.04e-07 N=2.81e-14 drop=3.71e-15 cert=no sub=5.52e-33 rays=0 rsub=4.14e-10) det=ok digest=4011c33fcbac515d
+ standata     optimal    rows=359 cols=1075 shape=ok iters=57 work=98675 presolve=359/1075/3031->301/1014/2819 obj=1257.6994999999999 ref=1257.6994999999999[koch] objective=ok checker=ok (col=0 row=4.26e-14 rowrel=4.36e-17 dual=0 gap=2.54e-17 Q=0 N=6.39e-14 drop=0 cert=yes sub=0 rays=0 rsub=0) det=ok digest=e55f7775cd282514
+-standmps     optimal    rows=467 cols=1075 shape=ok iters=200 work=356475 presolve=467/1075/3679->409/1014/3467 obj=1406.0174999999999 ref=1406.0174999999999[koch] objective=ok checker=ok (col=0 row=1.05e-13 rowrel=7.83e-17 dual=0 gap=3.49e-17 Q=4.16e-13 N=1.3e-13 drop=0 cert=yes sub=0 rays=0 rsub=2.96e-16) det=ok digest=3cb164b06534ffcf
++standmps     optimal    rows=467 cols=1075 shape=ok iters=200 work=356475 presolve=467/1075/3679->409/1014/3467 obj=1406.0174999999999 ref=1406.0174999999999[koch] objective=ok checker=ok (col=0 row=1.05e-13 rowrel=7.83e-17 dual=0 gap=3.49e-17 Q=4.16e-13 N=1.3e-13 drop=0 cert=yes sub=0 rays=0 rsub=2.96e-16) det=ok digest=ad59e3e8c6b630cf
+ stocfor1     optimal    rows=117 cols=111 shape=ok iters=123 work=287839 presolve=117/111/447->98/100/398 obj=-41131.976219436401 ref=-41131.976219436408[koch] objective=ok checker=ok (col=0 row=7.35e-13 rowrel=1.3e-16 dual=0 gap=1.24e-16 Q=4.03e-11 N=6.81e-12 drop=0 cert=yes sub=2.37e-29 rays=0 rsub=9.81e-16) det=ok digest=da4d5d2156c6eb81
+ stocfor2     optimal    rows=2157 cols=2031 shape=ok iters=2193 work=16773915 presolve=2157/2031/8343->2129/2015/8255 obj=-39024.408537882104 ref=-39024.408537882031[koch] objective=ok checker=ok (col=6.66e-16 row=8.03e-13 rowrel=3.9e-16 dual=0 gap=1.52e-16 Q=5.86e-11 N=6.2e-12 drop=0 cert=yes sub=3.31e-29 rays=0 rsub=1.5e-15) det=ok digest=5d4e5bb09e1fdc07
+ stocfor3     optimal    rows=16675 cols=15695 shape=ok iters=18431 work=585296972 presolve=16675/15695/64875->16617/15663/64567 obj=-39976.78394364944 ref=-39976.783943649585[koch] objective=ok checker=ok (col=1.78e-15 row=9.27e-13 rowrel=7.49e-16 dual=0 gap=1.81e-16 Q=7.35e-11 N=7.53e-12 drop=0 cert=yes sub=1.03e-29 rays=0 rsub=1.84e-15) det=ok digest=9e088705a1dee0f8
+ truss        optimal    rows=1000 cols=8806 shape=ok iters=17336 work=1138070950 presolve=1000/8806/27836->1000/8806/27836 obj=458815.84718561685 ref=458815.84718561673[koch] objective=ok checker=ok (col=5.02e-16 row=7.93e-14 rowrel=1.3e-16 dual=0 gap=3.15e-16 Q=4.66e-10 N=1.77e-10 drop=2.93e-12 cert=no sub=1.94e-27 rays=0 rsub=1.02e-15) det=ok digest=b03cc2644380ef0f
+ tuff         optimal    rows=333 cols=587 shape=ok iters=263 work=1305384 presolve=333/587/4520->286/512/4273 obj=0.29214776509361301 ref=0.29214776509361284[koch] objective=ok checker=ok (col=0 row=5.95e-13 rowrel=1.67e-16 dual=0 gap=1.8e-16 Q=1.94e-14 N=5.63e-17 drop=0 cert=yes sub=2.31e-33 rays=0 rsub=1.5e-14) det=ok digest=e1dd0c494740ef24
+-vtp-base     optimal    rows=198 cols=203 shape=ok iters=52 work=71176 presolve=198/203/908->54/82/303 obj=129831.46246136134 ref=129831.46246136137[koch] objective=ok checker=REJECTED (col=0 row=2.23e-11 rowrel=1.68e-16 dual=1.32e+03 gap=1.55e-17 Q=5.49e+05 N=4.34e-11 drop=0 cert=yes sub=0 rays=0 rsub=4.23) det=ok digest=ab8bf77574c608d3
++vtp-base     optimal    rows=198 cols=203 shape=ok iters=52 work=71176 presolve=198/203/908->54/82/303 obj=129831.46246136134 ref=129831.46246136137[koch] objective=ok checker=ok (col=0 row=2.23e-11 rowrel=1.68e-16 dual=0 gap=1.06e-17 Q=2.35e-10 N=4.34e-11 drop=0 cert=yes sub=0 rays=0 rsub=1.81e-15) det=ok digest=80e0afd71a640cbc
+ wood1p       optimal    rows=244 cols=2594 shape=ok iters=528 work=35025061 presolve=244/2594/70215->171/1801/48577 obj=1.4429024115734088 ref=1.4429024115734093[koch] objective=ok checker=ok (col=0 row=7.21e-14 rowrel=7.21e-14 dual=0 gap=5.23e-16 Q=1.81e-08 N=8.1e-16 drop=0 cert=yes sub=0 rays=0 rsub=7.4e-09) det=ok digest=1098c38db853c4c9
+ woodw        optimal    rows=1098 cols=8405 shape=ok iters=1228 work=40135656 presolve=1098/8405/37474->723/5286/23159 obj=1.3044763330842297 ref=1.3044763330842293[koch] objective=ok checker=ok (col=0 row=8.67e-14 rowrel=1.72e-16 dual=0 gap=1.81e-16 Q=8.82e-14 N=1.06e-16 drop=0 cert=yes sub=1.55e-35 rays=0 rsub=3.83e-14) det=ok digest=9be8bdac55d4184a
+ 
+-94 instances: 94 solved, 94 shape ok, 94 objective ok, 89 checker ok, 94 deterministic, 0 failed
+-gate: NOT MET
++94 instances: 94 solved, 94 shape ok, 94 objective ok, 94 checker ok, 94 deterministic, 0 failed
++gate: PASS
+ 
+ -- against baseline --
+-25fv47       REGRESSED    checker: yes -> no (optimal -> optimal)
+-25fv47       REGRESSED    suboptimality bound: 3.47e-14 -> 0.0167 (481572930446.3x relative to its own objective)
+-bnl1         REGRESSED    checker: yes -> no (optimal -> optimal)
+-bnl1         REGRESSED    suboptimality bound: 1.67e-14 -> 0.00779 (467766037824.7x relative to its own objective)
+-bnl2         REGRESSED    checker: yes -> no (optimal -> optimal)
+-bnl2         REGRESSED    suboptimality bound: 2.89e-15 -> 0.0526 (18171194622876.6x relative to its own objective)
+-e226         REGRESSED    checker: yes -> no (optimal -> optimal)
+-e226         REGRESSED    suboptimality bound: 9.98e-15 -> 0.00266 (266417697020.1x relative to its own objective)
+ grow22       REGRESSED    work: 44247864 -> 493883651 (11.2x), iters 2179 -> 16381
+ grow7        REGRESSED    work: 6378361 -> 54620695 (8.6x), iters 544 -> 4804
+-vtp-base     REGRESSED    checker: yes -> no (optimal -> optimal)
+-vtp-base     REGRESSED    suboptimality bound: 2.59e-15 -> 4.23 (1631046162210460.8x relative to its own objective)
+-baseline: 12 regressed, 0 improved, 0 new
++baseline: 2 regressed, 0 improved, 0 new
+diff --git a/src/jaos_internal.h b/src/jaos_internal.h
+index b2b1379..831c72e 100644
+--- a/src/jaos_internal.h
++++ b/src/jaos_internal.h
+@@ -505,8 +505,11 @@ typedef enum {
+  *   JM_PS_SINGLETON_ROW: index=row, index2=the column its one entry named,
+  *     coef=that entry's coefficient. row_tightens_lo/hi record which side(s)
+  *     of the column's bound the row's own implied bound actually won at the
+- *     moment of intersection — the discriminator the dual recovery needs
+- *     (see jm_postsolve_expand).
++ *     moment of intersection, and lo/hi are the bounds the column was left
++ *     carrying after that intersection. Several rows can fold into one
++ *     column, so which side won is not on its own enough to say which row
++ *     owns the bound x_j finally rests on; the recorded pair is what
++ *     separates them (see ps_replay_one).
+  *   JM_PS_SINGLETON_COL: index=row (which survives, relaxed), index2=the
+  *     column removed, coef=the entry's coefficient, lo/hi=the column's own
+  *     bounds at the moment it was removed, row_lo/row_hi=the row's own
+diff --git a/src/presolve.c b/src/presolve.c
+index dd07225..23093ff 100644
+--- a/src/presolve.c
++++ b/src/presolve.c
+@@ -733,9 +733,18 @@ JAOS_NODISCARD jaos_status jm_presolve_run(const jaos_model *m, jm_presolve *p,
+                     fold_lo = fold_hi = 0.5 * (new_lo + new_hi);
+                 }
+ 
++                /* lo/hi are the bounds the column leaves this fold carrying,
++                 * after the collapse branch above has had its say. The dual
++                 * recovery compares x_j against them to decide whether this
++                 * row is the one that produced the bound x_j ends up resting
++                 * on — see the JM_PS_SINGLETON_ROW case in ps_replay_one.
++                 * A later fold that tightens the same side overwrites the
++                 * bound but not this record, which is exactly what makes the
++                 * comparison able to tell the two rows apart. */
+                 if (!ps_push(p, (jm_presolve_rec){
+                         .tag = JM_PS_SINGLETON_ROW,
+                         .index = i, .index2 = j, .coef = a,
++                        .lo = fold_lo, .hi = fold_hi,
+                         .row_tightens_lo = tightens_lo,
+                         .row_tightens_hi = tightens_hi })) {
+                     ret = JAOS_ERR_OUT_OF_MEMORY;
+@@ -1482,8 +1491,54 @@ static void ps_replay_one(jaos_model *orig, const jm_presolve *p, int64_t r)
+             (d0 > 0.0 && v0 == orig->col_lower[j]) ||
+             (d0 < 0.0 && v0 == orig->col_upper[j]);
+ 
++        /* Asking only whether zero works is not enough, because more than one
++         * row can fold into the same column. The replay reaches those records
++         * in LIFO order, which is not the order they tightened in, and the
++         * test above is true or false for all of them alike: it reads the
++         * column and never the row. So the first record to arrive took the
++         * whole reduced cost whether or not its own row produced the bound
++         * x_j is resting on, and the row that did produce it then found d0
++         * already zeroed and published a multiplier of zero. Both rows come
++         * out wrong, and the checker refuses the one whose row is not
++         * resting on a bound at all. That is five of the standard set:
++         * 25fv47, bnl1, bnl2, e226 and vtp-base, each with exactly two
++         * SINGLETON_ROW records on the offending column.
++         *
++         * The bound each fold left the column with is recorded, so the
++         * question the row has to answer is asked directly: does x_j rest on
++         * the bound THIS row produced, on the side d0's sign needs? The
++         * comparison is exact, and that is not an approximation standing in
++         * for a tolerance — a nonbasic column rests on its bound bit for bit,
++         * and rec->lo/hi is the same computation that produced that bound.
++         * A row whose fold was later overwritten by a tighter one compares
++         * unequal and declines, which is what leaves the reduced cost intact
++         * for the record that does own the bound.
++         *
++         * Reading row_tightens_lo/hi alone does not answer it. bnl1's row 638
++         * has row_tightens_hi set and is still not responsible, because the
++         * column ends up resting on the lower bound row 636 imposed; two rows
++         * can tighten and only the one whose bound survives is owed the
++         * multiplier.
++         *
++         * Declining keeps the row right and can leave the column wrong. A
++         * zero multiplier satisfies every row's own sign condition, so the
++         * row is always safe. The column is not: d0 survives, and if no
++         * later record owns the bound it survives on a column that may be
++         * strictly interior, where the checker reports it against the column
++         * instead. Every path that reaches here with d0 != 0 leaves x_j on a
++         * bound some record owns, with one exception. The collapse branch in
++         * the fold above replaces both bounds with their midpoint, and that
++         * midpoint is no row's implied bound, so the record that tightened
++         * the other side compares unequal for ever. `min x0 + x1 + x2 s.t.
++         * x0 >= 5, x0 <= 5 - 1e-13, x1 + x2 >= 3, x0 in [0, 10]` is that
++         * case. The code this replaced refuses it by the same magnitude on
++         * the row instead, so it is a separate defect; TODO.md carries it. */
++        const bool this_row_owns =
++            (d0 > 0.0 && rec->row_tightens_lo && v0 == rec->lo) ||
++            (d0 < 0.0 && rec->row_tightens_hi && v0 == rec->hi);
++
+         double y_i;
+-        if (zero_works) {
++        if (zero_works || !this_row_owns) {
+             y_i = 0.0;
+             /* orig->sol_redcost[j] already holds d'_j, and the status the
+              * column arrived with is the one its own bounds justify. */
+diff --git a/tests/test_presolve.c b/tests/test_presolve.c
+index cae00af..4b96484 100644
+--- a/tests/test_presolve.c
++++ b/tests/test_presolve.c
+@@ -2072,6 +2072,112 @@ static void test_the_tightening_epsilon_is_the_one_its_sweep_set(void)
+ #endif
+ }
+ 
++/* -- Two singleton rows folding into one column ---------------------------
++ *
++ *   min  x0 + x1
++ *   r0:  x0        >= 2       singleton: tightens x0's lower to 2
++ *   r1:  x0        <= 10      singleton: tightens x0's upper to 10
++ *   r2:  x0 + x1   <= 100     survives, and keeps x0 from becoming an empty
++ *                             column, which would take the SOLVED path instead
++ *   x0, x1 in [0, inf), both cost 1.
++ *
++ * By hand: x0 = 2, x1 = 0, objective 2. x0 rests on the lower bound r0
++ * produced, so r0 is the row owed the multiplier and y_r0 = 1 exactly. r1's
++ * activity is 2 against (-inf, 10] — strictly interior — so y_r1 must be
++ * exactly 0, and any nonzero value there is a dual violation of that size.
++ *
++ * The order is what this protects. r0 is pushed first and therefore replays
++ * LAST, so r1 is the record that reaches the reduced cost first. Before the
++ * bound-ownership test, r1 took the whole of it (y_r1 = 1, and r0 then found
++ * a zero and published none) — the defect this model is the minimum case of,
++ * and the one five standard-set instances were rejected on: 25fv47, bnl1,
++ * bnl2, e226 and vtp-base. The multipliers are asserted per row rather than
++ * through the checker alone, because two wrong duals whose sum is right
++ * would pass a checker and still be wrong. */
++#if !defined(JAOS_PRESOLVE_FAULT_OFFBYONE)
++static jaos_model *make_two_folds_one_column_model(void)
++{
++    const double c[] = {1.0, 1.0};
++    const double cl[] = {0.0, 0.0};
++    const double cu[] = {INFINITY, INFINITY};
++    const double rl[] = {2.0, -INFINITY, -INFINITY};
++    const double ru[] = {INFINITY, 10.0, 100.0};
++    const int64_t s[] = {0, 3, 4};
++    const int64_t ix[] = {0, 1, 2, 2};
++    const double v[] = {1.0, 1.0, 1.0, 1.0};
++    jaos_model *m = nullptr;
++    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_model_new(&m));
++    TEST_ASSERT_EQUAL_INT(JAOS_OK,
++        jaos_load_lp(m, 2, 3, JAOS_MINIMIZE, 0.0, c, cl, cu, rl, ru,
++                     4, s, ix, v));
++    return m;
++}
++#endif
++
++static void test_two_folds_the_owning_row_takes_the_multiplier(void)
++{
++#if defined(JAOS_PRESOLVE_FAULT_OFFBYONE) || defined(JAOS_PRESOLVE_FAULT_WRONGDUAL)
++    TEST_IGNORE_MESSAGE("positive test — skipped under either fault build");
++#else
++    jaos_model *m = make_two_folds_one_column_model();
++    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
++    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
++
++    double x[2], y[3], dj[2];
++    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solution(m, x, nullptr, y, dj));
++
++    const double expected_x0 = 2.0, expected_x1 = 0.0;
++    TEST_ASSERT_EQUAL_MEMORY(&expected_x0, &x[0], sizeof x[0]);
++    TEST_ASSERT_EQUAL_MEMORY(&expected_x1, &x[1], sizeof x[1]);
++
++    /* The whole point: r0 carries it, r1 carries nothing, r2 is interior. */
++    const double expected_y0 = 1.0, expected_y1 = 0.0, expected_y2 = 0.0;
++    TEST_ASSERT_EQUAL_MEMORY(&expected_y0, &y[0], sizeof y[0]);
++    TEST_ASSERT_EQUAL_MEMORY(&expected_y1, &y[1], sizeof y[1]);
++    TEST_ASSERT_EQUAL_MEMORY(&expected_y2, &y[2], sizeof y[2]);
++
++    jaos_check_report r;
++    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_check_solution(m, x, y, TOL, &r));
++    TEST_ASSERT_TRUE(r.primal_feasible);
++    TEST_ASSERT_TRUE(r.dual_feasible);
++
++    jaos_model_free(m);
++#endif
++}
++
++/* What the CHECKER must refuse, which is not the same as a detector for the
++ * rule above. Under JAOS_PRESOLVE_FAULT_WRONGDUAL the multiplier is taken
++ * unconditionally — what r1 did before the ownership test existed — and the
++ * checker has to report it at exactly the multiplier's own magnitude. A rule
++ * that let this through would let every multiplier of this shape through.
++ *
++ * This test passes against the pre-fix code too, and that is a property of
++ * the checker rather than a hole in the test: jaos_check_solution is handed
++ * x and y and recomputes d_j itself, so the same violation of 1 lands on the
++ * column there and on row 1 here. The positive test above is the change
++ * detector — it reports 1 before the fix and 0 after. */
++static void test_two_folds_wrong_dual(void)
++{
++#if !defined(JAOS_PRESOLVE_FAULT_WRONGDUAL)
++    TEST_IGNORE_MESSAGE("negative test — runs only under "
++                        "EXTRA_CFLAGS=-DJAOS_PRESOLVE_FAULT_WRONGDUAL");
++#else
++    jaos_model *m = make_two_folds_one_column_model();
++    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
++    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
++
++    double x[2], y[3];
++    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solution(m, x, nullptr, y, nullptr));
++
++    jaos_check_report r;
++    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_check_solution(m, x, y, TOL, &r));
++    TEST_ASSERT_FALSE(r.dual_feasible);
++    TEST_ASSERT_DOUBLE_WITHIN(1e-9, 1.0, r.max_dual_violation);
++
++    jaos_model_free(m);
++#endif
++}
++
+ int main(void)
+ {
+     UNITY_BEGIN();
+@@ -2092,6 +2198,8 @@ int main(void)
+     RUN_TEST(test_empty_col_reports_unbounded);
+     RUN_TEST(test_singleton_row_round_trip);
+     RUN_TEST(test_singleton_row_wrong_dual);
++    RUN_TEST(test_two_folds_the_owning_row_takes_the_multiplier);
++    RUN_TEST(test_two_folds_wrong_dual);
+     RUN_TEST(test_singleton_col_round_trip);
+     RUN_TEST(test_singleton_col_index_off_by_one);
+     RUN_TEST(test_singleton_col_after_fixed_col);

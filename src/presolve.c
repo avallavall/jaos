@@ -733,9 +733,18 @@ JAOS_NODISCARD jaos_status jm_presolve_run(const jaos_model *m, jm_presolve *p,
                     fold_lo = fold_hi = 0.5 * (new_lo + new_hi);
                 }
 
+                /* lo/hi are the bounds the column leaves this fold carrying,
+                 * after the collapse branch above has had its say. The dual
+                 * recovery compares x_j against them to decide whether this
+                 * row is the one that produced the bound x_j ends up resting
+                 * on — see the JM_PS_SINGLETON_ROW case in ps_replay_one.
+                 * A later fold that tightens the same side overwrites the
+                 * bound but not this record, which is exactly what makes the
+                 * comparison able to tell the two rows apart. */
                 if (!ps_push(p, (jm_presolve_rec){
                         .tag = JM_PS_SINGLETON_ROW,
                         .index = i, .index2 = j, .coef = a,
+                        .lo = fold_lo, .hi = fold_hi,
                         .row_tightens_lo = tightens_lo,
                         .row_tightens_hi = tightens_hi })) {
                     ret = JAOS_ERR_OUT_OF_MEMORY;
@@ -1482,8 +1491,54 @@ static void ps_replay_one(jaos_model *orig, const jm_presolve *p, int64_t r)
             (d0 > 0.0 && v0 == orig->col_lower[j]) ||
             (d0 < 0.0 && v0 == orig->col_upper[j]);
 
+        /* Asking only whether zero works is not enough, because more than one
+         * row can fold into the same column. The replay reaches those records
+         * in LIFO order, which is not the order they tightened in, and the
+         * test above is true or false for all of them alike: it reads the
+         * column and never the row. So the first record to arrive took the
+         * whole reduced cost whether or not its own row produced the bound
+         * x_j is resting on, and the row that did produce it then found d0
+         * already zeroed and published a multiplier of zero. Both rows come
+         * out wrong, and the checker refuses the one whose row is not
+         * resting on a bound at all. That is five of the standard set:
+         * 25fv47, bnl1, bnl2, e226 and vtp-base, each with exactly two
+         * SINGLETON_ROW records on the offending column.
+         *
+         * The bound each fold left the column with is recorded, so the
+         * question the row has to answer is asked directly: does x_j rest on
+         * the bound THIS row produced, on the side d0's sign needs? The
+         * comparison is exact, and that is not an approximation standing in
+         * for a tolerance — a nonbasic column rests on its bound bit for bit,
+         * and rec->lo/hi is the same computation that produced that bound.
+         * A row whose fold was later overwritten by a tighter one compares
+         * unequal and declines, which is what leaves the reduced cost intact
+         * for the record that does own the bound.
+         *
+         * Reading row_tightens_lo/hi alone does not answer it. bnl1's row 638
+         * has row_tightens_hi set and is still not responsible, because the
+         * column ends up resting on the lower bound row 636 imposed; two rows
+         * can tighten and only the one whose bound survives is owed the
+         * multiplier.
+         *
+         * Declining keeps the row right and can leave the column wrong. A
+         * zero multiplier satisfies every row's own sign condition, so the
+         * row is always safe. The column is not: d0 survives, and if no
+         * later record owns the bound it survives on a column that may be
+         * strictly interior, where the checker reports it against the column
+         * instead. Every path that reaches here with d0 != 0 leaves x_j on a
+         * bound some record owns, with one exception. The collapse branch in
+         * the fold above replaces both bounds with their midpoint, and that
+         * midpoint is no row's implied bound, so the record that tightened
+         * the other side compares unequal for ever. `min x0 + x1 + x2 s.t.
+         * x0 >= 5, x0 <= 5 - 1e-13, x1 + x2 >= 3, x0 in [0, 10]` is that
+         * case. The code this replaced refuses it by the same magnitude on
+         * the row instead, so it is a separate defect; TODO.md carries it. */
+        const bool this_row_owns =
+            (d0 > 0.0 && rec->row_tightens_lo && v0 == rec->lo) ||
+            (d0 < 0.0 && rec->row_tightens_hi && v0 == rec->hi);
+
         double y_i;
-        if (zero_works) {
+        if (zero_works || !this_row_owns) {
             y_i = 0.0;
             /* orig->sol_redcost[j] already holds d'_j, and the status the
              * column arrived with is the one its own bounds justify. */
