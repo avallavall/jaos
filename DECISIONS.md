@@ -108,6 +108,7 @@ and you have the argument. Jump to the entry for the numbers behind it.
 - **[D98](#d98-the-planning-layer-is-retired-the-record-is-five-documents-and-the-process-is-the-loop-in-claudemd)** — The planning layer is retired: the record is five documents, and the process is the loop in CLAUDE.md
 - **[D99](#d99-the-singleton-column-was-judged-against-bounds-that-had-stopped-describing-its-row-and-that-is-the-whole-of-the-row-residual-defect)** — The singleton column was judged against bounds that had stopped describing its row, and that is the whole of the row-residual defect
 - **[D100](#d100-several-rows-can-fold-into-one-column-and-the-multiplier-is-owed-to-the-one-whose-bound-the-column-rests-on)** — Several rows can fold into one column, and the multiplier is owed to the one whose bound the column rests on
+- **[D101](#d101-the-last-three-presolve-families-have-015-left-to-remove-on-this-instance-set-which-defers-them-rather-than-refusing-them)** — The last three presolve families have 0.15% left to remove on this instance set, which defers them rather than refusing them
 
 ---
 
@@ -7373,3 +7374,81 @@ alike; `assert(want_lo <= want_hi)` firing on `bnl1` and `finnis` when
 assertions are live, which predates this change and which no gate can see
 because the release build carries `-DNDEBUG`; and the `warm` record last
 written before presolve existed, which makes any diff against it unreadable.
+
+## D101 — The last three presolve families have 0.15% left to remove on this instance set, which defers them rather than refusing them
+
+**The question.** `REQ-presolve` scopes five reduction families that are live
+and three that were never built: duplicate rows, duplicate columns and
+dominated columns. The expectation going in was that they were simply
+unfinished work. Before writing any of them, two things were established: what
+the literature actually specifies, and how much they would find on the models
+JAOS is tested against.
+
+**The measurement.** Raw readings: `bench/measurements/02-07/`.
+
+*The literature first* (`02-07/literature.md`, citations verified against
+publisher or Crossref). Three parts of the work have **no published source**
+and would be ours to derive: the dual postsolve for parallel rows, the primal
+split rule when two columns are merged into one, and the parallel-with-
+mismatched-cost case, which §6.4's Definition 6 does not capture because it
+carries no scale factor. No source gives a tolerance for deciding two rows are
+parallel. And HiGHS omits parallel rows and columns deliberately — Galabova
+§3.2.3, quoted in full there — which matters because JAOS's field value is
+measured against HiGHS (D81). Achterberg §6.3 does settle one thing `TODO.md`
+asked for: the duplicate/dominance boundary is `c_k = lambda * c_j`, written
+in the source, and the bound conditions beside it are entirely about
+integrality and do not apply to continuous LP.
+
+*The count.* A counter compiled into presolve under `-DJAOS_DIAG`, reading the
+model presolve publishes, so it sees what is left after the five live families
+reach a fixed point. Calibrated on a five-by-five model with a known answer —
+three mutually parallel rows and one parallel column pair — where it reports
+exactly the two and the one (`02-07/validate.c`).
+
+| set | live rows | removable | live cols | removable | dual fixing |
+|---|---|---|---|---|---|
+| netlib (94) | 78445 | 151 | 157858 | 1450 | 1053 |
+| kennington (16) | 205651 | 298 | 844890 | 4 | 0 |
+| infeasible (29) | 13204 | 22 | 26267 | 72 | 30 |
+
+471 rows of about 297000 and 1526 columns of about 1029000: **0.15% of each**.
+Concentrated rather than spread — `cre-a` holds 222 of Kennington's 298
+removable rows, and `d6cube` holds 735 of netlib's 1450 removable columns,
+about 12% of that one model.
+
+*The tolerance nobody publishes turns out to decide almost nothing here.* Each
+count was taken at tau = 0, 1e-12, 1e-9 and 1e-6 in one pass. Netlib's
+removable rows move 142 to 151 across that whole range and its columns 1450 to
+1471; on Kennington nothing moves at all. The pairs that exist are exactly
+parallel.
+
+**What was refuted.**
+
+1. *That the benefit here is unmeasurable.* It was argued first that 0.15% sits
+   far below this host's 6.27% repeatability (D93) and so could not be
+   measured. That is wrong and worth writing down: 6.27% is the repeatability
+   of the **clock**. Work units and problem dimensions are exact integers, and
+   removed rows are counted, not timed. The benefit would be measured
+   precisely. It is small, which is a different statement.
+2. *That a count on these 139 models settles the question.* It does not, and
+   this is why the entry defers rather than refuses. netlib is old and curated
+   and Kennington is a few network families. Gurobi's own figures, on their
+   customer library, put parallel rows in more than half the models of their
+   slowest tranche, and Tomlin and Welch wrote a paper in 1986 on finding
+   duplicate rows precisely because auto-generated industrial models carry
+   them. A measurement on this set is not a statement about that population.
+3. *Two versions of the counter, both caught by being too clean.* The first
+   hung off a label most exit paths skip, so five instances produced no line,
+   and it read the reduced model unconditionally, reporting zero on every
+   instance presolve does not touch. The second counted parallel pairs rather
+   than removable rows — k mutually parallel rows are k(k-1)/2 pairs and k-1
+   removals, so `d6cube` read 3048 where the answer is 735 — and tested dual
+   fixing without reading each row's sense, calling 421615 Kennington columns
+   fixable, which would have collapsed models that solve normally.
+
+**What is left open**, handed to `TODO.md`'s deferrals table: the three
+families, with the reopen condition being a model population where the counter
+reports a non-trivial share. The counter is committed at
+`bench/measurements/02-07/` so that condition is executable rather than a
+matter of opinion. Presolve is otherwise complete at five families; nothing is
+removed by this entry.

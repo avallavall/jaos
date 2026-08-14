@@ -1,0 +1,50 @@
+build rc=0
+--- netlib: 94 instances, 0 missing
+    live rows 78445, live cols 157858
+    removable rows    tau=0 142  1e-9 151  1e-6 151   (on 17 instances)
+    removable columns tau=0 1450  1e-9 1450  1e-6 1471   (on 30 instances)
+    dual-fixing candidates: 1053
+--- kennington: 16 instances, 0 missing
+    live rows 205651, live cols 844890
+    removable rows    tau=0 298  1e-9 298  1e-6 298   (on 4 instances)
+    removable columns tau=0 4  1e-9 4  1e-6 4   (on 1 instances)
+    dual-fixing candidates: 0
+--- infeas: 29 instances, 0 missing
+    live rows 13204, live cols 26267
+    removable rows    tau=0 22  1e-9 22  1e-6 24   (on 3 instances)
+    removable columns tau=0 72  1e-9 72  1e-6 72   (on 4 instances)
+    dual-fixing candidates: 30
+
+################ where the removable rows are (tau=1e-9)
+    222 cre-a
+    51 cre-c
+    47 nesm
+    40 agg
+    17 agg3
+    17 agg2
+    13 cre-d
+    12 cre-b
+    12 bgindy
+    6 scorpion
+################ where the removable columns are (tau=1e-9)
+    735 d6cube
+    137 fit2d
+    125 greenbeb
+    125 greenbea
+    72 standata
+    64 nesm
+    51 pilot4i
+    51 pilot4
+    27 recipe
+    19 perold
+################ dual-fixing, biggest
+    360 seba
+    281 dfl001
+    93 sctap3
+    86 bnl2
+    84 sctap2
+    38 finnis
+    30 bgetam
+    26 80bau3b
+
+[exited with code 0]

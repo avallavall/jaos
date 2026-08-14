@@ -9,6 +9,16 @@ open, `bench/README.md` for the gate, and the commit each entry came from.
 
 ## [Unreleased]
 
+### Changed
+
+- Presolve is complete at five families. The three that were scoped and never
+  built — duplicate rows, duplicate columns, dominated columns — are deferred
+  with the count that defers them: 471 removable rows of about 297000 and 1526
+  removable columns of about 1029000 across the three sets, 0.15% of each, and
+  concentrated in `cre-a` and `d6cube`. The reopen condition is a model
+  population where the committed counter reports more, so it is executable
+  rather than an opinion (D101). Nothing is removed and no behaviour changes.
+
 ### Fixed
 
 - `bench/run` prints per-instance seconds to six decimals instead of three.

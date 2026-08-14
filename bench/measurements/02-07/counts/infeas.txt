@@ -1,0 +1,29 @@
+bgdbg1 FAMILIES outcome=2 nothing-left
+bgetam FAMILIES liverows=334 livecols=470 remrow=0/0/0/0 remcol=0/0/0/0 dualfix=30
+bgindy FAMILIES liverows=2657 livecols=9519 remrow=12/12/12/14 remcol=0/0/0/0 dualfix=0
+bgprtr FAMILIES liverows=20 livecols=22 remrow=0/0/0/0 remcol=0/0/0/0 dualfix=0
+box1 FAMILIES liverows=231 livecols=261 remrow=0/0/0/0 remcol=0/0/0/0 dualfix=0
+ceria3d FAMILIES outcome=2 nothing-left
+chemcom FAMILIES liverows=288 livecols=534 remrow=0/0/0/0 remcol=0/0/0/0 dualfix=0
+cplex1 FAMILIES liverows=2505 livecols=2221 remrow=0/0/0/0 remcol=0/0/0/0 dualfix=0
+cplex2 FAMILIES liverows=224 livecols=221 remrow=0/0/0/0 remcol=0/0/0/0 dualfix=0
+ex72a FAMILIES liverows=197 livecols=215 remrow=0/0/0/0 remcol=0/0/0/0 dualfix=0
+ex73a FAMILIES liverows=193 livecols=211 remrow=0/0/0/0 remcol=0/0/0/0 dualfix=0
+forest6 FAMILIES liverows=66 livecols=90 remrow=0/0/0/0 remcol=0/0/0/0 dualfix=0
+galenet FAMILIES liverows=4 livecols=4 remrow=0/0/0/0 remcol=0/0/0/0 dualfix=0
+gosh FAMILIES liverows=3389 livecols=9639 remrow=6/6/6/6 remcol=4/4/4/4 dualfix=0
+gran FAMILIES outcome=2 nothing-left
+greenbea FAMILIES outcome=2 nothing-left
+itest2 FAMILIES outcome=2 nothing-left
+itest6 FAMILIES outcome=2 nothing-left
+klein1 FAMILIES liverows=54 livecols=54 remrow=0/0/0/0 remcol=0/0/0/0 dualfix=0
+klein2 FAMILIES liverows=476 livecols=54 remrow=0/0/0/0 remcol=0/0/0/0 dualfix=0
+klein3 FAMILIES liverows=993 livecols=88 remrow=0/0/0/0 remcol=0/0/0/0 dualfix=0
+mondou2 FAMILIES liverows=259 livecols=467 remrow=0/0/0/0 remcol=1/1/1/1 dualfix=0
+pang FAMILIES liverows=344 livecols=406 remrow=4/4/4/4 remcol=16/16/16/16 dualfix=0
+pilot4i FAMILIES liverows=397 livecols=864 remrow=0/0/0/0 remcol=51/51/51/51 dualfix=0
+qual FAMILIES liverows=191 livecols=309 remrow=0/0/0/0 remcol=0/0/0/0 dualfix=0
+reactor FAMILIES outcome=2 nothing-left
+refinery FAMILIES liverows=191 livecols=309 remrow=0/0/0/0 remcol=0/0/0/0 dualfix=0
+vol1 FAMILIES liverows=191 livecols=309 remrow=0/0/0/0 remcol=0/0/0/0 dualfix=0
+woodinfe FAMILIES outcome=2 nothing-left

@@ -1,0 +1,16 @@
+cre-a FAMILIES liverows=3074 livecols=4057 remrow=222/222/222/222 remcol=0/0/0/0 dualfix=0
+cre-b FAMILIES liverows=5336 livecols=31818 remrow=12/12/12/12 remcol=0/0/0/0 dualfix=0
+cre-c FAMILIES liverows=2584 livecols=3592 remrow=51/51/51/51 remcol=0/0/0/0 dualfix=0
+cre-d FAMILIES liverows=4102 livecols=25188 remrow=13/13/13/13 remcol=0/0/0/0 dualfix=0
+ken-07 FAMILIES liverows=1437 livecols=2597 remrow=0/0/0/0 remcol=0/0/0/0 dualfix=0
+ken-11 FAMILIES liverows=10085 livecols=16698 remrow=0/0/0/0 remcol=4/4/4/4 dualfix=0
+ken-13 FAMILIES liverows=22534 livecols=36504 remrow=0/0/0/0 remcol=0/0/0/0 dualfix=0
+ken-18 FAMILIES liverows=78862 livecols=128304 remrow=0/0/0/0 remcol=0/0/0/0 dualfix=0
+osa-07 FAMILIES liverows=1081 livecols=23949 remrow=0/0/0/0 remcol=0/0/0/0 dualfix=0
+osa-14 FAMILIES liverows=2300 livecols=52460 remrow=0/0/0/0 remcol=0/0/0/0 dualfix=0
+osa-30 FAMILIES liverows=4313 livecols=100024 remrow=0/0/0/0 remcol=0/0/0/0 dualfix=0
+osa-60 FAMILIES liverows=10243 livecols=232965 remrow=0/0/0/0 remcol=0/0/0/0 dualfix=0
+pds-02 FAMILIES liverows=2609 livecols=7172 remrow=0/0/0/0 remcol=0/0/0/0 dualfix=0
+pds-06 FAMILIES liverows=9156 livecols=27852 remrow=0/0/0/0 remcol=0/0/0/0 dualfix=0
+pds-10 FAMILIES liverows=15648 livecols=47729 remrow=0/0/0/0 remcol=0/0/0/0 dualfix=0
+pds-20 FAMILIES liverows=32287 livecols=103981 remrow=0/0/0/0 remcol=0/0/0/0 dualfix=0

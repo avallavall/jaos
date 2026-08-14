@@ -7,16 +7,17 @@ line leaves this file in the same commit.
 
 ## 1. Presolve, to finish (REQ-presolve)
 
-- Duplicate rows, duplicate columns, dominated columns — the last three
-  families. Both detection tolerances swept (`make clean` between settings, a
-  canary that must move); the near-tie cases constructed and shown rejected,
-  not hoped absent; the duplicate/dominance boundary stated in the source and
-  tested on both sides. The duplicate-column split is the one postsolve record
-  that returns two primal values from one.
-- `numerics-reviewer` over the whole presolve/postsolve diff, after the last
-  family lands and before the campaigns. Every finding gets a disposition:
-  fixed with its commit, refused with its reason, or carried with its
-  destination.
+The last three families are deferred, not dropped: they have 0.15% left to
+remove on these 139 models, and that count says nothing about the model
+population where the literature reports them paying (D101). The deferrals
+table below carries the reopen condition, and the counter that tests it is
+committed at `bench/measurements/02-07/`. Presolve is complete at five
+families.
+
+- `numerics-reviewer` over the whole presolve/postsolve diff. D100's review
+  covered the dual recovery only; the four earlier families have never been
+  read as one diff. Every finding gets a disposition: fixed with its commit,
+  refused with its reason, or carried with its destination.
 - All three sets plus the presolve-off negative control, then the deliberate
   three-baseline rewrite (`make netlib-baseline` and siblings), confirmed by a
   following gate run. Known by-design movements at `d861b22`: 26 netlib + 1
@@ -83,6 +84,7 @@ then, do not — a refusal whose premise has not changed just fails again.
 
 | decision | what was refused or deferred | reopens when |
 |---|---|---|
+| D101 | duplicate rows, duplicate columns, dominated columns — 0.15% left to remove on these 139 models | a model population where `bench/measurements/02-07/`'s counter reports a non-trivial share. The condition is executable, not a matter of opinion. Three pieces of the work have no published source and would have to be derived with their own tests |
 | D97 | bound tightening — INFEASIBLE on models with an optimum, six designs | the over-tightening on `pilot`/`pilot87`/`agg`/`maros` is derived, AND a dual postsolve for an imposed bound exists; then only under a campaign |
 | SPECS §3 | crash basis — destroys the exact slack-basis steepest-edge weights | pricing stops starting from exact steepest-edge weights; REQ-devex-pricing landing is the trigger |
 | D74 | removing the re-entry loan — 2.372x `pilot87` iterations for 0.980x `pilot` | the oscillation mechanism itself changes (phase 4's investigation) |
