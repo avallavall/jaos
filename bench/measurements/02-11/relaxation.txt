@@ -1,0 +1,36 @@
+
+=== bench/instances/grow22.mps ===
+   row    col |      rlo      rhi |     cmin     cmax |    newlo    newhi | verdict
+   420    926 |       0       0 |-3.75e+05      -0 |       03.75e+05 | both sides finite
+   421    927 |       0       0 |-2.5e+05      -0 |       0 2.5e+05 | both sides finite
+   422    928 |       0       0 |  -5e+05      -0 |       0   5e+05 | both sides finite
+   423    929 |       0       0 |-4.55e+03      -0 |       04.55e+03 | both sides finite
+   424    930 |       0       0 |-8.55e+04      -0 |       08.55e+04 | both sides finite
+   425    931 |       0       0 |-5.95e+04      -0 |       05.95e+04 | both sides finite
+   426    932 |       0       0 |-3.33e+04      -0 |       03.33e+04 | both sides finite
+   427    933 |       0       0 |-1.54e+04      -0 |       01.54e+04 | both sides finite
+  20 records: 0 left the row unconstrained, 0 lost one side, 20 kept both
+
+=== bench/instances/grow15.mps ===
+   row    col |      rlo      rhi |     cmin     cmax |    newlo    newhi | verdict
+   280    625 |       0       0 |-3.75e+05      -0 |       03.75e+05 | both sides finite
+   281    626 |       0       0 |-2.5e+05      -0 |       0 2.5e+05 | both sides finite
+   282    627 |       0       0 |  -5e+05      -0 |       0   5e+05 | both sides finite
+   283    628 |       0       0 |-4.55e+03      -0 |       04.55e+03 | both sides finite
+   284    629 |       0       0 |-8.55e+04      -0 |       08.55e+04 | both sides finite
+   285    630 |       0       0 |-5.95e+04      -0 |       05.95e+04 | both sides finite
+   286    631 |       0       0 |-3.33e+04      -0 |       03.33e+04 | both sides finite
+   287    632 |       0       0 |-1.54e+04      -0 |       01.54e+04 | both sides finite
+  20 records: 0 left the row unconstrained, 0 lost one side, 20 kept both
+
+=== bench/instances/grow7.mps ===
+   row    col |      rlo      rhi |     cmin     cmax |    newlo    newhi | verdict
+   120    281 |       0       0 |-3.75e+05      -0 |       03.75e+05 | both sides finite
+   121    282 |       0       0 |-2.5e+05      -0 |       0 2.5e+05 | both sides finite
+   122    283 |       0       0 |  -5e+05      -0 |       0   5e+05 | both sides finite
+   123    284 |       0       0 |-4.55e+03      -0 |       04.55e+03 | both sides finite
+   124    285 |       0       0 |-8.55e+04      -0 |       08.55e+04 | both sides finite
+   125    286 |       0       0 |-5.95e+04      -0 |       05.95e+04 | both sides finite
+   126    287 |       0       0 |-3.33e+04      -0 |       03.33e+04 | both sides finite
+   127    288 |       0       0 |-1.54e+04      -0 |       01.54e+04 | both sides finite
+  20 records: 0 left the row unconstrained, 0 lost one side, 20 kept both

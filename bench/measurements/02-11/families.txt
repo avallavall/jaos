@@ -1,0 +1,7 @@
+instance     rows   cols     nz | emptR emptC  sglR  sglC freeC  fixC forcR  redR
+grow7.mps     140    281   2592 |     0     0     0    20     0     0     0     0
+grow15.mps    300    625   5600 |     0     0     0    20     0     0     0     0
+grow22.mps    440    926   8232 |     0     0     0    20     0     0     0     0
+maros-r7.mps   3136   9408 144848 |     0     0     0     0     0     0     0     0
+greenbea.mps   1955   4115  24036 |    20     0   160    24     0   262   247    10
+25fv47.mps    777   1539  10241 |     1     1    43     6     0    25     0     0

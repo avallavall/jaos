@@ -43,16 +43,33 @@ grow7    6.4e6 -> 5.5e7 work    8.56x     545 ->  4805 iterations   8.82x
 ```
 
 They are the only two instances of 94 past 2x, and they set the standard set's
-worst case while its geometric mean is 0.810x. The question is why a reduced
-model is so much worse for the simplex than the model it replaced: the same
-reductions on the other 92 instances cost nothing like this, so it is a
-property of what these two become rather than of a family being expensive.
-Both are `grow` models, which is the first thing to check.
+worst case while its geometric mean is 0.810x.
 
-Nothing here is a candidate repair yet. The first move is to find which
-family produces the reduction that costs them, which the per-family counters
-already report, and whether the extra iterations start immediately or after a
-particular round.
+**Measured, in `bench/measurements/02-11/`.** One family fires on them and
+nothing else: `JM_PS_SINGLETON_COL`, the cost-0 bounded singleton column
+(D95), exactly 20 times on each of `grow7`, `grow15` and `grow22`. So it is
+the whole of the difference, and `-DJAOS_NO_PRESOLVE` already measured the
+other side.
+
+What the 20 firings do is not visible in the `presolve=` field, which reports
+20 columns and 20 nonzeros of 8252 and no rows at all. Every one of the 20
+rows is an **equality `== 0`** and every one becomes a **range of up to
+5e5**. Twenty exact pins become twenty things that constrain nothing in
+practice, and a dual simplex steers by those pins. None of the 60 records
+leaves a row unconstrained on both sides, so a check for "did this row become
+free" would miss it: the damage is the width.
+
+**What is not explained, and blocks a repair.** `grow15` gets the same 20
+firings on the same rows with the same magnitudes — the three are one model
+family at three sizes — and presolve **halves** its iteration count. So the
+relaxation is not uniformly harmful and nothing measured says which way it
+goes on a model that has not been run.
+
+The candidate rule is to refuse the firing when the relaxation widens a row
+beyond some multiple of its own scale; an `== 0` row becoming `[0, 5e5]` is an
+unbounded relative widening. It needs a sweep on both sides and a campaign,
+because the family pays 0.810x over the set as it stands and a rule that stops
+it firing pays that back.
 
 ## 2. After presolve — the rest of M2, in order
 
