@@ -25,8 +25,9 @@ line leaves this file in the same commit.
   taken after the change is read and accepted, never a side effect.
 - Presolve's measured number (the D-15 figure): work ratio and `J=1` time
   ratio reported separately, negative control beside them, raw readings to
-  `bench/measurements/`, judged by `jaos-measurer`. The runner prints seconds
-  as `%8.3f` and must be fixed first — see standing debts.
+  `bench/measurements/`, judged by `jaos-measurer`. The runner's second
+  resolution no longer blocks this: it prints six decimals since D100's
+  follow-up, so the fast half of the set carries a ratio at all.
 - Close-out: CHANGELOG entry updated, SPECS presolve row updated, this
   section deleted.
 
@@ -94,9 +95,6 @@ then, do not — a refusal whose premise has not changed just fails again.
 
 ## Standing debts — small, real, none blocks the sections above
 
-- `bench/run.c` prints seconds as `%8.3f`: 8 standard-set instances carry no
-  time ratio at all and 42 read exactly 1.0000x. Two lines; legal now that no
-  measurement is in flight.
 - `preflight.sh` does not check committed records for `baseline: NOT
   COMPARED`; such a record sat committed once already.
 - The `REFACTOR_EVERY` 16..256 trajectory sweep is manual; three of M1's four

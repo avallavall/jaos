@@ -11,6 +11,13 @@ open, `bench/README.md` for the gate, and the commit each entry came from.
 
 ### Fixed
 
+- `bench/run` prints per-instance seconds to six decimals instead of three.
+  At millisecond resolution a solve under 500 us printed `0.000` and carried
+  no time ratio at all, and the ones that did print landed on so few distinct
+  values that a ratio between two runs read exactly 1.0000x for reasons that
+  had nothing to do with the solver: `adlittle` and `stocfor1` both read
+  `0.001`, and now read 0.000710 and 0.000708. The clock already supplied
+  nanoseconds. Console only, so all three records come back byte-identical.
 - A folded singleton row's multiplier now goes to the row whose bound the
   column rests on. Several rows can fold into one column, the replay reaches
   them in LIFO order, and the test that chose between them read the column and

@@ -130,7 +130,15 @@ static char g_slowest[64] = "";
 static void stamp(const char *name, double secs)
 {
     if (!g_muted) {
-        printf("[%8.3fs] ", secs);
+        /* Six decimals, not three. At millisecond resolution the fast half of
+         * the standard set is unreadable: a solve under 500 us prints 0.000
+         * and carries no ratio at all, and the ones that do print land on so
+         * few distinct values that a ratio between two runs reads exactly
+         * 1.0000x for reasons that have nothing to do with the solver. The
+         * clock is CLOCK_MONOTONIC, which supplies nanoseconds, so the
+         * precision was being discarded here rather than missing. Console
+         * only — printf, never emit, so no record and no baseline sees it. */
+        printf("[%10.6fs] ", secs);
         fflush(stdout);
     }
     g_total_secs += secs;
@@ -1122,7 +1130,7 @@ int main(int argc, char **argv)
     /* Console only — see `stamp`. printf rather than emit, so the record
      * file and the baseline never see a second. */
     if (t.instances > 0) {
-        printf("time: %.3fs over %lld instances, slowest %s at %.3fs\n",
+        printf("time: %.6fs over %lld instances, slowest %s at %.6fs\n",
                g_total_secs, (long long)t.instances,
                g_slowest[0] ? g_slowest : "-", g_slowest_secs);
         /* Said every time rather than left to be remembered. These seconds
