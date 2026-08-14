@@ -65,9 +65,12 @@ infinite one. No new data structure.
 
 ### Do it in this order
 
-1. **Let presolve write `col_cost`.** It never has: it copies costs through
-   unchanged. This is the largest new piece and it is worth landing on its own,
-   with nothing using it yet, so it can be measured as a no-op first.
+1. ~~**Let presolve write `col_cost`.**~~ **DONE 2026-08-14.**
+   `jm_presolve_run` holds `cur_cost[]` and every read site goes through it,
+   including the reduced model's build and the cost each record carries.
+   Nothing writes it yet. Measured as the no-op it is: 110 solution digests
+   and 29 infeasibility verdicts unmoved, over 139 instances, and all three
+   baselines still read `0 regressed, 0 improved, 0 new`.
 2. **The forward pass**, equality rows only to start. Delete row `i` and column
    `j`; for every other `k` in the row, `c_k -= (c_j / a_ij) * a_ik`; and
    `obj_offset += c_j * b_i / a_ij`. **No matrix fill** — other columns only

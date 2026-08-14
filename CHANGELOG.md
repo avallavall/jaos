@@ -20,6 +20,15 @@ open, `bench/README.md` for the gate, and the commit each entry came from.
 
 ### Changed
 
+- Presolve carries its own objective, `cur_cost[]`. Every family read
+  `m->col_cost` directly, so no reduction could change a cost even in
+  principle; the implied free column singleton has to, because eliminating a
+  column from a row pushes its cost onto every other column in that row
+  (`TODO.md` §1). Nothing writes the array yet — it is a copy of the caller's
+  costs for the whole run, and the reduced model, the records and the
+  objective offset all read it instead. 110 solution digests and 29
+  infeasibility verdicts unmoved, over 139 instances.
+
 - Presolve is complete at five families. The three that were scoped and never
   built — duplicate rows, duplicate columns, dominated columns — are deferred
   with the count that defers them: 471 removable rows of about 297000 and 1526
