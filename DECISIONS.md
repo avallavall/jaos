@@ -112,6 +112,7 @@ and you have the argument. Jump to the entry for the numbers behind it.
 - **[D102](#d102-a-relaxed-row-is-skipped-by-every-pass-that-could-refuse-it-so-an-infeasible-model-was-published-optimal)** — A relaxed row is skipped by every pass that could refuse it, so an infeasible model was published OPTIMAL
 - **[D103](#d103-presolve-was-written-for-one-objective-sense-and-one-tolerance-answered-a-question-that-has-no-tolerance)** — Presolve was written for one objective sense, and one tolerance answered a question that has no tolerance
 - **[D104](#d104-the-ladder-is-recalibrated-and-jaoss-presolve-is-worth-what-the-others-are-worth-while-highs-presolves-the-instances-that-decide-the-set)** — The ladder is recalibrated, and JAOS's presolve is worth what the others' are worth while HiGHS presolves the instances that decide the set
+- **[D105](#d105--what-highs-finds-in-maros-r7-is-the-implied-free-column-singleton-and-it-needs-an-implied-bound-rather-than-a-tightened-one)** — What HiGHS finds in `maros-r7` is the implied free column singleton, and it needs an implied bound rather than a tightened one
 
 ---
 
@@ -7795,3 +7796,183 @@ where JAOS and HiGHS agree on 301.7103474, so the harness discards their
 times. JAOS is on the correct side of a disagreement between two mature
 solvers, on the instance whose suboptimality bound `TODO.md` records as not
 understood.
+
+## D105 — What HiGHS finds in `maros-r7` is the implied free column singleton, and it needs an implied bound rather than a tightened one
+
+D104 left this open and said so: HiGHS removes 31% of `maros-r7`'s rows where
+JAOS removes nothing, `truss` has the same coarse shape and neither solver
+reduces it, and none of the eight families JAOS has scoped could account for
+it. Identified now, and counted. Readings in `bench/measurements/02-10/`.
+
+### The technique, and the count that identifies it
+
+**Implied free column singleton substitution.** A column with exactly one
+matrix entry, whose row implies a box on it that already lies inside its own
+box. Its own bounds can then never bind, so it can be eliminated exactly.
+
+Row `i` implies, for a column `j` appearing only there:
+
+```
+a_ij * x_j  in  [ rl_i - maxact_-j ,  ru_i - minact_-j ]
+```
+
+divided by `a_ij`, ends swapped when `a_ij < 0`, where `minact_-j` and
+`maxact_-j` are the row's activity range excluding `j`'s own term. Fire when
+that box is contained in `[l_j, u_j]`; an infinite own bound satisfies its
+side for free.
+
+`bench/measurements/02-10/implied_free.c` counts it. The prediction was stated
+before the counter was written and it came out exactly:
+
+| instance | rows this rule hits | what HiGHS removes |
+|---|---|---|
+| `maros-r7` | **984** | **984 rows** |
+| `truss` | **0** | nothing, "Not reduced" |
+
+984 against 984 is what closes the question. Every one of the 984 carries a
+nonzero cost.
+
+### Why JAOS reads zero, and it is not a defect
+
+`src/presolve.c` fires its singleton-column family only at `col_cost[j] == 0`.
+That restriction is D95's and its reasoning is sound: a nonzero-cost singleton
+needs to know which bound the cost points at. All 984 of `maros-r7`'s
+singletons have cost exactly 1, so the family correctly declines all of them
+and the counter correctly reads zero. The instance is outside what JAOS has
+built, not mishandled by it.
+
+### What separates `maros-r7` from `truss`, which no structural count could
+
+`truss` has the same singleton pairs: `X10005` and `X10006` are `+1` and `-1`
+singletons in one row, both at cost 10. Same shape, same signs, same nonzero
+cost. Every structural count taken in D104 reads identically on the two.
+
+The difference is the sign pattern of the **other** coefficients. `maros-r7`
+is an L1 image restoration written as a goal program: a non-negative blur
+kernel, every column `x >= 0` by MPS default, so a row's minimum activity is
+exactly 0 — finite, and something the predicate can compare against. `truss`
+rows carry `-0.8944` and `+0.4472` together over unbounded-above columns, so
+the minimum activity is `-inf` and nothing is implied free.
+
+**The separating quantity is the row's finite minimum activity.** No count of
+degrees, bound types, row senses, doubletons, duplicates or dominated columns
+can see it, which is exactly why D104's counts failed to separate the two.
+
+### What it is worth on these sets
+
+`implied_free.c` over both feasible sets, on the model as loaded:
+
+| set | hits | distinct rows | nonzeros in those rows | cost 0 | cost != 0 | instances |
+|---|---|---|---|---|---|---|
+| netlib | 3321 | **3315** | 87621 | 557 | **2764** | 56 of 94 |
+| Kennington | **0** | 0 | 0 | 0 | 0 | 0 of 16 |
+
+The 2764 is the part outside what JAOS could reach today. Kennington reads
+zero throughout, so this family is worth nothing there and the 29.36% figure
+D104 recorded for doubletons on that set remains its own separate question.
+
+`stocfor3` reads 1025 rows, and it is the other instance where HiGHS beats
+JAOS by a factor the comparison notices.
+
+### It lands beside D97, not behind it
+
+This is the part worth being careful about, because "implied bound" and
+"tightened bound" read alike.
+
+D97 refused **publishing a narrowed box**. Its reason, written at
+`src/presolve.c`, is that removing a row because its range sits inside its
+bounds is a statement about the tightened box, so the simplex has to be given
+that box, and every one of the six designs that did so returned INFEASIBLE on
+a model with an optimum.
+
+Implied free substitution narrows nothing and publishes nothing. It uses the
+implied bound **only as a predicate** — is my own bound already redundant? —
+and then performs an exact algebraic elimination. The row it reasoned over is
+deleted, so no surviving row's redundancy depends on a derived box. D97's
+second stated obstacle, a dual postsolve for an imposed bound, does not arise
+either: the eliminated column was free, so its reduced cost must be zero and
+the multiplier follows by division, `y_i = c_j / a_ij`. On `maros-r7` that is
+`-1`, and the paired `v_i` column then reads `d = 1 - (+1)(-1) = 2`, dual
+feasible.
+
+**The direction of a mistake reverses, and gets worse.** D97 over-tightened
+and refused feasible models — loud, and caught by the first campaign. A false
+positive here **drops a bound that was real**, which relaxes the model and
+returns an objective that is too good. That is a wrong answer, and no digest
+comparison against a presolve-off build would fail to catch it, but nothing
+about it announces itself. The margin has to go the conservative way:
+`ilo >= l_j + margin` and `iup <= u_j - margin`, so a borderline case is
+declined rather than taken.
+
+**The margin's canary is already in the instance.** Four of the 984 rows have
+`b_i` exactly 0, so `ilo` equals `l_j` exactly. Any margin strictly above zero
+drops them and the count reads 980 instead of 984. That is a sweep with a
+built-in flip, which is what `docs/tolerances.md` asks of every constant.
+
+### What was refuted
+
+1. *That the explanation would be structural.* It is not, and D104's counts
+   could not have found it however many were added. The separator is a
+   computed activity range, not a shape.
+2. *That `grow22` might be the same mechanism.* It is not. `grow7`, `grow15`
+   and `grow22` read **0** on this counter, so their 20 singleton columns are
+   genuinely not implied free and their relaxation is necessary. Section 1b of
+   `TODO.md` is a separate problem and substituting instead of relaxing would
+   not touch it. Checked before it was claimed.
+3. *Dependent-row removal*, the other obvious candidate for a 31% row cut.
+   SuiteSparse reports both `lp_maros_r7` and `lp_truss` at full structural
+   and numerical row rank, 3136 of 3136 and 1000 of 1000, so no row of either
+   is a combination of others.
+4. *Sparsify*, which removes nonzeros by row combination and never removes a
+   row at all. It cannot produce a 31% row reduction whatever else it does.
+
+### What is not explained, and is not claimed
+
+HiGHS removes **2803 columns** and **64654 nonzeros** from `maros-r7`. The 984
+substitutions remove 984 columns, and each paired `v_i` then becomes an empty
+column its own family fixes — 1968 accounted for, **835 not**. The counter
+reads 44362 nonzeros in the 984 rows, against 64654. So the row count is
+identified exactly and the column and nonzero counts are not.
+
+The hypothesis for the remainder, recorded as a hypothesis: the `+1/-1`
+singleton pair at equal cost bounds that row's own dual to `[-1, 1]` with no
+primal reasoning at all, and a dual box admits dominated-column fixing. That
+is a different family and it needs its own counter before anyone believes it.
+
+### The sources, with what was actually reached
+
+The record carries the verification state because a citation nobody opened is
+not a citation.
+
+- **Gondzio, J.**, "Presolve Analysis of Linear Programs Prior to Applying an
+  Interior Point Method", *INFORMS J. Computing* 9(1), 1997, 73–91, DOI
+  `10.1287/ijoc.9.1.73`. **Record and abstract reached; full text paywalled.**
+  The abstract names the technique in words — "or relax them to find implied
+  free variables" — which makes it the most defensible of the three without
+  the paywall.
+- **Andersen, E. D. & Andersen, K. D.**, "Presolving in linear programming",
+  *Math. Programming* 71, 1995, 221–245, DOI `10.1007/BF01586000`. **Record
+  and abstract reached; full text paywalled.** The family name is attributed
+  from consistent field usage and **not** from its text. Before this entry is
+  cited as the source of the condition, someone should reach the text.
+- **Brearley, Mitra, Williams**, *Math. Programming* 8, 1975, 54–83, DOI
+  `10.1007/BF01580428`. **Record and abstract reached.** Origin of the
+  activity-bound arithmetic and of "freeing" variables.
+- **Galabova, I. L.**, "Presolve, crash and software engineering for HiGHS",
+  PhD thesis, Edinburgh 2023, DOI `10.7488/era/2974`. **Record reached; the
+  PDF could not be read on this machine** (no PDF text extraction here, a
+  standing limitation). It is HiGHS's presolve described by its author and
+  open access, and it is the document most likely to confirm both the rule and
+  its postsolve. Worth reading on a machine that can.
+
+No solver source was read; D12 stands.
+
+### What is left open, handed to `TODO.md`
+
+The reduction itself is not built and this entry does not schedule it. Two
+things have to exist first that do not: presolve must be able to modify
+`col_cost`, which it never has — `src/presolve.c` copies costs through
+unchanged — and the substitution makes the objective denser, turning cost-0
+columns into cost-carrying ones, which changes what the existing cost-0
+families see. Order of application becomes a question that does not exist
+today.

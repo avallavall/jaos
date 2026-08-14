@@ -47,8 +47,42 @@ at all.** Whatever HiGHS finds in `maros-r7` is not doubleton substitution,
 not a free column, and — from `bench/measurements/02-07/`'s counter, which
 reads `remrow=0 remcol=0 dualfix=0` there — not a duplicate row, a duplicate
 column or a dominated column either. It is none of the eight families JAOS
-has ever scoped. **That question is open and this directory does not answer
-it.**
+has ever scoped.
+
+## Answered: the implied free column singleton (D105)
+
+`implied_free.c` counts a ninth family. A column with exactly one matrix entry
+whose row implies a box already inside the column's own box: its bounds can
+never bind, so it can be eliminated exactly.
+
+```
+instance       rows   cols |   hits rows_hit nz_saved |  cost0 costNZ
+maros-r7.mps   3136   9408 |    984     984    44362 |      0    984
+truss.mps      1000   8806 |      0       0        0 |      0      0
+```
+
+**984 against the 984 rows HiGHS removes, and 0 on the control.** The
+prediction was stated before the counter was written.
+
+The separator no structural count could see is the row's **finite minimum
+activity**. `maros-r7` is an L1 image restoration with a non-negative kernel
+and every column `x >= 0`, so a row's minimum activity is exactly 0. `truss`
+rows mix `-0.8944` with `+0.4472` over columns unbounded above, so it is
+`-inf` and nothing is implied free. Same degrees, same senses, same bound
+types, opposite answers.
+
+Set totals, `counts/implied-free-*.txt`:
+
+| set | hits | distinct rows | nonzeros | cost 0 | cost != 0 | instances |
+|---|---|---|---|---|---|---|
+| netlib | 3321 | 3315 | 87621 | 557 | 2764 | 56 of 94 |
+| Kennington | 0 | 0 | 0 | 0 | 0 | 0 of 16 |
+
+`stocfor3` reads 1025, and it is the other instance where HiGHS wins by a
+factor the comparison notices. Kennington reads zero throughout.
+
+D105 carries the reasoning, the sources with what was actually reached of
+each, and the two reasons this is beside D97 rather than behind it.
 
 ## What it does answer: doubleton equalities are worth counting
 

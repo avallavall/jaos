@@ -166,19 +166,50 @@ fill. `subnz` says a non-interacting pass would remove 2.65% of netlib's
 nonzeros and 5.13% of Kennington's, against row shares three times larger,
 and neither figure accounts for fill.
 
-## 1d. What HiGHS finds in `maros-r7` is none of the eight families
+## 1d. The implied free column singleton — identified, counted, not built (D105)
 
-Open, and stated as unanswered rather than guessed at. `maros-r7` and `truss`
-are indistinguishable on every structural count taken so far: 100% equality
-rows, all of degree 4 or more, zero doubletons, zero degree-2 rows, zero free
-columns. HiGHS reduces `maros-r7` by 31% of its rows and `truss` by nothing.
-The 02-07 counter reads `remrow=0 remcol=0 dualfix=0` on `maros-r7`, so it is
-not a duplicate row, a duplicate column or a dominated column either.
+**Answered.** What HiGHS finds in `maros-r7` is implied free column singleton
+substitution: a column with one matrix entry whose row already implies a box
+inside the column's own, so its bounds can never bind and it can be eliminated
+exactly. `bench/measurements/02-10/implied_free.c` counts it and reads **984
+rows on `maros-r7`, exactly the 984 HiGHS removes, and 0 on `truss`**.
 
-Whatever it is, JAOS has never scoped it. The next move is `literature-scout`
-on what a published presolve does to a model of that shape — every column
-half-bounded, every row an equality of degree 4 or more — with citations
-checked, rather than another guess measured.
+JAOS reads zero because its singleton-column family fires only at cost 0
+(D95), and all 984 carry cost 1. The family declines them correctly; the
+instance is outside what has been built.
+
+| set | distinct rows | nonzeros in them | cost 0 | cost != 0 | instances |
+|---|---|---|---|---|---|
+| netlib | 3315 | 87621 | 557 | **2764** | 56 of 94 |
+| Kennington | **0** | 0 | 0 | 0 | 0 of 16 |
+
+**It is beside D97, not behind it.** The implied bound is used as a predicate
+and nothing is narrowed or published, so D97's reason — that a tightened box
+has to be handed to the simplex — does not arise. Nor does its second
+obstacle: the eliminated column is free, so its reduced cost is zero and the
+multiplier follows by division.
+
+**The risk reverses and gets worse, and this is the part to design against.**
+D97 over-tightened and refused feasible models, which is loud. A false
+positive here drops a bound that was real, relaxes the model and returns an
+objective that is too good — a wrong answer that announces nothing. The margin
+has to decline borderline cases, and its canary is already in the instance:
+4 of the 984 rows sit at exact equality, so any margin above zero reads 980.
+
+**Before any code, two things must exist that do not.** Presolve cannot modify
+`col_cost` — it copies costs through unchanged — and the substitution makes
+the objective denser, turning cost-0 columns into cost-carrying ones, which
+changes what the existing cost-0 families see. Order of application becomes a
+question it is not today.
+
+Not connected to §1b: `grow7`, `grow15` and `grow22` read 0 on this counter,
+so their relaxation is genuinely needed and substitution would not touch them.
+
+Still unexplained, and not claimed: HiGHS removes 2803 columns and 64654
+nonzeros from `maros-r7`; 984 substitutions plus the 984 `v_i` columns they
+empty account for 1968, and the counter reads 44362 nonzeros in those rows.
+The hypothesis for the remainder is a dual box from the `+1/-1` singleton pair
+admitting dominated-column fixing, and it needs its own counter first.
 
 ## 3. After M2 — feature expansion (decided 2026-08-13)
 
