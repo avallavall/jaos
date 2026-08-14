@@ -1,6 +1,6 @@
 ---
 name: jaos-testing
-description: Designing tests for numerical code where the dangerous failures are wrong answers rather than crashes. Load before adding or changing tests. Covers testing the thing rather than the wrapper, validating an instrument before believing it is green, building the case a predicate must reject, pinned change-detector tests, what to do when a defect cannot be constructed small, and why a passing suite has repeatedly failed to catch real defects here.
+description: Designing tests for numerical code where the dangerous failures are wrong answers rather than crashes. Load before adding or changing tests, and before trusting a green gate about anything the checker never reads — a basis, a published status, a verdict on a small model. Covers testing the thing rather than the wrapper, the -DJAOS_NO_PRESOLVE reference build as the only oracle for output no predicate judges, validating an instrument before believing it is green, building the case a predicate must reject, pinned change-detector tests, what to do when a defect cannot be constructed small, and why a passing suite has repeatedly failed to catch real defects here.
 ---
 
 # Testing a solver
@@ -26,6 +26,49 @@ The one thing such a check cannot catch is a reader that built the wrong
 model — then verifier and solver agree about the wrong problem. That gap is
 closed only by an externally published reference value for a named instance,
 which is why those references are load-bearing rather than convenient.
+
+## Half the published answer has no test at all, and one build is its oracle
+
+`jaos_check_solution` never reads a basis status. It recomputes activities
+from `col_value` and reduced costs from `row_dual` (`src/check.c`), and the
+gate's digest is taken over `x` and `y` only (`bench/run.c`). So **no
+predicate any of the three sets reports can see a wrong basis.** A change
+that moves only the statuses is invisible to a green gate, to a digest
+comparison and to the determinism check, which re-solves cold.
+
+The instrument that does see it is a second build of the same model with
+`EXTRA_CFLAGS=-DJAOS_NO_PRESOLVE`. Presolve compiles out, postsolve never
+runs, and what the solver publishes is the reference the reduced path has to
+agree with. Use it whenever a question is about published output the checker
+does not judge — statuses, a basis count, a verdict on a small model — and
+whenever a number looks wrong and you have nothing to compare it against.
+
+Three findings came from it on 2026-08-14 (D99), and none of them was
+reachable from the suite or the gate:
+
+- A frozen surviving row was published `BASIC`, with a paragraph of correct-
+  sounding reasoning beside it in the source. The reference published
+  `AT_LOWER` and a basis of the size `jaos.h` promises. Defined is not
+  correct.
+- A model with no feasible point came back OPTIMAL with a column violation of
+  93. The reference said INFEASIBLE, which turned "strange number" into "a
+  defect, and here is the model that shows it".
+- It is what separated "the remaining rejections are dual and unrelated to
+  this change" from a guess: all five came back with `dual=0` compiled
+  without presolve.
+
+Two things make it an instrument rather than a flag:
+
+- **`make clean` between the two settings.** `make` does not see a `CFLAGS`
+  change (D82), and without the clean you measure one binary twice — which
+  reads as a perfect agreement between the two builds.
+- **A canary that must move.** With the flag on, the `presolve=` field must
+  come back UNREDUCED on both sides of its arrow. If it reduced, the flag
+  never took and everything under it is worthless.
+
+Build outside the repo tree and pass an absolute path to `-o` and to `-c`.
+Two stray binaries landed in the repo root during D99's work, from a relative
+`-o` after a failed `cd`, and nearly went into a commit.
 
 ## A green result is not a proof
 
