@@ -1963,8 +1963,19 @@ JAOS_NODISCARD jaos_status jm_postsolve_solved(jm_presolve *p)
      * without this the status published for such a row, and copied into
      * the next solve's warm start by jm_model_remember_basis below, is
      * whatever the heap held. ASan and UBSan do not see an uninitialised
-     * read, which is why this survived the loop; valgrind on
-     * tests/test_presolve.c's solved-path case reports it.
+     * read, which is why this survived the loop. Valgrind does: to reproduce
+     * it, delete these two memsets and run tests/test_presolve.c's
+     * solved-path case, which reports one error originating here. Deleting
+     * the whole fix instead does NOT reproduce it — the test then fails on
+     * its value assertion first and Unity longjmps out before jaos_basis is
+     * ever called.
+     *
+     * Nothing in the three instance sets reaches this function: it runs only
+     * under JM_PRESOLVE_SOLVED, the eight models that reduce to zero columns
+     * are all in the infeasible set and leave by the INFEASIBLE branch, and
+     * no netlib or Kennington instance gets below one column. So the gate
+     * cannot catch a regression in this function, today or later, and the
+     * tests and the reference build are the whole of its cover.
      *
      * Zero is BASIC. That makes the published status DEFINED, which is
      * what this memset is for, and it is all it claims: it does not make

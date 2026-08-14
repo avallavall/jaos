@@ -70,6 +70,15 @@ Build outside the repo tree and pass an absolute path to `-o` and to `-c`.
 Two stray binaries landed in the repo root during D99's work, from a relative
 `-o` after a failed `cd`, and nearly went into a commit.
 
+**And some code no instance reaches at all.** `jm_postsolve_solved` runs only
+when presolve consumes every column; the eight models that do are all in the
+infeasible set and leave by a different branch, so none of the 139 executes
+that function. A regression there cannot make any gate go red, now or later.
+Before trusting a green gate about a function, check that something runs
+it — `presolve=n/m/nz->n/m/nz` in a record says how far presolve got, and a
+branch no record reaches has the tests and the reference build as its whole
+cover.
+
 ## A green result is not a proof
 
 This has a receipt. A checker rule here once passed the entire unit suite and

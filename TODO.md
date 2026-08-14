@@ -12,12 +12,14 @@ is: `25fv47`, `bnl1`, `bnl2`, `e226`, `vtp-base`.** This file owns that
 count; other documents point here rather than restating it. Per-instance
 terms: `bench/measurements/02-05/gate/final-netlib.txt`.
 
-Every failing term is dual. The primal point is certified on all 94, all
-objectives match Koch's reference and all 139 instances are deterministic —
-so what is left is the multipliers, not the reconstruction. The row-residual
-half was a different defect and is closed (D99): it was the bounded singleton
-column judged against bounds that had stopped describing its row, and fixing
-it moved 14 instances to ok without moving a single work unit.
+Every failing term is dual. The primal point is certified on all 94, every
+objective matches its published reference (94 against Koch, Kennington's 16
+against netlib's own values, and the 29 infeasible models have none) and all
+139 instances are deterministic — so what is left is the multipliers, not the
+reconstruction. The row-residual half was a different defect and is closed
+(D99): it was the bounded singleton column judged against bounds that had
+stopped describing its row, and fixing it moved 14 instances to ok without
+moving a single work unit.
 
 The defect is in presolve's own dual recovery, and that is measured rather
 than inferred. Compiled with `EXTRA_CFLAGS=-DJAOS_NO_PRESOLVE` — canary: the
@@ -26,10 +28,18 @@ checker ok with `dual=0` and rows at 1e-13
 (`bench/measurements/02-05/no-presolve/`). With presolve on they carry `dual`
 0.0705, 6.12, 9.81, 1.16 and 1.32e+03.
 
-`bnl1`, `bnl2` and `e226` are bit-identical across D99's fix, digest
-included, so nothing that change touched is involved in them. On `25fv47` and
-`vtp-base` the primal residual collapsed (4.32 to 3.5e-13, 1.9e+04 to
-2.23e-11) while the dual stayed identical to the digit.
+`bnl1`, `bnl2` and `e226` are bit-identical across D99's fix — the record
+line, and `x` and `y` dumped and compared entry by entry — so nothing that
+change touched is involved in them. On `25fv47` and `vtp-base` the primal
+residual collapsed (4.32 to 3.5e-13, 1.9e+04 to 2.23e-11). The
+`max_dual_violation` is bit-identical at 17 digits on all five: 6.1221772946311033,
+0.070451146994220337, 9.8102420146394795, 1.1645190903954061 and 1320.1986408.
+
+Do not read that as "the multipliers did not move". On `vtp-base` `y` is
+bit-identical, so there it holds. On `25fv47` `y` DID move — `y[338]` went
+from 0.5927293667749798 to exactly 0 — and the violation figure came out the
+same anyway. An unchanged maximum is not an unchanged vector, and whichever
+site is repaired here has to be judged on `y` itself.
 
 The whole fall is still inside 02-03's diff (`9aba410`). Bisection, each tree
 built detached and run against the committed baseline:

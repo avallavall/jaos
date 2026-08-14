@@ -1099,7 +1099,14 @@ static void test_singleton_col_between_two_removals_solved_path(void)
      * repair changes, and a test demanding today's value would fail the
      * person fixing it. The count is what says the repair landed —
      * expect this 3 to become 2. TODO.md carries the defect; re-pin
-     * there, deliberately. */
+     * there, deliberately.
+     *
+     * The count is only worth pinning because the statuses are
+     * initialised. Measured with the memsets removed, this assertion reads
+     * 2 and fails against the 3 — but that 2 came out of the heap, and
+     * another byte there would have read 3 and passed. A pinned number
+     * over an uninitialised read does not detect anything; it flips a
+     * coin. */
     jaos_basis_status cs[4], rs[2];
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_basis(m, cs, rs));
     int64_t basic = 0;

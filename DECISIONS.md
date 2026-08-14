@@ -7149,7 +7149,9 @@ history.
 
 **The question.** 02-03's diff took the standard set from 93/94 to 78/94 and
 Kennington from 16/16 to 8/16; 02-04's one repair returned 79/94 and 12/16.
-Every objective still matched Koch's reference and all 139 instances stayed
+Every objective still matched its published reference — the standard set's 94
+against Koch, Kennington's 16 against netlib's own values, and the 29
+infeasible models have no objective to match — and all 139 instances stayed
 deterministic, so the defect was in what postsolve published rather than in
 the simplex (D96's off-build reproduces the pre-presolve baselines bit for
 bit). Which of the five families publishes a point that misses its own row
@@ -7199,10 +7201,13 @@ any set. `geomean.py --metric work` against `02-04/final-*.txt` reads best
 and worst 1.0000x on each of the three sets, which is stronger than a mean of
 1.0000x: no instance moved at all. `record_diff.py` counts 78 of 94, 29 of 29
 and 12 of 16 bit-identical, 119 of the 139, and reports no regression on any
-set. Twenty solution digests moved; the four
-whose checker terms are identical to the last digit (`nesm pilot4 standata
-standmps`) publish a different feasible point of the same problem, which a
-cost-0 column can do without touching the objective. Independently
+set. Twenty solution digests moved. Four of
+those changed no checker term at all, and dumping `x` and `y` separately
+splits them: `y` is bit-identical in all four, and `pilot4`, `standata` and
+`standmps` publish a genuinely different feasible point (8, 6 and 8 entries
+of `x` move, by up to 3.75, 10 and 10), which a cost-0 column can do without
+touching the objective. `nesm` is not that: one entry moves by 4.26e-14, so
+it is the same point to fourteen digits and its digest moved on rounding. Independently
 re-derived, ACCEPT, by `jaos-measurer` in a context that did not produce
 these numbers.
 
@@ -7219,13 +7224,14 @@ these numbers.
   missed that a recovered column can land strictly inside its own box.
 - *That a postsolve change can only move `x`.* The singleton row's replay
   decides its multiplier from the published column value (`zero_works`),
-  which this change moves, so `y` can move with it. No verdict moved. The
-  checker's `dual` figure did move, on five instances — `finnis`, `lotfi`,
-  `perold`, `pilot-we`, `pilot87`, every one of them now passing — and it is
-  identical to the digit on all five that still fail. The record cannot say
-  whether `y` itself moved there or only the sign requirement, which depends
-  on which bound `x` rests against; both routes are open and separating them
-  needs the reference build, not this record.
+  which this change moves, so `y` moves with it — and it did, measurably, not
+  as a possibility left unexercised. The checker's `dual` figure fell to
+  exactly 0 on five instances (`finnis` from 66.2, `pilot-we` from 6.82e+03,
+  `perold` from 7.87, `lotfi` from 0.001, `pilot87` from 0.000739), all five
+  now passing. On `25fv47`, `y[338]` went from 0.5927293667749798 to exactly
+  0 while `max_dual_violation` stayed bit-identical at 6.1221772946311033:
+  the vector moved and the figure that summarises it did not. No verdict
+  moved anywhere.
 - *That `rowrel = 1/3` was a coincidence of scale.* It is exact, and derived
   above.
 
