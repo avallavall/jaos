@@ -2178,6 +2178,131 @@ static void test_two_folds_wrong_dual(void)
 #endif
 }
 
+/* -- A frozen row still has to be satisfiable ------------------------------
+ *
+ *   min x0  s.t.  x0 + x1 = 100,  x0 in [4,4],  x1 in [0,3]
+ *
+ * There is no feasible point: x0 is pinned at 4, so x1 would have to be 96
+ * against a box of [0,3]. x1 has cost 0 and degree 1, so the cost-0 singleton
+ * column family relaxes row0 to [97, 100] and freezes it — and a frozen row
+ * is skipped by the row pass and by the activity pass alike, so until the
+ * feasibility test that runs after the round loop, nothing asked whether the
+ * row could still be satisfied.
+ *
+ * What it did instead is the reason this test exists: postsolve published
+ * x1 = 96 against its own box and the solver reported OPTIMAL, with the
+ * checker reading a column violation of 93. A wrong answer, not a slow one,
+ * and `-DNDEBUG` — which is how `bench/run` is built — removed the assert
+ * that was the only thing noticing.
+ *
+ * The verdict is what this asserts. There is no solution to hand the checker
+ * once the answer is INFEASIBLE, so the 93 is described here rather than
+ * measured: it is what `jaos_check_solution` read from the point the old code
+ * published, and `bench/measurements/02-08/` holds that reading. */
+static jaos_model *make_frozen_row_infeasible_model(void)
+{
+    const double c[]  = {1.0, 0.0};
+    const double cl[] = {4.0, 0.0};
+    const double cu[] = {4.0, 3.0};
+    const double rl[] = {100.0};
+    const double ru[] = {100.0};
+    const int64_t s[] = {0, 1, 2};
+    const int64_t ix[] = {0, 0};
+    const double v[] = {1.0, 1.0};
+    jaos_model *m = nullptr;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_model_new(&m));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_load_lp(m, 2, 1, JAOS_MINIMIZE, 0.0, c, cl, cu, rl, ru,
+                     2, s, ix, v));
+    return m;
+}
+
+static void test_a_frozen_row_that_cannot_be_satisfied_is_infeasible(void)
+{
+#if defined(JAOS_PRESOLVE_FAULT_OFFBYONE) || defined(JAOS_PRESOLVE_FAULT_WRONGDUAL)
+    TEST_IGNORE_MESSAGE("positive test — skipped under either fault build");
+#else
+    jaos_model *m = make_frozen_row_infeasible_model();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_INFEASIBLE, jaos_status_of(m));
+    jaos_model_free(m);
+#endif
+}
+
+/* The same model judged by the reference build, which is the only oracle for
+ * output no predicate of the three sets reads. Presolve compiles out, so the
+ * verdict comes from the simplex alone and has nothing to do with the repair
+ * being tested above. If these two ever disagree, one of them is wrong and
+ * the campaign cannot say which. */
+static void test_the_frozen_row_model_agrees_with_the_reference_build(void)
+{
+#if defined(JAOS_PRESOLVE_FAULT_OFFBYONE) || defined(JAOS_PRESOLVE_FAULT_WRONGDUAL)
+    TEST_IGNORE_MESSAGE("positive test — skipped under either fault build");
+#elif !defined(JAOS_NO_PRESOLVE)
+    TEST_IGNORE_MESSAGE("reference half — runs under "
+                        "EXTRA_CFLAGS=-DJAOS_NO_PRESOLVE");
+#else
+    jaos_model *m = make_frozen_row_infeasible_model();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_INFEASIBLE, jaos_status_of(m));
+    jaos_model_free(m);
+#endif
+}
+
+/* The case the frozen-row test must REFUSE to fire on, which is the half that
+ * matters: a feasible model reported INFEASIBLE is the mirror catastrophe, and
+ * it is what D97 refused a whole family over.
+ *
+ *   min x0  s.t.  x0 + x1 = 100,  x0 in [4,4],  x1 in [0,96]
+ *
+ * The same shape as the model above with x1's upper bound raised to exactly
+ * the value the row needs. It is feasible by a slack of exactly zero: row 0
+ * relaxes to [4, 100], its surviving column reaches 4, and the two meet at the
+ * single point that satisfies both. Any sign error in the comparison, or a
+ * window applied to the wrong side of it, turns this into INFEASIBLE.
+ *
+ * Zero slack rather than a comfortable margin on purpose. A model that passes
+ * with room to spare would also pass under a test that had drifted; this one
+ * sits exactly on the boundary the comparison is about. The campaign shows the
+ * pass firing on none of the 94 standard instances, but a campaign is not a
+ * test: nothing in the suite would notice if the tolerance form changed and
+ * started refusing feasible models. */
+static void test_a_frozen_row_that_is_exactly_satisfiable_is_not_refused(void)
+{
+#if defined(JAOS_PRESOLVE_FAULT_OFFBYONE) || defined(JAOS_PRESOLVE_FAULT_WRONGDUAL)
+    TEST_IGNORE_MESSAGE("positive test — skipped under either fault build");
+#else
+    const double c[]  = {1.0, 0.0};
+    const double cl[] = {4.0, 0.0};
+    const double cu[] = {4.0, 96.0};
+    const double rl[] = {100.0};
+    const double ru[] = {100.0};
+    const int64_t s[] = {0, 1, 2};
+    const int64_t ix[] = {0, 0};
+    const double v[] = {1.0, 1.0};
+    jaos_model *m = nullptr;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_model_new(&m));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_load_lp(m, 2, 1, JAOS_MINIMIZE, 0.0, c, cl, cu, rl, ru,
+                     2, s, ix, v));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+
+    double x[2], y[1];
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solution(m, x, nullptr, y, nullptr));
+    const double expected_x0 = 4.0, expected_x1 = 96.0;
+    TEST_ASSERT_EQUAL_MEMORY(&expected_x0, &x[0], sizeof x[0]);
+    TEST_ASSERT_EQUAL_MEMORY(&expected_x1, &x[1], sizeof x[1]);
+
+    jaos_check_report r;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_check_solution(m, x, y, TOL, &r));
+    TEST_ASSERT_TRUE(r.primal_feasible);
+    TEST_ASSERT_TRUE(r.dual_feasible);
+
+    jaos_model_free(m);
+#endif
+}
+
 int main(void)
 {
     UNITY_BEGIN();
@@ -2200,6 +2325,9 @@ int main(void)
     RUN_TEST(test_singleton_row_wrong_dual);
     RUN_TEST(test_two_folds_the_owning_row_takes_the_multiplier);
     RUN_TEST(test_two_folds_wrong_dual);
+    RUN_TEST(test_a_frozen_row_that_cannot_be_satisfied_is_infeasible);
+    RUN_TEST(test_a_frozen_row_that_is_exactly_satisfiable_is_not_refused);
+    RUN_TEST(test_the_frozen_row_model_agrees_with_the_reference_build);
     RUN_TEST(test_singleton_col_round_trip);
     RUN_TEST(test_singleton_col_index_off_by_one);
     RUN_TEST(test_singleton_col_after_fixed_col);

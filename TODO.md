@@ -113,13 +113,6 @@ then, do not — a refusal whose premise has not changed just fails again.
   own decision before any code.
 - `galenet` makes two `dual_ratio_test` calls in a one-iteration solve —
   calls are not iterations in any work-saved arithmetic (D93).
-- **`assert(want_lo <= want_hi)` fires on `bnl1` and `finnis`.** With
-  assertions live both abort inside `ps_replay_one`. It predates D100 and
-  fires identically against the code that change replaced, so the dual
-  recovery is not the cause. No gate can see it: the release build and
-  `bench/run` carry `-DNDEBUG`, and `make sanitize` keeps assertions but runs
-  no instances. Two of the 94 abort the build the project otherwise treats as
-  the stricter of the two. Measured on both trees, 2026-08-14.
 - **The `warm` record predates presolve.** `bench/results/warm.txt` and its
   Kennington sibling were last written at `44c0ef6`, an 01-03 commit, so a
   diff against them reports the whole of presolve and cannot isolate a later
@@ -142,21 +135,31 @@ then, do not — a refusal whose premise has not changed just fails again.
   not a patch — the midpoint is deliberate and symmetric in the two ends, and
   whatever replaces it has to keep that. Found by `numerics-reviewer` and
   re-run independently, 2026-08-14.
-- **A frozen row is never rechecked, so an infeasible model can be published
-  OPTIMAL.** `min x0 s.t. x0 + x1 = 100, x0 in [4,4], x1 in [0,3]` has no
-  feasible point, and `-DJAOS_NO_PRESOLVE` says so. With presolve on, the
-  singleton column relaxes row0 and freezes it; the row pass
-  (`src/presolve.c:595`) and the activity pass (883) both skip a frozen row,
-  so nothing revisits it, and the replay's intersection comes out empty. Under
-  `-DNDEBUG`, which is how `bench/run` is built, it publishes `x1 = 96`
-  against a box of `[0,3]` — OPTIMAL, `max_col_violation = 93`. With asserts
-  live it aborts on `assert(want_lo <= want_hi)`. Reachable through both
-  postsolve paths. Predates 02-05 (HEAD judged against the original pair and
-  came out empty the same way). This is the catastrophe `netlib-infeas`
-  exists to catch and none of its 29 instances has the shape: **the repair
-  needs an instance of this shape added to that set**, or the set cannot see
-  it. Found by review, 2026-08-14; the comment in `ps_replay_one` states the
-  premise that fails.
+- **The other half of `assert(want_lo <= want_hi)`: an empty intersection of
+  an ulp.** D102 closed the half where the model really is infeasible. The
+  half that remains is rounding: 11 of the 94 standard instances reach
+  `ps_replay_one` with `want_lo` above `want_hi` by 2.2e-16 to 1.3e-15, and
+  the replay publishes `want_lo`, which is that far outside the column's own
+  box. `bnl1` row 581 wants 2.1850000000000005 from a column whose upper bound
+  is 2.1850000000000001; the others are `finnis`, `80bau3b`, `bandm`, `cycle`,
+  `dfl001`, `nesm`, `perold`, `pilot-ja`, `pilot`, `pilotnov`. The checker's
+  tolerance absorbs it, so no answer is wrong today, but a declared bound is
+  being published outside and the assert cannot be enabled while this stands.
+  The repair is to clamp the published value into `[rec->lo, rec->hi]`, and it
+  had to come after D102: clamping first would have masked the gap of 93 as
+  though it were rounding. Measured 2026-08-14, readings in
+  `bench/measurements/02-08/`.
+- **`row_traffic[i]` saturates to `+inf` and never recovers.** The relaxation
+  at `src/presolve.c` adds `max(|cmax|, |cmin|)` to it, and a column with a
+  half-infinite box makes that infinite. Measured: all 117 standard-set rows
+  that reach the frozen-row test at exactly zero margin carry
+  `row_traffic == inf`. It is harmless today because its only reader skips
+  frozen rows, but that reader's window becomes infinite on those rows, which
+  is the shape where an infeasible model is quietly accepted. What should
+  accumulate is the finite part actually subtracted from `cur_rl`/`cur_ru`.
+  Fixing it changes that reader's behaviour on existing reductions, so it
+  needs its own measurement rather than riding along. Found by
+  `numerics-reviewer`, refused as out of scope for D102 with that reason.
 - **The basis the singleton-column family publishes breaks the count
   promise.** `jaos.h` promises exactly `num_row` of the `num_col + num_row`
   statuses are basic. It does not hold when the replay recovers the column

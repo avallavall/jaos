@@ -244,6 +244,40 @@ constant below is new and each arrives with its own sweep.
 | `PRESOLVE_TIGHTEN_EPS` | 1e-9 | Whether a residue left by a running difference is a number. Two decisions use it: has a singleton row's fold genuinely emptied a column's interval, or only closed it to within rounding; and does an emptied row's bounds still admit zero after every column removed from it shifted them. In both cases the window is this value times the traffic that produced the residue, never this value alone (D23's argument, in presolve's own space). Swept over the standard set with `make clean` between settings, at 1e-12, 1e-11, 1e-10, 1e-9, 1e-8, 1e-7, 1e-6, 1e-5, 1e-4: solved 94, objective ok 94, checker ok 79 and 7596 rows / 24693 columns removed at every one of them. The canary is what makes that flat line a reading rather than a broken instrument — a model whose fold conflicts with its column's own bound by 1e-8 is refused below 2e-9 and solved above it, and it flips inside the grid. So the plateau is at least nine decades wide with neither edge found, and 1e-9 is taken because it is interior to the grid and is where the canary flips |
 | `JM_PRESOLVE_ROUNDS` | 16 | Cap on presolve's fixed-point rounds (D-02) — a safety stop and not a quality knob, since the loop exits as soon as a round changes nothing, and it lands on top of the structural backstop `num_row + num_col + 1` rather than above it. Set where the propagation reaches its fixed point: swept over the standard set, rows removed go 6060, 7178, 7549, 7596, 7598, 7598, 7598, 7598 at 1, 2, 4, 8, 16, 32, 64, 128 rounds, and columns removed 22671, 24300, 24629, 24693, 24695, 24695, 24695, 24695. The canary is a chain of 200 singleton rows built to resolve one link per round, and it reads 1, 2, 4, 8, 16, 32, 64, 128. The cost is flat across the whole sweep — 97.2 s to 103.6 s at `J=12` against a set that takes about 99 s — so there is nothing to trade against |
 
+**`PRESOLVE_TIGHTEN_EPS` gained a third decision, and it is the one whose
+coverage has a stated limit.** The pass that tests a frozen row for
+feasibility after the round loop uses this same constant, scaled by
+`ps_bound_scale(cur_rl[i], cur_ru[i])` rather than by the row's traffic. Both
+choices are forced. Traffic cannot be used because `row_traffic[i]` saturates
+to `+inf` the first time a column with a half-infinite box is relaxed out of
+the row, which is the common case, and an infinite window is the failure mode
+where an infeasible model is quietly accepted. `ps_row_tol` cannot be used
+because it scales by the LIVE traffic, and a frozen row's live traffic is
+routinely zero, which collapses the window to 1.776e-15 absolute whatever the
+row's scale.
+
+What the window has to cover is the rounding in `cur_rl`/`cur_ru`, which are
+running differences that every removed column shifted by its own `a*v`. So the
+coverage condition is a ratio, not an absolute:
+
+> accumulated shift / `ps_bound_scale(cur_rl, cur_ru)` ≤
+> `PRESOLVE_TIGHTEN_EPS / (8 * DBL_EPSILON)` = 5.6295e5
+
+Measured over the 8293 frozen rows the standard set produces: worst ratio
+**2.718e-4** (`finnis` row 99), or 4.834e-4 counting one rounding per stored
+entry rather than the eight the proxy assumes. Margin to the limit **3679x**,
+or 2069x pessimistically. No row exceeds it.
+
+The scale mostly recovers itself, which is why the margin is so wide: in an
+emptied frozen row one bound falls to zero and the other retains the magnitude
+that was subtracted, so `ps_bound_scale` returns the shift. `greenbea` row 57
+carries 660 of shift and reads `cur_rl = -660, cur_ru = 0`. The 60 rows of
+8293 where that does not happen are the ones with an infinite bound, where the
+scale falls to its floor of 1 and the constant factor above is what covers
+them; their largest shift is 153. Both sides of the sweep are measured: no row
+of the 94 fires with this window, and `galenet` and `pilot4i` are still caught
+with margins of 3.3e8 and 1e9 (D102).
+
 **One number in `src/presolve.c` is deliberately not in this table.** The
 three readings of a row's activity range — the model is infeasible, the row
 is forced to an extreme, the row can never bind — each ask whether a computed

@@ -21,6 +21,17 @@ open, `bench/README.md` for the gate, and the commit each entry came from.
 
 ### Fixed
 
+- A relaxed row is tested for feasibility once the boxes are final, so an
+  infeasible model is no longer published OPTIMAL. Both the row pass and the
+  activity pass skip a frozen row, correctly, and between them nothing asked
+  whether it could still be satisfied: `min x0 s.t. x0 + x1 = 100, x0 in
+  [4,4], x1 in [0,3]` came back OPTIMAL with `x1 = 96` against a box of
+  `[0,3]` and a column violation of 93. No digest moved on any of the 110
+  optimal instances, which is the whole claim — the change can turn OPTIMAL
+  into INFEASIBLE and nothing else. Work rises where frozen rows are walked
+  (+111057 netlib, +68894 Kennington, +3732 infeasible), and two infeasible
+  instances now leave in presolve rather than the simplex: `pilot4i` from 408
+  iterations and 7063304 units to 0 and 13185 (D102).
 - `bench/run` prints per-instance seconds to six decimals instead of three.
   At millisecond resolution a solve under 500 us printed `0.000` and carried
   no time ratio at all, and the ones that did print landed on so few distinct

@@ -15,3 +15,4 @@ baseline.
 | `02-05/` | which presolve family produced the row residuals and the arithmetic that made four Kennington instances read `rowrel` exactly 1/3, the gate after the fix, and the `-DJAOS_NO_PRESOLVE` control that places what remains in presolve's dual recovery (D99) |
 | `02-06/` | which of two singleton rows folding into one column is owed the multiplier, the gate that closed at 94/94, the `warm` comparison against a HEAD build the committed record cannot give, and the exact tree the campaign measured (D100) |
 | `02-07/` | how much the three unbuilt presolve families would have left to remove once the five live ones have run, measured per instance and at four tolerances, with the counter and the model that calibrates it (D101) |
+| `02-08/` | an infeasible model published OPTIMAL with a column violation of 93, the instrumentation showing the same assert has a second trigger of an ulp on 11 instances, and the gate that closed it with no digest moved (D102) |

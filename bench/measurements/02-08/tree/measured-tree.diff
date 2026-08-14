@@ -1,0 +1,218 @@
+diff --git a/bench/results/netlib-infeas.txt b/bench/results/netlib-infeas.txt
+index 2fb5a43..6b03176 100644
+--- a/bench/results/netlib-infeas.txt
++++ b/bench/results/netlib-infeas.txt
+@@ -1,17 +1,17 @@
+ bgdbg1       infeasible rows=348 cols=407 shape=ok iters=0 work=68 presolve=348/407/1440->0/0/0 expected=infeasible verdict=ok det=ok
+-bgetam       infeasible rows=400 cols=688 shape=ok iters=15 work=34010 presolve=400/688/2409->340/516/1842 expected=infeasible verdict=ok det=ok
++bgetam       infeasible rows=400 cols=688 shape=ok iters=15 work=34145 presolve=400/688/2409->340/516/1842 expected=infeasible verdict=ok det=ok
+ bgindy       infeasible rows=2671 cols=10116 shape=ok iters=2 work=390553 presolve=2671/10116/65502->2657/10103/65436 expected=infeasible verdict=ok det=ok
+ bgprtr       infeasible rows=20 cols=34 shape=ok iters=25 work=14944 presolve=20/34/64->20/34/64 expected=infeasible verdict=ok det=ok
+ box1         infeasible rows=231 cols=261 shape=ok iters=16 work=24125 presolve=231/261/651->231/261/651 expected=infeasible verdict=ok det=ok
+ ceria3d      infeasible rows=3576 cols=824 shape=ok iters=0 work=23485 presolve=3576/824/17602->0/0/0 expected=infeasible verdict=ok det=ok
+-chemcom      infeasible rows=288 cols=720 shape=ok iters=6 work=19665 presolve=288/720/1566->288/624/1470 expected=infeasible verdict=ok det=ok
++chemcom      infeasible rows=288 cols=720 shape=ok iters=6 work=20049 presolve=288/720/1566->288/624/1470 expected=infeasible verdict=ok det=ok
+ cplex1       infeasible rows=3005 cols=3221 shape=ok iters=1094 work=5407700 presolve=3005/3221/8944->2505/3221/8444 expected=infeasible verdict=ok det=ok
+ cplex2       infeasible rows=224 cols=221 shape=ok iters=463 work=2792060 presolve=224/221/1058->224/221/1058 expected=infeasible verdict=ok det=ok
+ ex72a        infeasible rows=197 cols=215 shape=ok iters=137 work=136726 presolve=197/215/467->197/215/467 expected=infeasible verdict=ok det=ok
+ ex73a        infeasible rows=193 cols=211 shape=ok iters=100 work=77538 presolve=193/211/457->193/211/457 expected=infeasible verdict=ok det=ok
+-forest6      infeasible rows=66 cols=95 shape=ok iters=77 work=89989 presolve=66/95/210->66/90/205 expected=infeasible verdict=ok det=ok
+-galenet      infeasible rows=8 cols=8 shape=ok iters=0 work=8268 presolve=8/8/16->4/4/8 expected=infeasible verdict=ok det=ok
+-gosh         infeasible rows=3792 cols=10733 shape=ok iters=18928 work=1893596970 presolve=3792/10733/97231->3396/9698/88491 expected=infeasible verdict=ok det=ok
++forest6      infeasible rows=66 cols=95 shape=ok iters=77 work=90009 presolve=66/95/210->66/90/205 expected=infeasible verdict=ok det=ok
++galenet      infeasible rows=8 cols=8 shape=ok iters=0 work=26 presolve=8/8/16->0/0/0 expected=infeasible verdict=ok det=ok
++gosh         infeasible rows=3792 cols=10733 shape=ok iters=18928 work=1893599218 presolve=3792/10733/97231->3396/9698/88491 expected=infeasible verdict=ok det=ok
+ gran         infeasible rows=2658 cols=2520 shape=ok iters=0 work=311 presolve=2658/2520/20106->0/0/0 expected=infeasible verdict=ok det=ok
+ greenbea     infeasible rows=2504 cols=5405 shape=ok iters=0 work=22782 presolve=2504/5405/34937->0/0/0 expected=infeasible verdict=ok det=ok
+ itest2       infeasible rows=9 cols=4 shape=ok iters=0 work=10 presolve=9/4/17->0/0/0 expected=infeasible verdict=ok det=ok
+@@ -20,12 +20,12 @@ klein1       infeasible rows=54 cols=54 shape=ok iters=119 work=534319 presolve=
+ klein2       infeasible rows=477 cols=54 shape=ok iters=262 work=5156093 presolve=477/54/4585->476/54/4584 expected=infeasible verdict=ok det=ok
+ klein3       infeasible rows=994 cols=88 shape=ok iters=426 work=18081831 presolve=994/88/12107->993/88/12106 expected=infeasible verdict=ok det=ok
+ mondou2      infeasible rows=312 cols=604 shape=ok iters=262 work=272896 presolve=312/604/1208->259/467/934 expected=infeasible verdict=ok det=ok
+-pang         infeasible rows=361 cols=460 shape=ok iters=406 work=1840710 presolve=361/460/2652->344/416/2582 expected=infeasible verdict=ok det=ok
+-pilot4i      infeasible rows=410 cols=1000 shape=ok iters=408 work=7063304 presolve=410/1000/5141->397/864/4902 expected=infeasible verdict=ok det=ok
+-qual         infeasible rows=323 cols=464 shape=ok iters=406 work=1834747 presolve=323/464/1646->317/319/1480 expected=infeasible verdict=ok det=ok
++pang         infeasible rows=361 cols=460 shape=ok iters=406 work=1840788 presolve=361/460/2652->344/416/2582 expected=infeasible verdict=ok det=ok
++pilot4i      infeasible rows=410 cols=1000 shape=ok iters=0 work=13185 presolve=410/1000/5141->0/0/0 expected=infeasible verdict=ok det=ok
++qual         infeasible rows=323 cols=464 shape=ok iters=406 work=1835036 presolve=323/464/1646->317/319/1480 expected=infeasible verdict=ok det=ok
+ reactor      infeasible rows=318 cols=637 shape=ok iters=0 work=925 presolve=318/637/2420->0/0/0 expected=infeasible verdict=ok det=ok
+-refinery     infeasible rows=323 cols=464 shape=ok iters=358 work=1249188 presolve=323/464/1626->317/319/1462 expected=infeasible verdict=ok det=ok
+-vol1         infeasible rows=323 cols=464 shape=ok iters=368 work=1597408 presolve=323/464/1646->317/319/1480 expected=infeasible verdict=ok det=ok
++refinery     infeasible rows=323 cols=464 shape=ok iters=358 work=1249477 presolve=323/464/1626->317/319/1462 expected=infeasible verdict=ok det=ok
++vol1         infeasible rows=323 cols=464 shape=ok iters=368 work=1597697 presolve=323/464/1646->317/319/1480 expected=infeasible verdict=ok det=ok
+ woodinfe     infeasible rows=35 cols=89 shape=ok iters=0 work=1 presolve=35/89/140->0/0/0 expected=infeasible verdict=ok det=ok
+ 
+ 29 instances: 29 correctly refused, 29 shape ok, 29 deterministic, 0 failed
+diff --git a/src/presolve.c b/src/presolve.c
+index 23093ff..4afdde1 100644
+--- a/src/presolve.c
++++ b/src/presolve.c
+@@ -1082,6 +1082,77 @@ JAOS_NODISCARD jaos_status jm_presolve_run(const jaos_model *m, jm_presolve *p,
+     p->counts.rounds = rounds_done;
+     }
+ 
++    /* --- Frozen rows, tested for feasibility once the boxes are final. --
++     *
++     * A relaxed row is skipped by both passes above: by the row pass because
++     * its bounds no longer describe a determined value, and by the activity
++     * pass for the same reason. Between them, nothing has asked whether the
++     * row can still be satisfied at all since the relaxation widened it, and
++     * `min x0 s.t. x0 + x1 = 100, x0 in [4,4], x1 in [0,3]` walks straight
++     * through: row 0 is relaxed to [97, 100] and frozen, its one surviving
++     * column can only reach 4, and postsolve then published x1 = 96 against
++     * a box of [0,3] — OPTIMAL, with a column violation of 93.
++     *
++     * The test is the one the activity pass already applies to every other
++     * row, with the same range, the same tolerance and the same space; only
++     * the reduction that follows it there is unsafe on a relaxed row, not
++     * the question. It runs once, after the round loop, rather than inside
++     * it: a box only ever narrows, so the final boxes are the tightest and
++     * catch everything an earlier round would have, and a frozen row costs
++     * one range computation instead of one per round.
++     *
++     * It is deliberately not the repair for the OTHER way this row can end
++     * with an empty intersection. Eleven of the standard set's 94 reach
++     * postsolve with a gap of an ulp — `bnl1` row 581 wants 2.1850000000000005
++     * from a column whose own upper bound is 2.1850000000000001 — and that is
++     * rounding in a subtraction, not an infeasible model. This test does not
++     * fire on any of them, which is what keeps the two apart. */
++    for (int64_t i = 0; i < nr; i++) {
++        if (row_dead[i] || !row_frozen[i])
++            continue;
++
++        const ps_range rg = ps_row_range(&rw, i, cur_cl, cur_cu, col_dead);
++        /* Charged over the entries walked, not the live degree the activity
++         * pass charges: there every row has degree 2 or more and the two
++         * agree closely, here the rows whose live degree has collapsed are
++         * the common case, and a row emptied to degree 0 would be charged
++         * nothing for a walk over all its stored entries. */
++        jm_work_add(w, (rw.rs[i + 1] - rw.rs[i]) * JM_WORK_NONZERO);
++
++        /* Not ps_row_tol. That window is 8 eps times the LIVE traffic, and a
++         * frozen row's live traffic is routinely zero — the row emptied, or
++         * its survivors are half-bounded, which contributes nothing to a
++         * range. The window then collapses to 1.776e-15 absolute whatever
++         * the row's scale, while what it is compared against, cur_rl/cur_ru,
++         * are running differences that every removed column shifted by its
++         * own a*v. `greenbea` row 57 reaches here with 660 of magnitude
++         * subtracted and a margin of exactly zero: it passes because the
++         * cancellation happened to be exact, not because the window covers
++         * the rounding in the number it is testing.
++         *
++         * PRESOLVE_TIGHTEN_EPS times the row's own bound scale is the form
++         * line 627 already uses for the same question on an emptied row that
++         * was never frozen, and `docs/tolerances.md` describes it as exactly
++         * that: whether an emptied row's bounds still admit zero after every
++         * column removed from it shifted them.
++         *
++         * ps_bound_scale rather than row_traffic, and that is not a style
++         * choice. row_traffic saturates to +inf the first time a column with
++         * a half-infinite box is relaxed out of the row, which is the common
++         * case; scaling by it would make the window infinite on precisely
++         * the rows this test exists for, and the test would never fire.
++         * ps_bound_scale skips infinities for that stated reason. */
++        const double rtol =
++            PRESOLVE_TIGHTEN_EPS * ps_bound_scale(cur_rl[i], cur_ru[i]);
++        const double min_act = ps_min_act(&rg);
++        const double max_act = ps_max_act(&rg);
++        if ((isfinite(cur_ru[i]) && min_act > cur_ru[i] + rtol) ||
++            (isfinite(cur_rl[i]) && max_act < cur_rl[i] - rtol)) {
++            p->outcome = JM_PRESOLVE_INFEASIBLE;
++            goto done;
++        }
++    }
++
+     {
+     /* --- Final compaction: assign dense reduced indices to survivors. -- */
+     int64_t rcol = 0, rrow = 0;
+diff --git a/tests/test_presolve.c b/tests/test_presolve.c
+index 4b96484..07823d9 100644
+--- a/tests/test_presolve.c
++++ b/tests/test_presolve.c
+@@ -2178,6 +2178,77 @@ static void test_two_folds_wrong_dual(void)
+ #endif
+ }
+ 
++/* -- A frozen row still has to be satisfiable ------------------------------
++ *
++ *   min x0  s.t.  x0 + x1 = 100,  x0 in [4,4],  x1 in [0,3]
++ *
++ * There is no feasible point: x0 is pinned at 4, so x1 would have to be 96
++ * against a box of [0,3]. x1 has cost 0 and degree 1, so the cost-0 singleton
++ * column family relaxes row0 to [97, 100] and freezes it — and a frozen row
++ * is skipped by the row pass and by the activity pass alike, so until the
++ * feasibility test that runs after the round loop, nothing asked whether the
++ * row could still be satisfied.
++ *
++ * What it did instead is the reason this test exists: postsolve published
++ * x1 = 96 against its own box and the solver reported OPTIMAL, with the
++ * checker reading a column violation of 93. A wrong answer, not a slow one,
++ * and `-DNDEBUG` — which is how `bench/run` is built — removed the assert
++ * that was the only thing noticing.
++ *
++ * The verdict is asserted, and so is the checker's own reading of it, because
++ * the two failed independently: the status was OPTIMAL and the point was 93
++ * outside its box, and a repair that fixed only one of those would still be
++ * wrong. */
++static jaos_model *make_frozen_row_infeasible_model(void)
++{
++    const double c[]  = {1.0, 0.0};
++    const double cl[] = {4.0, 0.0};
++    const double cu[] = {4.0, 3.0};
++    const double rl[] = {100.0};
++    const double ru[] = {100.0};
++    const int64_t s[] = {0, 1, 2};
++    const int64_t ix[] = {0, 0};
++    const double v[] = {1.0, 1.0};
++    jaos_model *m = nullptr;
++    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_model_new(&m));
++    TEST_ASSERT_EQUAL_INT(JAOS_OK,
++        jaos_load_lp(m, 2, 1, JAOS_MINIMIZE, 0.0, c, cl, cu, rl, ru,
++                     2, s, ix, v));
++    return m;
++}
++
++static void test_a_frozen_row_that_cannot_be_satisfied_is_infeasible(void)
++{
++#if defined(JAOS_PRESOLVE_FAULT_OFFBYONE) || defined(JAOS_PRESOLVE_FAULT_WRONGDUAL)
++    TEST_IGNORE_MESSAGE("positive test — skipped under either fault build");
++#else
++    jaos_model *m = make_frozen_row_infeasible_model();
++    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
++    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_INFEASIBLE, jaos_status_of(m));
++    jaos_model_free(m);
++#endif
++}
++
++/* The same model judged by the reference build, which is the only oracle for
++ * output no predicate of the three sets reads. Presolve compiles out, so the
++ * verdict comes from the simplex alone and has nothing to do with the repair
++ * being tested above. If these two ever disagree, one of them is wrong and
++ * the campaign cannot say which. */
++static void test_the_frozen_row_model_agrees_with_the_reference_build(void)
++{
++#if defined(JAOS_PRESOLVE_FAULT_OFFBYONE) || defined(JAOS_PRESOLVE_FAULT_WRONGDUAL)
++    TEST_IGNORE_MESSAGE("positive test — skipped under either fault build");
++#elif !defined(JAOS_NO_PRESOLVE)
++    TEST_IGNORE_MESSAGE("reference half — runs under "
++                        "EXTRA_CFLAGS=-DJAOS_NO_PRESOLVE");
++#else
++    jaos_model *m = make_frozen_row_infeasible_model();
++    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
++    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_INFEASIBLE, jaos_status_of(m));
++    jaos_model_free(m);
++#endif
++}
++
+ int main(void)
+ {
+     UNITY_BEGIN();
+@@ -2200,6 +2271,8 @@ int main(void)
+     RUN_TEST(test_singleton_row_wrong_dual);
+     RUN_TEST(test_two_folds_the_owning_row_takes_the_multiplier);
+     RUN_TEST(test_two_folds_wrong_dual);
++    RUN_TEST(test_a_frozen_row_that_cannot_be_satisfied_is_infeasible);
++    RUN_TEST(test_the_frozen_row_model_agrees_with_the_reference_build);
+     RUN_TEST(test_singleton_col_round_trip);
+     RUN_TEST(test_singleton_col_index_off_by_one);
+     RUN_TEST(test_singleton_col_after_fixed_col);

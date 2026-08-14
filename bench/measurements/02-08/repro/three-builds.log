@@ -1,0 +1,13 @@
+build frozen_ref rc=0
+build frozen_ship rc=0
+build frozen_dbg rc=0
+
+--- frozen_ref  exit=0
+    solve=ok status=infeasible
+--- frozen_ship  exit=0
+    solve=ok status=optimal
+    x0=4 x1=96   (x1's own box is [0,3])
+    checker: primal_feasible=0 maxcol=93 maxrow=0
+/mnt/c/Users/vall-/AppData/Local/Temp/claude/C--Users-vall--Desktop-projectes-jaos/6c55d711-4fec-43f7-be67-67f40723c9e0/scratchpad/diag/frozen3.sh: line 26:   560 Aborted                 (core dumped) ./$n > /tmp/o.txt 2> /tmp/e.txt
+--- frozen_dbg  exit=134
+    stderr: frozen_dbg: clean/src/presolve.c:1643: ps_replay_one: Assertion `want_lo <= want_hi' failed.

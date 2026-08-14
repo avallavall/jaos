@@ -1,0 +1,30 @@
+################ the tree these results belong to
+  sources md5: 60ae956111eb94bbd4886f97b8273429  -
+################ make test
+exit=0
+6 Tests 0 Failures 0 Ignored 
+tests/test_presolve.c:2328:test_a_frozen_row_that_cannot_be_satisfied_is_infeasible:PASS
+tests/test_presolve.c:2329:test_a_frozen_row_that_is_exactly_satisfiable_is_not_refused:PASS
+tests/test_presolve.c:2242:test_the_frozen_row_model_agrees_with_the_reference_build:IGNORE: reference half \xE2\x80\x94 runs under EXTRA_CFLAGS=-DJAOS_NO_PRESOLVE
+43 Tests 0 Failures 10 Ignored 
+12 Tests 0 Failures 0 Ignored 
+78 Tests 0 Failures 4 Ignored 
+4 Tests 0 Failures 0 Ignored 
+################ make sanitize
+exit=0
+43 Tests 0 Failures 10 Ignored 
+12 Tests 0 Failures 0 Ignored 
+78 Tests 0 Failures 4 Ignored 
+4 Tests 0 Failures 0 Ignored 
+################ the reference build, on THIS tree
+exit=2
+tests/test_presolve.c:2328:test_a_frozen_row_that_cannot_be_satisfied_is_infeasible:PASS
+tests/test_presolve.c:2329:test_a_frozen_row_that_is_exactly_satisfiable_is_not_refused:PASS
+tests/test_presolve.c:2330:test_the_frozen_row_model_agrees_with_the_reference_build:PASS
+    tests/test_presolve.c:1115:test_singleton_col_between_two_removals_solved_path:FAIL: Expected 3 Was 2
+################ calibration: the boundary test against HEAD's presolve.c
+exit=2 (the infeasible test must fail there; the boundary one must pass)
+    test_presolve: src/presolve.c:1643: ps_replay_one: Assertion `want_lo <= want_hi' failed.
+################ tree after
+  sources md5: 60ae956111eb94bbd4886f97b8273429  -
+DONE

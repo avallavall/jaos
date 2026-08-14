@@ -1,0 +1,25 @@
+patched: assert replaced by a dump
+=== the constructed infeasible model
+EMPTY row=0 col=1 coef=1 want_lo=96 want_hi=3 gap=93 reclo=0 rechi=3 lo_j=96 hi_j=96 rest=0 rowlo=96 rowhi=96
+=== bnl1
+EMPTY row=581 col=998 coef=1 want_lo=2.1850000000000005 want_hi=2.1850000000000001 gap=4.4408920985006262e-16 reclo=0 rechi=2.1850000000000001 lo_j=2.1850000000000005 hi_j=2.1850000000000005 rest=9.1500000000000004 rowlo=11.335000000000001 rowhi=11.335000000000001
+EMPTY row=371 col=685 coef=1 want_lo=2.0233000000000008 want_hi=2.0232999999999999 gap=8.8817841970012523e-16 reclo=0 rechi=2.0232999999999999 lo_j=2.0233000000000008 hi_j=2.0233000000000008 rest=8.4833999999999996 rowlo=10.5067 rowhi=10.5067
+EMPTY row=57 col=137 coef=1 want_lo=1.7000000000000002 want_hi=1.7 gap=2.2204460492503131e-16 reclo=0 rechi=1.7 lo_j=1.7000000000000002 hi_j=1.7000000000000002 rest=7.1499999999999995 rowlo=8.8499999999999996 rowhi=8.8499999999999996
+  total empty intersections: 3
+=== finnis
+EMPTY row=263 col=564 coef=0.91300000000000003 want_lo=1.2451177440000014 want_hi=1.2451177440000001 gap=1.3322676295501878e-15 reclo=0 rechi=1.2451177440000001 lo_j=1.2451177440000014 hi_j=inf rest=18.485334864605996 rowlo=19.622127364877997 rowhi=inf
+EMPTY row=261 col=563 coef=0.91300000000000003 want_lo=2.0219843940000004 want_hi=2.021984394 gap=4.4408920985006262e-16 reclo=0 rechi=2.021984394 lo_j=2.0219843940000004 hi_j=inf rest=23.847860402063997 rowlo=25.693932153785997 rowhi=inf
+  total empty intersections: 2
+=== how many of the 94 hit an empty intersection at all
+  80bau3b: 16
+  bandm: 4
+  bnl1: 3
+  cycle: 2
+  dfl001: 15
+  finnis: 2
+  nesm: 13
+  perold: 2
+  pilot-ja: 3
+  pilot: 1
+  pilotnov: 2
+  instances affected: 11

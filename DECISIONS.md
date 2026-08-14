@@ -109,6 +109,7 @@ and you have the argument. Jump to the entry for the numbers behind it.
 - **[D99](#d99-the-singleton-column-was-judged-against-bounds-that-had-stopped-describing-its-row-and-that-is-the-whole-of-the-row-residual-defect)** — The singleton column was judged against bounds that had stopped describing its row, and that is the whole of the row-residual defect
 - **[D100](#d100-several-rows-can-fold-into-one-column-and-the-multiplier-is-owed-to-the-one-whose-bound-the-column-rests-on)** — Several rows can fold into one column, and the multiplier is owed to the one whose bound the column rests on
 - **[D101](#d101-the-last-three-presolve-families-have-015-left-to-remove-on-this-instance-set-which-defers-them-rather-than-refusing-them)** — The last three presolve families have 0.15% left to remove on this instance set, which defers them rather than refusing them
+- **[D102](#d102-a-relaxed-row-is-skipped-by-every-pass-that-could-refuse-it-so-an-infeasible-model-was-published-optimal)** — A relaxed row is skipped by every pass that could refuse it, so an infeasible model was published OPTIMAL
 
 ---
 
@@ -7452,3 +7453,78 @@ reports a non-trivial share. The counter is committed at
 `bench/measurements/02-07/` so that condition is executable rather than a
 matter of opinion. Presolve is otherwise complete at five families; nothing is
 removed by this entry.
+
+## D102 — A relaxed row is skipped by every pass that could refuse it, so an infeasible model was published OPTIMAL
+
+**The question.** A review found that `min x0 s.t. x0 + x1 = 100, x0 in [4,4],
+x1 in [0,3]` — which has no feasible point — came back OPTIMAL with `x1 = 96`
+against a box of `[0,3]`. The checker read a column violation of 93. The
+expectation was that this was one defect with one repair. It was two, sharing
+one assert.
+
+**The measurement.** Raw readings: `bench/measurements/02-08/`.
+
+*Reproduced in three builds.* `-DJAOS_NO_PRESOLVE` says INFEASIBLE, which is
+the correct answer and the only oracle for it. The shipping build says OPTIMAL
+with the violation. A build with assertions live aborts at
+`assert(want_lo <= want_hi)` in `ps_replay_one`. The mechanism is exact rather
+than numerical: `lo_j = (100 - 4)/1 = 96` intersected with the column's own
+`[0, 3]` is empty, and the replay published `want_lo` regardless.
+
+*The same assert has a second, unrelated trigger.* Instrumenting it to print
+instead of abort: 11 of the 94 standard instances reach it with a gap of an
+ulp — `bnl1`, `finnis`, `80bau3b`, `bandm`, `cycle`, `dfl001`, `nesm`,
+`perold`, `pilot-ja`, `pilot`, `pilotnov`, gaps 2.2e-16 to 1.3e-15. `bnl1`
+row 581 wants 2.1850000000000005 from a column whose own upper bound is
+2.1850000000000001. Those publish a value about 4e-16 outside the box and the
+checker's tolerance absorbs it. **That is why the assert could never be
+enabled**: it would abort on eleven real instances, and it cannot tell a
+rounding gap from a gap of 93.
+
+*The repair, and why it is where it is.* Both the row pass and the activity
+pass skip a frozen row, for the same correct reason — its bounds no longer
+describe a determined value — so between them nothing asks whether the row can
+still be satisfied. A pass after the round loop applies the test the activity
+pass already applies to every other row. Once, not per round: a box only
+narrows, so the final boxes are the tightest.
+
+*What it cost.* All three sets at `J=12`, `gate: PASS` on each. 94/94, 29/29
+and 16/16. **No digest moved on any of the 110 optimal instances**, which is
+the strong claim: this change can turn OPTIMAL into INFEASIBLE and can do
+nothing else. Work rises on 60 of 94 netlib (+111057), 5 of 16 Kennington
+(+68894) and 8 of 29 infeasible (+3732), because the pass charges a nonzero
+per stored entry of every frozen row whether or not it fires. That bound is
+structural and was checked on all 139: no instance's delta exceeds its own
+nonzero count. Two infeasible instances now leave in presolve rather than the
+simplex — `pilot4i` from 408 iterations and 7063304 units to 0 and 13185,
+`galenet` from 8268 units to 26.
+
+**What was refuted.**
+
+1. *That `ps_row_tol` was the right window.* It scales by the LIVE traffic,
+   and a frozen row's live traffic is routinely zero, so the window collapsed
+   to 1.776e-15 absolute against bounds carrying rounding proportional to what
+   had been subtracted from them. 117 rows of the standard set sat at exactly
+   zero margin, `greenbea` row 57 with 660 of shift. They passed because the
+   cancellation happened to be exact. Replaced with
+   `PRESOLVE_TIGHTEN_EPS * ps_bound_scale`, whose coverage ratio and its
+   3679x measured margin are in `docs/tolerances.md`.
+2. *Rescaling by `row_traffic` instead*, which was the obvious fix and is a
+   no-op: `row_traffic[i]` saturates to `+inf` the first time a half-bounded
+   column is relaxed out of the row, so the window would become infinite on
+   precisely the rows this test exists for. Carried to `TODO.md`; the pass
+   avoids it by using `ps_bound_scale`, which skips infinities by design.
+3. *Charging the live degree*, which the activity pass does. There every row
+   has degree 2 or more; here rows whose live degree collapsed are the common
+   case, and a row emptied to degree 0 was charged nothing for walking all its
+   stored entries. 98339 charged against 111057 walked.
+4. *A cost figure taken from the `presolve=` field.* The first reading of the
+   work delta was 98339 with `fit2p` at +47284; both are that instance's
+   presolve output-nnz, not its delta. The real figures are 111057 and +50284,
+   and they coincide closely enough with the wrong ones to be believed.
+
+**What is left open**, handed to `TODO.md`: the ulp-sized empty intersection,
+which is the other half of the assert and wants the published value clamped to
+the column's own box — deliberately after this entry, because clamping first
+would have masked a gap of 93 as if it were rounding; and `row_traffic`'s
+saturation.

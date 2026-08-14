@@ -1082,6 +1082,77 @@ JAOS_NODISCARD jaos_status jm_presolve_run(const jaos_model *m, jm_presolve *p,
     p->counts.rounds = rounds_done;
     }
 
+    /* --- Frozen rows, tested for feasibility once the boxes are final. --
+     *
+     * A relaxed row is skipped by both passes above: by the row pass because
+     * its bounds no longer describe a determined value, and by the activity
+     * pass for the same reason. Between them, nothing has asked whether the
+     * row can still be satisfied at all since the relaxation widened it, and
+     * `min x0 s.t. x0 + x1 = 100, x0 in [4,4], x1 in [0,3]` walks straight
+     * through: row 0 is relaxed to [97, 100] and frozen, its one surviving
+     * column can only reach 4, and postsolve then published x1 = 96 against
+     * a box of [0,3] — OPTIMAL, with a column violation of 93.
+     *
+     * The test is the one the activity pass already applies to every other
+     * row, with the same range, the same tolerance and the same space; only
+     * the reduction that follows it there is unsafe on a relaxed row, not
+     * the question. It runs once, after the round loop, rather than inside
+     * it: a box only ever narrows, so the final boxes are the tightest and
+     * catch everything an earlier round would have, and a frozen row costs
+     * one range computation instead of one per round.
+     *
+     * It is deliberately not the repair for the OTHER way this row can end
+     * with an empty intersection. Eleven of the standard set's 94 reach
+     * postsolve with a gap of an ulp — `bnl1` row 581 wants 2.1850000000000005
+     * from a column whose own upper bound is 2.1850000000000001 — and that is
+     * rounding in a subtraction, not an infeasible model. This test does not
+     * fire on any of them, which is what keeps the two apart. */
+    for (int64_t i = 0; i < nr; i++) {
+        if (row_dead[i] || !row_frozen[i])
+            continue;
+
+        const ps_range rg = ps_row_range(&rw, i, cur_cl, cur_cu, col_dead);
+        /* Charged over the entries walked, not the live degree the activity
+         * pass charges: there every row has degree 2 or more and the two
+         * agree closely, here the rows whose live degree has collapsed are
+         * the common case, and a row emptied to degree 0 would be charged
+         * nothing for a walk over all its stored entries. */
+        jm_work_add(w, (rw.rs[i + 1] - rw.rs[i]) * JM_WORK_NONZERO);
+
+        /* Not ps_row_tol. That window is 8 eps times the LIVE traffic, and a
+         * frozen row's live traffic is routinely zero — the row emptied, or
+         * its survivors are half-bounded, which contributes nothing to a
+         * range. The window then collapses to 1.776e-15 absolute whatever
+         * the row's scale, while what it is compared against, cur_rl/cur_ru,
+         * are running differences that every removed column shifted by its
+         * own a*v. `greenbea` row 57 reaches here with 660 of magnitude
+         * subtracted and a margin of exactly zero: it passes because the
+         * cancellation happened to be exact, not because the window covers
+         * the rounding in the number it is testing.
+         *
+         * PRESOLVE_TIGHTEN_EPS times the row's own bound scale is the form
+         * line 627 already uses for the same question on an emptied row that
+         * was never frozen, and `docs/tolerances.md` describes it as exactly
+         * that: whether an emptied row's bounds still admit zero after every
+         * column removed from it shifted them.
+         *
+         * ps_bound_scale rather than row_traffic, and that is not a style
+         * choice. row_traffic saturates to +inf the first time a column with
+         * a half-infinite box is relaxed out of the row, which is the common
+         * case; scaling by it would make the window infinite on precisely
+         * the rows this test exists for, and the test would never fire.
+         * ps_bound_scale skips infinities for that stated reason. */
+        const double rtol =
+            PRESOLVE_TIGHTEN_EPS * ps_bound_scale(cur_rl[i], cur_ru[i]);
+        const double min_act = ps_min_act(&rg);
+        const double max_act = ps_max_act(&rg);
+        if ((isfinite(cur_ru[i]) && min_act > cur_ru[i] + rtol) ||
+            (isfinite(cur_rl[i]) && max_act < cur_rl[i] - rtol)) {
+            p->outcome = JM_PRESOLVE_INFEASIBLE;
+            goto done;
+        }
+    }
+
     {
     /* --- Final compaction: assign dense reduced indices to survivors. -- */
     int64_t rcol = 0, rrow = 0;

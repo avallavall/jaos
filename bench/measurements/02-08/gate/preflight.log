@@ -1,0 +1,27 @@
+preflight: /mnt/c/Users/vall-/Desktop/projectes/jaos
+
+1. is the tree settled?
+  STOP   uncommitted edits to sources, tests, manifests or baselines:
+           src/presolve.c
+           tests/test_presolve.c
+         a run is only valid for the tree that produced it -- land the change first
+  WARN   bench/results/ already differs from HEAD:
+           bench/results/netlib-infeas.txt
+         another run wrote these. If it was not yours, a campaign is in flight
+         and its record will be overwritten by yours.
+
+2. is another campaign in flight?
+  ok     no bench process running here
+
+3. are the records and baselines readable?
+
+4. are the instances fetched?
+  ok     bench/instances: 94 instances
+  ok     bench/instances-infeas: 29 instances
+  ok     bench/instances-kennington: 16 instances
+
+5. is the suite green?
+  skip   earlier checks already say do not run
+
+-------------------------------------------------------------
+VERDICT: do not run. Fix the STOP items above.
