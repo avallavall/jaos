@@ -148,8 +148,26 @@ wrong; only the counts beside them were.
 
 | | instances | geometric mean | range |
 |---|---|---|---|
-| movers | 6 | **0.2915x** | 0.1884x to 0.4302x |
-| control | 4 | **0.9934x** | 0.9814x to 1.0031x |
+| movers | 6 | 0.2915x | 0.1884x to 0.4302x |
+| control | 4 | 0.9934x | 0.9814x to 1.0031x |
+
+**Both rows were re-taken in a fresh session under the identical protocol, and
+only one of them held.** Movers 0.3066x against 0.2915x, control 1.0012x
+against 0.9934x — the centres reproduce. The control's SPREAD came back
+0.9599x to 1.0384x, **8.2% against 2.2%**, which is 3.7x wider and consistent
+with D93's 6.27% rather than with 1%.
+
+**So the narrow band above was that session and not this host, and it must not
+be cited as evidence this machine beats 6.27%.** The mechanism is runtime, not
+instance choice: `maros-r7` at 23.1 s reproduces to 0.07%, `truss` at 1.45 s
+to 1.8%, `degen3` at 0.17 s to 3.5%, and `vtp-base` at 0.0003 s to **22.8%** —
+a sub-millisecond solve is timing its own process startup. `vtp-base` alone
+carries most of the movers' drift; the other five reproduce to 2.0%, 0.3059x
+to 0.3120x.
+
+**Quote it as about 0.3x.** Four significant figures are not supported. What
+is supported is the direction and the size: every mover sits 2.3x to 5.2x
+below 1.0, which is tens of times the floor.
 
 The control instances are `maros-r7`, `truss`, `degen3` and `sc205`, whose
 work ratio is 1.0000x to four decimals — presolve provably cannot speed them

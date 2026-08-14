@@ -7668,24 +7668,60 @@ sets, one per tree, are what establishes that, and they are what was done.
 out.** If the changed branches never execute, identical records prove only
 that dead code is dead. The independent re-read settled it by instrumenting a
 copy of `presolve.c` that computes BOTH windows at each site and counts every
-decision where they would disagree. Over about 38,900 decisions on netlib and
-the infeasible set: **zero disagreements**, and the traffic term that can
-widen the window fires **166 times**. So the new formula is exercised and
-still agrees everywhere. That is the statement this entry should have rested
-on from the start. The non-finite-traffic fallback fires zero times, which
+decision where they would disagree. Over all three sets:
+
+| | decisions |
+|---|---|
+| emptied row | 13150 |
+| fold collapse | 100034 |
+| frozen row | 19082 |
+| **old and new window disagree** | **0** |
+| traffic term widens the window | **912** |
+| non-finite-traffic fallback | 0 |
+
+**132266 window decisions, zero disagreements, and the new formula fires 912
+times with a genuinely different scale.** The no-op is measured rather than
+inferred, and it is not an artefact of dead code. That is the statement this
+entry should have rested on from the start. The fallback firing zero times
 matches the source calling it unreachable today.
 
-Its first attempt at that instrument read all zeros, and that was a broken
-instrument rather than a result: `bench/run.c` forks per instance and the
-children `_exit()`, so nothing that runs at destruction time survives. Worth
-recording here because any future counter hung off the runner meets it.
+The two instruments agree to the unit on the sites both count, 13150 and
+19082, written independently in different sessions. That is what validates
+each of them.
+
+The first attempt at the second instrument read all zeros, and that was a
+broken instrument rather than a result: `bench/run.c` forks per instance and
+the children `_exit()`, so nothing that runs at destruction time survives.
+Recorded because any future counter hung off the runner meets it, and because
+a zero there looks exactly like a clean pass.
 
 The same campaign carries what presolve itself is worth, which `TODO.md` had
 open: geometric means of per-instance ratios, presolve on over off, work
-0.810x standard / 0.651x Kennington / 0.084x infeasible, and seconds 0.2915x
+0.810x standard / 0.651x Kennington / 0.084x infeasible, and seconds about 0.3x
 over the six instances presolve removes the most from against a negative
-control reading 0.9934x. The per-instance tables are in
+control that reproduces at 1.0. The per-instance tables are in
 `bench/measurements/02-09/`.
+
+### The verdict, from a context that did not produce the numbers
+
+**ACCEPT.** `jaos-measurer` built the parent in its own worktree, ran both
+sides itself and reproduced every claim: 139 of 139 records bit-identical with
+`cmp` IDENTICAL on all three, the `-DJAOS_NO_PRESOLVE` control at 0 regressed
+on all three, the work ratios to four figures, and every probe row rebuilt
+three ways with distinct binaries.
+
+It added two checks this entry did not have. The 132266-decision count above
+is one. The other is a regression the gate cannot see at all: the shipping
+build is `-DNDEBUG`, so `assert(want_lo <= want_hi)` is compiled out, and
+built with assertions on **both trees abort on the same 11 netlib instances**
+— `80bau3b bandm bnl1 cycle dfl001 finnis nesm perold pilot pilot-ja
+pilotnov`, 0 on the other two sets. Unmoved, and matching the count `TODO.md`
+already owns.
+
+It also found three figures in the write-up that did not follow from the
+readings, all since corrected: four iteration counts carrying `--plus-one`'s
+offset, a column headed "sites reached" that counted collapses, and the
+infeasible set described as passing a checker predicate it does not have.
 
 ### What was refuted
 
@@ -7710,6 +7746,16 @@ control reading 0.9934x. The per-instance tables are in
    separate every adjacent pair of a grid that steps by 2 in places and by 4
    in others: 2 and 4 read alike, 8 and 16 read alike. Seven distinct md5s is
    what settles it.
+5. *That this host's timing floor is 1%.* The negative control read 0.9934x
+   over a 2.2% spread, which looked like a much tighter floor than D93's
+   6.27%. Re-run under the identical protocol in a fresh session it reads
+   1.0012x over **8.2%**, 3.7x wider. The centre reproduces and the tightness
+   does not, so the narrow band was that session. The mechanism is runtime:
+   `maros-r7` at 23.1 s reproduces to 0.07% and `vtp-base` at 0.0003 s to
+   22.8%, because a sub-millisecond solve is timing its own process startup.
+   **The seconds figure is quoted as about 0.3x from here**; four significant
+   figures were never supported, and the direction and size still are — every
+   mover sits 2.3x to 5.2x below 1.0.
 
 ### What is left open
 

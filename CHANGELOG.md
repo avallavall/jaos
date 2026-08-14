@@ -126,8 +126,10 @@ open, `bench/README.md` for the gate, and the commit each entry came from.
   per-instance ratios: work 0.810x on the standard set, 0.651x on Kennington,
   0.084x on the infeasible set where ten models never reach the simplex.
   Seconds on the six instances it removes the most from, `J=1`, minimum of
-  three alternating rounds: 0.2915x against a negative control of 0.9934x
-  (D103). Two instances get much worse and are handed to `TODO.md`: `grow22`
+  three alternating rounds: **about 0.3x** against a negative control that
+  reproduces at 1.0. An independent re-run of the same protocol reads
+  0.3066x and 1.0012x, so the centre holds and four significant figures do
+  not (D103). Two instances get much worse and are handed to `TODO.md`: `grow22`
   11.16x work and 2179 to 16381 iterations, `grow7` 8.56x and 544 to 4804.
 
 - `jaos_solve_time`: seconds the last solve took. `SPECS.md` had carried this
