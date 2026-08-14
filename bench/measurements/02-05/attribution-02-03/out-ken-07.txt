@@ -1,0 +1,8 @@
+ken-07.mps   base                   obj=-679520443.381687 col=0 row=753 rowrel=0.3333 dual=0 gap=8.29e-16 rsub=1.66e-15 rays=0 cert=yes
+ken-07.mps   PS_NO_SINGLETON_COL    obj=-679520443.381687 col=0 row=0 rowrel=0 dual=0 gap=7.84e-16 rsub=1.57e-15 rays=0 cert=yes
+ken-07.mps   PS_NO_SINGLETON_ROW    obj=-679520443.381687 col=0 row=0 rowrel=0 dual=0 gap=8.16e-16 rsub=1.63e-15 rays=0 cert=yes
+ken-07.mps   PS_NO_FCS              obj=-679520443.381687 col=0 row=753 rowrel=0.3333 dual=0 gap=8.29e-16 rsub=1.66e-15 rays=0 cert=yes
+ken-07.mps   PS_NO_EMPTY_COL        obj=-679520443.381687 col=0 row=753 rowrel=0.3333 dual=0 gap=8.29e-16 rsub=1.66e-15 rays=0 cert=yes
+ken-07.mps   PS_NO_EMPTY_ROW        obj=-679520443.381687 col=0 row=753 rowrel=0.3333 dual=0 gap=8.29e-16 rsub=1.66e-15 rays=0 cert=yes
+ken-07.mps   PS_NO_ACT              obj=-679520443.381687 col=0 row=753 rowrel=0.3333 dual=0 gap=8.29e-16 rsub=1.66e-15 rays=0 cert=yes
+

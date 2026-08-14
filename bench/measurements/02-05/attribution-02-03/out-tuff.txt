@@ -1,0 +1,8 @@
+tuff.mps     base                   obj=0.292147765093613 col=0 row=977 rowrel=0.799 dual=0 gap=1.8e-16 rsub=1.5e-14 rays=0 cert=yes
+tuff.mps     PS_NO_SINGLETON_COL    obj=0.292147765093613 col=0 row=4.22e-13 rowrel=1.237e-16 dual=0 gap=3.03e-17 rsub=1.49e-14 rays=0 cert=yes
+tuff.mps     PS_NO_SINGLETON_ROW    obj=0.292147765093613 col=0 row=977 rowrel=0.799 dual=0 gap=1.8e-16 rsub=1.5e-14 rays=0 cert=yes
+tuff.mps     PS_NO_FCS              obj=0.292147765093613 col=0 row=977 rowrel=0.799 dual=0 gap=1.8e-16 rsub=1.5e-14 rays=0 cert=yes
+tuff.mps     PS_NO_EMPTY_COL        obj=0.292147765093613 col=0 row=977 rowrel=0.799 dual=0 gap=1.8e-16 rsub=1.5e-14 rays=0 cert=yes
+tuff.mps     PS_NO_EMPTY_ROW        obj=0.292147765093613 col=0 row=977 rowrel=0.799 dual=0 gap=1.8e-16 rsub=1.5e-14 rays=0 cert=yes
+tuff.mps     PS_NO_ACT              obj=0.292147765093613 col=7.89e-31 row=977 rowrel=0.799 dual=0 gap=2.1e-16 rsub=1.63e-14 rays=0 cert=yes
+

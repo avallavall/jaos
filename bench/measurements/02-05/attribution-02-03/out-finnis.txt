@@ -1,0 +1,8 @@
+finnis.mps   base                   obj=172791.065671828 col=0 row=3.64e+03 rowrel=0.1 dual=66.2 gap=2.21e-10 rsub=0.00246 rays=2 cert=no
+finnis.mps   PS_NO_SINGLETON_COL    obj=172791.065671828 col=0 row=8.44e-07 rowrel=1.256e-16 dual=0 gap=2.21e-10 rsub=6.08e-10 rays=2 cert=no
+finnis.mps   PS_NO_SINGLETON_ROW    obj=172791.065548447 col=0 row=3.76e-06 rowrel=1.256e-16 dual=0 gap=1.36e-10 rsub=2.46e-10 rays=2 cert=no
+finnis.mps   PS_NO_FCS              obj=172791.065671828 col=0 row=3.64e+03 rowrel=0.1 dual=66.2 gap=2.21e-10 rsub=0.00246 rays=2 cert=no
+finnis.mps   PS_NO_EMPTY_COL        obj=172791.065671828 col=0 row=3.64e+03 rowrel=0.1 dual=66.2 gap=2.21e-10 rsub=0.00246 rays=2 cert=no
+finnis.mps   PS_NO_EMPTY_ROW        obj=172791.065671828 col=0 row=3.64e+03 rowrel=0.1 dual=66.2 gap=2.21e-10 rsub=0.00246 rays=2 cert=no
+finnis.mps   PS_NO_ACT              obj=172791.065671828 col=0 row=3.64e+03 rowrel=0.1 dual=0 gap=2.21e-10 rsub=6.08e-10 rays=2 cert=no
+

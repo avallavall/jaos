@@ -152,10 +152,18 @@ constexpr double CHECK_TOL = 1e-6;
 
 /* FNV-1a over the raw bytes of the answer. Two solves of one model must
  * produce identical bits, so the digest is taken of the bytes and not of
- * anything rounded on the way. This stands in for the basis hash PLAN 2.5.13
- * asks for, which needs a basis-status query the public API does not have
- * yet; the values it does cover are a strictly narrower claim, and the
- * output says so rather than implying the basis was compared. */
+ * anything rounded on the way. It covers x and y and NOT the basis, so it is
+ * a strictly narrower claim than the basis hash PLAN 2.5.13 asks for, and the
+ * output says so rather than implying the basis was compared.
+ *
+ * The reason it used to give — that the public API has no basis-status query
+ * — stopped being true: `jaos_basis` publishes both status arrays. Widening
+ * this to cover them is real work, not a rename, because the determinism
+ * check re-solves cold (jaos_clear_basis below) and a published basis that
+ * breaks the row-count promise is a live defect (TODO.md), so a basis hash
+ * would pin today's wrong answer. Left open deliberately, with the
+ * consequence stated: no predicate this runner reports observes a status,
+ * so a change that moves only the basis is invisible to all three sets. */
 static uint64_t digest(const double *v, int64_t n, uint64_t h)
 {
     const unsigned char *p = (const unsigned char *)v;

@@ -9,6 +9,24 @@ open, `bench/README.md` for the gate, and the commit each entry came from.
 
 ## [Unreleased]
 
+### Fixed
+
+- A cost-0 singleton column is recovered against the row bounds recorded when
+  it left, not the row's original pair. The replay is LIFO, so the columns
+  removed before it had not yet added their share to the activity it was
+  judged against, and the published point missed the row by exactly their sum
+  (D99). Standard set 79/94 to 89/94 checker ok, Kennington 12/16 to 16/16 and
+  back to no field differing from its pre-defect baseline, the 29 infeasible
+  lines unmoved; no work unit, iteration count or presolve dimension moved on
+  any instance of any set. Five rejections remain, dual-side and independent
+  (`TODO.md` #1); the gate stays red.
+- `jm_postsolve_solved` initialises the basis statuses it publishes. The
+  arrays are allocated without zeroing and no replay writes a surviving frozen
+  row's status, so what went out there — and into the next solve's warm start
+  — was whatever the heap held. ASan and UBSan do not see an uninitialised
+  read; valgrind does, and now reports none. The value is defined and still
+  not the right one (`TODO.md`).
+
 ### Changed
 
 - The planning layer is retired (D98). The record is `SPECS.md`, `TODO.md`,
@@ -27,9 +45,9 @@ open, `bench/README.md` for the gate, and the commit each entry came from.
   run. `EXTRA_CFLAGS=-DJAOS_NO_PRESOLVE` compiles it out and reproduces the
   pre-presolve baselines bit for bit (D96). Bound tightening was built six
   ways, measured and refused (D97). Work moves by design on touched
-  instances; the checker currently refuses 15+4 postsolved answers, on
-  mixed row and dual terms — open, `TODO.md` #1, and the gate stays red
-  until it closes.
+  instances; the checker still refuses postsolved answers on dual terms —
+  open, `TODO.md` #1, which owns the count, and the gate stays red until it
+  closes.
 
 - `jaos_solve_time`: seconds the last solve took. `SPECS.md` had carried this
   as missing since M1 while the premises required it — every run reported wall

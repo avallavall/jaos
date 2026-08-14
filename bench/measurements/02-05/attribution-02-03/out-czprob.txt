@@ -1,0 +1,8 @@
+czprob.mps   base                   obj=2185196.69885658 col=0 row=4.48e+03 rowrel=0.4126 dual=0 gap=7.29e-18 rsub=5.33e-17 rays=0 cert=yes
+czprob.mps   PS_NO_SINGLETON_COL    obj=2185196.69885658 col=0 row=4.97e-13 rowrel=3.623e-16 dual=0 gap=1.53e-17 rsub=5.13e-17 rays=0 cert=yes
+czprob.mps   PS_NO_SINGLETON_ROW    obj=2185196.69885658 col=0 row=1.92e-12 rowrel=4.83e-16 dual=0 gap=1.64e-17 rsub=4.76e-17 rays=0 cert=yes
+czprob.mps   PS_NO_FCS              obj=2185196.69885658 col=0 row=4.48e+03 rowrel=0.4126 dual=0 gap=7.29e-18 rsub=5.33e-17 rays=0 cert=yes
+czprob.mps   PS_NO_EMPTY_COL        obj=2185196.69885658 col=0 row=4.48e+03 rowrel=0.4126 dual=0 gap=7.29e-18 rsub=5.33e-17 rays=0 cert=yes
+czprob.mps   PS_NO_EMPTY_ROW        obj=2185196.69885658 col=0 row=4.48e+03 rowrel=0.4126 dual=0 gap=7.29e-18 rsub=5.33e-17 rays=0 cert=yes
+czprob.mps   PS_NO_ACT              obj=2185196.69885658 col=0 row=4.48e+03 rowrel=0.4126 dual=0 gap=1.36e-17 rsub=6.3e-17 rays=0 cert=yes
+

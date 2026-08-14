@@ -1,0 +1,8 @@
+pilot-ja.mps base                   obj=-6113.13646558134 col=1.42e-14 row=3.32 rowrel=0.02509 dual=0 gap=2.9e-15 rsub=6.03e-12 rays=0 cert=no
+pilot-ja.mps PS_NO_SINGLETON_COL    obj=-6113.13646558134 col=4.26e-14 row=2.36e-10 rowrel=1.57e-16 dual=0 gap=5.24e-15 rsub=2.79e-13 rays=0 cert=no
+pilot-ja.mps PS_NO_SINGLETON_ROW    obj=-6113.13646558134 col=3.38e-22 row=3.32 rowrel=0.02509 dual=0 gap=8.07e-14 rsub=9.96e-13 rays=0 cert=no
+pilot-ja.mps PS_NO_FCS              obj=-6113.13646558134 col=1.42e-14 row=3.32 rowrel=0.02509 dual=0 gap=2.9e-15 rsub=6.03e-12 rays=0 cert=no
+pilot-ja.mps PS_NO_EMPTY_COL        obj=-6113.13646558134 col=1.42e-14 row=3.32 rowrel=0.02509 dual=0 gap=2.9e-15 rsub=6.03e-12 rays=0 cert=no
+pilot-ja.mps PS_NO_EMPTY_ROW        obj=-6113.13646558134 col=1.42e-14 row=3.32 rowrel=0.02509 dual=0 gap=2.9e-15 rsub=6.03e-12 rays=0 cert=no
+pilot-ja.mps PS_NO_ACT              obj=-6113.13646558134 col=1.42e-24 row=3.32 rowrel=0.02509 dual=0 gap=1.22e-13 rsub=2.84e-12 rays=0 cert=no
+

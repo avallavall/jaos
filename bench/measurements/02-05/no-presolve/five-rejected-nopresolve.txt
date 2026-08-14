@@ -1,0 +1,10 @@
+25fv47       optimal    rows=821 cols=1571 shape=ok iters=9459 work=325649342 presolve=821/1571/10400->821/1571/10400 obj=5501.8458882867499 ref=5501.8458882867444[koch] objective=ok checker=ok (col=0 row=8.36e-13 rowrel=1.9e-16 dual=0 gap=8.07e-16 Q=1.91e-10 N=2.09e-12 drop=1.6e-16 cert=no sub=2.76e-30 rays=0 rsub=3.47e-14) det=ok digest=5c6a2e7ed1a82344
+bnl1         optimal    rows=643 cols=1175 shape=ok iters=856 work=9375462 presolve=643/1175/5121->643/1175/5121 obj=1977.6295615228883 ref=1977.6295615228892[koch] objective=ok checker=ok (col=0 row=1.36e-13 rowrel=2.01e-16 dual=0 gap=2.1e-19 Q=3.3e-11 N=1.58e-12 drop=0 cert=yes sub=1.51e-30 rays=0 rsub=1.67e-14) det=ok digest=a8f67d7946f264cd
+bnl2         optimal    rows=2324 cols=3489 shape=ok iters=1904 work=27162779 presolve=2324/3489/13999->2324/3489/13999 obj=1811.2365403585479 ref=1811.2365403585452[koch] objective=ok checker=ok (col=2.23e-15 row=1.14e-13 rowrel=2.21e-16 dual=0 gap=8.83e-17 Q=5.25e-12 N=1.28e-13 drop=0 cert=yes sub=2.6e-31 rays=0 rsub=2.89e-15) det=ok digest=cb90025ce0f8f86a
+e226         optimal    rows=223 cols=282 shape=ok iters=346 work=2232268 presolve=223/282/2578->223/282/2578 obj=-11.638929066370535 ref=-11.638929066370551[koch] objective=ok checker=ok (col=0 row=3.2e-14 rowrel=1.46e-16 dual=0 gap=2.93e-16 Q=1.26e-13 N=2.87e-15 drop=1.44e-16 cert=no sub=1.28e-32 rays=0 rsub=9.98e-15) det=ok digest=0b096db3fc04d69d
+vtp-base     optimal    rows=198 cols=203 shape=ok iters=132 work=317993 presolve=198/203/908->198/203/908 obj=129831.46246136137 ref=129831.46246136137[koch] objective=ok checker=ok (col=0 row=3.52e-12 rowrel=8.48e-17 dual=0 gap=2e-16 Q=3.37e-10 N=1.11e-11 drop=0 cert=yes sub=1.33e-28 rays=0 rsub=2.59e-15) det=ok digest=8599f4d464022f7a
+
+5 instances: 5 solved, 5 shape ok, 5 objective ok, 5 checker ok, 5 deterministic, 0 failed
+gate: PASS
+
+baseline: NOT COMPARED (no baseline given)

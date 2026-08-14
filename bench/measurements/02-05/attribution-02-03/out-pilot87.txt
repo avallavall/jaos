@@ -1,0 +1,8 @@
+pilot87.mps  base                   obj=301.710347437536 col=0 row=0.324 rowrel=0.06002 dual=0.000739 gap=3.91e-13 rsub=3.37e-06 rays=15 cert=no
+pilot87.mps  PS_NO_SINGLETON_COL    obj=301.710391552554 col=0 row=6.68e-12 rowrel=3.916e-16 dual=1.02e-06 gap=2.64e-11 rsub=0.0931 rays=13 cert=no
+pilot87.mps  PS_NO_SINGLETON_ROW    obj=301.710347437536 col=0 row=0.324 rowrel=0.06002 dual=0.000739 gap=1.5e-12 rsub=3.84e-06 rays=12 cert=no
+pilot87.mps  PS_NO_FCS              obj=301.710347437536 col=0 row=0.324 rowrel=0.06002 dual=0.000739 gap=3.91e-13 rsub=3.37e-06 rays=15 cert=no
+pilot87.mps  PS_NO_EMPTY_COL        obj=301.710347437536 col=0 row=0.324 rowrel=0.06002 dual=0.000739 gap=3.91e-13 rsub=3.37e-06 rays=15 cert=no
+pilot87.mps  PS_NO_EMPTY_ROW        obj=301.710347437536 col=0 row=0.324 rowrel=0.06002 dual=0.000739 gap=3.91e-13 rsub=3.37e-06 rays=15 cert=no
+pilot87.mps  PS_NO_ACT              obj=301.710347437536 col=0 row=0.324 rowrel=0.06002 dual=0.000739 gap=6.71e-13 rsub=3.32e-06 rays=15 cert=no
+

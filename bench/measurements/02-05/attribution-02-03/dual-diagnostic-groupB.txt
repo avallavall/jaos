@@ -1,0 +1,30 @@
+﻿ok
+bnl1.mps: worst ROW dual viol 0.229052 at row 75 ; worst COL dual viol 0 at col -1
+  row 75: rl=-inf ru=0 act=-5.4145054145054146 traffic=5.4145054145054146 y=0.22905212944573955 rowmap=-1
+  arena[7] SINGLETON_ROW       index=75 index2=69 coef=-7 lo=0 hi=0 tl=0 th=0
+    col 69: x=0.77350077350077351 bounds=[0,inf] cost=1.8400000000000001 d_pub=0 status=0 colmap=57
+    row activity should be a*x = -5.414505414505415 ; rl=-inf ru=0
+
+bnl2.mps: worst ROW dual viol 9.81024 at row 13 ; worst COL dual viol 0 at col -1
+  row 13: rl=-0.17549999999999999 ru=inf act=-0.024302211302211301 traffic=0.024302211302211301 y=9.8102420146394795 rowmap=-1
+  arena[3] SINGLETON_ROW       index=13 index2=114 coef=-0.2198 lo=0 hi=0 tl=0 th=0
+    col 114: x=0.11056511056511056 bounds=[0,inf] cost=0.77000000000000002 d_pub=0 status=0 colmap=95
+    row activity should be a*x = -0.024302211302211302 ; rl=-0.17549999999999999 ru=inf
+
+e226.mps: worst ROW dual viol 1.16452 at row 14 ; worst COL dual viol 0 at col -1
+  row 14: rl=-inf ru=0.18049999999999999 act=0.15163043478260871 traffic=0.15163043478260871 y=-1.1645190903954061 rowmap=-1
+  arena[4] SINGLETON_ROW       index=14 index2=186 coef=1 lo=0 hi=0 tl=0 th=0
+    col 186: x=0.15163043478260871 bounds=[0,inf] cost=-4.6630000000000003 d_pub=0 status=0 colmap=177
+    row activity should be a*x = 0.15163043478260871 ; rl=-inf ru=0.18049999999999999
+
+vtp-base.mps: worst ROW dual viol 1320.2 at row 176 ; worst COL dual viol 0 at col -1
+  row 176: rl=-inf ru=0 act=0 traffic=0 y=1320.1986408 rowmap=-1
+  arena[172] SINGLETON_ROW       index=176 index2=181 coef=-1 lo=0 hi=0 tl=0 th=0
+    col 181: x=0 bounds=[0,inf] cost=0 d_pub=0 status=0 colmap=-1
+    row activity should be a*x = -0 ; rl=-inf ru=0
+
+25fv47.mps: worst ROW dual viol 6.12218 at row 696 ; worst COL dual viol 0 at col -1
+  row 696: rl=-inf ru=-2 act=-17 traffic=17 y=-6.1221772946311033 rowmap=-1
+  arena[28] SINGLETON_ROW       index=696 index2=1065 coef=-1 lo=0 hi=0 tl=0 th=0
+    col 1065: x=17 bounds=[0,inf] cost=0 d_pub=0 status=0 colmap=-1
+    row activity should be a*x = -17 ; rl=-inf ru=-2

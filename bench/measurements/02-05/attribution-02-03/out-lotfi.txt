@@ -1,0 +1,8 @@
+lotfi.mps    base                   obj=-25.26470606188 col=0 row=705 rowrel=0.4872 dual=0.001 gap=0.0355 rsub=0.0697 rays=0 cert=no
+lotfi.mps    PS_NO_SINGLETON_COL    obj=-25.26470606188 col=0 row=2.06e-10 rowrel=7.375e-17 dual=0 gap=1.4e-16 rsub=4.36e-15 rays=0 cert=no
+lotfi.mps    PS_NO_SINGLETON_ROW    obj=-25.26470606188 col=0 row=2.36e-10 rowrel=3.665e-17 dual=0 gap=1.4e-16 rsub=3.25e-15 rays=0 cert=no
+lotfi.mps    PS_NO_FCS              obj=-25.26470606188 col=0 row=705 rowrel=0.4872 dual=0.001 gap=0.0355 rsub=0.0697 rays=0 cert=no
+lotfi.mps    PS_NO_EMPTY_COL        obj=-25.26470606188 col=0 row=705 rowrel=0.4872 dual=0.001 gap=0.0355 rsub=0.0697 rays=0 cert=no
+lotfi.mps    PS_NO_EMPTY_ROW        obj=-25.26470606188 col=0 row=705 rowrel=0.4872 dual=0.001 gap=0.0355 rsub=0.0697 rays=0 cert=no
+lotfi.mps    PS_NO_ACT              obj=-25.26470606188 col=0 row=705 rowrel=0.4872 dual=0.001 gap=0.0355 rsub=0.0697 rays=0 cert=no
+

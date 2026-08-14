@@ -106,6 +106,7 @@ and you have the argument. Jump to the entry for the numbers behind it.
 - **[D96](#d96-presolves-gate-the-off-build-must-reproduce-the-baselines-bit-for-bit-and-the-on-build-is-judged-on-verdicts-not-bit-identity)** — Presolve's gate: the off-build must reproduce the baselines bit for bit, and the on-build is judged on verdicts, not bit-identity
 - **[D97](#d97-bound-tightening-is-refused-every-design-returns-infeasible-on-models-that-have-an-optimum)** — Bound tightening is refused: every design returns INFEASIBLE on models that have an optimum
 - **[D98](#d98-the-planning-layer-is-retired-the-record-is-five-documents-and-the-process-is-the-loop-in-claudemd)** — The planning layer is retired: the record is five documents, and the process is the loop in CLAUDE.md
+- **[D99](#d99-the-singleton-column-was-judged-against-bounds-that-had-stopped-describing-its-row-and-that-is-the-whole-of-the-row-residual-defect)** — The singleton column was judged against bounds that had stopped describing its row, and that is the whole of the row-residual defect
 
 ---
 
@@ -7055,9 +7056,9 @@ before presolve existed?
   `greenbea` 3.1x and `pilot4i` 2.3x instead of `bgindy` — and that is the
   design, not drift to chase.
 
-**What the policy does not cover.** Checker rejections. The 15 + 4
-rejections standing at HEAD are a defect (`TODO.md` #1), not tolerated
-movement, and no baseline is rewritten while the gate is red. The deliberate
+**What the policy does not cover.** Checker rejections. The rejections
+standing at HEAD are a defect (`TODO.md` #1, which owns the count), not
+tolerated movement, and no baseline is rewritten while the gate is red. The deliberate
 three-baseline rewrite happens once the phase's families are in and the gate
 passes, by the `*-baseline` targets and confirmed by a following gate run.
 
@@ -7143,3 +7144,122 @@ moved to `TODO.md`; D94-D97 above were written from the phase summaries
 before deletion; the raw measurement records moved to
 `bench/measurements/02-04/`. Everything deleted remains reachable in git
 history.
+
+## D99 — The singleton column was judged against bounds that had stopped describing its row, and that is the whole of the row-residual defect
+
+**The question.** 02-03's diff took the standard set from 93/94 to 78/94 and
+Kennington from 16/16 to 8/16; 02-04's one repair returned 79/94 and 12/16.
+Every objective still matched Koch's reference and all 139 instances stayed
+deterministic, so the defect was in what postsolve published rather than in
+the simplex (D96's off-build reproduces the pre-presolve baselines bit for
+bit). Which of the five families publishes a point that misses its own row
+bounds by up to 1.9e+04, and what makes four Kennington instances read
+`rowrel` exactly 1/3? A ratio of exactly one third is structure, not
+rounding.
+
+**The measurement.** Raw readings: `bench/measurements/02-05/`.
+
+*Attribution.* A build carrying one runtime switch per family, 16 rejected
+instances against 8 settings (`attribution-02-03/out-<instance>.txt`). Empty
+rows, empty columns, the free-column-singleton and the activity pass are
+exonerated: with each off, no term moves on any instance. Disabling the
+bounded singleton column alone cleans every row residual in the set.
+
+*The site.* `ps_replay_one`'s `JM_PS_SINGLETON_COL` case read
+`rest = sol_row[i]` and judged the recovered value against the row's ORIGINAL
+bounds. The replay is strictly LIFO (D-07), so a record pushed earlier
+replays later: every column removed before this one had not yet added its
+share. Traced on `ken-07`, all six violated rows: the violation equals
+exactly the sum of the contributions replayed after that record. Row 2413,
+`rl = ru = 1506` — the record publishes 1506 against `rest = 0`, and 53 fixed
+columns then add 753. The correct value was 753
+(`attribution-02-03/trace-ken07.txt`).
+
+*The 1/3.* With `R` the equality's right-hand side and `F` the later-replayed
+sum, published activity is `R + F` and the violation is `F`, every term
+positive, so `rowrel = F/(R+F)`. On `ken-07`'s six rows `F` is exactly `R/2`
+(753/1506, 707/1414, 742/1484, 706/1412, 729/1458), and
+`(R/2)/(3R/2) = 1/3`. The half is a property of that model family; what the
+code contributes is that the violation IS `F`.
+
+*The fix.* The record carries `row_lo`/`row_hi`: the row's own bounds at the
+moment the column left, read before its own relaxation shifted them. Partial
+activity and recorded bounds then describe the same set of columns.
+`JM_PS_FREE_COL_SINGLETON` already recorded shifted bounds this way and the
+sweep exonerated it, which is the pattern this follows.
+
+*What it cost.* All three sets at `J=12`, run twice on the final tree,
+byte-identical records both times. Standard set 89/94 checker ok, from 79/94
+— ten instances move REJECTED to ok (`czprob finnis lotfi perold pilot-ja
+pilot87 pilotnov pilot-we share1b tuff`). Kennington 16/16, from 12/16, with
+the runner reporting no field differing from its pre-defect committed
+baseline, digests included. The infeasible set unchanged in all 29 lines.
+Work units, iteration counts and presolve dimensions moved on no instance of
+any set — `geomean.py --metric work` reads 1.0000x over the 139 — and 119 of
+the 139 lines are bit-identical. Twenty solution digests moved; the four
+whose checker terms are identical to the last digit (`nesm pilot4 standata
+standmps`) publish a different feasible point of the same problem, which a
+cost-0 column can do without touching the objective. Independently
+re-derived, ACCEPT, by `jaos-measurer` in a context that did not produce
+these numbers.
+
+**What was refuted.**
+
+- *That the stale-status class explained it.* 02-04 repaired one such
+  recovery, and the reading that its siblings covered the rest was wrong:
+  they explain no row residual at all. `bnl1`, `bnl2` and `e226` are
+  bit-identical across this change — it does not touch them.
+- *That `BASIC` is the right status for the surviving frozen row.* Written
+  into the code on the reasoning that every column had left at a bound.
+  Refuted by building the same model with `-DJAOS_NO_PRESOLVE`: the reference
+  publishes `AT_LOWER` and a basis of the promised size. The reasoning had
+  missed that a recovered column can land strictly inside its own box.
+- *That a postsolve change can only move `x`.* The singleton row's replay
+  decides its multiplier from the published column value (`zero_works`),
+  which this change moves, so `y` can move with it. No verdict and no dual
+  moved here, but the general claim is false and was used.
+- *That `rowrel = 1/3` was a coincidence of scale.* It is exact, and derived
+  above.
+
+**Two latent risks stopped being latent.** The attribution report closed with
+two unconfirmed suspicions, and both are now confirmed and carry a test.
+Several bounded singleton columns can share one row — the family checks
+`!free_col` and never `row_frozen[i]` — which was measured as one record per
+violated row across all 16 instances, so it was a shape with no live case;
+it is now `test_two_singleton_cols_on_one_row`, the only one of the three new
+tests that produces a column-bound violation as well as a row one, and the
+shape that aborts the old assert. And `jm_postsolve_solved` seeds no
+activity at all, which is now tested and is where the uninitialised basis
+status surfaced.
+
+**What is left open**, handed to `TODO.md`:
+
+1. Five rejections remain (`25fv47 bnl1 bnl2 e226 vtp-base`), a dual-recovery
+   defect independent of this one. Evidence in `no-presolve/`, with the
+   canary: all five are checker ok with `dual=0` compiled without presolve,
+   and carry `dual` 0.0705, 6.12, 9.81, 1.16 and 1.32e+03 with it. On the two
+   that had both terms the primal residual collapses while the dual stays
+   identical to the digit (`25fv47` row 4.32 to 3.5e-13, `vtp-base` row
+   1.9e+04 to 2.23e-11).
+2. The basis the singleton-column family publishes breaks `jaos.h`'s
+   row-count promise whenever the column is recovered strictly inside its own
+   box, on both postsolve paths.
+3. An infeasible model can be published OPTIMAL, because a frozen row is
+   never rechecked after being relaxed. `netlib-infeas` has no instance of
+   the shape, so the set cannot currently see it.
+4. The reduced-cost-on-an-interior-point mechanism. Both instances the
+   attribution recorded are closed here, and the arithmetic accounts for
+   each: `perold`'s column 1325 sits in a row surviving as an equality at
+   -0.1401, and with the recorded pair the intersection collapses to a point,
+   putting the column on its own lower bound where a reduced cost of
+   +7.8697698235111009 is legal; `pilot-we`'s column 81 lands the same way
+   through the negative-coefficient branch, with +6817.1056233617956. Both
+   published values are exactly 0.0 and both statuses are `AT_LOWER`, which
+   was predicted from the mechanism before it was checked. Both had
+   `rec->lo` equal to the column's own lower bound, which is why the checker
+   reads the landing as a bound. The residual form is the one neither has: a
+   singleton column whose bounds were TIGHTENED before removal lands on a
+   tightened bound that is interior in the original box. No instance of that
+   shape appears in any of the three sets, so the measurement says nothing
+   about it, and a set with no instance is not a proof. `pilot87` was
+   recorded as fitting by shape, never verified, and passes now too.

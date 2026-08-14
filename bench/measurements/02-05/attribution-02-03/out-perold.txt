@@ -1,0 +1,8 @@
+perold.mps   base                   obj=-9380.75527823516 col=6.94e-18 row=0.0797 rowrel=0.02343 dual=7.87 gap=1.06e-16 rsub=6.69e-05 rays=0 cert=no
+perold.mps   PS_NO_SINGLETON_COL    obj=-9380.75527823516 col=0 row=2.51e-10 rowrel=1.907e-16 dual=0 gap=1.31e-16 rsub=2.91e-13 rays=0 cert=no
+perold.mps   PS_NO_SINGLETON_ROW    obj=-9380.75527823516 col=1.49e-14 row=0.0797 rowrel=0.02343 dual=7.87 gap=2.99e-15 rsub=6.69e-05 rays=0 cert=no
+perold.mps   PS_NO_FCS              obj=-9380.75527823516 col=6.94e-18 row=0.0797 rowrel=0.02343 dual=7.87 gap=1.06e-16 rsub=6.69e-05 rays=0 cert=no
+perold.mps   PS_NO_EMPTY_COL        obj=-9380.75527823516 col=6.94e-18 row=0.0797 rowrel=0.02343 dual=7.87 gap=1.06e-16 rsub=6.69e-05 rays=0 cert=no
+perold.mps   PS_NO_EMPTY_ROW        obj=-9380.75527823516 col=6.94e-18 row=0.0797 rowrel=0.02343 dual=7.87 gap=1.06e-16 rsub=6.69e-05 rays=0 cert=no
+perold.mps   PS_NO_ACT              obj=-9380.75527823516 col=2.17e-30 row=0.0797 rowrel=0.02343 dual=7.87 gap=3.18e-15 rsub=6.69e-05 rays=0 cert=no
+

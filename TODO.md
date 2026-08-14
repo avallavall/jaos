@@ -5,56 +5,62 @@ says why closed questions closed, `CHANGELOG.md` says what landed, `bench/`
 says what it costs. This file says what is next. When something lands, its
 line leaves this file in the same commit.
 
-## 1. The postsolve defect — the gate is red
+## 1. The postsolve defect — the gate is red, on a dual term only
 
-15 standard-set and 4 Kennington answers are refused by the checker, and the
-failing terms are mixed, not dual-only. Pure row residuals with `dual=0` on
-`czprob`, `share1b`, `tuff` and all four `ken-*` (row up to 1.9e+04, and the
-four Kennington instances read `rowrel=0.333` exactly — one signature). Pure
-dual and gap terms on `bnl1`, `bnl2`, `e226`. Both at once on `25fv47`,
-`finnis`, `lotfi`, `perold`, `pilot-we`, `vtp-base`. Per-instance terms:
-`bench/measurements/02-04/final-netlib.gate` and `final-netlib-kennington.gate`.
+**Five standard-set answers are refused by the checker and no Kennington one
+is: `25fv47`, `bnl1`, `bnl2`, `e226`, `vtp-base`.** This file owns that
+count; other documents point here rather than restating it. Per-instance
+terms: `bench/measurements/02-05/gate/final-netlib.txt`.
 
-All objectives match Koch's reference and all 139 instances are
-deterministic. On the row-residual instances the published point itself
-violates rows, so postsolve reconstructs x wrong there, not only the
-multipliers. Presolve compiled off (`EXTRA_CFLAGS=-DJAOS_NO_PRESOLVE`)
-reproduces all three baselines bit for bit (D96), so the defect is in what
-postsolve publishes.
+Every failing term is dual. The primal point is certified on all 94, all
+objectives match Koch's reference and all 139 instances are deterministic —
+so what is left is the multipliers, not the reconstruction. The row-residual
+half was a different defect and is closed (D99): it was the bounded singleton
+column judged against bounds that had stopped describing its row, and fixing
+it moved 14 instances to ok without moving a single work unit.
 
-Bisection, each tree built detached and run against the committed baseline:
+The defect is in presolve's own dual recovery, and that is measured rather
+than inferred. Compiled with `EXTRA_CFLAGS=-DJAOS_NO_PRESOLVE` — canary: the
+`presolve=` field must come back unreduced, and it does — all five are
+checker ok with `dual=0` and rows at 1e-13
+(`bench/measurements/02-05/no-presolve/`). With presolve on they carry `dual`
+0.0705, 6.12, 9.81, 1.16 and 1.32e+03.
+
+`bnl1`, `bnl2` and `e226` are bit-identical across D99's fix, digest
+included, so nothing that change touched is involved in them. On `25fv47` and
+`vtp-base` the primal residual collapsed (4.32 to 3.5e-13, 1.9e+04 to
+2.23e-11) while the dual stayed identical to the digit.
+
+The whole fall is still inside 02-03's diff (`9aba410`). Bisection, each tree
+built detached and run against the committed baseline:
 
 | tree | checker ok | rejected |
 |---|---|---|
 | `03c28c9` — end of 02-02 | 93/94 | 1 (`finnis`, D94) |
 | `8425acc` — end of 02-03 | 78/94 | 16 |
 | `d861b22` — end of 02-04 | 79/94 | 15 |
-
-The whole fall is inside 02-03's diff (`9aba410`). Raw runs:
-`bench/measurements/02-04/` (the `attribution-*` files).
-
-Rejected at `d861b22` — netlib: `25fv47 bnl1 bnl2 czprob e226 finnis lotfi
-perold pilot-ja pilot-we pilot87 pilotnov share1b tuff vtp-base`.
-Kennington: `ken-07 ken-11 ken-13 ken-18`.
+| `541f7dd` — D99 | 89/94 | 5 |
 
 The approach, in order:
 
-1. `numerics-reviewer` on `git diff 03c28c9..8425acc` with the table, the
-   instance lists and the per-instance terms in hand. The families are empty
-   row/column, singleton row/column and the mutual free-column-singleton; the
-   question per family is whether the value and the multiplier it publishes
-   satisfy the checker for the status published. The row-residual group says
-   at least one family reconstructs the primal point or a shifted row bound
-   wrong; the `rowrel=0.333` signature on all four `ken-*` is the strongest
-   single lead. One case is already found and fixed — the singleton row's
-   stale status discriminator — and its derivation-in-a-comment in
-   `src/presolve.c` is the pattern to follow.
-2. A throwaway traced build on one small rejected instance (`vtp-base` prints
-   `dual=2.58e+03` against an objective of 1.3e+05): print every replayed
-   record — family, row/column, multiplier, status, what the sign rule wants.
-   The first disagreement names the site. Instrument before repairing; 02-04
-   lost three campaigns to hypotheses before one trace answered it.
-3. The fix, with a test shown failing on the pre-fix code first.
+1. Four sites can produce a `max_dual_violation` here and the label matters,
+   because each leads to a different repair: the singleton row's recovery,
+   the forcing row's derivation, the `d_j = -a_ij * y_i` the singleton column
+   publishes, and the duals the simplex publishes on surviving rows. Separate
+   them before repairing.
+2. The recorded lead, from the attribution
+   (`bench/measurements/02-05/attribution-02-03/`): on `bnl1`, `bnl2`, `e226`
+   and `vtp-base` the worst dual violation sits on a row the arena removed as
+   `JM_PS_SINGLETON_ROW`, with the kept column strictly interior, reduced
+   cost 0 and status 0. The `zero_works` test at `src/presolve.c` reads
+   `sol_redcost[j]` as the reduced solve's, and three other producers can
+   have written it first — a second instance of the stale-read class 02-04
+   repaired once and D99 found again in the primal.
+3. Reading the flags is necessary and not sufficient: `finnis` had
+   `row_tightens_hi` set and its multiplier was still wrong, because two rows
+   tightened and only the tighter one is responsible.
+4. The fix, with a test shown failing on the pre-fix code first, and the
+   dual-side case the checker must reject built deliberately.
 
 Prohibited: widening any tolerance, clamping a recovered value, reverting a
 reduction family. The objectives are already right; a tolerance that admits a

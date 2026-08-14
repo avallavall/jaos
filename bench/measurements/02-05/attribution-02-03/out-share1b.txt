@@ -1,0 +1,8 @@
+share1b.mps  base                   obj=-76589.3185791857 col=0 row=2.57e+03 rowrel=0.5263 dual=0 gap=3.19e-15 rsub=7.26e-15 rays=0 cert=no
+share1b.mps  PS_NO_SINGLETON_COL    obj=-76589.3185791858 col=0 row=1.05e-10 rowrel=9.633e-17 dual=0 gap=2.4e-15 rsub=6.84e-15 rays=0 cert=no
+share1b.mps  PS_NO_SINGLETON_ROW    obj=-76589.3185791857 col=0 row=5.82e-11 rowrel=1.15e-16 dual=0 gap=8.87e-17 rsub=1.23e-15 rays=0 cert=no
+share1b.mps  PS_NO_FCS              obj=-76589.3185791857 col=0 row=2.57e+03 rowrel=0.5263 dual=0 gap=3.19e-15 rsub=7.26e-15 rays=0 cert=no
+share1b.mps  PS_NO_EMPTY_COL        obj=-76589.3185791857 col=0 row=2.57e+03 rowrel=0.5263 dual=0 gap=3.19e-15 rsub=7.26e-15 rays=0 cert=no
+share1b.mps  PS_NO_EMPTY_ROW        obj=-76589.3185791857 col=0 row=2.57e+03 rowrel=0.5263 dual=0 gap=3.19e-15 rsub=7.26e-15 rays=0 cert=no
+share1b.mps  PS_NO_ACT              obj=-76589.3185791857 col=0 row=2.57e+03 rowrel=0.5263 dual=0 gap=3.19e-15 rsub=7.26e-15 rays=0 cert=no
+

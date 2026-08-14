@@ -1,0 +1,8 @@
+bnl1.mps     base                   obj=1977.62956152289 col=0 row=2.13e-13 rowrel=4.39e-16 dual=0.0705 gap=1.26e-16 rsub=0.00779 rays=0 cert=yes
+bnl1.mps     PS_NO_SINGLETON_COL    obj=1977.62956152289 col=0 row=1.9e-13 rowrel=1.697e-16 dual=0.0705 gap=5.08e-17 rsub=0.00779 rays=0 cert=yes
+bnl1.mps     PS_NO_SINGLETON_ROW    obj=1977.62956152289 col=0 row=9.59e-14 rowrel=2.01e-16 dual=0 gap=4.04e-16 rsub=1.48e-14 rays=0 cert=yes
+bnl1.mps     PS_NO_FCS              obj=1977.62956152289 col=0 row=2.13e-13 rowrel=4.39e-16 dual=0.0705 gap=1.26e-16 rsub=0.00779 rays=0 cert=yes
+bnl1.mps     PS_NO_EMPTY_COL        obj=1977.62956152289 col=0 row=2.13e-13 rowrel=4.39e-16 dual=0.0705 gap=1.26e-16 rsub=0.00779 rays=0 cert=yes
+bnl1.mps     PS_NO_EMPTY_ROW        obj=1977.62956152289 col=0 row=2.13e-13 rowrel=4.39e-16 dual=0.0705 gap=1.26e-16 rsub=0.00779 rays=0 cert=yes
+bnl1.mps     PS_NO_ACT              obj=1977.62956152289 col=4.65e-15 row=1.74e-13 rowrel=4.39e-16 dual=0.0705 gap=1.65e-16 rsub=0.00779 rays=0 cert=yes
+

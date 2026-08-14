@@ -1,0 +1,8 @@
+vtp-base.mps base                   obj=129831.462461361 col=0 row=1.9e+04 rowrel=0.3065 dual=1.32e+03 gap=1.55e-17 rsub=4.37 rays=0 cert=yes
+vtp-base.mps PS_NO_SINGLETON_COL    obj=129831.462461361 col=0 row=2.23e-11 rowrel=1.682e-16 dual=1.32e+03 gap=1.55e-17 rsub=4.23 rays=0 cert=yes
+vtp-base.mps PS_NO_SINGLETON_ROW    obj=129831.462461361 col=0 row=8.41e-12 rowrel=6.316e-17 dual=0 gap=6.38e-17 rsub=1.87e-15 rays=0 cert=yes
+vtp-base.mps PS_NO_FCS              obj=129831.462461361 col=0 row=1.9e+04 rowrel=0.3065 dual=1.32e+03 gap=1.55e-17 rsub=4.37 rays=0 cert=yes
+vtp-base.mps PS_NO_EMPTY_COL        obj=129831.462461361 col=0 row=1.9e+04 rowrel=0.3065 dual=1.32e+03 gap=1.55e-17 rsub=4.37 rays=0 cert=yes
+vtp-base.mps PS_NO_EMPTY_ROW        obj=129831.462461361 col=0 row=1.9e+04 rowrel=0.3065 dual=1.32e+03 gap=1.55e-17 rsub=4.37 rays=0 cert=yes
+vtp-base.mps PS_NO_ACT              obj=129831.462461361 col=0 row=26 rowrel=0.07797 dual=0 gap=5.14e-17 rsub=2.63e-15 rays=0 cert=yes
+
