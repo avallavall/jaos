@@ -23,11 +23,24 @@ is in D103 and `bench/measurements/02-09/`.
 What is left:
 
 - **The deliberate three-baseline rewrite** (`make netlib-baseline` and
-  siblings), confirmed by a following gate run. Known by-design movements at
-  `d861b22`: 26 netlib + 1 infeasible (`bgindy`) + 4 Kennington (D96). The
-  gate has been green since D100 and the records have been bit-identical
-  across D103, so nothing blocks it; it stays a deliberate act taken after the
-  change is read and accepted, never a side effect.
+  siblings), confirmed by a following gate run. The baselines predate presolve
+  entirely, so **every** instance of all three sets differs from its baseline
+  in iterations or work. What the runner calls a regression is the 2x work
+  threshold, and today that is three: `grow22` and `grow7` on netlib,
+  `bgindy` on the infeasible set. Kennington reads `0 regressed` and its gate
+  passes. So `make netlib` and `make netlib-infeas` exit 1 and
+  `make netlib-kennington` exits 0.
+
+  D96's snapshot of 26 + 1 + 4 was taken at `d861b22` and D96 says the count
+  "swims as families land". It did. This line restated that total instead of
+  reading the campaign that had just run, which is exactly the failure
+  `CLAUDE.md` names — a derived number copied forward while an addend moved
+  underneath it. Caught by an independent re-read, not by the run that
+  produced the contradicting output.
+
+  The gate has been green since D100 and the records are bit-identical across
+  D103, so nothing blocks the rewrite; it stays a deliberate act taken after
+  the change is read and accepted, never a side effect.
 - A verdict from `jaos-measurer` on D103's campaign, read in a context that
   did not produce the numbers.
 - Close-out: SPECS presolve row updated, this section deleted.

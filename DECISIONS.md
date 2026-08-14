@@ -7600,6 +7600,20 @@ half D102 closed, escaping through the window instead of around the test.
 deleted; `-Werror` refused to keep an unread `constexpr`, which is the right
 answer, because a tunable that moves nothing is D82's shape exactly.
 
+**And at two of the three the SCALE changed as well, which "replaces the
+constant" hides.** Only the frozen-row test is a straight constant swap. The
+emptied-row test falls back to `ps_bound_scale(cur_rl, cur_ru)` when
+`row_traffic[i]` is not finite, which is new behaviour the constant has
+nothing to do with. The fold collapse takes
+`max(ps_bound_scale(new_lo, new_hi), row_traffic[i] / fabs(a))`, and that
+traffic term is a new term rather than a rescaling: where it exceeds 5.63e5
+times the bound scale **the new window is wider than the old one**. So this
+change can move a verdict in either direction, not only toward refusing more.
+`src/presolve.c` says so beside the code; this entry said "replaces the
+constant at three sites" and that was a simplification the code does not
+support. Corrected after an independent re-read asked what the other two sites
+actually do.
+
 **A sweep was the wrong instrument here and had already run.** The nine-decade
 plateau recorded against `PRESOLVE_TIGHTEN_EPS` (1e-12 to 1e-4, nothing
 moving) was a true reading and it could not have found any of this: its canary
@@ -7629,10 +7643,17 @@ flat, with four canary flips inside the grid and seven distinct binaries.
 ### What the campaign said
 
 Every record bit-identical to the one committed before the change: 94, 29 and
-16 instances, 0 digests moved. Which is what the residue measurement predicted
-— with no feasible model carrying a residue at any site, no window can change
-a verdict. The `-DJAOS_NO_PRESOLVE` control reproduces all three pre-presolve
-baselines with 0 regressed, 0 improved, 0 new.
+16 instances, 0 digests moved. The `-DJAOS_NO_PRESOLVE` control reproduces all
+three pre-presolve baselines with 0 regressed, 0 improved, 0 new.
+
+**The bit-identity is carried by the campaign and not by the residue
+argument**, and the difference is worth stating because the entry first read
+the other way round. The residue run was taken on the candidate tree — this
+directory's README says so — so what it measures is the inputs to the NEW
+windows. It establishes that the new windows are set where nothing on these
+139 models is near them. It cannot on its own establish that the old and new
+windows agree, because it never ran under the old ones. Two runs of the three
+sets, one per tree, are what establishes that, and they are what was done.
 
 The same campaign carries what presolve itself is worth, which `TODO.md` had
 open: geometric means of per-instance ratios, presolve on over off, work
