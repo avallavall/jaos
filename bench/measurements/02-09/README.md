@@ -120,10 +120,26 @@ geometric means, `on/off`, so below 1.0 means presolve saves:
 The infeasible figure is not a speed claim about the simplex: ten of those
 models are decided inside presolve and the simplex never starts.
 
+**Every iteration ratio in that column was taken with `geomean.py
+--plus-one`, and on the infeasible set the convention decides the answer.**
+Ten of the 29 finish inside presolve at 0 iterations, which a plain ratio
+cannot divide by, so without the flag the script drops them and reports
+0.9667x over the remaining 19. 0.241x is the honest number because it keeps
+all 29 and the ten are the whole point of the reduction; 0.9667x is a
+statement about the instances presolve did not decide. The two are far enough
+apart that quoting either without naming the convention is a defect, and it
+was one here until an independent re-read asked which had been used.
+
 **Two instances get much worse, and it is presolve, not this change.**
-`grow22` 11.16x work and 2180 to 16382 iterations; `grow7` 8.56x and 545 to
-4805. The `on-*` records are bit-identical to what was already committed, so
+`grow22` 11.16x work and 2179 to 16381 iterations; `grow7` 8.56x and 544 to
+4804. The `on-*` records are bit-identical to what was already committed, so
 these arrived with presolve. Handed to `TODO.md`.
+
+Those four counts were each one too high in five documents until an
+independent re-read caught them. `geomean.py --plus-one` adds one to every
+iteration count before taking the ratio, and the shifted values were copied
+out of its table as though they were the raw counts. The ratios were never
+wrong; only the counts beside them were.
 
 ## `timing/` — seconds, and the control that qualifies them
 

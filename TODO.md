@@ -38,8 +38,8 @@ Not a regression from D103 â€” the records either side of it are bit-identical â
 so this arrived with presolve and has never been asked about.
 
 ```
-grow22   4.4e7 -> 4.9e8 work   11.16x    2180 -> 16382 iterations   7.51x
-grow7    6.4e6 -> 5.5e7 work    8.56x     545 ->  4805 iterations   8.82x
+grow22   4.4e7 -> 4.9e8 work   11.16x    2179 -> 16381 iterations   7.51x
+grow7    6.4e6 -> 5.5e7 work    8.56x     544 ->  4804 iterations   8.82x
 ```
 
 They are the only two instances of 94 past 2x, and they set the standard set's

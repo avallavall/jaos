@@ -128,7 +128,7 @@ open, `bench/README.md` for the gate, and the commit each entry came from.
   Seconds on the six instances it removes the most from, `J=1`, minimum of
   three alternating rounds: 0.2915x against a negative control of 0.9934x
   (D103). Two instances get much worse and are handed to `TODO.md`: `grow22`
-  11.16x work and 2180 to 16382 iterations, `grow7` 8.56x and 545 to 4805.
+  11.16x work and 2179 to 16381 iterations, `grow7` 8.56x and 544 to 4804.
 
 - `jaos_solve_time`: seconds the last solve took. `SPECS.md` had carried this
   as missing since M1 while the premises required it — every run reported wall
