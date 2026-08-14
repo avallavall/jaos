@@ -596,6 +596,19 @@ JAOS_NODISCARD jaos_status jm_presolve_run(const jaos_model *m, jm_presolve *p,
     double *row_traffic = jm_calloc_array(nr, sizeof *row_traffic);
     double *cur_cl = jm_alloc_array(nc, sizeof *cur_cl);
     double *cur_cu = jm_alloc_array(nc, sizeof *cur_cu);
+    /* The objective a reduction sees, which up to now has always been the
+     * caller's own. Every family here reads a cost, and every one of them
+     * read m->col_cost directly, so presolve could not change one even in
+     * principle. A substitution has to: eliminating column j from row i
+     * pushes c_j onto every other column in that row (TODO.md §1). This
+     * array is where that lands.
+     *
+     * Nothing writes it yet. It is a copy of m->col_cost from the first line
+     * of the run to the last, so the reduced model and every record built
+     * from it are bit-identical to the code this replaced -- which is the
+     * point of landing it on its own. The build below reads cur_cost, so the
+     * substitution that comes next changes one loop and not this plumbing. */
+    double *cur_cost = jm_alloc_array(nc, sizeof *cur_cost);
     double *cur_rl = jm_alloc_array(nr, sizeof *cur_rl);
     double *cur_ru = jm_alloc_array(nr, sizeof *cur_ru);
     int64_t *col_deg = jm_alloc_array(nc, sizeof *col_deg);
@@ -603,7 +616,8 @@ JAOS_NODISCARD jaos_status jm_presolve_run(const jaos_model *m, jm_presolve *p,
     ps_rowwise rw = {0};
 
     bool ok = col_dead && row_dead && row_frozen && col_pending_dual &&
-              row_traffic && cur_cl && cur_cu && cur_rl && cur_ru &&
+              row_traffic && cur_cl && cur_cu && cur_cost &&
+              cur_rl && cur_ru &&
               col_deg && row_deg && ps_build_rowwise(m, &rw);
 
     jaos_status ret = JAOS_OK;
@@ -615,6 +629,7 @@ JAOS_NODISCARD jaos_status jm_presolve_run(const jaos_model *m, jm_presolve *p,
     for (int64_t j = 0; j < nc; j++) {
         cur_cl[j] = m->col_lower[j];
         cur_cu[j] = m->col_upper[j];
+        cur_cost[j] = m->col_cost[j];
         col_deg[j] = m->a_start[j + 1] - m->a_start[j];
     }
     for (int64_t i = 0; i < nr; i++) {
@@ -735,7 +750,7 @@ JAOS_NODISCARD jaos_status jm_presolve_run(const jaos_model *m, jm_presolve *p,
                  * column pass's own JM_PS_FREE_COL_SINGLETON branch is
                  * otherwise unreachable, confirmed the hard way before
                  * this comment existed. */
-                if (col_deg[j] == 1 && m->col_cost[j] == 0.0 &&
+                if (col_deg[j] == 1 && cur_cost[j] == 0.0 &&
                     !isfinite(cur_cl[j]) && !isfinite(cur_cu[j])) {
                     jm_work_add(w, JM_WORK_NONZERO);
                     if (!ps_push(p, (jm_presolve_rec){
@@ -865,7 +880,7 @@ JAOS_NODISCARD jaos_status jm_presolve_run(const jaos_model *m, jm_presolve *p,
 
             if (cur_cl[j] == cur_cu[j]) {
                 const double v = cur_cl[j];
-                p->reduced.obj_offset += m->col_cost[j] * v;
+                p->reduced.obj_offset += cur_cost[j] * v;
                 jm_work_add(w, (m->a_start[j + 1] - m->a_start[j]) *
                                JM_WORK_NONZERO);
                 for (int64_t k = m->a_start[j]; k < m->a_start[j + 1]; k++) {
@@ -879,7 +894,7 @@ JAOS_NODISCARD jaos_status jm_presolve_run(const jaos_model *m, jm_presolve *p,
                 }
                 if (!ps_push(p, (jm_presolve_rec){
                         .tag = JM_PS_FIXED_COL, .index = j,
-                        .value = v, .cost = m->col_cost[j] })) {
+                        .value = v, .cost = cur_cost[j] })) {
                     ret = JAOS_ERR_OUT_OF_MEMORY;
                     goto cleanup_scratch;
                 }
@@ -892,14 +907,14 @@ JAOS_NODISCARD jaos_status jm_presolve_run(const jaos_model *m, jm_presolve *p,
             if (col_deg[j] == 0) {
                 double v;
                 if (!ps_empty_col_value(cur_cl[j], cur_cu[j],
-                                        sigma * m->col_cost[j], &v)) {
+                                        sigma * cur_cost[j], &v)) {
                     p->outcome = JM_PRESOLVE_UNBOUNDED;
                     goto done;
                 }
-                p->reduced.obj_offset += m->col_cost[j] * v;
+                p->reduced.obj_offset += cur_cost[j] * v;
                 if (!ps_push(p, (jm_presolve_rec){
                         .tag = JM_PS_EMPTY_COL, .index = j,
-                        .value = v, .cost = m->col_cost[j] })) {
+                        .value = v, .cost = cur_cost[j] })) {
                     ret = JAOS_ERR_OUT_OF_MEMORY;
                     goto cleanup_scratch;
                 }
@@ -909,7 +924,7 @@ JAOS_NODISCARD jaos_status jm_presolve_run(const jaos_model *m, jm_presolve *p,
                 continue;
             }
 
-            if (col_deg[j] == 1 && m->col_cost[j] == 0.0) {
+            if (col_deg[j] == 1 && cur_cost[j] == 0.0) {
                 int64_t i = -1;
                 double a = 0.0;
                 for (int64_t k = m->a_start[j]; k < m->a_start[j + 1]; k++) {
@@ -1068,7 +1083,7 @@ JAOS_NODISCARD jaos_status jm_presolve_run(const jaos_model *m, jm_presolve *p,
                         const double v = want_lo ? cur_cl[j] : cur_cu[j];
                         assert(isfinite(v));
 
-                        p->reduced.obj_offset += m->col_cost[j] * v;
+                        p->reduced.obj_offset += cur_cost[j] * v;
                         jm_work_add(w, (m->a_start[j + 1] - m->a_start[j]) *
                                        JM_WORK_NONZERO);
                         for (int64_t kk = m->a_start[j];
@@ -1087,7 +1102,7 @@ JAOS_NODISCARD jaos_status jm_presolve_run(const jaos_model *m, jm_presolve *p,
                          * one extra thing the row's own record needs back. */
                         if (!ps_push(p, (jm_presolve_rec){
                                 .tag = JM_PS_FIXED_COL, .index = j,
-                                .value = v, .cost = m->col_cost[j],
+                                .value = v, .cost = cur_cost[j],
                                 .coef = rw.rval[k] })) {
                             oom = true;
                             break;
@@ -1393,7 +1408,7 @@ JAOS_NODISCARD jaos_status jm_presolve_run(const jaos_model *m, jm_presolve *p,
     p->reduced.a_start[0] = 0;
     for (int64_t rj2 = 0; rj2 < rcol; rj2++) {
         const int64_t j = p->orig_col[rj2];
-        p->reduced.col_cost[rj2]  = m->col_cost[j];
+        p->reduced.col_cost[rj2]  = cur_cost[j];
         /* pub_*, not cur_*: an activity-range tightening is used to reason
          * with and is never handed to the simplex — see the file header. */
         p->reduced.col_lower[rj2] = cur_cl[j];
@@ -1521,7 +1536,7 @@ done:
 cleanup_scratch:
     free(col_dead); free(row_dead); free(row_frozen);
     free(col_pending_dual); free(row_traffic);
-    free(cur_cl); free(cur_cu);
+    free(cur_cl); free(cur_cu); free(cur_cost);
     free(cur_rl); free(cur_ru);
     free(col_deg); free(row_deg);
     ps_free_rowwise(&rw);
