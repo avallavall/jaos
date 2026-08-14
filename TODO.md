@@ -5,45 +5,18 @@ says why closed questions closed, `CHANGELOG.md` says what landed, `bench/`
 says what it costs. This file says what is next. When something lands, its
 line leaves this file in the same commit.
 
-## 1. Presolve, to finish (REQ-presolve)
+## 1. Presolve closed, and the four questions it opened
 
-The last three families are deferred, not dropped: they have 0.15% left to
-remove on these 139 models, and that count says nothing about the model
-population where the literature reports them paying (D101). The deferrals
-table below carries the reopen condition, and the counter that tests it is
-committed at `bench/measurements/02-07/`. Presolve is complete at five
-families.
+**REQ-presolve is done.** Five families live, three deferred on a count with
+an executable reopen condition (D101), the postsolve defect closed in both
+halves (D99, D100), an infeasible model no longer published OPTIMAL (D102),
+and the sense and window defects repaired (D103). `jaos-measurer` returned
+**ACCEPT** on that last one from its own binaries, and the three baselines
+were rewritten deliberately afterwards and confirmed by a following gate run:
+all three now read `0 regressed, 0 improved, 0 new` and exit 0.
 
-Done, and not to be re-costed: the whole diff was read as one by
-`numerics-reviewer` and produced D103, which repaired two defects it found and
-one it introduced. All three sets ran under both settings with the
-presolve-off control passing, and presolve's measured number (the D-15 figure)
-is in D103 and `bench/measurements/02-09/`.
-
-What is left:
-
-- **The deliberate three-baseline rewrite** (`make netlib-baseline` and
-  siblings), confirmed by a following gate run. The baselines predate presolve
-  entirely, so **every** instance of all three sets differs from its baseline
-  in iterations or work. What the runner calls a regression is the 2x work
-  threshold, and today that is three: `grow22` and `grow7` on netlib,
-  `bgindy` on the infeasible set. Kennington reads `0 regressed` and its gate
-  passes. So `make netlib` and `make netlib-infeas` exit 1 and
-  `make netlib-kennington` exits 0.
-
-  D96's snapshot of 26 + 1 + 4 was taken at `d861b22` and D96 says the count
-  "swims as families land". It did. This line restated that total instead of
-  reading the campaign that had just run, which is exactly the failure
-  `CLAUDE.md` names — a derived number copied forward while an addend moved
-  underneath it. Caught by an independent re-read, not by the run that
-  produced the contradicting output.
-
-  The gate has been green since D100 and the records are bit-identical across
-  D103, so nothing blocks the rewrite; it stays a deliberate act taken after
-  the change is read and accepted, never a side effect.
-- A verdict from `jaos-measurer` on D103's campaign, read in a context that
-  did not produce the numbers.
-- Close-out: SPECS presolve row updated, this section deleted.
+Nothing in this section is presolve being unfinished. All four are questions
+presolve's own measurements raised, and each has its number already.
 
 ## 1b. Presolve makes `grow22` and `grow7` far worse (opened by D103)
 
@@ -83,42 +56,6 @@ beyond some multiple of its own scale; an `== 0` row becoming `[0, 5e5]` is an
 unbounded relative widening. It needs a sweep on both sides and a campaign,
 because the family pays 0.810x over the set as it stands and a rule that stops
 it firing pays that back.
-
-## 2. After presolve — the rest of M2, in order
-
-- **Factorization** (REQ-lu-fill-and-markowitz, REQ-hyper-sparse-downstream):
-  the stale live counts Markowitz chooses on, and the fill — factors carry
-  2.673x the basis nonzeros (4.801 on `maros-r7`); keep sparse triangular
-  results sparse downstream (`stocfor3`: 6.79x per iteration, solves 43%,
-  memset/memcpy/malloc 18.8% against 11.3% on `dfl001`). Left-looking
-  elimination is a rewrite and needs its own decision first. Struck off by
-  measurement, do not re-cost: `compact_pivot_row`'s row-to-position lookup
-  (<0.5% on `maros-r7`); per-column arrays vs one arena (0.73% + 0.30%; the
-  locality argument needs a cache simulation before it is costed or dropped).
-- **Search path** (REQ-devex-pricing — acceptance stated: full gate with
-  iteration count and per-iteration cost reported separately;
-  REQ-reentry-oscillation — investigative first: 0.24% on `pilot87` at
-  interval 24, D51 names the mechanism, D74 closed the only proposed cure,
-  D89 removed the consequence).
-- **Close M2** (REQ-m2-competitive-gate): needs a controlled host — D17 says
-  a WSL number cannot close a gate, and this machine is Windows/WSL with a
-  measured repeatability of 6.27% (D93). The per-instance guard factor is
-  unset and is measured, not guessed. The ladder is recalibrated and the
-  question is closed: **P0** is the rung, presolve on both sides, and T0 keeps
-  its definition and its record as a historical rung
-  (`bench/compare/README.md`). Standing at P0: **4.13x HiGHS, 1.18x SoPlex,
-  3.50x Clp**, on 2.29x / 1.73x / 2.39x the cost of an iteration. The
-  per-iteration figure is what M2 is aimed at and it has barely moved: three
-  independently written dual simplexes still put JAOS's iteration between
-  1.7x and 2.4x theirs.
-- **HiGHS presolves what dominates this set and JAOS does not.** Opened by the
-  P0 rung. Each solver's own presolve is worth about the same overall — JAOS
-  0.739x, HiGHS 0.692x, Clp 0.670x, SoPlex 0.906x — but on `maros-r7` HiGHS
-  reads 0.378x and halves its iteration count while JAOS reads 1.065x and
-  removes nothing, and `stocfor3` is 0.198x against 0.965x. Those two are the
-  worst instances in the whole comparison. Measured, in
-  `bench/measurements/02-10/`: on `maros-r7` HiGHS removes 984 rows, 2803
-  columns and **45% of the nonzeros**, where JAOS removes not one of any.
 
 ## 1c. Doubleton equalities: a family nobody has counted (opened by D104)
 
@@ -210,6 +147,42 @@ nonzeros from `maros-r7`; 984 substitutions plus the 984 `v_i` columns they
 empty account for 1968, and the counter reads 44362 nonzeros in those rows.
 The hypothesis for the remainder is a dual box from the `+1/-1` singleton pair
 admitting dominated-column fixing, and it needs its own counter first.
+
+## 2. After presolve — the rest of M2, in order
+
+- **Factorization** (REQ-lu-fill-and-markowitz, REQ-hyper-sparse-downstream):
+  the stale live counts Markowitz chooses on, and the fill — factors carry
+  2.673x the basis nonzeros (4.801 on `maros-r7`); keep sparse triangular
+  results sparse downstream (`stocfor3`: 6.79x per iteration, solves 43%,
+  memset/memcpy/malloc 18.8% against 11.3% on `dfl001`). Left-looking
+  elimination is a rewrite and needs its own decision first. Struck off by
+  measurement, do not re-cost: `compact_pivot_row`'s row-to-position lookup
+  (<0.5% on `maros-r7`); per-column arrays vs one arena (0.73% + 0.30%; the
+  locality argument needs a cache simulation before it is costed or dropped).
+- **Search path** (REQ-devex-pricing — acceptance stated: full gate with
+  iteration count and per-iteration cost reported separately;
+  REQ-reentry-oscillation — investigative first: 0.24% on `pilot87` at
+  interval 24, D51 names the mechanism, D74 closed the only proposed cure,
+  D89 removed the consequence).
+- **Close M2** (REQ-m2-competitive-gate): needs a controlled host — D17 says
+  a WSL number cannot close a gate, and this machine is Windows/WSL with a
+  measured repeatability of 6.27% (D93). The per-instance guard factor is
+  unset and is measured, not guessed. The ladder is recalibrated and the
+  question is closed: **P0** is the rung, presolve on both sides, and T0 keeps
+  its definition and its record as a historical rung
+  (`bench/compare/README.md`). Standing at P0: **4.13x HiGHS, 1.18x SoPlex,
+  3.50x Clp**, on 2.29x / 1.73x / 2.39x the cost of an iteration. The
+  per-iteration figure is what M2 is aimed at and it has barely moved: three
+  independently written dual simplexes still put JAOS's iteration between
+  1.7x and 2.4x theirs.
+- **HiGHS presolves what dominates this set and JAOS does not.** Opened by the
+  P0 rung. Each solver's own presolve is worth about the same overall — JAOS
+  0.739x, HiGHS 0.692x, Clp 0.670x, SoPlex 0.906x — but on `maros-r7` HiGHS
+  reads 0.378x and halves its iteration count while JAOS reads 1.065x and
+  removes nothing, and `stocfor3` is 0.198x against 0.965x. Those two are the
+  worst instances in the whole comparison. Measured, in
+  `bench/measurements/02-10/`: on `maros-r7` HiGHS removes 984 rows, 2803
+  columns and **45% of the nonzeros**, where JAOS removes not one of any.
 
 ## 3. After M2 — feature expansion (decided 2026-08-13)
 

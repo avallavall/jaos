@@ -32,4 +32,5 @@ woodinfe     infeasible rows=35 cols=89 shape=ok iters=0 work=1 presolve=35/89/1
 gate: PASS
 
 -- against baseline --
-baseline: 0 regressed, 0 improved, 0 new
+bgindy       REGRESSED    work: 194442 -> 390553 (2.0x), iters 2 -> 2
+baseline: 1 regressed, 0 improved, 0 new

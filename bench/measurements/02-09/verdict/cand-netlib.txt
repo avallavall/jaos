@@ -97,4 +97,6 @@ woodw        optimal    rows=1098 cols=8405 shape=ok iters=1228 work=40141491 pr
 gate: PASS
 
 -- against baseline --
-baseline: 0 regressed, 0 improved, 0 new
+grow22       REGRESSED    work: 44247864 -> 493884027 (11.2x), iters 2179 -> 16381
+grow7        REGRESSED    work: 6378361 -> 54621071 (8.6x), iters 544 -> 4804
+baseline: 2 regressed, 0 improved, 0 new
