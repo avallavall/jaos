@@ -1,4 +1,7 @@
-/* Throwaway diagnostic driver for TODO.md #1 (F2).
+/* Throwaway diagnostic driver for the dual half of the postsolve defect
+ * (D100). It was TODO.md's section 1 when this ran; that section is gone now
+ * that the defect is closed, so the pointer is to the decision entry, which
+ * does not move.
  * Solves one MPS, prints the checker's terms; presolve.c's JAOS_DIAG hook
  * prints one line per JM_PS_SINGLETON_ROW record in replay order.
  * Never built into the repo tree. */
