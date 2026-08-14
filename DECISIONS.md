@@ -7195,8 +7195,11 @@ pilot87 pilotnov pilot-we share1b tuff`). Kennington 16/16, from 12/16, with
 the runner reporting no field differing from its pre-defect committed
 baseline, digests included. The infeasible set unchanged in all 29 lines.
 Work units, iteration counts and presolve dimensions moved on no instance of
-any set — `geomean.py --metric work` reads 1.0000x over the 139 — and 119 of
-the 139 lines are bit-identical. Twenty solution digests moved; the four
+any set. `geomean.py --metric work` against `02-04/final-*.txt` reads best
+and worst 1.0000x on each of the three sets, which is stronger than a mean of
+1.0000x: no instance moved at all. `record_diff.py` counts 78 of 94, 29 of 29
+and 12 of 16 bit-identical, 119 of the 139, and reports no regression on any
+set. Twenty solution digests moved; the four
 whose checker terms are identical to the last digit (`nesm pilot4 standata
 standmps`) publish a different feasible point of the same problem, which a
 cost-0 column can do without touching the objective. Independently
@@ -7216,8 +7219,13 @@ these numbers.
   missed that a recovered column can land strictly inside its own box.
 - *That a postsolve change can only move `x`.* The singleton row's replay
   decides its multiplier from the published column value (`zero_works`),
-  which this change moves, so `y` can move with it. No verdict and no dual
-  moved here, but the general claim is false and was used.
+  which this change moves, so `y` can move with it. No verdict moved. The
+  checker's `dual` figure did move, on five instances — `finnis`, `lotfi`,
+  `perold`, `pilot-we`, `pilot87`, every one of them now passing — and it is
+  identical to the digit on all five that still fail. The record cannot say
+  whether `y` itself moved there or only the sign requirement, which depends
+  on which bound `x` rests against; both routes are open and separating them
+  needs the reference build, not this record.
 - *That `rowrel = 1/3` was a coincidence of scale.* It is exact, and derived
   above.
 
