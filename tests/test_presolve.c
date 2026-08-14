@@ -16,6 +16,8 @@
  *
  * SPDX-License-Identifier: Apache-2.0
  */
+#include <float.h>
+
 #include "jaos.h"
 #include "jaos_internal.h"
 #include "unity.h"
@@ -1750,11 +1752,12 @@ static void test_redundant_row_index_off_by_one(void)
  *   B = 5 + 1e-6      one step PAST it, by more than the epsilon. The
  *                     interval is empty and the model is infeasible.
  *   B = nextafter(5)  one representable step past it, which is 8.9e-16 —
- *                     four hundred thousand times narrower than the window
- *                     any tolerance on a sum can carry. Presolve treats it
- *                     as a point, and so does the un-presolved solve, whose
- *                     own primal tolerance is 1e-7. The two builds agree,
- *                     which is the property that matters.
+ *                     one ulp of 5, against a window of eight of them.
+ *                     Presolve treats it as a point, and so does the
+ *                     un-presolved solve, whose own primal tolerance is
+ *                     1e-7. The two builds agree, which is the property
+ *                     that matters. This is the case that would break first
+ *                     if PRESOLVE_ROUND_ULPS were cut to 1.
  *
  * The plan asked for the middle case to be "one representable step" past.
  * It cannot be: an epsilon that could separate 5 from nextafter(5) would be
@@ -2030,25 +2033,33 @@ static void test_the_round_cap_is_the_one_its_sweep_set(void)
     jaos_model_free(m);
 }
 
-/* PRESOLVE_TIGHTEN_EPS = 1e-9, and this is the pair that separates it. The
- * model is make_singleton_fold_boundary_model's: a singleton row folding to
- * a lower bound on x0 that meets x0's own upper bound of 5, so the window
- * the constant sets is 1e-9 times 5.
+/* PRESOLVE_ROUND_ULPS = 8, and this is the pair that separates it. The model
+ * is make_singleton_fold_boundary_model's: a singleton row folding to a lower
+ * bound on x0 that meets x0's own upper bound of 5. Nothing was removed from
+ * row 0 before the fold, so its traffic is zero and the window is the bound
+ * scale alone: 8 * DBL_EPSILON * 5 = 8.88e-15.
  *
- * A conflict of 1e-8 is outside it and the model is refused; a conflict of
- * 1e-10 is inside it and the interval collapses to a point. Move the
- * constant one decade either way and one of the two verdicts flips. Swept
- * over the standard set at 1e-12 through 1e-4 with nothing moving at any
- * setting — which is why these two readings, not the campaign, are what
- * hold the value in place. */
-static void test_the_tightening_epsilon_is_the_one_its_sweep_set(void)
+ * A conflict of 1.6e-14 is outside it and the model is refused; a conflict of
+ * 5e-15 is inside it and the interval collapses to a point. The two are one
+ * step apart in the constant, which is what makes them a pin rather than two
+ * loose assertions: at 16 ulps the first flips to solved, at 4 ulps the
+ * second flips to refused.
+ *
+ * Last moved by the 02-09 fix, which took this site off PRESOLVE_TIGHTEN_EPS.
+ * The pair used to be 1e-8 refused and 1e-10 collapsed, separating a window
+ * of 1e-9 times 5. That window was five hundred thousand times wider than
+ * the rounding it was standing in for, and on a model of magnitude 1e9 it
+ * published a column a fifth of a unit outside its own declared bound. The
+ * old lower value, 1e-10, is now correctly refused: on a bound of 5 it is
+ * about 1.1e5 ulps, which is a real conflict and not a residue. */
+static void test_the_fold_window_is_rounding_and_nothing_more(void)
 {
 #if defined(JAOS_PRESOLVE_FAULT_OFFBYONE) || defined(JAOS_PRESOLVE_FAULT_WRONGDUAL)
     TEST_IGNORE_MESSAGE("model builder is compiled out under either fault "
                         "build");
 #else
     {
-        jaos_model *m = make_singleton_fold_boundary_model(5.0 + 1e-8);
+        jaos_model *m = make_singleton_fold_boundary_model(5.0 + 1.6e-14);
         jm_presolve p;
         jm_presolve_init(&p);
         TEST_ASSERT_EQUAL_INT(JAOS_OK, jm_presolve_run(m, &p, nullptr));
@@ -2057,7 +2068,7 @@ static void test_the_tightening_epsilon_is_the_one_its_sweep_set(void)
         jaos_model_free(m);
     }
     {
-        jaos_model *m = make_singleton_fold_boundary_model(5.0 + 1e-10);
+        jaos_model *m = make_singleton_fold_boundary_model(5.0 + 5e-15);
         jm_presolve p;
         jm_presolve_init(&p);
         TEST_ASSERT_EQUAL_INT(JAOS_OK, jm_presolve_run(m, &p, nullptr));
@@ -2303,6 +2314,352 @@ static void test_a_frozen_row_that_is_exactly_satisfiable_is_not_refused(void)
 #endif
 }
 
+/* -- The two windows, at a scale where 1e-9 stopped being small ------------
+ *
+ * Both of these are cases the code must REJECT, and both were accepted until
+ * 02-09. They exist because the constant they separate is relative: a window
+ * of "1e-9 times the scale" is 2.0 on a model whose terms are 1e9, and 2.0 is
+ * not a rounding allowance for anything.
+ *
+ * The reference build is the oracle for both. `-DJAOS_NO_PRESOLVE` returns
+ * INFEASIBLE on every one of them, which is what makes "presolve says
+ * OPTIMAL" a defect rather than a difference of opinion.
+ *
+ *   row0: 1e9*x0 + 1e9*x1 == 2e9 + gap,  x0 and x1 both fixed at 1.
+ *
+ * The fixed-column family removes both columns and subtracts 1e9 from the
+ * row's bounds twice, so the row empties carrying 2e9 of traffic. What is
+ * left in cur_rl is exactly `gap`, and the window it is tested against is
+ * 8 * DBL_EPSILON * 2e9 = 3.55e-6. */
+static jaos_model *make_emptied_row_at_scale(double gap)
+{
+    const double c[]  = {0.0, 0.0};
+    const double cl[] = {1.0, 1.0}, cu[] = {1.0, 1.0};
+    const double rl[] = {2e9 + gap}, ru[] = {2e9 + gap};
+    const int64_t s[]  = {0, 1, 2};
+    const int64_t ix[] = {0, 0};
+    const double v[]   = {1e9, 1e9};
+    jaos_model *m = nullptr;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_model_new(&m));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_load_lp(m, 2, 1, JAOS_MINIMIZE, 0.0, c, cl, cu, rl, ru,
+                     2, s, ix, v));
+    return m;
+}
+
+static void test_an_emptied_row_missed_by_more_than_rounding_is_refused(void)
+{
+    /* 1.5 against a window of 3.55e-6. Under PRESOLVE_TIGHTEN_EPS the window
+     * was 2.0 and this model came back OPTIMAL, with the checker reporting
+     * max_row_violation = 1.5 on the answer presolve had just certified. */
+    jaos_model *m = make_emptied_row_at_scale(1.5);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_INFEASIBLE, jaos_status_of(m));
+    jaos_model_free(m);
+}
+
+static void test_an_emptied_row_missed_by_rounding_alone_is_kept(void)
+{
+    /* The other side, and the one that stops this being a test that passes by
+     * refusing everything. 1e-6 is about two ulps of 2e9 — the row bound
+     * cannot be stated more precisely than that — so it is inside the window
+     * and the model has an optimum. Both columns are fixed, so the objective
+     * is 0 whatever happens; the verdict is the whole assertion. */
+    jaos_model *m = make_emptied_row_at_scale(1e-6);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+    jaos_model_free(m);
+}
+
+/*   min x0  s.t.  r0: x0 >= rl0 (singleton),  x0 in [0, 1e9]
+ *
+ * r0 folds to a lower bound on x0 that lands past x0's own upper bound. The
+ * window here is the bound scale, 8 * DBL_EPSILON * 1e9 = 1.78e-6, and the
+ * traffic term is zero because nothing was removed from r0 before the fold.
+ */
+static jaos_model *make_fold_past_the_box_at_scale(double rl0)
+{
+    const double c[]  = {1.0};
+    const double cl[] = {0.0}, cu[] = {1e9};
+    const double rl[] = {rl0}, ru[] = {INFINITY};
+    const int64_t s[]  = {0, 1};
+    const int64_t ix[] = {0};
+    const double v[]   = {1.0};
+    jaos_model *m = nullptr;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_model_new(&m));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_load_lp(m, 1, 1, JAOS_MINIMIZE, 0.0, c, cl, cu, rl, ru,
+                     1, s, ix, v));
+    return m;
+}
+
+static void test_a_fold_past_the_box_at_scale_is_refused(void)
+{
+    /* 0.4 against a window of 1.78e-6. Under PRESOLVE_TIGHTEN_EPS the window
+     * was 1.0, the interval "collapsed", and the published x0 was
+     * 1000000000.2 — a fifth of a unit above the column's own declared upper
+     * bound of 1e9, with the checker reporting max_col_violation = 0.2. A
+     * published value outside a bound the caller stated is the worst shape
+     * available here, because nothing downstream re-reads that bound. */
+    jaos_model *m = make_fold_past_the_box_at_scale(1e9 + 0.4);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_INFEASIBLE, jaos_status_of(m));
+    jaos_model_free(m);
+}
+
+static void test_a_fold_onto_the_box_at_scale_still_collapses(void)
+{
+    /* The other side: 5e-7 is four ulps of 1e9, inside the window of eight,
+     * so the interval is a point and x0 is fixed there. Refusing this would
+     * be the mirror-image catastrophe — a solvable model reported INFEASIBLE
+     * — which is the failure the old, far wider window could never produce
+     * and the new one can. That is the whole reason this test is here and
+     * not just its partner above. */
+    jaos_model *m = make_fold_past_the_box_at_scale(1e9 + 5e-7);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+
+    double x[1];
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solution(m, x, nullptr, nullptr,
+                                                 nullptr));
+
+    /* x0 is NOT asserted to be inside [0, 1e9], and that is deliberate: it
+     * is not. The collapse publishes the midpoint of the two ends, which is
+     * 1e9 + 2.4e-7 here, a quarter of a microunit above the column's own
+     * upper bound. That is the open item TODO.md carries as "a collapsed
+     * fold leaves a bound no record owns" — the midpoint is symmetric in the
+     * two ends on purpose, so replacing it is a decision about what a
+     * collapsed record should record and not a clamp to bolt on here.
+     *
+     * What IS asserted is that the overshoot here is no larger than the
+     * window that admitted the collapse. "Here" is load-bearing and the
+     * sentence must not be read as a general bound: this row's traffic is
+     * zero, so its window is the bound scale alone. On a row that traffic
+     * has moved, the window carries a traffic/|a| term and the overshoot
+     * bound grows with it — up to 4 * DBL_EPSILON * traffic / |a|, which
+     * nothing in the file caps. That is the containment item, stated as a
+     * quantity rather than as a worry.
+     *
+     * Under PRESOLVE_TIGHTEN_EPS this same model overshot by 0.2 out of a
+     * window of 1.0, which is the difference 02-09 makes at this site. If
+     * the containment item is closed later, this assertion still holds and
+     * the one above it can be tightened to the box. */
+    const double window = 8.0 * DBL_EPSILON * 1e9;   /* PRESOLVE_ROUND_ULPS */
+    TEST_ASSERT_TRUE(x[0] >= 0.0);
+    TEST_ASSERT_TRUE(x[0] <= 1e9 + window);
+    jaos_model_free(m);
+}
+
+/* -- MAXIMIZE -------------------------------------------------------------
+ *
+ * Presolve had no MAXIMIZE case at all before 02-09, and the file never read
+ * m->sense. Every cost-direction and dual-sign rule in it is stated for
+ * minimise, which is the canonical form src/check.c:561 and src/simplex.c:665
+ * both convert into — and presolve was the one stage that did not convert.
+ *
+ * netlib is entirely MINIMIZE, so no campaign on any of the three sets can
+ * see this. These tests are the whole cover for that half of the public
+ * enum, and the reference build is the oracle for each.
+ *
+ *   max 3*x0 + 2*x1
+ *   r0: x0 + x1 <= 4
+ *   r1: x0      <= 2        singleton: folds into an upper bound on x0
+ *   x0, x1 >= 0
+ *
+ * By hand: x0 = 2, x1 = 2, objective 10. x0 rests on the bound r1 produced,
+ * so r1 is the row owed the multiplier. -DJAOS_NO_PRESOLVE publishes
+ * y = [2, 1] and d = [0, 0], and so must this. */
+static jaos_model *make_maximised_singleton_row_model(void)
+{
+    const double c[]  = {3.0, 2.0};
+    const double cl[] = {0.0, 0.0}, cu[] = {INFINITY, INFINITY};
+    const double rl[] = {-INFINITY, -INFINITY}, ru[] = {4.0, 2.0};
+    const int64_t s[]  = {0, 2, 3};
+    const int64_t ix[] = {0, 1, 0};
+    const double v[]   = {1.0, 1.0, 1.0};
+    jaos_model *m = nullptr;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_model_new(&m));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_load_lp(m, 2, 2, JAOS_MAXIMIZE, 0.0, c, cl, cu, rl, ru,
+                     3, s, ix, v));
+    return m;
+}
+
+static void test_a_maximised_singleton_row_is_owed_its_multiplier(void)
+{
+    jaos_model *m = make_maximised_singleton_row_model();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+
+    /* Bit exact: every coefficient and bound here is a small integer, so the
+     * optimum carries no rounding to compare against. */
+    const double expected_obj = 10.0;
+    double obj = 0.0;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(m, &obj));
+    TEST_ASSERT_EQUAL_MEMORY(&expected_obj, &obj, sizeof obj);
+
+    double x[2], y[2], d[2];
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solution(m, x, nullptr, y, d));
+
+    /* The dual is where the defect lived. Presolve published y = [2, 0] and
+     * d = [1, 0]: the sign test read the raw reduced cost, which is the
+     * negative of the canonical one under MAXIMIZE, so the singleton row
+     * declined a multiplier it was owed and the cost stayed on the column.
+     * The objective was right and the answer was wrong. */
+    const double expected_y1 = 1.0, expected_d0 = 0.0;
+    TEST_ASSERT_EQUAL_MEMORY(&expected_y1, &y[1], sizeof y[1]);
+    TEST_ASSERT_EQUAL_MEMORY(&expected_d0, &d[0], sizeof d[0]);
+
+    jaos_check_report r;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_check_solution(m, x, y, TOL, &r));
+    TEST_ASSERT_TRUE(r.primal_feasible);
+    TEST_ASSERT_TRUE(r.checked_duals);
+    TEST_ASSERT_TRUE(r.dual_feasible);
+
+    jaos_model_free(m);
+}
+
+/*   max x1,  x1 in [lo, hi],  x1 in no row at all (an empty column).
+ *   x0 is only there to keep the model from having no matrix entries.
+ *
+ * The favourable side of a MAXIMIZE column with a positive cost is its UPPER
+ * bound. ps_empty_col_value reads "cost > 0 wants the lower bound", which is
+ * the minimise rule, so presolve put x1 at `lo` and published an objective
+ * that was not the optimum. With lo = -inf it went further and reported
+ * UNBOUNDED on a model whose optimum is 5. */
+static jaos_model *make_maximised_empty_column(double lo, double hi)
+{
+    const double c[]  = {0.0, 1.0};
+    const double cl[] = {0.0, lo}, cu[] = {10.0, hi};
+    const double rl[] = {0.0}, ru[] = {10.0};
+    const int64_t s[]  = {0, 1, 1};
+    const int64_t ix[] = {0};
+    const double v[]   = {1.0};
+    jaos_model *m = nullptr;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_model_new(&m));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_load_lp(m, 2, 1, JAOS_MAXIMIZE, 0.0, c, cl, cu, rl, ru,
+                     1, s, ix, v));
+    return m;
+}
+
+static void test_a_maximised_empty_column_takes_its_upper_bound(void)
+{
+    jaos_model *m = make_maximised_empty_column(0.0, 5.0);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+
+    const double expected_obj = 5.0;   /* was 0.0: the lower bound */
+    double obj = 0.0;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(m, &obj));
+    TEST_ASSERT_EQUAL_MEMORY(&expected_obj, &obj, sizeof obj);
+
+    double x[2];
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solution(m, x, nullptr, nullptr,
+                                                 nullptr));
+    const double expected_x1 = 5.0;
+    TEST_ASSERT_EQUAL_MEMORY(&expected_x1, &x[1], sizeof x[1]);
+    jaos_model_free(m);
+}
+
+static void test_a_maximised_empty_column_is_not_unbounded_downwards(void)
+{
+    /* The infinite side is the one the objective does not want. Reporting
+     * UNBOUNDED here is a wrong verdict, not a conservative one, and D19
+     * makes this family the only one allowed to report it at all — which is
+     * exactly why its rule has to be asked in the right space. */
+    jaos_model *m = make_maximised_empty_column(-INFINITY, 5.0);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+
+    const double expected_obj = 5.0;
+    double obj = 0.0;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(m, &obj));
+    TEST_ASSERT_EQUAL_MEMORY(&expected_obj, &obj, sizeof obj);
+    jaos_model_free(m);
+}
+
+/*   max x0 + x1
+ *   r0: x0 + x1 <= 0
+ *   x0, x1 in [0, 1]
+ *
+ * r0 is forcing: the box gives it an activity range of [0, 2] against an upper
+ * bound of 0, so the minimum meets the bound and every column in the row is
+ * pinned at the end that produces it. The only feasible point is the origin.
+ *
+ * This is the site with the most sign reasoning in the file — a min-or-max
+ * selection over the columns' limits, then a one-sided clamp — and both flip
+ * under sigma. It is also the one site where a wrong sigma passes the whole
+ * suite, because the objective is 0 either way and only the multiplier moves.
+ * The reference build publishes y = [1] and d = [0, 0]; before 02-09 presolve
+ * published y = [0] and left a dual violation of 1. */
+static void test_a_maximised_forcing_row_is_owed_its_multiplier(void)
+{
+    const double c[]  = {1.0, 1.0};
+    const double cl[] = {0.0, 0.0}, cu[] = {1.0, 1.0};
+    const double rl[] = {-INFINITY}, ru[] = {0.0};
+    const int64_t s[]  = {0, 1, 2};
+    const int64_t ix[] = {0, 0};
+    const double v[]   = {1.0, 1.0};
+    jaos_model *m = nullptr;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_model_new(&m));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_load_lp(m, 2, 1, JAOS_MAXIMIZE, 0.0, c, cl, cu, rl, ru,
+                     2, s, ix, v));
+
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+
+    double x[2], y[1], d[2];
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solution(m, x, nullptr, y, d));
+
+    const double zero = 0.0;
+    TEST_ASSERT_EQUAL_MEMORY(&zero, &x[0], sizeof x[0]);
+    TEST_ASSERT_EQUAL_MEMORY(&zero, &x[1], sizeof x[1]);
+
+    /* The multiplier, which is the whole point of the test. */
+    const double expected_y0 = 1.0;
+    TEST_ASSERT_EQUAL_MEMORY(&expected_y0, &y[0], sizeof y[0]);
+
+    jaos_check_report r;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_check_solution(m, x, y, TOL, &r));
+    TEST_ASSERT_TRUE(r.primal_feasible);
+    TEST_ASSERT_TRUE(r.checked_duals);
+    TEST_ASSERT_TRUE(r.dual_feasible);
+
+    jaos_model_free(m);
+}
+
+/* The frozen-row test's window, and the model that walked through it.
+ * src/presolve.c carries the derivation beside the constant; the short form is
+ * that a window of "1e-9 times the row's bound magnitude" is 1.0 on a row of
+ * magnitude 1e9, and the violation here is 0.5.
+ *
+ * Found by review on 2026-08-14 and confirmed against the reference build,
+ * which returns INFEASIBLE. Before the fix this reached jm_postsolve_solved
+ * and published OPTIMAL with x1 half a unit above its own upper bound; in a
+ * build with assertions it tripped `want_lo <= want_hi` instead. It is the
+ * same half D102 closed, escaping through the window rather than around the
+ * test, which is why it needs its own case and not a line in D102's. */
+static void test_a_frozen_row_missed_at_scale_is_refused(void)
+{
+    const double c[]  = {1.0, 0.0};
+    const double cl[] = {0.5, 0.0}, cu[] = {0.5, 1e9};
+    const double rl[] = {1e9 + 1.0}, ru[] = {1e9 + 1.0};
+    const int64_t s[]  = {0, 1, 2};
+    const int64_t ix[] = {0, 0};
+    const double v[]   = {1.0, 1.0};
+    jaos_model *m = nullptr;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_model_new(&m));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_load_lp(m, 2, 1, JAOS_MINIMIZE, 0.0, c, cl, cu, rl, ru,
+                     2, s, ix, v));
+
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_INFEASIBLE, jaos_status_of(m));
+    jaos_model_free(m);
+}
+
 int main(void)
 {
     UNITY_BEGIN();
@@ -2351,6 +2708,18 @@ int main(void)
     RUN_TEST(test_an_optimum_on_the_tightening_boundary_survives);
     RUN_TEST(test_activity_range_counters_are_exact);
     RUN_TEST(test_the_round_cap_is_the_one_its_sweep_set);
-    RUN_TEST(test_the_tightening_epsilon_is_the_one_its_sweep_set);
+    RUN_TEST(test_the_fold_window_is_rounding_and_nothing_more);
+
+    RUN_TEST(test_an_emptied_row_missed_by_more_than_rounding_is_refused);
+    RUN_TEST(test_an_emptied_row_missed_by_rounding_alone_is_kept);
+    RUN_TEST(test_a_fold_past_the_box_at_scale_is_refused);
+    RUN_TEST(test_a_fold_onto_the_box_at_scale_still_collapses);
+
+    RUN_TEST(test_a_frozen_row_missed_at_scale_is_refused);
+
+    RUN_TEST(test_a_maximised_singleton_row_is_owed_its_multiplier);
+    RUN_TEST(test_a_maximised_empty_column_takes_its_upper_bound);
+    RUN_TEST(test_a_maximised_empty_column_is_not_unbounded_downwards);
+    RUN_TEST(test_a_maximised_forcing_row_is_owed_its_multiplier);
     return UNITY_END();
 }

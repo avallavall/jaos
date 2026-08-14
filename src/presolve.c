@@ -161,42 +161,58 @@ static int64_t ps_restore_index(int64_t index, int64_t dim)
  * hook, the same way PRICE_PARTITIONS_VALUE is, so a sweep varies them
  * without editing this file between runs.
  *
- * PRESOLVE_TIGHTEN_EPS decides two things and only two: whether a
- * singleton row's fold has genuinely emptied a column's interval or merely
- * closed it to within rounding, and whether an emptied row's bounds still
- * admit zero after every column removed from it shifted them. Both are
- * questions about a residue left by a running difference of terms, so the
- * window is this constant times the traffic that produced the residue,
- * never this constant on its own.
+ * PRESOLVE_TIGHTEN_EPS is GONE, and it is worth saying why rather than
+ * leaving a reader to notice the absence. It was 1e-9 and it decided three
+ * things, each of them a comparison against a residue left by a running
+ * difference of terms. All three turned out to be the same question -- is
+ * this residue rounding? -- and that question has no knob to turn: the answer
+ * is DBL_EPSILON times the traffic that produced the residue, which is what
+ * PRESOLVE_ROUND_ULPS below now supplies to all three. 1e-9 is 5.6e5 times
+ * wider than that, and at model scale the difference published wrong answers
+ * (02-09, D103). Its nine-decade sweep and the reason the sweep could not see
+ * any of it are in docs/tolerances.md; nothing here reads the constant, so
+ * keeping it would leave a tunable that moves nothing, which is D82's exact
+ * shape.
  *
- * Swept over the standard set, `make clean` between every setting, with a
- * canary built to flip inside the grid and confirmed to flip:
+ * What was a judgement in it did not survive either. A tightening worth
+ * taking versus one worth ignoring never became a live decision: bound
+ * tightening is refused (D97) and does not ship. */
+
+/* The window, then.
  *
- *   eps        1e-12 1e-11 1e-10 1e-9  1e-8  1e-7  1e-6  1e-5  1e-4
- *   solved        94    94    94    94    94    94    94    94    94
- *   objective ok  94    94    94    94    94    94    94    94    94
- *   checker ok    79    79    79    79    79    79    79    79    79
- *   rows removed 7596  7596  7596  7596  7596  7596  7596  7596  7596
- *   cols removed 24693 24693 24693 24693 24693 24693 24693 24693 24693
- *   canary       INF   INF   INF   INF   OPT   OPT   OPT   OPT   OPT
+ * Two of the three sites that used PRESOLVE_TIGHTEN_EPS were not asking a
+ * question it can answer. "Has this residue got a value, or is it what is
+ * left of cancellation?" has no tunable answer: the residue is worth nothing
+ * below DBL_EPSILON times the traffic that produced it, and a handful of
+ * ulps covers the compensated accumulation and the comparison on top of
+ * that. ps_row_tol has said so since 02-04 and this is the same statement
+ * with the same number; the two now share one definition rather than
+ * repeating the expression, because two copies of a threshold in this file
+ * have already diverged once.
  *
- * Nothing moves, over nine decades, and the canary row is what makes that
- * a reading rather than a broken instrument: a model whose singleton fold
- * conflicts with its column's own bound by 1e-8 is refused below 2e-9 and
- * solved above it, so the constant demonstrably reaches the binary at every
- * setting in the table. The cost is flat too, 96.7 s to 106.2 s at J=12
- * against a set that takes about 99 s.
+ * 1e-9 is 5.6e5 times larger than this window, and at the magnitudes real
+ * models carry that difference is not academic. Both sites were made to
+ * publish a wrong answer on a two-column model:
  *
- * So the standard set contains no instance whose fold or whose emptied row
- * lands anywhere near any of these windows, and the plateau is at least
- * nine decades wide with neither edge found. 1e-9 is taken because it is
- * interior to the grid the plan asked for (1e-12 through 1e-6) and because
- * it is the setting the canary flips at, so a future edit that stops the
- * constant reaching the binary changes the canary rather than nothing. */
-#ifndef JAOS_PRESOLVE_TIGHTEN_EPS_VALUE
-#define JAOS_PRESOLVE_TIGHTEN_EPS_VALUE 1e-9
+ *   empty row     1e9*x0 + 1e9*x1 == 2e9 + 1.5, x0 and x1 both fixed at 1.
+ *                 Traffic 2e9, so the window was 2.0. OPTIMAL, with the row
+ *                 missed by 1.5. -DJAOS_NO_PRESOLVE says INFEASIBLE.
+ *   fold collapse min x1 s.t. x1 >= 1e9 + 0.4, x1 in [0, 1e9]. Window 1.0.
+ *                 OPTIMAL, publishing x1 = 1e9 + 0.2 -- a fifth of a unit
+ *                 above the column's OWN declared upper bound.
+ *                 -DJAOS_NO_PRESOLVE says INFEASIBLE.
+ *
+ * Both readings are in bench/measurements/02-09/. The sweep at 1e-12..1e-4
+ * above did not catch this and could not have: its canary conflicts by 1e-8
+ * on a unit-scale model, so it calibrates the window's ABSOLUTE floor and
+ * says nothing about a model whose scale multiplies the window up to 1.0.
+ *
+ * Reachable through EXTRA_CFLAGS like the other two, in ulps rather than as
+ * a magnitude, because ulps is what it is counting. Swept beside its use. */
+#ifndef JAOS_PRESOLVE_ROUND_ULPS_VALUE
+#define JAOS_PRESOLVE_ROUND_ULPS_VALUE 8
 #endif
-constexpr double PRESOLVE_TIGHTEN_EPS = JAOS_PRESOLVE_TIGHTEN_EPS_VALUE;
+constexpr double PRESOLVE_ROUND_ULPS = JAOS_PRESOLVE_ROUND_ULPS_VALUE;
 
 /* The cap on presolve's fixed-point rounds (D-02), following the precedent
  * IMPLIED_ROUNDS set in src/check.c:264: a safety stop rather than a quality
@@ -416,6 +432,24 @@ static double ps_max_act(const ps_range *r)
  * The tunable constant governs one thing only: whether a bound tightening
  * is worth taking. That is a judgement, because a small improvement really
  * may be noise. Whether a row is forced is not. */
+/* The window itself, given whatever traffic produced the residue. Every
+ * caller supplies its own scale. */
+static double ps_round_tol(double scale)
+{
+    return PRESOLVE_ROUND_ULPS * DBL_EPSILON * (scale > 1.0 ? scale : 1.0);
+}
+
+/* The same shape and, today, the same number -- and deliberately NOT the same
+ * constant. Routing this through ps_round_tol would put the three activity-
+ * range readings on the EXTRA_CFLAGS hook, and docs/tolerances.md says that
+ * number is deliberately absent from its table: "making it a tunable instead
+ * cost 02-04 a campaign". The mechanism is above at ps_row_tol's own comment
+ * -- a wide window here declares a row forcing, a forcing row pins every
+ * column in it, and `pilot` came back INFEASIBLE with column 3554 pinned at
+ * 1.15 where an equality row needed 0.
+ *
+ * So the literal stays here. If the two numbers ever have to move together,
+ * that is a decision with a measurement behind it, not a shared symbol. */
 static double ps_row_tol(const ps_range *r)
 {
     return 8.0 * DBL_EPSILON * (r->traffic > 1.0 ? r->traffic : 1.0);
@@ -501,7 +535,12 @@ static bool ps_push(jm_presolve *p, jm_presolve_rec rec)
  * directional (nonzero) — a sound proof, no ray needed. A cost of exactly
  * zero has no favourable side to be infinite about: any finite point is
  * equally optimal, and if both bounds are infinite too the column is
- * truly free with no objective consequence, published at 0. */
+ * truly free with no objective consequence, published at 0.
+ *
+ * `cost` is the CANONICAL cost, sigma*c_j, not the model's own. The caller
+ * applies sigma; the rule below reads "positive cost wants the lower bound",
+ * which is only true for a minimise model. Passing the raw cost here inverted
+ * the choice on every MAXIMIZE model and published the wrong objective. */
 static bool ps_empty_col_value(double cl, double cu, double cost,
                                double *out_v)
 {
@@ -523,6 +562,18 @@ JAOS_NODISCARD jaos_status jm_presolve_run(const jaos_model *m, jm_presolve *p,
                                            jm_work *w)
 {
     const int64_t nr = m->num_row, nc = m->num_col;
+
+    /* The forward pass has exactly one cost-directional rule -- which bound
+     * an empty column is worth putting at -- and it is stated for MINIMIZE.
+     * ps_replay_one carries the full argument for this sigma; the short form
+     * is that a MAXIMIZE model arrives here with unflipped costs, so the rule
+     * has to be asked in the canonical space the checker judges in. Every
+     * other decision in this pass is about structure or about a coefficient,
+     * neither of which the sense touches.
+     *
+     * sigma is 1.0 on a MINIMIZE model and every use of it below is then
+     * bit-identical to the code it replaced. */
+    const double sigma = (m->sense == JAOS_MAXIMIZE) ? -1.0 : 1.0;
 
     /* Working, per-round state. All sized by the ORIGINAL dimensions and
      * indexed by original row/column, so a record's `index`/`index2` never
@@ -624,10 +675,29 @@ JAOS_NODISCARD jaos_status jm_presolve_run(const jaos_model *m, jm_presolve *p,
                  * a residue below eps times the traffic that produced it is
                  * not a number. A row nothing was ever removed from carries
                  * zero traffic and gets the exact test it deserves. */
-                const double etol = row_traffic[i] > 0.0
-                    ? PRESOLVE_TIGHTEN_EPS *
-                      (row_traffic[i] > 1.0 ? row_traffic[i] : 1.0)
-                    : 0.0;
+                double etol = 0.0;
+                if (row_traffic[i] > 0.0) {
+                    /* row_traffic saturates to +inf when a column with a
+                     * half-infinite box is relaxed out of a row, and an
+                     * infinite window accepts every violation there is --
+                     * which is the single thing this test exists to refuse.
+                     * The row's own bound scale stands in when that happens,
+                     * the same substitution the frozen-row test makes.
+                     *
+                     * UNREACHABLE TODAY, and stated rather than assumed: the
+                     * only site that can make the traffic infinite is the
+                     * cost-0 singleton column's relaxation, which sets
+                     * row_frozen[i] four lines later; row_frozen is never
+                     * cleared, and this whole pass skips a frozen row. So
+                     * this branch is a guard against a sixth family that
+                     * relaxes a row without freezing it, not a live path.
+                     * It does NOT make TODO.md's saturation item less
+                     * severe -- that item was never load-bearing here. */
+                    const double scale = isfinite(row_traffic[i])
+                        ? row_traffic[i]
+                        : ps_bound_scale(cur_rl[i], cur_ru[i]);
+                    etol = ps_round_tol(scale);
+                }
                 if (cur_rl[i] > etol || cur_ru[i] < -etol) {
                     p->outcome = JM_PRESOLVE_INFEASIBLE;
                     goto done;
@@ -703,17 +773,45 @@ JAOS_NODISCARD jaos_status jm_presolve_run(const jaos_model *m, jm_presolve *p,
                 /* 02-03 left an exact comparison here as a placeholder,
                  * because presolve's own tolerance space did not exist
                  * yet and no constant was going to be borrowed from the
-                 * two that did. PRESOLVE_TIGHTEN_EPS is that constant;
-                 * this is the one place in the file that used to compare
-                 * exactly and no longer does.
+                 * two that did. PRESOLVE_ROUND_ULPS is that constant; this
+                 * is the one place in the file that used to compare exactly
+                 * and no longer does. It was PRESOLVE_TIGHTEN_EPS until the
+                 * probe recorded beside that constant published a column a
+                 * fifth of a unit outside its own declared upper bound.
                  *
                  * The two branches below are one step apart and each says
                  * which verdict it produces, because a single comparison
                  * deciding both is where an off-by-one epsilon turns a
                  * solvable model into a refused one. */
                 double fold_lo = new_lo, fold_hi = new_hi;
-                const double btol =
-                    PRESOLVE_TIGHTEN_EPS * ps_bound_scale(new_lo, new_hi);
+                /* Two sources of rounding meet in new_lo/new_hi, and the
+                 * window has to cover the larger. The bounds themselves are
+                 * single published numbers, so ps_bound_scale is their own
+                 * scale. But one side of the pair came from cur_rl/cur_ru
+                 * divided by a, and those are running differences: their
+                 * rounding is the row's traffic, and dividing carried it down
+                 * by |a| along with everything else.
+                 *
+                 * The traffic term is a NEW term, not a rescaling of the old
+                 * window, so this window is not uniformly tighter than the
+                 * one it replaced. Where traffic/|a| exceeds 5.63e5 times the
+                 * bound scale it is wider: a column removed at a*v of 1e6
+                 * leaving a singleton of a = 1e-3 and fold bounds of order 1
+                 * reads 1.78e-6 here against 1e-9 before. That is the correct
+                 * direction -- the rounding really is that large on such a
+                 * row -- and it is worth stating because it means this change
+                 * can move a verdict either way.
+                 *
+                 * Infinite traffic is skipped rather than propagated, for the
+                 * reason ps_bound_scale skips infinities, and is unreachable
+                 * for the reason given at the empty-row test above. */
+                double bscale = ps_bound_scale(new_lo, new_hi);
+                if (row_traffic[i] > 0.0 && isfinite(row_traffic[i])) {
+                    const double tscale = row_traffic[i] / fabs(a);
+                    if (tscale > bscale)
+                        bscale = tscale;
+                }
+                const double btol = ps_round_tol(bscale);
 
                 if (new_lo > new_hi + btol) {
                     /* PAST the opposite bound. The intersection is empty by
@@ -794,7 +892,7 @@ JAOS_NODISCARD jaos_status jm_presolve_run(const jaos_model *m, jm_presolve *p,
             if (col_deg[j] == 0) {
                 double v;
                 if (!ps_empty_col_value(cur_cl[j], cur_cu[j],
-                                        m->col_cost[j], &v)) {
+                                        sigma * m->col_cost[j], &v)) {
                     p->outcome = JM_PRESOLVE_UNBOUNDED;
                     goto done;
                 }
@@ -1141,9 +1239,35 @@ JAOS_NODISCARD jaos_status jm_presolve_run(const jaos_model *m, jm_presolve *p,
          * a half-infinite box is relaxed out of the row, which is the common
          * case; scaling by it would make the window infinite on precisely
          * the rows this test exists for, and the test would never fire.
-         * ps_bound_scale skips infinities for that stated reason. */
-        const double rtol =
-            PRESOLVE_TIGHTEN_EPS * ps_bound_scale(cur_rl[i], cur_ru[i]);
+         * ps_bound_scale skips infinities for that stated reason.
+         *
+         * The SCALE above survived 02-09; the constant did not. This asks the
+         * same question the other two sites ask -- is this residue rounding?
+         * -- so it takes the same answer, and PRESOLVE_TIGHTEN_EPS is a
+         * judgement constant 5.6e5 times wider. At 1e-9 the window on a row
+         * of magnitude 1e9 is 1.0, and this model walked through it:
+         *
+         *   min x0 s.t. x0 + x1 == 1e9 + 1, x0 in [0.5, 0.5], x1 in [0, 1e9]
+         *
+         * Infeasible by 0.5. The fixed column leaves cur_rl = 0.5, the
+         * cost-0 singleton relaxes and freezes the row, and this test asks
+         * whether 0 is below 0.5 - 1.0000000005. It is not, so nothing fired,
+         * every column was consumed, and jm_postsolve_solved published
+         * OPTIMAL with x1 half a unit above its own declared upper bound.
+         * -DJAOS_NO_PRESOLVE says INFEASIBLE. It is the half D102 believed it
+         * had closed, escaping through the window instead of around the test.
+         *
+         * Measured before changing, because docs/tolerances.md bounds this
+         * window from the tight side only and its 60 floor-scale rows carry
+         * shifts of up to 153 against a new limit of 8. The proxy was
+         * pessimistic: instrumenting every frozen row of all three sets reads
+         * 19082 sites, of which exactly 4 have a residue above zero, all four
+         * on genuinely infeasible models and all at or above 1.5e15 ulps. No
+         * feasible model on any of the 139 puts a residue anywhere between 0
+         * and 1.5e15, so this constant may be anything in that range and 8 is
+         * where the other two sites already are. Readings in
+         * bench/measurements/02-09/. */
+        const double rtol = ps_round_tol(ps_bound_scale(cur_rl[i], cur_ru[i]));
         const double min_act = ps_min_act(&rg);
         const double max_act = ps_max_act(&rg);
         if ((isfinite(cur_ru[i]) && min_act > cur_ru[i] + rtol) ||
@@ -1420,6 +1544,31 @@ static void ps_replay_one(jaos_model *orig, const jm_presolve *p, int64_t r)
 {
     const jm_presolve_rec *rec = &p->arena[r];
 
+    /* Every sign rule below is stated for a MINIMIZE model, because that is
+     * the canonical form the checker judges in: src/check.c:561 builds this
+     * same sigma and applies it to every multiplier and every reduced cost
+     * before asking whether the sign is permitted. The simplex does the same
+     * at src/simplex.c:665 and :3655.
+     *
+     * Presolve did not, and that was a defect rather than an omission of
+     * scope: a MAXIMIZE model reaches this file with its costs unflipped, so
+     * "a positive reduced cost means the column rests at its lower bound"
+     * was inverted on every such model. It survived because netlib is
+     * entirely MINIMIZE and tests/test_presolve.c had no MAXIMIZE case, so
+     * neither the gate nor the suite could see it.
+     *
+     * What sigma does NOT touch: the arithmetic that derives a multiplier
+     * from a reduced cost. d_j = c_j - a_ij*y_i holds in the model's own
+     * space whatever the sense, and sol_dual/sol_redcost are published in
+     * that space. So sigma canonicalises the QUESTIONS asked below and is
+     * applied again on the way out, never to the stored value itself.
+     *
+     * On a MINIMIZE model sigma is 1.0 and every expression it appears in is
+     * bit-identical to what it replaced -- multiplying a double by 1.0 is
+     * exact, including on zero, infinity and NaN. That is what makes this
+     * change measurable: no digest on any of the three sets may move. */
+    const double sigma = (orig->sense == JAOS_MAXIMIZE) ? -1.0 : 1.0;
+
     switch (rec->tag) {
     case JM_PS_FIXED_COL:
     case JM_PS_EMPTY_COL: {
@@ -1557,10 +1706,13 @@ static void ps_replay_one(jaos_model *orig, const jm_presolve *p, int64_t r)
          * are the mirror image. */
         const double d0 = orig->sol_redcost[j];
         const double v0 = orig->sol_col[j];
+        /* dc is d0 in the checker's canonical minimise space (sigma above).
+         * Only the sign questions use it; y_i below is derived from d0. */
+        const double dc = sigma * d0;
         const bool zero_works =
-            d0 == 0.0 ||
-            (d0 > 0.0 && v0 == orig->col_lower[j]) ||
-            (d0 < 0.0 && v0 == orig->col_upper[j]);
+            dc == 0.0 ||
+            (dc > 0.0 && v0 == orig->col_lower[j]) ||
+            (dc < 0.0 && v0 == orig->col_upper[j]);
 
         /* Asking only whether zero works is not enough, because more than one
          * row can fold into the same column. The replay reaches those records
@@ -1605,8 +1757,8 @@ static void ps_replay_one(jaos_model *orig, const jm_presolve *p, int64_t r)
          * case. The code this replaced refuses it by the same magnitude on
          * the row instead, so it is a separate defect; TODO.md carries it. */
         const bool this_row_owns =
-            (d0 > 0.0 && rec->row_tightens_lo && v0 == rec->lo) ||
-            (d0 < 0.0 && rec->row_tightens_hi && v0 == rec->hi);
+            (dc > 0.0 && rec->row_tightens_lo && v0 == rec->lo) ||
+            (dc < 0.0 && rec->row_tightens_hi && v0 == rec->hi);
 
         double y_i;
         if (zero_works || !this_row_owns) {
@@ -1862,7 +2014,14 @@ static void ps_replay_one(jaos_model *orig, const jm_presolve *p, int64_t r)
             for (int64_t k = orig->a_start[j]; k < orig->a_start[j + 1]; k++)
                 d0 -= orig->a_value[k] * orig->sol_dual[orig->a_index[k]];
 
-            const double lim = d0 / cr->coef;
+            /* Canonical, for the same reason as `dc` above: which end of the
+             * permitted interval this row's multiplier must take, and which
+             * side it may not cross, are both questions about the minimise
+             * sign convention. The clamp below is the second of them. y is
+             * carried canonical through the loop and flipped back once, on
+             * publication -- sigma is exactly +-1, so the round trip changes
+             * no bit on either sense. */
+            const double lim = sigma * (d0 / cr->coef);
             if (t == 1)
                 y = lim;
             else if (rec->row_tightens_hi ? (lim < y) : (lim > y))
@@ -1871,7 +2030,7 @@ static void ps_replay_one(jaos_model *orig, const jm_presolve *p, int64_t r)
         if (rec->row_tightens_hi ? (y > 0.0) : (y < 0.0))
             y = 0.0;
 
-        orig->sol_dual[i] = ps_published(y);
+        orig->sol_dual[i] = ps_published(sigma * y);
         /* Row-count invariant: this record and the `index2` fixed-column
          * records before it remove one row and index2 columns between them,
          * and the columns are all nonbasic, so the row takes the single
