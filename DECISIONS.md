@@ -113,6 +113,7 @@ and you have the argument. Jump to the entry for the numbers behind it.
 - **[D103](#d103-presolve-was-written-for-one-objective-sense-and-one-tolerance-answered-a-question-that-has-no-tolerance)** — Presolve was written for one objective sense, and one tolerance answered a question that has no tolerance
 - **[D104](#d104-the-ladder-is-recalibrated-and-jaoss-presolve-is-worth-what-the-others-are-worth-while-highs-presolves-the-instances-that-decide-the-set)** — The ladder is recalibrated, and JAOS's presolve is worth what the others' are worth while HiGHS presolves the instances that decide the set
 - **[D105](#d105--what-highs-finds-in-maros-r7-is-the-implied-free-column-singleton-and-it-needs-an-implied-bound-rather-than-a-tightened-one)** — What HiGHS finds in `maros-r7` is the implied free column singleton, and it needs an implied bound rather than a tightened one
+- **[D106](#d106--the-implied-free-column-singleton-buys-64x-on-maros-r7-and-the-row-activity-it-reads-was-short-in-two-older-families)** — The implied free column singleton buys 64x on `maros-r7`, and the row activity it reads was short in two older families
 
 ---
 
@@ -8046,3 +8047,151 @@ unchanged — and the substitution makes the objective denser, turning cost-0
 columns into cost-carrying ones, which changes what the existing cost-0
 families see. Order of application becomes a question that does not exist
 today.
+
+## D106 — The implied free column singleton buys 64x on `maros-r7`, and the row activity it reads was short in two older families
+
+D105 decided to build it and TODO.md §1 wrote the plan. This is what it cost,
+and the defect it uncovered on the way, which was older than it is.
+
+**What was built.** A column with exactly one matrix entry `a_ij`, in an
+equality row whose other terms already confine it strictly inside its own
+box, is substituted out exactly and the row is removed with it. Eliminating
+`j` pushes its cost onto the row's other live columns, `c_k -= (c_j/a_ij) *
+a_ik`, which is what `cur_cost[]` was landed for one commit earlier. The
+postsolve is forced rather than searched: the column is interior, so `d_j` is
+zero, so `y_i = c_j / a_ij` in one division.
+
+Four restrictions, each with its own reason, all in the source beside the
+code. The column's ORIGINAL degree is 1, not just its live one, because
+`d_j = 0` is an equation over every row the column touches. The row is an
+equality, because an inequality leaves `x_j` undetermined and puts a sign
+condition on `y_i` that `c_j/a_ij` has no reason to satisfy. The row is not
+frozen. And the margin declines borderline cases.
+
+**The margin, and why it is a separate constant.** The other two windows in
+this file answer "is this residue rounding?", where being wrong is loud: too
+wide and a feasible model comes back INFEASIBLE. This one answers "does the
+implied box lie inside the column's own box?", and being wrong is silent — it
+drops a bound that was real, relaxes the model, and publishes an objective
+that is too good. No digest comparison against `-DJAOS_NO_PRESOLVE` would
+look wrong, because the reference build would be the one refusing. So
+`PRESOLVE_IMPLIED_FREE_ULPS` is subtracted from the column's own bounds and
+the family declines at exact equality.
+
+**What it removes.** 17 of the 94 standard instances, 1041 rows, 2040 columns
+and 47043 nonzeros. The counter in `bench/measurements/02-10/` predicted 3315
+rows over 56 instances on the model as loaded; the difference is the
+equality-row restriction the plan asked for as a starting point, and the
+remainder is the next step rather than a shortfall.
+
+On `maros-r7` it removes **980 rows**, which is the number stated in advance:
+the counter read 984 candidates, 4 of them sit at exact equality, and any
+margin above zero declines those 4. 1960 columns and 44198 nonzeros go with
+them.
+
+| set | what moved |
+|---|---|
+| netlib | 17 instances' `presolve` field, 17 digests, 57 records in some field |
+| Kennington | **nothing — 16 of 16 bit-identical** |
+| infeasible | 29 of 29 still refused; `gosh` 1.282x work, `pang` 0.822x |
+
+Kennington is the negative control and it earns the name. The counter read 0
+candidates there before the family existed, and the set came back
+bit-identical afterwards.
+
+**The cost, per instance and as a geometric mean of per-instance ratios
+(D46, never a set total).**
+
+```
+  GEOMETRIC MEAN       0.9527x
+  best  maros-r7       0.0156x    21010708013 -> 328053926 work
+                                       10479 -> 2576      iterations
+  worst greenbeb       1.5126x      379164967 -> 573519868
+  ratio of totals      0.6105x    <- NOT the result
+```
+
+Eleven instances improve, six get worse, and 57 are unchanged to the bit. The
+geometric mean is almost entirely `maros-r7`: it contributes 0.0443 of the
+0.0484 that `-ln(0.9527)` is made of. That is stated rather than hidden,
+because a mean that one instance carries is a statement about that instance.
+
+`maros-r7`'s iterations fall 4.07x and its work 64.0x, so the cost of an
+iteration falls 15.7x while the model shrinks by 31% of its rows and 31% of
+its nonzeros. **That is more than the size accounts for and it is not
+explained here.** `maros-r7`'s factors carry 4.801x its basis nonzeros, the
+worst ratio in the set (D46), so a hypothesis exists; it has no measurement
+and TODO.md carries it.
+
+**What got worse, and it is not proportional to what was removed.**
+`greenbeb` loses 3 rows and 10 columns and costs 1.5126x. `scfxm3` loses 3
+rows and costs 1.3557x. `forplan` loses 5 rows and costs 1.1648x. A handful
+of firings can hurt an instance badly, which is the same shape TODO.md §2
+already carries for the cost-0 singleton column on `grow22`. None of the
+three crosses the gate's own 2.0x work bar, so **the gate reports
+`0 regressed` and that is not the same statement as "nothing got worse"** —
+the summary line cannot see any of this and the per-instance diff is where it
+came from.
+
+**The defect it uncovered, which was not its own.** The first campaign came
+back with three checker failures: `greenbeb`, `modszk1` and `tuff`, reporting
+row violations of 900, 1.67e5 and 27.7 against column violations of 1.4e-27,
+4.6e-13 and 4.7e-30. A published point inside every column's own box that
+misses a row by 900.
+
+`JM_PS_SINGLETON_COL` and `JM_PS_FREE_COL_SINGLETON` write the activity of
+their own row and stop. Each fires on a column of LIVE degree one, so every
+other row that column touches is already dead, and the share owed to those
+rows was never added. `jaos_solution` has been publishing short row
+activities for them since the families landed.
+
+Nothing noticed because nothing read them. `bench/run.c` hashes the columns
+and the duals, and the checker recomputes every row activity from the columns
+it is handed. This family is the first reader: it recovers its own column
+from `sol_row[i]` of the row it removed, so every gap in that accumulation
+became a published value that is wrong and still inside its own box.
+
+Repaired in `ps_add_to_other_rows`. All three are checker ok again and the
+standard set reads `0 regressed, 0 improved, 0 new`.
+
+**Refuted along the way.** The first design set `col_pending_dual` on every
+column the removed row left behind, on the precedent of the other
+row-removing families. It is not needed and it is not set: a column removed
+after this one carries `c_k - (c_j/a_ij) * a_ik` in its record and reads
+`sol_dual[i] == 0` at replay, so `rec->cost - sum_l a_lk y_l` lands on the
+true `d_k`. The cancellation is bit-exact because the replay divides the same
+two numbers the forward pass does. Setting the flag would have cost every
+later forcing row on those columns for nothing.
+
+**Also repaired, and unrelated.** `make_frozen_row_infeasible_model` in
+`tests/test_presolve.c` had no fault-build guard, so `make test
+EXTRA_CFLAGS=-DJAOS_PRESOLVE_FAULT_OFFBYONE` did not compile at all and no
+negative test in that file could run. The plain build and the reference build
+are the two the loop actually runs, so nothing announced it.
+
+**The margin's sweep, and it is a switch rather than a dial.** Swept 0, 1, 8,
+64, 4096 with `make clean` between settings. Rows removed across the whole
+standard set read **9992, 8639, 8639, 8639, 8639**; `maros-r7` reads 984, 980,
+980, 980, 980; and solved, objective ok and checker ok are 94 at every one.
+One step, at zero, and four decades of nothing above it. The firing is
+bimodal: an implied box is either comfortably inside the column's own box or
+exactly at its bound, and across 94 instances almost nothing lands in a 1e-12
+relative band.
+
+The canary separates 0 from the rest and nothing else, the same gap D103
+recorded for `PRESOLVE_ROUND_ULPS`, so the plateau rests on the second check:
+five settings, five distinct md5s of `presolve.o`.
+
+**Zero is refused on cost, not on correctness, and that is worth stating
+precisely.** At zero the set still reads 94 `objective ok` against Koch's
+exact rationals, which is the predicate an objective that is too good would
+trip. What refuses it is `d2q06c` at **2.2163x** work, which crosses
+`bench/run.c`'s own `WORK_REGRESSION_FACTOR` of 2.0 — against a geometric mean
+of 0.9627x and `bore3d` at 0.2524x. So 8 ships, and what is left open is
+narrower than the constant: it is whether the window's `max(1, scale)` floor
+should exist at all, since that floor is what declines the exact-equality
+cases where nothing cancelled and the comparison carries no error to protect
+against. `TODO.md` §1b.
+
+**Left open, and handed to TODO.md.** Inequality rows, which is the other
+two thirds of the counted opportunity. `greenbeb`, `scfxm3` and `forplan`.
+The margin's floor, above. And `maros-r7`'s 15.7x per-iteration drop, which wants a cause. Readings in `bench/measurements/02-12/`.

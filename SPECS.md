@@ -208,7 +208,7 @@ asks them is a problem handed back to the caller.
 
 | | status |
 |---|---|
-| Netlib standard set, 94 instances: optimal, objective within tolerance, checker green | **red at HEAD** — 94 solved, 94 objectives match Koch, 89/94 checker ok; what remains is a dual-recovery defect in postsolve, and the primal point is certified on all 94 (`TODO.md` #1). The committed baseline record reads 93/94 |
+| Netlib standard set, 94 instances: optimal, objective within tolerance, checker green | **green at HEAD** — 94 solved, 94 shape ok, 94 objectives match Koch, 94/94 checker ok, 94 deterministic, and the committed baseline reads `0 regressed, 0 improved, 0 new`. The dual-recovery defect this row described was closed in both halves (D99, D100), the sense and window defects with it (D103) |
 | Kennington subset, 16 instances | **green at HEAD** — 16 solved, 16 objectives ok, 16/16 checker ok, and no field differs from the committed baseline (D99) |
 | Netlib infeasible subset, 29 instances: refused, no false optima | **pass** |
 | Determinism across two solves and across runs, all 139 | **pass** — the second solve clears the basis first, or it would be a warm re-solve and would measure a sequence of calls rather than the solver (D68) |

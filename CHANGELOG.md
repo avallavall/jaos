@@ -11,6 +11,17 @@ open, `bench/README.md` for the gate, and the commit each entry came from.
 
 ### Added
 
+- **The implied free column singleton.** A column with one matrix entry, in an
+  equality row that already confines it strictly inside its own box, is
+  substituted out exactly and the row goes with it. Nothing is narrowed and
+  nothing is published, so this is not the bound tightening D97 refused.
+  Removes 1041 rows, 2040 columns and 47043 nonzeros over 17 of the 94
+  standard instances, and **980 rows from `maros-r7`**, which is the figure
+  stated before the code existed. Kennington is bit-identical, as its counter
+  said it would be. Work over the standard set: geometric mean **0.9527x**,
+  `maros-r7` 0.0156x, `greenbeb` 1.5126x (D106). `PRESOLVE_IMPLIED_FREE_ULPS`
+  is its margin and is swept in `docs/tolerances.md`.
+
 - `bench/compare` gains the **P0** rung: presolve on both sides, the dual
   forced, no crash basis, one thread. It is T0 with one line changed per
   competitor, and it is the rung the M2 gate is judged on now that JAOS
@@ -38,6 +49,21 @@ open, `bench/README.md` for the gate, and the commit each entry came from.
   rather than an opinion (D101). Nothing is removed and no behaviour changes.
 
 ### Fixed
+
+- A removed column's share of every row it touches. `JM_PS_SINGLETON_COL` and
+  `JM_PS_FREE_COL_SINGLETON` wrote their own row and stopped, so every other
+  row those columns touch — all of them dead, since both families need a live
+  degree of one — was left short by that column's contribution, and
+  `jaos_solution` published it. No digest covers a row activity and the
+  checker recomputes its own, so nothing saw it until the implied free column
+  singleton read one: `greenbeb`, `modszk1` and `tuff` reported row
+  violations of 900, 1.67e5 and 27.7 with no column violation beside them
+  (D106).
+
+- `make test EXTRA_CFLAGS=-DJAOS_PRESOLVE_FAULT_OFFBYONE` compiles again.
+  `make_frozen_row_infeasible_model` had no fault-build guard and
+  `-Werror=unused-function` refused the whole file, so no negative test in
+  `tests/test_presolve.c` could be run at all.
 
 - `bench/compare/run-compare.sh` prints a competitor's summary when one of its
   instances reports zero iterations. Clp does, on `d6cube`, `maros-r7` and

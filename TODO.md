@@ -5,129 +5,88 @@ says why closed questions closed, `CHANGELOG.md` says what landed, `bench/`
 says what it costs. This file says what is next. When something lands, its
 line leaves this file in the same commit.
 
-## 1. BUILD THIS FIRST — implied free column singleton substitution
+## 1. Implied free column singletons — the inequality rows, and three instances it hurt
 
-**Decided 2026-08-14. This is the next thing to build, and the decision is
-already taken; it does not need re-litigating.** Everything below is written
-to be actionable from a cold start with no prior context.
+**The equality-row half landed 2026-08-15 (D106).** It removes 1041 rows,
+2040 columns and 47043 nonzeros over 17 of the 94 standard instances, and
+**980 rows from `maros-r7`**, the figure stated before the code existed.
+Kennington is bit-identical. Work over the standard set is a geometric mean
+of 0.9527x. `maros-r7` alone goes from 21010708013 work units to 328053926
+and from 10479 iterations to 2576.
 
-### What it is, in one paragraph
+Three things are open and they are in this order.
 
-A column with exactly one matrix entry sits in one row. That row, once its
-other terms are accounted for, already implies a box on the column. If the
-implied box lies inside the column's own box, the column's own bounds can
-never bind — it is *implied free* — and it can be substituted out exactly. The
-column goes and **the row goes with it**.
+### 1a. Inequality rows — two thirds of the counted opportunity
+
+`bench/measurements/02-10/`'s counter reads **3315 rows over 56 of the 94
+standard instances** on the model as loaded. The shipped family reaches 1041
+over 17, because TODO's own plan said equality rows only to start and because
+a column's ORIGINAL degree must be 1.
+
+An inequality row is harder for two reasons, both of them about the dual:
+
+- `x_j` is not determined by its own row any more, so the postsolve has to
+  pick a value rather than compute one. The row's implied box says which
+  values are feasible; nothing yet says which is optimal.
+- An inequality row's multiplier has a sign condition, and `y_i = c_j / a_ij`
+  has no reason to satisfy it. When it does not, the reduction is unsound and
+  the family has to decline — which is a test that does not exist today.
+
+Count what a sign-respecting version would actually reach before building it.
+The 3315 is an upper bound on it, not a forecast.
+
+### 1b. The margin's absolute floor removes 1353 rows for nothing the set can see
+
+`PRESOLVE_IMPLIED_FREE_ULPS` is a switch, not a dial. Swept 0, 1, 8, 64, 4096
+with `make clean` between settings and five distinct md5s of `presolve.o`:
+rows removed set-wide read **9992, 8639, 8639, 8639, 8639**. One step, at
+zero, and four decades of nothing above it.
+
+At zero the family removes 2394 rows instead of 1041, and the standard set
+still reads **94 objective ok against Koch's exact rationals** and 94 checker
+ok. An objective that is too good because a real bound was dropped is exactly
+what that predicate catches, and it does not fire.
+
+What stops zero from shipping is cost, not correctness: geometric mean
+0.9627x against 8, `bore3d` 0.2524x, and **`d2q06c` 2.2163x**, which crosses
+`bench/run.c`'s own 2.0x work bar and would make the gate report a
+regression.
+
+So the open question is narrower than "what should the constant be". The
+window is `ULPS * DBL_EPSILON * max(1, scale)`, and it is the `max(1, ...)`
+floor that declines the exact-equality cases — where `l_j` and the implied
+end are both exactly representable and nothing cancelled, so the comparison
+carries no error to protect against. Removing the floor would take those and
+leave the rest declined. It needs `d2q06c` explained first: 2.2163x from
+removing more rows is the same unexplained shape as §1c and §2.
+
+### 1c. `greenbeb`, `scfxm3` and `forplan` cost more, and not in proportion
 
 ```
-x_j = ( b_i - sum_{k != j} a_ik x_k ) / a_ij
+greenbeb   3.79e8 -> 5.74e8 work   1.5126x    3 rows and 10 columns removed
+scfxm3     8.42e6 -> 1.14e7 work   1.3557x    3 rows and  3 columns removed
+forplan    1.07e6 -> 1.25e6 work   1.1648x    5 rows and  5 columns removed
 ```
 
-### Why it is first
+Three firings costing 51% is the same shape §2 already carries for the cost-0
+singleton column on `grow22`, and it has the same missing piece: nothing
+measured says which way a firing goes on a model that has not been run.
 
-`maros-r7` is JAOS's worst instance against every competitor at the P0 rung —
-72.5x HiGHS. HiGHS removes 984 of its 3136 rows; JAOS removes none. The
-counter for this rule reads **984 on `maros-r7`, exactly what HiGHS removes,
-and 0 on `truss`**, which is the control instance neither solver reduces.
+**None of the three crosses the gate's own 2.0x work bar** (`bench/run.c`,
+`WORK_REGRESSION_FACTOR`), so the gate reports `0 regressed` and cannot see
+any of this. It came out of the per-instance diff.
 
-| set | rows it would remove | nonzeros in them | of which cost 0 | cost != 0 | instances |
-|---|---|---|---|---|---|
-| netlib | 3315 | 87621 | 557 | 2764 | 56 of 94 |
-| Kennington | 0 | 0 | 0 | 0 | 0 of 16 |
+### 1d. `maros-r7`'s iteration got 15.7x cheaper and the model only shrank 31%
 
-The 2764 is the part JAOS cannot reach today. Kennington gains nothing, so
-expect no movement there and do not read that as a failure.
+Work falls 64.0x while iterations fall 4.07x, so the cost of an iteration
+falls 15.7x. The model loses 31% of its rows and 31% of its nonzeros. That
+does not account for it.
 
-### Why JAOS gets zero today
-
-`src/presolve.c`'s singleton-column family fires only at `col_cost[j] == 0`
-(D95, and its reasoning is sound). All 984 of `maros-r7`'s carry cost 1, so
-the family declines them correctly. The instance is outside what has been
-built, not mishandled.
-
-### The firing condition, precisely
-
-For a column `j` whose only entry is `a_ij` in row `i`, with the row's
-activity range excluding `j`'s own term:
-
-```
-a_ij > 0:  ilo = (rl_i - maxact_-j)/a_ij   iup = (ru_i - minact_-j)/a_ij
-a_ij < 0:  ilo = (ru_i - minact_-j)/a_ij   iup = (rl_i - maxact_-j)/a_ij
-
-fire when   ilo >= l_j + margin   AND   iup <= u_j - margin
-```
-
-An infinite own bound satisfies its side for free. `ps_range` in
-`src/presolve.c` already carries `lo_sum/hi_sum/lo_inf/hi_inf`, and the
-infinity counters are exactly what "excluding term j" needs — subtract `j`'s
-finite contribution, or decrement the infinity count when `j`'s term was the
-infinite one. No new data structure.
-
-### Do it in this order
-
-1. ~~**Let presolve write `col_cost`.**~~ **DONE 2026-08-14.**
-   `jm_presolve_run` holds `cur_cost[]` and every read site goes through it,
-   including the reduced model's build and the cost each record carries.
-   Nothing writes it yet. Measured as the no-op it is: 110 solution digests
-   and 29 infeasibility verdicts unmoved, over 139 instances, and all three
-   baselines still read `0 regressed, 0 improved, 0 new`.
-2. **The forward pass**, equality rows only to start. Delete row `i` and column
-   `j`; for every other `k` in the row, `c_k -= (c_j / a_ij) * a_ik`; and
-   `obj_offset += c_j * b_i / a_ij`. **No matrix fill** — other columns only
-   lose their entry in row `i`. That is what makes the singleton case cheap.
-3. **The postsolve.** Forced, not searched. `x_j` comes from the stored row.
-   The eliminated column was free, so its reduced cost must be zero, so
-   `y_i = c_j / a_ij` — one division. On `maros-r7` that is `-1`, and the
-   paired column then reads `d = 2`, dual feasible.
-4. **Sweep the margin**, then the full campaign.
-
-### The danger, and it is the reason to go slowly
-
-**A false positive here is silent.** D97 over-tightened and returned
-INFEASIBLE on feasible models, which is loud and was caught by the first
-campaign. A wrong firing here **drops a bound that was real**, relaxes the
-model, and returns an objective that is *too good*. Nothing about that
-announces itself, and no digest comparison against a `-DJAOS_NO_PRESOLVE`
-build would look wrong — the reference build would be the one refusing.
-
-So the margin declines borderline cases rather than taking them, and the
-canary is already in the instance: **4 of the 984 rows sit at exact equality**,
-so any margin strictly above zero reads 980 instead of 984. Sweep against
-that flip.
-
-### Two things that will bite
-
-- **The objective gets denser.** Every substitution pushes cost onto columns
-  that had none. `maros-r7`'s 3136 image columns all go from cost 0 to nonzero.
-  That is not matrix fill, but it changes what the existing cost-0 families
-  see — including the singleton-column rule at `src/presolve.c`, which will
-  stop firing on columns this family just gave a cost. **Order of application
-  becomes a question it is not today.**
-- **This is NOT bound tightening and must not be confused with it.** D97
-  refused *publishing a narrowed box*. This uses the implied bound as a
-  predicate only: nothing is narrowed, nothing is published, and the row it
-  reasoned over is deleted. D97's dual-postsolve obstacle does not arise
-  either, because the eliminated column is free. **It lands beside D97, not
-  behind it, and building it is not reopening it.**
-
-### Where the evidence is
-
-- `bench/measurements/02-10/implied_free.c` — the counter. Build:
-  `gcc-14 -std=c23 -ffp-contract=off -O2 -DNDEBUG -Iinclude -Isrc implied_free.c src/*.c -o implied -lm`
-- `bench/measurements/02-10/counts/implied-free-*.txt` — per instance, both sets.
-- `bench/measurements/02-10/README.md` — what separates `maros-r7` from
-  `truss`, which is the row's finite minimum activity and not any structural
-  count.
-- **D105** in `DECISIONS.md` — the full argument, the sources with what was
-  actually reached of each, and what is deliberately not claimed.
-
-### Not claimed, and worth not chasing first
-
-HiGHS removes 2803 columns and 64654 nonzeros from `maros-r7`; this accounts
-for 1968 columns and 44362 nonzeros. The remainder has a hypothesis — a dual
-box from the `+1/-1` singleton pair admitting dominated-column fixing — and no
-counter. Build the 984 first.
-
+The hypothesis with something behind it: `maros-r7`'s factors carry **4.801x**
+its basis nonzeros, the worst ratio in the set (D46), and 980 of the columns
+removed were singletons. If the fill collapsed with them, that is a fact about
+the factorization and belongs in §5's factorization item rather than here. It
+has no measurement. Take one before believing either half of this paragraph.
 
 ## 2. Presolve makes `grow22` and `grow7` far worse (opened by D103)
 
@@ -214,7 +173,42 @@ fill. `subnz` says a non-interacting pass would remove 2.65% of netlib's
 nonzeros and 5.13% of Kennington's, against row shares three times larger,
 and neither figure accounts for fill.
 
-## 4. After presolve — the rest of M2, in order
+## 4. A fourth instance set — the conclusions are population-dependent and say so
+
+Every verdict in this repository is taken on 139 models: 94 netlib standard,
+16 Kennington, 29 netlib infeasible. Netlib is a 1980s collection and it is
+small. Three entries already in the record say the population is doing more
+of the deciding than it should:
+
+- **D46**: two instances are **74%** of the standard set's total work. A set
+  total is a statement about `maros-r7` and `dfl001`.
+- **D101** deferred three families because they remove 0.15% *on these 139
+  models*, and its reopen condition is written as a model population, not as
+  an opinion. A fourth set is the executable form of that condition.
+- **§1's own counter** reads 3315 rows on netlib and **0 on Kennington**. The
+  two sets already disagree about what is worth building.
+
+**What blocks it, and how Kennington already solved it.** netlib has
+published exact rational optima (Koch), which is what lets the gate say
+`objective=ok`. A modern set has no such reference. Kennington answers that
+by entering at a lower tier — `bench/README.md` calls it "the same, for
+correctness only" — and a fourth set enters the same way: checker verdict,
+solution digest, determinism and work units, no reference objective.
+
+Candidates, none of them verified yet. Each needs its licence, its format
+and its size read before anything is fetched:
+
+- **MIPLIB 2017** LP relaxations. Large, modern, curated by ZIB.
+- **Mittelmann's LP benchmark** (plato.asu.edu). The set HiGHS, SoPlex and
+  Clp are actually compared on, which makes `bench/compare` directly
+  readable against published figures.
+- **The Mészáros collection.** Kennington is already part of that family, so
+  the fetch path and `emps` handling are known to work.
+
+Not before §1 closes. A new set rewrites nothing but it adds a fourth
+baseline, and a baseline added mid-change cannot be read.
+
+## 5. After presolve — the rest of M2, in order
 
 - **Factorization** (REQ-lu-fill-and-markowitz, REQ-hyper-sparse-downstream):
   the stale live counts Markowitz chooses on, and the fill — factors carry
@@ -250,7 +244,7 @@ and neither figure accounts for fill.
   `bench/measurements/02-10/`: on `maros-r7` HiGHS removes 984 rows, 2803
   columns and **45% of the nonzeros**, where JAOS removes not one of any.
 
-## 5. After M2 — feature expansion (decided 2026-08-13)
+## 6. After M2 — feature expansion (decided 2026-08-13)
 
 Two decisions are locked: the two premises are absolute (no external code,
 bit-identical everywhere; a feature that cannot be built under them is not
@@ -268,7 +262,7 @@ rational verification, GMP is excluded (D11); the methods to weigh are
 iterative refinement, interval arithmetic in double, or hand-rolled
 rationals for the final basis only.
 
-## 6. Presolve is closed — what that means
+## 7. Presolve is closed — what that means
 
 **REQ-presolve is done.** Five families live, three deferred on a count with
 an executable reopen condition (D101), the postsolve defect closed in both
