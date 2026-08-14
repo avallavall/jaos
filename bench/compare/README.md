@@ -20,6 +20,88 @@ of JAOS rather than of any one rival, which is the whole reason a third
 reading exists. `build_clp` fetches CoinUtils and Osi alongside it, both
 pinned by checksum in `clp-deps.manifest` on the same terms as a competitor.
 
+**JAOS gained a presolve, so the ladder recalibrated — P0 is the new bottom
+rung (D103).** T0 through T3 keep their definitions and their records; nothing
+was renamed underneath a stored number. P0 is T0 with one line changed per
+competitor: presolve on. JAOS at P0 is dual simplex, presolve, no crash basis,
+one thread, which is what it now ships.
+
+**T0's record is historical from here.** It was taken when JAOS had no
+presolve. Running it against a presolving JAOS would put presolve on one side
+only, and that is not a rung.
+
+| P0, `results/P0.txt` | vs HiGHS 1.15.1 | vs SoPlex 8.0.3 | vs Clp 1.17.11 |
+|---|---|---|---|
+| time per solve | 4.13x | **1.18x** | 3.50x |
+| iterations | 1.81x | **0.68x** | 1.46x |
+| **time per iteration** | **2.29x** | **1.73x** | **2.39x** |
+| JAOS faster on | 1 of 18 | **10 of 21** | 1 of 14 |
+| worst instance | `maros-r7` 72.5x | `maros-r7` 20.9x | `maros-r7` 48.1x |
+
+Against T0's 3.72x / 1.34x / 3.77x (D83): closer to SoPlex and Clp, further
+from HiGHS. **Read that against each solver's own presolve, not through
+JAOS** — same binary, two rungs, geometric mean of per-instance time ratios
+over the instances each has above the 0.05 s floor:
+
+| solver | its own presolve, T0 → P0 | its iterations |
+|---|---|---|
+| JAOS | 0.739x | 0.820x |
+| HiGHS | 0.692x | 0.717x |
+| SoPlex | 0.906x | 0.904x |
+| Clp | 0.670x | 0.789x |
+
+So JAOS's presolve is worth about what the others' are worth. The gap to HiGHS
+widened anyway, and one instance carries most of it: on `maros-r7` HiGHS's
+presolve reads 0.378x and halves its iteration count, while JAOS's reads
+1.065x and removes nothing at all. `stocfor3` is the same shape, 0.198x
+against 0.965x. **What the rung says is not that presolve was a poor
+investment. It is that HiGHS presolves the instances that dominate this set
+and JAOS does not.**
+
+**The rung reproduces two figures taken a different way**, which is what makes
+it believable: HiGHS's 0.692x is 1.445x inverted, against the 1.417x of D81
+and 1.421x of D83, and SoPlex's 0.906x is 1.104x against D83's 1.111x. Those
+were measured as T2 − T1, with algorithm choice free; this is T0 → P0, with
+the dual forced. Two routes, one number.
+
+Two readings in `results/P0.txt` are worth knowing about. On `pilot87` both
+SoPlex and Clp publish 301.7106806 where JAOS and HiGHS agree on
+301.7103474, so the harness discards their times — the rule that a time
+without a verified answer is thrown away is doing its job, and it is JAOS and
+HiGHS on one side of it. And `grow22` reads 9.495x slower than at T0, which is
+presolve's own regression on that model (D103) confirming in seconds what the
+work counter said.
+
+The header of `results/P0.txt` says `WITH UNCOMMITTED CHANGES`. Those were the
+three P0 tier files themselves, which are harness inputs; `src/` was clean at
+`fd1bd6d` and the JAOS binary came from it.
+
+**Clp's summary was silently absent from T1, T2 and T3, and the records held
+its data the whole time.** Clp reports zero iterations on `d6cube`, `maros-r7`
+and `woodw` whenever it is free to choose its algorithm. Dividing by that is a
+fatal error in awk rather than a NaN, so the block aborted before printing its
+first line and the loop moved on. Nobody noticed for three days because no Clp
+rung figure was ever quoted — which is the reading of "silent" that matters.
+`run-compare.sh` now keeps such an instance in the time row, drops it from the
+two iteration rows, and prints how many it dropped and which.
+
+Recomputed from the stored records, so the ladder is complete for the first
+time. Time per solve:
+
+| | T0 | T1 | T2 | T3 | P0 |
+|---|---|---|---|---|---|
+| vs HiGHS | 3.72x | 3.71x | 4.53x | 4.46x | **4.13x** |
+| vs SoPlex | 1.34x | 1.33x | 1.46x | 1.50x | **1.18x** |
+| vs Clp | 3.77x | 3.79x | 5.88x | 5.92x | **3.50x** |
+
+T2 − T1 prices Clp's presolve at 1.55x, which the direct T0 → P0 reading of
+Clp against itself puts at 1.49x. Two routes, and they agree to within a
+little over the harness's own repeatability.
+
+**The recomputation reproduces T0 exactly** — 3.72x, 1.34x, 3.77x, and
+`maros-r7` at 25.7x — from a second implementation of the arithmetic that
+shares no code with the harness. D83's table stands as published.
+
 **The measured repeatability of this harness is 1.4%**, and it comes from the
 best control available: JAOS is byte-identical at every rung, so its own
 cross-rung ratio is a direct reading of the machine — 1.007x, 1.014x and
@@ -54,7 +136,8 @@ the one below attributes the gap to one feature**.
 
 | tier | JAOS | the others | what the step measures |
 |---|---|---|---|
-| **T0** | dual simplex, no presolve | dual forced, presolve off, no crash basis | the simplex, and only the simplex |
+| **T0** | dual simplex, no presolve | dual forced, presolve off, no crash basis | the simplex, and only the simplex. **Historical**: JAOS presolves now |
+| **P0** | dual simplex, presolve | dual forced, presolve on, no crash basis | the same question, recalibrated. The rung M2's gate is judged on |
 | **T1** | unchanged | free to pick primal or dual | what choosing the strategy is worth |
 | **T2** | unchanged | presolve on | what presolve is worth |
 | **T3** | unchanged | stock defaults | what a user actually experiences |

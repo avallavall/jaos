@@ -9,6 +9,15 @@ open, `bench/README.md` for the gate, and the commit each entry came from.
 
 ## [Unreleased]
 
+### Added
+
+- `bench/compare` gains the **P0** rung: presolve on both sides, the dual
+  forced, no crash basis, one thread. It is T0 with one line changed per
+  competitor, and it is the rung the M2 gate is judged on now that JAOS
+  presolves. T0 through T3 keep their definitions and their records. JAOS
+  reads 4.13x HiGHS, 1.18x SoPlex and 3.50x Clp per solve, on 2.29x, 1.73x and
+  2.39x the cost of an iteration, and is faster than SoPlex on 10 of 21 (D104).
+
 ### Changed
 
 - Presolve is complete at five families. The three that were scoped and never
@@ -20,6 +29,16 @@ open, `bench/README.md` for the gate, and the commit each entry came from.
   rather than an opinion (D101). Nothing is removed and no behaviour changes.
 
 ### Fixed
+
+- `bench/compare/run-compare.sh` prints a competitor's summary when one of its
+  instances reports zero iterations. Clp does, on `d6cube`, `maros-r7` and
+  `woodw`, whenever it may choose its own algorithm; dividing by that count is
+  a fatal error in awk rather than a NaN, so the whole block aborted before
+  its first line and Clp's summary was silently absent from T1, T2 and T3 from
+  2026-08-11. The records held the data throughout. Such an instance now stays
+  in the time row, leaves the two iteration rows, and the count and names of
+  what left are printed. Recomputed, Clp reads 3.79x, 5.88x and 5.92x at those
+  three rungs (D104).
 
 - Presolve reads the model's sense. Every cost-direction and dual-sign rule in
   the file was stated for MINIMIZE, which is the canonical form `src/check.c`

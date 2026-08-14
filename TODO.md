@@ -73,10 +73,23 @@ particular round.
 - **Close M2** (REQ-m2-competitive-gate): needs a controlled host — D17 says
   a WSL number cannot close a gate, and this machine is Windows/WSL with a
   measured repeatability of 6.27% (D93). The per-instance guard factor is
-  unset and is measured, not guessed. T0 is presolve-off on both sides by
-  definition; how the comparison ladder recalibrates once JAOS has a presolve
-  is undecided (`bench/compare/README.md`). Standing: 3.72x HiGHS, 1.34x
-  SoPlex, 3.77x Clp (D83).
+  unset and is measured, not guessed. The ladder is recalibrated and the
+  question is closed: **P0** is the rung, presolve on both sides, and T0 keeps
+  its definition and its record as a historical rung
+  (`bench/compare/README.md`). Standing at P0: **4.13x HiGHS, 1.18x SoPlex,
+  3.50x Clp**, on 2.29x / 1.73x / 2.39x the cost of an iteration. The
+  per-iteration figure is what M2 is aimed at and it has barely moved: three
+  independently written dual simplexes still put JAOS's iteration between
+  1.7x and 2.4x theirs.
+- **HiGHS presolves what dominates this set and JAOS does not.** Opened by the
+  P0 rung. Each solver's own presolve is worth about the same overall — JAOS
+  0.739x, HiGHS 0.692x, Clp 0.670x, SoPlex 0.906x — but on `maros-r7` HiGHS
+  reads 0.378x and halves its iteration count while JAOS reads 1.065x and
+  removes nothing, and `stocfor3` is 0.198x against 0.965x. Those two are the
+  worst instances in the whole comparison. This is a question about which
+  families fire on which models, and `bench/measurements/02-07/`'s counter
+  already reports what the three deferred families would remove; it says 0.15%
+  overall (D101) and has never been read per instance on these two.
 
 ## 3. After M2 — feature expansion (decided 2026-08-13)
 

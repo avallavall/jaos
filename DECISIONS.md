@@ -111,6 +111,7 @@ and you have the argument. Jump to the entry for the numbers behind it.
 - **[D101](#d101-the-last-three-presolve-families-have-015-left-to-remove-on-this-instance-set-which-defers-them-rather-than-refusing-them)** — The last three presolve families have 0.15% left to remove on this instance set, which defers them rather than refusing them
 - **[D102](#d102-a-relaxed-row-is-skipped-by-every-pass-that-could-refuse-it-so-an-infeasible-model-was-published-optimal)** — A relaxed row is skipped by every pass that could refuse it, so an infeasible model was published OPTIMAL
 - **[D103](#d103-presolve-was-written-for-one-objective-sense-and-one-tolerance-answered-a-question-that-has-no-tolerance)** — Presolve was written for one objective sense, and one tolerance answered a question that has no tolerance
+- **[D104](#d104-the-ladder-is-recalibrated-and-jaoss-presolve-is-worth-what-the-others-are-worth-while-highs-presolves-the-instances-that-decide-the-set)** — The ladder is recalibrated, and JAOS's presolve is worth what the others' are worth while HiGHS presolves the instances that decide the set
 
 ---
 
@@ -7674,3 +7675,102 @@ a reduced model is so much worse for the simplex than the model it replaced.
 The two window guards against an infinite `row_traffic` are unreachable today
 and stated as such in the source; the saturation itself is unchanged and still
 carried.
+
+## D104 — The ladder is recalibrated, and JAOS's presolve is worth what the others' are worth while HiGHS presolves the instances that decide the set
+
+`bench/compare/README.md` had said since it was written what would happen when
+JAOS gained a presolve: presolve moves into the bottom rung for everyone. JAOS
+gained one (D103), so this closes the recalibration `TODO.md` carried as
+undecided, and reports what the new rung reads.
+
+### The rung
+
+**P0**: JAOS as it ships — dual simplex, presolve, no crash basis, one thread
+— against each competitor with presolve on, the dual forced, no crash basis,
+one thread, tolerances equalised at 1e-7. It is T0 with exactly one line
+changed per competitor. T0 through T3 keep their definitions and their
+records; nothing was renamed underneath a stored number, and T0 becomes a
+historical rung because running it against a presolving JAOS would put
+presolve on one side only.
+
+| P0 | vs HiGHS 1.15.1 | vs SoPlex 8.0.3 | vs Clp 1.17.11 |
+|---|---|---|---|
+| time per solve | 4.13x | **1.18x** | 3.50x |
+| iterations | 1.81x | **0.68x** | 1.46x |
+| **time per iteration** | **2.29x** | **1.73x** | **2.39x** |
+| JAOS faster on | 1 of 18 | **10 of 21** | 1 of 14 |
+| worst | `maros-r7` 72.5x | `maros-r7` 20.9x | `maros-r7` 48.1x |
+
+Against T0's 3.72x / 1.34x / 3.77x (D83): closer to SoPlex and to Clp, further
+from HiGHS.
+
+### Why the gap to HiGHS widened, read against each solver rather than through JAOS
+
+The README's own rule. Each competitor's binary is pinned by checksum and
+identical at both rungs, so T0 → P0 times that binary twice and the difference
+is its presolve. Geometric mean of per-instance time ratios, over whatever
+each has above the 0.05 s floor:
+
+| solver | its own presolve | its iterations |
+|---|---|---|
+| JAOS | 0.739x | 0.820x |
+| HiGHS | 0.692x | 0.717x |
+| SoPlex | 0.906x | 0.904x |
+| Clp | 0.670x | 0.789x |
+
+**JAOS's presolve is worth about what the others' are worth.** The gap to
+HiGHS widened anyway, and two instances carry most of it:
+
+| instance | JAOS's presolve | HiGHS's presolve |
+|---|---|---|
+| `maros-r7` | 1.065x, and 1.000x on iterations | 0.378x, 0.548x on iterations |
+| `stocfor3` | 0.965x, 1.017x | 0.198x, 0.342x |
+
+Those two are the worst instances in the whole comparison. So the finding is
+not that presolve was a poor investment. **It is that HiGHS presolves the
+instances that dominate this set and JAOS removes nothing from them.** Handed
+to `TODO.md` as a question about which families fire on which models.
+
+### The rung believes itself for two reasons
+
+First, it reproduces two figures measured a different way. HiGHS's 0.692x
+inverts to 1.445x against D81's 1.417x and D83's 1.421x; SoPlex's 0.906x to
+1.104x against D83's 1.111x. Those were taken as T2 − T1 with algorithm choice
+free; this is T0 → P0 with the dual forced.
+
+Second, the whole summary arithmetic was recomputed by a second
+implementation sharing no code with the harness, and it reproduces T0 exactly
+— 3.72x, 1.34x, 3.77x, `maros-r7` at 25.7x. D83's table stands as published.
+
+### What was refuted, and one thing that was broken the whole time
+
+1. *Re-running T0.* The obvious move and it is not a rung: JAOS presolves now
+   and the T0 competitor files do not. A rung whose two sides differ in two
+   features attributes the difference to neither.
+2. *Reading the widened HiGHS gap as a regression in JAOS.* JAOS is faster at
+   P0 than it was at T0 on every instance where its presolve fires. The ratio
+   moved because the other side moved further.
+3. **Clp's summary block was silently absent from T1, T2 and T3 from
+   2026-08-11 until this entry.** Clp reports zero iterations on `d6cube`,
+   `maros-r7` and `woodw` whenever it is free to choose its algorithm.
+   Dividing by that count is a fatal error in awk rather than a NaN, so the
+   block aborted before printing its first line and the loop moved on to the
+   next solver. The records held the data throughout. Nobody noticed for three
+   days because no Clp rung figure was ever quoted — a gap that is invisible
+   exactly as long as nobody needs it. `run-compare.sh` now keeps such an
+   instance in the time row, drops it from the two iteration rows, and prints
+   how many it dropped and which. Recomputed, Clp reads 3.79x, 5.88x and 5.92x
+   at T1, T2 and T3, which prices its presolve at 1.55x against the 1.49x its
+   own T0 → P0 reading gives.
+
+### What is left open
+
+The gate this is aimed at is unchanged and still cannot be closed here: D17
+excludes a WSL number, and this host repeats to 6.27% (D93). Every figure
+above is a development number and the record says so on every line.
+
+`pilot87` is worth watching. At P0 both SoPlex and Clp publish 301.7106806
+where JAOS and HiGHS agree on 301.7103474, so the harness discards their
+times. JAOS is on the correct side of a disagreement between two mature
+solvers, on the instance whose suboptimality bound `TODO.md` records as not
+understood.

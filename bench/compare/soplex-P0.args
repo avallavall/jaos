@@ -1,0 +1,23 @@
+# SoPlex at tier P0 — the recalibrated bottom rung, presolve on both sides.
+#
+# T0 with `-s0` removed and nothing else. That one flag was the simplifier,
+# and JAOS now has one of its own, so leaving it off would handicap SoPlex for
+# a feature JAOS no longer lacks. See highs-P0.opt for why T0 keeps its old
+# definition instead of being redefined underneath its own records.
+#
+# The T0 caveat survives unchanged and is repeated rather than cross-
+# referenced, because a reader of this file is deciding what its numbers mean:
+# int:algorithm=1 asks for the dual, but SoPlex switches to the primal by
+# itself part-way through a solve — its own log shows the L rows becoming E
+# rows — and nothing here prevents that. So this rung handicaps SoPlex's
+# algorithm choice only partly, and the gap it measures is a lower bound on
+# the gap a fully dual-forced SoPlex would show.
+#
+# solvemode 0 is the plain floating-point solve. The default is "auto", which
+# may run iterative refinement to sharpen the answer — a different amount of
+# work from the one JAOS does, and so not a comparison of simplexes.
+
+--solvemode=0
+--int:algorithm=1
+-f1e-7
+-o1e-7

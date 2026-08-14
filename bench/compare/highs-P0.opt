@@ -1,0 +1,33 @@
+# HiGHS at tier P0 — the recalibrated bottom rung, presolve on both sides.
+#
+# bench/compare/README.md said this rung would exist before it did: "when JAOS
+# gains a presolve, presolve moves into T0 for everyone and a new rung appears
+# above." JAOS gained one (D103 measures what it is worth), so this is that
+# rung, and T0 through T3 keep their old definitions and their old records
+# rather than being renamed underneath them.
+#
+# **T0 is now a mixed rung and its record is a historical one.** It was taken
+# when JAOS had no presolve; running it today would put a JAOS that presolves
+# against competitors that do not. The T0 records in results/ stay valid for
+# the tree they name and must not be re-run against a presolving JAOS.
+#
+# P0 is T0 with exactly one line changed. JAOS at P0 is: dual simplex,
+# presolve, no crash basis, one thread. Every option below still exists to
+# take away an advantage JAOS does not have, and presolve is no longer one of
+# them.
+
+presolve = on
+solver = simplex
+simplex_strategy = 1
+parallel = off
+threads = 1
+run_crossover = off
+primal_feasibility_tolerance = 1e-7
+dual_feasibility_tolerance = 1e-7
+output_flag = true
+log_to_console = true
+
+# Without this HiGHS writes a Highs.log into whatever directory it was run
+# from — ten thousand lines of it across one pass of the standard set, in the
+# working tree.
+log_file = /dev/null

@@ -1,0 +1,18 @@
+# Clp at tier P0 — the recalibrated bottom rung, presolve on both sides.
+#
+# T0 with `-presolve off` removed and nothing else; the crash basis stays off
+# and the dual stays forced, because JAOS still has neither a crash basis nor
+# a primal. See highs-P0.opt for why T0 keeps its old definition.
+#
+# -dualsimplex is the verb rather than an option, so it comes last: Clp reads
+# its arguments in order and the solve happens where the verb is. One token
+# per line, because the harness passes these unquoted and Clp takes its
+# options as separate -name value pairs.
+
+-primalTolerance
+1e-7
+-dualTolerance
+1e-7
+-crash
+off
+-dualsimplex

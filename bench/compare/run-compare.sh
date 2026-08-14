@@ -227,14 +227,34 @@ echo
 for s in $solvers; do
     f="$out.$s.ratios"
     [ -f "$f" ] || { echo "$s: nothing above the ${FLOOR}s floor"; continue; }
-    awk -v s="$s" 'BEGIN{st=0;si=0;n=0;w=0;worst=0;wn="";best=1e18;bn=""}
-        {st+=log($1); si+=log($3/$4); n++; if ($1<1) w++;
+    # A competitor may report zero iterations on an instance it finished
+    # without a simplex step -- Clp does, on d6cube, maros-r7 and woodw,
+    # whenever it is free to choose its algorithm. Dividing by that count is a
+    # FATAL error in awk, not a NaN, so the whole block aborted and printed
+    # nothing at all: Clp's summary was silently absent from T1, T2 and T3
+    # from 2026-08-11 until this was found on 2026-08-14. The records held the
+    # data the whole time. Nobody noticed because no Clp rung figure was ever
+    # quoted, which is the reading of "silent" that matters.
+    #
+    # So: the time row keeps every instance, the two iteration rows drop the
+    # ones that cannot contribute, and the count that was dropped is printed.
+    # A summary that quietly covers less than it says is the failure this
+    # whole harness exists to avoid.
+    awk -v s="$s" 'BEGIN{st=0;si=0;sti=0;n=0;ni=0;zi=0;w=0;worst=0;wn="";best=1e18;bn=""}
+        {st+=log($1); n++; if ($1<1) w++;
+         if ($4+0 > 0) { si+=log($3/$4); sti+=log($1); ni++ } else { zi++ }
          if ($1>worst){worst=$1;wn=$2} if ($1<best){best=$1;bn=$2}}
         END{
             printf "vs %s over %d instances above the floor:\n", s, n;
             printf "  time per solve      %.2fx\n", exp(st/n);
-            printf "  iterations          %.2fx\n", exp(si/n);
-            printf "  time per iteration  %.2fx\n", exp(st/n)/exp(si/n);
+            if (ni > 0) {
+                printf "  iterations          %.2fx\n", exp(si/ni);
+                printf "  time per iteration  %.2fx\n", exp(sti/ni)/exp(si/ni);
+            } else {
+                printf "  iterations          -- every instance reported zero\n";
+            }
+            if (zi > 0)
+                printf "  %d of the %d reported zero iterations and are left out of the two rows above\n", zi, n;
             printf "  JAOS faster on %d of %d;  worst %s %.1fx;  best %s %.2fx\n\n",
                    w, n, wn, worst, bn, best }' "$f"
 done
