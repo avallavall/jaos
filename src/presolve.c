@@ -1719,6 +1719,41 @@ cleanup_scratch:
  * sol_col/sol_col_status already hold for SURVIVING rows/columns before
  * this loop starts — solved has none, expand has whatever the reduced
  * solve published, mapped in by each caller before this runs. */
+/* A removed column's share of every row it touches EXCEPT `skip_row`, whose
+ * caller has already written it.
+ *
+ * JM_PS_FIXED_COL and JM_PS_EMPTY_COL have always done this over the whole
+ * column. The two singleton-column families did not, and it went unnoticed
+ * for a reason that has now expired: each of them fires on a column of LIVE
+ * degree one, so every other row that column touches is already dead, and
+ * until this plan no reader took a number out of a dead row's activity. An
+ * incomplete sum sat there and only reached the caller through
+ * jaos_solution's row-activity argument, which no predicate of the three
+ * sets reads and no digest covers (bench/run.c hashes the columns and the
+ * duals).
+ *
+ * JM_PS_IMPLIED_FREE_COL is that reader. It recovers its column from
+ * sol_row[i] of the row it removed, so every gap in that accumulation
+ * becomes a wrong published value -- and a wrong value inside its own box,
+ * which the checker reports as a ROW violation with no column violation
+ * beside it. That is what `greenbeb`, `modszk1` and `tuff` reported: row
+ * 900, 1.67e5 and 27.7 against col 1.4e-27, 4.6e-13 and 4.7e-30.
+ *
+ * Accumulate, never assign: the two halves of a dead row's activity arrive
+ * in either order (the seeding pass before the walk, and each removed
+ * column as its own record replays). */
+static void ps_add_to_other_rows(jaos_model *orig, int64_t j,
+                                 int64_t skip_row, double xv)
+{
+    for (int64_t k = orig->a_start[j]; k < orig->a_start[j + 1]; k++) {
+        const int64_t i = orig->a_index[k];
+        if (i == skip_row)
+            continue;
+        orig->sol_row[i] = ps_published(orig->sol_row[i] +
+                                        orig->a_value[k] * xv);
+    }
+}
+
 static void ps_replay_one(jaos_model *orig, const jm_presolve *p, int64_t r)
 {
     const jm_presolve_rec *rec = &p->arena[r];
@@ -2056,6 +2091,7 @@ static void ps_replay_one(jaos_model *orig, const jm_presolve *p, int64_t r)
          * cost 0). */
         orig->sol_redcost[j] = ps_published(-rec->coef * orig->sol_dual[i]);
         orig->sol_row[i] = ps_published(rest + rec->coef * xv);
+        ps_add_to_other_rows(orig, j, i, xv);
         break;
     }
 
@@ -2091,13 +2127,25 @@ static void ps_replay_one(jaos_model *orig, const jm_presolve *p, int64_t r)
                                               : JAOS_BASIS_BASIC;
         orig->sol_redcost[j] = 0.0;
         orig->sol_dual[i] = 0.0;
-        /* orig->sol_row[i] is written here using only x_j's own
-         * contribution — any OTHER column also touching row i (a
-         * value-determined one, fixed or emptied in an earlier round of
-         * the SAME forward pass, hence replayed LATER in this LIFO walk)
-         * adds its own share afterward, the same accumulate-on-replay
-         * pattern JM_PS_FIXED_COL/JM_PS_EMPTY_COL already use. */
-        orig->sol_row[i] = ps_published(rec->coef * xv);
+        /* Row i takes x_j's own contribution — any OTHER column also
+         * touching row i (a value-determined one, fixed or emptied in an
+         * earlier round of the SAME forward pass, hence replayed LATER in
+         * this LIFO walk) adds its own share afterward, the same
+         * accumulate-on-replay pattern JM_PS_FIXED_COL/JM_PS_EMPTY_COL
+         * already use.
+         *
+         * Accumulating rather than assigning is a no-op here and is written
+         * that way so it stays one: row i was a mutual singleton when this
+         * fired, so every other column in it was already dead, none of them
+         * survives to be seeded and none of them replays before this record.
+         * sol_row[i] is therefore exactly zero at this point.
+         *
+         * The column's OTHER rows are the part that was missing. Its live
+         * degree was one, so they are all dead rows, and they were left
+         * short by exactly this column's share -- see ps_add_to_other_rows
+         * above for what started reading them. */
+        orig->sol_row[i] = ps_published(orig->sol_row[i] + rec->coef * xv);
+        ps_add_to_other_rows(orig, j, i, xv);
         /* Row i's status is not derived from its activity here (that
          * activity is only x_j's own share so far, not the row's final
          * one — computing a bound-relative status from it would be
