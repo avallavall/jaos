@@ -84,8 +84,13 @@ released.
 | Resume after a work or time limit | ● | ● | ? | ? | ● | ● | ● |
 
 JAOS's presolve rows are ◐ as of phase 2: the reduced-model machinery, the
-postsolve stack and the first reduction families have landed, the rest are in
-progress. Before phase 2 both rows were ○. Hyper-sparsity is ◐ because both
+postsolve stack and six reduction families have landed, and what is left is
+counted rather than guessed — duplicate rows, duplicate columns and dominated
+columns are deferred at 0.15% of these 139 models (D101), doubleton
+equalities and 99.7% of them sit behind the bound tightening D97 refused, and
+the implied free column singleton reaches equality rows only, which is a
+third of what its counter reads (D106). `TODO.md` §1 and §3 own the
+remainder. Before phase 2 both rows were ○. Hyper-sparsity is ◐ because both
 triangular solves report their pattern but not every billed pass is reduced.
 
 ## 4. Mixed-integer machinery

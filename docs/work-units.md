@@ -61,7 +61,16 @@ computed. The range charge is the one that scales differently from the rest:
 it is paid on every live row of every round, not once per reduction, because
 the range is what the round reads to decide whether there is a reduction at
 all (02-04). A round that finds nothing therefore still bills the whole live
-matrix once, which is the honest figure — that scan is the work. Charged onto
+matrix once, which is the honest figure — that scan is the work.
+
+The implied free column singleton (D106) pays that range charge like every
+other reader of a row's activity, and then pays it a **second** time when it
+fires: the substitution walks the row again to push the eliminated column's
+cost onto every other live column in it. Two passes over the same row, billed
+as two, because two is what it does. A candidate that is examined and declined
+pays once.
+
+Charged onto
 the same `jm_work` the reduced model's own solve then
 continues (`jm_dual_simplex` seeds `sx`'s accumulator with presolve's total
 before `sx_init` runs), so a caller's `jaos_set_work_limit` sees one total

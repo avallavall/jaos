@@ -5,6 +5,27 @@ says why closed questions closed, `CHANGELOG.md` says what landed, `bench/`
 says what it costs. This file says what is next. When something lands, its
 line leaves this file in the same commit.
 
+## Where the last session stopped — 2026-08-15
+
+The tree is clean, all three gate sets pass, and the three baselines were
+rewritten deliberately and confirmed by a following run that reads
+`0 regressed, 0 improved, 0 new` on each. Nothing is pushed.
+
+What landed: presolve gained an objective it can write (`cur_cost[]`), the
+implied free column singleton for equality rows (D106), and a repair to two
+older families that were publishing short row activities. `make test`,
+`make sanitize` and the off-by-one fault build are all green; the reference
+build is not, and that is item four in the standing debts below.
+
+**Pick up at §1a or §1d.** §1a is the next build. §1d is the cheaper question
+and it is the same unexplained shape as §2, so answering one probably answers
+both. §5's `make compare` re-run is one command and gives the biggest headline
+number available right now.
+
+Three things this session left deliberately unmeasured, so nobody re-derives
+them by accident: `greenbeb`'s 1.5126x, `maros-r7`'s 15.7x per-iteration drop,
+and what a zero margin admits. Each has its own subsection with its numbers.
+
 ## 1. Implied free column singletons — the inequality rows, and three instances it hurt
 
 **The equality-row half landed 2026-08-15 (D106).** It removes 1041 rows,
@@ -259,6 +280,16 @@ baseline, and a baseline added mid-change cannot be read.
   per-iteration figure is what M2 is aimed at and it has barely moved: three
   independently written dual simplexes still put JAOS's iteration between
   1.7x and 2.4x theirs.
+- **`make compare` has not been re-run since D106, and its figures are stale
+  in JAOS's favour.** The P0 rung reads 4.13x HiGHS, 1.18x SoPlex and 3.50x
+  Clp, and it was taken when `maros-r7` cost 21010708013 work units. It now
+  costs 328053926, and `maros-r7` was the single worst instance in the whole
+  comparison at 72.5x HiGHS. Re-taking it is one `make compare` and it is the
+  cheapest number available right now. **Every document that quotes 4.13x
+  says it is stale** — `README.md`, `SPECS.md` §8 and
+  `bench/compare/README.md` — so the fix is one run and three edits, not a
+  hunt.
+
 - **HiGHS presolves what dominates this set and JAOS does not.** Opened by the
   P0 rung. Each solver's own presolve is worth about the same overall — JAOS
   0.739x, HiGHS 0.692x, Clp 0.670x, SoPlex 0.906x — but on `maros-r7` HiGHS
@@ -288,16 +319,19 @@ rationals for the final basis only.
 
 ## 7. Presolve is closed — what that means
 
-**REQ-presolve is done.** Five families live, three deferred on a count with
+**REQ-presolve is done.** Six families live, three deferred on a count with
 an executable reopen condition (D101), the postsolve defect closed in both
 halves (D99, D100), an infeasible model no longer published OPTIMAL (D102),
-and the sense and window defects repaired (D103). `jaos-measurer` returned
-**ACCEPT** on that last one from its own binaries, and the three baselines
-were rewritten deliberately afterwards and confirmed by a following gate run:
-all three now read `0 regressed, 0 improved, 0 new` and exit 0.
+the sense and window defects repaired (D103), and a removed column now paying
+every row it touches (D106). `jaos-measurer` returned **ACCEPT** on D103 from
+its own binaries; D106 was judged on its own campaign and its own sweep, with
+`numerics-reviewer` on the diff. The three baselines have been rewritten
+deliberately after each and confirmed by a following gate run: all three read
+`0 regressed, 0 improved, 0 new` and exit 0.
 
-Nothing in this section is presolve being unfinished. All four are questions
-presolve's own measurements raised, and each has its number already.
+Nothing in the sections above is presolve being unfinished. Every one is a
+question presolve's own measurements raised, and every one has its number
+already.
 
 ## Refusals and deferrals — what would reopen each
 
@@ -314,7 +348,7 @@ then, do not — a refusal whose premise has not changed just fails again.
 | SPECS §3 | crash basis — destroys the exact slack-basis steepest-edge weights | pricing stops starting from exact steepest-edge weights; REQ-devex-pricing landing is the trigger |
 | D74 | removing the re-entry loan — 2.372x `pilot87` iterations for 0.980x `pilot` | the oscillation mechanism itself changes (phase 4's investigation) |
 | D63 | restarting weights to exact instead of 1.0 | the pricing rule changes; Devex would replace the question |
-| D95 | eliminating nonzero-cost singleton columns | a dual-informed elimination design exists (the lift condition is in the entry) |
+| D95 | eliminating nonzero-cost singleton columns | a dual-informed elimination design exists (the lift condition is in the entry). **Checked against D106 and NOT reopened, deliberately.** D106 eliminates nonzero-cost singleton columns, so the question was re-asked. It does not satisfy D95's condition and does not need to: D95 refused *choosing which bound is optimal*, and an implied free column has no bound to choose — it is interior, so `d_j = 0` is forced and the dual falls out of one division. The columns D95 still refuses are the ones whose own bounds can bind, and D106 declines exactly those |
 | D93 | the 4.2% time bar — unmeasurable on this host | a controlled host that satisfies D17 |
 | D92/backlog | `pilot87`'s suboptimality bound, not understood | it blocks a gate (trigger already recorded) |
 | D82, D84 | partial and multiple pricing | nothing scheduled — refused on wrong answers, not on a trade; a new scheme is a new decision, not a retry |

@@ -3,14 +3,20 @@
 A mathematical-programming solver written from scratch in C23. No external
 dependencies, Apache 2.0, Linux and GCC only.
 
-**Version 0.1.0-dev.** It reads an LP from disk, solves it with a revised
-dual simplex, and proves the answer right. It does that correctly on all 139
-Netlib reference instances.
+**Version 0.1.0-dev.** It reads an LP from disk, presolves it, solves it with
+a revised dual simplex, and proves the answer right. It does that correctly on
+all 139 Netlib reference instances.
 
-Against the field, with presolve off and the dual simplex forced on both
-sides, it is **3.8x slower than HiGHS and 1.4x slower than SoPlex** — on
-**0.70x** SoPlex's iteration count, so the search is competitive and each
-iteration costs about twice what it should. `make compare` reproduces that.
+Against the field, with each solver's own presolve on and the dual simplex
+forced on both sides, it is **4.13x slower than HiGHS, 1.18x slower than
+SoPlex and 3.50x slower than Clp** — on **2.29x, 1.73x and 2.39x** the cost of
+one iteration. The search is competitive and the iteration is what M2 is aimed
+at. `make compare` reproduces that.
+
+Those three figures were taken before the implied free column singleton landed
+(D106), and that reduction made `maros-r7` — the worst instance in the whole
+comparison, at 72.5x HiGHS — 64x cheaper in work units. So they are stale in
+JAOS's favour and `make compare` has not been re-run. `TODO.md` carries it.
 
 ## What it does today
 
@@ -30,10 +36,11 @@ if (jaos_status_of(m) == JAOS_SOLVE_OPTIMAL) {
 jaos_model_free(m);
 ```
 
-Fixed and free MPS, a subset of the LP format, Curtis-Reid scaling, a sparse
-LU with Forrest-Tomlin updates, a dual simplex with steepest-edge pricing and
-a Harris ratio test, and an independent checker that verifies every answer
-against the original unscaled problem.
+Fixed and free MPS, a subset of the LP format, a presolve with six reduction
+families and a postsolve that recovers the caller's own values, statuses and
+duals, Curtis-Reid scaling, a sparse LU with Forrest-Tomlin updates, a dual
+simplex with steepest-edge pricing and a Harris ratio test, and an independent
+checker that verifies every answer against the original unscaled problem.
 
 A loaded model can be changed — one bound, cost or coefficient at a time, or
 by adding and deleting whole rows and columns — and re-solving starts from the
@@ -47,9 +54,9 @@ only partly there.
 
 ## What it does not do
 
-There is no way to write a file, or to call it from anything but C. No
-presolve, no primal simplex, no barrier, no MILP. Forty-one public functions,
-and the seven that configure anything set the contract — two tolerances, two
+There is no way to write a file, or to call it from anything but C. No primal
+simplex, no barrier, no MILP. Forty-two public functions, and the seven that
+configure anything set the contract — two tolerances, two
 budgets, where the output goes and how much of it there is, and who gets asked
 whether to carry on — never the method. Which pricing rule runs, when to
 refactorize and whether a sparse or a dense path is cheaper are the solver's

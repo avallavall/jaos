@@ -30,6 +30,12 @@ one thread, which is what it now ships.
 presolve. Running it against a presolving JAOS would put presolve on one side
 only, and that is not a rung.
 
+**Stale since D106, and stale in JAOS's favour.** Every figure on this page
+was taken before the implied free column singleton landed. That reduction took
+`maros-r7` from 21010708013 work units to 328053926, and `maros-r7` is the
+single worst instance here — 72.5x HiGHS at P0. Nothing below has been
+re-taken. `TODO.md` §5 carries the re-run.
+
 | P0, `results/P0.txt` | vs HiGHS 1.15.1 | vs SoPlex 8.0.3 | vs Clp 1.17.11 |
 |---|---|---|---|
 | time per solve | 4.13x | **1.18x** | 3.50x |

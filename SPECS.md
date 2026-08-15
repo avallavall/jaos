@@ -137,7 +137,7 @@ does not measure it.
 | Stability trigger on the triangular solves | **done** | the pivot element is computed twice each iteration, by BTRAN and by FTRAN; past `LU_AGREE_TOL` the pivot is declined unbilled and the factorization rebuilt. Free — both numbers are already paid for (D86) |
 | Scaling | **done** | Curtis-Reid [11], geometric-mean equilibration as an option |
 | Hyper-sparsity in the triangular solves | **partial** | [9]: both solves report their pattern, the passes billed for every slot are not all reduced |
-| Presolve | **partial** | five families live behind a cascading round loop: empty rows and columns, singleton rows, cost-0 singleton columns (D95), fixed columns, forcing and redundant rows — both caps measured (`JM_PRESOLVE_ROUNDS = 16`, `PRESOLVE_ROUND_ULPS = 8`, `docs/tolerances.md`). `EXTRA_CFLAGS=-DJAOS_NO_PRESOLVE` compiles it out and reproduces the pre-presolve baselines bit for bit (D96). Deferred, with the count that defers them and an executable reopen condition: duplicate rows and columns, dominated columns, worth 0.15% of rows and columns on these 139 models (D101). Refused: bound tightening, measured six ways (D97). The postsolve defect is closed in both halves, the row residual (D99) and the dual (D100), and all three sets pass with 94/94 and 16/16 checker ok and 29/29 correctly refused (the infeasible set carries no checker verdict and no digest). A relaxed row is tested for feasibility once the boxes are final, so an infeasible model is no longer published OPTIMAL (D102). Presolve reads the model's sense, and the three windows that judge a residue are a count of roundings rather than a tunable — both were wrong answers on a MAXIMIZE model and at model scale respectively (D103). **What it is worth**, presolve on over off, geometric mean of per-instance ratios: work 0.810x standard, 0.651x Kennington, 0.084x infeasible; seconds about 0.3x on the instances it removes the most from, against a negative control that reproduces at 1.0 (D103). Open, and none of it blocks the gate: the published basis breaks `jaos.h`'s row-count promise, a collapsed fold leaves a bound no record owns, the same replay can still produce an empty intersection of an ulp on 11 of the 94, and presolve makes `grow22` and `grow7` 11.16x and 8.56x more expensive — `TODO.md` owns these. Field value: 1.42x to HiGHS, 1.14x to SoPlex (D81) |
+| Presolve | **partial** | six families live behind a cascading round loop: empty rows and columns, singleton rows, cost-0 singleton columns (D95), fixed columns, forcing and redundant rows, and the implied free column singleton (D105, D106) — every cap and window measured (`JM_PRESOLVE_ROUNDS = 16`, `PRESOLVE_ROUND_ULPS = 8`, `PRESOLVE_IMPLIED_FREE_ULPS = 8`, `docs/tolerances.md`). `EXTRA_CFLAGS=-DJAOS_NO_PRESOLVE` compiles it out and reproduces the pre-presolve baselines bit for bit (D96). Deferred, with the count that defers them and an executable reopen condition: duplicate rows and columns, dominated columns, worth 0.15% of rows and columns on these 139 models (D101). Refused: bound tightening, measured six ways (D97) — and D106 lands beside it rather than behind it, because an implied bound used as a predicate narrows nothing. The postsolve defect is closed in both halves, the row residual (D99) and the dual (D100); an infeasible model is no longer published OPTIMAL (D102); presolve reads the model's sense and the three windows that judge a residue are a count of roundings rather than a tunable (D103); and a removed column now owes its share to every row it touches, which two families had never paid (D106). All three sets pass with 94/94 and 16/16 checker ok and 29/29 correctly refused (the infeasible set carries no checker verdict and no digest). **What it is worth**, presolve on over off, geometric mean of per-instance ratios: work 0.810x standard, 0.651x Kennington, 0.084x infeasible (D103), and D106 took a further 0.9527x off the standard set on top of that — `maros-r7` alone goes from 21010708013 work units to 328053926. Open, and none of it blocks the gate: the published basis breaks `jaos.h`'s row-count promise, a collapsed fold leaves a bound no record owns, the same replay can still produce an empty intersection of an ulp on 11 of the 94, presolve makes `grow22` and `grow7` 11.16x and 8.56x more expensive, and D106's own family makes `greenbeb` 1.5126x — `TODO.md` owns these. Field value: 1.42x to HiGHS, 1.14x to SoPlex (D81) |
 | Primal simplex | **missing** | needed for crossover and for the warm starts the dual cannot serve. No longer needed for carried defect 4: the primal clean-up already owns a ratio test and a basis change, and reading the reduced cost's sign rather than the status is all a nonbasic free variable ever needed from it (D85). **Not a speed argument:** given free choice both rivals ran the dual on every instance, with iteration counts identical to being forced (D81) |
 | Crash basis | **missing** | [12]; measured once and refused: it destroys the exact starting steepest-edge weights the slack basis gives |
 | Partial and multiple pricing | **measured and refused** | [1]: both halves built and swept. The leaving-row sweep is the wrong thing to make cheaper — its units are the cheapest in the solver, and every scheme for scanning it less often pays in trajectory and in wrong answers (D82, D84) |
@@ -215,9 +215,10 @@ asks them is a problem handed back to the caller.
 | Warm re-solve against cold, one branching step per instance | **measured: 0.0052 of the iterations, 0.0164 of the work** on 92 of the standard 94; 0.0006 and 0.0041 on 11 of Kennington's 16 (D69, improved by D90). Both answers go through the independent checker, and 0 of either set is refused — the cold half of that was added by D92, which is what it caught. The standard-set work figure read 0.0162 before D93 redefined what the dense ratio test charges, and rose because a cold solve makes thousands of dense calls where a warm re-solve makes a handful, so the saving comes mostly off the denominator |
 | Full suite clean under ASan and UBSan | **pass** |
 | Reader robustness under fuzzing | **pass** |
-| Competitive gap at tier T0 vs **HiGHS 1.15.1** | **measured: 3.72x slower** (D52, D53, D60, re-taken with three competitors in D83) |
-| Competitive gap at tier T0 vs **SoPlex 8.0.3** | **measured: 1.34x slower**, faster on 10 of 22 |
-| Competitive gap at tier T0 vs **Clp 1.17.11** | **measured: 3.77x slower**, on 1.67x the iterations and 2.26x per iteration (D83) |
+| Competitive gap at rung **P0** vs **HiGHS 1.15.1** | **measured: 4.13x slower**, on 2.29x the cost of an iteration (D104) |
+| Competitive gap at rung **P0** vs **SoPlex 8.0.3** | **measured: 1.18x slower**, on 1.73x per iteration, faster on 10 of 21 (D104) |
+| Competitive gap at rung **P0** vs **Clp 1.17.11** | **measured: 3.50x slower**, on 2.39x per iteration (D104) |
+| All three, re-taken after D106 | **not run.** D106 made `maros-r7` — the worst instance in the comparison, 72.5x HiGHS — 64x cheaper in work units, so the three rows above are stale in JAOS's favour. `TODO.md` §5 |
 | Rungs T1–T3, which price presolve and algorithm choice | **measured: presolve is worth 1.42x to HiGHS and 1.14x to SoPlex; free algorithm choice is worth nothing, on identical iteration counts** (D81) |
 | MIPLIB 2017 easy subset | not started |
 | MIPLIB 2017 benchmark subset | not started |
@@ -225,22 +226,32 @@ asks them is a problem handed back to the caller.
 **Everything above these is correctness, and correctness is table stakes.**
 The gap now has numbers, and they decompose the same way against both rivals:
 
-| tier T0 | vs HiGHS | vs SoPlex | vs Clp |
+| rung P0 | vs HiGHS | vs SoPlex | vs Clp |
 |---|---|---|---|
-| time per solve | 3.72x | 1.34x | 3.77x |
-| iterations | 1.47x | **0.70x** | 1.67x |
-| **time per iteration** | **2.54x** | **1.92x** | **2.26x** |
-| JAOS faster on | 0 of 18 | 10 of 22 | 0 of 17 |
+| time per solve | 4.13x | **1.18x** | 3.50x |
+| **time per iteration** | **2.29x** | **1.73x** | **2.39x** |
+| JAOS faster on | | 10 of 21 | |
 
-JAOS takes **30% fewer iterations than SoPlex** and is still slower. The
-search is competitive; each iteration costs two to three times what it
-should. **And three separately written dual simplexes agree on that while
-disagreeing about everything else** — Clp takes 1.67x JAOS's iterations where
-SoPlex takes 0.70x — so the per-iteration cost is a property of JAOS and not
-an artefact of one rival (D83).
+P0 is each solver's own presolve on, the dual forced, no crash basis, one
+thread — the rung M2's gate is judged on since JAOS gained a presolve (D104).
+T0 keeps its definition and its record as a historical rung, at 3.72x, 1.34x
+and 3.77x; `bench/compare/README.md` owns both tables and this one cites it.
+**Neither has been re-taken since D106.**
+
+At T0, where the iteration counts were taken, JAOS takes **30% fewer
+iterations than SoPlex** and is still slower. The search is competitive; each
+iteration costs between 1.7x and 2.4x what it should. **And three separately
+written dual simplexes agree on that while disagreeing about everything
+else** — Clp takes 1.67x JAOS's iterations where SoPlex takes 0.70x — so the
+per-iteration cost is a property of JAOS and not an artefact of one rival
+(D83). That per-iteration figure is what M2 is aimed at and it has barely
+moved across five rungs.
 
 **It is two targets, and the set mean hides which is which (D63).** Per
-instance the tail splits in half:
+instance the tail splits in half — **read at T0, and `maros-r7`'s row is no
+longer what this says**: D106 took 64x off its work units, so the instance
+that owns the left-hand column of this table has moved and the table has not
+been re-taken.
 
 | | time | iterations | per iteration |
 |---|---|---|---|
