@@ -3,20 +3,22 @@
 A mathematical-programming solver written from scratch in C23. No external
 dependencies, Apache 2.0, Linux and GCC only.
 
-**Version 0.1.0-dev.** It reads an LP from disk, presolves it, solves it with
-a revised dual simplex, and proves the answer right. It does that correctly on
-all 139 Netlib reference instances.
+**Version 0.1.0-dev.** JAOS reads an LP from disk, presolves it, solves it
+with a revised dual simplex, and verifies the answer with an independent
+checker. It does this correctly on all 139 Netlib reference instances.
 
-Against the field, with each solver's own presolve on and the dual simplex
-forced on both sides, it is **4.13x slower than HiGHS, 1.18x slower than
-SoPlex and 3.50x slower than Clp** — on **2.29x, 1.73x and 2.39x** the cost of
-one iteration. The search is competitive and the iteration is what M2 is aimed
-at. `make compare` reproduces that.
+`make compare` measures JAOS against three other solvers, with every solver's
+own presolve on and the dual simplex forced on both sides. The last run put
+JAOS at **4.13x slower than HiGHS, 1.18x slower than SoPlex and 3.50x slower
+than Clp**. One JAOS iteration costs 2.29x, 1.73x and 2.39x one of theirs, so
+the cost per iteration explains most of the gap. The iteration counts are
+competitive. Milestone M2 targets the cost per iteration.
 
-Those three figures were taken before the implied free column singleton landed
-(D106), and that reduction made `maros-r7` — the worst instance in the whole
-comparison, at 72.5x HiGHS — 64x cheaper in work units. So they are stale in
-JAOS's favour and `make compare` has not been re-run. `TODO.md` carries it.
+Those three figures predate the implied free column singleton reduction
+(D106). That reduction made `maros-r7` 64x cheaper in work units, and
+`maros-r7` was the worst instance in the comparison, at 72.5x HiGHS. The
+figures are therefore stale in JAOS's favour. `make compare` has not been
+re-run since; `TODO.md` carries the re-run.
 
 ## What it does today
 
@@ -36,32 +38,35 @@ if (jaos_status_of(m) == JAOS_SOLVE_OPTIMAL) {
 jaos_model_free(m);
 ```
 
-Fixed and free MPS, a subset of the LP format, a presolve with six reduction
-families and a postsolve that recovers the caller's own values, statuses and
-duals, Curtis-Reid scaling, a sparse LU with Forrest-Tomlin updates, a dual
-simplex with steepest-edge pricing and a Harris ratio test, and an independent
-checker that verifies every answer against the original unscaled problem.
+- Reads fixed and free MPS, and a subset of the LP format.
+- Presolve with six reduction families. Postsolve returns values, statuses
+  and duals in terms of the caller's original problem.
+- Curtis-Reid scaling.
+- Sparse LU factorization with Forrest-Tomlin updates.
+- Dual simplex with steepest-edge pricing and a Harris ratio test.
+- An independent checker that verifies every answer against the original
+  unscaled problem.
 
-A loaded model can be changed — one bound, cost or coefficient at a time, or
-by adding and deleting whole rows and columns — and re-solving starts from the
-basis the previous solve reached rather than from scratch. A solve can be
-watched while it runs and stopped from the callback, and a stopped solve keeps
-its basis, so raising the limit and solving again continues instead of
-beginning.
+A loaded model can be modified: one bound, cost or coefficient at a time, or
+whole rows and columns added or deleted. A re-solve then starts from the
+basis of the previous solve instead of from scratch. A callback can watch a
+running solve and stop it. A stopped solve keeps its basis, so raising the
+limit and solving again continues from where it stopped.
 
-`SPECS.md` is the honest inventory: what exists, what does not, and what is
-only partly there.
+`SPECS.md` lists every feature with its status: what exists, what does not,
+and what is only partly there.
 
 ## What it does not do
 
-There is no way to write a file, or to call it from anything but C. No primal
-simplex, no barrier, no MILP. Forty-two public functions, and the seven that
-configure anything set the contract — two tolerances, two
-budgets, where the output goes and how much of it there is, and who gets asked
-whether to carry on — never the method. Which pricing rule runs, when to
-refactorize and whether a sparse or a dense path is cheaper are the solver's
-to decide, and every such constant in it is measured and fixed rather than
-exposed.
+JAOS cannot write files, and it can only be called from C. There is no
+primal simplex, no barrier and no MILP.
+
+The public API has forty-two functions. Seven of them configure something:
+two tolerances, two budgets, where the output goes, how much of it there is,
+and a callback that decides whether the solve continues. No function selects
+a method. The solver decides which pricing rule runs, when it refactorizes,
+and whether a sparse or a dense path is cheaper. Each such constant is
+measured, fixed in the source, and not exposed as an option.
 
 ## Build and test
 
@@ -75,64 +80,63 @@ make netlib     # the 94-instance acceptance gate (fetches instances first)
 make pgo        # rebuild the library from a profile of it solving real models
 ```
 
-Also `make netlib-kennington` and `make netlib-infeas` for the other two
-reference sets. Instances are fetched by `bench/fetch.sh` and pinned by
-sha256; they never enter this repository.
+`make netlib-kennington` and `make netlib-infeas` run the other two
+reference sets. `bench/fetch.sh` downloads the instances and checks them
+against pinned sha256 hashes. The instances never enter this repository.
 
-### There is one set of shipping flags, and it was measured
+### Compiler flags
 
-`make` builds `-O3 -flto -g -DNDEBUG`. There is no second "optimised" target,
-because there is nothing to put in it. Each candidate was run over the whole
-standard set with **every verdict, iteration count and solution digest
-unmoved** — none of them trades an answer for a second — and then timed,
+`make` builds with `-O3 -flto -g -DNDEBUG`. There is no second "optimised"
+target, because every flag that measured a gain is already in the default.
+Each candidate flag ran over the whole standard set. A flag was only kept if
+every verdict, iteration count and solution digest stayed the same. Timing:
 minimum of three runs, geometric mean of per-instance ratios (D62):
 
-| | vs the rung below | |
+| flag | vs the level below | verdict |
 |---|---|---|
-| `-O3` over `-O2` | 1.0055x | noise |
-| `-flto` | **1.0330x** | the only flag that does anything |
-| `-march=native` | 1.0072x | noise, **and not portable** |
+| `-O3` over `-O2` | 1.0055x | inside the noise |
+| `-flto` | **1.0330x** | the only flag with a measured effect |
+| `-march=native` | 1.0072x | inside the noise, and not portable |
 | **PGO** | **1.1122x** | `make pgo` |
 
-**`make pgo` is worth three times every flag put together.** It compiles the
-library instrumented, solves the standard set with it, and compiles again
-from what that recorded. Use it for anything you intend to ship or measure.
-It is not what `make` does, for two reasons: it takes minutes rather than a
-second, and it cannot run until the instances have been downloaded — a
-library that will not build without fetching 139 models from netlib is a
-library nobody can package. `make pgo PGO_LOAD="25fv47 maros-r7 pilot"` uses
-a subset when you want the turnaround.
+`make pgo` gains about three times as much as all the flags together. It
+compiles the library instrumented, solves the standard set with it, and
+compiles again from the recorded profile. Use it for anything you ship or
+measure. It is not the default for two reasons. It takes minutes instead of
+a second. It also needs the fetched instances, and a library that cannot
+build before downloading 139 models cannot be packaged. `make pgo
+PGO_LOAD="25fv47 maros-r7 pilot"` profiles on a subset when you want a
+faster turnaround.
 
-**`NATIVE=1` exists and you probably do not want it.** `make NATIVE=1` adds
-`-march=native -mtune=native`. Measured against plain LTO it is **1.0072x —
-inside the measurement noise**, so it buys nothing here, and the binary it
-produces **dies with an illegal instruction on any CPU older than the one
-that built it**. That makes `libjaos.a` undistributable, which is why it is
-not the default. If you are building for one known machine and want to try
-it, measure it there rather than assuming; on this one it did not pay.
+`make NATIVE=1` adds `-march=native -mtune=native`. Against plain LTO it
+measured 1.0072x, inside the noise, so it gains nothing here. The binary
+also fails with an illegal instruction on any CPU older than the build
+machine, and that makes `libjaos.a` undistributable. Both reasons keep it
+off by default. If you build for one known machine, measure it there before
+trusting it.
 
-**`LTO=0`** drops `-flto` for a toolchain whose binutils have no linker
-plugin. You lose the 3.3%.
+`make LTO=0` drops `-flto`, for a toolchain whose binutils have no linker
+plugin. This gives up the 3.3% gain.
 
-**`EXTRA_CFLAGS`** is empty in every shipping build and exists for one job:
+`EXTRA_CFLAGS` is empty in every shipping build. It exists for one job:
 sweeping a method constant over a range without editing the source between
-runs, which is the only kind of constant this project accepts. It is a
-development switch and not an option — which pricing rule runs is the method.
-Note that `make` cannot see a flag change, so a sweep must `make clean`
-between settings or it measures one binary several times.
+runs. It is a development switch and it never selects a method. `make`
+cannot see a flag change, so a sweep must run `make clean` between settings.
+Without that, the sweep measures one binary several times.
 
-The archive is built with `gcc-ar`, not `ar`, because an archive of LTO
-objects keeps its symbols where only the plugin can see them. A consumer
-compiling **without** `-flto` links it fine — and gets the benefit of it
-anyway, since the objects are still GIMPLE for the plugin to work on.
+The archive is built with `gcc-ar` instead of `ar`. An archive of LTO
+objects keeps its symbols where only the linker plugin can read them, and
+`gcc-ar` uses that plugin. A consumer who compiles without `-flto` still
+links the archive correctly, and still gets the LTO gain, because the
+objects stay in GIMPLE form.
 
-**`-g` stays in the shipping build.** It costs nothing at run time, it is
-what a profiler reads, and profiling the build that ships is how four of this
-milestone's entries were found. `-DNDEBUG` is what removes the assertions.
-Removing the deterministic work counter and the wall-clock check was measured
-too, at 0.987x and 1.004x — inside the noise in both directions — so both
-stay: they are the public `jaos_work_units`, `jaos_set_work_limit` and
-`jaos_set_time_limit`, and they are free.
+`-g` stays in the shipping build. It costs nothing at run time, and a
+profiler needs it. Profiling the shipping build found four of this
+milestone's changelog entries. `-DNDEBUG` is what removes the assertions.
+Removing the deterministic work counter and the wall-clock check was also
+measured: 0.987x and 1.004x, both inside the noise. Both stay, because they
+implement the public `jaos_work_units`, `jaos_set_work_limit` and
+`jaos_set_time_limit`.
 
 ## Layout
 
@@ -147,15 +151,16 @@ docs/            formats, tolerances, scaling, work units
 
 ## The documents, and which to read
 
-- **`SPECS.md`** — what JAOS is built to be, and where every feature stands.
+- **`SPECS.md`** — every feature and where it stands.
 - **`TODO.md`** — what is open, in the order it should happen.
 - **`CHANGELOG.md`** — what landed and what it cost.
-- **`DECISIONS.md`** — why. Every closed decision with the measurement that
+- **`DECISIONS.md`** — every closed decision, with the measurement that
   closed it.
 - **`bench/README.md`** — the acceptance gate.
-- **`bench/compare/README.md`** — how JAOS is compared against other solvers.
+- **`bench/compare/README.md`** — how JAOS is compared against other
+  solvers.
 
-The design is written down. Do not reconstruct it from the code.
+These documents record the design. Do not reconstruct it from the code.
 
 ## Licence
 
