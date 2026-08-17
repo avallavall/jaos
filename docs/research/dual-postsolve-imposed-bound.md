@@ -865,19 +865,41 @@ is a proven bound, computed with no fenv, no pragma, no ambient state, and the
 same bits everywhere. It is deterministic by construction rather than by
 inspection.
 
-Note what this is: the *same quantity* the current window supplies, moved from
-the comparison into the value. That is the whole change, and it is why it is
-small. What it buys is that every future comparison against a row activity
-inherits the guarantee instead of each site having to choose a scale — and
-choosing a scale per site is precisely what D114 and `02-09` both record going
-wrong.
+**And it is a tightening, not a loosening — which is the opposite of what this
+section first said.** `docs/tolerances.md:300` is explicit that the three
+activity-range readings are deliberately not in the tolerance table: "the only
+thing that can separate two numbers that should be equal is the rounding in the
+sum, so the window is a small multiple of `DBL_EPSILON` times the traffic
+through it." `ps_row_tol` is that window and it is **8** ulps — a small multiple
+chosen to cover the compensated accumulation *and* the comparison on top of it.
 
-**What has to be measured, and no reading replaces it.** A bound widened by
-`DBL_EPSILON × traffic` is weaker than the exact one, so some reductions that
-fire today will decline. The question is how many, and it is the same question
-`02-16` answered for the implied-free window by running a floor-less build over
-all 94 instances and finding a bit-identical no-op. The same instrument
-applies here and should be built the same way, prediction stated before the run.
+A proven outward-rounded bound needs no multiple at all. The comparison becomes
+exact, because the value already errs on the safe side. So the conservatism
+goes from *8 ulps of slack in the comparison* to *1 ulp of widening in the
+value*, and **more** reductions fire, not fewer. The gain is not the arithmetic;
+it is that the guarantee is proven where today it is a multiple somebody chose.
+
+**How much headroom that multiple actually has, measured.** `02-09` briefly
+routed `ps_row_tol` through the shared constant and put the three activity
+readings on the `EXTRA_CFLAGS` hook. Review caught it with a run:
+
+    make netlib EXTRA_CFLAGS=-DJAOS_PRESOLVE_ROUND_ULPS_VALUE=64
+
+reproduced `02-04`'s failure — `pilot` INFEASIBLE with column 3554 pinned.
+**So the margin at these exact sites is between 8 and 64 ulps of traffic**, and
+that is one factor of eight, not the eight decades the `PRESOLVE_ROUND_ULPS`
+sites enjoy. Those are different sites with a different measurement: 12 residues
+above zero out of 32240 probes, all on `netlib-infeas`, none below 3.69e8 ulps.
+**Do not carry that margin across.** The activity-range readings are the tight
+ones, and they are the ones this section proposes to change.
+
+**What has to be measured, and no reading replaces it.** Whether a proven bound
+changes which reductions fire, in either direction, over all four sets. `02-16`
+is the shape: a build with the change, run against every instance, digests
+included, prediction stated before the run. The prediction here is that it is a
+**no-op or a small gain**, because 1 ulp of widening in the value is inside the
+8 ulps of slack the comparison already allows. If it turns out to decline
+anything, that is the interesting result and not a setback.
 
 ## 14. Superseded questions
 

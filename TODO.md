@@ -116,9 +116,19 @@ the same quantity the window already supplies, moved from the comparison into
 the value, so every site inherits the guarantee instead of choosing a scale —
 and choosing a scale per site is what D114 and 02-09 both record going wrong.
 Half the step is already taken: `PRESOLVE_TIGHTEN_EPS` is gone and its three
-sites read `DBL_EPSILON × max(1, traffic)` (D103). What must be measured is how
-many reductions a widened bound declines, with `02-16`'s instrument and its
-discipline of stating the prediction first. Then the deliberate-slack design against §8d's refusal, measured here
+sites read `DBL_EPSILON × max(1, traffic)` (D103).
+
+**And it is a tightening, not a loosening.** `ps_row_tol` allows 8 ulps of
+slack in the *comparison*, a multiple chosen to cover the accumulation and the
+comparison together; a proven bound needs no multiple, so the conservatism drops
+to 1 ulp in the *value* and more reductions fire, not fewer. **The headroom
+there is one factor of eight, not eight decades**: `02-09`'s review run
+`EXTRA_CFLAGS=-DJAOS_PRESOLVE_ROUND_ULPS_VALUE=64` reproduced `02-04`'s failure,
+`pilot` INFEASIBLE with column 3554 pinned. Do not carry over the
+`PRESOLVE_ROUND_ULPS` margin (12 residues in 32240 probes, none below 3.69e8
+ulps) — those are different sites, and `docs/tolerances.md:300` says why the
+activity readings are deliberately not in that table. Measure with `02-16`'s
+instrument, prediction first; the prediction is a no-op or a small gain. Then the deliberate-slack design against §8d's refusal, measured here
 because both published directions came from solvers that could not see the
 basis. Alternatives if this is dropped: §4's fourth set, §5's Devex.
 
