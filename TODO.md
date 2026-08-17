@@ -29,25 +29,43 @@ over-tightening was never the implied bounds' values — a forcing window
 scaled by the activity's magnitude (941.58 on a row whose bounds are 0)
 certified 5.86 of real slack as binding and pinned the vertex `pilot`
 cannot have. The shipped forcing family already windows by the row
-bounds, which is why it is green. **Pick up at D97's second precondition:
-the dual postsolve for an imposed bound** — a column resting at a
-presolve-derived bound is interior to the caller's box, the checker wants
-`d_j = 0` there, and only the implying row's multiplier can pay it. Design
-first, on paper against src/check.c's rule; it is the last gate before a
-tightening retry, and three prizes (doubletons, Kennington's 29%,
-`stocfor3` whole) sit behind it. Alternatives: §4's fourth set, §5's
-Devex.
+bounds, which is why it is green.
 
-**Interrupted mid-step 2026-08-17:** a `literature-scout` run for the
-published dual-postsolve technique — Andersen & Andersen 1995 as the
-expected primary source, plus the numerical treatments (PaPILO, Gurobi's
-presolve paper, Galabova's HiGHS thesis) — died on a session limit while
-fetching the Galabova thesis and hunting an open Andersen & Andersen
-copy. Nothing of it is recorded. Re-launch the scout with that brief
-before designing; the exact-arithmetic soundness argument to check the
-sources against is in D114's entry (x_j at the imposed bound forces the
-implication's premises tight, so the transfer y_i += d_j/a_ij is legal
-exactly and approximate in floats).
+**D97's second precondition is designed, 2026-08-17:
+`docs/research/dual-postsolve-imposed-bound.md`.** Thirteen sections, the
+scout run folded in as §11. Nothing built, nothing measured, no source file
+touched, and no `DECISIONS.md` entry — a design is not a decision. What it
+establishes:
+
+- The transfer `y_i += d_j / a_ij` is legal in exact arithmetic in all four
+  sign cases, because `x_j` at the imposed bound forces the implication's
+  premises tight by feasibility alone.
+- The cascade is acyclic and strictly decreasing in derivation time, so the
+  arena's existing LIFO replay is the whole of the ordering it needs.
+- **The arithmetic and the ownership test already ship**, in
+  `JM_PS_SINGLETON_ROW` (`src/presolve.c:2035`, `1977-2021`). What is new is
+  only the implying row's *other* columns, which a singleton row does not
+  have. Smaller work than D97 implies.
+- The basis, not the reduced cost, is where the risk is. §8c proves the
+  postsolved point is still a vertex for one active imposed bound, with
+  exactly one local basic/nonbasic swap. §8d finds where that breaks: **an
+  equality row imposing bounds on two of its own columns**, which needs a
+  refusal at the firing site. D112 measured 94% of the widening family's
+  firings on equality rows, so the refusal is not free.
+- `sol_redcost` must be recomputed from the duals, not patched — the copy at
+  `src/presolve.c:2529` goes stale for every surviving column of the implying
+  row. The literature recomputes (Cederberg & Boyd 2026, §2.1).
+- **The rule is folklore.** No citable description found. PaPILO declines the
+  reduction for §8's reason; Tomlin & Welch 1983 name the problem; Andersen &
+  Andersen 1995 is paywalled and unread.
+- No constants to inherit. Both windows get measured here from zero.
+
+Next, in order: read Galabova 2023 (open access, would settle §8d — this
+machine has a shell, so the zlib route in
+`~/.claude` notes on reading PDFs is available where the scout's WebFetch
+failed); confirm the PaPILO sentence in arXiv:2112.08872's own words; then
+build the first version carrying §8d's refusal. Alternatives if this is
+dropped: §4's fourth set, §5's Devex.
 
 Three things this session left deliberately unmeasured, so nobody re-derives
 them by accident: `greenbeb`'s 1.5126x, `maros-r7`'s 15.7x per-iteration drop,
