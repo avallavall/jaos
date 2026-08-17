@@ -121,6 +121,7 @@ and you have the argument. Jump to the entry for the numbers behind it.
 - **[D111](#d111--the-postsolve-recovery-is-compensated-nine-digests-move-where-rounding-lived-and-1c-closes)** — The postsolve recovery is compensated, nine digests move where rounding lived, and §1c closes
 - **[D112](#d112--the-widening-rule-cannot-tell-grow15-from-grow22-and-2s-refusal-closes-on-its-own-counter)** — The widening rule cannot tell grow15 from grow22, and §2's refusal closes on its own counter
 - **[D113](#d113--stocfor3s-presolve-gap-is-the-aggregator-and-the-prize-lands-behind-d97-again)** — stocfor3's presolve gap is the aggregator, and the prize lands behind D97 again
+- **[D114](#d114--d97s-over-tightening-is-derived-a-window-scaled-by-the-activity-certified-586-of-slack-as-zero)** — D97's over-tightening is derived: a window scaled by the activity certified 5.86 of slack as zero
 
 ---
 
@@ -8569,3 +8570,47 @@ six designs of. §3 already weighed the doubleton population behind D97;
 this puts a third and larger prize there: the worst instance in the
 comparison, whole. D97's reopen condition is unchanged and what it
 unlocks keeps growing. Nothing else is left open here.
+
+## D114 — D97's over-tightening is derived: a window scaled by the activity certified 5.86 of slack as zero
+
+**The question, as D97 posed it.** Its first reopen precondition: a
+derivation of why the implied bounds over-tighten on `pilot`, `pilot87`,
+`agg` and `maros` specifically — not the epsilon and not the rounding,
+both already measured on both sides across nine settings.
+
+**The measurement, 2026-08-17, in `bench/measurements/02-21/`.** The
+minimal failing design lives at commit `7c7375c` and was excavated whole:
+built with the diagnostic flags, it reproduces D97's table (`pilot` and
+`pilot87` INFEASIBLE at zero iterations, `agg` and `maros`
+checker-rejected, the refusals landing on the exact rows and residues of
+D97's worked case). Throwaway prints then walked the chain backward from
+`pilot` row 1095's empty -1.15 to its source, every link with its number:
+
+1. Tightening materializes `[0, 6.687e10]` onto column 3556's original
+   `[0, inf)` — a valid implication that is now a finite magnitude.
+2. Row 1094 (`rl = ru = 0`) computes its range over the tightened boxes:
+   `min_act = -9.42e11`, `max_act = 5.8644`, and its single per-row window
+   becomes `rtol = 1e-9 × 9.42e11 = 941.58`.
+3. `force_lo` asks `5.8644 <= 0 + 941.58` and fires on a row with 5.86 of
+   genuine slack, pinning column 3554 at 1.15, its own upper bound.
+4. Row 1095, an equality needing that column at 0, goes empty holding
+   -1.15, and presolve correctly refuses the model those boxes describe.
+
+**The derivation.** The forcing verdict's window took its scale from the
+activity range's magnitude, where its claim is about the row bound's
+scale — the same judgement-constant failure 02-09 later found for the
+emptied-row test, compounded here by tightening feeding materialized
+magnitudes into the scale. No epsilon reaches it: on this row every
+setting down to ~6e-12 still windows past 5.86, and larger materialized
+bounds survive smaller settings, which is why D97's sweep moved nothing.
+The implied bounds' values were never the defect. The repair's form
+already ships: today's forcing family windows by
+`ps_bound_scale(cur_rl, cur_ru)`, ~1e-15 on that row, and is green.
+
+**What this closes and what it opens.** D97's first precondition is met;
+its refusal stands until the second — the dual postsolve for an imposed
+bound — exists, and any future tightening design must window pin verdicts
+by the row bound's scale, pin only within the arithmetic's own error
+(`eps × traffic`, the D103 form), and keep materialized bounds out of
+verdict scales. The requirements are in `bench/measurements/02-21/`'s
+README beside the exhibit.

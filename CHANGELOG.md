@@ -31,6 +31,16 @@ open, `bench/README.md` for the gate, and the commit each entry came from.
 
 ### Changed
 
+- D97's first reopen precondition is met (D114): the over-tightening that
+  refused six bound-tightening designs is derived, from an excavation of
+  the minimal failing design at `7c7375c`. A forcing window scaled by the
+  activity's magnitude (941.58 on a row whose bounds are 0, via a
+  tightening-materialized `6.687e10` upper bound) certified 5.86 of real
+  slack as binding and pinned the vertex `pilot` cannot have — no epsilon
+  reaches it, and the shipped forcing family already carries the correct
+  bound-scaled window. Chain, exhibit and retry requirements in
+  `bench/measurements/02-21/`. The dual postsolve precondition stays open.
+
 - `stocfor3`'s presolve gap is counted (D113): HiGHS rule ablation at the
   P0 options shows its **Aggregator** alone collapses the 8416-row
   reduction to 2859 and costs 2.31x iterations when off — 14788 against

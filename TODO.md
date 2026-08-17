@@ -24,19 +24,19 @@ written.
 **§2 closed too (D112), and `stocfor3` is counted (D113): the aggregator
 alone owns its iteration half, so D97's reopen now guards three prizes.**
 
-**Pick up at D97's derivation.** The excavation is located: commit
-`7c7375c` (feat(02-04)) carries the minimal failing design live — the
-bound reasoned with, never published — and `c268fdc` is the sweep that
-refused the family. The plan: a worktree at `7c7375c`, reproduce `pilot`'s
-INFEASIBLE, dump every tightening applied (row, column, implied value, the
-boxes it read), then validate each inference in exact rational arithmetic
-against the ORIGINAL model and name the first invalid one. D97 already
-excludes epsilon and rounding scale (nine settings, 1e-12 to 1e-4, moved
-nothing), so the first invalid inference is structural; the collapsed-fold
-midpoint debt (below) is one candidate seed. After the derivation, the
-dual postsolve for an imposed bound is D97's second precondition. The
-alternatives if depth stalls: §4's fourth instance set (unblocked), or
-§5's Devex.
+**D97's derivation is DONE (D114, `bench/measurements/02-21/`)**: the
+over-tightening was never the implied bounds' values — a forcing window
+scaled by the activity's magnitude (941.58 on a row whose bounds are 0)
+certified 5.86 of real slack as binding and pinned the vertex `pilot`
+cannot have. The shipped forcing family already windows by the row
+bounds, which is why it is green. **Pick up at D97's second precondition:
+the dual postsolve for an imposed bound** — a column resting at a
+presolve-derived bound is interior to the caller's box, the checker wants
+`d_j = 0` there, and only the implying row's multiplier can pay it. Design
+first, on paper against src/check.c's rule; it is the last gate before a
+tightening retry, and three prizes (doubletons, Kennington's 29%,
+`stocfor3` whole) sit behind it. Alternatives: §4's fourth set, §5's
+Devex.
 
 Three things this session left deliberately unmeasured, so nobody re-derives
 them by accident: `greenbeb`'s 1.5126x, `maros-r7`'s 15.7x per-iteration drop,
@@ -333,7 +333,7 @@ then, do not — a refusal whose premise has not changed just fails again.
 | decision | what was refused or deferred | reopens when |
 |---|---|---|
 | D101 | duplicate rows, duplicate columns, dominated columns — 0.15% left to remove on these 139 models | a model population where `bench/measurements/02-07/`'s counter reports a non-trivial share. The condition is executable, not a matter of opinion. Three pieces of the work have no published source and would have to be derived with their own tests |
-| D97 | bound tightening — INFEASIBLE on models with an optimum, six designs | the over-tightening on `pilot`/`pilot87`/`agg`/`maros` is derived, AND a dual postsolve for an imposed bound exists; then only under a campaign. **The condition is unchanged and the prize is not**: doubleton substitution needs the same machinery, and it is 8.55% of netlib's live rows and 29.36% of Kennington's, of which 19 rows in total can be built without it (§3). D97 weighed this feature alone; it now unlocks two |
+| D97 | bound tightening — INFEASIBLE on models with an optimum, six designs | **first precondition met 2026-08-17 (D114)**: the over-tightening is derived — a forcing window scaled by the activity certified 5.86 of slack as zero, and the design requirements for a retry are in `bench/measurements/02-21/`. What remains: a dual postsolve for an imposed bound; then only under a campaign. **The condition is unchanged and the prize is not**: doubleton substitution needs the same machinery, and it is 8.55% of netlib's live rows and 29.36% of Kennington's, of which 19 rows in total can be built without it (§3). D97 weighed this feature alone; it now unlocks two |
 | SPECS §3 | crash basis — destroys the exact slack-basis steepest-edge weights | pricing stops starting from exact steepest-edge weights; REQ-devex-pricing landing is the trigger |
 | D74 | removing the re-entry loan — 2.372x `pilot87` iterations for 0.980x `pilot` | the oscillation mechanism itself changes (phase 4's investigation) |
 | D63 | restarting weights to exact instead of 1.0 | the pricing rule changes; Devex would replace the question |
