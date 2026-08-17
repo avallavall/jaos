@@ -3031,6 +3031,83 @@ static void test_a_frozen_row_missed_at_scale_is_refused(void)
     jaos_model_free(m);
 }
 
+/* §1c (bench/measurements/02-18/): JM_PS_IMPLIED_FREE_COL recovers its
+ * column from sol_row's replayed accumulation, and a plain running sum's
+ * error grows with the row's degree while the family's margin promises
+ * 8 ulps of the traffic. This is 02-18's model: one equality row of 2000
+ * identical terms — identical, so the accumulation is order-independent and
+ * its error is one exact number — plus the singleton S, whose lower bound
+ * sits 2.5 margins below the implied bound. The uncompensated replay
+ * published S = -4.9471855163574219e-06, which is 4.06e-6 BELOW the bound
+ * the caller stated and 11.4x the margin's promise, predicted bit for bit
+ * before the run. With ps_row_add's compensation the recovery lands within
+ * rounding of the implied bound and inside the box. This test fails on the
+ * uncompensated tree by construction; that failure is its evidence. */
+static void test_the_recovered_column_respects_the_bound_it_was_promised(void)
+{
+#if defined(JAOS_PRESOLVE_FAULT_OFFBYONE)
+    TEST_IGNORE_MESSAGE("positive test — skipped under the fault-injection "
+                        "build");
+#elif defined(JAOS_NO_PRESOLVE)
+    TEST_IGNORE_MESSAGE("white-box presolve test — the reference build has "
+                        "no replay to exercise");
+#else
+    enum { IFN = 2000 };
+    const double V = 50000.667694415897;
+    const double b = 100001335.38883179;
+    const double L = -8.8819028033554831e-07;
+    const int64_t ncol = IFN + 1;
+
+    double  *c  = malloc((size_t)ncol * sizeof *c);
+    double  *cl = malloc((size_t)ncol * sizeof *cl);
+    double  *cu = malloc((size_t)ncol * sizeof *cu);
+    int64_t *st = malloc(((size_t)ncol + 1) * sizeof *st);
+    int64_t *ix = malloc((size_t)ncol * sizeof *ix);
+    double  *v  = malloc((size_t)ncol * sizeof *v);
+    double  *x  = malloc((size_t)ncol * sizeof *x);
+    TEST_ASSERT_NOT_NULL(c);  TEST_ASSERT_NOT_NULL(cl);
+    TEST_ASSERT_NOT_NULL(cu); TEST_ASSERT_NOT_NULL(st);
+    TEST_ASSERT_NOT_NULL(ix); TEST_ASSERT_NOT_NULL(v);
+    TEST_ASSERT_NOT_NULL(x);
+
+    /* S first: nonzero cost, so the cost-0 singleton family cannot take it
+     * before the implied free one sees it. */
+    c[0] = 1.0e-9; cl[0] = L; cu[0] = INFINITY;
+    st[0] = 0; ix[0] = 0; v[0] = 1.0;
+    for (int64_t k = 1; k < ncol; k++) {
+        c[k] = -1.0; cl[k] = 0.0; cu[k] = 1.0;
+        st[k] = k; ix[k] = 0; v[k] = V;
+    }
+    st[ncol] = ncol;
+    const double rl[] = {b}, ru[] = {b};
+
+    jaos_model *m = nullptr;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_model_new(&m));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_load_lp(m, ncol, 1, JAOS_MINIMIZE, 0.0, c, cl, cu, rl, ru,
+                     ncol, st, ix, v));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solution(m, x, nullptr, nullptr,
+                                                 nullptr));
+
+    /* The bound the caller stated. The uncompensated replay breaks this by
+     * 4.06e-6. */
+    TEST_ASSERT_TRUE_MESSAGE(x[0] >= L,
+        "recovered column published outside its own lower bound");
+    /* And the value is the implied bound to within rounding, not the
+     * accumulation's drift: b - 2000*V is exactly 0 in doubles, the exact
+     * implied bound is within an ulp of b of that, and the compensated
+     * recovery adds a few more. 1e-7 is ~4x that headroom and 50x under
+     * the uncompensated -4.9e-6. */
+    TEST_ASSERT_TRUE_MESSAGE(fabs(x[0] - (b - (double)IFN * V)) <= 1.0e-7,
+        "recovered column carries the accumulation's drift");
+
+    free(c); free(cl); free(cu); free(st); free(ix); free(v); free(x);
+    jaos_model_free(m);
+#endif
+}
+
 int main(void)
 {
     UNITY_BEGIN();
@@ -3068,6 +3145,7 @@ int main(void)
     RUN_TEST(test_an_implied_bound_outside_the_box_is_refused);
     RUN_TEST(test_an_implied_bound_at_exact_equality_is_declined);
     RUN_TEST(test_a_removed_column_pays_every_row_it_touches);
+    RUN_TEST(test_the_recovered_column_respects_the_bound_it_was_promised);
     RUN_TEST(test_implied_free_col_index_off_by_one);
 #if !defined(JAOS_NO_PRESOLVE)
     RUN_TEST(test_the_implied_free_counter_reads_its_three_models);

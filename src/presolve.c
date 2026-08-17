@@ -1768,19 +1768,39 @@ cleanup_scratch:
  * Accumulate, never assign: the two halves of a dead row's activity arrive
  * in either order (the seeding pass before the walk, and each removed
  * column as its own record replays). */
-static void ps_add_to_other_rows(jaos_model *orig, int64_t j,
+/* One Neumaier step into a row's replayed activity: sol_row[i] carries the
+ * running sum and rowc[i] the compensation, folded once by the walker after
+ * the replay finishes. Plain accumulation here was §1c's measured defect:
+ * over a row of n live terms the running sum's error reaches n*eps*traffic,
+ * the implied-free margin promises 8 ulps, and JM_PS_IMPLIED_FREE_COL
+ * recovers its column from this very slot — bench/measurements/02-18/
+ * publishes a bound breach of 11.4x the margin's promise from exactly that,
+ * predicted bit for bit. The step is ps_acc's, unrolled onto the published
+ * array so both walkers and every accumulation site share one carry.
+ * ps_published is not applied per step: it only canonicalises -0.0, an
+ * intermediate -0.0 adds identically to +0.0, and the walker's fold
+ * publishes through it once at the end. */
+static void ps_row_add(jaos_model *orig, double *rowc, int64_t i, double t)
+{
+    const double s = orig->sol_row[i];
+    const double n = s + t;
+    rowc[i] += (fabs(s) >= fabs(t)) ? ((s - n) + t) : ((t - n) + s);
+    orig->sol_row[i] = n;
+}
+
+static void ps_add_to_other_rows(jaos_model *orig, double *rowc, int64_t j,
                                  int64_t skip_row, double xv)
 {
     for (int64_t k = orig->a_start[j]; k < orig->a_start[j + 1]; k++) {
         const int64_t i = orig->a_index[k];
         if (i == skip_row)
             continue;
-        orig->sol_row[i] = ps_published(orig->sol_row[i] +
-                                        orig->a_value[k] * xv);
+        ps_row_add(orig, rowc, i, orig->a_value[k] * xv);
     }
 }
 
-static void ps_replay_one(jaos_model *orig, const jm_presolve *p, int64_t r)
+static void ps_replay_one(jaos_model *orig, const jm_presolve *p, int64_t r,
+                          double *rowc)
 {
     const jm_presolve_rec *rec = &p->arena[r];
 
@@ -1846,8 +1866,7 @@ static void ps_replay_one(jaos_model *orig, const jm_presolve *p, int64_t r)
 
         for (int64_t k = orig->a_start[j]; k < orig->a_start[j + 1]; k++) {
             const int64_t i = orig->a_index[k];
-            orig->sol_row[i] = ps_published(orig->sol_row[i] +
-                                            orig->a_value[k] * rec->value);
+            ps_row_add(orig, rowc, i, orig->a_value[k] * rec->value);
         }
         break;
     }
@@ -1866,6 +1885,7 @@ static void ps_replay_one(jaos_model *orig, const jm_presolve *p, int64_t r)
          * where the (always-zero, since nothing touches this row)
          * activity sits relative to its own bounds. */
         orig->sol_row[i] = 0.0;
+        rowc[i] = 0.0;
         orig->sol_dual[i] = 0.0;
         orig->sol_row_status[i] = JAOS_BASIS_BASIC;
         break;
@@ -2032,6 +2052,7 @@ static void ps_replay_one(jaos_model *orig, const jm_presolve *p, int64_t r)
 
         const double xv = orig->sol_col[j];
         orig->sol_row[i] = ps_published(rec->coef * xv);
+        rowc[i] = 0.0;   /* an assignment resets the carry with the sum */
         const double act = orig->sol_row[i];
         if (act == orig->row_lower[i])
             orig->sol_row_status[i] = JAOS_BASIS_AT_LOWER;
@@ -2084,7 +2105,7 @@ static void ps_replay_one(jaos_model *orig, const jm_presolve *p, int64_t r)
          * two pairs differ (a relaxation moves the ends by cmax and cmin,
          * which are not equal), so this is containment at each step, not
          * one shift undone. */
-        const double rest = orig->sol_row[i];
+        const double rest = orig->sol_row[i] + rowc[i];
         const double rl = rec->row_lo, ru = rec->row_hi;
         double lo_j, hi_j;
         if (rec->coef > 0.0) {
@@ -2117,7 +2138,8 @@ static void ps_replay_one(jaos_model *orig, const jm_presolve *p, int64_t r)
          * cost 0). */
         orig->sol_redcost[j] = ps_published(-rec->coef * orig->sol_dual[i]);
         orig->sol_row[i] = ps_published(rest + rec->coef * xv);
-        ps_add_to_other_rows(orig, j, i, xv);
+        rowc[i] = 0.0;   /* rest already folded the carry in */
+        ps_add_to_other_rows(orig, rowc, j, i, xv);
         break;
     }
 
@@ -2170,8 +2192,8 @@ static void ps_replay_one(jaos_model *orig, const jm_presolve *p, int64_t r)
          * degree was one, so they are all dead rows, and they were left
          * short by exactly this column's share -- see ps_add_to_other_rows
          * above for what started reading them. */
-        orig->sol_row[i] = ps_published(orig->sol_row[i] + rec->coef * xv);
-        ps_add_to_other_rows(orig, j, i, xv);
+        ps_row_add(orig, rowc, i, rec->coef * xv);
+        ps_add_to_other_rows(orig, rowc, j, i, xv);
         /* Row i's status is not derived from its activity here (that
          * activity is only x_j's own share so far, not the row's final
          * one — computing a bound-relative status from it would be
@@ -2214,7 +2236,8 @@ static void ps_replay_one(jaos_model *orig, const jm_presolve *p, int64_t r)
          * x_j = (b_i - that) / a_ij is the row's own equation. The share is
          * then accumulated rather than assigned, because the columns
          * removed earlier still have theirs to add. */
-        const double xv = (rec->value - orig->sol_row[i]) / rec->coef;
+        const double xv = (rec->value - (orig->sol_row[i] + rowc[i])) /
+                          rec->coef;
 
         /* x_j is strictly inside its own box (that is what the family
          * checked before firing), so its own bounds cannot bind and its
@@ -2232,7 +2255,7 @@ static void ps_replay_one(jaos_model *orig, const jm_presolve *p, int64_t r)
         orig->sol_col[j] = ps_published(xv);
         orig->sol_redcost[j] = 0.0;
         orig->sol_dual[i] = ps_published(yi);
-        orig->sol_row[i] = ps_published(orig->sol_row[i] + rec->coef * xv);
+        ps_row_add(orig, rowc, i, rec->coef * xv);
         /* The row-count promise, the same argument JM_PS_FREE_COL_SINGLETON
          * makes: this record restores one row and one column, so exactly
          * one of the two is basic. x_j is the one that is -- it sits
@@ -2501,6 +2524,12 @@ JAOS_NODISCARD jaos_status jm_postsolve_expand(jm_presolve *p)
      * solve a few lines above and is already the original problem's, since
      * a removed column's contribution was folded into that row's bounds
      * rather than left in its activity. */
+    /* The carry half of every row's replayed activity (see ps_row_add).
+     * Folded into sol_row once, below, after the walk. */
+    double *rowc = calloc((size_t)orig->num_row + 1, sizeof *rowc);
+    if (rowc == nullptr)
+        return JAOS_ERR_OUT_OF_MEMORY;
+
     for (int64_t j = 0; j < orig->num_col; j++) {
         if (p->col_map[j] < 0)
             continue;
@@ -2508,13 +2537,17 @@ JAOS_NODISCARD jaos_status jm_postsolve_expand(jm_presolve *p)
         for (int64_t k = orig->a_start[j]; k < orig->a_start[j + 1]; k++) {
             const int64_t i = orig->a_index[k];
             if (p->row_map[i] < 0)
-                orig->sol_row[i] += orig->a_value[k] * xv;
+                ps_row_add(orig, rowc, i, orig->a_value[k] * xv);
         }
     }
 
     /* Strictly LIFO (D-07). */
     for (int64_t r = p->arena_len - 1; r >= 0; r--)
-        ps_replay_one(orig, p, r);
+        ps_replay_one(orig, p, r, rowc);
+
+    for (int64_t i = 0; i < orig->num_row; i++)
+        orig->sol_row[i] = ps_published(orig->sol_row[i] + rowc[i]);
+    free(rowc);
 
     (void)jm_model_remember_basis(orig);
     return JAOS_OK;
@@ -2591,8 +2624,17 @@ JAOS_NODISCARD jaos_status jm_postsolve_solved(jm_presolve *p)
     static_assert(JAOS_BASIS_BASIC == 0,
                   "the two memsets above publish BASIC by writing zero");
 
+    /* The carry half of every row's replayed activity (see ps_row_add). */
+    double *rowc = calloc((size_t)orig->num_row + 1, sizeof *rowc);
+    if (rowc == nullptr)
+        return JAOS_ERR_OUT_OF_MEMORY;
+
     for (int64_t r = p->arena_len - 1; r >= 0; r--)
-        ps_replay_one(orig, p, r);
+        ps_replay_one(orig, p, r, rowc);
+
+    for (int64_t i = 0; i < orig->num_row; i++)
+        orig->sol_row[i] = ps_published(orig->sol_row[i] + rowc[i]);
+    free(rowc);
 
     (void)jm_model_remember_basis(orig);
     return JAOS_OK;
