@@ -1,0 +1,9 @@
+DIAG nug08-3rd.mps cand=0 eqrow=0 rowskilled=0
+DIAG nug08-3rd.mps frozen=0 of 19728 rows
+PRESOLVE nug08-3rd.mps rows=19728 cols=20448 status=0 outcome=0 rounds=0 fixed=0 emptyrow=0 emptycol=0 singrow=0 singcol=0 freesing=0 forcing=0 redundant=0 impfree=0
+DIAG nug20.mps cand=0 eqrow=0 rowskilled=0
+DIAG nug20.mps frozen=0 of 15240 rows
+PRESOLVE nug20.mps rows=15240 cols=72600 status=0 outcome=0 rounds=0 fixed=0 emptyrow=0 emptycol=0 singrow=0 singcol=0 freesing=0 forcing=0 redundant=0 impfree=0
+DIAG nug30.mps cand=0 eqrow=0 rowskilled=0
+DIAG nug30.mps frozen=0 of 52260 rows
+PRESOLVE nug30.mps rows=52260 cols=379350 status=0 outcome=0 rounds=0 fixed=0 emptyrow=0 emptycol=0 singrow=0 singcol=0 freesing=0 forcing=0 redundant=0 impfree=0

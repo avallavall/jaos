@@ -7,44 +7,51 @@ line leaves this file in the same commit.
 
 ## Where the last session stopped — 2026-08-18
 
-## → START HERE: §4a, why D106 fires on none of `fome`'s candidates
+## → START HERE: §4b, should D106 be preferred over D95 on a column both take
 
-This is the one open thread with a number on it and no explanation, and it is
-the first thing to pick up. Everything else below is context.
+§4a is answered and closed (D117, `bench/measurements/02-26/`). The reason D106
+fires on none of `fome`'s candidates is the order of two families:
+**`JM_PS_SINGLETON_COL` — D95's cost-0 bounded singleton column — takes 100% of
+them in round 0**, from a branch in the same column pass sitting above D106's.
+The frozen row, which this file named as the leading suspect, declines exactly
+**2** candidates over the whole standard set.
 
-| | candidates | rows presolve removes |
+What that leaves open is a question nobody had asked, and it has a measured
+size on both populations:
+
+| | candidates D95 takes | of those, D106 would have fired on |
 |---|---|---|
-| `fome11` | **166** | **0** |
-| `fome12` | **332** | **0** |
-| `fome13` | **664** | **0** |
+| `fome11` / `fome12` / `fome13` | 166 / 332 / 664 | **18 / 36 / 72** |
+| netlib, 9 instances | 524 | **55** |
 
-166, 332, 664 — exactly proportional to the family's doubling, which is why it
-is a question and not an accident. They carry D106's shape by 02-13's own
-predicate. D106 removes a column *and* its row; no row goes on any of the three.
+The 55 are `ganges` 12, `czprob` 11, `dfl001` 9, `pilotnov` 7, `pilot-ja` 7,
+`perold` 6, `seba` 1, `scrs8` 1, `d2q06c` 1 — 5.3% of what D106 removes today.
 
-**Ruled out by measurement, with a canary that moves:** the margin.
-`bench/measurements/02-25/margin-zero.sh`. At `PRESOLVE_IMPLIED_FREE_ULPS = 0`
-`maros-r7` goes 980 → 984 rows removed — exactly the pair `docs/tolerances.md`
-records — and the two `presolve.o` differ by md5, while `fome11` comes out
-identical on both builds down to its 46026 iterations and 8113327824 work units.
+**Why D106 looks like the better of the two here.** On a cost-0 column D106's
+cost transfer `c_k -= (c_j / a_ij) * a_ik` is zero. So D106 removes the same
+column, removes its row as well, and leaves no cost behind, where D95 keeps the
+row and freezes it. D95 freezes **8309 netlib rows over 60 instances**, against
+the 8639 every family together removes, and **12.09% of `fome11`, `fome12` and
+`fome13` alike**, all three of which have no row removed by anybody.
+
+**Why that is not enough to change it.** Being the larger reduction says
+nothing about the cost. D108 and D112 both measured this family's price landing
+on the trajectory rather than at the reduction site, and neither found a rule
+that predicts the direction. The 18 / 36 / 72 and the 55 are lower bounds on
+what moves, not predictions: D106 firing removes a row, and every later round
+then sees a different model.
 
 **What to do next, in order.**
 
-1. Load `jaos-debug` before instrumenting anything.
-2. Build a throwaway diagnostic that prints, per candidate on `fome11`, which
-   of D106's four conditions declined it. The two the counter never asks are
-   the live degree `col_deg[j] == 1` and the row not being frozen.
-3. **Frozen rows are the leading suspect** — `fome11` loses 1468 columns to
-   other families before D106 runs, and a frozen row has no `b_i` to substitute
-   with. 02-13's README already named this interaction as part of netlib's
-   3315 → 1041 gap; this is the same gap at 100%.
-4. Whatever it is, write it up. `TODO.md` §4a is the item and
-   `bench/measurements/02-25/` is where the readings so far live.
-
-**Nothing here says D106 is wrong.** A family declining what it is restricted
-from taking is the family working. What is new is that a population which
-scales makes the size of the decline visible, and 100% of a family's candidates
-is worth a reason.
+1. Load `sparse-simplex-perf` before designing it and `jaos-measure` before
+   believing any campaign.
+2. The change is small — a condition on D95's branch that declines a column
+   D106 would take. Getting the two predicates to agree at the site is the
+   work; D106's own margin has to be evaluated before D95 acts.
+3. `numerics-reviewer` on the diff before any campaign. This is solver
+   internals.
+4. All three sets, then `jaos-measurer`. `fome` is not in the gate, so netlib
+   and Kennington are what decide it.
 
 Everything below this line is finished work and background.
 
@@ -496,42 +503,33 @@ both exit 0.
 `bench/measurements/02-23/`, and `ladder.py` there derives them from the
 manifests and the baselines rather than restating them.
 
-### 4a. The first thing it found, and it is open
+### 4a. The first thing it found — closed 2026-08-18 by D117: another family takes them first
 
-**D106 fires on none of `fome`'s candidates, and it is not the margin**
-(`bench/measurements/02-25/`).
+`bench/measurements/02-25/` asked why D106 fires on none of `fome`'s 166 / 332
+/ 664 candidates and ruled out the margin with a canary that moves.
+`bench/measurements/02-26/` answered it with a decline reader compiled into a
+copy of `src/presolve.c`: **`JM_PS_SINGLETON_COL` takes 100% of them in round
+0**, from a branch above D106's in the same column pass. The frozen row, this
+file's leading suspect, declines 2 candidates over the whole standard set.
 
-| | candidates | rows presolve removes |
-|---|---|---|
-| `fome11` | **166** | **0** |
-| `fome12` | **332** | **0** |
-| `fome13` | **664** | **0** |
+Three calibrations passed before any new number was read — `maros-r7` at 984
+candidates and 980 firings, netlib at 3321 and 02-12's 8639 rows removed, and
+zero candidates left disagreeing with the code. The 1353 the margin declines
+reproduces D109's own figure, which nobody asked it to.
 
-166, 332, 664 — exactly proportional to the doubling, which is what makes it a
-question rather than an accident. They are equality implied-free column
-singleton candidates by 02-13's predicate, which is D106's shape. Columns are
-removed from all three by other families; no row goes, and D106 removes a
-column *and* its row.
+That closes §4a and opens §4b, which is the header of this file.
 
-`PRESOLVE_IMPLIED_FREE_ULPS` is ruled out by measurement, with a canary that
-moves: at margin 0 `maros-r7` goes 980 → 984 rows removed, exactly the pair
-`docs/tolerances.md` records, and the two `presolve.o` differ by md5 — while
-`fome11` is identical on both builds down to its 46026 iterations and
-8113327824 work units.
+### 4b. Should D106 be preferred over D95 on a column both can take — OPEN
 
-What is left, named rather than guessed: D106 also requires the **live** degree
-`col_deg[j] == 1` and the row **not frozen**, neither of which 02-13's counter
-asks. Frozen rows lead, because `fome11` has 1468 columns removed by other
-families before D106 runs. Settling it needs a diagnostic build that prints why
-each candidate declines — `jaos-debug`'s procedure, not done yet.
-
-**Nothing here says D106 is wrong.** A family declining what it is restricted
-from taking is the family working. What is new is that a scaling population
-makes the size of the decline visible, and 100% of a family's candidates is
-worth a reason.
+Opened by D117. The numbers, the argument on each side and what to do next are
+in the header of this file; `bench/measurements/02-26/` owns every figure.
+Nothing built, nothing measured beyond the count.
 
 **Also open:** how often `plato` should run — `pds` alone is 6.4 hours of wall
 clock — and `nug20`/`nug30`, which are unmeasured rather than unsolvable.
+`nug` also turns out to have **no row removed by any family** on all three
+instances (`bench/measurements/02-26/counts/nug.txt`), which is its own
+question and is not asked anywhere yet.
 
 ## 5. After presolve — the rest of M2, in order
 

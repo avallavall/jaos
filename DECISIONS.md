@@ -124,6 +124,7 @@ and you have the argument. Jump to the entry for the numbers behind it.
 - **[D114](#d114--d97s-over-tightening-is-derived-a-window-scaled-by-the-activity-certified-586-of-slack-as-zero)** — D97's over-tightening is derived: a window scaled by the activity certified 5.86 of slack as zero
 - **[D115](#d115--the-fourth-set-exists-and-small-models-understate-the-iteration-exponent-by-16x-while-the-work-unit-holds-to-6)** — The fourth set exists, and small models understate the iteration exponent by 1.6x while the work unit holds to 6%
 - **[D116](#d116--directed-rounding-on-the-activity-readings-is-refused-because-the-forcing-test-detects-an-equality)** — Directed rounding on the activity readings is refused, because the forcing test detects an equality
+- **[D117](#d117--d106-fires-on-none-of-fomes-candidates-because-d95-takes-every-one-of-them-first-and-freezes-121-of-the-rows)** — D106 fires on none of fome's candidates because D95 takes every one of them first, and freezes 12.1% of the rows
 
 ---
 
@@ -8746,3 +8747,92 @@ where a wrongly-dropped redundant row produces a wrong answer, a wrong verdict
 or a checker rejection; or a rule that separates the 32 rows from the 69 that
 still fire, which is D108's condition in a new place and D108 refused that rule
 once already.
+
+---
+
+## D117 — D106 fires on none of fome's candidates because D95 takes every one of them first, and freezes 12.1% of the rows
+
+**The question.** D115 built the fourth set and the first thing it found was
+open. 02-13's counter reads **166, 332 and 664** implied-free column singleton
+candidates on `fome11`, `fome12` and `fome13` — exactly proportional to the
+family's doubling — and D106 fires on **none** of them, while every one of the
+three has rows removed by nobody. 02-25 ruled out `PRESOLVE_IMPLIED_FREE_ULPS`
+with a canary that moves: at margin 0 `maros-r7` goes 980 → 984 rows and the
+two `presolve.o` differ by md5, while `fome11` is identical on both builds down
+to its 46026 iterations. `TODO.md` §4a named the frozen row as the leading
+suspect and asked for a diagnostic build that says which condition declined
+each candidate.
+
+**The measurement, `bench/measurements/02-26/`.** A decline reader is compiled
+into a copy of `src/presolve.c` under `-DJAOS_DIAG`; the repository tree is
+read and never written. It records two things per candidate: what actually
+became of the column, and what D106's own four conditions say about it, read at
+the top of the column pass before any family in that round can act.
+
+**The answer is the order of two families, not any of D106's conditions.**
+`JM_PS_SINGLETON_COL` — D95's cost-0 bounded singleton column — takes **100%**
+of `fome`'s candidates in round 0. Its branch sits in the same column pass as
+D106 and above it. D106 never sees them.
+
+| | candidates | taken by D95 | of those, D106 would have fired on |
+|---|---|---|---|
+| `fome11` | 166 | 166 | **18** |
+| `fome12` | 332 | 332 | **36** |
+| `fome13` | 664 | 664 | **72** |
+
+The rest are declined by the margin anyway: their implied bound sits exactly on
+the column's own bound, which is the bimodal shape 02-12 recorded when it made
+the margin a switch rather than a dial.
+
+**The frozen row is refuted, not merely unproven.** Over the whole 94-instance
+standard set exactly **2** candidates are declined for that reason. On `fome`
+none are.
+
+**And it explains 02-25's canary.** D95 takes all 166 at any margin, so no
+setting of `PRESOLVE_IMPLIED_FREE_ULPS` can change what D106 does with them.
+`maros-r7` moves and `fome11` cannot.
+
+**What D95 freezes is the larger number.** A frozen row is closed to every
+row-removing family for the rest of the run.
+
+| | rows | frozen by D95 | rows presolve removes |
+|---|---|---|---|
+| `fome11` | 12142 | 1468 (12.09%) | 0 |
+| `fome12` | 24284 | 2936 (12.09%) | 0 |
+| `fome13` | 48568 | 5872 (12.09%) | 0 |
+| `fome21` | 67748 | 0 | 3174 |
+
+The same share at all three sizes. `fome21` carries no such column, freezes
+nothing, and is the one instance of the four where rows go. On netlib the same
+family freezes **8309 rows over 60 of the 94 instances**, against the 8639 rows
+every family together removes; `fit2p` freezes all 3000 of its own. `pds` and
+`nug` carry no candidates and freeze nothing.
+
+**It is not a `fome` peculiarity.** Over netlib, 524 of the 3321 candidates go
+to D95, and **55 of those are ones D106 would have fired on** — `ganges` 12,
+`czprob` 11, `dfl001` 9, `pilotnov` 7, `pilot-ja` 7, `perold` 6, `seba` 1,
+`scrs8` 1, `d2q06c` 1. That is 5.3% of what D106 removes today.
+
+**Three calibrations, and the reader is checked against the code.** `maros-r7`
+reproduces 984 candidates and 980 firings; netlib reproduces 3321 candidates
+and 02-12's 8639 rows removed; and zero netlib candidates end on `WOULDFIRE`,
+which is what a disagreement between the reader and D106 would leave behind.
+02-12's other figure, the 1041 this family "adds", is a delta against the 7598
+the set read before D106 and is not this counter. D106's own firing count is
+**1044**, so three rows other families used to remove are no longer removed
+once D106 takes theirs first — the same ordering effect, from the other side.
+
+**Nothing here says D106 is wrong, and nothing here changes the order.** Both
+families are exact. On a cost-0 column D106's cost transfer is zero, so D106
+would remove the same column, remove its row as well, and leave no cost behind.
+That makes it the larger reduction on the columns both can take, and says
+nothing about its cost: D108 and D112 both measured this family's price landing
+on the trajectory rather than at the reduction site, and neither found a rule
+that predicts the direction. The 18 / 36 / 72 and the 55 are lower bounds on
+what a reordering moves, not predictions — D106 firing removes a row, and every
+later round sees a different model.
+
+**Left open, in `TODO.md` §4b.** Whether D106 should be preferred over D95 on a
+column both can take, measured under the loop: `numerics-reviewer` on the diff,
+all three sets, and a verdict from `jaos-measurer`. `fome` is not in the gate,
+so the netlib 55 and the Kennington side are what would decide it.

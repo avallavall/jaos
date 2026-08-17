@@ -1,0 +1,30 @@
+DIAG fome11.mps cand=166 eqrow=166 rowskilled=0
+DIAG fome11.mps fate SINGCOL   166
+DIAG fome11.mps frozen=1468 of 12142 rows
+DIAG fome11.mps cross fate=SINGCOL   would=MARGIN    148
+DIAG fome11.mps cross fate=SINGCOL   would=WOULDFIRE 18
+DIAGEX fome11.mps SINGCOL   would=MARGIN    j=132 row=806 round=0 cost=0 cl=0 cu=inf fated=1 0 0 inf wouldd=0 0 inf inf
+DIAGEX fome11.mps SINGCOL   would=MARGIN    j=215 row=5371 round=0 cost=0 cl=0 cu=inf fated=1 0 0 inf wouldd=0 0 inf inf
+DIAGEX fome11.mps SINGCOL   would=MARGIN    j=223 row=3592 round=0 cost=0 cl=0 cu=inf fated=1 0 0 inf wouldd=0 0 inf inf
+PRESOLVE fome11.mps rows=12142 cols=24460 status=0 outcome=1 rounds=1 fixed=0 emptyrow=0 emptycol=0 singrow=0 singcol=1468 freesing=0 forcing=0 redundant=0 impfree=0
+DIAG fome12.mps cand=332 eqrow=332 rowskilled=0
+DIAG fome12.mps fate SINGCOL   332
+DIAG fome12.mps frozen=2936 of 24284 rows
+DIAG fome12.mps cross fate=SINGCOL   would=MARGIN    296
+DIAG fome12.mps cross fate=SINGCOL   would=WOULDFIRE 36
+DIAGEX fome12.mps SINGCOL   would=MARGIN    j=132 row=806 round=0 cost=0 cl=0 cu=inf fated=1 0 0 inf wouldd=0 0 inf inf
+DIAGEX fome12.mps SINGCOL   would=MARGIN    j=215 row=5371 round=0 cost=0 cl=0 cu=inf fated=1 0 0 inf wouldd=0 0 inf inf
+DIAGEX fome12.mps SINGCOL   would=MARGIN    j=223 row=3592 round=0 cost=0 cl=0 cu=inf fated=1 0 0 inf wouldd=0 0 inf inf
+PRESOLVE fome12.mps rows=24284 cols=48920 status=0 outcome=1 rounds=1 fixed=0 emptyrow=0 emptycol=0 singrow=0 singcol=2936 freesing=0 forcing=0 redundant=0 impfree=0
+DIAG fome13.mps cand=664 eqrow=664 rowskilled=0
+DIAG fome13.mps fate SINGCOL   664
+DIAG fome13.mps frozen=5872 of 48568 rows
+DIAG fome13.mps cross fate=SINGCOL   would=MARGIN    592
+DIAG fome13.mps cross fate=SINGCOL   would=WOULDFIRE 72
+DIAGEX fome13.mps SINGCOL   would=MARGIN    j=132 row=806 round=0 cost=0 cl=0 cu=inf fated=1 0 0 inf wouldd=0 0 inf inf
+DIAGEX fome13.mps SINGCOL   would=MARGIN    j=215 row=5371 round=0 cost=0 cl=0 cu=inf fated=1 0 0 inf wouldd=0 0 inf inf
+DIAGEX fome13.mps SINGCOL   would=MARGIN    j=223 row=3592 round=0 cost=0 cl=0 cu=inf fated=1 0 0 inf wouldd=0 0 inf inf
+PRESOLVE fome13.mps rows=48568 cols=97840 status=0 outcome=1 rounds=1 fixed=0 emptyrow=0 emptycol=0 singrow=0 singcol=5872 freesing=0 forcing=0 redundant=0 impfree=0
+DIAG fome21.mps cand=0 eqrow=0 rowskilled=3174
+DIAG fome21.mps frozen=0 of 67748 rows
+PRESOLVE fome21.mps rows=67748 cols=211456 status=0 outcome=1 rounds=3 fixed=1558 emptyrow=648 emptycol=0 singrow=1558 singcol=0 freesing=0 forcing=968 redundant=0 impfree=0

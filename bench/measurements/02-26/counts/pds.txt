@@ -1,0 +1,24 @@
+DIAG pds-100.mps cand=0 eqrow=0 rowskilled=3943
+DIAG pds-100.mps frozen=0 of 156243 rows
+PRESOLVE pds-100.mps rows=156243 cols=505360 status=0 outcome=1 rounds=3 fixed=1371 emptyrow=823 emptycol=0 singrow=1371 singcol=0 freesing=0 forcing=1749 redundant=0 impfree=0
+DIAG pds-30.mps cand=0 eqrow=0 rowskilled=1976
+DIAG pds-30.mps frozen=0 of 49944 rows
+PRESOLVE pds-30.mps rows=49944 cols=154998 status=0 outcome=1 rounds=3 fixed=875 emptyrow=474 emptycol=0 singrow=875 singcol=0 freesing=0 forcing=627 redundant=0 impfree=0
+DIAG pds-40.mps cand=0 eqrow=0 rowskilled=2568
+DIAG pds-40.mps frozen=0 of 66844 rows
+PRESOLVE pds-40.mps rows=66844 cols=212859 status=0 outcome=1 rounds=3 fixed=1158 emptyrow=629 emptycol=0 singrow=1158 singcol=0 freesing=0 forcing=781 redundant=0 impfree=0
+DIAG pds-50.mps cand=0 eqrow=0 rowskilled=2721
+DIAG pds-50.mps frozen=0 of 83060 rows
+PRESOLVE pds-50.mps rows=83060 cols=270095 status=0 outcome=1 rounds=3 fixed=1245 emptyrow=673 emptycol=0 singrow=1245 singcol=0 freesing=0 forcing=803 redundant=0 impfree=0
+DIAG pds-60.mps cand=0 eqrow=0 rowskilled=2917
+DIAG pds-60.mps frozen=0 of 99431 rows
+PRESOLVE pds-60.mps rows=99431 cols=329643 status=0 outcome=1 rounds=3 fixed=1331 emptyrow=717 emptycol=0 singrow=1331 singcol=0 freesing=0 forcing=869 redundant=0 impfree=0
+DIAG pds-70.mps cand=0 eqrow=0 rowskilled=3048
+DIAG pds-70.mps frozen=0 of 114944 rows
+PRESOLVE pds-70.mps rows=114944 cols=382311 status=0 outcome=1 rounds=3 fixed=1353 emptyrow=749 emptycol=0 singrow=1353 singcol=0 freesing=0 forcing=946 redundant=0 impfree=0
+DIAG pds-80.mps cand=0 eqrow=0 rowskilled=3061
+DIAG pds-80.mps frozen=0 of 129181 rows
+PRESOLVE pds-80.mps rows=129181 cols=426278 status=0 outcome=1 rounds=3 fixed=1364 emptyrow=751 emptycol=0 singrow=1364 singcol=0 freesing=0 forcing=946 redundant=0 impfree=0
+DIAG pds-90.mps cand=0 eqrow=0 rowskilled=3071
+DIAG pds-90.mps frozen=0 of 142823 rows
+PRESOLVE pds-90.mps rows=142823 cols=466671 status=0 outcome=1 rounds=3 fixed=1364 emptyrow=751 emptycol=0 singrow=1364 singcol=0 freesing=0 forcing=956 redundant=0 impfree=0
