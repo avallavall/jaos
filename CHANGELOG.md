@@ -31,6 +31,15 @@ open, `bench/README.md` for the gate, and the commit each entry came from.
 
 ### Changed
 
+- `stocfor3`'s presolve gap is counted (D113): HiGHS rule ablation at the
+  P0 options shows its **Aggregator** alone collapses the 8416-row
+  reduction to 2859 and costs 2.31x iterations when off — 14788 against
+  JAOS's 18431, near parity — while eleven of twelve other rules change
+  nothing. The iteration half of the 30.0x is equality substitution, whose
+  bound-transfer machinery sits behind D97; §3 now lists it as the third
+  prize there. The `maros-r7` calibration found the instrument's limit:
+  HiGHS's base rules cannot be suppressed. `bench/measurements/02-20/`.
+
 - §2 closed: the unbounded-relative-widening refusal for the cost-0
   singleton column is refused on its own counter (D112). 8617 firings over
   60 standard instances, 94% on equality rows, 98.6% past the row's scale —

@@ -189,6 +189,13 @@ already says what would settle it — derive the over-tightening on
 `pilot`/`pilot87`/`agg`/`maros`, and have a dual postsolve for an imposed
 bound. That work now buys two families instead of one.
 
+**And a third, larger still (D113, 2026-08-17):** `stocfor3`'s rule
+ablation says HiGHS's aggregator — equality substitution at any degree,
+which needs the same bound transfer — alone owns the iteration half of the
+worst instance in the comparison (6404 vs 14788 iterations with it off,
+against JAOS's 18431). D97's condition is unchanged; its prize now
+includes `stocfor3` whole.
+
 The remaining cost question is unchanged and still unmeasured: a substitution
 adds the eliminated column's terms into the survivor's rows, so it creates
 fill. `subnz` says a non-interacting pass would remove 2.65% of netlib's
@@ -264,16 +271,15 @@ baseline, and a baseline added mid-change cannot be read.
   three independently written dual simplexes put JAOS's iteration between
   1.5x and 2.0x theirs.
 
-- **HiGHS presolves `stocfor3` and JAOS barely touches it, and it is now the
-  worst instance in the comparison.** Opened by the P0 rung, re-read at the
-  2026-08-17 re-take. Each solver's own presolve is worth about the same
-  overall — JAOS 0.739x, HiGHS 0.692x, Clp 0.670x, SoPlex 0.906x, at the
-  2026-08-14 reading — but on `stocfor3` HiGHS reads 0.198x against JAOS's
-  0.965x, and the instance stands at 30.0x HiGHS and 26.4x Clp. The
-  `maros-r7` half of this item closed with D106: JAOS now removes 980 rows
-  there and the instance reads 1.33x HiGHS. What HiGHS removes on `stocfor3`
-  and which families do it is uncounted; `bench/measurements/02-10/` did that
-  count for `maros-r7` and is the pattern to repeat.
+- **`stocfor3`'s presolve gap is counted, and it is the aggregator (D113,
+  `bench/measurements/02-20/`).** Rule ablation on HiGHS at the P0 options:
+  turning off its Aggregator collapses the 8416-row reduction to 2859 and
+  lifts it from 6404 to 14788 iterations (2.31x) — against JAOS's 18431,
+  near parity. Eleven of twelve other rules change nothing; the doubleton
+  rule is subsumed by the aggregator. So the iteration half of `stocfor3`'s
+  30.0x is equality substitution at any degree, and that machinery is
+  behind D97 (§3), which now carries three prizes. The `maros-r7` half of
+  this item closed with D106 (1.33x HiGHS).
 
 ## 6. After M2 — feature expansion (decided 2026-08-13)
 

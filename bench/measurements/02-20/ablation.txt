@@ -1,0 +1,27 @@
+# HiGHS 1.15.1 at the P0 options, one presolve rule suppressed per run via
+# the documented presolve_rule_off option. "Presolve reductions" and the
+# simplex iteration count are HiGHS's own log lines.
+#
+# The suppressible rules are 6..19 only; the base rules (0..5) cannot be
+# turned off, which the maros-r7 calibration shows: its 984-row reduction is
+# untouched by every suppression, so it lives in the base rules and this
+# instrument cannot attribute it further.
+
+maros-r7   baseline               rows 2152(-984); columns 6605(-2803); nonzeros 80194(-64654)  iters=2457
+maros-r7   no-freecolsub          rows 2152(-984); columns 6605(-2803); nonzeros 80194(-64654)  iters=2457
+maros-r7   no-doubleton           rows 2152(-984); columns 6605(-2803); nonzeros 80194(-64654)  iters=2457
+
+stocfor3   baseline               rows 8259(-8416); columns 7540(-8155); nonzeros 50444(-14431)  iters=6404
+stocfor3   no-forcing-row         rows 8259(-8416); columns 7540(-8155); nonzeros 50444(-14431)  iters=6404
+stocfor3   no-forcing-col         rows 8259(-8416); columns 7540(-8155); nonzeros 50444(-14431)  iters=6404
+stocfor3   no-freecolsub          rows 8475(-8200); columns 7813(-7882); nonzeros 53444(-11431)  iters=6727
+stocfor3   no-doubleton           rows 8268(-8407); columns 7576(-8119); nonzeros 50543(-14332)  iters=6387
+stocfor3   no-depeqs              rows 8259(-8416); columns 7540(-8155); nonzeros 50444(-14431)  iters=6404
+stocfor3   no-aggregator          rows 13816(-2859); columns 12862(-2833); nonzeros 52048(-12827)  iters=14788
+stocfor3   no-parallel            rows 8259(-8416); columns 7540(-8155); nonzeros 50444(-14431)  iters=6404
+stocfor3   no-sparsify            rows 8259(-8416); columns 7540(-8155); nonzeros 50444(-14431)  iters=6404
+stocfor3   no-probing             rows 8259(-8416); columns 7540(-8155); nonzeros 50444(-14431)  iters=6404
+stocfor3   no-dualfix             rows 8259(-8416); columns 7540(-8155); nonzeros 50444(-14431)  iters=6404
+stocfor3   no-colstuff            rows 8259(-8416); columns 7540(-8155); nonzeros 50444(-14431)  iters=6404
+stocfor3   no-initsweep           rows 8259(-8416); columns 7540(-8155); nonzeros 50444(-14431)  iters=6404
+stocfor3   no-dbl-and-fcs         rows 8589(-8086); columns 7960(-7735); nonzeros 55321(-9554)  iters=6889

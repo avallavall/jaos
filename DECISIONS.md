@@ -120,6 +120,7 @@ and you have the argument. Jump to the entry for the numbers behind it.
 - **[D110](#d110--maros-r7s-cheaper-iteration-is-the-factor-fill-collapsing-and-the-instrument-reproduced-d46s-figure-before-being-believed)** — maros-r7's cheaper iteration is the factor fill collapsing, and the instrument reproduced D46's figure before being believed
 - **[D111](#d111--the-postsolve-recovery-is-compensated-nine-digests-move-where-rounding-lived-and-1c-closes)** — The postsolve recovery is compensated, nine digests move where rounding lived, and §1c closes
 - **[D112](#d112--the-widening-rule-cannot-tell-grow15-from-grow22-and-2s-refusal-closes-on-its-own-counter)** — The widening rule cannot tell grow15 from grow22, and §2's refusal closes on its own counter
+- **[D113](#d113--stocfor3s-presolve-gap-is-the-aggregator-and-the-prize-lands-behind-d97-again)** — stocfor3's presolve gap is the aggregator, and the prize lands behind D97 again
 
 ---
 
@@ -8532,3 +8533,39 @@ the gate's 2.0x work bar from this family's firings.
 
 **Left open.** Nothing else of §2. The 02-19 instrument is reusable for
 any future population question about this family.
+
+## D113 — stocfor3's presolve gap is the aggregator, and the prize lands behind D97 again
+
+**The question, as §5's presolve item asked it.** `stocfor3` is the worst
+instance in the comparison since the P0 re-take (30.0x HiGHS), its factor
+fill is 1.036 (D110), and HiGHS's presolve removes 50% of its rows where
+JAOS removes 58 of 16675. Which families do it was uncounted; 02-10's
+`maros-r7` count was the pattern to repeat.
+
+**The measurement, 2026-08-17, in `bench/measurements/02-20/`.** HiGHS
+1.15.1 at the P0 options, one presolve rule suppressed per run via the
+documented `presolve_rule_off` option. The calibration found the
+instrument's limit before anything was believed: `maros-r7`'s known
+984-row reduction is untouched by every suppression, so HiGHS runs the
+implied-free elimination in its base rules (0–5), which the option cannot
+turn off — ablation attributes the suppressible rules only, marginally
+and with interactions.
+
+Eleven of twelve single-rule ablations on `stocfor3` change nothing.
+Turning off the **Aggregator** collapses the reduction from 8416 rows to
+2859 and lifts HiGHS from 6404 to **14788 iterations, 2.31x**. The
+doubleton rule alone reads idle (−9 rows) because the aggregator subsumes
+it; free col substitution carries −216 rows and +5% iterations.
+
+**Closed: what HiGHS removes on `stocfor3` is equality substitution at
+any degree — the aggregator — and it alone owns the iteration half of the
+30.0x.** With it off, HiGHS needs 14788 iterations against JAOS's 18431,
+1.25x, near parity. What remains of the gap is the per-iteration cost the
+M2 split already tracks.
+
+**Where it lands.** Aggregation beyond the free and implied-free cases
+transfers bounds onto the survivor, which is the machinery D97 refused
+six designs of. §3 already weighed the doubleton population behind D97;
+this puts a third and larger prize there: the worst instance in the
+comparison, whole. D97's reopen condition is unchanged and what it
+unlocks keeps growing. Nothing else is left open here.
