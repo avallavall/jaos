@@ -8,17 +8,17 @@ with a revised dual simplex, and verifies the answer with an independent
 checker. It does this correctly on all 139 Netlib reference instances.
 
 `make compare` measures JAOS against three other solvers, with every solver's
-own presolve on and the dual simplex forced on both sides. The last run put
-JAOS at **4.13x slower than HiGHS, 1.18x slower than SoPlex and 3.50x slower
-than Clp**. One JAOS iteration costs 2.29x, 1.73x and 2.39x one of theirs, so
-the cost per iteration explains most of the gap. The iteration counts are
-competitive. Milestone M2 targets the cost per iteration.
+own presolve on and the dual simplex forced on both sides. The 2026-08-17 run
+puts JAOS at **3.15x slower than HiGHS, 0.95x SoPlex (faster, for the first
+time) and 2.57x slower than Clp**. One JAOS iteration costs 2.04x, 1.51x and
+1.95x one of theirs, so the cost per iteration explains most of the gap. The
+iteration counts are competitive. Milestone M2 targets the cost per
+iteration.
 
-Those three figures predate the implied free column singleton reduction
-(D106). That reduction made `maros-r7` 64x cheaper in work units, and
-`maros-r7` was the worst instance in the comparison, at 72.5x HiGHS. The
-figures are therefore stale in JAOS's favour. `make compare` has not been
-re-run since; `TODO.md` carries the re-run.
+The previous worst instance, `maros-r7` at 72.5x HiGHS, reads 1.33x after the
+implied free column singleton (D106). The worst instance is now `stocfor3`
+at 30.0x, and the difference is presolve: HiGHS reduces that model strongly
+and JAOS barely touches it. `TODO.md` §5 carries that question.
 
 ## What it does today
 

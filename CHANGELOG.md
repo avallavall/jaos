@@ -31,6 +31,13 @@ open, `bench/README.md` for the gate, and the commit each entry came from.
 
 ### Changed
 
+- `bench/compare`'s P0 rung re-taken after D106, at `a88e99b`: **3.15x HiGHS,
+  0.95x SoPlex, 2.57x Clp** per solve, on 2.04x / 1.51x / 1.95x the cost of
+  an iteration — faster than SoPlex on the geometric mean for the first time,
+  11 of 20 per instance. `maros-r7` fell from 72.5x HiGHS to 1.33x; the worst
+  instance is now `stocfor3` at 30.0x (`TODO.md` §5). The pre-D106 reading is
+  kept at `bench/compare/results/P0-2026-08-14.txt`.
+
 - Presolve carries its own objective, `cur_cost[]`. Every family read
   `m->col_cost` directly, so no reduction could change a cost even in
   principle; the implied free column singleton has to, because eliminating a

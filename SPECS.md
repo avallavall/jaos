@@ -215,10 +215,10 @@ asks them is a problem handed back to the caller.
 | Warm re-solve against cold, one branching step per instance | **measured: 0.0052 of the iterations, 0.0164 of the work** on 92 of the standard 94; 0.0006 and 0.0041 on 11 of Kennington's 16 (D69, improved by D90). Both answers go through the independent checker, and 0 of either set is refused — the cold half of that was added by D92, which is what it caught. The standard-set work figure read 0.0162 before D93 redefined what the dense ratio test charges, and rose because a cold solve makes thousands of dense calls where a warm re-solve makes a handful, so the saving comes mostly off the denominator |
 | Full suite clean under ASan and UBSan | **pass** |
 | Reader robustness under fuzzing | **pass** |
-| Competitive gap at rung **P0** vs **HiGHS 1.15.1** | **measured: 4.13x slower**, on 2.29x the cost of an iteration (D104) |
-| Competitive gap at rung **P0** vs **SoPlex 8.0.3** | **measured: 1.18x slower**, on 1.73x per iteration, faster on 10 of 21 (D104) |
-| Competitive gap at rung **P0** vs **Clp 1.17.11** | **measured: 3.50x slower**, on 2.39x per iteration (D104) |
-| All three, re-taken after D106 | **not run.** D106 made `maros-r7` — the worst instance in the comparison, 72.5x HiGHS — 64x cheaper in work units, so the three rows above are stale in JAOS's favour. `TODO.md` §5 |
+| Competitive gap at rung **P0** vs **HiGHS 1.15.1** | **measured: 3.15x slower**, on 2.04x the cost of an iteration (re-taken 2026-08-17 after D106; 4.13x at D104) |
+| Competitive gap at rung **P0** vs **SoPlex 8.0.3** | **measured: 0.95x — faster per solve**, on 1.51x per iteration, faster on 11 of 20 (re-taken 2026-08-17; 1.18x at D104) |
+| Competitive gap at rung **P0** vs **Clp 1.17.11** | **measured: 2.57x slower**, on 1.95x per iteration (re-taken 2026-08-17; 3.50x at D104) |
+| All three, re-taken after D106 | **done 2026-08-17.** `maros-r7` fell from 72.5x HiGHS to 1.33x; the worst instance is now `stocfor3` at 30.0x. Record: `bench/compare/results/P0.txt`; the pre-D106 reading is kept at `results/P0-2026-08-14.txt` |
 | Rungs T1–T3, which price presolve and algorithm choice | **measured: presolve is worth 1.42x to HiGHS and 1.14x to SoPlex; free algorithm choice is worth nothing, on identical iteration counts** (D81) |
 | MIPLIB 2017 easy subset | not started |
 | MIPLIB 2017 benchmark subset | not started |
@@ -226,32 +226,35 @@ asks them is a problem handed back to the caller.
 **Everything above these is correctness, and correctness is table stakes.**
 The gap now has numbers, and they decompose the same way against both rivals:
 
-| rung P0 | vs HiGHS | vs SoPlex | vs Clp |
+| rung P0, 2026-08-17 | vs HiGHS | vs SoPlex | vs Clp |
 |---|---|---|---|
-| time per solve | 4.13x | **1.18x** | 3.50x |
-| **time per iteration** | **2.29x** | **1.73x** | **2.39x** |
-| JAOS faster on | | 10 of 21 | |
+| time per solve | 3.15x | **0.95x** | 2.57x |
+| **time per iteration** | **2.04x** | **1.51x** | **1.95x** |
+| JAOS faster on | 1 of 17 | 11 of 20 | 2 of 13 |
 
 P0 is each solver's own presolve on, the dual forced, no crash basis, one
 thread — the rung M2's gate is judged on since JAOS gained a presolve (D104).
-T0 keeps its definition and its record as a historical rung, at 3.72x, 1.34x
-and 3.77x; `bench/compare/README.md` owns both tables and this one cites it.
-**Neither has been re-taken since D106.**
+It was re-taken 2026-08-17 after D106; the pre-D106 reading (4.13x / 1.18x /
+3.50x) is kept at `results/P0-2026-08-14.txt`. T0 keeps its definition and
+its record as a historical rung, at 3.72x, 1.34x and 3.77x;
+`bench/compare/README.md` owns both tables and this one cites it.
 
-At T0, where the iteration counts were taken, JAOS takes **30% fewer
-iterations than SoPlex** and is still slower. The search is competitive; each
-iteration costs between 1.7x and 2.4x what it should. **And three separately
-written dual simplexes agree on that while disagreeing about everything
-else** — Clp takes 1.67x JAOS's iterations where SoPlex takes 0.70x — so the
-per-iteration cost is a property of JAOS and not an artefact of one rival
-(D83). That per-iteration figure is what M2 is aimed at and it has barely
-moved across five rungs.
+JAOS takes **37% fewer iterations than SoPlex** at the re-taken P0 and is now
+marginally faster per solve; against HiGHS and Clp it is slower on both
+counts. The search is competitive; each iteration costs between 1.5x and 2.0x
+what it should. **And three separately written dual simplexes agree on that
+while disagreeing about everything else** — at T0, Clp took 1.67x JAOS's
+iterations where SoPlex took 0.70x — so the per-iteration cost is a property
+of JAOS and not an artefact of one rival (D83). That per-iteration figure is
+what M2 is aimed at; the re-take reads 2.04x / 1.51x / 1.95x against
+2.29x / 1.73x / 2.39x before D106.
 
 **It is two targets, and the set mean hides which is which (D63).** Per
-instance the tail splits in half — **read at T0, and `maros-r7`'s row is no
-longer what this says**: D106 took 64x off its work units, so the instance
-that owns the left-hand column of this table has moved and the table has not
-been re-taken.
+instance the tail splits in half. The table below is the T0 reading and is
+historical. At the 2026-08-17 P0 re-take `maros-r7` reads 1.33x on 1.05x the
+iterations, and the cheaper-iteration half's owner is now `stocfor3`: 30.0x
+on 2.9x the iterations, 10.4x per iteration. `pilot` and `pilot87` stay in
+the fewer-iterations half, at 12.5x and 13.6x on 4.8x the iterations each.
 
 | | time | iterations | per iteration |
 |---|---|---|---|
@@ -260,10 +263,12 @@ been re-taken.
 | `pilot87` | 13.2x | **4.6x** | 2.9x |
 | `greenbea` | 8.1x | **2.9x** | 2.8x |
 
-**A cheaper iteration** is `maros-r7`'s problem, and it is coming down:
-`fit2p` was 17.5x per iteration and is 5.0x (D55, D56), `maros-r7` was 16.5x
-and is 11.0x (D58, D59). All four of those entries were work the counter
-never billed, found by profiling the build that ships.
+**A cheaper iteration** was `maros-r7`'s problem, and D106 closed most of it:
+`fit2p` was 17.5x per iteration and is 5.0x (D55, D56), `maros-r7` was 16.5x,
+then 11.0x (D58, D59), and reads 1.27x at the 2026-08-17 P0 re-take. All four
+of those entries were work the counter never billed, found by profiling the
+build that ships. `TODO.md` §1e still owes the factorization measurement that
+explains the D106 drop.
 
 **Fewer iterations** is what `pilot`, `pilot87`, `25fv47` and `greenbea`
 need, and the cause is measured: steepest-edge weights are discarded on

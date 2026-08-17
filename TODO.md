@@ -5,22 +5,22 @@ says why closed questions closed, `CHANGELOG.md` says what landed, `bench/`
 says what it costs. This file says what is next. When something lands, its
 line leaves this file in the same commit.
 
-## Where the last session stopped — 2026-08-15
+## Where the last session stopped — 2026-08-17
 
-The tree is clean, all three gate sets pass, and the three baselines were
-rewritten deliberately and confirmed by a following run that reads
-`0 regressed, 0 improved, 0 new` on each. Nothing is pushed.
-
-What landed: presolve gained an objective it can write (`cur_cost[]`), the
-implied free column singleton for equality rows (D106), and a repair to two
-older families that were publishing short row activities. `make test`,
-`make sanitize` and the off-by-one fault build are all green; the reference
-build is not, and that is item four in the standing debts below.
+The tree is clean and pushed. The gate sets were not touched; the last source
+change is still D106. What happened: the README was rewritten for
+readability with no fact moved, and §5's `make compare` re-run landed. P0
+re-taken at `a88e99b`: **3.15x HiGHS, 0.95x SoPlex — faster per solve for
+the first time — and 2.57x Clp**, on 2.04x / 1.51x / 1.95x per iteration.
+`maros-r7` fell from 72.5x HiGHS to 1.33x; the worst instance is now
+`stocfor3` at 30.0x, owned by §5's last item. Record in
+`bench/compare/results/P0.txt`; the pre-D106 reading is kept at
+`results/P0-2026-08-14.txt`. The reference build is still red, item four in
+the standing debts below.
 
 **Pick up at §1a or §1d.** §1a is the next build. §1d is the cheaper question
 and it is the same unexplained shape as §2, so answering one probably answers
-both. §5's `make compare` re-run is one command and gives the biggest headline
-number available right now.
+both.
 
 Three things this session left deliberately unmeasured, so nobody re-derives
 them by accident: `greenbeb`'s 1.5126x, `maros-r7`'s 15.7x per-iteration drop,
@@ -132,6 +132,11 @@ its basis nonzeros, the worst ratio in the set (D46), and 980 of the columns
 removed were singletons. If the fill collapsed with them, that is a fact about
 the factorization and belongs in §5's factorization item rather than here. It
 has no measurement. Take one before believing either half of this paragraph.
+
+The 2026-08-17 P0 re-take adds a seconds-side reading on the dev host:
+`maros-r7` at 1.33x HiGHS time on 1.05x its iterations, about 1.27x per
+iteration against 11.0x at T0. That corroborates the drop and still does not
+say why; the factor-fill measurement is what would.
 
 ## 2. Presolve makes `grow22` and `grow7` far worse (opened by D103)
 
@@ -275,29 +280,22 @@ baseline, and a baseline added mid-change cannot be read.
   unset and is measured, not guessed. The ladder is recalibrated and the
   question is closed: **P0** is the rung, presolve on both sides, and T0 keeps
   its definition and its record as a historical rung
-  (`bench/compare/README.md`). Standing at P0: **4.13x HiGHS, 1.18x SoPlex,
-  3.50x Clp**, on 2.29x / 1.73x / 2.39x the cost of an iteration. The
-  per-iteration figure is what M2 is aimed at and it has barely moved: three
-  independently written dual simplexes still put JAOS's iteration between
-  1.7x and 2.4x theirs.
-- **`make compare` has not been re-run since D106, and its figures are stale
-  in JAOS's favour.** The P0 rung reads 4.13x HiGHS, 1.18x SoPlex and 3.50x
-  Clp, and it was taken when `maros-r7` cost 21010708013 work units. It now
-  costs 328053926, and `maros-r7` was the single worst instance in the whole
-  comparison at 72.5x HiGHS. Re-taking it is one `make compare` and it is the
-  cheapest number available right now. **Every document that quotes 4.13x
-  says it is stale** — `README.md`, `SPECS.md` §8 and
-  `bench/compare/README.md` — so the fix is one run and three edits, not a
-  hunt.
+  (`bench/compare/README.md`). Standing at P0, re-taken 2026-08-17 after
+  D106: **3.15x HiGHS, 0.95x SoPlex, 2.57x Clp**, on 2.04x / 1.51x / 1.95x
+  the cost of an iteration. The per-iteration figure is what M2 is aimed at:
+  three independently written dual simplexes put JAOS's iteration between
+  1.5x and 2.0x theirs.
 
-- **HiGHS presolves what dominates this set and JAOS does not.** Opened by the
-  P0 rung. Each solver's own presolve is worth about the same overall — JAOS
-  0.739x, HiGHS 0.692x, Clp 0.670x, SoPlex 0.906x — but on `maros-r7` HiGHS
-  reads 0.378x and halves its iteration count while JAOS reads 1.065x and
-  removes nothing, and `stocfor3` is 0.198x against 0.965x. Those two are the
-  worst instances in the whole comparison. Measured, in
-  `bench/measurements/02-10/`: on `maros-r7` HiGHS removes 984 rows, 2803
-  columns and **45% of the nonzeros**, where JAOS removes not one of any.
+- **HiGHS presolves `stocfor3` and JAOS barely touches it, and it is now the
+  worst instance in the comparison.** Opened by the P0 rung, re-read at the
+  2026-08-17 re-take. Each solver's own presolve is worth about the same
+  overall — JAOS 0.739x, HiGHS 0.692x, Clp 0.670x, SoPlex 0.906x, at the
+  2026-08-14 reading — but on `stocfor3` HiGHS reads 0.198x against JAOS's
+  0.965x, and the instance stands at 30.0x HiGHS and 26.4x Clp. The
+  `maros-r7` half of this item closed with D106: JAOS now removes 980 rows
+  there and the instance reads 1.33x HiGHS. What HiGHS removes on `stocfor3`
+  and which families do it is uncounted; `bench/measurements/02-10/` did that
+  count for `maros-r7` and is the pattern to repeat.
 
 ## 6. After M2 — feature expansion (decided 2026-08-13)
 
