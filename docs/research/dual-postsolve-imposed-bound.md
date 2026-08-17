@@ -893,13 +893,39 @@ above zero out of 32240 probes, all on `netlib-infeas`, none below 3.69e8 ulps.
 **Do not carry that margin across.** The activity-range readings are the tight
 ones, and they are the ones this section proposes to change.
 
-**What has to be measured, and no reading replaces it.** Whether a proven bound
-changes which reductions fire, in either direction, over all four sets. `02-16`
-is the shape: a build with the change, run against every instance, digests
-included, prediction stated before the run. The prediction here is that it is a
-**no-op or a small gain**, because 1 ulp of widening in the value is inside the
-8 ulps of slack the comparison already allows. If it turns out to decline
-anything, that is the interesting result and not a setback.
+### 13a. Measured, and refused — `bench/measurements/02-24/`
+
+Everything above this line predicted a no-op or a small gain. **Both designs
+were built and both are refuted**, in a worktree, the same day. The record is
+`bench/measurements/02-24/` with the candidate diff beside it.
+
+**The framing above is wrong about FORCING.** That reading detects an
+*equality* — the range's end has reached the row's own bound — and outward
+widening does not make an equality detection safer, it destroys it.
+`make_forcing_row_model` in the test suite is `x0 + x1 <= 0` with both columns
+in `[0, 10]`: minimum activity exactly 0, upper bound exactly 0. One ulp of
+outward widening declines it, and `make test` said so in under a minute. That
+shape is the reason the family exists, not a corner case.
+
+**The narrowed design — outward only for INFEASIBLE and REDUNDANT, which do
+prove inequalities — passes every test and fails the gate.** `pilotnov` goes
+from 86587427 work units to 2378158900, **27.5x**, against a 2.0x bar. The
+mechanism is named rather than inferred: 32 rows survive instead of being
+dropped (`101 -> 69` removed, columns identical at 1811 on both sides), and
+those 32 rows cost 60866 iterations. The answer is bit-identical and the
+residuals are *better*, which makes it a cost question and not a correctness
+one.
+
+So the residual unsoundness stays: JAOS's redundant test can drop a row whose
+minimum activity is within 8 ulps of traffic below `rl`. It is bounded, no
+instance has ever been shown to give a wrong answer because of it, and removing
+it costs 27.5x on one instance. The reopen conditions are in `02-24`.
+
+**What survives from §11f.** Fourer & Gay's `maros` failure was real and
+directed rounding fixed it. JAOS is not in that position, because D103 already
+replaced the judgement constant with the error bound — their pre-fix tolerance
+was orders wider than 8 ulps. Reading a published fix is not the same as
+needing it.
 
 ## 14. Superseded questions
 

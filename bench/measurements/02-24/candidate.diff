@@ -1,0 +1,78 @@
+src/presolve.c | 55 ++++++++++++++++++++++++++++++++++++++++++++++++-------
+ 1 file changed, 48 insertions(+), 7 deletions(-)
+
+--- Changes ---
+
+src/presolve.c
+  @@ -1198,7 +1198,48 @@ JAOS_NODISCARD jaos_status jm_presolve_run(const jaos_model *m, jm_presolve *p,
+  -            const double rtol = ps_row_tol(&rg);
+  +            /* **The three readings do not ask the same kind of question, and
+  +             * the window must not point the same way for all of them.**
+  +             *
+  +             * INFEASIBLE and REDUNDANT each prove an INEQUALITY — that no
+  +             * point of the boxes can satisfy the row, or that every point
+  +             * does. A proof of an inequality wants the activity end widened
+  +             * OUTWARD, so the claim survives the rounding in the sum. That is
+  +             * Fourer & Gay's directed rounding (1994, "Directed Roundings"),
+  +             * and it is reached here without touching the FP environment:
+  +             * `fesetround` needs a pragma GCC does not fully implement and
+  +             * puts ambient state where D8 forbids it, while `ps_row_tol`
+  +             * already supplies exactly the quantity the widening needs.
+  +             *
+  +             * FORCING asks something else. It detects EQUALITY — the range's
+  +             * end has reached the row's own bound, so every column is pinned.
+  +             * Widening outward does not make that test safer; it destroys it.
+  +             * `x0 + x1 <= 0` with both columns in [0, 10] is the canonical
+  +             * case, its minimum activity is exactly 0 and its upper bound is
+  +             * exactly 0, and one ulp of outward widening declines it. That is
+  +             * `tests/test_presolve.c`'s own `make_forcing_row_model`, and it
+  +             * is what a first version of this change broke.
+  +             *
+  +             * So: outward for the two proofs, inward for the detection.
+  +             *
+  +             * The INFEASIBLE tests come out bit-identical either way, since
+  +             * `min_act - err > ru` is `min_act > ru + err`. **REDUNDANT is
+  +             * where this changes behaviour**, and it changes it from unsound
+  +             * to sound: the old form dropped a row whose minimum activity was
+  +             * within `err` BELOW `rl`, which is a row that can still bind.
+  +             * Fourer & Gay report exactly that failure — AMPL "discard[ing]
+  +             * constraints that kept the problem from being unbounded" on
+  +             * netlib's `maros`, one of D97's own four instances.
+  +             *
+  +             * The frozen-row reading at the bottom of this file is left alone
+  +             * deliberately: it scales by `ps_bound_scale` rather than traffic
+  +             * (docs/tolerances.md says why) and asks only the INFEASIBLE
+  +             * question, which does not move.
+  +             *
+  +             * Named `err` and not `w`: `w` is the work counter in this scope,
+  +             * and shadowing it compiles as a silent type error at the next
+  +             * jm_work_add. -Werror caught it; the name is what stops it. */
+  +            const double err = ps_row_tol(&rg);
+               const double min_act = ps_min_act(&rg);
+               const double max_act = ps_max_act(&rg);
+               const double rl = cur_rl[i], ru = cur_ru[i];
+  @@ -1206,8 +1247,8 @@ JAOS_NODISCARD jaos_status jm_presolve_run(const jaos_model *m, jm_presolve *p,
+  -            if ((isfinite(ru) && min_act > ru + rtol) ||
+  -                (isfinite(rl) && max_act < rl - rtol)) {
+  +            if ((isfinite(ru) && min_act - err > ru) ||
+  +                (isfinite(rl) && max_act + err < rl)) {
+                   p->outcome = JM_PRESOLVE_INFEASIBLE;
+                   goto done;
+               }
+  @@ -1217,8 +1258,8 @@ JAOS_NODISCARD jaos_status jm_presolve_run(const jaos_model *m, jm_presolve *p,
+  -            const bool force_hi = isfinite(ru) && min_act >= ru - rtol;
+  -            const bool force_lo = isfinite(rl) && max_act <= rl + rtol;
+  +            const bool force_hi = isfinite(ru) && min_act >= ru - err;
+  +            const bool force_lo = isfinite(rl) && max_act <= rl + err;
+               if (force_hi || force_lo) {
+                   /* Fired only when every column's attaining bound is one the
+                    * CALLER's own model carried, which is what the checker
+  @@ -1325,8 +1366,8 @@ JAOS_NODISCARD jaos_status jm_presolve_run(const jaos_model *m, jm_presolve *p,
+  -            if ((!isfinite(rl) || min_act >= rl - rtol) &&
+  -                (!isfinite(ru) || max_act <= ru + rtol)) {
+  +            if ((!isfinite(rl) || min_act - err >= rl) &&
+  +                (!isfinite(ru) || max_act + err <= ru)) {
+                   if (!ps_push(p, (jm_presolve_rec){
+                           .tag = JM_PS_REDUNDANT_ROW, .index = i })) {
+                       ret = JAOS_ERR_OUT_OF_MEMORY;
+  +48 -7

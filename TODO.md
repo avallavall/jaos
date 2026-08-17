@@ -105,30 +105,36 @@ establishes:
   tighter bounds, because it picks a different pivot order.
 - No constants to inherit. Both windows get measured here from zero.
 
-Next, and the order changed: **try directed rounding first.** It is smaller
-than the dual postsolve, it attacks D97's actual failure on D97's actual
-instances, and if it works the window question and the tolerance question both
-go away. **§13 works it out against `src/presolve.c` and reaches a different
-implementation than the papers do**: not `fesetround`, which needs a pragma GCC
-does not fully implement and puts ambient state where D8 forbids it, but
-widening the finished compensated sum outward by its own error bound. That is
-the same quantity the window already supplies, moved from the comparison into
-the value, so every site inherits the guarantee instead of choosing a scale —
-and choosing a scale per site is what D114 and 02-09 both record going wrong.
-Half the step is already taken: `PRESOLVE_TIGHTEN_EPS` is gone and its three
-sites read `DBL_EPSILON × max(1, traffic)` (D103).
+**Directed rounding was tried first and is REFUSED
+(`bench/measurements/02-24/`, 2026-08-17).** Built in a worktree while the
+`plato-pds` campaign held the main tree; nothing landed. Two designs, both
+refuted, and the second one is the useful entry:
 
-**And it is a tightening, not a loosening.** `ps_row_tol` allows 8 ulps of
-slack in the *comparison*, a multiple chosen to cover the accumulation and the
-comparison together; a proven bound needs no multiple, so the conservatism drops
-to 1 ulp in the *value* and more reductions fire, not fewer. **The headroom
-there is one factor of eight, not eight decades**: `02-09`'s review run
-`EXTRA_CFLAGS=-DJAOS_PRESOLVE_ROUND_ULPS_VALUE=64` reproduced `02-04`'s failure,
-`pilot` INFEASIBLE with column 3554 pinned. Do not carry over the
-`PRESOLVE_ROUND_ULPS` margin (12 residues in 32240 probes, none below 3.69e8
-ulps) — those are different sites, and `docs/tolerances.md:300` says why the
-activity readings are deliberately not in that table. Measure with `02-16`'s
-instrument, prediction first; the prediction is a no-op or a small gain. Then the deliberate-slack design against §8d's refusal, measured here
+- **Widening both ends outward and dropping every window** dies on `make test`
+  in under a minute. The FORCING reading detects an **equality**, not an
+  inequality, and outward widening destroys an equality detection instead of
+  making it safer. `x0 + x1 <= 0` with both columns in `[0, 10]` — the test
+  suite's own `make_forcing_row_model` — has minimum activity exactly 0 against
+  an upper bound of exactly 0, and one ulp declines it. That shape is why the
+  family exists.
+- **Outward only for INFEASIBLE and REDUNDANT**, which do prove inequalities,
+  passes `make test` and `make sanitize` clean and then fails the gate:
+  `pilotnov` goes 86587427 → 2378158900 work units, **27.5x** against a 2.0x
+  bar. Mechanism named, not inferred: 32 rows survive instead of being dropped
+  (101 → 69 removed, columns identical at 1811 both sides) and cost 60866
+  iterations. The answer is bit-identical and the residuals are *better*, so it
+  is a cost question, not a correctness one.
+
+So the residual unsoundness stays and is now written down: the redundant test
+can drop a row whose minimum activity is within 8 ulps of traffic below `rl`.
+Bounded, never observed to produce a wrong answer here, and 27.5x to remove.
+The reopen conditions are in `02-24`. **Fourer & Gay's `maros` fix was real and
+JAOS is simply not in that position**, because D103 already replaced the
+judgement constant with the error bound.
+
+Next, therefore, is unchanged from before the detour: the deliberate-slack
+design against §8d's refusal, measured here because both published directions
+came from solvers that could not see the basis. Then the deliberate-slack design against §8d's refusal, measured here
 because both published directions came from solvers that could not see the
 basis. Alternatives if this is dropped: §4's fourth set, §5's Devex.
 
