@@ -11,6 +11,25 @@ open, `bench/README.md` for the gate, and the commit each entry came from.
 
 ### Added
 
+- **A fourth instance set.** Fifteen larger models from Mittelmann's mirror,
+  in three families: `pds-30` … `pds-100`, which continue the `pds-02` …
+  `pds-20` already in Kennington from the same 1990 paper; `fome11` … `fome21`,
+  whose first three double exactly in both dimensions; and three `nug` QAP
+  relaxations, a shape no model in the tree had. `bench/fetch.sh` gains a
+  `bz2-emps` pipeline and six `make plato-*` targets exist. **It is not part of
+  the gate.** `pds` 8/8 and `fome` 4/4 solved, checker ok and deterministic;
+  `pds` alone costs 23016 s of solve time and `pds-100` 6.425e11 work units,
+  twenty times the whole standard set (D115).
+
+- `bench/run.c` gains a third expectation, `-e noref`, for a set with no
+  published optimum. Shape, checker verdict, determinism, digest and work units
+  are asked exactly as for the other sets; only the comparison against a
+  reference is gone, and it prints `objective=none` rather than `ok`. The
+  manifest's `source` column and the flag must agree, and **both directions are
+  refused before any instance runs** — the silent one is a referenced manifest
+  under `-e noref`, which would stop checking Koch's optima and still print
+  `gate: PASS` (`bench/measurements/02-22/`).
+
 - **The implied free column singleton.** A column with one matrix entry, in an
   equality row that already confines it strictly inside its own box, is
   substituted out exactly and the row goes with it. Nothing is narrowed and
@@ -28,6 +47,14 @@ open, `bench/README.md` for the gate, and the commit each entry came from.
   presolves. T0 through T3 keep their definitions and their records. JAOS
   reads 4.13x HiGHS, 1.18x SoPlex and 3.50x Clp per solve, on 2.29x, 1.73x and
   2.39x the cost of an iteration, and is faster than SoPlex on 10 of 21 (D104).
+
+### Fixed
+
+- The baseline header named `make netlib-baseline` for every set, which was
+  wrong for five of the six baselines and told a reader to run a command that
+  would rewrite a different file. It now names the shape, `*-baseline`. A
+  `noref` baseline also carries a line saying its `objective` column of zeroes
+  means NOT VERIFIED rather than wrong. No measured value moves.
 
 ### Changed
 

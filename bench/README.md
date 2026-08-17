@@ -29,9 +29,11 @@ ratio a change is judged on (D45) has to come from `J=1`.
 Ten suits a six-core machine on the standard set. Kennington is bounded by
 memory rather than cores; six to eight there.
 
-## Three sets
+## Three sets in the gate, and a fourth beside it
 
-The M1 gate asks for three (PLAN 2.9), and all three are now pinned:
+The M1 gate asks for three (PLAN 2.9), and all three are now pinned. **A fourth
+set exists since 2026-08-18 and is deliberately not one of them** — see below
+the table. Nothing in this section's numbers includes it.
 
 | set | instances | what it asks | run with |
 |---|---|---|---|
@@ -51,6 +53,34 @@ digests" is not: it invites a reader to check 139 against the record and find
 110. That phrase was in 47 places across this repository and wrong in every one
 of them; D93 states the precise form, and this table is where the composition
 lives.
+
+### The fourth set — larger models, no gate, no reference optimum
+
+TODO.md §4 and D115. Fifteen instances from Mittelmann's mirror, pinned the
+same way and never committed, in three families:
+
+| set | pinned | with a baseline | run with |
+|---|---|---|---|
+| `plato-pds` | 8 | 8 | `make plato-pds` |
+| `plato-fome` | 4 | 4 | `make plato-fome` |
+| `plato-nug` | 3 | **0** | `make plato-nug` |
+
+**15 pinned, 12 measured, 12 digests.** This file owns those numbers too, and
+they are **separate from the 139 above — do not add them together.** The gate
+is the three `netlib*` targets and only those; `make plato` runs the fourth set
+and is not run to pass or fail anything.
+
+Two things this set does not have. There is **no reference optimum** for any of
+its instances, so it runs under `-e noref` (D115, `bench/measurements/02-22/`)
+and its answers rest on the checker's own verdict, the shape, the digest and
+determinism. And `plato-nug` has **no baseline**: `nug20` and `nug30` were
+stopped at 68 minutes so `pds` could run first, and they are unmeasured rather
+than unsolvable.
+
+It is also expensive in a way the gate is not. `make plato-pds` is 23016 s of
+solve time and 6.4 hours of wall clock at `J=4`; `pds-100` alone costs 6.425e11
+work units, twenty times the whole standard set. How often it should run is
+open in `TODO.md`.
 
 The infeasible set is the only thing in M1 that looks for a *wrong* answer
 rather than confirming a right one: it asks whether a model with no feasible

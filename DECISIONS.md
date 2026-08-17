@@ -122,6 +122,8 @@ and you have the argument. Jump to the entry for the numbers behind it.
 - **[D112](#d112--the-widening-rule-cannot-tell-grow15-from-grow22-and-2s-refusal-closes-on-its-own-counter)** — The widening rule cannot tell grow15 from grow22, and §2's refusal closes on its own counter
 - **[D113](#d113--stocfor3s-presolve-gap-is-the-aggregator-and-the-prize-lands-behind-d97-again)** — stocfor3's presolve gap is the aggregator, and the prize lands behind D97 again
 - **[D114](#d114--d97s-over-tightening-is-derived-a-window-scaled-by-the-activity-certified-586-of-slack-as-zero)** — D97's over-tightening is derived: a window scaled by the activity certified 5.86 of slack as zero
+- **[D115](#d115--the-fourth-set-exists-and-small-models-understate-the-iteration-exponent-by-16x-while-the-work-unit-holds-to-6)** — The fourth set exists, and small models understate the iteration exponent by 1.6x while the work unit holds to 6%
+- **[D116](#d116--directed-rounding-on-the-activity-readings-is-refused-because-the-forcing-test-detects-an-equality)** — Directed rounding on the activity readings is refused, because the forcing test detects an equality
 
 ---
 
@@ -8614,3 +8616,133 @@ by the row bound's scale, pin only within the arithmetic's own error
 (`eps × traffic`, the D103 form), and keep materialized bounds out of
 verdict scales. The requirements are in `bench/measurements/02-21/`'s
 README beside the exhibit.
+
+## D115 — The fourth set exists, and small models understate the iteration exponent by 1.6x while the work unit holds to 6%
+
+**The question, as TODO.md §4 asked it.** Every verdict in this repository had
+been taken on 139 models: 94 netlib standard, 16 Kennington, 29 netlib
+infeasible. Three entries already said the population was doing more of the
+deciding than it should — D46 (two instances are 74% of the standard set's
+total work), D101 (three families deferred on 0.15% *on these 139 models*), and
+§1's own counter (3315 rows on netlib, 0 on Kennington). The section named a
+fourth set as the executable form of that concern and then blocked it behind
+§1. §1 closed 2026-08-17 with D107 through D111, and nobody re-read §4.
+
+**What was built, 2026-08-17/18.** `bench/fetch.sh` gained a `bz2-emps` mode;
+`bench/run.c` gained a third expectation, `EXPECT_OPTIMAL_NOREF`, for a set with
+no published optimum (`bench/measurements/02-22/`); fifteen instances are pinned
+across three manifests from Mittelmann's mirror. The instances are fetched and
+never redistributed, which is the position already taken for netlib and
+Kennington and is what makes the absence of a licence statement on that host
+survivable.
+
+**The measurement, `bench/measurements/02-23/`.** `fome` 4/4 and `pds` 8/8, all
+`shape=ok checker=ok det=ok`, both `gate: PASS`. `nug08-3rd` solved; `nug20` and
+`nug30` are unmeasured, not unsolvable.
+
+The `pds` family already ran from `pds-02` to `pds-20` inside Kennington, so the
+ladder is **twelve points over a 52.9x range in rows**, four of which had been
+in the repository since M1 and had never been read as a sequence. `ladder.py`
+beside the record derives every figure from the manifests and the baselines.
+
+Split the range at `pds-20`, which is where netlib and Kennington stop:
+
+| | iteration exponent | work exponent |
+|---|---|---|
+| `pds-02` … `pds-20` | 1.30, 1.14, 1.38 — mean **1.27** | **2.61** |
+| `pds-20` … `pds-90` | 1.83, 2.16, 1.84, 2.01, 2.59, 2.34, 1.78 — mean **2.08** | — |
+| whole range | 1.69 | **2.77** |
+
+**Two conclusions, and they point opposite ways.** Measuring in the small range
+understates how iteration count grows by a factor of **1.6**. It understates how
+work units grow by **6%**. So the unit D16 made a public contract holds its
+shape across a 53x change in model size and the iteration count does not, which
+is the first evidence for that choice rather than an argument for it.
+
+**What was refuted.** Mittelmann's LPopt benchmark itself, which was §4's most
+attractive candidate because `bench/compare` would read directly against
+published figures. Its smallest instance carries 3x `dfl001`'s nonzeros, its
+median is around 1.5M, `dlr2` is 7.1M x 38.9M, and SoPlex solves 31 of it while
+JAOS reads 0.95x SoPlex per solve at P0. Sixteen of its instances are
+undisclosed. It is the set to aim at and the wrong one to adopt. `fctp` was
+declined for the opposite reason — 2.2K to 111K compressed, netlib's own problem
+again.
+
+**The cost, because it decides how this set can be used.** `pds` alone is 23016 s
+of solve time and 6.4 hours of wall clock at `J=4`; `pds-100` costs 6.425e11
+work units, **twenty times the entire netlib standard set**, and the eight `pds`
+together are 62x it. The three `netlib*` targets stay the gate and `plato` is
+deliberately not part of it.
+
+**One step is reported as one step.** `pds-90` to `pds-100` grows iterations
+1.886x for a 1.094x model while the cost of an iteration falls 30%. Their
+product is a work ratio in line with its neighbours, so total work stayed smooth
+while the split jumped — the same finding from the other side, and not a trend.
+
+**Left open, in `TODO.md`.** How often `plato` should run. `nug20` and `nug30`.
+Whether D101's and D107's reopen conditions — both written as "a model
+population" — are now satisfiable; their scripts exist and have not been pointed
+at this set.
+
+## D116 — Directed rounding on the activity readings is refused, because the forcing test detects an equality
+
+**The question.** Fourer & Gay 1994 report AMPL's presolve discarding
+constraints that kept netlib's `maros` from being unbounded, and reporting
+inconsistent constraints on `greenbea`, `greenbeb`, `perold` and `woodw`. Their
+fix was not a tolerance: they computed the activity bounds with IEEE directed
+rounding, so a deduced bound is valid by construction. `maros` is one of D97's
+four failing instances and `greenbeb` one of D108's three, so the question was
+whether JAOS is in the same position.
+`docs/research/dual-postsolve-imposed-bound.md` §13 predicted the change would
+be "a no-op or a small gain".
+
+**The measurement, `bench/measurements/02-24/`.** Built in a git worktree while
+the `plato-pds` campaign held the main tree. `candidate.diff` is beside the
+record. Nothing landed.
+
+**What was refuted, first design.** Widening both activity ends outward and
+dropping every window is sound by construction and dies on `make test` in under
+a minute. The objection generalises and is the entry: **the FORCING reading
+detects an EQUALITY, not an inequality.** Outward rounding makes an inequality
+proof survive rounding; it destroys an equality detection. The test suite's own
+`make_forcing_row_model` is `x0 + x1 <= 0` with both columns in `[0, 10]` —
+minimum activity exactly 0 against an upper bound of exactly 0 — and one ulp
+declines it. A `<= 0` row over non-negative columns is the shape the family
+exists for, not a corner case.
+
+**What was refuted, second design.** Leaving FORCING alone and making only
+REDUNDANT sound. That is a real defect being fixed: the shipped form drops a row
+whose minimum activity is within `err` *below* `rl`, a row that can still bind,
+which is exactly AMPL's `maros` failure. It passes `make test` and `make
+sanitize` clean and then fails the gate. **`pilotnov` goes from 86587427 to
+2378158900 work units, 27.5x**, against `bench/run.c`'s own 2.0x bar, alone
+among 94. Every other instance is unmoved.
+
+The mechanism was named rather than inferred, by running the one instance
+through both binaries: presolve removes **101 rows at HEAD and 69 in the
+candidate**, columns identical at 1811 on both sides, so nothing else moved.
+Thirty-two rows that survive instead of being dropped cost 60866 iterations.
+This is D108's and D112's class — a reduction whose effect is on the trajectory
+rather than at the reduction site.
+
+**The cost of the refusal is stated too.** The answer is bit-identical to the
+last digit on both builds, and the candidate's residuals are *better*: row
+`3.09e-10` against `1.93e-07`, relative row `7.9e-14` against `9.32e-13`. So the
+32 rows buy a numerically cleaner answer at 27.5x the price. This is a cost
+question, not a correctness one, and the refusal says so.
+
+**Refused.** The unsoundness that remains is bounded by `ps_row_tol` — 8 ulps of
+the row's traffic — nothing in this repository has been shown to give a wrong
+answer because of it, and removing it costs 27.5x on one instance.
+
+**What this does not refute.** Fourer & Gay's result. Their `maros` failure was
+real and directed rounding fixed it. JAOS is not in that position because D103
+already replaced the judgement constant with the error bound, and their pre-fix
+tolerance was orders wider than 8 ulps. Reading a published fix is not the same
+as needing it.
+
+**Left open, in `TODO.md`.** The reopen conditions, in `02-24`: an instance
+where a wrongly-dropped redundant row produces a wrong answer, a wrong verdict
+or a checker rejection; or a rule that separates the 32 rows from the 69 that
+still fire, which is D108's condition in a new place and D108 refused that rule
+once already.
