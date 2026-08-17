@@ -21,15 +21,22 @@ deliberately and confirmed). The reference build debt is repaired in
 spirit by D111's test discipline but item four below still stands as
 written.
 
-**§2 closed too (D112): the widening rule's own counter refused it** —
-98.6% of firings would be caught, and `grow15`/`grow22` carry the same
-widening with opposite outcomes. **Pick up at §5**: the factorization item
-has its live examples (`pilot87` 3.610, `pilot` 3.261), the presolve item
-owns `stocfor3` (what HiGHS removes there is uncounted; 02-10's `maros-r7`
-count is the pattern), and the search-path item (Devex) is the standing
-REQ. §3 waits behind D97 and §4 is deliberately after §1, which is done —
-so §4's fourth instance set is now unblocked if breadth is preferred over
-depth.
+**§2 closed too (D112), and `stocfor3` is counted (D113): the aggregator
+alone owns its iteration half, so D97's reopen now guards three prizes.**
+
+**Pick up at D97's derivation.** The excavation is located: commit
+`7c7375c` (feat(02-04)) carries the minimal failing design live — the
+bound reasoned with, never published — and `c268fdc` is the sweep that
+refused the family. The plan: a worktree at `7c7375c`, reproduce `pilot`'s
+INFEASIBLE, dump every tightening applied (row, column, implied value, the
+boxes it read), then validate each inference in exact rational arithmetic
+against the ORIGINAL model and name the first invalid one. D97 already
+excludes epsilon and rounding scale (nine settings, 1e-12 to 1e-4, moved
+nothing), so the first invalid inference is structural; the collapsed-fold
+midpoint debt (below) is one candidate seed. After the derivation, the
+dual postsolve for an imposed bound is D97's second precondition. The
+alternatives if depth stalls: §4's fourth instance set (unblocked), or
+§5's Devex.
 
 Three things this session left deliberately unmeasured, so nobody re-derives
 them by accident: `greenbeb`'s 1.5126x, `maros-r7`'s 15.7x per-iteration drop,
