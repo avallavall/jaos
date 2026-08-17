@@ -7,18 +7,29 @@ line leaves this file in the same commit.
 
 ## Where the last session stopped — 2026-08-17
 
-**Two things are in flight and neither is on `main`.**
+**The fourth set exists and has been run (§4, `bench/measurements/02-23/`).**
+`fome` 4/4 and `pds` 8/8, both `gate: PASS`, every instance `shape=ok
+checker=ok det=ok`. `nug08-3rd` solved; `nug20` and `nug30` are unmeasured, not
+unsolvable. Nothing is in flight and `baseline-header` is merged.
 
-1. `make plato-pds-baseline J=4` is running. Seven of eight are in, `pds-100`
-   is not. **No source edit may land on `main` until it finishes** — a campaign
-   is only valid for the tree that produced it. When it lands, read the diff,
-   then finish `bench/measurements/02-23/` (its `ladder.py` picks the numbers up
-   on its own; do not hand-copy them).
-2. Branch **`baseline-header`** carries one commit, `b3bebff`, waiting to merge:
-   the runner's baseline header named `make netlib-baseline` for every set,
-   which was wrong for five of six. `make test` and `make sanitize` are clean on
-   it and it is round-tripped both ways. **Merge it once `pds` is in.** Its
-   worktree is `../jaos-wt-rounding`; remove the worktree after merging.
+**The number §4 was built to get.** The pds ladder is now twelve points over a
+52.9x range in rows, four of which were already in the tree. Split it:
+
+| | iteration exponent | work exponent |
+|---|---|---|
+| `pds-02` … `pds-20`, the range netlib and Kennington live in | **1.27** | **2.61** |
+| `pds-20` … `pds-90`, above it | **2.08** | — |
+| whole 52.9x range | 1.69 | **2.77** |
+
+**Small models understate iteration growth by a factor of 1.6, and understate
+work-unit growth by 6%.** So this repository's chosen unit of cost holds its
+shape across a 53x change in model size and the iteration count does not —
+CLAUDE.md's "work units are the unit of cost", measured rather than assumed.
+
+**And the set is expensive.** `pds` alone is 23016 s of solve time, 6.4 hours of
+wall clock at `J=4`, and `pds-100` costs 6.425e11 work units — twenty times the
+whole netlib standard set. The three `netlib*` targets stay the gate. How often
+`plato` should run is open and is not decided in 02-23.
 
 The tree is clean and **§1 is finished**: the P0 comparison was re-taken
 after D106 (3.15x HiGHS, **0.95x SoPlex — faster per solve for the first

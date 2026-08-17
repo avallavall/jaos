@@ -1,8 +1,10 @@
 # The fourth set's first readings, and what they say about the first three
 
-TODO.md §4's set, run for the first time 2026-08-17. `fome` is complete and
-has a baseline. `nug` is one instance of three. `pds` is running as this is
-written and its numbers are not here yet.
+TODO.md §4's set, run for the first time 2026-08-17, finished 2026-08-18.
+**`fome` and `pds` are complete and have baselines: twelve of twelve solved,
+checker ok, deterministic, both gates PASS.** `nug` is one instance of three;
+`nug20` and `nug30` were stopped at 68 minutes so that `pds` could run first,
+and are unmeasured rather than unsolvable.
 
 ## The anchor, first, because everything else is read against it
 
@@ -12,11 +14,17 @@ written and its numbers are not here yet.
 | `pilot87`, the largest instance in it | 1.882e10 |
 | `ken-18`, the largest in Kennington | 7.828e9 |
 | `fome13`, one instance of the new set | 5.079e10 |
-| **`nug08-3rd`, one instance of the new set** | **2.947e11** |
+| `nug08-3rd`, one instance of the new set | 2.947e11 |
+| **`pds-100`, one instance of the new set** | **6.425e11** |
+| **the eight `pds` instances together** | **1.987e12** |
 
-`nug08-3rd` alone costs **9.2x the entire standard set**, and **15.7x**
-`pilot87`. The four `fome` instances together come to 1.080e11, which is
-**3.4x the standard set**.
+`pds-100` alone costs **20x the entire standard set**, and **34x** `pilot87`.
+The eight `pds` instances together come to **62x the standard set**;
+`nug08-3rd` alone is 9.2x it and the four `fome` 3.4x.
+
+Read that beside D46, which says two instances are 74% of the standard set's
+total. The whole body of evidence behind every performance verdict in this
+repository is 1/20th of one instance nobody had run.
 
 Read that beside D46, which says two instances are 74% of the standard set's
 total. The whole body of evidence behind every performance verdict in this
@@ -82,7 +90,50 @@ presolve, and every measurement behind them was taken on netlib and Kennington.
 Here is a model class where the entire machinery is a no-op, and the class was
 not in the population when any of those questions was decided.
 
-## The two families disagree about where the cost is, and that is the point
+## pds — complete, eight of eight
+
+Baseline at `bench/plato-pds.baseline`, finished 2026-08-18 00:03. All eight
+`shape=ok checker=ok det=ok`, `gate: PASS`, exit 0. 23016 s of solve time over
+eight instances at `J=4`; slowest `pds-100` at 7856 s.
+
+`pds-100` is 156243 × 505360 and takes **1565527 iterations**. `ken-18`, the
+largest model JAOS had ever read before this, takes 44471.
+
+## The finding: what small models understate, and what they do not
+
+`ladder.py` reads the manifests and the baselines and prints the whole thing.
+With `pds-30` … `pds-100` in, the pds ladder is **twelve points over a 52.9x
+range in rows**, and four of them were already in the tree.
+
+End to end, `pds-02` → `pds-100`: iterations **819.6x** (`n^1.69`), total work
+**59796x** (`n^2.77`).
+
+Now split that range in two and compare the exponents.
+
+| | iteration exponent | work exponent |
+|---|---|---|
+| `pds-02` … `pds-20`, the range netlib and Kennington live in | 1.30, 1.14, 1.38 — **mean 1.27** | **2.61** |
+| `pds-20` … `pds-90`, above it | 1.83, 2.16, 1.84, 2.01, 2.59, 2.34, 1.78 — **mean 2.08** | — |
+| whole range | **1.69** | **2.77** |
+
+**Measuring in the small range understates the iteration growth by a factor of
+1.6.** A verdict about how iteration count scales, taken on models the size of
+netlib's, is not a verdict about models an order of magnitude larger.
+
+**And the work-unit count is not understated.** 2.61 over the small range
+against 2.77 over the whole: **6%**. The metric this repository chose as its
+unit of cost holds its shape across a 53x change in model size, and the
+iteration count does not. That is CLAUDE.md's "work units are the unit of cost"
+measured rather than assumed, for the first time.
+
+The last step is the exception and is recorded as one step, not a trend:
+`pds-90` → `pds-100` grows iterations **1.886x** for a 1.094x model while the
+cost of an iteration **falls 30%**. Their product is a work ratio of 1.32,
+exponent 3.2, in line with its neighbours. So total work stayed smooth while the
+split between iterations and per-iteration cost jumped — which is the same
+point again, from the other side.
+
+## The three families disagree about where the cost is, and that is the point
 
 `ladder.py` beside this file reads the manifests and the baselines and prints
 both scaling ladders. Nothing in it is copied by hand, and instances with no
@@ -93,7 +144,9 @@ been in `bench/netlib-kennington.*` since M1, and `pds-30` … `pds-100` arrived
 with §4. Four of the points were in the repository the whole time and nobody
 had plotted them, because the family stopped at `pds-20`.
 
-From the four committed points alone, over an 11.5x range in rows:
+The four points that were already committed, over an 11.5x range in rows — the
+range netlib and Kennington live in, and the one every verdict in this
+repository was taken on:
 
 | step | rows | iterations | exponent | work/iter | exponent |
 |---|---|---|---|---|---|
@@ -138,4 +191,16 @@ the output saying so.
   from three instances. `fome21` is not part of the doubling.
 - **The seconds are `J=4` seconds** and are inflated by contention. They say
   which instances are expensive, not by how much (D45).
-- `nug20`, `nug30` and all eight `pds` are **unmeasured** as this is written.
+- **`nug20` and `nug30` are unmeasured**, and nothing here says they cannot be
+  solved. They were stopped at 68 minutes, both at 100% CPU without swapping,
+  so that `pds` could run first.
+- **The exponents are single-instance ratios, not a fit.** Eleven steps is
+  enough to see the trend change and not enough to put an error bar on it. The
+  `pds-90 → pds-100` step alone moves the iteration exponent to 7.06 and is
+  reported as one step, deliberately.
+- **`pds` is not a doubling family.** Its steps mix rows and columns at
+  different ratios, so its exponents are taken against rows and are cruder than
+  `fome`'s. `fome` is the clean instrument and it has only two usable steps.
+- **This set is not a per-commit instrument.** `pds` alone is 23016 s of solve
+  time and 6.4 hours of wall clock at `J=4`. The three `netlib*` targets remain
+  the gate; how often `plato` should run is not settled here.

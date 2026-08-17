@@ -1,0 +1,14 @@
+# What each instance did, as of this run. Regenerated only on
+# purpose: `make netlib-baseline` after a change whose effect on
+# these numbers has been read and accepted. A quiet update here
+# is a regression nobody will ever be told about.
+#
+# name status solved shape objective checker det iters work dropped
+pds-30       optimal      1 1 0 1 1 90624 20777407891 1.8764479521447822e-16
+pds-40       optimal      1 1 0 1 1 169931 52686889837 1.5739714991055873e-15
+pds-50       optimal      1 1 0 1 1 253154 93426233624 2.2893268041105477e-15
+pds-60       optimal      1 1 0 1 1 363124 153317924934 6.6780315511400325e-15
+pds-70       optimal      1 1 0 1 1 528228 208523941153 9.9057632158653888e-15
+pds-80       optimal      1 1 0 1 1 694535 330013273621 9.894263311645056e-15
+pds-90       optimal      1 1 0 1 1 830123 485839087605 3.3724917038531175e-15
+pds-100      optimal      1 1 0 1 1 1565527 642476362018 9.6221406189673062e-16
