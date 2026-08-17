@@ -318,18 +318,35 @@ static bool baseline_load(const char *path)
     return true;
 }
 
-static bool baseline_write(const char *path)
+/* `noref` is passed rather than read off `g_expect`, which is declared below
+ * this point — and passing it is the better shape anyway: what the header says
+ * is an argument about this file, not ambient state the writer reaches for. */
+static bool baseline_write(const char *path, bool noref)
 {
     FILE *f = fopen(path, "w");
     if (f == nullptr) {
         fprintf(stderr, "cannot write %s\n", path);
         return false;
     }
+    /* The header named `make netlib-baseline` for every set. That was already
+     * wrong for the Kennington and infeasible baselines and is wrong for three
+     * more since the fourth set landed — it tells a reader to run a command
+     * that would rewrite a different file. The runner is not told which target
+     * invoked it, so it names the shape instead of guessing one. */
     fprintf(f, "# What each instance did, as of this run. Regenerated only on\n"
-               "# purpose: `make netlib-baseline` after a change whose effect on\n"
-               "# these numbers has been read and accepted. A quiet update here\n"
-               "# is a regression nobody will ever be told about.\n"
-               "#\n"
+               "# purpose, by the `*-baseline` target that writes this file,\n"
+               "# after a change whose effect on these numbers has been read\n"
+               "# and accepted. A quiet update here is a regression nobody\n"
+               "# will ever be told about.\n");
+    if (noref)
+        /* Without this the `objective` column is a row of zeroes, which reads
+         * as "wrong on every instance" and records the opposite of what it
+         * means. */
+        fprintf(f, "#\n"
+                   "# This set has no published optimum, so the `objective`\n"
+                   "# column is 0 throughout and means NOT VERIFIED, never\n"
+                   "# wrong. Run with `-e noref`; see TODO.md section 4.\n");
+    fprintf(f, "#\n"
                "# name status solved shape objective checker det iters work "
                "dropped\n");
     for (int i = 0; i < g_ngot; i++) {
@@ -1227,7 +1244,8 @@ int main(int argc, char **argv)
          * nothing should be readable as such a year later. */
         emit("\nbaseline: NOT COMPARED (no baseline given)\n");
 
-    if (write_baseline != nullptr && !baseline_write(write_baseline)) {
+    if (write_baseline != nullptr &&
+        !baseline_write(write_baseline, g_expect == EXPECT_OPTIMAL_NOREF)) {
         if (g_record != nullptr)
             fclose(g_record);
         return 2;
