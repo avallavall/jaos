@@ -31,6 +31,13 @@ open, `bench/README.md` for the gate, and the commit each entry came from.
 
 ### Changed
 
+- §1e closed: `maros-r7`'s 15.7x per-iteration drop is the factor fill
+  collapsing (D110). L falls 28.5x, the whole factor 7.9x, the fill ratio
+  4.801 to 1.457 on a model that shrank 31%, with the refactorization
+  cadence unchanged — measured per refactorization on both sides of D106,
+  with the pre side reproducing D46's committed 4.801x as its calibration.
+  Readings in `bench/measurements/02-17/`.
+
 - §1b closed: the implied-free window's `max(1, scale)` floor declines
   nothing — a floor-less build at the shipping 8 ulps reproduces all 94
   standard instance lines bit for bit, digests included, after proving

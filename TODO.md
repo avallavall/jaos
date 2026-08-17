@@ -17,12 +17,12 @@ count (341 inequality rows, a tenth and not two thirds — D107, 02-13), and
 `scfxm3` in the ratio-test path; no refuse rule — D108, 02-14). The
 reference build is still red, item four in the standing debts below.
 
-**Pick up at §1e or §1c.** §1e is `maros-r7`'s unexplained 15.7x
-per-iteration drop and wants a factor-fill instrument in the LU (nonzeros
-of L and U per refactorization, both sides of D106); it already has a
-seconds-side corroboration from the P0 re-take. §1c is the recovery
-margin's sizing and is analysis plus a constructed case rather than a
-sweep. Both are diagnostic first; neither ships anything by itself.
+**Pick up at §1c**, the last §1 question: the recovery's error is sized by
+nothing, and the settlement is a measurement (a constructed case at high
+row degree and traffic) before either repair candidate is weighed. After
+it, the plan's order goes to §2's candidate rule or §5's factorization
+item, where D110 just put the first number (`stocfor3`'s fill is unmeasured
+and is the first to take).
 
 Three things this session left deliberately unmeasured, so nobody re-derives
 them by accident: `greenbeb`'s 1.5126x, `maros-r7`'s 15.7x per-iteration drop,
@@ -37,8 +37,8 @@ Kennington is bit-identical. Work over the standard set is a geometric mean
 of 0.9527x. `maros-r7` alone goes from 21010708013 work units to 328053926
 and from 10479 iterations to 2576.
 
-Two questions stay open — §1c and §1e — after the closures of §1a (D107),
-§1b (D109) and §1d (D108).
+One question stays open — §1c — after the closures of §1a (D107), §1b
+(D109), §1d (D108) and §1e (D110).
 
 ### 1a. Inequality rows — closed 2026-08-17 by D107: a tenth of the count, refused
 
@@ -102,22 +102,15 @@ predicted trajectory is refused — the reopen condition is in the refusals
 table. §2's relaxing family and its candidate rule are untouched. Readings
 in `bench/measurements/02-14/`.
 
-### 1e. `maros-r7`'s iteration got 15.7x cheaper and the model only shrank 31%
+### 1e. `maros-r7`'s cheaper iteration — closed 2026-08-17 by D110: the fill collapsed
 
-Work falls 64.0x while iterations fall 4.07x, so the cost of an iteration
-falls 15.7x. The model loses 31% of its rows and 31% of its nonzeros. That
-does not account for it.
-
-The hypothesis with something behind it: `maros-r7`'s factors carry **4.801x**
-its basis nonzeros, the worst ratio in the set (D46), and 980 of the columns
-removed were singletons. If the fill collapsed with them, that is a fact about
-the factorization and belongs in §5's factorization item rather than here. It
-has no measurement. Take one before believing either half of this paragraph.
-
-The 2026-08-17 P0 re-take adds a seconds-side reading on the dev host:
-`maros-r7` at 1.33x HiGHS time on 1.05x its iterations, about 1.27x per
-iteration against 11.0x at T0. That corroborates the drop and still does not
-say why; the factor-fill measurement is what would.
+Measured with a per-refactorization fill print on both trees, calibrated
+until the pre side reproduced D46's committed 4.801x on its own: L falls
+28.5x (90523 to 3172 nonzeros), the whole factor 7.9x, the fill ratio 4.801
+to 1.457, on a model that shrank 31%. The refactorization cadence is
+unchanged. That is where the 15.7x per-iteration drop lives, and the fact
+now sits in §5's factorization item. Readings in
+`bench/measurements/02-17/`.
 
 ## 2. Presolve makes `grow22` and `grow7` far worse (opened by D103)
 
@@ -243,7 +236,10 @@ baseline, and a baseline added mid-change cannot be read.
 
 - **Factorization** (REQ-lu-fill-and-markowitz, REQ-hyper-sparse-downstream):
   the stale live counts Markowitz chooses on, and the fill — factors carry
-  2.673x the basis nonzeros (4.801 on `maros-r7`); keep sparse triangular
+  2.673x the basis nonzeros set-wide (D46, which predates D106; `maros-r7`
+  read 4.801x before D106 and 1.457x after it, D110; `stocfor3`, now the
+  worst instance in the comparison, is unmeasured and is the first fill
+  number to take); keep sparse triangular
   results sparse downstream (`stocfor3`: 6.79x per iteration, solves 43%,
   memset/memcpy/malloc 18.8% against 11.3% on `dfl001`). Left-looking
   elimination is a rewrite and needs its own decision first. Struck off by

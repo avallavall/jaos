@@ -117,6 +117,7 @@ and you have the argument. Jump to the entry for the numbers behind it.
 - **[D107](#d107--the-inequality-half-of-the-implied-free-count-is-a-tenth-not-two-thirds-and-building-it-is-refused-on-the-count)** — The inequality half of the implied-free count is a tenth, not two thirds, and building it is refused on the count
 - **[D108](#d108--greenbeb-pays-d106s-overcost-in-iterations-and-scfxm3-in-the-ratio-test-and-no-refuse-rule-is-built-on-an-exact-reductions-trajectory)** — greenbeb pays D106's overcost in iterations and scfxm3 in the ratio test, and no refuse rule is built on an exact reduction's trajectory
 - **[D109](#d109--the-implied-free-windows-floor-declines-nothing-the-set-can-measure-and-the-margin-ships-exactly-as-it-is)** — The implied-free window's floor declines nothing the set can measure, and the margin ships exactly as it is
+- **[D110](#d110--maros-r7s-cheaper-iteration-is-the-factor-fill-collapsing-and-the-instrument-reproduced-d46s-figure-before-being-believed)** — maros-r7's cheaper iteration is the factor fill collapsing, and the instrument reproduced D46's figure before being believed
 
 ---
 
@@ -8371,3 +8372,50 @@ place. §1b closes with it; nothing of it remains open. Reopens if a model
 population makes `bench/measurements/02-16/run-floorless.sh` report a moved
 instance line, which is executable, or if the D106 sweep's own question
 reopens. §1c and §1e are untouched.
+
+## D110 — maros-r7's cheaper iteration is the factor fill collapsing, and the instrument reproduced D46's figure before being believed
+
+**The question, as §1e asked it.** D106 made `maros-r7`'s work fall 64.0x
+while iterations fell 4.07x, so the cost of an iteration fell 15.7x, and
+the model only shrank 31%. The hypothesis on record: the factors carried
+**4.801x** the basis nonzeros, the worst ratio in the set (D46), 980 of the
+removed columns were singletons, and if the fill collapsed with them the
+fact belongs to the factorization. It had no measurement, and §1e said to
+take one before believing either half.
+
+**The measurement, 2026-08-17, in `bench/measurements/02-17/`.** A
+throwaway print in `jm_lu_factor`'s success path — dimension, basis
+nonzeros, L and U nonzeros, once per refactorization — patched into two
+tree copies, HEAD and `b40fe74`, the repository untouched. Three
+calibrations passed before anything was read: each binary reproduces its
+committed `maros-r7` record exactly (2576/328053926 and 10479/21010708013);
+`adlittle`, bit-identical across D106, gives identical traces on both
+binaries; and the pre side's mean fill ratio reads **4.801**, reproducing
+D46's committed figure from an instrument that never saw it.
+
+Means over all refactorizations (326 pre, 82 post; one refactorization per
+~31 iterations on both sides, so the cadence is unchanged):
+
+| | pre-D106 | post-D106 | ratio |
+|---|---|---|---|
+| dimension | 3136 | 2156 | 0.69x |
+| basis nonzeros | 64526 | 26865 | 0.42x |
+| L nonzeros | 90523 | **3172** | **1/28.5** |
+| U off-diagonal | 216157 | 33815 | 1/6.4 |
+| whole factor | 309816 | 39143 | **1/7.9** |
+| fill ratio | **4.801** | **1.457** | 1/3.3 |
+
+**Closed: the hypothesis is confirmed and quantified.** A 31% smaller model
+carries a 7.9x smaller factor, and every FTRAN, BTRAN and update walks that
+factor — which is where the 15.7x per-iteration drop lives, with the
+remainder in the 0.42x basis itself. `maros-r7` goes from the worst fill
+ratio in the set (4.801x against the 2.673x set mean, D46) to 1.457x. The
+fact belongs to §5's factorization item and is recorded there: the fill
+problem D46 named has lost its worst example to a presolve reduction, and
+the standing worst instance in the comparison, `stocfor3`, has no fill
+measurement yet.
+
+**Left open.** Nothing of §1e. The set-wide fill picture after D106 (D46's
+2.673x mean predates it) is unmeasured and belongs to §5's factorization
+item when that work starts; `stocfor3`'s own fill is the first number to
+take there.
