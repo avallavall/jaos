@@ -31,6 +31,14 @@ open, `bench/README.md` for the gate, and the commit each entry came from.
 
 ### Changed
 
+- §1c's precondition met: the postsolve recovery error is demonstrated on a
+  constructed model — a degree-2001 equality row at traffic 2e8 publishes
+  the recovered column 4.1e-6 outside its own bound where the margin
+  promises 3.6e-7, an 11.4x breach, predicted bit for bit before the run.
+  The case runs through `jm_postsolve_solved`, which no instance reaches.
+  The settlement (compensate with `ps_acc`, or degree-scale the margin)
+  stays open and is campaign-judged. `bench/measurements/02-18/`.
+
 - §1e closed: `maros-r7`'s 15.7x per-iteration drop is the factor fill
   collapsing (D110). L falls 28.5x, the whole factor 7.9x, the fill ratio
   4.801 to 1.457 on a model that shrank 31%, with the refactorization

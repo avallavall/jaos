@@ -17,12 +17,13 @@ count (341 inequality rows, a tenth and not two thirds — D107, 02-13), and
 `scfxm3` in the ratio-test path; no refuse rule — D108, 02-14). The
 reference build is still red, item four in the standing debts below.
 
-**Pick up at §1c**, the last §1 question: the recovery's error is sized by
-nothing, and the settlement is a measurement (a constructed case at high
-row degree and traffic) before either repair candidate is weighed. After
-it, the plan's order goes to §2's candidate rule or §5's factorization
-item, where D110 just put the first number (`stocfor3`'s fill is unmeasured
-and is the first to take).
+**Pick up at §1c's settlement.** The case is constructed and measured
+(02-18): 11.4x the margin's promise at degree 2001, predicted bit for bit.
+The candidate repair is the `ps_acc` compensation of the postsolve
+accumulation; it moves published activities, so it is the first source
+change since D106 and takes the whole loop — the 02-18 model as a test that
+must fail unrepaired, `numerics-reviewer` on the diff, all three sets, and
+`jaos-measurer`'s verdict before the baselines move.
 
 Three things this session left deliberately unmeasured, so nobody re-derives
 them by accident: `greenbeb`'s 1.5126x, `maros-r7`'s 15.7x per-iteration drop,
@@ -88,6 +89,18 @@ the constant by the row's live degree, or compensate the postsolve
 accumulation with `ps_acc`. **Clamping the recovered `x_j` into the box is not
 one of them** — that hides the row residue instead of removing it, which is
 the shape D103's own repair was refused for.
+
+**The case is constructed and measured (2026-08-17,
+`bench/measurements/02-18/`).** On a row of degree 2001 with traffic 2e8 the
+published value lands 4.1e-6 outside the bound the caller stated, where the
+margin promises 3.6e-7 — **11.4x** — and the breach was predicted bit for
+bit before the run (equal terms make the accumulation order-independent, so
+Python computes the error exactly). The case also exercises
+`jm_postsolve_solved`, which no instance of the 139 reaches. What remains is
+the settlement, judged by campaign: the compensation removes the class where
+degree-scaling the margin only declines more firings, and it moves published
+activities, so it takes the full loop with this model as the test that must
+fail on the unrepaired tree.
 
 ### 1d. `greenbeb`, `scfxm3` and `forplan` — closed 2026-08-17 by D108: two mechanisms, no refuse rule
 
