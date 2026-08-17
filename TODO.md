@@ -7,6 +7,19 @@ line leaves this file in the same commit.
 
 ## Where the last session stopped — 2026-08-17
 
+**Two things are in flight and neither is on `main`.**
+
+1. `make plato-pds-baseline J=4` is running. Seven of eight are in, `pds-100`
+   is not. **No source edit may land on `main` until it finishes** — a campaign
+   is only valid for the tree that produced it. When it lands, read the diff,
+   then finish `bench/measurements/02-23/` (its `ladder.py` picks the numbers up
+   on its own; do not hand-copy them).
+2. Branch **`baseline-header`** carries one commit, `b3bebff`, waiting to merge:
+   the runner's baseline header named `make netlib-baseline` for every set,
+   which was wrong for five of six. `make test` and `make sanitize` are clean on
+   it and it is round-tripped both ways. **Merge it once `pds` is in.** Its
+   worktree is `../jaos-wt-rounding`; remove the worktree after merging.
+
 The tree is clean and **§1 is finished**: the P0 comparison was re-taken
 after D106 (3.15x HiGHS, **0.95x SoPlex — faster per solve for the first
 time** — 2.57x Clp; worst instance now `stocfor3` at 30.0x, which is
