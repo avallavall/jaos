@@ -105,6 +105,17 @@ open, `bench/README.md` for the gate, and the commit each entry came from.
 
 ### Fixed
 
+- The postsolve replay's accumulation of `sol_row` is Neumaier-compensated
+  (`ps_row_add`, one carry per row, folded once per walk), and every reader
+  reads sum plus carry — so the recovered implied-free column stops
+  inheriting the running sum's `n·eps·traffic` error, which 02-18 showed
+  breaching a stated bound by 11.4x the margin's promise. Verdicts,
+  iterations and work units identical on all 139; 9 netlib digests moved
+  where the replay's rounding lived, infeas and Kennington bit-identical;
+  `jaos-measurer` ACCEPT; netlib baseline rewritten deliberately and
+  confirmed (D111). The 02-18 model is pinned as a test that fails on the
+  uncompensated tree.
+
 - A removed column's share of every row it touches. `JM_PS_SINGLETON_COL` and
   `JM_PS_FREE_COL_SINGLETON` wrote their own row and stopped, so every other
   row those columns touch — all of them dead, since both families need a live

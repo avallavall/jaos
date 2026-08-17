@@ -118,6 +118,7 @@ and you have the argument. Jump to the entry for the numbers behind it.
 - **[D108](#d108--greenbeb-pays-d106s-overcost-in-iterations-and-scfxm3-in-the-ratio-test-and-no-refuse-rule-is-built-on-an-exact-reductions-trajectory)** — greenbeb pays D106's overcost in iterations and scfxm3 in the ratio test, and no refuse rule is built on an exact reduction's trajectory
 - **[D109](#d109--the-implied-free-windows-floor-declines-nothing-the-set-can-measure-and-the-margin-ships-exactly-as-it-is)** — The implied-free window's floor declines nothing the set can measure, and the margin ships exactly as it is
 - **[D110](#d110--maros-r7s-cheaper-iteration-is-the-factor-fill-collapsing-and-the-instrument-reproduced-d46s-figure-before-being-believed)** — maros-r7's cheaper iteration is the factor fill collapsing, and the instrument reproduced D46's figure before being believed
+- **[D111](#d111--the-postsolve-recovery-is-compensated-nine-digests-move-where-rounding-lived-and-1c-closes)** — The postsolve recovery is compensated, nine digests move where rounding lived, and §1c closes
 
 ---
 
@@ -8419,3 +8420,68 @@ measurement yet.
 2.673x mean predates it) is unmeasured and belongs to §5's factorization
 item when that work starts; `stocfor3`'s own fill is the first number to
 take there.
+
+## D111 — The postsolve recovery is compensated, nine digests move where rounding lived, and §1c closes
+
+**The question, as §1c asked it.** The implied-free margin is sized on the
+forward sum's error, which it covers with slack; the recovery is a different
+quantity and nothing sized it. `x_j` came back from `sol_row[i]`, a plain
+running double accumulated in replay order, whose error grows as
+`n·eps·traffic` against a margin promising `8·eps·traffic`.
+`bench/measurements/02-18/` made that concrete: a degree-2001 row published
+its recovered column 4.06e-6 outside the bound the caller stated, 11.4x the
+margin's promise, predicted bit for bit. Two settlements were candidates:
+degree-scale the margin, or compensate the accumulation.
+
+**The decision: compensate.** Degree-scaling declines reductions to avoid an
+error the arithmetic can simply not make; Neumaier compensation removes the
+error class at the cost of one carry array per walk and a two-sum per
+accumulation, portable and deterministic (`-ffp-contract=off` makes the
+error recovery exact, the same argument `ps_acc` already carries).
+Clamping stayed excluded — it hides a residue, D103's own refused shape.
+Every accumulation into `sol_row` during the replay goes through
+`ps_row_add`, every reader reads sum plus carry, assignments reset the
+carry, and the walkers fold once at the end. `numerics-reviewer` read the
+diff before any campaign; its chain finding (the cost-0 singleton re-base
+discarded the carry once per record) was fixed by accumulating there too,
+its ordering finding (allocation after the status publication) was fixed by
+moving the allocation, its contract findings were fixed in the comments and
+with the test's vacuity guard, and its saturating-activity finding
+(inf becomes NaN through the carry at activities near 1e308) is refused
+with its own reason: no realistic LP reaches it and `ps_acc_add` in the
+forward pass has the same property.
+
+**The measurement, 2026-08-17.** The 02-18 model is now
+`test_the_recovered_column_respects_the_bound_it_was_promised`, and it was
+validated the required way: green on the repaired tree, failing on its
+bound assertion on an unrepaired copy carrying the same test. `make test`
+and `make sanitize` green. All three sets, twice — once by this session,
+once independently by `jaos-measurer`, bit-identical to each other:
+
+- netlib: gate PASS, verdicts, iterations, work units and printed
+  objectives identical on all 94; **85 bit-identical, 9 moved digest only**
+  (`bandm`, `beaconfd`, `capri`, `greenbeb`, `maros`, `maros-r7`,
+  `standmps`, `tuff`, `vtp-base` — every one with nonzero presolve
+  reductions, so the replay accumulated on it; `truss`, which presolve
+  does not touch, did not move). The unjudged residuals mostly fell:
+  `greenbeb` row 2.12e-11 to 9.85e-12, `standmps` 3.32e-13 to 1.05e-13,
+  `vtp-base` 8.82e-12 to 5.73e-12.
+- netlib-infeas: 29 of 29 bit-identical (the infeasible walker replays
+  nothing, and the record proves it).
+- Kennington: 16 of 16 bit-identical.
+
+`jaos-measurer` returned **ACCEPT** from its own context, re-confirming the
+reject case itself. The netlib baseline was rewritten deliberately after
+the verdict and confirmed by a following run reading
+`0 regressed, 0 improved, 0 new`; the other two baselines are untouched
+because their records are bit-identical.
+
+**What was refuted.** That the defect class needed a wider or
+degree-scaled margin: the margin was never the wrong size, the accumulation
+was the wrong instrument, and fixing the instrument moved no verdict, no
+iteration and no work unit anywhere.
+
+**Left open.** Nothing of §1c, which closes §1 entirely — every question
+D106's own measurements opened (§1a, §1b, §1c, §1d, §1e) is now closed by
+D107 through D111. The reviewer's refused finding above is the only carried
+note, recorded here with its reason.

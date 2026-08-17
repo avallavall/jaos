@@ -7,23 +7,25 @@ line leaves this file in the same commit.
 
 ## Where the last session stopped — 2026-08-17
 
-The tree is clean. The gate sets were not touched; the last source change is
-still D106. What landed today, none of it source: the README rewrite, §5's
-`make compare` re-run (P0 at `a88e99b`: **3.15x HiGHS, 0.95x SoPlex —
-faster per solve for the first time — 2.57x Clp**; worst instance now
-`stocfor3` at 30.0x), and two closures by measurement: §1a refused on its
-count (341 inequality rows, a tenth and not two thirds — D107, 02-13), and
-§1d closed with its mechanisms named (`greenbeb` pays in iterations,
-`scfxm3` in the ratio-test path; no refuse rule — D108, 02-14). The
-reference build is still red, item four in the standing debts below.
+The tree is clean and **§1 is finished**: the P0 comparison was re-taken
+after D106 (3.15x HiGHS, **0.95x SoPlex — faster per solve for the first
+time** — 2.57x Clp; worst instance now `stocfor3` at 30.0x, which is
+presolve's, not the factorization's — its fill is 1.036), and all five
+questions D106 opened closed in one day, four by measurement alone and one
+with a source change: D107 (inequality rows are a tenth, refused), D109
+(the window's floor declines nothing, refused), D108 (two overcost
+mechanisms, no refuse rule), D110 (`maros-r7`'s factor collapsed 7.9x),
+D111 (the postsolve recovery is compensated; `jaos-measurer` ACCEPT; 9
+netlib digests moved where the rounding lived; netlib baseline rewritten
+deliberately and confirmed). The reference build debt is repaired in
+spirit by D111's test discipline but item four below still stands as
+written.
 
-**Pick up at §1c's settlement.** The case is constructed and measured
-(02-18): 11.4x the margin's promise at degree 2001, predicted bit for bit.
-The candidate repair is the `ps_acc` compensation of the postsolve
-accumulation; it moves published activities, so it is the first source
-change since D106 and takes the whole loop — the 02-18 model as a test that
-must fail unrepaired, `numerics-reviewer` on the diff, all three sets, and
-`jaos-measurer`'s verdict before the baselines move.
+**Pick up at §2's candidate rule, or §5's next item.** §2 is the relaxing
+family's unbounded-relative-widening refusal and needs a sweep on both
+sides plus a campaign; its blocker is unchanged (`grow15` gets the same
+firings and halves). §5's factorization item now has its live examples
+(`pilot87` 3.610, `pilot` 3.261) and §5's presolve item owns `stocfor3`.
 
 Three things this session left deliberately unmeasured, so nobody re-derives
 them by accident: `greenbeb`'s 1.5126x, `maros-r7`'s 15.7x per-iteration drop,
@@ -38,8 +40,9 @@ Kennington is bit-identical. Work over the standard set is a geometric mean
 of 0.9527x. `maros-r7` alone goes from 21010708013 work units to 328053926
 and from 10479 iterations to 2576.
 
-One question stays open — §1c — after the closures of §1a (D107), §1b
-(D109), §1d (D108) and §1e (D110).
+**Every question this section opened is closed**: §1a (D107), §1b (D109),
+§1c (D111), §1d (D108), §1e (D110). The subsections below are the closed
+record; nothing here is open work.
 
 ### 1a. Inequality rows — closed 2026-08-17 by D107: a tenth of the count, refused
 
@@ -66,41 +69,19 @@ because their bounds are zero or too small to absorb a margin of any scale
 prediction stated before the run). The constant stays `ULPS = 8` with both
 floors; the reopen condition is in the refusals table.
 
-### 1c. The margin covers the forward sum's error and not the recovery's
+### 1c. The recovery's error — closed 2026-08-17 by D111: the accumulation is compensated
 
-`PRESOLVE_IMPLIED_FREE_ULPS` is sized on the error in `ilo`/`iup`, which
-`numerics-reviewer` confirms it covers with about 4x slack in every regime
-asked of it. The recovery is a different quantity and nothing sizes it.
-
-`x_j` comes back from `sol_row[i]`, accumulated in plain `double` with no
-compensation and in replay order. For a row of `n` live terms that error
-reaches about `n * eps * traffic / |a|`, while the margin promises
-`8 * eps * traffic / |a|`. On a row of 500 entries with traffic 1e8 that is
-**1.1e-5 against 1.8e-8**.
-
-The symptom is not the silent one. The model is not relaxed and the objective
-is not too good; `x_j` lands a little outside a bound that was supposed to be
-non-binding, so it shows as a small COLUMN violation. It also needs the
-optimum at the vertex where every other column sits on the extreme bound
-`ilo` was computed from, which narrows it without removing it.
-
-Two settlements, either of which is a measurement rather than a guess: scale
-the constant by the row's live degree, or compensate the postsolve
-accumulation with `ps_acc`. **Clamping the recovered `x_j` into the box is not
-one of them** — that hides the row residue instead of removing it, which is
-the shape D103's own repair was refused for.
-
-**The case is constructed and measured (2026-08-17,
-`bench/measurements/02-18/`).** On a row of degree 2001 with traffic 2e8 the
-published value lands 4.1e-6 outside the bound the caller stated, where the
-margin promises 3.6e-7 — **11.4x** — and the breach was predicted bit for
-bit before the run (equal terms make the accumulation order-independent, so
-Python computes the error exactly). The case also exercises
-`jm_postsolve_solved`, which no instance of the 139 reaches. What remains is
-the settlement, judged by campaign: the compensation removes the class where
-degree-scaling the margin only declines more firings, and it moves published
-activities, so it takes the full loop with this model as the test that must
-fail on the unrepaired tree.
+The 02-18 case (11.4x the margin's promise, predicted bit for bit) settled
+the choice: compensate rather than degree-scale, because the arithmetic can
+simply not make the error. Every replay accumulation goes through
+`ps_row_add`, readers read sum plus carry, and the walkers fold once.
+`numerics-reviewer` read the diff first and its findings carry dispositions
+in D111; `jaos-measurer` returned ACCEPT from its own campaign: verdicts,
+iterations and work units identical everywhere, 9 netlib digests moved
+where the replay's rounding lived, infeas and Kennington 45 of 45
+bit-identical. The pinned test fails on the unrepaired tree and is green
+now. The netlib baseline was rewritten deliberately after the verdict and
+confirmed by a following run.
 
 ### 1d. `greenbeb`, `scfxm3` and `forplan` — closed 2026-08-17 by D108: two mechanisms, no refuse rule
 
