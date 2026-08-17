@@ -5,7 +5,50 @@ says why closed questions closed, `CHANGELOG.md` says what landed, `bench/`
 says what it costs. This file says what is next. When something lands, its
 line leaves this file in the same commit.
 
-## Where the last session stopped — 2026-08-17
+## Where the last session stopped — 2026-08-18
+
+## → START HERE: §4a, why D106 fires on none of `fome`'s candidates
+
+This is the one open thread with a number on it and no explanation, and it is
+the first thing to pick up. Everything else below is context.
+
+| | candidates | rows presolve removes |
+|---|---|---|
+| `fome11` | **166** | **0** |
+| `fome12` | **332** | **0** |
+| `fome13` | **664** | **0** |
+
+166, 332, 664 — exactly proportional to the family's doubling, which is why it
+is a question and not an accident. They carry D106's shape by 02-13's own
+predicate. D106 removes a column *and* its row; no row goes on any of the three.
+
+**Ruled out by measurement, with a canary that moves:** the margin.
+`bench/measurements/02-25/margin-zero.sh`. At `PRESOLVE_IMPLIED_FREE_ULPS = 0`
+`maros-r7` goes 980 → 984 rows removed — exactly the pair `docs/tolerances.md`
+records — and the two `presolve.o` differ by md5, while `fome11` comes out
+identical on both builds down to its 46026 iterations and 8113327824 work units.
+
+**What to do next, in order.**
+
+1. Load `jaos-debug` before instrumenting anything.
+2. Build a throwaway diagnostic that prints, per candidate on `fome11`, which
+   of D106's four conditions declined it. The two the counter never asks are
+   the live degree `col_deg[j] == 1` and the row not being frozen.
+3. **Frozen rows are the leading suspect** — `fome11` loses 1468 columns to
+   other families before D106 runs, and a frozen row has no `b_i` to substitute
+   with. 02-13's README already named this interaction as part of netlib's
+   3315 → 1041 gap; this is the same gap at 100%.
+4. Whatever it is, write it up. `TODO.md` §4a is the item and
+   `bench/measurements/02-25/` is where the readings so far live.
+
+**Nothing here says D106 is wrong.** A family declining what it is restricted
+from taking is the family working. What is new is that a population which
+scales makes the size of the decline visible, and 100% of a family's candidates
+is worth a reason.
+
+Everything below this line is finished work and background.
+
+---
 
 **The fourth set exists and has been run (§4, `bench/measurements/02-23/`).**
 `fome` 4/4 and `pds` 8/8, both `gate: PASS`, every instance `shape=ok
