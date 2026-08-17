@@ -3088,6 +3088,10 @@ static void test_the_recovered_column_respects_the_bound_it_was_promised(void)
                      ncol, st, ix, v));
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
     TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+    /* Vacuity guard: presolve must have consumed the whole model, or the
+     * simplex computed x[0] directly and the assertions below hold without
+     * the replay ever running. Found in review. */
+    TEST_ASSERT_EQUAL_INT64(0, m->presolve_num_col);
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solution(m, x, nullptr, nullptr,
                                                  nullptr));
 

@@ -2137,8 +2137,13 @@ static void ps_replay_one(jaos_model *orig, const jm_presolve *p, int64_t r,
          * file header: this is exactly why the family is restricted to
          * cost 0). */
         orig->sol_redcost[j] = ps_published(-rec->coef * orig->sol_dual[i]);
-        orig->sol_row[i] = ps_published(rest + rec->coef * xv);
-        rowc[i] = 0.0;   /* rest already folded the carry in */
+        /* The row keeps its (sum, carry) pair: adding the term through
+         * ps_row_add loses nothing, where re-basing on `rest` discarded the
+         * fold's residue once per record — and a frozen row can shed every
+         * one of its columns through this family, one record each, which
+         * re-creates the k*eps*traffic growth this change removes. Found in
+         * review, with the chain named from this file's own comments. */
+        ps_row_add(orig, rowc, i, rec->coef * xv);
         ps_add_to_other_rows(orig, rowc, j, i, xv);
         break;
     }
@@ -2219,8 +2224,11 @@ static void ps_replay_one(jaos_model *orig, const jm_presolve *p, int64_t r,
         assert(i >= 0 && i < orig->num_row);
         assert(j >= 0 && j < orig->num_col);
 
-        /* orig->sol_row[i] at THIS moment holds exactly the sum this
-         * record needs to subtract, and that is not a coincidence:
+        /* The pair (sol_row[i], rowc[i]) at THIS moment holds exactly the
+         * sum this record needs to subtract — the pair, never sol_row
+         * alone: the carry is the compensation §1c landed, and a reader
+         * that takes the sum without it reintroduces 02-18's breach. That
+         * the value is complete is not a coincidence:
          *
          *   - a column of row i that survived the reduced solve had its
          *     share seeded into this slot before the walk started;
@@ -2231,8 +2239,8 @@ static void ps_replay_one(jaos_model *orig, const jm_presolve *p, int64_t r,
          *     and has added nothing yet -- which is right, because its
          *     contribution was subtracted from rec->value when it left.
          *
-         * So sol_row[i] is the sum over exactly the columns that were live
-         * in row i when this fired, other than j itself, and
+         * So sol_row[i] + rowc[i] is the sum over exactly the columns that
+         * were live in row i when this fired, other than j itself, and
          * x_j = (b_i - that) / a_ij is the row's own equation. The share is
          * then accumulated rather than assigned, because the columns
          * removed earlier still have theirs to add. */
@@ -2379,6 +2387,15 @@ JAOS_NODISCARD jaos_status jm_postsolve_expand(jm_presolve *p)
     if (est != JAOS_OK)
         return est;
 
+    /* The carry half of every row's replayed activity (see ps_row_add),
+     * allocated before any status is published: a later failure would
+     * otherwise return an error while jaos_status_of already reads the
+     * reduced solve's status over unzeroed solution arrays. Found in
+     * review. Folded into sol_row once, after the walk. */
+    double *rowc = calloc((size_t)orig->num_row + 1, sizeof *rowc);
+    if (rowc == nullptr)
+        return JAOS_ERR_OUT_OF_MEMORY;
+
     orig->solve_status = red->solve_status;
     orig->solve_iters  = red->solve_iters;
     orig->solve_work   = red->solve_work;
@@ -2474,6 +2491,7 @@ JAOS_NODISCARD jaos_status jm_postsolve_expand(jm_presolve *p)
             }
         }
 
+        free(rowc);
         (void)jm_model_remember_basis(orig);
         return JAOS_OK;
     }
@@ -2524,12 +2542,6 @@ JAOS_NODISCARD jaos_status jm_postsolve_expand(jm_presolve *p)
      * solve a few lines above and is already the original problem's, since
      * a removed column's contribution was folded into that row's bounds
      * rather than left in its activity. */
-    /* The carry half of every row's replayed activity (see ps_row_add).
-     * Folded into sol_row once, below, after the walk. */
-    double *rowc = calloc((size_t)orig->num_row + 1, sizeof *rowc);
-    if (rowc == nullptr)
-        return JAOS_ERR_OUT_OF_MEMORY;
-
     for (int64_t j = 0; j < orig->num_col; j++) {
         if (p->col_map[j] < 0)
             continue;
@@ -2560,6 +2572,13 @@ JAOS_NODISCARD jaos_status jm_postsolve_solved(jm_presolve *p)
     jaos_status est = jm_model_ensure_solution_arrays(orig);
     if (est != JAOS_OK)
         return est;
+
+    /* The carry half of every row's replayed activity (see ps_row_add),
+     * allocated before the OPTIMAL status below is published, for the
+     * reason jm_postsolve_expand states. */
+    double *rowc = calloc((size_t)orig->num_row + 1, sizeof *rowc);
+    if (rowc == nullptr)
+        return JAOS_ERR_OUT_OF_MEMORY;
 
     /* Every column presolve fixed, emptied or eliminated: nothing is left
      * for the simplex to run on, so this outcome always publishes OPTIMAL
@@ -2623,11 +2642,6 @@ JAOS_NODISCARD jaos_status jm_postsolve_solved(jm_presolve *p)
            (size_t)orig->num_col * sizeof *orig->sol_col_status);
     static_assert(JAOS_BASIS_BASIC == 0,
                   "the two memsets above publish BASIC by writing zero");
-
-    /* The carry half of every row's replayed activity (see ps_row_add). */
-    double *rowc = calloc((size_t)orig->num_row + 1, sizeof *rowc);
-    if (rowc == nullptr)
-        return JAOS_ERR_OUT_OF_MEMORY;
 
     for (int64_t r = p->arena_len - 1; r >= 0; r--)
         ps_replay_one(orig, p, r, rowc);

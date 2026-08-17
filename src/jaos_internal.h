@@ -522,7 +522,9 @@ typedef enum {
  *     column removed, coef=the entry's coefficient, lo/hi=the column's own
  *     bounds at the moment it was removed, row_lo/row_hi=the row's own
  *     current bounds at that same moment, BEFORE this record's relaxation.
- *     The replay runs mid-LIFO, when sol_row[index] holds the columns
+ *     The replay runs mid-LIFO, when the pair (sol_row[index], its carry —
+ *     ps_row_add's compensation, read as sum plus carry, never the sum
+ *     alone) holds the columns
  *     that were live at push time except index2 itself, so the push-time
  *     pair is the only one that activity can be judged against; the
  *     original pair only becomes the right target once every
