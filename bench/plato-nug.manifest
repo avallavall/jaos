@@ -1,0 +1,32 @@
+# Plato NUG subset — 3 instances, pinned. Part of the fourth set's
+# diversity half.
+#
+# Everything about why this set exists, where it comes from, the licence
+# position, the no-reference tier and the row/col counting rule is in
+# `bench/plato-pds.manifest`. Read that first; nothing is restated here.
+#
+#     make plato-nug
+#
+# Served from https://plato.asu.edu/ftp/lptestset/nug/, `bz2-emps`.
+#
+# LP lower bounds for quadratic assignment problems: S. E. Karisch and
+# F. Rendl, "Lower bounds for the quadratic assignment problem via triangle
+# decompositions", Mathematical Programming 71(2), 1995, 137-152; and
+# K. G. Ramakrishnan, M. G. C. Resende, B. Ramachandran and J. F. Pekny,
+# "Tight QAP bounds via linear programming", in Combinatorial and Global
+# Optimization, World Scientific, 2002, 297-303.
+#
+# These are the shape the tree does not have. Every model JAOS reads today is
+# an economic, transport or stochastic LP; a QAP relaxation is dense-blocked
+# and structurally unlike all of them. nug30 is 52260 x 379350 and expands to
+# 58.6 MB, the largest MPS in any of the four sets.
+#
+# The row-count cross-check against Mittelmann's published table shows **no**
+# offset for nug08-3rd, where pds and fome are one apart. That is recorded and
+# not explained; see the pds manifest.
+#
+#     name  sha256  rows  cols  reference  source  objconst
+#
+nug08-3rd    1dadc68c4b9f57f95e0bb450fb2d495c0cd9a53a591764b99b03c0a6d37e7df0 19728 20448 0.0 none 0.0
+nug20        124a1ea609b8b4ef692733470eac386454a332e211115680e21b873c6235e4da 15240 72600 0.0 none 0.0
+nug30        1bed0e56844920c278f266e825abf03cd08d01cccd01dc768e731ffbf9501030 52260 379350 0.0 none 0.0

@@ -1,0 +1,22 @@
+# Plato FOME subset — 4 instances, pinned. Part of the fourth set's
+# diversity half.
+#
+# Everything about why this set exists, where it comes from, the licence
+# position, the no-reference tier and the row/col counting rule is in
+# `bench/plato-pds.manifest`. Read that first; nothing is restated here.
+#
+#     make plato-fome
+#
+# Served from https://plato.asu.edu/ftp/lptestset/fome/, `bz2-emps`.
+#
+# A doubling family: fome12 is exactly twice fome11 in both dimensions and
+# fome13 twice fome12, which makes it the one family here that can say
+# whether a cost grows linearly or worse without changing anything else about
+# the model. Nothing in the tree has that property today.
+#
+#     name  sha256  rows  cols  reference  source  objconst
+#
+fome11       fac1c417a7b71377318ec6ed2594949dd8d347b8843844e73d859358bdbd5a09 12142 24460 0.0 none 0.0
+fome12       8ed7f524344c1bd3742f977e6aaea1c11b190b07a636d1cf26c4242e8dc08218 24284 48920 0.0 none 0.0
+fome13       a024471c4e229119c856d342fa472bc42ca1fe70f0938fd060928d48c21b41b6 48568 97840 0.0 none 0.0
+fome21       7351ec5e78741cbba60b0be0b763ab8581358d170bf399fa73ba249af67db574 67748 211456 0.0 none 0.0

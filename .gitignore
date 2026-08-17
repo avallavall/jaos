@@ -26,6 +26,12 @@
 /bench/instances/
 /bench/instances-kennington/
 /bench/instances-infeas/
+# The fourth set (TODO.md §4). Same rule, and it matters more here: this host
+# publishes no licence at all, so fetching and never redistributing is the
+# whole of the position. 416 MB expanded across the three.
+/bench/instances-plato-pds/
+/bench/instances-plato-fome/
+/bench/instances-plato-nug/
 
 # Acceptance results ARE committed (PLAN 2.9): every figure in them —
 # status, objective, iterations, work units — is deterministic (D8), so the

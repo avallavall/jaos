@@ -1,0 +1,63 @@
+# Plato PDS subset — 8 instances, pinned. The fourth set's scale half.
+#
+# This header is the shared one for all three plato manifests
+# (`plato-pds`, `plato-fome`, `plato-nug`); the other two point at it.
+#
+#     make plato-pds
+#
+# **Why a fourth set exists at all.** TODO.md §4. Every verdict in this
+# repository before it was taken on 139 models, and four refusals in TODO's
+# table name a model population as their reopen condition. D46 says two
+# instances are 74% of the standard set's total work. Galabova 2023 §3.7 puts
+# HiGHS's own presolve speed-up at 1.10 on netlib against 1.67 on a
+# Mittelmann-derived set — same code, same measure, the population alone.
+#
+# **Source.** Mittelmann's mirror, https://plato.asu.edu/ftp/lptestset/pds/,
+# served in netlib's own emps packing but bzip2'd rather than gzip'd. That is
+# the whole of the difference and it is why bench/fetch.sh gained `bz2-emps`
+# rather than a second pipeline. PDS is the patient-distribution family of
+# Carolan, Hill, Kennington, Niemi and Wichmann, "An Empirical Evaluation of
+# the KORBX Algorithms for Military Airlift Applications", Operations Research
+# 38(2), 1990, 240-248 — the **same paper** the Kennington set comes from, so
+# pds-30 … pds-100 continue pds-02 … pds-20 which are already in the tree.
+#
+# **Licence.** No licence statement exists on that host; its 00README gives
+# origins and citations only. The position is the one this repository already
+# takes for netlib and Kennington and it is unchanged: the instances are
+# fetched at build time, pinned by sha256, and **never enter the repository**
+# (.gitignore, PLAN 2.10). Nothing is redistributed.
+#
+# **Tier: no reference objective.** Netlib has Koch's exact rational optima;
+# this set has none, and no value is invented for one. It enters at the tier
+# TODO.md §4 specifies — checker verdict, solution digest, determinism and
+# work units. The `reference` column is 0.0 and the `source` column is `none`,
+# which is what the runner reads to refuse an optimum-scored run over it. A
+# manifest that carried a made-up reference would score every correct answer
+# against a number nobody measured.
+#
+#     name  sha256  rows  cols  reference  source  objconst
+#
+# The sha256 is of the .bz2 exactly as plato serves it.
+#
+# rows/cols are counted from the expanded MPS by the same rule the netlib
+# manifests use: constraint rows only, N rows excluded, distinct COLUMNS
+# names. **Cross-checked against Mittelmann's own published size table** at
+# plato.asu.edu/ftp/lpopt.html, which agrees on every column count and gives
+# one more row for pds-100 (156244 against 156243) and for fome13 (48569
+# against 48568) — the objective row, which he counts and JAOS does not. That
+# is the same offset the Kennington manifest documents against netlib's
+# readme. The three nug instances show **no** offset, which is not explained
+# and is recorded here rather than smoothed over.
+#
+# Size, against where the tree was: ken-18 is 105127 x 154699 and was the
+# largest model JAOS had ever read. pds-100 is 156243 x 505360, and its
+# expanded MPS is 54.5 MB.
+#
+pds-30       9cd55024e004590e96f663a619525bcd5a287157d991ccddbe34af9afbcc24ad 49944 154998 0.0 none 0.0
+pds-40       9f8a7e44003404c75143fbe9333fd5895a155b29e6bcb46972aaec60d6327cfd 66844 212859 0.0 none 0.0
+pds-50       94dd82831ee2730917cf589caaedf508f746add2e9361245f28a9f4360bf0005 83060 270095 0.0 none 0.0
+pds-60       dc985a2e67e321b9836f7077bb44baf3d7452885bf7e2dda361ed160b43a44b1 99431 329643 0.0 none 0.0
+pds-70       0b4ccbe39b5632205b536338df8c0b5e68e9b17d1b0cf7e0f4fde1fd45c7554a 114944 382311 0.0 none 0.0
+pds-80       328fa6d12c2665140bf5052d2365bf3b2a7b417811c37e216ff2421e26f45d5e 129181 426278 0.0 none 0.0
+pds-90       5bed53cfaf92333812026b7e2d13958f997bf5ffa052fe5ddf2fd4d90e7e25a9 142823 466671 0.0 none 0.0
+pds-100      15075babe6a96d6a68ecf66801ff107f7d222246b0c4396aa80a18451febd474 156243 505360 0.0 none 0.0

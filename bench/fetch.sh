@@ -12,14 +12,20 @@
 #   -p PIPE      how to turn the served file into MPS:
 #                  mps-gz    <name>.mps.gz, gunzip           (default)
 #                  gz-emps   <name>.gz, gunzip, then emps
+#                  bz2-emps  <name>.bz2, bunzip2, then emps
 #                  emps      <name>, already plain, then emps
 #
-# The three sets the M1 gate asks for do not share a source or a format, so
+# The sets this repository asks for do not share a source or a format, so
 # both are parameters. The standard set comes from Koch's plain-MPS mirror,
 # which is why no expander was needed for it; he mirrors exactly the
 # instances his paper verified. Kennington and the infeasible set are served
 # by netlib in its packed form and need emps (PLAN Q6, decided by the
 # maintainer 2026-08-07).
+#
+# bz2-emps exists for the fourth set (TODO.md §4). Mittelmann's mirror at
+# plato.asu.edu serves the same emps packing netlib does, but bzip2'd rather
+# than gzip'd — that is the whole of the difference, and it is why the mode is
+# three lines rather than a second pipeline.
 #
 # emps is fetched and checksum-verified here, compiled to a temporary
 # directory, and never stored in the repository — the same rule the
@@ -53,6 +59,11 @@ dest=${1:-"$here/instances"}
 for tool in curl sha256sum gunzip; do
     command -v "$tool" >/dev/null || { echo "need $tool" >&2; exit 1; }
 done
+# Only the bz2 set needs it, and asking for it unconditionally would refuse a
+# host that can fetch the three sets it actually wants.
+if [ "$pipe" = "bz2-emps" ]; then
+    command -v bunzip2 >/dev/null || { echo "need bunzip2" >&2; exit 1; }
+fi
 [ -r "$manifest" ] || { echo "no manifest at $manifest" >&2; exit 1; }
 
 mkdir -p "$dest"
@@ -92,9 +103,10 @@ while read -r name sha rows cols ref src; do
     fi
 
     case "$pipe" in
-        mps-gz)  remote="$name.mps.gz" ;;
-        gz-emps) remote="$name.gz" ;;
-        emps)    remote="$name" ;;
+        mps-gz)   remote="$name.mps.gz" ;;
+        gz-emps)  remote="$name.gz" ;;
+        bz2-emps) remote="$name.bz2" ;;
+        emps)     remote="$name" ;;
         *) echo "unknown pipeline: $pipe" >&2; exit 2 ;;
     esac
 
@@ -116,10 +128,12 @@ while read -r name sha rows cols ref src; do
     fi
 
     case "$pipe" in
-        mps-gz)  gunzip -f -c "$raw" > "$mps" ;;
-        gz-emps) gunzip -f -c "$raw" > "$raw.packed" &&
-                 "$emps" "$raw.packed" > "$mps" && rm -f "$raw.packed" ;;
-        emps)    "$emps" "$raw" > "$mps" ;;
+        mps-gz)   gunzip -f -c "$raw" > "$mps" ;;
+        gz-emps)  gunzip -f -c "$raw" > "$raw.packed" &&
+                  "$emps" "$raw.packed" > "$mps" && rm -f "$raw.packed" ;;
+        bz2-emps) bunzip2 -f -c "$raw" > "$raw.packed" &&
+                  "$emps" "$raw.packed" > "$mps" && rm -f "$raw.packed" ;;
+        emps)     "$emps" "$raw" > "$mps" ;;
     esac || { echo "FAIL  $name  (expand)" >&2
               rm -f "$raw" "$raw.packed" "$mps"
               failed=$((failed + 1)); continue; }

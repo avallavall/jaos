@@ -315,15 +315,44 @@ So the first fourth set is `pds-30…pds-100` plus `fome` plus `nug`, which
 walks the size up by a factor along a family already in the tree instead of
 leaping. Twenty-odd instances.
 
-**Two things still unread, and neither should be assumed.** No licence
-statement was found on `plato.asu.edu/ftp/lptestset/`; its `00README` gives
-origins and citations only. And the files are `.bz2`, where `bench/fetch.sh`
-knows `gz-emps` and `emps` — a `bz2-emps` mode is a real change to it.
+**Licence, settled.** No licence statement exists on
+`plato.asu.edu/ftp/lptestset/`; its `00README` gives origins and citations
+only. The position is the one this repository already takes for netlib and
+Kennington, unchanged: fetch at build time, pin by sha256, **never
+redistribute**. The three instance directories are in `.gitignore` beside the
+other three.
 
-The tier is unchanged and is Kennington's: checker verdict, solution digest,
-determinism and work units, **no reference objective**. A new set rewrites
-nothing but it adds a fourth baseline, and a baseline added mid-change cannot
-be read, so it lands on its own commit with the gate green.
+**The fetch path exists and is proved, 2026-08-17.** `bench/fetch.sh` gained a
+`bz2-emps` mode (plato serves netlib's own emps packing, bzip2'd instead of
+gzip'd — three lines, not a second pipeline). Run against
+`bench/plato-fome.manifest`: `verified 4, already present 0, failed 0`, exit 0,
+and the cached re-run reads `already present 4`. The three manifests are
+pinned and their dimensions cross-check against Mittelmann's published size
+table, agreeing on every column count with the same one-row objective offset
+the Kennington manifest already documents — except the three `nug` instances,
+which show no offset and are recorded unexplained.
+
+| manifest | instances | largest |
+|---|---|---|
+| `bench/plato-pds.manifest` | 8 | `pds-100`, 156243 × 505360, 54.5 MB expanded |
+| `bench/plato-fome.manifest` | 4 | `fome21`, 67748 × 211456 |
+| `bench/plato-nug.manifest` | 3 | `nug30`, 52260 × 379350, 58.6 MB expanded |
+
+`fome11 → fome12 → fome13` doubles exactly in both dimensions, which is the
+one family here that can say whether a cost grows linearly or worse with
+nothing else about the model changing. `nug` is the shape the tree does not
+have: every model JAOS reads today is economic, transport or stochastic, and a
+QAP relaxation is none of those.
+
+**What is left, in order.** The tier is Kennington's plus one thing JAOS
+cannot do yet: checker verdict, solution digest, determinism and work units,
+**no reference objective**. `bench/run.c` has only `EXPECT_OPTIMAL` and
+`EXPECT_INFEASIBLE`, and `EXPECT_OPTIMAL` scores every instance against
+`reference + objconst`. So it needs a third expectation, and per this
+repository's own habit it must be built with the case it has to reject: this
+manifest run under `-e optimal` has to fail loudly, not pass. Then the
+Makefile targets, then the first baselines. A baseline added mid-change cannot
+be read, so they land on their own commit with the gate green.
 
 ## 5. After presolve — the rest of M2, in order
 
