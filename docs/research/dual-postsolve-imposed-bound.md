@@ -6,8 +6,11 @@ built and nothing is measured.** No source file changed to produce it.
 Written against `src/check.c`'s own rule and against the two families already
 shipping that do the same kind of derivation: `JM_PS_FORCING_ROW`
 (`src/presolve.c:2303`) and `JM_PS_SINGLETON_ROW` (`src/presolve.c:1894`).
-§11 is a `literature-scout` run of the same date; its headline is that the
-transfer rule is folklore, with no citable description found.
+§11 is a `literature-scout` run of the same date. **Its headline — that the
+transfer rule is folklore — is wrong, and §11c is the correction.** The rule
+is published, in Mathematical Programming, with its own numbered subsection
+and two numbered equations. The scout could not find it because it could not
+read a PDF; the tooling was fixed later the same day.
 
 D114 (`bench/measurements/02-21/`) is the first precondition and is closed.
 This document is the second one, and it is a design, not a decision: no entry
@@ -412,11 +415,17 @@ as `y_orig = y_red` and `z_k = c_k - a_k' y_red` — the reduced cost is a
 arise because nothing is copied. The arrowhead paper's stated aim of "strict
 primal-dual complementary slackness" points the same way.
 
-So the design takes the recompute, not the patch. A patch over every column of
-row `i` would be a JAOS optimisation with no citation behind it, and D111's
-compensated-accumulation discipline would apply to each term of it. A full
-`d = c - A'y` recompute has a cost that can be measured and a correctness that
-needs no argument.
+**And the other published treatment does the opposite** (§11c). Gould & Toint's
+(6.2) patches exactly these columns, `z_j = -(a_ij/a_ik) z_k+` for every `j` in
+the row, and does not recompute. So both designs are in print, and the choice
+between them is a measurement here rather than a question of which one has a
+citation.
+
+The recompute is the safer first version: `d = c - A'y` over the whole model
+has a cost that can be measured and a correctness that needs no argument, where
+the patch inherits D111's compensated-accumulation discipline on every term
+plus the assignment-versus-increment discrepancy §11c flags in (6.2). Take the
+recompute, measure it, and only then ask whether the patch buys anything.
 
 ## 10. The refusal the first version should keep
 
@@ -428,7 +437,12 @@ should not be answered in the same change.
 
 ## 11. What the literature says — `literature-scout`, 2026-08-17
 
-**The transfer rule of §2 is folklore.** No citable description of it was found.
+**Read §11c first.** This section was written before Gould & Toint 2004 could
+be opened, and its headline — that the transfer rule is folklore — is wrong.
+What follows is still accurate about every *other* source, and is kept because
+the negative results in it are worth as much as the positive one.
+
+**The transfer rule of §2 was not found in any source the scout could read.**
 Four things exist around it and none of them is the rule.
 
 | source | status | what it gives |
@@ -565,6 +579,92 @@ single local swap, so no crossover is needed. PaPILO's worry is real only in
 §8d's case. Their restriction to fixing tightenings is far weaker than what D97
 needs and would buy none of the three prizes.
 
+### 11c. Gould & Toint 2004 §6.2 — the rule is published, and this corrects §11
+
+Read 2026-08-17 from the authors' own copy at
+`numerical.rl.ac.uk/media/people/nick-gould/GoulToin04_mp.pdf`, with
+`pdftotext -layout`. N. I. M. Gould and Ph. L. Toint, "Preprocessing for
+quadratic programming", Mathematical Programming 100, 95–132 (2004),
+`10.1007/s10107-003-0487-2`. **Section 6.2 is titled "Tightening a bound on the
+variables" and it is exactly D97's second precondition.**
+
+The problem, in their words:
+
+> "If a bound on `x_k`, say, is tightened during the analysis, it may happen
+> that the solution of the reduced problem has a nonzero dual variable `z_k+`
+> associated with this constraint. Since it is purely artificial, `z_k` must be
+> set to zero in the solution of the initial problem, while maintaining both
+> dual feasibility and complementarity. This typically requires modifying the
+> multipliers associated to the constraints involving `x_k` and, as a
+> consequence, the duals `z_j` of the other variables appearing in these
+> constraints."
+
+Their equation (6.1), for the doubleton case, and (6.2) for a row with more
+than two variables:
+
+    y_i = y_i+ + (1/a_ik) z_k+          (6.1)
+    z_j = -(a_ij / a_ik) z_k+           (6.2), for all j with a_ij != 0
+
+**That is §2's rule and §9's obligation, both, published.** Relabel their `k`
+as this document's `j` and (6.1) is `y_i += d_j / a_ij` unchanged. (6.2) is the
+other columns of the implying row, which §9 identified as the only genuinely
+new part of the family. So §11's headline was wrong and §5b's claim that the
+arithmetic already ships in `JM_PS_SINGLETON_ROW` is the doubleton case of
+(6.1), which they derive from the same premises this document does.
+
+**One discrepancy, to be checked and not adopted quietly.** (6.2) is written as
+an *assignment*, `z_j = -(a_ij/a_ik) z_k+`, where §3's derivation gives an
+*increment*, `w_j -= a_ij * delta`. The two agree only where `z_j+` is already
+zero, which their text asserts for the doubleton case ("the fact `z_j+ = 0` by
+design") but not obviously for (6.2)'s general row. Either their setting
+guarantees it or the paper is compressing. **Do not copy (6.2) as an
+assignment without settling that**, because a column of the implying row that
+carried a nonzero reduced cost in the reduced solve would have it silently
+discarded.
+
+**What they do not do: the basis.** Section 6.2 says nothing about basic and
+nonbasic status, or about a count. Their solver is QPB, an interior-point
+method, which has no basis to keep. So §8 is genuinely unaddressed here as
+well, and the scout's finding stands: nobody publishes the basis question.
+
+**The hardest case they name is not §8d's.** Theirs is "when a bound on `x_k`
+is imposed as the result of the analysis of dual constraints", where "the
+multipliers of all constraints `i` such that `a_ik != 0` must be considered".
+That is a different generalisation from two imposed bounds on one equality
+row. §8d remains this document's own.
+
+### 11d. The deliberate-slack question, measured — §12's item 3
+
+Gould & Toint implement §11b's third design as a **user-selectable mode**, and
+credit the idea to Fourer & Gay 1994. Three modes: `tightest` publishes the
+tightest bounds the reduction found; `medium` publishes the best bounds known
+not to be redundant; `loosest` publishes "the loosest bounds that are known to
+guarantee the equivalence of the reduced problem and the original one".
+
+Their measured result, over 160 problems:
+
+| mode | average gain | on linear problems | failures |
+|---|---|---|---|
+| none | — | — | 16 |
+| tightest | 11% | 10% | 6 |
+| medium | 2% | 9% | 7 |
+| loosest | **12%** | **14%** | **5** |
+
+Verbatim: "The loosest mode therefore appears to be of real interest from the
+efficiency point of view, especially for linear problems. Note also that the
+choice between the different presolving modes could well depend on the solver
+used."
+
+**So the direction favours slack, and most on linear problems.** That is JAOS's
+case, and it argues for §11b's design over §8d's refusal.
+
+**The caveat is theirs and it is the whole caveat.** QPB is an interior-point
+algorithm. It has no basis, so the entire §8 obstacle — the one thing that
+makes this hard for JAOS — cannot appear in their measurement, and their own
+last sentence says the choice depends on the solver. A 12%-versus-11% gap
+measured on a solver that cannot see the problem is a reason to run the
+experiment here, not a reason to skip it.
+
 **Two adjacent published results.**
 
 - Gould & Toint 2004, Math. Prog. 100, 95-132, `10.1007/s10107-003-0487-2`
@@ -612,12 +712,13 @@ tightening — a negative result from a source actually read.
    when it has no proof. §8c and §8d are still this document's own.
 2. ~~Confirm the PaPILO sentence.~~ **Done, §11b**, and it carried three things
    the summary did not.
-3. **Cost the deliberate-slack option against §8d's refusal.** §11b's third
-   finding: publish the imposed bound slightly loose so it can never be tight,
-   and the whole of §2 through §9 has nothing to do. Two designs now compete,
-   and the choice is a measurement, not an argument. Gould & Toint 2004 measured
-   the same trade and called it "numerically significant"; their direction is
-   still unread (`10.1007/s10107-003-0487-2`, RAL has it open).
+3. ~~Cost the deliberate-slack option against §8d's refusal.~~ **The direction
+   is read, §11d: loosest wins, 12% against 11%, and 14% against 10% on linear
+   problems specifically.** It is still not settled *here*, because their
+   solver is an interior-point method with no basis, so §8 — the one thing that
+   makes this hard for JAOS — could not appear in their measurement, and their
+   own text says the choice depends on the solver. The experiment to run here
+   is now well defined and that is the whole of what changed.
 4. **§4's empty hazard**: an imposed bound whose implying row is later removed.
    No literature. Must be reasoned out here or refused at the firing site, the
    way `JM_PS_FORCING_ROW` refuses.

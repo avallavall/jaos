@@ -63,15 +63,31 @@ establishes:
   anything found in print**, which is a claim that has to survive review before
   it is relied on. HiGHS also checks the KKT conditions after **each individual
   postsolve rule**, which JAOS does not do and should, under a diagnostic build.
+- **The rule itself is published, and the scout's "folklore" headline is wrong
+  (§11c).** Gould & Toint 2004, Math. Prog. 100, 95-132, section **6.2**, titled
+  "Tightening a bound on the variables", is D97's second precondition with its
+  own two numbered equations. (6.1) is `y_i += z_k/a_ik`, this design's §2
+  unchanged; (6.2) is the implying row's other columns, which §9 had identified
+  as the only genuinely new part. The scout missed it because it could not read
+  a PDF. **One discrepancy to settle before copying it**: (6.2) is written as an
+  assignment where §3's derivation gives an increment, and the two agree only
+  where the other columns' reduced costs are already zero.
+- **What is still nobody's**: the basis. Gould & Toint's solver is
+  interior-point, so §8 cannot arise in their treatment either. §8c and §8d
+  remain this repository's own.
 - **A third design nobody here had considered** (§11b): publish the imposed
   bound deliberately loose so it can never be tight, and §2 through §9 have
-  nothing to do. PaPILO ships it for previously-unbounded variables. Gould &
-  Toint 2004 measured the same trade and call it "numerically significant".
+  nothing to do. PaPILO ships it for previously-unbounded variables, crediting
+  Fourer & Gay 1994. **Gould & Toint measured it over 160 problems (§11d) and
+  the loosest mode wins**: 12% average gain against tightest's 11%, and 14%
+  against 10% on linear problems specifically, with the fewest failures. Their
+  own caveat is the whole caveat — an interior-point solver cannot see §8.
 - No constants to inherit. Both windows get measured here from zero.
 
-Next: **cost the deliberate-slack design against §8d's refusal** — two designs
-now compete and only a measurement separates them. Then build. Alternatives if
-this is dropped: §4's fourth set, §5's Devex.
+Next: **build the deliberate-slack design and §8d's refusal and measure both
+here** — the direction from the literature is real but was taken on a solver
+with no basis, and the basis is the entire difficulty. Alternatives if this is
+dropped: §4's fourth set, §5's Devex.
 
 Three things this session left deliberately unmeasured, so nobody re-derives
 them by accident: `greenbeb`'s 1.5126x, `maros-r7`'s 15.7x per-iteration drop,
