@@ -31,6 +31,14 @@ open, `bench/README.md` for the gate, and the commit each entry came from.
 
 ### Changed
 
+- §1b closed: the implied-free window's `max(1, scale)` floor declines
+  nothing — a floor-less build at the shipping 8 ulps reproduces all 94
+  standard instance lines bit for bit, digests included, after proving
+  itself by reproducing the committed margin-0 `maros-r7` reading (D109).
+  The 1353 rows between margins 8 and 0 are declined by any nonzero window,
+  not by the floor. `ULPS = 8` ships unchanged. Readings in
+  `bench/measurements/02-16/`.
+
 - §1b's blocker cleared: `d2q06c`'s 2.2163x at margin zero is four more rows
   of 2171 buying 1.7525x iterations, the D108 trajectory class, with the
   extra iterations on degraded pricing (`jm_dse_update` 0.45x per iteration

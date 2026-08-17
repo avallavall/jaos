@@ -17,15 +17,12 @@ count (341 inequality rows, a tenth and not two thirds — D107, 02-13), and
 `scfxm3` in the ratio-test path; no refuse rule — D108, 02-14). The
 reference build is still red, item four in the standing debts below.
 
-**Pick up at §1b proper: the floor-less window.** Its blocker fell
-2026-08-17: `d2q06c`'s 2.2163x at margin zero is the D108 trajectory class,
-with the extra iterations on degraded pricing (`bench/measurements/02-15/`),
-so no defect hides behind the floor question. The next step is a floor-less
-variant of the window, counted per instance before anything ships — does it
-take `d2q06c`'s four rows, or only the exact-equality cases it promises? —
-then the D106 sweep discipline. Load `fp-numerics` first; it is a tolerance
-change. §1e's fill measurement on `maros-r7` is the other candidate and
-needs LU instrumentation first.
+**Pick up at §1e or §1c.** §1e is `maros-r7`'s unexplained 15.7x
+per-iteration drop and wants a factor-fill instrument in the LU (nonzeros
+of L and U per refactorization, both sides of D106); it already has a
+seconds-side corroboration from the P0 re-take. §1c is the recovery
+margin's sizing and is analysis plus a constructed case rather than a
+sweep. Both are diagnostic first; neither ships anything by itself.
 
 Three things this session left deliberately unmeasured, so nobody re-derives
 them by accident: `greenbeb`'s 1.5126x, `maros-r7`'s 15.7x per-iteration drop,
@@ -40,8 +37,8 @@ Kennington is bit-identical. Work over the standard set is a geometric mean
 of 0.9527x. `maros-r7` alone goes from 21010708013 work units to 328053926
 and from 10479 iterations to 2576.
 
-Three questions stay open — §1b, §1c and §1e — after the closures of §1a
-(D107) and §1d (D108).
+Two questions stay open — §1c and §1e — after the closures of §1a (D107),
+§1b (D109) and §1d (D108).
 
 ### 1a. Inequality rows — closed 2026-08-17 by D107: a tenth of the count, refused
 
@@ -55,41 +52,18 @@ can carry, and that is derived in the entry. Refused at this population; the
 reopen condition is in the refusals table. Readings in
 `bench/measurements/02-13/`.
 
-### 1b. The margin's absolute floor removes 1353 rows for nothing the set can see
+### 1b. The margin's floor — closed 2026-08-17 by D109: it declines nothing, and the window ships as it is
 
-`PRESOLVE_IMPLIED_FREE_ULPS` is a switch, not a dial. Swept 0, 1, 8, 64, 4096
-with `make clean` between settings and five distinct md5s of `presolve.o`:
-rows removed set-wide read **9992, 8639, 8639, 8639, 8639**. One step, at
-zero, and four decades of nothing above it.
-
-At zero the family removes 2394 rows instead of 1041, and the standard set
-still reads **94 objective ok against Koch's exact rationals** and 94 checker
-ok. An objective that is too good because a real bound was dropped is exactly
-what that predicate catches, and it does not fire.
-
-What stops zero from shipping is cost, not correctness: geometric mean
-0.9627x against 8, `bore3d` 0.2524x, and **`d2q06c` 2.2163x**, which crosses
-`bench/run.c`'s own 2.0x work bar and would make the gate report a
-regression.
-
-So the open question is narrower than "what should the constant be". The
-window is `ULPS * DBL_EPSILON * max(1, scale)`, and it is the `max(1, ...)`
-floor that declines the exact-equality cases — where `l_j` and the implied
-end are both exactly representable and nothing cancelled, so the comparison
-carries no error to protect against. Removing the floor would take those and
-leave the rest declined.
-
-**The blocker is cleared: `d2q06c` is explained (2026-08-17,
-`bench/measurements/02-15/`).** Four more rows of 2171 at margin zero buy
-1.7525x iterations and 1.2646x work per iteration — the D108 `greenbeb`
-class, with the extra iterations running on degraded pricing
-(`jm_dse_update` falls to 0.45x per iteration while `jm_harris_pick` rises
-1.42x, consistent with D63's weight restarts). No correctness or relaxation
-defect hides in the number; the sweep already read 94 `objective ok` at
-every setting. What remains here is the floor itself: a floor-less counter
-and its sweep, saying first whether `d2q06c`'s four rows are among the
-exact-equality cases the floor declines. It is a tolerance change, so
-`fp-numerics` and the D106 sweep discipline apply.
+Two measurements closed it in one day. `d2q06c`'s 2.2163x at margin zero is
+the D108 trajectory class, with the extra iterations on degraded pricing —
+no correctness or relaxation defect behind the number
+(`bench/measurements/02-15/`). And a floor-less window at the shipping 8 is
+a bit-identical no-op over all 94 standard instances, digests included: the
+1353 rows between margin 8 and margin 0 are declined by any nonzero window,
+because their bounds are zero or too small to absorb a margin of any scale
+(`bench/measurements/02-16/`, with the instrument's self-proof and the
+prediction stated before the run). The constant stays `ULPS = 8` with both
+floors; the reopen condition is in the refusals table.
 
 ### 1c. The margin covers the forward sum's error and not the recovery's
 
@@ -355,6 +329,7 @@ then, do not — a refusal whose premise has not changed just fails again.
 | D63 | restarting weights to exact instead of 1.0 | the pricing rule changes; Devex would replace the question |
 | D107 | the inequality implied free column singleton — 341 sign-ok rows, 10% of the count, 304 of them on `ship*` instances below the harness floor, zero on `stocfor3` and Kennington | a model population where `bench/measurements/02-13/run-sign-count.sh` reports a non-trivial sign-ok share; §4's fourth instance set is the standing candidate |
 | D108 | a refuse rule for the implied free column singleton on trajectory grounds — `greenbeb` and `scfxm3` pay through different machinery, both downstream of an exact reduction, and no site-local predictor exists | an instance crosses the gate's 2.0x work bar from this family's firings, or a measured mechanism predicts trajectory direction from the reduction site |
+| D109 | removing the implied-free window's `max(1, scale)` floor — a bit-identical no-op over all 94 standard instances, digests included | a model population where `bench/measurements/02-16/run-floorless.sh` reports a moved instance line; or the D106 sweep's own reopen |
 | D95 | eliminating nonzero-cost singleton columns | a dual-informed elimination design exists (the lift condition is in the entry). **Checked against D106 and NOT reopened, deliberately.** D106 eliminates nonzero-cost singleton columns, so the question was re-asked. It does not satisfy D95's condition and does not need to: D95 refused *choosing which bound is optimal*, and an implied free column has no bound to choose — it is interior, so `d_j = 0` is forced and the dual falls out of one division. The columns D95 still refuses are the ones whose own bounds can bind, and D106 declines exactly those |
 | D93 | the 4.2% time bar — unmeasurable on this host | a controlled host that satisfies D17 |
 | D92/backlog | `pilot87`'s suboptimality bound, not understood | it blocks a gate (trigger already recorded) |

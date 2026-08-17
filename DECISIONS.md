@@ -116,6 +116,7 @@ and you have the argument. Jump to the entry for the numbers behind it.
 - **[D106](#d106--the-implied-free-column-singleton-buys-64x-on-maros-r7-and-the-row-activity-it-reads-was-short-in-two-older-families)** — The implied free column singleton buys 64x on `maros-r7`, and the row activity it reads was short in two older families
 - **[D107](#d107--the-inequality-half-of-the-implied-free-count-is-a-tenth-not-two-thirds-and-building-it-is-refused-on-the-count)** — The inequality half of the implied-free count is a tenth, not two thirds, and building it is refused on the count
 - **[D108](#d108--greenbeb-pays-d106s-overcost-in-iterations-and-scfxm3-in-the-ratio-test-and-no-refuse-rule-is-built-on-an-exact-reductions-trajectory)** — greenbeb pays D106's overcost in iterations and scfxm3 in the ratio test, and no refuse rule is built on an exact reduction's trajectory
+- **[D109](#d109--the-implied-free-windows-floor-declines-nothing-the-set-can-measure-and-the-margin-ships-exactly-as-it-is)** — The implied-free window's floor declines nothing the set can measure, and the margin ships exactly as it is
 
 ---
 
@@ -8326,3 +8327,47 @@ cause: what turned more columns into ratio-test candidates — the pushed
 costs, or the changed basis path — was not separated, and separating it
 buys nothing until some instance crosses the bar. Recorded in
 `bench/measurements/02-14/README.md` beside the profiles.
+
+## D109 — The implied-free window's floor declines nothing the set can measure, and the margin ships exactly as it is
+
+**The question, as §1b asked it.** `ps_implied_free_margin`'s window is
+`ULPS * DBL_EPSILON * max(1, scale)`, and §1b proposed that the `max(1, …)`
+floor is what declines the exact-equality candidates — cases where the
+bound and the implied end are exactly representable and nothing cancelled,
+so the comparison carries no error to protect against. Removing the floor
+would then take those 1353 rows and leave the rest declined. The blocker,
+`d2q06c`'s 2.2163x at margin zero, was cleared the same day
+(`bench/measurements/02-15/`): it is D108's trajectory class, with no
+correctness or relaxation defect behind it.
+
+**The reasoning, stated before the run.** The containment test is
+`ilo >= cl + margin`, so an exact-equality candidate passes only when the
+margin is absorbed: `margin < ulp(cl)/2`. Two floors stack under the margin
+(`ps_bound_scale` already returns at least 1), the outer floor changes the
+margin only where `|a| > max(1, |b|, traffic)`, and a zero bound absorbs
+nothing at any scale. Prediction: `maros-r7`'s four exact-equality
+candidates sit on zero bounds and stay declined; movement, if any, needs a
+large exactly-met bound under a large coefficient.
+
+**The measurement, 2026-08-17, in `bench/measurements/02-16/`.** A copy of
+the tree with the outer floor removed, the repository untouched. The copy
+proves itself first: at margin zero it reproduces the 02-12 sweep's
+`maros-r7` record exactly (iters=2544, work=316766250), so the patched
+build is real and the family is live in it. At the shipping margin 8, the
+floor-less binary then runs the whole standard set: **all 94 instance lines
+are bit-identical to the committed record** — presolve counts, iterations,
+work units, objectives, solution digests. Digest equality is the strongest
+no-op proof available here.
+
+**What was refuted.** §1b's premise, in the direction that keeps the code:
+the floor declines nothing. The 1353 rows between margin 8 and margin 0 are
+declined by any nonzero window, because their bounds are zero or too small
+to absorb a margin of any scale. The one setting that takes them is margin
+zero, and the D106 sweep already priced and refused that (`d2q06c` 2.2163x
+across the gate's own bar, geometric mean 0.9627x beside it).
+
+**Closed: the window ships exactly as it is** — `ULPS = 8`, both floors in
+place. §1b closes with it; nothing of it remains open. Reopens if a model
+population makes `bench/measurements/02-16/run-floorless.sh` report a moved
+instance line, which is executable, or if the D106 sweep's own question
+reopens. §1c and §1e are untouched.
