@@ -49,3 +49,21 @@ it). `maros-r7` was the worst fill ratio in the set at 4.801x and now sits
 at 1.457x, well under the set-wide 2.673x mean D46 recorded.
 
 Raw traces beside this file; `fill-*-adlittle.txt` are the control pair.
+
+## The comparison's tail at HEAD (`run-fill-tail.sh`, same instrument)
+
+Each run reproduced its committed record's iterations and work before its
+trace was read:
+
+| instance | dim | mean basis nz | mean L nz | mean U nz | fill ratio |
+|---|---|---|---|---|---|
+| `stocfor3` | 16617 | 38515 | 1608 | 21679 | **1.036** |
+| `pilot87` | 1996 | 24920 | 29116 | 58854 | **3.610** |
+| `pilot` | 1392 | 12345 | 10393 | 28478 | 3.261 |
+
+`stocfor3` has essentially no fill: its factors are as sparse as its basis.
+The factorization is not where its 30.0x against HiGHS lives — the presolve
+gap `TODO.md` §5 already owns is. The instances above the set mean are now
+`pilot87` and `pilot`, the same two the fewer-iterations half of the M2
+split names, so the factorization item's live examples and the pricing
+item's overlap.

@@ -237,9 +237,12 @@ baseline, and a baseline added mid-change cannot be read.
 - **Factorization** (REQ-lu-fill-and-markowitz, REQ-hyper-sparse-downstream):
   the stale live counts Markowitz chooses on, and the fill — factors carry
   2.673x the basis nonzeros set-wide (D46, which predates D106; `maros-r7`
-  read 4.801x before D106 and 1.457x after it, D110; `stocfor3`, now the
-  worst instance in the comparison, is unmeasured and is the first fill
-  number to take); keep sparse triangular
+  read 4.801x before D106 and 1.457x after it, D110). Measured at HEAD with
+  D110's instrument: `stocfor3` reads **1.036** — no fill at all, so its
+  30.0x against HiGHS belongs entirely to the presolve item below — and the
+  live fill cases are `pilot87` at 3.610 and `pilot` at 3.261, the same two
+  instances the fewer-iterations half of the split names
+  (`bench/measurements/02-17/`); keep sparse triangular
   results sparse downstream (`stocfor3`: 6.79x per iteration, solves 43%,
   memset/memcpy/malloc 18.8% against 11.3% on `dfl001`). Left-looking
   elimination is a rewrite and needs its own decision first. Struck off by

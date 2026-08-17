@@ -36,6 +36,8 @@ open, `bench/README.md` for the gate, and the commit each entry came from.
   4.801 to 1.457 on a model that shrank 31%, with the refactorization
   cadence unchanged — measured per refactorization on both sides of D106,
   with the pre side reproducing D46's committed 4.801x as its calibration.
+  The same instrument then read the comparison's tail at HEAD: `stocfor3`
+  1.036 (no fill; its 30.0x is presolve's), `pilot87` 3.610, `pilot` 3.261.
   Readings in `bench/measurements/02-17/`.
 
 - §1b closed: the implied-free window's `max(1, scale)` floor declines
