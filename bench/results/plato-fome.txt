@@ -1,0 +1,9 @@
+fome11       optimal    rows=12142 cols=24460 shape=ok iters=46026 work=8113327824 presolve=12142/24460/71264->12142/22992/69796 obj=22532792.0933428 ref=0[none] objective=none checker=ok (col=6.5e-11 row=8.53e-14 rowrel=8.53e-14 dual=0 gap=2.3e-16 Q=2.18e-06 N=7.36e-09 drop=2.48e-10 cert=no sub=9.12e-28 rays=0 rsub=9.69e-14) det=ok digest=7af03884145fc80e
+fome12       optimal    rows=24284 cols=48920 shape=ok iters=91060 work=19619259576 presolve=24284/48920/142528->24284/45984/139592 obj=45065584.186685681 ref=0[none] objective=none checker=ok (col=6.5e-11 row=6.62e-14 rowrel=6.62e-14 dual=0 gap=1.22e-16 Q=2.62e-06 N=1.61e-08 drop=6.15e-10 cert=no sub=8.9e-27 rays=0 rsub=5.81e-14) det=ok digest=5bb4cd063183bde6
+fome13       optimal    rows=48568 cols=97840 shape=ok iters=180772 work=50786698250 presolve=48568/97840/285056->48568/91968/279184 obj=90131168.373371512 ref=0[none] objective=none checker=ok (col=6.5e-11 row=8.22e-14 rowrel=8.22e-14 dual=0 gap=1.65e-16 Q=1.04e-05 N=3.05e-08 drop=1.8e-09 cert=no sub=8.31e-27 rays=0 rsub=1.15e-13) det=ok digest=e9fb4467fb612ef3
+fome21       optimal    rows=67748 cols=211456 shape=ok iters=96255 work=29489309346 presolve=67748/211456/460400->64574/207962/450684 obj=47346318911.999962 ref=0[none] objective=none checker=ok (col=2.55e-12 row=7.51e-12 rowrel=2.55e-12 dual=0 gap=3.38e-16 Q=6.74e-05 N=2.15e-07 drop=0 cert=yes sub=1.23e-25 rays=0 rsub=1.42e-15) det=ok digest=31d706c113965938
+
+4 instances: 4 solved, 4 shape ok, 4 checker ok, 4 deterministic, 0 failed  (no reference optimum: objective unverified)
+gate: PASS
+
+baseline: NOT COMPARED (no baseline given)
