@@ -31,6 +31,13 @@ open, `bench/README.md` for the gate, and the commit each entry came from.
 
 ### Changed
 
+- §1b's blocker cleared: `d2q06c`'s 2.2163x at margin zero is four more rows
+  of 2171 buying 1.7525x iterations, the D108 trajectory class, with the
+  extra iterations on degraded pricing (`jm_dse_update` 0.45x per iteration
+  against `jm_harris_pick` 1.42x — D63's restart mechanism). No relaxation
+  defect hides in the number. The floor question in `TODO.md` §1b now stands
+  alone. Readings in `bench/measurements/02-15/`.
+
 - §1d closed: `greenbeb` pays D106's overcost in iterations (1.3779x,
   per-iteration flat) and `scfxm3` per iteration in the ratio-test path
   (`update_dual` 1.71x against an LU side at 1.05–1.11x), measured from the

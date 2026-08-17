@@ -17,12 +17,15 @@ count (341 inequality rows, a tenth and not two thirds — D107, 02-13), and
 `scfxm3` in the ratio-test path; no refuse rule — D108, 02-14). The
 reference build is still red, item four in the standing debts below.
 
-**Pick up at §1b's blocker: explain `d2q06c`'s 2.2163x at margin zero.** The
-02-14 method transfers whole: both sides' records already exist in
-`bench/measurements/02-12/sweep/` (netlib-0 against netlib-8), so the
-iteration split is free, and the callgrind pair needs one `EXTRA_CFLAGS`
-build per side. §1e's fill measurement on `maros-r7` is the other candidate
-and needs LU instrumentation first.
+**Pick up at §1b proper: the floor-less window.** Its blocker fell
+2026-08-17: `d2q06c`'s 2.2163x at margin zero is the D108 trajectory class,
+with the extra iterations on degraded pricing (`bench/measurements/02-15/`),
+so no defect hides behind the floor question. The next step is a floor-less
+variant of the window, counted per instance before anything ships — does it
+take `d2q06c`'s four rows, or only the exact-equality cases it promises? —
+then the D106 sweep discipline. Load `fp-numerics` first; it is a tolerance
+change. §1e's fill measurement on `maros-r7` is the other candidate and
+needs LU instrumentation first.
 
 Three things this session left deliberately unmeasured, so nobody re-derives
 them by accident: `greenbeb`'s 1.5126x, `maros-r7`'s 15.7x per-iteration drop,
@@ -74,8 +77,19 @@ window is `ULPS * DBL_EPSILON * max(1, scale)`, and it is the `max(1, ...)`
 floor that declines the exact-equality cases — where `l_j` and the implied
 end are both exactly representable and nothing cancelled, so the comparison
 carries no error to protect against. Removing the floor would take those and
-leave the rest declined. It needs `d2q06c` explained first: 2.2163x from
-removing more rows is the same unexplained shape as §1c and §2.
+leave the rest declined.
+
+**The blocker is cleared: `d2q06c` is explained (2026-08-17,
+`bench/measurements/02-15/`).** Four more rows of 2171 at margin zero buy
+1.7525x iterations and 1.2646x work per iteration — the D108 `greenbeb`
+class, with the extra iterations running on degraded pricing
+(`jm_dse_update` falls to 0.45x per iteration while `jm_harris_pick` rises
+1.42x, consistent with D63's weight restarts). No correctness or relaxation
+defect hides in the number; the sweep already read 94 `objective ok` at
+every setting. What remains here is the floor itself: a floor-less counter
+and its sweep, saying first whether `d2q06c`'s four rows are among the
+exact-equality cases the floor declines. It is a tolerance change, so
+`fp-numerics` and the D106 sweep discipline apply.
 
 ### 1c. The margin covers the forward sum's error and not the recovery's
 
