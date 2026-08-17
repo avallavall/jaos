@@ -119,6 +119,7 @@ and you have the argument. Jump to the entry for the numbers behind it.
 - **[D109](#d109--the-implied-free-windows-floor-declines-nothing-the-set-can-measure-and-the-margin-ships-exactly-as-it-is)** — The implied-free window's floor declines nothing the set can measure, and the margin ships exactly as it is
 - **[D110](#d110--maros-r7s-cheaper-iteration-is-the-factor-fill-collapsing-and-the-instrument-reproduced-d46s-figure-before-being-believed)** — maros-r7's cheaper iteration is the factor fill collapsing, and the instrument reproduced D46's figure before being believed
 - **[D111](#d111--the-postsolve-recovery-is-compensated-nine-digests-move-where-rounding-lived-and-1c-closes)** — The postsolve recovery is compensated, nine digests move where rounding lived, and §1c closes
+- **[D112](#d112--the-widening-rule-cannot-tell-grow15-from-grow22-and-2s-refusal-closes-on-its-own-counter)** — The widening rule cannot tell grow15 from grow22, and §2's refusal closes on its own counter
 
 ---
 
@@ -8485,3 +8486,49 @@ iteration and no work unit anywhere.
 D106's own measurements opened (§1a, §1b, §1c, §1d, §1e) is now closed by
 D107 through D111. The reviewer's refused finding above is the only carried
 note, recorded here with its reason.
+
+## D112 — The widening rule cannot tell grow15 from grow22, and §2's refusal closes on its own counter
+
+**The question, as §2 asked it.** The cost-0 bounded singleton column
+family turns twenty `== 0` rows into ranges of up to 5e5 on each of
+`grow7`, `grow15` and `grow22`; `grow22` and `grow7` inflate 11.16x and
+8.56x in work while `grow15` halves its iterations (02-11). The candidate
+rule was to refuse a firing whose relaxation widens the row beyond some
+multiple of its own scale, and it needed a sweep on both sides and a
+campaign.
+
+**The measurement, 2026-08-17, in `bench/measurements/02-19/`.** A
+throwaway print at the firing site, one line per firing over the standard
+set, calibrated against 02-11's committed `grow22` count of 20 per solve —
+the calibration caught the runner's two-solve determinism check doubling
+every trace, and the aggregator now requires the two passes identical,
+which they are on all 60 firing instances. The distribution: **8617
+firings over 60 instances, 8096 of them (94%) on equality rows**, 8495
+past the row's own scale, 4934 past 100x it, and the typical relaxation
+removes one row end entirely (a half-infinite column box makes the
+absorbed range `[0, inf)`).
+
+**What was refuted, twice over.**
+
+The discriminator does not discriminate: `grow7`, `grow15` and `grow22`
+carry the same maximum relative widening, **5.524e5**, and one of them is
+helped while two are hurt. No threshold on the widening separates them —
+which is D108's finding again, arriving from the structural side: nothing
+at the firing site predicts trajectory direction.
+
+And any threshold that catches the `grow*` firings catches the family:
+98.6% of all firings widen past the row's scale, because absorbing a
+singleton's slack is what the family is for. The rule is not a filter on
+this population; it is the family's off switch with extra steps, and
+turning the family off to repair two instances is a different, larger
+question that would need its own no-family campaign to even be priced.
+
+**Refused: the unbounded-relative-widening refusal rule.** §2 closes with
+it. What stands: `grow22` and `grow7` remain the standard set's worst
+cases against `-DJAOS_NO_PRESOLVE`, below the gate's own bar. Reopens on
+the condition D108 already carries — a measured mechanism that predicts
+trajectory direction from the firing site — or on an instance crossing
+the gate's 2.0x work bar from this family's firings.
+
+**Left open.** Nothing else of §2. The 02-19 instrument is reusable for
+any future population question about this family.

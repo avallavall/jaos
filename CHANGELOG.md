@@ -31,6 +31,14 @@ open, `bench/README.md` for the gate, and the commit each entry came from.
 
 ### Changed
 
+- §2 closed: the unbounded-relative-widening refusal for the cost-0
+  singleton column is refused on its own counter (D112). 8617 firings over
+  60 standard instances, 94% on equality rows, 98.6% past the row's scale —
+  the rule would be the family's off switch — and `grow7`/`grow15`/`grow22`
+  carry the same maximum widening (5.524e5) with opposite outcomes, so the
+  discriminator cannot discriminate. Distribution and instrument in
+  `bench/measurements/02-19/`.
+
 - §1c's precondition met: the postsolve recovery error is demonstrated on a
   constructed model — a degree-2001 equality row at traffic 2e8 publishes
   the recovered column 4.1e-6 outside its own bound where the margin

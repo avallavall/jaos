@@ -21,11 +21,15 @@ deliberately and confirmed). The reference build debt is repaired in
 spirit by D111's test discipline but item four below still stands as
 written.
 
-**Pick up at §2's candidate rule, or §5's next item.** §2 is the relaxing
-family's unbounded-relative-widening refusal and needs a sweep on both
-sides plus a campaign; its blocker is unchanged (`grow15` gets the same
-firings and halves). §5's factorization item now has its live examples
-(`pilot87` 3.610, `pilot` 3.261) and §5's presolve item owns `stocfor3`.
+**§2 closed too (D112): the widening rule's own counter refused it** —
+98.6% of firings would be caught, and `grow15`/`grow22` carry the same
+widening with opposite outcomes. **Pick up at §5**: the factorization item
+has its live examples (`pilot87` 3.610, `pilot` 3.261), the presolve item
+owns `stocfor3` (what HiGHS removes there is uncounted; 02-10's `maros-r7`
+count is the pattern), and the search-path item (Devex) is the standing
+REQ. §3 waits behind D97 and §4 is deliberately after §1, which is done —
+so §4's fourth instance set is now unblocked if breadth is preferred over
+depth.
 
 Three things this session left deliberately unmeasured, so nobody re-derives
 them by accident: `greenbeb`'s 1.5126x, `maros-r7`'s 15.7x per-iteration drop,
@@ -106,7 +110,7 @@ unchanged. That is where the 15.7x per-iteration drop lives, and the fact
 now sits in §5's factorization item. Readings in
 `bench/measurements/02-17/`.
 
-## 2. Presolve makes `grow22` and `grow7` far worse (opened by D103)
+## 2. Presolve makes `grow22` and `grow7` far worse — closed by D112 (opened by D103)
 
 Not a regression from D103 — the records either side of it are bit-identical —
 so this arrived with presolve and has never been asked about.
@@ -133,17 +137,17 @@ practice, and a dual simplex steers by those pins. None of the 60 records
 leaves a row unconstrained on both sides, so a check for "did this row become
 free" would miss it: the damage is the width.
 
-**What is not explained, and blocks a repair.** `grow15` gets the same 20
-firings on the same rows with the same magnitudes — the three are one model
-family at three sizes — and presolve **halves** its iteration count. So the
-relaxation is not uniformly harmful and nothing measured says which way it
-goes on a model that has not been run.
-
-The candidate rule is to refuse the firing when the relaxation widens a row
-beyond some multiple of its own scale; an `== 0` row becoming `[0, 5e5]` is an
-unbounded relative widening. It needs a sweep on both sides and a campaign,
-because the family pays 0.810x over the set as it stands and a rule that stops
-it firing pays that back.
+**Closed 2026-08-17 by D112, on the candidate rule's own counter
+(`bench/measurements/02-19/`).** The widening distribution over the
+standard set: 8617 firings on 60 instances, 94% on equality rows, 98.6%
+past the row's own scale — the "unbounded relative widening" the rule would
+refuse is the family's normal act, so the rule is the family's off switch.
+And the discriminator does not discriminate: `grow7`, `grow15` and
+`grow22` carry the same maximum widening, 5.524e5, and one is helped while
+two are hurt. Refused; the reopen condition (a mechanism that predicts
+trajectory direction from the firing site) is shared with D108 and is in
+the refusals table. `grow22` and `grow7` stand as the set's worst cases
+against the reference build, below the gate's own bar.
 
 ## 3. Doubleton equalities: a family nobody has counted (opened by D104)
 
@@ -323,6 +327,7 @@ then, do not — a refusal whose premise has not changed just fails again.
 | D107 | the inequality implied free column singleton — 341 sign-ok rows, 10% of the count, 304 of them on `ship*` instances below the harness floor, zero on `stocfor3` and Kennington | a model population where `bench/measurements/02-13/run-sign-count.sh` reports a non-trivial sign-ok share; §4's fourth instance set is the standing candidate |
 | D108 | a refuse rule for the implied free column singleton on trajectory grounds — `greenbeb` and `scfxm3` pay through different machinery, both downstream of an exact reduction, and no site-local predictor exists | an instance crosses the gate's 2.0x work bar from this family's firings, or a measured mechanism predicts trajectory direction from the reduction site |
 | D109 | removing the implied-free window's `max(1, scale)` floor — a bit-identical no-op over all 94 standard instances, digests included | a model population where `bench/measurements/02-16/run-floorless.sh` reports a moved instance line; or the D106 sweep's own reopen |
+| D112 | the unbounded-relative-widening refusal for the cost-0 singleton column — 98.6% of firings would be refused, and the helped and hurt `grow*` instances carry the same widening | D108's condition: a measured mechanism that predicts trajectory direction from the firing site; or an instance crossing the gate's 2.0x work bar from this family |
 | D95 | eliminating nonzero-cost singleton columns | a dual-informed elimination design exists (the lift condition is in the entry). **Checked against D106 and NOT reopened, deliberately.** D106 eliminates nonzero-cost singleton columns, so the question was re-asked. It does not satisfy D95's condition and does not need to: D95 refused *choosing which bound is optimal*, and an implied free column has no bound to choose — it is interior, so `d_j = 0` is forced and the dual falls out of one division. The columns D95 still refuses are the ones whose own bounds can bind, and D106 declines exactly those |
 | D93 | the 4.2% time bar — unmeasurable on this host | a controlled host that satisfies D17 |
 | D92/backlog | `pilot87`'s suboptimality bound, not understood | it blocks a gate (trigger already recorded) |
