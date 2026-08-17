@@ -816,7 +816,70 @@ here, not assumed.
    way `JM_PS_FORCING_ROW` refuses.
 5. The measurement §6 names, which no amount of reading replaces.
 
-## 13. Superseded questions
+## 13. Directed rounding, worked against this tree
+
+§11f says AMPL's fix for D97's failure class was IEEE directed rounding. This
+section is what that means against `src/presolve.c` as it stands, because
+"the literature says do X" is not a design.
+
+**Where the arithmetic is.** `ps_row_range` (`src/presolve.c:370`) builds a
+`ps_range` holding `lo_sum`, `hi_sum` and `traffic`, each through `ps_acc_add`,
+a compensated accumulator. The two ends are already kept apart, and infinite
+terms are counted rather than summed. So the structure directed rounding needs
+is the structure that is already there: `lo_sum` wants rounding toward `-inf`
+and `hi_sum` toward `+inf`, nothing else changes.
+
+**JAOS already took half of Fourer & Gay's step.** Their fallback for machines
+without directed rounding was a tolerance `τ`. JAOS's equivalent was
+`PRESOLVE_TIGHTEN_EPS = 1e-9`, and it is **gone** — D103 and `02-09` replaced
+all three of its sites with `DBL_EPSILON × max(1, traffic)`, which is the
+error bound rather than a judgement. That is the same move, made for the same
+reason, and the file says so at `src/presolve.c:164`.
+
+**What directed rounding adds, and it is not a smaller window.** It removes the
+need for a window in the forcing test *at all*. Today the test asks
+`max_act <= rl + w` and something has to supply `w`; D114 is the record of that
+`w` taking its scale from a materialized magnitude of 9.42e11 and certifying
+5.86 of real slack as binding. If `hi_sum` is a **proven** upper bound on the
+row's maximum activity, the test is `hi_sum <= rl` and there is no `w` to get
+wrong. The failure mode is not narrowed — the thing that failed stops existing.
+
+**Do not reach for `fesetround`.** Three reasons, and the third is the one that
+decides it:
+
+1. It needs `#pragma STDC FENV_ACCESS ON`, which GCC does not fully implement;
+   with it off, the compiler may hoist arithmetic across the mode change.
+2. A global mode interacts with vectorisation and with any library call made
+   while it is set.
+3. **D8.** Bit-identical results on every machine is absolute here. A global
+   rounding mode is exactly the kind of ambient state whose effect can differ
+   between two builds of the same source, and `-ffp-contract=off` is in the
+   Makefile because this project has already been bitten by ambient FP
+   behaviour.
+
+**The variant that fits.** Keep round-to-nearest and the compensated
+accumulation, then widen the finished sum outward by the accumulator's own
+error bound — `nextafter` a bounded number of ulps, or one subtraction of
+`DBL_EPSILON × traffic` from `lo_sum` and one addition to `hi_sum`. The result
+is a proven bound, computed with no fenv, no pragma, no ambient state, and the
+same bits everywhere. It is deterministic by construction rather than by
+inspection.
+
+Note what this is: the *same quantity* the current window supplies, moved from
+the comparison into the value. That is the whole change, and it is why it is
+small. What it buys is that every future comparison against a row activity
+inherits the guarantee instead of each site having to choose a scale — and
+choosing a scale per site is precisely what D114 and `02-09` both record going
+wrong.
+
+**What has to be measured, and no reading replaces it.** A bound widened by
+`DBL_EPSILON × traffic` is weaker than the exact one, so some reductions that
+fire today will decline. The question is how many, and it is the same question
+`02-16` answered for the implied-free window by running a floor-less build over
+all 94 instances and finding a bit-identical no-op. The same instrument
+applies here and should be built the same way, prediction stated before the run.
+
+## 14. Superseded questions
 
 Kept so nobody re-asks them. Answered above: whether A&A covers imposed bounds
 (unknown, paywalled); whether §4's acyclicity is published (no); what tolerance

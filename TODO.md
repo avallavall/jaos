@@ -108,7 +108,17 @@ establishes:
 Next, and the order changed: **try directed rounding first.** It is smaller
 than the dual postsolve, it attacks D97's actual failure on D97's actual
 instances, and if it works the window question and the tolerance question both
-go away. Then the deliberate-slack design against §8d's refusal, measured here
+go away. **§13 works it out against `src/presolve.c` and reaches a different
+implementation than the papers do**: not `fesetround`, which needs a pragma GCC
+does not fully implement and puts ambient state where D8 forbids it, but
+widening the finished compensated sum outward by its own error bound. That is
+the same quantity the window already supplies, moved from the comparison into
+the value, so every site inherits the guarantee instead of choosing a scale —
+and choosing a scale per site is what D114 and 02-09 both record going wrong.
+Half the step is already taken: `PRESOLVE_TIGHTEN_EPS` is gone and its three
+sites read `DBL_EPSILON × max(1, traffic)` (D103). What must be measured is how
+many reductions a widened bound declines, with `02-16`'s instrument and its
+discipline of stating the prediction first. Then the deliberate-slack design against §8d's refusal, measured here
 because both published directions came from solvers that could not see the
 basis. Alternatives if this is dropped: §4's fourth set, §5's Devex.
 
