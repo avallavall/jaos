@@ -636,8 +636,12 @@ then, do not — a refusal whose premise has not changed just fails again.
 
 ## Standing debts — small, real, none blocks the sections above
 
-- `preflight.sh` does not check committed records for `baseline: NOT
-  COMPARED`; such a record sat committed once already.
+- ~~`preflight.sh` does not check committed records for `baseline: NOT
+  COMPARED`.~~ **Done 2026-08-18.** It reads the line D93 said nobody read:
+  STOP when a committed record carries it, WARN when only the working-tree
+  copy does. Validated against the case it must reject, in a worktree — clean
+  tree clear, working-tree copy WARN and exit 0, committed copy STOP and exit
+  1.
 - The `REFACTOR_EVERY` 16..256 trajectory sweep is manual; three of M1's four
   defect closures came from it and no target automates it.
 - Test ceilings drift silently — the `<62000` one drifted 2800 units with

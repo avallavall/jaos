@@ -102,7 +102,25 @@ for f in bench/results/netlib.txt bench/results/netlib-infeas.txt \
         fail "$f is EMPTY -- a run was interrupted, or one is writing it now"
     fi
 done
-[ "$stop" -eq 0 ] && okay "baselines present, no record is empty"
+
+# A run that compared against no baseline says so in its own text
+# (bench/run.c: "baseline: NOT COMPARED"). Nothing in the repository read
+# that line, and it went unread long enough for such a record to sit
+# committed as the standard set's own record (D93, which names this script
+# as where the check belongs).
+for f in bench/results/netlib.txt bench/results/netlib-infeas.txt \
+         bench/results/netlib-kennington.txt; do
+    if git show "HEAD:$f" 2>/dev/null | grep -q '^baseline: NOT COMPARED'; then
+        fail "$f is COMMITTED carrying 'baseline: NOT COMPARED'"
+        say "" "that record was produced without a baseline, so a diff taken"
+        say "" "against it compares this run to nothing. Re-run the set with"
+        say "" "its baseline and commit that record instead."
+    elif [ -e "$f" ] && grep -q '^baseline: NOT COMPARED' "$f"; then
+        flag "$f in the working tree carries 'baseline: NOT COMPARED'"
+        say "" "the last run of this set had no baseline. Do not commit it."
+    fi
+done
+[ "$stop" -eq 0 ] && okay "baselines present, no record empty or uncompared"
 
 # --------------------------------------------------------- 4. instance sets
 echo
