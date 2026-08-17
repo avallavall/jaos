@@ -13,6 +13,10 @@
 #   netlib-kennington   the Kennington subset (PLAN 2.9 condition 1b)
 #   netlib-infeas       the infeasible subset (PLAN 2.9 condition 1c)
 #   netlib-kennington-baseline, netlib-infeas-baseline   rewrite those two
+#   plato-pds, plato-fome, plato-nug   the fourth set (TODO.md §4), which has
+#             no reference optimum and so runs under -e noref
+#   plato     all three of them
+#   plato-pds-baseline, plato-fome-baseline, plato-nug-baseline   rewrite those
 #   pgo       rebuild the library from a profile of it solving real models
 #   clean     remove all build output
 #
@@ -134,6 +138,8 @@ ASAN_TESTS := $(TESTS:tests/%.c=$(B)/asan/%)
 	netlib netlib-baseline \
 	netlib-kennington \
 	netlib-infeas netlib-kennington-baseline netlib-infeas-baseline \
+	plato plato-pds plato-fome plato-nug \
+	plato-pds-baseline plato-fome-baseline plato-nug-baseline \
 	pgo clean
 
 # Keep intermediate objects; make otherwise deletes and rebuilds them
@@ -305,6 +311,81 @@ netlib-infeas-baseline: $(B)/bench/run
 		-d bench/instances-infeas \
 		-w bench/netlib-infeas.baseline \
 		-o bench/results/netlib-infeas.txt
+
+# The fourth set (TODO.md §4). Three families from Mittelmann's mirror, all
+# in netlib's emps packing but bzip2'd, and all carrying `none` in the
+# manifest's source column: nobody has published an exact optimum for them, so
+# they run under `-e noref` and the runner refuses the pairing if either half
+# disagrees (bench/measurements/02-22/).
+#
+# **Not part of the gate.** The gate is the three netlib* targets and stays
+# that way until this set has a baseline anyone has read. What it is for is the
+# question every verdict in this repository already depends on and none of them
+# tested: whether a conclusion taken on 139 small models survives a population
+# that is not netlib.
+plato: plato-pds plato-fome plato-nug
+
+plato-pds: $(B)/bench/run
+	@bench/fetch.sh -m bench/plato-pds.manifest \
+		-b https://plato.asu.edu/ftp/lptestset/pds -p bz2-emps \
+		bench/instances-plato-pds
+	@mkdir -p bench/results
+	./$(B)/bench/run -j $(J) -m bench/plato-pds.manifest -e noref \
+		-d bench/instances-plato-pds \
+		-b bench/plato-pds.baseline \
+		-o bench/results/plato-pds.txt
+
+plato-fome: $(B)/bench/run
+	@bench/fetch.sh -m bench/plato-fome.manifest \
+		-b https://plato.asu.edu/ftp/lptestset/fome -p bz2-emps \
+		bench/instances-plato-fome
+	@mkdir -p bench/results
+	./$(B)/bench/run -j $(J) -m bench/plato-fome.manifest -e noref \
+		-d bench/instances-plato-fome \
+		-b bench/plato-fome.baseline \
+		-o bench/results/plato-fome.txt
+
+plato-nug: $(B)/bench/run
+	@bench/fetch.sh -m bench/plato-nug.manifest \
+		-b https://plato.asu.edu/ftp/lptestset/nug -p bz2-emps \
+		bench/instances-plato-nug
+	@mkdir -p bench/results
+	./$(B)/bench/run -j $(J) -m bench/plato-nug.manifest -e noref \
+		-d bench/instances-plato-nug \
+		-b bench/plato-nug.baseline \
+		-o bench/results/plato-nug.txt
+
+# Rewriting those three, kept apart from running them for the reason
+# netlib-baseline is kept apart from netlib.
+plato-pds-baseline: $(B)/bench/run
+	@bench/fetch.sh -m bench/plato-pds.manifest \
+		-b https://plato.asu.edu/ftp/lptestset/pds -p bz2-emps \
+		bench/instances-plato-pds
+	@mkdir -p bench/results
+	./$(B)/bench/run -j $(J) -m bench/plato-pds.manifest -e noref \
+		-d bench/instances-plato-pds \
+		-w bench/plato-pds.baseline \
+		-o bench/results/plato-pds.txt
+
+plato-fome-baseline: $(B)/bench/run
+	@bench/fetch.sh -m bench/plato-fome.manifest \
+		-b https://plato.asu.edu/ftp/lptestset/fome -p bz2-emps \
+		bench/instances-plato-fome
+	@mkdir -p bench/results
+	./$(B)/bench/run -j $(J) -m bench/plato-fome.manifest -e noref \
+		-d bench/instances-plato-fome \
+		-w bench/plato-fome.baseline \
+		-o bench/results/plato-fome.txt
+
+plato-nug-baseline: $(B)/bench/run
+	@bench/fetch.sh -m bench/plato-nug.manifest \
+		-b https://plato.asu.edu/ftp/lptestset/nug -p bz2-emps \
+		bench/instances-plato-nug
+	@mkdir -p bench/results
+	./$(B)/bench/run -j $(J) -m bench/plato-nug.manifest -e noref \
+		-d bench/instances-plato-nug \
+		-w bench/plato-nug.baseline \
+		-o bench/results/plato-nug.txt
 
 # Profile-guided rebuild: compile instrumented, solve real models with it,
 # then compile again with what that recorded. Worth 1.1122x over the plain

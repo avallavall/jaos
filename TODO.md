@@ -344,15 +344,29 @@ nothing else about the model changing. `nug` is the shape the tree does not
 have: every model JAOS reads today is economic, transport or stochastic, and a
 QAP relaxation is none of those.
 
-**What is left, in order.** The tier is Kennington's plus one thing JAOS
-cannot do yet: checker verdict, solution digest, determinism and work units,
-**no reference objective**. `bench/run.c` has only `EXPECT_OPTIMAL` and
-`EXPECT_INFEASIBLE`, and `EXPECT_OPTIMAL` scores every instance against
-`reference + objconst`. So it needs a third expectation, and per this
-repository's own habit it must be built with the case it has to reject: this
-manifest run under `-e optimal` has to fail loudly, not pass. Then the
-Makefile targets, then the first baselines. A baseline added mid-change cannot
-be read, so they land on their own commit with the gate green.
+**The runner can read the set, 2026-08-17.** `bench/run.c` gained a third
+expectation, `EXPECT_OPTIMAL_NOREF` (`-e noref`), and six `make plato-*`
+targets exist. Shape, checker verdict, determinism, digest and work units are
+asked exactly as they are for the other sets; only the comparison against a
+published optimum is gone, and it prints `objective=none` rather than `ok` so
+the two cannot be read as the same thing.
+
+Built with the case it has to reject, in **both** directions
+(`bench/measurements/02-22/reject-case.sh`, all four as expected): a `none`
+manifest under `-e optimal` exits 2, and — the direction that matters, because
+it is the silent one — `netlib.manifest` under `-e noref` also exits 2 rather
+than quietly ceasing to check Koch's optima. `make test` and `make sanitize`
+both exit 0.
+
+**`plato` is not part of the gate**, and the three `netlib*` targets still are.
+
+**What is left.** The baselines, which means finding out whether JAOS can
+solve these at all — the real open question, and nothing on paper answers it.
+The first two readings say the cost is serious: `fome11` (12142 × 24460) takes
+32 s and 8.11e9 work units, `fome12` twice its size takes 90 s and 1.96e10.
+Iterations scale 1.978x for a 2x model and work 2.418x, so an iteration costs
+1.222x more. **One pair is not a trend** and `fome13`, `fome21`, all eight
+`pds` and all three `nug` are unmeasured. `pds-100` is 156243 × 505360.
 
 ## 5. After presolve — the rest of M2, in order
 

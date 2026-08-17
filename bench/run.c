@@ -371,8 +371,19 @@ static void record(const char *name, const char *status, bool solved,
  * point has none, and never hands back an optimum for one. There is no
  * reference objective for those and nothing for the checker to judge, so
  * running them under the optimum rule would score every correct answer as a
- * failure. */
-typedef enum { EXPECT_OPTIMAL, EXPECT_INFEASIBLE } expectation;
+ * failure.
+ *
+ * EXPECT_OPTIMAL_NOREF is the fourth set (TODO.md §4). Those models are solved
+ * to an optimum like the first two, but nobody has published an exact optimal
+ * value for them the way Koch did for netlib, and none is invented here. Every
+ * other guarantee still holds and is still checked — shape, the checker's own
+ * verdict, determinism, the digest and the work units — so what this mode
+ * removes is one external cross-check, not the gate. The `objective` predicate
+ * is recorded false throughout, meaning "not verified" rather than "wrong",
+ * and the console prints `objective=none` so the two cannot be confused. */
+typedef enum {
+    EXPECT_OPTIMAL, EXPECT_INFEASIBLE, EXPECT_OPTIMAL_NOREF
+} expectation;
 
 static expectation g_expect = EXPECT_OPTIMAL;
 
@@ -566,9 +577,16 @@ static bool run_one(const entry *e, const char *dir, tally *t)
     double obj = 0.0;
     (void)jaos_objective(m, &obj);
     double expected = e->reference + e->objconst;
-    bool obj_ok = objective_accepted(obj, expected);
+    /* Whether an external optimum exists to score against at all. Kept as its
+     * own name rather than tested inline three times below, because the
+     * verdict, the tally and the printed field all have to agree about it. */
+    const bool scored = (g_expect != EXPECT_OPTIMAL_NOREF);
+    bool obj_ok = scored && objective_accepted(obj, expected);
     if (obj_ok)
         t->objective_ok++;
+    const char *obj_verdict = !scored ? "none"
+                            : obj_ok  ? "ok"
+                                      : "OUT-OF-TOLERANCE";
 
     double *x = calloc((size_t)(nc > 0 ? nc : 1), sizeof(double));
     double *y = calloc((size_t)(nr > 0 ? nr : 1), sizeof(double));
@@ -646,7 +664,7 @@ static bool run_one(const entry *e, const char *dir, tally *t)
             (long long)m->presolve_num_row, (long long)m->presolve_num_col,
             (long long)m->presolve_num_nz,
             obj, expected, e->source,
-            obj_ok ? "ok" : "OUT-OF-TOLERANCE", check_ok ? "ok" : "REJECTED",
+            obj_verdict, check_ok ? "ok" : "REJECTED",
             rep.max_col_violation, rep.max_row_violation,
             rep.max_row_violation_relative,
             rep.max_dual_violation, rep.objective_gap,
@@ -663,7 +681,10 @@ static bool run_one(const entry *e, const char *dir, tally *t)
     free(x);
     free(y);
     jaos_model_free(m);
-    return shape && obj_ok && check_ok && det;
+    /* `obj_ok` is false for the whole of a NOREF run, so it cannot be part of
+     * the verdict there — it would fail every instance. Everything else is
+     * asked exactly as it is for the other two sets. */
+    return shape && (!scored || obj_ok) && check_ok && det;
 }
 
 /* Every instance this run against what it did at baseline. Returns the
@@ -1017,8 +1038,11 @@ int main(int argc, char **argv)
                 g_expect = EXPECT_OPTIMAL;
             else if (strcmp(want, "infeasible") == 0)
                 g_expect = EXPECT_INFEASIBLE;
+            else if (strcmp(want, "noref") == 0)
+                g_expect = EXPECT_OPTIMAL_NOREF;
             else {
-                fprintf(stderr, "-e takes optimal or infeasible, not %s\n",
+                fprintf(stderr,
+                        "-e takes optimal, infeasible or noref, not %s\n",
                         want);
                 return 2;
             }
@@ -1096,6 +1120,36 @@ int main(int argc, char **argv)
     }
     fclose(mf);
 
+    /* The manifest and the `-e` flag both say whether a reference optimum
+     * exists, and neither is allowed to be the only voice.
+     *
+     * Get it wrong one way and a set with no reference is scored against 0.0,
+     * so every correct answer reads OUT-OF-TOLERANCE. Get it wrong the other
+     * way and a set that does have Koch's exact optima stops being compared
+     * against them, with nothing in the output saying the check went away —
+     * which is the failure that matters, because it is silent.
+     *
+     * Refused here rather than per instance: a whole run taken under the wrong
+     * rule is not a finding about an instance. This is also the case the mode
+     * has to reject, and it is exercised by
+     * `bench/measurements/02-22/reject-case.sh`. */
+    for (int k = 0; k < n_entries; k++) {
+        const entry *e = &manifest_entries[k];
+        const bool noref = strcmp(e->source, "none") == 0;
+        if (noref && g_expect == EXPECT_OPTIMAL) {
+            fprintf(stderr, "%s: manifest carries no reference optimum "
+                    "(source `none`) and this run scores against one. "
+                    "Use -e noref.\n", e->name);
+            return 2;
+        }
+        if (!noref && g_expect == EXPECT_OPTIMAL_NOREF) {
+            fprintf(stderr, "%s: manifest carries a reference optimum from "
+                    "`%s` and -e noref would not check it.\n",
+                    e->name, e->source);
+            return 2;
+        }
+    }
+
     static int selected[MAX_INSTANCES];
     int n_selected = 0;
     for (int k = 0; k < n_entries; k++)
@@ -1117,6 +1171,18 @@ int main(int argc, char **argv)
                 " %lld deterministic, %lld failed\n",
                 (long long)t.instances, (long long)t.solved,
                 (long long)t.shape_ok, (long long)t.deterministic,
+                (long long)t.failed);
+    else if (g_expect == EXPECT_OPTIMAL_NOREF)
+        /* No "objective ok" field, deliberately. Printing it as 0 would read
+         * as ninety-four wrong answers, and printing it as the instance count
+         * would claim a check that never ran. The absent field is the
+         * accurate report. */
+        emit("\n%lld instances: %lld solved, %lld shape ok,"
+                " %lld checker ok, %lld deterministic, %lld failed"
+                "  (no reference optimum: objective unverified)\n",
+                (long long)t.instances, (long long)t.solved,
+                (long long)t.shape_ok,
+                (long long)t.checker_ok, (long long)t.deterministic,
                 (long long)t.failed);
     else
         emit("\n%lld instances: %lld solved, %lld shape ok, %lld objective ok,"
