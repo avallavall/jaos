@@ -7,26 +7,27 @@ line leaves this file in the same commit.
 
 ## Where the last session stopped — 2026-08-17
 
-The tree is clean and pushed. The gate sets were not touched; the last source
-change is still D106. What happened: the README was rewritten for
-readability with no fact moved, and §5's `make compare` re-run landed. P0
-re-taken at `a88e99b`: **3.15x HiGHS, 0.95x SoPlex — faster per solve for
-the first time — and 2.57x Clp**, on 2.04x / 1.51x / 1.95x per iteration.
-`maros-r7` fell from 72.5x HiGHS to 1.33x; the worst instance is now
-`stocfor3` at 30.0x, owned by §5's last item. Record in
-`bench/compare/results/P0.txt`; the pre-D106 reading is kept at
-`results/P0-2026-08-14.txt`. The reference build is still red, item four in
+The tree is clean. The gate sets were not touched; the last source change is
+still D106. What landed today, none of it source: the README rewrite, §5's
+`make compare` re-run, and §1a's closure. P0 re-taken at `a88e99b`: **3.15x
+HiGHS, 0.95x SoPlex — faster per solve for the first time — and 2.57x Clp**,
+on 2.04x / 1.51x / 1.95x per iteration; the worst instance is now `stocfor3`
+at 30.0x (`bench/compare/results/P0.txt`; the pre-D106 reading is
+`P0-2026-08-14.txt`). §1a closed with a refusal: the sign-respecting
+inequality implied-free count is 341 rows, a tenth of the 3315 and not two
+thirds, 304 of them on `ship*` instances (D107,
+`bench/measurements/02-13/`). The reference build is still red, item four in
 the standing debts below.
 
-**Pick up at §1a or §1d.** §1a is the next build. §1d is the cheaper question
-and it is the same unexplained shape as §2, so answering one probably answers
-both.
+**Pick up at §1d.** It is the cheaper question and the same unexplained
+shape as §2, so answering one probably answers both. §1b stays behind it
+because it needs `d2q06c` explained first, which is that same shape again.
 
 Three things this session left deliberately unmeasured, so nobody re-derives
 them by accident: `greenbeb`'s 1.5126x, `maros-r7`'s 15.7x per-iteration drop,
 and what a zero margin admits. Each has its own subsection with its numbers.
 
-## 1. Implied free column singletons — the inequality rows, and three instances it hurt
+## 1. Implied free column singletons — what its own measurements left open
 
 **The equality-row half landed 2026-08-15 (D106).** It removes 1041 rows,
 2040 columns and 47043 nonzeros over 17 of the 94 standard instances, and
@@ -35,26 +36,20 @@ Kennington is bit-identical. Work over the standard set is a geometric mean
 of 0.9527x. `maros-r7` alone goes from 21010708013 work units to 328053926
 and from 10479 iterations to 2576.
 
-Three things are open and they are in this order.
+Four questions stay open — §1b through §1e, in that order after §1a's
+closure.
 
-### 1a. Inequality rows — two thirds of the counted opportunity
+### 1a. Inequality rows — closed 2026-08-17 by D107: a tenth of the count, refused
 
-`bench/measurements/02-10/`'s counter reads **3315 rows over 56 of the 94
-standard instances** on the model as loaded. The shipped family reaches 1041
-over 17, because TODO's own plan said equality rows only to start and because
-a column's ORIGINAL degree must be 1.
-
-An inequality row is harder for two reasons, both of them about the dual:
-
-- `x_j` is not determined by its own row any more, so the postsolve has to
-  pick a value rather than compute one. The row's implied box says which
-  values are feasible; nothing yet says which is optimal.
-- An inequality row's multiplier has a sign condition, and `y_i = c_j / a_ij`
-  has no reason to satisfy it. When it does not, the reduction is unsound and
-  the family has to decline — which is a test that does not exist today.
-
-Count what a sign-respecting version would actually reach before building it.
-The 3315 is an upper bound on it, not a forecast.
+The sign-respecting count is **341 rows of the 3315**, 10% and not two
+thirds: 2980 of the as-loaded hits are equality rows, so the gap between
+3315 and the shipped 1041 is margin (§1b owns 1353 of it) and presolve-time
+interaction, not row sense. 304 of the 341 sit on the six `ship*` instances,
+all below the comparison's 0.05 s floor; `stocfor3` carries zero; Kennington
+carries zero. The sign condition declines nothing a feasible bounded model
+can carry, and that is derived in the entry. Refused at this population; the
+reopen condition is in the refusals table. Readings in
+`bench/measurements/02-13/`.
 
 ### 1b. The margin's absolute floor removes 1353 rows for nothing the set can see
 
@@ -346,6 +341,7 @@ then, do not — a refusal whose premise has not changed just fails again.
 | SPECS §3 | crash basis — destroys the exact slack-basis steepest-edge weights | pricing stops starting from exact steepest-edge weights; REQ-devex-pricing landing is the trigger |
 | D74 | removing the re-entry loan — 2.372x `pilot87` iterations for 0.980x `pilot` | the oscillation mechanism itself changes (phase 4's investigation) |
 | D63 | restarting weights to exact instead of 1.0 | the pricing rule changes; Devex would replace the question |
+| D107 | the inequality implied free column singleton — 341 sign-ok rows, 10% of the count, 304 of them on `ship*` instances below the harness floor, zero on `stocfor3` and Kennington | a model population where `bench/measurements/02-13/run-sign-count.sh` reports a non-trivial sign-ok share; §4's fourth instance set is the standing candidate |
 | D95 | eliminating nonzero-cost singleton columns | a dual-informed elimination design exists (the lift condition is in the entry). **Checked against D106 and NOT reopened, deliberately.** D106 eliminates nonzero-cost singleton columns, so the question was re-asked. It does not satisfy D95's condition and does not need to: D95 refused *choosing which bound is optimal*, and an implied free column has no bound to choose — it is interior, so `d_j = 0` is forced and the dual falls out of one division. The columns D95 still refuses are the ones whose own bounds can bind, and D106 declines exactly those |
 | D93 | the 4.2% time bar — unmeasurable on this host | a controlled host that satisfies D17 |
 | D92/backlog | `pilot87`'s suboptimality bound, not understood | it blocks a gate (trigger already recorded) |

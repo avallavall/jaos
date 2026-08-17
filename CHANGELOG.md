@@ -31,6 +31,14 @@ open, `bench/README.md` for the gate, and the commit each entry came from.
 
 ### Changed
 
+- The inequality half of the implied free column singleton is refused on its
+  count (D107). A sign-classifying counter, calibrated on a hand model and on
+  02-10's committed values, reads **341 sign-ok rows of the 3315 as loaded**
+  — 10%, not the two thirds on record — 304 of them on the six `ship*`
+  instances, none on `stocfor3`, zero on Kennington. The sign condition
+  declines nothing a feasible bounded model can carry, and that is derived in
+  the entry. Readings in `bench/measurements/02-13/`.
+
 - `bench/compare`'s P0 rung re-taken after D106, at `a88e99b`: **3.15x HiGHS,
   0.95x SoPlex, 2.57x Clp** per solve, on 2.04x / 1.51x / 1.95x the cost of
   an iteration — faster than SoPlex on the geometric mean for the first time,

@@ -1,0 +1,4 @@
+# Totals over each set. Detection reproduces 02-10; the split is new.
+# set hits rows_hit eq in ok dec ok_rows ok_nz c0 rng inst_with_ok
+netlib 3321 3315 2980 341 341 0 341 14094 19 0 12
+kennington 0 0 0 0 0 0 0 0 0 0 0

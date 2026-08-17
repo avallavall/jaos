@@ -114,6 +114,7 @@ and you have the argument. Jump to the entry for the numbers behind it.
 - **[D104](#d104-the-ladder-is-recalibrated-and-jaoss-presolve-is-worth-what-the-others-are-worth-while-highs-presolves-the-instances-that-decide-the-set)** — The ladder is recalibrated, and JAOS's presolve is worth what the others' are worth while HiGHS presolves the instances that decide the set
 - **[D105](#d105--what-highs-finds-in-maros-r7-is-the-implied-free-column-singleton-and-it-needs-an-implied-bound-rather-than-a-tightened-one)** — What HiGHS finds in `maros-r7` is the implied free column singleton, and it needs an implied bound rather than a tightened one
 - **[D106](#d106--the-implied-free-column-singleton-buys-64x-on-maros-r7-and-the-row-activity-it-reads-was-short-in-two-older-families)** — The implied free column singleton buys 64x on `maros-r7`, and the row activity it reads was short in two older families
+- **[D107](#d107--the-inequality-half-of-the-implied-free-count-is-a-tenth-not-two-thirds-and-building-it-is-refused-on-the-count)** — The inequality half of the implied-free count is a tenth, not two thirds, and building it is refused on the count
 
 ---
 
@@ -8195,3 +8196,72 @@ against. `TODO.md` §1b.
 **Left open, and handed to TODO.md.** Inequality rows, which is the other
 two thirds of the counted opportunity. `greenbeb`, `scfxm3` and `forplan`.
 The margin's floor, above. And `maros-r7`'s 15.7x per-iteration drop, which wants a cause. Readings in `bench/measurements/02-12/`.
+
+## D107 — The inequality half of the implied-free count is a tenth, not two thirds, and building it is refused on the count
+
+**The question, as §1a asked it.** Before building the inequality half of the
+implied free column singleton, count what a sign-respecting version would
+actually reach. The expectation on record was large: 02-10's counter read
+3315 rows as loaded against the 1041 the shipped equality family removes,
+D106 called the remainder "the next step rather than a shortfall", and §1a's
+own heading called inequality rows two thirds of the counted opportunity.
+
+**The measurement, 2026-08-17.** `bench/measurements/02-13/` extends the
+02-10 counter with the row-sense split and the dual sign condition:
+eliminating the column forces `y_i = c_j / a_ij`, and an inequality row
+admits that multiplier only when it points at a finite row end, in the
+minimize-canonical convention `src/check.c` judges published duals in. The
+instrument refuses to report until it reproduces a hand model that fires
+every branch — equality, range row, zero cost, negative coefficient, three
+declines — and 02-10's committed values: `maros-r7` 984, `truss` 0, netlib
+3321 hits over 3315 distinct rows. Both reproduced exactly.
+
+| set | hits | in equality rows | in inequality rows | sign-ok | declined |
+|---|---|---|---|---|---|
+| netlib | 3321 | 2980 | 341 | **341** | **0** |
+| Kennington | 0 | 0 | 0 | 0 | 0 |
+
+The 341 sign-ok rows carry 14094 nonzeros over 12 instances: `ship12l` and
+`ship12s` 77 each, `ship08l` and `ship08s` 50 each, `ship04l` and `ship04s`
+25 each — 304 of the 341 on the six `ship*` models, every one below the
+comparison harness's 0.05 s floor — then `80bau3b` 14, `bnl2` 9, `pilot87`
+9, `scorpion` 3, `25fv47` 1, `finnis` 1. `stocfor3`, the worst instance in
+the comparison since the P0 re-take, carries zero. Kennington carries zero.
+
+**What was refuted, one premise per direction.**
+
+The two-thirds premise is wrong. Inequality rows hold 341 of the 3315
+as-loaded rows, 10%. Equality rows hold 2980, so the shipped family's 1041
+is short of its own half's count by margin and interaction, not by row
+sense: §1b already owns 1353 of that gap (the margin's absolute floor), and
+the rest is presolve-time interaction. There is no large inequality prize
+waiting behind D106.
+
+The sign condition, the part of §1a that looked like the dangerous design
+work, filters nothing on this population — and that is derived, not
+observed. A one-sided inequality hit is declined only when its forced
+multiplier points at the infinite row end; the containment test already
+forces the column's own bound on that side to be infinite; a declined
+candidate's cost therefore improves along a ray the row never cuts, and the
+model was unbounded. All four sense-and-sign cases reduce to this, so on a
+feasible bounded model the declined count must be 0, and on all 94 it is.
+The decline branch is exercised by the calibration model, so the zero is not
+an instrument that cannot fire.
+
+**Refused: the inequality extension is not built at this population.** 341
+rows is 0.83% of the standard set's rows, concentrated on instances the
+comparison cannot even time, with none on the instance that decides the
+comparison and zero on Kennington. D101 deferred three families at 0.15%
+with an executable reopen condition; this is the same shape at five times
+the share and with a worse concentration. The reopen condition is
+executable: a model population where
+`bench/measurements/02-13/run-sign-count.sh` reports a non-trivial sign-ok
+share. `TODO.md` §4's fourth instance set is the standing candidate.
+
+**Left open, and handed to TODO.md.** If a population reopens this: the 19
+zero-cost hits (9 `bnl2`, 9 `pilot87`, 1 `80bau3b`) need a postsolve that
+picks a value from the implied interval instead of computing one, and a
+declined candidate on a feasible model is an unboundedness witness that D19
+says must still be published off a ray, so the family declines and leaves
+the certificate to the solve. Nothing else. §1b, §1c, §1d and §1e stay open
+and are untouched by this.
