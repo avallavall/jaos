@@ -31,6 +31,14 @@ open, `bench/README.md` for the gate, and the commit each entry came from.
 
 ### Changed
 
+- §1d closed: `greenbeb` pays D106's overcost in iterations (1.3779x,
+  per-iteration flat) and `scfxm3` per iteration in the ratio-test path
+  (`update_dual` 1.71x against an LU side at 1.05–1.11x), measured from the
+  committed records and a callgrind pair calibrated to reproduce both
+  records exactly. Two mechanisms, both downstream of an exact substitution,
+  no site-local predictor — a trajectory refuse rule is refused (D108).
+  Readings in `bench/measurements/02-14/`.
+
 - The inequality half of the implied free column singleton is refused on its
   count (D107). A sign-classifying counter, calibrated on a hand model and on
   02-10's committed values, reads **341 sign-ok rows of the 3315 as loaded**

@@ -115,6 +115,7 @@ and you have the argument. Jump to the entry for the numbers behind it.
 - **[D105](#d105--what-highs-finds-in-maros-r7-is-the-implied-free-column-singleton-and-it-needs-an-implied-bound-rather-than-a-tightened-one)** — What HiGHS finds in `maros-r7` is the implied free column singleton, and it needs an implied bound rather than a tightened one
 - **[D106](#d106--the-implied-free-column-singleton-buys-64x-on-maros-r7-and-the-row-activity-it-reads-was-short-in-two-older-families)** — The implied free column singleton buys 64x on `maros-r7`, and the row activity it reads was short in two older families
 - **[D107](#d107--the-inequality-half-of-the-implied-free-count-is-a-tenth-not-two-thirds-and-building-it-is-refused-on-the-count)** — The inequality half of the implied-free count is a tenth, not two thirds, and building it is refused on the count
+- **[D108](#d108--greenbeb-pays-d106s-overcost-in-iterations-and-scfxm3-in-the-ratio-test-and-no-refuse-rule-is-built-on-an-exact-reductions-trajectory)** — greenbeb pays D106's overcost in iterations and scfxm3 in the ratio test, and no refuse rule is built on an exact reduction's trajectory
 
 ---
 
@@ -8265,3 +8266,63 @@ declined candidate on a feasible model is an unboundedness witness that D19
 says must still be published off a ray, so the family declines and leaves
 the certificate to the solve. Nothing else. §1b, §1c, §1d and §1e stay open
 and are untouched by this.
+
+## D108 — greenbeb pays D106's overcost in iterations and scfxm3 in the ratio test, and no refuse rule is built on an exact reduction's trajectory
+
+**The question, as §1d asked it.** After D106, `greenbeb` costs 1.5126x,
+`scfxm3` 1.3557x and `forplan` 1.1648x in work units, against 3 to 5 rows
+removed on each — out of proportion, and the same shape §2 carries for
+`grow22`. The missing piece was named in the entry: nothing measured says
+which way a firing goes on a model that has not been run, and a refuse rule
+cannot be designed without that.
+
+**The measurement, 2026-08-17, in `bench/measurements/02-14/`.** Two
+readings. First the committed records on both sides of D106, which cost
+nothing:
+
+| instance | iterations | work | work per iteration |
+|---|---|---|---|
+| `greenbeb` | **1.3779x** | 1.5126x | 1.0978x |
+| `scfxm3` | 1.0539x | 1.3557x | **1.2864x** |
+| `forplan` | 1.0659x | 1.1648x | 1.0928x |
+
+Then a callgrind instruction-count attribution: one diagnostic build per
+tree, identical flags, each binary required to reproduce its own record's
+`iters=` and `work=` exactly before being profiled — all six matched, so the
+profiled trajectories are the recorded ones. On `greenbeb` every kernel
+scales with the iteration count (per-function 1.34–1.57x around a 1.378x
+iteration ratio; per iteration nothing beyond `ftran_prefix` 1.14x and
+`jm_lu_factor` 1.11x): the overcost is the path. On `scfxm3` the growth is
+localized with iterations near flat: `update_dual` 1.71x,
+`shift_to_feasible` 1.68x, `admit_candidate` 1.57x, `pivot` 1.48x, against
+the LU side at 1.05–1.11x: each iteration admits and processes more
+candidates. `forplan`'s largest mover is `jm_dual_simplex` at 1.093x, which
+is two trajectories differing and nothing more.
+
+**What was refuted.** That the three share a mechanism: one pays in
+iteration count, one in per-iteration candidate volume, and the label
+"three firings costing 51%" covered both. And that the reduction site could
+carry a predictor: the substitution is exact, the reduced models are
+equivalent, and nothing at the site separates these three from the 14
+instances the same family made cheaper — §2's own record already shows the
+identical 20 firings halving `grow15` while inflating `grow22` sevenfold.
+A rule that refuses a firing on a predicted trajectory outcome would be
+fitted to named instances, which is the practice this project's own rules
+exclude.
+
+**Refused: a refuse rule for the implied free column singleton on
+trajectory grounds.** The family's set-wide price already contains these
+three (geometric mean 0.9527x, D106), none of the three crosses the gate's
+own 2.0x work bar, and both measured mechanisms are downstream of an exact
+reduction rather than of anything the family did wrong. Reopens if an
+instance crosses the gate's 2.0x bar from this family's firings, or if a
+measured mechanism ever predicts trajectory direction from the reduction
+site. §2 is untouched: its family relaxes rows rather than substituting
+exactly, it pays 0.810x set-wide for its worst cases, and its candidate
+rule (refuse an unbounded relative widening) remains its own open item.
+
+**Left open.** `scfxm3`'s localized reading names the machinery but not the
+cause: what turned more columns into ratio-test candidates — the pushed
+costs, or the changed basis path — was not separated, and separating it
+buys nothing until some instance crosses the bar. Recorded in
+`bench/measurements/02-14/README.md` beside the profiles.

@@ -9,19 +9,20 @@ line leaves this file in the same commit.
 
 The tree is clean. The gate sets were not touched; the last source change is
 still D106. What landed today, none of it source: the README rewrite, §5's
-`make compare` re-run, and §1a's closure. P0 re-taken at `a88e99b`: **3.15x
-HiGHS, 0.95x SoPlex — faster per solve for the first time — and 2.57x Clp**,
-on 2.04x / 1.51x / 1.95x per iteration; the worst instance is now `stocfor3`
-at 30.0x (`bench/compare/results/P0.txt`; the pre-D106 reading is
-`P0-2026-08-14.txt`). §1a closed with a refusal: the sign-respecting
-inequality implied-free count is 341 rows, a tenth of the 3315 and not two
-thirds, 304 of them on `ship*` instances (D107,
-`bench/measurements/02-13/`). The reference build is still red, item four in
-the standing debts below.
+`make compare` re-run (P0 at `a88e99b`: **3.15x HiGHS, 0.95x SoPlex —
+faster per solve for the first time — 2.57x Clp**; worst instance now
+`stocfor3` at 30.0x), and two closures by measurement: §1a refused on its
+count (341 inequality rows, a tenth and not two thirds — D107, 02-13), and
+§1d closed with its mechanisms named (`greenbeb` pays in iterations,
+`scfxm3` in the ratio-test path; no refuse rule — D108, 02-14). The
+reference build is still red, item four in the standing debts below.
 
-**Pick up at §1d.** It is the cheaper question and the same unexplained
-shape as §2, so answering one probably answers both. §1b stays behind it
-because it needs `d2q06c` explained first, which is that same shape again.
+**Pick up at §1b's blocker: explain `d2q06c`'s 2.2163x at margin zero.** The
+02-14 method transfers whole: both sides' records already exist in
+`bench/measurements/02-12/sweep/` (netlib-0 against netlib-8), so the
+iteration split is free, and the callgrind pair needs one `EXTRA_CFLAGS`
+build per side. §1e's fill measurement on `maros-r7` is the other candidate
+and needs LU instrumentation first.
 
 Three things this session left deliberately unmeasured, so nobody re-derives
 them by accident: `greenbeb`'s 1.5126x, `maros-r7`'s 15.7x per-iteration drop,
@@ -36,8 +37,8 @@ Kennington is bit-identical. Work over the standard set is a geometric mean
 of 0.9527x. `maros-r7` alone goes from 21010708013 work units to 328053926
 and from 10479 iterations to 2576.
 
-Four questions stay open — §1b through §1e, in that order after §1a's
-closure.
+Three questions stay open — §1b, §1c and §1e — after the closures of §1a
+(D107) and §1d (D108).
 
 ### 1a. Inequality rows — closed 2026-08-17 by D107: a tenth of the count, refused
 
@@ -100,21 +101,18 @@ accumulation with `ps_acc`. **Clamping the recovered `x_j` into the box is not
 one of them** — that hides the row residue instead of removing it, which is
 the shape D103's own repair was refused for.
 
-### 1d. `greenbeb`, `scfxm3` and `forplan` cost more, and not in proportion
+### 1d. `greenbeb`, `scfxm3` and `forplan` — closed 2026-08-17 by D108: two mechanisms, no refuse rule
 
-```
-greenbeb   3.79e8 -> 5.74e8 work   1.5126x    3 rows and 10 columns removed
-scfxm3     8.42e6 -> 1.14e7 work   1.3557x    3 rows and  3 columns removed
-forplan    1.07e6 -> 1.25e6 work   1.1648x    5 rows and  5 columns removed
-```
-
-Three firings costing 51% is the same shape §2 already carries for the cost-0
-singleton column on `grow22`, and it has the same missing piece: nothing
-measured says which way a firing goes on a model that has not been run.
-
-**None of the three crosses the gate's own 2.0x work bar** (`bench/run.c`,
-`WORK_REGRESSION_FACTOR`), so the gate reports `0 regressed` and cannot see
-any of this. It came out of the per-instance diff.
+The record split and a calibrated callgrind attribution say the three do not
+share a mechanism: `greenbeb` pays in iterations (1.3779x, per-iteration
+1.03x in instructions — trajectory), `scfxm3` pays per iteration in the
+ratio-test path (`update_dual` 1.71x, `admit_candidate` 1.57x, LU side
+1.05–1.11x, iterations 1.054x), `forplan` is small and diffuse. Both are
+downstream of an exact substitution, nothing at the reduction site separates
+them from the 14 instances the family made cheaper, and a refuse rule on
+predicted trajectory is refused — the reopen condition is in the refusals
+table. §2's relaxing family and its candidate rule are untouched. Readings
+in `bench/measurements/02-14/`.
 
 ### 1e. `maros-r7`'s iteration got 15.7x cheaper and the model only shrank 31%
 
@@ -342,6 +340,7 @@ then, do not — a refusal whose premise has not changed just fails again.
 | D74 | removing the re-entry loan — 2.372x `pilot87` iterations for 0.980x `pilot` | the oscillation mechanism itself changes (phase 4's investigation) |
 | D63 | restarting weights to exact instead of 1.0 | the pricing rule changes; Devex would replace the question |
 | D107 | the inequality implied free column singleton — 341 sign-ok rows, 10% of the count, 304 of them on `ship*` instances below the harness floor, zero on `stocfor3` and Kennington | a model population where `bench/measurements/02-13/run-sign-count.sh` reports a non-trivial sign-ok share; §4's fourth instance set is the standing candidate |
+| D108 | a refuse rule for the implied free column singleton on trajectory grounds — `greenbeb` and `scfxm3` pay through different machinery, both downstream of an exact reduction, and no site-local predictor exists | an instance crosses the gate's 2.0x work bar from this family's firings, or a measured mechanism predicts trajectory direction from the reduction site |
 | D95 | eliminating nonzero-cost singleton columns | a dual-informed elimination design exists (the lift condition is in the entry). **Checked against D106 and NOT reopened, deliberately.** D106 eliminates nonzero-cost singleton columns, so the question was re-asked. It does not satisfy D95's condition and does not need to: D95 refused *choosing which bound is optimal*, and an implied free column has no bound to choose — it is interior, so `d_j = 0` is forced and the dual falls out of one division. The columns D95 still refuses are the ones whose own bounds can bind, and D106 declines exactly those |
 | D93 | the 4.2% time bar — unmeasurable on this host | a controlled host that satisfies D17 |
 | D92/backlog | `pilot87`'s suboptimality bound, not understood | it blocks a gate (trigger already recorded) |

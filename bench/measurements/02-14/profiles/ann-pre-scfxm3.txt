@@ -1,0 +1,79 @@
+--------------------------------------------------------------------------------
+Profile data file '/mnt/c/Users/vall-/AppData/Local/Temp/claude/C--Users-vall--Desktop-projectes-jaos/f9716367-518e-4a13-aa7b-60c013ebb796/scratchpad/s1d/cg-pre-scfxm3.out' (creator: callgrind-3.22.0)
+--------------------------------------------------------------------------------
+I1 cache: 
+D1 cache: 
+LL cache: 
+Timerange: Basic block 0 - 249444790
+Trigger: Program termination
+Profiled target:  ./build/diag/run -j 1 -d /mnt/c/Users/vall-/Desktop/projectes/jaos/bench/instances scfxm3 (PID 509, part 1)
+Events recorded:  Ir
+Events shown:     Ir
+Event sort order: Ir
+Thresholds:       99
+Include dirs:     
+User annotated:   
+Auto-annotation:  on
+
+--------------------------------------------------------------------------------
+Ir                   
+--------------------------------------------------------------------------------
+898,311,002 (100.0%)  PROGRAM TOTALS
+
+--------------------------------------------------------------------------------
+Ir                    file:function
+--------------------------------------------------------------------------------
+128,160,062 (14.27%)  src/simplex.c:run [/mnt/c/Users/vall-/AppData/Local/Temp/claude/C--Users-vall--Desktop-projectes-jaos/f9716367-518e-4a13-aa7b-60c013ebb796/scratchpad/jaos-pre/build/diag/run]
+120,822,752 (13.45%)  src/lu.c:ftran_prefix [/mnt/c/Users/vall-/AppData/Local/Temp/claude/C--Users-vall--Desktop-projectes-jaos/f9716367-518e-4a13-aa7b-60c013ebb796/scratchpad/jaos-pre/build/diag/run]
+117,067,380 (13.03%)  src/lu.c:jm_lu_ftran_sparse [/mnt/c/Users/vall-/AppData/Local/Temp/claude/C--Users-vall--Desktop-projectes-jaos/f9716367-518e-4a13-aa7b-60c013ebb796/scratchpad/jaos-pre/build/diag/run]
+ 94,112,174 (10.48%)  src/lu.c:jm_lu_btran_sparse [/mnt/c/Users/vall-/AppData/Local/Temp/claude/C--Users-vall--Desktop-projectes-jaos/f9716367-518e-4a13-aa7b-60c013ebb796/scratchpad/jaos-pre/build/diag/run]
+ 68,197,477 ( 7.59%)  ./string/../sysdeps/x86_64/multiarch/memset-vec-unaligned-erms.S:__memset_avx2_unaligned_erms [/usr/lib/x86_64-linux-gnu/libc.so.6]
+ 64,275,222 ( 7.16%)  src/lu.c:jm_lu_update [/mnt/c/Users/vall-/AppData/Local/Temp/claude/C--Users-vall--Desktop-projectes-jaos/f9716367-518e-4a13-aa7b-60c013ebb796/scratchpad/jaos-pre/build/diag/run]
+ 38,230,042 ( 4.26%)  src/lu.c:jm_lu_factor [/mnt/c/Users/vall-/AppData/Local/Temp/claude/C--Users-vall--Desktop-projectes-jaos/f9716367-518e-4a13-aa7b-60c013ebb796/scratchpad/jaos-pre/build/diag/run]
+ 27,882,098 ( 3.10%)  ./malloc/./malloc/malloc.c:_int_malloc [/usr/lib/x86_64-linux-gnu/libc.so.6]
+ 17,827,338 ( 1.98%)  src/simplex.c:jm_pattern_order [/mnt/c/Users/vall-/AppData/Local/Temp/claude/C--Users-vall--Desktop-projectes-jaos/f9716367-518e-4a13-aa7b-60c013ebb796/scratchpad/jaos-pre/build/diag/run]
+ 17,674,058 ( 1.97%)  src/simplex.c:pivot.constprop.0 [/mnt/c/Users/vall-/AppData/Local/Temp/claude/C--Users-vall--Desktop-projectes-jaos/f9716367-518e-4a13-aa7b-60c013ebb796/scratchpad/jaos-pre/build/diag/run]
+ 16,632,100 ( 1.85%)  src/simplex.c:admit_candidate [/mnt/c/Users/vall-/AppData/Local/Temp/claude/C--Users-vall--Desktop-projectes-jaos/f9716367-518e-4a13-aa7b-60c013ebb796/scratchpad/jaos-pre/build/diag/run]
+ 15,388,194 ( 1.71%)  src/simplex.c:jm_dse_update [/mnt/c/Users/vall-/AppData/Local/Temp/claude/C--Users-vall--Desktop-projectes-jaos/f9716367-518e-4a13-aa7b-60c013ebb796/scratchpad/jaos-pre/build/diag/run]
+ 15,190,270 ( 1.69%)  ./malloc/./malloc/malloc.c:_int_free_merge_chunk [/usr/lib/x86_64-linux-gnu/libc.so.6]
+ 11,767,670 ( 1.31%)  src/simplex.c:update_dual [/mnt/c/Users/vall-/AppData/Local/Temp/claude/C--Users-vall--Desktop-projectes-jaos/f9716367-518e-4a13-aa7b-60c013ebb796/scratchpad/jaos-pre/build/diag/run]
+ 10,719,125 ( 1.19%)  ./malloc/./malloc/malloc.c:_int_free [/usr/lib/x86_64-linux-gnu/libc.so.6]
+ 10,386,476 ( 1.16%)  src/simplex.c:shift_to_feasible [/mnt/c/Users/vall-/AppData/Local/Temp/claude/C--Users-vall--Desktop-projectes-jaos/f9716367-518e-4a13-aa7b-60c013ebb796/scratchpad/jaos-pre/build/diag/run]
+ 10,307,512 ( 1.15%)  src/scale.c:jm_model_scale [/mnt/c/Users/vall-/AppData/Local/Temp/claude/C--Users-vall--Desktop-projectes-jaos/f9716367-518e-4a13-aa7b-60c013ebb796/scratchpad/jaos-pre/build/diag/run]
+ 10,181,466 ( 1.13%)  src/lu.c:jm_svec_push [/mnt/c/Users/vall-/AppData/Local/Temp/claude/C--Users-vall--Desktop-projectes-jaos/f9716367-518e-4a13-aa7b-60c013ebb796/scratchpad/jaos-pre/build/diag/run]
+  8,918,288 ( 0.99%)  ./malloc/./malloc/malloc.c:malloc [/usr/lib/x86_64-linux-gnu/libc.so.6]
+  7,172,236 ( 0.80%)  src/jaos_internal.h:jm_lu_btran_sparse
+  6,170,440 ( 0.69%)  src/util.c:jm_grow [/mnt/c/Users/vall-/AppData/Local/Temp/claude/C--Users-vall--Desktop-projectes-jaos/f9716367-518e-4a13-aa7b-60c013ebb796/scratchpad/jaos-pre/build/diag/run]
+  5,826,040 ( 0.65%)  ./malloc/./malloc/malloc.c:free [/usr/lib/x86_64-linux-gnu/libc.so.6]
+  5,676,310 ( 0.63%)  ./malloc/./malloc/malloc.c:realloc [/usr/lib/x86_64-linux-gnu/libc.so.6]
+  5,574,269 ( 0.62%)  ./string/../sysdeps/x86_64/multiarch/memmove-vec-unaligned-erms.S:__memcpy_avx_unaligned_erms [/usr/lib/x86_64-linux-gnu/libc.so.6]
+  4,873,346 ( 0.54%)  ./malloc/./malloc/malloc.c:_int_free_maybe_consolidate [/usr/lib/x86_64-linux-gnu/libc.so.6]
+  4,614,632 ( 0.51%)  ./malloc/./malloc/malloc.c:unlink_chunk.isra.0 [/usr/lib/x86_64-linux-gnu/libc.so.6]
+  3,608,063 ( 0.40%)  src/mps.c:jaos_read_mps [/mnt/c/Users/vall-/AppData/Local/Temp/claude/C--Users-vall--Desktop-projectes-jaos/f9716367-518e-4a13-aa7b-60c013ebb796/scratchpad/jaos-pre/build/diag/run]
+  3,465,762 ( 0.39%)  src/lu.c:bucket_move [/mnt/c/Users/vall-/AppData/Local/Temp/claude/C--Users-vall--Desktop-projectes-jaos/f9716367-518e-4a13-aa7b-60c013ebb796/scratchpad/jaos-pre/build/diag/run]
+  3,308,262 ( 0.37%)  src/simplex.c:refresh [/mnt/c/Users/vall-/AppData/Local/Temp/claude/C--Users-vall--Desktop-projectes-jaos/f9716367-518e-4a13-aa7b-60c013ebb796/scratchpad/jaos-pre/build/diag/run]
+  3,271,872 ( 0.36%)  src/check.c:jaos_check_solution [/mnt/c/Users/vall-/AppData/Local/Temp/claude/C--Users-vall--Desktop-projectes-jaos/f9716367-518e-4a13-aa7b-60c013ebb796/scratchpad/jaos-pre/build/diag/run]
+  3,246,984 ( 0.36%)  src/lu.c:grow_pair [/mnt/c/Users/vall-/AppData/Local/Temp/claude/C--Users-vall--Desktop-projectes-jaos/f9716367-518e-4a13-aa7b-60c013ebb796/scratchpad/jaos-pre/build/diag/run]
+  3,160,098 ( 0.35%)  src/lu.c:bucket_insert [/mnt/c/Users/vall-/AppData/Local/Temp/claude/C--Users-vall--Desktop-projectes-jaos/f9716367-518e-4a13-aa7b-60c013ebb796/scratchpad/jaos-pre/build/diag/run]
+  2,865,104 ( 0.32%)  ./stdlib/./stdlib/strtod_l.c:____strtod_l_internal [/usr/lib/x86_64-linux-gnu/libc.so.6]
+  2,326,384 ( 0.26%)  src/lu.c:pat_push [/mnt/c/Users/vall-/AppData/Local/Temp/claude/C--Users-vall--Desktop-projectes-jaos/f9716367-518e-4a13-aa7b-60c013ebb796/scratchpad/jaos-pre/build/diag/run]
+  2,320,632 ( 0.26%)  src/jaos_internal.h:jm_lu_ftran_sparse
+  2,301,420 ( 0.26%)  src/presolve.c:ps_row_range [/mnt/c/Users/vall-/AppData/Local/Temp/claude/C--Users-vall--Desktop-projectes-jaos/f9716367-518e-4a13-aa7b-60c013ebb796/scratchpad/jaos-pre/build/diag/run]
+  2,222,262 ( 0.25%)  src/simplex.c:price_entry.part.0 [/mnt/c/Users/vall-/AppData/Local/Temp/claude/C--Users-vall--Desktop-projectes-jaos/f9716367-518e-4a13-aa7b-60c013ebb796/scratchpad/jaos-pre/build/diag/run]
+  1,965,562 ( 0.22%)  src/simplex.c:jm_harris_pick.part.0 [/mnt/c/Users/vall-/AppData/Local/Temp/claude/C--Users-vall--Desktop-projectes-jaos/f9716367-518e-4a13-aa7b-60c013ebb796/scratchpad/jaos-pre/build/diag/run]
+  1,824,478 ( 0.20%)  src/simplex.c:compute_duals [/mnt/c/Users/vall-/AppData/Local/Temp/claude/C--Users-vall--Desktop-projectes-jaos/f9716367-518e-4a13-aa7b-60c013ebb796/scratchpad/jaos-pre/build/diag/run]
+  1,459,744 ( 0.16%)  src/presolve.c:jm_presolve_run [/mnt/c/Users/vall-/AppData/Local/Temp/claude/C--Users-vall--Desktop-projectes-jaos/f9716367-518e-4a13-aa7b-60c013ebb796/scratchpad/jaos-pre/build/diag/run]
+  1,004,943 ( 0.11%)  src/util.c:jm_nmap_get [/mnt/c/Users/vall-/AppData/Local/Temp/claude/C--Users-vall--Desktop-projectes-jaos/f9716367-518e-4a13-aa7b-60c013ebb796/scratchpad/jaos-pre/build/diag/run]
+    821,678 ( 0.09%)  src/lu.c:jm_lu_free [/mnt/c/Users/vall-/AppData/Local/Temp/claude/C--Users-vall--Desktop-projectes-jaos/f9716367-518e-4a13-aa7b-60c013ebb796/scratchpad/jaos-pre/build/diag/run]
+    766,912 ( 0.09%)  ./malloc/./malloc/malloc.c:alloc_perturb [/usr/lib/x86_64-linux-gnu/libc.so.6]
+    728,556 ( 0.08%)  src/jaos_internal.h:ftran_prefix
+    724,986 ( 0.08%)  src/mps.c:parse_num [/mnt/c/Users/vall-/AppData/Local/Temp/claude/C--Users-vall--Desktop-projectes-jaos/f9716367-518e-4a13-aa7b-60c013ebb796/scratchpad/jaos-pre/build/diag/run]
+    721,314 ( 0.08%)  src/simplex.c:jm_dual_simplex [/mnt/c/Users/vall-/AppData/Local/Temp/claude/C--Users-vall--Desktop-projectes-jaos/f9716367-518e-4a13-aa7b-60c013ebb796/scratchpad/jaos-pre/build/diag/run]
+    680,788 ( 0.08%)  src/lu.c:jm_svec_erase [/mnt/c/Users/vall-/AppData/Local/Temp/claude/C--Users-vall--Desktop-projectes-jaos/f9716367-518e-4a13-aa7b-60c013ebb796/scratchpad/jaos-pre/build/diag/run]
+    656,104 ( 0.07%)  ./stdlib/./stdlib/strtod_l.c:str_to_mpn.isra.0 [/usr/lib/x86_64-linux-gnu/libc.so.6]
+    607,358 ( 0.07%)  ./math/../sysdeps/ieee754/dbl-64/e_log2.c:__log2_fma [/usr/lib/x86_64-linux-gnu/libm.so.6]
+    596,844 ( 0.07%)  ./malloc/./malloc/arena.c:free
+    554,432 ( 0.06%)  ./string/../sysdeps/x86_64/multiarch/strcmp-avx2.S:__strcmp_avx2 [/usr/lib/x86_64-linux-gnu/libc.so.6]
+    544,564 ( 0.06%)  ./malloc/./malloc/malloc.c:_int_realloc [/usr/lib/x86_64-linux-gnu/libc.so.6]
+
+--------------------------------------------------------------------------------

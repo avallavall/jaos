@@ -1,0 +1,62 @@
+--------------------------------------------------------------------------------
+Profile data file '/mnt/c/Users/vall-/AppData/Local/Temp/claude/C--Users-vall--Desktop-projectes-jaos/f9716367-518e-4a13-aa7b-60c013ebb796/scratchpad/s1d/cg-post-greenbeb.out' (creator: callgrind-3.22.0)
+--------------------------------------------------------------------------------
+I1 cache: 
+D1 cache: 
+LL cache: 
+Timerange: Basic block 0 - 8806925317
+Trigger: Program termination
+Profiled target:  ./build/diag/run -j 1 -d /mnt/c/Users/vall-/Desktop/projectes/jaos/bench/instances greenbeb (PID 494, part 1)
+Events recorded:  Ir
+Events shown:     Ir
+Event sort order: Ir
+Thresholds:       99
+Include dirs:     
+User annotated:   
+Auto-annotation:  on
+
+--------------------------------------------------------------------------------
+Ir                      
+--------------------------------------------------------------------------------
+32,585,759,191 (100.0%)  PROGRAM TOTALS
+
+--------------------------------------------------------------------------------
+Ir                      file:function
+--------------------------------------------------------------------------------
+7,435,349,858 (22.82%)  src/simplex.c:run [/mnt/c/Users/vall-/Desktop/projectes/jaos/build/diag/run]
+3,954,641,256 (12.14%)  src/lu.c:jm_lu_ftran_sparse [/mnt/c/Users/vall-/Desktop/projectes/jaos/build/diag/run]
+3,697,869,158 (11.35%)  src/lu.c:ftran_prefix [/mnt/c/Users/vall-/Desktop/projectes/jaos/build/diag/run]
+2,570,918,528 ( 7.89%)  src/lu.c:jm_lu_btran_sparse [/mnt/c/Users/vall-/Desktop/projectes/jaos/build/diag/run]
+2,149,128,130 ( 6.60%)  src/simplex.c:admit_candidate [/mnt/c/Users/vall-/Desktop/projectes/jaos/build/diag/run]
+2,061,842,816 ( 6.33%)  ./string/../sysdeps/x86_64/multiarch/memset-vec-unaligned-erms.S:__memset_avx2_unaligned_erms [/usr/lib/x86_64-linux-gnu/libc.so.6]
+1,384,619,372 ( 4.25%)  src/lu.c:jm_lu_factor [/mnt/c/Users/vall-/Desktop/projectes/jaos/build/diag/run]
+1,284,828,968 ( 3.94%)  src/simplex.c:pivot.constprop.0 [/mnt/c/Users/vall-/Desktop/projectes/jaos/build/diag/run]
+1,211,714,564 ( 3.72%)  src/simplex.c:update_dual [/mnt/c/Users/vall-/Desktop/projectes/jaos/build/diag/run]
+1,158,324,842 ( 3.55%)  src/lu.c:jm_lu_update [/mnt/c/Users/vall-/Desktop/projectes/jaos/build/diag/run]
+1,060,267,512 ( 3.25%)  src/simplex.c:shift_to_feasible [/mnt/c/Users/vall-/Desktop/projectes/jaos/build/diag/run]
+  800,048,847 ( 2.46%)  ./string/../sysdeps/x86_64/multiarch/memmove-vec-unaligned-erms.S:__memcpy_avx_unaligned_erms [/usr/lib/x86_64-linux-gnu/libc.so.6]
+  533,899,663 ( 1.64%)  ./malloc/./malloc/malloc.c:_int_malloc [/usr/lib/x86_64-linux-gnu/libc.so.6]
+  414,458,190 ( 1.27%)  src/simplex.c:jm_harris_pick.part.0 [/mnt/c/Users/vall-/Desktop/projectes/jaos/build/diag/run]
+  300,564,782 ( 0.92%)  src/lu.c:jm_svec_push [/mnt/c/Users/vall-/Desktop/projectes/jaos/build/diag/run]
+  287,341,137 ( 0.88%)  ./malloc/./malloc/malloc.c:_int_free_merge_chunk [/usr/lib/x86_64-linux-gnu/libc.so.6]
+  209,815,874 ( 0.64%)  ./malloc/./malloc/malloc.c:_int_free [/usr/lib/x86_64-linux-gnu/libc.so.6]
+  165,518,978 ( 0.51%)  ./malloc/./malloc/malloc.c:malloc [/usr/lib/x86_64-linux-gnu/libc.so.6]
+  137,563,538 ( 0.42%)  src/jaos_internal.h:jm_lu_btran_sparse
+  127,541,772 ( 0.39%)  src/jaos_internal.h:jm_lu_ftran_sparse
+  122,180,312 ( 0.37%)  src/util.c:jm_grow [/mnt/c/Users/vall-/Desktop/projectes/jaos/build/diag/run]
+  121,301,882 ( 0.37%)  ./malloc/./malloc/malloc.c:realloc [/usr/lib/x86_64-linux-gnu/libc.so.6]
+  116,443,248 ( 0.36%)  src/simplex.c:jm_dse_update [/mnt/c/Users/vall-/Desktop/projectes/jaos/build/diag/run]
+  114,832,878 ( 0.35%)  src/simplex.c:jm_pattern_order [/mnt/c/Users/vall-/Desktop/projectes/jaos/build/diag/run]
+  111,534,056 ( 0.34%)  src/lu.c:bucket_move [/mnt/c/Users/vall-/Desktop/projectes/jaos/build/diag/run]
+  107,469,142 ( 0.33%)  ./malloc/./malloc/malloc.c:free [/usr/lib/x86_64-linux-gnu/libc.so.6]
+   95,951,408 ( 0.29%)  src/lu.c:bucket_insert [/mnt/c/Users/vall-/Desktop/projectes/jaos/build/diag/run]
+   92,146,078 ( 0.28%)  ./malloc/./malloc/malloc.c:_int_free_maybe_consolidate [/usr/lib/x86_64-linux-gnu/libc.so.6]
+   87,734,118 ( 0.27%)  ./malloc/./malloc/malloc.c:unlink_chunk.isra.0 [/usr/lib/x86_64-linux-gnu/libc.so.6]
+   77,838,718 ( 0.24%)  src/simplex.c:refresh [/mnt/c/Users/vall-/Desktop/projectes/jaos/build/diag/run]
+   73,853,104 ( 0.23%)  src/lu.c:pat_push [/mnt/c/Users/vall-/Desktop/projectes/jaos/build/diag/run]
+   71,845,038 ( 0.22%)  src/jaos_internal.h:ftran_prefix
+   63,226,332 ( 0.19%)  src/lu.c:grow_pair [/mnt/c/Users/vall-/Desktop/projectes/jaos/build/diag/run]
+   51,578,636 ( 0.16%)  src/simplex.c:price_entry.part.0 [/mnt/c/Users/vall-/Desktop/projectes/jaos/build/diag/run]
+   38,751,712 ( 0.12%)  src/simplex.c:compute_duals [/mnt/c/Users/vall-/Desktop/projectes/jaos/build/diag/run]
+
+--------------------------------------------------------------------------------
