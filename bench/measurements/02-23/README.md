@@ -82,6 +82,52 @@ presolve, and every measurement behind them was taken on netlib and Kennington.
 Here is a model class where the entire machinery is a no-op, and the class was
 not in the population when any of those questions was decided.
 
+## The two families disagree about where the cost is, and that is the point
+
+`ladder.py` beside this file reads the manifests and the baselines and prints
+both scaling ladders. Nothing in it is copied by hand, and instances with no
+baseline yet are named as missing rather than dropped.
+
+**`pds` was already half here.** `pds-02`, `pds-06`, `pds-10` and `pds-20` have
+been in `bench/netlib-kennington.*` since M1, and `pds-30` … `pds-100` arrived
+with §4. Four of the points were in the repository the whole time and nobody
+had plotted them, because the family stopped at `pds-20`.
+
+From the four committed points alone, over an 11.5x range in rows:
+
+| step | rows | iterations | exponent | work/iter | exponent |
+|---|---|---|---|---|---|
+| `pds-02 → pds-06` | 3.346x | 4.802x | 1.30 | 4.464x | 1.24 |
+| `pds-06 → pds-10` | 1.676x | 1.802x | 1.14 | 1.839x | 1.18 |
+| `pds-10 → pds-20` | 2.046x | 2.692x | 1.38 | 3.013x | 1.54 |
+
+End to end: iterations `n^1.29`, total work `n^2.61`.
+
+And the same table for `fome`, whose first three members double exactly:
+
+| step | rows | iterations | exponent | work/iter | exponent |
+|---|---|---|---|---|---|
+| `fome11 → fome12` | 2.000x | 1.978x | **0.98** | 1.222x | 0.29 |
+| `fome12 → fome13` | 2.000x | 1.985x | **0.99** | 1.304x | 0.38 |
+
+**The two families are not saying the same thing.**
+
+- On `pds` the iteration count grows as `n^1.29` and the exponent is largest at
+  the top of the range. Iterations are where the cost is.
+- On `fome` the iteration count grows as `n^0.98`, then `n^0.99` — linear to
+  two digits, twice. Iterations are *not* where the cost is; the per-iteration
+  exponent is, and it rises from 0.29 to 0.38.
+
+TODO.md §5 has two candidates for M2's remaining work: the factorization
+(per-iteration cost) and the search path (iteration count). **These two
+families point at different ones**, so "which matters" is a question about the
+model population, not about the solver. Neither existing set could have shown
+that, because neither contains a family that scales.
+
+`fome21` is in the table but is **not** a step in the doubling — it is a
+different model, and `ladder.py` prints a negative exponent for it, which is
+the output saying so.
+
 ## What is not claimed here
 
 - **No reference optimum.** This set runs under `-e noref` (see 02-22), so
