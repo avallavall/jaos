@@ -273,18 +273,57 @@ by entering at a lower tier — `bench/README.md` calls it "the same, for
 correctness only" — and a fourth set enters the same way: checker verdict,
 solution digest, determinism and work units, no reference objective.
 
-Candidates, none of them verified yet. Each needs its licence, its format
-and its size read before anything is fetched:
+**The blocker expired and nobody noticed.** This section said "Not before §1
+closes". §1 closed 2026-08-17 (D107, D108, D109, D110, D111) and §2 closed
+with D112. Four refusals in the table below name a model population as their
+reopen condition, and **three of them already have their script written**:
+D101 (`bench/measurements/02-07/`), D107
+(`02-13/run-sign-count.sh`), D109 (`02-16/run-floorless.sh`). D107's entry even
+names this section as the standing candidate. That is D24's pattern for the
+fourth time.
 
-- **MIPLIB 2017** LP relaxations. Large, modern, curated by ZIB.
-- **Mittelmann's LP benchmark** (plato.asu.edu). The set HiGHS, SoPlex and
-  Clp are actually compared on, which makes `bench/compare` directly
-  readable against published figures.
-- **The Mészáros collection.** Kennington is already part of that family, so
-  the fetch path and `emps` handling are known to work.
+### Sizes read 2026-08-17, before fetching anything
 
-Not before §1 closes. A new set rewrites nothing but it adds a fourth
-baseline, and a baseline added mid-change cannot be read.
+| where JAOS is now | rows | cols |
+|---|---|---|
+| `stocfor3`, biggest of netlib standard | 16675 | 15695 |
+| `ken-18`, biggest of Kennington | 105127 | 154699 |
+| `pds-20`, largest pds JAOS carries | 33874 | 105728 |
+
+**Mittelmann's LPopt is the right set to aim at and the wrong one to adopt
+today** (`plato.asu.edu/ftp/lpopt.html`, 1 Jul 2026, read at HEAD). Its
+smallest instance, `qap15`, is 6331 × 22275 with 110700 nonzeros — already
+3x `dfl001`'s nonzero count. The median is around 1.5M nonzeros and `dlr2` is
+7.1M rows × 38.9M cols × 78M nonzeros. On that set HiGHS solves 54 with a
+shifted geometric-mean runtime of 494 s, and **SoPlex solves 31**. JAOS reads
+0.95x SoPlex and 3.15x HiGHS per solve at P0, so it would time out on most of
+it. Sixteen of the instances are undisclosed in any case.
+
+**The step that is actually available**, from the same host, all
+`emps`-packed the way Kennington already is:
+
+| family | instances | compressed | note |
+|---|---|---|---|
+| `pds/` | pds-30 … pds-100 (9) | 848K–4.4M | **the same family JAOS already carries** at pds-02…pds-20; `pds-100` is 156244 × 505360 |
+| `fome/` | fome11, 12, 13, 21 | 310K–1.6M | `fome13` is 48569 × 97840 |
+| `nug/` | nug08-3rd, nug20, nug30 | 325K–3.3M | QAP lower bounds |
+| `rail/` | rail507, 516, 582, 2586, 4284 | 285K–8.0M | set covering; `rail4284` is 4284 × 1092610 |
+| `fctp/` | 30 instances | 2.2K–111K | **too small — netlib's own problem again** |
+| `network/` | 10 instances | 3.4M–164M | too big for now |
+
+So the first fourth set is `pds-30…pds-100` plus `fome` plus `nug`, which
+walks the size up by a factor along a family already in the tree instead of
+leaping. Twenty-odd instances.
+
+**Two things still unread, and neither should be assumed.** No licence
+statement was found on `plato.asu.edu/ftp/lptestset/`; its `00README` gives
+origins and citations only. And the files are `.bz2`, where `bench/fetch.sh`
+knows `gz-emps` and `emps` — a `bz2-emps` mode is a real change to it.
+
+The tier is unchanged and is Kennington's: checker verdict, solution digest,
+determinism and work units, **no reference objective**. A new set rewrites
+nothing but it adds a fourth baseline, and a baseline added mid-change cannot
+be read, so it lands on its own commit with the gate green.
 
 ## 5. After presolve — the rest of M2, in order
 
