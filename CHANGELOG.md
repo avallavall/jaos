@@ -50,6 +50,15 @@ open, `bench/README.md` for the gate, and the commit each entry came from.
 
 ### Fixed
 
+- **`make test EXTRA_CFLAGS=-DJAOS_NO_PRESOLVE` is green for the first time.**
+  Two tests in `tests/test_presolve.c` pinned a presolved value with no
+  reference-build case, so the project's only oracle for output no predicate of
+  the three sets reads was red and nobody ran it. Both now assert the reference
+  build's own answer beside the presolved one — 2 basic against 3, INFEASIBLE
+  against OPTIMAL — rather than being guarded out, so each pair is the
+  executable size of the defect `TODO.md` carries. `make test` and
+  `make sanitize` are unaffected; no measured value moves.
+
 - The baseline header named `make netlib-baseline` for every set, which was
   wrong for five of the six baselines and told a reader to run a command that
   would rewrite a different file. It now names the shape, `*-baseline`. A

@@ -697,17 +697,17 @@ then, do not — a refusal whose premise has not changed just fails again.
   had to come after D102: clamping first would have masked the gap of 93 as
   though it were rounding. Measured 2026-08-14, readings in
   `bench/measurements/02-08/`.
-- **`make test EXTRA_CFLAGS=-DJAOS_NO_PRESOLVE` is RED, and was before this
-  plan touched anything.** Two tests fail:
-  `test_singleton_col_between_two_removals_solved_path` (expects 3 basic, gets
-  2) and `test_a_fold_onto_the_box_at_scale_still_collapses` (expects 1, gets
-  2). Both are white-box tests pinning presolve's own behaviour, and presolve
-  compiles out of that build, so neither can hold there. Confirmed on a
-  worktree at the commit before this plan started, same two, same messages.
-  The reference build is the project's only oracle for output no predicate of
-  the three sets reads (`jaos-testing`), so a red one is not a small thing:
-  it means nobody runs it, and nobody has. The repair is a guard on each,
-  the same `#if !defined(JAOS_NO_PRESOLVE)` the counter tests already carry.
+- ~~**`make test EXTRA_CFLAGS=-DJAOS_NO_PRESOLVE` is RED.**~~ **Repaired
+  2026-08-18 and green for the first time.** The two tests were
+  `test_singleton_col_between_two_removals_solved_path` (expected 3 basic, got
+  2) and `test_a_fold_onto_the_box_at_scale_still_collapses` (expected
+  OPTIMAL, got INFEASIBLE). Both now assert the reference build's **own**
+  answer instead of being guarded out, because in both cases that answer is
+  the right one and skipping would have thrown it away: 2 basic is what the
+  model has, and `x0 >= 1e9 + 5e-7` against `x0 <= 1e9` really has no common
+  point. The presolved values stay pinned beside them, so the pair of numbers
+  is now the executable size of each defect. Both tests run and pass in both
+  builds; `make test`, the reference build and `make sanitize` all exit 0.
 
 - **Two positive tests had no fault-build guard.** `make test
   EXTRA_CFLAGS=-DJAOS_PRESOLVE_FAULT_OFFBYONE` did not compile at all until

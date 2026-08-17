@@ -1114,7 +1114,18 @@ static void test_singleton_col_between_two_removals_solved_path(void)
     int64_t basic = 0;
     for (int64_t j = 0; j < 4; j++) basic += (cs[j] == JAOS_BASIS_BASIC);
     for (int64_t i = 0; i < 2; i++) basic += (rs[i] == JAOS_BASIS_BASIC);
+    /* The reference build is asserted here rather than skipped, so it says
+     * the right answer out loud instead of saying nothing. The two numbers
+     * ARE the defect: 3 is what the replay publishes, 2 is what the model
+     * has, and the gap closes when TODO.md's item lands. Before 2026-08-18
+     * this line read 3 unconditionally and `make test
+     * EXTRA_CFLAGS=-DJAOS_NO_PRESOLVE` was red on it, which meant nobody
+     * ran the project's only oracle for output no predicate reads. */
+#if defined(JAOS_NO_PRESOLVE)
+    TEST_ASSERT_EQUAL_INT64(2, basic);
+#else
     TEST_ASSERT_EQUAL_INT64(3, basic);
+#endif
 
     jaos_check_report r;
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_check_solution(m, x, y, TOL, &r));
@@ -2778,6 +2789,25 @@ static void test_a_fold_onto_the_box_at_scale_still_collapses(void)
      * not just its partner above. */
     jaos_model *m = make_fold_past_the_box_at_scale(1e9 + 5e-7);
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+
+#if defined(JAOS_NO_PRESOLVE)
+    /* The reference build answers INFEASIBLE and it is not wrong: in exact
+     * arithmetic `x0 >= 1e9 + 5e-7` and `x0 <= 1e9` have no common point,
+     * and the simplex has no window on a bound conflict. Presolve's fold
+     * has one, four ulps wide at this scale, and that window is the whole
+     * subject of this test.
+     *
+     * So the two builds disagree here, deliberately, and the disagreement
+     * is pinned rather than skipped: a change to PRESOLVE_ROUND_ULPS that
+     * makes the presolved path agree with the reference has removed the
+     * window this test exists for, and this line is where that shows.
+     * Before 2026-08-18 this test was simply red under the reference
+     * build, which is why nobody ran it. */
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_INFEASIBLE, jaos_status_of(m));
+    jaos_model_free(m);
+    return;
+#endif
+
     TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
 
     double x[1];
