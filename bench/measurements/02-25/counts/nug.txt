@@ -1,0 +1,4 @@
+instance           rows   cols   hits rows_hit    eq    in    ok   dec ok_rows   ok_nz   c0  rng
+nug08-3rd.mps     19728  20448      0        0     0     0     0     0       0       0    0    0
+nug20.mps         15240  72600      0        0     0     0     0     0       0       0    0    0
+nug30.mps         52260 379350      0        0     0     0     0     0       0       0    0    0

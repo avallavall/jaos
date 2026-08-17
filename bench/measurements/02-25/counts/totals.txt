@@ -1,0 +1,7 @@
+# D107's counter over the fourth set. Instrument and calibration are
+# 02-13's; only the population is new. A family with no line below was
+# not fetched rather than empty.
+# set hits rows_hit eq in ok dec ok_rows ok_nz c0 rng inst_with_ok
+plato-pds 0 0 0 0 0 0 0 0 0 0 0
+plato-fome 1162 1162 1162 0 0 0 0 0 0 0 0
+plato-nug 0 0 0 0 0 0 0 0 0 0 0

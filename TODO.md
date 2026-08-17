@@ -449,13 +449,46 @@ both exit 0.
 
 **`plato` is not part of the gate**, and the three `netlib*` targets still are.
 
-**What is left.** The baselines, which means finding out whether JAOS can
-solve these at all — the real open question, and nothing on paper answers it.
-The first two readings say the cost is serious: `fome11` (12142 × 24460) takes
-32 s and 8.11e9 work units, `fome12` twice its size takes 90 s and 1.96e10.
-Iterations scale 1.978x for a 2x model and work 2.418x, so an iteration costs
-1.222x more. **One pair is not a trend** and `fome13`, `fome21`, all eight
-`pds` and all three `nug` are unmeasured. `pds-100` is 156243 × 505360.
+**The set is measured (D115).** Every figure is in
+`bench/measurements/02-23/`, and `ladder.py` there derives them from the
+manifests and the baselines rather than restating them.
+
+### 4a. The first thing it found, and it is open
+
+**D106 fires on none of `fome`'s candidates, and it is not the margin**
+(`bench/measurements/02-25/`).
+
+| | candidates | rows presolve removes |
+|---|---|---|
+| `fome11` | **166** | **0** |
+| `fome12` | **332** | **0** |
+| `fome13` | **664** | **0** |
+
+166, 332, 664 — exactly proportional to the doubling, which is what makes it a
+question rather than an accident. They are equality implied-free column
+singleton candidates by 02-13's predicate, which is D106's shape. Columns are
+removed from all three by other families; no row goes, and D106 removes a
+column *and* its row.
+
+`PRESOLVE_IMPLIED_FREE_ULPS` is ruled out by measurement, with a canary that
+moves: at margin 0 `maros-r7` goes 980 → 984 rows removed, exactly the pair
+`docs/tolerances.md` records, and the two `presolve.o` differ by md5 — while
+`fome11` is identical on both builds down to its 46026 iterations and
+8113327824 work units.
+
+What is left, named rather than guessed: D106 also requires the **live** degree
+`col_deg[j] == 1` and the row **not frozen**, neither of which 02-13's counter
+asks. Frozen rows lead, because `fome11` has 1468 columns removed by other
+families before D106 runs. Settling it needs a diagnostic build that prints why
+each candidate declines — `jaos-debug`'s procedure, not done yet.
+
+**Nothing here says D106 is wrong.** A family declining what it is restricted
+from taking is the family working. What is new is that a scaling population
+makes the size of the decline visible, and 100% of a family's candidates is
+worth a reason.
+
+**Also open:** how often `plato` should run — `pds` alone is 6.4 hours of wall
+clock — and `nug20`/`nug30`, which are unmeasured rather than unsolvable.
 
 ## 5. After presolve — the rest of M2, in order
 
@@ -550,7 +583,7 @@ then, do not — a refusal whose premise has not changed just fails again.
 | SPECS §3 | crash basis — destroys the exact slack-basis steepest-edge weights | pricing stops starting from exact steepest-edge weights; REQ-devex-pricing landing is the trigger |
 | D74 | removing the re-entry loan — 2.372x `pilot87` iterations for 0.980x `pilot` | the oscillation mechanism itself changes (phase 4's investigation) |
 | D63 | restarting weights to exact instead of 1.0 | the pricing rule changes; Devex would replace the question |
-| D107 | the inequality implied free column singleton — 341 sign-ok rows, 10% of the count, 304 of them on `ship*` instances below the harness floor, zero on `stocfor3` and Kennington | a model population where `bench/measurements/02-13/run-sign-count.sh` reports a non-trivial sign-ok share; §4's fourth instance set is the standing candidate |
+| D107 | the inequality implied free column singleton — 341 sign-ok rows, 10% of the count, 304 of them on `ship*` instances below the harness floor, zero on `stocfor3` and Kennington | a model population where `bench/measurements/02-13/run-sign-count.sh` reports a non-trivial sign-ok share. **Asked of §4's fourth set 2026-08-18 and NOT satisfied** (`bench/measurements/02-25/`): zero inequality candidates across all fifteen instances, on 02-13's own instrument with both its calibrations reproduced. The refusal now stands on 154 models across four sets and a 53x range in rows, so the population is no longer the objection to it |
 | D108 | a refuse rule for the implied free column singleton on trajectory grounds — `greenbeb` and `scfxm3` pay through different machinery, both downstream of an exact reduction, and no site-local predictor exists | an instance crosses the gate's 2.0x work bar from this family's firings, or a measured mechanism predicts trajectory direction from the reduction site |
 | D109 | removing the implied-free window's `max(1, scale)` floor — a bit-identical no-op over all 94 standard instances, digests included | a model population where `bench/measurements/02-16/run-floorless.sh` reports a moved instance line; or the D106 sweep's own reopen |
 | D112 | the unbounded-relative-widening refusal for the cost-0 singleton column — 98.6% of firings would be refused, and the helped and hurt `grow*` instances carry the same widening | D108's condition: a measured mechanism that predicts trajectory direction from the firing site; or an instance crossing the gate's 2.0x work bar from this family |
