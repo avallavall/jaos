@@ -38,6 +38,17 @@ tightening retry, and three prizes (doubletons, Kennington's 29%,
 `stocfor3` whole) sit behind it. Alternatives: §4's fourth set, §5's
 Devex.
 
+**Interrupted mid-step 2026-08-17:** a `literature-scout` run for the
+published dual-postsolve technique — Andersen & Andersen 1995 as the
+expected primary source, plus the numerical treatments (PaPILO, Gurobi's
+presolve paper, Galabova's HiGHS thesis) — died on a session limit while
+fetching the Galabova thesis and hunting an open Andersen & Andersen
+copy. Nothing of it is recorded. Re-launch the scout with that brief
+before designing; the exact-arithmetic soundness argument to check the
+sources against is in D114's entry (x_j at the imposed bound forces the
+implication's premises tight, so the transfer y_i += d_j/a_ij is legal
+exactly and approximate in floats).
+
 Three things this session left deliberately unmeasured, so nobody re-derives
 them by accident: `greenbeb`'s 1.5126x, `maros-r7`'s 15.7x per-iteration drop,
 and what a zero margin admits. Each has its own subsection with its numbers.
