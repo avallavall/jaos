@@ -704,6 +704,98 @@ Ploskas & Sahinidis 2026 (`10.1007/s12532-026-00316-3`, open access, read) has a
 dual postsolve derivation for constraint aggregation but **not** for bound
 tightening — a negative result from a source actually read.
 
+### 11e. Fourer & Gay 1994, read 2026-08-17 — the oldest statement, and two things nobody here had
+
+Read from the authors' own copy at `ampl.com/REFS/pripre.pdf`. R. Fourer and
+D. M. Gay, "Experience with a Primal Presolve Algorithm", in Hager, Hearn &
+Pardalos (eds), *Large Scale Optimization*, Springer 1994, 135–154,
+`10.1007/978-1-4613-3632-7_8`.
+
+**Its "Recovering Dual Variables" section is the earliest statement of §7 and
+§4.** Verbatim:
+
+> "To compute dual variables for constraints eliminated by presolving, it is
+> necessary to record which eliminated constraints were responsible for the
+> bounds conveyed to the solver. We then examine the eliminated constraints in
+> the reverse order of their elimination."
+
+That is the record design and the LIFO ordering, in 1994, nine years before
+Galabova and ten before Gould & Toint. It then covers the two cases JAOS
+already ships: a constraint with "one remaining nonzero coefficient"
+(`JM_PS_SINGLETON_ROW`) and a constraint that "together with several
+then-current variable bounds, fixed several variables", whose equations (8) and
+(9) are the forcing condition and whose rule — "AMPL chooses `y_i` to make one
+of these conditions hold with equality" — is `JM_PS_FORCING_ROW`'s
+`min`/`max` over `d0/a_ij`.
+
+**What it does not cover** is this document's case. Their scheme keys on
+*eliminated* constraints; a tightening that leaves the implying row alive is
+not in it. Their non-interference claim — "this has no effect on the other
+components of (7) for variables and constraints not yet fixed or removed when
+constraint `i` was eliminated" — is §4's argument asserted rather than proved,
+and scoped to what was still live at elimination time. Nothing about the basis,
+as usual.
+
+### 11f. Two things this changes
+
+**1. The slack question has a simplex answer, and it is 1994's default.**
+§11d's result came from an interior-point solver. Fourer & Gay's "Degeneracy"
+section answers it for simplex directly:
+
+> "if AMPL passes the strongest variable bounds it can deduce to a
+> simplex-based solver, the solver often takes more iterations than it takes
+> with variable bounds relaxed to those implied by eliminated constraints.
+> AMPL therefore maintains two sets of variable bounds [...] **By default it
+> passes the latter set**"
+
+And the caveat §11d states from Gould & Toint's own text is confirmed from the
+other side: "Degeneracy is much less of an issue for interior-point than for
+simplex algorithms." So the effect is **larger** for JAOS than the 12%-vs-11%
+of §11d, not smaller, and AMPL has shipped the loose default for thirty years.
+
+Their own honest qualification, which goes in the record too: "despite
+increased degeneracy, simplex algorithms sometimes run better with the tighter
+bounds because they choose a different pivot order."
+
+**2. Directed rounding, which is a design D97 never considered.** This is the
+finding, and it lands on D97's own instances:
+
+> "A preliminary version of the computational experience reported below
+> revealed a case (netlib's `lp/data/maros`) where AMPL's default presolve
+> settings made it discard constraints that kept the problem from being
+> unbounded. Of course, roundoff error was to blame for this difficulty. When
+> we modified the presolve algorithm to use the directed roundings that are
+> available with IEEE arithmetic, this difficulty went away. On four other
+> problems from netlib's lp/data (`greenbea`, `greenbeb`, `perold`, and
+> `woodw`), AMPL's presolve reported inconsistent constraints before we
+> introduced directed roundings."
+
+`maros` is one of D97's four failing instances. `greenbeb` is one of D108's
+three. AMPL hit the same failure class — presolve declaring a solvable model
+infeasible — and the fix was **not** a tolerance. It was computing the activity
+bounds with IEEE directed rounding, so the deduced bound is valid by
+construction and no judgement window is needed for validity at all. D114
+derived *why* JAOS's window failed; this says the window may not have to exist.
+
+Cost, from their measurement: "usually only increases by a few percent the time
+AMPL spends to process a problem", and "seldom add more than 1%" of the
+combined AMPL-plus-solver time on larger problems.
+
+And one line that reads like this repository's own Makefile:
+
+> "on an IBM Risc System 6000, which by default computes `α × β + γ` with just
+> one rounding error (a 'fused multiply-add'), one of these infeasibility
+> diagnostics returned. Our current policy is to use a compiler option that
+> forbids fused multiply-adds in the presolve algorithm."
+
+JAOS ships `-ffp-contract=off` and CLAUDE.md calls it load-bearing. Same defect,
+same fix, arrived at independently thirty years apart.
+
+**Does it break D8?** No. `fesetround` is C99, the mode is set explicitly, and
+the same mode gives the same bits on every machine. It is a portability and
+performance question, not a reproducibility one — but that has to be measured
+here, not assumed.
+
 ## 12. What is still open
 
 1. ~~Read Galabova 2023.~~ **Done, §11a.** It does not settle §8d — it does not

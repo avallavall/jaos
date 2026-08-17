@@ -82,12 +82,35 @@ establishes:
   the loosest mode wins**: 12% average gain against tightest's 11%, and 14%
   against 10% on linear problems specifically, with the fewest failures. Their
   own caveat is the whole caveat — an interior-point solver cannot see §8.
+- **Directed rounding, a design D97 never considered (§11f).** Fourer & Gay
+  1994 hit exactly D97's failure class — presolve declaring a solvable model
+  infeasible — on **`maros`** (one of D97's four) and on `greenbea`,
+  **`greenbeb`** (one of D108's three), `perold` and `woodw`. Their fix was not
+  a tolerance. They computed the activity bounds with **IEEE directed
+  rounding**, so the deduced bound is valid by construction and the judgement
+  window is not needed for validity at all. D114 derived why JAOS's window
+  failed; this says the window may not have to exist. Their measured cost is "a
+  few percent" of presolve time and under 1% of the combined total. `fesetround`
+  is C99 and deterministic, so D8 is not at risk — but that gets measured here,
+  not assumed. Their same section reports a fused-multiply-add reviving one
+  false infeasibility, and their fix is a compiler option forbidding it: JAOS's
+  `-ffp-contract=off`, arrived at independently thirty years apart.
+- **The slack question has a simplex answer too, and it is 1994's default
+  (§11f).** AMPL keeps two bound sets and **passes the looser one by default**,
+  because "if AMPL passes the strongest variable bounds it can deduce to a
+  simplex-based solver, the solver often takes more iterations". And
+  "degeneracy is much less of an issue for interior-point than for simplex
+  algorithms", so the §11d effect is **larger** for JAOS, not smaller. Their own
+  qualification is in the record too: simplex sometimes runs better with the
+  tighter bounds, because it picks a different pivot order.
 - No constants to inherit. Both windows get measured here from zero.
 
-Next: **build the deliberate-slack design and §8d's refusal and measure both
-here** — the direction from the literature is real but was taken on a solver
-with no basis, and the basis is the entire difficulty. Alternatives if this is
-dropped: §4's fourth set, §5's Devex.
+Next, and the order changed: **try directed rounding first.** It is smaller
+than the dual postsolve, it attacks D97's actual failure on D97's actual
+instances, and if it works the window question and the tolerance question both
+go away. Then the deliberate-slack design against §8d's refusal, measured here
+because both published directions came from solvers that could not see the
+basis. Alternatives if this is dropped: §4's fourth set, §5's Devex.
 
 Three things this session left deliberately unmeasured, so nobody re-derives
 them by accident: `greenbeb`'s 1.5126x, `maros-r7`'s 15.7x per-iteration drop,
