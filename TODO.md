@@ -55,17 +55,23 @@ establishes:
 - `sol_redcost` must be recomputed from the duals, not patched — the copy at
   `src/presolve.c:2529` goes stale for every surviving column of the implying
   row. The literature recomputes (Cederberg & Boyd 2026, §2.1).
-- **The rule is folklore.** No citable description found. PaPILO declines the
-  reduction for §8's reason; Tomlin & Welch 1983 name the problem; Andersen &
-  Andersen 1995 is paywalled and unread.
+- **Two halves of it are in print after all** (§11a, §11b — `poppler-utils`
+  installed in WSL 2026-08-17, which is what made the PDFs readable). Galabova
+  2023 states the status rule and the record design, and names §8a's
+  multiple-optima hazard. But the published state of the art *attempts* the
+  basis assignment and falls back; **§8c's rank argument is stronger than
+  anything found in print**, which is a claim that has to survive review before
+  it is relied on. HiGHS also checks the KKT conditions after **each individual
+  postsolve rule**, which JAOS does not do and should, under a diagnostic build.
+- **A third design nobody here had considered** (§11b): publish the imposed
+  bound deliberately loose so it can never be tight, and §2 through §9 have
+  nothing to do. PaPILO ships it for previously-unbounded variables. Gould &
+  Toint 2004 measured the same trade and call it "numerically significant".
 - No constants to inherit. Both windows get measured here from zero.
 
-Next, in order: read Galabova 2023 (open access, would settle §8d — this
-machine has a shell, so the zlib route in
-`~/.claude` notes on reading PDFs is available where the scout's WebFetch
-failed); confirm the PaPILO sentence in arXiv:2112.08872's own words; then
-build the first version carrying §8d's refusal. Alternatives if this is
-dropped: §4's fourth set, §5's Devex.
+Next: **cost the deliberate-slack design against §8d's refusal** — two designs
+now compete and only a measurement separates them. Then build. Alternatives if
+this is dropped: §4's fourth set, §5's Devex.
 
 Three things this session left deliberately unmeasured, so nobody re-derives
 them by accident: `greenbeb`'s 1.5126x, `maros-r7`'s 15.7x per-iteration drop,
@@ -252,6 +258,13 @@ of the deciding than it should:
   an opinion. A fourth set is the executable form of that condition.
 - **§1's own counter** reads 3315 rows on netlib and **0 on Kennington**. The
   two sets already disagree about what is worth building.
+- **HiGHS says it in print, with its own numbers** (Galabova 2023, §3.7, read
+  2026-08-17): "Most problems in the classic Netlib test set are too small to
+  be of interest", and presolve's geometric-mean speed-up is **1.10 on netlib
+  against 1.67** on a 74-problem set built from Mittelmann's benchmarks plus
+  four industrial models. Same code, same measure, the population alone moves
+  the verdict by 52%. That is the strongest argument in this section and it
+  did not come from here.
 
 **What blocks it, and how Kennington already solved it.** netlib has
 published exact rational optima (Koch), which is what lets the gate say

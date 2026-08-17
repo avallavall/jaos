@@ -436,21 +436,134 @@ Four things exist around it and none of them is the rule.
 | Tomlin & Welch 1983, Math. Prog. 27, 232-240, `10.1007/BF02591947` | abstract verified, method not read | **names the problem in print**: a reduced model's simplex solution "is not usually 'formally' optimal, in the sense that nonoptimal dual values may be present when the original problem is restored"; the restored problem is "now totally degenerate". They describe a Postsolve procedure for it. |
 | Fourer & Gay 1994, in *Large Scale Optimization*, `10.1007/978-1-4613-3632-7_8` | abstract verified, text not read | announces "reconstruction of dual values for eliminated constraints" as a contribution, on the same Brearley et al. reduction family. Best-targeted unread source. |
 | Andersen & Andersen 1995, Math. Prog. 71, 221-245, `10.1007/BF01586000` | abstract verified, paywalled | discusses "the restoration procedure in detail". **Whether it covers imposed bounds is unknown. Do not cite it for the rule.** |
-| Galabova 2023, Edinburgh PhD, `10.7488/era/2974` | record verified, PDF unreadable here | "techniques for primal and dual postsolve corresponding to established presolve techniques", by HiGHS's own presolve author, open access. Highest-value unread source. |
+| Galabova 2023, Edinburgh PhD, `10.7488/era/2974` | **read** — see §11a | HiGHS's own presolve author. Covers the imposed-bound case directly. |
 
-**PaPILO declines the reduction, and its reason is §8's.** In dual postsolve
-mode it applies a bound tightening only when the tightening *fixes* the
-variable, because otherwise the reduced solution "may correspond to a non-vertex
-solution in the original space" and postsolve without an expensive crossover may
-not be possible. Located in the SCIP 8.0 report (arXiv:2112.08872), **not read
-in its own words** — three independent search extracts agree on the wording,
-one an exact-phrase match restricted to arxiv.org. Confirm before relying on it.
+### 11a. Galabova 2023, read 2026-08-17 — the imposed-bound case is in print
 
-§8c and §8d are the answer to that concern, and they disagree with it in part:
-for one active imposed bound the point *is* still a vertex and the repair is a
-single local swap; PaPILO's worry is real only in §8d's case. Their restriction
-to fixing tightenings is far weaker than what D97 needs, and would buy none of
-the three prizes.
+The one source that treats this case. Read with `pdftotext -layout` after
+installing `poppler-utils` in WSL; the scout could not read it and neither
+could the zlib route, because the body uses 2-byte CID fonts. Section 3.3,
+the doubleton equation rule's basis and postsolve, page 21.
+
+**The obligation, stated.** "In addition to satisfying the KKT conditions [...]
+a point returned by postsolve must also be a basic feasible solution (BFS) in
+order to hot-start the simplex algorithm." So §8 is the right question and the
+reason is warm start, which is JAOS's D68.
+
+**The rule, stated.** For a column whose reduced bound was tightened
+(`l^r_j > l_j`) and which rests on it:
+
+> "If `x^r_j` is nonbasic it must become basic in the postsolved solution.
+> During postsolve an attempt is made to do that. If the dual value of the
+> eliminated variable `x_k` is calculated to be infeasible, the dual value is
+> transferred to the row by making the row basic."
+
+Two things follow.
+
+1. **§8's status rule is published.** Nonbasic at an imposed bound must become
+   basic. That half is no longer folklore.
+2. **The slot is not proved to exist.** HiGHS *attempts* the assignment and
+   falls back when it fails: "In the cases when `x_k` can be both basic and
+   nonbasic [...] an attempt is made to set it to basic. If that assignment of
+   values is infeasible, the remaining column `x_j` is selected for the basis."
+   So the published state of the art is attempt-and-fallback. **§8c's rank
+   argument is stronger than anything in print** — if it survives review, it
+   says when the attempt must succeed rather than trying it and seeing.
+
+**§7's record design is published too.** Section 3.4, "Implied bounds":
+
+> "During presolve, it is essential to keep track of which column was used to
+> deduce an implied bound on a row and which row was used for an implied bound
+> of a column. This is necessary for presolve [...] and also for postsolve, to
+> deduce accurate dual values during the postsolve of each rule."
+
+That is exactly the `index2 = implying row` field of §7, with a citation.
+
+**§8a's two-optimal-bases problem is named.** "Due to degeneracy and not only,
+at many steps of postsolve there may be multiple correct alternatives for
+primal-dual values which satisfy the optimality conditions. A poor selection
+may lead to infeasibilities on subsequent steps of postsolve. Such issues are
+observed often during the implementation."
+
+**A testing discipline JAOS does not have.** Section 3.4, "KKT conditions
+check": HiGHS checks the KKT conditions **after each individual postsolve
+rule**, not once at the end, because "a single primal or dual infeasibility at
+a particular step of postsolve would get propagated all the way through". JAOS
+checks once, at the end, in `jaos_check_solution`. A per-record check under a
+diagnostic build is the instrument this family should be built with.
+
+**What HiGHS does about the residue, and it is not a tolerance.** "Additional
+simplex iterations after postsolve ensure that the solution returned to the
+user is feasible within the desired tolerances." That is Tomlin & Welch 1983's
+answer as well, and JAOS already has machinery of that shape (D25, D30). It
+also reports that Gurobi "for some problems, return[s] infeasible solutions
+after postsolve", so nobody has this exactly right.
+
+**How often the re-iteration is needed, measured.** On netlib, exactly one
+problem: **`pilot87`** — one of D97's own four failing instances. On a
+74-problem set built from Mittelmann's benchmarks plus four industrial models,
+two (`rail02`, `watson_1`) of the 42 solved.
+
+**And an argument for TODO §4, from HiGHS's own numbers.** "Most problems in
+the classic Netlib test set are too small to be of interest", and presolve's
+geometric-mean speed-up there is **1.10**, against **1.67** on the
+Mittelmann-derived set. The population really is doing the deciding.
+
+### 11b. PaPILO declines the reduction — read verbatim 2026-08-17
+
+Confirmed in the SCIP 8.0 report's own words, arXiv:2112.08872 section 6.1,
+page 62, read with `pdftotext`:
+
+> "Furthermore, in dual postsolve mode PaPILO only applies variable bound
+> tightenings when they fix a variable. Otherwise, the solution to the reduced
+> problem may correspond to a non-vertex solution in the original space and
+> simple postsolving without an expensive crossover may not be possible."
+
+Reading it whole gives three things the abstract-level summary did not.
+
+**1. It is a user-facing trade, not a law.** "If the basic information is
+irrelevant for the user, the variable tightening without fixing can be turned
+on by setting the parameter `calculate basis for dual` to false." So PaPILO's
+position is that the *duals* are recoverable and the *basis* is not — the same
+split §8 arrives at, offered to the user as a switch. JAOS cannot take that
+route as written, because a caller reads `jaos_basis` and D68 warm-restarts
+from it.
+
+**2. A third design option, which this document did not consider.** For a
+previously unbounded variable PaPILO does tighten, and it publishes the bound
+deliberately loose:
+
+> "the bound of this variable is set to a finite value, which is slightly worse
+> than the best possible bound so that the bound can not be tight in the
+> reduced problem."
+
+If the imposed bound can never be active, no column ever rests on it, and §2
+through §9 have nothing to do. The whole basis problem is designed away at the
+cost of propagation strength. **This is the published form of Gould & Toint
+2004's "allowing some slack in these bounds", whose measured effect they call
+"numerically significant".** It should be costed against §8d's refusal before
+either is built.
+
+**3. PaPILO's own `Substitution` presolver does not support dual postsolve at
+all.** Footnote 7 lists the LP presolvers excluded: `DualInfer`,
+`SimpleSubstitution`, `Substitution`, `Sparsify`, `ComponentDetection`,
+`LinearDependency`. Substitution is the doubleton and aggregation family —
+TODO §3, and the machinery D113 says owns `stocfor3`'s iteration half. So the
+prize behind D97 is one that PaPILO cannot dual-postsolve either.
+
+Also worth copying: PaPILO checks primal and dual feasibility and the KKT
+conditions *after* postsolving and logs the result rather than aborting, since
+infeasible solutions can be postsolved too. And "dual postsolving needs to be
+informed about every modification found during presolving" — including row
+bound changes, because "a row-bound change can lead to changes in the dual
+solution due to complementary slackness". JAOS's arena records reductions; a
+tightening family makes it record *modifications* as well.
+
+**Where §8 disagrees with them.** §8c's rank argument says that for one active
+imposed bound the postsolved point *is* still a vertex and the repair is a
+single local swap, so no crossover is needed. PaPILO's worry is real only in
+§8d's case. Their restriction to fixing tightenings is far weaker than what D97
+needs and would buy none of the three prizes.
 
 **Two adjacent published results.**
 
@@ -493,15 +606,18 @@ tightening — a negative result from a source actually read.
 
 ## 12. What is still open
 
-1. **Read Galabova 2023.** Its dual-postsolve and basis-postsolve chapters
-   would settle §8d, the cascade ordering, and the at-the-bound test in one
-   document. It is open access. The scout had no shell tool; this session does,
-   so the zlib extraction route is available and has worked here before for
-   prose.
-2. **Confirm the PaPILO sentence in arXiv:2112.08872's own words.** It is the
-   most decision-relevant sentence found and it is currently second-hand.
-3. **Gould & Toint's direction.** Does deliberate slack in an imposed bound help
-   or hurt? It bears directly on whether §8d's refusal is the right shape.
+1. ~~Read Galabova 2023.~~ **Done, §11a.** It does not settle §8d — it does not
+   discuss two imposed bounds on one row at all. What it gives instead is a
+   fallback for when the slot assignment fails, which is what a solver does
+   when it has no proof. §8c and §8d are still this document's own.
+2. ~~Confirm the PaPILO sentence.~~ **Done, §11b**, and it carried three things
+   the summary did not.
+3. **Cost the deliberate-slack option against §8d's refusal.** §11b's third
+   finding: publish the imposed bound slightly loose so it can never be tight,
+   and the whole of §2 through §9 has nothing to do. Two designs now compete,
+   and the choice is a measurement, not an argument. Gould & Toint 2004 measured
+   the same trade and called it "numerically significant"; their direction is
+   still unread (`10.1007/s10107-003-0487-2`, RAL has it open).
 4. **§4's empty hazard**: an imposed bound whose implying row is later removed.
    No literature. Must be reasoned out here or refused at the firing site, the
    way `JM_PS_FORCING_ROW` refuses.
