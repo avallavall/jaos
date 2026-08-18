@@ -137,6 +137,7 @@ and you have the argument. Jump to the entry for the numbers behind it.
 - **[D127](#d127--refused-the-wrong-signed-dual-step-is-holding-pilot87-up-and-clamping-it-costs-3228x)** — **Refused**: the wrong-signed dual step is holding pilot87 up, and clamping it costs 3.228x
 - **[D128](#d128--the-shift-record-says-what-the-cost-moved-by-and-it-skips-two-re-pricings-out-of-290)** — The shift record says what the cost moved by, and it skips two re-pricings out of 290
 - **[D129](#d129--the-basis-count-defect-costs-25-of-netlib-and-55-of-kennington-their-warm-start-outright)** — The basis-count defect costs 25% of netlib and 55% of Kennington their warm start outright
+- **[D130](#d130--six-instances-publish-more-basic-variables-than-rows-not-three-and-the-three-with-no-basis-at-all-are-named)** — Six instances publish more basic variables than rows, not three, and the three with no basis at all are named
 
 ---
 
@@ -9790,3 +9791,76 @@ three gate sets are unaffected.
 **Left open, in `TODO.md`.** The repair itself, which now has a price to be
 weighed against. And the three instances publishing more basic variables than
 rows, which the minimum case does not describe.
+
+## D130 — Six instances publish more basic variables than rows, not three, and the three with no basis at all are named
+
+**The question.** D129 counted 23 netlib instances losing their warm start to
+`nbasic != s->nrow` and printed each mismatch's dimensions, but could not name
+them: the driver forks a child per instance and twelve share one stderr, so a
+name printed by the driver cannot be matched to a line printed by the library.
+Run at `-j 1` the driver does not fork, and the name can be printed
+immediately before the warm solve.
+
+**The full tally**, netlib's 92 measured instances
+(`bench/measurements/02-39/`):
+
+| outcome on the warm re-solve | count |
+|---|---|
+| accepted | 66 |
+| short (`nbasic < nrow`) | 17 |
+| **over (`nbasic > nrow`)** | **6** |
+| nothing was stored at all | 3 |
+
+`17 + 6 = 23` is D129's mismatch count and `23 + 3 = 26` is its count of
+instances at a work ratio of exactly 1.0000. **Both totals hold; the split did
+not.**
+
+**Correction one. It is six over, not three.**
+
+```
+80bau3b    nrow=2022  nbasic=2043  over by 21
+finnis     nrow=399   nbasic=411   over by 12
+standmps   nrow=407   nbasic=418   over by 11
+standata   nrow=300   nbasic=310   over by 10
+vtp-base   nrow=52    nbasic=54    over by 2
+boeing1    nrow=298   nbasic=299   over by 1
+```
+
+D129 named three, over by 10, 11 and 2. **The reading came from a truncated
+terminal output** — `tail -40` on a run that printed 23 mismatch lines — so
+the first seven were never seen. Its three are real and are the last three of
+six. The shape spans 1 to 21, so it is not a small-model artefact: `80bau3b`
+is over by 21 on 2022 rows.
+
+Sixteen of the seventeen short are short by exactly one; `maros` is short by
+five.
+
+**Correction two. `no-basis` does fire, on three, and it explains them.** D129
+said it never fires on the warm solve. It fires on `pilotnov`, `scrs8` and
+`share1b` — exactly the three it set aside as *"identical for a legitimate
+reason"*. The reason is now measured rather than assumed: **the anchor solve
+stored no basis at all**, so there was never anything to start from. Their
+1.0000 is the absence of a warm start rather than the loss of one. D129's 23
+is unaffected, because those three were already outside it.
+
+**What was refuted, and it was this probe twice before it was right.** Both
+failures read as clean results:
+
+- **A call counter does not survive `-j 1`.** The first version identified the
+  warm solve as the process's second `build_warm_basis` call. At `-j 12` the
+  driver forks and the counter resets per instance; at `-j 1` it does not
+  fork, so only the run's first instance ever had a second call. It reported
+  `seen=1`.
+- **The marker went on the cold solve.** The second version inserted the name
+  before the second `st = jaos_solve(m);`, which is the cold one — the anchor
+  above them is written `if (jaos_solve(m) != JAOS_OK)` and does not match. It
+  reported 92 instances, every one `no-basis`, every field empty.
+
+The script now carries a **proportion** canary rather than a presence one:
+every warm solve reporting `no-basis` means the marker is on the wrong call,
+while three of ninety-two reporting it is a fact about those three.
+
+**Left open, in `TODO.md`.** The repair, with the shape this adds to D129's
+price: **a repair aimed at the missing-one case answers sixteen of the
+twenty-three**, and says nothing about `maros`'s five short or the six that
+are over.

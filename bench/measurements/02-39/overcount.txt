@@ -1,0 +1,33 @@
+# Which instances publish more basic variables than rows?
+#
+# over > 0 means nbasic exceeds nrow: the published basis names more
+# basic variables than the basis has positions for.
+
+OVER   80bau3b      nrow=2022   nbasic=2043   over by 21   (ncol=9077 nvar=11099)
+OVER   boeing1      nrow=298    nbasic=299    over by 1   (ncol=369 nvar=667)
+short  degen2       nrow=443    nbasic=442    short by 1
+short  degen3       nrow=1503   nbasic=1502   short by 1
+short  dfl001       nrow=6071   nbasic=6070   short by 1
+short  fffff800     nrow=476    nbasic=475    short by 1
+OVER   finnis       nrow=399    nbasic=411    over by 12   (ncol=518 nvar=917)
+short  fit1d        nrow=24     nbasic=23     short by 1
+short  kb2          nrow=43     nbasic=42     short by 1
+short  maros        nrow=690    nbasic=685    short by 5
+short  pilot4       nrow=396    nbasic=395    short by 1
+none   pilotnov     nothing was stored by the anchor solve
+short  scfxm1       nrow=281    nbasic=280    short by 1
+short  scfxm2       nrow=562    nbasic=561    short by 1
+short  scfxm3       nrow=843    nbasic=842    short by 1
+none   scrs8        nothing was stored by the anchor solve
+short  scsd1        nrow=77     nbasic=76     short by 1
+short  scsd6        nrow=147    nbasic=146    short by 1
+short  scsd8        nrow=397    nbasic=396    short by 1
+none   share1b      nothing was stored by the anchor solve
+short  ship08l      nrow=520    nbasic=519    short by 1
+OVER   standata     nrow=300    nbasic=310    over by 10   (ncol=1013 nvar=1313)
+OVER   standmps     nrow=407    nbasic=418    over by 11   (ncol=1012 nvar=1419)
+OVER   vtp-base     nrow=52     nbasic=54     over by 2   (ncol=80 nvar=132)
+short  wood1p       nrow=171    nbasic=170    short by 1
+short  woodw        nrow=723    nbasic=722    short by 1
+
+warm re-solves seen=92  accepted=66  short=17  OVER=6  none=3

@@ -807,7 +807,8 @@ then, do not — a refusal whose premise has not changed just fails again.
   1.0000** — a warm re-solve doing bit-identical work to the cold one. That is
   the basis-count defect below, and the attribution is exact rather than
   inferred: 23 count mismatches against 23 non-trivial 1.0000 instances on
-  netlib, 6 against 6 on Kennington. `scrs8`'s old "regression" was a
+  netlib, 6 against 6 on Kennington — see D130, which corrects D129's split of
+  those 23 into short and over. `scrs8`'s old "regression" was a
   different branch, `x8<=0` becoming `x14<=0` because the anchor optimum moved
   in its last digits, and that branch is infeasible.
   **The staleness is watched now, and it was not.** `preflight.sh` asks every
@@ -964,9 +965,15 @@ then, do not — a refusal whose premise has not changed just fails again.
   6 of Kennington's 11 lose the warm start outright, 25% and 55%.** Those
   instances read a work ratio of exactly 1.0000, and taking them out of the
   geometric mean returns Kennington to 0.0047 against the pre-presolve
-  record's 0.0041. `no-basis` never fires on the warm solve, so the count is
-  the only thing losing it.
-  **One shape the minimum case does not cover.** Three netlib instances
-  publish *more* basic variables than rows — over by 10, 11 and 2 — where the
-  other twenty are short by one or five. A repair aimed at the missing-one
-  case will not answer those, and nobody has asked what they are.
+  record's 0.0041.
+  **The shape, named (D130), and a repair aimed at the minimum case answers
+  sixteen of the twenty-three.** Of netlib's 92 warm re-solves: 66 accepted,
+  **17 short** — sixteen by exactly one, `maros` by five — and **6 over**,
+  which is `nbasic` exceeding `nrow`: `80bau3b` by 21, `finnis` by 12,
+  `standmps` by 11, `standata` by 10, `vtp-base` by 2, `boeing1` by 1. The
+  minimum case describes a status published NONBASIC that should be BASIC, so
+  it does not describe any of the six. `80bau3b` over by 21 on 2022 rows is
+  not a small-model artefact.
+  A further **3 instances store no basis at all** — `pilotnov`, `scrs8`,
+  `share1b`, where the anchor solve stored nothing, so their 1.0000 is the
+  absence of a warm start rather than the loss of one. They are outside the 23.
