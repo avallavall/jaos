@@ -1,0 +1,67 @@
+diff --git a/src/simplex.c b/src/simplex.c
+index 0bf9492..559f020 100644
+--- a/src/simplex.c
++++ b/src/simplex.c
+@@ -1620,6 +1620,38 @@ static void apply_flips(sx *s, int64_t at, int64_t n)
+  * The flips are applied here rather than reported outwards: they are part
+  * of the step, and a caller holding a half-taken step is a caller who can
+  * forget to finish it. */
++/* This candidate's reduced cost with a sign violation removed, which is the
++ * same number `admit_candidate` puts in `rnum` two functions down.
++ *
++ * `rnum` is clamped at zero for the reason the header above gives: a cost
++ * that has drifted past zero is already blocking rather than nearly
++ * blocking, and *"the step that follows repairs it exactly"*. That held of
++ * the choice and not of the step. `bfrt_walk`, `jm_harris_pick` and
++ * `jm_bland_pick` read only `rnum`, `rden` and `rrange`, so no wrong-signed
++ * cost reached any of them — but both exits then computed `theta` from the
++ * raw `d`, so a candidate chosen *because* its numerator clamped to zero
++ * produced a step with the wrong sign, divided by an `alpha` required only
++ * to exceed PIVOT_MIN, which is 1e-9. The step did not repair the breach, it
++ * carried it into every other reduced cost through `update_dual`.
++ *
++ * Measured before repairing: 248 of netlib's 477562 picks and 170 of
++ * Kennington's 435418, worst step 8.37e-09
++ * (`bench/measurements/02-35/`). Small, and the code contradicted its own
++ * stated design, which is the reason it moves (D127).
++ *
++ * **A free nonbasic is left exactly as it was.** `admit_candidate` calls its
++ * distance zero for a different reason — it may travel either way, so no
++ * sign of its reduced cost is the wrong one — and clamping its step would be
++ * a separate change with no measurement behind it. */
++static double blocking_cost(const sx *s, int64_t v)
++{
++    switch (s->status[v]) {
++    case JM_AT_LOWER: return s->d[v] > 0.0 ? s->d[v] : 0.0;
++    case JM_AT_UPPER: return s->d[v] < 0.0 ? s->d[v] : 0.0;
++    default:          return s->d[v];
++    }
++}
++
+ /* One variable's eligibility, and its place in the candidate arrays if it
+  * has one. Split out because the scan around it comes in two forms — over
+  * the pricing row's pattern where there is one, over every variable where
+@@ -1775,7 +1807,7 @@ static int64_t dual_ratio_test(sx *s, bool below, double violation,
+         int64_t b = jm_bland_pick(n, s->cand, s->rnum, s->rden);
+         jm_work_add(&s->work, 2 * n * JM_WORK_NONZERO);
+         int64_t bv = s->cand[b];
+-        *theta_out = s->d[bv] / s->alpha[bv];
++        *theta_out = blocking_cost(s, bv) / s->alpha[bv];
+         return bv;
+     }
+ 
+@@ -1792,8 +1824,12 @@ static int64_t dual_ratio_test(sx *s, bool below, double violation,
+ 
+     /* The step that lands the winner's reduced cost exactly on zero. Every
+      * other candidate inside the window ends at worst DUAL_TOL past
+-     * feasible, which is the whole of what Harris trades away. */
+-    *theta_out = s->d[best] / s->alpha[best];
++     * feasible, which is the whole of what Harris trades away.
++     *
++     * Read through `blocking_cost` so it is the same number the pick was made
++     * on: a winner already past zero takes a step of zero and is repaired by
++     * the pivot, rather than a step backwards sized by its own drift (D127). */
++    *theta_out = blocking_cost(s, best) / s->alpha[best];
+     return best;
+ }
+ 

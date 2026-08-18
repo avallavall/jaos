@@ -9,13 +9,18 @@ line leaves this file in the same commit.
 
 ### The state of the tree, first, because everything below assumes it
 
-**Nothing is in flight. The tree is clean, no worktree is registered, and the
-three gate baselines were rewritten deliberately after D122.** D123 added an
-assert and rewrote no baseline: the three sets read `0 regressed, 0 improved, 0
-new` and 94, 29 and 16 instances bit-identical to the committed record.
-`make test` and `make sanitize` exit 0 with the assert live in both.
-**`main` is one commit ahead of `origin/main` and the push is not approved
-yet.**
+**Nothing is in flight. The tree is clean, no worktree is registered, `main`
+is pushed, and the three gate baselines were rewritten deliberately after
+D122.** The last source change is D123's assert in `publish`; D124 through
+D127 changed comments or nothing. The gate that covers the current `src/` is
+D124's: `0 regressed, 0 improved, 0 new` with 94, 29 and 16 instances
+bit-identical to the committed record. `make test` and `make sanitize` exit 0
+with the assert live in both.
+
+**D127 left the working tree dirty and it was reverted deliberately.** A gate
+run writes `bench/results/*.txt`, which are committed files, so a refused
+candidate dirties the record as well as `src/`. Both were restored with
+`git checkout --`. Check `git status` before believing a record.
 
 Three things about this working session that a later one needs and cannot
 infer:
@@ -46,8 +51,9 @@ when the duals are published, on any instance that answers (**D123**) → and
 the 186 missing loans were never missing, the tally added them one way and the
 repayments another (**D124**) → no loan swamps a real cost anywhere in the
 gate, while one lend in six sets `d` to zero on a cost that never moved
-(**D125**) → and that zero turns out to be what stops the breach compounding,
-so removing it is **refused** (**D126**).
+(**D125**) → that zero turns out to be what stops the breach compounding, so
+removing it is **refused** (**D126**) → and the wrong-signed dual step next to
+it is holding `pilot87` up, so clamping it is **refused** too (**D127**).
 
 The repair: a repayment restores from a write-once `cost0` instead of
 subtracting the recorded loan, because `x += d; x -= d` does not restore `x`.
@@ -60,7 +66,10 @@ closed the second and left nothing behind but a corrected number: 67, not 186,
 is the count of columns whose cost moved while the record read zero, and two
 source comments had borrowed the wrong line of the same file. D125 measured
 the third and refused half of it; that half's repair was never needed and the
-other half turned out to fire on one lend in six. All three are no-ops on the
+other half turned out to fire on one lend in six. **D126 and D127 then built
+the two repairs that were left and the measurement refused both**, on
+neighbouring lines of the same machinery — see the warning at the head of §5a.
+All of D123's, D124's and D125's are no-ops on the
 sets, 94, 29 and 16 instances bit-identical to the committed record.
 
 **§5a's remaining item is the first one here that changes solver internals**,
@@ -107,23 +116,29 @@ forces a re-pricing that would otherwise be skipped.
 sets, before changing the accumulation. It is small and it touches solver
 internals.
 
-### 2. The dual step is computed from an unclamped `d`, and already is at HEAD
+### The unclamped dual step is measured and the obvious repair is refused
 
 `admit_candidate` clamps the ratio-test numerator, and `bfrt_walk`,
 `jm_harris_pick` and `jm_bland_pick` read only that clamped number. Both exits
 of `dual_ratio_test` then compute `*theta_out = s->d[best] / s->alpha[best]`
-from the raw `d`, and `|alpha|` need only exceed `PIVOT_MIN = 1e-9`.
+from the raw `d`, with `|alpha|` required only above `PIVOT_MIN = 1e-9`. At
+HEAD this fires on 248 netlib picks and 170 Kennington picks, worst step
+8.37e-09 (`bench/measurements/02-35/`).
 
-**At HEAD this fires on 248 netlib picks and 170 Kennington picks**, worst step
-8.37e-09 (`bench/measurements/02-35/`). Small, and nobody has decided whether
-it should be zero instead — the clamp's own comment argues an already-blocking
-candidate takes a step of zero, which is what `rnum` says and what the
-division does not.
+D127 clamped it and **the gate refused**: `pilot87` 3.228x work, 108973
+iterations against 40246, entirely from the Harris exit. The tiny wrong-signed
+step perturbs the whole dual vector through `update_dual`, and that
+perturbation is what keeps `pilot87` moving. A correctly-signed step small
+enough to keep it would be a new constant with a sweep; nothing proposes one.
 
-Both items change solver internals, so `numerics-reviewer` reads the diff
-before any campaign. **It failed to deliver twice on D126** and the review was
-done in the main context; if it fails again, say so in the entry rather than
-skipping the read.
+**Two candidates in a row here were refuted by measurement after looking
+correct in the source.** This machinery reads as careless and is not. Do not
+land a change to it on an argument from the code alone.
+
+Both remaining items change solver internals, so `numerics-reviewer` reads the
+diff before any campaign. **It failed to deliver on both D126 and D127** —
+two instances, four requests, no content — and the review was done in the main
+context. If it fails again, say so in the entry rather than skipping the read.
 
 **`REFACTOR_EVERY` is not a proposal in any of this.** It is what D119 swept to
 prove the failure was numerical, on one instance, and one instance is not a
@@ -762,6 +777,7 @@ then, do not — a refusal whose premise has not changed just fails again.
 | D112 | the unbounded-relative-widening refusal for the cost-0 singleton column — 98.6% of firings would be refused, and the helped and hurt `grow*` instances carry the same widening | D108's condition: a measured mechanism that predicts trajectory direction from the firing site; or an instance crossing the gate's 2.0x work bar from this family |
 | D95 | eliminating nonzero-cost singleton columns | a dual-informed elimination design exists (the lift condition is in the entry). **Checked against D106 and NOT reopened, deliberately.** D106 eliminates nonzero-cost singleton columns, so the question was re-asked. It does not satisfy D95's condition and does not need to: D95 refused *choosing which bound is optimal*, and an implied free column has no bound to choose — it is interior, so `d_j = 0` is forced and the dual falls out of one division. The columns D95 still refuses are the ones whose own bounds can bind, and D106 declines exactly those |
 | D118 | giving the implied free column singleton first refusal over D95's bounded cost-0 singleton column — `pilotnov` publishes an objective 29% wrong as `optimal`, `checker=REJECTED`, `dual=0.89`, 30.2x work | **the condition was rewritten the same day by D119, because the first one looked in the wrong place.** It is not a fifth restriction on D106: the substitution is sound, and the same reduced model reaches Koch's optimum to the last bit at `REFACTOR_EVERY = 16`. It reopens when the solve stops publishing `optimal` without re-reading dual feasibility, or when the refactorization interval stops collapsing on `pilotnov` — §5a, both. The prize is real and stated: `ganges` 0.8429x, `dfl001` 0.8951x, `czprob` 0.9227x |
+| D127 | clamping the dual step to the same number the pick was made on — `pilot87` 3.228x work and 108973 iterations against 40246, entirely from the Harris exit | a correctly-signed step that keeps the perturbation `update_dual` spreads, which is a new constant and needs its own sweep; or `pilot87` stops oscillating. The candidate is at `bench/measurements/02-36/candidate.diff` |
 | D126 | removing `shift_to_feasible`'s `d[v] = 0.0` when the cost cannot move — the breach then compounds across iterations, worst dual step 8.37e-09 → 2.21e-03 and 49% more ratio-test picks | the dual step stops being computed from an unclamped `d` (§5a item 2), or `update_dual` stops being the thing that pushes the same variable further every iteration. The candidate is kept at `bench/measurements/02-35/candidate.diff`, so a retry starts from the measured version rather than from scratch |
 | D93 | the 4.2% time bar — unmeasurable on this host | a controlled host that satisfies D17 |
 | D92/backlog | `pilot87`'s suboptimality bound, not understood | it blocks a gate (trigger already recorded) |

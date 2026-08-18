@@ -134,6 +134,7 @@ and you have the argument. Jump to the entry for the numbers behind it.
 - **[D124](#d124--the-186-loans-were-never-lost-02-29-compared-one-accumulator-against-a-sum-of-partial-sums)** — The 186 loans were never lost: 02-29 compared one accumulator against a sum of partial sums
 - **[D125](#d125--no-loan-swamps-a-real-cost-anywhere-in-the-gate-and-one-lend-in-six-sets-d-to-zero-on-a-cost-that-never-moved)** — No loan swamps a real cost anywhere in the gate, and one lend in six sets `d` to zero on a cost that never moved
 - **[D126](#d126--refused-the-zero-d125-called-a-fabrication-is-what-stops-the-breach-compounding-and-removing-it-costs-six-orders-of-magnitude)** — **Refused**: the zero D125 called a fabrication is what stops the breach compounding, and removing it costs six orders of magnitude
+- **[D127](#d127--refused-the-wrong-signed-dual-step-is-holding-pilot87-up-and-clamping-it-costs-3228x)** — **Refused**: the wrong-signed dual step is holding pilot87 up, and clamping it costs 3.228x
 
 ---
 
@@ -9573,3 +9574,72 @@ of the cost.
   dual step from a wrong-signed reduced cost**, worst step 8.37e-09. The clamp
   at `admit_candidate` does not reach the division and nothing else does. A
   standing fact, not a proposal.
+
+## D127 — Refused: the wrong-signed dual step is holding pilot87 up, and clamping it costs 3.228x
+
+**The question.** D126's probe established that both exits of
+`dual_ratio_test` compute `*theta_out = s->d[best] / s->alpha[best]` from the
+raw `d`, while `admit_candidate` had already clamped the numerator the pick
+was made on. At HEAD that reaches **248 of netlib's 477562 picks and 170 of
+Kennington's 435418**, worst step 8.37e-09. The code contradicts its own
+stated design: the comment above `dual_ratio_test` says an already-infeasible
+cost *"blocks at once, and the step that follows repairs it exactly"*, and a
+step of `d/alpha` with `d` past zero does not repair it — it carries the
+breach into every other reduced cost through `update_dual`, amplified by an
+`alpha` required only to exceed `PIVOT_MIN = 1e-9`.
+
+**The change** (`bench/measurements/02-36/candidate.diff`): a `blocking_cost`
+helper returning the same number the pick used, read at both exits. A free
+nonbasic left alone, because `admit_candidate` calls its distance zero for a
+different reason — it may travel either way, so no sign is the wrong one.
+
+**The gate refuses it**, `bench/measurements/02-36/netlib-diff.txt`:
+
+```
+94 instances compared: 72 bit-identical, 22 moved, 14 digest change(s)
+
+-- REGRESSIONS --
+  WORK   pilot87   18818789905 -> 60754965471   (3.228x)
+  RSUB   pilot87   suboptimality bound 2.58e-06 -> 3.59e-05  (13.9x, D91 threshold)
+```
+
+`pilot87` runs 108973 iterations against 40246. `25fv47` at 1.109x and
+`d2q06c` at 1.069x move the same way inside the bar. Every answer is still
+`optimal` with `checker=ok`, so this is a cost and not a wrong answer.
+
+**It is entirely the Harris exit.** Reverting the Bland exit and keeping the
+Harris one reproduces the regression to the digit — work 60754965471, iters
+108973, digest `93805090cdc362f8`, `25fv47` and `d2q06c` unchanged. Bland's
+rule is a rare fallback and contributes nothing.
+
+**Why it costs that much, which is the finding.** Today's tiny wrong-signed
+step is not doing nothing. `update_dual` applies `d[v] -= theta_dual *
+alpha[v]` to every other reduced cost, so a `theta` of 8e-09 perturbs the
+whole dual vector slightly. Clamped to exactly zero the iteration becomes
+fully degenerate, with no dual movement at all. `pilot87` is the instance this
+project already knows oscillates — D25 and D89 were written for it and D74
+measured 2.372x on its iterations from a related change. **The accidental
+perturbation is what keeps it moving.**
+
+That is the second candidate in a row where the apparently-sloppy thing is
+load-bearing, on the neighbouring line of the same machinery. D126 was the
+first. The pattern is worth naming: **this loan-and-shift code looks careless
+and is not, and a repair argued from the source alone has now been wrong
+twice.** Both were caught by measuring, and the second was caught only by the
+gate — no probe would have predicted 3.228x.
+
+**What was refuted.** Not the inconsistency, which is real and stays on the
+record with its size. What is refuted is a zero as the replacement. It does
+not follow that no replacement works: a step small enough to keep the
+perturbation and signed correctly would be a new constant, needing a sweep on
+both sides and a row in `docs/tolerances.md`. Nothing here proposes one.
+
+**Process.** `numerics-reviewer` was unavailable for this diff as it was for
+D126 — see that entry. The review was done in the main context and found the
+`-0.0` question (`s->d[leaving] = -theta_dual` with a zero step; `published`
+normalises it and no comparison distinguishes it) and confirmed nothing
+divides by `theta_dual`. Neither of those was what refused the change.
+
+**Left open, in `TODO.md` §5a.** The phantom loan in the record, unchanged
+from D126. And this inconsistency, now with a measured price for the obvious
+repair.

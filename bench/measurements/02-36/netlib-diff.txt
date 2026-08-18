@@ -1,0 +1,83 @@
+# The Harris exit clamped, full standard set, against the committed baseline
+========================================================================
+bench/results/netlib.txt  vs  HEAD:bench/results/netlib.txt
+========================================================================
+94 instances compared: 72 bit-identical, 22 moved, 14 digest change(s)
+
+-- REGRESSIONS --
+  WORK               pilot87        18818789905 -> 60754965471  (3.228x)
+  RSUB               pilot87        suboptimality bound 2.58e-06 -> 3.59e-05  (13.9x, D91 threshold)
+
+-- changes within threshold --
+  WORK               25fv47         113491001 -> 125831019  (1.109x)
+  ITERS              25fv47         4087 -> 4460
+  RSUB               25fv47         5.06e-14 -> 2.05e-14
+  DIGEST             25fv47         a79e3eb972e3852c -> 1ec37176750e7a67
+  WORK               bnl1           7469727 -> 7468913  (0.9999x)
+  WORK               bnl2           21655002 -> 21657460  (1x)
+  WORK               d2q06c         428597453 -> 458127370  (1.069x)
+  ITERS              d2q06c         6740 -> 7035
+  RSUB               d2q06c         5.38e-13 -> 5e-13
+  DIGEST             d2q06c         dac50ed571457570 -> 13c787e63989f128
+  WORK               degen3         79618300 -> 79618450  (1x)
+  WORK               dfl001         2912702903 -> 2957957420  (1.016x)
+  ITERS              dfl001         22854 -> 23037
+  RSUB               dfl001         1.9e-13 -> 1.95e-14
+  DIGEST             dfl001         7db5aa031c48bdec -> c731fd0c2d212449
+  WORK               greenbea       196248522 -> 218375052  (1.113x)
+  ITERS              greenbea       4470 -> 4892
+  RSUB               greenbea       2.46e-13 -> 3.02e-13
+  DIGEST             greenbea       c366b22b6ef59f33 -> 4da6e7e729cfd74a
+  WORK               greenbeb       573519868 -> 546142543  (0.9523x)
+  ITERS              greenbeb       11194 -> 10907
+  RSUB               greenbeb       4.51e-14 -> 8.59e-15
+  DIGEST             greenbeb       0ad2405d3f9ab15c -> 9e2e8095d740be0f
+  WORK               grow7          54621611 -> 6555285  (0.12x)
+  ITERS              grow7          4804 -> 547
+  RSUB               grow7          1e-15 -> 8.56e-16
+  DIGEST             grow7          376ccb872289054e -> f6222e3278a18504
+  WORK               nesm           61235366 -> 63314034  (1.034x)
+  ITERS              nesm           2753 -> 2893
+  RSUB               nesm           2.14e-15 -> 2.04e-15
+  DIGEST             nesm           10bca0c9820e0e25 -> 67eede3f74cd8130
+  WORK               pilot          4720835944 -> 4366831062  (0.925x)
+  ITERS              pilot          23331 -> 23512
+  RSUB               pilot          6.91e-05 -> 6.9e-05
+  DIGEST             pilot          477482794ddc6f4b -> bf64d7af9dd1b316
+  WORK               pilot-ja       42179750 -> 41247753  (0.9779x)
+  ITERS              pilot-ja       1402 -> 1374
+  RSUB               pilot-ja       6.03e-12 -> 7.69e-13
+  DIGEST             pilot-ja       9d5cc8632dacb3d7 -> 7f7940a753d09486
+  WORK               pilot-we       133218159 -> 133218169  (1x)
+  ITERS              pilot87        40246 -> 108973
+  DIGEST             pilot87        7cd0fd965cf1c2f5 -> 93805090cdc362f8
+  WORK               pilotnov       86587427 -> 84489967  (0.9758x)
+  ITERS              pilotnov       2374 -> 2323
+  RSUB               pilotnov       8.16e-13 -> 7.37e-12
+  DIGEST             pilotnov       50be91ac3ace82f7 -> 6bde762e9d5f22e1
+  WORK               scsd6          1547802 -> 1555748  (1.005x)
+  ITERS              scsd6          235 -> 236
+  WORK               scsd8          8982088 -> 8942140  (0.9956x)
+  ITERS              scsd8          742 -> 746
+  RSUB               scsd8          3.97e-16 -> 4.75e-16
+  DIGEST             scsd8          c2fe9599e47d50f8 -> ce9d1eced64bab2b
+  WORK               sctap3         1281116 -> 1281124  (1x)
+  WORK               stair          11701827 -> 11681396  (0.9983x)
+  ITERS              stair          569 -> 568
+  WORK               stocfor3       585330287 -> 585330539  (1x)
+  WORK               truss          1138071134 -> 1156611384  (1.016x)
+  ITERS              truss          17336 -> 17795
+  RSUB               truss          1.02e-15 -> 8.73e-16
+  DIGEST             truss          a77794d07f2018c7 -> 6e376f19abeba480
+  WORK               woodw          40150748 -> 40935699  (1.02x)
+  ITERS              woodw          1228 -> 1254
+  RSUB               woodw          3.83e-14 -> 3.82e-14
+  DIGEST             woodw          9be8bdac55d4184a -> cfd4b913b2ea560f
+  FIGURE             col            changed on 11 instance(s): 25fv47, d2q06c, dfl001, greenbea, greenbeb, pilot, ...
+  FIGURE             gap            changed on 14 instance(s): 25fv47, d2q06c, dfl001, greenbea, greenbeb, grow7, ...
+  FIGURE             obj            changed on 8 instance(s): d2q06c, dfl001, greenbea, pilot, pilot-ja, pilot87, ...
+  FIGURE             rays           changed on 1 instance(s): pilot87
+  FIGURE             row            changed on 14 instance(s): 25fv47, d2q06c, dfl001, greenbea, greenbeb, grow7, ...
+  FIGURE             rowrel         changed on 13 instance(s): 25fv47, d2q06c, dfl001, greenbea, greenbeb, grow7, ...
+  FIGURE             sub            changed on 11 instance(s): 25fv47, dfl001, greenbea, greenbeb, nesm, pilot, ...
+
