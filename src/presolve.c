@@ -1844,6 +1844,56 @@ static jaos_basis_status ps_singleton_row_status(const jaos_model *orig,
     return JAOS_BASIS_BASIC;
 }
 
+/* The exchange a restored cost-0 bounded column singleton owes.
+ *
+ * This family restores a column and **no row** — its row survives, relaxed —
+ * so it may add no basic variable at all (D132's counting rule, and Galabova
+ * 2023 states it: *"at each step of postsolve where a new row is introduced,
+ * a variable must be identified as basic"*). But when the recovered value
+ * lands strictly inside the column's own bounds the column MUST be basic: a
+ * nonbasic variable rests on a bound, and this one rests on neither. So the
+ * basis gains a member with nothing paying for it, 5902 times on netlib and
+ * 482 on Kennington (D133).
+ *
+ * The partner is forced rather than chosen. If the column landed interior,
+ * the reduced activity was strictly inside the widened row bounds, so row
+ * `i`'s logical was basic in the reduced solve — a nonbasic logical sits on a
+ * bound. It is the only other variable this record touches. The exchange
+ * removes `e_i` and inserts the column, whose one nonzero is `a_ij`, so the
+ * pivot is `a_ij` and presolve already required it non-zero: no rank test.
+ *
+ * And it moves no numbers. `c_j = 0`, so a basic `x_j` needs `y_i = 0`, which
+ * the reduced solve already had.
+ *
+ * **Read after the replay, never during it.** The row's activity is not final
+ * until every record touching it has added through `ps_row_add`. Judged
+ * during the replay this reported the row on a bound zero times; judged after,
+ * 5714 of netlib's 5902 and all 482 of Kennington's (D135).
+ *
+ * Two shapes decline, and both leave the count one too high: the 80 netlib
+ * firings whose logical is already nonbasic, which contradicts the derivation
+ * above and is unexplained; and the 108 whose row is not on a bound, where
+ * making the logical nonbasic would claim a bound the row is not on.
+ * `TODO.md` carries them. */
+static void ps_singleton_col_swap(jaos_model *orig, const jm_presolve_rec *rec)
+{
+    const int64_t j = ps_restore_index(rec->index2, orig->num_col);
+    if (orig->sol_col_status[j] != JAOS_BASIS_BASIC)
+        return;                 /* the column rests on a bound; nothing owed */
+
+    const int64_t i = rec->index;   /* the row survives, so it is not restored */
+    if (orig->sol_row_status[i] != JAOS_BASIS_BASIC)
+        return;                 /* no partner to take out */
+
+    const double act = orig->sol_row[i];
+    if (act == orig->row_lower[i])
+        orig->sol_row_status[i] = JAOS_BASIS_AT_LOWER;
+    else if (act == orig->row_upper[i])
+        orig->sol_row_status[i] = JAOS_BASIS_AT_UPPER;
+    /* Otherwise the row is not on a bound and its logical cannot be made
+     * nonbasic without claiming one. Left alone deliberately. */
+}
+
 static void ps_replay_one(jaos_model *orig, const jm_presolve *p, int64_t r,
                           double *rowc)
 {
@@ -2616,10 +2666,12 @@ JAOS_NODISCARD jaos_status jm_postsolve_expand(jm_presolve *p)
      * together and that family's own test still catches it. */
     for (int64_t r = 0; r < p->arena_len; r++) {
         const jm_presolve_rec *rec = &p->arena[r];
-        if (rec->tag != JM_PS_SINGLETON_ROW)
-            continue;
-        const int64_t i = ps_restore_index(rec->index, orig->num_row);
-        orig->sol_row_status[i] = ps_singleton_row_status(orig, i);
+        if (rec->tag == JM_PS_SINGLETON_ROW) {
+            const int64_t i = ps_restore_index(rec->index, orig->num_row);
+            orig->sol_row_status[i] = ps_singleton_row_status(orig, i);
+        } else if (rec->tag == JM_PS_SINGLETON_COL) {
+            ps_singleton_col_swap(orig, rec);
+        }
     }
 
     (void)jm_model_remember_basis(orig);
@@ -2720,10 +2772,12 @@ JAOS_NODISCARD jaos_status jm_postsolve_solved(jm_presolve *p)
      * from 3 to 4 instead of to 2. */
     for (int64_t r = 0; r < p->arena_len; r++) {
         const jm_presolve_rec *rec = &p->arena[r];
-        if (rec->tag != JM_PS_SINGLETON_ROW)
-            continue;
-        const int64_t i = ps_restore_index(rec->index, orig->num_row);
-        orig->sol_row_status[i] = ps_singleton_row_status(orig, i);
+        if (rec->tag == JM_PS_SINGLETON_ROW) {
+            const int64_t i = ps_restore_index(rec->index, orig->num_row);
+            orig->sol_row_status[i] = ps_singleton_row_status(orig, i);
+        } else if (rec->tag == JM_PS_SINGLETON_COL) {
+            ps_singleton_col_swap(orig, rec);
+        }
     }
 
     (void)jm_model_remember_basis(orig);

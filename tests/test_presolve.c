@@ -1088,20 +1088,14 @@ static void test_singleton_col_between_two_removals_solved_path(void)
     const double expected_x1 = 13.0;
     TEST_ASSERT_EQUAL_MEMORY(&expected_x1, &x[1], sizeof x[1]);
 
-    /* The basis this publishes is wrong, and pinned as a change
-     * detector rather than as a contract. jaos.h promises exactly
-     * num_row of the num_col + num_row statuses are basic; three of
-     * these six are, against num_row = 2. The same model built with
-     * -DJAOS_NO_PRESOLVE publishes row0 AT_LOWER and two basic, which
-     * is the right answer: row0's activity rests on its bound, and
-     * neither singleton column left a basic slot free, both having been
-     * recovered strictly inside their own box.
+    /* **The repair landed and this is re-pinned at the right answer.** This
+     * read 3 against `num_row = 2` and its own comment said to expect 2 once
+     * the defect closed; D138's singleton-column exchange takes row0's
+     * logical out of the basis, and both builds now publish 2. The `#if` that
+     * asserted the two builds separately is gone with the gap it described.
      *
-     * Not asserted here: WHICH status row0 carries. That is what the
-     * repair changes, and a test demanding today's value would fail the
-     * person fixing it. The count is what says the repair landed —
-     * expect this 3 to become 2. TODO.md carries the defect; re-pin
-     * there, deliberately.
+     * Still not asserted: WHICH status row0 carries. The count is the
+     * contract `jaos.h` states; the individual status is not.
      *
      * The count is only worth pinning because the statuses are
      * initialised. Measured with the memsets removed, this assertion reads
@@ -1121,11 +1115,7 @@ static void test_singleton_col_between_two_removals_solved_path(void)
      * this line read 3 unconditionally and `make test
      * EXTRA_CFLAGS=-DJAOS_NO_PRESOLVE` was red on it, which meant nobody
      * ran the project's only oracle for output no predicate reads. */
-#if defined(JAOS_NO_PRESOLVE)
     TEST_ASSERT_EQUAL_INT64(2, basic);
-#else
-    TEST_ASSERT_EQUAL_INT64(3, basic);
-#endif
 
     jaos_check_report r;
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_check_solution(m, x, y, TOL, &r));
@@ -1204,15 +1194,14 @@ static void test_the_basis_count_promise_breaks_on_a_declined_column(void)
     int64_t basic = 0;
     for (int64_t j = 0; j < 2; j++) basic += (cs[j] == JAOS_BASIS_BASIC);
     basic += (rs[0] == JAOS_BASIS_BASIC);
-    /* The reference build is the oracle and it publishes the promised
-     * count; presolve's replay publishes one too many. The two numbers
-     * ARE the defect, which is why both are asserted rather than the
-     * presolved one alone. */
-#if defined(JAOS_NO_PRESOLVE)
+    /* The reference build is the oracle and it publishes the promised count.
+     * Presolve's replay used to publish one too many, and the two numbers
+     * were asserted separately because the gap between them WAS the defect.
+     * **D138 closed it**: the singleton column's exchange takes its surviving
+     * row's logical out of the basis when the column comes back interior, so
+     * both builds now publish 1 and one assertion says so. Re-pinned
+     * deliberately, as the comment this replaces asked. */
     TEST_ASSERT_EQUAL_INT64(1, basic);
-#else
-    TEST_ASSERT_EQUAL_INT64(2, basic);
-#endif
 
     /* And the family really is the one that fired: without this the count
      * above stays wrong for a reason the test stopped covering the day the

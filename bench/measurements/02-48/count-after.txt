@@ -1,0 +1,14 @@
+# Published basic count, with BOTH repairs in: the singleton row's status
+# decided after the replay (D138) and the singleton column's exchange (D139).
+# Measured on the working tree, not on HEAD.
+#
+# D131, before either repair:
+# netlib       optimal=188 exact=56  WRONG=132 (over=72  under=60) worst +596/-169
+# kennington   optimal=32  exact=8   WRONG=24  (over=8   under=16) worst +12104/-406
+#
+# D138, singleton row only:
+# netlib       optimal=188 exact=88  WRONG=100 (over=100 under=0)  worst +596/-0
+# kennington   optimal=32  exact=24  WRONG=8   (over=8   under=0)  worst +119/-0
+
+netlib       optimal=188 exact=140 WRONG=48 (over=48 under=0) worst +23/-0  SUM=+272
+kennington   optimal=32 exact=32 WRONG=0 (over=0 under=0) worst +0/-0  SUM=+0

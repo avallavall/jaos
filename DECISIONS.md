@@ -146,6 +146,7 @@ and you have the argument. Jump to the entry for the numbers behind it.
 - **[D136](#d136--the-singleton-rows-rule-falls-out-of-its-own-dual-and-the-defect-is-a-status-decided-on-a-partial-activity)** — The singleton row's rule falls out of its own dual, and the defect is a status decided on a partial activity
 - **[D137](#d137--the-counting-rule-is-published-and-highs-turned-off-the-family-that-costs-us-5902)** — The counting rule is published, and HiGHS turned off the family that costs us 5902
 - **[D138](#d138--every-under-count-is-gone-kenningtons-worst-error-falls-100x-and-the-sum-was-the-wrong-target)** — Every under-count is gone, Kennington's worst error falls 100x, and the sum was the wrong target
+- **[D139](#d139--kennington-publishes-a-valid-basis-on-every-solve-and-netlibs-worst-error-falls-from-596-to-23)** — Kennington publishes a valid basis on every solve, and netlib's worst error falls from 596 to 23
 
 ---
 
@@ -10387,3 +10388,70 @@ moves both together, `ps_published` normalises a negative zero so the
 and +482 remaining and has a rule from D135 that is valid on 96.8% and 100% of
 firings. And the 40 netlib singleton rows whose final activity misses its
 bound by about 1e-16 of the row's traffic.
+
+## D139 — Kennington publishes a valid basis on every solve, and netlib's worst error falls from 596 to 23
+
+**The change.** `ps_singleton_col_swap` performs the exchange the reduction
+owes. A restored cost-0 bounded column singleton that lands strictly inside
+its own bounds must be `BASIC` — a nonbasic variable rests on a bound and this
+one rests on neither — but its row **survives**, so nothing was restored to
+pay for the basis position. The swap takes the row's own logical out. It runs
+in the same second pass as D138's, after the replay, on both postsolve paths.
+
+**The partner is forced, not chosen.** If the column came back interior, the
+reduced activity was strictly inside the widened row bounds, so row `i`'s
+logical was basic in the reduced solve, and it is the only other variable the
+record touches. The exchange removes `e_i` and inserts a column whose one
+nonzero is `a_ij`, so the pivot is `a_ij`, which presolve already required
+non-zero: no rank test, no fallback. And it moves no numbers — `c_j = 0`, so a
+basic `x_j` needs `y_i = 0`, which the reduced solve already had.
+
+**The whole chain** (`bench/measurements/02-48/`), measured the same way each
+time:
+
+| | D131, before | D138, row only | **now** |
+|---|---|---|---|
+| netlib, exact count | 56 | 88 | **140** |
+| netlib, wrong | 132 (70%) | 100 | **48 (26%)** |
+| netlib, worst error | +596 / −169 | +596 / −0 | **+23** / −0 |
+| Kennington, exact count | 8 | 24 | **32 — all** |
+| Kennington, wrong | 24 (75%) | 8 | **0** |
+| Kennington, worst error | +12104 / −406 | +119 / −0 | **0** |
+
+**Kennington publishes a valid basis on every solve.**
+
+**Both pinned change detectors fired in the direction they predicted.**
+`test_singleton_col_between_two_removals_solved_path` read 3 against
+`num_row = 2` with a comment saying *"expect this 3 to become 2 … re-pin
+there, deliberately"*, and now reads 2.
+`test_the_basis_count_promise_breaks_on_a_declined_column` read 2 against
+`num_row = 1` and now reads 1. **Both now agree with `-DJAOS_NO_PRESOLVE`**,
+this project's only oracle for output no predicate reads. Each test's `#if`
+existed to state the gap between presolve and the oracle; the gap is closed
+and both collapse to one assertion.
+
+**The gate is bit-identical on all three sets**, which proves no value moved
+and is also why it cannot judge this: `bench/run.c` states the digest covers x
+and y and not the basis. `make test`, `make test
+EXTRA_CFLAGS=-DJAOS_NO_PRESOLVE` and `make sanitize` all exit 0.
+
+**A consequence worth acting on.** `bench/run.c` declined to widen the digest
+to cover the basis because *"a published basis that breaks the row-count
+promise is a live defect (TODO.md), so a basis hash would pin today's wrong
+answer."* Kennington no longer breaks it on any solve. Widening the digest is
+now a smaller question than it was.
+
+**Process.** `numerics-reviewer` was unavailable, as throughout this run. The
+review was done in the main context: forward order with one record per row so
+nothing depends on order (D8), `ps_restore_index` applied exactly as the
+replay applies it, no tolerance, no libm call and no `jm_work_add` added, and
+the two declining shapes written into the source beside the code.
+
+**Left open, in `TODO.md`**, and it is 48 netlib solves. Two shapes decline
+the swap, both counted in D135: **80 firings whose row logical is already
+nonbasic**, which contradicts the derivation and is unexplained — D135 read
+the *published* status rather than the reduced one, so re-measure before
+believing it is a second defect; and **108 whose row is not on a bound**,
+where making the logical nonbasic would claim a bound the row does not rest
+on. Plus D136's **40 singleton rows** whose final activity misses its bound by
+about 1e-16 of the row's traffic.

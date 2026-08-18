@@ -10,10 +10,18 @@ line leaves this file in the same commit.
 ### The state of the tree, first, because everything below assumes it
 
 **Nothing is in flight. The tree is clean, no worktree is registered, `main`
-is pushed, and the three gate baselines are current.** The last source change
-is D128's, and `bench/netlib.baseline` was rewritten deliberately for the one
-line it moved (`fit1d`), with a following run reading `0 regressed, 0
-improved, 0 new` on all three sets. `make test` and `make sanitize` exit 0.
+is pushed, and the three gate baselines are current.** The last source changes
+are D138's and D139's, both in `src/presolve.c`, both status-only: the gate is
+**bit-identical on all three sets**, which is the proof no value moved.
+`make test`, `make test EXTRA_CFLAGS=-DJAOS_NO_PRESOLVE` and `make sanitize`
+all exit 0.
+
+**Read this before judging any basis work.** The gate cannot see a basis.
+`bench/run.c` says so: the digest covers x and y and not the statuses, so *"a
+change that moves only the basis is invisible to all three sets"*. D138 and
+D139 were judged by `bench/measurements/02-47/` and `02-48/`, which count the
+published basic variables directly. A green gate on a basis change means
+"nothing else broke", not "it worked".
 
 **D127 left the working tree dirty and it was reverted deliberately.** A gate
 run writes `bench/results/*.txt`, which are committed files, so a refused
@@ -53,6 +61,20 @@ gate, while one lend in six sets `d` to zero on a cost that never moved
 removing it is **refused** (**D126**) → and the wrong-signed dual step next to
 it is holding `pilot87` up, so clamping it is **refused** too (**D127**) → and
 the record now says what the cost moved by, which closes §5a (**D128**).
+
+**Then a maintenance task turned into the largest correctness item in the
+file, and it is now half closed.** Refreshing two stale `warm` records
+(**D129**) showed 25% of netlib losing its warm start; the losses split into
+short and over (**D130**); presolve's mapping turned out exact and the basis
+handed to it already wrong (**D131**); the drift was traced to two families
+(**D132**, **D133**) and then to four named branches (**D134**); the exchange
+was measured available and valid (**D135**); the singleton row's rule fell out
+of its own dual (**D136**); the published literature confirmed all three rules
+(**D137**); and both repairs landed (**D138**, **D139**).
+
+**Kennington publishes a valid basis on every solve now.** netlib went from
+132 wrong solves of 188 to 48, and its worst error from 596 basic variables
+too many to 23.
 
 The repair: a repayment restores from a write-once `cost0` instead of
 subtracting the recorded loan, because `x += d; x -= d` does not restore `x`.
@@ -111,16 +133,21 @@ to it already wrong (D131), and the gate then says so directly.
 | set | optimal solves | basic count exact | **wrong** | worst over | worst under |
 |---|---|---|---|---|---|
 | netlib, at D131 | 188 | 56 | 132 (70%) | 596 | 169 |
-| netlib, **now** | 188 | **88** | **100** | 596 | **0** |
+| netlib, after D138 | 188 | 88 | 100 | 596 | 0 |
+| netlib, **now (D139)** | 188 | **140** | **48 (26%)** | **23** | **0** |
 | Kennington, at D131 | 32 | 8 | 24 (75%) | 12104 | 406 |
-| Kennington, **now** | 32 | **24** | **8** | **119** | **0** |
+| Kennington, after D138 | 32 | 24 | 8 | 119 | 0 |
+| Kennington, **now (D139)** | 32 | **32 — all** | **0** | **0** | **0** |
 
-**D138 landed the singleton-row half.** Every under-count is gone on both
-sets. What remains is `SINGLETON_COL` alone.
+**Both halves landed. Kennington publishes a valid basis on every solve.**
+D138 decided the singleton row's status after the replay; D139 gave the
+singleton column its exchange. Both pinned change-detector tests fired in the
+direction their own comments predicted and are re-pinned at the reference
+build's answer.
 
 **Do not use the summed error as the target.** netlib's sum went from +3904 to
-+5942 while every other measure improved, because the under-count was
-cancelling part of the over-count (D138). **The measure is the count of solves
++5942 under D138 while every other measure improved, because the under-count
+was cancelling part of the over-count. **The measure is the count of solves
 publishing a wrong basis.**
 
 `src/model.c` states the rule twice — *"a model with n rows needs n basic
@@ -191,35 +218,22 @@ variable brought *in*.
 
 **Do these in order.**
 
-1. **Design the swap.** For `SINGLETON_COL` the rule is identified and
-   measured (D135): **the column enters and the logical of the row it was
-   substituted out of leaves**, which is what `IMPLIED_FREE_COL` already does.
-   It is available and valid on **5714 of netlib's 5902 firings (96.8%) and
-   482 of 482 on Kennington**. The remainder is 188 netlib firings in two
-   named shapes — 108 where the partner is basic but the row is not on a
-   bound, 80 where the logical is already out — and they need their own answer
-   or the closing sum does not reach zero.
-   **`SINGLETON_ROW` has a derived rule now (D136), and it is not a choice.**
-   The case already computes both halves of complementary slackness —
-   `y_i = 0.0` when the column is left alone, `d0 / rec->coef` when the column
-   is taken — and a basic logical requires a zero dual. Measured, that rule
-   agrees with exactly D134's two balanced combinations and disagrees with
-   exactly its two wrong ones.
-   - **`y_i == 0` → publish the row `BASIC`.** Free: a basic variable may sit
-     exactly on a bound, and the dual there is exactly zero. Closes the −1
-     combination, 2524 netlib and 3886 Kennington.
-   - **`y_i != 0` → the row must rest on a bound, and it does.** The gap to
-     the nearest bound is **exactly 0** on 486 of netlib's 526 and on all
-     29058 of Kennington's. The case decides the status from
-     `orig->sol_row[i] = ps_published(rec->coef * xv)` — its own term alone —
-     compared against the bounds immediately, while later records still add
-     through `ps_row_add`. **Deciding it after the replay closes the whole +1
-     combination** bar 40 netlib firings at 1e-16 of the row's traffic.
-   Presolve's *mapping* is exact (0 identity failures of 88), so nothing there
-   needs touching. `boeing1` is the control for a second mechanism: its stored
-   count is right and its reduced count still is not. Any candidate is checked
-   against the closing sums, +3904 on netlib and +25654 on Kennington, which
-   must go to zero.
+1. **48 netlib solves still publish a wrong count, in three named shapes.**
+   All three are counted and none is repaired.
+   - **80 firings whose row logical is already nonbasic** when the singleton
+     column comes back interior (D135). That contradicts the derivation the
+     swap rests on, so it may be a second defect. **Re-measure first**: D135
+     read the PUBLISHED status, not the status in the reduced solve, and a
+     later record can overwrite it.
+   - **108 firings whose row is not on a bound**, where making the logical
+     nonbasic would claim a bound the row does not rest on (D135).
+   - **40 singleton rows** whose final activity misses its bound by about
+     1e-16 of the row's own traffic (D136). They fall through to `BASIC`. No
+     tolerance for them has been measured, and D8 means any such window needs
+     a sweep on both sides.
+   `boeing1` is the control for a second mechanism: its stored count is right
+   and its reduced count still is not. Presolve's *mapping* is exact (0
+   identity failures of 88), so nothing there needs touching.
    **The published rules agree with all of the above (D137)**, in
    `docs/research/postsolve-basis-recovery.md`: Galabova 2023 states the
    counting rule ("at each step of postsolve where a new row is introduced, a
@@ -244,6 +258,26 @@ variable brought *in*.
    honest. On its own it changes nothing measurable — a stored basis failing
    the count is already rejected by `build_warm_basis` — so it belongs with
    (1) rather than instead of it.
+
+3. **Widen the solution digest to cover the basis, at least on Kennington.**
+   `bench/run.c` declined to, and said why: *"a published basis that breaks the
+   row-count promise is a live defect (TODO.md), so a basis hash would pin
+   today's wrong answer."* **Kennington no longer breaks it on any solve**
+   (D139), so that objection is gone there. Until this lands, no predicate on
+   any of the three sets observes a status, and every basis repair has to be
+   judged by a probe rather than by the gate — which is how D138 and D139 were
+   judged, and it is not reproducible from `make netlib` alone.
+   Note the second obstacle the same comment names: the determinism check
+   re-solves cold after `jaos_clear_basis`, so a basis hash has to be taken
+   where that does not invalidate it.
+
+4. **Re-measure the `warm` records.** D129 measured 23 of netlib's 92 and 6 of
+   Kennington's 11 losing the warm start to `nbasic != nrow`. Both repairs
+   above change exactly that count, so the warm ratio should move — and
+   Kennington's should move a lot, since it now publishes a valid basis on
+   every solve. `make warm J=12` and `make warm-kennington J=12`, then rewrite
+   the records deliberately. **This is the first measurable user-visible
+   consequence of D138 and D139 and nobody has taken it yet.**
 
 The standing debt below names one postsolve family and a minimum case of one
 status. **132 solves and a worst error of 12104** make that case a corner of

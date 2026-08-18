@@ -11,6 +11,16 @@ open, `bench/README.md` for the gate, and the commit each entry came from.
 
 ### Fixed
 
+- A restored cost-0 bounded column singleton that comes back strictly inside
+  its own bounds now takes its surviving row's logical out of the basis. It
+  must be `BASIC` — a nonbasic variable rests on a bound and this one rests on
+  neither — and its row survives, so nothing was paying for the position. The
+  partner is forced rather than chosen and the exchange pivot is `a_ij`, which
+  presolve already requires non-zero. **Kennington publishes a valid basis on
+  every solve now**, and netlib's worst error falls from 596 to 23 with the
+  exact-count solves going 56 → 140 (D139). No value moves: `c_j = 0`, so a
+  basic column needs a zero dual, which the reduced solve already had.
+
 - A restored singleton row's basis status is decided after the replay, from
   its own dual and its final activity, on both postsolve paths. The replay
   decided it from the row's own term alone, before later records added theirs
