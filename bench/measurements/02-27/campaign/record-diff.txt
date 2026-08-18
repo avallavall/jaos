@@ -1,0 +1,132 @@
+========================================================================
+bench/results/netlib.txt  vs  HEAD:bench/results/netlib.txt
+========================================================================
+94 instances compared: 43 bit-identical, 51 moved, 8 digest change(s)
+
+-- REGRESSIONS --
+  PREDICATE          pilotnov       objective: ok -> OUT-OF-TOLERANCE
+  PREDICATE          pilotnov       checker: ok -> REJECTED
+  WORK               pilotnov       86587427 -> 2616239810  (30.22x)
+  RSUB               pilotnov       suboptimality bound 8.16e-13 -> 117  (143382352941176.5x, D91 threshold)
+
+-- changes within threshold --
+  WORK               25fv47         113491001 -> 113491105  (1x)
+  WORK               adlittle       141744 -> 141750  (1x)
+  WORK               bandm          3074393 -> 3075651  (1x)
+  WORK               blend          201974 -> 202020  (1x)
+  WORK               bnl1           7469727 -> 7469758  (1x)
+  WORK               bnl2           21655002 -> 21655237  (1x)
+  WORK               boeing1        1886070 -> 1886175  (1x)
+  WORK               bore3d         360244 -> 360348  (1x)
+  WORK               brandy         1475995 -> 1476170  (1x)
+  WORK               capri          486665 -> 486705  (1x)
+  WORK               cycle          16559178 -> 16561153  (1x)
+  WORK               czprob         13051918 -> 12043163  (0.9227x)
+  ITERS              czprob         1154 -> 1110
+  RSUB               czprob         5.33e-17 -> 8.29e-17
+  DIGEST             czprob         ea040c99182ade27 -> 777d4b30b6ccc80a
+  WORK               d2q06c         428597453 -> 444449417  (1.037x)
+  ITERS              d2q06c         6740 -> 6671
+  RSUB               d2q06c         5.38e-13 -> 5.13e-13
+  DIGEST             d2q06c         6875f28fb10884d8 -> 3e34f0f76e72f8f3
+  WORK               dfl001         2912702903 -> 2607078618  (0.8951x)
+  ITERS              dfl001         22854 -> 21085
+  RSUB               dfl001         3.01e-13 -> 3e-13
+  DIGEST             dfl001         0085a0850f439d6a -> 4b07420a852c628c
+  WORK               etamacro       3331412 -> 3331534  (1x)
+  WORK               finnis         524879 -> 524883  (1x)
+  WORK               fit1p          13354702 -> 13364570  (1.001x)
+  WORK               fit2p          657247696 -> 657297980  (1x)
+  WORK               forplan        1246118 -> 1246526  (1x)
+  WORK               ganges         3933413 -> 3315652  (0.8429x)
+  ITERS              ganges         1310 -> 1220
+  RSUB               ganges         1.03e-14 -> 4.5e-14
+  DIGEST             ganges         c07e652bf08219d0 -> 86509ba4cb14034a
+  WORK               gfrd-pnc       3002962 -> 3002968  (1x)
+  WORK               greenbea       196248522 -> 196248758  (1x)
+  WORK               greenbeb       573519868 -> 573520058  (1x)
+  WORK               grow15         237223325 -> 237223701  (1x)
+  WORK               grow22         493885827 -> 493886203  (1x)
+  WORK               grow7          54621611 -> 54621987  (1x)
+  WORK               kb2            74685 -> 74705  (1x)
+  WORK               maros          12001945 -> 12002230  (1x)
+  WORK               modszk1        8994257 -> 8994358  (1x)
+  WORK               nesm           61235366 -> 61236793  (1x)
+  WORK               perold         24134144 -> 25762347  (1.067x)
+  ITERS              perold         1109 -> 1178
+  RSUB               perold         2.65e-14 -> 4.93e-13
+  DIGEST             perold         ae7755e63ab7903f -> b994b8e22cc8cb31
+  WORK               pilot          4684286357 -> 4684286436  (1x)
+  WORK               pilot-ja       42179750 -> 49218063  (1.167x)
+  ITERS              pilot-ja       1402 -> 1499
+  RSUB               pilot-ja       6.03e-12 -> 3.88e-13
+  DIGEST             pilot-ja       9d5cc8632dacb3d7 -> 75c79df54ab912f4
+  WORK               pilot-we       133218159 -> 133218625  (1x)
+  WORK               pilot4         15935495 -> 15936002  (1x)
+  WORK               pilot87        18818789200 -> 18818789258  (1x)
+  ITERS              pilotnov       2374 -> 87432
+  DIGEST             pilotnov       50be91ac3ace82f7 -> 3b7a8badf6a6cfae
+  WORK               recipe         23369 -> 23436  (1.003x)
+  WORK               scfxm1         1912374 -> 1912429  (1x)
+  WORK               scfxm2         6344545 -> 6344655  (1x)
+  WORK               scfxm3         11414560 -> 11414725  (1x)
+  WORK               scrs8          1914107 -> 1882849  (0.9837x)
+  ITERS              scrs8          495 -> 484
+  RSUB               scrs8          8.83e-15 -> 3.99e-14
+  DIGEST             scrs8          ad51cd8c4eff9a83 -> bd3fcd1b42b3307d
+  WORK               sctap1         569801 -> 570161  (1.001x)
+  WORK               sctap2         968538 -> 969948  (1.001x)
+  WORK               sctap3         1281116 -> 1282976  (1.001x)
+  WORK               seba           183662 -> 186156  (1.014x)
+  WORK               share1b        577281 -> 577321  (1x)
+  WORK               standata       92213 -> 92273  (1.001x)
+  WORK               standmps       336866 -> 336926  (1x)
+  WORK               tuff           979729 -> 980073  (1x)
+  WORK               woodw          40150748 -> 40155106  (1x)
+  FIGURE             col            changed on 5 instance(s): d2q06c, dfl001, perold, pilot-ja, pilotnov
+  FIGURE             dual           changed on 1 instance(s): pilotnov
+  FIGURE             gap            changed on 8 instance(s): czprob, d2q06c, dfl001, ganges, perold, pilot-ja, ...
+  FIGURE             obj            changed on 6 instance(s): d2q06c, dfl001, ganges, pilot-ja, pilotnov, scrs8
+  FIGURE             presolve       changed on 9 instance(s): czprob, d2q06c, dfl001, ganges, perold, pilot-ja, ...
+  FIGURE             row            changed on 7 instance(s): czprob, d2q06c, dfl001, perold, pilot-ja, pilotnov, ...
+  FIGURE             rowrel         changed on 7 instance(s): czprob, d2q06c, dfl001, perold, pilot-ja, pilotnov, ...
+  FIGURE             sub            changed on 6 instance(s): czprob, dfl001, perold, pilot-ja, pilotnov, scrs8
+
+========================================================================
+bench/results/netlib-infeas.txt  vs  HEAD:bench/results/netlib-infeas.txt
+========================================================================
+29 instances compared: 18 bit-identical, 11 moved, 0 digest change(s)
+
+-- no regression --
+
+-- changes within threshold --
+  WORK               bgetam         35677 -> 35799  (1.003x)
+  WORK               chemcom        21345 -> 21729  (1.018x)
+  WORK               forest6        90009 -> 90029  (1x)
+  WORK               gosh           2428302104 -> 2428303108  (1x)
+  WORK               greenbea       22800 -> 22983  (1.008x)
+  WORK               pang           1513743 -> 1513811  (1x)
+  WORK               pilot4i        13185 -> 13692  (1.038x)
+  WORK               qual           1835196 -> 1685063  (0.9182x)
+  ITERS              qual           406 -> 402
+  WORK               reactor        1233 -> 1303  (1.057x)
+  WORK               refinery       1249597 -> 1177999  (0.9427x)
+  ITERS              refinery       358 -> 331
+  WORK               vol1           1597857 -> 1856897  (1.162x)
+  ITERS              vol1           368 -> 409
+  FIGURE             presolve       changed on 3 instance(s): qual, refinery, vol1
+
+========================================================================
+bench/results/netlib-kennington.txt  vs  HEAD:bench/results/netlib-kennington.txt
+========================================================================
+16 instances compared: 12 bit-identical, 4 moved, 0 digest change(s)
+
+-- no regression --
+
+-- changes within threshold --
+  WORK               ken-07         4426130 -> 4415900  (0.9977x)
+  WORK               ken-11         145515766 -> 145465966  (0.9997x)
+  WORK               ken-13         747060770 -> 746802887  (0.9997x)
+  WORK               ken-18         7827756793 -> 7826846624  (0.9999x)
+  FIGURE             presolve       changed on 4 instance(s): ken-07, ken-11, ken-13, ken-18
+

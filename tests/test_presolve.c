@@ -1136,6 +1136,104 @@ static void test_singleton_col_between_two_removals_solved_path(void)
 #endif
 }
 
+/* -- The basis count promise, on a column the implied free family declines --
+ *
+ * min x0  s.t.  row0: x0 + x1 = 7,  x0 in [0, 20],  x1 in [0, 100] cost 0
+ *
+ * `jaos.h` promises exactly num_row of the num_col + num_row statuses are
+ * basic. This model publishes TWO against num_row = 1, and that is the
+ * defect `TODO.md` carries under "the basis the singleton-column family
+ * publishes breaks the count promise" — it names this exact model. The
+ * column is recovered strictly inside its own box and published basic, and
+ * so is the row it was relaxed out of.
+ *
+ * **It exists because the file's other pin turned out to be fragile.**
+ * `test_singleton_col_between_two_removals_solved_path` publishes 3
+ * against num_row = 2 and still does, but D118 measured a one-line change
+ * of family order that gave its column to the implied free column
+ * singleton — which removes the row too, so that model read the correct 2
+ * and detected nothing at all. The change was refused for other reasons
+ * (D118), and the lesson stands: a pin that only holds while one family
+ * loses a race is not a pin.
+ *
+ * This model cannot lose that race. The implied free family DECLINES it
+ * on the margin, not on the order: row0's implied box for x1 is
+ * [7 - 20, 7 - 0] = [-13, 7], and -13 is below x1's own lower bound of 0.
+ * The assertion below on `implied_free_col == 0` is what says so.
+ *
+ * The 2 is pinned as a change detector, not as a contract. **Expect it to
+ * become 1 when the repair lands, and re-pin there, deliberately.** Which
+ * status each entity carries is not asserted: that is what the repair
+ * changes, and a test demanding today's value would fail the person fixing
+ * it. */
+static void test_the_basis_count_promise_breaks_on_a_declined_column(void)
+{
+#if defined(JAOS_PRESOLVE_FAULT_OFFBYONE) || defined(JAOS_PRESOLVE_FAULT_WRONGDUAL)
+    TEST_IGNORE_MESSAGE("positive test — skipped under either fault build");
+#else
+    const double c[]  = {1.0, 0.0};
+    const double cl[] = {0.0, 0.0}, cu[] = {20.0, 100.0};
+    const double rl[] = {7.0}, ru[] = {7.0};
+    const int64_t s[]  = {0, 1, 2};
+    const int64_t ix[] = {0, 0};
+    const double v[]   = {1.0, 1.0};
+    jaos_model *m = nullptr;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_model_new(&m));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_load_lp(m, 2, 1, JAOS_MINIMIZE, 0.0, c, cl, cu, rl, ru,
+                     2, s, ix, v));
+
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+
+    double x[2], y[1], dj[2];
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solution(m, x, nullptr, y, dj));
+    /* The ANSWER is right, in both builds, and that is why no predicate of
+     * the three instance sets can see this. */
+    const double expected_x0 = 0.0, expected_x1 = 7.0;
+    TEST_ASSERT_EQUAL_MEMORY(&expected_x0, &x[0], sizeof x[0]);
+    TEST_ASSERT_EQUAL_MEMORY(&expected_x1, &x[1], sizeof x[1]);
+
+    jaos_check_report r;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_check_solution(m, x, y, TOL, &r));
+    TEST_ASSERT_TRUE(r.primal_feasible);
+    TEST_ASSERT_TRUE(r.dual_feasible);
+
+    jaos_basis_status cs[2], rs[1];
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_basis(m, cs, rs));
+    int64_t basic = 0;
+    for (int64_t j = 0; j < 2; j++) basic += (cs[j] == JAOS_BASIS_BASIC);
+    basic += (rs[0] == JAOS_BASIS_BASIC);
+    /* The reference build is the oracle and it publishes the promised
+     * count; presolve's replay publishes one too many. The two numbers
+     * ARE the defect, which is why both are asserted rather than the
+     * presolved one alone. */
+#if defined(JAOS_NO_PRESOLVE)
+    TEST_ASSERT_EQUAL_INT64(1, basic);
+#else
+    TEST_ASSERT_EQUAL_INT64(2, basic);
+#endif
+
+    /* And the family really is the one that fired: without this the count
+     * above stays wrong for a reason the test stopped covering the day the
+     * implied free family starts taking this column too. */
+    jaos_model *m2 = nullptr;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_model_new(&m2));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_load_lp(m2, 2, 1, JAOS_MINIMIZE, 0.0, c, cl, cu, rl, ru,
+                     2, s, ix, v));
+    jm_presolve p;
+    jm_presolve_init(&p);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jm_presolve_run(m2, &p, nullptr));
+    TEST_ASSERT_EQUAL_INT64(1, p.counts.singleton_col);
+    TEST_ASSERT_EQUAL_INT64(0, p.counts.implied_free_col);
+    jm_presolve_free(&p);
+    jaos_model_free(m2);
+
+    jaos_model_free(m);
+#endif
+}
+
 /* -- Two singleton cols on one row -----------------------------------------
  *
  * min 3*x0 + x3 + 2*x4  s.t.  row0: x0 + x1 + x2 = 10   row1: x3 + x4 >= 1
@@ -3171,6 +3269,7 @@ int main(void)
     RUN_TEST(test_singleton_col_index_off_by_one);
     RUN_TEST(test_singleton_col_after_fixed_col);
     RUN_TEST(test_singleton_col_between_two_removals_solved_path);
+    RUN_TEST(test_the_basis_count_promise_breaks_on_a_declined_column);
     RUN_TEST(test_two_singleton_cols_on_one_row);
     RUN_TEST(test_free_col_singleton_round_trip);
     RUN_TEST(test_free_col_singleton_index_off_by_one);

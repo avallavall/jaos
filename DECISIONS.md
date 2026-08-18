@@ -125,6 +125,7 @@ and you have the argument. Jump to the entry for the numbers behind it.
 - **[D115](#d115--the-fourth-set-exists-and-small-models-understate-the-iteration-exponent-by-16x-while-the-work-unit-holds-to-6)** — The fourth set exists, and small models understate the iteration exponent by 1.6x while the work unit holds to 6%
 - **[D116](#d116--directed-rounding-on-the-activity-readings-is-refused-because-the-forcing-test-detects-an-equality)** — Directed rounding on the activity readings is refused, because the forcing test detects an equality
 - **[D117](#d117--d106-fires-on-none-of-fomes-candidates-because-d95-takes-every-one-of-them-first-and-freezes-121-of-the-rows)** — D106 fires on none of fome's candidates because D95 takes every one of them first, and freezes 12.1% of the rows
+- **[D118](#d118--giving-the-implied-free-family-first-refusal-is-refused-pilotnov-publishes-a-suboptimal-point-as-optimal)** — Giving the implied free family first refusal is refused: pilotnov publishes a suboptimal point as optimal
 
 ---
 
@@ -8836,3 +8837,83 @@ later round sees a different model.
 column both can take, measured under the loop: `numerics-reviewer` on the diff,
 all three sets, and a verdict from `jaos-measurer`. `fome` is not in the gate,
 so the netlib 55 and the Kennington side are what would decide it.
+
+---
+
+## D118 — Giving the implied free family first refusal is refused: pilotnov publishes a suboptimal point as optimal
+
+**The question.** D117 measured that `JM_PS_SINGLETON_COL` — D95's cost-0
+bounded singleton column — takes every column the implied free column singleton
+(D106) could also take, because its branch sits above D106's in the same column
+pass. On a cost-0 column D106's cost transfer is exactly zero, so D106 removes
+the same column, removes its **row** as well, and leaves nothing behind, where
+D95 keeps the row, widens it and freezes it. The candidate moves only that one
+branch below D106's; the free cost-0 cases keep their old precedence, so
+exactly one thing changes. Built in a worktree; nothing landed but one test.
+
+**The prediction held, per instance.** D117 counted the columns from a
+read-only instrument. The solver removed exactly those rows and no others:
+`ganges` 12, `czprob` 11, `dfl001` 9, `pilotnov` 7, `pilot-ja` 7, `perold` 6,
+`seba` 1, `scrs8` 1, `d2q06c` 1 — 55 rows over nine instances, nine for nine.
+
+**The measurement, `bench/measurements/02-27/`.** `make netlib` exits 1 with
+four regressions, all on `pilotnov`:
+
+```
+parent    obj=-4497.2761882188706  objective=ok  checker=ok
+          iters=2374   work=86587427    dual=0     rsub=8.16e-13
+candidate obj=-3169.5271937202242  objective=OUT-OF-TOLERANCE  checker=REJECTED
+          iters=87432  work=2616239810  dual=0.89  rsub=117
+```
+
+**The published objective is wrong by 29% and the solver reports `optimal`.**
+The point is primal-feasible (`col=1.11e-17`, `row=6.8e-08`,
+`rowrel=2.67e-12`), so this is not a containment failure. It is a feasible but
+suboptimal point published as optimal, with a dual violation of 0.89. The
+checker caught it; no digest and no work bar would have. `netlib-infeas` and
+`netlib-kennington` both read `0 regressed, 0 improved, 0 new`.
+
+**What the refusal costs, because a refusal owes both sides.** Four instances
+get cheaper — `ganges` **0.8429x**, `dfl001` **0.8951x**, `czprob` 0.9227x,
+`scrs8` 0.9837x — and three get dearer: `d2q06c` 1.037x, `perold` 1.0675x,
+`pilot-ja` 1.1669x. Geometric mean over 94 instances **1.0358x**. `dfl001` is
+one of the two instances that are 74% of the set's total work (D46), so its
+0.8951x is a real prize.
+
+**The band between 1.0000x and 1.0015x on about fifty instances is billing, not
+cost**, and so are Kennington's four moves (0.9977x to 0.9999x, digests
+identical): D106's block now runs on every cost-0 bounded singleton column and
+bills its range charge there. `numerics-reviewer` named this before the
+campaign ran.
+
+**What this exposed about the shipped code, which is the entry.** D106 has
+never been handed a cost-0 bounded singleton column, on any instance of any of
+the four sets, because D95's branch takes all of them first. This candidate is
+the first thing that ever gave it that population: **55 columns, 48 correct and
+7 wrong, all seven on `pilotnov`.** D106's four stated restrictions are
+therefore not sufficient for that population, and nothing in the repository
+says which fifth one is missing. The shipped code is not affected, because the
+order it ships with never asks the question — a safety margin nobody chose,
+now written down.
+
+**Refused.** A one-line reordering that makes a feasible model publish a 29%
+wrong objective is refused whatever it buys elsewhere.
+
+**What was refuted along the way.** The claim that the reorder repairs the
+basis-count promise. `test_singleton_col_between_two_removals_solved_path`
+did read the correct 2 under the candidate, and that is the pin being moved off
+the defective path rather than the defect being fixed. `numerics-reviewer`
+proved it by probing `TODO.md`'s own named minimum case against the candidate's
+own library: still 2 basic against `num_row = 1`.
+
+**What survived.** `test_the_basis_count_promise_breaks_on_a_declined_column`,
+which pins that minimum case — 2 basic against `num_row = 1`, and 1 in the
+reference build — on a column the implied free family declines by **margin**
+rather than by order, so no future change of order can quietly retire it.
+
+**Left open, in `TODO.md` §4b.** Why `pilotnov`'s seven and not `pilot-ja`'s
+seven. Settling it needs `jaos-debug`'s procedure on those seven columns.
+`pilotnov` is already the instance D116 found sensitive to a different presolve
+change, at 27.5x and with a correct answer. The reopen condition is a fifth
+restriction on D106 that declines those seven; the 55 are worth re-asking then,
+because `ganges`, `dfl001` and `czprob` are a real gain.

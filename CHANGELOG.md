@@ -11,6 +11,13 @@ open, `bench/README.md` for the gate, and the commit each entry came from.
 
 ### Added
 
+- `test_the_basis_count_promise_breaks_on_a_declined_column` pins `TODO.md`'s
+  own named minimum case for the basis-count defect — 2 basic against
+  `num_row = 1`, and 1 in the reference build. It sits on a column the implied
+  free family declines by margin rather than by order, because the file's other
+  pin on that defect stops detecting anything the moment that family takes its
+  column (D118). No behaviour changes.
+
 - **A fourth instance set.** Fifteen larger models from Mittelmann's mirror,
   in three families: `pds-30` … `pds-100`, which continue the `pds-02` …
   `pds-20` already in Kennington from the same 1990 paper; `fome11` … `fome21`,

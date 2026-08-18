@@ -7,51 +7,39 @@ line leaves this file in the same commit.
 
 ## Where the last session stopped — 2026-08-18
 
-## → START HERE: §4b, should D106 be preferred over D95 on a column both take
+## → START HERE: §4c, why D106 answers `pilotnov` wrong on seven columns
 
-§4a is answered and closed (D117, `bench/measurements/02-26/`). The reason D106
-fires on none of `fome`'s candidates is the order of two families:
-**`JM_PS_SINGLETON_COL` — D95's cost-0 bounded singleton column — takes 100% of
-them in round 0**, from a branch in the same column pass sitting above D106's.
-The frozen row, which this file named as the leading suspect, declines exactly
-**2** candidates over the whole standard set.
+§4a closed (D117) and §4b closed as a refusal (D118). Between them they left
+one fact that is about the **shipped** code and is not explained:
 
-What that leaves open is a question nobody had asked, and it has a measured
-size on both populations:
+**D106 has never been handed a cost-0 bounded singleton column.** D95's branch
+sits above it in the column pass and takes every one, on every instance of all
+four sets. D118's candidate moved that branch below D106 and so gave it that
+population for the first time: **55 columns, 48 correct, 7 wrong — all seven on
+`pilotnov`**, which published an objective 29% off as `optimal`
+(`obj=-3169.53` against `ref=-4497.28`, `checker=REJECTED`, `dual=0.89`,
+`rsub=117`). The point was primal-feasible, so containment is not the failure.
 
-| | candidates D95 takes | of those, D106 would have fired on |
-|---|---|---|
-| `fome11` / `fome12` / `fome13` | 166 / 332 / 664 | **18 / 36 / 72** |
-| netlib, 9 instances | 524 | **55** |
-
-The 55 are `ganges` 12, `czprob` 11, `dfl001` 9, `pilotnov` 7, `pilot-ja` 7,
-`perold` 6, `seba` 1, `scrs8` 1, `d2q06c` 1 — 5.3% of what D106 removes today.
-
-**Why D106 looks like the better of the two here.** On a cost-0 column D106's
-cost transfer `c_k -= (c_j / a_ij) * a_ik` is zero. So D106 removes the same
-column, removes its row as well, and leaves no cost behind, where D95 keeps the
-row and freezes it. D95 freezes **8309 netlib rows over 60 instances**, against
-the 8639 every family together removes, and **12.09% of `fome11`, `fome12` and
-`fome13` alike**, all three of which have no row removed by anybody.
-
-**Why that is not enough to change it.** Being the larger reduction says
-nothing about the cost. D108 and D112 both measured this family's price landing
-on the trajectory rather than at the reduction site, and neither found a rule
-that predicts the direction. The 18 / 36 / 72 and the 55 are lower bounds on
-what moves, not predictions: D106 firing removes a row, and every later round
-then sees a different model.
+So D106's four stated restrictions are not sufficient for that population, and
+nothing here says which fifth one is missing. The shipped code is safe because
+the order never asks the question. That is a safety margin nobody chose.
 
 **What to do next, in order.**
 
-1. Load `sparse-simplex-perf` before designing it and `jaos-measure` before
-   believing any campaign.
-2. The change is small — a condition on D95's branch that declines a column
-   D106 would take. Getting the two predicates to agree at the site is the
-   work; D106's own margin has to be evaluated before D95 acts.
-3. `numerics-reviewer` on the diff before any campaign. This is solver
-   internals.
-4. All three sets, then `jaos-measurer`. `fome` is not in the gate, so netlib
-   and Kennington are what decide it.
+1. Load `jaos-debug` before instrumenting anything, and `fp-numerics` if a
+   tolerance turns out to be involved.
+2. The seven columns are named by `bench/measurements/02-26/`'s counter:
+   `pilotnov`'s `SINGCOL × WOULDFIRE` cross. `pilot-ja` has seven too and comes
+   out correct, so it is the control, not a second case.
+3. The candidate that exposes it is `bench/measurements/02-27/candidate.diff`,
+   applied in a worktree. It is refused; it is also the only way to reproduce.
+4. `dual=0.89` says the recovered duals are wrong, and the primal is feasible.
+   Ask whether the reduced model lost the optimum or the postsolve lost the
+   dual before assuming either.
+
+**Nothing here says D106 is wrong as it ships.** It says its argument has not
+been tested on a population it never meets, and that seven columns of that
+population broke it.
 
 Everything below this line is finished work and background.
 
@@ -519,11 +507,25 @@ reproduces D109's own figure, which nobody asked it to.
 
 That closes §4a and opens §4b, which is the header of this file.
 
-### 4b. Should D106 be preferred over D95 on a column both can take — OPEN
+### 4b. Should D106 be preferred over D95 — closed 2026-08-18 by D118: refused
 
-Opened by D117. The numbers, the argument on each side and what to do next are
-in the header of this file; `bench/measurements/02-26/` owns every figure.
-Nothing built, nothing measured beyond the count.
+Built and measured, `bench/measurements/02-27/`. One branch moved, nothing
+else. The footprint was exactly what D117's read-only counter predicted, nine
+instances for nine: `ganges` 12, `czprob` 11, `dfl001` 9, `pilotnov` 7,
+`pilot-ja` 7, `perold` 6, `seba` 1, `scrs8` 1, `d2q06c` 1.
+
+It buys `ganges` 0.8429x, `dfl001` 0.8951x and `czprob` 0.9227x, and it makes
+`pilotnov` publish an objective 29% wrong as `optimal`. Refused on that alone.
+Geometric mean 1.0358x over 94; `netlib-infeas` and `netlib-kennington` both
+`0 regressed, 0 improved, 0 new`.
+
+The reopen condition is a fifth restriction on D106 that declines `pilotnov`'s
+seven, which is §4c above.
+
+### 4c. Why D106 answers `pilotnov` wrong on seven columns — OPEN
+
+Opened by D118. The question, the evidence and what to do next are in the
+header of this file; `bench/measurements/02-27/` owns every figure.
 
 **Also open:** how often `plato` should run — `pds` alone is 6.4 hours of wall
 clock — and `nug20`/`nug30`, which are unmeasured rather than unsolvable.
@@ -629,6 +631,7 @@ then, do not — a refusal whose premise has not changed just fails again.
 | D109 | removing the implied-free window's `max(1, scale)` floor — a bit-identical no-op over all 94 standard instances, digests included | a model population where `bench/measurements/02-16/run-floorless.sh` reports a moved instance line; or the D106 sweep's own reopen |
 | D112 | the unbounded-relative-widening refusal for the cost-0 singleton column — 98.6% of firings would be refused, and the helped and hurt `grow*` instances carry the same widening | D108's condition: a measured mechanism that predicts trajectory direction from the firing site; or an instance crossing the gate's 2.0x work bar from this family |
 | D95 | eliminating nonzero-cost singleton columns | a dual-informed elimination design exists (the lift condition is in the entry). **Checked against D106 and NOT reopened, deliberately.** D106 eliminates nonzero-cost singleton columns, so the question was re-asked. It does not satisfy D95's condition and does not need to: D95 refused *choosing which bound is optimal*, and an implied free column has no bound to choose — it is interior, so `d_j = 0` is forced and the dual falls out of one division. The columns D95 still refuses are the ones whose own bounds can bind, and D106 declines exactly those |
+| D118 | giving the implied free column singleton first refusal over D95's bounded cost-0 singleton column — `pilotnov` publishes an objective 29% wrong as `optimal`, `checker=REJECTED`, `dual=0.89`, 30.2x work | a fifth restriction on D106 that declines `pilotnov`'s seven columns, or a predicate that gives D106 first refusal only where it is proved sound. The prize is real and stated: `ganges` 0.8429x, `dfl001` 0.8951x, `czprob` 0.9227x. §4c is the investigation that would produce it |
 | D93 | the 4.2% time bar — unmeasurable on this host | a controlled host that satisfies D17 |
 | D92/backlog | `pilot87`'s suboptimality bound, not understood | it blocks a gate (trigger already recorded) |
 | D82, D84 | partial and multiple pricing | nothing scheduled — refused on wrong answers, not on a trade; a new scheme is a new decision, not a retry |
@@ -709,9 +712,15 @@ then, do not — a refusal whose premise has not changed just fails again.
   answer instead of being guarded out, because in both cases that answer is
   the right one and skipping would have thrown it away: 2 basic is what the
   model has, and `x0 >= 1e9 + 5e-7` against `x0 <= 1e9` really has no common
-  point. The presolved values stay pinned beside them, so the pair of numbers
-  is now the executable size of each defect. Both tests run and pass in both
-  builds; `make test`, the reference build and `make sanitize` all exit 0.
+  point. Both tests run and pass in both builds; `make test`, the reference
+  build and `make sanitize` all exit 0.
+  **A second pin was added beside it the same day (D118).** The basis-count
+  pin above only holds while D95 wins a race against the implied free family:
+  under D118's refused candidate that model read the correct 2 and stopped
+  detecting anything at all. `test_the_basis_count_promise_breaks_on_a_declined_column`
+  pins the same defect on a column the implied free family declines by
+  **margin** rather than by order, so no change of order can retire it
+  quietly. Found by `numerics-reviewer`.
 
 - **Two positive tests had no fault-build guard.** `make test
   EXTRA_CFLAGS=-DJAOS_PRESOLVE_FAULT_OFFBYONE` did not compile at all until
@@ -771,10 +780,16 @@ then, do not — a refusal whose premise has not changed just fails again.
   row it was relaxed out of, which is one basic too many. Minimum case, on
   the `jm_postsolve_expand` path: `min x0 s.t. x0 + x1 = 7, x0 in [0,20],
   x1 in [0,100] cost 0` publishes 2 basic against `num_row = 1`, where
-  `-DJAOS_NO_PRESOLVE` publishes row0 `AT_LOWER` and 1. The two-row
-  `jm_postsolve_solved` model in
-  `test_singleton_col_between_two_removals_solved_path` publishes 3 against
-  2, and that test pins the count so the repair announces itself. When the
+  `-DJAOS_NO_PRESOLVE` publishes row0 `AT_LOWER` and 1. **That model is
+  `test_the_basis_count_promise_breaks_on_a_declined_column`, added 2026-08-18,
+  and the repair announces itself there** — expect its 2 to become 1. The
+  two-row `jm_postsolve_solved` model in
+  `test_singleton_col_between_two_removals_solved_path` publishes 3 against 2
+  and pins that too, but it holds only while D95 wins a race against the
+  implied free family: D118's refused candidate gave it to the implied free
+  family and the test stopped detecting anything. The minimum case cannot lose
+  that race, because the implied free family declines it on the **margin** (its
+  implied box is `[-13, 7]`, below x1's own lower bound of 0). When the
   column lands on its own bound instead, the count is right —
   `make_singleton_col_model` is that case. So the discriminator is which
   bound determined the value, which `ps_replay_one` has already computed

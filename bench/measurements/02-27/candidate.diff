@@ -1,0 +1,382 @@
+diff --git a/src/presolve.c b/src/presolve.c
+index 9e495e6..a31e71f 100644
+--- a/src/presolve.c
++++ b/src/presolve.c
+@@ -1001,42 +1001,14 @@ JAOS_NODISCARD jaos_status jm_presolve_run(const jaos_model *m, jm_presolve *p,
+                     changed = true;
+                     continue;
+                 }
+-                if (!free_col) {
+-                    /* Bounded, cost-0 singleton column: relax row i to
+-                     * absorb whatever this column could have contributed,
+-                     * drop the column, freeze the row against every other
+-                     * row-removing family for the rest of this run. */
+-                    jm_work_add(w, JM_WORK_NONZERO);
+-                    const double c1 = a * cur_cl[j], c2 = a * cur_cu[j];
+-                    const double cmin = c1 < c2 ? c1 : c2;
+-                    const double cmax = c1 > c2 ? c1 : c2;
+-                    if (!ps_push(p, (jm_presolve_rec){
+-                            .tag = JM_PS_SINGLETON_COL,
+-                            .index = i, .index2 = j, .coef = a,
+-                            .lo = cur_cl[j], .hi = cur_cu[j],
+-                            .row_lo = cur_rl[i], .row_hi = cur_ru[i] })) {
+-                        ret = JAOS_ERR_OUT_OF_MEMORY;
+-                        goto cleanup_scratch;
+-                    }
+-                    if (isfinite(cur_rl[i]))
+-                        cur_rl[i] -= cmax;
+-                    if (isfinite(cur_ru[i]))
+-                        cur_ru[i] -= cmin;
+-                    row_traffic[i] += fabs(cmax) > fabs(cmin) ? fabs(cmax)
+-                                                              : fabs(cmin);
+-                    col_dead[j] = true;
+-                    row_deg[i]--;
+-                    row_frozen[i] = true;
+-                    p->counts.singleton_col++;
+-                    changed = true;
+-                    continue;
+-                }
+-                /* Free column, but its row still has other live entries:
+-                 * the cost-0 families stop here. The implied free column
+-                 * singleton below takes it, and a free column is the
+-                 * trivial case of implied free — both its own bounds are
+-                 * infinite, so no implied bound can fail to lie inside
+-                 * them. */
++                /* Anything this branch did not take goes below, and the
++                 * implied free column singleton reads it before the
++                 * BOUNDED cost-0 case does (D117). A free column falling
++                 * through is the trivial case of implied free — both its
++                 * own bounds are infinite, so no implied bound can fail to
++                 * lie inside them — and that was already true. What
++                 * changed is the bounded case, which used to be taken
++                 * here and is now below. */
+             }
+ 
+             /* --- Implied free column singleton (D105). ---------------- */
+@@ -1182,6 +1154,69 @@ JAOS_NODISCARD jaos_status jm_presolve_run(const jaos_model *m, jm_presolve *p,
+                     }
+                 }
+             }
++
++            /* --- Bounded cost-0 singleton column (D95), last. --------- */
++            /*
++             * Relax row i to absorb whatever this column could have
++             * contributed, drop the column, and freeze the row against
++             * every other row-removing family for the rest of this run.
++             *
++             * IT RUNS AFTER THE IMPLIED FREE COLUMN SINGLETON ABOVE, and
++             * the order is measured rather than assumed (D117). Both can
++             * take a cost-0 column whose row already confines it, and
++             * while this branch sat first it took every one: 100% of
++             * fome11/12/13's 166, 332 and 664 candidates, and 55 more over
++             * nine netlib instances. On a cost-0 column the substitution's
++             * cost transfer c_k -= (c_j / a_ij) * a_ik is exactly zero, so
++             * the family above removes the same column, removes its ROW as
++             * well, and leaves nothing behind — where this one keeps the
++             * row, widens it by what the column could have contributed,
++             * and freezes it. That widening is §2's own defect: on grow22
++             * twenty exact `== 0` pins become twenty ranges of up to 5e5
++             * (D112).
++             *
++             * The FREE cost-0 cases keep their old precedence, above the
++             * implied free family, so that this change moves one thing.
++             * `free_col` is recomputed rather than carried, because the
++             * branch it was declared in has closed. */
++            if (col_deg[j] == 1 && cur_cost[j] == 0.0 &&
++                (isfinite(cur_cl[j]) || isfinite(cur_cu[j]))) {
++                int64_t i = -1;
++                double a = 0.0;
++                for (int64_t k = m->a_start[j]; k < m->a_start[j + 1]; k++) {
++                    if (!row_dead[m->a_index[k]]) {
++                        i = m->a_index[k];
++                        a = m->a_value[k];
++                        break;
++                    }
++                }
++                assert(i >= 0);
++
++                jm_work_add(w, JM_WORK_NONZERO);
++                const double c1 = a * cur_cl[j], c2 = a * cur_cu[j];
++                const double cmin = c1 < c2 ? c1 : c2;
++                const double cmax = c1 > c2 ? c1 : c2;
++                if (!ps_push(p, (jm_presolve_rec){
++                        .tag = JM_PS_SINGLETON_COL,
++                        .index = i, .index2 = j, .coef = a,
++                        .lo = cur_cl[j], .hi = cur_cu[j],
++                        .row_lo = cur_rl[i], .row_hi = cur_ru[i] })) {
++                    ret = JAOS_ERR_OUT_OF_MEMORY;
++                    goto cleanup_scratch;
++                }
++                if (isfinite(cur_rl[i]))
++                    cur_rl[i] -= cmax;
++                if (isfinite(cur_ru[i]))
++                    cur_ru[i] -= cmin;
++                row_traffic[i] += fabs(cmax) > fabs(cmin) ? fabs(cmax)
++                                                          : fabs(cmin);
++                col_dead[j] = true;
++                row_deg[i]--;
++                row_frozen[i] = true;
++                p->counts.singleton_col++;
++                changed = true;
++                continue;
++            }
+         }
+ 
+         /* --- Activity pass: forcing, redundant, bound tightening. ---- */
+diff --git a/tests/test_presolve.c b/tests/test_presolve.c
+index 8130fb2..60c6036 100644
+--- a/tests/test_presolve.c
++++ b/tests/test_presolve.c
+@@ -1088,50 +1088,132 @@ static void test_singleton_col_between_two_removals_solved_path(void)
+     const double expected_x1 = 13.0;
+     TEST_ASSERT_EQUAL_MEMORY(&expected_x1, &x[1], sizeof x[1]);
+ 
+-    /* The basis this publishes is wrong, and pinned as a change
+-     * detector rather than as a contract. jaos.h promises exactly
+-     * num_row of the num_col + num_row statuses are basic; three of
+-     * these six are, against num_row = 2. The same model built with
+-     * -DJAOS_NO_PRESOLVE publishes row0 AT_LOWER and two basic, which
+-     * is the right answer: row0's activity rests on its bound, and
+-     * neither singleton column left a basic slot free, both having been
+-     * recovered strictly inside their own box.
++    /* jaos.h promises exactly num_row of the num_col + num_row statuses
++     * are basic, and this model used to publish three against num_row = 2
++     * — the singleton-column family's own defect, recovered strictly
++     * inside its own box and published basic alongside the row it was
++     * relaxed out of.
+      *
+-     * Not asserted here: WHICH status row0 carries. That is what the
+-     * repair changes, and a test demanding today's value would fail the
+-     * person fixing it. The count is what says the repair landed —
+-     * expect this 3 to become 2. TODO.md carries the defect; re-pin
+-     * there, deliberately.
++     * **It reads 2 now, in both builds, and D117 is why.** The implied
++     * free column singleton takes this column before the bounded cost-0
++     * family can, removes its row with it, and leaves no row to publish
++     * basic. That is a side effect of the order, not a repair aimed at
++     * this: the same defect still stands on any column the implied free
++     * family declines, and TODO.md still carries it.
++     *
++     * Not asserted here: WHICH status row0 carries. A test demanding
++     * today's value would fail the person fixing the rest of it.
+      *
+      * The count is only worth pinning because the statuses are
+      * initialised. Measured with the memsets removed, this assertion reads
+-     * 2 and fails against the 3 — but that 2 came out of the heap, and
+-     * another byte there would have read 3 and passed. A pinned number
+-     * over an uninitialised read does not detect anything; it flips a
+-     * coin. */
++     * 2 out of the heap — and another byte there would have read 3. A
++     * pinned number over an uninitialised read does not detect anything;
++     * it flips a coin. */
+     jaos_basis_status cs[4], rs[2];
+     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_basis(m, cs, rs));
+     int64_t basic = 0;
+     for (int64_t j = 0; j < 4; j++) basic += (cs[j] == JAOS_BASIS_BASIC);
+     for (int64_t i = 0; i < 2; i++) basic += (rs[i] == JAOS_BASIS_BASIC);
+-    /* The reference build is asserted here rather than skipped, so it says
+-     * the right answer out loud instead of saying nothing. The two numbers
+-     * ARE the defect: 3 is what the replay publishes, 2 is what the model
+-     * has, and the gap closes when TODO.md's item lands. Before 2026-08-18
+-     * this line read 3 unconditionally and `make test
+-     * EXTRA_CFLAGS=-DJAOS_NO_PRESOLVE` was red on it, which meant nobody
+-     * ran the project's only oracle for output no predicate reads. */
+-#if defined(JAOS_NO_PRESOLVE)
+     TEST_ASSERT_EQUAL_INT64(2, basic);
+-#else
+-    TEST_ASSERT_EQUAL_INT64(3, basic);
++
++    jaos_check_report r;
++    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_check_solution(m, x, y, TOL, &r));
++    TEST_ASSERT_TRUE(r.primal_feasible);
++    TEST_ASSERT_TRUE(r.dual_feasible);
++
++    jaos_model_free(m);
+ #endif
++}
++
++/* -- The basis count promise, on a column the implied free family declines --
++ *
++ * min x0  s.t.  row0: x0 + x1 = 7,  x0 in [0, 20],  x1 in [0, 100] cost 0
++ *
++ * `jaos.h` promises exactly num_row of the num_col + num_row statuses are
++ * basic. This model publishes TWO against num_row = 1, and that is the
++ * defect `TODO.md` carries under "the basis the singleton-column family
++ * publishes breaks the count promise" — it names this exact model. The
++ * column is recovered strictly inside its own box and published basic, and
++ * so is the row it was relaxed out of.
++ *
++ * **It exists because D117's reorder moved the file's only other pin off
++ * this path.** `test_singleton_col_between_two_removals_solved_path` used
++ * to publish 3 against num_row = 2; the implied free column singleton now
++ * takes its column and removes the row, so it reads the correct 2 and
++ * detects nothing. Here the implied free family DECLINES: row0's implied
++ * box for x1 is [7 - 20, 7 - 0] = [-13, 7], and -13 is below x1's own
++ * lower bound of 0, so the margin refuses it and D95 takes the column.
++ * That is what keeps this model on the defective path.
++ *
++ * The 2 is pinned as a change detector, not as a contract. **Expect it to
++ * become 1 when the repair lands, and re-pin there, deliberately.** Which
++ * status each entity carries is not asserted: that is what the repair
++ * changes, and a test demanding today's value would fail the person fixing
++ * it. */
++static void test_the_basis_count_promise_breaks_on_a_declined_column(void)
++{
++#if defined(JAOS_PRESOLVE_FAULT_OFFBYONE) || defined(JAOS_PRESOLVE_FAULT_WRONGDUAL)
++    TEST_IGNORE_MESSAGE("positive test — skipped under either fault build");
++#else
++    const double c[]  = {1.0, 0.0};
++    const double cl[] = {0.0, 0.0}, cu[] = {20.0, 100.0};
++    const double rl[] = {7.0}, ru[] = {7.0};
++    const int64_t s[]  = {0, 1, 2};
++    const int64_t ix[] = {0, 0};
++    const double v[]   = {1.0, 1.0};
++    jaos_model *m = nullptr;
++    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_model_new(&m));
++    TEST_ASSERT_EQUAL_INT(JAOS_OK,
++        jaos_load_lp(m, 2, 1, JAOS_MINIMIZE, 0.0, c, cl, cu, rl, ru,
++                     2, s, ix, v));
++
++    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
++    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
++
++    double x[2], y[1], dj[2];
++    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solution(m, x, nullptr, y, dj));
++    /* The ANSWER is right, in both builds, and that is why no predicate of
++     * the three instance sets can see this. */
++    const double expected_x0 = 0.0, expected_x1 = 7.0;
++    TEST_ASSERT_EQUAL_MEMORY(&expected_x0, &x[0], sizeof x[0]);
++    TEST_ASSERT_EQUAL_MEMORY(&expected_x1, &x[1], sizeof x[1]);
+ 
+     jaos_check_report r;
+     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_check_solution(m, x, y, TOL, &r));
+     TEST_ASSERT_TRUE(r.primal_feasible);
+     TEST_ASSERT_TRUE(r.dual_feasible);
+ 
++    jaos_basis_status cs[2], rs[1];
++    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_basis(m, cs, rs));
++    int64_t basic = 0;
++    for (int64_t j = 0; j < 2; j++) basic += (cs[j] == JAOS_BASIS_BASIC);
++    basic += (rs[0] == JAOS_BASIS_BASIC);
++    /* The reference build is the oracle and it publishes the promised
++     * count; presolve's replay publishes one too many. The two numbers
++     * ARE the defect, which is why both are asserted rather than the
++     * presolved one alone. */
++#if defined(JAOS_NO_PRESOLVE)
++    TEST_ASSERT_EQUAL_INT64(1, basic);
++#else
++    TEST_ASSERT_EQUAL_INT64(2, basic);
++#endif
++
++    /* And the family really is the one that fired: without this the count
++     * above stays wrong for a reason the test stopped covering the day the
++     * implied free family starts taking this column too. */
++    jaos_model *m2 = nullptr;
++    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_model_new(&m2));
++    TEST_ASSERT_EQUAL_INT(JAOS_OK,
++        jaos_load_lp(m2, 2, 1, JAOS_MINIMIZE, 0.0, c, cl, cu, rl, ru,
++                     2, s, ix, v));
++    jm_presolve p;
++    jm_presolve_init(&p);
++    TEST_ASSERT_EQUAL_INT(JAOS_OK, jm_presolve_run(m2, &p, nullptr));
++    TEST_ASSERT_EQUAL_INT64(1, p.counts.singleton_col);
++    TEST_ASSERT_EQUAL_INT64(0, p.counts.implied_free_col);
++    jm_presolve_free(&p);
++    jaos_model_free(m2);
++
+     jaos_model_free(m);
+ #endif
+ }
+@@ -1139,14 +1221,14 @@ static void test_singleton_col_between_two_removals_solved_path(void)
+ /* -- Two singleton cols on one row -----------------------------------------
+  *
+  * min 3*x0 + x3 + 2*x4  s.t.  row0: x0 + x1 + x2 = 10   row1: x3 + x4 >= 1
+- * x0 in [4, 4]; x1 in [0, 100], cost 0; x2 in [0, 3], cost 0;
++ * x0 in [4, 4]; x1 in [3, 6], cost 0; x2 in [0, 3], cost 0;
+  * x3, x4 in [0, 5].
+  *
+  * The stacked shape. Nothing stops it: the bounded singleton col at
+  * src/presolve.c checks !free_col and never row_frozen[i], so x2 fires
+  * on a row x1 has already frozen, in the same column pass. Each record
+  * then records a DIFFERENT pair — x1's is [6, 6] (x0's shift only), x2's
+- * is [-94, 6] (x1's relaxation too) — which is the case where "the later
++ * is [0, 3] (x1's relaxation too) — which is the case where "the later
+  * replay undoes its own shift" is false and containment is what carries
+  * it: a relaxation moves the two ends by cmax and cmin, and those are
+  * not equal.
+@@ -1155,19 +1237,31 @@ static void test_singleton_col_between_two_removals_solved_path(void)
+  * answer: against the original [10, 10] pair, x2's intersection comes
+  * out empty (want_lo = 10 > want_hi = 3), so assert(want_lo <= want_hi)
+  * fires under the dev build the suite uses, and -DNDEBUG (how
+- * bench/run is built) publishes x2 = 10 against a box of [0, 3] — a
+- * COLUMN bound violation of 7.0 alongside the row's 4.0, which neither
+- * other new test produces. row1 keeps the reduced model non-empty so
+- * this runs on jm_postsolve_expand. By hand: x = {4, 6, 0, 1, 0},
+- * obj = 13. */
++ * bench/run is built) published x2 outside its own box — the COLUMN
++ * bound violation no other test in this file produces. row1 keeps the
++ * reduced model non-empty so this runs on jm_postsolve_expand.
++ *
++ * **x1 is [3, 6] and not [0, 100], and D117 is why.** The implied free
++ * column singleton now reads a cost-0 column before this family does,
++ * and against [0, 100] it took x1, removed row0 with it, and the stacked
++ * shape this test exists for never arose. Row0's implied box for x1 is
++ * exactly [3, 6], so the margin declines it — the implied bound sits ON
++ * the column's own bound — and both columns reach the family again. The
++ * bounds are the smallest change that restores the shape; the row is
++ * still an equality, so the equality case stays covered too.
++ *
++ * By hand: x0 = 4 and x1 + x2 = 6, which the costs leave degenerate, so
++ * the objective is 13 whichever point comes out and the values are
++ * asserted for CONTAINMENT rather than pinned. Containment is what the
++ * defect broke. */
+ static void test_two_singleton_cols_on_one_row(void)
+ {
+ #if defined(JAOS_PRESOLVE_FAULT_OFFBYONE) || defined(JAOS_PRESOLVE_FAULT_WRONGDUAL)
+     TEST_IGNORE_MESSAGE("positive test — skipped under either fault build");
+ #else
+     const double c[]  = {3.0, 0.0, 0.0, 1.0, 2.0};
+-    const double cl[] = {4.0, 0.0, 0.0, 0.0, 0.0};
+-    const double cu[] = {4.0, 100.0, 3.0, 5.0, 5.0};
++    const double cl[] = {4.0, 3.0, 0.0, 0.0, 0.0};
++    const double cu[] = {4.0, 6.0, 3.0, 5.0, 5.0};
+     const double rl[] = {10.0, 1.0}, ru[] = {10.0, INFINITY};
+     /* col0: row0.  col1: row0.  col2: row0.  col3: row1.  col4: row1. */
+     const int64_t s[]  = {0, 1, 2, 3, 4, 5};
+@@ -1189,6 +1283,28 @@ static void test_two_singleton_cols_on_one_row(void)
+ 
+     double x[5], y[2], dj[5];
+     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solution(m, x, nullptr, y, dj));
++    /* Containment, which is the property the defect broke: the old code
++     * published a value outside the column's own declared box. Exact
++     * bounds, not a tolerance — a published value outside a bound the
++     * caller stated is wrong at any size. The row is asserted with the
++     * same strictness because every term of it is exact here.
++     *
++     * Built with the case it must reject, and the case is not
++     * hypothetical: with ps_replay_one reading the ORIGINAL row pair
++     * instead of the recorded one, this model publishes x2 = 10 against
++     * a box of [0, 3], and both assertions below reject it — the
++     * containment one on x2 and the row one at 17 against 10. */
++    TEST_ASSERT_TRUE(x[1] >= 3.0 && x[1] <= 6.0);
++    TEST_ASSERT_TRUE(x[2] >= 0.0 && x[2] <= 3.0);
++    const double row0 = 10.0, got_row0 = x[0] + x[1] + x[2];
++    TEST_ASSERT_EQUAL_MEMORY(&row0, &got_row0, sizeof row0);
++
++    /* The two values are pinned as well, and the earlier claim that the
++     * model's degeneracy made that meaningless was wrong. The MODEL is
++     * degenerate in x1 and x2; the REPLAY is not. ps_replay_one picks
++     * `want_lo` deterministically, and these two numbers are what that
++     * choice publishes. Change it to want_hi and x2 reads 3 — which the
++     * containment assertions above accept and only these reject. */
+     const double expected_x1 = 6.0, expected_x2 = 0.0;
+     TEST_ASSERT_EQUAL_MEMORY(&expected_x1, &x[1], sizeof x[1]);
+     TEST_ASSERT_EQUAL_MEMORY(&expected_x2, &x[2], sizeof x[2]);
+@@ -3171,6 +3287,7 @@ int main(void)
+     RUN_TEST(test_singleton_col_index_off_by_one);
+     RUN_TEST(test_singleton_col_after_fixed_col);
+     RUN_TEST(test_singleton_col_between_two_removals_solved_path);
++    RUN_TEST(test_the_basis_count_promise_breaks_on_a_declined_column);
+     RUN_TEST(test_two_singleton_cols_on_one_row);
+     RUN_TEST(test_free_col_singleton_round_trip);
+     RUN_TEST(test_free_col_singleton_index_off_by_one);
