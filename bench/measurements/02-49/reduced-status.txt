@@ -1,0 +1,39 @@
+# For every SINGLETON_COL firing publishing its column BASIC, read at
+# the second pass: did the row survive, what did the reduced solve say,
+# and who wrote what the swap reads.
+# tags: 1=EMPTY_ROW 3=SINGLETON_ROW 5=FREE_COL_SINGLETON
+#       6=REDUNDANT_ROW 7=FORCING_ROW 8=IMPLIED_FREE_COL
+
+######## netlib ########
+172 solves;  fired=6132 nofire=11102 (canary: 5902/11332 nl, 482/120 kn)
+
+  swapped — the exchange fired                           5670
+  declined: partner in, row interior (the 108)            152
+  declined: partner in, row tight, NOT swapped (odd)        0
+  declined: row DID NOT SURVIVE (A)                         0
+  declined: this family already swapped the row (C)         0
+  declined: survived, reduced BASIC, overwritten (D)        0
+  declined: REDUCED SOLVE left it nonbasic (B)            310
+      reduced status 1                                    276
+      reduced status 2                                     34
+      final activity class I                              126
+      final activity class L                              184
+
+  unpaid total (fired - swapped) = 462; 02-48 says netlib SUM=+272, kn 0
+
+######## kennington ########
+32 solves;  fired=482 nofire=120 (canary: 5902/11332 nl, 482/120 kn)
+
+  swapped — the exchange fired                            482
+  declined: partner in, row interior (the 108)              0
+  declined: partner in, row tight, NOT swapped (odd)        0
+  declined: row DID NOT SURVIVE (A)                         0
+  declined: this family already swapped the row (C)         0
+  declined: survived, reduced BASIC, overwritten (D)        0
+  declined: REDUCED SOLVE left it nonbasic (B)              0
+
+  unpaid total (fired - swapped) = 0; 02-48 says netlib SUM=+272, kn 0
+
+# prediction (before the run): nl swapped=5630 loose=108 C=84 A+B+D=80;
+# kn all 482 swapped. A refutes D135's survival assumption; B is a real
+# contradiction; D has no known writer and is a finding on its own.

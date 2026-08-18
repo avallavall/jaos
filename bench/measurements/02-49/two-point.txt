@@ -1,0 +1,50 @@
+# Two-point read. SC2 = replay-BASIC (the true population, canary 5902
+# netlib / 482 kennington). PHANTOM = replay-nonbasic, guard read BASIC
+# (rewritten by SINGLETON_ROW's replay, presolve.c:2132). lost = replay
+# BASIC, guard read nonbasic (no known writer).
+
+######## netlib ########
+172 solves; true fired=5902 (canary 5902/482) phantom=230 lost=0 nofire=11102
+
+TRUE population (column interior at its own replay):
+  swapped — the exchange fired                           5670
+  declined: partner in, row interior                      152
+  declined: partner in, row tight, NOT swapped (odd)        0
+  declined: row did not survive (A)                         0
+  declined: this family already swapped the row (C)         0
+  declined: survived, reduced BASIC, overwritten (D)        0
+  declined: reduced solve left it nonbasic (B)             80
+      reduced status 1                                     58
+      reduced status 2                                     22
+      final activity vs ORIGINAL bounds: I                  6
+      final activity vs ORIGINAL bounds: L                 74
+      REDUCED activity vs WIDENED bounds: u                22
+      REDUCED activity vs WIDENED bounds: l                58
+
+PHANTOM (rewritten to BASIC by another family):
+  records                                                 230
+  of those, the swap FIRED — a logical removed              0
+      column status at its own replay 1                   202
+      column status at its own replay 2                    28
+      final row activity class I                          120
+      final row activity class L                          110
+
+######## kennington ########
+32 solves; true fired=482 (canary 5902/482) phantom=0 lost=0 nofire=120
+
+TRUE population (column interior at its own replay):
+  swapped — the exchange fired                            482
+  declined: partner in, row interior                        0
+  declined: partner in, row tight, NOT swapped (odd)        0
+  declined: row did not survive (A)                         0
+  declined: this family already swapped the row (C)         0
+  declined: survived, reduced BASIC, overwritten (D)        0
+  declined: reduced solve left it nonbasic (B)              0
+
+PHANTOM (rewritten to BASIC by another family):
+  records                                                   0
+  of those, the swap FIRED — a logical removed              0
+
+# predictions: nl true=5902, phantom=230, lost=0; any PHANTOM swapped>0
+# removes a basis member SINGLETON_ROW already paid for (an under-count
+# the published 48-solve over-count can mask).

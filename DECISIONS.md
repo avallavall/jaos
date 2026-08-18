@@ -147,6 +147,7 @@ and you have the argument. Jump to the entry for the numbers behind it.
 - **[D137](#d137--the-counting-rule-is-published-and-highs-turned-off-the-family-that-costs-us-5902)** — The counting rule is published, and HiGHS turned off the family that costs us 5902
 - **[D138](#d138--every-under-count-is-gone-kenningtons-worst-error-falls-100x-and-the-sum-was-the-wrong-target)** — Every under-count is gone, Kennington's worst error falls 100x, and the sum was the wrong target
 - **[D139](#d139--kennington-publishes-a-valid-basis-on-every-solve-and-netlibs-worst-error-falls-from-596-to-23)** — Kennington publishes a valid basis on every solve, and netlib's worst error falls from 596 to 23
+- **[D140](#d140--the-80-are-an-exact-degenerate-tie-the-recovery-division-rounds-off-and-the-swaps-guard-reads-a-status-another-family-rewrites)** — The 80 are an exact degenerate tie the recovery division rounds off, and the swap's guard reads a status another family rewrites
 
 ---
 
@@ -10455,3 +10456,67 @@ believing it is a second defect; and **108 whose row is not on a bound**,
 where making the logical nonbasic would claim a bound the row does not rest
 on. Plus D136's **40 singleton rows** whose final activity misses its bound by
 about 1e-16 of the row's traffic.
+
+## D140 — The 80 are an exact degenerate tie the recovery division rounds off, and the swap's guard reads a status another family rewrites
+
+**The question, as asked.** D139 left 80 netlib firings declining the swap
+because the row logical is "already nonbasic", which contradicts the swap's
+own derivation (an interior recovery forces the reduced activity strictly
+inside the widened row bounds, so the logical had to be basic). D135 had read
+the *published* status and assumed the row's survival without checking
+either, so `TODO.md` ordered a re-measure before believing it is a second
+defect. Expected: some of the 80 would turn out to be rows that never
+survived, with the status written by whichever family removed them.
+
+**The measurement** (`bench/measurements/02-49/`, two probes, predictions
+stated in each script before its run). The first probe failed its canary —
+6132 records read a BASIC column at the guard against D134's 5902 — and the
+failure located a second finding before the first question was answered:
+`JM_PS_SINGLETON_ROW`'s replay writes `sol_col_status[j] = BASIC` for its own
+column (`src/presolve.c:2132`), and that column can be one a `SINGLETON_COL`
+record restored earlier in the same LIFO walk, so the guard at
+`src/presolve.c:1881` reads the rewrite, not the recovery. The second probe
+stores the column's status at its own replay write and separates the
+populations: netlib true 5902 exactly, phantom 230, lost 0; Kennington
+482 / 0 / 0, all four canaries exact.
+
+Of the 5902: **5670 swapped, 152 declined with the row interior, 80 declined
+with the logical nonbasic — and every one of the 80 survived** with the
+reduced solve resting the logical **exactly on the widened row bound**, 58 on
+the widened lower as `AT_LOWER`, 22 on the widened upper as `AT_UPPER`,
+matching one for one. The sum closes: 232 unpaid plus D136's 40 is +272,
+02-48's published netlib SUM exactly.
+
+**What the 80 are.** A legitimate degenerate vertex of the reduced model. At
+activity exactly `rl − a·hi`, the exact recovery is `(rl − rest)/a = hi` —
+the column AT its bound, nonbasic, no drift. The replay's division rounds it
+a few ulps interior, the interior test calls the column BASIC, and the basis
+gains an unpaid member. After the full replay 74 of the 80 rows land exactly
+ON their original bound: the row is binding, its nonbasic logical is correct,
+and the interior `xv` is rounding noise from the recovery. **The derivation
+is not wrong and there is no second defect; its premise fails only on the
+exact tie.**
+
+**What was refuted.** The row-did-not-survive explanation: zero of the 80.
+An earlier swap of the same family taking the logical: zero. A surviving
+row's reduced-BASIC status overwritten by anything: zero. And D135's 5714/108
+split of the tight/loose boundary: its probe classified after the replay loop
+but before the final carry fold, so 44 rows it called tight are loose on the
+folded activity the shipped swap actually reads — 5670/152 are the operative
+numbers, and this is the fourth partial-activity misread in five probes on
+this machinery.
+
+**The phantom 230** (202 `AT_LOWER`, 28 `AT_UPPER` at their own replay) fired
+the swap zero times on the current sets, so the guard defect costs nothing
+today. It stays a live premise violation: a firing would remove a logical
+whose basis slot `SINGLETON_ROW` already paid with its own restored row. The
+value test `sol_col[j] == rec->lo || == rec->hi` reproduces the replay's
+decision bit for bit and cannot be rewritten; it is the hardening candidate.
+
+**Left open, in `TODO.md`.** The 80's repair candidate — at the singleton-col
+replay the surviving row's status still holds the reduced solve's answer, so
+a nonbasic status names the exact bound and the exact `xv`; snapping moves
+published values by ulps and digests with them, so it is a value change with
+the full gate, not a status edit. The 152, now the largest class, with no
+local exchange. And the guard hardening, behaviour-identical today by this
+measurement.

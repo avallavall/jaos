@@ -16,6 +16,10 @@ are D138's and D139's, both in `src/presolve.c`, both status-only: the gate is
 `make test`, `make test EXTRA_CFLAGS=-DJAOS_NO_PRESOLVE` and `make sanitize`
 all exit 0.
 
+**D140 landed after that state was written and it changes no source**: the
+re-measure of the 80 (measurement only, `bench/measurements/02-49/`), so the
+paragraph above still holds.
+
 **Read this before judging any basis work.** The gate cannot see a basis.
 `bench/run.c` says so: the digest covers x and y and not the statuses, so *"a
 change that moves only the basis is invisible to all three sets"*. D138 and
@@ -219,18 +223,35 @@ variable brought *in*.
 **Do these in order.**
 
 1. **48 netlib solves still publish a wrong count, in three named shapes.**
-   All three are counted and none is repaired.
-   - **80 firings whose row logical is already nonbasic** when the singleton
-     column comes back interior (D135). That contradicts the derivation the
-     swap rests on, so it may be a second defect. **Re-measure first**: D135
-     read the PUBLISHED status, not the status in the reduced solve, and a
-     later record can overwrite it.
-   - **108 firings whose row is not on a bound**, where making the logical
-     nonbasic would claim a bound the row does not rest on (D135).
+   All three are counted and none is repaired. The re-measure this item
+   ordered is done (**D140**, `bench/measurements/02-49/`) and it moved two
+   of the three numbers.
+   - **80 firings whose row logical the REDUCED solve left nonbasic**, all
+     surviving, resting exactly on the widened row bound (58 lower, 22
+     upper). Not a second defect: at that degenerate vertex the exact
+     recovery is the column AT its bound; the replay's division rounds it
+     ulps interior and the interior test then makes it an unpaid `BASIC`.
+     The repair candidate is in D140: at the singleton-col replay the
+     surviving row's status still holds the reduced answer, and a nonbasic
+     status names the exact bound and the exact `xv`. Snapping to it moves
+     published values by ulps and digests with them — a value change, full
+     gate plus `numerics-reviewer` plus `jaos-measurer`, not a status edit.
+   - **152 firings whose row is not on a bound**, where making the logical
+     nonbasic would claim a bound the row does not rest on. D135 said 108:
+     its probe read the activity before the final carry fold, and 44 of its
+     "tight" rows are loose on the folded value the shipped swap reads
+     (D140). No local exchange exists; this is now the largest class.
    - **40 singleton rows** whose final activity misses its bound by about
      1e-16 of the row's own traffic (D136). They fall through to `BASIC`. No
      tolerance for them has been measured, and D8 means any such window needs
      a sweep on both sides.
+   And one latent guard defect, no cost today (D140): **the swap's guard
+   reads `sol_col_status`, which `SINGLETON_ROW`'s replay rewrites to
+   `BASIC` for its own column** (`src/presolve.c:2132`) — 230 netlib records
+   read BASIC at the guard that were nonbasic at their own replay. The swap
+   fired on zero of them, but a firing would remove a logical whose slot
+   `SINGLETON_ROW` already paid. Hardening: guard on
+   `sol_col[j] == rec->lo || == rec->hi`, bit-identical today by 02-49.
    `boeing1` is the control for a second mechanism: its stored count is right
    and its reduced count still is not. Presolve's *mapping* is exact (0
    identity failures of 88), so nothing there needs touching.
@@ -247,13 +268,16 @@ variable brought *in*.
    family costing +5902 here. Not an argument to disable it — D95 and D106 are
    this project's own measurements of its value — but it belongs beside them.
    **A row's activity is not final until every record touching it has
-   replayed** (`ps_row_add` accumulates), so anything reading it has to read it
-   after the replay. **This has produced a wrong number three times in three
-   probes.** It cost D135 a pass and would have killed that design — 0 valid
-   swaps where there are 5714 — and it cost D136 two, the second of which would
-   have claimed the published point violates complementary slackness. **And the
-   solver itself does it**, in the `SINGLETON_ROW` case: that is the +1
-   combination.
+   replayed AND the carry is folded** (`ps_row_add` accumulates, and the fold
+   `sol_row[i] = ps_published(sol_row[i] + rowc[i])` runs after the whole
+   replay), so anything reading it has to read it after both. **This has
+   produced a wrong number four times in five probes.** It cost D135 a pass
+   and would have killed that design — 0 valid swaps where there are
+   thousands — then its corrected pass still read before the fold and called
+   44 loose rows tight (D140); and it cost D136 two, the second of which
+   would have claimed the published point violates complementary slackness.
+   **And the solver itself does it**, in the `SINGLETON_ROW` case: that is
+   the +1 combination.
 2. **`jm_model_remember_basis` should check.** One guard makes the invariant
    honest. On its own it changes nothing measurable — a stored basis failing
    the count is already rejected by `build_warm_basis` — so it belongs with
