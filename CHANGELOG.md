@@ -65,6 +65,20 @@ open, `bench/README.md` for the gate, and the commit each entry came from.
 
 ### Fixed
 
+- **A repayment restores the cost instead of subtracting the loan.** The dual
+  method borrows costs to keep dual feasibility; calling one in used to
+  subtract the record back out, which is not bit-exact. On `pilotnov` under a
+  refused presolve candidate the loans on one column reached 1.6e+32 against a
+  cost of magnitude one, 67 costs ended permanently wrong with the worst off by
+  55.11, and the solve published an objective 29% off as `optimal`. A
+  write-once `cost0` now holds the model's own scaled cost and both repayment
+  sites restore from it; `primal_cleanup` moves the reduced cost by what the
+  cost actually moved, not by the record. Gate green on all three sets;
+  geometric mean **1.0001x** on netlib and **0.9975x** on Kennington; 29 of 29
+  infeasible instances bit-identical; iterations move on one instance of 139;
+  34 solution digests move where the round trip was not exact. `jaos-measurer`
+  returned ACCEPT from its own binaries (D122).
+
 - **`make test EXTRA_CFLAGS=-DJAOS_NO_PRESOLVE` is green for the first time.**
   Two tests in `tests/test_presolve.c` pinned a presolved value with no
   reference-build case, so the project's only oracle for output no predicate of

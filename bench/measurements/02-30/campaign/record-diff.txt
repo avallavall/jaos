@@ -1,0 +1,106 @@
+========================================================================
+bench/results/netlib.txt  vs  HEAD:bench/results/netlib.txt
+========================================================================
+94 instances compared: 70 bit-identical, 24 moved, 24 digest change(s)
+
+-- no regression --
+
+-- changes within threshold --
+  DIGEST             25fv47         72e8ffac357e2924 -> a79e3eb972e3852c
+  DIGEST             80bau3b        b1b6e95e29f002fe -> dac76f30d2294da4
+  RSUB               agg2           4.79e-17 -> 4.76e-17
+  DIGEST             agg2           b22539550851a135 -> 6d9df2fd870fa615
+  RSUB               bnl1           8.99e-15 -> 7.09e-15
+  DIGEST             bnl1           a9be7da74e11462e -> 37b84515f7201067
+  RSUB               bnl2           3.05e-15 -> 2.99e-15
+  DIGEST             bnl2           421419c74d01dad2 -> 348a7a01a21f6287
+  RSUB               boeing1        5.84e-16 -> 3.87e-16
+  DIGEST             boeing1        04428920c442e95d -> c92c2ca92edd9d92
+  RSUB               boeing2        1.71e-16 -> 1.53e-16
+  DIGEST             boeing2        46c9955e917419e0 -> 5a1e82acd523cd3d
+  RSUB               czprob         5.33e-17 -> 5.28e-17
+  DIGEST             czprob         ea040c99182ade27 -> 75429bd49fc21996
+  DIGEST             d2q06c         6875f28fb10884d8 -> dac50ed571457570
+  RSUB               degen3         3.29e-16 -> 7.01e-16
+  DIGEST             degen3         ab3fd3f42a7f1b5a -> dfa89a5052bc735e
+  RSUB               dfl001         3.01e-13 -> 1.9e-13
+  DIGEST             dfl001         0085a0850f439d6a -> 7db5aa031c48bdec
+  RSUB               fit1p          4.05e-17 -> 3.98e-17
+  DIGEST             fit1p          a109f2bedbd7e007 -> 39a62be946d0cb3f
+  RSUB               fit2p          4.12e-17 -> 4.06e-17
+  DIGEST             fit2p          533bf32ff75a958f -> e32d1531bd9a937b
+  WORK               ganges         3933413 -> 3936164  (1.001x)
+  RSUB               ganges         1.03e-14 -> 1.17e-14
+  DIGEST             ganges         c07e652bf08219d0 -> 835e3e5f67a09883
+  WORK               grow22         493885827 -> 493924877  (1x)
+  RSUB               grow22         2.33e-14 -> 1.12e-14
+  DIGEST             grow22         a33ad44cab30f6e7 -> 24cf4ef1b8bf80d3
+  WORK               pilot          4684286357 -> 4720835944  (1.008x)
+  ITERS              pilot          23265 -> 23331
+  DIGEST             pilot          ddd740d788a0ca88 -> 477482794ddc6f4b
+  WORK               pilot87        18818789200 -> 18818789905  (1x)
+  DIGEST             pilot87        b8fd97f02fe70a20 -> 7cd0fd965cf1c2f5
+  DIGEST             scsd1          06b040903a3e28e9 -> 36e9712cf66769f3
+  DIGEST             scsd6          69c7f326027273ec -> 7e72a8ea9498fd4e
+  RSUB               scsd8          4.12e-16 -> 3.97e-16
+  DIGEST             scsd8          b98284afc61ed8dc -> c2fe9599e47d50f8
+  RSUB               sctap1         7.66e-17 -> 2.98e-17
+  DIGEST             sctap1         c66f983df64d64cc -> 396d940f0c55d012
+  RSUB               sctap2         6.8e-17 -> 4.58e-17
+  DIGEST             sctap2         5b061d078697ca2d -> fcf214e7ec69826a
+  RSUB               sctap3         3.65e-17 -> 1.98e-17
+  DIGEST             sctap3         49ebd9c847b1a0bb -> 146855c9209aabc4
+  DIGEST             truss          b03cc2644380ef0f -> a77794d07f2018c7
+  FIGURE             cert           changed on 3 instance(s): sctap1, sctap2, sctap3
+  FIGURE             gap            changed on 18 instance(s): agg2, bnl1, boeing1, boeing2, czprob, degen3, ...
+  FIGURE             obj            changed on 1 instance(s): pilot
+  FIGURE             rays           changed on 2 instance(s): pilot87, sctap2
+  FIGURE             row            changed on 2 instance(s): grow22, pilot
+  FIGURE             rowrel         changed on 2 instance(s): grow22, pilot
+  FIGURE             sub            changed on 7 instance(s): bnl1, boeing1, degen3, dfl001, pilot, pilot87, ...
+
+========================================================================
+bench/results/netlib-infeas.txt  vs  HEAD:bench/results/netlib-infeas.txt
+========================================================================
+29 instances compared: 29 bit-identical, 0 moved, 0 digest change(s)
+
+-- no regression --
+
+Every instance is bit-identical to the committed record.
+That is the strongest available evidence a change is a no-op.
+
+========================================================================
+bench/results/netlib-kennington.txt  vs  HEAD:bench/results/netlib-kennington.txt
+========================================================================
+16 instances compared: 6 bit-identical, 10 moved, 10 digest change(s)
+
+-- no regression --
+
+-- changes within threshold --
+  WORK               cre-b          659271034 -> 659260362  (1x)
+  RSUB               cre-b          1.88e-14 -> 1.83e-14
+  DIGEST             cre-b          c348d671dc12207d -> 666b514fea6d611d
+  RSUB               cre-c          7.74e-15 -> 7.78e-15
+  DIGEST             cre-c          88bd7a3c218d1699 -> fb0d015e4e0e6ca9
+  RSUB               cre-d          1.93e-14 -> 1.79e-14
+  DIGEST             cre-d          b96e47f53e27ecfd -> 5116fa8c18d35854
+  RSUB               ken-18         4.19e-14 -> 4.18e-14
+  DIGEST             ken-18         f02d0d5032557320 -> 53b118500a4ae002
+  RSUB               osa-14         2.06e-17 -> 2.02e-17
+  DIGEST             osa-14         a33df76df56ec82b -> 1116bef4483891bc
+  RSUB               osa-30         2.29e-17 -> 2.27e-17
+  DIGEST             osa-30         2d38570a790cbba2 -> 37573412fc056df9
+  RSUB               osa-60         2.5e-17 -> 2.81e-17
+  DIGEST             osa-60         7e9a0cb8313a3b69 -> 8dbe5042cda08b21
+  WORK               pds-06         230279104 -> 224969743  (0.9769x)
+  RSUB               pds-06         3.06e-16 -> 5.65e-17
+  DIGEST             pds-06         db4ef13954db348e -> dcaee8d62b6aab5e
+  WORK               pds-10         763117711 -> 754490940  (0.9887x)
+  RSUB               pds-10         5.24e-18 -> 1.54e-18
+  DIGEST             pds-10         d9e16561b2f7474a -> 6eb9211e7fe284aa
+  WORK               pds-20         6187887333 -> 6153417062  (0.9944x)
+  RSUB               pds-20         7.4e-16 -> 9.5e-16
+  DIGEST             pds-20         f9be7eb799d08dc3 -> 8c56ee4fa1dff967
+  FIGURE             gap            changed on 7 instance(s): cre-b, osa-14, osa-30, osa-60, pds-06, pds-10, ...
+  FIGURE             sub            changed on 1 instance(s): pds-20
+

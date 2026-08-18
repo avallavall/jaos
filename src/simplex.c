@@ -304,8 +304,35 @@ typedef struct {
      * first, then the logicals that carry row activities. `cost` is the
      * working cost, which is the model's plus whatever has been shifted
      * into it; `shift` is the record of exactly that, so the loan can be
-     * called in at the end. */
+     * called in at the end.
+     *
+     * `cost0` is the model's own scaled cost, written once and never again,
+     * and calling a loan in RESTORES from it rather than subtracting the
+     * record back out. Subtracting is what a repayment used to do and it is
+     * not bit-exact: `x += d` then `x -= d` does not return `x`. On
+     * `pilotnov`, **under the presolve reordering D118 refused**, the loans on
+     * one column reached 1.6e+32 against a cost of magnitude one, which left
+     * 67 costs permanently wrong, the worst of them off by 55.11, and the
+     * solve published an objective 29% off as optimal (D121).
+     *
+     * No instance of the three gate sets reaches that, and `pilotnov` at HEAD
+     * is bit-identical either way. What the sets do reach is the same
+     * inexactness at a harmless size: 34 of their solution digests move when
+     * the repayment becomes exact, and the residuals mostly improve with them
+     * (D122). The defect is reachable and small everywhere it was looked for
+     * — which is the argument for repairing it rather than bounding it.
+     *
+     * What makes the restore exact is only that `cost0` is the model's own
+     * by construction. **There is no `cost[v] == cost0[v] + shift[v]`
+     * invariant** and this comment used to claim one: `shift_to_feasible`
+     * accumulates into the two arrays separately and they round apart at the
+     * first lend that is large against the cost — `cost0 = 1`, one lend of
+     * 1e17, and `cost` is 1e17 while `cost0 + shift` is 1e17 + 1. Every
+     * reader who needs to know how much a cost moved must therefore compute
+     * `cost[v] - cost0[v]` and never read `shift[v]` for it. Found by
+     * `numerics-reviewer`. */
     double *lo, *up, *cost;
+    double *cost0;           /* [nvar] the model's own, never written twice */
     double *shift;           /* [nvar] */
 
     jm_var_status *status;   /* [nvar] */
@@ -516,7 +543,7 @@ typedef struct {
 static void sx_free(sx *s)
 {
     free(s->av); free(s->arv);
-    free(s->lo); free(s->up); free(s->cost); free(s->shift);
+    free(s->lo); free(s->up); free(s->cost); free(s->cost0); free(s->shift);
     free(s->status); free(s->basis); free(s->where);
     free(s->xb); free(s->d); free(s->dse);
     free(s->col); free(s->raw); free(s->y); free(s->rho);
@@ -588,6 +615,7 @@ static jaos_status sx_init(sx *s, jaos_model *m)
     s->lo     = jm_alloc_array(s->nvar, sizeof(double));
     s->up     = jm_alloc_array(s->nvar, sizeof(double));
     s->cost   = jm_calloc_array(s->nvar, sizeof(double));
+    s->cost0  = jm_calloc_array(s->nvar, sizeof(double));
     s->shift  = jm_calloc_array(s->nvar, sizeof(double));
     s->status = jm_alloc_array(s->nvar, sizeof(jm_var_status));
     s->basis  = jm_alloc_array(s->nrow, sizeof(int64_t));
@@ -618,7 +646,8 @@ static jaos_status sx_init(sx *s, jaos_model *m)
     s->bs     = jm_alloc_array(s->nrow + 1, sizeof(int64_t));
     s->fake   = jm_calloc_array(s->nvar, sizeof *s->fake);
 
-    if (!s->av || !s->arv || !s->lo || !s->up || !s->cost || !s->shift ||
+    if (!s->av || !s->arv || !s->lo || !s->up || !s->cost || !s->cost0 ||
+        !s->shift ||
         !s->status || !s->basis ||
         !s->where || !s->xb || !s->d || !s->dse || !s->col || !s->raw ||
         !s->y || !s->rho || !s->tau || !s->alpha || !s->apat || !s->amark ||
@@ -673,6 +702,10 @@ static jaos_status sx_init(sx *s, jaos_model *m)
         s->up[s->ncol + i] = m->row_upper[i] * rho[i];
         s->cost[s->ncol + i] = 0.0;
     }
+    /* The one write to cost0, and the only reason a repayment can be exact.
+     * Everything after this line borrows from `cost` and gives back from
+     * here (D121). */
+    memcpy(s->cost0, s->cost, (size_t)s->nvar * sizeof *s->cost0);
     return JAOS_OK;
 }
 
@@ -2373,14 +2406,33 @@ static void repair_dual_infeasibility(sx *s)
 
 /* Calls in every cost the solve borrowed. Says whether anything was owed,
  * because a solve that borrowed nothing has duals that already price the
- * model's own costs and recomputing them would only add rounding. */
+ * model's own costs and recomputing them would only add rounding.
+ *
+ * The cost is RESTORED from `cost0` rather than having the loan subtracted
+ * back out, and the two are not the same thing. Subtracting is `x += d`
+ * followed by `x -= d`, which does not return `x`: on `pilotnov` under the
+ * presolve reordering D118 refused, the loans on one column summed to 1.6e+32
+ * against a cost of magnitude one, and the round trip left 67 costs
+ * permanently wrong, the worst by 55.11, with every shift record correctly at
+ * zero. The solve then priced an objective nobody asked for, called it dual
+ * feasible, and published a result 29% off as optimal (D121). Restoring is
+ * exact and needs no argument about magnitudes.
+ *
+ * The test is on the COST and not on the record alone. A column whose cost
+ * moved while its record came back to exactly zero is the case D121 measured
+ * 186 of on `pilotnov`, and it is reachable by plain cancellation as well:
+ * lend +1e17 against a cost of 1, later lend -1e17, and `cost` is 0 with
+ * `shift` at 0 and the model's own 1 gone. Gating on the record alone would
+ * skip it, and would also return `false` here, so `settle_shifts` would not
+ * even re-price it. With the cost compared, no column can leave a settle
+ * different from `cost0`. Found by `numerics-reviewer`. */
 static bool repay_shifts(sx *s)
 {
     bool any = false;
     for (int64_t v = 0; v < s->nvar; v++) {
-        if (s->shift[v] == 0.0)
+        if (s->cost[v] == s->cost0[v] && s->shift[v] == 0.0)
             continue;
-        s->cost[v] -= s->shift[v];
+        s->cost[v] = s->cost0[v];
         s->shift[v] = 0.0;
         any = true;
     }
@@ -2525,19 +2577,30 @@ static bool save_settled(sx *s)
  * that is being discarded. */
 /* The objective of the point as it stands, on the model's own costs.
  *
- * Called only where the loans are settled, so `cost` is the model's and the
- * subtraction of `shift` is belt and braces rather than arithmetic that
- * matters. Scaling cancels: a column's scaled cost is `c_j * gamma_j` and its
- * scaled value `x_j / gamma_j`, so the product is the model's own — which is
- * what makes this comparable across rounds without leaving the solver's
- * space, and is the same cancellation D87 relies on. */
+ * `cost0` is read rather than `cost - shift`, and that is not a tidy-up. The
+ * subtraction used to be described here as belt and braces; with a loan large
+ * against the cost it lands on, it is the perturbed objective wearing the
+ * model's name (D121). cost0 is the model's own by construction.
+ *
+ * Scaling cancels: a column's scaled cost is `c_j * gamma_j` and its scaled
+ * value `x_j / gamma_j`, so the product is the model's own — which is what
+ * makes this comparable across rounds without leaving the solver's space, and
+ * is the same cancellation D87 relies on. */
 static double settled_objective(const sx *s)
 {
+#ifndef NDEBUG
+    /* The precondition, enforced rather than commented. Every caller today
+     * reaches this with the loans settled; reading `cost0` unconditionally is
+     * only right while that holds, and a future caller must not be able to
+     * break it in silence. Costs the release build nothing. */
+    for (int64_t v = 0; v < s->nvar; v++)
+        assert(s->shift[v] == 0.0 && s->cost[v] == s->cost0[v]);
+#endif
     double obj = 0.0;
     for (int64_t v = 0; v < s->nvar; v++) {
         double x = s->status[v] == JM_BASIC ? s->xb[s->where[v]]
                                             : nonbasic_value(s, v);
-        obj += (s->cost[v] - s->shift[v]) * x;
+        obj += s->cost0[v] * x;
     }
     return obj;
 }
@@ -2997,9 +3060,21 @@ static jaos_status primal_cleanup(sx *s, int64_t *pivots)
          * reveals must not read a cost that has just been papered over.
          * Shifting a nonbasic's cost moves only its own reduced cost, which
          * is what makes taking it back here exact and local. */
-        if (s->shift[q] != 0.0) {
-            s->cost[q] -= s->shift[q];
-            s->d[q] -= s->shift[q];
+        if (s->cost[q] != s->cost0[q] || s->shift[q] != 0.0) {
+            /* Restored from cost0, not subtracted back — repay_shifts
+             * carries both arguments (D121, and the test on the cost rather
+             * than on the record alone).
+             *
+             * `d` moves by the amount the COST actually moved, which is not
+             * `shift[q]`: `d` is `cost[q] - y·M_q` by definition, so any
+             * other step leaves the two disagreeing by exactly the drift
+             * this repair exists to remove — on the one quantity that then
+             * decides the pivot, since `breached` reads `d[q]` four lines
+             * down and `theta_dual` carries it into every other reduced cost
+             * through `update_dual`. Found by `numerics-reviewer`. */
+            const double give_back = s->cost[q] - s->cost0[q];
+            s->cost[q] = s->cost0[q];
+            s->d[q] -= give_back;
             s->shift[q] = 0.0;
             s->duals_dirty = true;   /* q's cost may now breach its bound */
         }

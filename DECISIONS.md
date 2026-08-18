@@ -129,6 +129,7 @@ and you have the argument. Jump to the entry for the numbers behind it.
 - **[D119](#d119--pilotnovs-wrong-answer-is-the-refactorization-interval-and-the-termination-test-never-re-reads-dual-feasibility)** — pilotnov's wrong answer is the refactorization interval, and the termination test never re-reads dual feasibility
 - **[D120](#d120--the-same-reduced-lp-solved-twice-both-points-dual-feasible-by-the-solvers-own-reading-and-29-apart)** — The same reduced LP solved twice: both points dual-feasible by the solver's own reading, and 29% apart
 - **[D121](#d121--the-shift-round-trip-is-not-bit-exact-and-on-pilotnov-it-destroys-67-costs-one-by-5511)** — The shift round trip is not bit-exact, and on pilotnov it destroys 67 costs, one by 55.11
+- **[D122](#d122--a-repayment-restores-the-cost-instead-of-subtracting-the-loan-and-costs-10001x)** — A repayment restores the cost instead of subtracting the loan, and costs 1.0001x
 
 ---
 
@@ -9141,3 +9142,141 @@ sum is known no more finely than its terms.
 
 **Left open, in `TODO.md` §5a**, now with the mechanism named rather than the
 symptom.
+
+---
+
+## D122 — A repayment restores the cost instead of subtracting the loan, and costs 1.0001x
+
+**The question.** D121 located a defect and did not repair it. The dual method
+borrows costs to keep dual feasibility, and repaying subtracted the recorded
+loan back out — `x += d; x -= d`, which does not return `x`. On `pilotnov`
+under D118's refused presolve candidate the loans on one column total 1.6e+32
+against a cost of magnitude at most one, 67 costs end permanently wrong with
+the worst off by 55.11, and every `shift` record reads zero. The solve then
+priced an objective nobody asked for, was dual feasible against it, and
+published a result 29% off as `optimal`. `TODO.md` §5a offered two repairs and
+said to take the cheaper one first because it cannot change a trajectory.
+
+**The change.** A write-once array `cost0` holds the model's own scaled cost,
+and both repayment sites restore from it. `settled_objective` reads `cost0`
+rather than `cost - shift`.
+
+**`numerics-reviewer` read the diff before any campaign, and three of its four
+findings are in the landed change.**
+
+- `primal_cleanup` moved `d[q]` by the recorded loan. `d` is `cost - y·M_q` by
+  definition, so it must move by the amount the **cost** actually moved —
+  otherwise the two disagree by exactly the drift this repair removes, on the
+  one quantity that then decides the pivot. It now moves by
+  `cost[q] - cost0[q]`.
+- Both sites gated the restore on the record alone, so a column whose cost
+  moved while its record came back to zero kept its drift for ever, and
+  `repay_shifts` returning `false` meant `settle_shifts` never re-priced it.
+  That is the case D121 measured **186** of. Both now test the cost.
+- The comment claimed a `cost[v] == cost0[v] + shift[v]` invariant. **There is
+  no such invariant**: the two arrays accumulate separately and round apart at
+  the first lend large against the cost. What makes the restore exact is only
+  that `cost0` is the model's own by construction, and the comment says that
+  instead.
+- Its fourth was a suggestion and is taken: `settled_objective`'s precondition
+  was a comment and is now a debug-only assert. It does not fire anywhere in
+  the suite.
+
+The review also confirmed the change's main risk was absent: every write to
+`s->cost` was enumerated — the two in the scaling pass, `shift_to_feasible`,
+and the two repayments — so no write is silently discarded by restoring.
+
+**Validated against the case it exists for**, both binaries built in one run
+with distinct md5s (`bench/measurements/02-30/run-validate.sh`):
+
+```
+without   obj=-3169.5271937202242   checker REJECTED   dualviol 0.89   gap 0.295
+with      obj=-4497.2761882188706   checker ok         dualviol 0      gap 2.02e-16
+```
+
+87052 iterations against 87432 and 156 stability rebuilds either way, so it
+repairs the answer and not the difficulty — which is what it claims and no
+more.
+
+**The campaign, `bench/measurements/02-30/campaign/`.** All three sets at
+`J=12` against the committed baselines: **`0 regressed, 0 improved, 0 new` on
+all three.** No `objective`, `checker`, `shape` or `det` predicate moves
+anywhere.
+
+| set | bit-identical | moved | digests moved | record's own age |
+|---|---|---|---|---|
+| netlib (94) | 70 | 24 | 24 | **current** |
+| infeasible (29) | **29** | 0 | 0 | 3 `src/` commits behind |
+| Kennington (16) | 6 | 10 | 10 | **7 `src/` commits behind** |
+
+**The last column nearly cost the attribution and one control restores it.**
+`record_diff.py` compares against the record as committed, and only
+`netlib.txt` was committed after the last `src/` change, so Kennington's ten
+moved digests could on the face of it belong to the seven commits its record
+misses. They do not: **the parent binary reproduces all three committed records
+bit-identically**, 94/94, 29/29, 16/16, so those seven were no-ops there, the
+committed record is the parent on this host, and every figure here is this
+change alone. That is the distinction a staleness count cannot make by itself,
+and it is why `preflight.sh` reports one as a count rather than a verdict.
+
+Digests move because an arithmetic result changes on every instance whose round
+trip was not exact, and only there. **`pilot-ja` is bit-identical**, which
+`numerics-reviewer` named before the run as the check that would catch anything
+else having changed: D121 measured it at zero costs moved.
+
+**The cost is a geometric mean of 1.0001x on netlib** — worst `pilot` 1.0078x,
+then `ganges` 1.0007x, every other instance 1.0000x — and **0.9975x on
+Kennington**, best `pds-06` 0.9769x, with nothing there getting dearer.
+**Iterations move on one instance out of 139**, `pilot`, 23265 → 23331.
+
+**`jaos-measurer` returned ACCEPT** from its own binaries, with the controls
+that make the figures readable: the parent reproducing the committed records,
+the candidate repeating byte for byte from `make clean`, `make sanitize` clean,
+and warm measured against a same-tree parent rather than a record that turned
+out to be 21 `src/` commits behind. Residuals over all three sets: 26 changed,
+21 better, 5 worse, and all five that worsened sit at 1e-14 or below, decades
+under `RSUB_FLOOR`.
+
+**The new assert never runs in a release build, and was checked separately.**
+Rebuilt with `EXTRA_CFLAGS=-UNDEBUG`, `settled_objective`'s precondition never
+fired on the 128 instances that completed. The other 11 abort first on a
+pre-existing `assert(want_lo <= want_hi)` at `src/presolve.c:2127` — the same
+eleven `TODO.md` already names under that debt, and the parent aborts on an
+identical list. The consequence had never been written down: **no
+assert-enabled build can run those 11 instances**, so every assert in the solve
+is untested on them, this one included.
+
+**A record's age is now asked before a campaign.** `jaos-measurer` found the
+warm records 21 `src/` commits behind while judging this candidate, and
+`preflight.sh` only ever read the three netlib ones. It asks every record in
+`bench/results/` now, and that is what turned up the other two.
+
+**Residuals mostly improve**: `sctap1` 7.66e-17 → 2.98e-17, `dfl001` 3.01e-13 →
+1.9e-13, `bnl1` 8.99e-15 → 7.09e-15, `boeing1` 5.84e-16 → 3.87e-16. Two go the
+other way inside the same decade, `degen3` 3.29e-16 → 7.01e-16 and `ganges`
+1.03e-14 → 1.17e-14.
+
+**The gate does not reach the failure, and the entry says so.** `pilotnov` is
+**bit-identical on the standard set**, on both sides, `optimal` and
+`objective=ok`. `jaos-measurer` raised this against the change's own
+description and was right to: the defect is reached only under the presolve
+reordering D118 refused, and nothing in the 139 reaches it. The source comments
+said "on `pilotnov`" without that condition and now carry it.
+
+So the case is not that a gate instance was wrong. It is that the failure is
+real, reachable and demonstrated with a negative control in one run; that the
+same inexactness is present all over the gate at a harmless size, which is what
+34 moved digests and improved residuals are; and that it costs 1.0001x. A
+defect that is small on every instance anyone has measured and catastrophic on
+the first one that pushes it is repaired rather than bounded.
+
+**What it does not repair.** The 186 lost loans, which are a separate defect in
+the same machinery — this makes them harmless wherever a settle runs, because
+the cost is restored whatever the record says, and does not explain them. The
+loan's size: a `need` of 1e32 on a cost of one is the sign condition being
+overwritten rather than repaired, and bounding it is §5a's second candidate,
+uncosted. And `pilotnov`'s 30x under D118's candidate: the answer is right now,
+the work is not, so D118 stays refused.
+
+**The three baselines were rewritten deliberately after the diff was read and
+accepted**, and confirmed by a following gate run.
