@@ -124,23 +124,39 @@ it would refuse from a caller.
 basis back except `build_warm_basis`, which refuses it — which is why 21
 `src/` commits passed with nobody noticing.
 
-**The repair is two questions.**
+**The family is `JM_PS_SINGLETON_ROW` (D132).** Every removed entity is
+claimed by a record — `ORPHANED` is 0/0 on all 204 solves — and the four other
+row-restoring families balance exactly: `REDUNDANT_ROW` 1138/1138,
+`FORCING_ROW` 3672/3672, `EMPTY_ROW` 1758/1758, `IMPLIED_FREE_COL` 2088/2088.
 
-1. **`publish` and postsolve should produce a basis.** That is where the count
-   is decided. Presolve's mapping is exact (0 identity failures of 88), so
-   nothing there needs repair. `boeing1` is the one instance whose stored
-   count is right and whose reduced count still is not, so it is the control
-   for the second mechanism: a row removed whose logical was nonbasic.
-2. **`jm_model_remember_basis` should check.** One guard makes the invariant
+**`SINGLETON_ROW` restores 8622 of netlib's rows and marks 1898 of them basic**
+— 78% left nonbasic, on 130 of 172 solves — and 81646/29174 on Kennington.
+The basic-ness is not lost, it moves: its replay writes
+`orig->sol_col_status[j] = JAOS_BASIS_BASIC` for the column its row folded
+into (`src/presolve.c:2037`), and 9770 restored columns come out BASIC on
+netlib where the rows are short by 6724.
+
+**Do these in order.**
+
+1. **The last-writer probe.** 02-42 attributes an entity to the record that
+   *restored* it, which is not the one that *wrote its status last* —
+   `SINGLETON_ROW` writes a status for a column another record restored. The
+   row numbers above are unaffected and stand; the per-family column split
+   does not. A global set before each `ps_replay_one` call and recorded at
+   every `sol_*_status` write inside it settles it.
+2. **Then the repair, in postsolve.** Presolve's mapping is exact (0 identity
+   failures of 88), so nothing there needs touching. `boeing1` is the control
+   for a second mechanism: its stored count is right and its reduced count
+   still is not.
+3. **`jm_model_remember_basis` should check.** One guard makes the invariant
    honest. On its own it changes nothing measurable — a stored basis failing
    the count is already rejected by `build_warm_basis` — so it belongs with
-   (1) rather than instead of it.
+   (2) rather than instead of it.
 
 The standing debt below names one postsolve family and a minimum case of one
 status. **132 solves and a worst error of 12104** make that case a corner of
-this rather than a description of it. Measure the family attribution before
-proposing a repair; this session refused two repairs in §5a that looked
-correct in the source.
+this rather than a description of it. This session refused two repairs in §5a
+that looked correct in the source; measure before proposing.
 
 ### The unclamped dual step, for the record
 

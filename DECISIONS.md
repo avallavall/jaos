@@ -139,6 +139,7 @@ and you have the argument. Jump to the entry for the numbers behind it.
 - **[D129](#d129--the-basis-count-defect-costs-25-of-netlib-and-55-of-kennington-their-warm-start-outright)** — The basis-count defect costs 25% of netlib and 55% of Kennington their warm start outright
 - **[D130](#d130--six-instances-publish-more-basic-variables-than-rows-not-three-and-the-three-with-no-basis-at-all-are-named)** — Six instances publish more basic variables than rows, not three, and the three with no basis at all are named
 - **[D131](#d131--jaos_basis-publishes-something-that-is-not-a-basis-on-70-of-solves-and-presolves-mapping-is-exact)** — `jaos_basis` publishes something that is not a basis on 70% of solves, and presolve's mapping is exact
+- **[D132](#d132--singleton_row-restores-half-of-netlibs-removed-rows-and-leaves-78-of-them-nonbasic)** — `SINGLETON_ROW` restores half of netlib's removed rows and leaves 78% of them nonbasic
 
 ---
 
@@ -9949,3 +9950,63 @@ defect.** `build_warm_basis` rejecting the count is the symptom.
 The standing debt names one postsolve family and a minimum case of one status.
 **The measurement is 132 solves and a worst error of 12104**, so that case is a
 corner of this rather than a description of it.
+
+## D132 — `SINGLETON_ROW` restores half of netlib's removed rows and leaves 78% of them nonbasic
+
+**The question.** D131 established that the published basic count is wrong on
+132 of netlib's 188 optimal solves and that presolve's basis *mapping* is
+exact, which puts the defect in postsolve. Which family?
+
+**The arithmetic a correct postsolve satisfies.** The reduced solve leaves
+exactly `rrow` basic variables and `jm_postsolve_expand` copies those onto the
+surviving rows and columns, so the replay must add exactly one basic variable
+per row it restores.
+
+**Two things are established** (`bench/measurements/02-42/`).
+
+**Every removed row and column is claimed by a record**: `ORPHANED` reads
+`0/0` on all 204 solves. The defect is not an entity nobody restores.
+
+**The row-restoring families balance and one does not:**
+
+| family | basics | rows restored | drift | solves off |
+|---|---|---|---|---|
+| `REDUNDANT_ROW` | 1138 | 1138 | 0 | 0 |
+| `FORCING_ROW` | 3672 | 3672 | 0 | 0 |
+| `EMPTY_ROW` | 1758 | 1758 | 0 | 0 |
+| `IMPLIED_FREE_COL` | 2088 | 2088 | 0 | 0 |
+| **`SINGLETON_ROW`** | **1898** | **8622** | **−6724** | **130 of 172** |
+
+Kennington is the same shape and larger: 81646 rows restored, 29174 basic,
+**−52472**, on 24 of 32 solves. **`SINGLETON_ROW` restores half of netlib's
+removed rows and leaves 78% of them nonbasic.**
+
+**The basic-ness is not lost, it moves to a column.** 9770 restored columns
+come out BASIC on netlib where the rows are short by 6724, and
+`JM_PS_SINGLETON_ROW`'s own replay writes
+`orig->sol_col_status[j] = JAOS_BASIS_BASIC` for the column its row folded
+into (`src/presolve.c:2037`). That is the migration.
+
+**What is NOT established, and it is the probe's fault.** Which family wrote
+each of those column basics. The probe attributes an entity to the record that
+*restored* it, read off the arena, and that is not the record that *wrote its
+status last*: `SINGLETON_ROW` assigns a status to a column a different record
+restored, so a column counted under `FIXED_COL` may carry a status
+`SINGLETON_ROW` wrote. **The row numbers do not have this problem** — no
+family writes a row another family restored — which is why the `SINGLETON_ROW`
+deficit stands and the column split does not. Settling it needs a last-writer
+probe, and that is the next step rather than a guess.
+
+**Two probe errors, both caught before publication.** Ownership was read
+forwards while the replay is strictly LIFO (D-07), so the lowest arena index
+writes last; walking forwards records the first writer instead. Fixing it
+returned **identical** numbers, which is itself the finding that no entity is
+claimed by two records. And a helper placed before the includes does not
+compile, because the tag enum is declared in `jaos_internal.h`.
+
+**Nothing changed and nothing is proposed.** No source file was touched, and
+no repair is costed. The gate is unaffected: this is published output that
+nothing in the solve reads back except `build_warm_basis` (D131).
+
+**Left open, in `TODO.md`.** The last-writer probe, then the repair. The
+repair now has a family to aim at and a number to beat.

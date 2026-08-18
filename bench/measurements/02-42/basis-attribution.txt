@@ -1,0 +1,35 @@
+# Which family unbalances the published basic count?
+#
+# Each entry is TAG=basics/rows/drift over the entities that tag owns.
+# A correct replay adds one basic per row it restores, so drift 0.
+# SURV is what the reduced solve contributed; ORPHAN is anything no
+# record claimed, which should be nothing.
+
+######## netlib ########
+172 solves
+family                   basics       rows        DRIFT      owned cols BASIC solves off
+REDUNDANT_ROW              1138       1138            0       1138          0          0
+SINGLETON_COL              6132          0         6132      17234       6132         98
+FORCING_ROW                3672       3672            0       3672          0          0
+IMPLIED_FREE_COL           2088       2088            0       4176       2088          0
+EMPTY_ROW                  1758       1758            0       1758          0          0
+FIXED_COL                  3620          0         3620      32000       3620        106
+SINGLETON_ROW              1898       8622        -6724       8622          0        130
+EMPTY_COL                    18          0           18       2148         18          6
+survivors                149152     148294            -          -
+ORPHANED                      0          0            0          0
+
+######## kennington ########
+32 solves
+family                   basics       rows        DRIFT      owned cols BASIC solves off
+REDUNDANT_ROW               296        296            0        296          0          0
+SINGLETON_COL               482          0          482        602        482          8
+FORCING_ROW               10272      10272            0      10272          0          0
+EMPTY_ROW                 11150      11150            0      11150          0          0
+FIXED_COL                 77644          0        77644     254740      77644         22
+SINGLETON_ROW             29174      81646       -52472      81646          0         24
+survivors                411412     411412            -          -
+ORPHANED                      0          0            0          0
+
+# canary: solves > 0 says the observer ran; a probe that never ran and
+# one where every family balances look alike otherwise.
