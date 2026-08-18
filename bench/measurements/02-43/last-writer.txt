@@ -1,0 +1,38 @@
+# Which record wrote each published status LAST?
+#
+# TAG=basics/rows/drift, attributed at the moment of the write, so a
+# branch not taken records nothing. UNWRITTEN is what no record touched
+# — the survivors, whose status the reduced solve set.
+#
+# A correct replay adds one basic per row it writes, so drift 0.
+
+######## netlib ########
+172 solves
+last writer              basics       rows        DRIFT solves off
+REDUNDANT_ROW              1138       1138            0          0
+SINGLETON_COL              5902          0         5902         96
+FORCING_ROW                3672       3672            0          0
+IMPLIED_FREE_COL           2088       2088            0          0
+EMPTY_ROW                  1758       1758            0          0
+FIXED_COL                     0          0            0          0
+SINGLETON_ROW              6624       8622        -1998        102
+EMPTY_COL                     0          0            0          0
+UNWRITTEN (survivors)     148294     148294            0
+
+published basics 169476 against num_row 165572  ->  off by 3904
+
+######## kennington ########
+32 solves
+last writer              basics       rows        DRIFT solves off
+REDUNDANT_ROW               296        296            0          0
+SINGLETON_COL               482          0          482          8
+FORCING_ROW               10272      10272            0          0
+EMPTY_ROW                 11150      11150            0          0
+FIXED_COL                     0          0            0          0
+SINGLETON_ROW            106818      81646        25172         24
+UNWRITTEN (survivors)     411412     411412            0
+
+published basics 540430 against num_row 514776  ->  off by 25654
+
+# canary: solves > 0 says the observer ran, and the off-by line must
+# equal the sum of the drifts above it or the attribution is incomplete.

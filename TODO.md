@@ -124,34 +124,49 @@ it would refuse from a caller.
 basis back except `build_warm_basis`, which refuses it — which is why 21
 `src/` commits passed with nobody noticing.
 
-**The family is `JM_PS_SINGLETON_ROW` (D132).** Every removed entity is
-claimed by a record — `ORPHANED` is 0/0 on all 204 solves — and the four other
-row-restoring families balance exactly: `REDUNDANT_ROW` 1138/1138,
-`FORCING_ROW` 3672/3672, `EMPTY_ROW` 1758/1758, `IMPLIED_FREE_COL` 2088/2088.
+**Two families are the whole of it, and the sum closes exactly (D133).** The
+writer is recorded at the moment of each write, so the attribution is not an
+inference:
 
-**`SINGLETON_ROW` restores 8622 of netlib's rows and marks 1898 of them basic**
-— 78% left nonbasic, on 130 of 172 solves — and 81646/29174 on Kennington.
-The basic-ness is not lost, it moves: its replay writes
-`orig->sol_col_status[j] = JAOS_BASIS_BASIC` for the column its row folded
-into (`src/presolve.c:2037`), and 9770 restored columns come out BASIC on
-netlib where the rows are short by 6724.
+| last writer | netlib | Kennington |
+|---|---|---|
+| `REDUNDANT_ROW`, `FORCING_ROW`, `EMPTY_ROW`, `IMPLIED_FREE_COL` | 0 | 0 |
+| `FIXED_COL`, `EMPTY_COL` | **0** | **0** |
+| survivors | 0 | 0 |
+| **`SINGLETON_COL`** | **+5902** | **+482** |
+| **`SINGLETON_ROW`** | **−1998** | **+25172** |
+| sum = published error | **+3904** | **+25654** |
+
+Nothing is unaccounted for and the survivors balance, so the reduced solve's
+basis is a basis and nothing upstream of the replay is wrong.
+
+**`SINGLETON_COL` is one line** (`src/presolve.c:2131`):
+
+```c
+orig->sol_col_status[j] =
+    (xv == rec->hi) ? JAOS_BASIS_AT_UPPER : JAOS_BASIS_BASIC;
+```
+
+**Its row survives** — the record's `index` names a row that stays, relaxed —
+so it restores a column, marks it `BASIC` whenever the value is not at `hi`,
+and no row comes back to pay for the basis position. +1 per firing.
+
+**`SINGLETON_ROW` changes sign between the sets**, −1998 on netlib and +25172
+on Kennington, because it writes both its restored row's status and the status
+of the column that row folded into. **Count its branches before proposing
+anything.**
 
 **Do these in order.**
 
-1. **The last-writer probe.** 02-42 attributes an entity to the record that
-   *restored* it, which is not the one that *wrote its status last* —
-   `SINGLETON_ROW` writes a status for a column another record restored. The
-   row numbers above are unaffected and stand; the per-family column split
-   does not. A global set before each `ps_replay_one` call and recorded at
-   every `sol_*_status` write inside it settles it.
-2. **Then the repair, in postsolve.** Presolve's mapping is exact (0 identity
-   failures of 88), so nothing there needs touching. `boeing1` is the control
-   for a second mechanism: its stored count is right and its reduced count
-   still is not.
-3. **`jm_model_remember_basis` should check.** One guard makes the invariant
+1. **The repair, in postsolve, `SINGLETON_COL` first** — it is the simpler
+   shape and the larger netlib contributor. Presolve's *mapping* is exact (0
+   identity failures of 88), so nothing there needs touching. `boeing1` is the
+   control for the second mechanism: its stored count is right and its reduced
+   count still is not.
+2. **`jm_model_remember_basis` should check.** One guard makes the invariant
    honest. On its own it changes nothing measurable — a stored basis failing
    the count is already rejected by `build_warm_basis` — so it belongs with
-   (2) rather than instead of it.
+   (1) rather than instead of it.
 
 The standing debt below names one postsolve family and a minimum case of one
 status. **132 solves and a worst error of 12104** make that case a corner of

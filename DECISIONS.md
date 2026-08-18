@@ -140,6 +140,7 @@ and you have the argument. Jump to the entry for the numbers behind it.
 - **[D130](#d130--six-instances-publish-more-basic-variables-than-rows-not-three-and-the-three-with-no-basis-at-all-are-named)** — Six instances publish more basic variables than rows, not three, and the three with no basis at all are named
 - **[D131](#d131--jaos_basis-publishes-something-that-is-not-a-basis-on-70-of-solves-and-presolves-mapping-is-exact)** — `jaos_basis` publishes something that is not a basis on 70% of solves, and presolve's mapping is exact
 - **[D132](#d132--singleton_row-restores-half-of-netlibs-removed-rows-and-leaves-78-of-them-nonbasic)** — `SINGLETON_ROW` restores half of netlib's removed rows and leaves 78% of them nonbasic
+- **[D133](#d133--the-two-singleton-families-are-the-whole-of-the-basis-count-error-and-the-sum-closes-exactly)** — The two singleton families are the whole of the basis-count error, and the sum closes exactly
 
 ---
 
@@ -10010,3 +10011,72 @@ nothing in the solve reads back except `build_warm_basis` (D131).
 
 **Left open, in `TODO.md`.** The last-writer probe, then the repair. The
 repair now has a family to aim at and a number to beat.
+
+## D133 — The two singleton families are the whole of the basis-count error, and the sum closes exactly
+
+**The question.** D132 attributed each restored entity to the record that
+*restored* it and said plainly that this is not the record that *wrote its
+status last*, because `JM_PS_SINGLETON_ROW` assigns a status to a column a
+different record restored. Its row numbers stood and its column split did not.
+This settles the split (`bench/measurements/02-43/`).
+
+**The instrument.** Every access to `sol_col_status` and `sol_row_status`
+inside `ps_replay_one` — six and eight sites, all with a simple `[i]` or `[j]`
+index — goes through a helper that stamps the arena index currently replaying
+and returns the slot, so the call site stays an assignment. **The writer is
+recorded at the moment of the write**, so a branch not taken records nothing.
+The rewrite asserts it found exactly 6 and 8 sites, so a future site it misses
+fails the run rather than being dropped.
+
+| last writer | netlib basics | rows | drift | Kennington basics | rows | drift |
+|---|---|---|---|---|---|---|
+| `REDUNDANT_ROW` | 1138 | 1138 | 0 | 296 | 296 | 0 |
+| `FORCING_ROW` | 3672 | 3672 | 0 | 10272 | 10272 | 0 |
+| `EMPTY_ROW` | 1758 | 1758 | 0 | 11150 | 11150 | 0 |
+| `IMPLIED_FREE_COL` | 2088 | 2088 | 0 | — | — | — |
+| **`FIXED_COL`** | **0** | **0** | **0** | **0** | **0** | **0** |
+| **`EMPTY_COL`** | **0** | **0** | **0** | — | — | — |
+| **`SINGLETON_COL`** | 5902 | 0 | **+5902** | 482 | 0 | **+482** |
+| **`SINGLETON_ROW`** | 6624 | 8622 | **−1998** | 106818 | 81646 | **+25172** |
+| survivors (unwritten) | 148294 | 148294 | 0 | 411412 | 411412 | 0 |
+
+**The sum closes.** netlib `5902 − 1998 = +3904` against published basics
+169476 for 165572 rows, off by 3904. Kennington `482 + 25172 = +25654` against
+540430 for 514776, off by 25654. **Nothing is unaccounted for**, and the
+survivors balance exactly, so the reduced solve's basis is a basis and nothing
+upstream of the replay is wrong.
+
+**Three corrections to D132.**
+
+- **`FIXED_COL` and `EMPTY_COL` contribute exactly nothing.** D132 read 3620
+  and 18; both were misattribution. `src/presolve.c:1846` writes `AT_LOWER` or
+  `AT_UPPER` and never `BASIC`, which is what the code said all along and now
+  what the measurement says.
+- **`SINGLETON_ROW` on netlib is −1998, not −6724.** It writes 6624 basics for
+  its 8622 rows, not 1898.
+- **`SINGLETON_COL` is the larger contributor on netlib**, +5902 on 96 of 172
+  solves, and D132 did not name it at all.
+
+**The mechanism, now readable.** `JM_PS_SINGLETON_COL`
+(`src/presolve.c:2131`) writes
+`(xv == rec->hi) ? JAOS_BASIS_AT_UPPER : JAOS_BASIS_BASIC`, and **its row
+survives** — the record's `index` names a row that stays, relaxed. So it
+restores a column, marks it `BASIC` whenever the value is not at `hi`, and no
+row comes back to pay for the basis position. That is +1 per firing and the
+whole of netlib's `SINGLETON_COL` drift.
+
+`JM_PS_SINGLETON_ROW` restores a row and writes both that row's status and the
+status of the column its row folded into. **The sign differs between the
+sets** — −1998 on netlib, +25172 on Kennington — so a repair has to handle
+both directions.
+
+**What was refuted.** D132's column split, which D132 had already marked as
+unestablished for exactly this reason. Flagging it is what made the correction
+cheap: the row numbers were reusable and only the split had to be redone.
+
+**Nothing changed and nothing is proposed.** No source file was touched.
+
+**Left open, in `TODO.md`.** The repair, with two families, an exact
+per-family price, and a closing sum for any candidate to be checked against.
+`SINGLETON_COL`'s shape is one line of code; `SINGLETON_ROW` changes sign
+between the sets and needs its branches counted first.
