@@ -7,59 +7,59 @@ line leaves this file in the same commit.
 
 ## Where the last session stopped — 2026-08-18
 
-## → START HERE: §5a, one reduced LP, two solves, both dual-feasible by the solver's own reading, 29% apart
+## → START HERE: §5a, the shift round trip is not bit-exact and nothing bounds a loan
 
-§4a closed (D117), §4b refused (D118), §4c answered it (D119), and §5a is where
-that left a question about the **shipped** solver. D120 measured it and closed
-three of the four ways it could have gone.
+§4a closed (D117), §4b refused (D118), §4c answered it (D119), §5a was opened
+there, and D120 and D121 measured it to the mechanism. **The question is now a
+repair, not a diagnosis.**
 
-**The contradiction, on one and the same reduced LP** (`pilotnov` under D118's
-refused candidate, which is the only thing that reaches the state):
+**What was found** (`bench/measurements/02-29/`, six probes). The method
+borrows costs to keep dual feasibility — `shift_to_feasible` does
+`s->cost[v] += need` and records the loan, `repay_shifts` subtracts it back.
+On `pilotnov` under D118's refused candidate the loans on one column total
+**1.61e+32** against a cost of magnitude at most one, and the round trip leaves
+**67 costs permanently wrong, the worst by 55.11**, with every `shift` record
+correctly at zero. `x += d; x -= d` does not restore `x`.
 
-- at `REFACTOR_EVERY = 16` the solve postsolves to Koch's published optimum
-  **to the last bit**;
-- at the shipping **64** the solve stops at a point that is primal-feasible by
-  its own test *verified against a fresh factorization* (D20), whose every
-  reduced cost recomputed from its own duals is correctly signed to **3.8e-14**,
-  with **no** column resting on a lent bound — and whose postsolved objective is
-  **29% worse**, rejected by the checker at `dualviol = 0.89`.
+Everything downstream then behaves correctly about the wrong objective: the
+solve is dual-feasible for its own perturbed problem, the checker judges the
+model's true costs and reports `dualviol = 0.89`, and the published objective
+is 29% off. `dfl001` moves 236 costs and stays at 2.2e-16, which is what the
+same machinery looks like when the loans are small.
 
-A basis that is primal-feasible and dual-feasible is optimal. Both cannot be
-right, so **one of the solver's own optimality readings is measuring something
-other than what it claims.**
+**A second defect, in the same machinery, that did not cause this one:** 186 of
+`pilotnov`'s variables end with lent ≠ repaid, the worst by **256**. Loans are
+being lost, not only rounded away.
 
-**Closed by measurement, do not re-derive** (`bench/measurements/02-29/`):
+**Two repairs to weigh, neither costed.**
 
-| hypothesis | reading |
-|---|---|
-| the solver never re-reads dual feasibility | **false** — the re-entry ran 6 rounds and its own violation read 0 |
-| the basics' assumed-zero reduced costs | **false** — recomputed, worst 3.82e-14, the cleanest of three instances |
-| a column resting on a bound phase 1 lent | **false** — 72 lent, 0 resting |
-| the reduced model differing between intervals | **false** — identical, family by family |
+1. **Make the round trip exact.** Keep the original cost beside the shifted one
+   and restore from it rather than subtracting back. One array of `nvar`
+   doubles, and the repayment stops being arithmetic at all.
+2. **Bound the loan relative to the cost it lands on.** A `need` of 1e32 on a
+   cost of one is not a repair of a sign condition, it is the sign condition
+   being overwritten. What the bound should be is a measurement, not a guess,
+   and `fp-numerics` gives the shape of it: a sum is known no more finely than
+   its terms.
 
-**What is still open, in order.**
+The two are not exclusive and (1) is strictly cheaper to judge, because it
+cannot change any trajectory — it changes only what is restored. Do that one
+first and measure whether anything moves at all.
 
-1. **`s->status[v]` going stale.** After 156 stability rebuilds and whatever
-   `repair_singular_basis` evicted, a variable's recorded status may not be the
-   bound it is actually sitting at. Every reading above trusts it, so if it
-   lies they all agree with each other and with nothing else. This is the
-   leading suspect and it is untested.
-2. **D20's second opinion re-reads the carried `x_B`.** It refactorizes and
-   asks the same primal test again; it never compares `x_B` against an
-   independent `B^-1(b - N x_N)`.
-3. **Postsolve**, which is the same code at both intervals and right at 16, so
-   it is not wrong on its own — but it could be faithfully reproducing a
-   reduced point that was never optimal.
+**What to do next, in order.**
 
-**What to do next.** Load `jaos-debug` before instrumenting. Test 1 first: dump
-every nonbasic's recorded status against the bound it actually sits at, at the
-re-entry exit, on both intervals. It is a read and it either finds the lie or
-removes the leading suspect.
+1. Load `fp-numerics` before touching either, and `jaos-measure` before
+   believing any campaign.
+2. Repair (1), then `numerics-reviewer` on the diff — this is solver internals
+   and the class is exactly the one it reads for.
+3. All three sets. A no-op on digests would be the expected result and the
+   strongest one available: the machinery is only load-bearing where the loans
+   are large, and no instance of the 139 is there today.
+4. The 186 unbalanced loans are their own question and should not ride along.
 
-**No instance of the 139 reaches this state today**, which is why the gate is
-green. Nothing here proposes a change to the shipping code, and in particular
-`REFACTOR_EVERY` is not a proposal: one instance is not a population and
-`bench/measurements/02-28/` says so in as many words.
+**No instance of the 139 reaches the failing state**, which is why the gate is
+green. `REFACTOR_EVERY` is not a proposal here: one instance is not a
+population and `bench/measurements/02-28/` says so in as many words.
 
 Everything below this line is finished work and background.
 
@@ -562,14 +562,20 @@ question and is not asked anywhere yet.
 
 ## 5. After presolve — the rest of M2, in order
 
-### 5a. One reduced LP, two solves, 29% apart and both dual-feasible to the solver — OPEN
+### 5a. The shift round trip is not bit-exact, and nothing bounds a loan — OPEN
 
-Opened by D119 and narrowed by D120 the same day
-(`bench/measurements/02-29/`). Three of the four possible explanations are
-closed by measurement and the leading remaining suspect is named. The
-contradiction, the closed table and what to do next are in the header of this
-file. Nothing built, nothing costed. It sits first in this section because it
-is a correctness question and everything below it is a speed one.
+Opened by D119, narrowed by D120 and located by D121, all on 2026-08-18
+(`bench/measurements/02-29/`, six probes). The mechanism, the two candidate
+repairs and what to do next are in the header of this file. Nothing built,
+nothing costed. It sits first in this section because it is a correctness
+question and everything below it is a speed one.
+
+Five explanations are closed by measurement and should not be re-derived: the
+solver not re-reading dual feasibility (it does, six re-entry rounds, its own
+violation zero), the basics' assumed-zero reduced costs (recomputed, worst
+3.82e-14), a column resting on a bound phase 1 lent (72 lent, 0 resting), the
+reduced model differing between refactorization intervals (identical, family by
+family), and the carried `x_B` (drifts 7.22e-10, four orders too small).
 
 
 - **Factorization** (REQ-lu-fill-and-markowitz, REQ-hyper-sparse-downstream):

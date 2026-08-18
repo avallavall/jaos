@@ -1,0 +1,22 @@
+# TODO.md 5a. s->cost at the exit against the cost sx_init built.
+# shift_to_feasible adds to it and repay_shifts subtracts back; the
+# round trip is exact in real arithmetic and not in floating point.
+
+######## CANDIDATE / pilotnov ########
+COST no-work nvar=2678 moved=67 shift_still_pending=0 worst_abs=55.110016000000002 worst_rel=1 (v=1050)
+objective -3169.5271937202242
+reference -4497.2761882188715   relative gap 0.295234
+checker primal=1 dual=0  col=1.11022e-17 row=6.80077e-08 dualviol=0.89 gap=2.72623e-06 gap+=369699 gap-=4.35707e-12
+
+######## CANDIDATE / pilot-ja ########
+COST no-work nvar=2323 moved=0 shift_still_pending=0 worst_abs=0 worst_rel=0 (v=-1)
+objective -6113.1364655813441
+reference -6113.1364655813431   relative gap 1.48777e-16
+checker primal=1 dual=1  col=7.03664e-28 row=2.04977e-10 dualviol=0 gap=4.98548e-14 gap+=2.3729e-09 gap-=1.34264e-12
+
+######## CANDIDATE / dfl001 ########
+COST no-work nvar=17552 moved=236 shift_still_pending=0 worst_abs=3.637978807091713e-12 worst_rel=2.2190780872946446e-16 (v=995)
+objective 11266396.046671392
+reference 11266396.046671392   relative gap 0
+checker primal=1 dual=1  col=7.86168e-14 row=4.56302e-14 dualviol=0 gap=1.29928e-16 gap+=3.38237e-06 gap-=5.32863e-09
+

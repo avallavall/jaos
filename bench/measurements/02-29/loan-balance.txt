@@ -1,0 +1,22 @@
+# TODO.md 5a. Every lend and every repayment tallied per variable.
+# lent == repaid with a drift means rounding; lent != repaid means a
+# loan was lost or repaid twice.
+
+######## CANDIDATE / pilotnov ########
+LOAN no-work worst_drift=55.110016000000002 (v=1050: lent=1.61113965389807e+32 repaid=1.61113965389807e+32 shift=0)  unbalanced=186 worst_balance=256 (v=2172)
+objective -3169.5271937202242
+reference -4497.2761882188715   relative gap 0.295234
+checker primal=1 dual=0  col=1.11022e-17 row=6.80077e-08 dualviol=0.89 gap=2.72623e-06 gap+=369699 gap-=4.35707e-12
+
+######## CANDIDATE / pilot-ja ########
+LOAN no-work worst_drift=0 (v=-1: lent=0 repaid=0 shift=0)  unbalanced=0 worst_balance=0 (v=-1)
+objective -6113.1364655813441
+reference -6113.1364655813431   relative gap 1.48777e-16
+checker primal=1 dual=1  col=7.03664e-28 row=2.04977e-10 dualviol=0 gap=4.98548e-14 gap+=2.3729e-09 gap-=1.34264e-12
+
+######## CANDIDATE / dfl001 ########
+LOAN no-work worst_drift=-3.637978807091713e-12 (v=995: lent=4.1835974727549681e-09 repaid=4.1835974727549681e-09 shift=0)  unbalanced=0 worst_balance=0 (v=-1)
+objective 11266396.046671392
+reference 11266396.046671392   relative gap 0
+checker primal=1 dual=1  col=7.86168e-14 row=4.56302e-14 dualviol=0 gap=1.29928e-16 gap+=3.38237e-06 gap-=5.32863e-09
+

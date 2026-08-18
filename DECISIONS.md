@@ -128,6 +128,7 @@ and you have the argument. Jump to the entry for the numbers behind it.
 - **[D118](#d118--giving-the-implied-free-family-first-refusal-is-refused-pilotnov-publishes-a-suboptimal-point-as-optimal)** — Giving the implied free family first refusal is refused: pilotnov publishes a suboptimal point as optimal
 - **[D119](#d119--pilotnovs-wrong-answer-is-the-refactorization-interval-and-the-termination-test-never-re-reads-dual-feasibility)** — pilotnov's wrong answer is the refactorization interval, and the termination test never re-reads dual feasibility
 - **[D120](#d120--the-same-reduced-lp-solved-twice-both-points-dual-feasible-by-the-solvers-own-reading-and-29-apart)** — The same reduced LP solved twice: both points dual-feasible by the solver's own reading, and 29% apart
+- **[D121](#d121--the-shift-round-trip-is-not-bit-exact-and-on-pilotnov-it-destroys-67-costs-one-by-5511)** — The shift round trip is not bit-exact, and on pilotnov it destroys 67 costs, one by 55.11
 
 ---
 
@@ -9069,3 +9070,74 @@ rather than a defect with a repair. It is written down because it was reached,
 reproducibly, and because three plausible explanations are now closed.
 
 **Left open, in `TODO.md` §5a.**
+
+---
+
+## D121 — The shift round trip is not bit-exact, and on pilotnov it destroys 67 costs, one by 55.11
+
+**The question.** D120 recorded a contradiction it could not resolve. On one
+reduced LP the `REFACTOR_EVERY = 16` solve reaches Koch's published optimum to
+the last bit, and the `REFACTOR_EVERY = 64` solve stops 29% short at a point
+that is primal-feasible against a fresh factorization, whose every reduced cost
+recomputed from its own duals is correctly signed to 3.8e-14, with no column on
+a lent bound. A primal- and dual-feasible basis is optimal, so one of those
+readings had to be measuring something other than what it claimed.
+
+**It was measuring the wrong objective, and the two remaining probes say so.**
+`bench/measurements/02-29/`.
+
+**The carried `x_B` is not it.** D20's second opinion runs *before* the
+re-entry loop, and the loop then updates `x_B` incrementally
+(`src/simplex.c:2367`) with nothing re-verifying it. Recomputed from the
+factorization at the exit, `pilotnov` drifts **7.22e-10** absolute and
+`pilot-ja` and `dfl001` drift zero — four orders too small to be a 29%
+objective error.
+
+**`s->cost` is.** Against the vector the scaling pass built:
+
+| | costs moved | shift pending | worst absolute | worst relative |
+|---|---|---|---|---|
+| `pilotnov` | **67** | 0 | **55.110016** | **1.0** |
+| `pilot-ja` | 0 | 0 | 0 | 0 |
+| `dfl001` | 236 | 0 | 3.64e-12 | 2.22e-16 |
+
+Sixty-seven of `pilotnov`'s costs are permanently different from the ones the
+solve was handed, one by 55.11 on a cost of magnitude at most one, and every
+`shift` record reads zero. `dfl001` moves 236 costs and stays at 2.2e-16, which
+is what rounding looks like.
+
+**The books balance and the arithmetic does not.** Tallying every lend
+(`shift_to_feasible`) and every repayment (`repay_shifts`, `primal_cleanup`)
+per variable, `pilotnov`'s worst-drifted column v=1050 reads **lent
+1.61113965389807e+32, repaid 1.61113965389807e+32, shift 0**. The bookkeeping
+is exact. The arithmetic is not: `s->cost[v] += need` then `s->cost[v] -=
+shift` is `x += d; x -= d`, which does not restore `x` — the trap `jaos-debug`
+names in as many words. A cost of order one plus 1e32 *is* 1e32, and
+subtracting 1e32 back leaves nothing of it. 55.11 is the residue.
+
+**And 186 variables never balanced at all**, the worst by 256, so loans are
+being lost as well as rounded away. That is a second defect in the same
+machinery and it is not the one that produced the wrong answer here.
+
+**What it explains.** Every optimality reading D120 took is correct about the
+objective `s->cost` holds, which is no longer the caller's. The solver is dual
+feasible for its own perturbed problem; the checker judges the model's true
+costs and reports 0.89. The 29% is the distance between the two objectives.
+`settled_objective` computes `(s->cost[v] - s->shift[v]) * x` and calls the
+subtraction "belt and braces rather than arithmetic that matters"; with `shift`
+at zero and `cost` off by 55.11 it reports the perturbed objective.
+
+**What this is not.** It is not a defect any of the 139 instances reaches. At
+HEAD `pilotnov` runs 1042 weight restarts and 0 stability rebuilds and answers
+correctly; D118's refused candidate is what drives the loans to 1e32. And it is
+not a tolerance — no threshold in the file decides any of it, so nothing here
+is fixed by moving one.
+
+**Nothing is repaired here and nothing is costed.** A repair has to keep the
+shift mechanism, which the method needs, while making the round trip exact or
+making the loan bounded relative to the cost it lands on. Both are design
+questions with their own measurements, and `fp-numerics` says plainly that a
+sum is known no more finely than its terms.
+
+**Left open, in `TODO.md` §5a**, now with the mechanism named rather than the
+symptom.
