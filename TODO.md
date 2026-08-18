@@ -44,7 +44,9 @@ contradiction left (**D120**) → the contradiction is a cost that never comes
 back (**D121**) → **repaired and landed** (**D122**) → no loan is outstanding
 when the duals are published, on any instance that answers (**D123**) → and
 the 186 missing loans were never missing, the tally added them one way and the
-repayments another (**D124**).
+repayments another (**D124**) → and no loan swamps a real cost anywhere in the
+gate, while one lend in six sets `d` to zero on a cost that never moved
+(**D125**).
 
 The repair: a repayment restores from a write-once `cost0` instead of
 subtracting the recorded loan, because `x += d; x -= d` does not restore `x`.
@@ -55,26 +57,54 @@ ACCEPT.
 D123 closed §5a's first item and left an assert in `publish` behind it. D124
 closed the second and left nothing behind but a corrected number: 67, not 186,
 is the count of columns whose cost moved while the record read zero, and two
-source comments had borrowed the wrong line of the same file. Both changes are
-no-ops on the three sets, 94, 29 and 16 instances bit-identical to the
-committed record.
+source comments had borrowed the wrong line of the same file. D125 measured
+the third and refused half of it; that half's repair was never needed and the
+other half turned out to fire on one lend in six. All three are no-ops on the
+sets, 94, 29 and 16 instances bit-identical to the committed record.
+
+**§5a's remaining item is the first one here that changes solver internals**,
+so the loop's step 3 applies to it: `numerics-reviewer` reads the diff before
+any campaign.
 
 ## → START HERE: §5a, one thing left in the shift machinery
 
-It is reached by none of the 139 instances, which is why the gate is green. It
-is open because it is a defect that a harder model would reach.
+**It is reached constantly, and the sentence this section used to open with
+was wrong about it.** D125 measured §5a's last item and the two defects inside
+it came apart:
 
-### 1. Nothing bounds a loan relative to the cost it lands on
+- **A loan swamping the cost does not happen at the gate.** Zero lends on any
+  of the three sets have a loan and a cost that are both numbers with the loan
+  swamping the cost. Every extreme ratio is a tiny loan on a cost of 1e-44 or
+  smaller, which is not a cost being overwritten. **The ratio bound §5a asked
+  for is refused** (D125). D121's 1e32 is real and stays reachable through
+  D118's refused candidate.
+- **The fabrication is what is left, and it fires on one lend in six.**
 
-A `need` of 1e32 on a cost of one is not a repair of a sign condition, it is
-the sign condition being overwritten. `shift_to_feasible` also sets
-`s->d[v] = 0.0` unconditionally, which asserts the cost moved by exactly
-`need` — false whenever `need` is below the ulp of the cost.
+### 1. `d[v] = 0.0` on a cost that never moved
 
-**What to do:** this is a new constant, so it needs a sweep on both sides and a
-row in `docs/tolerances.md` beside the others. Load `fp-numerics` first; it
-gives the shape of the bound, which is that a sum is known no more finely than
-its terms. **Do not pick a number and measure one side of it.**
+`shift_to_feasible` sets `s->d[v] = 0.0` unconditionally, which asserts the
+cost moved by exactly `need`. On **167816 of netlib's 1006960 lends (16.7%)**
+the cost does not move at all, and on **400204 of Kennington's 2802762
+(14.3%)**; 134 of the 188 standard solves have at least one
+(`bench/measurements/02-34/`). Dual feasibility is asserted rather than
+repaired, and the next ratio test reads a reduced cost that was never
+computed.
+
+**What to do, and the shape is a floor rather than a ceiling.** A `need`
+below the noise of the sum that produced `d[v]` is not a number.
+`NOISE_MARGIN * DBL_EPSILON * column_traffic(s, v)` is that floor and
+`can_move` already applies it. Two things settle before any of it is code:
+
+- **What refusing 16% of lends costs**, measured on both sides. That is a
+  trajectory change on most of the set, not a no-op, and a new constant needs
+  a sweep and a row in `docs/tolerances.md`. **Do not pick a number and
+  measure one side of it.**
+- **Whether `column_traffic` may be read on the ratio-test path at all.** It
+  reads `s->y`, which there is the duals of some basis rather than necessarily
+  the current one, and it is a full column scan in the solver's hottest loop.
+
+It changes solver internals, so `numerics-reviewer` reads the diff before any
+campaign.
 
 **`REFACTOR_EVERY` is not a proposal in any of this.** It is what D119 swept to
 prove the failure was numerical, on one instance, and one instance is not a

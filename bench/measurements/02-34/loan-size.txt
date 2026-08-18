@@ -1,0 +1,112 @@
+# TODO.md 5a: how large is a loan against the cost it lands on, and
+# how often does the cost not move at all?
+#
+# unmoved   = the cost does not change; d[v]=0 is then a fabrication
+# below_ulp = |need| < ulp(|cost|), the same question on the inputs
+# decade k  = lends with 10^k <= |need|/|cost| < 10^(k+1), clamped to
+#             [-11, 10] at both ends
+
+-- no line was mangled by twelve children sharing one stderr --
+netlib       188 line(s), 188 intact
+netlib2      188 line(s), 188 intact
+infeas       38 line(s), 38 intact
+kennington   32 line(s), 32 intact
+
+######## netlib ########
+solves=188  lends=1006960  unmoved=167816  below_ulp=175832  cost_zero=56118
+solves with at least one unmoved cost: 134
+worst |need|/|cost| = 1.11406e+50   (|need|=2.77556e-17 on |cost|=2.49139e-67)
+largest |need| = 100.068  on a cost of 0
+both sides above 1e-6 and swamped by 1e6: 0 lend(s)
+decade      count
+   -11      259024
+   -10       14874
+    -9       24588
+    -8       15316
+    -7       18350
+    -6       28464
+    -5       46716
+    -4       73260
+    -3      108204
+    -2      130096
+    -1      139490
+     0       50230
+     1       20280
+     2        8946
+     3        6502
+     4        1124
+     5         770
+     6         600
+     7         460
+     8         312
+     9         242
+    10         218
+    11        2776
+cost==0      56118
+
+######## infeas ########
+solves=38  lends=697766  unmoved=29784  below_ulp=33014  cost_zero=12996
+solves with at least one unmoved cost: 12
+worst |need|/|cost| = 2.36129e+22   (|need|=4.44108e-15 on |cost|=1.88079e-37)
+largest |need| = 1.4706e-06  on a cost of 3.504e-09
+both sides above 1e-6 and swamped by 1e6: 0 lend(s)
+decade      count
+   -11       75808
+   -10        6482
+    -9        5086
+    -8        8202
+    -7        9442
+    -6       19274
+    -5       34370
+    -4       62900
+    -3      101982
+    -2      182228
+    -1      128796
+     0       37996
+     1        6692
+     2        1590
+     3         732
+     4         408
+     5         328
+     6         284
+     7         266
+     8         248
+     9         144
+    10         660
+    11         852
+cost==0      12996
+
+######## kennington ########
+solves=32  lends=2802762  unmoved=400204  below_ulp=421872  cost_zero=34068
+solves with at least one unmoved cost: 28
+worst |need|/|cost| = 8.459e+35   (|need|=2.80728e-08 on |cost|=3.3187e-44)
+largest |need| = 9.99923e-08  on a cost of 46
+both sides above 1e-6 and swamped by 1e6: 0 lend(s)
+decade      count
+   -11      950576
+   -10      104144
+    -9       19448
+    -8       19824
+    -7       33092
+    -6       73756
+    -5       89884
+    -4      132700
+    -3      487198
+    -2      566968
+    -1      246858
+     0       34868
+     1        5562
+     2        1178
+     3         746
+     4         232
+     5         100
+     6         194
+     7          54
+     8          10
+     9          26
+    10          22
+    11        1254
+cost==0      34068
+
+-- netlib run twice from the same tree --
+the two aggregates are byte-identical

@@ -132,6 +132,7 @@ and you have the argument. Jump to the entry for the numbers behind it.
 - **[D122](#d122--a-repayment-restores-the-cost-instead-of-subtracting-the-loan-and-costs-10001x)** — A repayment restores the cost instead of subtracting the loan, and costs 1.0001x
 - **[D123](#d123--no-loan-is-outstanding-when-the-duals-are-published-on-any-of-the-128-instances-an-assert-enabled-build-can-run)** — No loan is outstanding when the duals are published, on any of the 128 instances an assert-enabled build can run
 - **[D124](#d124--the-186-loans-were-never-lost-02-29-compared-one-accumulator-against-a-sum-of-partial-sums)** — The 186 loans were never lost: 02-29 compared one accumulator against a sum of partial sums
+- **[D125](#d125--no-loan-swamps-a-real-cost-anywhere-in-the-gate-and-one-lend-in-six-sets-d-to-zero-on-a-cost-that-never-moved)** — No loan swamps a real cost anywhere in the gate, and one lend in six sets `d` to zero on a cost that never moved
 
 ---
 
@@ -9415,3 +9416,76 @@ infeasibility verdicts unmoved. `make test` and `make sanitize` exit 0.
 
 **Left open, in `TODO.md` §5a.** One item, unchanged: nothing bounds a loan
 relative to the cost it lands on.
+
+## D125 — No loan swamps a real cost anywhere in the gate, and one lend in six sets `d` to zero on a cost that never moved
+
+**The question.** `TODO.md` §5a's last item asked for a bound on how large a
+loan may be relative to the cost it lands on, because a `need` of 1e32 on a
+cost of one replaces the model's cost rather than repairing a sign condition
+(D121). It named a second defect in passing: `shift_to_feasible` also sets
+`s->d[v] = 0.0` unconditionally, which asserts the cost moved by exactly
+`need` and is false whenever `need` is below the ulp of the cost. Both were
+measured over all three gate sets before any number was proposed
+(`bench/measurements/02-34/`).
+
+**The bound is refused, and the ratio is the wrong measure.**
+
+| set | lends | worst \|need\|/\|cost\| | at those magnitudes | both sides > 1e-6, swamped by 1e6 |
+|---|---|---|---|---|
+| netlib | 1006960 | 1.11e+50 | need 2.78e-17 on cost 2.49e-67 | **0** |
+| infeasible | 697766 | 2.36e+22 | need 4.44e-15 on cost 1.88e-37 | **0** |
+| Kennington | 2802762 | 8.46e+35 | need 2.81e-08 on cost 3.32e-44 | **0** |
+
+Not one lend on any of the three sets has a loan and a cost that are both
+numbers with the loan swamping the cost. Every extreme ratio is a tiny loan
+landing on a cost that is already nothing, and 2.49e-67 is not a cost being
+overwritten. The largest loan anywhere in netlib is **100.07**, and it lands
+on a cost of exactly zero where the addition is exact and the ratio has no
+value — 56118 netlib lends are of that kind. **A ceiling on the ratio would
+fire on nothing that matters.** D121's 1e32 stands and stays reachable through
+D118's refused candidate; no instance in the gate reaches it.
+
+**The second defect is the live one, and it is not rare.**
+
+| set | lends | cost did not move | solves with at least one |
+|---|---|---|---|
+| netlib | 1006960 | **167816 (16.7%)** | 134 of 188 |
+| infeasible | 697766 | 29784 (4.3%) | 12 of 38 |
+| Kennington | 2802762 | **400204 (14.3%)** | 28 of 32 |
+
+On one lend in six the cost is unchanged and `d[v]` is set to zero anyway, so
+dual feasibility is asserted rather than repaired and the next ratio test
+reads a reduced cost that was never computed. This is the shipping
+configuration, on 134 of the 188 standard solves. `below_ulp` — the same
+question asked on the inputs instead of the outcome — reads 175832 / 33014 /
+421872, larger by a few percent, which is what round-to-nearest does with a
+`need` between half an ulp and one ulp.
+
+**What was refuted.** The item's own premise. `TODO.md` said none of §5a's
+three items is reached by any of the 139 instances; that is true of the
+overwrite and false of the fabrication, which fires hundreds of thousands of
+times per campaign. Reaching for the ratio bound first would have produced a
+constant, a sweep and a `docs/tolerances.md` row for a case that does not
+occur.
+
+**The instrument carried the defect it was looking for, and it was caught by
+repeating the run.** Two passes over the same tree read 188 solves and then
+187. Twelve children share one `stderr` and each wrote its line with fourteen
+`fprintf` calls, so two interleaved and the reader dropped the mangled one. It
+is one `snprintf` and one `write(2, …)` now, atomic against the shared offset.
+The script carries both checks: no mangled line on any of the four logs, and
+netlib run twice from the same tree gives a byte-identical aggregate. The
+figures above are the ones both original passes agreed on.
+
+**Nothing changed and nothing is proposed.** No source file was touched. What
+the evidence supports is a floor on `need` rather than a ceiling — a `need`
+below the noise of the sum that produced `d[v]` is not a number, which is
+`fp-numerics`' rule and already what `can_move` applies through
+`NOISE_MARGIN * DBL_EPSILON * column_traffic(s, v)`.
+
+**Left open, in `TODO.md` §5a**, two preconditions before any of that is code:
+what refusing 16% of lends costs, measured on both sides, since that is a
+trajectory change on most of the set rather than a no-op; and whether
+`column_traffic` may be read on the ratio-test path at all, since it reads
+`s->y` — the duals of some basis rather than necessarily the current one —
+and is a full column scan in the solver's hottest loop.
