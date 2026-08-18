@@ -7,39 +7,50 @@ line leaves this file in the same commit.
 
 ## Where the last session stopped — 2026-08-18
 
-## → START HERE: §4c, why D106 answers `pilotnov` wrong on seven columns
+## → START HERE: §5a, a verdict of `optimal` is published without re-reading dual feasibility
 
-§4a closed (D117) and §4b closed as a refusal (D118). Between them they left
-one fact that is about the **shipped** code and is not explained:
+§4a closed (D117), §4b closed as a refusal (D118), §4c answered it (D119). What
+they left is a fact about the **shipped** solver, and it is the first thing to
+pick up.
 
-**D106 has never been handed a cost-0 bounded singleton column.** D95's branch
-sits above it in the column pass and takes every one, on every instance of all
-four sets. D118's candidate moved that branch below D106 and so gave it that
-population for the first time: **55 columns, 48 correct, 7 wrong — all seven on
-`pilotnov`**, which published an objective 29% off as `optimal`
-(`obj=-3169.53` against `ref=-4497.28`, `checker=REJECTED`, `dual=0.89`,
-`rsub=117`). The point was primal-feasible, so containment is not the failure.
+**The dual simplex declares `optimal` on primal feasibility alone.**
+`src/simplex.c:3455` stops when no basic variable violates a bound, and D20's
+second opinion re-reads *that same test* against a fresh factorization
+(`src/simplex.c:3487`). Dual feasibility is an invariant the method maintains
+and nothing re-reads it before the verdict goes out. A solve whose invariant
+has been damaged numerically terminates primal-feasible, dual-infeasible, and
+reports `optimal`.
 
-So D106's four stated restrictions are not sufficient for that population, and
-nothing here says which fifth one is missing. The shipped code is safe because
-the order never asks the question. That is a safety margin nobody chose.
+D119 has a model that does it. Under D118's refused candidate, `pilotnov` at
+the shipping `REFACTOR_EVERY = 64` runs 43041 weight restarts and **156
+stability rebuilds**, then publishes an objective 29% wrong as `optimal` with
+`dualviol = 0.89`. The same reduced model at interval 16 reaches Koch's
+published optimum **to the last bit**, and at 8 costs 1.032x HEAD's work. So
+the model was never the problem.
+
+**No instance of the 139 reaches this state today**, which is why the gate is
+green. That is the whole of the reason.
+
+**Two questions, neither costed.**
+
+1. Should the dual feasibility the method assumes be re-read before a verdict
+   is published, the way D20 made the primal one be? What it would cost is a
+   pricing pass at termination, once per solve.
+2. Should the refactorization interval adapt to an instance rather than being
+   one constant? `TODO.md`'s own standing debt records that this sweep is
+   manual and that three of M1's four defect closures came from it. D119 is the
+   fourth.
 
 **What to do next, in order.**
 
-1. Load `jaos-debug` before instrumenting anything, and `fp-numerics` if a
-   tolerance turns out to be involved.
-2. The seven columns are named by `bench/measurements/02-26/`'s counter:
-   `pilotnov`'s `SINGCOL × WOULDFIRE` cross. `pilot-ja` has seven too and comes
-   out correct, so it is the control, not a second case.
-3. The candidate that exposes it is `bench/measurements/02-27/candidate.diff`,
-   applied in a worktree. It is refused; it is also the only way to reproduce.
-4. `dual=0.89` says the recovered duals are wrong, and the primal is feasible.
-   Ask whether the reduced model lost the optimum or the postsolve lost the
-   dual before assuming either.
-
-**Nothing here says D106 is wrong as it ships.** It says its argument has not
-been tested on a population it never meets, and that seven columns of that
-population broke it.
+1. Load `fp-numerics` before touching a tolerance and `jaos-measure` before
+   believing any campaign.
+2. Question 1 first. It is a check, not a change of trajectory, so it can only
+   turn a wrong `optimal` into a numerical failure or more iterations — and a
+   campaign says which, on work units alone.
+3. Question 2 is a global constant on all three sets and is a bigger
+   proposition. Do not sweep it from one instance: `bench/measurements/02-28/`
+   says in as many words that it is a diagnostic, not a proposal.
 
 Everything below this line is finished work and background.
 
@@ -522,10 +533,17 @@ Geometric mean 1.0358x over 94; `netlib-infeas` and `netlib-kennington` both
 The reopen condition is a fifth restriction on D106 that declines `pilotnov`'s
 seven, which is §4c above.
 
-### 4c. Why D106 answers `pilotnov` wrong on seven columns — OPEN
+### 4c. Why D106 answers `pilotnov` wrong — closed 2026-08-18 by D119: it does not
 
-Opened by D118. The question, the evidence and what to do next are in the
-header of this file; `bench/measurements/02-27/` owns every figure.
+Opened by D118 and answered the same day, `bench/measurements/02-28/`. The
+wrong answer is **numerical, not structural**. The same reduced model reaches
+Koch's published optimum to the last bit at `REFACTOR_EVERY = 16`, and costs
+1.032x HEAD at 8 against 30.2x at the shipping 64. D106's substitution on those
+seven columns is sound and presolve cut off nothing.
+
+What the candidate found instead is in §5a, at the top of this file: the
+termination test never re-reads dual feasibility, so a numerically damaged
+solve publishes `optimal`. That is HEAD's, not the candidate's.
 
 **Also open:** how often `plato` should run — `pds` alone is 6.4 hours of wall
 clock — and `nug20`/`nug30`, which are unmeasured rather than unsolvable.
@@ -534,6 +552,14 @@ instances (`bench/measurements/02-26/counts/nug.txt`), which is its own
 question and is not asked anywhere yet.
 
 ## 5. After presolve — the rest of M2, in order
+
+### 5a. A verdict of `optimal` is published without re-reading dual feasibility — OPEN
+
+Opened by D119, `bench/measurements/02-28/`. The statement, the model that
+reaches it and the two questions it raises are in the header of this file.
+Nothing built, nothing costed. It sits first in this section because it is a
+correctness question and everything below it is a speed one.
+
 
 - **Factorization** (REQ-lu-fill-and-markowitz, REQ-hyper-sparse-downstream):
   the stale live counts Markowitz chooses on, and the fill — factors carry
@@ -631,7 +657,7 @@ then, do not — a refusal whose premise has not changed just fails again.
 | D109 | removing the implied-free window's `max(1, scale)` floor — a bit-identical no-op over all 94 standard instances, digests included | a model population where `bench/measurements/02-16/run-floorless.sh` reports a moved instance line; or the D106 sweep's own reopen |
 | D112 | the unbounded-relative-widening refusal for the cost-0 singleton column — 98.6% of firings would be refused, and the helped and hurt `grow*` instances carry the same widening | D108's condition: a measured mechanism that predicts trajectory direction from the firing site; or an instance crossing the gate's 2.0x work bar from this family |
 | D95 | eliminating nonzero-cost singleton columns | a dual-informed elimination design exists (the lift condition is in the entry). **Checked against D106 and NOT reopened, deliberately.** D106 eliminates nonzero-cost singleton columns, so the question was re-asked. It does not satisfy D95's condition and does not need to: D95 refused *choosing which bound is optimal*, and an implied free column has no bound to choose — it is interior, so `d_j = 0` is forced and the dual falls out of one division. The columns D95 still refuses are the ones whose own bounds can bind, and D106 declines exactly those |
-| D118 | giving the implied free column singleton first refusal over D95's bounded cost-0 singleton column — `pilotnov` publishes an objective 29% wrong as `optimal`, `checker=REJECTED`, `dual=0.89`, 30.2x work | a fifth restriction on D106 that declines `pilotnov`'s seven columns, or a predicate that gives D106 first refusal only where it is proved sound. The prize is real and stated: `ganges` 0.8429x, `dfl001` 0.8951x, `czprob` 0.9227x. §4c is the investigation that would produce it |
+| D118 | giving the implied free column singleton first refusal over D95's bounded cost-0 singleton column — `pilotnov` publishes an objective 29% wrong as `optimal`, `checker=REJECTED`, `dual=0.89`, 30.2x work | **the condition was rewritten the same day by D119, because the first one looked in the wrong place.** It is not a fifth restriction on D106: the substitution is sound, and the same reduced model reaches Koch's optimum to the last bit at `REFACTOR_EVERY = 16`. It reopens when the solve stops publishing `optimal` without re-reading dual feasibility, or when the refactorization interval stops collapsing on `pilotnov` — §5a, both. The prize is real and stated: `ganges` 0.8429x, `dfl001` 0.8951x, `czprob` 0.9227x |
 | D93 | the 4.2% time bar — unmeasurable on this host | a controlled host that satisfies D17 |
 | D92/backlog | `pilot87`'s suboptimality bound, not understood | it blocks a gate (trigger already recorded) |
 | D82, D84 | partial and multiple pricing | nothing scheduled — refused on wrong answers, not on a trade; a new scheme is a new decision, not a retry |
@@ -646,7 +672,10 @@ then, do not — a refusal whose premise has not changed just fails again.
   tree clear, working-tree copy WARN and exit 0, committed copy STOP and exit
   1.
 - The `REFACTOR_EVERY` 16..256 trajectory sweep is manual; three of M1's four
-  defect closures came from it and no target automates it.
+  defect closures came from it and no target automates it. **D119 is the
+  fourth** — `pilotnov` under D118's candidate is right at 16 and 29% wrong at
+  the shipping 64, on the same reduced model
+  (`bench/measurements/02-28/sweep-refactor.txt`).
 - Test ceilings drift silently — the `<62000` one drifted 2800 units with
   nothing watching. Re-measure a ceiling's both sides when touching its
   subject.

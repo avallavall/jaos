@@ -126,6 +126,7 @@ and you have the argument. Jump to the entry for the numbers behind it.
 - **[D116](#d116--directed-rounding-on-the-activity-readings-is-refused-because-the-forcing-test-detects-an-equality)** — Directed rounding on the activity readings is refused, because the forcing test detects an equality
 - **[D117](#d117--d106-fires-on-none-of-fomes-candidates-because-d95-takes-every-one-of-them-first-and-freezes-121-of-the-rows)** — D106 fires on none of fome's candidates because D95 takes every one of them first, and freezes 12.1% of the rows
 - **[D118](#d118--giving-the-implied-free-family-first-refusal-is-refused-pilotnov-publishes-a-suboptimal-point-as-optimal)** — Giving the implied free family first refusal is refused: pilotnov publishes a suboptimal point as optimal
+- **[D119](#d119--pilotnovs-wrong-answer-is-the-refactorization-interval-and-the-termination-test-never-re-reads-dual-feasibility)** — pilotnov's wrong answer is the refactorization interval, and the termination test never re-reads dual feasibility
 
 ---
 
@@ -8917,3 +8918,75 @@ seven. Settling it needs `jaos-debug`'s procedure on those seven columns.
 change, at 27.5x and with a correct answer. The reopen condition is a fifth
 restriction on D106 that declines those seven; the 55 are worth re-asking then,
 because `ganges`, `dfl001` and `czprob` are a real gain.
+
+---
+
+## D119 — pilotnov's wrong answer is the refactorization interval, and the termination test never re-reads dual feasibility
+
+**The question.** D118 refused a one-branch reordering of presolve's column
+pass on `pilotnov` alone: it published an objective 29% wrong as `optimal`,
+primal-feasible with a dual violation of 0.89, at 30.2x the work. `pilot-ja`
+loses seven rows to the same change and is untouched. Either presolve cut off
+the optimum, which would mean D106's substitution is unsound on a population it
+never meets, or the reduced model is fine and the solve failed on it. Those
+lead in opposite directions and §4c asked which.
+
+**The measurement, `bench/measurements/02-28/`.** The same candidate, the same
+reduced model, four values of `REFACTOR_EVERY`, each compiled into its own
+binary with its own md5 printed beside it.
+
+```
+HEAD, no candidate    2374 iters    86587427 work   -4497.2761882188706   dual 0
+candidate,  64        87432       2616239810        -3169.5271937202242   dual 0.89
+candidate,  16        28859       1345562616        -4497.2761882188715   dual 0
+candidate,   8         2741         89348539        -4497.2761882188752   dual 0
+candidate,   4         2287         84697175        -4497.2761882188743   dual 0
+```
+
+**At 16 the candidate reaches Koch's published optimum to the last bit.** So
+presolve did not cut off the optimum, and D106's substitution on those seven
+columns is sound.
+
+**And the reduced model is not intrinsically harder.** At interval 8 it costs
+1.032x HEAD's work on that instance, where at 64 it costs 30.2x. The 30x is the
+interval, not the model.
+
+**What goes wrong, named rather than inferred.** At 64 the solve reports
+**43041 weight restarts and 156 stability rebuilds**, against HEAD's 1042 and 0
+on the same instance, and `pilot-ja`'s 0 and 0 under the same candidate.
+`pilotnov` was already the sensitive one and the candidate pushes it over. Then
+the solve stops and calls it optimal: **the termination test reads primal
+feasibility only** (`src/simplex.c:3455`), and D20's second opinion re-reads
+that same test against a fresh factorization (`src/simplex.c:3487`). Dual
+feasibility is an invariant the dual method maintains and nothing re-reads
+before the verdict is published. A solve whose invariant has been damaged
+terminates primal-feasible, dual-infeasible, and reports `optimal`.
+
+The checker caught it. No digest comparison and no work bar would have: the
+answer is feasible and deterministic.
+
+**Postsolve is ruled out by derivation, not by hope.** All seven columns have
+cost exactly zero, so D106 sets `y_i = c_j / a_ij = 0` on each of their rows
+and its transfer `c_k -= y_i * a_ik` subtracts nothing from any surviving
+column. Those records contribute zero to every dual, so they cannot produce a
+violation of 0.89.
+
+**What this does not say.** It does not say `REFACTOR_EVERY` should be lowered.
+One instance is not a population, the interval is a global constant and every
+instance pays it; the sweep is a diagnostic on one model. And it does not
+un-refuse D118: at the interval that ships, the candidate still publishes a
+wrong answer and the gate is still red.
+
+**What it changes.** D118's reopen condition was written as "a fifth
+restriction on D106", and that is now known to be the wrong place to look.
+Nothing is wrong with D106 here. The condition is restated in the refusals
+table.
+
+**Left open, in `TODO.md` §4c.** The termination test is HEAD's and no instance
+of the 139 reaches the state today, which is why the gate is green. Two things
+follow and neither is costed: whether the dual feasibility the method assumes
+should be re-read before a verdict is published, the way D20 made the primal
+one be; and whether the refactorization interval should adapt to an instance
+rather than being one constant. `TODO.md`'s standing debt already records that
+the `REFACTOR_EVERY` trajectory sweep is manual and that three of M1's four
+defect closures came from it. This is the fourth.
