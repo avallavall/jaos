@@ -11,6 +11,14 @@ open, `bench/README.md` for the gate, and the commit each entry came from.
 
 ### Added
 
+- `docs/diagrams/` — seven files of mermaid diagrams: repo map, module call
+  graph, the solve pipeline, the simplex iteration, presolve/postsolve, the
+  outcome paths, and the gate. `docs/architecture.html` compiles the same set
+  into one page with a short explanation per diagram. Traced from the source
+  at `33bb85d`; they describe structure, own no number, and point at
+  `DECISIONS.md` and `docs/tolerances.md` for everything measured. No
+  behaviour changes.
+
 - `test_the_basis_count_promise_breaks_on_a_declined_column` pins `TODO.md`'s
   own named minimum case for the basis-count defect — 2 basic against
   `num_row = 1`, and 1 in the reference build. It sits on a column the implied

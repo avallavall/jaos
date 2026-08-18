@@ -1,0 +1,620 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>JAOS — Architecture</title>
+<style>
+  :root {
+    --bg: #ffffff; --fg: #1c2128; --muted: #57606a; --line: #d0d7de;
+    --card: #f6f8fa; --accent: #0757ba; --why-bg: #f0f6ff; --why-line: #9cc3f5;
+    --warn-bg: #fff8f0; --warn-line: #f0c187;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0d1117; --fg: #e6edf3; --muted: #9198a1; --line: #30363d;
+      --card: #161b22; --accent: #6cb0ff; --why-bg: #10233c; --why-line: #2b5687;
+      --warn-bg: #2b2113; --warn-line: #6b5023;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--fg);
+    font: 16px/1.6 -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  }
+  main { max-width: 1000px; margin: 0 auto; padding: 2rem 1.25rem 5rem; }
+  header { border-bottom: 1px solid var(--line); padding-bottom: 1rem; margin-bottom: 1.5rem; }
+  h1 { font-size: 1.9rem; margin: 0 0 .3rem; }
+  h2 { font-size: 1.35rem; margin: 3rem 0 .5rem; padding-top: 1rem; border-top: 1px solid var(--line); }
+  h3 { font-size: 1.05rem; margin: 1.6rem 0 .4rem; }
+  p, li { max-width: 76ch; }
+  .stamp { color: var(--muted); font-size: .9rem; }
+  code, pre.mermaid { font-family: ui-monospace, SFMono-Regular, "Cascadia Mono", Consolas, monospace; }
+  code { background: var(--card); border: 1px solid var(--line); border-radius: 4px; padding: .05rem .3rem; font-size: .875em; }
+  nav.toc { background: var(--card); border: 1px solid var(--line); border-radius: 8px; padding: .9rem 1.2rem; }
+  nav.toc ol { margin: .3rem 0 0; padding-left: 1.3rem; }
+  nav.toc a { color: var(--accent); text-decoration: none; }
+  nav.toc a:hover { text-decoration: underline; }
+  pre.mermaid {
+    background: var(--card); border: 1px solid var(--line); border-radius: 8px;
+    padding: 1rem; overflow-x: auto; margin: 1rem 0; text-align: center;
+  }
+  pre.mermaid:not([data-processed]) { text-align: left; color: var(--muted); font-size: .8rem; }
+  .why {
+    background: var(--why-bg); border-left: 4px solid var(--why-line);
+    border-radius: 0 6px 6px 0; padding: .7rem 1rem; margin: 1rem 0;
+  }
+  .why strong:first-child { color: var(--accent); }
+  .why p { margin: .35rem 0; }
+  .note {
+    background: var(--warn-bg); border-left: 4px solid var(--warn-line);
+    border-radius: 0 6px 6px 0; padding: .7rem 1rem; margin: 1rem 0;
+  }
+  .tablewrap { overflow-x: auto; }
+  table { border-collapse: collapse; margin: 1rem 0; font-size: .92rem; }
+  th, td { border: 1px solid var(--line); padding: .4rem .7rem; text-align: left; vertical-align: top; }
+  th { background: var(--card); }
+  footer { margin-top: 4rem; color: var(--muted); font-size: .85rem; border-top: 1px solid var(--line); padding-top: 1rem; }
+</style>
+</head>
+<body>
+<main>
+
+<header>
+  <h1>JAOS — how it works</h1>
+  <p class="stamp">Traced from the source at commit <code>33bb85d</code>, 2026-08-18.
+  Rendered view of <code>docs/diagrams/*.md</code>. Diagrams need network once, to load the mermaid renderer.
+  Reasoning lives in <code>DECISIONS.md</code>; constants and sweeps in <code>docs/tolerances.md</code> and the source.</p>
+</header>
+
+<nav class="toc">
+  <strong>Contents</strong>
+  <ol>
+    <li><a href="#repo">Repo map — what lives where</a></li>
+    <li><a href="#modules">Modules — who calls whom</a></li>
+    <li><a href="#pipeline">The solve pipeline, end to end</a></li>
+    <li><a href="#simplex">The dual simplex loop and the LU</a></li>
+    <li><a href="#presolve">Presolve and postsolve</a></li>
+    <li><a href="#outcomes">Outcomes and the independent checker</a></li>
+    <li><a href="#gate">The gate — how a change is judged</a></li>
+  </ol>
+</nav>
+
+<!-- ================================================================ -->
+<h2 id="repo">1 · Repo map</h2>
+
+<p>JAOS is a static C23 library, <code>libjaos.a</code>, with one public header. There is no CLI:
+the executables in the tree are bench drivers and test binaries.</p>
+
+<pre class="mermaid">
+flowchart TD
+    ROOT["jaos/"]
+    ROOT --> INC["include/jaos.h<br/>the only public header"]
+    ROOT --> SRC["src/<br/>13 .c files + jaos_internal.h<br/>builds to libjaos.a"]
+    ROOT --> TESTS["tests/<br/>10 Unity suites, one binary each<br/>+ tests/data/ fixtures"]
+    ROOT --> BENCH["bench/<br/>run.c warm.c compare/<br/>manifests, baselines, results/, measurements/"]
+    ROOT --> DOCS["docs/<br/>tolerances, work units, scaling,<br/>format support, research notes, diagrams"]
+    ROOT --> BUILD["build/<br/>generated, not committed"]
+    ROOT --> REC["SPECS.md · TODO.md · DECISIONS.md · CHANGELOG.md"]
+</pre>
+
+<h3>The record: five documents, one owner per statement</h3>
+
+<div class="tablewrap"><table>
+<tr><th>kind of statement</th><th>owner</th></tr>
+<tr><td>what a feature is and where it stands</td><td><code>SPECS.md</code></td></tr>
+<tr><td>what to do next, and refusals with reopen conditions</td><td><code>TODO.md</code></td></tr>
+<tr><td>why a question closed, with its measurement</td><td><code>DECISIONS.md</code> (append-only)</td></tr>
+<tr><td>what landed and what it cost</td><td><code>CHANGELOG.md</code></td></tr>
+<tr><td>a tolerance, a threshold, a work-unit definition</td><td><code>docs/</code> beside the source constant</td></tr>
+<tr><td>a verdict's raw readings</td><td><code>bench/measurements/&lt;id&gt;/</code></td></tr>
+<tr><td>committed per-instance baselines</td><td><code>bench/*.baseline</code>, rewritten only by <code>*-baseline</code> targets</td></tr>
+</table></div>
+
+<div class="why"><strong>Why one owner per number.</strong>
+<p>Every figure copied into prose has drifted here before. Each document links to the owner instead of restating.
+<code>DECISIONS.md</code> is append-only so a refusal stays visible; a refusal's premise can expire (D24 → D94).</p></div>
+
+<!-- ================================================================ -->
+<h2 id="modules">2 · Modules and who calls whom</h2>
+
+<pre class="mermaid">
+flowchart TD
+    subgraph API["Public surface — include/jaos.h"]
+        MODEL["model.c<br/>lifecycle · jaos_load_lp · mutation ·<br/>queries · results · jaos_solve wrapper"]
+        STATUS["status.c<br/>status → string (nothing else)"]
+        VERSION["version.c"]
+    end
+    subgraph READERS["Readers — two front-ends, one loader"]
+        MPS["mps.c<br/>fixed + free MPS,<br/>one tokenizer, streams lines"]
+        LPF["lpfmt.c<br/>CPLEX-style LP subset,<br/>slurps file, builds CSR, transposes"]
+    end
+    subgraph SOLVE["Solve — driven by jm_dual_simplex"]
+        SX["simplex.c<br/>orchestrator + dual simplex +<br/>publish/unscale"]
+        PRE["presolve.c<br/>reductions + postsolve replay"]
+        SCALE["scale.c<br/>Curtis–Reid (default) ·<br/>geometric · identity"]
+        LU["lu.c<br/>Markowitz LU · Forrest–Tomlin ·<br/>FTRAN/BTRAN"]
+    end
+    CHECK["check.c<br/>independent checker —<br/>reads only the loaded model"]
+    BASE["alloc.c · util.c<br/>checked allocation · jm_grow"]
+
+    MPS -- "jaos_load_lp" --> MODEL
+    LPF -- "jaos_load_lp" --> MODEL
+    MODEL -- "jaos_solve → jm_dual_simplex" --> SX
+    SX -- "jm_presolve_run / jm_postsolve_*" --> PRE
+    SX -- "jm_model_scale (if not valid)" --> SCALE
+    SX -- "factor · ftran · btran · update" --> LU
+    CHECK -. "const jaos_model * only" .-> MODEL
+    API --> BASE
+    SOLVE --> BASE
+</pre>
+
+<div class="why"><strong>Why this shape.</strong>
+<p>Two readers converge on one validating loader, so every model in memory passed the same checks.
+<code>check.c</code> has no edge into the solver: it reads the model as loaded, with no scaling and no solver state.
+That independence is the point of the checker (D18). <code>status.c</code> sets nothing; every status is set in
+<code>simplex.c</code>, <code>presolve.c</code> or <code>model.c</code>.</p></div>
+
+<!-- ================================================================ -->
+<h2 id="pipeline">3 · The solve pipeline, end to end</h2>
+
+<h3>The minimal caller</h3>
+
+<pre class="mermaid">
+sequenceDiagram
+    actor C as caller
+    participant M as model.c
+    participant R as mps.c / lpfmt.c
+    participant S as simplex.c
+    participant K as check.c
+
+    C->>M: jaos_model_new(&m)
+    C->>R: jaos_read_mps(m, path)
+    R->>M: jaos_load_lp(...) — validate, sort, commit
+    opt configuration (survives a load)
+        C->>M: jaos_set_*_tolerance / _limit / _log_callback / _set_basis
+    end
+    C->>M: jaos_solve(m)
+    M->>S: jm_dual_simplex(m)
+    S-->>M: solve_status + sol_* arrays
+    C->>M: jaos_status_of(m) — must be JAOS_SOLVE_OPTIMAL
+    C->>M: jaos_objective / jaos_solution / jaos_basis
+    opt independent verification
+        C->>K: jaos_check_solution(m, x, y, tol, &report)
+    end
+    C->>M: jaos_model_free(m)
+</pre>
+
+<div class="why"><strong>Three API rules the diagram cannot show.</strong>
+<p>Results are readable only at <code>JAOS_SOLVE_OPTIMAL</code>: a stale answer is an error, never a number.
+Any mutation discards the answer, but the stored basis survives mutation, which is what makes warm re-solve
+automatic (D68). Settings survive a load, so <em>set → read → solve</em> works.</p></div>
+
+<h3>Inside <code>jaos_solve</code>: the orchestrator</h3>
+
+<pre class="mermaid">
+flowchart TD
+    A["jaos_solve — model.c<br/>(null-check, clear err, delegate)"] --> B["jm_presolve_run<br/>(skipped under -DJAOS_NO_PRESOLVE)"]
+    B --> C{presolve outcome}
+    C -- "SOLVED<br/>every column consumed" --> S1["jm_postsolve_solved<br/>publishes OPTIMAL, 0 iterations,<br/>no solver state ever built"]
+    C -- "INFEASIBLE / UNBOUNDED<br/>proved by a reduction" --> S2["jm_postsolve_infeasible_or_unbounded<br/>publishes the verdict, zeroes arrays"]
+    C -- "REDUCED" --> T1["target = the reduced model"]
+    C -- "NONE<br/>nothing fired" --> T2["target = the caller's model"]
+    T1 --> D["sx_init<br/>resolve tolerances · scale if not valid ·<br/>build CSR mirror · allocate solver state ·<br/>build scaled copy of the matrix"]
+    T2 --> D
+    D --> E{"stored basis present<br/>and basic count == rows?"}
+    E -- yes --> W["build_warm_basis<br/>DSE weights ← 1.0 · shift_pending"]
+    E -- no --> F["build_initial_basis<br/>slack basis B = −I ·<br/>lend artificial bounds to free columns"]
+    W --> R1["run — the dual simplex loop (§4)"]
+    F --> R1
+    R1 --> G{outcome}
+    G -- OPTIMAL --> H["settle_shifts — repay every cost loan"]
+    H --> I["reenter_after_settling — bounded rounds,<br/>keeps the best point"]
+    I --> J["classify_optimum —<br/>OPTIMAL / UNBOUNDED / NUMERICAL_ERROR (§6)"]
+    G -- "limit / interrupted /<br/>infeasible / numerical" --> P
+    J --> P["publish — unscale, duals by BTRAN,<br/>remember basis, normalise −0.0"]
+    P --> Q{presolve REDUCED?}
+    Q -- yes --> PS["jm_postsolve_expand<br/>replay the record arena LIFO<br/>back into original indices"]
+    Q -- no --> Z["free solver state, return"]
+    PS --> Z
+</pre>
+
+<div class="why"><strong>Why each stage exists.</strong>
+<p><strong>Presolve first</strong>: it removes what no iteration should pay for, and can prove infeasibility or
+unboundedness before any factorization exists. It reads the model through a <code>const</code> pointer.</p>
+<p><strong>Scaling</strong> uses exact powers of two, so applying a factor is exact in IEEE arithmetic; that is
+what bit-identical results require (D8). The stored matrix is never modified; the solver works on a scaled copy.</p>
+<p><strong>The slack basis</strong> is the cold start because its steepest-edge weights are exactly 1.0.
+A crash basis was measured and refused for destroying them (SPECS §3).</p>
+<p><strong>Publish</strong> is the single unscale point, and it normalises <code>−0.0</code> to <code>0.0</code>
+so byte-for-byte digest comparison stays a valid no-op instrument (D21).</p></div>
+
+<h3>The sub-cases</h3>
+
+<div class="tablewrap"><table>
+<tr><th>condition</th><th>effect</th></tr>
+<tr><td><code>-DJAOS_NO_PRESOLVE</code> (reference build)</td><td>presolve and postsolve compiled out (guards live in <code>simplex.c</code> only). The only oracle for published output no predicate judges (D96)</td></tr>
+<tr><td>presolve fires nothing (NONE)</td><td>no reduced model allocated; publish writes straight into the caller's model</td></tr>
+<tr><td>presolve consumes every column (SOLVED)</td><td>OPTIMAL published with zero simplex iterations</td></tr>
+<tr><td>MAXIMIZE model</td><td><code>sigma = −1</code> folded into costs internally, flipped back at publish; presolve and checker read the sense themselves (D103)</td></tr>
+<tr><td>warm basis stored</td><td>no artificial bounds lent; dual feasibility bought by one cost-shift sweep at the first refresh</td></tr>
+<tr><td>LP vs MPS input</td><td>the caller picks the reader; no sniffing; both converge on <code>jaos_load_lp</code></td></tr>
+<tr><td>work/time limit, callback stop</td><td>basis kept for resuming, published statuses zeroed: resumable, nothing readable in between (D70, D79)</td></tr>
+</table></div>
+
+<h3>Memory, in three waves</h3>
+
+<pre class="mermaid">
+flowchart LR
+    A["load wave<br/>model arrays<br/>(until next load or free)"] --> B["derived caches<br/>CSR mirror + scale factors<br/>(rebuilt only when the matrix changes)"] --> C["per-solve wave<br/>presolve workspace + solver state + LU<br/>(freed at the bottom of jm_dual_simplex)"]
+</pre>
+
+<p>The six <code>sol_*</code> answer arrays and the two <code>start_*</code> basis arrays are the only per-solve
+products that outlive the solve. <code>alloc.c</code> is two functions with C23 overflow-checked multiplication;
+there is no arena and no pool.</p>
+
+<!-- ================================================================ -->
+<h2 id="simplex">4 · The dual simplex loop and the LU</h2>
+
+<p>A bounded-variable dual simplex on <code>M z = 0</code> with <code>M = [A | −I]</code>: every row gets a
+logical, so rows and columns are one kind of object. There is no separate phase 1. Dual feasibility is bought
+at basis construction (artificial bounds lent to free columns) and maintained by cost shifting; every loan is
+repaid before any verdict.</p>
+
+<h3>The <code>run</code> loop</h3>
+
+<pre class="mermaid">
+flowchart TD
+    A["refresh — factorize, compute x_B and duals"] --> L{"limits?"}
+    L -- "work / time / callback stop" --> X1["WORK_LIMIT / TIME_LIMIT / INTERRUPTED"]
+    L -- no --> RF{"needs_refactor?"}
+    RF -- yes --> RD["refresh"] --> PR
+    RF -- no --> PR["price_row — dual steepest edge,<br/>pick the most violated basic (row r)"]
+    PR -- "no violation" --> V1{"verified?"}
+    V1 -- "no — refresh with refinement,<br/>price again" --> PR
+    V1 -- yes --> OPT["OPTIMAL"]
+    PR -- "row r" --> PS["price_and_select:<br/>BTRAN row r of B⁻¹ (rho) ·<br/>alpha = rho·M by rows ·<br/>dual ratio test"]
+    PS -- "no entering column" --> V2{"verified?"}
+    V2 -- "no — refresh with refinement,<br/>price again" --> PR
+    V2 -- yes --> INF["INFEASIBLE<br/>(dual unbounded)"]
+    PS -- "column q" --> PV["pivot(r, q)"]
+    PV -- "declined — factorization<br/>stopped agreeing (D86)" --> RF
+    PV -- "taken — iters++" --> L
+</pre>
+
+<div class="why"><strong>The verified rule (D20, D39).</strong>
+<p>Neither OPTIMAL nor INFEASIBLE is ever declared on carried numbers. The first time pricing finds nothing,
+the factorization is rebuilt with iterative refinement and the question is asked again. Only a repeat of the
+same answer on fresh numbers becomes a verdict. Every basis change clears <code>verified</code>.</p></div>
+
+<h3>One iteration</h3>
+
+<pre class="mermaid">
+sequenceDiagram
+    participant R as run
+    participant P as pricing
+    participant LU as lu.c
+    participant T as ratio test
+    participant V as pivot
+
+    R->>P: price_row — score viol²/weight per basic, DSE
+    P-->>R: leaving row r, side (below/above)
+    R->>LU: BTRAN — rho = row r of B⁻¹ (sparse, DFS pattern)
+    R->>P: price_all — alpha = rho·M, walking matrix rows in rho's pattern
+    R->>T: dual_ratio_test — Harris two passes + bound flips (BFRT)
+    T->>T: pass 1 — tightest ratio window (dual_tol slack)
+    T->>T: pass 2 — largest pivot inside the window
+    T->>LU: one FTRAN for all flipped bounds together
+    T-->>R: entering column q, dual step theta
+    R->>V: pivot(r, q)
+    V->>LU: FTRAN — entering column B⁻¹ a_q
+    V->>V: stability check — BTRAN's alpha_q vs FTRAN's col[r]
+    alt disagree past LU_AGREE_TOL (and updates exist)
+        V-->>R: decline pivot, needs_refactor, nothing mutated, no iteration billed
+    else agree
+        V->>V: dual update over alpha's pattern + cost shifts
+        V->>LU: second FTRAN — tau for the exact DSE recurrence
+        V->>V: update weights (reset all to 1.0 on drift), x_B, basis swap
+        V->>LU: jm_lu_update — Forrest–Tomlin (or flag refactor at the interval)
+    end
+</pre>
+
+<div class="why"><strong>Why the stability check is free (D86).</strong>
+<p>The pivot element is computed twice anyway: once by BTRAN, once by FTRAN. In exact arithmetic they are equal.
+When they drift apart, the factorization no longer describes the basis, and pivoting on it is what produced
+<code>pilot87</code>'s stall (D72). The declined pivot mutates nothing and is not billed.</p></div>
+
+<h3>When the factorization is rebuilt</h3>
+
+<div class="tablewrap"><table>
+<tr><th>trigger</th><th>where</th></tr>
+<tr><td>update count reaches <code>REFACTOR_EVERY</code></td><td><code>pivot</code>, before the update</td></tr>
+<tr><td>a Forrest–Tomlin update fails (numerical or memory)</td><td><code>pivot</code> — absorbed into a scheduled rebuild</td></tr>
+<tr><td>BTRAN/FTRAN pivot disagreement past <code>LU_AGREE_TOL</code></td><td><code>pivot</code>, declining the iteration (D86)</td></tr>
+<tr><td>a verdict needs verifying</td><td><code>run</code>, with iterative refinement (D20/D39)</td></tr>
+<tr><td>re-entry and restore paths</td><td><code>reenter_after_settling</code></td></tr>
+</table></div>
+
+<p>There is no fill-based trigger. <code>refresh</code> also repairs a singular basis: up to
+<code>REPAIR_ATTEMPTS</code> rounds of patching uncovered rows with logicals, then the solve is abandoned
+as NUMERICAL_ERROR. The LU: Markowitz cost <code>(r−1)(c−1)</code> with threshold pivoting and an early-stopping
+pivot search (D46); Forrest–Tomlin updates; FTRAN/BTRAN report sparsity patterns and BTRAN's U-solve walks only
+the DFS-reachable slots (D38/D44).</p>
+
+<h3>Degeneracy: the Bland fallback</h3>
+
+<pre class="mermaid">
+stateDiagram-v2
+    DSE: normal pricing (DSE + Harris + bound flips)
+    BLAND: Bland's rule (lowest index, exact min ratio, no flips)
+    [*] --> DSE
+    DSE --> BLAND: no infeasibility improvement for STALL_FACTOR·(rows+cols+1) iterations
+    BLAND --> DSE: total infeasibility improves on the best seen
+</pre>
+
+<div class="why"><strong>Why a fallback and not the default (D26).</strong>
+<p>Bland's rule terminates but crawls. It runs only while progress is provably stopped; progress is measured as
+total primal infeasibility, accumulated for free during pricing.</p></div>
+
+<h3>Three nested loops share the iteration counter</h3>
+
+<pre class="mermaid">
+flowchart TD
+    subgraph RE["reenter_after_settling — bounded rounds after the first OPTIMAL"]
+        direction TB
+        subgraph RUNL["run — the iteration loop above"]
+            IT["price → ratio test → pivot"]
+        end
+        PC["primal_cleanup — moves settled candidates,<br/>pivots through the same pivot()"]
+        RUNL --> PC
+        PC --> RUNL
+    end
+</pre>
+
+<p>After the first OPTIMAL, <code>settle_shifts</code> repays every cost loan; repaying can re-open dual
+infeasibility, so re-entry runs more rounds, keeps the best point seen (dual-feasible first, then lowest
+objective, D89) and can roll back to it. One sanity cap covers all three loops.</p>
+
+<!-- ================================================================ -->
+<h2 id="presolve">5 · Presolve and postsolve</h2>
+
+<pre class="mermaid">
+flowchart TD
+    START["jm_presolve_run<br/>(reads the model const — never writes it)"] --> RL{"round loop<br/>up to JM_PRESOLVE_ROUNDS,<br/>stops when a round changes nothing"}
+    RL --> A["row pass<br/>empty row · singleton row ·<br/>free column singleton (mutual)"]
+    A --> B["column pass<br/>fixed column · empty column ·<br/>cost-0 singleton column (freezes its row) ·<br/>implied free column singleton (D105/D106)"]
+    B --> CP["activity pass (rows with degree ≥ 2)<br/>infeasible row · forcing row ·<br/>redundant row · (bound tightening: refused, D97)"]
+    CP --> RL
+    RL -- done --> FR["frozen-row feasibility test<br/>(once, after the loop)"]
+    FR --> CO["compaction<br/>build index maps, copy the reduced model,<br/>carry the warm basis across"]
+    CO --> OUT{"outcome"}
+    OUT -- "nothing removed" --> N["NONE — no reduced model built"]
+    OUT -- "columns remain" --> R["REDUCED — solver runs on the copy"]
+    OUT -- "zero columns left" --> S["SOLVED — publish OPTIMAL directly"]
+    A -- "empty intersection" --> I["INFEASIBLE"]
+    CP -- "activity range misses the bounds" --> I
+    FR -- "frozen row violated" --> I
+    B -- "empty column, infinite favourable bound,<br/>nonzero cost" --> U["UNBOUNDED"]
+</pre>
+
+<div class="why"><strong>Why it is built this way.</strong>
+<p><strong>Const input</strong>: presolve builds a reduced copy; the caller's model is the checker's ground
+truth and must survive untouched.</p>
+<p><strong>Early outcomes are cheap proofs</strong>: four sites prove INFEASIBLE and one proves UNBOUNDED
+before any factorization exists. The empty-column rule is the one family permitted to report unboundedness
+(D19's exception): its ray is trivial.</p>
+<p><strong>Freezing a row</strong> marks bounds that no longer describe it; every later family must refuse a
+frozen row. The round-order defects D99, D102 and D117 all lived on that edge.</p>
+<p><strong>Its own tolerance space</strong>: residues are judged in the unscaled model, with windows counted
+in roundings (ulps), not tunables (D103).</p></div>
+
+<h3>Each reduction pushes a record</h3>
+
+<p>Every reduction pushes one record (tag plus the numbers its undo needs) onto an append-only arena;
+<code>index</code> is always an original index. Families at commit <code>33bb85d</code>: empty row, singleton
+row, fixed column, empty column, cost-0 singleton column (D95), free column singleton, implied free column
+singleton (D105/D106), forcing row, redundant row. Deferred with the count that defers them: duplicates and
+dominated columns (D101). Refused with six designs measured: bound tightening (D97).</p>
+
+<h3>Postsolve — the LIFO replay</h3>
+
+<pre class="mermaid">
+flowchart TD
+    P["publish (on the reduced model)"] --> E["jm_postsolve_expand"]
+    E --> C1["copy surviving rows and columns<br/>through the index maps"]
+    C1 --> C2["seed dead rows' activities<br/>from surviving columns<br/>(one compensated carry per row)"]
+    C2 --> RP["replay the arena strictly last-in-first-out:<br/>each record restores its variable's value,<br/>status, reduced cost, and the row terms it owes"]
+    RP --> F["fold the compensation carry,<br/>normalise −0.0, remember the basis"]
+</pre>
+
+<div class="why"><strong>Why LIFO, and why a compensated carry.</strong>
+<p>Each undo must see the model state its reduction saw; replaying in any other order derives duals from bounds
+that no longer describe the row (D99). A removed column pays its share into every row it touched, through a
+Neumaier accumulator; two families short-changed this and D106 made them pay.</p></div>
+
+<!-- ================================================================ -->
+<h2 id="outcomes">6 · Outcomes and the independent checker</h2>
+
+<h3>The status lifecycle</h3>
+
+<pre class="mermaid">
+stateDiagram-v2
+    direction LR
+    NOT_RUN: NOT_RUN
+    SOLVING: solving
+    OPTIMAL: OPTIMAL
+    INFEASIBLE: INFEASIBLE
+    UNBOUNDED: UNBOUNDED
+    STOPPED: WORK_LIMIT / TIME_LIMIT / INTERRUPTED
+    NUMERR: NUMERICAL_ERROR
+
+    [*] --> NOT_RUN
+    NOT_RUN --> SOLVING: jaos_solve
+    SOLVING --> OPTIMAL
+    SOLVING --> INFEASIBLE
+    SOLVING --> UNBOUNDED
+    SOLVING --> STOPPED
+    SOLVING --> NUMERR
+    OPTIMAL --> NOT_RUN: any mutation (answer discarded)
+    STOPPED --> SOLVING: solve again — resumes from the kept basis
+    INFEASIBLE --> NOT_RUN: any mutation
+    UNBOUNDED --> NOT_RUN: any mutation
+</pre>
+
+<div class="why"><strong>Why results are readable only at OPTIMAL.</strong>
+<p>A stopped solve keeps its basis so the next solve resumes (D70), but its published statuses are zeroed: the
+stopping point is resumable, never readable as an answer. NUMERICAL_ERROR is the one outcome that keeps no
+basis.</p></div>
+
+<h3><code>classify_optimum</code>, the last gate before OPTIMAL</h3>
+
+<pre class="mermaid">
+flowchart TD
+    A["run said OPTIMAL,<br/>loans repaid, rounds settled"] --> B{"any column resting on a<br/>lent artificial bound?"}
+    B -- no --> O["OPTIMAL"]
+    B -- yes --> C{"does it improve<br/>without limit?"}
+    C -- "yes — a real ray" --> U["UNBOUNDED"]
+    C -- "no — a real constraint blocks it" --> N["NUMERICAL_ERROR<br/>(this phase 1 cannot reach the finite optimum)"]
+</pre>
+
+<div class="why"><strong>Why the third arm exists (D19).</strong>
+<p>Unboundedness is read off a ray, never off an invented bound. A column held by a loan but blocked by a real
+constraint is an honest refusal, not a wrong UNBOUNDED.</p></div>
+
+<p>Nine sites write <code>m-&gt;solve_status</code>, and two are invisible to a text search for the field name:
+a whole-struct copy in presolve's compaction and a <code>memset</code> in <code>model_release_arrays</code>.
+When auditing status behaviour, grep is not enough.</p>
+
+<h3>The independent checker</h3>
+
+<pre class="mermaid">
+flowchart TD
+    IN["inputs: the model as loaded,<br/>x (required), y (optional), one tol"] --> V["validate: no NaN, tol finite"]
+    V --> ACT["row activities in long double,<br/>fixed order (deterministic),<br/>per-row traffic Σ|a·x|"]
+    ACT --> PF["primal feasibility:<br/>column and row violations vs tol"]
+    PF --> DUAL{"y provided?"}
+    DUAL -- no --> REP["report: primal side only"]
+    DUAL -- yes --> IB["implied bounds:<br/>bound the variables the model left free,<br/>propagated to a fixed point"]
+    IB --> SC["dual sign conditions +<br/>complementary slackness<br/>(windows scaled by row traffic / |x|)"]
+    SC --> GAP["primal–dual gap —<br/>verdict reads only terms from bounds<br/>the model declared (D87/D91)"]
+    GAP --> CS["certified suboptimality step ·<br/>dropped-term count"]
+    CS --> REP2["report: booleans + magnitudes.<br/>The checker never changes solve_status."]
+</pre>
+
+<div class="why"><strong>Why the checker is shaped this way.</strong>
+<p><strong>Original space only</strong> — no scaling, no basis, no solver state; it judges the answer against
+the model the caller loaded, which is why the solver may never rewrite that model (D18).</p>
+<p><strong>A failure changes nothing in the library</strong>: the checker fills a report and consumers act.
+In the gate, <code>bench/run.c</code> turns it into the <code>checker=</code> predicate.</p>
+<p><strong>The verdict reads declared bounds only</strong> (D91): an implied bound's term can be live at a
+correct optimum, so reading it would reject right answers.</p>
+<p><strong>Limit</strong>: it never reads a basis status, and it certifies against tolerances, not exactly
+(SPECS §5).</p></div>
+
+<h3>Warm start vs cold start</h3>
+
+<div class="tablewrap"><table>
+<tr><th></th><th>cold (<code>build_initial_basis</code>)</th><th>warm (<code>build_warm_basis</code>)</th></tr>
+<tr><td>basis</td><td>slack basis, B = −I</td><td>the stored statuses, repaired if a bound went infinite (D90)</td></tr>
+<tr><td>DSE weights</td><td>exactly 1.0 (a fact)</td><td>1.0 (a prior)</td></tr>
+<tr><td>dual feasibility</td><td>by lending artificial bounds to free columns</td><td>by one cost-shift sweep at the first refresh; no bounds lent</td></tr>
+<tr><td>LU</td><td>factorized fresh</td><td>factorized fresh — nothing is carried</td></tr>
+<tr><td>entered when</td><td>no stored basis, or basic count mismatch</td><td>an optimum, a stop, or <code>jaos_set_basis</code> left statuses</td></tr>
+</table></div>
+
+<!-- ================================================================ -->
+<h2 id="gate">7 · The gate — how a change is judged</h2>
+
+<pre class="mermaid">
+flowchart TD
+    E["finish every source edit<br/>(a campaign is valid only for the tree that produced it)"] --> T["make test + make sanitize<br/>(WSL, ASan+UBSan)"]
+    T --> NR["solver internals changed?<br/>numerics-reviewer on the diff,<br/>before any campaign"]
+    NR --> PF["preflight.sh —<br/>tree settled · no other runner ·<br/>baselines intact · instances fetched · suite green"]
+    PF --> C["the three campaigns, always all three:<br/>make netlib · netlib-infeas · netlib-kennington (J=N)"]
+    C --> RD["record_diff.py — per-instance diff of<br/>bench/results/*.txt against the committed record"]
+    RD --> GM["geomean.py — any ratio is a geometric mean<br/>of per-instance ratios, never a sum (D46)"]
+    GM --> V["verdict — judged by jaos-measurer,<br/>a context that did not produce the numbers"]
+    V -- accept --> L["land: commit + CHANGELOG (+ DECISIONS if a<br/>question closed) + raw readings to bench/measurements/&lt;id&gt;/"]
+    V -- reject --> RJ["record the refutation in measurements/&lt;id&gt;/;<br/>the candidate never lands"]
+    L --> B["baselines rewritten only by *-baseline targets,<br/>deliberately, never while the gate is red"]
+</pre>
+
+<h3>What one instance goes through (<code>bench/run.c</code>)</h3>
+
+<pre class="mermaid">
+sequenceDiagram
+    participant D as run_one
+    participant J as libjaos
+    participant K as checker
+
+    D->>J: jaos_model_new + jaos_read_mps
+    D->>D: shape check vs manifest (rows, cols)
+    D->>J: jaos_solve (timed — seconds print, never recorded)
+    D->>D: objective vs reference within 1e-6 relative
+    D->>K: jaos_check_solution at 1e-6
+    K-->>D: checker= predicate (primal and dual feasible)
+    D->>D: digest — FNV-1a over the bytes of x then y
+    D->>J: jaos_clear_basis, then jaos_solve AGAIN
+    D->>D: det= — same status, iters, work, objective bits, digest
+    D->>D: one record line, 10 judged fields
+</pre>
+
+<div class="why"><strong>Why the clear between the two solves (D68).</strong>
+<p>Without it the second solve would be a warm re-solve, and the determinism check would measure a sequence of
+calls rather than the solver. The infeasible set expects a refusal (no false optimum) and carries no digest and
+no checker verdict.</p></div>
+
+<h3>The two comparisons — do not conflate them</h3>
+
+<pre class="mermaid">
+flowchart LR
+    subgraph RUN["during the run — bench/run.c"]
+        R1["this run"] -- "5 predicates yes→no = REGRESSED ·<br/>work over 2.0x = REGRESSED ·<br/>rsub over 2.0x above its floor = REGRESSED" --> B1["bench/*.baseline<br/>(committed, 10 fields,<br/>no digest, no seconds)"]
+    end
+    subgraph AFTER["after the run — record_diff.py"]
+        R2["bench/results/*.txt<br/>(the record, committed)"] -- "status/predicate flips, work over 2.0x,<br/>format drift = regression ·<br/>digest change = a NOTE" --> B2["git HEAD's copy<br/>of the same record"]
+    end
+</pre>
+
+<div class="why"><strong>Three rules that decide verdicts.</strong>
+<p><strong>The digest never fails the gate.</strong> Every instance bit-identical to the committed record is the
+strongest available evidence that a change is a no-op.</p>
+<p><strong>A summary line saying <code>0 regressed</code></strong> means only that no predicate flipped and no
+instance crossed 2.0x work. Read the per-instance diff; ten commits once reached main under an unmoved summary
+line (<code>bench/README.md</code>).</p>
+<p><strong>Seconds never enter a record or a baseline.</strong> Work units are the cost; a time ratio is taken
+only where units cannot see the change: <code>J=1</code>, minimum over alternating rounds, geometric mean
+(D45, D93).</p></div>
+
+<h3>Everything else in <code>bench/</code></h3>
+
+<div class="tablewrap"><table>
+<tr><th>piece</th><th>role</th></tr>
+<tr><td><code>make warm</code> / <code>warm-kennington</code></td><td>what warm re-solving buys; a ratio, not a verdict; no baseline</td></tr>
+<tr><td><code>bench/compare/</code></td><td>the competitive ladder vs HiGHS, SoPlex, Clp; its own record; the one place seconds are allowed</td></tr>
+<tr><td><code>make pgo</code></td><td>profile-guided rebuild; deliberately not part of <code>make</code></td></tr>
+<tr><td><code>bench/measurements/&lt;id&gt;/</code></td><td>raw readings behind each verdict, so every verdict is re-derivable</td></tr>
+<tr><td><code>plato*</code> targets</td><td>the large-instance set; explicitly not the gate</td></tr>
+</table></div>
+
+<footer>
+  <p>Sources: <code>docs/diagrams/01-repo-map.md</code> … <code>07-gate.md</code> (same diagrams, one file per
+  subject). Reasoning: <code>DECISIONS.md</code>. Constants: <code>docs/tolerances.md</code> and the source.
+  Gate contract: <code>bench/README.md</code>. Feature status: <code>SPECS.md</code>.</p>
+</footer>
+
+</main>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11.16.1/dist/mermaid.min.js"
+        integrity="sha384-aBQXj4hK6Jm05i7aQAsUV3bLdSUrHX1BGYfMB0166TtWt/RRaw+h0Eelme9OCOvy"
+        crossorigin="anonymous"></script>
+<script>
+  if (window.mermaid) {
+    mermaid.initialize({ startOnLoad: true, theme: (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'neutral'), flowchart: { htmlLabels: true } });
+  } else {
+    document.querySelectorAll('pre.mermaid').forEach(function (el) {
+      el.insertAdjacentHTML('afterbegin', '<div style="color:#b35900">mermaid failed to load (offline?) — showing the diagram source.</div>');
+    });
+  }
+</script>
+</body>
+</html>
