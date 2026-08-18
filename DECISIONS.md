@@ -144,6 +144,7 @@ and you have the argument. Jump to the entry for the numbers behind it.
 - **[D134](#d134--the-pair-sums-to-one-only-by-accident-and-the-repair-is-a-swap-rather-than-a-status)** — The pair sums to one only by accident, and the repair is a swap rather than a status
 - **[D135](#d135--the-exchange-the-reduction-suggests-is-available-and-valid-on-97-of-firings)** — The exchange the reduction suggests is available and valid on 97% of firings
 - **[D136](#d136--the-singleton-rows-rule-falls-out-of-its-own-dual-and-the-defect-is-a-status-decided-on-a-partial-activity)** — The singleton row's rule falls out of its own dual, and the defect is a status decided on a partial activity
+- **[D137](#d137--the-counting-rule-is-published-and-highs-turned-off-the-family-that-costs-us-5902)** — The counting rule is published, and HiGHS turned off the family that costs us 5902
 
 ---
 
@@ -10248,3 +10249,75 @@ row's status after the replay, publish the row `BASIC` when `y_i == 0`, and
 answer the 40 firings at 1e-16 plus `SINGLETON_COL`'s 188 from D135. Any
 candidate is checked against +3904 on netlib and +25654 on Kennington, which
 must go to zero.
+
+## D137 — The counting rule is published, and HiGHS turned off the family that costs us 5902
+
+**The question.** D131 to D136 derived a basis-recovery rule from scratch and
+measured it. Before building anything on it, is it the published one?
+`literature-scout` searched and **could not open a single PDF** — its report
+says so at the top and marks its per-family table as derivation. Its headline
+was "no published source states the basis-size invariant as a counting rule".
+
+**The thesis was then read directly**, `pdftotext -layout` in WSL, and the
+headline is wrong. Galabova 2023 (`10.7488/era/2974`, University of Edinburgh)
+states all of it, in `docs/research/postsolve-basis-recovery.md`:
+
+> a point returned by postsolve must also be a basic feasible solution (BFS) in
+> order to hot-start the simplex algorithm
+
+> **At each step of postsolve where a new row is introduced, a variable must be
+> identified as basic.**
+
+> Basic variables can have primal values between their lower and upper bounds
+> but must have a zero dual value. Nonbasic variables must be at a bound but
+> can have nonzero duals.
+
+> If the eliminated variable is strictly between bounds it must be ensured that
+> it is basic in the postsolved problem.
+
+**That is D132's accounting identity, D136's complementary-slackness rule and
+D134's interior-implies-basic argument, all three, in print.** Every one was
+derived here first and independently; none needs restating as this project's
+own invention.
+
+**What the literature adds that was not derived.** HiGHS does not solve for the
+assignment; it attempts one and falls back: *"an attempt is made to set it to
+basic. If that assignment of values is infeasible, the remaining column `x_j`
+is selected for the basis."* And postsolve is followed by re-optimisation —
+*"Additional simplex iterations after postsolve ensure that the solution
+returned to the user is feasible"* — so **the bar is a valid starting basis,
+not the optimal one**: `num_row` members and nonsingular, without having to
+reproduce the duals. JAOS's only consumer is `build_warm_basis`, which
+re-optimises anyway.
+
+**And the family that costs the most here was measured and disabled there.**
+
+> The zero cost column singleton rule was added to HiGHS, however, enabling it
+> led to a reduction in elimination counts for some test problems, and it was
+> disabled by default. … Thus confirming that the zero cost column singleton
+> rule should not be included in the default presolver list.
+
+That is `JM_PS_SINGLETON_COL`, which D133 measured at **+5902 on netlib**, the
+larger of the two contributors. **It is not an argument to disable it here** —
+D95 and D106 are this project's own measurements of its value and they say
+something different — but it is a published datum about the same rule and it
+belongs beside them.
+
+**What was refuted.** The scout's own headline, by reading the document it
+could not open. The lesson is in the tooling rather than the agent: the memory
+note saying this machine has no PDF tooling was **stale**. `pdftotext` 24.02.0
+is installed in WSL and extracted 2542 usable lines in seconds. The scout was
+told the same thing and worked around it for a whole search.
+
+**No source carries a per-family basis table.** Brearley/Mitra/Williams 1975,
+Tomlin & Welch 1983, Fourer & Gay 1994, Andersen & Andersen 1995, Gondzio 1997
+and Achterberg et al. 2020 recover values and duals and assign no status. The
+table in `docs/research/postsolve-basis-recovery.md` is derived and is labelled
+so.
+
+**Nothing changed and nothing is proposed.** No source file was touched.
+
+**Left open, in `TODO.md`.** The repair, unchanged in shape by this, and now
+with the published rules to check it against. One new lead nobody has read:
+Tomlin & Welch, *A pathological case in the reduction of linear programs*, ORL
+1983, `10.1016/0167-6377(83)90036-6`.

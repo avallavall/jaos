@@ -210,6 +210,18 @@ variable brought *in*.
    count is right and its reduced count still is not. Any candidate is checked
    against the closing sums, +3904 on netlib and +25654 on Kennington, which
    must go to zero.
+   **The published rules agree with all of the above (D137)**, in
+   `docs/research/postsolve-basis-recovery.md`: Galabova 2023 states the
+   counting rule ("at each step of postsolve where a new row is introduced, a
+   variable must be identified as basic"), the status rule, and
+   interior-implies-basic. Two things it adds. HiGHS **attempts** an assignment
+   and falls back rather than deriving it. And postsolve is followed by
+   re-optimisation, so **the bar is a valid starting basis, not the optimal
+   one** — `num_row` members and nonsingular, without reproducing the duals.
+   `build_warm_basis` is the only consumer here and it re-optimises anyway.
+   **HiGHS disabled the zero-cost column singleton rule by default**, the
+   family costing +5902 here. Not an argument to disable it — D95 and D106 are
+   this project's own measurements of its value — but it belongs beside them.
    **A row's activity is not final until every record touching it has
    replayed** (`ps_row_add` accumulates), so anything reading it has to read it
    after the replay. **This has produced a wrong number three times in three
