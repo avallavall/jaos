@@ -126,7 +126,12 @@ done
 echo
 echo "4. are the instances fetched?"
 for d in bench/instances bench/instances-infeas bench/instances-kennington; do
-    n=$(find "$d" -name '*.mps' 2>/dev/null | wc -l)
+    # -L follows a symlink. A candidate measured in a git worktree links these
+    # three directories to the main tree's rather than refetching 300 MB, and
+    # without -L every one of them reported "no .mps files" -- three warnings
+    # that say a run is about to refetch when the instances are right there.
+    # A preflight that cries wolf is a preflight nobody reads.
+    n=$(find -L "$d" -name '*.mps' 2>/dev/null | wc -l)
     if [ "$n" -eq 0 ]; then
         flag "$d has no .mps files -- the run will fetch them, which takes a while"
     else
