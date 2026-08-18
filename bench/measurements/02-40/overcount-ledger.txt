@@ -1,0 +1,29 @@
+# Where does an over-count come from?
+#
+# The identity, if the reasoning is right:
+#   over = rows_removed - drop_row - drop_col - adj
+# A row removed whose logical was NONBASIC costs a basis position and
+# no basic variable, so it pushes the count over.
+
+OVER  80bau3b     over=21    nbasic=2043   rrow=2022  
+                  mapping: basic_in 2288   - drop_row 77   - drop_col 137  - adj 31   = 2043
+                  ON THE CALLERS OWN MODEL: basic_in 2288 vs nr 2262  -> off by 26
+OVER  boeing1     over=1     nbasic=299    rrow=298   
+                  mapping: basic_in 351    - drop_row 18   - drop_col 2    - adj 32   = 299
+                  ON THE CALLERS OWN MODEL: basic_in 351 vs nr 351  -> off by 0
+OVER  finnis      over=12    nbasic=411    rrow=399   
+                  mapping: basic_in 512    - drop_row 63   - drop_col 23   - adj 15   = 411
+                  ON THE CALLERS OWN MODEL: basic_in 512 vs nr 497  -> off by 15
+OVER  standata    over=10    nbasic=310    rrow=300   
+                  mapping: basic_in 344    - drop_row 27   - drop_col 7    - adj 0    = 310
+                  ON THE CALLERS OWN MODEL: basic_in 344 vs nr 359  -> off by -15
+OVER  standmps    over=11    nbasic=418    rrow=407   
+                  mapping: basic_in 456    - drop_row 27   - drop_col 11   - adj 0    = 418
+                  ON THE CALLERS OWN MODEL: basic_in 456 vs nr 467  -> off by -11
+OVER  vtp-base    over=2     nbasic=54     rrow=52    
+                  mapping: basic_in 164    - drop_row 78   - drop_col 32   - adj 0    = 54
+                  ON THE CALLERS OWN MODEL: basic_in 164 vs nr 198  -> off by -34
+
+solves with a ledger=88  over=6  short=17  exact=65
+mapping identity failures: 0 of 88
+SOLVES WHERE THE CALLERS OWN BASIS COUNT IS ALREADY WRONG: 61 of 88

@@ -138,6 +138,7 @@ and you have the argument. Jump to the entry for the numbers behind it.
 - **[D128](#d128--the-shift-record-says-what-the-cost-moved-by-and-it-skips-two-re-pricings-out-of-290)** — The shift record says what the cost moved by, and it skips two re-pricings out of 290
 - **[D129](#d129--the-basis-count-defect-costs-25-of-netlib-and-55-of-kennington-their-warm-start-outright)** — The basis-count defect costs 25% of netlib and 55% of Kennington their warm start outright
 - **[D130](#d130--six-instances-publish-more-basic-variables-than-rows-not-three-and-the-three-with-no-basis-at-all-are-named)** — Six instances publish more basic variables than rows, not three, and the three with no basis at all are named
+- **[D131](#d131--jaos_basis-publishes-something-that-is-not-a-basis-on-70-of-solves-and-presolves-mapping-is-exact)** — `jaos_basis` publishes something that is not a basis on 70% of solves, and presolve's mapping is exact
 
 ---
 
@@ -9864,3 +9865,87 @@ while three of ninety-two reporting it is a fact about those three.
 price: **a repair aimed at the missing-one case answers sixteen of the
 twenty-three**, and says nothing about `maros`'s five short or the six that
 are over.
+
+## D131 — `jaos_basis` publishes something that is not a basis on 70% of solves, and presolve's mapping is exact
+
+**The question.** D130 named six instances whose stored basis has more basic
+variables than the reduced model has rows. `src/presolve.c:1635` maps a
+starting basis into reduced indices and its comment contemplates one direction
+only — *"dropping it undercounts the basic total … safe, never wrong, only
+colder"*. Over-counting is contemplated nowhere, and the obvious explanation
+was that removing a row whose logical is NONBASIC costs a basis position and
+no basic variable.
+
+**That explanation is refuted** (`bench/measurements/02-40/`). Written as an
+identity it reads `over = rows_removed - drop_row - drop_col - adj`, and it
+**fails on 61 of 88 solves**: `80bau3b` is over by 21 where it predicts −5.
+
+**The identity that holds is stated on what the mapping actually reads:**
+
+```
+nbasic_out = basic_in - drop_row - drop_col - adj      0 failures of 88
+```
+
+The mapping is arithmetically exact. The first formula assumed
+`basic_in == nr`, which is what a basis on the caller's model has by
+definition, and that assumption is the whole difference:
+
+| instance | over by | `basic_in` | `nr` | already off by |
+|---|---|---|---|---|
+| `80bau3b` | 21 | 2288 | 2262 | **+26** |
+| `finnis` | 12 | 512 | 497 | **+15** |
+| `standata` | 10 | 344 | 359 | **−15** |
+| `standmps` | 11 | 456 | 467 | **−11** |
+| `vtp-base` | 2 | 164 | 198 | **−34** |
+| `boeing1` | 1 | 351 | 351 | 0 |
+
+**Two mechanisms, and `boeing1` is the control that separates them.** Its
+stored basis counts exactly right and the mapping still lands it over by one,
+which is the original hypothesis and accounts for one of the six. The other
+five inherit a count that was already wrong before presolve saw it.
+
+**Confirmed on the gate, on the caller's own model after postsolve**
+(`bench/measurements/02-41/`) — the array `jaos_basis` returns verbatim:
+
+| set | optimal solves | count exact | **wrong** | over | under | worst over | worst under |
+|---|---|---|---|---|---|---|---|
+| netlib | 188 | 56 | **132 (70%)** | 72 | 60 | 596 | 169 |
+| Kennington | 32 | 8 | **24 (75%)** | 8 | 16 | **12104** | 406 |
+| infeasible | 0 | — | — | — | — | — | — |
+
+The infeasible set publishes no basis, which is correct: `publish` memsets the
+arrays on every path but OPTIMAL and `jaos_basis` refuses unless the status is
+OPTIMAL. `12104` too many on a Kennington model is not an off-by-one; it is a
+different object from a basis.
+
+**It is a defect and not a convention, because the file says so twice.**
+`src/model.c`: *"a model with n rows needs n basic variables … it is
+structural — no later event makes a wrong count right"*, and *"Checked here:
+… that exactly num_row of them are basic. Those are structural."*
+`jaos_set_basis` refuses a basis whose count is wrong; `basis_survives_or_goes`
+clears one that becomes wrong; **`jm_model_remember_basis` checks nothing** and
+`memcpy`s the published statuses straight in. **The solver publishes, and
+stores for its own next solve, something it would refuse from a caller.**
+
+**No answer is wrong and the gate is green.** Values, objective, duals,
+reduced costs, the independent checker and every solution digest are
+unaffected: the basis sits beside the answer and nothing in the solve reads it
+back except `build_warm_basis`, which refuses it. That is why 21 `src/`
+commits passed with nobody noticing (D129).
+
+**And it is the source of D129's lost warm starts rather than a second
+defect.** `build_warm_basis` rejecting the count is the symptom.
+
+**Left open, in `TODO.md`**, and it is two questions rather than one:
+
+- **`publish` and postsolve should produce a basis.** That is where the count
+  is decided; presolve's mapping is exact and nothing there needs repair.
+- **`jm_model_remember_basis` should check.** A one-line guard makes the
+  invariant honest and on its own changes nothing measurable — a stored basis
+  failing the count is already rejected by `build_warm_basis`, so clearing it
+  earlier reaches the same cold start. It belongs with the repair above rather
+  than instead of it.
+
+The standing debt names one postsolve family and a minimum case of one status.
+**The measurement is 132 solves and a worst error of 12104**, so that case is a
+corner of this rather than a description of it.

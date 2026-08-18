@@ -100,12 +100,47 @@ What is still true and unrepaired, both with their size on the record:
 - D121's loan of 1e32 on a cost of one is real and stays reachable through
   D118's refused presolve candidate. No instance in the gate reaches it.
 
-## → START HERE
+## → START HERE: `jaos_basis` publishes something that is not a basis
 
-§5a is done, so the next item is whichever of the list below is worth most.
-The standing debts at the end of this file are the cheapest real work; the
-`warm` records being 21 `src/` commits behind is the one that degrades every
-future measurement until it is fixed.
+**This is the largest open correctness item in the file and it was a standing
+debt an hour ago.** Refreshing the stale `warm` records (D129) led to it in
+four steps: 25% of netlib loses its warm start, the losses split into short
+and over (D130), presolve's mapping turns out to be exact and the basis handed
+to it already wrong (D131), and the gate then says so directly.
+
+| set | optimal solves | basic count exact | **wrong** | worst over | worst under |
+|---|---|---|---|---|---|
+| netlib | 188 | 56 | **132 (70%)** | 596 | 169 |
+| Kennington | 32 | 8 | **24 (75%)** | **12104** | 406 |
+
+`src/model.c` states the rule twice — *"a model with n rows needs n basic
+variables … it is structural"* — and enforces it twice: `jaos_set_basis`
+refuses a basis whose count is wrong, `basis_survives_or_goes` clears one that
+becomes wrong. **`jm_model_remember_basis` checks nothing.** So the solver
+publishes through `jaos_basis`, and stores for its own next solve, something
+it would refuse from a caller.
+
+**No answer is wrong and the gate is green.** Nothing in the solve reads the
+basis back except `build_warm_basis`, which refuses it — which is why 21
+`src/` commits passed with nobody noticing.
+
+**The repair is two questions.**
+
+1. **`publish` and postsolve should produce a basis.** That is where the count
+   is decided. Presolve's mapping is exact (0 identity failures of 88), so
+   nothing there needs repair. `boeing1` is the one instance whose stored
+   count is right and whose reduced count still is not, so it is the control
+   for the second mechanism: a row removed whose logical was nonbasic.
+2. **`jm_model_remember_basis` should check.** One guard makes the invariant
+   honest. On its own it changes nothing measurable — a stored basis failing
+   the count is already rejected by `build_warm_basis` — so it belongs with
+   (1) rather than instead of it.
+
+The standing debt below names one postsolve family and a minimum case of one
+status. **132 solves and a worst error of 12104** make that case a corner of
+this rather than a description of it. Measure the family attribution before
+proposing a repair; this session refused two repairs in §5a that looked
+correct in the source.
 
 ### The unclamped dual step, for the record
 
@@ -977,3 +1012,8 @@ then, do not — a refusal whose premise has not changed just fails again.
   A further **3 instances store no basis at all** — `pilotnov`, `scrs8`,
   `share1b`, where the anchor solve stored nothing, so their 1.0000 is the
   absence of a warm start rather than the loss of one. They are outside the 23.
+  **This debt is no longer the right size for what it describes (D131).** The
+  published basic count is wrong on 132 of netlib's 188 optimal solves and 24
+  of Kennington's 32, worst error 12104, and presolve's mapping is exact. It is
+  a defect in published output, it has moved to the head of this file, and the
+  minimum case named above is a corner of it.

@@ -1,0 +1,14 @@
+# Does the published basis have num_row basic variables?
+#
+# optimal=1 is JAOS_SOLVE_OPTIMAL. Only that path publishes a basis;
+# every other one memsets the arrays, so basic=0 there is correct.
+
+netlib       optimal solves=188  exact=56  WRONG=132  (over=72, under=60)
+             worst over by 596, worst under by 169;  non-optimal solves=0
+infeasible   optimal solves=0  exact=0  WRONG=0  (over=0, under=0)
+             worst over by 0, worst under by 0;  non-optimal solves=38
+kennington   optimal solves=32  exact=8  WRONG=24  (over=8, under=16)
+             worst over by 12104, worst under by 406;  non-optimal solves=0
+
+# canary: optimal solves > 0 says the observer executed. A probe that
+# never ran and one where every basis is exact look alike otherwise.
