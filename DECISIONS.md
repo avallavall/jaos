@@ -141,6 +141,7 @@ and you have the argument. Jump to the entry for the numbers behind it.
 - **[D131](#d131--jaos_basis-publishes-something-that-is-not-a-basis-on-70-of-solves-and-presolves-mapping-is-exact)** — `jaos_basis` publishes something that is not a basis on 70% of solves, and presolve's mapping is exact
 - **[D132](#d132--singleton_row-restores-half-of-netlibs-removed-rows-and-leaves-78-of-them-nonbasic)** — `SINGLETON_ROW` restores half of netlib's removed rows and leaves 78% of them nonbasic
 - **[D133](#d133--the-two-singleton-families-are-the-whole-of-the-basis-count-error-and-the-sum-closes-exactly)** — The two singleton families are the whole of the basis-count error, and the sum closes exactly
+- **[D134](#d134--the-pair-sums-to-one-only-by-accident-and-the-repair-is-a-swap-rather-than-a-status)** — The pair sums to one only by accident, and the repair is a swap rather than a status
 
 ---
 
@@ -10080,3 +10081,59 @@ cheap: the row numbers were reusable and only the split had to be redone.
 per-family price, and a closing sum for any candidate to be checked against.
 `SINGLETON_COL`'s shape is one line of code; `SINGLETON_ROW` changes sign
 between the sets and needs its branches counted first.
+
+## D134 — The pair sums to one only by accident, and the repair is a swap rather than a status
+
+**The question.** D133 traced the whole published basic-count error to
+`SINGLETON_COL` and `SINGLETON_ROW`, and recorded that `SINGLETON_ROW` changes
+sign between the sets — −1998 on netlib, +25172 on Kennington — so its
+branches had to be counted before anything was proposed.
+
+**`SINGLETON_ROW` decides two things with two tests that never look at each
+other.** It restores one row, so it is worth exactly one basic variable. It
+sets the column `BASIC` only when `!zero_works && this_row_owns`, and it sets
+the row `AT_LOWER`/`AT_UPPER` when the activity lands exactly on a bound and
+`BASIC` otherwise. So `drift = (row BASIC) + (column set BASIC) − 1`, and only
+two of the four combinations are right
+(`bench/measurements/02-44/`):
+
+| combination | drift each | netlib | Kennington |
+|---|---|---|---|
+| row at a bound, column not set | **−1** | 2524 | 3886 |
+| row at a bound, column set BASIC | 0 | 4200 | 48586 |
+| row BASIC, column not set | 0 | 1372 | 116 |
+| row BASIC, column set BASIC | **+1** | 526 | 29058 |
+| | **net** | **−1998** | **+25172** |
+
+**The sign flip is which wrong combination dominates**: netlib is mostly the
+first, Kennington mostly the last. **A repair that handles one direction fixes
+one set and worsens the other.** 6726 of netlib's 8622 firings are already
+right, and 48702 of Kennington's 81646.
+
+**`SINGLETON_COL` is wrong every time it publishes BASIC**, because its row
+survives and nothing is restored to pay for the basis position: 5902 of
+netlib's 17234 firings (34%) and 482 of Kennington's 602 (80%).
+
+**The canary closes.** `+3904` and `+25654`, identical to D133's per-set sums
+and to the published error. Every basic in the wrong place is traced to a named
+branch of a named family.
+
+**What this refutes is the obvious repair.** "Stop writing BASIC" does not
+work: `AT_LOWER` and `AT_UPPER` are claims that the variable rests on that
+bound, and `SINGLETON_COL`'s `BASIC` branch is reached precisely when it rests
+on neither. **A strictly interior variable cannot be nonbasic.** The status is
+not the error — the basis has one member too many, and correcting it means
+taking a different variable *out*.
+
+So this is a **swap**, not a status choice: mark the interior column basic and
+move some row's logical out of the basis, chosen so the result is still a
+basis. Nothing in postsolve does that today. The same argument applies to
+`SINGLETON_ROW`'s "row BASIC, column BASIC" combination; its "row at a bound,
+column not set" combination is the opposite problem, one member too few, and
+needs a variable brought *in*.
+
+**Nothing changed and nothing is proposed.** No source file was touched.
+
+**Left open, in `TODO.md`.** The repair, with two families, four named
+branches, an exact count per branch per set, and a closing sum for any
+candidate to be checked against.

@@ -151,18 +151,42 @@ orig->sol_col_status[j] =
 so it restores a column, marks it `BASIC` whenever the value is not at `hi`,
 and no row comes back to pay for the basis position. +1 per firing.
 
-**`SINGLETON_ROW` changes sign between the sets**, −1998 on netlib and +25172
-on Kennington, because it writes both its restored row's status and the status
-of the column that row folded into. **Count its branches before proposing
-anything.**
+**`SINGLETON_ROW`'s branches are counted (D134)**, and the sign flip is which
+wrong combination dominates. It restores one row and writes two statuses by
+two tests that never look at each other, so `drift = (row BASIC) + (column set
+BASIC) − 1`:
+
+| combination | drift | netlib | Kennington |
+|---|---|---|---|
+| row at a bound, column not set | **−1** | 2524 | 3886 |
+| row at a bound, column set BASIC | 0 | 4200 | 48586 |
+| row BASIC, column not set | 0 | 1372 | 116 |
+| row BASIC, column set BASIC | **+1** | 526 | **29058** |
+
+**A repair that handles one direction fixes one set and worsens the other.**
+
+### The obvious repair does not work, and that is measured
+
+"Stop writing BASIC" fails: `AT_LOWER` and `AT_UPPER` are claims that the
+variable rests on that bound, and `SINGLETON_COL`'s `BASIC` branch is reached
+precisely when it rests on neither. **A strictly interior variable cannot be
+nonbasic.** The status is not the error. The basis has one member too many,
+and correcting it means taking a different variable *out*.
+
+**So it is a swap**: mark the interior column basic and move some row's
+logical out of the basis, chosen so the result is still a basis. Nothing in
+postsolve does that. `SINGLETON_ROW`'s "row at a bound, column not set"
+combination is the opposite problem — one member too few — and needs a
+variable brought *in*.
 
 **Do these in order.**
 
-1. **The repair, in postsolve, `SINGLETON_COL` first** — it is the simpler
-   shape and the larger netlib contributor. Presolve's *mapping* is exact (0
-   identity failures of 88), so nothing there needs touching. `boeing1` is the
-   control for the second mechanism: its stored count is right and its reduced
-   count still is not.
+1. **Design the swap.** It is the open question and it is not a one-line
+   change. Presolve's *mapping* is exact (0 identity failures of 88), so
+   nothing there needs touching. `boeing1` is the control for a second
+   mechanism: its stored count is right and its reduced count still is not.
+   Any candidate is checked against the closing sums, +3904 on netlib and
+   +25654 on Kennington, which must go to zero.
 2. **`jm_model_remember_basis` should check.** One guard makes the invariant
    honest. On its own it changes nothing measurable — a stored basis failing
    the count is already rejected by `build_warm_basis` — so it belongs with

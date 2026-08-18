@@ -1,0 +1,43 @@
+# Which branch costs the basis position?
+#
+# SINGLETON_ROW restores one row and is worth one basic. Its column and
+# its row are decided by two independent tests, so the pair can sum to
+# 0, 1 or 2 and only 1 is right.
+#
+# SINGLETON_COL restores a column and its row survives, so every BASIC
+# it writes is +1 with nothing to pay for it.
+
+######## netlib ########
+172 solves
+
+SINGLETON_ROW, 8622 firings
+  row at a bound, column not set           2524   drift -1 each  = -2524
+  row at a bound, column set BASIC         4200   drift  0 each  = +0
+  row BASIC, column not set                1372   drift  0 each  = +0
+  row BASIC, column set BASIC               526   drift +1 each  = +526
+                                                  net   = -1998
+
+SINGLETON_COL, 17234 firings
+  value at lo or hi, published nonbasic      11332   drift  0 each  = +0
+  otherwise, published BASIC               5902   drift +1 each  = +5902
+
+TOTAL from both families: +3904
+
+######## kennington ########
+32 solves
+
+SINGLETON_ROW, 81646 firings
+  row at a bound, column not set           3886   drift -1 each  = -3886
+  row at a bound, column set BASIC        48586   drift  0 each  = +0
+  row BASIC, column not set                 116   drift  0 each  = +0
+  row BASIC, column set BASIC             29058   drift +1 each  = +29058
+                                                  net   = +25172
+
+SINGLETON_COL, 602 firings
+  value at lo or hi, published nonbasic        120   drift  0 each  = +0
+  otherwise, published BASIC                482   drift +1 each  = +482
+
+TOTAL from both families: +25654
+
+# canary: the total must equal D133's per-set sum — +3904 on netlib and
+# +25654 on Kennington — or a branch is being counted in the wrong place.
