@@ -226,29 +226,31 @@ variable brought *in*.
 
 **Do these in order.**
 
-1. **48 netlib solves still publish a wrong count, in three named shapes.**
-   All three are counted and none is repaired. The re-measure this item
-   ordered is done (**D140**, `bench/measurements/02-49/`) and it moved two
-   of the three numbers.
+1. **48 netlib solves still publish a wrong count, and every local repair is
+   now measured unavailable.** The re-measure this item ordered is done
+   (**D140**, `bench/measurements/02-49/`); the local candidates are closed
+   by **D141** (`bench/measurements/02-50/`), whose reopen condition is in
+   the refusals table. The three shapes, for the record:
    - **80 firings whose row logical the REDUCED solve left nonbasic**, all
      surviving, resting exactly on the widened row bound (58 lower, 22
-     upper). Not a second defect: at that degenerate vertex the exact
-     recovery is the column AT its bound; the replay's division rounds it
-     ulps interior and the interior test then makes it an unpaid `BASIC`.
-     The repair candidate is in D140: at the singleton-col replay the
-     surviving row's status still holds the reduced answer, and a nonbasic
-     status names the exact bound and the exact `xv`. Snapping to it moves
-     published values by ulps and digests with them — a value change, full
-     gate plus `numerics-reviewer` plus `jaos-measurer`, not a status edit.
-   - **152 firings whose row is not on a bound**, where making the logical
-     nonbasic would claim a bound the row does not rest on. D135 said 108:
-     its probe read the activity before the final carry fold, and 44 of its
-     "tight" rows are loose on the folded value the shipped swap reads
-     (D140). No local exchange exists; this is now the largest class.
+     upper). Not a second defect: an exact degenerate tie the replay's
+     division rounds ulps interior. D140's snap candidate is **refuted**
+     (D141): 74 of the 80 rows land exactly ON their original bound with
+     the interior `xv`, and snapping perturbs that activity by ulps —
+     it trades a column-status defect for a row-status one.
+   - **152 firings whose row is not on a bound.** D135 said 108: its probe
+     read the activity before the final carry fold, and 44 of its "tight"
+     rows are loose on the folded value the shipped swap reads (D140).
    - **40 singleton rows** whose final activity misses its bound by about
      1e-16 of the row's own traffic (D136). They fall through to `BASIC`. No
      tolerance for them has been measured, and D8 means any such window needs
      a sweep on both sides.
+   The shared alternative, demoting another basic column of the row resting
+   on its own bound, is **refused** (D141): 66 of the 80 and 86 of the 152
+   have no such column, so no within-row rule can close the residue. What
+   remains is a wider-than-the-row design with a rank argument (refusals
+   table), or accepting the residue — whose whole price is 48 solves losing
+   their warm start, which item 4 below measures.
    The guard hardening D140 named is **landed**: the swap decides from the
    recovery value, not the rewritable status, with two asserts enforcing the
    contract. Bit-identical on all three sets and on the published counts
@@ -959,6 +961,7 @@ then, do not — a refusal whose premise has not changed just fails again.
 
 | decision | what was refused or deferred | reopens when |
 |---|---|---|
+| D141 | a within-row demotion for the published-basis residue — 152 of the 232 declines have no basic column of the row at a bound, and the snap for the 80 breaks the row-bound exactness 02-49 measured (74 of 80 exact) | a demotion design whose candidate set is wider than the firing row AND that carries a rank argument for the demoted member; the fallback in the published shape (Galabova 2023) is accepting the residue |
 | D101 | duplicate rows, duplicate columns, dominated columns — 0.15% left to remove on these 139 models | a model population where `bench/measurements/02-07/`'s counter reports a non-trivial share. The condition is executable, not a matter of opinion. Three pieces of the work have no published source and would have to be derived with their own tests |
 | D97 | bound tightening — INFEASIBLE on models with an optimum, six designs | **first precondition met 2026-08-17 (D114)**: the over-tightening is derived — a forcing window scaled by the activity certified 5.86 of slack as zero, and the design requirements for a retry are in `bench/measurements/02-21/`. What remains: a dual postsolve for an imposed bound; then only under a campaign. **The condition is unchanged and the prize is not**: doubleton substitution needs the same machinery, and it is 8.55% of netlib's live rows and 29.36% of Kennington's, of which 19 rows in total can be built without it (§3). D97 weighed this feature alone; it now unlocks two |
 | SPECS §3 | crash basis — destroys the exact slack-basis steepest-edge weights | pricing stops starting from exact steepest-edge weights; REQ-devex-pricing landing is the trigger |

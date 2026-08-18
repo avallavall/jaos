@@ -1,0 +1,27 @@
+# For every declined true firing: how many OTHER basic columns of the
+# row rest exactly on one of their own bounds (demotion candidates)?
+# cls=B: the 80 (logical nonbasic). cls=L: the 152 (row interior).
+
+######## netlib ########
+172 solves; true fired=5902 (canary 5902 nl / 482 kn)
+
+class B: 80 declined firings
+  cands = 0  — no demotion partner                 66
+  cands = 1  — forced partner                      14
+  cands >= 2 — a choice, needs a rule               0
+  rows with NO other basic column at all            0
+  mean basic columns in the row                  8.03
+class L: 152 declined firings
+  cands = 0  — no demotion partner                 86
+  cands = 1  — forced partner                      18
+  cands >= 2 — a choice, needs a rule              48
+  rows with NO other basic column at all            0
+  mean basic columns in the row                 10.59
+
+######## kennington ########
+32 solves; true fired=482 (canary 5902 nl / 482 kn)
+
+no declined firings (control holds)
+
+# expected totals: nl B=80, L=152 (D140); kn none. cands=0 dominating
+# means no demotion rule can exist and both classes need another design.

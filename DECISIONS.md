@@ -148,6 +148,7 @@ and you have the argument. Jump to the entry for the numbers behind it.
 - **[D138](#d138--every-under-count-is-gone-kenningtons-worst-error-falls-100x-and-the-sum-was-the-wrong-target)** — Every under-count is gone, Kennington's worst error falls 100x, and the sum was the wrong target
 - **[D139](#d139--kennington-publishes-a-valid-basis-on-every-solve-and-netlibs-worst-error-falls-from-596-to-23)** — Kennington publishes a valid basis on every solve, and netlib's worst error falls from 596 to 23
 - **[D140](#d140--the-80-are-an-exact-degenerate-tie-the-recovery-division-rounds-off-and-the-swaps-guard-reads-a-status-another-family-rewrites)** — The 80 are an exact degenerate tie the recovery division rounds off, and the swap's guard reads a status another family rewrites
+- **[D141](#d141--a-within-row-demotion-cannot-pay-for-the-residue-152-of-the-232-declines-have-no-basic-column-at-a-bound)** — A within-row demotion cannot pay for the residue: 152 of the 232 declines have no basic column at a bound
 
 ---
 
@@ -10520,3 +10521,41 @@ published values by ulps and digests with them, so it is a value change with
 the full gate, not a status edit. The 152, now the largest class, with no
 local exchange. And the guard hardening, behaviour-identical today by this
 measurement.
+
+## D141 — A within-row demotion cannot pay for the residue: 152 of the 232 declines have no basic column at a bound
+
+**The question, as asked.** D140 left netlib's published over-count at +272:
+80 declines on the exact degenerate tie, 152 with the row interior, 40
+singleton rows (D136). The swap already takes the row's logical where it
+can, so both declining classes need a different variable taken out. Two
+candidates existed. The snap D140 sketched for the 80, and the demotion both
+classes share: some OTHER basic column of the same row resting exactly on
+its own bound, whose demotion claims nothing false and moves no value.
+Expected: unknown; the probe question was whether `cands = 0` dominates.
+
+**The snap was refuted before the probe ran, on the arithmetic.** 02-49
+measured 74 of the 80 rows landing exactly ON their original bound with the
+interior `xv`. The exact recovery `(rl − rest)/a = hi` holds in real
+arithmetic only; publishing `xv = hi` perturbs the replayed activity by ulps
+and takes the row OFF the bound its nonbasic logical claims. The repair
+would trade a column-status defect for a row-status one. Do not rebuild it.
+
+**The measurement** (`bench/measurements/02-50/`, availability only, the
+D135 pattern: is the partner even there before designing the exchange).
+Canaries all exact — 5902 true firings, B = 80, L = 152, Kennington zero
+declines. Of the 80: 66 have no demotion partner, 14 a forced one, 0 a
+choice. Of the 152: 86 none, 18 forced, 48 a choice. No row lacks basic
+columns — 8.03 and 10.59 on average — but a basic variable rests strictly
+inside its bounds almost everywhere, and the degenerate basic-at-bound
+member the rule needs is rare.
+
+**Refused.** A within-row rule reaches at most 80 of 232 and leaves 152
+with nothing. No rule that only looks at the firing row can close the
+residue, so none should be built. Reopen condition: a demotion design whose
+candidate set is wider than the firing row AND that carries a rank argument
+for the demoted member — the attempt-and-fallback shape Galabova 2023
+describes, whose fallback is accepting the residue.
+
+**Left open, in `TODO.md`.** Accepting the residue has one measurable
+price: the 48 solves publish a count `build_warm_basis` rejects, so they
+lose their warm start and nothing else. The `warm` re-measure prices it.
