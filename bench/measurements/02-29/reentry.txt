@@ -1,0 +1,17 @@
+# TODO.md 5a: what the re-entry loop did on pilotnov, under D118's
+# refused candidate (which is the only thing that reaches the state).
+# SETTLE_ROUNDS is 32.
+
+######## CANDIDATE / pilotnov ########
+REENTRY no-work rounds=6 dviol_now=0 dviol_best=0 obj_now=-2115.3928900690385 obj_best=-2115.3928900690385
+  log: optimal after 87432 iterations, 2616239810 work units; 1587 refactorizations, 43041 weight restarts, 1 stalls, 156 stability rebuilds
+objective -3169.5271937202242
+reference -4497.2761882188715   relative gap 0.295234
+checker primal=1 dual=0  col=1.11022e-17 row=6.80077e-08 dualviol=0.89 gap=2.72623e-06 gap+=369699 gap-=4.35707e-12
+
+######## CANDIDATE / pilot-ja, the control ########
+REENTRY no-work rounds=1 dviol_now=0 dviol_best=0 obj_now=-6113.1364655813441 obj_best=-6113.1364655813441
+  log: optimal after 1499 iterations, 49218063 work units; 25 refactorizations, 0 weight restarts, 0 stalls, 0 stability rebuilds
+objective -6113.1364655813441
+reference -6113.1364655813431   relative gap 1.48777e-16
+checker primal=1 dual=1  col=7.03664e-28 row=2.04977e-10 dualviol=0 gap=4.98548e-14 gap+=2.3729e-09 gap-=1.34264e-12

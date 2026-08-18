@@ -1,0 +1,22 @@
+# TODO.md 5a. compute_duals assigns d = 0 to every basic variable
+# (src/simplex.c:1086) and never verifies it. This recomputes
+# d = c - A'y from the solver's own duals for every variable, unscaled.
+
+######## CANDIDATE / pilotnov ########
+REDCOST no-work nrow=867 ncol=1811  worst_basic=3.8235245962354441e-14 (v=722)  worst_nonbasic_recomputed=3.748662583800046e-14 (v=713)  worst_nonbasic_carried=3.748662583800046e-14
+objective -3169.5271937202242
+reference -4497.2761882188715   relative gap 0.295234
+checker primal=1 dual=0  col=1.11022e-17 row=6.80077e-08 dualviol=0.89 gap=2.72623e-06 gap+=369699 gap-=4.35707e-12
+
+######## CANDIDATE / pilot-ja ########
+REDCOST no-work nrow=828 ncol=1495  worst_basic=1.1440094427328518e-09 (v=1138)  worst_nonbasic_recomputed=5.6843418860808015e-14 (v=798)  worst_nonbasic_carried=5.6843418860808015e-14
+objective -6113.1364655813441
+reference -6113.1364655813431   relative gap 1.48777e-16
+checker primal=1 dual=1  col=7.03664e-28 row=2.04977e-10 dualviol=0 gap=4.98548e-14 gap+=2.3729e-09 gap-=1.34264e-12
+
+######## CANDIDATE / dfl001 ########
+REDCOST no-work nrow=6062 ncol=11490  worst_basic=1.1132215149700642e-09 (v=1875)  worst_nonbasic_recomputed=5.4296833695843816e-10 (v=9102)  worst_nonbasic_carried=5.4296833695843816e-10
+objective 11266396.046671392
+reference 11266396.046671392   relative gap 0
+checker primal=1 dual=1  col=7.86168e-14 row=4.56302e-14 dualviol=0 gap=1.29928e-16 gap+=3.38237e-06 gap-=5.32863e-09
+

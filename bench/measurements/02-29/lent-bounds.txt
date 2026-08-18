@@ -1,0 +1,17 @@
+# TODO.md 5a. Columns resting on a bound dual phase 1 lent them
+# (ARTIFICIAL_BOUND = 1e10). Such a column is interior in the caller's
+# own box, so a nonzero reduced cost there is a dual violation to the
+# checker and legal to the solver.
+
+######## CANDIDATE / pilotnov ########
+LENT no-work dual_tol=1e-07  lent=72 resting=0 flagged_by_classify=0  worst_redcost_on_a_lent_bound=0 (col=-1)
+objective -3169.5271937202242
+reference -4497.2761882188715   relative gap 0.295234
+checker primal=1 dual=0  col=1.11022e-17 row=6.80077e-08 dualviol=0.89 gap=2.72623e-06 gap+=369699 gap-=4.35707e-12
+
+######## CANDIDATE / pilot-ja ########
+LENT no-work dual_tol=1e-07  lent=7 resting=0 flagged_by_classify=0  worst_redcost_on_a_lent_bound=0 (col=-1)
+objective -6113.1364655813441
+reference -6113.1364655813431   relative gap 1.48777e-16
+checker primal=1 dual=1  col=7.03664e-28 row=2.04977e-10 dualviol=0 gap=4.98548e-14 gap+=2.3729e-09 gap-=1.34264e-12
+

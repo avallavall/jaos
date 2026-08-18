@@ -1,0 +1,17 @@
+# The presolve line and the answer, at two refactorization intervals.
+# Same candidate, same instance. If the two presolve lines agree, the
+# reduced model is the same and only the solve differs.
+
+######## REFACTOR_EVERY=64  (md5 f86f994f0576) ########
+  log: presolve: 975 rows, 2172 columns, 13057 nonzeros -> 867 rows, 1811 columns, 11676 nonzeros; fixed_col=230 empty_row=24 empty_col=0 singleton_row=27 singleton_col=94 free_col_singleton=0 rounds=8
+  log: optimal after 87432 iterations, 2616239810 work units; 1587 refactorizations, 43041 weight restarts, 1 stalls, 156 stability rebuilds
+objective -3169.5271937202242
+reference -4497.2761882188715   relative gap 0.295234
+checker primal=1 dual=0  col=1.11022e-17 row=6.80077e-08 dualviol=0.89 gap=2.72623e-06 gap+=369699 gap-=4.35707e-12
+
+######## REFACTOR_EVERY=16  (md5 8cbf4211b7d2) ########
+  log: presolve: 975 rows, 2172 columns, 13057 nonzeros -> 867 rows, 1811 columns, 11676 nonzeros; fixed_col=230 empty_row=24 empty_col=0 singleton_row=27 singleton_col=94 free_col_singleton=0 rounds=8
+  log: optimal after 28859 iterations, 1345562616 work units; 1699 refactorizations, 14209 weight restarts, 1 stalls, 0 stability rebuilds
+objective -4497.2761882188715
+reference -4497.2761882188715   relative gap 0
+checker primal=1 dual=1  col=5.68434e-15 row=4.18368e-10 dualviol=0 gap=1.48799e-13 gap+=1.07678e-08 gap-=8.79907e-13

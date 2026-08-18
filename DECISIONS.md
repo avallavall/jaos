@@ -127,6 +127,7 @@ and you have the argument. Jump to the entry for the numbers behind it.
 - **[D117](#d117--d106-fires-on-none-of-fomes-candidates-because-d95-takes-every-one-of-them-first-and-freezes-121-of-the-rows)** — D106 fires on none of fome's candidates because D95 takes every one of them first, and freezes 12.1% of the rows
 - **[D118](#d118--giving-the-implied-free-family-first-refusal-is-refused-pilotnov-publishes-a-suboptimal-point-as-optimal)** — Giving the implied free family first refusal is refused: pilotnov publishes a suboptimal point as optimal
 - **[D119](#d119--pilotnovs-wrong-answer-is-the-refactorization-interval-and-the-termination-test-never-re-reads-dual-feasibility)** — pilotnov's wrong answer is the refactorization interval, and the termination test never re-reads dual feasibility
+- **[D120](#d120--the-same-reduced-lp-solved-twice-both-points-dual-feasible-by-the-solvers-own-reading-and-29-apart)** — The same reduced LP solved twice: both points dual-feasible by the solver's own reading, and 29% apart
 
 ---
 
@@ -8955,15 +8956,23 @@ interval, not the model.
 **43041 weight restarts and 156 stability rebuilds**, against HEAD's 1042 and 0
 on the same instance, and `pilot-ja`'s 0 and 0 under the same candidate.
 `pilotnov` was already the sensitive one and the candidate pushes it over. Then
-the solve stops and calls it optimal: **the termination test reads primal
-feasibility only** (`src/simplex.c:3455`), and D20's second opinion re-reads
-that same test against a fresh factorization (`src/simplex.c:3487`). Dual
-feasibility is an invariant the dual method maintains and nothing re-reads
-before the verdict is published. A solve whose invariant has been damaged
-terminates primal-feasible, dual-infeasible, and reports `optimal`.
+the solve stops and calls it optimal, and the checker rejects the answer at a
+dual violation of 0.89.
 
 The checker caught it. No digest comparison and no work bar would have: the
 answer is feasible and deterministic.
+
+> **CORRECTION, the same day, `bench/measurements/02-29/`.** This entry first
+> said the termination test reads primal feasibility only, and that "dual
+> feasibility is an invariant the dual method maintains and nothing re-reads
+> before the verdict is published". **That is false, and measurement refutes
+> it.** `dual_breach`, `published_breach`, `breached`, `arm_reentry` and the
+> whole re-entry loop read it, and the loop keeps the best point it finds by
+> `settled_dual_violation` (D25, D89). On `pilotnov` under this candidate that
+> loop **ran six rounds and its own dual violation read exactly zero**. The
+> solver does check; its check disagrees with the independent checker's. That
+> is a different defect from the one named here, and D120 carries it. Nothing
+> else in this entry moves: the sweep, the 1.032x and the refusal all stand.
 
 **Postsolve is ruled out by derivation, not by hope.** All seven columns have
 cost exactly zero, so D106 sets `y_i = c_j / a_ij = 0` on each of their rows
@@ -8982,11 +8991,81 @@ restriction on D106", and that is now known to be the wrong place to look.
 Nothing is wrong with D106 here. The condition is restated in the refusals
 table.
 
-**Left open, in `TODO.md` §4c.** The termination test is HEAD's and no instance
-of the 139 reaches the state today, which is why the gate is green. Two things
-follow and neither is costed: whether the dual feasibility the method assumes
-should be re-read before a verdict is published, the way D20 made the primal
-one be; and whether the refactorization interval should adapt to an instance
-rather than being one constant. `TODO.md`'s standing debt already records that
-the `REFACTOR_EVERY` trajectory sweep is manual and that three of M1's four
+**Left open, in `TODO.md` §5a, and carried by D120.** Why the solver's own dual
+reading and the checker's disagree on this point. Whether the refactorization
+interval should adapt to an instance rather than being one constant is a second
+question and is not costed either. `TODO.md`'s standing debt already records
+that the `REFACTOR_EVERY` trajectory sweep is manual and that three of M1's four
 defect closures came from it. This is the fourth.
+
+---
+
+## D120 — The same reduced LP solved twice: both points dual-feasible by the solver's own reading, and 29% apart
+
+**The question.** D119 said the termination test reads primal feasibility only
+and that nothing re-reads dual feasibility before a verdict is published. That
+sentence was written from the code and not measured, and §5a set out to cost
+the repair it implied. The first reading refuted it instead.
+
+**The measurement, `bench/measurements/02-29/`.** Four probes, each compiled
+into a copy of the tree under `-DJAOS_DIAG`. The state is reachable only
+through D118's refused candidate, applied from its own recorded diff.
+
+**1. The solver does check, and its check says clean.** `dual_breach`,
+`published_breach`, `breached`, `arm_reentry` and `reenter_after_settling` all
+read dual feasibility, and the loop keeps the best point by
+`settled_dual_violation` (D25, D89). On `pilotnov`:
+
+```
+REENTRY no-work rounds=6 dviol_now=0 dviol_best=0 obj=-2115.3928900690385
+```
+
+**Six rounds, and its own dual violation reads exactly zero**, on the point the
+independent checker rejects at 0.89. `pilot-ja` exits after one round, same
+zero, right answer. D119's sentence is corrected in place.
+
+**2. The basics' reduced costs are not the gap.** `compute_duals` assigns
+`s->d[v] = 0.0` to every basic variable and never verifies it, which is exactly
+the class `jaos-debug` step 4 names. Recomputing `d = c - A'y` from the
+solver's own duals for every variable, unscaled: `pilotnov` reads **3.82e-14**
+worst over the basics and **3.75e-14** worst over the nonbasics — the cleanest
+of the three instances probed, `pilot-ja` reading 1.14e-09 and `dfl001`
+1.11e-09. `B'y = c_B` holds and every nonbasic sign is right.
+
+**3. No column rests on a bound dual phase 1 lent it.** Such a column is
+interior in the caller's box, so a nonzero reduced cost there is a violation to
+the checker and legal to the solver — the exact shape of a 0.89. `pilotnov`
+lent 72 and **none is resting on one** at the exit; `pilot-ja` lent 7, same.
+
+**4. The reduced model is identical at both intervals.** Read rather than
+assumed, because the whole conclusion rests on it: `975/2172/13057 ->
+867/1811/11676` with `fixed_col=230 empty_row=24 empty_col=0 singleton_row=27
+singleton_col=94 rounds=8` at both `REFACTOR_EVERY = 64` and `16`. Family by
+family, the same.
+
+**What is left is a contradiction, and it is the entry.** On one and the same
+reduced LP, the interval-16 solve postsolves to Koch's published optimum to the
+last bit, and the interval-64 solve stops at a point that is primal-feasible by
+its own test verified against a fresh factorization (D20), whose every reduced
+cost recomputed from its own duals is correctly signed to 3.8e-14, with no
+column on a lent bound — and whose postsolved objective is 29% worse. A basis
+that is primal-feasible and dual-feasible is optimal. Both cannot be right, so
+**one of the solver's own optimality readings is measuring something other than
+what it claims**, and one reordering inside presolve reaches it from a green
+tree.
+
+**What was not tested, named so it is not redone.** `s->status[v]` going stale
+after 156 stability rebuilds and whatever `repair_singular_basis` evicted —
+every reading above trusts it to say which bound a variable sits at, so if it
+lies they all agree with each other and with nothing else. D20's second opinion
+refactorizes and re-reads the same carried `x_B` rather than comparing it
+against an independent `B^-1(b - N x_N)`. And postsolve, which is the same code
+at both intervals and right at 16, so it is not wrong on its own but could be
+faithfully reproducing a reduced point that was never optimal.
+
+**Nothing here changes the shipping code, and no instance of the 139 reaches
+this state.** That is why the gate is green and why this is an open question
+rather than a defect with a repair. It is written down because it was reached,
+reproducibly, and because three plausible explanations are now closed.
+
+**Left open, in `TODO.md` §5a.**

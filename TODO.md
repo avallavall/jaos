@@ -7,50 +7,59 @@ line leaves this file in the same commit.
 
 ## Where the last session stopped — 2026-08-18
 
-## → START HERE: §5a, a verdict of `optimal` is published without re-reading dual feasibility
+## → START HERE: §5a, one reduced LP, two solves, both dual-feasible by the solver's own reading, 29% apart
 
-§4a closed (D117), §4b closed as a refusal (D118), §4c answered it (D119). What
-they left is a fact about the **shipped** solver, and it is the first thing to
-pick up.
+§4a closed (D117), §4b refused (D118), §4c answered it (D119), and §5a is where
+that left a question about the **shipped** solver. D120 measured it and closed
+three of the four ways it could have gone.
 
-**The dual simplex declares `optimal` on primal feasibility alone.**
-`src/simplex.c:3455` stops when no basic variable violates a bound, and D20's
-second opinion re-reads *that same test* against a fresh factorization
-(`src/simplex.c:3487`). Dual feasibility is an invariant the method maintains
-and nothing re-reads it before the verdict goes out. A solve whose invariant
-has been damaged numerically terminates primal-feasible, dual-infeasible, and
-reports `optimal`.
+**The contradiction, on one and the same reduced LP** (`pilotnov` under D118's
+refused candidate, which is the only thing that reaches the state):
 
-D119 has a model that does it. Under D118's refused candidate, `pilotnov` at
-the shipping `REFACTOR_EVERY = 64` runs 43041 weight restarts and **156
-stability rebuilds**, then publishes an objective 29% wrong as `optimal` with
-`dualviol = 0.89`. The same reduced model at interval 16 reaches Koch's
-published optimum **to the last bit**, and at 8 costs 1.032x HEAD's work. So
-the model was never the problem.
+- at `REFACTOR_EVERY = 16` the solve postsolves to Koch's published optimum
+  **to the last bit**;
+- at the shipping **64** the solve stops at a point that is primal-feasible by
+  its own test *verified against a fresh factorization* (D20), whose every
+  reduced cost recomputed from its own duals is correctly signed to **3.8e-14**,
+  with **no** column resting on a lent bound — and whose postsolved objective is
+  **29% worse**, rejected by the checker at `dualviol = 0.89`.
+
+A basis that is primal-feasible and dual-feasible is optimal. Both cannot be
+right, so **one of the solver's own optimality readings is measuring something
+other than what it claims.**
+
+**Closed by measurement, do not re-derive** (`bench/measurements/02-29/`):
+
+| hypothesis | reading |
+|---|---|
+| the solver never re-reads dual feasibility | **false** — the re-entry ran 6 rounds and its own violation read 0 |
+| the basics' assumed-zero reduced costs | **false** — recomputed, worst 3.82e-14, the cleanest of three instances |
+| a column resting on a bound phase 1 lent | **false** — 72 lent, 0 resting |
+| the reduced model differing between intervals | **false** — identical, family by family |
+
+**What is still open, in order.**
+
+1. **`s->status[v]` going stale.** After 156 stability rebuilds and whatever
+   `repair_singular_basis` evicted, a variable's recorded status may not be the
+   bound it is actually sitting at. Every reading above trusts it, so if it
+   lies they all agree with each other and with nothing else. This is the
+   leading suspect and it is untested.
+2. **D20's second opinion re-reads the carried `x_B`.** It refactorizes and
+   asks the same primal test again; it never compares `x_B` against an
+   independent `B^-1(b - N x_N)`.
+3. **Postsolve**, which is the same code at both intervals and right at 16, so
+   it is not wrong on its own — but it could be faithfully reproducing a
+   reduced point that was never optimal.
+
+**What to do next.** Load `jaos-debug` before instrumenting. Test 1 first: dump
+every nonbasic's recorded status against the bound it actually sits at, at the
+re-entry exit, on both intervals. It is a read and it either finds the lie or
+removes the leading suspect.
 
 **No instance of the 139 reaches this state today**, which is why the gate is
-green. That is the whole of the reason.
-
-**Two questions, neither costed.**
-
-1. Should the dual feasibility the method assumes be re-read before a verdict
-   is published, the way D20 made the primal one be? What it would cost is a
-   pricing pass at termination, once per solve.
-2. Should the refactorization interval adapt to an instance rather than being
-   one constant? `TODO.md`'s own standing debt records that this sweep is
-   manual and that three of M1's four defect closures came from it. D119 is the
-   fourth.
-
-**What to do next, in order.**
-
-1. Load `fp-numerics` before touching a tolerance and `jaos-measure` before
-   believing any campaign.
-2. Question 1 first. It is a check, not a change of trajectory, so it can only
-   turn a wrong `optimal` into a numerical failure or more iterations — and a
-   campaign says which, on work units alone.
-3. Question 2 is a global constant on all three sets and is a bigger
-   proposition. Do not sweep it from one instance: `bench/measurements/02-28/`
-   says in as many words that it is a diagnostic, not a proposal.
+green. Nothing here proposes a change to the shipping code, and in particular
+`REFACTOR_EVERY` is not a proposal: one instance is not a population and
+`bench/measurements/02-28/` says so in as many words.
 
 Everything below this line is finished work and background.
 
@@ -553,12 +562,14 @@ question and is not asked anywhere yet.
 
 ## 5. After presolve — the rest of M2, in order
 
-### 5a. A verdict of `optimal` is published without re-reading dual feasibility — OPEN
+### 5a. One reduced LP, two solves, 29% apart and both dual-feasible to the solver — OPEN
 
-Opened by D119, `bench/measurements/02-28/`. The statement, the model that
-reaches it and the two questions it raises are in the header of this file.
-Nothing built, nothing costed. It sits first in this section because it is a
-correctness question and everything below it is a speed one.
+Opened by D119 and narrowed by D120 the same day
+(`bench/measurements/02-29/`). Three of the four possible explanations are
+closed by measurement and the leading remaining suspect is named. The
+contradiction, the closed table and what to do next are in the header of this
+file. Nothing built, nothing costed. It sits first in this section because it
+is a correctness question and everything below it is a speed one.
 
 
 - **Factorization** (REQ-lu-fill-and-markowitz, REQ-hyper-sparse-downstream):
