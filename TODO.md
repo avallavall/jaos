@@ -189,18 +189,35 @@ variable brought *in*.
    named shapes — 108 where the partner is basic but the row is not on a
    bound, 80 where the logical is already out — and they need their own answer
    or the closing sum does not reach zero.
-   **`SINGLETON_ROW` has no candidate yet.** Its dominant netlib combination
-   is one member too *few*, so it needs the mirror exchange, a variable
-   brought in. Nothing is measured for that.
+   **`SINGLETON_ROW` has a derived rule now (D136), and it is not a choice.**
+   The case already computes both halves of complementary slackness —
+   `y_i = 0.0` when the column is left alone, `d0 / rec->coef` when the column
+   is taken — and a basic logical requires a zero dual. Measured, that rule
+   agrees with exactly D134's two balanced combinations and disagrees with
+   exactly its two wrong ones.
+   - **`y_i == 0` → publish the row `BASIC`.** Free: a basic variable may sit
+     exactly on a bound, and the dual there is exactly zero. Closes the −1
+     combination, 2524 netlib and 3886 Kennington.
+   - **`y_i != 0` → the row must rest on a bound, and it does.** The gap to
+     the nearest bound is **exactly 0** on 486 of netlib's 526 and on all
+     29058 of Kennington's. The case decides the status from
+     `orig->sol_row[i] = ps_published(rec->coef * xv)` — its own term alone —
+     compared against the bounds immediately, while later records still add
+     through `ps_row_add`. **Deciding it after the replay closes the whole +1
+     combination** bar 40 netlib firings at 1e-16 of the row's traffic.
    Presolve's *mapping* is exact (0 identity failures of 88), so nothing there
    needs touching. `boeing1` is the control for a second mechanism: its stored
    count is right and its reduced count still is not. Any candidate is checked
    against the closing sums, +3904 on netlib and +25654 on Kennington, which
    must go to zero.
    **A row's activity is not final until every record touching it has
-   replayed** (`ps_row_add` accumulates), so anything reading tightness has to
-   read it after the replay. Reading it inside cost D135 a pass and would have
-   killed the design: it reported 0 valid swaps where there are 5714.
+   replayed** (`ps_row_add` accumulates), so anything reading it has to read it
+   after the replay. **This has produced a wrong number three times in three
+   probes.** It cost D135 a pass and would have killed that design — 0 valid
+   swaps where there are 5714 — and it cost D136 two, the second of which would
+   have claimed the published point violates complementary slackness. **And the
+   solver itself does it**, in the `SINGLETON_ROW` case: that is the +1
+   combination.
 2. **`jm_model_remember_basis` should check.** One guard makes the invariant
    honest. On its own it changes nothing measurable — a stored basis failing
    the count is already rejected by `build_warm_basis` — so it belongs with

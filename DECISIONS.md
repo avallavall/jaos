@@ -143,6 +143,7 @@ and you have the argument. Jump to the entry for the numbers behind it.
 - **[D133](#d133--the-two-singleton-families-are-the-whole-of-the-basis-count-error-and-the-sum-closes-exactly)** — The two singleton families are the whole of the basis-count error, and the sum closes exactly
 - **[D134](#d134--the-pair-sums-to-one-only-by-accident-and-the-repair-is-a-swap-rather-than-a-status)** — The pair sums to one only by accident, and the repair is a swap rather than a status
 - **[D135](#d135--the-exchange-the-reduction-suggests-is-available-and-valid-on-97-of-firings)** — The exchange the reduction suggests is available and valid on 97% of firings
+- **[D136](#d136--the-singleton-rows-rule-falls-out-of-its-own-dual-and-the-defect-is-a-status-decided-on-a-partial-activity)** — The singleton row's rule falls out of its own dual, and the defect is a status decided on a partial activity
 
 ---
 
@@ -10184,3 +10185,66 @@ family short a member needs the mirror exchange — a variable brought *in* —
 and no candidate has been measured for it.
 
 **Nothing changed and nothing is proposed.** No source file was touched.
+
+## D136 — The singleton row's rule falls out of its own dual, and the defect is a status decided on a partial activity
+
+**The question.** D134 counted `JM_PS_SINGLETON_ROW`'s four combinations and
+found two wrong, with the sign differing between the sets, and said the
+branches had to be understood before a repair. D135 handled `SINGLETON_COL`
+and left this family without a candidate.
+
+**The rule is not a choice.** The case already computes both halves of
+complementary slackness: `y_i = 0.0` when `zero_works || !this_row_owns` and
+the column is left alone, `y_i = d0 / rec->coef` otherwise and the column is
+set `BASIC`. A basic logical requires a zero dual, so `y_i == 0` means the
+row's logical may be basic and `y_i != 0` means it must be nonbasic.
+
+**Measured against what is published, the rule agrees with exactly the two
+balanced combinations and disagrees with exactly the two wrong ones**
+(`bench/measurements/02-46/`):
+
+| | netlib | Kennington |
+|---|---|---|
+| rule agrees with what is published | 5572 | 48702 |
+| rule wants `BASIC`, published on a bound (D134's −1) | 2524 | 3886 |
+| rule wants a bound, published `BASIC` (D134's +1) | 526 | 29058 |
+
+5572 is D134's 4200 + 1372 and 48702 its 48586 + 116. Derived, not fitted.
+
+**The −1 case is free.** A basic variable is allowed to sit exactly on a
+bound — that is degeneracy — and the dual on that branch is exactly `0.0`,
+which is what a basic logical requires.
+
+**The +1 case is a status decided too early.** The rule wants a bound where
+`BASIC` is published, and the case marks `BASIC` precisely because the
+activity matched no bound. The gap to the nearest bound, relative to the row's
+own traffic:
+
+| | netlib | Kennington |
+|---|---|---|
+| **exactly 0** | **486** | **29058** |
+| 1e-16 | 40 | 0 |
+
+**The rows are on their bounds; the test is not.** The case assigns
+`orig->sol_row[i] = ps_published(rec->coef * xv)` — its own term alone — and
+compares that against the row's bounds immediately. Records replaying later
+add through `ps_row_add`, folded in at the end of `jm_postsolve_expand`. The
+test sees a partial sum. **Deciding the status after the replay closes the
+whole +1 combination** bar 40 netlib firings.
+
+**What was refuted, and it was this probe's own first two readings.** Reading
+the gap *inside* the replay gave 498 of 526 at a relative gap of order **1.0**,
+which would have concluded that the published point violates complementary
+slackness — a much larger and false claim. And the histogram clamped at 1e-8
+and was labelled one decade optimistic, so the first corrected pass still could
+not separate rounding from a real gap. **This is the third time in three probes
+that reading a row activity during the replay produced a wrong number** (D135
+was the first).
+
+**Nothing changed and nothing is proposed.** No source file was touched.
+
+**Left open, in `TODO.md`.** The repair now has a shape: decide the singleton
+row's status after the replay, publish the row `BASIC` when `y_i == 0`, and
+answer the 40 firings at 1e-16 plus `SINGLETON_COL`'s 188 from D135. Any
+candidate is checked against +3904 on netlib and +25654 on Kennington, which
+must go to zero.

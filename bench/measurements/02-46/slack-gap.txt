@@ -1,0 +1,29 @@
+# Does the singleton row's own dual decide its basis status?
+#
+# rule: y_i == 0 -> the row may be basic; y_i != 0 -> it must be on a
+# bound. 'wants BASIC' is free to fix — a basic variable may sit on a
+# bound. 'wants a bound' is the hard one: how far from one is it?
+
+######## netlib ########
+172 solves
+  rule already agrees with what is published       5572
+  rule wants BASIC, published on a bound           2524
+  rule wants a bound, row is not on one             526
+    of those, the row has no finite bound             0
+
+  gap to the nearest bound, relative to the row traffic
+  exactly 0           486
+  10^-16               40
+
+######## kennington ########
+32 solves
+  rule already agrees with what is published      48702
+  rule wants BASIC, published on a bound           3886
+  rule wants a bound, row is not on one           29058
+    of those, the row has no finite bound             0
+
+  gap to the nearest bound, relative to the row traffic
+  exactly 0         29058
+
+# canary: 'wants a bound' must be 526 on netlib and 29058 on Kennington
+# (D134's +1 combination) or this is not the same set of firings.
