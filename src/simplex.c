@@ -3802,6 +3802,32 @@ static jaos_status publish(sx *s, jaos_solve_status status, jm_presolve *p)
         return JAOS_OK;
     }
 
+#ifndef NDEBUG
+    /* No loan may still be outstanding here, because the two blocks below
+     * read the borrowed arrays directly: `sol_dual` is a BTRAN of `s->cost`
+     * and `sol_redcost` is `s->d`. The objective is safe whatever this says —
+     * it is built from `m->col_cost` — so this assert is about the duals and
+     * the reduced costs alone, and only on this branch: a solve that ends
+     * anywhere but OPTIMAL never calls `settle_shifts` and is entitled to
+     * carry loans, and it publishes four arrays of zeros instead.
+     *
+     * The suspicion it answers: `refresh` re-runs `shift_to_feasible` over
+     * every variable when `repair_singular_basis` fired, and both
+     * `take_best_if_better` and `restore_settled` call it AFTER their own
+     * `repay_shifts`. On that path `reenter_after_settling` returns with
+     * loans back in the costs and nothing settles them again.
+     *
+     * The cost is compared as well as the record, for D122's reason: a
+     * column whose cost moved while its record cancelled back to zero is the
+     * case D121 measured 186 of on `pilotnov`, and the record alone would
+     * not see it. Same pair as `settled_objective` asserts.
+     *
+     * Found by `numerics-reviewer` while reviewing D122, and kept out of that
+     * change so one change did one thing. */
+    for (int64_t v = 0; v < s->nvar; v++)
+        assert(s->shift[v] == 0.0 && s->cost[v] == s->cost0[v]);
+#endif
+
     /* Out of the scaled copy and back into the model's own units. A column
      * carries its factor, a row activity divides its own out; the duals go
      * the other way, because a dual is a rate per unit of the thing it

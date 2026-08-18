@@ -11,6 +11,15 @@ open, `bench/README.md` for the gate, and the commit each entry came from.
 
 ### Added
 
+- `publish` asserts that no loan is outstanding before it writes the duals.
+  `sol_dual` is a BTRAN of `s->cost` and `sol_redcost` is `s->d`, so a loan
+  left in the costs would be published; the objective never could be, because
+  it is built from `m->col_cost`. On the OPTIMAL branch only — any other
+  outcome never settles, is entitled to carry loans, and publishes zeros. It
+  fires on none of the 128 instances an assert-enabled build can run, and a
+  negative control confirms it can fire (D123). No behaviour changes: 94, 29
+  and 16 instances bit-identical to the committed record.
+
 - `docs/diagrams/` — seven files of mermaid diagrams: repo map, module call
   graph, the solve pipeline, the simplex iteration, presolve/postsolve, the
   outcome paths, and the gate. `docs/architecture.html` compiles the same set

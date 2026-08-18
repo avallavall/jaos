@@ -130,6 +130,7 @@ and you have the argument. Jump to the entry for the numbers behind it.
 - **[D120](#d120--the-same-reduced-lp-solved-twice-both-points-dual-feasible-by-the-solvers-own-reading-and-29-apart)** — The same reduced LP solved twice: both points dual-feasible by the solver's own reading, and 29% apart
 - **[D121](#d121--the-shift-round-trip-is-not-bit-exact-and-on-pilotnov-it-destroys-67-costs-one-by-5511)** — The shift round trip is not bit-exact, and on pilotnov it destroys 67 costs, one by 55.11
 - **[D122](#d122--a-repayment-restores-the-cost-instead-of-subtracting-the-loan-and-costs-10001x)** — A repayment restores the cost instead of subtracting the loan, and costs 1.0001x
+- **[D123](#d123--no-loan-is-outstanding-when-the-duals-are-published-on-any-of-the-128-instances-an-assert-enabled-build-can-run)** — No loan is outstanding when the duals are published, on any of the 128 instances an assert-enabled build can run
 
 ---
 
@@ -9280,3 +9281,61 @@ the work is not, so D118 stays refused.
 
 **The three baselines were rewritten deliberately after the diff was read and
 accepted**, and confirmed by a following gate run.
+
+## D123 — No loan is outstanding when the duals are published, on any of the 128 instances an assert-enabled build can run
+
+**The question.** `numerics-reviewer` raised it while reviewing D122, and it
+was kept out of D122 so one change did one thing. `refresh` re-runs
+`shift_to_feasible` over every variable when `repair_singular_basis` fired
+(`src/simplex.c:1335`). Both `take_best_if_better` and `restore_settled` call
+`refresh` **after** their own `repay_shifts`. On that path
+`reenter_after_settling` returns with loans back in the costs, and nothing
+settles them before `classify_optimum` and `publish`. The published objective
+is safe whatever the answer is — `publish` builds it from `m->col_cost` — but
+`sol_dual` is a BTRAN of `s->cost` and `sol_redcost` is `s->d`, so both would
+carry the loan. Expected: a live defect in published duals, or the suspicion
+removed.
+
+**The instrument.** `assert(s->shift[v] == 0.0 && s->cost[v] == s->cost0[v])`
+over every variable, on the OPTIMAL branch of `publish` and only there. A
+solve that ends anywhere else never calls `settle_shifts`, is entitled to
+carry loans, and publishes four arrays of zeros instead. The cost is compared
+as well as the record for D122's reason: a column whose cost moved while its
+record cancelled back to zero is the case D121 measured 186 of on `pilotnov`,
+and the record alone would not see it. Same pair `settled_objective` asserts.
+
+**The measurement**, `bench/measurements/02-32/`, `EXTRA_CFLAGS=-UNDEBUG` over
+all three sets at `J=12`:
+
+| set | answered | aborted | `publish` assert fired |
+|---|---|---|---|
+| netlib | 83 | 11 | **0** |
+| infeasible | 29 | 0 | **0** |
+| Kennington | 16 | 0 | **0** |
+
+**It never fires.** The suspicion is removed and the assert stays. All eleven
+aborts are the same pre-existing `assert(want_lo <= want_hi)` at
+`src/presolve.c:2127`, the standing debt D122 already named; it is reached
+before the solve publishes anything, so those eleven say nothing either way.
+128 is the count D122 predicted would answer.
+
+**The negative control, because the clean result is the suspicious kind.** A
+copy of the tree gets one line on the OPTIMAL path, immediately before
+`publish` is called — `s.cost[0] += 1.0; s.shift[0] += 1.0;` — and the first
+instance aborts inside `publish` on this assert. The instrument is reached on
+the branch it guards and fires on the state it exists to catch. `src/` is read
+and never written.
+
+**What was refuted.** Nothing was, and that is the entry. Reading the code
+alone, the path is there and nothing on it settles a loan; only the run says
+no model in three sets takes it. **This is not a proof that the path cannot be
+taken** — the assert stays precisely for that, so a harder model reaching it
+stops instead of publishing duals nobody can defend.
+
+**The cost is nothing, and it is checkable.** With `NDEBUG` back on the assert
+compiles to nothing: 94, 29 and 16 instances bit-identical to the committed
+record, 110 solution digests and 29 infeasibility verdicts unmoved.
+`make test`, `make sanitize` clean with the assert live in both.
+
+**Left open, in `TODO.md` §5a.** The 186 lost loans, and the missing bound on
+a loan's size relative to the cost it lands on. Neither is touched here.

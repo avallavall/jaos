@@ -1,0 +1,20 @@
+OUTSTANDING LOAN AT publish() -- b27d57a
+
+canary: __assert_fail is linked, asserts are live
+
+set                   answered   aborted   publish-assert
+netlib                      83        11                0
+infeas                      29         0                0
+kennington                  16         0                0
+
+-- every assert that did fire, by text --
+     11 presolve.c:2127: ps_replay_one: Assertion `want_lo <= want_hi'
+
+-- baseline diff, assert build --
+netlib       baseline: 55 regressed, 0 improved, 0 new
+infeas       baseline: 0 regressed, 0 improved, 0 new
+kennington   baseline: 0 regressed, 0 improved, 0 new
+
+== NEGATIVE CONTROL: the assert must be able to fire ==
+one loan left outstanding on the OPTIMAL path, immediately before publish
+run: /mnt/c/Users/vall-/Desktop/projectes/jaos/build/diag/02-32/src/simplex.c:3828: publish: Assertion `s->shift[v] == 0.0 && s->cost[v] == s->cost0[v]' failed.

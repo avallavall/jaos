@@ -9,19 +9,26 @@ line leaves this file in the same commit.
 
 ### The state of the tree, first, because everything below assumes it
 
-**Nothing is in flight. The tree is clean, `main` is pushed, no worktree is
-registered, and the three gate baselines were rewritten deliberately after
-D122 and confirmed by a following run that reads `0 regressed, 0 improved, 0
-new` and exits 0 on all three.** `make test`, `make sanitize` and
-`make test EXTRA_CFLAGS=-DJAOS_NO_PRESOLVE` all exit 0.
+**Nothing is in flight. The tree is clean, no worktree is registered, and the
+three gate baselines were rewritten deliberately after D122.** D123 added an
+assert and rewrote no baseline: the three sets read `0 regressed, 0 improved, 0
+new` and 94, 29 and 16 instances bit-identical to the committed record.
+`make test` and `make sanitize` exit 0 with the assert live in both.
+**`main` is one commit ahead of `origin/main` and the push is not approved
+yet.**
 
-Two things about this working session that a later one needs and cannot infer:
+Three things about this working session that a later one needs and cannot
+infer:
 
 - **Another Claude session was committing and pushing to this repository at
   the same time.** Its commit was documentation only (`docs/diagrams/`,
   `docs/architecture.html`) and could not affect a solve, so no measurement was
   invalidated. If two sessions are live again, `CHANGELOG.md`, `DECISIONS.md`
   and `TODO.md` are the files that will collide.
+- **`bench/measurements/02-31/run-gaps.sh` is untracked and is not this
+  session's.** It is an unfinished probe of the `want_lo <= want_hi` gaps, for
+  the standing debt at the end of this file. It was left alone deliberately.
+  Do not commit it without knowing whose it is.
 - **A campaign cannot be run in the main tree while it is dirty**, so a
   candidate is measured in a git worktree with `bench/instances*` symlinked in.
   `preflight.sh` follows symlinks now. See the memory note
@@ -34,7 +41,9 @@ D106 first refusal is **refused**, `pilotnov` publishes 29% wrong (**D118**) →
 that was not presolve, the same reduced model is right at a shorter
 refactorization interval (**D119**) → five explanations closed, one
 contradiction left (**D120**) → the contradiction is a cost that never comes
-back (**D121**) → **repaired and landed** (**D122**).
+back (**D121**) → **repaired and landed** (**D122**) → and no loan is
+outstanding when the duals are published, on any instance that answers
+(**D123**).
 
 The repair: a repayment restores from a write-once `cost0` instead of
 subtracting the recorded loan, because `x += d; x -= d` does not restore `x`.
@@ -42,37 +51,18 @@ Costs 1.0001x on netlib, 0.9975x on Kennington, 29 of 29 infeasible instances
 bit-identical, iterations moving on one instance of 139. `jaos-measurer`
 ACCEPT.
 
-## → START HERE: §5a, three things left in the shift machinery
+D123 closed §5a's first item and left an assert in `publish` behind it. The
+release build is unaffected; the three sets read 94, 29 and 16 instances
+bit-identical to the committed record.
 
-None of the three is reached by any of the 139 instances, which is why the gate
-is green. They are open because each is a defect that a harder model would
-reach, and one of them touches published output.
+## → START HERE: §5a, two things left in the shift machinery
+
+Neither is reached by any of the 139 instances, which is why the gate is
+green. They are open because each is a defect that a harder model would reach.
 
 **Do them in this order. The numbering is the order.**
 
-### 1. Is a loan still outstanding when the answer is published?
-
-One assert answers it, and it either finds a live defect in published duals or
-removes the suspicion. **This is the one to start with.**
-
-`refresh` re-runs `shift_to_feasible` over every variable when
-`repair_singular_basis` fired, and it is called from `take_best_if_better` and
-from `restore_settled` **after** each has called `repay_shifts`. On that path
-`reenter_after_settling` returns with loans still in the costs, and nothing
-settles them before `classify_optimum` and `publish`. The published objective
-is safe — `publish` builds it from `m->col_cost` — but `sol_dual` comes from
-`s->cost` and `sol_redcost` from `s->d`, and both would carry the loan.
-
-**What to do:** assert every `s->shift[v]` is zero on entry to `publish`, build
-with `EXTRA_CFLAGS=-UNDEBUG`, and run the three sets. Expect 128 instances to
-answer; the other 11 abort earlier on a pre-existing assert (see the standing
-debts). If it never fires, the suspicion is removed and the assert can stay. If
-it fires, that is a defect in published duals and it needs its own decision.
-
-Found by `numerics-reviewer` while reviewing D122, and deliberately kept out of
-D122 so one change did one thing.
-
-### 2. 186 loans go missing, and nothing explains it
+### 1. 186 loans go missing, and nothing explains it
 
 `pilotnov` ends with **186** variables whose lent and repaid totals differ, the
 worst by **256** (`bench/measurements/02-29/loan-balance.txt`). D122 made this
@@ -86,7 +76,7 @@ lend site and both repayment sites to name the variable and the round where a
 loan goes missing. `bench/measurements/02-29/run-loan-balance.sh` already
 tallies the totals and only needs the site attribution added.
 
-### 3. Nothing bounds a loan relative to the cost it lands on
+### 2. Nothing bounds a loan relative to the cost it lands on
 
 A `need` of 1e32 on a cost of one is not a repair of a sign condition, it is
 the sign condition being overwritten. `shift_to_feasible` also sets
