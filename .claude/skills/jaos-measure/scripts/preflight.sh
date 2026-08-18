@@ -120,6 +120,33 @@ for f in bench/results/netlib.txt bench/results/netlib-infeas.txt \
         say "" "the last run of this set had no baseline. Do not commit it."
     fi
 done
+# A record is a reference for the tree that produced it. `warm.txt` and its
+# Kennington sibling sat 21 src/ commits behind and nothing noticed, because
+# this section only ever read the three netlib records: a warm diff taken
+# against them reported a predicate change on `scrs8` that belonged to
+# somebody else's commit.
+#
+# The count is not a verdict. A record written before N src/ commits is still
+# a valid reference if those commits were no-ops on that set — which is the
+# normal case, and is why a baseline that never moves is not stale. What the
+# count says is that the attribution has to be argued rather than assumed, and
+# a run of the parent is what settles it.
+src_last=$(git log -1 --format=%H -- src/ 2>/dev/null)
+if [ -n "$src_last" ]; then
+    for f in bench/results/*.txt; do
+        [ -e "$f" ] || continue
+        rec_last=$(git log -1 --format=%H -- "$f" 2>/dev/null)
+        [ -n "$rec_last" ] || continue
+        # Current means the last src/ change is an ancestor of the commit that
+        # wrote the record -- the record saw it.
+        if ! git merge-base --is-ancestor "$src_last" "$rec_last" 2>/dev/null; then
+            n=$(git rev-list --count "$rec_last..$src_last" -- src/ 2>/dev/null)
+            flag "$f was written before ${n:-?} src/ commit(s)"
+            say "" "a diff against it credits their effect to your change unless"
+            say "" "they were no-ops on this set. Run the parent to attribute."
+        fi
+    done
+fi
 [ "$stop" -eq 0 ] && okay "baselines present, no record empty or uncompared"
 
 # --------------------------------------------------------- 4. instance sets
