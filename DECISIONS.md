@@ -136,6 +136,7 @@ and you have the argument. Jump to the entry for the numbers behind it.
 - **[D126](#d126--refused-the-zero-d125-called-a-fabrication-is-what-stops-the-breach-compounding-and-removing-it-costs-six-orders-of-magnitude)** — **Refused**: the zero D125 called a fabrication is what stops the breach compounding, and removing it costs six orders of magnitude
 - **[D127](#d127--refused-the-wrong-signed-dual-step-is-holding-pilot87-up-and-clamping-it-costs-3228x)** — **Refused**: the wrong-signed dual step is holding pilot87 up, and clamping it costs 3.228x
 - **[D128](#d128--the-shift-record-says-what-the-cost-moved-by-and-it-skips-two-re-pricings-out-of-290)** — The shift record says what the cost moved by, and it skips two re-pricings out of 290
+- **[D129](#d129--the-basis-count-defect-costs-25-of-netlib-and-55-of-kennington-their-warm-start-outright)** — The basis-count defect costs 25% of netlib and 55% of Kennington their warm start outright
 
 ---
 
@@ -9715,3 +9716,77 @@ move that provably did not happen.
 
 **Process.** `numerics-reviewer` was unavailable, as on D126 and D127. The
 review was done in the main context. §5a is now closed.
+
+## D129 — The basis-count defect costs 25% of netlib and 55% of Kennington their warm start outright
+
+**The question.** `bench/results/warm.txt` and its Kennington sibling were
+last written at `44c0ef6`, **21 `src/` commits ago**, which `TODO.md` carried
+as a standing debt: a diff against them reports the whole of presolve and
+cannot isolate a later change. The gate was green and the tree clean, so they
+were rewritten. Expected: a ratio that moved because presolve shrank the cold
+solve it is divided by.
+
+**The headline got much worse than that.**
+
+| | old record | new record |
+|---|---|---|
+| netlib, work units warm/cold, geometric mean | 0.0164 | **0.0696** |
+| netlib, worst instance | `afiro` 0.5768 | `80bau3b` **1.0000** |
+| Kennington, work units warm/cold | 0.0041 | **0.0873** |
+| Kennington, worst instance | `pds-06` 0.0329 | `cre-a` **1.0000** |
+
+A ratio of exactly 1.0000 is a warm re-solve doing **bit-identical** work to
+the cold one — `80bau3b` at 3511 iterations and 64249140 units either way,
+`dfl001` at 21985 and 2744690896. **26 of netlib's 92 measured instances read
+it, and 6 of Kennington's 11.** No instance did in the old record. Three of
+netlib's 26 are branches taking zero iterations on both sides and identical
+for a legitimate reason.
+
+**Where it goes**, `bench/measurements/02-38/`. The driver solves three times
+per instance — anchor, warm, cold after `jaos_clear_basis` — so calls 0 and 2
+are expected to find no basis and call 1 is the question:
+
+| set | call 1 accepted | count mismatch | no basis stored |
+|---|---|---|---|
+| netlib | 66 | **23** | 0 |
+| Kennington | 5 | **6** | 0 |
+
+**23 and 23, 6 and 6.** The count mismatches equal the non-trivial 1.0000
+instances exactly, on both sets, so the attribution is measured rather than
+inferred. `no-basis` never fires on the warm solve, so nothing is lost for any
+other reason.
+
+`nbasic != s->nrow` is the standing debt `TODO.md` already carries with a
+named minimum case and a pinned test. What it did not carry is a price. **The
+price is 25% of the standard set and 55% of Kennington.**
+
+**The mismatch is usually by one and is not always short.** Thirteen of
+netlib's 23 read `nbasic = nrow - 1`. Three publish *more* basic variables
+than rows — by 10, 11 and 2 — which is a different shape from a missing one
+and is not explained by the same argument. Kennington's worst is `nrow=3074
+nbasic=3051`.
+
+**What was refuted.** The expectation this entry started with. Both
+explanations — the defect, and presolve shrinking the denominator — predict a
+worse ratio, so they were separated by taking the geometric mean over the
+instances that kept their warm start:
+
+| | all | kept the warm start | lost it |
+|---|---|---|---|
+| netlib | 0.0696 | **0.0244** (66) | 1.0000 (26) |
+| Kennington | 0.0873 | **0.0047** (5) | 1.0000 (6) |
+
+Kennington's survivors read 0.0047 against the old record's 0.0041, unchanged
+for practical purposes; netlib's read 0.0244 against 0.0164, worse but the
+same order. **The jump is the lost warm starts and almost nothing else.**
+
+**It is not a wrong answer and not a gate regression.** The fallback is
+correct by construction: `build_warm_basis` refuses a basis it cannot trust,
+and the cold start is always right. No checker and no digest reads a starting
+status, which is exactly why 21 commits passed with nobody noticing — and why
+`preflight.sh` asking every record its age is what surfaced it (D122). The
+three gate sets are unaffected.
+
+**Left open, in `TODO.md`.** The repair itself, which now has a price to be
+weighed against. And the three instances publishing more basic variables than
+rows, which the minimum case does not describe.

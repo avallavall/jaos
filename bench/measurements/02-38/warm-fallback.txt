@@ -1,0 +1,53 @@
+# Where does the warm start go?
+#
+# The driver solves three times per instance: anchor, warm, cold after
+# jaos_clear_basis. Calls 0 and 2 are expected to find no basis.
+# CALL 1 IS THE WARM RE-SOLVE and the whole question.
+
+######## netlib ########
+  count mismatch on the warm solve: nrow=298 nbasic=299 (short by -1)
+  count mismatch on the warm solve: nrow=443 nbasic=442 (short by 1)
+  count mismatch on the warm solve: nrow=476 nbasic=475 (short by 1)
+  count mismatch on the warm solve: nrow=399 nbasic=411 (short by -12)
+  count mismatch on the warm solve: nrow=24 nbasic=23 (short by 1)
+  count mismatch on the warm solve: nrow=2022 nbasic=2043 (short by -21)
+  count mismatch on the warm solve: nrow=1503 nbasic=1502 (short by 1)
+  count mismatch on the warm solve: nrow=43 nbasic=42 (short by 1)
+  count mismatch on the warm solve: nrow=690 nbasic=685 (short by 5)
+  count mismatch on the warm solve: nrow=396 nbasic=395 (short by 1)
+  count mismatch on the warm solve: nrow=281 nbasic=280 (short by 1)
+  count mismatch on the warm solve: nrow=562 nbasic=561 (short by 1)
+  count mismatch on the warm solve: nrow=77 nbasic=76 (short by 1)
+  count mismatch on the warm solve: nrow=843 nbasic=842 (short by 1)
+  count mismatch on the warm solve: nrow=147 nbasic=146 (short by 1)
+  count mismatch on the warm solve: nrow=397 nbasic=396 (short by 1)
+  count mismatch on the warm solve: nrow=520 nbasic=519 (short by 1)
+  count mismatch on the warm solve: nrow=300 nbasic=310 (short by -10)
+  count mismatch on the warm solve: nrow=407 nbasic=418 (short by -11)
+  count mismatch on the warm solve: nrow=52 nbasic=54 (short by -2)
+  count mismatch on the warm solve: nrow=171 nbasic=170 (short by 1)
+  count mismatch on the warm solve: nrow=723 nbasic=722 (short by 1)
+  count mismatch on the warm solve: nrow=6071 nbasic=6070 (short by 1)
+all calls, by position and outcome:
+  call 1/count                  23
+  call 2/no-basis               89
+  call 1/accepted               66
+  call 0/no-basis               94
+THE WARM RE-SOLVE (call 1): accepted=66  no-basis=0  count=23
+
+######## kennington ########
+  count mismatch on the warm solve: nrow=2583 nbasic=2574 (short by 9)
+  count mismatch on the warm solve: nrow=3074 nbasic=3051 (short by 23)
+  count mismatch on the warm solve: nrow=1081 nbasic=1080 (short by 1)
+  count mismatch on the warm solve: nrow=2300 nbasic=2299 (short by 1)
+  count mismatch on the warm solve: nrow=4313 nbasic=4312 (short by 1)
+  count mismatch on the warm solve: nrow=10243 nbasic=10242 (short by 1)
+all calls, by position and outcome:
+  call 1/count                  6
+  call 2/no-basis               11
+  call 1/accepted               5
+  call 0/no-basis               16
+THE WARM RE-SOLVE (call 1): accepted=5  no-basis=0  count=6
+
+# canary: a probe that never ran and one where every warm start was
+# accepted look alike unless the call counts above are non-zero.

@@ -800,22 +800,23 @@ then, do not — a refusal whose premise has not changed just fails again.
   own decision before any code.
 - `galenet` makes two `dual_ratio_test` calls in a one-iteration solve —
   calls are not iterations in any work-saved arithmetic (D93).
-- **The `warm` record predates presolve.** `bench/results/warm.txt` and its
-  Kennington sibling were last written at `44c0ef6`, an 01-03 commit, so a
-  diff against them reports the whole of presolve and cannot isolate a later
-  change. It read 92 of 98 instances moved and flagged `scrs8` as a
-  regression, where the movement against HEAD was five lines and no
-  regression. Rewriting it is the same deliberate act as rewriting a gate
-  baseline, with the same precondition.
-  **It is watched now, and it was not.** `preflight.sh` asks every record in
-  `bench/results/` how many `src/` commits it was written before, and reads
-  **21** for both warm records. It only ever asked the three netlib ones, which
-  is why nobody noticed — and asking all of them turned up two more straight
-  away: `netlib-infeas.txt` at 3 and `netlib-kennington.txt` at 7, both gate
-  records. Found by `jaos-measurer` hitting the `scrs8` line again while
-  judging D122, 2026-08-18. The count is not a verdict: a record written before
-  N commits is still valid if those commits were no-ops on that set, which is
-  why the baselines being behind is correct rather than stale.
+- ~~**The `warm` record predates presolve.**~~ **Rewritten 2026-08-18 (D129),
+  and what it now says is a finding rather than a refresh.** The work ratio
+  went from 0.0164 to **0.0696** on netlib and 0.0041 to **0.0873** on
+  Kennington, and 26 netlib instances plus 6 Kennington ones read **exactly
+  1.0000** — a warm re-solve doing bit-identical work to the cold one. That is
+  the basis-count defect below, and the attribution is exact rather than
+  inferred: 23 count mismatches against 23 non-trivial 1.0000 instances on
+  netlib, 6 against 6 on Kennington. `scrs8`'s old "regression" was a
+  different branch, `x8<=0` becoming `x14<=0` because the anchor optimum moved
+  in its last digits, and that branch is infeasible.
+  **The staleness is watched now, and it was not.** `preflight.sh` asks every
+  record in `bench/results/` how many `src/` commits it was written before. It
+  only ever asked the three netlib ones, which is why 21 commits passed —
+  asking all of them turned up two more straight away. The count is not a
+  verdict: a record written before N commits is still valid if those commits
+  were no-ops on that set, which is why the baselines being behind is correct
+  rather than stale. Found by `jaos-measurer` while judging D122.
 - **A collapsed fold leaves a bound no record owns.** When a singleton row's
   intersection collapses inside the fold's rounding window, `src/presolve.c` puts
   the midpoint of the two ends into both folded bounds, and that midpoint is
@@ -959,3 +960,13 @@ then, do not — a refusal whose premise has not changed just fails again.
   when the count does not hold, and no checker or digest reads a status — so
   the repair is measured on `make warm` and `make warm-kennington`, which is
   what it changes.
+  **The price is measured now (D129): 23 of netlib's 92 measured instances and
+  6 of Kennington's 11 lose the warm start outright, 25% and 55%.** Those
+  instances read a work ratio of exactly 1.0000, and taking them out of the
+  geometric mean returns Kennington to 0.0047 against the pre-presolve
+  record's 0.0041. `no-basis` never fires on the warm solve, so the count is
+  the only thing losing it.
+  **One shape the minimum case does not cover.** Three netlib instances
+  publish *more* basic variables than rows — over by 10, 11 and 2 — where the
+  other twenty are short by one or five. A repair aimed at the missing-one
+  case will not answer those, and nobody has asked what they are.

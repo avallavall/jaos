@@ -9,6 +9,17 @@ open, `bench/README.md` for the gate, and the commit each entry came from.
 
 ## [Unreleased]
 
+### Changed
+
+- `bench/results/warm.txt` and `warm-kennington.txt` rewritten. They were 21
+  `src/` commits old and predated presolve. The work ratio reads 0.0696 on
+  netlib against the old 0.0164 and 0.0873 on Kennington against 0.0041, and
+  **26 netlib instances plus 6 Kennington ones now read exactly 1.0000** — a
+  warm re-solve doing bit-identical work to the cold one. That is the
+  basis-count defect, measured: 23 of netlib's 92 and 6 of Kennington's 11
+  lose the warm start outright (D129). Not a gate regression and not a wrong
+  answer; the three gate sets are unaffected.
+
 ### Fixed
 
 - `shift_to_feasible` records what the cost actually moved by, not what was
