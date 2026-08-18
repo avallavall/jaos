@@ -44,9 +44,10 @@ contradiction left (**D120**) → the contradiction is a cost that never comes
 back (**D121**) → **repaired and landed** (**D122**) → no loan is outstanding
 when the duals are published, on any instance that answers (**D123**) → and
 the 186 missing loans were never missing, the tally added them one way and the
-repayments another (**D124**) → and no loan swamps a real cost anywhere in the
+repayments another (**D124**) → no loan swamps a real cost anywhere in the
 gate, while one lend in six sets `d` to zero on a cost that never moved
-(**D125**).
+(**D125**) → and that zero turns out to be what stops the breach compounding,
+so removing it is **refused** (**D126**).
 
 The repair: a repayment restores from a write-once `cost0` instead of
 subtracting the recorded loan, because `x += d; x -= d` does not restore `x`.
@@ -80,31 +81,49 @@ it came apart:
   D118's refused candidate.
 - **The fabrication is what is left, and it fires on one lend in six.**
 
-### 1. `d[v] = 0.0` on a cost that never moved
+### The `d[v] = 0.0` question is closed, and the answer was no
 
-`shift_to_feasible` sets `s->d[v] = 0.0` unconditionally, which asserts the
-cost moved by exactly `need`. On **167816 of netlib's 1006960 lends (16.7%)**
-the cost does not move at all, and on **400204 of Kennington's 2802762
-(14.3%)**; 134 of the 188 standard solves have at least one
-(`bench/measurements/02-34/`). Dual feasibility is asserted rather than
-repaired, and the next ratio test reads a reduced cost that was never
-computed.
+D125 measured that `shift_to_feasible` writes `s->d[v] = 0.0` on 16.7% of
+netlib's lends where the cost does not move, and called it a fabrication. D126
+built the repair and **refused it by measurement**: removing the zero lets the
+breach compound across iterations, because `update_dual` pushes the same
+variable further every iteration and nothing resets it any more. The worst
+breach reaching the dual step grows from 4.81e-10 to 5.84e-05 and the worst
+step from 8.37e-09 to 2.21e-03, and the solve takes 49% more ratio-test picks
+(`bench/measurements/02-35/`).
 
-**What to do, and the shape is a floor rather than a ceiling.** A `need`
-below the noise of the sum that produced `d[v]` is not a number.
-`NOISE_MARGIN * DBL_EPSILON * column_traffic(s, v)` is that floor and
-`can_move` already applies it. Two things settle before any of it is code:
+**The zero is not a fabrication.** It rounds a quantity to zero when that
+quantity is below the resolution of the cost that produced it.
 
-- **What refusing 16% of lends costs**, measured on both sides. That is a
-  trajectory change on most of the set, not a no-op, and a new constant needs
-  a sweep and a row in `docs/tolerances.md`. **Do not pick a number and
-  measure one side of it.**
-- **Whether `column_traffic` may be read on the ratio-test path at all.** It
-  reads `s->y`, which there is the duals of some basis rather than necessarily
-  the current one, and it is a full column scan in the solver's hottest loop.
+### 1. The phantom loan in the record
 
-It changes solver internals, so `numerics-reviewer` reads the diff before any
-campaign.
+`shift[v] += need` records a loan that was never made, on the same 16.7% of
+lends. Recording `moved` instead is **not** a no-op: `repay_shifts` returns
+whether anything moved, and `settle_shifts` skips `compute_duals` and
+`repair_dual_infeasibility` when nothing did — so a phantom loan currently
+forces a re-pricing that would otherwise be skipped.
+
+**What to do:** measure what skipping those re-pricings does, on all three
+sets, before changing the accumulation. It is small and it touches solver
+internals.
+
+### 2. The dual step is computed from an unclamped `d`, and already is at HEAD
+
+`admit_candidate` clamps the ratio-test numerator, and `bfrt_walk`,
+`jm_harris_pick` and `jm_bland_pick` read only that clamped number. Both exits
+of `dual_ratio_test` then compute `*theta_out = s->d[best] / s->alpha[best]`
+from the raw `d`, and `|alpha|` need only exceed `PIVOT_MIN = 1e-9`.
+
+**At HEAD this fires on 248 netlib picks and 170 Kennington picks**, worst step
+8.37e-09 (`bench/measurements/02-35/`). Small, and nobody has decided whether
+it should be zero instead — the clamp's own comment argues an already-blocking
+candidate takes a step of zero, which is what `rnum` says and what the
+division does not.
+
+Both items change solver internals, so `numerics-reviewer` reads the diff
+before any campaign. **It failed to deliver twice on D126** and the review was
+done in the main context; if it fails again, say so in the entry rather than
+skipping the read.
 
 **`REFACTOR_EVERY` is not a proposal in any of this.** It is what D119 swept to
 prove the failure was numerical, on one instance, and one instance is not a
@@ -743,6 +762,7 @@ then, do not — a refusal whose premise has not changed just fails again.
 | D112 | the unbounded-relative-widening refusal for the cost-0 singleton column — 98.6% of firings would be refused, and the helped and hurt `grow*` instances carry the same widening | D108's condition: a measured mechanism that predicts trajectory direction from the firing site; or an instance crossing the gate's 2.0x work bar from this family |
 | D95 | eliminating nonzero-cost singleton columns | a dual-informed elimination design exists (the lift condition is in the entry). **Checked against D106 and NOT reopened, deliberately.** D106 eliminates nonzero-cost singleton columns, so the question was re-asked. It does not satisfy D95's condition and does not need to: D95 refused *choosing which bound is optimal*, and an implied free column has no bound to choose — it is interior, so `d_j = 0` is forced and the dual falls out of one division. The columns D95 still refuses are the ones whose own bounds can bind, and D106 declines exactly those |
 | D118 | giving the implied free column singleton first refusal over D95's bounded cost-0 singleton column — `pilotnov` publishes an objective 29% wrong as `optimal`, `checker=REJECTED`, `dual=0.89`, 30.2x work | **the condition was rewritten the same day by D119, because the first one looked in the wrong place.** It is not a fifth restriction on D106: the substitution is sound, and the same reduced model reaches Koch's optimum to the last bit at `REFACTOR_EVERY = 16`. It reopens when the solve stops publishing `optimal` without re-reading dual feasibility, or when the refactorization interval stops collapsing on `pilotnov` — §5a, both. The prize is real and stated: `ganges` 0.8429x, `dfl001` 0.8951x, `czprob` 0.9227x |
+| D126 | removing `shift_to_feasible`'s `d[v] = 0.0` when the cost cannot move — the breach then compounds across iterations, worst dual step 8.37e-09 → 2.21e-03 and 49% more ratio-test picks | the dual step stops being computed from an unclamped `d` (§5a item 2), or `update_dual` stops being the thing that pushes the same variable further every iteration. The candidate is kept at `bench/measurements/02-35/candidate.diff`, so a retry starts from the measured version rather than from scratch |
 | D93 | the 4.2% time bar — unmeasurable on this host | a controlled host that satisfies D17 |
 | D92/backlog | `pilot87`'s suboptimality bound, not understood | it blocks a gate (trigger already recorded) |
 | D82, D84 | partial and multiple pricing | nothing scheduled — refused on wrong answers, not on a trade; a new scheme is a new decision, not a retry |

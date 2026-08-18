@@ -1,0 +1,63 @@
+diff --git a/src/simplex.c b/src/simplex.c
+index 0bf9492..ee9e562 100644
+--- a/src/simplex.c
++++ b/src/simplex.c
+@@ -2117,7 +2117,40 @@ static int64_t price_and_select(sx *s, int64_t r, bool below,
+  * Shifting the cost of a *nonbasic* variable changes that variable's
+  * reduced cost and nothing else: the duals come from the basic costs
+  * alone. So the repair is exactly local, and the loan is recorded to be
+- * repaid in settle_shifts. */
++ * repaid in settle_shifts.
++ *
++ * **`d` moves by the amount the cost ACTUALLY moved, and the two are not the
++ * same number.** `d` is `cost[v] - y·M_v` by definition, so writing a zero
++ * into it is a claim that the cost moved by exactly `need`. That claim is
++ * false whenever `need` is below half an ulp of the cost: `cost += need`
++ * leaves the cost where it was, and the zero is then a fabrication rather
++ * than a repair — the ratio test afterwards reads a reduced cost that was
++ * never computed. It is not a rare corner. D125 measured **167816 of
++ * netlib's 1006960 lends (16.7%)** landing on a cost that does not move, on
++ * 134 of the 188 standard solves, and 14.3% of Kennington's
++ * (`bench/measurements/02-34/`).
++ *
++ * So the move is read back off the cost. When the cost moves by the whole of
++ * `need` this writes the same exact zero it always did; when it does not
++ * move, `d` keeps the value it had and nothing is recorded as lent. This is
++ * D122's rule, which `primal_cleanup` already applies at the other end of the
++ * same loan for the same reason.
++ *
++ * What is left behind when the cost cannot move is a reduced cost still on
++ * the wrong side of zero, which is the hazard three paragraphs up. Two
++ * things bound it, and the second is the one that settles it.
++ *
++ * It is small: the cost did not move, so `|d|` is below half an ulp of
++ * `cost[v]`, which is under the rounding of the one term of `d` this
++ * function can see. A sum is known no more finely than its terms.
++ *
++ * And **the ratio test already handles it**. `admit_candidate` clamps the
++ * numerator with `rnum[k] = dist > 0.0 ? dist : 0.0`, and its comment says
++ * why in as many words: a cost that has drifted past zero is read as already
++ * blocking rather than nearly blocking, it blocks at once, and the step that
++ * follows repairs it exactly. That clamp is where the backwards dual step was
++ * actually prevented. Shifting a cost that cannot move never added anything
++ * to it — it only overwrote the evidence. */
+ static void shift_to_feasible(sx *s, int64_t v)
+ {
+     double need = 0.0;
+@@ -2135,9 +2168,14 @@ static void shift_to_feasible(sx *s, int64_t v)
+     if (need == 0.0)
+         return;
+ 
++    const double before = s->cost[v];
+     s->cost[v] += need;
+-    s->shift[v] += need;
+-    s->d[v] = 0.0;
++    const double moved = s->cost[v] - before;
++    if (moved == 0.0)
++        return;                     /* nothing happened; record nothing */
++
++    s->shift[v] += moved;
++    s->d[v] += moved;
+ }
+ 
+ /* One variable's share of the dual step, and the repair that follows it.

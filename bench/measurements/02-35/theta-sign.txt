@@ -1,0 +1,25 @@
+# Does the dual step come out of a reduced cost on the wrong side of
+# zero?  admit_candidate clamps the numerator; the step is computed
+# from the raw d, and |alpha| may be as small as PIVOT_MIN = 1e-9.
+
+0020b3f32420d4551c5c5b854791817b  build/diag/run-head
+e3f4849bde92b6e40e285333ed89f406  build/diag/run-cand
+
+######## netlib ########
+head       solves=188 picks=477562 wrong=248 (0.0519%) solves_with_any=58
+           worst |dist| past zero = 4.81037e-10
+           worst |theta| from one = 8.36604e-09   at |alpha|=0.00055791
+cand       solves=188 picks=712218 wrong=8840 (1.2412%) solves_with_any=122
+           worst |dist| past zero = 5.84057e-05
+           worst |theta| from one = 0.00221491   at |alpha|=0.0263693
+
+######## kennington ########
+head       solves=32 picks=435418 wrong=170 (0.0390%) solves_with_any=18
+           worst |dist| past zero = 5.22327e-10
+           worst |theta| from one = 5.35089e-10   at |alpha|=0.800971
+cand       solves=32 picks=448132 wrong=5588 (1.2470%) solves_with_any=24
+           worst |dist| past zero = 4.58954e-10
+           worst |theta| from one = 4.31634e-10   at |alpha|=0.951809
+
+# canary: a probe that never ran and one that found nothing look alike.
+# picks>0 above is what says the observer executed.

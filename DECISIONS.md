@@ -133,6 +133,7 @@ and you have the argument. Jump to the entry for the numbers behind it.
 - **[D123](#d123--no-loan-is-outstanding-when-the-duals-are-published-on-any-of-the-128-instances-an-assert-enabled-build-can-run)** — No loan is outstanding when the duals are published, on any of the 128 instances an assert-enabled build can run
 - **[D124](#d124--the-186-loans-were-never-lost-02-29-compared-one-accumulator-against-a-sum-of-partial-sums)** — The 186 loans were never lost: 02-29 compared one accumulator against a sum of partial sums
 - **[D125](#d125--no-loan-swamps-a-real-cost-anywhere-in-the-gate-and-one-lend-in-six-sets-d-to-zero-on-a-cost-that-never-moved)** — No loan swamps a real cost anywhere in the gate, and one lend in six sets `d` to zero on a cost that never moved
+- **[D126](#d126--refused-the-zero-d125-called-a-fabrication-is-what-stops-the-breach-compounding-and-removing-it-costs-six-orders-of-magnitude)** — **Refused**: the zero D125 called a fabrication is what stops the breach compounding, and removing it costs six orders of magnitude
 
 ---
 
@@ -9489,3 +9490,86 @@ trajectory change on most of the set rather than a no-op; and whether
 `column_traffic` may be read on the ratio-test path at all, since it reads
 `s->y` — the duals of some basis rather than necessarily the current one —
 and is a full column scan in the solver's hottest loop.
+
+## D126 — Refused: the zero D125 called a fabrication is what stops the breach compounding, and removing it costs six orders of magnitude
+
+**The question.** D125 measured `shift_to_feasible` writing `s->d[v] = 0.0` on
+167816 of netlib's 1006960 lends where the cost does not move at all, and
+called it a fabrication: `d` is `cost[v] - y·M_v` by definition, so the zero
+claims the cost moved by exactly `need`. The candidate reads the move back off
+the cost and stops when there was none
+(`bench/measurements/02-35/candidate.diff`):
+
+```c
+const double before = s->cost[v];
+s->cost[v] += need;
+const double moved = s->cost[v] - before;
+if (moved == 0.0)
+    return;
+s->shift[v] += moved;
+s->d[v] += moved;
+```
+
+Expected: the same answers, an honest `d`, and a residue too small to matter.
+
+**The argument for it, and where it leaked.** The residue was said to be
+bounded — the cost did not move, so `|d|` is below half an ulp of `cost[v]` —
+and `admit_candidate` already clamps the ratio-test numerator with
+`rnum[k] = dist > 0.0 ? dist : 0.0`. The clamp does cover the **choice**:
+`bfrt_walk`, `jm_harris_pick` and `jm_bland_pick` read only `rnum`, `rden` and
+`rrange`, so no wrong-signed `d` reaches any of them. It does not cover the
+**step**. Both exits of `dual_ratio_test` compute
+`*theta_out = s->d[best] / s->alpha[best]` from the raw `d`, and
+`admit_candidate` only requires `|alpha| > PIVOT_MIN`, which is `1e-9`. The
+division amplifies by up to a billion.
+
+**The measurement**, both binaries built in one run with distinct md5s:
+
+| | picks | wrong-signed | worst \|dist\| past zero | worst \|theta\| from one |
+|---|---|---|---|---|
+| netlib, HEAD | 477562 | 248 (0.052%) | 4.81e-10 | 8.37e-09 |
+| netlib, candidate | 712218 | **8840 (1.24%)** | **5.84e-05** | **2.21e-03** |
+| Kennington, HEAD | 435418 | 170 (0.039%) | 5.22e-10 | 5.35e-10 |
+| Kennington, candidate | 448132 | **5588 (1.25%)** | 4.59e-10 | 4.31e-10 |
+
+**The half-ulp bound is false, by five orders of magnitude on the breach and
+six on the step.** 2.21e-03 arriving at the dual step is a number, not an
+artefact. And the trajectory says it from the other side: 712218 ratio-test
+picks against HEAD's 477562 on the same 188 solves, 49% more.
+
+**Why the bound was wrong.** It assumed the breach is whatever one lend could
+not repair. `update_dual` runs `d[v] -= theta_dual * alpha[v]` every iteration
+and then calls `shift_to_feasible`; today's zero resets the breach each time,
+so it cannot accumulate. Remove the zero and the next iteration pushes the same
+variable further the same way. That is the hazard the function's own header
+names in advance: *"a reduced cost pushed a tolerance past zero stayed there,
+and the next iteration could push it further."* The header was right and the
+candidate did not read it as a claim about accumulation.
+
+**So `d[v] = 0.0` is not a fabrication.** It rounds a quantity to zero when
+that quantity is below the resolution of the cost that produced it, which is
+what `fp-numerics` prescribes for a sum below the noise of its terms. D125
+measured it correctly and this entry corrects what D125 implied about it. The
+comment in `shift_to_feasible` is unchanged and stays right.
+
+**The process note, because it decided the outcome.** `numerics-reviewer` was
+spawned twice on this diff, as the loop's step 3 requires, and neither instance
+delivered a report — both signalled idle without content and were stopped. The
+review was done in the main context instead, which is the wrong context by
+this repo's own rule, and it is what found the clamp at `admit_candidate` and
+then the uncovered division two lines further on. **The finding that refuted
+the candidate came from reading the consumers of `d` one by one, not from the
+diff.** A campaign was never run: the probe answered it first, for a fraction
+of the cost.
+
+**What is left open, in `TODO.md` §5a.**
+
+- `shift[v] += need` still records a loan that was never made, on the same
+  16.7% of lends. Recording `moved` is **not** a no-op: `repay_shifts` returns
+  whether anything moved and `settle_shifts` skips `compute_duals` and
+  `repair_dual_infeasibility` when nothing did, so a phantom loan forces a
+  re-pricing that would otherwise be skipped. Its own measurement.
+- **At HEAD, 248 netlib picks and 170 Kennington picks already compute the
+  dual step from a wrong-signed reduced cost**, worst step 8.37e-09. The clamp
+  at `admit_candidate` does not reach the division and nothing else does. A
+  standing fact, not a proposal.
