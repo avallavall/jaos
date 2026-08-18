@@ -1,22 +1,23 @@
 # What each instance did, as of this run. Regenerated only on
-# purpose: `make netlib-baseline` after a change whose effect on
-# these numbers has been read and accepted. A quiet update here
-# is a regression nobody will ever be told about.
+# purpose, by the `*-baseline` target that writes this file,
+# after a change whose effect on these numbers has been read
+# and accepted. A quiet update here is a regression nobody
+# will ever be told about.
 #
 # name status solved shape objective checker det iters work dropped
 cre-a        optimal      1 1 1 1 1 2487 20134103 5.5855347025729225e-15
-cre-b        optimal      1 1 1 1 1 8864 659271034 1.881555815558278e-14
-cre-c        optimal      1 1 1 1 1 2336 21521556 7.7368668956173661e-15
-cre-d        optimal      1 1 1 1 1 6142 237700843 1.9338074556742306e-14
+cre-b        optimal      1 1 1 1 1 8864 659260362 1.8308881399680346e-14
+cre-c        optimal      1 1 1 1 1 2336 21521556 7.7828511904145926e-15
+cre-d        optimal      1 1 1 1 1 6142 237700843 1.7915899998387216e-14
 ken-07       optimal      1 1 1 1 1 1777 4426130 1.6576423757071649e-15
 ken-11       optimal      1 1 1 1 1 10831 145515766 5.3309545541902583e-15
 ken-13       optimal      1 1 1 1 1 23728 747060770 1.2734639126672235e-14
-ken-18       optimal      1 1 1 1 1 77812 7827756793 4.1856774746507554e-14
+ken-18       optimal      1 1 1 1 1 77812 7827756793 4.1845804094992224e-14
 osa-07       optimal      1 1 1 1 1 600 49129756 2.5531866968537332e-17
-osa-14       optimal      1 1 1 1 1 1294 236478368 2.0629768382192781e-17
-osa-30       optimal      1 1 1 1 1 2645 984835527 2.2850028597723263e-17
-osa-60       optimal      1 1 1 1 1 7119 7319240066 2.5044956985104824e-17
+osa-14       optimal      1 1 1 1 1 1294 236478368 2.0218776777677352e-17
+osa-30       optimal      1 1 1 1 1 2645 984835527 2.274368092658268e-17
+osa-60       optimal      1 1 1 1 1 7119 7319240066 2.8136555643917196e-17
 pds-02       optimal      1 1 1 1 1 1910 10744411 0
-pds-06       optimal      1 1 1 1 1 9171 230279104 3.058697522460441e-16
-pds-10       optimal      1 1 1 1 1 16522 763117711 5.2447082370225799e-18
-pds-20       optimal      1 1 1 1 1 44471 6187887333 7.4033840155623275e-16
+pds-06       optimal      1 1 1 1 1 9171 224969743 5.6463830928599366e-17
+pds-10       optimal      1 1 1 1 1 16522 754490940 1.5414865490123025e-18
+pds-20       optimal      1 1 1 1 1 44471 6153417062 9.4952026784133641e-16
