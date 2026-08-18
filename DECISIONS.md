@@ -135,6 +135,7 @@ and you have the argument. Jump to the entry for the numbers behind it.
 - **[D125](#d125--no-loan-swamps-a-real-cost-anywhere-in-the-gate-and-one-lend-in-six-sets-d-to-zero-on-a-cost-that-never-moved)** — No loan swamps a real cost anywhere in the gate, and one lend in six sets `d` to zero on a cost that never moved
 - **[D126](#d126--refused-the-zero-d125-called-a-fabrication-is-what-stops-the-breach-compounding-and-removing-it-costs-six-orders-of-magnitude)** — **Refused**: the zero D125 called a fabrication is what stops the breach compounding, and removing it costs six orders of magnitude
 - **[D127](#d127--refused-the-wrong-signed-dual-step-is-holding-pilot87-up-and-clamping-it-costs-3228x)** — **Refused**: the wrong-signed dual step is holding pilot87 up, and clamping it costs 3.228x
+- **[D128](#d128--the-shift-record-says-what-the-cost-moved-by-and-it-skips-two-re-pricings-out-of-290)** — The shift record says what the cost moved by, and it skips two re-pricings out of 290
 
 ---
 
@@ -9643,3 +9644,74 @@ divides by `theta_dual`. Neither of those was what refused the change.
 **Left open, in `TODO.md` §5a.** The phantom loan in the record, unchanged
 from D126. And this inconsistency, now with a measured price for the obvious
 repair.
+
+## D128 — The shift record says what the cost moved by, and it skips two re-pricings out of 290
+
+**The question.** `shift[v] += need` records a loan that was never made
+whenever `need` is below half an ulp of the cost, because the addition leaves
+the cost where it was. D125 measured that on **167816 of netlib's 1006960
+lends, 16.7%**, and 14.3% of Kennington's. §5a's last open item.
+
+**What made it not free**, and it is one line in `settle_shifts`:
+
+```c
+if (!repay_shifts(s))
+    return;
+```
+
+`repay_shifts` reports whether anything was outstanding and `settle_shifts`
+skips `compute_duals` and `repair_dual_infeasibility` when nothing was, so a
+phantom loan forces a re-pricing. The two readings differ only when **every**
+outstanding record is phantom: a column whose cost really moved has
+`cost != cost0`, which both see.
+
+**The blast radius was measured before the change, not after**
+(`bench/measurements/02-37/`), with a shadow record accumulating `moved`
+beside the real one:
+
+| set | solves | `repay_shifts` calls | flips | phantom lends |
+|---|---|---|---|---|
+| netlib | 188 | 258 | **2** | 167816 of 1006960 (16.7%) |
+| infeasible | 38 | **0** | 0 | 29784 of 697766 (4.3%) |
+| Kennington | 32 | 32 | **0** | 400204 of 2802558 (14.3%) |
+
+Two calls out of 290 across the whole gate. The infeasible set never reaches
+`settle_shifts`, which is D123's fact from the other side. The phantom
+percentages reproduce D125 exactly.
+
+**The change.** `s->shift[v] += s->cost[v] - before` instead of `+= need`.
+`s->d[v] = 0.0` is untouched: removing it was measured and refused (D126),
+because the breach then compounds across iterations.
+
+**The gate agrees with the prediction, instance for instance:**
+
+| set | bit-identical | moved | digests moved |
+|---|---|---|---|
+| netlib (94) | **93** | 1 | **0** |
+| infeasible (29) | **29** | 0 | 0 |
+| Kennington (16) | **16** | 0 | 0 |
+
+```
+WORK   fit1d   1694739 -> 1681313   (0.9921x)
+```
+
+188 solves is 94 instances run twice, so two flips on two solves is one
+instance. `fit1d` is it, and it costs **0.9921x** — the re-pricing that no
+longer runs. **110 solution digests and 29 infeasibility verdicts unmoved.**
+`make test` and `make sanitize` exit 0. `bench/netlib.baseline` was rewritten
+deliberately for that one line and a following run reads `0 regressed, 0
+improved, 0 new`.
+
+**What was refuted.** Nothing was tried and rejected here. What the probe
+refuted in advance was the assumption that a 16.7% change to the record is a
+16.7% change to the solve: it is 0.7% of the calls that read it, because the
+reading is a disjunction over every column and one real loan carries it.
+
+**What it does not claim.** `shift[v]` still cannot be read as how far a cost
+moved. It accumulates separately from `cost`, so the two round apart at the
+first lend large against the cost (D122), and D124 showed their totals differ
+by re-association alone. This removes one specific dishonesty: a record of a
+move that provably did not happen.
+
+**Process.** `numerics-reviewer` was unavailable, as on D126 and D127. The
+review was done in the main context. §5a is now closed.

@@ -2117,7 +2117,27 @@ static int64_t price_and_select(sx *s, int64_t r, bool below,
  * Shifting the cost of a *nonbasic* variable changes that variable's
  * reduced cost and nothing else: the duals come from the basic costs
  * alone. So the repair is exactly local, and the loan is recorded to be
- * repaid in settle_shifts. */
+ * repaid in settle_shifts.
+ *
+ * **The record is what the cost actually moved by, not what was asked for.**
+ * The two differ whenever `need` is below half an ulp of the cost: the
+ * addition leaves the cost where it was, and `shift[v] += need` then wrote
+ * down a loan that was never made. D125 measured that on **167816 of
+ * netlib's 1006960 lends, 16.7%**, and on 14.3% of Kennington's.
+ *
+ * `d[v] = 0.0` stays, and it is not the same question. It rounds a reduced
+ * cost to zero when the cost that produced it could not move, which is what a
+ * sum below the noise of its terms deserves. **Removing it was measured and
+ * refused**: the breach then compounds across iterations, because
+ * `update_dual` pushes the same variable further every iteration and nothing
+ * resets it (D126).
+ *
+ * The blast radius of the record alone was measured before the change, not
+ * after. `settle_shifts` skips `compute_duals` and `repair_dual_infeasibility`
+ * when `repay_shifts` reports nothing outstanding, so a phantom loan forces a
+ * re-pricing. Over all three sets that is **2 of 290 calls**, on 2 of netlib's
+ * 188 solves and none of Kennington's or the infeasible set's
+ * (`bench/measurements/02-37/`). */
 static void shift_to_feasible(sx *s, int64_t v)
 {
     double need = 0.0;
@@ -2135,8 +2155,9 @@ static void shift_to_feasible(sx *s, int64_t v)
     if (need == 0.0)
         return;
 
+    const double before = s->cost[v];
     s->cost[v] += need;
-    s->shift[v] += need;
+    s->shift[v] += s->cost[v] - before;
     s->d[v] = 0.0;
 }
 

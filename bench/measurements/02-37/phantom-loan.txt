@@ -1,0 +1,15 @@
+# Would an honest shift record skip a re-pricing?
+#
+# flips = calls to repay_shifts where 'was anything outstanding'
+#         answers true today and false with the honest record instead.
+#         That is the whole of the behaviour change.
+
+netlib       solves=188  repay_calls=258  FLIPS=2  solves_with_a_flip=2
+             lends: 167816 phantom, 839144 real (16.7% phantom)
+infeasible   solves=38  repay_calls=0  FLIPS=0  solves_with_a_flip=0
+             lends: 29784 phantom, 667982 real (4.3% phantom)
+kennington   solves=32  repay_calls=32  FLIPS=0  solves_with_a_flip=0
+             lends: 400204 phantom, 2402558 real (14.3% phantom)
+
+# canary: repay_calls > 0 is what says the observer executed; a probe
+# that never ran and one that found no flips look alike otherwise.

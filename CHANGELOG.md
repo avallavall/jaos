@@ -11,6 +11,14 @@ open, `bench/README.md` for the gate, and the commit each entry came from.
 
 ### Fixed
 
+- `shift_to_feasible` records what the cost actually moved by, not what was
+  asked for. The two differ when `need` is below half an ulp of the cost —
+  16.7% of netlib's lends — and the old record then claimed a loan that was
+  never made, which forced `settle_shifts` to re-price. Two calls out of 290
+  across the gate; one instance moves, `fit1d` at 0.9921x, and 110 solution
+  digests and 29 infeasibility verdicts are unmoved (D128). `d[v] = 0.0` is
+  untouched: removing it was measured and refused (D126).
+
 - Three comments in `src/simplex.c` about the shift record. Two cited 186 for
   the columns whose cost moved while the record read zero; that number is 67,
   and 186 belongs to a different line of the same measurement. The third now

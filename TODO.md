@@ -10,12 +10,10 @@ line leaves this file in the same commit.
 ### The state of the tree, first, because everything below assumes it
 
 **Nothing is in flight. The tree is clean, no worktree is registered, `main`
-is pushed, and the three gate baselines were rewritten deliberately after
-D122.** The last source change is D123's assert in `publish`; D124 through
-D127 changed comments or nothing. The gate that covers the current `src/` is
-D124's: `0 regressed, 0 improved, 0 new` with 94, 29 and 16 instances
-bit-identical to the committed record. `make test` and `make sanitize` exit 0
-with the assert live in both.
+is pushed, and the three gate baselines are current.** The last source change
+is D128's, and `bench/netlib.baseline` was rewritten deliberately for the one
+line it moved (`fit1d`), with a following run reading `0 regressed, 0
+improved, 0 new` on all three sets. `make test` and `make sanitize` exit 0.
 
 **D127 left the working tree dirty and it was reverted deliberately.** A gate
 run writes `bench/results/*.txt`, which are committed files, so a refused
@@ -53,7 +51,8 @@ repayments another (**D124**) → no loan swamps a real cost anywhere in the
 gate, while one lend in six sets `d` to zero on a cost that never moved
 (**D125**) → that zero turns out to be what stops the breach compounding, so
 removing it is **refused** (**D126**) → and the wrong-signed dual step next to
-it is holding `pilot87` up, so clamping it is **refused** too (**D127**).
+it is holding `pilot87` up, so clamping it is **refused** too (**D127**) → and
+the record now says what the cost moved by, which closes §5a (**D128**).
 
 The repair: a repayment restores from a write-once `cost0` instead of
 subtracting the recorded loan, because `x += d; x -= d` does not restore `x`.
@@ -72,51 +71,43 @@ neighbouring lines of the same machinery — see the warning at the head of §5a
 All of D123's, D124's and D125's are no-ops on the
 sets, 94, 29 and 16 instances bit-identical to the committed record.
 
-**§5a's remaining item is the first one here that changes solver internals**,
-so the loop's step 3 applies to it: `numerics-reviewer` reads the diff before
-any campaign.
+## §5a is closed. Nothing in the shift machinery is open.
 
-## → START HERE: §5a, one thing left in the shift machinery
+Six entries, D123 to D128, and the shape of the section changed twice under
+them. What it looked like at the start and what it turned out to be:
 
-**It is reached constantly, and the sentence this section used to open with
-was wrong about it.** D125 measured §5a's last item and the two defects inside
-it came apart:
+| §5a asked for | what the measurement said |
+|---|---|
+| is a loan outstanding when the answer is published? | no, on all 128 instances that answer (**D123**), and the assert stays |
+| 186 loans go missing | they never went missing; the tally added them one way and the repayments another (**D124**) |
+| bound a loan against the cost it lands on | no loan swamps a real cost anywhere in the gate — **refused** (**D125**) |
+| `d[v] = 0.0` is a fabrication | it is not; removing it lets the breach compound — **refused** (**D126**) |
+| the dual step is computed from an unclamped `d` | true, and that step is what keeps `pilot87` moving — **refused** (**D127**) |
+| `shift[v]` records a loan that was never made | true and repaired; one instance moves at 0.9921x (**D128**) |
 
-- **A loan swamping the cost does not happen at the gate.** Zero lends on any
-  of the three sets have a loan and a cost that are both numbers with the loan
-  swamping the cost. Every extreme ratio is a tiny loan on a cost of 1e-44 or
-  smaller, which is not a cost being overwritten. **The ratio bound §5a asked
-  for is refused** (D125). D121's 1e32 is real and stays reachable through
-  D118's refused candidate.
-- **The fabrication is what is left, and it fires on one lend in six.**
+**Four refusals to one repair, and every refusal came from measuring rather
+than from reading.** This machinery reads as careless and is not. Two
+candidates that looked correct in the source were refuted by the numbers, one
+of them only by the gate. **Do not land a change here on an argument from the
+code alone.**
 
-### The `d[v] = 0.0` question is closed, and the answer was no
+What is still true and unrepaired, both with their size on the record:
 
-D125 measured that `shift_to_feasible` writes `s->d[v] = 0.0` on 16.7% of
-netlib's lends where the cost does not move, and called it a fabrication. D126
-built the repair and **refused it by measurement**: removing the zero lets the
-breach compound across iterations, because `update_dual` pushes the same
-variable further every iteration and nothing resets it any more. The worst
-breach reaching the dual step grows from 4.81e-10 to 5.84e-05 and the worst
-step from 8.37e-09 to 2.21e-03, and the solve takes 49% more ratio-test picks
-(`bench/measurements/02-35/`).
+- The dual step is computed from an unclamped `d`, on 248 of netlib's 477562
+  picks and 170 of Kennington's 435418, worst step 8.37e-09
+  (`bench/measurements/02-35/`). Every answer is `optimal` and `checker=ok`,
+  so it costs nothing today. D127's reopen condition is in the refusals table.
+- D121's loan of 1e32 on a cost of one is real and stays reachable through
+  D118's refused presolve candidate. No instance in the gate reaches it.
 
-**The zero is not a fabrication.** It rounds a quantity to zero when that
-quantity is below the resolution of the cost that produced it.
+## → START HERE
 
-### 1. The phantom loan in the record
+§5a is done, so the next item is whichever of the list below is worth most.
+The standing debts at the end of this file are the cheapest real work; the
+`warm` records being 21 `src/` commits behind is the one that degrades every
+future measurement until it is fixed.
 
-`shift[v] += need` records a loan that was never made, on the same 16.7% of
-lends. Recording `moved` instead is **not** a no-op: `repay_shifts` returns
-whether anything moved, and `settle_shifts` skips `compute_duals` and
-`repair_dual_infeasibility` when nothing did — so a phantom loan currently
-forces a re-pricing that would otherwise be skipped.
-
-**What to do:** measure what skipping those re-pricings does, on all three
-sets, before changing the accumulation. It is small and it touches solver
-internals.
-
-### The unclamped dual step is measured and the obvious repair is refused
+### The unclamped dual step, for the record
 
 `admit_candidate` clamps the ratio-test numerator, and `bfrt_walk`,
 `jm_harris_pick` and `jm_bland_pick` read only that clamped number. Both exits
@@ -135,10 +126,10 @@ enough to keep it would be a new constant with a sweep; nothing proposes one.
 correct in the source.** This machinery reads as careless and is not. Do not
 land a change to it on an argument from the code alone.
 
-Both remaining items change solver internals, so `numerics-reviewer` reads the
-diff before any campaign. **It failed to deliver on both D126 and D127** —
-two instances, four requests, no content — and the review was done in the main
-context. If it fails again, say so in the entry rather than skipping the read.
+**`numerics-reviewer` did not deliver on D126, D127 or D128** — two instances,
+four requests, no content, both stopped with `TaskStop`. Every review was done
+in the main context and each entry says so. It is still the loop's step 3; if
+it fails again, record that rather than skipping the read.
 
 **`REFACTOR_EVERY` is not a proposal in any of this.** It is what D119 swept to
 prove the failure was numerical, on one instance, and one instance is not a
