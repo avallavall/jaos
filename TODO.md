@@ -41,9 +41,10 @@ D106 first refusal is **refused**, `pilotnov` publishes 29% wrong (**D118**) →
 that was not presolve, the same reduced model is right at a shorter
 refactorization interval (**D119**) → five explanations closed, one
 contradiction left (**D120**) → the contradiction is a cost that never comes
-back (**D121**) → **repaired and landed** (**D122**) → and no loan is
-outstanding when the duals are published, on any instance that answers
-(**D123**).
+back (**D121**) → **repaired and landed** (**D122**) → no loan is outstanding
+when the duals are published, on any instance that answers (**D123**) → and
+the 186 missing loans were never missing, the tally added them one way and the
+repayments another (**D124**).
 
 The repair: a repayment restores from a write-once `cost0` instead of
 subtracting the recorded loan, because `x += d; x -= d` does not restore `x`.
@@ -51,32 +52,19 @@ Costs 1.0001x on netlib, 0.9975x on Kennington, 29 of 29 infeasible instances
 bit-identical, iterations moving on one instance of 139. `jaos-measurer`
 ACCEPT.
 
-D123 closed §5a's first item and left an assert in `publish` behind it. The
-release build is unaffected; the three sets read 94, 29 and 16 instances
-bit-identical to the committed record.
+D123 closed §5a's first item and left an assert in `publish` behind it. D124
+closed the second and left nothing behind but a corrected number: 67, not 186,
+is the count of columns whose cost moved while the record read zero, and two
+source comments had borrowed the wrong line of the same file. Both changes are
+no-ops on the three sets, 94, 29 and 16 instances bit-identical to the
+committed record.
 
-## → START HERE: §5a, two things left in the shift machinery
+## → START HERE: §5a, one thing left in the shift machinery
 
-Neither is reached by any of the 139 instances, which is why the gate is
-green. They are open because each is a defect that a harder model would reach.
+It is reached by none of the 139 instances, which is why the gate is green. It
+is open because it is a defect that a harder model would reach.
 
-**Do them in this order. The numbering is the order.**
-
-### 1. 186 loans go missing, and nothing explains it
-
-`pilotnov` ends with **186** variables whose lent and repaid totals differ, the
-worst by **256** (`bench/measurements/02-29/loan-balance.txt`). D122 made this
-harmless wherever a settle runs, because the cost is restored whatever the
-record says — so it is now a question about the record rather than about the
-answer. It still means **`shift[v]` cannot be trusted to say how much a cost
-moved**, and `src/simplex.c` says so where it matters.
-
-**What to do:** it is a diagnostic before it is a repair. Instrument the one
-lend site and both repayment sites to name the variable and the round where a
-loan goes missing. `bench/measurements/02-29/run-loan-balance.sh` already
-tallies the totals and only needs the site attribution added.
-
-### 2. Nothing bounds a loan relative to the cost it lands on
+### 1. Nothing bounds a loan relative to the cost it lands on
 
 A `need` of 1e32 on a cost of one is not a repair of a sign condition, it is
 the sign condition being overwritten. `shift_to_feasible` also sets

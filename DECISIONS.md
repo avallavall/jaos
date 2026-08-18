@@ -131,6 +131,7 @@ and you have the argument. Jump to the entry for the numbers behind it.
 - **[D121](#d121--the-shift-round-trip-is-not-bit-exact-and-on-pilotnov-it-destroys-67-costs-one-by-5511)** — The shift round trip is not bit-exact, and on pilotnov it destroys 67 costs, one by 55.11
 - **[D122](#d122--a-repayment-restores-the-cost-instead-of-subtracting-the-loan-and-costs-10001x)** — A repayment restores the cost instead of subtracting the loan, and costs 1.0001x
 - **[D123](#d123--no-loan-is-outstanding-when-the-duals-are-published-on-any-of-the-128-instances-an-assert-enabled-build-can-run)** — No loan is outstanding when the duals are published, on any of the 128 instances an assert-enabled build can run
+- **[D124](#d124--the-186-loans-were-never-lost-02-29-compared-one-accumulator-against-a-sum-of-partial-sums)** — The 186 loans were never lost: 02-29 compared one accumulator against a sum of partial sums
 
 ---
 
@@ -9339,3 +9340,78 @@ record, 110 solution digests and 29 infeasibility verdicts unmoved.
 
 **Left open, in `TODO.md` §5a.** The 186 lost loans, and the missing bound on
 a loan's size relative to the cost it lands on. Neither is touched here.
+
+## D124 — The 186 loans were never lost: 02-29 compared one accumulator against a sum of partial sums
+
+**The question.** 02-29 tallied every lend against every repayment per
+variable and found 186 variables on `pilotnov`, under D118's refused presolve
+candidate, whose totals differ — the worst by 256. `TODO.md` §5a carried it as
+*"186 loans go missing, and nothing explains it"*, and D122 recorded that it
+made them harmless without explaining them. Expected: a leak in the shift
+machinery, found by attributing each missing loan to a site and a round.
+
+**What the tally could not distinguish.** `g_lent[v]` is one accumulator over
+every loan of the whole solve. `s->shift[v]` is reset to zero at every
+repayment, so what a repayment hands to `g_repaid[v]` is a partial sum, and
+`g_repaid[v]` is the sum of those partial sums. Adding *k* terms in one
+accumulator and adding them in segments are not the same number in floating
+point, so **`lent != repaid` is what a lost loan looks like and what
+re-association looks like**, and 02-29 measured only the difference.
+
+**The discriminator**, `bench/measurements/02-33/`: a third tally accumulating
+the same loans the way the repayments are accumulated, and a fourth counter
+that checks at every repayment that the segment accumulator equals
+`s->shift[v]` exactly — which is the one thing reading the source cannot
+settle, because a fourth write to `shift` or a memcpy would break it and grep
+does not see a memcpy.
+
+| tally | unbalanced | worst |
+|---|---|---|
+| one accumulator (02-29's) | 221 | −0.5 at v=1791 |
+| by segment | **0** | 0 |
+
+```
+shift written elsewhere: 0 mismatch(es)
+loans still outstanding:  0
+worst one-accumulator v=1791:
+    lent=4369593160644541.5  repaid=4369593160644542
+    lends=125  repays=6  ulp(lent)=0.5
+```
+
+**Nothing is lost.** Every loan is repaid bit for bit, `shift` is written at
+exactly three sites, and the worst disagreement in the solve is **one ulp** of
+the total: 125 loans in one accumulator against the same 125 in six segments,
+on 4.37e15 whose ulp is 0.5. A lost loan of 0.5 would be a coincidence; one
+ulp is the signature of re-association. `pilot-ja` and `dfl001` are balanced
+on both tallies, and at HEAD `pilotnov` is balanced on both too — no loan on
+the shipping trajectory reaches a magnitude where the effect is visible.
+
+The count reads 221 rather than 186 because D122 changed what a repayment
+does, which changes the trajectory. The shape did not change.
+
+**The negative control.** `-DJAOS_NEGCTL` drops one variable's loan the moment
+it is lent, so the cost keeps the money and the record forgets it. Both
+counters find it: `by-segment unbalanced=1, worst=5.01e+30 (v=7)`,
+`shift written elsewhere: 11 mismatch(es)`, 269 lends against 0 repaid. The
+instrument can find a lost loan and finds none.
+
+**What was refuted, and it is this entry's own premise.** The leak does not
+exist. `TODO.md` §5a item 1 asked for site attribution for a defect that was
+never there, and building the attribution first would have produced a table of
+sites for rounding.
+
+**A number was also wrong in two source comments and in D122.** 02-29's
+`cost-drift.txt` reports `moved=67 shift_still_pending=0` — 67 columns whose
+cost moved while the record came back to zero. Its `loan-balance.txt` reports
+`unbalanced=186`, a different property of a different set of columns. D122 and
+two comments in `src/simplex.c` cited 186 for the cost-moved-record-zero
+shape. **The number for that shape is 67.** The comments carry 67 now and say
+where the wrong one came from. It is the same failure `jaos-record` names: a
+figure copied out of the record it belongs to, into prose that then owns it.
+
+**The cost is nothing, and it is checkable.** Comments only: 94, 29 and 16
+instances bit-identical to the committed record, 110 solution digests and 29
+infeasibility verdicts unmoved. `make test` and `make sanitize` exit 0.
+
+**Left open, in `TODO.md` §5a.** One item, unchanged: nothing bounds a loan
+relative to the cost it lands on.

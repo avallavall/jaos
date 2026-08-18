@@ -330,7 +330,14 @@ typedef struct {
      * 1e17, and `cost` is 1e17 while `cost0 + shift` is 1e17 + 1. Every
      * reader who needs to know how much a cost moved must therefore compute
      * `cost[v] - cost0[v]` and never read `shift[v]` for it. Found by
-     * `numerics-reviewer`. */
+     * `numerics-reviewer`.
+     *
+     * What `shift` *is* exact about: it holds the sum of every loan lent into
+     * it since the last repayment, and nothing is lost from it. The array is
+     * written at three sites and nowhere else — the lend in
+     * `shift_to_feasible`, and the two repayments — measured at runtime
+     * rather than read off the source, and validated against a dropped loan
+     * (D124). */
     double *lo, *up, *cost;
     double *cost0;           /* [nvar] the model's own, never written twice */
     double *shift;           /* [nvar] */
@@ -2420,7 +2427,11 @@ static void repair_dual_infeasibility(sx *s)
  *
  * The test is on the COST and not on the record alone. A column whose cost
  * moved while its record came back to exactly zero is the case D121 measured
- * 186 of on `pilotnov`, and it is reachable by plain cancellation as well:
+ * **67** of on `pilotnov` (`bench/measurements/02-29/cost-drift.txt`,
+ * `moved=67 shift_still_pending=0`). D122 cited 186 here, which is a
+ * different measurement in the same file — the loans whose lent and repaid
+ * totals differ — and D124 showed that one is the tally re-associating rather
+ * than anything the solver does. It is reachable by plain cancellation too:
  * lend +1e17 against a cost of 1, later lend -1e17, and `cost` is 0 with
  * `shift` at 0 and the model's own 1 gone. Gating on the record alone would
  * skip it, and would also return `false` here, so `settle_shifts` would not
@@ -3819,8 +3830,9 @@ static jaos_status publish(sx *s, jaos_solve_status status, jm_presolve *p)
      *
      * The cost is compared as well as the record, for D122's reason: a
      * column whose cost moved while its record cancelled back to zero is the
-     * case D121 measured 186 of on `pilotnov`, and the record alone would
-     * not see it. Same pair as `settled_objective` asserts.
+     * case D121 measured 67 of on `pilotnov`, and the record alone would not
+     * see it. Same pair as `settled_objective` asserts. `repay_shifts`
+     * carries the number and where D122 took the wrong one from.
      *
      * Found by `numerics-reviewer` while reviewing D122, and kept out of that
      * change so one change did one thing. */

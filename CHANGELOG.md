@@ -9,6 +9,17 @@ open, `bench/README.md` for the gate, and the commit each entry came from.
 
 ## [Unreleased]
 
+### Fixed
+
+- Three comments in `src/simplex.c` about the shift record. Two cited 186 for
+  the columns whose cost moved while the record read zero; that number is 67,
+  and 186 belongs to a different line of the same measurement. The third now
+  says what `shift` **is** exact about — it holds every loan lent since the
+  last repayment, nothing is lost from it, and it is written at three sites
+  and nowhere else, measured at runtime against a dropped loan (D124).
+  Comments only: 94, 29 and 16 instances bit-identical to the committed
+  record.
+
 ### Added
 
 - `publish` asserts that no loan is outstanding before it writes the duals.

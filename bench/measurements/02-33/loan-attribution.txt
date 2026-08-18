@@ -1,0 +1,41 @@
+# TODO.md 5a: are the 186 loans lost, or is the tally re-associating?
+# one-accumulator = 02-29's tally.  by-segment = the same loans added
+# the way the repayments are added.  They disagree only if the tally
+# was the defect.
+
+0242f4b27d8bc10e2a750f952a5fdc17  build/diag/probe-head
+6e91603da0893eef7e1bee40058267d9  build/diag/probe-cand
+aa777d535066d4717a5aa10f7046d740  build/diag/probe-negctl
+
+######## NEGATIVE CONTROL: one loan dropped on the floor ########
+# The instrument must find a lost loan before an empty result from it
+# is worth anything. v=7's loan is zeroed the moment it is lent.
+---- pilotnov, control in ----
+LOAN no-work worst_drift=0 (v=-1)
+     one-accumulator: unbalanced=222 worst=5.0117784483782649e+30 (v=7)
+     by-segment:      unbalanced=1 worst=5.0117784483782649e+30 (v=7)
+     shift written elsewhere: 11 mismatch(es)
+     loans still outstanding: 0
+     worst one-accumulator v=7: lent=5.0117784483782649e+30 repaid=0 lends=269 repays=11 ulp(lent)=562949953421312
+
+######## CANDIDATE (D118's refused presolve) ########
+---- pilotnov ----
+LOAN no-work worst_drift=0 (v=-1)
+     one-accumulator: unbalanced=221 worst=-0.5 (v=1791)
+     by-segment:      unbalanced=0 worst=0 (v=-1)
+     shift written elsewhere: 0 mismatch(es)
+     loans still outstanding: 0
+     worst one-accumulator v=1791: lent=4369593160644541.5 repaid=4369593160644542 lends=125 repays=6 ulp(lent)=0.5
+objective -4497.2761882188706
+reference -4497.2761882188715   relative gap 2.02232e-16
+checker primal=1 dual=1  col=0 row=1.69507e-10 dualviol=0 gap=1.29162e-16 gap+=6.20675e-12 gap-=6.64659e-13
+
+---- pilot-ja ----
+LOAN no-work worst_drift=0 (v=-1)
+     one-accumulator: unbalanced=0 worst=0 (v=-1)
+     by-segment:      unbalanced=0 worst=0 (v=-1)
+     shift written elsewhere: 0 mismatch(es)
+     loans still outstanding: 0
+objective -6113.1364655813441
+reference -6113.1364655813431   relative gap 1.48777e-16
+checker primal=1 dual=1  col=7.03664e-28 row=2.04977e-10 dualviol=0 gap=4.98548e-14 gap+=2.3729e-09 gap-=1.34264e-12
