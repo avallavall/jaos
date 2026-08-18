@@ -1799,6 +1799,51 @@ static void ps_add_to_other_rows(jaos_model *orig, double *rowc, int64_t j,
     }
 }
 
+/* A restored singleton row's basis status, decided from the row's own dual
+ * and its FINAL activity.
+ *
+ * Two things settle it, and neither is a choice.
+ *
+ * **The dual decides whether the logical may be basic.** A basic variable
+ * must have a zero dual and a nonbasic one must rest on a bound — Galabova
+ * 2023 states it, and `docs/research/postsolve-basis-recovery.md` carries the
+ * quotation. The replay already computes both halves: it publishes `y_i = 0`
+ * exactly when it leaves the folded column alone, and a nonzero `y_i` exactly
+ * when it takes that column into the basis instead. So a zero dual means the
+ * logical takes the basis position the restored row is owed, and a nonzero
+ * one means the column already took it and the logical must be on a bound.
+ *
+ * **The activity has to be the final one.** A row's activity is not complete
+ * until every record touching it has replayed, because `ps_row_add`
+ * accumulates into a carry that `jm_postsolve_expand` folds in at the end.
+ * The replay used to decide this status from its own term alone: measured,
+ * that published 29058 of Kennington's singleton rows BASIC and 526 of
+ * netlib's, where the final activity sits exactly on a bound in all 29058 and
+ * in 486 of the 526 (D136).
+ *
+ * What is left is the 40 netlib rows whose final activity misses its bound by
+ * about 1e-16 of the row's own traffic. They fall through to BASIC and remain
+ * one member too many; an exact comparison cannot see them and no tolerance
+ * for it has been measured. `TODO.md` carries them.
+ *
+ * The count this serves: a postsolve step that introduces a row must add
+ * exactly one basic variable (D132, and the same source states it). */
+static jaos_basis_status ps_singleton_row_status(const jaos_model *orig,
+                                                 int64_t i)
+{
+    /* `ps_published` normalises a negative zero, so this test is not
+     * sign-sensitive. */
+    if (orig->sol_dual[i] == 0.0)
+        return JAOS_BASIS_BASIC;
+
+    const double act = orig->sol_row[i];
+    if (act == orig->row_lower[i])
+        return JAOS_BASIS_AT_LOWER;
+    if (act == orig->row_upper[i])
+        return JAOS_BASIS_AT_UPPER;
+    return JAOS_BASIS_BASIC;
+}
+
 static void ps_replay_one(jaos_model *orig, const jm_presolve *p, int64_t r,
                           double *rowc)
 {
@@ -2053,13 +2098,14 @@ static void ps_replay_one(jaos_model *orig, const jm_presolve *p, int64_t r,
         const double xv = orig->sol_col[j];
         orig->sol_row[i] = ps_published(rec->coef * xv);
         rowc[i] = 0.0;   /* an assignment resets the carry with the sum */
-        const double act = orig->sol_row[i];
-        if (act == orig->row_lower[i])
-            orig->sol_row_status[i] = JAOS_BASIS_AT_LOWER;
-        else if (act == orig->row_upper[i])
-            orig->sol_row_status[i] = JAOS_BASIS_AT_UPPER;
-        else
-            orig->sol_row_status[i] = JAOS_BASIS_BASIC;
+        /* The status is NOT decided here. This assigns the row's own term and
+         * nothing else; records replaying after this one add their share
+         * through ps_row_add, and the carry is folded in at the end of
+         * jm_postsolve_expand. Comparing this partial sum against the row's
+         * bounds is what published 29058 of Kennington's rows BASIC while
+         * their final activity sat exactly on a bound (D136).
+         * ps_singleton_row_status decides it there, with every activity
+         * final. */
         break;
     }
 
@@ -2561,6 +2607,21 @@ JAOS_NODISCARD jaos_status jm_postsolve_expand(jm_presolve *p)
         orig->sol_row[i] = ps_published(orig->sol_row[i] + rowc[i]);
     free(rowc);
 
+    /* Every singleton row's status, decided now, for the reasons the helper's
+     * own comment gives. Forward order and one record per row, so nothing
+     * here depends on the order (D8).
+     *
+     * `ps_restore_index` is applied exactly as the replay applies it, so the
+     * fault-injection build (JAOS_PRESOLVE_FAULT_OFFBYONE) moves both
+     * together and that family's own test still catches it. */
+    for (int64_t r = 0; r < p->arena_len; r++) {
+        const jm_presolve_rec *rec = &p->arena[r];
+        if (rec->tag != JM_PS_SINGLETON_ROW)
+            continue;
+        const int64_t i = ps_restore_index(rec->index, orig->num_row);
+        orig->sol_row_status[i] = ps_singleton_row_status(orig, i);
+    }
+
     (void)jm_model_remember_basis(orig);
     return JAOS_OK;
 }
@@ -2649,6 +2710,21 @@ JAOS_NODISCARD jaos_status jm_postsolve_solved(jm_presolve *p)
     for (int64_t i = 0; i < orig->num_row; i++)
         orig->sol_row[i] = ps_published(orig->sol_row[i] + rowc[i]);
     free(rowc);
+
+    /* The same second pass jm_postsolve_expand runs, and it belongs on BOTH
+     * paths because `ps_replay_one` is shared: the replay no longer writes a
+     * singleton row's status at all. Leaving this path out left the status at
+     * the memset above, which is BASIC, and
+     * test_singleton_col_between_two_removals_solved_path caught it
+     * immediately — it pins the basic count as a change detector and went
+     * from 3 to 4 instead of to 2. */
+    for (int64_t r = 0; r < p->arena_len; r++) {
+        const jm_presolve_rec *rec = &p->arena[r];
+        if (rec->tag != JM_PS_SINGLETON_ROW)
+            continue;
+        const int64_t i = ps_restore_index(rec->index, orig->num_row);
+        orig->sol_row_status[i] = ps_singleton_row_status(orig, i);
+    }
 
     (void)jm_model_remember_basis(orig);
     return JAOS_OK;

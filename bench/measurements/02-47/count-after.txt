@@ -1,0 +1,10 @@
+# Published basic count, with the singleton-row status decided after the
+# replay. Measured on the working tree, not on HEAD: the probe copies
+# src/presolve.c into the worktree before instrumenting simplex.c.
+#
+# BEFORE, from 02-41 (HEAD):
+# netlib       optimal=188 exact=56 WRONG=132 (over=72 under=60) worst +596/-169   SUM=+3904
+# kennington   optimal=32  exact=8  WRONG=24  (over=8  under=16) worst +12104/-406 SUM=+25654
+
+netlib       optimal=188 exact=88 WRONG=100 (over=100 under=0) worst +596/-0  SUM=+5942
+kennington   optimal=32 exact=24 WRONG=8 (over=8 under=0) worst +119/-0  SUM=+482

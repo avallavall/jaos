@@ -145,6 +145,7 @@ and you have the argument. Jump to the entry for the numbers behind it.
 - **[D135](#d135--the-exchange-the-reduction-suggests-is-available-and-valid-on-97-of-firings)** — The exchange the reduction suggests is available and valid on 97% of firings
 - **[D136](#d136--the-singleton-rows-rule-falls-out-of-its-own-dual-and-the-defect-is-a-status-decided-on-a-partial-activity)** — The singleton row's rule falls out of its own dual, and the defect is a status decided on a partial activity
 - **[D137](#d137--the-counting-rule-is-published-and-highs-turned-off-the-family-that-costs-us-5902)** — The counting rule is published, and HiGHS turned off the family that costs us 5902
+- **[D138](#d138--every-under-count-is-gone-kenningtons-worst-error-falls-100x-and-the-sum-was-the-wrong-target)** — Every under-count is gone, Kennington's worst error falls 100x, and the sum was the wrong target
 
 ---
 
@@ -10321,3 +10322,68 @@ so.
 with the published rules to check it against. One new lead nobody has read:
 Tomlin & Welch, *A pathological case in the reduction of linear programs*, ORL
 1983, `10.1016/0167-6377(83)90036-6`.
+
+## D138 — Every under-count is gone, Kennington's worst error falls 100x, and the sum was the wrong target
+
+**The change.** `ps_singleton_row_status` decides a restored singleton row's
+status from its own dual and its **final** activity, in a second pass after
+the replay, on both postsolve paths. The replay no longer decides it. Two
+rules, both derived in D136 and both published (D137): `y_i == 0` → `BASIC`,
+because the replay publishes a zero dual exactly when it leaves the folded
+column alone; `y_i != 0` → the row rests on a bound, so `AT_LOWER`/`AT_UPPER`
+from the final activity.
+
+**What it did** (`bench/measurements/02-47/`):
+
+| | before (02-41) | after |
+|---|---|---|
+| netlib, exact count | 56 | **88** |
+| netlib, wrong | 132 | **100** |
+| netlib, under-counting | 60 | **0** |
+| Kennington, exact count | 8 | **24** |
+| Kennington, wrong | 24 | **8** |
+| Kennington, under-counting | 16 | **0** |
+| Kennington, worst error | +12104 / −406 | **+119** / −0 |
+
+**Every under-count on both sets is gone**, and Kennington's worst published
+error falls from 12104 to 119.
+
+**The gate is bit-identical on all three sets** — 94, 29, 16 — which is the
+proof that no value moved, and also the reason the gate cannot judge this:
+`bench/run.c` states that the digest covers x and y and not the basis, so a
+change that moves only a status is invisible to all three sets. `make test`
+and `make sanitize` exit 0.
+
+**What was refuted: the target this project had set itself.** netlib's total
+went from **+3904 to +5942** — worse — while every other measure improved. The
+difference is exactly +2038, which is D134's `SINGLETON_ROW` net of −1998
+removed plus the ~40 firings that still fall through. **The under-count was
+cancelling part of the over-count.** `TODO.md` asked for "the closing sums …
+must go to zero", and that target is satisfied by a change making both halves
+worse in equal measure. It is dropped. **The measure is the count of solves
+publishing a wrong basis**: 132 → 100 and 24 → 8.
+
+**And the first attempt was refuted by a test written to catch it.**
+`ps_replay_one` is shared by both postsolve paths; the first version removed
+the status write from the replay and added the second pass to
+`jm_postsolve_expand` only, so on the `jm_postsolve_solved` path the status
+fell back to that path's `memset`, which is `BASIC`.
+`test_singleton_col_between_two_removals_solved_path` pins the basic count as
+a change detector, reads 3, and carries a comment predicting the repair takes
+it to 2. It read **4** and failed at once, and its own model comment says why:
+*"Every column leaves, so `rcol == 0` and postsolve runs on the
+`jm_postsolve_solved` path."* That test still reads 3, so this change is
+neutral on it; its 3 comes from a different defect the same comment names.
+
+**Process.** `numerics-reviewer` was unavailable, as on D126, D127 and D128.
+The review was done in the main context: the second pass runs in forward order
+with one record per row so nothing depends on order (D8), `ps_restore_index`
+is applied exactly as the replay applies it so the fault-injection build still
+moves both together, `ps_published` normalises a negative zero so the
+`== 0.0` test is not sign-sensitive, and no tolerance, libm call or
+`jm_work_add` was added.
+
+**Left open, in `TODO.md`.** `SINGLETON_COL`, which is the whole of the +5942
+and +482 remaining and has a rule from D135 that is valid on 96.8% and 100% of
+firings. And the 40 netlib singleton rows whose final activity misses its
+bound by about 1e-16 of the row's traffic.

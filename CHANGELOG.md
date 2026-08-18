@@ -9,6 +9,17 @@ open, `bench/README.md` for the gate, and the commit each entry came from.
 
 ## [Unreleased]
 
+### Fixed
+
+- A restored singleton row's basis status is decided after the replay, from
+  its own dual and its final activity, on both postsolve paths. The replay
+  decided it from the row's own term alone, before later records added theirs
+  through `ps_row_add`. **Every under-count in the published basis is gone** —
+  60 netlib solves and 16 Kennington ones — the exact-count solves go 56 → 88
+  and 8 → 24, and Kennington's worst error falls from 12104 to 119 (D138). The
+  gate is bit-identical on all three sets, which is the proof no value moved
+  and also why it cannot judge this: the digest covers x and y, not the basis.
+
 ### Changed
 
 - `bench/results/warm.txt` and `warm-kennington.txt` rewritten. They were 21

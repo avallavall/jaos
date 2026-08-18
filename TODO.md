@@ -110,8 +110,18 @@ to it already wrong (D131), and the gate then says so directly.
 
 | set | optimal solves | basic count exact | **wrong** | worst over | worst under |
 |---|---|---|---|---|---|
-| netlib | 188 | 56 | **132 (70%)** | 596 | 169 |
-| Kennington | 32 | 8 | **24 (75%)** | **12104** | 406 |
+| netlib, at D131 | 188 | 56 | 132 (70%) | 596 | 169 |
+| netlib, **now** | 188 | **88** | **100** | 596 | **0** |
+| Kennington, at D131 | 32 | 8 | 24 (75%) | 12104 | 406 |
+| Kennington, **now** | 32 | **24** | **8** | **119** | **0** |
+
+**D138 landed the singleton-row half.** Every under-count is gone on both
+sets. What remains is `SINGLETON_COL` alone.
+
+**Do not use the summed error as the target.** netlib's sum went from +3904 to
++5942 while every other measure improved, because the under-count was
+cancelling part of the over-count (D138). **The measure is the count of solves
+publishing a wrong basis.**
 
 `src/model.c` states the rule twice — *"a model with n rows needs n basic
 variables … it is structural"* — and enforces it twice: `jaos_set_basis`
