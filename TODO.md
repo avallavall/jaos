@@ -7,77 +7,121 @@ line leaves this file in the same commit.
 
 ## Where the last session stopped — 2026-08-18
 
-## → START HERE: §5a, 186 loans go missing and nothing bounds one
+### The state of the tree, first, because everything below assumes it
 
-§4a closed (D117), §4b refused (D118), §4c answered it (D119), D120 and D121
-measured §5a to its mechanism, and **D122 repaired the half that produced a
-wrong answer.** What is left is the other half.
+**Nothing is in flight. The tree is clean, `main` is pushed, no worktree is
+registered, and the three gate baselines were rewritten deliberately after
+D122 and confirmed by a following run that reads `0 regressed, 0 improved, 0
+new` and exits 0 on all three.** `make test`, `make sanitize` and
+`make test EXTRA_CFLAGS=-DJAOS_NO_PRESOLVE` all exit 0.
 
-**What was found and repaired** (`bench/measurements/02-29/` and `02-30/`).
-The method borrows costs to keep dual feasibility — `shift_to_feasible` does
-`s->cost[v] += need` and records the loan. Repaying used to subtract the record
-back out, and `x += d; x -= d` does not restore `x`: on `pilotnov` under D118's
-refused candidate the loans on one column total **1.61e+32** against a cost of
-magnitude at most one, and 67 costs ended permanently wrong, the worst by
-**55.11**, with every record correctly at zero. Everything downstream then
-behaved correctly about the wrong objective — dual-feasible for its own
-perturbed problem, `dualviol = 0.89` from the checker, 29% off. A repayment now
-restores from a write-once copy of the model's own cost (D122).
+Two things about this working session that a later one needs and cannot infer:
 
-**The first repair landed (D122, `bench/measurements/02-30/`).** A write-once
-`cost0` holds the model's own scaled cost and both repayment sites restore from
-it. Gate green on all three sets, geometric mean **1.0001x** on netlib and
-**0.9975x** on Kennington, 29 of 29 infeasible instances bit-identical, and
-`pilotnov` under D118's candidate goes from 29% wrong to a relative gap of
-2.02e-16. `numerics-reviewer` found three defects in the first draft and all
-three are in what landed.
+- **Another Claude session was committing and pushing to this repository at
+  the same time.** Its commit was documentation only (`docs/diagrams/`,
+  `docs/architecture.html`) and could not affect a solve, so no measurement was
+  invalidated. If two sessions are live again, `CHANGELOG.md`, `DECISIONS.md`
+  and `TODO.md` are the files that will collide.
+- **A campaign cannot be run in the main tree while it is dirty**, so a
+  candidate is measured in a git worktree with `bench/instances*` symlinked in.
+  `preflight.sh` follows symlinks now. See the memory note
+  `measure-a-candidate-in-a-worktree`.
 
-**Two things it did not do, and they are what is left here.**
+### What closed today, in one line each
 
-1. **The 186 lost loans.** `pilotnov` ends with 186 variables whose lent and
-   repaid totals differ, the worst by **256**, and nothing explains it. D122
-   makes it harmless wherever a settle runs — the cost is restored whatever the
-   record says — so this is now a question about the record rather than about
-   the answer. It still means `shift[v]` cannot be trusted to say how much a
-   cost moved, and the source says so in as many words.
-2. **Bound the loan relative to the cost it lands on.** A `need` of 1e32 on a
-   cost of one is not a repair of a sign condition, it is the sign condition
-   being overwritten. `shift_to_feasible` also sets `s->d[v] = 0.0`
-   unconditionally, which asserts the cost moved by exactly `need` — false when
-   `need` is below the ulp of the cost. What the bound should be is a
-   measurement, not a guess, and `fp-numerics` gives its shape: a sum is known
-   no more finely than its terms.
+`fome`'s candidates all go to D95 before D106 sees them (**D117**) → giving
+D106 first refusal is **refused**, `pilotnov` publishes 29% wrong (**D118**) →
+that was not presolve, the same reduced model is right at a shorter
+refactorization interval (**D119**) → five explanations closed, one
+contradiction left (**D120**) → the contradiction is a cost that never comes
+back (**D121**) → **repaired and landed** (**D122**).
 
-3. **A loan may still be outstanding when the answer is published, and this
-   one is pre-existing.** `refresh` re-runs `shift_to_feasible` over every
-   variable when `repair_singular_basis` fired, and it is called from
-   `take_best_if_better` and `restore_settled` **after** their `repay_shifts`.
-   On that path `reenter_after_settling` returns with loans in the costs and
-   nothing settles them before `classify_optimum` and `publish`. The published
-   objective is safe — it is built from `m->col_cost` — but `sol_dual` and
-   `sol_redcost` come from `s->cost` and `s->d` and would carry the loan. No
-   instance is known to reach it; it needs a singular-basis repair in the final
-   refresh. Found by `numerics-reviewer`, 2026-08-18, and deliberately not
-   ridden along with D122.
+The repair: a repayment restores from a write-once `cost0` instead of
+subtracting the recorded loan, because `x += d; x -= d` does not restore `x`.
+Costs 1.0001x on netlib, 0.9975x on Kennington, 29 of 29 infeasible instances
+bit-identical, iterations moving on one instance of 139. `jaos-measurer`
+ACCEPT.
 
-**What to do next, in order.**
+## → START HERE: §5a, three things left in the shift machinery
 
-1. Load `fp-numerics` before touching any of them.
-2. (3) first, because it is one assert and it either finds a live defect in
-   published duals or removes the suspicion: assert every shift is zero on
-   entry to `publish` and run the three sets.
-3. (1) is a diagnostic before it is a repair: instrument the lend and both
-   repayments to name the variable and the round where a loan goes missing.
-   `bench/measurements/02-29/run-loan-balance.sh` already tallies them and
-   only needs the site.
-4. (2) is a new constant and needs its sweep on both sides, in
-   `docs/tolerances.md` beside the others.
+None of the three is reached by any of the 139 instances, which is why the gate
+is green. They are open because each is a defect that a harder model would
+reach, and one of them touches published output.
 
-**No instance of the 139 reaches the failing state**, which is why the gate is
-green. `REFACTOR_EVERY` is not a proposal here: one instance is not a
-population and `bench/measurements/02-28/` says so in as many words.
+**Do them in this order. The numbering is the order.**
 
-Everything below this line is finished work and background.
+### 1. Is a loan still outstanding when the answer is published?
+
+One assert answers it, and it either finds a live defect in published duals or
+removes the suspicion. **This is the one to start with.**
+
+`refresh` re-runs `shift_to_feasible` over every variable when
+`repair_singular_basis` fired, and it is called from `take_best_if_better` and
+from `restore_settled` **after** each has called `repay_shifts`. On that path
+`reenter_after_settling` returns with loans still in the costs, and nothing
+settles them before `classify_optimum` and `publish`. The published objective
+is safe — `publish` builds it from `m->col_cost` — but `sol_dual` comes from
+`s->cost` and `sol_redcost` from `s->d`, and both would carry the loan.
+
+**What to do:** assert every `s->shift[v]` is zero on entry to `publish`, build
+with `EXTRA_CFLAGS=-UNDEBUG`, and run the three sets. Expect 128 instances to
+answer; the other 11 abort earlier on a pre-existing assert (see the standing
+debts). If it never fires, the suspicion is removed and the assert can stay. If
+it fires, that is a defect in published duals and it needs its own decision.
+
+Found by `numerics-reviewer` while reviewing D122, and deliberately kept out of
+D122 so one change did one thing.
+
+### 2. 186 loans go missing, and nothing explains it
+
+`pilotnov` ends with **186** variables whose lent and repaid totals differ, the
+worst by **256** (`bench/measurements/02-29/loan-balance.txt`). D122 made this
+harmless wherever a settle runs, because the cost is restored whatever the
+record says — so it is now a question about the record rather than about the
+answer. It still means **`shift[v]` cannot be trusted to say how much a cost
+moved**, and `src/simplex.c` says so where it matters.
+
+**What to do:** it is a diagnostic before it is a repair. Instrument the one
+lend site and both repayment sites to name the variable and the round where a
+loan goes missing. `bench/measurements/02-29/run-loan-balance.sh` already
+tallies the totals and only needs the site attribution added.
+
+### 3. Nothing bounds a loan relative to the cost it lands on
+
+A `need` of 1e32 on a cost of one is not a repair of a sign condition, it is
+the sign condition being overwritten. `shift_to_feasible` also sets
+`s->d[v] = 0.0` unconditionally, which asserts the cost moved by exactly
+`need` — false whenever `need` is below the ulp of the cost.
+
+**What to do:** this is a new constant, so it needs a sweep on both sides and a
+row in `docs/tolerances.md` beside the others. Load `fp-numerics` first; it
+gives the shape of the bound, which is that a sum is known no more finely than
+its terms. **Do not pick a number and measure one side of it.**
+
+**`REFACTOR_EVERY` is not a proposal in any of this.** It is what D119 swept to
+prove the failure was numerical, on one instance, and one instance is not a
+population — `bench/measurements/02-28/` says so in as many words.
+
+### What else is open, if §5a is dropped or finished
+
+§5a is first because it is correctness. It is not the only open thing, and the
+rest of this file is not all background:
+
+| where | what |
+|---|---|
+| §4, end | how often `plato` should run — `pds` alone is 6.4 hours of wall clock. And `nug20`/`nug30` are unmeasured rather than unsolvable |
+| §4, end | **`nug` has no row removed by any family**, all three instances. Nobody has asked why |
+| §3 | doubleton equalities — 8.55% of netlib's live rows and 29.36% of Kennington's, and **99.7% of it is behind D97** |
+| §5 | the rest of M2: factorization fill, Devex pricing, and closing the competitive gate |
+| §6 | feature expansion, decided but not started |
+| standing debts | about a dozen at the end of this file, each small and real. Two are worth more than they look: the `assert(want_lo <= want_hi)` clamp, because **no assert-enabled build can run 11 of the 94 instances** until it lands; and the `warm` records, 21 `src/` commits behind |
+
+D97 is the largest prize in the file and it is behind one precondition:
+a dual postsolve for an imposed bound. Its first precondition was met by D114.
+`docs/research/dual-postsolve-imposed-bound.md` is the design and nothing is
+built.
+
+Everything below this line is that detail, in order.
 
 ---
 
