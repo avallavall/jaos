@@ -40,6 +40,13 @@ open, `bench/README.md` for the gate, and the commit each entry came from.
 
 ### Changed
 
+- `bench/results/warm.txt` and `warm-kennington.txt` rewritten again, first
+  re-measure since D138/D139. Kennington's work ratio improves 0.0873 →
+  0.0572; netlib's regresses 0.0696 → 0.2553, because the now-correct
+  published basis maps SHORT onto the reduced model — 35 netlib and 5
+  Kennington warm solves fall back cold with an exact orig-space count,
+  worst shortfall 596 members (D143). The mapping repair is TODO's item 2.
+
 - `bench/results/warm.txt` and `warm-kennington.txt` rewritten. They were 21
   `src/` commits old and predated presolve. The work ratio reads 0.0696 on
   netlib against the old 0.0164 and 0.0873 on Kennington against 0.0041, and

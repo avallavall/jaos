@@ -16,13 +16,15 @@ are D138's and D139's, both in `src/presolve.c`, both status-only: the gate is
 `make test`, `make test EXTRA_CFLAGS=-DJAOS_NO_PRESOLVE` and `make sanitize`
 all exit 0.
 
-**Two things landed after that state was written.** D140, the re-measure of
-the 80 (measurement only, `bench/measurements/02-49/`). And the guard
-hardening it named: the last source change is now in `ps_singleton_col_swap`
-(the value guard plus two asserts), judged bit-identical on all three sets
-and on the published basis counts before landing. `numerics-reviewer`
-delivered on it — the first delivery in this run — so its step in the loop
-is live again.
+**This session (2026-08-18/19, unattended) landed five things on top of
+that state.** D140 (the 80 are an exact tie; measurement only, 02-49); the
+swap's value guard, the only source change, judged bit-identical on all
+three sets and on the published counts; D141 (within-row demotion refused,
+02-50); D142 (the remember-basis count guard refused after its warm cost
+was measured, 02-51 — the candidate is kept there); and D143 (the warm
+re-measure: Kennington improved, netlib regressed 3.7x through the mapping,
+records rewritten). `numerics-reviewer` delivered twice, so its step in the
+loop is live again.
 
 **Read this before judging any basis work.** The gate cannot see a basis.
 `bench/run.c` says so: the digest covers x and y and not the statuses, so *"a
@@ -281,10 +283,22 @@ variable brought *in*.
    would have claimed the published point violates complementary slackness.
    **And the solver itself does it**, in the `SINGLETON_ROW` case: that is
    the +1 combination.
-2. **`jm_model_remember_basis` should check.** One guard makes the invariant
-   honest. On its own it changes nothing measurable — a stored basis failing
-   the count is already rejected by `build_warm_basis` — so it belongs with
-   (1) rather than instead of it.
+2. **The warm mapping owes the reverse of the swap (opened by D143, and it
+   is the new head of the warm work).** `jm_presolve_run`'s mapping
+   (`src/presolve.c:1651`) drops every stored-basic member presolve removes
+   again, and since D139 the surviving row's logical maps through nonbasic,
+   so the reduced start comes out SHORT — 35 netlib and 5 Kennington warm
+   solves fall back cold with an EXACT orig-space basis, worst shortfall
+   596. The repair candidate: for a `JM_PS_SINGLETON_COL` record whose
+   stored column is BASIC and about to be dropped, promote the surviving
+   row's stored-nonbasic logical back to BASIC in the reduced start — the
+   mirror of `ps_singleton_col_swap`, same forced pivot `a_ij`. **Derive
+   the balance for every family the same way before building anything**;
+   the singleton-row correction pass beside the mapping is the pattern.
+   The prize is bounded by 02-51: up to 35 + 5 warm starts.
+   `jm_model_remember_basis` checking the count was refused here — D142,
+   the refusals table — because the mapping is the consumer and 2 netlib
+   warm starts still run on the old error cancelling in it.
 
 3. **Widen the solution digest to cover the basis, at least on Kennington.**
    `bench/run.c` declined to, and said why: *"a published basis that breaks the
@@ -298,13 +312,9 @@ variable brought *in*.
    re-solves cold after `jaos_clear_basis`, so a basis hash has to be taken
    where that does not invalidate it.
 
-4. **Re-measure the `warm` records.** D129 measured 23 of netlib's 92 and 6 of
-   Kennington's 11 losing the warm start to `nbasic != nrow`. Both repairs
-   above change exactly that count, so the warm ratio should move — and
-   Kennington's should move a lot, since it now publishes a valid basis on
-   every solve. `make warm J=12` and `make warm-kennington J=12`, then rewrite
-   the records deliberately. **This is the first measurable user-visible
-   consequence of D138 and D139 and nobody has taken it yet.**
+4. ~~Re-measure the `warm` records.~~ **Done 2026-08-19 (D143), and the
+   records are rewritten.** Kennington improved 0.0873 → 0.0572; netlib
+   regressed 0.0696 → 0.2553 through the mapping, which is item 2 above.
 
 The standing debt below names one postsolve family and a minimum case of one
 status. **132 solves and a worst error of 12104** make that case a corner of
@@ -961,6 +971,7 @@ then, do not — a refusal whose premise has not changed just fails again.
 
 | decision | what was refused or deferred | reopens when |
 |---|---|---|
+| D142 | a count guard in `jm_model_remember_basis` — the premise "build_warm_basis already rejects it" is false: it counts the MAPPED basis, and clearing the stored publish costs `capri` and `fffff800` their warm starts (1→273 and 7→945 iterations) for nothing any consumer reads | a consumer of `start_*` appears that reads the orig-space count as a claim, or warm starting stops going through presolve's mapping. The candidate and its validated test are at `bench/measurements/02-51/remember-guard-candidate.diff` |
 | D141 | a within-row demotion for the published-basis residue — 152 of the 232 declines have no basic column of the row at a bound, and the snap for the 80 breaks the row-bound exactness 02-49 measured (74 of 80 exact) | a demotion design whose candidate set is wider than the firing row AND that carries a rank argument for the demoted member; the fallback in the published shape (Galabova 2023) is accepting the residue |
 | D101 | duplicate rows, duplicate columns, dominated columns — 0.15% left to remove on these 139 models | a model population where `bench/measurements/02-07/`'s counter reports a non-trivial share. The condition is executable, not a matter of opinion. Three pieces of the work have no published source and would have to be derived with their own tests |
 | D97 | bound tightening — INFEASIBLE on models with an optimum, six designs | **first precondition met 2026-08-17 (D114)**: the over-tightening is derived — a forcing window scaled by the activity certified 5.86 of slack as zero, and the design requirements for a retry are in `bench/measurements/02-21/`. What remains: a dual postsolve for an imposed bound; then only under a campaign. **The condition is unchanged and the prize is not**: doubleton substitution needs the same machinery, and it is 8.55% of netlib's live rows and 29.36% of Kennington's, of which 19 rows in total can be built without it (§3). D97 weighed this feature alone; it now unlocks two |

@@ -149,6 +149,8 @@ and you have the argument. Jump to the entry for the numbers behind it.
 - **[D139](#d139--kennington-publishes-a-valid-basis-on-every-solve-and-netlibs-worst-error-falls-from-596-to-23)** — Kennington publishes a valid basis on every solve, and netlib's worst error falls from 596 to 23
 - **[D140](#d140--the-80-are-an-exact-degenerate-tie-the-recovery-division-rounds-off-and-the-swaps-guard-reads-a-status-another-family-rewrites)** — The 80 are an exact degenerate tie the recovery division rounds off, and the swap's guard reads a status another family rewrites
 - **[D141](#d141--a-within-row-demotion-cannot-pay-for-the-residue-152-of-the-232-declines-have-no-basic-column-at-a-bound)** — A within-row demotion cannot pay for the residue: 152 of the 232 declines have no basic column at a bound
+- **[D142](#d142--the-remember-basis-count-guard-is-refused-the-non-basis-it-would-clear-is-the-warm-starts-raw-material)** — The remember-basis count guard is refused: the non-basis it would clear is the warm start's raw material
+- **[D143](#d143--d138d139s-correct-basis-maps-short-and-netlibs-warm-ratio-paid-37x-the-mapping-owes-the-reverse-of-the-swap)** — D138/D139's correct basis maps short and netlib's warm ratio paid 3.7x: the mapping owes the reverse of the swap
 
 ---
 
@@ -10559,3 +10561,83 @@ describes, whose fallback is accepting the residue.
 **Left open, in `TODO.md`.** Accepting the residue has one measurable
 price: the 48 solves publish a count `build_warm_basis` rejects, so they
 lose their warm start and nothing else. The `warm` re-measure prices it.
+
+## D142 — The remember-basis count guard is refused: the non-basis it would clear is the warm start's raw material
+
+**The question, as asked.** TODO item 2: `jm_model_remember_basis` should
+enforce the count `jaos_set_basis` enforces, on the premise that "on its own
+it changes nothing measurable — a stored basis failing the count is already
+rejected by `build_warm_basis`". The candidate was built (clear instead of
+store, OPTIMAL publishes only, so the deliberate partial stores of the two
+interrupted paths stay exempt), its reject-case test validated to fail on
+the unguarded tree, `make test` and `make sanitize` green. Expected: three
+sets and both warm campaigns bit-identical.
+
+**The premise is false, and the review found it before the campaign did.**
+`numerics-reviewer` (second delivery in this run — the step is live again):
+`build_warm_basis` at `src/simplex.c:923` counts the MAPPED basis on the
+reduced model, and `jm_presolve_run`'s mapping at `src/presolve.c:1651`
+drops every stored member whose row or column presolve removes. A basis
+wrong in orig space can therefore map exact and warm-start; the guard would
+clear exactly those.
+
+**The measurement** (`bench/measurements/02-51/`). The gate is genuinely
+unaffected — `bench/run.c` clears the basis before every re-solve — and
+Kennington's warm campaign is bit-identical. netlib's is not: the guard
+costs `capri` its warm start (1 → 273 iterations, 12.3x work) and
+`fffff800` its (7 → 945, 127x), moving the warm work geomean 0.2553 →
+0.2766. The 02-51 mapping probe counts exactly 2 netlib warm solves in the
+"orig wrong, mapped exact" class, the two the guard clears.
+
+**Refused.** The stored publish is not a contract any consumer reads as a
+basis in orig space; the one consumer counts after the mapping, and its
+check is already in the right place. The candidate and its test are kept at
+`bench/measurements/02-51/remember-guard-candidate.diff`. Reopen: a consumer
+of `start_*` appears that reads the orig-space count as a claim, or warm
+starting stops going through presolve's mapping.
+
+**Left open.** Nothing of item 2 survives; the mapping question it exposed
+is D143's.
+
+## D143 — D138/D139's correct basis maps short and netlib's warm ratio paid 3.7x: the mapping owes the reverse of the swap
+
+**The question, as asked.** TODO item 4: re-measure the `warm` records now
+that D138/D139 publish a valid basis on every Kennington solve. Expected:
+the warm ratio moves, Kennington's by a lot, in the good direction.
+
+**The measurement** (`bench/measurements/02-51/`, records rewritten
+deliberately from these runs). Kennington improves, 0.0873 → 0.0572 work
+geomean. **netlib regresses 3.7x, 0.0696 → 0.2553**, iterations geomean
+0.0250 → 0.1381; the cold fallbacks go from 23 of 92 (D129) to 54 of the
+88 warm solves that map a stored basis. A dozen-plus instances that
+warm-started in 0–6 iterations (`25fv47`, `adlittle`, `bandm`, `blend`,
+`bnl1`, `bnl2`, `brandy`, `cycle`, `czprob`, `d2q06c`, `etamacro`, …) now
+run warm equal to cold; `fffff800` gained its warm start.
+
+**The mechanism, measured** (`run-warm-mapping.sh`, one line per mapped
+stored basis): 35 netlib warm solves and 5 Kennington ones read **orig
+exact, mapped SHORT** — worst shortfall 596 members on one instance — and
+fall back cold on the count `build_warm_basis` judges. Pre-D138/D139 the
+published error and the mapping cancelled: the extra BASIC members sat on
+rows and columns presolve removes again on the re-solve, so dropping them
+restored the count (2 netlib solves still run warm on exactly that
+accident). Post-D139 the swap rests the surviving row's logical on a bound,
+which maps through as nonbasic, while the restored basic column is removed
+again and dropped: short by one per firing. The correctness fix was right
+and stays; what it exposed is that **the mapping performs no reverse
+exchange**.
+
+**What was refuted along the way.** That the regression is a defect in
+D138/D139 themselves: the published basis is exact on 140 of 188 netlib
+solves and all 32 Kennington ones (02-48), and the warm loss follows from
+the mapping alone. And item 4's own expectation of a uniform improvement.
+
+**Left open, in `TODO.md`, and it is the new head of the warm work.** The
+mapping owes the reverse of what postsolve's second pass writes: for a
+`JM_PS_SINGLETON_COL` record whose stored column is BASIC and about to be
+dropped, promote the surviving row's stored-nonbasic logical back to BASIC
+in the reduced start — the mirror of `ps_singleton_col_swap`, same forced
+pivot `a_ij`. Derive the balance for every family the same way before
+building. The prize is bounded: up to 35 netlib and 5 Kennington warm
+starts. 4 of the 92 measured netlib warm solves print no mapping line and
+are unattributed.

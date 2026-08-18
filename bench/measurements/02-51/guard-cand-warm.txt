@@ -15,7 +15,7 @@ boeing1      ok        branch=x16<=28 warm=391/2214436 cold=391/2214436 verdict=
 boeing2      ok        branch=x9<=4 warm=1/16844 cold=108/279056 verdict=optimal obj=-315.01872801520273/-315.01872801520278 before=-315.01872801520273 moved=NO checker=warm:ok/cold:ok 
 bore3d       ok        branch=x0<=2 warm=134/350842 cold=134/350842 verdict=infeasible obj=0/0 before=1373.0803942084931 moved=yes checker=warm:n/a/cold:n/a 
 brandy       ok        branch=x0<=73 warm=213/1299304 cold=213/1299304 verdict=optimal obj=1518.7456302031276/1518.7456302031276 before=1518.5098964881283 moved=yes checker=warm:ok/cold:ok 
-capri        ok        branch=x0<=5071 warm=1/40013 cold=273/492682 verdict=optimal obj=2690.0407563712974/2690.0407563712965 before=2690.0129137681606 moved=yes checker=warm:ok/cold:ok 
+capri        ok        branch=x0<=5071 warm=273/492682 cold=273/492682 verdict=optimal obj=2690.0407563712965/2690.0407563712965 before=2690.0129137681606 moved=yes checker=warm:ok/cold:ok 
 cycle        ok        branch=x3<=432 warm=1148/16598691 cold=1148/16598691 verdict=optimal obj=-5.2263930248941008/-5.2263930248941008 before=-5.2263930248941008 moved=NO checker=warm:ok/cold:ok 
 czprob       ok        branch=x819<=190 warm=1125/11990192 cold=1125/11990192 verdict=optimal obj=2185196.7334837466/2185196.7334837466 before=2185196.6988565768 moved=yes checker=warm:ok/cold:ok 
 d2q06c       ok        branch=x2<=133344 warm=6589/414584601 cold=6589/414584601 verdict=optimal obj=122784.21081763942/122784.21081763942 before=122784.21081418933 moved=yes checker=warm:ok/cold:ok 
@@ -25,7 +25,7 @@ degen3       ok        branch=x21<=0 warm=2397/77931183 cold=2397/77931183 verdi
 dfl001       ok        branch=x0<=0 warm=21985/2744690896 cold=21985/2744690896 verdict=optimal obj=11266409.146716688/11266409.146716688 before=11266396.046671377 moved=yes checker=warm:ok/cold:ok 
 e226         ok        branch=x0<=0 warm=7/69221 cold=266/1564419 verdict=optimal obj=-9.5442841573696953/-9.5442841573696864 before=-11.63892906637053 moved=yes checker=warm:ok/cold:ok 
 etamacro     ok        branch=x1>=5 warm=568/3328192 cold=568/3328192 verdict=optimal obj=-755.71522914234311/-755.71522914234311 before=-755.71523336176347 moved=yes checker=warm:ok/cold:ok 
-fffff800     ok        branch=x3<=91 warm=7/75124 cold=945/9591119 verdict=optimal obj=555679.56481749634/555679.56481749623 before=555679.56481749634 moved=NO checker=warm:ok/cold:ok 
+fffff800     ok        branch=x3<=91 warm=945/9591119 cold=945/9591119 verdict=optimal obj=555679.56481749623/555679.56481749623 before=555679.56481749634 moved=yes checker=warm:ok/cold:ok 
 finnis       ok        branch=x1<=3084 warm=281/524879 cold=281/524879 verdict=optimal obj=172791.45129339834/172791.45129339834 before=172791.06564493725 moved=yes checker=warm:ok/cold:ok 
 fit1d        ok        branch=x435<=0 warm=39/836765 cold=39/836765 verdict=optimal obj=-9146.3684959843595/-9146.3684959843595 before=-9146.3780924209277 moved=yes checker=warm:ok/cold:ok 
 fit1p        ok        branch=x0<=8 warm=476/11623689 cold=476/11623689 verdict=optimal obj=9146.4679957562857/9146.4679957562857 before=9146.378092420935 moved=yes checker=warm:ok/cold:ok 
@@ -96,10 +96,10 @@ woodw        ok        branch=x11<=0 warm=1293/42069765 cold=1293/42069765 verdi
 
 -- warm against cold --
 measured 92, skipped 2, disagreed 0, rejected 0, errors 0
-iterations (warm+1)/(cold+1), geometric mean: 0.1381
-work units warm/cold, geometric mean:         0.2553
+iterations (warm+1)/(cold+1), geometric mean: 0.1535
+work units warm/cold, geometric mean:         0.2766
 work ratio, best  truss at 0.0002
 work ratio, worst 25fv47 at 1.0000
 reached the optimum in no iterations at all:  4 of 92
 took more iterations warm than cold:          0 of 92
-the branch moved the optimum:                 81 of 92
+the branch moved the optimum:                 82 of 92

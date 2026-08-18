@@ -1,0 +1,100 @@
+﻿diff --git a/src/model.c b/src/model.c
+index babfcdd..ec8c092 100644
+--- a/src/model.c
++++ b/src/model.c
+@@ -481,6 +481,38 @@ jaos_status jm_model_remember_basis(jaos_model *m)
+ {
+     if (m->sol_col_status == nullptr || m->sol_row_status == nullptr)
+         return JAOS_OK;   /* nothing to remember; not a failure */
++
++    /* The same structural rule jaos_set_basis enforces on a caller, applied
++     * to what the solver publishes about an ANSWER: a basis has exactly
++     * num_row basic members, and no later event can make a wrong count
++     * right. 48 netlib solves still publish a count that breaks it
++     * (TODO.md), and storing that made `start_col_status != nullptr` claim
++     * a starting basis exists when what exists is not a basis. Clearing
++     * instead keeps the downstream effect identical — build_warm_basis
++     * rejected the stored count and fell back to cold, and an absent basis
++     * is the same cold start — so this is the invariant made honest, not a
++     * behaviour change.
++     *
++     * Only an OPTIMAL publish is judged. The non-optimal callers store a
++     * deliberate PARTIAL start — publish()'s interrupted branch snapshots
++     * the simplex's own basis (whose count holds by construction), and
++     * jm_postsolve_expand's interrupted branch maps a reduced start onto
++     * the original with per-tag defaults and no count promise, so the next
++     * solve's warm-start correction pass has something to read. Judging
++     * those would clear what they exist to keep.
++     * Range is not re-checked: these statuses are the solver's own writes,
++     * where jaos_set_basis faces a caller's arbitrary integers. */
++    if (m->solve_status == JAOS_SOLVE_OPTIMAL) {
++        int64_t basic = 0;
++        for (int64_t j = 0; j < m->num_col; j++)
++            basic += m->sol_col_status[j] == JAOS_BASIS_BASIC;
++        for (int64_t i = 0; i < m->num_row; i++)
++            basic += m->sol_row_status[i] == JAOS_BASIS_BASIC;
++        if (basic != m->num_row) {
++            jaos_clear_basis(m);
++            return JAOS_OK;   /* refusing to store the non-basis is the point */
++        }
++    }
+     return store_basis(m, m->sol_col_status, m->sol_row_status);
+ }
+ 
+diff --git a/tests/test_model.c b/tests/test_model.c
+index 1c020cd..126c93a 100644
+--- a/tests/test_model.c
++++ b/tests/test_model.c
+@@ -805,6 +805,45 @@ static void test_a_basis_that_would_stop_being_one_is_dropped(void)
+     jaos_model_free(n);
+ }
+ 
++/* jm_model_remember_basis judges an OPTIMAL publish by the same structural
++ * rule jaos_set_basis applies to a caller: exactly num_row basic members.
++ * The published count can be wrong today — TODO.md carries 48 netlib solves
++ * doing it through postsolve — and the honest response is to CLEAR the
++ * stored basis rather than store a non-basis: build_warm_basis rejected the
++ * wrong count anyway, so an absent basis is the same cold start, and
++ * `start_col_status != nullptr` goes back to meaning a starting basis
++ * exists. Built the way the rule's own tests are built: the case it must
++ * reject, constructed rather than hoped for. */
++static void test_an_optimal_publish_with_a_wrong_count_is_not_remembered(void)
++{
++    jaos_model *m = bounded_model();
++    TEST_ASSERT_DOUBLE_WITHIN(1e-9, -3.0, solved_objective(m));
++    TEST_ASSERT_NOT_NULL(m->start_col_status);   /* a real basis stored */
++
++    /* One basic member too many, the shape the 48 publish: flip a nonbasic
++     * column to BASIC. The optimum rests on x0 + x1 = 3, so exactly one
++     * column is basic and the other rests on a bound — find that one. */
++    int64_t nb = -1;
++    for (int64_t j = 0; j < m->num_col; j++)
++        if (m->sol_col_status[j] != JAOS_BASIS_BASIC)
++            nb = j;
++    TEST_ASSERT_TRUE(nb >= 0);
++    const jaos_basis_status kept = m->sol_col_status[nb];
++    m->sol_col_status[nb] = JAOS_BASIS_BASIC;
++
++    TEST_ASSERT_EQUAL_INT(JAOS_OK, jm_model_remember_basis(m));
++    TEST_ASSERT_NULL(m->start_col_status);       /* cleared, not stored */
++    TEST_ASSERT_NULL(m->start_row_status);
++
++    /* Restored, the same publish stores again: the guard reads the count,
++     * not the history. */
++    m->sol_col_status[nb] = kept;
++    TEST_ASSERT_EQUAL_INT(JAOS_OK, jm_model_remember_basis(m));
++    TEST_ASSERT_NOT_NULL(m->start_col_status);
++    TEST_ASSERT_NOT_NULL(m->start_row_status);
++    jaos_model_free(m);
++}
++
+ int main(void)
+ {
+     UNITY_BEGIN();
+@@ -833,5 +872,6 @@ int main(void)
+     RUN_TEST(test_a_dimension_change_refuses_what_it_must);
+     RUN_TEST(test_the_basis_survives_an_addition_and_still_counts);
+     RUN_TEST(test_a_basis_that_would_stop_being_one_is_dropped);
++    RUN_TEST(test_an_optimal_publish_with_a_wrong_count_is_not_remembered);
+     return UNITY_END();
+ }

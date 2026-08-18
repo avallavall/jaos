@@ -1,0 +1,25 @@
+# One line per presolve run that mapped a stored basis (the warm solve
+# of each instance). origbasic vs nr is the ORIG-space count; redbasic
+# vs rrow is what build_warm_basis actually judges.
+
+######## netlib ########
+88 warm solves mapped a stored basis
+  orig exact, mapped exact  -> warm runs                   32
+  orig exact, mapped WRONG  -> falls back cold             35
+      of those, mapped SHORT of rrow                       35
+      worst shortfall                                     596
+  orig wrong, mapped exact  -> warm runs anyway             2
+  orig wrong, mapped wrong  -> falls back cold             19
+
+######## kennington ########
+11 warm solves mapped a stored basis
+  orig exact, mapped exact  -> warm runs                    6
+  orig exact, mapped WRONG  -> falls back cold              5
+      of those, mapped SHORT of rrow                        5
+      worst shortfall                                       1
+  orig wrong, mapped exact  -> warm runs anyway             0
+  orig wrong, mapped wrong  -> falls back cold              0
+
+# prediction: the newly-cold instances are the 'orig exact, mapped
+# WRONG (short)' class; 'orig wrong, mapped exact' is the pre-D138/139
+# accident that used to run warm and now cannot exist on Kennington.
