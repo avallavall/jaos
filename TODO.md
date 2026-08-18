@@ -16,9 +16,13 @@ are D138's and D139's, both in `src/presolve.c`, both status-only: the gate is
 `make test`, `make test EXTRA_CFLAGS=-DJAOS_NO_PRESOLVE` and `make sanitize`
 all exit 0.
 
-**D140 landed after that state was written and it changes no source**: the
-re-measure of the 80 (measurement only, `bench/measurements/02-49/`), so the
-paragraph above still holds.
+**Two things landed after that state was written.** D140, the re-measure of
+the 80 (measurement only, `bench/measurements/02-49/`). And the guard
+hardening it named: the last source change is now in `ps_singleton_col_swap`
+(the value guard plus two asserts), judged bit-identical on all three sets
+and on the published basis counts before landing. `numerics-reviewer`
+delivered on it — the first delivery in this run — so its step in the loop
+is live again.
 
 **Read this before judging any basis work.** The gate cannot see a basis.
 `bench/run.c` says so: the digest covers x and y and not the statuses, so *"a
@@ -245,13 +249,10 @@ variable brought *in*.
      1e-16 of the row's own traffic (D136). They fall through to `BASIC`. No
      tolerance for them has been measured, and D8 means any such window needs
      a sweep on both sides.
-   And one latent guard defect, no cost today (D140): **the swap's guard
-   reads `sol_col_status`, which `SINGLETON_ROW`'s replay rewrites to
-   `BASIC` for its own column** (`src/presolve.c:2132`) — 230 netlib records
-   read BASIC at the guard that were nonbasic at their own replay. The swap
-   fired on zero of them, but a firing would remove a logical whose slot
-   `SINGLETON_ROW` already paid. Hardening: guard on
-   `sol_col[j] == rec->lo || == rec->hi`, bit-identical today by 02-49.
+   The guard hardening D140 named is **landed**: the swap decides from the
+   recovery value, not the rewritable status, with two asserts enforcing the
+   contract. Bit-identical on all three sets and on the published counts
+   (`bench/measurements/02-49/guard-count.txt`).
    `boeing1` is the control for a second mechanism: its stored count is right
    and its reduced count still is not. Presolve's *mapping* is exact (0
    identity failures of 88), so nothing there needs touching.

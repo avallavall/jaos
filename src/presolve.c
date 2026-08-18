@@ -1865,20 +1865,48 @@ static jaos_basis_status ps_singleton_row_status(const jaos_model *orig,
  * And it moves no numbers. `c_j = 0`, so a basic `x_j` needs `y_i = 0`, which
  * the reduced solve already had.
  *
- * **Read after the replay, never during it.** The row's activity is not final
- * until every record touching it has added through `ps_row_add`. Judged
- * during the replay this reported the row on a bound zero times; judged after,
- * 5714 of netlib's 5902 and all 482 of Kennington's (D135).
+ * **Read after the replay AND the carry fold, never during either.** The
+ * row's activity is not final until every record touching it has added
+ * through `ps_row_add` and the fold has run. Judged during the replay this
+ * reported the row on a bound zero times where there are thousands (D135);
+ * judged after the replay but before the fold it called 44 loose rows tight
+ * (D140). On the folded activity this fires on 5670 of netlib's 5902
+ * interior recoveries and all 482 of Kennington's.
  *
- * Two shapes decline, and both leave the count one too high: the 80 netlib
- * firings whose logical is already nonbasic, which contradicts the derivation
- * above and is unexplained; and the 108 whose row is not on a bound, where
- * making the logical nonbasic would claim a bound the row is not on.
- * `TODO.md` carries them. */
+ * Two shapes decline, and both leave the count one too high (D140): 80
+ * netlib firings whose row rests exactly on its widened bound in the reduced
+ * solve — a degenerate vertex where the exact recovery is the column AT its
+ * bound and the replay's division rounds it ulps interior — and 152 whose
+ * row is not on a bound, where making the logical nonbasic would claim a
+ * bound the row is not on. `TODO.md` carries both.
+ *
+ * The guard below reads the RECOVERY, not the published status.
+ * JM_PS_SINGLETON_ROW's replay rewrites this column's status to BASIC when
+ * the row it restores owns the bound the column rests on (230 netlib
+ * records, D140). That rewrite is right for the count — the restored row's
+ * own logical pays for it — so nothing is owed here, and the value test
+ * reproduces this record's own replay decision bit for bit where the status
+ * no longer says it (IEEE == ignores the zero sign ps_published
+ * normalises, and nothing writes sol_col[j] after this record's replay).
+ * Reading the status was safe only through a chain crossing two families:
+ * the rewrite fires only on a nonzero reduced cost, which needs a nonzero
+ * row dual, which rests the partner logical on a bound so the check below
+ * declines — and that last link also needs a basic logical's published
+ * dual to be exactly zero. The value test needs none of it. */
 static void ps_singleton_col_swap(jaos_model *orig, const jm_presolve_rec *rec)
 {
     const int64_t j = ps_restore_index(rec->index2, orig->num_col);
-    if (orig->sol_col_status[j] != JAOS_BASIS_BASIC)
+    /* The contract the value test rests on, enforced where asserts run: a
+     * recorded nonbasic status still matches the value the replay wrote. A
+     * future writer moving sol_col[j] off a bound the recovery rests on
+     * would make this swap fire and remove a logical whose basis slot was
+     * already paid — the dangerous direction, and the one the status
+     * rewrite of D140's 230 records shows a comment alone does not hold. */
+    assert(orig->sol_col_status[j] != JAOS_BASIS_AT_LOWER ||
+           orig->sol_col[j] == rec->lo);
+    assert(orig->sol_col_status[j] != JAOS_BASIS_AT_UPPER ||
+           orig->sol_col[j] == rec->hi);
+    if (orig->sol_col[j] == rec->lo || orig->sol_col[j] == rec->hi)
         return;                 /* the column rests on a bound; nothing owed */
 
     const int64_t i = rec->index;   /* the row survives, so it is not restored */

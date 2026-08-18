@@ -94,6 +94,19 @@ sign, and `ps_published` only normalises −0.0) and cannot be rewritten.
 - The guard hardening (status → value test): behaviour-identical today by
   this measurement, worth landing so the premise and the read agree.
 
+## The hardening landed, same day
+
+The value guard replaced the status read in `ps_singleton_col_swap`, with
+two asserts enforcing that a recorded nonbasic status still matches the
+value. Judged before landing: `make test` and `make sanitize` green;
+`numerics-reviewer` delivered (first time in this run) with no correctness
+findings and two low ones, both fixed — a stale 5714/108 count in the
+comment above the guard, and the asserts themselves, which it proposed; all
+three sets bit-identical to the committed records (94 + 29 + 16 instances,
+110 digests and 29 verdicts unmoved); and the 02-48 published-count probe on
+the candidate reading its committed numbers exactly (`guard-count.txt`,
+beside this file).
+
 ## Reproducing it
 
 `run-reduced-status.sh` (the canary failure that found the rewrite) and

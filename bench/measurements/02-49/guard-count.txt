@@ -1,0 +1,6 @@
+# The 02-48 published-count probe re-run on the guard-hardening candidate
+# (value test in ps_singleton_col_swap instead of the rewritable status).
+# Both lines must equal 02-48/count-after.txt exactly, and they do.
+
+netlib       optimal=188 exact=140 WRONG=48 (over=48 under=0) worst +23/-0  SUM=+272
+kennington   optimal=32 exact=32 WRONG=0 (over=0 under=0) worst +0/-0  SUM=+0

@@ -11,6 +11,14 @@ open, `bench/README.md` for the gate, and the commit each entry came from.
 
 ### Fixed
 
+- `ps_singleton_col_swap` decides from the recovery itself — the published
+  value against the record's own bounds — instead of from `sol_col_status`,
+  which `JM_PS_SINGLETON_ROW`'s replay rewrites to `BASIC` on 230 netlib
+  records (D140). Behaviour-identical today: all three sets bit-identical
+  (110 digests and 29 verdicts unmoved over 139 instances) and the published
+  basis counts read 02-48's numbers exactly. Two asserts now enforce that a
+  recorded nonbasic status still matches the value.
+
 - A restored cost-0 bounded column singleton that comes back strictly inside
   its own bounds now takes its surviving row's logical out of the basis. It
   must be `BASIC` — a nonbasic variable rests on a bound and this one rests on
