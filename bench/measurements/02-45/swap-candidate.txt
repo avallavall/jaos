@@ -1,0 +1,26 @@
+# For every SINGLETON_COL firing that publishes its column BASIC, what
+# is the surviving row's own published status?
+#
+# The exchange the reduction suggests is: column in, that row's logical
+# out. It needs the logical to be IN the basis to begin with.
+
+######## netlib ########
+172 solves;  11332 firings published nonbasic and are not at issue
+
+column published BASIC: 5902 firings
+  row logical BASIC  -> partner available      5822
+      of those, row activity on a bound        5714
+  row logical at a bound -> already out          80
+      of those, row activity on a bound          58
+
+######## kennington ########
+32 solves;  120 firings published nonbasic and are not at issue
+
+column published BASIC: 482 firings
+  row logical BASIC  -> partner available       482
+      of those, row activity on a bound         482
+  row logical at a bound -> already out           0
+      of those, row activity on a bound           0
+
+# canary: the BASIC total must be 5902 on netlib and 482 on Kennington
+# (D134), or this is not counting the same firings.

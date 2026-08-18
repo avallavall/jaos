@@ -142,6 +142,7 @@ and you have the argument. Jump to the entry for the numbers behind it.
 - **[D132](#d132--singleton_row-restores-half-of-netlibs-removed-rows-and-leaves-78-of-them-nonbasic)** — `SINGLETON_ROW` restores half of netlib's removed rows and leaves 78% of them nonbasic
 - **[D133](#d133--the-two-singleton-families-are-the-whole-of-the-basis-count-error-and-the-sum-closes-exactly)** — The two singleton families are the whole of the basis-count error, and the sum closes exactly
 - **[D134](#d134--the-pair-sums-to-one-only-by-accident-and-the-repair-is-a-swap-rather-than-a-status)** — The pair sums to one only by accident, and the repair is a swap rather than a status
+- **[D135](#d135--the-exchange-the-reduction-suggests-is-available-and-valid-on-97-of-firings)** — The exchange the reduction suggests is available and valid on 97% of firings
 
 ---
 
@@ -10137,3 +10138,49 @@ needs a variable brought *in*.
 **Left open, in `TODO.md`.** The repair, with two families, four named
 branches, an exact count per branch per set, and a closing sum for any
 candidate to be checked against.
+
+## D135 — The exchange the reduction suggests is available and valid on 97% of firings
+
+**The question.** D134 established that `JM_PS_SINGLETON_COL` publishing a
+`BASIC` column is a basis one member too large rather than a status error: the
+column lands strictly inside its own bounds, so it cannot rest on one and
+cannot be nonbasic, and its row **survives**, so nothing is restored to pay for
+the position. The exchange the reduction itself suggests is that the column
+enters and the logical of the row it was substituted out of leaves — which is
+what `JM_PS_IMPLIED_FREE_COL` already does, and that family reads drift 0
+(D133). Two things must hold: the partner must be in the basis, and the row
+must rest on a bound or making its logical nonbasic claims a bound the row is
+not on.
+
+**Both hold, nearly always** (`bench/measurements/02-45/`):
+
+| | netlib | Kennington |
+|---|---|---|
+| firings publishing a `BASIC` column | 5902 | 482 |
+| row logical `BASIC` — partner available | 5822 (98.6%) | **482 (100%)** |
+| of those, row activity exactly on a bound — **swap valid** | **5714 (96.8%)** | **482 (100%)** |
+| partner available, row not on a bound | 108 | 0 |
+| row logical already at a bound — no partner | 80 | 0 |
+
+The canary closes: 5902 and 482 are D134's counts exactly.
+
+**The reading that had to be redone, and it inverted the answer.** The first
+pass judged tightness *inside* the replay and read **0** rows on a bound,
+which would have said the swap is never valid and killed the design. **A row's
+activity is not final until every record touching it has replayed** —
+`ps_row_add` accumulates into it — so that pass was comparing partial sums
+against bounds. The probe now tallies per row during the replay and classifies
+afterwards. The number went from 0 to 5714.
+
+**What is left open, and it is why nothing lands yet.** A repair handling the
+5714 leaves netlib wrong by **188** — 108 firings where the partner is in the
+basis but the row is not on a bound, and 80 where the logical is already out —
+so the closing sum does not reach zero. Those two shapes need their own answer.
+
+**And `SINGLETON_ROW` is untouched by this.** D134's four combinations stand:
+netlib is dominated by "row at a bound, column not set" (2524, one member too
+few) and Kennington by "row BASIC, column BASIC" (29058, one too many). A
+family short a member needs the mirror exchange — a variable brought *in* —
+and no candidate has been measured for it.
+
+**Nothing changed and nothing is proposed.** No source file was touched.

@@ -181,12 +181,26 @@ variable brought *in*.
 
 **Do these in order.**
 
-1. **Design the swap.** It is the open question and it is not a one-line
-   change. Presolve's *mapping* is exact (0 identity failures of 88), so
-   nothing there needs touching. `boeing1` is the control for a second
-   mechanism: its stored count is right and its reduced count still is not.
-   Any candidate is checked against the closing sums, +3904 on netlib and
-   +25654 on Kennington, which must go to zero.
+1. **Design the swap.** For `SINGLETON_COL` the rule is identified and
+   measured (D135): **the column enters and the logical of the row it was
+   substituted out of leaves**, which is what `IMPLIED_FREE_COL` already does.
+   It is available and valid on **5714 of netlib's 5902 firings (96.8%) and
+   482 of 482 on Kennington**. The remainder is 188 netlib firings in two
+   named shapes — 108 where the partner is basic but the row is not on a
+   bound, 80 where the logical is already out — and they need their own answer
+   or the closing sum does not reach zero.
+   **`SINGLETON_ROW` has no candidate yet.** Its dominant netlib combination
+   is one member too *few*, so it needs the mirror exchange, a variable
+   brought in. Nothing is measured for that.
+   Presolve's *mapping* is exact (0 identity failures of 88), so nothing there
+   needs touching. `boeing1` is the control for a second mechanism: its stored
+   count is right and its reduced count still is not. Any candidate is checked
+   against the closing sums, +3904 on netlib and +25654 on Kennington, which
+   must go to zero.
+   **A row's activity is not final until every record touching it has
+   replayed** (`ps_row_add` accumulates), so anything reading tightness has to
+   read it after the replay. Reading it inside cost D135 a pass and would have
+   killed the design: it reported 0 valid swaps where there are 5714.
 2. **`jm_model_remember_basis` should check.** One guard makes the invariant
    honest. On its own it changes nothing measurable — a stored basis failing
    the count is already rejected by `build_warm_basis` — so it belongs with
