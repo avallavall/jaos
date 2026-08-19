@@ -504,8 +504,16 @@ JAOS_NODISCARD jaos_status jaos_basis(const jaos_model *m,
  * iterations and neither costs correctness.
  *
  * A warm start is a starting point and never a claim about the answer. The
- * solve that follows proves optimality from scratch, so a basis that is wrong,
- * stale or hostile costs time and cannot produce a wrong verdict.
+ * solve that follows is MEANT to prove optimality from scratch, so a basis
+ * that is wrong, stale or hostile would cost time and never correctness.
+ *
+ * That promise is broken today and measured broken (D146,
+ * bench/measurements/02-54): the termination does not re-read dual
+ * feasibility, and a hostile basis set through jaos_set_basis makes degen2
+ * publish a wrong objective as JAOS_SOLVE_OPTIMAL on 16 of 16 deterministic
+ * trials, scsd1 on 10 of 16. Until the repair lands, treat a solve from a
+ * caller-supplied basis as unverified: run jaos_check_solution on the
+ * answer. TODO.md carries the defect at its head.
  *
  * What it does change is which optimum is reported when a model has more than
  * one: two runs from different starting bases can stop at different vertices,

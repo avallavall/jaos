@@ -153,6 +153,7 @@ and you have the argument. Jump to the entry for the numbers behind it.
 - **[D143](#d143--d138d139s-correct-basis-maps-short-and-netlibs-warm-ratio-paid-37x-the-mapping-owes-the-reverse-of-the-swap)** — D138/D139's correct basis maps short and netlib's warm ratio paid 3.7x: the mapping owes the reverse of the swap
 - **[D144](#d144--the-mappings-balance-is-multi-family-so-the-count-is-repaired-at-the-consumer-not-in-the-mapping)** — The mapping's balance is multi-family, so the count is repaired at the consumer, not in the mapping
 - **[D145](#d145--the-count-repaired-warm-start-publishes-wrong-optima-through-the-termination-hole-and-the-warm-prize-waits-behind-it)** — The count-repaired warm start publishes wrong optima through the termination hole, and the warm prize waits behind it
+- **[D146](#d146--a-hostile-basis-makes-head-publish-a-wrong-optimum-through-the-public-api-alone)** — A hostile basis makes HEAD publish a wrong optimum through the public API alone
 
 ---
 
@@ -10730,3 +10731,40 @@ ahead of any warm work.
 future count repair moves a test deliberately. Nothing else: the source
 was reverted and the working tree re-validated green on all three test
 builds.
+
+## D146 — A hostile basis makes HEAD publish a wrong optimum through the public API alone
+
+**The question, as asked.** D145 left it one probe away: `jaos.h` promises
+a caller basis "costs time and cannot produce a wrong verdict" — does the
+promise hold at HEAD with nothing but `jaos_read_mps`, `jaos_set_basis`
+and `jaos_solve`? Expected: plausible that it does not, after D145's eight
+manufactured reproductions.
+
+**The measurement** (`bench/measurements/02-54/`, five instances × sixteen
+deterministic hostile bases, every `optimal` judged against the same
+binary's cold reference and by `jaos_check_solution`). 80 trials: **26
+wrong optima published as `JAOS_SOLVE_OPTIMAL`, 5 more with the point
+checker-refused, 0 errors.** `degen2` fails all 16 trials, worst
+−1352.64 published against a true −1435.178 (5.7%); `scsd1` fails 10 of
+16 and is checker-refused on 15 of 16. `cycle`, `modszk1` and `woodw`
+held on every trial.
+
+**Refuted: the header's promise, at HEAD, by construction.** No candidate
+code is involved. The mechanism is §5a's termination hole (D119): the
+termination never re-reads dual feasibility, so a solve that starts badly
+can end wrongly — and it now has seconds-cheap deterministic
+reproductions on a 444-row instance in place of a 278003-iteration warm
+campaign. `jaos.h` now states the defect beside the promise until the
+repair lands.
+
+**What this reorders.** This is the largest open correctness item in the
+repository: a public-API caller gets `OPTIMAL` and a wrong objective with
+no signal. It takes over `TODO.md`'s head; the published-basis residue
+(D140/D141) and the warm retry (D145's kept candidate) queue behind it.
+
+**Left open, in `TODO.md`.** The diagnosis: instrument the termination on
+`degen2` shift 1 (jaos-debug's trajectory-first discipline), find what the
+final test reads instead of dual feasibility, and why `cycle`, `modszk1`
+and `woodw` survive the same hostility. Then the repair, judged by this
+probe reading 0 of 80, the three sets bit-identical, and the D145
+candidate as the warm retry behind it.

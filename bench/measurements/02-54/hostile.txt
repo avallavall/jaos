@@ -1,0 +1,38 @@
+# One line per (instance, shift). wrong=1 with status=1 (OPTIMAL) is a
+# wrong optimum from the public API alone; chk=0 is a checker-refused
+# point published optimal. Reference from the same binary's cold solve.
+
+HOSTILE inst=scsd1 s=1 status=1 wrong=1 chk=0 obj=12.000000045698014 ref=8.6666666743333653 iters=781
+HOSTILE inst=scsd1 s=2 status=1 wrong=0 chk=0 obj=8.6666666743333671 ref=8.6666666743333653 iters=584
+HOSTILE inst=scsd1 s=3 status=1 wrong=1 chk=0 obj=9.0000000223606804 ref=8.6666666743333653 iters=847
+HOSTILE inst=scsd1 s=4 status=1 wrong=1 chk=0 obj=8.9333333499324556 ref=8.6666666743333653 iters=571
+HOSTILE inst=scsd1 s=5 status=1 wrong=0 chk=0 obj=8.6666666743333671 ref=8.6666666743333653 iters=732
+HOSTILE inst=scsd1 s=6 status=1 wrong=0 chk=0 obj=8.6666666743333671 ref=8.6666666743333653 iters=541
+HOSTILE inst=scsd1 s=7 status=1 wrong=1 chk=0 obj=9.6666667107345177 ref=8.6666666743333653 iters=618
+HOSTILE inst=scsd1 s=8 status=1 wrong=0 chk=0 obj=8.6666666743333671 ref=8.6666666743333653 iters=749
+HOSTILE inst=scsd1 s=9 status=1 wrong=1 chk=0 obj=10.20370373553477 ref=8.6666666743333653 iters=518
+HOSTILE inst=scsd1 s=10 status=1 wrong=1 chk=0 obj=9.8461538566826405 ref=8.6666666743333653 iters=709
+HOSTILE inst=scsd1 s=11 status=1 wrong=1 chk=0 obj=11.16666664904896 ref=8.6666666743333653 iters=536
+HOSTILE inst=scsd1 s=12 status=1 wrong=0 chk=0 obj=8.6666666743333653 ref=8.6666666743333653 iters=614
+HOSTILE inst=scsd1 s=13 status=1 wrong=1 chk=0 obj=9.6666667107345159 ref=8.6666666743333653 iters=700
+HOSTILE inst=scsd1 s=14 status=1 wrong=1 chk=0 obj=9.0000000223606804 ref=8.6666666743333653 iters=637
+HOSTILE inst=scsd1 s=15 status=1 wrong=1 chk=0 obj=9.6666667107345159 ref=8.6666666743333653 iters=699
+HOSTILE inst=degen2 s=1 status=1 wrong=1 chk=0 obj=-1352.6399999999996 ref=-1435.1779999999999 iters=1836
+HOSTILE inst=degen2 s=2 status=1 wrong=1 chk=0 obj=-1383.6100000000004 ref=-1435.1779999999999 iters=1784
+HOSTILE inst=degen2 s=3 status=1 wrong=1 chk=0 obj=-1380.7100000000003 ref=-1435.1779999999999 iters=2475
+HOSTILE inst=degen2 s=4 status=1 wrong=1 chk=0 obj=-1383.6100000000004 ref=-1435.1779999999999 iters=1784
+HOSTILE inst=degen2 s=5 status=1 wrong=1 chk=0 obj=-1428.3499999999997 ref=-1435.1779999999999 iters=1617
+HOSTILE inst=degen2 s=6 status=1 wrong=1 chk=0 obj=-1408.3999999999992 ref=-1435.1779999999999 iters=2288
+HOSTILE inst=degen2 s=7 status=1 wrong=1 chk=0 obj=-1396.8199999999999 ref=-1435.1779999999999 iters=1589
+HOSTILE inst=degen2 s=8 status=1 wrong=1 chk=0 obj=-1383.6100000000004 ref=-1435.1779999999999 iters=1784
+HOSTILE inst=degen2 s=9 status=1 wrong=1 chk=0 obj=-1380.7100000000003 ref=-1435.1779999999999 iters=2475
+HOSTILE inst=degen2 s=10 status=1 wrong=1 chk=0 obj=-1383.6100000000004 ref=-1435.1779999999999 iters=1784
+HOSTILE inst=degen2 s=11 status=1 wrong=1 chk=0 obj=-1416.4399999999994 ref=-1435.1779999999999 iters=1665
+HOSTILE inst=degen2 s=12 status=1 wrong=1 chk=0 obj=-1408.3999999999992 ref=-1435.1779999999999 iters=2288
+HOSTILE inst=degen2 s=13 status=1 wrong=1 chk=0 obj=-1404.97 ref=-1435.1779999999999 iters=1605
+HOSTILE inst=degen2 s=14 status=1 wrong=1 chk=0 obj=-1383.6100000000004 ref=-1435.1779999999999 iters=1784
+HOSTILE inst=degen2 s=15 status=1 wrong=1 chk=0 obj=-1380.7100000000003 ref=-1435.1779999999999 iters=2475
+HOSTILE inst=degen2 s=16 status=1 wrong=1 chk=0 obj=-1383.6100000000004 ref=-1435.1779999999999 iters=1784
+
+80 trials: WRONG-OPTIMAL=26 checker-refused=5 errors=0
+the jaos.h promise is refuted at HEAD by construction

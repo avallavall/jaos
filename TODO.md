@@ -16,15 +16,19 @@ are D138's and D139's, both in `src/presolve.c`, both status-only: the gate is
 `make test`, `make test EXTRA_CFLAGS=-DJAOS_NO_PRESOLVE` and `make sanitize`
 all exit 0.
 
-**This session (2026-08-18/19, unattended) landed five things on top of
-that state.** D140 (the 80 are an exact tie; measurement only, 02-49); the
-swap's value guard, the only source change, judged bit-identical on all
-three sets and on the published counts; D141 (within-row demotion refused,
-02-50); D142 (the remember-basis count guard refused after its warm cost
-was measured, 02-51 — the candidate is kept there); and D143 (the warm
-re-measure: Kennington improved, netlib regressed 3.7x through the mapping,
-records rewritten). `numerics-reviewer` delivered twice, so its step in the
-loop is live again.
+**This session (2026-08-18/19, unattended) landed D140 through D146 on top
+of that state.** D140 (the 80 are an exact tie, 02-49) and the swap's value
+guard, bit-identical everywhere; D141 (within-row demotion refused, 02-50);
+D142 (remember-basis count guard refused on its measured warm cost, 02-51,
+candidate kept); D143 (warm re-measure: Kennington improved, netlib
+regressed 3.7x through the mapping; records rewritten); D144 (the balance
+is multi-family; repair selected at the consumer, 02-52); D145 (that
+repair built, gated bit-identical, and refused by its own judge — eight
+wrong optima through the termination hole; candidate kept at 02-53, the
+LONG-map pinned test landed); and **D146 (the termination defect
+reproduces at HEAD through the public API alone, 02-54 — now this file's
+START HERE)**. `numerics-reviewer` delivered three times, so its step in
+the loop is live again.
 
 **Read this before judging any basis work.** The gate cannot see a basis.
 `bench/run.c` says so: the digest covers x and y and not the statuses, so *"a
@@ -132,7 +136,41 @@ What is still true and unrepaired, both with their size on the record:
 - D121's loan of 1e32 on a cost of one is real and stays reachable through
   D118's refused presolve candidate. No instance in the gate reaches it.
 
-## → START HERE: `jaos_basis` publishes something that is not a basis
+## → START HERE: a hostile basis makes HEAD publish a wrong optimum (D146)
+
+**This is the largest open correctness item in the file and it is public
+API.** `jaos_read_mps` + `jaos_set_basis` + `jaos_solve`: `degen2`
+publishes a wrong objective as `JAOS_SOLVE_OPTIMAL` on **16 of 16**
+deterministic hostile bases (worst −1352.64 against a true −1435.178,
+5.7%), `scsd1` on 10 of 16 with the point checker-refused on 15 of 16;
+`cycle`, `modszk1` and `woodw` hold. 26 wrong optima in 80 trials, no
+candidate code involved (`bench/measurements/02-54/`, D146). The caller
+sees no signal. `jaos.h` states the defect beside its broken promise.
+
+The mechanism is this file's own, carried since D119: **the termination
+never re-reads dual feasibility, so a solve that starts badly can end
+wrongly.** It now has seconds-cheap reproductions — `run-hostile.sh`
+rebuilds them all — where before it had a 278003-iteration warm campaign.
+
+In order:
+
+1. **Diagnose on `degen2`, shift 1** (load `jaos-debug` first; trajectory
+   before values): what does the final test read when it declares
+   optimality, which re-entry round loses dual feasibility, and why do
+   `cycle`/`modszk1`/`woodw` survive the same hostility. D119's
+   `REFACTOR_EVERY` sweep localised this class once already
+   (`bench/measurements/02-28/`); do not re-derive what it closed.
+2. **The repair**, judged by three things: the 02-54 probe reading 0 of
+   80, the three sets bit-identical (no gate instance sets a basis), and
+   `make test`/`make sanitize` green. D127's warning stands: the dual
+   machinery here has refused two source-plausible repairs; measure first.
+3. **Then the warm retry**: D145's kept candidate
+   (`bench/measurements/02-53/warm-count-repair-candidate.diff`), judged
+   by the warm campaigns — its Kennington side is a clean win waiting
+   (0.0572 → 0.0070) and its netlib side was refused only through this
+   defect.
+
+## `jaos_basis` publishes something that is not a basis
 
 **This is the largest open correctness item in the file and it was a standing
 debt an hour ago.** Refreshing the stale `warm` records (D129) led to it in
@@ -293,20 +331,10 @@ variable brought *in*.
    warm point checker-refused, while Kennington recovers cleanly
    (0.0572 → 0.0070, `osa-60` 7061 → 1 iterations). The mechanism is
    §5a's own: the termination never re-reads dual feasibility (D119), so
-   a solve that starts badly can end wrongly. **Fix that first**; the
-   kept candidate (`bench/measurements/02-53/`) is the retry, and the
-   refusals table carries both conditions. Two sub-questions ahead of it:
-   - **Can `jaos_set_basis` alone produce a wrong `optimal` at HEAD?**
-     `jaos.h` promises a hostile basis "costs time and cannot produce a
-     wrong verdict"; the candidate refuted the promise's mechanism with
-     manufactured bases. One probe: a count-exact hostile basis on
-     `cycle` or `dfl001`, no candidate code involved. If it reproduces,
-     this is a public-API correctness defect and outranks everything
-     else in this file.
-   - The eight reproductions are the first cheap, named instances of the
-     termination defect — `d2q06c` at 278003 iterations is the loudest.
-     `bench/measurements/02-53/warm-count-repair-candidate.diff` applied
-     in a worktree reproduces all eight in one `make warm J=12`.
+   a solve that starts badly can end wrongly. **The probe was run the same
+   night and it reproduces at HEAD through the public API alone (D146,
+   26 wrong optima in 80 trials)** — the defect is now this file's START
+   HERE, above, and the warm retry queues as its step 3.
    `jm_model_remember_basis` checking the count was refused here — D142 —
    and D143's single-family un-swap by D144; both in the refusals table.
 
