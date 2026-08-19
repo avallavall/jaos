@@ -9,6 +9,27 @@ open, `bench/README.md` for the gate, and the commit each entry came from.
 
 ## [Unreleased]
 
+## [0.1.0] — 2026-08-19
+
+The first tagged point. Everything below this heading was already written;
+what the tag adds is a name for a tree whose state is known, so a later
+"it worked before" has something to point at.
+
+What that tree is, measured rather than asserted: the three gate sets read
+`gate: PASS` with `0 regressed, 0 improved, 0 new` over 94 + 29 + 16
+instances; `make test`, the `-DJAOS_NO_PRESOLVE` reference build and
+`make sanitize` all exit 0; 151 decisions are recorded with the measurement
+that closed each.
+
+**What it does not claim.** M2, the speed milestone, is open — its criterion
+is a time ratio and it has not been met. `SPECS.md` carries the feature matrix
+and shows JAOS present in four of nine measured areas. Two defects are known,
+written down and unrepaired: eleven of the 94 standard instances publish a
+column value up to 1.3e-15 outside its own declared bound, which is why no
+assert-enabled build can run them; and 48 netlib solves publish a basis whose
+count is wrong. Neither makes an answer wrong today and both are in `TODO.md`
+with their measurements.
+
 ### Changed
 
 - A mapped starting basis that arrives short of `nrow` basic members is
