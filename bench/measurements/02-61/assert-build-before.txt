@@ -1,0 +1,37 @@
+/mnt/c/Users/vall-/AppData/Loinstances run: 94
+
+ABORTED on assert(want_lo <= want_hi):
+  80bau3b
+  bandm
+  bnl1
+  cycle
+  dfl001
+  finnis
+  nesm
+  perold
+  pilot
+  pilot-ja
+  pilotnov
+  count: 11
+
+exited non-zero for another reason:
+  count: 0
+
+clean: 83
+
+TODO.md predicts exactly these eleven:
+  80bau3b bandm bnl1 cycle dfl001 finnis nesm perold pilot pilot-ja pilotnov
+actually aborted, sorted:
+  80bau3b bandm bnl1 cycle dfl001 finnis nesm perold pilot pilot-ja pilotnov 
+name" > "$d/$name.log" 2>&1
+/mnt/c/Users/vall-/AppData/Local/Temp/claude/C--Users-vall--Desktop-projectes-jaos/73e38a6e-ca6a-40a7-97ac-a7faac59b505/scratchpad/repro_assert.sh: line 38:   444 Aborted                 (core dumped) "$d/run-assert" -j 1 "$name" > "$d/$name.log" 2>&1
+/mnt/c/Users/vall-/AppData/Local/Temp/claude/C--Users-vall--Desktop-projectes-jaos/73e38a6e-ca6a-40a7-97ac-a7faac59b505/scratchpad/repro_assert.sh: line 38:   452 Aborted                 (core dumped) "$d/run-assert" -j 1 "$name" > "$d/$name.log" 2>&1
+/mnt/c/Users/vall-/AppData/Local/Temp/claude/C--Users-vall--Desktop-projectes-jaos/73e38a6e-ca6a-40a7-97ac-a7faac59b505/scratchpad/repro_assert.sh: line 38:   460 Aborted                 (core dumped) "$d/run-assert" -j 1 "$name" > "$d/$name.log" 2>&1
+/mnt/c/Users/vall-/AppData/Local/Temp/claude/C--Users-vall--Desktop-projectes-jaos/73e38a6e-ca6a-40a7-97ac-a7faac59b505/scratchpad/repro_assert.sh: line 38:   467 Aborted                 (core dumped) "$d/run-assert" -j 1 "$name" > "$d/$name.log" 2>&1
+/mnt/c/Users/vall-/AppData/Local/Temp/claude/C--Users-vall--Desktop-projectes-jaos/73e38a6e-ca6a-40a7-97ac-a7faac59b505/scratchpad/repro_assert.sh: line 38:   490 Aborted                 (core dumped) "$d/run-assert" -j 1 "$name" > "$d/$name.log" 2>&1
+/mnt/c/Users/vall-/AppData/Local/Temp/claude/C--Users-vall--Desktop-projectes-jaos/73e38a6e-ca6a-40a7-97ac-a7faac59b505/scratchpad/repro_assert.sh: line 38:   494 Aborted                 (core dumped) "$d/run-assert" -j 1 "$name" > "$d/$name.log" 2>&1
+/mnt/c/Users/vall-/AppData/Local/Temp/claude/C--Users-vall--Desktop-projectes-jaos/73e38a6e-ca6a-40a7-97ac-a7faac59b505/scratchpad/repro_assert.sh: line 38:   496 Aborted                 (core dumped) "$d/run-assert" -j 1 "$name" > "$d/$name.log" 2>&1
+/mnt/c/Users/vall-/AppData/Local/Temp/claude/C--Users-vall--Desktop-projectes-jaos/73e38a6e-ca6a-40a7-97ac-a7faac59b505/scratchpad/repro_assert.sh: line 38:   500 Aborted                 (core dumped) "$d/run-assert" -j 1 "$name" > "$d/$name.log" 2>&1
+/mnt/c/Users/vall-/AppData/Local/Temp/claude/C--Users-vall--Desktop-projectes-jaos/73e38a6e-ca6a-40a7-97ac-a7faac59b505/scratchpad/repro_assert.sh: line 38:   505 Aborted                 (core dumped) "$d/run-assert" -j 1 "$name" > "$d/$name.log" 2>&1
+
+[exited with code 0]

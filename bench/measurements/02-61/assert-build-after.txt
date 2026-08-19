@@ -1,0 +1,9 @@
+=== assert-enabled build of the working tree ===
+instances run:            94
+clean:                    94
+aborted on the assert:    0 --
+non-zero for other reason:0 --
+
+ALL 94 RUN UNDER ASSERTS
+
+[exited with code 0]

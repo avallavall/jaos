@@ -159,6 +159,7 @@ and you have the argument. Jump to the entry for the numbers behind it.
 - **[D149](#d149--the-retried-warm-repair-is-correct-now-and-refused-on-cost-dfl001-pays-172x-for-a-doomed-attempt-the-guard-then-throws-away)** — The retried warm repair is correct now and refused on cost: dfl001 pays 172x for a doomed attempt the guard then throws away
 - **[D150](#d150--the-gate-sees-the-basis-every-optimal-line-carries-its-hash-det-covers-it-and-all-139-instances-hold)** — The gate sees the basis: every optimal line carries its hash, det covers it, and all 139 instances hold
 - **[D151](#d151--the-warm-repair-lands-behind-a-shortfall-cap-of-4-chosen-at-the-end-of-a-plateau-because-the-mean-is-flat-there-and-the-worst-case-is-not)** — The warm repair lands behind a shortfall cap of 4, chosen at the end of a plateau because the mean is flat there and the worst case is not
+- **[D152](#d152--the-replay-clamps-into-the-columns-own-box-and-the-assert-that-could-not-be-enabled-is-removed-rather-than-widened)** — The replay clamps into the column's own box, and the assert that could not be enabled is removed rather than widened
 
 ---
 
@@ -11052,3 +11053,63 @@ charging the caller the attempt plus the whole cold solve. A rule that
 predicts a doomed trajectory before paying for it is not this entry's, and
 the shortfall does not separate them: both are short by 1, the same
 shortfall as the sixteen instances that win. The refusals table carries it.
+
+## D152 — The replay clamps into the column's own box, and the assert that could not be enabled is removed rather than widened
+
+**The question, as asked.** TODO's standing debt, the one it called worth
+more than it looks: eleven of the 94 standard instances reach
+`ps_replay_one` with `want_lo` above `want_hi` by 2.2e-16 to 1.3e-15 and
+publish `want_lo`, so a value sits outside a bound the caller declared and
+`assert(want_lo <= want_hi)` cannot be enabled — which means **no
+assert-enabled build can run those eleven at all**. Expected: clamp the
+published value into `[rec->lo, rec->hi]`, and the build configuration
+comes back.
+
+**The measurement** (`bench/measurements/02-61/`). The eleven reproduce
+exactly at the parent commit, one process per instance so no abort hides
+another. **One number in the debt was wrong and the probe corrected it**:
+of the 138 empty intersections behind those eleven instances, only **10
+records on 2 instances — `bnl1` and `finnis` — ever published outside the
+column's box.** On the other 128 `want_lo` equals `rec->lo` with the box
+open above it, so the intersection is empty while the published value was
+inside all along. The debt's worked example is one of the real ten and is
+right as written.
+
+The clamp lands. All 94 standard instances now run under `-UNDEBUG`, 0
+aborts. The gate moves on exactly the two instances the control named and
+nowhere else: 92 of 94 bit-identical with `bnl1` and `finnis` changing
+digest, basis and row-relative residual; netlib-infeas 29 of 29 and
+Kennington 16 of 16 bit-identical; all three `gate: PASS` with `0
+regressed, 0 improved, 0 new`. The basis moves in the right direction — a
+clamped value equals `rec->hi` exactly, so the status publishes `AT_UPPER`
+where it published `BASIC`, which is D137's interior-implies-basic rule
+read the other way round.
+
+**What was refuted.** Two windows for keeping the emptiness assert with a
+tolerance, both built and both measured:
+
+- eps times the division's own inputs, `(|rest| + |row bounds|)/|coef|`,
+  takes the eleven aborting instances to two. It fails for the reason
+  `fp-numerics` states: the rows that remain are equalities at zero whose
+  partial activity has cancelled, so `rl = ru = 0` and `rest` **is** the
+  residue — the scale collapses onto the quantity it exists to bound.
+  Worst gap 4.72e-14 against a window of 1.78e-15.
+- eps times the row's accumulated traffic, which is what a sum is known
+  to. It moves 22 uncovered records to 18 and reads a traffic of **exactly
+  zero on 86 of the 138**, worst case included. The reason is structural
+  and is two lines of `src/presolve.c`: `sol_row[i]` arrives by direct
+  copy from the reduced solve at line 2707, and two families assign it
+  outright. The residue is the **simplex's**, so its error budget is not
+  in the replay to be read at all.
+
+So the assert is removed rather than widened, and a third window would be
+a constant fitted to two instances. What the site asserts instead is what
+the clamp establishes and `jaos.h` promises: the published value lies
+inside the column's own box. That is enforceable and is enforced.
+
+**What is left open, in `TODO.md`.** Detecting a genuinely infeasible
+model — the `x0 + x1 = 100` case whose gap is 93 rather than 1e-14 — is
+unchanged and stays where it was. This site cannot tell the two apart
+without an error budget it has no access to; the old assert only appeared
+to because it was never enabled. The debt's entry is rewritten with the
+corrected count.

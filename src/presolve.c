@@ -2249,10 +2249,71 @@ static void ps_replay_one(jaos_model *orig, const jm_presolve *p, int64_t r,
          * with no further search. */
         const double want_lo = rec->lo > lo_j ? rec->lo : lo_j;
         const double want_hi = rec->hi < hi_j ? rec->hi : hi_j;
-        (void)want_hi;   /* used only by the assert below, which -DNDEBUG
-                          * (the release build) compiles away entirely */
-        assert(want_lo <= want_hi);
-        const double xv = want_lo;
+
+        /* The intersection is non-empty in exact arithmetic and can be empty
+         * by an ulp here, so the published value is clamped into the column's
+         * OWN recorded box rather than taken as `want_lo` (D152).
+         *
+         * Which of the two ends to trust is the whole question, and it is not
+         * symmetric. `rec->lo` and `rec->hi` are the column's bounds as
+         * stored, the same doubles the caller's were reduced to; `lo_j` and
+         * `hi_j` come out of the division `(rl - rest) / rec->coef`, so they
+         * carry the rounding of a subtraction and a division that the stored
+         * pair never went through. The derived end is the one with the error,
+         * so the stored end wins.
+         *
+         * Measured before the clamp existed: eleven of the 94 standard
+         * instances reach here with `want_lo` above `want_hi`, by 2.2e-16 to
+         * 1.3e-15, and published `want_lo` — a value outside a bound the
+         * caller declared, which `jaos.h` promises does not happen. `bnl1`
+         * row 581 wanted 2.1850000000000005 from a column whose upper bound
+         * is 2.1850000000000001. The checker's tolerance absorbed it, so no
+         * answer was wrong; the promise was still broken, and the assert
+         * below could not be enabled, which meant no assert-enabled build
+         * could run those eleven instances at all
+         * (bench/measurements/02-61/).
+         *
+         * **`assert(want_lo <= want_hi)` is gone and is not replaced by a
+         * windowed version of itself.** Two windows were built and both are
+         * refuted by measurement, so nobody should build a third without
+         * reading 02-61 first:
+         *
+         *   - eps times the division's own inputs, `(|rest| + |row bounds|) /
+         *     |coef|`, takes the 94 standard instances from 11 aborting to 2.
+         *     It fails because the rows that remain are equalities at zero
+         *     whose partial activity has cancelled: `rl = ru = 0` and `rest`
+         *     IS the residue, so the scale collapses onto the very quantity
+         *     it exists to bound. Worst gap 4.72e-14 against a window of
+         *     1.78e-15.
+         *   - eps times the row's accumulated traffic, the quantity
+         *     fp-numerics says a sum is known to. It moves 22 uncovered
+         *     records to 18 and **reads a traffic of exactly zero on 86 of
+         *     the 138**, the worst case included. The reason is structural
+         *     and is two lines of this file: `sol_row[i]` arrives by direct
+         *     copy from the reduced solve, and two families assign it
+         *     outright. The residue is the SIMPLEX's, so its error budget is
+         *     not in the replay to be had.
+         *
+         * What the site can honestly assert is what the clamp establishes,
+         * and that is asserted below: the published value lies inside the
+         * column's own recorded box. That is `jaos.h`'s promise, it is
+         * checkable here, and it holds on all three sets.
+         *
+         * Detecting a genuinely infeasible model — the `x0 + x1 = 100` case
+         * above, whose gap is 93 rather than 1e-14 — is a separate defect
+         * that predates this record and is still open in `TODO.md`. It
+         * belongs where the row is frozen, not here: this site cannot tell
+         * the two apart without an error budget it has no access to, and the
+         * old assert only appeared to because it was never enabled. */
+        assert(rec->lo <= rec->hi);
+        (void)want_hi;   /* the emptiness check above it was removed; want_hi
+                          * is kept because it names the other end of the
+                          * intersection the comment argues about */
+
+        const double xv = want_lo < rec->lo ? rec->lo
+                        : want_lo > rec->hi ? rec->hi
+                                            : want_lo;
+        assert(xv >= rec->lo && xv <= rec->hi);
 
         orig->sol_col[j] = ps_published(xv);
         orig->sol_col_status[j] =

@@ -1,0 +1,8 @@
+/mnt/c/Users/vall-/Desktop/projectes/jaos/bench/measurements/02-61/runinstances run:  94
+clean:          92
+assert fired:   2 -- bnl1 finnis
+
+*** expected the eleven back; the control did not reproduce ***
+vall-/Desktop/projectes/jaos/bench/measurements/02-61/run-clamp-control.sh: line 57:   442 Aborted                 (core dumped) "$d/run-assert" -j 1 "$name" > "$d/$name.log" 2>&1
+
+[exited with code 0]

@@ -26,9 +26,19 @@ rewritten deliberately on the landed tree and are current; `netlib-infeas`,
 `plato-fome` and `plato-pds` are behind by 9 to 11 `src/` commits and
 `preflight.sh` says so on every run.
 
-**This session (2026-08-18/19, unattended) landed D140 through D151 —
-records 02-49 through 02-60, three source changes, one bench widening (the
-gate sees the basis now, D150), three kept candidates.**
+**This session (2026-08-18/19, unattended) landed D140 through D152 —
+records 02-49 through 02-61, four source changes, one bench widening (the
+gate sees the basis now, D150), three kept candidates, and the repository's
+first tag, `v0.1.0`.**
+
+**D152 closed the last of the two standing debts that were worth more than
+they looked.** The singleton-column replay clamps its published value into
+the column's own box, `bnl1` and `finnis` stop publishing up to 1.3e-15
+outside a declared bound, and **all 94 standard instances run under
+`-UNDEBUG` where eleven aborted** — a whole build configuration back. Its
+record (`bench/measurements/02-61/`) corrects a number this file had carried
+since 2026-08-14 and refuses two tolerance designs with the measurement that
+refutes each.
 
 **D151 is the last of them and it closed D149's condition**: the warm count
 repair landed behind a shortfall cap of 4, netlib warm work 0.2553 → 0.1916
@@ -456,7 +466,7 @@ rest of this file is not all background:
 | §3 | doubleton equalities — 8.55% of netlib's live rows and 29.36% of Kennington's, and **99.7% of it is behind D97** |
 | §5 | the rest of M2: factorization fill, Devex pricing, and closing the competitive gate |
 | §6 | feature expansion, decided but not started |
-| standing debts | about a dozen at the end of this file, each small and real. Two are worth more than they look: the `assert(want_lo <= want_hi)` clamp, because **no assert-enabled build can run 11 of the 94 instances** until it lands; and the `warm` records, 21 `src/` commits behind |
+| standing debts | about a dozen at the end of this file, each small and real. The two that were worth more than they looked are **both closed**: the `assert(want_lo <= want_hi)` clamp landed as D152 and all 94 instances run under asserts now, and the `warm` records were rewritten by D129/D143/D151 and are current |
 
 D97 is the largest prize in the file and it is behind one precondition:
 a dual postsolve for an imposed bound. Its first precondition was met by D114.
@@ -1156,29 +1166,31 @@ then, do not — a refusal whose premise has not changed just fails again.
   documents the shape with the measured 2.4e-7 rather than asserting
   containment, and says in as many words that its own bound holds only because
   that model's traffic is zero.
-- **The other half of `assert(want_lo <= want_hi)`: an empty intersection of
-  an ulp.** D102 closed the half where the model really is infeasible. The
-  half that remains is rounding: 11 of the 94 standard instances reach
-  `ps_replay_one` with `want_lo` above `want_hi` by 2.2e-16 to 1.3e-15, and
-  the replay publishes `want_lo`, which is that far outside the column's own
-  box. `bnl1` row 581 wants 2.1850000000000005 from a column whose upper bound
-  is 2.1850000000000001; the others are `finnis`, `80bau3b`, `bandm`, `cycle`,
-  `dfl001`, `nesm`, `perold`, `pilot-ja`, `pilot`, `pilotnov`. The checker's
-  tolerance absorbs it, so no answer is wrong today, but a declared bound is
-  being published outside and the assert cannot be enabled while this stands.
-  The repair is to clamp the published value into `[rec->lo, rec->hi]`, and it
-  had to come after D102: clamping first would have masked the gap of 93 as
-  though it were rounding. Measured 2026-08-14, readings in
-  `bench/measurements/02-08/`.
-  **The consequence, written down 2026-08-18 and never before: no
-  assert-enabled build can run those eleven instances at all.** They abort at
-  `src/presolve.c:2127`, so every assert in the solve is untested on them, and
-  a campaign built with `EXTRA_CFLAGS=-UNDEBUG` covers 128 of the 139 rather
-  than all of them. Found by `jaos-measurer` checking whether a newly added
-  precondition ever fires; the parent aborts on the identical list, so this is
-  the debt above and not a new defect. It raises the value of the clamp: it is
-  not only a bound published outside its box, it is the reason a whole build
-  configuration cannot be run.
+- ~~**The other half of `assert(want_lo <= want_hi)`: an empty intersection of
+  an ulp.**~~ **Closed 2026-08-19 (D152, `bench/measurements/02-61/`).** The
+  clamp landed, all 94 standard instances run under `-UNDEBUG` where eleven
+  aborted, and the gate moves on exactly `bnl1` and `finnis` with the other
+  137 of 139 bit-identical.
+  **One number in this debt was wrong and the probe corrected it.** Eleven
+  instances tripped the assert, which is right; but of the 138 empty
+  intersections behind them, only **10 records on 2 instances** ever published
+  outside the column's box. On the other 128 `want_lo` equals `rec->lo` with
+  the box open above it, so the intersection was empty while the published
+  value was inside all along. The worked example was one of the real ten:
+  `bnl1` row 581 wanted 2.1850000000000005 from a column whose upper bound is
+  2.1850000000000001.
+  **The emptiness assert is removed, not widened, and two windows are refused
+  on the record** so nobody builds a third: eps times the division's own
+  inputs collapses onto the residue it exists to bound (the surviving rows are
+  equalities at zero whose activity cancelled), and eps times the row's
+  accumulated traffic reads **exactly zero on 86 of the 138** because
+  `sol_row[i]` is copied from the reduced solve rather than accumulated — the
+  residue is the simplex's and its error budget is not in the replay at all.
+  **What stays open is what was always separate**: presolve does not detect a
+  genuinely infeasible frozen row — the `x0 + x1 = 100` case whose gap is 93
+  rather than 1e-14. It belongs where the row is frozen. This site cannot tell
+  the two apart without an error budget it has no access to, and the old
+  assert only appeared to because it was never enabled.
 - ~~**`make test EXTRA_CFLAGS=-DJAOS_NO_PRESOLVE` is RED.**~~ **Repaired
   2026-08-18 and green for the first time.** The two tests were
   `test_singleton_col_between_two_removals_solved_path` (expected 3 basic, got

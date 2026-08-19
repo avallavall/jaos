@@ -1,0 +1,17 @@
+# Every empty intersection, all three sets, both candidate windows.
+# need = gap / tol at the SHIPPING PRESOLVE_ROUND_ULPS = 8.
+# The question: does max(need_new) come in under 1 with no new constant?
+
+######## netlib ########
+  empty intersections:              138
+  NOT covered by |rest| window:     22 (worst need 26.556)
+  NOT covered by traffic window:    18 (worst need 26.556)
+  worst traffic-window case: gap=4.717348e-14 traffic=0.000000e+00
+  records whose traffic reads 0:    86
+
+######## kennington ########
+  no empty intersections
+
+######## netlib-infeas ########
+  no empty intersections
+

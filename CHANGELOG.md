@@ -9,6 +9,20 @@ open, `bench/README.md` for the gate, and the commit each entry came from.
 
 ## [Unreleased]
 
+### Fixed
+
+- The singleton-column replay clamps its published value into the column's
+  own recorded box. Ten records across `bnl1` and `finnis` published up to
+  1.3e-15 outside a bound the caller declared, which `jaos.h` promises does
+  not happen. Those two instances move — digest, basis and row-relative
+  residual — and the other 137 of the 139 are bit-identical; all three sets
+  read `gate: PASS` with `0 regressed, 0 improved, 0 new`.
+  **A whole build configuration came back with it**: all 94 standard
+  instances now run under `-UNDEBUG`, where eleven aborted before, so every
+  assert in the solve is exercised on them for the first time. The emptiness
+  assert that blocked them is removed rather than given a tolerance — two
+  windows were built and both are refuted in the entry (D152).
+
 ## [0.1.0] — 2026-08-19
 
 The first tagged point. Everything below this heading was already written;
