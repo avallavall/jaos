@@ -1,0 +1,13 @@
+# direction 1: clean build, afiro's line carries basis= and det=ok
+det=ok digest=b288b49a4d712221 basis=d557be8451b6c3a7
+# direction 2: the second publish flips one status -> det must DIVERGE
+faulted: second
+det=DIVERGED
+# direction 3: every publish flips -> det=ok, line moves ONLY in basis=
+faulted: every
+det=ok
+# fields differing between clean and flip-all lines:
+< basis=d557be8451b6c3a7
+> basis=4cdd315bdf1be0d1
+# verdicts: direction 2 must read DIVERGED; direction 3 must read ok
+# with exactly the basis= field differing.

@@ -160,23 +160,41 @@ constexpr double CHECK_TOL = 1e-6;
 
 /* FNV-1a over the raw bytes of the answer. Two solves of one model must
  * produce identical bits, so the digest is taken of the bytes and not of
- * anything rounded on the way. It covers x and y and NOT the basis, so it is
- * a strictly narrower claim than the basis hash PLAN 2.5.13 asks for, and the
- * output says so rather than implying the basis was compared.
- *
- * The reason it used to give — that the public API has no basis-status query
- * — stopped being true: `jaos_basis` publishes both status arrays. Widening
- * this to cover them is real work, not a rename, because the determinism
- * check re-solves cold (jaos_clear_basis below) and a published basis that
- * breaks the row-count promise is a live defect (TODO.md), so a basis hash
- * would pin today's wrong answer. Left open deliberately, with the
- * consequence stated: no predicate this runner reports observes a status,
- * so a change that moves only the basis is invisible to all three sets. */
+ * anything rounded on the way. It covers x and y; the published basis gets
+ * its own hash beside it (`basis=`), separate on purpose — the two move for
+ * different reasons and a reader diffing a record needs to see which one
+ * did. The old objection to hashing the basis at all — that a published
+ * basis breaking the row-count promise is a live defect a hash would pin —
+ * expired in two steps: Kennington publishes a valid basis on every solve
+ * (D139), and netlib's 48-solve residue is measured, named and deliberately
+ * pinned (D140, D141), so a future repair moves the record visibly instead
+ * of invisibly. The determinism check re-solves cold, so both solves
+ * publish comparable bases and `det` now covers them too. */
 static uint64_t digest(const double *v, int64_t n, uint64_t h)
 {
     const unsigned char *p = (const unsigned char *)v;
     for (int64_t i = 0; i < n * (int64_t)sizeof(double); i++) {
         h ^= p[i];
+        h *= 1099511628211u;
+    }
+    return h;
+}
+
+/* The published basis, one byte per status, columns then rows. Read off the
+ * model's own arrays the way this file already reads presolve_num_* — it is
+ * in-tree tooling, not a consumer. Null arrays (a verdict with no answer)
+ * hash to the seed, which never collides with a real basis's hash in
+ * practice and never arises on the optimal path that prints it. */
+static uint64_t basis_digest(const jaos_model *m, uint64_t h)
+{
+    if (m->sol_col_status == nullptr || m->sol_row_status == nullptr)
+        return h;
+    for (int64_t j = 0; j < m->num_col; j++) {
+        h ^= (unsigned char)m->sol_col_status[j];
+        h *= 1099511628211u;
+    }
+    for (int64_t i = 0; i < m->num_row; i++) {
+        h ^= (unsigned char)m->sol_row_status[i];
         h *= 1099511628211u;
     }
     return h;
@@ -619,6 +637,7 @@ static bool run_one(const entry *e, const char *dir, tally *t)
 
     uint64_t d1 = digest(x, nc, 1469598103934665603u);
     d1 = digest(y, nr, d1);
+    const uint64_t b1 = basis_digest(m, 1469598103934665603u);
 
     /* Second solve of the same model, in the same process. Same input, same
      * parameters, same answer — every bit of it (D8).
@@ -643,7 +662,10 @@ static bool run_one(const entry *e, const char *dir, tally *t)
         jaos_solution(m, x, nullptr, y, nullptr) == JAOS_OK) {
         d2 = digest(x, nc, 1469598103934665603u);
         d2 = digest(y, nr, d2);
-        det = (d1 == d2);
+        /* The basis is part of the answer and part of the claim: two cold
+         * solves of one model must publish the same statuses bit for bit,
+         * or `det` says so. */
+        det = (d1 == d2) && (b1 == basis_digest(m, 1469598103934665603u));
     }
     if (det)
         t->deterministic++;
@@ -674,7 +696,7 @@ static bool run_one(const entry *e, const char *dir, tally *t)
             " obj=%.17g ref=%.17g[%s] objective=%s checker=%s"
             " (col=%.3g row=%.3g rowrel=%.3g dual=%.3g gap=%.3g Q=%.3g"
             " N=%.3g drop=%.3g cert=%s sub=%.3g rays=%lld rsub=%.3g)"
-            " det=%s digest=%016llx\n",
+            " det=%s digest=%016llx basis=%016llx\n",
             e->name, (long long)nr, (long long)nc, shape ? "ok" : "MISMATCH",
             (long long)iters, (long long)work,
             (long long)nr, (long long)nc, (long long)jaos_num_nz(m),
@@ -689,7 +711,8 @@ static bool run_one(const entry *e, const char *dir, tally *t)
             rep.max_dropped_multiplier, rep.gap_certified ? "yes" : "no",
             rep.certified_suboptimality, (long long)rep.unquantified_rays,
             rep.relative_suboptimality,
-            det ? "ok" : "DIVERGED", (unsigned long long)d1);
+            det ? "ok" : "DIVERGED", (unsigned long long)d1,
+            (unsigned long long)b1);
 
     record(e->name, "optimal", true, shape, obj_ok, check_ok, det,
            (long long)iters, (long long)work,

@@ -24,6 +24,14 @@ open, `bench/README.md` for the gate, and the commit each entry came from.
 
 ### Added
 
+- Every optimal record line carries `basis=`, an FNV-1a hash of the
+  published statuses, beside `digest=`, and the determinism predicate now
+  requires both cold solves to publish the same basis bit for bit. Validated
+  against the two cases it must reject, then measured: `det=ok` on all 110
+  optimal gate solves and no predicate moved; the three committed records
+  rewritten deliberately with the field (D150). A change that moves only
+  the basis stopped being invisible to the gate.
+
 - `test_a_long_mapped_basis_falls_back_cold`: a caller basis whose count is
   exact in the original space can map LONG onto the reduced model when
   presolve removes a row whose stored logical is nonbasic; the fallback to

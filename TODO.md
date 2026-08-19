@@ -358,17 +358,14 @@ variable brought *in*.
    `jm_model_remember_basis` checking the count was refused here — D142 —
    and D143's single-family un-swap by D144; both in the refusals table.
 
-3. **Widen the solution digest to cover the basis, at least on Kennington.**
-   `bench/run.c` declined to, and said why: *"a published basis that breaks the
-   row-count promise is a live defect (TODO.md), so a basis hash would pin
-   today's wrong answer."* **Kennington no longer breaks it on any solve**
-   (D139), so that objection is gone there. Until this lands, no predicate on
-   any of the three sets observes a status, and every basis repair has to be
-   judged by a probe rather than by the gate — which is how D138 and D139 were
-   judged, and it is not reproducible from `make netlib` alone.
-   Note the second obstacle the same comment names: the determinism check
-   re-solves cold after `jaos_clear_basis`, so a basis hash has to be taken
-   where that does not invalidate it.
+3. ~~Widen the solution digest to cover the basis.~~ **Done 2026-08-19
+   (D150, `bench/measurements/02-59/`), on all three sets**: every optimal
+   line carries `basis=`, `det` covers the published basis across the cold
+   re-solve — a claim that now holds measured on all 110 optimal solves —
+   and the instrument was validated against both cases it must reject
+   before the campaign. The 48-solve netlib residue is pinned deliberately
+   so its future repair moves the record visibly. The records were
+   rewritten; the `*.baseline` files did not change.
 
 4. ~~Re-measure the `warm` records.~~ **Done 2026-08-19 (D143), and the
    records are rewritten.** Kennington improved 0.0873 → 0.0572; netlib

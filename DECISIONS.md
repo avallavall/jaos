@@ -157,6 +157,7 @@ and you have the argument. Jump to the entry for the numbers behind it.
 - **[D147](#d147--the-solver-measures-the-violation-it-publishes-the-best-point-ends-with-bstdv--3534-and-nothing-reads-it-against-a-tolerance)** — The solver measures the violation it publishes: the best point ends with bstdv = 35.34 and nothing reads it against a tolerance
 - **[D148](#d148--the-certificate-guard-lands-0-wrong-of-80-where-head-published-26-and-the-gate-is-bit-identical)** — The certificate guard lands: 0 wrong of 80 where HEAD published 26, and the gate is bit-identical
 - **[D149](#d149--the-retried-warm-repair-is-correct-now-and-refused-on-cost-dfl001-pays-172x-for-a-doomed-attempt-the-guard-then-throws-away)** — The retried warm repair is correct now and refused on cost: dfl001 pays 172x for a doomed attempt the guard then throws away
+- **[D150](#d150--the-gate-sees-the-basis-every-optimal-line-carries-its-hash-det-covers-it-and-all-139-instances-hold)** — The gate sees the basis: every optimal line carries its hash, det covers it, and all 139 instances hold
 
 ---
 
@@ -10893,3 +10894,33 @@ shortfalls joined against 02-58's per-instance outcomes.
 shortfall-capped repair, judged by the same campaigns. The candidate is
 kept whole at `bench/measurements/02-58/warm-retry-candidate.diff`. The
 refusals table carries the condition.
+
+## D150 — The gate sees the basis: every optimal line carries its hash, det covers it, and all 139 instances hold
+
+**The question, as asked.** `bench/run.c`'s own comment: the digest covers
+x and y and not the basis, "so a change that moves only the basis is
+invisible to all three sets" — left open because a basis hash would pin a
+wrong answer. Kennington stopped breaking the count promise (D139) and
+netlib's residue became a measured, named 48 (D140, D141), so the
+objection expired. Expected: a `basis=` field per optimal line, `det`
+covering it, no predicate moving.
+
+**The measurement** (`bench/measurements/02-59/`). The instrument was
+validated against the two cases it must reject before any campaign: a
+solver flipping one status on its SECOND publish reads `det=DIVERGED`, and
+one flipping EVERY publish reads `det=ok` with the line moving in exactly
+the `basis=` field. The three-set campaign then read `0 regressed, 0
+improved, 0 new` on every baseline and **`det=ok` on all 110 optimal
+solves — a new measured fact: the published basis is bit-deterministic
+across the cold re-solve on every gate instance.** The three committed
+records were rewritten deliberately with the new field; the `*.baseline`
+predicate files did not change.
+
+**What was refuted.** Nothing; the objection this closes was its own
+author's and had expired on the record's own measurements.
+
+**What this ends.** Basis repairs judged only by hand-built probes: D138
+and D139 were judged by 02-47/02-48 because the gate was basis-blind. From
+this record on, the gate itself sees a basis change per instance, and
+netlib's 48-solve residue is pinned deliberately so its future repair
+moves the record visibly instead of invisibly.
