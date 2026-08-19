@@ -35,6 +35,13 @@ open, `bench/README.md` for the gate, and the commit each entry came from.
 
 ### Changed
 
+- The two `row_traffic` fallbacks the source called unreachable are asserted
+  rather than described. One predicate, `ps_traffic_usable`, at both reads and
+  at the post-loop sweep, because the sweep runs after the round loop and
+  cannot speak for a read inside it. With the pre-repair accumulation restored
+  netlib aborts on 45 of 94, at the sweep and not at either read — so the
+  unreachability holds from the assert side too. 139 instances under
+  `-UNDEBUG`, 0 aborts; the release object is unchanged (D157).
 - The destroyed row width has a stated bound instead of an overstated one.
   `src/presolve.c` said a row collapsed from `[1, 2]` to a single double makes
   the answer "wrong by up to that width"; the width that dies is always below

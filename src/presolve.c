@@ -511,6 +511,31 @@ static double ps_bound_scale(double a, double b)
     return s;
 }
 
+#ifndef NDEBUG
+/* `row_traffic[i]` is the error budget for `cur_rl[i]` and `cur_ru[i]`, so it
+ * has to be a number wherever one of those still is. A row whose two ends are
+ * both infinite constrains nothing and is exempt — that is also the state an
+ * overflowed `a * v` leaves behind, since the two producers that can overflow
+ * subtract one term from both ends without a guard.
+ *
+ * Asserted at each of the three places that depend on it rather than once,
+ * because the two live reads happen inside the round loop and a sweep after it
+ * cannot speak for them: an end that was finite when it was read can be
+ * infinite by the end, and the sweep would pass (D155, numerics-reviewer).
+ *
+ * It is a claim about scale and not a theorem. `row_traffic` sums magnitudes
+ * while the bounds sum signed values, so terms of +1e308 and -1e308 leave both
+ * ends at 0 and the budget at +inf on a model jaos accepts. The largest
+ * traffic any row of the three sets carries is 1e7
+ * (bench/measurements/02-66/). */
+static bool ps_traffic_usable(double rl, double ru, double traffic)
+{
+    if (!isfinite(rl) && !isfinite(ru))
+        return true;
+    return isfinite(traffic);
+}
+#endif
+
 /* --------------------------------------------------------------------- */
 /* jm_presolve_init / _free                                              */
 /* --------------------------------------------------------------------- */
@@ -733,23 +758,30 @@ JAOS_NODISCARD jaos_status jm_presolve_run(const jaos_model *m, jm_presolve *p,
                  * not a number. A row nothing was ever removed from carries
                  * zero traffic and gets the exact test it deserves. */
                 double etol = 0.0;
+                /* The budget has to be a number here, and it is checked rather
+                 * than assumed. This branch used to be described as
+                 * unreachable and left to a silent substitution, which is the
+                 * shape that stops being true without anyone noticing — and it
+                 * changed under D155, from "never taken because the traffic is
+                 * always finite by the time this runs" to a different reason.
+                 * Asserted, so the comment is a claim the build checks. */
+                assert(ps_traffic_usable(cur_rl[i], cur_ru[i], row_traffic[i]));
                 if (row_traffic[i] > 0.0) {
-                    /* row_traffic saturates to +inf when a column with a
-                     * half-infinite box is relaxed out of a row, and an
+                    /* row_traffic could saturate to +inf when a column with a
+                     * half-infinite box was relaxed out of a row, and an
                      * infinite window accepts every violation there is --
                      * which is the single thing this test exists to refuse.
                      * The row's own bound scale stands in when that happens,
                      * the same substitution the frozen-row test makes.
                      *
-                     * UNREACHABLE TODAY, and stated rather than assumed: the
-                     * only site that can make the traffic infinite is the
-                     * cost-0 singleton column's relaxation, which sets
-                     * row_frozen[i] four lines later; row_frozen is never
-                     * cleared, and this whole pass skips a frozen row. So
-                     * this branch is a guard against a sixth family that
-                     * relaxes a row without freezing it, not a live path.
-                     * It does NOT make TODO.md's saturation item less
-                     * severe -- that item was never load-bearing here. */
+                     * TWO reasons it is unreachable now, and they stack. The
+                     * relaxation adds only what a finite end absorbed (D155),
+                     * so it no longer saturates at all. And before that: the
+                     * only site that could was the cost-0 singleton column's
+                     * relaxation, which sets row_frozen[i] four lines later,
+                     * row_frozen is never cleared, and this whole pass skips a
+                     * frozen row. The fallback stays as a guard against a
+                     * sixth family that relaxes a row without freezing it. */
                     const double scale = isfinite(row_traffic[i])
                         ? row_traffic[i]
                         : ps_bound_scale(cur_rl[i], cur_ru[i]);
@@ -861,7 +893,11 @@ JAOS_NODISCARD jaos_status jm_presolve_run(const jaos_model *m, jm_presolve *p,
                  *
                  * Infinite traffic is skipped rather than propagated, for the
                  * reason ps_bound_scale skips infinities, and is unreachable
-                 * for the reason given at the empty-row test above. */
+                 * for the two reasons stacked at the empty-row test above.
+                 * Asserted there rather than described, and here too: a silent
+                 * fallback guarding a condition the source says cannot happen
+                 * is the shape that stops being true quietly. */
+                assert(ps_traffic_usable(cur_rl[i], cur_ru[i], row_traffic[i]));
                 double bscale = ps_bound_scale(new_lo, new_hi);
                 if (row_traffic[i] > 0.0 && isfinite(row_traffic[i])) {
                     const double tscale = row_traffic[i] / fabs(a);
@@ -1491,14 +1527,14 @@ JAOS_NODISCARD jaos_status jm_presolve_run(const jaos_model *m, jm_presolve *p,
      * is near: the largest traffic any row of the three sets carries is 1e7,
      * against a DBL_MAX of 1.8e308 (bench/measurements/02-66/).
      *
-     * **It does not cover the two live reads**, which happen inside the round
-     * loop. Traffic only grows, so this is strictly stronger on that half; the
-     * antecedent goes the other way, and a row whose end was finite when it
-     * was read and is infinite by the end passes here. Checking at the reads
-     * as well is TODO.md's, with the two unreachable-branch asserts. */
+     * **It does not speak for the two live reads**, which happen inside the
+     * round loop. Traffic only grows, so this is strictly stronger on that
+     * half; the antecedent goes the other way, and a row whose end was finite
+     * when it was read and is infinite by the end passes here. So the same
+     * predicate is asserted at each read as well, and this sweep is what
+     * covers the rows neither read ever looks at. */
     for (int64_t i = 0; i < nr; i++)
-        assert(!(isfinite(cur_rl[i]) || isfinite(cur_ru[i])) ||
-               isfinite(row_traffic[i]));
+        assert(ps_traffic_usable(cur_rl[i], cur_ru[i], row_traffic[i]));
 #endif
 
     /* --- Frozen rows, tested for feasibility once the boxes are final. --

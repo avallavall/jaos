@@ -164,6 +164,7 @@ and you have the argument. Jump to the entry for the numbers behind it.
 - **[D154](#d154--three-of-the-five-build-configurations-did-not-build-and-make-configs-is-what-will-say-so-next-time)** — Three of the five build configurations did not build, and `make configs` is what will say so next time
 - **[D155](#d155--row_traffic-accumulates-only-what-a-still-finite-end-absorbed-and-the-assert-that-says-so-rests-on-measured-headroom-rather-than-on-the-argument-that-looked-available)** — `row_traffic` accumulates only what a still-finite end absorbed, and the assert that says so rests on measured headroom rather than on the argument that looked available
 - **[D156](#d156--the-destroyed-row-width-is-refused-as-a-defect-because-the-width-that-dies-was-already-below-one-ulp-of-the-activity-it-constrains)** — The destroyed row width is refused as a defect, because the width that dies was already below one ulp of the activity it constrains
+- **[D157](#d157--the-two-silent-fallbacks-become-checked-claims-and-the-check-that-catches-them-is-the-sweep-rather-than-either-read)** — The two silent fallbacks become checked claims, and the check that catches them is the sweep rather than either read
 
 ---
 
@@ -11453,3 +11454,36 @@ reduced model on the one class of input where presolve is most useful.
 **What is left open.** Nothing from this entry. §1's collapsed fold keeps its
 unbounded error and stays the largest open item; this entry sharpens why the
 two are different rather than closing it.
+
+## D157 — The two silent fallbacks become checked claims, and the check that catches them is the sweep rather than either read
+
+**The question.** D155 left two things, both handed to `TODO.md` by
+`numerics-reviewer`. The empty-row test and the singleton-row fold each
+substitute or skip silently when `row_traffic[i]` is not finite, on a branch
+the file calls unreachable — the shape that stops being true without anyone
+noticing. And D155's own sweep runs after the round loop, so it cannot speak
+for either read: traffic only grows, but an end that was finite when it was
+read can be infinite by the end, and the sweep would pass.
+
+**Both are the same predicate**, so both are one change.
+`ps_traffic_usable(rl, ru, traffic)` is now asserted at each of the three
+places that depend on it: the budget has to be a number wherever an end it
+bounds still is, and a row whose two ends are both infinite constrains nothing
+and is exempt. That exemption is also what keeps it quiet on an overflowed
+`a * v`, since the two producers that can overflow subtract one term from both
+ends without a guard.
+
+**The measurement, and it says something the sweep alone did not.** With the
+accumulation reverted to its pre-repair form, all three asserts live, netlib
+aborts on 45 of 94 — and **it aborts at the sweep, not at either read**. So
+the "unreachable" claim the two fallbacks carried is true from the assert side
+as well, not only from the counter that measured 0 infinite reads in D155.
+On the repaired tree: 94, 29 and 16 instances under `-UNDEBUG`, 0 aborts, and
+`make configs` passes all five configurations.
+
+**Nothing reaches the gate.** `comment_only.sh` reports the release object
+unchanged, because `-DNDEBUG` removes an `assert` and the helper with it.
+
+**What is left open.** Nothing from this entry. Both of D155's smaller
+leftovers are closed; its third, the frozen-row test's scale needing two
+traffics, is untouched and stays in `TODO.md`.

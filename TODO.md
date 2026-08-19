@@ -286,13 +286,12 @@ trajectory. Refusals table, D151.
   uses. The window has to cover the larger, the shape the singleton-row fold
   already has at `src/presolve.c`. Using `row_traffic` alone repeats on one
   side the mistake the frozen-row test's own comment names on the other.
-- **Two smaller things D155 left, both cheap.** The debug sweep it added runs
-  after the round loop and so does not cover the two live reads, which happen
-  inside it — a row whose end was finite when it was read and is infinite by
-  the end passes. And both consumers substitute silently when the traffic is
-  not finite, on a branch the file calls unreachable; an assert in each turns
-  two comments into checked claims, and it matters more now that the repair
-  makes the traffic finite where it was not.
+- ~~**Two smaller things D155 left, both cheap.**~~ **CLOSED 2026-08-20
+  (D157).** They were the same predicate, so `ps_traffic_usable` is asserted
+  at all three places now. The measurement adds something the sweep alone did
+  not: with the accumulation reverted, netlib aborts on 45 of 94 **at the
+  sweep and not at either read**, so the "unreachable" claim those two
+  fallbacks carry is true from the assert side too.
 - ~~**A row's own width can be destroyed by the shift that removes a
   column.**~~ **REFUSED 2026-08-20 (D156, `bench/measurements/02-67/`).** The
   collapse is real and reproducible, and this file's own claim that "the
