@@ -162,6 +162,7 @@ and you have the argument. Jump to the entry for the numbers behind it.
 - **[D152](#d152--the-replay-clamps-into-the-columns-own-box-and-the-assert-that-could-not-be-enabled-is-removed-rather-than-widened)** — The replay clamps into the column's own box, and the assert that could not be enabled is removed rather than widened
 - **[D153](#d153--the-row-activity-check-becomes-an-invariant-and-four-wrong-versions-of-it-each-reported-a-defect-that-was-not-there)** — The row-activity check becomes an invariant, and four wrong versions of it each reported a defect that was not there
 - **[D154](#d154--three-of-the-five-build-configurations-did-not-build-and-make-configs-is-what-will-say-so-next-time)** — Three of the five build configurations did not build, and `make configs` is what will say so next time
+- **[D155](#d155--row_traffic-accumulates-only-what-a-still-finite-end-absorbed-and-the-assert-that-says-so-rests-on-measured-headroom-rather-than-on-the-argument-that-looked-available)** — `row_traffic` accumulates only what a still-finite end absorbed, and the assert that says so rests on measured headroom rather than on the argument that looked available
 
 ---
 
@@ -11275,3 +11276,110 @@ configurations, each after `make clean`, and is validated both ways — 0 on the
 repaired tree, 2 with `tests/test_presolve.c` reverted. It is deliberately not
 part of `make test`: it costs five full rebuilds, so it belongs before landing
 anything that touches `tests/` or a guarded block in `src/`.
+
+## D155 — `row_traffic` accumulates only what a still-finite end absorbed, and the assert that says so rests on measured headroom rather than on the argument that looked available
+
+**The question.** `TODO.md`'s first smaller item. The cost-0 bounded singleton
+column's relaxation adds `max(|cmax|, |cmin|)` to `row_traffic[i]`. Such a
+column need only be non-free, so one of its bounds may be infinite and the
+product with the coefficient is then infinite. The item already stated the
+repair — "what should accumulate is the finite part actually subtracted from
+`cur_rl`/`cur_ru`" — and asked for a measurement rather than a patch.
+
+**The measurement**, `bench/measurements/02-66/traffic.txt`. The probe carries
+a second accumulation beside the shipped one, so one run reports both and
+changes nothing.
+
+| | netlib (94) | infeas (29) | Kennington (16) |
+|---|---|---|---|
+| saturating sites | 9556 | 1408 | 2 |
+| rows reaching the frozen-row test | 16618 | 1894 | 602 |
+| of those, `row_traffic == inf` | **9008** | 1344 | 2 |
+| infinite value READ by either consumer | **0** | **0** | **0** |
+| worst repaired traffic on a zero-margin row | **660** | 1 | — |
+
+The instrument is dead on more than half the rows it exists for. No consumer
+ever reads a saturated row on any of the three sets, which the file argued and
+this measures. And the repaired accumulation recovers the number the row
+really carries: `greenbea` row 57 reads **660**, the figure the frozen-row
+test's own comment names for that row, where the shipped form reads `+inf`.
+
+**It is two repairs, not one, and the second has nothing to do with
+infinity.** An end that was ALREADY infinite is not subtracted from at all, so
+the magnitude aimed at it moved nothing and does not belong in the budget: a
+`<=` row taking `cmax = 5` against `cur_rl = -inf` used to charge 5 for a
+subtraction that never happened. That failure mode is this site's alone — the
+other two producers subtract the same term from both ends, so charging it in
+full is exact there whichever end was finite. Only this site aims different
+magnitudes at the two ends.
+
+**The cost is nothing, on all three sets.** 94, 29 and 16 instances
+bit-identical to the committed record, 0 digest changes, `gate: PASS` with
+`0 regressed, 0 improved, 0 new` on each. The expected result for a change
+with no reachable read, run as the check rather than assumed.
+
+**A claim in `TODO.md` was wrong and is corrected there.** It said "**all** 117
+standard-set rows that reach the frozen-row test at exactly zero margin carry
+`row_traffic == inf`". It is **110 of 117**. The item's substance is
+unaffected; the word "all" is not.
+
+**What was refuted, and it is the entry's value.** The assert this repair
+carries had two wrong versions before the shipped one, both caught by
+`numerics-reviewer` on the diff:
+
+- **Placed at the site the repair touched.** After the repair that site's own
+  contribution is finite by construction, so the assert could only fail
+  because of a term added at one of the other two producers — and a row
+  poisoned by those need never host a cost-0 singleton column. "0 aborts on
+  139" would have meant "the traffic was finite at rows that had a cost-0
+  bounded singleton column". It is a sweep over every row after the round loop
+  now, and the predicate is what a consumer needs: if either end is still
+  finite, the budget that bounds it is a number.
+- **Defended by a structural argument that does not hold.** An overflow at the
+  other two producers was said to drive BOTH ends to the same infinity, so the
+  antecedent would be false and the assert could not fire on a legal model.
+  `row_traffic` sums magnitudes while the bounds sum signed values, so two
+  terms of opposite sign cancel in the ends and add in the budget. From
+  `rl = ru = 0`, terms of `+1e308` and `-1e308` leave both ends at 0 and the
+  traffic at `+inf`, and the assert fires. `min x3 s.t. 1e308*x0 - 1e308*x1 +
+  x2 + x3 == 0` with x0 and x1 fixed at 1 is a model producing it, and every
+  value in it passes jaos's validation. Confirmed by compiling it here rather
+  than on the reviewer's word.
+
+So the assert rests on **measured headroom**: the largest traffic any row of
+the three sets carries is 1e7, against a `DBL_MAX` of 1.8e308. The measured
+number is what survives someone changing the fixed-column site; the argument
+would not have.
+
+Validated both ways, with the negative control re-run against the shipped
+placement rather than inherited from the earlier one: 0 aborts over all 139
+instances with the repair, and **45 of 94** netlib instances abort with the
+accumulation reverted and the sweep kept. It fires wherever an end is finite,
+which is not everywhere — a row whose two bounds were already infinite absorbs
+nothing, so the old form saturated it and the sweep stays quiet there.
+
+**The assert was moved after the campaign ran, and that was checked rather
+than waved through.** `comment_only.sh src/presolve.c df2054e` reports the
+release object unchanged, because `-DNDEBUG` removes an `assert`. The campaign
+carries over verbatim.
+
+**What is left open**, handed to `TODO.md`:
+
+- **The third consumer needs two traffics, not one.** Replacing the
+  frozen-row test's `ps_bound_scale` with the traffic repeats on one side the
+  mistake the file already names on the other: that test compares
+  `min_act`/`max_act` against `cur_ru`/`cur_rl`, which are two sums with two
+  different traffics. `row_traffic` covers only the bound half; the activity
+  half is `rg.traffic`, the quantity `ps_row_tol` already uses. The window has
+  to cover the larger, the shape the singleton-row fold already has. The
+  repaired traffic is up to **153** times the bound scale on netlib, so this
+  is a real change needing its own campaign.
+- **The sweep does not cover the two live reads**, which happen inside the
+  round loop. Traffic only grows, so the sweep is strictly stronger on that
+  half; the antecedent goes the other way, and a row whose end was finite when
+  it was read and is infinite by the end passes the sweep.
+- **Two silent fallbacks guard a condition the file calls unreachable.** Both
+  consumers substitute or skip when the traffic is not finite. An assert in
+  each turns two comments into checked claims, and it matters more now: the
+  repair makes the traffic finite where it was not, so those guards change
+  from "never taken" to "never taken for a different reason".

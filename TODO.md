@@ -269,10 +269,30 @@ trajectory. Refusals table, D151.
 
 ### 4. Three smaller, each measured and each needing its own campaign
 
-- **`row_traffic[i]` saturates to `+inf` and never recovers.** All 117
-  standard-set rows reaching the frozen-row test at zero margin carry
-  `row_traffic == inf`. Fixing it changes the frozen-row test's behaviour on
-  existing reductions, so it needs its own measurement.
+- ~~**`row_traffic[i]` saturates to `+inf` and never recovers.**~~ **CLOSED
+  2026-08-20 (D155, `bench/measurements/02-66/`).** It accumulates only what a
+  still-finite end absorbed now, and the three sets are bit-identical on all
+  139. Two things the entry corrects: it was **110 of 117** rows at zero
+  margin, not all 117; and fixing the accumulation does NOT change the
+  frozen-row test, because that test reads `ps_bound_scale` and never reads
+  the traffic. What WOULD change it is the item below, which is new.
+- **The frozen-row test's scale, now that the traffic is a live quantity.**
+  D155 makes `row_traffic` usable, and the repaired value is up to **153**
+  times the bound scale on netlib, so this moves verdicts and needs its own
+  campaign. **It needs two traffics, not one** (`numerics-reviewer`, D155):
+  the test compares `min_act`/`max_act` against `cur_ru`/`cur_rl`, which are
+  two sums with two different traffics. `row_traffic` covers only the bound
+  half; the activity half is `rg.traffic`, the quantity `ps_row_tol` already
+  uses. The window has to cover the larger, the shape the singleton-row fold
+  already has at `src/presolve.c`. Using `row_traffic` alone repeats on one
+  side the mistake the frozen-row test's own comment names on the other.
+- **Two smaller things D155 left, both cheap.** The debug sweep it added runs
+  after the round loop and so does not cover the two live reads, which happen
+  inside it — a row whose end was finite when it was read and is infinite by
+  the end passes. And both consumers substitute silently when the traffic is
+  not finite, on a branch the file calls unreachable; an assert in each turns
+  two comments into checked claims, and it matters more now that the repair
+  makes the traffic finite where it was not.
 - **A row's own width can be destroyed by the shift that removes a column.**
   `1 - 1e17` and `2 - 1e17` are the same double, so a row written `[1, 2]`
   reaches the simplex as a single number. `row_traffic[i]` is exactly the

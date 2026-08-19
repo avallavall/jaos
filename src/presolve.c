@@ -1018,12 +1018,67 @@ JAOS_NODISCARD jaos_status jm_presolve_run(const jaos_model *m, jm_presolve *p,
                         ret = JAOS_ERR_OUT_OF_MEMORY;
                         goto cleanup_scratch;
                     }
-                    if (isfinite(cur_rl[i]))
+                    const bool lo_absorbs = isfinite(cur_rl[i]);
+                    const bool hi_absorbs = isfinite(cur_ru[i]);
+                    if (lo_absorbs)
                         cur_rl[i] -= cmax;
-                    if (isfinite(cur_ru[i]))
+                    if (hi_absorbs)
                         cur_ru[i] -= cmin;
-                    row_traffic[i] += fabs(cmax) > fabs(cmin) ? fabs(cmax)
-                                                              : fabs(cmin);
+
+                    /* Only the magnitude an end that ABSORBS it actually took.
+                     * `max(|cmax|, |cmin|)` was wrong in two ways, and the
+                     * first is why row_traffic was a dead instrument on 9008
+                     * of netlib's 16618 frozen rows (02-66).
+                     *
+                     * A cost-0 singleton column need only be non-free, so one
+                     * of its bounds may be infinite, which makes one of
+                     * cmax/cmin infinite. The guarded subtraction above then
+                     * turns that end into an infinity, and an end that is not
+                     * a number carries no residue for any window to cover --
+                     * but adding the infinity here saturated row_traffic[i]
+                     * for the rest of the run, on every later row-bound shift
+                     * that DID move a finite end.
+                     *
+                     * The second is smaller and has nothing to do with
+                     * infinity: an end that was ALREADY infinite is not
+                     * subtracted from at all, so the magnitude aimed at it
+                     * moved nothing and does not belong in the budget either.
+                     * A `<=` row taking cmax = 5 against cur_rl = -inf used to
+                     * charge 5 for a subtraction that never happened.
+                     *
+                     * **That second way is this site's alone, and saying so
+                     * matters.** The other two producers subtract the SAME
+                     * term from both ends, so charging it in full is exact
+                     * there whichever end was finite. Only this site aims
+                     * different magnitudes at the two ends, which is what
+                     * makes a per-end test necessary here and nowhere else.
+                     *
+                     * The repaired value is never larger than the old one and
+                     * it recovers the number the row really carries:
+                     * `greenbea` row 57 reads 660, the figure the frozen-row
+                     * test's own comment names, where this read +inf.
+                     *
+                     * **It changes no solve, and that is measured rather than
+                     * argued.** Both sites that read the traffic skip a frozen
+                     * row and this site freezes, so a saturated row was never
+                     * read: 0 infinite reads at either consumer over all 139
+                     * instances, and the three gate sets are bit-identical on
+                     * all 139. It is repaired because a quantity two sites
+                     * already substitute around is not available to a third,
+                     * and TODO.md wants a third.
+                     *
+                     * This site can fire more than once on one row: only the
+                     * free-column branch above tests row_frozen, so the column
+                     * pass can reach here again on a row already relaxed. The
+                     * per-end test is what makes the repeat correct — the
+                     * second visit finds that end already infinite and charges
+                     * nothing (found by `numerics-reviewer`). */
+                    double moved = 0.0;
+                    if (lo_absorbs && isfinite(cmax) && fabs(cmax) > moved)
+                        moved = fabs(cmax);
+                    if (hi_absorbs && isfinite(cmin) && fabs(cmin) > moved)
+                        moved = fabs(cmin);
+                    row_traffic[i] += moved;
                     col_dead[j] = true;
                     row_deg[i]--;
                     row_frozen[i] = true;
@@ -1383,6 +1438,49 @@ JAOS_NODISCARD jaos_status jm_presolve_run(const jaos_model *m, jm_presolve *p,
     }
     p->counts.rounds = rounds_done;
     }
+
+#ifndef NDEBUG
+    /* row_traffic[i] is the error budget for cur_rl[i] and cur_ru[i], so it
+     * has to be a number wherever one of those still is. That is the property
+     * the relaxation's per-end test exists to establish, and this is where it
+     * is checked.
+     *
+     * **Over every row, not at the site the repair touched**, and the
+     * difference is the finding that moved it here (`numerics-reviewer`). The
+     * other two producers — the fixed column in the column pass and the
+     * forcing row's own fixing — multiply `a * v` unguarded, and jaos accepts
+     * a coefficient and a bound that are merely finite. A row poisoned by
+     * either need never host a cost-0 singleton column, and an assert at that
+     * one site would never look at it. "0 aborts on 139" would then have meant
+     * less than it sounded.
+     *
+     * What it fires on is the shape the repair removed: an end left finite
+     * while the budget that is supposed to bound it reads +inf. On the
+     * unrepaired tree that is 45 of the 94 standard instances. It fires
+     * wherever an end is finite, which is not everywhere — a row whose two
+     * bounds were already infinite absorbs nothing, so the old form saturated
+     * it and this stays quiet.
+     *
+     * **This rests on measured headroom and not on an argument, and the
+     * argument that looked available is wrong.** `row_traffic` sums
+     * magnitudes while the bounds sum signed values, so two terms of opposite
+     * sign cancel in the ends and add in the budget: from `rl = ru = 0`, terms
+     * of `+1e308` and `-1e308` leave both ends at 0 and the traffic at +inf,
+     * and this fires. Every value in that model passes jaos's validation.
+     * `min x3 s.t. 1e308*x0 - 1e308*x1 + x2 + x3 == 0`, x0 and x1 fixed at 1,
+     * is the whole of it (`numerics-reviewer`, confirmed here). Nothing real
+     * is near: the largest traffic any row of the three sets carries is 1e7,
+     * against a DBL_MAX of 1.8e308 (bench/measurements/02-66/).
+     *
+     * **It does not cover the two live reads**, which happen inside the round
+     * loop. Traffic only grows, so this is strictly stronger on that half; the
+     * antecedent goes the other way, and a row whose end was finite when it
+     * was read and is infinite by the end passes here. Checking at the reads
+     * as well is TODO.md's, with the two unreachable-branch asserts. */
+    for (int64_t i = 0; i < nr; i++)
+        assert(!(isfinite(cur_rl[i]) || isfinite(cur_ru[i])) ||
+               isfinite(row_traffic[i]));
+#endif
 
     /* --- Frozen rows, tested for feasibility once the boxes are final. --
      *

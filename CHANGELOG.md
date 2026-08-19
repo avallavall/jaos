@@ -35,6 +35,15 @@ open, `bench/README.md` for the gate, and the commit each entry came from.
 
 ### Fixed
 
+- `row_traffic[i]` accumulates only the magnitude a still-finite row end
+  actually absorbed. It used to add `max(|cmax|, |cmin|)` whatever happened, so
+  a cost-0 singleton column with one infinite bound saturated it to `+inf` for
+  the rest of the run — dead on 9008 of netlib's 16618 frozen rows, where the
+  repaired value recovers `greenbea` row 57's 660. No solve moves: 94, 29 and
+  16 instances bit-identical, 0 digest changes, `gate: PASS` on each. A debug
+  sweep now asserts that a row with a finite end has a finite budget; it
+  aborts on 45 of 94 without the repair, and it rests on measured headroom
+  rather than on a structural argument that turned out false (D155).
 - Three of the five build configurations did not compile: the reference build
   and both fault builds, since D151, on one unguarded test helper. Repaired,
   and two further failures behind it — D153's row-activity check aborted three

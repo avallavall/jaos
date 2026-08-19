@@ -1,0 +1,37 @@
+probe at f0ffec8 (f0ffec8)
+Counters are summed over every presolve run in the set, and the gate
+solves each instance twice, so a per-solve figure is half the count.
+
+---- netlib standard (94)
+  saturating sites              9556
+  INF read by empty-row test    0
+  INF read by singleton fold    0
+  rows at frozen-row test       16618
+    traffic == inf              9008
+  rows at EXACTLY zero margin   234
+    of those, traffic == inf    220
+    worst repaired traffic      660
+  worst repaired/bound-scale    153
+  MAX repaired traffic, any row 1e+07
+---- netlib-infeas (29)
+  saturating sites              1408
+  INF read by empty-row test    0
+  INF read by singleton fold    0
+  rows at frozen-row test       1894
+    traffic == inf              1344
+  rows at EXACTLY zero margin   48
+    of those, traffic == inf    12
+    worst repaired traffic      1
+  worst repaired/bound-scale    10.4905
+  MAX repaired traffic, any row 50303
+---- kennington (16)
+  saturating sites              2
+  INF read by empty-row test    0
+  INF read by singleton fold    0
+  rows at frozen-row test       602
+    traffic == inf              2
+  rows at EXACTLY zero margin   0
+    of those, traffic == inf    0
+    worst repaired traffic      0
+  worst repaired/bound-scale    1.1782
+  MAX repaired traffic, any row 431686
