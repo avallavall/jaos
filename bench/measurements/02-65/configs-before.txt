@@ -1,0 +1,8 @@
+plain                              rc=0   pass=221  fail=0   ignore=15  aborts=0
+-DJAOS_NO_PRESOLVE                 rc=2   pass=0    fail=0   ignore=0   aborts=0
+    tests/test_presolve.c:1659:12: error: ‘repair_fires_at’ defined but not used [-Werror=unused-function]
+-DJAOS_PRESOLVE_FAULT_OFFBYONE     rc=2   pass=0    fail=0   ignore=0   aborts=0
+    tests/test_presolve.c:1659:12: error: ‘repair_fires_at’ defined but not used [-Werror=unused-function]
+-DJAOS_PRESOLVE_FAULT_WRONGDUAL    rc=2   pass=0    fail=0   ignore=0   aborts=0
+    tests/test_presolve.c:1659:12: error: ‘repair_fires_at’ defined but not used [-Werror=unused-function]
+sanitize                           rc=0   pass=221  fail=0

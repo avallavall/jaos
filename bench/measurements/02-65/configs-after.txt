@@ -1,0 +1,5 @@
+plain                              rc=0   pass=221  fail=0   ignore=15  aborts=0
+-DJAOS_NO_PRESOLVE                 rc=0   pass=220  fail=0   ignore=14  aborts=0
+-DJAOS_PRESOLVE_FAULT_OFFBYONE     rc=0   pass=163  fail=0   ignore=73  aborts=0
+-DJAOS_PRESOLVE_FAULT_WRONGDUAL    rc=0   pass=160  fail=0   ignore=76  aborts=0
+sanitize                           rc=0   pass=221  fail=0

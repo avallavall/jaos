@@ -11,6 +11,17 @@ open, `bench/README.md` for the gate, and the commit each entry came from.
 
 ### Added
 
+- `make configs` builds all five configurations — plain, `-DJAOS_NO_PRESOLVE`,
+  both fault builds and `sanitize` — each after `make clean`, and fails if any
+  one does. `make` does not track a change in `EXTRA_CFLAGS`, so a second
+  `make test` with a different flag silently re-runs the first binary; the
+  `make clean` between runs is the whole target. Five full rebuilds, so it is
+  not part of `make test` (D154).
+- `.claude/skills/jaos-measure/scripts/comment_only.sh` says whether a `src/`
+  edit can reach the release object, which is what decides if a campaign
+  carries over. Drops `-g` and `-flto` and matches the source basename, each
+  of which otherwise reports a difference that is not one (D154).
+
 - Every debug build now checks that each published row activity matches the
   published columns, for rows whose logical is basic, to `(n-1)·eps` times the
   row's traffic. A row resting on a bound is skipped: its activity is the
@@ -24,6 +35,19 @@ open, `bench/README.md` for the gate, and the commit each entry came from.
 
 ### Fixed
 
+- Three of the five build configurations did not compile: the reference build
+  and both fault builds, since D151, on one unguarded test helper. Repaired,
+  and two further failures behind it — D153's row-activity check aborted three
+  of eight test binaries under a fault build, and `tests/test_simplex.c`
+  carried no fault guard at all. All five green now; 8 of 8 off-by-one and 2
+  of 2 wrong-dual negative tests still run and still pass. `presolve.o` keeps
+  its md5, so the gate campaign carries over (D154).
+- The singleton-column replay's comment said nothing revisits a frozen row for
+  infeasibility. The frozen-row feasibility test has done exactly that since
+  2026-08-14, the same day the comment was written and one commit later.
+  Corrected rather than deleted, and it now names the residue that does still
+  arrive: a model infeasible by less than 8 ulps of the row's bound scale,
+  which is D152's clamp, 93 against 1.3e-15 (D154).
 - The singleton-column replay clamps its published value into the column's
   own recorded box. Ten records across `bnl1` and `finnis` published up to
   1.3e-15 outside a bound the caller declared, which `jaos.h` promises does

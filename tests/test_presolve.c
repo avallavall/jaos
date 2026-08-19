@@ -1639,6 +1639,15 @@ static void test_a_short_mapped_basis_is_repaired_and_warm_survives(void)
  * k. That is not assumed: the boundary below lands at k = 4 repairing and
  * k = 5 refusing, which is the constant, and any other shortfall-per-block
  * would move it. */
+/* The three below exist for test_the_warm_repair_stops_at_its_cap alone, and
+ * that test's body compiles out under the reference build and under either
+ * fault build. Without the same guard here they are defined and never called,
+ * and -Werror=unused-function fails the build outright — which is what three
+ * of the five configurations did between D151 and 2026-08-19, silently,
+ * because make hands back the last binary when no source file changed.
+ * `make configs` builds all five now and is what catches the next one. */
+#if !defined(JAOS_PRESOLVE_FAULT_OFFBYONE) && \
+    !defined(JAOS_PRESOLVE_FAULT_WRONGDUAL) && !defined(JAOS_NO_PRESOLVE)
 static int g_warm_repairs;
 
 static void count_warm_repair(void *user, jaos_log_level level,
@@ -1734,6 +1743,7 @@ static int repair_fires_at(int k)
     free(st); free(ix); free(va); free(cs); free(rs);
     return fired;
 }
+#endif
 
 static void test_the_warm_repair_stops_at_its_cap(void)
 {

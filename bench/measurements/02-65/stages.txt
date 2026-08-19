@@ -1,0 +1,20 @@
+======== stage 0 -- HEAD, nothing repaired
+  plain                            rc=0   pass=221  fail=0   aborts=0   
+  -DJAOS_NO_PRESOLVE               rc=2   pass=0    fail=0   aborts=0   : error: ‘repair_fires_at’ defined but not used [-Werror=unused-function]
+  -DJAOS_PRESOLVE_FAULT_OFFBYONE   rc=2   pass=0    fail=0   aborts=0   : error: ‘repair_fires_at’ defined but not used [-Werror=unused-function]
+  -DJAOS_PRESOLVE_FAULT_WRONGDUAL  rc=2   pass=0    fail=0   aborts=0   : error: ‘repair_fires_at’ defined but not used [-Werror=unused-function]
+======== stage 1 -- + the unused-function guard
+  plain                            rc=0   pass=221  fail=0   aborts=0   
+  -DJAOS_NO_PRESOLVE               rc=0   pass=220  fail=0   aborts=0   
+  -DJAOS_PRESOLVE_FAULT_OFFBYONE   rc=2   pass=69   fail=0   aborts=3   
+  -DJAOS_PRESOLVE_FAULT_WRONGDUAL  rc=2   pass=177  fail=14  aborts=0   
+======== stage 2 -- + the row-activity check's fault skip
+  plain                            rc=0   pass=221  fail=0   aborts=0   
+  -DJAOS_NO_PRESOLVE               rc=0   pass=220  fail=0   aborts=0   
+  -DJAOS_PRESOLVE_FAULT_OFFBYONE   rc=2   pass=178  fail=16  aborts=0   
+  -DJAOS_PRESOLVE_FAULT_WRONGDUAL  rc=2   pass=177  fail=14  aborts=0   
+======== stage 3 -- + the positive-test guards (repaired)
+  plain                            rc=0   pass=221  fail=0   aborts=0   
+  -DJAOS_NO_PRESOLVE               rc=0   pass=220  fail=0   aborts=0   
+  -DJAOS_PRESOLVE_FAULT_OFFBYONE   rc=0   pass=163  fail=0   aborts=0   
+  -DJAOS_PRESOLVE_FAULT_WRONGDUAL  rc=0   pass=160  fail=0   aborts=0   

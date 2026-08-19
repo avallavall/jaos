@@ -134,7 +134,7 @@ LIB := $(B)/release/libjaos.a
 DEV_TESTS  := $(TESTS:tests/%.c=$(B)/dev/%)
 ASAN_TESTS := $(TESTS:tests/%.c=$(B)/asan/%)
 
-.PHONY: all test sanitize bench compare-build compare-solvers compare \
+.PHONY: all test sanitize configs bench compare-build compare-solvers compare \
 	netlib netlib-baseline \
 	netlib-kennington \
 	netlib-infeas netlib-kennington-baseline netlib-infeas-baseline \
@@ -180,6 +180,37 @@ test: $(DEV_TESTS)
 
 sanitize: $(ASAN_TESTS)
 	@fail=0; for t in $(ASAN_TESTS); do echo "== $$t"; ./$$t || fail=1; done; exit $$fail
+
+# Every build configuration the suite has, each from clean.
+#
+# `make` decides what to rebuild from file timestamps and does NOT track a
+# change in EXTRA_CFLAGS, so `make test EXTRA_CFLAGS=-DJAOS_NO_PRESOLVE` right
+# after a plain `make test` re-runs the plain binaries and exits 0 while the
+# reference build does not compile. That is not a hypothetical: it hid a broken
+# fault build once (D153's record) and then hid three broken configurations
+# from D151 until 2026-08-19, including the reference build, which
+# `jaos-testing` calls the only oracle for output no predicate reads.
+#
+# `make clean` between the runs is the whole point of this target. It costs
+# five full rebuilds, so it is not in `test` — run it before landing anything
+# that touches tests/ or a guarded block in src/.
+CONFIGS := -DJAOS_NO_PRESOLVE -DJAOS_PRESOLVE_FAULT_OFFBYONE \
+           -DJAOS_PRESOLVE_FAULT_WRONGDUAL
+
+configs:
+	@fail=0; \
+	$(MAKE) --no-print-directory clean >/dev/null; \
+	echo "== plain"; $(MAKE) --no-print-directory test >/dev/null || fail=1; \
+	for d in $(CONFIGS); do \
+	    $(MAKE) --no-print-directory clean >/dev/null; \
+	    echo "== $$d"; \
+	    $(MAKE) --no-print-directory test EXTRA_CFLAGS=$$d >/dev/null || fail=1; \
+	done; \
+	$(MAKE) --no-print-directory clean >/dev/null; \
+	echo "== sanitize"; $(MAKE) --no-print-directory sanitize >/dev/null || fail=1; \
+	if [ $$fail -eq 0 ]; then echo "all 5 configurations build and pass"; \
+	else echo "at least one configuration is broken -- re-run it alone to see why"; fi; \
+	exit $$fail
 
 # The acceptance runner links the release library exactly as any other
 # consumer would — same headers, same archive, no separate build path for

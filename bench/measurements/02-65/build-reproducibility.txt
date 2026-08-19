@@ -1,0 +1,8 @@
+Two builds of ONE unedited tree, default flags (LTO=1):
+  NOT reproducible: 12 of 12 objects differ
+Two builds of ONE unedited tree, LTO=0:
+  reproducible
+The sections carrying the seed (LTO=1 only):
+  gnu.lto_.pr[...]
+  gnu.lto_.ic[...]
+  gnu.lto_.ip[...]

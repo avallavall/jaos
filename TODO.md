@@ -11,9 +11,16 @@ line leaves this file in the same commit.
 
 **Nothing is in flight and no worktree is registered.** The tree is clean
 apart from one untracked directory that is not this session's (see
-`bench/measurements/02-31/` below). `make test`, `make test
-EXTRA_CFLAGS=-DJAOS_NO_PRESOLVE` and `make sanitize` all exit 0, and the three
-gate sets read `gate: PASS` with `0 regressed, 0 improved, 0 new`.
+`bench/measurements/02-31/` below). **`make configs` exits 0**, which is all
+five build configurations, and the three gate sets read `gate: PASS` with
+`0 regressed, 0 improved, 0 new`.
+
+**Say `make configs`, not "make test and the reference build both pass".**
+That sentence stood here while three of the five configurations did not
+compile (D154). `make` decides from timestamps and does not track a change in
+`EXTRA_CFLAGS`, so `make test EXTRA_CFLAGS=-DJAOS_NO_PRESOLVE` run after a
+plain `make test` re-runs the plain binaries and exits 0 without building
+anything. `make configs` puts `make clean` between the runs.
 
 **`main` is 25 commits ahead of `origin/main` and has NOT been pushed. The
 tag `v0.1.0` exists locally and has not been pushed either.** The maintainer
@@ -39,10 +46,19 @@ rediscover:**
   `(n-1)·eps` times the row's traffic. It is validated by fault injection
   and clean on all 139.
 
-**This session (2026-08-18/19, unattended) landed D140 through D153 —
-records 02-49 through 02-64, five source changes, one bench widening (the
+**This session (2026-08-18/19, unattended) landed D140 through D154 —
+records 02-49 through 02-65, five source changes, one bench widening (the
 gate sees the basis now, D150), three kept candidates, and the repository's
 first tag, `v0.1.0`.**
+
+**D154 is the last of them, and it is the one to read before trusting any
+"all builds pass" sentence.** It started as §5's comment edit and found that
+the reference build and both fault builds had not compiled since D151. Two
+more failures were hiding behind the compile error. `make configs` is the
+guard, and `bench/measurements/02-65/` also records the three separate ways an
+object-md5 comparison reports a difference that is not one — `-flto` being the
+default is the surprising one, because it makes two builds of ONE unedited
+tree differ on 12 of 12 objects.
 
 **D153 is the last of them, and the entry's value is what it got WRONG.**
 The row-activity check it built reported `pilotnov` as a defect; the finding
@@ -265,20 +281,20 @@ trajectory. Refusals table, D151.
   worst 8.37e-09. Costs nothing today; clamping it was refused (D127) because
   the perturbation is what keeps `pilot87` moving.
 
-### 5. A stale claim in `src/presolve.c`, found 2026-08-19 and not yet acted on
+### 5. ~~A stale claim in `src/presolve.c`~~ — CLOSED 2026-08-19 (D154)
 
-The comment above the singleton-column replay says a frozen row is never
-revisited for infeasibility, and names `min x0 s.t. x0 + x1 = 100,
-x0 in [4,4], x1 in [0,3]` as a model that "publishes x1 = 96 under -DNDEBUG".
-**That model reports INFEASIBLE at HEAD**, on both the normal and the
-`-DJAOS_NO_PRESOLVE` build. So either the defect was closed by something
-later and nobody updated the comment, or the example never showed what it
-claims. Neither the comment nor this file should keep asserting it.
+The claim was stale. `git log -S` puts it in `541f7dd` and its repair one
+commit later in `7587ecd`, both 2026-08-14: the frozen-row feasibility test at
+the end of `jm_presolve_run` is what revisits the row, and four tests pin it.
+The comment is corrected rather than deleted, because the replay site still
+cannot detect an infeasible model and naming the site that now does is worth
+more than saying nothing.
 
-**What to do**: find a shape that does reach the frozen-row path with an
-empty intersection, or delete the claim. It is cheap and it removes a false
-statement from the source. D152 handed this over and it is not the same thing
-as D152's own clamp, which landed.
+**Checking it cost three broken build configurations**, which is the whole
+value of the entry: the reference build and both fault builds had not compiled
+since D151, and `make` re-running the previous binary is why nothing said so.
+`make configs` now builds all five. Read D154 before writing "all
+configurations pass" anywhere.
 
 ### If all of the above is dropped
 

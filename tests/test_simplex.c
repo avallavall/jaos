@@ -28,9 +28,25 @@ static jaos_model *fresh(void)
     return m;
 }
 
-/* Solves, then puts the answer through the independent checker. */
+/* Solves, then puts the answer through the independent checker.
+ *
+ * Every caller is a positive test, so all of them are skipped under either
+ * fault build: those builds make presolve wrong on purpose, and `jaos_solve`
+ * runs presolve, so the checker refuses the answer and the assertion that
+ * fires is the fault doing its job rather than a defect. Guarding here rather
+ * than at fifteen call sites — TEST_IGNORE marks the calling test ignored,
+ * which is what the fifteen would each have said.
+ *
+ * `test_simplex.c` carried no fault guard at all until 2026-08-19, so both
+ * fault builds failed here while `test_presolve.c`'s thirty guards kept its
+ * own negative tests green. `make configs` is what found it. */
 static void solve_and_verify(jaos_model *m, double expect_obj)
 {
+#if defined(JAOS_PRESOLVE_FAULT_OFFBYONE) || defined(JAOS_PRESOLVE_FAULT_WRONGDUAL)
+    (void)m;
+    (void)expect_obj;
+    TEST_IGNORE_MESSAGE("positive test — skipped under either fault build");
+#else
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
     TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
 
@@ -54,6 +70,7 @@ static void solve_and_verify(jaos_model *m, double expect_obj)
 
     free(x);
     free(y);
+#endif
 }
 
 /* min x + y  s.t. x + y >= 2, 0 <= x,y <= 5. Optimum 2. */
@@ -1064,6 +1081,11 @@ static void test_bound_flipping_fills_columns_in_one_step(void)
  * evidence is that nobody has to trust a reference value to read it. */
 static void test_settling_up_reaches_the_optimum_a_shifted_basis_hid(void)
 {
+#if defined(JAOS_PRESOLVE_FAULT_OFFBYONE) || defined(JAOS_PRESOLVE_FAULT_WRONGDUAL)
+    /* The only caller in this file that asserts an exact answer without going
+     * through solve_and_verify, so it needs the guard the helper carries. */
+    TEST_IGNORE_MESSAGE("positive test — skipped under either fault build");
+#else
     const double c[] = {0.0, 2e-8, 5e-7};
     const double cl[] = {0.0, 0.0, 0.0};
     const double cu[] = {100.0, 0.001, 100.0};
@@ -1116,6 +1138,7 @@ static void test_settling_up_reaches_the_optimum_a_shifted_basis_hid(void)
     TEST_ASSERT_DOUBLE_WITHIN(1e-15, 0.0, rep.gap_negative);
 
     jaos_model_free(m);
+#endif
 }
 
 /* A clean-up pass must act on every column it decided wants a pivot, not on

@@ -2214,16 +2214,24 @@ static void ps_replay_one(jaos_model *orig, const jm_presolve *p, int64_t r,
          * the row back inside [row_lo, row_hi], and the intersection is
          * non-empty.
          *
-         * That premise is the row still being satisfiable, and it is NOT
-         * checked anywhere once the row is frozen: both the row pass and
-         * the activity pass skip a frozen row, so nothing revisits it
-         * for infeasibility after the relaxation widened it. A model
-         * where the row cannot be satisfied at all reaches here with an
-         * empty intersection — `min x0 s.t. x0 + x1 = 100, x0 in [4,4],
-         * x1 in [0,3]` is infeasible, and this publishes x1 = 96 under
-         * -DNDEBUG (how bench/run is built) or trips the assert below
-         * otherwise. That defect predates this record's own bounds and
-         * is not repaired here; TODO.md carries it.
+         * That premise is the row still being satisfiable. The row pass
+         * and the activity pass both skip a frozen row, so neither of
+         * them asks it. The frozen-row test at the end of
+         * jm_presolve_run does, once the boxes are final, and returns
+         * JM_PRESOLVE_INFEASIBLE. That test exists because of this
+         * record: `min x0 s.t. x0 + x1 = 100, x0 in [4,4], x1 in [0,3]`
+         * used to arrive here with an empty intersection and publish
+         * x1 = 96. It reports INFEASIBLE at HEAD, on the normal build
+         * and on -DJAOS_NO_PRESOLVE alike, and
+         * test_a_frozen_row_that_cannot_be_satisfied_is_infeasible pins
+         * it. So an infeasible model no longer reaches this site.
+         *
+         * What that test does NOT cover is a model infeasible by less
+         * than its own window, which is 8 ulps of the row's bound scale.
+         * Such a model still arrives here, with an intersection empty by
+         * about that much. The clamp below is what handles it, and the
+         * two cases are told apart by size: 93 there against 1.3e-15
+         * here (bench/measurements/02-61/).
          *
          * Each record replayed after this one closes its own gap the
          * same way: a fixed column adds back the a*v it subtracted from
@@ -2299,12 +2307,13 @@ static void ps_replay_one(jaos_model *orig, const jm_presolve *p, int64_t r,
          * column's own recorded box. That is `jaos.h`'s promise, it is
          * checkable here, and it holds on all three sets.
          *
-         * Detecting a genuinely infeasible model — the `x0 + x1 = 100` case
-         * above, whose gap is 93 rather than 1e-14 — is a separate defect
-         * that predates this record and is still open in `TODO.md`. It
-         * belongs where the row is frozen, not here: this site cannot tell
-         * the two apart without an error budget it has no access to, and the
-         * old assert only appeared to because it was never enabled. */
+         * Detecting a genuinely infeasible model belongs where the row is
+         * frozen, not here. This site cannot tell the two apart without an
+         * error budget it has no access to, and the old assert only appeared
+         * to because it was never enabled. The frozen-row test at the end of
+         * jm_presolve_run is that site and it ships: the `x0 + x1 = 100`
+         * case above, whose gap is 93 rather than 1e-14, returns INFEASIBLE
+         * before any of this runs. */
         assert(rec->lo <= rec->hi);
         (void)want_hi;   /* the emptiness check above it was removed; want_hi
                           * is kept because it names the other end of the
@@ -2614,6 +2623,20 @@ static void ps_replay_one(jaos_model *orig, const jm_presolve *p, int64_t r,
  * change what a solve returns, including under memory pressure. */
 static void ps_verify_row_activities(const jaos_model *orig)
 {
+#if defined(JAOS_PRESOLVE_FAULT_OFFBYONE) || defined(JAOS_PRESOLVE_FAULT_WRONGDUAL)
+    /* A fault build makes the replay wrong on purpose, so this check's premise
+     * is false there and its firing says nothing. It fired all the same, and
+     * aborted three of the eight test binaries before any negative test could
+     * report — which is the whole reason those builds exist. Skipped rather
+     * than weakened: the check is unchanged on every build that ships.
+     *
+     * Found 2026-08-19 by `make configs`. It is the same shape as the two
+     * positive tests D118 had to guard, one level down: an assertion that
+     * assumes presolve is right cannot run where presolve is wrong by
+     * construction. */
+    (void)orig;
+    return;
+#else
     if (orig->solve_status != JAOS_SOLVE_OPTIMAL)
         return;
     if (orig->num_row <= 0 || orig->sol_row == nullptr ||
@@ -2676,8 +2699,9 @@ static void ps_verify_row_activities(const jaos_model *orig)
     free(act);
     free(traffic);
     free(nnz);
+#endif   /* fault build */
 }
-#endif
+#endif   /* NDEBUG */
 
 JAOS_NODISCARD jaos_status jm_postsolve_expand(jm_presolve *p)
 {

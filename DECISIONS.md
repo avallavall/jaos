@@ -161,6 +161,7 @@ and you have the argument. Jump to the entry for the numbers behind it.
 - **[D151](#d151--the-warm-repair-lands-behind-a-shortfall-cap-of-4-chosen-at-the-end-of-a-plateau-because-the-mean-is-flat-there-and-the-worst-case-is-not)** — The warm repair lands behind a shortfall cap of 4, chosen at the end of a plateau because the mean is flat there and the worst case is not
 - **[D152](#d152--the-replay-clamps-into-the-columns-own-box-and-the-assert-that-could-not-be-enabled-is-removed-rather-than-widened)** — The replay clamps into the column's own box, and the assert that could not be enabled is removed rather than widened
 - **[D153](#d153--the-row-activity-check-becomes-an-invariant-and-four-wrong-versions-of-it-each-reported-a-defect-that-was-not-there)** — The row-activity check becomes an invariant, and four wrong versions of it each reported a defect that was not there
+- **[D154](#d154--three-of-the-five-build-configurations-did-not-build-and-make-configs-is-what-will-say-so-next-time)** — Three of the five build configurations did not build, and `make configs` is what will say so next time
 
 ---
 
@@ -11171,3 +11172,106 @@ A fifth false alarm was the harness rather than the check: a missing
 explained and are not a defect; the TODO item the first version of this
 entry opened is withdrawn, with the reason recorded there so it is not
 re-opened from the same evidence.
+
+## D154 — Three of the five build configurations did not build, and `make configs` is what will say so next time
+
+**The question.** `TODO.md` §5 asked something small: the singleton-column
+replay's comment says a frozen row is never revisited for infeasibility and
+names a model that "publishes x1 = 96", and that model reports INFEASIBLE at
+HEAD. Find a shape that still reaches the empty intersection, or delete the
+claim. The expectation was a comment edit.
+
+**The claim is stale, and the answer is the first of the two branches the item
+offered.** `git log -S` puts the claim in `541f7dd` and its repair in
+`7587ecd`, both on 2026-08-14, the repair second. The repair is the
+frozen-row feasibility test at the end of `jm_presolve_run`, which
+`test_a_frozen_row_that_cannot_be_satisfied_is_infeasible` and three
+neighbours already pin. The comment is corrected rather than deleted: the
+replay site still cannot detect an infeasible model, and naming the site that
+now does is worth more than saying nothing. The residue that DOES still reach
+the replay is named with it — a model infeasible by less than the frozen-row
+test's own window of 8 ulps of the row's bound scale, which is the case D152's
+clamp handles, 93 against 1.3e-15.
+
+**Then the check for it did not compile.** `make test
+EXTRA_CFLAGS=-DJAOS_NO_PRESOLVE` fails at HEAD, and so do both fault builds.
+`repair_fires_at` in `tests/test_presolve.c` is defined and never called under
+any configuration that ignores the warm-repair cap test, and
+`-Werror=unused-function` is fatal. Blamed to `6db3bc6` (D151).
+
+**Why nothing said so, and it is a property of `make` rather than of anyone's
+attention.** `make` decides what to rebuild from timestamps and does not track
+a change in `EXTRA_CFLAGS`. Run right after a plain `make test`, with no
+source file changed, the reference build re-runs the plain binaries and exits
+0. `TODO.md` stated all three of `make test`, the reference build and `make
+sanitize` exit 0 at HEAD; two of the three claims were true.
+
+**This is the second occurrence of the same shape.** D-10's record says
+`make_frozen_row_infeasible_model` broke `-DJAOS_PRESOLVE_FAULT_OFFBYONE` the
+same way until 2026-08-15, and names the reason nothing noticed: "the plain
+build and the reference build are the two the loop actually runs". This time
+the reference build broke as well, which is the build `jaos-testing` calls the
+only oracle for output no predicate of the three sets reads.
+
+**The measurement**, `bench/measurements/02-65/stages.txt`. The three repairs
+live in three different files, so a stage is a `git stash` of a subset:
+
+| stage | plain | reference | OFFBYONE | WRONGDUAL |
+|---|---|---|---|---|
+| 0 — HEAD | 221 pass | **no compile** | **no compile** | **no compile** |
+| 1 — + the unused-function guard | 221 pass | 220 pass | **3 aborts**, 69 ran | **14 fail** |
+| 2 — + the row-activity check's fault skip | 221 pass | 220 pass | **16 fail** | **14 fail** |
+| 3 — + the positive-test guards | 221 pass | 220 pass | 163 pass, 0 fail | 160 pass, 0 fail |
+
+None of the three is redundant, and stage 1 is why the other two were found:
+a configuration that does not compile hides every defect behind it.
+
+The second repair is D153's own check. It compares published row activities
+against published columns, a fault build makes the replay wrong on purpose, so
+it fired and aborted three of the eight test binaries — 69 of 236 tests ran.
+It is skipped under either fault build and not weakened; the predicate is
+untouched on every build that ships. The third is `tests/test_simplex.c`,
+which carried **no** fault guard at all where `tests/test_presolve.c` carries
+thirty. Fifteen of its sixteen failures went through one helper, so the guard
+is in the helper.
+
+**The green is checked, because green alone proves nothing here.** A guard
+that swallowed a negative test would leave a fault build green for the wrong
+reason. Under `-DJAOS_PRESOLVE_FAULT_OFFBYONE`, 8 of 8 off-by-one negative
+tests PASS and none is ignored; under `-DJAOS_PRESOLVE_FAULT_WRONGDUAL`, 2 of
+2 wrong-dual negative tests in `tests/test_presolve.c` PASS and neither is
+ignored. The control is the plain build, where all ten are IGNORED.
+
+**The cost is nothing the gate can see, and that is measured rather than
+argued.** `presolve.o` shares an md5 at HEAD and on the repaired tree under
+the release flags, so the campaign at `01aca61` carries over. The changed code
+is inside `#ifndef NDEBUG`, which `-DNDEBUG` removes.
+
+**What was refuted — three instruments, before one of them gave a usable
+answer.** Comparing object md5s is the obvious way to prove a change cannot
+reach the release build, and it reports a difference that is not one in three
+separate ways. `bench/measurements/02-65/build-reproducibility.txt`:
+
+- **`-flto`, which is the default.** Two builds of ONE unedited tree produce
+  **12 of 12 different object md5s**; the `.gnu.lto_*` sections carry a
+  per-compilation seed. At `LTO=0` the same two builds are byte-identical. So
+  under the shipping flags `md5sum build/release/*.o` across two trees
+  compares nothing. Nothing in the repository said so, and `02-62`'s README
+  asserts objects "have the same md5 as the parent's" with no script beside it.
+- **`-g`.** A comment LINE added or removed shifts every line after it, so
+  `.debug_line` differs while `.text` does not. `02-30`'s one-off already knew
+  this one.
+- **The source file's basename**, which GCC writes into the object as an
+  `STT_FILE` symbol. Compiling the reference copy as `ref.c` differs from
+  `presolve.c` on identical code. Found by dumping sections one at a time
+  after the disassembly came back identical and the md5 did not.
+
+`.claude/skills/jaos-measure/scripts/comment_only.sh` handles all three and is
+validated on both sides: it reports the release object unchanged for this
+edit, and names the changed line when `rtol` is forced to 0.0.
+
+**What is left open.** Nothing from this entry. `make configs` builds all five
+configurations, each after `make clean`, and is validated both ways — 0 on the
+repaired tree, 2 with `tests/test_presolve.c` reverted. It is deliberately not
+part of `make test`: it costs five full rebuilds, so it belongs before landing
+anything that touches `tests/` or a guarded block in `src/`.

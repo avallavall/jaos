@@ -30,7 +30,14 @@ cite it by section number; never plan from it.
 
 1. **Finish every source edit first.** A campaign is only valid for the tree
    that produced it; even a comment edit mid-run invalidates it.
-2. `make test && make sanitize` under WSL.
+2. `make test && make sanitize` under WSL. **If `tests/` or a block guarded by
+   a build flag changed, `make configs` instead** — it is all five
+   configurations with `make clean` between them, and it is the only thing
+   that reads the reference build and the two fault builds honestly. `make`
+   does not track a change in `EXTRA_CFLAGS`, so running them by hand after a
+   plain `make test` re-runs the plain binaries and exits 0. Three of the five
+   were broken for a whole session that way (D154), and the same shape once
+   before (D-10).
 3. **If solver internals changed: `numerics-reviewer` on the diff, before any
    campaign.** A finding after the campaign costs the campaign. Every finding
    gets a disposition: fixed, refused with the reason, or carried with a
