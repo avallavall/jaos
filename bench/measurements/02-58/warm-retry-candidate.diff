@@ -1,0 +1,239 @@
+﻿diff --git a/src/presolve.c b/src/presolve.c
+index 4400fb9..39a68eb 100644
+--- a/src/presolve.c
++++ b/src/presolve.c
+@@ -1634,10 +1634,13 @@ JAOS_NODISCARD jaos_status jm_presolve_run(const jaos_model *m, jm_presolve *p,
+ 
+     /* Mapped into reduced indices before build_warm_basis ever reads it
+      * (D-08). A removed row or column recorded basic has no reduced
+-     * counterpart to carry that status; dropping it undercounts the basic
+-     * total, and build_warm_basis already falls back to the slack basis
+-     * whenever the count is short of nrow — safe, never wrong, only colder
+-     * than a fuller mapping could be. */
++     * counterpart to carry that status, and dropping it undercounts the
++     * basic total. build_warm_basis REPAIRS a short count now (D144) —
++     * promoting logicals, uncovered rows first — because the shortfall is a
++     * difference of five families' terms and no pass here could close it
++     * (bench/measurements/02-52). Do not rebuild a per-family correction in
++     * this file; D144 refused exactly that. A LONG mapped count still falls
++     * back to cold there. */
+     if (m->start_col_status != nullptr && m->start_row_status != nullptr) {
+         p->reduced.start_col_status =
+             jm_alloc_array(rcol, sizeof *p->reduced.start_col_status);
+diff --git a/src/simplex.c b/src/simplex.c
+index c5fd3ac..51d91b5 100644
+--- a/src/simplex.c
++++ b/src/simplex.c
+@@ -907,27 +907,96 @@ static bool build_warm_basis(sx *s)
+         return false;
+ 
+     /* Everything that would make this basis unusable, asked before a single
+-     * field is written. The count is one of the two: both writers of a
+-     * starting basis enforce it, so a mismatch means one of *them* is wrong
+-     * rather than that the caller is — but the answer is still to fall back,
+-     * because the cold start is always correct and corrupting `basis` is the
+-     * alternative. */
++     * field is written — but a SHORT count is repaired rather than refused
++     * (D144). On a presolved re-solve this function judges the MAPPED basis,
++     * and jm_presolve_run's mapping drops every stored-basic member presolve
++     * removes again, so since D139 an exactly-published basis maps short on
++     * a third of the warm solves (54 of 88 netlib, 5 of 11 Kennington,
++     * worst shortfall 596 — bench/measurements/02-51 and 02-52). The
++     * shortfall is a difference of five families' terms, which is why no
++     * mapping-side pass repairs it and this consumer does.
++     *
++     * While short, promote the logical of an UNCOVERED row first — a row no
++     * wanted-basic member touches makes B structurally singular without its
++     * own e_i — then logicals in fixed row order (D8; the order is index
++     * order, never an address or a value). A LONG count is still refused:
++     * no long map has been measured, and a demotion rule for an unmeasured
++     * case would be a constant fitted to nothing. Rank stays where it
++     * already lives (repair_singular_basis), and the weights below restart
++     * at one regardless. The stored arrays are the model's and are never
++     * written; the repair happens on a copy that lives to the end of this
++     * function. */
++    /* OOM below falls back to cold and reports JAOS_OK, where the rest of
++     * the solve surfaces OOM as an error. That is a stated rule, not an
++     * accident: a warm start is an optimisation and never a claim, and the
++     * cold path is always correct. The cost of the rule is that a machine
++     * failing an 8·nvar-byte allocation can publish a different optimal
++     * vertex of a degenerate model than one that does not — both OPTIMAL,
++     * both checked — which is accepted because such a machine fails loudly
++     * a few lines later anyway. */
++    jaos_basis_status *want_arr =
++        jm_alloc_array(s->nvar > 0 ? s->nvar : 1, sizeof *want_arr);
++    if (want_arr == nullptr)
++        return false;
++    for (int64_t v = 0; v < s->nvar; v++)
++        want_arr[v] = v < s->ncol ? m->start_col_status[v]
++                                  : m->start_row_status[v - s->ncol];
++
+     int64_t nbasic = 0;
+-    for (int64_t v = 0; v < s->nvar; v++) {
+-        jaos_basis_status want =
+-            v < s->ncol ? m->start_col_status[v]
+-                        : m->start_row_status[v - s->ncol];
+-        if (want == JAOS_BASIS_BASIC)
+-            nbasic++;
++    for (int64_t v = 0; v < s->nvar; v++)
++        nbasic += want_arr[v] == JAOS_BASIS_BASIC;
++
++    if (nbasic < s->nrow) {
++        unsigned char *cov = jm_calloc_array(s->nrow > 0 ? s->nrow : 1,
++                                             sizeof *cov);
++        if (cov == nullptr) {
++            free(want_arr);
++            return false;
++        }
++        /* Billed like every other per-nonzero walk in this file: the warm
++         * campaign this repair is judged by reads work units, and an
++         * unbilled pass on exactly the solves it enables would flatter the
++         * change being judged. */
++        int64_t covnz = 0;
++        for (int64_t v = 0; v < s->nvar; v++) {
++            if (want_arr[v] != JAOS_BASIS_BASIC)
++                continue;
++            if (v < s->ncol) {
++                for (int64_t k = m->a_start[v]; k < m->a_start[v + 1]; k++)
++                    cov[m->a_index[k]] = 1;
++                covnz += m->a_start[v + 1] - m->a_start[v];
++            } else {
++                cov[v - s->ncol] = 1;
++                covnz++;
++            }
++        }
++        jm_work_add(&s->work, covnz * JM_WORK_NONZERO);
++        for (int64_t i = 0; i < s->nrow && nbasic < s->nrow; i++)
++            if (!cov[i] && want_arr[s->ncol + i] != JAOS_BASIS_BASIC) {
++                want_arr[s->ncol + i] = JAOS_BASIS_BASIC;
++                nbasic++;
++            }
++        for (int64_t i = 0; i < s->nrow && nbasic < s->nrow; i++)
++            if (want_arr[s->ncol + i] != JAOS_BASIS_BASIC) {
++                want_arr[s->ncol + i] = JAOS_BASIS_BASIC;
++                nbasic++;
++            }
++        free(cov);
++        /* Said out loud so a later restart of this same solve names the
++         * basis it threw away as a repaired one — the first question a
++         * diagnosis of such a restart asks, found in review. */
++        jm_log(s->m, JAOS_LOG_DETAIL,
++               "the mapped starting basis arrived short and was repaired "
++               "by promoting logicals");
+     }
+-    if (nbasic != s->nrow)
++    if (nbasic != s->nrow) {
++        free(want_arr);
+         return false;
++    }
+ 
+     int64_t p = 0;
+     for (int64_t v = 0; v < s->nvar; v++) {
+-        jaos_basis_status want =
+-            v < s->ncol ? m->start_col_status[v]
+-                        : m->start_row_status[v - s->ncol];
++        jaos_basis_status want = want_arr[v];
+         if (want == JAOS_BASIS_BASIC) {
+             s->basis[p] = v;
+             s->status[v] = JM_BASIC;
+@@ -949,6 +1018,7 @@ static bool build_warm_basis(sx *s)
+         else
+             s->status[v] = JM_FREE;
+     }
++    free(want_arr);
+ 
+     /* Same reason as in build_initial_basis: the loop above is the whole
+      * membership state, so the bitmap is built from it rather than patched.
+diff --git a/tests/test_presolve.c b/tests/test_presolve.c
+index a823d4e..ee58df7 100644
+--- a/tests/test_presolve.c
++++ b/tests/test_presolve.c
+@@ -1550,6 +1550,80 @@ static void test_an_implied_bound_outside_the_box_is_refused(void)
+ #endif
+ }
+ 
++/* The warm start a correct basis used to lose to the mapping (D143, D144,
++ * retried and landed after D148's certificate guard).
++ *
++ * x0 is a cost-0 bounded singleton on row 0, so presolve removes it and the
++ * first solve publishes it BASIC at an interior recovery with row 0's
++ * logical swapped out to a bound — an EXACT count of 2. On the re-solve the
++ * same reduction removes x0 again, the mapping drops its BASIC status, and
++ * the reduced start reaches build_warm_basis one member SHORT. Before the
++ * repair that was a silent cold fallback; now a logical is promoted — on
++ * this model by the FIXED-ORDER loop, not the uncovered-rows one: the
++ * surviving basic column touches both reduced rows, so nothing is
++ * uncovered, and row 0's logical is the first nonbasic one in index order.
++ * It is also the exact member the first solve's swap took out. The
++ * uncovered-rows branch has no small test yet; TODO.md's standing debts
++ * carry it. */
++static void test_a_short_mapped_basis_is_repaired_and_warm_survives(void)
++{
++#if defined(JAOS_PRESOLVE_FAULT_OFFBYONE) || defined(JAOS_PRESOLVE_FAULT_WRONGDUAL)
++    TEST_IGNORE_MESSAGE("positive test — skipped under either fault build");
++#elif defined(JAOS_NO_PRESOLVE)
++    TEST_IGNORE_MESSAGE("the mapping under test does not exist without presolve");
++#else
++    /* col0 (x0): row0 only, cost 0.  col1, col2: rows 0 and 1, cost 1. */
++    const double c[]  = {0.0, 1.0, 1.0};
++    const double cl[] = {0.0, 0.0, 0.0}, cu[] = {10.0, 10.0, 10.0};
++    const double rl[] = {5.0, 3.0}, ru[] = {8.0, INFINITY};
++    const int64_t s[]  = {0, 1, 3, 5};
++    const int64_t ix[] = {0,   0, 1,   0, 1};
++    const double v[]   = {1.0, 1.0, 1.0, 1.0, 1.0};
++    jaos_model *m = nullptr;
++    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_model_new(&m));
++    TEST_ASSERT_EQUAL_INT(JAOS_OK,
++        jaos_load_lp(m, 3, 2, JAOS_MINIMIZE, 0.0, c, cl, cu, rl, ru,
++                     5, s, ix, v));
++
++    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
++    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
++    const double obj1 = 3.0;   /* min x1+x2 with x1+x2 >= 3 */
++    double obj = 0.0;
++    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(m, &obj));
++    TEST_ASSERT_EQUAL_MEMORY(&obj1, &obj, sizeof obj);
++
++    /* The scenario's premise, asserted rather than assumed: the publish is
++     * exact (2 basics for 2 rows) and x0 is the interior BASIC member the
++     * mapping will drop. */
++    jaos_basis_status cs[3], rs[2];
++    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_basis(m, cs, rs));
++    TEST_ASSERT_EQUAL_INT(JAOS_BASIS_BASIC, cs[0]);
++    int64_t nb = 0;
++    for (int64_t k = 0; k < 3; k++) nb += cs[k] == JAOS_BASIS_BASIC;
++    for (int64_t k = 0; k < 2; k++) nb += rs[k] == JAOS_BASIS_BASIC;
++    TEST_ASSERT_EQUAL_INT64(2, nb);
++
++    /* One bound moves; the answer goes, the stored basis stays. */
++    TEST_ASSERT_EQUAL_INT(JAOS_OK,
++        jaos_set_row_bounds(m, 1, 4.0, INFINITY));
++    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
++    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
++    const double obj2 = 4.0;
++    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(m, &obj));
++    TEST_ASSERT_EQUAL_MEMORY(&obj2, &obj, sizeof obj);
++
++    /* The pin that says the warm start survived. The repaired mapped basis
++     * is the re-solve's own optimal basis, so the warm solve prices and
++     * stops — and D148's certificate reads exactly zero on it, so no cold
++     * restart intervenes. On the tree without the repair this reads the
++     * cold count instead (validated by running exactly that tree), and a
++     * future change that costs this warm start again will move it. */
++    TEST_ASSERT_EQUAL_INT64(0, jaos_iterations(m));
++
++    jaos_model_free(m);
++#endif
++}
++
+ /* A basis that maps LONG onto the reduced model falls back to cold, and this
+  * pins it. The construction: a caller basis with an exact orig-space count
+  * (so jaos_set_basis accepts it) on a model where presolve removes a row
+@@ -3315,6 +3389,7 @@ int main(void)
+     RUN_TEST(test_singleton_col_after_fixed_col);
+     RUN_TEST(test_singleton_col_between_two_removals_solved_path);
+     RUN_TEST(test_the_basis_count_promise_breaks_on_a_declined_column);
++    RUN_TEST(test_a_short_mapped_basis_is_repaired_and_warm_survives);
+     RUN_TEST(test_a_long_mapped_basis_falls_back_cold);
+     RUN_TEST(test_two_singleton_cols_on_one_row);
+     RUN_TEST(test_free_col_singleton_round_trip);

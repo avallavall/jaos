@@ -172,14 +172,18 @@ In order:
    finding was load-bearing: the driver settles once more before reading,
    or a repair-singular restore would hand the guard `d[v] = 0.0` on
    exactly the breached columns.
-4. **Now the warm retry, and it is live again**: D145's kept candidate
-   (`bench/measurements/02-53/warm-count-repair-candidate.diff`), reopened
-   by D148 meeting its condition. Judge: the warm campaigns — Kennington's
-   clean win (0.0572 → 0.0070) is waiting, and netlib's eight wrong optima
-   were the guard's job and are now its test: the candidate re-applied
-   must show `disagreed=0, rejected=0` in `make warm J=12` where 02-53
-   read 8 and 2, with the recovered warm starts kept and the 13
-   warm-worse-than-cold instances re-read against the geomean.
+4. ~~The warm retry.~~ **Run and refused on cost (D149,
+   `bench/measurements/02-58/`)**: the correctness bar was met —
+   `disagreed=0, rejected=0` where 02-53 read 8 and 2 — and `dfl001` went
+   from a cold fallback at 1.0 to **172x work**, its 596-short repaired
+   basis buying a ~2e6-iteration doomed trajectory the guard then threw
+   away, with the netlib work geomean at 0.2605 against the repair-less
+   0.2553. The value concentrates in small shortfalls (Kennington's five
+   at 1 each stay a clean 0.0070) and the cost in large ones; a
+   shortfall-capped repair needs its constant swept on both sides, and
+   the material is measured: 02-52's per-instance shortfalls against
+   02-58's outcomes. The refusals table carries it; the candidate is kept
+   at `bench/measurements/02-58/warm-retry-candidate.diff`.
 
 ## `jaos_basis` publishes something that is not a basis
 
@@ -1020,7 +1024,8 @@ then, do not — a refusal whose premise has not changed just fails again.
 
 | decision | what was refused or deferred | reopens when |
 |---|---|---|
-| D145 | the warm count repair in `build_warm_basis` — refused because 8 netlib solves published a wrong objective through the termination hole | **condition MET by D148** (the certificate guard landed): the retry is live and is the START HERE's step 4. This row stays as the record of the refusal and its expiry |
+| D149 | the blanket warm count repair, retried behind the certificate guard — correct now (`disagreed=0, rejected=0`) and refused on cost: `dfl001` at 172x work for a doomed 596-short repair, netlib geomean 0.2605 vs 0.2553 | a shortfall cap swept on both sides from the measured material (02-52's per-instance shortfalls joined to 02-58's outcomes), judged by the same warm campaigns. The candidate is at `bench/measurements/02-58/warm-retry-candidate.diff` |
+| D145 | the warm count repair in `build_warm_basis` — refused because 8 netlib solves published a wrong objective through the termination hole | **condition MET by D148** (the certificate guard landed), retried as D149 and refused again on cost. This row stays as the record of the refusal and its expiry |
 | D142 | a count guard in `jm_model_remember_basis` — the premise "build_warm_basis already rejects it" is false: it counts the MAPPED basis, and clearing the stored publish costs `capri` and `fffff800` their warm starts (1→273 and 7→945 iterations) for nothing any consumer reads | a consumer of `start_*` appears that reads the orig-space count as a claim, or warm starting stops going through presolve's mapping. The candidate and its validated test are at `bench/measurements/02-51/remember-guard-candidate.diff` |
 | D141 | a within-row demotion for the published-basis residue — 152 of the 232 declines have no basic column of the row at a bound, and the snap for the 80 breaks the row-bound exactness 02-49 measured (74 of 80 exact) | a demotion design whose candidate set is wider than the firing row AND that carries a rank argument for the demoted member; the fallback in the published shape (Galabova 2023) is accepting the residue |
 | D101 | duplicate rows, duplicate columns, dominated columns — 0.15% left to remove on these 139 models | a model population where `bench/measurements/02-07/`'s counter reports a non-trivial share. The condition is executable, not a matter of opinion. Three pieces of the work have no published source and would have to be derived with their own tests |

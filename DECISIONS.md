@@ -156,6 +156,7 @@ and you have the argument. Jump to the entry for the numbers behind it.
 - **[D146](#d146--a-hostile-basis-makes-head-publish-a-wrong-optimum-through-the-public-api-alone)** — A hostile basis makes HEAD publish a wrong optimum through the public API alone
 - **[D147](#d147--the-solver-measures-the-violation-it-publishes-the-best-point-ends-with-bstdv--3534-and-nothing-reads-it-against-a-tolerance)** — The solver measures the violation it publishes: the best point ends with bstdv = 35.34 and nothing reads it against a tolerance
 - **[D148](#d148--the-certificate-guard-lands-0-wrong-of-80-where-head-published-26-and-the-gate-is-bit-identical)** — The certificate guard lands: 0 wrong of 80 where HEAD published 26, and the gate is bit-identical
+- **[D149](#d149--the-retried-warm-repair-is-correct-now-and-refused-on-cost-dfl001-pays-172x-for-a-doomed-attempt-the-guard-then-throws-away)** — The retried warm repair is correct now and refused on cost: dfl001 pays 172x for a doomed attempt the guard then throws away
 
 ---
 
@@ -10859,3 +10860,36 @@ is met: the warm count-repair candidate at
 `bench/measurements/02-53/warm-count-repair-candidate.diff` is live again,
 judged by the warm campaigns, with its Kennington win (0.0572 → 0.0070)
 waiting.
+
+## D149 — The retried warm repair is correct now and refused on cost: dfl001 pays 172x for a doomed attempt the guard then throws away
+
+**The question, as asked.** D145's retry behind D148: the 02-53 count
+repair re-applied on the guarded HEAD, judged by the warm campaigns with
+the bar written in TODO before the run — `disagreed=0, rejected=0` where
+02-53 read 8 and 2, the recovered warm starts kept, the geomean re-read.
+
+**The measurement** (`bench/measurements/02-58/`; composition review
+clean, suite green in three variants, gate bit-identical on 94 + 29 + 16).
+**The correctness bar is met**: `disagreed=0, rejected=0` on both warm
+campaigns — the certificate guard catches every doomed trajectory and the
+cold restart answers correctly. **The cost refuses it**: netlib work
+geomean 0.2605 against the repair-less 0.2553 (iterations improve, 0.1381
+→ 0.0752), and `dfl001` goes from a cold fallback at ratio 1.0 to
+**172.03x** — its repaired basis (shortfall 596) launches a ~2e6-iteration
+trajectory to an uncertifiable vertex, the guard fires, and the honest
+work accumulator hands the caller the whole bill for one changed bound.
+`bnl2` shows the second cost shape, certified but 7.8x through a worse
+vertex path. Kennington stays a clean win, 0.0070, nothing worse.
+
+**What was refuted.** The blanket repair: its value concentrates in small
+shortfalls (Kennington's five at 1 each; `adlittle` 80→2, `blend` 97→12,
+`boeing1` 391→24) and its cost in large ones, and no rule that repairs
+both lands without a threshold. A threshold on the shortfall is a new
+constant, and D8 gives a constant exactly one way in: a sweep on both
+sides, for which the material is already measured — 02-52's per-instance
+shortfalls joined against 02-58's per-instance outcomes.
+
+**Left open, in `TODO.md`.** The sweep, if the warm prize is pursued:
+shortfall-capped repair, judged by the same campaigns. The candidate is
+kept whole at `bench/measurements/02-58/warm-retry-candidate.diff`. The
+refusals table carries the condition.
