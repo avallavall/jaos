@@ -5,20 +5,30 @@ says why closed questions closed, `CHANGELOG.md` says what landed, `bench/`
 says what it costs. This file says what is next. When something lands, its
 line leaves this file in the same commit.
 
-## Where the last session stopped — 2026-08-18
+## Where the last session stopped — 2026-08-19
 
 ### The state of the tree, first, because everything below assumes it
 
-**Nothing is in flight. The tree is clean, no worktree is registered, `main`
-is pushed, and the three gate baselines are current.** The last source changes
-are D138's and D139's, both in `src/presolve.c`, both status-only: the gate is
-**bit-identical on all three sets**, which is the proof no value moved.
-`make test`, `make test EXTRA_CFLAGS=-DJAOS_NO_PRESOLVE` and `make sanitize`
-all exit 0.
+**Nothing is in flight and no worktree is registered.** The tree is clean
+apart from one untracked directory that is not this session's (see
+`bench/measurements/02-31/` below). `make test`, `make test
+EXTRA_CFLAGS=-DJAOS_NO_PRESOLVE` and `make sanitize` all exit 0, and the three
+gate sets read `gate: PASS` with `0 regressed, 0 improved, 0 new`.
 
-**This session (2026-08-18/19, unattended) landed D140 through D151 on top
-of that state — records 02-49 through 02-60, three source changes, one bench
-widening (the gate sees the basis now, D150), three kept candidates.**
+**`main` is 16 commits ahead of `origin/main` and has NOT been pushed.** A
+push needs asking for.
+
+The last source change is D151's, in `src/simplex.c`. It is the only landed
+change in this arc that moves a number a caller can see, and it moves it on
+the warm path only: the three gate sets are bit-identical on all 139
+instances, 0 digest changes. The `bench/results/warm*.txt` records were
+rewritten deliberately on the landed tree and are current; `netlib-infeas`,
+`plato-fome` and `plato-pds` are behind by 9 to 11 `src/` commits and
+`preflight.sh` says so on every run.
+
+**This session (2026-08-18/19, unattended) landed D140 through D151 —
+records 02-49 through 02-60, three source changes, one bench widening (the
+gate sees the basis now, D150), three kept candidates.**
 
 **D151 is the last of them and it closed D149's condition**: the warm count
 repair landed behind a shortfall cap of 4, netlib warm work 0.2553 → 0.1916
