@@ -160,6 +160,7 @@ and you have the argument. Jump to the entry for the numbers behind it.
 - **[D150](#d150--the-gate-sees-the-basis-every-optimal-line-carries-its-hash-det-covers-it-and-all-139-instances-hold)** — The gate sees the basis: every optimal line carries its hash, det covers it, and all 139 instances hold
 - **[D151](#d151--the-warm-repair-lands-behind-a-shortfall-cap-of-4-chosen-at-the-end-of-a-plateau-because-the-mean-is-flat-there-and-the-worst-case-is-not)** — The warm repair lands behind a shortfall cap of 4, chosen at the end of a plateau because the mean is flat there and the worst case is not
 - **[D152](#d152--the-replay-clamps-into-the-columns-own-box-and-the-assert-that-could-not-be-enabled-is-removed-rather-than-widened)** — The replay clamps into the column's own box, and the assert that could not be enabled is removed rather than widened
+- **[D153](#d153--the-row-activity-check-finds-a-real-one-pilotnovs-published-point-does-not-satisfy-its-own-equality-row)** — The row-activity check finds a real one: pilotnov's published point does not satisfy its own equality row
 
 ---
 

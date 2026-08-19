@@ -9,6 +9,19 @@ open, `bench/README.md` for the gate, and the commit each entry came from.
 
 ## [Unreleased]
 
+### Added
+
+- `-DJAOS_VERIFY_ACTIVITY` builds a postsolve check that recomputes every
+  published row activity from the published columns and asserts they agree to
+  `(n-1)·eps` times the row's traffic. Opt-in rather than part of an assert
+  build, because `pilotnov` violates it and all 94 standard instances
+  otherwise run under `-UNDEBUG` since D152. Inert by default, measured: the
+  objects without the flag have the same md5 as the parent's. Validated
+  against two injected faults, 45 of 94 and 86 of 94, both silent with
+  asserts off. 138 of the 139 instances pass; `pilotnov` row 931 is an
+  equality at zero whose published activity reads 0.0 while its three columns
+  make -1.93e-07, which `TODO.md` now carries as open (D153).
+
 ### Fixed
 
 - The singleton-column replay clamps its published value into the column's

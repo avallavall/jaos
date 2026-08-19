@@ -2566,6 +2566,104 @@ static void ps_replay_one(jaos_model *orig, const jm_presolve *p, int64_t r,
     }
 }
 
+/* ------------------------------------------------------------------------ */
+/* An OPT-IN check, not an invariant yet, and the difference is measured.
+ *
+ * Build with -DJAOS_VERIFY_ACTIVITY to turn it on. It is deliberately NOT on
+ * in a plain assert-enabled build, because `pilotnov` violates it and D152
+ * had just bought the property that every one of the 94 standard instances
+ * runs under `-UNDEBUG`. Trading that away for a check that reports one
+ * already-open defect is a net loss until the defect is repaired; the day it
+ * is, this moves under `#ifndef NDEBUG` and becomes an invariant.
+ *
+ * What it found, on the tree that introduced it (bench/measurements/02-62/):
+ * 3 of the 139 instances disagree. `osa-30` and `osa-60` are the window's
+ * shape and not the solver — their rows carry 72554 and 173365 nonzeros, and
+ * a naive sum of n terms is only bounded by (n-1)*eps*SUM|t|, so taking the
+ * n out leaves 0 rows disagreeing. `pilotnov` survives that correction: 18
+ * rows still disagree, worst 131x on a row of FIVE nonzeros, and its row 931
+ * is an equality at zero with three nonzeros whose published activity reads
+ * 0.0 while the published columns make -1.93e-07. Three terms cannot
+ * accumulate that. TODO.md carries it.
+ */
+#ifdef JAOS_VERIFY_ACTIVITY
+/* Every published row activity, recomputed from the published columns and
+ * compared against what the replay left behind. It costs one pass over the
+ * matrix and the release build does not contain it.
+ *
+ * The predicate is the checker's own, moved from the instances that reach the
+ * checker to all of them. What it exists to catch is a class this file has:
+ * two producers assign `sol_row[i]` outright where every other producer
+ * accumulates — `JM_PS_EMPTY_ROW` writes 0.0 and `JM_PS_SINGLETON_ROW` writes
+ * `rec->coef * xv`. Both are correct today by an argument about arena order
+ * that nothing checks: an empty row had every column dead before it fired, a
+ * singleton row had exactly one live column, so neither can be overwriting a
+ * share that already arrived. **The class has cost one campaign (D106)**, and
+ * an argument nothing checks is what this restates as a check.
+ *
+ * The tolerance is the sum's own, and it carries the term count. A computed
+ * activity is known to about (n-1)*eps times the sum of the magnitudes that
+ * produced it — never to eps times its own value, and never to a FIXED
+ * multiple of eps either. Both halves were got wrong first and measured:
+ * dropping the traffic makes the window meaningless on a row that cancels to
+ * zero out of terms of size 1e6, and dropping the n makes it fire on
+ * `osa-30` and `osa-60`, whose rows carry 72554 and 173365 terms.
+ * `ps_round_tol` supplies the already-swept constant; `nnz` and the traffic
+ * are accumulated here beside the sum rather than guessed at.
+ *
+ * **Only on an OPTIMAL solve, and that is not a convenience.** Both call
+ * sites run the replay whatever the verdict, because the mapping back into
+ * the caller's index space is owed even when the answer is a stopping point
+ * — `jm_dual_simplex`'s non-optimal branch says so. On that path `sol_col`
+ * and `sol_row` describe wherever the method stopped, not a solution, and
+ * they are not required to agree. Asking them to does not find a defect: it
+ * finds the convention. Measured before this guard existed — the check fired
+ * on all 29 netlib-infeas instances and on `pilotnov`, which is exactly the
+ * set of non-optimal outcomes (bench/measurements/02-62/).
+ *
+ * A failed allocation skips the check. A debug-only diagnostic must not
+ * change what a solve returns, including under memory pressure. */
+static void ps_verify_row_activities(const jaos_model *orig)
+{
+    if (orig->solve_status != JAOS_SOLVE_OPTIMAL)
+        return;
+    if (orig->num_row <= 0 || orig->sol_row == nullptr ||
+        orig->sol_col == nullptr)
+        return;
+
+    double *act = calloc((size_t)orig->num_row, sizeof *act);
+    double *traffic = calloc((size_t)orig->num_row, sizeof *traffic);
+    int64_t *nnz = calloc((size_t)orig->num_row, sizeof *nnz);
+    if (act == nullptr || traffic == nullptr || nnz == nullptr) {
+        free(act);
+        free(traffic);
+        free(nnz);
+        return;
+    }
+
+    for (int64_t j = 0; j < orig->num_col; j++) {
+        const double xv = orig->sol_col[j];
+        for (int64_t k = orig->a_start[j]; k < orig->a_start[j + 1]; k++) {
+            const int64_t i = orig->a_index[k];
+            const double t = orig->a_value[k] * xv;
+            act[i] += t;
+            traffic[i] += fabs(t);
+            nnz[i]++;
+        }
+    }
+
+    for (int64_t i = 0; i < orig->num_row; i++) {
+        const double w = ps_round_tol(traffic[i]);
+        const double window = nnz[i] > 1 ? w * (double)(nnz[i] - 1) : w;
+        assert(fabs(orig->sol_row[i] - act[i]) <= window);
+    }
+
+    free(act);
+    free(traffic);
+    free(nnz);
+}
+#endif
+
 JAOS_NODISCARD jaos_status jm_postsolve_expand(jm_presolve *p)
 {
     jaos_model *orig = p->orig;
@@ -2778,6 +2876,13 @@ JAOS_NODISCARD jaos_status jm_postsolve_expand(jm_presolve *p)
         }
     }
 
+#ifdef JAOS_VERIFY_ACTIVITY
+    /* On BOTH postsolve paths, for the reason the second pass above is on
+     * both: a solve that presolve finished outright publishes through the
+     * same producers and can be wrong the same way. */
+    ps_verify_row_activities(orig);
+#endif
+
     (void)jm_model_remember_basis(orig);
     return JAOS_OK;
 }
@@ -2883,6 +2988,13 @@ JAOS_NODISCARD jaos_status jm_postsolve_solved(jm_presolve *p)
             ps_singleton_col_swap(orig, rec);
         }
     }
+
+#ifdef JAOS_VERIFY_ACTIVITY
+    /* On BOTH postsolve paths, for the reason the second pass above is on
+     * both: a solve that presolve finished outright publishes through the
+     * same producers and can be wrong the same way. */
+    ps_verify_row_activities(orig);
+#endif
 
     (void)jm_model_remember_basis(orig);
     return JAOS_OK;
