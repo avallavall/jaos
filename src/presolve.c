@@ -2567,26 +2567,15 @@ static void ps_replay_one(jaos_model *orig, const jm_presolve *p, int64_t r,
 }
 
 /* ------------------------------------------------------------------------ */
-/* An OPT-IN check, not an invariant yet, and the difference is measured.
+/* An invariant of every debug build, and getting it there took four wrong
+ * versions — each one reported a defect that was not there
+ * (bench/measurements/02-62/). They are listed at the predicate below,
+ * because each is the obvious thing to write and would be written again.
  *
- * Build with -DJAOS_VERIFY_ACTIVITY to turn it on. It is deliberately NOT on
- * in a plain assert-enabled build, because `pilotnov` violates it and D152
- * had just bought the property that every one of the 94 standard instances
- * runs under `-UNDEBUG`. Trading that away for a check that reports one
- * already-open defect is a net loss until the defect is repaired; the day it
- * is, this moves under `#ifndef NDEBUG` and becomes an invariant.
- *
- * What it found, on the tree that introduced it (bench/measurements/02-62/):
- * 3 of the 139 instances disagree. `osa-30` and `osa-60` are the window's
- * shape and not the solver — their rows carry 72554 and 173365 nonzeros, and
- * a naive sum of n terms is only bounded by (n-1)*eps*SUM|t|, so taking the
- * n out leaves 0 rows disagreeing. `pilotnov` survives that correction: 18
- * rows still disagree, worst 131x on a row of FIVE nonzeros, and its row 931
- * is an equality at zero with three nonzeros whose published activity reads
- * 0.0 while the published columns make -1.93e-07. Three terms cannot
- * accumulate that. TODO.md carries it.
- */
-#ifdef JAOS_VERIFY_ACTIVITY
+ * D152 is what made this runnable at all: before it, eleven of the 94
+ * standard instances aborted an assert-enabled build before reaching any new
+ * assert. */
+#ifndef NDEBUG
 /* Every published row activity, recomputed from the published columns and
  * compared against what the replay left behind. It costs one pass over the
  * matrix and the release build does not contain it.
@@ -2652,7 +2641,33 @@ static void ps_verify_row_activities(const jaos_model *orig)
         }
     }
 
+    /* **Only rows whose logical is BASIC**, and that restriction is the whole
+     * lesson of 02-62.
+     *
+     * When the logical rests on a bound the basis is asserting the constraint
+     * is tight, and the activity published for it is the tight value — not
+     * the sum of the columns, which carries the basis solve's PRIMAL
+     * RESIDUAL. That residual is bounded by the basis conditioning, and
+     * nothing available at this site bounds it: on `pilotnov` it reaches
+     * 1.93e-07 against a traffic of 4.15e6, 4.6e-14 relative, on a row of
+     * three nonzeros where the sum's own bound is 2*eps. Every one of its 18
+     * disagreeing rows is of that kind, and the only disagreeing rows on
+     * `osa-30` and `osa-60` are basic and fall inside the window once the
+     * term count is in it. So the split is not a convenience; it is where the
+     * predicate is true.
+     *
+     * A basic logical has no bound it is resting on, so its row's activity
+     * does come from the columns, and a naive sum of n terms is bounded by
+     * `(n-1)*eps*SUM|t|`. `ps_round_tol` supplies the already-swept constant.
+     *
+     * **Two weaker versions were measured and are wrong**, so nobody should
+     * restore them: comparing every row fires on `pilotnov`'s 18, and
+     * asserting a nonbasic row's activity equals its ORIGINAL bound exactly
+     * fires on 44 of the 94 — the replay adds restored columns on top of a
+     * reduced activity, so the original bound is not what is left there. */
     for (int64_t i = 0; i < orig->num_row; i++) {
+        if (orig->sol_row_status[i] != JAOS_BASIS_BASIC)
+            continue;
         const double w = ps_round_tol(traffic[i]);
         const double window = nnz[i] > 1 ? w * (double)(nnz[i] - 1) : w;
         assert(fabs(orig->sol_row[i] - act[i]) <= window);
@@ -2876,7 +2891,7 @@ JAOS_NODISCARD jaos_status jm_postsolve_expand(jm_presolve *p)
         }
     }
 
-#ifdef JAOS_VERIFY_ACTIVITY
+#ifndef NDEBUG
     /* On BOTH postsolve paths, for the reason the second pass above is on
      * both: a solve that presolve finished outright publishes through the
      * same producers and can be wrong the same way. */
@@ -2989,7 +3004,7 @@ JAOS_NODISCARD jaos_status jm_postsolve_solved(jm_presolve *p)
         }
     }
 
-#ifdef JAOS_VERIFY_ACTIVITY
+#ifndef NDEBUG
     /* On BOTH postsolve paths, for the reason the second pass above is on
      * both: a solve that presolve finished outright publishes through the
      * same producers and can be wrong the same way. */

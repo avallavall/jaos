@@ -160,7 +160,7 @@ and you have the argument. Jump to the entry for the numbers behind it.
 - **[D150](#d150--the-gate-sees-the-basis-every-optimal-line-carries-its-hash-det-covers-it-and-all-139-instances-hold)** — The gate sees the basis: every optimal line carries its hash, det covers it, and all 139 instances hold
 - **[D151](#d151--the-warm-repair-lands-behind-a-shortfall-cap-of-4-chosen-at-the-end-of-a-plateau-because-the-mean-is-flat-there-and-the-worst-case-is-not)** — The warm repair lands behind a shortfall cap of 4, chosen at the end of a plateau because the mean is flat there and the worst case is not
 - **[D152](#d152--the-replay-clamps-into-the-columns-own-box-and-the-assert-that-could-not-be-enabled-is-removed-rather-than-widened)** — The replay clamps into the column's own box, and the assert that could not be enabled is removed rather than widened
-- **[D153](#d153--the-row-activity-check-finds-a-real-one-pilotnovs-published-point-does-not-satisfy-its-own-equality-row)** — The row-activity check finds a real one: pilotnov's published point does not satisfy its own equality row
+- **[D153](#d153--the-row-activity-check-becomes-an-invariant-and-four-wrong-versions-of-it-each-reported-a-defect-that-was-not-there)** — The row-activity check becomes an invariant, and four wrong versions of it each reported a defect that was not there
 
 ---
 
@@ -11114,3 +11114,60 @@ unchanged and stays where it was. This site cannot tell the two apart
 without an error budget it has no access to; the old assert only appeared
 to because it was never enabled. The debt's entry is rewritten with the
 corrected count.
+
+## D153 — The row-activity check becomes an invariant, and four wrong versions of it each reported a defect that was not there
+
+**The question, as asked.** `numerics-reviewer`'s own standing proposal:
+two replay producers assign `sol_row[i]` outright where every other
+producer accumulates, both correct today by an argument about arena order
+that nothing checks, and the class has already cost one campaign (D106).
+Recompute every row's activity from `sol_col` at the end of postsolve and
+assert it matches. **D152 is what made it runnable** — before it, eleven
+of the 94 aborted an assert build before reaching any new assert.
+
+**The answer.** The two assignments are fine. With the predicate stated
+correctly all 139 instances pass, and the check is now an invariant of
+every debug build. The debt is closed.
+
+**The measurement** (`bench/measurements/02-62/`, `02-63/`). The
+instrument was validated against two injected faults before it was
+believed: an empty row overwriting a share that already arrived fires on
+45 of 94, every basic row's activity moved by 1.0 fires on 81 of 94, and
+both are silent with asserts off. Clean tree: **0 of 139** — netlib
+0/94, netlib-infeas 0/29, Kennington 0/16. D152's property survives, all
+94 still running under `-UNDEBUG`. The release objects keep the parent's
+md5, so the gate campaign carries over untouched.
+
+**What was refuted, and this is the entry's value: four versions of the
+check, each of which reported a defect that was not there.**
+
+- **No OPTIMAL gate** — fires on all 29 netlib-infeas instances. Both
+  call sites run the replay whatever the verdict, because the index
+  mapping is owed even for a stopping point, and there `sol_col` and
+  `sol_row` are not required to agree.
+- **A fixed multiple of eps times the traffic** — fires on `osa-30` and
+  `osa-60`, whose rows carry **72554 and 173365 nonzeros**. A naive sum
+  of n terms is bounded by `(n-1)·eps·Σ|t|`, not by a constant times eps.
+- **Comparing every row** — fires on `pilotnov`, 18 rows, worst 131x.
+  **This one was written up as a genuine defect and committed before the
+  correction.** The split by basis status is total: all 18 of
+  `pilotnov`'s have a nonbasic logical and none is basic, while the only
+  disagreeing rows on `osa-30` and `osa-60` are basic. A nonbasic logical
+  means the basis asserts the constraint is tight, so the published
+  activity is the tight value and the column sum is a different quantity
+  carrying the **basis solve's primal residual** — bounded by
+  conditioning, which nothing at that site bounds. The row trace
+  (`02-63/`) confirms it from the other side: only one producer touches
+  `pilotnov` row 931, the copy from the reduced solve, so the two
+  suspected assignments are exonerated on the very row that looked worst.
+- **Asserting a nonbasic row's activity equals its ORIGINAL bound** —
+  fires on 44 of the 94. The replay adds restored columns on top of a
+  reduced activity, so the original bound is not what is left there.
+
+A fifth false alarm was the harness rather than the check: a missing
+`-e infeasible` made every infeasible instance look like a failure.
+
+**What is left open.** Nothing from this entry. `pilotnov`'s numbers are
+explained and are not a defect; the TODO item the first version of this
+entry opened is withdrawn, with the reason recorded there so it is not
+re-opened from the same evidence.

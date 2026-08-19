@@ -1,15 +1,21 @@
 #!/bin/bash
-# What exactly does the row-activity check find on pilotnov?
+# Why the row-activity check must skip rows whose logical rests on a bound.
 #
-# It is the only instance of the 139 the check fires on once the OPTIMAL gate
-# and the -e flag are right. Before calling it a defect or a tolerance, print
-# the numbers: which rows disagree, by how much, against how much traffic,
-# and how far past the window they are.
+# This is the probe that settled it. It drops the assert for a print, so
+# every disagreeing row is seen rather than only the first, and it splits
+# them BY BASIS STATUS. The split is total and it is the answer:
 #
-# pilotnov has form here (D118, D119): its reduced model reached Koch's
-# optimum to the last bit at REFACTOR_EVERY = 16 and published 29% wrong at
-# the shipping 64. So "the published point is not what the columns say" is a
-# hypothesis with a history, not a fresh guess.
+#   pilotnov          18 rows out, EVERY ONE with a nonbasic logical
+#   osa-30, osa-60     1 row each, BOTH basic, both inside (n-1)*eps
+#
+# A nonbasic logical means the basis is asserting the constraint is tight, so
+# the activity published is the tight value and the column sum carries the
+# basis solve's primal residual instead. Nothing at that site bounds the
+# residual — it is conditioning, not rounding in the sum.
+#
+# Run it with the BASIC gate removed from src/presolve.c to see the rows
+# again; with the gate in place all 139 instances pass and this prints
+# nothing.
 set -u
 here=$(cd "$(dirname "$0")" && pwd)
 root=$(cd "$here/../../.." && pwd)
@@ -34,6 +40,8 @@ import sys
 p = sys.argv[1] + "/src/presolve.c"
 s = open(p, encoding="utf-8").read()
 m = """    for (int64_t i = 0; i < orig->num_row; i++) {
+        if (orig->sol_row_status[i] != JAOS_BASIS_BASIC)
+            continue;
         const double w = ps_round_tol(traffic[i]);
         const double window = nnz[i] > 1 ? w * (double)(nnz[i] - 1) : w;
         assert(fabs(orig->sol_row[i] - act[i]) <= window);
@@ -73,7 +81,7 @@ print("instrumented")
 PY
 [ $? -eq 0 ] || exit 2
 
-gcc-14 -std=c23 -O2 -ffp-contract=off -UNDEBUG -DJAOS_VERIFY_ACTIVITY \
+gcc-14 -std=c23 -O2 -ffp-contract=off -UNDEBUG \
     -Iinclude -Isrc src/*.c bench/run.c -o build/diag/run-pn -lm \
     || { echo "build failed"; exit 2; }
 
@@ -93,7 +101,25 @@ for spec in "pilotnov::bench/netlib.manifest:bench/instances" \
     [ -d "$dir" ] || { echo "######## $name — $dir not fetched, skipped"; echo; continue; }
     echo "######## $name ########"
     ./build/diag/run-pn -j 1 -m "$man" -d "$dir" "$name" > "$d/$name.log" 2>&1
-    grep "^ACT " "$d/$name.log" | sed 's/^ACT //' | sort -t= -k7 -g -r | head -12
+    grep "^ACT " "$d/$name.log" | sed 's/^ACT //' | sort -u | sort -t= -k8 -g -r | head -8
+    echo "  ..."
+    # The hypothesis this splits: a row whose LOGICAL IS NONBASIC has its
+    # activity published as the bound it rests on, exactly, not as the sum of
+    # the columns — so the difference is the basis solve's primal residual,
+    # bounded by conditioning and not by (n-1)*eps. A row whose logical is
+    # BASIC has no bound to be published at, so its activity does come from
+    # the columns and (n-1)*eps should hold.
+    # status 0 = BASIC, 1 and 2 = resting on a bound.
+    grep "^ACT " "$d/$name.log" | sort -u | awk '{
+        for (k = 1; k <= NF; k++) { split($k, kv, "="); v[kv[1]] = kv[2] }
+        st = v["status"]; tot[st]++
+        if (v["overn"] > 1.0) out[st]++
+    } END {
+        printf "  by basis status of the row logical:\n"
+        for (k in tot)
+            printf "    status %-2s: %3d disagreeing, %3d still out after (n-1)\n",
+                   k, tot[k], out[k]+0
+    }'
     grep "^ACT " "$d/$name.log" | awk '{
         for (k = 1; k <= NF; k++) { split($k, kv, "="); v[kv[1]] = kv[2] }
         n++

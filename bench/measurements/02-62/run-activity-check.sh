@@ -9,16 +9,22 @@
 #      for. The check MUST fire.
 #   2. INJECT-DRIFT      a fault build that perturbs one published activity by
 #      a hair more than the window. The check MUST fire.
-#   3. CLEAN             the shipping tree, all three sets. This is where the
-#      finding is: 138 of 139 pass and `pilotnov` does not.
+#   3. CLEAN             the shipping tree, all three sets. All 139 must pass,
+#      and D152's property must survive: every one of the 94 still runs.
 #   4. NO-CHECK CONTROL  the same fault with -DNDEBUG, to confirm 1 and 2
 #      abort because of the CHECK and not because the injected fault broke
 #      something else first.
 #
-# The check is opt-in (-DJAOS_VERIFY_ACTIVITY) and every build here passes it.
-# It is not on in a plain assert build, because pilotnov violates it and D152
-# had just bought the property that all 94 standard instances run under
-# -UNDEBUG.
+# The check is on in every assert build, and it took four wrong versions to
+# get there — each reported a defect that was not there. The three the
+# earlier runs of THIS script produced, in order: no OPTIMAL gate (fires on
+# all 29 infeasible instances, where the replay runs for the index mapping
+# alone); a fixed multiple of eps rather than (n-1)*eps (fires on osa-30 and
+# osa-60, whose rows carry 72554 and 173365 terms); and comparing rows whose
+# logical rests on a bound (fires on pilotnov's 18, where the published
+# activity is the tight value and the column sum carries the basis solve's
+# primal residual). The fourth was this harness, not the check: a missing
+# `-e infeasible` made every infeasible instance look like a failure.
 #
 # Every instance runs in its own process so one abort cannot hide another.
 set -u
@@ -55,10 +61,11 @@ if mode == "overwrite":
     s = s.replace(m, "        orig->sol_row[i] = 0.0;   /* INJECTED: was 1.0 */\n"
                      "        orig->sol_row[i] = 1.0;")
 elif mode == "drift":
-    # One published activity moved by more than any window can absorb.
-    m = "        assert(fabs(orig->sol_row[i] - act[i]) <= window);"
+    # Every basic row's activity moved by more than the window can absorb.
+    # Applied after the BASIC gate, so it lands on rows the check reads.
+    m = "        const double w = ps_round_tol(traffic[i]);"
     assert s.count(m) == 1, "the check body was not found"
-    s = s.replace(m, "        if (i == 0) act[i] += 1.0;   /* INJECTED */\n" + m)
+    s = s.replace(m, "        act[i] += 1.0;   /* INJECTED */\n" + m)
 open(p, "w", encoding="utf-8").write(s)
 print(f"injected: {mode}")
 PY
@@ -66,7 +73,7 @@ PY
 
 build () {
     gcc-14 -std=c23 -Wall -Wextra -ffp-contract=off -O2 $2 \
-        -DJAOS_VERIFY_ACTIVITY -Iinclude -Isrc src/*.c bench/run.c -o "$d/$1" -lm 2> "$d/$1.build.log"
+        -Iinclude -Isrc src/*.c bench/run.c -o "$d/$1" -lm 2> "$d/$1.build.log"
 }
 
 # An instance can exit non-zero for two unrelated reasons: the assert

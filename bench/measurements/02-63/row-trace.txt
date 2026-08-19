@@ -1,0 +1,23 @@
+# Every write to pilotnov's sol_row[931], in order, with its producer.
+# Then the row's own columns and the sum they make.
+
+---- the writes, in order ----
+TRACE copy from reduced      row=931 value=0 extra=834
+TRACE fold sum+carry         row=931 value=0 extra=0
+TRACE copy from reduced      row=931 value=0 extra=834
+TRACE fold sum+carry         row=931 value=0 extra=0
+
+---- how many of each producer ----
+      2 fold sum+carry
+      2 copy from
+
+---- the row's terms ----
+TERM col=2006 a=-275.33496100000002 x=7541.230683679968 term=-2076364.4561830275 colstat=0 collo=0 colhi=inf
+TERM col=2161 a=1000 x=1794.307482910149 term=1794307.482910149 colstat=0 collo=0 colhi=inf
+TERM col=2171 a=1000 x=282.0569732726853 term=282056.97327268531 colstat=0 collo=0 colhi=inf
+TERM col=2006 a=-275.33496100000002 x=7541.230683679968 term=-2076364.4561830275 colstat=0 collo=0 colhi=inf
+TERM col=2161 a=1000 x=1794.307482910149 term=1794307.482910149 colstat=0 collo=0 colhi=inf
+TERM col=2171 a=1000 x=282.0569732726853 term=282056.97327268531 colstat=0 collo=0 colhi=inf
+
+FINAL row=931 published=0 recomputed=-1.9313301891088486e-07 rowlo=0 rowhi=0 dual=-0.00088999999999999973
+FINAL row=931 published=0 recomputed=-1.9313301891088486e-07 rowlo=0 rowhi=0 dual=-0.00088999999999999973

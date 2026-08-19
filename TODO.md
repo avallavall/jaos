@@ -1099,43 +1099,29 @@ then, do not — a refusal whose premise has not changed just fails again.
 | D82, D84 | partial and multiple pricing | nothing scheduled — refused on wrong answers, not on a trade; a new scheme is a new decision, not a retry |
 | D34, D11, D2 | `long double`, GMP, any external code | never, while the two absolute premises stand (locked 2026-08-13) |
 
-## → `pilotnov`'s published point does not satisfy its own equality row (D153)
+## `pilotnov` was NOT a defect — opened and withdrawn the same day (D153)
 
-**Found 2026-08-19 by the check D153 built, and it is the newest open
-correctness item.** `bench/measurements/02-62/`.
+The row-activity check reported `pilotnov` publishing a row activity its own
+columns do not make, worst 1.93e-07 on an equality row at zero with three
+nonzeros. The arithmetic in that sentence was right and the conclusion was
+wrong.
 
-`pilotnov` row 931 is an equality at zero with **three** nonzeros. Its
-published activity reads exactly 0.0; the published columns make
-**-1.93e-07**. Against the row's own traffic of 4.15e6 that is 4.6e-14
-relative, about **100 times what a three-term sum can accumulate** — the
-bound is 2·eps ≈ 4.4e-16. Eighteen of its 36 disagreeing rows survive the
-correct `(n-1)·eps·Σ|t|` bound, worst 131x on a row of five nonzeros.
+**Why it is not a defect, written here so it is not re-opened from the same
+evidence.** All 18 of `pilotnov`'s disagreeing rows have a **nonbasic**
+logical and none is basic. A nonbasic logical means the basis asserts the
+constraint is tight, so the published activity is that tight value; the
+column sum is a different quantity, carrying the basis solve's primal
+residual, which is bounded by the basis conditioning and by nothing available
+at that site. The row trace (`bench/measurements/02-63/`) confirms it from the
+other side: only one producer writes row 931, the copy from the reduced
+solve — so the two assignments the debt suspected are exonerated on the very
+row that looked worst.
 
-**No answer is wrong today.** The checker judges relative to scale and passes
-it; the gate reads `checker=ok` and `objective=ok`. What is wrong is that the
-published `sol_row` is not the activity of the published `sol_col`, so a
-caller reading the row activities is told a constraint holds that does not.
-
-Three things a diagnosis needs and should not re-derive:
-
-- **The instrument exists and is validated.** Build with
-  `-DJAOS_VERIFY_ACTIVITY` and run `bench/measurements/02-62/`'s two scripts.
-  It catches both injected faults and is silent with asserts off.
-- **The window's shape is settled and cost two wrong tries.** A sum of n
-  terms is bounded by `(n-1)·eps·Σ|t|`; a fixed multiple of eps fires on
-  `osa-30` and `osa-60` for their 72554 and 173365 nonzeros and nothing else,
-  and dropping the traffic makes it meaningless on a row that cancels to
-  zero. Both are refuted on the record.
-- **`pilotnov` has form and the link is NOT established.** D118 saw it
-  publish an objective 29% wrong as `optimal` under a refused candidate;
-  D119 found the same reduced model right at a shorter refactorization
-  interval. Whether this is that mechanism is unknown and must not be
-  assumed.
-
-**The check becomes an always-on invariant the day this is repaired**, moving
-from `#ifdef JAOS_VERIFY_ACTIVITY` to `#ifndef NDEBUG`. It ships opt-in only
-because D152 had just bought the property that all 94 standard instances run
-under `-UNDEBUG`, and one open defect should not take that back.
+The check skips rows whose logical rests on a bound and **passes on all 139
+instances**. It is an invariant of every debug build now.
+`bench/measurements/02-62/` carries the four wrong versions of it and what
+each falsely reported; anyone tempted to widen or narrow it should read that
+table first.
 
 ## Standing debts — small, real, none blocks the sections above
 

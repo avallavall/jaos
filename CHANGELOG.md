@@ -11,16 +11,16 @@ open, `bench/README.md` for the gate, and the commit each entry came from.
 
 ### Added
 
-- `-DJAOS_VERIFY_ACTIVITY` builds a postsolve check that recomputes every
-  published row activity from the published columns and asserts they agree to
-  `(n-1)·eps` times the row's traffic. Opt-in rather than part of an assert
-  build, because `pilotnov` violates it and all 94 standard instances
-  otherwise run under `-UNDEBUG` since D152. Inert by default, measured: the
-  objects without the flag have the same md5 as the parent's. Validated
-  against two injected faults, 45 of 94 and 86 of 94, both silent with
-  asserts off. 138 of the 139 instances pass; `pilotnov` row 931 is an
-  equality at zero whose published activity reads 0.0 while its three columns
-  make -1.93e-07, which `TODO.md` now carries as open (D153).
+- Every debug build now checks that each published row activity matches the
+  published columns, for rows whose logical is basic, to `(n-1)·eps` times the
+  row's traffic. A row resting on a bound is skipped: its activity is the
+  tight value, and the column sum carries the basis solve's primal residual
+  instead. Validated against two injected faults — 45 of 94 and 81 of 94, both
+  silent with asserts off — and clean on all 139 instances. D152's property
+  survives: all 94 standard instances still run under `-UNDEBUG`. Inert in the
+  release build, measured: the objects keep the parent's md5. Four earlier
+  versions of the predicate each reported a defect that was not there, and
+  `bench/measurements/02-62/` carries what each of them falsely said (D153).
 
 ### Fixed
 

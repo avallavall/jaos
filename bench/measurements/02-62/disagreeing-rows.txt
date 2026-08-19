@@ -4,17 +4,17 @@
 
 ######## pilotnov ########
 row=931 nnz=3 published=0 recomputed=-1.9313301891088486e-07 diff=1.931330e-07 traffic=4.152729e+06 tol=7.376728e-09 over=26.181 overn=13.091 rowlo=0 rowhi=0 status=2
-row=931 nnz=3 published=0 recomputed=-1.9313301891088486e-07 diff=1.931330e-07 traffic=4.152729e+06 tol=7.376728e-09 over=26.181 overn=13.091 rowlo=0 rowhi=0 status=2
-row=922 nnz=22 published=38613.824220000002 recomputed=38613.824220002454 diff=2.451998e-09 traffic=1.236959e+06 tol=2.197281e-09 over=1.116 overn=0.053 rowlo=38613.824220000002 rowhi=inf status=1
 row=922 nnz=22 published=38613.824220000002 recomputed=38613.824220002454 diff=2.451998e-09 traffic=1.236959e+06 tol=2.197281e-09 over=1.116 overn=0.053 rowlo=38613.824220000002 rowhi=inf status=1
 row=799 nnz=22 published=37529.4375 recomputed=37529.43750000307 diff=3.070454e-09 traffic=7.032279e+05 tol=1.249184e-09 over=2.458 overn=0.117 rowlo=37529.4375 rowhi=inf status=1
-row=799 nnz=22 published=37529.4375 recomputed=37529.43750000307 diff=3.070454e-09 traffic=7.032279e+05 tol=1.249184e-09 over=2.458 overn=0.117 rowlo=37529.4375 rowhi=inf status=1
-row=920 nnz=12 published=2973.6281739999999 recomputed=2973.6281740024283 diff=2.428351e-09 traffic=3.019005e+05 tol=5.362829e-10 over=4.528 overn=0.412 rowlo=2973.6281739999999 rowhi=inf status=1
 row=920 nnz=12 published=2973.6281739999999 recomputed=2973.6281740024283 diff=2.428351e-09 traffic=3.019005e+05 tol=5.362829e-10 over=4.528 overn=0.412 rowlo=2973.6281739999999 rowhi=inf status=1
 row=801 nnz=43 published=-8461.8828130000002 recomputed=-8461.8828129989233 diff=1.076842e-09 traffic=1.938038e+05 tol=3.442646e-10 over=3.128 overn=0.074 rowlo=-8461.8828130000002 rowhi=inf status=1
-row=801 nnz=43 published=-8461.8828130000002 recomputed=-8461.8828129989233 diff=1.076842e-09 traffic=1.938038e+05 tol=3.442646e-10 over=3.128 overn=0.074 rowlo=-8461.8828130000002 rowhi=inf status=1
 row=933 nnz=4 published=0 recomputed=-3.0503599646181101e-11 diff=3.050360e-11 traffic=1.544401e+03 tol=2.743408e-12 over=11.119 overn=3.706 rowlo=0 rowhi=0 status=1
-row=933 nnz=4 published=0 recomputed=-3.0503599646181101e-11 diff=3.050360e-11 traffic=1.544401e+03 tol=2.743408e-12 over=11.119 overn=3.706 rowlo=0 rowhi=0 status=1
+row=390 nnz=7 published=0 recomputed=3.0127011996228248e-12 diff=3.012701e-12 traffic=1.377346e+03 tol=2.446658e-12 over=1.231 overn=0.205 rowlo=0 rowhi=0 status=2
+row=810 nnz=4 published=0 recomputed=-3.5512925933289807e-11 diff=3.551293e-11 traffic=1.069142e+03 tol=1.899179e-12 over=18.699 overn=6.233 rowlo=0 rowhi=0 status=1
+  ...
+  by basis status of the row logical:
+    status 1 :  11 disagreeing,   5 still out after (n-1)
+    status 2 :   7 disagreeing,   4 still out after (n-1)
   rows disagreeing with the FIXED window:  36
     worst 524.523 x, on row 26
   still disagreeing once (n-1) is taken out: 18
@@ -24,7 +24,9 @@ row=933 nnz=4 published=0 recomputed=-3.0503599646181101e-11 diff=3.050360e-11 t
 
 ######## osa-30 ########
 row=4348 nnz=72554 published=3485.1747656292555 recomputed=3485.174765629245 diff=1.045919e-11 traffic=3.485175e+03 tol=6.190914e-12 over=1.689 overn=0.000 rowlo=2912 rowhi=inf status=0
-row=4348 nnz=72554 published=3485.1747656292555 recomputed=3485.174765629245 diff=1.045919e-11 traffic=3.485175e+03 tol=6.190914e-12 over=1.689 overn=0.000 rowlo=2912 rowhi=inf status=0
+  ...
+  by basis status of the row logical:
+    status 0 :   1 disagreeing,   0 still out after (n-1)
   rows disagreeing with the FIXED window:  2
     worst 1.689 x, on row 4348
   still disagreeing once (n-1) is taken out: 0
@@ -34,7 +36,9 @@ row=4348 nnz=72554 published=3485.1747656292555 recomputed=3485.174765629245 dif
 
 ######## osa-60 ########
 row=10278 nnz=173365 published=6528.4404138107238 recomputed=6528.4404138107739 diff=5.002221e-11 traffic=6.528440e+03 tol=1.159684e-11 over=4.313 overn=0.000 rowlo=5824 rowhi=inf status=0
-row=10278 nnz=173365 published=6528.4404138107238 recomputed=6528.4404138107739 diff=5.002221e-11 traffic=6.528440e+03 tol=1.159684e-11 over=4.313 overn=0.000 rowlo=5824 rowhi=inf status=0
+  ...
+  by basis status of the row logical:
+    status 0 :   1 disagreeing,   0 still out after (n-1)
   rows disagreeing with the FIXED window:  2
     worst 4.313 x, on row 10278
   still disagreeing once (n-1) is taken out: 0
