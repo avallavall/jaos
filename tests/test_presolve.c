@@ -1550,6 +1550,62 @@ static void test_an_implied_bound_outside_the_box_is_refused(void)
 #endif
 }
 
+/* A basis that maps LONG onto the reduced model falls back to cold, and this
+ * pins it. The construction: a caller basis with an exact orig-space count
+ * (so jaos_set_basis accepts it) on a model where presolve removes a row
+ * whose stored logical is NONBASIC and drops no stored-basic column — the
+ * mapped count equals the orig count while the reduced model has one row
+ * fewer, and build_warm_basis refuses the excess. D145 is why this stays a
+ * refusal and is pinned: a warm start from a repaired-by-count basis made
+ * eight instances publish a wrong objective as optimal, so any future
+ * count-repair or trim has to move this test deliberately, behind a fix for
+ * the termination defect that let those eight through. */
+static void test_a_long_mapped_basis_falls_back_cold(void)
+{
+#if defined(JAOS_PRESOLVE_FAULT_OFFBYONE) || defined(JAOS_PRESOLVE_FAULT_WRONGDUAL)
+    TEST_IGNORE_MESSAGE("positive test — skipped under either fault build");
+#elif defined(JAOS_NO_PRESOLVE)
+    TEST_IGNORE_MESSAGE("the mapping under test does not exist without presolve");
+#else
+    /* row0 = x0 + x1 <= 100 is redundant on the boxes and is removed;
+     * row1 = x0 + x1 >= 3 is the reduced problem. */
+    const double c[]  = {1.0, 1.0};
+    const double cl[] = {0.0, 0.0}, cu[] = {10.0, 10.0};
+    const double rl[] = {-INFINITY, 3.0}, ru[] = {100.0, INFINITY};
+    const int64_t s[]  = {0, 2, 4};
+    const int64_t ix[] = {0, 1,   0, 1};
+    const double v[]   = {1.0, 1.0, 1.0, 1.0};
+    jaos_model *m = nullptr;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_model_new(&m));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_load_lp(m, 2, 2, JAOS_MINIMIZE, 0.0, c, cl, cu, rl, ru,
+                     4, s, ix, v));
+
+    /* Exact in orig space: two basics for two rows, both logicals out. */
+    const jaos_basis_status cs[] = {JAOS_BASIS_BASIC, JAOS_BASIS_BASIC};
+    const jaos_basis_status rs[] = {JAOS_BASIS_AT_UPPER, JAOS_BASIS_AT_LOWER};
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_basis(m, cs, rs));
+
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+    const double eobj = 3.0;
+    double obj = 0.0;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(m, &obj));
+    TEST_ASSERT_EQUAL_MEMORY(&eobj, &obj, sizeof obj);
+
+    /* The premise, asserted rather than assumed: the redundant row WAS
+     * removed, so the two mapped basics were judged against one reduced
+     * row. Without this line a change that stops the removal would leave
+     * the pin below green for the wrong reason (an exact map, warmed). */
+    TEST_ASSERT_EQUAL_INT64(1, m->presolve_num_row);
+
+    /* The cold count, pinned. */
+    TEST_ASSERT_EQUAL_INT64(1, jaos_iterations(m));
+
+    jaos_model_free(m);
+#endif
+}
+
 #if !defined(JAOS_NO_PRESOLVE)
 /* The three counts side by side, which is the only place the middle model's
  * refusal and the canary's refusal can be told apart from "the family is not
@@ -3259,6 +3315,7 @@ int main(void)
     RUN_TEST(test_singleton_col_after_fixed_col);
     RUN_TEST(test_singleton_col_between_two_removals_solved_path);
     RUN_TEST(test_the_basis_count_promise_breaks_on_a_declined_column);
+    RUN_TEST(test_a_long_mapped_basis_falls_back_cold);
     RUN_TEST(test_two_singleton_cols_on_one_row);
     RUN_TEST(test_free_col_singleton_round_trip);
     RUN_TEST(test_free_col_singleton_index_off_by_one);

@@ -283,23 +283,32 @@ variable brought *in*.
    would have claimed the published point violates complementary slackness.
    **And the solver itself does it**, in the `SINGLETON_ROW` case: that is
    the +1 combination.
-2. **`build_warm_basis` repairs the count instead of rejecting it (opened
-   by D143, design selected by D144).** The mapped reduced start comes out
-   SHORT on 54 netlib and 5 Kennington warm solves (worst 596), and the
-   balance is multi-family — `SINGLETON_COL` 3003 dropped basics, `FIXED`
-   1757, `IMPLIED_FREE` 1042 against 3313 nonbasic-removed-row offsets —
-   so D143's single-family un-swap in the mapping is **refused** (D144):
-   it closes 30 of 54, overshoots 10, and Kennington's five shortfalls
-   have zero candidates. The repair lives at the consumer: while short,
-   promote the logical of a row with no basic member, in fixed row order
-   (D8); trim the mirror way when long. Rank stays with
-   `repair_singular_basis`; weights already restart at one. For the
-   `SINGLETON_COL` family this provably reconstructs the pre-D139 mapped
-   basis, the one that warm-started in 0–6 iterations. Judge: the warm
-   campaigns (netlib toward 0.0696, Kennington's five 1-short solves
-   warming), gate bit-identical, and the rule's reject case built in a
-   test first. `jm_model_remember_basis` checking the count was refused
-   here — D142, the refusals table.
+2. **The termination defect now blocks the warm prize, and it has eight
+   reproductions (D145).** The D144 count repair was built, reviewed,
+   gated bit-identical on all 139 instances — and refused by its own
+   judge: from the repaired (structurally valid) warm basis, **8 netlib
+   solves publish `optimal` with a wrong objective** (`dfl001` 3.099e8
+   against the true 1.127e7, `modszk1` 1135456 against 321, `cycle`,
+   `d2q06c`, `degen2`, `greenbea`, `maros`, `woodw`), 2 more have their
+   warm point checker-refused, while Kennington recovers cleanly
+   (0.0572 → 0.0070, `osa-60` 7061 → 1 iterations). The mechanism is
+   §5a's own: the termination never re-reads dual feasibility (D119), so
+   a solve that starts badly can end wrongly. **Fix that first**; the
+   kept candidate (`bench/measurements/02-53/`) is the retry, and the
+   refusals table carries both conditions. Two sub-questions ahead of it:
+   - **Can `jaos_set_basis` alone produce a wrong `optimal` at HEAD?**
+     `jaos.h` promises a hostile basis "costs time and cannot produce a
+     wrong verdict"; the candidate refuted the promise's mechanism with
+     manufactured bases. One probe: a count-exact hostile basis on
+     `cycle` or `dfl001`, no candidate code involved. If it reproduces,
+     this is a public-API correctness defect and outranks everything
+     else in this file.
+   - The eight reproductions are the first cheap, named instances of the
+     termination defect — `d2q06c` at 278003 iterations is the loudest.
+     `bench/measurements/02-53/warm-count-repair-candidate.diff` applied
+     in a worktree reproduces all eight in one `make warm J=12`.
+   `jm_model_remember_basis` checking the count was refused here — D142 —
+   and D143's single-family un-swap by D144; both in the refusals table.
 
 3. **Widen the solution digest to cover the basis, at least on Kennington.**
    `bench/run.c` declined to, and said why: *"a published basis that breaks the
@@ -972,6 +981,7 @@ then, do not — a refusal whose premise has not changed just fails again.
 
 | decision | what was refused or deferred | reopens when |
 |---|---|---|
+| D145 | the warm count repair in `build_warm_basis` — gate bit-identical and Kennington 0.0572→0.0070, refused because 8 netlib solves publish a wrong objective as `optimal` from the repaired basis and 2 more are checker-refused, through §5a's termination defect | the termination re-reads dual feasibility (or an equivalent guard makes a bad start unable to end wrongly), then retry from `bench/measurements/02-53/warm-count-repair-candidate.diff` with the same warm campaigns as judge |
 | D142 | a count guard in `jm_model_remember_basis` — the premise "build_warm_basis already rejects it" is false: it counts the MAPPED basis, and clearing the stored publish costs `capri` and `fffff800` their warm starts (1→273 and 7→945 iterations) for nothing any consumer reads | a consumer of `start_*` appears that reads the orig-space count as a claim, or warm starting stops going through presolve's mapping. The candidate and its validated test are at `bench/measurements/02-51/remember-guard-candidate.diff` |
 | D141 | a within-row demotion for the published-basis residue — 152 of the 232 declines have no basic column of the row at a bound, and the snap for the 80 breaks the row-bound exactness 02-49 measured (74 of 80 exact) | a demotion design whose candidate set is wider than the firing row AND that carries a rank argument for the demoted member; the fallback in the published shape (Galabova 2023) is accepting the residue |
 | D101 | duplicate rows, duplicate columns, dominated columns — 0.15% left to remove on these 139 models | a model population where `bench/measurements/02-07/`'s counter reports a non-trivial share. The condition is executable, not a matter of opinion. Three pieces of the work have no published source and would have to be derived with their own tests |

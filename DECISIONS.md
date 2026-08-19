@@ -152,6 +152,7 @@ and you have the argument. Jump to the entry for the numbers behind it.
 - **[D142](#d142--the-remember-basis-count-guard-is-refused-the-non-basis-it-would-clear-is-the-warm-starts-raw-material)** — The remember-basis count guard is refused: the non-basis it would clear is the warm start's raw material
 - **[D143](#d143--d138d139s-correct-basis-maps-short-and-netlibs-warm-ratio-paid-37x-the-mapping-owes-the-reverse-of-the-swap)** — D138/D139's correct basis maps short and netlib's warm ratio paid 3.7x: the mapping owes the reverse of the swap
 - **[D144](#d144--the-mappings-balance-is-multi-family-so-the-count-is-repaired-at-the-consumer-not-in-the-mapping)** — The mapping's balance is multi-family, so the count is repaired at the consumer, not in the mapping
+- **[D145](#d145--the-count-repaired-warm-start-publishes-wrong-optima-through-the-termination-hole-and-the-warm-prize-waits-behind-it)** — The count-repaired warm start publishes wrong optima through the termination hole, and the warm prize waits behind it
 
 ---
 
@@ -10685,3 +10686,47 @@ campaigns are the judge (netlib's geomean should recover toward 0.0696 and
 Kennington's 5 shortfall-1 solves should warm-start), the gate must stay
 bit-identical, and the promote-then-trim rule needs its reject case built
 in a test before it is believed.
+
+## D145 — The count-repaired warm start publishes wrong optima through the termination hole, and the warm prize waits behind it
+
+**The question, as asked.** D144's selected repair, built and judged:
+`build_warm_basis` promotes logicals — uncovered rows first, then fixed
+row order — while the mapped count is short; LONG still refused (deviating
+from D144's trim sketch, deliberately: no long map has been measured).
+Expected: gate bit-identical, netlib's warm geomean recovering toward
+0.0696, Kennington's five shortfall-1 solves warming.
+
+**The measurement** (`bench/measurements/02-53/`, candidate kept whole
+beside it). The gate is bit-identical on all 139 instances. Kennington is
+a clean win: 0.0572 → 0.0070 work geomean, all five recovered, `osa-60`
+from 7061 iterations to 1, none worse. netlib's geomean improves 0.2553 →
+0.1636 **and the campaign refuses the candidate underneath it**: 8 solves
+publish `optimal` with a wrong objective from the warm trajectory
+(`dfl001` 3.099e8 against the true 1.127e7; `modszk1` 1135456 against
+321; `cycle`, `d2q06c`, `degen2`, `greenbea`, `maros`, `woodw`), 2 more
+have their warm point refused by the checker (`pilot87`, `scsd1`), and 13
+of 82 cost more warm than cold, worst `pilot-ja` 8.34x. Every one of
+those counters read zero before the candidate.
+
+**What was refuted, precisely.** The candidate at HEAD — not the design.
+The promoted basis is structurally valid, and the solve that starts from
+it can stop at a suboptimal vertex and publish `optimal`: that is §5a's
+termination defect (D119, "the termination test never re-reads dual
+feasibility"), now with eight named reproductions driven from a valid
+basis. The refusal ordering follows: **the termination defect blocks the
+warm prize**, and any retry starts from the kept candidate only after a
+solve that starts badly can no longer end wrongly. `numerics-reviewer`'s
+four findings on the candidate were all dispositioned before the
+campaigns; the process failed nothing — the judge did its job.
+
+**Also opened.** `jaos.h` promises a hostile basis "costs time and cannot
+produce a wrong verdict". The candidate manufactured count-valid bases
+and eight wrong verdicts. Whether `jaos_set_basis` alone can do the same
+at HEAD is one probe away; `TODO.md` carries it as a correctness question
+ahead of any warm work.
+
+**What landed.** The LONG-map pinned test
+(`test_a_long_mapped_basis_falls_back_cold`), premise asserted, so any
+future count repair moves a test deliberately. Nothing else: the source
+was reverted and the working tree re-validated green on all three test
+builds.

@@ -9,6 +9,14 @@ open, `bench/README.md` for the gate, and the commit each entry came from.
 
 ## [Unreleased]
 
+### Added
+
+- `test_a_long_mapped_basis_falls_back_cold`: a caller basis whose count is
+  exact in the original space can map LONG onto the reduced model when
+  presolve removes a row whose stored logical is nonbasic; the fallback to
+  cold is now pinned, premise asserted, so any future count repair or trim
+  moves a test deliberately (D145).
+
 ### Fixed
 
 - `ps_singleton_col_swap` decides from the recovery itself — the published
