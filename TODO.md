@@ -283,22 +283,23 @@ variable brought *in*.
    would have claimed the published point violates complementary slackness.
    **And the solver itself does it**, in the `SINGLETON_ROW` case: that is
    the +1 combination.
-2. **The warm mapping owes the reverse of the swap (opened by D143, and it
-   is the new head of the warm work).** `jm_presolve_run`'s mapping
-   (`src/presolve.c:1651`) drops every stored-basic member presolve removes
-   again, and since D139 the surviving row's logical maps through nonbasic,
-   so the reduced start comes out SHORT — 35 netlib and 5 Kennington warm
-   solves fall back cold with an EXACT orig-space basis, worst shortfall
-   596. The repair candidate: for a `JM_PS_SINGLETON_COL` record whose
-   stored column is BASIC and about to be dropped, promote the surviving
-   row's stored-nonbasic logical back to BASIC in the reduced start — the
-   mirror of `ps_singleton_col_swap`, same forced pivot `a_ij`. **Derive
-   the balance for every family the same way before building anything**;
-   the singleton-row correction pass beside the mapping is the pattern.
-   The prize is bounded by 02-51: up to 35 + 5 warm starts.
-   `jm_model_remember_basis` checking the count was refused here — D142,
-   the refusals table — because the mapping is the consumer and 2 netlib
-   warm starts still run on the old error cancelling in it.
+2. **`build_warm_basis` repairs the count instead of rejecting it (opened
+   by D143, design selected by D144).** The mapped reduced start comes out
+   SHORT on 54 netlib and 5 Kennington warm solves (worst 596), and the
+   balance is multi-family — `SINGLETON_COL` 3003 dropped basics, `FIXED`
+   1757, `IMPLIED_FREE` 1042 against 3313 nonbasic-removed-row offsets —
+   so D143's single-family un-swap in the mapping is **refused** (D144):
+   it closes 30 of 54, overshoots 10, and Kennington's five shortfalls
+   have zero candidates. The repair lives at the consumer: while short,
+   promote the logical of a row with no basic member, in fixed row order
+   (D8); trim the mirror way when long. Rank stays with
+   `repair_singular_basis`; weights already restart at one. For the
+   `SINGLETON_COL` family this provably reconstructs the pre-D139 mapped
+   basis, the one that warm-started in 0–6 iterations. Judge: the warm
+   campaigns (netlib toward 0.0696, Kennington's five 1-short solves
+   warming), gate bit-identical, and the rule's reject case built in a
+   test first. `jm_model_remember_basis` checking the count was refused
+   here — D142, the refusals table.
 
 3. **Widen the solution digest to cover the basis, at least on Kennington.**
    `bench/run.c` declined to, and said why: *"a published basis that breaks the

@@ -1,0 +1,43 @@
+# Exact decomposition of every mapped stored basis. pred must equal rb
+# on every line or the decomposition itself is wrong (BROKEN).
+# Shortfall S = rrow - rb. cand = un-swap promotions available.
+
+######## netlib ########
+88 mapped solves; DECOMPOSITION BROKEN on 0 (must be 0)
+
+  solves mapped short (S > 0)                        54
+    total shortfall                                2803
+    un-swap candidates on those solves             2939
+    solves where cand == S (repair closes)           30
+    solves where cand < S (remainder)                14
+    solves where cand > S (would overshoot)          10
+
+  dropped stored-BASIC columns by remover:
+    FIXED=1757 EMPTY=9 SINGLETON_COL=3003 FREE_CS=0 IMPLIED_FREE=1042
+  dropped stored-BASIC rows by remover (net 0 each):
+    SROW=1923 REDUND=534 FORCING=1813 other=850
+  dropped stored-NONBASIC rows (each makes the map LONGER):
+    SROW=2271 REDUND=0 FORCING=0 other=1042
+  correction pass: demoted=426 promoted=0, orphans=0
+
+######## kennington ########
+11 mapped solves; DECOMPOSITION BROKEN on 0 (must be 0)
+
+  solves mapped short (S > 0)                         5
+    total shortfall                                   5
+    un-swap candidates on those solves                0
+    solves where cand == S (repair closes)            0
+    solves where cand < S (remainder)                 5
+    solves where cand > S (would overshoot)           0
+
+  dropped stored-BASIC columns by remover:
+    FIXED=910 EMPTY=0 SINGLETON_COL=0 FREE_CS=0 IMPLIED_FREE=0
+  dropped stored-BASIC rows by remover (net 0 each):
+    SROW=1716 REDUND=148 FORCING=5103 other=5561
+  dropped stored-NONBASIC rows (each makes the map LONGER):
+    SROW=905 REDUND=0 FORCING=0 other=0
+  correction pass: demoted=0 promoted=0, orphans=0
+
+# prediction: BROKEN=0 (else nothing here is evidence); the shortfall
+# is dominated by dcSC (dropped basic singleton columns); cand == S on
+# most short solves, and the remainder names the next family.

@@ -151,6 +151,7 @@ and you have the argument. Jump to the entry for the numbers behind it.
 - **[D141](#d141--a-within-row-demotion-cannot-pay-for-the-residue-152-of-the-232-declines-have-no-basic-column-at-a-bound)** — A within-row demotion cannot pay for the residue: 152 of the 232 declines have no basic column at a bound
 - **[D142](#d142--the-remember-basis-count-guard-is-refused-the-non-basis-it-would-clear-is-the-warm-starts-raw-material)** — The remember-basis count guard is refused: the non-basis it would clear is the warm start's raw material
 - **[D143](#d143--d138d139s-correct-basis-maps-short-and-netlibs-warm-ratio-paid-37x-the-mapping-owes-the-reverse-of-the-swap)** — D138/D139's correct basis maps short and netlib's warm ratio paid 3.7x: the mapping owes the reverse of the swap
+- **[D144](#d144--the-mappings-balance-is-multi-family-so-the-count-is-repaired-at-the-consumer-not-in-the-mapping)** — The mapping's balance is multi-family, so the count is repaired at the consumer, not in the mapping
 
 ---
 
@@ -10641,3 +10642,46 @@ pivot `a_ij`. Derive the balance for every family the same way before
 building. The prize is bounded: up to 35 netlib and 5 Kennington warm
 starts. 4 of the 92 measured netlib warm solves print no mapping line and
 are unattributed.
+
+## D144 — The mapping's balance is multi-family, so the count is repaired at the consumer, not in the mapping
+
+**The question, as asked.** D143 named the un-swap — promote the surviving
+row's stored-nonbasic logical when its stored-basic singleton column is
+dropped — and ordered the per-family balance derived before building it.
+Expected: the shortfall dominated by `SINGLETON_COL`, the un-swap closing
+most short solves.
+
+**The measurement** (`bench/measurements/02-52/`, one exact decomposition
+per mapped stored basis; the closing identity held on all 99 solves —
+BROKEN=0 — which is the canary everything below rests on). netlib: 54
+solves short by 2803 in total; un-swap candidates 2939 on those solves;
+the un-swap closes **30 of 54 exactly, cannot close 14, and would
+overshoot 10**. The dropped stored-BASIC columns split 3003
+`SINGLETON_COL`, 1757 `FIXED_COL`, 1042 `IMPLIED_FREE_COL`, offset by 3313
+removed rows stored nonbasic and 426 correction-pass demotions.
+**Kennington refutes the single-family design alone**: its 5 short solves
+are short by 1 each with zero un-swap candidates — `dcSC = 0` there, the
+shortfall being five more stored-BASIC `FIXED_COL` drops (910) than
+nonbasic-removed-row offsets (905).
+
+**What was refuted.** Per-family exactness in the mapping: the mapped count
+is a difference of many family terms, so correcting one family chases a
+moving sum and leaves 24 netlib and all 5 Kennington fallbacks standing —
+and on 10 netlib solves the correction would push the count past `rrow`.
+Do not build the un-swap as a mapping pass.
+
+**The design this selects.** Repair the count at the consumer:
+`build_warm_basis` promotes, while the mapped count is short, the logical
+of a row that has no basic member, in fixed row order (D8), and trims the
+mirror way when long, instead of rejecting. Rank stays where it already
+lives — `repair_singular_basis` — and the weights already restart at one.
+One measured fact says the repaired basis is good rather than merely
+valid: for the `SINGLETON_COL` family the promotion reconstructs exactly
+the pre-D139 mapped basis, the one that warm-started `25fv47`, `adlittle`,
+`bandm` and the rest in 0–6 iterations.
+
+**Left open, in `TODO.md`.** Build and measure that count repair: the warm
+campaigns are the judge (netlib's geomean should recover toward 0.0696 and
+Kennington's 5 shortfall-1 solves should warm-start), the gate must stay
+bit-identical, and the promote-then-trim rule needs its reject case built
+in a test before it is believed.
