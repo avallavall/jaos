@@ -163,22 +163,23 @@ In order:
    `classify_optimum` passes trivially — every lend repaid, and invented
    bounds are all it asks. D89's "publish the best instead of failing" is
    where the laundering happens; it was benign on `pilot87`'s 8.37e-09.
-2. **Measure the guard's two sides before building it**: the distribution
-   of `bstdv` at publish over all 139 gate instances at HEAD. The repair
-   shape D147 selects — `bstdv > dual_tol` at settling's end ⇒ no OPTIMAL,
-   one cold restart from the slack basis — uses an existing number and an
-   existing tolerance, so the only open question is the margin between
-   the legitimate population and the hostile one.
-3. **The guard plus cold restart**, judged by: hostile `degen2` flipping
-   to the correct optimum at cold cost, the 02-54 probe reading 0 of 80,
-   the three sets bit-identical, `make test`/`make sanitize` green.
-   D127's warning stands: this machinery has refused two source-plausible
-   repairs; the distribution probe is what makes this one measured.
-4. **Then the warm retry**: D145's kept candidate
-   (`bench/measurements/02-53/warm-count-repair-candidate.diff`), judged
-   by the warm campaigns — its Kennington side is a clean win waiting
-   (0.0572 → 0.0070) and its netlib side was refused only through this
-   defect.
+2. ~~Measure the guard's two sides.~~ **Done (02-56)**: all 220 legitimate
+   settling exits read exactly zero excess; the hostile one reads 35.34.
+3. ~~The guard plus cold restart.~~ **Landed 2026-08-19 (D148,
+   `bench/measurements/02-57/`)**: 02-54 reads 0 of 80 on the candidate
+   (was 26 wrong + 5 refused), the gate is bit-identical on all 139, and
+   `jaos.h`'s promise is enforced rather than assumed. The review's HIGH
+   finding was load-bearing: the driver settles once more before reading,
+   or a repair-singular restore would hand the guard `d[v] = 0.0` on
+   exactly the breached columns.
+4. **Now the warm retry, and it is live again**: D145's kept candidate
+   (`bench/measurements/02-53/warm-count-repair-candidate.diff`), reopened
+   by D148 meeting its condition. Judge: the warm campaigns — Kennington's
+   clean win (0.0572 → 0.0070) is waiting, and netlib's eight wrong optima
+   were the guard's job and are now its test: the candidate re-applied
+   must show `disagreed=0, rejected=0` in `make warm J=12` where 02-53
+   read 8 and 2, with the recovered warm starts kept and the 13
+   warm-worse-than-cold instances re-read against the geomean.
 
 ## `jaos_basis` publishes something that is not a basis
 
@@ -1019,7 +1020,7 @@ then, do not — a refusal whose premise has not changed just fails again.
 
 | decision | what was refused or deferred | reopens when |
 |---|---|---|
-| D145 | the warm count repair in `build_warm_basis` — gate bit-identical and Kennington 0.0572→0.0070, refused because 8 netlib solves publish a wrong objective as `optimal` from the repaired basis and 2 more are checker-refused, through §5a's termination defect | the termination re-reads dual feasibility (or an equivalent guard makes a bad start unable to end wrongly), then retry from `bench/measurements/02-53/warm-count-repair-candidate.diff` with the same warm campaigns as judge |
+| D145 | the warm count repair in `build_warm_basis` — refused because 8 netlib solves published a wrong objective through the termination hole | **condition MET by D148** (the certificate guard landed): the retry is live and is the START HERE's step 4. This row stays as the record of the refusal and its expiry |
 | D142 | a count guard in `jm_model_remember_basis` — the premise "build_warm_basis already rejects it" is false: it counts the MAPPED basis, and clearing the stored publish costs `capri` and `fffff800` their warm starts (1→273 and 7→945 iterations) for nothing any consumer reads | a consumer of `start_*` appears that reads the orig-space count as a claim, or warm starting stops going through presolve's mapping. The candidate and its validated test are at `bench/measurements/02-51/remember-guard-candidate.diff` |
 | D141 | a within-row demotion for the published-basis residue — 152 of the 232 declines have no basic column of the row at a bound, and the snap for the 80 breaks the row-bound exactness 02-49 measured (74 of 80 exact) | a demotion design whose candidate set is wider than the firing row AND that carries a rank argument for the demoted member; the fallback in the published shape (Galabova 2023) is accepting the residue |
 | D101 | duplicate rows, duplicate columns, dominated columns — 0.15% left to remove on these 139 models | a model population where `bench/measurements/02-07/`'s counter reports a non-trivial share. The condition is executable, not a matter of opinion. Three pieces of the work have no published source and would have to be derived with their own tests |

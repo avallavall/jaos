@@ -2575,9 +2575,14 @@ JAOS_NODISCARD jaos_status jm_postsolve_expand(jm_presolve *p)
         }
         if (red->start_col_status == nullptr ||
             red->start_row_status == nullptr) {
-            /* Nothing survived to remember (NUMERICAL_ERROR): leave
-             * orig->start_* exactly as it was, the same courtesy 02-01's
-             * un-reduced path extends. */
+            /* Nothing survived to remember: leave orig->start_* exactly as
+             * it was, the same courtesy 02-01's un-reduced path extends.
+             * This used to claim "Null only for NUMERICAL_ERROR", which a
+             * caller basis makes false — jm_presolve_run maps it into
+             * red->start_* before the solve runs, so a numerical failure
+             * can arrive here with these non-null. The status test below
+             * is what actually excludes that outcome. */
+            free(rowc);
             return JAOS_OK;
         }
         /* Two corrections to the defaults just written, both keyed off the
@@ -2616,7 +2621,14 @@ JAOS_NODISCARD jaos_status jm_postsolve_expand(jm_presolve *p)
         }
 
         free(rowc);
-        (void)jm_model_remember_basis(orig);
+        /* NUMERICAL_ERROR is the one outcome no warm memory is offered for
+         * (publish()'s own whitelist, and D148: the certificate guard sends
+         * an uncertified caller-basis solve here through the reduced path,
+         * where red->start_* still holds the condemned basis mapped in by
+         * jm_presolve_run — remembering it would hand the next solve the
+         * exact start this solve just refused to certify). */
+        if (red->solve_status != JAOS_SOLVE_NUMERICAL_ERROR)
+            (void)jm_model_remember_basis(orig);
         return JAOS_OK;
     }
 

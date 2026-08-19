@@ -4052,25 +4052,94 @@ jaos_status jm_dual_simplex(jaos_model *m)
            (long long)m->num_nz, s.primal_tol, s.dual_tol);
 
     jaos_solve_status outcome;
-    bool warm = build_warm_basis(&s);
-    if (!warm)
-        build_initial_basis(&s);
-    jm_log(m, JAOS_LOG_DETAIL, "starting from %s",
-           warm ? "the basis on the model" : "the slack basis");
-    st = run(&s, &outcome);
-    if (st == JAOS_OK) {
+    bool allow_warm = true;
+    for (;;) {
+        const bool warm = allow_warm && build_warm_basis(&s);
+        if (!warm)
+            build_initial_basis(&s);
+        jm_log(m, JAOS_LOG_DETAIL, "starting from %s",
+               warm ? "the basis on the model" : "the slack basis");
+        st = run(&s, &outcome);
+        if (st != JAOS_OK || outcome != JAOS_SOLVE_OPTIMAL)
+            break;
+
         /* Settle first, then judge. The verdict turns on reduced costs, so
          * it has to read the model's own and not the shifted ones the
          * ratio test worked with. */
-        if (outcome == JAOS_SOLVE_OPTIMAL) {
-            settle_shifts(&s);
-            st = reenter_after_settling(&s);
-            if (st == JAOS_OK)
-                outcome = classify_optimum(&s);
+        settle_shifts(&s);
+        st = reenter_after_settling(&s);
+        if (st != JAOS_OK)
+            break;
+
+        /* The settling loop measured this number on every round and D89
+         * taught it to publish the best point instead of failing when the
+         * rounds oscillate. What it never did was read that number before
+         * publishing, and on a hostile caller basis the best point carried
+         * a violation of 35.34 into an OPTIMAL verdict — a wrong objective
+         * with no signal anywhere (D146, D147). The read is exact-zero on
+         * purpose: settled_dual_violation counts only the excess beyond
+         * dual_tol per variable, so zero means every variable is within
+         * tolerance, and every one of the 220 settling exits across the
+         * three gate sets reads exactly that (02-56) — the guard cannot
+         * fire on a legitimate solve, which is what keeps the gate
+         * bit-identical under it. The call is unbilled like the settling
+         * loop's own uses of the same function, deliberately: billing it
+         * would move every gate solve's work units for a read that changes
+         * nothing there.
+         *
+         * An uncertified point from a WARM start is thrown away whole and
+         * the solve restarts once, cold, from the slack basis — jaos.h's
+         * own contract, time and never correctness. The work stays on the
+         * one accumulator (the wasted warm attempt was real work, D16);
+         * the clock keeps its origin so the time budget covers both
+         * attempts; the iteration count restarts with the sx and reports
+         * the solve that produced the answer. An uncertified COLD start
+         * has no better start to fall back to and is published as
+         * NUMERICAL_ERROR — the one outcome no warm memory is offered
+         * for, on the un-reduced path by publish()'s own whitelist and on
+         * the reduced one by jm_postsolve_expand's matching test.
+         *
+         * The settle below is the guard's own contract, found in review:
+         * a restore exit whose refresh fired repair_singular_basis has
+         * re-run shift_to_feasible, and the guard would then read the
+         * evidence the lend arranged — d[v] = 0.0 on exactly the breached
+         * columns — and certify the D146 defect through a rarer door. On
+         * an already-settled state repay_shifts finds nothing, returns
+         * false and settle_shifts is a pure scan: no state moves, no work
+         * is billed, and the gate stays bit-identical. */
+        settle_shifts(&s);
+        if (settled_dual_violation(&s) != 0.0) {
+            if (warm) {
+                jm_log(m, JAOS_LOG_SUMMARY,
+                       "the settled point from the supplied basis is not "
+                       "dual feasible; restarting cold from the slack "
+                       "basis after %lld iterations, %lld refactorizations, "
+                       "%lld weight restarts, %lld stalls, %lld stability "
+                       "rebuilds",
+                       (long long)s.iters, (long long)s.n_refactor,
+                       (long long)s.n_weight_restart, (long long)s.n_bland,
+                       (long long)s.n_stability);
+                const jm_work carried = s.work;
+                const struct timespec t0 = s.started;
+                sx_free(&s);
+                st = sx_init(&s, target);
+                if (st != JAOS_OK) {
+                    jm_presolve_free(&p);
+                    return st;
+                }
+                s.work = carried;
+                s.started = t0;
+                allow_warm = false;
+                continue;
+            }
+            outcome = JAOS_SOLVE_NUMERICAL_ERROR;
+            break;
         }
-        if (st == JAOS_OK)
-            st = publish(&s, outcome, &p);
+        outcome = classify_optimum(&s);
+        break;
     }
+    if (st == JAOS_OK)
+        st = publish(&s, outcome, &p);
 
     /* What the solve did, in the terms a caller can act on. The three counts
      * are not decoration: four separate diagnoses this milestone had to

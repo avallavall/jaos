@@ -9,6 +9,19 @@ open, `bench/README.md` for the gate, and the commit each entry came from.
 
 ## [Unreleased]
 
+### Fixed
+
+- The solve reads its own settled dual violation before publishing OPTIMAL.
+  An uncertified point from a warm start is retried once, cold, from the
+  slack basis (work and clock carried); an uncertified cold start reports
+  `JAOS_SOLVE_NUMERICAL_ERROR`, with no warm memory offered on either path.
+  A hostile `jaos_set_basis` start made `degen2` publish a wrong objective
+  as OPTIMAL on 16 of 16 trials; the 80-trial probe now reads 0 wrong, the
+  three sets are bit-identical, and `jaos.h`'s promise is enforced rather
+  than assumed (D146–D148). Also fixed on the way, from review: the reduced
+  path stored warm memory on `NUMERICAL_ERROR`, and the interrupted
+  postsolve return leaked one scratch array.
+
 ### Added
 
 - `test_a_long_mapped_basis_falls_back_cold`: a caller basis whose count is

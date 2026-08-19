@@ -155,6 +155,7 @@ and you have the argument. Jump to the entry for the numbers behind it.
 - **[D145](#d145--the-count-repaired-warm-start-publishes-wrong-optima-through-the-termination-hole-and-the-warm-prize-waits-behind-it)** — The count-repaired warm start publishes wrong optima through the termination hole, and the warm prize waits behind it
 - **[D146](#d146--a-hostile-basis-makes-head-publish-a-wrong-optimum-through-the-public-api-alone)** — A hostile basis makes HEAD publish a wrong optimum through the public API alone
 - **[D147](#d147--the-solver-measures-the-violation-it-publishes-the-best-point-ends-with-bstdv--3534-and-nothing-reads-it-against-a-tolerance)** — The solver measures the violation it publishes: the best point ends with bstdv = 35.34 and nothing reads it against a tolerance
+- **[D148](#d148--the-certificate-guard-lands-0-wrong-of-80-where-head-published-26-and-the-gate-is-bit-identical)** — The certificate guard lands: 0 wrong of 80 where HEAD published 26, and the gate is bit-identical
 
 ---
 
@@ -10817,3 +10818,44 @@ at cold cost, 02-54 reading 0 of 80); why `cycle`, `modszk1` and `woodw`
 survive the same hostility is subsumed — predicted: their settling either
 converges under the tolerance or their best point is genuinely optimal —
 and the distribution probe reads it directly.
+
+## D148 — The certificate guard lands: 0 wrong of 80 where HEAD published 26, and the gate is bit-identical
+
+**The question, as asked.** D147's repair, built: read the settled dual
+violation before publishing; an uncertified warm start restarts once, cold;
+an uncertified cold start is `NUMERICAL_ERROR`. Expected, from 02-56's
+margin: 02-54 reading 0 of 80 and the gate bit-identical.
+
+**The measurement** (`bench/measurements/02-57/`). The 02-54 hostile probe
+on the candidate: **80 trials, 0 wrong, 0 refused** — run twice, before
+and after the review fixes — against HEAD's 26 + 5. The gate: 94 + 29 + 16
+instances bit-identical to the committed records. `make test`,
+`make sanitize` and the `-DJAOS_NO_PRESOLVE` variant green.
+
+**What the review added, and it was load-bearing.** `numerics-reviewer`'s
+fourth delivery this run found the guard's own blind spot before any
+campaign: a restore exit whose refresh fired `repair_singular_basis`
+re-runs `shift_to_feasible`, and the guard would then read `d[v] = 0.0` on
+exactly the breached columns — the lend arranging the evidence, the D146
+defect through a rarer door. The driver settles once more before reading,
+which is a no-op on a settled state (`repay_shifts` finds nothing, bills
+nothing) and truth on the rare one. Its other findings, all dispositioned:
+the reduced path offered warm memory on `NUMERICAL_ERROR` against
+`publish()`'s own whitelist (fixed in `jm_postsolve_expand`, whose "Null
+only for NUMERICAL_ERROR" comment was already false for a caller basis);
+`rowc` leaked on the interrupted early return (fixed); the abandoned warm
+attempt's counters vanished from the summary (logged in the restart line
+now). Carried, low: `m->err` can hold a first-attempt message behind a
+final OPTIMAL — a pre-existing class with one new route.
+
+**What was refuted along the way.** Nothing about the design; the sequence
+held: D147 named the number, 02-56 measured both sides, the guard used no
+new constant, and the gate could not move because the guard cannot fire on
+a population measured at exactly zero.
+
+**What this restores and unlocks.** `jaos.h`'s promise is true again and
+enforced rather than assumed; the header says so. D145's reopen condition
+is met: the warm count-repair candidate at
+`bench/measurements/02-53/warm-count-repair-candidate.diff` is live again,
+judged by the warm campaigns, with its Kennington win (0.0572 → 0.0070)
+waiting.
