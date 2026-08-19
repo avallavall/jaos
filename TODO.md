@@ -15,21 +15,45 @@ apart from one untracked directory that is not this session's (see
 EXTRA_CFLAGS=-DJAOS_NO_PRESOLVE` and `make sanitize` all exit 0, and the three
 gate sets read `gate: PASS` with `0 regressed, 0 improved, 0 new`.
 
-**`main` is 16 commits ahead of `origin/main` and has NOT been pushed.** A
-push needs asking for.
+**`main` is 25 commits ahead of `origin/main` and has NOT been pushed. The
+tag `v0.1.0` exists locally and has not been pushed either.** The maintainer
+asked for the push to wait; `CLAUDE.md` also says a push needs explicit
+approval.
 
-The last source change is D151's, in `src/simplex.c`. It is the only landed
-change in this arc that moves a number a caller can see, and it moves it on
-the warm path only: the three gate sets are bit-identical on all 139
-instances, 0 digest changes. The `bench/results/warm*.txt` records were
-rewritten deliberately on the landed tree and are current; `netlib-infeas`,
-`plato-fome` and `plato-pds` are behind by 9 to 11 `src/` commits and
-`preflight.sh` says so on every run.
+**The gate campaign at HEAD is valid.** The last two source commits (D153 and
+its correction) are debug-only: the release objects keep the same md5 as the
+commit the gate ran on, measured rather than assumed, so the campaign carries
+over. `bench/results/netlib.txt` and `warm*.txt` were rewritten deliberately
+on their landed trees and are current; `netlib-infeas`, `plato-fome` and
+`plato-pds` are behind by several `src/` commits and `preflight.sh` says so
+on every run.
 
-**This session (2026-08-18/19, unattended) landed D140 through D152 —
-records 02-49 through 02-61, four source changes, one bench widening (the
+**Two things this session added that a later one should USE rather than
+rediscover:**
+
+- **An assert-enabled build now runs every instance** (`-UNDEBUG`, D152).
+  Before it, eleven of the 94 aborted, so every assert in the solve was
+  untested on them. Reach for it when diagnosing anything.
+- **Every debug build verifies published row activities against the
+  published columns** (D153), for rows whose logical is basic, to
+  `(n-1)·eps` times the row's traffic. It is validated by fault injection
+  and clean on all 139.
+
+**This session (2026-08-18/19, unattended) landed D140 through D153 —
+records 02-49 through 02-64, five source changes, one bench widening (the
 gate sees the basis now, D150), three kept candidates, and the repository's
 first tag, `v0.1.0`.**
+
+**D153 is the last of them, and the entry's value is what it got WRONG.**
+The row-activity check it built reported `pilotnov` as a defect; the finding
+was committed and then withdrawn the same day. Four versions of that one
+predicate each accused someone innocent — no gate on an optimal solve, a
+fixed multiple of eps where the quantity was a sum of n terms, comparing rows
+whose logical rests on a bound, and once the harness rather than the check.
+What settled it was splitting the firing population by basis status, and the
+split was total: 18 firings on one side, 0 on the other.
+`bench/measurements/02-62/` carries all four with what each falsely said.
+**Read it before widening or narrowing any predicate over published values.**
 
 **D152 closed the last of the two standing debts that were worth more than
 they looked.** The singleton-column replay clamps its published value into
@@ -40,7 +64,7 @@ record (`bench/measurements/02-61/`) corrects a number this file had carried
 since 2026-08-14 and refuses two tolerance designs with the measurement that
 refutes each.
 
-**D151 is the last of them and it closed D149's condition**: the warm count
+**D151 closed D149's condition**: the warm count
 repair landed behind a shortfall cap of 4, netlib warm work 0.2553 → 0.1916
 and Kennington 0.0572 → 0.0070, the three gate sets unmoved. Its record
 (`bench/measurements/02-60/`) carries three things worth reading before any
@@ -186,9 +210,92 @@ What is still true and unrepaired, both with their size on the record:
 - D121's loan of 1e32 on a cost of one is real and stays reachable through
   D118's refused presolve candidate. No instance in the gate reaches it.
 
-## → START HERE: a hostile basis makes HEAD publish a wrong optimum (D146)
+## → START HERE — what is actually next, 2026-08-19
 
-**This is the largest open correctness item in the file and it is public
+**D146's hostile-basis item is CLOSED and is no longer the start.** All four
+of its steps landed: the defect was located (D147), the certificate guard
+shipped (D148), the warm repair was refused blanket (D149) and landed capped
+(D151). Its detail is kept below under "the hostile basis, for the record".
+
+Nothing open today makes JAOS publish a wrong answer. What is open is listed
+in the order it should happen, with what each already has.
+
+### 1. The collapsed fold leaves a bound no record owns — the biggest one
+
+**It is the only open item whose error has NO stated bound.** The size is
+`4 * DBL_EPSILON * row_traffic[i] / |a|`, the traffic term is unbounded, and
+a row whose fixed column left at `a*v = 1e9` against a surviving singleton
+with `a = 1e-6` reads **0.89**. No instance in the gate reaches it. The full
+statement, the reproducing model and why the midpoint is deliberate are in
+the standing debts at the end of this file.
+
+**It needs a decision, not a patch**, and that is why it has sat: the
+midpoint is symmetric in the two ends and whatever replaces it has to keep
+that property.
+
+### 2. 48 netlib solves still publish a wrong basis count
+
+Measured, attributed to two families, and every LOCAL repair is refused with
+its measurement (D140, D141). What is left is a design wider than the firing
+row carrying a rank argument, or accepting the residue — which is what the
+published state of the art does (Galabova 2023). Its whole price is 48 solves
+losing their warm start. §"`jaos_basis` publishes something that is not a
+basis" below has all of it.
+
+### 3. Two instances still lose real work behind D151's cap
+
+`scsd1` 4.65x and `degen2` 4.09x, both with warm iterations exactly equal to
+cold — D148's guard rejecting the repaired trajectory and charging the
+attempt plus the whole cold solve. **The shortfall cannot be the rule that
+separates them and this is measured**: both are short by 1, the same
+shortfall as the sixteen instances that win. Needs a predictor of a doomed
+trajectory. Refusals table, D151.
+
+### 4. Three smaller, each measured and each needing its own campaign
+
+- **`row_traffic[i]` saturates to `+inf` and never recovers.** All 117
+  standard-set rows reaching the frozen-row test at zero margin carry
+  `row_traffic == inf`. Fixing it changes the frozen-row test's behaviour on
+  existing reductions, so it needs its own measurement.
+- **A row's own width can be destroyed by the shift that removes a column.**
+  `1 - 1e17` and `2 - 1e17` are the same double, so a row written `[1, 2]`
+  reaches the simplex as a single number. `row_traffic[i]` is exactly the
+  quantity that would detect it and no site compares against it for this.
+- **The unclamped dual step**, 248 netlib picks and 170 Kennington picks,
+  worst 8.37e-09. Costs nothing today; clamping it was refused (D127) because
+  the perturbation is what keeps `pilot87` moving.
+
+### 5. A stale claim in `src/presolve.c`, found 2026-08-19 and not yet acted on
+
+The comment above the singleton-column replay says a frozen row is never
+revisited for infeasibility, and names `min x0 s.t. x0 + x1 = 100,
+x0 in [4,4], x1 in [0,3]` as a model that "publishes x1 = 96 under -DNDEBUG".
+**That model reports INFEASIBLE at HEAD**, on both the normal and the
+`-DJAOS_NO_PRESOLVE` build. So either the defect was closed by something
+later and nobody updated the comment, or the example never showed what it
+claims. Neither the comment nor this file should keep asserting it.
+
+**What to do**: find a shape that does reach the frozen-row path with an
+empty intersection, or delete the claim. It is cheap and it removes a false
+statement from the source. D152 handed this over and it is not the same thing
+as D152's own clamp, which landed.
+
+### If all of the above is dropped
+
+`D97` is the largest prize in the file and is behind one precondition: a dual
+postsolve for an imposed bound. `docs/research/dual-postsolve-imposed-bound.md`
+is the design and nothing is built. It unlocks two families, not one — §3's
+doubleton equalities need the same machinery and are 8.55% of netlib's live
+rows and 29.36% of Kennington's.
+
+## The hostile basis, for the record — CLOSED (D146 to D151)
+
+**Nothing here is open.** It is kept because the four steps and their
+measurements are what a similar investigation should copy, and because the
+numbers below are what "before" looked like. What follows describes the tree
+as it was on 2026-08-19 BEFORE D148, not the tree today.
+
+**This WAS the largest open correctness item in the file and it is public
 API.** `jaos_read_mps` + `jaos_set_basis` + `jaos_solve`: `degen2`
 publishes a wrong objective as `JAOS_SOLVE_OPTIMAL` on **16 of 16**
 deterministic hostile bases (worst −1352.64 against a true −1435.178,
