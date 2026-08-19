@@ -1550,6 +1550,198 @@ static void test_an_implied_bound_outside_the_box_is_refused(void)
 #endif
 }
 
+/* The warm start a correct basis used to lose to the mapping (D143, D144,
+ * retried and landed after D148's certificate guard).
+ *
+ * x0 is a cost-0 bounded singleton on row 0, so presolve removes it and the
+ * first solve publishes it BASIC at an interior recovery with row 0's
+ * logical swapped out to a bound — an EXACT count of 2. On the re-solve the
+ * same reduction removes x0 again, the mapping drops its BASIC status, and
+ * the reduced start reaches build_warm_basis one member SHORT. Before the
+ * repair that was a silent cold fallback; now a logical is promoted — on
+ * this model by the FIXED-ORDER loop, not the uncovered-rows one: the
+ * surviving basic column touches both reduced rows, so nothing is
+ * uncovered, and row 0's logical is the first nonbasic one in index order.
+ * It is also the exact member the first solve's swap took out. The
+ * uncovered-rows branch has no small test yet; TODO.md's standing debts
+ * carry it. */
+static void test_a_short_mapped_basis_is_repaired_and_warm_survives(void)
+{
+#if defined(JAOS_PRESOLVE_FAULT_OFFBYONE) || defined(JAOS_PRESOLVE_FAULT_WRONGDUAL)
+    TEST_IGNORE_MESSAGE("positive test — skipped under either fault build");
+#elif defined(JAOS_NO_PRESOLVE)
+    TEST_IGNORE_MESSAGE("the mapping under test does not exist without presolve");
+#else
+    /* col0 (x0): row0 only, cost 0.  col1, col2: rows 0 and 1, cost 1. */
+    const double c[]  = {0.0, 1.0, 1.0};
+    const double cl[] = {0.0, 0.0, 0.0}, cu[] = {10.0, 10.0, 10.0};
+    const double rl[] = {5.0, 3.0}, ru[] = {8.0, INFINITY};
+    const int64_t s[]  = {0, 1, 3, 5};
+    const int64_t ix[] = {0,   0, 1,   0, 1};
+    const double v[]   = {1.0, 1.0, 1.0, 1.0, 1.0};
+    jaos_model *m = nullptr;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_model_new(&m));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_load_lp(m, 3, 2, JAOS_MINIMIZE, 0.0, c, cl, cu, rl, ru,
+                     5, s, ix, v));
+
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+    const double obj1 = 3.0;   /* min x1+x2 with x1+x2 >= 3 */
+    double obj = 0.0;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(m, &obj));
+    TEST_ASSERT_EQUAL_MEMORY(&obj1, &obj, sizeof obj);
+
+    /* The scenario's premise, asserted rather than assumed: the publish is
+     * exact (2 basics for 2 rows) and x0 is the interior BASIC member the
+     * mapping will drop. */
+    jaos_basis_status cs[3], rs[2];
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_basis(m, cs, rs));
+    TEST_ASSERT_EQUAL_INT(JAOS_BASIS_BASIC, cs[0]);
+    int64_t nb = 0;
+    for (int64_t k = 0; k < 3; k++) nb += cs[k] == JAOS_BASIS_BASIC;
+    for (int64_t k = 0; k < 2; k++) nb += rs[k] == JAOS_BASIS_BASIC;
+    TEST_ASSERT_EQUAL_INT64(2, nb);
+
+    /* One bound moves; the answer goes, the stored basis stays. */
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_set_row_bounds(m, 1, 4.0, INFINITY));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+    const double obj2 = 4.0;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(m, &obj));
+    TEST_ASSERT_EQUAL_MEMORY(&obj2, &obj, sizeof obj);
+
+    /* The pin that says the warm start survived. The repaired mapped basis
+     * is the re-solve's own optimal basis, so the warm solve prices and
+     * stops — and D148's certificate reads exactly zero on it, so no cold
+     * restart intervenes. On the tree without the repair this reads the
+     * cold count instead (validated by running exactly that tree), and a
+     * future change that costs this warm start again will move it. */
+    TEST_ASSERT_EQUAL_INT64(0, jaos_iterations(m));
+
+    jaos_model_free(m);
+#endif
+}
+
+/* Both sides of WARM_REPAIR_MAX_SHORT (D151). The constant is a threshold, so
+ * a test that only shows the repair firing would pass with the cap removed
+ * entirely; the case it must REJECT is the half that pins the number.
+ *
+ * The observable is the repair's own DETAIL log line rather than an iteration
+ * count, and that choice is measured rather than stylistic: on models this
+ * small the warm and cold counts coincide by accident — the same construction
+ * reads warm == cold at k = 2 and k = 4 while the repair fires at both.
+ *
+ * The construction replicates the block above k times. One block is 3 columns
+ * and 2 rows sharing nothing with any other, and each contributes exactly one
+ * interior BASIC singleton column for the mapping to drop, so the shortfall is
+ * k. That is not assumed: the boundary below lands at k = 4 repairing and
+ * k = 5 refusing, which is the constant, and any other shortfall-per-block
+ * would move it. */
+static int g_warm_repairs;
+
+static void count_warm_repair(void *user, jaos_log_level level,
+                              const char *line)
+{
+    (void)user;
+    (void)level;
+    if (strstr(line, "arrived short and was repaired") != nullptr)
+        g_warm_repairs++;
+}
+
+/* Returns whether the repair fired on a k-block model's warm re-solve. */
+static int repair_fires_at(int k)
+{
+    const int64_t nrow = 2 * k, ncol = 3 * k, nnz = 5 * k;
+    double *c = calloc((size_t)ncol, sizeof *c);
+    double *cl = calloc((size_t)ncol, sizeof *cl);
+    double *cu = calloc((size_t)ncol, sizeof *cu);
+    double *rl = calloc((size_t)nrow, sizeof *rl);
+    double *ru = calloc((size_t)nrow, sizeof *ru);
+    int64_t *st = calloc((size_t)ncol + 1, sizeof *st);
+    int64_t *ix = calloc((size_t)nnz, sizeof *ix);
+    double *va = calloc((size_t)nnz, sizeof *va);
+    TEST_ASSERT_NOT_NULL(va);
+
+    int64_t nz = 0;
+    for (int64_t b = 0; b < k; b++) {
+        const int64_t r0 = 2 * b, r1 = 2 * b + 1, j0 = 3 * b;
+        c[j0] = 0.0;     cl[j0] = 0.0;     cu[j0] = 10.0;
+        c[j0 + 1] = 1.0; cl[j0 + 1] = 0.0; cu[j0 + 1] = 10.0;
+        c[j0 + 2] = 1.0; cl[j0 + 2] = 0.0; cu[j0 + 2] = 10.0;
+        rl[r0] = 5.0; ru[r0] = 8.0;
+        rl[r1] = 3.0; ru[r1] = INFINITY;
+        ix[nz] = r0; va[nz] = 1.0; nz++;            /* the singleton */
+        st[j0 + 1] = nz;
+        ix[nz] = r0; va[nz] = 1.0; nz++;
+        ix[nz] = r1; va[nz] = 1.0; nz++;
+        st[j0 + 2] = nz;
+        ix[nz] = r0; va[nz] = 1.0; nz++;
+        ix[nz] = r1; va[nz] = 1.0; nz++;
+        st[j0 + 3] = nz;
+    }
+
+    jaos_model *m = nullptr;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_model_new(&m));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_load_lp(m, ncol, nrow, JAOS_MINIMIZE, 0.0, c, cl, cu, rl, ru,
+                     nz, st, ix, va));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+
+    /* The premise, asserted rather than assumed: the publish is exact and
+     * every block leaves its singleton interior BASIC, so the mapping is
+     * about to drop exactly k members. */
+    jaos_basis_status *cs = calloc((size_t)ncol, sizeof *cs);
+    jaos_basis_status *rs = calloc((size_t)nrow, sizeof *rs);
+    TEST_ASSERT_NOT_NULL(rs);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_basis(m, cs, rs));
+    int64_t nb = 0, singles = 0;
+    for (int64_t j = 0; j < ncol; j++) nb += cs[j] == JAOS_BASIS_BASIC;
+    for (int64_t i = 0; i < nrow; i++) nb += rs[i] == JAOS_BASIS_BASIC;
+    for (int64_t b = 0; b < k; b++) singles += cs[3 * b] == JAOS_BASIS_BASIC;
+    TEST_ASSERT_EQUAL_INT64(nrow, nb);
+    TEST_ASSERT_EQUAL_INT64(k, singles);
+
+    g_warm_repairs = 0;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_log_level(m, JAOS_LOG_DETAIL));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_set_log_callback(m, count_warm_repair, nullptr));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_row_bounds(m, 1, 4.0, INFINITY));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+
+    const int fired = g_warm_repairs;
+    jaos_model_free(m);
+    free(c); free(cl); free(cu); free(rl); free(ru);
+    free(st); free(ix); free(va); free(cs); free(rs);
+    return fired;
+}
+
+static void test_the_warm_repair_stops_at_its_cap(void)
+{
+#if defined(JAOS_PRESOLVE_FAULT_OFFBYONE) || defined(JAOS_PRESOLVE_FAULT_WRONGDUAL)
+    TEST_IGNORE_MESSAGE("positive test — skipped under either fault build");
+#elif defined(JAOS_NO_PRESOLVE)
+    TEST_IGNORE_MESSAGE("the mapping under test does not exist without presolve");
+#else
+    /* WARM_REPAIR_MAX_SHORT lives at file scope in src/simplex.c and no test
+     * can read it, so the shipping value 4 is written here as a literal. That
+     * makes this a pinned change-detector test on purpose: moving the
+     * constant fails these four lines, and whoever moves it has to come here,
+     * re-read the sweep in simplex.c and re-pin deliberately. */
+    TEST_ASSERT_TRUE(repair_fires_at(1));
+    TEST_ASSERT_TRUE(repair_fires_at(4));
+
+    /* One past the cap the repair is refused and the solve falls back to
+     * cold. This is the half the constant exists for: delete the cap and
+     * these two fail, raise it and they fail. */
+    TEST_ASSERT_FALSE(repair_fires_at(5));
+    TEST_ASSERT_FALSE(repair_fires_at(6));
+#endif
+}
+
 /* A basis that maps LONG onto the reduced model falls back to cold, and this
  * pins it. The construction: a caller basis with an exact orig-space count
  * (so jaos_set_basis accepts it) on a model where presolve removes a row
@@ -3315,6 +3507,8 @@ int main(void)
     RUN_TEST(test_singleton_col_after_fixed_col);
     RUN_TEST(test_singleton_col_between_two_removals_solved_path);
     RUN_TEST(test_the_basis_count_promise_breaks_on_a_declined_column);
+    RUN_TEST(test_a_short_mapped_basis_is_repaired_and_warm_survives);
+    RUN_TEST(test_the_warm_repair_stops_at_its_cap);
     RUN_TEST(test_a_long_mapped_basis_falls_back_cold);
     RUN_TEST(test_two_singleton_cols_on_one_row);
     RUN_TEST(test_free_col_singleton_round_trip);

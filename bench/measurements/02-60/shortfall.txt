@@ -1,0 +1,111 @@
+# Per-instance mapped-basis shortfall S = rrow - rb at the moment the
+# warm re-solve's mapping finishes. One line per mapped solve.
+# Validation: aggregates below each set must equal 02-52's.
+
+######## netlib ########
+25fv47         rrow=777     rb=775     S=2
+80bau3b        rrow=2022    rb=2016    S=6
+adlittle       rrow=53      rb=52      S=1
+afiro          rrow=25      rb=25      S=0
+agg            rrow=412     rb=412     S=0
+agg2           rrow=481     rb=481     S=0
+agg3           rrow=481     rb=481     S=0
+bandm          rrow=245     rb=189     S=56
+beaconfd       rrow=96      rb=96      S=0
+blend          rrow=72      rb=71      S=1
+bnl1           rrow=564     rb=559     S=5
+bnl2           rrow=2114    rb=2102    S=12
+boeing1        rrow=298     rb=297     S=1
+boeing2        rrow=125     rb=125     S=0
+bore3d         rrow=136     rb=132     S=4
+brandy         rrow=123     rb=118     S=5
+capri          rrow=245     rb=245     S=0
+cycle          rrow=1572    rb=1516    S=56
+czprob         rrow=689     rb=675     S=14
+d2q06c         rrow=2098    rb=2075    S=23
+d6cube         rrow=403     rb=403     S=0
+degen2         rrow=443     rb=442     S=1
+degen3         rrow=1503    rb=1502    S=1
+dfl001         rrow=6071    rb=5726    S=345
+e226           rrow=162     rb=162     S=0
+etamacro       rrow=340     rb=326     S=14
+fffff800       rrow=476     rb=476     S=0
+finnis         rrow=399     rb=397     S=2
+fit1d          rrow=24      rb=23      S=1
+fit1p          rrow=627     rb=377     S=250
+fit2d          rrow=25      rb=25      S=0
+fit2p          rrow=3000    rb=2763    S=237
+forplan        rrow=128     rb=124     S=4
+ganges         rrow=1125    rb=1072    S=53
+gfrd-pnc       rrow=590     rb=590     S=0
+greenbea       rrow=1954    rb=1947    S=7
+greenbeb       rrow=1950    rb=1943    S=7
+grow15         rrow=300     rb=300     S=0
+grow22         rrow=440     rb=440     S=0
+grow7          rrow=140     rb=140     S=0
+israel         rrow=162     rb=162     S=0
+kb2            rrow=43      rb=42      S=1
+lotfi          rrow=134     rb=132     S=2
+maros          rrow=690     rb=682     S=8
+maros-r7       rrow=2156    rb=2156    S=0
+modszk1        rrow=683     rb=655     S=28
+nesm           rrow=646     rb=639     S=7
+perold         rrow=598     rb=593     S=5
+pilot          rrow=1392    rb=1386    S=6
+pilot-ja       rrow=835     rb=824     S=11
+pilot-we       rrow=705     rb=701     S=4
+pilot4         rrow=396     rb=387     S=9
+pilot87        rrow=1996    rb=1988    S=8
+sc105          rrow=104     rb=104     S=0
+sc205          rrow=203     rb=203     S=0
+sc50a          rrow=49      rb=49      S=0
+sc50b          rrow=48      rb=48      S=0
+scagr25        rrow=347     rb=347     S=0
+scagr7         rrow=95      rb=94      S=1
+scfxm1         rrow=281     rb=276     S=5
+scfxm2         rrow=562     rb=550     S=12
+scfxm3         rrow=843     rb=824     S=19
+scorpion       rrow=292     rb=292     S=0
+scsd1          rrow=77      rb=76      S=1
+scsd6          rrow=147     rb=146     S=1
+scsd8          rrow=397     rb=396     S=1
+sctap1         rrow=284     rb=202     S=82
+sctap2         rrow=1033    rb=601     S=432
+sctap3         rrow=1408    rb=812     S=596
+seba           rrow=477     rb=146     S=331
+share2b        rrow=93      rb=93      S=0
+ship04l        rrow=317     rb=317     S=0
+ship04s        rrow=241     rb=241     S=0
+ship08l        rrow=520     rb=519     S=1
+ship08s        rrow=326     rb=326     S=0
+ship12l        rrow=687     rb=687     S=0
+ship12s        rrow=417     rb=417     S=0
+sierra         rrow=1212    rb=1212    S=0
+stair          rrow=356     rb=356     S=0
+standata       rrow=300     rb=294     S=6
+standmps       rrow=407     rb=400     S=7
+stocfor1       rrow=98      rb=98      S=0
+stocfor2       rrow=2129    rb=2129    S=0
+stocfor3       rrow=16617   rb=16617   S=0
+tuff           rrow=284     rb=250     S=34
+vtp-base       rrow=52      rb=51      S=1
+wood1p         rrow=171     rb=170     S=1
+woodw          rrow=723     rb=648     S=75
+
+  mapped solves 88, short 54, total shortfall 2803
+
+######## kennington ########
+cre-a          rrow=3074    rb=3074    S=0
+cre-b          rrow=5336    rb=5336    S=0
+cre-c          rrow=2583    rb=2582    S=1
+cre-d          rrow=4102    rb=4102    S=0
+osa-07         rrow=1081    rb=1080    S=1
+osa-14         rrow=2300    rb=2299    S=1
+osa-30         rrow=4313    rb=4312    S=1
+osa-60         rrow=10243   rb=10242   S=1
+pds-06         rrow=9156    rb=9156    S=0
+pds-10         rrow=15648   rb=15648   S=0
+pds-20         rrow=32287   rb=32287   S=0
+
+  mapped solves 11, short 5, total shortfall 5
+

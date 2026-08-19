@@ -9,6 +9,18 @@ open, `bench/README.md` for the gate, and the commit each entry came from.
 
 ## [Unreleased]
 
+### Changed
+
+- A mapped starting basis that arrives short of `nrow` basic members is
+  repaired rather than refused, by promoting row logicals — uncovered rows
+  first, then fixed index order — when the shortfall is at most 4
+  (`WARM_REPAIR_MAX_SHORT`, swept on both sides). Past the cap the solve
+  still starts cold. Warm re-solve work falls from a geometric mean of
+  0.2553 to 0.1916 on netlib and 0.0572 to 0.0070 on Kennington, with the
+  worst per-instance ratio at 4.65 where the uncapped repair reached 172.03;
+  `disagreed=0, rejected=0` on both sets. The three gate sets are unmoved —
+  the gate solves from a fresh load and never reaches this path (D151).
+
 ### Fixed
 
 - The solve reads its own settled dual violation before publishing OPTIMAL.

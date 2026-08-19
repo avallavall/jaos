@@ -36,12 +36,13 @@ Defined in `src/simplex.c` and `src/lu.c`.
 | `DSE_DRIFT` | 10.0 | How far a carried weight may sit from the exact one before the whole set is discarded and restarted. Well outside what rounding produces, well inside what one badly conditioned pivot can |
 | `ARTIFICIAL_BOUND` | 1e10 | The bound dual phase 1 lends a column whose cost points at a bound it does not have. No verdict depends on it (D19): unboundedness is proven against a ray, and a model this bound cuts off is refused rather than answered. So it decides how often the method has to give up, not whether an answer is true |
 
-Two more numbers in `src/simplex.c` are not tolerances but sit beside them:
+Three more numbers in `src/simplex.c` are not tolerances but sit beside them:
 
 | Name | Value | What it decides |
 |---|---|---|
 | `REFACTOR_EVERY` | 64 | Basis updates before a refactorization. Alongside it: the reactive fallback on a failed update, and one more refactorization at the end of every solve, because optimality is not accepted on carried values (D20). The trigger PLAN 2.5.5 also calls for — watching an FTRAN/BTRAN residual *during* the solve — still does not exist |
 | `ITER_SANITY_FACTOR` | 200 | Times `rows + columns + 1`, an iteration ceiling that is not a limit but a guard against a non-terminating loop. Hitting it is a defect in JAOS and is reported as a library error, never as a solve outcome |
+| `WARM_REPAIR_MAX_SHORT` | 4 | How many basic members a mapped starting basis may be missing and still be repaired by promoting logicals rather than refused. It decides cost and never an answer: past the cap `build_warm_basis` returns false and the solve starts cold, which is always correct. Swept on both sides over every distinct shortfall in the set, from "never repair" to "always" — netlib work geometric mean 0.2553, 0.2089, 0.2047, **0.1916**, 0.1886, 0.1895, 0.1874, 0.1938 … 0.2605 at caps 0, 1, 2, **4**, 5, 6, 7, 8 … 596, with the worst per-instance ratio holding at 4.65 through cap 4 and then stepping to 15.48 at 7 (`greenbea`) and 172.03 at 345 (`dfl001`). The mean is flat across 1..7 and the worst case is not, so the value sits at the end of a plateau rather than at the minimum: 7 is 2.2% better on the mean for a worst case 3.3x larger. Kennington does not vote — all five of its short solves are short by exactly 1, so every cap at or above 1 gives it the whole gain, 0.0572 → 0.0070. **The relative shape was swept too and is worse**: capping `S/nrow` reaches only 0.2081 and meets the 15.48 cliff with 8 instances admitted, where the absolute cap admits 31 before reaching it, because `greenbea` is 7 short of 1954 rows — the smallest relative shortfall in the set and one of the two worst outcomes (D151) |
 
 ## The checker's tolerance
 

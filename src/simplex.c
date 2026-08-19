@@ -271,6 +271,50 @@ constexpr double NOISE_MARGIN = 1e5;
  * rounds, and the iteration cap in run() covers all of them together. */
 constexpr int64_t SETTLE_ROUNDS = 32;
 
+/* How short a mapped starting basis may be and still be repaired rather than
+ * refused (D151). build_warm_basis promotes logicals to close a shortfall;
+ * this is the largest shortfall worth closing.
+ *
+ * A cap exists because the blanket repair was measured and refused (D149):
+ * it is correct behind D148's certificate guard, and `dfl001` pays 172x work
+ * for a 596-short repair whose trajectory the guard then throws away. The
+ * value is where the repair pays and the guard rarely fires.
+ *
+ * The sweep, netlib work geometric mean against the cold solve, every
+ * distinct shortfall in the set from "never repair" to "always"
+ * (bench/measurements/02-60/cap-sweep.txt):
+ *
+ *      cap    0      1      2      4      5      6      7      8     596
+ *     work  .2553  .2089  .2047  .1916  .1886  .1895  .1874  .1938  .2605
+ *    worst   1.00   4.65   4.65   4.65   4.70   4.70  15.48  15.48  172.03
+ *
+ * Read the two rows together. The mean is flat across 1..7 and the worst
+ * case is not: it holds at 4.65 through 4, and at 7 `greenbea` steps to
+ * 15.48 and at 345 `dfl001` to 172. 4 takes the whole of the cheap gain —
+ * 8.3% better than 1 — without moving the worst case at all. 5 buys a
+ * further 1.6% and costs `brandy` 4.70 and `bnl1` 2.87; 7 buys 0.6% and
+ * costs `greenbea` 15.48. So the number is chosen at the end of a plateau
+ * rather than at a minimum, which is why it is 4 and not 7.
+ *
+ * **The obvious alternative shape was swept too and is worse.** A cap
+ * relative to the model's rows (S <= r*nrow) reaches a best mean of only
+ * .2081 and meets `greenbea`'s 15.48 at r = 0.0036, the eighth instance it
+ * admits — `greenbea` is 7 short of 1954 rows, the smallest relative
+ * shortfall in the set and one of the two worst outcomes. The shortfall's
+ * absolute size separates these cases and its size relative to the model
+ * does not.
+ *
+ * Kennington does not vote on the value. All five of its short solves are
+ * short by exactly 1, so every cap at or above 1 gives that set the whole of
+ * its gain (0.0572 to 0.0070); the number only trades netlib.
+ *
+ * Two instances lose at this setting and both lose the same way: `degen2`
+ * 4.09x and `scsd1` 4.65x, each with warm iterations exactly equal to cold.
+ * That is D148's guard rejecting the repaired trajectory and restarting
+ * cold, so the bill is the attempt plus the cold solve. Bounded, and the
+ * price of the 18 instances that win. */
+constexpr int64_t WARM_REPAIR_MAX_SHORT = 4;
+
 /* Bounds JAOS invented to get a dual feasible start. A column is caught by
  * exactly one branch of the cost-sign test, so one value says both whether
  * a bound was lent and which side it went on — two parallel flags would
@@ -907,27 +951,99 @@ static bool build_warm_basis(sx *s)
         return false;
 
     /* Everything that would make this basis unusable, asked before a single
-     * field is written. The count is one of the two: both writers of a
-     * starting basis enforce it, so a mismatch means one of *them* is wrong
-     * rather than that the caller is — but the answer is still to fall back,
-     * because the cold start is always correct and corrupting `basis` is the
-     * alternative. */
-    int64_t nbasic = 0;
-    for (int64_t v = 0; v < s->nvar; v++) {
-        jaos_basis_status want =
-            v < s->ncol ? m->start_col_status[v]
-                        : m->start_row_status[v - s->ncol];
-        if (want == JAOS_BASIS_BASIC)
-            nbasic++;
-    }
-    if (nbasic != s->nrow)
+     * field is written — but a SHORT count is repaired rather than refused
+     * (D144). On a presolved re-solve this function judges the MAPPED basis,
+     * and jm_presolve_run's mapping drops every stored-basic member presolve
+     * removes again, so since D139 an exactly-published basis maps short on
+     * a third of the warm solves (54 of 88 netlib, 5 of 11 Kennington,
+     * worst shortfall 596 — bench/measurements/02-51 and 02-52). The
+     * shortfall is a difference of five families' terms, which is why no
+     * mapping-side pass repairs it and this consumer does.
+     *
+     * While short BY AT MOST WARM_REPAIR_MAX_SHORT, promote the logical of an
+     * UNCOVERED row first — a row no wanted-basic member touches makes B
+     * structurally singular without its own e_i — then logicals in fixed row
+     * order (D8; the order is index order, never an address or a value). A
+     * shortfall past the cap falls back to cold, because the repair stops
+     * paying there and D148's guard throws the trajectory away anyway; the
+     * constant carries its own sweep. A LONG count is still refused:
+     * no long map has been measured, and a demotion rule for an unmeasured
+     * case would be a constant fitted to nothing. Rank stays where it
+     * already lives (repair_singular_basis), and the weights below restart
+     * at one regardless. The stored arrays are the model's and are never
+     * written; the repair happens on a copy that lives to the end of this
+     * function. */
+    /* OOM below falls back to cold and reports JAOS_OK, where the rest of
+     * the solve surfaces OOM as an error. That is a stated rule, not an
+     * accident: a warm start is an optimisation and never a claim, and the
+     * cold path is always correct. The cost of the rule is that a machine
+     * failing an 8·nvar-byte allocation can publish a different optimal
+     * vertex of a degenerate model than one that does not — both OPTIMAL,
+     * both checked — which is accepted because such a machine fails loudly
+     * a few lines later anyway. */
+    jaos_basis_status *want_arr =
+        jm_alloc_array(s->nvar > 0 ? s->nvar : 1, sizeof *want_arr);
+    if (want_arr == nullptr)
         return false;
+    for (int64_t v = 0; v < s->nvar; v++)
+        want_arr[v] = v < s->ncol ? m->start_col_status[v]
+                                  : m->start_row_status[v - s->ncol];
+
+    int64_t nbasic = 0;
+    for (int64_t v = 0; v < s->nvar; v++)
+        nbasic += want_arr[v] == JAOS_BASIS_BASIC;
+
+    if (nbasic < s->nrow && s->nrow - nbasic <= WARM_REPAIR_MAX_SHORT) {
+        unsigned char *cov = jm_calloc_array(s->nrow > 0 ? s->nrow : 1,
+                                             sizeof *cov);
+        if (cov == nullptr) {
+            free(want_arr);
+            return false;
+        }
+        /* Billed like every other per-nonzero walk in this file: the warm
+         * campaign this repair is judged by reads work units, and an
+         * unbilled pass on exactly the solves it enables would flatter the
+         * change being judged. */
+        int64_t covnz = 0;
+        for (int64_t v = 0; v < s->nvar; v++) {
+            if (want_arr[v] != JAOS_BASIS_BASIC)
+                continue;
+            if (v < s->ncol) {
+                for (int64_t k = m->a_start[v]; k < m->a_start[v + 1]; k++)
+                    cov[m->a_index[k]] = 1;
+                covnz += m->a_start[v + 1] - m->a_start[v];
+            } else {
+                cov[v - s->ncol] = 1;
+                covnz++;
+            }
+        }
+        jm_work_add(&s->work, covnz * JM_WORK_NONZERO);
+        for (int64_t i = 0; i < s->nrow && nbasic < s->nrow; i++)
+            if (!cov[i] && want_arr[s->ncol + i] != JAOS_BASIS_BASIC) {
+                want_arr[s->ncol + i] = JAOS_BASIS_BASIC;
+                nbasic++;
+            }
+        for (int64_t i = 0; i < s->nrow && nbasic < s->nrow; i++)
+            if (want_arr[s->ncol + i] != JAOS_BASIS_BASIC) {
+                want_arr[s->ncol + i] = JAOS_BASIS_BASIC;
+                nbasic++;
+            }
+        free(cov);
+        /* Said out loud so a later restart of this same solve names the
+         * basis it threw away as a repaired one — the first question a
+         * diagnosis of such a restart asks, found in review. */
+        jm_log(s->m, JAOS_LOG_DETAIL,
+               "the mapped starting basis arrived short and was repaired "
+               "by promoting logicals");
+    }
+    if (nbasic != s->nrow) {
+        free(want_arr);
+        return false;
+    }
 
     int64_t p = 0;
     for (int64_t v = 0; v < s->nvar; v++) {
-        jaos_basis_status want =
-            v < s->ncol ? m->start_col_status[v]
-                        : m->start_row_status[v - s->ncol];
+        jaos_basis_status want = want_arr[v];
         if (want == JAOS_BASIS_BASIC) {
             s->basis[p] = v;
             s->status[v] = JM_BASIC;
@@ -949,6 +1065,7 @@ static bool build_warm_basis(sx *s)
         else
             s->status[v] = JM_FREE;
     }
+    free(want_arr);
 
     /* Same reason as in build_initial_basis: the loop above is the whole
      * membership state, so the bitmap is built from it rather than patched.

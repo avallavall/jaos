@@ -158,6 +158,7 @@ and you have the argument. Jump to the entry for the numbers behind it.
 - **[D148](#d148--the-certificate-guard-lands-0-wrong-of-80-where-head-published-26-and-the-gate-is-bit-identical)** — The certificate guard lands: 0 wrong of 80 where HEAD published 26, and the gate is bit-identical
 - **[D149](#d149--the-retried-warm-repair-is-correct-now-and-refused-on-cost-dfl001-pays-172x-for-a-doomed-attempt-the-guard-then-throws-away)** — The retried warm repair is correct now and refused on cost: dfl001 pays 172x for a doomed attempt the guard then throws away
 - **[D150](#d150--the-gate-sees-the-basis-every-optimal-line-carries-its-hash-det-covers-it-and-all-139-instances-hold)** — The gate sees the basis: every optimal line carries its hash, det covers it, and all 139 instances hold
+- **[D151](#d151--the-warm-repair-lands-behind-a-shortfall-cap-of-4-chosen-at-the-end-of-a-plateau-because-the-mean-is-flat-there-and-the-worst-case-is-not)** — The warm repair lands behind a shortfall cap of 4, chosen at the end of a plateau because the mean is flat there and the worst case is not
 
 ---
 
@@ -10924,3 +10925,87 @@ and D139 were judged by 02-47/02-48 because the gate was basis-blind. From
 this record on, the gate itself sees a basis change per instance, and
 netlib's 48-solve residue is pinned deliberately so its future repair
 moves the record visibly instead of invisibly.
+
+## D151 — The warm repair lands behind a shortfall cap of 4, chosen at the end of a plateau because the mean is flat there and the worst case is not
+
+**The question, as asked.** D149's refusals-table condition, in its own
+words: a shortfall cap swept on both sides from the measured material,
+judged by the same warm campaigns. D149 refused the blanket repair on
+cost — correct behind D148's guard, and `dfl001` paying 172x for a
+596-short repair the guard then threw away. Expected: a threshold exists
+that keeps the small-shortfall gain and drops the large-shortfall cost.
+
+**The measurement** (`bench/measurements/02-60/`). 02-52 had saved only
+aggregates, so the per-instance shortfalls were re-measured;
+`run-shortfall.sh` reproduces 02-52's aggregates exactly — netlib 88
+mapped / 54 short / 2803 total, Kennington 11 / 5 / 5 — on an instrument
+written against a different decomposition, which is its validation.
+
+The curve, netlib work geometric mean against cold, at caps 0, 1, 2, **4**,
+5, 6, 7, 8 … 596: 0.2553, 0.2089, 0.2047, **0.1916**, 0.1886, 0.1895,
+0.1874, 0.1938 … 0.2605. The worst per-instance ratio over the same caps:
+1.00, 4.65, 4.65, **4.65**, 4.70, 4.70, **15.48**, 15.48 … 172.03. **The
+mean is flat across 1..7 and the worst case is not.** 1 → 4 buys 8.3% and
+moves the worst case by nothing; 4 → 5 buys 1.6% and costs `brandy` 4.70
+and `bnl1` 2.87; 5 → 7 buys 0.6% and costs `greenbea` 15.48. So 4, at the
+end of a plateau rather than at the minimum — 7 is 2.2% better on the mean
+for a worst case 3.3x larger. Kennington does not vote: all five of its
+short solves are short by exactly 1, so every cap at or above 1 gives it
+the whole gain.
+
+The capped tree was then built and run, and the campaign matches the
+sweep's prediction on **103 of 103 instances** across both sets, warm and
+cold, iterations and work (`verify-prediction.py`). netlib 0.2553 →
+**0.1916**, Kennington 0.0572 → **0.0070**, worst ratio 4.65 against the
+blanket repair's 172.03, and `disagreed=0, rejected=0, errors=0` on both —
+D145's correctness bar, met.
+
+The three gate sets are unmoved, and that was run rather than argued:
+`gate: PASS` and `0 regressed, 0 improved, 0 new` on all three, with
+`record_diff` reading **94 + 29 + 16 bit-identical, 0 digest changes**.
+The gate solves each instance once from a fresh load and never reaches
+`build_warm_basis`. D150, landed the day before, is what makes this
+check strong — every optimal line now carries `basis=` and `det` covers
+it, so a change moving only a basis would show here, and last week it
+would not have.
+
+**`jaos-measurer` did not deliver**, across three sends: it created a
+worktree at HEAD and built nothing. The campaigns and the per-instance
+read were done in the main context instead, with the same scripts the
+skill names. `numerics-reviewer` did not deliver either, also across
+three sends, so the diff was reviewed in the main context — promotion
+order (index order only, no address or value reaches it), the new gate's
+arithmetic (the `&&` short-circuits, so `s->nrow - nbasic` is evaluated
+only when positive), and all three exit paths after `want_arr` is
+allocated, each freeing it exactly once. That is the second and third
+time this session that a subagent returned nothing; the record says so
+rather than implying a review that did not happen.
+
+**What was refuted.** The relative cap, which is the better-shaped
+constant on the argument that a shortfall of 5 means different things on a
+25-row and a 6000-row model. Swept over every distinct ratio in the set,
+it reaches a best mean of only 0.2081 against the absolute cap's 0.1874,
+and it meets the 15.48 cliff with **8** instances admitted where the
+absolute cap admits **31** before reaching it. One instance is the
+reason: `greenbea`
+is 7 short of 1954 rows, **0.36%** — the smallest relative shortfall in
+the set and one of the two worst outcomes — while `seba` is 69% short and
+costs 2.87x. The shortfall's absolute size separates these cases and its
+size relative to the model does not, which is the opposite of what the
+shape argument predicts.
+
+Also refuted, as an instrument: an iteration-based test of the cap. On
+models small enough to unit-test, warm and cold counts coincide by
+accident — the test's own construction reads `warm == cold` at k = 2 and
+k = 4 while the repair fires at both. The test counts the repair's DETAIL
+log line through the public callback instead, and was validated against
+the two trees it must reject (cap removed, cap raised to 5), failing on
+both and passing on the shipping tree.
+
+**What is left open, in `TODO.md`.** Two instances still lose real work at
+this setting, `scsd1` 4.65x and `degen2` 4.09x, both with warm iterations
+exactly equal to cold — D148's guard rejecting the repaired trajectory and
+charging the caller the attempt plus the whole cold solve. A rule that
+predicts a doomed trajectory before paying for it is not this entry's, and
+the shortfall does not separate them: both are short by 1, the same
+shortfall as the sixteen instances that win. The refusals table carries it.

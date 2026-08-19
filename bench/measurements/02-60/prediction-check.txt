@@ -1,0 +1,8 @@
+netlib: 92 instances, 20 repaired at cap 4, 92 of 92 match the prediction
+  the runner's own summary: work 0.1916, iters 0.0862, worst scsd1 4.6464
+  disagreed=0 rejected=0 errors=0  (the correctness bar D145 set; all three must be 0)
+kennington: 11 instances, 5 repaired at cap 4, 11 of 11 match the prediction
+  the runner's own summary: work 0.0070, iters 0.0013, worst cre-c 0.5131
+  disagreed=0 rejected=0 errors=0  (the correctness bar D145 set; all three must be 0)
+
+PREDICTION CONFIRMED

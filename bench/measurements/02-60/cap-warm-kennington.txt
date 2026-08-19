@@ -1,0 +1,27 @@
+# instance    verdict   branch  warm=iters/work  cold=iters/work
+cre-a        ok        branch=x3<=13 warm=2/191085 cold=2484/20187689 verdict=optimal obj=23595407.243505381/23595407.243505381 before=23595407.060971618 moved=yes checker=warm:ok/cold:ok 
+cre-b        ok        branch=x5<=14 warm=1/1228712 cold=8776/627741492 verdict=optimal obj=23129640.018463288/23129640.018463276 before=23129639.886832379 moved=yes checker=warm:ok/cold:ok 
+cre-c        ok        branch=x0<=0 warm=281/10924139 cold=2315/21289077 verdict=optimal obj=25275120.770900194/25275120.770900194 before=25275116.140880212 moved=yes checker=warm:ok/cold:ok 
+cre-d        ok        branch=x1<=5 warm=18/1854497 cold=6822/317213011 verdict=optimal obj=24454976.745696824/24454976.745696824 before=24454969.764549244 moved=yes checker=warm:ok/cold:ok 
+ken-07       skipped   every column integral at the optimum
+ken-11       skipped   every column integral at the optimum
+ken-13       skipped   every column integral at the optimum
+ken-18       skipped   every column integral at the optimum
+osa-07       ok        branch=x1818<=0 warm=1/568359 cold=600/49127118 verdict=optimal obj=535722.51729935105/535722.51729935093 before=535722.51729935093 moved=yes checker=warm:ok/cold:ok 
+osa-14       ok        branch=x21893<=0 warm=2/1384995 cold=1293/236313880 verdict=optimal obj=1106471.8452605626/1106471.8452605626 before=1106462.8447362538 moved=yes checker=warm:ok/cold:ok 
+osa-30       ok        branch=x51270<=0 warm=3/2983113 cold=2645/984824050 verdict=optimal obj=2142145.4146565553/2142145.4146565553 before=2142139.8732097656 moved=yes checker=warm:ok/cold:ok 
+osa-60       ok        branch=x50576<=0 warm=1/6431440 cold=7061/7312350863 verdict=optimal obj=4044072.5031574406/4044072.503157441 before=4044072.5031574406 moved=NO checker=warm:ok/cold:ok 
+pds-02       skipped   every column integral at the optimum
+pds-06       ok        branch=x59<=69 warm=6/1316085 cold=9053/194649554 verdict=optimal obj=27761037600/27761037600 before=27761037600 moved=NO checker=warm:ok/cold:ok 
+pds-10       ok        branch=x595<=32 warm=1/965265 cold=16558/761029655 verdict=optimal obj=26727094976/26727094976 before=26727094976 moved=NO checker=warm:ok/cold:ok 
+pds-20       ok        branch=x3<=439 warm=24/124710524 cold=43415/5451406196 verdict=optimal obj=23821658639.999996/23821658640 before=23821658639.999996 moved=NO checker=warm:ok/cold:ok 
+
+-- warm against cold --
+measured 11, skipped 5, disagreed 0, rejected 0, errors 0
+iterations (warm+1)/(cold+1), geometric mean: 0.0013
+work units warm/cold, geometric mean:         0.0070
+work ratio, best  osa-60 at 0.0009
+work ratio, worst cre-c at 0.5131
+reached the optimum in no iterations at all:  0 of 11
+took more iterations warm than cold:          0 of 11
+the branch moved the optimum:                 7 of 11

@@ -1634,10 +1634,13 @@ JAOS_NODISCARD jaos_status jm_presolve_run(const jaos_model *m, jm_presolve *p,
 
     /* Mapped into reduced indices before build_warm_basis ever reads it
      * (D-08). A removed row or column recorded basic has no reduced
-     * counterpart to carry that status; dropping it undercounts the basic
-     * total, and build_warm_basis already falls back to the slack basis
-     * whenever the count is short of nrow — safe, never wrong, only colder
-     * than a fuller mapping could be. */
+     * counterpart to carry that status, and dropping it undercounts the
+     * basic total. build_warm_basis REPAIRS a short count now (D144) —
+     * promoting logicals, uncovered rows first — because the shortfall is a
+     * difference of five families' terms and no pass here could close it
+     * (bench/measurements/02-52). Do not rebuild a per-family correction in
+     * this file; D144 refused exactly that. A LONG mapped count still falls
+     * back to cold there. */
     if (m->start_col_status != nullptr && m->start_row_status != nullptr) {
         p->reduced.start_col_status =
             jm_alloc_array(rcol, sizeof *p->reduced.start_col_status);

@@ -1,0 +1,62 @@
+candidate applied
+=== netlib ===
+gate: PASS
+time: 76.928256s over 94 instances, slowest pilot87 at 30.634109s
+time: INFLATED -- 12 solves ran at once. For a time ratio, rerun with -j 1.
+
+-- against baseline --
+baseline: 0 regressed, 0 improved, 0 new
+=== netlib-infeas ===
+gate: PASS
+time: 4.410511s over 29 instances, slowest gosh at 4.255078s
+time: INFLATED -- 12 solves ran at once. For a time ratio, rerun with -j 1.
+
+-- against baseline --
+baseline: 0 regressed, 0 improved, 0 new
+=== netlib-kennington ===
+gate: PASS
+time: 297.444328s over 16 instances, slowest ken-18 at 179.984968s
+time: INFLATED -- 12 solves ran at once. For a time ratio, rerun with -j 1.
+
+-- against baseline --
+baseline: 0 regressed, 0 improved, 0 new
+
+exits: netlib=0 infeas=0 kennington=0
+
+=== per-instance diff against the committed records ===
+--- netlib ---
+========================================================================
+bench/results/netlib.txt  vs  /mnt/c/Users/vall-/Desktop/projectes/jaos/bench/results/netlib.txt
+========================================================================
+94 instances compared: 94 bit-identical, 0 moved, 0 digest change(s)
+
+-- no regression --
+
+Every instance is bit-identical to the committed record.
+That is the strongest available evidence a change is a no-op.
+
+--- netlib-infeas ---
+========================================================================
+bench/results/netlib-infeas.txt  vs  /mnt/c/Users/vall-/Desktop/projectes/jaos/bench/results/netlib-infeas.txt
+========================================================================
+29 instances compared: 29 bit-identical, 0 moved, 0 digest change(s)
+
+-- no regression --
+
+Every instance is bit-identical to the committed record.
+That is the strongest available evidence a change is a no-op.
+
+--- netlib-kennington ---
+========================================================================
+bench/results/netlib-kennington.txt  vs  /mnt/c/Users/vall-/Desktop/projectes/jaos/bench/results/netlib-kennington.txt
+========================================================================
+16 instances compared: 16 bit-identical, 0 moved, 0 digest change(s)
+
+-- no regression --
+
+Every instance is bit-identical to the committed record.
+That is the strongest available evidence a change is a no-op.
+
+gate records copied beside this script
+
+[exited with code 0]

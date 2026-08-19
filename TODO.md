@@ -16,9 +16,28 @@ are D138's and D139's, both in `src/presolve.c`, both status-only: the gate is
 `make test`, `make test EXTRA_CFLAGS=-DJAOS_NO_PRESOLVE` and `make sanitize`
 all exit 0.
 
-**This session (2026-08-18/19, unattended) landed D140 through D150 on top
-of that state — records 02-49 through 02-59, two source fixes, one bench
-widening (the gate sees the basis now, D150), three kept candidates.** The arc, in one line each: D140 (the 80 are an exact tie)
+**This session (2026-08-18/19, unattended) landed D140 through D151 on top
+of that state — records 02-49 through 02-60, three source changes, one bench
+widening (the gate sees the basis now, D150), three kept candidates.**
+
+**D151 is the last of them and it closed D149's condition**: the warm count
+repair landed behind a shortfall cap of 4, netlib warm work 0.2553 → 0.1916
+and Kennington 0.0572 → 0.0070, the three gate sets unmoved. Its record
+(`bench/measurements/02-60/`) carries three things worth reading before any
+similar work: a sweep whose per-instance-choice arithmetic was **checked
+against a real campaign on 103 of 103 instances**; the obvious better-shaped
+constant (a cap relative to the model's rows) **swept and refuted**, because
+the worst instance in the set has the smallest relative shortfall; and a test
+whose observable had to be the log line rather than an iteration count,
+because warm and cold counts coincide by accident on unit-test-sized models.
+
+**A previous session's cap=1 job died mid-run and its two output files were
+recovered** from `build/diag/cap-sweep/`. They are preserved at
+`bench/measurements/02-60/dead-session-cap1/` and match this sweep's cap=1
+prediction on every instance, which is what turned the arithmetic into a
+measurement. Nothing else of that job survived — no diff, no record, no entry.
+
+The earlier arc, in one line each: D140 (the 80 are an exact tie)
 plus the swap's value guard, bit-identical everywhere; D141 (within-row
 demotion refused); D142 (remember-basis count guard refused on its
 measured warm cost); D143 (warm re-measure: Kennington improved, netlib
@@ -30,10 +49,14 @@ D147 (located: the settling loop publishes the violation it measured);
 **D148 (the certificate guard landed — 0 wrong of 80, gate bit-identical,
 `jaos.h`'s promise enforced)**; and D149 (the warm repair retried behind
 the guard: correct now, refused on `dfl001`'s 172x; the shortfall-cap
-sweep has its material named). `numerics-reviewer` delivered five times,
-so its step in the loop is fully live again. The two source fixes are
-`ps_singleton_col_swap`'s value guard and D148's certificate guard with
-its cold restart; everything else was measurement or a kept candidate.
+sweep has its material named). `numerics-reviewer` delivered five times
+through D149, so its step in the loop is live — **but it did not deliver
+on D151**, across three sends, and that review was done in the main
+context instead, covering promotion-order determinism, the new gate's
+arithmetic, and every exit path that frees `want_arr`. The three source
+changes are `ps_singleton_col_swap`'s value guard, D148's certificate
+guard with its cold restart, and D151's capped warm repair; everything
+else was measurement or a kept candidate.
 
 **Read this before judging any basis work.** The gate cannot see a basis.
 `bench/run.c` says so: the digest covers x and y and not the statuses, so *"a
@@ -177,18 +200,23 @@ In order:
    finding was load-bearing: the driver settles once more before reading,
    or a repair-singular restore would hand the guard `d[v] = 0.0` on
    exactly the breached columns.
-4. ~~The warm retry.~~ **Run and refused on cost (D149,
-   `bench/measurements/02-58/`)**: the correctness bar was met —
+4. ~~The warm retry.~~ **Refused blanket (D149), landed capped (D151,
+   `bench/measurements/02-60/`).** D149: the correctness bar was met —
    `disagreed=0, rejected=0` where 02-53 read 8 and 2 — and `dfl001` went
    from a cold fallback at 1.0 to **172x work**, its 596-short repaired
    basis buying a ~2e6-iteration doomed trajectory the guard then threw
    away, with the netlib work geomean at 0.2605 against the repair-less
-   0.2553. The value concentrates in small shortfalls (Kennington's five
-   at 1 each stay a clean 0.0070) and the cost in large ones; a
-   shortfall-capped repair needs its constant swept on both sides, and
-   the material is measured: 02-52's per-instance shortfalls against
-   02-58's outcomes. The refusals table carries it; the candidate is kept
-   at `bench/measurements/02-58/warm-retry-candidate.diff`.
+   0.2553. D151 swept the shortfall cap on both sides and landed it at
+   **4**: netlib work **0.2553 → 0.1916**, Kennington **0.0572 →
+   0.0070**, worst per-instance ratio 4.65 instead of 172.03,
+   `disagreed=0, rejected=0` on both sets, and the three gate sets
+   unmoved because the gate never reaches `build_warm_basis`. The value
+   is chosen at the end of a plateau, not at the minimum — the mean is
+   flat across caps 1..7 and the worst case steps to 15.48 at 7
+   (`greenbea`). **The relative cap `S/nrow` was swept too and is
+   worse**, because `greenbea` is 7 short of 1954 rows and is one of the
+   two worst outcomes. What is still open is the two instances that lose
+   real work behind the cap, in the refusals table.
 
 ## `jaos_basis` publishes something that is not a basis
 
@@ -1026,7 +1054,8 @@ then, do not — a refusal whose premise has not changed just fails again.
 
 | decision | what was refused or deferred | reopens when |
 |---|---|---|
-| D149 | the blanket warm count repair, retried behind the certificate guard — correct now (`disagreed=0, rejected=0`) and refused on cost: `dfl001` at 172x work for a doomed 596-short repair, netlib geomean 0.2605 vs 0.2553 | a shortfall cap swept on both sides from the measured material (02-52's per-instance shortfalls joined to 02-58's outcomes), judged by the same warm campaigns. The candidate is at `bench/measurements/02-58/warm-retry-candidate.diff` |
+| D149 | the blanket warm count repair, retried behind the certificate guard — correct now (`disagreed=0, rejected=0`) and refused on cost: `dfl001` at 172x work for a doomed 596-short repair, netlib geomean 0.2605 vs 0.2553 | **condition MET by D151**: the cap was swept on both sides and the capped repair landed at 4. This row stays as the record of the refusal and its expiry |
+| D151 | the two instances that still lose real work behind the cap — `scsd1` 4.65x and `degen2` 4.09x, both with warm iterations exactly equal to cold, which is D148's guard rejecting the repaired trajectory and charging the attempt plus the whole cold solve | a rule that predicts a doomed trajectory before paying for it. **The shortfall cannot be that rule and this is measured**: both are short by 1, the same shortfall as the sixteen instances that win. Raising the cap is separately refused — the sweep in `bench/measurements/02-60/` reads 15.48x on `greenbea` at 7 |
 | D145 | the warm count repair in `build_warm_basis` — refused because 8 netlib solves published a wrong objective through the termination hole | **condition MET by D148** (the certificate guard landed), retried as D149 and refused again on cost. This row stays as the record of the refusal and its expiry |
 | D142 | a count guard in `jm_model_remember_basis` — the premise "build_warm_basis already rejects it" is false: it counts the MAPPED basis, and clearing the stored publish costs `capri` and `fffff800` their warm starts (1→273 and 7→945 iterations) for nothing any consumer reads | a consumer of `start_*` appears that reads the orig-space count as a claim, or warm starting stops going through presolve's mapping. The candidate and its validated test are at `bench/measurements/02-51/remember-guard-candidate.diff` |
 | D141 | a within-row demotion for the published-basis residue — 152 of the 232 declines have no basic column of the row at a bound, and the snap for the 80 breaks the row-bound exactness 02-49 measured (74 of 80 exact) | a demotion design whose candidate set is wider than the firing row AND that carries a rank argument for the demoted member; the fallback in the published shape (Galabova 2023) is accepting the residue |
