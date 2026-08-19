@@ -1,0 +1,28 @@
+# Every take_best_if_better call on the three gate sets. The publish
+# takes the better of (bst, cur); the guard would read that winner.
+
+######## netlib ########
+188 settling exits
+  published dviol <= dual_tol                       188
+  in (dual_tol, 10*dual_tol]                          0
+  in (10*dual_tol, 1e-3]                              0
+  above 1e-3                                          0
+  worst published 0.000e+00; worst bst 0.000e+00; worst cur 0.000e+00
+
+######## netlib-infeas ########
+0 settling exits
+  published dviol <= dual_tol                         0
+  in (dual_tol, 10*dual_tol]                          0
+  in (10*dual_tol, 1e-3]                              0
+  above 1e-3                                          0
+  worst published 0.000e+00; worst bst 0.000e+00; worst cur 0.000e+00
+
+######## kennington ########
+32 settling exits
+  published dviol <= dual_tol                        32
+  in (dual_tol, 10*dual_tol]                          0
+  in (10*dual_tol, 1e-3]                              0
+  above 1e-3                                          0
+  worst published 0.000e+00; worst bst 0.000e+00; worst cur 0.000e+00
+
+# the hostile degen2 baseline for comparison: 35.34 (02-55).
