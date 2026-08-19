@@ -1,0 +1,43 @@
+# Trajectory of the hostile degen2 solve against its cold control.
+# Read the PHASE markers, then each TRAJ line in order.
+
+PHASE cold
+TRAJ tag=runopt round=0 iters=578 nlend=7 lsum=3.485e-14 lmax=9.437e-15 d0viol=0 d0max=0.000e+00 bstdv=0.000e+00 bstobj=0
+TRAJ tag=classify round=0 iters=578 nlend=0 lsum=0.000e+00 lmax=0.000e+00 d0viol=0 d0max=0.000e+00 bstdv=0.000e+00 bstobj=-1435.1779999999999
+PHASE cold-done status=1 obj=-1435.1779999999999 iters=578
+PHASE hostile
+TRAJ tag=runopt round=0 iters=636 nlend=402 lsum=3.254e+03 lmax=4.555e+01 d0viol=186 d0max=3.505e+01 bstdv=0.000e+00 bstobj=0
+TRAJ tag=settle round=1 iters=688 nlend=0 lsum=0.000e+00 lmax=0.000e+00 d0viol=111 d0max=1.170e+02 bstdv=3.534e+01 bstobj=-1352.6399999999996
+TRAJ tag=settle round=2 iters=727 nlend=0 lsum=0.000e+00 lmax=0.000e+00 d0viol=152 d0max=5.993e+01 bstdv=3.534e+01 bstobj=-1352.6399999999996
+TRAJ tag=settle round=3 iters=787 nlend=0 lsum=0.000e+00 lmax=0.000e+00 d0viol=107 d0max=4.952e+02 bstdv=3.534e+01 bstobj=-1352.6399999999996
+TRAJ tag=settle round=4 iters=838 nlend=0 lsum=0.000e+00 lmax=0.000e+00 d0viol=125 d0max=1.558e+02 bstdv=3.534e+01 bstobj=-1352.6399999999996
+TRAJ tag=settle round=5 iters=864 nlend=0 lsum=0.000e+00 lmax=0.000e+00 d0viol=150 d0max=2.224e+02 bstdv=3.534e+01 bstobj=-1352.6399999999996
+TRAJ tag=settle round=6 iters=902 nlend=0 lsum=0.000e+00 lmax=0.000e+00 d0viol=112 d0max=1.892e+02 bstdv=3.534e+01 bstobj=-1352.6399999999996
+TRAJ tag=settle round=7 iters=929 nlend=0 lsum=0.000e+00 lmax=0.000e+00 d0viol=155 d0max=1.260e+02 bstdv=3.534e+01 bstobj=-1352.6399999999996
+TRAJ tag=settle round=8 iters=973 nlend=0 lsum=0.000e+00 lmax=0.000e+00 d0viol=116 d0max=5.168e+01 bstdv=3.534e+01 bstobj=-1352.6399999999996
+TRAJ tag=settle round=9 iters=1008 nlend=0 lsum=0.000e+00 lmax=0.000e+00 d0viol=146 d0max=6.395e+01 bstdv=3.534e+01 bstobj=-1352.6399999999996
+TRAJ tag=settle round=10 iters=1073 nlend=0 lsum=0.000e+00 lmax=0.000e+00 d0viol=149 d0max=2.567e+02 bstdv=3.534e+01 bstobj=-1352.6399999999996
+TRAJ tag=settle round=11 iters=1101 nlend=0 lsum=0.000e+00 lmax=0.000e+00 d0viol=130 d0max=1.650e+02 bstdv=3.534e+01 bstobj=-1352.6399999999996
+TRAJ tag=settle round=12 iters=1145 nlend=0 lsum=0.000e+00 lmax=0.000e+00 d0viol=149 d0max=9.482e+01 bstdv=3.534e+01 bstobj=-1352.6399999999996
+TRAJ tag=settle round=13 iters=1171 nlend=0 lsum=0.000e+00 lmax=0.000e+00 d0viol=128 d0max=8.801e+01 bstdv=3.534e+01 bstobj=-1352.6399999999996
+TRAJ tag=settle round=14 iters=1186 nlend=0 lsum=0.000e+00 lmax=0.000e+00 d0viol=154 d0max=1.149e+02 bstdv=3.534e+01 bstobj=-1352.6399999999996
+TRAJ tag=settle round=15 iters=1243 nlend=0 lsum=0.000e+00 lmax=0.000e+00 d0viol=135 d0max=4.887e+01 bstdv=3.534e+01 bstobj=-1352.6399999999996
+TRAJ tag=settle round=16 iters=1301 nlend=0 lsum=0.000e+00 lmax=0.000e+00 d0viol=114 d0max=5.050e+01 bstdv=3.534e+01 bstobj=-1352.6399999999996
+TRAJ tag=settle round=17 iters=1339 nlend=0 lsum=0.000e+00 lmax=0.000e+00 d0viol=131 d0max=4.024e+01 bstdv=3.534e+01 bstobj=-1352.6399999999996
+TRAJ tag=settle round=18 iters=1351 nlend=0 lsum=0.000e+00 lmax=0.000e+00 d0viol=124 d0max=7.889e+01 bstdv=3.534e+01 bstobj=-1352.6399999999996
+TRAJ tag=settle round=19 iters=1378 nlend=0 lsum=0.000e+00 lmax=0.000e+00 d0viol=166 d0max=8.770e+01 bstdv=3.534e+01 bstobj=-1352.6399999999996
+TRAJ tag=settle round=20 iters=1397 nlend=0 lsum=0.000e+00 lmax=0.000e+00 d0viol=118 d0max=5.397e+01 bstdv=3.534e+01 bstobj=-1352.6399999999996
+TRAJ tag=settle round=21 iters=1413 nlend=0 lsum=0.000e+00 lmax=0.000e+00 d0viol=170 d0max=1.360e+02 bstdv=3.534e+01 bstobj=-1352.6399999999996
+TRAJ tag=settle round=22 iters=1475 nlend=0 lsum=0.000e+00 lmax=0.000e+00 d0viol=136 d0max=1.561e+02 bstdv=3.534e+01 bstobj=-1352.6399999999996
+TRAJ tag=settle round=23 iters=1517 nlend=0 lsum=0.000e+00 lmax=0.000e+00 d0viol=162 d0max=1.432e+02 bstdv=3.534e+01 bstobj=-1352.6399999999996
+TRAJ tag=settle round=24 iters=1546 nlend=0 lsum=0.000e+00 lmax=0.000e+00 d0viol=139 d0max=1.201e+02 bstdv=3.534e+01 bstobj=-1352.6399999999996
+TRAJ tag=settle round=25 iters=1592 nlend=0 lsum=0.000e+00 lmax=0.000e+00 d0viol=127 d0max=6.924e+01 bstdv=3.534e+01 bstobj=-1352.6399999999996
+TRAJ tag=settle round=26 iters=1646 nlend=0 lsum=0.000e+00 lmax=0.000e+00 d0viol=171 d0max=9.211e+01 bstdv=3.534e+01 bstobj=-1352.6399999999996
+TRAJ tag=settle round=27 iters=1667 nlend=0 lsum=0.000e+00 lmax=0.000e+00 d0viol=108 d0max=6.830e+01 bstdv=3.534e+01 bstobj=-1352.6399999999996
+TRAJ tag=settle round=28 iters=1710 nlend=0 lsum=0.000e+00 lmax=0.000e+00 d0viol=160 d0max=1.287e+02 bstdv=3.534e+01 bstobj=-1352.6399999999996
+TRAJ tag=settle round=29 iters=1753 nlend=0 lsum=0.000e+00 lmax=0.000e+00 d0viol=100 d0max=8.262e+01 bstdv=3.534e+01 bstobj=-1352.6399999999996
+TRAJ tag=settle round=30 iters=1779 nlend=0 lsum=0.000e+00 lmax=0.000e+00 d0viol=180 d0max=1.344e+02 bstdv=3.534e+01 bstobj=-1352.6399999999996
+TRAJ tag=settle round=31 iters=1814 nlend=0 lsum=0.000e+00 lmax=0.000e+00 d0viol=111 d0max=3.723e+02 bstdv=3.534e+01 bstobj=-1352.6399999999996
+TRAJ tag=settle round=32 iters=1836 nlend=0 lsum=0.000e+00 lmax=0.000e+00 d0viol=175 d0max=2.711e+02 bstdv=3.534e+01 bstobj=-1352.6399999999996
+TRAJ tag=classify round=32 iters=1836 nlend=0 lsum=0.000e+00 lmax=0.000e+00 d0viol=171 d0max=3.534e+01 bstdv=3.534e+01 bstobj=-1352.6399999999996
+PHASE hostile-done status=1 obj=-1352.6399999999996 ref=-1435.1779999999999 iters=1836

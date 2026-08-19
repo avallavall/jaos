@@ -154,17 +154,27 @@ rebuilds them all — where before it had a 278003-iteration warm campaign.
 
 In order:
 
-1. **Diagnose on `degen2`, shift 1** (load `jaos-debug` first; trajectory
-   before values): what does the final test read when it declares
-   optimality, which re-entry round loses dual feasibility, and why do
-   `cycle`/`modszk1`/`woodw` survive the same hostility. D119's
-   `REFACTOR_EVERY` sweep localised this class once already
-   (`bench/measurements/02-28/`); do not re-derive what it closed.
-2. **The repair**, judged by three things: the 02-54 probe reading 0 of
-   80, the three sets bit-identical (no gate instance sets a basis), and
-   `make test`/`make sanitize` green. D127's warning stands: the dual
-   machinery here has refused two source-plausible repairs; measure first.
-3. **Then the warm retry**: D145's kept candidate
+1. ~~Diagnose on `degen2`, shift 1.~~ **Done 2026-08-19 (D147,
+   `bench/measurements/02-55/`), and the defect is located to the line
+   class**: the settling loop measures its dual violation every round,
+   keeps the best (`bstdv = 35.34` here, fixed at round 1, never beaten
+   through all 32 rounds), and `take_best_if_better` publishes it as
+   `OPTIMAL` with nothing comparing that number to a tolerance.
+   `classify_optimum` passes trivially — every lend repaid, and invented
+   bounds are all it asks. D89's "publish the best instead of failing" is
+   where the laundering happens; it was benign on `pilot87`'s 8.37e-09.
+2. **Measure the guard's two sides before building it**: the distribution
+   of `bstdv` at publish over all 139 gate instances at HEAD. The repair
+   shape D147 selects — `bstdv > dual_tol` at settling's end ⇒ no OPTIMAL,
+   one cold restart from the slack basis — uses an existing number and an
+   existing tolerance, so the only open question is the margin between
+   the legitimate population and the hostile one.
+3. **The guard plus cold restart**, judged by: hostile `degen2` flipping
+   to the correct optimum at cold cost, the 02-54 probe reading 0 of 80,
+   the three sets bit-identical, `make test`/`make sanitize` green.
+   D127's warning stands: this machinery has refused two source-plausible
+   repairs; the distribution probe is what makes this one measured.
+4. **Then the warm retry**: D145's kept candidate
    (`bench/measurements/02-53/warm-count-repair-candidate.diff`), judged
    by the warm campaigns — its Kennington side is a clean win waiting
    (0.0572 → 0.0070) and its netlib side was refused only through this

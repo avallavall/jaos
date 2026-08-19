@@ -154,6 +154,7 @@ and you have the argument. Jump to the entry for the numbers behind it.
 - **[D144](#d144--the-mappings-balance-is-multi-family-so-the-count-is-repaired-at-the-consumer-not-in-the-mapping)** — The mapping's balance is multi-family, so the count is repaired at the consumer, not in the mapping
 - **[D145](#d145--the-count-repaired-warm-start-publishes-wrong-optima-through-the-termination-hole-and-the-warm-prize-waits-behind-it)** — The count-repaired warm start publishes wrong optima through the termination hole, and the warm prize waits behind it
 - **[D146](#d146--a-hostile-basis-makes-head-publish-a-wrong-optimum-through-the-public-api-alone)** — A hostile basis makes HEAD publish a wrong optimum through the public API alone
+- **[D147](#d147--the-solver-measures-the-violation-it-publishes-the-best-point-ends-with-bstdv--3534-and-nothing-reads-it-against-a-tolerance)** — The solver measures the violation it publishes: the best point ends with bstdv = 35.34 and nothing reads it against a tolerance
 
 ---
 
@@ -10768,3 +10769,51 @@ final test reads instead of dual feasibility, and why `cycle`, `modszk1`
 and `woodw` survive the same hostility. Then the repair, judged by this
 probe reading 0 of 80, the three sets bit-identical, and the D145
 candidate as the warm retry behind it.
+
+## D147 — The solver measures the violation it publishes: the best point ends with bstdv = 35.34 and nothing reads it against a tolerance
+
+**The question, as asked.** D146's step 1: where does the hostile `degen2`
+solve lose the true dual, and what did the best-point loop see when it
+kept the wrong vertex? Expected, loosely: a dual feasibility nobody
+re-reads.
+
+**The measurement** (`bench/measurements/02-55/`, one trajectory line per
+`settle_shifts` call plus `run()`'s exit and `classify_optimum`'s verdict,
+cold `degen2` as the control). Cold: 578 iterations, lends at 1e-14, zero
+violations. Hostile: `run()` declares its shifted-space optimum at 636
+iterations with **402 outstanding lends (sum 3254) and 186 true-dual
+violations (max 35)**; the settling loop repays every lend — `nlend = 0`
+from round 1 on — and the true violation count never drops below 100
+through all 32 rounds, oscillating with `d0max` between 40 and 495. The
+best point is fixed at round 1 with `settled_dual_violation = 35.34` and
+objective −1352.64, no round beats it, the rounds run out and
+`take_best_if_better` publishes it as `OPTIMAL`. `classify_optimum` passes
+trivially: no lends outstanding, and invented bounds are all it asks
+about. The published point's true `d0max` equals `bstdv` bit for bit —
+the solver's own number and the instrument agree.
+
+**What was refuted.** "The termination never re-reads dual feasibility" as
+the literal mechanism: the settling loop measures it every round and
+stores the best. What no code does is compare that stored number — eight
+orders of magnitude past any tolerance here — against one before
+publishing. D89's "publish the best point instead of failing" is where the
+verdict laundering happens: benign on `pilot87`'s 8.37e-09 residue, wrong
+by 5.7% of the objective on a hostile start.
+
+**The repair shape selected, and its precondition.** When settling ends
+with the best point's `bstdv` above the dual tolerance, do not publish
+OPTIMAL; restart once, cold, from the slack basis — the header's own
+contract, time and never correctness. No new constant: `dual_tol` is the
+bar and `bstdv` the number, both already in the code. **Measure first,
+both sides**: the distribution of `bstdv` at publish across all 139 gate
+instances at HEAD. Every legitimate solve at or under the tolerance means
+the guard has orders of magnitude of margin and the gate stays
+bit-identical by construction; any legitimate instance above it names the
+margin question before anything lands.
+
+**Left open, in `TODO.md`.** The distribution probe; the guard plus cold
+restart with its tests (hostile `degen2` flipping to the correct optimum
+at cold cost, 02-54 reading 0 of 80); why `cycle`, `modszk1` and `woodw`
+survive the same hostility is subsumed — predicted: their settling either
+converges under the tolerance or their best point is genuinely optimal —
+and the distribution probe reads it directly.
