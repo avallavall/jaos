@@ -16,9 +16,9 @@ are D138's and D139's, both in `src/presolve.c`, both status-only: the gate is
 `make test`, `make test EXTRA_CFLAGS=-DJAOS_NO_PRESOLVE` and `make sanitize`
 all exit 0.
 
-**This session (2026-08-18/19, unattended) landed D140 through D149 on top
-of that state — records 02-49 through 02-58, two source fixes, three kept
-candidates.** The arc, in one line each: D140 (the 80 are an exact tie)
+**This session (2026-08-18/19, unattended) landed D140 through D150 on top
+of that state — records 02-49 through 02-59, two source fixes, one bench
+widening (the gate sees the basis now, D150), three kept candidates.** The arc, in one line each: D140 (the 80 are an exact tie)
 plus the swap's value guard, bit-identical everywhere; D141 (within-row
 demotion refused); D142 (remember-basis count guard refused on its
 measured warm cost); D143 (warm re-measure: Kennington improved, netlib
