@@ -11008,9 +11008,21 @@ measures 4 bytes and two allocations can fail; `repair_fires_at` checked
 one of its ten allocations for null and now checks all of them; and the
 helper carries a note that a failing assert longjmps out of it, so an
 ASan run will attach about eleven LSan reports to a test failure that is
-not a memory defect. The comment edit was verified not to move the
-binary — the objects at the measured commit and after the edit have the
-same md5 — so the campaign stands verbatim rather than approximately.
+not a memory defect.
+
+**Those fixes landed after the campaigns, so what they changed was
+checked rather than assumed.** In `src/` the edit is comment-only: every
+changed line in `src/simplex.c` sits inside one `/* */` block, and the
+compiled objects at the measured commit and after the edit share an md5,
+so the gate campaign stands verbatim rather than approximately.
+`tests/test_presolve.c` also changed, and **that part is not comments** —
+eight `TEST_ASSERT_NOT_NULL` calls were added inside `repair_fires_at`.
+The distinction is written out because "a comment-only edit" is the
+sentence a later reader would use to skip re-measuring, and it is true of
+`src/` alone. Test code cannot reach the solver binary or the gate, and
+the assertion the cap's mutation test turns on is untouched — only its
+line number moved. Caught by `jaos-measurer` re-reading the three commits
+on top of the one it had measured, rather than accepting the claim.
 
 **What was refuted.** The relative cap, which is the better-shaped
 constant on the argument that a shortfall of 5 means different things on a
