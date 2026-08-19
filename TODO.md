@@ -293,10 +293,18 @@ trajectory. Refusals table, D151.
   not finite, on a branch the file calls unreachable; an assert in each turns
   two comments into checked claims, and it matters more now that the repair
   makes the traffic finite where it was not.
-- **A row's own width can be destroyed by the shift that removes a column.**
-  `1 - 1e17` and `2 - 1e17` are the same double, so a row written `[1, 2]`
-  reaches the simplex as a single number. `row_traffic[i]` is exactly the
-  quantity that would detect it and no site compares against it for this.
+- ~~**A row's own width can be destroyed by the shift that removes a
+  column.**~~ **REFUSED 2026-08-20 (D156, `bench/measurements/02-67/`).** The
+  collapse is real and reproducible, and this file's own claim that "the
+  answer is wrong by up to that width" overstates it. **The width that dies
+  was already below one ulp of the activity it constrains**, because a shift
+  close enough to leave `rl - t` small subtracts exactly. 0 of 8942 shift
+  events lose any width on the three sets, and seven forced shapes are
+  bit-identical to the reference build — including a surviving singleton at
+  `a = 1e-12`, which is the amplification that makes §1 unbounded and does not
+  apply here. **Do not confuse this with §1.** §1's error is relative to the
+  row's TRAFFIC, which cancellation puts above the activity; this one is
+  relative to the activity, and the division by a small `a` scales both.
 - **The unclamped dual step**, 248 netlib picks and 170 Kennington picks,
   worst 8.37e-09. Costs nothing today; clamping it was refused (D127) because
   the perturbation is what keeps `pilot87` moving.

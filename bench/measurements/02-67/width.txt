@@ -1,0 +1,61 @@
+probe applied to src/presolve.c
+######## 2. the instrument, before believing its zero ########
+A must read lost>=1 destroyed>=1; B is the control and must read 0.
+  DIAG-WIDTH shifts=1 lost=1 destroyed=1 rows_hit=1 worst_rel=1 worst_abs=1 surv=1 surv_narrowed=1 surv_equal=1 worst_end_rel=1
+  DIAG-WIDTH shifts=1 lost=0 destroyed=0 rows_hit=0 worst_rel=0 worst_abs=0 surv=1 surv_narrowed=0 surv_equal=0 worst_end_rel=0
+  A destroys  a=1e+17  status=0  solve=2
+  B control   a=1000  status=0  solve=2
+
+######## 1. the three sets ########
+---- netlib standard (94)
+  same-term shifts on a finite width  320
+    width CHANGED (pure fp loss)      0
+    width destroyed to zero           0
+    distinct rows affected            0
+    worst relative loss per event     0
+  SURVIVING rows with a finite width  328
+    reaching the simplex narrowed     0
+    reaching it as an equality        0
+---- netlib-infeas (29)
+  same-term shifts on a finite width  30
+    width CHANGED (pure fp loss)      0
+    width destroyed to zero           0
+    distinct rows affected            0
+    worst relative loss per event     0
+  SURVIVING rows with a finite width  0
+    reaching the simplex narrowed     0
+    reaching it as an equality        0
+---- kennington (16)
+  same-term shifts on a finite width  8592
+    width CHANGED (pure fp loss)      0
+    width destroyed to zero           0
+    distinct rows affected            0
+    worst relative loss per event     0
+  SURVIVING rows with a finite width  0
+    reaching the simplex narrowed     0
+    reaching it as an equality        0
+
+######## 3. does a dead width move the answer? ########
+-- with presolve
+  A-dies         status=1 obj=-1e+17 x1=-1e+17 x2=0
+  B-control      status=1 obj=-999 x1=-999 x2=0
+  C-bigcoef      status=1 obj=-1 x1=-1 x2=0
+  D-deg2         status=1 obj=-1 x1=-1 x2=0
+  E-noWidth      status=1 obj=-1e+17 x1=-1e+17 x2=0
+  F-amplify      status=1 obj=-1.0000000000000001e+23 x1=-1.0000000000000001e+23 x2=0
+  G-amplify2     status=1 obj=-1.0000000000000001e+29 x1=-1.0000000000000001e+29 x2=0
+-- reference build (-DJAOS_NO_PRESOLVE), the oracle
+  A-dies         status=1 obj=-1e+17 x1=-1e+17 x2=0
+  B-control      status=1 obj=-999 x1=-999 x2=0
+  C-bigcoef      status=1 obj=-1 x1=-1 x2=0
+  D-deg2         status=1 obj=-1 x1=-1 x2=5
+  E-noWidth      status=1 obj=-1e+17 x1=-1e+17 x2=0
+  F-amplify      status=1 obj=-1.0000000000000001e+23 x1=-1.0000000000000001e+23 x2=0
+  G-amplify2     status=1 obj=-1.0000000000000001e+29 x1=-1.0000000000000001e+29 x2=0
+-- difference
+  4c4
+  < D-deg2         status=1 obj=-1 x1=-1 x2=0
+  ---
+  > D-deg2         status=1 obj=-1 x1=-1 x2=5
+  (D-deg2 differs in x2 alone, at the same objective and the same
+   x1: alternate optima on a degenerate model, not an error.)

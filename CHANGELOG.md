@@ -33,6 +33,17 @@ open, `bench/README.md` for the gate, and the commit each entry came from.
   versions of the predicate each reported a defect that was not there, and
   `bench/measurements/02-62/` carries what each of them falsely said (D153).
 
+### Changed
+
+- The destroyed row width has a stated bound instead of an overstated one.
+  `src/presolve.c` said a row collapsed from `[1, 2]` to a single double makes
+  the answer "wrong by up to that width"; the width that dies is always below
+  one ulp of the activity it constrains, because a shift small enough to leave
+  a small remainder subtracts exactly. 0 of 8942 shift events lose any width
+  on the three sets, and seven forced shapes are bit-identical to the
+  reference build, including a surviving singleton at `a = 1e-12`. No code
+  changed; the claim did (D156).
+
 ### Fixed
 
 - `row_traffic[i]` accumulates only the magnitude a still-finite row end

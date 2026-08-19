@@ -163,6 +163,7 @@ and you have the argument. Jump to the entry for the numbers behind it.
 - **[D153](#d153--the-row-activity-check-becomes-an-invariant-and-four-wrong-versions-of-it-each-reported-a-defect-that-was-not-there)** — The row-activity check becomes an invariant, and four wrong versions of it each reported a defect that was not there
 - **[D154](#d154--three-of-the-five-build-configurations-did-not-build-and-make-configs-is-what-will-say-so-next-time)** — Three of the five build configurations did not build, and `make configs` is what will say so next time
 - **[D155](#d155--row_traffic-accumulates-only-what-a-still-finite-end-absorbed-and-the-assert-that-says-so-rests-on-measured-headroom-rather-than-on-the-argument-that-looked-available)** — `row_traffic` accumulates only what a still-finite end absorbed, and the assert that says so rests on measured headroom rather than on the argument that looked available
+- **[D156](#d156--the-destroyed-row-width-is-refused-as-a-defect-because-the-width-that-dies-was-already-below-one-ulp-of-the-activity-it-constrains)** — The destroyed row width is refused as a defect, because the width that dies was already below one ulp of the activity it constrains
 
 ---
 
@@ -11383,3 +11384,72 @@ carries over verbatim.
   each turns two comments into checked claims, and it matters more now: the
   repair makes the traffic finite where it was not, so those guards change
   from "never taken" to "never taken for a different reason".
+
+## D156 — The destroyed row width is refused as a defect, because the width that dies was already below one ulp of the activity it constrains
+
+**The question.** `TODO.md`'s second smaller item, and `src/presolve.c` said
+the same thing beside the implied-free family's guard: two of the three sites
+that shift a row's bounds subtract the same term from both ends, so the width
+`ru - rl` is invariant in exact arithmetic, but `1 - 1e17` and `2 - 1e17` are
+the same double. A row the caller wrote as `[1, 2]` can reach the simplex as
+an equality. Both places said the answer is then "wrong by up to that width".
+The expectation was a repair: refuse the shift that destroys a width.
+
+**Refused, and the claim is what changes.** Nothing in the solve is touched.
+
+**The instrument first, because a zero from it is the whole finding.**
+`width-case.c` is two models one line apart — `1e17*x0 + x1 in [1, 2]` with x0
+fixed, and the same at `1e3`. `ulp(1e17)` is 16 so the first collapses and the
+second does not. The probe reads `lost=1 destroyed=1` on the first and
+`lost=0 destroyed=0` on the second.
+
+**It never happens on the three sets.** 320, 30 and 8592 same-term shift
+events on finite-width rows across netlib, netlib-infeas and Kennington, and
+**0** of the 8942 changed a width by any amount. The subtraction is exact
+whenever the bounds and the shift are within a factor of two of each other,
+which they always are here.
+
+**And when it is forced to happen, the answer does not move.** Seven shapes
+run on the normal build and on `-DJAOS_NO_PRESOLVE`: width destroyed with the
+surviving column at the shift's scale, the same with a 1e17 coefficient, an
+inequality with no width to lose, the `1e3` control, and two amplifying shapes
+with the surviving singleton at `a = 1e-6` and `a = 1e-12`. **Six of seven are
+bit-identical.** The seventh differs in one variable's value at the same
+objective and the same other variable: alternate optima on a degenerate model.
+
+**The bound, which is what the item was missing.** The width dies only when
+`fl(rl - t)` and `fl(ru - t)` are the same double, so `ru - rl` is below one
+ulp of `rl - t`. And `rl - t` is the activity the surviving columns must
+produce. It cannot be small: a shift close enough to the bounds' own scale to
+leave `rl - t` small subtracts exactly, by Sterbenz, and loses nothing. So
+width loss requires `|rl|, |ru| << |t|`, hence `|rl - t| ≈ |t|`, and **the
+width that dies was already below the resolution of the quantity it
+constrains**.
+
+**What was refuted along the way**, and it is the half that had to be
+measured. The obvious objection is that a surviving singleton with a tiny
+coefficient amplifies: dividing by `a = 1e-12` turns a row-space width of 1
+into a column-space width of 1e12. That is exactly the mechanism that makes
+§1's collapsed fold unbounded, so it is not a hypothetical. It does not apply
+here, because the same division multiplies the ACTIVITY by `1/|a|` too and the
+relative error is unmoved. Cases F and G measure it and are bit-identical to
+the reference build.
+
+**Why §1's collapsed fold is not the same shape**, since the two look alike
+and only one has a bound. The fold's error is
+`4 * DBL_EPSILON * row_traffic[i] / |a|`, relative to the row's **traffic**,
+and cancellation can put the traffic far above the activity — a row summing to
+1 out of terms of size 1e9 carries a traffic of 1e9. There the division
+amplifies an error never tied to the value it perturbs, and §1 records a case
+reading 0.89. Here the error is relative to the **activity** and the division
+scales both. That is the whole difference.
+
+**The repair that was NOT made**, stated so nobody builds it. Refusing a
+width-destroying shift would be exact — no tolerance, no sweep — and free on
+the gate, 0 firings of 8942. It buys nothing, because the shape it refuses
+does not produce a wrong answer, and it would leave a fixed column in the
+reduced model on the one class of input where presolve is most useful.
+
+**What is left open.** Nothing from this entry. §1's collapsed fold keeps its
+unbounded error and stays the largest open item; this entry sharpens why the
+two are different rather than closing it.

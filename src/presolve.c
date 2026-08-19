@@ -1168,15 +1168,34 @@ JAOS_NODISCARD jaos_status jm_presolve_run(const jaos_model *m, jm_presolve *p,
                  * collapse: both bounds take identical shifts, so a genuine
                  * equality is still equal after any number of them.
                  *
-                 * What it does NOT do is make that model right, and saying so
-                 * here is the point. Once the shift has collapsed [1, 2] to a
-                 * single double, the row the simplex is handed has lost its
-                 * own width whatever this family decides, and the answer is
-                 * wrong by up to that width with no family involved. This
-                 * test keeps the family inside the scope it was measured in
-                 * -- rows the CALLER wrote as equalities -- and TODO.md
-                 * carries the shift itself. Found by numerics-reviewer,
-                 * 2026-08-15. */
+                 * The shift itself can still collapse [1, 2] to a single
+                 * double, and this test keeps the family inside the scope it
+                 * was measured in — rows the CALLER wrote as equalities.
+                 * Found by numerics-reviewer, 2026-08-15.
+                 *
+                 * **What that collapse costs is bounded, and the bound is one
+                 * ulp of the row's own activity** (D156). This comment used to
+                 * say the answer is wrong by up to the lost width, and that
+                 * overstates it. The width dies only when `fl(rl - t)` and
+                 * `fl(ru - t)` are the same double, which needs `ru - rl`
+                 * below one ulp of `rl - t`; and `rl - t` IS the activity the
+                 * surviving columns have to produce, because a shift small
+                 * enough to leave that remainder small subtracts exactly. So
+                 * the width that dies was already below the resolution of the
+                 * quantity it constrains.
+                 *
+                 * The division by a surviving coefficient does not break that,
+                 * which is the part that was measured rather than argued: a
+                 * tiny `a` multiplies the width by 1/|a| and the activity by
+                 * 1/|a| too, so the relative error is unmoved. At `a = 1e-12`
+                 * the answer is bit-identical to the reference build, and 0 of
+                 * 8942 shift events lose any width on the three sets
+                 * (bench/measurements/02-67/).
+                 *
+                 * **§1's collapsed fold is NOT the same shape.** Its error is
+                 * relative to the row's TRAFFIC, which cancellation can push
+                 * far above the activity, and that is why that one has no
+                 * bound and this one does. */
                 if (a != 0.0 && !row_dead[i] && !row_frozen[i] &&
                     m->row_lower[i] == m->row_upper[i] &&
                     isfinite(cur_rl[i]) && cur_rl[i] == cur_ru[i]) {
