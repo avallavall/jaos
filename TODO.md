@@ -16,19 +16,24 @@ are D138's and D139's, both in `src/presolve.c`, both status-only: the gate is
 `make test`, `make test EXTRA_CFLAGS=-DJAOS_NO_PRESOLVE` and `make sanitize`
 all exit 0.
 
-**This session (2026-08-18/19, unattended) landed D140 through D146 on top
-of that state.** D140 (the 80 are an exact tie, 02-49) and the swap's value
-guard, bit-identical everywhere; D141 (within-row demotion refused, 02-50);
-D142 (remember-basis count guard refused on its measured warm cost, 02-51,
-candidate kept); D143 (warm re-measure: Kennington improved, netlib
+**This session (2026-08-18/19, unattended) landed D140 through D149 on top
+of that state — records 02-49 through 02-58, two source fixes, three kept
+candidates.** The arc, in one line each: D140 (the 80 are an exact tie)
+plus the swap's value guard, bit-identical everywhere; D141 (within-row
+demotion refused); D142 (remember-basis count guard refused on its
+measured warm cost); D143 (warm re-measure: Kennington improved, netlib
 regressed 3.7x through the mapping; records rewritten); D144 (the balance
-is multi-family; repair selected at the consumer, 02-52); D145 (that
-repair built, gated bit-identical, and refused by its own judge — eight
-wrong optima through the termination hole; candidate kept at 02-53, the
-LONG-map pinned test landed); and **D146 (the termination defect
-reproduces at HEAD through the public API alone, 02-54 — now this file's
-START HERE)**. `numerics-reviewer` delivered three times, so its step in
-the loop is live again.
+is multi-family; repair selected at the consumer); D145 (that repair
+refused by its own judge — eight wrong optima through the termination
+hole); D146 (the hole reproduces at HEAD through the public API alone);
+D147 (located: the settling loop publishes the violation it measured);
+**D148 (the certificate guard landed — 0 wrong of 80, gate bit-identical,
+`jaos.h`'s promise enforced)**; and D149 (the warm repair retried behind
+the guard: correct now, refused on `dfl001`'s 172x; the shortfall-cap
+sweep has its material named). `numerics-reviewer` delivered five times,
+so its step in the loop is fully live again. The two source fixes are
+`ps_singleton_col_swap`'s value guard and D148's certificate guard with
+its cold restart; everything else was measurement or a kept candidate.
 
 **Read this before judging any basis work.** The gate cannot see a basis.
 `bench/run.c` says so: the digest covers x and y and not the statuses, so *"a
