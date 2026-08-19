@@ -10969,17 +10969,48 @@ check strong — every optimal line now carries `basis=` and `det` covers
 it, so a change moving only a basis would show here, and last week it
 would not have.
 
-**`jaos-measurer` did not deliver**, across three sends: it created a
-worktree at HEAD and built nothing. The campaigns and the per-instance
-read were done in the main context instead, with the same scripts the
-skill names. `numerics-reviewer` did not deliver either, also across
-three sends, so the diff was reviewed in the main context — promotion
-order (index order only, no address or value reaches it), the new gate's
-arithmetic (the `&&` short-circuits, so `s->nrow - nbasic` is evaluated
-only when positive), and all three exit paths after `want_arr` is
-allocated, each freeing it exactly once. That is the second and third
-time this session that a subagent returned nothing; the record says so
-rather than implying a review that did not happen.
+**Both subagents delivered, late, and both were also done in the main
+context in the meantime — so this entry has two independent reads of the
+same change rather than none.**
+
+`jaos-measurer` returned **ACCEPT** from its own worktree campaign: 139
+of 139 bit-identical, and stronger than the main context's own run —
+`cmp -s` says the three result **files** are byte-identical to the
+committed records. It also gave the structural reason the gate cannot
+reach the change (`bench/run.c:653` clears the basis and the runner never
+sets one, so `build_warm_basis` returns at its first null check) and the
+empirical one (the repair bills `covnz * JM_WORK_NONZERO`, so any firing
+would have moved work; none did). And it validated the new test by
+mutation independently: `WARM_REPAIR_MAX_SHORT` 4 → 8 makes it fail,
+restoring 4 makes it pass.
+
+`numerics-reviewer` returned **no findings** in all four defect classes,
+having confirmed the promotion order reads only `cov[i]`, `want_arr` and
+the loop index — `cov` is filled from `m->a_index[k]`, a row index, so no
+matrix value reaches the decision — and that all four exits after the
+allocation free `want_arr` exactly once. It added one argument the main
+context did not have: **no path can bill work and then refuse.** Writing
+`c` for basic columns and `l` for basic logicals, the shortfall is
+`nrow - c - l` and the promotable supply is `nrow - l`; since `c >= 0`
+the supply always covers the shortfall, so once the block runs
+`nbasic == nrow` holds and the refusal below it cannot fire.
+
+**It also measured the test's premise instead of inferring it**, which is
+the better evidence: instrumented with the cap raised to 1000000, the
+k-block construction reads a shortfall of exactly k for k = 1..8, because
+presolve removes the k singleton columns and no rows. The main context
+had only the boundary landing at 4/5 as indirect evidence for the same
+claim.
+
+Three low-severity notes from that review are **fixed** in the same
+commit: the OOM comment said "an 8·nvar-byte allocation" where the type
+measures 4 bytes and two allocations can fail; `repair_fires_at` checked
+one of its ten allocations for null and now checks all of them; and the
+helper carries a note that a failing assert longjmps out of it, so an
+ASan run will attach about eleven LSan reports to a test failure that is
+not a memory defect. The comment edit was verified not to move the
+binary — the objects at the measured commit and after the edit have the
+same md5 — so the campaign stands verbatim rather than approximately.
 
 **What was refuted.** The relative cap, which is the better-shaped
 constant on the argument that a shortfall of 5 means different things on a

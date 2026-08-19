@@ -1650,7 +1650,12 @@ static void count_warm_repair(void *user, jaos_log_level level,
         g_warm_repairs++;
 }
 
-/* Returns whether the repair fired on a k-block model's warm re-solve. */
+/* Returns whether the repair fired on a k-block model's warm re-solve.
+ *
+ * On a FAILING assert Unity longjmps out of here, so the ten allocations and
+ * the model leak and an ASan build will attach about eleven LSan reports to
+ * the failure. That is the test failing, not a memory defect in the solver —
+ * read the assertion first (found in review). */
 static int repair_fires_at(int k)
 {
     const int64_t nrow = 2 * k, ncol = 3 * k, nnz = 5 * k;
@@ -1662,6 +1667,16 @@ static int repair_fires_at(int k)
     int64_t *st = calloc((size_t)ncol + 1, sizeof *st);
     int64_t *ix = calloc((size_t)nnz, sizeof *ix);
     double *va = calloc((size_t)nnz, sizeof *va);
+    /* All eight, not just the last: the fill loop below writes through every
+     * one of them, so checking only `va` leaves seven null dereferences the
+     * arrays being tiny does not rule out (found in review). */
+    TEST_ASSERT_NOT_NULL(c);
+    TEST_ASSERT_NOT_NULL(cl);
+    TEST_ASSERT_NOT_NULL(cu);
+    TEST_ASSERT_NOT_NULL(rl);
+    TEST_ASSERT_NOT_NULL(ru);
+    TEST_ASSERT_NOT_NULL(st);
+    TEST_ASSERT_NOT_NULL(ix);
     TEST_ASSERT_NOT_NULL(va);
 
     int64_t nz = 0;
@@ -1695,6 +1710,7 @@ static int repair_fires_at(int k)
      * about to drop exactly k members. */
     jaos_basis_status *cs = calloc((size_t)ncol, sizeof *cs);
     jaos_basis_status *rs = calloc((size_t)nrow, sizeof *rs);
+    TEST_ASSERT_NOT_NULL(cs);
     TEST_ASSERT_NOT_NULL(rs);
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_basis(m, cs, rs));
     int64_t nb = 0, singles = 0;

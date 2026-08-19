@@ -977,10 +977,13 @@ static bool build_warm_basis(sx *s)
      * the solve surfaces OOM as an error. That is a stated rule, not an
      * accident: a warm start is an optimisation and never a claim, and the
      * cold path is always correct. The cost of the rule is that a machine
-     * failing an 8·nvar-byte allocation can publish a different optimal
-     * vertex of a degenerate model than one that does not — both OPTIMAL,
-     * both checked — which is accepted because such a machine fails loudly
-     * a few lines later anyway. */
+     * failing either the 4·nvar-byte status copy or the nrow-byte coverage
+     * array can publish a different optimal vertex of a degenerate model
+     * than one that does not — both OPTIMAL, both checked — which is
+     * accepted because such a machine fails loudly a few lines later
+     * anyway. Two allocations can fail here, not one, and the status is 4
+     * bytes rather than 8 because jaos_basis_status is an unfixed enum
+     * over 0..3 (measured, D151 review). */
     jaos_basis_status *want_arr =
         jm_alloc_array(s->nvar > 0 ? s->nvar : 1, sizeof *want_arr);
     if (want_arr == nullptr)

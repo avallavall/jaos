@@ -181,6 +181,21 @@ D150 landed the day before this and it matters here: every optimal line now
 carries `basis=` and `det` covers it, so a change that moved only a basis
 would show. Before D150 this same run could not have said that.
 
+**`jaos-measurer` ran the same three sets independently and returned
+ACCEPT**, with a stronger statement than the one above: `cmp -s` says the
+three result **files** are byte-identical to the committed records, not
+merely equal per instance. Its structural reason is worth keeping, because
+it says why the result was never in doubt — `bench/run.c:653` clears the
+basis and the runner never sets one, so `build_warm_basis` returns at its
+first null check on every gate solve, before the new allocation. And its
+empirical one: the repair bills `covnz * JM_WORK_NONZERO`, so a single
+firing anywhere would have moved a work count. None did.
+
+It also validated the cap's test by mutation on its own initiative, the same
+way this record did and without seeing that: `WARM_REPAIR_MAX_SHORT` 4 → 8
+makes `test_the_warm_repair_stops_at_its_cap` fail, restoring 4 makes it
+pass.
+
 ## The run that was already there
 
 A previous session built a cap=1 candidate and ran both warm campaigns, then
@@ -216,7 +231,18 @@ in a throwaway copy of the tree:
 | cap raised to 5 | FAIL | failed, `Expected FALSE Was TRUE` |
 
 So the test pins the constant in both directions rather than merely showing
-the repair working.
+the repair working. `jaos-measurer` reproduced this independently with a
+different mutation, 4 → 8.
+
+**And the construction's premise was measured rather than inferred**, by
+`numerics-reviewer`: with the cap raised to 1000000 and the DETAIL line
+carrying the number, the k-block model reads a shortfall of **exactly k for
+k = 1..8**. Presolve removes the k singleton columns and no rows, so the
+reduced model is 2k by 2k. This record had only the boundary landing at 4/5
+as indirect evidence for that, and the direct measurement is better: the
+asserts in the test are in original space while the shortfall lives in
+reduced space, so the boundary alone could in principle have come from a
+different shortfall-per-block.
 
 ## Reproducing it
 

@@ -59,14 +59,16 @@ D147 (located: the settling loop publishes the violation it measured);
 **D148 (the certificate guard landed — 0 wrong of 80, gate bit-identical,
 `jaos.h`'s promise enforced)**; and D149 (the warm repair retried behind
 the guard: correct now, refused on `dfl001`'s 172x; the shortfall-cap
-sweep has its material named). `numerics-reviewer` delivered five times
-through D149, so its step in the loop is live — **but it did not deliver
-on D151**, across three sends, and that review was done in the main
-context instead, covering promotion-order determinism, the new gate's
-arithmetic, and every exit path that frees `want_arr`. The three source
-changes are `ps_singleton_col_swap`'s value guard, D148's certificate
-guard with its cold restart, and D151's capped warm repair; everything
-else was measurement or a kept candidate.
+sweep has its material named). **Both subagents are live**:
+`numerics-reviewer` delivered six times and `jaos-measurer` returned
+ACCEPT on D151 from its own campaign. **They deliver late**, though —
+on D151 both reports arrived after the main context had finished the
+same work itself, so the loop's steps 3 and the verdict were done twice.
+Neither disagreed, and each found something the other did not; D151's
+entry says which. The three source changes are
+`ps_singleton_col_swap`'s value guard, D148's certificate guard with its
+cold restart, and D151's capped warm repair; everything else was
+measurement or a kept candidate.
 
 **Read this before judging any basis work.** The gate cannot see a basis.
 `bench/run.c` says so: the digest covers x and y and not the statuses, so *"a
