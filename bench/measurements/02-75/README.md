@@ -58,6 +58,17 @@ The prediction was not wrong about what it measured; it was measuring the wrong
 channel. A probe over a value that is later COPIED somewhere has to follow the
 copy.
 
+**The record it is diffed against is twelve `src/` commits old**, which
+`preflight.sh` warns about on every run, and the warning is the case this
+would normally be. It is attributable here because two earlier campaigns closed
+it. With R(t) the netlib record tree t produces and C the committed record:
+`git diff 52bdbbc cd68630 -- src/` is empty, so R(cd68630) = R(52bdbbc); D163's
+campaign measured 52bdbbc's `src/` and read 94 bit-identical against C, so
+R(52bdbbc) = C; therefore the diff below is parent-versus-candidate. Raised by
+`jaos-measurer`. **Three consecutive bit-identical campaigns are what make the
+fourth one attributable** — without D162's and D163's own runs there would be
+no chain and the parent would have to be run.
+
 | | netlib | netlib-infeas | Kennington |
 |---|---|---|---|
 | bit-identical | 79 | 29 | 16 |

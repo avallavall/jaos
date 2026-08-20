@@ -12179,6 +12179,25 @@ almost all of it: `p->reduced.row_lower[ri2] = cur_rl[i]` hands the compensated
 bound to the simplex, so all 5260 corrected rows reach it. **A probe over a
 value that is later COPIED somewhere has to follow the copy.**
 
+**The diff is against a record twelve `src/` commits old, and that is only
+legitimate because two earlier campaigns closed it.** `preflight.sh` warns on
+exactly this and it is right to: a diff against a stale record credits every
+commit since to your change. Raised by `jaos-measurer`, and the chain that
+answers it, with R(t) the netlib record tree t produces and C the committed
+record:
+
+1. `git diff 52bdbbc cd68630 -- src/` is empty — D164 changed no source at
+   all — so R(cd68630) = R(52bdbbc).
+2. D163's campaign measured a worktree whose `src/` is byte-identical to
+   52bdbbc's and read **94 bit-identical, 0 moved, 0 digest changes** against
+   C. So R(52bdbbc) = C.
+3. Therefore R(cd68630) = C and the diff below is parent-versus-candidate.
+
+A tree at 52bdbbc reproducing C exactly is also what covers the ten earlier
+commits, which this session did not run itself. **The chain only exists because
+D162 and D163 each ran a full campaign that landed on C** — three consecutive
+bit-identical campaigns are what makes a fourth one attributable.
+
 **The cost.** netlib **79 bit-identical, 15 moved, 14 digest changes**;
 netlib-infeas and Kennington bit-identical. `gate: PASS` and
 `baseline: 0 regressed, 0 improved, 0 new` on all three, `record_diff.py` reads
