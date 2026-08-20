@@ -11,6 +11,12 @@ open, `bench/README.md` for the gate, and the commit each entry came from.
 
 ### Changed
 
+- **Presolve's objective offset is refused rather than compensated**, which
+  closes at all four sites the class D168 opened. It is measurably dead:
+  replacing the reduced model's whole offset with `1e300`, and then with
+  `NaN`, leaves all three sets bit-identical to a control that itself
+  reproduces the committed records exactly (D176). No source change.
+
 - **`settled_objective` is compensated**, with Dekker's split, because it
   ranks two rounds and `take_best_if_better` publishes the winner — so the sum
   decides which point the caller receives. `obj_add` and `two_product_residue`

@@ -937,8 +937,18 @@ trajectory. Refusals table, D151.
   looked clean** — a probe that read one set three times while printing three
   names, a probe that measured the repaired tree and reported every error as
   exactly 0, and one figure printed under one name with two definitions.
-- **presolve's `obj_offset` is still accumulated naively** as columns are
-  removed (`src/presolve.c`, four sites). Nothing reads it for the answer since
+- ~~**presolve's `obj_offset` is still accumulated naively.**~~ **REFUSED
+  2026-08-21 (D176, `bench/measurements/02-86/`), and the class D168 opened is
+  closed at all four sites.** The value is measurably dead: replacing the whole
+  reduced offset with `1e300` and then with `NaN` leaves all three sets
+  bit-identical to a control that itself reproduces the committed records
+  exactly. Nine runs, `gate: PASS` on every one. **The control is the finding**
+  — the first harness omitted `-e infeasible` and the infeasible records
+  differed under both poisons AND under the control, which without the control
+  reads as "alive on one set, dead on two". Removing the four sites is a
+  separate question and has no measurement either way.
+  The original entry, for the reopen condition: nothing reads it for the
+  answer since
   D169 — both postsolve paths sum the published values instead — but the
   simplex's objective on the reduced model still starts from it.
 - **The unclamped dual step**, 248 netlib picks and 170 Kennington picks,
@@ -1887,6 +1897,7 @@ then, do not — a refusal whose premise has not changed just fails again.
 
 | decision | what was refused or deferred | reopens when |
 |---|---|---|
+| D176 | compensating presolve's `obj_offset` — the reduced model's offset is measurably dead: poisoned with `1e300` and with `NaN`, all three sets stay bit-identical to a control that reproduces the committed records exactly | anything reading the reduced model's objective — a progress callback carrying it, a presolve statistic reporting it, or a postsolve path that adds `reduced.obj_offset` instead of recomputing on the caller's model. `bench/measurements/02-86/run-poison-offset.sh` is the test for that condition |
 | D173 | `finnis` publishing a point that is not the exact optimal vertex — its 7.62e-05 gap to Koch is **0.107 of `eps * sum |c_j x_j|`**, the floor arithmetic sets for a model carrying 3.198e+12 of traffic, and its row residual is under one eps of each row's own traffic | a model whose gap exceeds that floor. Four already do and they are open items rather than refusals: `pilot` 1.87e+08, `pilot87` 1.53e+06, `scsd6` 9.97e+04, `etamacro` 2.74e+04. The oracle is `bench/measurements/02-83/run-exact-objective.sh` and it needs no build of its own |
 | D149 | the blanket warm count repair, retried behind the certificate guard — correct now (`disagreed=0, rejected=0`) and refused on cost: `dfl001` at 172x work for a doomed 596-short repair, netlib geomean 0.2605 vs 0.2553 | **condition MET by D151**: the cap was swept on both sides and the capped repair landed at 4. This row stays as the record of the refusal and its expiry |
 | D151 | the two instances that still lose real work behind the cap — `scsd1` 4.65x and `degen2` 4.09x, both with warm iterations exactly equal to cold, which is D148's guard rejecting the repaired trajectory and charging the attempt plus the whole cold solve | a rule that predicts a doomed trajectory before paying for it. **The shortfall cannot be that rule and this is measured**: both are short by 1, the same shortfall as the sixteen instances that win. Raising the cap is separately refused — the sweep in `bench/measurements/02-60/` reads 15.48x on `greenbea` at 7 |

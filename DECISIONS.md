@@ -183,6 +183,7 @@ and you have the argument. Jump to the entry for the numbers behind it.
 - **[D173](#d173--the-published-objective-is-the-correctly-rounded-exact-one-on-all-110-so-finnis-is-refused-and-pilot-is-the-instance-with-a-wrong-point)** — The published objective is the correctly rounded exact one on all 110, so `finnis` is refused and `pilot` is the instance with a wrong point
 - **[D174](#d174--pilots-wrong-answer-is-dual_tol-and-nothing-else-and-the-repair-that-fixes-it-turns-the-gate-red-on-six-instances)** — `pilot`'s wrong answer is `DUAL_TOL` and nothing else, and the repair that fixes it turns the gate red on six instances
 - **[D175](#d175--the-sum-that-ranks-two-rounds-decides-which-point-is-published-so-it-is-compensated-too--and-no-solve-on-the-three-sets-can-reach-the-case)** — The sum that ranks two rounds decides which point is published, so it is compensated too — and no solve on the three sets can reach the case
+- **[D176](#d176--refused-presolves-objective-offset-is-compensated-for-nothing-because-poisoning-it-with-nan-moves-not-one-byte-on-any-of-the-139)** — REFUSED: presolve's objective offset is compensated for nothing, because poisoning it with NaN moves not one byte on any of the 139
 
 ---
 
@@ -13242,3 +13243,54 @@ that caught it is the reason the rule exists.
 **What is left open**, handed to `TODO.md`: `apply_flips` stays refused for
 D171's reason, and presolve's `obj_offset` is still accumulated naively with
 nothing reading it for the answer since D169.
+
+## D176 — REFUSED: presolve's objective offset is compensated for nothing, because poisoning it with NaN moves not one byte on any of the 139
+
+**The question.** D168's class had four accumulations of one shape. Three are
+closed — the simplex's right-hand side (D168), the published objective (D169,
+D172) and the sum that ranks two rounds (D175). The fourth is presolve's
+`obj_offset`, four sites in `src/presolve.c`, and `TODO.md` said nothing has
+read it for the answer since D169. The expectation was a small coherence
+change to finish the class.
+
+**Reading the code agrees with the claim, and reading is not measuring.** The
+four sites accumulate onto `p->reduced.obj_offset`; `jm_presolve_run` folds it
+in as `m->obj_offset + accumulated_offset`; the simplex publishes
+`reduced.objective` from it; and both postsolve paths then call
+`jm_model_publish_objective(orig)`, which recomputes from the caller's own
+model, so `reduced.objective` is overwritten before any caller can reach it.
+`src/check.c` reads the caller's offset and never the reduced one, and the
+progress callback carries no objective.
+
+**The measurement** (`bench/measurements/02-86/`). Three builds from `HEAD`,
+each in its own copy of the tree, each over all three sets: a control, the
+reduced offset replaced with `1e300`, and the reduced offset replaced with
+`NaN`. Two poisons because they fail differently — the finite one survives
+every `isfinite` guard and would surface in a consumer as a wrong number, the
+NaN surfaces as a NaN and exercises the guards.
+
+**Every one of the nine runs is `gate: PASS`, the control reproduces all three
+committed records bit-identically, and both poisons are bit-identical to the
+control on all three sets.** Replacing the whole reduced offset with `NaN`
+changes not one byte of any record on any of the 139 instances.
+
+**What was refuted, and it is the control rather than the poison.** The first
+version of the harness omitted `-e infeasible`, the flag the real target
+passes so the gate expects an infeasible verdict. Under it the infeasible
+set's records differed from the committed ones on all 29 instances — under
+both poisons **and under the control alike**. Read without the control that is
+"the value is read on the infeasible set and dead on the other two", which is
+specific, plausible and wrong. It is also why the poisons are compared against
+the control rather than against the committed record: that comparison removes
+everything the harness does differently and leaves only the poison.
+
+**So the sum is refused.** Compensating a value nothing reads adds arithmetic
+to every presolve round and buys nothing measurable, and D166 is the precedent
+— 196 lines came out when the case they existed for stopped happening.
+
+**What is left open.** Removing the four accumulation sites is a different
+question and is not taken here: the value is a legitimate quantity, the
+objective of the reduced model, and deleting it would leave a future reader
+with nothing rather than with a number that is naive. Neither direction has a
+measurement. The reopen condition is in `TODO.md`'s refusals table and the
+probe in 02-86 is the test for it.

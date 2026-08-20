@@ -1,0 +1,27 @@
+control: HEAD unmodified
+control netlib gate: PASS
+control netlib-infeas gate: PASS
+control netlib-kennington gate: PASS
+
+== does the harness reproduce the committed gate records?
+  control netlib: BIT-IDENTICAL to bench/results/netlib.txt
+  control netlib-infeas: BIT-IDENTICAL to bench/results/netlib-infeas.txt
+  control netlib-kennington: BIT-IDENTICAL to bench/results/netlib-kennington.txt
+
+poisoned /tmp/tmp.zgz9Yj3wM8/poison-big/src/presolve.c with big (1e300)
+poison-big netlib gate: PASS
+poison-big netlib-infeas gate: PASS
+poison-big netlib-kennington gate: PASS
+== poison-big against the control, which is the isolating test
+  netlib: BIT-IDENTICAL to the control
+  netlib-infeas: BIT-IDENTICAL to the control
+  netlib-kennington: BIT-IDENTICAL to the control
+
+poisoned /tmp/tmp.zgz9Yj3wM8/poison-nan/src/presolve.c with nan ((0.0 / 0.0))
+poison-nan netlib gate: PASS
+poison-nan netlib-infeas gate: PASS
+poison-nan netlib-kennington gate: PASS
+== poison-nan against the control, which is the isolating test
+  netlib: BIT-IDENTICAL to the control
+  netlib-infeas: BIT-IDENTICAL to the control
+  netlib-kennington: BIT-IDENTICAL to the control
