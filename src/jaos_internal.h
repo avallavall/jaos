@@ -384,6 +384,11 @@ JAOS_NODISCARD jaos_status jm_model_ensure_solution_arrays(jaos_model *m);
  * nothing to remember, which is not a failure. */
 JAOS_NODISCARD jaos_status jm_model_remember_basis(jaos_model *m);
 
+/* Sets m->objective from m's own published solution, with a compensated sum
+ * (D169). Every publication path ends here, so the number the caller reads is
+ * the objective of the point the caller reads and not of some earlier one. */
+void jm_model_publish_objective(jaos_model *m);
+
 /* Formats into m->err. NULL model is tolerated (message dropped). */
 [[gnu::format(printf, 2, 3)]]
 void jm_set_err(jaos_model *m, const char *fmt, ...);

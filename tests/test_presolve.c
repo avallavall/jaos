@@ -3984,6 +3984,11 @@ static void test_a_maximised_singleton_row_is_owed_its_multiplier(void)
  * the minimise rule, so presolve put x1 at `lo` and published an objective
  * that was not the optimum. With lo = -inf it went further and reported
  * UNBOUNDED on a model whose optimum is 5. */
+/* Both of this helper's tests are positive and both are skipped under a
+ * fault build, so the helper goes with them or `-Werror` refuses the file
+ * for an unused function. */
+#if !defined(JAOS_PRESOLVE_FAULT_OFFBYONE) && \
+    !defined(JAOS_PRESOLVE_FAULT_WRONGDUAL)
 static jaos_model *make_maximised_empty_column(double lo, double hi)
 {
     const double c[]  = {0.0, 1.0};
@@ -3999,6 +4004,7 @@ static jaos_model *make_maximised_empty_column(double lo, double hi)
                      1, s, ix, v));
     return m;
 }
+#endif
 
 static void test_a_maximised_empty_column_takes_its_upper_bound(void)
 {
@@ -4025,6 +4031,13 @@ static void test_a_maximised_empty_column_takes_its_upper_bound(void)
 
 static void test_a_maximised_empty_column_is_not_unbounded_downwards(void)
 {
+#if defined(JAOS_PRESOLVE_FAULT_OFFBYONE) || defined(JAOS_PRESOLVE_FAULT_WRONGDUAL)
+    /* Positive test, and it reads the objective, which since D169 is summed
+     * from the published values — so a fault build's corrupted value reaches
+     * it. It did not before, and that is why this guard is newer than the
+     * test. */
+    TEST_IGNORE_MESSAGE("positive test — skipped under either fault build");
+#else
     /* The infinite side is the one the objective does not want. Reporting
      * UNBOUNDED here is a wrong verdict, not a conservative one, and D19
      * makes this family the only one allowed to report it at all — which is
@@ -4038,6 +4051,7 @@ static void test_a_maximised_empty_column_is_not_unbounded_downwards(void)
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(m, &obj));
     TEST_ASSERT_EQUAL_MEMORY(&expected_obj, &obj, sizeof obj);
     jaos_model_free(m);
+#endif
 }
 
 /*   max x0 + x1

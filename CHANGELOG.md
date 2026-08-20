@@ -48,6 +48,21 @@ open, `bench/README.md` for the gate, and the commit each entry came from.
 
 ### Fixed
 
+- **`jaos_objective` is the objective of the solution the model is holding**,
+  which `jaos.h` promised and neither producer kept. The sum was naive, so
+  costs of +1e16, then 256 costs of 1, then -1e16 on columns fixed at 1
+  published 0 where the answer is 256 — while `jaos_check_solution`, the same
+  library in `long double`, read 256. And the two presolve paths reported the
+  reduced model's objective rather than a sum over the values the caller reads.
+  One function now does both, at all three publication points (D169).
+- 81 of netlib's 94 published objectives agree with the checker exactly,
+  against 34 before; 57 closer, 4 further, all four at the last bit. `gate:
+  PASS` on all three sets with `0 regressed, 0 improved, 0 new` and **0 digest
+  changes anywhere** — 62 netlib instances and 13 Kennington ones moved on
+  `obj` and on nothing else. What is left is the rounding of each `c_j * x_j`
+  to a double, which is 2.65e-05 on `finnis` against 5.1e-05 for the whole
+  naive sum, and needs a two-product rather than an accumulator.
+
 - The simplex accumulates its right-hand side with compensation. `-N x_N` is
   built by walking the nonbasic columns in column order, so a row that meets a
   large term before many small ones lost the small ones outright — each below

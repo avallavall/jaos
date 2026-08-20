@@ -4064,10 +4064,10 @@ static jaos_status publish(sx *s, jaos_solve_status status, jm_presolve *p)
     for (int64_t i = 0; i < m->num_row; i++)
         m->sol_row_status[i] = published_status(s->status[m->num_col + i]);
 
-    double obj = m->obj_offset;
-    for (int64_t j = 0; j < m->num_col; j++)
-        obj += m->col_cost[j] * m->sol_col[j];
-    m->objective = obj;
+    /* From the values just written and with a compensated sum (D169).
+     * `sol_col` above is what this reads, so the objective and the point
+     * cannot disagree. */
+    jm_model_publish_objective(m);
     m->solve_work = s->work.units;
     m->solve_time = elapsed_seconds(s);
 

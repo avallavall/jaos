@@ -1,0 +1,24 @@
+k=64  shipping  -- the parent (ba69a88)
+      k=64  status=optimal  published obj=0  true=64
+            checker primal_objective=64  (long double)
+k=64  shipping  -- compensated, and summed on the published model
+      k=64  status=optimal  published obj=64  true=64
+            checker primal_objective=64  (long double)
+k=64  -DJAOS_NO_PRESOLVE  -- the parent (ba69a88)
+      k=64  status=optimal  published obj=0  true=64
+            checker primal_objective=64  (long double)
+k=64  -DJAOS_NO_PRESOLVE  -- compensated, and summed on the published model
+      k=64  status=optimal  published obj=64  true=64
+            checker primal_objective=64  (long double)
+k=256  shipping  -- the parent (ba69a88)
+      k=256  status=optimal  published obj=0  true=256
+            checker primal_objective=256  (long double)
+k=256  shipping  -- compensated, and summed on the published model
+      k=256  status=optimal  published obj=256  true=256
+            checker primal_objective=256  (long double)
+k=256  -DJAOS_NO_PRESOLVE  -- the parent (ba69a88)
+      k=256  status=optimal  published obj=0  true=256
+            checker primal_objective=256  (long double)
+k=256  -DJAOS_NO_PRESOLVE  -- compensated, and summed on the published model
+      k=256  status=optimal  published obj=256  true=256
+            checker primal_objective=256  (long double)

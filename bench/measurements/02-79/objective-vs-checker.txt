@@ -1,0 +1,11 @@
+bench/instances, the parent ba69a88 against D169.
+
+|published objective - the checker's long double objective of the
+same point|, over 94 instances that solve to OPTIMAL:
+  closer=57  further=4  unchanged=33
+  EXACT agreement with the checker: before=34  after=81
+  the ones that move the wrong way, largest first:
+    sierra.mps: 0 -> 1.86265e-09
+    kb2.mps: 0 -> 2.27374e-13
+    afiro.mps: 0 -> 5.68434e-14
+    tuff.mps: 0 -> 5.55112e-17

@@ -15,18 +15,18 @@ apart from one untracked directory that is not this session's (see
 five build configurations, and the three gate sets read `gate: PASS` with
 `0 regressed, 0 improved, 0 new`.
 
-**The gate campaign at HEAD is valid and it is D168's.** It was run on the
-tree that carries D168's `src/simplex.c` and `tests/test_simplex.c`, and
-`bench/results/netlib.txt` was rewritten by it. `netlib-infeas` and
-`netlib-kennington` came back bit-identical, so their records are unchanged and
-`preflight.sh` counts them as behind by `src/` commits that were no-ops on
-them.
+**The gate campaign at HEAD is valid and it is D169's.** It was run on the
+tree that carries both of this session's source changes.
+`bench/results/netlib.txt` and `bench/results/netlib-kennington.txt` were
+rewritten by it; `netlib-infeas` came back bit-identical to the committed
+record on both changes, so it is unchanged and `preflight.sh` counts it as
+behind by `src/` commits that were no-ops on it.
 
-**15 commits are unpushed and pushing needs the maintainer's explicit
+**16 commits are unpushed and pushing needs the maintainer's explicit
 approval.** Push from the WINDOWS side (see below). `main` and both tags were
 last pushed on 2026-08-20 before this session started.
 
-### 2026-08-20, second unattended session: D168, and the last bounded wrong answer is closed
+### 2026-08-20, second unattended session: D168 and D169, two published numbers that were wrong
 
 **The defect D162 named and could not close.** `compute_primal` builds
 `-N x_N` by walking the nonbasic columns in column order, so a row is a slot
@@ -60,6 +60,31 @@ Neumaier accumulator D165 gave presolve.
 **What D168 left open, and it is a candidate rather than a defect**:
 `subtract_basis_times` is still an uncompensated sum. It is in the §4 list
 below with what it needs.
+
+**D169 asked the same question of the published objective and found two
+defects, not one.** `jaos.h` promises "objective value of the solution held by
+the model". The sum was naive — `+1e16`, then 256 costs of 1, then `-1e16` on
+columns fixed at 1 publishes **0** where the answer is 256, while
+`jaos_check_solution` reads 256 — and the two presolve paths reported the
+REDUCED model's objective rather than a sum over the values the caller reads.
+`jm_model_publish_objective` replaces all three producers.
+
+**Two things from it to carry forward.**
+
+- **The checker is the oracle for a published number, and it is already in the
+  tree.** `jaos_check_solution` judges the model as loaded, in `long double`,
+  independently of every solver bookkeeping, so `|jaos_objective −
+  primal_objective|` IS the promise measured. 81 of netlib's 94 agree with it
+  exactly now against 34. Reaching for the manifest reference instead is the
+  weaker measure and it disagrees on `finnis`, because that reference is the
+  true optimum and the published point is only near it.
+- **A compensated sum does not make a `double` sum exact.** What is left on
+  `finnis` is 2.65e-05, and every bit of it is each `c_j x_j` rounding to a
+  double: one term of 6.5e11 rounds by up to 7.2e-05 on its own. The
+  accumulation itself is exact to 6.3e-09 there, against 5.1e-05 naive.
+  `bench/measurements/02-79/split-the-error.txt` separates the two, and any
+  future "compensate this sum" should separate them the same way before
+  claiming a result.
 
 ### 2026-08-20, unattended: D162 to D167, and the class D159 opened is closed
 
@@ -363,9 +388,9 @@ What is still true and unrepaired, both with their size on the record:
 
 **Every bounded wrong answer in this file is closed.** D162 to D167 closed the
 class D159 opened in presolve, by compensating `cur_rl`/`cur_ru` rather than by
-widening anything; **D168 closed the last one, in the simplex**, the same way.
-Nothing open today makes JAOS publish a wrong answer, and nothing open today
-has a model that reproduces one.
+widening anything; **D168 closed it in the simplex's row activity and D169 in
+the published objective**, the same way. Nothing open today makes JAOS publish
+a wrong answer, and nothing open today has a model that reproduces one.
 
 **What is left in this file is designs.** Every one of them moves the gate
 broadly and needs its own campaign and its own interpretation, so none is a
@@ -624,6 +649,24 @@ trajectory. Refusals table, D151.
   attributable, and it needs its own model and its own campaign. `refine` runs
   only on the refreshes whose result can be published, so its blast radius is
   the answer rather than the trajectory.
+- **The objective's product rounding needs a two-product**, and it is new from
+  D169. Once the accumulation is compensated, what is left in `c'x` is the
+  rounding of each `c_j * x_j` to a double, bounded by `eps` times the sum of
+  the term magnitudes — 7.1e-04 on `finnis`, where 2.65e-05 of it is realised.
+  Dekker's split is portable and `-ffp-contract=off` makes it exact; `fma()` is
+  one instruction and needs its own decision, because D34's rules are about
+  what the compiler may do and not about what the source may ask for. It costs
+  one pass over the columns per solve, so the campaign question is accuracy
+  rather than time. Nothing shows it losing a verdict.
+- **`settled_objective` in `src/simplex.c` is a fourth accumulation of the same
+  shape**, untouched by D169. It compares the objective across rounds inside
+  the solve and never reaches the caller, so it decides a trajectory rather
+  than a published number — which is why it was left out, and also why a model
+  for it would have to show a different pivot rather than a different answer.
+- **presolve's `obj_offset` is still accumulated naively** as columns are
+  removed (`src/presolve.c`, four sites). Nothing reads it for the answer since
+  D169 — both postsolve paths sum the published values instead — but the
+  simplex's objective on the reduced model still starts from it.
 - **The unclamped dual step**, 248 netlib picks and 170 Kennington picks,
   worst 8.37e-09. Costs nothing today; clamping it was refused (D127) because
   the perturbation is what keeps `pilot87` moving.

@@ -484,6 +484,45 @@ jaos_status jm_model_remember_basis(jaos_model *m)
     return store_basis(m, m->sol_col_status, m->sol_row_status);
 }
 
+/* The objective of the solution the model is holding, computed from that
+ * solution and from nothing else (D169).
+ *
+ * `jaos.h` promises "objective value of the solution held by the model", and
+ * the two producers this replaces did not keep it.
+ *
+ * **The sum is compensated**, for the reason D165 and D168 give at their own
+ * sites: `c' x` is a sum of many terms of differing magnitude taken in column
+ * order, so a large term arriving before many small ones drops all of them.
+ * Costs of +1e16, then 256 costs of 1, then -1e16, on columns fixed at 1,
+ * publish an objective of 0 where the answer is 256 — the naive sum loses the
+ * whole middle and the checker, which accumulates in `long double`, disagrees
+ * with it by 100%. `long double` is not available here (D34).
+ *
+ * **And it is computed on the model that publishes it.** The presolve paths
+ * used to report the REDUCED model's objective, or the reduced offset alone,
+ * and neither is a sum over the values the caller reads: `finnis` published
+ * 172791.06564493725 against Koch's 172791.06559561158, where the same point
+ * summed here gives 172791.06559350481 — 23 times closer, and it is the same
+ * point in both cases.
+ *
+ * Requires the six solution arrays and an OPTIMAL solve; callers reach it
+ * only there. */
+void jm_model_publish_objective(jaos_model *m)
+{
+    double sum = m->obj_offset, comp = 0.0;
+    if (m->sol_col != nullptr) {
+        for (int64_t j = 0; j < m->num_col; j++) {
+            const double t = m->col_cost[j] * m->sol_col[j];
+            const double a = sum, u = a + t;
+            comp += (fabs(a) >= fabs(t)) ? ((a - u) + t) : ((t - u) + a);
+            sum = u;
+        }
+    }
+    /* An infinite or NaN partial sum carries no residue a correction could
+     * hold, and `inf + (inf - inf)` is a NaN. The guard is D165's. */
+    m->objective = (isfinite(sum) && isfinite(comp)) ? sum + comp : sum;
+}
+
 static bool status_in_range(jaos_basis_status s)
 {
     return s == JAOS_BASIS_BASIC || s == JAOS_BASIS_AT_LOWER ||

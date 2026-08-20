@@ -1,0 +1,34 @@
+record_diff.py, the working tree after D169 against the committed
+records at ba69a88 (D169's parent). Captured before the records were
+rewritten, so it cannot be regenerated from the tree afterwards.
+
+========================================================================
+bench/results/netlib.txt  vs  HEAD:bench/results/netlib.txt
+========================================================================
+94 instances compared: 32 bit-identical, 62 moved, 0 digest change(s)
+
+-- no regression --
+
+-- changes within threshold --
+  FIGURE             obj            changed on 62 instance(s): 25fv47, 80bau3b, adlittle, afiro, agg3, bandm, ...
+
+========================================================================
+bench/results/netlib-infeas.txt  vs  HEAD:bench/results/netlib-infeas.txt
+========================================================================
+29 instances compared: 29 bit-identical, 0 moved, 0 digest change(s)
+
+-- no regression --
+
+Every instance is bit-identical to the committed record.
+That is the strongest available evidence a change is a no-op.
+
+========================================================================
+bench/results/netlib-kennington.txt  vs  HEAD:bench/results/netlib-kennington.txt
+========================================================================
+16 instances compared: 3 bit-identical, 13 moved, 0 digest change(s)
+
+-- no regression --
+
+-- changes within threshold --
+  FIGURE             obj            changed on 13 instance(s): cre-a, cre-b, cre-c, cre-d, ken-07, ken-11, ...
+

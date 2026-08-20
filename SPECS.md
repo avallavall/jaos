@@ -176,7 +176,7 @@ asks them is a problem handed back to the caller.
 
 | | status | |
 |---|---|---|
-| Status, objective, values, activities, duals, reduced costs | **done** | |
+| Status, objective, values, activities, duals, reduced costs | **done** | The objective is `obj_offset` plus a compensated sum of `c_j x_j` over the published values, taken on the model that publishes them — `jaos.h` promises the objective OF the solution held, and until D169 the sum was naive and the presolve paths reported a reduced model's number instead. 81 of netlib's 94 now agree bit for bit with `jaos_check_solution`, which is independent and accumulates in `long double`, against 34 before. What is left is the rounding of each product to a double, worst 2.65e-05 on `finnis` where the terms sum to 1.7e5 and their magnitudes to 3.2e12 (D169) |
 | Where every variable rests in the basis | **partial** | `jaos_basis`. The statuses are right; the **count** was not. `jaos.h` promises exactly `num_row` of them are basic, and 70% of solves broke it (D131). Two postsolve repairs closed most of it: **Kennington publishes a valid basis on every solve**, netlib on 142 of 188 (D138, D139, re-counted by D167). The 46 that remain are three named shapes in `TODO.md`. No answer was ever wrong — nothing reads the basis back except `build_warm_basis`, which since D151 **repairs** a mapped count short by at most `WARM_REPAIR_MAX_SHORT = 4` by promoting logicals and falls back to a cold start beyond that. A long count is still refused |
 | Iterations and work units | **done** | |
 | **Solve time** | **done** | `jaos_solve_time`, seconds of the last solve. The only number JAOS reports that is not reproducible, and the header says so and says not to diff it |

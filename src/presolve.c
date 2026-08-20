@@ -3358,7 +3358,12 @@ JAOS_NODISCARD jaos_status jm_postsolve_expand(jm_presolve *p)
         return JAOS_OK;
     }
 
-    orig->objective = red->objective;
+    /* The objective is set at the end of this function, from the values
+     * the replay below writes onto `orig` (D169). Taking the reduced
+     * model's number here reported the objective of a different point:
+     * `finnis` published 172791.06564493725 where the point actually
+     * published sums to 172791.06559350481, against Koch's
+     * 172791.06559561158. */
 
     /* Zeroed before anything below runs: a dead row/column's slot is
      * filled in only by its own arena record's replay, later in this same
@@ -3447,6 +3452,7 @@ JAOS_NODISCARD jaos_status jm_postsolve_expand(jm_presolve *p)
     ps_verify_row_activities(orig);
 #endif
 
+    jm_model_publish_objective(orig);
     (void)jm_model_remember_basis(orig);
     return JAOS_OK;
 }
@@ -3482,7 +3488,9 @@ JAOS_NODISCARD jaos_status jm_postsolve_solved(jm_presolve *p)
      * solve reporting 0.0 is honest about what this plan measures, not a
      * claim that the work took no time. */
     orig->solve_time   = 0.0;
-    orig->objective = p->reduced.obj_offset;
+    /* Set at the end of this function from the replayed values, like the
+     * other postsolve path (D169). The accumulated offset is the same
+     * sum taken in a different order and without compensation. */
     orig->presolve_num_row = p->reduced.num_row;
     orig->presolve_num_col = p->reduced.num_col;
     orig->presolve_num_nz  = p->reduced.num_nz;
@@ -3560,6 +3568,7 @@ JAOS_NODISCARD jaos_status jm_postsolve_solved(jm_presolve *p)
     ps_verify_row_activities(orig);
 #endif
 
+    jm_model_publish_objective(orig);
     (void)jm_model_remember_basis(orig);
     return JAOS_OK;
 }

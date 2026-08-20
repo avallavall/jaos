@@ -12494,3 +12494,79 @@ published, and folding it in would have made this campaign unattributable. It
 needs its own model and its own campaign. The published objective on D162's
 model is still not pinned, for D162's reason: `x1` sits where one ulp is
 1.19e-07, so the last step of the ratio test is not on the model's grid.
+
+## D169 — The published objective is summed with compensation over the point it is published with, and 81 of 94 now agree with the checker exactly
+
+**The question.** D168 compensated the row activity the simplex computes.
+`settled_objective` and `publish()` are the same shape one step further on, so
+the objective was asked the same question — and the answer was worse than
+expected, because there were two defects rather than one.
+
+`jaos.h` promises *"objective value of the solution held by the model,
+including the constant term"*. Neither producer kept it.
+
+**1. The sum was naive.** Costs of `+1e16`, then `k` costs of 1, then `-1e16`,
+on columns fixed at 1, publish an objective of **0** where the answer is `k`.
+One ulp of 1e16 is 2, so every middle term is below half an ulp of the running
+total and none of them moves it. Reproduced at k = 64 and k = 256, on the
+shipping build and on `-DJAOS_NO_PRESOLVE`, while `jaos_check_solution` — the
+same library, accumulating in `long double` — reads `k` on all four
+(`bench/measurements/02-79/objective.txt`).
+
+**2. It was not a sum over the point the caller reads.** Both presolve
+postsolve paths reported the reduced model's objective, or the accumulated
+offset alone. `jm_model_publish_objective` in `src/model.c` replaces all three
+producers: `obj_offset` plus a Neumaier sum of `col_cost[j] * sol_col[j]`, on
+the model that publishes it, after its values are written.
+
+**The measurement, and the oracle is the checker.** `jaos_check_solution`
+judges the model as loaded, in the original space, independently of every
+solver bookkeeping, so `|jaos_objective − primal_objective|` on the same point
+is the promise itself, measured:
+
+| netlib, 94 instances | parent | D169 |
+|---|---|---|
+| **exact agreement with the checker** | 34 | **81** |
+| closer / further / unchanged | — | 57 / 4 / 33 |
+
+The four that move the wrong way are `sierra` 0 → 1.86e-09, `kb2` 0 → 2.27e-13,
+`afiro` 0 → 5.68e-14 and `tuff` 0 → 5.55e-17 — last-bit, each a naive sum whose
+errors happened to cancel onto the long-double value.
+
+**The cost.** `gate: PASS` on all three sets, `0 regressed, 0 improved, 0 new`,
+139 of 139 `objective=ok checker=ok`. **0 digest changes on any set**: netlib
+moved 62 instances, Kennington 13, netlib-infeas none, and every one of them
+moved on `obj` and on nothing else — no work unit, no iteration count, no
+basis. The digest covers x and y, so zero across 139 instances says this change
+touched the number reported and no part of the solve.
+
+**What is left is the product rounding, and the entry says so rather than
+claiming the objective is now exact.** On `finnis`, the worst cancellation in
+the set (terms summing to 1.7e5 with magnitudes summing to 3.2e12), the four
+numbers for one point are: naive `double` 172791.0657497762, Neumaier `double`
+172791.06569834377, the same rounded products added in `long double`
+172791.06569833743, and the products themselves in `long double`
+172791.06567182826. **The accumulation is exact to 6.3e-09 now, against
+5.1e-05 naive**; the remaining 2.65e-05 is each `c_j x_j` rounding to a double,
+where one term of 6.5e11 rounds by up to 7.2e-05 on its own. No accumulator
+reaches that — it needs a two-product, which is its own change.
+
+`finnis` is also why the weaker measure disagrees: against the manifest's
+reference the 94 read closer on 54 and further on 8, with `finnis` going
+4.93e-05 → 1.03e-04. The parent's number came from the reduced model and was
+nearer the true optimum by luck. `finnis` publishes a point with
+`row = 8.44e-07` and `gap_positive = 1.05e-04`, and D169 reports the objective
+of that point.
+
+**Two positive tests began failing under `-DJAOS_PRESOLVE_FAULT_OFFBYONE` once
+the objective started reading the published values, and both are guarded.**
+That is the fault build working: it corrupts a postsolved value, and until now
+the objective did not read those values, so tests designed to be broken by it
+passed. Guarding at `solved_objective` follows `solve_and_verify`'s precedent
+in `tests/test_simplex.c`.
+
+**What is left open.** The two-product above. `settled_objective` is a fourth
+accumulation of the same shape and is untouched — it compares across rounds
+inside the solve and never reaches the caller, so it decides a trajectory
+rather than a published number. And presolve's `obj_offset` is still
+accumulated naively; nothing reads it for the answer any more.

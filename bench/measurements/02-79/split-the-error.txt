@@ -1,0 +1,12 @@
+bench/instances/finnis.mps  n=614
+  naive double        = 172791.0657497762
+  Neumaier double     = 172791.06569834377
+  long double of the ROUNDED products = 172791.06569833743
+  long double exact products          = 172791.06567182826
+  sum|term| = 3.19821e+12   max|term| = 6.46696e+11   n*eps*max|t| = 0.0882
+bench/instances/scagr7.mps  n=140
+  naive double        = -2331389.8243309841
+  Neumaier double     = -2331389.8243309837
+  long double of the ROUNDED products = -2331389.8243309838
+  long double exact products          = -2331389.8243309839
+  sum|term| = 4.17985e+06   max|term| = 536168   n*eps*max|t| = 1.67e-08

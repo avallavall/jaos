@@ -356,6 +356,17 @@ with the same Neumaier accumulator and for the same reason `long double` is not
 used (D34). No constant moved: there is no window here to widen, only a sum to
 take correctly. `bench/measurements/02-78/` carries the reading.
 
+**And the published objective, which is the same sum one step further on
+(D169).** It is `obj_offset` plus `c_j x_j` over the published values, taken
+on the model that publishes them. 81 of netlib's 94 agree bit for bit with
+`jaos_check_solution` now, against 34. **What a compensated sum cannot reach
+is the rounding of each product**: on `finnis` the accumulation is exact to
+6.3e-09 while 2.65e-05 remains, all of it from rounding `c_j * x_j` to a
+double, where one term of 6.5e11 rounds by up to 7.2e-05 on its own.
+`bench/measurements/02-79/split-the-error.txt` separates the two, and any
+claim that compensating a sum made it accurate should separate them the same
+way first.
+
 ## The proxy the constant used to rest on
 
 Kept because it is what "measured from one side only" looks like, and because

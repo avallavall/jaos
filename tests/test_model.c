@@ -231,13 +231,124 @@ static jaos_model *bounded_model(void)
     return m;
 }
 
+/* Solves and reads the objective back.
+ *
+ * Every caller is a positive test, so all of them are skipped under either
+ * fault build — the same rule and the same reason as test_simplex.c's
+ * `solve_and_verify`, and guarding here rather than at nine call sites.
+ *
+ * **The guard is newer than the helper, and D169 is why.** Until then the
+ * objective was the number the REDUCED model carried, so a fault that
+ * corrupted a postsolved value never reached it and these tests passed under
+ * builds designed to break them. It is summed from the published values now,
+ * so it fails there, which is the fault doing its job. */
 static double solved_objective(jaos_model *m)
 {
+#if defined(JAOS_PRESOLVE_FAULT_OFFBYONE) || defined(JAOS_PRESOLVE_FAULT_WRONGDUAL)
+    (void)m;
+    TEST_IGNORE_MESSAGE("positive test — skipped under either fault build");
+    return 0.0;
+#else
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
     TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
     double obj = 0.0;
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(m, &obj));
     return obj;
+#endif
+}
+
+/* ---- The objective is the objective of the point that is published ------ *
+ *
+ * `jaos.h` says "objective value of the solution held by the model". Two
+ * things had to change for that to be true (D169): the sum is compensated, and
+ * it is taken over the model that publishes it rather than over a reduced one.
+ *
+ * The model here is the first half:
+ *
+ *   costs in column order:  +1e16,  1 (k times),  -1e16
+ *   every column fixed at 1, one row holding them all and binding nothing
+ *
+ * The answer is k. Summed in column order the running total is 1e16 while the
+ * k ones arrive, and one ulp of 1e16 is 2, so every one of them is below half
+ * an ulp and the total does not move; the -1e16 then brings it to zero. The
+ * parent publishes 0 for k = 64 and for k = 256, on both the shipping and the
+ * reference build, while `jaos_check_solution` — which accumulates in
+ * `long double` — reads k. The library disagreed with itself by 100%. */
+#define OBJ_K 256
+#define OBJ_NC (OBJ_K + 2)
+
+static void test_the_objective_is_summed_from_the_values_it_publishes(void)
+{
+#if defined(JAOS_PRESOLVE_FAULT_OFFBYONE) || defined(JAOS_PRESOLVE_FAULT_WRONGDUAL)
+    TEST_IGNORE_MESSAGE("positive test — skipped under either fault build");
+#else
+    static double c[OBJ_NC], cl[OBJ_NC], cu[OBJ_NC], av[OBJ_NC];
+    static int64_t as[OBJ_NC + 1], ai[OBJ_NC];
+    const double rl[] = {-1e30}, ru[] = {1e30};
+
+    for (int64_t j = 0; j < OBJ_NC; j++) {
+        as[j] = j;
+        cl[j] = cu[j] = 1.0;
+        ai[j] = 0; av[j] = 1.0;
+        c[j] = (j == 0) ? 1e16 : (j == OBJ_NC - 1) ? -1e16 : 1.0;
+    }
+    as[OBJ_NC] = OBJ_NC;
+
+    jaos_model *m = nullptr;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_model_new(&m));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_load_lp(m, OBJ_NC, 1, JAOS_MINIMIZE, 0.0, c, cl, cu, rl, ru,
+                     OBJ_NC, as, ai, av));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+
+    double obj = 0.0;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(m, &obj));
+    const double expected = (double)OBJ_K;
+    TEST_ASSERT_EQUAL_MEMORY(&expected, &obj, sizeof obj);
+    jaos_model_free(m);
+#endif
+}
+
+/* The control the repair must not break, and it is the one a compensated sum
+ * can get wrong: the constant term and the sense. A MAXIMIZE model reports
+ * `obj_offset + c'x` in its own sense, so dropping the offset or minimising by
+ * accident both show up here and neither would move any instance in the gate.
+ *
+ *   max 2*x0 + 3*x1 + 100   s.t.  x0 + x1 <= 4,  0 <= x <= 4
+ *
+ * x1 is worth more, so x1 = 4 and x0 = 0: objective 12 + 100 = 112. */
+static void test_the_objective_keeps_its_constant_term_and_its_sense(void)
+{
+#if defined(JAOS_PRESOLVE_FAULT_OFFBYONE) || defined(JAOS_PRESOLVE_FAULT_WRONGDUAL)
+    TEST_IGNORE_MESSAGE("positive test — skipped under either fault build");
+#else
+    const double c[] = {2.0, 3.0};
+    const double cl[] = {0.0, 0.0}, cu[] = {4.0, 4.0};
+    const double rl[] = {-INFINITY}, ru[] = {4.0};
+    const int64_t as[] = {0, 1, 2}, ai[] = {0, 0};
+    const double av[] = {1.0, 1.0};
+
+    jaos_model *m = nullptr;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_model_new(&m));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_load_lp(m, 2, 1, JAOS_MAXIMIZE, 100.0, c, cl, cu, rl, ru,
+                     2, as, ai, av));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+
+    double obj = 0.0;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(m, &obj));
+    const double expected = 112.0;
+    TEST_ASSERT_EQUAL_MEMORY(&expected, &obj, sizeof obj);
+
+    /* And it is the objective of the point that came with it. */
+    double x[2] = {0.0, 0.0};
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solution(m, x, nullptr, nullptr, nullptr));
+    const double from_x = 100.0 + c[0] * x[0] + c[1] * x[1];
+    TEST_ASSERT_EQUAL_MEMORY(&from_x, &obj, sizeof obj);
+    jaos_model_free(m);
+#endif
 }
 
 static void test_a_modification_out_of_range_is_refused(void)
@@ -819,6 +930,8 @@ int main(void)
     RUN_TEST(test_csr_mirror_matches_hand_transpose);
     RUN_TEST(test_a_modification_out_of_range_is_refused);
     RUN_TEST(test_a_changed_bound_reaches_the_solve);
+    RUN_TEST(test_the_objective_is_summed_from_the_values_it_publishes);
+    RUN_TEST(test_the_objective_keeps_its_constant_term_and_its_sense);
     RUN_TEST(test_bounds_and_costs_read_back);
     RUN_TEST(test_the_basis_outlives_a_modification_and_not_a_load);
     RUN_TEST(test_a_modification_discards_the_answer);
