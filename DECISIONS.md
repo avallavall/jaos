@@ -12630,11 +12630,34 @@ the objective did not read those values, so tests designed to be broken by it
 passed. Guarding at `solved_objective` follows `solve_and_verify`'s precedent
 in `tests/test_simplex.c`.
 
-**What is left open.** The two-product above. `settled_objective` is a fourth
-accumulation of the same shape and is untouched — it compares across rounds
-inside the solve and never reaches the caller, so it decides a trajectory
-rather than a published number. And presolve's `obj_offset` is still
-accumulated naively; nothing reads it for the answer any more.
+**The three questions this entry put to review, answered in the main context
+because the review had not delivered.** `CLAUDE.md` wants that read done
+somewhere else, and this says plainly that it was not.
+
+- **Is `sol_col` complete at all three call sites?** Yes, and the measurement
+  answers it rather than an argument about the source. `jm_model_publish_objective`
+  is the last statement that touches the model on both postsolve paths, before
+  `jm_model_remember_basis` and the return, so nothing writes `sol_col` after
+  it. And `jaos_check_solution` computes its `primal_objective` from the very
+  `sol_col` the caller receives: **81 of 94 now agree with it to the last bit.**
+  An incomplete `sol_col` would make those two disagree, not agree exactly.
+- **Was guarding the two fault-build tests right?** Yes, and the reason is
+  worth keeping: the fault is injected on purpose, so a positive test must be
+  skipped under it, which is the convention `tests/test_presolve.c` already
+  follows at thirty sites. **What the failure showed is a gain, not a loss.**
+  Until this change the objective did not read the published values, so a fault
+  that corrupted a postsolved value left it untouched and tests designed to be
+  broken by that fault passed. The objective is a detector for a corrupted
+  postsolve now, which is why they started failing.
+- **Is `settled_objective` an inconsistency that can decide something?** It can
+  decide a trajectory and not a published number: it compares the objective
+  across rounds inside the solve and its result never leaves. That is why it is
+  left out, and a model for it would have to show a different pivot rather than
+  a different answer.
+
+**What is left open.** The two-product above, and `settled_objective` with the
+condition just stated. presolve's `obj_offset` is still accumulated naively;
+nothing reads it for the answer any more.
 
 ## D170 — The published reduced costs contradict the published basis on five netlib instances, and every one of them is §2 rather than a new defect
 

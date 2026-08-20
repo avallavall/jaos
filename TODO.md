@@ -16,13 +16,17 @@ five build configurations, and the three gate sets read `gate: PASS` with
 `0 regressed, 0 improved, 0 new`.
 
 **The gate campaign at HEAD is valid and it is D169's.** It was run on the
-tree that carries both of this session's source changes.
+tree that carries both of this session's source changes. Everything committed
+after it is documentation, a test, or a comment: `comment_only.sh` reports
+`src/simplex.c`'s release object UNCHANGED at `ab87c99`, and `4c972a2` touches
+no source at all. `$(B)/bench/run` links the library built from `src/` alone,
+so a `tests/` edit cannot invalidate a campaign either.
 `bench/results/netlib.txt` and `bench/results/netlib-kennington.txt` were
 rewritten by it; `netlib-infeas` came back bit-identical to the committed
 record on both changes, so it is unchanged and `preflight.sh` counts it as
 behind by `src/` commits that were no-ops on it.
 
-**16 commits are unpushed and pushing needs the maintainer's explicit
+**19 commits are unpushed and pushing needs the maintainer's explicit
 approval.** Push from the WINDOWS side (see below). `main` and both tags were
 last pushed on 2026-08-20 before this session started.
 
