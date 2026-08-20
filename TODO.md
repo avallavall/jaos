@@ -16,9 +16,10 @@ build configurations — and the three gate sets read `gate: PASS` with
 `0 regressed, 0 improved, 0 new`.
 
 **The gate campaign at HEAD is valid and it is the overflow fix's** (`e29198a`).
-All three `bench/results/*.txt` are current. The only commit after it,
-`a3f68c1`, touches `DECISIONS.md`, `TODO.md` and two files under
-`bench/measurements/`, so no campaign is owed.
+All three `bench/results/*.txt` are current. Every commit after it touches
+`DECISIONS.md`, `TODO.md`, `CHANGELOG.md` and files under
+`bench/measurements/`, so no campaign is owed. **D173 changed nothing in
+`src/` either** — it is an offline oracle and a refusal.
 
 **Nothing is unpushed.** `main` is at `55b4edb` on the maintainer's explicit
 say-so; `git fetch` first read `ahead 6` with no divergence. **Push from the WINDOWS side**: the remote
@@ -46,7 +47,7 @@ any code.
 |---|---|---|---|
 | 1 | **48 netlib solves publish an invalid basis** | a rank argument WIDER than the firing row, or accepting the residue as the published state of the art does (Galabova 2023). Every local repair is refused with its measurement (D140, D141). **D171 made it worse by 2 and that is measured** | §2 below |
 | 2 | **`settled_objective` is a naive sum that selects which point is PUBLISHED** | two rounds that tie under a naive sum and separate under a compensated one. Cheaper than it looks — the first version of this entry said it only decided a trajectory and that was wrong | §4 below |
-| 3 | **`finnis` publishes a point that is not the exact optimal vertex** | exact rational arithmetic over the published `x` and `c`, a short offline script. **Not the checker** — it carries the same per-term rounding D172 removed one layer out | §4 below |
+| 3 | **`pilot` publishes a point 2.31e-05 above the optimum** | which tolerance lets the solve stop there. It is the only netlib instance HiGHS, SoPlex and Clp all beat, and the point is feasible — 1.87e+08 times the arithmetic floor for that model, where 68 of 93 are inside 0.5. **This replaces the `finnis` item, which D173 refused** | §4 below |
 | 4 | **`scsd1` and `degen2` behind D151's cap** | a predictor of a doomed trajectory. The shortfall cannot be it and that is measured | §3 below |
 | 5 | **`D97`, the dual postsolve for an imposed bound** | nothing is built; `docs/research/dual-postsolve-imposed-bound.md` is 936 lines of design with the literature verified. **The largest prize in the file** — it unlocks bound tightening AND doubleton equalities, 8.55% of netlib's live rows and 29.36% of Kennington's | "If all of the above is dropped" |
 
@@ -82,6 +83,29 @@ product lands in the top 1.5e-8 of the double range, and no instance in 139 has
 one. Run the loop AND get the review; a green loop does not cover the review's
 job.
 
+
+### 2026-08-20, third unattended session: D173 — the exact oracle, and what it refused
+
+One entry, no source change. `bench/measurements/02-83/` adds a 5632-bit
+fixed-point accumulator, so `c'x + c0` over the published point is computed
+with no rounding at all.
+
+**Three things to carry forward.**
+
+- **`jaos_objective` is finished.** It is the correctly rounded exact
+  objective of the published point on **110 of 110**, worst 0.493 ulp. Do not
+  open the published objective again; the remaining disagreement with the
+  checker is the checker's, 790 ulps on `finnis`.
+- **Measure a gap against `eps * sum |c_j x_j|`, not against the objective.**
+  `finnis` looks like the worst instance on the set at 7.62e-05 and is
+  actually 0.107 of its own floor, while `pilot` at 2.31e-05 is 1.87e+08 of
+  its. The two differ by ten orders in traffic and the raw gaps say the
+  opposite of the truth.
+- **Validate the instrument before the reading, and with something that
+  shares no code with it.** The written-down cases caught a wrong expected
+  value this session had typed; Python's `fractions` is the second oracle and
+  agrees to all 20 places on four instances. `run-exact-objective.sh` refuses
+  to take a reading if the self-test fails.
 
 ### 2026-08-20, second unattended session: D168 to D172 — four published numbers repaired, one refused, and a refusal overturned
 
@@ -492,7 +516,7 @@ half-hour item. In the order a session with fresh context should weigh them:
 | candidate | what it needs before any code | size |
 |---|---|---|
 | **§2, 46 solves publish a wrong basis** | a rank argument WIDER than the firing row. Every local repair is refused with its measurement (D141), and the published state of the art accepts the residue (Galabova 2023) | design |
-| **`subtract_basis_times` is the last uncompensated sum in the solve path** | a model, first. It computes `b - B x_B` for the refinement step, so its cancellation is total by construction and it is the site where compensation matters most per term — and no model has been built that shows it losing an answer. D168 left it out deliberately so that campaign stayed attributable | bounded, unproven |
+| **`pilot` publishes a point 2.31e-05 above the optimum** | which tolerance lets the solve stop there, from a `jaos-debug` throwaway build. The point is feasible, so the dual test accepted a column that was still improving. Read D127 first — the unclamped dual step is refused there because the perturbation is what keeps `pilot87` moving (D173) | bounded |
 | **§3, `scsd1` and `degen2` behind D151's cap** | a predictor of a doomed trajectory. **The shortfall cannot be it and that is measured** — both are short by 1, the same as the sixteen that win | research |
 | **`D97`** | a dual postsolve for an imposed bound. `docs/research/dual-postsolve-imposed-bound.md` is the design; nothing is built. Unlocks §3's doubleton equalities too | largest prize |
 
@@ -821,21 +845,55 @@ trajectory. Refusals table, D151.
   claim about libm at all. It costs
   one pass over the columns per solve, so the campaign question is accuracy
   rather than time. Nothing shows it losing a verdict.
-- **`finnis` publishes a point that is not the exact optimal vertex**, and it
-  is new from D172 (`numerics-reviewer`). The better oracle is Koch's
-  exact-rational optimum, and D172 moved 0 digests, so the published `x` is
-  bit-identical and every `obj` move was pure summation. Against that reference
-  the eleven netlib movers read **8 closer, 3 further, exact matches 3 → 6** —
-  `25fv47`, `80bau3b`, `afiro`, `maros`, `ship04l` and `truss` now match to the
-  last bit, and the three that went further each moved from exact to about one
-  ulp, which is not a cost. **`finnis` goes 1.027e-04 → 7.624e-05: better by
-  25% and still 2.6 million ulps**, where `ulp(172791.06) = 2.9e-11`. A
-  compensated sum of exact products cannot leave that behind, so what is left
-  is the point rather than the sum. `finnis` already carries the marks — `row`
-  8.44e-07 and `gap_positive` 1.05e-04, both the worst on the set. **The oracle
-  for this is not the checker**, which has the same per-term rounding D172 just
-  removed one layer out; it is exact rational arithmetic over the published `x`
-  and `c`, which is a short offline script.
+- ~~**`finnis` publishes a point that is not the exact optimal vertex.**~~
+  **REFUSED 2026-08-20 (D173, `bench/measurements/02-83/`).** The exact
+  oracle was built — a 5632-bit fixed-point accumulator, so every `c_j x_j`
+  is added with no rounding — and it says there is nothing to repair.
+  `finnis` carries `sum |c_j x_j| = 3.198e+12` against an objective of
+  1.7e+05, so one eps of its own traffic is 7.10e-04 and **the 7.62e-05 gap
+  to Koch is 0.107 of that**. Its row residual is 4.2e-17 and 3.0e-17
+  relative to the two rows' traffic of 2e+10. The point is as feasible and as
+  optimal as binary64 allows on this model.
+  **Two things the entry settles beyond the item.** `jaos_objective` is the
+  correctly rounded exact objective of the published point on **94 of 94**,
+  worst 0.493 ulp; the checker manages 93 and is **790 ulps** out on `finnis`,
+  so D172's "neither can be called more right" resolves in the published
+  number's favour. And the instrument was validated twice before any reading,
+  which caught a wrong expected value this session had typed — the second
+  oracle is Python's `fractions`, sharing no code with the accumulator.
+- **`pilot` publishes a point 2.31e-05 above the optimum, and it is the only
+  netlib instance every other solver beats.** New from D173. Measured against
+  `eps * sum |c_j x_j|`, which is the floor arithmetic sets for that model,
+  the gap is **1.87e+08** of that unit; 68 of the 93 Koch-referenced
+  instances are inside 0.5. Three others are above 1e4: `pilot87` 1.53e+06,
+  `scsd6` 9.97e+04, `etamacro` 2.74e+04. Every row residual is at the
+  arithmetic floor on all four, so these points are **feasible and
+  suboptimal**, not infeasible, and `pilot`'s objective is higher than Koch's
+  on a minimization. HiGHS, SoPlex and Clp all publish Koch's value on
+  `pilot`.
+  **What it needs before any code**: which tolerance lets the solve stop
+  there. The dual test accepted a point 1.87e8 arithmetic units short, so the
+  candidate is `DUAL_TOL` in scaled space against a column whose own scale
+  makes it look priced out. `pilot` runs 23265 iterations, so this is a
+  `jaos-debug` throwaway build and not a campaign, and D127 is the entry to
+  read first — the unclamped dual step is refused there because the
+  perturbation is what keeps `pilot87` moving.
+- **The gate cannot see a suboptimal answer, and the library already
+  certifies one.** New from D173. `jaos_check_solution` reports
+  `gap_positive = 0.0386` on `pilot` with `gap_certified = yes`, which is a
+  proof that `P - P* <= 0.0386`; among the 53 instances whose certificate is
+  complete that is **four orders above the next** (`grow22`, 1.797e-06), and
+  it belongs to the one instance every other solver beats. `bench/run.c`
+  never reads the field: `objective_accepted` is
+  `|got - ref| <= 1e-6 * max(|ref|, 1)`, a window of 5.57e-04 on `pilot`,
+  cleared with 24 times to spare.
+  **What it needs**: a threshold, and one instance separating cleanly on one
+  set is not one. `scsd6` is the counter-case and it is already in the record
+  — `gap_positive` 9.73e-15 where the true gap is 1.12e-09, five orders
+  smaller, with `gap_certified = no`. Read `jaos.h`'s own warning on
+  `certified_suboptimality` (D73) before proposing any predicate here: a
+  quantity that reads the same on a wrong answer as on a right one cannot be
+  a verdict.
 - **`settled_objective` in `src/simplex.c` is a fourth accumulation of the same
   shape**, untouched by D169, and **this entry's first version got its severity
   wrong**. It said the sum decides a trajectory rather than a published number.
@@ -1801,6 +1859,7 @@ then, do not — a refusal whose premise has not changed just fails again.
 
 | decision | what was refused or deferred | reopens when |
 |---|---|---|
+| D173 | `finnis` publishing a point that is not the exact optimal vertex — its 7.62e-05 gap to Koch is **0.107 of `eps * sum |c_j x_j|`**, the floor arithmetic sets for a model carrying 3.198e+12 of traffic, and its row residual is under one eps of each row's own traffic | a model whose gap exceeds that floor. Four already do and they are open items rather than refusals: `pilot` 1.87e+08, `pilot87` 1.53e+06, `scsd6` 9.97e+04, `etamacro` 2.74e+04. The oracle is `bench/measurements/02-83/run-exact-objective.sh` and it needs no build of its own |
 | D149 | the blanket warm count repair, retried behind the certificate guard — correct now (`disagreed=0, rejected=0`) and refused on cost: `dfl001` at 172x work for a doomed 596-short repair, netlib geomean 0.2605 vs 0.2553 | **condition MET by D151**: the cap was swept on both sides and the capped repair landed at 4. This row stays as the record of the refusal and its expiry |
 | D151 | the two instances that still lose real work behind the cap — `scsd1` 4.65x and `degen2` 4.09x, both with warm iterations exactly equal to cold, which is D148's guard rejecting the repaired trajectory and charging the attempt plus the whole cold solve | a rule that predicts a doomed trajectory before paying for it. **The shortfall cannot be that rule and this is measured**: both are short by 1, the same shortfall as the sixteen instances that win. Raising the cap is separately refused — the sweep in `bench/measurements/02-60/` reads 15.48x on `greenbea` at 7 |
 | D145 | the warm count repair in `build_warm_basis` — refused because 8 netlib solves published a wrong objective through the termination hole | **condition MET by D148** (the certificate guard landed), retried as D149 and refused again on cost. This row stays as the record of the refusal and its expiry |
@@ -1820,7 +1879,7 @@ then, do not — a refusal whose premise has not changed just fails again.
 | D127 | clamping the dual step to the same number the pick was made on — `pilot87` 3.228x work and 108973 iterations against 40246, entirely from the Harris exit | a correctly-signed step that keeps the perturbation `update_dual` spreads, which is a new constant and needs its own sweep; or `pilot87` stops oscillating. The candidate is at `bench/measurements/02-36/candidate.diff` |
 | D126 | removing `shift_to_feasible`'s `d[v] = 0.0` when the cost cannot move — the breach then compounds across iterations, worst dual step 8.37e-09 → 2.21e-03 and 49% more ratio-test picks | the dual step stops being computed from an unclamped `d` (§5a item 2), or `update_dual` stops being the thing that pushes the same variable further every iteration. The candidate is kept at `bench/measurements/02-35/candidate.diff`, so a retry starts from the measured version rather than from scratch |
 | D93 | the 4.2% time bar — unmeasurable on this host | a controlled host that satisfies D17 |
-| D92/backlog | `pilot87`'s suboptimality bound, not understood | it blocks a gate (trigger already recorded) |
+| D92/backlog | `pilot87`'s suboptimality bound, not understood | it blocks a gate (trigger already recorded). **D173 gives it a number**: the point is 1.04e-07 above Koch's optimum, 1.53e+06 times the floor for that model, with `gap_positive` 7.68e-04 and `gap_certified = no` |
 | D82, D84 | partial and multiple pricing | nothing scheduled — refused on wrong answers, not on a trade; a new scheme is a new decision, not a retry |
 | D34, D11, D2 | `long double`, GMP, any external code | never, while the two absolute premises stand (locked 2026-08-13) |
 

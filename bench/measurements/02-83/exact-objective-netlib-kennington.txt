@@ -1,0 +1,35 @@
+# exact = c'x + c0 over the published point, no rounding anywhere.
+# pub-exact and chk-exact are the two published numbers measured
+# against it; exact-ref and pub-ref are measured against the
+# manifest optimum, whose own decimal stops at 1e-11.
+# rowviol is the worst breach of a row bound by the exact activity.
+# pubulps is pub-exact in units of ulp(published): |pubulps| <= 0.5
+# means the published double IS the correctly rounded exact value.
+#
+# priced is sum |y_i| * rowviol_i, what repairing the residual
+# would move the objective by to first order. colviol is the
+# worst published value outside its own declared box.
+# objtraf is sum |c_j x_j| and refeps is (exact - ref) in units
+# of eps * objtraf: no double objective of any point can be
+# placed nearer than 0.5 of that, so |refeps| <= 0.5 says the
+# gap against the reference is the model's own conditioning.
+# gappos/gapneg/cert are jaos_check_solution's own certificate,
+# for the question of whether the library already reports what
+# exact-ref measures: gappos bounds P - P* when cert says yes.
+# name        exact                              pub-exact     chk-exact  pubulps  chkulps     exact-ref       pub-ref     rowviol      priced     colviol     objtraf        refeps      gappos      gapneg cert src
+cre-a         23595407.06097160847624413099...    1.77184e-09   1.77184e-09    0.476    0.476     0.0609716     0.0609716   1.137e-13   1.601e-09    1.11e-15    2.36e+07     1.164e+07   1.322e-07   8.368e-10  yes netlib
+cre-b         23129639.88683236457272836446...   -6.69206e-10  -6.69206e-10   -0.180   -0.180     -0.113168     -0.113168   3.592e-14   9.048e-10   6.661e-16   2.313e+07    -2.204e+07   4.235e-07    4.81e-10  yes netlib
+cre-c         25275116.14088021658931681318...   -6.76259e-10  -6.76259e-10   -0.182   -0.182       0.14088       0.14088   1.066e-13   2.237e-09   2.019e-28   2.528e+07      2.51e+07   1.966e-07   1.382e-09  yes netlib
+cre-d         24454969.76454924848046083851...   -5.59948e-10  -5.59948e-10   -0.150   -0.150     -0.235451     -0.235451   2.842e-14   7.122e-10   2.071e-14   2.445e+07    -4.336e+07   4.374e-07   5.778e-10  yes netlib
+ken-07        -679520443.38168700574067315756...   -3.93567e-08  -3.93567e-08   -0.330   -0.330      -3.38169      -3.38169           0           0           0   6.795e+08    -2.241e+07   1.126e-06           0  yes netlib
+ken-11        -6972382262.51997103730835869672...    1.43448e-07   1.43448e-07    0.150    0.150         37.48         37.48           0           0           0   6.972e+09     2.421e+07   3.717e-05           0  yes netlib
+ken-13        -10257394789.48243200582497625106...    5.94082e-07   5.94082e-07    0.311    0.311       210.518       210.518           0           0           0   1.026e+10     9.243e+07   0.0001306           0  yes netlib
+ken-18        -52217025287.39681001899932188958...   -2.41997e-06  -2.41997e-06   -0.317   -0.317      -287.397      -287.397           0           0           0   5.222e+10    -2.479e+07    0.002185           0  yes netlib
+osa-07        535722.51729935103040400670...    1.91831e-11   1.91831e-11    0.165    0.165   -0.00270065   -0.00270065    3.44e-17   5.806e-14           0   5.357e+05     -2.27e+07   1.368e-11           0  yes netlib
+osa-14        1106462.84473625481723389157...   -4.31999e-11  -4.31999e-11   -0.186   -0.186     0.0447363     0.0447363   5.551e-17   1.037e-13           0   1.106e+06     1.821e+08   2.237e-11           0  yes netlib
+osa-30        2142139.87320975783847209612...   -1.08107e-10  -1.08107e-10   -0.232   -0.232    -0.0267902    -0.0267902           0           0           0   2.142e+06    -5.632e+07   4.747e-11           0  yes netlib
+osa-60        4044072.50315742279668134081...    8.11668e-11   8.11668e-11    0.174    0.174    0.00315742    0.00315742   4.957e-17   6.363e-14           0   4.044e+06     3.516e+06   1.102e-10           0  yes netlib
+pds-02        28857862010.00000000000000000000             -0            -0   -0.000   -0.000            10            10           0           0           0   2.886e+10     1.561e+06           0           0  yes netlib
+pds-06        27761037600.00000000000000000000...    -7.9675e-29   -7.9675e-29   -0.000   -0.000          -400          -400   1.578e-30   1.097e-28   1.578e-30   2.776e+10    -6.489e+07   1.554e-06           0  yes netlib
+pds-10        26727094975.99999963626163612673...    3.63738e-07   3.63738e-07    0.095    0.095           -24           -24   4.889e-12   6.695e-07   2.524e-29   2.673e+10    -4.044e+06   2.963e-08   2.353e-08  yes netlib
+pds-20        23821658639.99999927259253997696...    7.27407e-07   7.27407e-07    0.191    0.191          -360          -360   5.855e-12   9.013e-07   5.049e-28   2.382e+10    -6.806e+07   2.259e-05   8.118e-08  yes netlib

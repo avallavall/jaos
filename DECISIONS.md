@@ -175,6 +175,12 @@ and you have the argument. Jump to the entry for the numbers behind it.
 - **[D165](#d165--the-row-bounds-keep-their-residue-which-removes-the-error-four-windows-were-widened-to-cover-and-moves-fourteen-digests)** — The row bounds keep their residue, which removes the error four windows were widened to cover — and moves fourteen digests
 - **[D166](#d166--the-shift-counts-come-out-and-the-tests-they-were-built-for-passing-without-them-is-the-evidence)** — The shift counts come out, and the tests they were built for passing without them is the evidence
 - **[D167](#d167--the-published-basis-count-had-been-stale-for-a-day-and-nothing-in-the-gate-could-have-said-so)** — The published-basis count had been stale for a day, and nothing in the gate could have said so
+- **[D168](#d168--the-simplex-accumulates-its-right-hand-side-with-compensation-and-the-reference-build-stops-calling-a-feasible-model-infeasible)** — The simplex accumulates its right-hand side with compensation, and the reference build stops calling a feasible model infeasible
+- **[D169](#d169--the-published-objective-is-summed-with-compensation-over-the-point-it-is-published-with-and-81-of-94-now-agree-with-the-checker-exactly)** — The published objective is summed with compensation over the point it is published with, and 81 of 94 now agree with the checker exactly
+- **[D170](#d170--the-published-reduced-costs-contradict-the-published-basis-on-five-netlib-instances-and-every-one-of-them-is-2-rather-than-a-new-defect)** — The published reduced costs contradict the published basis on five netlib instances, and every one of them is §2 rather than a new defect
+- **[D171](#d171--the-refinement-residual-is-compensated-too-and-the-argument-that-refused-it-was-sound-about-the-terms-and-wrong-about-the-consequence)** — The refinement residual is compensated too, and the argument that refused it was sound about the terms and wrong about the consequence
+- **[D172](#d172--the-published-objective-recovers-what-each-product-lost-and-109-of-110-now-agree-with-the-checker-exactly)** — The published objective recovers what each product lost, and 109 of 110 now agree with the checker exactly
+- **[D173](#d173--the-published-objective-is-the-correctly-rounded-exact-one-on-all-110-so-finnis-is-refused-and-pilot-is-the-instance-with-a-wrong-point)** — The published objective is the correctly rounded exact one on all 110, so `finnis` is refused and `pilot` is the instance with a wrong point
 
 ---
 
@@ -12953,3 +12959,86 @@ than discovering anything.
 reached by this: it selects which point gets published, and this repairs the
 objective only after the point is chosen. presolve's `obj_offset` is still
 accumulated naively and nothing has read it for the answer since D169.
+
+## D173 — The published objective is the correctly rounded exact one on all 110, so `finnis` is refused and `pilot` is the instance with a wrong point
+
+**The question.** D172 left `finnis` 7.62e-05 from Koch's optimum and said
+what would settle it: exact rational arithmetic over the published `x` and
+`c`, because `jaos_check_solution` cannot be the oracle. The checker
+multiplies in `long double`, whose 64-bit mantissa cannot hold a binary64
+product's 106 bits, so it carries the same per-term rounding D172 removed one
+layer out. The expectation was that the published point would turn out to be a
+slightly wrong vertex.
+
+**The oracle** (`bench/measurements/02-83/`). Every `c_j * x_j` is a dyadic
+rational of at most 106 bits, so a 5632-bit binary fixed-point accumulator
+holds the whole sum with no rounding at all. It is validated twice before any
+reading is taken: against D172's model, D169's model, the exact 55-digit
+expansion of the double nearest 0.1 and both ends of the exponent range; and
+against Python's `fractions`, which shares no code with it and agrees to all
+20 printed places on `finnis`, `pilot`, `pilot87` and `afiro`. **The first
+run of the written-down cases failed**, on four digits this session had
+transcribed wrong, which is the case the second oracle exists for.
+
+**`jaos_objective` is the correctly rounded exact objective on 110 of 110** —
+94 netlib, worst 0.493 ulp (`ship08l`), and 16 Kennington, worst 0.476
+(`cre-a`). The checker manages 109, worst **790.3 ulps** on `finnis`. D172's
+"neither number can be called more right than the other" is settled: the
+2.2992e-08 it measured between them is the checker's error and not a shared
+floor. **`refeps` below means nothing on Kennington** — that manifest's
+references are eight significant digits from netlib rather than Koch's exact
+rationals, so all 16 read 1e6 to 1e8 and every figure is the reference's own
+decimal.
+
+**`finnis` is REFUSED, and the reason is the model rather than the solve.**
+It carries `sum |c_j x_j| = 3.198e+12` against an objective of 1.7e+05. One
+eps of that traffic is 7.10e-04, and no double objective of any point can be
+placed nearer than half of it. The 7.62397e-05 gap to Koch is **0.107 of
+that unit**. Its worst exact row residual, 8.439e-07 on rows 23 and 43, sits
+against a traffic of 2e+10 on each: 4.2e-17 and 3.0e-17 relative, also under
+one eps. The point is as feasible and as optimal as binary64 allows here.
+
+**What the same reading found instead.** `refeps` is the gap to Koch divided
+by `eps * sum |c_j x_j|`. Over the 93 instances with a Koch optimum (`e226`
+excluded — its 7.113 is the objective constant `docs/format-support.md` owns):
+68 are within 0.5, twenty within 10, one within 1e4, and **four above 1e4**.
+
+| | refeps | gap to Koch | `gap_positive` | `gap_certified` | row residual |
+|---|---|---|---|---|---|
+| **`pilot`** | **1.87e+08** | **2.31e-05** | **0.0386** | **yes** | 3.55e-13 |
+| `pilot87` | 1.53e+06 | 1.04e-07 | 7.68e-04 | no | 1.51e-12 |
+| `scsd6` | 9.97e+04 | 1.12e-09 | 9.73e-15 | no | 9.59e-17 |
+| `etamacro` | 2.74e+04 | 1.31e-08 | 1.34e-07 | yes | 1.71e-13 |
+
+Every row residual is at the arithmetic floor, so these four points are
+feasible and suboptimal rather than infeasible, and `pilot`'s published
+objective is higher than Koch's on a minimization. **`pilot` is the only
+netlib instance where every other solver in `bench/compare` disagrees with
+JAOS**: HiGHS, SoPlex and Clp all publish Koch's `-5.5748972927e+02` against
+JAOS's `-557.489706168`.
+
+**The library already certifies `pilot` and nothing reads it.**
+`jaos_check_solution` reports `gap_positive = 0.0386` there with
+`gap_certified = yes`, which is a proof that `P - P* <= 0.0386`. Among the 53
+instances whose certificate is complete that is four orders above the next
+(`grow22`, 1.797e-06), and it belongs to the one instance every other solver
+beats. `bench/run.c` never reads the field: `objective_accepted` is
+`|got - ref| <= 1e-6 * max(|ref|, 1)`, a window of 5.57e-04 on `pilot`, which
+the 2.31e-05 clears with 24 times to spare.
+
+**What was refuted.** Three explanations for the `finnis` gap, in the order
+they were tried. The summation: refused, the published number is within a
+third of an ulp of exact. The reference being imprecise: refused, the
+manifest's decimal stops at 1e-11 and the gap is seven orders above that. The
+point being infeasible: refused for `finnis` at any scale that matters, since
+its residual is under one eps of the rows' own traffic — and the same test is
+what shows the four instances above are feasible, so their gap has to be
+suboptimality.
+
+**What is left open**, handed to `TODO.md`: `pilot` and the other three
+publishing a point that is not the optimum, and whether the gate should read
+`gap_positive` when `gap_certified` says it is a proof. One instance
+separating cleanly on one set is not a threshold.
+
+**The cost.** Nothing in `src/` was touched and no campaign was run, because
+there is nothing for a campaign to measure.

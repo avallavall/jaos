@@ -11,6 +11,14 @@ open, `bench/README.md` for the gate, and the commit each entry came from.
 
 ### Changed
 
+- **`jaos_objective` is the correctly rounded exact objective of the published
+  point on 110 of 110**, worst 0.493 ulp, measured against an oracle that
+  rounds nowhere. `finnis` is refused: its 7.62e-05 gap to Koch is 0.107 of
+  `eps * sum |c_j x_j|`, the floor arithmetic sets for a model carrying
+  3.198e+12. What the same reading found instead is `pilot`, 2.31e-05 above
+  the optimum at 1.87e+08 of its own floor and the only netlib instance HiGHS,
+  SoPlex and Clp all beat (D173). No source change.
+
 - **The published reduced costs contradict the published basis on five netlib
   instances**, worst 15018.5 on `nesm`, and nothing was asking: the checker
   recomputes `d` from `y` and never reads `col_dual`, and `basis=` is a hash
