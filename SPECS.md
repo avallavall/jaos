@@ -141,7 +141,7 @@ does not measure it.
 | Primal simplex | **missing** | needed for crossover and for the warm starts the dual cannot serve. No longer needed for carried defect 4: the primal clean-up already owns a ratio test and a basis change, and reading the reduced cost's sign rather than the status is all a nonbasic free variable ever needed from it (D85). **Not a speed argument:** given free choice both rivals ran the dual on every instance, with iteration counts identical to being forced (D81) |
 | Crash basis | **missing** | [12]; measured once and refused: it destroys the exact starting steepest-edge weights the slack basis gives |
 | Partial and multiple pricing | **measured and refused** | [1]: both halves built and swept. The leaving-row sweep is the wrong thing to make cheaper — its units are the cheapest in the solver, and every scheme for scanning it less often pays in trajectory and in wrong answers (D82, D84) |
-| Barrier and crossover | **missing** | not optional at large scale |
+| Barrier and crossover | **missing** | not optional at large scale. **D97 is a second dependent, found 2026-08-21**: its ideal design detects an imposed-bound collision at postsolve, and the remedy there is a crossover, so without one D97's first version must decline 20-35% of the reduction to avoid a hazard measured at 0.012% (`bench/measurements/02-88/`) |
 | MILP: branch and bound, cuts, heuristics | **missing** | [14][15][16][17][18] |
 | Deterministic parallelism | **missing** | [10][13] |
 

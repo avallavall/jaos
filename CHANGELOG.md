@@ -17,9 +17,12 @@ open, `bench/README.md` for the gate, and the commit each entry came from.
   bounds and 82.3% of Kennington's; the configuration it protects against —
   two columns of one row both resting at bounds that row imposed — occurs
   **12 times in 98146 opportunities**, identical at 1e-7 and 1e-6, on four
-  instances in 110. A first version should let the reduction fire and detect
-  the collision at postsolve, with the fallback the design already cites. No
-  decision and no source change (`bench/measurements/02-87/`, `02-88/`).
+  instances in 110. **The better design, postsolve detection, is blocked**:
+  the collision leaves the point one constraint short of a vertex, which needs
+  a crossover, and `SPECS.md` has crossover and the primal simplex behind it
+  both missing. So the first version is the refusal narrowed to equality rows,
+  over-paying by three orders because this tree has no crossover. No decision
+  and no source change (`bench/measurements/02-87/`, `02-88/`).
 
 - **Presolve's objective offset is refused rather than compensated**, which
   closes at all four sites the class D168 opened. It is measurably dead:

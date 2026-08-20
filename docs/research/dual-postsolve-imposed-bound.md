@@ -411,13 +411,17 @@ form.** Declining half of netlib's imposed bounds and four fifths of
 Kennington's to prevent twelve occurrences is not a safety flag, it is
 abandoning the reduction.
 
-**The shape that fits the number is the one this section already cites.**
-Galabova 2023 offers a fallback for when the slot assignment fails, "which is
-what a solver does when it has no proof". At 0.012% the right design is to let
-the reduction fire, **detect the collision at postsolve where it is
-knowable**, and take the fallback there. The forward-pass refusal survives only
-as what to do if that detection turns out to be unaffordable, and nothing yet
-suggests it would be.
+**The shape that fits the number would be postsolve detection, and this tree
+cannot have it yet.** Detecting the collision is a `bool` per row during the
+reverse replay. Remedying it is not: this configuration leaves the point one
+constraint short of a vertex, and the paragraph below already says that means
+a crossover. **JAOS has neither a crossover nor the primal simplex that blocks
+it** — both are `missing` in `SPECS.md`. §12 item 7 carries the consequence.
+
+So the implementable first version is the refusal, narrowed to equality rows,
+**with 02-88's number written beside it**: it over-pays by three orders, and
+that is the price of not having a crossover rather than a property of the
+reduction.
 
 **The equality prediction above is neither confirmed nor refuted by this.**
 Ten of the twelve rows are equalities and two on `maros` are not, but the flag
@@ -868,21 +872,39 @@ here, not assumed.
    version should let the reduction fire and detect the collision at postsolve,
    with Galabova's fallback there. Both instruments take any tree carrying the
    pass and both have a control.
-7. **Whether the postsolve detection is affordable** — **the cost half is
-   settled by §11a and needs no measurement, the availability half is not.**
+7. **Whether the postsolve detection is affordable — and the answer is that
+   detection is trivial while the REMEDY does not exist in this tree.**
+
    Detection is a `bool` per row: postsolve already replays the arena in
    reverse, so an `IMPOSED_BOUND` record whose column rests at its imposed
    bound sets its row's flag, and a second one on the same row is the
-   collision. That is O(1) per record and one array of `num_row`.
-   The fallback is cheap too, and §11a already quotes it: HiGHS transfers the
-   dual "to the row by making the row basic", or selects "the remaining column
-   `x_j` for the basis". **A status choice, not a crossover** — no
-   factorization and no second solve. At 12 firings in 110 instances its cost
-   is unmeasurable by construction.
-   **What is genuinely open is whether the fallback is always AVAILABLE.**
-   HiGHS attempts and falls back; nothing in print says the fallback cannot
-   itself fail. §8c's rank argument is what would settle it, and §8c is this
-   document's own rather than published.
+   collision. O(1) per record, one array of `num_row`. That half is settled.
+
+   **The first version of this item claimed the fallback was a status choice
+   rather than a crossover, and that was wrong.** §11a's two quotes are
+   HiGHS's fallback for a *singleton elimination* — `x_k` basic or nonbasic —
+   not for two imposed bounds on one row. §8d says what this configuration
+   costs, in its own words: the point "is not a vertex of the original problem
+   unless some other row happens to supply the missing one, and then a
+   crossover is what PaPILO's sentence says it is."
+
+   **JAOS has no crossover, and cannot have one yet.** `SPECS.md` lists both
+   "Primal simplex" and "Barrier and crossover" as **missing**, and
+   `docs/feature-matrix.md` states the dependency: "missing primal simplex is
+   what blocks crossover". So on the 12 rows where the collision fires there
+   is no remedy available in this codebase. Declining to fix the basis is not
+   an option either — §8d's own second point is that `jaos_basis` is a
+   documented caller-visible invariant, so a wrong count is a wrong answer,
+   which is the class D148's certificate guard exists for.
+
+   **What that leaves.** The narrow forward-pass refusal of §8d, restricted to
+   equality rows, is the only implementable first version today. 02-87 and
+   02-88 say exactly what it costs and exactly how much it over-pays: 35.5% of
+   netlib's imposed bounds and 20.3% of Kennington's, against a hazard of
+   0.012%. **The better design is postsolve detection with a real remedy, and
+   it is blocked behind the primal simplex** — a dependency this document did
+   not previously draw, and one that puts D97's ceiling in the same place as
+   crossover's.
 8. **§8d's equality claim, still open.** Ten of the twelve rows are equalities
    and two are not, but the flag was read at the moment of imposing and
    presolve moves row bounds across rounds. The argument needs the row's state
