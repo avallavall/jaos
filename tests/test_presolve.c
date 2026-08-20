@@ -3736,6 +3736,110 @@ static void test_the_singleton_fold_counts_the_shifts_too(void)
 #endif
 }
 
+/* **A PINNED WRONG ANSWER.** This test asserts what JAOS does today, not what
+ * it should do, and the repair announces itself here — expect the INFEASIBLE
+ * below to become OPTIMAL at 1.1920928955078125e-07.
+ *
+ *   row S:  x1 + (256 y_s fixed at 2^-25) == 1e9      x1 in [1e9-1, 1e9+1]
+ *   row R:  x1 + w1 + w2 == 1e9 - 63*2^-23            w1, w2 in [0, 2^-23]
+ *
+ * Feasible exactly at `x1 = 1e9 - 2^-17`, every `y_s` at `2^-25`,
+ * `w1 = 2^-23`, `w2 = 0`. Row S sums to exactly 1e9 and row R to exactly
+ * `1e9 - 63*2^-23`; every value is a dyadic rational a double holds exactly,
+ * and the reference build reaches that point with both residuals at 0.
+ *
+ * Round 1 removes the 256 smalls from row S, each a quarter of an ulp of 1e9,
+ * and every one rounds away — so `cur_rl[S]` stays at 1e9 against a truth of
+ * `1e9 - 7.6294e-6`. Round 2 folds row S and **fixes x1 at 1e9**, wrong by
+ * that amount, and the fold's own test does not fire because `new_lo` equals
+ * `new_hi` there. Round 2's column pass subtracts that value from row R, which
+ * is charged ONE shift at its own traffic, and clause 1 refuses row R.
+ *
+ * **The obvious repair is refused and this test is where that is recorded**
+ * (D164). Carrying an error weight from the fold into the receiving row's
+ * window does stop the refusal — and then the solve publishes `optimal` with
+ * `w1 = w2 = 0`, an objective of 0 against a true 1.1920928955078125e-07, and
+ * **both rows violated by 7.6e-06**, which is 7.5 times `CHECK_TOL`. A wider
+ * window cannot repair a value that is already wrong; it only converts a loud
+ * failure into a silent one. Readings in `bench/measurements/02-74/`.
+ *
+ * What would repair it is upstream: accumulate `cur_rl`/`cur_ru` with
+ * compensation so the error never exists, or widen the folded BOX by the
+ * error instead of collapsing it to a point. Both are `TODO.md`'s.
+ *
+ * The second half is the control: row R's bound moved 1e-3, refused on every
+ * build for a reason that has nothing to do with any of this. Found by
+ * `numerics-reviewer` reviewing D162. */
+static void test_a_folds_value_carries_its_rows_error_into_the_next(void)
+{
+#if defined(JAOS_PRESOLVE_FAULT_OFFBYONE) || defined(JAOS_PRESOLVE_FAULT_WRONGDUAL)
+    TEST_IGNORE_MESSAGE("pinned change-detector — skipped under either fault "
+                        "build");
+#else
+    enum { KS = 256, NC = KS + 3, NNZ = KS + 4 };
+    static double c[NC], cl[NC], cu[NC], av[NNZ];
+    static int64_t as[NC + 1], ai[NNZ];
+    const double small = ldexp(1.0, -25);
+    const double wcap  = ldexp(1.0, -23);
+
+    for (int half = 0; half < 2; half++) {
+        const double target = 1e9 - 63.0 * wcap + (half == 0 ? 0.0 : 1e-3);
+        const double rl[] = {1e9, target}, ru[] = {1e9, target};
+        int64_t nz = 0;
+        for (int64_t j = 0; j < NC; j++) {
+            as[j] = nz; c[j] = 0.0;
+            if (j == 0) {                       /* x1, in both rows */
+                cl[j] = 1e9 - 1.0; cu[j] = 1e9 + 1.0;
+                ai[nz] = 0; av[nz++] = 1.0;
+                ai[nz] = 1; av[nz++] = 1.0;
+            } else if (j < KS + 1) {            /* the y_s, on row S */
+                cl[j] = cu[j] = small;
+                ai[nz] = 0; av[nz++] = 1.0;
+            } else {                            /* w1, w2 on row R */
+                c[j] = 1.0; cl[j] = 0.0; cu[j] = wcap;
+                ai[nz] = 1; av[nz++] = 1.0;
+            }
+        }
+        as[NC] = nz;
+
+        jaos_model *m = nullptr;
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_model_new(&m));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK,
+            jaos_load_lp(m, NC, 2, JAOS_MINIMIZE, 0.0, c, cl, cu, rl, ru,
+                         nz, as, ai, av));
+        jm_presolve p;
+        jm_presolve_init(&p);
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jm_presolve_run(m, &p, nullptr));
+        /* BOTH halves refused, and only the second one deserves it. The first
+         * is the pin: it is feasible and presolve says otherwise. This runs in
+         * the reference build too, because `jm_presolve_run` is the same code
+         * there — `-DJAOS_NO_PRESOLVE` only stops `jaos_solve` consulting it. */
+        TEST_ASSERT_EQUAL_INT(JM_PRESOLVE_INFEASIBLE, p.outcome);
+        jm_presolve_free(&p);
+
+        /* **The disagreement, asserted rather than described.** The reference
+         * build reaches the exact feasible point and both builds agree on the
+         * control. Nothing else in the suite states a wrong answer this
+         * directly, and that is deliberate: when the repair lands, this line
+         * is what changes. */
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+#ifdef JAOS_NO_PRESOLVE
+        TEST_ASSERT_EQUAL_INT(half == 0 ? JAOS_SOLVE_OPTIMAL
+                                        : JAOS_SOLVE_INFEASIBLE,
+                              jaos_status_of(m));
+        if (half == 0) {
+            double obj = 0.0;
+            TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(m, &obj));
+            TEST_ASSERT_EQUAL_DOUBLE(ldexp(1.0, -23), obj);
+        }
+#else
+        TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_INFEASIBLE, jaos_status_of(m));
+#endif
+        jaos_model_free(m);
+    }
+#endif
+}
+
 /* An INVERTED column box reaches the same collapse branch, and the clamp has
  * no box to clamp into there.
  *
@@ -4167,6 +4271,7 @@ int main(void)
     RUN_TEST(test_the_window_counts_the_shifts_and_not_only_their_scale);
     RUN_TEST(test_the_shift_count_scales_by_the_end_it_is_testing);
     RUN_TEST(test_the_singleton_fold_counts_the_shifts_too);
+    RUN_TEST(test_a_folds_value_carries_its_rows_error_into_the_next);
     RUN_TEST(test_a_frozen_rows_window_ignores_the_far_bound);
 
     RUN_TEST(test_a_frozen_row_missed_at_scale_is_refused);

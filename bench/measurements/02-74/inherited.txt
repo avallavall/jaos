@@ -1,0 +1,55 @@
+probe at HEAD (b5eebc7)
+
+PRIMAL_TOL is 1e-7 and CHECK_TOL is 1e-6.
+
+---- netlib standard (94)
+  folds writing a derived end          8622
+    of those, carrying an error        5408
+  subtractions of such a column        8250
+  window reads with inheritance > 0    9006
+  worst error in a fixed VALUE         6.92e-09
+  worst inheritance on one row         5.703e-10
+  worst inheritance / shipped window   1.143e+05
+  -- would carrying it spare a refusal? --
+     emptied row       fires    0   spared 0
+     singleton fold    fires    0   spared 0
+     activity clause 1 fires    0   spared 0
+     frozen row        fires    0   spared 0
+  -- widest ABSOLUTE window with it added --
+     emptied row  1.377e-12   fold 5.536e-08
+     clause 1     4.038e-07   frozen 2.247e-08
+     the fold SHIPPED, for the move: 5.536e-08 -> 5.536e-08
+---- netlib-infeas (29)
+  folds writing a derived end          9750
+    of those, carrying an error        3706
+  subtractions of such a column        1370
+  window reads with inheritance > 0    2170
+  worst error in a fixed VALUE         1.439e-10
+  worst inheritance on one row         1.117e-11
+  worst inheritance / shipped window   8.625
+  -- would carrying it spare a refusal? --
+     emptied row       fires    0   spared 0
+     singleton fold    fires    8   spared 0
+     activity clause 1 fires    8   spared 0
+     frozen row        fires    4   spared 0
+  -- widest ABSOLUTE window with it added --
+     emptied row  3.668e-14   fold 1.152e-09
+     clause 1     1.908e-06   frozen 5.97e-11
+     the fold SHIPPED, for the move: 1.152e-09 -> 1.152e-09
+---- kennington (16)
+  folds writing a derived end          81646
+    of those, carrying an error        75896
+  subtractions of such a column        97780
+  window reads with inheritance > 0    324826
+  worst error in a fixed VALUE         2.08e-11
+  worst inheritance on one row         5.698e-11
+  worst inheritance / shipped window   1.833
+  -- would carrying it spare a refusal? --
+     emptied row       fires    0   spared 0
+     singleton fold    fires    0   spared 0
+     activity clause 1 fires    0   spared 0
+     frozen row        fires    0   spared 0
+  -- widest ABSOLUTE window with it added --
+     emptied row  0   fold 1.664e-10
+     clause 1     5.223e-09   frozen 6.578e-08
+     the fold SHIPPED, for the move: 1.664e-10 -> 1.664e-10

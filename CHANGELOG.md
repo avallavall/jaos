@@ -9,6 +9,16 @@ open, `bench/README.md` for the gate, and the commit each entry came from.
 
 ## [Unreleased]
 
+### Changed
+
+- A pinned change-detector for the one wrong answer presolve still gives:
+  a fold fixes a column at a value carrying another row's error, and the
+  receiving row refuses a model the reference build solves. The test asserts
+  both answers in one place, so the repair announces itself there. **Carrying
+  the error into the window is refused and the entry says why** — it publishes
+  `optimal` with both rows violated by 7.5 times `CHECK_TOL`, which is worse
+  than the false INFEASIBLE it replaces (D164).
+
 ### Fixed
 
 - The singleton row's fold counts its shifts too — the fourth read of the same

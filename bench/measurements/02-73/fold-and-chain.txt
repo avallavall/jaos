@@ -2,8 +2,8 @@ FOLD and CHAIN are feasible with exactly representable points.
 FOLD-control and EDGE-control are not, and must be refused everywhere.
 END is the case that separates D162's second revision from its first.
 
--- the parent (c61a931), which is D162
-   FOLD-feasible            presolve=INFEASIBLE    solve=infeasible  obj=0
+-- the parent (b5eebc7), which is D162
+   FOLD-feasible            presolve=not refused   solve=optimal     obj=999999999.99999237
    FOLD-control             presolve=INFEASIBLE    solve=infeasible  obj=0
    END-feasible             presolve=not refused   solve=optimal     obj=999999999.99999261
    EDGE-control             presolve=INFEASIBLE    solve=infeasible  obj=0
@@ -13,7 +13,7 @@ END is the case that separates D162's second revision from its first.
    FOLD-control             presolve=INFEASIBLE    solve=infeasible  obj=0
    END-feasible             presolve=not refused   solve=optimal     obj=999999999.99999261
    EDGE-control             presolve=INFEASIBLE    solve=infeasible  obj=0
-   CHAIN-feasible           presolve=INFEASIBLE    solve=infeasible  obj=0
+   CHAIN-feasible           presolve=not refused   solve=optimal     obj=0
 -- REFERENCE BUILD (-DJAOS_NO_PRESOLVE), the oracle
    FOLD-feasible            presolve=not consulted solve=optimal     obj=999999999.99999237
    FOLD-control             presolve=not consulted solve=infeasible  obj=0

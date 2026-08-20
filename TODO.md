@@ -429,13 +429,29 @@ trajectory. Refusals table, D151.
   not fire because `new_lo == new_hi` there. Row R is charged **one** shift at
   its own traffic and clause 1 refuses it. Shipping INFEASIBLE, oracle optimal
   at 1.1920928955078125e-07.
-  **A wider window is not the repair** and D163 refuses it: no window scaled by
-  this row's own quantities can see an error that arrived from another row.
-  What it needs is an error weight instead of a count — `row_err[i] += |a| *
-  err(v)`, with the fold recording `err` when it fixes a column. That subsumes
-  D162's `row_shifts[i]`, so it replaces the mechanism rather than adding to
-  it, and it needs its own campaign. Nothing on the three sets is affected: 139
-  of 139 bit-identical.
+  **The error weight was built and is REFUSED (D164,
+  `bench/measurements/02-74/`).** It stops the refusal and then publishes
+  `optimal` with **both rows violated by 7.5 times `CHECK_TOL`** and an
+  objective of 0 against a true 1.1920928955078125e-07. A wider window decides
+  whether to refuse; it cannot correct a value that is already wrong, so it
+  only converts a loud failure into a silent one. The route itself is real and
+  large — 324826 window reads on Kennington see a non-zero inheritance and the
+  worst is 1.143e+05 times the shipped window — and it flips 0 verdicts on the
+  139.
+  **Two directions are left, neither built nor measured:**
+  - **Compensate `cur_rl`/`cur_ru`.** They are the only uncompensated running
+    sums in `src/presolve.c`, while `ps_row_range` has used Neumaier for
+    activities since 02-04. If the bounds carry no error the fold's value is
+    right and nothing inherits anything — and **D162's and D163's shift counts
+    stop being needed**, so this subsumes the class rather than adding to it.
+    `long double` is out (D34); Neumaier is portable and already in the file.
+    This is the one to do first.
+  - **Widen the folded BOX instead of the window**, so the column stays a range
+    and the simplex judges it. Reduces less, needs its own campaign, and is
+    §11b's deliberate-slack direction reached from another question.
+  `test_a_folds_value_carries_its_rows_error_into_the_next` pins the wrong
+  answer and the reference build's right one in the same test, so whichever
+  lands announces itself there.
 - **The solver's own row activity loses terms the way presolve's bounds did**,
   and it is new (D162, `bench/measurements/02-72/`). It sums a row's columns in
   index order, so a row holding a large magnitude before many small ones loses

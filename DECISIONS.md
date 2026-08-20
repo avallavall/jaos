@@ -171,6 +171,7 @@ and you have the argument. Jump to the entry for the numbers behind it.
 - **[D161](#d161--the-frozen-row-window-drops-the-far-bound-too-and-that-defect-predates-d159-which-widened-around-it)** — The frozen-row window drops the far bound too, and that defect predates D159, which widened around it
 - **[D162](#d162--a-row-bound-is-a-running-difference-so-the-window-counts-the-terms-and-the-end-it-is-testing-comes-back-in-multiplied-by-that-count)** — A row bound is a running difference, so the window counts the terms — and the end it is testing comes back in, multiplied by that count
 - **[D163](#d163--the-singleton-rows-fold-is-a-fourth-read-of-that-running-difference-and-a-count-cannot-cover-an-error-that-arrives-inside-a-value)** — The singleton row's fold is a fourth read of that running difference, and a count cannot cover an error that arrives inside a value
+- **[D164](#d164--carrying-that-error-into-the-window-is-refused-because-it-publishes-a-point-violating-two-rows-by-75-times-check_tol)** — Carrying that error into the window is refused, because it publishes a point violating two rows by 7.5 times CHECK_TOL
 
 ---
 
@@ -12064,3 +12065,80 @@ oracle's row. It reads `not consulted` there now.
 
 **What is left open**, to `TODO.md`: the chained error above, and the solver's
 own row activity losing terms in column order, which D162 opened.
+
+## D164 — Carrying that error into the window is refused, because it publishes a point violating two rows by 7.5 times CHECK_TOL
+
+**The question.** D163 refused "a wider window" for the chained error on an
+argument and handed the repair to `TODO.md` as an error weight: `col_value_err`
+set where a fold writes a derived end, `row_inherited_err[i] += |a| *
+col_value_err[j]` at each subtraction, and every window adding it. This built
+it and measured it.
+
+**It works, and it is refused.** The measurement is
+`bench/measurements/02-74/`.
+
+**First, the route is real on real models and not only on the constructed
+one.** Over the three sets: 8622, 9750 and 81646 folds write a derived end;
+5408, 3706 and 75896 of those carry an error; and **324826 window reads on
+Kennington alone** see a non-zero inheritance. The worst inheritance is
+**1.143e+05 times the shipped window** on a netlib row. So the window is short
+by five decades on instances that ship, not just on a model built to break it.
+
+**And it flips nothing.** 0 verdicts spared on any of the 139, all 20 genuine
+infeasibility firings in `netlib-infeas` intact, and **no absolute window moves
+at all** at any of the four sites on any set — the row carrying the widest
+window is never the row carrying the inheritance.
+
+**Then the answer, which is what refuses it.** On D163's CHAIN model, feasible
+exactly at `x1 = 1e9 - 2^-17`, `w1 = 2^-23`:
+
+| tree | status | objective | row S residual | row R residual |
+|---|---|---|---|---|
+| the parent | **infeasible** | — | — | — |
+| **the error weight carried** | **optimal** | **0** | **7.629e-06** | **7.51e-06** |
+| reference build, the oracle | optimal | 1.1920928955078125e-07 | 0 | 0 |
+
+**Both rows violated by 7.5 times `CHECK_TOL`, published as optimal.** The
+parent's answer is wrong too, but a false INFEASIBLE is loud and does not break
+`jaos.h`'s promise. This is the silent direction, and it is the failure
+`src/presolve.c` names at the empty-row test reached from the other side.
+
+**A wider window cannot repair a value that is already wrong.** The window
+decides whether to refuse; it has no way to correct `x1 = 1e9` back to
+`1e9 - 2^-17`. Widening it only stops the refusal and lets the wrong value
+reach the answer. That is the whole of the refusal and it took building the
+thing to see it — the argument in D163 said "a wider window is not the repair"
+and could not say what it would do instead.
+
+**What was learned about the instrument.** The probe's first reading printed
+the fold's shipped window as `0 -> 5.536e-08`, a maximum of zero beside a
+non-zero sum, which is impossible. The awk classifier matched extremes by the
+suffix `_w$`, which does not match `D_wnow`, so that field was summed and
+printed from the empty extremes table. **02-69 found this exact failure and
+this script carries 02-69's warning as a comment.** Anchor every extreme by
+name; a suffix rule silently reclassifies the next field anyone adds.
+
+**What is refused, precisely.** Carrying the error into any of the four windows
+that judge a row's bounds. Not refused, and neither built nor measured:
+
+- **Compensating `cur_rl`/`cur_ru`.** They are the only uncompensated running
+  sums in the file, while `ps_row_range` has used Neumaier for activities since
+  02-04. If the bounds carry no error the fold's value is right, nothing
+  inherits anything, and **D162's and D163's shift counts stop being needed** —
+  it subsumes the class instead of adding to it. `long double` is unavailable
+  (D34); Neumaier is portable and already here.
+- **Widening the folded BOX rather than the window**, so the column stays a
+  range and the simplex judges it. It reduces less and needs its own campaign.
+  It is also §11b of `docs/research/dual-postsolve-imposed-bound.md`, the
+  deliberate-slack direction, arrived at from a different question.
+
+**The cost.** Nothing in `src/`: the mechanism was reverted and
+`src/presolve.c` is byte-identical to D163's, so **no campaign is owed and none
+was run**. What landed is one pinned change-detector,
+`test_a_folds_value_carries_its_rows_error_into_the_next`, which asserts the
+wrong answer JAOS gives today AND the right one the reference build gives, in
+the same test — the repair announces itself there. `make configs` exits 0 on
+all five configurations.
+
+**What is left open.** Both directions above, in `TODO.md`, and the pin is what
+will notice when either lands.
