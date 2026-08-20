@@ -9,6 +9,16 @@ open, `bench/README.md` for the gate, and the commit each entry came from.
 
 ## [Unreleased]
 
+### Changed
+
+- `TODO.md`'s published-basis figures are re-measured. netlib reads 46 solves
+  wrong and 142 exact, not the recorded 48 and 140 — **it had been stale since
+  the previous session** and five places cited it. Nothing in the gate could
+  have caught that: `basis=` is a hash, so it detects a change and never
+  reports a count. D165's compensation moved the worst over-count 23 → 18 and
+  the sum +262 → +250 without changing how many solves are wrong, which by this
+  item's own stated measure is not progress (D167).
+
 ### Removed
 
 - `row_shifts`, `ps_shift_excess` and `ps_end_scale`. D162 and D163 added them

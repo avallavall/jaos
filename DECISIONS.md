@@ -174,6 +174,7 @@ and you have the argument. Jump to the entry for the numbers behind it.
 - **[D164](#d164--carrying-that-error-into-the-window-is-refused-because-it-publishes-a-point-violating-two-rows-by-75-times-check_tol)** — Carrying that error into the window is refused, because it publishes a point violating two rows by 7.5 times CHECK_TOL
 - **[D165](#d165--the-row-bounds-keep-their-residue-which-removes-the-error-four-windows-were-widened-to-cover-and-moves-fourteen-digests)** — The row bounds keep their residue, which removes the error four windows were widened to cover — and moves fourteen digests
 - **[D166](#d166--the-shift-counts-come-out-and-the-tests-they-were-built-for-passing-without-them-is-the-evidence)** — The shift counts come out, and the tests they were built for passing without them is the evidence
+- **[D167](#d167--the-published-basis-count-had-been-stale-for-a-day-and-nothing-in-the-gate-could-have-said-so)** — The published-basis count had been stale for a day, and nothing in the gate could have said so
 
 ---
 
@@ -12358,3 +12359,49 @@ before running or believing any campaign, and this directory's scripts use
 a running difference judged by a window that did not know how it was
 computed — is closed at all four sites, by compensation rather than by
 tolerance.
+
+## D167 — The published-basis count had been stale for a day, and nothing in the gate could have said so
+
+**The question.** `jaos-measurer`, judging D165, counted the published basis on
+the four netlib instances whose `basis=` hash moved and found `bandm` at +18
+where `TODO.md` records netlib's worst over-count as +23. It said the cell was
+no longer exact and that four instances cannot replace it. This re-ran
+`bench/measurements/02-48/run-verify-count.sh`, the instrument that owns the
+number, at three trees.
+
+| tree | exact | **WRONG** | worst over | sum |
+|---|---|---|---|---|
+| recorded as D139 | 140 | **48** | +23 | +272 |
+| `4c5f58f`, this session's starting point | 142 | **46** | +23 | +262 |
+| `cd68630`, D164, before the compensation | 142 | **46** | +23 | +262 |
+| `HEAD` | 142 | **46** | **+18** | **+250** |
+
+**The table was already wrong when this session started.** Two solves were
+fixed somewhere in D140–D161 and nobody re-read the number. It sat wrong for a
+day in the file that calls it the largest open correctness item, and five
+places in `TODO.md` cited it.
+
+**Nothing in the gate could have caught it, and that is the part worth
+keeping.** `bench/run.c`'s `basis=` is a hash: it detects a CHANGE and never
+reports a COUNT. D150 widened the digest to cover the basis, which makes a
+change visible per instance, and the count itself exists only when 02-48's
+probe is run by hand. **A figure whose owner is a script nobody runs is a
+figure that drifts** — the same shape D46 warns about for derived totals,
+reached from the other side.
+
+**D165 moved the worst and the sum, not the count.** `4c5f58f` and `cd68630`
+read identically, so D162, D163 and D164 changed nothing here, which is what
+three bit-identical campaigns predict. Between `cd68630` and `HEAD` the worst
+goes +23 → +18 and the sum +262 → +250 while WRONG stays at 46 — four
+instances' bases differ and two are less wrong. **By the measure this table
+insists on in bold, that is not progress**: "the measure is the count of solves
+publishing a wrong basis", and it did not move.
+
+**The cost.** No source change. `TODO.md`'s table gains a row, its four other
+citations of 48 become 46, and the D139 row is kept as history rather than
+edited.
+
+**What is left open.** The 46 are not attributed per instance here; the probe
+reports set totals and the split is 02-49's. And the item itself is unchanged:
+46 solves publish a basis that is not one, every local repair is refused
+(D141), and what remains is a design wider than the firing row.

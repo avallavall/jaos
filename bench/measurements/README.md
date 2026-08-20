@@ -18,6 +18,7 @@ fall 60 entries behind without anyone noticing. Two directories have no
 
 | directory | what it decided |
 |---|---|
+| `02-77/` | the published-basis count re-measured at three trees — netlib is 46 wrong and not the recorded 48, stale since the previous session, and D165 moved the worst 23 to 18 without moving the count. Nothing in the gate could say so: `basis=` is a hash (D167) |
 | `02-76/` | the shift counts come out — 196 lines of `src/presolve.c` and four widened windows, covering a drift D165 stopped happening; the evidence is that all five tests they were built for still pass, and 139 of 139 are bit-identical. Also the `make clean` trap: `build/diag/wt-*` is inside what `make clean` deletes and 44 scripts here use it (D166) |
 | `02-75/` | the row bounds keep their residue, which removes the error D162 and D163 widened four windows to cover and D164 could not repair from a window — the chained model now matches the oracle bit for bit, and it is the first change in the class to move the gate: 15 netlib instances and 14 digests, work geomean 1.0000x, iterations and reduction counts identical (D165) |
 | `02-74/` | carrying a fold's error into the receiving row's window — built, measured over 324826 window reads, and **refused**, because it publishes `optimal` with two rows violated by 7.5 times `CHECK_TOL` where the parent gave a loud false INFEASIBLE; plus the two directions left, of which compensating `cur_rl`/`cur_ru` would subsume D162 and D163 entirely (D164) |

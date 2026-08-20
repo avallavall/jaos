@@ -1,0 +1,11 @@
+==== 4c5f58f (build: version 0.1.1, because 0.1.0 names a tree that gets t)
+   netlib       optimal=188 exact=142 WRONG=46 (over=46 under=0) worst +23/-0  SUM=+262
+   kennington   optimal=32 exact=32 WRONG=0 (over=0 under=0) worst +0/-0  SUM=+0
+==== cd68630 (fix: carrying a fold's error into the window is refused, and)
+   netlib       optimal=188 exact=142 WRONG=46 (over=46 under=0) worst +23/-0  SUM=+262
+   kennington   optimal=32 exact=32 WRONG=0 (over=0 under=0) worst +0/-0  SUM=+0
+==== HEAD (docs: the measurer returned ACCEPT, and three of its finding)
+   netlib       optimal=188 exact=142 WRONG=46 (over=46 under=0) worst +18/-0  SUM=+250
+   kennington   optimal=32 exact=32 WRONG=0 (over=0 under=0) worst +0/-0  SUM=+0
+
+[exited with code 0]

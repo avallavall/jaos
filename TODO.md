@@ -291,12 +291,12 @@ input; and the clamp doubles the row residual, which on a gap near the top of
 the window crosses an absolute `CHECK_TOL` the midpoint's split stayed under.
 The second is kept deliberately and D158 says why.
 
-### 2. 48 netlib solves still publish a wrong basis count
+### 2. 46 netlib solves still publish a wrong basis count
 
 Measured, attributed to two families, and every LOCAL repair is refused with
 its measurement (D140, D141). What is left is a design wider than the firing
 row carrying a rank argument, or accepting the residue — which is what the
-published state of the art does (Galabova 2023). Its whole price is 48 solves
+published state of the art does (Galabova 2023). Its whole price is 46 solves
 losing their warm start. §"`jaos_basis` publishes something that is not a
 basis" below has all of it.
 
@@ -578,7 +578,8 @@ to it already wrong (D131), and the gate then says so directly.
 |---|---|---|---|---|---|
 | netlib, at D131 | 188 | 56 | 132 (70%) | 596 | 169 |
 | netlib, after D138 | 188 | 88 | 100 | 596 | 0 |
-| netlib, **now (D139)** | 188 | **140** | **48 (26%)** | **23 — stale, see below** | **0** |
+| netlib, at D139 | 188 | 140 | 48 (26%) | 23 | 0 |
+| netlib, **now (D167)** | 188 | **142** | **46 (24%)** | **18** | **0** |
 | Kennington, at D131 | 32 | 8 | 24 (75%) | 12104 | 406 |
 | Kennington, after D138 | 32 | 24 | 8 | 119 | 0 |
 | Kennington, **now (D139)** | 32 | **32 — all** | **0** | **0** | **0** |
@@ -594,17 +595,28 @@ build's answer.
 was cancelling part of the over-count. **The measure is the count of solves
 publishing a wrong basis.**
 
-**The "worst over" cell is stale as of D165 and is annotated rather than
-replaced.** That 23 is `bandm`, and `bandm` now publishes 18 too many:
-compensating the row bounds moved four instances' bases without changing how
-many solves are wrong (`bandm` +23 → +18, `czprob` +3 → +1, `finnis` +1 → +2,
-`capri` unchanged at +6). **The count of wrong solves — the measure this table
-says to use — did not move**, and no other instance can have, because `basis=`
-hashes exactly those statuses and only four moved. Counting the other 47 was
-not done, so the new worst is unknown and inventing one from four instances
-would be worse than saying the old one expired. Measured by `jaos-measurer`
-while judging D165, with the reference build holding the contract on both
-sources as the control.
+**The D139 row was stale before this session began, and nobody noticed for a
+day** (D167, `bench/measurements/02-77/`). Re-running 02-48's probe — the
+instrument that owns this number — at three trees:
+
+| tree | exact | WRONG | worst | sum |
+|---|---|---|---|---|
+| recorded as D139 | 140 | 48 | +23 | +272 |
+| `4c5f58f`, this session's start | 142 | **46** | +23 | +262 |
+| `cd68630`, before the compensation | 142 | 46 | +23 | +262 |
+| HEAD | 142 | 46 | **+18** | **+250** |
+
+So two solves were fixed by the previous session (D140–D161) and the table was
+never re-read. **Nothing in the gate can catch that**: `bench/run.c`'s `basis=`
+is a hash, so it detects a change and never reports a count, and the count only
+exists when 02-48's probe is run by hand.
+
+**D165 moved the worst and the sum, not the count.** `4c5f58f` and `cd68630`
+are identical, so D162–D164 changed nothing here. The compensation makes four
+instances' bases different — `bandm` +23 → +18, `czprob` +3 → +1, `finnis`
++1 → +2, `capri` unchanged — and **by the measure this table insists on, 46
+before and 46 after is not progress.** Raised by `jaos-measurer` judging D165,
+which found `bandm` at 18 and said four instances cannot replace the cell.
 
 `src/model.c` states the rule twice — *"a model with n rows needs n basic
 variables … it is structural"* — and enforces it twice: `jaos_set_basis`
@@ -674,7 +686,7 @@ variable brought *in*.
 
 **Do these in order.**
 
-1. **48 netlib solves still publish a wrong count, and every local repair is
+1. **46 netlib solves still publish a wrong count, and every local repair is
    now measured unavailable.** The re-measure this item ordered is done
    (**D140**, `bench/measurements/02-49/`); the local candidates are closed
    by **D141** (`bench/measurements/02-50/`), whose reopen condition is in
@@ -697,7 +709,7 @@ variable brought *in*.
    on its own bound, is **refused** (D141): 66 of the 80 and 86 of the 152
    have no such column, so no within-row rule can close the residue. What
    remains is a wider-than-the-row design with a rank argument (refusals
-   table), or accepting the residue — whose whole price is 48 solves losing
+   table), or accepting the residue — whose whole price is 46 solves losing
    their warm start, which item 4 below measures.
    The guard hardening D140 named is **landed**: the swap decides from the
    recovery value, not the rewritable status, with two asserts enforcing the
