@@ -3596,6 +3596,146 @@ static void test_the_window_counts_the_shifts_and_not_only_their_scale(void)
 #endif
 }
 
+/* The shift count multiplies TWO scales, and the test above exercises one of
+ * them. This is the other.
+ *
+ *   x_big + (256 columns fixed at 2^-25) + w1 + w2 == 1e9
+ *   x_big  in [0, 1e9 - 2^-17], cost 1
+ *   w1, w2 in [0, 2^-23], cost 1
+ *
+ * Exactly feasible: `x_big = 1e9 - 2^-17`, every small at `2^-25` summing to
+ * exactly `2^-17`, `w1 = w2 = 0`, activity exactly 1e9.
+ *
+ * Round 1 removes the 256 fixed columns. Each is a quarter of an ulp of an
+ * accumulator of magnitude 1e9 and rounds away, so `cur_rl` stays at 1e9 while
+ * the truth is `1e9 - 7.6294e-6`. The row keeps degree 3, so clause 1 of the
+ * activity pass judges it: `max_act = 1e9 - 7.391e-6 < rl - itol`.
+ *
+ * **What separates this from the test above is which half of `ps_shift_excess`
+ * carries the window.** Here `row_traffic` is `2^-17 = 7.6e-6`, below the
+ * floor of 1, and the bound is 1e9 — so the whole window comes from
+ * `ps_end_scale(rl)`. Replace that call with a constant 1.0 and the window
+ * falls from 5.862e-5 to 1.776e-6 against a residue of 7.391e-6, and this test
+ * goes red. Nothing else in the suite does that: the test above lands
+ * `cur_rl` at 7.75e-6, so `ps_end_scale` reads its floor there and the traffic
+ * half carries everything (`numerics-reviewer`).
+ *
+ * The second half is the control the widening needs, and it is near the edge
+ * rather than a decade away: the same model 2e-4 from any feasible point,
+ * against a window of 5.862e-5. A factor of 3.5, so a window much wider than
+ * this one stops refusing it. */
+static void test_the_shift_count_scales_by_the_end_it_is_testing(void)
+{
+#if defined(JAOS_PRESOLVE_FAULT_OFFBYONE) || defined(JAOS_PRESOLVE_FAULT_WRONGDUAL)
+    TEST_IGNORE_MESSAGE("positive test — skipped under either fault build");
+#else
+    enum { KS = 256, NC = KS + 3 };
+    static double c[NC], cl[NC], cu[NC], av[NC];
+    static int64_t as[NC + 1], ai[NC];
+    const double small = ldexp(1.0, -25);   /* a quarter ulp of 1e9 */
+    const double lost  = ldexp(1.0, -17);   /* KS * small, exactly */
+    const double wcap  = ldexp(1.0, -23);
+
+    for (int half = 0; half < 2; half++) {
+        const double rl[] = {1e9}, ru[] = {1e9};
+        for (int64_t j = 0; j < NC; j++) {
+            as[j] = j; ai[j] = 0; av[j] = 1.0; c[j] = 0.0;
+            if (j == 0) {
+                c[j] = 1.0; cl[j] = 0.0;
+                cu[j] = 1e9 - lost - (half == 0 ? 0.0 : 2e-4);
+            } else if (j < KS + 1) {
+                cl[j] = cu[j] = small;
+            } else {
+                c[j] = 1.0; cl[j] = 0.0; cu[j] = wcap;
+            }
+        }
+        as[NC] = NC;
+
+        jaos_model *m = nullptr;
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_model_new(&m));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK,
+            jaos_load_lp(m, NC, 1, JAOS_MINIMIZE, 0.0, c, cl, cu, rl, ru,
+                         NC, as, ai, av));
+        jm_presolve p;
+        jm_presolve_init(&p);
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jm_presolve_run(m, &p, nullptr));
+        if (half == 0)
+            TEST_ASSERT_NOT_EQUAL_INT(JM_PRESOLVE_INFEASIBLE, p.outcome);
+        else
+            TEST_ASSERT_EQUAL_INT(JM_PRESOLVE_INFEASIBLE, p.outcome);
+        jm_presolve_free(&p);
+        jaos_model_free(m);
+    }
+#endif
+}
+
+/* The singleton row's FOLD reads the same running difference and counted a
+ * fixed eight ulps until D163 — the fourth read, where D162 repaired three.
+ *
+ *   x_big + (256 columns fixed at 2^-25) == 1e9,  x_big in [0, 1e9 - 2^-17]
+ *
+ * The test above with the two `w` columns deleted, so the row is a singleton
+ * on `x_big` once round 1 has taken the smalls. Round 2 folds it and asks
+ * whether `[1e9, 1e9]` meets `[0, 1e9 - 2^-17]`: `implied_lo` is `cur_rl / a`
+ * and carries all 256 lost roundings, so `1e9 > (1e9 - 2^-17) + 1.77636e-6`
+ * and presolve refused a model whose feasible point is exactly representable.
+ *
+ * **This one the reference build arbitrates**, which is what D162's own model
+ * could not do: `-DJAOS_NO_PRESOLVE` reads OPTIMAL at 999999999.99999237.
+ * Both builds are asserted below.
+ *
+ * The second half is the control, 1e-3 from any feasible point against a
+ * window of 5.862e-5. Found by `numerics-reviewer` reviewing D162
+ * (bench/measurements/02-73/). */
+static void test_the_singleton_fold_counts_the_shifts_too(void)
+{
+#if defined(JAOS_PRESOLVE_FAULT_OFFBYONE) || defined(JAOS_PRESOLVE_FAULT_WRONGDUAL)
+    TEST_IGNORE_MESSAGE("positive test — skipped under either fault build");
+#else
+    enum { KS = 256, NC = KS + 1 };
+    static double c[NC], cl[NC], cu[NC], av[NC];
+    static int64_t as[NC + 1], ai[NC];
+    const double small = ldexp(1.0, -25);
+    const double lost  = ldexp(1.0, -17);
+
+    for (int half = 0; half < 2; half++) {
+        const double rl[] = {1e9}, ru[] = {1e9};
+        for (int64_t j = 0; j < NC; j++) {
+            as[j] = j; ai[j] = 0; av[j] = 1.0; c[j] = 0.0;
+            if (j == 0) {
+                c[j] = 1.0; cl[j] = 0.0;
+                cu[j] = 1e9 - lost - (half == 0 ? 0.0 : 1e-3);
+            } else {
+                cl[j] = cu[j] = small;
+            }
+        }
+        as[NC] = NC;
+
+        jaos_model *m = nullptr;
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_model_new(&m));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK,
+            jaos_load_lp(m, NC, 1, JAOS_MINIMIZE, 0.0, c, cl, cu, rl, ru,
+                         NC, as, ai, av));
+        jm_presolve p;
+        jm_presolve_init(&p);
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jm_presolve_run(m, &p, nullptr));
+        if (half == 0)
+            TEST_ASSERT_NOT_EQUAL_INT(JM_PRESOLVE_INFEASIBLE, p.outcome);
+        else
+            TEST_ASSERT_EQUAL_INT(JM_PRESOLVE_INFEASIBLE, p.outcome);
+        jm_presolve_free(&p);
+
+        /* The whole solve, on both builds, because this model has an oracle:
+         * the answer is the same with presolve and without it. */
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+        TEST_ASSERT_EQUAL_INT(half == 0 ? JAOS_SOLVE_OPTIMAL
+                                        : JAOS_SOLVE_INFEASIBLE,
+                              jaos_status_of(m));
+        jaos_model_free(m);
+    }
+#endif
+}
+
 /* An INVERTED column box reaches the same collapse branch, and the clamp has
  * no box to clamp into there.
  *
@@ -4025,6 +4165,8 @@ int main(void)
     RUN_TEST(test_the_activity_pass_is_not_refused_below_its_own_traffic);
     RUN_TEST(test_the_activity_pass_still_refuses_a_real_shortfall);
     RUN_TEST(test_the_window_counts_the_shifts_and_not_only_their_scale);
+    RUN_TEST(test_the_shift_count_scales_by_the_end_it_is_testing);
+    RUN_TEST(test_the_singleton_fold_counts_the_shifts_too);
     RUN_TEST(test_a_frozen_rows_window_ignores_the_far_bound);
 
     RUN_TEST(test_a_frozen_row_missed_at_scale_is_refused);

@@ -406,6 +406,27 @@ trajectory. Refusals table, D151.
   apply here. **Do not confuse this with §1.** §1's error is relative to the
   row's TRAFFIC, which cancellation puts above the activity; this one is
   relative to the activity, and the division by a small `a` scales both.
+- **A fold fixes a column at a value carrying another row's error, and no
+  window can see it.** Confirmed as a wrong answer with the oracle disagreeing
+  (D163, `bench/measurements/02-73/`), and the repair is refused as a window:
+
+  ```
+  row S:  x1 + (256 y_s fixed at 2^-25) == 1e9      x1 in [1e9-1, 1e9+1]
+  row R:  x1 + w1 + w2 == 1e9 - 63*2^-23            w1, w2 in [0, 2^-23]
+  ```
+
+  Feasible exactly at `x1 = 1e9 - 2^-17`, `w1 = 2^-23`, `w2 = 0`. Round 2 folds
+  row S and fixes x1 at 1e9, wrong by 7.6294e-6, and the fold's own test does
+  not fire because `new_lo == new_hi` there. Row R is charged **one** shift at
+  its own traffic and clause 1 refuses it. Shipping INFEASIBLE, oracle optimal
+  at 1.1920928955078125e-07.
+  **A wider window is not the repair** and D163 refuses it: no window scaled by
+  this row's own quantities can see an error that arrived from another row.
+  What it needs is an error weight instead of a count — `row_err[i] += |a| *
+  err(v)`, with the fold recording `err` when it fixes a column. That subsumes
+  D162's `row_shifts[i]`, so it replaces the mechanism rather than adding to
+  it, and it needs its own campaign. Nothing on the three sets is affected: 139
+  of 139 bit-identical.
 - **The solver's own row activity loses terms the way presolve's bounds did**,
   and it is new (D162, `bench/measurements/02-72/`). It sums a row's columns in
   index order, so a row holding a large magnitude before many small ones loses

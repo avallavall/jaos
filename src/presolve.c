@@ -493,11 +493,11 @@ static double ps_round_tol(double scale)
  * `-1e12 <= x0 + x1 <= 0` model still reads INFEASIBLE.
  *
  * Both shapes were swept over the three sets before choosing: the traffic-only
- * one and this one. Neither flips a verdict on any of the 139, and the widest
- * ABSOLUTE window this produces is 6.587e-08 on Kennington's frozen-row test
- * against 6.494e-08 shipped — under PRIMAL_TOL 1e-7 and two decades under
- * `CHECK_TOL`. The two shapes differ by up to 5883x on one netlib row, so they
- * are separable in ratio and not on any verdict. */
+ * one and this one. Neither flips a verdict on any of the 139, and the two
+ * differ by up to 5883x on one netlib row — separable in ratio, and on no
+ * verdict. **The largest shift count and the widest absolute window this
+ * produces are owned by docs/tolerances.md**, which is where the reopen
+ * condition is stated; repeating them here is how a figure drifts. */
 static double ps_shift_excess(double traffic, double bound_scale,
                               int64_t shifts)
 {
@@ -1002,7 +1002,47 @@ JAOS_NODISCARD jaos_status jm_presolve_run(const jaos_model *m, jm_presolve *p,
                     if (tscale > bscale)
                         bscale = tscale;
                 }
-                const double btol = ps_round_tol(bscale);
+                /* **And the count, because this is the fourth read of the same
+                 * running difference and D162 repaired only three** (D163).
+                 * `implied_lo` is `cur_rl[i] / a`, so the k roundings the row's
+                 * bounds accumulated arrive here divided by |a| along with
+                 * everything else — which is what `tscale` above already does
+                 * for the scale and did not do for the count.
+                 *
+                 * ONE END, and `tightens_*` says which. Only the end the
+                 * running difference actually supplied carries its error; the
+                 * other is the column's own stored bound and is exact. Scaling
+                 * by both would be D161's shape, and D162 records what that
+                 * costs.
+                 *
+                 * The model: `x_big + 256 columns fixed at 2^-25 == 1e9` with
+                 * `x_big` in `[0, 1e9 - 2^-17]`. A quarter of an ulp of 1e9
+                 * subtracted 256 times rounds away every time, so `cur_rl`
+                 * stays at 1e9 against a truth of `1e9 - 7.6294e-6`, and
+                 * `1e9 > (1e9 - 2^-17) + 1.77636e-6` refused a model whose
+                 * feasible point is exactly representable. The reference build
+                 * solves it, which is the disagreement D162 did not have
+                 * (`numerics-reviewer`, bench/measurements/02-73/).
+                 *
+                 * **It widens what the COLLAPSE below admits, and that is the
+                 * cost.** The gap the branch accepts is whatever this test let
+                 * through, so a wider window puts a larger residue on the row —
+                 * `|a|` times the gap, since D158's clamp puts the column back
+                 * inside its own box and leaves the row to carry it. On the
+                 * model above that is 5.86e-5 where it was 1.78e-6. Nothing on
+                 * the three sets reaches it: D158 measured 0 collapses in
+                 * 100018 folds and this change leaves that at 0. */
+                double ftol = 0.0;
+                if (row_shifts[i] > 0 && isfinite(row_traffic[i])) {
+                    const double tsc = row_traffic[i] / fabs(a);
+                    if (tightens_lo)
+                        ftol += ps_shift_excess(tsc, ps_end_scale(new_lo),
+                                                row_shifts[i]);
+                    if (tightens_hi)
+                        ftol += ps_shift_excess(tsc, ps_end_scale(new_hi),
+                                                row_shifts[i]);
+                }
+                const double btol = ps_round_tol(bscale) + ftol;
 
                 if (new_lo > new_hi + btol) {
                     /* PAST the opposite bound. The intersection is empty by
@@ -1154,10 +1194,14 @@ JAOS_NODISCARD jaos_status jm_presolve_run(const jaos_model *m, jm_presolve *p,
                     const int64_t i = m->a_index[k];
                     if (row_dead[i])
                         continue;
-                    cur_rl[i] -= m->a_value[k] * v;
-                    cur_ru[i] -= m->a_value[k] * v;
-                    row_traffic[i] += fabs(m->a_value[k] * v);
-                    if (m->a_value[k] * v != 0.0)
+                    /* One local, so the counted event and the performed event
+                     * are the same expression rather than two that agree
+                     * (`numerics-reviewer`). */
+                    const double t = m->a_value[k] * v;
+                    cur_rl[i] -= t;
+                    cur_ru[i] -= t;
+                    row_traffic[i] += fabs(t);
+                    if (t != 0.0)
                         row_shifts[i]++;
                     row_deg[i]--;
                 }
@@ -1581,9 +1625,8 @@ JAOS_NODISCARD jaos_status jm_presolve_run(const jaos_model *m, jm_presolve *p,
              * **The bound half counts its terms (D162)** and the activity half
              * does not, which is why the two are added here instead of the
              * wider scale being taken. `ps_shift_excess` carries the
-             * derivation; the largest count reaching this clause is 250, on
-             * netlib, and the widening flips no verdict on any of the 139
-             * (`bench/measurements/02-72/`). */
+             * derivation and docs/tolerances.md the counts; the widening flips
+             * no verdict on any of the 139 (`bench/measurements/02-72/`). */
             assert(ps_traffic_usable(rl, ru, row_traffic[i]));
             /* The two halves are ADDED rather than maximised, because they are
              * two different errors in two different numbers and only one of
@@ -1686,10 +1729,11 @@ JAOS_NODISCARD jaos_status jm_presolve_run(const jaos_model *m, jm_presolve *p,
                             const int64_t ii = m->a_index[kk];
                             if (row_dead[ii])
                                 continue;
-                            cur_rl[ii] -= m->a_value[kk] * v;
-                            cur_ru[ii] -= m->a_value[kk] * v;
-                            row_traffic[ii] += fabs(m->a_value[kk] * v);
-                            if (m->a_value[kk] * v != 0.0)
+                            const double t = m->a_value[kk] * v;
+                            cur_rl[ii] -= t;
+                            cur_ru[ii] -= t;
+                            row_traffic[ii] += fabs(t);
+                            if (t != 0.0)
                                 row_shifts[ii]++;
                             row_deg[ii]--;
                         }
@@ -1960,8 +2004,8 @@ JAOS_NODISCARD jaos_status jm_presolve_run(const jaos_model *m, jm_presolve *p,
          * on a row with many removals.**~~ **Repaired (D162).** The bound half
          * counts its terms now, through `ps_shift_excess` and `row_shifts[i]`;
          * the definition and the two shapes that were swept for it are at that
-         * function. The largest count reaching this test is 325, on
-         * Kennington, and the widening flips no verdict on any of the 139
+         * function, and the counts themselves are docs/tolerances.md's. The
+         * widening flips no verdict on any of the 139
          * (`bench/measurements/02-72/`). Found by `numerics-reviewer` on D159.
          *
          * **The `rg.traffic` term is here for coherence, not for the 45930x.**

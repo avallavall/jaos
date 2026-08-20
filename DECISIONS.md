@@ -170,6 +170,7 @@ and you have the argument. Jump to the entry for the numbers behind it.
 - **[D160](#d160--clause-1-of-the-activity-pass-gets-its-own-window-and-the-bound-scale-that-looked-like-symmetry-published-a-wrong-answer)** — Clause 1 of the activity pass gets its own window, and the bound scale that looked like symmetry published a wrong answer
 - **[D161](#d161--the-frozen-row-window-drops-the-far-bound-too-and-that-defect-predates-d159-which-widened-around-it)** — The frozen-row window drops the far bound too, and that defect predates D159, which widened around it
 - **[D162](#d162--a-row-bound-is-a-running-difference-so-the-window-counts-the-terms-and-the-end-it-is-testing-comes-back-in-multiplied-by-that-count)** — A row bound is a running difference, so the window counts the terms — and the end it is testing comes back in, multiplied by that count
+- **[D163](#d163--the-singleton-rows-fold-is-a-fourth-read-of-that-running-difference-and-a-count-cannot-cover-an-error-that-arrives-inside-a-value)** — The singleton row's fold is a fourth read of that running difference, and a count cannot cover an error that arrives inside a value
 
 ---
 
@@ -11953,3 +11954,109 @@ D128 were the first.
 - **The reopen condition is the absolute window, not a ratio.** A set carrying
   a larger `rg.traffic` than Kennington's 3.66e7, or a shift count far above
   325, is where these windows stop being comfortably under `PRIMAL_TOL`.
+
+**Two things in this entry are wrong and D163 corrects them**, both found by
+the review that arrived after the commit. The count reached three reads of the
+running difference and there are four; the singleton row's fold judges
+`cur_rl[i] / a` and did not carry it. And this entry says the shift term is
+zero at k = 0 "and that is what keeps D161", which is true of `ps_shift_excess`
+and not of the window: the base moved from `8*eps*max(act, traffic)` to
+`8*eps*act + 8*eps*traffic` as well, which is 8 ulps of 1 wider at k = 0.
+
+## D163 — The singleton row's fold is a fourth read of that running difference, and a count cannot cover an error that arrives inside a value
+
+**The question.** `numerics-reviewer` delivered on D162 after that commit had
+landed. It confirmed both of D162's own repairs and returned two findings
+against them, each with a model built from the source. Both are wrong answers
+and both were confirmed here by running them
+(`bench/measurements/02-73/`).
+
+**And this time the oracle arbitrates.** D162's model removed every column of
+its row, so the solver's own summation made the same error and
+`-DJAOS_NO_PRESOLVE` refused it too. These models keep a live column, so the
+reference build reaches the feasible point and disagrees with the shipping
+build directly.
+
+### The fourth read — repaired
+
+```
+x_big + (256 columns fixed at 2^-25) == 1e9,   x_big in [0, 1e9 - 2^-17]
+```
+
+`2^-25` is a quarter of an ulp of 1e9, so each of the 256 subtractions rounds
+back and `cur_rl` stays at 1e9 against a truth of `1e9 - 7.6294e-6`. Round 2
+folds the row onto `x_big` and asks whether `[1e9, 1e9]` meets
+`[0, 1e9 - 2^-17]`: `1e9 > (1e9 - 2^-17) + 1.77636e-6` fires.
+
+| | the parent (D162) | this tree | the oracle |
+|---|---|---|---|
+| feasible | **INFEASIBLE** | optimal, 999999999.99999237 | optimal, **999999999.99999237** |
+| control, 1e-3 out | INFEASIBLE | INFEASIBLE | infeasible |
+
+The repaired objective matches the oracle to the last bit. The scale at that
+site was already right — `ps_bound_scale` of the fold's own pair or
+`row_traffic[i] / |a|`, whichever is larger — so only the count was missing,
+and it takes the end `tightens_lo`/`tightens_hi` says the running difference
+supplied.
+
+**What it costs, stated because it is the only thing this widening buys
+against.** The gap the collapse branch below admits is whatever the refusal let
+through, so a wider window leaves a larger residue on the row: `|a|` times the
+gap, since D158's clamp puts the column back in its own box. On this model
+5.86e-5 where it was 1.78e-6. D158 measured 0 collapses in 100018 folds over
+the three sets and this leaves that at 0.
+
+### The term D162's own test never exercised
+
+D162 added `ps_end_scale` in its second revision, and **its test did not cover
+it**: `cur_rl` lands at 7.75e-6 there, so `ps_end_scale` reads its floor of 1
+and the traffic half carried the whole window. Replace `ps_end_scale` with a
+constant 1.0 and that test stays green. Confirmed by doing exactly that.
+
+The missing half is the same shape with two live cost-1 columns, so clause 1
+judges the row instead of the fold. `row_traffic` is `2^-17`, below the floor,
+and the bound is 1e9 — the whole window is `ps_end_scale`. Neutered it reads
+1.776e-6 against a residue of 7.391e-6 and goes red.
+
+**A control near the edge, which D162 also did not have.** Its control sat 1e-2
+out against a window of 1.18e-4, a factor of 85. The new one is 2e-4 out
+against 5.862e-5, a factor of 3.5, and it is refused on every build. That
+matters at clause 1 specifically: a row rescued there is pinned by FORCING and
+deleted, so an infeasibility missed at that clause is never re-tested.
+
+### What is refused — a wider window for the chained error
+
+```
+row S:  x1 + (256 y_s fixed at 2^-25) == 1e9         x1 in [1e9-1, 1e9+1]
+row R:  x1 + w1 + w2 == 1e9 - 63*2^-23               w1, w2 in [0, 2^-23]
+```
+
+Feasible exactly at `x1 = 1e9 - 2^-17`, `w1 = 2^-23`, `w2 = 0`. Round 2 folds
+row S and **fixes x1 at 1e9**, wrong by 7.6294e-6, passing the fold's own test
+because `new_lo == new_hi` there. Row R is then charged **one** shift at its own
+traffic and clause 1 refuses it. Shipping build INFEASIBLE, oracle optimal at
+1.1920928955078125e-07.
+
+The count is right and the scale is right. The window is short because the
+VALUE was wrong, and nothing in `ps_shift_excess` knows that. **Widening is
+refused as the repair**: no window scaled by this row's own quantities can see
+an error that arrived from another row. What it needs is an error weight
+carried instead of a count — `row_err[i] += |a| * err(v)`, with the fold
+recording `err` when it fixes a column — and that is a design. `TODO.md` has it
+with this model as its statement.
+
+### The cost
+
+`gate: PASS` on all three sets, `0 regressed, 0 improved, 0 new`, 94, 29 and 16
+instances bit-identical with 0 digest changes, five build configurations. Both
+new tests validated against the tree that must fail them.
+
+**Two smaller things from the same review.** The counted event and the performed
+event are one expression now at both counting sites, rather than
+`m->a_value[k] * v` written twice. And the probe printed `presolve=` under
+`-DJAOS_NO_PRESOLVE`, where `jm_presolve_run` is the same code and only
+`jaos_solve` stops consulting it — the shipping verdict was appearing in the
+oracle's row. It reads `not consulted` there now.
+
+**What is left open**, to `TODO.md`: the chained error above, and the solver's
+own row activity losing terms in column order, which D162 opened.

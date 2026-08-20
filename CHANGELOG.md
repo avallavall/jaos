@@ -11,6 +11,19 @@ open, `bench/README.md` for the gate, and the commit each entry came from.
 
 ### Fixed
 
+- The singleton row's fold counts its shifts too — the fourth read of the same
+  running difference, where D162 repaired three. `x_big + 256 columns fixed at
+  2^-25 == 1e9` with `x_big` in `[0, 1e9 - 2^-17]` has an exactly representable
+  feasible point and was refused; the reference build solves it and the repaired
+  objective matches it to the last bit. The count takes the end
+  `tightens_lo`/`tightens_hi` says the running difference supplied. It widens
+  what the collapse branch below admits, which leaves `|a|` times the gap on the
+  row; 0 collapses in 100018 folds over the three sets, unchanged (D163).
+- Two tests D162 needed and did not have: one that fails when `ps_end_scale` is
+  neutered to a constant, which D162's own test does not, and a control 2e-4
+  from feasible against a window of 5.862e-5 rather than a decade away.
+- 94, 29 and 16 instances bit-identical, 0 digest changes, `gate: PASS` on each.
+
 - Presolve's three infeasibility windows count the terms subtracted from the
   row's bounds. `cur_rl[i]` and `cur_ru[i]` are a running difference with no
   compensation, so eight ulps covered about three removals and the largest row
