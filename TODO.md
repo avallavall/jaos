@@ -20,8 +20,8 @@ All three `bench/results/*.txt` are current. The only commit after it,
 `a3f68c1`, touches `DECISIONS.md`, `TODO.md` and two files under
 `bench/measurements/`, so no campaign is owed.
 
-**5 commits are unpushed and pushing needs the maintainer's explicit approval.**
-`main` was last pushed to `82b3b69`. **Push from the WINDOWS side**: the remote
+**Nothing is unpushed.** `main` is at `55b4edb` on the maintainer's explicit
+say-so; `git fetch` first read `ahead 6` with no divergence. **Push from the WINDOWS side**: the remote
 is an SSH alias that lives in the Windows `~/.ssh/config` only, and from WSL it
 dies as "could not resolve hostname". `git fetch` first — another Claude session
 commits to this repository.
