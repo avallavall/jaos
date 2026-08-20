@@ -42,7 +42,7 @@ numbers for one point, at the parent:
 | naive `double` | 172791.0657497762 |
 | Neumaier `double` (what D169 published) | 172791.06569834374 |
 | the same ROUNDED products, added in `long double` | 172791.06569833743 |
-| the products themselves in `long double` (the checker) | 172791.06567182826 |
+| the products in `long double`, rounded to 64 bits (the checker) | 172791.06567182826 |
 
 The accumulation was already exact to 6.3e-09. The 2.65e-05 that remained is
 entirely the per-term rounding: one term of 6.5e11 rounds by up to 7.2e-05 on
@@ -50,9 +50,13 @@ its own.
 
 ## The repair, and why Dekker rather than `fma`
 
-Dekker's split, with `SPLIT = 2^27 + 1`. It is exact under
-`-ffp-contract=off`, which is the same flag D165's, D168's and D171's
-accumulators rest on. Beyond a factor magnitude of `2^996` the split itself
+Dekker's split, with `SPLIT = 2^27 + 1`. **What keeps it exact is
+`-fno-associative-math`, the default, and NOT `-ffp-contract=off`** —
+measured across six flag sets, contraction on or off gives identical bits,
+because every product inside the split is exact and a fused multiply-add
+rounds to the same value the separate operations do. What would delete
+`ca - (ca - a)` is reassociation, which only `-ffast-math` and `-Ofast`
+enable and the Makefile uses neither (`numerics-reviewer`). Beyond a factor magnitude of `2^996` the split itself
 would overflow, so the function reports a zero residue there and the sum falls
 back to the plain product it already had; `SPLIT * 2^996` is `2^1023`, one
 binade under `DBL_MAX`.
@@ -82,13 +86,27 @@ netlib instances going further at the last bit, which is what a compensated sum
 does when a naive one got lucky; recovering the products leaves nothing for
 luck to do.
 
-**The one that is left is `finnis`, at 2.2992e-08, and it is inside the
-oracle's own resolution.** The checker accumulates in `long double`, whose eps
-is 1.08e-19, over terms whose magnitudes sum to 3.2e12 — so its own error at
-this cancellation is up to about 3.5e-07. Neither number can be called more
-right than the other at that separation. **The published objective is at the
-floor that a `double` allows and the checker is at the floor that a
-`long double` allows.**
+**The one that is left is `finnis`, at 2.2992e-08, and it is below the
+oracle's own floor.** `(long double) c * x` is **not** an exact product: a
+binary64 product needs 106 bits and a `long double` mantissa holds 64, so each
+term carries up to `2^-64 |t|`. Over `finnis`'s `sum|t| = 3.2e12` that is
+**1.73e-07** from the product roundings alone, and `src/check.c` then sums
+those naively, which over 614 columns is worse again. The observed 2.2992e-08
+is 7.5 times below the tighter of those floors, so **the comparison is
+exhausted**: neither number can be called more right than the other
+(`numerics-reviewer`).
+
+**And the better oracle says the remaining `finnis` gap is the POINT, not the
+sum.** D172 moved 0 digests, so the published `x` is bit-identical and every
+`obj` move is pure summation. Against Koch's exact-rational optima the eleven
+netlib movers read **8 closer, 3 further, and exact matches 3 → 6** — `25fv47`,
+`80bau3b`, `afiro`, `maros`, `ship04l` and `truss` now match the reference to
+the last bit, while `bandm`, `scagr25` and `tuff` each went from exact to about
+one ulp, which is not a cost. `finnis` goes 1.027e-04 → 7.624e-05: improved by
+25% and still **2.6 million ulps**, where `ulp(172791.06) = 2.9e-11`. A
+compensated sum of exact products cannot leave that behind. **The published `x`
+is not the exact optimal vertex**, which is a different question and belongs in
+`TODO.md`.
 
 ## The gate — `gate-diff.txt`
 

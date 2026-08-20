@@ -34,7 +34,11 @@ int main(int argc, char **argv)
                "  naive double        = %.17g\n"
                "  Neumaier double     = %.17g\n"
                "  long double of the ROUNDED products = %.17Lg\n"
-               "  long double exact products          = %.17Lg\n"
+               /* NOT exact: a binary64 product needs 106 bits and a long
+                * double mantissa holds 64, so each term still rounds. On
+                * finnis that is up to 2^-64 * 3.2e12 = 1.73e-07, which is the
+                * floor this comparison stops at (D172). */
+               "  long double, products rounded to 64 bits = %.17Lg\n"
                "  sum|term| = %.6g   max|term| = %.6g   n*eps*max|t| = %.3g\n",
                argv[i], (long long)nc, naive, s + c,
                exact_of_rounded, exact, absum, maxt,

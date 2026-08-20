@@ -738,12 +738,13 @@ trajectory. Refusals table, D151.
   on either set, where D169 had four going further at the last bit. `gate:
   PASS`, 0 digest changes anywhere, 11 netlib and 1 Kennington `obj` figures
   moved and nothing else.
-  **The one left is `finnis` at 2.2992e-08, and that is the end rather than the
-  next step.** The checker accumulates in `long double`, whose eps is 1.08e-19,
-  over terms whose magnitudes sum to 3.2e12, so its own error there is up to
-  3.5e-07. Neither number is more right at that separation: the published
-  objective is at the floor a `double` allows and the oracle is at the floor a
-  `long double` allows. **Do not open this again without a better oracle.**
+  **The one left is `finnis` at 2.2992e-08, and that is the end of the
+  objective's own story.** `(long double) c * x` is not an exact product — a
+  binary64 product needs 106 bits and that mantissa holds 64 — so each term
+  carries up to `2^-64 |t|`, which over `finnis`'s `sum|t| = 3.2e12` is
+  1.73e-07 before `src/check.c` sums anything. The observed 2.2992e-08 is 7.5
+  times below that, so the comparison is exhausted. **Do not open the objective
+  again without a better oracle.**
   `fma()` was not ruled out by the flag and the distinction is worth keeping
   (`numerics-reviewer`): `-ffp-contract=off` stops the COMPILER contracting
   `a*b+c` on its own and says nothing about an explicit call, which IEEE-754
@@ -751,6 +752,21 @@ trajectory. Refusals table, D151.
   claim about libm at all. It costs
   one pass over the columns per solve, so the campaign question is accuracy
   rather than time. Nothing shows it losing a verdict.
+- **`finnis` publishes a point that is not the exact optimal vertex**, and it
+  is new from D172 (`numerics-reviewer`). The better oracle is Koch's
+  exact-rational optimum, and D172 moved 0 digests, so the published `x` is
+  bit-identical and every `obj` move was pure summation. Against that reference
+  the eleven netlib movers read **8 closer, 3 further, exact matches 3 → 6** —
+  `25fv47`, `80bau3b`, `afiro`, `maros`, `ship04l` and `truss` now match to the
+  last bit, and the three that went further each moved from exact to about one
+  ulp, which is not a cost. **`finnis` goes 1.027e-04 → 7.624e-05: better by
+  25% and still 2.6 million ulps**, where `ulp(172791.06) = 2.9e-11`. A
+  compensated sum of exact products cannot leave that behind, so what is left
+  is the point rather than the sum. `finnis` already carries the marks — `row`
+  8.44e-07 and `gap_positive` 1.05e-04, both the worst on the set. **The oracle
+  for this is not the checker**, which has the same per-term rounding D172 just
+  removed one layer out; it is exact rational arithmetic over the published `x`
+  and `c`, which is a short offline script.
 - **`settled_objective` in `src/simplex.c` is a fourth accumulation of the same
   shape**, untouched by D169, and **this entry's first version got its severity
   wrong**. It said the sum decides a trajectory rather than a published number.

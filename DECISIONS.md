@@ -12894,9 +12894,13 @@ while the true objective is 1. The parent publishes 0 on the shipping build and
 on `-DJAOS_NO_PRESOLVE`; `jaos_check_solution`, which multiplies in
 `long double`, reads 1 on both. D172 publishes 1.
 
-**Dekker's split, and `fma` is not ruled out by the flag.**
-`-ffp-contract=off` stops the COMPILER contracting `a*b+c` on its own and says
-nothing about an explicit `fma()` call, which IEEE-754 requires to be correctly
+**Dekker's split, and neither the flag people reach for nor `fma` is what
+matters here.** Measured across six flag sets, contraction ON and OFF give
+identical bits, because every product inside the split is exact — so
+`-ffp-contract=off` is not what protects it, `-fno-associative-math` is, and
+only `-ffast-math` and `-Ofast` would break it (`numerics-reviewer`). That flag
+stops the COMPILER contracting `a*b+c` on its own and says nothing about an
+explicit `fma()` call, which IEEE-754 requires to be correctly
 rounded and which would be deterministic across machines in a way `log` and
 `exp` are not (`numerics-reviewer`, D169). The split is preferred because it
 needs no claim about libm at all. Beyond a factor magnitude of `2^996` the
@@ -12919,13 +12923,25 @@ instances going further at the last bit. That is what a compensated sum does
 when a naive one got lucky, and recovering the products leaves nothing for luck
 to do.
 
-**The one that is left is `finnis` at 2.2992e-08, and the entry says why that
-is the end rather than the next step.** The checker accumulates in
-`long double`, whose eps is 1.08e-19, over terms whose magnitudes sum to
-3.2e12, so its own error at this cancellation is up to about 3.5e-07. At that
-separation neither number is more right than the other. **The published
-objective is at the floor a `double` allows and the oracle is at the floor a
-`long double` allows.**
+**The one that is left is `finnis` at 2.2992e-08, and it is below the oracle's
+own floor.** `(long double) c * x` is **not** an exact product: a binary64
+product needs 106 bits and that mantissa holds 64, so each term carries up to
+`2^-64 |t|` — 1.73e-07 over `finnis`'s `sum|t| = 3.2e12`, before `src/check.c`
+sums anything. The observed value is 7.5 times below that, so the comparison is
+exhausted and neither number is more right (`numerics-reviewer`).
+
+**The better oracle is Koch's exact-rational optimum, and it says the remaining
+`finnis` gap is the POINT rather than the sum.** This change moved 0 digests,
+so the published `x` is bit-identical and every `obj` move was pure summation.
+Against the reference the eleven netlib movers read **8 closer, 3 further, and
+exact matches 3 → 6** — `25fv47`, `80bau3b`, `afiro`, `maros`, `ship04l` and
+`truss` match to the last bit now, while `bandm`, `scagr25` and `tuff` each
+went from exact to about one ulp, which is not a cost. `finnis` goes
+1.027e-04 → 7.624e-05: better by 25% and still **2.6 million ulps**, where
+`ulp(172791.06) = 2.9e-11`. A compensated sum of exact products cannot leave
+that behind. It is `TODO.md`'s now, and its oracle is exact rational arithmetic
+over the published `x` and `c` rather than the checker, which carries the same
+per-term rounding this entry just removed one layer out.
 
 **The cost.** `gate: PASS` on all three sets with `0 regressed, 0 improved,
 0 new` and **0 digest changes anywhere**: 11 netlib instances and 1 Kennington
