@@ -397,8 +397,33 @@ equality argument is ever found wanting.
 
 Both figures over-approximate, and the narrow one by more: a row imposing on
 two columns is not yet this configuration, because it also needs both columns
-**resting at** those imposed bounds in the final solution. Counting that needs
-the solve rather than the presolve pass, and it is §12's next item.
+**resting at** those imposed bounds in the final solution.
+
+**THAT IS MEASURED NOW TOO, and it changes what a first version should do**
+(`bench/measurements/02-88/`, same tree). Of the 19775 netlib rows and 78371
+Kennington rows that impose on two or more columns, the number where two or
+more actually rest at those bounds is **9 and 3**. Twelve, in 98146
+opportunities — **0.012%** — identical at 1e-7 and at 1e-6, on four instances
+in 110 (`agg` 6, `maros` 2, `pilot-ja` 1, `cre-a` 3).
+
+**So the refusal is three to four orders wider than the hazard, in either
+form.** Declining half of netlib's imposed bounds and four fifths of
+Kennington's to prevent twelve occurrences is not a safety flag, it is
+abandoning the reduction.
+
+**The shape that fits the number is the one this section already cites.**
+Galabova 2023 offers a fallback for when the slot assignment fails, "which is
+what a solver does when it has no proof". At 0.012% the right design is to let
+the reduction fire, **detect the collision at postsolve where it is
+knowable**, and take the fallback there. The forward-pass refusal survives only
+as what to do if that detection turns out to be unaffordable, and nothing yet
+suggests it would be.
+
+**The equality prediction above is neither confirmed nor refuted by this.**
+Ten of the twelve rows are equalities and two on `maros` are not, but the flag
+recorded is `cur_rl[i] == cur_ru[i]` **at the moment of imposing**, and
+presolve moves row bounds across rounds. Settling it needs the row's state at
+the point this argument applies.
 
 Two reasons it matters more than it looks:
 
@@ -834,16 +859,23 @@ here, not assumed.
    No literature. Must be reasoned out here or refused at the firing site, the
    way `JM_PS_FORCING_ROW` refuses.
 5. The measurement §6 names, which no amount of reading replaces.
-6. **How often two imposed bounds on one row are both RESTED AT.** §8d's
-   refusal is now costed (`bench/measurements/02-87/`, 2026-08-21): as
-   drafted it declines 50.2% of imposed bounds on netlib and 82.3% on
-   Kennington, and restricted to equality rows — which is all §8d's own proof
-   needs — 35.5% and 20.3%. Both over-approximate, because a row imposing on
-   two columns only breaks §8c when both columns rest at those bounds in the
-   final solution. That count needs the solve, and it is what would say
-   whether even the narrow refusal is wider than the hazard.
-   **The instrument exists**: `02-87/run-impose-count.sh` takes any tree
-   carrying the pass, and it has a control that must emit nothing.
+6. ~~**How often two imposed bounds on one row are both RESTED AT.**~~
+   **ANSWERED 2026-08-21, and §8d is rewritten around it.** The refusal costs
+   50.2% of netlib's imposed bounds and 82.3% of Kennington's
+   (`bench/measurements/02-87/`); the hazard it prevents occurs **12 times in
+   98146 opportunities, 0.012%** (`bench/measurements/02-88/`). The refusal is
+   three to four orders wider than the thing it protects against, so a first
+   version should let the reduction fire and detect the collision at postsolve,
+   with Galabova's fallback there. Both instruments take any tree carrying the
+   pass and both have a control.
+7. **Whether the postsolve detection is affordable**, which is what the
+   conclusion above now rests on. Nothing measures it yet. It is the question
+   that decides whether D97's first version is the design in this document or
+   the forward-pass refusal after all.
+8. **§8d's equality claim, still open.** Ten of the twelve rows are equalities
+   and two are not, but the flag was read at the moment of imposing and
+   presolve moves row bounds across rounds. The argument needs the row's state
+   at the point it applies.
 
 ## 13. Directed rounding, worked against this tree
 

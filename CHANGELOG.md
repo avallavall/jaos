@@ -11,13 +11,15 @@ open, `bench/README.md` for the gate, and the commit each entry came from.
 
 ### Changed
 
-- **D97's §8d refusal is costed, and it is drafted too wide.** The design
-  called it "one flag per row in the forward pass"; counted at `7c7375c` where
-  the tightening exists, it declines 50.2% of imposed bounds on netlib and
-  82.3% on Kennington. §8d's own proof needs only equality rows, and
-  restricted that way it costs 35.5% and 20.3% — a factor of four on
-  Kennington, where the prize is largest. Design and `TODO.md` updated; no
-  decision, no source change (`bench/measurements/02-87/`).
+- **D97's §8d refusal is three to four orders wider than the hazard it
+  prevents, so the design is rewritten around that.** Counted at `7c7375c`
+  where the tightening exists, the refusal declines 50.2% of netlib's imposed
+  bounds and 82.3% of Kennington's; the configuration it protects against —
+  two columns of one row both resting at bounds that row imposed — occurs
+  **12 times in 98146 opportunities**, identical at 1e-7 and 1e-6, on four
+  instances in 110. A first version should let the reduction fire and detect
+  the collision at postsolve, with the fallback the design already cites. No
+  decision and no source change (`bench/measurements/02-87/`, `02-88/`).
 
 - **Presolve's objective offset is refused rather than compensated**, which
   closes at all four sites the class D168 opened. It is measurably dead:

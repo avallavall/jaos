@@ -1,0 +1,124 @@
+tree: 7c7375c
+
+== netlib
+# rows imposing on 2+ columns, and how many of those rows end
+# with 2+ of the imposed columns RESTING at the imposed bound.
+# tight = 1e-7 (PRIMAL_TOL), loose = 1e-6 (CHECK_TOL).
+# instance      imposed   rows2+   rest2+t   rest2+l  eqrest_t  eqrest_l status
+25fv47             2806      441         0         0         0         0 optimal
+80bau3b            6125      855         0         0         0         0 optimal
+adlittle            119       34         0         0         0         0 optimal
+afiro                41        7         0         0         0         0 optimal
+agg                 528      144         6         6         6         6 optimal
+agg2               1088      193         0         0         0         0 optimal
+agg3               1083      189         0         0         0         0 optimal
+bandm               183       20         0         0         0         0 optimal
+beaconfd            177       28         0         0         0         0 optimal
+blend                88       21         0         0         0         0 optimal
+bnl1               1806      201         0         0         0         0 optimal
+bnl2               4816      507         0         0         0         0 optimal
+boeing1             600      114         0         0         0         0 optimal
+boeing2             247       44         0         0         0         0 optimal
+bore3d             1080       36         0         0         0         0 optimal
+brandy              255       40         0         0         0         0 optimal
+capri               349       31         0         0         0         0 optimal
+cycle              1888      317         0         0         0         0 optimal
+czprob             5779      645         0         0         0         0 optimal
+d2q06c             6046     1003         0         0         0         0 optimal
+d6cube             6673       14         0         0         0         0 optimal
+degen2              535      180         0         0         0         0 optimal
+degen3             1818      561         0         0         0         0 optimal
+dfl001             8670     1017         0         0         0         0 optimal
+e226                411       67         0         0         0         0 optimal
+etamacro            878       76         0         0         0         0 optimal
+fffff800           1375      115         0         0         0         0 optimal
+finnis              208       58         0         0         0         0 optimal
+fit1d                22        1         0         0         0         0 optimal
+forplan             876       37         0         0         0         0 optimal
+ganges             1859       26         0         0         0         0 optimal
+gfrd-pnc            206        0         0         0         0         0 optimal
+greenbea           5919     1159         0         0         0         0 optimal
+greenbeb           6054     1147         0         0         0         0 optimal
+grow15              209        0         0         0         0         0 optimal
+grow22              314        0         0         0         0         0 optimal
+grow7                89        0         0         0         0         0 optimal
+israel              424       46         0         0         0         0 optimal
+kb2                  52        6         0         0         0         0 optimal
+lotfi               286       61         0         0         0         0 optimal
+maros-r7            980        0         0         0         0         0 optimal
+maros              1598      242         2         2         0         0 optimal
+nesm               1841       91         0         0         0         0 optimal
+perold             1081      123         0         0         0         0 optimal
+pilot-ja           1831      192         1         1         1         1 optimal
+pilot-we          10262      389         0         0         0         0 optimal
+pilot              3147      320         0         0         0         0 infeasible
+pilot4              352       42         0         0         0         0 optimal
+pilot87            6094      592         0         0         0         0 infeasible
+pilotnov           5711      297         0         0         0         0 optimal
+recipe               56       22         0         0         0         0 optimal
+sc105               132       20         0         0         0         0 optimal
+sc205               258       38         0         0         0         0 optimal
+sc50a                62       10         0         0         0         0 optimal
+sc50b                57        5         0         0         0         0 optimal
+scagr25             465      109         0         0         0         0 optimal
+scagr7              141       37         0         0         0         0 optimal
+scfxm1              581      111         0         0         0         0 optimal
+scfxm2             1182      226         0         0         0         0 optimal
+scfxm3             1783      341         0         0         0         0 optimal
+scorpion            167        5         0         0         0         0 optimal
+scrs8               722       94         0         0         0         0 optimal
+seba                138        8         0         0         0         0 optimal
+share1b             131       36         0         0         0         0 optimal
+share2b              99       21         0         0         0         0 optimal
+shell              1543      176         0         0         0         0 optimal
+ship04l            1693      253         0         0         0         0 optimal
+ship04s            1081      177         0         0         0         0 optimal
+ship08l            2706      392         0         0         0         0 optimal
+ship08s            1207      198         0         0         0         0 optimal
+ship12l            3575      494         0         0         0         0 optimal
+ship12s            1351      224         0         0         0         0 optimal
+sierra              522      102         0         0         0         0 optimal
+stair              2128      137         0         0         0         0 optimal
+standata            738       91         0         0         0         0 optimal
+standmps           1417      200         0         0         0         0 optimal
+stocfor1            241       36         0         0         0         0 optimal
+stocfor2           5449      443         0         0         0         0 optimal
+stocfor3          41724     3372         0         0         0         0 optimal
+tuff                 60       16         0         0         0         0 optimal
+vtp-base            227       16         0         0         0         0 optimal
+wood1p             5430       90         0         0         0         0 optimal
+woodw              4324      546         0         0         0         0 optimal
+
+imposed bounds: 186269
+rows imposing on 2+ columns:            19775
+of those, 2+ actually rest there (1e-7): 9  = 0.05%
+of those, 2+ actually rest there (1e-6): 9  = 0.05%
+and the row is an equality (1e-7 / 1e-6): 7 / 7
+
+== netlib-kennington
+# rows imposing on 2+ columns, and how many of those rows end
+# with 2+ of the imposed columns RESTING at the imposed bound.
+# tight = 1e-7 (PRIMAL_TOL), loose = 1e-6 (CHECK_TOL).
+# instance      imposed   rows2+   rest2+t   rest2+l  eqrest_t  eqrest_l status
+cre-a              4347      553         3         3         3         3 optimal
+cre-b             74020     4212         0         0         0         0 optimal
+cre-c              3950      500         0         0         0         0 infeasible
+cre-d             71370     3609         0         0         0         0 optimal
+ken-07             2258      684         0         0         0         0 optimal
+ken-11             9650     2423         0         0         0         0 optimal
+ken-13            16749     3493         0         0         0         0 optimal
+ken-18            54242     9141         0         0         0         0 optimal
+osa-07            23949     1036         0         0         0         0 optimal
+osa-14            52460     2255         0         0         0         0 optimal
+osa-30           100024     4268         0         0         0         0 optimal
+osa-60           232966    10198         0         0         0         0 optimal
+pds-02             8573     1348         0         0         0         0 optimal
+pds-06            32000     5439         0         0         0         0 optimal
+pds-10            52546     9456         0         0         0         0 optimal
+pds-20           114004    19756         0         0         0         0 optimal
+
+imposed bounds: 853108
+rows imposing on 2+ columns:            78371
+of those, 2+ actually rest there (1e-7): 3  = 0.00%
+of those, 2+ actually rest there (1e-6): 3  = 0.00%
+and the row is an equality (1e-7 / 1e-6): 3 / 3
