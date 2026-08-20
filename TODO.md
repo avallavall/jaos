@@ -43,8 +43,14 @@ half-done, no measurement is owed, and no agent is waiting. What follows is the
 list of what to pick up, in order, and every item names what it needs before
 any code.
 
-**One of these is a DECISION and the rest are work.** The decision is first
-because it is cheap to make and nobody but the maintainer can make it.
+**EVERY REMAINING ITEM NEEDS A HUMAN DECISION OR A HYPOTHESIS.** That is the
+state as of 2026-08-21, checked item by item, and it is why the unattended
+session stopped here rather than starting another measurement. Item 1 is a
+judgement only the maintainer can make. Item 2 needs a design. Item 3 needs a
+mechanism to test, and fitting one to 2 instances of 18 is the failure D46
+names. Item 4 is analysed and blocked behind a missing primal simplex. Item 5
+needs a threshold that one instance cannot supply. **None of them is short of
+measurement.**
 
 | # | item | what it needs | where |
 |---|---|---|---|
@@ -656,6 +662,24 @@ attempt plus the whole cold solve. **The shortfall cannot be the rule that
 separates them and this is measured**: both are short by 1, the same
 shortfall as the sixteen instances that win. Needs a predictor of a doomed
 trajectory. Refusals table, D151.
+
+**Looked at again 2026-08-21 and deliberately not attempted, so the next
+session does not repeat the walk.** What the repair knows *before* paying for
+the attempt is the shortfall `S` and the dimensions — and D151 swept both `S`
+and the relative shape `S/nrow` (`bench/measurements/02-60/cap-detail.txt`),
+so neither separates. Everything else that distinguishes these two is an
+outcome: the guard rejects the repaired trajectory, and that is known only
+after the attempt has been paid for.
+
+**So this needs a hypothesis about the mechanism, not another sweep.** A
+predictor fitted to 2 instances out of 18 is exactly what CLAUDE.md warns
+costs this project weeks, and D46 is the entry that says why a rule read off
+a handful of instances is a statement about those instances. Candidate
+mechanisms nobody has tested: whether the shortfall positions are logicals or
+structurals, how many stored-basic members presolve's mapping dropped, and
+how the mapped basis's conditioning compares. Each is measurable at mapping
+time; none has an argument behind it yet, and the argument is the missing
+part rather than the measurement.
 
 ### 4. Three smaller, each measured and each needing its own campaign
 
