@@ -11,6 +11,15 @@ open, `bench/README.md` for the gate, and the commit each entry came from.
 
 ### Changed
 
+- **The published reduced costs contradict the published basis on five netlib
+  instances**, worst 15018.5 on `nesm`, and nothing was asking: the checker
+  recomputes `d` from `y` and never reads `col_dual`, and `basis=` is a hash
+  compared only against a previous hash. It is §2 and not a new defect — every
+  firing instance also fails the count promise, 25 of the 27 columns rest
+  exactly on their own lower bound, and `price_entry`'s naive dot product is
+  refused as the explanation. What it changes is the item's stated cost, which
+  was "a lost warm start" (D170).
+
 - **Carrying a fold's error into the receiving row's window is refused**, and
   the entry is kept because the refusal is the useful part: it does stop the
   false INFEASIBLE, and then publishes `optimal` with both rows violated by 7.5

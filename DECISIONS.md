@@ -12635,3 +12635,64 @@ accumulation of the same shape and is untouched — it compares across rounds
 inside the solve and never reaches the caller, so it decides a trajectory
 rather than a published number. And presolve's `obj_offset` is still
 accumulated naively; nothing reads it for the answer any more.
+
+## D170 — The published reduced costs contradict the published basis on five netlib instances, and every one of them is §2 rather than a new defect
+
+**The question.** D168 and D169 closed two published numbers that were wrong,
+both of them naive sums. `price_entry` computes `y' a_j` as a naive dot
+product, so the reduced costs were the obvious third. This asked whether they
+are wrong, and the answer is that they are right and the statuses beside them
+are not.
+
+**Nothing in this repository was asking.** `jaos_check_solution` recomputes `d`
+from `y` and never reads `col_dual`. `bench/run.c`'s digest covers x and y
+only, and `basis=` is a hash of the statuses compared against a previous hash
+and against nothing else. A `col_dual` that contradicts a `jaos_basis` status
+is invisible to the gate, to the checker and to every measurement in
+`bench/measurements/`. The detector is three public calls per instance and
+needs no instrumented build (`bench/measurements/02-80/`).
+
+**What fires.** Five netlib instances above the 1e-7 dual tolerance — `nesm`,
+`finnis`, `perold`, `bandm`, `pilot-ja` — worst breach **15018.5** on `nesm`.
+Kennington is clean, 16 of 16, worst 1.02e-10. 27 columns in total.
+
+**On every one of the 27 the published reduced cost equals `c_j - a_j' y`
+recomputed in `long double` to the last bit.** The reduced cost is not what is
+wrong.
+
+**It is §2, and the split is total.** Cross-tabulated against the count
+promise, `REDCOST ONLY = 0`: every instance that fires here also publishes the
+wrong number of basic variables. 23 of netlib's 94 fail the count, 5 of those
+23 fire here, 71 are clean on both, Kennington clean on both.
+
+| where the firing column's value rests | columns | what is wrong |
+|---|---|---|
+| exactly on its own **lower** bound | **25** | the STATUS — all 25 have `d >= 0` and would be dual feasible as `AT_LOWER` |
+| on its own upper bound | 0 | — |
+| strictly **inside** its own box | 2 (`finnis` 564, 565, `d = -54.17`) | the replay published BASIC for a column recovered inside its box |
+
+Both shapes are ones `TODO.md`'s §2 already names, the second word for word.
+
+**A figure is cross-checked as a side effect.** `TODO.md` records 46 wrong of
+netlib's 188 optimal solves; the gate solves each instance twice for its
+determinism check, so 188 is 94 × 2 and 46 is 23 × 2. Two probes that share no
+code agree. D167 is the entry that says why that is worth writing down.
+
+**What this changes about the item.** Its stated cost was too small. `TODO.md`
+says the cost is *"a lost warm start, not a wrong answer"*, which is true of
+the count and is not the whole cost: a caller reading `col_dual` beside
+`jaos_basis` gets two statements that cannot both be true, on five instances,
+and on `nesm` the number is 15018.5. **What it does not change is the
+measure** — the count of solves publishing a wrong basis is still 46, and the 5
+are a strict subset of the 23.
+
+**What is refused.** `price_entry`'s naive dot product. It was the hypothesis
+that started this. A sweep of all 94 puts the worst disagreement between
+`col_dual` and a `long double` `c - a'y` at 3.37e-09 on `dfl001`, over columns
+whose own traffic is about 1e7 — one rounding of a dot product at that scale,
+which is exactly the contract D23 states. No repair, and the reopen condition
+is a published reduced cost that breaches its own sign condition on a column
+whose status is NOT in the 46.
+
+**The cost.** No source change. `TODO.md`'s §2 gains the second symptom and the
+corrected cost sentence; `SPECS.md`'s basis row gains the same.

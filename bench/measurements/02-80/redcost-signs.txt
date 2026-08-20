@@ -1,0 +1,49 @@
+### 1. which instances publish a reduced cost its own status forbids
+bandm.mps      worst published-reduced-cost sign breach = 5.37717
+finnis.mps     worst published-reduced-cost sign breach = 54.1683
+nesm.mps       worst published-reduced-cost sign breach = 15018.5
+perold.mps     worst published-reduced-cost sign breach = 354.25
+pilot-ja.mps   worst published-reduced-cost sign breach = 0.235109
+-- 94 instances, 5 above the 1e-7 dual tolerance. worst 15018.5 on nesm.mps
+-- 16 instances, 0 above the 1e-7 dual tolerance. worst 1.01863e-10 on pds-20.mps
+
+### 2. against the count promise, per instance -- is this a new defect?
+netlib:
+instance            off     d!=0   
+25fv47.mps            1        0   count only
+bandm.mps            18        6   both
+bnl2.mps              3        0   count only
+brandy.mps            2        0   count only
+capri.mps             6        0   count only
+czprob.mps            1        0   count only
+dfl001.mps            6        0   count only
+etamacro.mps          1        0   count only
+fffff800.mps          4        0   count only
+finnis.mps            2        2   both
+fit1p.mps            12        0   count only
+forplan.mps          14        0   count only
+greenbeb.mps          1        0   count only
+maros.mps             2        0   count only
+nesm.mps             18       17   both
+perold.mps            8        1   both
+pilot-ja.mps          8        1   both
+pilot-we.mps          1        0   count only
+pilot87.mps           1        0   count only
+pilotnov.mps         10        0   count only
+scrs8.mps             2        0   count only
+share1b.mps           2        0   count only
+tuff.mps              1        0   count only
+
+-- 94 optimal solves: both 5, count only 18, REDCOST ONLY 0, clean 71
+netlib-kennington:
+instance            off     d!=0   
+
+-- 16 optimal solves: both 0, count only 0, REDCOST ONLY 0, clean 16
+
+### 3. where the firing columns' values rest
+bench/instances/nesm.mps       on a lower bound 17, on an upper bound  0, strictly inside  0 (worst |d| inside 0)
+bench/instances/bandm.mps      on a lower bound  6, on an upper bound  0, strictly inside  0 (worst |d| inside 0)
+bench/instances/perold.mps     on a lower bound  1, on an upper bound  0, strictly inside  0 (worst |d| inside 0)
+bench/instances/pilot-ja.mps   on a lower bound  1, on an upper bound  0, strictly inside  0 (worst |d| inside 0)
+bench/instances/finnis.mps     on a lower bound  0, on an upper bound  0, strictly inside  2 (worst |d| inside 54.1683)
+-- of the columns on a bound, 25 at lower and 0 at upper would be DUAL FEASIBLE with the right status; 2 are strictly inside

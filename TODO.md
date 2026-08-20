@@ -26,7 +26,7 @@ behind by `src/` commits that were no-ops on it.
 approval.** Push from the WINDOWS side (see below). `main` and both tags were
 last pushed on 2026-08-20 before this session started.
 
-### 2026-08-20, second unattended session: D168 and D169, two published numbers that were wrong
+### 2026-08-20, second unattended session: D168, D169 and D170 — two published numbers repaired and a third refused
 
 **The defect D162 named and could not close.** `compute_primal` builds
 `-N x_N` by walking the nonbasic columns in column order, so a row is a slot
@@ -56,6 +56,17 @@ Neumaier accumulator D165 gave presolve.
   `basis=` hashes moved and the gate reports a hash and never a count. It reads
   `exact=142 WRONG=46` on netlib and `WRONG=0` on Kennington, unchanged; the
   sum falls +250 → +248. D167 is the entry that says why this must be run.
+
+**D170 asked whether the reduced costs were the third wrong number and they
+are not.** The published `col_dual` matches `c - a'y` in `long double` on every
+column that fires; what is wrong is the status beside it, and every firing
+instance is one of §2's 23. `price_entry`'s naive dot product is refused with
+the measurement. **The detector it built is new and cheap** — three public
+calls per instance, `02-80/run-redcost-signs.sh` — and it exists because
+nothing else asks: the checker recomputes `d` from `y` and never reads
+`col_dual`, and `basis=` is a hash compared only against a previous hash. It
+also cross-checked the recorded 46 from an instrument that shares no code: 23
+instances of 94, and the gate solves each twice.
 
 **What D168 left open, and it is a candidate rather than a defect**:
 `subtract_basis_times` is still an uncompensated sum. It is in the §4 list
@@ -447,9 +458,31 @@ The second is kept deliberately and D158 says why.
 Measured, attributed to two families, and every LOCAL repair is refused with
 its measurement (D140, D141). What is left is a design wider than the firing
 row carrying a rank argument, or accepting the residue — which is what the
-published state of the art does (Galabova 2023). Its whole price is 46 solves
-losing their warm start. §"`jaos_basis` publishes something that is not a
-basis" below has all of it.
+published state of the art does (Galabova 2023). §"`jaos_basis` publishes
+something that is not a basis" below has all of it.
+
+~~Its whole price is 46 solves losing their warm start.~~ **The price is
+larger, measured 2026-08-20 (D170, `bench/measurements/02-80/`).** On five
+netlib instances — `nesm`, `finnis`, `perold`, `bandm`, `pilot-ja` — a column
+published BASIC carries a published reduced cost that its own status forbids,
+worst **15018.5** on `nesm`. A caller reading `jaos_solution`'s `col_dual`
+beside `jaos_basis` gets two statements that cannot both be true. **The count
+is still the measure and it did not move**: the 5 are a strict subset of the 23
+instances that fail the count, and `REDCOST ONLY = 0`.
+
+**There is a detector now and it needs no instrumented build.** Three public
+calls per instance, in `02-80/run-redcost-signs.sh`. Nothing else asks this
+question — `jaos_check_solution` recomputes `d` from `y` and never reads
+`col_dual`, and `basis=` is a hash compared only against a previous hash.
+
+**The 27 firing columns split totally into the two shapes named below**: 25
+rest exactly on their own lower bound and would be dual feasible as
+`AT_LOWER`, so the STATUS is what is wrong; 2 are strictly inside their box
+(`finnis` 564 and 565), which is the minimum case this file describes word for
+word. On all 27 the published reduced cost matches `c - a'y` in `long double`
+to the last bit, so **`price_entry`'s naive dot product is refused as the
+explanation** — worst disagreement over all 94 is 3.37e-09 on `dfl001`, one
+rounding at that column's own traffic.
 
 ### 3. Two instances still lose real work behind D151's cap
 
