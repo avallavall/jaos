@@ -5,7 +5,7 @@ says why closed questions closed, `CHANGELOG.md` says what landed, `bench/`
 says what it costs. This file says what is next. When something lands, its
 line leaves this file in the same commit.
 
-## Where the last session stopped — 2026-08-19
+## Where the last session stopped — 2026-08-20
 
 ### The state of the tree, first, because everything below assumes it
 
@@ -14,6 +14,65 @@ apart from one untracked directory that is not this session's (see
 `bench/measurements/02-31/` below). **`make configs` exits 0**, which is all
 five build configurations, and the three gate sets read `gate: PASS` with
 `0 regressed, 0 improved, 0 new`.
+
+**The gate campaign at HEAD is valid and it is D166's.** `git diff d420c8c
+HEAD -- src/ tests/` is empty: everything after it is documentation. **Nothing
+is owed to `main` and nothing is pushed** — the four commits after D166 are
+records.
+
+### 2026-08-20, unattended: D162 to D167, and the class D159 opened is closed
+
+One defect ran through six entries, and the shape of it is the thing to carry
+forward: **`cur_rl[i]` and `cur_ru[i]` were the only running sums in
+`src/presolve.c` with no compensation.** Four windows judged them without
+knowing how they were computed.
+
+| | |
+|---|---|
+| **D162** | three of the four windows widened by a count of the removals. Two shapes built and refuted first: the traffic alone is short, and `ps_bound_scale` brings D161's defect back through the count |
+| **D163** | a FOURTH window nobody had listed — the singleton row's fold. Found by `numerics-reviewer` after D162 had been committed |
+| **D164** | **REFUSED**: carrying the error into the window stops a false INFEASIBLE and then publishes two rows violated by 7.5 times `CHECK_TOL`. A window decides whether to refuse; it cannot correct a value that is already wrong |
+| **D165** | the row bounds keep their residue (Neumaier). The chained model now matches the oracle bit for bit. **15 netlib instances moved, 14 digests**, work geomean 1.0000x, iterations and reduction counts identical on every one |
+| **D166** | the counts come out again — 196 lines. Their own five tests passing without them is the evidence, not the 139 |
+| **D167** | the published-basis count re-measured, and it had been stale since the PREVIOUS session |
+
+**Three things a later session should take from this and not rediscover.**
+
+- **A window is the wrong instrument for an error in a value.** D162, D163 and
+  D164 all widened or tried to widen; D165 removed the error and D166 removed
+  the widening. Two entries of machinery existed because the first question
+  asked was "how wide should this be" instead of "why is this number wrong".
+- **Bit-identical on 139 is evidence of no COST, not of no HARM**, whenever a
+  change NARROWS a window: nothing on the sets lands in the band given up, so
+  the sets cannot see it. The safety evidence is the constructed tests
+  (`jaos-measurer`, D166).
+- **A number whose owner is a script nobody runs will drift.** `TODO.md`'s
+  basis table was wrong for a day and five places cited it; `basis=` is a hash,
+  so the gate detects a change and never reports a count (D167).
+
+**Both subagents delivered LATE and both were right.** `numerics-reviewer`
+returned two wrong answers after D162 was committed — D163 exists only because
+of it. `jaos-measurer` returned ACCEPT on D165 after that commit too, having
+run the parent itself, and found three things no campaign summary shows: an
+objective that had been an EXACT match to Koch and is now one ulp off, a move
+that is meaningless against a pre-existing gap of 203 million ulps, and the
+stale basis figure above. **Plan the follow-up commit; do not write "the review
+did not deliver" while the agent is alive.** That sentence was wrong twice and
+needed correcting both times.
+
+**Two process traps found by running into them**, both now in
+`.claude/skills/jaos-measure/`:
+
+- **`build/diag/wt-*` is inside what `make clean` deletes**, and `make configs`
+  runs `make clean` five times. A `jaos-measurer` campaign lost its whole
+  worktree to this session's build, silently. 44 scripts here use that
+  location. `preflight.sh` warns about it now, validated against the case it
+  must catch AND the control it must not fire on.
+- **Re-running an old measurement script overwrites its record**, because they
+  `tee` into their own directory — and it replaces only the working-tree
+  column, leaving the parent and oracle columns from the old tree in the same
+  file with nothing saying so. Check `git status` after running anything under
+  `bench/measurements/`.
 
 **Say `make configs`, not "make test and the reference build both pass".**
 That sentence stood here while three of the five configurations did not
@@ -33,13 +92,16 @@ like a network fault. It is not: `github.com` resolves fine from WSL. Every
 other step in the loop runs under WSL, so this is the one command that does
 not.
 
-**The gate campaign at HEAD is valid.** The last two source commits (D153 and
-its correction) are debug-only: the release objects keep the same md5 as the
-commit the gate ran on, measured rather than assumed, so the campaign carries
-over. `bench/results/netlib.txt` and `warm*.txt` were rewritten deliberately
-on their landed trees and are current; `netlib-infeas`, `plato-fome` and
-`plato-pds` are behind by several `src/` commits and `preflight.sh` says so
-on every run.
+~~**The gate campaign at HEAD is valid.**~~ **Superseded — the paragraph at
+the top of this section is the current one.** What it said about D153 was true
+on 2026-08-19 and D162 to D166 have landed since.
+
+**`bench/results/netlib.txt` was rewritten by D165** and is current.
+`netlib-infeas` and `netlib-kennington` were bit-identical throughout, so they
+have not changed since 2026-08-19 and `preflight.sh` counts them as behind by
+`src/` commits that were all no-ops on them — **which D167 shows is exactly how
+a stale number survives**: no-ops leave a record looking current when nothing
+re-derived it. `plato-fome` and `plato-pds` are behind and unmeasured.
 
 **Two things this session added that a later one should USE rather than
 rediscover:**
@@ -52,12 +114,12 @@ rediscover:**
   `(n-1)·eps` times the row's traffic. It is validated by fault injection
   and clean on all 139.
 
-**This session (2026-08-18/19, unattended) landed D140 through D154 —
+**The PREVIOUS session (2026-08-18/19, unattended) landed D140 through D154 —
 records 02-49 through 02-65, five source changes, one bench widening (the
 gate sees the basis now, D150), three kept candidates, and the repository's
 first tag, `v0.1.0`.**
 
-**The session continued to D161 — records 02-65 through 02-71.** Eight items,
+**That session continued to D161 — records 02-65 through 02-71.** Eight items,
 of which **four were wrong answers rather than latent risks**: presolve
 refusing models `-DJAOS_NO_PRESOLVE` solves (D159, D160, D161) and publishing
 a value outside a declared bound (D158). The gate is bit-identical on all 139
@@ -255,7 +317,16 @@ What is still true and unrepaired, both with their size on the record:
 - D121's loan of 1e32 on a cost of one is real and stays reachable through
   D118's refused presolve candidate. No instance in the gate reaches it.
 
-## → START HERE — what is actually next, 2026-08-19
+## → START HERE — what is actually next, 2026-08-20
+
+**§4's tolerance items are all closed and none of them is the start any more.**
+D162 to D167 closed the class D159 opened, at all four sites, by compensating
+`cur_rl`/`cur_ru` rather than by widening anything. **What is left in this file
+is designs, not bugs**: §2 needs a basis argument wider than the firing row,
+§3 needs a predictor of a doomed trajectory, and `D97` needs a dual postsolve
+for an imposed bound. The two live wrong answers still recorded are the
+solver's own row activity losing terms in column order (§4) and D121's
+unreachable loan.
 
 **D146's hostile-basis item is CLOSED and is no longer the start.** All four
 of its steps landed: the defect was located (D147), the certificate guard
