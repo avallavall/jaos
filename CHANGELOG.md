@@ -11,6 +11,14 @@ open, `bench/README.md` for the gate, and the commit each entry came from.
 
 ### Changed
 
+- **D97's §8d refusal is costed, and it is drafted too wide.** The design
+  called it "one flag per row in the forward pass"; counted at `7c7375c` where
+  the tightening exists, it declines 50.2% of imposed bounds on netlib and
+  82.3% on Kennington. §8d's own proof needs only equality rows, and
+  restricted that way it costs 35.5% and 20.3% — a factor of four on
+  Kennington, where the prize is largest. Design and `TODO.md` updated; no
+  decision, no source change (`bench/measurements/02-87/`).
+
 - **Presolve's objective offset is refused rather than compensated**, which
   closes at all four sites the class D168 opened. It is measurably dead:
   replacing the reduced model's whole offset with `1e300`, and then with

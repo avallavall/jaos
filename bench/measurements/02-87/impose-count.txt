@@ -1,0 +1,138 @@
+tree: 7c7375c
+== control, unpatched: must emit no IMPOSE record
+  IMPOSE records from the control: 0
+
+== netlib
+instance        imposed    rows  rows 2+  blocked  status
+stocfor3          40353   13785     3372     7633  optimal
+d6cube             6673      16       14     6644  optimal
+dfl001             8668    2497     1017     5809  optimal
+pilot87            6080     932      592     5148  infeasible
+czprob             5753     672      645     5056  optimal
+d2q06c             6041    1199     1003     3929  optimal
+80bau3b            6125    1405      855     3805  optimal
+woodw              4324     550      546     3766  optimal
+wood1p             5430      91       90     3323  optimal
+greenbeb           6045    1692     1147     3244  optimal
+greenbea           5914    1684     1159     3196  optimal
+bnl2               4808    1536      507     3159  optimal
+ship12l            3575     522      494     3053  optimal
+pilot-we          10209     603      389     2751  optimal
+pilot              3129     603      320     2526  infeasible
+ship08l            2706     394      392     2312  optimal
+25fv47             2801     595      441     1555  optimal
+ship04l            1693     253      253     1440  optimal
+nesm               1774     352       91     1386  optimal
+bnl1               1806     450      201     1331  optimal
+pilotnov           5612     694      297     1300  optimal
+degen3             1818     561      561     1257  optimal
+ship12s            1351     256      224     1095  optimal
+standmps           1416     339      200     1047  optimal
+shell              1536     324      176     1030  optimal
+cycle              1888     648      317     1026  optimal
+ship08s            1207     210      198      997  optimal
+stocfor2           5332    1761      443      996  optimal
+ship04s            1081     185      177      896  optimal
+maros              1594     417      242      845  optimal
+scfxm3             1780     608      341      845  optimal
+agg2               1088     300      193      788  optimal
+agg3               1078     301      189      777  optimal
+forplan             876      88       37      722  optimal
+pilot-ja           1730     479      192      590  optimal
+fffff800           1354     366      115      575  optimal
+scrs8               722     152       94      570  optimal
+scfxm2             1180     403      226      562  optimal
+standata            737     207       91      506  optimal
+etamacro            877     279       76      377  optimal
+boeing1             597     202      114      376  optimal
+perold             1067     304      123      369  optimal
+degen2              535     181      180      354  optimal
+stair              2050     287      137      315  optimal
+israel              424     103       46      301  optimal
+agg                 528     218      144      292  optimal
+scfxm1              580     198      111      279  optimal
+e226                409     107       67      239  optimal
+lotfi               285      90       61      192  optimal
+boeing2             247      82       44      165  optimal
+sierra              502     267      102      152  optimal
+pilot4              351     102       42      132  optimal
+scagr25             441     294      109      112  optimal
+brandy              238      71       40       96  optimal
+share1b             131      39       36       92  optimal
+bore3d              914     131       36       86  optimal
+adlittle            119      46       34       72  optimal
+stocfor1            229      74       36       68  optimal
+beaconfd            177      82       28       61  optimal
+finnis              208     141       58       61  optimal
+sc205               258     201       38       57  optimal
+bandm               167      56       20       46  optimal
+ganges             1650     980       26       46  optimal
+scagr7              135      78       37       40  optimal
+share2b              99      39       21       40  optimal
+tuff                 60      21       16       39  optimal
+capri               272     200       31       36  optimal
+blend                88      38       21       35  optimal
+sc105               132     102       20       30  optimal
+recipe               56      28       22       27  optimal
+vtp-base            215      44       16       25  optimal
+afiro                41      18        7       22  optimal
+seba                138     116        8       22  optimal
+fit1d                22       1        1       21  optimal
+kb2                  52      31        6       19  optimal
+sc50a                62      47       10       15  optimal
+scorpion            167      67        5       15  optimal
+sc50b                57      47        5       10  optimal
+gfrd-pnc            206     206        0        0  optimal
+grow15              209      86        0        0  optimal
+grow22              314     128        0        0  optimal
+grow7                89      38        0        0  optimal
+maros-r7            980     980        0        0  optimal
+
+instances where the tightening fires: 83 of 94
+imposed bounds:                       183665
+rows imposing at all:                 44980
+rows imposing on 2 or more columns:   19775   equality 15238, not equality 4537
+
+**as written, the §8d refusal declines 92226 of 183665 imposed bounds = 50.2%**
+**restricted to EQUALITY rows, which is all §8d's own argument needs: 65198 = 35.5%**
+
+The equality split is reported because §8d argues the configuration
+that breaks the rank argument forces the implying row to be an
+equality. A row imposing on two columns is NOT by itself that
+configuration -- it also needs both columns resting at those bounds
+in the final solution -- so this counts what the refusal costs, not
+how often the rank argument would actually have broken.
+
+== netlib-kennington
+instance        imposed    rows  rows 2+  blocked  status
+osa-60           232966   10198    10198   222768  optimal
+osa-30           100024    4268     4268    95756  optimal
+pds-20           113991   28788    19756    84527  optimal
+cre-b             74020    4568     4212    67890  optimal
+cre-d             71370    3801     3609    65676  optimal
+osa-14            52460    2255     2255    50205  optimal
+pds-10            52535   14022     9456    38022  optimal
+pds-06            31989    8179     5439    23260  optimal
+osa-07            23949    1036     1036    22913  optimal
+ken-18            53979   37195     9141    12815  optimal
+pds-02             8562    2353     1348     5724  optimal
+ken-13            16729   11572     3493     4039  optimal
+ken-11             9579    5712     2423     3209  optimal
+cre-a              4347    2113      553     2068  optimal
+cre-c              3950    1920      500     1848  infeasible
+ken-07             2249    1101      684      972  optimal
+
+instances where the tightening fires: 16 of 16
+imposed bounds:                       852699
+rows imposing at all:                 139081
+rows imposing on 2 or more columns:   78371   equality 51866, not equality 26505
+
+**as written, the §8d refusal declines 701692 of 852699 imposed bounds = 82.3%**
+**restricted to EQUALITY rows, which is all §8d's own argument needs: 172825 = 20.3%**
+
+The equality split is reported because §8d argues the configuration
+that breaks the rank argument forces the implying row to be an
+equality. A row imposing on two columns is NOT by itself that
+configuration -- it also needs both columns resting at those bounds
+in the final solution -- so this counts what the refusal costs, not
+how often the rank argument would actually have broken.

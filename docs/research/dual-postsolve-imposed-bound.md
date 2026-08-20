@@ -381,6 +381,25 @@ the forward pass, it is checkable at the firing site, and it keeps §8c's rank
 argument the whole story. Lifting it is a separate change and needs the
 crossover question answered first.
 
+**MEASURED 2026-08-21, and "one flag per row" understates it badly**
+(`bench/measurements/02-87/`, counted at `7c7375c` where the tightening
+exists). That refusal declines **50.2%** of imposed bounds on netlib and
+**82.3%** on Kennington — the set where this prize is largest. It is not a
+flag, it is the reduction.
+
+**The paragraph above contains its own argument for a narrower one.** What is
+proved here is that the breaking configuration *forces the implying row to be
+an equality*. So the refusal only has to cover equality rows, and restricted
+that way it costs **35.5%** on netlib and **20.3%** on Kennington — a factor
+of four on Kennington. A first version should carry the narrow rule and cite
+this paragraph as its proof, with the wide rule as the fallback if the
+equality argument is ever found wanting.
+
+Both figures over-approximate, and the narrow one by more: a row imposing on
+two columns is not yet this configuration, because it also needs both columns
+**resting at** those imposed bounds in the final solution. Counting that needs
+the solve rather than the presolve pass, and it is §12's next item.
+
 Two reasons it matters more than it looks:
 
 1. `jaos_check_solution` never reads a status. It recomputes `d_j` from
@@ -815,6 +834,16 @@ here, not assumed.
    No literature. Must be reasoned out here or refused at the firing site, the
    way `JM_PS_FORCING_ROW` refuses.
 5. The measurement §6 names, which no amount of reading replaces.
+6. **How often two imposed bounds on one row are both RESTED AT.** §8d's
+   refusal is now costed (`bench/measurements/02-87/`, 2026-08-21): as
+   drafted it declines 50.2% of imposed bounds on netlib and 82.3% on
+   Kennington, and restricted to equality rows — which is all §8d's own proof
+   needs — 35.5% and 20.3%. Both over-approximate, because a row imposing on
+   two columns only breaks §8c when both columns rest at those bounds in the
+   final solution. That count needs the solve, and it is what would say
+   whether even the narrow refusal is wider than the hazard.
+   **The instrument exists**: `02-87/run-impose-count.sh` takes any tree
+   carrying the pass, and it has a control that must emit nothing.
 
 ## 13. Directed rounding, worked against this tree
 
