@@ -165,6 +165,7 @@ and you have the argument. Jump to the entry for the numbers behind it.
 - **[D155](#d155--row_traffic-accumulates-only-what-a-still-finite-end-absorbed-and-the-assert-that-says-so-rests-on-measured-headroom-rather-than-on-the-argument-that-looked-available)** — `row_traffic` accumulates only what a still-finite end absorbed, and the assert that says so rests on measured headroom rather than on the argument that looked available
 - **[D156](#d156--the-destroyed-row-width-is-refused-as-a-defect-because-the-width-that-dies-was-already-below-one-ulp-of-the-activity-it-constrains)** — The destroyed row width is refused as a defect, because the width that dies was already below one ulp of the activity it constrains
 - **[D157](#d157--the-two-silent-fallbacks-become-checked-claims-and-the-check-that-catches-them-is-the-sweep-rather-than-either-read)** — The two silent fallbacks become checked claims, and the check that catches them is the sweep rather than either read
+- **[D158](#d158--the-collapsed-folds-midpoint-is-clamped-into-the-columns-box-which-bounds-the-last-unbounded-item-and-the-branch-runs-0-times-in-100018-folds)** — The collapsed fold's midpoint is clamped into the column's box, which bounds the last unbounded item, and the branch runs 0 times in 100018 folds
 
 ---
 
@@ -11487,3 +11488,131 @@ unchanged, because `-DNDEBUG` removes an `assert` and the helper with it.
 **What is left open.** Nothing from this entry. Both of D155's smaller
 leftovers are closed; its third, the frozen-row test's scale needing two
 traffics, is untouched and stays in `TODO.md`.
+
+## D158 — The collapsed fold's midpoint is clamped into the column's box, which bounds the last unbounded item, and the branch runs 0 times in 100018 folds
+
+**The question.** `TODO.md` §1, described there as the only open item whose
+error has no stated bound. When a singleton row's implied interval collapses
+inside the fold's rounding window, the midpoint of the two ends goes into both
+folded bounds. `new_lo` is at or above `cur_cl[j]` and `new_hi` at or below
+`cur_cu[j]`, but the midpoint of a **collapsed** pair need not lie between
+them: the branch admits a gap of up to `btol`, so the midpoint sits up to half
+of it past whichever bound it crossed. `btol` carries `row_traffic[i] / |a|`
+and nothing caps that. The stated size was
+`4 * DBL_EPSILON * row_traffic[i] / |a|`, with a shape reading **0.89** — a
+published value nearly a whole unit outside a bound the caller declared,
+which `jaos.h` promises does not happen.
+
+The item said it needed a decision rather than a patch, because the midpoint
+is symmetric in the two ends and whatever replaces it has to keep that.
+
+**The repair keeps it.** The midpoint is unchanged and then clamped into
+`[cur_cl[j], cur_cu[j]]`. The clamp reads the box and not which end was
+tightened, so mirroring the model mirrors the result. That is what makes a
+clamp admissible here where choosing one end would not be.
+
+**Which end gives way is D152's argument, with one qualification that entry
+did not need.** On the FIRST fold into a column, `cur_cl[j]` and `cur_cu[j]`
+are the caller's own numbers while `implied_lo` and `implied_hi` came out of
+`cur_rl[i] / a`, a running difference divided by a coefficient — the derived
+end carries the error. On a SECOND fold into the same column the box is itself
+a previous fold's `rl/a`, so both ends are derived and that argument does not
+apply. The clamp is still right there for a different reason: the box is what
+every other rule in the file has already been told, and a value outside it is
+a value no later reduction can reason about. Raised by `numerics-reviewer`.
+
+**The instrument first, because its zero is the whole finding.**
+`fold-case.c` is one shape at three magnitudes — `min x0 s.t. x0 >= rl0,
+x0 in [0, 1e9]`. At `1e9 + 5e-7` the probe reads `collapse=1 out_orig=1
+worst_out_orig=2.38e-7`, which is the figure `tests/test_presolve.c` already
+carried for that model, arrived at independently. At `1e9 + 0.4` the fold is
+refused before it happens; at `1e9 - 1` it folds without collapsing. One
+control folds and does not collapse, so the probe is not counting folds.
+
+**The branch never runs on the three sets.** 8622, 9750 and 81646
+singleton-row folds on netlib, netlib-infeas and Kennington, and **0**
+collapses in all 100018. So the repair is provably a no-op on the gate before
+the campaign, and the campaign is the check rather than the question: 94, 29
+and 16 instances bit-identical, 0 digest changes, `gate: PASS` with
+`0 regressed, 0 improved, 0 new` on each, and `make configs` passes all five
+configurations.
+
+**The collapse itself is unchanged**, which is the half that could have gone
+wrong. The reproducing model stays `OPTIMAL` rather than becoming
+`INFEASIBLE`; only where the point lands moved, from `1e9 + 2.4e-7` to `1e9`.
+A repair that turned a solvable model into a refused one would be the
+mirror-image catastrophe this file names elsewhere, and it is checked rather
+than assumed.
+
+**The pinned test moved deliberately, and it asked to be.**
+`test_a_fold_onto_the_box_at_scale_still_collapses` asserted
+`x[0] <= 1e9 + window` and said in as many words that x0 is not inside the box
+and that this was the open item. Its own comment named this repair as the
+condition for tightening: "If the containment item is closed later, this
+assertion still holds and the one above it can be tightened to the box." It is
+`x[0] <= 1e9` now. What the test still turns on is the collapse happening —
+`1e9 + 5e-7` is four ulps inside the eight-ulp window, so a
+`PRESOLVE_ROUND_ULPS` below four stops the collapse and fails the `OPTIMAL`
+assertion above first.
+
+**It closes §1's DUAL half as well, which was not the claim and is the
+entry's best result.** That half is: a collapsed record leaves a dual bound no
+record owns, so when the reduced cost's sign points at the other side no
+record pays and the cost is left on a column strictly inside its own box. The
+mechanism turns out to be the same one. Two singleton rows folding into one
+column leave the second fold's midpoint strictly inside the box the first fold
+left, so no record's recorded bound equals the published value; the clamp puts
+that value back ON the first fold's bound and restores ownership. Measured on
+`x0 >= 5, x0 <= 5 - g, x0 in [0, 10]`: at `g = 4e-15`, `max_dual_violation`
+goes 1 to 0 and `dual_feasible` false to true. Found by `numerics-reviewer`.
+
+**`TODO.md`'s own recorded model for that half no longer reproduces
+anything**, on either tree. It used `g = 1e-13`, and the window at scale 5 is
+`8 * DBL_EPSILON * 5 = 8.88e-15`, so the gap is eleven times too wide and both
+builds refuse the model outright. It is replaced there with a gap that reaches
+the branch. A reproducing model that stopped reproducing is worse than none,
+because the next reader runs it and concludes the defect is gone.
+
+**What it costs: the residue moves onto the row, multiplied by |a|.** It is
+not removed. The column violation is in x units and the row's in a*x units, so
+for an admitted gap `g` in x units the midpoint splits it `g/2` and `|a|*g/2`
+while the clamp puts `0` and `|a|*g`. The worst of the two therefore changes
+by `2|a| / max(1, |a|)`: it doubles at `|a| >= 1` and **shrinks** below
+`|a| = 0.5`. Measured at one gap and two coefficients rather than derived — at
+`a = 4` the worst side goes 3.34e-6 to 6.20e-6, and at `a = 0.25` it **halves**,
+7.15e-7 to 3.87e-7.
+
+At `a = 1` that costs a verdict: `x0 >= 1e9 + 1.5e-6` against `x0 <= 1e9` reads
+col 7.15e-7 / row 8.34e-7 before and col 0 / row 1.55e-6 after, so
+`primal_feasible` at an absolute `CHECK_TOL` of 1e-6 goes from true to false.
+**That is the honest reading and not a regression**: the model is short by the
+whole gap whatever is published, the midpoint was not reducing the violation
+but keeping both sides under a tolerance neither deserved to pass, and the
+caller now gets a point inside the box they declared with the residue
+reported.
+
+**The first statement of this cost was wrong and it is worth recording why.**
+It said "the model is infeasible by the whole 1.5e-6 whichever point is
+published", which is the `|a| = 1` special case — and both models in the first
+cost table had `a = 1`, so the table could not have shown it. Caught by
+`numerics-reviewer`, who measured the two coefficients above. It was generous
+to the clamp below `|a| = 0.5` and harsh above 1, in a sentence that read like
+a general bound.
+
+**What was refuted — the first version of this repair aborted on legal
+input.** `include/jaos.h` says an inverted column box (`xl > xu`) is legal and
+is to be reported infeasible rather than refused at load. With the bounds
+crossed, `new_lo > new_hi` holds for any row at all, so the collapse branch is
+reached on a model that has nothing to do with rounding, and the first
+version's `assert(fold_lo >= cur_cl[j] && fold_hi <= cur_cu[j])` fired there —
+in a configuration `make test` and `make sanitize` both build. Nothing in the
+suite covered it: the only other inverted-box model, `tests/test_model.c`'s
+`[5.0, 1.0]`, has a gap about 4.5e14 times the window and takes the INFEASIBLE
+branch without ever reaching the collapse, which is why 221 of 221 passed.
+The clamp is skipped on an inverted box now — there is no point to clamp into,
+and the ternary would have returned whichever end it tested first, which is
+also where the mirroring symmetry broke. Found by `numerics-reviewer`;
+`test_a_collapse_on_an_inverted_box_keeps_the_midpoint` pins it, validated by
+removing the guard and watching the binary abort.
+
+**What is left open.** Nothing from §1. Both halves are closed.

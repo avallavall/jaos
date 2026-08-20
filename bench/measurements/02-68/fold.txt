@@ -1,0 +1,33 @@
+probe at 78e7084 (78e7084)
+
+######## 1. the instrument, before believing its zero ########
+A must read collapse=1 out_orig=1; B and C must read collapse=0.
+  DIAG-FOLD folds=1 collapse=1 out_cur=1 out_orig=1 worst_out_cur=2.38419e-07 worst_out_orig=2.38419e-07 worst_rel_orig=2.38419e-16 worst_btol=1.77636e-06 worst_gap=4.76837e-07
+  DIAG-FOLD folds=0 collapse=0 out_cur=0 out_orig=0 worst_out_cur=0 worst_out_orig=0 worst_rel_orig=0 worst_btol=0 worst_gap=0
+  DIAG-FOLD folds=1 collapse=0 out_cur=0 out_orig=0 worst_out_cur=0 worst_out_orig=0 worst_rel_orig=0 worst_btol=0 worst_gap=0
+  A-collapse   rl0=1000000000.0000005 status=1 x0=1000000000.0000002  over_upper=2.38419e-07
+  B-refused    rl0=1000000000.4 status=2 x0=0  over_upper=0
+  C-inside     rl0=999999999 status=1 x0=999999999  over_upper=0
+
+######## 2. the three sets ########
+---- netlib standard (94)
+  singleton-row folds                 8622
+    intersection COLLAPSED            0
+    midpoint outside the current box  0
+    midpoint outside the CALLERs box  0
+    worst outside, callers box        0
+    worst window btol                 0
+---- netlib-infeas (29)
+  singleton-row folds                 9750
+    intersection COLLAPSED            0
+    midpoint outside the current box  0
+    midpoint outside the CALLERs box  0
+    worst outside, callers box        0
+    worst window btol                 0
+---- kennington (16)
+  singleton-row folds                 81646
+    intersection COLLAPSED            0
+    midpoint outside the current box  0
+    midpoint outside the CALLERs box  0
+    worst outside, callers box        0
+    worst window btol                 0

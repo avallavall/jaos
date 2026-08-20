@@ -3175,30 +3175,112 @@ static void test_a_fold_onto_the_box_at_scale_still_collapses(void)
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solution(m, x, nullptr, nullptr,
                                                  nullptr));
 
-    /* x0 is NOT asserted to be inside [0, 1e9], and that is deliberate: it
-     * is not. The collapse publishes the midpoint of the two ends, which is
-     * 1e9 + 2.4e-7 here, a quarter of a microunit above the column's own
-     * upper bound. That is the open item TODO.md carries as "a collapsed
-     * fold leaves a bound no record owns" — the midpoint is symmetric in the
-     * two ends on purpose, so replacing it is a decision about what a
-     * collapsed record should record and not a clamp to bolt on here.
+    /* **x0 is asserted to be inside [0, 1e9], and until D158 it was not.**
      *
-     * What IS asserted is that the overshoot here is no larger than the
-     * window that admitted the collapse. "Here" is load-bearing and the
-     * sentence must not be read as a general bound: this row's traffic is
-     * zero, so its window is the bound scale alone. On a row that traffic
-     * has moved, the window carries a traffic/|a| term and the overshoot
-     * bound grows with it — up to 4 * DBL_EPSILON * traffic / |a|, which
-     * nothing in the file caps. That is the containment item, stated as a
-     * quantity rather than as a worry.
+     * The collapse publishes the midpoint of the two ends, and the midpoint
+     * of a collapsed pair can lie outside the column's own box: this model
+     * published 1e9 + 2.4e-7, a quarter of a microunit above the upper bound
+     * the caller declared. The overshoot was bounded only by the window that
+     * admitted the collapse, and that window carries a traffic/|a| term
+     * nothing in the file caps — up to 4 * DBL_EPSILON * traffic / |a|. It
+     * was TODO.md's only open item with no stated bound.
+     *
+     * The midpoint is now clamped into the column's box, which is D152's
+     * repair on the other family and the same argument: the stored bound is
+     * exact and the implied one came out of a division, so the derived end
+     * is the one that gives way. The symmetry the midpoint exists for is
+     * kept, because the clamp reads the box rather than which end was
+     * tightened.
+     *
+     * **The collapse itself is unchanged and this test still turns on it.**
+     * `1e9 + 5e-7` is four ulps of 1e9, inside the eight-ulp window, so the
+     * interval is still a point and x0 is still fixed there rather than the
+     * model being refused. What moved is only where that point lands. If
+     * PRESOLVE_ROUND_ULPS shrinks below four, the collapse stops happening
+     * and the OPTIMAL assertion above fails first, which is the pin that
+     * matters.
      *
      * Under PRESOLVE_TIGHTEN_EPS this same model overshot by 0.2 out of a
-     * window of 1.0, which is the difference 02-09 makes at this site. If
-     * the containment item is closed later, this assertion still holds and
-     * the one above it can be tightened to the box. */
-    const double window = 8.0 * DBL_EPSILON * 1e9;   /* PRESOLVE_ROUND_ULPS */
+     * window of 1.0, which is the difference 02-09 makes at this site. */
     TEST_ASSERT_TRUE(x[0] >= 0.0);
-    TEST_ASSERT_TRUE(x[0] <= 1e9 + window);
+    TEST_ASSERT_TRUE(x[0] <= 1e9);
+
+    /* **The residue did not vanish; it moved, and the quantity that moved is
+     * pinned here rather than left implicit.** The midpoint split the
+     * admitted gap between the column bound and the row; the clamp puts the
+     * whole of it on the row. This model reads col 2.38e-7 / row 2.38e-7
+     * before D158 and col 0 / row 4.77e-7 after. The bound on the row side is
+     * the window that admitted the collapse, and asserting it is what stops a
+     * later change trading the column violation for an unbounded row one.
+     *
+     * `primal_feasible` is deliberately NOT asserted. It is an absolute test
+     * at the caller's tolerance, and on a model whose gap sits near the top
+     * of the window the doubled row residual can cross a CHECK_TOL the split
+     * stayed under — `x0 >= 1e9 + 1.5e-6` goes from true to false. That is
+     * the honest reading rather than a regression, since the model is
+     * infeasible by the whole gap whichever point is published, and D158
+     * records it. Pinning it here would pin the wrong thing. */
+    const double window = 8.0 * DBL_EPSILON * 1e9;   /* PRESOLVE_ROUND_ULPS */
+    double y[1];
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solution(m, x, nullptr, y, nullptr));
+    jaos_check_report rep;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_check_solution(m, x, y, 1e-6, &rep));
+    TEST_ASSERT_EQUAL_DOUBLE(0.0, rep.max_col_violation);
+    TEST_ASSERT_TRUE(rep.max_row_violation <= window);
+
+    jaos_model_free(m);
+}
+
+/* An INVERTED column box reaches the same collapse branch, and the clamp has
+ * no box to clamp into there.
+ *
+ *   min x0  s.t.  r0: x0 >= 0,  x0 in [1e9, 1e9 - 5e-7]
+ *
+ * `include/jaos.h` says `xl > xu` is legal input to be reported infeasible,
+ * not refused at load. With the bounds crossed, `new_lo > new_hi` holds for
+ * any row at all, so this branch is reached on a model that has nothing to do
+ * with rounding — and D158's first version asserted containment there and
+ * ABORTED, which is an abort on legal input.
+ *
+ * It is a real regression risk and not a curiosity: `make test` and
+ * `make sanitize` both build with asserts on, and the suite's only other
+ * inverted-box model (`[5.0, 1.0]`, in tests/test_model.c) has a gap about
+ * 4.5e14 times the window, so it takes the INFEASIBLE branch above and never
+ * reaches the collapse. Nothing in the suite covered this until now.
+ * Found by `numerics-reviewer`.
+ *
+ * What is asserted is that the midpoint STANDS: x0 lands strictly between the
+ * two crossed bounds rather than on either of them, which is what "the clamp
+ * did not fire" looks like from outside. The behaviour is bit-identical to
+ * the tree before D158. */
+static void test_a_collapse_on_an_inverted_box_keeps_the_midpoint(void)
+{
+    const double c[]  = {1.0};
+    const double cl[] = {1e9}, cu[] = {1e9 - 5e-7};
+    const double rl[] = {0.0}, ru[] = {INFINITY};
+    const int64_t s[]  = {0, 1};
+    const int64_t ix[] = {0};
+    const double v[]   = {1.0};
+
+    jaos_model *m = nullptr;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_model_new(&m));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_load_lp(m, 1, 1, JAOS_MINIMIZE, 0.0, c, cl, cu, rl, ru,
+                     1, s, ix, v));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+
+#if defined(JAOS_NO_PRESOLVE)
+    /* No fold, so no collapse and no clamp. The simplex sees the crossed
+     * bounds directly; this half exists so the test builds under the
+     * reference build rather than being skipped there. */
+    (void)0;
+#else
+    double x[1];
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solution(m, x, nullptr, nullptr,
+                                                 nullptr));
+    TEST_ASSERT_TRUE(x[0] < 1e9);
+    TEST_ASSERT_TRUE(x[0] > 1e9 - 5e-7);
+#endif
     jaos_model_free(m);
 }
 
@@ -3572,6 +3654,7 @@ int main(void)
     RUN_TEST(test_an_emptied_row_missed_by_rounding_alone_is_kept);
     RUN_TEST(test_a_fold_past_the_box_at_scale_is_refused);
     RUN_TEST(test_a_fold_onto_the_box_at_scale_still_collapses);
+    RUN_TEST(test_a_collapse_on_an_inverted_box_keeps_the_midpoint);
 
     RUN_TEST(test_a_frozen_row_missed_at_scale_is_refused);
 

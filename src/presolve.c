@@ -920,8 +920,99 @@ JAOS_NODISCARD jaos_status jm_presolve_run(const jaos_model *m, jm_presolve *p,
                      * fixed-column rule below takes it on this same round's
                      * column pass. The midpoint is what a collapsed
                      * interval is worth and is symmetric in the two ends,
-                     * so it does not depend on which side was tightened. */
-                    fold_lo = fold_hi = 0.5 * (new_lo + new_hi);
+                     * so it does not depend on which side was tightened.
+                     *
+                     * **Then clamped into the column's own box**, which is
+                     * D152's repair on the other family and the same
+                     * argument (D158). `new_lo` is at or above `cur_cl[j]`
+                     * and `new_hi` at or below `cur_cu[j]`, but the midpoint
+                     * of a COLLAPSED pair can lie outside both: the collapse
+                     * admits a gap of up to `btol`, so the midpoint sits up
+                     * to half of it past whichever bound it crossed. `btol`
+                     * carries `row_traffic[i] / |a|` and nothing caps that,
+                     * which is why this was the only open item in TODO.md
+                     * with no stated bound. It has one now, and the bound is
+                     * the caller's own box.
+                     *
+                     * The symmetry the midpoint was chosen for survives: the
+                     * clamp reads the box and not which end was tightened,
+                     * so mirroring the model mirrors the result.
+                     *
+                     * Which end wins is D152's reasoning, with one
+                     * qualification that entry did not need. On the FIRST
+                     * fold into a column, `cur_cl[j]` and `cur_cu[j]` are the
+                     * caller's own numbers and `implied_lo`/`implied_hi` come
+                     * out of `cur_rl[i] / a`, a running difference divided by
+                     * a coefficient — the derived end carries the error, so
+                     * the stored end wins. On a SECOND fold into the same
+                     * column the box is itself a previous fold's `rl/a`, so
+                     * both ends are derived and that argument does not apply.
+                     * The clamp is still right there for a different reason:
+                     * the box is what every other rule in this file has
+                     * already been told, and a value outside it is a value no
+                     * later reduction can reason about (`numerics-reviewer`).
+                     *
+                     * **It moves the residue onto the row rather than
+                     * removing it, and it arrives there multiplied by |a|.**
+                     * The column violation is in x units and the row's in
+                     * a*x units, so for an admitted gap g in x units the
+                     * midpoint splits it `g/2` on the column and `|a|*g/2` on
+                     * the row while the clamp puts `0` and `|a|*g`. The worst
+                     * of the two therefore changes by `2|a| / max(1, |a|)`:
+                     * it doubles at |a| >= 1 and SHRINKS below |a| = 0.5.
+                     * Measured at one gap and two coefficients rather than
+                     * derived — at a = 0.25 the worst side halves, 7.15e-7 to
+                     * 3.87e-7 (`numerics-reviewer`, 02-68).
+                     *
+                     * At a = 1 that costs a verdict: `x0 >= 1e9 + 1.5e-6`
+                     * against `x0 <= 1e9` reads col 7.15e-7 / row 8.34e-7
+                     * before and col 0 / row 1.55e-6 after, so
+                     * `primal_feasible` at an absolute CHECK_TOL of 1e-6 goes
+                     * from true to false. **That is the honest reading and
+                     * not a regression**: the model is short by the whole gap
+                     * whatever is published, the split was keeping both sides
+                     * under a tolerance neither deserved to pass, and the
+                     * caller now gets a point inside the box they declared
+                     * with the residue reported.
+                     *
+                     * **It also closes the dual half of the same item.** When
+                     * two singleton rows fold into one column, the second
+                     * fold's midpoint lies strictly inside the box the first
+                     * one left, so no record's recorded bound equals it and
+                     * the reduced cost goes unpaid. The clamp puts the value
+                     * back ON the first fold's bound, which restores that
+                     * record's ownership: `max_dual_violation` goes 1 to 0 on
+                     * `x0 >= 5, x0 <= 5 - 4e-15, x0 in [0, 10]`.
+                     *
+                     * **Unreachable on the gate, measured**: 0 collapses in
+                     * 100018 singleton-row folds over the three sets
+                     * (bench/measurements/02-68/). `1e9 + 5e-7` against a
+                     * column bounded above by `1e9` is the shape that
+                     * reaches it, and it published `1e9 + 2.4e-7` — a value
+                     * outside a bound the caller declared, which `jaos.h`
+                     * promises does not happen. */
+                    const double mid = 0.5 * (new_lo + new_hi);
+                    if (cur_cl[j] <= cur_cu[j]) {
+                        fold_lo = fold_hi = mid < cur_cl[j] ? cur_cl[j]
+                                          : mid > cur_cu[j] ? cur_cu[j]
+                                                            : mid;
+                        assert(fold_lo >= cur_cl[j] && fold_hi <= cur_cu[j]);
+                    } else {
+                        /* An INVERTED box, which `jaos.h` says is legal input
+                         * to be reported infeasible rather than refused at
+                         * load. There is no point to clamp into: the two
+                         * bounds cross, so "inside the box" names the empty
+                         * set and the ternary above would return whichever
+                         * end it tested first — which is also where the
+                         * mirroring symmetry breaks, `cur_cl[j]` unmirrored
+                         * against `-cur_cu[j]` mirrored. The midpoint stands,
+                         * unchanged from before this clamp existed, and the
+                         * infeasibility is left for the checker to report.
+                         * `min x0 s.t. x0 >= 0, x0 in [1e9, 1e9 - 5e-7]` is
+                         * the model; the assert above fired on it, which is
+                         * an abort on legal input (`numerics-reviewer`). */
+                        fold_lo = fold_hi = mid;
+                    }
                 }
 
                 /* lo/hi are the bounds the column leaves this fold carrying,

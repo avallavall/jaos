@@ -53,6 +53,17 @@ open, `bench/README.md` for the gate, and the commit each entry came from.
 
 ### Fixed
 
+- The collapsed fold's midpoint is clamped into the column's own box, which
+  closes both halves of the last item with no stated error bound. A
+  singleton-row fold can no longer publish a value outside a bound the caller
+  declared — the overshoot was capped only by a window carrying
+  `row_traffic/|a|` — and the same clamp restores the dual owner a collapse
+  used to leave nameless, taking `max_dual_violation` from 1 to 0. It costs a
+  doubled row residual, deliberately: the midpoint was splitting the admitted
+  gap across two tolerances rather than reducing it. An inverted column box is
+  left alone, because there is no box to clamp into and `jaos.h` calls that
+  legal input. 0 collapses in 100018 folds over the three sets, 139 instances
+  bit-identical, `gate: PASS` on each, 222 tests (D158).
 - `row_traffic[i]` accumulates only the magnitude a still-finite row end
   actually absorbed. It used to add `max(|cmax|, |cmin|)` whatever happened, so
   a cost-0 singleton column with one infinite bound saturated it to `+inf` for

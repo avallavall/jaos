@@ -236,18 +236,31 @@ shipped (D148), the warm repair was refused blanket (D149) and landed capped
 Nothing open today makes JAOS publish a wrong answer. What is open is listed
 in the order it should happen, with what each already has.
 
-### 1. The collapsed fold leaves a bound no record owns — the biggest one
+### 1. ~~The collapsed fold~~ — CLOSED 2026-08-20 (D158), BOTH halves
 
-**It is the only open item whose error has NO stated bound.** The size is
-`4 * DBL_EPSILON * row_traffic[i] / |a|`, the traffic term is unbounded, and
-a row whose fixed column left at `a*v = 1e9` against a surviving singleton
-with `a = 1e-6` reads **0.89**. No instance in the gate reaches it. The full
-statement, the reproducing model and why the midpoint is deliberate are in
-the standing debts at the end of this file.
+**The unbounded error is gone**, and it was one repair for both halves
+(`bench/measurements/02-68/`). The midpoint is clamped into the column's own
+box, which is D152's repair on the other family, and it keeps the symmetry the
+midpoint was chosen for because the clamp reads the box rather than which end
+was tightened.
 
-**It needs a decision, not a patch**, and that is why it has sat: the
-midpoint is symmetric in the two ends and whatever replaces it has to keep
-that property.
+- **The value half**: the published value can no longer sit outside a bound
+  the caller declared. The reproducing model goes from `1e9 + 2.4e-7` to `1e9`
+  and still solves `OPTIMAL` rather than becoming `INFEASIBLE`.
+- **The dual half**, which was expected to need its own decision and did not.
+  Two singleton rows folding into one column leave the second fold's midpoint
+  strictly inside the box the first one left, so no record's bound equals the
+  published value and the cost goes unpaid. The clamp puts the value back on
+  the first fold's bound and restores ownership: `max_dual_violation` 1 → 0.
+
+**0 collapses in 100018 singleton-row folds** over the three sets, so the
+branch never runs there and the gate is bit-identical on all 139.
+
+**Two things the entry corrects, both found by `numerics-reviewer`.** The
+first version aborted on an inverted column box, which `jaos.h` says is legal
+input; and the clamp doubles the row residual, which on a gap near the top of
+the window crosses an absolute `CHECK_TOL` the midpoint's split stayed under.
+The second is kept deliberately and D158 says why.
 
 ### 2. 48 netlib solves still publish a wrong basis count
 
@@ -1316,30 +1329,32 @@ table first.
   verdict: a record written before N commits is still valid if those commits
   were no-ops on that set, which is why the baselines being behind is correct
   rather than stale. Found by `jaos-measurer` while judging D122.
-- **A collapsed fold leaves a bound no record owns.** When a singleton row's
-  intersection collapses inside the fold's rounding window, `src/presolve.c` puts
-  the midpoint of the two ends into both folded bounds, and that midpoint is
-  no row's implied bound. The record that collapsed carries it and can still
-  be paid; the record that produced the other side keeps its own value and
-  compares unequal for ever. When the reduced cost's sign points at that
-  other side, no record pays and the cost is left on a column strictly inside
-  its own box. `min x0 + x1 + x2 s.t. x0 >= 5, x0 <= 5 - 1e-13, x1 + x2 >= 3,
-  x0 in [0, 10]` publishes `x0 = 4.9999999999999503` with
-  `max_dual_violation = 1`. **Not a regression**: the pre-fix code refuses it
-  by the same magnitude on row 1 rather than on the column, measured on both
-  trees. The repair is a decision about what a collapsed record should record,
-  not a patch — the midpoint is deliberate and symmetric in the two ends, and
-  whatever replaces it has to keep that. Found by `numerics-reviewer` and
-  re-run independently, 2026-08-14.
-  **D103 gave this a stated size, and it is not bounded.** The midpoint is
-  unclamped, so the published value can sit up to half the window outside a
-  bound the caller stated: `4 * DBL_EPSILON * row_traffic[i] / |a|`. The
-  traffic term is new with D103 and nothing caps it. A row whose fixed column
-  left at `a*v = 1e9` and whose surviving singleton has `a = 1e-6` reads 0.89.
-  `tests/test_presolve.c`'s `test_a_fold_onto_the_box_at_scale_still_collapses`
-  documents the shape with the measured 2.4e-7 rather than asserting
-  containment, and says in as many words that its own bound holds only because
-  that model's traffic is zero.
+- ~~**A collapsed fold leaves a bound no record owns.**~~ **CLOSED 2026-08-20
+  (D158, `bench/measurements/02-68/`).** When a singleton row's intersection
+  collapsed inside the fold's rounding window, `src/presolve.c` put the
+  midpoint of the two ends into both folded bounds, and that midpoint was no
+  row's implied bound, so when the reduced cost's sign pointed at the other
+  side no record paid and the cost was left on a column strictly inside its
+  own box. The midpoint is clamped into the column's box now, which puts the
+  value back ON the earlier fold's bound and restores that record's ownership:
+  `max_dual_violation` 1 → 0. Found by `numerics-reviewer` 2026-08-14, closed
+  by the same repair as the containment half.
+  **The model this debt recorded is stale and was replaced.** It used
+  `x0 <= 5 - 1e-13`, and the fold's window at scale 5 is
+  `8 * DBL_EPSILON * 5 = 8.88e-15` — eleven times narrower, so both builds
+  refuse that model outright and it reaches no collapse at all. `1e-13` → a
+  gap inside the window, `4e-15`, is what reproduces. A reproducing model that
+  has stopped reproducing is worse than none.
+  ~~**D103 gave this a stated size, and it is not bounded.**~~ **The VALUE
+  half is CLOSED (D158, `bench/measurements/02-68/`).** The midpoint was
+  unclamped, so the published value could sit up to half the window outside a
+  bound the caller stated: `4 * DBL_EPSILON * row_traffic[i] / |a|`, with the
+  traffic term uncapped and a shape reading 0.89. It is clamped into the
+  column's own box now, the branch runs 0 times in 100018 folds over the three
+  sets, and `test_a_fold_onto_the_box_at_scale_still_collapses` asserts
+  containment where it used to document the overshoot.
+  **The dual half above is what remains**, and D158 is neutral on it: that
+  model's midpoint is well inside its column's box, so no clamp reaches it.
 - ~~**The other half of `assert(want_lo <= want_hi)`: an empty intersection of
   an ulp.**~~ **Closed 2026-08-19 (D152, `bench/measurements/02-61/`).** The
   clamp landed, all 94 standard instances run under `-UNDEBUG` where eleven
