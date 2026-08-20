@@ -12813,20 +12813,37 @@ mean 1.0000x on netlib and on Kennington, worst instance `scagr7` 1.0003x.
 netlib-infeas moves 14 instances by a handful of work units with **0 digest
 changes**.
 
-**The symmetric change is refused, and the measurement refuses it.** D29 says a
-point read off an accurate `x_B` and an inaccurate `y` is not more consistent
-than one read off neither, so compensating `compute_duals`' refinement dot
-product as well is the obvious next step. Built and measured in the same run:
-**it changes not one direction count on either set**, netlib reading 89 moved
-instead of 88 at work 1.0001x with every better/worse pair identical. That sum
-runs over one column's nonzeros while this one runs over every basic column
-touching a row.
+**Nine netlib instances publish a different optimal basis**, and this entry's
+first version did not say so (`numerics-reviewer`): `bandm`, `bnl2`, `cycle`,
+`czprob`, `dfl001`, `etamacro`, `fit1p`, `ganges` and `scrs8`. Kennington: none.
+The mechanism is the one this change is for — `refine = true` runs at the
+refresh that verifies optimality, a more accurate `x_B` moves a marginal
+feasibility test, and the solve takes a different last pivot. `bench/run.c`
+says the basis is part of the answer, so it belongs in the entry that owns the
+verdict rather than inside a digest count.
 
-**And that settles the `gap` column, which is the one figure that goes the
-wrong way.** If the 51 were the primal-dual inconsistency D29 warns about, the
-symmetric change would have moved them. It moved nothing. The values are
-between 1e-19 and 1e-16, the worst over the set does not move, and what the
-counts record is the direction of last-bit numbers.
+**The symmetric change is refused.** D29 says a point read off an accurate
+`x_B` and an inaccurate `y` is not more consistent than one read off neither,
+so compensating `compute_duals`' refinement dot product as well is the obvious
+next step. Built and measured in the same run: **it changes nothing at all**,
+on any figure, on either set. That sum runs over one column's nonzeros while
+this one runs over every basic column touching a row, so there is nothing there
+to recover.
+
+**The `gap` column goes the wrong way on 51 netlib instances, and here is what
+settles it.** This entry's first version argued that if the 51 were D29's
+primal-dual inconsistency the symmetric change would have moved them, and it
+did not. **That argument has no power and is withdrawn** (`numerics-reviewer`):
+the symmetric change moved nothing at all, and a null intervention cannot
+discriminate between hypotheses. The evidence is direct instead, read off the
+two committed records: **`dual`, `cert`, `drop` and `rays` are unchanged on all
+94 netlib and all 16 Kennington instances.** A primal that had gone inconsistent
+with its dual would show in `dual`, and `dual` did not move anywhere. What is
+left is that `gap` is a difference of two halves much larger than itself, so at
+these magnitudes it is what cancellation leaves rather than a number: the 82
+netlib movers span **1.49e-19 to 4.12e-13** — the first version of this entry
+said 1e-19 to 1e-16 and was wrong by three orders at the top — against a set
+worst of 2.21e-10 that does not move.
 
 **What is left open.** There is no constructed model, and the entry says so
 rather than dressing the campaign up as one: D162's shape does not carry over,
@@ -12836,3 +12853,62 @@ session. `apply_flips` is the third sum of this shape and is untouched — it
 loses terms mid-solve only, since the final `refine = true` refresh rebuilds
 `x_B` from scratch, and it would need a third `[nrow]` array because `s->rhsc`
 and `s->resc` are both live inside the call it runs in.
+
+## D172 — The published objective recovers what each product lost, and 109 of 110 now agree with the checker exactly
+
+**The question.** D169 made the objective a compensated sum and said plainly
+what was left: each `c_j * x_j` is rounded once before it is added, and no
+accumulator reaches an error that is already inside a term. On `finnis` that
+residue was 2.65e-05. This removes it.
+
+**The minimum model needs two columns and no instance.** `c0 = 2^27 + 1` with
+`x0` fixed at `2^27 + 1`, and `c1 = -1` with `x1` fixed at `2^54 + 2^28`. One
+ulp at 2^54 is 4, so the first product rounds down by exactly 1 and **every
+accumulator over the rounded products sums to 0**, however carefully it adds,
+while the true objective is 1. The parent publishes 0 on the shipping build and
+on `-DJAOS_NO_PRESOLVE`; `jaos_check_solution`, which multiplies in
+`long double`, reads 1 on both. D172 publishes 1.
+
+**Dekker's split, and `fma` is not ruled out by the flag.**
+`-ffp-contract=off` stops the COMPILER contracting `a*b+c` on its own and says
+nothing about an explicit `fma()` call, which IEEE-754 requires to be correctly
+rounded and which would be deterministic across machines in a way `log` and
+`exp` are not (`numerics-reviewer`, D169). The split is preferred because it
+needs no claim about libm at all. Beyond a factor magnitude of `2^996` the
+split would overflow, so the function reports a zero residue there and the sum
+falls back to the plain product; `SPLIT * 2^996` is `2^1023`, one binade under
+`DBL_MAX`.
+
+**The measurement is `jaos.h`'s promise, measured** — the distance between
+`jaos_objective` and the checker's `long double` objective of the same point:
+
+| | parent | D172 |
+|---|---|---|
+| **netlib, exact agreement** | 83 of 94 | **93 of 94** |
+| netlib: closer / further / unchanged | — | 11 / **0** / 83 |
+| **Kennington, exact agreement** | 15 of 16 | **16 of 16** |
+| Kennington: closer / further / unchanged | — | 1 / **0** / 15 |
+
+**Nothing moves the wrong way on either set**, where D169 had four netlib
+instances going further at the last bit. That is what a compensated sum does
+when a naive one got lucky, and recovering the products leaves nothing for luck
+to do.
+
+**The one that is left is `finnis` at 2.2992e-08, and the entry says why that
+is the end rather than the next step.** The checker accumulates in
+`long double`, whose eps is 1.08e-19, over terms whose magnitudes sum to
+3.2e12, so its own error at this cancellation is up to about 3.5e-07. At that
+separation neither number is more right than the other. **The published
+objective is at the floor a `double` allows and the oracle is at the floor a
+`long double` allows.**
+
+**The cost.** `gate: PASS` on all three sets with `0 regressed, 0 improved,
+0 new` and **0 digest changes anywhere**: 11 netlib instances and 1 Kennington
+one moved, every one of them on `obj` and on nothing else. The diff writes
+`m->objective` and nothing else, so the campaign confirms the reasoning rather
+than discovering anything.
+
+**What is left open.** `settled_objective` is still a naive sum and is not
+reached by this: it selects which point gets published, and this repairs the
+objective only after the point is chosen. presolve's `obj_offset` is still
+accumulated naively and nothing has read it for the answer since D169.

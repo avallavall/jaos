@@ -36,7 +36,7 @@ maintainer's explicit say-so, 19 commits in one go. `git fetch` first showed
 moved. Push from the WINDOWS side (see below). Both tags were last pushed on
 2026-08-20 before this session started.
 
-### 2026-08-20, second unattended session: D168 to D171 — three published numbers repaired, one refused, and a refusal overturned
+### 2026-08-20, second unattended session: D168 to D172 — four published numbers repaired, one refused, and a refusal overturned
 
 **The defect D162 named and could not close.** `compute_primal` builds
 `-N x_N` by walking the nonbasic columns in column order, so a row is a slot
@@ -709,21 +709,35 @@ trajectory. Refusals table, D151.
   accumulates over a bound-flip batch into `s->col` and subtracts the FTRAN'd
   result from `x_B`, so mid-solve `x_B` loses terms again after every batch.
   The final `refine = true` refresh rebuilds `x_B` from scratch, so what it
-  loses does not reach the answer, which is why D171 left it. **It needs a
-  third `[nrow]` array** — `s->rhsc` and `s->resc` are both live inside the
-  call it runs in, and borrowing an idle buffer is the shape this project has
-  paid for before.
-- **The objective's product rounding needs a two-product**, and it is new from
-  D169. Once the accumulation is compensated, what is left in `c'x` is the
-  rounding of each `c_j * x_j` to a double, bounded by `eps` times the sum of
-  the term magnitudes — 7.1e-04 on `finnis`, where 2.65e-05 of it is realised.
-  Dekker's split is portable and `-ffp-contract=off` makes it exact.
-  **`fma()` is allowed and the distinction matters** (`numerics-reviewer`):
-  that flag stops the COMPILER contracting `a*b+c` on its own, and says nothing
-  about an explicit call, which IEEE-754 requires to be correctly rounded and
-  therefore deterministic across machines in a way `log` and `exp` are not.
-  Dekker's split is still the safer default, because it needs no claim about
-  libm at all. It costs
+  loses does not reach the answer, which is why D171 left it.
+  ~~It needs a third `[nrow]` array, because `s->rhsc` and `s->resc` are both
+  live inside the call it runs in.~~ **That is false and was corrected the same
+  day** (`numerics-reviewer`): `apply_flips` is called from `dual_ratio_test`
+  mid-iteration, with `compute_primal` nowhere on the stack, so both arrays are
+  dead then. **The contract that IS true is more useful**: each is `memset` at
+  the entry of its single reader and dead at its exit, so neither carries a
+  producer contract at all, and a borrower keeping the same discipline is safe.
+  What is unsafe is a borrower whose value must survive a call to
+  `compute_primal(s, true)`.
+- ~~**The objective's product rounding needs a two-product.**~~ **CLOSED
+  2026-08-20 (D172, `bench/measurements/02-82/`).** Dekker's split, exact under
+  `-ffp-contract=off`, with a `2^996` overflow guard. **109 of 110 published
+  objectives agree with `jaos_check_solution` exactly now** — netlib 93 of 94
+  against 83, Kennington 16 of 16 against 15 — and nothing moves the wrong way
+  on either set, where D169 had four going further at the last bit. `gate:
+  PASS`, 0 digest changes anywhere, 11 netlib and 1 Kennington `obj` figures
+  moved and nothing else.
+  **The one left is `finnis` at 2.2992e-08, and that is the end rather than the
+  next step.** The checker accumulates in `long double`, whose eps is 1.08e-19,
+  over terms whose magnitudes sum to 3.2e12, so its own error there is up to
+  3.5e-07. Neither number is more right at that separation: the published
+  objective is at the floor a `double` allows and the oracle is at the floor a
+  `long double` allows. **Do not open this again without a better oracle.**
+  `fma()` was not ruled out by the flag and the distinction is worth keeping
+  (`numerics-reviewer`): `-ffp-contract=off` stops the COMPILER contracting
+  `a*b+c` on its own and says nothing about an explicit call, which IEEE-754
+  requires to be correctly rounded. The split was preferred because it needs no
+  claim about libm at all. It costs
   one pass over the columns per solve, so the campaign question is accuracy
   rather than time. Nothing shows it losing a verdict.
 - **`settled_objective` in `src/simplex.c` is a fourth accumulation of the same

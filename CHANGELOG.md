@@ -57,6 +57,20 @@ open, `bench/README.md` for the gate, and the commit each entry came from.
 
 ### Fixed
 
+- **The published objective recovers what each product lost**, which a
+  compensated sum could not reach: `c_j * x_j` is rounded once before it is
+  added, and the bound is `eps` times the sum of the term magnitudes. Dekker's
+  split, exact under `-ffp-contract=off`, with a `2^996` overflow guard. The
+  minimum model is two columns where every accumulator over the rounded
+  products gives 0 and the answer is 1 (D172).
+- **109 of 110 published objectives now agree with `jaos_check_solution`
+  exactly** — netlib 93 of 94 against 83, Kennington 16 of 16 against 15 — and
+  **nothing moves the wrong way on either set**, where D169 had four going
+  further at the last bit. The one left is `finnis` at 2.2992e-08, inside the
+  `long double` checker's own error of about 3.5e-07 at that cancellation.
+  `gate: PASS` on all three, `0 regressed`, **0 digest changes anywhere**, 11
+  netlib and 1 Kennington `obj` figures moved and nothing else.
+
 - **The refinement residual is compensated too**, and D168's refusal of it is
   overturned by measurement. `subtract_basis_times` forms `b - B x_B` for the
   iterative-refinement step; `b` had been compensated since D168 and the

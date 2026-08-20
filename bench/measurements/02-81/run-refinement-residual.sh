@@ -52,10 +52,22 @@ for t in ctl primal both; do
         -d bench/instances-infeas -e infeasible -o "$D/$t-inf.txt" >/dev/null 2>&1
 done
 
+# The per-instance records, kept beside this script. The first version left
+# them in the mktemp directory and the trap deleted them, so the pds-06/10/20
+# table in README.md had no file behind it (`numerics-reviewer`).
+mkdir -p "$here/records"
+cp "$D"/ctl-*.txt "$D"/primal-*.txt "$D"/both-*.txt "$here/records/" || exit 2
+
 {
 python3 - "$D" <<'PY'
 import re, sys, os, math
 D = sys.argv[1]
+# NARROWER THAN THE RECORD IT READS, and it cost something: this never parses
+# `dual`, `drop`, `cert`, `rays` or `basis`, all of which bench/run.c prints,
+# and the `moved` count below compares only what it parsed. Nine instances
+# whose only change was `basis` counted as not moved, and D171's first version
+# missed them (`numerics-reviewer`). record_diff.py is the honest instrument
+# here; this one is for the direction counts, which it does compute correctly.
 KEYS = ["col", "row", "rowrel", "gap", "Q", "N", "sub", "rsub"]
 def load(p):
     d = {}

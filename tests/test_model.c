@@ -310,6 +310,69 @@ static void test_the_objective_is_summed_from_the_values_it_publishes(void)
 #endif
 }
 
+/* ---- What a compensated sum still cannot reach: the products themselves --- *
+ *
+ * D169 made the objective a compensated sum, which removed the ACCUMULATION
+ * error. Each `c_j * x_j` is still rounded to a double before it is added, and
+ * no accumulator can recover an error that is already inside a term. On
+ * `finnis` that residue is 2.65e-05 against a `long double` checker, where the
+ * terms sum to 1.7e5 while their magnitudes sum to 3.2e12.
+ *
+ * This is the minimum model for it, and it needs two columns:
+ *
+ *   c0 = 2^27 + 1,  x0 fixed at 2^27 + 1    exact product 2^54 + 2^28 + 1
+ *   c1 = -1,        x1 fixed at 2^54 + 2^28  exact product -(2^54 + 2^28)
+ *
+ * One ulp at 2^54 is 4, so the first product rounds to 2^54 + 2^28 and leaves
+ * a residue of exactly 1. **Every accumulator over the rounded products
+ * therefore sums to 0, however carefully it adds**, and the true objective is
+ * 1. The parent publishes 0 on both the shipping and the reference build while
+ * `jaos_check_solution`, which multiplies in `long double`, reads 1.
+ *
+ * D172 recovers the residue with Dekker's split, which needs no `fma` and is
+ * exact under `-ffp-contract=off`. `bench/measurements/02-82/` carries it. */
+static void test_the_objective_recovers_what_a_rounded_product_dropped(void)
+{
+#if defined(JAOS_PRESOLVE_FAULT_OFFBYONE) || defined(JAOS_PRESOLVE_FAULT_WRONGDUAL)
+    TEST_IGNORE_MESSAGE("positive test — skipped under either fault build");
+#else
+    const double big  = ldexp(1.0, 27) + 1.0;
+    const double prod = ldexp(1.0, 54) + ldexp(1.0, 28);
+
+    /* The model only says what it says while this holds: the product of the
+     * two must round to exactly `prod`, leaving a residue of 1. */
+    const double rounded = big * big;
+    TEST_ASSERT_EQUAL_MEMORY(&prod, &rounded, sizeof prod);
+
+    const double c[]  = {big, -1.0};
+    const double cl[] = {big, prod}, cu[] = {big, prod};
+    const double rl[] = {-1e30}, ru[] = {1e30};
+    const int64_t as[] = {0, 1, 2}, ai[] = {0, 0};
+    const double av[] = {1.0, 1.0};
+
+    jaos_model *m = nullptr;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_model_new(&m));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_load_lp(m, 2, 1, JAOS_MINIMIZE, 0.0, c, cl, cu, rl, ru,
+                     2, as, ai, av));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+
+    double obj = 0.0;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(m, &obj));
+    const double expected = 1.0;
+    TEST_ASSERT_EQUAL_MEMORY(&expected, &obj, sizeof obj);
+
+    /* And it is the number the independent checker reads off the same point. */
+    double x[2] = {0.0, 0.0}, y[1] = {0.0};
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solution(m, x, nullptr, y, nullptr));
+    jaos_check_report rep;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_check_solution(m, x, y, 1e-9, &rep));
+    TEST_ASSERT_EQUAL_MEMORY(&expected, &rep.primal_objective, sizeof expected);
+    jaos_model_free(m);
+#endif
+}
+
 /* The control the repair must not break, and it is the one a compensated sum
  * can get wrong: the constant term and the sense. A MAXIMIZE model reports
  * `obj_offset + c'x` in its own sense, so dropping the offset or minimising by
@@ -947,6 +1010,7 @@ int main(void)
     RUN_TEST(test_a_changed_bound_reaches_the_solve);
     RUN_TEST(test_the_objective_is_summed_from_the_values_it_publishes);
     RUN_TEST(test_the_objective_keeps_its_constant_term_and_its_sense);
+    RUN_TEST(test_the_objective_recovers_what_a_rounded_product_dropped);
     RUN_TEST(test_bounds_and_costs_read_back);
     RUN_TEST(test_the_basis_outlives_a_modification_and_not_a_load);
     RUN_TEST(test_a_modification_discards_the_answer);

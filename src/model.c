@@ -508,6 +508,43 @@ jaos_status jm_model_remember_basis(jaos_model *m)
  *
  * Requires the six solution arrays and an OPTIMAL solve; callers reach it
  * only there. */
+/* One Neumaier step into a running sum and its compensation. */
+static void obj_add(double *sum, double *comp, double t)
+{
+    const double a = *sum, u = a + t;
+    *comp += (fabs(a) >= fabs(t)) ? ((a - u) + t) : ((t - u) + a);
+    *sum = u;
+}
+
+/* What `a * b` lost when it rounded to a double, by Dekker's split (D172).
+ *
+ * Compensating the sum removed the ACCUMULATION error and left the other one:
+ * each `c_j * x_j` is rounded once before it is added, and no accumulator
+ * reaches an error that is already inside a term. On `finnis`, where the terms
+ * sum to 1.7e5 while their magnitudes sum to 3.2e12, that residue was
+ * 2.65e-05 against the `long double` checker and is 2.30e-08 with this.
+ *
+ * **Dekker's split rather than `fma`, and the difference is not the flag.**
+ * `-ffp-contract=off` stops the COMPILER contracting `a*b+c` on its own; it
+ * says nothing about an explicit `fma()` call, which IEEE-754 requires to be
+ * correctly rounded and which would therefore be deterministic across machines
+ * (`numerics-reviewer`, D169). The split is preferred because it needs no
+ * claim about libm at all, and D34's list is about what the tree may rely on.
+ *
+ * The split needs both factors splittable without overflow, which holds while
+ * their magnitudes stay under 2^996; beyond that this reports a zero residue,
+ * which returns the sum to the plain product it already had. */
+static double two_product_residue(double a, double b, double p)
+{
+    constexpr double SPLIT = 134217729.0;              /* 2^27 + 1 */
+    constexpr double BIG   = 6.69692879491417e299;     /* 2^996    */
+    if (!isfinite(p) || fabs(a) > BIG || fabs(b) > BIG)
+        return 0.0;
+    const double ca = SPLIT * a, ah = ca - (ca - a), al = a - ah;
+    const double cb = SPLIT * b, bh = cb - (cb - b), bl = b - bh;
+    return ((ah * bh - p) + ah * bl + al * bh) + al * bl;
+}
+
 void jm_model_publish_objective(jaos_model *m)
 {
     /* The precondition, enforced rather than described (`numerics-reviewer`,
@@ -520,10 +557,12 @@ void jm_model_publish_objective(jaos_model *m)
     double sum = m->obj_offset, comp = 0.0;
     if (m->sol_col != nullptr) {
         for (int64_t j = 0; j < m->num_col; j++) {
-            const double t = m->col_cost[j] * m->sol_col[j];
-            const double a = sum, u = a + t;
-            comp += (fabs(a) >= fabs(t)) ? ((a - u) + t) : ((t - u) + a);
-            sum = u;
+            const double c = m->col_cost[j], x = m->sol_col[j];
+            const double t = c * x;
+            obj_add(&sum, &comp, t);
+            const double e = two_product_residue(c, x, t);
+            if (e != 0.0)
+                obj_add(&sum, &comp, e);
         }
     }
     /* An infinite or NaN partial sum carries no residue a correction could

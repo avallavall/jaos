@@ -84,28 +84,50 @@ is the reopen condition met three times over, and it is what lands this.
 14 instances move by a handful of work units, **0 digest changes**, all 29
 still correctly refused.
 
-## The symmetric change is refused, and the measurement is what refuses it
+## The published basis moves on nine netlib instances
+
+`bandm`, `bnl2`, `cycle`, `czprob`, `dfl001`, `etamacro`, `fit1p`, `ganges`
+and `scrs8`. Kennington: none. **The first version of this record counted
+digests and stopped there** (`numerics-reviewer`), and `bench/run.c` says the
+basis is part of the answer.
+
+The mechanism is the one the change is for: `refine = true` runs at the refresh
+that verifies optimality, a more accurate `x_B` moves a marginal feasibility
+test, and the solve takes a different last pivot. Nothing else moved on those
+nine — `cert`, `dual`, `drop` and `rays` are identical on all of them.
+
+## The symmetric change is refused
 
 D29 says *"a point read off an accurate x_B and an inaccurate y is not more
 consistent than one read off neither"*, so compensating `compute_duals`'
 refinement dot product as well is the obvious next move. It was built and
-measured in the same run.
+measured in the same run, and **it changes nothing at all** — no direction
+count, on either set. netlib reads 89 moved instead of 88 at work 1.0001x with
+every better/worse pair identical; Kennington reads 14 instead of 11 with the
+same 11 digest changes and the same counts. The dual sum runs over one column's
+nonzeros while the primal one runs over every basic column touching a row, so
+there is nothing there to recover.
 
-**It changes not one direction count, on either set.** netlib reads 89 moved
-instead of 88 at work 1.0001x, with every better/worse pair identical;
-Kennington reads 14 moved instead of 11 with the same 11 digest changes and the
-same counts. The dual sum runs over one column's nonzeros while the primal one
-runs over every basic column touching a row, and that is the whole difference.
-It is refused with this, and it is a better refusal than an argument about
-lengths would have been.
+## The `gap` column, and the argument that was withdrawn
 
-**It also settles what the `gap` column means.** `gap` goes the wrong way on 51
-netlib instances, and the obvious reading is that an accurate primal beside an
-untouched dual is less consistent — D29's own worry. If that were it, the
-symmetric change would have moved it. It moved nothing. The `gap` values
-involved are between 1e-19 and 1e-16, its worst over the set does not move, and
-what the counts are recording is the direction of last-bit numbers, which is
-not information.
+`gap` goes the wrong way on 51 netlib instances. **The first version of this
+record argued that if it were D29's primal-dual inconsistency the symmetric
+change would have moved it, and it did not.** That argument has no power and is
+withdrawn: the symmetric change moved *nothing at all*, so it cannot
+discriminate between hypotheses (`numerics-reviewer`).
+
+**The direct evidence is in the two committed records and it is stronger.**
+`dual`, `cert`, `drop` and `rays` are unchanged on all 94 netlib and all 16
+Kennington instances. A primal that had gone inconsistent with its dual would
+show in `dual`, and `dual` does not move anywhere.
+
+What is left is that `gap = |pos_model - neg_model| / scale` is a difference of
+two halves much larger than itself, so at these magnitudes it is what
+cancellation leaves rather than a number. The 82 netlib movers span
+**1.49e-19 to 4.12e-13** — this record first said 1e-19 to 1e-16 and was wrong
+by three orders at the top — against a set worst of 2.21e-10 that does not
+move. The relative swings are tens of percent, up to 64x on `fit1p`. A quantity
+that moves like that under a one-ulp change of its inputs has no sign to read.
 
 ## What this does not close
 
@@ -119,5 +141,22 @@ not information.
   accumulates over a bound-flip batch into `s->col` and subtracts the FTRAN'd
   result from `x_B`, so mid-solve `x_B` loses terms again after every batch.
   The final `refine = true` refresh rebuilds `x_B` from scratch, so what it
-  loses does not reach the answer. It would need a third `[nrow]` array;
-  `s->rhsc` and `s->resc` are both live inside the call this runs in.
+  loses does not reach the answer.
+  ~~It would need a third `[nrow]` array; `s->rhsc` and `s->resc` are both live
+  inside the call this runs in.~~ **That liveness claim is false**
+  (`numerics-reviewer`): `apply_flips` is called from `dual_ratio_test`
+  mid-iteration, with `compute_primal` nowhere on the stack, so both arrays are
+  dead then. The true contract is more useful — each is `memset` at the entry
+  of its single reader and dead at its exit, so neither carries a producer
+  contract, and a borrower following the same discipline is safe. What is not
+  safe is a borrower needing its value to survive a call to
+  `compute_primal(s, true)`.
+
+- **The probe's `KEYS` list is narrower than the record it reads.**
+  `run-refinement-residual.sh` parses `col`, `row`, `rowrel`, `gap`, `Q`, `N`,
+  `sub` and `rsub`, and never `dual`, `drop`, `cert`, `rays` or `basis`, all of
+  which `bench/run.c` prints. Its "moved" count compares only what it parsed,
+  so an instance whose only change was `basis` counted as not moved — which is
+  how the nine above were missed. **`record_diff.py` is the honest instrument
+  here**; this probe is the narrow one and is kept for the direction counts it
+  does compute.
