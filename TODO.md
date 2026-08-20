@@ -376,11 +376,20 @@ trajectory. Refusals table, D151.
   own measurement.
 
 - ~~**`PRESOLVE_ROUND_ULPS` is missing its term count on a bound side.**~~
-  **CLOSED 2026-08-20 (D162, `bench/measurements/02-72/`)**, and it was a live
-  wrong answer rather than a coherence repair: a constructed model with an
-  exactly representable feasible point reads INFEASIBLE at 256 removals and is
-  accepted at 128. The largest count on the three sets is 325, 804 rows carry
-  more than eight, and the gate is bit-identical on all 139.
+  **CLOSED 2026-08-20 by TWO entries, and the first one only reached three of
+  the four sites.** D162 (`bench/measurements/02-72/`) took the emptied row,
+  clause 1 of the activity pass and the frozen-row test; **D163
+  (`bench/measurements/02-73/`) took the singleton row's fold**, which judges
+  `cur_rl[i] / a` and was left on a flat eight ulps for one commit. The class
+  is closed at all four now, and `docs/tolerances.md` owns the list — it had
+  the wrong three in it, which is how the fold was missed
+  (`numerics-reviewer`).
+  It was a live wrong answer rather than a coherence repair, at both entries: a
+  constructed model with an exactly representable feasible point reads
+  INFEASIBLE at 256 removals and is accepted at 128, and D163's fold model is
+  refused where the reference build solves it to the last bit. The largest
+  count on the three sets is 325, 804 rows carry more than eight, and the gate
+  is bit-identical on all 139 for both.
   **Two shapes were built before the right one and both are in the entry.**
   The count times the traffic alone is short, because the per-step rounding is
   half an ulp of the PARTIAL SUM and near the boundary that is the activity
