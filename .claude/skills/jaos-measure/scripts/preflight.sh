@@ -84,6 +84,28 @@ else
     okay "no bench process running here"
 fi
 
+# A worktree under build/ is deleted by anyone's `make clean`, and `make
+# configs` runs one between each of its five configurations. It is not this
+# run's problem -- it is the problem of whatever is USING that worktree, which
+# will lose it mid-campaign with no error on its own side. Warn either way,
+# because the two directions are the same fact: if it is yours, move it; if it
+# is not, do not clean while it is there.
+#
+# 44 of this repository's measurement scripts create worktrees at
+# build/diag/wt-*, from 02-28 onward, so this is the default and not the
+# exception. It happened on D166 (bench/measurements/02-76/).
+exposed=$(git worktree list --porcelain 2>/dev/null \
+          | sed -n 's|^worktree ||p' \
+          | grep -F "$ROOT/build/" || true)
+if [ -n "$exposed" ]; then
+    flag "worktree(s) registered inside build/, which \`make clean\` deletes:"
+    printf '%s\n' "$exposed" | sed 's/^/           /'
+    say "" "\`make configs\` runs \`make clean\` five times. Whoever is using"
+    say "" "these loses them mid-run, silently. Use \$(mktemp -d) instead."
+else
+    okay "no worktree exposed to make clean"
+fi
+
 # ------------------------------------------------------- 3. records intact
 echo
 echo "3. are the records and baselines readable?"

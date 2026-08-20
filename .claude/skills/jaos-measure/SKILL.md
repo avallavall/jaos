@@ -312,3 +312,9 @@ git worktree add --detach "$D/wt" "$ref" || exit 2
 
 The older scripts have not been converted. If you re-run one, move its
 worktree first or make sure nothing else is building.
+
+**`preflight.sh` checks this now**, so it is not left to care: it warns when
+any worktree is registered under `build/`, whoever owns it. Validated against
+the case it must catch and against the control that must stay quiet — the same
+worktree outside `build/` — so it discriminates on the location and not merely
+on a worktree existing.

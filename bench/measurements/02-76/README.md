@@ -102,3 +102,19 @@ before running or believing any campaign.
 
 Nothing was lost from the record: the parent run had already completed and its
 md5s were reported before the deletion.
+
+**`preflight.sh` checks it now** (D167), because a warning in prose is a
+warning that depends on somebody having read it. It reports every worktree
+registered under `build/`, whoever owns it — the two directions are the same
+fact, and the person about to run `make configs` is not the person who loses
+the worktree. Validated three ways rather than trusted:
+
+```
+A. clean tree                    ok     no worktree exposed to make clean
+B. worktree under build/         WARN   worktree(s) registered inside build/ ...
+C. the same worktree in mktemp   ok     no worktree exposed to make clean
+```
+
+C is the control that makes B mean something: it fires on the LOCATION and not
+on a worktree existing.
+
