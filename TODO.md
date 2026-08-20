@@ -51,7 +51,30 @@ records 02-49 through 02-65, five source changes, one bench widening (the
 gate sees the basis now, D150), three kept candidates, and the repository's
 first tag, `v0.1.0`.**
 
-**D154 is the last of them, and it is the one to read before trusting any
+**The session continued to D161 — records 02-65 through 02-71.** Eight items,
+of which **four were wrong answers rather than latent risks**: presolve
+refusing models `-DJAOS_NO_PRESOLVE` solves (D159, D160, D161) and publishing
+a value outside a declared bound (D158). The gate is bit-identical on all 139
+for every one of them, so **no campaign could have found any of them** — each
+needed a constructed model, and `numerics-reviewer` built three.
+
+**Read this before trusting your own tolerance work here.** The reviews
+returned eleven findings across five reviews and every one was real. Four were
+defects in the repair being reviewed, including one that **published `optimal`
+on a model infeasible by 1e-3** and was one commit from landing. Two more were
+justifications that sounded right and were false. One was a test that could
+not fail. The pattern is not carelessness: it is that a tolerance argument
+reads as sound in the source and is only settled by a model.
+
+**And the probes were counting wrong.** `-j N` forks children onto one stderr;
+a single `fprintf` with many conversions tears, `grep` still counts the line,
+and the SUMS come out low. Three readings of one counter gave 4858, 4844 and
+4798 at 188 lines every time. Every probe writes one `write(2)` per record now,
+and D156's and D158's readings were re-taken because both had landed reporting
+zeros — a count that can only be undercounted is the wrong shape for a finding
+that IS a zero. Both stand.
+
+**D154 is the first of them, and it is the one to read before trusting any
 "all builds pass" sentence.** It started as §5's comment edit and found that
 the reference build and both fault builds had not compiled since D151. Two
 more failures were hiding behind the compile error. `make configs` is the
