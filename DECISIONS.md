@@ -12228,13 +12228,52 @@ rewritten in this commit because it is the record of what the tree produces;
 `0 regressed, 0 improved, 0 new` against it and a baseline is rewritten only by
 its own target, deliberately.
 
-**`jaos-measurer` had not delivered when this landed.** It was launched on the
-finished candidate with the campaign already run, and the verdict below was
-reached in the main context: the geometric mean from
-`scripts/geomean.py`, the per-instance read from `scripts/record_diff.py`, and
-the four moved objectives checked against the Koch reference on their own
-lines. This is the third late delivery in one session and the pattern now has a
-price attached — D163 exists because a review landed after D162's commit.
+**`jaos-measurer` returned ACCEPT, after this landed, and it is the most
+valuable of the three late deliveries in this session.** The main context had
+already reached the same verdict — geometric mean from `scripts/geomean.py`,
+per-instance read from `scripts/record_diff.py`, the four moved objectives
+checked against the Koch reference on their own lines — and the entry first
+said the review had not delivered. Four things it added that the main context
+did not have:
+
+- **It ran the parent.** All three sets at `cd68630`, md5-identical to the
+  committed records, which turns the three-step argument above into a
+  measurement. Its candidate `netlib.txt` is byte-identical to this one.
+- **`ship08s` was an EXACT match to Koch and is now one ulp off.** The main
+  context read it as "away by one ulp" without noticing it had been exact. The
+  predicate is `|got - ref| <= 1e-6 * scale`, 1.92 absolute against a move of
+  2.33e-10, so it is eight orders inside — but "exact to one ulp" is a
+  different sentence from "one ulp to two".
+- **`pilot`'s 2-ulp move is meaningless** against a pre-existing gap of 2.3e-5,
+  which is 203 million ulps. Reporting it as "moved away" would have implied a
+  precision that disagreement does not have.
+- **The basis counts on the four instances whose hash moved**, below.
+
+It also ran the negative control rather than reasoning about it: the candidate
+test file on the parent source fails on exactly one test, at exactly the
+assertion the repair moves.
+
+**The basis, and one number in `TODO.md` is no longer exact.** Counting
+`JAOS_BASIS_BASIC` through the public API on the four instances whose `basis=`
+hash moved:
+
+| instance | rows | before | after | excess |
+|---|---|---|---|---|
+| `bandm` | 305 | 328 | 323 | +23 → **+18** |
+| `capri` | 271 | 277 | 277 | +6 → +6 |
+| `czprob` | 929 | 932 | 930 | +3 → **+1** |
+| `finnis` | 497 | 498 | 499 | +1 → **+2** |
+
+**The count was already wrong on all four before this change** — it is D131 to
+D139's open item, not this one's, and the reference build holds the contract on
+both sources. By the measure `TODO.md` insists on, the count of solves
+publishing a wrong basis, nothing moved: four wrong before, four wrong after,
+and no other instance can have moved because `basis=` hashes exactly those
+statuses. But `TODO.md`'s table records netlib's worst over-count as 23, that
+23 is `bandm`, and `bandm` is now 18. The cell is annotated rather than
+replaced, because the other 47 wrong-basis solves were not re-counted and
+inventing a new worst from four instances would be worse than saying the old
+one is stale.
 
 **Closed by D166**, one commit later.
 
@@ -12288,6 +12327,14 @@ which tests ran — they are listed from `make test` in
 improved, 0 new`, **139 of 139 bit-identical with 0 digest changes**. Five
 build configurations. `src/presolve.c` loses 196 lines and gains 65: one array,
 two functions and four window terms.
+
+**And the 139 is not the safety evidence, which is worth stating because it
+looks like it is** (`jaos-measurer`). A window that got NARROWER is only tested
+by an instance landing in the band that was removed, and bit-identical says no
+instance did. It is evidence of no cost, not evidence of no harm. The evidence
+of no harm is the five tests above, because they are the models that land in
+that band. The distinction matters here more than usual: at the emptied-row
+test, being wrong is silent.
 
 **No staleness question, and the contrast is the point.** `preflight.sh`
 reports the netlib record one `src/` commit behind, and that commit is

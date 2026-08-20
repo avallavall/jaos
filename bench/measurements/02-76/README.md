@@ -58,6 +58,13 @@ compensation reaching the reduced model.
 **139 of 139 bit-identical with 0 digest changes**: netlib 94, netlib-infeas
 29, Kennington 16.
 
+**That is evidence of no COST and not of no HARM, and the two look alike here**
+(`jaos-measurer`). A window that got narrower is only tested by an instance
+landing in the band it gave up, and bit-identical says no instance did — which
+is what the probes said in advance, since no row on any set is near any window.
+The safety argument is the five tests above and nothing else. Reading the 139
+as the safety evidence would be reading a no-op as a proof.
+
 **No staleness question this time.** `preflight.sh` reports
 `bench/results/netlib.txt was written before 1 src/ commit(s)`, and that one
 commit is `bd3b136`, the direct parent — D165 rewrote the record. Compare with

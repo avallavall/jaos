@@ -578,7 +578,7 @@ to it already wrong (D131), and the gate then says so directly.
 |---|---|---|---|---|---|
 | netlib, at D131 | 188 | 56 | 132 (70%) | 596 | 169 |
 | netlib, after D138 | 188 | 88 | 100 | 596 | 0 |
-| netlib, **now (D139)** | 188 | **140** | **48 (26%)** | **23** | **0** |
+| netlib, **now (D139)** | 188 | **140** | **48 (26%)** | **23 — stale, see below** | **0** |
 | Kennington, at D131 | 32 | 8 | 24 (75%) | 12104 | 406 |
 | Kennington, after D138 | 32 | 24 | 8 | 119 | 0 |
 | Kennington, **now (D139)** | 32 | **32 — all** | **0** | **0** | **0** |
@@ -593,6 +593,18 @@ build's answer.
 +5942 under D138 while every other measure improved, because the under-count
 was cancelling part of the over-count. **The measure is the count of solves
 publishing a wrong basis.**
+
+**The "worst over" cell is stale as of D165 and is annotated rather than
+replaced.** That 23 is `bandm`, and `bandm` now publishes 18 too many:
+compensating the row bounds moved four instances' bases without changing how
+many solves are wrong (`bandm` +23 → +18, `czprob` +3 → +1, `finnis` +1 → +2,
+`capri` unchanged at +6). **The count of wrong solves — the measure this table
+says to use — did not move**, and no other instance can have, because `basis=`
+hashes exactly those statuses and only four moved. Counting the other 47 was
+not done, so the new worst is unknown and inventing one from four instances
+would be worse than saying the old one expired. Measured by `jaos-measurer`
+while judging D165, with the reference build holding the contract on both
+sources as the control.
 
 `src/model.c` states the rule twice — *"a model with n rows needs n basic
 variables … it is structural"* — and enforces it twice: `jaos_set_basis`
