@@ -129,6 +129,62 @@ by three orders at the top — against a set worst of 2.21e-10 that does not
 move. The relative swings are tens of percent, up to 64x on `fit1p`. A quantity
 that moves like that under a one-ulp change of its inputs has no sign to read.
 
+## What it cost, and the gate could not see it — the published basis
+
+`bench/run.c`'s `basis=` is a hash: it detects a change and never reports a
+count, and the count exists only when 02-48's probe is run by hand. D167 is the
+entry that says a figure with no owner drifts. Nine basis hashes moved here, so
+it was run — at three trees, and the attribution is exact.
+
+| tree | exact | **WRONG** | worst over | sum |
+|---|---|---|---|---|
+| `4747f29`, D171's parent | 142 | **46** | +18 | +248 |
+| `39a49f6`, **D171** | 140 | **48** | **+21** | +272 |
+| `311d73b`, D172 | 140 | 48 | +21 | +272 |
+
+Kennington reads `exact=32 WRONG=0` at all three. D172 changes nothing here,
+which is what a diff that writes only `m->objective` predicts.
+
+**So D171 cost two netlib solves their valid published basis**, and pushed the
+worst over-count from +21 and the sum by 24. By `TODO.md`'s own stated measure
+for that item — the count of solves publishing a wrong basis — **that is a
+regression**, and the gate reported `0 regressed` because it cannot see a
+basis.
+
+**It is recorded rather than traded away quietly, and the change still
+stands.** What it bought is three published column values that sat outside
+their own declared bounds and no longer do, worst 8.81e-13 on `pds-20`. What it
+cost is two more solves on an item that was already wrong on 46 and whose
+stated price is a lost warm start rather than a wrong answer. The two are not
+the same kind of thing, and this record says both.
+
+## The seconds — `timing.txt`
+
+`jm_work_add` is unchanged, so the same units are billed for about four times
+the arithmetic per nonzero plus two dense `O(nrow)` passes that bill nothing.
+D171's first version had no time ratio and `CLAUDE.md` asks for one exactly
+where the units are blind (`numerics-reviewer`).
+
+**The noise floor here is unusually good.** The whole `ken` family and `pds-02`
+come back bit-identical under D171 — same iterations, same work, same digest —
+so their ratio is the added arithmetic and nothing else, and `ken-13` is 747
+million work units of it.
+
+| instance | parent s | D171 s | ratio | |
+|---|---|---|---|---|
+| `ken-07` | 0.0362 | 0.0374 | 1.0345x | bit-identical |
+| `ken-11` | 1.4469 | 1.4996 | 1.0364x | bit-identical |
+| `ken-13` | 8.7286 | 8.3348 | **0.9549x** | bit-identical |
+| `pds-02` | 0.0609 | 0.0611 | 1.0033x | bit-identical |
+| `dfl001` | 10.4785 | 10.3915 | 0.9917x | moved |
+| `pds-20` | 31.2641 | 31.0214 | 0.9922x | moved |
+| **geometric mean, the four bit-identical** | | | **1.0067x** | the arithmetic alone |
+
+Four instances doing byte for byte the same work span 0.9549x to 1.0364x, which
+is this host's 6.27% repeatability (D93). **The added arithmetic is not
+measurable here**, which is what `subtract_basis_times` running only on the
+handful of `refine = true` refreshes predicts.
+
 ## What this does not close
 
 - **There is no constructed model.** The evidence here is three instances on

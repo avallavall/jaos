@@ -18,23 +18,30 @@
 #
 # Seconds stay here and never enter bench/results/*.txt or a baseline.
 #
-# Usage: run-timing.sh [git-ref]      default: 4747f29, D171's parent
+# **Both sides come from a git ref**, because the working tree has moved on
+# since: D172 landed on top of this and changes the objective's own arithmetic.
+# Timing the working tree would measure both changes at once.
+#
+# Usage: run-timing.sh [parent-ref] [candidate-ref]
+#        defaults: 4747f29 and 39a49f6, D171 and its parent
 set -u
 here=$(cd "$(dirname "$0")" && pwd)
 root=$(cd "$here/../../.." && pwd)
 ref=${1:-4747f29}
+cand=${2:-39a49f6}
 cd "$root" || exit 9
 D=$(mktemp -d) || exit 2
 trap 'rm -rf "$D"' EXIT
 P="-std=c23 -Wall -Wextra -Wpedantic -ffp-contract=off -O3 -flto"
 P="$P -march=native -mtune=native -g -DNDEBUG -Iinclude -Isrc"
 
-mkdir -p "$D/before"
+mkdir -p "$D/before" "$D/after"
 for f in src/*.c src/*.h; do
-    git show "$ref:$f" > "$D/before/$(basename "$f")" || exit 2
+    git show "$ref:$f"  > "$D/before/$(basename "$f")" || exit 2
+    git show "$cand:$f" > "$D/after/$(basename "$f")"  || exit 2
 done
 gcc-14 $P "$D/before"/*.c bench/run.c -o "$D/run-parent" -lm 2>/dev/null || exit 2
-gcc-14 $P src/*.c         bench/run.c -o "$D/run-cand"   -lm 2>/dev/null || exit 2
+gcc-14 $P "$D/after"/*.c  bench/run.c -o "$D/run-cand"   -lm 2>/dev/null || exit 2
 
 KN="ken-07 ken-11 ken-13 pds-02 pds-20"
 NL="dfl001"
@@ -47,7 +54,7 @@ for r in 1 2 3; do
 done
 
 {
-  echo "parent $ref against D171, -j 1, minimum of 3 alternating rounds."
+  echo "$ref against $cand, -j 1, minimum of 3 alternating rounds."
   echo "ken-07, ken-11, ken-13 and pds-02 are BIT-IDENTICAL under D171 and are"
   echo "the noise floor: their ratio is the added arithmetic alone. pds-20 and"
   echo "dfl001 moved and carry a trajectory change with it."

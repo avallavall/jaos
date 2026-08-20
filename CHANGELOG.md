@@ -57,6 +57,24 @@ open, `bench/README.md` for the gate, and the commit each entry came from.
 
 ### Fixed
 
+- **The two-product could publish `inf`, and this closes the hole it shipped
+  with.** Veltkamp's split rounds the high part, so `|ah|` can exceed `|a|` by
+  up to 2^-26 and `ah * bh` overflows for a product within about 1.5e-8 of
+  `DBL_MAX` — while the product itself is finite and both factors are three
+  hundred orders below the guard on them. One column with a cost of
+  1.4521649423643159e+281 at 1.237940034936653e+27 published `inf` where the
+  naive sum publishes 1.7976931194842639e+308. Testing the residue instead of
+  the factors covers every overflow route. `BIG` is written `0x1p996` now,
+  because the decimal it carried was one ulp below it, and `FLT_EVAL_METHOD`
+  is a `static_assert` — the split is silently wrong at 2, which is x87 (D172,
+  found by `numerics-reviewer`).
+- **D171 cost two netlib solves their valid published basis**, 46 → 48 with the
+  worst over-count +18 → +21, measured at three trees. The gate reported
+  `0 regressed` on it, because `basis=` is a hash that detects a change and
+  never reports a count. It bought three published column values that sat
+  outside their own declared bounds. Both are in the record; neither is traded
+  away quietly.
+
 - **The published objective recovers what each product lost**, which a
   compensated sum could not reach: `c_j * x_j` is rounded once before it is
   added, and the bound is `eps` times the sum of the term magnitudes. Dekker's

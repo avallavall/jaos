@@ -3,7 +3,8 @@ import os as _os
 root = _os.environ.get("JAOS_SRC")
 if root is None:
     root = "/mnt/c/Users/vall-/Desktop/projectes/jaos/src"
-SRC = root if root.endswith("src") else root + "/src"
+# JAOS_SRC, when set, is a directory holding the .c files directly.
+SRC = root if _os.path.isfile(root + "/model.c") else root + "/src"
 dst  = sys.argv[1]
 os.makedirs(dst, exist_ok=True)
 for f in os.listdir(SRC):

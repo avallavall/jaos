@@ -12845,6 +12845,31 @@ netlib movers span **1.49e-19 to 4.12e-13** — the first version of this entry
 said 1e-19 to 1e-16 and was wrong by three orders at the top — against a set
 worst of 2.21e-10 that does not move.
 
+**What it cost, on the one figure the gate cannot see.** Nine netlib basis
+hashes moved, so 02-48's probe was run at three trees rather than assumed —
+D167 is the entry that says why. `4747f29` reads `exact=142 WRONG=46 worst +18
+SUM=+248`; **D171 reads `exact=140 WRONG=48 worst +21 SUM=+272`**; D172 is
+identical to D171, which is what a diff writing only `m->objective` predicts.
+Kennington is `WRONG=0` at all three. **So this cost two netlib solves their
+valid published basis, and by that item's own stated measure it is a
+regression** — while the gate reported `0 regressed`, because `basis=` is a
+hash that detects a change and never reports a count.
+
+**It is recorded rather than traded away quietly, and the change stands.** What
+it bought is three published column values that sat outside their own declared
+bounds and no longer do, worst 8.81e-13. What it cost is two more solves on an
+item already wrong on 46, whose stated price is a lost warm start and not a
+wrong answer. The two are not the same kind of thing and this entry says both.
+
+**The seconds, which D171's first version did not have** (`numerics-reviewer`;
+`CLAUDE.md` asks for a ratio where the units are blind, and `jm_work_add` is
+unchanged while the arithmetic per nonzero roughly quadrupled). The noise floor
+is unusually good: the whole `ken` family and `pds-02` come back bit-identical,
+so their ratio is the arithmetic alone, and `ken-13` is 747 million work units
+of it. The four span **0.9549x to 1.0364x** for a geometric mean of 1.0067x —
+this host's own 6.27% (D93). Not measurable, which is what a routine running
+only on the handful of `refine = true` refreshes predicts.
+
 **What is left open.** There is no constructed model, and the entry says so
 rather than dressing the campaign up as one: D162's shape does not carry over,
 because on that model every product is exact and here the terms are products of

@@ -1,0 +1,15 @@
+4747f29 against 39a49f6, -j 1, minimum of 3 alternating rounds.
+ken-07, ken-11, ken-13 and pds-02 are BIT-IDENTICAL under D171 and are
+the noise floor: their ratio is the added arithmetic alone. pds-20 and
+dfl001 moved and carry a trajectory change with it.
+
+instance       parent s     cand s     ratio   
+dfl001          10.4785    10.3915   0.9917x   moved
+ken-07           0.0362     0.0374   1.0345x   bit-identical
+ken-11           1.4469     1.4996   1.0364x   bit-identical
+ken-13           8.7286     8.3348   0.9549x   bit-identical
+pds-02           0.0609     0.0611   1.0033x   bit-identical
+pds-20          31.2641    31.0214   0.9922x   moved
+
+geometric mean, all 6          : 1.0018x
+geometric mean, the 4 bit-identical: 1.0067x   <-- the arithmetic alone

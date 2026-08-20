@@ -5,6 +5,7 @@
 #include "jaos_internal.h"
 
 #include <assert.h>
+#include <float.h>
 #include <math.h>
 #include <stdarg.h>
 #include <stdio.h>
@@ -531,18 +532,44 @@ static void obj_add(double *sum, double *comp, double t)
  * (`numerics-reviewer`, D169). The split is preferred because it needs no
  * claim about libm at all, and D34's list is about what the tree may rely on.
  *
- * The split needs both factors splittable without overflow, which holds while
- * their magnitudes stay under 2^996; beyond that this reports a zero residue,
- * which returns the sum to the plain product it already had. */
+ * **What protects the split is `-fno-associative-math`, not
+ * `-ffp-contract=off`, and this comment used to say the wrong one.** Measured
+ * across six flag sets: contraction ON and OFF give bit-identical results,
+ * because every product inside the split is exact and a fused multiply-add
+ * rounds to the same value the separate operations do. What would delete
+ * `ca - (ca - a)` is reassociation, and only `-ffast-math` and `-Ofast` enable
+ * it; the Makefile uses neither, and the default is `-fno-associative-math`.
+ *
+ * **The precondition nothing else guards is `FLT_EVAL_METHOD == 0`**, asserted
+ * below. At 2, which is i386 with x87, `ca - (ca - a)` evaluated at 80 bits
+ * returns exactly `a`, so `al` is zero and the residue is wrong — a silent
+ * cross-machine divergence in a published value, which is the failure D34
+ * exists to prevent.
+ *
+ * **Two ends where the residue is not available, and both return zero.** A
+ * product at the top of the range: the guard on the factors is NOT enough on
+ * its own, because Veltkamp's split rounds the high part and `|ah|` can exceed
+ * `|a|` by up to 2^-26, so `ah * bh` overflows for a product within about
+ * 1.5e-8 of `DBL_MAX` while `p` itself is finite and both factors are far
+ * below the threshold. The first version of this shipped without that and
+ * published `inf` where the naive sum published 1.7976931194842639e+308
+ * (`numerics-reviewer`). Testing the result covers every overflow route rather
+ * than the one that was found. And a subnormal product, where the true residue
+ * is below 2^-1074 and cannot be represented at all, so zero is the best
+ * available and the magnitudes involved cannot reach an objective. */
+static_assert(FLT_EVAL_METHOD == 0,
+              "Dekker's split needs double arithmetic evaluated at double");
+
 static double two_product_residue(double a, double b, double p)
 {
-    constexpr double SPLIT = 134217729.0;              /* 2^27 + 1 */
-    constexpr double BIG   = 6.69692879491417e299;     /* 2^996    */
+    constexpr double SPLIT = 134217729.0;   /* 2^27 + 1 */
+    constexpr double BIG   = 0x1p996;       /* written exactly, not decimal */
     if (!isfinite(p) || fabs(a) > BIG || fabs(b) > BIG)
         return 0.0;
     const double ca = SPLIT * a, ah = ca - (ca - a), al = a - ah;
     const double cb = SPLIT * b, bh = cb - (cb - b), bl = b - bh;
-    return ((ah * bh - p) + ah * bl + al * bh) + al * bl;
+    const double e = ((ah * bh - p) + ah * bl + al * bh) + al * bl;
+    return isfinite(e) ? e : 0.0;
 }
 
 void jm_model_publish_objective(jaos_model *m)

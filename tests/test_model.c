@@ -329,8 +329,10 @@ static void test_the_objective_is_summed_from_the_values_it_publishes(void)
  * 1. The parent publishes 0 on both the shipping and the reference build while
  * `jaos_check_solution`, which multiplies in `long double`, reads 1.
  *
- * D172 recovers the residue with Dekker's split, which needs no `fma` and is
- * exact under `-ffp-contract=off`. `bench/measurements/02-82/` carries it. */
+ * D172 recovers the residue with Dekker's split, which needs no `fma`. What
+ * keeps it exact is `-fno-associative-math`, the default, and NOT
+ * `-ffp-contract=off` — contraction on or off gives identical bits, because
+ * every product inside the split is exact. `bench/measurements/02-82/` carries it. */
 static void test_the_objective_recovers_what_a_rounded_product_dropped(void)
 {
 #if defined(JAOS_PRESOLVE_FAULT_OFFBYONE) || defined(JAOS_PRESOLVE_FAULT_WRONGDUAL)
@@ -369,6 +371,51 @@ static void test_the_objective_recovers_what_a_rounded_product_dropped(void)
     jaos_check_report rep;
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_check_solution(m, x, y, 1e-9, &rep));
     TEST_ASSERT_EQUAL_MEMORY(&expected, &rep.primal_objective, sizeof expected);
+    jaos_model_free(m);
+#endif
+}
+
+/* The guard on the two-product, and the case it shipped without.
+ *
+ * `two_product_residue` splits both factors, and Veltkamp's split ROUNDS the
+ * high part, so `|ah|` can exceed `|a|` by up to 2^-26. A product within about
+ * 1.5e-8 of `DBL_MAX` therefore overflows inside the split while the product
+ * itself is finite and both factors are three hundred orders below the
+ * threshold that guards them. The residue came back `inf`, and the objective
+ * with it: this model published `inf` where a naive sum publishes
+ * 1.7976931194842639e+308 (`numerics-reviewer`, D172).
+ *
+ * One column, fixed, so the solve chooses nothing. The assertion is that the
+ * published objective is finite and equals the plain product — the residue is
+ * not available at this magnitude and zero is the right answer for it. */
+static void test_the_objective_is_finite_at_the_top_of_the_range(void)
+{
+#if defined(JAOS_PRESOLVE_FAULT_OFFBYONE) || defined(JAOS_PRESOLVE_FAULT_WRONGDUAL)
+    TEST_IGNORE_MESSAGE("positive test — skipped under either fault build");
+#else
+    const double cost = 1.4521649423643159e+281;
+    const double value = 1.237940034936653e+27;
+    const double plain = cost * value;
+    TEST_ASSERT_TRUE(isfinite(plain));      /* the premise of the model */
+
+    const double c[]  = {cost};
+    const double cl[] = {value}, cu[] = {value};
+    const double rl[] = {-1e30}, ru[] = {1e30};
+    const int64_t as[] = {0, 1}, ai[] = {0};
+    const double av[] = {1.0};
+
+    jaos_model *m = nullptr;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_model_new(&m));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_load_lp(m, 1, 1, JAOS_MINIMIZE, 0.0, c, cl, cu, rl, ru,
+                     1, as, ai, av));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+
+    double obj = 0.0;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(m, &obj));
+    TEST_ASSERT_TRUE(isfinite(obj));
+    TEST_ASSERT_EQUAL_MEMORY(&plain, &obj, sizeof obj);
     jaos_model_free(m);
 #endif
 }
@@ -1011,6 +1058,7 @@ int main(void)
     RUN_TEST(test_the_objective_is_summed_from_the_values_it_publishes);
     RUN_TEST(test_the_objective_keeps_its_constant_term_and_its_sense);
     RUN_TEST(test_the_objective_recovers_what_a_rounded_product_dropped);
+    RUN_TEST(test_the_objective_is_finite_at_the_top_of_the_range);
     RUN_TEST(test_bounds_and_costs_read_back);
     RUN_TEST(test_the_basis_outlives_a_modification_and_not_a_load);
     RUN_TEST(test_a_modification_discards_the_answer);

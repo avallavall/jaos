@@ -63,9 +63,12 @@ Neumaier accumulator D165 gave presolve.
   the residual table as the evidence.** The evidence is the constructed model
   and no verdict moving on the 139.
 - **The published-basis count was re-read rather than assumed**, because six
-  `basis=` hashes moved and the gate reports a hash and never a count. It reads
-  `exact=142 WRONG=46` on netlib and `WRONG=0` on Kennington, unchanged; the
-  sum falls +250 → +248. D167 is the entry that says why this must be run.
+  `basis=` hashes moved and the gate reports a hash and never a count. It read
+  `exact=142 WRONG=46` on netlib and `WRONG=0` on Kennington, unchanged at
+  D168; the sum fell +250 → +248. D167 is the entry that says why this must be
+  run. **The habit paid twice: D171 moved nine more hashes and the same probe
+  caught a regression the gate called `0 regressed`** — 46 → 48. Kennington
+  stays at 0 throughout.
 
 **D170 asked whether the reduced costs were the third wrong number and they
 are not.** The published `col_dual` matches `c - a'y` in `long double` on every
@@ -463,7 +466,7 @@ input; and the clamp doubles the row residual, which on a gap near the top of
 the window crosses an absolute `CHECK_TOL` the midpoint's split stayed under.
 The second is kept deliberately and D158 says why.
 
-### 2. 46 netlib solves still publish a wrong basis count
+### 2. 48 netlib solves still publish a wrong basis count
 
 Measured, attributed to two families, and every LOCAL repair is refused with
 its measurement (D140, D141). What is left is a design wider than the firing
@@ -479,6 +482,14 @@ worst **15018.5** on `nesm`. A caller reading `jaos_solution`'s `col_dual`
 beside `jaos_basis` gets two statements that cannot both be true. **The count
 is still the measure and it did not move**: the 5 are a strict subset of the 23
 instances that fail the count, and `REDCOST ONLY = 0`.
+
+**D171 made it worse, and that is measured rather than inferred**
+(`bench/measurements/02-81/`): the count goes 46 → **48** and the worst
+over-count +18 → **+21** between `4747f29` and `39a49f6`, with D172
+identical to D171. It bought three published column values that sat
+outside their own declared bounds, worst 8.81e-13 on `pds-20`. **The gate
+reported `0 regressed` on that change**, because `basis=` is a hash that
+detects a change and never reports a count.
 
 **There is a detector now and it needs no instrumented build.** Three public
 calls per instance, in `02-80/run-redcost-signs.sh`. Nothing else asks this

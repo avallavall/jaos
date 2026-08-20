@@ -410,22 +410,28 @@ typedef struct {
      * untransformed column the LU update needs. */
     double *col;
     double *raw;
-    /* The compensation term of the sum compute_primal builds in `col`, one
-     * per row. Owned rather than borrowed on purpose: every other [nrow]
-     * scratch in this struct belongs to a producer that runs inside the same
-     * refresh, and a compensation that another routine overwrote would be
-     * worse than none. It lives only inside compute_primal.
+    /* Two compensation terms, one per row each. `rhsc` is for the sum
+     * compute_primal builds in `col`; `resc` is for the residual
+     * subtract_basis_times forms in the refinement step, `b - B x_B` (D171).
      *
-     * **It is idle everywhere else and must stay unborrowed.** Borrowing an
-     * idle buffer is exactly the shape this project has paid for before, and
-     * the cost of not doing it is nrow doubles. `resc` below is what
-     * subtract_basis_times got for the same reason (D171); apply_flips would
-     * need a third. */
+     * **They are separate arrays and that is not a spare-buffer decision.**
+     * `rhsc` is still holding compute_primal's compensation while
+     * subtract_basis_times runs, inside the same call.
+     *
+     * **The contract each of them offers a would-be borrower, stated exactly**
+     * (`numerics-reviewer`). Each is `memset` at the entry of its single
+     * reader and dead at its exit, so **neither carries a producer contract**:
+     * nothing computes a value in one of them that anything else later reads.
+     * A borrower keeping the same discipline — write it, read it, finish
+     * inside one function body — is therefore safe. What is not safe is a
+     * borrower whose value has to survive a call to `compute_primal(s, true)`,
+     * because that call reaches both.
+     *
+     * An earlier version of this comment said `apply_flips` would need a third
+     * array because both of these are live where it runs. **That was false**:
+     * `apply_flips` is called from `dual_ratio_test` mid-iteration, with
+     * `compute_primal` nowhere on the stack, and both are dead there. */
     double *rhsc;
-    /* And the compensation for the residual subtract_basis_times forms in the
-     * refinement step, `b - B x_B` (D171). Separate from `rhsc` on purpose:
-     * that one is still holding compute_primal's compensation when this runs,
-     * inside the same call. */
     double *resc;
     /* The duals, and the pricing row. These are two different quantities
      * and they get two different vectors, which is not a convenience: they
@@ -1243,16 +1249,18 @@ static void subtract_basis_times(sx *s, double *r, const double *z)
  * The cost is paid once per refactorization rather than once per iteration,
  * since this is called from refresh() and nowhere else.
  *
- * **Two sums of the same shape are deliberately left alone.**
- * `subtract_basis_times` forms `b - B x_B` for the refinement step, and
- * `apply_flips` accumulates over a bound-flip batch. Compensating either
- * buys much less than it does here, and the reason is the terms rather than
- * the schedule: on the model above every product is exact (`av` is 1.0 and
- * `val` is a power of two), so the accumulation was the whole error. Those
- * two sum products of `x_B`, which is an FTRAN output already carrying the
- * factorization's error, and no accumulator reaches an error that is already
- * inside a term. Neither has a model that reproduces a defect. D168 says what
- * would reopen them. */
+ * **`subtract_basis_times` was left alone here and is compensated now
+ * (D171).** The argument for leaving it was that it sums products of `x_B`, an
+ * FTRAN output already carrying the factorization's error, so an accumulator
+ * cannot reach an error already inside a term. True, and it does not follow:
+ * the residual is what the refinement correction is computed FROM. Three
+ * Kennington instances published a column outside its own declared bound and
+ * stopped.
+ *
+ * **`apply_flips` is still uncompensated and that is deliberate.** It
+ * accumulates over a bound-flip batch, so mid-solve `x_B` loses terms again
+ * after every batch; the final `refine = true` refresh rebuilds `x_B` from
+ * scratch, so what it loses does not reach the answer. */
 static void compute_primal(sx *s, bool refine)
 {
     double *rhs = s->col;
