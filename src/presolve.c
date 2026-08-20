@@ -445,6 +445,72 @@ static double ps_round_tol(double scale)
     return PRESOLVE_ROUND_ULPS * DBL_EPSILON * (scale > 1.0 ? scale : 1.0);
 }
 
+/* What the windows above do NOT cover: the side of a comparison that is a
+ * RUNNING DIFFERENCE, whose error grows with the NUMBER of terms and not only
+ * with their scale.
+ *
+ * `cur_rl[i]` and `cur_ru[i]` start at the caller's row bounds and every
+ * removed column subtracts its own `a * v` from both. There is no compensation
+ * in that loop. Each subtraction rounds by up to half an ulp of the partial it
+ * produces, so after k of them the error goes with `k * eps * scale` and not
+ * with `eps * scale`. Eight ulps covers a k of about three, and the largest k
+ * on the three sets is 325. `ps_verify_row_activities` already multiplies by
+ * `nnz - 1` for the same quantity; this is that statement at the three sites
+ * that decide something.
+ *
+ * **The scale is the magnitude of the PARTIALS, which is not the traffic
+ * alone**, and the first version of this function had it wrong. A partial is
+ * bounded by `|row_lower[i]| + traffic`, and `|row_lower[i]|` is recovered
+ * from what survives as `|cur_rl[i]| + traffic`. So the scale is
+ * `bound_scale + traffic`, both terms.
+ *
+ * **`bound_scale` here is ONE end and never `ps_bound_scale` of the two**, and
+ * the version that got that wrong was built and refused by D161's own test.
+ * The two ends carry different errors because they walk through different
+ * partials: on `-1e12 <= x0 + x1 <= 0` with two cost-0 singleton relaxations,
+ * `cur_rl` walks near 1e12 and `cur_ru` walks near zero, so the upper side's
+ * window must not be `2 * eps * 1e12 = 4.4e-4` against an infeasibility of
+ * 2e-4. That is D161's defect arriving through the count instead of directly.
+ * Callers pass `ps_end_scale` of the end their comparison reads.
+ *
+ * The argument that the traffic alone would do is that this test only comes
+ * near firing when `cur_rl[i]` is small. It is false: at the activity pass and
+ * the frozen-row test the comparison is against `min_act`/`max_act`, so it
+ * comes near firing when `cur_rl[i]` is near the ACTIVITY, which can be any
+ * magnitude at all. A row of activity 1e9 with 300 removals totalling 0.9 of
+ * traffic carries about 1.8e-5 of error against a traffic-only window of
+ * 6.8e-14. Refuted by working the case rather than by measurement — no row on
+ * the three sets is near enough to any window for the sets to separate the two
+ * shapes (bench/measurements/02-72/).
+ *
+ * **This is added to the site's own eight ulps, never substituted for them**,
+ * so no window it enters can come out narrower than it was. Narrowing one of
+ * these is what introduces a false INFEASIBLE.
+ *
+ * **It is zero at k = 0, and that is what keeps D161.** The bound's magnitude
+ * enters only through the count, so a row nothing was ever removed from takes
+ * nothing from its own far bound — which is the whole of that entry, and its
+ * `-1e12 <= x0 + x1 <= 0` model still reads INFEASIBLE.
+ *
+ * Both shapes were swept over the three sets before choosing: the traffic-only
+ * one and this one. Neither flips a verdict on any of the 139, and the widest
+ * ABSOLUTE window this produces is 6.587e-08 on Kennington's frozen-row test
+ * against 6.494e-08 shipped — under PRIMAL_TOL 1e-7 and two decades under
+ * `CHECK_TOL`. The two shapes differ by up to 5883x on one netlib row, so they
+ * are separable in ratio and not on any verdict. */
+static double ps_shift_excess(double traffic, double bound_scale,
+                              int64_t shifts)
+{
+    if (shifts <= 0)
+        return 0.0;
+    /* An infinite traffic is skipped rather than propagated, for the reason
+     * ps_bound_scale skips infinities: an infinite window accepts every
+     * violation there is. */
+    const double t = (isfinite(traffic) && traffic > 1.0) ? traffic : 1.0;
+    const double b = bound_scale > 1.0 ? bound_scale : 1.0;
+    return (double)shifts * DBL_EPSILON * (b + t);
+}
+
 /* The same shape and, today, the same number -- and deliberately NOT the same
  * constant. Routing this through ps_round_tol would put the three activity-
  * range readings on the EXTRA_CFLAGS hook, and docs/tolerances.md says that
@@ -509,6 +575,19 @@ static double ps_bound_scale(double a, double b)
     if (isfinite(b) && fabs(b) > s)
         s = fabs(b);
     return s;
+}
+
+/* ONE end of a row, on its own, for a window that judges that end and not the
+ * other. `ps_bound_scale` takes the larger of the two, which is what D161
+ * removed from three windows: a test on the upper side was taking its number
+ * from a lower bound of -1e12 that had nothing to do with it. Anything scaled
+ * by an end has to say WHICH end (D162). */
+static double ps_end_scale(double a)
+{
+    if (!isfinite(a))
+        return 1.0;
+    const double m = fabs(a);
+    return m > 1.0 ? m : 1.0;
 }
 
 #ifndef NDEBUG
@@ -661,6 +740,13 @@ JAOS_NODISCARD jaos_status jm_presolve_run(const jaos_model *m, jm_presolve *p,
      * the residue left in them is worth nothing below eps times this. The
      * empty-row feasibility test is the one place it is read. */
     double *row_traffic = jm_calloc_array(nr, sizeof *row_traffic);
+    /* How many times a column's `a * v` has been subtracted from this row's
+     * bounds. `row_traffic[i]` is the SCALE of the error those subtractions
+     * leave; this is the COUNT, and the window needs both — see ps_shift_tol.
+     * A shift of exactly zero is not counted: it moves neither end and rounds
+     * nothing, so charging it would widen a window for an error that was
+     * never made. */
+    int64_t *row_shifts = jm_calloc_array(nr, sizeof *row_shifts);
     double *cur_cl = jm_alloc_array(nc, sizeof *cur_cl);
     double *cur_cu = jm_alloc_array(nc, sizeof *cur_cu);
     /* The objective a reduction sees, which up to now has always been the
@@ -683,7 +769,7 @@ JAOS_NODISCARD jaos_status jm_presolve_run(const jaos_model *m, jm_presolve *p,
     ps_rowwise rw = {0};
 
     bool ok = col_dead && row_dead && row_frozen && col_pending_dual &&
-              row_traffic && cur_cl && cur_cu && cur_cost &&
+              row_traffic && row_shifts && cur_cl && cur_cu && cur_cost &&
               cur_rl && cur_ru &&
               col_deg && row_deg && ps_build_rowwise(m, &rw);
 
@@ -757,7 +843,7 @@ JAOS_NODISCARD jaos_status jm_presolve_run(const jaos_model *m, jm_presolve *p,
                  * a residue below eps times the traffic that produced it is
                  * not a number. A row nothing was ever removed from carries
                  * zero traffic and gets the exact test it deserves. */
-                double etol = 0.0;
+                double etol = 0.0, etol_lo = 0.0, etol_hi = 0.0;
                 /* The budget has to be a number here, and it is checked rather
                  * than assumed. This branch used to be described as
                  * unreachable and left to a silent substitution, which is the
@@ -785,9 +871,21 @@ JAOS_NODISCARD jaos_status jm_presolve_run(const jaos_model *m, jm_presolve *p,
                     const double scale = isfinite(row_traffic[i])
                         ? row_traffic[i]
                         : ps_bound_scale(cur_rl[i], cur_ru[i]);
+                    /* There are no live columns left here, so there is no
+                     * activity half at all: the whole comparison is the
+                     * running difference, and the shift count is all this
+                     * window needed adding (D162). ONE WINDOW PER END, because
+                     * the shift term reads the magnitude of the end being
+                     * tested and the two ends are not the same number. */
                     etol = ps_round_tol(scale);
+                    etol_lo = etol + ps_shift_excess(row_traffic[i],
+                                                     ps_end_scale(cur_rl[i]),
+                                                     row_shifts[i]);
+                    etol_hi = etol + ps_shift_excess(row_traffic[i],
+                                                     ps_end_scale(cur_ru[i]),
+                                                     row_shifts[i]);
                 }
-                if (cur_rl[i] > etol || cur_ru[i] < -etol) {
+                if (cur_rl[i] > etol_lo || cur_ru[i] < -etol_hi) {
                     p->outcome = JM_PRESOLVE_INFEASIBLE;
                     goto done;
                 }
@@ -1059,6 +1157,8 @@ JAOS_NODISCARD jaos_status jm_presolve_run(const jaos_model *m, jm_presolve *p,
                     cur_rl[i] -= m->a_value[k] * v;
                     cur_ru[i] -= m->a_value[k] * v;
                     row_traffic[i] += fabs(m->a_value[k] * v);
+                    if (m->a_value[k] * v != 0.0)
+                        row_shifts[i]++;
                     row_deg[i]--;
                 }
                 if (!ps_push(p, (jm_presolve_rec){
@@ -1151,6 +1251,9 @@ JAOS_NODISCARD jaos_status jm_presolve_run(const jaos_model *m, jm_presolve *p,
                         cur_rl[i] -= cmax;
                     if (hi_absorbs)
                         cur_ru[i] -= cmin;
+                    if ((lo_absorbs && cmax != 0.0) ||
+                        (hi_absorbs && cmin != 0.0))
+                        row_shifts[i]++;
 
                     /* Only the magnitude an end that ABSORBS it actually took.
                      * `max(|cmax|, |cmin|)` was wrong in two ways, and the
@@ -1475,17 +1578,42 @@ JAOS_NODISCARD jaos_status jm_presolve_run(const jaos_model *m, jm_presolve *p,
              * the rescued band, which no row on the three sets is in — the
              * evidence for that band is the constructed cases.
              *
-             * `8 * DBL_EPSILON` is a scale claim rather than a bound here,
-             * for the reason D159 records: the bound side is an uncompensated
-             * running sum and eight ulps covers about three removals.
-             * TODO.md carries it. */
+             * **The bound half counts its terms (D162)** and the activity half
+             * does not, which is why the two are added here instead of the
+             * wider scale being taken. `ps_shift_excess` carries the
+             * derivation; the largest count reaching this clause is 250, on
+             * netlib, and the widening flips no verdict on any of the 139
+             * (`bench/measurements/02-72/`). */
             assert(ps_traffic_usable(rl, ru, row_traffic[i]));
-            double iscale = rg.traffic > 1.0 ? rg.traffic : 1.0;
-            if (isfinite(row_traffic[i]) && row_traffic[i] > iscale)
-                iscale = row_traffic[i];
-            const double itol = 8.0 * DBL_EPSILON * iscale;
-            if ((isfinite(ru) && min_act > ru + itol) ||
-                (isfinite(rl) && max_act < rl - itol)) {
+            /* The two halves are ADDED rather than maximised, because they are
+             * two different errors in two different numbers and only one of
+             * them has a term count. `min_act`/`max_act` are a compensated sum
+             * over the live columns, so eight ulps of `rg.traffic` is theirs.
+             * `rl`/`ru` are the running difference: eight ulps of the traffic,
+             * plus what the shifts themselves left (ps_shift_excess, D162).
+             *
+             * **One window per END**, which is the part that had to be got
+             * right twice. The shift term reads the magnitude the partial sums
+             * walked through, and `ps_bound_scale` would take that from
+             * whichever end is larger — so a test on `ru` would be scaled by a
+             * lower bound of -1e12, which is D161's defect arriving through
+             * the count instead of directly. `ps_end_scale` asks the end being
+             * tested. Built the other way first and D161's own test refused
+             * it. */
+            double iact = rg.traffic > 1.0 ? rg.traffic : 1.0;
+            double ibnd = 1.0;
+            if (isfinite(row_traffic[i]) && row_traffic[i] > ibnd)
+                ibnd = row_traffic[i];
+            const double itol = 8.0 * DBL_EPSILON * iact +
+                                8.0 * DBL_EPSILON * ibnd;
+            const double itol_hi = itol + ps_shift_excess(row_traffic[i],
+                                                          ps_end_scale(ru),
+                                                          row_shifts[i]);
+            const double itol_lo = itol + ps_shift_excess(row_traffic[i],
+                                                          ps_end_scale(rl),
+                                                          row_shifts[i]);
+            if ((isfinite(ru) && min_act > ru + itol_hi) ||
+                (isfinite(rl) && max_act < rl - itol_lo)) {
                 p->outcome = JM_PRESOLVE_INFEASIBLE;
                 goto done;
             }
@@ -1561,6 +1689,8 @@ JAOS_NODISCARD jaos_status jm_presolve_run(const jaos_model *m, jm_presolve *p,
                             cur_rl[ii] -= m->a_value[kk] * v;
                             cur_ru[ii] -= m->a_value[kk] * v;
                             row_traffic[ii] += fabs(m->a_value[kk] * v);
+                            if (m->a_value[kk] * v != 0.0)
+                                row_shifts[ii]++;
                             row_deg[ii]--;
                         }
                         /* JM_PS_FIXED_COL, not a tag of its own: a column
@@ -1826,16 +1956,13 @@ JAOS_NODISCARD jaos_status jm_presolve_run(const jaos_model *m, jm_presolve *p,
          * infeasibilities in netlib-infeas stand at 5.63e14 times the shipped
          * window, so no window in this range can miss them.
          *
-         * **`8 * DBL_EPSILON` is a scale claim, not a bound, and it is short
-         * on a row with many removals.** `cur_rl[i] -= a*v` is a plain
-         * running sum with no compensation, so after k removals the error
-         * goes with `k * eps * scale`; eight ulps covers k of about three,
-         * and a netlib row with a hundred removed columns is understated by
-         * roughly 12x. This file already says so for the same quantity at
-         * `ps_verify_row_activities`, which multiplies by `nnz - 1`. The
-         * direction is the loud one — still too narrow, still a false
-         * INFEASIBLE — so it is not a blocker, and it is `TODO.md`'s
-         * (`numerics-reviewer`).
+         * ~~**`8 * DBL_EPSILON` is a scale claim, not a bound, and it is short
+         * on a row with many removals.**~~ **Repaired (D162).** The bound half
+         * counts its terms now, through `ps_shift_excess` and `row_shifts[i]`;
+         * the definition and the two shapes that were swept for it are at that
+         * function. The largest count reaching this test is 325, on
+         * Kennington, and the widening flips no verdict on any of the 139
+         * (`bench/measurements/02-72/`). Found by `numerics-reviewer` on D159.
          *
          * **The `rg.traffic` term is here for coherence, not for the 45930x.**
          * At the shipping constant `ps_round_tol(rg.traffic)` is exactly
@@ -1892,16 +2019,37 @@ JAOS_NODISCARD jaos_status jm_presolve_run(const jaos_model *m, jm_presolve *p,
          * `eps * rg.traffic` and `cur_rl`/`cur_ru` carry
          * `eps * row_traffic[i]`; both are below. Found by
          * `numerics-reviewer` (bench/measurements/02-71/). */
-        double rscale = 1.0;
-        if (isfinite(row_traffic[i]) && row_traffic[i] > rscale)
-            rscale = row_traffic[i];
-        if (isfinite(rg.traffic) && rg.traffic > rscale)
-            rscale = rg.traffic;
-        const double rtol = ps_round_tol(rscale);
+        /* Two error budgets, ADDED rather than maximised, because only one of
+         * them has a term count (D162). The activity half is a compensated sum
+         * and keeps its eight ulps; `cur_rl`/`cur_ru` are the running
+         * difference and take what the shifts left on top.
+         *
+         * A magnitude of one END is back in this expression and the paragraph
+         * above still stands, on both counts. It enters only inside
+         * `ps_shift_excess`, multiplied by the shift count, so a row nothing
+         * was removed from takes nothing from it — that is D161's model. And
+         * it is `ps_end_scale` and not `ps_bound_scale`, so the end being
+         * tested supplies its own number and never the far one. Built with
+         * `ps_bound_scale` first and D161's own test refused it: two cost-0
+         * singleton relaxations are two shifts, and 2 * eps * 1e12 is 4.4e-4
+         * against an infeasibility of 2e-4. */
+        double ract = 1.0;
+        if (isfinite(rg.traffic) && rg.traffic > ract)
+            ract = rg.traffic;
+        double rbnd = 1.0;
+        if (isfinite(row_traffic[i]) && row_traffic[i] > rbnd)
+            rbnd = row_traffic[i];
+        const double rtol = ps_round_tol(ract) + ps_round_tol(rbnd);
+        const double rtol_hi = rtol + ps_shift_excess(row_traffic[i],
+                                                      ps_end_scale(cur_ru[i]),
+                                                      row_shifts[i]);
+        const double rtol_lo = rtol + ps_shift_excess(row_traffic[i],
+                                                      ps_end_scale(cur_rl[i]),
+                                                      row_shifts[i]);
         const double min_act = ps_min_act(&rg);
         const double max_act = ps_max_act(&rg);
-        if ((isfinite(cur_ru[i]) && min_act > cur_ru[i] + rtol) ||
-            (isfinite(cur_rl[i]) && max_act < cur_rl[i] - rtol)) {
+        if ((isfinite(cur_ru[i]) && min_act > cur_ru[i] + rtol_hi) ||
+            (isfinite(cur_rl[i]) && max_act < cur_rl[i] - rtol_lo)) {
             p->outcome = JM_PRESOLVE_INFEASIBLE;
             goto done;
         }
@@ -2153,7 +2301,7 @@ done:
 
 cleanup_scratch:
     free(col_dead); free(row_dead); free(row_frozen);
-    free(col_pending_dual); free(row_traffic);
+    free(col_pending_dual); free(row_traffic); free(row_shifts);
     free(cur_cl); free(cur_cu); free(cur_cost);
     free(cur_rl); free(cur_ru);
     free(col_deg); free(row_deg);

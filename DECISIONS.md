@@ -169,6 +169,7 @@ and you have the argument. Jump to the entry for the numbers behind it.
 - **[D159](#d159--the-frozen-row-window-is-scaled-by-what-the-comparison-is-made-of-and-presolve-stops-refusing-a-model-the-solver-can-solve)** — The frozen-row window is scaled by what the comparison is made of, and presolve stops refusing a model the solver can solve
 - **[D160](#d160--clause-1-of-the-activity-pass-gets-its-own-window-and-the-bound-scale-that-looked-like-symmetry-published-a-wrong-answer)** — Clause 1 of the activity pass gets its own window, and the bound scale that looked like symmetry published a wrong answer
 - **[D161](#d161--the-frozen-row-window-drops-the-far-bound-too-and-that-defect-predates-d159-which-widened-around-it)** — The frozen-row window drops the far bound too, and that defect predates D159, which widened around it
+- **[D162](#d162--a-row-bound-is-a-running-difference-so-the-window-counts-the-terms-and-the-end-it-is-testing-comes-back-in-multiplied-by-that-count)** — A row bound is a running difference, so the window counts the terms — and the end it is testing comes back in, multiplied by that count
 
 ---
 
@@ -11829,4 +11830,126 @@ for it to cover at any size, since `min_act`/`max_act` carry `eps *
 rg.traffic` and `cur_rl`/`cur_ru` carry `eps * row_traffic[i]` and both are
 already in the max.
 
+**That last sentence is wrong and D162 corrects it.** There is a third error
+term: `cur_rl`/`cur_ru` carry `k * eps` times the partials they walked through,
+not `eps * row_traffic[i]`, and the magnitude of the end being tested is part
+of that. D162 puts it back multiplied by the shift count, which is zero on this
+entry's model and leaves every reading above unchanged.
+
 **What is left open.** Nothing from this entry.
+
+## D162 — A row bound is a running difference, so the window counts the terms — and the end it is testing comes back in, multiplied by that count
+
+**The question.** `numerics-reviewer` raised it while reviewing D159 and
+`TODO.md` §4 has carried it since: `cur_rl[i] -= a*v` is a plain running sum
+with no compensation, so after k removals the error goes with `k * eps * scale`
+and not with `eps * scale`. Three windows judge one of those numbers and all
+three counted a fixed eight ulps, which covers a k of about three.
+`ps_verify_row_activities` already multiplies by `nnz - 1` for the same
+quantity and is the shape to copy.
+
+Expected: a widening nothing measures, landed for coherence. What it turned out
+to be is a live wrong answer, plus two wrong shapes on the way to the right
+one.
+
+**The count is real.** Over the three sets
+(`bench/measurements/02-72/shifts.txt`), the largest number of shifts on one
+row is **250** at clause 1 of the activity pass, on netlib, and **325** at the
+frozen-row test, on Kennington. **804 rows** carry more than the eight ulps the
+window paid for.
+
+**The model, and it is a false INFEASIBLE.**
+
+```
+row R:  x0 + x1 + (k smalls) + w1 + w2  ==  k*2^-25 + 1e-7
+row S:  x1 + z                          == -1e9
+
+x0      fixed at +1e9        x1  in [-1e9-1, -1e9+1], not fixed at load
+smalls  fixed at 2^-25       w1, w2 in [0, 2e-7], cost 1
+z       fixed at 0, which is what delays x1 by one round
+```
+
+Presolve removes x0 and all k smalls in round 1 while x1 is still free, so each
+small is a quarter of an ulp of an accumulator of magnitude 1e9 and rounds
+away. Round 2 folds row S, fixes x1 and only then subtracts it. `cur_rl` comes
+back to `k*2^-25 + 1e-7` where the truth is 1e-7.
+
+| k | the parent (`4c5f58f`) | with the count |
+|---|---|---|
+| 128 | not refused | not refused |
+| **256** | **INFEASIBLE** | **not refused** |
+| 512 | INFEASIBLE | not refused |
+
+A pin, not one reading: 128 and 256 are one step apart in what separates the
+two windows. The control — the same shape 1e-2 from any feasible point — is
+refused on every build at every k.
+
+**The oracle cannot arbitrate this one, and the entry says so rather than
+dressing it up.** `-DJAOS_NO_PRESOLVE` refuses the model at every k, including
+the k where the shipped window already accepts, because the solver sums the row
+in column order and loses the same terms presolve lost. What settles it is that
+the feasible point is exactly representable and checkable by hand: `x0 = 1e9`,
+`x1 = -1e9`, every small at `2^-25`, `w1 = T - 2^-17`, `w2 = 0`, and the
+activity is exactly `T`. The published objective is not the true optimum on any
+build either, so the test asserts presolve's outcome and nothing else.
+
+**Two shapes were built and both are wrong. This is the part that pays.**
+
+| | the count multiplies | verdict |
+|---|---|---|
+| A | the row's traffic | **short**, and no measurement says so |
+| B | `ps_end_scale(the end being tested)` + the traffic | **ships** |
+| C | `ps_bound_scale` — the larger end — + the traffic | **refused by D161's own test** |
+
+**A is short.** The rounding at each step is half an ulp of the PARTIAL SUM,
+and a partial is bounded by `|row_lower[i]| + traffic`. The argument for A was
+that the comparison only comes near firing when `cur_rl[i]` is small; it is
+false, because at the activity pass and the frozen-row test `cur_rl[i]` is near
+the ACTIVITY there, which can be any magnitude. A row of activity 1e9 with 300
+removals totalling 0.9 of traffic carries about 1.8e-5 of error against a
+traffic-only window of 6.8e-14. Refuted by working the case, because no row on
+the three sets is near enough to any window for the sets to separate the two.
+
+**C brings D161's defect back through the count**, and `make configs` caught
+it: on `-1e12 <= x0 + x1 <= 0` the two cost-0 singleton relaxations are two
+shifts, so `2 * eps * 1e12 = 4.4e-4` of window lands on the UPPER side against
+an infeasibility of 2e-4, and
+`test_a_frozen_rows_window_ignores_the_far_bound` went red. The two ends walk
+through different partials, so anything scaled by an end has to say which end.
+That is `ps_end_scale`, and it is the whole difference between C and B.
+
+All three vanish at k = 0, which is what keeps D161 for a row nothing was ever
+removed from.
+
+**B and C are the same number on every row of all three sets** — worst C/B
+ratio exactly 1 at all nine site-set pairs. So the population cannot separate
+the shape that ships from the shape that is wrong, and no row anywhere had a
+positive residue that passed on its window. A green campaign says nothing about
+the shape of a window here; only the constructed models do.
+
+**The cost.** `gate: PASS` on all three sets with `0 regressed, 0 improved, 0
+new`; 94, 29 and 16 instances **bit-identical to the committed records**, 0
+digest changes; the twelve genuine infeasibility firings in `netlib-infeas`
+fire under every shape. Five build configurations. The widest ABSOLUTE window
+moves 1.776e-08 → 2.247e-08 on netlib's frozen-row test and 6.494e-08 →
+6.587e-08 on Kennington's, both under `PRIMAL_TOL` 1e-7; clause 1's widest does
+not move on any set, because the rows carrying it are not the rows carrying the
+shifts.
+
+**A shift of exactly zero is not counted.** `x - 0.0` is exact, so charging it
+would widen a window for an error that was never made.
+
+**`numerics-reviewer` did not deliver on this entry.** Four requests over the
+whole change, no content returned; the read was done in the main context, and
+it is what found both A and C. This is the second occurrence — D126, D127 and
+D128 were the first.
+
+**What is left open**, both to `TODO.md`:
+
+- **The solver's own row activity loses terms the same way.** It sums in
+  column order, so it refuses the model above on every build. That is the
+  reason this entry has no reference-build disagreement to show, and it is a
+  defect in the feasibility test rather than in any presolve window.
+- **The reopen condition is the absolute window, not a ratio.** A set carrying
+  a larger `rg.traffic` than Kennington's 3.66e7, or a shift count far above
+  325, is where these windows stop being comfortably under `PRIMAL_TOL`.

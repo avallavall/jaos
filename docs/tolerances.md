@@ -242,25 +242,72 @@ constant below is new and each arrives with its own sweep.
 
 | Name | Value | What it decides |
 |---|---|---|
-| `PRESOLVE_ROUND_ULPS` | 8 | Whether a residue left by a running difference is a number, at all three sites that ask: has a singleton row's fold genuinely emptied a column's interval; do an emptied row's bounds still admit zero after every column removed from it shifted them; and has a frozen row's activity range left its own bounds. The window is this many `DBL_EPSILON` times the scale that produced the residue, never this value alone (D23's argument, in presolve's own space). The scale is the row's traffic at the first two sites and `ps_bound_scale` at the third, for the reason below. Set from a measurement of the residues themselves rather than from a sweep: instrumenting all three sites over all three sets emits 32240 probe lines, of which 12 carry a residue above zero (the fold site prints only on a collapse, so its share of that total is collapses rather than reaches), **all twelve on `netlib-infeas`** and none below 3.69e8 ulps. So no feasible model on the 139 puts a residue anywhere in (0, 3.69e8 ulps], the constant may be set anywhere in that interval, and 8 is taken because it is where `ps_row_tol` already is. Swept 1, 2, 4, 8, 16, 64, 256 with `make clean` between settings: solved 94, objective ok 94, checker ok 94 and 7598 rows / 24695 columns removed at every one. The canary flips four times inside the grid and the seven binaries have seven distinct md5s — the second check is the one that matters, because the canary's four conflicts do not separate 2 from 4 or 8 from 16 (D103) |
+| `PRESOLVE_ROUND_ULPS` | 8 | Whether a residue left by a running difference is a number, at all three sites that ask: has a singleton row's fold genuinely emptied a column's interval; do an emptied row's bounds still admit zero after every column removed from it shifted them; and has a frozen row's activity range left its own bounds. The window is this many `DBL_EPSILON` times the scale that produced the residue, never this value alone (D23's argument, in presolve's own space). The scale is the row's traffic at all three sites, and at every site that judges a running difference the count of terms is added on top of this constant — see "the scale, and the term count" below. Set from a measurement of the residues themselves rather than from a sweep: instrumenting all three sites over all three sets emits 32240 probe lines, of which 12 carry a residue above zero (the fold site prints only on a collapse, so its share of that total is collapses rather than reaches), **all twelve on `netlib-infeas`** and none below 3.69e8 ulps. So no feasible model on the 139 puts a residue anywhere in (0, 3.69e8 ulps], the constant may be set anywhere in that interval, and 8 is taken because it is where `ps_row_tol` already is. Swept 1, 2, 4, 8, 16, 64, 256 with `make clean` between settings: solved 94, objective ok 94, checker ok 94 and 7598 rows / 24695 columns removed at every one. The canary flips four times inside the grid and the seven binaries have seven distinct md5s — the second check is the one that matters, because the canary's four conflicts do not separate 2 from 4 or 8 from 16 (D103) |
 | `PRESOLVE_IMPLIED_FREE_ULPS` | 8 | Whether the box a row implies on a singleton column lies inside the column's OWN box, so the column's bounds can never bind and it can be substituted out. Subtracted from the column's bounds rather than added to the implied ones, so the family declines at exact equality: being wrong here is silent, and drops a bound that was real (D106). The window is this many `DBL_EPSILON` times `max(1, |b|, traffic) / |a_ij|`, which is the row sum's residue carried through the division that produces the implied end. **It is a switch, not a dial.** Swept 0, 1, 8, 64, 4096 with `make clean` between settings: rows removed set-wide read 9992, 8639, 8639, 8639, 8639, `maros-r7` reads 984, 980, 980, 980, 980, and solved / objective ok / checker ok are 94 at every one. One step, between 0 and 1, and four decades of nothing above it — the family's firing is bimodal, because an implied box is either comfortably inside the column's box or exactly at its bound and almost nothing lands in a 1e-12 relative band. The canary is in the instance rather than in a model built for it: 4 of `maros-r7`'s 984 candidate rows sit at exact equality, so 0 must read 984 and anything above it 980, and it does. That canary separates 0 from the rest and nothing else, so the check that carries the plateau is the second one — five settings, five distinct md5s of `presolve.o`. **Zero is not obviously wrong and is not free**: it removes 1353 more rows and reads a geometric mean of 0.9627x against 8, but `d2q06c` costs 2.2163x there, which crosses `bench/run.c`'s own 2.0x work bar. So 8 ships and the question of whether the window's absolute floor should exist at all is open in `TODO.md` |
 | `JM_PRESOLVE_ROUNDS` | 16 | Cap on presolve's fixed-point rounds (D-02) — a safety stop and not a quality knob, since the loop exits as soon as a round changes nothing, and it lands on top of the structural backstop `num_row + num_col + 1` rather than above it. Set where the propagation reaches its fixed point: swept over the standard set, rows removed go 6060, 7178, 7549, 7596, 7598, 7598, 7598, 7598 at 1, 2, 4, 8, 16, 32, 64, 128 rounds, and columns removed 22671, 24300, 24629, 24693, 24695, 24695, 24695, 24695. The canary is a chain of 200 singleton rows built to resolve one link per round, and it reads 1, 2, 4, 8, 16, 32, 64, 128. The cost is flat across the whole sweep — 97.2 s to 103.6 s at `J=12` against a set that takes about 99 s — so there is nothing to trade against |
 
-**The third site keeps its own scale, and that is the part of the old
-`PRESOLVE_TIGHTEN_EPS` entry that survived.** The pass that tests a frozen row
-for feasibility after the round loop scales by
-`ps_bound_scale(cur_rl[i], cur_ru[i])` rather than by the row's traffic. Both
-choices are forced. Traffic cannot be used because `row_traffic[i]` saturates
-to `+inf` the first time a column with a half-infinite box is relaxed out of
-the row, which is the common case, and an infinite window is the failure mode
-where an infeasible model is quietly accepted. `ps_row_tol` cannot be used
-because it scales by the LIVE traffic, and a frozen row's live traffic is
-routinely zero, which collapses the window to 1.776e-15 absolute whatever the
-row's scale.
+## The scale, and the term count
 
-What the window has to cover is the rounding in `cur_rl`/`cur_ru`, which are
-running differences that every removed column shifted by its own `a*v`. So the
-coverage condition is a ratio, not an absolute:
+**All three sites scale by the row's traffic, and that took three decisions to
+arrive at.** The pass that tests a frozen row for feasibility after the round
+loop used to scale by `ps_bound_scale(cur_rl[i], cur_ru[i])`, and the paragraph
+here used to call that forced. It was not:
+
+- `row_traffic[i]` no longer saturates to `+inf` when a column with a
+  half-infinite box is relaxed out of a row. It accumulates only what a finite
+  end absorbed (**D155**), so the reason the bound scale stood in expired.
+- The traffic is what the window has to cover, and the bound's magnitude is
+  not (**D159**).
+- The bound's magnitude is worse than merely irrelevant. It is the magnitude
+  of ONE END, and the test compares a computed activity against the OTHER
+  (**D161**): `-1e12 <= x0 + x1 <= 0` with both columns cost-0 in `[1e-4, 1]`
+  is infeasible by 2e-4, and the lower bound alone bought a window of 1.78e-3
+  on the upper side. It published `optimal`. The same model with
+  `rl = -INFINITY` was refused correctly all along, which is the control.
+
+`ps_row_tol` still cannot be used at that site: it scales by the LIVE traffic,
+and a frozen row's live traffic is routinely zero, which collapses the window
+to 1.776e-15 absolute whatever the row's scale.
+
+**And the constant alone is not the whole window, because `cur_rl`/`cur_ru` are
+a running difference (D162).** Every removed column subtracts its own `a * v`
+from both, with no compensation, so each subtraction rounds by up to half an
+ulp of the partial it produces and the error after k of them goes with k. Eight
+ulps covers a k of about three; the largest k on the three sets is **325**. So
+every window that judges one of those numbers carries a second term:
+
+> `k * DBL_EPSILON * (|the end being tested| + row_traffic[i])`
+
+Three things about it, each of which was got wrong first and measured or tested
+into shape (`bench/measurements/02-72/`):
+
+- **The scale is not the traffic alone.** A partial is bounded by
+  `|row_lower[i]| + traffic`, and near the firing boundary `cur_rl[i]` is near
+  the ACTIVITY rather than near zero, so the traffic does not dominate. A row
+  of activity 1e9 with 300 removals totalling 0.9 of traffic carries about
+  1.8e-5 of error against a traffic-only window of 6.8e-14.
+- **It is ONE end and not `ps_bound_scale`.** Scaling by the larger of the two
+  brings D161's defect back through the count — two cost-0 singleton
+  relaxations are two shifts, and `2 * eps * 1e12` is 4.4e-4 against an
+  infeasibility of 2e-4. D161's own test caught it.
+- **It is zero at k = 0**, which is what keeps D161 for a row nothing was ever
+  removed from.
+
+It is ADDED to the eight ulps, never substituted for them, so no window can
+come out narrower than it was — narrowing one of these is what produces a false
+INFEASIBLE. Measured over the three sets before landing: **0 verdicts flip** on
+any of the 139, the twelve genuine infeasibility firings in `netlib-infeas`
+survive it, and the widest ABSOLUTE window moves from 6.494e-08 to 6.587e-08
+on Kennington's frozen-row test, under `PRIMAL_TOL` 1e-7.
+
+**The reopen condition is the absolute window and not a ratio.** A set carrying
+a larger `rg.traffic` than Kennington's 3.66e7, or a row with a shift count far
+above 325, is where these windows stop being comfortably under `PRIMAL_TOL`.
+
+## The proxy the constant used to rest on
+
+Kept because it is what "measured from one side only" looks like, and because
+the number it produced is still true.
 
 > accumulated shift / `ps_bound_scale(cur_rl, cur_ru)` ≤
 > `PRESOLVE_ROUND_ULPS` = 8
@@ -276,10 +323,9 @@ carries 660 of shift and reads `cur_rl = -660, cur_ru = 0`. The 60 rows of
 8293 where that does not happen are the ones with an infinite bound, where the
 scale falls to its floor of 1; their largest shift is 153.
 
-**That proxy is what the constant used to rest on, and it bounds the window
-from one side only.** It says the window is not too tight. Nothing in it says
-the window is not too wide, and at 1e-9 it was: on a row of magnitude 1e9 the
-window is 1.0, and
+**It bounds the window from one side only.** It says the window is not too
+tight. Nothing in it says the window is not too wide, and at 1e-9 it was: on a
+row of magnitude 1e9 the window is 1.0, and
 
 ```
 min x0  s.t.  x0 + x1 == 1e9 + 1,  x0 in [0.5, 0.5],  x1 in [0, 1e9]

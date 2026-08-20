@@ -9,8 +9,16 @@ Nothing here is a baseline and nothing here is read by the gate. Seconds may
 appear in these files; they still never enter `bench/results/*.txt` or a
 baseline.
 
+**The table below stops at `02-11` and the directories do not.** Every
+directory from `02-04` on carries its own `README.md` saying what it decided,
+which is where the answer is; keeping a second copy here is what let this table
+fall 60 entries behind without anyone noticing. Two directories have no
+`README.md` at all — `02-31/`, which is untracked and not this project's, and
+`02-63/`. Read the directory, not this table.
+
 | directory | what it decided |
 |---|---|
+| `02-72/` | the row bound is a running difference and the window never counted the terms: 325 shifts on one Kennington row, a constructed model refused at 256 and accepted at 128, and the two wrong shapes that were built first — the traffic alone, and `ps_bound_scale`, which brings D161's defect back through the count (D162) |
 | `02-04/` | presolve's two constants (`JM_PRESOLVE_ROUNDS = 16`, `PRESOLVE_TIGHTEN_EPS = 1e-9`, both swept with canaries), the refusal of bound tightening (D97), and the attribution of the checker's rejections to the 02-03 diff (`TODO.md` #1) |
 | `02-05/` | which presolve family produced the row residuals and the arithmetic that made four Kennington instances read `rowrel` exactly 1/3, the gate after the fix, and the `-DJAOS_NO_PRESOLVE` control that places what remains in presolve's dual recovery (D99) |
 | `02-06/` | which of two singleton rows folding into one column is owed the multiplier, the gate that closed at 94/94, the `warm` comparison against a HEAD build the committed record cannot give, and the exact tree the campaign measured (D100) |

@@ -375,15 +375,19 @@ trajectory. Refusals table, D151.
   constant says so. Clause 1 needs its own window, as its own change with its
   own measurement.
 
-- **`PRESOLVE_ROUND_ULPS` is missing its term count on a bound side.**
-  `cur_rl[i] -= a*v` is a plain running sum with no compensation, so after k
-  removals the error goes with `k * eps * scale`. Eight ulps covers k of about
-  three; a netlib row with a hundred removed columns is understated by roughly
-  12x. `ps_verify_row_activities` already multiplies by `nnz - 1` for the same
-  quantity and is the shape to copy. The direction is the loud one — still too
-  narrow, still a false INFEASIBLE — so it is not urgent, but it means "the
-  window covers both sides" is not yet true anywhere it is written
-  (`numerics-reviewer`, D159).
+- ~~**`PRESOLVE_ROUND_ULPS` is missing its term count on a bound side.**~~
+  **CLOSED 2026-08-20 (D162, `bench/measurements/02-72/`)**, and it was a live
+  wrong answer rather than a coherence repair: a constructed model with an
+  exactly representable feasible point reads INFEASIBLE at 256 removals and is
+  accepted at 128. The largest count on the three sets is 325, 804 rows carry
+  more than eight, and the gate is bit-identical on all 139.
+  **Two shapes were built before the right one and both are in the entry.**
+  The count times the traffic alone is short, because the per-step rounding is
+  half an ulp of the PARTIAL SUM and near the boundary that is the activity
+  rather than zero. The count times `ps_bound_scale` brings D161's defect back
+  through the count and D161's own test refuses it. Read that before touching
+  any window here: **the three sets cannot separate the two shapes** — they are
+  the same number on every row of all 139.
 - ~~**Two smaller things D155 left, both cheap.**~~ **CLOSED 2026-08-20
   (D157).** They were the same predicate, so `ps_traffic_usable` is asserted
   at all three places now. The measurement adds something the sweep alone did
@@ -402,6 +406,18 @@ trajectory. Refusals table, D151.
   apply here. **Do not confuse this with §1.** §1's error is relative to the
   row's TRAFFIC, which cancellation puts above the activity; this one is
   relative to the activity, and the division by a small `a` scales both.
+- **The solver's own row activity loses terms the way presolve's bounds did**,
+  and it is new (D162, `bench/measurements/02-72/`). It sums a row's columns in
+  index order, so a row holding a large magnitude before many small ones loses
+  every one of the small ones. On D162's model the reference build
+  `-DJAOS_NO_PRESOLVE` reads INFEASIBLE where the feasible point is exactly
+  representable, at every removal count — including the counts where presolve
+  accepts. It is a defect in the feasibility test and not in any presolve
+  window, and it is why D162 has no reference-build disagreement to show.
+  Nothing on the three sets is affected: 139 of 139 bit-identical. What it
+  needs is a compensated activity, and `ps_range`'s Neumaier accumulator is the
+  shape that already ships in presolve; `src/check.c` uses `long double` and
+  cannot be the model, because D34 forbids it outside that file.
 - **The unclamped dual step**, 248 netlib picks and 170 Kennington picks,
   worst 8.37e-09. Costs nothing today; clamping it was refused (D127) because
   the perturbation is what keeps `pilot87` moving.

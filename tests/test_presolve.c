@@ -3500,6 +3500,102 @@ static void test_the_activity_pass_still_refuses_a_real_shortfall(void)
     }
 }
 
+/* The same window, short by the NUMBER of removals rather than by their scale.
+ *
+ *   row R:  x0 + x1 + (k smalls) + w1 + w2  ==  k*2^-25 + 1e-7
+ *   row S:  x1 + z                          == -1e9
+ *
+ *   x0     fixed at +1e9
+ *   x1     in [-1e9-1, -1e9+1], NOT fixed at load time
+ *   smalls fixed at 2^-25, which is a quarter of an ulp of 1e9
+ *   w1, w2 in [0, 2e-7], cost 1, so no family relaxes them
+ *   z      fixed at 0, and this is what delays x1 by one round
+ *
+ * `cur_rl[i]` and `cur_ru[i]` are a plain running difference, so their error
+ * grows with the number of terms subtracted from them and not only with the
+ * scale of those terms. The window counted a fixed eight ulps, which covers
+ * about three removals (D162).
+ *
+ * Round 1 removes x0 and all k smalls while x1 is still free, so each small is
+ * a quarter of an ulp of an accumulator of magnitude 1e9 and rounds away.
+ * Round 2 folds row S, fixes x1 and only then subtracts it, and cur_rl comes
+ * back to `k*2^-25 + 1e-7` where the truth is 1e-7. At k = 256 that error is
+ * 7.63e-6 against a shipped window of 8 * DBL_EPSILON * 2e9 = 3.55e-6, and
+ * clause 1 of the activity pass returns INFEASIBLE on a model whose feasible
+ * point is exactly representable: x0 = 1e9, x1 = -1e9, every small at 2^-25,
+ * w1 = T - 2^-17 and w2 = 0 make the activity exactly T.
+ *
+ * **A pin, not a loose assertion**: at k = 128 the shipped window is wide
+ * enough and both trees accept; at k = 256 only the counted window does.
+ *
+ * **The reference build cannot arbitrate this one and it is worth saying why.**
+ * `-DJAOS_NO_PRESOLVE` reads INFEASIBLE at every k, including the k where the
+ * shipped window accepts, because the solver sums the row in column order and
+ * loses the same 256 terms presolve lost. That is a defect of its own and it is
+ * TODO.md's; it is not evidence about this window, and the exact feasible point
+ * above is what settles the question instead.
+ *
+ * So this asserts presolve's OUTCOME and not the published answer. The answer
+ * on this model is not the true optimum on any build — the simplex meets the
+ * same unrepresentable row — and pinning it would pin a wrong number. */
+static void test_the_window_counts_the_shifts_and_not_only_their_scale(void)
+{
+#if defined(JAOS_PRESOLVE_FAULT_OFFBYONE) || defined(JAOS_PRESOLVE_FAULT_WRONGDUAL)
+    TEST_IGNORE_MESSAGE("positive test — skipped under either fault build");
+#else
+    enum { KS = 256, NC = KS + 5, NNZ = KS + 6 };
+    static double c[NC], cl[NC], cu[NC], av[NNZ];
+    static int64_t as[NC + 1], ai[NNZ];
+    const double t = ldexp(1.0, -25);
+
+    /* Two models: the feasible one, and the same shape 1e-2 away from any
+     * feasible point, which no window in this range may accept. */
+    for (int half = 0; half < 2; half++) {
+        const double T = (double)KS * t + 1e-7 + (half == 0 ? 0.0 : 1e-2);
+        const double rl[] = {T, -1e9}, ru[] = {T, -1e9};
+        int64_t nz = 0;
+
+        for (int64_t j = 0; j < NC; j++) {
+            as[j] = nz;
+            c[j] = 0.0;
+            if (j == 0) {                        /* x0 */
+                cl[j] = cu[j] = 1e9;
+                ai[nz] = 0; av[nz++] = 1.0;
+            } else if (j == 1) {                 /* x1, fixed in round 2 */
+                cl[j] = -1e9 - 1.0; cu[j] = -1e9 + 1.0;
+                ai[nz] = 0; av[nz++] = 1.0;
+                ai[nz] = 1; av[nz++] = 1.0;
+            } else if (j < KS + 2) {             /* the smalls */
+                cl[j] = cu[j] = t;
+                ai[nz] = 0; av[nz++] = 1.0;
+            } else if (j < KS + 4) {             /* w1, w2 */
+                cl[j] = 0.0; cu[j] = 2e-7; c[j] = 1.0;
+                ai[nz] = 0; av[nz++] = 1.0;
+            } else {                             /* z */
+                cl[j] = cu[j] = 0.0;
+                ai[nz] = 1; av[nz++] = 1.0;
+            }
+        }
+        as[NC] = nz;
+
+        jaos_model *m = nullptr;
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_model_new(&m));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK,
+            jaos_load_lp(m, NC, 2, JAOS_MINIMIZE, 0.0, c, cl, cu, rl, ru,
+                         nz, as, ai, av));
+        jm_presolve p;
+        jm_presolve_init(&p);
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jm_presolve_run(m, &p, nullptr));
+        if (half == 0)
+            TEST_ASSERT_NOT_EQUAL_INT(JM_PRESOLVE_INFEASIBLE, p.outcome);
+        else
+            TEST_ASSERT_EQUAL_INT(JM_PRESOLVE_INFEASIBLE, p.outcome);
+        jm_presolve_free(&p);
+        jaos_model_free(m);
+    }
+#endif
+}
+
 /* An INVERTED column box reaches the same collapse branch, and the clamp has
  * no box to clamp into there.
  *
@@ -3928,6 +4024,7 @@ int main(void)
     RUN_TEST(test_a_frozen_row_emptied_and_still_short_is_refused);
     RUN_TEST(test_the_activity_pass_is_not_refused_below_its_own_traffic);
     RUN_TEST(test_the_activity_pass_still_refuses_a_real_shortfall);
+    RUN_TEST(test_the_window_counts_the_shifts_and_not_only_their_scale);
     RUN_TEST(test_a_frozen_rows_window_ignores_the_far_bound);
 
     RUN_TEST(test_a_frozen_row_missed_at_scale_is_refused);

@@ -1,0 +1,143 @@
+probe at 4c5f58f (4c5f58f)
+
+PRIMAL_TOL is 1e-7 and CHECK_TOL is 1e-6. A window above either is the
+reopen condition, not a ratio.
+
+---- netlib standard (94)
+  emptied-row test
+     rows tested                        1758
+     rows the shipped window refuses    0
+     of those, A (traffic) spares       0
+     of those, B (this end)  spares     0
+     of those, C (either end) spares    0
+     largest shift count on one row     2
+     rows with more than 8 shifts       0
+     widest ABSOLUTE window, shipped    1.101e-12
+     widest ABSOLUTE window, A          1.378e-12
+     widest ABSOLUTE window, B (ships)  1.379e-12
+     widest ABSOLUTE window, C          1.379e-12
+     worst B/A on one row               1.071
+     worst C/B on one row               1
+     worst residue that PASSED / window 0
+  activity pass, clause 1
+     rows tested                        554828
+     rows the shipped window refuses    0
+     of those, A (traffic) spares       0
+     of those, B (this end)  spares     0
+     of those, C (either end) spares    0
+     largest shift count on one row     250
+     rows with more than 8 shifts       668
+     widest ABSOLUTE window, shipped    4.038e-07
+     widest ABSOLUTE window, A          4.038e-07
+     widest ABSOLUTE window, B (ships)  4.038e-07
+     widest ABSOLUTE window, C          4.038e-07
+     worst B/A on one row               7.092
+     worst C/B on one row               1
+     worst residue that PASSED / window 0
+  frozen-row test
+     rows tested                        16618
+     rows the shipped window refuses    0
+     of those, A (traffic) spares       0
+     of those, B (this end)  spares     0
+     of those, C (either end) spares    0
+     largest shift count on one row     46
+     rows with more than 8 shifts       22
+     widest ABSOLUTE window, shipped    1.776e-08
+     widest ABSOLUTE window, A          2.025e-08
+     widest ABSOLUTE window, B (ships)  2.247e-08
+     widest ABSOLUTE window, C          2.247e-08
+     worst B/A on one row               5883
+     worst C/B on one row               1
+     worst residue that PASSED / window 0
+---- netlib-infeas (29)
+  emptied-row test
+     rows tested                        242
+     rows the shipped window refuses    0
+     of those, A (traffic) spares       0
+     of those, B (this end)  spares     0
+     of those, C (either end) spares    0
+     largest shift count on one row     4
+     rows with more than 8 shifts       0
+     widest ABSOLUTE window, shipped    2.203e-14
+     widest ABSOLUTE window, A          3.482e-14
+     widest ABSOLUTE window, B (ships)  9.486e-14
+     widest ABSOLUTE window, C          9.486e-14
+     worst B/A on one row               2.724
+     worst C/B on one row               1
+     worst residue that PASSED / window 0
+  activity pass, clause 1
+     rows tested                        70832
+     rows the shipped window refuses    8
+     of those, A (traffic) spares       0
+     of those, B (this end)  spares     0
+     of those, C (either end) spares    0
+     largest shift count on one row     27
+     rows with more than 8 shifts       4
+     widest ABSOLUTE window, shipped    1.908e-06
+     widest ABSOLUTE window, A          1.908e-06
+     widest ABSOLUTE window, B (ships)  1.908e-06
+     widest ABSOLUTE window, C          1.908e-06
+     worst B/A on one row               345.1
+     worst C/B on one row               1
+     worst residue that PASSED / window 0
+  frozen-row test
+     rows tested                        1894
+     rows the shipped window refuses    4
+     of those, A (traffic) spares       0
+     of those, B (this end)  spares     0
+     of those, C (either end) spares    0
+     largest shift count on one row     2
+     rows with more than 8 shifts       0
+     widest ABSOLUTE window, shipped    5.97e-11
+     widest ABSOLUTE window, A          5.97e-11
+     widest ABSOLUTE window, B (ships)  5.97e-11
+     widest ABSOLUTE window, C          5.97e-11
+     worst B/A on one row               6.349
+     worst C/B on one row               1
+     worst residue that PASSED / window 0
+---- kennington (16)
+  emptied-row test
+     rows tested                        11150
+     rows the shipped window refuses    0
+     of those, A (traffic) spares       0
+     of those, B (this end)  spares     0
+     of those, C (either end) spares    0
+     largest shift count on one row     0
+     rows with more than 8 shifts       0
+     widest ABSOLUTE window, shipped    0
+     widest ABSOLUTE window, A          3.553e-15
+     widest ABSOLUTE window, B (ships)  3.553e-15
+     widest ABSOLUTE window, C          3.553e-15
+     worst B/A on one row               1
+     worst C/B on one row               1
+     worst residue that PASSED / window 0
+  activity pass, clause 1
+     rows tested                        2681996
+     rows the shipped window refuses    0
+     of those, A (traffic) spares       0
+     of those, B (this end)  spares     0
+     of those, C (either end) spares    0
+     largest shift count on one row     4
+     rows with more than 8 shifts       0
+     widest ABSOLUTE window, shipped    5.223e-09
+     widest ABSOLUTE window, A          5.223e-09
+     widest ABSOLUTE window, B (ships)  5.223e-09
+     widest ABSOLUTE window, C          5.223e-09
+     worst B/A on one row               1.143
+     worst C/B on one row               1
+     worst residue that PASSED / window 0
+  frozen-row test
+     rows tested                        602
+     rows the shipped window refuses    0
+     of those, A (traffic) spares       0
+     of those, B (this end)  spares     0
+     of those, C (either end) spares    0
+     largest shift count on one row     325
+     rows with more than 8 shifts       110
+     widest ABSOLUTE window, shipped    6.494e-08
+     widest ABSOLUTE window, A          6.578e-08
+     widest ABSOLUTE window, B (ships)  6.587e-08
+     widest ABSOLUTE window, C          6.587e-08
+     worst B/A on one row               1.923
+     worst C/B on one row               1
+     worst residue that PASSED / window 0

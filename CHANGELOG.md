@@ -9,6 +9,21 @@ open, `bench/README.md` for the gate, and the commit each entry came from.
 
 ## [Unreleased]
 
+### Fixed
+
+- Presolve's three infeasibility windows count the terms subtracted from the
+  row's bounds. `cur_rl[i]` and `cur_ru[i]` are a running difference with no
+  compensation, so eight ulps covered about three removals and the largest row
+  on the three sets carries 325. A constructed model reads INFEASIBLE at 256
+  removals with an exactly representable feasible point, and stops at 128 —
+  the pair that separates the two windows. The count multiplies the magnitude
+  of the end being tested plus the row's traffic; scaling it by the larger of
+  the two ends brings D161's defect back and D161's own test refuses it (D162).
+- 94, 29 and 16 instances bit-identical to the committed records, 0 digest
+  changes, `gate: PASS` on each, and the twelve genuine infeasibility firings
+  in `netlib-infeas` unmoved. Widest absolute window 6.494e-08 → 6.587e-08 on
+  Kennington, under `PRIMAL_TOL` 1e-7.
+
 ## [0.1.1] — 2026-08-20
 
 Eight correctness items, D154 to D161, of which **four were wrong answers

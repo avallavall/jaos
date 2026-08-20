@@ -1,0 +1,43 @@
+A is feasible with an exactly representable point; B is the same shape
+1e-2 away from any feasible point and must be refused everywhere.
+
+KSMALL=64
+   -- the parent (4c5f58f), the shipped window
+      A-feasible-exactly     presolve outcome=not refused solve=optimal     obj=4e-07
+      B-control-infeas       presolve outcome=INFEASIBLE  solve=infeasible  obj=0
+   -- the working tree, the shifts counted
+      A-feasible-exactly     presolve outcome=not refused solve=optimal     obj=4e-07
+      B-control-infeas       presolve outcome=INFEASIBLE  solve=infeasible  obj=0
+   -- REFERENCE BUILD (-DJAOS_NO_PRESOLVE), which cannot arbitrate this
+      A-feasible-exactly     presolve outcome=not refused solve=infeasible  obj=0
+      B-control-infeas       presolve outcome=INFEASIBLE  solve=infeasible  obj=0
+KSMALL=128
+   -- the parent (4c5f58f), the shipped window
+      A-feasible-exactly     presolve outcome=not refused solve=optimal     obj=4e-07
+      B-control-infeas       presolve outcome=INFEASIBLE  solve=infeasible  obj=0
+   -- the working tree, the shifts counted
+      A-feasible-exactly     presolve outcome=not refused solve=optimal     obj=4e-07
+      B-control-infeas       presolve outcome=INFEASIBLE  solve=infeasible  obj=0
+   -- REFERENCE BUILD (-DJAOS_NO_PRESOLVE), which cannot arbitrate this
+      A-feasible-exactly     presolve outcome=not refused solve=infeasible  obj=0
+      B-control-infeas       presolve outcome=INFEASIBLE  solve=infeasible  obj=0
+KSMALL=256
+   -- the parent (4c5f58f), the shipped window
+      A-feasible-exactly     presolve outcome=INFEASIBLE  solve=infeasible  obj=0
+      B-control-infeas       presolve outcome=INFEASIBLE  solve=infeasible  obj=0
+   -- the working tree, the shifts counted
+      A-feasible-exactly     presolve outcome=not refused solve=optimal     obj=4e-07
+      B-control-infeas       presolve outcome=INFEASIBLE  solve=infeasible  obj=0
+   -- REFERENCE BUILD (-DJAOS_NO_PRESOLVE), which cannot arbitrate this
+      A-feasible-exactly     presolve outcome=not refused solve=infeasible  obj=0
+      B-control-infeas       presolve outcome=INFEASIBLE  solve=infeasible  obj=0
+KSMALL=512
+   -- the parent (4c5f58f), the shipped window
+      A-feasible-exactly     presolve outcome=INFEASIBLE  solve=infeasible  obj=0
+      B-control-infeas       presolve outcome=INFEASIBLE  solve=infeasible  obj=0
+   -- the working tree, the shifts counted
+      A-feasible-exactly     presolve outcome=not refused solve=optimal     obj=4e-07
+      B-control-infeas       presolve outcome=INFEASIBLE  solve=infeasible  obj=0
+   -- REFERENCE BUILD (-DJAOS_NO_PRESOLVE), which cannot arbitrate this
+      A-feasible-exactly     presolve outcome=not refused solve=infeasible  obj=0
+      B-control-infeas       presolve outcome=INFEASIBLE  solve=infeasible  obj=0
