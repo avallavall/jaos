@@ -1,0 +1,33 @@
+D166: the shift counts removed. Read in the main tree at the candidate, which
+is bd3b136 plus the working tree's src/presolve.c and tests/test_presolve.c.
+
+`make configs` exit: 0    -- five configurations, make clean between them
+
+The five tests the counts were built for, named from `make test` because
+`make configs` prints only its section headers and its exit status:
+
+   tests/test_presolve.c:4279:test_the_window_counts_the_shifts_and_not_only_their_scale:PASS
+   tests/test_presolve.c:4280:test_the_shift_count_scales_by_the_end_it_is_testing:PASS
+   tests/test_presolve.c:4281:test_the_singleton_fold_counts_the_shifts_too:PASS
+   tests/test_presolve.c:4282:test_a_folds_value_carries_its_rows_error_into_the_next:PASS
+   tests/test_presolve.c:4283:test_a_frozen_rows_window_ignores_the_far_bound:PASS
+
+   74 Tests 0 Failures 11 Ignored     (test_presolve)
+   78 Tests 0 Failures  4 Ignored     (test_simplex)
+
+The three gate sets, run in a worktree at bd3b136 with the candidate's src/
+and tests/ copied in:
+
+   netlib             gate: PASS   baseline: 0 regressed, 0 improved, 0 new
+   netlib-infeas      gate: PASS   baseline: 0 regressed, 0 improved, 0 new
+   netlib-kennington  gate: PASS   baseline: 0 regressed, 0 improved, 0 new
+
+   record_diff.py against the committed records:
+     94 instances compared: 94 bit-identical, 0 moved, 0 digest change(s)
+     29 instances compared: 29 bit-identical, 0 moved, 0 digest change(s)
+     16 instances compared: 16 bit-identical, 0 moved, 0 digest change(s)
+
+preflight reported `bench/results/netlib.txt was written before 1 src/
+commit(s)`, and that commit is bd3b136, the direct parent. No staleness
+question -- unlike D165, which needed a three-step argument and an independent
+parent run to establish the same thing.

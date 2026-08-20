@@ -173,6 +173,7 @@ and you have the argument. Jump to the entry for the numbers behind it.
 - **[D163](#d163--the-singleton-rows-fold-is-a-fourth-read-of-that-running-difference-and-a-count-cannot-cover-an-error-that-arrives-inside-a-value)** — The singleton row's fold is a fourth read of that running difference, and a count cannot cover an error that arrives inside a value
 - **[D164](#d164--carrying-that-error-into-the-window-is-refused-because-it-publishes-a-point-violating-two-rows-by-75-times-check_tol)** — Carrying that error into the window is refused, because it publishes a point violating two rows by 7.5 times CHECK_TOL
 - **[D165](#d165--the-row-bounds-keep-their-residue-which-removes-the-error-four-windows-were-widened-to-cover-and-moves-fourteen-digests)** — The row bounds keep their residue, which removes the error four windows were widened to cover — and moves fourteen digests
+- **[D166](#d166--the-shift-counts-come-out-and-the-tests-they-were-built-for-passing-without-them-is-the-evidence)** — The shift counts come out, and the tests they were built for passing without them is the evidence
 
 ---
 
@@ -12235,6 +12236,8 @@ the four moved objectives checked against the Koch reference on their own
 lines. This is the third late delivery in one session and the pattern now has a
 price attached — D163 exists because a review landed after D162's commit.
 
+**Closed by D166**, one commit later.
+
 **What is left open**, to `TODO.md`: **the shift counts are now redundant and
 still ship.** `row_shifts`, `ps_shift_excess` and `ps_end_scale` widen four
 windows to cover an error that no longer exists. Removing them NARROWS those
@@ -12242,3 +12245,69 @@ windows, which is the direction that refuses feasible models, so it is its own
 change with its own measurement — and D162's and D163's tests are what it has
 to keep passing. Nothing here says those windows are wrong; it says they are
 covering something that has been removed underneath them.
+
+## D166 — The shift counts come out, and the tests they were built for passing without them is the evidence
+
+**The question.** D165 left one thing open and named it: `row_shifts`,
+`ps_shift_excess` and `ps_end_scale` widen four windows by `k` ulps to cover a
+drift that D165 stopped happening. Two mechanisms covering one error, and one
+of them with nothing left to cover.
+
+**Removing them NARROWS four windows**, which is the direction that refuses
+feasible models, so it needed its own measurement rather than riding along.
+
+**Why it is not tidying.** At three of the four sites a window wider than its
+error is recoverable — the row survives into the reduced model and the simplex
+meets the infeasibility again. **At the emptied-row test it is not**: that test
+is the last word, an emptied row is deleted with everything else, and nothing
+re-asks. Too wide there accepts an infeasible model silently. Taking the count
+out narrows it, and by construction rather than by measurement: each window was
+`base + ps_shift_excess(...)` with that term non-negative.
+
+**The evidence is D162's, D163's and D165's own tests.** The suite holds
+exactly the models the counts were built for, each validated against a tree
+that fails it, and all five pass with the counts gone:
+`test_the_window_counts_the_shifts_and_not_only_their_scale`,
+`test_the_shift_count_scales_by_the_end_it_is_testing`,
+`test_the_singleton_fold_counts_the_shifts_too`,
+`test_a_folds_value_carries_its_rows_error_into_the_next` and
+`test_a_frozen_rows_window_ignores_the_far_bound`.
+
+**A test going green when its repair is deleted normally means the test is
+weak.** Here it means the defect was removed a second time, upstream, and what
+distinguishes the two readings is D165's campaign: 15 instances moved, which is
+the compensation reaching the reduced model. Without that, "the tests still
+pass" would prove nothing.
+
+**They had to be named individually.** `make configs` prints five section
+headers and an exit status and nothing else, so "configs exits 0" cannot say
+which tests ran — they are listed from `make test` in
+`bench/measurements/02-76/counts-removed.txt`.
+
+**The cost.** `gate: PASS` on all three sets, `baseline: 0 regressed, 0
+improved, 0 new`, **139 of 139 bit-identical with 0 digest changes**. Five
+build configurations. `src/presolve.c` loses 196 lines and gains 65: one array,
+two functions and four window terms.
+
+**No staleness question, and the contrast is the point.** `preflight.sh`
+reports the netlib record one `src/` commit behind, and that commit is
+`bd3b136` — the direct parent, because D165 rewrote the record. D165 itself
+needed a three-step argument and an independent parent run from
+`jaos-measurer` to establish the same thing. **A record rewritten when it moves
+is what makes the next diff readable.**
+
+**What this entry found that is not about tolerances.** `build/diag/wt-*` is
+inside what `make clean` deletes, and `make clean` is what `make configs` runs
+between its five configurations. A `jaos-measurer` campaign lost its entire
+worktree to this change's `make configs`, mid-run, with no error on its side.
+**44 of this repository's measurement scripts use that location**, from 02-28
+onward; it is safe only while one thing runs at a time, and `CLAUDE.md` routes
+campaigns to a subagent while the main context keeps working. The warning is in
+`.claude/skills/jaos-measure/SKILL.md`, which is what `CLAUDE.md` says to load
+before running or believing any campaign, and this directory's scripts use
+`mktemp -d`. The older ones are not converted.
+
+**What is left open.** Nothing from this entry. The class D159 opened —
+a running difference judged by a window that did not know how it was
+computed — is closed at all four sites, by compensation rather than by
+tolerance.

@@ -9,6 +9,17 @@ open, `bench/README.md` for the gate, and the commit each entry came from.
 
 ## [Unreleased]
 
+### Removed
+
+- `row_shifts`, `ps_shift_excess` and `ps_end_scale`. D162 and D163 added them
+  to widen four windows by the number of removals a row's bounds had absorbed;
+  D165 stopped those bounds drifting, so they covered a quantity that is now
+  zero. `src/presolve.c` is 196 lines shorter. It NARROWS four windows, which
+  at the emptied-row test is the direction worth having — that test is the last
+  word and too wide there accepts an infeasible model silently. The evidence is
+  that all five tests the counts were built for still pass without them, and
+  139 of 139 instances are bit-identical (D166).
+
 ### Fixed
 
 - Presolve's row bounds keep their residue. `cur_rl[i]` and `cur_ru[i]` were

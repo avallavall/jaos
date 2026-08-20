@@ -436,13 +436,13 @@ trajectory. Refusals table, D151.
   at residual zero. **It is also the first change in this class that moves the
   gate** — netlib 15 moved and 14 digests, work geomean 1.0000x, iterations and
   reduction counts identical on every one.
-  **What is left from it: the shift counts are now redundant and still ship.**
-  `row_shifts`, `ps_shift_excess` and `ps_end_scale` widen four windows to
-  cover an error that no longer exists. Removing them NARROWS those windows,
-  which is the direction that refuses feasible models, so it needs its own
-  measurement — and D162's and D163's own tests are what it has to keep
-  passing. Nothing says those windows are wrong; they are covering something
-  that has been removed underneath them.
+  ~~**What is left from it: the shift counts are now redundant and still
+  ship.**~~ **CLOSED 2026-08-20 (D166, `bench/measurements/02-76/`).**
+  `row_shifts`, `ps_shift_excess` and `ps_end_scale` are gone, 196 lines of
+  `src/presolve.c` with them, and all five tests they were built for still
+  pass — which is the evidence, because those tests are the models. 139 of 139
+  bit-identical. **The whole class D159 opened is closed at all four sites**,
+  by compensation rather than by tolerance.
   The history below is kept because the refusal in it is what stopped a worse
   repair landing.
   **The error weight was built and is REFUSED (D164,

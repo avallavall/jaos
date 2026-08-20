@@ -267,3 +267,30 @@ writing `bench/results/`. That is not hypothetical — it was caught happening
 the first time the script was run, together with a results file sitting empty
 because a campaign was mid-write. Both are invisible in the output of the run
 you are about to start.
+
+## Never put a measurement worktree under `build/`
+
+`make clean` is `rm -rf build`, and `make configs` runs it between each of its
+five configurations. **A worktree at `build/diag/wt-*` is deleted by anyone
+else's `make configs`, mid-campaign, with no error on your side** — the
+directory simply stops existing.
+
+44 of this repository's measurement scripts use exactly that location, from
+02-28 onward. It was safe while one thing ran at a time. It is not safe now:
+`CLAUDE.md` routes campaigns to `jaos-measurer` while the main context keeps
+working, and that is two things at once by design. It happened on D166 — a
+`jaos-measurer` campaign lost its whole worktree to the main context's
+`make configs` and had to relaunch (`bench/measurements/02-76/`).
+
+Put it in `$(mktemp -d)`, which is outside the repository and cleans itself up:
+
+```sh
+D=$(mktemp -d) || exit 2
+trap 'rm -rf "$D"' EXIT
+git worktree add --detach "$D/wt" "$ref" || exit 2
+# ... and `git worktree remove --force "$D/wt"; git worktree prune` at the end,
+# because the trap removes the directory but not git's registration of it.
+```
+
+The older scripts have not been converted. If you re-run one, move its
+worktree first or make sure nothing else is building.
