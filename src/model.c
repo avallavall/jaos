@@ -4,6 +4,7 @@
  */
 #include "jaos_internal.h"
 
+#include <assert.h>
 #include <math.h>
 #include <stdarg.h>
 #include <stdio.h>
@@ -509,6 +510,13 @@ jaos_status jm_model_remember_basis(jaos_model *m)
  * only there. */
 void jm_model_publish_objective(jaos_model *m)
 {
+    /* The precondition, enforced rather than described (`numerics-reviewer`,
+     * D169). Without it a caller reaching here before the solution arrays
+     * exist gets the bare `obj_offset` published beside an OPTIMAL status,
+     * which is a quiet wrong answer rather than a failure. The null test
+     * stays, because a model with no columns has nothing to allocate. */
+    assert(m->num_col == 0 || m->sol_col != nullptr);
+
     double sum = m->obj_offset, comp = 0.0;
     if (m->sol_col != nullptr) {
         for (int64_t j = 0; j < m->num_col; j++) {

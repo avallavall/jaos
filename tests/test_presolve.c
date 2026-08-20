@@ -3984,11 +3984,6 @@ static void test_a_maximised_singleton_row_is_owed_its_multiplier(void)
  * the minimise rule, so presolve put x1 at `lo` and published an objective
  * that was not the optimum. With lo = -inf it went further and reported
  * UNBOUNDED on a model whose optimum is 5. */
-/* Both of this helper's tests are positive and both are skipped under a
- * fault build, so the helper goes with them or `-Werror` refuses the file
- * for an unused function. */
-#if !defined(JAOS_PRESOLVE_FAULT_OFFBYONE) && \
-    !defined(JAOS_PRESOLVE_FAULT_WRONGDUAL)
 static jaos_model *make_maximised_empty_column(double lo, double hi)
 {
     const double c[]  = {0.0, 1.0};
@@ -4004,7 +3999,6 @@ static jaos_model *make_maximised_empty_column(double lo, double hi)
                      1, s, ix, v));
     return m;
 }
-#endif
 
 static void test_a_maximised_empty_column_takes_its_upper_bound(void)
 {
@@ -4031,27 +4025,33 @@ static void test_a_maximised_empty_column_takes_its_upper_bound(void)
 
 static void test_a_maximised_empty_column_is_not_unbounded_downwards(void)
 {
-#if defined(JAOS_PRESOLVE_FAULT_OFFBYONE) || defined(JAOS_PRESOLVE_FAULT_WRONGDUAL)
-    /* Positive test, and it reads the objective, which since D169 is summed
-     * from the published values — so a fault build's corrupted value reaches
-     * it. It did not before, and that is why this guard is newer than the
-     * test. */
-    TEST_IGNORE_MESSAGE("positive test — skipped under either fault build");
-#else
     /* The infinite side is the one the objective does not want. Reporting
      * UNBOUNDED here is a wrong verdict, not a conservative one, and D19
      * makes this family the only one allowed to report it at all — which is
-     * exactly why its rule has to be asked in the right space. */
+     * exactly why its rule has to be asked in the right space.
+     *
+     * **The verdict is asserted in every configuration and only the objective
+     * is guarded off** (`numerics-reviewer`, D169). Both faults live in
+     * postsolve — `ps_restore_index`, and the `JAOS_PRESOLVE_FAULT_WRONGDUAL`
+     * branch — while UNBOUNDED is decided earlier, in `ps_empty_col_value`
+     * during the scan, so neither of them can flip this status. Guarding the
+     * whole test would have thrown D19's own check away in two of the five
+     * configurations, which is what the first version of this guard did. */
     jaos_model *m = make_maximised_empty_column(-INFINITY, 5.0);
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
     TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
 
+#if !defined(JAOS_PRESOLVE_FAULT_OFFBYONE) && !defined(JAOS_PRESOLVE_FAULT_WRONGDUAL)
+    /* The objective is summed from the published values since D169, so a
+     * corrupted postsolved value reaches it now and did not before. Under
+     * OFFBYONE, `ps_restore_index` swaps the two slots and it reads
+     * 0*5 + 1*0 = 0 rather than 5 — the fault doing its job. */
     const double expected_obj = 5.0;
     double obj = 0.0;
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(m, &obj));
     TEST_ASSERT_EQUAL_MEMORY(&expected_obj, &obj, sizeof obj);
-    jaos_model_free(m);
 #endif
+    jaos_model_free(m);
 }
 
 /*   max x0 + x1

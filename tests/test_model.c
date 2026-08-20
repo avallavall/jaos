@@ -315,37 +315,52 @@ static void test_the_objective_is_summed_from_the_values_it_publishes(void)
  * `obj_offset + c'x` in its own sense, so dropping the offset or minimising by
  * accident both show up here and neither would move any instance in the gate.
  *
- *   max 2*x0 + 3*x1 + 100   s.t.  x0 + x1 <= 4,  0 <= x <= 4
+ *   max 2*x0 + 3*x1 + 5*x2 + 100   s.t.  x0 + x1 + x2 <= 4
+ *   0 <= x0, x1 <= 4     x2 fixed at 1
  *
- * x1 is worth more, so x1 = 4 and x0 = 0: objective 12 + 100 = 112. */
+ * **x2 is fixed and that is the point of it** (`numerics-reviewer`, D169).
+ * Without it presolve reports NONE on this model — no fixed column, no
+ * singleton row, no cost-0 singleton column, x0 is not implied free because
+ * the row has no lower bound, and the row is neither forcing nor redundant —
+ * so the test exercised `publish()` alone and never the two postsolve paths
+ * the change touched most. A fixed column with a cost sends its own term
+ * through the reduced model's `obj_offset` and back out through
+ * `jm_postsolve_expand`'s replay, which is where a double count or a dropped
+ * offset would appear.
+ *
+ * x2 takes 1 of the row, so x0 + x1 <= 3 and x1 is worth more: x1 = 3,
+ * x0 = 0, objective 9 + 5 + 100 = 114. */
 static void test_the_objective_keeps_its_constant_term_and_its_sense(void)
 {
 #if defined(JAOS_PRESOLVE_FAULT_OFFBYONE) || defined(JAOS_PRESOLVE_FAULT_WRONGDUAL)
     TEST_IGNORE_MESSAGE("positive test — skipped under either fault build");
 #else
-    const double c[] = {2.0, 3.0};
-    const double cl[] = {0.0, 0.0}, cu[] = {4.0, 4.0};
+    const double c[] = {2.0, 3.0, 5.0};
+    const double cl[] = {0.0, 0.0, 1.0}, cu[] = {4.0, 4.0, 1.0};
     const double rl[] = {-INFINITY}, ru[] = {4.0};
-    const int64_t as[] = {0, 1, 2}, ai[] = {0, 0};
-    const double av[] = {1.0, 1.0};
+    const int64_t as[] = {0, 1, 2, 3}, ai[] = {0, 0, 0};
+    const double av[] = {1.0, 1.0, 1.0};
 
     jaos_model *m = nullptr;
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_model_new(&m));
     TEST_ASSERT_EQUAL_INT(JAOS_OK,
-        jaos_load_lp(m, 2, 1, JAOS_MAXIMIZE, 100.0, c, cl, cu, rl, ru,
-                     2, as, ai, av));
+        jaos_load_lp(m, 3, 1, JAOS_MAXIMIZE, 100.0, c, cl, cu, rl, ru,
+                     3, as, ai, av));
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
     TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
 
     double obj = 0.0;
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(m, &obj));
-    const double expected = 112.0;
+    const double expected = 114.0;
     TEST_ASSERT_EQUAL_MEMORY(&expected, &obj, sizeof obj);
 
-    /* And it is the objective of the point that came with it. */
-    double x[2] = {0.0, 0.0};
+    /* And it is the objective of the point that came with it, including the
+     * column presolve took out and put back. */
+    double x[3] = {0.0, 0.0, 0.0};
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solution(m, x, nullptr, nullptr, nullptr));
-    const double from_x = 100.0 + c[0] * x[0] + c[1] * x[1];
+    const double one = 1.0;
+    TEST_ASSERT_EQUAL_MEMORY(&one, &x[2], sizeof one);
+    const double from_x = 100.0 + c[0] * x[0] + c[1] * x[1] + c[2] * x[2];
     TEST_ASSERT_EQUAL_MEMORY(&from_x, &obj, sizeof obj);
     jaos_model_free(m);
 #endif

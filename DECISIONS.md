@@ -12630,9 +12630,16 @@ the objective did not read those values, so tests designed to be broken by it
 passed. Guarding at `solved_objective` follows `solve_and_verify`'s precedent
 in `tests/test_simplex.c`.
 
+**`-ffp-contract=off` is load-bearing here in a way it was not before.**
+`u = a + t` with `t = cost * sol` is exactly the multiply-add GCC would fuse,
+and a fused `u` would no longer equal `a + t`, so the Neumaier correction
+would compute a wrong residue in silence. A future change to that flag breaks
+this without any test saying so (`numerics-reviewer`).
+
 **The three questions this entry put to review, answered in the main context
-because the review had not delivered.** `CLAUDE.md` wants that read done
-somewhere else, and this says plainly that it was not.
+before the review delivered.** `CLAUDE.md` wants that read done somewhere
+else. It was done here first and the review arrived afterwards; it agreed on
+all three and added the four items below.
 
 - **Is `sol_col` complete at all three call sites?** Yes, and the measurement
   answers it rather than an argument about the source. `jm_model_publish_objective`
@@ -12649,11 +12656,44 @@ somewhere else, and this says plainly that it was not.
   that corrupted a postsolved value left it untouched and tests designed to be
   broken by that fault passed. The objective is a detector for a corrupted
   postsolve now, which is why they started failing.
-- **Is `settled_objective` an inconsistency that can decide something?** It can
-  decide a trajectory and not a published number: it compares the objective
-  across rounds inside the solve and its result never leaves. That is why it is
-  left out, and a model for it would have to show a different pivot rather than
-  a different answer.
+- **Is `settled_objective` an inconsistency that can decide something?** Yes,
+  and **the first version of this answer was wrong.** It said the sum decides a
+  trajectory and not a published number. `take_best_if_better` restores the
+  saved best status and basis, and its own comment says *"Publish the best one
+  instead (D89)"* — so `settled_objective` selects **which point gets
+  published**. The model for it therefore does not need to show a different
+  pivot; it needs two rounds that tie under a naive sum and separate under a
+  compensated one, which is cheaper to build. Found by `numerics-reviewer`,
+  confirmed by reading `take_best_if_better` and its four callers.
+
+### The four things the review added
+
+**1. `test_a_maximised_empty_column_is_not_unbounded_downwards` was guarded too
+widely.** The guard skipped D19's own `JAOS_SOLVE_OPTIMAL` assertion as well as
+the objective, and neither fault can flip that verdict: `ps_restore_index` and
+the `JAOS_PRESOLVE_FAULT_WRONGDUAL` branch are both in postsolve, while
+UNBOUNDED is decided during the scan in `ps_empty_col_value`. Only the
+objective comparison is guarded now, so the verdict is asserted in all five
+configurations again.
+
+**2. The sense-and-offset control never ran a postsolve path.** Presolve
+reported NONE on `max 2x0 + 3x1 + 100 s.t. x0 + x1 <= 4` — measured, `outcome`
+0 and no reduction — so the control exercised `publish()` alone and neither of
+the two sites this change touched most. It carries a third column fixed at 1
+with a cost of 5 now: presolve reduces to 2 columns and 1 row with
+`obj_offset = 105`, the column is replayed through `jm_postsolve_expand`, and
+the answer is 114.
+
+**3. The helper's precondition is enforced.** `assert(m->num_col == 0 ||
+m->sol_col != nullptr)`. Without it a caller arriving before the solution
+arrays exist gets the bare `obj_offset` published beside an OPTIMAL status.
+
+**4. Neither new test can pass for a wrong reason, and the review checked
+why.** Test 1's 258 columns are all fixed, so the shipping build reduces to
+zero columns and takes `jm_postsolve_solved`, where the parent published
+`p->reduced.obj_offset` accumulated in the same column order — also 0. The
+reference build takes `publish()` — also 0. 256.0 is reachable only by fixing
+the summation.
 
 **What is left open.** The two-product above, and `settled_objective` with the
 condition just stated. presolve's `obj_offset` is still accumulated naively;

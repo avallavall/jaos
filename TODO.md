@@ -699,16 +699,30 @@ trajectory. Refusals table, D151.
   D169. Once the accumulation is compensated, what is left in `c'x` is the
   rounding of each `c_j * x_j` to a double, bounded by `eps` times the sum of
   the term magnitudes — 7.1e-04 on `finnis`, where 2.65e-05 of it is realised.
-  Dekker's split is portable and `-ffp-contract=off` makes it exact; `fma()` is
-  one instruction and needs its own decision, because D34's rules are about
-  what the compiler may do and not about what the source may ask for. It costs
+  Dekker's split is portable and `-ffp-contract=off` makes it exact.
+  **`fma()` is allowed and the distinction matters** (`numerics-reviewer`):
+  that flag stops the COMPILER contracting `a*b+c` on its own, and says nothing
+  about an explicit call, which IEEE-754 requires to be correctly rounded and
+  therefore deterministic across machines in a way `log` and `exp` are not.
+  Dekker's split is still the safer default, because it needs no claim about
+  libm at all. It costs
   one pass over the columns per solve, so the campaign question is accuracy
   rather than time. Nothing shows it losing a verdict.
 - **`settled_objective` in `src/simplex.c` is a fourth accumulation of the same
-  shape**, untouched by D169. It compares the objective across rounds inside
-  the solve and never reaches the caller, so it decides a trajectory rather
-  than a published number — which is why it was left out, and also why a model
-  for it would have to show a different pivot rather than a different answer.
+  shape**, untouched by D169, and **this entry's first version got its severity
+  wrong**. It said the sum decides a trajectory rather than a published number.
+  It decides which point gets published: `take_best_if_better` restores the
+  saved best status and basis and its own comment says *"Publish the best one
+  instead (D89)"*, and `publish()` then writes that point. Found by
+  `numerics-reviewer`, confirmed by reading the function and its four callers.
+  **So the model is cheaper to build than "a different pivot"**: it needs two
+  rounds that tie under a naive sum and separate under a compensated one. The
+  reviewer's shape is D169's own test model scaled up — a basic column of cost
+  `+1e16`, many unit-cost columns and a `-1e16` column, where two rounds both
+  give `settled_objective` exactly 0.0, `better_point` returns false, and the
+  loop keeps the round it stopped on while the saved best is better by 256.
+  Deterministic, so D8 is not at risk, and it needs severe cancellation plus
+  multiple saved rounds, so it is rare.
 - **presolve's `obj_offset` is still accumulated naively** as columns are
   removed (`src/presolve.c`, four sites). Nothing reads it for the answer since
   D169 — both postsolve paths sum the published values instead — but the
