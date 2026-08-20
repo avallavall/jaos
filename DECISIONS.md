@@ -11940,10 +11940,14 @@ shifts.
 **A shift of exactly zero is not counted.** `x - 0.0` is exact, so charging it
 would widen a window for an error that was never made.
 
-**`numerics-reviewer` did not deliver on this entry.** Four requests over the
-whole change, no content returned; the read was done in the main context, and
-it is what found both A and C. This is the second occurrence — D126, D127 and
-D128 were the first.
+**`numerics-reviewer` delivered after this entry was committed**, and the
+sentence here first said it had not delivered at all. Four requests went
+unanswered while the change was open, so the read was done in the main context
+and it is what found both A and C. The review then arrived with two findings
+the main context had missed, both wrong answers, and both are D163. The lesson
+is the timing and not the quality: a review that lands after the commit costs a
+second campaign, and this is the second time it has landed late here (D126,
+D127 and D128 were the first, where it returned nothing at all).
 
 **What is left open**, both to `TODO.md`:
 
