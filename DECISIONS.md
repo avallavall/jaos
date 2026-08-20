@@ -172,6 +172,7 @@ and you have the argument. Jump to the entry for the numbers behind it.
 - **[D162](#d162--a-row-bound-is-a-running-difference-so-the-window-counts-the-terms-and-the-end-it-is-testing-comes-back-in-multiplied-by-that-count)** — A row bound is a running difference, so the window counts the terms — and the end it is testing comes back in, multiplied by that count
 - **[D163](#d163--the-singleton-rows-fold-is-a-fourth-read-of-that-running-difference-and-a-count-cannot-cover-an-error-that-arrives-inside-a-value)** — The singleton row's fold is a fourth read of that running difference, and a count cannot cover an error that arrives inside a value
 - **[D164](#d164--carrying-that-error-into-the-window-is-refused-because-it-publishes-a-point-violating-two-rows-by-75-times-check_tol)** — Carrying that error into the window is refused, because it publishes a point violating two rows by 7.5 times CHECK_TOL
+- **[D165](#d165--the-row-bounds-keep-their-residue-which-removes-the-error-four-windows-were-widened-to-cover-and-moves-fourteen-digests)** — The row bounds keep their residue, which removes the error four windows were widened to cover — and moves fourteen digests
 
 ---
 
@@ -12142,3 +12143,83 @@ all five configurations.
 
 **What is left open.** Both directions above, in `TODO.md`, and the pin is what
 will notice when either lands.
+
+## D165 — The row bounds keep their residue, which removes the error four windows were widened to cover — and moves fourteen digests
+
+**The question.** D164 named two directions and said the first was the one to
+take: `cur_rl[i]` and `cur_ru[i]` were the only running sums in
+`src/presolve.c` with no compensation, while `ps_row_range` has used a Neumaier
+accumulator for activities since 02-04. Compensating removes the error rather
+than covering it.
+
+**The shape, because it is what made this cheap.** `ps_bound_shift` keeps the
+residue and writes `sum + comp` back into `cur_rl[i]`, so **no read site
+changed at all** — there are about fifteen, and a value compensated at some of
+them and not others would be worse than no compensation. An infinite end is
+left exactly as the uncompensated subtraction left it, because `(inf - inf)` is
+a NaN and a NaN turns every comparison false, which is the failure mode where
+an infeasible model is quietly accepted.
+
+**What it changes, measured before building** (`bench/measurements/02-75/`).
+The correction is non-zero on 5260 of netlib's 581826 window reads, 250 of
+82726 on netlib-infeas, and **0 of Kennington's 2775394**. Worst correction
+2.526e-12 absolute. **0 window verdicts move in either direction** on any set —
+both directions measured, because a compensated bound can newly refuse as well
+as spare and only one of those is safe.
+
+**Kennington's zero is worth reading beside 02-74**, which reported a worst
+inherited error of 2.08e-11 on the same set. That was the WINDOW's bound on the
+error; this is the error. The gap between them says D162's and D163's windows
+are far wider than these instances need.
+
+**The probe under-predicted the cost and the reason is instructive.** It
+measured window verdicts and folded values — 2 folds move, by one ulp — and did
+not measure the reduced model's row bounds. That is the channel that carried
+almost all of it: `p->reduced.row_lower[ri2] = cur_rl[i]` hands the compensated
+bound to the simplex, so all 5260 corrected rows reach it. **A probe over a
+value that is later COPIED somewhere has to follow the copy.**
+
+**The cost.** netlib **79 bit-identical, 15 moved, 14 digest changes**;
+netlib-infeas and Kennington bit-identical. `gate: PASS` and
+`baseline: 0 regressed, 0 improved, 0 new` on all three, `record_diff.py` reads
+no regression on all three, five build configurations.
+
+**Work: geometric mean 1.0000x on every set**, best `capri` 0.9993x, worst
+`bandm` 1.0000x. **Iteration counts are identical on all 15 moved instances,
+and so are the presolve reduction counts** — the same trajectory of the same
+length over the same reduced model, landing on different bits.
+
+Four objectives moved in their last one or two ulps, each still `objective=ok`
+against its Koch reference: `bandm` and `pilot87` toward it, `ship08s` and
+`pilot` away, against gaps unchanged in every significant digit. `basis=`
+changed on `bandm`, `capri`, `czprob` and `finnis`, all `det=ok`; the gate has
+covered the basis since D150.
+
+**The chained model, which is what this was for.** D164's model publishes
+`optimal` at 1.1920928955078125e-07 with `x1 = 1e9 - 2^-17`, `w1 = 2^-23` and
+**both rows at residual zero** — bit-identical to the reference build. D164's
+refused window repair reached `optimal` too and got there with both rows
+violated by 7.6e-06. The pinned change-detector D164 left behind fired on the
+first build (`Expected 2 Was 1`) and now asserts the answer.
+
+**The record moved and the baseline did not.** `bench/results/netlib.txt` is
+rewritten in this commit because it is the record of what the tree produces;
+`bench/netlib.baseline` is untouched, because the gate reads
+`0 regressed, 0 improved, 0 new` against it and a baseline is rewritten only by
+its own target, deliberately.
+
+**`jaos-measurer` had not delivered when this landed.** It was launched on the
+finished candidate with the campaign already run, and the verdict below was
+reached in the main context: the geometric mean from
+`scripts/geomean.py`, the per-instance read from `scripts/record_diff.py`, and
+the four moved objectives checked against the Koch reference on their own
+lines. This is the third late delivery in one session and the pattern now has a
+price attached — D163 exists because a review landed after D162's commit.
+
+**What is left open**, to `TODO.md`: **the shift counts are now redundant and
+still ship.** `row_shifts`, `ps_shift_excess` and `ps_end_scale` widen four
+windows to cover an error that no longer exists. Removing them NARROWS those
+windows, which is the direction that refuses feasible models, so it is its own
+change with its own measurement — and D162's and D163's tests are what it has
+to keep passing. Nothing here says those windows are wrong; it says they are
+covering something that has been removed underneath them.

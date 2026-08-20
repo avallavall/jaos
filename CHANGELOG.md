@@ -9,6 +9,22 @@ open, `bench/README.md` for the gate, and the commit each entry came from.
 
 ## [Unreleased]
 
+### Fixed
+
+- Presolve's row bounds keep their residue. `cur_rl[i]` and `cur_ru[i]` were
+  the only running sums in `src/presolve.c` without compensation; they get a
+  Neumaier accumulator now, and still hold `sum + comp` after every update so
+  no read site changed. This removes the error D162 and D163 widened four
+  windows to cover and D164 could not repair from a window at all: the chained
+  model now publishes the oracle's answer bit for bit, with both rows at
+  residual zero (D165).
+- **The first change in this class that moves the gate.** netlib 79
+  bit-identical, 15 moved, 14 digest changes; netlib-infeas and Kennington
+  bit-identical. Work geometric mean 1.0000x on every set, iteration counts and
+  reduction counts identical on all 15, every one `objective=ok checker=ok
+  det=ok`. `bench/results/netlib.txt` is rewritten; the baseline is not, because
+  the gate reads `0 regressed, 0 improved, 0 new` against it.
+
 ### Changed
 
 - A pinned change-detector for the one wrong answer presolve still gives:

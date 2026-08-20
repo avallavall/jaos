@@ -287,6 +287,34 @@ static double ps_acc_value(const ps_acc *a)
     return a->sum + a->comp;
 }
 
+/* One row bound, shifted by a removed column's `a * v`, with the residue kept
+ * (D165).
+ *
+ * `cur_rl[i]` and `cur_ru[i]` were the only running sums in this file with no
+ * compensation, and three entries came out of that: D162 and D163 widened four
+ * windows to COVER the error, and D164 refused the only repair a window can
+ * offer for the part that arrives inside a folded value. Keeping the residue
+ * removes the error instead, at its source.
+ *
+ * `cur` still holds the best estimate after every call, so nothing that READS
+ * a row bound changes — the accumulator carries the residue forward and the
+ * array carries `sum + comp`. That is the whole reason it is shaped this way:
+ * fifteen read sites, and a compensated value visible at some of them and not
+ * others would be worse than no compensation at all.
+ *
+ * **An infinite end is left exactly as the uncompensated subtraction left
+ * it.** `(inf - inf)` is a NaN, so an unguarded correction would turn an
+ * infinity into a NaN and every comparison against it into false — which is
+ * the failure mode where an infeasible model is quietly accepted. An end with
+ * no finite value carries no residue for a correction to hold. */
+static void ps_bound_shift(ps_acc *a, double *cur, double t)
+{
+    ps_acc_add(a, -t);
+    if (!isfinite(a->sum) || !isfinite(a->comp))
+        a->comp = 0.0;
+    *cur = a->sum + a->comp;
+}
+
 /* --------------------------------------------------------------------- */
 /* A local, presolve-owned row-wise mirror of m's CSC matrix.            */
 /* --------------------------------------------------------------------- */
@@ -764,13 +792,18 @@ JAOS_NODISCARD jaos_status jm_presolve_run(const jaos_model *m, jm_presolve *p,
     double *cur_cost = jm_alloc_array(nc, sizeof *cur_cost);
     double *cur_rl = jm_alloc_array(nr, sizeof *cur_rl);
     double *cur_ru = jm_alloc_array(nr, sizeof *cur_ru);
+    /* The residue each of those two threw away until D165. `cur_rl[i]` still
+     * holds the value every reader wants; these hold what the running
+     * subtraction lost, so the next one starts from the truth. */
+    ps_acc *cur_rl_acc = jm_calloc_array(nr, sizeof *cur_rl_acc);
+    ps_acc *cur_ru_acc = jm_calloc_array(nr, sizeof *cur_ru_acc);
     int64_t *col_deg = jm_alloc_array(nc, sizeof *col_deg);
     int64_t *row_deg = jm_alloc_array(nr, sizeof *row_deg);
     ps_rowwise rw = {0};
 
     bool ok = col_dead && row_dead && row_frozen && col_pending_dual &&
               row_traffic && row_shifts && cur_cl && cur_cu && cur_cost &&
-              cur_rl && cur_ru &&
+              cur_rl && cur_ru && cur_rl_acc && cur_ru_acc &&
               col_deg && row_deg && ps_build_rowwise(m, &rw);
 
     jaos_status ret = JAOS_OK;
@@ -788,6 +821,8 @@ JAOS_NODISCARD jaos_status jm_presolve_run(const jaos_model *m, jm_presolve *p,
     for (int64_t i = 0; i < nr; i++) {
         cur_rl[i] = m->row_lower[i];
         cur_ru[i] = m->row_upper[i];
+        cur_rl_acc[i].sum = cur_rl[i];
+        cur_ru_acc[i].sum = cur_ru[i];
         row_deg[i] = rw.rs[i + 1] - rw.rs[i];
     }
 
@@ -1198,8 +1233,8 @@ JAOS_NODISCARD jaos_status jm_presolve_run(const jaos_model *m, jm_presolve *p,
                      * are the same expression rather than two that agree
                      * (`numerics-reviewer`). */
                     const double t = m->a_value[k] * v;
-                    cur_rl[i] -= t;
-                    cur_ru[i] -= t;
+                    ps_bound_shift(&cur_rl_acc[i], &cur_rl[i], t);
+                    ps_bound_shift(&cur_ru_acc[i], &cur_ru[i], t);
                     row_traffic[i] += fabs(t);
                     if (t != 0.0)
                         row_shifts[i]++;
@@ -1291,10 +1326,13 @@ JAOS_NODISCARD jaos_status jm_presolve_run(const jaos_model *m, jm_presolve *p,
                     }
                     const bool lo_absorbs = isfinite(cur_rl[i]);
                     const bool hi_absorbs = isfinite(cur_ru[i]);
+                    /* The two ends take DIFFERENT terms here, which is why
+                     * they are shifted separately and why `row_traffic` below
+                     * accumulates the larger of the two (D165). */
                     if (lo_absorbs)
-                        cur_rl[i] -= cmax;
+                        ps_bound_shift(&cur_rl_acc[i], &cur_rl[i], cmax);
                     if (hi_absorbs)
-                        cur_ru[i] -= cmin;
+                        ps_bound_shift(&cur_ru_acc[i], &cur_ru[i], cmin);
                     if ((lo_absorbs && cmax != 0.0) ||
                         (hi_absorbs && cmin != 0.0))
                         row_shifts[i]++;
@@ -1730,8 +1768,8 @@ JAOS_NODISCARD jaos_status jm_presolve_run(const jaos_model *m, jm_presolve *p,
                             if (row_dead[ii])
                                 continue;
                             const double t = m->a_value[kk] * v;
-                            cur_rl[ii] -= t;
-                            cur_ru[ii] -= t;
+                            ps_bound_shift(&cur_rl_acc[ii], &cur_rl[ii], t);
+                            ps_bound_shift(&cur_ru_acc[ii], &cur_ru[ii], t);
                             row_traffic[ii] += fabs(t);
                             if (t != 0.0)
                                 row_shifts[ii]++;
@@ -2348,6 +2386,7 @@ cleanup_scratch:
     free(col_pending_dual); free(row_traffic); free(row_shifts);
     free(cur_cl); free(cur_cu); free(cur_cost);
     free(cur_rl); free(cur_ru);
+    free(cur_rl_acc); free(cur_ru_acc);
     free(col_deg); free(row_deg);
     ps_free_rowwise(&rw);
     return ret;

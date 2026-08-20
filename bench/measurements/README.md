@@ -18,6 +18,7 @@ fall 60 entries behind without anyone noticing. Two directories have no
 
 | directory | what it decided |
 |---|---|
+| `02-75/` | the row bounds keep their residue, which removes the error D162 and D163 widened four windows to cover and D164 could not repair from a window — the chained model now matches the oracle bit for bit, and it is the first change in the class to move the gate: 15 netlib instances and 14 digests, work geomean 1.0000x, iterations and reduction counts identical (D165) |
 | `02-74/` | carrying a fold's error into the receiving row's window — built, measured over 324826 window reads, and **refused**, because it publishes `optimal` with two rows violated by 7.5 times `CHECK_TOL` where the parent gave a loud false INFEASIBLE; plus the two directions left, of which compensating `cur_rl`/`cur_ru` would subsume D162 and D163 entirely (D164) |
 | `02-73/` | the fourth read of that running difference — the singleton row's fold, refusing a model the reference build solves to the last bit — the term D162's own test never exercised, a control near the edge of the widened window, and the chained error a count cannot cover, refused as a window and carried to `TODO.md` (D163) |
 | `02-72/` | the row bound is a running difference and the window never counted the terms: 325 shifts on one Kennington row, a constructed model refused at 256 and accepted at 128, and the two wrong shapes that were built first — the traffic alone, and `ps_bound_scale`, which brings D161's defect back through the count (D162) |

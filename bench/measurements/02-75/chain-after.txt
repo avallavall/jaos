@@ -1,0 +1,16 @@
+The chained model: feasible exactly at x1 = 1e9 - 2^-17, w1 = 2^-23.
+
+-- the parent (cd68630), which refuses it
+   status=infeasible obj=0
+-- the working tree, the residue kept
+   status=optimal obj=1.1920928955078125e-07
+      x1=999999999.99999237  w1=1.1920928955078125e-07  w2=0
+      row S activity 1000000000  against 1000000000  residual 0
+      row R activity 999999999.99999249  against 999999999.99999249  residual 0
+      CHECK_TOL is 1e-6 absolute
+-- REFERENCE BUILD (-DJAOS_NO_PRESOLVE), the oracle
+   status=optimal obj=1.1920928955078125e-07
+      x1=999999999.99999237  w1=1.1920928955078125e-07  w2=0
+      row S activity 1000000000  against 1000000000  residual 0
+      row R activity 999999999.99999249  against 999999999.99999249  residual 0
+      CHECK_TOL is 1e-6 absolute

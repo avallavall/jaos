@@ -429,6 +429,22 @@ trajectory. Refusals table, D151.
   not fire because `new_lo == new_hi` there. Row R is charged **one** shift at
   its own traffic and clause 1 refuses it. Shipping INFEASIBLE, oracle optimal
   at 1.1920928955078125e-07.
+  **CLOSED 2026-08-20 (D165, `bench/measurements/02-75/`)**, by the first of
+  the two directions below: the row bounds keep their residue now, so the fold
+  fixes the column at the value the model actually has and there is nothing to
+  inherit. The model publishes the oracle's answer bit for bit with both rows
+  at residual zero. **It is also the first change in this class that moves the
+  gate** — netlib 15 moved and 14 digests, work geomean 1.0000x, iterations and
+  reduction counts identical on every one.
+  **What is left from it: the shift counts are now redundant and still ship.**
+  `row_shifts`, `ps_shift_excess` and `ps_end_scale` widen four windows to
+  cover an error that no longer exists. Removing them NARROWS those windows,
+  which is the direction that refuses feasible models, so it needs its own
+  measurement — and D162's and D163's own tests are what it has to keep
+  passing. Nothing says those windows are wrong; they are covering something
+  that has been removed underneath them.
+  The history below is kept because the refusal in it is what stopped a worse
+  repair landing.
   **The error weight was built and is REFUSED (D164,
   `bench/measurements/02-74/`).** It stops the refusal and then publishes
   `optimal` with **both rows violated by 7.5 times `CHECK_TOL`** and an

@@ -3736,9 +3736,12 @@ static void test_the_singleton_fold_counts_the_shifts_too(void)
 #endif
 }
 
-/* **A PINNED WRONG ANSWER.** This test asserts what JAOS does today, not what
- * it should do, and the repair announces itself here — expect the INFEASIBLE
- * below to become OPTIMAL at 1.1920928955078125e-07.
+/* ~~**A PINNED WRONG ANSWER.**~~ **The repair landed and this test is what
+ * announced it** (D165). It was written for D164 asserting the INFEASIBLE JAOS
+ * gave, with a note saying to expect OPTIMAL at 1.1920928955078125e-07; the
+ * compensation went in, the pin fired with `Expected 2 Was 1`, and it now
+ * asserts the answer instead. Both builds reach the same point to the last
+ * bit.
  *
  *   row S:  x1 + (256 y_s fixed at 2^-25) == 1e9      x1 in [1e9-1, 1e9+1]
  *   row R:  x1 + w1 + w2 == 1e9 - 63*2^-23            w1, w2 in [0, 2^-23]
@@ -3755,17 +3758,18 @@ static void test_the_singleton_fold_counts_the_shifts_too(void)
  * `new_hi` there. Round 2's column pass subtracts that value from row R, which
  * is charged ONE shift at its own traffic, and clause 1 refuses row R.
  *
- * **The obvious repair is refused and this test is where that is recorded**
- * (D164). Carrying an error weight from the fold into the receiving row's
- * window does stop the refusal — and then the solve publishes `optimal` with
- * `w1 = w2 = 0`, an objective of 0 against a true 1.1920928955078125e-07, and
- * **both rows violated by 7.6e-06**, which is 7.5 times `CHECK_TOL`. A wider
- * window cannot repair a value that is already wrong; it only converts a loud
+ * **The window repair was refused before this one landed, and that is worth
+ * keeping** (D164). Carrying an error weight from the fold into the receiving
+ * row's window does stop the refusal — and then the solve publishes `optimal`
+ * with `w1 = w2 = 0`, an objective of 0, and **both rows violated by 7.6e-06**,
+ * which is 7.5 times `CHECK_TOL`. A window decides whether to refuse; it
+ * cannot correct a value that is already wrong, so widening it converts a loud
  * failure into a silent one. Readings in `bench/measurements/02-74/`.
  *
- * What would repair it is upstream: accumulate `cur_rl`/`cur_ru` with
- * compensation so the error never exists, or widen the folded BOX by the
- * error instead of collapsing it to a point. Both are `TODO.md`'s.
+ * D165 repaired it upstream instead: `cur_rl`/`cur_ru` keep their residue, so
+ * `cur_rl[S]` reads `1e9 - 2^-17` and the fold fixes x1 at the value the model
+ * actually has. Nothing downstream inherits anything, because there is nothing
+ * to inherit.
  *
  * The second half is the control: row R's bound moved 1e-3, refused on every
  * build for a reason that has nothing to do with any of this. Found by
@@ -3810,31 +3814,35 @@ static void test_a_folds_value_carries_its_rows_error_into_the_next(void)
         jm_presolve p;
         jm_presolve_init(&p);
         TEST_ASSERT_EQUAL_INT(JAOS_OK, jm_presolve_run(m, &p, nullptr));
-        /* BOTH halves refused, and only the second one deserves it. The first
-         * is the pin: it is feasible and presolve says otherwise. This runs in
-         * the reference build too, because `jm_presolve_run` is the same code
-         * there — `-DJAOS_NO_PRESOLVE` only stops `jaos_solve` consulting it. */
-        TEST_ASSERT_EQUAL_INT(JM_PRESOLVE_INFEASIBLE, p.outcome);
+        /* The feasible half is accepted and the control is refused, and this
+         * runs in the reference build too because `jm_presolve_run` is the
+         * same code there — `-DJAOS_NO_PRESOLVE` only stops `jaos_solve`
+         * consulting it. */
+        if (half == 0)
+            TEST_ASSERT_NOT_EQUAL_INT(JM_PRESOLVE_INFEASIBLE, p.outcome);
+        else
+            TEST_ASSERT_EQUAL_INT(JM_PRESOLVE_INFEASIBLE, p.outcome);
         jm_presolve_free(&p);
 
-        /* **The disagreement, asserted rather than described.** The reference
-         * build reaches the exact feasible point and both builds agree on the
-         * control. Nothing else in the suite states a wrong answer this
-         * directly, and that is deliberate: when the repair lands, this line
-         * is what changes. */
+        /* **The ANSWER and not only the status, on BOTH builds.** The two
+         * agree here to the last bit — `x1 = 1e9 - 2^-17`, `w1 = 2^-23`,
+         * `w2 = 0`, both rows at residual zero — and before D165 the shipping
+         * build refused this outright. A status-only assertion would have gone
+         * green on a point that meets neither row. */
         TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
-#ifdef JAOS_NO_PRESOLVE
         TEST_ASSERT_EQUAL_INT(half == 0 ? JAOS_SOLVE_OPTIMAL
                                         : JAOS_SOLVE_INFEASIBLE,
                               jaos_status_of(m));
         if (half == 0) {
-            double obj = 0.0;
+            double obj = 0.0, x[NC];
             TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(m, &obj));
-            TEST_ASSERT_EQUAL_DOUBLE(ldexp(1.0, -23), obj);
+            TEST_ASSERT_EQUAL_INT(JAOS_OK,
+                jaos_solution(m, x, nullptr, nullptr, nullptr));
+            TEST_ASSERT_EQUAL_DOUBLE(wcap, obj);
+            TEST_ASSERT_EQUAL_DOUBLE(1e9 - ldexp(1.0, -17), x[0]);
+            TEST_ASSERT_EQUAL_DOUBLE(wcap, x[KS + 1]);
+            TEST_ASSERT_EQUAL_DOUBLE(0.0,  x[KS + 2]);
         }
-#else
-        TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_INFEASIBLE, jaos_status_of(m));
-#endif
         jaos_model_free(m);
     }
 #endif

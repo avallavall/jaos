@@ -323,8 +323,20 @@ above 325, is where these windows stop being comfortably under `PRIMAL_TOL`.
 fold fixes a column at `cur_rl[i] / a`, that number carries row i's accumulated
 error, and the row receiving the fixed column is charged one shift at its own
 traffic. `bench/measurements/02-73/` has the model where that publishes
-INFEASIBLE on a feasible model; the repair is an error weight rather than a
-count, and it is `TODO.md`'s.
+INFEASIBLE on a feasible model. **Carrying the error into the window was built
+and refused** (D164): it stops the refusal and then publishes a point violating
+two rows by 7.5 times `CHECK_TOL`, because a window decides whether to refuse
+and cannot correct a value that is already wrong.
+
+**The error itself was removed instead (D165), and this whole section now
+describes a window covering something that is no longer there.**
+`cur_rl`/`cur_ru` keep their residue through a Neumaier accumulator, so the
+running difference no longer drifts and the fold fixes columns at the value the
+model actually has. The counts still ship: taking them out NARROWS four
+windows, which is the direction that refuses feasible models, so it is its own
+change with its own measurement and `TODO.md` carries it. Until then two
+mechanisms cover the same error: `ps_bound_shift` stops it happening, and the
+counts described here would still cover it if it did.
 
 ## The proxy the constant used to rest on
 

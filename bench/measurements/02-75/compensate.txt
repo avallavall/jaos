@@ -1,0 +1,41 @@
+probe at HEAD (cd68630)
+
+---- netlib standard (94)
+  window reads                         581826
+    with a non-zero correction         5260
+  worst correction, absolute           2.526e-12
+  worst correction / row traffic       2.223e-15
+  -- verdicts, BOTH directions --
+     rows the compensated value spares 0
+     rows it would NEWLY refuse        0
+  -- folded values, which decide the size of the job --
+     folds                             8622
+     folds whose value MOVES           2
+     worst move, absolute              2.22e-16
+     worst move / the box it lands in  0
+---- netlib-infeas (29)
+  window reads                         82726
+    with a non-zero correction         250
+  worst correction, absolute           5.258e-13
+  worst correction / row traffic       2.927e-13
+  -- verdicts, BOTH directions --
+     rows the compensated value spares 0
+     rows it would NEWLY refuse        0
+  -- folded values, which decide the size of the job --
+     folds                             9750
+     folds whose value MOVES           0
+     worst move, absolute              0
+     worst move / the box it lands in  0
+---- kennington (16)
+  window reads                         2775394
+    with a non-zero correction         0
+  worst correction, absolute           0
+  worst correction / row traffic       0
+  -- verdicts, BOTH directions --
+     rows the compensated value spares 0
+     rows it would NEWLY refuse        0
+  -- folded values, which decide the size of the job --
+     folds                             81646
+     folds whose value MOVES           0
+     worst move, absolute              0
+     worst move / the box it lands in  0
