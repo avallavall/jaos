@@ -11,6 +11,15 @@ open, `bench/README.md` for the gate, and the commit each entry came from.
 
 ### Changed
 
+- **`DUAL_TOL` has a sweep now**, and `docs/tolerances.md` says what it
+  actually decides: not only the Harris window, but what the solve calls zero
+  for a reduced cost, which is when it stops. It is the whole of `pilot`'s
+  2.31e-05 — presolve and `PRIMAL_TOL` move nothing — and at 1e-9 all four
+  netlib instances that publish a point off the optimum are repaired, three of
+  them for less work, `pilot87` and `scsd6` exactly. The value is unchanged:
+  the same setting turns the gate red on six instances (D174). No source
+  change.
+
 - **`jaos_objective` is the correctly rounded exact objective of the published
   point on 110 of 110**, worst 0.493 ulp, measured against an oracle that
   rounds nowhere. `finnis` is refused: its 7.62e-05 gap to Koch is 0.107 of

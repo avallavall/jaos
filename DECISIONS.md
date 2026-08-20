@@ -181,6 +181,7 @@ and you have the argument. Jump to the entry for the numbers behind it.
 - **[D171](#d171--the-refinement-residual-is-compensated-too-and-the-argument-that-refused-it-was-sound-about-the-terms-and-wrong-about-the-consequence)** — The refinement residual is compensated too, and the argument that refused it was sound about the terms and wrong about the consequence
 - **[D172](#d172--the-published-objective-recovers-what-each-product-lost-and-109-of-110-now-agree-with-the-checker-exactly)** — The published objective recovers what each product lost, and 109 of 110 now agree with the checker exactly
 - **[D173](#d173--the-published-objective-is-the-correctly-rounded-exact-one-on-all-110-so-finnis-is-refused-and-pilot-is-the-instance-with-a-wrong-point)** — The published objective is the correctly rounded exact one on all 110, so `finnis` is refused and `pilot` is the instance with a wrong point
+- **[D174](#d174--pilots-wrong-answer-is-dual_tol-and-nothing-else-and-the-repair-that-fixes-it-turns-the-gate-red-on-six-instances)** — `pilot`'s wrong answer is `DUAL_TOL` and nothing else, and the repair that fixes it turns the gate red on six instances
 
 ---
 
@@ -13042,3 +13043,83 @@ separating cleanly on one set is not a threshold.
 
 **The cost.** Nothing in `src/` was touched and no campaign was run, because
 there is nothing for a campaign to measure.
+
+## D174 — `pilot`'s wrong answer is `DUAL_TOL` and nothing else, and the repair that fixes it turns the gate red on six instances
+
+**The question.** D173 measured four netlib instances publishing a point that
+is not the optimum and handed the cause to `TODO.md`. `pilot` is the worst at
+2.31e-05, which is 1.87e+08 times the floor arithmetic sets for that model,
+and it is the only netlib instance HiGHS, SoPlex and Clp all beat. The
+expectation was a tolerance, and the two a caller owns are the place to look
+first because neither needs a rebuild (D64).
+
+**The mechanism.** `DUAL_TOL` is what the solve calls zero for a reduced cost
+— `dual_breach`, `published_breach`, `settled_dual_violation` and
+`points_outwards` all read it — and `docs/tolerances.md` described only its
+role in the Harris window. A reduced cost is a rate. What a column is still
+worth is that rate times the distance it would travel, and the tolerance
+bounds the rate alone; on `pilot` a rate under 1e-7 in scaled space is worth
+2.31e-05 of objective.
+
+**The measurement** (`bench/measurements/02-84/`). Presolve is not involved:
+`-DJAOS_NO_PRESOLVE` publishes the same 2.312e-05 and the same 0 at
+`dual_tol = 1e-11`. `PRIMAL_TOL` is not involved: eight settings from 1e-13 to
+1e-5 publish the identical number. The dual tolerance alone moves it, and it
+moves it monotonically until it runs out.
+
+| `dual_tol` | `pilot` gap to Koch |
+|---|---|
+| 1e-6 | **`numerical error`** |
+| **1e-7, the default** | **2.312e-05** |
+| 1e-8 | 2.312e-05 |
+| 1e-9 | -5.266e-09 |
+| 1e-10 | **0** |
+
+At 1e-9, all four of D173's instances improve and nothing else on the set
+moves materially: `pilot` 2.312e-05 → -5.266e-09 at **0.9134x** work,
+`pilot87` 1.044e-07 → **exactly 0** at 0.9202x, `scsd6` 1.118e-09 → **exactly
+0** at 1.0807x, `etamacro` 1.315e-08 → -1.137e-13 at 0.9934x. **Three of the
+four cost less work.** `pilot87` is D92's backlog row, "suboptimality bound,
+not understood": it publishes Koch's optimum exactly at every setting from
+1e-8 to 1e-13, each for less work than today.
+
+**The control, which is why the sweep means anything.** `DUAL_TOL` is
+caller-owned, so `jaos_set_dual_tolerance` reaches it at run time and one
+binary serves every setting. Passing 1e-7 explicitly names the built-in
+default, and over all 94 netlib instances the two agree on status, objective,
+iterations, work and digest with **0 differing**. Without that row the sweep
+could be one binary measured seven times, which is how three of the five
+build configurations were broken for a session (D154).
+
+**The cost, over all three sets.** At 1e-9: netlib has no failures, 35 digests
+move and the work geometric mean is 1.0339x; `netlib-infeas` still refuses all
+29 at 1.0070x; Kennington has no failures, 3 digests move and the geometric
+mean is 1.0976x, of which the whole is `pds-20` at 4.815x. **Six instances
+across the three sets cross the gate's 2.0x per-instance work bar, so the gate
+would report `6 regressed`.**
+
+**What was refuted.** That the cheaper setting is a smaller version of the
+same repair: **1e-8 does not fix `pilot` at all**, leaving 2.312e-05
+unchanged, so 1e-9 is the first setting that reaches this defect. And that the
+2.0x crossings measure the price of the accuracy: they are not monotone in the
+tolerance. `grow22` reads 2.14x, 3.00x, 1.49x, 0.22x, 0.22x across 1e-6 to
+1e-11 and `greenbea` swings by a factor of three between adjacent settings,
+while `grow22` and `d2q06c` both cross 2.0x when the tolerance is **loosened**
+to 1e-6, where the answers get worse. The bar is detecting a changed pivot
+sequence, and this change moves 38 of them. Only `agg3`, `d2q06c`, `perold`
+and `pilot-ja` stay high once the tolerance is tight.
+
+**No source change, and the default stays at 1e-7.** Lowering it changes the
+contract every caller already has, it turns the gate red on six instances, and
+1e-9 is one step from `dfl001` failing at 1e-10 and `wood1p` joining it at
+1e-11. The sweep is what the decision needs, not the decision.
+
+**A defect in the probe, found before anything read it.**
+`jaos_solve_status_str` returns `"numerical error"`, with a space in it, so
+every failing row carried one extra field and shifted every column after it.
+Both affected runs were discarded and re-taken with a single-token status.
+
+**What is left open**, handed to `TODO.md`: whether to lower the default, and
+the narrower candidate that would avoid the trajectory churn — a tighter
+tolerance for the termination test only, leaving the Harris window at 1e-7.
+Nothing has been built for it and no model says it would cost less.

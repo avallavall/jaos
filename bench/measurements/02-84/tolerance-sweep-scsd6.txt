@@ -1,0 +1,41 @@
+# scsd6, reference 50.50000007714434 (Koch). gap = published - reference.
+# Positive is worse on a minimization. row/dual/gappos/cert are
+# jaos_check_solution's, at tol 1e-6.
+shipping default       ptol=0e+00    dtol=0e+00    optimal    obj=50.500000078262381 gap=1.118e-09    iters=235     work=1547806   row=4.83e-17   dual=0          gappos=9.726e-15  cert=no
+shipping dual-only     ptol=0e+00    dtol=1e-05    optimal    obj=50.500000078262381 gap=1.118e-09    iters=235     work=1547806   row=4.83e-17   dual=0          gappos=9.726e-15  cert=no
+shipping dual-only     ptol=0e+00    dtol=1e-06    optimal    obj=50.500000078262381 gap=1.118e-09    iters=235     work=1547806   row=4.83e-17   dual=0          gappos=9.726e-15  cert=no
+shipping dual-only     ptol=0e+00    dtol=1e-08    optimal    obj=50.500000077641246 gap=4.969e-10    iters=252     work=1712741   row=1.833e-16  dual=0          gappos=1.108e-14  cert=no
+shipping dual-only     ptol=0e+00    dtol=1e-09    optimal    obj=50.500000077144342 gap=0            iters=244     work=1672688   row=1.11e-16   dual=0          gappos=9.006e-15  cert=no
+shipping dual-only     ptol=0e+00    dtol=1e-10    optimal    obj=50.500000077144342 gap=0            iters=244     work=1672580   row=1.11e-16   dual=0          gappos=9.006e-15  cert=no
+shipping dual-only     ptol=0e+00    dtol=1e-11    optimal    obj=50.500000077144342 gap=0            iters=244     work=1672580   row=1.11e-16   dual=0          gappos=9.006e-15  cert=no
+shipping dual-only     ptol=0e+00    dtol=1e-12    optimal    obj=50.500000077144342 gap=0            iters=244     work=1672580   row=1.11e-16   dual=0          gappos=9.006e-15  cert=no
+shipping dual-only     ptol=0e+00    dtol=1e-13    optimal    obj=50.500000077144342 gap=0            iters=244     work=1672580   row=1.11e-16   dual=0          gappos=9.006e-15  cert=no
+shipping primal-only   ptol=1e-05    dtol=0e+00    optimal    obj=50.500000078262381 gap=1.118e-09    iters=235     work=1547806   row=4.83e-17   dual=0          gappos=9.726e-15  cert=no
+shipping primal-only   ptol=1e-06    dtol=0e+00    optimal    obj=50.500000078262381 gap=1.118e-09    iters=235     work=1547806   row=4.83e-17   dual=0          gappos=9.726e-15  cert=no
+shipping primal-only   ptol=1e-08    dtol=0e+00    optimal    obj=50.500000078262381 gap=1.118e-09    iters=235     work=1547806   row=4.83e-17   dual=0          gappos=9.726e-15  cert=no
+shipping primal-only   ptol=1e-09    dtol=0e+00    optimal    obj=50.500000078262381 gap=1.118e-09    iters=235     work=1547806   row=4.83e-17   dual=0          gappos=9.726e-15  cert=no
+shipping primal-only   ptol=1e-10    dtol=0e+00    optimal    obj=50.500000078262381 gap=1.118e-09    iters=235     work=1547806   row=4.83e-17   dual=0          gappos=9.726e-15  cert=no
+shipping primal-only   ptol=1e-11    dtol=0e+00    optimal    obj=50.500000078262381 gap=1.118e-09    iters=235     work=1547806   row=4.83e-17   dual=0          gappos=9.726e-15  cert=no
+shipping primal-only   ptol=1e-12    dtol=0e+00    optimal    obj=50.500000078262381 gap=1.118e-09    iters=235     work=1547806   row=4.83e-17   dual=0          gappos=9.726e-15  cert=no
+shipping primal-only   ptol=1e-13    dtol=0e+00    optimal    obj=50.500000078262381 gap=1.118e-09    iters=235     work=1547806   row=4.83e-17   dual=0          gappos=9.726e-15  cert=no
+shipping both tight    ptol=1e-11    dtol=1e-11    optimal    obj=50.500000077144342 gap=0            iters=244     work=1672580   row=1.11e-16   dual=0          gappos=9.006e-15  cert=no
+shipping both loose    ptol=1e-05    dtol=1e-05    optimal    obj=50.500000078262381 gap=1.118e-09    iters=235     work=1547806   row=4.83e-17   dual=0          gappos=9.726e-15  cert=no
+reference default      ptol=0e+00    dtol=0e+00    optimal    obj=50.500000078262381 gap=1.118e-09    iters=235     work=1543058   row=4.83e-17   dual=0          gappos=9.726e-15  cert=no
+reference dual-only    ptol=0e+00    dtol=1e-05    optimal    obj=50.500000078262381 gap=1.118e-09    iters=235     work=1543058   row=4.83e-17   dual=0          gappos=9.726e-15  cert=no
+reference dual-only    ptol=0e+00    dtol=1e-06    optimal    obj=50.500000078262381 gap=1.118e-09    iters=235     work=1543058   row=4.83e-17   dual=0          gappos=9.726e-15  cert=no
+reference dual-only    ptol=0e+00    dtol=1e-08    optimal    obj=50.500000077641246 gap=4.969e-10    iters=252     work=1707993   row=1.833e-16  dual=0          gappos=1.108e-14  cert=no
+reference dual-only    ptol=0e+00    dtol=1e-09    optimal    obj=50.500000077144342 gap=0            iters=244     work=1667940   row=1.11e-16   dual=0          gappos=9.006e-15  cert=no
+reference dual-only    ptol=0e+00    dtol=1e-10    optimal    obj=50.500000077144342 gap=0            iters=244     work=1667832   row=1.11e-16   dual=0          gappos=9.006e-15  cert=no
+reference dual-only    ptol=0e+00    dtol=1e-11    optimal    obj=50.500000077144342 gap=0            iters=244     work=1667832   row=1.11e-16   dual=0          gappos=9.006e-15  cert=no
+reference dual-only    ptol=0e+00    dtol=1e-12    optimal    obj=50.500000077144342 gap=0            iters=244     work=1667832   row=1.11e-16   dual=0          gappos=9.006e-15  cert=no
+reference dual-only    ptol=0e+00    dtol=1e-13    optimal    obj=50.500000077144342 gap=0            iters=244     work=1667832   row=1.11e-16   dual=0          gappos=9.006e-15  cert=no
+reference primal-only  ptol=1e-05    dtol=0e+00    optimal    obj=50.500000078262381 gap=1.118e-09    iters=235     work=1543058   row=4.83e-17   dual=0          gappos=9.726e-15  cert=no
+reference primal-only  ptol=1e-06    dtol=0e+00    optimal    obj=50.500000078262381 gap=1.118e-09    iters=235     work=1543058   row=4.83e-17   dual=0          gappos=9.726e-15  cert=no
+reference primal-only  ptol=1e-08    dtol=0e+00    optimal    obj=50.500000078262381 gap=1.118e-09    iters=235     work=1543058   row=4.83e-17   dual=0          gappos=9.726e-15  cert=no
+reference primal-only  ptol=1e-09    dtol=0e+00    optimal    obj=50.500000078262381 gap=1.118e-09    iters=235     work=1543058   row=4.83e-17   dual=0          gappos=9.726e-15  cert=no
+reference primal-only  ptol=1e-10    dtol=0e+00    optimal    obj=50.500000078262381 gap=1.118e-09    iters=235     work=1543058   row=4.83e-17   dual=0          gappos=9.726e-15  cert=no
+reference primal-only  ptol=1e-11    dtol=0e+00    optimal    obj=50.500000078262381 gap=1.118e-09    iters=235     work=1543058   row=4.83e-17   dual=0          gappos=9.726e-15  cert=no
+reference primal-only  ptol=1e-12    dtol=0e+00    optimal    obj=50.500000078262381 gap=1.118e-09    iters=235     work=1543058   row=4.83e-17   dual=0          gappos=9.726e-15  cert=no
+reference primal-only  ptol=1e-13    dtol=0e+00    optimal    obj=50.500000078262381 gap=1.118e-09    iters=235     work=1543058   row=4.83e-17   dual=0          gappos=9.726e-15  cert=no
+reference both tight   ptol=1e-11    dtol=1e-11    optimal    obj=50.500000077144342 gap=0            iters=244     work=1667832   row=1.11e-16   dual=0          gappos=9.006e-15  cert=no
+reference both loose   ptol=1e-05    dtol=1e-05    optimal    obj=50.500000078262381 gap=1.118e-09    iters=235     work=1543058   row=4.83e-17   dual=0          gappos=9.726e-15  cert=no

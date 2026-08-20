@@ -1,0 +1,24 @@
+# pilot87, reference 301.7103473331105 (Koch). gap = published - reference.
+# Positive is worse on a minimization. row/dual/gappos/cert are
+# jaos_check_solution's, at tol 1e-6.
+shipping default       ptol=0e+00    dtol=0e+00    optimal    obj=301.71034743753575 gap=1.044e-07    iters=41281   work=19519649987 row=1.506e-12  dual=0          gappos=0.0007677  cert=no
+shipping dual-only     ptol=0e+00    dtol=1e-05    numerical error obj=nan gap=nan          iters=235207  work=125481709295 row=0          dual=0          gappos=0          cert=no
+shipping dual-only     ptol=0e+00    dtol=1e-06    numerical error obj=nan gap=nan          iters=282584  work=156253359684 row=0          dual=0          gappos=0          cert=no
+shipping dual-only     ptol=0e+00    dtol=1e-08    optimal    obj=301.71034733311052 gap=0            iters=37565   work=18810750815 row=1.228e-12  dual=0          gappos=3.126e-05  cert=no
+shipping dual-only     ptol=0e+00    dtol=1e-09    optimal    obj=301.71034733311052 gap=0            iters=38000   work=17961079189 row=9.961e-13  dual=0          gappos=8.766e-06  cert=no
+shipping dual-only     ptol=0e+00    dtol=1e-10    optimal    obj=301.71034733311052 gap=0            iters=40827   work=18616839529 row=1.277e-12  dual=0          gappos=5.25e-05   cert=no
+shipping dual-only     ptol=0e+00    dtol=1e-11    optimal    obj=301.71034733311052 gap=0            iters=35326   work=17921533173 row=1.405e-12  dual=0          gappos=5.748e-06  cert=no
+shipping dual-only     ptol=0e+00    dtol=1e-12    optimal    obj=301.71034733311052 gap=0            iters=32572   work=17633888646 row=1.065e-12  dual=0          gappos=1.849e-06  cert=no
+shipping dual-only     ptol=0e+00    dtol=1e-13    optimal    obj=301.71034733311052 gap=0            iters=33708   work=17239023248 row=8.726e-13  dual=0          gappos=8.819e-06  cert=no
+shipping primal-only   ptol=1e-05    dtol=0e+00    optimal    obj=301.71034743753575 gap=1.044e-07    iters=41281   work=19519649987 row=1.506e-12  dual=0          gappos=0.0007677  cert=no
+shipping primal-only   ptol=1e-06    dtol=0e+00    optimal    obj=301.71034743753575 gap=1.044e-07    iters=41281   work=19519649987 row=1.506e-12  dual=0          gappos=0.0007677  cert=no
+shipping primal-only   ptol=1e-08    dtol=0e+00    optimal    obj=301.71034743753575 gap=1.044e-07    iters=41281   work=19519649987 row=1.506e-12  dual=0          gappos=0.0007677  cert=no
+shipping primal-only   ptol=1e-09    dtol=0e+00    optimal    obj=301.71034743753575 gap=1.044e-07    iters=41281   work=19519649987 row=1.506e-12  dual=0          gappos=0.0007677  cert=no
+shipping primal-only   ptol=1e-10    dtol=0e+00    optimal    obj=301.71034743753575 gap=1.044e-07    iters=41281   work=19519649987 row=1.506e-12  dual=0          gappos=0.0007677  cert=no
+shipping primal-only   ptol=1e-11    dtol=0e+00    optimal    obj=301.71034743753575 gap=1.044e-07    iters=41281   work=19519649987 row=1.506e-12  dual=0          gappos=0.0007677  cert=no
+shipping primal-only   ptol=1e-12    dtol=0e+00    optimal    obj=301.71034743753575 gap=1.044e-07    iters=41281   work=19519649987 row=1.506e-12  dual=0          gappos=0.0007677  cert=no
+shipping primal-only   ptol=1e-13    dtol=0e+00    optimal    obj=301.71034743753575 gap=1.044e-07    iters=41281   work=19519649987 row=1.506e-12  dual=0          gappos=0.0007677  cert=no
+shipping both tight    ptol=1e-11    dtol=1e-11    optimal    obj=301.71034733311052 gap=0            iters=35326   work=17921533173 row=1.405e-12  dual=0          gappos=5.748e-06  cert=no
+shipping both loose    ptol=1e-05    dtol=1e-05    numerical error obj=nan gap=nan          iters=573605  work=317949502074 row=0          dual=0          gappos=0          cert=no
+reference default      ptol=0e+00    dtol=0e+00    optimal    obj=301.71038732387763 gap=3.999e-05    iters=47107   work=20308219080 row=1.826e-12  dual=0          gappos=0.006721   cert=no
+reference dual-only    ptol=0e+00    dtol=1e-05    numerical error obj=nan gap=nan          iters=483475  work=278456794580 row=0          dual=0          gappos=0          cert=no

@@ -47,7 +47,7 @@ any code.
 |---|---|---|---|
 | 1 | **48 netlib solves publish an invalid basis** | a rank argument WIDER than the firing row, or accepting the residue as the published state of the art does (Galabova 2023). Every local repair is refused with its measurement (D140, D141). **D171 made it worse by 2 and that is measured** | §2 below |
 | 2 | **`settled_objective` is a naive sum that selects which point is PUBLISHED** | two rounds that tie under a naive sum and separate under a compensated one. Cheaper than it looks — the first version of this entry said it only decided a trajectory and that was wrong | §4 below |
-| 3 | **`pilot` publishes a point 2.31e-05 above the optimum** | which tolerance lets the solve stop there. It is the only netlib instance HiGHS, SoPlex and Clp all beat, and the point is feasible — 1.87e+08 times the arithmetic floor for that model, where 68 of 93 are inside 0.5. **This replaces the `finnis` item, which D173 refused** | §4 below |
+| 3 | **`pilot` publishes a point 2.31e-05 above the optimum** | a decision, not a diagnosis — D174 answered the cause. It is `DUAL_TOL`, and 1e-9 repairs all four wrong answers with three of them costing LESS work, at the price of `6 regressed` on the gate. **`pilot87`, D92's backlog row, becomes exact.** The narrower candidate — a tighter termination test with the Harris window left alone — is unbuilt | §4 below |
 | 4 | **`scsd1` and `degen2` behind D151's cap** | a predictor of a doomed trajectory. The shortfall cannot be it and that is measured | §3 below |
 | 5 | **`D97`, the dual postsolve for an imposed bound** | nothing is built; `docs/research/dual-postsolve-imposed-bound.md` is 936 lines of design with the literature verified. **The largest prize in the file** — it unlocks bound tightening AND doubleton equalities, 8.55% of netlib's live rows and 29.36% of Kennington's | "If all of the above is dropped" |
 
@@ -871,13 +871,36 @@ trajectory. Refusals table, D151.
   suboptimal**, not infeasible, and `pilot`'s objective is higher than Koch's
   on a minimization. HiGHS, SoPlex and Clp all publish Koch's value on
   `pilot`.
-  **What it needs before any code**: which tolerance lets the solve stop
-  there. The dual test accepted a point 1.87e8 arithmetic units short, so the
-  candidate is `DUAL_TOL` in scaled space against a column whose own scale
-  makes it look priced out. `pilot` runs 23265 iterations, so this is a
-  `jaos-debug` throwaway build and not a campaign, and D127 is the entry to
-  read first — the unclamped dual step is refused there because the
-  perturbation is what keeps `pilot87` moving.
+  ~~**What it needs before any code**: which tolerance lets the solve stop
+  there.~~ **ANSWERED 2026-08-20 (D174, `bench/measurements/02-84/`): it is
+  `DUAL_TOL` and nothing else.** Presolve is not involved — the reference
+  build publishes the same number — and `PRIMAL_TOL` moves nothing across
+  eight settings from 1e-13 to 1e-5. At `dual_tol = 1e-9` all four instances
+  improve and no other instance on the set moves materially: `pilot`
+  2.312e-05 → -5.266e-09 at 0.9134x work, `pilot87` and `scsd6` to the
+  reference **exactly**, `etamacro` to one ulp, three of the four for **less**
+  work. `pilot87` is D92's backlog row and it is answered by the same reading.
+  **The candidate is lowering `DUAL_TOL` from 1e-7 to 1e-9, and it is not
+  landed.** What stops it, measured rather than guessed:
+  - **The gate would report `6 regressed`.** Five netlib instances and
+    `pds-20` cross the 2.0x per-instance work bar, worst `d2q06c` at 5.32x.
+  - **The margin is one step.** 1e-10 fails `dfl001`, 1e-11 fails `wood1p`
+    too, and 1e-6 fails `pilot` and `pilot87` outright.
+  - **1e-8 is not a cheaper version of it.** It leaves `pilot` at 2.312e-05
+    unchanged, so there is no half measure.
+  - **The 2.0x crossings are trajectory, not price, and that is measured**:
+    the ratios are not monotone in the tolerance (`grow22` reads 2.14x, 3.00x,
+    1.49x, 0.22x, 0.22x across 1e-6 to 1e-11), and `grow22` and `d2q06c` both
+    cross 2.0x when the tolerance is **loosened**, where the answers get
+    worse. That is an argument for reading the six individually, not for
+    ignoring the bar.
+  **The narrower candidate nobody has built**: a tighter tolerance for the
+  termination test alone — `dual_breach` and `settled_dual_violation` — with
+  the Harris window left at 1e-7. It would refuse to stop early without
+  changing the pivot selection. Nothing says it costs less; the way to find
+  out is to build it and re-run 02-84's sweep against it. Read D92's own
+  entry first: substituting `published_breach` for `dual_breach` in the
+  clean-up predicates already cost `pilot87` its bound, for 2.9x the work.
 - **The gate cannot see a suboptimal answer, and the library already
   certifies one.** New from D173. `jaos_check_solution` reports
   `gap_positive = 0.0386` on `pilot` with `gap_certified = yes`, which is a
@@ -1879,7 +1902,7 @@ then, do not — a refusal whose premise has not changed just fails again.
 | D127 | clamping the dual step to the same number the pick was made on — `pilot87` 3.228x work and 108973 iterations against 40246, entirely from the Harris exit | a correctly-signed step that keeps the perturbation `update_dual` spreads, which is a new constant and needs its own sweep; or `pilot87` stops oscillating. The candidate is at `bench/measurements/02-36/candidate.diff` |
 | D126 | removing `shift_to_feasible`'s `d[v] = 0.0` when the cost cannot move — the breach then compounds across iterations, worst dual step 8.37e-09 → 2.21e-03 and 49% more ratio-test picks | the dual step stops being computed from an unclamped `d` (§5a item 2), or `update_dual` stops being the thing that pushes the same variable further every iteration. The candidate is kept at `bench/measurements/02-35/candidate.diff`, so a retry starts from the measured version rather than from scratch |
 | D93 | the 4.2% time bar — unmeasurable on this host | a controlled host that satisfies D17 |
-| D92/backlog | `pilot87`'s suboptimality bound, not understood | it blocks a gate (trigger already recorded). **D173 gives it a number**: the point is 1.04e-07 above Koch's optimum, 1.53e+06 times the floor for that model, with `gap_positive` 7.68e-04 and `gap_certified = no` |
+| D92/backlog | `pilot87`'s suboptimality bound, not understood | it blocks a gate (trigger already recorded). **D173 gave it a number and D174 gave it a cause**: the point is 1.04e-07 above Koch's optimum, 1.53e+06 times the floor for that model, and at any `dual_tol` from 1e-8 to 1e-13 it publishes the optimum **exactly**, every one of those settings for less work than today. What blocks the change is the whole set, not this instance — see §4 |
 | D82, D84 | partial and multiple pricing | nothing scheduled — refused on wrong answers, not on a trade; a new scheme is a new decision, not a retry |
 | D34, D11, D2 | `long double`, GMP, any external code | never, while the two absolute premises stand (locked 2026-08-13) |
 

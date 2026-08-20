@@ -1,0 +1,41 @@
+# pilot, reference -557.4897292840682 (Koch). gap = published - reference.
+# Positive is worse on a minimization. row/dual/gappos/cert are
+# jaos_check_solution's, at tol 1e-6.
+shipping default       ptol=0e+00    dtol=0e+00    optimal    obj=-557.48970616840472 gap=2.312e-05    iters=23331   work=4720864104 row=3.555e-13  dual=0          gappos=0.0386     cert=yes
+shipping dual-only     ptol=0e+00    dtol=1e-05    numerical error obj=nan gap=nan          iters=40772   work=10527926784 row=0          dual=0          gappos=0          cert=no
+shipping dual-only     ptol=0e+00    dtol=1e-06    numerical error obj=nan gap=nan          iters=35994   work=9099611780 row=0          dual=0          gappos=0          cert=no
+shipping dual-only     ptol=0e+00    dtol=1e-08    optimal    obj=-557.48970616317467 gap=2.312e-05    iters=23698   work=4688833323 row=4.37e-13   dual=0          gappos=0.03851    cert=yes
+shipping dual-only     ptol=0e+00    dtol=1e-09    optimal    obj=-557.4897292893346 gap=-5.266e-09   iters=22210   work=4311990571 row=3.735e-13  dual=0          gappos=7.809e-05  cert=yes
+shipping dual-only     ptol=0e+00    dtol=1e-10    optimal    obj=-557.48972928406818 gap=0            iters=30010   work=7464346912 row=3.304e-13  dual=0          gappos=7.752e-05  cert=yes
+shipping dual-only     ptol=0e+00    dtol=1e-11    optimal    obj=-557.4897292893346 gap=-5.266e-09   iters=42135   work=11696829560 row=3.346e-13  dual=0          gappos=6.092e-06  cert=yes
+shipping dual-only     ptol=0e+00    dtol=1e-12    optimal    obj=-557.48972928406818 gap=0            iters=44618   work=12664788684 row=3.955e-13  dual=0          gappos=0.00012    cert=yes
+shipping dual-only     ptol=0e+00    dtol=1e-13    optimal    obj=-557.48972928406818 gap=0            iters=42305   work=11861569967 row=6.386e-13  dual=0          gappos=0.0001116  cert=yes
+shipping primal-only   ptol=1e-05    dtol=0e+00    optimal    obj=-557.48970623891262 gap=2.305e-05    iters=23367   work=4727953362 row=2.736e-13  dual=0          gappos=0.03852    cert=yes
+shipping primal-only   ptol=1e-06    dtol=0e+00    optimal    obj=-557.48970623891262 gap=2.305e-05    iters=23369   work=4732411080 row=2.736e-13  dual=0          gappos=0.03852    cert=yes
+shipping primal-only   ptol=1e-08    dtol=0e+00    optimal    obj=-557.48970616317456 gap=2.312e-05    iters=23271   work=4690142372 row=2.811e-13  dual=0          gappos=0.03861    cert=yes
+shipping primal-only   ptol=1e-09    dtol=0e+00    optimal    obj=-557.48970616317456 gap=2.312e-05    iters=23271   work=4690142372 row=2.811e-13  dual=0          gappos=0.03861    cert=yes
+shipping primal-only   ptol=1e-10    dtol=0e+00    optimal    obj=-557.48970616317456 gap=2.312e-05    iters=23271   work=4690142372 row=2.811e-13  dual=0          gappos=0.03861    cert=yes
+shipping primal-only   ptol=1e-11    dtol=0e+00    optimal    obj=-557.48970616317456 gap=2.312e-05    iters=23271   work=4690142372 row=2.811e-13  dual=0          gappos=0.03861    cert=yes
+shipping primal-only   ptol=1e-12    dtol=0e+00    optimal    obj=-557.48970616317456 gap=2.312e-05    iters=23271   work=4690142372 row=2.811e-13  dual=0          gappos=0.03861    cert=yes
+shipping primal-only   ptol=1e-13    dtol=0e+00    optimal    obj=-557.48970616317456 gap=2.312e-05    iters=23271   work=4690142372 row=2.811e-13  dual=0          gappos=0.03861    cert=yes
+shipping both tight    ptol=1e-11    dtol=1e-11    optimal    obj=-557.48972928406818 gap=0            iters=54588   work=15608613853 row=3.99e-13   dual=0          gappos=0.0001364  cert=yes
+shipping both loose    ptol=1e-05    dtol=1e-05    numerical error obj=nan gap=nan          iters=63283   work=17614906268 row=0          dual=0          gappos=0          cert=no
+reference default      ptol=0e+00    dtol=0e+00    optimal    obj=-557.48970616317456 gap=2.312e-05    iters=25841   work=5622525695 row=4.37e-13   dual=0          gappos=0.03854    cert=yes
+reference dual-only    ptol=0e+00    dtol=1e-05    numerical error obj=nan gap=nan          iters=34644   work=8388413005 row=0          dual=0          gappos=0          cert=no
+reference dual-only    ptol=0e+00    dtol=1e-06    numerical error obj=nan gap=nan          iters=32691   work=7910708735 row=0          dual=0          gappos=0          cert=no
+reference dual-only    ptol=0e+00    dtol=1e-08    optimal    obj=-557.48970616840472 gap=2.312e-05    iters=20414   work=3902775115 row=1.736e-13  dual=0          gappos=0.03857    cert=yes
+reference dual-only    ptol=0e+00    dtol=1e-09    optimal    obj=-557.4897292893346 gap=-5.266e-09   iters=18799   work=3729945514 row=1.452e-13  dual=0          gappos=0.0001026  cert=yes
+reference dual-only    ptol=0e+00    dtol=1e-10    optimal    obj=-557.4897292893346 gap=-5.266e-09   iters=18167   work=3700383221 row=1.957e-13  dual=0          gappos=0.0001325  cert=yes
+reference dual-only    ptol=0e+00    dtol=1e-11    optimal    obj=-557.48972928406818 gap=0            iters=16298   work=3487325667 row=3.99e-13   dual=0          gappos=8.701e-05  cert=yes
+reference dual-only    ptol=0e+00    dtol=1e-12    numerical error obj=nan gap=nan          iters=17241   work=3843291908 row=0          dual=0          gappos=0          cert=no
+reference dual-only    ptol=0e+00    dtol=1e-13    numerical error obj=nan gap=nan          iters=46712   work=14051398740 row=0          dual=0          gappos=0          cert=no
+reference primal-only  ptol=1e-05    dtol=0e+00    optimal    obj=-557.48970616317456 gap=2.312e-05    iters=29264   work=6795556330 row=2.102e-13  dual=0          gappos=0.0385     cert=yes
+reference primal-only  ptol=1e-06    dtol=0e+00    optimal    obj=-557.48970616840472 gap=2.312e-05    iters=24907   work=5262732382 row=2.667e-13  dual=0          gappos=0.03858    cert=yes
+reference primal-only  ptol=1e-08    dtol=0e+00    optimal    obj=-557.48970616317456 gap=2.312e-05    iters=24907   work=5256380831 row=4.579e-13  dual=0          gappos=0.03858    cert=yes
+reference primal-only  ptol=1e-09    dtol=0e+00    optimal    obj=-557.48970616317456 gap=2.312e-05    iters=24907   work=5256380831 row=4.579e-13  dual=0          gappos=0.03858    cert=yes
+reference primal-only  ptol=1e-10    dtol=0e+00    optimal    obj=-557.48970616317456 gap=2.312e-05    iters=24907   work=5256380831 row=4.579e-13  dual=0          gappos=0.03858    cert=yes
+reference primal-only  ptol=1e-11    dtol=0e+00    optimal    obj=-557.48970616317456 gap=2.312e-05    iters=24907   work=5256380831 row=4.579e-13  dual=0          gappos=0.03858    cert=yes
+reference primal-only  ptol=1e-12    dtol=0e+00    optimal    obj=-557.48970616317456 gap=2.312e-05    iters=24907   work=5256380831 row=4.579e-13  dual=0          gappos=0.03858    cert=yes
+reference primal-only  ptol=1e-13    dtol=0e+00    optimal    obj=-557.48970616317456 gap=2.312e-05    iters=24907   work=5256380831 row=4.579e-13  dual=0          gappos=0.03858    cert=yes
+reference both tight   ptol=1e-11    dtol=1e-11    optimal    obj=-557.48972928406818 gap=0            iters=16298   work=3487325667 row=3.99e-13   dual=0          gappos=8.701e-05  cert=yes
+reference both loose   ptol=1e-05    dtol=1e-05    numerical error obj=nan gap=nan          iters=42294   work=10879886980 row=0          dual=0          gappos=0          cert=no
