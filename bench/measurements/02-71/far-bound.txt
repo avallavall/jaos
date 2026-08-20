@@ -1,0 +1,15 @@
+G-rl=-1e12 is infeasible by 2e-4. G-control-inf is the same model with
+an infinite lower bound and must be refused on every tree.
+
+-- before D159 (0ac44fd), so the defect predates it
+   G-rl=-1e12     status=1 x={0.0001, 0.0001}
+   G-control-inf  status=2 x={0, 0}
+-- the parent of this change (0078244)
+   G-rl=-1e12     status=1 x={0.0001, 0.0001}
+   G-control-inf  status=2 x={0, 0}
+-- the working tree, the far bound dropped
+   G-rl=-1e12     status=2 x={0, 0}
+   G-control-inf  status=2 x={0, 0}
+-- REFERENCE BUILD (-DJAOS_NO_PRESOLVE), the oracle
+   G-rl=-1e12     status=2 x={0, 0}
+   G-control-inf  status=2 x={0, 0}

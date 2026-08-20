@@ -168,6 +168,7 @@ and you have the argument. Jump to the entry for the numbers behind it.
 - **[D158](#d158--the-collapsed-folds-midpoint-is-clamped-into-the-columns-box-which-bounds-the-last-unbounded-item-and-the-branch-runs-0-times-in-100018-folds)** — The collapsed fold's midpoint is clamped into the column's box, which bounds the last unbounded item, and the branch runs 0 times in 100018 folds
 - **[D159](#d159--the-frozen-row-window-is-scaled-by-what-the-comparison-is-made-of-and-presolve-stops-refusing-a-model-the-solver-can-solve)** — The frozen-row window is scaled by what the comparison is made of, and presolve stops refusing a model the solver can solve
 - **[D160](#d160--clause-1-of-the-activity-pass-gets-its-own-window-and-the-bound-scale-that-looked-like-symmetry-published-a-wrong-answer)** — Clause 1 of the activity pass gets its own window, and the bound scale that looked like symmetry published a wrong answer
+- **[D161](#d161--the-frozen-row-window-drops-the-far-bound-too-and-that-defect-predates-d159-which-widened-around-it)** — The frozen-row window drops the far bound too, and that defect predates D159, which widened around it
 
 ---
 
@@ -11775,9 +11776,57 @@ test asserts an exact answer and so needs the fault-build guard every other
 positive test in the file carries. That is its second catch this session.
 
 **What is left open.** One, and it is the same term at D159's own site.
-`-1e12 <= x0 + x1 <= 0` with both columns cost 0 in [1e-4, 1] — both relax and
-freeze the row, which empties — is infeasible by 2e-4 and reads **optimal**
-both before D159 and with D159 landed, against INFEASIBLE on the reference
-build and with the term dropped. It predates D159, D159 did not fix it, and
-D159's safety argument does not reach it because an emptied frozen row is
-deleted with everything else. `TODO.md` carries it with the model.
+`TODO.md` carried it with the model; D161 closed it.
+
+## D161 — The frozen-row window drops the far bound too, and that defect predates D159, which widened around it
+
+**The question.** D160 dropped `ps_bound_scale` from the activity pass's
+clause 1 after it published a wrong answer. `numerics-reviewer` then asked
+whether the same term does the same thing at the frozen-row test, which is
+where D159 kept it.
+
+**It does, and it has since that window was written.**
+
+```
+min 0  s.t.  -1e12 <= x0 + x1 <= 0,  x0 and x1 both cost 0 in [1e-4, 1]
+```
+
+Both are cost-0 bounded singletons, so both relax and freeze the row, which is
+then empty. Infeasible by 2e-4, and the frozen-row test is the last word,
+because an emptied frozen row is deleted with everything else and the simplex
+never sees it. `ps_bound_scale(-1e12, 0)` is 1e12, so the window was 1.78e-3
+and swallowed it — **taken entirely from the row's LOWER bound for a test on
+the UPPER side**.
+
+| tree | verdict |
+|---|---|
+| before D159 (`0ac44fd`) | **optimal**, x = {1e-4, 1e-4} |
+| the parent of this change (`0078244`) | **optimal** |
+| the working tree | INFEASIBLE |
+| reference build, the oracle | INFEASIBLE |
+
+**The control is what makes it a measurement.** The same model with
+`rl = -INFINITY` reads INFEASIBLE on all four trees, which is only explicable
+if the finite lower bound was supplying the number.
+
+**Why D159 missed it, stated rather than glossed.** `ps_bound_scale` was the
+shipped window there, and D159 widened around it — keeping a term that can only
+add width is safe by the reasoning D159 was using, so it never asked whether
+the term belonged. D160 was forced to ask two entries later, when the same term
+was a NEW source of width and published `optimal` on a model infeasible by
+1e-3. The question was available at D159 and was not asked.
+
+**The repair is a subtraction and it narrows the window**, which is the
+direction that refuses good models, so it is the direction that had to be
+checked. 94, 29 and 16 instances bit-identical, 0 digest changes, `gate: PASS`
+on each, five build configurations, 227 tests. Every one of D159's own
+frozen-row tests still passes, including the one that exists to catch a window
+that has become too narrow and the one that sits on the boundary with zero
+slack.
+
+Dropped rather than narrowed, for D160's reason: there is no third error term
+for it to cover at any size, since `min_act`/`max_act` carry `eps *
+rg.traffic` and `cur_rl`/`cur_ru` carry `eps * row_traffic[i]` and both are
+already in the max.
+
+**What is left open.** Nothing from this entry.

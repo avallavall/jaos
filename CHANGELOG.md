@@ -53,6 +53,15 @@ open, `bench/README.md` for the gate, and the commit each entry came from.
 
 ### Fixed
 
+- The frozen-row test's window drops the row's far bound, which it took its
+  number from. `-1e12 <= x0 + x1 <= 0` with both columns cost 0 in [1e-4, 1]
+  is infeasible by 2e-4 and read `optimal` with x = {1e-4, 1e-4} on every tree
+  since that window was written — the 1e12 lower bound bought a window of
+  1.78e-3 for a test on the upper side. The same model with an infinite lower
+  bound was refused correctly all along, which is the control. Narrowing a
+  window is the direction that refuses good models, so: 139 instances
+  bit-identical, five configurations, 227 tests, and every frozen-row test
+  D159 added still passes (D161).
 - The activity pass's INFEASIBLE clause gets its own window and stops refusing
   a second model the solver can solve. It shared one window with FORCING and
   REDUNDANT, where a wider window fires MORE rather than less, so only this

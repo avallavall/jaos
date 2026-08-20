@@ -296,8 +296,11 @@ trajectory. Refusals table, D151.
   the 139, so the campaign could not see it and only a constructed pair
   separates the two windows.
 
-- **`ps_bound_scale` in the FROZEN-ROW window is a live wrong answer, and it
-  predates D159.** Found by `numerics-reviewer` while reviewing D160.
+- ~~**`ps_bound_scale` in the FROZEN-ROW window is a live wrong answer, and it
+  predates D159.**~~ **CLOSED 2026-08-20 (D161,
+  `bench/measurements/02-71/`).** The term is dropped, the model reads
+  INFEASIBLE with the oracle, and every one of D159's own frozen-row tests
+  still passes. Found by `numerics-reviewer` while reviewing D160.
 
   ```
   -1e12 <= x0 + x1 <= 0,  x0 and x1 both cost 0 in [1e-4, 1]

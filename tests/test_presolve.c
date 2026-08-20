@@ -3397,6 +3397,50 @@ static void test_the_activity_pass_is_not_refused_below_its_own_traffic(void)
 #endif
 }
 
+/* The FROZEN-ROW window had the same defect, and it predates D159.
+ *
+ *   min 0  s.t.  R: -1e12 <= x0 + x1 <= 0,  x0 and x1 both cost 0 in [1e-4, 1]
+ *
+ * Both columns are cost-0 bounded singletons, so both relax and freeze R,
+ * which is then empty. It is infeasible by 2e-4 — the columns cannot go below
+ * 1e-4 each — and the frozen-row test is the last word, because an emptied
+ * frozen row is deleted with everything else and the simplex never sees it.
+ *
+ * `ps_bound_scale(-1e12, 0)` is 1e12, so the window was 1.78e-3 and swallowed
+ * it: presolve published **`optimal` with x = {1e-4, 1e-4}** against `ru = 0`,
+ * on every tree since that window was written. The window comes from the row's
+ * LOWER bound for a test on the UPPER side.
+ *
+ * The second half is the control and it is what makes this a test rather than
+ * an anecdote: the SAME model with `rl = -INFINITY` was refused correctly all
+ * along, which is only explicable if the finite lower bound was supplying the
+ * number. Both halves are asserted on the reference build too.
+ *
+ * Found by `numerics-reviewer` while reviewing D160, whose repair at the
+ * activity pass is the same single term (D161). */
+static void test_a_frozen_rows_window_ignores_the_far_bound(void)
+{
+    for (int k = 0; k < 2; k++) {
+        const double c[]  = {0.0, 0.0};
+        const double cl[] = {1e-4, 1e-4};
+        const double cu[] = {1.0, 1.0};
+        const double rl[] = {k == 0 ? -1e12 : -INFINITY};
+        const double ru[] = {0.0};
+        const int64_t s[]  = {0, 1, 2};
+        const int64_t ix[] = {0, 0};
+        const double v[]   = {1.0, 1.0};
+
+        jaos_model *m = nullptr;
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_model_new(&m));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK,
+            jaos_load_lp(m, 2, 1, JAOS_MINIMIZE, 0.0, c, cl, cu, rl, ru,
+                         2, s, ix, v));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+        TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_INFEASIBLE, jaos_status_of(m));
+        jaos_model_free(m);
+    }
+}
+
 /* The two cases clause 1's window must still REFUSE, and the first of them is
  * what refuted the window's first version.
  *
@@ -3884,6 +3928,7 @@ int main(void)
     RUN_TEST(test_a_frozen_row_emptied_and_still_short_is_refused);
     RUN_TEST(test_the_activity_pass_is_not_refused_below_its_own_traffic);
     RUN_TEST(test_the_activity_pass_still_refuses_a_real_shortfall);
+    RUN_TEST(test_a_frozen_rows_window_ignores_the_far_bound);
 
     RUN_TEST(test_a_frozen_row_missed_at_scale_is_refused);
 

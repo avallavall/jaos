@@ -1871,7 +1871,28 @@ JAOS_NODISCARD jaos_status jm_presolve_run(const jaos_model *m, jm_presolve *p,
          * sums to infinity too, and both comparisons below are false there,
          * so the test cannot fire either way. `row_traffic[i]` is finite here
          * since D155 and the sweep before the loop asserts it. */
-        double rscale = ps_bound_scale(cur_rl[i], cur_ru[i]);
+        /* **`ps_bound_scale` is NOT here, and D159 was wrong to keep it**
+         * (D161). It was the shipped window before D159, and D159 widened
+         * around it rather than asking whether it belonged. It does not: it
+         * is the magnitude of a BOUND, which is what its own comment says it
+         * is for, and this test compares a computed activity against one
+         * bound rather than two bounds against each other. So the row's
+         * irrelevant end supplies the number.
+         *
+         * `-1e12 <= x0 + x1 <= 0` with both columns cost 0 in [1e-4, 1] is
+         * the model. Both are cost-0 bounded singletons, so both relax and
+         * freeze the row, which empties. It is infeasible by 2e-4, and the
+         * lower bound alone bought a window of 1.78e-3: it published
+         * `optimal` with x = {1e-4, 1e-4} against `ru = 0`, on this tree and
+         * on every tree since the window was written. The same model with
+         * `rl = -INFINITY` is refused correctly, which is the control.
+         *
+         * There is no third error term for it to cover at any size, so it is
+         * dropped rather than narrowed. `min_act`/`max_act` carry
+         * `eps * rg.traffic` and `cur_rl`/`cur_ru` carry
+         * `eps * row_traffic[i]`; both are below. Found by
+         * `numerics-reviewer` (bench/measurements/02-71/). */
+        double rscale = 1.0;
         if (isfinite(row_traffic[i]) && row_traffic[i] > rscale)
             rscale = row_traffic[i];
         if (isfinite(rg.traffic) && rg.traffic > rscale)
