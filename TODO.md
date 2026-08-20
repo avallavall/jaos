@@ -16,9 +16,13 @@ five build configurations, and the three gate sets read `gate: PASS` with
 `0 regressed, 0 improved, 0 new`.
 
 **The gate campaign at HEAD is valid and it is D166's.** `git diff d420c8c
-HEAD -- src/ tests/` is empty: everything after it is documentation. **Nothing
-is owed to `main` and nothing is pushed** — the four commits after D166 are
-records.
+HEAD -- src/ tests/` is empty: everything after it is documentation, so no
+campaign is owed. Re-verified on the committed tree after the last commit:
+`make configs` exits 0 and `preflight.sh` gives `VERDICT: clear to run`.
+
+**13 commits are unpushed and pushing needs the maintainer's explicit
+approval.** Push from the WINDOWS side (see below). `main` and both tags were
+last pushed on 2026-08-20 before this session started.
 
 ### 2026-08-20, unattended: D162 to D167, and the class D159 opened is closed
 
@@ -321,12 +325,24 @@ What is still true and unrepaired, both with their size on the record:
 
 **§4's tolerance items are all closed and none of them is the start any more.**
 D162 to D167 closed the class D159 opened, at all four sites, by compensating
-`cur_rl`/`cur_ru` rather than by widening anything. **What is left in this file
-is designs, not bugs**: §2 needs a basis argument wider than the firing row,
-§3 needs a predictor of a doomed trajectory, and `D97` needs a dual postsolve
-for an imposed bound. The two live wrong answers still recorded are the
-solver's own row activity losing terms in column order (§4) and D121's
-unreachable loan.
+`cur_rl`/`cur_ru` rather than by widening anything.
+
+**What is left in this file is designs, not bounded bugs.** Every one of them
+moves the gate broadly and needs its own campaign and its own interpretation,
+so none is a half-hour item. In the order a session with fresh context should
+weigh them:
+
+| candidate | what it needs before any code | size |
+|---|---|---|
+| **the solver's row activity loses terms** (§4) | it is the only LIVE wrong answer left with a model that reproduces it, and `-DJAOS_NO_PRESOLVE` refuses a model whose feasible point is exactly representable. The fix is the D165 move one layer out: compensate the activity the simplex publishes. Digests will move on many instances | large, and the most valuable |
+| **§2, 46 solves publish a wrong basis** | a rank argument WIDER than the firing row. Every local repair is refused with its measurement (D141), and the published state of the art accepts the residue (Galabova 2023) | design |
+| **§3, `scsd1` and `degen2` behind D151's cap** | a predictor of a doomed trajectory. **The shortfall cannot be it and that is measured** — both are short by 1, the same as the sixteen that win | research |
+| **`D97`** | a dual postsolve for an imposed bound. `docs/research/dual-postsolve-imposed-bound.md` is the design; nothing is built. Unlocks §3's doubleton equalities too | largest prize |
+
+**Read D164 before proposing any tolerance work at all.** It is the entry that
+says what a window can and cannot do, and it cost a built-and-measured repair
+to learn: a window decides whether to REFUSE, so it can never correct a value
+that is already wrong — widening one converts a loud failure into a silent one.
 
 **D146's hostile-basis item is CLOSED and is no longer the start.** All four
 of its steps landed: the defect was located (D147), the certificate guard

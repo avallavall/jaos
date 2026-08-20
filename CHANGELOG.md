@@ -11,6 +11,14 @@ open, `bench/README.md` for the gate, and the commit each entry came from.
 
 ### Changed
 
+- **Carrying a fold's error into the receiving row's window is refused**, and
+  the entry is kept because the refusal is the useful part: it does stop the
+  false INFEASIBLE, and then publishes `optimal` with both rows violated by 7.5
+  times `CHECK_TOL`. A window decides whether to refuse; it cannot correct a
+  value that is already wrong, so widening one converts a loud failure into a
+  silent one (D164). The pinned change-detector it left behind is what fired
+  when D165 repaired the error at its source, and it now asserts the answer.
+
 - `TODO.md`'s published-basis figures are re-measured. netlib reads 46 solves
   wrong and 142 exact, not the recorded 48 and 140 — **it had been stale since
   the previous session** and five places cited it. Nothing in the gate could
@@ -20,6 +28,14 @@ open, `bench/README.md` for the gate, and the commit each entry came from.
   item's own stated measure is not progress (D167).
 
 ### Removed
+
+> **For whoever writes the release note:** the two `Fixed` entries about
+> counting terms (D162, D163) and this `Removed` entry are the same work
+> arriving and leaving inside one unreleased version. **The net change a user
+> sees is one thing** — presolve's row bounds are compensated, so it no longer
+> refuses models it can solve — and the four windows end where they started.
+> The intermediate steps are kept here because the tests and models they
+> produced still ship; the reasoning is `DECISIONS.md`'s.
 
 - `row_shifts`, `ps_shift_excess` and `ps_end_scale`. D162 and D163 added them
   to widen four windows by the number of removals a row's bounds had absorbed;
@@ -45,18 +61,6 @@ open, `bench/README.md` for the gate, and the commit each entry came from.
   reduction counts identical on all 15, every one `objective=ok checker=ok
   det=ok`. `bench/results/netlib.txt` is rewritten; the baseline is not, because
   the gate reads `0 regressed, 0 improved, 0 new` against it.
-
-### Changed
-
-- A pinned change-detector for the one wrong answer presolve still gives:
-  a fold fixes a column at a value carrying another row's error, and the
-  receiving row refuses a model the reference build solves. The test asserts
-  both answers in one place, so the repair announces itself there. **Carrying
-  the error into the window is refused and the entry says why** — it publishes
-  `optimal` with both rows violated by 7.5 times `CHECK_TOL`, which is worse
-  than the false INFEASIBLE it replaces (D164).
-
-### Fixed
 
 - The singleton row's fold counts its shifts too — the fourth read of the same
   running difference, where D162 repaired three. `x_big + 256 columns fixed at
