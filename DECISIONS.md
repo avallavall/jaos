@@ -12485,15 +12485,80 @@ against the parent's `src/simplex.c` it fails under `-DJAOS_NO_PRESOLVE` and
 passes in the shipping build, and the control passes on both. `make configs`
 exits 0.
 
-**What is left open.** `subtract_basis_times` is still an uncompensated sum. It
-computes `b - B x_B` for the one step of iterative refinement, so its
-cancellation is total by construction and it is the site where compensation
-would matter most per term. It is left alone deliberately: a different sum with
-a different error argument, running only on the refreshes whose result can be
-published, and folding it in would have made this campaign unattributable. It
-needs its own model and its own campaign. The published objective on D162's
-model is still not pinned, for D162's reason: `x1` sits where one ulp is
-1.19e-07, so the last step of the ratio test is not on the model's grid.
+**What is left open.** `subtract_basis_times` is still an uncompensated sum,
+and `apply_flips` is a third of the same shape. Both are named below with the
+reason and the condition that reopens them.
+
+### What `numerics-reviewer` added, after the commit
+
+The review landed after this entry was written. It found nothing wrong with the
+change — reproducibility, the owned scratch, the guard, the tolerance space and
+the `refine` ordering all check out, and it confirmed that `rhs[i] -= av*val`
+becoming `t = -(av*val); rhs[i] = rhs[i] + t` is bit-identical in IEEE, signed
+zeros included, so the 23 netlib digest moves are the recovered residue and
+nothing else. Six things it corrected are folded in here.
+
+**1. `0 improved` is a predicate count and not an accuracy measure.** The sets
+show **no harm**; the constructed model shows the **benefit**; and no instance
+of the 139 demonstrates the benefit. The gate line must not be read as saying
+this helped on the sets.
+
+**2. The work counter cannot see this change at all, by construction.** The
+fold pass bills nothing, while the identical-shape `nrow` loop seventeen lines
+later bills `s->nrow * JM_WORK_NONZERO`; and the inner loop went from two
+operations per nonzero to about eight, still billed at one `JM_WORK_NONZERO`.
+So `pilot87`'s 1.0372x and the 0.9996x geometric mean are **trajectory, not
+arithmetic**. The arithmetic is what the `-j 1` protocol measured, and it is
+under this host's noise.
+
+**3. `refresh()`'s own comment records D29 measuring this exact lever, and it
+fired.** A more accurate `x_B` mid-solve feeds a different steepest-edge pick;
+D29 measured refining every refresh and got `pilot-ja` back INFEASIBLE and
+`pilot87` at 4.5x the work. Here `pilot87` moved 1.0372x with +1035 iterations
+and `pilot-ja` did not regress. The mechanism is different — a recovered
+residue rather than a refinement solve — and the size is two orders apart. The
+variant of putting the fold behind `if (refine)` was considered and is not
+taken: the campaign says it is not needed.
+
+**4. D29's primal-dual symmetry is crossed and this is the sentence.**
+`compute_duals`'s refinement residual is an uncompensated sum over one column's
+nonzeros and is untouched, so the primal right-hand side is accurate now and
+the dual side is as it was. The asymmetry is much smaller than it looks: that
+sum runs over one column, while this one runs over every nonbasic column
+touching a row.
+
+**5. `subtract_basis_times` stays out, and the reason is numerical rather than
+about scheduling.** On the constructed model every product is exact — `av` is
+1.0 and `val` is a power of two — so the accumulation was the entire error and
+compensation recovered all of it. `subtract_basis_times` sums products of
+`x_B`, an FTRAN output already carrying the factorization's error, and no
+accumulator reaches an error that is already inside a term. It also publishes
+directly, being on the `refine` path, so it would move published values rather
+than trajectories and needs its own read against the checker and the basis
+count. **Reopen condition: a model where the refinement residual loses a term
+that changes a published value.** `apply_flips` is the same shape and is left
+out with it; the final `refine = true` refresh rebuilds `x_B` from scratch, so
+what it loses is mid-solve only. If either ever lands it gets its own `[nrow]`
+array — `s->rhsc` is idle by then, which is exactly the borrowed-scratch shape
+this project has paid for before, and `src/simplex.c` says so beside the field.
+
+**6. Two test corrections, both real.** The positive test asserted OPTIMAL and
+nothing else, and 02-72 records this same model publishing `obj = 4e-07` on an
+earlier tree and 0 at three of four counts before D165 — so a repair reporting
+OPTIMAL with a wrong objective would have passed. It pins the value now.
+**The reviewer's figure for that value was wrong and the measurement is here**:
+it said every feasible point has `obj = 1e-7` exactly, but `x1` is a variable,
+and the shipping build publishes 1.0000000000000074e-07 while
+`-DJAOS_NO_PRESOLVE` publishes 1.1920928955078125e-07, which is 2^-23 — one ulp
+of `x1`'s own magnitude. The window admits both and rejects 0, 2e-7 and 4e-7.
+And the 1e-2 control separates nothing, being 1300 times the 7.63e-6 recovered;
+a second control at 5e-6 is added, which is infeasible by 4.7e-6 and therefore
+INSIDE a window widened to cover the loss, so a widening repair accepts it and
+an accurate sum refuses it. Both read INFEASIBLE on both builds at both trees.
+
+The published objective on D162's model is still not pinned to the true
+optimum, for D162's reason: `x1` sits where one ulp is 1.19e-07, so the last
+step of the ratio test is not on the model's grid.
 
 ## D169 — The published objective is summed with compensation over the point it is published with, and 81 of 94 now agree with the checker exactly
 

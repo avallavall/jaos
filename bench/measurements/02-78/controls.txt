@@ -1,0 +1,28 @@
+== shipping : the parent (f3a7798)
+  slack=0 (feasible)     optimal     obj=1.0000000000000074e-07
+  slack=1e-8             optimal     obj=1.1000000000000064e-07
+  slack=1e-7             optimal     obj=2.0000000000000147e-07
+  slack=5e-6             infeasible  obj=0
+  slack=1e-5             infeasible  obj=0
+  slack=1e-2 (control)   infeasible  obj=0
+== shipping : the working tree
+  slack=0 (feasible)     optimal     obj=1.0000000000000074e-07
+  slack=1e-8             optimal     obj=1.1000000000000064e-07
+  slack=1e-7             optimal     obj=2.0000000000000147e-07
+  slack=5e-6             infeasible  obj=0
+  slack=1e-5             infeasible  obj=0
+  slack=1e-2 (control)   infeasible  obj=0
+== -DJAOS_NO_PRESOLVE : the parent (f3a7798)
+  slack=0 (feasible)     infeasible  obj=0
+  slack=1e-8             infeasible  obj=0
+  slack=1e-7             infeasible  obj=0
+  slack=5e-6             infeasible  obj=0
+  slack=1e-5             infeasible  obj=0
+  slack=1e-2 (control)   infeasible  obj=0
+== -DJAOS_NO_PRESOLVE : the working tree
+  slack=0 (feasible)     optimal     obj=1.1920928955078125e-07
+  slack=1e-8             optimal     obj=1.1920928955078125e-07
+  slack=1e-7             optimal     obj=1.9999999999999999e-07
+  slack=5e-6             infeasible  obj=0
+  slack=1e-5             infeasible  obj=0
+  slack=1e-2 (control)   infeasible  obj=0

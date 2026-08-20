@@ -414,7 +414,12 @@ typedef struct {
      * per row. Owned rather than borrowed on purpose: every other [nrow]
      * scratch in this struct belongs to a producer that runs inside the same
      * refresh, and a compensation that another routine overwrote would be
-     * worse than none. It lives only inside compute_primal. */
+     * worse than none. It lives only inside compute_primal.
+     *
+     * **It is idle everywhere else and must stay unborrowed.** If
+     * subtract_basis_times or apply_flips is ever compensated too, it gets
+     * its own array. Borrowing an idle buffer is exactly the shape this
+     * project has paid for before, and the cost here is nrow doubles. */
     double *rhsc;
     /* The duals, and the pricing row. These are two different quantities
      * and they get two different vectors, which is not a convenience: they
@@ -1192,7 +1197,18 @@ static void subtract_basis_times(sx *s, double *r, const double *z)
  * and its two-term error recovery is exact under `-ffp-contract=off`.
  *
  * The cost is paid once per refactorization rather than once per iteration,
- * since this is called from refresh() and nowhere else. */
+ * since this is called from refresh() and nowhere else.
+ *
+ * **Two sums of the same shape are deliberately left alone.**
+ * `subtract_basis_times` forms `b - B x_B` for the refinement step, and
+ * `apply_flips` accumulates over a bound-flip batch. Compensating either
+ * buys much less than it does here, and the reason is the terms rather than
+ * the schedule: on the model above every product is exact (`av` is 1.0 and
+ * `val` is a power of two), so the accumulation was the whole error. Those
+ * two sum products of `x_B`, which is an FTRAN output already carrying the
+ * factorization's error, and no accumulator reaches an error that is already
+ * inside a term. Neither has a model that reproduces a defect. D168 says what
+ * would reopen them. */
 static void compute_primal(sx *s, bool refine)
 {
     double *rhs = s->col;
@@ -1230,8 +1246,19 @@ static void compute_primal(sx *s, bool refine)
 
     /* An infinite or NaN partial sum carries no residue a correction could
      * hold, and `inf + (inf - inf)` is a NaN — the failure mode where a row
-     * bound comparison silently answers false. The guard is D165's, for the
-     * same reason it has there. */
+     * bound comparison silently answers false. The reason is D165's; the
+     * PLACEMENT is not, and the difference is load-bearing. Presolve guards
+     * every step and zeroes its compensation there; this guards once, after
+     * the loop. That is sound only because a partial sum cannot come back:
+     * `inf + finite` is `inf`, `inf + (-inf)` is NaN, and `NaN + x` is NaN,
+     * so a row that ever reaches either stays there and is caught here.
+     *
+     * This pass bills no work units, and neither does the extra arithmetic in
+     * the loop above — the same JM_WORK_NONZERO per nonzero covers about four
+     * times the operations now. **So the counter cannot see this change**, and
+     * any work-unit movement it reports on a campaign is trajectory rather
+     * than arithmetic. `bench/measurements/02-78/timing.txt` is what measures
+     * the arithmetic. */
     for (int64_t i = 0; i < s->nrow; i++)
         if (isfinite(rhs[i]) && isfinite(comp[i]))
             rhs[i] += comp[i];

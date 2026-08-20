@@ -640,15 +640,22 @@ trajectory. Refusals table, D151.
   is not billed: the seconds are the only evidence, and across two runs of the
   `-j 1` protocol the four bit-identical instances span 0.9501x to 1.0302x
   while doing byte for byte the same work, which is this host's own 6.27%.
-- **`subtract_basis_times` is the last uncompensated sum in the solve path**,
-  and it is new from D168. It computes `b - B x_B` for the one step of
-  iterative refinement, so its cancellation is total by construction and per
-  term it is the site where compensation matters most. **Nothing shows it
-  losing an answer yet** — no model has been built for it — so it is a
-  candidate rather than a defect. D168 left it out so that campaign stayed
-  attributable, and it needs its own model and its own campaign. `refine` runs
-  only on the refreshes whose result can be published, so its blast radius is
-  the answer rather than the trajectory.
+- **`subtract_basis_times` and `apply_flips` are the two uncompensated sums
+  left in the solve path**, and they are new from D168. **Refused for now,
+  with a reason and a reopen condition** (`numerics-reviewer`, D168):
+  compensation buys much less there than it did in `compute_primal`. On the
+  model that named the defect every product is exact — the coefficient is 1.0
+  and the value is a power of two — so the accumulation was the entire error.
+  These two sum products of `x_B`, which is an FTRAN output already carrying
+  the factorization's error, and **no accumulator reaches an error that is
+  already inside a term**. Nothing shows either losing an answer.
+  **Reopen condition: a model where the refinement residual loses a term that
+  changes a published value.** `subtract_basis_times` is on the `refine` path,
+  so it would move published values rather than trajectories and needs its own
+  read against the checker and the basis count. `apply_flips` loses terms
+  mid-solve only — the final `refine = true` refresh rebuilds `x_B` from
+  scratch. **If either lands it gets its own `[nrow]` array**, never `s->rhsc`,
+  which is idle by then; `src/simplex.c` says so beside the field.
 - **The objective's product rounding needs a two-product**, and it is new from
   D169. Once the accumulation is compensated, what is left in `c'x` is the
   rounding of each `c_j * x_j` to a double, bounded by `eps` times the sum of

@@ -47,6 +47,31 @@ reason.** The reference build reads `1.19209e-07` where exact arithmetic gives
 last step of the ratio test cannot be taken on the grid the model lives on.
 The test asserts OPTIMAL and not the objective.
 
+## Where it stops being feasible — `controls.txt`
+
+The same model swept over the slack, on both builds at both trees. It is what
+settled the two claims the review made about the tests, and one of them was
+wrong.
+
+| slack | shipping, parent | shipping, D168 | reference, parent | reference, D168 |
+|---|---|---|---|---|
+| 0 | 1.0000000000000074e-07 | 1.0000000000000074e-07 | **infeasible** | 1.1920928955078125e-07 |
+| 1e-8 | 1.1000000000000064e-07 | same | **infeasible** | 1.1920928955078125e-07 |
+| 1e-7 | 2.0000000000000147e-07 | same | **infeasible** | 1.9999999999999999e-07 |
+| **5e-6** | infeasible | infeasible | infeasible | infeasible |
+| 1e-5 | infeasible | infeasible | infeasible | infeasible |
+| 1e-2 | infeasible | infeasible | infeasible | infeasible |
+
+**The objective is not a single number at slack 0.** The review said every
+feasible point has `obj = 1e-7` exactly; `x1` is a variable, so the two builds
+land one ulp of `x1`'s magnitude apart — `2^-23 = 1.19e-07`. The test's window
+is 5e-8 around 1.1e-7 and admits both.
+
+**5e-6 is a real control and 1e-2 is not.** At 5e-6 the model is infeasible by
+about 4.7e-6, which `w1 + w2` cannot reach against its cap of 4e-7, and it is
+inside a window widened to cover the 7.63e-6 that was being lost. Every build
+at every tree refuses it.
+
 ## The gate — `gate-diff.txt`, `work-geomean.txt`
 
 `make netlib netlib-infeas netlib-kennington J=12`, all three `gate: PASS`
@@ -129,9 +154,37 @@ counter already gives.
 ## The test, and what makes it evidence
 
 `test_a_row_activity_keeps_terms_below_an_ulp_of_its_own_total` in
-`tests/test_simplex.c` is D162's model at k = 256, asserting OPTIMAL, with no
-build guard — OPTIMAL is the right answer in every configuration. Beside it,
-`test_a_row_activity_still_refuses_a_real_shortfall` is control B.
+`tests/test_simplex.c` is D162's model at k = 256, with no build guard —
+OPTIMAL is the right answer in every configuration.
+
+**It pins the objective as well as the status, and the reviewer's figure for
+that objective was wrong.** The review said every feasible point has
+`obj = 1e-7` exactly. `x1` is a variable, so it does not: the shipping build
+publishes 1.0000000000000074e-07 and `-DJAOS_NO_PRESOLVE` publishes
+1.1920928955078125e-07, which is 2^-23 — one ulp of `x1`'s own magnitude. The
+window is 5e-8 around 1.1e-7, which admits both and rejects 0, 2e-7 and 4e-7.
+The concern behind the figure was right: 02-72 records this same model
+publishing `obj = 4e-07` on an earlier tree and 0 at three of four counts
+before D165, so a repair reporting OPTIMAL with a wrong objective would have
+passed a status assertion.
+
+**The pin's rejecting case is measured rather than argued.** The same model at
+`slack = 1e-7` publishes 2.0000000000000147e-07 on the shipping build, which
+the window refuses — so it discriminates on a real reading of this model.
+
+`test_a_row_activity_still_refuses_a_real_shortfall` carries **two** controls,
+and it **runs under both fault builds on purpose**. The convention guards
+positive tests off there; this one asserts a refusal, and a fault that made
+presolve accept either model would be worth hearing about. Row S becomes a
+singleton row on `x1` once `z` is removed, which is the path
+`JAOS_PRESOLVE_FAULT_WRONGDUAL` perturbs, so the coverage is real.
+1e-2 is D162's inherited one and separates nothing here, being 1300 times the
+7.63e-6 recovered — any repair that widened a window by up to a hundredth would
+pass it. **5e-6 is the one that separates an accurate sum from a wider
+window**: the model is infeasible by 4.7e-6 there, which is 47 times
+`PRIMAL_TOL` and INSIDE a window widened to cover the loss, so a widening
+repair accepts it and an accurate sum refuses it. Measured at both trees and on
+both builds, and INFEASIBLE on all of them.
 
 Validated the way this repository requires, by building the parent's
 `src/simplex.c` against the new tests:
@@ -146,15 +199,42 @@ and this one fails on exactly the tree and the configuration the defect is in.
 
 `make configs` exits 0 — all five configurations build and pass.
 
+## Three readings this record must not be quoted against
+
+**`0 improved` is a predicate count and not an accuracy measure.** The sets say
+there is **no harm**; the constructed model says there is a **benefit**; and no
+instance of the 139 demonstrates the benefit.
+
+**The work counter cannot see this change, by construction.** The fold pass
+bills nothing, while the identical-shape `nrow` loop seventeen lines later
+bills `s->nrow * JM_WORK_NONZERO`, and the inner loop went from two operations
+per nonzero to about eight at the same billing. So `pilot87`'s 1.0372x and the
+0.9996x geometric mean are trajectory, not arithmetic. `timing.txt` is what
+measures the arithmetic.
+
+**`refresh()`'s own comment records D29 measuring this lever, and it fired
+here.** A more accurate `x_B` mid-solve feeds a different steepest-edge pick.
+D29 measured refining every refresh and got `pilot-ja` back INFEASIBLE and
+`pilot87` at 4.5x. Here `pilot87` moved 1.0372x with +1035 iterations and
+`pilot-ja` did not regress — a different mechanism at two orders of magnitude
+less, and the variant of putting the fold behind `if (refine)` is not taken
+because the campaign says it is not needed.
+
 ## What this does not close
 
-- **`subtract_basis_times` is still an uncompensated sum.** It computes
-  `b - B x_B` for the one step of iterative refinement, and its cancellation is
-  total by construction, so it is the site where compensation would matter
-  most per term. It is left alone deliberately: it is a different sum with a
-  different error argument, it runs only on the refreshes whose result can be
-  published, and folding it into this change would make the campaign
-  unattributable. It needs its own model and its own campaign.
+- **`subtract_basis_times` and `apply_flips` are still uncompensated sums, and
+  they are refused rather than deferred** (`numerics-reviewer`). Compensation
+  buys much less there, and the reason is the terms rather than the schedule:
+  on the model above every product is exact — the coefficient is 1.0 and the
+  value is a power of two — so the accumulation was the entire error and
+  compensation recovered all of it. Those two sum products of `x_B`, an FTRAN
+  output already carrying the factorization's error, and no accumulator reaches
+  an error that is already inside a term. **Reopen condition: a model where the
+  refinement residual loses a term that changes a published value.**
+  `subtract_basis_times` is on the `refine` path, so it publishes; `apply_flips`
+  loses terms mid-solve only, since the final `refine = true` refresh rebuilds
+  `x_B` from scratch. If either lands it gets its own `[nrow]` array and never
+  `s->rhsc`.
 - **`update_primal` carries `x_B` between refreshes incrementally** and is
   untouched. A refresh resets it, so its error does not accumulate past one
   refactorization interval.

@@ -2810,8 +2810,11 @@ static void test_a_warm_basis_of_empty_columns_factors_and_is_infeasible(void)
  * build, because OPTIMAL is the right answer in every one of them.
  *
  * `k` is a parameter of the model and not of the defect: 64, 128 and 512 read
- * the same way, and 256 is kept because it is where the error first crosses
- * presolve's own window (02-72). */
+ * the same way. 256 is kept because it makes this the same model 02-72's
+ * record carries, and for no other reason — **not** because of presolve's own
+ * window, which this test never reaches: `-DJAOS_NO_PRESOLVE` is the
+ * configuration where the defect is visible and it consults no such window,
+ * and 02-72 §4 records the reference build refusing all four counts alike. */
 #define ACT_K 256
 #define ACT_NC (ACT_K + 5)
 #define ACT_NNZ (ACT_K + 6)
@@ -2863,17 +2866,66 @@ static void test_a_row_activity_keeps_terms_below_an_ulp_of_its_own_total(void)
     jaos_model *m = make_lost_terms_model(0.0);
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
     TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+
+    /* OPTIMAL alone is not enough, and 02-72 is why: on an earlier tree this
+     * model published `obj = 4e-07`, and before D165 the shipping build
+     * published 0 at three of the four counts. A repair that reported OPTIMAL
+     * with either would pass a status assertion.
+     *
+     * **The value is bounded, not pinned, and the two builds differ.** Only
+     * `w1` and `w2` carry a cost, so the objective is `w1 + w2` and
+     * feasibility asks that for `T - 2^-17`; the optimum is 1e-7 at
+     * `x1 = -1e9`. The shipping build reads 1.0000000000000074e-07 and
+     * `-DJAOS_NO_PRESOLVE` reads 1.1920928955078125e-07, which is 2^-23 —
+     * one ulp of x1's own magnitude, and the last step of the ratio test is
+     * not on that grid. The window here admits both and rejects 0, 2e-7 and
+     * 4e-7, which are the answers that would mean something was wrong.
+     *
+     * **The rejecting case is measured and not argued.** The same model with
+     * `slack = 1e-7` publishes 2.0000000000000147e-07, which this window
+     * refuses — so the pin discriminates on a real reading of this model and
+     * not only on the arithmetic. `bench/measurements/02-78/controls.txt`
+     * carries the sweep. */
+    double obj = 0.0;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(m, &obj));
+    TEST_ASSERT_DOUBLE_WITHIN(5e-8, 1.1e-7, obj);
     jaos_model_free(m);
 #endif
 }
 
-/* The control the compensation must still refuse: the same shape moved 1e-2
- * away from any feasible point, which is four orders of magnitude outside
- * anything the accumulation could account for. A repair that accepted this
- * would be a wider window rather than a more accurate sum. */
+/* The two controls the compensation must still refuse, and the near one is
+ * the one that means something.
+ *
+ * **1e-2 is D162's inherited control and it separates nothing here.** It is
+ * 1300 times the 7.63e-6 the compensation recovers, so any repair that
+ * widened a feasibility window by anything up to a hundredth would pass it.
+ * It is kept because it is the shape that must be refused on every build at
+ * every count.
+ *
+ * **5e-6 is the one that tells an accurate sum from a wider window.** The
+ * model is infeasible by about 4.7e-6 there — 47 times `PRIMAL_TOL` and 40
+ * times the row's own ulp noise of 1.19e-7 — and `w1 + w2` cannot reach it,
+ * since it would need 5.1e-6 against a cap of 4e-7. It sits INSIDE a window
+ * widened to cover the 7.63e-6 that was lost, so such a repair accepts it and
+ * an accurate sum refuses it. Both read INFEASIBLE on both builds, before
+ * D168 and after. Found by `numerics-reviewer`.
+ *
+ * **This one runs under the fault builds and is meant to.** The convention in
+ * `tests/test_presolve.c` guards POSITIVE tests off there, because a fault
+ * build breaks the answer they assert. This asserts a refusal, and a fault
+ * that made presolve accept either model would be worth hearing about. Row S
+ * becomes a singleton row on `x1` once `z` is removed, which is the path
+ * `JAOS_PRESOLVE_FAULT_WRONGDUAL` perturbs, so the coverage is real. Both
+ * counts pass under both fault builds; this sentence is what records that it
+ * was checked rather than overlooked. */
 static void test_a_row_activity_still_refuses_a_real_shortfall(void)
 {
     jaos_model *m = make_lost_terms_model(1e-2);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_INFEASIBLE, jaos_status_of(m));
+    jaos_model_free(m);
+
+    m = make_lost_terms_model(5e-6);
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
     TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_INFEASIBLE, jaos_status_of(m));
     jaos_model_free(m);
