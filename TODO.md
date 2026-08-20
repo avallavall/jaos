@@ -5,27 +5,29 @@ says why closed questions closed, `CHANGELOG.md` says what landed, `bench/`
 says what it costs. This file says what is next. When something lands, its
 line leaves this file in the same commit.
 
-## Where the last session stopped — 2026-08-20
+## Where the last session stopped — 2026-08-21
 
 ### The state of the tree, first, because everything below assumes it
 
 **Nothing is in flight and no worktree is registered.** The tree is clean apart
 from one untracked directory that is not this session's
 (`bench/measurements/02-31/`, see below). **`make configs` exits 0** — all five
-build configurations — and the three gate sets read `gate: PASS` with
-`0 regressed, 0 improved, 0 new`.
+build configurations.
 
-**The gate campaign at HEAD is valid and it is the overflow fix's** (`e29198a`).
-All three `bench/results/*.txt` are current. Every commit after it touches
-`DECISIONS.md`, `TODO.md`, `CHANGELOG.md` and files under
-`bench/measurements/`, so no campaign is owed. **D173 changed nothing in
-`src/` either** — it is an offline oracle and a refusal.
+**The gate campaign at HEAD is valid and it is D175's** (`c648f86`, the only
+commit of the session that touched `src/`). `gate: PASS` on all three sets with
+`0 regressed, 0 improved, 0 new`, and `bench/results/*.txt` came out
+**byte-identical to the records already committed** — which is what 0 verdict
+flips predicts and what 02-83's exact objectives confirm a second way. D173,
+D174 and D176 changed nothing in `src/` at all, so no campaign is owed for
+them.
 
-**Nothing is unpushed.** `main` is at `55b4edb` on the maintainer's explicit
-say-so; `git fetch` first read `ahead 6` with no divergence. **Push from the WINDOWS side**: the remote
-is an SSH alias that lives in the Windows `~/.ssh/config` only, and from WSL it
-dies as "could not resolve hostname". `git fetch` first — another Claude session
-commits to this repository.
+**FOUR COMMITS ARE UNPUSHED**: `6061c38` (D173), `efe5884` (D174), `c648f86`
+(D175), `0a6d58f` (D176). The previous handover's "nothing is unpushed" was
+true when it was written and is not now. **Push from the WINDOWS side**: the
+remote is an SSH alias that lives in the Windows `~/.ssh/config` only, and from
+WSL it dies as "could not resolve hostname". `git fetch` first — another Claude
+session commits to this repository.
 
 **Two tools settled "did this invalidate the campaign" three times today.**
 `comment_only.sh <file> <ref>` reports the release object UNCHANGED for a
@@ -41,19 +43,28 @@ half-done, no measurement is owed, and no agent is waiting. What follows is the
 list of what to pick up, in order, and every item names what it needs before
 any code.
 
-**The five things that are open, none of which is a wrong answer:**
+**One of these is a DECISION and the rest are work.** The decision is first
+because it is cheap to make and nobody but the maintainer can make it.
 
 | # | item | what it needs | where |
 |---|---|---|---|
-| 1 | **48 netlib solves publish an invalid basis** | a rank argument WIDER than the firing row, or accepting the residue as the published state of the art does (Galabova 2023). Every local repair is refused with its measurement (D140, D141). **D171 made it worse by 2 and that is measured** | §2 below |
-| 2 | ~~**`settled_objective` is a naive sum that selects which point is PUBLISHED**~~ **CLOSED (D175)** | compensated, gate byte-identical. The constructed case works; no solve on the 139 reaches it, and there is no test that fails at the parent — the entry says why | §4 below |
-| 3 | **`pilot` publishes a point 2.31e-05 above the optimum** | a decision, not a diagnosis — D174 answered the cause. It is `DUAL_TOL`, and 1e-9 repairs all four wrong answers with three of them costing LESS work, at the price of `6 regressed` on the gate. **`pilot87`, D92's backlog row, becomes exact.** The narrower candidate — a tighter termination test with the Harris window left alone — is unbuilt | §4 below |
-| 4 | **`scsd1` and `degen2` behind D151's cap** | a predictor of a doomed trajectory. The shortfall cannot be it and that is measured | §3 below |
-| 5 | **`D97`, the dual postsolve for an imposed bound** | nothing is built; `docs/research/dual-postsolve-imposed-bound.md` is 936 lines of design with the literature verified. **The largest prize in the file** — it unlocks bound tightening AND doubleton equalities, 8.55% of netlib's live rows and 29.36% of Kennington's | "If all of the above is dropped" |
+| 1 | **`pilot` publishes a point 2.31e-05 above the optimum — DECIDE** | not a diagnosis; D174 answered the cause. `DUAL_TOL` at 1e-9 repairs all four netlib instances that publish a point off the optimum, **three of them for LESS work**, and makes `pilot87` — D92's backlog row — exact. The price is `6 regressed` on the gate's 2.0x work bar. The measurement is complete and the call is a judgement | §4 below |
+| 2 | **48 netlib solves publish an invalid basis** | a rank argument WIDER than the firing row, or accepting the residue as the published state of the art does (Galabova 2023). Every local repair is refused with its measurement (D140, D141). **D171 made it worse by 2 and that is measured** | §2 below |
+| 3 | **`scsd1` and `degen2` behind D151's cap** | a predictor of a doomed trajectory. The shortfall cannot be it and that is measured | §3 below |
+| 4 | **`D97`, the dual postsolve for an imposed bound** | nothing is built; `docs/research/dual-postsolve-imposed-bound.md` is 936 lines of design with the literature verified. **The largest prize in the file** — it unlocks bound tightening AND doubleton equalities, 8.55% of netlib's live rows and 29.36% of Kennington's | "If all of the above is dropped" |
+| 5 | **the gate cannot see a suboptimal answer** | a threshold, and one instance separating cleanly on one set is not one. `jaos_check_solution` already certifies `gap_positive = 0.0386` on `pilot` with `gap_certified = yes`, four orders above every other certified instance, and `bench/run.c` never reads the field | §4 below |
 
-**`apply_flips` is refused, not open.** It is the third uncompensated sum of
-D168's shape; it loses terms mid-solve only, because the final `refine = true`
-refresh rebuilds `x_B` from scratch.
+**Three things are refused rather than open, so do not pick them up.**
+`apply_flips` is the third uncompensated sum of D168's shape and loses terms
+mid-solve only, because the final `refine = true` refresh rebuilds `x_B` from
+scratch (D171). **presolve's `obj_offset` is measurably dead** — poisoned with
+`1e300` and with `NaN`, all three sets stay bit-identical to a control that
+reproduces the committed records exactly (D176). And **`finnis` is not a wrong
+answer**: its gap is 1.24 half-ulps of its own largest term, against `pilot`'s
+9.2e+09 (D173).
+
+**The class D168 opened is closed at all four sites** — D168, D169/D172, D175
+repaired, D176 refused with a measurement.
 
 **Four traps this session paid for. Do not re-learn them.**
 
@@ -84,28 +95,67 @@ one. Run the loop AND get the review; a green loop does not cover the review's
 job.
 
 
-### 2026-08-20, third unattended session: D173 — the exact oracle, and what it refused
+### 2026-08-21, third unattended session: D173 to D176 — an exact oracle, a diagnosis, a repair and a refusal
 
-One entry, no source change. `bench/measurements/02-83/` adds a 5632-bit
-fixed-point accumulator, so `c'x + c0` over the published point is computed
-with no rounding at all.
+**Four entries and one source change.** `c648f86` is the only commit that
+touched `src/`; the other three are measurements.
 
-**Three things to carry forward.**
+| commit | what it is |
+|---|---|
+| `6061c38` | **D173** — the exact objective oracle. `jaos_objective` is correctly rounded on 110 of 110; `finnis` refused; `pilot` named as the instance with a wrong point |
+| `efe5884` | **D174** — `pilot`'s 2.31e-05 is `DUAL_TOL` and nothing else, and 1e-9 turns the gate red on six instances |
+| `c648f86` | **D175** — the sum that ranks two rounds is compensated; gate byte-identical. Also folds in D173's corrections |
+| `0a6d58f` | **D176** — presolve's `obj_offset` is measurably dead, so compensating it is refused |
 
-- **`jaos_objective` is finished.** It is the correctly rounded exact
-  objective of the published point on **110 of 110**, worst 0.493 ulp. Do not
-  open the published objective again; the remaining disagreement with the
-  checker is the checker's, 790 ulps on `finnis`.
+**THE THING TO CARRY FORWARD IS NOT A FINDING, IT IS A FAILURE RATE.** Six
+defects were found in this session's own evidence, and **every one produced
+output that read as a clean result**. Two were caught by `numerics-reviewer`,
+two by a control, two by re-reading. None announced itself.
+
+- A probe passed `-m` without `-d`, so `bench/run` read the standard instance
+  directory three times while the output printed three set names. **Kennington
+  recorded zero comparisons** and the summary said "on the three gate sets".
+- The same probe then copied `src/` from the working tree, where the repair
+  already was, so it compared the compensated sum against itself and **every
+  error column read exactly 0**.
+- One figure was printed under one name with two definitions, disagreeing by
+  five orders — `spread` and `flip` are named apart now.
+- A poison harness omitted `-e infeasible`; the infeasible records then
+  differed under both poisons **and under the control**, which without the
+  control reads as "alive on one set, dead on two".
+- D173's justification for its own threshold was false by seven orders. The
+  threshold was right; the reason attached to it was not.
+- A measurement record was committed while its background job was still
+  writing it — 17 lines of 34.
+
+**What actually caught them**: a control that must reproduce the committed
+records before any treatment is believed; a second oracle sharing no code
+(Python's `fractions`, and `gap_negative` against `priced`); and naming the
+tree a probe measured. **Add a control to every probe, and make it fail if the
+harness is blind.**
+
+**Four habits worth keeping.**
+
 - **Measure a gap against `eps * sum |c_j x_j|`, not against the objective.**
-  `finnis` looks like the worst instance on the set at 7.62e-05 and is
-  actually 0.107 of its own floor, while `pilot` at 2.31e-05 is 1.87e+08 of
-  its. The two differ by ten orders in traffic and the raw gaps say the
+  `finnis` looks like the worst instance on the set at 7.62e-05 and is 0.107 of
+  its own floor; `pilot` at 2.31e-05 is 1.87e+08 of its. The raw gaps say the
   opposite of the truth.
-- **Validate the instrument before the reading, and with something that
-  shares no code with it.** The written-down cases caught a wrong expected
-  value this session had typed; Python's `fractions` is the second oracle and
-  agrees to all 20 places on four instances. `run-exact-objective.sh` refuses
-  to take a reading if the self-test fails.
+- **A caller-owned tolerance sweeps with no rebuild.** `DUAL_TOL` is settable
+  through `jaos_set_dual_tolerance`, so seven settings over three sets cost one
+  binary — and the control that passing the default explicitly reproduces the
+  built-in one is what makes the sweep mean anything.
+
+- **`jaos_objective` is finished. Do not open the published objective again.**
+  It is the correctly rounded exact objective of the published point on **110
+  of 110**, worst 0.493 ulp, measured against an oracle that rounds nowhere.
+  The remaining disagreement with the checker is the CHECKER's — 790 ulps on
+  `finnis` — because `long double` cannot hold a binary64 product's 106 bits.
+- **A probe validates itself before it is believed.**
+  `run-exact-objective.sh` refuses to take a reading when its self-test fails,
+  and that self-test caught a wrong expected value typed in this session. Its
+  own gap was that every case was non-negative, so the negation path was never
+  exercised by the thing that gates the readings; there is a negative case in
+  it now.
 
 ### 2026-08-20, second unattended session: D168 to D172 — four published numbers repaired, one refused, and a refusal overturned
 
