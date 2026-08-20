@@ -7,6 +7,7 @@
 
 #include "jaos.h"
 
+#include <float.h>
 #include <stddef.h>
 
 /* What a caller sets, as opposed to what a caller loads. The line between the
@@ -388,6 +389,31 @@ JAOS_NODISCARD jaos_status jm_model_remember_basis(jaos_model *m);
  * (D169). Every publication path ends here, so the number the caller reads is
  * the objective of the point the caller reads and not of some earlier one. */
 void jm_model_publish_objective(jaos_model *m);
+
+/* The two steps a `sum c_j x_j` needs to lose nothing, shared rather than
+ * copied: the published objective is one such sum and `settled_objective` in
+ * the simplex is another, and two copies of this arithmetic in one tree is
+ * how they come to disagree.
+ *
+ * `jm_obj_add` is one Neumaier step into a running sum and its compensation.
+ * **`sum` and `comp` must not be the same object**, or the correction is
+ * added into the total it corrects; asserted at the definition.
+ *
+ * `jm_two_product_residue` is what `a * b` lost when it rounded to `p`, by
+ * Dekker's split, which is exact while nothing overflows — beyond a factor
+ * magnitude of 2^996 the split itself would, so it reports a zero residue
+ * there and the caller keeps the plain product (D172, D175).
+ *
+ * The split needs double arithmetic evaluated at double, which the assert
+ * below states wherever these are used rather than only where they are
+ * defined. Every caller's `a`, `b` and `p` are `double` objects and
+ * prototyped `double` arguments, so each is already correctly rounded before
+ * the call; the assert covers the arithmetic inside. */
+static_assert(FLT_EVAL_METHOD == 0,
+              "Dekker's split needs double arithmetic evaluated at double");
+
+void jm_obj_add(double *sum, double *comp, double t);
+JAOS_NODISCARD double jm_two_product_residue(double a, double b, double p);
 
 /* Formats into m->err. NULL model is tolerated (message dropped). */
 [[gnu::format(printf, 2, 3)]]

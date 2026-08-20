@@ -10,9 +10,14 @@
 # would move the objective by to first order. colviol is the
 # worst published value outside its own declared box.
 # objtraf is sum |c_j x_j| and refeps is (exact - ref) in units
-# of eps * objtraf: no double objective of any point can be
-# placed nearer than 0.5 of that, so |refeps| <= 0.5 says the
-# gap against the reference is the model's own conditioning.
+# of eps * objtraf. The threshold is 0.5 and the reason is about
+# the POINT, not the objective: the optimal vertex's coordinates
+# cannot be held more finely than a double, and rounding them
+# moves c'x by up to sum |c_j| ulp(x_j)/2, which is at most
+# 2^-53 sum|c_j x_j| = 0.5 * eps * objtraf. So |refeps| <= 0.5
+# means the gap is no larger than writing the answer down costs.
+# The bound is loose by 16% on finnis and 30% on pilot against
+# the exact sum |c_j| ulp(x_j)/2, and neither verdict moves.
 # gappos/gapneg/cert are jaos_check_solution's own certificate,
 # for the question of whether the library already reports what
 # exact-ref measures: gappos bounds P - P* when cert says yes.

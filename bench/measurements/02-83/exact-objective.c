@@ -45,7 +45,17 @@ static void acc_zero(acc_t *a) { memset(a->l, 0, sizeof a->l); }
  * subnormals included: frexp normalizes the significand first. */
 static void decompose(double d, int *sgn, uint64_t *mant, int *e)
 {
-    if (d == 0.0 || !isfinite(d)) { *sgn = 0; *mant = 0; *e = 0; return; }
+    if (d == 0.0) { *sgn = 0; *mant = 0; *e = 0; return; }
+    /* An infinity or a NaN used to take the same exit as zero, so the term
+     * was DROPPED and the accumulator published a clean finite total with
+     * nothing saying a term had gone: `1.0 + inf` read 1.0
+     * (`numerics-reviewer`). The range guard below already refuses loudly;
+     * this one has to as well. No OPTIMAL solve publishes a non-finite value,
+     * so it fires on a caller error and not on these instances. */
+    if (!isfinite(d)) {
+        fprintf(stderr, "non-finite term reached the accumulator\n");
+        exit(3);
+    }
     int ex;
     double m = frexp(d, &ex);
     *sgn  = (m < 0.0) ? -1 : 1;
@@ -114,9 +124,18 @@ static int acc_normalize(acc_t *a)
     return 0;
 }
 
-/* The nearest double to a normalized accumulator, near enough for reporting:
- * it reads the top three limbs, which is 96 bits against the 53 a double
- * holds. No verdict reads this. */
+/* The nearest double to a normalized accumulator: it reads the top three
+ * limbs, which is 96 bits against the 53 a double holds.
+ *
+ * **Every figure in this record comes through here**, by way of
+ * `exact_minus` — an earlier comment claimed no verdict read it, and that was
+ * simply false (`numerics-reviewer`). What makes that safe is the order:
+ * `exact_minus` subtracts the reference INSIDE the accumulator and converts
+ * afterwards, so the cancellation is exact and this routine only ever sees a
+ * residue. It is the one routine neither the self-test nor the `fractions`
+ * check reaches, and it was tested directly on twelve values — both zeros,
+ * +-DBL_MAX, DBL_MIN, +-2^-1074, +-0.1, the finnis and pilot references and a
+ * rounded 106-bit product — exact on all of them. */
 static double acc_to_double(const acc_t *a, int sgn)
 {
     int h = NLIMB - 1;
@@ -177,7 +196,14 @@ static void acc_decimal(const acc_t *in, int sgn, int frac, char *out,
             if (o + 3 < outn) { out[o++] = '.'; out[o++] = '.'; out[o++] = '.'; }
             break;
         }
+    /* A total too large for `outn` would otherwise come out as the leading
+     * digits of an integer, with no point and no marker, reading as a
+     * complete number (`numerics-reviewer`). Unreachable on these instances,
+     * whose largest objective is about 1e10 against a 128-byte buffer, and
+     * silent truncation is the one failure this record must not have. */
     out[o] = '\0';
+    if (o + 1 >= outn && outn >= 6)
+        snprintf(out + outn - 6, 6, "TRUNC");
 }
 
 /* exact(base) - ref, as a double. acc_normalize destroys its argument and
@@ -232,6 +258,13 @@ static int selftest(void)
           "1015625", 55 },
         { "2^-1074 * 2^-1074 - 2^-2148", "0.", 0 },
         { "DBL_MAX * DBL_MAX - DBL_MAX * DBL_MAX", "0.", 0 },
+        /* Every case above is non-negative, so the sign path in acc_decimal
+         * and the negate-then-carry in acc_normalize were never exercised by
+         * the thing that GATES the readings — and `fractions` covers them
+         * but nothing refuses a run when that script is not consulted
+         * (`numerics-reviewer`). This case is the gate for both. */
+        { "the double nearest -0.1, through the negation",
+          "-0.10000000000000000555...", 20 },
     };
     acc_t a;
     int bad = 0;
@@ -257,6 +290,13 @@ static int selftest(void)
         case 4:
             acc_add_product(&a, DBL_MAX, DBL_MAX, 1);
             acc_add_product(&a, DBL_MAX, DBL_MAX, -1);
+            break;
+        case 5:
+            /* Reached by cancellation rather than by a negative term, so the
+             * negate-then-carry really runs. */
+            acc_add_double(&a, 1.0, 1);
+            acc_add_double(&a, 1.0, -1);
+            acc_add_double(&a, 0.1, -1);
             break;
         }
         char got[512];
@@ -328,9 +368,14 @@ int main(int argc, char **argv)
     printf("# would move the objective by to first order. colviol is the\n");
     printf("# worst published value outside its own declared box.\n");
     printf("# objtraf is sum |c_j x_j| and refeps is (exact - ref) in units\n");
-    printf("# of eps * objtraf: no double objective of any point can be\n");
-    printf("# placed nearer than 0.5 of that, so |refeps| <= 0.5 says the\n");
-    printf("# gap against the reference is the model's own conditioning.\n");
+    printf("# of eps * objtraf. The threshold is 0.5 and the reason is about\n");
+    printf("# the POINT, not the objective: the optimal vertex's coordinates\n");
+    printf("# cannot be held more finely than a double, and rounding them\n");
+    printf("# moves c'x by up to sum |c_j| ulp(x_j)/2, which is at most\n");
+    printf("# 2^-53 sum|c_j x_j| = 0.5 * eps * objtraf. So |refeps| <= 0.5\n");
+    printf("# means the gap is no larger than writing the answer down costs.\n");
+    printf("# The bound is loose by 16%% on finnis and 30%% on pilot against\n");
+    printf("# the exact sum |c_j| ulp(x_j)/2, and neither verdict moves.\n");
     printf("# gappos/gapneg/cert are jaos_check_solution's own certificate,\n");
     printf("# for the question of whether the library already reports what\n");
     printf("# exact-ref measures: gappos bounds P - P* when cert says yes.\n");

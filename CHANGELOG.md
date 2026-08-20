@@ -11,6 +11,17 @@ open, `bench/README.md` for the gate, and the commit each entry came from.
 
 ### Changed
 
+- **`settled_objective` is compensated**, with Dekker's split, because it
+  ranks two rounds and `take_best_if_better` publishes the winner — so the sum
+  decides which point the caller receives. `obj_add` and `two_product_residue`
+  move from `src/model.c` into `src/jaos_internal.h` as `jm_obj_add` and
+  `jm_two_product_residue`, so the published objective and this share one copy.
+  The naive sum's failure is a tie: a cost of 1e16 met before 256 unit terms
+  publishes exactly 0.0 for two points worth 0 and 256. 139 of 139
+  bit-identical, `bench/results/*.txt` byte-unchanged, and no solve on the
+  three sets reaches the case — 304 settling comparisons, 0 verdict flips
+  (D175).
+
 - **`DUAL_TOL` has a sweep now**, and `docs/tolerances.md` says what it
   actually decides: not only the Harris window, but what the solve calls zero
   for a reduced cost, which is when it stops. It is the whole of `pilot`'s

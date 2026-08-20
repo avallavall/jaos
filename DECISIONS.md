@@ -182,6 +182,7 @@ and you have the argument. Jump to the entry for the numbers behind it.
 - **[D172](#d172--the-published-objective-recovers-what-each-product-lost-and-109-of-110-now-agree-with-the-checker-exactly)** — The published objective recovers what each product lost, and 109 of 110 now agree with the checker exactly
 - **[D173](#d173--the-published-objective-is-the-correctly-rounded-exact-one-on-all-110-so-finnis-is-refused-and-pilot-is-the-instance-with-a-wrong-point)** — The published objective is the correctly rounded exact one on all 110, so `finnis` is refused and `pilot` is the instance with a wrong point
 - **[D174](#d174--pilots-wrong-answer-is-dual_tol-and-nothing-else-and-the-repair-that-fixes-it-turns-the-gate-red-on-six-instances)** — `pilot`'s wrong answer is `DUAL_TOL` and nothing else, and the repair that fixes it turns the gate red on six instances
+- **[D175](#d175--the-sum-that-ranks-two-rounds-decides-which-point-is-published-so-it-is-compensated-too--and-no-solve-on-the-three-sets-can-reach-the-case)** — The sum that ranks two rounds decides which point is published, so it is compensated too — and no solve on the three sets can reach the case
 
 ---
 
@@ -12992,12 +12993,50 @@ rationals, so all 16 read 1e6 to 1e8 and every figure is the reference's own
 decimal.
 
 **`finnis` is REFUSED, and the reason is the model rather than the solve.**
-It carries `sum |c_j x_j| = 3.198e+12` against an objective of 1.7e+05. One
-eps of that traffic is 7.10e-04, and no double objective of any point can be
-placed nearer than half of it. The 7.62397e-05 gap to Koch is **0.107 of
-that unit**. Its worst exact row residual, 8.439e-07 on rows 23 and 43, sits
-against a traffic of 2e+10 on each: 4.2e-17 and 3.0e-17 relative, also under
-one eps. The point is as feasible and as optimal as binary64 allows here.
+It carries `sum |c_j x_j| = 3.198e+12` against an objective of 1.7e+05, and
+the 7.62397e-05 gap to Koch is **0.107 of `eps` times that traffic**.
+
+**The threshold is right and this entry's first justification for it was
+false** (`numerics-reviewer`). It said no double objective could be placed
+nearer than half that unit, which is wrong by seven orders — a double near
+172791 is placeable to 1.46e-11. The argument is about the POINT: the
+optimal vertex's coordinates cannot be held more finely than a double, and
+rounding them moves `c'x` by up to `sum |c_j| ulp(x_j)/2`, which is at most
+`2^-53 sum|c_j x_j|` — exactly half a unit. So `|refeps| <= 0.5` means the
+gap is no larger than writing the answer down costs. Measured against the
+exact `sum |c_j| ulp(x_j)/2`, the unit is 16% loose on `finnis` and 30% on
+`pilot`, and neither verdict moves.
+
+**Said without the unit at all, which is the stronger form**: `finnis`'s
+traffic is concentrated — the largest single `|c_j x_j|` is 20.2% of it and
+the top five are 82.3% — so one half-ulp on the largest term alone is worth
+6.167e-05 of objective. The gap is **1.24 of those**. `pilot`'s is 9.2e+09 of
+its own. Ten orders separate them and nothing in that sentence depends on
+`refeps`.
+
+Its worst exact row residual, 8.439e-07 on rows 23 and 43, sits against a
+traffic of 2e+10 on each: 4.2e-17 and 3.0e-17 relative. A backward-stable
+solve on that row gives about `u * traffic = 4.4e-06`, so the point sits five
+times under its own backward error and **the feasibility half is settled**.
+
+**The optimality half is not, and this entry first claimed both.** Nothing in
+02-83 separates "Koch's vertex rounded to doubles" from "a neighbouring
+vertex": `refeps` says the gap is consistent with rounding, not that it is
+rounding. And the record carries one number that argues the other way, which
+the first version did not mention. **`finnis` has `gap_negative = 2.888e-05`,
+the largest of all 110 and 356 times the next** (`pds-20`, 8.118e-08). That
+is the total of wrong-sign terms in the checker's own suboptimality
+certificate, whose whole hypothesis is that they do not exist; on `finnis`
+they are 27.5% of `gap_positive` and 37.9% of the disputed gap. The refusal
+stands on the arithmetic — the gap cannot be resolved in binary64 — and not
+on a claim that the point is optimal.
+
+**That number is also an accidental second oracle.** `gap_negative` and this
+record's `priced` agree to all four printed digits on `finnis`, and they share
+no code: the checker accumulates in `long double` over the model, the
+accumulator sums exact row activities. Only two of 110 instances show that
+equality and the other is `afiro`, where both sit at 1.6e-14. It is the one
+independent check the row path has, on the one instance that needs it.
 
 **What the same reading found instead.** `refeps` is the gap to Koch divided
 by `eps * sum |c_j x_j|`. Over the 93 instances with a Koch optimum (`e226`
@@ -13123,3 +13162,83 @@ Both affected runs were discarded and re-taken with a single-token status.
 the narrower candidate that would avoid the trajectory churn — a tighter
 tolerance for the termination test only, leaving the Harris window at 1e-7.
 Nothing has been built for it and no model says it would cost less.
+
+## D175 — The sum that ranks two rounds decides which point is published, so it is compensated too — and no solve on the three sets can reach the case
+
+**The question.** D169's review corrected this item's severity and `TODO.md`
+carried the corrected form: `settled_objective` is a naive sum, and it does
+not decide a trajectory. `better_point` ranks two rounds by it and
+`take_best_if_better` restores and publishes the winner, so it decides **which
+point the caller receives**. The repair is the one D169 and D172 already
+applied to `jm_model_publish_objective`. What was missing was evidence that it
+changes an answer.
+
+**The failure is a tie rather than a small error**
+(`bench/measurements/02-85/two-points.txt`). A column of cost `1e16` held at
+1, then 256 columns of cost 1, then a column of cost `-1e16` held at 1. One
+ulp at `1e16` is 2, so every unit term is lost as it arrives and the `-1e16`
+brings the total to exactly 0.0 — **for both of two points whose true
+objectives are 0 and 256**. `better_point` reads `0 < 0`, answers no, and the
+loop publishes the worse point with no number anywhere recording it. The order
+is the mechanism: put the `-1e16` column second and the cancellation happens
+first, the small terms land on zero and the naive sum is right, which is what
+the first version of that file measured.
+
+**No solve on the three sets reaches it.** A throwaway diagnostic build
+recorded both objectives both ways at every comparison the settling loop
+makes, measured on the parent because the question is what the naive sum did:
+**304 comparisons over 94 + 29 + 16 instances, 0 verdict flips.** 80 are
+settled by dual feasibility with the objective playing no part; 220 tie
+exactly and **every one of those is a point compared with itself**; the
+informative population is **4**, all netlib. The infeasible set contributes
+nothing, because an infeasible model never reaches the settling loop's
+optimum path, and `take_best_if_better` — the site that publishes — was never
+exercised on two distinct points in 220 tries.
+
+Two margins on those 4, and they answer different questions: the **spread**,
+each side's error against the gap being decided, worst **0.571**; and the
+**flip margin**, `|errc - errb|` against it, worst **1.53e-06**. A term common
+to both sides cancels inside `a < b`, so the flip margin governs — and where
+the spread is 0.571 the two errors are bit-identical and cancel exactly, which
+is a property of those instances rather than of the method.
+
+**The cost.** `gate: PASS` on all three sets with `0 regressed, 0 improved,
+0 new`, and `bench/results/*.txt` **byte-identical to the committed records**:
+no digest, work unit, iteration count, basis hash or objective figure moved.
+Confirmed a second way, by a different program on a different code path —
+02-83's exact-objective records are bit-identical on all 110 published
+objectives. `make configs` exits 0.
+
+**What was refuted.** Three defects in the measurement itself, each of which
+produced output that looked like a clean result. The probe passed `-m` without
+`-d`, so `bench/run` read the standard instance directory three times and
+**Kennington recorded nothing while the output printed its name**. The probe
+then copied `src/` from the working tree, where the repair already was, and
+compared the compensated sum against itself: every error column read exactly
+0. And one figure was printed under one name with two definitions, disagreeing
+by five orders. All three were found after the measurement looked finished,
+two of them by `numerics-reviewer`.
+
+**Three findings from the review, folded in rather than deferred.**
+`jm_obj_add`'s requirement that `sum` and `comp` are distinct objects was a
+file-local promise and is now tree-wide, so it is asserted rather than
+described — not `restrict`, which promises what nothing can check and is the
+shape D75 and D76 refused. `static_assert(FLT_EVAL_METHOD == 0)` moved from
+`src/model.c` to `src/jaos_internal.h`, so it is checked in every translation
+unit that can call the split rather than only where it is defined. And the
+`isfinite` guard was checked rather than copied: `comp` can go non-finite only
+after `sum` already has, and `better_point` answers "not better" for a NaN or
+a shared infinity either way, so no verdict moves.
+
+**There is no test that fails at the parent, and no test was written.** The
+only state that separates the two versions is a settling loop holding two
+distinct points that tie under a naive sum; no model built here steers a solve
+there, and `tests/` reaches the library through its public interface, so a
+static function cannot be called directly. The evidence is the constructed
+case plus the 304 comparisons. A test that passed either way would be worse
+than none — this repository has shipped one of those before, and the review
+that caught it is the reason the rule exists.
+
+**What is left open**, handed to `TODO.md`: `apply_flips` stays refused for
+D171's reason, and presolve's `obj_offset` is still accumulated naively with
+nothing reading it for the answer since D169.

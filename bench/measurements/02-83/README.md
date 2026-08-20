@@ -65,8 +65,21 @@ shared floor. Nothing is left to repair in the sum.
 
 `finnis` carries `sum |c_j x_j| = 3.198e+12` against an objective of 1.7e+05,
 which is the worst cancellation in the set. One eps of that traffic is
-7.10e-04, and **no double objective of any point can be placed nearer than
-half of it**.
+7.10e-04.
+
+**Why half of it is the threshold, and the first version of this file gave a
+false reason** (`numerics-reviewer`). It said no double objective could be
+placed nearer than that, which is wrong by seven orders — a double near
+172791 is placeable to 1.46e-11. The argument is about the POINT: the optimal
+vertex's coordinates cannot be held more finely than a double, and rounding
+them moves `c'x` by up to `sum |c_j| ulp(x_j)/2 <= 2^-53 sum|c_j x_j|`, which
+is exactly half a unit. Against the exact `sum |c_j| ulp(x_j)/2` the unit is
+16% loose on `finnis` and 30% on `pilot`, and neither verdict moves.
+
+**Without the unit at all, which is the form that needs no argument.**
+`finnis`'s traffic is concentrated: the largest single `|c_j x_j|` is 20.2% of
+it, the top five are 82.3%. One half-ulp on the largest term alone is worth
+6.167e-05, so **the gap is 1.24 of those**. `pilot`'s is 9.2e+09 of its own.
 
 | `finnis` | |
 |---|---|
@@ -77,10 +90,29 @@ half of it**.
 | those rows' traffic | 2e+10 each |
 | **the residual relative to it** | **4.2e-17 and 3.0e-17**, under one eps |
 
-The point is as feasible and as optimal as binary64 allows on this model.
-`priced`, the residual weighted by each row's own multiplier, is 2.888e-05
-and two rows are all of it. **There is nothing here to repair and the item is
-closed.**
+**The feasibility half is settled.** A backward-stable solve on a row carrying
+2e+10 leaves about `u * traffic = 4.4e-06`, and the observed 8.439e-07 is five
+times under that. `priced`, the residual weighted by each row's own
+multiplier, is 2.888e-05 and two rows are all of it.
+
+**The optimality half is not, and the first version of this file claimed
+both.** Nothing here separates "Koch's vertex rounded to doubles" from "a
+neighbouring vertex": `refeps` says the gap is consistent with rounding, not
+that it is rounding. And one number in this record argues the other way.
+**`finnis` has `gap_negative = 2.888e-05`, the largest of all 110 and 356
+times the next** (`pds-20`, 8.118e-08) — wrong-sign terms in the checker's own
+suboptimality certificate, whose whole hypothesis is that there are none. On
+`finnis` they are 27.5% of `gap_positive` and 37.9% of the disputed gap.
+
+**The item is closed on the arithmetic**: the gap cannot be resolved in
+binary64. It is not closed on a claim that the point is optimal, and nothing
+here would support one.
+
+**That same number is an accidental second oracle.** `gap_negative` and
+`priced` agree to all four printed digits on `finnis` and share no code — the
+checker accumulates in `long double` over the model, this record sums exact
+row activities. Two of 110 instances show that equality; the other is `afiro`,
+where both sit at 1.6e-14. It is the only independent check the row path has.
 
 ## What the same reading found instead — `exact-objective-netlib.txt`
 

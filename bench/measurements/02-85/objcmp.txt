@@ -1,0 +1,20 @@
+comparisons recorded: 304
+  netlib: 272  save_gate=84  take_best=188
+  netlib-kennington: 32  take_best=32
+
+verdict flips under a compensated sum: 0
+
+decided by the objective (both sides dual-feasible): 224
+  settled by dual feasibility instead: 80
+  exact ties: 220, of which one point against itself: 220
+  two distinct points, which is the informative population: 4
+
+the informative population, one line each:
+  set                site                 sep     spread         flip
+  netlib             save_gate   -1.30385e-08     0.5714            0
+  netlib             save_gate   -1.30385e-08     0.5714            0
+  netlib             save_gate   -4.46012e-07  1.529e-06    1.529e-06
+  netlib             save_gate   -4.46012e-07  1.529e-06    1.529e-06
+
+worst spread: 0.5714   worst flip margin: 1.529e-06
+A flip needs the flip margin to reach 1. The spread is what it would be if the two errors stopped agreeing.

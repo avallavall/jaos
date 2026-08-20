@@ -46,7 +46,7 @@ any code.
 | # | item | what it needs | where |
 |---|---|---|---|
 | 1 | **48 netlib solves publish an invalid basis** | a rank argument WIDER than the firing row, or accepting the residue as the published state of the art does (Galabova 2023). Every local repair is refused with its measurement (D140, D141). **D171 made it worse by 2 and that is measured** | §2 below |
-| 2 | **`settled_objective` is a naive sum that selects which point is PUBLISHED** | two rounds that tie under a naive sum and separate under a compensated one. Cheaper than it looks — the first version of this entry said it only decided a trajectory and that was wrong | §4 below |
+| 2 | ~~**`settled_objective` is a naive sum that selects which point is PUBLISHED**~~ **CLOSED (D175)** | compensated, gate byte-identical. The constructed case works; no solve on the 139 reaches it, and there is no test that fails at the parent — the entry says why | §4 below |
 | 3 | **`pilot` publishes a point 2.31e-05 above the optimum** | a decision, not a diagnosis — D174 answered the cause. It is `DUAL_TOL`, and 1e-9 repairs all four wrong answers with three of them costing LESS work, at the price of `6 regressed` on the gate. **`pilot87`, D92's backlog row, becomes exact.** The narrower candidate — a tighter termination test with the Harris window left alone — is unbuilt | §4 below |
 | 4 | **`scsd1` and `degen2` behind D151's cap** | a predictor of a doomed trajectory. The shortfall cannot be it and that is measured | §3 below |
 | 5 | **`D97`, the dual postsolve for an imposed bound** | nothing is built; `docs/research/dual-postsolve-imposed-bound.md` is 936 lines of design with the literature verified. **The largest prize in the file** — it unlocks bound tightening AND doubleton equalities, 8.55% of netlib's live rows and 29.36% of Kennington's | "If all of the above is dropped" |
@@ -917,21 +917,26 @@ trajectory. Refusals table, D151.
   `certified_suboptimality` (D73) before proposing any predicate here: a
   quantity that reads the same on a wrong answer as on a right one cannot be
   a verdict.
-- **`settled_objective` in `src/simplex.c` is a fourth accumulation of the same
-  shape**, untouched by D169, and **this entry's first version got its severity
-  wrong**. It said the sum decides a trajectory rather than a published number.
-  It decides which point gets published: `take_best_if_better` restores the
-  saved best status and basis and its own comment says *"Publish the best one
-  instead (D89)"*, and `publish()` then writes that point. Found by
-  `numerics-reviewer`, confirmed by reading the function and its four callers.
-  **So the model is cheaper to build than "a different pivot"**: it needs two
-  rounds that tie under a naive sum and separate under a compensated one. The
-  reviewer's shape is D169's own test model scaled up — a basic column of cost
-  `+1e16`, many unit-cost columns and a `-1e16` column, where two rounds both
-  give `settled_objective` exactly 0.0, `better_point` returns false, and the
-  loop keeps the round it stopped on while the saved best is better by 256.
-  Deterministic, so D8 is not at risk, and it needs severe cancellation plus
-  multiple saved rounds, so it is rare.
+- ~~**`settled_objective` in `src/simplex.c` is a fourth accumulation of the
+  same shape.**~~ **CLOSED 2026-08-21 (D175, `bench/measurements/02-85/`).**
+  Compensated, with Dekker's split, and the two steps moved out of
+  `src/model.c` so `jm_model_publish_objective` and this share one copy.
+  The reviewer's model works exactly as described and is
+  `02-85/two-points.c`: naive 0.0 for both of two points whose true objectives
+  are 0 and 256. **The order is the mechanism** — the `-1e16` column has to
+  arrive last, or the cancellation happens first and the small terms survive.
+  **No solve on the three sets reaches it**: 304 comparisons, 0 verdict flips,
+  220 exact ties every one of which is a point against itself, and an
+  informative population of 4. `gate: PASS` with `bench/results/*.txt`
+  byte-identical.
+  **Two things to carry forward.** There is **no test that fails at the
+  parent** and none was written: the separating state needs a settling loop
+  holding two distinct tying points, no model steers a solve there, and
+  `tests/` cannot call a static. A test that passed either way would be worse
+  than none. And **three defects in the measurement each produced output that
+  looked clean** — a probe that read one set three times while printing three
+  names, a probe that measured the repaired tree and reported every error as
+  exactly 0, and one figure printed under one name with two definitions.
 - **presolve's `obj_offset` is still accumulated naively** as columns are
   removed (`src/presolve.c`, four sites). Nothing reads it for the answer since
   D169 — both postsolve paths sum the published values instead — but the

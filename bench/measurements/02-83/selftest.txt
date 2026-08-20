@@ -3,3 +3,4 @@
 # ok       the double nearest 0.1, exactly          got 0.1000000000000000055511151231257827021181583404541015625 want 0.1000000000000000055511151231257827021181583404541015625
 # ok       2^-1074 * 2^-1074 - 2^-2148              got 0. want 0.
 # ok       DBL_MAX * DBL_MAX - DBL_MAX * DBL_MAX    got 0. want 0.
+# ok       the double nearest -0.1, through the negation got -0.10000000000000000555... want -0.10000000000000000555...

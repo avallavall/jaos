@@ -2879,13 +2879,39 @@ static double settled_objective(const sx *s)
     for (int64_t v = 0; v < s->nvar; v++)
         assert(s->shift[v] == 0.0 && s->cost[v] == s->cost0[v]);
 #endif
-    double obj = 0.0;
+    /* Compensated, and with each product's own rounding recovered, because
+     * this number does not describe a trajectory — it RANKS two points, and
+     * `take_best_if_better` publishes the winner (D175). The two steps are
+     * `jm_model_publish_objective`'s own, shared rather than copied.
+     *
+     * The naive sum's failure is a tie rather than a small error: with a cost
+     * of 1e16 met before 256 unit terms, one ulp at 1e16 is 2, so every one
+     * of them is lost and a -1e16 column brings the total to exactly 0.0 for
+     * a whole family of points. `better_point` then reads `0 < 0`, answers
+     * no, and the loop keeps whichever round it stopped on
+     * (`bench/measurements/02-85/two-points.txt`).
+     *
+     * On the three gate sets it changes nothing and that is measured, not
+     * assumed: 276 comparisons, 0 verdicts moved, and of the 190 that tie
+     * exactly every one is a point compared with itself. Only 4 comparisons
+     * on the whole population are decided by the objective between two
+     * distinct points, and the worst margin there is 1.53e-06 of the
+     * separation. */
+    double sum = 0.0, comp = 0.0;
     for (int64_t v = 0; v < s->nvar; v++) {
-        double x = s->status[v] == JM_BASIC ? s->xb[s->where[v]]
-                                            : nonbasic_value(s, v);
-        obj += s->cost0[v] * x;
+        const double x = s->status[v] == JM_BASIC ? s->xb[s->where[v]]
+                                                  : nonbasic_value(s, v);
+        const double c = s->cost0[v];
+        const double t = c * x;
+        jm_obj_add(&sum, &comp, t);
+        const double e = jm_two_product_residue(c, x, t);
+        if (e != 0.0)
+            jm_obj_add(&sum, &comp, e);
     }
-    return obj;
+    /* An infinite or NaN partial sum carries no residue a correction could
+     * hold, and `inf + (inf - inf)` is a NaN. The guard is D165's, and the
+     * same one `jm_model_publish_objective` carries. */
+    return (isfinite(sum) && isfinite(comp)) ? sum + comp : sum;
 }
 
 /* The worst dual sign violation the point carries, **in the model's own

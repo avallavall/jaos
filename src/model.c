@@ -509,9 +509,18 @@ jaos_status jm_model_remember_basis(jaos_model *m)
  *
  * Requires the six solution arrays and an OPTIMAL solve; callers reach it
  * only there. */
-/* One Neumaier step into a running sum and its compensation. */
-static void obj_add(double *sum, double *comp, double t)
+/* One Neumaier step into a running sum and its compensation. Declared in
+ * jaos_internal.h rather than kept here, because `settled_objective` in the
+ * simplex needs the same step over the same kind of sum, and two copies of
+ * this arithmetic in one tree is how they come to disagree (D175). */
+void jm_obj_add(double *sum, double *comp, double t)
 {
+    /* Aliased, the compensation is silently wrong: the correction would be
+     * added into the total it is correcting. That was a file-local promise
+     * while this was static and is a tree-wide one now, so it is asserted
+     * rather than described (`numerics-reviewer`). Not `restrict`, which
+     * promises what nothing can check — the shape D75 and D76 refused. */
+    assert(sum != comp);
     const double a = *sum, u = a + t;
     *comp += (fabs(a) >= fabs(t)) ? ((a - u) + t) : ((t - u) + a);
     *sum = u;
@@ -557,10 +566,10 @@ static void obj_add(double *sum, double *comp, double t)
  * than the one that was found. And a subnormal product, where the true residue
  * is below 2^-1074 and cannot be represented at all, so zero is the best
  * available and the magnitudes involved cannot reach an objective. */
-static_assert(FLT_EVAL_METHOD == 0,
-              "Dekker's split needs double arithmetic evaluated at double");
-
-static double two_product_residue(double a, double b, double p)
+/* `static_assert(FLT_EVAL_METHOD == 0)` used to sit here, where it covered
+ * the definition alone. It is in `jaos_internal.h` beside the declaration now,
+ * so it is checked in every translation unit that can call this (D175). */
+double jm_two_product_residue(double a, double b, double p)
 {
     constexpr double SPLIT = 134217729.0;   /* 2^27 + 1 */
     constexpr double BIG   = 0x1p996;       /* written exactly, not decimal */
@@ -586,10 +595,10 @@ void jm_model_publish_objective(jaos_model *m)
         for (int64_t j = 0; j < m->num_col; j++) {
             const double c = m->col_cost[j], x = m->sol_col[j];
             const double t = c * x;
-            obj_add(&sum, &comp, t);
-            const double e = two_product_residue(c, x, t);
+            jm_obj_add(&sum, &comp, t);
+            const double e = jm_two_product_residue(c, x, t);
             if (e != 0.0)
-                obj_add(&sum, &comp, e);
+                jm_obj_add(&sum, &comp, e);
         }
     }
     /* An infinite or NaN partial sum carries no residue a correction could

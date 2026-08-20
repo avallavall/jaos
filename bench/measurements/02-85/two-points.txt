@@ -1,0 +1,15 @@
+point A: naive 0   compensated 256
+point B: naive 0   compensated 0
+
+separation under the naive sum        : 0
+separation under the compensated sum  : 256
+
+B is the better point: its true objective is 0 against A's 256.
+take_best_if_better restores B when better_point says so:
+  under the naive sum        : NO   (0 < 0 is false)
+  under the compensated sum  : yes
+
+So the loop publishes A and leaves 256 on the table, and no
+number anywhere says it happened.
+
+ulp(1e16) = 2, so 1e16 + 1 == 1e16 is true
