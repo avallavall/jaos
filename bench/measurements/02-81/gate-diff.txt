@@ -1,0 +1,321 @@
+record_diff.py, the working tree after D171 against the committed
+records at 4747f29 (D171's parent). Captured before the records were
+rewritten, so it cannot be regenerated from the tree afterwards.
+
+========================================================================
+bench/results/netlib.txt  vs  HEAD:bench/results/netlib.txt
+========================================================================
+94 instances compared: 6 bit-identical, 88 moved, 88 digest change(s)
+
+-- no regression --
+
+-- changes within threshold --
+  WORK               25fv47         113491001 -> 113491167  (1x)
+  RSUB               25fv47         5.06e-14 -> 5.05e-14
+  DIGEST             25fv47         a79e3eb972e3852c -> 9dd7cf8562b76cfa
+  WORK               80bau3b        61225614 -> 61225970  (1x)
+  RSUB               80bau3b        3.14e-14 -> 3.13e-14
+  DIGEST             80bau3b        a13b8d7a3774ac48 -> 346b439b929094ed
+  WORK               adlittle       141744 -> 141748  (1x)
+  RSUB               adlittle       1.62e-15 -> 1.52e-15
+  DIGEST             adlittle       f6518a96036b4d17 -> cc646f99e7b79c6d
+  WORK               agg            920157 -> 920205  (1x)
+  RSUB               agg            7.78e-16 -> 8.37e-16
+  DIGEST             agg            579ec19cfc2c9f58 -> bb00c00e844c5b00
+  WORK               agg2           1764594 -> 1764698  (1x)
+  RSUB               agg2           4.76e-17 -> 4.64e-17
+  DIGEST             agg2           6d9df2fd870fa615 -> 9dac114e3a540587
+  WORK               agg3           2775465 -> 2775864  (1x)
+  RSUB               agg3           1.8e-16 -> 1.89e-16
+  DIGEST             agg3           a86bfba142ec1766 -> d4b93c7cee67fb5f
+  WORK               bandm          3074417 -> 3074437  (1x)
+  DIGEST             bandm          e0d537abfa888c84 -> 8ccc94ee7323a93c
+  WORK               beaconfd       87634 -> 87635  (1x)
+  RSUB               beaconfd       9.47e-17 -> 9.09e-17
+  DIGEST             beaconfd       6facf16828288e79 -> 00cd8ed0c1c400b3
+  WORK               blend          201974 -> 201983  (1x)
+  RSUB               blend          2.47e-15 -> 2.55e-15
+  DIGEST             blend          caf5fa30514fd3a8 -> 7887a455135b35da
+  WORK               bnl1           7469727 -> 7469847  (1x)
+  RSUB               bnl1           7.09e-15 -> 7.32e-15
+  DIGEST             bnl1           b966862c9cd98811 -> ec37b0f3a0658f67
+  WORK               bnl2           21655002 -> 21655288  (1x)
+  RSUB               bnl2           2.99e-15 -> 2.94e-15
+  DIGEST             bnl2           348a7a01a21f6287 -> e825fb4fc3671895
+  WORK               boeing1        1886073 -> 1886131  (1x)
+  RSUB               boeing1        4.43e-16 -> 3.46e-16
+  DIGEST             boeing1        20e8b39c8d41101a -> 5e67bc41bd06f74c
+  RSUB               boeing2        1.53e-16 -> 1.61e-16
+  DIGEST             boeing2        5a1e82acd523cd3d -> 3e3ce08eb1433cdc
+  WORK               bore3d         360244 -> 360247  (1x)
+  DIGEST             bore3d         a2ea7135a46b7ef5 -> 79901c5f80d3736d
+  WORK               brandy         1475973 -> 1476046  (1x)
+  RSUB               brandy         2e-15 -> 1.97e-15
+  DIGEST             brandy         4b81f42af3a9fcd1 -> f516e5d5e402e9fe
+  WORK               capri          486302 -> 486386  (1x)
+  RSUB               capri          1.45e-15 -> 1.5e-15
+  DIGEST             capri          11d6978ca652c2e9 -> 1b3f16e107ed343a
+  WORK               cycle          16559178 -> 16559204  (1x)
+  DIGEST             cycle          934d3bfd5cb2ce9a -> 65639e456983eea1
+  WORK               czprob         13051917 -> 13051931  (1x)
+  RSUB               czprob         5.22e-17 -> 3.37e-17
+  DIGEST             czprob         a58c0d5f8d778f01 -> c7ecf66cb7be5eb7
+  WORK               d2q06c         428597453 -> 428597903  (1x)
+  DIGEST             d2q06c         dac50ed571457570 -> 4689d7f7fa66a8a3
+  WORK               d6cube         25069490 -> 25069715  (1x)
+  RSUB               d6cube         6.99e-14 -> 6.98e-14
+  DIGEST             d6cube         d4e5e3535bb076c9 -> 3faf08b0003f6c49
+  WORK               degen2         5416124 -> 5416019  (1x)
+  RSUB               degen2         9.14e-17 -> 8.96e-17
+  DIGEST             degen2         3048ed0e392fcfe9 -> a51d3dd654454d3e
+  WORK               degen3         79618300 -> 79617561  (1x)
+  RSUB               degen3         7.01e-16 -> 6.97e-16
+  DIGEST             degen3         dfa89a5052bc735e -> 25b711bb8edbe7b7
+  WORK               dfl001         2912702903 -> 2912702286  (1x)
+  RSUB               dfl001         1.9e-13 -> 1.89e-13
+  DIGEST             dfl001         7db5aa031c48bdec -> b75846fd6b3da508
+  WORK               e226           1541229 -> 1541303  (1x)
+  RSUB               e226           1.99e-14 -> 1.98e-14
+  DIGEST             e226           526b4b375dfc16b4 -> 8bdc0fcfa5c1c065
+  WORK               etamacro       3331412 -> 3331419  (1x)
+  DIGEST             etamacro       2e55b07711435312 -> afe95d43926405d6
+  WORK               fffff800       6819347 -> 6819400  (1x)
+  DIGEST             fffff800       a4c8dc8999918d7d -> ef3a126be3b22549
+  WORK               finnis         524879 -> 524911  (1x)
+  DIGEST             finnis         4343ee4203493621 -> f403c7e9557052a1
+  WORK               fit1d          1681311 -> 1681317  (1x)
+  RSUB               fit1d          1.08e-17 -> 1.03e-17
+  DIGEST             fit1d          f11c35dd14e9ffb6 -> aeb1b1c9b357586b
+  WORK               fit1p          13354702 -> 13354704  (1x)
+  RSUB               fit1p          3.98e-17 -> 5.15e-17
+  DIGEST             fit1p          39a62be946d0cb3f -> 4776deee62737fc5
+  WORK               fit2d          72887375 -> 72887380  (1x)
+  RSUB               fit2d          3.91e-19 -> 4.84e-19
+  DIGEST             fit2d          8c22b7bd58882446 -> 82563826327e70d8
+  WORK               fit2p          657247696 -> 657247720  (1x)
+  RSUB               fit2p          4.06e-17 -> 2.74e-17
+  DIGEST             fit2p          e32d1531bd9a937b -> 36b42d1b044e25fa
+  WORK               forplan        1246118 -> 1246121  (1x)
+  DIGEST             forplan        bc0a610f7e7093e1 -> b2bd3c89a9f29225
+  WORK               ganges         3936161 -> 3936269  (1x)
+  RSUB               ganges         7.43e-15 -> 6.79e-15
+  DIGEST             ganges         ad8d197891385fcd -> 8cc38511b2961b19
+  WORK               gfrd-pnc       3002962 -> 3002997  (1x)
+  RSUB               gfrd-pnc       5.61e-16 -> 5.86e-16
+  DIGEST             gfrd-pnc       8d72bf318b2be99f -> 99fe47cd4af6bcb3
+  WORK               greenbea       196248521 -> 196248935  (1x)
+  DIGEST             greenbea       454f81557fa05279 -> a82ab90d2d3acf06
+  WORK               greenbeb       573519829 -> 573519981  (1x)
+  DIGEST             greenbeb       6af316ef773483a1 -> 3969390d45224cdd
+  WORK               grow15         237223325 -> 237223380  (1x)
+  RSUB               grow15         4.18e-15 -> 4.16e-15
+  DIGEST             grow15         7ff65c553ea90244 -> 61fb625830058af7
+  WORK               grow22         493924854 -> 493925033  (1x)
+  DIGEST             grow22         6c8b7bc38363aa60 -> fd504fca3cdf3518
+  WORK               grow7          54621610 -> 54621635  (1x)
+  RSUB               grow7          9.64e-16 -> 9.47e-16
+  DIGEST             grow7          ed356777b15461d2 -> 034a0284990db862
+  WORK               israel         592519 -> 592566  (1x)
+  RSUB               israel         1.08e-15 -> 1.06e-15
+  DIGEST             israel         cac41e0c2682a82a -> 3f1a0519d87358ec
+  WORK               kb2            74685 -> 74689  (1x)
+  RSUB               kb2            4.03e-16 -> 3.86e-16
+  DIGEST             kb2            8bf8f8030ac2663b -> 35378d34e43eacda
+  WORK               lotfi          842701 -> 842710  (1x)
+  DIGEST             lotfi          39a7a81eaa7a76c8 -> 89a803f78861b314
+  WORK               maros          12001945 -> 12001990  (1x)
+  RSUB               maros          1.67e-14 -> 1.68e-14
+  DIGEST             maros          652617958efe27c3 -> 65a57da0bd17ec01
+  WORK               maros-r7       328053926 -> 328053933  (1x)
+  RSUB               maros-r7       1.65e-16 -> 1.22e-16
+  DIGEST             maros-r7       79fead18ef786ca6 -> 6519d12f14658469
+  WORK               modszk1        8994257 -> 8994276  (1x)
+  RSUB               modszk1        1.92e-12 -> 1.46e-12
+  DIGEST             modszk1        32ab84cba02ad5ac -> dc3f3b89610ae90a
+  WORK               nesm           61235350 -> 61235492  (1x)
+  RSUB               nesm           1.91e-15 -> 1.82e-15
+  DIGEST             nesm           f4d02fb058cbec62 -> 4fbf58760195543c
+  WORK               perold         24134109 -> 24134456  (1x)
+  DIGEST             perold         7074af4d62c89ad5 -> c37291e3a079dfa6
+  WORK               pilot          4720835906 -> 4720864104  (1x)
+  DIGEST             pilot          df6e3e405fd87bde -> 00579b2c4209dfec
+  WORK               pilot-ja       42776131 -> 42776420  (1x)
+  RSUB               pilot-ja       1.62e-14 -> 1.61e-14
+  DIGEST             pilot-ja       f7afb266121e3728 -> c74331077e4ef95e
+  WORK               pilot-we       133625584 -> 133625833  (1x)
+  DIGEST             pilot-we       595038008b1b6c9d -> e81c30f0f4db9d01
+  WORK               pilot4         15935500 -> 15935583  (1x)
+  RSUB               pilot4         1.24e-14 -> 1.23e-14
+  DIGEST             pilot4         176cc22cba068a6e -> 9b5b37e6c79a2b92
+  WORK               pilot87        19519550350 -> 19519649987  (1x)
+  DIGEST             pilot87        4dc51b0c1af48f69 -> 5ca1145fb8a170d9
+  WORK               pilotnov       78757866 -> 78758178  (1x)
+  DIGEST             pilotnov       6404c1c6fbfc1e0a -> 7038e004e93ce980
+  WORK               sc105          130484 -> 130495  (1x)
+  RSUB               sc105          1.42e-15 -> 1.39e-15
+  DIGEST             sc105          73b0155139ab1069 -> 80e1cd642f54acb8
+  WORK               sc205          554579 -> 554624  (1x)
+  RSUB               sc205          6.78e-15 -> 6.71e-15
+  DIGEST             sc205          c3701016d8ccb2d2 -> 36c4e1c751aadae8
+  WORK               sc50a          35395 -> 35402  (1x)
+  RSUB               sc50a          6.32e-16 -> 6.37e-16
+  DIGEST             sc50a          93050c338b0c539c -> 8e57e1a4e2a897c4
+  WORK               sc50b          37888 -> 37889  (1x)
+  RSUB               sc50b          5.3e-16 -> 5.18e-16
+  DIGEST             sc50b          0cf8d89f9872c9e2 -> 8fd68a2156649541
+  WORK               scagr25        2286993 -> 2287144  (1x)
+  DIGEST             scagr25        9e832f2629bf3e78 -> 260471b6c1c57b51
+  WORK               scagr7         370087 -> 370201  (1x)
+  RSUB               scagr7         1.28e-15 -> 1.38e-15
+  DIGEST             scagr7         3e3e397466311050 -> 24f1efec7f865b68
+  WORK               scfxm1         1912374 -> 1912437  (1x)
+  RSUB               scfxm1         1.48e-15 -> 1.45e-15
+  DIGEST             scfxm1         4348df29f35f25eb -> 41f1dfa6e60ae6a5
+  WORK               scfxm2         6344545 -> 6344649  (1x)
+  RSUB               scfxm2         4.11e-16 -> 4.03e-16
+  DIGEST             scfxm2         ae57a00232a7fd46 -> 5b37acb4ffd169e1
+  WORK               scfxm3         11414560 -> 11414755  (1x)
+  RSUB               scfxm3         9.12e-16 -> 8.99e-16
+  DIGEST             scfxm3         10af7ca616f962ef -> 28236534276e5641
+  WORK               scorpion       471758 -> 471803  (1x)
+  RSUB               scorpion       3.42e-16 -> 3.43e-16
+  DIGEST             scorpion       22cde2b27710070f -> 5030ba3cac3a2cab
+  WORK               scrs8          1914107 -> 1914122  (1x)
+  RSUB               scrs8          8.83e-15 -> 8.81e-15
+  DIGEST             scrs8          ad51cd8c4eff9a83 -> b8d9a5648595091a
+  WORK               scsd1          471448 -> 471450  (1x)
+  RSUB               scsd1          4.3e-17 -> 7.26e-17
+  DIGEST             scsd1          36e9712cf66769f3 -> 62912c7edbf06b97
+  WORK               scsd6          1547802 -> 1547806  (1x)
+  RSUB               scsd6          2.3e-16 -> 1.89e-16
+  DIGEST             scsd6          7e72a8ea9498fd4e -> 20a4056eb10a1d91
+  WORK               scsd8          8982088 -> 8982100  (1x)
+  RSUB               scsd8          3.97e-16 -> 3.87e-16
+  DIGEST             scsd8          c2fe9599e47d50f8 -> 140b422d25b5967e
+  WORK               sctap1         569801 -> 569802  (1x)
+  RSUB               sctap1         2.98e-17 -> 1.77e-17
+  DIGEST             sctap1         396d940f0c55d012 -> 3fae4db0d2e9911c
+  WORK               sctap2         968538 -> 968548  (1x)
+  RSUB               sctap2         4.58e-17 -> 4.36e-17
+  DIGEST             sctap2         fcf214e7ec69826a -> 983799903b7b6769
+  WORK               share1b        577281 -> 577296  (1x)
+  RSUB               share1b        7.26e-15 -> 7.1e-15
+  DIGEST             share1b        9b81a81d34688b10 -> 15819b044728cfe1
+  WORK               share2b        186598 -> 186602  (1x)
+  RSUB               share2b        8.83e-15 -> 8.08e-15
+  DIGEST             share2b        55aac7addcd2ca8e -> 972b67f2a0a408eb
+  RSUB               ship04l        6.98e-17 -> 6.05e-17
+  DIGEST             ship04l        bee666edb87a5ff0 -> 8d7c21bbab24823f
+  WORK               ship04s        431243 -> 431246  (1x)
+  RSUB               ship04s        6.12e-17 -> 4.28e-17
+  DIGEST             ship04s        633162d7112d60a4 -> 544dd370c8deacad
+  WORK               ship08l        2637327 -> 2637328  (1x)
+  RSUB               ship08l        2.29e-16 -> 1.61e-16
+  DIGEST             ship08l        9317e547a1c67709 -> b42a579e4d05bd20
+  WORK               ship08s        956640 -> 956645  (1x)
+  RSUB               ship08s        2.68e-16 -> 2.46e-16
+  DIGEST             ship08s        68345b3e26d3aaca -> 75799df842a0764c
+  WORK               ship12l        4231365 -> 4231366  (1x)
+  RSUB               ship12l        2.56e-16 -> 1.94e-16
+  DIGEST             ship12l        586492f3b9b2a01b -> e6935e7a6a828435
+  WORK               ship12s        1550930 -> 1550937  (1x)
+  RSUB               ship12s        2.65e-16 -> 2.18e-16
+  DIGEST             ship12s        04928ef45ea92ca8 -> 2a7f0e893ab2b4f8
+  WORK               sierra         1514026 -> 1514196  (1x)
+  RSUB               sierra         5.59e-15 -> 5.58e-15
+  DIGEST             sierra         118e999092d31e4e -> ac104f2e7dd161f5
+  WORK               stair          11701843 -> 11701878  (1x)
+  DIGEST             stair          2442d2aca47b3bf0 -> edcf52f30afe8795
+  WORK               standmps       336866 -> 336860  (1x)
+  RSUB               standmps       6.45e-17 -> 5.16e-17
+  DIGEST             standmps       5d94e0c48e558c7d -> ca78c19523e6d86d
+  RSUB               stocfor1       9.81e-16 -> 9.64e-16
+  DIGEST             stocfor1       da4d5d2156c6eb81 -> f8206ad879846d35
+  WORK               stocfor2       16758260 -> 16758275  (1x)
+  RSUB               stocfor2       1.5e-15 -> 1.49e-15
+  DIGEST             stocfor2       dd0aacc1f82f54c7 -> 9bde2ce7e42263fc
+  WORK               stocfor3       585353637 -> 585353588  (1x)
+  RSUB               stocfor3       1.84e-15 -> 1.81e-15
+  DIGEST             stocfor3       9e088705a1dee0f8 -> 5f6aad49fbe95da8
+  WORK               truss          1138071134 -> 1138071135  (1x)
+  RSUB               truss          1.02e-15 -> 9.45e-16
+  DIGEST             truss          a77794d07f2018c7 -> f09f4e4d0ff52d9e
+  WORK               tuff           979729 -> 979802  (1x)
+  DIGEST             tuff           77f06cb077901053 -> ff876c76a9ea7115
+  WORK               vtp-base       40845 -> 40852  (1x)
+  RSUB               vtp-base       2.11e-15 -> 2.1e-15
+  DIGEST             vtp-base       23a4549d902867c3 -> 4e53285b6731185d
+  WORK               wood1p         35031876 -> 35031888  (1x)
+  DIGEST             wood1p         1098c38db853c4c9 -> ce88fc7e25bc72be
+  WORK               woodw          40150748 -> 40150968  (1x)
+  RSUB               woodw          3.83e-14 -> 3.81e-14
+  DIGEST             woodw          9be8bdac55d4184a -> d4b1ac6628562b8c
+  FIGURE             basis          changed on 9 instance(s): bandm, bnl2, cycle, czprob, dfl001, etamacro, ...
+  FIGURE             col            changed on 25 instance(s): 80bau3b, bnl1, bnl2, cycle, d2q06c, d6cube, ...
+  FIGURE             gap            changed on 82 instance(s): 25fv47, 80bau3b, adlittle, agg, agg2, agg3, ...
+  FIGURE             obj            changed on 34 instance(s): 25fv47, adlittle, agg, agg2, agg3, bandm, ...
+  FIGURE             row            changed on 79 instance(s): 25fv47, 80bau3b, adlittle, agg, agg2, agg3, ...
+  FIGURE             rowrel         changed on 83 instance(s): 25fv47, 80bau3b, adlittle, agg, agg2, agg3, ...
+  FIGURE             sub            changed on 61 instance(s): 25fv47, 80bau3b, adlittle, agg, agg2, agg3, ...
+
+========================================================================
+bench/results/netlib-infeas.txt  vs  HEAD:bench/results/netlib-infeas.txt
+========================================================================
+29 instances compared: 15 bit-identical, 14 moved, 0 digest change(s)
+
+-- no regression --
+
+-- changes within threshold --
+  WORK               bgetam         35677 -> 35679  (1x)
+  WORK               bgindy         390553 -> 390568  (1x)
+  WORK               bgprtr         14994 -> 14995  (1x)
+  WORK               cplex1         5415700 -> 5415703  (1x)
+  WORK               cplex2         2792060 -> 2792058  (1x)
+  WORK               forest6        90009 -> 90010  (1x)
+  WORK               gosh           2428302104 -> 2428302265  (1x)
+  WORK               klein1         534319 -> 534344  (1x)
+  WORK               klein2         5156093 -> 5156146  (1x)
+  WORK               klein3         18081831 -> 18081981  (1x)
+  WORK               pang           1513743 -> 1513787  (1x)
+  WORK               qual           1835196 -> 1835216  (1x)
+  WORK               refinery       1249597 -> 1249643  (1x)
+  WORK               vol1           1597857 -> 1597886  (1x)
+
+========================================================================
+bench/results/netlib-kennington.txt  vs  HEAD:bench/results/netlib-kennington.txt
+========================================================================
+16 instances compared: 5 bit-identical, 11 moved, 11 digest change(s)
+
+-- no regression --
+
+-- changes within threshold --
+  WORK               cre-a          20134103 -> 20134065  (1x)
+  RSUB               cre-a          5.59e-15 -> 5.6e-15
+  DIGEST             cre-a          456aa4c75c80d38d -> 156c8f5564a66f2a
+  WORK               cre-b          659260362 -> 659260465  (1x)
+  DIGEST             cre-b          666b514fea6d611d -> eaadf21d3fa56a0d
+  WORK               cre-c          21521556 -> 21521583  (1x)
+  DIGEST             cre-c          fb0d015e4e0e6ca9 -> ef5696716beda10a
+  WORK               cre-d          237700843 -> 237700860  (1x)
+  DIGEST             cre-d          5116fa8c18d35854 -> d0638b0c6e05cdfd
+  DIGEST             osa-07         6d63523d42cec01b -> beefe3993dc9169c
+  DIGEST             osa-14         1116bef4483891bc -> 9c13f0a8fbf8a5b8
+  RSUB               osa-30         2.27e-17 -> 2.22e-17
+  DIGEST             osa-30         37573412fc056df9 -> 1a4ee987327abc87
+  RSUB               osa-60         2.81e-17 -> 2.73e-17
+  DIGEST             osa-60         8dbe5042cda08b21 -> 412657a3871348d3
+  WORK               pds-06         224969743 -> 224969606  (1x)
+  RSUB               pds-06         5.65e-17 -> 5.6e-17
+  DIGEST             pds-06         dcaee8d62b6aab5e -> cf078b72b4edf1d0
+  WORK               pds-10         754490940 -> 754490748  (1x)
+  RSUB               pds-10         1.54e-18 -> 1.11e-18
+  DIGEST             pds-10         6eb9211e7fe284aa -> c93e23417218f1c6
+  WORK               pds-20         6153417062 -> 6153416871  (1x)
+  RSUB               pds-20         9.5e-16 -> 9.48e-16
+  DIGEST             pds-20         8c56ee4fa1dff967 -> c7205674555134d2
+  FIGURE             col            changed on 7 instance(s): cre-a, cre-b, cre-c, cre-d, pds-06, pds-10, ...
+  FIGURE             gap            changed on 10 instance(s): cre-a, cre-b, cre-c, cre-d, osa-07, osa-14, ...
+  FIGURE             row            changed on 9 instance(s): cre-a, cre-b, cre-c, cre-d, osa-07, osa-14, ...
+  FIGURE             rowrel         changed on 9 instance(s): cre-a, cre-b, cre-c, cre-d, osa-07, osa-14, ...
+  FIGURE             sub            changed on 3 instance(s): cre-b, cre-c, cre-d
+

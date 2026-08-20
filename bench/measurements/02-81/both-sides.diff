@@ -1,0 +1,93 @@
+--- src/simplex.c	2026-08-20 14:49:08.186654700 +0200
++++ /c/Users/vall-/AppData/Local/Temp/claude/C--Users-vall--Desktop-projectes-jaos/c599bdf7-393d-404b-be96-9626be60b90f/scratchpad/exp4/cand/simplex.c	2026-08-20 16:42:26.012070600 +0200
+@@ -421,6 +421,7 @@
+      * its own array. Borrowing an idle buffer is exactly the shape this
+      * project has paid for before, and the cost here is nrow doubles. */
+     double *rhsc;
++    double *resc;
+     /* The duals, and the pricing row. These are two different quantities
+      * and they get two different vectors, which is not a convenience: they
+      * shared one for a long time, every reader had to know which producer
+@@ -608,7 +609,7 @@
+     free(s->lo); free(s->up); free(s->cost); free(s->cost0); free(s->shift);
+     free(s->status); free(s->basis); free(s->where);
+     free(s->xb); free(s->d); free(s->dse);
+-    free(s->col); free(s->raw); free(s->rhsc); free(s->y); free(s->rho);
++    free(s->col); free(s->raw); free(s->rhsc); free(s->resc); free(s->y); free(s->rho);
+     free(s->tau); free(s->alpha); free(s->apat); free(s->amark);
+     free(s->nbmark);
+     free(s->rpat); free(s->rmark); free(s->cpat);
+@@ -688,6 +689,7 @@
+     s->col    = jm_calloc_array(s->nrow, sizeof(double));
+     s->raw    = jm_calloc_array(s->nrow, sizeof(double));
+     s->rhsc   = jm_calloc_array(s->nrow, sizeof(double));
++    s->resc   = jm_calloc_array(s->nrow, sizeof(double));
+     s->y      = jm_calloc_array(s->nrow, sizeof(double));
+     s->rho    = jm_calloc_array(s->nrow, sizeof(double));
+     s->tau    = jm_calloc_array(s->nrow, sizeof(double));
+@@ -713,7 +715,7 @@
+         !s->shift ||
+         !s->status || !s->basis ||
+         !s->where || !s->xb || !s->d || !s->dse ||
+-        !s->col || !s->raw || !s->rhsc ||
++        !s->col || !s->raw || !s->rhsc || !s->resc ||
+         !s->y || !s->rho || !s->tau || !s->alpha || !s->apat || !s->amark ||
+         !s->nbmark ||
+         !s->rpat || !s->rmark || !s->cpat || !s->cand || !s->rnum ||
+@@ -1150,6 +1152,8 @@
+ static void subtract_basis_times(sx *s, double *r, const double *z)
+ {
+     int64_t nz = 0;
++    double *bc = s->resc;
++    memset(bc, 0, (size_t)s->nrow * sizeof *bc);
+     for (int64_t i = 0; i < s->nrow; i++) {
+         double zi = z[i];
+         if (zi == 0.0)
+@@ -1157,14 +1161,25 @@
+         int64_t v = s->basis[i];
+         if (v < s->ncol) {
+             const jaos_model *m = s->m;
+-            for (int64_t k = m->a_start[v]; k < m->a_start[v + 1]; k++)
+-                r[m->a_index[k]] -= s->av[k] * zi;
++            for (int64_t k = m->a_start[v]; k < m->a_start[v + 1]; k++) {
++                const int64_t ii = m->a_index[k];
++                const double t = -(s->av[k] * zi);
++                const double a = r[ii], u = a + t;
++                bc[ii] += (fabs(a) >= fabs(t)) ? ((a - u) + t) : ((t - u) + a);
++                r[ii] = u;
++            }
+             nz += m->a_start[v + 1] - m->a_start[v];
+         } else {
+-            r[v - s->ncol] += zi;      /* the column is -e_i */
++            const int64_t ii = v - s->ncol;   /* the column is -e_i */
++            const double a = r[ii], u = a + zi;
++            bc[ii] += (fabs(a) >= fabs(zi)) ? ((a - u) + zi) : ((zi - u) + a);
++            r[ii] = u;
+             nz++;
+         }
+     }
++    for (int64_t i = 0; i < s->nrow; i++)
++        if (isfinite(r[i]) && isfinite(bc[i]))
++            r[i] += bc[i];
+     jm_work_add(&s->work, nz * JM_WORK_NONZERO);
+ }
+ 
+@@ -1303,9 +1318,16 @@
+             double dot;
+             if (v < s->ncol) {
+                 const jaos_model *m = s->m;
++                double dc = 0.0;
+                 dot = 0.0;
+-                for (int64_t k = m->a_start[v]; k < m->a_start[v + 1]; k++)
+-                    dot += s->av[k] * y[m->a_index[k]];
++                for (int64_t k = m->a_start[v]; k < m->a_start[v + 1]; k++) {
++                    const double t = s->av[k] * y[m->a_index[k]];
++                    const double a = dot, u = a + t;
++                    dc += (fabs(a) >= fabs(t)) ? ((a - u) + t) : ((t - u) + a);
++                    dot = u;
++                }
++                if (isfinite(dot) && isfinite(dc))
++                    dot += dc;
+                 nz += m->a_start[v + 1] - m->a_start[v];
+             } else {
+                 dot = -y[v - s->ncol];

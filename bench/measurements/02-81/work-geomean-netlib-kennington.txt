@@ -1,0 +1,26 @@
+geomean.py --metric work, netlib-kennington, 4747f29 against D171.
+
+work: /tmp/tmp.IXW3wqceVW/p.txt -> bench/results/netlib-kennington.txt
+------------------------------------------------------------
+  cre-a             2.01341e+07 -> 2.01341e+07      1.0000x
+  pds-06             2.2497e+08 -> 2.2497e+08       1.0000x
+  pds-10            7.54491e+08 -> 7.54491e+08      1.0000x
+  pds-20            6.15342e+09 -> 6.15342e+09      1.0000x
+  ken-07            4.42613e+06 -> 4.42613e+06      1.0000x
+  ken-11            1.45516e+08 -> 1.45516e+08      1.0000x
+  ken-13            7.47061e+08 -> 7.47061e+08      1.0000x
+  ken-18            7.82776e+09 -> 7.82776e+09      1.0000x
+  osa-07            4.91298e+07 -> 4.91298e+07      1.0000x
+  osa-14            2.36478e+08 -> 2.36478e+08      1.0000x
+  osa-30            9.84836e+08 -> 9.84836e+08      1.0000x
+  osa-60            7.31924e+09 -> 7.31924e+09      1.0000x
+  pds-02            1.07444e+07 -> 1.07444e+07      1.0000x
+  cre-d             2.37701e+08 -> 2.37701e+08      1.0000x
+  cre-b              6.5926e+08 -> 6.5926e+08       1.0000x
+  cre-c             2.15216e+07 -> 2.15216e+07      1.0000x
+------------------------------------------------------------
+  instances averaged   16
+  GEOMETRIC MEAN       1.0000x     <-- this is the result
+  best  cre-a          1.0000x
+  worst cre-c          1.0000x
+  ratio of totals      1.0000x     <-- NOT the result (D46): two instances are 74% of the standard set

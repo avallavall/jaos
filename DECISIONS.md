@@ -12759,3 +12759,80 @@ whose status is NOT in the 46.
 
 **The cost.** No source change. `TODO.md`'s §2 gains the second symptom and the
 corrected cost sentence; `SPECS.md`'s basis row gains the same.
+
+## D171 — The refinement residual is compensated too, and the argument that refused it was sound about the terms and wrong about the consequence
+
+**The question.** D168 compensated `compute_primal`'s right-hand side and left
+two sums of the same shape alone. `numerics-reviewer` refused them from the
+terms, and this entry exists because that refusal was written into the record
+and then measured.
+
+**The argument, stated fairly.** `subtract_basis_times` sums products of
+`x_B`, which is an FTRAN output already carrying the factorization's error, so
+**an accumulator cannot reach an error that is already inside a term**. That is
+true. What it does not follow from is that compensating buys nothing: the
+residual is what the refinement correction is computed FROM, so a term lost
+there leaves a correction that is short, and the published point is the one the
+correction lands on. D168's own reopen condition was *"a model where the
+refinement residual loses a term that changes a published value"*. The sets
+have three.
+
+**The control comes first, and the first version of this measurement did not
+have one.** Built with the same flags from the parent tree, its 94 netlib
+instance lines are byte-identical to the committed record; only the two-line
+baseline footer differs, because the probe runs without `-b`. That also settles
+a question nobody had asked in writing: `-O2` and the Makefile's
+`-O3 -flto -march=native` produce the same bits.
+
+**netlib says the change is systematically more accurate and nothing more.**
+88 of 94 moved, work geometric mean **1.0000x**, and **the worst value of every
+figure over the set is unchanged**: `row` 8.44e-07, `rowrel` 6.36e-12, `gap`
+2.21e-10, `rsub` 6.91e-05. Direction counts: `rowrel` 76 better / 7 worse, `N`
+71/15, `row` 59/20, `rsub` 53/14, `Q` 52/15, `col` 17/8, `sub` 31/30, `gap`
+31/51, `dual` 0/0. **76 against 7 is not a coin**, so the bias is real; on this
+set alone it would not be enough to pay for 88 digest changes, and reading only
+netlib nearly refused this.
+
+**Kennington is where the worst case moves.** 11 of 16, work **1.0000x**, and
+`col` is a breach of a column bound in the model's own units:
+
+| | `col` before | after | `rowrel` before | after |
+|---|---|---|---|---|
+| `pds-06` | 4.26e-14 | **1.58e-30** | 4.26e-14 | **1.58e-30** |
+| `pds-10` | 2.84e-14 | **2.52e-29** | 2.84e-14 | **5.89e-17** |
+| `pds-20` | **8.81e-13** | **5.05e-28** | **8.81e-13** | **8.42e-17** |
+
+Over the set, `rowrel`'s worst goes 8.81e-13 → 8.88e-17 and `col`'s 8.81e-13 →
+2.07e-14, with 9 better and 0 worse on `rowrel` and 7 and 0 on `col`. A
+published value that sat 8.81e-13 outside its own declared bound now sits
+5.05e-28 outside it.
+
+**The cost.** `gate: PASS` on all three sets with `0 regressed, 0 improved,
+0 new`; 139 of 139 `checker=ok` and 29 of 29 correctly refused. Work geometric
+mean 1.0000x on netlib and on Kennington, worst instance `scagr7` 1.0003x.
+netlib-infeas moves 14 instances by a handful of work units with **0 digest
+changes**.
+
+**The symmetric change is refused, and the measurement refuses it.** D29 says a
+point read off an accurate `x_B` and an inaccurate `y` is not more consistent
+than one read off neither, so compensating `compute_duals`' refinement dot
+product as well is the obvious next step. Built and measured in the same run:
+**it changes not one direction count on either set**, netlib reading 89 moved
+instead of 88 at work 1.0001x with every better/worse pair identical. That sum
+runs over one column's nonzeros while this one runs over every basic column
+touching a row.
+
+**And that settles the `gap` column, which is the one figure that goes the
+wrong way.** If the 51 were the primal-dual inconsistency D29 warns about, the
+symmetric change would have moved them. It moved nothing. The values are
+between 1e-19 and 1e-16, the worst over the set does not move, and what the
+counts record is the direction of last-bit numbers.
+
+**What is left open.** There is no constructed model, and the entry says so
+rather than dressing the campaign up as one: D162's shape does not carry over,
+because on that model every product is exact and here the terms are products of
+an FTRAN output. A model would turn this into a pinned test and is worth a
+session. `apply_flips` is the third sum of this shape and is untouched — it
+loses terms mid-solve only, since the final `refine = true` refresh rebuilds
+`x_B` from scratch, and it would need a third `[nrow]` array because `s->rhsc`
+and `s->resc` are both live inside the call it runs in.

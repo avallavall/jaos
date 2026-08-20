@@ -1,0 +1,44 @@
+==== netlib, 94 instances
+  primal side: 88 moved, 88 digest change(s), work geomean 1.0000x
+     col     better= 17 worse=  8   worst over the set 4.92e-08 -> 4.92e-08
+     row     better= 59 worse= 20   worst over the set 8.44e-07 -> 8.44e-07
+     rowrel  better= 76 worse=  7   worst over the set 6.36e-12 -> 6.36e-12
+     gap     better= 31 worse= 51   worst over the set 2.21e-10 -> 2.21e-10
+     Q       better= 52 worse= 15   worst over the set 0.0386 -> 0.0386
+     N       better= 71 worse= 15   worst over the set 2.89e-05 -> 2.89e-05
+     sub     better= 31 worse= 30   worst over the set 1.3e-13 -> 1.3e-13
+     rsub    better= 53 worse= 14   worst over the set 6.91e-05 -> 6.91e-05
+  both sides: 89 moved, 88 digest change(s), work geomean 1.0001x
+     col     better= 17 worse=  8   worst over the set 4.92e-08 -> 4.92e-08
+     row     better= 59 worse= 20   worst over the set 8.44e-07 -> 8.44e-07
+     rowrel  better= 76 worse=  7   worst over the set 6.36e-12 -> 6.36e-12
+     gap     better= 31 worse= 51   worst over the set 2.21e-10 -> 2.21e-10
+     Q       better= 52 worse= 15   worst over the set 0.0386 -> 0.0386
+     N       better= 71 worse= 15   worst over the set 2.89e-05 -> 2.89e-05
+     sub     better= 31 worse= 30   worst over the set 1.3e-13 -> 1.3e-13
+     rsub    better= 53 worse= 14   worst over the set 6.91e-05 -> 6.91e-05
+
+==== kennington, 16 instances
+  primal side: 11 moved, 11 digest change(s), work geomean 1.0000x
+     col     better=  7 worse=  0   worst over the set 8.81e-13 -> 2.07e-14
+     row     better=  8 worse=  1   worst over the set 5.9e-12 -> 5.85e-12
+     rowrel  better=  9 worse=  0   worst over the set 8.81e-13 -> 8.88e-17
+     gap     better=  5 worse=  5   worst over the set 2.09e-14 -> 2.09e-14
+     Q       better=  5 worse=  0   worst over the set 0.00219 -> 0.00219
+     N       better=  8 worse=  1   worst over the set 1.35e-07 -> 8.12e-08
+     sub     better=  2 worse=  1   worst over the set 6.42e-12 -> 6.42e-12
+     rsub    better=  5 worse=  1   worst over the set 4.18e-14 -> 4.18e-14
+  both sides: 14 moved, 11 digest change(s), work geomean 1.0000x
+     col     better=  7 worse=  0   worst over the set 8.81e-13 -> 2.07e-14
+     row     better=  8 worse=  1   worst over the set 5.9e-12 -> 5.85e-12
+     rowrel  better=  9 worse=  0   worst over the set 8.81e-13 -> 8.88e-17
+     gap     better=  5 worse=  5   worst over the set 2.09e-14 -> 2.09e-14
+     Q       better=  5 worse=  0   worst over the set 0.00219 -> 0.00219
+     N       better=  8 worse=  1   worst over the set 1.35e-07 -> 8.12e-08
+     sub     better=  2 worse=  1   worst over the set 6.42e-12 -> 6.42e-12
+     rsub    better=  5 worse=  1   worst over the set 4.18e-14 -> 4.18e-14
+
+==== infeas, 29 instances
+  primal side: 14 moved, 0 digest change(s), work geomean 1.0000x
+  both sides: 14 moved, 0 digest change(s), work geomean 1.0000x
+

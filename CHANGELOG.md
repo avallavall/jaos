@@ -57,6 +57,22 @@ open, `bench/README.md` for the gate, and the commit each entry came from.
 
 ### Fixed
 
+- **The refinement residual is compensated too**, and D168's refusal of it is
+  overturned by measurement. `subtract_basis_times` forms `b - B x_B` for the
+  iterative-refinement step; `b` had been compensated since D168 and the
+  subtraction had not. The refusal argued from the terms — they are products of
+  an FTRAN output that already carries the factorization's error — which is
+  true and does not follow, because the residual is what the correction is
+  computed from (D171).
+- Three Kennington instances published a column outside its own declared bound
+  and no longer do: `pds-20` 8.81e-13 → 5.05e-28, `pds-10` 2.84e-14 → 2.52e-29,
+  `pds-06` 4.26e-14 → 1.58e-30, with `rowrel`'s worst over the set going
+  8.81e-13 → 8.88e-17. `gate: PASS` on all three sets, `0 regressed, 0 improved,
+  0 new`, work geometric mean 1.0000x on both, 88 netlib digests and 11
+  Kennington ones moved, netlib-infeas 0 digest changes. The symmetric change on
+  the dual side was built in the same run and **is refused**: it changes not one
+  direction count on either set.
+
 - **`jaos_objective` is the objective of the solution the model is holding**,
   which `jaos.h` promised and neither producer kept. The sum was naive, so
   costs of +1e16, then 256 costs of 1, then -1e16 on columns fixed at 1

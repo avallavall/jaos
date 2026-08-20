@@ -416,11 +416,17 @@ typedef struct {
      * refresh, and a compensation that another routine overwrote would be
      * worse than none. It lives only inside compute_primal.
      *
-     * **It is idle everywhere else and must stay unborrowed.** If
-     * subtract_basis_times or apply_flips is ever compensated too, it gets
-     * its own array. Borrowing an idle buffer is exactly the shape this
-     * project has paid for before, and the cost here is nrow doubles. */
+     * **It is idle everywhere else and must stay unborrowed.** Borrowing an
+     * idle buffer is exactly the shape this project has paid for before, and
+     * the cost of not doing it is nrow doubles. `resc` below is what
+     * subtract_basis_times got for the same reason (D171); apply_flips would
+     * need a third. */
     double *rhsc;
+    /* And the compensation for the residual subtract_basis_times forms in the
+     * refinement step, `b - B x_B` (D171). Separate from `rhsc` on purpose:
+     * that one is still holding compute_primal's compensation when this runs,
+     * inside the same call. */
+    double *resc;
     /* The duals, and the pricing row. These are two different quantities
      * and they get two different vectors, which is not a convenience: they
      * shared one for a long time, every reader had to know which producer
@@ -608,7 +614,8 @@ static void sx_free(sx *s)
     free(s->lo); free(s->up); free(s->cost); free(s->cost0); free(s->shift);
     free(s->status); free(s->basis); free(s->where);
     free(s->xb); free(s->d); free(s->dse);
-    free(s->col); free(s->raw); free(s->rhsc); free(s->y); free(s->rho);
+    free(s->col); free(s->raw); free(s->rhsc); free(s->resc);
+    free(s->y); free(s->rho);
     free(s->tau); free(s->alpha); free(s->apat); free(s->amark);
     free(s->nbmark);
     free(s->rpat); free(s->rmark); free(s->cpat);
@@ -688,6 +695,7 @@ static jaos_status sx_init(sx *s, jaos_model *m)
     s->col    = jm_calloc_array(s->nrow, sizeof(double));
     s->raw    = jm_calloc_array(s->nrow, sizeof(double));
     s->rhsc   = jm_calloc_array(s->nrow, sizeof(double));
+    s->resc   = jm_calloc_array(s->nrow, sizeof(double));
     s->y      = jm_calloc_array(s->nrow, sizeof(double));
     s->rho    = jm_calloc_array(s->nrow, sizeof(double));
     s->tau    = jm_calloc_array(s->nrow, sizeof(double));
@@ -713,7 +721,7 @@ static jaos_status sx_init(sx *s, jaos_model *m)
         !s->shift ||
         !s->status || !s->basis ||
         !s->where || !s->xb || !s->d || !s->dse ||
-        !s->col || !s->raw || !s->rhsc ||
+        !s->col || !s->raw || !s->rhsc || !s->resc ||
         !s->y || !s->rho || !s->tau || !s->alpha || !s->apat || !s->amark ||
         !s->nbmark ||
         !s->rpat || !s->rmark || !s->cpat || !s->cand || !s->rnum ||
@@ -1146,10 +1154,30 @@ static jaos_status refactorize(sx *s)
 
 /* r -= B z, for a dense vector over the rows. The basis is held as a list
  * of columns of M, so this walks the columns and scatters; there is no
- * assembled B to multiply by. */
+ * assembled B to multiply by.
+ *
+ * **Compensated, like the sum it subtracts from (D171).** `r` arrives holding
+ * `b`, which compute_primal now sums with compensation, and this is the other
+ * half of the refinement residual. Leaving it naive was refused on an argument
+ * — that these terms are products of `x_B`, an FTRAN output already carrying
+ * the factorization's error, so an accumulator cannot reach an error that is
+ * already inside a term. **The argument is sound and the conclusion was
+ * wrong**: the residual is what the correction is computed from, and losing a
+ * term there leaves a correction that is short. `pds-20` published a column
+ * 8.81e-13 outside its own bound and now publishes one 5.05e-28 outside it;
+ * `pds-06` and `pds-10` are the same shape. `bench/measurements/02-81/`
+ * carries it, with the two halves of D29's symmetry measured separately —
+ * compensating `compute_duals`' refinement dot as well changes not one count,
+ * and is refused there.
+ *
+ * The cost is nothing the work counter can see and nothing it can charge:
+ * geometric mean 1.0000x on netlib and on Kennington, 0 verdicts moved on any
+ * of the 139. */
 static void subtract_basis_times(sx *s, double *r, const double *z)
 {
     int64_t nz = 0;
+    double *comp = s->resc;
+    memset(comp, 0, (size_t)s->nrow * sizeof *comp);
     for (int64_t i = 0; i < s->nrow; i++) {
         double zi = z[i];
         if (zi == 0.0)
@@ -1157,14 +1185,30 @@ static void subtract_basis_times(sx *s, double *r, const double *z)
         int64_t v = s->basis[i];
         if (v < s->ncol) {
             const jaos_model *m = s->m;
-            for (int64_t k = m->a_start[v]; k < m->a_start[v + 1]; k++)
-                r[m->a_index[k]] -= s->av[k] * zi;
+            for (int64_t k = m->a_start[v]; k < m->a_start[v + 1]; k++) {
+                const int64_t ii = m->a_index[k];
+                const double t = -(s->av[k] * zi);
+                const double a = r[ii], u = a + t;
+                comp[ii] += (fabs(a) >= fabs(t)) ? ((a - u) + t)
+                                                 : ((t - u) + a);
+                r[ii] = u;
+            }
             nz += m->a_start[v + 1] - m->a_start[v];
         } else {
-            r[v - s->ncol] += zi;      /* the column is -e_i */
+            const int64_t ii = v - s->ncol;   /* the column is -e_i */
+            const double a = r[ii], u = a + zi;
+            comp[ii] += (fabs(a) >= fabs(zi)) ? ((a - u) + zi)
+                                              : ((zi - u) + a);
+            r[ii] = u;
             nz++;
         }
     }
+    /* Same guard and same reason as compute_primal's: a partial sum at inf or
+     * NaN can never come back to finite, so catching it once at the end is
+     * enough. */
+    for (int64_t i = 0; i < s->nrow; i++)
+        if (isfinite(r[i]) && isfinite(comp[i]))
+            r[i] += comp[i];
     jm_work_add(&s->work, nz * JM_WORK_NONZERO);
 }
 

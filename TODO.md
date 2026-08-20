@@ -15,12 +15,16 @@ apart from one untracked directory that is not this session's (see
 five build configurations, and the three gate sets read `gate: PASS` with
 `0 regressed, 0 improved, 0 new`.
 
-**The gate campaign at HEAD is valid and it is D169's.** It was run on the
-tree that carries both of this session's source changes. Everything committed
-after it is documentation, a test, or a comment: `comment_only.sh` reports
-`src/simplex.c`'s release object UNCHANGED at `ab87c99`, and `4c972a2` touches
-no source at all. `$(B)/bench/run` links the library built from `src/` alone,
-so a `tests/` edit cannot invalidate a campaign either.
+**The gate campaign at HEAD is valid and it is D171's.** It was run on the tree
+that carries all three of this session's source changes, and all three
+`bench/results/*.txt` were rewritten by it: netlib and Kennington moved on
+D169 and again on D171, and `netlib-infeas` moved on D171 in work units only.
+
+**Two tools settled "did this invalidate the campaign" twice today and both
+are worth reaching for.** `comment_only.sh` reports a release object UNCHANGED
+for a comment edit and for anything behind `NDEBUG`, which is how `ab87c99`
+and `4747f29`'s assert were cleared. And `$(B)/bench/run` links the library
+built from `src/` alone, so a `tests/` edit cannot reach a campaign at all.
 `bench/results/netlib.txt` and `bench/results/netlib-kennington.txt` were
 rewritten by it; `netlib-infeas` came back bit-identical to the committed
 record on both changes, so it is unchanged and `preflight.sh` counts it as
@@ -32,7 +36,7 @@ maintainer's explicit say-so, 19 commits in one go. `git fetch` first showed
 moved. Push from the WINDOWS side (see below). Both tags were last pushed on
 2026-08-20 before this session started.
 
-### 2026-08-20, second unattended session: D168, D169 and D170 — two published numbers repaired and a third refused
+### 2026-08-20, second unattended session: D168 to D171 — three published numbers repaired, one refused, and a refusal overturned
 
 **The defect D162 named and could not close.** `compute_primal` builds
 `-N x_N` by walking the nonbasic columns in column order, so a row is a slot
@@ -679,22 +683,36 @@ trajectory. Refusals table, D151.
   is not billed: the seconds are the only evidence, and across two runs of the
   `-j 1` protocol the four bit-identical instances span 0.9501x to 1.0302x
   while doing byte for byte the same work, which is this host's own 6.27%.
-- **`subtract_basis_times` and `apply_flips` are the two uncompensated sums
-  left in the solve path**, and they are new from D168. **Refused for now,
-  with a reason and a reopen condition** (`numerics-reviewer`, D168):
-  compensation buys much less there than it did in `compute_primal`. On the
-  model that named the defect every product is exact — the coefficient is 1.0
-  and the value is a power of two — so the accumulation was the entire error.
-  These two sum products of `x_B`, which is an FTRAN output already carrying
-  the factorization's error, and **no accumulator reaches an error that is
-  already inside a term**. Nothing shows either losing an answer.
-  **Reopen condition: a model where the refinement residual loses a term that
-  changes a published value.** `subtract_basis_times` is on the `refine` path,
-  so it would move published values rather than trajectories and needs its own
-  read against the checker and the basis count. `apply_flips` loses terms
-  mid-solve only — the final `refine = true` refresh rebuilds `x_B` from
-  scratch. **If either lands it gets its own `[nrow]` array**, never `s->rhsc`,
-  which is idle by then; `src/simplex.c` says so beside the field.
+- ~~**`subtract_basis_times` and `apply_flips` are the two uncompensated sums
+  left in the solve path.**~~ **`subtract_basis_times` CLOSED 2026-08-20
+  (D171, `bench/measurements/02-81/`), and the refusal it overturns is the
+  thing to read.** D168 refused it on `numerics-reviewer`'s argument from the
+  terms: they are products of `x_B`, an FTRAN output already carrying the
+  factorization's error, so no accumulator reaches an error already inside a
+  term. **True, and it does not follow** — the residual is what the refinement
+  correction is computed FROM, so a term lost there leaves a correction that is
+  short. D168's own reopen condition was "a model where the refinement residual
+  loses a term that changes a published value", and the sets have three:
+  `pds-20` published a column 8.81e-13 outside its own declared bound and now
+  publishes one 5.05e-28 outside it, with `pds-10` and `pds-06` the same shape.
+  Work 1.0000x on both sets, `0 regressed` on all three.
+  **Two things a later session should take from it.** Reading one set nearly
+  refused this: netlib moves 88 digests, favours improvement 76 to 7 on
+  `rowrel`, and does not move the worst case of any figure — Kennington is
+  where the worst case moves. And **the symmetric change on the dual side is
+  refused with a measurement**, not an argument: compensating `compute_duals`'
+  refinement dot as well changes not one direction count on either set, which
+  is also what settles the `gap` column going the wrong way on 51 netlib
+  instances. If that were D29's primal-dual inconsistency the symmetric change
+  would have moved it.
+- **`apply_flips` is the third sum of this shape and stays open.** It
+  accumulates over a bound-flip batch into `s->col` and subtracts the FTRAN'd
+  result from `x_B`, so mid-solve `x_B` loses terms again after every batch.
+  The final `refine = true` refresh rebuilds `x_B` from scratch, so what it
+  loses does not reach the answer, which is why D171 left it. **It needs a
+  third `[nrow]` array** — `s->rhsc` and `s->resc` are both live inside the
+  call it runs in, and borrowing an idle buffer is the shape this project has
+  paid for before.
 - **The objective's product rounding needs a two-product**, and it is new from
   D169. Once the accumulation is compensated, what is left in `c'x` is the
   rounding of each `c_j * x_j` to a double, bounded by `eps` times the sum of
