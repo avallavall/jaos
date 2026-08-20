@@ -167,6 +167,7 @@ and you have the argument. Jump to the entry for the numbers behind it.
 - **[D157](#d157--the-two-silent-fallbacks-become-checked-claims-and-the-check-that-catches-them-is-the-sweep-rather-than-either-read)** — The two silent fallbacks become checked claims, and the check that catches them is the sweep rather than either read
 - **[D158](#d158--the-collapsed-folds-midpoint-is-clamped-into-the-columns-box-which-bounds-the-last-unbounded-item-and-the-branch-runs-0-times-in-100018-folds)** — The collapsed fold's midpoint is clamped into the column's box, which bounds the last unbounded item, and the branch runs 0 times in 100018 folds
 - **[D159](#d159--the-frozen-row-window-is-scaled-by-what-the-comparison-is-made-of-and-presolve-stops-refusing-a-model-the-solver-can-solve)** — The frozen-row window is scaled by what the comparison is made of, and presolve stops refusing a model the solver can solve
+- **[D160](#d160--clause-1-of-the-activity-pass-gets-its-own-window-and-the-bound-scale-that-looked-like-symmetry-published-a-wrong-answer)** — Clause 1 of the activity pass gets its own window, and the bound scale that looked like symmetry published a wrong answer
 
 ---
 
@@ -11707,3 +11708,76 @@ both had landed and both reported zeros; both stand, identically at `-j 12` and
 **What is left open**, both handed to `TODO.md`: the activity pass's own
 window, and the missing k factor in `PRESOLVE_ROUND_ULPS` on a row with many
 removals.
+
+## D160 — Clause 1 of the activity pass gets its own window, and the bound scale that looked like symmetry published a wrong answer
+
+**The question.** D159's defect at the site that is not frozen, found by
+`numerics-reviewer` while reviewing D159. The activity pass computed
+`rtol = ps_row_tol(&rg)` once — the ACTIVITY half — and used it for all three
+clauses. Clause 1 compares `min_act` against `cur_ru[i]`, a running difference
+every removed column shifted by its own `a*v`, which nothing covered.
+
+D159's model with one cost changed from 0 to 1, so the row never freezes,
+read INFEASIBLE where `-DJAOS_NO_PRESOLVE` reads OPTIMAL. A second solvable
+model refused.
+
+**Only clause 1 can take a wider window**, and the reason is direction. Clause
+1 tests `min_act > ru + rtol`, so wider fires LESS. FORCING tests
+`min_act >= ru - rtol` and REDUNDANT its mirror, so wider fires MORE — and
+widening the forcing window is what pinned `pilot` column 3554 and cost 02-04
+a campaign. Clauses 2 and 3 keep `rtol`.
+
+**The measurement.** 3307656 rows reach this pass over the three sets. The new
+window is wider on 81376 of them and **flips 0 verdicts**, and the widest
+ABSOLUTE window is unchanged on every set. The eight genuine infeasibilities in
+netlib-infeas fire under both. The gate is bit-identical on all 139 and all
+five build configurations pass.
+
+**That measurement is a no-op result and says nothing about the rescued
+band**, which no row on the three sets is in. The evidence for that band is
+constructed, and the first version of it was wrong.
+
+**What was refuted — the first version published a wrong answer, and it was
+one commit from landing.** All three found by `numerics-reviewer`, all three
+reproduced here on four builds before being accepted.
+
+- **`ps_bound_scale(rl, ru)` in the window.** Added "for symmetry with D159".
+  On `-1e12 <= x0 + x1 <= 0` with x0 in [1e-3, 1] — infeasible by 1e-3, with
+  nothing ever removed — it gave a window of 1.78e-3 taken **entirely from the
+  row's LOWER bound for a test on the UPPER side**, and published `optimal`
+  with an objective of 0.001. `ps_bound_scale`'s own comment says it is for a
+  comparison between two BOUNDS; clause 1 compares a computed activity against
+  one. Dropped outright rather than narrowed, because there is no third error
+  term for it to cover at any size: `min_act` carries `eps * rg.traffic`, `ru`
+  carries `eps * row_traffic[i]`, and both are already in the max.
+- **`ps_round_tol` put clause 1 on the `EXTRA_CFLAGS` sweep hook**, which
+  `ps_row_tol`'s comment and `docs/tolerances.md` both forbid for the
+  activity-range readings. 02-09 did it for a few hours and review caught it,
+  so this is the second occurrence. Behavioural rather than tidy: `itol` could
+  fall BELOW `rtol` at a lower setting and invert the clause ordering, and the
+  case above flipped between `ULPS=8` and `ULPS=4`. A literal 8 is immune at
+  1, 4, 8 and 64.
+- **"A wider window fires less, so it can only stop a refusal" is the
+  incomplete half that let the first one through.** Every rescued row reaches
+  FORCING with its condition already true, by construction, so it is pinned
+  and deleted — and D159's safety argument does not transfer, because there
+  the row survives for the simplex to re-test and here it does not.
+
+**Three tests, where the first version had one.** The accept case asserts the
+ANSWER rather than the status, because the model reaches OPTIMAL through
+FORCING pinning two columns and a wrong pin would leave the status green. The
+`-1e12` case must read INFEASIBLE and fails on the version that was reviewed.
+And the same model at a shortfall of 1.0 pins the window from the tight side,
+which an accept test cannot.
+
+**`make configs` caught a fourth thing the plain build could not**: the accept
+test asserts an exact answer and so needs the fault-build guard every other
+positive test in the file carries. That is its second catch this session.
+
+**What is left open.** One, and it is the same term at D159's own site.
+`-1e12 <= x0 + x1 <= 0` with both columns cost 0 in [1e-4, 1] — both relax and
+freeze the row, which empties — is infeasible by 2e-4 and reads **optimal**
+both before D159 and with D159 landed, against INFEASIBLE on the reference
+build and with the term dropped. It predates D159, D159 did not fix it, and
+D159's safety argument does not reach it because an emptied frozen row is
+deleted with everything else. `TODO.md` carries it with the model.

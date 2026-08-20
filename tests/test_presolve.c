@@ -3332,6 +3332,130 @@ static void test_a_frozen_row_emptied_and_still_short_is_refused(void)
     jaos_model_free(m);
 }
 
+/* -- The same defect at the pass that is NOT frozen -----------------------
+ *
+ *   min x1 + x2  s.t.  R: 1e9*x0 + x1 + x2 <= 1e9
+ *                      x0 in [1,1]        fixed: cur_ru = 0, row_traffic 1e9
+ *                      x1 in [1e-10, 10] cost 1
+ *                      x2 in [0, 1]      cost 1   <- cost != 0, R never freezes
+ *
+ * D159's model with one cost changed from 0 to 1. That one change stops the
+ * cost-0 singleton family relaxing the row, so R stays live and the ACTIVITY
+ * pass judges it instead of the frozen-row test. Its window is
+ * `ps_row_tol(&rg)`, the activity half alone, which knows nothing about the
+ * 1e9 subtracted from `cur_ru` — so presolve refused a model the reference
+ * build solves, exactly as the frozen-row test did before D159.
+ *
+ * The infeasibility is 1e-10 against a row activity of 1e9: a thousandth of
+ * one ulp, which no arithmetic here can represent. Found by
+ * `numerics-reviewer` while reviewing D159, and repaired by D160.
+ *
+ * The repair gives clause 1 its own window and leaves FORCING and REDUNDANT
+ * on the old one, because a wider window makes those two fire MORE and
+ * widening the forcing window cost 02-04 a campaign. So the guard on this
+ * test is not a raised constant — it is that the reference build agrees. */
+static void test_the_activity_pass_is_not_refused_below_its_own_traffic(void)
+{
+#if defined(JAOS_PRESOLVE_FAULT_OFFBYONE) || defined(JAOS_PRESOLVE_FAULT_WRONGDUAL)
+    /* It asserts an exact answer, so an injected index fault breaks it by
+     * design. `make configs` caught the missing guard; the plain build alone
+     * would not have. */
+    TEST_IGNORE_MESSAGE("positive test — skipped under either fault build");
+#else
+    const double c[]  = {0.0, 1.0, 1.0};
+    const double cl[] = {1.0, 1e-10, 0.0};
+    const double cu[] = {1.0, 10.0,  1.0};
+    const double rl[] = {-INFINITY};
+    const double ru[] = {1e9};
+    const int64_t s[]  = {0, 1, 2, 3};
+    const int64_t ix[] = {0, 0, 0};
+    const double v[]   = {1e9, 1.0, 1.0};
+
+    jaos_model *m = nullptr;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_model_new(&m));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_load_lp(m, 3, 1, JAOS_MINIMIZE, 0.0, c, cl, cu, rl, ru,
+                     3, s, ix, v));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    /* Asserted on BOTH builds. They must agree, and before D160 they did not. */
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+
+    /* **The ANSWER, not just the status.** This model reaches OPTIMAL through
+     * FORCING pinning x1 and x2 and deleting the row — every row the widened
+     * window rescues arrives at clause 2 with its condition already true — so
+     * a wrong pin would leave the status unchanged and this test green
+     * (`numerics-reviewer`). Both builds read exactly this. */
+    double obj = 0.0, x[3] = {0.0, 0.0, 0.0};
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(m, &obj));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solution(m, x, nullptr, nullptr,
+                                                 nullptr));
+    TEST_ASSERT_EQUAL_DOUBLE(1e-10, obj);
+    TEST_ASSERT_EQUAL_DOUBLE(1.0,   x[0]);
+    TEST_ASSERT_EQUAL_DOUBLE(1e-10, x[1]);
+    TEST_ASSERT_EQUAL_DOUBLE(0.0,   x[2]);
+    jaos_model_free(m);
+#endif
+}
+
+/* The two cases clause 1's window must still REFUSE, and the first of them is
+ * what refuted the window's first version.
+ *
+ * C: `min x0 + x1 s.t. -1e12 <= x0 + x1 <= 0, x0 in [1e-3, 1], x1 in [0, 1]`
+ *
+ *    Infeasible by exactly 1e-3, and nothing is ever removed from the row, so
+ *    `row_traffic` is 0 and `rg.traffic` is 2.001. The first version of D160
+ *    put `ps_bound_scale(rl, ru)` in the window, which reads the row's LOWER
+ *    bound of -1e12 and gives 1.78e-3 for a test on the UPPER side. It
+ *    published **`optimal` with an objective of 0.001**, and the row was
+ *    pinned by FORCING and deleted on the way out, so the simplex never saw
+ *    it either. Delete the `rg.traffic` term instead and this still passes —
+ *    only removing the bound-scale term repairs it.
+ *
+ * E: D160's own model with the shortfall raised from 1e-10 to 1.0, against a
+ *    window of 1.78e-6. It pins the window from the TIGHT side, which the
+ *    accept test above cannot.
+ *
+ * Both are asserted on the reference build too. Found by `numerics-reviewer`.  */
+static void test_the_activity_pass_still_refuses_a_real_shortfall(void)
+{
+    {   /* C */
+        const double c[]  = {1.0, 1.0};
+        const double cl[] = {1e-3, 0.0};
+        const double cu[] = {1.0,  1.0};
+        const double rl[] = {-1e12};
+        const double ru[] = {0.0};
+        const int64_t s[]  = {0, 1, 2};
+        const int64_t ix[] = {0, 0};
+        const double v[]   = {1.0, 1.0};
+        jaos_model *m = nullptr;
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_model_new(&m));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK,
+            jaos_load_lp(m, 2, 1, JAOS_MINIMIZE, 0.0, c, cl, cu, rl, ru,
+                         2, s, ix, v));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+        TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_INFEASIBLE, jaos_status_of(m));
+        jaos_model_free(m);
+    }
+    {   /* E */
+        const double c[]  = {0.0, 1.0, 1.0};
+        const double cl[] = {1.0, 1.0,  0.0};
+        const double cu[] = {1.0, 10.0, 1.0};
+        const double rl[] = {-INFINITY};
+        const double ru[] = {1e9};
+        const int64_t s[]  = {0, 1, 2, 3};
+        const int64_t ix[] = {0, 0, 0};
+        const double v[]   = {1e9, 1.0, 1.0};
+        jaos_model *m = nullptr;
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_model_new(&m));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK,
+            jaos_load_lp(m, 3, 1, JAOS_MINIMIZE, 0.0, c, cl, cu, rl, ru,
+                         3, s, ix, v));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+        TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_INFEASIBLE, jaos_status_of(m));
+        jaos_model_free(m);
+    }
+}
+
 /* An INVERTED column box reaches the same collapse branch, and the clamp has
  * no box to clamp into there.
  *
@@ -3758,6 +3882,8 @@ int main(void)
     RUN_TEST(test_a_collapse_on_an_inverted_box_keeps_the_midpoint);
     RUN_TEST(test_a_frozen_row_is_not_refused_below_its_own_traffic);
     RUN_TEST(test_a_frozen_row_emptied_and_still_short_is_refused);
+    RUN_TEST(test_the_activity_pass_is_not_refused_below_its_own_traffic);
+    RUN_TEST(test_the_activity_pass_still_refuses_a_real_shortfall);
 
     RUN_TEST(test_a_frozen_row_missed_at_scale_is_refused);
 

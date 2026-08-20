@@ -296,8 +296,32 @@ trajectory. Refusals table, D151.
   the 139, so the campaign could not see it and only a constructed pair
   separates the two windows.
 
+- **`ps_bound_scale` in the FROZEN-ROW window is a live wrong answer, and it
+  predates D159.** Found by `numerics-reviewer` while reviewing D160.
+
+  ```
+  -1e12 <= x0 + x1 <= 0,  x0 and x1 both cost 0 in [1e-4, 1]
+  ```
+
+  Both are cost-0 bounded singletons, so both relax and freeze the row, which
+  empties. Infeasible by 2e-4. Reads **optimal** with `x = {1e-4, 1e-4}` both
+  before D159 and with D159 landed; INFEASIBLE on the reference build and
+  with the term dropped; INFEASIBLE on all four with `rl = -INFINITY`, which
+  is the control confirming it is the irrelevant end of the row supplying the
+  window.
+
+  **It is the same term D160 dropped from the activity pass**, for the same
+  reason: the window comes from the row's LOWER bound for a test on the UPPER
+  side, and `ps_bound_scale`'s own comment says it is for a comparison between
+  two BOUNDS. D159's safety argument does not reach it — an emptied frozen row
+  is deleted with everything else, so nothing re-tests it.
+
+  The repair is the one line D160 already validated at the sibling site. It
+  needs its own campaign because D160's was not run for it.
+
 - **The activity pass has the SAME defect, in mirror image, and it is live
-  today.** Found by `numerics-reviewer` while reviewing D159.
+  today.** ~~Found by `numerics-reviewer` while reviewing D159.~~ **CLOSED
+  2026-08-20 (D160, `bench/measurements/02-70/`).**
   `ps_row_tol(&rg)` is `8*eps*rg.traffic` alone, so the BOUND side's error is
   uncovered there exactly as the activity side was uncovered at the frozen-row
   test. The model, which is D159's with one cost changed from 0 to 1 so the

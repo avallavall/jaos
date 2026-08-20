@@ -1,0 +1,42 @@
+probe at 36320ad (36320ad)
+
+######## 1. the three sets ########
+---- instances
+  rows at the activity pass    554828
+  clause 1 fires, shipped      0
+  clause 1 fires, candidate    0
+  verdicts it would FLIP       0
+  rows where it is wider       57812
+  worst candidate/shipped      7.392e+06
+  widest ABSOLUTE, shipped     4.038e-07
+  widest ABSOLUTE, candidate   4.038e-07
+---- instances-infeas
+  rows at the activity pass    70832
+  clause 1 fires, shipped      8
+  clause 1 fires, candidate    8
+  verdicts it would FLIP       0
+  rows where it is wider       13714
+  worst candidate/shipped      3.01639e+07
+  widest ABSOLUTE, shipped     1.908e-06
+  widest ABSOLUTE, candidate   1.908e-06
+---- instances-kennington
+  rows at the activity pass    2681996
+  clause 1 fires, shipped      0
+  clause 1 fires, candidate    0
+  verdicts it would FLIP       0
+  rows where it is wider       9850
+  worst candidate/shipped      93660
+  widest ABSOLUTE, shipped     5.223e-09
+  widest ABSOLUTE, candidate   5.223e-09
+
+######## 2. the model ########
+A is this change's; B is D159's guard and must not move.
+-- BEFORE
+   A-activity-pass  status=2   (1 optimal, 2 infeasible)
+   B-emptied-row    status=2   (1 optimal, 2 infeasible)
+-- AFTER
+   A-activity-pass  status=1   (1 optimal, 2 infeasible)
+   B-emptied-row    status=2   (1 optimal, 2 infeasible)
+-- REFERENCE, oracle
+   A-activity-pass  status=1   (1 optimal, 2 infeasible)
+   B-emptied-row    status=2   (1 optimal, 2 infeasible)

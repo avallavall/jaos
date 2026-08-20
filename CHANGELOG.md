@@ -53,6 +53,14 @@ open, `bench/README.md` for the gate, and the commit each entry came from.
 
 ### Fixed
 
+- The activity pass's INFEASIBLE clause gets its own window and stops refusing
+  a second model the solver can solve. It shared one window with FORCING and
+  REDUNDANT, where a wider window fires MORE rather than less, so only this
+  clause could take one. 3307656 rows over the three sets, 0 verdicts flipped,
+  the widest absolute window unchanged, 139 instances bit-identical. The
+  window is `8 * DBL_EPSILON * max(1, rg.traffic, row_traffic)` — the bound
+  scale is deliberately NOT in it, because the first version had it and
+  published `optimal` on a model infeasible by 1e-3 (D160).
 - The frozen-row feasibility test scales its window by what the comparison is
   made of instead of by the magnitude of one operand, and it stops refusing a
   model the solver can solve. `min x1 s.t. 1e9*x0 + x1 + x2 <= 1e9` with a

@@ -1406,9 +1406,86 @@ JAOS_NODISCARD jaos_status jm_presolve_run(const jaos_model *m, jm_presolve *p,
 
             /* 1. INFEASIBLE. The row cannot be satisfied by any point of
              *    the current boxes, so the model has no feasible point. No
-             *    column is fixed on this branch. */
-            if ((isfinite(ru) && min_act > ru + rtol) ||
-                (isfinite(rl) && max_act < rl - rtol)) {
+             *    column is fixed on this branch.
+             *
+             * **This clause has its OWN window and the other two do not**
+             * (D160), because `rtol` covers one side of the comparison and
+             * the direction is not shared.
+             *
+             * `min_act` is a sum over the live columns, so `ps_row_tol`'s
+             * `rg.traffic` is its budget. `ru` is a running difference every
+             * removed column shifted by its own a*v, and nothing here covered
+             * that. It is D159's defect at the site that is NOT frozen, and
+             * it refuses a model the reference build solves: `min x1 + x2
+             * s.t. 1e9*x0 + x1 + x2 <= 1e9` with x0 fixed at 1 and x1 bounded
+             * below by 1e-10 reads INFEASIBLE where `-DJAOS_NO_PRESOLVE`
+             * reads OPTIMAL (`numerics-reviewer`, bench/measurements/02-70/).
+             *
+             * The other two clauses keep `rtol` because widening is the
+             * opposite direction for them. Here a wider window fires LESS, so
+             * it can only stop a refusal. FORCING at clause 2 tests
+             * `min_act >= ru - rtol` and REDUNDANT tests its mirror, so a
+             * wider window makes both fire MORE — and widening the forcing
+             * window is the change that pinned `pilot` column 3554 and cost
+             * 02-04 a campaign, which the comment beside PRESOLVE_ROUND_ULPS
+             * still records.
+             *
+             * **Stopping a refusal is not the end of it, and the first
+             * version of this comment stopped there.** Every row this window
+             * rescues reaches FORCING with `force_hi` or `force_lo` already
+             * true, by construction: rescued on the upper side means
+             * `min_act > ru + rtol`, and clause 2 tests `min_act >= ru -
+             * rtol`, which is then unconditionally so. Clause 3 cannot be
+             * reached — it needs `max_act <= ru + rtol` and `max_act >=
+             * min_act`. So a rescued row is PINNED and DELETED here, and
+             * D159's safety argument does not transfer: there a frozen row
+             * survives into the reduced model and the simplex meets the same
+             * infeasibility, and here the row and its columns are dead
+             * (`numerics-reviewer`).
+             *
+             * **That is why `ps_bound_scale(rl, ru)` is NOT in this window**,
+             * where D159 has it. It is the magnitude of a BOUND, and clause 1
+             * compares a computed activity against one bound rather than two
+             * bounds against each other — so the irrelevant end of the row
+             * supplies the number. `-1e12 <= x0 + x1 <= 0` with x0 in
+             * [1e-3, 1] is infeasible by 1e-3, nothing is ever removed, and
+             * the lower bound alone gave a window of 1.78e-3: it published
+             * `optimal` with an objective of 0.001, and the row was pinned
+             * and deleted on the way out. When clause 1 is anywhere near
+             * firing on the `ru` side, `min_act` is about `ru` and
+             * `rg.traffic` already dominates, so the term buys nothing
+             * legitimate either. Refuted by measurement, not by argument
+             * (bench/measurements/02-70/).
+             *
+             * **A literal 8 rather than `ps_round_tol`**, for the reason
+             * `ps_row_tol` gives four hundred lines up and `docs/tolerances.md`
+             * repeats: the activity-range readings must not sit on the
+             * `EXTRA_CFLAGS` sweep hook. 02-09 routed them through the shared
+             * function for a few hours and review caught it; this is the
+             * second occurrence. It is behavioural rather than tidy —
+             * `ps_round_tol` let `itol` fall BELOW `rtol` at a lower setting
+             * and invert the clause ordering, which the pre-diff pass was
+             * immune to at every setting.
+             *
+             * Measured over 3307656 rows reaching this pass on the three
+             * sets: the window is wider on 81376 of them and **flips 0
+             * verdicts**, and the widest ABSOLUTE window is unchanged on
+             * every set. The eight genuine infeasibilities in netlib-infeas
+             * fire under both. That is a no-op result and says nothing about
+             * the rescued band, which no row on the three sets is in — the
+             * evidence for that band is the constructed cases.
+             *
+             * `8 * DBL_EPSILON` is a scale claim rather than a bound here,
+             * for the reason D159 records: the bound side is an uncompensated
+             * running sum and eight ulps covers about three removals.
+             * TODO.md carries it. */
+            assert(ps_traffic_usable(rl, ru, row_traffic[i]));
+            double iscale = rg.traffic > 1.0 ? rg.traffic : 1.0;
+            if (isfinite(row_traffic[i]) && row_traffic[i] > iscale)
+                iscale = row_traffic[i];
+            const double itol = 8.0 * DBL_EPSILON * iscale;
+            if ((isfinite(ru) && min_act > ru + itol) ||
+                (isfinite(rl) && max_act < rl - itol)) {
                 p->outcome = JM_PRESOLVE_INFEASIBLE;
                 goto done;
             }
