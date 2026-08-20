@@ -74,7 +74,7 @@ What the matrix says today, in short:
 algorithms, model handling, mixed-integer machinery, parallelism, correctness
 and verification, input and output, language bindings, and solve control. JAOS
 is present in four of them and absent from the rest. That is expected at
-0.1.0.
+0.1.1.
 
 **Three things JAOS has that the field mostly does not.** Bit-identical results
 across machines, which Gurobi explicitly does not promise. An independent

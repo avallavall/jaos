@@ -3,7 +3,7 @@
 A mathematical-programming solver written from scratch in C23. No external
 dependencies, Apache 2.0, Linux and GCC only.
 
-**Version 0.1.0.** JAOS reads an LP from disk, presolves it, solves it
+**Version 0.1.1.** JAOS reads an LP from disk, presolves it, solves it
 with a revised dual simplex, and verifies the answer with an independent
 checker. It does this correctly on all 139 Netlib reference instances.
 

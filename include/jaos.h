@@ -29,10 +29,10 @@ extern "C" {
 
 #define JAOS_VERSION_MAJOR 0
 #define JAOS_VERSION_MINOR 1
-#define JAOS_VERSION_PATCH 0
-#define JAOS_VERSION_STRING "0.1.0"
+#define JAOS_VERSION_PATCH 1
+#define JAOS_VERSION_STRING "0.1.1"
 
-/* Runtime library version, e.g. "0.1.0". Static storage, never NULL. */
+/* Runtime library version, e.g. "0.1.1". Static storage, never NULL. */
 JAOS_NODISCARD const char *jaos_version(void);
 
 /* Result of a library call. Every fallible function returns one of these;

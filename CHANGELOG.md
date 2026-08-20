@@ -9,6 +9,25 @@ open, `bench/README.md` for the gate, and the commit each entry came from.
 
 ## [Unreleased]
 
+## [0.1.1] — 2026-08-20
+
+Eight correctness items, D154 to D161, of which **four were wrong answers
+rather than latent risks**: presolve refused three models
+`-DJAOS_NO_PRESOLVE` solves, and a collapsed fold published a value outside a
+bound the caller declared.
+
+**The gate is bit-identical on all 139 instances for every one of them.** No
+campaign could have found any of them, and each needed a constructed model.
+That is what this tag is for: `0.1.0` names a tree that gets three LP shapes
+wrong and reports the fourth outside its own promise.
+
+Two things the reviews turned up that are not in any single entry. Eleven
+findings across five reviews were all real, four of them defects in the repair
+under review — a tolerance argument reads as sound in the source and is only
+settled by a model. And the diagnostic probes were counting low, because
+`-j N` tears one `fprintf` across children sharing a stderr while leaving the
+line count intact; every probe writes one `write(2)` per record now.
+
 ### Added
 
 - `make configs` builds all five configurations — plain, `-DJAOS_NO_PRESOLVE`,

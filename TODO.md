@@ -22,10 +22,16 @@ compile (D154). `make` decides from timestamps and does not track a change in
 plain `make test` re-runs the plain binaries and exits 0 without building
 anything. `make configs` puts `make clean` between the runs.
 
-**`main` is 25 commits ahead of `origin/main` and has NOT been pushed. The
-tag `v0.1.0` exists locally and has not been pushed either.** The maintainer
-asked for the push to wait; `CLAUDE.md` also says a push needs explicit
-approval.
+**`main` and both tags are pushed, 2026-08-20**, on the maintainer's explicit
+say-so. `v0.1.0` had been waiting since 2026-08-19 and went with `v0.1.1`.
+
+**Push from the WINDOWS side, not from WSL.** The remote is
+`git@github-personal:...`, and `github-personal` is an SSH alias that lives in
+the Windows `~/.ssh/config` only — WSL has no `~/.ssh/config` at all, so a
+push from there dies on `Could not resolve hostname github-personal` and looks
+like a network fault. It is not: `github.com` resolves fine from WSL. Every
+other step in the loop runs under WSL, so this is the one command that does
+not.
 
 **The gate campaign at HEAD is valid.** The last two source commits (D153 and
 its correction) are debug-only: the release objects keep the same md5 as the
