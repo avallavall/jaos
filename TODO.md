@@ -9,34 +9,98 @@ line leaves this file in the same commit.
 
 ### The state of the tree, first, because everything below assumes it
 
-**Nothing is in flight and no worktree is registered.** The tree is clean
-apart from one untracked directory that is not this session's (see
-`bench/measurements/02-31/` below). **`make configs` exits 0**, which is all
-five build configurations, and the three gate sets read `gate: PASS` with
+**Nothing is in flight and no worktree is registered.** The tree is clean apart
+from one untracked directory that is not this session's
+(`bench/measurements/02-31/`, see below). **`make configs` exits 0** — all five
+build configurations — and the three gate sets read `gate: PASS` with
 `0 regressed, 0 improved, 0 new`.
 
-**The gate campaign at HEAD is valid and it is D171's.** It was run on the tree
-that carries all three of this session's source changes, and all three
-`bench/results/*.txt` were rewritten by it: netlib and Kennington moved on
-D169 and again on D171, and `netlib-infeas` moved on D171 in work units only.
+**The gate campaign at HEAD is valid and it is the overflow fix's** (`e29198a`).
+All three `bench/results/*.txt` are current. The only commit after it,
+`a3f68c1`, touches `DECISIONS.md`, `TODO.md` and two files under
+`bench/measurements/`, so no campaign is owed.
 
-**Two tools settled "did this invalidate the campaign" twice today and both
-are worth reaching for.** `comment_only.sh` reports a release object UNCHANGED
-for a comment edit and for anything behind `NDEBUG`, which is how `ab87c99`
-and `4747f29`'s assert were cleared. And `$(B)/bench/run` links the library
-built from `src/` alone, so a `tests/` edit cannot reach a campaign at all.
-`bench/results/netlib.txt` and `bench/results/netlib-kennington.txt` were
-rewritten by it; `netlib-infeas` came back bit-identical to the committed
-record on both changes, so it is unchanged and `preflight.sh` counts it as
-behind by `src/` commits that were no-ops on it.
+**5 commits are unpushed and pushing needs the maintainer's explicit approval.**
+`main` was last pushed to `82b3b69`. **Push from the WINDOWS side**: the remote
+is an SSH alias that lives in the Windows `~/.ssh/config` only, and from WSL it
+dies as "could not resolve hostname". `git fetch` first — another Claude session
+commits to this repository.
 
-**Nothing is unpushed.** `main` was pushed to `34b6bdf` on 2026-08-20 on the
-maintainer's explicit say-so, 19 commits in one go. `git fetch` first showed
-`ahead 19` with no divergence, so the other session that commits here had not
-moved. Push from the WINDOWS side (see below). Both tags were last pushed on
-2026-08-20 before this session started.
+**Two tools settled "did this invalidate the campaign" three times today.**
+`comment_only.sh <file> <ref>` reports the release object UNCHANGED for a
+comment edit and for anything behind `NDEBUG`, which cleared `ab87c99`,
+`4747f29`'s assert and the `resc` comment rewrite. And `$(B)/bench/run` links
+the library built from `src/` alone, so a `tests/` edit cannot reach a campaign
+at all.
+
+### → IF YOU ARE A FRESH CONTEXT, THIS IS THE HANDOVER
+
+**Everything below in this section is finished and committed.** Nothing is
+half-done, no measurement is owed, and no agent is waiting. What follows is the
+list of what to pick up, in order, and every item names what it needs before
+any code.
+
+**The five things that are open, none of which is a wrong answer:**
+
+| # | item | what it needs | where |
+|---|---|---|---|
+| 1 | **48 netlib solves publish an invalid basis** | a rank argument WIDER than the firing row, or accepting the residue as the published state of the art does (Galabova 2023). Every local repair is refused with its measurement (D140, D141). **D171 made it worse by 2 and that is measured** | §2 below |
+| 2 | **`settled_objective` is a naive sum that selects which point is PUBLISHED** | two rounds that tie under a naive sum and separate under a compensated one. Cheaper than it looks — the first version of this entry said it only decided a trajectory and that was wrong | §4 below |
+| 3 | **`finnis` publishes a point that is not the exact optimal vertex** | exact rational arithmetic over the published `x` and `c`, a short offline script. **Not the checker** — it carries the same per-term rounding D172 removed one layer out | §4 below |
+| 4 | **`scsd1` and `degen2` behind D151's cap** | a predictor of a doomed trajectory. The shortfall cannot be it and that is measured | §3 below |
+| 5 | **`D97`, the dual postsolve for an imposed bound** | nothing is built; `docs/research/dual-postsolve-imposed-bound.md` is 936 lines of design with the literature verified. **The largest prize in the file** — it unlocks bound tightening AND doubleton equalities, 8.55% of netlib's live rows and 29.36% of Kennington's | "If all of the above is dropped" |
+
+**`apply_flips` is refused, not open.** It is the third uncompensated sum of
+D168's shape; it loses terms mid-solve only, because the final `refine = true`
+refresh rebuilds `x_B` from scratch.
+
+**Four traps this session paid for. Do not re-learn them.**
+
+- **Read BOTH gate sets before judging a residual change.** D171 was nearly
+  refused on netlib alone, where it moves 88 digests and no worst case.
+  Kennington is where the worst case moved, and by four orders.
+- **A control built with YOUR flags, or the reading is meaningless.** The first
+  version of 02-81 read "all three sets differ" and that was the `-b` footer.
+  The control also proved `-O2` and `-O3 -flto -march=native` give the same
+  bits.
+- **Re-read the published-basis count whenever a `basis=` hash moves.**
+  `bench/measurements/02-78/run-basis-count.sh`. The gate reports a hash and
+  never a count, so it said `0 regressed` while D171 cost two solves their
+  basis.
+- **A null intervention cannot discriminate between hypotheses.** D171's first
+  entry argued the `gap` column was harmless because the symmetric change did
+  not move it — and that change moved nothing at all, on any figure. The
+  evidence that works is direct: `dual`, `cert`, `drop` and `rays` unchanged on
+  all 110.
+
+**And the one that cost an answer.** `numerics-reviewer` found a defect in D172
+**after** it was committed with `make configs` green, the gate green on all
+three sets, a constructed minimum model and a test that failed at the parent.
+The overflow guard tested the two FACTORS while the split overflows on their
+PRODUCT. **No campaign could have found it** — it needs a cost and a bound whose
+product lands in the top 1.5e-8 of the double range, and no instance in 139 has
+one. Run the loop AND get the review; a green loop does not cover the review's
+job.
+
 
 ### 2026-08-20, second unattended session: D168 to D172 — four published numbers repaired, one refused, and a refusal overturned
+
+**The eleven commits, in one line each**, so a fresh context does not have to
+read `git log`:
+
+| commit | what it is |
+|---|---|
+| `ba69a88` | **D168** — the simplex's row activity compensated; the reference build stopped calling a feasible model infeasible |
+| `9114c94` | **D169** — the published objective, wrong two ways: a naive sum, and taken on the reduced model rather than the published point |
+| `ab87c99` | D168's review folded in — its test asserted a status where a wrong objective would have passed |
+| `4c972a2` | **D170** — the reduced costs are NOT a third wrong number; refuted, and §2 gains a second symptom |
+| `34b6bdf` | D169's three review questions answered in the main context |
+| `82b3b69` | the push recorded |
+| `4747f29` | D169's review folded in — a guard that threw away D19's own verdict |
+| `39a49f6` | **D171** — the refinement residual compensated; a refusal overturned by measurement |
+| `311d73b` | **D172** — the per-term rounding recovered with Dekker's split |
+| `e29198a` | **the hole D172 shipped with**: the guard tested the factors and the split overflows on the product, so it published `inf` |
+| `a3f68c1` | the oracle D172 measured against is not exact either, and what `finnis` has left is the point |
 
 **The defect D162 named and could not close.** `compute_primal` builds
 `-N x_N` by walking the nonbasic columns in column order, so a row is a slot
@@ -409,6 +473,11 @@ What is still true and unrepaired, both with their size on the record:
   D118's refused presolve candidate. No instance in the gate reaches it.
 
 ## → START HERE — what is actually next, 2026-08-20
+
+**If you have just been handed a fresh context, the handover table is at the
+top of this file, under "IF YOU ARE A FRESH CONTEXT".** This section is the
+longer form of the same list.
+
 
 **Every bounded wrong answer in this file is closed.** D162 to D167 closed the
 class D159 opened in presolve, by compensating `cur_rl`/`cur_ru` rather than by
