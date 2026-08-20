@@ -868,10 +868,21 @@ here, not assumed.
    version should let the reduction fire and detect the collision at postsolve,
    with Galabova's fallback there. Both instruments take any tree carrying the
    pass and both have a control.
-7. **Whether the postsolve detection is affordable**, which is what the
-   conclusion above now rests on. Nothing measures it yet. It is the question
-   that decides whether D97's first version is the design in this document or
-   the forward-pass refusal after all.
+7. **Whether the postsolve detection is affordable** — **the cost half is
+   settled by §11a and needs no measurement, the availability half is not.**
+   Detection is a `bool` per row: postsolve already replays the arena in
+   reverse, so an `IMPOSED_BOUND` record whose column rests at its imposed
+   bound sets its row's flag, and a second one on the same row is the
+   collision. That is O(1) per record and one array of `num_row`.
+   The fallback is cheap too, and §11a already quotes it: HiGHS transfers the
+   dual "to the row by making the row basic", or selects "the remaining column
+   `x_j` for the basis". **A status choice, not a crossover** — no
+   factorization and no second solve. At 12 firings in 110 instances its cost
+   is unmeasurable by construction.
+   **What is genuinely open is whether the fallback is always AVAILABLE.**
+   HiGHS attempts and falls back; nothing in print says the fallback cannot
+   itself fail. §8c's rank argument is what would settle it, and §8c is this
+   document's own rather than published.
 8. **§8d's equality claim, still open.** Ten of the twelve rows are equalities
    and two are not, but the flag was read at the moment of imposing and
    presolve moves row bounds across rounds. The argument needs the row's state
