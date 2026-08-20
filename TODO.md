@@ -26,9 +26,11 @@ rewritten by it; `netlib-infeas` came back bit-identical to the committed
 record on both changes, so it is unchanged and `preflight.sh` counts it as
 behind by `src/` commits that were no-ops on it.
 
-**19 commits are unpushed and pushing needs the maintainer's explicit
-approval.** Push from the WINDOWS side (see below). `main` and both tags were
-last pushed on 2026-08-20 before this session started.
+**Nothing is unpushed.** `main` was pushed to `34b6bdf` on 2026-08-20 on the
+maintainer's explicit say-so, 19 commits in one go. `git fetch` first showed
+`ahead 19` with no divergence, so the other session that commits here had not
+moved. Push from the WINDOWS side (see below). Both tags were last pushed on
+2026-08-20 before this session started.
 
 ### 2026-08-20, second unattended session: D168, D169 and D170 — two published numbers repaired and a third refused
 
