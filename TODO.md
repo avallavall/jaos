@@ -22,12 +22,11 @@ flips predicts and what 02-83's exact objectives confirm a second way. D173,
 D174 and D176 changed nothing in `src/` at all, so no campaign is owed for
 them.
 
-**TEN COMMITS ARE UNPUSHED**, `6061c38` through `aab1637`, all of them this
-session's. `origin/main` is at `4aa032e`, checked against the remote ref rather
-than counted by hand. The ones that carry entries are `6061c38` (D173),
-`efe5884` (D174), `c648f86`
-(D175), `0a6d58f` (D176). The previous handover's "nothing is unpushed" was
-true when it was written and is not now. **Push from the WINDOWS side**: the
+**EVERYTHING AFTER `4aa032e` IS UNPUSHED.** Do not trust a count written here:
+this paragraph has said "nothing", then "four", then "ten", and each was true
+when written. Ask the remote instead — `git rev-list --count origin/main..HEAD`.
+The commits carrying decision entries are `6061c38` (D173), `efe5884` (D174),
+`c648f86` (D175) and `0a6d58f` (D176); the rest are records and documentation. **Push from the WINDOWS side**: the
 remote is an SSH alias that lives in the Windows `~/.ssh/config` only, and from
 WSL it dies as "could not resolve hostname". `git fetch` first — another Claude
 session commits to this repository.
