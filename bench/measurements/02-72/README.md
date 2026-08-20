@@ -165,6 +165,18 @@ gives 1e-7, because the simplex meets the same unrepresentable row and puts
 both `w` columns on their upper bounds. The test asserts presolve's outcome
 only; pinning the objective would pin a wrong number.
 
+> **That paragraph expired at D165 and the reason it gave is no longer the
+> reason.** With `cur_rl`/`cur_ru` compensated, `k = 256` publishes **1e-07 —
+> the true optimum** — and 64, 128 and 512 publish 0. The simplex no longer
+> meets an unrepresentable row here, because presolve hands it the row the
+> model actually has. The conclusion survives: the answer is still not pinned
+> and this model is still not an oracle for it, since three of the four counts
+> are wrong in the other direction and `-DJAOS_NO_PRESOLVE` refuses all four.
+> `shift-count.txt` above is D162's reading and is left alone — **re-running
+> `run-shift-count.sh` overwrites it**, because the script `tee`s into this
+> directory, and doing that mixes today's working tree with D162's parent and
+> oracle columns in one file.
+
 ## 5. The shape as it ships
 
 At clause 1 and the frozen-row test the window covers two different numbers

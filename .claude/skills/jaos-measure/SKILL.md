@@ -268,6 +268,24 @@ the first time the script was run, together with a results file sitting empty
 because a campaign was mid-write. Both are invisible in the output of the run
 you are about to start.
 
+## Re-running an old measurement script overwrites its record
+
+The scripts in `bench/measurements/<id>/` end in `| tee "$here/<name>.txt"`.
+Running one again does not produce a fresh reading beside the old one — **it
+replaces the committed evidence for whatever decision that directory closed**,
+and the result is worse than losing it: the columns that come from a git ref
+(`the parent`, `the reference build`) still read as they did, while the
+`working tree` column becomes today's. One file, two trees, no label saying so.
+
+It happened on D167: re-running `02-72/run-shift-count.sh` to check whether
+D162's model still behaved rewrote four lines of D162's evidence. `git status`
+caught it and `git checkout --` undid it.
+
+So: **check `git status` after running anything under `bench/measurements/`.**
+If you want a current reading of an old model, either redirect the output
+somewhere else, or put the new reading in the new decision's own directory and
+leave the old file alone. A record belongs to the decision that produced it.
+
 ## Never put a measurement worktree under `build/`
 
 `make clean` is `rm -rf build`, and `make configs` runs it between each of its
