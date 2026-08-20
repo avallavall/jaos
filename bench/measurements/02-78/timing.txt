@@ -1,0 +1,13 @@
+parent f3a7798 versus the compensated accumulation, -j 1, minimum of 3
+alternating rounds. maros-r7, dfl001, truss and degen3 are
+bit-identical on the gate and are the noise floor.
+
+instance       parent s     cand s     ratio
+degen3           0.1757     0.1774   1.0097x
+dfl001          10.1050    10.0421   0.9938x
+maros-r7         0.4438     0.4572   1.0302x
+pilot87         21.6192    22.7604   1.0528x
+pilotnov         0.1181     0.1220   1.0334x
+truss            1.5361     1.4963   0.9741x
+
+geometric mean of per-instance ratios: 1.0153x over 6

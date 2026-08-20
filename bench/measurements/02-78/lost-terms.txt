@@ -1,0 +1,43 @@
+A is feasible with an exactly representable point; B is the same shape
+1e-2 away from any feasible point and must be refused everywhere.
+
+KSMALL=64
+   -- REFERENCE BUILD, the parent (f3a7798)
+      A-feasible-exactly     presolve outcome=not refused solve=infeasible  obj=0
+      B-control-infeas       presolve outcome=INFEASIBLE  solve=infeasible  obj=0
+   -- REFERENCE BUILD, the compensated accumulation
+      A-feasible-exactly     presolve outcome=not refused solve=optimal     obj=1.19209e-07
+      B-control-infeas       presolve outcome=INFEASIBLE  solve=infeasible  obj=0
+   -- shipping build, the compensated accumulation
+      A-feasible-exactly     presolve outcome=not refused solve=optimal     obj=0
+      B-control-infeas       presolve outcome=INFEASIBLE  solve=infeasible  obj=0
+KSMALL=128
+   -- REFERENCE BUILD, the parent (f3a7798)
+      A-feasible-exactly     presolve outcome=not refused solve=infeasible  obj=0
+      B-control-infeas       presolve outcome=INFEASIBLE  solve=infeasible  obj=0
+   -- REFERENCE BUILD, the compensated accumulation
+      A-feasible-exactly     presolve outcome=not refused solve=optimal     obj=1.19209e-07
+      B-control-infeas       presolve outcome=INFEASIBLE  solve=infeasible  obj=0
+   -- shipping build, the compensated accumulation
+      A-feasible-exactly     presolve outcome=not refused solve=optimal     obj=0
+      B-control-infeas       presolve outcome=INFEASIBLE  solve=infeasible  obj=0
+KSMALL=256
+   -- REFERENCE BUILD, the parent (f3a7798)
+      A-feasible-exactly     presolve outcome=not refused solve=infeasible  obj=0
+      B-control-infeas       presolve outcome=INFEASIBLE  solve=infeasible  obj=0
+   -- REFERENCE BUILD, the compensated accumulation
+      A-feasible-exactly     presolve outcome=not refused solve=optimal     obj=1.19209e-07
+      B-control-infeas       presolve outcome=INFEASIBLE  solve=infeasible  obj=0
+   -- shipping build, the compensated accumulation
+      A-feasible-exactly     presolve outcome=not refused solve=optimal     obj=1e-07
+      B-control-infeas       presolve outcome=INFEASIBLE  solve=infeasible  obj=0
+KSMALL=512
+   -- REFERENCE BUILD, the parent (f3a7798)
+      A-feasible-exactly     presolve outcome=not refused solve=infeasible  obj=0
+      B-control-infeas       presolve outcome=INFEASIBLE  solve=infeasible  obj=0
+   -- REFERENCE BUILD, the compensated accumulation
+      A-feasible-exactly     presolve outcome=not refused solve=optimal     obj=1.19209e-07
+      B-control-infeas       presolve outcome=INFEASIBLE  solve=infeasible  obj=0
+   -- shipping build, the compensated accumulation
+      A-feasible-exactly     presolve outcome=not refused solve=optimal     obj=0
+      B-control-infeas       presolve outcome=INFEASIBLE  solve=infeasible  obj=0

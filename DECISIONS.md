@@ -12405,3 +12405,92 @@ edited.
 reports set totals and the split is 02-49's. And the item itself is unchanged:
 46 solves publish a basis that is not one, every local repair is refused
 (D141), and what remains is a design wider than the firing row.
+
+## D168 — The simplex accumulates its right-hand side with compensation, and the reference build stops calling a feasible model infeasible
+
+**The question.** D162 built a model whose feasible point is exactly
+representable and found that `-DJAOS_NO_PRESOLVE` refused it at every removal
+count, including the counts where presolve accepts. That record could not use
+its own oracle as a result, and said why: *"the solver's own row activity loses
+terms the same way, which is §4 above and is now `TODO.md`'s"*. This closes it.
+
+**Where the terms go.** `compute_primal` builds `-N x_N` by walking every
+nonbasic variable in column order and adding its entries into the rows it
+touches. A row is a slot that many columns write into, so the order the row
+sees is the column order. A row that meets a large term before many small ones
+loses the small ones outright: each is below half an ulp of the running total,
+so each addition returns the total unchanged and the whole tail is dropped. On
+D162's model 256 columns fixed at a quarter of an ulp of 1e9 vanish, the
+activity comes back short by `2^-17 = 7.63e-6`, and nothing left in the model
+can make that up — so the solve reads INFEASIBLE.
+
+**It is D165's repair one layer out**, and the accumulator is the one presolve
+already ships. `long double` would buy the same accuracy and break the
+cross-machine determinism claim (D34); Neumaier is portable and its two-term
+error recovery is exact under `-ffp-contract=off`. The compensation lives in an
+owned `[nrow]` array rather than a borrowed one — every other `[nrow]` scratch
+in `sx` belongs to a producer that runs inside the same refresh.
+
+**The reading** (`bench/measurements/02-78/lost-terms.txt`), D162's model at
+four counts:
+
+| | k = 64 | 128 | 256 | 512 |
+|---|---|---|---|---|
+| reference build, parent | **infeasible** | **infeasible** | **infeasible** | **infeasible** |
+| reference build, compensated | optimal | optimal | optimal | optimal |
+| shipping build, compensated | optimal | optimal | optimal | optimal |
+
+The control — the same shape 1e-2 away from any feasible point — is refused on
+every build at every count. **The defect is visible in the reference build and
+that is not a quirk of the model**: presolve removes those columns before the
+simplex sees them and, since D165, subtracts them with the residue kept. The
+build that was answering wrong is the oracle every presolve entry in this
+repository is judged against.
+
+**The cost.** `gate: PASS` on all three sets with `0 regressed, 0 improved,
+0 new` and 139 of 139 `checker=ok`. netlib: 69 bit-identical, 25 moved, 23
+digest changes; netlib-infeas and Kennington bit-identical. Work geometric mean
+**0.9996x**, best `pilotnov` 0.9096x, worst `pilot87` 1.0372x — the ratio of
+totals is 1.0216x and is not the result (D46). Five instances changed
+trajectory: `pilot87` 40246 → 41281 iterations, `pilotnov` 2374 → 2390,
+`pilot-we` 4172 → 4178, `pilot-ja` 1402 → 1371.
+
+**The seconds are the evidence here and the work units are not**, because the
+Neumaier step is arithmetic `jm_work_add` does not bill: the same nonzero count
+is charged either way. Four of the six timed instances come back bit-identical
+on the gate, so their ratio is the arithmetic alone. Across two independent
+runs of the `-j 1` protocol they span **0.9501x to 1.0302x** while doing byte
+for byte the same work, which is this host's 6.27% repeatability (D93). The
+added arithmetic is not measurable on it. `pilot87` reads 1.0353x and 1.0528x
+and moved 3.72% in work, which is the explanation the counter already gives.
+
+**The published basis was re-read rather than assumed** (D167 is the entry
+that says why). Six netlib `basis=` hashes moved, and 02-48's probe on the
+whole tree reads `exact=142 WRONG=46 worst +18 SUM=+248` against the parent's
+`+250`, with Kennington at `WRONG=0` on both. By the measure that item insists
+on, the count of solves publishing a wrong basis, nothing moved.
+
+**The residuals move both ways and this entry does not claim them.** Over
+netlib's 94, `rsub` is better on 8 and worse on 2, `row` better on 7 and worse
+on 8, `rowrel` better on 9 and worse on 7. Two moves are large and in the right
+direction — `pilot-ja` 6.03e-12 → 1.62e-14 and `pilotnov` 8.16e-13 → 5.21e-14 —
+and the rest is a few ulps either way, which is what a changed summation order
+does to a converged point. **A more accurate sum is not a smaller residual on
+every instance.** What the gate says is that no verdict moved on any of the 139.
+
+**The test is validated against the tree that has the defect.**
+`test_a_row_activity_keeps_terms_below_an_ulp_of_its_own_total` carries no
+build guard, because OPTIMAL is the right answer in every configuration; built
+against the parent's `src/simplex.c` it fails under `-DJAOS_NO_PRESOLVE` and
+passes in the shipping build, and the control passes on both. `make configs`
+exits 0.
+
+**What is left open.** `subtract_basis_times` is still an uncompensated sum. It
+computes `b - B x_B` for the one step of iterative refinement, so its
+cancellation is total by construction and it is the site where compensation
+would matter most per term. It is left alone deliberately: a different sum with
+a different error argument, running only on the refreshes whose result can be
+published, and folding it in would have made this campaign unattributable. It
+needs its own model and its own campaign. The published objective on D162's
+model is still not pinned, for D162's reason: `x1` sits where one ulp is
+1.19e-07, so the last step of the ratio test is not on the model's grid.

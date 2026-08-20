@@ -1,0 +1,97 @@
+record_diff.py, the working tree after D168 against the committed
+records at f3a7798 (D168's parent). Captured before the records were
+rewritten, so it cannot be regenerated from the tree afterwards.
+
+========================================================================
+bench/results/netlib.txt  vs  HEAD:bench/results/netlib.txt
+========================================================================
+94 instances compared: 69 bit-identical, 25 moved, 23 digest change(s)
+
+-- no regression --
+
+-- changes within threshold --
+  WORK               80bau3b        61218034 -> 61225614  (1x)
+  DIGEST             80bau3b        dac76f30d2294da4 -> a13b8d7a3774ac48
+  WORK               boeing1        1886070 -> 1886073  (1x)
+  RSUB               boeing1        3.87e-16 -> 4.43e-16
+  DIGEST             boeing1        c92c2ca92edd9d92 -> 20e8b39c8d41101a
+  DIGEST             capri          408229e90564c0c3 -> 11d6978ca652c2e9
+  DIGEST             etamacro       ebd1490f789db571 -> 2e55b07711435312
+  DIGEST             finnis         541b5502eebb210c -> 4343ee4203493621
+  WORK               fit1d          1681313 -> 1681311  (1x)
+  RSUB               fit1d          4.07e-17 -> 1.08e-17
+  DIGEST             fit1d          d72b7a8338ca068a -> f11c35dd14e9ffb6
+  WORK               fit2d          72887365 -> 72887375  (1x)
+  RSUB               fit2d          6.98e-18 -> 3.91e-19
+  DIGEST             fit2d          8dc916003c27fc19 -> 8c22b7bd58882446
+  WORK               ganges         3936164 -> 3936161  (1x)
+  RSUB               ganges         1.17e-14 -> 7.43e-15
+  DIGEST             ganges         835e3e5f67a09883 -> ad8d197891385fcd
+  WORK               greenbea       196248522 -> 196248521  (1x)
+  DIGEST             greenbea       c366b22b6ef59f33 -> 454f81557fa05279
+  WORK               greenbeb       573519868 -> 573519829  (1x)
+  DIGEST             greenbeb       0ad2405d3f9ab15c -> 6af316ef773483a1
+  DIGEST             grow15         310879665b637aa5 -> 7ff65c553ea90244
+  WORK               grow22         493924877 -> 493924854  (1x)
+  DIGEST             grow22         24cf4ef1b8bf80d3 -> 6c8b7bc38363aa60
+  WORK               grow7          54621611 -> 54621610  (1x)
+  RSUB               grow7          1e-15 -> 9.64e-16
+  DIGEST             grow7          376ccb872289054e -> ed356777b15461d2
+  DIGEST             israel         8f4fb52c6f2f6ed6 -> cac41e0c2682a82a
+  WORK               nesm           61235366 -> 61235350  (1x)
+  RSUB               nesm           2.14e-15 -> 1.91e-15
+  DIGEST             nesm           10bca0c9820e0e25 -> f4d02fb058cbec62
+  WORK               perold         24134141 -> 24134109  (1x)
+  DIGEST             perold         c9261ce3415c6570 -> 7074af4d62c89ad5
+  WORK               pilot          4720835641 -> 4720835906  (1x)
+  DIGEST             pilot          7267c83ae52e7879 -> df6e3e405fd87bde
+  WORK               pilot-ja       42179750 -> 42776131  (1.014x)
+  ITERS              pilot-ja       1402 -> 1371
+  RSUB               pilot-ja       6.03e-12 -> 1.62e-14
+  DIGEST             pilot-ja       9d5cc8632dacb3d7 -> f7afb266121e3728
+  WORK               pilot-we       133218159 -> 133625584  (1.003x)
+  ITERS              pilot-we       4172 -> 4178
+  RSUB               pilot-we       8.73e-14 -> 1.49e-13
+  DIGEST             pilot-we       be44602603a6e42a -> 595038008b1b6c9d
+  WORK               pilot4         15935495 -> 15935500  (1x)
+  DIGEST             pilot4         0602fad3e6f39b6e -> 176cc22cba068a6e
+  WORK               pilot87        18818790231 -> 19519550350  (1.037x)
+  ITERS              pilot87        40246 -> 41281
+  RSUB               pilot87        2.58e-06 -> 2.54e-06
+  DIGEST             pilot87        6322fda85ab9551f -> 4dc51b0c1af48f69
+  WORK               pilotnov       86587402 -> 78757866  (0.9096x)
+  ITERS              pilotnov       2374 -> 2390
+  RSUB               pilotnov       8.16e-13 -> 5.21e-14
+  DIGEST             pilotnov       50be91ac3ace82f7 -> 6404c1c6fbfc1e0a
+  WORK               stocfor1       287959 -> 287966  (1x)
+  WORK               stocfor2       16778110 -> 16758260  (0.9988x)
+  DIGEST             stocfor2       5d4e5bb09e1fdc07 -> dd0aacc1f82f54c7
+  WORK               stocfor3       585330287 -> 585353637  (1x)
+  FIGURE             basis          changed on 6 instance(s): 80bau3b, pilot-ja, pilot-we, pilot87, pilotnov, stocfor2
+  FIGURE             col            changed on 6 instance(s): 80bau3b, capri, greenbeb, pilot-ja, pilot-we, pilotnov
+  FIGURE             gap            changed on 18 instance(s): 80bau3b, boeing1, fit1d, fit2d, ganges, greenbea, ...
+  FIGURE             obj            changed on 9 instance(s): ganges, greenbea, nesm, perold, pilot, pilot-ja, ...
+  FIGURE             row            changed on 15 instance(s): 80bau3b, boeing1, fit1d, fit2d, greenbeb, grow22, ...
+  FIGURE             rowrel         changed on 16 instance(s): boeing1, finnis, fit1d, fit2d, greenbeb, grow15, ...
+  FIGURE             sub            changed on 10 instance(s): 80bau3b, boeing1, nesm, perold, pilot, pilot-ja, ...
+
+========================================================================
+bench/results/netlib-infeas.txt  vs  HEAD:bench/results/netlib-infeas.txt
+========================================================================
+29 instances compared: 29 bit-identical, 0 moved, 0 digest change(s)
+
+-- no regression --
+
+Every instance is bit-identical to the committed record.
+That is the strongest available evidence a change is a no-op.
+
+========================================================================
+bench/results/netlib-kennington.txt  vs  HEAD:bench/results/netlib-kennington.txt
+========================================================================
+16 instances compared: 16 bit-identical, 0 moved, 0 digest change(s)
+
+-- no regression --
+
+Every instance is bit-identical to the committed record.
+That is the strongest available evidence a change is a no-op.
+

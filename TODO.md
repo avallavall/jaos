@@ -15,14 +15,51 @@ apart from one untracked directory that is not this session's (see
 five build configurations, and the three gate sets read `gate: PASS` with
 `0 regressed, 0 improved, 0 new`.
 
-**The gate campaign at HEAD is valid and it is D166's.** `git diff d420c8c
-HEAD -- src/ tests/` is empty: everything after it is documentation, so no
-campaign is owed. Re-verified on the committed tree after the last commit:
-`make configs` exits 0 and `preflight.sh` gives `VERDICT: clear to run`.
+**The gate campaign at HEAD is valid and it is D168's.** It was run on the
+tree that carries D168's `src/simplex.c` and `tests/test_simplex.c`, and
+`bench/results/netlib.txt` was rewritten by it. `netlib-infeas` and
+`netlib-kennington` came back bit-identical, so their records are unchanged and
+`preflight.sh` counts them as behind by `src/` commits that were no-ops on
+them.
 
-**13 commits are unpushed and pushing needs the maintainer's explicit
+**15 commits are unpushed and pushing needs the maintainer's explicit
 approval.** Push from the WINDOWS side (see below). `main` and both tags were
 last pushed on 2026-08-20 before this session started.
+
+### 2026-08-20, second unattended session: D168, and the last bounded wrong answer is closed
+
+**The defect D162 named and could not close.** `compute_primal` builds
+`-N x_N` by walking the nonbasic columns in column order, so a row is a slot
+many columns write into and the order it sees is the column order. A row that
+met a large term before many small ones lost the small ones outright, and the
+`-DJAOS_NO_PRESOLVE` build refused a model whose feasible point is exactly
+representable. **That build is the oracle every presolve entry in this
+repository is judged against.** The sum is compensated now, with the same
+Neumaier accumulator D165 gave presolve.
+
+**Three things to carry forward and not rediscover.**
+
+- **The work counter cannot see this class of change, by construction.** The
+  Neumaier step is arithmetic `jm_work_add` does not bill, so the units report
+  the trajectory and say nothing about the cost. The seconds are the only
+  evidence, and the way to make them mean anything is to time instances that
+  came back BIT-IDENTICAL on the gate: their ratio is the arithmetic alone.
+  Four of them span 0.9501x to 1.0302x across two runs of the same protocol,
+  which is this host's 6.27% (D93) and not a cost.
+- **A more accurate sum is not a smaller residual per instance.** Over netlib's
+  94, `rsub` improves on 8 and worsens on 2, `row` improves on 7 and worsens on
+  8. Two moves are large and right (`pilot-ja` 6.03e-12 → 1.62e-14, `pilotnov`
+  8.16e-13 → 5.21e-14) and the rest is a few ulps either way. **Do not offer
+  the residual table as the evidence.** The evidence is the constructed model
+  and no verdict moving on the 139.
+- **The published-basis count was re-read rather than assumed**, because six
+  `basis=` hashes moved and the gate reports a hash and never a count. It reads
+  `exact=142 WRONG=46` on netlib and `WRONG=0` on Kennington, unchanged; the
+  sum falls +250 → +248. D167 is the entry that says why this must be run.
+
+**What D168 left open, and it is a candidate rather than a defect**:
+`subtract_basis_times` is still an uncompensated sum. It is in the §4 list
+below with what it needs.
 
 ### 2026-08-20, unattended: D162 to D167, and the class D159 opened is closed
 
@@ -100,7 +137,8 @@ not.
 the top of this section is the current one.** What it said about D153 was true
 on 2026-08-19 and D162 to D166 have landed since.
 
-**`bench/results/netlib.txt` was rewritten by D165** and is current.
+~~**`bench/results/netlib.txt` was rewritten by D165**~~ — **D168 rewrote
+it again** and the paragraph at the top of this section is the current one.
 `netlib-infeas` and `netlib-kennington` were bit-identical throughout, so they
 have not changed since 2026-08-19 and `preflight.sh` counts them as behind by
 `src/` commits that were all no-ops on them — **which D167 shows is exactly how
@@ -323,19 +361,20 @@ What is still true and unrepaired, both with their size on the record:
 
 ## → START HERE — what is actually next, 2026-08-20
 
-**§4's tolerance items are all closed and none of them is the start any more.**
-D162 to D167 closed the class D159 opened, at all four sites, by compensating
-`cur_rl`/`cur_ru` rather than by widening anything.
+**Every bounded wrong answer in this file is closed.** D162 to D167 closed the
+class D159 opened in presolve, by compensating `cur_rl`/`cur_ru` rather than by
+widening anything; **D168 closed the last one, in the simplex**, the same way.
+Nothing open today makes JAOS publish a wrong answer, and nothing open today
+has a model that reproduces one.
 
-**What is left in this file is designs, not bounded bugs.** Every one of them
-moves the gate broadly and needs its own campaign and its own interpretation,
-so none is a half-hour item. In the order a session with fresh context should
-weigh them:
+**What is left in this file is designs.** Every one of them moves the gate
+broadly and needs its own campaign and its own interpretation, so none is a
+half-hour item. In the order a session with fresh context should weigh them:
 
 | candidate | what it needs before any code | size |
 |---|---|---|
-| **the solver's row activity loses terms** (§4) | it is the only LIVE wrong answer left with a model that reproduces it, and `-DJAOS_NO_PRESOLVE` refuses a model whose feasible point is exactly representable. The fix is the D165 move one layer out: compensate the activity the simplex publishes. Digests will move on many instances | large, and the most valuable |
 | **§2, 46 solves publish a wrong basis** | a rank argument WIDER than the firing row. Every local repair is refused with its measurement (D141), and the published state of the art accepts the residue (Galabova 2023) | design |
+| **`subtract_basis_times` is the last uncompensated sum in the solve path** | a model, first. It computes `b - B x_B` for the refinement step, so its cancellation is total by construction and it is the site where compensation matters most per term — and no model has been built that shows it losing an answer. D168 left it out deliberately so that campaign stayed attributable | bounded, unproven |
 | **§3, `scsd1` and `degen2` behind D151's cap** | a predictor of a doomed trajectory. **The shortfall cannot be it and that is measured** — both are short by 1, the same as the sixteen that win | research |
 | **`D97`** | a dual postsolve for an imposed bound. `docs/research/dual-postsolve-imposed-bound.md` is the design; nothing is built. Unlocks §3's doubleton equalities too | largest prize |
 
@@ -349,8 +388,8 @@ of its steps landed: the defect was located (D147), the certificate guard
 shipped (D148), the warm repair was refused blanket (D149) and landed capped
 (D151). Its detail is kept below under "the hostile basis, for the record".
 
-Nothing open today makes JAOS publish a wrong answer. What is open is listed
-in the order it should happen, with what each already has.
+What is open is listed in the order it should happen, with what each already
+has.
 
 ### 1. ~~The collapsed fold~~ — CLOSED 2026-08-20 (D158), BOTH halves
 
@@ -555,18 +594,36 @@ trajectory. Refusals table, D151.
   `test_a_folds_value_carries_its_rows_error_into_the_next` pins the wrong
   answer and the reference build's right one in the same test, so whichever
   lands announces itself there.
-- **The solver's own row activity loses terms the way presolve's bounds did**,
-  and it is new (D162, `bench/measurements/02-72/`). It sums a row's columns in
-  index order, so a row holding a large magnitude before many small ones loses
-  every one of the small ones. On D162's model the reference build
-  `-DJAOS_NO_PRESOLVE` reads INFEASIBLE where the feasible point is exactly
-  representable, at every removal count — including the counts where presolve
-  accepts. It is a defect in the feasibility test and not in any presolve
-  window, and it is why D162 has no reference-build disagreement to show.
-  Nothing on the three sets is affected: 139 of 139 bit-identical. What it
-  needs is a compensated activity, and `ps_range`'s Neumaier accumulator is the
-  shape that already ships in presolve; `src/check.c` uses `long double` and
-  cannot be the model, because D34 forbids it outside that file.
+- ~~**The solver's own row activity loses terms the way presolve's bounds
+  did.**~~ **CLOSED 2026-08-20 (D168, `bench/measurements/02-78/`).**
+  `compute_primal` builds `-N x_N` by walking the nonbasic columns in column
+  order, so a row that met a large term before many small ones lost the small
+  ones outright. On D162's model the reference build `-DJAOS_NO_PRESOLVE` read
+  INFEASIBLE where the feasible point is exactly representable, at every removal
+  count, which is why D162 had no reference-build disagreement to show. The sum
+  is compensated now, with presolve's own Neumaier accumulator; `src/check.c`
+  could not be the model because D34 confines `long double` to that file.
+  **This is the first change in this class that moves the gate broadly**: 69 of
+  netlib's 94 bit-identical, 25 moved, 23 digest changes, the other two sets
+  bit-identical, work geometric mean 0.9996x, and `gate: PASS` with 0 regressed
+  on all three.
+  Two things the entry corrects. **The residuals do not all improve** — `rsub`
+  is better on 8 instances and worse on 2, `row` better on 7 and worse on 8 —
+  so a more accurate sum is not a smaller residual per instance, and the
+  evidence is the constructed model plus no verdict moving on the 139. And
+  **the work counter cannot see this change's cost**, because the Neumaier step
+  is not billed: the seconds are the only evidence, and across two runs of the
+  `-j 1` protocol the four bit-identical instances span 0.9501x to 1.0302x
+  while doing byte for byte the same work, which is this host's own 6.27%.
+- **`subtract_basis_times` is the last uncompensated sum in the solve path**,
+  and it is new from D168. It computes `b - B x_B` for the one step of
+  iterative refinement, so its cancellation is total by construction and per
+  term it is the site where compensation matters most. **Nothing shows it
+  losing an answer yet** — no model has been built for it — so it is a
+  candidate rather than a defect. D168 left it out so that campaign stayed
+  attributable, and it needs its own model and its own campaign. `refine` runs
+  only on the refreshes whose result can be published, so its blast radius is
+  the answer rather than the trajectory.
 - **The unclamped dual step**, 248 netlib picks and 170 Kennington picks,
   worst 8.37e-09. Costs nothing today; clamping it was refused (D127) because
   the perturbation is what keeps `pilot87` moving.

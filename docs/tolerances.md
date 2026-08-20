@@ -347,6 +347,15 @@ tests the counts were built for pass without them
 (`bench/measurements/02-76/`), and those tests are the models: each was
 validated against a tree that fails it.
 
+**The same argument reaches the simplex (D168).** `compute_primal` builds
+`-N x_N` by walking the nonbasic columns in column order, so a row that meets a
+large term before many small ones was dropping the small ones — the identical
+shape one layer out, and it made the `-DJAOS_NO_PRESOLVE` build refuse a model
+whose feasible point is exactly representable. That sum is compensated now,
+with the same Neumaier accumulator and for the same reason `long double` is not
+used (D34). No constant moved: there is no window here to widen, only a sum to
+take correctly. `bench/measurements/02-78/` carries the reading.
+
 ## The proxy the constant used to rest on
 
 Kept because it is what "measured from one side only" looks like, and because

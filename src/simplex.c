@@ -410,6 +410,12 @@ typedef struct {
      * untransformed column the LU update needs. */
     double *col;
     double *raw;
+    /* The compensation term of the sum compute_primal builds in `col`, one
+     * per row. Owned rather than borrowed on purpose: every other [nrow]
+     * scratch in this struct belongs to a producer that runs inside the same
+     * refresh, and a compensation that another routine overwrote would be
+     * worse than none. It lives only inside compute_primal. */
+    double *rhsc;
     /* The duals, and the pricing row. These are two different quantities
      * and they get two different vectors, which is not a convenience: they
      * shared one for a long time, every reader had to know which producer
@@ -597,7 +603,7 @@ static void sx_free(sx *s)
     free(s->lo); free(s->up); free(s->cost); free(s->cost0); free(s->shift);
     free(s->status); free(s->basis); free(s->where);
     free(s->xb); free(s->d); free(s->dse);
-    free(s->col); free(s->raw); free(s->y); free(s->rho);
+    free(s->col); free(s->raw); free(s->rhsc); free(s->y); free(s->rho);
     free(s->tau); free(s->alpha); free(s->apat); free(s->amark);
     free(s->nbmark);
     free(s->rpat); free(s->rmark); free(s->cpat);
@@ -676,6 +682,7 @@ static jaos_status sx_init(sx *s, jaos_model *m)
     s->dse    = jm_alloc_array(s->nrow, sizeof(double));
     s->col    = jm_calloc_array(s->nrow, sizeof(double));
     s->raw    = jm_calloc_array(s->nrow, sizeof(double));
+    s->rhsc   = jm_calloc_array(s->nrow, sizeof(double));
     s->y      = jm_calloc_array(s->nrow, sizeof(double));
     s->rho    = jm_calloc_array(s->nrow, sizeof(double));
     s->tau    = jm_calloc_array(s->nrow, sizeof(double));
@@ -700,7 +707,8 @@ static jaos_status sx_init(sx *s, jaos_model *m)
     if (!s->av || !s->arv || !s->lo || !s->up || !s->cost || !s->cost0 ||
         !s->shift ||
         !s->status || !s->basis ||
-        !s->where || !s->xb || !s->d || !s->dse || !s->col || !s->raw ||
+        !s->where || !s->xb || !s->d || !s->dse ||
+        !s->col || !s->raw || !s->rhsc ||
         !s->y || !s->rho || !s->tau || !s->alpha || !s->apat || !s->amark ||
         !s->nbmark ||
         !s->rpat || !s->rmark || !s->cpat || !s->cand || !s->rnum ||
@@ -1160,11 +1168,37 @@ static void subtract_basis_times(sx *s, double *r, const double *z)
  * `refine` asks for one step of iterative refinement on that solve: the
  * residual of the system is computed against the basis columns themselves
  * and solved for again, and the correction added. See refresh() for which
- * solves get it and why the rest do not. */
+ * solves get it and why the rest do not.
+ *
+ * **The right-hand side is accumulated with Neumaier compensation (D168).**
+ * `-N x_N` is a sum over every nonbasic variable's column, taken in column
+ * order, and a row is a slot that many of those columns write into. A row
+ * that meets a large term before many small ones loses the small ones
+ * outright: each of them is below half an ulp of the running total, so each
+ * addition returns the total unchanged and the whole tail is dropped.
+ *
+ * That is the same defect D165 removed from presolve's `cur_rl`/`cur_ru`, one
+ * layer out, and it was a wrong answer here too. On D162's model — 256 columns
+ * fixed at a quarter of an ulp of 1e9, and a feasible point every value of
+ * which is a dyadic rational a double holds exactly — the solve reads
+ * INFEASIBLE, because the activity it computes is short by 2^-17 and no
+ * variable left in the model can make that up. `bench/measurements/02-78/`
+ * carries the reading; the model is
+ * `test_a_row_activity_keeps_terms_below_an_ulp_of_its_own_total`.
+ *
+ * The accumulator is the one presolve uses (`ps_acc_add` there), for the
+ * reason written beside it: `long double` would buy the same accuracy and
+ * break the cross-machine determinism claim (D34), while Neumaier is portable
+ * and its two-term error recovery is exact under `-ffp-contract=off`.
+ *
+ * The cost is paid once per refactorization rather than once per iteration,
+ * since this is called from refresh() and nowhere else. */
 static void compute_primal(sx *s, bool refine)
 {
     double *rhs = s->col;
+    double *comp = s->rhsc;
     memset(rhs, 0, (size_t)s->nrow * sizeof *rhs);
+    memset(comp, 0, (size_t)s->nrow * sizeof *comp);
 
     for (int64_t v = 0; v < s->nvar; v++) {
         if (s->status[v] == JM_BASIC)
@@ -1174,15 +1208,33 @@ static void compute_primal(sx *s, bool refine)
             continue;
         if (v < s->ncol) {
             const jaos_model *m = s->m;
-            for (int64_t k = m->a_start[v]; k < m->a_start[v + 1]; k++)
-                rhs[m->a_index[k]] -= s->av[k] * val;
+            for (int64_t k = m->a_start[v]; k < m->a_start[v + 1]; k++) {
+                const int64_t i = m->a_index[k];
+                const double t = -(s->av[k] * val);
+                const double a = rhs[i], u = a + t;
+                comp[i] += (fabs(a) >= fabs(t)) ? ((a - u) + t)
+                                                : ((t - u) + a);
+                rhs[i] = u;
+            }
             jm_work_add(&s->work, (m->a_start[v + 1] - m->a_start[v]) *
                                   JM_WORK_NONZERO);
         } else {
-            rhs[v - s->ncol] += val;   /* column is -e_i */
+            const int64_t i = v - s->ncol;   /* column is -e_i */
+            const double a = rhs[i], u = a + val;
+            comp[i] += (fabs(a) >= fabs(val)) ? ((a - u) + val)
+                                              : ((val - u) + a);
+            rhs[i] = u;
             jm_work_add(&s->work, JM_WORK_NONZERO);
         }
     }
+
+    /* An infinite or NaN partial sum carries no residue a correction could
+     * hold, and `inf + (inf - inf)` is a NaN — the failure mode where a row
+     * bound comparison silently answers false. The guard is D165's, for the
+     * same reason it has there. */
+    for (int64_t i = 0; i < s->nrow; i++)
+        if (isfinite(rhs[i]) && isfinite(comp[i]))
+            rhs[i] += comp[i];
 
     /* Borrowed: `raw` belongs to pivot(), which rebuilds it from scratch
      * before every use, and no pivot is in flight while this runs. */

@@ -48,6 +48,22 @@ open, `bench/README.md` for the gate, and the commit each entry came from.
 
 ### Fixed
 
+- The simplex accumulates its right-hand side with compensation. `-N x_N` is
+  built by walking the nonbasic columns in column order, so a row that meets a
+  large term before many small ones lost the small ones outright — each below
+  half an ulp of the running total. On a model whose feasible point is exactly
+  representable the `-DJAOS_NO_PRESOLVE` build read INFEASIBLE at every removal
+  count; it reads OPTIMAL now, and the control 1e-2 from feasible is still
+  refused everywhere. That build is the oracle every presolve entry here is
+  judged against (D168).
+- `gate: PASS` on all three sets, `0 regressed, 0 improved, 0 new`, 139 of 139
+  `checker=ok`. netlib 69 bit-identical, 25 moved, 23 digest changes; the other
+  two sets bit-identical. Work geometric mean 0.9996x, worst `pilot87` 1.0372x.
+  The Neumaier step is not billed, so the cost is seconds: four bit-identical
+  instances span 0.9501x to 1.0302x over two runs of the `-j 1` protocol, which
+  is this host's own repeatability. `bench/results/netlib.txt` is rewritten; the
+  baseline is not.
+
 - Presolve's row bounds keep their residue. `cur_rl[i]` and `cur_ru[i]` were
   the only running sums in `src/presolve.c` without compensation; they get a
   Neumaier accumulator now, and still hold `sum + comp` after every update so

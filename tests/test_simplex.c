@@ -2775,6 +2775,110 @@ static void test_a_warm_basis_of_empty_columns_factors_and_is_infeasible(void)
     jaos_model_free(m);
 }
 
+/* ---- A row activity that meets a large term before many small ones ---- *
+ *
+ * `x_B = -B^-1 (N x_N)` builds its right-hand side by walking the nonbasic
+ * columns in column order and adding each one's entries into the rows it
+ * touches. A row that meets a large term first can then lose every small term
+ * after it: each is below half an ulp of the running total, so each addition
+ * returns the total unchanged.
+ *
+ *   row R:  x0 + x1 + (256 smalls) + w1 + w2  ==  256*2^-25 + 1e-7
+ *   row S:  x1 + z                            == -1e9
+ *
+ *   x0      fixed at +1e9
+ *   x1      in [-1e9-1, -1e9+1]
+ *   smalls  fixed at 2^-25, a quarter of an ulp of 1e9
+ *   w1, w2  in [0, 2e-7], cost 1
+ *   z       fixed at 0
+ *
+ * Every value here is a dyadic rational a double holds exactly, and the model
+ * is feasible at x0 = 1e9, x1 = -1e9, every small at 2^-25, w1 = 1e-7, w2 = 0.
+ * Summed in column order the 256 smalls fall off the end of 1e9 and the
+ * activity comes back short by 2^-17 = 7.63e-6, which nothing left in the
+ * model can make up: the solve reads INFEASIBLE.
+ *
+ * It is D162's model (`bench/measurements/02-72/`) and it is what named the
+ * defect; D168 compensates the accumulation and closes it
+ * (`bench/measurements/02-78/`).
+ *
+ * **The shipping build already answered this one and the reference build did
+ * not.** Presolve removes the fixed columns before the simplex sees them, and
+ * since D165 it subtracts them with the residue kept, so the row it hands over
+ * is the row the model has. `-DJAOS_NO_PRESOLVE` hands the whole model to the
+ * simplex and is where the defect is visible. The assertion is not guarded by
+ * build, because OPTIMAL is the right answer in every one of them.
+ *
+ * `k` is a parameter of the model and not of the defect: 64, 128 and 512 read
+ * the same way, and 256 is kept because it is where the error first crosses
+ * presolve's own window (02-72). */
+#define ACT_K 256
+#define ACT_NC (ACT_K + 5)
+#define ACT_NNZ (ACT_K + 6)
+
+static jaos_model *make_lost_terms_model(double slack)
+{
+    static double c[ACT_NC], cl[ACT_NC], cu[ACT_NC], av[ACT_NNZ];
+    static int64_t as[ACT_NC + 1], ai[ACT_NNZ];
+    const double t = ldexp(1.0, -25);
+    const double bound = (double)ACT_K * t + 1e-7 + slack;
+    const double rl[] = {bound, -1e9}, ru[] = {bound, -1e9};
+    int64_t nz = 0;
+
+    for (int64_t j = 0; j < ACT_NC; j++) {
+        as[j] = nz;
+        c[j] = 0.0;
+        if (j == 0) {                      /* x0 */
+            cl[j] = cu[j] = 1e9;
+            ai[nz] = 0; av[nz++] = 1.0;
+        } else if (j == 1) {               /* x1 */
+            cl[j] = -1e9 - 1.0; cu[j] = -1e9 + 1.0;
+            ai[nz] = 0; av[nz++] = 1.0;
+            ai[nz] = 1; av[nz++] = 1.0;
+        } else if (j < ACT_K + 2) {        /* the smalls */
+            cl[j] = cu[j] = t;
+            ai[nz] = 0; av[nz++] = 1.0;
+        } else if (j < ACT_K + 4) {        /* w1, w2 */
+            cl[j] = 0.0; cu[j] = 2e-7; c[j] = 1.0;
+            ai[nz] = 0; av[nz++] = 1.0;
+        } else {                           /* z */
+            cl[j] = cu[j] = 0.0;
+            ai[nz] = 1; av[nz++] = 1.0;
+        }
+    }
+    as[ACT_NC] = nz;
+
+    jaos_model *m = fresh();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_load_lp(m, ACT_NC, 2, JAOS_MINIMIZE, 0.0, c, cl, cu, rl, ru,
+                     nz, as, ai, av));
+    return m;
+}
+
+static void test_a_row_activity_keeps_terms_below_an_ulp_of_its_own_total(void)
+{
+#if defined(JAOS_PRESOLVE_FAULT_OFFBYONE) || defined(JAOS_PRESOLVE_FAULT_WRONGDUAL)
+    TEST_IGNORE_MESSAGE("positive test — skipped under either fault build");
+#else
+    jaos_model *m = make_lost_terms_model(0.0);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+    jaos_model_free(m);
+#endif
+}
+
+/* The control the compensation must still refuse: the same shape moved 1e-2
+ * away from any feasible point, which is four orders of magnitude outside
+ * anything the accumulation could account for. A repair that accepted this
+ * would be a wider window rather than a more accurate sum. */
+static void test_a_row_activity_still_refuses_a_real_shortfall(void)
+{
+    jaos_model *m = make_lost_terms_model(1e-2);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_INFEASIBLE, jaos_status_of(m));
+    jaos_model_free(m);
+}
+
 int main(void)
 {
     UNITY_BEGIN();
@@ -2856,5 +2960,7 @@ int main(void)
     RUN_TEST(test_dependent_rows_that_contradict_each_other);
     RUN_TEST(test_a_row_no_column_reaches);
     RUN_TEST(test_a_row_no_column_reaches_but_that_holds_anyway);
+    RUN_TEST(test_a_row_activity_keeps_terms_below_an_ulp_of_its_own_total);
+    RUN_TEST(test_a_row_activity_still_refuses_a_real_shortfall);
     return UNITY_END();
 }

@@ -1,0 +1,6 @@
+02-48's probe on D168's working tree (whole src/), against the figures
+D167 re-measured at f3a7798. Six netlib basis hashes moved.
+
+instrumented
+netlib       optimal=188 exact=142 WRONG=46 (over=46 under=0) worst +18/-0  SUM=+248
+kennington   optimal=32 exact=32 WRONG=0 (over=0 under=0) worst +0/-0  SUM=+0
