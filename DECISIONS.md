@@ -166,6 +166,7 @@ and you have the argument. Jump to the entry for the numbers behind it.
 - **[D156](#d156--the-destroyed-row-width-is-refused-as-a-defect-because-the-width-that-dies-was-already-below-one-ulp-of-the-activity-it-constrains)** — The destroyed row width is refused as a defect, because the width that dies was already below one ulp of the activity it constrains
 - **[D157](#d157--the-two-silent-fallbacks-become-checked-claims-and-the-check-that-catches-them-is-the-sweep-rather-than-either-read)** — The two silent fallbacks become checked claims, and the check that catches them is the sweep rather than either read
 - **[D158](#d158--the-collapsed-folds-midpoint-is-clamped-into-the-columns-box-which-bounds-the-last-unbounded-item-and-the-branch-runs-0-times-in-100018-folds)** — The collapsed fold's midpoint is clamped into the column's box, which bounds the last unbounded item, and the branch runs 0 times in 100018 folds
+- **[D159](#d159--the-frozen-row-window-is-scaled-by-what-the-comparison-is-made-of-and-presolve-stops-refusing-a-model-the-solver-can-solve)** — The frozen-row window is scaled by what the comparison is made of, and presolve stops refusing a model the solver can solve
 
 ---
 
@@ -11616,3 +11617,93 @@ also where the mirroring symmetry broke. Found by `numerics-reviewer`;
 removing the guard and watching the binary abort.
 
 **What is left open.** Nothing from §1. Both halves are closed.
+
+## D159 — The frozen-row window is scaled by what the comparison is made of, and presolve stops refusing a model the solver can solve
+
+**The question.** D155 made `row_traffic` a live quantity, and `TODO.md` asked
+whether the frozen-row feasibility test should use it. The expectation was a
+tolerance improvement against a latent risk.
+
+**It is a wrong answer, not a latent risk.** The test compares
+`min_act`/`max_act` against `cur_ru[i]`/`cur_rl[i]`. Those sides carry error
+from different places — the activities are a sum over surviving columns, the
+bounds are running differences every removed column shifted by its own `a*v` —
+and the window was the MAGNITUDE OF ONE OPERAND, which bounds neither. On
+
+```
+min x1  s.t.  1e9*x0 + x1 + x2 <= 1e9,  x0 in [1,1],
+              x2 in [0,1] cost 0 (freezes the row),  x1 in [1e-10, 10]
+```
+
+presolve reported INFEASIBLE and `-DJAOS_NO_PRESOLVE` reports OPTIMAL. `1e-10`
+is about a thousandth of one ulp of 1e9, an infeasibility the arithmetic
+cannot represent. A solvable model refused is the shape this file elsewhere
+calls the mirror-image catastrophe, and there is nothing downstream to recover
+it.
+
+**The campaign cannot see it, which is why it sat.** Over 19114 frozen rows on
+the three sets the candidate window exceeds the shipped one on 6934 of them by
+up to 45930x, and **flips no verdict on any set**. Both shapes were swept
+rather than the wider one assumed correct: the bound half alone reaches 153x
+over 842 rows, and adding the activity half reaches 45930x over 6092 more.
+Neither moves a verdict. The four genuine infeasibilities in netlib-infeas
+stand at 5.63e14 times the shipped window.
+
+The gate is bit-identical on all 139 and all five build configurations pass.
+
+**The absolute window is the figure that says how far the widening can go, and
+every other number is a ratio.** The widest window this produces is **6.5e-8**
+on Kennington, against `PRIMAL_TOL` 1e-7 and `CHECK_TOL` 1e-6 — under both, by
+a factor of 1.5 rather than by decades. netlib and netlib-infeas do not move in
+absolute terms at all. A set carrying a larger `rg.traffic` than Kennington's
+3.66e7 is the reopen condition.
+
+**What was refuted, and two of the three changed the change.**
+`numerics-reviewer` returned four findings, all reproduced here before being
+accepted.
+
+- **The negative-half test could not fail.** Its first version used a model
+  whose frozen row keeps a live column, so the simplex refused it at
+  `PRIMAL_TOL` whatever the window did: at `ROUND_ULPS = 1e12` it still read
+  INFEASIBLE. It was reading the pipeline rather than the window, so **the
+  widening had no guard at all**. Replaced with a model whose row is EMPTIED,
+  where the frozen-row test is the last word — `1e9*x0 + x1 == 1e9 + 100` with
+  x1 in [0,3] and cost 0. Infeasible on every build, and OPTIMAL at
+  `ROUND_ULPS = 1e12`, so it can fail.
+- **`8 * DBL_EPSILON` is a scale claim and not a bound.** `cur_rl[i] -= a*v`
+  is a plain running sum with no compensation, so after k removals the error
+  goes with `k * eps * scale`; eight ulps covers k of about three, and a row
+  with a hundred removed columns is understated by roughly 12x. This file says
+  so for the same quantity at `ps_verify_row_activities`, which multiplies by
+  `nnz - 1`. The direction is the loud one, so it is carried rather than
+  blocking.
+- **The measurement is a ratio between windows, not a measurement of the
+  error.** The first version of the comment said the latter. Computing the
+  error would need a higher-precision recomputation the probe does not do.
+- **A paragraph three lines above the change said the opposite of it**, from
+  before D155 removed its premise.
+
+**And a second live wrong answer, in the same shape, at a site this change does
+not touch.** The activity pass uses `ps_row_tol(&rg)`, which is
+`8*eps*rg.traffic` alone, so the bound side is uncovered there in mirror image.
+The same model with one cost changed from 0 to 1 — which stops the row
+freezing — reads INFEASIBLE on the shipping build and OPTIMAL on the reference
+build. The repair is not a copy of this one, because that window is shared with
+FORCING and REDUNDANT and widening the forcing window is what cost 02-04 a
+campaign. It is `TODO.md`'s, with its model.
+
+**The instrument was wrong, and that is the entry's other half.** `bench/run
+-j N` forks children sharing one stderr; `fprintf` with many conversions
+issues several writes, so a line is torn, `grep` still counts it, and `awk`
+parses the fragment only — **the sums come out low**. The same source rebuilt
+and re-run gave 4858, 4844 and 4798 for one counter with the line count intact
+at 188 every time. A count that can only be undercounted is exactly the wrong
+shape for a probe whose finding is `0 verdicts flip`. Fixed with one `write(2)`
+per record, verified across four optimisation levels and both `-j` settings.
+**D156's and D158's readings were re-taken with the fixed instrument** because
+both had landed and both reported zeros; both stand, identically at `-j 12` and
+`-j 1`.
+
+**What is left open**, both handed to `TODO.md`: the activity pass's own
+window, and the missing k factor in `PRESOLVE_ROUND_ULPS` on a row with many
+removals.

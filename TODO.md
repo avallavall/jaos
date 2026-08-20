@@ -289,16 +289,45 @@ trajectory. Refusals table, D151.
   margin, not all 117; and fixing the accumulation does NOT change the
   frozen-row test, because that test reads `ps_bound_scale` and never reads
   the traffic. What WOULD change it is the item below, which is new.
-- **The frozen-row test's scale, now that the traffic is a live quantity.**
-  D155 makes `row_traffic` usable, and the repaired value is up to **153**
-  times the bound scale on netlib, so this moves verdicts and needs its own
-  campaign. **It needs two traffics, not one** (`numerics-reviewer`, D155):
-  the test compares `min_act`/`max_act` against `cur_ru`/`cur_rl`, which are
-  two sums with two different traffics. `row_traffic` covers only the bound
-  half; the activity half is `rg.traffic`, the quantity `ps_row_tol` already
-  uses. The window has to cover the larger, the shape the singleton-row fold
-  already has at `src/presolve.c`. Using `row_traffic` alone repeats on one
-  side the mistake the frozen-row test's own comment names on the other.
+- ~~**The frozen-row test's scale, now that the traffic is a live
+  quantity.**~~ **CLOSED 2026-08-20 (D159, `bench/measurements/02-69/`)**, and
+  it was a wrong answer rather than a tolerance improvement: presolve reported
+  INFEASIBLE on a model `-DJAOS_NO_PRESOLVE` solves. 0 verdicts flip on any of
+  the 139, so the campaign could not see it and only a constructed pair
+  separates the two windows.
+
+- **The activity pass has the SAME defect, in mirror image, and it is live
+  today.** Found by `numerics-reviewer` while reviewing D159.
+  `ps_row_tol(&rg)` is `8*eps*rg.traffic` alone, so the BOUND side's error is
+  uncovered there exactly as the activity side was uncovered at the frozen-row
+  test. The model, which is D159's with one cost changed from 0 to 1 so the
+  row never freezes:
+
+  ```
+  min x1 + x2  s.t.  R: 1e9*x0 + x1 + x2 <= 1e9
+  x0 in [1,1]  fixed -> cur_ru = 0, row_traffic = 1e9
+  x1 in [1e-10, 10] cost 1
+  x2 in [0, 1] cost 1
+  ```
+
+  Shipping build **INFEASIBLE**, reference build **OPTIMAL**. A second
+  feasible model refused.
+
+  **The repair is NOT a copy of D159's.** That `rtol` is shared with FORCING
+  and REDUNDANT, and widening the forcing window is the change that pinned
+  `pilot` column 3554 and cost 02-04 a campaign — the comment beside the
+  constant says so. Clause 1 needs its own window, as its own change with its
+  own measurement.
+
+- **`PRESOLVE_ROUND_ULPS` is missing its term count on a bound side.**
+  `cur_rl[i] -= a*v` is a plain running sum with no compensation, so after k
+  removals the error goes with `k * eps * scale`. Eight ulps covers k of about
+  three; a netlib row with a hundred removed columns is understated by roughly
+  12x. `ps_verify_row_activities` already multiplies by `nnz - 1` for the same
+  quantity and is the shape to copy. The direction is the loud one — still too
+  narrow, still a false INFEASIBLE — so it is not urgent, but it means "the
+  window covers both sides" is not yet true anywhere it is written
+  (`numerics-reviewer`, D159).
 - ~~**Two smaller things D155 left, both cheap.**~~ **CLOSED 2026-08-20
   (D157).** They were the same predicate, so `ps_traffic_usable` is asserted
   at all three places now. The measurement adds something the sweep alone did

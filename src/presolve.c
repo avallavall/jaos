@@ -1683,12 +1683,17 @@ JAOS_NODISCARD jaos_status jm_presolve_run(const jaos_model *m, jm_presolve *p,
          * that: whether an emptied row's bounds still admit zero after every
          * column removed from it shifted them.
          *
-         * ps_bound_scale rather than row_traffic, and that is not a style
-         * choice. row_traffic saturates to +inf the first time a column with
-         * a half-infinite box is relaxed out of the row, which is the common
-         * case; scaling by it would make the window infinite on precisely
-         * the rows this test exists for, and the test would never fire.
-         * ps_bound_scale skips infinities for that stated reason.
+         * **The scale is row_traffic now, and the paragraph that used to sit
+         * here said the opposite.** It read "ps_bound_scale rather than
+         * row_traffic, and that is not a style choice", because row_traffic
+         * saturated to +inf the first time a column with a half-infinite box
+         * was relaxed out of the row — so scaling by it would have made the
+         * window infinite on precisely the rows this test exists for. D155
+         * removed that premise: the relaxation accumulates only what a finite
+         * end absorbed, and row_traffic is a number now. D159 is the site
+         * catching up with its sibling at the emptied-row test, which has
+         * scaled by row_traffic all along and is the precedent this one was
+         * always meant to follow.
          *
          * The SCALE above survived 02-09; the constant did not. This asks the
          * same question the other two sites ask -- is this residue rounding?
@@ -1716,7 +1721,85 @@ JAOS_NODISCARD jaos_status jm_presolve_run(const jaos_model *m, jm_presolve *p,
          * and 1.5e15, so this constant may be anything in that range and 8 is
          * where the other two sites already are. Readings in
          * bench/measurements/02-09/. */
-        const double rtol = ps_round_tol(ps_bound_scale(cur_rl[i], cur_ru[i]));
+        /* The window is scaled by what the comparison below is MADE of, and
+         * until D159 it was scaled by the magnitude of one of its operands.
+         *
+         * `min_act`/`max_act` are a sum over the surviving columns, so their
+         * residue goes with `rg.traffic`. `cur_rl[i]`/`cur_ru[i]` are running
+         * differences that every removed column shifted by its own a*v, so
+         * theirs goes with `row_traffic[i]`. The bound's own MAGNITUDE says
+         * nothing about either. `greenbea` row 57 is the case the old comment
+         * already named: it arrives with 660 of magnitude subtracted and a
+         * margin of exactly zero, and it passed because the cancellation
+         * happened to be exact and not because the window covered the
+         * rounding in the number being tested.
+         *
+         * **The measurement is a ratio between windows and not a measurement
+         * of the error**, and the difference matters because the first
+         * version of this comment claimed the latter. What the probe reads is
+         * that the candidate window exceeds the shipped one on 6934 of 19114
+         * frozen rows, by up to 45930x (bench/measurements/02-69/). Computing
+         * the true error would need a higher-precision recomputation, which
+         * the probe does not do (`numerics-reviewer`).
+         *
+         * Both halves were swept rather than the wider one assumed correct.
+         * `max(bound scale, row_traffic)` alone reaches 153x over 842 rows;
+         * adding the activity half reaches 45930x over 6092 more. **Neither
+         * flips a verdict on any of the three sets**, and the four genuine
+         * infeasibilities in netlib-infeas stand at 5.63e14 times the shipped
+         * window, so no window in this range can miss them.
+         *
+         * **`8 * DBL_EPSILON` is a scale claim, not a bound, and it is short
+         * on a row with many removals.** `cur_rl[i] -= a*v` is a plain
+         * running sum with no compensation, so after k removals the error
+         * goes with `k * eps * scale`; eight ulps covers k of about three,
+         * and a netlib row with a hundred removed columns is understated by
+         * roughly 12x. This file already says so for the same quantity at
+         * `ps_verify_row_activities`, which multiplies by `nnz - 1`. The
+         * direction is the loud one — still too narrow, still a false
+         * INFEASIBLE — so it is not a blocker, and it is `TODO.md`'s
+         * (`numerics-reviewer`).
+         *
+         * **The `rg.traffic` term is here for coherence, not for the 45930x.**
+         * At the shipping constant `ps_round_tol(rg.traffic)` is exactly
+         * `ps_row_tol(&rg)`, so including it makes this window a superset of
+         * the one the activity pass applies to the same comparison. It has no
+         * test of its own and structurally may not be able to have one: a
+         * frozen row with live columns survives into the reduced model where
+         * the simplex re-tests the violation, and the rows where this test is
+         * the last word are the emptied ones, whose `rg.traffic` is zero.
+         *
+         * Widening is the safe direction here and the file says why at the
+         * other windows: too narrow and a feasible model comes back
+         * INFEASIBLE, with nothing downstream to recover it. Too wide and a
+         * frozen row survives into the reduced model, where the simplex meets
+         * the same infeasibility itself.
+         *
+         * **The ABSOLUTE window is the figure that says how far that can go,
+         * and every other number here is a ratio.** The widest window this
+         * produces over the three sets is **6.5e-8**, on Kennington, against
+         * `PRIMAL_TOL` 1e-7 and `CHECK_TOL` 1e-6. It stays under both, but by
+         * a factor of 1.5 and not by decades — so a set carrying a larger
+         * `rg.traffic` than Kennington's 3.66e7 is where this stops being
+         * comfortable, and that is the reopen condition rather than a ratio.
+         * netlib and netlib-infeas do not move at all in absolute terms
+         * (`numerics-reviewer` asked for this, and no ratio could answer it).
+         *
+         * An infinite traffic is skipped rather than propagated, for the
+         * reason ps_bound_scale skips infinities: an infinite window accepts
+         * every violation there is. Skipping narrows the window on a sum
+         * whose error was just declared unbounded, which is the opposite of
+         * this file's usual direction, and it is safe by structure rather
+         * than by choice — a product that overflows drives the range's own
+         * sums to infinity too, and both comparisons below are false there,
+         * so the test cannot fire either way. `row_traffic[i]` is finite here
+         * since D155 and the sweep before the loop asserts it. */
+        double rscale = ps_bound_scale(cur_rl[i], cur_ru[i]);
+        if (isfinite(row_traffic[i]) && row_traffic[i] > rscale)
+            rscale = row_traffic[i];
+        if (isfinite(rg.traffic) && rg.traffic > rscale)
+            rscale = rg.traffic;
+        const double rtol = ps_round_tol(rscale);
         const double min_act = ps_min_act(&rg);
         const double max_act = ps_max_act(&rg);
         if ((isfinite(cur_ru[i]) && min_act > cur_ru[i] + rtol) ||

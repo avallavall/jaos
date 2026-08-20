@@ -1,0 +1,87 @@
+probe at 0ac44fd (0ac44fd)
+
+######## 1. the three sets ########
+---- netlib standard (94)
+  frozen rows tested                     16618
+    residue above zero                   0
+  fires with the SHIPPED window          0
+  worst residue / shipped window         0
+  -- shape A: max(bound scale, row_traffic) --
+     rows where it exceeds the shipped   98
+     worst A/shipped ratio               153
+     verdicts A would flip               0
+  -- shape B: A, plus the activity traffic --
+     rows where B exceeds A              4858
+     worst B/shipped ratio               45930
+     verdicts B would flip               0
+  -- the ABSOLUTE window, which no ratio answers --
+     widest shipped                      1.776e-08
+     widest A                            1.776e-08
+     widest B                            1.776e-08
+     largest rg.traffic                  1.611e+06
+---- netlib-infeas (29)
+  frozen rows tested                     1894
+    residue above zero                   4
+  fires with the SHIPPED window          4
+  worst residue / shipped window         5.6295e+14
+  -- shape A: max(bound scale, row_traffic) --
+     rows where it exceeds the shipped   144
+     worst A/shipped ratio               10.4905
+     verdicts A would flip               0
+  -- shape B: A, plus the activity traffic --
+     rows where B exceeds A              752
+     worst B/shipped ratio               168.22
+     verdicts B would flip               0
+  -- the ABSOLUTE window, which no ratio answers --
+     widest shipped                      7.011e-11
+     widest A                            7.011e-11
+     widest B                            7.011e-11
+     largest rg.traffic                  3.361e+04
+---- kennington (16)
+  frozen rows tested                     602
+    residue above zero                   0
+  fires with the SHIPPED window          0
+  worst residue / shipped window         0
+  -- shape A: max(bound scale, row_traffic) --
+     rows where it exceeds the shipped   600
+     worst A/shipped ratio               1.1782
+     verdicts A would flip               0
+  -- shape B: A, plus the activity traffic --
+     rows where B exceeds A              490
+     worst B/shipped ratio               92.1599
+     verdicts B would flip               0
+  -- the ABSOLUTE window, which no ratio answers --
+     widest shipped                      7.254e-10
+     widest A                            7.668e-10
+     widest B                            6.494e-08
+     largest rg.traffic                  3.656e+07
+
+######## 2. the constructed pair ########
+The campaign flips no verdict either way, so only this separates them.
+-- BEFORE: the window scaled by the row's own bounds
+   g=1e-10    status=2   (1 optimal, 2 infeasible)
+   g=0.0001   status=2   (1 optimal, 2 infeasible)
+-- AFTER: the window covers the traffic
+   g=1e-10    status=1   (1 optimal, 2 infeasible)
+   g=0.0001   status=2   (1 optimal, 2 infeasible)
+-- REFERENCE BUILD (-DJAOS_NO_PRESOLVE), the oracle
+   g=1e-10    status=1   (1 optimal, 2 infeasible)
+   g=0.0001   status=2   (1 optimal, 2 infeasible)
+
+######## 3. the two models the review turned up ########
+A is the SAME defect at the activity pass, which this change does not
+touch: it must read 2 on all three of the first columns and 1 on the
+oracle, which is a live feasible-model-refused. B is the guard on the
+widening: infeasible everywhere until the constant is raised.
+-- BEFORE
+   A-activity-pass  status=2   (1 optimal, 2 infeasible)
+   B-emptied-row    status=2   (1 optimal, 2 infeasible)
+-- AFTER
+   A-activity-pass  status=2   (1 optimal, 2 infeasible)
+   B-emptied-row    status=2   (1 optimal, 2 infeasible)
+-- REFERENCE, oracle
+   A-activity-pass  status=1   (1 optimal, 2 infeasible)
+   B-emptied-row    status=2   (1 optimal, 2 infeasible)
+-- ROUND_ULPS = 1e12
+   A-activity-pass  status=2   (1 optimal, 2 infeasible)
+   B-emptied-row    status=1   (1 optimal, 2 infeasible)

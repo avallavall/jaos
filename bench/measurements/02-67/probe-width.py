@@ -26,7 +26,21 @@ def sub(old, new, why):
 
 
 sub("#include <string.h>",
-    "#include <string.h>\n#ifdef JAOS_DIAG\n#include <stdio.h>\n#endif",
+    "#include <string.h>\n"
+    "#ifdef JAOS_DIAG\n"
+    "#include <stdio.h>\n"
+    "#include <unistd.h>\n"
+    "/* ONE write(2) per record. `bench/run -j N` forks children that share one\n"
+    " * stderr, and fprintf issues several writes for a format with many\n"
+    " * conversions, so another child's output lands between them and the line\n"
+    " * is torn. The line count stays right and the SUMS come out low, which is\n"
+    " * the wrong failure mode for a probe whose finding is a zero (02-69). */\n"
+    "static void dg_emit(const char *s, size_t n)\n"
+    "{\n"
+    "    ssize_t rc = write(2, s, n);\n"
+    "    (void)rc;\n"
+    "}\n"
+    "#endif",
     'stdio')
 
 sub("""    double *row_traffic = jm_calloc_array(nr, sizeof *row_traffic);""",
@@ -79,7 +93,8 @@ sub("""    free(col_dead); free(row_dead); free(row_frozen);""",
                 if (r > worst_end_rel) worst_end_rel = r;
             }
         }
-        fprintf(stderr,
+        char dgbuf[512];
+        const int dgn = snprintf(dgbuf, sizeof dgbuf,
             "DIAG-WIDTH shifts=%lld lost=%lld destroyed=%lld rows_hit=%lld "
             "worst_rel=%.6g worst_abs=%.6g surv=%lld surv_narrowed=%lld "
             "surv_equal=%lld worst_end_rel=%.6g\\n",
@@ -87,6 +102,10 @@ sub("""    free(col_dead); free(row_dead); free(row_frozen);""",
             (long long)dg_rows_hit, dg_worst_rel, dg_worst_abs,
             (long long)surv, (long long)surv_narrowed, (long long)surv_equal,
             worst_end_rel);
+        if (dgn > 0 && (size_t)dgn < sizeof dgbuf)
+            dg_emit(dgbuf, (size_t)dgn);
+        else
+            dg_emit("DIAG-WIDTH TRUNCATED\\n", 21);
     }
     free(dg_row_hit); free(dg_w0);
 #undef DG_SHIFT

@@ -53,6 +53,15 @@ open, `bench/README.md` for the gate, and the commit each entry came from.
 
 ### Fixed
 
+- The frozen-row feasibility test scales its window by what the comparison is
+  made of instead of by the magnitude of one operand, and it stops refusing a
+  model the solver can solve. `min x1 s.t. 1e9*x0 + x1 + x2 <= 1e9` with a
+  frozen row and x1 bounded below by 1e-10 read INFEASIBLE where
+  `-DJAOS_NO_PRESOLVE` reads OPTIMAL — an infeasibility a thousandth of one
+  ulp of the row's own activity. 0 of 19114 frozen rows flip a verdict on any
+  of the three sets, so the campaign cannot see it: 139 bit-identical, `gate:
+  PASS` on each. The widest window this produces is 6.5e-8 against a
+  `PRIMAL_TOL` of 1e-7 (D159).
 - The collapsed fold's midpoint is clamped into the column's own box, which
   closes both halves of the last item with no stated error bound. A
   singleton-row fold can no longer publish a value outside a bound the caller

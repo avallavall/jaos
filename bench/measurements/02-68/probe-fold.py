@@ -26,7 +26,21 @@ def sub(old, new, why):
 
 
 sub("#include <string.h>",
-    "#include <string.h>\n#ifdef JAOS_DIAG\n#include <stdio.h>\n#endif",
+    "#include <string.h>\n"
+    "#ifdef JAOS_DIAG\n"
+    "#include <stdio.h>\n"
+    "#include <unistd.h>\n"
+    "/* ONE write(2) per record. `bench/run -j N` forks children that share one\n"
+    " * stderr, and fprintf issues several writes for a format with many\n"
+    " * conversions, so another child's output lands between them and the line\n"
+    " * is torn. The line count stays right and the SUMS come out low, which is\n"
+    " * the wrong failure mode for a probe whose finding is a zero (02-69). */\n"
+    "static void dg_emit(const char *s, size_t n)\n"
+    "{\n"
+    "    ssize_t rc = write(2, s, n);\n"
+    "    (void)rc;\n"
+    "}\n"
+    "#endif",
     'stdio')
 
 sub("""    double *row_traffic = jm_calloc_array(nr, sizeof *row_traffic);""",
@@ -39,13 +53,20 @@ sub("""    double *row_traffic = jm_calloc_array(nr, sizeof *row_traffic);""",
 
 sub("""    free(col_dead); free(row_dead); free(row_frozen);""",
     """#ifdef JAOS_DIAG
-    fprintf(stderr,
-        "DIAG-FOLD folds=%lld collapse=%lld out_cur=%lld out_orig=%lld "
-        "worst_out_cur=%.6g worst_out_orig=%.6g worst_rel_orig=%.6g "
-        "worst_btol=%.6g worst_gap=%.6g\\n",
-        (long long)dg_folds, (long long)dg_collapse, (long long)dg_out_cur,
-        (long long)dg_out_orig, dg_worst_out_cur, dg_worst_out_orig,
-        dg_worst_rel_orig, dg_worst_btol, dg_worst_gap);
+    {
+        char dgbuf[512];
+        const int dgn = snprintf(dgbuf, sizeof dgbuf,
+            "DIAG-FOLD folds=%lld collapse=%lld out_cur=%lld out_orig=%lld "
+            "worst_out_cur=%.6g worst_out_orig=%.6g worst_rel_orig=%.6g "
+            "worst_btol=%.6g worst_gap=%.6g\\n",
+            (long long)dg_folds, (long long)dg_collapse, (long long)dg_out_cur,
+            (long long)dg_out_orig, dg_worst_out_cur, dg_worst_out_orig,
+            dg_worst_rel_orig, dg_worst_btol, dg_worst_gap);
+        if (dgn > 0 && (size_t)dgn < sizeof dgbuf)
+            dg_emit(dgbuf, (size_t)dgn);
+        else
+            dg_emit("DIAG-FOLD TRUNCATED\\n", 20);
+    }
 #endif
     free(col_dead); free(row_dead); free(row_frozen);""", 'report')
 

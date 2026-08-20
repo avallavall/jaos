@@ -3231,6 +3231,107 @@ static void test_a_fold_onto_the_box_at_scale_still_collapses(void)
     jaos_model_free(m);
 }
 
+/* -- The frozen-row window has to cover the traffic, not the bound ---------
+ *
+ *   min x1  s.t.  R: 1e9*x0 + x1 + x2 <= 1e9
+ *                 x0 in [1,1]        fixed: subtracts 1e9, row traffic 1e9
+ *                 x2 in [0,1] cost 0, degree 1: relaxes R and FREEZES it
+ *                 x1 in [g, 10] cost 1: the surviving column
+ *
+ * After the fixed column `cur_ru` is 0 and `cur_rl` is -inf, so a window
+ * scaled by the row's own BOUNDS is `8 * DBL_EPSILON * max(1, 0)` —
+ * 1.78e-15, which says nothing about the 1e9 that was subtracted to reach
+ * them. The window that covers that traffic is 1.78e-6, nine decades wider.
+ *
+ * The model is infeasible by exactly g, so the pair separates the two:
+ *
+ *   g = 1e-10   about a thousandth of one ulp of 1e9. An infeasibility the
+ *               arithmetic cannot represent, and the reference build — which
+ *               computes the activity directly and never folds — solves it.
+ *               **The bound-scaled window reported INFEASIBLE here**, which
+ *               is a wrong answer of the worst shape this file names: a
+ *               solvable model refused, with nothing downstream to recover it.
+ *   g = 1e-4    840 ulps of 1e9. Real, and refused under either window.
+ *
+ * Both halves are asserted, and the reference build is the oracle for each.
+ * Measured beside them: over the three sets the bound-scaled window was
+ * smaller than the error the comparison carries on 6934 of 19114 frozen rows,
+ * by up to 45930x, while flipping no verdict on any of them — so the campaign
+ * cannot see this and only a constructed pair can (D159). */
+static jaos_model *make_frozen_traffic_model(double g)
+{
+    const double c[]  = {0.0, 1.0, 0.0};
+    const double cl[] = {1.0, g,    0.0};
+    const double cu[] = {1.0, 10.0, 1.0};
+    const double rl[] = {-INFINITY};
+    const double ru[] = {1e9};
+    const int64_t s[]  = {0, 1, 2, 3};
+    const int64_t ix[] = {0, 0, 0};
+    const double v[]   = {1e9, 1.0, 1.0};
+    jaos_model *m = nullptr;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_model_new(&m));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_load_lp(m, 3, 1, JAOS_MINIMIZE, 0.0, c, cl, cu, rl, ru,
+                     3, s, ix, v));
+    return m;
+}
+
+static void test_a_frozen_row_is_not_refused_below_its_own_traffic(void)
+{
+    jaos_model *m = make_frozen_traffic_model(1e-10);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    /* Asserted on BOTH builds. They must agree, and before D159 they did
+     * not: presolve refused what the reference build solves. */
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+    jaos_model_free(m);
+}
+
+/* The half that matters more: widening a window is only admissible if it still
+ * refuses what it was built to refuse. This is the guard on that.
+ *
+ *   min x1  s.t.  R: 1e9*x0 + x1 == 1e9 + 100
+ *                 x0 in [1,1]              fixed: cur_rl = cur_ru = 100,
+ *                                          row_traffic = 1e9
+ *                 x1 in [0,3] cost 0, degree 1: relaxes R to [97,100],
+ *                                          freezes it, and EMPTIES it
+ *
+ * Genuinely infeasible — x1 can reach 3 against a shortfall of 100 — and
+ * every product in it is exact, so no rounding argument can excuse it.
+ *
+ * **The emptied row is the whole point of the construction.** The frozen-row
+ * test is the last word only where the row reaches the reduced model with no
+ * live column for the simplex to refuse it with. Raise PRESOLVE_ROUND_ULPS to
+ * 1e12 and this model turns OPTIMAL, which is what a guard on a widening has
+ * to be able to do.
+ *
+ * **The first version of this test used a model whose row keeps a live
+ * column** — `1e9*x0 + x1 + x2 <= 1e9` with x1 bounded below by 1e-4 — and it
+ * could not fail. At ROUND_ULPS = 1e12 it still read INFEASIBLE, because the
+ * simplex refused the surviving row at PRIMAL_TOL whatever the window did. It
+ * was reading the pipeline and not the window, so the widening had no guard at
+ * all. Found by `numerics-reviewer`, who built this replacement (D159). */
+static void test_a_frozen_row_emptied_and_still_short_is_refused(void)
+{
+    const double c[]  = {0.0, 0.0};
+    const double cl[] = {1.0, 0.0};
+    const double cu[] = {1.0, 3.0};
+    const double rl[] = {1e9 + 100.0};
+    const double ru[] = {1e9 + 100.0};
+    const int64_t s[]  = {0, 1, 2};
+    const int64_t ix[] = {0, 0};
+    const double v[]   = {1e9, 1.0};
+
+    jaos_model *m = nullptr;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_model_new(&m));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_load_lp(m, 2, 1, JAOS_MINIMIZE, 0.0, c, cl, cu, rl, ru,
+                     2, s, ix, v));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    /* Asserted on both builds: the reference build refuses it too. */
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_INFEASIBLE, jaos_status_of(m));
+    jaos_model_free(m);
+}
+
 /* An INVERTED column box reaches the same collapse branch, and the clamp has
  * no box to clamp into there.
  *
@@ -3655,6 +3756,8 @@ int main(void)
     RUN_TEST(test_a_fold_past_the_box_at_scale_is_refused);
     RUN_TEST(test_a_fold_onto_the_box_at_scale_still_collapses);
     RUN_TEST(test_a_collapse_on_an_inverted_box_keeps_the_midpoint);
+    RUN_TEST(test_a_frozen_row_is_not_refused_below_its_own_traffic);
+    RUN_TEST(test_a_frozen_row_emptied_and_still_short_is_refused);
 
     RUN_TEST(test_a_frozen_row_missed_at_scale_is_refused);
 
