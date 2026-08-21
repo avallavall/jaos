@@ -22,10 +22,12 @@ flips predicts and what 02-83's exact objectives confirm a second way. D173,
 D174 and D176 changed nothing in `src/` at all, so no campaign is owed for
 them.
 
-**`main` IS PUSHED TO `2a1ce1d`**, on the maintainer's explicit say-so
-2026-08-21, fast-forward with no divergence. Do not trust a COUNT written here:
-this paragraph has said "nothing", then "four", then "ten", and each was true
-when written. Ask the remote instead — `git rev-list --count origin/main..HEAD`.
+**EVERYTHING WAS PUSHED AT THE END OF THE 2026-08-21 SESSION**, on the
+maintainer's explicit say-so, fast-forward with no divergence. That sentence is
+about a past moment and cannot go stale; a count can, and this paragraph has
+said "nothing", "four" and "ten", each true when written and one of them wrong
+within a minute because writing it was itself a commit. **Ask the remote:**
+`git rev-list --count origin/main..HEAD`.
 The commits carrying decision entries are `6061c38` (D173), `efe5884` (D174),
 `c648f86` (D175) and `0a6d58f` (D176); the rest are records and documentation. **Push from the WINDOWS side**: the
 remote is an SSH alias that lives in the Windows `~/.ssh/config` only, and from
