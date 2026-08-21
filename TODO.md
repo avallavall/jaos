@@ -61,7 +61,7 @@ measurement.**
 | 2 | **48 netlib solves publish an invalid basis** | a rank argument WIDER than the firing row, or accepting the residue as the published state of the art does (Galabova 2023). Every local repair is refused with its measurement (D140, D141). **D171 made it worse by 2 and that is measured** | §2 below |
 | 3 | **`scsd1` and `degen2` behind D151's cap** | a predictor of a doomed trajectory. The shortfall cannot be it and that is measured | §3 below |
 | 4 | **`D97`, the dual postsolve for an imposed bound** | nothing is built; `docs/research/dual-postsolve-imposed-bound.md` is the design with the literature verified. **The largest prize in the file** — it unlocks bound tightening AND doubleton equalities, 8.55% of netlib's live rows and 29.36% of Kennington's. **§8d is measured now and rewritten around it (02-87, 02-88)**: its refusal declines 50.2% of netlib's imposed bounds and 82.3% of Kennington's, and the hazard it prevents occurs **12 times in 98146 opportunities**. **The better design is postsolve detection and THIS TREE CANNOT HAVE IT**: the collision leaves the point one constraint short of a vertex, which needs a crossover, and `SPECS.md` has crossover and the primal simplex that blocks it both `missing`. So the first version is the refusal narrowed to equality rows — 35.5% and 20.3% — over-paying by three orders, and that price is the missing crossover rather than the reduction. §12 item 7 | "If all of the above is dropped" |
-| 5 | **the gate cannot see a suboptimal answer** | a threshold, and one instance separating cleanly on one set is not one. `jaos_check_solution` already certifies `gap_positive = 0.0386` on `pilot` with `gap_certified = yes`, four orders above every other certified instance, and `bench/run.c` never reads the field | §4 below |
+| 5 | **the gate cannot see a suboptimal answer** | a threshold, and one instance separating cleanly on one set is not one. `jaos_check_solution` already certifies `gap_positive = 0.0386` on `pilot` with `gap_certified = yes`, four orders above every other certified instance, and the gate watches suboptimality only RELATIVE to its own baseline: `rsub` regresses at `RSUB_FLOOR = 1e-9` and a factor of 2, so a suboptimality already present when the baseline was written is invisible. The instrument exists and its zero point is wrong | §4 below |
 
 **Three things are refused rather than open, so do not pick them up.**
 `apply_flips` is the third uncompensated sum of D168's shape and loses terms
@@ -983,10 +983,18 @@ part rather than the measurement.
   `gap_positive = 0.0386` on `pilot` with `gap_certified = yes`, which is a
   proof that `P - P* <= 0.0386`; among the 53 instances whose certificate is
   complete that is **four orders above the next** (`grow22`, 1.797e-06), and
-  it belongs to the one instance every other solver beats. `bench/run.c`
-  never reads the field: `objective_accepted` is
-  `|got - ref| <= 1e-6 * max(|ref|, 1)`, a window of 5.57e-04 on `pilot`,
-  cleared with 24 times to spare.
+  it belongs to the one instance every other solver beats.
+  **What the gate does with that is narrower than this entry first said, and
+  the correction changes what the item needs** (audited 2026-08-21).
+  `bench/run.c` records `gap_positive` as `Q=` on every line, and
+  `relative_suboptimality` is a **regression predicate**: an instance whose
+  `rsub` passes `RSUB_FLOOR = 1e-9` and grows by `RSUB_REGRESSION_FACTOR = 2.0`
+  against its baseline is reported REGRESSED in its own message. So the
+  instrument exists and is wired in. **Its zero point is the baseline**, and
+  `pilot`'s suboptimality was already there when the baseline was written, so
+  a quantity that is permanently wrong reads as permanently fine. The
+  objective test beside it is `|got - ref| <= 1e-6 * max(|ref|, 1)`, a window
+  of 5.57e-04 on `pilot`, cleared with 24 times to spare.
   **What it needs**: a threshold, and one instance separating cleanly on one
   set is not one. `scsd6` is the counter-case and it is already in the record
   — `gap_positive` 9.73e-15 where the true gap is 1.12e-09, five orders

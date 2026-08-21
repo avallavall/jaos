@@ -13058,14 +13058,27 @@ netlib instance where every other solver in `bench/compare` disagrees with
 JAOS**: HiGHS, SoPlex and Clp all publish Koch's `-5.5748972927e+02` against
 JAOS's `-557.489706168`.
 
-**The library already certifies `pilot` and nothing reads it.**
-`jaos_check_solution` reports `gap_positive = 0.0386` there with
-`gap_certified = yes`, which is a proof that `P - P* <= 0.0386`. Among the 53
-instances whose certificate is complete that is four orders above the next
-(`grow22`, 1.797e-06), and it belongs to the one instance every other solver
-beats. `bench/run.c` never reads the field: `objective_accepted` is
-`|got - ref| <= 1e-6 * max(|ref|, 1)`, a window of 5.57e-04 on `pilot`, which
-the 2.31e-05 clears with 24 times to spare.
+**The library already certifies `pilot`, and what the gate does with that is
+narrower than this entry first said.** `jaos_check_solution` reports
+`gap_positive = 0.0386` there with `gap_certified = yes`, a proof that
+`P - P* <= 0.0386`. Among the 53 instances whose certificate is complete that
+is four orders above the next (`grow22`, 1.797e-06), and it belongs to the one
+instance every other solver beats.
+
+**Correction, made 2026-08-21 while auditing this entry.** The first version
+said `bench/run.c` never reads the field. It does read two: `gap_positive`
+goes into every record line as `Q=`, and `relative_suboptimality` is a
+**regression predicate** in the baseline comparison — an instance whose `rsub`
+exceeds `RSUB_FLOOR = 1e-9` and grows by `RSUB_REGRESSION_FACTOR = 2.0`
+against its baseline is reported REGRESSED, in its own message.
+
+What the gate does not do is judge an instance's suboptimality in ABSOLUTE
+terms against the reference. It watches for a suboptimality that gets worse,
+and `pilot`'s was already there when the baseline was written. That is the
+precise reason the answer is invisible, and it is a different defect from
+"nothing reads it": the instrument exists and its zero point is the wrong one.
+The objective test alongside it is `|got - ref| <= 1e-6 * max(|ref|, 1)`, a
+window of 5.57e-04 on `pilot`, cleared with 24 times to spare.
 
 **What was refuted.** Three explanations for the `finnis` gap, in the order
 they were tried. The summation: refused, the published number is within a

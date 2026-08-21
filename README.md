@@ -5,7 +5,19 @@ dependencies, Apache 2.0, Linux and GCC only.
 
 **Version 0.1.1.** JAOS reads an LP from disk, presolves it, solves it
 with a revised dual simplex, and verifies the answer with an independent
-checker. It does this correctly on all 139 Netlib reference instances.
+checker. It does this on all 139 Netlib reference instances: 110 solved with
+the objective inside the gate's tolerance and the checker green, 29 correctly
+refused as infeasible.
+
+Two qualifications, both measured, because "correctly" is a strong word.
+**The published objective is exact** — the correctly rounded value of `c'x`
+over the point it publishes, on 110 of 110, worst half an ulp. **The published
+point is not always the optimal one.** Four of the 94 standard instances stop
+measurably short: `pilot` by 2.31e-05, which is the one instance HiGHS,
+SoPlex and Clp all beat. All four are the dual tolerance, and tightening it
+repairs all four — three of them for less work — at the cost of six instances
+crossing the gate's work bar. `TODO.md` carries that as a decision rather
+than a defect, and `DECISIONS.md` D173 and D174 carry the measurements.
 
 `make compare` measures JAOS against three other solvers, with every solver's
 own presolve on and the dual simplex forced on both sides. The 2026-08-17 run
@@ -146,7 +158,9 @@ src/             library sources
 tests/           unit suite; tests/vendor/unity/ is the one vendored dependency
 bench/           instance manifests, acceptance runner, results
 bench/compare/   the harness that times JAOS against other solvers
-docs/            formats, tolerances, scaling, work units
+docs/            formats, tolerances, scaling, work units, feature matrix
+docs/research/   designs worked out on paper, with the literature checked
+bench/measurements/  one directory per measured verdict, so it is re-derivable
 ```
 
 ## The documents, and which to read
@@ -159,8 +173,17 @@ docs/            formats, tolerances, scaling, work units
 - **`bench/README.md`** — the acceptance gate.
 - **`bench/compare/README.md`** — how JAOS is compared against other
   solvers.
+- **`docs/`** — the contracts behind every constant in the code: tolerances,
+  work units, scaling, format support.
+- **`bench/measurements/<id>/`** — the raw readings a verdict was taken
+  from, one directory per verdict, each with its own `README.md`. Read the
+  directory rather than any summary of it.
 
 These documents record the design. Do not reconstruct it from the code.
+
+**Start with `TODO.md`.** Its first section is a handover: the state of the
+tree, what campaign is valid, what is open and what each open item needs
+before any code.
 
 ## Licence
 

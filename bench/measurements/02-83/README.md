@@ -158,10 +158,19 @@ magnitude above the next one** (`grow22`, 1.797e-06), and it belongs to the
 one instance every other solver beats. The bound is loose by a factor of 1670
 against the true 2.31e-05, and it is still the strongest signal on the set.
 
-**The gate cannot see any of this.** `objective_accepted` in `bench/run.c` is
+**The gate cannot see any of this, and the reason is not the one this file
+first gave** (corrected 2026-08-21). `objective_accepted` in `bench/run.c` is
 `|got - ref| <= 1e-6 * max(|ref|, 1)`, which on `pilot` is a window of
-5.57e-04 — the 2.31e-05 passes it with 24 times to spare, and `bench/run.c`
-never reads `gap_positive` at all.
+5.57e-04 — the 2.31e-05 passes it with 24 times to spare. But it is false that
+`bench/run.c` never reads these fields: `gap_positive` is on every record line
+as `Q=`, and `relative_suboptimality` is a regression predicate, firing above
+`RSUB_FLOOR = 1e-9` at a factor of `RSUB_REGRESSION_FACTOR = 2.0`.
+
+**The instrument is wired in; its zero point is the baseline.** It reports a
+suboptimality that gets worse, and `pilot`'s was already there when the
+baseline was written — so a permanently wrong answer reads as permanently
+fine. That is a different defect from a field nobody reads, and a different
+repair.
 
 `scsd6` is the case the header of `jaos.h` warns about, seen in the wild:
 `gap_positive` is 9.73e-15 where the true gap is 1.12e-09, five orders
