@@ -22,7 +22,7 @@ flips predicts and what 02-83's exact objectives confirm a second way. D173,
 D174 and D176 changed nothing in `src/` at all, so no campaign is owed for
 them.
 
-**`main` IS PUSHED TO `4c1484b`**, on the maintainer's explicit say-so
+**`main` IS PUSHED TO `2a1ce1d`**, on the maintainer's explicit say-so
 2026-08-21, fast-forward with no divergence. Do not trust a COUNT written here:
 this paragraph has said "nothing", then "four", then "ten", and each was true
 when written. Ask the remote instead — `git rev-list --count origin/main..HEAD`.
