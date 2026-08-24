@@ -244,10 +244,16 @@ The `checker` predicate reports sign conditions and the gap over bounds the
 model declared; it says nothing about how far from optimal the point may be,
 which is a separate quantity and the one D47 was about. `relative_suboptimality`
 is that bound as a fraction of the objective, it is carried in the baseline,
-and growth past 2× above a floor of 1e-9 is a regression. Both numbers are
+and growth past 2× above a floor of 1e-16 is a regression. Both numbers are
 measured: the quantity is deterministic, and the case this exists to catch —
 `pilot` going from 6.9e-05 where it is right to 5.02e-03 where it is wrong —
 is a factor of 73 (D88, D91).
+
+**The floor was 1e-9 until D177 and at that value the predicate watched 4
+solves out of 110**, none of them Kennington's. It is 1e-16 now and watches 84.
+D171 is what fixes the value: it moved 88 of 94 digests and moved this quantity
+by at most 1.688x, and 1e-16 is the decade at which the headroom under the
+factor of 2 stops being 1.86x and becomes 1.18x.
 
 This is the check that would have caught D82, where a change published an
 answer out of tolerance with every checker number green and this gate passed

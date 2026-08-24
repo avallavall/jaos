@@ -1,0 +1,22 @@
+== D177 predicate validation, tree 1ea633b against HEAD ==
+
+-- the one variable:
+   HEAD        constexpr double RSUB_FLOOR = 1e-9;
+   working tree constexpr double RSUB_FLOOR = 1e-16;
+
+-- the doctored baseline, one field of one line:
+   committed  adlittle optimal 1 1 1 1 1 71 141744 1.6220254459379362e-15
+   doctored   adlittle optimal 1 1 1 1 1 71 141744 7.0e-16
+
+-- HEAD (floor 1e-9), doctored baseline: must stay quiet
+      live rsub=1.52e-15
+   baseline: 0 regressed, 0 improved, 0 new
+
+-- working tree (floor 1e-16), same baseline: must report REGRESSED
+      live rsub=1.52e-15
+   adlittle     REGRESSED    suboptimality bound: 7e-16 -> 1.52e-15 (2.2x relative to its own objective)
+   baseline: 1 regressed, 0 improved, 0 new
+
+-- working tree, committed baseline: must stay quiet
+      live rsub=1.52e-15
+   baseline: 0 regressed, 0 improved, 0 new

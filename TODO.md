@@ -5,9 +5,36 @@ says why closed questions closed, `CHANGELOG.md` says what landed, `bench/`
 says what it costs. This file says what is next. When something lands, its
 line leaves this file in the same commit.
 
-## Where the last session stopped — 2026-08-21
+## Where the last session stopped — 2026-08-24
 
-### The state of the tree, first, because everything below assumes it
+### 2026-08-24: D177, and item 5 is half closed
+
+**One constant in `bench/run.c`, no change to `src/`.** `RSUB_FLOOR` from
+`1e-9` to `1e-16`. The gate's suboptimality predicate was watching **4 solves
+out of 110** and none of Kennington's 16, so an instance at `1e-15` could
+degrade by six orders and the gate would report `0 regressed`. It watches 84
+now. The floor's stated reason was refuted by numbers already committed:
+D171 moved 88 of 94 digests and moved `rsub` by at most 1.688x, so nothing
+would have fired at any floor at all (D177, `bench/measurements/02-89/`).
+
+`make test` and `make sanitize` exit 0. All three sets `gate: PASS` with
+`0 regressed, 0 improved, 0 new`, and `bench/results/*.txt` byte-identical to
+the committed records. **The case the predicate has to catch was built and
+confirmed**: a doctored baseline that halves `adlittle`'s value fires at
+`1e-16` and is invisible at `1e-9`, on runners built from the same `gcc` line.
+
+**`make configs` was NOT run and does not apply**: nothing in `src/` or
+`tests/` changed, and no block behind a build flag was touched.
+
+**Item 5's threshold half is still open and it is blocked behind item 1.**
+Three candidate absolute bars are measured in 02-89 and every one turns the
+gate red at HEAD. The strongest is not the certificate: tightening
+`objective_accepted` from `1e-6` to `1e-9` catches `pilot` with zero false
+positives on all 94, in a band that is empty for two and a half decades.
+
+**Nothing is pushed from this session.**
+
+### The state of the tree at 2026-08-21, which the sections below assume
 
 **Nothing is in flight and no worktree is registered.** The tree is clean apart
 from one untracked directory that is not this session's
@@ -63,7 +90,7 @@ measurement.**
 | 2 | **48 netlib solves publish an invalid basis** | a rank argument WIDER than the firing row, or accepting the residue as the published state of the art does (Galabova 2023). Every local repair is refused with its measurement (D140, D141). **D171 made it worse by 2 and that is measured** | §2 below |
 | 3 | **`scsd1` and `degen2` behind D151's cap** | a predictor of a doomed trajectory. The shortfall cannot be it and that is measured | §3 below |
 | 4 | **`D97`, the dual postsolve for an imposed bound** | nothing is built; `docs/research/dual-postsolve-imposed-bound.md` is the design with the literature verified. **The largest prize in the file** — it unlocks bound tightening AND doubleton equalities, 8.55% of netlib's live rows and 29.36% of Kennington's. **§8d is measured now and rewritten around it (02-87, 02-88)**: its refusal declines 50.2% of netlib's imposed bounds and 82.3% of Kennington's, and the hazard it prevents occurs **12 times in 98146 opportunities**. **The better design is postsolve detection and THIS TREE CANNOT HAVE IT**: the collision leaves the point one constraint short of a vertex, which needs a crossover, and `SPECS.md` has crossover and the primal simplex that blocks it both `missing`. So the first version is the refusal narrowed to equality rows — 35.5% and 20.3% — over-paying by three orders, and that price is the missing crossover rather than the reduction. §12 item 7 | "If all of the above is dropped" |
-| 5 | **the gate cannot see a suboptimal answer** | a threshold, and one instance separating cleanly on one set is not one. `jaos_check_solution` already certifies `gap_positive = 0.0386` on `pilot` with `gap_certified = yes`, four orders above every other certified instance, and the gate watches suboptimality only RELATIVE to its own baseline: `rsub` regresses at `RSUB_FLOOR = 1e-9` and a factor of 2, so a suboptimality already present when the baseline was written is invisible. The instrument exists and its zero point is wrong | §4 below |
+| 5 | **the gate cannot see a suboptimal answer** | a threshold, and every candidate measured so far is blocked behind item 1. **The reach half is done**: `RSUB_FLOOR` was `1e-9` and watched 4 solves of 110, none of them Kennington's; it is `1e-16` now and watches 84 (D177). The zero point is still the baseline, so `pilot`'s suboptimality stays invisible. Three bars are measured and all three turn the gate red today, which is item 1's judgement | §4 below |
 
 **Three things are refused rather than open, so do not pick them up.**
 `apply_flips` is the third uncompensated sum of D168's shape and loses terms
@@ -981,7 +1008,29 @@ part rather than the measurement.
   entry first: substituting `published_breach` for `dual_breach` in the
   clean-up predicates already cost `pilot87` its bound, for 2.9x the work.
 - **The gate cannot see a suboptimal answer, and the library already
-  certifies one.** New from D173. `jaos_check_solution` reports
+  certifies one.** New from D173. **The reach half closed 2026-08-24 (D177,
+  `bench/measurements/02-89/`) and the threshold half did not.**
+  `RSUB_FLOOR` was `1e-9`, and at that value the predicate below watched **4
+  solves out of 110** and none of Kennington's 16 — that set's worst `rsub` is
+  `4.18e-14`. It is `1e-16` now and watches 84. The floor's stated reason was
+  refuted by D171's own committed numbers: it moved 88 of 94 digests and moved
+  `rsub` by at most 1.688x, so nothing would have fired at any floor at all.
+  **The zero point is still the baseline and that is the part still open.**
+  Three candidate bars are measured in 02-89 and every one of them turns the
+  gate red at HEAD, which is item 1's judgement rather than this item's:
+  `rsub` itself separates best (343x, top clean instance `wood1p` at 7.4e-09);
+  `gap_positive` unnormalised **does not even order correctly**, because
+  `ken-18` is a clean answer carrying a larger bound than `pilot87`'s; and
+  `gap_positive / (eps * sum|c_j x_j|)` loses to `rsub` at 199x, so the
+  denominator was never the problem. **The strongest route is not the
+  certificate at all**: `objective_accepted`'s window tightened from `1e-6` to
+  `1e-9` catches `pilot` with zero false positives on all 94, and the
+  population is bimodal — 88 instances at or under `6.84e-16`, which is the
+  reference's own last digit, then nothing until `modszk1` at `2.8e-13`. Any
+  window in that band gives the same answer, so it is not fitted to `pilot`.
+  It turns the gate red on `pilot` today.
+  The original entry, for what the numbers below mean:
+  `jaos_check_solution` reports
   `gap_positive = 0.0386` on `pilot` with `gap_certified = yes`, which is a
   proof that `P - P* <= 0.0386`; among the 53 instances whose certificate is
   complete that is **four orders above the next** (`grow22`, 1.797e-06), and

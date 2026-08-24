@@ -184,6 +184,7 @@ and you have the argument. Jump to the entry for the numbers behind it.
 - **[D174](#d174--pilots-wrong-answer-is-dual_tol-and-nothing-else-and-the-repair-that-fixes-it-turns-the-gate-red-on-six-instances)** — `pilot`'s wrong answer is `DUAL_TOL` and nothing else, and the repair that fixes it turns the gate red on six instances
 - **[D175](#d175--the-sum-that-ranks-two-rounds-decides-which-point-is-published-so-it-is-compensated-too--and-no-solve-on-the-three-sets-can-reach-the-case)** — The sum that ranks two rounds decides which point is published, so it is compensated too — and no solve on the three sets can reach the case
 - **[D176](#d176--refused-presolves-objective-offset-is-compensated-for-nothing-because-poisoning-it-with-nan-moves-not-one-byte-on-any-of-the-139)** — REFUSED: presolve's objective offset is compensated for nothing, because poisoning it with NaN moves not one byte on any of the 139
+- **[D177](#d177--the-gates-suboptimality-predicate-watched-4-solves-of-110-and-the-floor-that-excluded-the-other-106-is-refuted-by-d171s-own-numbers)** — The gate's suboptimality predicate watched 4 solves of 110, and the floor that excluded the other 106 is refuted by D171's own numbers
 
 ---
 
@@ -13307,3 +13308,139 @@ objective of the reduced model, and deleting it would leave a future reader
 with nothing rather than with a number that is naive. Neither direction has a
 measurement. The reopen condition is in `TODO.md`'s refusals table and the
 probe in 02-86 is the test for it.
+
+---
+
+## D177 — The gate's suboptimality predicate watched 4 solves of 110, and the floor that excluded the other 106 is refuted by D171's own numbers
+
+**2026-08-24.** `bench/run.c`: `RSUB_FLOOR` from `1e-9` to `1e-16`. No change
+to `src/`. Evidence in `bench/measurements/02-89/`.
+
+### The question
+
+`TODO.md` carried "the gate cannot see a suboptimal answer" and named what it
+needed: an absolute threshold, with the note that one instance separating
+cleanly on one set is not one. The item said the instrument exists and its
+zero point is the baseline.
+
+The audit that started this went looking for the threshold and found a
+different defect first, one nobody had counted: **the predicate that does
+exist was watching 4 solves out of 110.**
+
+### The measurement — how little the predicate reached
+
+`relative_suboptimality` regresses when it passes `RSUB_FLOOR` and grows by
+`RSUB_REGRESSION_FACTOR = 2.0` against the baseline. At `1e-9`:
+
+| set | watched | of | the instances |
+|---|---|---|---|
+| netlib standard | **4** | 94 | `forplan`, `pilot`, `pilot87`, `wood1p` |
+| Kennington | **0** | 16 | its worst value is `4.18e-14`, five decades under |
+
+So the predicate was dead across the whole Kennington set, and an instance at
+`1e-15` could degrade by six orders of magnitude while the gate reported
+`0 regressed`.
+
+### What was refuted — the floor's stated reason
+
+The comment said ratios mean nothing below the floor. `rsub` is deterministic,
+so the only thing that moves it is a real change to the solve. **D171 is that
+change and its numbers are already committed**: it moved 88 of 94 digests, and
+`02-81/gate-diff.txt` kept the before and after for the 73 instances whose
+`rsub` moved at all.
+
+| | |
+|---|---|
+| worst move up | **1.688x**, `scsd1`, `4.3e-17 -> 7.26e-17` |
+| worst move down | 0.594x, `sctap1` |
+| moved by 2.0x or more, either way | **0 of 73** |
+| false regressions at any floor, including none at all | **0** |
+
+### Why 1e-16, measured on that same change
+
+The floor keeps the factor of 2 away from values too small for a ratio between
+two of them to mean anything. So the question is the headroom the factor keeps
+at each candidate:
+
+| floor | watched of 73 | worst legitimate move | headroom under 2.0x |
+|---|---|---|---|
+| 1e-15 | 32 | 1.078x (`scagr7`) | 1.86x |
+| **1e-16** | **55** | **1.078x** (`scagr7`) | **1.86x** |
+| 1e-17 | 71 | **1.688x** (`scsd1`) | **1.18x** |
+
+**One instance puts the knee there.** `scsd1` ends at `7.26e-17`, so 1e-16
+excludes it and 1e-17 admits it. A second argument agrees and owes the data
+nothing: `rsub` divides by `1 + |primal_obj|`, so below about eps the numerator
+is the rounding of the number underneath it. Coverage goes from 4 solves to
+**84** — 75 of 94 standard, 9 of 16 Kennington.
+
+The floor still has a job. Three baselines read exactly 0, and against a zero
+baseline every positive value is an infinite ratio.
+
+### The case it has to catch, built and confirmed
+
+`adlittle` publishes `rsub = 1.52e-15`. Halving its baseline value to `7e-16`
+makes the ratio 2.2x, which the old floor cannot see however large it gets.
+Three runs, one variable each, both runners from the same `gcc` line:
+
+| | |
+|---|---|
+| parent (1e-9), doctored baseline | `0 regressed` — does not see it |
+| this change (1e-16), same baseline | `1 regressed`, `7e-16 -> 1.52e-15 (2.2x)` |
+| this change, committed baseline | `0 regressed` — no false positive |
+
+`run-predicate-validation.sh` aborts when the two sources carry the same
+`RSUB_FLOOR`, because an experiment with no variable in it is one binary
+measured twice (D82).
+
+### The cost
+
+`make test` and `make sanitize` exit 0. All three sets `gate: PASS` with
+`0 regressed, 0 improved, 0 new`. **110 solution digests and 29 infeasibility
+verdicts unmoved**, and `bench/results/*.txt` came out byte-identical to the
+committed records. A constant in the runner's comparison logic changes what is
+compared, never what is solved.
+
+### What was refuted about the absolute bar itself
+
+Two candidates were measured against 02-83's `refeps` as ground truth.
+`pilot` and `pilot87` are the two wrong answers the checker has any chance of
+seeing.
+
+| candidate | top clean instance | margin |
+|---|---|---|
+| **`rsub`, what the gate already records** | 7.4e-09 (`wood1p`) | **343x** |
+| `gap_positive` on its own | 0.002185 (`ken-18`) | **0.35x** |
+| `gap_positive / (eps * sum|c_j x_j|)` | 5.646e+07 (`wood1p`) | 199x |
+
+**`gap_positive` on its own does not even order correctly.** `ken-18` is a
+clean answer carrying a larger absolute bound than `pilot87`'s, so an absolute
+bar on it is refused on that alone.
+
+**Normalising by the objective's own traffic is worse than what already
+exists.** That denominator was this session's first idea, and it loses to
+`rsub` by 343x against 199x. The denominator was never the problem.
+
+### What is left open, handed to `TODO.md`
+
+**The zero point is still the baseline.** This widens the predicate's reach by
+five decades and gives it no absolute bar. `pilot`'s suboptimality was there
+when the baseline was written and stays invisible.
+
+Two things block the bar, and both are written into `TODO.md` item 5.
+`wood1p` publishes the exactly correctly rounded optimum — `refeps = 0` in
+02-83 — and carries the loosest certificate of any clean instance on either
+set, so a bar placed to catch `pilot87` sits 343x above a perfect answer. And
+an absolute bar turns the gate red on whatever is already over it, which is
+`pilot` and `pilot87` today: the same judgement item 1 carries.
+
+**A third route was measured here and is the strongest of the three, and it is
+also item 1's judgement.** `objective_accepted` is already an absolute window,
+`|got - ref| <= 1e-6 * max(|ref|, 1)`. Tightened to `1e-9` it catches `pilot`
+with **zero false positives on all 94** standard instances. The population is
+bimodal: 88 instances sit at or under `6.84e-16`, which is the reference's own
+last digit, and the next value up is `modszk1` at `2.8e-13`. `finnis` at
+`4.41e-10` is the nearest clean instance to `pilot`'s `4.15e-08`, and D173
+already refused `finnis` with its own measurement. Any window in the empty
+band gives the same answer, so this one is not fitted. It turns the gate red
+on `pilot` today, which is why it is not taken here.

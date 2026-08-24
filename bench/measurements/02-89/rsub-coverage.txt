@@ -1,0 +1,80 @@
+== 1. what the floor watches ==
+
+rsub, one line per decade, one column per set
+  band                                netlib          kennington
+  [0e+00,1e-18)                            3                   1
+  [1e-18,1e-17)                            2                   1
+  [1e-17,1e-16)                           14                   5
+  [1e-16,1e-15)                           23                   1
+  [1e-15,1e-14)                           23                   4
+  [1e-14,1e-13)                           13                   4
+  [1e-13,1e-12)                            7                   0
+  [1e-12,1e-11)                            2                   0
+  [1e-11,1e-10)                            0                   0
+  [1e-10,1e-09)                            3                   0
+  [1e-09,1e-08)                            2                   0
+  [1e-08,1e-06)                            0                   0
+  [1e-06,1e-04)                            2                   0
+  [1e-04,1e+00)                            0                   0
+
+  floor 1e-09: watches   4 of 110   (netlib=4/94  kennington=0/16)
+  floor 1e-13: watches  16 of 110   (netlib=16/94  kennington=0/16)
+  floor 1e-14: watches  33 of 110   (netlib=29/94  kennington=4/16)
+  floor 1e-15: watches  60 of 110   (netlib=52/94  kennington=8/16)
+  floor 1e-16: watches  84 of 110   (netlib=75/94  kennington=9/16)
+  floor 1e-17: watches 103 of 110   (netlib=89/94  kennington=14/16)
+  floor 1e-18: watches 106 of 110   (netlib=91/94  kennington=15/16)
+
+  netlib: max 6.91e-05 (pilot)  min>0 4.84e-19  baselines at exactly 0: 2
+  kennington: max 4.18e-14 (ken-18)  min>0 1.11e-18  baselines at exactly 0: 1
+
+== 2. the negative control: how far a legitimate change moves rsub ==
+
+  D171, 73 instances with a before and an after, 88 of 94 digests moved
+  worst down 0.5940x (sctap1)   worst up 1.6884x (scsd1)
+  moved by 2.0x or more, either way: 0 of 73
+
+  would the predicate have called any of them a regression?
+    floor 1e-09: 0 false regressions []
+    floor 1e-13: 0 false regressions []
+    floor 1e-14: 0 false regressions []
+    floor 1e-15: 0 false regressions []
+    floor 1e-16: 0 false regressions []
+    floor 1e-17: 0 false regressions []
+    floor 1e-18: 0 false regressions []
+    floor 0e+00: 0 false regressions []
+
+  and how much headroom is left under the factor, among the watched
+    floor 1e-09:   0 watched
+    floor 1e-13:   2 watched   worst up 0.995x (dfl001)   headroom to 2.0x = 2.01x
+    floor 1e-14:  10 watched   worst up 1.006x (maros)   headroom to 2.0x = 1.99x
+    floor 1e-15:  32 watched   worst up 1.078x (scagr7)   headroom to 2.0x = 1.86x
+    floor 1e-16:  55 watched   worst up 1.078x (scagr7)   headroom to 2.0x = 1.86x
+    floor 1e-17:  71 watched   worst up 1.688x (scsd1)   headroom to 2.0x = 1.18x
+    floor 1e-18:  72 watched   worst up 1.688x (scsd1)   headroom to 2.0x = 1.18x
+
+== 3. the two alternatives, against the same ground truth ==
+
+  ground truth is 02-83's refeps: the published point's distance from
+  Koch's optimum, in units of the arithmetic floor. |refeps| > 1e4 is
+  the four instances 02-83 named. pilot and pilot87 are the two the
+  checker has any chance of seeing.
+
+  rsub = gappos / (1 + |obj|), what the gate records
+    certified only=False catches ['pilot', 'pilot87']
+      lowest of those 2.54e-06   top clean instance 7.4e-09 (wood1p)   margin 343.2x
+    certified only=True  catches ['pilot']
+      lowest of those 6.91e-05   top clean instance 7.4e-09 (wood1p)   margin 9338x
+
+  gappos on its own, no normalisation
+    certified only=False catches ['pilot', 'pilot87']
+      lowest of those 0.0007677   top clean instance 0.002185 (ken-18)   margin 0.3514x
+    certified only=True  catches ['pilot']
+      lowest of those 0.0386   top clean instance 0.002185 (ken-18)   margin 17.67x
+
+  gappos / (eps * sum|c_j x_j|), the traffic floor
+    certified only=False catches ['pilot', 'pilot87']
+      lowest of those 1.122e+10   top clean instance 5.646e+07 (wood1p)   margin 198.8x
+    certified only=True  catches ['pilot']
+      lowest of those 3.118e+11   top clean instance 5.646e+07 (wood1p)   margin 5523x
+

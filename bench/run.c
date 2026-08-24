@@ -276,11 +276,26 @@ constexpr double WORK_REGRESSION_FACTOR = 2.0;
  * which clears 2.0 with thirty-six times to spare. 6.9e-05 is also the worst
  * value anywhere in the gate, so nothing legitimate sits near the bad case.
  *
- * The floor keeps roundoff out: Kennington's worst is 4.72e-14 and most of
- * the standard set sits below 1e-8, where ratios mean nothing. `pilot` at its
- * correct value is far above it, so the case that matters is still compared. */
+ * **The floor was 1e-9, and at that value it watched 4 solves out of 110**
+ * (D177, `bench/measurements/02-89/`). It excluded the whole Kennington set,
+ * whose worst is 4.18e-14, and 90 of the 94 standard instances. Its stated
+ * reason was that ratios mean nothing below it. The record refutes that:
+ * D171 moved 88 of 94 digests, and it moved `rsub` on 73 instances by at
+ * most 1.688x up and 0.594x down, down to 4.84e-19. Not one of them would
+ * have fired at any floor, including no floor at all.
+ *
+ * **1e-16 is where the knee is, measured on that same change.** Among the
+ * instances a floor of 1e-16 watches, the worst legitimate move is 1.078x,
+ * which leaves 1.86x of headroom under the factor of 2. One decade lower the
+ * worst move is 1.688x and the headroom is 1.18x. The value also sits at the
+ * objective's own last bit: `rsub` divides by `1 + |primal_obj|`, so below
+ * about eps the numerator is the rounding of the number under it. Coverage
+ * goes from 4 solves to 84.
+ *
+ * The floor still has a job. Three baselines read exactly 0, and against a
+ * zero baseline every positive value is an infinite ratio. */
 constexpr double RSUB_REGRESSION_FACTOR = 2.0;
-constexpr double RSUB_FLOOR = 1e-9;
+constexpr double RSUB_FLOOR = 1e-16;
 
 constexpr int MAX_INSTANCES = 512;
 

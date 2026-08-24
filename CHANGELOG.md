@@ -11,6 +11,15 @@ open, `bench/README.md` for the gate, and the commit each entry came from.
 
 ### Changed
 
+- **The gate's suboptimality predicate was watching 4 solves out of 110**, and
+  none of Kennington's 16 — that set's worst `rsub` is `4.18e-14`, five decades
+  under `RSUB_FLOOR = 1e-9`. The floor drops to `1e-16` and the reach goes to
+  84 solves. The floor's stated reason is refuted by D171's own committed
+  numbers: it moved 88 of 94 digests and moved `rsub` by at most 1.688x, so
+  nothing would have fired at any floor at all. 1e-16 is where the headroom
+  under the factor of 2 falls from 1.86x to 1.18x. 110 solution digests and 29
+  infeasibility verdicts unmoved, `bench/results/*.txt` byte-identical (D177).
+
 - **D97's §8d refusal is three to four orders wider than the hazard it
   prevents, so the design is rewritten around that.** Counted at `7c7375c`
   where the tightening exists, the refusal declines 50.2% of netlib's imposed
