@@ -66,9 +66,14 @@ accepting the residue has a measured floor of 3 of 24 (D179,
 The probe reaches 24 instances where 02-48 reaches 48 solves, on code the two
 share none of. That is a second route to D171's number.
 
-**Nothing is pushed from this session.** Three commits: `d33fba7` (D177),
-`9c9c060` (D178) and this one. Ask the remote rather than trusting that
-sentence: `git rev-list --count origin/main..HEAD`.
+**D177, D178 and D179 were pushed on 2026-08-24**, fast-forward with no
+divergence, on the maintainer's answer to a direct question: pushes are theirs
+to delegate and they have. That sentence is about a past moment and cannot go
+stale. **Ask the remote for the current state:**
+`git rev-list --count origin/main..HEAD`. **Push from the WINDOWS side** — the
+remote is an SSH alias that lives in the Windows `~/.ssh/config` only, and from
+WSL it dies as "could not resolve hostname". `git fetch` first: another Claude
+session commits to this repository.
 
 ### The state of the tree at 2026-08-21, which the sections below assume
 
