@@ -185,6 +185,7 @@ and you have the argument. Jump to the entry for the numbers behind it.
 - **[D175](#d175--the-sum-that-ranks-two-rounds-decides-which-point-is-published-so-it-is-compensated-too--and-no-solve-on-the-three-sets-can-reach-the-case)** — The sum that ranks two rounds decides which point is published, so it is compensated too — and no solve on the three sets can reach the case
 - **[D176](#d176--refused-presolves-objective-offset-is-compensated-for-nothing-because-poisoning-it-with-nan-moves-not-one-byte-on-any-of-the-139)** — REFUSED: presolve's objective offset is compensated for nothing, because poisoning it with NaN moves not one byte on any of the 139
 - **[D177](#d177--the-gates-suboptimality-predicate-watched-4-solves-of-110-and-the-floor-that-excluded-the-other-106-is-refuted-by-d171s-own-numbers)** — The gate's suboptimality predicate watched 4 solves of 110, and the floor that excluded the other 106 is refuted by D171's own numbers
+- **[D178](#d178--refused-scsd1-and-degen2-do-not-lose-the-same-way-so-3-asks-for-a-predictor-of-something-that-happens-once-in-twenty)** — REFUSED: `scsd1` and `degen2` do not lose the same way, so §3 asks for a predictor of something that happens once in twenty
 
 ---
 
@@ -13444,3 +13445,87 @@ last digit, and the next value up is `modszk1` at `2.8e-13`. `finnis` at
 already refused `finnis` with its own measurement. Any window in the empty
 band gives the same answer, so this one is not fitted. It turns the gate red
 on `pilot` today, which is why it is not taken here.
+
+---
+
+## D178 — REFUSED: `scsd1` and `degen2` do not lose the same way, so §3 asks for a predictor of something that happens once in twenty
+
+**2026-08-24.** No behavioural change: one comment in `src/simplex.c`, proved
+object-identical by `comment_only.sh`, and the two warm records refreshed
+because they were 24 `src/` commits stale. Evidence in
+`bench/measurements/02-90/`.
+
+### The question, as it was actually asked
+
+`TODO.md` §3 carried `scsd1` and `degen2` as two instances losing real work
+behind D151's cap, **described as losing the same way** — "each with warm
+iterations exactly equal to cold", which is D148's guard throwing the repaired
+trajectory away and charging the attempt plus the whole cold solve. The item
+asked for a predictor of a doomed trajectory and said plainly that it needed a
+hypothesis about the mechanism rather than another sweep, because the
+shortfall was already refused: both are short by 1, the same as the sixteen
+that win (D151).
+
+The hypothesis taken was the most direct one available. `build_warm_basis`
+closes a shortfall with two loops — one promoting the logical of an UNCOVERED
+row, which is structurally forced, and one walking in index order, which is a
+free choice. If the losers use the free branch and the winners the forced one,
+the repair knows which it used before it pays for anything.
+
+### The measurement — the premise is false
+
+A diagnostic build reported, per instance, what the repair saw and what the
+guard then did. Over the twenty instances whose mapped basis arrives short by
+4 or fewer:
+
+| | `degen2` | `scsd1` |
+|---|---|---|
+| warm iterations / cold | 565 / 565 | **314 / 89** |
+| settled dual violation, warm | **12.91** | **0** |
+| guard fires | **yes** | **no** |
+| work against cold | 3.6751x | 3.7165x |
+
+**Only `degen2` is D148's guard.** `scsd1` reaches a dual feasible point, the
+guard accepts it, and the warm solve genuinely runs 314 iterations where the
+cold one runs 89. `degen2`'s two counts are equal because the cold restart
+resets the counter, which is the guard's documented behaviour.
+
+So §3 asks for a predictor of a phenomenon that occurs **once** in twenty.
+`lotfi` is a third instance costing more warm than cold, 1.2753x, and its
+guard does not fire either.
+
+### What was refuted
+
+**The branch hypothesis, outright.** 18 of the 20 promote entirely by index
+order, including all three losers and 15 winners. The only two that use the
+uncovered-row loop are `pilot-we` and `ship08l`, and both win — at 0.0939x and
+0.0332x, two of the three best ratios in the set.
+
+**Ten more quantities, all known before the solve**, and none separates the
+three losers from the seventeen winners: the shortfall, the count of rows the
+wanted basis leaves uncovered, the promotions each loop made, `nrow`, `ncol`,
+wanted-basic columns, wanted-basic logicals, `S/nrow`, wanted logicals over
+`nrow`, and `ncol/nrow`. The narrowest is `ncol` with three winners inside a
+range whose ends are 2.6x apart, in a variable spanning 35 to 3148 over twenty
+points. An interval that is merely sparse is not a predictor and D46 is why.
+
+**And two figures the source comment quoted are stale**, which is how the false
+premise survived. D151's per-instance table is 2026-08-19's tree. Now: netlib
+work geometric mean **0.1910** against the sweep's predicted 0.1916, worst
+**3.7165x** rather than 4.65x, `degen2` 3.6751x rather than 4.09x, `25fv47`
+**wins** at 0.9854 where it was 1.0349, three instances costing more warm than
+cold rather than four, Kennington 0.0071 against 0.0070. **The mean is exactly
+where the sweep put it and the two worst cases are not**, so a comment quoting
+a worst case ages faster than one quoting a mean.
+
+### What is left open, handed to `TODO.md`
+
+**§3 is now one instance and it is `degen2`.** Why a repaired warm basis on
+that model settles 12.91 outside dual feasibility is not answered, and one
+instance cannot supply a threshold. What would change that is a second
+instance of the same mechanism, which means a wider model population — §4's
+fourth instance set, whose reopen condition this becomes.
+
+**`scsd1` is a different question and it is new.** Its warm start is accepted,
+correct, and 3.5x longer than starting cold. Nothing here says why, and it is
+not a guard problem, so nothing in D148 or D151 bears on it.

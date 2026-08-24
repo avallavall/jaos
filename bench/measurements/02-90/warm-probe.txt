@@ -1,0 +1,50 @@
+== what the repair did, and what the solve then cost ==
+
+guard=YES means the settled warm point was not dual feasible, so the
+trajectory was thrown away and the solve restarted cold. That is the
+only row where warm iterations equal cold by construction.
+
+instance    nrow  ncol  S uncov byUnc byOrd wantcol wantlog  warm-viol guard  itersW  itersC   work x
+-----------------------------------------------------------------------------------------------------
+scsd1         77   759  1     0     0     1      70       7          0    no     314      89   3.7165
+degen2       443   532  1     0     0     1     334     109      12.91   YES     565     565   3.6751
+lotfi        134   292  2     0     0     2      96      38          0    no     257     244   1.2753
+25fv47       777  1539  2     0     0     2     613     164          0    no    9840   11862   0.9854
+kb2           43    35  1     0     0     1      26      17          0    no       6      40   0.7249
+vtp-base      52    80  1     0     0     1      44       8          0    no      10      51   0.4934
+scagr7        95   132  1     0     0     1      85      10          0    no      47     167   0.4536
+bore3d       136   155  4     0     0     4     121      15        nan    no      25     134   0.3391
+blend         72    81  1     0     0     1      59      13          0    no      11      97   0.1986
+wood1p       171  1800  1     0     0     1     138      33          0    no      33     285   0.1813
+degen3      1503  1817  1     0     0     1    1131     372          0    no     187    2397   0.1709
+fit1d         24  1025  1     0     0     1      11      13          0    no       2      39   0.1302
+scsd6        147  1349  1     0     0     1     140       7          0    no      19     235   0.1281
+finnis       399   518  2     0     0     2     224     175          0    no       4     281   0.1164
+adlittle      53    95  1     0     0     1      43      10          0    no       2      80   0.1089
+boeing1      298   369  1     0     0     1     178     120          0    no      24     391   0.0979
+scsd8        397  2749  1     0     0     1     395       2          0    no      40     728   0.0955
+pilot-we     705  2457  4     2     2     2     676      29          0    no     351    4726   0.0939
+forplan      128   392  4     0     0     4      86      42          0    no       4     183   0.0696
+ship08l      520  3148  1     1     1     0     473      47          0    no       1     698   0.0332
+
+3 cost more work warm than cold: ['degen2', 'lotfi', 'scsd1']
+17 cost less: 17 instances
+
+== does anything the repair knows BEFORE the solve separate them? ==
+
+A column separates only if no winner's value falls inside the range
+the losers span. A range that is merely sparse is not a predictor:
+a rule read off two instances out of twenty is D46's warning.
+
+  short            losers [1, 1, 2]   14 winners inside
+  uncovered_rows   losers [0, 0, 0]   15 winners inside
+  by_uncovered     losers [0, 0, 0]   15 winners inside
+  by_order         losers [1, 1, 2]   14 winners inside
+  nrow             losers [77, 134, 443]   8 winners inside
+  ncol             losers [292, 532, 759]   3 winners inside
+  wantcol          losers [70, 96, 334]   7 winners inside
+  wantlog          losers [7, 38, 109]   12 winners inside
+
+  S/nrow           losers [0.0023, 0.013, 0.0149]   9 winners inside
+  wantlog/nrow     losers [0.0909, 0.246, 0.2836]   8 winners inside
+  ncol/nrow        losers [1.2009, 2.1791, 9.8571]   12 winners inside

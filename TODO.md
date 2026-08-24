@@ -32,6 +32,26 @@ gate red at HEAD. The strongest is not the certificate: tightening
 `objective_accepted` from `1e-6` to `1e-9` catches `pilot` with zero false
 positives on all 94, in a band that is empty for two and a half decades.
 
+### 2026-08-24: D178, and §3's premise is refuted
+
+**One comment in `src/simplex.c`, proved object-identical by
+`comment_only.sh`, and the two warm records refreshed because they were 24
+`src/` commits stale.** §3 said `scsd1` and `degen2` lose the same way. They
+do not: only `degen2` is D148's guard, at a settled dual violation of 12.91,
+and `scsd1`'s guard never fires — it reaches a dual feasible point and runs
+314 iterations against cold's 89. So the item asked for a predictor of
+something that happens once in twenty, and eleven quantities known before the
+solve separate nothing (D178, `bench/measurements/02-90/`).
+
+**The warm campaign at this tree**: netlib work geometric mean 0.1910 against
+D151's predicted 0.1916, worst 3.7165x on `scsd1`, three instances costing
+more warm than cold; Kennington 0.0071. The mean is where the sweep put it and
+the two worst cases are not, which is why the comment quoting them aged and
+the one quoting the mean did not.
+
+**No gate campaign is owed.** `comment_only.sh` reports the release object
+UNCHANGED at `d33fba7`, so D177's campaign still holds. `warm*` is not a gate.
+
 **Nothing is pushed from this session.**
 
 ### The state of the tree at 2026-08-21, which the sections below assume
@@ -88,7 +108,7 @@ measurement.**
 |---|---|---|---|
 | 1 | **`pilot` publishes a point 2.31e-05 above the optimum — DECIDE** | not a diagnosis; D174 answered the cause. `DUAL_TOL` at 1e-9 repairs all four netlib instances that publish a point off the optimum, **three of them for LESS work**, and makes `pilot87` — D92's backlog row — exact. The price is `6 regressed` on the gate's 2.0x work bar. The measurement is complete and the call is a judgement | §4 below |
 | 2 | **48 netlib solves publish an invalid basis** | a rank argument WIDER than the firing row, or accepting the residue as the published state of the art does (Galabova 2023). Every local repair is refused with its measurement (D140, D141). **D171 made it worse by 2 and that is measured** | §2 below |
-| 3 | **`scsd1` and `degen2` behind D151's cap** | a predictor of a doomed trajectory. The shortfall cannot be it and that is measured | §3 below |
+| 3 | **`degen2` behind D151's cap — and `scsd1` is a SEPARATE question** | **the premise that they lose the same way is refuted** (D178). Only `degen2` is D148's guard, at a settled dual violation of 12.91; `scsd1`'s guard never fires and it genuinely runs 314 iterations against cold's 89. So a doomed trajectory happens ONCE in twenty, and eleven quantities known before the solve separate nothing. Needs a second instance, which means §4's fourth set | §3 below |
 | 4 | **`D97`, the dual postsolve for an imposed bound** | nothing is built; `docs/research/dual-postsolve-imposed-bound.md` is the design with the literature verified. **The largest prize in the file** — it unlocks bound tightening AND doubleton equalities, 8.55% of netlib's live rows and 29.36% of Kennington's. **§8d is measured now and rewritten around it (02-87, 02-88)**: its refusal declines 50.2% of netlib's imposed bounds and 82.3% of Kennington's, and the hazard it prevents occurs **12 times in 98146 opportunities**. **The better design is postsolve detection and THIS TREE CANNOT HAVE IT**: the collision leaves the point one constraint short of a vertex, which needs a crossover, and `SPECS.md` has crossover and the primal simplex that blocks it both `missing`. So the first version is the refusal narrowed to equality rows — 35.5% and 20.3% — over-paying by three orders, and that price is the missing crossover rather than the reduction. §12 item 7 | "If all of the above is dropped" |
 | 5 | **the gate cannot see a suboptimal answer** | a threshold, and every candidate measured so far is blocked behind item 1. **The reach half is done**: `RSUB_FLOOR` was `1e-9` and watched 4 solves of 110, none of them Kennington's; it is `1e-16` now and watches 84 (D177). The zero point is still the baseline, so `pilot`'s suboptimality stays invisible. Three bars are measured and all three turn the gate red today, which is item 1's judgement | §4 below |
 
@@ -605,7 +625,7 @@ half-hour item. In the order a session with fresh context should weigh them:
 |---|---|---|
 | **§2, 46 solves publish a wrong basis** | a rank argument WIDER than the firing row. Every local repair is refused with its measurement (D141), and the published state of the art accepts the residue (Galabova 2023) | design |
 | **`pilot` publishes a point 2.31e-05 above the optimum** | which tolerance lets the solve stop there, from a `jaos-debug` throwaway build. The point is feasible, so the dual test accepted a column that was still improving. Read D127 first — the unclamped dual step is refused there because the perturbation is what keeps `pilot87` moving (D173) | bounded |
-| **§3, `scsd1` and `degen2` behind D151's cap** | a predictor of a doomed trajectory. **The shortfall cannot be it and that is measured** — both are short by 1, the same as the sixteen that win | research |
+| **§3, `degen2` behind D151's cap** | a second instance of the mechanism. **`scsd1` is no longer part of this item** — its guard never fires (D178), so a doomed trajectory happens once in twenty and eleven quantities known before the solve separate nothing | blocked on §4 |
 | **`D97`** | a dual postsolve for an imposed bound. `docs/research/dual-postsolve-imposed-bound.md` is the design; nothing is built. Unlocks §3's doubleton equalities too | largest prize |
 
 **Read D164 before proposing any tolerance work at all.** It is the entry that
@@ -686,17 +706,43 @@ to the last bit, so **`price_entry`'s naive dot product is refused as the
 explanation** — worst disagreement over all 94 is 3.37e-09 on `dfl001`, one
 rounding at that column's own traffic.
 
-### 3. Two instances still lose real work behind D151's cap
+### 3. `degen2` loses real work behind D151's cap — and `scsd1` is a different question
 
-`scsd1` 4.65x and `degen2` 4.09x, both with warm iterations exactly equal to
-cold — D148's guard rejecting the repaired trajectory and charging the
-attempt plus the whole cold solve. **The shortfall cannot be the rule that
-separates them and this is measured**: both are short by 1, the same
-shortfall as the sixteen instances that win. Needs a predictor of a doomed
-trajectory. Refusals table, D151.
+**Rewritten 2026-08-24 (D178, `bench/measurements/02-90/`), because the
+premise this section carried is false.** It said `scsd1` and `degen2` lose the
+same way, "each with warm iterations exactly equal to cold". A diagnostic
+build says otherwise.
 
-**Looked at again 2026-08-21 and deliberately not attempted, so the next
-session does not repeat the walk.** What the repair knows *before* paying for
+| | `degen2` | `scsd1` |
+|---|---|---|
+| warm iterations / cold | 565 / 565 | **314 / 89** |
+| settled dual violation, warm | **12.91** | **0** |
+| guard fires | **yes** | **no** |
+| work against cold | 3.6751x | 3.7165x |
+
+**Only `degen2` is D148's guard.** `scsd1` reaches a dual feasible point, the
+guard accepts it, and the warm solve is genuinely 3.5x longer than starting
+cold. `degen2`'s counts are equal because the cold restart resets the counter.
+
+So this item asks for a predictor of something that happens **once** in the
+twenty instances that repair, and D46 says what a rule read off one instance
+is worth. `lotfi` costs more warm than cold too, 1.2753x, and its guard does
+not fire either.
+
+**Eleven quantities known before the solve were measured and none separates**
+the three losers from the seventeen winners: the shortfall, rows the wanted
+basis leaves uncovered, promotions by each of the repair's two loops, `nrow`,
+`ncol`, wanted-basic columns, wanted-basic logicals, `S/nrow`, wanted logicals
+over `nrow`, `ncol/nrow`. **The branch hypothesis is refuted outright** — 18
+of 20 promote entirely by index order, and the only two using the
+uncovered-row loop (`pilot-we`, `ship08l`) are two of the three best ratios in
+the set.
+
+**What it needs now is a second instance of the mechanism, so §4's fourth
+instance set is this item's reopen condition.** Refusals table, D151.
+
+**Superseded by D178 above, and kept because its reasoning still holds for
+`degen2` alone.** What the repair knows *before* paying for
 the attempt is the shortfall `S` and the dimensions — and D151 swept both `S`
 and the relative shape `S/nrow` (`bench/measurements/02-60/cap-detail.txt`),
 so neither separates. Everything else that distinguishes these two is an
@@ -1798,6 +1844,12 @@ D101 (`bench/measurements/02-07/`), D107
 names this section as the standing candidate. That is D24's pattern for the
 fourth time.
 
+**§3 now depends on this section too, and it is not one of the four above.**
+D178 left `degen2` as the only instance where D148's guard throws a repaired
+warm trajectory away, and one instance cannot supply a threshold. A second
+instance of that mechanism is what §3 needs, and a wider model population is
+the only place one comes from.
+
 ### Sizes read 2026-08-17, before fetching anything
 
 | where JAOS is now | rows | cols |
@@ -2036,7 +2088,7 @@ then, do not — a refusal whose premise has not changed just fails again.
 | D176 | compensating presolve's `obj_offset` — the reduced model's offset is measurably dead: poisoned with `1e300` and with `NaN`, all three sets stay bit-identical to a control that reproduces the committed records exactly | anything reading the reduced model's objective — a progress callback carrying it, a presolve statistic reporting it, or a postsolve path that adds `reduced.obj_offset` instead of recomputing on the caller's model. `bench/measurements/02-86/run-poison-offset.sh` is the test for that condition |
 | D173 | `finnis` publishing a point that is not the exact optimal vertex — its 7.62e-05 gap to Koch is **0.107 of `eps * sum |c_j x_j|`**, the floor arithmetic sets for a model carrying 3.198e+12 of traffic, and its row residual is under one eps of each row's own traffic | a model whose gap exceeds that floor. Four already do and they are open items rather than refusals: `pilot` 1.87e+08, `pilot87` 1.53e+06, `scsd6` 9.97e+04, `etamacro` 2.74e+04. The oracle is `bench/measurements/02-83/run-exact-objective.sh` and it needs no build of its own |
 | D149 | the blanket warm count repair, retried behind the certificate guard — correct now (`disagreed=0, rejected=0`) and refused on cost: `dfl001` at 172x work for a doomed 596-short repair, netlib geomean 0.2605 vs 0.2553 | **condition MET by D151**: the cap was swept on both sides and the capped repair landed at 4. This row stays as the record of the refusal and its expiry |
-| D151 | the two instances that still lose real work behind the cap — `scsd1` 4.65x and `degen2` 4.09x, both with warm iterations exactly equal to cold, which is D148's guard rejecting the repaired trajectory and charging the attempt plus the whole cold solve | a rule that predicts a doomed trajectory before paying for it. **The shortfall cannot be that rule and this is measured**: both are short by 1, the same shortfall as the sixteen instances that win. Raising the cap is separately refused — the sweep in `bench/measurements/02-60/` reads 15.48x on `greenbea` at 7 |
+| D151 | the instances that still lose real work behind the cap. **The two-instance framing is refuted by D178**: only `degen2` is D148's guard, at a settled dual violation of 12.91, and `scsd1`'s guard never fires — it runs 314 iterations against cold's 89 and is a separate question. Current ratios are 3.6751x and 3.7165x, not 4.09x and 4.65x | a rule that predicts a doomed trajectory before paying for it. **The shortfall cannot be that rule and this is measured**: both are short by 1, the same shortfall as the sixteen instances that win. Raising the cap is separately refused — the sweep in `bench/measurements/02-60/` reads 15.48x on `greenbea` at 7 |
 | D145 | the warm count repair in `build_warm_basis` — refused because 8 netlib solves published a wrong objective through the termination hole | **condition MET by D148** (the certificate guard landed), retried as D149 and refused again on cost. This row stays as the record of the refusal and its expiry |
 | D142 | a count guard in `jm_model_remember_basis` — the premise "build_warm_basis already rejects it" is false: it counts the MAPPED basis, and clearing the stored publish costs `capri` and `fffff800` their warm starts (1→273 and 7→945 iterations) for nothing any consumer reads | a consumer of `start_*` appears that reads the orig-space count as a claim, or warm starting stops going through presolve's mapping. The candidate and its validated test are at `bench/measurements/02-51/remember-guard-candidate.diff` |
 | D141 | a within-row demotion for the published-basis residue — 152 of the 232 declines have no basic column of the row at a bound, and the snap for the 80 breaks the row-bound exactness 02-49 measured (74 of 80 exact) | a demotion design whose candidate set is wider than the firing row AND that carries a rank argument for the demoted member; the fallback in the published shape (Galabova 2023) is accepting the residue |

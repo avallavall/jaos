@@ -308,11 +308,28 @@ constexpr int64_t SETTLE_ROUNDS = 32;
  * short by exactly 1, so every cap at or above 1 gives that set the whole of
  * its gain (0.0572 to 0.0070); the number only trades netlib.
  *
- * Two instances lose at this setting and both lose the same way: `degen2`
- * 4.09x and `scsd1` 4.65x, each with warm iterations exactly equal to cold.
- * That is D148's guard rejecting the repaired trajectory and restarting
- * cold, so the bill is the attempt plus the cold solve. Bounded, and the
- * price of the 18 instances that win. */
+ * **The two instances that lose most do NOT lose the same way, and the first
+ * version of this paragraph said they did** (D178,
+ * bench/measurements/02-90/). Only `degen2` is D148's guard: its settled warm
+ * point carries a dual violation of 12.91, the trajectory is thrown away, and
+ * the cold restart is why its warm and cold iteration counts are equal.
+ * `scsd1` reaches a dual feasible point and the guard never fires — it
+ * genuinely takes 314 iterations where cold takes 89. So there is one doomed
+ * trajectory in the twenty that repair, not two, and a rule read off one
+ * instance is not a rule.
+ *
+ * Eleven quantities this function knows BEFORE the solve were measured
+ * against that split — the shortfall, how many rows the wanted basis leaves
+ * uncovered, how many promotions each of the two loops below made, the
+ * dimensions, and four ratios of them. Every one has winners inside the
+ * losers' range, so none is a predictor.
+ *
+ * The ratios in the sweep above are D151's, at D151's tree, and the set has
+ * moved since. The campaign at D177 reads a netlib work geometric mean of
+ * 0.1910 against the sweep's predicted 0.1916, a worst case of 3.7165x on
+ * `scsd1` rather than 4.65x, and `25fv47` now wins at 0.9854. Three
+ * instances cost more warm than cold: `scsd1`, `degen2` and `lotfi`. Bounded,
+ * and the price of the 17 that win. */
 constexpr int64_t WARM_REPAIR_MAX_SHORT = 4;
 
 /* Bounds JAOS invented to get a dual feasible start. A column is caught by

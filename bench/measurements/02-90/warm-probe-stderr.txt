@@ -1,0 +1,99 @@
+DIAG-INSTANCE 25fv47
+DIAG-GUARD warm=0 violation=0 iters=4087
+DIAG-REPAIR nrow=777 ncol=1539 short=2 uncovered_rows=0 by_uncovered=0 by_order=2 wantcol=613 wantlog=164
+DIAG-GUARD warm=1 violation=0 iters=9840
+DIAG-GUARD warm=0 violation=0 iters=11862
+DIAG-INSTANCE adlittle
+DIAG-GUARD warm=0 violation=0 iters=71
+DIAG-REPAIR nrow=53 ncol=95 short=1 uncovered_rows=0 by_uncovered=0 by_order=1 wantcol=43 wantlog=10
+DIAG-GUARD warm=1 violation=0 iters=2
+DIAG-GUARD warm=0 violation=0 iters=80
+DIAG-INSTANCE blend
+DIAG-GUARD warm=0 violation=0 iters=99
+DIAG-REPAIR nrow=72 ncol=81 short=1 uncovered_rows=0 by_uncovered=0 by_order=1 wantcol=59 wantlog=13
+DIAG-GUARD warm=1 violation=0 iters=11
+DIAG-GUARD warm=0 violation=0 iters=97
+DIAG-INSTANCE boeing1
+DIAG-GUARD warm=0 violation=0 iters=370
+DIAG-REPAIR nrow=298 ncol=369 short=1 uncovered_rows=0 by_uncovered=0 by_order=1 wantcol=178 wantlog=120
+DIAG-GUARD warm=1 violation=0 iters=24
+DIAG-GUARD warm=0 violation=0 iters=391
+DIAG-INSTANCE bore3d
+DIAG-GUARD warm=0 violation=0 iters=134
+DIAG-REPAIR nrow=136 ncol=155 short=4 uncovered_rows=0 by_uncovered=0 by_order=4 wantcol=121 wantlog=15
+DIAG-INSTANCE degen2
+DIAG-GUARD warm=0 violation=0 iters=578
+DIAG-REPAIR nrow=443 ncol=532 short=1 uncovered_rows=0 by_uncovered=0 by_order=1 wantcol=334 wantlog=109
+DIAG-GUARD warm=1 violation=12.91 iters=898
+DIAG-GUARD warm=0 violation=0 iters=565
+DIAG-GUARD warm=0 violation=0 iters=565
+DIAG-INSTANCE degen3
+DIAG-GUARD warm=0 violation=0 iters=2423
+DIAG-REPAIR nrow=1503 ncol=1817 short=1 uncovered_rows=0 by_uncovered=0 by_order=1 wantcol=1131 wantlog=372
+DIAG-GUARD warm=1 violation=0 iters=187
+DIAG-GUARD warm=0 violation=0 iters=2397
+DIAG-INSTANCE finnis
+DIAG-GUARD warm=0 violation=0 iters=281
+DIAG-REPAIR nrow=399 ncol=518 short=2 uncovered_rows=0 by_uncovered=0 by_order=2 wantcol=224 wantlog=175
+DIAG-GUARD warm=1 violation=0 iters=4
+DIAG-GUARD warm=0 violation=0 iters=281
+DIAG-INSTANCE fit1d
+DIAG-GUARD warm=0 violation=0 iters=66
+DIAG-REPAIR nrow=24 ncol=1025 short=1 uncovered_rows=0 by_uncovered=0 by_order=1 wantcol=11 wantlog=13
+DIAG-GUARD warm=1 violation=0 iters=2
+DIAG-GUARD warm=0 violation=0 iters=39
+DIAG-INSTANCE forplan
+DIAG-GUARD warm=0 violation=0 iters=194
+DIAG-REPAIR nrow=128 ncol=392 short=4 uncovered_rows=0 by_uncovered=0 by_order=4 wantcol=86 wantlog=42
+DIAG-GUARD warm=1 violation=0 iters=4
+DIAG-GUARD warm=0 violation=0 iters=183
+DIAG-INSTANCE kb2
+DIAG-GUARD warm=0 violation=0 iters=52
+DIAG-REPAIR nrow=43 ncol=35 short=1 uncovered_rows=0 by_uncovered=0 by_order=1 wantcol=26 wantlog=17
+DIAG-GUARD warm=1 violation=0 iters=6
+DIAG-GUARD warm=0 violation=0 iters=40
+DIAG-INSTANCE lotfi
+DIAG-GUARD warm=0 violation=0 iters=237
+DIAG-REPAIR nrow=134 ncol=292 short=2 uncovered_rows=0 by_uncovered=0 by_order=2 wantcol=96 wantlog=38
+DIAG-GUARD warm=1 violation=0 iters=257
+DIAG-GUARD warm=0 violation=0 iters=244
+DIAG-INSTANCE pilot-we
+DIAG-GUARD warm=0 violation=0 iters=4178
+DIAG-REPAIR nrow=705 ncol=2457 short=4 uncovered_rows=2 by_uncovered=2 by_order=2 wantcol=676 wantlog=29
+DIAG-GUARD warm=1 violation=0 iters=351
+DIAG-GUARD warm=0 violation=0 iters=4726
+DIAG-INSTANCE scagr7
+DIAG-GUARD warm=0 violation=0 iters=168
+DIAG-REPAIR nrow=95 ncol=132 short=1 uncovered_rows=0 by_uncovered=0 by_order=1 wantcol=85 wantlog=10
+DIAG-GUARD warm=1 violation=0 iters=47
+DIAG-GUARD warm=0 violation=0 iters=167
+DIAG-INSTANCE scsd1
+DIAG-GUARD warm=0 violation=0 iters=97
+DIAG-REPAIR nrow=77 ncol=759 short=1 uncovered_rows=0 by_uncovered=0 by_order=1 wantcol=70 wantlog=7
+DIAG-GUARD warm=1 violation=0 iters=314
+DIAG-GUARD warm=0 violation=0 iters=89
+DIAG-INSTANCE scsd6
+DIAG-GUARD warm=0 violation=0 iters=235
+DIAG-REPAIR nrow=147 ncol=1349 short=1 uncovered_rows=0 by_uncovered=0 by_order=1 wantcol=140 wantlog=7
+DIAG-GUARD warm=1 violation=0 iters=19
+DIAG-GUARD warm=0 violation=0 iters=235
+DIAG-INSTANCE scsd8
+DIAG-GUARD warm=0 violation=0 iters=742
+DIAG-REPAIR nrow=397 ncol=2749 short=1 uncovered_rows=0 by_uncovered=0 by_order=1 wantcol=395 wantlog=2
+DIAG-GUARD warm=1 violation=0 iters=40
+DIAG-GUARD warm=0 violation=0 iters=728
+DIAG-INSTANCE ship08l
+DIAG-GUARD warm=0 violation=0 iters=710
+DIAG-REPAIR nrow=520 ncol=3148 short=1 uncovered_rows=1 by_uncovered=1 by_order=0 wantcol=473 wantlog=47
+DIAG-GUARD warm=1 violation=0 iters=1
+DIAG-GUARD warm=0 violation=0 iters=698
+DIAG-INSTANCE vtp-base
+DIAG-GUARD warm=0 violation=0 iters=46
+DIAG-REPAIR nrow=52 ncol=80 short=1 uncovered_rows=0 by_uncovered=0 by_order=1 wantcol=44 wantlog=8
+DIAG-GUARD warm=1 violation=0 iters=10
+DIAG-GUARD warm=0 violation=0 iters=51
+DIAG-INSTANCE wood1p
+DIAG-GUARD warm=0 violation=0 iters=528
+DIAG-REPAIR nrow=171 ncol=1800 short=1 uncovered_rows=0 by_uncovered=0 by_order=1 wantcol=138 wantlog=33
+DIAG-GUARD warm=1 violation=0 iters=33
+DIAG-GUARD warm=0 violation=0 iters=285

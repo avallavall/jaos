@@ -11,6 +11,16 @@ open, `bench/README.md` for the gate, and the commit each entry came from.
 
 ### Changed
 
+- **`scsd1` and `degen2` do not lose the same way**, and `src/simplex.c` said
+  they did. Only `degen2` is D148's guard: its settled warm point carries a
+  dual violation of 12.91 and the trajectory is thrown away. `scsd1`'s guard
+  never fires — it reaches a dual feasible point and genuinely runs 314
+  iterations against cold's 89. So `TODO.md` §3 asked for a predictor of
+  something that happens once in twenty, and eleven quantities the repair
+  knows before the solve were measured against the split with no separation.
+  Comment only, object-identical; the two warm records are refreshed because
+  they were 24 `src/` commits stale (D178).
+
 - **The gate's suboptimality predicate was watching 4 solves out of 110**, and
   none of Kennington's 16 — that set's worst `rsub` is `4.18e-14`, five decades
   under `RSUB_FLOOR = 1e-9`. The floor drops to `1e-16` and the reach goes to

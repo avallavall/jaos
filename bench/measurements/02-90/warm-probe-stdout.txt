@@ -1,0 +1,53 @@
+warm re-solve against cold, one branching step per instance
+# instance    verdict   branch  warm=iters/work  cold=iters/work
+25fv47       ok        branch=x0<=53 warm=9840/387169002 cold=11862/392890529 verdict=optimal obj=5501.8483493406511/5501.848349340652 before=5501.8458882867444 moved=yes checker=warm:ok/cold:ok 
+      25fv47       warm 0.556 s, cold 0.592 s
+adlittle     ok        branch=x0<=22 warm=2/18502 cold=80/169910 verdict=optimal obj=225701.53567258871/225701.53567258871 before=225494.96316238036 moved=yes checker=warm:ok/cold:ok 
+      adlittle     warm 0.000 s, cold 0.001 s
+blend        ok        branch=x0<=20 warm=11/38162 cold=97/192155 verdict=optimal obj=-30.541042287888668/-30.541042287888668 before=-30.812149845828223 moved=yes checker=warm:ok/cold:ok 
+      blend        warm 0.001 s, cold 0.001 s
+boeing1      ok        branch=x16<=28 warm=24/216692 cold=391/2214498 verdict=optimal obj=-335.21312436321/-335.21312436321 before=-335.21356750712664 moved=yes checker=warm:ok/cold:ok 
+      boeing1      warm 0.001 s, cold 0.006 s
+bore3d       ok        branch=x0<=2 warm=25/118973 cold=134/350848 verdict=infeasible obj=0/0 before=1373.0803942084929 moved=yes checker=warm:n/a/cold:n/a 
+      bore3d       warm 0.001 s, cold 0.001 s
+degen2       ok        branch=x4<=0 warm=565/18643624 cold=565/5072889 verdict=optimal obj=-1435.1616666666666/-1435.1616666666666 before=-1435.1780000000001 moved=yes checker=warm:ok/cold:ok 
+      degen2       warm 0.049 s, cold 0.014 s
+degen3       ok        branch=x21<=0 warm=187/13314530 cold=2397/77930826 verdict=optimal obj=-987.27333333333331/-987.27333333333331 before=-987.29399999999998 moved=yes checker=warm:ok/cold:ok 
+      degen3       warm 0.060 s, cold 0.197 s
+finnis       ok        branch=x1<=3084 warm=4/61092 cold=281/524911 verdict=optimal obj=172791.45128346462/172791.45136514783 before=172791.06567185125 moved=yes checker=warm:ok/cold:ok 
+      finnis       warm 0.001 s, cold 0.003 s
+fit1d        ok        branch=x435<=0 warm=2/108969 cold=39/836762 verdict=optimal obj=-9146.3684959843577/-9146.3684959843577 before=-9146.3780924209277 moved=yes checker=warm:ok/cold:ok 
+      fit1d        warm 0.001 s, cold 0.002 s
+forplan      ok        branch=x1<=19850 warm=4/79845 cold=183/1146660 verdict=optimal obj=-664.21882317620464/-664.21882317620464 before=-664.21896127220464 moved=yes checker=warm:ok/cold:ok 
+      forplan      warm 0.001 s, cold 0.002 s
+kb2          ok        branch=x0<=0 warm=6/34684 cold=40/47847 verdict=optimal obj=-1749.8864620011495/-1749.8864620011495 before=-1749.9001299062058 moved=yes checker=warm:ok/cold:ok 
+      kb2          warm 0.001 s, cold 0.000 s
+lotfi        ok        branch=x0<=31 warm=257/962180 cold=244/754489 verdict=optimal obj=-24.737746555000001/-24.737746555000001 before=-25.264706061880005 moved=yes checker=warm:ok/cold:ok 
+      lotfi        warm 0.003 s, cold 0.002 s
+pilot-we     ok        branch=x0<=58 warm=351/14497490 cold=4726/154345491 verdict=optimal obj=-2719100.48946296/-2719100.4894629605 before=-2720107.5328449644 moved=yes checker=warm:ok/cold:ok 
+      pilot-we     warm 0.025 s, cold 0.228 s
+scagr7       ok        branch=x7<=2504 warm=47/166468 cold=167/367028 verdict=optimal obj=-2331384.8776643169/-2331384.8776643169 before=-2331389.8243309837 moved=yes checker=warm:ok/cold:ok 
+      scagr7       warm 0.001 s, cold 0.001 s
+scsd1        ok        branch=x261<=0 warm=314/1579089 cold=89/424886 verdict=optimal obj=8.800000013493138/8.800000013493138 before=8.6666666743333653 moved=yes checker=warm:ok/cold:ok 
+      scsd1        warm 0.004 s, cold 0.001 s
+scsd6        ok        branch=x47<=0 warm=19/198789 cold=235/1551790 verdict=optimal obj=50.500000078262381/50.500000078262381 before=50.500000078262381 moved=NO checker=warm:ok/cold:ok 
+      scsd6        warm 0.001 s, cold 0.003 s
+scsd8        ok        branch=x41<=0 warm=40/825582 cold=728/8646635 verdict=optimal obj=904.99999992546441/904.99999992546441 before=904.99999992546441 moved=NO checker=warm:ok/cold:ok 
+      scsd8        warm 0.002 s, cold 0.016 s
+ship08l      ok        branch=x0<=0 warm=1/78652 cold=698/2371148 verdict=optimal obj=1909058.1856023998/1909058.1856023998 before=1909055.2113891314 moved=yes checker=warm:ok/cold:ok 
+      ship08l      warm 0.001 s, cold 0.008 s
+vtp-base     ok        branch=x0<=102730 warm=10/32036 cold=51/64929 verdict=optimal obj=129831.67323971361/129831.67323971361 before=129831.46246136137 moved=yes checker=warm:ok/cold:ok 
+      vtp-base     warm 0.000 s, cold 0.000 s
+wood1p       ok        branch=x1944<=0 warm=33/2872872 cold=285/15848805 verdict=optimal obj=1.976868548527893/1.9768685485278927 before=1.4429024115734093 moved=yes checker=warm:ok/cold:ok 
+      wood1p       warm 0.005 s, cold 0.015 s
+
+-- warm against cold --
+measured 20, skipped 0, disagreed 0, rejected 0, errors 0
+iterations (warm+1)/(cold+1), geometric mean: 0.1227
+work units warm/cold, geometric mean:         0.2629
+work ratio, best  ship08l at 0.0332
+work ratio, worst scsd1 at 3.7165
+reached the optimum in no iterations at all:  0 of 20
+took more iterations warm than cold:          2 of 20
+the branch moved the optimum:                 18 of 20
+elapsed 2.8 s
