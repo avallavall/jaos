@@ -11,6 +11,14 @@ open, `bench/README.md` for the gate, and the commit each entry came from.
 
 ### Changed
 
+- **The wider-than-the-row rule the invalid-basis item asks for has a supply on
+  19 of 24 instances and none at all on two.** A public-API probe counts the
+  basic variables resting exactly on their own bound, which is what such a rule
+  would demote. `fit1p` and `share1b` have zero candidates at every tier down
+  to 1e-9 relative, so no rule of that family closes them at any tolerance. The
+  probe also reaches 24 instances where 02-48 reaches 48 solves, from code the
+  two share none of. No source change (D179, `bench/measurements/02-91/`).
+
 - **`scsd1` and `degen2` do not lose the same way**, and `src/simplex.c` said
   they did. Only `degen2` is D148's guard: its settled warm point carries a
   dual violation of 12.91 and the trajectory is thrown away. `scsd1`'s guard

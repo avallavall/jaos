@@ -52,7 +52,23 @@ the one quoting the mean did not.
 **No gate campaign is owed.** `comment_only.sh` reports the release object
 UNCHANGED at `d33fba7`, so D177's campaign still holds. `warm*` is not a gate.
 
-**Nothing is pushed from this session.**
+### 2026-08-24: D179, and §2 is down to the rank argument
+
+**No source change.** A public-API probe counts what a wider-than-the-row rule
+would have to demote: basic variables resting exactly on their own bound. The
+model-wide supply covers the over-count on **19 of the 24 instances**, where
+the within-row rule D141 refused had nothing on 66 of 80 firings. It does not
+close the item — `fit1p` and `share1b` have zero candidates at every tier down
+to 1e-9 relative — so **the rank argument is now the whole of the work**, and
+accepting the residue has a measured floor of 3 of 24 (D179,
+`bench/measurements/02-91/`).
+
+The probe reaches 24 instances where 02-48 reaches 48 solves, on code the two
+share none of. That is a second route to D171's number.
+
+**Nothing is pushed from this session.** Three commits: `d33fba7` (D177),
+`9c9c060` (D178) and this one. Ask the remote rather than trusting that
+sentence: `git rev-list --count origin/main..HEAD`.
 
 ### The state of the tree at 2026-08-21, which the sections below assume
 
@@ -107,7 +123,7 @@ measurement.**
 | # | item | what it needs | where |
 |---|---|---|---|
 | 1 | **`pilot` publishes a point 2.31e-05 above the optimum — DECIDE** | not a diagnosis; D174 answered the cause. `DUAL_TOL` at 1e-9 repairs all four netlib instances that publish a point off the optimum, **three of them for LESS work**, and makes `pilot87` — D92's backlog row — exact. The price is `6 regressed` on the gate's 2.0x work bar. The measurement is complete and the call is a judgement | §4 below |
-| 2 | **48 netlib solves publish an invalid basis** | a rank argument WIDER than the firing row, or accepting the residue as the published state of the art does (Galabova 2023). Every local repair is refused with its measurement (D140, D141). **D171 made it worse by 2 and that is measured** | §2 below |
+| 2 | **48 netlib solves publish an invalid basis** | **the rank argument, and now only that.** D179 measured the supply a wider rule would draw on: it covers 19 of the 24 instances outright, and `fit1p` and `share1b` have zero candidates at every tier, so such a rule improves the residue and cannot close it. Every local repair was already refused (D140, D141); D171 made it worse by 2. Accepting the residue now has a measured floor of 3 of 24 | §2 below |
 | 3 | **`degen2` behind D151's cap — and `scsd1` is a SEPARATE question** | **the premise that they lose the same way is refuted** (D178). Only `degen2` is D148's guard, at a settled dual violation of 12.91; `scsd1`'s guard never fires and it genuinely runs 314 iterations against cold's 89. So a doomed trajectory happens ONCE in twenty, and eleven quantities known before the solve separate nothing. Needs a second instance, which means §4's fourth set | §3 below |
 | 4 | **`D97`, the dual postsolve for an imposed bound** | nothing is built; `docs/research/dual-postsolve-imposed-bound.md` is the design with the literature verified. **The largest prize in the file** — it unlocks bound tightening AND doubleton equalities, 8.55% of netlib's live rows and 29.36% of Kennington's. **§8d is measured now and rewritten around it (02-87, 02-88)**: its refusal declines 50.2% of netlib's imposed bounds and 82.3% of Kennington's, and the hazard it prevents occurs **12 times in 98146 opportunities**. **The better design is postsolve detection and THIS TREE CANNOT HAVE IT**: the collision leaves the point one constraint short of a vertex, which needs a crossover, and `SPECS.md` has crossover and the primal simplex that blocks it both `missing`. So the first version is the refusal narrowed to equality rows — 35.5% and 20.3% — over-paying by three orders, and that price is the missing crossover rather than the reduction. §12 item 7 | "If all of the above is dropped" |
 | 5 | **the gate cannot see a suboptimal answer** | a threshold, and every candidate measured so far is blocked behind item 1. **The reach half is done**: `RSUB_FLOOR` was `1e-9` and watched 4 solves of 110, none of them Kennington's; it is `1e-16` now and watches 84 (D177). The zero point is still the baseline, so `pilot`'s suboptimality stays invisible. Three bars are measured and all three turn the gate red today, which is item 1's judgement | §4 below |
@@ -623,7 +639,7 @@ half-hour item. In the order a session with fresh context should weigh them:
 
 | candidate | what it needs before any code | size |
 |---|---|---|
-| **§2, 46 solves publish a wrong basis** | a rank argument WIDER than the firing row. Every local repair is refused with its measurement (D141), and the published state of the art accepts the residue (Galabova 2023) | design |
+| **§2, 48 solves publish a wrong basis** | the rank argument, and now only that. D179 measured the supply: 19 of the 24 instances covered, two with zero candidates at any tolerance, so a wider rule improves the residue and cannot close it | design |
 | **`pilot` publishes a point 2.31e-05 above the optimum** | which tolerance lets the solve stop there, from a `jaos-debug` throwaway build. The point is feasible, so the dual test accepted a column that was still improving. Read D127 first — the unclamped dual step is refused there because the perturbation is what keeps `pilot87` moving (D173) | bounded |
 | **§3, `degen2` behind D151's cap** | a second instance of the mechanism. **`scsd1` is no longer part of this item** — its guard never fires (D178), so a doomed trajectory happens once in twenty and eleven quantities known before the solve separate nothing | blocked on §4 |
 | **`D97`** | a dual postsolve for an imposed bound. `docs/research/dual-postsolve-imposed-bound.md` is the design; nothing is built. Unlocks §3's doubleton equalities too | largest prize |
@@ -1364,6 +1380,17 @@ variable brought *in*.
    remains is a wider-than-the-row design with a rank argument (refusals
    table), or accepting the residue — whose whole price is 46 solves losing
    their warm start, which item 4 below measures.
+   **D179 measured what a wider rule would have to work with**
+   (`bench/measurements/02-91/`). The model-wide supply of basic variables
+   resting exactly on their own bound covers the over-count on **19 of the 24
+   instances**, against a within-row rule that had nothing on 66 of 80 firings.
+   It does not close the item: `fit1p` (21 over, 0 candidates) and `share1b`
+   (2 over, 0) have no candidate at any tier down to 1e-9 relative, and `bandm`
+   has 8 against 18. **So the rank argument is now the whole of the work** —
+   a candidate is necessary and not sufficient, because demoting the only
+   column covering a row makes B singular, and postsolve has no factorization.
+   The probe also reaches 24 instances where 02-48 reaches 48 solves, on code
+   the two share none of.
    The guard hardening D140 named is **landed**: the swap decides from the
    recovery value, not the rewritable status, with two asserts enforcing the
    contract. Bit-identical on all three sets and on the published counts

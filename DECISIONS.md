@@ -186,6 +186,7 @@ and you have the argument. Jump to the entry for the numbers behind it.
 - **[D176](#d176--refused-presolves-objective-offset-is-compensated-for-nothing-because-poisoning-it-with-nan-moves-not-one-byte-on-any-of-the-139)** — REFUSED: presolve's objective offset is compensated for nothing, because poisoning it with NaN moves not one byte on any of the 139
 - **[D177](#d177--the-gates-suboptimality-predicate-watched-4-solves-of-110-and-the-floor-that-excluded-the-other-106-is-refuted-by-d171s-own-numbers)** — The gate's suboptimality predicate watched 4 solves of 110, and the floor that excluded the other 106 is refuted by D171's own numbers
 - **[D178](#d178--refused-scsd1-and-degen2-do-not-lose-the-same-way-so-3-asks-for-a-predictor-of-something-that-happens-once-in-twenty)** — REFUSED: `scsd1` and `degen2` do not lose the same way, so §3 asks for a predictor of something that happens once in twenty
+- **[D179](#d179--a-rule-wider-than-the-firing-row-has-a-supply-on-19-of-24-instances-and-none-at-all-on-two-so-it-improves-the-residue-and-cannot-close-it)** — A rule wider than the firing row has a supply on 19 of 24 instances and none at all on two, so it improves the residue and cannot close it
 
 ---
 
@@ -13529,3 +13530,84 @@ fourth instance set, whose reopen condition this becomes.
 **`scsd1` is a different question and it is new.** Its warm start is accepted,
 correct, and 3.5x longer than starting cold. Nothing here says why, and it is
 not a guard problem, so nothing in D148 or D151 bears on it.
+
+---
+
+## D179 — A rule wider than the firing row has a supply on 19 of 24 instances and none at all on two, so it improves the residue and cannot close it
+
+**2026-08-24.** No source change. A public-API probe, three calls per
+instance. Evidence in `bench/measurements/02-91/`.
+
+### The question, as it was actually asked
+
+`TODO.md` has carried "a rank argument WIDER than the firing row" as what the
+invalid-basis item needs, ever since D141 closed every local repair with a
+count: of the firings that publish a basis one member too long, **66 of 80 and
+86 of 152 have no other basic column of that row resting on its own bound**.
+
+Before designing a wider rule, the thing to establish is whether a wider rule
+has anything to work with. This counts the supply, and it does not attempt the
+rank argument.
+
+A candidate is a basic variable — column or logical — whose published value
+rests **exactly** on one of its own declared bounds. Demoting it to `AT_LOWER`
+or `AT_UPPER` is status-consistent on its own. Fixed variables are excluded:
+they are nonbasic-eligible on both sides, so demoting one says nothing.
+
+### The count reconciles with 02-48 from an instrument sharing no code with it
+
+**24 netlib instances publish a basis one or more members too long; 0
+Kennington instances do.** 02-48 counts solves and the gate solves each
+instance twice, so 24 x 2 = **48**, the figure D171 left. Two independent
+routes to the same number, and the second one is a probe over the public API
+rather than a walk over presolve's records.
+
+### The measurement
+
+| tier | instances whose over-count the model-wide supply covers |
+|---|---|
+| **exact equality with a bound** | **19 of 24** |
+| within one ulp of a bound | 19 of 24 |
+| within 1e-9 relative of a bound | 21 of 24 |
+
+The five not covered at exact equality:
+
+| instance | over | supply exact | ulp | 1e-9 rel |
+|---|---|---|---|---|
+| `bandm` | 18 | 2 | 2 | 8 |
+| `capri` | 6 | 3 | 4 | 6 — covered |
+| **`fit1p`** | 21 | **0** | **0** | **0** |
+| `nesm` | 18 | 0 | 4 | 18 — covered |
+| **`share1b`** | 2 | **0** | **0** | **0** |
+
+**`fit1p` and `share1b` have no candidate at any tier**: not one basic variable
+in either model rests within 1e-9 of its own bound. No demotion rule of this
+shape closes them at any tolerance, so loosening a window is not a route out.
+`bandm` is the third no tier reaches, at 8 against 18.
+
+### What was refuted
+
+**"A wider rule closes the item" is refuted.** It improves it a great deal —
+the within-row rule had nothing on 66 of 80 firings and this has a supply on 19
+of 24 instances — and 3 instances stay wrong at every tolerance measured. Any
+rule of this family leaves a residue.
+
+**And loosening the window is refuted as the way to reach the rest**, which is
+the same answer D141 gave one level in. Two of the three uncovered instances
+have a supply of exactly zero at 1e-9 relative, which is nine orders of margin
+above where a rounding argument could live.
+
+### What is left open, handed to `TODO.md`
+
+**The rank argument is still the whole of the work and nothing here touches
+it.** A candidate is necessary and not sufficient: demoting a variable whose
+column is the only one covering some row makes B singular. Postsolve has no
+factorization, and adding one is what such a design would have to justify —
+against a bar D137 already recorded from Galabova 2023, which is a valid
+starting basis rather than the optimal one.
+
+**This puts a number under the published state of the art's other half.** HiGHS
+attempts an assignment and falls back rather than deriving one. On this
+population the fall-back is at least 3 of 24 instances, and 5 of 24 without a
+tolerance. Accepting the residue was already the alternative `TODO.md` named;
+it now has a measured floor rather than a shrug.
