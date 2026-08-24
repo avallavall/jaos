@@ -52,6 +52,31 @@ the one quoting the mean did not.
 **No gate campaign is owed.** `comment_only.sh` reports the release object
 UNCHANGED at `d33fba7`, so D177's campaign still holds. `warm*` is not a gate.
 
+### 2026-08-24: D180, the refactorization interval swept for the first time
+
+**No behavioural change**: the sweep goes beside the constant in
+`src/simplex.c` and into `docs/tolerances.md`, both proved object-identical by
+`comment_only.sh`. This closes the standing debt `TODO.md` credited with three
+of M1's four defect closures.
+
+**No answer changes verdict at any of six intervals**, 94 netlib and 29
+infeasible instances each time, so the interval hides no defect at HEAD.
+
+**64 is not the work minimum and it stays anyway.** 32 reads 8.6% better on the
+geometric mean and costs `grow15` 2.819x and `pilot87` three orders of accuracy
+that no verdict reports — which is D177's open half seen from the other
+side. The constant carries its sweep now.
+
+**And `pilot` publishes Koch's optimum exactly at 8, 32 and 128**, at the
+shipping tolerance, while 16 and 64 publish the 2.312e-05. At 256 it reads
+5.266e-09, which is D174's own `dual_tol = 1e-9` value from a completely
+different knob. Two knobs, one small set of vertices. That is item 1's material
+and nothing was decided (D180, `bench/measurements/02-92/`).
+
+**Two controls carry it**: the record at 64 is identical to
+`bench/results/netlib.txt` on all 94 instance lines, and 0 of 94 instances
+report identical work at every setting.
+
 ### 2026-08-24: D179, and §2 is down to the rank argument
 
 **No source change.** A public-API probe counts what a wider-than-the-row rule
@@ -127,7 +152,7 @@ measurement.**
 
 | # | item | what it needs | where |
 |---|---|---|---|
-| 1 | **`pilot` publishes a point 2.31e-05 above the optimum — DECIDE** | not a diagnosis; D174 answered the cause. `DUAL_TOL` at 1e-9 repairs all four netlib instances that publish a point off the optimum, **three of them for LESS work**, and makes `pilot87` — D92's backlog row — exact. The price is `6 regressed` on the gate's 2.0x work bar. The measurement is complete and the call is a judgement | §4 below |
+| 1 | **`pilot` publishes a point 2.31e-05 above the optimum — DECIDE** | not a diagnosis; D174 answered the cause. `DUAL_TOL` at 1e-9 repairs all four netlib instances that publish a point off the optimum, **three of them for LESS work**, and makes `pilot87` — D92's backlog row — exact. The price is `6 regressed` on the gate's 2.0x work bar. The measurement is complete and the call is a judgement. **D180 adds a second route nobody had**: `pilot` publishes Koch's optimum exactly at three of six refactorization intervals with no tolerance touched, and 32 reaches it for 0.805x of 64's work on that instance. Not shippable as it stands — 32 costs `pilot87` three orders of accuracy and `grow15` 2.819x — and it says the tolerance is what lets the solve stop while the trajectory decides where | §4 below |
 | 2 | **48 netlib solves publish an invalid basis** | **the rank argument, and now only that.** D179 measured the supply a wider rule would draw on: it covers 19 of the 24 instances outright, and `fit1p` and `share1b` have zero candidates at every tier, so such a rule improves the residue and cannot close it. Every local repair was already refused (D140, D141); D171 made it worse by 2. Accepting the residue now has a measured floor of 3 of 24 | §2 below |
 | 3 | **`degen2` behind D151's cap — and `scsd1` is a SEPARATE question** | **the premise that they lose the same way is refuted** (D178). Only `degen2` is D148's guard, at a settled dual violation of 12.91; `scsd1`'s guard never fires and it genuinely runs 314 iterations against cold's 89. So a doomed trajectory happens ONCE in twenty, and eleven quantities known before the solve separate nothing. Needs a second instance, which means §4's fourth set | §3 below |
 | 4 | **`D97`, the dual postsolve for an imposed bound** | nothing is built; `docs/research/dual-postsolve-imposed-bound.md` is the design with the literature verified. **The largest prize in the file** — it unlocks bound tightening AND doubleton equalities, 8.55% of netlib's live rows and 29.36% of Kennington's. **§8d is measured now and rewritten around it (02-87, 02-88)**: its refusal declines 50.2% of netlib's imposed bounds and 82.3% of Kennington's, and the hazard it prevents occurs **12 times in 98146 opportunities**. **The better design is postsolve detection and THIS TREE CANNOT HAVE IT**: the collision leaves the point one constraint short of a vertex, which needs a crossover, and `SPECS.md` has crossover and the primal simplex that blocks it both `missing`. So the first version is the refusal narrowed to equality rows — 35.5% and 20.3% — over-paying by three orders, and that price is the missing crossover rather than the reduction. §12 item 7 | "If all of the above is dropped" |
@@ -2015,13 +2040,27 @@ question and is not asked anywhere yet.
 
 ## 5. After presolve — the rest of M2, in order
 
-### 5a. 186 loans go missing, and nothing bounds one — OPEN
+### 5a. ~~186 loans go missing, and nothing bounds one~~ — CLOSED (D123 to D128)
+
+**This heading read OPEN until 2026-08-24 and the section had been closed for
+days.** The closure is under "§5a is closed. Nothing in the shift machinery is
+open." earlier in this file, with the six entries and what each measured. The
+loans were never missing: the tally added them one way and the repayments
+another (D124). Four refusals to one repair, and every refusal came from
+measuring rather than from reading.
+
+Two things are still true and unrepaired, both with their size on the record
+and neither blocking anything: the dual step is computed from an unclamped `d`
+(248 netlib picks, 170 Kennington, worst 8.37e-09, refused as D127 because the
+perturbation is what keeps `pilot87` moving), and D121's loan of 1e32 on a cost
+of one stays reachable through D118's refused presolve candidate, which no
+instance in the gate reaches.
+
+What follows is the section's own history, kept because five explanations are
+closed by measurement in it and re-deriving them costs a session.
 
 Opened by D119, narrowed by D120, located by D121 and half-repaired by D122,
-all on 2026-08-18 (`bench/measurements/02-29/` and `02-30/`). The repaired half
-and the two that are left are in the header of this file. It sits first in this
-section because it is a correctness question and everything below it is a speed
-one.
+all on 2026-08-18 (`bench/measurements/02-29/` and `02-30/`).
 
 Five explanations are closed by measurement and should not be re-derived: the
 solver not re-reading dual feasibility (it does, six re-entry rounds, its own
@@ -2174,11 +2213,22 @@ table first.
   copy does. Validated against the case it must reject, in a worktree — clean
   tree clear, working-tree copy WARN and exit 0, committed copy STOP and exit
   1.
-- The `REFACTOR_EVERY` 16..256 trajectory sweep is manual; three of M1's four
-  defect closures came from it and no target automates it. **D119 is the
-  fourth** — `pilotnov` under D118's candidate is right at 16 and 29% wrong at
-  the shipping 64, on the same reduced model
+- ~~The `REFACTOR_EVERY` 16..256 trajectory sweep is manual.~~ **CLOSED
+  2026-08-24 (D180, `bench/measurements/02-92/`).** It is
+  `run-refactor-sweep.sh` now and takes its settings as arguments; each one
+  gets its own tree and its own binary, and the run aborts if two share an md5.
+  Three of M1's four defect closures came from running it by hand and D119 is
+  the fourth — `pilotnov` under D118's candidate is right at 16 and 29% wrong
+  at the shipping 64, on the same reduced model
   (`bench/measurements/02-28/sweep-refactor.txt`).
+  **Run at HEAD it found no defect and two other things.** No answer changes
+  verdict at any of six intervals, 94 netlib and 29 infeasible each time. 64 is
+  not the work minimum — 32 is 8.6% better on the geometric mean and costs
+  `grow15` 2.819x and `pilot87` three orders of accuracy — so the constant is
+  refused a change and carries its sweep now, in the source and in
+  `docs/tolerances.md`. And `pilot` publishes Koch's optimum exactly at three
+  of the six intervals with no tolerance touched, which is item 1's material
+  and is left there.
 - Test ceilings drift silently — the `<62000` one drifted 2800 units with
   nothing watching. Re-measure a ceiling's both sides when touching its
   subject.

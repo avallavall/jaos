@@ -11,6 +11,17 @@ open, `bench/README.md` for the gate, and the commit each entry came from.
 
 ### Changed
 
+- **`REFACTOR_EVERY` is swept and it never had been**, which closes a standing
+  debt `TODO.md` credited with three of M1's four defect closures. Six settings,
+  each its own tree and its own binary: **no answer changes verdict at any
+  interval**, 94 netlib and 29 infeasible instances at six settings. 64 is not
+  the work minimum — 32 is 8.6% better on the geometric mean — and it stays for
+  the worst case and because at 32 `pilot87` loses three orders of accuracy
+  without any verdict reporting it. The sweep also publishes `pilot`'s exact
+  optimum at three of the six intervals with no tolerance touched, and reaches
+  D174's own 5.266e-09 at a fourth. Comment and doc only, object-identical
+  (D180, `bench/measurements/02-92/`).
+
 - **The wider-than-the-row rule the invalid-basis item asks for has a supply on
   19 of 24 instances and none at all on two.** A public-API probe counts the
   basic variables resting exactly on their own bound, which is what such a rule

@@ -1,0 +1,48 @@
+# D180 — every gate answer at every refactorization interval, at 7934154.
+# One tree and one binary per setting. The md5 is the canary.
+# J=12, settings: 8 16 32 64 128 256   (64 ships)
+
+######## REFACTOR_EVERY = 8   (md5 97f3b476e2c4) ########
+  netlib: lines=97  objective-bad=0  checker-bad=0  det-bad=0  total-iters=253820
+  infeas: lines=32  objective-bad=0  checker-bad=0  det-bad=0  total-iters=28654
+
+######## REFACTOR_EVERY = 16   (md5 7ef0b378d952) ########
+  netlib: lines=97  objective-bad=0  checker-bad=0  det-bad=0  total-iters=250772
+  infeas: lines=32  objective-bad=0  checker-bad=0  det-bad=0  total-iters=24908
+
+######## REFACTOR_EVERY = 32   (md5 59ecb60ea4a2) ########
+  netlib: lines=97  objective-bad=0  checker-bad=0  det-bad=0  total-iters=258575
+  infeas: lines=32  objective-bad=0  checker-bad=0  det-bad=0  total-iters=30479
+
+######## REFACTOR_EVERY = 64   (md5 5395ceb96665) ########
+  netlib: lines=97  objective-bad=0  checker-bad=0  det-bad=0  total-iters=240226
+  infeas: lines=32  objective-bad=0  checker-bad=0  det-bad=0  total-iters=28444
+
+######## REFACTOR_EVERY = 128   (md5 935683b5df40) ########
+  netlib: lines=97  objective-bad=0  checker-bad=0  det-bad=0  total-iters=276579
+  infeas: lines=32  objective-bad=0  checker-bad=0  det-bad=0  total-iters=33627
+
+######## REFACTOR_EVERY = 256   (md5 23e3f45b19d2) ########
+  netlib: lines=97  objective-bad=0  checker-bad=0  det-bad=0  total-iters=293484
+  infeas: lines=32  objective-bad=0  checker-bad=0  det-bad=0  total-iters=33408
+
+######## which instances change verdict across the sweep ########
+  94 instances over 6 settings: ['128', '16', '256', '32', '64', '8']
+
+  no instance changes objective, checker or determinism verdict at any setting
+
+  the ten instances whose objective moves most across the sweep
+    pilot87      relative span 1.763e-07   301.71034743753575 .. 301.71040061894087
+    pilot        relative span 4.148e-08   -557.4897292893346 .. -557.48970616317456
+    modszk1      relative span 1.441e-13   320.61972906422608 .. 320.61972906427229
+    pilotnov     relative span 3.256e-14   -4497.2761882190171 .. -4497.2761882188706
+    grow15       relative span 1.115e-14   -106870941.29357652 .. -106870941.29357533
+    share1b      relative span 1.52e-15   -76589.318579185769 .. -76589.318579185652
+    ganges       relative span 6.64e-16   -109585.73612927819 .. -109585.73612927811
+    bnl1         relative span 4.599e-16   1977.629561522888 .. 1977.6295615228889
+    greenbea     relative span 4.108e-16   -72555248.129846007 .. -72555248.129845977
+    forplan      relative span 3.423e-16   -664.21896127220475 .. -664.21896127220452
+  the gate's own window is 1e-6 relative, so the worst above uses 0.1763 of it
+
+  0 of 94 instances report identical work at every setting
+  (a sweep where that is all of them has measured one binary N times — D82)

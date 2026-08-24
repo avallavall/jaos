@@ -117,7 +117,36 @@ constexpr int64_t SPARSE_COL_DEN = 8;
 /* Refactorization interval, and the stability trigger PLAN 2.5.5 asked for
  * beside it. Until D86 only the interval and the reactive fallback on a
  * failed update existed, and an interval alone cannot notice that it has
- * become too long for a particular model. */
+ * become too long for a particular model.
+ *
+ * **Swept 2026-08-24, and it had never been** (D180,
+ * `bench/measurements/02-92/`). Six settings, each its own tree and its own
+ * binary, all three gate sets at every one:
+ *
+ *      interval     8      16      32     64     128     256
+ *     work gm   1.0318  0.9484  0.9143  1.000  1.1873  1.5663
+ *     worst      2.267   4.430   2.819      -   5.881   9.125
+ *
+ * The work column is a geometric mean of per-instance ratios against 64 and
+ * the worst is the largest single ratio at that setting (D46: a set total is
+ * a statement about two instances). **64 is not the work minimum** — 32 reads
+ * 8.6% better on the mean — and moving there costs `grow15` 2.819x and
+ * `pilot87` three orders of accuracy, 1.044e-07 to 5.329e-05. So the value
+ * stays, chosen for the worst case rather than the mean, which is the shape
+ * D151 chose its cap by.
+ *
+ * **No answer changes verdict at any setting**: 94 netlib and 29 infeasible
+ * instances at six intervals, `objective=ok checker=ok det=ok` throughout.
+ * The interval hides no defect, and `TODO.md` carried that sweep as a manual
+ * debt because three of M1's four defect closures came out of running it by
+ * hand.
+ *
+ * **What it did find is about `pilot`, and it belongs to that item rather
+ * than to this constant.** Its distance from Koch reads 0 at 8, 32 and 128,
+ * 2.312e-05 at 16 and at 64, and 5.266e-09 at 256 — not monotone, and 5.266e-09
+ * is the same value D174's `dual_tol = 1e-9` reached. Two independent knobs
+ * select among one small set of neighbouring vertices, so the tolerance is
+ * what lets the solve stop and the trajectory is what decides where. */
 constexpr int64_t REFACTOR_EVERY = 64;
 
 /* How far the two computations of the pivot element may disagree before the
