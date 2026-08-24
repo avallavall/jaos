@@ -1,0 +1,31 @@
+# D181 — the MAPPED basic count at the moment build_warm_basis judges it.
+# delta = nbasic - nrow. Negative is short. WARM_REPAIR_MAX_SHORT is 4.
+
+## the control first: degen2, whose map arrives short by 1
+DIAG-REFUSE why=no-stored-basis
+DIAG-MAPPED nrow=443 nvar=975 nbasic=442 delta=-1
+DIAG-REPAIR nrow=443 ncol=532 short=1 uncovered_rows=0 by_uncovered=0 by_order=1 wantcol=334 wantlog=109
+DIAG-GUARD warm=1 violation=12.91 iters=898
+DIAG-REFUSE why=no-stored-basis
+
+## plato-fome, the family that doubles exactly
+-- fome11
+DIAG-REFUSE why=no-stored-basis
+DIAG-MAPPED nrow=12142 nvar=35133 nbasic=11461 delta=-681
+DIAG-REFUSE why=short-past-cap short=681 cap=4 over-by=677
+DIAG-REFUSE why=no-stored-basis
+-- fome12
+DIAG-REFUSE why=no-stored-basis
+DIAG-MAPPED nrow=24284 nvar=70267 nbasic=22927 delta=-1357
+DIAG-REFUSE why=short-past-cap short=1357 cap=4 over-by=1353
+DIAG-REFUSE why=no-stored-basis
+-- fome13
+DIAG-REFUSE why=no-stored-basis
+DIAG-MAPPED nrow=48568 nvar=140535 nbasic=45848 delta=-2720
+DIAG-REFUSE why=short-past-cap short=2720 cap=4 over-by=2716
+DIAG-REFUSE why=no-stored-basis
+-- fome21
+DIAG-REFUSE why=no-stored-basis
+DIAG-MAPPED nrow=64574 nvar=272536 nbasic=64574 delta=0
+DIAG-GUARD warm=1 violation=0 iters=14052
+DIAG-REFUSE why=no-stored-basis

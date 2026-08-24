@@ -1,0 +1,10 @@
+# instance    nrow  ncol  nbasic  over  colExact colUlp colRel  rowExact rowUlp rowRel  supplyExact supplyUlp supplyRel  covered
+fome11       12142 24460   12150     8      4064   4064   5244         0      0      0         4064      4064      5244  yes
+fome12       24284 48920   24305    21      8284   8284  10484         0      0      0         8284      8284     10484  yes
+fome13       48568 97840   48621    53     16287  16287  21017         0      0      0        16287     16287     21017  yes
+
+bench/instances-plato-fome: 4 solved, 3 publish a basis one or more members too long
+  the over-count is covered by the model-wide supply on:
+    exact equality with a bound        3 of 3
+    within one ulp of a bound          3 of 3
+    within 1e-9 relative of a bound    3 of 3

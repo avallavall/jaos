@@ -122,3 +122,16 @@ population — the fourth instance set `TODO.md` §4 carries.
 
 **`scsd1` is a different question and it is new.** Its warm start is accepted,
 correct, and 3.5x longer than starting cold. Nothing here says why.
+
+## The probe grew three hooks in D181
+
+`patch-warm-probe.py` had four hooks when this entry's readings were taken and
+has seven now (D181, `bench/measurements/02-93/`). The three added ones only
+print: `DIAG-MAPPED` on every call to `build_warm_basis`, and `DIAG-REFUSE` on
+the two exits that used to return silently — a map short past the cap and a map
+that arrives long reached the same line, so from outside they read the same.
+
+**The tables above are unaffected.** Nothing that decides anything changed, and
+a re-run produces the same rows with extra lines beside them. The reason to say
+so at all is that a probe quietly gaining output between a record and its
+re-reading is how a record stops matching its own script.

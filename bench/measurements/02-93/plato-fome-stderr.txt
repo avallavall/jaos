@@ -1,0 +1,16 @@
+DIAG-INSTANCE fome11
+DIAG-GUARD warm=0 violation=0 iters=46026
+DIAG-GUARD warm=0 violation=0 iters=45176
+DIAG-GUARD warm=0 violation=0 iters=45176
+DIAG-INSTANCE fome12
+DIAG-GUARD warm=0 violation=0 iters=91060
+DIAG-GUARD warm=0 violation=0 iters=89316
+DIAG-GUARD warm=0 violation=0 iters=89316
+DIAG-INSTANCE fome13
+DIAG-GUARD warm=0 violation=0 iters=180772
+DIAG-GUARD warm=0 violation=0 iters=180401
+DIAG-GUARD warm=0 violation=0 iters=180401
+DIAG-INSTANCE fome21
+DIAG-GUARD warm=0 violation=0 iters=84483
+DIAG-GUARD warm=1 violation=0 iters=14052
+DIAG-GUARD warm=0 violation=0 iters=85978

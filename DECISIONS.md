@@ -188,6 +188,7 @@ and you have the argument. Jump to the entry for the numbers behind it.
 - **[D178](#d178--refused-scsd1-and-degen2-do-not-lose-the-same-way-so-3-asks-for-a-predictor-of-something-that-happens-once-in-twenty)** — REFUSED: `scsd1` and `degen2` do not lose the same way, so §3 asks for a predictor of something that happens once in twenty
 - **[D179](#d179--a-rule-wider-than-the-firing-row-has-a-supply-on-19-of-24-instances-and-none-at-all-on-two-so-it-improves-the-residue-and-cannot-close-it)** — A rule wider than the firing row has a supply on 19 of 24 instances and none at all on two, so it improves the residue and cannot close it
 - **[D180](#d180--refused-the-refactorization-interval-stays-at-64-although-32-is-86-cheaper-and-the-sweep-that-says-so-also-reaches-pilots-optimum-without-touching-a-tolerance)** — REFUSED: the refactorization interval stays at 64 although 32 is 8.6% cheaper, and the sweep that says so also reaches `pilot`'s optimum without touching a tolerance
+- **[D181](#d181--the-fourth-set-does-not-reopen-3--the-mapped-basis-arrives-short-by-56-of-rows-and-the-repair-never-runs--and-it-prices-2-at-three-of-four-warm-starts)** — The fourth set does not reopen §3 — the mapped basis arrives short by 5.6% of rows and the repair never runs — and it prices §2 at three of four warm starts
 
 ---
 
@@ -13716,3 +13717,96 @@ three orders and `grow15` 2.819x.
 **The standing debt is closed.** The sweep is
 `bench/measurements/02-92/run-refactor-sweep.sh` and takes the settings as
 arguments.
+
+---
+
+## D181 — The fourth set does not reopen §3 — the mapped basis arrives short by 5.6% of rows and the repair never runs — and it prices §2 at three of four warm starts
+
+**2026-08-24.** No source change. Two public-API probes and one throwaway
+diagnostic build, all reverted. Evidence in `bench/measurements/02-93/`.
+
+### The question, as it was actually asked
+
+D178 left `degen2` as the only instance in twenty where D148's guard throws a
+repaired warm trajectory away, and one instance cannot supply a threshold.
+§3's reopen condition is a second instance; §4 says a fourth instance set is
+the executable form of that condition.
+
+**The set was already in this repository and the warm campaign had never been
+run on it.** `plato-fome` and `plato-pds` came in with D115, from Mittelmann's
+LPopt. `plato-pds` is 6.4 hours of wall clock and was not attempted.
+`plato-fome` is four instances, and `fome11 -> fome12 -> fome13` doubles
+exactly in both dimensions — the one family here that can say whether a cost
+grows linearly or worse with nothing else about the model changing.
+
+### §3 is not reopened
+
+Four instances, **0 repairs fired**. The block §3 is about never executes, so
+the set says nothing about a doomed trajectory. Only `fome21` starts warm at
+all and its guard does not fire.
+
+### Why, and the probe could not say until it was told to
+
+`build_warm_basis` refuses a short count past the cap and a long count at the
+same line, and **neither printed anything**. From outside the two read the same
+and they are different questions: the cap is D151's and refused a change, a
+long map is refused because none had been measured. Every exit names itself
+now.
+
+| instance | `nrow` | mapped basis short by | past the cap of 4 by | fraction of `nrow` |
+|---|---|---|---|---|
+| `fome11` | 12142 | **681** | 677 | **5.609%** |
+| `fome12` | 24284 | **1357** | 1353 | **5.588%** |
+| `fome13` | 48568 | **2720** | 2716 | **5.600%** |
+| `fome21` | 64574 | **0** | — | — |
+
+**The shortfall is a constant 5.6% of rows and doubles exactly when the model
+does**: 1357/681 = 1.993, 2720/1357 = 2.004. netlib's worst is 596 (`dfl001`).
+
+### What was refuted
+
+**Both cap shapes, on this set, and the refusal is now measured rather than
+assumed.** The absolute cap would have to go from 4 to 2720, and D149 measured
+the blanket repair at `dfl001` 172x work for a 596-short repair the guard then
+threw away. A relative cap is no better: D151 swept `S <= r*nrow` to a best
+mean at r = 0.0036, and 5.6% is **15 times** that.
+
+**And this entry's own first inference was wrong.** It read the published
+over-count and concluded the map arrives long, because `build_warm_basis`
+refuses a long count outright and that fitted. The published basis and the
+mapped basis are different objects: the map arrives short, by 681 where the
+published count is over by 8.
+
+### What the set does say, and it is §2's price
+
+| instance | published count over by | warm work against cold |
+|---|---|---|
+| `fome11` | **8** | **1.0000** |
+| `fome12` | **21** | **1.0000** |
+| `fome13` | **53** | **1.0000** |
+| `fome21` | **0** | **0.5258** |
+
+**Three against three, one against one.** The three publishing a wrong count
+are exactly the three whose warm re-solve does bit-identical work to the cold
+one, and the one publishing an exact count saves **47%**. That is D129's and
+D130's attribution on netlib, reproduced on a set netlib's conclusions were
+never taken on, and `fome13`'s 53 is larger than netlib's worst — `fit1p` at 21
+(D179).
+
+**The two counts grow at different rates on the same family.** The mapped
+shortfall doubles exactly; the published over-count goes 8 -> 21 -> 53, 2.63x
+then 2.52x. Different objects with different mechanisms — the mapping drops
+stored-basic members presolve removes again, `SINGLETON_COL` adds one per
+firing — and this family is the only place here where the two rates can be read
+apart.
+
+### What is left open, handed to `TODO.md`
+
+**§3 needs a second instance and `plato-fome` is not it.** `plato-pds` has not
+been tried and is 6.4 hours; `plato-nug` is three instances and is unmeasured
+rather than unsolvable.
+
+**§4's argument is stronger than it was.** Its case is that the population
+decides the verdict, and here it does: on netlib the invalid basis costs 24 of
+94 instances their warm start, and on this set it costs 3 of 4 — with the one
+that escapes saving 47%.

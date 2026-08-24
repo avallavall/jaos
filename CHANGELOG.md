@@ -11,6 +11,17 @@ open, `bench/README.md` for the gate, and the commit each entry came from.
 
 ### Changed
 
+- **The warm campaign is run on a fourth instance set for the first time, and
+  §3 is not reopened by it.** `plato-fome`: 4 instances, **0 repairs fired**,
+  because the mapped basis arrives short by a constant **5.6% of rows** —
+  681, 1357 and 2720 on a family that doubles exactly — against a cap of 4.
+  Neither cap shape reaches that: 5.6% is 15x D151's best relative sweep.
+  What the set does say is §2's price. The three instances publishing a wrong
+  basic count are exactly the three whose warm re-solve does bit-identical
+  work to the cold one, and `fome21`, which publishes an exact count, saves
+  **47%**. `fome13`'s over-count of 53 beats netlib's worst of 21. No source
+  change (D181, `bench/measurements/02-93/`).
+
 - **`REFACTOR_EVERY` is swept and it never had been**, which closes a standing
   debt `TODO.md` credited with three of M1's four defect closures. Six settings,
   each its own tree and its own binary: **no answer changes verdict at any

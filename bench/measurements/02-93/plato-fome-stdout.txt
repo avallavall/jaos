@@ -1,0 +1,21 @@
+warm re-solve against cold, one branching step per instance
+# instance    verdict   branch  warm=iters/work  cold=iters/work
+fome11       ok        branch=x0<=0 warm=45176/7942823396 cold=45176/7942823396 verdict=optimal obj=22532805.193388086/22532805.193388086 before=22532792.093342777 moved=yes checker=warm:ok/cold:ok 
+      fome11       warm 32.219 s, cold 32.561 s
+fome12       ok        branch=x0<=0 warm=89316/19220608562 cold=89316/19220608562 verdict=optimal obj=45065597.286730878/45065597.286730878 before=45065584.18668557 moved=yes checker=warm:ok/cold:ok 
+      fome12       warm 90.165 s, cold 89.223 s
+fome13       ok        branch=x0<=0 warm=180401/50589983651 cold=180401/50589983651 verdict=optimal obj=90131181.473416433/90131181.473416433 before=90131168.373371124 moved=yes checker=warm:ok/cold:ok 
+      fome13       warm 336.520 s, cold 297.172 s
+fome21       ok        branch=x301<=2 warm=14052/8784995005 cold=85978/16707266051 verdict=optimal obj=47346318912/47346318912 before=47346318912 moved=NO checker=warm:ok/cold:ok 
+      fome21       warm 34.560 s, cold 124.119 s
+
+-- warm against cold --
+measured 4, skipped 0, disagreed 0, rejected 0, errors 0
+iterations (warm+1)/(cold+1), geometric mean: 0.6358
+work units warm/cold, geometric mean:         0.8515
+work ratio, best  fome21 at 0.5258
+work ratio, worst fome11 at 1.0000
+reached the optimum in no iterations at all:  0 of 4
+took more iterations warm than cold:          0 of 4
+the branch moved the optimum:                 3 of 4
+elapsed 1599.1 s

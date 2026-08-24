@@ -52,6 +52,29 @@ the one quoting the mean did not.
 **No gate campaign is owed.** `comment_only.sh` reports the release object
 UNCHANGED at `d33fba7`, so D177's campaign still holds. `warm*` is not a gate.
 
+### 2026-08-24: D181, the fourth set run for the first time
+
+**No source change.** The warm campaign had never been run on `plato-fome` or
+`plato-pds`, which came in with D115. `plato-fome`: 4 instances, **0 repairs
+fired**, so §3 is not reopened. The mapped basis arrives **short by a
+constant 5.6% of rows** — 681, 1357, 2720 on a family that doubles exactly —
+against a cap of 4, and neither cap shape reaches that (D181,
+`bench/measurements/02-93/`).
+
+**What the set does say is §2's price, and it is far higher than netlib's.**
+The three instances publishing a wrong basic count are exactly the three whose
+warm re-solve does bit-identical work to the cold one; `fome21`, which
+publishes an exact count, saves **47%**. `fome13` is over by 53 against
+netlib's worst of 21.
+
+**Two things this cost and they are written into 02-93 so they do not cost it
+again.** The first reading inferred the map arrives LONG from the published
+over-count — the published basis and the mapped basis are different objects,
+and it arrives short. And a running probe must be stopped before its patch
+script is edited: the trap reverts with the anchors it finds at exit.
+
+**`plato-pds` is 6.4 hours and was not attempted. `plato-nug` is unmeasured.**
+
 ### 2026-08-24: D180, the refactorization interval swept for the first time
 
 **No behavioural change**: the sweep goes beside the constant in
@@ -784,8 +807,25 @@ of 20 promote entirely by index order, and the only two using the
 uncovered-row loop (`pilot-we`, `ship08l`) are two of the three best ratios in
 the set.
 
-**What it needs now is a second instance of the mechanism, so §4's fourth
-instance set is this item's reopen condition.** Refusals table, D151.
+**What it needs now is a second instance of the mechanism.** §4's fourth
+instance set was the obvious place and **it has been tried and it is not
+there** (D181, `bench/measurements/02-93/`). The warm campaign was run on
+`plato-fome` for the first time: 4 instances, **0 repairs fired**, so the
+block this item is about never executes.
+
+**The reason is measured rather than guessed, and the probe could not say it
+until it was told to.** `build_warm_basis` refuses a short count past the cap
+and a long count at the same line and neither printed anything, so from
+outside the two read the same. The mapped basis arrives **short by a constant
+5.6% of rows** — 681, 1357 and 2720 on `fome11`/`fome12`/`fome13`, a family
+that doubles exactly, and the shortfall doubles with it. netlib's worst is 596
+(`dfl001`). **Neither cap shape reaches that**: the absolute cap would go from
+4 to 2720, and 5.6% is 15 times D151's best relative sweep at r = 0.0036. So
+the refusal holds on this set for the reason it already had.
+
+Only `fome21` starts warm at all, and its guard does not fire. `plato-pds` is
+6.4 hours of wall clock and has not been tried; `plato-nug` is three instances
+and unmeasured rather than unsolvable. Refusals table, D151.
 
 **Superseded by D178 above, and kept because its reasoning still holds for
 `degen2` alone.** What the repair knows *before* paying for
@@ -1421,6 +1461,17 @@ variable brought *in*.
    column covering a row makes B singular, and postsolve has no factorization.
    The probe also reaches 24 instances where 02-48 reaches 48 solves, on code
    the two share none of.
+   **And the price is far higher on a modern set than on netlib** (D181,
+   `bench/measurements/02-93/`). On `plato-fome` the three instances that
+   publish a wrong count are exactly the three whose warm re-solve does
+   bit-identical work to the cold one, and `fome21`, the one that publishes an
+   exact count, saves **47% of the work**. Three against three, one against
+   one. `fome13` is over by **53**, larger than netlib's worst of 21
+   (`fit1p`). The published over-count grows FASTER than the model on that
+   family — 8, 21, 53 as it doubles twice — while the mapped shortfall behind
+   the lost warm start grows exactly linearly, so the two are different
+   objects and this is the only family here where their rates can be read
+   apart.
    The guard hardening D140 named is **landed**: the swap decides from the
    recovery value, not the rewritable status, with two asserts enforcing the
    contract. Bit-identical on all three sets and on the published counts

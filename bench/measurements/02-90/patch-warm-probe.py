@@ -80,6 +80,65 @@ RAW = [
         free(cov);'''),
 
  ('src/simplex.c',
+  '''    const jaos_model *m = s->m;
+    if (m->start_col_status == nullptr || m->start_row_status == nullptr)
+        return false;''',
+  '''    const jaos_model *m = s->m;
+    if (m->start_col_status == nullptr || m->start_row_status == nullptr) {
+#ifdef JAOS_DIAG
+        fprintf(stderr, "DIAG-REFUSE why=no-stored-basis@NL@");
+#endif
+        return false;
+    }'''),
+
+ ('src/simplex.c',
+  '''    int64_t nbasic = 0;
+    for (int64_t v = 0; v < s->nvar; v++)
+        nbasic += want_arr[v] == JAOS_BASIS_BASIC;
+''',
+  '''    int64_t nbasic = 0;
+    for (int64_t v = 0; v < s->nvar; v++)
+        nbasic += want_arr[v] == JAOS_BASIS_BASIC;
+#ifdef JAOS_DIAG
+    /* Printed on EVERY call, including the ones that refuse. The repair
+     * block below only runs on a SHORT count, so without this a mapped
+     * basis that arrives LONG leaves no line at all and reads exactly like
+     * an instance with no stored basis. */
+    fprintf(stderr, "DIAG-MAPPED nrow=%lld nvar=%lld nbasic=%lld delta=%lld@NL@",
+            (long long)s->nrow, (long long)s->nvar, (long long)nbasic,
+            (long long)(nbasic - s->nrow));
+#endif
+'''),
+
+ ('src/simplex.c',
+  '''    if (nbasic != s->nrow) {
+        free(want_arr);
+        return false;
+    }''',
+  '''    if (nbasic != s->nrow) {
+#ifdef JAOS_DIAG
+        /* WHICH refusal this is. A map that arrives short past the cap and a
+         * map that arrives long both reach this line and both print nothing
+         * without it, so the two read the same from outside — and they are
+         * different questions. The cap is refused a change by D151; a long
+         * map is refused outright because none had been measured. */
+        {
+            const long long d = (long long)(nbasic - s->nrow);
+            if (d < 0)
+                fprintf(stderr,
+                        "DIAG-REFUSE why=short-past-cap short=%lld cap=%lld "
+                        "over-by=%lld@NL@",
+                        -d, (long long)WARM_REPAIR_MAX_SHORT,
+                        -d - (long long)WARM_REPAIR_MAX_SHORT);
+            else
+                fprintf(stderr, "DIAG-REFUSE why=long-map over=%lld@NL@", d);
+        }
+#endif
+        free(want_arr);
+        return false;
+    }'''),
+
+ ('src/simplex.c',
   '''        settle_shifts(&s);
         if (settled_dual_violation(&s) != 0.0) {
             if (warm) {''',
