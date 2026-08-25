@@ -1202,7 +1202,7 @@ in `price_row:1700` are the machinery, and D26 is the decision behind them.
 | 1 | ~~phase-2 primal, Dantzig pricing, Bland fallback~~ | **DONE 2026-08-25** — D188, `bench/measurements/02-101/` |
 | 2 | **Harris two-pass in primal form, and the snap** | nothing — `jm_harris_pick` is already generic |
 | 3 | ~~the entering column's bound flip~~ | **DONE 2026-08-25** — D189, it was a wrong answer |
-| 4 | **phase 1** (Maros 1986) from a given basis, stable breakpoint sort keyed on `(value, index)` | nothing |
+| 4 | ~~phase 1 (Maros 1986) from a given basis~~ | **DONE 2026-08-25, short-step form** — 0 of 94 to 64 of 94 (D190) |
 | 5 | **Devex** | **Harris (1973), paywalled** |
 | 6 | **`can_move`'s units** — D184's stated reopen | stage 1 landing |
 | 7 | **the unboundedness verdict, and D19's refusal** | stage 4 |
@@ -1221,7 +1221,27 @@ moves is a defect in the shared code, not a property of the new feature. That
 makes the ordinary campaign a strong test of these stages despite the gate being
 unable to see the feature itself.
 
-**Where stage 1 is reachable from — now measured, and the number is zero.**
+### OPEN: fourteen instances the primal cannot solve and the dual can
+
+Stage 4 took the reach to **64 of 94 agreeing**. What is left is measured and
+named (D190, `bench/measurements/02-103/`):
+
+- **12 disagree and 2 error**, all of them the primal returning
+  `NUMERICAL_ERROR` where the dual reaches an optimum: `25fv47`, `cycle`,
+  `d2q06c`, `greenbeb`, `modszk1`, `pilot`, `sc105`, `sc205`, `sc50a`, `sc50b`,
+  `stocfor3`, `truss`, and `pilot87`/`pilotnov` as errors.
+- **`sc50a`, `sc50b`, `sc105` and `sc205` are one family from one generator,
+  failing the same way.** Four instances is one mechanism, not four, and it is
+  the thread to pull first.
+- **16 overrun** the harness's 10x work budget. That is Dantzig pricing and it
+  is stage 5's number, not a defect.
+
+`sc50a` is the one already partly diagnosed: removing the phase-1 loan moved it
+from 40 iterations and 183481 units to 51 and 58062, a different trajectory on a
+third of the work, and it still ends in `NUMERICAL_ERROR`. So whatever is left
+is a second thing.
+
+**Where stage 1 is reachable from — the number this replaced.**
 `make primal` reports `unreached 94` of 94 on the standard set: a cold basis is
 dual feasible by construction and not primal feasible, so the method refuses to
 start on every one. That is stage 4's number to move, and it is written down

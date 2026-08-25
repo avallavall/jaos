@@ -197,6 +197,7 @@ and you have the argument. Jump to the entry for the numbers behind it.
 - **[D187](#d187--the-primal-clean-up-priced-its-row-the-expensive-way-and-the-saving-is-32-on-wood1p-against-10000017x-lost-on-pilot87)** — The primal clean-up priced its row the expensive way, and the saving is 3.2% on `wood1p` against 1.0000017x lost on `pilot87`
 - **[D188](#d188--the-primal-simplexs-first-version-and-both-defects-it-shipped-with-were-invisible-to-a-green-suite)** — The primal simplex's first version, and both defects it shipped with were invisible to a green suite
 - **[D189](#d189--the-primal-published-a-value-outside-a-declared-bound-as-optimal-and-stage-1s-own-pricing-rule-is-what-made-it-reachable)** — The primal published a value outside a declared bound as OPTIMAL, and stage 1's own pricing rule is what made it reachable
+- **[D190](#d190--the-primal-phase-1-lands-and-takes-the-reach-from-0-of-94-to-64-and-a-loan-of-exactly-10-is-what-found-the-defect-it-shipped-with)** — The primal phase 1 lands and takes the reach from 0 of 94 to 64, and a loan of exactly 1.0 is what found the defect it shipped with
 
 ---
 
@@ -14442,3 +14443,83 @@ pins it.
 The Harris two-pass ratio test and the snap it forces are §0 stage 2 and
 untouched by this. Phase 1 is stage 4 and is still what holds the primal's
 reach at zero of 94.
+
+## D190 — The primal phase 1 lands and takes the reach from 0 of 94 to 64, and a loan of exactly 1.0 is what found the defect it shipped with
+
+`TODO.md` §0 stage 4: a composite phase 1 in short-step form (Maros 1986). The
+phase-1 objective is the sum of the basics' bound violations, `-1` below a
+declared bound and `+1` above. **No artificial variables and no second model**
+— it works on whatever basis it is given, which is the property crossover needs
+and the textbook artificial-variable method cannot offer.
+
+The duals come from `compute_duals` with `s->cost` pointed at the phase-1 cost
+vector for one call. The reuse is exact rather than convenient: `compute_duals`
+reads `cost`, writes `y` and `d`, and does nothing else.
+
+### Two hypotheses refuted before the right one
+
+`sc50a` stopped after two pivots at -57.2 against a true -64.6, refused by the
+D146 guard on a model the dual solves in 47 iterations.
+
+- **Tiny pivots degrading the factorization.** The primal ratio test's minimum
+  pivot was swept over `1e-9`, `1e-7`, `1e-5`, `1e-3`: **identical output at
+  every setting**, 40 iterations and 183481 units. The floor never binds
+  because the method stops after two pivots.
+- **Cost shifting at the tail of `pivot()`.** Guarding that one call changed
+  nothing — same iterations, same work.
+
+### What found it
+
+An instrument printing what `primal_price` sees when it declares optimality:
+
+```
+PRICE-STOP iters=2 maxscaled=0 maxpub=0 borrowed=1 total=1
+```
+
+Every reduced cost feasible in both spaces, and one variable carrying a loan of
+**exactly 1.0**. A loan of exactly one is not a repair — `shift_to_feasible`
+lends the minimum a sign condition needs. It is the size of a phase-1 cost.
+
+**The mechanism.** Phase 1 puts *its own* reduced costs in `d`, gradients of a
+sum of violations and so of magnitude one, and `pivot()` lends `cost[v]`
+against them — on the **model's** cost vector. Phase 1 was corrupting the
+objective phase 2 would then optimise.
+
+**`update_dual` is the site, not `pivot()`'s own call**, which is exactly why
+guarding one and not the other changed nothing: `update_dual` lends against
+every variable the pricing row touches, once per iteration. `in_primal` guards
+both now.
+
+### What it cost, and what it did not fix
+
+`sc50a` moves from 40 iterations and 183481 units to 51 and 58062 — a third of
+the work on a different trajectory — **and still ends in `NUMERICAL_ERROR`**.
+The loan was real and it was not the only thing wrong.
+
+Over the standard set, bounded at 10x the dual's work per instance
+(`bench/measurements/02-103/`):
+
+| | count |
+|---|---|
+| agree with the dual, checker accepting both | **64** |
+| overrun the 10x budget | 16 |
+| disagree — the primal returns `NUMERICAL_ERROR` | 12 |
+| error | 2 |
+
+Work units primal/dual, geometric mean **3.2352**; iterations 1.7710. That is
+what Dantzig pricing costs and is why Devex is stage 5.
+
+`make configs`: all 5 configurations build and pass. All three sets
+`0 regressed, 0 improved, 0 new`, every record byte-identical — nothing in the
+gate can enter a primal path.
+
+### What is left open
+
+**Fourteen instances where the dual reaches an optimum and the primal does
+not**, and they are not fourteen questions: `sc50a`, `sc50b`, `sc105` and
+`sc205` are one family from one generator failing the same way. That is the
+thread to pull first.
+
+The long-step ratio test Maros describes — walking several breakpoints with a
+running slope, so several basics become feasible per iteration — is not here.
+This is the short-step form, which is correct and slower.

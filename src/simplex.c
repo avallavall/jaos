@@ -717,7 +717,51 @@ typedef struct {
      * the closing summary line carries it so a caller can see which method
      * did the work as well. */
     int64_t n_primal_iters;
+
+    /* The primal phase-1 cost vector: `-1` on a basic below a bound the model
+     * declared, `+1` on one above, `0` everywhere else. Minimising it is
+     * minimising the sum of bound violations, which is what phase 1 is.
+     *
+     * It is swapped into `s->cost` for the duration of one `compute_duals`
+     * call and swapped straight back, so `d` comes back holding phase-1
+     * reduced costs. That reuse is exact rather than convenient:
+     * `compute_duals` reads `cost` and writes `y` and `d` and does nothing
+     * else — no shifting, no repair — so pointing it at a different cost
+     * vector gives the duals of a different objective and nothing more.
+     *
+     * Allocated on the first phase 1 rather than in `sx_init`, because a dual
+     * solve never has one and a model re-solved thousands of times by branch
+     * and bound should not pay for it per call. */
+    double *c1;
+
+    /* Is a primal method in flight? Read only by the two places a pivot lends
+     * a cost — `update_dual` and the tail of `pivot()`.
+     *
+     * `shift_to_feasible` puts a reduced cost back on the feasible side by
+     * moving the cost behind it. **The dual requires that**: dual feasibility
+     * is its invariant, and a ratio test meeting a cost already past zero
+     * computes a step with the wrong sign.
+     *
+     * **In the primal phase 1 it corrupts the model's objective, and the
+     * measurement is exact.** Phase 1 puts *its own* reduced costs in `d` —
+     * gradients of the sum of bound violations, so of magnitude one — and
+     * `pivot()` then lends `cost[v]` whatever those say is needed. On `sc50a`
+     * the primal stopped after two pivots with every reduced cost feasible
+     * and **one variable carrying a loan of exactly 1.0**, the size of a
+     * phase-1 cost and not of any repair. `settle_shifts` called it in, the
+     * point was left 0.18 dual infeasible, and the D146 guard refused the
+     * answer — on a model the dual solves in 47 iterations.
+     *
+     * Phase 2 is guarded for a second and weaker reason: its optimality test
+     * is the absence of dual infeasibility, so a loan taken mid-solve makes
+     * that test read as satisfied on costs the model does not own.
+     *
+     * **Guarding only `pivot()`'s own call is not enough and that was tried.**
+     * `update_dual` lends against every variable the pricing row touches, once
+     * per iteration, and it is the site that did the damage. */
+    bool in_primal;
 } sx;
+
 
 /* --------------------------------------------------------------------- */
 /* Setup                                                                 */
@@ -740,7 +784,7 @@ static void sx_free(sx *s)
     free(s->dbg_rrange);
 #endif
     free(s->bs); free(s->bi); free(s->bv);
-    free(s->fake);
+    free(s->fake); free(s->c1);
     free(s->sav_status); free(s->sav_basis);
     free(s->sav_lo); free(s->sav_up); free(s->sav_fake);
     free(s->bst_status); free(s->bst_basis);
@@ -2555,7 +2599,8 @@ static void update_dual(sx *s, int64_t v, int64_t q, double theta_dual)
     if (s->status[v] == JM_BASIC || v == q)
         return;
     s->d[v] -= theta_dual * s->alpha[v];
-    shift_to_feasible(s, v);
+    if (!s->in_primal)
+        shift_to_feasible(s, v);
 }
 
 /* Applies the basis change: q enters at position r, the variable there
@@ -2719,7 +2764,8 @@ static jaos_status pivot(sx *s, int64_t r, int64_t q, bool below,
     /* The leaving variable's reduced cost is minus the dual step, which is
      * feasible for the bound it left to — unless the step itself came out
      * of a cost that was already past zero, which is the case the shifting
-     * exists to make impossible. Checked rather than assumed. */
+     * exists to make impossible. Checked rather than assumed.
+ */
     shift_to_feasible(s, leaving);
 
     /* Repair the factorization, or schedule a rebuild. */
@@ -4023,6 +4069,328 @@ static void primal_bound_flip(sx *s, int64_t q, double delta)
     s->status[q] = s->status[q] == JM_AT_LOWER ? JM_AT_UPPER : JM_AT_LOWER;
 }
 
+/* --------------------------------------------------------------------- */
+/* Primal phase 1                                                        */
+/* --------------------------------------------------------------------- */
+
+/* Builds the phase-1 cost vector and reports the total infeasibility it
+ * measures. `-1` on a basic below a bound the model declared, `+1` on one
+ * above, `0` everywhere else — so `c1' x` is the sum of the violations, up to
+ * the constant the bounds contribute, and minimising it is phase 1.
+ *
+ * **Only bounds the model declared count**, `real_lower`/`real_upper` and
+ * never `lo`/`up`, for the same reason every other primal predicate says so:
+ * a basic resting outside a bound dual phase 1 *invented* is not infeasible in
+ * any sense the caller would recognise, and driving it back would be phase 1
+ * repairing the solver's own convenience.
+ *
+ * The tolerance is `primal_tol`, the same one `primal_worst_violation` uses to
+ * decide whether phase 1 is needed at all. Two different answers to "is this
+ * basic infeasible" inside one method is how a phase 1 terminates without
+ * satisfying the test that sent it there. */
+static double primal_phase1_costs(sx *s)
+{
+    memset(s->c1, 0, (size_t)s->nvar * sizeof *s->c1);
+    double total = 0.0;
+    for (int64_t i = 0; i < s->nrow; i++) {
+        const int64_t v = s->basis[i];
+        const double lo = real_lower(s, v), up = real_upper(s, v);
+        if (isfinite(lo) && s->xb[i] < lo - s->primal_tol) {
+            s->c1[v] = -1.0;
+            total += lo - s->xb[i];
+        } else if (isfinite(up) && s->xb[i] > up + s->primal_tol) {
+            s->c1[v] = 1.0;
+            total += s->xb[i] - up;
+        }
+    }
+    jm_work_add(&s->work, s->nrow * JM_WORK_NONZERO);
+    return total;
+}
+
+/* Phase-1 reduced costs into `d`, by lending `compute_duals` a different
+ * objective for the length of one call.
+ *
+ * The swap is a pointer and the restore is unconditional, so `cost` is the
+ * same array on the way out as on the way in — this is not the inexact
+ * add-then-subtract D121 refused, because nothing is arithmetically applied to
+ * `cost` at all.
+ *
+ * `refine` is not offered. The refinement step exists for numbers that are the
+ * answer (D29); phase-1 duals are an input to a pivot choice and are rebuilt
+ * from scratch every iteration anyway, because which basics are infeasible
+ * changes underneath them. */
+static void primal_phase1_duals(sx *s)
+{
+    double *real_cost = s->cost;
+    s->cost = s->c1;
+    compute_duals(s, false);
+    s->cost = real_cost;
+}
+
+/* How far q may travel in phase 1 before a basic variable reaches a bound that
+ * matters.
+ *
+ * **A feasible basic and an infeasible one block on opposite questions, and
+ * that is the whole difference from the phase-2 test.** A feasible basic must
+ * stay feasible, so it blocks at whichever declared bound lies the way it is
+ * travelling. An infeasible one is already outside a bound: travelling back
+ * towards it, the bound is where it becomes feasible and the step must stop
+ * there, because past it the variable would cross to the other side and phase
+ * 1 would have traded one violation for another. Travelling away from it,
+ * nothing blocks — the violation grows, which the entering column was only
+ * chosen if the total still falls.
+ *
+ * This is the short-step form. The long step Maros (1986) describes walks
+ * several breakpoints at once, keeping a running slope, and can make several
+ * basics feasible in one iteration
+ * (`docs/research/primal-simplex.md` §4). It is a speed technique on top of a
+ * correct short step and it is not here yet.
+ *
+ * Returns the blocking position with `*below` saying which bound it lands on,
+ * or -1 when nothing blocks. `*step` receives the distance. Leaves `B^-1 M_q`
+ * in `s->col`, as the phase-2 test does and for the same reason. */
+static int64_t primal_phase1_ratio(sx *s, int64_t q, bool *below, double *step)
+{
+    var_column(s, q, s->col);
+    jm_lu_ftran(&s->lu, s->col, &s->work);
+
+    const double dir = s->d[q] < 0.0 ? 1.0 : -1.0;
+    int64_t best = -1;
+    double best_step = HUGE_VAL;
+
+    for (int64_t i = 0; i < s->nrow; i++) {
+        const double move = -dir * s->col[i];      /* per unit q travels */
+        if (fabs(move) < PIVOT_MIN)
+            continue;                              /* cannot be told from zero */
+
+        const int64_t v = s->basis[i];
+        const double lo = real_lower(s, v), up = real_upper(s, v);
+        const bool under = isfinite(lo) && s->xb[i] < lo - s->primal_tol;
+        const bool over  = isfinite(up) && s->xb[i] > up + s->primal_tol;
+
+        double limit;
+        bool lands_low;
+        if (under) {
+            if (move < 0.0)
+                continue;                          /* going further under */
+            limit = lo;
+            lands_low = true;
+        } else if (over) {
+            if (move > 0.0)
+                continue;                          /* going further over */
+            limit = up;
+            lands_low = false;
+        } else {
+            limit = move < 0.0 ? lo : up;
+            lands_low = move < 0.0;
+            if (!isfinite(limit))
+                continue;
+        }
+
+        double t = (limit - s->xb[i]) / move;
+        if (t < 0.0)
+            t = 0.0;                               /* already there: degenerate */
+        if (t < best_step) {
+            best_step = t;
+            best = i;
+            *below = lands_low;
+        }
+    }
+    jm_work_add(&s->work, s->nrow * JM_WORK_NONZERO);
+    *step = best_step;
+    return best;
+}
+
+/* Drives the sum of bound violations to zero, from whatever basis it is given.
+ *
+ * No artificial variables and no second model: the basis is the one the caller
+ * supplied and phase 1 works on it in place, which is the property crossover
+ * needs and the textbook artificial-variable method cannot offer
+ * (`docs/research/primal-simplex.md` §4). What changes between the phases is
+ * the objective the duals are taken against, and nothing else — the same
+ * `pivot()`, the same pricing row, the same ratio-test shape.
+ *
+ * **The costs are rebuilt every iteration and that is not laziness.** Which
+ * basics are infeasible is what the phase-1 objective is made of, and a pivot
+ * changes it: the leaving variable lands exactly on a bound, and other basics
+ * may cross one on the way. Duals carried across that change would price
+ * against an objective that no longer exists.
+ *
+ * **It refuses rather than declaring the model infeasible.** No improving
+ * direction with infeasibility left is the textbook proof of primal
+ * infeasibility, and this method is not entitled to it here: `real_*` measures
+ * against declared bounds while the columns may be pinned by bounds dual phase
+ * 1 invented, so "nothing improves" can be a statement about the loans rather
+ * than about the model. D19 refuses exactly this kind of inference, and the
+ * infeasible instance set is the dual method's to answer. */
+static jaos_status run_primal_phase1(sx *s, jaos_solve_status *out,
+                                     bool *feasible)
+{
+    *feasible = false;
+    if (s->c1 == nullptr) {
+        s->c1 = jm_alloc_array(s->nvar, sizeof *s->c1);
+        if (s->c1 == nullptr)
+            return JAOS_ERR_OUT_OF_MEMORY;
+    }
+
+    const int64_t iter_cap = ITER_SANITY_FACTOR * (s->nrow + s->ncol + 1);
+    const int64_t entered = s->iters;
+    double best_total = HUGE_VAL;
+    int64_t last_gain = s->iters;
+
+    for (;;) {
+        /* The budgets end the solve here rather than being left to the caller,
+         * and `*feasible` staying false is what says so. A phase 1 that
+         * stopped on a budget has not reached a feasible point, and letting
+         * phase 2 start from one would be running a method outside the
+         * invariant it is built on. */
+        if (s->m->cfg.work_limit > 0 && s->work.units >= s->m->cfg.work_limit) {
+            *out = JAOS_SOLVE_WORK_LIMIT;
+            return JAOS_OK;
+        }
+        if (s->iters % TIME_CHECK_EVERY == 0 && out_of_time(s)) {
+            *out = JAOS_SOLVE_TIME_LIMIT;
+            return JAOS_OK;
+        }
+        if (s->iters > iter_cap) {
+            jm_set_err(s->m, "internal iteration guard tripped after %lld "
+                             "iterations in the primal phase 1, the last %lld "
+                             "without the total infeasibility improving; this "
+                             "is a JAOS defect",
+                       (long long)s->iters,
+                       (long long)(s->iters - last_gain));
+            return JAOS_ERR_NUMERICAL;
+        }
+
+        if (s->needs_refactor) {
+            bool ok = false;
+            jaos_status st = refresh(s, &ok, false);
+            if (st != JAOS_OK)
+                return st;
+            if (!ok)
+                return JAOS_ERR_NUMERICAL;
+        }
+
+        const double total = primal_phase1_costs(s);
+        /* On a count and never on a clock, as `run()` logs for the same
+         * reason: output that differs between two runs of the same model is
+         * the one thing D8 forbids. */
+        if (s->iters % LOG_EVERY == 0)
+            jm_log(s->m, JAOS_LOG_PROGRESS,
+                   "phase 1, iter %lld: infeasibility %.6g, work %lld",
+                   (long long)s->iters, total, (long long)s->work.units);
+        if (total == 0.0) {
+            *feasible = true;
+            jm_log(s->m, JAOS_LOG_DETAIL,
+                   "phase 1 reached a feasible point in %lld iterations",
+                   (long long)(s->iters - entered));
+            return JAOS_OK;                        /* phase 2 next */
+        }
+        if (total < best_total) {
+            best_total = total;
+            last_gain = s->iters;
+        }
+
+        primal_phase1_duals(s);
+
+        /* The entering column, on the phase-1 objective. Dantzig again, and
+         * the eligibility is the plain sign test rather than `dual_breach`:
+         * these reduced costs belong to an objective that exists only inside
+         * this loop, so the published-space reading `breached` unions in has
+         * nothing to say about them. */
+        int64_t q = -1;
+        double best_d = s->dual_tol;
+        for (int64_t v = 0; v < s->nvar; v++) {
+            if (s->status[v] == JM_BASIC || s->lo[v] == s->up[v])
+                continue;
+            double gain;
+            switch (s->status[v]) {
+            case JM_AT_LOWER: gain = -s->d[v]; break;
+            case JM_AT_UPPER: gain =  s->d[v]; break;
+            case JM_FREE:     gain = fabs(s->d[v]); break;
+            default:          continue;
+            }
+            if (gain > best_d) {
+                best_d = gain;
+                q = v;
+            }
+        }
+        jm_work_add(&s->work, s->nvar * JM_WORK_NONZERO);
+
+        if (q < 0) {
+            jm_set_err(s->m,
+                       "the primal phase 1 cannot reduce a total bound "
+                       "violation of %.6g any further; reading that as an "
+                       "infeasible model needs the proof D19 requires, and "
+                       "the columns may be held by bounds dual phase 1 "
+                       "invented rather than by the model", total);
+            return JAOS_ERR_NUMERICAL;
+        }
+
+        bool below = false;
+        double step = 0.0;
+        int64_t r = primal_phase1_ratio(s, q, &below, &step);
+
+        /* q reaching its own opposite bound first is a flip here exactly as it
+         * is in phase 2, and for the same reason: no basic variable can
+         * express that limit (D189). */
+        {
+            const double other = s->d[q] < 0.0 ? real_upper(s, q)
+                                               : real_lower(s, q);
+            if (isfinite(other)) {
+                const double delta = other - nonbasic_value(s, q);
+                if (fabs(delta) <= step) {
+                    primal_bound_flip(s, q, delta);
+                    s->verified = false;
+                    s->iters++;
+                    s->n_primal_iters++;
+                    continue;
+                }
+            }
+        }
+
+        if (r < 0) {
+            jm_set_err(s->m,
+                       "column %lld reduces the primal phase 1's objective "
+                       "and no declared bound stops it, which cannot happen "
+                       "on an objective bounded below by zero; this is a JAOS "
+                       "defect", (long long)q);
+            return JAOS_ERR_NUMERICAL;
+        }
+
+        build_pricing_row(s, r);
+        if (fabs(s->alpha[q]) < PIVOT_MIN) {
+            if (s->lu.n_updates > 0) {
+                s->needs_refactor = true;
+                s->n_stability++;
+                continue;
+            }
+            jm_set_err(s->m,
+                       "column %lld prices at %.6g in row %lld of the primal "
+                       "phase 1 on a freshly built factorization; this is a "
+                       "JAOS defect", (long long)q, s->alpha[q],
+                       (long long)r);
+            return JAOS_ERR_NUMERICAL;
+        }
+
+        s->verified = false;
+        bool took = false;
+        /* `pivot()` steps every reduced cost by the dual step along the
+         * pricing row, and `d` here holds phase-1 reduced costs — so what it
+         * maintains is the phase-1 pricing, which is what the next iteration
+         * would rebuild anyway. The phase-2 costs are recomputed at the
+         * hand-over and owe nothing to any of this. */
+        jaos_status st = pivot(s, r, q, below, s->d[q] / s->alpha[q], &took);
+        if (st != JAOS_OK)
+            return st;
+        if (!took)
+            continue;
+
+        s->iters++;
+        s->n_primal_iters++;
+    }
+}
+
 /* The primal simplex, phase 2 only.
  *
  * Mirrors `run()` clause for clause where the question is the same — the
@@ -4087,16 +4455,53 @@ static jaos_status run_primal(sx *s, jaos_solve_status *out)
         return JAOS_OK;
     }
 
-    {
-        const double viol = primal_worst_violation(s);
-        if (viol > s->primal_tol) {
+    /* Phase 1, when the point it was handed is not primal feasible. It works
+     * on the basis in place and hands back a feasible one, or refuses. */
+    if (primal_worst_violation(s) > s->primal_tol) {
+        bool feasible = false;
+        st = run_primal_phase1(s, out, &feasible);
+        if (st != JAOS_OK)
+            return st;
+        if (!feasible)
+            return JAOS_OK;   /* a budget ended it; `*out` says which */
+
+        /* Phase 1 leaves `d` holding *its* reduced costs, against an
+         * objective that no longer exists. Everything below prices on the
+         * model's own, so they are rebuilt here and not inherited. The
+         * refactorization is fresh as well, because the point phase 1 reached
+         * is the one phase 2's first optimality test will be read off, and
+         * D20 refuses that on carried numbers. */
+        s->needs_refactor = true;
+        bool ok2 = false;
+        st = refresh(s, &ok2, false);
+        if (st != JAOS_OK)
+            return st;
+        if (!ok2) {
+            *out = JAOS_SOLVE_NUMERICAL_ERROR;
+            return JAOS_OK;
+        }
+
+        /* And it must actually have worked. A phase 1 that returns `JAOS_OK`
+         * on a point still outside a bound would hand phase 2 a start it has
+         * no invariant for, and phase 2 would drive an objective across a
+         * region the point is not in — which is the whole failure this pair of
+         * checks exists to make impossible. Checked against the same
+         * tolerance that sent it there. */
+        const double left = primal_worst_violation(s);
+        if (left > s->primal_tol) {
             jm_set_err(s->m,
-                       "the primal simplex was asked to start from a point "
-                       "that violates a declared bound by %.6g, and JAOS has "
-                       "no primal phase 1 yet; this is a limitation and not a "
-                       "verdict about the model", viol);
+                       "the primal phase 1 returned with a declared bound "
+                       "still violated by %.6g; this is a JAOS defect", left);
             return JAOS_ERR_NUMERICAL;
         }
+
+        /* Phase 2 starts its own stall accounting. Phase 1 drove a different
+         * objective, so the iteration it last improved on says nothing about
+         * whether phase 2 is making progress, and inheriting it would arm
+         * Bland's rule against a plateau that belongs to another problem. */
+        s->last_gain = s->iters;
+        s->bland = false;
+        s->dinfeas_best = HUGE_VAL;
     }
 
     const int64_t iter_cap = ITER_SANITY_FACTOR * (s->nrow + s->ncol + 1);
@@ -4917,8 +5322,14 @@ jaos_status jm_dual_simplex(jaos_model *m)
          * is stage 1's shape and not an oversight; making the re-entry follow
          * the method is a later question, and the harness compares final
          * answers, which is what a caller receives either way. */
+        /* Set and cleared here rather than inside `run_primal`, which returns
+         * from a dozen places and would leak the flag out of any of them.
+         * Everything after this line — the settling, the re-entry, the verdict
+         * — is the dual's world and must behave exactly as it always has. */
+        s.in_primal = m->cfg.force_primal;
         st = m->cfg.force_primal ? run_primal(&s, &outcome)
                                  : run(&s, &outcome);
+        s.in_primal = false;
         if (st != JAOS_OK || outcome != JAOS_SOLVE_OPTIMAL)
             break;
 

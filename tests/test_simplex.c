@@ -2729,31 +2729,25 @@ static void test_the_entering_column_stops_at_its_own_bound(void)
     jaos_model_free(m);
 }
 
-/* The refusal, and it is the case the method must not get wrong.
+/* Phase 1 repairs a start phase 2 has no invariant for.
  *
- * Handed a point that violates a bound the model declared, the primal has no
- * phase 1 to repair it with. Two answers are available and both are worse
- * than refusing. Reporting `INFEASIBLE` would be a wrong answer about a model
- * that has an optimum — the one outcome the infeasible instance set exists to
- * make impossible. Running anyway would drive an objective across a region
- * the point is not in.
+ * **This test used to assert a refusal.** Before the phase 1 landed, the
+ * primal was handed the origin — where `x + y >= 2` is violated by 2 — and
+ * said so rather than answering, because the two alternatives were both worse:
+ * reporting `INFEASIBLE` would be a wrong answer about a model that has an
+ * optimum, and running anyway would drive an objective across a region the
+ * point is not in. It now repairs the point and solves.
  *
- * Both structurals on their lower bounds puts the point at the origin, where
- * `x + y >= 2` is violated by 2. That basis is also **dual** feasible — both
- * costs are positive and both columns are at a lower bound — so it is exactly
- * the shape a cold start has, and the dual solves it without complaint. The
- * test below this one asserts that half.
+ * The same basis is also dual feasible — both costs positive, both columns at
+ * a lower bound — so it is exactly the shape a cold start has, which is what
+ * makes it the case worth pinning. The test below this one asserts the dual
+ * reaches the same answer from it.
  *
- * The assertion is that the solve returns an error **and says why**: a refusal
- * nobody can read is indistinguishable from a defect, and this one is a
- * limitation.
- *
- * The message is checked through `jaos_model_error` on the caller's own model
- * rather than by reading the solver's state, because that is the only place a
- * caller can look — and it is where the message did not use to arrive at all
- * on any model presolve had reduced. */
-static void test_the_primal_refuses_a_start_it_cannot_repair(void)
+ * `n_primal_iters` covers both phases, so a positive count says the primal
+ * method did the work and not the settling re-entry's dual solve. */
+static void test_the_primal_phase_1_repairs_an_infeasible_start(void)
 {
+    int hits = 0;
     jaos_model *m = fresh();
     load_unreducible_model(m);
 
@@ -2761,13 +2755,67 @@ static void test_the_primal_refuses_a_start_it_cannot_repair(void)
     jaos_basis_status rs[2] = {JAOS_BASIS_BASIC, JAOS_BASIS_BASIC};
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_basis(m, cs, rs));
 
-    m->cfg.force_primal = true;
-    TEST_ASSERT_EQUAL_INT(JAOS_ERR_NUMERICAL, jaos_solve(m));
+    g_log_last[0] = '\0';
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_log_callback(m, collect_log, &hits));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_log_level(m, JAOS_LOG_SUMMARY));
 
-    const char *why = jaos_model_error(m);
-    TEST_ASSERT_NOT_NULL(why);
-    TEST_ASSERT_NOT_NULL_MESSAGE(strstr(why, "no primal phase 1"),
-                                 "the refusal must say what it is");
+    m->cfg.force_primal = true;
+    solve_and_verify(m, 2.0);
+    TEST_ASSERT_NULL_MESSAGE(strstr(g_log_last, " 0 primal iterations"),
+                             "phase 1 did not take a single pivot");
+    jaos_model_free(m);
+}
+
+/* The refusal that is left, and it is the one the method must not turn into a
+ * verdict.
+ *
+ * `min x + y` over `x + y >= 10` and `x + 2y <= 3`, both columns in `[0, 5]`.
+ * The second row caps `x + y` at 3, so there is no feasible point at all.
+ *
+ * **The primal must not answer `INFEASIBLE` here, and that is not caution for
+ * its own sake.** "No improving direction with infeasibility left" is the
+ * textbook proof of primal infeasibility, and this method is not entitled to
+ * it: phase 1 measures against `real_lower`/`real_upper`, the bounds the model
+ * declared, while the columns may be pinned by bounds dual phase 1 invented.
+ * So "nothing improves" can be a statement about the loans rather than about
+ * the model, and D19 refuses exactly that inference. The infeasible instance
+ * set is the dual method's to answer.
+ *
+ * What is asserted is that it refuses **and says why**, read through
+ * `jaos_model_error` on the caller's own model — the only place a caller can
+ * look, and where no simplex message arrived at all until D188 on any model
+ * presolve had reduced. */
+static void test_the_primal_refuses_to_call_a_model_infeasible(void)
+{
+    const double c[]  = {1.0, 1.0};
+    const double cl[] = {0.0, 0.0}, cu[] = {5.0, 5.0};
+    const double rl[] = {10.0, -INFINITY};
+    const double ru[] = {INFINITY, 3.0};
+    const int64_t as[] = {0, 2, 4};
+    const int64_t ai[] = {0, 1, 0, 1};
+    const double av[] = {1.0, 1.0, 1.0, 2.0};
+
+    jaos_model *m = fresh();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_load_lp(m, 2, 2, JAOS_MINIMIZE, 0.0, c, cl, cu, rl, ru,
+                     4, as, ai, av));
+
+    m->cfg.force_primal = true;
+    jaos_status st = jaos_solve(m);
+
+    /* Presolve may prove it infeasible before the simplex ever runs, and that
+     * verdict is sound because a reduction proved it rather than a method
+     * failing to improve. Only the case that reaches the simplex is this
+     * test's subject. */
+    if (st == JAOS_OK) {
+        TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_INFEASIBLE, jaos_status_of(m));
+    } else {
+        TEST_ASSERT_EQUAL_INT(JAOS_ERR_NUMERICAL, st);
+        const char *why = jaos_model_error(m);
+        TEST_ASSERT_NOT_NULL(why);
+        TEST_ASSERT_NOT_NULL_MESSAGE(strstr(why, "D19"),
+                                     "the refusal must say what it is");
+    }
     jaos_model_free(m);
 }
 
@@ -2779,7 +2827,7 @@ static void test_the_primal_refuses_a_start_it_cannot_repair(void)
  * tests it where a reader can see it, on the exact basis the refusal above
  * uses — primal infeasible, which the dual does not mind at all, because
  * driving primal infeasibility out is what the dual method is for. */
-static void test_the_dual_is_untouched_by_a_basis_the_primal_refuses(void)
+static void test_the_dual_agrees_from_the_same_infeasible_start(void)
 {
     jaos_model *m = fresh();
     load_unreducible_model(m);
@@ -3276,8 +3324,9 @@ int main(void)
     RUN_TEST(test_the_primal_reaches_the_optimum_from_a_feasible_basis);
     RUN_TEST(test_the_primal_and_the_dual_agree_on_the_same_model);
     RUN_TEST(test_the_entering_column_stops_at_its_own_bound);
-    RUN_TEST(test_the_primal_refuses_a_start_it_cannot_repair);
-    RUN_TEST(test_the_dual_is_untouched_by_a_basis_the_primal_refuses);
+    RUN_TEST(test_the_primal_phase_1_repairs_an_infeasible_start);
+    RUN_TEST(test_the_primal_refuses_to_call_a_model_infeasible);
+    RUN_TEST(test_the_dual_agrees_from_the_same_infeasible_start);
     RUN_TEST(test_a_hostile_basis_costs_iterations_and_not_the_answer);
     RUN_TEST(test_a_free_nonbasic_with_a_negative_reduced_cost_is_repaired);
     RUN_TEST(test_a_status_whose_bound_was_retired);

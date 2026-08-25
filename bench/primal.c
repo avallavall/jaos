@@ -60,7 +60,8 @@
  * over the set — two instances are 74% of the standard set's total work, so a
  * sum reports what those two did and calls it what the change did (D46).
  *
- * Usage: primal [-d DIR] [-m MANIFEST] [-o FILE] [-j N] [instance ...]
+ * Usage: primal [-d DIR] [-m MANIFEST] [-o FILE] [-j N] [-w FACTOR]
+ *               [instance ...]
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -92,6 +93,26 @@ constexpr double CHECK_TOL = 1e-6;
  * number `bench/warm.c` uses on the same question. */
 constexpr double OBJ_TOL = 1e-6;
 
+/* How much work the primal is allowed, as a multiple of what the dual spent on
+ * the same instance.
+ *
+ * **Without a bound this program does not terminate in any useful time.** The
+ * primal prices by Dantzig's rule, which is the worst rule that is still
+ * correct, and on a model of any size it takes enough iterations that the
+ * internal guard — 200 times the model's size — is the only thing that would
+ * stop it. The first run with a phase 1 live was killed at fifteen minutes on
+ * a set the dual finishes in twenty-three seconds.
+ *
+ * A multiple of the dual's own work is the right shape for the bound: it is
+ * per instance, it is in the currency the comparison is already in, and it is
+ * a deterministic integer, so an OVERRUN verdict means the same thing on every
+ * machine and in every run. A wall-clock cutoff would not (D17).
+ *
+ * Ten is a working number and not a measured one. It is generous enough that
+ * finishing inside it says something, and small enough that the campaign ends.
+ * `-w N` overrides it. */
+constexpr int64_t WORK_FACTOR = 10;
+
 typedef struct {
     char name[64];
     int64_t rows, cols;
@@ -105,6 +126,10 @@ typedef enum {
      * verdict rather than an error, because a limitation that reads like a
      * failure gets investigated once per person who sees it. */
     PRIMAL_UNREACHED,
+    /* The primal did not finish inside its work budget. A measured outcome
+     * and not a failure: with Dantzig pricing it is the expected one on
+     * anything large, and it is what §0's stage 5 exists to move. */
+    PRIMAL_OVERRUN,
     PRIMAL_DISAGREE,      /* the two algorithms reached different answers */
     PRIMAL_REJECTED,      /* the checker refused one of the two answers   */
     PRIMAL_ERROR,         /* read or solve failed                         */
@@ -116,6 +141,7 @@ static const char *verdict_str(verdict v)
     case PRIMAL_OK:        return "ok";
     case PRIMAL_SKIPPED:   return "skipped";
     case PRIMAL_UNREACHED: return "unreached";
+    case PRIMAL_OVERRUN:   return "overrun";
     case PRIMAL_DISAGREE:  return "DISAGREE";
     case PRIMAL_REJECTED:  return "REJECTED";
     case PRIMAL_ERROR:     return "ERROR";
@@ -184,7 +210,8 @@ static int verified(jaos_model *m, int status, double *x, double *y)
 
 /* Everything one instance contributes, measured. Never judges: the caller
  * prints and the summary counts. */
-static void measure_one(const entry *e, const char *dir, result *r)
+static void measure_one(const entry *e, const char *dir, int64_t factor,
+                        result *r)
 {
     memset(r, 0, sizeof *r);
     snprintf(r->name, sizeof r->name, "%s", e->name);
@@ -238,6 +265,13 @@ static void measure_one(const entry *e, const char *dir, result *r)
      * the dual just left on the model is exactly that, so it goes. */
     jaos_clear_basis(m);
 
+    /* The bound, in the dual's own currency. `+1` so an instance the dual
+     * solved for nothing still gets a budget rather than none at all. */
+    if (jaos_set_work_limit(m, factor * (r->work_d + 1)) != JAOS_OK) {
+        fail(r, PRIMAL_ERROR, "cannot set the work limit");
+        goto done;
+    }
+
     m->cfg.force_primal = true;
     t0 = now_seconds();
     st = jaos_solve(m);
@@ -265,6 +299,17 @@ static void measure_one(const entry *e, const char *dir, result *r)
     r->work_p = jaos_work_units(m);
     (void)jaos_objective(m, &r->obj_p);
     r->check_p = verified(m, r->status_p, x, y);
+
+    /* Out of budget is a measured outcome, not a disagreement: the primal did
+     * not reach an answer, so there is nothing to compare. Asked before the
+     * verdict tests below, which would otherwise read it as the two methods
+     * differing. */
+    if (r->status_p == (int)JAOS_SOLVE_WORK_LIMIT) {
+        char note[64];
+        snprintf(note, sizeof note, "over %lldx the dual's work", (long long)factor);
+        fail(r, PRIMAL_OVERRUN, note);
+        goto done;
+    }
 
     /* An instance the dual cannot solve says nothing about the primal, so it
      * is set aside rather than counted against either. Asked after both
@@ -334,7 +379,8 @@ static void print_result(const result *r)
 {
     if (r->verdict != (int)PRIMAL_OK && r->verdict != (int)PRIMAL_DISAGREE &&
         r->verdict != (int)PRIMAL_REJECTED) {
-        if (r->verdict == (int)PRIMAL_UNREACHED) {
+        if (r->verdict == (int)PRIMAL_UNREACHED ||
+            r->verdict == (int)PRIMAL_OVERRUN) {
             /* The dual's cost is still worth printing: it is what the primal
              * would have had to beat, and it dates the comparison. */
             emit("%-12s %-9s dual=%lld/%lld %s\n", r->name,
@@ -426,7 +472,8 @@ static bool read_result(const char *p, result *r)
 }
 
 static bool run_parallel(const entry *ents, const int *sel, int nsel,
-                         const char *dir, int jobs, result *out)
+                         const char *dir, int jobs, int64_t factor,
+                         result *out)
 {
     char tmpl[] = "/tmp/jaos-primal-XXXXXX";
     const char *tmp = mkdtemp(tmpl);
@@ -457,7 +504,7 @@ static bool run_parallel(const entry *ents, const int *sel, int nsel,
             if (p == 0) {
                 result r;
                 char rp[512];
-                measure_one(&ents[sel[launched]], dir, &r);
+                measure_one(&ents[sel[launched]], dir, factor, &r);
                 if (!worker_path(rp, sizeof rp, tmp, launched) ||
                     !write_result(rp, &r))
                     _exit(1);
@@ -529,6 +576,7 @@ int main(int argc, char **argv)
     const char *manifest = "bench/netlib.manifest";
     const char *record = nullptr;
     int jobs = 1;
+    int64_t factor = WORK_FACTOR;
     int i = 1;
     for (; i < argc; i++) {
         if (strcmp(argv[i], "-d") == 0 && i + 1 < argc)
@@ -537,7 +585,11 @@ int main(int argc, char **argv)
             manifest = argv[++i];
         else if (strcmp(argv[i], "-o") == 0 && i + 1 < argc)
             record = argv[++i];
-        else if (strcmp(argv[i], "-j") == 0 && i + 1 < argc) {
+        else if (strcmp(argv[i], "-w") == 0 && i + 1 < argc) {
+            factor = atoll(argv[++i]);
+            if (factor < 1)
+                factor = 1;
+        } else if (strcmp(argv[i], "-j") == 0 && i + 1 < argc) {
             jobs = atoi(argv[++i]);
             if (jobs < 1)
                 jobs = 1;
@@ -593,12 +645,10 @@ int main(int argc, char **argv)
 
     printf("the primal simplex against the dual, same model, nothing "
            "perturbed\n");
-    printf("NOTE: cfg.force_primal has no reader yet, so both solves are the "
-           "dual.\n"
-           "      Every instance must read ok at a work ratio of exactly "
-           "1.0000. That is\n"
-           "      this program being validated, not the primal being "
-           "measured (TODO.md 0).\n");
+    printf("the primal is bounded at %lldx the dual's work per instance; "
+           "'overrun' is that bound,\n"
+           "and 'unreached' is a start its phase 1 could not repair. "
+           "Neither is a defect.\n", (long long)factor);
     if (jobs > 1)
         printf("-j %d: the seconds below are inflated by contention and are "
                "not comparable across runs\n", jobs);
@@ -607,11 +657,12 @@ int main(int argc, char **argv)
     bool all_ok = true;
     const double t_all = now_seconds();
     if (jobs > 1 && n_selected > 1) {
-        if (!run_parallel(ents, selected, n_selected, dir, jobs, results))
+        if (!run_parallel(ents, selected, n_selected, dir, jobs, factor,
+                          results))
             all_ok = false;
     } else {
         for (int k = 0; k < n_selected; k++)
-            measure_one(&ents[selected[k]], dir, &results[k]);
+            measure_one(&ents[selected[k]], dir, factor, &results[k]);
     }
     const double elapsed = now_seconds() - t_all;
 
@@ -623,8 +674,8 @@ int main(int argc, char **argv)
 
     /* The summary. Geometric means of per-instance ratios, never a sum over
      * the set (D46). */
-    int measured = 0, skipped = 0, unreached = 0, disagreed = 0, rejected = 0,
-        errors = 0;
+    int measured = 0, skipped = 0, unreached = 0, overrun = 0, disagreed = 0,
+        rejected = 0, errors = 0;
     int rej_dual = 0, rej_primal = 0;
     int identical = 0, worse_iters = 0;
     double sum_iters = 0.0, sum_work = 0.0;
@@ -639,6 +690,10 @@ int main(int argc, char **argv)
          * non-zero on the expected outcome is a runner nobody can put in a
          * script. */
         case PRIMAL_UNREACHED: unreached++; continue;
+        /* Also not counted against `all_ok`: the primal running out of budget
+         * is what Dantzig pricing does on anything large, and it is measured
+         * rather than wrong. */
+        case PRIMAL_OVERRUN:   overrun++;   continue;
         case PRIMAL_DISAGREE: disagreed++; all_ok = false; continue;
         case PRIMAL_REJECTED:
             rejected++;
@@ -668,9 +723,14 @@ int main(int argc, char **argv)
     }
 
     emit("\n-- primal against dual --\n");
-    emit("measured %d, skipped %d, unreached %d, disagreed %d, rejected %d, "
-         "errors %d\n",
-         measured, skipped, unreached, disagreed, rejected, errors);
+    emit("measured %d, skipped %d, unreached %d, overrun %d, disagreed %d, "
+         "rejected %d, errors %d\n",
+         measured, skipped, unreached, overrun, disagreed, rejected, errors);
+    if (overrun > 0)
+        emit("  %d of %d did not finish inside %lldx the dual's work. Dantzig "
+             "pricing is the worst rule that is still correct, and that is "
+             "TODO.md section 0 stage 5, not a defect.\n",
+             overrun, n_selected, (long long)factor);
     /* Said out loud rather than left to be inferred from a column of
      * `unreached`. A reader who does not know §0's stage list would
      * otherwise read the whole set declining as a broken primal. */
@@ -695,12 +755,14 @@ int main(int argc, char **argv)
         emit("work ratio, worst %s at %.4f\n", worst_name, worst);
         emit("took more iterations primal than dual:          %d of %d\n",
              worse_iters, measured);
+        /* Kept because it is the one number that would say the switch had
+         * stopped working: two solves down the same path cost the same
+         * integer, so a full house here means the primal never ran. */
         emit("bit-identical cost on both sides:               %d of %d\n",
              identical, measured);
-        if (identical != measured)
-            emit("  ^ while force_primal has no reader this MUST be %d of "
-                 "%d; anything else is a defect in bench/primal.c\n",
-                 measured, measured);
+        if (identical == measured && measured > 0)
+            emit("  ^ every instance cost the same both ways, which is what "
+                 "it looks like when cfg.force_primal is not being read\n");
     }
     printf("elapsed %.1f s\n", elapsed);
 

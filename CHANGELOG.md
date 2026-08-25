@@ -11,6 +11,17 @@ open, `bench/README.md` for the gate, and the commit each entry came from.
 
 ### Added
 
+- **A primal phase 1, and the reach goes from 0 of 94 to 64 of 94.** Composite,
+  short-step, no artificial variables: it works on whatever basis it is given,
+  which is what crossover needs. **64 instances now agree with the dual**,
+  objectives within tolerance and both answers through the independent checker,
+  at a work geometric mean of **3.2352x** — what Dantzig pricing costs. 16
+  overrun a 10x budget, and **14 still fail where the dual succeeds**, of which
+  `sc50a`/`sc50b`/`sc105`/`sc205` are one family. The defect it shipped with was
+  found by a loan of exactly 1.0: phase 1's own reduced costs are of magnitude
+  one, and `update_dual` was lending the **model's** costs against them (D190,
+  `bench/measurements/02-103/`).
+
 - **A phase-2 primal simplex**, priced by Dantzig's rule and sharing `pivot()`
   and `build_pricing_row` with the dual. Behind `cfg.force_primal`, which is a
   development switch and not an option (D64). **It refuses to start from a
