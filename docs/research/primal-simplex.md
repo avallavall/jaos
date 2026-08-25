@@ -298,7 +298,10 @@ implementation-level write-up in Maros's Chapter 9.
 
 **(a) Textbook artificial variables.** One artificial per row, minimise their
 sum, drop them. `n` grows by `m`; a second objective and a phase switch; simple
-to write. The phase-1 optimum is often a bad phase-2 start.
+to write. The phase-1 optimum is often a bad phase-2 start. Huang et al.'s
+survey — **one of the few sources actually read** — reports that phase 1 is
+often *more* expensive than phase 2, citing Stojkovic et al. (2012); **that
+secondary citation was not chased and is UNVERIFIED.**
 
 **(b) Big-M.** One objective, `c` plus `M` times the artificial costs. No phase
 switch, but `M` has to be chosen and a bad one wrecks the conditioning. Not
@@ -361,10 +364,13 @@ crossover. Design for that from the start.
   reached.**
 - Maros, I. "A Piecewise Linear Dual Phase-1 Algorithm for the Simplex Method."
   *COAP* 26(1), 63–81 (2003). DOI 10.1023/A:1025102305440. **Crossref-verified.
-  Text not reached.** The dual twin, so the shape will be familiar.
+  Text not reached.** The dual twin, so the shape will be familiar. Also exists
+  as Imperial DoC TR DTR00-13.
 - Koberstein, A., Suhl, U.H. "Progress in the dual simplex method for large
   scale LP problems: practical dual phase 1 algorithms." *COAP* 37(1), 49–65
   (2007). DOI 10.1007/s10589-007-9022-3. **Crossref-verified. Text not reached.**
+- Huang, M. et al. "Simplex Initialization: A Survey of Techniques and Trends."
+  arXiv:2111.03376 (2021). **READ.** Already cited in `crash-basis.md`.
 
 ---
 
@@ -515,6 +521,7 @@ never a justification** — and none of the numbers below were read at source.
 | composite phase-1 weight | Wolfe | nothing; paper not read |
 | phase-1 infeasibility tolerance | phase 1 | nothing; paper not read |
 | crossover distance-from-bound ranking cutoff | crossover | nothing; Bixby–Saltzman not read |
+| cycle-detection threshold that switches Bland on | anti-cycling | **JAOS already owns this on the dual side (D26)** |
 
 ---
 
@@ -546,7 +553,9 @@ never a justification** — and none of the numbers below were read at source.
 
 1. **Harris and EXPAND both accept a point slightly outside its bounds.** The
    published step can leave a basic up to `delta` past a bound. JAOS's checker
-   has an absolute bar on primal feasibility. **So the primal ratio test must
+   has an absolute bar on primal feasibility, and **D24 keeps that test
+   absolute deliberately** — it measured the relative alternative and found it
+   wrong in both directions at once. **So the primal ratio test must
    snap the leaving variable exactly onto its bound, and the final answer must
    be re-verified against the TRUE bounds and not the expanded ones.** Otherwise
    the gate rejects solves that are correct.
