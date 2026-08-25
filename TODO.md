@@ -1170,8 +1170,17 @@ on the *same* instance inside one process, exactly as `warm.c` runs warm and
 cold, and a compile-time flag cannot do that — it would need two binaries and no
 in-process comparison. It goes on `m->cfg` beside `work_limit`, `time_limit` and
 `progress_cb`, which is where every other per-solve knob already lives
-(`src/simplex.c:3835` and around). Whether it also becomes public API is a
-separate and later question.
+(`src/simplex.c:3835` and around).
+
+**And it needs no public API, because the precedent is already in the tree.**
+`bench/run.c:67` includes `src/jaos_internal.h`, and the Makefile's rule for it
+says why in full: `-Isrc` is "the one deliberate exception (D-13)", for counters
+that "are not, and must not become, public API (D64)", because "this runner is
+in-tree tooling reading the solver it ships beside, the same relationship
+`tests/` already has to it; it is not a caller judged by the same rule `jaos.h`
+enforces on everyone else." A `bench/primal.c` built the same way sets
+`m->cfg` directly. **So `jaos_set_algorithm` is a real question and this work
+does not force it** — it can wait until the feature ships to callers.
 
 ### The build order, and what the Devex blocker really blocks
 
@@ -1189,7 +1198,7 @@ in `price_row:1700` are the machinery, and D26 is the decision behind them.
 
 | # | stage | blocked on |
 |---|---|---|
-| 0 | **the harness**, `bench/primal.c` and the `cfg` switch | nothing |
+| 0 | **the harness**, `bench/primal.c` and the `cfg` switch | nothing — design settled 2026-08-25, see below |
 | 1 | **phase-2 primal, Dantzig pricing**, its own row-sized arrays, Bland fallback | nothing |
 | 2 | **Harris two-pass in primal form, and the snap** | nothing — `jm_harris_pick` is already generic |
 | 3 | **the entering column's bound flip**, sized from `real_upper`/`real_lower` | nothing |
@@ -1216,6 +1225,23 @@ unable to see the feature itself.
 cold start is not. So stage 1 runs from a warm basis, from crossover, or from a
 test fixture, and until stage 4 lands that is the whole of its reach. Say so in
 the entry rather than discovering it during a campaign.
+
+**What stage 0 still owes, written down so the next session does not re-derive
+it.** The design above is settled and the file is not written. `bench/warm.c` is
+724 lines and the shape to follow: `entry`/`result` structs, `measure_one`, an
+`emit` that writes the console and the record together, `stamp` for seconds
+that go to the console only (D17), and the fork-per-worker pool behind `-j`.
+Three things differ from `warm.c` and are the whole of the new thinking:
+
+- it includes `src/jaos_internal.h` and is built with `-Isrc`, as `bench/run.c`
+  is, and its header comment must carry the same justification;
+- the two solves are dual and primal on the **same unperturbed model**, so
+  there is no branch to pick and `pick_branch` has no counterpart;
+- **it must be validated before stage 1 exists.** Run it with the switch off so
+  both solves are the dual: it must report agreement and a work ratio of
+  exactly 1.0. Then doctor one side's answer and confirm it reports
+  disagreement. An instrument that cannot fail is not evidence, and this
+  project has been caught by that before.
 
 ## → START HERE — what is actually next, 2026-08-20
 
