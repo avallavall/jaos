@@ -202,6 +202,7 @@ and you have the argument. Jump to the entry for the numbers behind it.
 - **[D192](#d192--blands-rule-now-reaches-the-primals-leaving-variable-and-it-arms-nowhere-on-netlib)** — Bland's rule now reaches the primal's leaving variable, and it arms nowhere on netlib
 - **[D193](#d193--refresh-is-the-third-place-a-cost-is-lent-it-fires-30-times-inside-the-primal-phase-1-and-guarding-it-trades-pilot4-for-pilot-ja-and-pilotnov)** — `refresh` is the third place a cost is lent, it fires 30 times inside the primal phase 1, and guarding it trades `pilot4` for `pilot-ja` and `pilotnov`
 - **[D194](#d194--605-of-the-primal-campaigns-iterations-are-the-duals-the-primals-phase-2-runs-exactly-one-iteration-on-80-of-94-and-pilot4-is-not-a-primal-regression)** — 60.5% of the primal campaign's iterations are the dual's, the primal's phase 2 runs exactly one iteration on 80 of 94, and `pilot4` is not a primal regression
+- **[D195](#d195--the-bound-flips-1e10-delta-fires-on-nothing-and-chasing-it-found-that-d194-counted-phase-1-from-a-log-line-printed-only-on-success)** — The bound flip's 1e10 delta fires on nothing, and chasing it found that D194 counted phase 1 from a log line printed only on success
 
 ---
 
@@ -14759,6 +14760,15 @@ cap.
 
 ## D194 — 60.5% of the primal campaign's iterations are the dual's, the primal's phase 2 runs exactly one iteration on 80 of 94, and `pilot4` is not a primal regression
 
+> **CORRECTED IN PART BY D195.** This entry's phase-1 counts came from a log
+> line printed only when phase 1 succeeds, so eight instances whose phase 1 ran
+> and did not finish were counted as having no phase 1 at all — and then read as
+> pure phase-2 runs. The 60.5% dual share stands. **"The 8 that run a real phase
+> 2 are exactly the 8 whose phase 1 is zero iterations" is false**: 0 of 94 skip
+> phase 1, and those 8 never leave it. The corrected split is phase 1 336660
+> (39.5%), phase 2 **97 (0.0%)**, dual 515522 (60.5%), with no instance running
+> more than 10 phase-2 iterations.
+
 Opened to diagnose the instance D193 broke. It ended somewhere else, and the
 number `SPECS.md` publishes for the primal is the casualty.
 
@@ -14850,3 +14860,102 @@ The choice — guard phase 2 and publish 17, or leave it and relabel the 55 —
 is the maintainer's and is in `TODO.md` §0. **No source changed here.** So is
 whether `bench/primal.c` should report the split, which would have made this
 visible from the first campaign.
+
+## D195 — The bound flip's 1e10 delta fires on nothing, and chasing it found that D194 counted phase 1 from a log line printed only on success
+
+Two results from one investigation. `TODO.md` §0's third answer-changing
+finding is refused with a reopen condition, and D194's phase-1 accounting is
+corrected. D194's 60.5% stands; what it said about the other 39.5% does not.
+
+### The question
+
+`primal_bound_flip` takes its destination from `real_upper`/`real_lower` and
+its origin from `nonbasic_value`, which reads the raw `lo`/`up` and so may read
+a bound dual phase 1 invented. `delta` can then be the size of an artificial
+bound, and the ratio test skips every row with `|col[i]| < PIVOT_MIN = 1e-9`
+while those rows still move by `delta * col[i]`. D191 put the worst case at
+about 9, which is 1e8 times `primal_tol`.
+
+Expected: rare but real, and worth a guard.
+
+### The measurement
+
+`bench/measurements/02-107/`. Both flip sites instrumented in a worktree, all
+94 instances, `cfg.force_primal`:
+
+| | phase 2 | phase 1 |
+|---|---|---|
+| flips | 8 | 10604 |
+| origin was an invented bound | 0 | **3974** |
+| the phase's own measure grew | **0** | **0** |
+| largest `\|delta\|` | 200 | **1e+10** |
+
+**`delta` reaches 1e10 from an invented origin 3974 times and moves neither
+phase's own measure.**
+
+### What was refuted, and the first refutation was my own predicate
+
+**The first version asked whether `primal_worst_violation` grew, in both
+phases, and reported 113 firings.** Every one was inside phase 1 and every one
+was innocent: phase 1 minimises the SUM of violations and `primal_phase1_ratio`
+deliberately skips a row already under its bound and moving further under. The
+worst growing inside phase 1 is the method working. Phase 2's measure is the
+worst; phase 1's is the total; both read 0.
+
+**Phase 1's predicate is validated and phase 2's is not.** Forcing a 1e6 push
+after every flip makes 260750 of 393041 flips report the total growing. Two
+attempts to reach a phase-2 flip failed: raising `PIVOT_MIN` to 1e-3 reported
+nothing but also took the flip count from 10604 to 221, so it moved the
+trajectory rather than holding it still; and forcing the damage in phase 2 only
+produced no phase-2 flips at all. The phase-2 row is 8 flips with no instrument
+test behind it and is written down as unproven.
+
+### The correction to D194
+
+`02-106/split.c` read phase 1's count from `phase 1 reached a feasible point in
+N iterations`, **printed only on success**. A phase 1 that ran and did not
+finish left the counter at 0, so `phase2 = primal - 0 = primal` and the
+instance read as a pure phase-2 run. D194 published that as *the 8 that run a
+real phase 2 are exactly the 8 whose phase 1 is zero iterations*. Both halves
+are false, and 02-107's canary is what caught it: those 8 produced **2634
+phase-1 flips**, which a phase 1 that never ran cannot do.
+
+Re-measured with the count logged after every exit
+(`bench/measurements/02-108/`): **0 of 94 skip phase 1**, 86 finish it, and the
+same 8 never leave it — reclassified from *never entered* to *never left*.
+`wood1p` is 3820 phase-1 iterations and 0 phase-2, where D194 recorded 0 and
+3820.
+
+**The headline gets stronger, not weaker.** Phase-2 primal iterations: 8
+instances run 0, 80 run exactly 1, 6 run 2 to 10, and **none runs more than
+10**. Over all 94 solves: phase 1 **336660 (39.5%)**, **phase 2 97 (0.0%)**,
+dual **515522 (60.5%)**. **Ninety-seven phase-2 iterations in the whole
+campaign.**
+
+**A second flaw in that probe, found and bounded.** It read
+`jaos_status_of` while ignoring `jaos_solve`'s return value, so an instance
+whose solve raises a hard error shows the previous solve's status. Exactly one
+is affected — `pilot87` prints `optimal` and in fact raises `column 478 prices
+at 0 in row 790 of the primal phase 1`. The iteration figures come from log
+lines and are untouched.
+
+### The verdict on the flip
+
+**No repair.** The hazard is real by inspection and reaches nothing here, and
+fitting a guard to zero observations is what this project's rules forbid.
+
+**Reopen conditions**: a phase-2 flip whose worst violation grows past
+`primal_tol`; any change to `PIVOT_MIN`; or a starting basis that is not the
+slack basis, because every one of the 3974 invented origins comes from dual
+phase 1's loans and a crossover supplies different ones.
+
+### What is left open
+
+D191's fourth answer-changing finding — the two phases sharing one iteration
+cap — is untouched.
+
+**And a new one.** `pilot87` reaches `run_primal_phase1`'s refusal after 17165
+iterations without ever entering phase 2, and it is the only instance of the 8
+unfinished ones that is not a budget. The other seven are all `work limit
+reached` inside phase 1. **Phase 1, not phase 2, is where this method spends
+its budget**, and that is where stage 5's pricing question actually applies.

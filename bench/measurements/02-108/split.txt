@@ -1,0 +1,103 @@
+# the corrected split: phase 1's count read from every exit, not only success
+# tree: b9c2693714beb9c2e2c4768c2c69c76abf585233 plus patch.py, in a worktree
+
+instance      status                  total   primal   phase1     dual  feas phase1
+25fv47.mps    numerical error         13092     5507     5506     7585     1 finished
+80bau3b.mps   numerical error         16203     2460     2457    13743     1 finished
+adlittle.mps  optimal                   159       90       89       69     1 finished
+afiro.mps     optimal                    20       19       18        1     1 finished
+agg.mps       numerical error           449      400      399       49     1 finished
+agg2.mps      optimal                   946      733      732      213     1 finished
+agg3.mps      optimal                   965      685      684      280     1 finished
+bandm.mps     numerical error          1221      802      801      419     1 finished
+beaconfd.mps  optimal                   101       72       71       29     1 finished
+blend.mps     optimal                   223      122      121      101     1 finished
+bnl1.mps      optimal                  2467     1774     1773      693     1 finished
+bnl2.mps      numerical error          4308     4247     4246       61     1 finished
+boeing1.mps   optimal                  1329      924      922      405     1 finished
+boeing2.mps   optimal                   452      307      306      145     1 finished
+bore3d.mps    optimal                   228      199      198       29     1 finished
+brandy.mps    optimal                   607      309      308      298     1 finished
+capri.mps     optimal                   494      407      406       87     1 finished
+cycle.mps     numerical error          7624      787      786     6837     1 finished
+czprob.mps    numerical error          3869     2152     2151     1717     1 finished
+d2q06c.mps    numerical error        223021     8751     8750   214270     1 finished
+d6cube.mps    work limit reached       3127     3127     3127        0     0 UNFINISHED
+degen2.mps    numerical error          3909     2613     2612     1296     1 finished
+degen3.mps    work limit reached      14559    14559    14559        0     0 UNFINISHED
+dfl001.mps    work limit reached     135560   135560   135560        0     0 UNFINISHED
+e226.mps      optimal                   848      454      453      394     1 finished
+etamacro.mps  optimal                   855      447      446      408     1 finished
+fffff800.mps  optimal                  1224      889      888      335     1 finished
+finnis.mps    optimal                   719      285      284      434     1 finished
+fit1d.mps     numerical error           759      636      635      123     1 finished
+fit1p.mps     numerical error          4645     1619     1618     3026     1 finished
+fit2d.mps     optimal                  2609     2333     2330      276     1 finished
+fit2p.mps     optimal                 30933    11745    11744    19188     1 finished
+forplan.mps   optimal                   653      362      361      291     1 finished
+ganges.mps    optimal                  1696     1592     1591      104     1 finished
+gfrd-pnc.mps  optimal                   784      450      449      334     1 finished
+greenbea.mps  numerical error         27161     8359     8358    18802     1 finished
+greenbeb.mps  numerical error         56612     7526     7525    49086     1 finished
+grow15.mps    optimal                 10877      487      486    10390     1 finished
+grow22.mps    optimal                 46073      682      681    45391     1 finished
+grow7.mps     optimal                  4813      213      212     4600     1 finished
+israel.mps    optimal                   618      375      374      243     1 finished
+kb2.mps       optimal                    62        2        1       60     1 finished
+lotfi.mps     optimal                   239      156      155       83     1 finished
+maros-r7.mps  work limit reached       5887     5887     5887        0     0 UNFINISHED
+maros.mps     numerical error          3665     1608     1607     2057     1 finished
+modszk1.mps   numerical error           768       15       14      753     1 finished
+nesm.mps      optimal                  6497     2054     2053     4443     1 finished
+perold.mps    optimal                  7838     3114     3113     4724     1 finished
+pilot-ja.mps  optimal                 18536     7849     7848    10687     1 finished
+pilot-we.mps  numerical error         34921     1993     1992    32928     1 finished
+pilot.mps     optimal                 40487    15169    15167    25318     1 finished
+pilot4.mps    numerical error          5920     2597     2596     3323     1 finished
+pilot87.mps   optimal                 17165    17165    17165        0     0 UNFINISHED
+pilotnov.mps  optimal                 12640     2272     2270    10368     1 finished
+recipe.mps    optimal                    57       38       37       19     1 finished
+sc105.mps     numerical error            34        2        1       32     1 finished
+sc205.mps     numerical error            34        2        1       32     1 finished
+sc50a.mps     numerical error            40        2        1       38     1 finished
+sc50b.mps     numerical error            34        2        1       32     1 finished
+scagr25.mps   optimal                   823      617      616      206     1 finished
+scagr7.mps    optimal                   197      148      147       49     1 finished
+scfxm1.mps    optimal                   680      408      407      272     1 finished
+scfxm2.mps    optimal                  1585      836      835      749     1 finished
+scfxm3.mps    optimal                  2956     1196     1195     1760     1 finished
+scorpion.mps  optimal                   330      259      258       71     1 finished
+scrs8.mps     work limit reached       1743     1743     1743        0     0 UNFINISHED
+scsd1.mps     numerical error           792      119      118      673     1 finished
+scsd6.mps     numerical error          1648      799      798      849     1 finished
+scsd8.mps     work limit reached       2868     2868     2868        0     0 UNFINISHED
+sctap1.mps    optimal                   235      147      146       88     1 finished
+sctap2.mps    optimal                  1468      377      376     1091     1 finished
+sctap3.mps    numerical error          2037      490      489     1547     1 finished
+seba.mps      optimal                   132      120      119       12     1 finished
+share1b.mps   optimal                   347      151      150      196     1 finished
+share2b.mps   optimal                   167      118      117       49     1 finished
+shell.mps     optimal                   911      551      550      360     1 finished
+ship04l.mps   optimal                   748      454      453      294     1 finished
+ship04s.mps   optimal                   394      215      214      179     1 finished
+ship08l.mps   numerical error          1316      644      643      672     1 finished
+ship08s.mps   optimal                   676      288      287      388     1 finished
+ship12l.mps   numerical error          2060     1242     1241      818     1 finished
+ship12s.mps   optimal                  1004      555      554      449     1 finished
+sierra.mps    optimal                   967      494      493      473     1 finished
+stair.mps     optimal                   994      783      782      211     1 finished
+standata.mps  optimal                    63       48       47       15     1 finished
+standmps.mps  optimal                   661      164      163      497     1 finished
+stocfor1.mps  optimal                   216      166      165       50     1 finished
+stocfor2.mps  numerical error          4587     3140     3139     1447     1 finished
+stocfor3.mps  numerical error         24504    22760    22759     1744     1 finished
+truss.mps     numerical error          4883     2803     2802     2080     1 finished
+tuff.mps      numerical error           860      844      843       16     1 finished
+vtp-base.mps  optimal                    93       92       87        1     1 finished
+wood1p.mps    work limit reached       3820     3820     3820        0     0 UNFINISHED
+woodw.mps     numerical error          3878     2311     2310     1567     1 finished
+
+parsed 94 of 94
+  phase 1 SKIPPED (point already primal feasible): 0
+  phase 1 ran and finished                       : 86
+  phase 1 ran and did NOT finish                 : 8

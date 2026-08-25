@@ -11,12 +11,13 @@ line leaves this file in the same commit.
 
 **The work in flight is the primal simplex, and §0 is the item.** Stages 0, 1,
 3 and 4 have landed. **What is next is a DECISION, not code.** D194 measured
-that 60.5% of the primal campaign's iterations are the dual's, and that the
-primal's phase 2 runs one iteration on 80 of the 94, so §0's headline number
-does not mean what it reads as. That block is at the top of §0. After it: §0's
-last two `/code-review max` findings, then stage 2 (Harris in primal form) or
-stage 5 (Devex, blocked on a paywalled source). `pilot4` is CLOSED as a
-non-regression by D194.
+that 60.5% of the primal campaign's iterations are the dual's and that the
+primal's phase 2 runs 97 iterations across the whole set, so §0's headline
+number does not mean what it reads as. That block is at the top of §0. After it:
+§0's last `/code-review max` finding, then stage 2 (Harris in primal form) or stage 5
+(Devex, blocked on a paywalled source) — and D195 says stage 5's pricing
+question belongs to phase 1, which is where every budget is spent. `pilot4` is
+CLOSED as a non-regression by D194; the bound flip is REFUSED by D195.
 
 **The tree is clean and everything is committed. Nothing is pushed** — ask the
 remote for the count rather than trusting one written here, because it is stale
@@ -35,13 +36,14 @@ primal campaign is a comparison and not a gate.
 remote is an SSH alias that lives in the Windows `~/.ssh/config` only. `git
 fetch` first, because another Claude session commits here.
 
-**Eighteen decisions landed between 2026-08-24 and 2026-08-26, D177 to D194**,
+**Nineteen decisions landed between 2026-08-24 and 2026-08-26, D177 to D195**,
 and two of the five open items closed. What each one did is below, newest
 first.
 
 | | |
 |---|---|
-| **D194** | 60.5% of the primal campaign is dual iterations; phase 2 runs 1 iteration on 80 of 94 |
+| **D195** | the flip's 1e10 delta fires on nothing, and D194 counted phase 1 from a success-only log line |
+| **D194** | 60.5% of the primal campaign is dual iterations; phase 2 runs 97 iterations in all |
 | **D193** | `refresh` is the third place a cost is lent; 30 firings in phase 1, and 54 agreeing becomes 55 |
 | **D192** | Bland's rule reaches the primal's leaving variable; 0 phase-1 arms in 94 |
 | **D191** | the primal's "64 of 94" was 54; a guard was documented and never applied |
@@ -1246,10 +1248,12 @@ unable to see the feature itself.
 
 ### → DECIDE THIS FIRST: what "55 of 94" means, and whether to keep it
 
-**D194 measured the split and the number does not mean what it reads as.**
-`bench/primal.c` reports 55 of 94 agreeing with the dual. **60.5% of every
-iteration those solves run is a DUAL iteration** — 515522 of 852279 — and the
-primal's phase 2 runs **exactly one iteration on 80 of the 94**.
+**D194 measured the split and the number does not mean what it reads as, and
+D195 corrected D194's own phase-1 counts.** `bench/primal.c` reports 55 of 94
+agreeing with the dual. Over those 94 solves: phase 1 **336660 iterations
+(39.5%)**, **phase 2 97 (0.0%)**, dual **515522 (60.5%)**. Phase 2 runs exactly
+one iteration on 80 of the 94, two to ten on 6, zero on 8, and **more than ten
+on none**. Ninety-seven phase-2 iterations in the whole campaign.
 
 The mechanism is measured, not argued. `update_dual` and the tail of `pivot()`
 run `shift_to_feasible` once per iteration on every variable the pricing row
@@ -1259,9 +1263,11 @@ the first phase-2 pivot there is nothing left to price. The primal declares
 optimality, `settle_shifts` finds the point dual infeasible, and the dual's
 re-entry solves the model.
 
-**The 8 instances that do run a real phase 2 are exactly the 8 whose phase 1
-takes zero iterations.** They arrive primal feasible so nothing hands over.
-Seven of the eight hit the work limit; `pilot87` is the survivor.
+**The 8 instances that never leave phase 1** are `d6cube`, `degen3`, `dfl001`,
+`maros-r7`, `pilot87`, `scrs8`, `scsd8`, `wood1p`. Seven are `work limit
+reached` **inside phase 1**; `pilot87` is phase 1's own refusal after 17165
+iterations. **Phase 1, not phase 2, is where this method spends its budget**,
+and that is where stage 5's pricing question actually applies (D195).
 
 **Two numbers, both true, and only one of them is what the row is read as.**
 
@@ -1289,6 +1295,12 @@ and dual iterations, would have made this visible from the first campaign
 instead of after four decisions. That is not the decision above and can land
 whatever it is.
 
+**And D195 moved where the next optimisation belongs.** The 8 instances that
+never leave phase 1 spend every one of their budgets there — seven are `work
+limit reached` INSIDE phase 1 and `pilot87` is phase 1's own refusal after
+17165 iterations. Stage 5 is written as a phase-2 pricing question. On this set
+it is a phase-1 one.
+
 ### OPEN: what `/code-review max` found, 2026-08-25
 
 Fifteen findings. **One is closed by D191** — the `in_primal` guard was
@@ -1299,16 +1311,13 @@ dead `strstr`, and never reading the error for a `NUMERICAL_ERROR` primal).
 variable in both phases, and it arms zero times in phase 1 on all 94. **A fifth
 is closed by D193**: `refresh`'s repair sweep was the third unguarded lending
 path, it fires 30 times inside phase 1 on 11 instances, and guarding it takes
-the set from 54 agreeing to 55.
+the set from 54 agreeing to 55. **A sixth is REFUSED by D195**: the bound
+flip's `delta` really does reach 1e10 from an invented origin, 3974 times, and
+moves neither phase's own measure once — no repair, with reopen conditions in
+that entry.
 
-The rest are open, and these two could change an answer:
+The rest are open, and one of them could change an answer:
 
-- **`primal_bound_flip` can move a row the ratio test skipped.** The
-  destination comes from `real_upper`/`real_lower` but the origin from
-  `nonbasic_value`, which returns the raw `lo`/`up` holding an invented bound.
-  `delta` can then be ~1e10, and a row skipped at `|col[i]| = 9e-10` moves by
-  ~9, which is 1e8 times `primal_tol`. Feasibility is checked once before the
-  loop and never again, so nothing would detect it.
 - **The two phases share one iteration cap**, tested against the cumulative
   `s->iters`, so a phase 1 that uses most of it makes phase 2 trip its guard
   and report phase 1's iterations as its own.

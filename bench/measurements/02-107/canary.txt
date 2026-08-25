@@ -1,0 +1,14 @@
+# canary: every PHASE-2 flip followed by a forced 1e6 push on every basic
+# run on the 8 instances whose phase 1 takes zero iterations, the only
+# ones that reach a phase-2 flip at all
+# tree: b9c2693714beb9c2e2c4768c2c69c76abf585233 plus patch.py plus canary-patch.py, in a worktree
+# 'the phase's own measure GREW' MUST be non-zero or the probe is blind
+
+
+                                      phase 2    phase 1
+flips                                       0       2634
+origin was an invented bound                0        279
+the phase's own measure GREW                0          0
+largest growth in one flip                  0          0
+largest |delta|                             0      1e+10
+phase-2 feasibility broken                  0        n/a

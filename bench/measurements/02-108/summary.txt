@@ -1,0 +1,27 @@
+parsed 94
+status: {'numerical error': 31, 'optimal': 56, 'work limit reached': 7}
+phase1 tag: {'finished': 86, 'UNFINISHED': 8}
+
+phase-2 primal iterations, over all 94:
+  == 0     8
+  == 1    80
+  2-10     6
+  > 10     0
+
+iteration totals over the 94 solves:
+  phase 1 :   336660   39.5%
+  phase 2 :       97    0.0%
+  dual    :   515522   60.5%
+  total   :   852279
+
+phase 1 ran and did NOT finish (8):
+  d6cube       work limit reached total    3127 phase1    3127 phase2       0 dual       0
+  degen3       work limit reached total   14559 phase1   14559 phase2       0 dual       0
+  dfl001       work limit reached total  135560 phase1  135560 phase2       0 dual       0
+  maros-r7     work limit reached total    5887 phase1    5887 phase2       0 dual       0
+  pilot87      optimal            total   17165 phase1   17165 phase2       0 dual       0
+  scrs8        work limit reached total    1743 phase1    1743 phase2       0 dual       0
+  scsd8        work limit reached total    2868 phase1    2868 phase2       0 dual       0
+  wood1p       work limit reached total    3820 phase1    3820 phase2       0 dual       0
+
+finished with zero dual iterations (8): d6cube, degen3, dfl001, maros-r7, pilot87, scrs8, scsd8, wood1p

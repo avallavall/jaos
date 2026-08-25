@@ -1,0 +1,11 @@
+# canary: PIVOT_MIN forced from 1e-9 to 1e-3 at b9c2693714beb9c2e2c4768c2c69c76abf585233, twelve instances
+# the totals must show growths, or the predicate cannot fire at all
+
+
+                                      phase 2    phase 1
+flips                                       0        221
+origin was an invented bound                0         55
+the phase's own measure GREW                0          0
+largest growth in one flip                  0          0
+largest |delta|                             0      1e+10
+phase-2 feasibility broken                  0        n/a
