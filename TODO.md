@@ -949,6 +949,22 @@ nothing about the dual.
 - **Primal pricing weights.** `gamma[nvar]`, one per variable, is new memory
   of a new length. `dse[nrow]` is the dual's and indexes basis *positions*; it
   is a different object and cannot be reused.
+
+  **They start exact at the slack basis, and that is a fact about `B = -I`
+  rather than about any particular weight formula.** `var_column:905` writes
+  `-1.0` for a logical, so the cold basis is `-I`, so `B^-1 M_j = -M_j` and any
+  norm of `B^-1 M_j` is exactly the corresponding norm of the model's own
+  column. Whatever the literature settles the formula to be, its slack-basis
+  value costs one pass over the matrix and no triangular solve. This is the
+  same argument `build_initial_basis:952` already writes for the dual —
+  "`B = -I`, so row i of `B^-1` is `-e_i` and its squared norm is exactly one"
+  — and the reason given there for starting from the slack basis at all.
+
+  **So a primal simplex does not reopen the crash-basis refusal (`SPECS` §3);
+  it gives that refusal a second reason.** The refusal reopens when "pricing
+  stops starting from exact steepest-edge weights". A primal simplex adds a
+  second set of weights that also start exact there, so a crash basis would now
+  destroy two exact starts instead of one.
 - **Three gaps in the ratio test.** `primal_ratio_test` is a single-pass
   minimum ratio. It never compares the blocking step against `up[q] - lo[q]`,
   so the entering column can never bound-flip — that is a correctness gap and
@@ -2597,7 +2613,7 @@ then, do not — a refusal whose premise has not changed just fails again.
 | D141 | a within-row demotion for the published-basis residue — 152 of the 232 declines have no basic column of the row at a bound, and the snap for the 80 breaks the row-bound exactness 02-49 measured (74 of 80 exact) | a demotion design whose candidate set is wider than the firing row AND that carries a rank argument for the demoted member; the fallback in the published shape (Galabova 2023) is accepting the residue |
 | D101 | duplicate rows, duplicate columns, dominated columns — 0.15% left to remove on these 139 models | a model population where `bench/measurements/02-07/`'s counter reports a non-trivial share. The condition is executable, not a matter of opinion. Three pieces of the work have no published source and would have to be derived with their own tests |
 | D97 | bound tightening — INFEASIBLE on models with an optimum, six designs | **first precondition met 2026-08-17 (D114)**: the over-tightening is derived — a forcing window scaled by the activity certified 5.86 of slack as zero, and the design requirements for a retry are in `bench/measurements/02-21/`. What remains: a dual postsolve for an imposed bound; then only under a campaign. **The condition is unchanged and the prize is not**: doubleton substitution needs the same machinery, and it is 8.55% of netlib's live rows and 29.36% of Kennington's, of which 19 rows in total can be built without it (§3). D97 weighed this feature alone; it now unlocks two |
-| SPECS §3 | crash basis — destroys the exact slack-basis steepest-edge weights | pricing stops starting from exact steepest-edge weights; REQ-devex-pricing landing is the trigger |
+| SPECS §3 | crash basis — destroys the exact slack-basis steepest-edge weights | pricing stops starting from exact steepest-edge weights; REQ-devex-pricing landing is the trigger. **Checked against §0 on 2026-08-25 and NOT reopened**: a primal simplex adds a second set of weights that also start exact at `B = -I`, so it strengthens this refusal rather than expiring it |
 | D74 | removing the re-entry loan — 2.372x `pilot87` iterations for 0.980x `pilot` | the oscillation mechanism itself changes (phase 4's investigation) |
 | D63 | restarting weights to exact instead of 1.0 | the pricing rule changes; Devex would replace the question |
 | D107 | the inequality implied free column singleton — 341 sign-ok rows, 10% of the count, 304 of them on `ship*` instances below the harness floor, zero on `stocfor3` and Kennington | a model population where `bench/measurements/02-13/run-sign-count.sh` reports a non-trivial sign-ok share. **Asked of §4's fourth set 2026-08-18 and NOT satisfied** (`bench/measurements/02-25/`): zero inequality candidates across all fifteen instances, on 02-13's own instrument with both its calibrations reproduced. The refusal now stands on 154 models across four sets and a 53x range in rows, so the population is no longer the objection to it |
