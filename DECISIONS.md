@@ -190,6 +190,7 @@ and you have the argument. Jump to the entry for the numbers behind it.
 - **[D180](#d180--refused-the-refactorization-interval-stays-at-64-although-32-is-86-cheaper-and-the-sweep-that-says-so-also-reaches-pilots-optimum-without-touching-a-tolerance)** — REFUSED: the refactorization interval stays at 64 although 32 is 8.6% cheaper, and the sweep that says so also reaches `pilot`'s optimum without touching a tolerance
 - **[D181](#d181--the-fourth-set-does-not-reopen-3--the-mapped-basis-arrives-short-by-56-of-rows-and-the-repair-never-runs--and-it-prices-2-at-three-of-four-warm-starts)** — The fourth set does not reopen §3 — the mapped basis arrives short by 5.6% of rows and the repair never runs — and it prices §2 at three of four warm starts
 - **[D182](#d182--plato-nug-solves-one-of-three-and-presolve-reaches-a-median-of-zero-rows-on-every-plato-set-against-nine-per-cent-on-netlib)** — `plato-nug` solves one of three, and presolve reaches a median of zero rows on every plato set against nine per cent on netlib
+- **[D183](#d183--pilot87s-suboptimality-bound-moves-because-its-dual-solution-is-not-unique-and-its-priced-primal-answer-does-not-move-at-all)** — `pilot87`'s suboptimality bound moves because its dual solution is not unique, and its priced primal answer does not move at all
 
 ---
 
@@ -13897,3 +13898,71 @@ not take.
 
 **`nug20` and `nug30` have a cap and not a verdict.** Neither is known to be
 unsolvable; both are known not to finish in the time they were given.
+
+---
+
+## D183 — `pilot87`'s suboptimality bound moves because its dual solution is not unique, and its priced primal answer does not move at all
+
+**2026-08-25.** No source change. Evidence in `bench/measurements/02-95/`.
+
+### The question, as it was actually asked
+
+`TODO.md` has carried this standing debt since D92: "`pilot87`'s suboptimality
+bound is not understood — `gap_positive` moves 0.0068 to 26.7 across D92's
+variants while every answer is inside tolerance."
+
+D180 handed it a case the record cannot resolve. At `REFACTOR_EVERY` 8 and 256,
+`pilot87` publishes the **identical objective**, `301.71035883543192`, and two
+different digests — and `bench/run.c` hashes `x` and `y` into one, so its record
+cannot say which half moved.
+
+### The measurement
+
+| | `REFACTOR_EVERY = 8` | `REFACTOR_EVERY = 256` |
+|---|---|---|
+| objective | 301.71035883543192 | **identical** |
+| digest of `x` | `334a6e189adb4b45` | `875faca3a7332c93` |
+| digest of `y` | `2e204845a11c08e6` | `a6d5e3366594ebae` |
+| `gap_positive` | 0.00139018 | **0.00140689** |
+| `unquantified_rays` | **10** | **14** |
+| basic members | 2031 of 2030 rows | 2031 of 2030 rows |
+
+**The priced primal answer does not move.** 987 of 4883 columns move and **738
+of them cost exactly zero**, so they cannot touch the objective. The 249 that
+are priced move by at most **4.44e-15**, carrying 1.073e-13 of objective traffic
+between them, of which 5.16e-15 survives.
+
+**The duals are genuinely different.** 1817 of 2030 moved, **166 by more than
+1e-9 relative**, which no rounding-level change reaches. The largest relative
+move is **55.7%**, the largest absolute **1.79e-04** on row 1079 (-3.34e-04 to
+-1.55e-04), and **none changes sign**, so both dual solutions are feasible.
+
+**So `pilot87` has a non-unique dual solution.** `gap_positive` is built from
+the duals and follows them; `unquantified_rays` counts columns whose multiplier
+the checker calls zero and follows them too, 10 against 14. **The bound moving
+is a property of the model rather than a defect in the bound.**
+
+### What was refuted, including this entry's own first reading
+
+**"Two genuinely different vertices with the same objective" is wrong**, and it
+was this session's first reading, taken from the digests alone. 987 columns
+moving while `c'x` holds to the last bit is a claim that needs the cost beside
+it: with the cost in the dump, most of those columns price at nothing and the
+rest move at the arithmetic floor. The primal answer is the same answer.
+
+### What this does NOT establish
+
+D92's variants moved `gap_positive` from **0.0068 to 26.7**, a factor of 3900.
+The two settings here move it by **1.2%**. The mechanism is demonstrated and
+the magnitude is not reproduced; D92's variants are not in this tree. Reading
+this as "the 3900x is explained" would be claiming a span nobody measured.
+
+### What is left open, handed to `TODO.md`
+
+**The debt is answered in mechanism and not in magnitude**, and it stays with
+that stated. What would close it is D92's variants rebuilt against this tree,
+which is a separate piece of work with no measurement either way.
+
+**`pilot87` publishes 2031 basic members against 2030 rows at both settings**,
+which is §2's defect and puts it among D179's 24. Nothing new, recorded because
+the probe saw it.

@@ -52,6 +52,30 @@ the one quoting the mean did not.
 **No gate campaign is owed.** `comment_only.sh` reports the release object
 UNCHANGED at `d33fba7`, so D177's campaign still holds. `warm*` is not a gate.
 
+### 2026-08-25: D183, `pilot87`'s bound follows a dual solution that is not unique
+
+**No source change.** D92's standing debt asked why `gap_positive` moves on
+`pilot87` while every answer stays inside tolerance. D180 handed it a case the
+record cannot resolve — the identical objective and two different digests at
+`REFACTOR_EVERY` 8 and 256 — because `bench/run.c` hashes `x` and `y` into one.
+
+Split apart: **the priced primal answer does not move.** 738 of the 987 columns
+that move cost exactly zero and the other 249 move by at most 4.44e-15.
+**1817 of 2030 duals move, 166 by more than 1e-9 relative**, largest relative
+move 55.7%, none changing sign. `gap_positive` is built from the duals and
+follows them; so does `unquantified_rays`, 10 against 14. **The bound moving is
+a property of the model** (D183, `bench/measurements/02-95/`).
+
+**Answered in mechanism, not in magnitude.** D92's variants spanned
+0.0068–26.7, a factor of 3900; these two settings move it by 1.2%. Those
+variants are not in this tree and the entry says so rather than claiming the
+span.
+
+**This session's own first reading was wrong and is recorded as such**: it read
+"two different vertices with the same objective" from the digests alone. 987
+columns moving while `c'x` holds to the last bit is a claim that needs the cost
+beside it, and with the cost most of them price at nothing.
+
 ### 2026-08-25: D182, `nug` is measured and presolve reaches nothing on it
 
 **No source change.** §4 had carried `plato-nug` as "unmeasured rather than
@@ -2319,9 +2343,22 @@ table first.
 - Test ceilings drift silently — the `<62000` one drifted 2800 units with
   nothing watching. Re-measure a ceiling's both sides when touching its
   subject.
-- `pilot87`'s suboptimality bound is not understood (`gap_positive` moves
-  0.0068–26.7 across D92's variants while every answer is inside tolerance).
-  Deferred with a trigger: it re-enters the plan if it blocks a gate, and it
+- **`pilot87`'s suboptimality bound is understood in mechanism as of
+  2026-08-25 (D183, `bench/measurements/02-95/`), and not in magnitude.**
+  **Its dual solution is not unique.** At `REFACTOR_EVERY` 8 and 256 it
+  publishes the identical objective and two different digests, and splitting
+  them says which half moved: the priced primal answer does not move — 738 of
+  the 987 columns that move cost exactly zero, and the other 249 move by at
+  most 4.44e-15 — while 1817 of 2030 duals move, **166 by more than 1e-9
+  relative**, largest relative move 55.7%, and none changing sign. So both
+  dual solutions are feasible. `gap_positive` is built from the duals and
+  follows them (0.00139018 against 0.00140689), and `unquantified_rays` does
+  too (10 against 14). **The bound moving is a property of the model rather
+  than a defect in the bound.**
+  **What is NOT established**: D92's variants moved it 0.0068–26.7, a factor
+  of 3900, and these two settings move it by 1.2%. The magnitude is not
+  reproduced and those variants are not in this tree. The original deferral
+  and its trigger stand: it re-enters the plan if it blocks a gate, and it
   already refused two of D92's three candidate repairs.
 - Restricting the candidate set ahead of `bfrt_walk`/`jm_harris_pick` is open
   and not refused (D93); it puts Harris's guarantees at stake and needs its

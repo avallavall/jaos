@@ -11,6 +11,16 @@ open, `bench/README.md` for the gate, and the commit each entry came from.
 
 ### Changed
 
+- **`pilot87`'s suboptimality bound moves because its dual solution is not
+  unique**, which is the standing debt D92 opened. At `REFACTOR_EVERY` 8 and
+  256 it publishes the identical objective and two different digests;
+  splitting them shows the priced primal answer does not move — 738 of the 987
+  columns that move cost exactly zero and the other 249 move by at most
+  4.44e-15 — while 1817 of 2030 duals move, 166 by more than 1e-9 relative and
+  none changing sign. `gap_positive` follows the duals, so it moves. The
+  mechanism is established; D92's 3900x span is not reproduced and the entry
+  says so. No source change (D183, `bench/measurements/02-95/`).
+
 - **`plato-nug` solves one of three, which is a different answer from either of
   the two §4 allowed for.** `nug08-3rd` solves in 34424 iterations and
   294654930775 work units, `checker=ok` and `det=ok`; `nug20` and `nug30` do

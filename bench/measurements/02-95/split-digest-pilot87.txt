@@ -1,0 +1,43 @@
+# D183 -- pilot87 at REFACTOR_EVERY 8 and 256, x and y hashed apart.
+# tree e78ca26
+
+######## REFACTOR_EVERY = 8   (binary md5 c85e9d42a76b) ########
+obj      301.71035883543192
+digest-x 334a6e189adb4b45
+digest-y 2e204845a11c08e6
+digest-d 9315e3181b09eca1
+gap+     0.00139018
+rsub     4.59245e-06
+rays     10
+basic    2031 of nrow 2030
+
+######## REFACTOR_EVERY = 256   (binary md5 719c765bd6a1) ########
+obj      301.71035883543192
+digest-x 875faca3a7332c93
+digest-y a6d5e3366594ebae
+digest-d e6b6731823e29400
+gap+     0.00140689
+rsub     4.64766e-06
+rays     14
+basic    2031 of nrow 2030
+
+######## what actually differs ########
+  4883 columns, 2030 rows
+  column entries that differ (value or status): 997 of 4883
+  row entries that differ (value or status):    1825 of 2030
+    of those columns: 987 differ in VALUE, 12 differ in STATUS
+    of those rows:    1817 differ in VALUE, 8 differ in STATUS
+
+######## does the objective hold because those columns cost nothing? ########
+  987 columns moved
+    738 of them have cost exactly 0 -- they cannot move the objective
+    249 have a nonzero cost
+    their contributions sum to 5.15578e-15 against 1.07348e-13 of traffic
+    so they cancel to 0.048 of what they carry
+    largest single term: column 15, c=2.82765, dx=4.44089e-15, c*dx=1.25573e-14
+
+  1817 of 2030 row duals moved
+    largest absolute move 0.000179088, on row 1079 (-0.000334141 -> -0.000155053)
+    largest RELATIVE move 0.557296
+    166 move by more than 1e-9 relative -- a rounding-level change cannot reach that
+    0 change SIGN
