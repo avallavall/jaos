@@ -203,6 +203,7 @@ and you have the argument. Jump to the entry for the numbers behind it.
 - **[D193](#d193--refresh-is-the-third-place-a-cost-is-lent-it-fires-30-times-inside-the-primal-phase-1-and-guarding-it-trades-pilot4-for-pilot-ja-and-pilotnov)** — `refresh` is the third place a cost is lent, it fires 30 times inside the primal phase 1, and guarding it trades `pilot4` for `pilot-ja` and `pilotnov`
 - **[D194](#d194--605-of-the-primal-campaigns-iterations-are-the-duals-the-primals-phase-2-runs-exactly-one-iteration-on-80-of-94-and-pilot4-is-not-a-primal-regression)** — 60.5% of the primal campaign's iterations are the dual's, the primal's phase 2 runs exactly one iteration on 80 of 94, and `pilot4` is not a primal regression
 - **[D195](#d195--the-bound-flips-1e10-delta-fires-on-nothing-and-chasing-it-found-that-d194-counted-phase-1-from-a-log-line-printed-only-on-success)** — The bound flip's 1e10 delta fires on nothing, and chasing it found that D194 counted phase 1 from a log line printed only on success
+- **[D196](#d196--the-iteration-cap-really-is-shared-across-both-primal-phases-and-the-dual-and-phase-1-spends-at-most-168-of-it-so-only-the-guards-message-needed-fixing)** — The iteration cap really is shared across both primal phases and the dual, and phase 1 spends at most 1.68% of it, so only the guard's message needed fixing
 
 ---
 
@@ -14959,3 +14960,76 @@ iterations without ever entering phase 2, and it is the only instance of the 8
 unfinished ones that is not a budget. The other seven are all `work limit
 reached` inside phase 1. **Phase 1, not phase 2, is where this method spends
 its budget**, and that is where stage 5's pricing question actually applies.
+
+## D196 — The iteration cap really is shared across both primal phases and the dual, and phase 1 spends at most 1.68% of it, so only the guard's message needed fixing
+
+D191's last answer-changing finding, closed. All four are now disposed of:
+D192 fixed one, D193 fixed one, D195 refused one, and this refuses the fourth
+while repairing what it revealed.
+
+### The question
+
+`run_primal_phase1`, `run_primal` and `run` each compute
+`ITER_SANITY_FACTOR * (nrow + ncol + 1)` and each test the **cumulative**
+`s->iters` against it. So phase 2's allowance is the cap minus phase 1's spend,
+and the dual's settling re-entry is third in the queue. D191 put it as: a
+phase 1 that uses most of the cap makes phase 2 trip the guard and report phase
+1's iterations as its own.
+
+D195 is why it was worth measuring rather than assuming — phase 1 is 39.5% of
+every iteration the campaign runs, so the queue is not hypothetical.
+
+### The measurement
+
+`bench/measurements/02-109/`. One log line at each of the three sites, carrying
+that method's reading at its own start, over all 94 with `cfg.force_primal`.
+
+| | |
+|---|---|
+| start phase 2 with the cap already partly spent | **86 of 94** |
+| **largest share spent before phase 2** | **1.68%**, on `pilot-ja` |
+| next largest | `25fv47` at 1.2% |
+| typical | 0.1% to 0.8% |
+
+`ITER_SANITY_FACTOR` is 200 times the model's size. **Phase 1 uses at most
+three of those 200.**
+
+### What was refuted
+
+The half of D191's finding that predicts a wrong verdict. Phase 2 cannot be
+squeezed into tripping the guard by phase 1 on this set, and it is not close:
+the worst case leaves 98.3% of the cap.
+
+### What was NOT refuted, and was fixed
+
+**The message.** Phase 2's read `after N primal iterations` off the cumulative
+count, which after a phase 1 is phase 1's number under phase 2's label. Both
+primal messages now carry the phase's own count, the position in the solve, and
+the cap. `phase2_entered` is the only new state and it is read in one error
+string.
+
+A message that nothing on this set can print was worth changing because **two
+sessions running lost time to a count that meant something other than what it
+was called** — D194's phase-1 figure came from a log line printed only on
+success, and this guard's count came from the wrong scope. The cure for both is
+the same: name the scope in the label.
+
+### The cost
+
+All three gate sets `gate: PASS`, `0 regressed, 0 improved, 0 new`, and every
+file in `bench/results/` byte-identical to the committed record. `make configs`
+exits 0 on all five configurations. 110 solution digests and 29 refusal
+verdicts unmoved.
+
+### What is left open
+
+**The cap sharing itself stays, and its reopen conditions are in the source
+beside it**: `ITER_SANITY_FACTOR` dropping below about 60, or a phase 1 given a
+harder job than reaching feasibility from the slack basis — a crossover's
+basis, which is the motivating case for this entire feature.
+
+**`bench/primal.c` still does not report the split.** Three decisions in a row
+would have been cheaper if it did, and D194 would not have been wrong. Doing it
+honestly needs the solver to log phase 1's count on **every** exit and not only
+on success, which is the same defect D195 found in a probe. That is the next
+item in `TODO.md` §0 and it is independent of the 55-versus-17 decision.

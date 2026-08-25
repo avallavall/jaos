@@ -14,10 +14,11 @@ line leaves this file in the same commit.
 that 60.5% of the primal campaign's iterations are the dual's and that the
 primal's phase 2 runs 97 iterations across the whole set, so §0's headline
 number does not mean what it reads as. That block is at the top of §0. After it:
-§0's last `/code-review max` finding, then stage 2 (Harris in primal form) or stage 5
-(Devex, blocked on a paywalled source) — and D195 says stage 5's pricing
-question belongs to phase 1, which is where every budget is spent. `pilot4` is
-CLOSED as a non-regression by D194; the bound flip is REFUSED by D195.
+teach `bench/primal.c` to report the split, then stage 2 (Harris in primal
+form) or stage 5 (Devex, blocked on a paywalled source) — and D195 says stage
+5's pricing question belongs to phase 1, which is where every budget is spent.
+**All four of D191's answer-changing findings are disposed of** (D192, D193,
+D195, D196).
 
 **The tree is clean and everything is committed. Nothing is pushed** — ask the
 remote for the count rather than trusting one written here, because it is stale
@@ -36,12 +37,13 @@ primal campaign is a comparison and not a gate.
 remote is an SSH alias that lives in the Windows `~/.ssh/config` only. `git
 fetch` first, because another Claude session commits here.
 
-**Nineteen decisions landed between 2026-08-24 and 2026-08-26, D177 to D195**,
+**Twenty decisions landed between 2026-08-24 and 2026-08-26, D177 to D196**,
 and two of the five open items closed. What each one did is below, newest
 first.
 
 | | |
 |---|---|
+| **D196** | the iteration cap is shared, phase 1 spends 1.68% of it, and the guard's message named the wrong phase |
 | **D195** | the flip's 1e10 delta fires on nothing, and D194 counted phase 1 from a success-only log line |
 | **D194** | 60.5% of the primal campaign is dual iterations; phase 2 runs 97 iterations in all |
 | **D193** | `refresh` is the third place a cost is lent; 30 firings in phase 1, and 54 agreeing becomes 55 |
@@ -1290,10 +1292,12 @@ Guarded, `truss` goes from 2802 phase-2 iterations to 422576, 44 instances lose
   every later stage is then measured against a number that moves for reasons
   the primal does not control.
 
-**Either way `bench/primal.c` should report the split.** Two columns, primal
-and dual iterations, would have made this visible from the first campaign
-instead of after four decisions. That is not the decision above and can land
-whatever it is.
+**Either way `bench/primal.c` should report the split, and it is the next
+item.** Two columns, primal and dual iterations, would have made this visible
+from the first campaign instead of after four decisions — and D194 would not
+have been wrong. **Doing it honestly needs the solver to log phase 1's count on
+EVERY exit and not only on success**, which is the same defect D195 found in a
+probe. Independent of the decision above and can land whatever it is.
 
 **And D195 moved where the next optimisation belongs.** The 8 instances that
 never leave phase 1 spend every one of their budgets there — seven are `work
@@ -1316,11 +1320,12 @@ flip's `delta` really does reach 1e10 from an invented origin, 3974 times, and
 moves neither phase's own measure once — no repair, with reopen conditions in
 that entry.
 
-The rest are open, and one of them could change an answer:
-
-- **The two phases share one iteration cap**, tested against the cumulative
-  `s->iters`, so a phase 1 that uses most of it makes phase 2 trip its guard
-  and report phase 1's iterations as its own.
+**All four of D191's answer-changing findings are now disposed of.** D192 fixed
+Bland's rule's missing half; D193 guarded `refresh`'s lending; D195 refused the
+bound flip's 1e10 delta with reopen conditions; **D196 refuses the shared
+iteration cap** — phase 1 spends at most 1.68% of it, on `pilot-ja`, against a
+factor of 200 — and fixed the guard message that reported phase 1's count under
+phase 2's label. **What is left below changes no answer.**
 
 **The structural one is CLOSED.** `make test` now has `$(BENCH_TOOLS)` as a
 prerequisite, so all three runners are compiled — and therefore `-Werror`-d —

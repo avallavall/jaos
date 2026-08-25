@@ -34,6 +34,15 @@ open, `bench/README.md` for the gate, and the commit each entry came from.
 
 ### Fixed
 
+- **The iteration guard names the phase it is reporting.** Phase 1, phase 2 and
+  the dual's re-entry share one cap and each tests the cumulative `s->iters`
+  against it, so phase 2's message read `after N primal iterations` off a count
+  that included phase 1's. Both primal messages now carry the phase's own
+  count, the position in the solve, and the cap. **The sharing itself stays**:
+  phase 1 spends at most **1.68%** of the cap, on `pilot-ja`, and the reopen
+  conditions are written beside it. Cost: all three sets byte-identical
+  (D196, `bench/measurements/02-109/`).
+
 - **`refresh` is the third place a cost is lent, and it was the unguarded
   one.** Its repair sweep runs `shift_to_feasible` over every variable after a
   singular-basis repair or a warm start, and unlike the other two sites it read

@@ -1,0 +1,103 @@
+# the shared iteration cap, and what each method found already spent
+# tree: 3ac0bbfecefa697854d4f5707a4f3d31bbfd5212 plus patch.py, in a worktree
+# -1 means the method did not run at all
+
+instance             cap   p1 spent   p2 spent dual spent      total    p1%
+25fv47.mps        463400          0       5506      13051      13092   1.2
+80bau3b.mps      2220000          0       2457      15260      16203   0.1
+adlittle.mps       29800          0         89        114        159   0.3
+afiro.mps          11600          0         18         -1         20   0.2
+agg.mps           112000          0        399        449        449   0.4
+agg2.mps          156600          0        732        944        946   0.5
+agg3.mps          156600          0        684        961        965   0.4
+bandm.mps         103600          0        801         -1       1221   0.8
+beaconfd.mps       50800          0         71         -1        101   0.1
+blend.mps          30800          0        121        214        223   0.4
+bnl1.mps          332800          0       1773       2434       2467   0.5
+bnl2.mps         1073400          0       4246       4247       4308   0.4
+boeing1.mps       133600          0        922       1256       1329   0.7
+boeing2.mps        53800          0        306        446        452   0.6
+bore3d.mps         58400          0        198        220        228   0.3
+brandy.mps         63400          0        308        583        607   0.5
+capri.mps         111200          0        406        481        494   0.4
+cycle.mps         770400          0        786       4763       7624   0.1
+czprob.mps        688600          0       2151         -1       3869   0.3
+d2q06c.mps       1395800          0       8750     211151     223021   0.6
+d6cube.mps       1317400          0         -1         -1       3127   0.0
+degen2.mps        195800          0       2612         -1       3909   1.3
+degen3.mps        664400          0         -1         -1      14559   0.0
+dfl001.mps       3513600          0         -1         -1     135560   0.0
+e226.mps           84200          0        453        831        848   0.5
+etamacro.mps      171400          0        446        841        855   0.3
+fffff800.mps      258800          0        888         -1       1224   0.3
+finnis.mps        183600          0        284        716        719   0.2
+fit1d.mps         210200          0        635        741        759   0.3
+fit1p.mps         335600          0       1618       4496       4645   0.5
+fit2d.mps        2105200          0       2330       2502       2609   0.1
+fit2p.mps        2705200          0      11744      30878      30933   0.4
+forplan.mps       104200          0        361         -1        653   0.3
+ganges.mps        503000          0       1591       1692       1696   0.3
+gfrd-pnc.mps      331000          0        449        769        784   0.1
+greenbea.mps     1213800          0       8358      27112      27161   0.7
+greenbeb.mps     1209400          0       7525      56532      56612   0.6
+grow15.mps        185200          0        486        487      10877   0.3
+grow22.mps        273400          0        681      17539      46073   0.2
+grow7.mps          84400          0        212        213       4813   0.3
+israel.mps         61200          0        374        578        618   0.6
+kb2.mps            16000          0          1         53         62   0.0
+lotfi.mps          85400          0        155        202        239   0.2
+maros-r7.mps     1921000          0         -1         -1       5887   0.0
+maros.mps         354200          0       1607       3408       3665   0.5
+modszk1.mps       454600          0         14         -1        768   0.0
+nesm.mps          667400          0       2053       6476       6497   0.3
+perold.mps        356200          0       3113       7831       7838   0.9
+pilot-ja.mps      466200          0       7848      18516      18536   1.7
+pilot-we.mps      632600          0       1992      34860      34921   0.3
+pilot.mps         952800          0      15167      40463      40487   1.6
+pilot4.mps        252400          0       2596       5884       5920   1.0
+pilot87.mps      1320600          0         -1         -1      17165   0.0  (solve returned an error)
+pilotnov.mps      537200          0       2270       6303      12640   0.4
+recipe.mps         40200          0         37         38         57   0.1
+sc105.mps          41600          0          1         -1         34   0.0
+sc205.mps          81200          0          1         -1         34   0.0
+sc50a.mps          19600          0          1         -1         40   0.0
+sc50b.mps          19400          0          1         -1         34   0.0
+scagr25.mps       164400          0        616        818        823   0.4
+scagr7.mps         45600          0        147        185        197   0.3
+scfxm1.mps        140000          0        407        591        680   0.3
+scfxm2.mps        279800          0        835       1579       1585   0.3
+scfxm3.mps        419600          0       1195       2905       2956   0.3
+scorpion.mps      123600          0        258         -1        330   0.2
+scrs8.mps         306800          0         -1         -1       1743   0.0
+scsd1.mps         167600          0        118         -1        792   0.1
+scsd6.mps         299600          0        798         -1       1648   0.3
+scsd8.mps         629600          0         -1         -1       2868   0.0
+sctap1.mps        129000          0        146         -1        235   0.1
+sctap2.mps        488800          0        376         -1       1468   0.1
+sctap3.mps        653800          0        489         -1       2037   0.1
+seba.mps          214000          0        119        120        132   0.1
+share1b.mps        63800          0        150        344        347   0.2
+share2b.mps        34600          0        117        158        167   0.3
+shell.mps         392800          0        550        886        911   0.1
+ship04l.mps       446600          0        453         -1        748   0.1
+ship04s.mps       306600          0        214         -1        394   0.1
+ship08l.mps       734000          0        643         -1       1316   0.1
+ship08s.mps       391800          0        287         -1        676   0.1
+ship12l.mps       982400          0       1241         -1       2060   0.1
+ship12s.mps       482800          0        554         -1       1004   0.1
+sierra.mps        645800          0        493        941        967   0.1
+stair.mps         148400          0        782        990        994   0.5
+standata.mps      262400          0         47         48         63   0.0
+standmps.mps      284000          0        163        646        661   0.1
+stocfor1.mps       39800          0        165        185        216   0.4
+stocfor2.mps      829000          0       3139       4574       4587   0.4
+stocfor3.mps     6456200          0      22759      24419      24504   0.4
+truss.mps        1961400          0       2802         -1       4883   0.1
+tuff.mps          157000          0        843        844        860   0.5
+vtp-base.mps       26200          0         87         -1         93   0.3
+wood1p.mps        394600          0         -1         -1       3820   0.0
+woodw.mps        1202000          0       2310         -1       3878   0.2
+
+parsed 94 of 94
+  phase 2 started with the cap already partly spent : 86
+  largest share of the cap spent before phase 2     : 1.68%  on bench/instances/pilot-ja.mps
