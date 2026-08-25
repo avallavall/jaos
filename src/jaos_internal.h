@@ -42,6 +42,27 @@ typedef struct {
      * No callback means nobody is asked and the solve runs to its own end. */
     jaos_progress_fn progress_cb;
     void *progress_user;
+
+    /* Solve this with the primal simplex rather than the dual.
+     *
+     * **Nothing reads it yet, and that is the point rather than an
+     * oversight.** It exists so `bench/primal.c` can be built and validated
+     * *before* there is a primal simplex to measure: with no reader, both of
+     * that harness's solves are the dual, so it must report agreement and a
+     * work ratio of exactly 1.0. An instrument that has never been seen to
+     * agree cannot be trusted when it disagrees, and this project has been
+     * caught by that before. `TODO.md` §0 stage 0 owns the argument.
+     *
+     * It is deliberately not public API. The harness reaches it the way
+     * `bench/run.c` reaches the presolve counters — in-tree tooling built
+     * with `-Isrc`, which the Makefile's rule for that runner justifies in
+     * full (D-13, D64). Whether callers ever get `jaos_set_algorithm` is a
+     * separate question that this does not force.
+     *
+     * `false` is the whole of the current behaviour, and `jaos_model_new`
+     * calloc's the model, so a caller that has never heard of this field gets
+     * the dual exactly as before. */
+    bool force_primal;
 } jm_config;
 
 struct jaos_model {

@@ -140,6 +140,7 @@ ASAN_TESTS := $(TESTS:tests/%.c=$(B)/asan/%)
 	netlib-infeas netlib-kennington-baseline netlib-infeas-baseline \
 	plato plato-pds plato-fome plato-nug \
 	plato-pds-baseline plato-fome-baseline plato-nug-baseline \
+	warm warm-kennington primal primal-kennington \
 	pgo clean
 
 # Keep intermediate objects; make otherwise deletes and rebuilds them
@@ -241,6 +242,31 @@ warm: $(B)/bench/warm
 	@bench/fetch.sh
 	@mkdir -p bench/results
 	./$(B)/bench/warm -j $(J) -o bench/results/warm.txt
+
+# What the primal simplex costs against the dual, which the gate cannot say
+# either: a cold start is dual feasible and not primal feasible, so the gate
+# never enters a primal path at all (TODO.md 0). Kept out of the gate for the
+# same reason `warm` is, and it reports a ratio rather than a verdict.
+#
+# -Isrc for the same deliberate exception bench/run takes, and no wider:
+# cfg.force_primal is not public API and must not become it on this schedule.
+# bench/primal.c's header comment carries the argument.
+$(B)/bench/primal: bench/primal.c $(LIB) | $(B)/bench
+	$(CC) $(RELEASE_CFLAGS) $(INC) -Isrc $< $(LIB) -o $@ $(LDLIBS)
+
+primal: $(B)/bench/primal
+	@bench/fetch.sh
+	@mkdir -p bench/results
+	./$(B)/bench/primal -j $(J) -o bench/results/primal.txt
+
+primal-kennington: $(B)/bench/primal
+	@bench/fetch.sh -m bench/netlib-kennington.manifest \
+		-b https://netlib.org/lp/data/kennington -p gz-emps \
+		bench/instances-kennington
+	@mkdir -p bench/results
+	./$(B)/bench/primal -j $(J) -m bench/netlib-kennington.manifest \
+		-d bench/instances-kennington \
+		-o bench/results/primal-kennington.txt
 
 # The same campaign on the large set. Three solves per instance where the
 # gate does two, so it costs about half as much again as `netlib-kennington`.

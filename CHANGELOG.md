@@ -9,6 +9,29 @@ open, `bench/README.md` for the gate, and the commit each entry came from.
 
 ## [Unreleased]
 
+### Added
+
+- **`bench/primal.c` and `make primal`**, a third runner beside the gate and
+  `warm`: it solves each instance with the dual and then with the primal on the
+  same unperturbed model, requires the two answers to agree, and reports a work
+  ratio rather than a verdict. It exists because the gate structurally cannot
+  see a primal simplex — a cold start is dual feasible and not primal feasible,
+  so the solver never chooses that path. `cfg.force_primal` carries the switch
+  and **has no reader yet, deliberately**: that is what let the instrument be
+  validated before the feature exists. 94 of 94 bit-identical at a ratio of
+  exactly 1.0000, and three doctored copies each caught by a different branch
+  (`TODO.md` §0 stage 0, `bench/measurements/02-99/`).
+
+### Fixed
+
+- **`bench/warm.c` would not compile at `-O2`.** It read 79 characters into a
+  64-byte `note` field; `snprintf` truncated the excess, so no note was ever
+  wrong and no measurement was affected, but `-Werror=format-truncation`
+  refuses it below the `-O3 -flto` the Makefile uses. Both runners now size the
+  buffer to the destination. Found because `bench/primal.c` inherited the same
+  lines. Also `.PHONY` was missing `warm`, `warm-kennington`, `primal` and
+  `primal-kennington` (`bench/measurements/02-99/`).
+
 ### Changed
 
 - **`TODO.md` §0 has a build order, and the Devex blocker turns out to block

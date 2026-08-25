@@ -1198,7 +1198,7 @@ in `price_row:1700` are the machinery, and D26 is the decision behind them.
 
 | # | stage | blocked on |
 |---|---|---|
-| 0 | **the harness**, `bench/primal.c` and the `cfg` switch | nothing — design settled 2026-08-25, see below |
+| 0 | ~~the harness, `bench/primal.c` and the `cfg` switch~~ | **DONE 2026-08-25** — `bench/measurements/02-99/` |
 | 1 | **phase-2 primal, Dantzig pricing**, its own row-sized arrays, Bland fallback | nothing |
 | 2 | **Harris two-pass in primal form, and the snap** | nothing — `jm_harris_pick` is already generic |
 | 3 | **the entering column's bound flip**, sized from `real_upper`/`real_lower` | nothing |
@@ -1226,22 +1226,20 @@ cold start is not. So stage 1 runs from a warm basis, from crossover, or from a
 test fixture, and until stage 4 lands that is the whole of its reach. Say so in
 the entry rather than discovering it during a campaign.
 
-**What stage 0 still owes, written down so the next session does not re-derive
-it.** The design above is settled and the file is not written. `bench/warm.c` is
-724 lines and the shape to follow: `entry`/`result` structs, `measure_one`, an
-`emit` that writes the console and the record together, `stamp` for seconds
-that go to the console only (D17), and the fork-per-worker pool behind `-j`.
-Three things differ from `warm.c` and are the whole of the new thinking:
+**Stage 0 landed on 2026-08-25.** `bench/primal.c`, `cfg.force_primal` with no
+reader, and `make primal` / `make primal-kennington`. Validated in both
+directions before there was anything to measure, which was the point of doing
+it first: **94 of 94 bit-identical** at a work ratio of exactly 1.0000, and
+three doctored copies of the runner each caught by a different branch. The
+evidence and the scripts are in `bench/measurements/02-99/`.
 
-- it includes `src/jaos_internal.h` and is built with `-Isrc`, as `bench/run.c`
-  is, and its header comment must carry the same justification;
-- the two solves are dual and primal on the **same unperturbed model**, so
-  there is no branch to pick and `pick_branch` has no counterpart;
-- **it must be validated before stage 1 exists.** Run it with the switch off so
-  both solves are the dual: it must report agreement and a work ratio of
-  exactly 1.0. Then doctor one side's answer and confirm it reports
-  disagreement. An instrument that cannot fail is not evidence, and this
-  project has been caught by that before.
+**Two things it turned up that were not the plan.** `bench/warm.c` did not
+compile at `-O2` — it read 79 characters into a 64-byte field, which `snprintf`
+truncated safely so no measurement was ever wrong, but `-Werror` refuses it
+below the `-O3 -flto` the Makefile uses. Both runners are sized to their
+destination now. And `warm`, `warm-kennington`, `primal` and
+`primal-kennington` were missing from `.PHONY`, so a stale file of any of those
+names would have silently disabled the target.
 
 ## → START HERE — what is actually next, 2026-08-20
 

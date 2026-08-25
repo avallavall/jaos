@@ -447,13 +447,20 @@ static bool read_result(const char *p, result *r)
                    &r->iters_w, &r->iters_c, &r->work_w, &r->work_c,
                    &r->obj_w, &r->obj_c, &r->obj_0, &r->secs_w, &r->secs_c);
     if (n == 18) {
-        /* To the end of the line, not to the first space. `%79s` stopped at
+        /* To the end of the line, not to the first space. `%63s` stopped at
          * one token, so every note this program writes with a space in it —
          * "path too long", "first solve failed" — reached the summary as its
          * first word under -j and read as a different failure from the one
-         * that happened. */
-        char note[80];
-        if (fscanf(f, " %79[^\n]", note) == 1 && strcmp(note, "-") != 0)
+         * that happened.
+         *
+         * The buffer is the destination's size and the width matches it. It
+         * used to read 79 characters into this 64-byte field: `snprintf`
+         * truncated the excess safely, so no note ever came out wrong, but
+         * `-Wformat-truncation` refuses it at `-O2` and the file would not
+         * compile there. Invisible at the `-O3 -flto` the Makefile uses, and
+         * found from `bench/primal.c` inheriting the same lines. */
+        char note[sizeof r->note];
+        if (fscanf(f, " %63[^\n]", note) == 1 && strcmp(note, "-") != 0)
             snprintf(r->note, sizeof r->note, "%s", note);
     }
     fclose(f);
