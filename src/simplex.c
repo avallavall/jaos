@@ -2407,8 +2407,29 @@ static void price_all(sx *s)
     jm_work_add(&s->work, (np + words + s->anpat) * JM_WORK_NONZERO);
 }
 
-static int64_t price_and_select(sx *s, int64_t r, bool below,
-                                double violation, double *theta_dual)
+/* Row r of `B^-1` into `rho`, and row r of `B^-1 M` into `alpha`.
+ *
+ * Both methods need exactly this and neither can proceed without it. The dual
+ * picks its entering column out of `alpha`; the primal has already chosen one
+ * and needs the row to step every other reduced cost by, which is the update
+ * `pivot()` performs. So this is genuinely common ground and not a
+ * convenience — `docs/research/primal-simplex.md` §5 lists the pivot row
+ * first among the things one factorization gives both algorithms.
+ *
+ * It used to live inside `price_and_select`, with `primal_cleanup` repeating
+ * the two lines on the stated grounds that "pulling them into a helper would
+ * put the dual method's preamble in a function the dual method does not
+ * call". That was right while the dual was the only caller with a claim on
+ * it. There are three now, and repeating a BTRAN plus a pricing pass three
+ * times is how the three drift apart. **What the old copy in
+ * `primal_cleanup` also lost is real: it built `alpha` column by column
+ * through `price_entry`, which costs the whole matrix however sparse `rho`
+ * is, where `price_all` walks the row-wise mirror and skips a whole row of
+ * the matrix per zero of `rho` (D35).**
+ *
+ * Leaves `nrpat` and `anpat` describing the two patterns, or negative where
+ * one was too dense to be worth carrying. */
+static void build_pricing_row(sx *s, int64_t r)
 {
     memset(s->rho, 0, (size_t)s->nrow * sizeof *s->rho);
     s->rho[r] = 1.0;
@@ -2428,7 +2449,12 @@ static int64_t price_and_select(sx *s, int64_t r, bool below,
     }
 
     price_all(s);
+}
 
+static int64_t price_and_select(sx *s, int64_t r, bool below,
+                                double violation, double *theta_dual)
+{
+    build_pricing_row(s, r);
     return dual_ratio_test(s, below, violation, theta_dual);
 }
 
@@ -3391,10 +3417,12 @@ static int64_t primal_ratio_test(sx *s, int64_t q, bool *below)
  * rather than by a pricing rule, so there is nothing here to price with.
  *
  * `pivot()` needs row r of `B^-1` in `rho` and the pricing row in `alpha`,
- * which is what `price_and_select` normally leaves behind; the two lines
- * that build them are repeated here rather than factored out, because
- * pulling them into a helper would put the dual method's preamble in a
- * function the dual method does not call.
+ * which is what `price_and_select` normally leaves behind. Both now come
+ * from `build_pricing_row`, which is the ground the two methods genuinely
+ * share. **This loop used to build them itself and paid for it**: a dense
+ * `price_entry` pass over every column, which costs the whole matrix however
+ * sparse `rho` is, where the shared helper walks the row-wise mirror and
+ * skips a row of the matrix per zero of `rho` (D35).
  *
  * The step it computes is `(x_B[r] - bound) / alpha[q]`, and `alpha[q]` is
  * row r of `B^-1 M` at column q — the same number the ratio test above
@@ -3473,14 +3501,7 @@ static jaos_status primal_cleanup(sx *s, int64_t *pivots)
         if (r < 0)
             continue;
 
-        memset(s->rho, 0, (size_t)s->nrow * sizeof *s->rho);
-        s->rho[r] = 1.0;
-        jm_lu_btran(&s->lu, s->rho, &s->work);
-        for (int64_t v = 0; v < s->nvar; v++)
-            s->alpha[v] = s->status[v] == JM_BASIC ? 0.0
-                                              : price_entry(s, s->rho, v);
-        s->anpat = -1;   /* written in full and behind price_all's back */
-        s->nrpat = -1;   /* and so is rho, by the BTRAN just above */
+        build_pricing_row(s, r);
 
         if (fabs(s->alpha[q]) < PIVOT_MIN)
             continue;   /* the pricing row disagrees with the column: leave it */

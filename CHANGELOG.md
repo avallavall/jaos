@@ -22,6 +22,20 @@ open, `bench/README.md` for the gate, and the commit each entry came from.
   exactly 1.0000, and three doctored copies each caught by a different branch
   (`TODO.md` §0 stage 0, `bench/measurements/02-99/`).
 
+### Changed
+
+- **The primal clean-up stops pricing its row the expensive way.** Both methods
+  need row `r` of `B^-1` and of `B^-1 M`; `primal_cleanup` repeated the work
+  rather than sharing it, and the repeat was never equivalent — a dense BTRAN
+  plus a column-by-column `price_entry` pass, which costs the whole matrix
+  however sparse `rho` is, where `price_all` skips a row of the matrix per zero
+  of `rho` (D35). Both call `build_pricing_row` now. `wood1p` 0.9682x,
+  `etamacro` 0.9996x, `pilot87` **1.0000017x the wrong way** because the sparse
+  route bills the pattern ordering a dense BTRAN never charged for. 91 of
+  netlib's 94 bit-identical, the other two sets bit-identical throughout, and
+  **0 digest changes with every iteration count unmoved** (D187,
+  `bench/measurements/02-100/`).
+
 ### Fixed
 
 - **`bench/warm.c` would not compile at `-O2`.** It read 79 characters into a

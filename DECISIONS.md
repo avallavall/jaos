@@ -194,6 +194,7 @@ and you have the argument. Jump to the entry for the numbers behind it.
 - **[D184](#d184--dual_tol-is-1e-9-and-all-four-wrong-points-are-gone-at-10339x-work-on-netlib-and-10976x-on-kennington-which-d174-had-not-measured)** — `DUAL_TOL` is 1e-9 and all four wrong points are gone, at 1.0339x work on netlib and 1.0976x on Kennington, which D174 had not measured
 - **[D185](#d185--the-gate-has-an-absolute-bar-on-suboptimality-at-1e-6-placed-on-123-solves-across-five-sets-and-it-rejects-the-answer-this-project-shipped-two-days-ago)** — The gate has an absolute bar on suboptimality at 1e-6, placed on 123 solves across five sets, and it rejects the answer this project shipped two days ago
 - **[D186](#d186--refused-no-mapped-basis-arrives-long-in-101-calls-so-a-demotion-rule-in-build_warm_basis-has-nothing-to-act-on-and-35-of-90-netlib-warm-starts-fall-back-to-cold)** — REFUSED: no mapped basis arrives long in 101 calls, so a demotion rule in `build_warm_basis` has nothing to act on and 35 of 90 netlib warm starts fall back to cold
+- **[D187](#d187--the-primal-clean-up-priced-its-row-the-expensive-way-and-the-saving-is-32-on-wood1p-against-10000017x-lost-on-pilot87)** — The primal clean-up priced its row the expensive way, and the saving is 3.2% on `wood1p` against 1.0000017x lost on `pilot87`
 
 ---
 
@@ -14218,3 +14219,69 @@ cheaper location anyone had proposed for it.
 **The `dfl001`/`sctap3` figure.** Either D149 misattributed the instance or the
 shortfalls moved. It changes no verdict — the blanket repair is refused on cost
 either way — and it is the kind of number this project has found stale before.
+
+## D187 — The primal clean-up priced its row the expensive way, and the saving is 3.2% on `wood1p` against 1.0000017x lost on `pilot87`
+
+Both simplex methods need the same two vectors out of a basis change: row `r`
+of `B^-1`, and row `r` of `B^-1 M`. The dual picks its entering column out of
+the pricing row; the primal has already chosen one and needs the row to step
+every other reduced cost by. `price_and_select` built them, and
+`primal_cleanup` repeated the work with a comment saying why it was not
+factored out — "pulling them into a helper would put the dual method's
+preamble in a function the dual method does not call".
+
+**The premise expired when `TODO.md` §0 gave the primal a second caller with
+the same claim.** Re-reading the repeat while extracting it showed it was
+never equivalent in the first place.
+
+### What the repeat actually did
+
+`primal_cleanup` ran a dense `jm_lu_btran` and then built `alpha` column by
+column through `price_entry`. That is one dot product per column, so it costs
+the entire matrix however sparse `rho` is. `price_all` walks the row-wise CSR
+mirror instead, where one zero of `rho` skips a whole row of the matrix — the
+saving D35 measured, and the one the column view structurally cannot express.
+It also set `anpat = -1` and `nrpat = -1`, so the two consumers inside
+`pivot()` that read a pattern fell back to full scans as well.
+
+### The measurement
+
+`make netlib netlib-infeas netlib-kennington J=12`, read per instance with
+`record_diff.py` (`bench/measurements/02-100/`):
+
+| instance | before | after | ratio |
+|---|---|---|---|
+| `wood1p` | 55637071 | 53867372 | **0.9682x** |
+| `etamacro` | 3309456 | 3308076 | 0.9996x |
+| `pilot87` | 17961079189 | 17961110514 | **1.0000017x** |
+
+91 of netlib's 94 bit-identical; `netlib-infeas` and `netlib-kennington`
+bit-identical throughout.
+
+**`0 digest change(s)`, and the iteration counts unmoved as well** —
+`etamacro` 571, `pilot87` 38000, `wood1p` 694. The trajectory is identical and
+only the billed work differs, which is what an equivalent implementation doing
+less of the same arithmetic looks like. That is the whole correctness argument
+and it is a stronger one than any tolerance.
+
+### What was refuted
+
+**That this was free.** `pilot87` costs 31325 units more, on 1.8e+10. The
+sparse route bills the pattern ordering `jm_pattern_order` performs —
+`nr + words + nrpat` — which a dense BTRAN never charged for, and on a `rho`
+dense enough that the ordering buys nothing that bookkeeping is a small net
+loss. It is 1.7 parts per million and it is in the record rather than rounded
+away, because the same mechanism on a model with denser rows would be a real
+one.
+
+**That the gate would show any of it.** All three sets read `0 regressed,
+0 improved, 0 new`. No predicate flipped and nothing passed the 2.0x work bar,
+so the summary line was silent while three instances moved. This is the case
+the per-instance diff exists for.
+
+### What is left open
+
+Nothing here. The three instances that moved are the three whose solves reach
+`primal_cleanup` far enough to price a row from it, which is why 91 of 94 are
+bit-identical rather than merely close. `TODO.md` §0 stage 1 is the next
+caller of `build_pricing_row` and is unaffected by this entry.
