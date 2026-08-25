@@ -2671,6 +2671,64 @@ static void test_the_primal_and_the_dual_agree_on_the_same_model(void)
 #endif
 }
 
+/* A model where the entering column's own box binds before any row does.
+ *
+ * `min -x - 0.5y` over `x + y <= 10` and `x + 2y <= 12`, with `x` in `[0, 1]`
+ * and `y` in `[0, 10]`. The optimum is `x = 1, y = 5.5` at -4.25... on the
+ * costs alone; the published objective is -3.75 because `x + 2y <= 12` binds.
+ *
+ * From the origin the primal prices `x` first — `|d|` of 1 against 0.5 — and
+ * moves it up. **Nothing basic stops it before 10, and `x`'s own upper bound
+ * is 1.** */
+static void load_boxed_model(jaos_model *m)
+{
+    const double c[]  = {-1.0, -0.5};
+    const double cl[] = {0.0, 0.0}, cu[] = {1.0, 10.0};
+    const double rl[] = {-INFINITY, -INFINITY};
+    const double ru[] = {10.0, 12.0};
+    const int64_t as[] = {0, 2, 4};
+    const int64_t ai[] = {0, 1, 0, 1};
+    const double av[] = {1.0, 1.0, 1.0, 2.0};
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_load_lp(m, 2, 2, JAOS_MINIMIZE, 0.0, c, cl, cu, rl, ru,
+                     4, as, ai, av));
+}
+
+/* The entering column must not walk past its own bound, and this is the case
+ * that proves it does not.
+ *
+ * **It was a wrong answer, not a hypothetical.** Before the bound flip existed,
+ * this model published `x = 10` against a declared upper bound of 1, as
+ * `OPTIMAL`, at an objective of -10 against a true -3.75. The independent
+ * checker refused the point and the solver said optimal anyway. Stage 1's
+ * pricing rule is what made the case reachable: the primal clean-up only ever
+ * enters columns with no declared bound on the improving side, so nothing
+ * before it could reach a column whose own box binds first.
+ *
+ * The assertion is the answer *and* the bound, because those are two different
+ * failures. A solve that lands on the right objective through a point outside
+ * its bounds has still published something the model forbids. */
+static void test_the_entering_column_stops_at_its_own_bound(void)
+{
+    jaos_model *m = fresh();
+    load_boxed_model(m);
+
+    jaos_basis_status cs[2] = {JAOS_BASIS_AT_LOWER, JAOS_BASIS_AT_LOWER};
+    jaos_basis_status rs[2] = {JAOS_BASIS_BASIC, JAOS_BASIS_BASIC};
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_basis(m, cs, rs));
+
+    m->cfg.force_primal = true;
+    solve_and_verify(m, -3.75);
+
+    double x[2] = {0.0, 0.0};
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_solution(m, x, nullptr, nullptr, nullptr));
+    TEST_ASSERT_TRUE_MESSAGE(x[0] <= 1.0 + 1e-9,
+                             "the entering column walked past its own bound");
+    TEST_ASSERT_TRUE_MESSAGE(x[0] >= -1e-9, "and below its lower one");
+    jaos_model_free(m);
+}
+
 /* The refusal, and it is the case the method must not get wrong.
  *
  * Handed a point that violates a bound the model declared, the primal has no
@@ -3217,6 +3275,7 @@ int main(void)
     RUN_TEST(test_a_basis_handed_in_must_be_a_basis);
     RUN_TEST(test_the_primal_reaches_the_optimum_from_a_feasible_basis);
     RUN_TEST(test_the_primal_and_the_dual_agree_on_the_same_model);
+    RUN_TEST(test_the_entering_column_stops_at_its_own_bound);
     RUN_TEST(test_the_primal_refuses_a_start_it_cannot_repair);
     RUN_TEST(test_the_dual_is_untouched_by_a_basis_the_primal_refuses);
     RUN_TEST(test_a_hostile_basis_costs_iterations_and_not_the_answer);

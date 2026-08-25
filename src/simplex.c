@@ -3406,8 +3406,16 @@ static bool wants_a_pivot(const sx *s, int64_t v)
  * smaller error.
  *
  * Returns the blocking position, with *below saying which bound it lands
- * on, or -1. */
-static int64_t primal_ratio_test(sx *s, int64_t q, bool *below)
+ * on, or -1. `*step` receives how far q may travel before that position
+ * blocks, and `HUGE_VAL` when nothing does — `run_primal` compares it against
+ * the distance to q's *own* opposite bound, which is the one limit no basic
+ * variable can express.
+ *
+ * **It leaves `B^-1 M_q` in `s->col`, and a bound flip reads it there.**
+ * Moving q by `delta` moves the basics by `-delta * col`, so the flip needs no
+ * solve of its own. Anything writing `col` between this and that would be
+ * writing the flip's input. */
+static int64_t primal_ratio_test(sx *s, int64_t q, bool *below, double *step)
 {
     var_column(s, q, s->col);
     jm_lu_ftran(&s->lu, s->col, &s->work);
@@ -3436,6 +3444,7 @@ static int64_t primal_ratio_test(sx *s, int64_t q, bool *below)
         }
     }
     jm_work_add(&s->work, s->nrow * JM_WORK_NONZERO);
+    *step = best_step;
     return best;
 }
 
@@ -3528,7 +3537,11 @@ static jaos_status primal_cleanup(sx *s, int64_t *pivots)
             continue;      /* an earlier pivot of this pass really did fix it */
 
         bool below = false;
-        int64_t r = primal_ratio_test(s, q, &below);
+        double step = 0.0;
+        /* `step` is unread here: `wants_a_pivot` admits only columns with no
+         * declared bound in the improving direction, so the flip `run_primal`
+         * uses it for can never arise on this path. */
+        int64_t r = primal_ratio_test(s, q, &below, &step);
         if (r < 0)
             continue;
 
@@ -3985,6 +3998,31 @@ static int64_t primal_price(sx *s, double *total)
     return best;
 }
 
+/* q crosses its own box to the other bound, and no basis changes.
+ *
+ * The cheapest iteration the primal has: `B`, the factorization, the duals and
+ * every reduced cost are untouched, because nothing entered or left the basis.
+ * Only the point moves — `x_B` by `-delta * B^-1 M_q`, read out of `s->col`
+ * where `primal_ratio_test` left it, so there is no solve to pay for either.
+ *
+ * **It terminates, and the argument is short enough to keep.** The duals do
+ * not move, so `d[q]` does not move; q was eligible because its reduced cost
+ * pointed off the bound it was resting on, and at the opposite bound that same
+ * sign is feasible. So q is not eligible again, and each flip strictly reduces
+ * the number of dual infeasible columns. The objective falls by `d_q * delta`,
+ * which is negative by the same sign argument.
+ *
+ * The caller has already established that no basic variable blocks sooner, so
+ * the point stays primal feasible. */
+static void primal_bound_flip(sx *s, int64_t q, double delta)
+{
+    for (int64_t i = 0; i < s->nrow; i++)
+        s->xb[i] -= delta * s->col[i];
+    jm_work_add(&s->work, s->nrow * JM_WORK_NONZERO);
+
+    s->status[q] = s->status[q] == JM_AT_LOWER ? JM_AT_UPPER : JM_AT_LOWER;
+}
+
 /* The primal simplex, phase 2 only.
  *
  * Mirrors `run()` clause for clause where the question is the same — the
@@ -4150,7 +4188,49 @@ static jaos_status run_primal(sx *s, jaos_solve_status *out)
         }
 
         bool below = false;
-        int64_t r = primal_ratio_test(s, q, &below);
+        double step = 0.0;
+        int64_t r = primal_ratio_test(s, q, &below, &step);
+
+        /* **Does q reach its own opposite bound first?** No basic variable
+         * can express that limit, so a ratio test that only scans rows walks
+         * straight past it — and this is not a theoretical worry. Before this
+         * block existed the method published `x = 10` on a column bounded at
+         * 1, as OPTIMAL, at an objective of -10 against a true -3.75. Only the
+         * independent checker refused it
+         * (`bench/measurements/02-102/`). Stage 1's pricing rule is what made
+         * the case reachable, exactly as `TODO.md` §0 said it would.
+         *
+         * **Read from `real_upper`/`real_lower` and never from `up`/`lo`.**
+         * Those strip the bounds dual phase 1 invented; the raw arrays do not.
+         * Flipping onto an invented bound would park a variable on a value the
+         * model never declared, which is the case `repair_dual_infeasibility`
+         * refuses in as many words and the evidence `classify_optimum` reads
+         * straight afterwards. A column whose other side is only an invented
+         * bound therefore has no flip available, and if nothing blocks it
+         * either it falls through to the refusal below — which is the honest
+         * answer, not a ray.
+         *
+         * The direction is read off the reduced cost, the same rule
+         * `primal_ratio_test` states at length: at a lower bound `d` is
+         * negative and q travels up, at an upper bound positive and it travels
+         * down, and a free column has no other bound at all. */
+        {
+            const double other = s->d[q] < 0.0 ? real_upper(s, q)
+                                               : real_lower(s, q);
+            if (isfinite(other)) {
+                const double delta = other - nonbasic_value(s, q);
+                if (fabs(delta) <= step) {
+                    primal_bound_flip(s, q, delta);
+                    /* The point moved, so any verification of it is spent.
+                     * The basis did not, so nothing needs refactorizing. */
+                    s->verified = false;
+                    s->iters++;
+                    s->n_primal_iters++;
+                    continue;
+                }
+            }
+        }
+
         if (r < 0) {
             /* Nothing the model declared stops this column. That reads as an
              * unbounded ray and it is **not declared as one here**, for the

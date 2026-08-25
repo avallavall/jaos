@@ -196,6 +196,7 @@ and you have the argument. Jump to the entry for the numbers behind it.
 - **[D186](#d186--refused-no-mapped-basis-arrives-long-in-101-calls-so-a-demotion-rule-in-build_warm_basis-has-nothing-to-act-on-and-35-of-90-netlib-warm-starts-fall-back-to-cold)** — REFUSED: no mapped basis arrives long in 101 calls, so a demotion rule in `build_warm_basis` has nothing to act on and 35 of 90 netlib warm starts fall back to cold
 - **[D187](#d187--the-primal-clean-up-priced-its-row-the-expensive-way-and-the-saving-is-32-on-wood1p-against-10000017x-lost-on-pilot87)** — The primal clean-up priced its row the expensive way, and the saving is 3.2% on `wood1p` against 1.0000017x lost on `pilot87`
 - **[D188](#d188--the-primal-simplexs-first-version-and-both-defects-it-shipped-with-were-invisible-to-a-green-suite)** — The primal simplex's first version, and both defects it shipped with were invisible to a green suite
+- **[D189](#d189--the-primal-published-a-value-outside-a-declared-bound-as-optimal-and-stage-1s-own-pricing-rule-is-what-made-it-reachable)** — The primal published a value outside a declared bound as OPTIMAL, and stage 1's own pricing rule is what made it reachable
 
 ---
 
@@ -14364,3 +14365,80 @@ number to move, not a defect.
 finish with dual iterations. That is stage 1's shape; making the re-entry
 follow the method is a later question. The unboundedness verdict is refused
 rather than declared, per D19, and is stage 7.
+
+## D189 — The primal published a value outside a declared bound as OPTIMAL, and stage 1's own pricing rule is what made it reachable
+
+`primal_ratio_test` scans basic variables and asks which a step would push past
+a bound. **No basic variable can express the entering column's own opposite
+bound**, so a ratio test built only from rows walks past it.
+
+### The wrong answer
+
+`min -x - 0.5y` over `x + y <= 10` and `x + 2y <= 12`, `x` in `[0, 1]`, `y` in
+`[0, 10]`. From the origin the primal prices `x` first — `|d|` of 1 against 0.5
+— and moves it up; nothing basic stops it before 10 and `x`'s bound is 1.
+
+| | objective | x | checker |
+|---|---|---|---|
+| dual | -3.75 | 1 | primal ok |
+| primal, before | **-10** | **10** | **primal REFUSED** |
+| primal, after | -3.75 | 1 | primal ok |
+
+**Published as `OPTIMAL`, with no signal anywhere in the solve.** Only the
+independent checker refused the point (`bench/measurements/02-102/`).
+
+### Why it could not happen before, and why it can now
+
+`primal_cleanup` enters a column only through `wants_a_pivot`, which admits no
+column with a declared bound in the improving direction. So the entering
+column's other bound was always infinite on that path and the case was
+unreachable. D188's pricing rule chooses freely among eligible columns.
+
+`TODO.md` §0 had written, before either landed, that the gap "goes live the
+moment a pricing rule chooses entering columns". It went live in the same
+session, and was found by asking rather than by a campaign — the gate cannot
+reach a primal path at all.
+
+### The repair, and the trap inside it
+
+A bound flip: q crosses its own box, no basis changes.
+
+**The limit is read from `real_upper`/`real_lower` and never from `up`/`lo`.**
+Those strip the bounds dual phase 1 invented. Sizing the flip off the raw
+arrays would park a variable on a bound the model never declared — the case
+`repair_dual_infeasibility` refuses in as many words, and the evidence
+`classify_optimum` reads immediately afterwards. A column whose other side is
+only an invented bound therefore has no flip available and falls through to the
+refusal, which is the honest answer rather than a ray (D19).
+
+It costs no solve: `primal_ratio_test` leaves `B^-1 M_q` in `s->col`, and
+moving q by `delta` moves the basics by `-delta * col`.
+
+**It terminates, and the argument is short.** No basis change means the duals
+do not move, so `d[q]` does not move; q was eligible because its reduced cost
+pointed off the bound it rested on, and at the opposite bound that same sign is
+feasible. Each flip strictly reduces the number of dual infeasible columns, and
+the objective falls by `d_q * delta`.
+
+### What was refuted
+
+**That the dual's bound-flipping ratio test has a phase-2 primal twin.** It
+does not, and looking for one wastes time: in the dual ratio test one row is
+scanned across many nonbasics so there are many breakpoints to walk past, while
+in the primal only the entering variable moves. The primal long step exists in
+phase 1 alone, where the objective is a sum of infeasibilities and therefore
+piecewise linear (`docs/research/primal-simplex.md` §2). What this entry adds
+is the single flip, which is part of the plain bounded ratio test.
+
+### What it cost
+
+`make configs`: all 5 configurations build and pass. All three sets
+`0 regressed, 0 improved, 0 new`, every record byte-identical — the gate
+reaches no primal path, so the evidence is the case above and the test that
+pins it.
+
+### What is left open
+
+The Harris two-pass ratio test and the snap it forces are §0 stage 2 and
+untouched by this. Phase 1 is stage 4 and is still what holds the primal's
+reach at zero of 94.

@@ -23,6 +23,17 @@ open, `bench/README.md` for the gate, and the commit each entry came from.
 
 ### Fixed
 
+- **The primal published a value outside a declared bound, as `OPTIMAL`.** No
+  basic variable can express the entering column's *own* opposite bound, so a
+  ratio test built from rows walks past it: on a two-row model it published
+  `x = 10` against a declared upper bound of 1, objective -10 against a true
+  -3.75, with only the independent checker refusing the point. The repair is a
+  bound flip sized from `real_upper`/`real_lower` — never `up`/`lo`, which
+  still hold the bounds dual phase 1 invented — and it costs no solve, because
+  the ratio test has already left `B^-1 M_q` where it can be read. Unreachable
+  before the pricing rule landed, which `TODO.md` §0 had predicted in as many
+  words (D189, `bench/measurements/02-102/`).
+
 - **The simplex's error messages never reached the caller on any model presolve
   had reduced.** `jm_set_err` writes to the model the simplex ran on, which is
   the reduced one; the caller holds the original. Exactly **8 of 94** standard

@@ -1201,7 +1201,7 @@ in `price_row:1700` are the machinery, and D26 is the decision behind them.
 | 0 | ~~the harness, `bench/primal.c` and the `cfg` switch~~ | **DONE 2026-08-25** — `bench/measurements/02-99/` |
 | 1 | ~~phase-2 primal, Dantzig pricing, Bland fallback~~ | **DONE 2026-08-25** — D188, `bench/measurements/02-101/` |
 | 2 | **Harris two-pass in primal form, and the snap** | nothing — `jm_harris_pick` is already generic |
-| 3 | **the entering column's bound flip**, sized from `real_upper`/`real_lower` | nothing |
+| 3 | ~~the entering column's bound flip~~ | **DONE 2026-08-25** — D189, it was a wrong answer |
 | 4 | **phase 1** (Maros 1986) from a given basis, stable breakpoint sort keyed on `(value, index)` | nothing |
 | 5 | **Devex** | **Harris (1973), paywalled** |
 | 6 | **`can_move`'s units** — D184's stated reopen | stage 1 landing |
