@@ -11,6 +11,28 @@ open, `bench/README.md` for the gate, and the commit each entry came from.
 
 ### Changed
 
+- **The primal simplex literature is read and written down**
+  (`docs/research/primal-simplex.md`), which closes §0's first prerequisite.
+  Four choices come back settled: Devex over exact primal steepest edge, which
+  costs an extra BTRAN *and* an extra full PRICE; Maros's piecewise-linear
+  phase 1, which must start from a given basis or it is useless for crossover;
+  Harris two-pass in its primal form, which is the original form; and the snap
+  the checker forces, because Harris and EXPAND both accept a point outside its
+  bounds. **A premise broke**: crossover as published starts from an interior
+  point and JAOS has none, so §0's chain assumes a starting point that does not
+  exist. **No PDF was reachable**, so the citations are Crossref-checked and
+  several weight-update formulas are marked to check at source. Documentation
+  only.
+
+- **Three defects repaired in `docs/research/crash-basis.md`.** It listed a
+  solver source file, `Clp/src/Idiot.cpp`, as a reference, which D12 forbids
+  outright; the line is gone and Galabova & Hall stands alone. Koberstein's
+  thesis is the University of Paderborn, not TU Berlin, in both places. Galabova
+  & Hall is *Optimization Methods and Software* 35(3), 488–501, not *Mathematical
+  Programming Computation*, and both copies of the title were incomplete — the
+  DOI was re-checked at Crossref from this session rather than taken on report.
+  Documentation only.
+
 - **`TODO.md` §0's reuse question is narrower than it was written**, because a
   primal iteration already runs here: `primal_cleanup` picks a column, calls
   `primal_ratio_test`, and hands both to the same `pivot()` the dual uses. What

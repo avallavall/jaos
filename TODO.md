@@ -912,12 +912,13 @@ analysed in this file. **That is a change of order and not a change of plan.**
 
 ### What it needs BEFORE any code
 
-1. **`literature-scout`.** `CLAUDE.md` requires it before any non-trivial
-   algorithm, and this is the largest one in the project. Bounded pivoting,
-   the ratio test, pricing, phase 1, and how the primal and the dual share a
-   factorization. **No solver source may be read** — papers, theses and
-   textbooks only (D2's rule, two closed exceptions, neither extended).
+1. **`literature-scout`. DONE 2026-08-25 → `docs/research/primal-simplex.md`.**
+   All five questions covered. Read that file's opening warning before trusting
+   any formula in it: **no PDF was reached**, so the citations are checked
+   against Crossref and several of the weight-update formulas are marked CHECK
+   AT SOURCE. No solver source was opened (D12).
 2. **The `sparse-simplex-perf` skill**, before planning any of the algorithm.
+   **DONE 2026-08-25.**
 3. **A design decision that is not obvious**: how much of `sx` the primal
    reuses. **This question is narrower than it looked, and reading the source
    on 2026-08-25 is what narrowed it — see the inventory below.**
@@ -960,15 +961,26 @@ nothing about the dual.
   "`B = -I`, so row i of `B^-1` is `-e_i` and its squared norm is exactly one"
   — and the reason given there for starting from the slack basis at all.
 
-  **So a primal simplex does not reopen the crash-basis refusal (`SPECS` §3);
-  it gives that refusal a second reason.** The refusal reopens when "pricing
-  stops starting from exact steepest-edge weights". A primal simplex adds a
-  second set of weights that also start exact there, so a crash basis would now
-  destroy two exact starts instead of one.
-- **Three gaps in the ratio test.** `primal_ratio_test` is a single-pass
-  minimum ratio. It never compares the blocking step against `up[q] - lo[q]`,
-  so the entering column can never bound-flip — that is a correctness gap and
-  not a speed one. It has no Harris window, and no long step.
+  **That argument holds for exact primal steepest edge and NOT for Devex, and
+  the literature says start with Devex.** Devex weights are all 1 at a reset
+  whatever the basis is, so a crash basis costs Devex nothing there. The
+  crash-basis refusal (`SPECS` §3) reopens when "pricing stops starting from
+  exact steepest-edge weights", and which way a primal simplex pushes that
+  depends entirely on the rule chosen. Exact primal steepest edge would give the
+  refusal a second reason; Devex would not touch it. **Decide the pricing rule
+  before re-reading that row.**
+- **Two gaps in the ratio test, and it was written as three.**
+  `primal_ratio_test` is a single-pass minimum ratio. It never compares the
+  blocking step against `up[q] - lo[q]`, so the entering column can never
+  bound-flip — that is a correctness gap and not a speed one. It has no Harris
+  window. **It is not missing a long step, and looking for one would waste
+  time**: in the dual ratio test one row is scanned across many nonbasics, so
+  there are many breakpoints to walk past, while in the primal **only the
+  entering variable moves**. The only flip available is that variable reaching
+  its own opposite bound, which is the correctness gap above rather than a
+  separate technique. The primal long step exists only in phase 1, where the
+  objective is a sum of infeasibilities and therefore piecewise linear
+  (`docs/research/primal-simplex.md` §2).
 - **A phase 1.** `build_initial_basis:952` makes the cold start dual feasible
   by construction and says so in its own comment. It is not primal feasible,
   so a primal simplex started cold **always** needs one. Crossover supplies its
@@ -994,6 +1006,57 @@ lets the dual resume on the same basis without restarting its weights, and
 `primal_cleanup` closing `greenbea` in eight pivots and presenting `pilot87`
 twelve candidates a round. Take the number when a primal loop runs thousands
 of iterations instead of eight, on the harness below.
+
+### What the literature settles, and the one thing it breaks
+
+From `docs/research/primal-simplex.md`. Four choices come back with a clear
+answer, and one premise of this section comes back broken.
+
+**Pricing: Devex, not exact primal steepest edge.** This is the asymmetry that
+decides it. Exact primal steepest edge costs **one extra BTRAN and one extra
+full PRICE per iteration**; dual steepest edge costs one extra FTRAN and no
+extra PRICE; Devex costs neither. Devex needs only the pivot row, which the
+primal computes anyway for its reduced-cost update. That gap is part of why the
+dual is the faster algorithm here, and it lines up with D81. Devex also solves
+the warm-start problem for free — every weight is 1 at a reset, whatever basis
+crossover hands over, where exact weights would cost `m` solves.
+
+**Phase 1: the piecewise-linear composite (Maros 1986), and it must start from
+a GIVEN basis.** No artificials. The phase-1 objective is the sum of the basics'
+bound violations, piecewise linear in the step, so its ratio test walks sorted
+breakpoints and several basics can become feasible in one iteration. **A phase 1
+that builds its own basis out of artificials is useless for crossover**, which
+is the motivating case, so design for a given basis from the start.
+
+**Ratio test: Harris two-pass, in its primal form — which is the ORIGINAL
+form.** Harris (1973) published it for the primal; the dual version JAOS has is
+the transposition. EXPAND is available on top and is safe under D8, because its
+tolerance depends on the iteration counter alone. It does not remove the need
+for a cycle detector: Hall & McKinnon (2004) construct LPs where EXPAND still
+cycles.
+
+**One thing that changes the ANSWER and not the path.** Harris and EXPAND both
+accept a point slightly outside its bounds — the step can leave a basic up to
+`delta` past a bound. JAOS's checker bars that absolutely. **So the primal ratio
+test must snap the leaving variable exactly onto its bound, and the answer must
+be re-verified against the TRUE bounds and not the expanded ones.** Otherwise the
+gate rejects solves that are correct.
+
+**The broken premise: this section's chain assumes a starting point JAOS does
+not have.** §0 states the chain as primal simplex → crossover → D97. **Crossover
+as published starts from an interior point, and JAOS has no interior-point
+method.** The Megiddo / Bixby–Saltzman machinery still applies from a feasible
+non-basic point plus a ranking, so the chain is not dead — but where that point
+comes from is written nowhere, and it has to be decided before crossover is
+designed rather than after. Bixby & Saltzman (1994) is the paper to implement
+from; Andersen & Ye's variant carries a conditional guarantee (it solves a
+perturbed problem, optimal for the original only when the iterate is close
+enough to the optimal face) and is the less safe start.
+
+**There is no paper about carrying both algorithms in one implementation.** The
+scout looked and found none; it is folklore that lives in implementations. Cite
+Maros's design chapters for the shape and do not cite anything as if it settled
+the one-struct-or-two question.
 
 ### What is already decided and constrains it
 
@@ -2613,7 +2676,7 @@ then, do not — a refusal whose premise has not changed just fails again.
 | D141 | a within-row demotion for the published-basis residue — 152 of the 232 declines have no basic column of the row at a bound, and the snap for the 80 breaks the row-bound exactness 02-49 measured (74 of 80 exact) | a demotion design whose candidate set is wider than the firing row AND that carries a rank argument for the demoted member; the fallback in the published shape (Galabova 2023) is accepting the residue |
 | D101 | duplicate rows, duplicate columns, dominated columns — 0.15% left to remove on these 139 models | a model population where `bench/measurements/02-07/`'s counter reports a non-trivial share. The condition is executable, not a matter of opinion. Three pieces of the work have no published source and would have to be derived with their own tests |
 | D97 | bound tightening — INFEASIBLE on models with an optimum, six designs | **first precondition met 2026-08-17 (D114)**: the over-tightening is derived — a forcing window scaled by the activity certified 5.86 of slack as zero, and the design requirements for a retry are in `bench/measurements/02-21/`. What remains: a dual postsolve for an imposed bound; then only under a campaign. **The condition is unchanged and the prize is not**: doubleton substitution needs the same machinery, and it is 8.55% of netlib's live rows and 29.36% of Kennington's, of which 19 rows in total can be built without it (§3). D97 weighed this feature alone; it now unlocks two |
-| SPECS §3 | crash basis — destroys the exact slack-basis steepest-edge weights | pricing stops starting from exact steepest-edge weights; REQ-devex-pricing landing is the trigger. **Checked against §0 on 2026-08-25 and NOT reopened**: a primal simplex adds a second set of weights that also start exact at `B = -I`, so it strengthens this refusal rather than expiring it |
+| SPECS §3 | crash basis — destroys the exact slack-basis steepest-edge weights | pricing stops starting from exact steepest-edge weights; REQ-devex-pricing landing is the trigger. **Checked against §0 on 2026-08-25; the answer depends on a rule not yet chosen.** Exact primal steepest-edge weights also start exact at `B = -I`, which would strengthen this refusal. Devex weights are 1 at any reset whatever the basis, which would not touch it. `docs/research/primal-simplex.md` §3 recommends Devex first, so re-read this row once the pricing rule is decided |
 | D74 | removing the re-entry loan — 2.372x `pilot87` iterations for 0.980x `pilot` | the oscillation mechanism itself changes (phase 4's investigation) |
 | D63 | restarting weights to exact instead of 1.0 | the pricing rule changes; Devex would replace the question |
 | D107 | the inequality implied free column singleton — 341 sign-ok rows, 10% of the count, 304 of them on `ship*` instances below the harness floor, zero on `stocfor3` and Kennington | a model population where `bench/measurements/02-13/run-sign-count.sh` reports a non-trivial sign-ok share. **Asked of §4's fourth set 2026-08-18 and NOT satisfied** (`bench/measurements/02-25/`): zero inequality candidates across all fifteen instances, on 02-13's own instrument with both its calibrations reproduced. The refusal now stands on 154 models across four sets and a 53x range in rows, so the population is no longer the objection to it |

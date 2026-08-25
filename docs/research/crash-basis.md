@@ -122,7 +122,7 @@ Constructs a preference ordering of variables, then builds a triangular basis:
 
 ## 4. Koberstein Dual Crash (Weighted Triangular with DSE Awareness)
 
-**Reference:** Koberstein (2005). *The Dual Simplex Method, Techniques for a Fast and Stable Implementation*. PhD thesis, TU Berlin. §7.1.
+**Reference:** Koberstein (2005). *The Dual Simplex Method, Techniques for a Fast and Stable Implementation*. PhD thesis, University of Paderborn, Fakultät für Wirtschaftswissenschaften. §7.1.
 
 ### Algorithm
 
@@ -155,8 +155,7 @@ Koberstein found that even with exact initialization, the time saved by fewer it
 ## 5. IDIOT Crash Algorithm (Quadratic Penalty / Augmented Lagrangian)
 
 **References:**
-- Galabova & Hall (2020). *A Quadratic Penalty Algorithm for Linear Programming and Its Application to Linearizations of Quadratic Assignment Problems*. Math. Prog. Comp.
-- Clp source code: `Clp/src/Idiot.cpp`
+- Galabova & Hall (2020). *The "Idiot" crash quadratic penalty algorithm for linear programming and its application to linearizations of quadratic assignment problems*. Optimization Methods and Software 35(3), 488–501. DOI 10.1080/10556788.2019.1604702.
 
 ### Algorithm
 
@@ -294,8 +293,8 @@ The 50% iteration reduction target is achievable for **some problems** but not a
 1. Bixby, R. E. (1992). Implementing the Simplex Method: The Initial Basis. *INFORMS Journal on Computing*, 4(3), 267–284.
 2. Maros, I. & Mitra, G. (1998). Strategies for Creating Advanced Bases for Large-Scale Linear Programming Problems. *INFORMS Journal on Computing*, 10(2), 248–260.
 3. Maros, I. (2003). *Computational Techniques of the Simplex Method*. Springer. Ch. 9.
-4. Koberstein, A. (2005). *The Dual Simplex Method, Techniques for a Fast and Stable Implementation*. PhD Thesis, TU Berlin. §7.1.
-5. Galabova, I. L. & Hall, J. A. J. (2020). The "Idiot" Crash Quadratic Penalty Algorithm for Linear Programming. *Mathematical Programming Computation*.
+4. Koberstein, A. (2005). *The Dual Simplex Method, Techniques for a Fast and Stable Implementation*. PhD Thesis, University of Paderborn, Fakultät für Wirtschaftswissenschaften. §7.1.
+5. Galabova, I. L. & Hall, J. A. J. (2020). The "Idiot" crash quadratic penalty algorithm for linear programming and its application to linearizations of quadratic assignment problems. *Optimization Methods and Software*, 35(3), 488–501. DOI 10.1080/10556788.2019.1604702.
 6. Huang, M. et al. (2021). Simplex Initialization: A Survey of Techniques and Trends. arXiv:2111.03376.
 7. Junior, H. V. & Lins, M. P. E. (2005). A Cosine Criterion to Select a Starting Basis for the Simplex Method.
 8. Forrest, J. J. H. & Goldfarb, D. (1992). Steepest-Edge Simplex Algorithms for Linear Programming. *Mathematical Programming*, 57(1), 341–374.
