@@ -1045,13 +1045,25 @@ gate rejects solves that are correct.
 **The broken premise: this section's chain assumes a starting point JAOS does
 not have.** §0 states the chain as primal simplex → crossover → D97. **Crossover
 as published starts from an interior point, and JAOS has no interior-point
-method.** The Megiddo / Bixby–Saltzman machinery still applies from a feasible
-non-basic point plus a ranking, so the chain is not dead — but where that point
-comes from is written nowhere, and it has to be decided before crossover is
-designed rather than after. Bixby & Saltzman (1994) is the paper to implement
-from; Andersen & Ye's variant carries a conditional guarantee (it solves a
-perturbed problem, optimal for the original only when the iterate is close
-enough to the optimal face) and is the less safe start.
+method.** Where that point is to come from is written nowhere, and it has to be
+decided before crossover is designed rather than after.
+
+**And the requirement on it is harder than "some feasible point", which
+Megiddo (1991) settles and which was read at the source.** His two theorems:
+an optimal basis can be found in strongly polynomial time given optimal
+solutions to **both** the primal and the dual (Thm 0.2); and doing it from
+**either one alone** would give a strongly polynomial algorithm for general LP
+(Thm 0.1), which is open. His introduction says the same thing in
+implementation terms — a primal-optimal solution easily gives a *primal-optimal*
+basis, and the dual solution attached to that basis can be infeasible. **So
+crossing over the primal alone does not produce an optimal basis, however
+carefully it is done. Whatever supplies the starting point must supply the
+pair.**
+
+Bixby & Saltzman (1994) is the paper to implement from. Andersen & Ye's variant
+carries a conditional guarantee — it solves a perturbed problem, optimal for the
+original only when the iterate is close enough to the optimal face — and is the
+less safe start.
 
 **There is no paper about carrying both algorithms in one implementation.** The
 scout looked and found none; it is folklore that lives in implementations. Cite

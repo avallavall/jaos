@@ -6,11 +6,30 @@ the design lives in §0.
 
 ## Read this before trusting a formula below
 
-**No PDF was reached.** The agent's `Read` needs `pdftoppm`, which is not
-installed on the Windows side, and `WebFetch` hands raw PDF bytes to a reader
-that cannot decompress them. Every source actually *read* was HTML. Everything
-else is a citation checked against Crossref — publisher-deposited metadata —
-with the text not reached. **Every entry says which.**
+**The agent reached no PDF, and that limit was its own rather than this
+machine's.** Its `Read` needs `pdftoppm`, which is not installed on the Windows
+side, and `WebFetch` hands raw PDF bytes to a reader that cannot decompress
+them. Everything below that is not marked otherwise is a citation checked
+against Crossref — publisher-deposited metadata — with the text not reached.
+
+**Five PDFs were then read from WSL, where `pdftotext` 24.02 and `curl` both
+work** (2026-08-25). Freely available preprints and a university-hosted thesis
+only; nothing paywalled was fetched. What they changed is marked **READ AT
+SOURCE** where it appears, and one of them refuted a restatement the agent had
+carried — see Megiddo in §5.
+
+- Koberstein's thesis (Paderborn's own repository). **It also confirms the
+  institution at the title page**, which is the correction made to
+  `crash-basis.md`.
+- Hall & McKinnon 2004, arXiv:math/0012242.
+- Ge et al., Smart Crossover, arXiv:2102.09420.
+- Megiddo 1991, the author's copy at Stanford.
+- Huang et al. 2021, arXiv:2111.03376.
+
+**The four sources that would settle §3's formulas are all paywalled and none
+were read.** Section 8 lists them.
+
+**Every entry below says how far it was checked.**
 
 So the citations are good and several of the formulas are not verified at
 source. The ones marked **CHECK AT SOURCE** are written in the form the
@@ -417,12 +436,37 @@ the one-struct-or-two question; nothing does.**
 
 ### Crossover
 
-1. **Megiddo (1991).** The existence and complexity result: given a
-   complementary pair of optimal primal and dual solutions, an optimal basis can
-   be found in at most `n` pivots, each pushing one variable to a bound while
-   keeping feasibility and optimality. **That phrasing is Ge et al.'s
-   restatement, which was read; Megiddo was not.** Three pages, not an
-   implementation.
+1. **Megiddo (1991). READ AT SOURCE, and it says something sharper than the
+   restatement it arrived as.** The agent carried Ge et al.'s paraphrase — "at
+   most `n` pivots, each pushing one variable to a bound". The paper's own two
+   theorems are a complexity statement, and the pair of them is what matters
+   here:
+
+   > **Theorem 0.1.** If there exists a strongly polynomial time algorithm that
+   > finds an optimal basis, given an optimal solution for *either* the primal
+   > or the dual, then there exists a strongly polynomial algorithm for the
+   > general linear programming problem.
+   >
+   > **Theorem 0.2.** There exists a strongly polynomial time algorithm that
+   > finds an optimal basis, given optimal solutions for *both* the primal and
+   > the dual.
+
+   **The design consequence, and it is a hard requirement rather than advice.**
+   Crossover needs **both** a primal-optimal and a dual-optimal solution.
+   Producing an optimal basis from only one of them is not a harder engineering
+   problem; by Theorem 0.1 it would settle an open question in complexity
+   theory. Whatever supplies JAOS's starting point has to supply the pair.
+
+   The paper's introduction says the same thing in implementation terms, and it
+   is the sentence to keep: *"Given any primal-optimal solution (not necessarily
+   basic), it is easy to find a primal-optimal basis. Analogously, given any
+   dual-optimal solution, it is easy to find a dual-optimal basis. However, none
+   of the two bases found in this way is guaranteed to be an optimal basis."*
+   The dual solution attached to a primal-optimal basis can be infeasible. **So
+   crossing over the primal alone does not produce an optimal basis**, however
+   carefully it is done.
+
+   Three pages, and not an implementation.
 2. **Bixby & Saltzman (1994). This is the paper to implement from.** Rank
    variables by distance from their bounds, build a candidate basis from those
    furthest from one, complete it with logicals, then run primal and dual to
@@ -467,8 +511,9 @@ but where that point is meant to come from is not written anywhere.
 ### Citations
 
 - Megiddo, N. "On Finding Primal- and Dual-Optimal Bases." *ORSA J. Computing*
-  3(1), 63–65 (1991). DOI 10.1287/ijoc.3.1.63. **Crossref-verified. Text not
-  reached.**
+  3(1), 63–65 (1991). DOI 10.1287/ijoc.3.1.63. **Crossref-verified and FULL TEXT
+  READ** from the author's copy at `theory.stanford.edu/~megiddo/pdf/bases.pdf`.
+  The page range 63–65 is confirmed by the article's own header.
 - Bixby, R.E., Saltzman, M.J. "Recovering an optimal LP basis from an interior
   point solution." *ORL* 15(4), 169–178 (1994).
   DOI 10.1016/0167-6377(94)90074-4. **Crossref-verified; abstract read, full
