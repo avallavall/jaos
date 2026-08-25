@@ -1,8 +1,15 @@
 # 02-103 — the primal phase 1, and the loan of exactly 1.0 that gave it away
 
-2026-08-25. `TODO.md` §0 stage 4. The primal's reach goes from **0 of 94** to
-**64 of 94 agreeing with the dual**, and what is left is measured rather than
-guessed.
+2026-08-25. `TODO.md` section 0 stage 4.
+
+> **SUPERSEDED IN PART BY D191.** Every count in this file was measured with
+> the `pivot()` half of the `in_primal` guard missing, which this file wrongly
+> states was applied. The narrative and the diagnosis stand; the counts do not.
+> The honest figures are 54 agreeing, 31 disagreeing, 8 overrun, 1 error, at a
+> work geomean of 3.8332x.
+
+The primal's reach goes from **0 of 94** to **64 of 94 agreeing with the
+dual**, and what is left is measured rather than guessed.
 
 ## What landed
 
@@ -50,10 +57,11 @@ so of magnitude one. `pivot()` then lends `cost[v]` whatever those say is
 needed, against the **model's** cost vector. Phase 1 was corrupting the
 objective phase 2 would go on to optimise.
 
-**`update_dual` is the site that did it, not `pivot()`'s own call**, which is
-why guarding one and not the other changed nothing: `update_dual` lends against
-every variable the pricing row touches, once per iteration. Both are guarded by
-`in_primal` now.
+**`update_dual` is the site that did the visible damage, and `pivot()`'s own
+call lends too.** Guarding one and not the other changed nothing measurable
+here — but **only `update_dual` was actually guarded when this was written**,
+and this file said both were. `/code-review max` caught it the same day: see
+D191, which corrects the counts below.
 
 `sc50a` moves from 40 iterations and 183481 units to 51 and 58062 — a third of
 the work and a different trajectory — and still ends in `NUMERICAL_ERROR`. So
@@ -72,6 +80,11 @@ work ratio, best  grow22 at 0.0406
 work ratio, worst israel at 12.5090
 took more iterations primal than dual:          58 of 64
 ```
+
+**CORRECTED BY D191 — the figure below is 64 and the honest one is 54.** What
+follows was measured with the `pivot()` guard missing, so the primal was
+reaching optimality on some models only because a phase-1 loan had perturbed
+the objective.
 
 **64 instances agree with the dual**, objectives within tolerance and both
 answers through the independent checker. At 3.24x the dual's work, which is

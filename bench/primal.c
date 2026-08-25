@@ -285,13 +285,21 @@ static void measure_one(const entry *e, const char *dir, int64_t factor,
          * expected result gets investigated twice. `jaos_model_error` says
          * which it was; `PRIMAL_UNREACHED` is the verdict for the one this
          * stage is expected to give (`TODO.md` §0). */
+        /* A refusal the method is designed to make, told apart from a defect
+         * by the decision it cites. **Matching on "no primal phase 1" was
+         * wrong from the moment the phase 1 landed** and nothing caught it:
+         * the string left `src/simplex.c` in the same branch, so every
+         * designed refusal was classified `PRIMAL_ERROR` and `make primal`
+         * exited 1 on the outcome this file's own comment says a runner must
+         * not fail on. `D19` is the citation both refusals carry and it is
+         * what a refusal-on-principle looks like here. */
         const char *why = jaos_model_error(m);
-        const bool no_phase1 =
-            why != nullptr && strstr(why, "no primal phase 1") != nullptr;
+        const bool designed =
+            why != nullptr && strstr(why, "D19") != nullptr;
         char note[64];
         snprintf(note, sizeof note, "%s",
                  why != nullptr && why[0] != '\0' ? why : "primal solve failed");
-        fail(r, no_phase1 ? PRIMAL_UNREACHED : PRIMAL_ERROR, note);
+        fail(r, designed ? PRIMAL_UNREACHED : PRIMAL_ERROR, note);
         goto done;
     }
     r->status_p = (int)jaos_status_of(m);
@@ -304,6 +312,17 @@ static void measure_one(const entry *e, const char *dir, int64_t factor,
      * not reach an answer, so there is nothing to compare. Asked before the
      * verdict tests below, which would otherwise read it as the two methods
      * differing. */
+    /* A primal that ended in `NUMERICAL_ERROR` returned `JAOS_OK` to say so,
+     * which means the branch above never read `jaos_model_error` for it — and
+     * that is the dominant primal failure. Without this the record keeps only
+     * "different verdicts" and cannot tell a wrong answer from a refusal the
+     * method was designed to make. */
+    if (r->status_p == (int)JAOS_SOLVE_NUMERICAL_ERROR) {
+        const char *why = jaos_model_error(m);
+        if (why != nullptr && why[0] != '\0')
+            snprintf(r->note, sizeof r->note, "%s", why);
+    }
+
     if (r->status_p == (int)JAOS_SOLVE_WORK_LIMIT) {
         char note[64];
         snprintf(note, sizeof note, "over %lldx the dual's work", (long long)factor);

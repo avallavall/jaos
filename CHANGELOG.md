@@ -13,11 +13,11 @@ open, `bench/README.md` for the gate, and the commit each entry came from.
 
 - **A primal phase 1, and the reach goes from 0 of 94 to 64 of 94.** Composite,
   short-step, no artificial variables: it works on whatever basis it is given,
-  which is what crossover needs. **64 instances now agree with the dual**,
+  which is what crossover needs. **54 instances now agree with the dual**,
   objectives within tolerance and both answers through the independent checker,
-  at a work geometric mean of **3.2352x** — what Dantzig pricing costs. 16
-  overrun a 10x budget, and **14 still fail where the dual succeeds**, of which
-  `sc50a`/`sc50b`/`sc105`/`sc205` are one family. The defect it shipped with was
+  at a work geometric mean of **3.8332x** — what Dantzig pricing costs. 8
+  overrun a 10x budget, and **32 still fail where the dual succeeds**. The
+  first published figures were 64 and 3.2352x; D191 corrects them. The defect it shipped with was
   found by a loan of exactly 1.0: phase 1's own reduced costs are of magnitude
   one, and `update_dual` was lending the **model's** costs against them (D190,
   `bench/measurements/02-103/`).
@@ -33,6 +33,16 @@ open, `bench/README.md` for the gate, and the commit each entry came from.
   (D188, `bench/measurements/02-101/`).
 
 ### Fixed
+
+- **The primal lent the model's cost vector against phase-1 gradients, and the
+  guard that was supposed to stop it was applied at one of the two sites it
+  documented.** `share2b` carried 43 loans totalling 2773.0 when the primal
+  declared optimality, the worst of them 1026.11 on a variable whose true cost
+  is zero, and every one raised in phase 1. So the branch's headline "64 of 94
+  agree" was partly an artifact of that perturbation, recovered afterwards by
+  the settling and the dual re-entry. The honest figure is **54**. Also in the
+  harness: a designed refusal was matched on a string the same branch deleted,
+  so `make primal` exited 1 on an expected outcome (D191).
 
 - **The primal published a value outside a declared bound, as `OPTIMAL`.** No
   basic variable can express the entering column's *own* opposite bound, so a

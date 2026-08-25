@@ -1221,7 +1221,51 @@ moves is a defect in the shared code, not a property of the new feature. That
 makes the ordinary campaign a strong test of these stages despite the gate being
 unable to see the feature itself.
 
-### OPEN: fourteen instances the primal cannot solve and the dual can
+### OPEN: what `/code-review max` found, 2026-08-25
+
+Fifteen findings. **One is closed by D191** — the `in_primal` guard was
+documented at two sites and applied at one, which is why D190 published 64 of
+94 when the honest figure is 54. Two more are closed with it (the harness's
+dead `strstr`, and never reading the error for a `NUMERICAL_ERROR` primal).
+
+The rest are open, and these four could change an answer:
+
+- **Phase 1 has no Bland's rule at all**, and phase 2 has half of one:
+  `primal_price` picks the lowest-indexed *entering* column under `bland`, but
+  `primal_ratio_test` breaks equal ratios on the first **row position** scanned
+  rather than the lowest basis **variable** index. So neither phase has a
+  finiteness argument. `jm_bland_pick` already selects on the variable index
+  and is not used by either.
+- **`refresh`'s repair sweep is a third unguarded lending path.** `repaired ||
+  shift_pending` runs `shift_to_feasible` over every variable; `run_primal`
+  clears `shift_pending` and does nothing about `repaired`. It sets `d[v] = 0`
+  on every breached nonbasic, which is exactly what `primal_price` reads — so
+  the primal can declare `OPTIMAL` on a point it never moved.
+- **`primal_bound_flip` can move a row the ratio test skipped.** The
+  destination comes from `real_upper`/`real_lower` but the origin from
+  `nonbasic_value`, which returns the raw `lo`/`up` holding an invented bound.
+  `delta` can then be ~1e10, and a row skipped at `|col[i]| = 9e-10` moves by
+  ~9, which is 1e8 times `primal_tol`. Feasibility is checked once before the
+  loop and never again, so nothing would detect it.
+- **The two phases share one iteration cap**, tested against the cumulative
+  `s->iters`, so a phase 1 that uses most of it makes phase 2 trip its guard
+  and report phase 1's iterations as its own.
+
+And the structural one: **nothing in the project loop compiles
+`bench/primal.c` or `bench/warm.c`** — not `make test`, not `make sanitize`,
+not `make configs`. The dead `strstr` survived a full cycle because of it, and
+`bench/measurements/02-99/run-o2-check.sh` exists because the build system had
+to be checked by hand.
+
+The remainder: phase 1 is not interruptible (no `progress_cb`); both phase-1
+refusals conclude on carried numbers where phase 2's refresh first and cite
+D20; the hand-over check has zero margin against two different computations of
+`xb`; `primal_phase1_costs` bills `nrow` units for an `nvar` memset; the
+`s->col` contract is a comment with five writers; and four records now say
+things their own branch falsifies — `run_primal`'s header still says "phase 2
+only" and "there is no primal phase 1 yet".
+
+### OPEN: the instances the primal cannot solve and the dual can
 
 Stage 4 took the reach to **64 of 94 agreeing**. What is left is measured and
 named (D190, `bench/measurements/02-103/`):

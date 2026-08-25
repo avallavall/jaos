@@ -198,6 +198,7 @@ and you have the argument. Jump to the entry for the numbers behind it.
 - **[D188](#d188--the-primal-simplexs-first-version-and-both-defects-it-shipped-with-were-invisible-to-a-green-suite)** — The primal simplex's first version, and both defects it shipped with were invisible to a green suite
 - **[D189](#d189--the-primal-published-a-value-outside-a-declared-bound-as-optimal-and-stage-1s-own-pricing-rule-is-what-made-it-reachable)** — The primal published a value outside a declared bound as OPTIMAL, and stage 1's own pricing rule is what made it reachable
 - **[D190](#d190--the-primal-phase-1-lands-and-takes-the-reach-from-0-of-94-to-64-and-a-loan-of-exactly-10-is-what-found-the-defect-it-shipped-with)** — The primal phase 1 lands and takes the reach from 0 of 94 to 64, and a loan of exactly 1.0 is what found the defect it shipped with
+- **[D191](#d191--the-primals-64-of-94-was-54-and-the-difference-was-a-guard-that-was-documented-believed-and-never-applied)** — The primal's "64 of 94" was 54, and the difference was a guard that was documented, believed, and never applied
 
 ---
 
@@ -14523,3 +14524,79 @@ thread to pull first.
 The long-step ratio test Maros describes — walking several breakpoints with a
 running slope, so several basics become feasible per iteration — is not here.
 This is the short-step form, which is correct and slower.
+
+## D191 — The primal's "64 of 94" was 54, and the difference was a guard that was documented, believed, and never applied
+
+`/code-review max` on the branch. Fifteen findings; this entry closes the one
+that falsified a published number and records the rest as open.
+
+### The defect
+
+D190 added `in_primal` to stop the primal lending the model's cost vector
+against phase-1 gradients, and named **two** sites: `update_dual` and the tail
+of `pivot()`. **Only `update_dual` was ever guarded.** The `perl` substitution
+for `pivot()` did not apply, it left the comment mangled, and the check that
+should have caught it counted occurrences of `in_primal` rather than reading
+which lines they were on. Four occurrences was the expected number for five
+sites and it looked right.
+
+The struct's own comment claimed both were guarded. So did
+`bench/measurements/02-103/README.md`. Both were wrong.
+
+### What it cost
+
+The reviewer measured the loans outstanding when `run_primal` declares
+optimality, on a build with the missing line added: `share2b` 43 loans totalling
+2773.0, worst single loan **1026.11 on a variable whose true cost is zero**;
+`adlittle` 27 loans; `blend` 20; `afiro` 4. **Every loan was raised in phase 1
+and phase 2 added none**, which is the mechanism D190 described and failed to
+stop.
+
+So the primal was reaching `OPTIMAL` on those models only because the loan had
+perturbed the objective, with `settle_shifts` repaying it and the dual
+re-entry recovering the answer afterwards.
+
+### The corrected number, and one correction to the correction
+
+Applying the guard at both sites drops the standard set from **64 agreeing to
+20**. That is over-correction: the argument only condemns **phase 1**, where
+`d` holds a different objective's gradients. In phase 2 `d` is the model's own
+reduced cost and the shift is the same legitimate repair the dual makes. Scoped
+to phase 1 alone — the flag is `in_phase1` now, set around one call — the
+honest figure is:
+
+| | D190 claimed | actual |
+|---|---|---|
+| agree with the dual | 64 | **54** |
+| disagree | 12 | **31** |
+| overrun the 10x budget | 16 | 8 |
+| error | 2 | 1 |
+| work geomean primal/dual | 3.2352 | **3.8332** |
+
+**D190's table is superseded by this one.** Its narrative stands; its counts do
+not.
+
+### A second defect the same review found in the harness
+
+`bench/primal.c` classified a designed refusal by matching `"no primal phase
+1"` — a string that left `src/simplex.c` in the same commit that added the
+phase 1. So `PRIMAL_UNREACHED` became unreachable and `make primal` exited 1 on
+the outcome the file's own comment says a runner must not fail on. It matches
+the `D19` citation now, and a primal ending in `NUMERICAL_ERROR` has its
+message read at all, which it previously did not: that status returns
+`JAOS_OK`, so the branch reading `jaos_model_error` never ran for the dominant
+failure class.
+
+### What is left open, and it is most of the review
+
+Thirteen findings are recorded in `TODO.md` §0 rather than fixed here. The ones
+that would change an answer: **no Bland's rule in phase 1 at all**, and only
+half of one in phase 2 (the leaving tie breaks on row position, not variable
+index, so there is no finiteness argument); **`refresh`'s repair sweep is a
+third unguarded lending path**; **`primal_bound_flip` can move a skipped row by
+1e8 times `primal_tol`** when the origin is an invented bound; and **nothing in
+the project loop compiles `bench/primal.c` or `bench/warm.c` at all**, which is
+why the dead string above survived a full cycle.
+
+`make configs`: all 5 configurations build and pass. All three sets
+`0 regressed, 0 improved, 0 new`, every record byte-identical.

@@ -759,7 +759,7 @@ typedef struct {
      * **Guarding only `pivot()`'s own call is not enough and that was tried.**
      * `update_dual` lends against every variable the pricing row touches, once
      * per iteration, and it is the site that did the damage. */
-    bool in_primal;
+    bool in_phase1;
 } sx;
 
 
@@ -2599,7 +2599,7 @@ static void update_dual(sx *s, int64_t v, int64_t q, double theta_dual)
     if (s->status[v] == JM_BASIC || v == q)
         return;
     s->d[v] -= theta_dual * s->alpha[v];
-    if (!s->in_primal)
+    if (!s->in_phase1)
         shift_to_feasible(s, v);
 }
 
@@ -2765,8 +2765,10 @@ static jaos_status pivot(sx *s, int64_t r, int64_t q, bool below,
      * feasible for the bound it left to — unless the step itself came out
      * of a cost that was already past zero, which is the case the shifting
      * exists to make impossible. Checked rather than assumed.
- */
-    shift_to_feasible(s, leaving);
+     *
+     * Skipped while a primal method runs; see `in_phase1`. */
+    if (!s->in_phase1)
+        shift_to_feasible(s, leaving);
 
     /* Repair the factorization, or schedule a rebuild. */
     if (s->lu.n_updates >= REFACTOR_EVERY) {
@@ -4459,7 +4461,9 @@ static jaos_status run_primal(sx *s, jaos_solve_status *out)
      * on the basis in place and hands back a feasible one, or refuses. */
     if (primal_worst_violation(s) > s->primal_tol) {
         bool feasible = false;
+        s->in_phase1 = true;
         st = run_primal_phase1(s, out, &feasible);
+        s->in_phase1 = false;
         if (st != JAOS_OK)
             return st;
         if (!feasible)
@@ -5326,10 +5330,8 @@ jaos_status jm_dual_simplex(jaos_model *m)
          * from a dozen places and would leak the flag out of any of them.
          * Everything after this line — the settling, the re-entry, the verdict
          * — is the dual's world and must behave exactly as it always has. */
-        s.in_primal = m->cfg.force_primal;
         st = m->cfg.force_primal ? run_primal(&s, &outcome)
                                  : run(&s, &outcome);
-        s.in_primal = false;
         if (st != JAOS_OK || outcome != JAOS_SOLVE_OPTIMAL)
             break;
 
