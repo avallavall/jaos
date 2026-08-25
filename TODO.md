@@ -1159,11 +1159,63 @@ structurally cannot. Four properties of it transfer whole:
 
 So a `bench/primal.c` follows the same shape: solve once with the dual, which
 is the reference the committed records already hold, once with the primal
-forced, require the two to agree, and report a work ratio per instance. The
-forcing is a build flag beside `JAOS_NO_PRESOLVE` in the Makefile's `CONFIGS`
-list, which is the pattern `make configs` already exercises with `make clean`
-between settings. **This needs no new measurement method and no new baseline
-format.** It is the third runner in a repository that already has two.
+forced, require the two to agree, and report a work ratio per instance. **This
+needs no new measurement method and no new baseline format.** It is the third
+runner in a repository that already has two.
+
+**The forcing must be a RUNTIME switch and not a build flag.** An earlier
+version of this paragraph said to put a flag beside `JAOS_NO_PRESOLVE` in
+`CONFIGS`; that is wrong for this job. The harness has to run *both* algorithms
+on the *same* instance inside one process, exactly as `warm.c` runs warm and
+cold, and a compile-time flag cannot do that — it would need two binaries and no
+in-process comparison. It goes on `m->cfg` beside `work_limit`, `time_limit` and
+`progress_cb`, which is where every other per-solve knob already lives
+(`src/simplex.c:3835` and around). Whether it also becomes public API is a
+separate and later question.
+
+### The build order, and what the Devex blocker really blocks
+
+**Devex blocks the fast version, not the first one.** Dantzig pricing — the
+eligible nonbasic with the largest `|d_j|`, ties on lowest index — is fully
+specified, needs no paper, and is the right start. Correctness first, and the
+primal's speed was never the argument for building it (D81).
+
+**Anti-cycling is needed from stage 1, whatever the pricing rule**, and Hall &
+McKinnon (2004) is read at source on this: "Cycling is shown to occur for both
+the most negative reduced cost and steepest edge column selection criteria. In
+addition it is shown that the expand anti-cycling procedure of Gill et al. is
+not guaranteed to prevent cycling." `jm_bland_pick:2131` and the stall detector
+in `price_row:1700` are the machinery, and D26 is the decision behind them.
+
+| # | stage | blocked on |
+|---|---|---|
+| 0 | **the harness**, `bench/primal.c` and the `cfg` switch | nothing |
+| 1 | **phase-2 primal, Dantzig pricing**, its own row-sized arrays, Bland fallback | nothing |
+| 2 | **Harris two-pass in primal form, and the snap** | nothing — `jm_harris_pick` is already generic |
+| 3 | **the entering column's bound flip**, sized from `real_upper`/`real_lower` | nothing |
+| 4 | **phase 1** (Maros 1986) from a given basis, stable breakpoint sort keyed on `(value, index)` | nothing |
+| 5 | **Devex** | **Harris (1973), paywalled** |
+| 6 | **`can_move`'s units** — D184's stated reopen | stage 1 landing |
+| 7 | **the unboundedness verdict, and D19's refusal** | stage 4 |
+
+**Validate the harness before there is anything to measure.** Run stage 0 with
+the switch off, so both solves are the dual, and confirm it reports agreement
+and a ratio of 1.0 — then doctor one answer and confirm it reports
+disagreement. A harness that cannot detect a disagreement is not evidence, and
+this project's own rule is to build the case a predicate must reject.
+
+**Stages 1 to 5 must move ZERO digests on all three gate sets, and that is a
+checkable property rather than a hope.** The primal path is unreachable from a
+cold start — `build_initial_basis:952` is dual feasible and not primal feasible
+— so nothing in the gate can enter it while the switch is off. Any instance that
+moves is a defect in the shared code, not a property of the new feature. That
+makes the ordinary campaign a strong test of these stages despite the gate being
+unable to see the feature itself.
+
+**Where stage 1 is reachable from.** Only a primal feasible basis, which the
+cold start is not. So stage 1 runs from a warm basis, from crossover, or from a
+test fixture, and until stage 4 lands that is the whole of its reach. Say so in
+the entry rather than discovering it during a campaign.
 
 ## → START HERE — what is actually next, 2026-08-20
 

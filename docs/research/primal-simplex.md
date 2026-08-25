@@ -164,10 +164,18 @@ symbols at source.
 **What it buys.** GMSW's abstract (read) claims stalling cannot occur in exact
 arithmetic, validated on the first 53 netlib problems.
 
-**What it does not buy.** Hall & McKinnon (2004) construct explicit small LPs
-where **EXPAND still cycles**; their abstract says it "is not guaranteed to
-prevent cycling". A cycle detector with a Bland fallback is still needed, which
-is the shape JAOS already has on the dual side (D26).
+**What it does not buy.** Hall & McKinnon (2004), **READ AT SOURCE**, construct
+explicit small LPs where **EXPAND still cycles**. Their abstract, verbatim:
+
+> Cycling is shown to occur for both the most negative reduced cost and steepest
+> edge column selection criteria. In addition it is shown that the expand
+> anti-cycling procedure of Gill et al. is not guaranteed to prevent cycling.
+
+**Two things follow and both belong in the plan.** A cycle detector with a Bland
+fallback is still needed on top of EXPAND, which is the shape JAOS already has
+on the dual side (D26). And **no pricing rule buys immunity** — the two named as
+cycling are the cheapest rule and the most expensive one — so the fallback is
+needed from the first stage rather than added when the pricing gets clever.
 
 **D8: EXPAND is safe.** The tolerance depends on the iteration counter alone.
 No clock, no randomness.
@@ -663,7 +671,10 @@ read.
 Nine free sources were read. **Three paywalled items remain, and one of them
 blocks code.**
 
-1. **Harris (1973). BLOCKS CODE.** It is the only place named anywhere for the
+1. **Harris (1973). Blocks Devex, and Devex only.** `TODO.md` §0's build order
+   puts Devex at stage 5 and starts from Dantzig pricing, which is fully
+   specified and needs no paper. So this blocks the fast version rather than the
+   first one. It is the only place named anywhere for the
    Devex weight-update recurrence and its reset threshold, and neither appears
    in any of the nine sources read — they were searched for in all of them. The
    recurrence in §3 is written in its standard form and is **not verified**. A

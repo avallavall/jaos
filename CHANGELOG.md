@@ -11,6 +11,18 @@ open, `bench/README.md` for the gate, and the commit each entry came from.
 
 ### Changed
 
+- **`TODO.md` §0 has a build order, and the Devex blocker turns out to block
+  stage 5 alone.** Dantzig pricing is fully specified and needs no paper, so the
+  first primal is buildable now; Devex is an optimisation on top. Eight stages,
+  each with what blocks it. **Two corrections come with it.** The forcing switch
+  must be on `m->cfg` and not a build flag, because the harness has to run both
+  algorithms on one instance in one process as `warm.c` does. And Hall &
+  McKinnon, read at source, say cycling occurs for the most negative reduced
+  cost *and* steepest edge, so the Bland fallback is needed from stage 1 rather
+  than when the pricing gets clever. **Stages 1–5 must move zero digests on all
+  three gate sets**, because a cold start cannot reach the primal path at all —
+  which makes the ordinary campaign a real test of them. Documentation only.
+
 - **The primal simplex literature is read and written down**
   (`docs/research/primal-simplex.md`), which closes §0's first prerequisite.
   Four choices come back settled: Devex over exact primal steepest edge, which
