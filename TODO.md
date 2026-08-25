@@ -52,6 +52,38 @@ the one quoting the mean did not.
 **No gate campaign is owed.** `comment_only.sh` reports the release object
 UNCHANGED at `d33fba7`, so D177's campaign still holds. `warm*` is not a gate.
 
+### 2026-08-25: D184, item 1 is CLOSED — `DUAL_TOL` is 1e-9
+
+**The maintainer took the call.** `pilot` 2.312e-05 → **5.266e-09**;
+`pilot87` and `scsd6` publish Koch's optimum **exactly**; `etamacro`
+1.315e-08 → 1.137e-13. `make configs` exits 0 on all five configurations and
+`gate: PASS` on all three sets, with every instance still `objective=ok
+checker=ok det=ok` — the regressions are cost, and no answer got worse.
+
+**The price, and half of it was new information put in front of them before
+the baselines were rewritten.** netlib work geometric mean **1.0339x**, which
+is D174's own prediction to four figures. **Kennington 1.0976x, which D174 did
+not measure at all** — that sweep was netlib only, and `pds-20` goes from
+6.15e9 to 2.96e10 work units. Past the 2.0x bar: `agg3` 2.28x, `d2q06c`
+5.32x, `nesm` 2.17x, `perold` 2.80x, `pilot-ja` 2.21x, `pds-20` 4.81x
+(D184, `bench/measurements/02-96/`).
+
+**D177 is why two of the regressions are visible**: `bnl1` and `scsd1` report
+their suboptimality bound moving at 1.57e-14 and 1.96e-16, both far under the
+`RSUB_FLOOR = 1e-9` this project shipped the day before.
+
+**A units conflation was found in review and then refuted by measuring it.**
+`DUAL_TOL` bounds a rate everywhere except `can_move`, which compares a
+rate-times-distance PRODUCT against it. Holding that site at 1e-7 while the
+rest moves leaves **94 of 94 digests identical at 1.0000x**, so it decides
+nothing today. Its likely reason is structural and unmeasured: it feeds a path
+that needs the primal simplex `SPECS.md` has as missing. **That is its reopen
+condition.**
+
+**No independent verdict was taken.** `CLAUDE.md` asks for `jaos-measurer` on a
+finished candidate and this session was instructed not to spawn subagents; the
+per-instance evidence is in 02-96 so the judgement can still be made.
+
 ### 2026-08-25: D183, `pilot87`'s bound follows a dual solution that is not unique
 
 **No source change.** D92's standing debt asked why `gap_positive` moves on
@@ -221,7 +253,7 @@ measurement.**
 
 | # | item | what it needs | where |
 |---|---|---|---|
-| 1 | **`pilot` publishes a point 2.31e-05 above the optimum — DECIDE** | not a diagnosis; D174 answered the cause. `DUAL_TOL` at 1e-9 repairs all four netlib instances that publish a point off the optimum, **three of them for LESS work**, and makes `pilot87` — D92's backlog row — exact. The price is `6 regressed` on the gate's 2.0x work bar. The measurement is complete and the call is a judgement. **D180 adds a second route nobody had**: `pilot` publishes Koch's optimum exactly at three of six refactorization intervals with no tolerance touched, and 32 reaches it for 0.805x of 64's work on that instance. Not shippable as it stands — 32 costs `pilot87` three orders of accuracy and `grow15` 2.819x — and it says the tolerance is what lets the solve stop while the trajectory decides where | §4 below |
+| 1 | ~~**`pilot` publishes a point 2.31e-05 above the optimum**~~ **CLOSED 2026-08-25 (D184)** — `DUAL_TOL` is 1e-9 and all four instances that published a point off the optimum no longer do; `pilot87` and `scsd6` publish Koch exactly. Work geometric mean 1.0339x on netlib and **1.0976x on Kennington, which D174 had not measured** (`pds-20` 4.815x, `d2q06c` 5.319x). `gate: PASS` on all three, no answer worse. Taken on the maintainer's decision | §4 below |
 | 2 | **48 netlib solves publish an invalid basis** | **the rank argument, and now only that.** D179 measured the supply a wider rule would draw on: it covers 19 of the 24 instances outright, and `fit1p` and `share1b` have zero candidates at every tier, so such a rule improves the residue and cannot close it. Every local repair was already refused (D140, D141); D171 made it worse by 2. Accepting the residue now has a measured floor of 3 of 24 | §2 below |
 | 3 | **`degen2` behind D151's cap — and `scsd1` is a SEPARATE question** | **the premise that they lose the same way is refuted** (D178). Only `degen2` is D148's guard, at a settled dual violation of 12.91; `scsd1`'s guard never fires and it genuinely runs 314 iterations against cold's 89. So a doomed trajectory happens ONCE in twenty, and eleven quantities known before the solve separate nothing. Needs a second instance, which means §4's fourth set | §3 below |
 | 4 | **`D97`, the dual postsolve for an imposed bound** | nothing is built; `docs/research/dual-postsolve-imposed-bound.md` is the design with the literature verified. **The largest prize in the file** — it unlocks bound tightening AND doubleton equalities, 8.55% of netlib's live rows and 29.36% of Kennington's. **§8d is measured now and rewritten around it (02-87, 02-88)**: its refusal declines 50.2% of netlib's imposed bounds and 82.3% of Kennington's, and the hazard it prevents occurs **12 times in 98146 opportunities**. **The better design is postsolve detection and THIS TREE CANNOT HAVE IT**: the collision leaves the point one constraint short of a vertex, which needs a crossover, and `SPECS.md` has crossover and the primal simplex that blocks it both `missing`. So the first version is the refusal narrowed to equality rows — 35.5% and 20.3% — over-paying by three orders, and that price is the missing crossover rather than the reduction. §12 item 7 | "If all of the above is dropped" |

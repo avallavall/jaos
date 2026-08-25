@@ -1,0 +1,39 @@
+# D184 — DUAL_TOL 1e-9, at bc398a5 plus the working change
+
+######## 1. the three gate sets, working tree ########
+-- make netlib exit=2
+94 instances: 94 solved, 94 shape ok, 94 objective ok, 94 checker ok, 94 deterministic, 0 failed
+gate: PASS
+baseline: 7 regressed, 0 improved, 0 new
+   agg3         REGRESSED    work: 2775465 -> 6328654 (2.3x), iters 406 -> 718
+   bnl1         REGRESSED    suboptimality bound: 7.09e-15 -> 1.57e-14 (2.2x relative to its own objective)
+   d2q06c       REGRESSED    work: 428597453 -> 2279575982 (5.3x), iters 6740 -> 29290
+   nesm         REGRESSED    work: 61235366 -> 133071815 (2.2x), iters 2753 -> 5891
+   perold       REGRESSED    work: 24134144 -> 67576873 (2.8x), iters 1109 -> 2491
+   pilot-ja     REGRESSED    work: 42179750 -> 94515274 (2.2x), iters 1402 -> 2403
+   scsd1        REGRESSED    suboptimality bound: 4.3e-17 -> 1.96e-16 (4.5x relative to its own objective)
+-- make netlib-infeas exit=0
+29 instances: 29 correctly refused, 29 shape ok, 29 deterministic, 0 failed
+gate: PASS
+baseline: 0 regressed, 0 improved, 0 new
+-- make netlib-kennington exit=2
+16 instances: 16 solved, 16 shape ok, 16 objective ok, 16 checker ok, 16 deterministic, 0 failed
+gate: PASS
+baseline: 1 regressed, 0 improved, 0 new
+   pds-20       REGRESSED    work: 6153417062 -> 29627237041 (4.8x), iters 44471 -> 90938
+
+######## 2. attribution: is the cost can_move's half or the rest? ########
+  variant binary md5 61cf9bfdaedb
+  shipping binary md5 8f822d1c9f46
+
+  netlib work, variant (can_move at 1e-7) against the working tree (all 1e-9):
+    94 instances compared (94 variant, 94 shipping)
+    94 of 94 publish the same digest, so `can_move`'s threshold changes 0 answers
+    work geometric mean, variant against shipping: 1.0000x
+    (below 1.000 means holding can_move at 1e-7 is CHEAPER, so the tightening at that site costs)
+    worst 1.000x (woodw), best 1.000x (25fv47)
+    the four instances the tolerance was changed for:
+      pilot      shipping gap 5.266e-09   variant gap 5.266e-09   work 1.0000x
+      pilot87    shipping gap 0   variant gap 0   work 1.0000x
+      scsd6      shipping gap 0   variant gap 0   work 1.0000x
+      etamacro   shipping gap 1.137e-13   variant gap 1.137e-13   work 1.0000x

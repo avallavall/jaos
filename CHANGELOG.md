@@ -11,6 +11,15 @@ open, `bench/README.md` for the gate, and the commit each entry came from.
 
 ### Changed
 
+- **`DUAL_TOL` is 1e-9 and the four netlib instances that published a point off
+  the optimum no longer do.** `pilot` 2.312e-05 → 5.266e-09, `pilot87` and
+  `scsd6` publish Koch's optimum exactly, `etamacro` 1.315e-08 → 1.137e-13. The
+  price is a work geometric mean of **1.0339x on netlib** and **1.0976x on
+  Kennington**, with `d2q06c` at 5.319x and `pds-20` at 4.815x past the 2.0x
+  bar; `gate: PASS` on all three sets and no answer got worse. Kennington's
+  half is new — D174's sweep was netlib only. Taken on the maintainer's
+  decision (D184, `bench/measurements/02-96/`).
+
 - **`pilot87`'s suboptimality bound moves because its dual solution is not
   unique**, which is the standing debt D92 opened. At `REFACTOR_EVERY` 8 and
   256 it publishes the identical objective and two different digests;

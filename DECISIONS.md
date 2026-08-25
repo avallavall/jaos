@@ -191,6 +191,7 @@ and you have the argument. Jump to the entry for the numbers behind it.
 - **[D181](#d181--the-fourth-set-does-not-reopen-3--the-mapped-basis-arrives-short-by-56-of-rows-and-the-repair-never-runs--and-it-prices-2-at-three-of-four-warm-starts)** — The fourth set does not reopen §3 — the mapped basis arrives short by 5.6% of rows and the repair never runs — and it prices §2 at three of four warm starts
 - **[D182](#d182--plato-nug-solves-one-of-three-and-presolve-reaches-a-median-of-zero-rows-on-every-plato-set-against-nine-per-cent-on-netlib)** — `plato-nug` solves one of three, and presolve reaches a median of zero rows on every plato set against nine per cent on netlib
 - **[D183](#d183--pilot87s-suboptimality-bound-moves-because-its-dual-solution-is-not-unique-and-its-priced-primal-answer-does-not-move-at-all)** — `pilot87`'s suboptimality bound moves because its dual solution is not unique, and its priced primal answer does not move at all
+- **[D184](#d184--dual_tol-is-1e-9-and-all-four-wrong-points-are-gone-at-10339x-work-on-netlib-and-10976x-on-kennington-which-d174-had-not-measured)** — `DUAL_TOL` is 1e-9 and all four wrong points are gone, at 1.0339x work on netlib and 1.0976x on Kennington, which D174 had not measured
 
 ---
 
@@ -13966,3 +13967,95 @@ which is a separate piece of work with no measurement either way.
 **`pilot87` publishes 2031 basic members against 2030 rows at both settings**,
 which is §2's defect and puts it among D179's 24. Nothing new, recorded because
 the probe saw it.
+
+---
+
+## D184 — `DUAL_TOL` is 1e-9 and all four wrong points are gone, at 1.0339x work on netlib and 1.0976x on Kennington, which D174 had not measured
+
+**2026-08-25.** `src/simplex.c`: `DUAL_TOL` from `1e-7` to `1e-9`. Evidence in
+`bench/measurements/02-96/`, on D174's sweep in `02-84/`.
+
+### The question, as it was actually asked
+
+D174 measured the repair and refused to take the call, because it costs work
+and `TODO.md` item 1 has carried it as a judgement since. **The maintainer took
+it on 2026-08-25**, choosing this over the alternative D180 had produced —
+`REFACTOR_EVERY` at 32, which reaches `pilot`'s optimum for 8.6% LESS work and
+costs `pilot87` three orders of accuracy that no verdict reports.
+
+### The measurement
+
+| | before | after |
+|---|---|---|
+| `pilot` | 2.312e-05 | **5.266e-09** |
+| `pilot87` | 1.044e-07 | **exactly Koch** |
+| `scsd6` | 1.118e-09 | **exactly Koch** |
+| `etamacro` | 1.315e-08 | **1.137e-13** |
+
+| set | work, geometric mean | worst instance |
+|---|---|---|
+| netlib | **1.0339x** | `d2q06c` **5.319x** |
+| **Kennington** | **1.0976x** | **`pds-20` 4.815x** |
+| infeasible | — | 29 refusals unmoved, 0 regressed |
+
+Past the 2.0x per-instance bar: `agg3` 2.28x, `d2q06c` 5.32x, `nesm` 2.17x,
+`perold` 2.80x, `pilot-ja` 2.21x, and `pds-20` 4.81x.
+
+**`gate: PASS` on all three sets** — every instance solves with `shape=ok`,
+`objective=ok`, `checker=ok`, `det=ok`. The regressions are cost against the
+baseline and no answer got worse.
+
+### What D174 did not have, and it was put in front of the maintainer
+
+**netlib's 1.0339x is D174's own prediction to four figures. Kennington's
+1.0976x is not in D174 at all** — that sweep ran on netlib, and `CLAUDE.md` is
+explicit that Kennington is where a change that scales badly shows. `pds-20`
+goes from 6.15e9 to 2.96e10 work units. The decision was re-put with that
+number before the baselines were rewritten, and reaffirmed.
+
+### D177 is why two of the regressions are visible at all
+
+`bnl1` reports its suboptimality bound going 7.09e-15 -> 1.57e-14 and `scsd1`
+4.3e-17 -> 1.96e-16. **Both sit far under the `RSUB_FLOOR = 1e-9` this project
+shipped until the day before**, so neither would have been reported. That
+predicate watched 4 solves of 110 and watches 84 now.
+
+### What was found in review, and then refuted by measuring it
+
+**`DUAL_TOL` is read in two different units.** Everywhere it bounds a rate,
+`s->d[v] < -s->dual_tol`. At one site, `can_move`, it bounds a PRODUCT:
+`wrong_way * |other - nonbasic_value| > dual_tol`, which is an objective
+quantity. That function's comment argues carefully that the product is the
+right thing to test because it has no space, and **never says what it is
+compared against**. Tightening by two decades makes that site 100x more eager,
+which nobody asked for.
+
+**It changes nothing, and that is measured.** A variant holding `can_move` at
+1e-7 while every other reader goes to 1e-9 publishes **94 of 94 identical
+digests** at a work geometric mean of **1.0000x**, best and worst both 1.000x,
+all four target instances gap for gap. Two distinct binaries, and the harness
+aborts if the patch does not rewrite the line.
+
+**The likely reason is structural and is not measured here**: `can_move` feeds
+`anything_to_move`, its own comment says such columns need a primal pivot, and
+`SPECS.md` has the primal simplex as missing. A test whose consequence does not
+exist decides nothing.
+
+Giving that site its own constant is refused for now — it would be fitting a
+number with no sweep behind it.
+
+### What was NOT done
+
+**No independent verdict was taken.** `CLAUDE.md` asks for `jaos-measurer` to
+judge a finished candidate in a context that did not produce the numbers, and
+this session was instructed not to spawn subagents. The per-instance evidence
+is in 02-96 so the judgement can still be made.
+
+### What is left open, handed to `TODO.md`
+
+**`can_move`'s threshold has the wrong units and no measurement can see it
+today.** It becomes live the moment a primal pivot exists, which is `SPECS.md`'s
+missing primal simplex, and that is its reopen condition.
+
+**Kennington's 1.0976x is accepted rather than explained.** Nothing here says
+why `pds-20` needs 4.8x the work at a tighter tolerance.

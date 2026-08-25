@@ -45,10 +45,42 @@
 constexpr double PRIMAL_TOL    = 1e-7;
 constexpr double PIVOT_MIN     = 1e-9;   /* smallest usable |alpha| */
 /* How far a reduced cost may be pushed past feasible in exchange for a
- * better pivot. This is the width of the Harris window and the only place
- * dual feasibility is traded for anything; outside the ratio test the dual
- * simplex keeps it by construction. */
-constexpr double DUAL_TOL      = 1e-7;
+ * better pivot. This is the width of the Harris window and **it is also what
+ * the solve calls zero for a reduced cost at all** — `dual_breach`,
+ * `published_breach`, `settled_dual_violation` and `points_outwards` all read
+ * it, so it decides when there is nothing left to price and the solve stops.
+ * Outside the ratio test the dual simplex keeps dual feasibility by
+ * construction.
+ *
+ * **1e-7 published a point that was not the optimum on four instances and
+ * this is 1e-9** (D184, on D174's sweep in `bench/measurements/02-84/`). A
+ * reduced cost is a rate. What a column is still worth is that rate times the
+ * distance it would travel, and this bounds the rate alone — on `pilot` a rate
+ * under 1e-7 in scaled space was worth 2.31e-05 of objective, which is
+ * 1.87e+08 times the floor arithmetic sets for that model, and `pilot` was the
+ * only netlib instance HiGHS, SoPlex and Clp all beat.
+ *
+ *      dual_tol   1e-6      1e-7      1e-8    1e-9     1e-10   1e-11
+ *      pilot      numerical 2.312e-05 2.312e-05 -5.266e-09 0   —
+ *
+ * At 1e-9 all four instances improve: `pilot` 2.312e-05 -> -5.266e-09 at
+ * 0.9134x work, `pilot87` 1.044e-07 -> **exactly 0** at 0.9202x, `scsd6`
+ * 1.118e-09 -> **exactly 0** at 1.0807x, `etamacro` 1.315e-08 -> -1.137e-13 at
+ * 0.9934x. **Three of the four cost less work.**
+ *
+ * **1e-8 does not reach `pilot` at all**, so 1e-9 is the first setting that
+ * does, and 1e-10 fails `dfl001` while 1e-11 fails `wood1p` too. The value is
+ * bounded on both sides by measurement.
+ *
+ * The price is a netlib work geometric mean of 1.0339x and six instances past
+ * `bench/run.c`'s 2.0x per-instance bar. **Those crossings are not monotone in
+ * the tolerance and are trajectory scatter rather than cost**: `grow22` reads
+ * 2.14x, 3.00x, 1.49x, 0.22x, 0.22x across 1e-6 to 1e-11, and `greenbea`
+ * swings by a factor of three between adjacent settings (D174).
+ *
+ * A caller can still set this per model through `jaos_set_dual_tolerance`,
+ * which reaches the same number and needs no rebuild (D64). */
+constexpr double DUAL_TOL      = 1e-9;
 constexpr double LU_PIVOT_TOL  = 0.1;    /* Markowitz threshold */
 constexpr double LU_UPDATE_TOL = 1e-9;
 
