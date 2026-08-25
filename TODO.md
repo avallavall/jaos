@@ -9,26 +9,37 @@ line leaves this file in the same commit.
 
 ### → FRESH CONTEXT: READ THIS PARAGRAPH AND THEN §0
 
-**The next piece of work is the primal simplex, and §0 is the item.** The
-maintainer chose it on 2026-08-25. It is the only missing feature anything in
-this file waits on.
+**The work in flight is the primal simplex, and §0 is the item.** Stages 0, 1,
+3 and 4 have landed. What is next is §0's own open list: three
+`/code-review max` findings that could change an answer, then stage 2 (Harris
+in primal form) or stage 5 (Devex, blocked on a paywalled source).
 
-**The tree is clean and everything is pushed.** `gate: PASS` with
-`0 regressed, 0 improved, 0 new` on all three sets, against baselines rewritten
-on purpose after D184 was read and accepted. `make configs` exits 0 on all five
-configurations. One untracked directory is not this session's,
-`bench/measurements/02-31/`.
+**The tree is clean and everything is committed. 21 commits are unpushed.**
+`gate: PASS` with `0 regressed, 0 improved, 0 new` on all three sets, and every
+file in `bench/results/` byte-identical to the committed record — that campaign
+ran at D192's tree and covers the whole span from D188. `make configs` exits 0
+on all five configurations.
+
+Two untracked things are not a session's leftovers: `bench/measurements/02-31/`
+predates this work, and `bench/results/primal.txt` has never been tracked — the
+primal campaign is a comparison and not a gate.
 
 **Ask the remote rather than trusting a count:**
 `git rev-list --count origin/main..HEAD`. **Push from the WINDOWS side** — the
 remote is an SSH alias that lives in the Windows `~/.ssh/config` only. `git
 fetch` first, because another Claude session commits here.
 
-**Ten decisions landed on 2026-08-24 and 2026-08-25, D177 to D186**, and two
-of the five open items closed. What each one did is below, newest first.
+**Sixteen decisions landed on 2026-08-24 and 2026-08-25, D177 to D192**, and
+two of the five open items closed. What each one did is below, newest first.
 
 | | |
 |---|---|
+| **D192** | Bland's rule reaches the primal's leaving variable; 0 phase-1 arms in 94 |
+| **D191** | the primal's "64 of 94" was 54; a guard was documented and never applied |
+| **D190** | the primal phase 1 lands; a loan of exactly 1.0 found its defect |
+| **D189** | the primal published a value outside a declared bound as OPTIMAL |
+| **D188** | the primal simplex's first version, and both defects were invisible to a green suite |
+| **D187** | the primal clean-up priced its row the expensive way |
 | **D186** | 0 long mapped bases in 101 calls, so §2's cheapest route is closed. 35 of 90 netlib warm starts fall back to cold |
 | **D185** | **item 5 CLOSED** — the gate has an absolute bar, `RSUB_CEILING = 1e-6` |
 | **D184** | **item 1 CLOSED** — `DUAL_TOL` is 1e-9, all four wrong points gone |
@@ -40,9 +51,9 @@ of the five open items closed. What each one did is below, newest first.
 | **D178** | `scsd1` and `degen2` do not lose the same way, and the record said they did |
 | **D177** | the suboptimality predicate watched 4 solves of 110; it watches 84 |
 
-**Six mistakes this pair of sessions made, all caught before anything was
-written down, and all recorded where they happened.** They are listed because
-each one produced output that read as a finished result:
+**Seven mistakes these sessions made, all caught before anything was written
+down, and all recorded where they happened.** They are listed because each one
+produced output that read as a finished result:
 
 - a probe read the published basis and concluded the MAPPED basis arrives long;
   it arrives short, and they are different objects (D181)
@@ -56,6 +67,9 @@ each one produced output that read as a finished result:
 - a quoted heredoc collapsed a doubled backslash to a single one, four
   times, breaking C string literals; the fix is a placeholder token
   substituted in code rather than an escape written inside the heredoc
+- a probe reporting 0 phase-1 Bland arms on all 94 read as a finished answer;
+  0 is also what a probe that cannot see a phase-1 line prints. Forcing
+  `STALL_FACTOR` to 0 in a worktree is what made the 0 mean something (D192)
 
 ### 2026-08-24: D177, and item 5 is half closed
 
@@ -1227,15 +1241,11 @@ Fifteen findings. **One is closed by D191** — the `in_primal` guard was
 documented at two sites and applied at one, which is why D190 published 64 of
 94 when the honest figure is 54. Two more are closed with it (the harness's
 dead `strstr`, and never reading the error for a `NUMERICAL_ERROR` primal).
+**A fourth is closed by D192**: Bland's rule now reaches the primal's leaving
+variable in both phases, and it arms zero times in phase 1 on all 94.
 
-The rest are open, and these four could change an answer:
+The rest are open, and these three could change an answer:
 
-- **Phase 1 has no Bland's rule at all**, and phase 2 has half of one:
-  `primal_price` picks the lowest-indexed *entering* column under `bland`, but
-  `primal_ratio_test` breaks equal ratios on the first **row position** scanned
-  rather than the lowest basis **variable** index. So neither phase has a
-  finiteness argument. `jm_bland_pick` already selects on the variable index
-  and is not used by either.
 - **`refresh`'s repair sweep is a third unguarded lending path.** `repaired ||
   shift_pending` runs `shift_to_feasible` over every variable; `run_primal`
   clears `shift_pending` and does nothing about `repaired`. It sets `d[v] = 0`
@@ -1268,23 +1278,33 @@ only" and "there is no primal phase 1 yet".
 
 ### OPEN: the instances the primal cannot solve and the dual can
 
-Stage 4 took the reach to **64 of 94 agreeing**. What is left is measured and
-named (D190, `bench/measurements/02-103/`):
+Stage 4 took the reach to **54 of 94 agreeing** — D190 published 64 and D191
+corrects it. The lists below are today's run at D192's tree
+(`bench/measurements/02-104/`), which reproduced every count and both means to
+four figures:
 
-- **12 disagree and 2 error**, all of them the primal returning
-  `NUMERICAL_ERROR` where the dual reaches an optimum: `25fv47`, `cycle`,
-  `d2q06c`, `greenbeb`, `modszk1`, `pilot`, `sc105`, `sc205`, `sc50a`, `sc50b`,
-  `stocfor3`, `truss`, and `pilot87`/`pilotnov` as errors.
+- **31 disagree**, all of them the primal returning `NUMERICAL_ERROR` where the
+  dual reaches an optimum: `25fv47`, `80bau3b`, `agg`, `bandm`, `bnl2`,
+  `cycle`, `czprob`, `d2q06c`, `degen2`, `fit1d`, `fit1p`, `greenbea`,
+  `greenbeb`, `maros`, `modszk1`, `pilot-we`, `pilotnov`, `sc105`, `sc205`,
+  `sc50a`, `sc50b`, `scsd1`, `scsd6`, `sctap3`, `ship08l`, `ship12l`,
+  `stocfor2`, `stocfor3`, `truss`, `tuff`, `woodw`.
+- **1 error**, `pilot87` — column 478 prices at 0 in row 790 of phase 1. D190
+  listed `pilotnov` as an error too; it disagrees today. `pilot` was on D190's
+  disagree list and agrees today.
 - **`sc50a`, `sc50b`, `sc105` and `sc205` are one family from one generator,
   failing the same way.** Four instances is one mechanism, not four, and it is
   the thread to pull first.
-- **16 overrun** the harness's 10x work budget. That is Dantzig pricing and it
-  is stage 5's number, not a defect.
+- **8 overrun** the harness's 10x work budget: `d6cube`, `degen3`, `dfl001`,
+  `maros-r7`, `pilot-ja`, `scrs8`, `scsd8`, `wood1p`. That is Dantzig pricing
+  and it is stage 5's number, not a defect.
 
 `sc50a` is the one already partly diagnosed: removing the phase-1 loan moved it
 from 40 iterations and 183481 units to 51 and 58062, a different trajectory on a
 third of the work, and it still ends in `NUMERICAL_ERROR`. So whatever is left
-is a second thing.
+is a second thing. **And it is not a stall**: at `STALL_FACTOR` forced to 0 it
+still arms Bland's rule zero times in phase 1, so phase 1 improves on every
+iteration right up to the refusal (D192).
 
 **Where stage 1 is reachable from — the number this replaced.**
 `make primal` reports `unreached 94` of 94 on the standard set: a cold basis is

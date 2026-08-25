@@ -1,0 +1,100 @@
+# Bland arms in the primal, netlib standard set
+# tree: 61f7643  0 dirty src file(s)
+
+bench/instances/25fv47.mps primal=numerical error        iters=13092   bland: phase1=0 other=0
+bench/instances/80bau3b.mps primal=numerical error        iters=16203   bland: phase1=0 other=0
+bench/instances/adlittle.mps primal=optimal                iters=159     bland: phase1=0 other=0
+bench/instances/afiro.mps primal=optimal                iters=20      bland: phase1=0 other=0
+bench/instances/agg.mps primal=numerical error        iters=449     bland: phase1=0 other=0
+bench/instances/agg2.mps primal=optimal                iters=946     bland: phase1=0 other=0
+bench/instances/agg3.mps primal=optimal                iters=965     bland: phase1=0 other=0
+bench/instances/bandm.mps primal=numerical error        iters=1221    bland: phase1=0 other=0
+bench/instances/beaconfd.mps primal=optimal                iters=101     bland: phase1=0 other=0
+bench/instances/blend.mps primal=optimal                iters=223     bland: phase1=0 other=0
+bench/instances/bnl1.mps primal=optimal                iters=2467    bland: phase1=0 other=0
+bench/instances/bnl2.mps primal=numerical error        iters=4308    bland: phase1=0 other=0
+bench/instances/boeing1.mps primal=optimal                iters=1329    bland: phase1=0 other=0
+bench/instances/boeing2.mps primal=optimal                iters=452     bland: phase1=0 other=0
+bench/instances/bore3d.mps primal=optimal                iters=228     bland: phase1=0 other=0
+bench/instances/brandy.mps primal=optimal                iters=607     bland: phase1=0 other=0
+bench/instances/capri.mps primal=optimal                iters=494     bland: phase1=0 other=0
+bench/instances/cycle.mps primal=numerical error        iters=7624    bland: phase1=0 other=0
+bench/instances/czprob.mps primal=numerical error        iters=3869    bland: phase1=0 other=0
+bench/instances/d2q06c.mps primal=numerical error        iters=224308  bland: phase1=0 other=0
+bench/instances/d6cube.mps primal=work limit reached     iters=3127    bland: phase1=0 other=0
+bench/instances/degen2.mps primal=numerical error        iters=3909    bland: phase1=0 other=0
+bench/instances/degen3.mps primal=work limit reached     iters=14559   bland: phase1=0 other=0
+bench/instances/dfl001.mps primal=work limit reached     iters=135556  bland: phase1=0 other=0
+bench/instances/e226.mps primal=optimal                iters=848     bland: phase1=0 other=0
+bench/instances/etamacro.mps primal=optimal                iters=855     bland: phase1=0 other=0
+bench/instances/fffff800.mps primal=optimal                iters=1224    bland: phase1=0 other=0
+bench/instances/finnis.mps primal=optimal                iters=719     bland: phase1=0 other=0
+bench/instances/fit1d.mps primal=numerical error        iters=759     bland: phase1=0 other=0
+bench/instances/fit1p.mps primal=numerical error        iters=4645    bland: phase1=0 other=0
+bench/instances/fit2d.mps primal=optimal                iters=2609    bland: phase1=0 other=0
+bench/instances/fit2p.mps primal=optimal                iters=30933   bland: phase1=0 other=0
+bench/instances/forplan.mps primal=optimal                iters=653     bland: phase1=0 other=0
+bench/instances/ganges.mps primal=optimal                iters=1696    bland: phase1=0 other=0
+bench/instances/gfrd-pnc.mps primal=optimal                iters=784     bland: phase1=0 other=0
+bench/instances/greenbea.mps primal=numerical error        iters=27290   bland: phase1=0 other=0
+bench/instances/greenbeb.mps primal=numerical error        iters=53631   bland: phase1=0 other=0
+bench/instances/grow15.mps primal=optimal                iters=10877   bland: phase1=0 other=1
+bench/instances/grow22.mps primal=optimal                iters=46073   bland: phase1=0 other=3
+bench/instances/grow7.mps primal=optimal                iters=4813    bland: phase1=0 other=1
+bench/instances/israel.mps primal=optimal                iters=618     bland: phase1=0 other=0
+bench/instances/kb2.mps primal=optimal                iters=62      bland: phase1=0 other=0
+bench/instances/lotfi.mps primal=optimal                iters=239     bland: phase1=0 other=0
+bench/instances/maros-r7.mps primal=work limit reached     iters=5887    bland: phase1=0 other=0
+bench/instances/maros.mps primal=numerical error        iters=3665    bland: phase1=0 other=0
+bench/instances/modszk1.mps primal=numerical error        iters=768     bland: phase1=0 other=0
+bench/instances/nesm.mps primal=optimal                iters=6497    bland: phase1=0 other=0
+bench/instances/perold.mps primal=optimal                iters=7838    bland: phase1=0 other=0
+bench/instances/pilot-ja.mps primal=work limit reached     iters=11073   bland: phase1=0 other=0
+bench/instances/pilot-we.mps primal=numerical error        iters=34921   bland: phase1=0 other=0
+bench/instances/pilot.mps primal=optimal                iters=43188   bland: phase1=0 other=0
+bench/instances/pilot4.mps primal=optimal                iters=4148    bland: phase1=0 other=0
+bench/instances/pilot87.mps primal=optimal                iters=38000   bland: phase1=0 other=0
+bench/instances/pilotnov.mps primal=numerical error        iters=18014   bland: phase1=0 other=0
+bench/instances/recipe.mps primal=optimal                iters=57      bland: phase1=0 other=0
+bench/instances/sc105.mps primal=numerical error        iters=34      bland: phase1=0 other=0
+bench/instances/sc205.mps primal=numerical error        iters=34      bland: phase1=0 other=0
+bench/instances/sc50a.mps primal=numerical error        iters=40      bland: phase1=0 other=0
+bench/instances/sc50b.mps primal=numerical error        iters=34      bland: phase1=0 other=0
+bench/instances/scagr25.mps primal=optimal                iters=823     bland: phase1=0 other=0
+bench/instances/scagr7.mps primal=optimal                iters=197     bland: phase1=0 other=0
+bench/instances/scfxm1.mps primal=optimal                iters=680     bland: phase1=0 other=0
+bench/instances/scfxm2.mps primal=optimal                iters=1585    bland: phase1=0 other=0
+bench/instances/scfxm3.mps primal=optimal                iters=2956    bland: phase1=0 other=0
+bench/instances/scorpion.mps primal=optimal                iters=330     bland: phase1=0 other=0
+bench/instances/scrs8.mps primal=work limit reached     iters=1743    bland: phase1=0 other=0
+bench/instances/scsd1.mps primal=numerical error        iters=792     bland: phase1=0 other=0
+bench/instances/scsd6.mps primal=numerical error        iters=1648    bland: phase1=0 other=0
+bench/instances/scsd8.mps primal=work limit reached     iters=2868    bland: phase1=0 other=0
+bench/instances/sctap1.mps primal=optimal                iters=235     bland: phase1=0 other=0
+bench/instances/sctap2.mps primal=optimal                iters=1468    bland: phase1=0 other=0
+bench/instances/sctap3.mps primal=numerical error        iters=2037    bland: phase1=0 other=0
+bench/instances/seba.mps primal=optimal                iters=132     bland: phase1=0 other=0
+bench/instances/share1b.mps primal=optimal                iters=347     bland: phase1=0 other=0
+bench/instances/share2b.mps primal=optimal                iters=167     bland: phase1=0 other=0
+bench/instances/shell.mps primal=optimal                iters=911     bland: phase1=0 other=0
+bench/instances/ship04l.mps primal=optimal                iters=748     bland: phase1=0 other=0
+bench/instances/ship04s.mps primal=optimal                iters=394     bland: phase1=0 other=0
+bench/instances/ship08l.mps primal=numerical error        iters=1316    bland: phase1=0 other=0
+bench/instances/ship08s.mps primal=optimal                iters=676     bland: phase1=0 other=0
+bench/instances/ship12l.mps primal=numerical error        iters=2060    bland: phase1=0 other=0
+bench/instances/ship12s.mps primal=optimal                iters=1004    bland: phase1=0 other=0
+bench/instances/sierra.mps primal=optimal                iters=967     bland: phase1=0 other=0
+bench/instances/stair.mps primal=optimal                iters=994     bland: phase1=0 other=0
+bench/instances/standata.mps primal=optimal                iters=63      bland: phase1=0 other=0
+bench/instances/standmps.mps primal=optimal                iters=661     bland: phase1=0 other=0
+bench/instances/stocfor1.mps primal=optimal                iters=216     bland: phase1=0 other=0
+bench/instances/stocfor2.mps primal=numerical error        iters=4587    bland: phase1=0 other=0
+bench/instances/stocfor3.mps primal=numerical error        iters=24504   bland: phase1=0 other=0
+bench/instances/truss.mps primal=numerical error        iters=4883    bland: phase1=0 other=0
+bench/instances/tuff.mps primal=numerical error        iters=860     bland: phase1=0 other=0
+bench/instances/vtp-base.mps primal=optimal                iters=93      bland: phase1=0 other=0
+bench/instances/wood1p.mps primal=work limit reached     iters=3820    bland: phase1=0 other=0
+bench/instances/woodw.mps primal=numerical error        iters=3878    bland: phase1=0 other=0
+
+# totals
+instances 94  phase1 arms 0  other arms 5

@@ -1,0 +1,8 @@
+# canary: STALL_FACTOR forced to 0 at 61f7643c44d1dce7f3900e00a39c1c93a0e7b149, five instances
+# every line must show phase1 > 0, or the probe cannot see a phase-1 arm
+
+bench/instances/afiro.mps primal=optimal                iters=37      bland: phase1=5 other=1
+bench/instances/adlittle.mps primal=optimal                iters=218     bland: phase1=6 other=34
+bench/instances/share2b.mps primal=optimal                iters=208     bland: phase1=15 other=9
+bench/instances/sc50a.mps primal=numerical error        iters=40      bland: phase1=0 other=1
+bench/instances/stocfor1.mps primal=optimal                iters=255     bland: phase1=44 other=1

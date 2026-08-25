@@ -199,6 +199,7 @@ and you have the argument. Jump to the entry for the numbers behind it.
 - **[D189](#d189--the-primal-published-a-value-outside-a-declared-bound-as-optimal-and-stage-1s-own-pricing-rule-is-what-made-it-reachable)** — The primal published a value outside a declared bound as OPTIMAL, and stage 1's own pricing rule is what made it reachable
 - **[D190](#d190--the-primal-phase-1-lands-and-takes-the-reach-from-0-of-94-to-64-and-a-loan-of-exactly-10-is-what-found-the-defect-it-shipped-with)** — The primal phase 1 lands and takes the reach from 0 of 94 to 64, and a loan of exactly 1.0 is what found the defect it shipped with
 - **[D191](#d191--the-primals-64-of-94-was-54-and-the-difference-was-a-guard-that-was-documented-believed-and-never-applied)** — The primal's "64 of 94" was 54, and the difference was a guard that was documented, believed, and never applied
+- **[D192](#d192--blands-rule-now-reaches-the-primals-leaving-variable-and-it-arms-nowhere-on-netlib)** — Bland's rule now reaches the primal's leaving variable, and it arms nowhere on netlib
 
 ---
 
@@ -14600,3 +14601,75 @@ why the dead string above survived a full cycle.
 
 `make configs`: all 5 configurations build and pass. All three sets
 `0 regressed, 0 improved, 0 new`, every record byte-identical.
+
+## D192 — Bland's rule now reaches the primal's leaving variable, and it arms nowhere on netlib
+
+D191's first answer-changing finding, closed. The other three are still open in
+`TODO.md` §0.
+
+### The question
+
+Bland's rule is a promise about *both* choices a simplex iteration makes: the
+lowest-indexed eligible entering variable, and — among the candidates attaining
+the exact minimum ratio — the leaving variable of lowest index. The dual
+chooses a row and then a column, so its rule falls on the entering variable and
+`jm_bland_pick` is the whole of it. The primal chooses a column and then a row,
+so its rule falls on the leaving one, and that half did not exist.
+
+Phase 2 had the entering half in `primal_price` and broke equal ratios on the
+first **row position** scanned, which is a choice the basis order makes and not
+one the variable index makes. Phase 1 had neither half. So neither phase had a
+finiteness argument, and Hall & McKinnon (2004) exhibit LPs that cycle under
+the most negative reduced cost, which is exactly the rule both phases price
+with.
+
+Expected: no answer changes. A cycle needs a degenerate vertex revisited in a
+particular order, and no instance anyone has run reaches one.
+
+### The measurement
+
+`bench/measurements/02-104/`.
+
+**The gate saw nothing.** All three sets `gate: PASS`, `0 regressed, 0
+improved, 0 new`, and every file in `bench/results/` byte-identical to the
+committed record — `git status bench/results/` empty. The records were stale by
+seven `src/` commits, so that covers the whole span from D188 to here and not
+this change alone. 110 solution digests and 29 refusal verdicts unmoved.
+
+**`make primal J=12` reproduced D191's figures to four figures**: measured 54,
+overrun 8, disagreed 31, errors 1; work geometric mean 3.8332, best `lotfi`
+0.9817, worst `sctap2` 14.8415. A no-op on that campaign as well.
+
+**Identical figures are also what a dead branch looks like, so the branch was
+counted.** A probe solving with `cfg.force_primal` at `JAOS_LOG_DETAIL` over
+all 94: **0 phase-1 arms**, and **5 other arms on 3 instances** — `grow15` 1,
+`grow22` 3, `grow7` 1, all still reaching `optimal`. `other` is phase 2 and the
+dual's settling re-entry together, because the two print the same sentence.
+
+**The 0 is validated rather than trusted.** Rebuilt in a worktree with
+`STALL_FACTOR` forced from 10 to 0: `afiro` 5, `adlittle` 6, `share2b` 15,
+`stocfor1` 44, `sc50a` 0. Four of five move off zero, so the probe can see a
+phase-1 arm.
+
+### What was refuted
+
+The premise that a stall detector reaching 5 firings on the dual's own set
+would reach anything comparable in the primal's phase 1. It reaches nothing.
+Phase 1 either improves its total violation every iteration or ends before
+`STALL_FACTOR * (nrow + ncol + 1)` iterations pass, on all 94.
+
+`sc50a` arming zero times even at `STALL_FACTOR = 0` refutes a stall as its
+mechanism. It improves on every phase-1 iteration and still ends
+`NUMERICAL_ERROR`.
+
+### What is left open
+
+The rule was never reached on netlib, so **no instance exercises the
+leaving-variable half** and the campaign is not evidence that it is correct.
+The seven unit tests are, and that is the same standing `jm_bland_pick` has had
+since D26.
+
+D191's other three answer-changing findings are untouched and stay in `TODO.md`
+§0: `refresh`'s repair sweep as a third unguarded lending path,
+`primal_bound_flip` moving a row the ratio test skipped, and the two phases
+sharing one iteration cap.

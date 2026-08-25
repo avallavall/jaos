@@ -34,6 +34,17 @@ open, `bench/README.md` for the gate, and the commit each entry came from.
 
 ### Fixed
 
+- **Bland's rule reaches the primal's leaving variable.** Phase 2 had the
+  entering half and broke equal ratios on the first row **position** scanned;
+  phase 1 had neither half, so neither phase had a finiteness argument.
+  `jm_primal_row_wins` is the leaving half, tested against seven cases
+  including the direction of the comparison and the refusal to open a window at
+  the minimum. `primal_cleanup` passes `false` and is untouched. Cost: nothing
+  measurable — all three sets byte-identical, `make primal` reproducing D191's
+  counts and 3.8332x exactly, and **0 phase-1 arms in 94 instances**, with the
+  probe validated against a forced stall (D192,
+  `bench/measurements/02-104/`).
+
 - **`make test` compiles the bench runners.** Nothing in the project loop built
   `bench/run.c`, `bench/warm.c` or `bench/primal.c` — not `test`, not
   `sanitize`, not `configs` — so `-Werror` on 2000 lines of in-tree tooling was
