@@ -78,6 +78,25 @@ warm at -O2 : OK        primal at -O2 : OK
 warm at -O3 -flto : OK  primal at -O3 -flto : OK
 ```
 
+## The gate, on the committed tree
+
+`cfg.force_primal` is a `bool` nothing reads, so it must cost nothing. Run
+after the commit, with `preflight.sh` reading **clear to run**:
+
+```
+netlib             0 regressed, 0 improved, 0 new
+netlib-infeas      0 regressed, 0 improved, 0 new
+netlib-kennington  0 regressed, 0 improved, 0 new
+```
+
+and `git diff --stat bench/results/` **empty** — every record byte-identical to
+the committed one. That is the strong form of the claim, not the summary line:
+`0 regressed` alone only means no predicate flipped and no instance passed the
+2.0x work bar.
+
+`make test` and `make sanitize` exit 0. `make configs` does **not** apply:
+nothing in `tests/` changed and no block behind a build flag was touched.
+
 ## What this does NOT show
 
 Nothing about the primal simplex, which does not exist. When stage 1 lands and
