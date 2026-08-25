@@ -19,5 +19,4 @@ pds-20       optimal    rows=33874 cols=105728 shape=ok iters=90938 work=2962723
 gate: PASS
 
 -- against baseline --
-pds-20       REGRESSED    work: 6153417062 -> 29627237041 (4.8x), iters 44471 -> 90938
-baseline: 1 regressed, 0 improved, 0 new
+baseline: 0 regressed, 0 improved, 0 new

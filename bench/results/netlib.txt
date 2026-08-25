@@ -97,11 +97,4 @@ woodw        optimal    rows=1098 cols=8405 shape=ok iters=1228 work=40150968 pr
 gate: PASS
 
 -- against baseline --
-agg3         REGRESSED    work: 2775465 -> 6328654 (2.3x), iters 406 -> 718
-bnl1         REGRESSED    suboptimality bound: 7.09e-15 -> 1.57e-14 (2.2x relative to its own objective)
-d2q06c       REGRESSED    work: 428597453 -> 2279575982 (5.3x), iters 6740 -> 29290
-nesm         REGRESSED    work: 61235366 -> 133071815 (2.2x), iters 2753 -> 5891
-perold       REGRESSED    work: 24134144 -> 67576873 (2.8x), iters 1109 -> 2491
-pilot-ja     REGRESSED    work: 42179750 -> 94515274 (2.2x), iters 1402 -> 2403
-scsd1        REGRESSED    suboptimality bound: 4.3e-17 -> 1.96e-16 (4.5x relative to its own objective)
-baseline: 7 regressed, 0 improved, 0 new
+baseline: 0 regressed, 0 improved, 0 new
