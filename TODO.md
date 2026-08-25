@@ -878,6 +878,22 @@ imposed bounds and 82.3% of Kennington's to avoid a hazard measured at
 **It is also for the warm starts the dual cannot serve.** `SPECS.md` says so
 and nothing has measured what that is worth here.
 
+**And it is for a refusal the solver ships today — a third dependent this
+section did not name until 2026-08-25.** `classify_optimum`
+(`src/simplex.c:3762`) returns `JAOS_SOLVE_NUMERICAL_ERROR` when a column is
+held by a bound dual phase 1 lent it and a *real* constraint stops it short of
+infinity. The optimum there is finite and this phase 1 cannot reach it.
+Reaching it means lifting the loan and re-solving, and the degenerate case of
+that — a basic already pressed against a real bound in the ray's direction —
+is a primal pivot. D19 says so in those words and owns the population that
+reaches it, from its sweep of 3000 generated LPs.
+
+**Two facts about that population, and both belong in the plan.** It is a real
+refusal with a counted rate, and it is **not a gate item**: every solve in
+`bench/results/*.txt` ends `optimal` or `infeasible`, so nothing in the three
+sets exercises this branch. Closing it therefore needs the generated-LP sweep
+D19 used, not a campaign.
+
 **It is NOT a speed argument, and that is measured.** Given free choice both
 rivals ran the dual on every instance, with iteration counts identical to
 being forced (D81). Do not open this expecting the gate to get faster.

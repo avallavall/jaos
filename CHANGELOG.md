@@ -11,6 +11,14 @@ open, `bench/README.md` for the gate, and the commit each entry came from.
 
 ### Changed
 
+- **The primal simplex has a third dependent, and neither `SPECS.md` nor
+  `TODO.md` §0 named it.** `classify_optimum` refuses out loud when a column is
+  held by a bound dual phase 1 lent it and a real constraint stops it short of
+  infinity; D19 says reaching that optimum needs a primal pivot and owns the
+  population that gets there. It is not a gate item — every solve in
+  `bench/results/*.txt` ends `optimal` or `infeasible` — so closing it needs
+  D19's generated-LP sweep and not a campaign. Documentation only.
+
 - **The primal simplex is the next work, and `TODO.md` §0 is the item.** Chosen
   by the maintainer on 2026-08-25 after items 1 and 5 closed and everything
   left needed either a decision or a feature. It jumps §6's proposed order,
