@@ -34,6 +34,13 @@ open, `bench/README.md` for the gate, and the commit each entry came from.
 
 ### Fixed
 
+- **`make test` compiles the bench runners.** Nothing in the project loop built
+  `bench/run.c`, `bench/warm.c` or `bench/primal.c` — not `test`, not
+  `sanitize`, not `configs` — so `-Werror` on 2000 lines of in-tree tooling was
+  not a guarantee. A dead string match in `bench/primal.c` survived a full loop
+  cycle because of it (D191), and `bench/warm.c`'s `-O2` break had to be found
+  by hand (02-99). Compiled, not run: running them needs the network.
+
 - **The primal lent the model's cost vector against phase-1 gradients, and the
   guard that was supposed to stop it was applied at one of the two sites it
   documented.** `share2b` carried 43 loans totalling 2773.0 when the primal

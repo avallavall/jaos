@@ -149,6 +149,21 @@ ASAN_TESTS := $(TESTS:tests/%.c=$(B)/asan/%)
 
 all: $(LIB)
 
+# The bench runners are compiled by `make test`, and they are not tests.
+#
+# **They were compiled by nothing the project loop runs, and it cost a full
+# cycle.** `bench/primal.c` classified a refusal by matching a string that the
+# same commit deleted from `src/`; `make test`, `make sanitize` and `make
+# configs` all passed, because not one of them builds the file. The dead match
+# survived until a review read it (D191). `bench/warm.c`'s `-O2` break
+# (02-99) is the same hole from the other side — it had to be found by hand.
+#
+# Compiled, not run: running them needs instances fetched from the network,
+# which `make test` must never depend on. `-Werror` on a translation unit
+# nobody compiles is not a guarantee, and this is the cheapest place to make
+# it one.
+BENCH_TOOLS := $(B)/bench/run $(B)/bench/warm $(B)/bench/primal
+
 $(LIB): $(REL_OBJ)
 	$(AR) rcs $@ $^
 
@@ -176,7 +191,7 @@ $(B)/dev/test_%: tests/test_%.c $(DEV_OBJ) $(B)/dev/unity.o $(HDRS) | $(B)/dev
 $(B)/asan/test_%: tests/test_%.c $(ASAN_OBJ) $(B)/asan/unity.o $(HDRS) | $(B)/asan
 	$(CC) $(ASAN_CFLAGS) $(TEST_INC) $< $(ASAN_OBJ) $(B)/asan/unity.o -o $@ $(LDLIBS)
 
-test: $(DEV_TESTS)
+test: $(DEV_TESTS) $(BENCH_TOOLS)
 	@fail=0; for t in $(DEV_TESTS); do echo "== $$t"; ./$$t || fail=1; done; exit $$fail
 
 sanitize: $(ASAN_TESTS)

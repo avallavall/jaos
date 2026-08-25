@@ -1251,11 +1251,12 @@ The rest are open, and these four could change an answer:
   `s->iters`, so a phase 1 that uses most of it makes phase 2 trip its guard
   and report phase 1's iterations as its own.
 
-And the structural one: **nothing in the project loop compiles
-`bench/primal.c` or `bench/warm.c`** — not `make test`, not `make sanitize`,
-not `make configs`. The dead `strstr` survived a full cycle because of it, and
-`bench/measurements/02-99/run-o2-check.sh` exists because the build system had
-to be checked by hand.
+**The structural one is CLOSED.** `make test` now has `$(BENCH_TOOLS)` as a
+prerequisite, so all three runners are compiled — and therefore `-Werror`-d —
+by the loop's first step. Compiled and not run: running them needs instances
+fetched from the network, which `make test` must never depend on. Verified
+against the case it must catch: a deliberate break in `bench/primal.c` takes
+`make test` to rc=2, and removing it back to 0.
 
 The remainder: phase 1 is not interruptible (no `progress_cb`); both phase-1
 refusals conclude on carried numbers where phase 2's refresh first and cite
