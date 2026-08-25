@@ -284,6 +284,33 @@ int64_t jm_harris_pick(int64_t n, const double *num, const double *den,
 int64_t jm_bland_pick(int64_t n, const int64_t *var, const double *num,
                       const double *den);
 
+/* The same decision on the primal side: does a candidate row displace the
+ * incumbent in a primal ratio test?
+ *
+ * The primal chooses a column first and a row second, so its Bland's rule
+ * falls on the LEAVING variable — the smallest basis variable index among the
+ * rows attaining the exact minimum ratio. Written here rather than twice in
+ * the two ratio tests for the reason `jm_bland_pick` is written here: the
+ * eligibility of a row is solver state, and which eligible row wins is
+ * arithmetic, and only the second half can be handed a case and checked.
+ *
+ * `step` and `var` describe the candidate; `best_step` and `best_var` the
+ * incumbent, with `best_var < 0` meaning there is not one yet. Callers scan
+ * ascending, so `best_step` only ever falls and an equality test against it is
+ * a test against the running minimum — which is what makes one pass enough
+ * where `jm_bland_pick` needs two.
+ *
+ * With `bland` false this is a plain strict minimum, and the first row
+ * scanned keeps a tie. **That is not Bland's rule and must not be mistaken
+ * for it**: the tie then falls to a row POSITION, which the basis order
+ * decides, and the finiteness argument needs the variable index. Both halves
+ * or neither — the lowest-indexed entering column alone still cycles.
+ *
+ * The minimum is compared exactly, for the reason stated above for the dual:
+ * a window hands back the freedom the rule exists to remove. */
+bool jm_primal_row_wins(double step, int64_t var,
+                        double best_step, int64_t best_var, bool bland);
+
 /* Turns a list of positions into the sorted, distinct list of them.
  *
  * `pos[0..n)` is what a scatter recorded on its way past: unordered, because

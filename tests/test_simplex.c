@@ -1377,6 +1377,110 @@ static void test_bland_edge_counts(void)
     TEST_ASSERT_EQUAL_INT64(-1, jm_bland_pick(0, var, num, den));
 }
 
+/* ---- Bland's rule on the primal side ----------------------------------
+ *
+ * The dual chooses a row and then a column, so its Bland's rule falls on the
+ * entering variable and `jm_bland_pick` above is the whole of it. The primal
+ * chooses a column and then a row, so the rule falls on the LEAVING one, and
+ * `jm_primal_row_wins` is that half.
+ *
+ * **Both halves or neither.** Between 2026-08-25 and the change these tests
+ * arrived with, phase 2 had the entering half and not the leaving half: the
+ * ratio test kept whichever row it scanned FIRST among equal ratios, which is
+ * a choice the basis order makes and not one the variable index makes. Phase 1
+ * had neither. A solve cannot report that: it terminates on every instance
+ * anyone has run, because a cycle needs a degenerate vertex revisited in a
+ * particular order and no small model reaches one. So the case is built here.
+ */
+
+/* The cycling case, and the reason the rule exists. Every candidate row
+ * blocks at a step of exactly zero — a degenerate vertex — so a rule that
+ * keeps the first row scanned is choosing by basis order, and the basis order
+ * is what a pivot changes. Under Bland the lowest variable index wins and the
+ * choice stops being free. */
+static void test_primal_bland_breaks_a_degenerate_tie_on_the_lowest_index(void)
+{
+    /* Incumbent: row holding variable 9, blocking at 0. Candidate: variable
+     * 4, blocking at 0 as well. */
+    TEST_ASSERT_TRUE(jm_primal_row_wins(0.0, 4, 0.0, 9, true));
+    /* And the other way round, which is the half that was missing: the
+     * incumbent already holds the lower index, so nothing displaces it. */
+    TEST_ASSERT_FALSE(jm_primal_row_wins(0.0, 9, 0.0, 4, true));
+}
+
+/* Without the flag the tie goes to the incumbent, which is the first row
+ * scanned. That is the pre-change behaviour and it is deliberate: Bland's
+ * rule is armed only after a stall, and until then the ratio test is free to
+ * keep whatever it found first. */
+static void test_primal_without_bland_a_tie_keeps_the_first_row(void)
+{
+    TEST_ASSERT_FALSE(jm_primal_row_wins(0.0, 4, 0.0, 9, false));
+    TEST_ASSERT_FALSE(jm_primal_row_wins(0.0, 9, 0.0, 4, false));
+}
+
+/* The index only breaks ties at the minimum, exactly as on the dual side. A
+ * lower-indexed row that blocks later does not win: taking it would step past
+ * a bound and leave the point primal infeasible, which is the one invariant
+ * the whole method rests on. */
+static void test_primal_bland_does_not_let_the_index_beat_the_step(void)
+{
+    TEST_ASSERT_FALSE(jm_primal_row_wins(5.0, 1, 1.0, 9, true));
+    TEST_ASSERT_TRUE(jm_primal_row_wins(1.0, 9, 5.0, 1, true));
+}
+
+/* The tie is exact and not a window. One ulp of daylight is a strictly
+ * smaller step and wins on the quotient, whatever the indices say — the same
+ * refusal `jm_bland_pick` makes, and for the same reason: a tolerance here
+ * hands back the freedom the rule exists to remove. */
+static void test_primal_bland_has_no_window(void)
+{
+    const double a = 1.0;
+    const double b = nextafter(1.0, 2.0);
+    TEST_ASSERT_TRUE(b > a);
+    TEST_ASSERT_TRUE(jm_primal_row_wins(a, 9, b, 1, true));
+    TEST_ASSERT_FALSE(jm_primal_row_wins(b, 1, a, 9, true));
+}
+
+/* No incumbent yet. `best_var < 0` is how the ratio tests say so, and the
+ * first finite step must win against the `HUGE_VAL` they start from — under
+ * either rule, because a scan that rejected its own first candidate would
+ * return -1 and the caller would read that as an unbounded ray. */
+static void test_primal_bland_first_row_always_wins(void)
+{
+    TEST_ASSERT_TRUE(jm_primal_row_wins(0.0, 7, HUGE_VAL, -1, true));
+    TEST_ASSERT_TRUE(jm_primal_row_wins(0.0, 7, HUGE_VAL, -1, false));
+    /* And an equal step against no incumbent is not a tie to break. It
+     * cannot arise from the callers, whose `best_step` starts at `HUGE_VAL`
+     * and whose steps are finite, but the predicate must not read
+     * `best_var` when it is -1. */
+    TEST_ASSERT_FALSE(jm_primal_row_wins(HUGE_VAL, 7, HUGE_VAL, -1, true));
+}
+
+/* Variable 0 is a real index and beats every other under the rule, and an
+ * incumbent already holding it is never displaced on a tie. That second half
+ * is the rule's terminal case, and it is also why `best_var >= 0` and
+ * `best_var > 0` are the same program here: no basis variable index is
+ * negative, so `var < 0` is unreachable and the two guards differ nowhere.
+ * The guard's whole job is the `best_var < 0` case above. Written down
+ * because doctoring the `>=` to a `>` was tried as a negative control and
+ * changed nothing, which is a fact about the code and not a gap in the
+ * tests. */
+static void test_primal_bland_variable_zero_is_an_index(void)
+{
+    TEST_ASSERT_TRUE(jm_primal_row_wins(0.0, 0, 0.0, 1, true));
+    TEST_ASSERT_FALSE(jm_primal_row_wins(0.0, 1, 0.0, 0, true));
+}
+
+/* The direction of the comparison, pinned. A rule that took the HIGHEST index
+ * among equal ratios would satisfy every "a tie is broken deterministically"
+ * reading of the code and terminate nothing: Bland's proof is on the lowest.
+ */
+static void test_primal_bland_takes_the_lowest_and_not_the_highest(void)
+{
+    TEST_ASSERT_TRUE(jm_primal_row_wins(0.0, 2, 0.0, 8, true));
+    TEST_ASSERT_FALSE(jm_primal_row_wins(0.0, 8, 0.0, 2, true));
+}
+
 /* jm_pattern_order: the scatter's record of where it wrote, made into
  * something a consumer can walk. Every property below is one that no solve
  * would report — a dropped position only makes the answer different, and a
@@ -3291,6 +3395,13 @@ int main(void)
     RUN_TEST(test_bland_has_no_window_to_trade);
     RUN_TEST(test_bland_does_not_let_the_index_beat_the_quotient);
     RUN_TEST(test_bland_edge_counts);
+    RUN_TEST(test_primal_bland_breaks_a_degenerate_tie_on_the_lowest_index);
+    RUN_TEST(test_primal_without_bland_a_tie_keeps_the_first_row);
+    RUN_TEST(test_primal_bland_does_not_let_the_index_beat_the_step);
+    RUN_TEST(test_primal_bland_has_no_window);
+    RUN_TEST(test_primal_bland_first_row_always_wins);
+    RUN_TEST(test_primal_bland_variable_zero_is_an_index);
+    RUN_TEST(test_primal_bland_takes_the_lowest_and_not_the_highest);
     RUN_TEST(test_pattern_order_sorts_and_dedups);
     RUN_TEST(test_pattern_order_scans_only_the_touched_range);
     RUN_TEST(test_pattern_order_keeps_a_full_pattern);

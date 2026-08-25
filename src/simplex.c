@@ -2223,6 +2223,16 @@ int64_t jm_bland_pick(int64_t n, const int64_t *var, const double *num,
     return best;
 }
 
+/* Bland's rule on the primal side. Documented in the header, beside the two
+ * dual picks, and reachable for the same reason they are. */
+bool jm_primal_row_wins(double step, int64_t var,
+                        double best_step, int64_t best_var, bool bland)
+{
+    if (step < best_step)
+        return true;
+    return bland && best_var >= 0 && step == best_step && var < best_var;
+}
+
 /* A scatter's record of where it wrote, made ascending and distinct.
  * Documented in the header, beside the two picks, and reachable for the
  * same reason they are. */
@@ -3462,8 +3472,26 @@ static bool wants_a_pivot(const sx *s, int64_t v)
  * **It leaves `B^-1 M_q` in `s->col`, and a bound flip reads it there.**
  * Moving q by `delta` moves the basics by `-delta * col`, so the flip needs no
  * solve of its own. Anything writing `col` between this and that would be
- * writing the flip's input. */
-static int64_t primal_ratio_test(sx *s, int64_t q, bool *below, double *step)
+ * writing the flip's input.
+ *
+ * **`bland` decides how equal ratios are broken, and it is a parameter rather
+ * than a read of `s->bland` because one of the two callers must not have it.**
+ * Bland's rule is a promise about *both* choices an iteration makes: the
+ * lowest-indexed eligible entering column, and — among the rows attaining the
+ * exact minimum ratio — the leaving variable of lowest index. Only the pair
+ * terminates; either half alone still cycles, which is the defect this
+ * parameter closes. `primal_cleanup` passes false because it needs no
+ * finiteness argument at all: its candidate set is a snapshot taken once and
+ * each entry is pivoted at most once, so the loop is bounded by construction.
+ * Reading `s->bland` here instead would let a flag the DUAL method armed
+ * change the dual's own settling re-entry, and that path is not this
+ * feature's to move.
+ *
+ * The tie is exact equality, as `jm_bland_pick` uses on the dual side. Bland's
+ * rule is stated on the exact minimum quotient set, and a window would put
+ * back the freedom the rule exists to remove. */
+static int64_t primal_ratio_test(sx *s, int64_t q, bool bland, bool *below,
+                                 double *step)
 {
     var_column(s, q, s->col);
     jm_lu_ftran(&s->lu, s->col, &s->work);
@@ -3485,7 +3513,8 @@ static int64_t primal_ratio_test(sx *s, int64_t q, bool *below, double *step)
         double step = (limit - s->xb[i]) / move;
         if (step < 0.0)
             step = 0.0;                      /* already there: degenerate */
-        if (step < best_step) {
+        if (jm_primal_row_wins(step, b, best_step,
+                               best >= 0 ? s->basis[best] : -1, bland)) {
             best_step = step;
             best = i;
             *below = move < 0.0;
@@ -3589,7 +3618,7 @@ static jaos_status primal_cleanup(sx *s, int64_t *pivots)
         /* `step` is unread here: `wants_a_pivot` admits only columns with no
          * declared bound in the improving direction, so the flip `run_primal`
          * uses it for can never arise on this path. */
-        int64_t r = primal_ratio_test(s, q, &below, &step);
+        int64_t r = primal_ratio_test(s, q, false, &below, &step);
         if (r < 0)
             continue;
 
@@ -4150,8 +4179,14 @@ static void primal_phase1_duals(sx *s)
  *
  * Returns the blocking position with `*below` saying which bound it lands on,
  * or -1 when nothing blocks. `*step` receives the distance. Leaves `B^-1 M_q`
- * in `s->col`, as the phase-2 test does and for the same reason. */
-static int64_t primal_phase1_ratio(sx *s, int64_t q, bool *below, double *step)
+ * in `s->col`, as the phase-2 test does and for the same reason.
+ *
+ * `bland` breaks equal ratios on the lowest basis variable index, exactly as
+ * the phase-2 test does, and for the reason written out there: phase 1 is a
+ * simplex method on its own objective and degenerates the same way, so it
+ * needs the same pair of promises. */
+static int64_t primal_phase1_ratio(sx *s, int64_t q, bool bland, bool *below,
+                                   double *step)
 {
     var_column(s, q, s->col);
     jm_lu_ftran(&s->lu, s->col, &s->work);
@@ -4192,7 +4227,8 @@ static int64_t primal_phase1_ratio(sx *s, int64_t q, bool *below, double *step)
         double t = (limit - s->xb[i]) / move;
         if (t < 0.0)
             t = 0.0;                               /* already there: degenerate */
-        if (t < best_step) {
+        if (jm_primal_row_wins(t, v, best_step,
+                               best >= 0 ? s->basis[best] : -1, bland)) {
             best_step = t;
             best = i;
             *below = lands_low;
@@ -4238,7 +4274,15 @@ static jaos_status run_primal_phase1(sx *s, jaos_solve_status *out,
     const int64_t iter_cap = ITER_SANITY_FACTOR * (s->nrow + s->ncol + 1);
     const int64_t entered = s->iters;
     double best_total = HUGE_VAL;
-    int64_t last_gain = s->iters;
+
+    /* Phase 1's stall accounting is the SHARED one, `s->last_gain` and
+     * `s->bland`, and not a local of its own. The flag has to reach
+     * `primal_phase1_ratio` and the pricing loop below, and `run_primal`
+     * already resets both before this call and again at the hand-over to
+     * phase 2 — so nothing this arms is inherited by an objective that did
+     * not earn it. */
+    s->last_gain = s->iters;
+    s->bland = false;
 
     for (;;) {
         /* The budgets end the solve here rather than being left to the caller,
@@ -4260,7 +4304,7 @@ static jaos_status run_primal_phase1(sx *s, jaos_solve_status *out,
                              "without the total infeasibility improving; this "
                              "is a JAOS defect",
                        (long long)s->iters,
-                       (long long)(s->iters - last_gain));
+                       (long long)(s->iters - s->last_gain));
             return JAOS_ERR_NUMERICAL;
         }
 
@@ -4290,7 +4334,25 @@ static jaos_status run_primal_phase1(sx *s, jaos_solve_status *out,
         }
         if (total < best_total) {
             best_total = total;
-            last_gain = s->iters;
+            s->last_gain = s->iters;
+            s->bland = false;
+        }
+
+        /* Decided once per iteration and before either choice is made, so one
+         * iteration uses one rule throughout — the shape `price_row` and
+         * `primal_price` both use. Phase 1 had no such detector at all, and
+         * so had no finiteness argument: Hall & McKinnon (2004) exhibit LPs
+         * that cycle under the most negative reduced cost, which is exactly
+         * the rule priced below. */
+        if (!s->bland &&
+            s->iters - s->last_gain > STALL_FACTOR * (s->nrow + s->ncol + 1)) {
+            s->bland = true;
+            s->n_bland++;
+            jm_log(s->m, JAOS_LOG_DETAIL,
+                   "iter %lld: the primal phase 1 has not reduced its "
+                   "infeasibility for %lld iterations, switching to Bland's "
+                   "rule", (long long)s->iters,
+                   (long long)(s->iters - s->last_gain));
         }
 
         primal_phase1_duals(s);
@@ -4312,6 +4374,15 @@ static jaos_status run_primal_phase1(sx *s, jaos_solve_status *out,
             case JM_FREE:     gain = fabs(s->d[v]); break;
             default:          continue;
             }
+            /* Under Bland's rule the entering column is the lowest-indexed
+             * eligible one and not the most attractive, and eligibility stays
+             * the same test `best_d` started at. The ascending scan makes the
+             * first one found the lowest. */
+            if (s->bland) {
+                if (q < 0 && gain > s->dual_tol)
+                    q = v;     /* ascending scan: the first is the lowest */
+                continue;
+            }
             if (gain > best_d) {
                 best_d = gain;
                 q = v;
@@ -4331,7 +4402,7 @@ static jaos_status run_primal_phase1(sx *s, jaos_solve_status *out,
 
         bool below = false;
         double step = 0.0;
-        int64_t r = primal_phase1_ratio(s, q, &below, &step);
+        int64_t r = primal_phase1_ratio(s, q, s->bland, &below, &step);
 
         /* q reaching its own opposite bound first is a flip here exactly as it
          * is in phase 2, and for the same reason: no basic variable can
@@ -4598,7 +4669,7 @@ static jaos_status run_primal(sx *s, jaos_solve_status *out)
 
         bool below = false;
         double step = 0.0;
-        int64_t r = primal_ratio_test(s, q, &below, &step);
+        int64_t r = primal_ratio_test(s, q, s->bland, &below, &step);
 
         /* **Does q reach its own opposite bound first?** No basic variable
          * can express that limit, so a ratio test that only scans rows walks
