@@ -1199,7 +1199,7 @@ in `price_row:1700` are the machinery, and D26 is the decision behind them.
 | # | stage | blocked on |
 |---|---|---|
 | 0 | ~~the harness, `bench/primal.c` and the `cfg` switch~~ | **DONE 2026-08-25** — `bench/measurements/02-99/` |
-| 1 | **phase-2 primal, Dantzig pricing**, its own row-sized arrays, Bland fallback | nothing |
+| 1 | ~~phase-2 primal, Dantzig pricing, Bland fallback~~ | **DONE 2026-08-25** — D188, `bench/measurements/02-101/` |
 | 2 | **Harris two-pass in primal form, and the snap** | nothing — `jm_harris_pick` is already generic |
 | 3 | **the entering column's bound flip**, sized from `real_upper`/`real_lower` | nothing |
 | 4 | **phase 1** (Maros 1986) from a given basis, stable breakpoint sort keyed on `(value, index)` | nothing |
@@ -1221,10 +1221,28 @@ moves is a defect in the shared code, not a property of the new feature. That
 makes the ordinary campaign a strong test of these stages despite the gate being
 unable to see the feature itself.
 
-**Where stage 1 is reachable from.** Only a primal feasible basis, which the
-cold start is not. So stage 1 runs from a warm basis, from crossover, or from a
-test fixture, and until stage 4 lands that is the whole of its reach. Say so in
-the entry rather than discovering it during a campaign.
+**Where stage 1 is reachable from — now measured, and the number is zero.**
+`make primal` reports `unreached 94` of 94 on the standard set: a cold basis is
+dual feasible by construction and not primal feasible, so the method refuses to
+start on every one. That is stage 4's number to move, and it is written down
+before it moves so the improvement is legible.
+
+**Two things stage 1 landed that were not in the plan** (D188,
+`bench/measurements/02-101/`):
+
+- **`run_primal` must clear `shift_pending`.** A warm start arms it, and the
+  next refresh shifts every breached reduced cost onto the feasible side —
+  which is exactly what the primal prices on. Before that one line, all 24
+  bases a two-row model admits gave `0 primal iterations`, ten of them from
+  points that were primal feasible and plainly suboptimal.
+- **A count only `run_primal` raises**, because four tests passed with the
+  method doctored to pivot not once: the settling re-entry's dual solve
+  satisfied every assertion about the answer.
+
+**Still open from stage 1, deliberately.** `reenter_after_settling` calls
+`run()`, so a forced-primal solve can still finish with dual iterations. Making
+the re-entry follow the method is a later question and the harness compares
+final answers either way.
 
 **Stage 0 landed on 2026-08-25.** `bench/primal.c`, `cfg.force_primal` with no
 reader, and `make primal` / `make primal-kennington`. Validated in both

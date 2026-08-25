@@ -195,6 +195,7 @@ and you have the argument. Jump to the entry for the numbers behind it.
 - **[D185](#d185--the-gate-has-an-absolute-bar-on-suboptimality-at-1e-6-placed-on-123-solves-across-five-sets-and-it-rejects-the-answer-this-project-shipped-two-days-ago)** — The gate has an absolute bar on suboptimality at 1e-6, placed on 123 solves across five sets, and it rejects the answer this project shipped two days ago
 - **[D186](#d186--refused-no-mapped-basis-arrives-long-in-101-calls-so-a-demotion-rule-in-build_warm_basis-has-nothing-to-act-on-and-35-of-90-netlib-warm-starts-fall-back-to-cold)** — REFUSED: no mapped basis arrives long in 101 calls, so a demotion rule in `build_warm_basis` has nothing to act on and 35 of 90 netlib warm starts fall back to cold
 - **[D187](#d187--the-primal-clean-up-priced-its-row-the-expensive-way-and-the-saving-is-32-on-wood1p-against-10000017x-lost-on-pilot87)** — The primal clean-up priced its row the expensive way, and the saving is 3.2% on `wood1p` against 1.0000017x lost on `pilot87`
+- **[D188](#d188--the-primal-simplexs-first-version-and-both-defects-it-shipped-with-were-invisible-to-a-green-suite)** — The primal simplex's first version, and both defects it shipped with were invisible to a green suite
 
 ---
 
@@ -14285,3 +14286,81 @@ Nothing here. The three instances that moved are the three whose solves reach
 `primal_cleanup` far enough to price a row from it, which is why 91 of 94 are
 bit-identical rather than merely close. `TODO.md` §0 stage 1 is the next
 caller of `build_pricing_row` and is unaffected by this entry.
+
+## D188 — The primal simplex's first version, and both defects it shipped with were invisible to a green suite
+
+`TODO.md` §0 stage 1: a phase-2 primal method, priced by Dantzig's rule,
+sharing `pivot()` and `build_pricing_row` with the dual. Devex is stage 5 and
+is blocked on a paywalled paper; Dantzig needs none, the primal was never a
+speed argument here (D81), so correctness first.
+
+**Both of its defects produced a passing test suite and a correct answer.**
+Neither was found by reading the code.
+
+### The tests were satisfied by the dual
+
+`run_primal` doctored to declare optimality immediately, without one pivot:
+**all four primal tests still passed**. `reenter_after_settling` calls `run()`,
+the dual repaired the point, and the objective, the independent checker and
+`jaos_iterations() > 0` were all satisfied by the wrong algorithm.
+
+A test asserting a correct answer cannot say which method produced it. The
+repair is `n_primal_iters`, a count only `run_primal` raises, carried on the
+closing summary line so a caller can see it too; the tests assert on that.
+Doctored, both positive tests now fail by name
+(`bench/measurements/02-101/run-negative-control.sh`).
+
+### The warm start shifted away the primal's work
+
+`build_warm_basis` arms `shift_pending`, and the next `refresh` pushes every
+breached reduced cost onto the feasible side by shifting the cost behind it.
+**The dual needs that**: it requires dual feasibility to start and a warm basis
+carries no such guarantee. For the primal it removes the work — dual
+infeasibility is what the method consumes, so a sweep zeroing every breach
+hands the loop an optimal point on arrival.
+
+Measured by enumerating **all 24 bases** a two-row model admits and forcing the
+primal on each: **every accepted one gave `0 primal iterations`**, ten of them
+from points that were primal feasible and plainly suboptimal, including `(0,5)`
+at an objective of 15 against a true 2. After clearing `shift_pending` in
+`run_primal`, those ten take real pivots and every one reaches the optimum.
+
+### What was refuted
+
+**That a small model would do.** `load_warm_model`, the fixture the warm-start
+tests use, has a singleton row; presolve folds it and takes the model from
+three rows to one, and on the one row that survives every basis is already dual
+feasible. Two tests were written against it and said something they did not
+mean. The primal tests use a model with no singleton of either kind.
+
+**That "iterations > 0" says the primal ran.** See above. It says *a* method
+ran.
+
+### A third defect, found on the way and older than this entry
+
+`jm_set_err(s->m, ...)` writes to the model the simplex ran on, which is
+`p.reduced` whenever presolve reduced one, and the caller holds `m`. **So every
+message the simplex produced was invisible to callers on reduced models.**
+Exactly **8 of 94** standard instances carried one through, and they are
+precisely the eight whose `presolve=` column is unchanged: `degen2`, `degen3`,
+`fit1d`, `fit2d`, `scsd1`, `scsd6`, `scsd8`, `truss`. What it lost includes the
+iteration guard's "this is a JAOS defect" and `classify_optimum`'s refusal. The
+driver copies the message out on the error path now; all 94 carry it.
+
+### What it cost
+
+`make configs`: all 5 configurations build and pass. All three sets
+`0 regressed, 0 improved, 0 new`, and every record **byte-identical** — an
+unread switch and a method nothing reaches must cost nothing.
+
+### What is left open
+
+**The primal's reach from a cold start is zero, on all 94 standard instances**,
+and the harness says so rather than erroring: `unreached 94`. A cold basis is
+dual feasible by construction and not primal feasible, so this is §0 stage 4's
+number to move, not a defect.
+
+`reenter_after_settling` still calls `run()`, so a forced-primal solve can
+finish with dual iterations. That is stage 1's shape; making the re-entry
+follow the method is a later question. The unboundedness verdict is refused
+rather than declared, per D19, and is stage 7.

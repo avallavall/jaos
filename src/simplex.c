@@ -666,6 +666,23 @@ typedef struct {
     int64_t last_gain;
     bool bland;
 
+    /* The same detector's measure for the primal method, and it is a
+     * different quantity — which is why it is a different field.
+     *
+     * The dual keeps the reduced costs feasible and drives primal
+     * infeasibility out, so `infeas_best` above is what a stalled dual solve
+     * stops moving. **The primal is the mirror image**: it keeps the point
+     * primal feasible and drives *dual* infeasibility out, so the total that
+     * stops moving is the sum of the wrong-signed reduced costs.
+     *
+     * Storing it in `infeas_best` would have been one field carrying two
+     * quantities, which is the defect class this file has already been caught
+     * by once — see `can_move`, and D184. It also has a visible consequence:
+     * `jaos_progress.primal_infeasibility` reads `infeas_best`, and a primal
+     * solve genuinely does have zero primal infeasibility, so reporting that
+     * is correct rather than a placeholder. */
+    double dinfeas_best;
+
     /* The caller's two tolerances, resolved once against the defaults so
      * that no site below has to remember which of the two to consult. They
      * are read here rather than from the model on purpose: a solve works on
@@ -686,6 +703,20 @@ typedef struct {
      * a schedule and a rebuild because the numbers stopped agreeing say
      * different things about a model. */
     int64_t n_stability;
+
+    /* Iterations `run_primal` took, as opposed to `iters`, which counts every
+     * basis change the solve made whichever method made it.
+     *
+     * **It exists because nothing else could tell the two apart, and a test
+     * proved that the hard way.** Four tests written for the primal method
+     * all passed with `run_primal` doctored to declare optimality
+     * immediately and pivot not once: the settling re-entry calls `run()`,
+     * the dual repaired the point, and every assertion about the answer and
+     * about `jaos_iterations` was satisfied by the wrong algorithm. A count
+     * only one of them can raise is the observation that separates them, and
+     * the closing summary line carries it so a caller can see which method
+     * did the work as well. */
+    int64_t n_primal_iters;
 } sx;
 
 /* --------------------------------------------------------------------- */
@@ -3832,6 +3863,357 @@ static bool out_of_time(const sx *s)
     return elapsed_seconds(s) >= s->m->cfg.time_limit;
 }
 
+/* --------------------------------------------------------------------- */
+/* The primal method                                                     */
+/* --------------------------------------------------------------------- */
+
+/* How far the worst basic variable is outside a bound the model declared.
+ *
+ * The primal method's whole invariant is that this stays at zero, so it is
+ * asked once before the loop starts and never again: every step the ratio
+ * test allows keeps it there by construction. `price_row` answers the same
+ * question for the dual, but it also writes the stall counters and the Bland
+ * flag on its way through, and a feasibility check that moves state is a
+ * check nobody can call twice.
+ *
+ * **Only bounds the model declared count**, `real_lower`/`real_upper` rather
+ * than `lo`/`up`, for the reason `primal_ratio_test` gives at length: a basic
+ * resting outside a bound dual phase 1 *invented* is not primal infeasible in
+ * any sense the caller would recognise, and refusing to start on one would
+ * refuse a point that is perfectly good. */
+static double primal_worst_violation(const sx *s)
+{
+    double worst = 0.0;
+    for (int64_t i = 0; i < s->nrow; i++) {
+        const int64_t v = s->basis[i];
+        const double lo = real_lower(s, v), up = real_upper(s, v);
+        double viol = 0.0;
+        if (isfinite(lo) && lo - s->xb[i] > viol)
+            viol = lo - s->xb[i];
+        if (isfinite(up) && s->xb[i] - up > viol)
+            viol = s->xb[i] - up;
+        if (viol > worst)
+            worst = viol;
+    }
+    return worst;
+}
+
+/* The entering column, by Dantzig's rule: the eligible nonbasic whose reduced
+ * cost is furthest on the wrong side. Returns -1 when none is, which is
+ * optimality for the costs in force.
+ *
+ * **Dantzig and not Devex, deliberately, and `TODO.md` §0 owns the order.**
+ * Devex needs a weight recurrence that appears in no source this project has
+ * been able to read — Harris (1973) is paywalled — and a sign or a `max()`
+ * misplaced there gives a solver that works and is slow, which is the hardest
+ * kind of defect to find. Dantzig needs no paper. It is a worse rule and the
+ * primal was never a speed argument here (D81), so correctness first.
+ *
+ * **Full pricing, and it stays full.** D82 and D84 refused partial and
+ * multiple pricing on *wrong answers* rather than on a trade — `pilot`
+ * published OPTIMAL on an objective outside tolerance and the checker passed
+ * it. Maros's pricing report says the two normalized rules a primal would
+ * actually want are unsuitable for multiple pricing anyway, so the refusal
+ * costs this nothing (`docs/research/primal-simplex.md` §3).
+ *
+ * **Eligibility is `dual_breach` and not `breached`.** The union of the two
+ * spaces exists for the clean-up's *repair* question — is there a residue to
+ * remove — and that is not this question. Pricing asks how fast the objective
+ * improves per unit of movement, which is a rate in the space the arithmetic
+ * happens in, and the ratio test and the step both work in that same space. A
+ * column breached only in the published space is below what this solver calls
+ * zero in its own, and the clean-up is what still attends to it (D92).
+ *
+ * **A fixed column never enters.** `lo == up` leaves it nothing to move
+ * through, so every step it could take is zero, and choosing it repeatedly is
+ * a cycle with no tolerance involved.
+ *
+ * Ties go to the lowest index, which the strict `>` gives for free and D8
+ * requires: two columns with the same breach must be separated by something
+ * that is the same on every machine and in every run.
+ *
+ * `*total` receives the sum of every breach seen, which is the primal's
+ * progress measure and comes out of the loop this function was already
+ * running — the same bargain `price_row` strikes for the dual. */
+static int64_t primal_price(sx *s, double *total)
+{
+    /* Decided before the loop, off the previous call's accounting, so that
+     * one iteration uses one rule throughout. */
+    if (!s->bland &&
+        s->iters - s->last_gain > STALL_FACTOR * (s->nrow + s->ncol + 1)) {
+        s->bland = true;
+        s->n_bland++;
+        jm_log(s->m, JAOS_LOG_DETAIL,
+               "iter %lld: no progress for %lld iterations, switching to "
+               "Bland's rule", (long long)s->iters,
+               (long long)(s->iters - s->last_gain));
+    }
+
+    int64_t best = -1;
+    double best_breach = 0.0;
+    double sum = 0.0;
+
+    for (int64_t v = 0; v < s->nvar; v++) {
+        if (s->status[v] == JM_BASIC)
+            continue;
+        if (s->lo[v] == s->up[v])
+            continue;              /* fixed: nowhere to go */
+        const double breach = dual_breach(s, v);
+        if (breach == 0.0)
+            continue;
+        sum += breach;
+
+        /* Under Bland's rule the entering column is the lowest-indexed
+         * eligible one and not the most attractive. That promise is the only
+         * thing between a degenerate solve and a cycle (D26), and Hall &
+         * McKinnon (2004) is why it is here from the first version rather
+         * than added when the pricing gets clever: they exhibit LPs that
+         * cycle under *both* the most negative reduced cost and steepest
+         * edge, so no pricing rule buys immunity. */
+        if (s->bland) {
+            if (best < 0)
+                best = v;          /* ascending scan: the first is the lowest */
+            continue;
+        }
+        if (breach > best_breach) {
+            best_breach = breach;
+            best = v;
+        }
+    }
+    jm_work_add(&s->work, s->nvar * JM_WORK_NONZERO);
+    *total = sum;
+    return best;
+}
+
+/* The primal simplex, phase 2 only.
+ *
+ * Mirrors `run()` clause for clause where the question is the same — the
+ * budgets, the callback, the iteration guard, the refusal to declare anything
+ * on carried numbers — and differs only where the two methods genuinely
+ * differ: it prices a column and then finds the row, where the dual prices a
+ * row and then finds the column.
+ *
+ * **It refuses to start from a primal infeasible point, and that refusal is
+ * the whole of stage 1's honesty.** There is no primal phase 1 yet
+ * (`TODO.md` §0 stage 4), and the two wrong things to do here are both
+ * available and both worse. Reporting `INFEASIBLE` would be a wrong answer on
+ * a model that has an optimum, which is the one outcome the infeasible set
+ * exists to make impossible. Running anyway would drive an objective across a
+ * region the point is not in and publish whatever it reached. So it returns
+ * `NUMERICAL_ERROR` and says why, which is the shape `classify_optimum`
+ * already uses for the answer this method cannot reach.
+ *
+ * Consequence, stated so nobody has to discover it from a campaign: **a cold
+ * start never gets here.** `build_initial_basis` is dual feasible by
+ * construction and primal feasible by accident at best, so on the reference
+ * instances this refuses almost everywhere. Its reach today is a warm basis
+ * that happens to be feasible, a crossover, or a test fixture. */
+static jaos_status run_primal(sx *s, jaos_solve_status *out)
+{
+    s->dinfeas_best = HUGE_VAL;
+    s->last_gain = s->iters;
+    s->bland = false;
+    /* The primal holds the point feasible from end to end, so the figure a
+     * progress callback reads is zero and is not a placeholder. */
+    s->infeas_best = 0.0;
+
+    /* **The warm start's cost sweep must not run for the primal, and this one
+     * line is the difference between a primal method and a no-op.**
+     *
+     * `build_warm_basis` arms `shift_pending`, and the next `refresh` then
+     * pushes every breached reduced cost onto the feasible side by shifting
+     * the cost behind it. The dual needs that: it requires dual feasibility to
+     * start at all, and a warm basis has no such guarantee.
+     *
+     * For the primal it removes the work. Dual infeasibility is precisely
+     * what this method consumes — `primal_price` prices on `dual_breach` —
+     * so a sweep that sets every breach to zero hands the loop an optimal
+     * point on arrival. **Measured before it was fixed**: over all 24 bases a
+     * two-row model admits, every accepted one gave `0 primal iterations` and
+     * the right answer, because the settling re-entry's dual solve did the
+     * whole job. Not one of them was optimal to begin with.
+     *
+     * Nothing else is lost by clearing it. The sweep's stated purpose is to
+     * stop the *dual* ratio test meeting a cost already past zero; the primal
+     * ratio test reads `d[q]` for a direction and nothing else. The
+     * per-iteration `shift_to_feasible` inside `pivot()` is a different and
+     * local repair, and it still runs. */
+    s->shift_pending = false;
+
+    bool ok = false;
+    jaos_status st = refresh(s, &ok, false);
+    if (st != JAOS_OK)
+        return st;
+    if (!ok) {
+        *out = JAOS_SOLVE_NUMERICAL_ERROR;
+        return JAOS_OK;
+    }
+
+    {
+        const double viol = primal_worst_violation(s);
+        if (viol > s->primal_tol) {
+            jm_set_err(s->m,
+                       "the primal simplex was asked to start from a point "
+                       "that violates a declared bound by %.6g, and JAOS has "
+                       "no primal phase 1 yet; this is a limitation and not a "
+                       "verdict about the model", viol);
+            return JAOS_ERR_NUMERICAL;
+        }
+    }
+
+    const int64_t iter_cap = ITER_SANITY_FACTOR * (s->nrow + s->ncol + 1);
+
+    for (;;) {
+        if (s->m->cfg.work_limit > 0 && s->work.units >= s->m->cfg.work_limit) {
+            *out = JAOS_SOLVE_WORK_LIMIT;
+            return JAOS_OK;
+        }
+        if (s->iters % TIME_CHECK_EVERY == 0 && out_of_time(s)) {
+            *out = JAOS_SOLVE_TIME_LIMIT;
+            return JAOS_OK;
+        }
+        if (s->m->cfg.progress_cb != nullptr &&
+            s->iters % PROGRESS_EVERY == 0) {
+            const jaos_progress p = {
+                .iterations = s->iters,
+                .work_units = s->work.units,
+                .primal_infeasibility = s->infeas_best,
+            };
+            if (s->m->cfg.progress_cb(&p, s->m->cfg.progress_user) ==
+                JAOS_CALLBACK_STOP) {
+                *out = JAOS_SOLVE_INTERRUPTED;
+                return JAOS_OK;
+            }
+        }
+        if (s->iters > iter_cap) {
+            jm_set_err(s->m, "internal iteration guard tripped after %lld "
+                             "primal iterations, the last %lld without the "
+                             "total dual infeasibility improving%s, %lld "
+                             "pivots declined on factorization disagreement; "
+                             "this is a JAOS defect",
+                       (long long)s->iters,
+                       (long long)(s->iters - s->last_gain),
+                       s->bland ? ", under Bland's rule" : "",
+                       (long long)s->n_stability);
+            return JAOS_ERR_NUMERICAL;
+        }
+
+        if (s->needs_refactor) {
+            st = refresh(s, &ok, false);
+            if (st != JAOS_OK)
+                return st;
+            if (!ok) {
+                *out = JAOS_SOLVE_NUMERICAL_ERROR;
+                return JAOS_OK;
+            }
+        }
+
+        double total = 0.0;
+        int64_t q = primal_price(s, &total);
+
+        if (s->iters % LOG_EVERY == 0)
+            jm_log(s->m, JAOS_LOG_PROGRESS,
+                   "iter %lld: best dual infeasibility %.6g, work %lld",
+                   (long long)s->iters, s->dinfeas_best,
+                   (long long)s->work.units);
+
+        /* Improving turns Bland's rule back off, exactly as it does for the
+         * dual: its cost is real (D26) and it is worth paying only while the
+         * alternative is not working. */
+        if (total < s->dinfeas_best) {
+            s->dinfeas_best = total;
+            s->last_gain = s->iters;
+            s->bland = false;
+        }
+
+        if (q < 0) {
+            /* Nothing wants to move, which is optimality for the costs in
+             * force — but read off carried numbers. D20's refusal applies
+             * here for the same reason it applies to the dual: `d` is
+             * stepped in place every iteration and the factorization is
+             * patched rather than rebuilt, so the test that would notice the
+             * drift is the one being run. Recompute from a fresh
+             * factorization and price again. */
+            if (!s->verified) {
+                st = refresh(s, &ok, true);
+                if (st != JAOS_OK)
+                    return st;
+                if (!ok) {
+                    *out = JAOS_SOLVE_NUMERICAL_ERROR;
+                    return JAOS_OK;
+                }
+                s->verified = true;
+                continue;
+            }
+            *out = JAOS_SOLVE_OPTIMAL;
+            return JAOS_OK;
+        }
+
+        bool below = false;
+        int64_t r = primal_ratio_test(s, q, &below);
+        if (r < 0) {
+            /* Nothing the model declared stops this column. That reads as an
+             * unbounded ray and it is **not declared as one here**, for the
+             * reason `primal_cleanup` gives and D19 requires: the honest
+             * reading needs proof, and the column may be leaving a bound dual
+             * phase 1 invented, in which case the ray is the solver's and not
+             * the model's. Declaring `UNBOUNDED` on it is precisely the wrong
+             * answer D19 was written to remove. That verdict is §0 stage 7
+             * and it arrives with the phase 1 that makes the question
+             * well-posed. */
+            if (!s->verified) {
+                st = refresh(s, &ok, true);
+                if (st != JAOS_OK)
+                    return st;
+                if (!ok) {
+                    *out = JAOS_SOLVE_NUMERICAL_ERROR;
+                    return JAOS_OK;
+                }
+                s->verified = true;
+                continue;
+            }
+            jm_set_err(s->m,
+                       "column %lld improves and no declared bound stops it; "
+                       "reading that as an unbounded ray needs the proof D19 "
+                       "requires and the primal phase 1 that makes it "
+                       "well-posed, and JAOS has neither yet",
+                       (long long)q);
+            return JAOS_ERR_NUMERICAL;
+        }
+
+        build_pricing_row(s, r);
+        if (fabs(s->alpha[q]) < PIVOT_MIN) {
+            /* The pricing row disagrees with the column about the pivot the
+             * ratio test just chose. `pivot()` would divide by it. Rebuild
+             * and price again rather than step on a number neither solve
+             * supports — the same refusal `pivot()` makes for itself when the
+             * two disagree by more than a tolerance. */
+            if (s->lu.n_updates > 0) {
+                s->needs_refactor = true;
+                s->n_stability++;
+                continue;
+            }
+            jm_set_err(s->m,
+                       "column %lld prices at %.6g in row %lld on a freshly "
+                       "built factorization, which no pivot can use; this is "
+                       "a JAOS defect", (long long)q, s->alpha[q],
+                       (long long)r);
+            return JAOS_ERR_NUMERICAL;
+        }
+
+        s->verified = false;
+        bool took = false;
+        st = pivot(s, r, q, below, s->d[q] / s->alpha[q], &took);
+        if (st != JAOS_OK)
+            return st;
+        if (!took)
+            continue;   /* declined and cost no iteration; see run() */
+
+        s->iters++;
+        s->n_primal_iters++;
+    }
+}
+
 static jaos_status run(sx *s, jaos_solve_status *out)
 {
     /* Each entry into the loop is its own solve as far as progress goes: a
@@ -4422,8 +4804,9 @@ jaos_status jm_dual_simplex(jaos_model *m)
     clock_gettime(CLOCK_MONOTONIC, &s.started);
 
     jm_log(m, JAOS_LOG_SUMMARY,
-           "dual simplex: %lld rows, %lld columns, %lld nonzeros, "
+           "%s simplex: %lld rows, %lld columns, %lld nonzeros, "
            "primal tol %.3g, dual tol %.3g",
+           m->cfg.force_primal ? "primal" : "dual",
            (long long)m->num_row, (long long)m->num_col,
            (long long)m->num_nz, s.primal_tol, s.dual_tol);
 
@@ -4435,7 +4818,27 @@ jaos_status jm_dual_simplex(jaos_model *m)
             build_initial_basis(&s);
         jm_log(m, JAOS_LOG_DETAIL, "starting from %s",
                warm ? "the basis on the model" : "the slack basis");
-        st = run(&s, &outcome);
+        /* Which method runs, and the only place that is decided.
+         *
+         * `force_primal` is a development switch and not an option, the same
+         * kind of thing `JAOS_NO_PRESOLVE` is (D64): which algorithm solves a
+         * model is the method, and the method is not the caller's to choose.
+         * It exists so `bench/primal.c` can measure a primal path the gate
+         * structurally cannot reach — a cold start is dual feasible and not
+         * primal feasible, so left to itself the solver always picks the dual
+         * and a primal simplex would pass every campaign here while doing
+         * nothing (`TODO.md` §0).
+         *
+         * Everything after this line is shared. The settling, the re-entry
+         * and the verdict are about the residue a solve leaves rather than
+         * about how it got there. **One consequence is worth stating rather
+         * than discovering: `reenter_after_settling` calls `run()`, so a
+         * forced-primal solve can still finish with dual iterations.** That
+         * is stage 1's shape and not an oversight; making the re-entry follow
+         * the method is a later question, and the harness compares final
+         * answers, which is what a caller receives either way. */
+        st = m->cfg.force_primal ? run_primal(&s, &outcome)
+                                 : run(&s, &outcome);
         if (st != JAOS_OK || outcome != JAOS_SOLVE_OPTIMAL)
             break;
 
@@ -4514,6 +4917,33 @@ jaos_status jm_dual_simplex(jaos_model *m)
         outcome = classify_optimum(&s);
         break;
     }
+
+    /* The simplex writes its refusals with `jm_set_err(s->m, ...)`, and
+     * `s->m` is the model the simplex RAN on — which is `p.reduced` whenever
+     * presolve reduced one. The caller holds `m`. So every message the solve
+     * produced reached a model the caller cannot see, and what a caller
+     * actually received was `JAOS_ERR_NUMERICAL` and an empty string from
+     * `jaos_model_error`.
+     *
+     * **This was not introduced by the primal method; it was found by it.**
+     * The messages it loses are the ones a caller most needs: the iteration
+     * guard's "this is a JAOS defect" in `run()`, `classify_optimum`'s
+     * refusal to answer past a bound phase 1 lent, and now the primal's
+     * refusal to start without a phase 1. Measured on the standard set:
+     * exactly **8 of 94** instances carried the message through, and those
+     * eight are precisely the ones whose `presolve=` columns are unchanged —
+     * `degen2`, `degen3`, `fit1d`, `fit2d`, `scsd1`, `scsd6`, `scsd8`,
+     * `truss`. Every model presolve touched lost it.
+     *
+     * Copied rather than redirected, because `s->m` is genuinely the right
+     * model to blame *inside* the solve — the row and column indices in these
+     * messages are the reduced model's. Only on the way out does the caller's
+     * copy need to exist at all, and only when the solve failed: a successful
+     * one leaves nothing to report and must not disturb whatever `m->err`
+     * already holds. */
+    if (st != JAOS_OK && target != m && target->err[0] != '\0')
+        memcpy(m->err, target->err, sizeof m->err);
+
     if (st == JAOS_OK)
         st = publish(&s, outcome, &p);
 
@@ -4532,20 +4962,20 @@ jaos_status jm_dual_simplex(jaos_model *m)
         jm_log(m, JAOS_LOG_SUMMARY,
                "%s after %lld iterations, %lld work units; "
                "%lld refactorizations, %lld weight restarts, %lld stalls, "
-               "%lld stability rebuilds",
+               "%lld stability rebuilds, %lld primal iterations",
                jaos_solve_status_str(outcome), (long long)s.iters,
                (long long)s.work.units, (long long)s.n_refactor,
                (long long)s.n_weight_restart, (long long)s.n_bland,
-               (long long)s.n_stability);
+               (long long)s.n_stability, (long long)s.n_primal_iters);
     else
         jm_log(m, JAOS_LOG_SUMMARY,
                "abandoned after %lld iterations, %lld work units: %s; "
                "%lld refactorizations, %lld weight restarts, %lld stalls, "
-               "%lld stability rebuilds",
+               "%lld stability rebuilds, %lld primal iterations",
                (long long)s.iters, (long long)s.work.units,
                jaos_status_str(st), (long long)s.n_refactor,
                (long long)s.n_weight_restart, (long long)s.n_bland,
-               (long long)s.n_stability);
+               (long long)s.n_stability, (long long)s.n_primal_iters);
 
     sx_free(&s);
     jm_presolve_free(&p);

@@ -11,6 +11,28 @@ open, `bench/README.md` for the gate, and the commit each entry came from.
 
 ### Added
 
+- **A phase-2 primal simplex**, priced by Dantzig's rule and sharing `pivot()`
+  and `build_pricing_row` with the dual. Behind `cfg.force_primal`, which is a
+  development switch and not an option (D64). **It refuses to start from a
+  primal infeasible point rather than reporting `INFEASIBLE` or running
+  anyway**, because there is no primal phase 1 yet, and a cold basis is dual
+  feasible rather than primal feasible: its reach on the standard set is
+  **zero of 94**, and `make primal` reports that as `unreached` rather than as
+  an error. Devex is deferred — its weight recurrence is in no readable source
+  (D188, `bench/measurements/02-101/`).
+
+### Fixed
+
+- **The simplex's error messages never reached the caller on any model presolve
+  had reduced.** `jm_set_err` writes to the model the simplex ran on, which is
+  the reduced one; the caller holds the original. Exactly **8 of 94** standard
+  instances carried a message through, and they are precisely the eight
+  presolve does not touch. What was lost includes the iteration guard's "this
+  is a JAOS defect" and `classify_optimum`'s refusal to answer past a bound
+  phase 1 lent. Older than the primal method, found by it (D188).
+
+### Added
+
 - **`bench/primal.c` and `make primal`**, a third runner beside the gate and
   `warm`: it solves each instance with the dual and then with the primal on the
   same unperturbed model, requires the two answers to agree, and reports a work

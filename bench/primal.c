@@ -100,6 +100,11 @@ typedef struct {
 typedef enum {
     PRIMAL_OK = 0,        /* both solved and agreed                      */
     PRIMAL_SKIPPED,       /* the dual reached no optimum to compare with */
+    /* The primal declined to start, which while there is no primal phase 1
+     * is the expected answer from a cold basis and not a defect. Its own
+     * verdict rather than an error, because a limitation that reads like a
+     * failure gets investigated once per person who sees it. */
+    PRIMAL_UNREACHED,
     PRIMAL_DISAGREE,      /* the two algorithms reached different answers */
     PRIMAL_REJECTED,      /* the checker refused one of the two answers   */
     PRIMAL_ERROR,         /* read or solve failed                         */
@@ -108,11 +113,12 @@ typedef enum {
 static const char *verdict_str(verdict v)
 {
     switch (v) {
-    case PRIMAL_OK:       return "ok";
-    case PRIMAL_SKIPPED:  return "skipped";
-    case PRIMAL_DISAGREE: return "DISAGREE";
-    case PRIMAL_REJECTED: return "REJECTED";
-    case PRIMAL_ERROR:    return "ERROR";
+    case PRIMAL_OK:        return "ok";
+    case PRIMAL_SKIPPED:   return "skipped";
+    case PRIMAL_UNREACHED: return "unreached";
+    case PRIMAL_DISAGREE:  return "DISAGREE";
+    case PRIMAL_REJECTED:  return "REJECTED";
+    case PRIMAL_ERROR:     return "ERROR";
     }
     return "?";
 }
@@ -237,7 +243,21 @@ static void measure_one(const entry *e, const char *dir, result *r)
     st = jaos_solve(m);
     r->secs_p = now_seconds() - t0;
     if (st != JAOS_OK) {
-        fail(r, PRIMAL_ERROR, "primal solve failed");
+        /* The solver's own words, not "primal solve failed". While there is
+         * no primal phase 1 the overwhelmingly common answer here is that
+         * the starting point is not primal feasible, and that is a
+         * *limitation* rather than a defect — reporting it as an error
+         * indistinguishable from a broken factorization is how a known and
+         * expected result gets investigated twice. `jaos_model_error` says
+         * which it was; `PRIMAL_UNREACHED` is the verdict for the one this
+         * stage is expected to give (`TODO.md` §0). */
+        const char *why = jaos_model_error(m);
+        const bool no_phase1 =
+            why != nullptr && strstr(why, "no primal phase 1") != nullptr;
+        char note[64];
+        snprintf(note, sizeof note, "%s",
+                 why != nullptr && why[0] != '\0' ? why : "primal solve failed");
+        fail(r, no_phase1 ? PRIMAL_UNREACHED : PRIMAL_ERROR, note);
         goto done;
     }
     r->status_p = (int)jaos_status_of(m);
@@ -314,6 +334,14 @@ static void print_result(const result *r)
 {
     if (r->verdict != (int)PRIMAL_OK && r->verdict != (int)PRIMAL_DISAGREE &&
         r->verdict != (int)PRIMAL_REJECTED) {
+        if (r->verdict == (int)PRIMAL_UNREACHED) {
+            /* The dual's cost is still worth printing: it is what the primal
+             * would have had to beat, and it dates the comparison. */
+            emit("%-12s %-9s dual=%lld/%lld %s\n", r->name,
+                 verdict_str((verdict)r->verdict), r->iters_d, r->work_d,
+                 r->note);
+            return;
+        }
         emit("%-12s %-9s %s\n", r->name, verdict_str((verdict)r->verdict),
              r->note);
         return;
@@ -595,7 +623,8 @@ int main(int argc, char **argv)
 
     /* The summary. Geometric means of per-instance ratios, never a sum over
      * the set (D46). */
-    int measured = 0, skipped = 0, disagreed = 0, rejected = 0, errors = 0;
+    int measured = 0, skipped = 0, unreached = 0, disagreed = 0, rejected = 0,
+        errors = 0;
     int rej_dual = 0, rej_primal = 0;
     int identical = 0, worse_iters = 0;
     double sum_iters = 0.0, sum_work = 0.0;
@@ -605,6 +634,11 @@ int main(int argc, char **argv)
         const result *r = &results[k];
         switch ((verdict)r->verdict) {
         case PRIMAL_SKIPPED:  skipped++;   continue;
+        /* Not counted against `all_ok`: while §0 stage 4 is open this is the
+         * expected outcome from a cold basis, and a runner that exits
+         * non-zero on the expected outcome is a runner nobody can put in a
+         * script. */
+        case PRIMAL_UNREACHED: unreached++; continue;
         case PRIMAL_DISAGREE: disagreed++; all_ok = false; continue;
         case PRIMAL_REJECTED:
             rejected++;
@@ -634,8 +668,17 @@ int main(int argc, char **argv)
     }
 
     emit("\n-- primal against dual --\n");
-    emit("measured %d, skipped %d, disagreed %d, rejected %d, errors %d\n",
-         measured, skipped, disagreed, rejected, errors);
+    emit("measured %d, skipped %d, unreached %d, disagreed %d, rejected %d, "
+         "errors %d\n",
+         measured, skipped, unreached, disagreed, rejected, errors);
+    /* Said out loud rather than left to be inferred from a column of
+     * `unreached`. A reader who does not know §0's stage list would
+     * otherwise read the whole set declining as a broken primal. */
+    if (unreached > 0)
+        emit("  %d of %d could not be started: no primal phase 1 yet, and a "
+             "cold basis is dual feasible rather than primal feasible. That "
+             "is TODO.md section 0 stage 4, not a defect.\n",
+             unreached, n_selected);
     /* Split, because the two are different defects. A refused primal answer
      * says the new algorithm produced something the dual would not have; a
      * refused dual one says this solver publishes an unverifiable optimum on
