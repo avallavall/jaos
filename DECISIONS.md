@@ -200,6 +200,7 @@ and you have the argument. Jump to the entry for the numbers behind it.
 - **[D190](#d190--the-primal-phase-1-lands-and-takes-the-reach-from-0-of-94-to-64-and-a-loan-of-exactly-10-is-what-found-the-defect-it-shipped-with)** — The primal phase 1 lands and takes the reach from 0 of 94 to 64, and a loan of exactly 1.0 is what found the defect it shipped with
 - **[D191](#d191--the-primals-64-of-94-was-54-and-the-difference-was-a-guard-that-was-documented-believed-and-never-applied)** — The primal's "64 of 94" was 54, and the difference was a guard that was documented, believed, and never applied
 - **[D192](#d192--blands-rule-now-reaches-the-primals-leaving-variable-and-it-arms-nowhere-on-netlib)** — Bland's rule now reaches the primal's leaving variable, and it arms nowhere on netlib
+- **[D193](#d193--refresh-is-the-third-place-a-cost-is-lent-it-fires-30-times-inside-the-primal-phase-1-and-guarding-it-trades-pilot4-for-pilot-ja-and-pilotnov)** — `refresh` is the third place a cost is lent, it fires 30 times inside the primal phase 1, and guarding it trades `pilot4` for `pilot-ja` and `pilotnov`
 
 ---
 
@@ -14673,3 +14674,84 @@ D191's other three answer-changing findings are untouched and stay in `TODO.md`
 §0: `refresh`'s repair sweep as a third unguarded lending path,
 `primal_bound_flip` moving a row the ratio test skipped, and the two phases
 sharing one iteration cap.
+
+## D193 — `refresh` is the third place a cost is lent, it fires 30 times inside the primal phase 1, and guarding it trades `pilot4` for `pilot-ja` and `pilotnov`
+
+D191's second answer-changing finding, closed. Two are left open in `TODO.md`
+§0.
+
+### The question
+
+`shift_to_feasible` moves `cost[v]` to put a reduced cost back on the feasible
+side. The dual requires that. The primal phase 1 does not: it holds gradients
+of a sum of bound violations in `d`, so a shift taken against them moves the
+model's objective by a number that belongs to another problem. D190 named two
+sites and D191 found only one of them guarded. **Neither named the third.**
+`refresh` sweeps `shift_to_feasible` over every variable when
+`repair_singular_basis` fired or a warm start armed `shift_pending`, and it
+read no flag at all.
+
+Asked in two parts, because they need different entries: does the path execute,
+and if it does, does guarding it pay?
+
+### The measurement
+
+`bench/measurements/02-105/`.
+
+**It executes, and not rarely.** A worktree with one counting log line inside
+the sweep, over all 94 with `cfg.force_primal`: **30 sweeps inside phase 1 on
+11 instances**, and 8 outside it on 2. The largest are `pilot` at 3 sweeps
+shifting 3990 costs, `dfl001` 2/3560, `pilot87` 2/1924, `pilot-ja` 3/1450,
+`greenbeb` 1/1177. **Three instances sweep and shift nothing** — `perold`,
+`stair`, `wood1p` — which is the census's own control.
+
+**The gate saw nothing.** All three sets `gate: PASS`, `0 regressed, 0 improved,
+0 new`, every file in `bench/results/` byte-identical. `in_phase1` is set only
+inside `run_primal_phase1`, so the dual cannot reach the changed line.
+
+**The primal campaign was compared per instance against the parent**, because
+its geometric mean is taken over its measured set and that set grew from 54 to
+55. A mean over 55 is not comparable to a mean over 54.
+
+- **53 `ok` on both sides, 52 of them bit-identical in primal work units.** The
+  only one that moved is `pilot`, at 0.9673.
+- **30 `DISAGREE` on both sides, 4 moved**: `greenbeb` 1.0596, `tuff` 0.9994,
+  `d2q06c` and `greenbea` at 1.0000 to four figures.
+- **Three changed category.** `pilot-ja` overrun → ok at 18536 iterations.
+  `pilotnov` `NUMERICAL_ERROR` → ok, and cheaper: 18014 iterations and
+  809015777 units become 12640 and 598949184. `pilot4` ok → `NUMERICAL_ERROR`,
+  4148 iterations and 112003171 units becoming 5920 and 160747384.
+
+**Net 54 agreeing → 55, and 8 overrun → 7.** Every instance that moved was on
+the census list and nothing off it moved, including the three that swept and
+shifted zero.
+
+### What was refuted
+
+The reading that this is a rare repair path worth guarding on principle alone.
+It is the busiest of the three sites on the instances that have trouble: 30
+firings against `update_dual`'s once per iteration is not the comparison, but
+1450 costs moved on `pilot-ja` in three calls is a perturbation of the
+objective on the scale of the model.
+
+The hope that a correct guard only gains. `pilot4` runs 43% longer and then
+ends `JAOS_SOLVE_NUMERICAL_ERROR` with no message, which is the D146 guard's
+status rather than a raised error. This is the failure shape `jaos-measure`
+names — a repair that fixes what is in front of it and breaks something else —
+and it was caught only because the parent was run beside the candidate.
+
+### What is left open
+
+**`pilot4` is a real regression and is not diagnosed.** It goes to `TODO.md` §0
+beside the other 30 message-less refusals, which D191 already names as the
+dominant failure class.
+
+Phase 2 stays unguarded at all three sites, for D191's reason: there `d` holds
+the model's own reduced costs and the shift is the repair the dual makes.
+`scsd1` and `scsd6` are the only instances that sweep outside phase 1 and both
+already disagree, so that is where a phase-2 argument would have to be tested
+if anyone makes one.
+
+D191's other two answer-changing findings are untouched: `primal_bound_flip`
+moving a row the ratio test skipped, and the two phases sharing one iteration
+cap.

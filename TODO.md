@@ -10,14 +10,15 @@ line leaves this file in the same commit.
 ### → FRESH CONTEXT: READ THIS PARAGRAPH AND THEN §0
 
 **The work in flight is the primal simplex, and §0 is the item.** Stages 0, 1,
-3 and 4 have landed. What is next is §0's own open list: three
-`/code-review max` findings that could change an answer, then stage 2 (Harris
-in primal form) or stage 5 (Devex, blocked on a paywalled source).
+3 and 4 have landed. What is next is `pilot4`, which D193 broke and named,
+then §0's last two `/code-review max` findings that could change an answer,
+then stage 2 (Harris in primal form) or stage 5 (Devex, blocked on a
+paywalled source).
 
-**The tree is clean and everything is committed. 21 commits are unpushed.**
+**The tree is clean and everything is committed. 23 commits are unpushed.**
 `gate: PASS` with `0 regressed, 0 improved, 0 new` on all three sets, and every
 file in `bench/results/` byte-identical to the committed record — that campaign
-ran at D192's tree and covers the whole span from D188. `make configs` exits 0
+ran at D193's tree and covers the whole span from D188. `make configs` exits 0
 on all five configurations.
 
 Two untracked things are not a session's leftovers: `bench/measurements/02-31/`
@@ -29,11 +30,12 @@ primal campaign is a comparison and not a gate.
 remote is an SSH alias that lives in the Windows `~/.ssh/config` only. `git
 fetch` first, because another Claude session commits here.
 
-**Sixteen decisions landed on 2026-08-24 and 2026-08-25, D177 to D192**, and
+**Seventeen decisions landed on 2026-08-24 and 2026-08-25, D177 to D193**, and
 two of the five open items closed. What each one did is below, newest first.
 
 | | |
 |---|---|
+| **D193** | `refresh` is the third place a cost is lent; 30 firings in phase 1, and 54 agreeing becomes 55 |
 | **D192** | Bland's rule reaches the primal's leaving variable; 0 phase-1 arms in 94 |
 | **D191** | the primal's "64 of 94" was 54; a guard was documented and never applied |
 | **D190** | the primal phase 1 lands; a loan of exactly 1.0 found its defect |
@@ -1242,15 +1244,13 @@ documented at two sites and applied at one, which is why D190 published 64 of
 94 when the honest figure is 54. Two more are closed with it (the harness's
 dead `strstr`, and never reading the error for a `NUMERICAL_ERROR` primal).
 **A fourth is closed by D192**: Bland's rule now reaches the primal's leaving
-variable in both phases, and it arms zero times in phase 1 on all 94.
+variable in both phases, and it arms zero times in phase 1 on all 94. **A fifth
+is closed by D193**: `refresh`'s repair sweep was the third unguarded lending
+path, it fires 30 times inside phase 1 on 11 instances, and guarding it takes
+the set from 54 agreeing to 55.
 
-The rest are open, and these three could change an answer:
+The rest are open, and these two could change an answer:
 
-- **`refresh`'s repair sweep is a third unguarded lending path.** `repaired ||
-  shift_pending` runs `shift_to_feasible` over every variable; `run_primal`
-  clears `shift_pending` and does nothing about `repaired`. It sets `d[v] = 0`
-  on every breached nonbasic, which is exactly what `primal_price` reads — so
-  the primal can declare `OPTIMAL` on a point it never moved.
 - **`primal_bound_flip` can move a row the ratio test skipped.** The
   destination comes from `real_upper`/`real_lower` but the origin from
   `nonbasic_value`, which returns the raw `lo`/`up` holding an invented bound.
@@ -1278,26 +1278,32 @@ only" and "there is no primal phase 1 yet".
 
 ### OPEN: the instances the primal cannot solve and the dual can
 
-Stage 4 took the reach to **54 of 94 agreeing** — D190 published 64 and D191
-corrects it. The lists below are today's run at D192's tree
-(`bench/measurements/02-104/`), which reproduced every count and both means to
-four figures:
+Stage 4 took the reach to 54 of 94 agreeing (D190 published 64 and D191
+corrects it), and D193 took it to **55**. The lists below are D193's run
+(`bench/measurements/02-105/`):
 
 - **31 disagree**, all of them the primal returning `NUMERICAL_ERROR` where the
   dual reaches an optimum: `25fv47`, `80bau3b`, `agg`, `bandm`, `bnl2`,
   `cycle`, `czprob`, `d2q06c`, `degen2`, `fit1d`, `fit1p`, `greenbea`,
-  `greenbeb`, `maros`, `modszk1`, `pilot-we`, `pilotnov`, `sc105`, `sc205`,
+  `greenbeb`, `maros`, `modszk1`, `pilot-we`, `pilot4`, `sc105`, `sc205`,
   `sc50a`, `sc50b`, `scsd1`, `scsd6`, `sctap3`, `ship08l`, `ship12l`,
   `stocfor2`, `stocfor3`, `truss`, `tuff`, `woodw`.
-- **1 error**, `pilot87` — column 478 prices at 0 in row 790 of phase 1. D190
-  listed `pilotnov` as an error too; it disagrees today. `pilot` was on D190's
-  disagree list and agrees today.
+- **`pilot4` is D193's own regression and the newest entry on that list.** It
+  solved before the guard landed, at 4148 iterations, and now runs 5920 and
+  refuses. **Diagnose it before anything else here**: it is the only one whose
+  before-and-after is known and whose cause is one named change.
+- **1 error**, `pilot87` — column 478 prices at 0 in row 790 of phase 1.
 - **`sc50a`, `sc50b`, `sc105` and `sc205` are one family from one generator,
-  failing the same way.** Four instances is one mechanism, not four, and it is
-  the thread to pull first.
-- **8 overrun** the harness's 10x work budget: `d6cube`, `degen3`, `dfl001`,
-  `maros-r7`, `pilot-ja`, `scrs8`, `scsd8`, `wood1p`. That is Dantzig pricing
-  and it is stage 5's number, not a defect.
+  failing the same way.** Four instances is one mechanism, not four.
+- **7 overrun** the harness's 10x work budget: `d6cube`, `degen3`, `dfl001`,
+  `maros-r7`, `scrs8`, `scsd8`, `wood1p`. That is Dantzig pricing and it is
+  stage 5's number, not a defect.
+
+**The 30 message-less refusals are one class, not thirty problems.** A primal
+ending `JAOS_SOLVE_NUMERICAL_ERROR` returns `JAOS_OK` and writes no error
+string, so `jaos_model_error` is empty for every one of them (D191). That is
+the D146 guard refusing the point, and nothing yet says why the point is where
+it is.
 
 `sc50a` is the one already partly diagnosed: removing the phase-1 loan moved it
 from 40 iterations and 183481 units to 51 and 58062, a different trajectory on a

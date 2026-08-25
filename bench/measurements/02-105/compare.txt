@@ -1,0 +1,16 @@
+category changes: 3
+  pilot-ja     overrun -> ok
+  pilot4       ok -> DISAGREE
+  pilotnov     DISAGREE -> ok
+
+instances 'ok' on both sides: 53
+identical primal work units:  52
+work geometric mean head/parent over those: 0.9994
+
+instances DISAGREE on both sides: 30, of which work moved: 4
+  tuff         0.9994  (9820640 -> 9814560)
+  d2q06c       1.0000  (22796342815 -> 22796386457)
+  greenbea     1.0000  (2252481018 -> 2252544327)
+  greenbeb     1.0596  (4245192101 -> 4498165083)
+moved, cheapest first:
+  pilot        0.9673  (14681772280 -> 14201166393)

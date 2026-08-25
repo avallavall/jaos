@@ -1,0 +1,21 @@
+# refresh's repair sweep during a forced-primal solve, netlib standard set
+# tree: b0608f39844d9a5b3e571a1cda451cf6c87d11ea, patched by patch.py in a worktree
+# only instances with at least one sweep are listed
+
+bench/instances/d2q06c.mps primal=numerical error        sweeps: phase1=1 (shifted 103)  other=0 (shifted 0)
+bench/instances/dfl001.mps primal=work limit reached     sweeps: phase1=2 (shifted 3560)  other=0 (shifted 0)
+bench/instances/greenbea.mps primal=numerical error        sweeps: phase1=1 (shifted 396)  other=0 (shifted 0)
+bench/instances/greenbeb.mps primal=numerical error        sweeps: phase1=1 (shifted 1177)  other=0 (shifted 0)
+bench/instances/perold.mps primal=optimal                sweeps: phase1=1 (shifted 0)  other=0 (shifted 0)
+bench/instances/pilot-ja.mps primal=work limit reached     sweeps: phase1=3 (shifted 1450)  other=0 (shifted 0)
+bench/instances/pilot.mps primal=optimal                sweeps: phase1=3 (shifted 3990)  other=0 (shifted 0)
+bench/instances/pilot4.mps primal=optimal                sweeps: phase1=1 (shifted 252)  other=0 (shifted 0)
+bench/instances/pilot87.mps primal=optimal                sweeps: phase1=2 (shifted 1924)  other=0 (shifted 0)
+bench/instances/pilotnov.mps primal=numerical error        sweeps: phase1=2 (shifted 29)  other=0 (shifted 0)
+bench/instances/scsd1.mps primal=numerical error        sweeps: phase1=0 (shifted 0)  other=3 (shifted 334)
+bench/instances/scsd6.mps primal=numerical error        sweeps: phase1=0 (shifted 0)  other=5 (shifted 1233)
+bench/instances/stair.mps primal=optimal                sweeps: phase1=1 (shifted 0)  other=0 (shifted 0)
+bench/instances/tuff.mps primal=numerical error        sweeps: phase1=5 (shifted 549)  other=0 (shifted 0)
+bench/instances/wood1p.mps primal=work limit reached     sweeps: phase1=7 (shifted 0)  other=0 (shifted 0)
+TOTAL phase1 sweeps 30, other sweeps 8 over 94 instance(s)
+probe rc=0

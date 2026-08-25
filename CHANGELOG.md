@@ -34,6 +34,16 @@ open, `bench/README.md` for the gate, and the commit each entry came from.
 
 ### Fixed
 
+- **`refresh` is the third place a cost is lent, and it was the unguarded
+  one.** Its repair sweep runs `shift_to_feasible` over every variable after a
+  singular-basis repair or a warm start, and unlike the other two sites it read
+  no flag. It **fires 30 times inside the primal phase 1 on 11 of the 94
+  standard instances**, shifting 3990 costs on `pilot` alone. Guarded now.
+  Cost: all three gate sets byte-identical; on the primal campaign 52 of 53
+  shared instances bit-identical in work, **54 agreeing becomes 55 and 8
+  overrun becomes 7** — `pilot-ja` and `pilotnov` gained, **`pilot4` lost**
+  (D193, `bench/measurements/02-105/`).
+
 - **Bland's rule reaches the primal's leaving variable.** Phase 2 had the
   entering half and broke equal ratios on the first row **position** scanned;
   phase 1 had neither half, so neither phase had a finiteness argument.
