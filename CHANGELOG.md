@@ -11,6 +11,16 @@ open, `bench/README.md` for the gate, and the commit each entry came from.
 
 ### Changed
 
+- **No mapped basis arrives long in 101 calls**, so `build_warm_basis`'s
+  refusal of a long count holds and the cheapest proposed route to §2 is
+  closed. A demotion there would have needed no new rank machinery —
+  `repair_singular_basis` is already downstream — and there is nothing to
+  demote. The census also prices D151's cap per instance: **35 of 90 netlib
+  warm starts fall back to a cold solve** because their shortfall is past 4,
+  and Kennington loses none. `fit1p` publishes a basis over by 21 and maps
+  short by 241, so the two counts are unrelated. No source change (D186,
+  `bench/measurements/02-98/`).
+
 - **The gate has an absolute bar on suboptimality now, `RSUB_CEILING = 1e-6`**,
   which closes `TODO.md` item 5. Everything beside it has its zero point in the
   baseline, so an answer that was already bad when the baseline was written

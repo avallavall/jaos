@@ -193,6 +193,7 @@ and you have the argument. Jump to the entry for the numbers behind it.
 - **[D183](#d183--pilot87s-suboptimality-bound-moves-because-its-dual-solution-is-not-unique-and-its-priced-primal-answer-does-not-move-at-all)** — `pilot87`'s suboptimality bound moves because its dual solution is not unique, and its priced primal answer does not move at all
 - **[D184](#d184--dual_tol-is-1e-9-and-all-four-wrong-points-are-gone-at-10339x-work-on-netlib-and-10976x-on-kennington-which-d174-had-not-measured)** — `DUAL_TOL` is 1e-9 and all four wrong points are gone, at 1.0339x work on netlib and 1.0976x on Kennington, which D174 had not measured
 - **[D185](#d185--the-gate-has-an-absolute-bar-on-suboptimality-at-1e-6-placed-on-123-solves-across-five-sets-and-it-rejects-the-answer-this-project-shipped-two-days-ago)** — The gate has an absolute bar on suboptimality at 1e-6, placed on 123 solves across five sets, and it rejects the answer this project shipped two days ago
+- **[D186](#d186--refused-no-mapped-basis-arrives-long-in-101-calls-so-a-demotion-rule-in-build_warm_basis-has-nothing-to-act-on-and-35-of-90-netlib-warm-starts-fall-back-to-cold)** — REFUSED: no mapped basis arrives long in 101 calls, so a demotion rule in `build_warm_basis` has nothing to act on and 35 of 90 netlib warm starts fall back to cold
 
 ---
 
@@ -14146,3 +14147,74 @@ sits higher, the number is re-derived from that population rather than kept.
 that quantity follows a dual solution which is not unique on `pilot87`, so the
 bar has a moving quantity under it. On the current sets the movement is 1.2%
 against 7.1x of headroom.
+
+---
+
+## D186 — REFUSED: no mapped basis arrives long in 101 calls, so a demotion rule in `build_warm_basis` has nothing to act on and 35 of 90 netlib warm starts fall back to cold
+
+**2026-08-25.** No source change. Evidence in `bench/measurements/02-98/`.
+
+### The question, as it was actually asked
+
+`build_warm_basis` refuses a long count with a premise written into the source:
+"A LONG count is still refused: **no long map has been measured**, and a
+demotion rule for an unmeasured case would be a constant fitted to nothing."
+
+Nobody had counted. A refusal's premise has expired unnoticed three times here
+(D24, D94, D101), so a premise of the form "no X has been measured" is worth
+measuring.
+
+**The hypothesis behind it.** §2's rank argument is needed at POSTSOLVE, which
+has no factorization, and that is what has made the item look expensive.
+`build_warm_basis` runs inside the solver, and its own comment says rank stays
+where it already lives — `repair_singular_basis`, downstream of it. So a
+demotion THERE would need no new rank machinery, and D179 had already measured
+the supply: 19 of 24 instances covered.
+
+### The measurement
+
+| set | calls | exact | short | **long** |
+|---|---|---|---|---|
+| netlib | 90 | 35 | 55 | **0** |
+| Kennington | 11 | 6 | 5 | **0** |
+| **both** | **101** | 41 | 60 | **0** |
+
+### What was refuted
+
+**The premise holds and the hypothesis is dead.** No mapped basis arrives long
+anywhere in 101 calls, so a demotion rule in `build_warm_basis` has no
+population to act on. The cheap route to §2's cost is closed, and it is closed
+by a count rather than by an argument.
+
+**The published basis and the mapped basis move in opposite directions.** D179
+counted 24 netlib instances publishing a basis one or more members too long;
+this counts 0 mapped bases too long and 55 too short. `fit1p` publishes **over
+by 21** and maps **short by 241**. `SINGLETON_COL` adds a BASIC at postsolve
+without freeing a slot; presolve's mapping drops every stored-basic member
+presolve removes again. Nothing that repairs one touches the other.
+
+### What the census gives that nobody had
+
+**35 of 90 netlib warm starts fall back to a cold solve** because their
+shortfall is past `WARM_REPAIR_MAX_SHORT = 4`. Kennington loses none: all five
+of its short maps are within the cap, which is D151's own finding that
+Kennington does not vote on the value. That is D151's cap priced per instance
+rather than as a geometric mean.
+
+The worst shortfalls are `sctap3` 596, `sctap2` 432, `dfl001` 343, `seba` 331,
+`fit1p` 241, `fit2p` 237.
+
+**One figure disagrees with D149 and is recorded rather than resolved.** That
+entry refused the blanket repair on `dfl001` "paying 172x for a 596-short
+repair". Today `dfl001` is 343 short and `sctap3` is 596. D149 is 2026-08-19
+and many `src/` commits have landed since, so the tree may have moved under it.
+Re-running at that tree is what would tell, and it was not done here.
+
+### What is left open, handed to `TODO.md`
+
+**§2 still needs the rank argument at postsolve**, and this closes the only
+cheaper location anyone had proposed for it.
+
+**The `dfl001`/`sctap3` figure.** Either D149 misattributed the instance or the
+shortfalls moved. It changes no verdict — the blanket repair is refused on cost
+either way — and it is the kind of number this project has found stale before.

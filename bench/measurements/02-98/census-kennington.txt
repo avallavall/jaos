@@ -1,0 +1,97 @@
+DIAG-INSTANCE cre-a
+DIAG-REFUSE why=no-stored-basis
+DIAG-GUARD warm=0 violation=0 iters=2487
+DIAG-MAPPED nrow=3074 nvar=7131 nbasic=3074 delta=0
+DIAG-GUARD warm=1 violation=0 iters=2
+DIAG-REFUSE why=no-stored-basis
+DIAG-GUARD warm=0 violation=0 iters=2484
+DIAG-INSTANCE cre-b
+DIAG-REFUSE why=no-stored-basis
+DIAG-GUARD warm=0 violation=0 iters=8864
+DIAG-MAPPED nrow=5336 nvar=37154 nbasic=5336 delta=0
+DIAG-GUARD warm=1 violation=0 iters=1
+DIAG-REFUSE why=no-stored-basis
+DIAG-GUARD warm=0 violation=0 iters=8776
+DIAG-INSTANCE cre-c
+DIAG-REFUSE why=no-stored-basis
+DIAG-GUARD warm=0 violation=0 iters=2336
+DIAG-MAPPED nrow=2583 nvar=6173 nbasic=2582 delta=-1
+DIAG-REPAIR nrow=2583 ncol=3590 short=1 uncovered_rows=0 by_uncovered=0 by_order=1 wantcol=1582 wantlog=1001
+DIAG-GUARD warm=1 violation=0 iters=311
+DIAG-REFUSE why=no-stored-basis
+DIAG-GUARD warm=0 violation=0 iters=2315
+DIAG-INSTANCE cre-d
+DIAG-REFUSE why=no-stored-basis
+DIAG-GUARD warm=0 violation=0 iters=6142
+DIAG-MAPPED nrow=4102 nvar=29290 nbasic=4102 delta=0
+DIAG-GUARD warm=1 violation=0 iters=18
+DIAG-REFUSE why=no-stored-basis
+DIAG-GUARD warm=0 violation=0 iters=6822
+DIAG-INSTANCE ken-07
+DIAG-REFUSE why=no-stored-basis
+DIAG-GUARD warm=0 violation=0 iters=1777
+DIAG-INSTANCE ken-11
+DIAG-REFUSE why=no-stored-basis
+DIAG-GUARD warm=0 violation=0 iters=10831
+DIAG-INSTANCE ken-13
+DIAG-REFUSE why=no-stored-basis
+DIAG-GUARD warm=0 violation=0 iters=23728
+DIAG-INSTANCE ken-18
+DIAG-REFUSE why=no-stored-basis
+DIAG-GUARD warm=0 violation=0 iters=77812
+DIAG-INSTANCE osa-07
+DIAG-REFUSE why=no-stored-basis
+DIAG-GUARD warm=0 violation=0 iters=600
+DIAG-MAPPED nrow=1081 nvar=25029 nbasic=1080 delta=-1
+DIAG-REPAIR nrow=1081 ncol=23948 short=1 uncovered_rows=0 by_uncovered=0 by_order=1 wantcol=354 wantlog=727
+DIAG-GUARD warm=1 violation=0 iters=1
+DIAG-REFUSE why=no-stored-basis
+DIAG-GUARD warm=0 violation=0 iters=600
+DIAG-INSTANCE osa-14
+DIAG-REFUSE why=no-stored-basis
+DIAG-GUARD warm=0 violation=0 iters=1294
+DIAG-MAPPED nrow=2300 nvar=54759 nbasic=2299 delta=-1
+DIAG-REPAIR nrow=2300 ncol=52459 short=1 uncovered_rows=0 by_uncovered=0 by_order=1 wantcol=780 wantlog=1520
+DIAG-GUARD warm=1 violation=0 iters=2
+DIAG-REFUSE why=no-stored-basis
+DIAG-GUARD warm=0 violation=0 iters=1293
+DIAG-INSTANCE osa-30
+DIAG-REFUSE why=no-stored-basis
+DIAG-GUARD warm=0 violation=0 iters=2645
+DIAG-MAPPED nrow=4313 nvar=104336 nbasic=4312 delta=-1
+DIAG-REPAIR nrow=4313 ncol=100023 short=1 uncovered_rows=0 by_uncovered=0 by_order=1 wantcol=1535 wantlog=2778
+DIAG-GUARD warm=1 violation=0 iters=3
+DIAG-REFUSE why=no-stored-basis
+DIAG-GUARD warm=0 violation=0 iters=2645
+DIAG-INSTANCE osa-60
+DIAG-REFUSE why=no-stored-basis
+DIAG-GUARD warm=0 violation=0 iters=7119
+DIAG-MAPPED nrow=10243 nvar=243207 nbasic=10242 delta=-1
+DIAG-REPAIR nrow=10243 ncol=232964 short=1 uncovered_rows=0 by_uncovered=0 by_order=1 wantcol=2912 wantlog=7331
+DIAG-GUARD warm=1 violation=0 iters=1
+DIAG-REFUSE why=no-stored-basis
+DIAG-GUARD warm=0 violation=0 iters=7061
+DIAG-INSTANCE pds-02
+DIAG-REFUSE why=no-stored-basis
+DIAG-GUARD warm=0 violation=0 iters=1910
+DIAG-INSTANCE pds-06
+DIAG-REFUSE why=no-stored-basis
+DIAG-GUARD warm=0 violation=0 iters=9305
+DIAG-MAPPED nrow=9156 nvar=37008 nbasic=9156 delta=0
+DIAG-GUARD warm=1 violation=0 iters=9662
+DIAG-REFUSE why=no-stored-basis
+DIAG-GUARD warm=0 violation=0 iters=8794
+DIAG-INSTANCE pds-10
+DIAG-REFUSE why=no-stored-basis
+DIAG-GUARD warm=0 violation=0 iters=16208
+DIAG-MAPPED nrow=15648 nvar=63377 nbasic=15648 delta=0
+DIAG-GUARD warm=1 violation=0 iters=2
+DIAG-REFUSE why=no-stored-basis
+DIAG-GUARD warm=0 violation=0 iters=18037
+DIAG-INSTANCE pds-20
+DIAG-REFUSE why=no-stored-basis
+DIAG-GUARD warm=0 violation=0 iters=90938
+DIAG-MAPPED nrow=32287 nvar=136268 nbasic=32287 delta=0
+DIAG-GUARD warm=1 violation=0 iters=391647
+DIAG-REFUSE why=no-stored-basis
+DIAG-GUARD warm=0 violation=0 iters=94823

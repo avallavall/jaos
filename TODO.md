@@ -52,6 +52,31 @@ the one quoting the mean did not.
 **No gate campaign is owed.** `comment_only.sh` reports the release object
 UNCHANGED at `d33fba7`, so D177's campaign still holds. `warm*` is not a gate.
 
+### 2026-08-25: D186, the long-map refusal holds and §2's cheap route is closed
+
+**No source change.** `build_warm_basis` refuses a long count because "no long
+map has been measured". Nobody had counted. **0 long maps in 101 calls** across
+both gate sets, so the premise holds.
+
+**The hypothesis it killed was worth having.** §2's rank argument is needed at
+POSTSOLVE, which has no factorization. `build_warm_basis` runs inside the
+solver with `repair_singular_basis` downstream, so a demotion THERE would need
+no new rank machinery, and D179 had already measured the supply. There is
+nothing to demote.
+
+**The published basis and the mapped basis move in opposite directions.** 24
+netlib instances publish over-long (D179); 0 map long and 55 map short.
+`fit1p` publishes **over by 21** and maps **short by 241**.
+
+**And the census prices D151's cap per instance**, which nobody had: **35 of 90
+netlib warm starts fall back to a cold solve** because the shortfall is past 4.
+Kennington loses none. Worst: `sctap3` 596, `sctap2` 432, `dfl001` 343
+(D186, `bench/measurements/02-98/`).
+
+**One figure disagrees with D149** and is recorded rather than resolved: that
+entry put the 596-short repair on `dfl001`, and today `dfl001` is 343 while
+`sctap3` is 596.
+
 ### 2026-08-25: D185, item 5 is CLOSED — the gate has an absolute bar
 
 **`bench/run.c`: `RSUB_CEILING = 1e-6`, a per-instance verdict that reads no

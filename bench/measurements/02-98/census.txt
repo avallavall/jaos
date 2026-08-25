@@ -1,0 +1,17 @@
+== netlib: 90 calls to build_warm_basis ==
+   exact    35
+   short    55   worst -596 (sctap3)
+   LONG      0
+   the refusal's premise holds on this set: no map arrives long
+   of the short ones, 20 are within WARM_REPAIR_MAX_SHORT = 4 and get repaired; 35 fall back to cold
+
+== kennington: 11 calls to build_warm_basis ==
+   exact     6
+   short     5   worst -1 (cre-c)
+   LONG      0
+   the refusal's premise holds on this set: no map arrives long
+   of the short ones, 5 are within WARM_REPAIR_MAX_SHORT = 4 and get repaired; 0 fall back to cold
+
+OVER BOTH SETS: 0 long maps in 101 calls
+The refusal in build_warm_basis says a demotion rule would be 'a constant fitted to nothing'.
+That premise HOLDS. There is nothing for one to act on.

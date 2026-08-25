@@ -1,0 +1,199 @@
+warm re-solve against cold, one branching step per instance
+# instance    verdict   branch  warm=iters/work  cold=iters/work
+25fv47       ok        branch=x0<=53 warm=4242/164517889 cold=2720/68597440 verdict=optimal obj=5501.848349340652/5501.848349340652 before=5501.8458882867444 moved=yes checker=warm:ok/cold:ok 
+      25fv47       warm 0.241 s, cold 0.108 s
+80bau3b      ok        branch=x0<=531 warm=3514/64294236 cold=3514/64294236 verdict=optimal obj=987224.20610166341/987224.20610166341 before=987224.19240909023 moved=yes checker=warm:ok/cold:ok 
+      80bau3b      warm 0.171 s, cold 0.172 s
+adlittle     ok        branch=x0<=22 warm=2/18502 cold=80/169910 verdict=optimal obj=225701.53567258871/225701.53567258871 before=225494.96316238036 moved=yes checker=warm:ok/cold:ok 
+      adlittle     warm 0.001 s, cold 0.001 s
+afiro        ok        branch=x1<=25 warm=1/9073 cold=18/13171 verdict=optimal obj=-464.58075714285712/-464.58075714285712 before=-464.75314285714285 moved=yes checker=warm:ok/cold:ok 
+      afiro        warm 0.000 s, cold 0.000 s
+agg          ok        branch=x4<=1369 warm=1/31672 cold=187/904800 verdict=optimal obj=-35991767.239425711/-35991767.239425711 before=-35991767.286576502 moved=yes checker=warm:ok/cold:ok 
+      agg          warm 0.001 s, cold 0.003 s
+agg2         ok        branch=x0<=15031 warm=1/39101 cold=296/1752826 verdict=optimal obj=-20239252.305716105/-20239252.305716105 before=-20239252.355977111 moved=yes checker=warm:ok/cold:ok 
+      agg2         warm 0.001 s, cold 0.005 s
+agg3         ok        branch=x0<=15031 warm=1/42855 cold=718/6334042 verdict=optimal obj=10312115.985350227/10312115.985350227 before=10312115.935089221 moved=yes checker=warm:ok/cold:ok 
+      agg3         warm 0.001 s, cold 0.014 s
+bandm        ok        branch=x3<=0 warm=405/3016365 cold=405/3016365 verdict=optimal obj=-158.56799645822198/-158.56799645822198 before=-158.62801845012066 moved=yes checker=warm:ok/cold:ok 
+      bandm        warm 0.007 s, cold 0.006 s
+beaconfd     ok        branch=x0<=3 warm=1/26067 cold=71/82325 verdict=infeasible obj=0/0 before=33592.485807199999 moved=yes checker=warm:n/a/cold:n/a 
+      beaconfd     warm 0.000 s, cold 0.001 s
+blend        ok        branch=x0<=20 warm=13/40475 cold=102/212210 verdict=optimal obj=-30.541042287888668/-30.541042287888668 before=-30.812149845828223 moved=yes checker=warm:ok/cold:ok 
+      blend        warm 0.001 s, cold 0.001 s
+bnl1         ok        branch=x0<=82 warm=789/6727205 cold=789/6727205 verdict=optimal obj=1977.6940564409347/1977.6940564409347 before=1977.629561522888 moved=yes checker=warm:ok/cold:ok 
+      bnl1         warm 0.018 s, cold 0.017 s
+bnl2         ok        branch=x0<=41 warm=1752/21311505 cold=1752/21311505 verdict=optimal obj=1811.5132693153214/1811.5132693153214 before=1811.2365403585452 moved=yes checker=warm:ok/cold:ok 
+      bnl2         warm 0.075 s, cold 0.076 s
+boeing1      ok        branch=x16<=47 warm=25/210773 cold=372/1890269 verdict=optimal obj=-335.21356750712664/-335.21356750712664 before=-335.21356750712664 moved=NO checker=warm:ok/cold:ok 
+      boeing1      warm 0.001 s, cold 0.005 s
+boeing2      ok        branch=x9<=4 warm=1/16902 cold=117/318952 verdict=optimal obj=-315.0187280152029/-315.0187280152029 before=-315.0187280152029 moved=NO checker=warm:ok/cold:ok 
+      boeing2      warm 0.001 s, cold 0.001 s
+bore3d       ok        branch=x0<=2 warm=25/118973 cold=134/350848 verdict=infeasible obj=0/0 before=1373.0803942084929 moved=yes checker=warm:n/a/cold:n/a 
+      bore3d       warm 0.001 s, cold 0.001 s
+brandy       ok        branch=x0<=73 warm=216/1348125 cold=216/1348125 verdict=optimal obj=1518.7456302031273/1518.7456302031273 before=1518.5098964881283 moved=yes checker=warm:ok/cold:ok 
+      brandy       warm 0.003 s, cold 0.002 s
+capri        ok        branch=x0<=5071 warm=1/40029 cold=273/492397 verdict=optimal obj=2690.040756371297/2690.040756371297 before=2690.0129137681611 moved=yes checker=warm:ok/cold:ok 
+      capri        warm 0.001 s, cold 0.003 s
+cycle        ok        branch=x2<=3 warm=1339/22985019 cold=1339/22985019 verdict=optimal obj=-5.2263930248941017/-5.2263930248941017 before=-5.2263930248941017 moved=NO checker=warm:ok/cold:ok 
+      cycle        warm 0.057 s, cold 0.055 s
+czprob       ok        branch=x819<=190 warm=1125/11990204 cold=1125/11990204 verdict=optimal obj=2185196.7334837471/2185196.7334837471 before=2185196.6988565773 moved=yes checker=warm:ok/cold:ok 
+      czprob       warm 0.025 s, cold 0.025 s
+d2q06c       ok        branch=x2<=133344 warm=28590/2195227939 cold=28590/2195227939 verdict=optimal obj=122784.21081763956/122784.21081763956 before=122784.21081418944 moved=yes checker=warm:ok/cold:ok 
+      d2q06c       warm 3.962 s, cold 4.005 s
+d6cube       ok        branch=x93<=2 warm=1/335057 cold=374/21874640 verdict=optimal obj=315.49166666666667/315.49166666666667 before=315.49166666666667 moved=NO checker=warm:ok/cold:ok 
+      d6cube       warm 0.003 s, cold 0.031 s
+degen2       ok        branch=x4<=0 warm=565/18643624 cold=565/5072889 verdict=optimal obj=-1435.1616666666666/-1435.1616666666666 before=-1435.1780000000001 moved=yes checker=warm:ok/cold:ok 
+      degen2       warm 0.044 s, cold 0.014 s
+degen3       ok        branch=x21<=0 warm=2397/165273882 cold=2397/77930826 verdict=optimal obj=-987.27333333333331/-987.27333333333331 before=-987.29399999999998 moved=yes checker=warm:ok/cold:ok 
+      degen3       warm 0.352 s, cold 0.180 s
+dfl001       ok        branch=x0<=0 warm=22117/2811550859 cold=22117/2811550859 verdict=numerical error obj=0/0 before=11266396.046671392 moved=yes checker=warm:n/a/cold:n/a 
+      dfl001       warm 10.066 s, cold 10.125 s
+e226         ok        branch=x0<=0 warm=7/69304 cold=266/1564508 verdict=optimal obj=-9.544284157369697/-9.5442841573696988 before=-11.638929066370549 moved=yes checker=warm:ok/cold:ok 
+      e226         warm 0.001 s, cold 0.003 s
+etamacro     ok        branch=x1>=5 warm=568/3320372 cold=568/3320372 verdict=optimal obj=-755.71522915549303/-755.71522915549303 before=-755.7152333749134 moved=yes checker=warm:ok/cold:ok 
+      etamacro     warm 0.009 s, cold 0.009 s
+fffff800     ok        branch=x3<=91 warm=7/75503 cold=945/9591284 verdict=optimal obj=555679.56481749623/555679.56481749623 before=555679.56481749623 moved=NO checker=warm:ok/cold:ok 
+      fffff800     warm 0.001 s, cold 0.019 s
+finnis       ok        branch=x1<=3084 warm=4/61092 cold=281/524911 verdict=optimal obj=172791.45128346462/172791.45136514783 before=172791.06567185125 moved=yes checker=warm:ok/cold:ok 
+      finnis       warm 0.001 s, cold 0.003 s
+fit1d        ok        branch=x435<=0 warm=2/108969 cold=39/836762 verdict=optimal obj=-9146.3684959843577/-9146.3684959843577 before=-9146.3780924209277 moved=yes checker=warm:ok/cold:ok 
+      fit1d        warm 0.001 s, cold 0.001 s
+fit1p        ok        branch=x0<=8 warm=476/11623686 cold=476/11623686 verdict=optimal obj=9146.4679957562839/9146.4679957562839 before=9146.3780924209277 moved=yes checker=warm:ok/cold:ok 
+      fit1p        warm 0.024 s, cold 0.026 s
+fit2d        ok        branch=x5<=0 warm=3/1209023 cold=133/75129504 verdict=optimal obj=-68460.035599191804/-68460.035599191804 before=-68464.293293832074 moved=yes checker=warm:ok/cold:ok 
+      fit2d        warm 0.006 s, cold 0.064 s
+fit2p        ok        branch=x0<=8 warm=4596/570605835 cold=4596/570605835 verdict=optimal obj=68464.930134952985/68464.930134952985 before=68464.293293832074 moved=yes checker=warm:ok/cold:ok 
+      fit2p        warm 1.915 s, cold 1.899 s
+forplan      ok        branch=x1<=19850 warm=4/79845 cold=183/1146660 verdict=optimal obj=-664.21882317620464/-664.21882317620464 before=-664.21896127220464 moved=yes checker=warm:ok/cold:ok 
+      forplan      warm 0.001 s, cold 0.002 s
+ganges       ok        branch=x0<=18076 warm=1233/3481155 cold=1233/3481155 verdict=optimal obj=-109585.73612927823/-109585.73612927823 before=-109585.73612927814 moved=yes checker=warm:ok/cold:ok 
+      ganges       warm 0.020 s, cold 0.019 s
+gfrd-pnc     ok        branch=x0<=15098 warm=2/37968 cold=549/3010076 verdict=optimal obj=6902236.1540229144/6902236.1540229144 before=6902235.9995488087 moved=yes checker=warm:ok/cold:ok 
+      gfrd-pnc     warm 0.001 s, cold 0.008 s
+greenbea     ok        branch=x2<=830302 warm=7826/419297740 cold=7826/419297740 verdict=optimal obj=-72555248.097065017/-72555248.097065017 before=-72555248.129845977 moved=yes checker=warm:ok/cold:ok 
+      greenbea     warm 0.770 s, cold 0.761 s
+greenbeb     ok        branch=x13<=193 warm=11337/610582801 cold=11337/610582801 verdict=optimal obj=-4302260.2271257397/-4302260.2271257397 before=-4302260.2612065868 moved=yes checker=warm:ok/cold:ok 
+      greenbeb     warm 1.103 s, cold 1.154 s
+grow15       ok        branch=x0<=5638 warm=1/557007 cold=10833/153035900 verdict=optimal obj=-106870941.29357533/-106870941.29357535 before=-106870941.29357533 moved=NO checker=warm:ok/cold:ok 
+      grow15       warm 0.002 s, cold 0.182 s
+grow22       ok        branch=x0<=4857 warm=1/904571 cold=28255/708402465 verdict=optimal obj=-160834336.48256296/-160834336.48256293 before=-160834336.48256299 moved=yes checker=warm:ok/cold:ok 
+      grow22       warm 0.002 s, cold 0.823 s
+grow7        ok        branch=x0<=572573 warm=1/163537 cold=686/8705669 verdict=optimal obj=-47787811.814711504/-47787811.814711504 before=-47787811.814711504 moved=NO checker=warm:ok/cold:ok 
+      grow7        warm 0.001 s, cold 0.011 s
+israel       ok        branch=x0<=230 warm=1/37325 cold=111/636574 verdict=optimal obj=-896639.18589917012/-896639.18589917012 before=-896644.82186304568 moved=yes checker=warm:ok/cold:ok 
+      israel       warm 0.001 s, cold 0.001 s
+kb2          ok        branch=x0<=0 warm=6/34684 cold=40/47847 verdict=optimal obj=-1749.8864620011495/-1749.8864620011495 before=-1749.9001299062058 moved=yes checker=warm:ok/cold:ok 
+      kb2          warm 0.001 s, cold 0.000 s
+lotfi        ok        branch=x0<=31 warm=233/884152 cold=244/754489 verdict=optimal obj=-24.737746555000001/-24.737746555000001 before=-25.264706061880005 moved=yes checker=warm:ok/cold:ok 
+      lotfi        warm 0.002 s, cold 0.002 s
+maros        ok        branch=x0<=6057 warm=1144/12747939 cold=1144/12747939 verdict=optimal obj=-58063.702557459968/-58063.702557459968 before=-58063.743701125895 moved=yes checker=warm:ok/cold:ok 
+      maros        warm 0.027 s, cold 0.027 s
+maros-r7     ok        branch=x1<=1109 warm=1/2557576 cold=2577/325763901 verdict=optimal obj=1497185.4707985821/1497185.4707985821 before=1497185.1664796439 moved=yes checker=warm:ok/cold:ok 
+      maros-r7     warm 0.019 s, cold 0.445 s
+modszk1      ok        branch=x0<=6 warm=752/9095267 cold=752/9095267 verdict=optimal obj=320.99547274150865/320.99547274150865 before=320.61972906422608 moved=yes checker=warm:ok/cold:ok 
+      modszk1      warm 0.018 s, cold 0.018 s
+nesm         ok        branch=x0<=1304 warm=2984/67214505 cold=2984/67214505 verdict=optimal obj=14076036.490650102/14076036.490650102 before=14076036.487562733 moved=yes checker=warm:ok/cold:ok 
+      nesm         warm 0.107 s, cold 0.111 s
+perold       ok        branch=x0<=0 warm=2732/71712679 cold=2732/71712679 verdict=optimal obj=-9337.5538967785906/-9337.5538967785906 before=-9380.7552782351613 moved=yes checker=warm:ok/cold:ok 
+      perold       warm 0.102 s, cold 0.102 s
+pilot        ok        branch=x3<=1018 warm=21251/4083140907 cold=21251/4083140907 verdict=optimal obj=-557.48084097580067/-557.48084097580067 before=-557.4897292893346 moved=yes checker=warm:ok/cold:ok 
+      pilot        warm 4.796 s, cold 4.743 s
+pilot-ja     ok        branch=x2<=4 warm=2110/76807651 cold=2110/76807651 verdict=optimal obj=-6113.1312252141543/-6113.1312252141543 before=-6113.1364655813431 moved=yes checker=warm:ok/cold:ok 
+      pilot-ja     warm 0.105 s, cold 0.105 s
+pilot-we     ok        branch=x0<=58 warm=334/13790441 cold=4570/144955866 verdict=optimal obj=-2719100.48946296/-2719100.48946296 before=-2720107.5328449644 moved=yes checker=warm:ok/cold:ok 
+      pilot-we     warm 0.022 s, cold 0.203 s
+pilot4       ok        branch=x0<=0 warm=645/15116888 cold=645/15116888 verdict=optimal obj=-2578.6069820768162/-2578.6069820768162 before=-2581.1392588838889 moved=yes checker=warm:ok/cold:ok 
+      pilot4       warm 0.019 s, cold 0.020 s
+pilot87      ok        branch=x0<=8 warm=37782/17835729685 cold=37782/17835729685 verdict=optimal obj=301.77544556310693/301.77544556310693 before=301.71034733311052 moved=yes checker=warm:ok/cold:ok 
+      pilot87      warm 20.410 s, cold 20.368 s
+pilotnov     ok        branch=x2<=4 warm=1641/52283194 cold=1641/52283194 verdict=optimal obj=-4497.2761882188706/-4497.2761882188706 before=-4497.2761882188706 moved=NO checker=warm:ok/cold:ok 
+      pilotnov     warm 0.080 s, cold 0.082 s
+recipe       skipped   every column integral at the optimum
+sc105        ok        branch=x1<=10 warm=1/13487 cold=105/127982 verdict=optimal obj=-52.100751786731252/-52.100751786731252 before=-52.202061211707239 moved=yes checker=warm:ok/cold:ok 
+      sc105        warm 0.000 s, cold 0.001 s
+sc205        ok        branch=x1<=10 warm=1/20795 cold=225/548868 verdict=optimal obj=-52.100751786731244/-52.100751786731252 before=-52.202061211707232 moved=yes checker=warm:ok/cold:ok 
+      sc205        warm 0.000 s, cold 0.002 s
+sc50a        ok        branch=x1<=16 warm=1/10681 cold=47/35072 verdict=optimal obj=-64.518571090607978/-64.518571090607978 before=-64.575077058564489 moved=yes checker=warm:ok/cold:ok 
+      sc50a        warm 0.000 s, cold 0.000 s
+sc50b        ok        branch=x12<=30 warm=1/10664 cold=53/39395 verdict=optimal obj=-69.965661025263657/-69.965661025263657 before=-70 moved=yes checker=warm:ok/cold:ok 
+      sc50b        warm 0.000 s, cold 0.000 s
+scagr25      ok        branch=x6<=1315 warm=1/28398 cold=543/2383572 verdict=optimal obj=-14753430.979968522/-14753430.979968522 before=-14753433.06076852 moved=yes checker=warm:ok/cold:ok 
+      scagr25      warm 0.001 s, cold 0.006 s
+scagr7       ok        branch=x7<=2504 warm=47/166468 cold=167/367028 verdict=optimal obj=-2331384.8776643169/-2331384.8776643169 before=-2331389.8243309837 moved=yes checker=warm:ok/cold:ok 
+      scagr7       warm 0.001 s, cold 0.001 s
+scfxm1       ok        branch=x0<=35 warm=418/1912132 cold=418/1912132 verdict=optimal obj=18416.759028348941/18416.759028348941 before=18416.759028348941 moved=NO checker=warm:ok/cold:ok 
+      scfxm1       warm 0.006 s, cold 0.005 s
+scfxm2       ok        branch=x0<=35 warm=896/6344187 cold=896/6344187 verdict=optimal obj=36660.261564998815/36660.261564998815 before=36660.261564998815 moved=NO checker=warm:ok/cold:ok 
+      scfxm2       warm 0.016 s, cold 0.016 s
+scfxm3       ok        branch=x0<=35 warm=1426/11415069 cold=1426/11415069 verdict=optimal obj=54901.254549751458/54901.254549751458 before=54901.254549751458 moved=NO checker=warm:ok/cold:ok 
+      scfxm3       warm 0.036 s, cold 0.030 s
+scorpion     ok        branch=x0<=0 warm=0/24410 cold=249/471309 verdict=optimal obj=1879.6756547113916/1879.6756547113916 before=1878.1248227381068 moved=yes checker=warm:ok/cold:ok 
+      scorpion     warm 0.001 s, cold 0.002 s
+scrs8        ok        branch=x14<=0 warm=0/137 cold=0/137 verdict=infeasible obj=0/0 before=904.29695380079147 moved=yes checker=warm:n/a/cold:n/a 
+      scrs8        warm 0.000 s, cold 0.000 s
+scsd1        ok        branch=x71<=0 warm=56/339041 cold=86/423302 verdict=optimal obj=8.6666666743333653/8.6666666743333653 before=8.6666666743333653 moved=NO checker=warm:ok/cold:ok 
+      scsd1        warm 0.001 s, cold 0.001 s
+scsd6        ok        branch=x47<=0 warm=1/37967 cold=244/1676810 verdict=optimal obj=50.500000077144342/50.500000077144342 before=50.500000077144342 moved=NO checker=warm:ok/cold:ok 
+      scsd6        warm 0.001 s, cold 0.003 s
+scsd8        ok        branch=x41<=0 warm=71/1449639 cold=767/9184242 verdict=optimal obj=904.99999992546441/904.99999992546441 before=904.99999992546441 moved=NO checker=warm:ok/cold:ok 
+      scsd8        warm 0.003 s, cold 0.016 s
+sctap1       ok        branch=x12<=0 warm=185/570491 cold=185/570491 verdict=optimal obj=1442.25/1442.25 before=1412.25 moved=yes checker=warm:ok/cold:ok 
+      sctap1       warm 0.002 s, cold 0.002 s
+sctap2       ok        branch=x72<=0 warm=286/951894 cold=286/951894 verdict=optimal obj=1744.8071428571429/1744.8071428571429 before=1724.8071428571429 moved=yes checker=warm:ok/cold:ok 
+      sctap2       warm 0.005 s, cold 0.005 s
+sctap3       ok        branch=x72<=0 warm=368/1279054 cold=368/1279054 verdict=optimal obj=1444/1444 before=1424 moved=yes checker=warm:ok/cold:ok 
+      sctap3       warm 0.007 s, cold 0.007 s
+seba         ok        branch=x0<=1 warm=107/184598 cold=107/184598 verdict=optimal obj=15747.65/15747.65 before=15711.6 moved=yes checker=warm:ok/cold:ok 
+      seba         warm 0.002 s, cold 0.002 s
+share1b      ok        branch=x0<=333 warm=0/1 cold=0/1 verdict=infeasible obj=0/0 before=-76589.318579185667 moved=yes checker=warm:n/a/cold:n/a 
+      share1b      warm 0.000 s, cold 0.000 s
+share2b      ok        branch=x0<=1 warm=1/17146 cold=107/222909 verdict=optimal obj=-409.04843788794921/-409.04843788794921 before=-415.73224074141922 moved=yes checker=warm:ok/cold:ok 
+      share2b      warm 0.000 s, cold 0.001 s
+shell        skipped   every column integral at the optimum
+ship04l      ok        branch=x0<=187 warm=1/50416 cold=408/598244 verdict=optimal obj=1793342.5657898998/1793342.5657898998 before=1793324.5379703557 moved=yes checker=warm:ok/cold:ok 
+      ship04l      warm 0.001 s, cold 0.003 s
+ship04s      ok        branch=x0<=190 warm=3/44642 cold=337/444871 verdict=optimal obj=1798746.5040536677/1798746.5040536677 before=1798714.7004453922 moved=yes checker=warm:ok/cold:ok 
+      ship04s      warm 0.001 s, cold 0.002 s
+ship08l      ok        branch=x0<=0 warm=1/78652 cold=698/2371148 verdict=optimal obj=1909058.1856023998/1909058.1856023998 before=1909055.2113891314 moved=yes checker=warm:ok/cold:ok 
+      ship08l      warm 0.002 s, cold 0.008 s
+ship08s      ok        branch=x0<=6 warm=1/40552 cold=455/912410 verdict=optimal obj=1920105.4243580457/1920105.4243580457 before=1920098.2105346196 moved=yes checker=warm:ok/cold:ok 
+      ship08s      warm 0.001 s, cold 0.004 s
+ship12l      ok        branch=x0<=135 warm=3/135023 cold=1017/4167197 verdict=optimal obj=1470191.6698162993/1470191.6698162993 before=1470187.9193292649 moved=yes checker=warm:ok/cold:ok 
+      ship12l      warm 0.002 s, cold 0.014 s
+ship12s      ok        branch=x0<=134 warm=5/83971 cold=664/1586578 verdict=optimal obj=1489236.5851527236/1489236.5851527236 before=1489236.1344061291 moved=yes checker=warm:ok/cold:ok 
+      ship12s      warm 0.001 s, cold 0.006 s
+sierra       ok        branch=x0<=33 warm=8/83445 cold=616/1526893 verdict=optimal obj=15401576.430736329/15401576.430736329 before=15394362.183631929 moved=yes checker=warm:ok/cold:ok 
+      sierra       warm 0.001 s, cold 0.010 s
+stair        ok        branch=x0<=3 warm=1/338471 cold=595/13555763 verdict=optimal obj=-251.26677584310485/-251.26677584310485 before=-251.26695119296332 moved=yes checker=warm:ok/cold:ok 
+      stair        warm 0.002 s, cold 0.017 s
+standata     ok        branch=x108<=244 warm=57/94437 cold=57/94437 verdict=optimal obj=1258.1926683716965/1258.1926683716965 before=1257.6994999999999 moved=yes checker=warm:ok/cold:ok 
+      standata     warm 0.001 s, cold 0.001 s
+standmps     ok        branch=x3<=4 warm=190/298615 cold=190/298615 verdict=optimal obj=1408.8025/1408.8025 before=1406.0174999999999 moved=yes checker=warm:ok/cold:ok 
+      standmps     warm 0.002 s, cold 0.002 s
+stocfor1     ok        branch=x5<=20 warm=1/14553 cold=117/245172 verdict=optimal obj=-41130.015179556212/-41130.015179556212 before=-41131.976219436408 moved=yes checker=warm:ok/cold:ok 
+      stocfor1     warm 0.000 s, cold 0.001 s
+stocfor2     ok        branch=x5<=16 warm=1/139671 cold=2124/15505845 verdict=optimal obj=-39022.415086645517/-39022.415086645517 before=-39024.408537882031 moved=yes checker=warm:ok/cold:ok 
+      stocfor2     warm 0.002 s, cold 0.074 s
+stocfor3     ok        branch=x5<=18 warm=2/1077174 cold=18233/548930699 verdict=optimal obj=-39974.713358389534/-39974.713358389534 before=-39976.783943649592 moved=yes checker=warm:ok/cold:ok 
+      stocfor3     warm 0.020 s, cold 5.113 s
+truss        ok        branch=x2<=29 warm=2/200970 cold=14946/991312299 verdict=optimal obj=458816.81146059383/458816.81146059383 before=458815.84718561673 moved=yes checker=warm:ok/cold:ok 
+      truss        warm 0.002 s, cold 1.312 s
+tuff         ok        branch=x10<=12 warm=218/999167 cold=218/999167 verdict=optimal obj=0.29214776509361284/0.29214776509361284 before=0.29214776509361279 moved=yes checker=warm:ok/cold:ok 
+      tuff         warm 0.003 s, cold 0.003 s
+vtp-base     ok        branch=x0<=102730 warm=10/32036 cold=51/64929 verdict=optimal obj=129831.67323971361/129831.67323971361 before=129831.46246136137 moved=yes checker=warm:ok/cold:ok 
+      vtp-base     warm 0.001 s, cold 0.000 s
+wood1p       ok        branch=x1944<=0 warm=33/2872872 cold=285/15848805 verdict=optimal obj=1.976868548527893/1.9768685485278927 before=1.4429024115734093 moved=yes checker=warm:ok/cold:ok 
+      wood1p       warm 0.004 s, cold 0.011 s
+woodw        ok        branch=x11<=0 warm=1293/42070086 cold=1293/42070086 verdict=optimal obj=1.3088124471865625/1.3088124471865625 before=1.3044763330842295 moved=yes checker=warm:ok/cold:ok 
+      woodw        warm 0.054 s, cold 0.054 s
+
+-- warm against cold --
+measured 92, skipped 2, disagreed 0, rejected 0, errors 0
+iterations (warm+1)/(cold+1), geometric mean: 0.0878
+work units warm/cold, geometric mean:         0.1940
+work ratio, best  truss at 0.0002
+work ratio, worst degen2 at 3.6751
+reached the optimum in no iterations at all:  3 of 92
+took more iterations warm than cold:          1 of 92
+the branch moved the optimum:                 78 of 92
+elapsed 155.2 s
