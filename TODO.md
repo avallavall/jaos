@@ -5,7 +5,57 @@ says why closed questions closed, `CHANGELOG.md` says what landed, `bench/`
 says what it costs. This file says what is next. When something lands, its
 line leaves this file in the same commit.
 
-## Where the last session stopped — 2026-08-24
+## Where the last session stopped — 2026-08-25
+
+### → FRESH CONTEXT: READ THIS PARAGRAPH AND THEN §0
+
+**The next piece of work is the primal simplex, and §0 is the item.** The
+maintainer chose it on 2026-08-25. It is the only missing feature anything in
+this file waits on.
+
+**The tree is clean and everything is pushed.** `gate: PASS` with
+`0 regressed, 0 improved, 0 new` on all three sets, against baselines rewritten
+on purpose after D184 was read and accepted. `make configs` exits 0 on all five
+configurations. One untracked directory is not this session's,
+`bench/measurements/02-31/`.
+
+**Ask the remote rather than trusting a count:**
+`git rev-list --count origin/main..HEAD`. **Push from the WINDOWS side** — the
+remote is an SSH alias that lives in the Windows `~/.ssh/config` only. `git
+fetch` first, because another Claude session commits here.
+
+**Ten decisions landed on 2026-08-24 and 2026-08-25, D177 to D186**, and two
+of the five open items closed. What each one did is below, newest first.
+
+| | |
+|---|---|
+| **D186** | 0 long mapped bases in 101 calls, so §2's cheapest route is closed. 35 of 90 netlib warm starts fall back to cold |
+| **D185** | **item 5 CLOSED** — the gate has an absolute bar, `RSUB_CEILING = 1e-6` |
+| **D184** | **item 1 CLOSED** — `DUAL_TOL` is 1e-9, all four wrong points gone |
+| **D183** | `pilot87`'s bound follows a dual solution that is not unique |
+| **D182** | `plato-nug` solves one of three; presolve reaches nothing on it |
+| **D181** | the fourth set run for the first time; §3 is not reopened by it |
+| **D180** | `REFACTOR_EVERY` swept for the first time; 64 stays, with a reason |
+| **D179** | a wider rule covers 19 of 24 and two instances have no candidate at all |
+| **D178** | `scsd1` and `degen2` do not lose the same way, and the record said they did |
+| **D177** | the suboptimality predicate watched 4 solves of 110; it watches 84 |
+
+**Six mistakes this pair of sessions made, all caught before anything was
+written down, and all recorded where they happened.** They are listed because
+each one produced output that read as a finished result:
+
+- a probe read the published basis and concluded the MAPPED basis arrives long;
+  it arrives short, and they are different objects (D181)
+- `grep -vE` on a leading bracket threw away the runner's RECORD line, because
+  the runner prefixes it with the timing bracket; the summary survived (D182)
+- two vertices were called different from the digests alone, without the cost
+  beside them; most of those columns price at nothing (D183)
+- **`make test` does not compile `bench/run.c`** and reported
+  `4 Tests 0 Failures OK` on a change that did not build (D185)
+- an anchor checker stripped underscores the project keeps in its anchors
+- a quoted heredoc collapsed a doubled backslash to a single one, four
+  times, breaking C string literals; the fix is a placeholder token
+  substituted in code rather than an escape written inside the heredoc
 
 ### 2026-08-24: D177, and item 5 is half closed
 
@@ -295,17 +345,22 @@ half-done, no measurement is owed, and no agent is waiting. What follows is the
 list of what to pick up, in order, and every item names what it needs before
 any code.
 
-**EVERY REMAINING ITEM NEEDS A HUMAN DECISION OR A HYPOTHESIS.** That is the
-state as of 2026-08-21, checked item by item, and it is why the unattended
-session stopped here rather than starting another measurement. Item 1 is a
-judgement only the maintainer can make. Item 2 needs a design. Item 3 needs a
-mechanism to test, and fitting one to 2 instances of 18 is the failure D46
-names. Item 4 is analysed and blocked behind a missing primal simplex. Item 5
-needs a threshold that one instance cannot supply. **None of them is short of
-measurement.**
+### → THE NEXT SESSION BUILDS THE PRIMAL SIMPLEX. Section §0 below.
+
+**Decided by the maintainer on 2026-08-25.** Items 1 and 5 closed that day,
+and what is left cannot move without either a decision or a feature. The
+primal simplex is the feature, and it is the only one anything here waits on.
+**§0 is the item; read it before any code.**
+
+**Items 1 and 5 are CLOSED (D184, D185).** Item 2 needs the rank argument at
+postsolve and D186 closed the only cheaper location anyone had proposed. Item
+3 needs a second instance of a mechanism that occurs once, and D181 showed the
+fourth set does not have it. Item 4 is blocked behind §0. **None of them is
+short of measurement.**
 
 | # | item | what it needs | where |
 |---|---|---|---|
+| **0** | **BUILD THE PRIMAL SIMPLEX** | the literature first, then a design. **This is the next session's work and the maintainer chose it on 2026-08-25.** It is the one missing feature anything in this file waits on: it blocks crossover, crossover blocks D97, and D97 is item 4 | **§0 below** |
 | 1 | ~~**`pilot` publishes a point 2.31e-05 above the optimum**~~ **CLOSED 2026-08-25 (D184)** — `DUAL_TOL` is 1e-9 and all four instances that published a point off the optimum no longer do; `pilot87` and `scsd6` publish Koch exactly. Work geometric mean 1.0339x on netlib and **1.0976x on Kennington, which D174 had not measured** (`pds-20` 4.815x, `d2q06c` 5.319x). `gate: PASS` on all three, no answer worse. Taken on the maintainer's decision | §4 below |
 | 2 | **48 netlib solves publish an invalid basis** | **the rank argument, and now only that.** D179 measured the supply a wider rule would draw on: it covers 19 of the 24 instances outright, and `fit1p` and `share1b` have zero candidates at every tier, so such a rule improves the residue and cannot close it. Every local repair was already refused (D140, D141); D171 made it worse by 2. Accepting the residue now has a measured floor of 3 of 24 | §2 below |
 | 3 | **`degen2` behind D151's cap — and `scsd1` is a SEPARATE question** | **the premise that they lose the same way is refuted** (D178). Only `degen2` is D148's guard, at a settled dual violation of 12.91; `scsd1`'s guard never fires and it genuinely runs 314 iterations against cold's 89. So a doomed trajectory happens ONCE in twenty, and eleven quantities known before the solve separate nothing. Needs a second instance, which means §4's fourth set | §3 below |
@@ -803,6 +858,83 @@ What is still true and unrepaired, both with their size on the record:
   so it costs nothing today. D127's reopen condition is in the refusals table.
 - D121's loan of 1e32 on a cost of one is real and stays reachable through
   D118's refused presolve candidate. No instance in the gate reaches it.
+
+## §0. BUILD THE PRIMAL SIMPLEX — the next session's work
+
+**Chosen by the maintainer on 2026-08-25**, after items 1 and 5 closed and
+everything else turned out to need either a decision or a feature. This is the
+feature.
+
+### What it is for, and what it is NOT for
+
+**It is for crossover, and crossover is for D97.** `SPECS.md` has both
+`missing`. The chain is `primal simplex → crossover → D97`, and D97 is the
+largest prize in this file: it unlocks bound tightening AND doubleton
+equalities, **8.55% of netlib's live rows and 29.36% of Kennington's**.
+Without a crossover, D97's first version has to decline 50.2% of netlib's
+imposed bounds and 82.3% of Kennington's to avoid a hazard measured at
+**12 firings in 98146 opportunities** (02-87, 02-88).
+
+**It is also for the warm starts the dual cannot serve.** `SPECS.md` says so
+and nothing has measured what that is worth here.
+
+**It is NOT a speed argument, and that is measured.** Given free choice both
+rivals ran the dual on every instance, with iteration counts identical to
+being forced (D81). Do not open this expecting the gate to get faster.
+
+**It is NOT needed for carried defect 4.** D85 closed that: the primal
+clean-up already owns a ratio test and a basis change, and reading the reduced
+cost's sign rather than the status is all a nonbasic free variable ever needed.
+
+### The order in §6 is being jumped, deliberately
+
+§6's proposed order puts cheap breadth first — write MPS, write LP, write a
+solution file, Python bindings, sensitivity and ranging, infeasibility
+certificates — and the primal simplex after them. The maintainer chose the
+primal simplex now because it is the only thing unblocking work already
+analysed in this file. **That is a change of order and not a change of plan.**
+
+### What it needs BEFORE any code
+
+1. **`literature-scout`.** `CLAUDE.md` requires it before any non-trivial
+   algorithm, and this is the largest one in the project. Bounded pivoting,
+   the ratio test, pricing, phase 1, and how the primal and the dual share a
+   factorization. **No solver source may be read** — papers, theses and
+   textbooks only (D2's rule, two closed exceptions, neither extended).
+2. **The `sparse-simplex-perf` skill**, before planning any of the algorithm.
+3. **A design decision that is not obvious**: how much of `sx` the primal
+   reuses. The dual's ratio test, Harris window, steepest-edge weights, shift
+   machinery and factorization all exist. Sharing them is cheaper and couples
+   two algorithms in one struct; separating them duplicates code that took
+   this project months to get right. **Nothing has measured either way.**
+
+### What is already decided and constrains it
+
+| | |
+|---|---|
+| **D8** | bit-identical results on every machine and every run. No clock, no address-ordered iteration, no unseeded randomness |
+| **D11** | GMP is excluded |
+| **D81** | the dual is what both rivals choose; this is not a speed play |
+| **D85** | the primal is not needed for the free-nonbasic defect |
+| **D127** | the unclamped dual step stays, because the perturbation is what keeps `pilot87` moving |
+| **D148** | a warm trajectory that settles dual-infeasible is thrown away and restarted cold. A primal path has to say what it does here |
+
+### One dead thing wakes up when this lands
+
+`can_move` compares a rate-times-distance PRODUCT against `DUAL_TOL`, which is
+a bound on a rate everywhere else. D184 measured that holding it at the old
+value changes nothing — **94 of 94 identical digests** — and the likely reason
+is structural: `can_move` feeds `anything_to_move`, and what those columns need
+is a primal pivot that does not exist. **Building the primal simplex makes that
+site live, so its units have to be settled before it decides anything.** That
+is D184's stated reopen condition.
+
+### What the gate will and will not say
+
+The three `netlib*` sets are the gate and they solve each instance once from a
+fresh load, so a primal path only reaches them if the solver chooses it. Decide
+early how the choice is made, because a primal that never runs passes every
+campaign in this repository while doing nothing.
 
 ## → START HERE — what is actually next, 2026-08-20
 

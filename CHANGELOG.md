@@ -11,6 +11,14 @@ open, `bench/README.md` for the gate, and the commit each entry came from.
 
 ### Changed
 
+- **The primal simplex is the next work, and `TODO.md` §0 is the item.** Chosen
+  by the maintainer on 2026-08-25 after items 1 and 5 closed and everything
+  left needed either a decision or a feature. It jumps §6's proposed order,
+  which puts cheap breadth first, because it is the only thing unblocking work
+  already analysed: primal simplex → crossover → D97. §0 carries what it needs
+  before any code, what is already decided about it, and the one dead site it
+  wakes up. Documentation only.
+
 - **No mapped basis arrives long in 101 calls**, so `build_warm_basis`'s
   refusal of a long count holds and the cheapest proposed route to §2 is
   closed. A demotion there would have needed no new rank machinery —

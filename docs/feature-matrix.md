@@ -62,7 +62,7 @@ respectively, which is why those rows read "—" and not "○".
 
 JAOS's dual simplex has steepest-edge pricing, a Harris two-pass ratio test with
 bound flipping, dual phase 1 by artificial bounds and a Bland fallback. The
-missing primal simplex is what blocks crossover; it was measured and is not a
+missing primal simplex is what blocks crossover, and it is the next work as of 2026-08-25 (`TODO.md` §0); it was measured and is not a
 speed argument on its own (D81, D85).
 
 HiGHS's GPU entry is ◐ because the GPU PDLP work is in progress rather than
