@@ -162,8 +162,52 @@ typedef struct {
     int check_d, check_p;
     double obj_d, obj_p;
     double secs_d, secs_p;
+    /* How the primal solve's iterations divide between phase 1, phase 2 and
+     * the dual's settling re-entry.
+     *
+     * **Reported because not reporting it made a published number wrong.**
+     * `iters_p` above counts every basis change the forced-primal solve made,
+     * whichever method made it, and the re-entry calls `run()` — so an
+     * instance can be counted as the primal agreeing with the dual when the
+     * dual did most of the work. Over the standard set that is 60.5% of every
+     * iteration, with phase 2 running 97 iterations in total (D194, D195).
+     * Three decisions were needed to find that out from outside; one column
+     * would have shown it on the first campaign (D197). */
+    long long p1_iters, p2_iters, dual_iters;
     char note[64];
 } result;
+
+/* The solver's closing summary carries the two counts this needs, and reading
+ * them from the log is deliberate: they are internal counters and D64 keeps
+ * them out of the public API. Per process, and the workers are forked, so
+ * there is one set per solve in flight.
+ *
+ * `seen` guards against reading a stale pair when a line does not arrive —
+ * a solve that never reaches the summary leaves the columns at -1 rather than
+ * repeating the previous instance's numbers. */
+static long long log_total, log_primal, log_phase1;
+static int log_seen;
+
+static void split_logger(void *user, jaos_log_level level, const char *line)
+{
+    (void)user; (void)level;
+    long long t = 0, p = 0, f = 0;
+    const char *a = strstr(line, " after ");
+    const char *b = strstr(line, " primal iterations, ");
+    if (a == nullptr || b == nullptr)
+        return;
+    if (sscanf(a, " after %lld iterations", &t) != 1)
+        return;
+    if (sscanf(b, " primal iterations, %lld of them phase 1", &f) != 1)
+        return;
+    /* Walk back from " primal iterations" to the count in front of it. */
+    const char *r = b;
+    while (r > line && (r[-1] == ' ' || (r[-1] >= '0' && r[-1] <= '9')))
+        r--;
+    if (sscanf(r, "%lld", &p) != 1)
+        return;
+    log_total = t; log_primal = p; log_phase1 = f; log_seen = 1;
+}
 
 static double now_seconds(void)
 {
@@ -272,10 +316,32 @@ static void measure_one(const entry *e, const char *dir, int64_t factor,
         goto done;
     }
 
+    /* The split is read from the solve's own closing summary, so the callback
+     * goes on for the primal solve only — the dual's summary would otherwise
+     * be the last one seen. Reset first, because a solve that never reaches
+     * its summary must leave -1 and not the previous instance's numbers. */
+    log_total = log_primal = log_phase1 = 0;
+    log_seen = 0;
+    if (jaos_set_log_callback(m, split_logger, nullptr) != JAOS_OK ||
+        jaos_set_log_level(m, JAOS_LOG_SUMMARY) != JAOS_OK) {
+        fail(r, PRIMAL_ERROR, "cannot install the log callback");
+        goto done;
+    }
+
     m->cfg.force_primal = true;
     t0 = now_seconds();
     st = jaos_solve(m);
     r->secs_p = now_seconds() - t0;
+
+    /* Recorded before the error branch below, because a solve that refuses is
+     * exactly the one whose split a reader wants. */
+    if (log_seen) {
+        r->p1_iters = log_phase1;
+        r->p2_iters = log_primal - log_phase1;
+        r->dual_iters = log_total - log_primal;
+    } else {
+        r->p1_iters = r->p2_iters = r->dual_iters = -1;
+    }
     if (st != JAOS_OK) {
         /* The solver's own words, not "primal solve failed". While there is
          * no primal phase 1 the overwhelmingly common answer here is that
@@ -402,9 +468,13 @@ static void print_result(const result *r)
             r->verdict == (int)PRIMAL_OVERRUN) {
             /* The dual's cost is still worth printing: it is what the primal
              * would have had to beat, and it dates the comparison. */
-            emit("%-12s %-9s dual=%lld/%lld %s\n", r->name,
-                 verdict_str((verdict)r->verdict), r->iters_d, r->work_d,
-                 r->note);
+            /* The split goes on this branch too, and it is the branch that
+             * needs it most: every instance that overruns does so inside
+             * phase 1 (D195), which the verdict alone does not say. */
+            emit("%-12s %-9s dual=%lld/%lld split=p1:%lld/p2:%lld/dual:%lld "
+                 "%s\n", r->name, verdict_str((verdict)r->verdict),
+                 r->iters_d, r->work_d,
+                 r->p1_iters, r->p2_iters, r->dual_iters, r->note);
             return;
         }
         emit("%-12s %-9s %s\n", r->name, verdict_str((verdict)r->verdict),
@@ -414,10 +484,12 @@ static void print_result(const result *r)
     /* The objectives are printed at full precision and side by side even
      * when they agree. "Within tolerance" is the verdict, not the evidence,
      * and the digits are what a later reader needs to see how close it was. */
-    emit("%-12s %-9s dual=%lld/%lld primal=%lld/%lld verdict=%s/%s "
+    emit("%-12s %-9s dual=%lld/%lld primal=%lld/%lld "
+         "split=p1:%lld/p2:%lld/dual:%lld verdict=%s/%s "
          "obj=%.17g/%.17g checker=dual:%s/primal:%s %s\n",
          r->name, verdict_str((verdict)r->verdict),
          r->iters_d, r->work_d, r->iters_p, r->work_p,
+         r->p1_iters, r->p2_iters, r->dual_iters,
          jaos_solve_status_str((jaos_solve_status)r->status_d),
          jaos_solve_status_str((jaos_solve_status)r->status_p),
          r->obj_d, r->obj_p,
@@ -465,12 +537,13 @@ static bool read_result(const char *p, result *r)
         return false;
     memset(r, 0, sizeof *r);
     int n = fscanf(f, "%63s %d %d %d %d %d %lld %lld %lld %lld %lf %lf %lf "
-                      "%lf",
+                      "%lf %lld %lld %lld",
                    r->name, &r->verdict, &r->status_d, &r->status_p,
                    &r->check_d, &r->check_p, &r->iters_d, &r->iters_p,
                    &r->work_d, &r->work_p, &r->obj_d, &r->obj_p,
-                   &r->secs_d, &r->secs_p);
-    if (n == 14) {
+                   &r->secs_d, &r->secs_p,
+                   &r->p1_iters, &r->p2_iters, &r->dual_iters);
+    if (n == 17) {
         /* To the end of the line, not to the first space. `%63s` would stop
          * at one token, so a note with a space in it — "path too long",
          * "dual solve failed" — would reach the summary as its first word and
@@ -487,7 +560,7 @@ static bool read_result(const char *p, result *r)
             snprintf(r->note, sizeof r->note, "%s", note);
     }
     fclose(f);
-    return n == 14;
+    return n == 17;
 }
 
 static bool run_parallel(const entry *ents, const int *sel, int nsel,
@@ -691,6 +764,26 @@ int main(int argc, char **argv)
         stamp(&results[k]);
     }
 
+    /* How the whole campaign's iterations divide between the three methods.
+     *
+     * **A sum over the set, deliberately, and D46 does not apply.** D46 bans a
+     * total where a RATIO is wanted, because two instances carry 74% of the
+     * standard set's work and a total is then a statement about those two.
+     * This is not a ratio between two trees; it is "what fraction of the work
+     * this program calls primal was done by the primal", and the answer is a
+     * property of the population. The per-instance figures are on every record
+     * line above for anyone who wants the distribution.
+     *
+     * Instances whose split could not be read contribute nothing and are
+     * counted, so a missing line cannot quietly shrink the denominator. */
+    long long tot_p1 = 0, tot_p2 = 0, tot_dual = 0;
+    int no_split = 0;
+    for (int k = 0; k < n_selected; k++) {
+        const result *r = &results[k];
+        if (r->p1_iters < 0) { no_split++; continue; }
+        tot_p1 += r->p1_iters; tot_p2 += r->p2_iters; tot_dual += r->dual_iters;
+    }
+
     /* The summary. Geometric means of per-instance ratios, never a sum over
      * the set (D46). */
     int measured = 0, skipped = 0, unreached = 0, overrun = 0, disagreed = 0,
@@ -745,6 +838,25 @@ int main(int argc, char **argv)
     emit("measured %d, skipped %d, unreached %d, overrun %d, disagreed %d, "
          "rejected %d, errors %d\n",
          measured, skipped, unreached, overrun, disagreed, rejected, errors);
+
+    /* **Where the iterations of a "primal" campaign actually went.** Printed
+     * before every other figure, because every other figure is about solves
+     * this line says are mostly not the primal's: the settling re-entry calls
+     * `run()`, so an instance counts as agreeing when the dual finished it.
+     * Three decisions were spent discovering that from outside (D194, D195,
+     * D196) and one column shows it. */
+    {
+        const long long tot = tot_p1 + tot_p2 + tot_dual;
+        if (tot > 0)
+            emit("iterations by method: phase 1 %lld (%.1f%%), phase 2 %lld "
+                 "(%.1f%%), dual re-entry %lld (%.1f%%)\n",
+                 tot_p1, 100.0 * (double)tot_p1 / (double)tot,
+                 tot_p2, 100.0 * (double)tot_p2 / (double)tot,
+                 tot_dual, 100.0 * (double)tot_dual / (double)tot);
+        if (no_split > 0)
+            emit("  %d instance(s) reported no split and are excluded from "
+                 "that line\n", no_split);
+    }
     if (overrun > 0)
         emit("  %d of %d did not finish inside %lldx the dual's work. Dantzig "
              "pricing is the worst rule that is still correct, and that is "

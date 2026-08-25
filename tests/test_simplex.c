@@ -2775,6 +2775,96 @@ static void test_the_primal_and_the_dual_agree_on_the_same_model(void)
 #endif
 }
 
+/* The closing summary says how many of the primal's iterations were phase 1's.
+ *
+ * **Written because the absence of this number made a published one wrong.**
+ * Before it, phase 1's count was readable only from the log line `phase 1
+ * reached a feasible point in N iterations`, which is emitted on SUCCESS. A
+ * phase 1 that ran and did not finish emitted nothing, so a probe reading that
+ * line recorded zero and the instance read as a solve with no phase 1 at all —
+ * and therefore as a pure phase-2 run. D194 published exactly that about eight
+ * netlib instances and D195 corrected it. `n_phase1_iters` is assigned after
+ * the call in `run_primal`, so it is written on every exit.
+ *
+ * **The non-success path is not reproduced here and the reason is the usual
+ * one**: it needs a phase 1 that takes many iterations and then runs out of
+ * budget, which no two-row model reaches. The campaign covers it and names the
+ * case — `wood1p` reports 3820 primal iterations, all 3820 of them phase 1,
+ * ending `work limit reached` (`bench/measurements/02-108/`). What is tested
+ * here is the property that failed: the count is present, non-zero when phase
+ * 1 ran, and never larger than the primal count it is a part of.
+ *
+ * The dual's own line must read zero on both, which is the same separation
+ * `n_primal_iters` exists for: without it this test is satisfied by a solve
+ * that never entered the primal at all. */
+/* Guarded with the same condition as its only caller's body. Without this
+ * the two fault builds compile the helper and not the test that uses it, and
+ * `-Werror=unused-function` refuses it — which `make configs` catches and a
+ * plain `make test` does not (D154). */
+#if !defined(JAOS_PRESOLVE_FAULT_OFFBYONE) && \
+    !defined(JAOS_PRESOLVE_FAULT_WRONGDUAL)
+static bool phase1_split(const char *line, long long *primal, long long *p1)
+{
+    const char *b = strstr(line, " primal iterations, ");
+    if (b == nullptr)
+        return false;
+    if (sscanf(b, " primal iterations, %lld of them phase 1", p1) != 1)
+        return false;
+    const char *r = b;
+    while (r > line && (r[-1] == ' ' || (r[-1] >= '0' && r[-1] <= '9')))
+        r--;
+    return sscanf(r, "%lld", primal) == 1;
+}
+#endif
+
+static void test_the_summary_separates_phase_1_from_phase_2(void)
+{
+#if defined(JAOS_PRESOLVE_FAULT_OFFBYONE) || defined(JAOS_PRESOLVE_FAULT_WRONGDUAL)
+    TEST_IGNORE_MESSAGE("positive test — skipped under either fault build");
+#else
+    int hits = 0;
+    long long primal = -1, p1 = -1;
+
+    /* The dual, on the same model: both counts must be zero. */
+    jaos_model *d = fresh();
+    load_unreducible_model(d);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_log_callback(d, collect_log, &hits));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_log_level(d, JAOS_LOG_SUMMARY));
+    g_log_last[0] = '\0';
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(d));
+    TEST_ASSERT_TRUE_MESSAGE(phase1_split(g_log_last, &primal, &p1),
+                             "the dual's summary carries no phase-1 count");
+    TEST_ASSERT_EQUAL_INT64_MESSAGE(0, primal, "the dual took primal iterations");
+    TEST_ASSERT_EQUAL_INT64_MESSAGE(0, p1, "the dual entered a primal phase 1");
+    jaos_model_free(d);
+
+    /* The primal, cold. `load_unreducible_model`'s first row is `x + y >= 2`,
+     * so the slack basis sits at zero and is primal INFEASIBLE by 2 — which is
+     * what makes phase 1 run at all. A cold basis that were primal feasible
+     * would already be optimal and there would be nothing to count. */
+    jaos_model *p = fresh();
+    load_unreducible_model(p);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_log_callback(p, collect_log, &hits));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_log_level(p, JAOS_LOG_SUMMARY));
+    g_log_last[0] = '\0';
+    p->cfg.force_primal = true;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(p));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(p));
+    primal = p1 = -1;
+    TEST_ASSERT_TRUE_MESSAGE(phase1_split(g_log_last, &primal, &p1),
+                             "the primal's summary carries no phase-1 count");
+    /* Phase 1 ran, and the count says so rather than reading as absent. */
+    TEST_ASSERT_GREATER_THAN_INT64_MESSAGE(0, p1,
+        "phase 1 ran from a primal infeasible start and reported none");
+    /* And it is a part of the primal count, not a second total beside it.
+     * A field that exceeded its container would be a different defect wearing
+     * the same name. */
+    TEST_ASSERT_TRUE_MESSAGE(p1 <= primal,
+        "more phase-1 iterations than primal iterations");
+    jaos_model_free(p);
+#endif
+}
+
 /* A model where the entering column's own box binds before any row does.
  *
  * `min -x - 0.5y` over `x + y <= 10` and `x + 2y <= 12`, with `x` in `[0, 1]`
@@ -3434,6 +3524,7 @@ int main(void)
     RUN_TEST(test_a_basis_handed_in_must_be_a_basis);
     RUN_TEST(test_the_primal_reaches_the_optimum_from_a_feasible_basis);
     RUN_TEST(test_the_primal_and_the_dual_agree_on_the_same_model);
+    RUN_TEST(test_the_summary_separates_phase_1_from_phase_2);
     RUN_TEST(test_the_entering_column_stops_at_its_own_bound);
     RUN_TEST(test_the_primal_phase_1_repairs_an_infeasible_start);
     RUN_TEST(test_the_primal_refuses_to_call_a_model_infeasible);

@@ -718,6 +718,23 @@ typedef struct {
      * did the work as well. */
     int64_t n_primal_iters;
 
+    /* How many of those `n_primal_iters` were phase 1's, so a reader can tell
+     * a phase 2 that ran from one that did not.
+     *
+     * **It exists because a probe got this wrong and a published number went
+     * with it.** Phase 1's count was previously readable only from the log
+     * line `phase 1 reached a feasible point in N iterations`, which is
+     * printed on SUCCESS. A phase 1 that ran and did not finish printed
+     * nothing, so it read as a phase 1 that never ran — and the instance then
+     * read as a pure phase-2 solve. D194 published that about eight instances;
+     * D195 corrected it. This counter is set after the call and therefore on
+     * every exit, and 0 means phase 1 genuinely did not run.
+     *
+     * The closing summary carries it beside `n_primal_iters`, which is what
+     * `bench/primal.c` reads: 97 phase-2 iterations across the whole standard
+     * set is a fact about this method that no campaign was reporting (D197). */
+    int64_t n_phase1_iters;
+
     /* The primal phase-1 cost vector: `-1` on a basic below a bound the model
      * declared, `+1` on one above, `0` everywhere else. Minimising it is
      * minimising the sum of bound violations, which is what phase 1 is.
@@ -4552,9 +4569,15 @@ static jaos_status run_primal(sx *s, jaos_solve_status *out)
      * on the basis in place and hands back a feasible one, or refuses. */
     if (primal_worst_violation(s) > s->primal_tol) {
         bool feasible = false;
+        const int64_t phase1_entered = s->iters;
         s->in_phase1 = true;
         st = run_primal_phase1(s, out, &feasible);
         s->in_phase1 = false;
+        /* Recorded here rather than inside, so it is written on EVERY exit
+         * from phase 1 and not only the one that reaches feasibility. See the
+         * field's own comment for the number that was published wrong when
+         * this was readable only from the success line. */
+        s->n_phase1_iters = s->iters - phase1_entered;
         if (st != JAOS_OK)
             return st;
         if (!feasible)
@@ -5570,20 +5593,24 @@ jaos_status jm_dual_simplex(jaos_model *m)
         jm_log(m, JAOS_LOG_SUMMARY,
                "%s after %lld iterations, %lld work units; "
                "%lld refactorizations, %lld weight restarts, %lld stalls, "
-               "%lld stability rebuilds, %lld primal iterations",
+               "%lld stability rebuilds, %lld primal iterations, %lld of them "
+               "phase 1",
                jaos_solve_status_str(outcome), (long long)s.iters,
                (long long)s.work.units, (long long)s.n_refactor,
                (long long)s.n_weight_restart, (long long)s.n_bland,
-               (long long)s.n_stability, (long long)s.n_primal_iters);
+               (long long)s.n_stability, (long long)s.n_primal_iters,
+               (long long)s.n_phase1_iters);
     else
         jm_log(m, JAOS_LOG_SUMMARY,
                "abandoned after %lld iterations, %lld work units: %s; "
                "%lld refactorizations, %lld weight restarts, %lld stalls, "
-               "%lld stability rebuilds, %lld primal iterations",
+               "%lld stability rebuilds, %lld primal iterations, %lld of them "
+               "phase 1",
                (long long)s.iters, (long long)s.work.units,
                jaos_status_str(st), (long long)s.n_refactor,
                (long long)s.n_weight_restart, (long long)s.n_bland,
-               (long long)s.n_stability, (long long)s.n_primal_iters);
+               (long long)s.n_stability, (long long)s.n_primal_iters,
+               (long long)s.n_phase1_iters);
 
     sx_free(&s);
     jm_presolve_free(&p);
