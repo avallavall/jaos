@@ -919,10 +919,65 @@ analysed in this file. **That is a change of order and not a change of plan.**
    textbooks only (D2's rule, two closed exceptions, neither extended).
 2. **The `sparse-simplex-perf` skill**, before planning any of the algorithm.
 3. **A design decision that is not obvious**: how much of `sx` the primal
-   reuses. The dual's ratio test, Harris window, steepest-edge weights, shift
-   machinery and factorization all exist. Sharing them is cheaper and couples
-   two algorithms in one struct; separating them duplicates code that took
-   this project months to get right. **Nothing has measured either way.**
+   reuses. **This question is narrower than it looked, and reading the source
+   on 2026-08-25 is what narrowed it — see the inventory below.**
+
+### The reuse question, read off the source at 74be13e
+
+**A primal iteration already runs in this solver.** `primal_cleanup`
+(`src/simplex.c:3427`) picks a column, calls `primal_ratio_test`
+(`src/simplex.c:3353`) for the leaving row, and hands both to the *same*
+`pivot()` (`src/simplex.c:2512`) the dual loop uses. It bills its work as
+iterations and it fires on real instances (`greenbea`, `pilot87`).
+
+So sharing is not a choice to be weighed. It is what the tree does today, and
+what is missing is a **pricing rule**, a **phase 1**, and a **better ratio
+test**. Not a second engine.
+
+**What is free.** The FTRAN of the entering column, the BTRAN, the pricing row
+(`price_all:2288`, `price_entry:930`), and the whole basis change with every
+update it carries. `pivot()` needs `alpha`, `rho` and `theta_dual` from its
+caller, and for a primal iteration `theta_dual = d[q] / alpha[q]`, which is
+what `primal_cleanup:3474` already passes. Eligibility for a primal entering
+column is written three times over — `dual_breach:2832`, `breached:2903`,
+`wants_a_pivot:3312` — and `jm_harris_pick:2246` and `jm_bland_pick:2131` are
+already generic: they take plain `num`/`den` arrays and a tolerance and know
+nothing about the dual.
+
+**What is missing, in order of size.**
+
+- **Primal pricing weights.** `gamma[nvar]`, one per variable, is new memory
+  of a new length. `dse[nrow]` is the dual's and indexes basis *positions*; it
+  is a different object and cannot be reused.
+- **Three gaps in the ratio test.** `primal_ratio_test` is a single-pass
+  minimum ratio. It never compares the blocking step against `up[q] - lo[q]`,
+  so the entering column can never bound-flip — that is a correctness gap and
+  not a speed one. It has no Harris window, and no long step.
+- **A phase 1.** `build_initial_basis:952` makes the cold start dual feasible
+  by construction and says so in its own comment. It is not primal feasible,
+  so a primal simplex started cold **always** needs one. Crossover supplies its
+  own basis, which is the motivating case, so phase 1 cannot be assumed away.
+- **An unboundedness verdict.** `primal_ratio_test` returns -1 when nothing
+  blocks and `primal_cleanup` deliberately declines to read that as a ray,
+  citing D19's requirement of proof. A real primal simplex must decide, and
+  D19 still applies.
+
+**One scratch conflict, and it is the class `numerics-reviewer` hunts.**
+`cand`, `rnum`, `rden` and `rrange` are `[nvar]` and belong to the dual ratio
+test. A primal ratio test indexes rows, so it fits, but `primal_cleanup:3450`
+already borrows `cand` on a written justification — "no dual iteration is in
+flight here" — and a primal simplex *is* an iteration in flight. That
+justification does not extend. Budget row-sized arrays of its own.
+
+**One trade to record and defer.** `pivot()` always does a second FTRAN into
+`tau` to keep the dual weights current, which a pure primal iteration does not
+need. Skipping it saves one FTRAN per primal iteration; keeping it is what
+lets the dual resume on the same basis without restarting its weights, and
+`repair_singular_basis` already shows the cheap alternative (reset to 1.0).
+**It does not matter yet and the record says why**: D30 measured
+`primal_cleanup` closing `greenbea` in eight pivots and presenting `pilot87`
+twelve candidates a round. Take the number when a primal loop runs thousands
+of iterations instead of eight, on the harness below.
 
 ### What is already decided and constrains it
 
@@ -934,6 +989,16 @@ analysed in this file. **That is a change of order and not a change of plan.**
 | **D85** | the primal is not needed for the free-nonbasic defect |
 | **D127** | the unclamped dual step stays, because the perturbation is what keeps `pilot87` moving |
 | **D148** | a warm trajectory that settles dual-infeasible is thrown away and restarted cold. A primal path has to say what it does here |
+| **D82, D84** | partial and multiple pricing are both refused, on **wrong answers** and not on a trade. `pilot` published OPTIMAL on an objective outside tolerance and the checker passed it; `wood1p` was rejected at a dual infeasibility of 1.73e+05. Primal pricing starts full and stays full until something measured says otherwise |
+| **D45** | the work counter cannot see the pricing-against-iterations trade. D82's 0.891x on Kennington is a loss in seconds, because a pricing sweep bills one cheap unit per row while the iterations it buys drag in two triangular solves each. A primal pricing verdict needs the time ratio, not units alone |
+
+**Two rules D82 wrote down that any primal pricing scheme inherits.** Neither
+is about the dual specifically. **Bland's rule cannot be given a slice**: it
+promises the globally lowest-indexed candidate, and that promise is the only
+thing between a degenerate solve and a cycle (D26). **The progress measure
+cannot be fed a partial total**: a slice's total is smaller for a reason that
+is not progress, so it would reset the stall counter and disable the one
+detector that catches a cycle.
 
 ### One dead thing wakes up when this lands
 
@@ -951,6 +1016,29 @@ The three `netlib*` sets are the gate and they solve each instance once from a
 fresh load, so a primal path only reaches them if the solver chooses it. Decide
 early how the choice is made, because a primal that never runs passes every
 campaign in this repository while doing nothing.
+
+**The harness this needs already has a template, found 2026-08-25:
+`bench/warm.c`.** It is a second runner beside `bench/run.c` with its own
+Makefile target, and it exists precisely to answer a question the gate
+structurally cannot. Four properties of it transfer whole:
+
+- it solves each instance more than once and compares the answers;
+- **agreement is the gate and speed is the report** — same verdict, objectives
+  within tolerance, and *both* answers put through the independent checker.
+  Its own comment says "a warm start is a starting point and never a claim, so
+  a disagreement here is a defect and not a trade-off", and the sentence holds
+  word for word for a primal answer;
+- it reports a ratio rather than a verdict, so it cannot make the gate red —
+  `CLAUDE.md` already records the `warm*` targets that way;
+- it never writes seconds into a file the gate reads (D17).
+
+So a `bench/primal.c` follows the same shape: solve once with the dual, which
+is the reference the committed records already hold, once with the primal
+forced, require the two to agree, and report a work ratio per instance. The
+forcing is a build flag beside `JAOS_NO_PRESOLVE` in the Makefile's `CONFIGS`
+list, which is the pattern `make configs` already exercises with `make clean`
+between settings. **This needs no new measurement method and no new baseline
+format.** It is the third runner in a repository that already has two.
 
 ## → START HERE — what is actually next, 2026-08-20
 

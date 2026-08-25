@@ -11,6 +11,16 @@ open, `bench/README.md` for the gate, and the commit each entry came from.
 
 ### Changed
 
+- **`TODO.md` §0's reuse question is narrower than it was written**, because a
+  primal iteration already runs here: `primal_cleanup` picks a column, calls
+  `primal_ratio_test`, and hands both to the same `pivot()` the dual uses. What
+  is missing is a pricing rule, a phase 1, and three gaps in the ratio test —
+  the worst of them a correctness gap, since the entering column can never
+  bound-flip. §0 also gains the harness (`bench/warm.c` is the template), the
+  scratch conflict a primal ratio test would create, and two constraints its
+  table did not carry: D82/D84 refused pricing schemes on **wrong answers**,
+  and D45 says the work counter cannot see the trade. Documentation only.
+
 - **The primal simplex has a third dependent, and neither `SPECS.md` nor
   `TODO.md` §0 named it.** `classify_optimum` refuses out loud when a column is
   held by a bound dual phase 1 lent it and a real constraint stops it short of
