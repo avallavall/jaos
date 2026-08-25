@@ -201,6 +201,7 @@ and you have the argument. Jump to the entry for the numbers behind it.
 - **[D191](#d191--the-primals-64-of-94-was-54-and-the-difference-was-a-guard-that-was-documented-believed-and-never-applied)** — The primal's "64 of 94" was 54, and the difference was a guard that was documented, believed, and never applied
 - **[D192](#d192--blands-rule-now-reaches-the-primals-leaving-variable-and-it-arms-nowhere-on-netlib)** — Bland's rule now reaches the primal's leaving variable, and it arms nowhere on netlib
 - **[D193](#d193--refresh-is-the-third-place-a-cost-is-lent-it-fires-30-times-inside-the-primal-phase-1-and-guarding-it-trades-pilot4-for-pilot-ja-and-pilotnov)** — `refresh` is the third place a cost is lent, it fires 30 times inside the primal phase 1, and guarding it trades `pilot4` for `pilot-ja` and `pilotnov`
+- **[D194](#d194--605-of-the-primal-campaigns-iterations-are-the-duals-the-primals-phase-2-runs-exactly-one-iteration-on-80-of-94-and-pilot4-is-not-a-primal-regression)** — 60.5% of the primal campaign's iterations are the dual's, the primal's phase 2 runs exactly one iteration on 80 of 94, and `pilot4` is not a primal regression
 
 ---
 
@@ -14755,3 +14756,97 @@ if anyone makes one.
 D191's other two answer-changing findings are untouched: `primal_bound_flip`
 moving a row the ratio test skipped, and the two phases sharing one iteration
 cap.
+
+## D194 — 60.5% of the primal campaign's iterations are the dual's, the primal's phase 2 runs exactly one iteration on 80 of 94, and `pilot4` is not a primal regression
+
+Opened to diagnose the instance D193 broke. It ended somewhere else, and the
+number `SPECS.md` publishes for the primal is the casualty.
+
+### The question, as it was asked
+
+D193 took `pilot4` from `optimal` to `NUMERICAL_ERROR` with no error message.
+Expected: a phase-1 trajectory changed by the loans D193 stopped, diagnosable
+from the loan census that found the defect.
+
+### The measurement
+
+`bench/measurements/02-106/`.
+
+**The message-less refusal is one line.** `src/simplex.c:5496` sets
+`JAOS_SOLVE_NUMERICAL_ERROR` on a cold start whose settled point is dual
+infeasible, and calls no `jm_set_err`. Every other site that produces that
+status writes a message first. That accounts for all 31 disagreeing instances,
+and D191 named the class without naming the line.
+
+**`pilot4` was refuted as a primal regression, in three steps.** Its phase 1 is
+bit-identical across D193 — same infeasibility at iterations 0, 1000 and 2000,
+and `phase 1 reached a feasible point in 2596 iterations` on both sides,
+because phase 1 prices on `c1` and never reads `cost`. There were **0 loans
+outstanding** at the guard on either side. What differs is **one phase-2 primal
+iteration**: 2598 primal of 4148 before (2596 of them phase 1), 2597 of 5920
+after. The dual's re-entry then diverges — best infeasibility 251 → 397 →
+91084 against 801 → 281 — and leaves a published breach of 6.72712 at variable
+668, a column whose own cost is zero and which carries no shift. **Both the old
+success and the new failure are the dual re-entry's.**
+
+**That one-or-two-iteration phase 2 is the whole set, not `pilot4`.** Reading
+the solver's own summary over all 94 with `cfg.force_primal`:
+
+| | |
+|---|---|
+| phase-2 primal iterations exactly 1 | **80 of 94** |
+| 2 to 10 | 6 |
+| more than 10 | 8 |
+| zero dual iterations | 8 |
+| **dual share of every iteration run** | **60.5%**, 515522 of 852279 |
+
+**The 8 that run a real phase 2 are exactly the 8 whose phase 1 is zero
+iterations.** They arrive primal feasible, so nothing hands over. Seven hit the
+work limit; the survivor is `pilot87`.
+
+**The mechanism was confirmed by forcing it off.** `update_dual` and the tail
+of `pivot()` run `shift_to_feasible` once per iteration on every variable the
+pricing row touches, guarded only while `in_phase1`, and it sets `d[v] = 0.0`
+on every breached nonbasic — which is exactly what `primal_price` reads.
+Guarding phase 2 as well, in a worktree, with the dual's own re-entry still
+lending:
+
+| | shipping | phase 2 guarded |
+|---|---|---|
+| optimal | 56 | **17** |
+| numerical error | 31 | 58 |
+| work limit | 7 | 19 |
+| phase-2 iterations exactly 1 | 80 | **0** |
+| phase-2 iterations over 10 | 8 | **91** |
+| dual share of all iterations | 60.5% | **0.0%** |
+
+`truss` goes from 2802 phase-2 iterations to 422576. 44 instances lose
+`optimal` and 5 gain it: `80bau3b`, `cycle`, `fit1p`, `ship08l`, `ship12l`.
+
+### What was refuted
+
+**D191's reading that guarding both phases "over-corrects".** 54 agreeing
+becoming 20 is not an over-correction. It is the removal of the dual's 60.5%.
+D191's own conclusion — that in phase 2 `d` holds the model's own reduced costs
+and the shift is the repair the dual makes — is true and is beside the point:
+the repair is applied to the numbers the primal's pricing rule reads, so the
+primal stops.
+
+**The expectation that `pilot4` had a diagnosable phase-1 cause.** It has no
+loans, an identical phase 1, and a failure that belongs to another method.
+
+**D188's reading of the re-entry as a harness detail.** One line said a
+forced-primal solve can still finish with dual iterations. It is the dominant
+term.
+
+### What is left open, and it is a decision
+
+`SPECS.md`'s primal row reads **55 of 94 agreeing**. The primal's own reach,
+on the instances where it runs the method, is **17 of 94 optimal**. Both
+numbers are true of different things and only one of them is what the row is
+read as saying.
+
+The choice — guard phase 2 and publish 17, or leave it and relabel the 55 —
+is the maintainer's and is in `TODO.md` §0. **No source changed here.** So is
+whether `bench/primal.c` should report the split, which would have made this
+visible from the first campaign.

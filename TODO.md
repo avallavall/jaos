@@ -10,12 +10,15 @@ line leaves this file in the same commit.
 ### → FRESH CONTEXT: READ THIS PARAGRAPH AND THEN §0
 
 **The work in flight is the primal simplex, and §0 is the item.** Stages 0, 1,
-3 and 4 have landed. What is next is `pilot4`, which D193 broke and named,
-then §0's last two `/code-review max` findings that could change an answer,
-then stage 2 (Harris in primal form) or stage 5 (Devex, blocked on a
-paywalled source).
+3 and 4 have landed. **What is next is a DECISION, not code.** D194 measured
+that 60.5% of the primal campaign's iterations are the dual's, and that the
+primal's phase 2 runs one iteration on 80 of the 94, so §0's headline number
+does not mean what it reads as. That block is at the top of §0. After it: §0's
+last two `/code-review max` findings, then stage 2 (Harris in primal form) or
+stage 5 (Devex, blocked on a paywalled source). `pilot4` is CLOSED as a
+non-regression by D194.
 
-**The tree is clean and everything is committed. 23 commits are unpushed.**
+**The tree is clean and everything is committed. 24 commits are unpushed.**
 `gate: PASS` with `0 regressed, 0 improved, 0 new` on all three sets, and every
 file in `bench/results/` byte-identical to the committed record — that campaign
 ran at D193's tree and covers the whole span from D188. `make configs` exits 0
@@ -30,11 +33,13 @@ primal campaign is a comparison and not a gate.
 remote is an SSH alias that lives in the Windows `~/.ssh/config` only. `git
 fetch` first, because another Claude session commits here.
 
-**Seventeen decisions landed on 2026-08-24 and 2026-08-25, D177 to D193**, and
-two of the five open items closed. What each one did is below, newest first.
+**Eighteen decisions landed between 2026-08-24 and 2026-08-26, D177 to D194**,
+and two of the five open items closed. What each one did is below, newest
+first.
 
 | | |
 |---|---|
+| **D194** | 60.5% of the primal campaign is dual iterations; phase 2 runs 1 iteration on 80 of 94 |
 | **D193** | `refresh` is the third place a cost is lent; 30 firings in phase 1, and 54 agreeing becomes 55 |
 | **D192** | Bland's rule reaches the primal's leaving variable; 0 phase-1 arms in 94 |
 | **D191** | the primal's "64 of 94" was 54; a guard was documented and never applied |
@@ -1237,6 +1242,51 @@ moves is a defect in the shared code, not a property of the new feature. That
 makes the ordinary campaign a strong test of these stages despite the gate being
 unable to see the feature itself.
 
+### → DECIDE THIS FIRST: what "55 of 94" means, and whether to keep it
+
+**D194 measured the split and the number does not mean what it reads as.**
+`bench/primal.c` reports 55 of 94 agreeing with the dual. **60.5% of every
+iteration those solves run is a DUAL iteration** — 515522 of 852279 — and the
+primal's phase 2 runs **exactly one iteration on 80 of the 94**.
+
+The mechanism is measured, not argued. `update_dual` and the tail of `pivot()`
+run `shift_to_feasible` once per iteration on every variable the pricing row
+touches, guarded only while `in_phase1`. It sets `d[v] = 0.0` on every breached
+nonbasic, and `primal_price` prices on `dual_breach`, which reads `d`. So after
+the first phase-2 pivot there is nothing left to price. The primal declares
+optimality, `settle_shifts` finds the point dual infeasible, and the dual's
+re-entry solves the model.
+
+**The 8 instances that do run a real phase 2 are exactly the 8 whose phase 1
+takes zero iterations.** They arrive primal feasible so nothing hands over.
+Seven of the eight hit the work limit; `pilot87` is the survivor.
+
+**Two numbers, both true, and only one of them is what the row is read as.**
+
+| | optimal | phase-2 iterations = 1 | dual share |
+|---|---|---|---|
+| shipping | **56** | 80 of 94 | **60.5%** |
+| phase 2 guarded too | **17** | 0 of 94 | **0.0%** |
+
+Guarded, `truss` goes from 2802 phase-2 iterations to 422576, 44 instances lose
+`optimal` and 5 gain it (`80bau3b`, `cycle`, `fit1p`, `ship08l`, `ship12l`).
+
+**The choice is the maintainer's and nothing should move until it is made:**
+
+- **Guard phase 2 too.** `SPECS.md` then reads 17 of 94, which is the primal
+  solving models. Everything after it — Harris, Devex, the ratio test — is then
+  measured on a method that runs. D191 refused this once, reading 54 → 20 as an
+  over-correction; D194 refutes that reading.
+- **Leave it and relabel.** `SPECS.md` says 55 of 94 *end* in agreement, and
+  says in the same row that most of that is the dual finishing. Cheaper, and
+  every later stage is then measured against a number that moves for reasons
+  the primal does not control.
+
+**Either way `bench/primal.c` should report the split.** Two columns, primal
+and dual iterations, would have made this visible from the first campaign
+instead of after four decisions. That is not the decision above and can land
+whatever it is.
+
 ### OPEN: what `/code-review max` found, 2026-08-25
 
 Fifteen findings. **One is closed by D191** — the `in_primal` guard was
@@ -1288,10 +1338,11 @@ corrects it), and D193 took it to **55**. The lists below are D193's run
   `greenbeb`, `maros`, `modszk1`, `pilot-we`, `pilot4`, `sc105`, `sc205`,
   `sc50a`, `sc50b`, `scsd1`, `scsd6`, `sctap3`, `ship08l`, `ship12l`,
   `stocfor2`, `stocfor3`, `truss`, `tuff`, `woodw`.
-- **`pilot4` is D193's own regression and the newest entry on that list.** It
-  solved before the guard landed, at 4148 iterations, and now runs 5920 and
-  refuses. **Diagnose it before anything else here**: it is the only one whose
-  before-and-after is known and whose cause is one named change.
+- **`pilot4` joined that list at D193 and D194 closed it as a non-regression.**
+  Its phase 1 is bit-identical across the guard, it carries no loans at the
+  refusal, and the one phase-2 primal iteration it lost is what sent the DUAL
+  re-entry down a diverging path. Both its old success and its new failure are
+  the dual's.
 - **1 error**, `pilot87` — column 478 prices at 0 in row 790 of phase 1.
 - **`sc50a`, `sc50b`, `sc105` and `sc205` are one family from one generator,
   failing the same way.** Four instances is one mechanism, not four.
@@ -1299,11 +1350,12 @@ corrects it), and D193 took it to **55**. The lists below are D193's run
   `maros-r7`, `scrs8`, `scsd8`, `wood1p`. That is Dantzig pricing and it is
   stage 5's number, not a defect.
 
-**The 30 message-less refusals are one class, not thirty problems.** A primal
-ending `JAOS_SOLVE_NUMERICAL_ERROR` returns `JAOS_OK` and writes no error
-string, so `jaos_model_error` is empty for every one of them (D191). That is
-the D146 guard refusing the point, and nothing yet says why the point is where
-it is.
+**The 30 message-less refusals are one class and D194 names the line.**
+`src/simplex.c:5496`: a cold start whose settled point is dual infeasible sets
+`JAOS_SOLVE_NUMERICAL_ERROR` and calls no `jm_set_err`, where every other site
+producing that status writes a message first. So `jaos_model_error` is empty
+for every one of them. That is the D146 guard refusing the point, and nothing
+yet says why the point is where it is.
 
 `sc50a` is the one already partly diagnosed: removing the phase-1 loan moved it
 from 40 iterations and 183481 units to 51 and 58062, a different trajectory on a

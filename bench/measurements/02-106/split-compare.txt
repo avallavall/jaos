@@ -1,0 +1,22 @@
+shipping (phase 2 lends) : 94 {'numerical error': 31, 'optimal': 56, 'work limit reached': 7}
+guarded  (phase 2 does not): 94 {'numerical error': 58, 'optimal': 17, 'work limit reached': 19}
+
+-- shipping
+  phase-2 iterations == 1 : 80
+  phase-2 iterations 2-10 : 6
+  phase-2 iterations > 10 : 8
+  zero dual iterations    : 8
+  dual share of all iterations: 60.5% (515522 of 852279)
+
+-- guarded
+  phase-2 iterations == 1 : 0
+  phase-2 iterations 2-10 : 2
+  phase-2 iterations > 10 : 91
+  zero dual iterations    : 94
+  dual share of all iterations: 0.0% (0 of 898956)
+
+instances that were optimal shipping and are not when phase 2 is guarded:
+  44 -> adlittle, agg2, agg3, blend, bnl1, boeing1, boeing2, bore3d, brandy, capri, e226, etamacro, fffff800, finnis, fit2d, forplan, ganges, gfrd-pnc, grow15, israel, lotfi, nesm, perold, pilot, pilot-ja, pilotnov, recipe, scagr25, scagr7, scfxm1, scfxm2, scfxm3, scorpion, sctap2, seba, share1b, share2b, shell, sierra, stair, standata, standmps, stocfor1, vtp-base
+
+optimal on both sides: 12
+optimal only when guarded: ['80bau3b', 'cycle', 'fit1p', 'ship08l', 'ship12l']

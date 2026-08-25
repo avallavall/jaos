@@ -1,0 +1,20 @@
+patched
+lto-wrapper: warning: using serial compilation of 2 LTRANS jobs
+lto-wrapper: note: see the ‘-flto’ option documentation for more information
+== dual: optimal, 673 iters, 16066863 units
+== primal log follows
+  presolve: 410 rows, 1000 columns, 5141 nonzeros -> 397 rows, 864 columns, 4902 nonzeros; fixed_col=39 empty_row=0 empty_col=0 singleton_row=9 singleton_col=87 free_col_singleton=0 rounds=2
+  primal simplex: 410 rows, 1000 columns, 5141 nonzeros, primal tol 1e-07, dual tol 1e-09
+  starting from the slack basis
+  phase 1, iter 0: infeasibility 2.12435e+12, work 22656
+  phase 1, iter 1000: infeasibility 1.24447e+12, work 17723679
+  phase 1, iter 2000: infeasibility 1.4458e+11, work 42735455
+  phase 1 reached a feasible point in 2596 iterations
+  iter 3000: best infeasibility 251.313, work 73149584
+  iter 4000: best infeasibility 397.519, work 100922964
+  iter 5000: best infeasibility 91084.9, work 131012277
+  DIAG loans before settle: 0 columns, largest 0
+  DIAG settled violation 6.72712 at var 668 of 1261, status 1, d -0.0262778, cost 0, cost0 0
+  numerical error after 5920 iterations, 160747384 work units; 128 refactorizations, 3310 weight restarts, 0 stalls, 0 stability rebuilds, 2597 primal iterations
+== primal: numerical error, 5920 iters, 160747384 units, jaos_status=0
+== jaos_model_error: []

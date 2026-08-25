@@ -1,0 +1,100 @@
+# forced-primal solves: how many iterations each method actually ran
+# tree: 4d97d42
+# p2% is phase-2 primal iterations as a share of the whole solve
+
+instance      status                  total   primal   phase1     dual   p2%%
+25fv47.mps    numerical error         13092     5507     5506     7585   0.0
+80bau3b.mps   numerical error         16203     2460     2457    13743   0.0
+adlittle.mps  optimal                   159       90       89       69   0.6
+afiro.mps     optimal                    20       19       18        1   5.0
+agg.mps       numerical error           449      400      399       49   0.2
+agg2.mps      optimal                   946      733      732      213   0.1
+agg3.mps      optimal                   965      685      684      280   0.1
+bandm.mps     numerical error          1221      802      801      419   0.1
+beaconfd.mps  optimal                   101       72       71       29   1.0
+blend.mps     optimal                   223      122      121      101   0.4
+bnl1.mps      optimal                  2467     1774     1773      693   0.0
+bnl2.mps      numerical error          4308     4247     4246       61   0.0
+boeing1.mps   optimal                  1329      924      922      405   0.2
+boeing2.mps   optimal                   452      307      306      145   0.2
+bore3d.mps    optimal                   228      199      198       29   0.4
+brandy.mps    optimal                   607      309      308      298   0.2
+capri.mps     optimal                   494      407      406       87   0.2
+cycle.mps     numerical error          7624      787      786     6837   0.0
+czprob.mps    numerical error          3869     2152     2151     1717   0.0
+d2q06c.mps    numerical error        223021     8751     8750   214270   0.0
+d6cube.mps    work limit reached       3127     3127        0        0 100.0
+degen2.mps    numerical error          3909     2613     2612     1296   0.0
+degen3.mps    work limit reached      14559    14559        0        0 100.0
+dfl001.mps    work limit reached     135560   135560        0        0 100.0
+e226.mps      optimal                   848      454      453      394   0.1
+etamacro.mps  optimal                   855      447      446      408   0.1
+fffff800.mps  optimal                  1224      889      888      335   0.1
+finnis.mps    optimal                   719      285      284      434   0.1
+fit1d.mps     numerical error           759      636      635      123   0.1
+fit1p.mps     numerical error          4645     1619     1618     3026   0.0
+fit2d.mps     optimal                  2609     2333     2330      276   0.1
+fit2p.mps     optimal                 30933    11745    11744    19188   0.0
+forplan.mps   optimal                   653      362      361      291   0.2
+ganges.mps    optimal                  1696     1592     1591      104   0.1
+gfrd-pnc.mps  optimal                   784      450      449      334   0.1
+greenbea.mps  numerical error         27161     8359     8358    18802   0.0
+greenbeb.mps  numerical error         56612     7526     7525    49086   0.0
+grow15.mps    optimal                 10877      487      486    10390   0.0
+grow22.mps    optimal                 46073      682      681    45391   0.0
+grow7.mps     optimal                  4813      213      212     4600   0.0
+israel.mps    optimal                   618      375      374      243   0.2
+kb2.mps       optimal                    62        2        1       60   1.6
+lotfi.mps     optimal                   239      156      155       83   0.4
+maros-r7.mps  work limit reached       5887     5887        0        0 100.0
+maros.mps     numerical error          3665     1608     1607     2057   0.0
+modszk1.mps   numerical error           768       15       14      753   0.1
+nesm.mps      optimal                  6497     2054     2053     4443   0.0
+perold.mps    optimal                  7838     3114     3113     4724   0.0
+pilot-ja.mps  optimal                 18536     7849     7848    10687   0.0
+pilot-we.mps  numerical error         34921     1993     1992    32928   0.0
+pilot.mps     optimal                 40487    15169    15167    25318   0.0
+pilot4.mps    numerical error          5920     2597     2596     3323   0.0
+pilot87.mps   optimal                 17165    17165        0        0 100.0
+pilotnov.mps  optimal                 12640     2272     2270    10368   0.0
+recipe.mps    optimal                    57       38       37       19   1.8
+sc105.mps     numerical error            34        2        1       32   2.9
+sc205.mps     numerical error            34        2        1       32   2.9
+sc50a.mps     numerical error            40        2        1       38   2.5
+sc50b.mps     numerical error            34        2        1       32   2.9
+scagr25.mps   optimal                   823      617      616      206   0.1
+scagr7.mps    optimal                   197      148      147       49   0.5
+scfxm1.mps    optimal                   680      408      407      272   0.1
+scfxm2.mps    optimal                  1585      836      835      749   0.1
+scfxm3.mps    optimal                  2956     1196     1195     1760   0.0
+scorpion.mps  optimal                   330      259      258       71   0.3
+scrs8.mps     work limit reached       1743     1743        0        0 100.0
+scsd1.mps     numerical error           792      119      118      673   0.1
+scsd6.mps     numerical error          1648      799      798      849   0.1
+scsd8.mps     work limit reached       2868     2868        0        0 100.0
+sctap1.mps    optimal                   235      147      146       88   0.4
+sctap2.mps    optimal                  1468      377      376     1091   0.1
+sctap3.mps    numerical error          2037      490      489     1547   0.0
+seba.mps      optimal                   132      120      119       12   0.8
+share1b.mps   optimal                   347      151      150      196   0.3
+share2b.mps   optimal                   167      118      117       49   0.6
+shell.mps     optimal                   911      551      550      360   0.1
+ship04l.mps   optimal                   748      454      453      294   0.1
+ship04s.mps   optimal                   394      215      214      179   0.3
+ship08l.mps   numerical error          1316      644      643      672   0.1
+ship08s.mps   optimal                   676      288      287      388   0.1
+ship12l.mps   numerical error          2060     1242     1241      818   0.0
+ship12s.mps   optimal                  1004      555      554      449   0.1
+sierra.mps    optimal                   967      494      493      473   0.1
+stair.mps     optimal                   994      783      782      211   0.1
+standata.mps  optimal                    63       48       47       15   1.6
+standmps.mps  optimal                   661      164      163      497   0.2
+stocfor1.mps  optimal                   216      166      165       50   0.5
+stocfor2.mps  numerical error          4587     3140     3139     1447   0.0
+stocfor3.mps  numerical error         24504    22760    22759     1744   0.0
+truss.mps     numerical error          4883     2803     2802     2080   0.0
+tuff.mps      numerical error           860      844      843       16   0.1
+vtp-base.mps  optimal                    93       92       87        1   5.4
+wood1p.mps    work limit reached       3820     3820        0        0 100.0
+woodw.mps     numerical error          3878     2311     2310     1567   0.0
+parsed 94 of 94

@@ -1,0 +1,100 @@
+# forced-primal solves with PHASE 2 GUARDED as well as phase 1
+# tree: 4d97d422ef5ff28296e3291f4cc1cc0dfbe2f872 plus patch-guard2.py, in a worktree
+# p2% is phase-2 primal iterations as a share of the whole solve
+
+instance      status                  total   primal   phase1     dual   p2%%
+25fv47.mps    numerical error         11031    11031     5506        0  50.1
+80bau3b.mps   optimal                  9600     9600     2457        0  74.4
+adlittle.mps  numerical error           128      128       89        0  30.5
+afiro.mps     optimal                    20       20       18        0  10.0
+agg.mps       numerical error           447      447      399        0  10.7
+agg2.mps      numerical error           872      872      732        0  16.1
+agg3.mps      numerical error           891      891      684        0  23.2
+bandm.mps     numerical error           989      989      801        0  19.0
+beaconfd.mps  optimal                    92       92       71        0  22.8
+blend.mps     numerical error           163      163      121        0  25.8
+bnl1.mps      numerical error          2090     2090     1773        0  15.2
+bnl2.mps      work limit reached       4319     4319     4246        0   1.7
+boeing1.mps   numerical error          1163     1163      922        0  20.7
+boeing2.mps   numerical error           356      356      306        0  14.0
+bore3d.mps    numerical error           214      214      198        0   7.5
+brandy.mps    numerical error           511      511      308        0  39.7
+capri.mps     numerical error           505      505      406        0  19.6
+cycle.mps     optimal                  5327     5327      786        0  85.2
+czprob.mps    numerical error          2858     2858     2151        0  24.7
+d2q06c.mps    numerical error         43624    43624     8750        0  79.9
+d6cube.mps    work limit reached       3122     3122        0        0 100.0
+degen2.mps    numerical error          3128     3128     2612        0  16.5
+degen3.mps    work limit reached      15639    15639        0        0 100.0
+dfl001.mps    work limit reached     144548   144548        0        0 100.0
+e226.mps      numerical error           732      732      453        0  38.1
+etamacro.mps  numerical error           662      662      446        0  32.6
+fffff800.mps  numerical error          1157     1157      888        0  23.2
+finnis.mps    numerical error           586      586      284        0  51.5
+fit1d.mps     work limit reached        919      919      635        0  30.9
+fit1p.mps     optimal                  2938     2938     1618        0  44.9
+fit2d.mps     work limit reached       4991     4991     2330        0  53.3
+fit2p.mps     optimal                 25840    25840    11744        0  54.6
+forplan.mps   numerical error           434      434      361        0  16.8
+ganges.mps    numerical error          1742     1742     1591        0   8.7
+gfrd-pnc.mps  numerical error           833      833      449        0  46.1
+greenbea.mps  numerical error         18738    18738     8358        0  55.4
+greenbeb.mps  numerical error         14885    14885     7525        0  49.4
+grow15.mps    work limit reached          0        0        0        0   0.0
+grow22.mps    optimal                  1073     1073      681        0  36.5
+grow7.mps     optimal                   250      250      212        0  15.2
+israel.mps    work limit reached        597      597      374        0  37.4
+kb2.mps       optimal                    79       79        1        0  98.7
+lotfi.mps     numerical error           218      218      155        0  28.9
+maros-r7.mps  work limit reached       5884     5884        0        0 100.0
+maros.mps     numerical error          2764     2764     1607        0  41.9
+modszk1.mps   work limit reached       7413     7413       14        0  99.8
+nesm.mps      numerical error          5144     5144     2053        0  60.1
+perold.mps    numerical error          4114     4114     3113        0  24.3
+pilot-ja.mps  numerical error         11060    11060     7848        0  29.0
+pilot-we.mps  numerical error          4217     4217     1992        0  52.8
+pilot.mps     numerical error         20561    20561    15167        0  26.2
+pilot4.mps    numerical error          3149     3149     2596        0  17.6
+pilot87.mps   optimal                 17165    17165        0        0 100.0
+pilotnov.mps  numerical error          2766     2766     2270        0  17.9
+recipe.mps    numerical error            53       53       37        0  30.2
+sc105.mps     numerical error           109      109        1        0  99.1
+sc205.mps     numerical error           247      247        1        0  99.6
+sc50a.mps     numerical error            51       51        1        0  98.0
+sc50b.mps     numerical error            53       53        1        0  98.1
+scagr25.mps   numerical error           978      978      616        0  37.0
+scagr7.mps    numerical error           193      193      147        0  23.8
+scfxm1.mps    numerical error           523      523      407        0  22.2
+scfxm2.mps    numerical error          1091     1091      835        0  23.5
+scfxm3.mps    numerical error          1671     1671     1195        0  28.5
+scorpion.mps  numerical error           307      307      258        0  16.0
+scrs8.mps     work limit reached       1776     1776        0        0 100.0
+scsd1.mps     work limit reached        810      810      118        0  85.4
+scsd6.mps     work limit reached       1279     1279      798        0  37.6
+scsd8.mps     work limit reached       2965     2965     2913        0   1.8
+sctap1.mps    optimal                   256      256      146        0  43.0
+sctap2.mps    work limit reached        839      839      376        0  55.2
+sctap3.mps    work limit reached        728      728      489        0  32.8
+seba.mps      numerical error           136      136      119        0  12.5
+share1b.mps   numerical error           271      271      150        0  44.6
+share2b.mps   numerical error           162      162      117        0  27.8
+shell.mps     numerical error           699      699      550        0  21.3
+ship04l.mps   optimal                   568      568      453        0  20.2
+ship04s.mps   optimal                   300      300      214        0  28.7
+ship08l.mps   optimal                   889      889      643        0  27.7
+ship08s.mps   optimal                   431      431      287        0  33.4
+ship12l.mps   optimal                  1602     1602     1241        0  22.5
+ship12s.mps   optimal                   742      742      554        0  25.3
+sierra.mps    numerical error           801      801      493        0  38.5
+stair.mps     numerical error           836      836      782        0   6.5
+standata.mps  numerical error            60       60       47        0  21.7
+standmps.mps  numerical error           219      219      163        0  25.6
+stocfor1.mps  numerical error           207      207      165        0  20.3
+stocfor2.mps  numerical error          3947     3947     3139        0  20.5
+stocfor3.mps  numerical error         29844    29844    22759        0  23.7
+truss.mps     work limit reached     422576   422576     2802        0  99.3
+tuff.mps      work limit reached        975      975      843        0  13.5
+vtp-base.mps  numerical error            93       93       87        0   6.5
+wood1p.mps    work limit reached       2509     2509        0        0 100.0
+woodw.mps     numerical error          4612     4612     2310        0  49.9
+parsed 94 of 94
