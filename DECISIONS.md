@@ -192,6 +192,7 @@ and you have the argument. Jump to the entry for the numbers behind it.
 - **[D182](#d182--plato-nug-solves-one-of-three-and-presolve-reaches-a-median-of-zero-rows-on-every-plato-set-against-nine-per-cent-on-netlib)** — `plato-nug` solves one of three, and presolve reaches a median of zero rows on every plato set against nine per cent on netlib
 - **[D183](#d183--pilot87s-suboptimality-bound-moves-because-its-dual-solution-is-not-unique-and-its-priced-primal-answer-does-not-move-at-all)** — `pilot87`'s suboptimality bound moves because its dual solution is not unique, and its priced primal answer does not move at all
 - **[D184](#d184--dual_tol-is-1e-9-and-all-four-wrong-points-are-gone-at-10339x-work-on-netlib-and-10976x-on-kennington-which-d174-had-not-measured)** — `DUAL_TOL` is 1e-9 and all four wrong points are gone, at 1.0339x work on netlib and 1.0976x on Kennington, which D174 had not measured
+- **[D185](#d185--the-gate-has-an-absolute-bar-on-suboptimality-at-1e-6-placed-on-123-solves-across-five-sets-and-it-rejects-the-answer-this-project-shipped-two-days-ago)** — The gate has an absolute bar on suboptimality at 1e-6, placed on 123 solves across five sets, and it rejects the answer this project shipped two days ago
 
 ---
 
@@ -14059,3 +14060,89 @@ missing primal simplex, and that is its reopen condition.
 
 **Kennington's 1.0976x is accepted rather than explained.** Nothing here says
 why `pds-20` needs 4.8x the work at a tighter tolerance.
+
+---
+
+## D185 — The gate has an absolute bar on suboptimality at 1e-6, placed on 123 solves across five sets, and it rejects the answer this project shipped two days ago
+
+**2026-08-25.** `bench/run.c`: `RSUB_CEILING = 1e-6`, a per-instance predicate
+that reads no baseline. No change to `src/`. Evidence in
+`bench/measurements/02-97/`.
+
+### The question, as it was actually asked
+
+`TODO.md` item 5: "the gate cannot see a suboptimal answer … the instrument
+exists and its zero point is wrong."
+
+`RSUB_FLOOR` and `RSUB_REGRESSION_FACTOR` ask whether the bound **got worse**.
+A bound already bad when the baseline was written reads as permanently fine,
+which is how `pilot` published a point 2.31e-05 above the optimum with nothing
+in this gate saying a word.
+
+### Why it could not be placed until now, and what freed it
+
+**Until D184 it would have failed `pilot` and `pilot87`**, and a bar that
+rejects what is already wrong is a decision about those answers rather than
+about the predicate. D184 fixed both. **Item 5 was blocked by item 1 and
+nothing else**, which was not obvious until item 1 closed.
+
+### The measurement — where the bar goes
+
+`TODO.md` said what this needed: a threshold, and one instance separating
+cleanly on one set is not one.
+
+| set | instances | worst `rsub` |
+|---|---|---|
+| netlib | 94 | **1.4e-07** (`pilot`) |
+| Kennington | 16 | 4.18e-14 |
+| `plato-pds` | 8 | 9.91e-15 |
+| `plato-fome` | 4 | 1.15e-13 |
+| `plato-nug` | 1 | 4.14e-12 |
+
+**1e-6 clears the worst by 7.1x** and every set but netlib sits below 1.2e-13.
+It is not fitted: the band between 1.4e-07 and the 6.91e-05 it has to catch is
+494x wide.
+
+Today it fires on nothing. `gate: PASS`, `0 regressed, 0 improved, 0 new` on
+all three sets, `bench/results/*.txt` **byte-identical**.
+
+### The case it must reject, built and confirmed
+
+A bar nothing reaches is indistinguishable from a bar that is never evaluated.
+The new runner was built against the solver as it stood at `bc398a5`, two days
+earlier, with a canary that aborts if the two trees agree on `DUAL_TOL`.
+
+| instance | `rsub` at `bc398a5` | the bar |
+|---|---|---|
+| `pilot` | 6.91e-05 | **OVER-CEILING** |
+| `pilot87` | 2.54e-06 | **OVER-CEILING** |
+| `wood1p` | 7.4e-09 | quiet |
+| `adlittle` | 1.52e-15 | quiet |
+| | | **`gate: NOT MET`** |
+
+**`wood1p` is the control that matters.** It publishes the exactly correctly
+rounded optimum — `refeps = 0` in 02-83 — and carries the loosest certificate
+of any clean instance on either set. It stays quiet, so the bar is not
+rejecting a perfect answer. And the verdict flips rather than the message
+alone.
+
+### What was refuted about the instrument
+
+**The first version did not compile, and `make test` reported
+`4 Tests 0 Failures OK`.** A `
+` inside the new `emit` became a real line
+break, and `make test` builds the library and the unit suite — **it does not
+compile `bench/run.c`**. A change to the runner is green under `make test`
+whether or not it builds at all. `make bench` is what compiles it.
+
+### What is left open, handed to `TODO.md`
+
+**The bar is placed above every value this project can currently produce, so
+it catches a degradation and not a standing error.** If a future population
+sits higher, the number is re-derived from that population rather than kept.
+
+**It reads only `relative_suboptimality`**, which is `gap_positive` over
+`1 + |objective|` and is only as strong as `gap_certified` says. D183 showed
+that quantity follows a dual solution which is not unique on `pilot87`, so the
+bar has a moving quantity under it. On the current sets the movement is 1.2%
+against 7.1x of headroom.

@@ -297,6 +297,43 @@ constexpr double WORK_REGRESSION_FACTOR = 2.0;
 constexpr double RSUB_REGRESSION_FACTOR = 2.0;
 constexpr double RSUB_FLOOR = 1e-16;
 
+/* And the same quantity against a bar that does not move.
+ *
+ * **The two constants above have their zero point in the baseline, and that
+ * was the whole defect.** They report a suboptimality bound that GETS worse.
+ * A bound that was already bad when the baseline was written reads as
+ * permanently fine, so `pilot` published a point 2.31e-05 above the optimum
+ * for as long as anyone had been looking and no predicate here said a word
+ * (D173, D177). This one asks a question the baseline cannot answer: is the
+ * bound acceptable at all?
+ *
+ * **1e-6 is placed on 123 solves across five sets, not on netlib alone**
+ * (D185, `bench/measurements/02-97/`), which is what `TODO.md` said this
+ * needed — one instance separating cleanly on one set is not a threshold.
+ *
+ *      set          instances   worst rsub
+ *      netlib          94       1.4e-07   (pilot)
+ *      Kennington      16       4.18e-14
+ *      plato-pds        8       9.91e-15
+ *      plato-fome       4       1.15e-13
+ *      plato-nug        1       4.14e-12
+ *
+ * Nothing anywhere reaches it: 7.1x of headroom above the worst, and every
+ * set except netlib sits below 1.2e-13. **And it catches the case it exists
+ * for**: `pilot` before D184 read 6.91e-05, which is 69x past this bar.
+ *
+ * It could not have been placed before D184. With `DUAL_TOL` at 1e-7 the two
+ * instances that would fire were `pilot` and `pilot87`, and a bar that turns
+ * the gate red on what is already wrong is a decision about those answers
+ * rather than about this predicate. D184 fixed both, and that is what freed
+ * this.
+ *
+ * Reported only when it fires, and deliberately: a field on every line would
+ * change the record's format on all 123 and turn every later baseline diff
+ * into a format diff (D-13). `rsub=` is already on every line, so the data is
+ * there and this is the rule applied to it. */
+constexpr double RSUB_CEILING = 1e-6;
+
 constexpr int MAX_INSTANCES = 512;
 
 static outcome g_base[MAX_INSTANCES];
@@ -729,6 +766,15 @@ static bool run_one(const entry *e, const char *dir, tally *t)
             det ? "ok" : "DIVERGED", (unsigned long long)d1,
             (unsigned long long)b1);
 
+    /* The absolute bar. Unlike everything below it in compare_to_baseline,
+     * this asks nothing of the baseline, so an instance that has always been
+     * this far from optimal fails here on the first run. */
+    const bool subopt_ok = rep.relative_suboptimality <= RSUB_CEILING;
+    if (!subopt_ok)
+        emit("%-12s OVER-CEILING suboptimality bound %.3g is past %.3g, "
+             "and this does not read the baseline\n",
+             e->name, rep.relative_suboptimality, RSUB_CEILING);
+
     record(e->name, "optimal", true, shape, obj_ok, check_ok, det,
            (long long)iters, (long long)work,
            rep.relative_suboptimality);
@@ -738,8 +784,10 @@ static bool run_one(const entry *e, const char *dir, tally *t)
     jaos_model_free(m);
     /* `obj_ok` is false for the whole of a NOREF run, so it cannot be part of
      * the verdict there — it would fail every instance. Everything else is
-     * asked exactly as it is for the other two sets. */
-    return shape && (!scored || obj_ok) && check_ok && det;
+     * asked exactly as it is for the other two sets, `subopt_ok` included:
+     * the bound it reads needs no reference optimum, so a set without one is
+     * judged on it exactly as netlib is. */
+    return shape && (!scored || obj_ok) && check_ok && det && subopt_ok;
 }
 
 /* Every instance this run against what it did at baseline. Returns the

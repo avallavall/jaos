@@ -52,6 +52,34 @@ the one quoting the mean did not.
 **No gate campaign is owed.** `comment_only.sh` reports the release object
 UNCHANGED at `d33fba7`, so D177's campaign still holds. `warm*` is not a gate.
 
+### 2026-08-25: D185, item 5 is CLOSED — the gate has an absolute bar
+
+**`bench/run.c`: `RSUB_CEILING = 1e-6`, a per-instance verdict that reads no
+baseline.** Everything beside it compares against the baseline, so a bound
+already bad when the baseline was written read as permanently fine. That is how
+`pilot` published a point 2.31e-05 above the optimum with nothing here saying a
+word.
+
+**Placed on 123 solves across five sets**, not on netlib alone, which is what
+this item said it needed: netlib 1.4e-07, Kennington 4.18e-14, `plato-pds`
+9.91e-15, `plato-fome` 1.15e-13, `plato-nug` 4.14e-12. It clears the worst by
+7.1x and the band it sits in is 494x wide.
+
+**It fires on nothing today** — `gate: PASS`, `0 regressed` on all three,
+records byte-identical — **and it rejects the case it exists for.** Built
+against the solver as it stood at `bc398a5`: `pilot` 6.91e-05 OVER-CEILING,
+`pilot87` 2.54e-06 OVER-CEILING, `wood1p` 7.4e-09 quiet, `gate: NOT MET`
+(D185, `bench/measurements/02-97/`).
+
+**Item 5 was blocked by item 1 and nothing else**, and that was not visible
+until item 1 closed. Before D184 the bar would have failed `pilot` and
+`pilot87`, which is a decision about those answers rather than about this
+predicate.
+
+**`make test` does not compile `bench/run.c`.** The first version of this did
+not build and `make test` reported `4 Tests 0 Failures OK` regardless. Use
+`make bench` for a change to the runner.
+
 ### 2026-08-25: D184, item 1 is CLOSED — `DUAL_TOL` is 1e-9
 
 **The maintainer took the call.** `pilot` 2.312e-05 → **5.266e-09**;
@@ -257,7 +285,7 @@ measurement.**
 | 2 | **48 netlib solves publish an invalid basis** | **the rank argument, and now only that.** D179 measured the supply a wider rule would draw on: it covers 19 of the 24 instances outright, and `fit1p` and `share1b` have zero candidates at every tier, so such a rule improves the residue and cannot close it. Every local repair was already refused (D140, D141); D171 made it worse by 2. Accepting the residue now has a measured floor of 3 of 24 | §2 below |
 | 3 | **`degen2` behind D151's cap — and `scsd1` is a SEPARATE question** | **the premise that they lose the same way is refuted** (D178). Only `degen2` is D148's guard, at a settled dual violation of 12.91; `scsd1`'s guard never fires and it genuinely runs 314 iterations against cold's 89. So a doomed trajectory happens ONCE in twenty, and eleven quantities known before the solve separate nothing. Needs a second instance, which means §4's fourth set | §3 below |
 | 4 | **`D97`, the dual postsolve for an imposed bound** | nothing is built; `docs/research/dual-postsolve-imposed-bound.md` is the design with the literature verified. **The largest prize in the file** — it unlocks bound tightening AND doubleton equalities, 8.55% of netlib's live rows and 29.36% of Kennington's. **§8d is measured now and rewritten around it (02-87, 02-88)**: its refusal declines 50.2% of netlib's imposed bounds and 82.3% of Kennington's, and the hazard it prevents occurs **12 times in 98146 opportunities**. **The better design is postsolve detection and THIS TREE CANNOT HAVE IT**: the collision leaves the point one constraint short of a vertex, which needs a crossover, and `SPECS.md` has crossover and the primal simplex that blocks it both `missing`. So the first version is the refusal narrowed to equality rows — 35.5% and 20.3% — over-paying by three orders, and that price is the missing crossover rather than the reduction. §12 item 7 | "If all of the above is dropped" |
-| 5 | **the gate cannot see a suboptimal answer** | a threshold, and every candidate measured so far is blocked behind item 1. **The reach half is done**: `RSUB_FLOOR` was `1e-9` and watched 4 solves of 110, none of them Kennington's; it is `1e-16` now and watches 84 (D177). The zero point is still the baseline, so `pilot`'s suboptimality stays invisible. Three bars are measured and all three turn the gate red today, which is item 1's judgement | §4 below |
+| 5 | ~~**the gate cannot see a suboptimal answer**~~ **CLOSED 2026-08-25 (D185)** — `RSUB_CEILING = 1e-6` is a per-instance verdict that reads no baseline. Placed on **123 solves across five sets**, worst 1.4e-07, so it clears by 7.1x and fires on nothing today. Validated against the case it must reject: on the pre-D184 solver it fires on `pilot` and `pilot87`, stays quiet on `wood1p`, and the verdict goes `gate: NOT MET`. **It was blocked by item 1 and nothing else** | §4 below |
 
 **Three things are refused rather than open, so do not pick them up.**
 `apply_flips` is the third uncompensated sum of D168's shape and loses terms

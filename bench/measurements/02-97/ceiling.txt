@@ -1,0 +1,34 @@
+# D185 — RSUB_CEILING at 00c3bcf plus the working change
+
+######## 1. the bar fires on nothing today ########
+-- make netlib exit=0
+94 instances: 94 solved, 94 shape ok, 94 objective ok, 94 checker ok, 94 deterministic, 0 failed
+gate: PASS
+baseline: 0 regressed, 0 improved, 0 new
+-- make netlib-infeas exit=0
+29 instances: 29 correctly refused, 29 shape ok, 29 deterministic, 0 failed
+gate: PASS
+baseline: 0 regressed, 0 improved, 0 new
+-- make netlib-kennington exit=0
+16 instances: 16 solved, 16 shape ok, 16 objective ok, 16 checker ok, 16 deterministic, 0 failed
+gate: PASS
+baseline: 0 regressed, 0 improved, 0 new
+
+  the records must be byte-identical: the bar prints nothing when it
+  does not fire, so it cannot change the format (D-13).
+  (no lines above == byte-identical to the committed records)
+
+######## 2. THE CASE IT MUST REJECT ########
+  the same runner against the solver as it was at bc398a5, where pilot
+  publishes 6.91e-05. If this stays quiet the bar is decoration.
+  canary, the one variable:
+    bc398a5        constexpr double DUAL_TOL = 1e-7;
+    working tree constexpr double DUAL_TOL = 1e-9;
+
+  [  0.000424s] adlittle     optimal    rows=56 cols=97 shape=ok iters=71 work=141748 presolve=56/97/383->53/95/373 obj=225494.96316238036 ref=225494.96316238039[koch] objective=ok checker=ok (col=0 row=4.59e-14 rowrel=7.32e-17 dual=0 gap=4.3e-17 Q=3.43e-10 N=2.87e-11 drop=0 cert=yes sub=5.1e-28 rays=0 rsub=1.52e-15) det=ok digest=cc646f99e7b79c6d basis=c556da8f7e031767
+  [  6.180310s] pilot        optimal    rows=1441 cols=3652 shape=ok iters=23331 work=4720864104 presolve=1441/3652/43167->1392/3371/40793 obj=-557.48970616840472 ref=-557.48972928406818[koch] objective=ok checker=ok (col=4.92e-08 row=3.55e-13 rowrel=1.27e-16 dual=0 gap=2.67e-11 Q=0.0386 N=7.1e-14 drop=0 cert=yes sub=1.04e-31 rays=0 rsub=6.91e-05) det=ok digest=00579b2c4209dfec basis=ef3f6ab697835158
+  pilot        OVER-CEILING suboptimality bound 6.91e-05 is past 1e-06, and this does not read the baseline
+  [ 25.030756s] pilot87      optimal    rows=2030 cols=4883 shape=ok iters=41281 work=19519649987 presolve=2030/4883/73152->1996/4606/70507 obj=301.71034743753575 ref=301.71034733311052[koch] objective=ok checker=ok (col=0 row=1.51e-12 rowrel=1.25e-16 dual=0 gap=9.93e-14 Q=0.000768 N=2.18e-14 drop=1.89e-15 cert=no sub=3.81e-28 rays=16 rsub=2.54e-06) det=ok digest=5ca1145fb8a170d9 basis=1eae0fb84f6af215
+  pilot87      OVER-CEILING suboptimality bound 2.54e-06 is past 1e-06, and this does not read the baseline
+  [  0.026871s] wood1p       optimal    rows=244 cols=2594 shape=ok iters=528 work=35031888 presolve=244/2594/70215->171/1801/48577 obj=1.4429024115734093 ref=1.4429024115734093[koch] objective=ok checker=ok (col=1.2e-34 row=5.46e-14 rowrel=5.46e-14 dual=0 gap=6.21e-16 Q=1.81e-08 N=1.23e-16 drop=0 cert=yes sub=0 rays=0 rsub=7.4e-09) det=ok digest=ce88fc7e25bc72be basis=22c51aea82b4e01e
+  gate: NOT MET

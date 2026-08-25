@@ -255,6 +255,19 @@ D171 is what fixes the value: it moved 88 of 94 digests and moved this quantity
 by at most 1.688x, and 1e-16 is the decade at which the headroom under the
 factor of 2 stops being 1.86x and becomes 1.18x.
 
+**And there is an absolute bar beside it since D185, `RSUB_CEILING = 1e-6`.**
+Everything above has its zero point in the baseline, so a bound that was
+already bad when the baseline was written reads as permanently fine — which is
+how `pilot` published a point 2.31e-05 above the optimum with nothing here
+saying a word. This one asks whether the bound is acceptable at all, and it is
+a per-instance verdict rather than a comparison. Placed on **123 solves across
+five sets**, worst 1.4e-07, so it clears by 7.1x and fires on nothing today; it
+reports only when it fires, because a field on every line would change the
+record's format on all 123. **Validated against the case it must reject**: the
+same runner on the solver as it stood before D184 fires on `pilot` at 6.91e-05
+and `pilot87` at 2.54e-06, stays quiet on `wood1p` at 7.4e-09 — the correct
+answer with the loosest certificate — and the verdict goes `gate: NOT MET`.
+
 This is the check that would have caught D82, where a change published an
 answer out of tolerance with every checker number green and this gate passed
 it. It catches the move from right to wrong, not wrongness itself.

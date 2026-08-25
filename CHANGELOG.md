@@ -11,6 +11,17 @@ open, `bench/README.md` for the gate, and the commit each entry came from.
 
 ### Changed
 
+- **The gate has an absolute bar on suboptimality now, `RSUB_CEILING = 1e-6`**,
+  which closes `TODO.md` item 5. Everything beside it has its zero point in the
+  baseline, so an answer that was already bad when the baseline was written
+  read as permanently fine. Placed on **123 solves across five sets** — worst
+  1.4e-07, so it clears by 7.1x — and it fires on nothing today, with
+  `bench/results/*.txt` byte-identical. **Validated against the case it must
+  reject**: on the solver as it stood before D184 it fires on `pilot` at
+  6.91e-05 and `pilot87` at 2.54e-06, stays quiet on `wood1p`, and the verdict
+  goes `gate: NOT MET`. It could not be placed until D184 fixed those two
+  (D185, `bench/measurements/02-97/`).
+
 - **`DUAL_TOL` is 1e-9 and the four netlib instances that published a point off
   the optimum no longer do.** `pilot` 2.312e-05 → 5.266e-09, `pilot87` and
   `scsd6` publish Koch's optimum exactly, `etamacro` 1.315e-08 → 1.137e-13. The
