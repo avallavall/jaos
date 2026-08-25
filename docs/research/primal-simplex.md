@@ -25,9 +25,13 @@ carried — see Megiddo in §5.
 - Ge et al., Smart Crossover, arXiv:2102.09420.
 - Megiddo 1991, the author's copy at Stanford.
 - Huang et al. 2021, arXiv:2111.03376.
+- **Maros, DTR01-3**, Imperial's own copy — the pricing report §3 wanted.
+- arXiv:1803.05167, for the steepest-edge score from first principles.
+- Huangfu & Hall, arXiv:1503.01889, and Hall & Huangfu, ERGO-11-007.
 
-**The four sources that would settle §3's formulas are all paywalled and none
-were read.** Section 8 lists them.
+**The Devex weight-update recurrence and its reset threshold appear in none of
+the nine.** They were searched for in every one. Harris (1973) is paywalled and
+is still required before that recurrence is coded. Section 8 lists what is left.
 
 **Every entry below says how far it was checked.**
 
@@ -224,9 +228,28 @@ already computes both, so the pivot row is free to the primal.**
 ### Primal steepest edge (Goldfarb & Reid 1977; Forrest & Goldfarb 1992)
 
 Score: choose `q` maximising `|d_j| / sqrt(gamma_j)`. Weight:
-`gamma_j = ||B^-1 a_j||^2 + 1` in the "space of all variables" variant. The
-score form was confirmed in a paper that WAS read (Liu et al.,
-arXiv:2308.08171 §2.1), **not** in Goldfarb & Reid.
+`gamma_j = 1 + ||B^-1 a_j||^2` in the "space of all variables" variant.
+
+**READ AT SOURCE, with the derivation, in arXiv:1803.05167 §3.1.** Goldfarb &
+Reid and Forrest & Goldfarb are both paywalled and still unread, but the score
+does not need them — it falls out in three lines. When nonbasic `x_k` increases
+by `theta_k`, the objective falls by `-d_k*theta_k` and each basic `x_i` moves
+from `bbar_i` to `bbar_i - abar_ik*theta_k`. So the difference vector between
+the two solutions has length
+
+```
+    theta_k * sqrt( 1 + sum_i abar_ik^2 )
+```
+
+and the objective decrease **per unit length** is `-d_k / sqrt(1 + sum_i
+abar_ik^2)`. Steepest edge maximises that. **The `1` is the entering variable's
+own movement, `theta_k^2`, and it is not a floor bolted on for safety** — which
+is worth knowing before anyone "simplifies" it away.
+
+**One consequence for JAOS, now exact rather than structural.** At the cold
+basis `B = -I`, so `B^-1 a_j = -a_j` and `gamma_j = 1 + ||a_j||^2`: the model's
+own column norm, one pass over the matrix, no triangular solve. That is the
+same free-exact-start the dual gets from `dse[i] = 1`.
 
 **CHECK AT SOURCE — the recurrences below were not verified in either primary
 paper.** They are written in the form the technique is standardly stated in.
@@ -282,10 +305,24 @@ number as folklore until the paper is read.**
 ### Partial and multiple pricing
 
 Partial pricing prices one rotating slice of `N` per iteration; multiple pricing
-picks a small candidate set and runs several minor iterations on it. The
-published framework is Maros's Imperial technical report. **Both are refused in
-JAOS on the dual side, on wrong answers rather than on a trade — see D82 and
-D84, and `TODO.md` §0's constraint table.**
+picks a small candidate set and runs several minor iterations on it. **Both are
+refused in JAOS on the dual side, on wrong answers rather than on a trade — see
+D82 and D84, and `TODO.md` §0's constraint table.**
+
+**Maros's pricing report was READ AT SOURCE, and it removes the apparent tension
+with those refusals.** In its taxonomy of pricing rules it says of steepest
+edge: *"It is a full pricing and does not adapt to the multiple pricing
+scheme."* And of Devex: *"It is a full pricing and is not suitable for multiple
+pricing."* So the two normalized rules a primal simplex would actually want are
+**incompatible with multiple pricing anyway**. D84's refusal costs the primal
+nothing it could have had.
+
+The same page confirms the asymmetry §3 opens with, in Maros's own words:
+steepest edge *"is used in the dual simplex more frequently because it requires
+less extra computations there"*, while Devex *"is considered a useful tool for
+the primal SSX but it is also easily adaptable to the dual"*. **That is the
+recommendation of this section, stated by a source that was read rather than
+inferred.**
 
 ### Citations
 
@@ -296,10 +333,15 @@ D84, and `TODO.md` §0's constraint table.**
   programming." *Math. Prog.* 57(1–3), 341–374 (1992). DOI 10.1007/BF01581089.
   **Crossref-verified. Text not reached.**
 - Maros, I. "A General Pricing Scheme for the Simplex Method." Technical Report
-  DTR01-3, Dept. of Computing, Imperial College London, 2001. **Report number,
-  author and title verified against Imperial's own report index. Text not
-  reached.** An automated read of the PDF returned a summary that did not match
-  the confirmed title and was discarded; nothing here comes from it.
+  DTR01-3, Dept. of Computing, Imperial College London, 2001. **FULL TEXT READ**
+  from `doc.ic.ac.uk/research/technicalreports/2001/DTR01-3.pdf`. Later published
+  as *Annals of Operations Research* 124, 193–203 (2003) — **that journal record
+  is UNVERIFIED at the publisher.**
+- Anon. "A generalization of the steepest-edge rule and its number of simplex
+  iterations for a nondegenerate LP." arXiv:1803.05167. **FULL TEXT READ.** Used
+  only for §3.1's derivation of the steepest-edge score, which it gives from
+  first principles. **It is not a source for the weight-update recurrence** and
+  nothing else here comes from it.
 - Swietanowski, A. "A New Steepest Edge Approximation for the Simplex Method for
   Linear Programming." *COAP* 10(3), 271–281 (1998).
   DOI 10.1023/A:1018317206484. **Crossref-verified. Text not reached.** A named
@@ -558,7 +600,7 @@ never a justification** — and none of the numbers below were read at source.
 | `K`, the EXPAND reset interval | EXPAND | about 10000, from Hall & McKinnon's restatement and NOT from GMSW |
 | `tau = (delta_final - delta_initial)/K` | EXPAND | derived |
 | `t_min = tau/\|alpha_rq\|` | EXPAND | derived |
-| Devex reset threshold on the largest weight | Devex | about 1e6 is **folklore here** — not verified in Harris |
+| Devex reset threshold on the largest weight | Devex | about 1e6 is **folklore here**, and searching nine free sources did not find it — Harris (1973) is paywalled and is where it lives |
 | Devex initial weight | Devex | 1 |
 | primal steepest-edge weight floor | primal SE | 1 |
 | partial pricing slice count | pricing | nothing; and D82 refuses the technique |
@@ -616,18 +658,26 @@ read.
 
 ---
 
-## 8. What to obtain next, in order
+## 8. What is still unread, and what it blocks
 
-No PDF was reached, so the four most valuable items are all still unread.
+Nine free sources were read. **Three paywalled items remain, and one of them
+blocks code.**
 
-1. **Maros (2003), Chapter 9, pp. 161–260.** Answers questions 1, 2, 3 and 4 in
-   one place at implementation level.
-2. **Forrest & Goldfarb (1992).** The steepest-edge variant family and the
-   reference framework in general form.
-3. **Harris (1973).** The primal two-pass ratio test in its original statement,
-   and Devex's own reset threshold.
-4. **Maros, Imperial DoC TR DTR01-3 (2001).** The only source found whose
-   subject is a general primal pricing scheme.
+1. **Harris (1973). BLOCKS CODE.** It is the only place named anywhere for the
+   Devex weight-update recurrence and its reset threshold, and neither appears
+   in any of the nine sources read — they were searched for in all of them. The
+   recurrence in §3 is written in its standard form and is **not verified**. A
+   sign or a `max()` in the wrong place there gives a solver that works and is
+   slow, which is the hardest kind of defect to find. Harris also holds the
+   primal two-pass ratio test in its original statement.
+2. **Maros (2003), Chapter 9, pp. 161–260.** Answers questions 1, 2, 3 and 4 in
+   one place at implementation level. Nothing depends on it that is not covered
+   elsewhere, but it would replace several second-hand statements with one
+   source.
+3. **Forrest & Goldfarb (1992).** The steepest-edge variant family and the
+   reference framework in general form. Only needed if Devex underperforms.
 
-The formulas in sections 1 and 4 are standard. **Every formula marked CHECK AT
-SOURCE in section 3 must be checked against the paper before it is coded.**
+**What no longer blocks anything.** §3's steepest-edge *score* is derived at
+source (arXiv:1803.05167) and needs neither Goldfarb & Reid nor Forrest &
+Goldfarb. Maros's pricing report is read. The formulas in sections 1 and 4 are
+standard and were not in doubt.

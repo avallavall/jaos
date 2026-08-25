@@ -951,15 +951,16 @@ nothing about the dual.
   of a new length. `dse[nrow]` is the dual's and indexes basis *positions*; it
   is a different object and cannot be reused.
 
-  **They start exact at the slack basis, and that is a fact about `B = -I`
-  rather than about any particular weight formula.** `var_column:905` writes
-  `-1.0` for a logical, so the cold basis is `-I`, so `B^-1 M_j = -M_j` and any
-  norm of `B^-1 M_j` is exactly the corresponding norm of the model's own
-  column. Whatever the literature settles the formula to be, its slack-basis
-  value costs one pass over the matrix and no triangular solve. This is the
-  same argument `build_initial_basis:952` already writes for the dual —
-  "`B = -I`, so row i of `B^-1` is `-e_i` and its squared norm is exactly one"
-  — and the reason given there for starting from the slack basis at all.
+  **They start exact at the slack basis, and the formula is now read at a
+  source.** The steepest-edge weight is `gamma_j = 1 + ||B^-1 a_j||^2`, derived
+  from first principles in arXiv:1803.05167 §3.1 — the `1` is the entering
+  variable's own movement and not a floor bolted on for safety.
+  `var_column:905` writes `-1.0` for a logical, so the cold basis is `-I`, so
+  `B^-1 M_j = -M_j` and `gamma_j = 1 + ||M_j||^2`: the model's own column norm,
+  one pass over the matrix, no triangular solve. This is the same argument
+  `build_initial_basis:952` already writes for the dual — "`B = -I`, so row i of
+  `B^-1` is `-e_i` and its squared norm is exactly one" — and the reason given
+  there for starting from the slack basis at all.
 
   **That argument holds for exact primal steepest edge and NOT for Devex, and
   the literature says start with Devex.** Devex weights are all 1 at a reset
@@ -1020,6 +1021,21 @@ primal computes anyway for its reduced-cost update. That gap is part of why the
 dual is the faster algorithm here, and it lines up with D81. Devex also solves
 the warm-start problem for free — every weight is 1 at a reset, whatever basis
 crossover hands over, where exact weights would cost `m` solves.
+
+**D84 costs the primal nothing, and Maros's pricing report says so at a source
+now read.** Of steepest edge: "It is a full pricing and does not adapt to the
+multiple pricing scheme." Of Devex: "It is a full pricing and is not suitable
+for multiple pricing." The two rules a primal simplex actually wants are
+incompatible with multiple pricing anyway, so the refusal takes nothing away.
+The same page states the asymmetry in Maros's own words — steepest edge "is
+used in the dual simplex more frequently because it requires less extra
+computations there", Devex "is considered a useful tool for the primal SSX".
+
+**One thing that BLOCKS code, and it is the only one.** Devex's weight-update
+recurrence and its reset threshold appear in **none of the nine free sources
+read**; they were searched for in all of them. Harris (1973) is paywalled and is
+where they live. The recurrence in `docs/research/primal-simplex.md` §3 is
+written in its standard form and is **not verified**. Do not code it from that.
 
 **Phase 1: the piecewise-linear composite (Maros 1986), and it must start from
 a GIVEN basis.** No artificials. The phase-1 objective is the sum of the basics'
