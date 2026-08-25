@@ -18,7 +18,9 @@ last two `/code-review max` findings, then stage 2 (Harris in primal form) or
 stage 5 (Devex, blocked on a paywalled source). `pilot4` is CLOSED as a
 non-regression by D194.
 
-**The tree is clean and everything is committed. 24 commits are unpushed.**
+**The tree is clean and everything is committed. Nothing is pushed** — ask the
+remote for the count rather than trusting one written here, because it is stale
+the moment anything lands.
 `gate: PASS` with `0 regressed, 0 improved, 0 new` on all three sets, and every
 file in `bench/results/` byte-identical to the committed record — that campaign
 ran at D193's tree and covers the whole span from D188. `make configs` exits 0
