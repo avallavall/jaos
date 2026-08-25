@@ -734,8 +734,9 @@ typedef struct {
      * and bound should not pay for it per call. */
     double *c1;
 
-    /* Is a primal method in flight? Read only by the two places a pivot lends
-     * a cost — `update_dual` and the tail of `pivot()`.
+    /* Is the primal phase 1 in flight? Read by the three places a cost is
+     * lent — `update_dual`, the tail of `pivot()`, and `refresh`'s sweep
+     * after a singular-basis repair.
      *
      * `shift_to_feasible` puts a reduced cost back on the feasible side by
      * moving the cost behind it. **The dual requires that**: dual feasibility
@@ -752,9 +753,10 @@ typedef struct {
      * point was left 0.18 dual infeasible, and the D146 guard refused the
      * answer — on a model the dual solves in 47 iterations.
      *
-     * Phase 2 is guarded for a second and weaker reason: its optimality test
-     * is the absence of dual infeasibility, so a loan taken mid-solve makes
-     * that test read as satisfied on costs the model does not own.
+     * **Phase 2 is deliberately NOT guarded, and guarding it was tried.** In
+     * phase 2 `d` holds the model's own reduced costs and the shift is the
+     * repair the dual makes, so the argument above does not reach it. Guarding
+     * both phases took the set from 54 agreeing to 20 (D191).
      *
      * **Guarding only `pivot()`'s own call is not enough and that was tried.**
      * `update_dual` lends against every variable the pricing row touches, once
@@ -1742,12 +1744,28 @@ static jaos_status refresh(sx *s, bool *ok, bool refine)
      * on the first refresh of a warm start, which is the same situation
      * arrived at from the other direction: a basis nobody proved dual
      * feasible before it was installed. A cold solve that never went
-     * singular is left bit for bit as it was. */
-    bool sweep = repaired || s->shift_pending;
-    s->shift_pending = false;
-    if (sweep)
-        for (int64_t v = 0; v < s->nvar; v++)
-            shift_to_feasible(s, v);
+     * singular is left bit for bit as it was.
+     *
+     * **Never while the primal phase 1 runs.** This is the third site that
+     * lends a cost, and it is the one D190 and D191 both missed while naming
+     * the other two. Phase 1 holds gradients of a sum of bound violations in
+     * `d`, so a sweep against them moves `cost` by numbers that belong to
+     * another objective, exactly as `update_dual` did. It is not a rare path:
+     * 30 sweeps fire inside phase 1 across 11 of the 94 standard instances,
+     * one of them shifting 3990 costs on `pilot`
+     * (D193, `bench/measurements/02-105/`).
+     *
+     * `shift_pending` is left standing rather than cleared, so a warm start's
+     * owed sweep is not dropped — the hand-over refresh into phase 2 takes it.
+     * `run_primal` already clears the flag before phase 1 for its own reason,
+     * so today this only matters if that ever stops being true. */
+    if (!s->in_phase1) {
+        bool sweep = repaired || s->shift_pending;
+        s->shift_pending = false;
+        if (sweep)
+            for (int64_t v = 0; v < s->nvar; v++)
+                shift_to_feasible(s, v);
+    }
 
     *ok = true;
     return JAOS_OK;
