@@ -972,9 +972,9 @@ nothing about the dual.
   before re-reading that row.**
 - **Two gaps in the ratio test, and it was written as three.**
   `primal_ratio_test` is a single-pass minimum ratio. It never compares the
-  blocking step against `up[q] - lo[q]`, so the entering column can never
-  bound-flip — that is a correctness gap and not a speed one. It has no Harris
-  window. **It is not missing a long step, and looking for one would waste
+  blocking step against the entering column's own opposite bound, so that
+  column can never bound-flip. It has no Harris window. **It is not missing a
+  long step, and looking for one would waste
   time**: in the dual ratio test one row is scanned across many nonbasics, so
   there are many breakpoints to walk past, while in the primal **only the
   entering variable moves**. The only flip available is that variable reaching
@@ -982,6 +982,24 @@ nothing about the dual.
   separate technique. The primal long step exists only in phase 1, where the
   objective is a sum of infeasibilities and therefore piecewise linear
   (`docs/research/primal-simplex.md` §2).
+
+  **The missing bound flip is NOT a defect shipping today, and the reason is
+  the same shape as D184's.** `primal_cleanup` is the only caller, and it
+  selects through `wants_a_pivot:3312`, which returns true only for a column
+  with **no declared bound in the improving direction** — a free column, or one
+  whose `real_upper`/`real_lower` is infinite. So the entering column's own
+  opposite bound is always infinite there and the flip can never arise. It goes
+  live the moment a pricing rule chooses entering columns, which is exactly
+  when `can_move` goes live.
+
+  **And when it does go live, the limit must be computed from `real_upper` and
+  `real_lower`, never from `up` and `lo`.** `real_*` strips the bounds dual
+  phase 1 invented (`real_lower:894`); the raw arrays do not. A column that
+  `wants_a_pivot` selects may still carry an `ARTIFICIAL_BOUND` of 1e10 in
+  `up[q]`, so a flip sized off the raw arrays would park a variable on a bound
+  **the model never declared**. That is the case `repair_dual_infeasibility`
+  refuses in as many words, and the evidence `classify_optimum` reads
+  immediately afterwards.
 - **A phase 1.** `build_initial_basis:952` makes the cold start dual feasible
   by construction and says so in its own comment. It is not primal feasible,
   so a primal simplex started cold **always** needs one. Crossover supplies its
