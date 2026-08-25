@@ -4318,10 +4318,12 @@ static jaos_status run_primal_phase1(sx *s, jaos_solve_status *out,
         }
         if (s->iters > iter_cap) {
             jm_set_err(s->m, "internal iteration guard tripped after %lld "
-                             "iterations in the primal phase 1, the last %lld "
-                             "without the total infeasibility improving; this "
-                             "is a JAOS defect",
-                       (long long)s->iters,
+                             "iterations in the primal phase 1 (%lld into the "
+                             "solve, against a shared cap of %lld), the last "
+                             "%lld without the total infeasibility improving; "
+                             "this is a JAOS defect",
+                       (long long)(s->iters - entered),
+                       (long long)s->iters, (long long)iter_cap,
                        (long long)(s->iters - s->last_gain));
             return JAOS_ERR_NUMERICAL;
         }
@@ -4597,6 +4599,26 @@ static jaos_status run_primal(sx *s, jaos_solve_status *out)
         s->dinfeas_best = HUGE_VAL;
     }
 
+    /* **The cap is shared with phase 1 and with the dual's re-entry, and it is
+     * the CUMULATIVE `s->iters` that is tested against it.** So phase 2's real
+     * allowance is this number minus whatever phase 1 spent. That is a fact
+     * about the guard rather than a defect, and the margin was measured before
+     * it was left alone: across the standard 94, the largest share of the cap
+     * spent before phase 2 starts is **1.68%**, on `pilot-ja`, and 86 of the 94
+     * start phase 2 with anything spent at all (D196,
+     * `bench/measurements/02-109/`). `ITER_SANITY_FACTOR` is 200 times the
+     * model's size and phase 1 uses at most three of those 200.
+     *
+     * **It stops being safe if that factor drops below about 60**, or if a
+     * phase 1 is ever given a harder job than reaching feasibility from the
+     * slack basis — a crossover's basis, for instance. Rebasing the cap per
+     * phase is the fix if either happens; today it would change no outcome and
+     * would cost a second constant with no measurement behind it.
+     *
+     * `phase2_entered` exists so the guard's message can name the phase's own
+     * count. It used to report the cumulative one as "primal iterations",
+     * which is phase 1's number wearing phase 2's label. */
+    const int64_t phase2_entered = s->iters;
     const int64_t iter_cap = ITER_SANITY_FACTOR * (s->nrow + s->ncol + 1);
 
     for (;;) {
@@ -4623,11 +4645,15 @@ static jaos_status run_primal(sx *s, jaos_solve_status *out)
         }
         if (s->iters > iter_cap) {
             jm_set_err(s->m, "internal iteration guard tripped after %lld "
-                             "primal iterations, the last %lld without the "
-                             "total dual infeasibility improving%s, %lld "
-                             "pivots declined on factorization disagreement; "
-                             "this is a JAOS defect",
-                       (long long)s->iters,
+                             "primal phase-2 iterations (%lld into the solve, "
+                             "%lld of them phase 1, against a shared cap of "
+                             "%lld), the last %lld without the total dual "
+                             "infeasibility improving%s, %lld pivots declined "
+                             "on factorization disagreement; this is a JAOS "
+                             "defect",
+                       (long long)(s->iters - phase2_entered),
+                       (long long)s->iters, (long long)phase2_entered,
+                       (long long)iter_cap,
                        (long long)(s->iters - s->last_gain),
                        s->bland ? ", under Bland's rule" : "",
                        (long long)s->n_stability);
