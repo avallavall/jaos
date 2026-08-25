@@ -52,6 +52,28 @@ the one quoting the mean did not.
 **No gate campaign is owed.** `comment_only.sh` reports the release object
 UNCHANGED at `d33fba7`, so D177's campaign still holds. `warm*` is not a gate.
 
+### 2026-08-25: D182, `nug` is measured and presolve reaches nothing on it
+
+**No source change.** §4 had carried `plato-nug` as "unmeasured rather than
+unsolvable" since D115 and nobody had checked the sentence. `nug08-3rd`
+**solves** — 34424 iterations, 294654930775 work units, `checker=ok`,
+`det=ok`. `nug20` does not finish in 3600 s and `nug30` not in 1800 s, and
+neither is known unsolvable. **The family is not ordered by rows**: `nug20`
+has 4488 FEWER rows than `nug08-3rd`. So the set is not practical and one
+instance of it is usable, which is a third answer (D182,
+`bench/measurements/02-94/`).
+
+**Presolve removes NOTHING on it**, and across the committed records its reach
+is a median of 9.04% of rows on netlib, 12.57% on Kennington, 2.93% on
+`plato-pds`, 0.00% on `plato-fome` and 0.00% on `plato-nug`. That is §4's own
+argument in JAOS's numbers. **It is not a matched comparison against
+Galabova's 1.10-against-1.67** and §4 says why.
+
+**The instrument was wrong first and its output read as finished.** A
+`grep -vE` on a leading bracket, meant to drop the timing prefix, threw away
+the RECORD line — the runner prefixes that with the same bracket — while the
+summary and `gate: PASS` survived. Records come from `-o` now.
+
 ### 2026-08-24: D181, the fourth set run for the first time
 
 **No source change.** The warm campaign had never been run on `plato-fome` or
@@ -1572,7 +1594,7 @@ rest of this file is not all background:
 
 | where | what |
 |---|---|
-| §4, end | how often `plato` should run — `pds` alone is 6.4 hours of wall clock. And `nug20`/`nug30` are unmeasured rather than unsolvable |
+| §4, end | how often `plato` should run — `pds` alone is 6.4 hours of wall clock. **`nug` is measured now (D182)**: `nug08-3rd` solves in 730 s and 294654930775 work units, `nug20` does not finish in 3600 s and `nug30` not in 1800 s. Neither is known unsolvable; both are known not to finish in the time they were given. Whether a set of one enters the record is open, and a set of one instance is a statement about one instance (D46) |
 | §4, end | **`nug` has no row removed by any family**, all three instances. Nobody has asked why |
 | §3 | doubleton equalities — 8.55% of netlib's live rows and 29.36% of Kennington's, and **99.7% of it is behind D97** |
 | §5 | the rest of M2: factorization fill, Devex pricing, and closing the competitive gate |
@@ -2082,6 +2104,20 @@ seven columns is sound and presolve cut off nothing.
 What the candidate found instead is in §5a, at the top of this file: the
 termination test never re-reads dual feasibility, so a numerically damaged
 solve publishes `optimal`. That is HEAD's, not the candidate's.
+
+**`nug` is no longer unmeasured (D182, `bench/measurements/02-94/`).**
+`nug08-3rd` solves — 34424 iterations, 294654930775 work units, `checker=ok`,
+`det=ok` — and `nug20` and `nug30` do not finish in 3600 s and 1800 s. The
+family is not ordered by rows: `nug20` has 4488 FEWER rows than `nug08-3rd`
+and does not finish in five times the time. So the set is not practical and
+one instance of it is usable, which is a third answer.
+**And presolve removes NOTHING on it** — not a row, not a column, not a
+nonzero. Across the committed records its reach is a median of 9.04% of rows
+on netlib, 12.57% on Kennington, 2.93% on `plato-pds`, 0.00% on `plato-fome`
+and 0.00% on `plato-nug`. That is this section's own argument in JAOS's
+numbers, and it is NOT a matched comparison against Galabova's 1.10-against-1.67
+— reach is not speed-up, and that set is Mittelmann plus four industrial
+models rather than these.
 
 **Also open:** how often `plato` should run — `pds` alone is 6.4 hours of wall
 clock — and `nug20`/`nug30`, which are unmeasured rather than unsolvable.

@@ -189,6 +189,7 @@ and you have the argument. Jump to the entry for the numbers behind it.
 - **[D179](#d179--a-rule-wider-than-the-firing-row-has-a-supply-on-19-of-24-instances-and-none-at-all-on-two-so-it-improves-the-residue-and-cannot-close-it)** — A rule wider than the firing row has a supply on 19 of 24 instances and none at all on two, so it improves the residue and cannot close it
 - **[D180](#d180--refused-the-refactorization-interval-stays-at-64-although-32-is-86-cheaper-and-the-sweep-that-says-so-also-reaches-pilots-optimum-without-touching-a-tolerance)** — REFUSED: the refactorization interval stays at 64 although 32 is 8.6% cheaper, and the sweep that says so also reaches `pilot`'s optimum without touching a tolerance
 - **[D181](#d181--the-fourth-set-does-not-reopen-3--the-mapped-basis-arrives-short-by-56-of-rows-and-the-repair-never-runs--and-it-prices-2-at-three-of-four-warm-starts)** — The fourth set does not reopen §3 — the mapped basis arrives short by 5.6% of rows and the repair never runs — and it prices §2 at three of four warm starts
+- **[D182](#d182--plato-nug-solves-one-of-three-and-presolve-reaches-a-median-of-zero-rows-on-every-plato-set-against-nine-per-cent-on-netlib)** — `plato-nug` solves one of three, and presolve reaches a median of zero rows on every plato set against nine per cent on netlib
 
 ---
 
@@ -13810,3 +13811,89 @@ rather than unsolvable.
 decides the verdict, and here it does: on netlib the invalid basis costs 24 of
 94 instances their warm start, and on this set it costs 3 of 4 — with the one
 that escapes saving 47%.
+
+---
+
+## D182 — `plato-nug` solves one of three, and presolve reaches a median of zero rows on every plato set against nine per cent on netlib
+
+**2026-08-25.** No source change. Evidence in `bench/measurements/02-94/`.
+
+### The question, as it was actually asked
+
+`TODO.md` §4 has carried `plato-nug` as "unmeasured rather than unsolvable"
+since D115 and nobody had checked the sentence. It is the one shape this tree
+does not have: every model JAOS reads today is economic, transport or
+stochastic, and a QAP relaxation is none of those. A set that cannot say
+whether it solves cannot be part of an argument about model population.
+
+### The measurement
+
+| instance | rows x cols | result |
+|---|---|---|
+| **`nug08-3rd`** | 19728 x 20448 | **solves**, 34424 iterations, **294654930775 work units** |
+| `nug20` | 15240 x 72600 | **did not finish in 3600 s** |
+| `nug30` | 52260 x 379350 | **did not finish in 1800 s** |
+
+The seconds are a stopping rule and not a cost: they make "did not finish in T"
+checkable. Work units are the cost and they are in the record.
+
+**The family is not ordered by rows.** `nug20` has 4488 fewer rows than
+`nug08-3rd` and 3.5x the columns, and does not finish in five times the time
+`nug08-3rd` needs.
+
+`nug08-3rd`'s answer is clean — `checker=ok`, `det=ok`, `cert=yes`,
+`Q=8.89e-10`, `rsub=4.14e-12` — and it publishes 214.00000000040001 with no
+reference optimum to score against.
+
+**So `plato-nug` is not a practical fourth set and one instance of it is
+usable.** That is a different answer from either of the two §4 allowed for.
+
+### What the one that solves says
+
+**Presolve removes nothing at all on it**: `19728/20448/139008` unchanged on
+both sides of the arrow. Not a row, not a column, not a nonzero.
+
+That is worth the table, because §4's whole argument is that the population
+decides the verdict. Taken from the committed records with no run at all:
+
+| set | n | median rows removed | median nonzeros removed | removes nothing at all |
+|---|---|---|---|---|
+| netlib | 94 | **9.04%** | 6.35% | 8 of 94 |
+| Kennington | 16 | 12.57% | **21.57%** | 0 of 16 |
+| `plato-pds` | 8 | **2.93%** | 1.40% | 0 of 8 |
+| `plato-fome` | 4 | **0.00%** | 2.06% | 0 of 4 |
+| `plato-nug` | 1 | **0.00%** | **0.00%** | **1 of 1** |
+
+**JAOS's presolve reaches a median of 0 to 3% of rows on the plato sets against
+9% on netlib.**
+
+### What is NOT claimed, and the care matters
+
+§4 quotes Galabova 2023 for the opposite direction: HiGHS's presolve
+geometric-mean speed-up is **1.10 on netlib against 1.67** on a modern set, so
+its presolve is worth *more* there while JAOS's *reaches* less. **These are not
+a matched comparison** — that set is Mittelmann's benchmarks plus four
+industrial models, not `plato-pds`/`fome`/`nug` — and reach is not the same
+quantity as speed-up. What is established here is the reach, on JAOS, on these
+sets. Reading it as "JAOS's presolve is 1.67x behind" would be inventing a
+number.
+
+### What was refuted about the instrument
+
+**The first version of `run-nug.sh` produced output that read as a finished
+measurement and carried no evidence.** It filtered the runner's console with
+`grep -vE` on a leading bracket, to drop the per-instance timing prefix — and
+the runner prefixes the RECORD line with that same bracket, so the only line
+carrying work units, the digest and the checker numbers was the one thrown
+away. The summary line and `gate: PASS` survived. The record comes from `-o`
+now and never from the console.
+
+### What is left open, handed to `TODO.md`
+
+**Whether `plato-nug` enters the record as a set of one.** `nug08-3rd` is the
+only QAP-shaped model this tree can measure, and a set of one instance is a
+statement about one instance (D46). Adopting it is a decision this entry does
+not take.
+
+**`nug20` and `nug30` have a cap and not a verdict.** Neither is known to be
+unsolvable; both are known not to finish in the time they were given.

@@ -11,6 +11,16 @@ open, `bench/README.md` for the gate, and the commit each entry came from.
 
 ### Changed
 
+- **`plato-nug` solves one of three, which is a different answer from either of
+  the two §4 allowed for.** `nug08-3rd` solves in 34424 iterations and
+  294654930775 work units, `checker=ok` and `det=ok`; `nug20` and `nug30` do
+  not finish in 3600 s and 1800 s. The family is not ordered by rows — `nug20`
+  has 4488 fewer rows than `nug08-3rd` and does not finish in five times the
+  time. **Presolve removes nothing at all on the one that solves**, and across
+  the committed records it reaches a median of 0 to 3% of rows on the plato
+  sets against 9% on netlib. No source change (D182,
+  `bench/measurements/02-94/`).
+
 - **The warm campaign is run on a fourth instance set for the first time, and
   §3 is not reopened by it.** `plato-fome`: 4 instances, **0 repairs fired**,
   because the mapped basis arrives short by a constant **5.6% of rows** —

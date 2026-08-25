@@ -1,0 +1,12 @@
+# D182 — plato-nug, one instance at a time, 3600 s each, at a04f9e4
+# rows x cols from bench/plato-nug.manifest. -e noref: no reference optimum exists.
+
+######## nug08-3rd  (19728 x 20448) ########
+nug08-3rd    optimal    rows=19728 cols=20448 shape=ok iters=34424 work=294654930775 presolve=19728/20448/139008->19728/20448/139008 obj=214.00000000040001 ref=0[none] objective=none checker=ok (col=2.81e-22 row=4.79e-22 rowrel=4.79e-22 dual=0 gap=3.66e-14 Q=8.89e-10 N=2.17e-20 drop=0 cert=yes sub=4.56e-38 rays=0 rsub=4.14e-12) det=ok digest=557cd56eb6ef40af basis=2fc519a3d2bd63a6
+1 instances: 1 solved, 1 shape ok, 1 checker ok, 1 deterministic, 0 failed  (no reference optimum: objective unverified)
+gate: PASS
+  exit=0 after 730 s
+
+######## nug20  (15240 x 72600) ########
+  DID NOT FINISH in 3600 s
+
