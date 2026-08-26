@@ -177,3 +177,5 @@ bash .claude/skills/jaos-measure/scripts/comment_only.sh src/presolve.c df2054e
 The probe matches the text of the UNREPAIRED accumulation, so it applies at
 `f0ffec8` and not at HEAD. It builds its own detached worktree and never
 touches the main tree.
+
+**Re-run against commit `22e2d9d`**, the tree this evidence was taken on. The script anchors on source that later commits rewrote; `make record-check` knows it is pinned.

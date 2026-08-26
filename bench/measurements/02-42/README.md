@@ -71,3 +71,5 @@ That is a bigger patch than this one and it is the obvious next step.
 
 `run-basis-attribution.sh`, beside this file. `src/` is read and never
 written; the patch is applied in a throwaway worktree.
+
+**Re-run against commit `856ba2b`**, the tree this evidence was taken on. The script anchors on source that later commits rewrote; `make record-check` knows it is pinned.

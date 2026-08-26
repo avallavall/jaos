@@ -1,4 +1,6 @@
 #!/bin/bash
+# PINNED: 5b92ead -- this script is evidence for that commit's tree; its anchors do not
+# match later trees. Re-run it in a worktree of that commit, not against HEAD.
 # Is a loan still outstanding when publish() writes the duals?
 #
 # TODO.md §5a item 1. `refresh` re-runs `shift_to_feasible` over every

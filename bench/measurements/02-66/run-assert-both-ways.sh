@@ -1,4 +1,6 @@
 #!/bin/bash
+# PINNED: 22e2d9d -- this script is evidence for that commit's tree; its anchors do not
+# match later trees. Re-run it in a worktree of that commit, not against HEAD.
 # The row_traffic sweep assert, validated on both sides.
 #
 # A green assert proves nothing on its own: an assert that cannot fire is

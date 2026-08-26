@@ -1,4 +1,6 @@
 #!/bin/bash
+# PINNED: 856ba2b -- this script is evidence for that commit's tree; its anchors do not
+# match later trees. Re-run it in a worktree of that commit, not against HEAD.
 # WHICH presolve family unbalances the published basic count?
 #
 # D131 measured the count wrong on 132 of netlib's 188 optimal solves and 24

@@ -64,6 +64,31 @@ A verdict that accepts or rejects a candidate is judged by `jaos-measurer` in
 a context that did not produce the numbers. Phase 1's two most valuable
 findings came from these independent re-reads and from nowhere else.
 
+**Which loop, by what changed.** The full loop is for solver internals. Two
+lighter ones exist, and using the full loop on a bench tool is how a session
+spends an hour of campaigns on a record format:
+
+| what changed | what runs |
+|---|---|
+| `src/` or `include/`, any code | all seven steps, `numerics-reviewer` included |
+| `bench/*.c`, `tools/`, `docs/`, the four documents, the Makefile | `make configs`, then the three sets once; digests must be byte-identical unless the change is to a campaign's own record format |
+| comments only | `make test` (which runs `record-check`) and the three sets once; every digest and work figure byte-identical, and `tools/strip-comments`-style proof that no code token moved |
+
+**The record is checked with the code.** `make test` runs `make record-check`
+(`tools/record-check.py`): every cited decision exists, every constant in
+`docs/tolerances.md` matches the source, every `SPECS.md` label is present
+tense and every `partial` row says what is missing, and `docs/claims.txt`
+lists what the record says does not exist — the line that fails when it does.
+**Add a line there for every feature you mark `missing`.** A refusal goes in
+`bench/refusals.txt` with what would reopen it and, where one exists, the
+script that re-tests it; `make refusals` runs those at a milestone boundary.
+
+**The third metric.** Seconds on this host repeat to 6.27% and work units
+cannot see a layout or branch change, so "inside the noise" was never a
+measurement. `tools/icount.sh -r <ref> <instances>` is a deterministic
+instruction count inside the solver. A change that moves nothing else is
+judged on it.
+
 ## Build and test — WSL only
 
 The Windows side has no compiler. GCC 14 minimum.

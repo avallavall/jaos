@@ -1,0 +1,55 @@
+# The refusals, and what would reopen each one. Read by `make refusals`
+# (tools/refusals.sh). One line per refusal:
+#
+#   D<n> | <script, or MANUAL> | <reopens when>
+#
+# A script re-tests the refusal on the CURRENT tree and exits 0 when the
+# refusal still holds, 1 when its condition is met or its verdict flipped, 2
+# when it could not run. MANUAL means the condition is a design or mechanism
+# change that a script cannot detect; the text is what to check by hand at a
+# milestone boundary. `TODO.md`'s refusals table carries the argument for each
+# condition; this file is the executable subset and the list.
+#
+# Why this file exists. A refusal is true on the tree that measured it. Trees
+# move: D24's premise expired and D94 caught it by luck; D184's reopen
+# condition was met on 2026-08-25 and nothing noticed for a day. And a
+# refusal made because a change sat "inside the noise" was never a
+# measurement of the change, only of the host: tools/icount.sh can now
+# resolve what seconds could not, so every refusal of that kind is worth one
+# re-run under it.
+
+# --- performance refusals ------------------------------------------------
+D36  | MANUAL | the scatter-form BTRAN retires fewer instructions than the arithmetic it adds, under tools/icount.sh; the candidate is not on disk and would have to be re-ported from D36's description
+D76  | bench/measurements/02-119/run-restrict-icount.sh | `restrict` locals in the LU kernels move the instruction count by more than 0.5% on the LU-dominated instances; seconds could not resolve it (D76), instructions can
+D82  | MANUAL | never as a retry: refused on wrong answers, not on a trade (TODO.md); a new pricing scheme is a new decision
+D84  | MANUAL | same as D82
+D61  | MANUAL | a hot-path inlining that removes calls AND moves tools/icount.sh by more than the 0.3% D61 could not resolve in seconds
+D199 | bench/measurements/02-116/run-clear-timing.sh | the O(nrow) phase-1 clear costs wall-clock time at the measured densities (D203: it does not; icount 1.00017)
+
+# --- reopen conditions that are met, or executable today -----------------
+D184 | bench/measurements/02-118/run-can-move-units.sh | the primal simplex lands (MET 2026-08-25, D188): can_move's product-against-rate units move a digest on the dual or the primal campaign
+D101 | MANUAL | a model population where bench/measurements/02-07/'s counter reports a non-trivial share of duplicate or dominated rows and columns
+D107 | MANUAL | a model population where bench/measurements/02-13/run-sign-count.sh reports a non-trivial sign-ok share
+D109 | MANUAL | a model population where bench/measurements/02-16/run-floorless.sh reports a moved instance line
+D108 | MANUAL | an instance crosses the gate's 2.0x work bar from the implied-free family's firings, or a mechanism predicts trajectory direction from the firing site
+D112 | MANUAL | D108's condition
+
+# --- design refusals, mechanism-gated ---------------------------------------
+D63  | MANUAL | the pricing rule changes; Devex replaces the question
+D74  | MANUAL | the re-entry's oscillation mechanism changes
+D95  | MANUAL | a dual-informed elimination design with a lift condition; checked against D106 and deliberately not reopened
+D97  | MANUAL | a crossover exists at postsolve (the imposed-bound collision then has a remedy); the first precondition was met by D114
+D118 | MANUAL | D119's rewritten condition
+D126 | MANUAL | the dual step stops being computed from an unclamped d, or update_dual stops being what pushes the same variable
+D127 | MANUAL | a correctly-signed step that keeps the perturbation update_dual spreads (a new constant, needs its own sweep), or pilot87 stalls again
+D141 | MANUAL | a demotion design wider than the firing row that carries a rank argument for the demoted member
+D142 | MANUAL | a consumer of start_* reads the orig-space count as a claim, or warm starting stops going through presolve's mapping
+D145 | MANUAL | condition met by D148, retried as D149, refused again on cost; closed
+D149 | MANUAL | condition met by D151 (the cap swept on both sides, the capped repair landed at 4); closed
+D151 | MANUAL | a rule that predicts a doomed warm trajectory before paying for it
+D156 | MANUAL | a frozen-row width dies at more than one ulp of the activity it constrains; D164's pin is what fires
+D173 | MANUAL | finnis's point is shown not to be the exact optimal vertex by an oracle finer than 0.107 of eps * sum|c_j x_j|
+D176 | MANUAL | anything reads the reduced model's objective (a callback, a statistic, a postsolve path)
+SPECS-crash-basis | MANUAL | pricing stops starting from exact steepest-edge weights; Devex landing is the trigger
+D93  | MANUAL | a controlled host that satisfies D17 (for the 4.2% bar); tools/icount.sh answers the instruction half of that question today
+D34  | MANUAL | never, while the two absolute premises stand (locked 2026-08-13)

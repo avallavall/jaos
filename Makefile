@@ -134,7 +134,7 @@ LIB := $(B)/release/libjaos.a
 DEV_TESTS  := $(TESTS:tests/%.c=$(B)/dev/%)
 ASAN_TESTS := $(TESTS:tests/%.c=$(B)/asan/%)
 
-.PHONY: all test sanitize configs bench compare-build compare-solvers compare \
+.PHONY: all test sanitize configs bench compare-build compare-solvers compare record-check refusals \
 	netlib netlib-baseline \
 	netlib-kennington \
 	netlib-infeas netlib-kennington-baseline netlib-infeas-baseline \
@@ -191,7 +191,23 @@ $(B)/dev/test_%: tests/test_%.c $(DEV_OBJ) $(B)/dev/unity.o $(HDRS) | $(B)/dev
 $(B)/asan/test_%: tests/test_%.c $(ASAN_OBJ) $(B)/asan/unity.o $(HDRS) | $(B)/asan
 	$(CC) $(ASAN_CFLAGS) $(TEST_INC) $< $(ASAN_OBJ) $(B)/asan/unity.o -o $@ $(LDLIBS)
 
-test: $(DEV_TESTS) $(BENCH_TOOLS)
+# The written record is checked with the code, because a document that
+# describes a tree the code no longer is costs more than no document: it is
+# found later, by someone who then trusts it. tools/record-check.py says what
+# it checks; docs/claims.txt is the list of things the record says do not
+# exist, and is the line that fails when one of them lands.
+record-check:
+	@python3 tools/record-check.py
+
+# Every refusal with a script is re-tested on this tree; the rest are listed
+# with the condition to check by hand. Minutes, not seconds: run it when a
+# milestone closes and after any change to pricing, the re-entry, presolve's
+# families or the LU kernels. bench/refusals.txt is the list.
+refusals:
+	@mkdir -p $(B)
+	@bash tools/refusals.sh
+
+test: record-check $(DEV_TESTS) $(BENCH_TOOLS)
 	@fail=0; for t in $(DEV_TESTS); do echo "== $$t"; ./$$t || fail=1; done; exit $$fail
 
 sanitize: $(ASAN_TESTS)

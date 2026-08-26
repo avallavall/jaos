@@ -1,0 +1,6 @@
+# D76 re-tested under the instruction counter: restrict on the LU kernel signatures
+# tree: 56be130; instances: maros-r7 dfl001 25fv47 fit2p
+# geomean within 0.5% of 1.0 = the refusal holds; further = reopen
+
+bash: tools/icount.sh: No such file or directory
+icount rc=127

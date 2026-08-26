@@ -1,0 +1,27 @@
+# can_move: rate-times-distance (HEAD) against rate (D184's variant), on the tree at 56be130
+# two campaigns: the gate's standard set (the dual) and the forced-primal campaign
+
+netlib: BYTE-IDENTICAL, 94 record lines
+primal: MOVED, 24 differing lines:
+48c48
+< nesm         ok        dual=5891/133071815 primal=6497/155269849 split=p1:2053/p2:1/dual:4443 verdict=optimal/optimal obj=14076036.487562733/14076036.487562733 checker=dual:ok/primal:ok 
+---
+> nesm         ok        dual=5891/133071815 primal=6138/144257113 split=p1:2053/p2:1/dual:4084 verdict=optimal/optimal obj=14076036.487562733/14076036.487562733 checker=dual:ok/primal:ok 
+52,53c52,53
+< pilot-we     DISAGREE  dual=4558/143901388 primal=34921/1342298325 split=p1:1992/p2:1/dual:32928 verdict=optimal/numerical error obj=-2720107.5328449644/0 checker=dual:ok/primal:n/a different verdicts: the settled point is not dual feasible: a reduced cost breaches its bound by 2748.61 after settling, from a cold start; publishing that as OPTIMAL would certify a point the reduced costs do not support
+< pilot4       DISAGREE  dual=673/16066863 primal=5914/160758276 split=p1:2596/p2:1/dual:3317 verdict=optimal/numerical error obj=-2581.1392588838889/0 checker=dual:ok/primal:n/a different verdicts: the settled point is not dual feasible: a reduced cost breaches its bound by 6.72712 after settling, from a cold start; publishing that as OPTIMAL would certify a point the reduced costs do not support
+---
+> pilot-we     DISAGREE  dual=4558/143901388 primal=34921/1342298321 split=p1:1992/p2:1/dual:32928 verdict=optimal/numerical error obj=-2720107.5328449644/0 checker=dual:ok/primal:n/a different verdicts: the settled point is not dual feasible: a reduced cost breaches its bound by 2748.61 after settling, from a cold start; publishing that as OPTIMAL would certify a point the reduced costs do not support
+> pilot4       ok        dual=673/16066863 primal=5407/145384162 split=p1:2596/p2:1/dual:2810 verdict=optimal/optimal obj=-2581.1392588838889/-2581.1392588838889 checker=dual:ok/primal:ok 
+55c55
+< pilotnov     ok        dual=2135/80872352 primal=12640/599189490 split=p1:2270/p2:2/dual:10368 verdict=optimal/optimal obj=-4497.2761882188706/-4497.2761882188715 checker=dual:ok/primal:ok 
+---
+> pilotnov     ok        dual=2135/80872352 primal=14886/714282581 split=p1:2270/p2:2/dual:12614 verdict=optimal/optimal obj=-4497.2761882188706/-4497.2761882188715 checker=dual:ok/primal:ok 
+68,69c68,69
+< scsd1        DISAGREE  dual=97/487980 primal=792/3722309 split=p1:118/p2:1/dual:673 verdict=optimal/numerical error obj=8.6666666743333653/0 checker=dual:ok/primal:n/a different verdicts: the settled point is not dual feasible: a reduced cost breaches its bound by 34.3673 after settling, from a cold start; publishing that as OPTIMAL would certify a point the reduced costs do not support
+< scsd6        DISAGREE  dual=244/1672688 primal=1648/17737262 split=p1:798/p2:1/dual:849 verdict=optimal/numerical error obj=50.500000077144342/0 checker=dual:ok/primal:n/a different verdicts: the settled point is not dual feasible: a reduced cost breaches its bound by 106.094 after settling, from a cold start; publishing that as OPTIMAL would certify a point the reduced costs do not support
+---
+> scsd1        DISAGREE  dual=97/487980 primal=592/3007293 split=p1:118/p2:1/dual:473 verdict=optimal/numerical error obj=8.6666666743333653/0 checker=dual:ok/primal:n/a different verdicts: the settled point is not dual feasible: a reduced cost breaches its bound by 21.1458 after settling, from a cold start; publishing that as OPTIMAL would certify a point the reduced costs do not support
+> scsd6        DISAGREE  dual=244/1672688 primal=1647/17278401 split=p1:798/p2:1/dual:848 verdict=optimal/numerical error obj=50.500000077144342/0 checker=dual:ok/primal:n/a different verdicts: the settled point is not dual feasible: a reduced cost breaches its bound by 74.6567 after settling, from a cold start; publishing that as OPTIMAL would certify a point the reduced costs do not support
+
+VERDICT: the units are LIVE. D184's premise has expired; the question is open.

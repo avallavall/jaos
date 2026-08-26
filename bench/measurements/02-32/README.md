@@ -86,3 +86,5 @@ instances bit-identical to the committed record on the three sets.
 cannot see a `CFLAGS` change (D82), and it opens with a canary that fails if
 the asserts were not compiled in — without it, an empty result and a build
 with the asserts switched off look exactly alike.
+
+**Re-run against commit `5b92ead`**, the tree this evidence was taken on. The script anchors on source that later commits rewrote; `make record-check` knows it is pinned.

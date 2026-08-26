@@ -1,0 +1,29 @@
+# Claims of absence, checked by `make record-check` (tools/record-check.py).
+#
+# Each line: absent <where the record makes the claim> <regex>
+#
+# The regex must NOT match any source file (src/, include/, bench/*.c,
+# tests/, Makefile) with comments stripped. When it does, the thing the record
+# says is missing has been built, and the row named in the second column is
+# the one that has to change in the same commit. That is the whole mechanism:
+# a claim of absence is true the day it is written and silently false the day
+# the feature lands, and nothing else in the tree notices.
+#
+# Patterns are symbol-shaped on purpose. Prose cannot trigger them because
+# comments are stripped before matching.
+
+absent SPECS.md#1-compressed-input         \b(inflate|zlib|gzip|gunzip)\w*\s*\(
+absent SPECS.md#3-crash-basis              \b(build_crash_basis|jm_crash|crash_basis)\b
+absent SPECS.md#3-barrier-and-crossover    \b(jm_cholesky|cholesky_|jm_barrier|barrier_|jm_crossover|crossover_)\w*\s*\(
+absent SPECS.md#3-milp                     \b(jm_bnb|branch_and_bound|jm_cut|cut_pool|jm_heuristic)\w*\s*\(
+absent SPECS.md#3-deterministic-parallelism \bpthread_create\s*\(
+absent SPECS.md#3-primal-devex             \b(devex|jm_devex)\w*\s*\(
+absent SPECS.md#3-primal-harris            \b(primal_harris|harris_primal)\w*\s*\(
+absent SPECS.md#3-presolve-duplicates      \b(static|jaos_status)\s+\w*\s*\*?\s*(ps_|jm_)?(duplicate_rows?|duplicate_cols?|dominated_cols?)\s*\(
+absent SPECS.md#5-sensitivity-and-ranging  \b(jaos_ranging|jaos_sensitivity|jm_ranging)\w*\s*\(
+absent SPECS.md#5-certificates             \b(jaos_certificate|jm_farkas|farkas_)\w*\s*\(
+absent SPECS.md#5-exact-rational           \b(mpq_t|jm_rational|jaos_exact)\b
+absent SPECS.md#6-write-mps                \bjaos_write_mps\s*\(
+absent SPECS.md#6-write-lp                 \bjaos_write_lp\s*\(
+absent SPECS.md#6-write-solution           \bjaos_write_sol\w*\s*\(
+absent SPECS.md#7-python                   \b(PyInit_|Py_InitModule|PYBIND|cython)\b

@@ -15618,3 +15618,53 @@ outlives the failure it describes.
 
 **Open.** Nothing. What those 31 instances mean for the primal is `TODO.md`
 section 0's open decision, not this entry's.
+
+---
+
+## Appendix: planning-era decisions, D-01 to D-16
+
+`D-<nn>` in a source comment or a document names a decision from the two GSD
+planning phases that ran before the planning layer was retired (D98). Their
+files were deleted with `.planning/`; the definitions survive in git at
+`ef14399^:.planning/phases/*/0N-CONTEXT.md`. They are listed here, one line
+each, so a citation resolves to something. **The same number names two
+different decisions**, one per phase, and only the file citing it says which:
+the ratio-test set is cited from `src/simplex.c`, `src/lu.c` and the
+measurement skill; the presolve set from `src/presolve.c`, `src/jaos_internal.h`,
+`tests/test_presolve.c`, `bench/*.c`, `docs/work-units.md` and the Makefile.
+Nothing new cites these; a new decision gets a D-number.
+
+### Phase 01 — candidate admission in the ratio test
+
+### D-01 — The target is the dense scan, not the admission rule
+### D-02 — The admission rule itself does not change: same candidates, same order
+### D-03 — The nonbasic list is maintained incrementally at the pivot
+### D-04 — If the measurement says it does not pay, the phase closes with a refusal
+### D-05 — All 139 solution digests must be identical across the three sets
+### D-06 — The digests are what authorise rewriting the work baseline
+### D-07 — A differential-equivalence test runs the old scan and the new one side by side
+### D-08 — The equivalence is also asserted at run time in debug builds (the `dbg_*` cross-check in `src/simplex.c`)
+### D-09 — The counter charges what is actually visited, not `nvar`
+### D-10 — The work baselines for all three campaigns are rewritten deliberately, after the digests authorise it
+### D-11 — A same-instance time ratio at `J=1` gives the verdict; callgrind explains it
+### D-12 — Measured over the standard set as a geometric mean of per-instance ratios (D46)
+### D-13 — The result is conclusive at 4.2% or better, three times the harness's repeatability (see D93 for why that bar cannot be tested on this host)
+
+### Phase 02 — presolve and postsolve
+
+### D-01 — The first plan is the scaffolding, not a reduction; the reduced model is a separate `jaos_model`
+### D-02 — Presolve iterates to a fixed point under a measured round cap (`JM_PRESOLVE_ROUNDS`)
+### D-03 — Presolve is switched off by a build-time constant, `-DJAOS_NO_PRESOLVE`
+### D-04 — Presolve runs before scaling, on the model as loaded
+### D-05 — A new module, `src/presolve.c`, with prototypes in `src/jaos_internal.h`
+### D-06 — Presolve builds a reduced problem and never mutates the caller's model
+### D-07 — The postsolve record is a tagged arena, replayed strictly LIFO
+### D-08 — The postsolve stack is solve-local, built inside `jm_dual_simplex`
+### D-09 — The negative control is presolve compiled off; the off build must reproduce the baselines bit for bit (D96)
+### D-10 — One round-trip test per reduction family, on a small model
+### D-11 — The existing checker is the instrument and is not touched
+### D-12 — Criterion 4 (determinism across two solves) is already enforced by `bench/run.c`
+### D-13 — Each reduction reports what it removed via a per-family counter; the counters are internal and read only by in-tree tooling (D64)
+### D-14 — Presolve bills the same `jm_work` counter every other kernel bills, one accumulator per solve (D16)
+### D-15 — The deliverable number is a geometric mean of per-instance ratios (D46)
+### D-16 — The phase does not recalibrate the comparison ladder; it records the ratio and D104 recalibrates
