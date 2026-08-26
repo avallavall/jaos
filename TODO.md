@@ -1380,11 +1380,25 @@ by D201**: the hand-over's zero margin is 55000x in practice and is refused with
 reopen conditions, and `s->col`'s contract is an assert. **Nothing from that
 review is open.**
 
+**A SECOND `/code-review max` ran on 2026-08-26 and found twenty more.** All
+twenty are closed by D202 to D205, together with nine further findings from two
+`numerics-reviewer` passes over the fixes. One of those nine was a defect the
+fixes themselves introduced (D202), and it is the reason this paragraph names
+the review rather than only the decisions: the review that finds twenty things
+is also the one that catches what fixing them breaks.
+
 ### OPEN: the instances the primal cannot solve and the dual can
 
 Stage 4 took the reach to 54 of 94 agreeing (D190 published 64 and D191
 corrects it), and D193 took it to **55**. The lists below are D193's run
 (`bench/measurements/02-105/`):
+
+**Those 31 now say why, which they did not until D205.** All of them end at
+`NUMERICAL_ERROR` because the settled point is not dual feasible, and that site
+wrote no message at all -- so `jaos_model_error` was empty on exactly the
+instances this open item is about, and the record could say only "different
+verdicts". Every record line carries the breach and the start it came from now,
+which is the first evidence anyone picking this up has to work from.
 
 - **31 disagree**, all of them the primal returning `NUMERICAL_ERROR` where the
   dual reaches an optimum: `25fv47`, `80bau3b`, `agg`, `bandm`, `bnl2`,
