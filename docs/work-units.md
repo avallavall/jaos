@@ -115,6 +115,35 @@ steepest-edge weight update charges one per row, the exact weight that feeds
 it charges one per slot it adds up rather than one per row (D42), and each
 swap attempted while settling up charges two per row.
 
+**The primal phase 1** bills four things, all by the same rule as everything
+above: one unit per position touched. It had no entry here at all while its
+first charge changed twice.
+
+*Building the cost vector* (`primal_phase1_costs`) charges the number of
+positions the LAST call set, plus one per row it scans to find this call's.
+The first term used to be `nvar` and was billed nothing: the clear was a
+`memset` over the whole variable set. D198 started billing it and D199
+replaced the `memset` with a scatter over the positions actually set, so the
+charge now follows what the clear visits. At most `nrow` positions can be set,
+because only a basic variable can be infeasible and a basis holds distinct
+variables.
+
+*Pricing* charges one per variable, exactly as phase 2 does. The loop reads
+every variable's status to decide whether its phase-1 reduced cost improves,
+so every variable is one it looked at.
+
+*The ratio test* charges one per row. It scans the whole basis, because phase 1
+must know which basics would cross a declared bound in either direction, not
+only the one the entering column is moving away from.
+
+*A bound flip* charges one per row, the same charge phase 2 makes for the same
+operation. Nothing else is billed for it: no basis changes, so there is no
+factorization, no update and no triangular solve to pay for.
+
+The phase-1 duals are billed inside `compute_duals`, where every other caller
+of it is billed. Lending it a different cost vector for one call changes no
+charge, because it changes no work.
+
 **Ordering the pricing row's pattern** charges one per position the scatter
 recorded, one per bitmap word the read-back looked at, and one per distinct
 position handed back. It is charged only on the iterations that take the

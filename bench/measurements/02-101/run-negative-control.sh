@@ -7,39 +7,28 @@ cd "$R" || exit 1
 cp src/simplex.c /tmp/simplex.c.orig
 
 # Doctor: run_primal declares optimality immediately, without a single pivot.
+#
+# **The anchor is the function's own opening line, and it used to be a 30-line
+# copy of the body.** That copy included the iteration guard's message, which a
+# later commit rewrote -- so the script stopped matching and exited 1 on
+# "ANCHOR NOT FOUND", and the evidence in README.md stopped being
+# re-derivable. A signature does not change when a message inside the function
+# does, and it is asserted UNIQUE so a second `run_primal` could not be
+# silently picked instead.
+#
+# Inserting at the opening brace also means what the question asks: the whole
+# of run_primal does nothing, phase 1 included. Anchoring further down (at the
+# phase-2 loop, say) would leave phase 1 running and answer a different
+# question. Everything below the insertion is still compiled, so no variable
+# becomes unused and -Werror stays satisfied.
 python3 - <<'PY'
-import re
 p='src/simplex.c'
 s=open(p,encoding='utf-8').read()
-anchor="""    const int64_t iter_cap = ITER_SANITY_FACTOR * (s->nrow + s->ncol + 1);
-
-    for (;;) {
-        if (s->m->cfg.work_limit > 0 && s->work.units >= s->m->cfg.work_limit) {
-            *out = JAOS_SOLVE_WORK_LIMIT;
-            return JAOS_OK;
-        }
-        if (s->iters % TIME_CHECK_EVERY == 0 && out_of_time(s)) {
-            *out = JAOS_SOLVE_TIME_LIMIT;
-            return JAOS_OK;
-        }
-        if (s->m->cfg.progress_cb != nullptr &&
-            s->iters % PROGRESS_EVERY == 0) {
-            const jaos_progress p = {
-                .iterations = s->iters,
-                .work_units = s->work.units,
-                .primal_infeasibility = s->infeas_best,
-            };
-            if (s->m->cfg.progress_cb(&p, s->m->cfg.progress_user) ==
-                JAOS_CALLBACK_STOP) {
-                *out = JAOS_SOLVE_INTERRUPTED;
-                return JAOS_OK;
-            }
-        }
-        if (s->iters > iter_cap) {
-            jm_set_err(s->m, "internal iteration guard tripped after %lld "
-                             "primal iterations,"""
-i=s.find(anchor)
-assert i>0, "ANCHOR NOT FOUND"
+anchor=("static jaos_status run_primal(sx *s, jaos_solve_status *out)\n"
+        "{\n")
+n=s.count(anchor)
+assert n==1, "ANCHOR NOT FOUND OR NOT UNIQUE: %d matches" % n
+i=s.index(anchor)+len(anchor)
 s=s[:i]+"    *out = JAOS_SOLVE_OPTIMAL;  /* NEGATIVE CONTROL */\n    return JAOS_OK;\n"+s[i:]
 open(p,'w',encoding='utf-8').write(s)
 print("doctored")
