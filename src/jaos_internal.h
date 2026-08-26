@@ -137,6 +137,24 @@ struct jaos_model {
     jaos_basis_status *sol_row_status;  /* [num_row] and each row activity   */
     int64_t solve_work;
     int64_t solve_iters;
+    /* How many of `solve_iters` the primal method ran, and how many of THOSE
+     * belonged to its phase 1. Both zero on a pure dual solve, which is every
+     * solve unless `cfg.force_primal` is set or the settling re-entry hands
+     * over.
+     *
+     * Written on EVERY exit from `jm_dual_simplex`, the abandoned one
+     * included, because a solve that was abandoned is the one whose split
+     * anyone wants. Reporting only, exactly like `solve_work`/`solve_iters`:
+     * nothing inside the solver reads them back.
+     *
+     * Not part of the public API (D-13, D64) -- bench/primal.c and tests/
+     * read them directly because both are in-tree tooling and not consumers,
+     * the same reason bench/run.c may. They exist to delete two hand-written
+     * parsers of the SUMMARY log line, which had already drifted apart from
+     * each other: the bench's matched on a substring the test's did not
+     * require, so editing that line could leave the test green while the
+     * bench silently reported no split at all on all 94 instances. */
+    int64_t solve_primal_iters, solve_phase1_iters;
     /* Seconds the last solve took. The one number on this struct that is not
      * reproducible, which is why nothing inside the solver may read it back:
      * it is written at the end of a solve and only ever handed to a caller. */

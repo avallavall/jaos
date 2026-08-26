@@ -2091,6 +2091,8 @@ JAOS_NODISCARD jaos_status jm_presolve_run(const jaos_model *m, jm_presolve *p,
     p->reduced.objective = 0.0;
     p->reduced.solve_work = 0;
     p->reduced.solve_iters = 0;
+    p->reduced.solve_primal_iters = 0;
+    p->reduced.solve_phase1_iters = 0;
     p->reduced.solve_time = 0.0;
     p->reduced.err[0] = '\0';
 
@@ -3478,6 +3480,8 @@ JAOS_NODISCARD jaos_status jm_postsolve_solved(jm_presolve *p)
      * by jm_dual_simplex without ever calling this function). */
     orig->solve_status = JAOS_SOLVE_OPTIMAL;
     orig->solve_iters  = 0;
+    orig->solve_primal_iters = 0;
+    orig->solve_phase1_iters = 0;
     /* presolve's own charge (D-14): jm_presolve_run already recorded it on
      * `reduced` for exactly this path -- no sx is built here, so nothing
      * else in this function would otherwise report it. */
@@ -3584,6 +3588,8 @@ JAOS_NODISCARD jaos_status jm_postsolve_infeasible_or_unbounded(jm_presolve *p,
 
     orig->solve_status = status;
     orig->solve_iters  = 0;
+    orig->solve_primal_iters = 0;
+    orig->solve_phase1_iters = 0;
     orig->solve_work   = p->reduced.solve_work;
     orig->solve_time   = 0.0;
     orig->objective = 0.0;

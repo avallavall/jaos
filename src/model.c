@@ -163,6 +163,8 @@ static void model_answer_is_stale(jaos_model *m)
     m->objective = 0.0;
     m->solve_work = 0;
     m->solve_iters = 0;
+    m->solve_primal_iters = 0;
+    m->solve_phase1_iters = 0;
     m->solve_time = 0.0;
 }
 

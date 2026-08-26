@@ -586,6 +586,11 @@ typedef struct {
     int64_t *dbg_cand;               /* [nvar] */
     double *dbg_rnum, *dbg_rden;     /* [nvar] */
     double *dbg_rrange;              /* [nvar] */
+    /* The scratch primal_bound_flip's s->col cross-check computes into. Its
+     * own buffer and not one of the four above, because those belong to the
+     * D-08 ratio-test check and a debug buffer shared by two independent
+     * checks is the borrowed-scratch defect this project reviews for. */
+    double *dbg_col;                 /* [nrow] */
 #endif
 
     /* Refactorization buffers, grown once and reused: a refactorization
@@ -817,7 +822,7 @@ static void sx_free(sx *s)
     free(s->cand); free(s->rnum); free(s->rden); free(s->rrange);
 #ifndef NDEBUG
     free(s->dbg_cand); free(s->dbg_rnum); free(s->dbg_rden);
-    free(s->dbg_rrange);
+    free(s->dbg_rrange); free(s->dbg_col);
 #endif
     free(s->bs); free(s->bi); free(s->bv);
     free(s->fake); free(s->c1); free(s->c1_at);
@@ -933,7 +938,9 @@ static jaos_status sx_init(sx *s, jaos_model *m)
     s->dbg_rnum   = jm_alloc_array(s->nvar, sizeof(double));
     s->dbg_rden   = jm_alloc_array(s->nvar, sizeof(double));
     s->dbg_rrange = jm_alloc_array(s->nvar, sizeof(double));
-    if (!s->dbg_cand || !s->dbg_rnum || !s->dbg_rden || !s->dbg_rrange) {
+    s->dbg_col    = jm_alloc_array(s->nrow, sizeof(double));
+    if (!s->dbg_cand || !s->dbg_rnum || !s->dbg_rden || !s->dbg_rrange ||
+        !s->dbg_col) {
         sx_free(s);
         return JAOS_ERR_OUT_OF_MEMORY;
     }
@@ -4153,24 +4160,31 @@ static void primal_bound_flip(sx *s, int64_t q, double delta)
      * or a test and not a comment, and this project has a documented case of a
      * correct, prominent warning comment being violated by new code.
      *
-     * Compared bit for bit, because the claim is that nothing wrote it, not
-     * that something wrote something close. Its own buffer, never the shared
-     * scratch, so the check cannot corrupt what it is observing. `s->work` is
-     * saved and restored so a debug build bills what the release build bills.
+     * **`memcmp` and not `==`, because bit for bit is what the claim is.**
+     * `==` says neither of the two things this check exists to say: a NaN in
+     * an ill-conditioned `s->col` compares unequal to the identical NaN in
+     * `chk` and aborts a debug build on a model the release build carries to
+     * a verdict, and a `+0.0` written over a correct `-0.0` compares equal —
+     * which is exactly the write it is here to catch, because both writers it
+     * was added for (`compute_primal`, `apply_flips`) open by zeroing the
+     * buffer through the `rhs` alias.
+     *
+     * `dbg_col` is its own buffer, never the shared scratch, so the check
+     * cannot corrupt what it is observing, and it is allocated once in
+     * `sx_init` rather than per flip. `sx_init` fails the solve if it cannot
+     * be had, so there is no null case here and therefore no way for the
+     * check to switch itself off in silence. `s->work` is saved and restored
+     * so a debug build bills what the release build bills.
      *
      * Costs one FTRAN per flip and is compiled out of the shipping build by
      * `-DNDEBUG`; `make test` and `make sanitize` are where it runs. */
     {
-        double *chk = jm_alloc_array(s->nrow, sizeof *chk);
-        if (chk != nullptr) {
-            const jm_work saved = s->work;
-            var_column(s, q, chk);
-            jm_lu_ftran(&s->lu, chk, &s->work);
-            s->work = saved;
-            for (int64_t i = 0; i < s->nrow; i++)
-                assert(chk[i] == s->col[i]);
-            free(chk);
-        }
+        double *chk = s->dbg_col;
+        const jm_work saved = s->work;
+        var_column(s, q, chk);
+        jm_lu_ftran(&s->lu, chk, &s->work);
+        s->work = saved;
+        assert(memcmp(chk, s->col, (size_t)s->nrow * sizeof *chk) == 0);
     }
 #endif
     for (int64_t i = 0; i < s->nrow; i++)
@@ -4364,7 +4378,13 @@ static jaos_status run_primal_phase1(sx *s, jaos_solve_status *out,
                                      bool *feasible)
 {
     *feasible = false;
-    if (s->c1 == nullptr) {
+    /* Both pointers, because the body allocates both. Testing only
+     * `c1` would let a partial failure (calloc for `c1` succeeds,
+     * alloc for `c1_at` does not) skip the whole block on a later
+     * entry and leave `primal_phase1_costs` writing through a null
+     * `c1_at`. No path reaches that today, because the only re-entry
+     * runs `sx_free` then `sx_init` first, and it costs one test. */
+    if (s->c1 == nullptr || s->c1_at == nullptr) {
         /* Zeroed, because `primal_phase1_costs` no longer clears the whole
          * array and so no longer initialises it either. */
         s->c1 = jm_calloc_array(s->nvar, sizeof *s->c1);
@@ -4533,8 +4553,16 @@ static jaos_status run_primal_phase1(sx *s, jaos_solve_status *out,
                 const jaos_status stv = refresh(s, &okv, true);
                 if (stv != JAOS_OK)
                     return stv;
-                if (!okv)
-                    return JAOS_ERR_NUMERICAL;
+                if (!okv) {
+                    /* The soft form, the same one the four other copies of
+                     * this gate use (`run_primal` twice, `run()` twice) and
+                     * the same one phase 1's own budget exits use above: a
+                     * basis `refresh(..., true)` cannot repair is a solve
+                     * outcome the caller reads through `jaos_status_of`, not
+                     * a library-level error. */
+                    *out = JAOS_SOLVE_NUMERICAL_ERROR;
+                    return JAOS_OK;
+                }
                 s->verified = true;
                 continue;
             }
@@ -4580,8 +4608,16 @@ static jaos_status run_primal_phase1(sx *s, jaos_solve_status *out,
                 const jaos_status stv = refresh(s, &okv, true);
                 if (stv != JAOS_OK)
                     return stv;
-                if (!okv)
-                    return JAOS_ERR_NUMERICAL;
+                if (!okv) {
+                    /* The soft form, the same one the four other copies of
+                     * this gate use (`run_primal` twice, `run()` twice) and
+                     * the same one phase 1's own budget exits use above: a
+                     * basis `refresh(..., true)` cannot repair is a solve
+                     * outcome the caller reads through `jaos_status_of`, not
+                     * a library-level error. */
+                    *out = JAOS_SOLVE_NUMERICAL_ERROR;
+                    return JAOS_OK;
+                }
                 s->verified = true;
                 continue;
             }
@@ -4722,7 +4758,8 @@ static jaos_status run_primal(sx *s, jaos_solve_status *out)
         if (st != JAOS_OK)
             return st;
         if (!feasible)
-            return JAOS_OK;   /* a budget ended it; `*out` says which */
+            return JAOS_OK;   /* a budget or an unrepairable basis ended it;
+                               * `*out` says which */
 
         /* Phase 1 leaves `d` holding *its* reduced costs, against an
          * objective that no longer exists. Everything below prices on the
@@ -4761,9 +4798,16 @@ static jaos_status run_primal(sx *s, jaos_solve_status *out)
         s->last_gain = s->iters;
         s->bland = false;
         s->dinfeas_best = HUGE_VAL;
-        /* The point is feasible now, so this stops being a placeholder. */
-        s->infeas_best = 0.0;
     }
+
+    /* **Outside the branch, because the point is feasible on both paths into
+     * here.** Either phase 1 drove it there and the check above proved it, or
+     * the violation test never fired and it was feasible on arrival. Inside
+     * the branch this line was unreachable for a warm or crossover basis that
+     * starts feasible, and every progress callback for the rest of that solve
+     * read `inf` on a point the branch test had just proved feasible.
+     * `include/jaos.h` licenses the infinity for the first call only. */
+    s->infeas_best = 0.0;
 
     /* **The cap is shared with phase 1 and with the dual's re-entry, and it is
      * the CUMULATIVE `s->iters` that is tested against it.** So phase 2's real
@@ -4943,10 +4987,11 @@ static jaos_status run_primal(sx *s, jaos_solve_status *out)
                 continue;
             }
             jm_set_err(s->m,
-                       "column %lld improves and no declared bound stops it; "
-                       "reading that as an unbounded ray needs the proof D19 "
-                       "requires and the primal phase 1 that makes it "
-                       "well-posed, and JAOS has neither yet",
+                       "column %lld improves and no declared bound stops it, "
+                       "on a freshly computed point; reading that as an "
+                       "unbounded ray needs the proof D19 requires, and the "
+                       "column may be leaving a bound dual phase 1 invented "
+                       "rather than one the model declared",
                        (long long)q);
             return JAOS_ERR_NUMERICAL;
         }
@@ -5725,6 +5770,16 @@ jaos_status jm_dual_simplex(jaos_model *m)
      * are not decoration: four separate diagnoses this milestone had to
      * instrument the solver by hand to learn how often the weights were
      * being discarded, and a caller has no such option. */
+    /* The split goes on the struct as well as into the sentence, and on
+     * both branches for the same reason the counts below are. In-tree
+     * tooling reads these two fields instead of parsing the sentence;
+     * see their comment in `jaos_internal.h` for the two parsers that
+     * used to do it and for how they drifted apart. Written on `m`, the
+     * caller's model, so no postsolve copy is needed: the counts are the
+     * same solve's whether presolve reduced it or not. */
+    m->solve_primal_iters = s.n_primal_iters;
+    m->solve_phase1_iters = s.n_phase1_iters;
+
     /* The three counts go on both branches, and the failing one needs them
      * more. A solve that ended is a solve nobody has to investigate; a solve
      * that was abandoned is the one where "how many times were the weights
