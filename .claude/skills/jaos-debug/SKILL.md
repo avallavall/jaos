@@ -44,8 +44,14 @@ carries it by default.
 
 ```
 gcc-14 -std=c23 -Wall -Wextra -ffp-contract=off -O2 -g -DNDEBUG \
-       -DJAOS_DIAG -Iinclude src/*.c bench/run.c -o build/diag/run -lm
+       -DJAOS_DIAG -Iinclude src/*.c bench/run.c -o "$(mktemp -d)/run" -lm
 ```
+
+Never under `build/`: `make clean` is `rm -rf build` and `make configs` runs
+it five times, so a diagnostic binary there disappears mid-investigation with
+no error (D166 lost a whole worktree that way). A worktree of HEAD under
+`mktemp -d`, patched by a script that asserts its anchor matched exactly
+once, is the shape that survives; `bench/measurements/02-120/` is one.
 
 - Guard every hook with `#ifdef JAOS_DIAG` so the normal build cannot
   possibly change.

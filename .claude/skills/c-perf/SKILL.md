@@ -140,12 +140,13 @@ safe rather than dangerous:
 
 ## Compiler leverage — GCC, C23
 
-- **`restrict` on non-aliasing pointer parameters is the highest-value
-  annotation in numeric C.** Without it the compiler must assume a store
-  through one pointer may have changed what another points at, and reloads
-  after every write. Only claim it where it is true; it is a promise, and
-  breaking it is undefined behaviour that appears as a wrong answer under
-  `-O2` and a right one under `-O0`.
+- **`restrict` is refused here (D76), and the re-test under the instruction
+  counter read zero** (`bench/measurements/02-119/`: `maros-r7` retires
+  13408694332 instructions on both trees). The kernels are indexed scatter
+  and gather that may not reassociate, so the qualifier unlocks nothing, and
+  it is an unenforceable promise every future caller inherits. Its reopen
+  row is in `bench/refusals.txt`. Do not propose it again without a count
+  that moved.
 - **`static` on every file-local function** enables inlining and dead-code
   removal, and shrinks the surface a reader has to hold.
 - Prefer loops whose trip count the compiler can see. A data-dependent
@@ -158,8 +159,11 @@ safe rather than dangerous:
   `make pgo` exists. Read those as same-session A/B ratios on one machine, not
   as portable numbers — and note what D93 later established about this host in
   particular: its own repeatability is 6.27%, so a flag worth less than that
-  cannot be separated from noise here. Whatever else they do, **they must not
-  move a single result digest.**
+  cannot be separated from noise **in seconds**. Instructions can:
+  `tools/icount.sh -r <ref> <instances>` is deterministic to the instruction
+  (D206). Judge a layout, branch or flag change on it first, and take a time
+  ratio only if the count moved. Whatever else they do, **they must not move
+  a single result digest.**
 - `-g` in release costs nothing at run time. Keep it.
 
 ## Integer arithmetic
@@ -176,6 +180,12 @@ safe rather than dangerous:
 ## What a performance claim looks like
 
 A per-instance table against the committed baselines on every instance set,
-saying what improved, what regressed and where the cost landed. Load
+saying what improved, what regressed and where the cost landed, **and the
+instruction count** (`tools/icount.sh`) when digests and units are identical
+— it is the only metric that can see most of what this skill covers. Load
 `jaos-measure` before running anything. "It should be faster" is not a
 finding, and neither is a summary line.
+
+**Before proposing anything here, read `bench/refusals.txt`.** D36 (the
+scatter-form BTRAN), D61 (inlining around the pricing row) and D76
+(`restrict`) are this skill's territory and are refused with reopen rows.

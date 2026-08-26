@@ -66,6 +66,14 @@ Two things make it an instrument rather than a flag:
   come back UNREDUCED on both sides of its arrow. If it reduced, the flag
   never took and everything under it is worthless.
 
+**When `tests/` or a flag-guarded block changed, run `make configs`**: all
+five configurations with `make clean` between them, the only honest run of
+the reference build and the two fault builds. D154 lost a session to its
+absence. The hand build with `EXTRA_CFLAGS=-DJAOS_NO_PRESOLVE` below is for
+one question about one model. And `make test` runs `make record-check` first,
+so a red `make test` after a test edit can be a document, not the test; the
+failing line says which.
+
 Build outside the repo tree and pass an absolute path to `-o` and to `-c`.
 Two stray binaries landed in the repo root during D99's work, from a relative
 `-o` after a failed `cd`, and nearly went into a commit.

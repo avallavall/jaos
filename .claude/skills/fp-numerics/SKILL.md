@@ -59,11 +59,14 @@ Three practical points:
 ## Extra precision: when it is allowed and when it lies
 
 Before reaching for more bits, establish that the problem is precision at
-all. The evidence for "we ran out of precision" is that the error *falls* as
-precision rises and the method is otherwise doing the right thing. The
-evidence against is usually that a published implementation gets the right
-answer in the same precision — in which case there is a defect and extra
-bits will merely hide part of it, expensively.
+all; the test is at the end of this section, and it is the same test D171
+applied when a refusal of the refinement residual was overturned by measuring
+it.
+
+Every tolerance in this project lives in `docs/tolerances.md` with its sweep
+on both sides, and the same sweep sits beside the constant in the source.
+`make record-check` fails when the table and the source disagree, so a
+constant changed in one place is caught. `DUAL_TOL` is 1e-9 (D184).
 
 | Type | Mantissa | Cost | Portability |
 |---|---|---|---|

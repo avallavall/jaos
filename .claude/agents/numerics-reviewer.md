@@ -39,9 +39,13 @@ So, for every scratch buffer read in the diff, ask:
 - Does anything between the producer and this read overwrite it — including
   a function called in a loop whose *later* iterations differ from the first?
 - Is the contract enforced or merely described? **A comment stating an
-  invariant has a failure rate of 100% given enough time.** If the contract
-  is load-bearing, the finding is that it needs an assert or a test, not a
-  better sentence.
+  invariant has a failure rate of 100% given enough time** (D201: `s->col`
+  had five writers and a correct, prominent comment, and it is an assert
+  now). If the contract is load-bearing, the finding is that it needs an
+  assert or a test, not a better sentence.
+- Does a comment in the diff re-argue a decision instead of citing `(Dn)`?
+  The argument lives in `DECISIONS.md`; a comment that repeats it is a
+  finding under the thinning rule, because two copies drift.
 
 Flag also: a buffer borrowed by a new caller without checking the original
 owner is idle, and two callers borrowing the same buffer for different
@@ -65,7 +69,9 @@ longer matches memory, on one instance, under optimisation, and not under
 `-O0`. So flag:
 
 - `restrict` reintroduced anywhere in the kernels without both a fresh
-  aliasing audit and a same-machine time ratio that beats the noise floor
+  aliasing audit and an instruction count (`tools/icount.sh`) that moved by
+  more than the 0.5% its reopen row in `bench/refusals.txt` names; the
+  re-test in `bench/measurements/02-119/` read zero
 - `restrict` on a *signature* rather than a local, which turns an audited
   claim about today's callers into a promise every future caller must keep
   without knowing it exists

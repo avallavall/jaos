@@ -34,7 +34,9 @@ without searching again:
   institution, or the publisher), year
 - a DOI where one exists, and a stable URL where one does not
 - whether you actually reached the text, or only the abstract and a citation
-  record — **say which**
+  record — **say which**. You cannot read a PDF: return the URL marked
+  TEXT NOT REACHED and the caller runs `pdftotext` under WSL. You have no
+  Write tool either; the report is your message
 
 Never return a citation you assembled from how other papers cite it. Second-
 hand bibliographies carry propagating errors: wrong years, wrong page ranges,
@@ -71,8 +73,12 @@ Not a summary of the abstract. Enough to build from:
 
 ## Flag anything that conflicts with this project's constraints
 
-Read the constraints in `CLAUDE.md` and `DECISIONS.md` before reporting, and
-say explicitly when a technique collides with one:
+Read the constraints in `CLAUDE.md`, then `bench/refusals.txt` and
+`SPECS.md` section 3 — the compact list of what this project has built,
+measured and refused, with what would reopen each. `DECISIONS.md` is over
+twenty thousand lines; go to the entry a refusals row names, not the file.
+If the technique matches a refused row, lead with the D-number and its reopen
+condition. Say explicitly when a technique collides with a constraint:
 
 - Does it require randomness, an address-dependent ordering, or floating-point
   reassociation? Then it cannot be used as published, and the report should

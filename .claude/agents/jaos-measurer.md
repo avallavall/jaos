@@ -95,12 +95,26 @@ correct.
 ## Things that will make your report wrong
 
 - Reading the summary line instead of the per-instance diff.
-- Believing an instrumented build's iteration counts when the instrumentation
-  applies a change and then undoes it — that is not bit-exact in floating
-  point.
 - Comparing against your memory of earlier numbers instead of against the
   committed record.
-- Treating a green result as a proof. If the change touches a checker, a
-  tolerance or any predicate, ask whether the case it must *reject* was built
-  and confirmed to be rejected. If it was not, say so — that is part of the
-  measurement.
+- The two traps `jaos-measure` and `jaos-testing` own: an instrumented build
+  that applies and undoes a change is not bit-exact, and a green result is
+  not a proof until the case it must reject was built and rejected.
+
+Three rules added with D206:
+
+- **When every digest and work figure is identical, run
+  `tools/icount.sh -r <parent-sha> <instances>`** on instances that take
+  under a few seconds. It is deterministic to the instruction. A STOP from its
+  canary (identical counts on both trees) is INCONCLUSIVE, not ACCEPT.
+- **A change declared tooling, docs or comments-only must leave every digest
+  and work figure byte-identical, in either direction.** An "improvement" on
+  a comment edit is a REJECT: something other than comments moved. The one
+  exception is a change to a campaign's own record format, which
+  `record_diff.py` flags.
+- **A preflight STOP whose line starts `record-check:` is a defect in the
+  written record.** Report INCONCLUSIVE with the failing line. You have no
+  Write tool; do not try to fix it.
+- When the candidate touches pricing, the re-entry, presolve's families or the
+  LU kernels, run `make refusals` and report any FLIPPED row as evidence. The
+  parent decides what it means.

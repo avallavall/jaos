@@ -14,6 +14,19 @@ exclusions that constrain all of it. Come back here first, though: a profiler
 pointing at a hot loop is usually pointing at a loop that should not be
 running.
 
+## Read the refusals before proposing anything below
+
+`bench/refusals.txt` and `SPECS.md` section 3 carry what this project has
+already built, measured and refused, with what would reopen each. Partial
+and multiple pricing are refused "never as a retry" (D82, D84); the crash
+basis is refused until Devex lands (`SPECS.md`); D63 reopens only when the
+pricing rule changes. A plan that re-proposes one of these without its reopen
+condition met is a plan that spends a campaign to re-learn a decision.
+
+This tree has a primal simplex since 2026-08-25 (D188; Dantzig pricing with
+a Bland fallback, and a composite phase 1, D190). Devex for it is `TODO.md`
+section 0 stage 5, and Harris 1973 is paywalled.
+
 ## Hyper-sparsity is the largest single win
 
 In a revised simplex the dominant cost is the four solves per iteration:

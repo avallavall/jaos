@@ -1,6 +1,6 @@
 ---
 name: jaos-record
-description: How a landed change gets written down in this repository — which of the four documents takes which part of it, what a decision entry has to contain to be worth having, the two-line rule for the changelog, and the commit voice. Load after a change is measured and before writing any of it up, and load it again before claiming a document is up to date.
+description: How a landed change gets written down in this repository — which of the four documents takes which part of it, what a decision entry has to contain to be worth having, the two-to-six-line rule for the changelog, and the commit voice. Load after a change is measured and before writing any of it up, and load it again before claiming a document is up to date.
 ---
 
 # Writing a change down
@@ -12,15 +12,23 @@ recorded: it is found later, by someone who then trusts it.
 
 ## Which document takes which part
 
-Four documents, and the split is by *kind of statement*, never by topic.
+Five places, and the split is by *kind of statement*, never by topic.
 
 | the statement | goes in |
 |---|---|
-| this feature exists / is partial / is missing | `SPECS.md` |
+| this feature exists / is partial / is missing | `SPECS.md` — and a `missing` feature gets an `absent <where> <regex>` line in `docs/claims.txt`, so `record-check` fails the day it is built |
 | this is open, and here is where it sits in the order | `TODO.md` |
 | this is closed, and here is the measurement that closed it | `DECISIONS.md` |
 | this changed, and this is what it cost | `CHANGELOG.md` |
-| this number was measured | the record that produced it — see below |
+| this constant has this value, and here is its sweep on both sides | `docs/tolerances.md`, beside the constant in the source; `record-check` fails when the two disagree |
+| this number was measured | `bench/measurements/<id>/`, the readings that decided the verdict, re-derivable |
+| this was refused, and here is what would reopen it | `TODO.md`'s refusals table AND a line in `bench/refusals.txt` (`D<n> / script-or-MANUAL / reopens when`) |
+
+`SPECS.md` is present tense only and `record-check` enforces its vocabulary:
+a status is one of `done`, `partial`, `missing`, `measured and refused`, `out
+of scope`, `pass`, `green at HEAD`, `not started`; a `partial` row says what
+is **Missing:**; history words (`used to`, `before D`, `re-taken`, `was
+closed`) fail, because history lives in `DECISIONS.md`.
 
 **`PLAN.md` is archived** at `docs/archive/PLAN.md` since 2026-08-12. Cite its
 sections when a source comment already does — the redirect table keeps those
@@ -51,8 +59,12 @@ The two mistakes that actually happen:
 
 A refusal is a closed decision, not an absence. "Measured and rejected" is
 the most valuable kind of entry this project has — it is what stops the same
-week being spent twice — and it gets a `DECISIONS.md` entry *and* a row in
-the settled table.
+week being spent twice — and it gets a `DECISIONS.md` entry, a row in
+`TODO.md`'s refusals table, and a line in `bench/refusals.txt`. **A refusal
+without a reopen condition is not finished.** D36, D76 and D156 had none until
+D206. A condition a script can test gets the script, in
+`bench/measurements/<id>/`, exiting 0 when the refusal holds, 1 when it
+flipped, 2 when it could not run; `make refusals` runs them.
 
 ## What a decision entry has to contain
 
@@ -65,9 +77,8 @@ Then, in the body, all four of these or it is not finished:
 
 1. **The question, as it was actually asked**, including what was expected.
 2. **The measurement.** Per instance, with the instances named. A geometric
-   mean of per-instance ratios, never a sum over a set — two instances are
-   74% of the standard set's total (D46), so a total is a statement about
-   those two.
+   mean of per-instance ratios, never a sum over a set — a total is a statement about whichever instances carry it (D46). **Run**
+   `geomean.py`; do not restate its number.
 3. **What was refuted.** Anything tried that did not work, and why it did
    not, in enough detail that nobody re-tries it. This is the part that pays.
 4. **What is left open**, handed explicitly to `TODO.md`.
@@ -133,7 +144,30 @@ approval.** Land the documents in the same commit as the code they describe,
 or in one immediately after — a commit that changes behaviour and leaves the
 documents for later is how the two get out of step.
 
+## A comment is a contract
+
+A source comment states what holds at that line and cites `(Dn)`. The
+argument lives in `DECISIONS.md` and is never repeated in the source: a
+comment that argues is in the wrong file, the same rule as reasoning in the
+changelog. An invariant a comment states is an assert or a test, not a
+sentence; D201 is the receipt (`s->col` had five writers and a correct,
+prominent comment, and D30 was caused by violating it). `record-check` scans
+`.claude/**/*.md` too, so a D-number cited in a skill must exist.
+
 ## Before claiming a document is up to date
+
+**Run** `make record-check` first. It settles the mechanical half: every
+D-number cited exists, index anchors resolve, `docs/tolerances.md` matches
+the source, `SPECS.md`'s labels and history words, `docs/claims.txt`,
+measurement-directory citations, evidence-script anchors. What is left for
+the eye: whether a sentence is right, the section 8 bars, `TODO.md`'s
+ordering.
+
+Then the reopen conditions. Grep `bench/refusals.txt` and `TODO.md`'s
+refusals table for the mechanism the change touched; if it touched pricing,
+the re-entry, presolve's families or the LU kernels, run `make refusals`. A
+met condition reopens the item in `TODO.md` in the same commit. D184's
+condition was met on 2026-08-25 and nothing looked for a day (D206).
 
 Check the *status tables*, not just the prose. `SPECS.md` carries a status
 per feature and a bars-it-has-to-clear table with measured figures in it; a
