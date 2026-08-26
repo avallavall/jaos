@@ -1,0 +1,11 @@
+# pilot87: the two numbers at the primal phase 1's refusal
+# tree: 17d1fe5c9d1db560e49739c3a06f571ba7207a5a plus a JAOS_DIAG patch, built and run outside the repo
+# bands are counts of |alpha[q]| at the pricing row, over every phase-1
+# iteration that got that far: 0 / <1e-12 / <1e-9 / <1e-6 / <1e-3 / <1 / <1e3 / >=1e3
+
+DIAG hit iter=7873 q=678 r=1309 basis_r=3031 col[r]=-1.0347426977268487e-09 alpha[q]=-8.3667684262604898e-10 ratio=1.23673 n_updates=10 n_stability=3 n_refactor=109 seen=6928 bands=0/0/1/5/46/3407/3344/125
+DIAG hit iter=17165 q=478 r=790 basis_r=211 col[r]=-1.5940703439553044e-07 alpha[q]=0 ratio=-nan n_updates=0 n_stability=8 n_refactor=238 seen=14785 bands=1/0/1/14/147/7407/6972/243
+pilot87      ERROR     dual=38000/17961110514 split=p1:17165/p2:0/dual:0 column 478 prices at 0 in row 790 of the primal phase 1 on a freshly built factorization; this is a JAOS defect
+
+# a control: an instance that does NOT refuse, same instrument
+ganges       ok        dual=1310/3936269 primal=1696/31557992 split=p1:1591/p2:1/dual:104 verdict=optimal/optimal obj=-109585.73612927814/-109585.73612927823 checker=dual:ok/primal:ok 

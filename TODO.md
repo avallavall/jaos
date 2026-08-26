@@ -1253,6 +1253,7 @@ in `price_row:1700` are the machinery, and D26 is the decision behind them.
 | 5 | **Devex** | **Harris (1973), paywalled** |
 | 6 | **`can_move`'s units** — D184's stated reopen | **condition MET 2026-08-25, and re-tested 2026-08-26: the units are LIVE** on the forced-primal campaign (`scsd1`, `scsd6` move; the dual set does not). `bench/measurements/02-118/`, D206. Open |
 | 7 | **the unboundedness verdict, and D19's refusal** | stage 4 |
+| 8 | **a relative pivot floor in the two primal ratio tests** — `pilot87`'s refusal is `PIVOT_MIN` (absolute 1e-9) accepting an FTRAN residue of 1.59e-7 on a structurally zero entry; the pricing row's zero is exact. `can_move`'s `NOISE_MARGIN * DBL_EPSILON * traffic` is the shape. Diagnosed, not repaired: `bench/measurements/02-120/` | a sweep of the constant, both sides |
 
 **Validate the harness before there is anything to measure.** Run stage 0 with
 the switch off, so both solves are the dual, and confirm it reports agreement

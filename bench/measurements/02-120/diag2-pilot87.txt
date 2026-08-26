@@ -1,0 +1,6 @@
+# pilot87, step two: where does the zero come from?
+# tree: 17d1fe5 plus a JAOS_DIAG patch, outside the repo
+DIAG2 iter=17165 q=478 r=790 nrpat=1 col[r]=-1.5940703439553044e-07 alpha[q]=0
+DIAG2 alpha_dense=0 alpha_over_pattern=0 alpha_from_sparse_rho=0
+DIAG2 rho_nonzero=1 rho_not_in_pattern=0 rho_dense_vs_sparse_differ=0 col_nonzero=12 dropped_terms=0
+pilot87      ERROR     dual=38000/17961110514 split=p1:17165/p2:0/dual:0 column 478 prices at 0 in row 790 of the primal phase 1 on a freshly built factorization; this is a JAOS defect
