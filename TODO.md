@@ -5,21 +5,26 @@ says why closed questions closed, `CHANGELOG.md` says what landed, `bench/`
 says what it costs. This file says what is next. When something lands, its
 line leaves this file in the same commit.
 
-## Where the last session stopped — 2026-08-26
+## Where the last session stopped — 2026-08-27
 
 ### → FRESH CONTEXT: READ THIS PARAGRAPH AND THEN §0
 
-**The 2026-08-26 methodology overhaul is complete and pushed (D206).** The
-record is checked by `make test` now, every refusal has a reopen row, and the
-instruction count is the fourth metric. **If you were told "continue", this is
-the order:**
+**Stage 8 landed on 2026-08-27 and is NOT pushed** — three commits,
+`9ef21ef`, `faf6f93`, `24c7484`. `PIVOT_MARGIN = 1.0`: a primal pivot must
+stand above one ulp of its own FTRAN column's largest entry. The campaign goes
+to **56 of 94 agreeing** from 55, `pilot4` DISAGREE → ok, and **the one
+instance that refused calling itself defective is gone**. All three gate sets
+came back byte-identical, records and work units both. `jaos-measurer`
+returned **ACCEPT** and caught three errors in the record, all now fixed
+(D207, `bench/measurements/02-122/`).
 
-1. **Section 0 stage 8** — the relative pivot floor in the two primal ratio
-   tests. `pilot87` is diagnosed (`bench/measurements/02-120/`): an absolute
-   `PIVOT_MIN` accepts FTRAN noise on a structurally zero entry. The work is a
-   sweep of the constant on both sides, measured on the primal campaign and the
-   gate, judged by `jaos-measurer`. Bounded, concrete, and it turns the one
-   `ERROR` of the 94 into a verdict.
+**If you were told "continue", this is the order:**
+
+1. **Section 0 stages 8a, 8b, 8c** — the three `numerics-reviewer` and
+   `jaos-measurer` raised on stage 8's own diff, in the stage table below.
+   8b is the one with a real question behind it: the floor makes the ratio
+   test's candidate set depend on the column, and Bland's finiteness argument
+   assumed it did not. The read that settles it is written out in the row.
 2. **Section 0 stage 6** — `can_move`'s units, LIVE since 02-118. What the
    right units are, and whether they change a verdict or only a trajectory.
 3. **The assert debt** below (`bench/measurements/02-121/`), one file per
