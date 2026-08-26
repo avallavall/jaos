@@ -1,0 +1,20 @@
+# negative control for the s->col contract assert
+# tree: ac260e22c9b7e5ca01c488d043cfea2aa074abc1 with s->col[0] perturbed just before the check
+# the suite MUST fail below, or the assert is never reached
+
+make test rc=2
+
+## assertion failures and aborts:
+tests/test_simplex.c:3560:test_nonbasic_build_keeps_ftest_simplex: src/simplex.c:4172: primal_bound_flip: Assertion `chk[i] == s->col[i]' failed.
+Aborted (core dumped)
+
+## suite totals:
+18 Tests 0 Failures 0 Ignored 
+5 Tests 0 Failures 0 Ignored 
+6 Tests 0 Failures 0 Ignored 
+18 Tests 0 Failures 0 Ignored 
+29 Tests 0 Failures 0 Ignored 
+6 Tests 0 Failures 0 Ignored 
+74 Tests 0 Failures 11 Ignored 
+12 Tests 0 Failures 0 Ignored 
+4 Tests 0 Failures 0 Ignored 

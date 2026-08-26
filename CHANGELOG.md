@@ -49,6 +49,13 @@ open, `bench/README.md` for the gate, and the commit each entry came from.
 
 ### Fixed
 
+- **`s->col`'s contract is an assert, not a comment.** `primal_bound_flip` reads
+  `B^-1 M_q` from a buffer with **five other writers**, two of which alias it as
+  `rhs`. The check recomputes the column into its own buffer and compares bit
+  for bit. Compiled out by `-DNDEBUG`, so the gate never sees it; validated by
+  perturbing `s->col` and watching the suite abort, which also proved the suite
+  reaches the flip at all (D201, `bench/measurements/02-114/`).
+
 - **Phase 1 refreshes before it refuses.** Two of its four refusals — "nothing
   improves" and "no declared bound stops this column" — are verdicts, and both
   read numbers `pivot()` had been stepping in place through a patched

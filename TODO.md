@@ -14,12 +14,13 @@ line leaves this file in the same commit.
 that 60.5% of the primal campaign's iterations are the dual's and that the
 primal's phase 2 runs 97 iterations across the whole set, so §0's headline
 number does not mean what it reads as. That block is at the top of §0, and
-`make primal` now prints those three figures itself (D197). **Two smaller items
-need no decision** and sit just above it. After those: stage 2 (Harris in
-primal form) or stage 5 (Devex, blocked on a paywalled source) — and D195 says
-stage 5's pricing question belongs to phase 1, which is where every budget is
-spent. **All four of D191's answer-changing findings are disposed of** (D192,
-D193, D195, D196).
+`make primal` now prints those three figures itself (D197).
+
+**§0's remainder list is empty and nothing from the `/code-review max` is
+open** (D192, D193, D195, D196, D199, D200, D201). Nothing in §0 waits on
+anything except that decision. After it: stage 2 (Harris in primal form) or
+stage 5 (Devex, blocked on a paywalled source) — and D195 says stage 5's
+pricing question belongs to phase 1, which is where every budget is spent.
 
 **The tree is clean and everything is committed. Nothing is pushed** — ask the
 remote for the count rather than trusting one written here, because it is stale
@@ -27,12 +28,13 @@ the moment anything lands. **Push from the WINDOWS side**: the remote is an SSH
 alias that lives in the Windows `~/.ssh/config` only. `git fetch` first,
 because another Claude session commits here.
 
-**Twenty-four decisions landed between 2026-08-24 and 2026-08-26, D177 to
-D200**, and two of the five open items closed. What each one did is below,
+**Twenty-five decisions landed between 2026-08-24 and 2026-08-26, D177 to
+D201**, and two of the five open items closed. What each one did is below,
 newest first.
 
 | | |
 |---|---|
+| **D201** | the hand-over's zero margin is 55000x; `s->col`'s contract is an assert now |
 | **D200** | phase 1 refreshes before refusing, reaches that branch 0 times, and can be stopped |
 | **D199** | the phase-1 clear is O(nrow) now; 0.9452 on the campaign, and 0 answers moved |
 | **D198** | phase 1 was under-billed by `nvar` an iteration; every instance moved and two left the budget |
@@ -1242,23 +1244,29 @@ moves is a defect in the shared code, not a property of the new feature. That
 makes the ordinary campaign a strong test of these stages despite the gate being
 unable to see the feature itself.
 
-### → NEXT, and it needs no decision
+### → NEXT: the decision below, and then a stage
 
-**D199 closed the phase-1 clear; D200 closed the two refusals on carried
-numbers and phase 1's missing progress callback.** What is left in §0 that does
-not wait on the decision below:
+**§0's remainder list is empty.** D199 closed the phase-1 clear, D200 closed the
+two refusals on carried numbers and phase 1's missing progress callback, and
+D201 closed the last two:
 
-- **The hand-over check has zero margin against two computations of `xb`.**
-  `run_primal_phase1` decides feasibility from the `xb` it carried; `run_primal`
-  then refreshes and re-checks against `primal_tol` exactly, with nothing
-  between them.
-- **`s->col`'s contract is a comment with five writers.** `jaos-testing`'s rule
-  is that an invariant something else depends on is an assert or a test, not a
-  comment, and this one has cost weeks before.
+- **The hand-over's "zero margin" is 55000x in practice.** Phase 1 declares
+  feasibility from carried `xb` and `run_primal` re-checks refreshed `xb`
+  against `primal_tol` exactly. Measured: 62 of the 86 instances that reach it
+  land on exactly 0.0, and the worst is `ganges` at 1.81899e-12 against a bar of
+  1e-07. Refused with reopen conditions in D201.
+- **`s->col`'s contract is an assert now**, checked bit for bit against its own
+  recomputation, and the injected-fault run proved the suite reaches the flip.
 
 **And one count that came free** (D200): phase 1's tiny-pivot retry fires **13
 times across 5 instances** — `dfl001` 7, `d6cube` 2, `greenbeb` 2, `pilot87` 1,
 `tuff` 1. Nothing hangs on it; it is written down because it was never counted.
+
+After the decision below: stage 2 (Harris in primal form) or stage 5 (Devex,
+blocked on a paywalled source). **D195 says stage 5's pricing question belongs
+to phase 1**, which is where every budget is spent, and stage 2 is written as a
+phase-2 ratio test — which runs 97 iterations across the whole set. Read that
+before choosing.
 
 ### → DECIDE THIS FIRST: what "55 of 94" means, and whether to keep it
 
@@ -1350,11 +1358,10 @@ four records that said "phase 2 only", "there is no primal phase 1 yet" and "a
 cold start never gets here" say what the code does.
 
 **Two more are CLOSED by D200**: phase 1 offers `progress_cb` now, and its two
-refusals that are verdicts refresh before refusing.
-
-The remainder, listed in full at the top of this section: the hand-over check
-has zero margin against two different computations of `xb`, and the `s->col`
-contract is a comment with five writers.
+refusals that are verdicts refresh before refusing. **The last two are CLOSED
+by D201**: the hand-over's zero margin is 55000x in practice and is refused with
+reopen conditions, and `s->col`'s contract is an assert. **Nothing from that
+review is open.**
 
 ### OPEN: the instances the primal cannot solve and the dual can
 

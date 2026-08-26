@@ -208,6 +208,7 @@ and you have the argument. Jump to the entry for the numbers behind it.
 - **[D198](#d198--phase-1-was-under-billed-by-nvar-on-every-iteration-and-charging-it-honestly-costs-two-instances-and-exposes-an-onvar-clear-that-should-be-onrow)** — Phase 1 was under-billed by `nvar` on every iteration, and charging it honestly costs two instances and exposes an `O(nvar)` clear that should be `O(nrow)`
 - **[D199](#d199--the-phase-1-clear-stops-sweeping-every-variable-to-undo-the-basis-and-the-campaign-returns-to-its-pre-d198-verdicts-at-042-more-work)** — The phase-1 clear stops sweeping every variable to undo the basis, and the campaign returns to its pre-D198 verdicts at 0.42% more work
 - **[D200](#d200--two-of-phase-1s-four-refusals-now-refresh-before-refusing-neither-is-reached-on-the-standard-set-and-phase-1-can-finally-be-watched-and-stopped)** — Two of phase 1's four refusals now refresh before refusing, neither is reached on the standard set, and phase 1 can finally be watched and stopped
+- **[D201](#d201--the-hand-overs-zero-margin-is-55000x-in-practice-and-s-cols-contract-stops-being-a-comment-with-five-other-writers)** — The hand-over's zero margin is 55000x in practice, and `s->col`'s contract stops being a comment with five other writers
 
 ---
 
@@ -15351,3 +15352,71 @@ because a crossover's reaches phase 1 with drift a cold start never has.
 Two items remain on §0's remainder list: the hand-over check's zero margin
 against two computations of `xb`, and `s->col`'s contract being a comment with
 five writers.
+
+## D201 — The hand-over's zero margin is 55000x in practice, and `s->col`'s contract stops being a comment with five other writers
+
+`TODO.md` §0's remainder list, closed. One refusal with a number behind it, and
+one invariant moved out of prose.
+
+### The hand-over margin
+
+Phase 1 stops when `primal_phase1_costs` returns exactly 0.0 — every basic
+inside `primal_tol` of the `xb` it carried through the pivots. `run_primal`
+then refreshes, recomputing `xb` from a fresh factorization, and re-checks the
+worst violation against the same `primal_tol` exactly, with nothing between
+them, reporting a JAOS defect if it fails.
+
+**Measured** (`bench/measurements/02-114/`), over all 94 with
+`cfg.force_primal`:
+
+| | |
+|---|---|
+| reach the hand-over | 86 of 94 |
+| refreshed violation exactly 0.0 | **62 of 86** |
+| largest | `ganges` **1.81899e-12** |
+| next three | `greenbeb` 6.43e-13, `sierra` 4.55e-13, `greenbea` 2.29e-13 |
+| `primal_tol` | 1e-07 |
+| **worst as a fraction of the bar** | **0.000018** |
+
+The eight that never reach it are the eight that never leave phase 1 (D195).
+
+**No repair.** The margin is 55000x and widening the check would add a second
+constant with no measurement on either side of it, which is the mistake this
+project's first rule exists to prevent. **Reopen conditions**: any instance
+whose ratio passes about 0.01, a change to `primal_tol`, or a starting basis
+that is not the slack basis, because a crossover's arrives with drift a cold
+start never has.
+
+### `s->col`'s contract
+
+`primal_bound_flip` reads `B^-1 M_q` out of `s->col` where the ratio test left
+it, and **`s->col` has five other writers**, two of which alias it as `rhs`. The
+contract was a comment. `jaos-testing`'s rule is that an invariant another piece
+of code depends on is an assert or a test, and this project has a documented
+case of a correct, prominent warning comment being violated by new code and
+costing weeks.
+
+It recomputes the column into **its own buffer** — never the shared scratch,
+which would corrupt what it observes — and compares **bit for bit**, because
+the claim is that nothing wrote it rather than that something wrote something
+close. `s->work` is saved and restored so a debug build bills what the release
+build bills. One FTRAN per flip, compiled out by `-DNDEBUG`.
+
+**Validated, and it answered two questions at once.** `s->col[0]` perturbed
+immediately before the check aborts the suite at
+`test_simplex.c:3560`. So the suite **does** reach the flip — which a green
+assert alone would never have told anyone — and the assert catches the
+violation.
+
+### The cost
+
+All three gate sets `gate: PASS`, `0 regressed, 0 improved, 0 new`, every file
+in `bench/results/` byte-identical: the shipping build compiles the assert out.
+`make configs` exits 0 on all five, `sanitize` included, which is where it runs.
+
+### What is left open
+
+**§0's remainder list is empty.** What remains in §0 is the 55-versus-17
+decision, which is the maintainer's, and then stage 2 (Harris in primal form)
+or stage 5 (Devex, blocked on a paywalled source) — and D195 has already said
+stage 5's pricing question belongs to phase 1 rather than phase 2.
