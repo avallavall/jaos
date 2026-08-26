@@ -1,6 +1,6 @@
 ---
 name: jaos-record
-description: How a landed change gets written down in this repository — which of the four documents takes which part of it, what a decision entry has to contain to be worth having, the two-to-six-line rule for the changelog, and the commit voice. Load after a change is measured and before writing any of it up, and load it again before claiming a document is up to date.
+description: How a landed change gets written down in this repository — which of the five places takes which part of it, what a decision entry has to contain to be worth having, the two-to-six-line rule for the changelog, and the commit voice. Load after a change is measured and before writing any of it up, and load it again before claiming a document is up to date.
 ---
 
 # Writing a change down
