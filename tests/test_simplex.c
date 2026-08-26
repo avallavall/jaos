@@ -2817,6 +2817,66 @@ static bool phase1_split(const char *line, long long *primal, long long *p1)
 }
 #endif
 
+
+/* A watcher can stop the solve from inside the primal phase 1.
+ *
+ * **Written because it could not, for a whole milestone.** Phase 2 and the
+ * dual both offer `progress_cb`; phase 1 did not, so a caller could neither
+ * see nor stop the part of a forced-primal solve that spends 39.5% of its
+ * iterations (D197, D200). A budget could end it and a person could not.
+ *
+ * **The assertion that separates the two is the log, not the status.** A stop
+ * on the first callback returns `INTERRUPTED` either way — before this change
+ * the first call simply happened later, in phase 2, by which time phase 1 had
+ * finished and said so. So the test requires the solve to stop WITHOUT that
+ * line, which is only reachable from inside phase 1.
+ *
+ * `load_unreducible_model`'s first row is `x + y >= 2`, so the slack basis is
+ * primal infeasible and phase 1 runs. `PROGRESS_EVERY` is 64 and `s->iters` is
+ * 0 on a cold start, so the first phase-1 iteration is on the beat.
+ *
+ * It brings its own log collector rather than reusing `collect_log`, which
+ * keeps only the last line and is depended on by several tests above. */
+#if !defined(JAOS_PRESOLVE_FAULT_OFFBYONE) && \
+    !defined(JAOS_PRESOLVE_FAULT_WRONGDUAL)
+static bool g_saw_phase1_finish;
+
+static void watch_phase1_log(void *user, jaos_log_level level,
+                             const char *line)
+{
+    (void)level;
+    *(int *)user += 1;
+    if (strstr(line, "phase 1 reached a feasible") != nullptr)
+        g_saw_phase1_finish = true;
+}
+#endif
+
+static void test_a_watcher_can_stop_the_primal_phase_1(void)
+{
+#if defined(JAOS_PRESOLVE_FAULT_OFFBYONE) || defined(JAOS_PRESOLVE_FAULT_WRONGDUAL)
+    TEST_IGNORE_MESSAGE("positive test — skipped under either fault build");
+#else
+    int hits = 0;
+    watcher w = fresh_watcher(0);           /* stop on the first call */
+    jaos_model *m = fresh();
+    load_unreducible_model(m);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_set_log_callback(m, watch_phase1_log, &hits));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_log_level(m, JAOS_LOG_DETAIL));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_progress_callback(m, watch, &w));
+    g_saw_phase1_finish = false;
+    m->cfg.force_primal = true;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+
+    TEST_ASSERT_EQUAL_INT_MESSAGE(JAOS_SOLVE_INTERRUPTED, jaos_status_of(m),
+        "the watcher asked to stop and the solve did not");
+    TEST_ASSERT_GREATER_THAN_INT_MESSAGE(0, w.calls,
+        "the watcher was never called at all");
+    TEST_ASSERT_FALSE_MESSAGE(g_saw_phase1_finish,
+        "the stop came after phase 1 finished, so it was not phase 1's");
+    jaos_model_free(m);
+#endif
+}
 static void test_the_summary_separates_phase_1_from_phase_2(void)
 {
 #if defined(JAOS_PRESOLVE_FAULT_OFFBYONE) || defined(JAOS_PRESOLVE_FAULT_WRONGDUAL)
@@ -3525,6 +3585,7 @@ int main(void)
     RUN_TEST(test_the_primal_reaches_the_optimum_from_a_feasible_basis);
     RUN_TEST(test_the_primal_and_the_dual_agree_on_the_same_model);
     RUN_TEST(test_the_summary_separates_phase_1_from_phase_2);
+    RUN_TEST(test_a_watcher_can_stop_the_primal_phase_1);
     RUN_TEST(test_the_entering_column_stops_at_its_own_bound);
     RUN_TEST(test_the_primal_phase_1_repairs_an_infeasible_start);
     RUN_TEST(test_the_primal_refuses_to_call_a_model_infeasible);
