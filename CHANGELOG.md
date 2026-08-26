@@ -43,6 +43,21 @@ open, `bench/README.md` for the gate, and the commit each entry came from.
 
 ### Fixed
 
+- **Phase 1 bills the sweep it does, not just the scan.** `primal_phase1_costs`
+  cleared `nvar` doubles and charged `nrow`, so phase 1 was under-reported by
+  `nvar` on every one of 336660 iterations. Cost: **every instance moved and
+  none was identical**, work geometric mean **1.0625**, worst `standata`
+  1.1759. Two campaign verdicts move with it — `pilot-ja` and `standmps` no
+  longer fit the 10x budget — which is the budget seeing the work, not the
+  solver doing more. All three gate sets byte-identical (D198,
+  `bench/measurements/02-111/`).
+
+- **Four records that described a solver that no longer exists.**
+  `run_primal`'s header said "phase 2 only", "there is no primal phase 1 yet"
+  and "a cold start never gets here"; D195 measured 0 of 94 skipping phase 1.
+  `bench/primal.c` said the same in a comment and in the message it prints
+  (D198).
+
 - **The iteration guard names the phase it is reporting.** Phase 1, phase 2 and
   the dual's re-entry share one cap and each tests the cumulative `s->iters`
   against it, so phase 2's message read `after N primal iterations` off a count

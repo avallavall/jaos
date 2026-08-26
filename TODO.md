@@ -11,14 +11,16 @@ line leaves this file in the same commit.
 
 **The work in flight is the primal simplex, and §0 is the item.** Stages 0, 1,
 3 and 4 have landed. **What is next is a DECISION, not code.** D194 measured
-that 60.5% of the primal campaign's iterations are the dual's and that the
-primal's phase 2 runs 97 iterations across the whole set, so §0's headline
+that 61.2% of the primal campaign's iterations are the dual's and that the
+primal's phase 2 runs 95 iterations across the whole set, so §0's headline
 number does not mean what it reads as. That block is at the top of §0, and
-`make primal` now prints those three figures itself (D197). After it: stage 2
-(Harris in primal form) or stage 5 (Devex, blocked on a paywalled source) — and
-D195 says stage 5's pricing question belongs to phase 1, which is where every
-budget is spent. **All four of D191's answer-changing findings are disposed
-of** (D192, D193, D195, D196).
+`make primal` now prints those three figures itself (D197). **One item needs no
+decision and sits just above it**: the phase-1 clear is `O(nvar)` for `O(nrow)`
+of work, which D198 made measurable. After those: stage 2 (Harris in primal
+form) or stage 5 (Devex, blocked on a paywalled source) — and D195 says stage
+5's pricing question belongs to phase 1, which is where every budget is spent.
+**All four of D191's answer-changing findings are disposed of** (D192, D193,
+D195, D196).
 
 **The tree is clean and everything is committed. Nothing is pushed** — ask the
 remote for the count rather than trusting one written here, because it is stale
@@ -26,13 +28,14 @@ the moment anything lands. **Push from the WINDOWS side**: the remote is an SSH
 alias that lives in the Windows `~/.ssh/config` only. `git fetch` first,
 because another Claude session commits here.
 
-**Twenty-one decisions landed between 2026-08-24 and 2026-08-26, D177 to
-D197**, and two of the five open items closed. What each one did is below,
+**Twenty-two decisions landed between 2026-08-24 and 2026-08-26, D177 to
+D198**, and two of the five open items closed. What each one did is below,
 newest first.
 
 | | |
 |---|---|
-| **D197** | the campaign says which method did the work: phase 1 39.5%, phase 2 0.0%, dual 60.5% |
+| **D198** | phase 1 was under-billed by `nvar` an iteration; every instance moved and two left the budget |
+| **D197** | the campaign says which method did the work: phase 1 38.8%, phase 2 0.0%, dual 61.2% |
 | **D196** | the iteration cap is shared, phase 1 spends 1.68% of it, and the guard's message named the wrong phase |
 | **D195** | the flip's 1e10 delta fires on nothing, and D194 counted phase 1 from a success-only log line |
 | **D194** | 60.5% of the primal campaign is dual iterations; phase 2 runs 97 iterations in all |
@@ -1238,14 +1241,31 @@ moves is a defect in the shared code, not a property of the new feature. That
 makes the ordinary campaign a strong test of these stages despite the gate being
 unable to see the feature itself.
 
+### → NEXT, and it needs no decision: the phase-1 clear is O(nvar) for O(nrow) of work
+
+`primal_phase1_costs` calls `memset` over all `nvar` doubles on every phase-1
+iteration, and at most `nrow` of those positions are ever set — only basics
+that violate a declared bound get a `±1`. `nvar` is `ncol + nrow`. Clearing
+only what the previous call set makes it `O(nrow)`.
+
+**D198 is what made this visible and what makes it measurable**: the sweep was
+billed nothing until then, so no campaign could see it. Charging it honestly
+cost a geometric mean of **1.0625** across all 53 shared instances, worst
+`standata` at 1.1759, and took `pilot-ja` and `standmps` past the harness's 10x
+budget. Most of that is recoverable.
+
+It needs one `[nrow]` array of positions and a count. Phase 1 is **38.8% of
+every iteration the campaign runs**, so this is the largest cheap win in §0
+that does not wait on the decision above.
+
 ### → DECIDE THIS FIRST: what "55 of 94" means, and whether to keep it
 
 **D194 measured the split and the number does not mean what it reads as, and
-D195 corrected D194's own phase-1 counts.** `bench/primal.c` reports 55 of 94
-agreeing with the dual. Over those 94 solves: phase 1 **336660 iterations
-(39.5%)**, **phase 2 97 (0.0%)**, dual **515522 (60.5%)**. Phase 2 runs exactly
-one iteration on 80 of the 94, two to ten on 6, zero on 8, and **more than ten
-on none**. Ninety-seven phase-2 iterations in the whole campaign.
+D195 corrected D194's own phase-1 counts.** `bench/primal.c` reports 53 of 94
+agreeing with the dual (55 until D198 recosted phase 1). Over those 94 solves:
+phase 1 **325776 iterations (38.8%)**, **phase 2 95 (0.0%)**, dual **513203
+(61.2%)**. Phase 2 runs exactly one iteration on 80 of the 94, two to ten on 6,
+zero on the rest, and **more than ten on none**.
 
 The mechanism is measured, not argued. `update_dual` and the tail of `pivot()`
 run `shift_to_feasible` once per iteration on every variable the pricing row
@@ -1323,13 +1343,15 @@ fetched from the network, which `make test` must never depend on. Verified
 against the case it must catch: a deliberate break in `bench/primal.c` takes
 `make test` to rc=2, and removing it back to 0.
 
+**Two of the remainder are CLOSED by D198**: `primal_phase1_costs` billed
+`nrow` for an `nvar` memset and now bills `nvar + nrow`, and the four records
+that said "phase 2 only", "there is no primal phase 1 yet" and "a cold start
+never gets here" say what the code does.
+
 The remainder: phase 1 is not interruptible (no `progress_cb`); both phase-1
 refusals conclude on carried numbers where phase 2's refresh first and cite
 D20; the hand-over check has zero margin against two different computations of
-`xb`; `primal_phase1_costs` bills `nrow` units for an `nvar` memset; the
-`s->col` contract is a comment with five writers; and four records now say
-things their own branch falsifies — `run_primal`'s header still says "phase 2
-only" and "there is no primal phase 1 yet".
+`xb`; and the `s->col` contract is a comment with five writers.
 
 ### OPEN: the instances the primal cannot solve and the dual can
 

@@ -205,6 +205,7 @@ and you have the argument. Jump to the entry for the numbers behind it.
 - **[D195](#d195--the-bound-flips-1e10-delta-fires-on-nothing-and-chasing-it-found-that-d194-counted-phase-1-from-a-log-line-printed-only-on-success)** — The bound flip's 1e10 delta fires on nothing, and chasing it found that D194 counted phase 1 from a log line printed only on success
 - **[D196](#d196--the-iteration-cap-really-is-shared-across-both-primal-phases-and-the-dual-and-phase-1-spends-at-most-168-of-it-so-only-the-guards-message-needed-fixing)** — The iteration cap really is shared across both primal phases and the dual, and phase 1 spends at most 1.68% of it, so only the guard's message needed fixing
 - **[D197](#d197--the-primal-campaign-reports-which-method-did-the-work-and-two-instruments-now-agree-that-phase-2-is-00-of-it)** — The primal campaign reports which method did the work, and two instruments now agree that phase 2 is 0.0% of it
+- **[D198](#d198--phase-1-was-under-billed-by-nvar-on-every-iteration-and-charging-it-honestly-costs-two-instances-and-exposes-an-onvar-clear-that-should-be-onrow)** — Phase 1 was under-billed by `nvar` on every iteration, and charging it honestly costs two instances and exposes an `O(nvar)` clear that should be `O(nrow)`
 
 ---
 
@@ -15117,3 +15118,78 @@ no two-row model reaches. `wood1p` is the named case in the campaign.
 The 55-versus-17 decision, unchanged and still the maintainer's. What this
 adds is that the campaign now states the case for it in its own output rather
 than needing three decisions to reconstruct.
+
+## D198 — Phase 1 was under-billed by `nvar` on every iteration, and charging it honestly costs two instances and exposes an `O(nvar)` clear that should be `O(nrow)`
+
+`TODO.md` §0's remainder list, first item. No answer changes anywhere; two
+campaign verdicts do, and the reason is a budget rather than the solver.
+
+### The question
+
+`primal_phase1_costs` clears `nvar` doubles and then reads `nrow` basics, and
+billed `nrow`. `docs/work-units.md`'s rule is one unit per variable looked at,
+and a write is a look. Against 336660 phase-1 iterations across the standard
+set (D197) the omission is not a rounding error.
+
+Expected: a uniform few per cent, and no verdict moving.
+
+### The measurement
+
+`bench/measurements/02-111/`.
+
+**Every instance paid, and none was identical.** Over the 53 that are `ok` on
+both sides: **0 of 53 bit-identical**, work geometric mean **1.0625**, worst
+`standata` **1.1759**, best `grow22` 1.0007. The 29 that disagree on both sides
+moved too, worst `stocfor3` at 1.1586.
+
+**Nothing on the gate moved.** All three sets `gate: PASS`, `0 regressed, 0
+improved, 0 new`, every file in `bench/results/` byte-identical.
+`primal_phase1_costs` is reachable only through `run_primal`, and only
+`cfg.force_primal` reaches that.
+
+**Four instances changed category and the expectation was wrong about that.**
+`bnl2` and `tuff` go DISAGREE → overrun; `pilot-ja` and `standmps` go ok →
+DISAGREE. Campaign totals: measured **55 → 53**, overrun **7 → 9**, work
+geometric mean against the dual **3.9023 → 4.0039**.
+
+**None of the four is a solver regression.** The arithmetic is identical; the
+budget is `10x` the dual's work units, so billing honestly exhausts it sooner
+and phase 1 or the dual's re-entry stops where it previously ran on. `tuff`'s
+phase 1 goes from 843 iterations to 805, `wood1p`'s from 3820 to 3764. The work
+was always being done. `pilot-ja` and `standmps` end `NUMERICAL_ERROR` rather
+than `WORK_LIMIT` because the budget runs out inside the settling re-entry and
+leaves the point for the D146 guard to refuse — the message-less refusal D194
+localised to `src/simplex.c:5496`.
+
+Iterations by method: phase 1 336660 → 325776 (39.5% → 38.8%), phase 2 97 → 95
+(0.0%), dual re-entry 515522 → 513203 (60.5% → 61.2%).
+
+### What it exposes, and it is worth more than the fix
+
+**The clear is `O(nvar)` per iteration to zero at most `nrow` entries.** Only
+basics that violate a bound are ever set, so at most `nrow` of `nvar` positions
+are non-zero, and `nvar` is `ncol + nrow`. Clearing only what the previous call
+set makes it `O(nrow)` and would recover most of what this entry just charged.
+
+**That was invisible while the sweep was free**, which is the general argument
+for billing honestly and is now an instance of it rather than a principle. It
+is `TODO.md` §0's next item.
+
+### Landed with it: four records describing a solver that no longer exists
+
+`run_primal`'s header opened `The primal simplex, phase 2 only` and said
+`There is no primal phase 1 yet` and `a cold start never gets here`. All three
+have been false since phase 1 landed, and D195 measured the exact opposite of
+the last: 0 of 94 skip phase 1. In `bench/primal.c`, `PRIMAL_UNREACHED`'s
+comment, the `all_ok` comment and **the message the runner prints** all said
+the primal declines because there is no phase 1.
+
+Landed together because they mislead a reader immediately, and this session has
+twice paid for a claim that outlived its code — D194's own error was of exactly
+this kind.
+
+### What is left open
+
+`SPECS.md`'s primal row now reads 53 of 94, not 55. The 55-versus-17 decision
+is unchanged and still the maintainer's; what moved is only the honest cost of
+the left-hand column.
