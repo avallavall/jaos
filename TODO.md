@@ -9,6 +9,26 @@ line leaves this file in the same commit.
 
 ### → FRESH CONTEXT: READ THIS PARAGRAPH AND THEN §0
 
+**The 2026-08-26 methodology overhaul is complete and pushed (D206).** The
+record is checked by `make test` now, every refusal has a reopen row, and the
+instruction count is the fourth metric. **If you were told "continue", this is
+the order:**
+
+1. **Section 0 stage 8** — the relative pivot floor in the two primal ratio
+   tests. `pilot87` is diagnosed (`bench/measurements/02-120/`): an absolute
+   `PIVOT_MIN` accepts FTRAN noise on a structurally zero entry. The work is a
+   sweep of the constant on both sides, measured on the primal campaign and the
+   gate, judged by `jaos-measurer`. Bounded, concrete, and it turns the one
+   `ERROR` of the 94 into a verdict.
+2. **Section 0 stage 6** — `can_move`'s units, LIVE since 02-118. What the
+   right units are, and whether they change a verdict or only a trajectory.
+3. **The assert debt** below (`bench/measurements/02-121/`), one file per
+   commit, full loop each: contracts that survived the purge as prose.
+4. The skills debt (two scripts), then section 0's headline decision.
+
+Each of these is the full loop for solver internals. `make refusals` after 1
+and 2, because both touch the re-entry and the ratio tests.
+
 **The work in flight is the primal simplex, and §0 is the item.** Stages 0, 1,
 3 and 4 have landed. **What is next is a DECISION, not code.** D194 measured
 that 60.5% of the primal campaign's iterations are the dual's and that the
