@@ -15672,9 +15672,12 @@ First readings. D199's memset-to-scatter clear, which D203 could only call
 number, and the scatter costs a few hundred instructions more on a tiny model.
 D76's `restrict`, refused with the words "a pinned, quiet measurement host
 could resolve it": re-tested on the LU kernel signatures in
-`bench/measurements/02-119/`, `maros-r7` retires **13408694332 instructions
-on both trees, identical to the last one**. The qualifier changes nothing in
-the generated code, which is what D76 argued and could not show.
+`bench/measurements/02-119/`, four LU-dominated instances retire **exactly the
+same instructions on both trees** (`maros-r7` 13408694332, `dfl001`
+180804924692, `25fv47` 6936809399, `fit2p` 102165435926; geometric mean
+1.00000). The tool's canary fired, and here that is the finding: the qualifier
+changes nothing in the generated code, which is what D76 argued and could only
+bound to ±1%. The refusal holds, with a number.
 
 **What was refuted.**
 

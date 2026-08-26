@@ -1,6 +1,13 @@
 # D76 re-tested under the instruction counter: restrict on the LU kernel signatures
-# tree: 56be130; instances: maros-r7 dfl001 25fv47 fit2p
+# tree: 17d1fe5; instances: maros-r7 dfl001 25fv47 fit2p
 # geomean within 0.5% of 1.0 = the refusal holds; further = reopen
 
-bash: tools/icount.sh: No such file or directory
-icount rc=127
+instance              17d1fe5   working-tree     ratio
+maros-r7          13408694332    13408694332   1.00000
+dfl001           180804924692   180804924692   1.00000
+25fv47             6936809399     6936809399   1.00000
+fit2p            102165435926   102165435926   1.00000
+geometric mean of per-instance ratios: 1.00000  (below 1 = fewer instructions now)
+STOP: every instance retired exactly the same instructions on both trees;
+      the change is not on the measured path, or the trees are the same code
+icount rc=2
