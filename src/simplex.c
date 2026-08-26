@@ -4373,6 +4373,26 @@ static jaos_status run_primal_phase1(sx *s, jaos_solve_status *out,
             *out = JAOS_SOLVE_TIME_LIMIT;
             return JAOS_OK;
         }
+        /* **Phase 1 is interruptible, and it was not for a whole milestone.**
+         * Phase 2 and the dual both offer this; phase 1 did not, so a caller
+         * could neither watch nor stop the part of the solve that spends 39.5%
+         * of its iterations (D197). `infeas_best` carries the phase-1 total
+         * here, which is the figure this method is driving to zero — phase 2
+         * sets it to 0.0 at the hand-over, where the point really is feasible.
+         */
+        if (s->m->cfg.progress_cb != nullptr &&
+            s->iters % PROGRESS_EVERY == 0) {
+            const jaos_progress p = {
+                .iterations = s->iters,
+                .work_units = s->work.units,
+                .primal_infeasibility = s->infeas_best,
+            };
+            if (s->m->cfg.progress_cb(&p, s->m->cfg.progress_user) ==
+                JAOS_CALLBACK_STOP) {
+                *out = JAOS_SOLVE_INTERRUPTED;
+                return JAOS_OK;
+            }
+        }
         if (s->iters > iter_cap) {
             jm_set_err(s->m, "internal iteration guard tripped after %lld "
                              "iterations in the primal phase 1 (%lld into the "
@@ -4411,6 +4431,7 @@ static jaos_status run_primal_phase1(sx *s, jaos_solve_status *out,
         }
         if (total < best_total) {
             best_total = total;
+            s->infeas_best = total;   /* what a progress callback reads */
             s->last_gain = s->iters;
             s->bland = false;
         }
@@ -4468,12 +4489,34 @@ static jaos_status run_primal_phase1(sx *s, jaos_solve_status *out,
         jm_work_add(&s->work, s->nvar * JM_WORK_NONZERO);
 
         if (q < 0) {
+            /* Nothing improves the phase-1 objective — **but read off carried
+             * numbers, so D20 refuses it exactly as it refuses phase 2's
+             * optimality test.** `d` is stepped in place by `pivot()` every
+             * iteration and the factorization is patched rather than rebuilt,
+             * so the numbers that say nothing improves are the ones that would
+             * have drifted. Recompute from a fresh factorization and price
+             * again; only the second reading is a verdict.
+             *
+             * This is the same `!s->verified` gate `run_primal` and `run()`
+             * both use, and it was missing here for a whole milestone while
+             * this branch refused instances the dual solves. */
+            if (!s->verified) {
+                bool okv = false;
+                const jaos_status stv = refresh(s, &okv, true);
+                if (stv != JAOS_OK)
+                    return stv;
+                if (!okv)
+                    return JAOS_ERR_NUMERICAL;
+                s->verified = true;
+                continue;
+            }
             jm_set_err(s->m,
                        "the primal phase 1 cannot reduce a total bound "
-                       "violation of %.6g any further; reading that as an "
-                       "infeasible model needs the proof D19 requires, and "
-                       "the columns may be held by bounds dual phase 1 "
-                       "invented rather than by the model", total);
+                       "violation of %.6g any further, on a freshly computed "
+                       "point; reading that as an infeasible model needs the "
+                       "proof D19 requires, and the columns may be held by "
+                       "bounds dual phase 1 invented rather than by the "
+                       "model", total);
             return JAOS_ERR_NUMERICAL;
         }
 
@@ -4500,11 +4543,25 @@ static jaos_status run_primal_phase1(sx *s, jaos_solve_status *out,
         }
 
         if (r < 0) {
+            /* An impossibility, so the numbers it rests on had better be
+             * fresh. The ratio test read `s->col` from an FTRAN through a
+             * patched factorization; D20's refusal covers this the same way
+             * it covers the pricing above. Rebuild and try once. */
+            if (!s->verified) {
+                bool okv = false;
+                const jaos_status stv = refresh(s, &okv, true);
+                if (stv != JAOS_OK)
+                    return stv;
+                if (!okv)
+                    return JAOS_ERR_NUMERICAL;
+                s->verified = true;
+                continue;
+            }
             jm_set_err(s->m,
                        "column %lld reduces the primal phase 1's objective "
-                       "and no declared bound stops it, which cannot happen "
-                       "on an objective bounded below by zero; this is a JAOS "
-                       "defect", (long long)q);
+                       "and no declared bound stops it, on a freshly computed "
+                       "point, which cannot happen on an objective bounded "
+                       "below by zero; this is a JAOS defect", (long long)q);
             return JAOS_ERR_NUMERICAL;
         }
 
@@ -4580,9 +4637,14 @@ static jaos_status run_primal(sx *s, jaos_solve_status *out)
     s->dinfeas_best = HUGE_VAL;
     s->last_gain = s->iters;
     s->bland = false;
-    /* The primal holds the point feasible from end to end, so the figure a
-     * progress callback reads is zero and is not a placeholder. */
-    s->infeas_best = 0.0;
+    /* **`HUGE_VAL` until phase 1 has computed something, and 0.0 only once the
+     * point really is feasible.** Phase 2 holds the point feasible from end to
+     * end, so zero is the honest figure there and not a placeholder — but
+     * phase 1 runs first on every cold start (D195) and drives this from
+     * whatever the slack basis violates down to zero. Setting 0.0 here would
+     * have a progress callback read "feasible" through the whole of the part
+     * that is not. */
+    s->infeas_best = HUGE_VAL;
 
     /* **The warm start's cost sweep must not run for the primal, and this one
      * line is the difference between a primal method and a no-op.**
@@ -4671,6 +4733,8 @@ static jaos_status run_primal(sx *s, jaos_solve_status *out)
         s->last_gain = s->iters;
         s->bland = false;
         s->dinfeas_best = HUGE_VAL;
+        /* The point is feasible now, so this stops being a placeholder. */
+        s->infeas_best = 0.0;
     }
 
     /* **The cap is shared with phase 1 and with the dual's re-entry, and it is
