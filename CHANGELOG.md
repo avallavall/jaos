@@ -43,6 +43,15 @@ open, `bench/README.md` for the gate, and the commit each entry came from.
 
 ### Fixed
 
+- **The phase-1 clear stops sweeping every variable to undo the basis.**
+  `primal_phase1_costs` cleared `nvar` doubles to zero at most `nrow` entries;
+  it now clears exactly what the previous call set. Cost: **0.9452** over the
+  53 shared instances, cheapest `standata` at 0.8511, and **0 iteration counts
+  and 0 objectives moved** — checked, not asserted. Four campaign verdicts
+  recover and the totals return to 55 measured and 7 overrun. Against the
+  under-billed tree that D198 replaced it is 1.0042: the clear is now charged
+  for the positions it visits (D199, `bench/measurements/02-112/`).
+
 - **Phase 1 bills the sweep it does, not just the scan.** `primal_phase1_costs`
   cleared `nvar` doubles and charged `nrow`, so phase 1 was under-reported by
   `nvar` on every one of 336660 iterations. Cost: **every instance moved and

@@ -1,0 +1,20 @@
+
+== D198 -> D199
+  category changes: 4
+    bnl2         overrun -> DISAGREE
+    pilot-ja     DISAGREE -> ok
+    standmps     DISAGREE -> ok
+    tuff         overrun -> DISAGREE
+  ok on both: 53,  work geometric mean D199/D198: 0.9452
+  bit-identical primal work: 0 of 53
+  primal ITERATION count moved on: 0
+  primal OBJECTIVE moved on: 0  <- no digit of any answer moved
+  cheapest standata at 0.8511, dearest grow22 at 0.9993
+
+== pre-D198 -> D199
+  category changes: 0
+  ok on both: 55,  work geometric mean D199/pre-D198: 1.0042
+  bit-identical primal work: 0 of 55
+  primal ITERATION count moved on: 0
+  primal OBJECTIVE moved on: 0  <- no digit of any answer moved
+  cheapest kb2 at 1.0000, dearest ganges at 1.0169

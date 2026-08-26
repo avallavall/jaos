@@ -206,6 +206,7 @@ and you have the argument. Jump to the entry for the numbers behind it.
 - **[D196](#d196--the-iteration-cap-really-is-shared-across-both-primal-phases-and-the-dual-and-phase-1-spends-at-most-168-of-it-so-only-the-guards-message-needed-fixing)** — The iteration cap really is shared across both primal phases and the dual, and phase 1 spends at most 1.68% of it, so only the guard's message needed fixing
 - **[D197](#d197--the-primal-campaign-reports-which-method-did-the-work-and-two-instruments-now-agree-that-phase-2-is-00-of-it)** — The primal campaign reports which method did the work, and two instruments now agree that phase 2 is 0.0% of it
 - **[D198](#d198--phase-1-was-under-billed-by-nvar-on-every-iteration-and-charging-it-honestly-costs-two-instances-and-exposes-an-onvar-clear-that-should-be-onrow)** — Phase 1 was under-billed by `nvar` on every iteration, and charging it honestly costs two instances and exposes an `O(nvar)` clear that should be `O(nrow)`
+- **[D199](#d199--the-phase-1-clear-stops-sweeping-every-variable-to-undo-the-basis-and-the-campaign-returns-to-its-pre-d198-verdicts-at-042-more-work)** — The phase-1 clear stops sweeping every variable to undo the basis, and the campaign returns to its pre-D198 verdicts at 0.42% more work
 
 ---
 
@@ -15193,3 +15194,73 @@ this kind.
 `SPECS.md`'s primal row now reads 53 of 94, not 55. The 55-versus-17 decision
 is unchanged and still the maintainer's; what moved is only the honest cost of
 the left-hand column.
+
+## D199 — The phase-1 clear stops sweeping every variable to undo the basis, and the campaign returns to its pre-D198 verdicts at 0.42% more work
+
+D198's own next item, closed. The pair is the same rule applied twice, and the
+second half was only reachable because the first made it visible.
+
+### The question
+
+`primal_phase1_costs` cleared all `nvar` doubles of `c1` on every phase-1
+iteration. At most `nrow` of those positions are ever set — only a basic that
+violates a declared bound gets a `±1`, and a basis holds distinct variables —
+and `nvar` is `ncol + nrow`. D198 measured what the sweep costs by billing it;
+this removes it.
+
+### The measurement
+
+`bench/measurements/02-112/`. The clear now visits exactly the positions the
+previous call recorded, in a `[nrow]` array, and bills `cleared + nrow`.
+
+**D198 → D199**, over the 53 instances `ok` on both sides:
+
+| | |
+|---|---|
+| work geometric mean | **0.9452** |
+| cheapest | `standata` **0.8511** |
+| dearest | `grow22` 0.9993 |
+| **primal iteration counts that moved** | **0** |
+| **primal objectives that moved** | **0** |
+
+Four verdicts recover: `pilot-ja` and `standmps` DISAGREE → ok, `bnl2` and
+`tuff` overrun → DISAGREE. Campaign totals return to **measured 55, overrun
+7**, from D198's 53 and 9.
+
+**pre-D198 → D199**: **0 category changes**, work geometric mean **1.0042**,
+dearest `ganges` 1.0169, and again 0 iterations and 0 objectives moved.
+
+Campaign work geometric mean against the dual across the three trees: **3.9023
+→ 4.0039 → 3.9186**. Iterations by method: phase 1 336660 → 325776 → 336064,
+phase 2 97 → 95 → 97, dual re-entry 515522 → 513203 → 515435.
+
+All three gate sets `gate: PASS`, `0 regressed, 0 improved, 0 new`, every file
+in `bench/results/` byte-identical. `make configs` exits 0 on all five
+configurations, `sanitize` included — which is the build that would catch a
+bad write to the new `[nrow]` array.
+
+### What was checked rather than asserted
+
+**That no digit of any answer moves.** The comparison reads the objective
+column and the iteration column as well as the work column, because work alone
+cannot support that claim. Both come back with zero instances moved on both
+comparisons. The array ends value for value in the state a full clear would
+leave it in; only the cost changes.
+
+### What was refuted
+
+The expectation that removing the sweep returns the campaign to its pre-D198
+numbers exactly. It returns to its pre-D198 **verdicts** at **1.0042** of its
+work. That 0.42% is the clear billed for the positions it visits, where before
+D198 it was billed for none of them. **It is not recoverable by writing the
+code differently — the work is real, and an honest counter charges for it.**
+
+### What is left open
+
+`SPECS.md`'s primal row goes back to 53 → **55 of 94**, at **3.9186x**. The
+55-versus-17 decision is unchanged and still the maintainer's.
+
+The general point is worth keeping where a reader will meet it: **an unbilled
+sweep is invisible to every campaign this project runs.** That is the argument
+behind `docs/work-units.md`'s rule, and this pair is the first time it has cost
+and then repaid something measurable.
