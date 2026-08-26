@@ -1,25 +1,15 @@
 /* Sparse LU factorization of a basis, with Markowitz threshold pivoting
  * and Forrest-Tomlin updates.
  *
- * Sparse Gaussian elimination serves two masters that pull apart.
  * Stability wants the largest available pivot; sparsity wants the pivot
- * creating the least fill-in, and fill-in is what turns a sparse
- * factorization dense. Markowitz [6] settles it by minimising the expected
- * fill (r_i - 1)(c_j - 1) among candidates within a factor of the largest
- * magnitude in their column — stability as a constraint, sparsity as the
- * objective [4][20].
+ * creating the least fill-in. Markowitz [6] settles it by minimising the
+ * expected fill (r_i - 1)(c_j - 1) among candidates within a factor of the
+ * largest magnitude in their column [4][20].
  *
  * The elimination keeps the active submatrix in both orientations at once:
  * columns carry values because the rank-1 update rewrites them, rows carry
  * pattern only because that is what makes the Markowitz cost knowable
- * without scanning. Candidate columns come from per-count buckets, so a
- * singleton column — cost zero, the pivot any sparse factorization wants
- * first — is found rather than searched for.
- *
- * Storage during elimination is one growable array per column, and the
- * finished U keeps both orientations. Both are correctness-first choices:
- * a single arena with compaction is where this ends up, but that change
- * belongs to M2 with a measurement behind it (D17).
+ * without scanning. Candidate columns come from per-count buckets.
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -30,12 +20,12 @@
 #include <string.h>
 
 /* Candidate columns inspected before the pivot search settles for the best
- * it has seen. Four is the classic compromise. */
+ * it has seen. */
 constexpr int PIVOT_SEARCH_LIMIT = 4;
 
 /* A value below this fraction of the matrix's largest magnitude is treated
  * as structurally absent. Relative, because an absolute floor would call a
- * uniformly small basis singular — which is a different thing entirely. */
+ * uniformly small basis singular. */
 constexpr double DROP_REL = 1e-14;
 
 /* Absolute floor used where no scale is available to compare against. */
@@ -52,11 +42,9 @@ void jm_svec_free(jm_svec *v)
     memset(v, 0, sizeof *v);
 }
 
-/* Grows a parallel (index, value) pair of arrays. Everything in JAOS that
- * grows an array goes through jm_grow, so the overflow check alloc.c
- * promises is not something each call site gets to skip. The two-step
- * dance matters: jm_grow leaves the pointer untouched when it fails, so a
- * failure on the second array still leaves the first one freeable. */
+/* Grows a parallel (index, value) pair of arrays. jm_grow leaves the
+ * pointer untouched when it fails, so a failure on the second array still
+ * leaves the first one freeable. */
 static bool grow_pair(int64_t **idx, double **val, int64_t *cap, int64_t need)
 {
     int64_t cap_idx = *cap;
@@ -70,19 +58,9 @@ static bool grow_pair(int64_t **idx, double **val, int64_t *cap, int64_t need)
 }
 
 /* The capacity test is here rather than inside `grow_pair` because this is
- * the hottest append in the solver and `grow_pair` calls `jm_grow` twice,
- * across a translation unit boundary, only to be told there was room.
- *
- * That boundary is the whole cost. **In the build JAOS ships** — `-O2`, no
- * link-time optimisation — this function and the growth check under it were
- * 63% of every instruction executed on `fit2p` against 2% on `truss`, and
- * removing the call takes `fit2p` from 12.87 s to 8.42 s and `maros-r7` from
- * 50.5 s to 36.7 s. Under `-flto` it changes nothing, because there the
- * compiler had already done it. Not one work unit charges for any of it,
- * which is why no internal measurement ever saw it (D55).
- *
- * `v->cap` is the *smaller* of the two arrays' capacities, which `grow_pair`
- * maintains, so `n < cap` guarantees index `n` is writable in both. */
+ * the hottest append in the solver (D55). `v->cap` is the smaller of the
+ * two arrays' capacities, which `grow_pair` maintains, so `n < cap`
+ * guarantees index `n` is writable in both. */
 bool jm_svec_push(jm_svec *v, int64_t i, double x)
 {
     if (v->n == v->cap && !grow_pair(&v->idx, &v->val, &v->cap, v->n + 1))
@@ -94,16 +72,11 @@ bool jm_svec_push(jm_svec *v, int64_t i, double x)
 }
 
 /* Removes index i by swapping the last entry into its place. Order is not
- * preserved, but it stays a deterministic function of the call history,
- * which is what D8 asks for.
+ * preserved, but it stays a deterministic function of the call history (D8).
  *
  * Known cost: this is a linear scan, and jm_lu_update calls it once per
  * entry of the outgoing slot's row and column, so detaching a slot holding
- * f nonzeros is O(f^2) — on the simplex's hottest path, and f grows with
- * every update because nothing compacts U between refactorizations. A
- * position map removes the inner scan. It is not done here because D17
- * says the change needs a measurement behind it, and there is nothing to
- * measure until the simplex exists; PLAN.md carries it as M2 work. */
+ * f nonzeros is O(f^2). A position map removes the inner scan (D17). */
 void jm_svec_erase(jm_svec *v, int64_t i)
 {
     for (int64_t k = 0; k < v->n; k++) {
@@ -144,10 +117,8 @@ typedef struct {
     double *piv_mult;   /* ... and their multipliers */
     int64_t piv_n;
 
-    /* The multipliers again, scattered by row. They belong to the pivot and
-     * not to any one column, so they are spread once per pivot and every
-     * column of the pivot row reads them where it stands. `hit` says which
-     * of them a column already had an entry for; what is left is its fill. */
+    /* The multipliers again, scattered by row. `hit` says which of them a
+     * column already had an entry for; what is left is its fill. */
     double *mult_of;
     bool *mult_set;
     bool *hit;
@@ -252,9 +223,8 @@ static bool find_pivot(const elim *e, double tol, int64_t *pi, int64_t *pj,
     double best_val = 0.0;
     int examined = 0;
 
-    /* Counts start at zero: a column can legitimately reach zero live
-     * entries and must still be visited, or a nonsingular matrix comes
-     * back rank deficient. */
+    /* Counts start at zero: a column can reach zero live entries and must
+     * still be visited, or a nonsingular matrix comes back rank deficient. */
     for (int64_t cnt = 0; cnt <= e->dim; cnt++) {
         for (int64_t j = e->bhead[cnt]; j >= 0; j = e->bnext[j]) {
             double mx = col_max_abs(e, j);
@@ -303,16 +273,10 @@ found:
 /* Rewrites the pivot row's pattern down to one entry per column that
  * genuinely still carries a live value, caching each value found.
  *
- * The pattern is append-only, so it accumulates two kinds of lie: an exact
- * cancellation leaves a column behind that no longer has an entry here,
- * and later fill-in appends that same column a second time. Anything that
- * counts once per pattern entry would then decrement a column's live count
- * twice for one real entry, drifting it negative until a bucket index goes
- * out of range. Caching the values also spares the U loop a second search
- * for what this pass already found.
- *
- * `step` supplies a stamp that is unique per pivot, so duplicates are
- * detected without clearing anything between steps. */
+ * The pattern is append-only: an exact cancellation leaves a column behind
+ * that no longer has an entry here, and later fill-in appends that same
+ * column a second time. `step` supplies a stamp that is unique per pivot,
+ * so duplicates are detected without clearing anything between steps. */
 static void compact_pivot_row(elim *e, int64_t pi, int64_t step)
 {
     const int64_t stamp = step + 1;
@@ -425,22 +389,18 @@ jaos_status jm_lu_factor(jm_lu *lu, int64_t dim,
     jaos_status st = JAOS_OK;
     elim e = {0};
     e.dim = dim;
-    /* Relative, so a uniformly small matrix is factored rather than
-     * declared structurally empty. Kept on the factorization so updates
-     * measure against the same yardstick. */
+    /* Kept on the factorization so updates measure against the same
+     * yardstick. */
     lu->drop = mat_max > 0.0 ? mat_max * DROP_REL : TINY;
     e.drop = lu->drop;
 
     /* L and U are accumulated into ordinary sparse vectors and their
-     * storage handed to the factorization at the end, so no growth code
-     * is written twice. U additionally needs its row boundaries while it
-     * is being built — row s spans [us_start[s], us_start[s+1]) — before
-     * it is expanded into both orientations. */
+     * storage handed to the factorization at the end. Row s of U spans
+     * [us_start[s], us_start[s+1]) while it is being built. */
     jm_svec lacc = {0}, uacc = {0};
     int64_t *us_start = jm_alloc_array(dim + 1, sizeof(int64_t));
 
-    /* Row -> slot, needed only to renumber L and U at the end. It is
-     * scratch, not state: no caller looks up a slot by row. */
+    /* Row -> slot, needed only to renumber L and U at the end. */
     int64_t *inv_row = jm_alloc_array(dim, sizeof(int64_t));
 
     lu->l_start  = jm_alloc_array(dim + 1, sizeof(int64_t));
@@ -585,21 +545,12 @@ jaos_status jm_lu_factor(jm_lu *lu, int64_t dim,
 
             /* Nothing to eliminate: the pivot column has no live row below
              * the pivot, so no value in this column changes and no fill can
-             * appear. All the pass below would do is copy the column through
-             * `work` and push it back, so compact it where it stands.
-             *
-             * This is not a corner case. A basis that is already triangular
-             * has an empty `piv_row` at every step — on `fit2p`, L holds 101
-             * entries against 3000 pivots, so 97% of them land here — and
-             * the general path was rebuilding every column of every pivot
-             * row regardless: 344 million pushes for eleven factorizations
-             * of a matrix with 37,504 nonzeros (D56).
+             * appear. Compact it where it stands (D56).
              *
              * Bit-identical, and it has to be. The values are untouched, so
-             * none can newly fall under `drop` — an entry only reaches here
-             * having survived an earlier compaction, which already applied
-             * that test. What is dropped is exactly what the general path
-             * drops, entries whose row is done, and in the same order. */
+             * none can newly fall under `drop`. What is dropped is exactly
+             * what the general path drops, entries whose row is done, and in
+             * the same order. */
             if (e.piv_n == 0) {
                 int64_t keep = 0;
                 for (int64_t k = 0; k < cv->n; k++) {
@@ -614,23 +565,12 @@ jaos_status jm_lu_factor(jm_lu *lu, int64_t dim,
                 continue;
             }
 
-            /* One walk over the column, updating it where it stands.
+            /* One walk over the column, updating it where it stands (D59).
              *
-             * This used to scatter the column into a dense buffer, apply the
-             * multipliers there, and gather it back — two copies of every
-             * entry to carry an arithmetic that touches at most `piv_n` of
-             * them. On `maros-r7` the two copies were 42% of the whole
-             * program against 6.5% for the subtraction they existed to
-             * perform (D59). Scattering the multipliers instead costs
-             * `piv_n` per pivot rather than `|column|` per column.
-             *
-             * The order is what the rebuild produced and has to stay that
-             * way: the column's own surviving entries in their existing
-             * order, then the fill in `piv_row` order, which is where the
-             * gather appended it.
-             *
-             * `keep <= k` throughout, so writing the column while reading it
-             * cannot overtake itself. */
+             * The order has to stay this way: the column's own surviving
+             * entries in their existing order, then the fill in `piv_row`
+             * order. `keep <= k` throughout, so writing the column while
+             * reading it cannot overtake itself. */
             int64_t found = 0, keep = 0;
             for (int64_t k = 0; k < cv->n; k++) {
                 int64_t i = cv->idx[k];
@@ -660,8 +600,7 @@ jaos_status jm_lu_factor(jm_lu *lu, int64_t dim,
             }
 
             /* The rows the pivot updates that this column did not have, and
-             * the clearing of `hit` for the ones it did — one walk for both,
-             * because both are over `piv_row`. */
+             * the clearing of `hit` for the ones it did. */
             for (int64_t k = 0; k < e.piv_n; k++) {
                 int64_t i = e.piv_row[k];
                 if (e.hit[i]) {
@@ -683,9 +622,6 @@ jaos_status jm_lu_factor(jm_lu *lu, int64_t dim,
                 keep++;
             }
 
-            /* Charged for what the elimination does, not for how it is
-             * arranged: one unit per multiplier per column, exactly as the
-             * two-pass form charged (D16). */
             jm_work_add(w, e.piv_n * JM_WORK_ELIMINATED);
 
             cv->n = keep;
@@ -693,9 +629,8 @@ jaos_status jm_lu_factor(jm_lu *lu, int64_t dim,
         }
         us_start[step + 1] = uacc.n;
 
-        /* The scatter is undone over the rows it touched, not over the
-         * dimension: the next pivot's columns read `mult_set` and must see
-         * only its own multipliers. */
+        /* The next pivot's columns read `mult_set` and must see only its
+         * own multipliers. */
         for (int64_t k = 0; k < e.piv_n; k++)
             e.mult_set[e.piv_row[k]] = false;
 
@@ -737,8 +672,7 @@ jaos_status jm_lu_factor(jm_lu *lu, int64_t dim,
         }
     }
 
-    /* L keeps the accumulator's storage; U's staging copy has served its
-     * purpose now that both orientations exist. */
+    /* L keeps the accumulator's storage. */
     svec_release(&lacc, &lu->l_index, &lu->l_value);
 
 done:
@@ -814,15 +748,8 @@ void jm_lu_ftran_sparse(jm_lu *lu, double *x, jm_work *w,
         jm_work_add(w, col->n * JM_WORK_NONZERO);
     }
 
-    /* The permutation back, and — where asked — where the answer is nonzero,
-     * taken on the way past. Same trade jm_lu_btran_sparse makes and for the
-     * same reason: this loop writes every slot whatever happens, so it can
-     * say which ones carry a value for a comparison, and a caller left to
-     * find out for itself walks the whole vector again.
-     *
-     * Unordered, and no caller of this one needs it otherwise: what reads an
-     * FTRAN result here is the steepest-edge recurrence and two updates of
-     * `x_B`, all three of them elementwise. */
+    /* The permutation back, and, where asked, where the answer is nonzero.
+     * Unordered. */
     if (pat == nullptr) {
         for (int64_t s = 0; s < n; s++)
             x[lu->perm_col[s]] = y[s];
@@ -842,23 +769,15 @@ void jm_lu_ftran_sparse(jm_lu *lu, double *x, jm_work *w,
 /* Which slots the U' pass can produce a nonzero for, in an order where each
  * one comes after everything it depends on.
  *
- * The pass computes v[s] = (y[s] - sum over ucol[s] of U[i][s]*v[i]) / d[s],
- * so v[s] can only be nonzero if y[s] is, or if some v[i] feeding it is.
- * The nonzero pattern is therefore the set reachable from y's support along
- * U's rows, and a depth-first search finds it in time proportional to that
- * set instead of to the dimension [9]. On the reference set it is about 3%
- * of the slots.
+ * The nonzero pattern is the set reachable from y's support along U's rows,
+ * and a depth-first search finds it in time proportional to that set [9].
  *
- * The slots left out are not nearly zero, they are exactly zero: they start
- * at zero and receive nothing. That is what makes skipping them leave the
- * arithmetic of every slot still computed bit-for-bit unchanged — the
- * difference between this and the scatter form D36 measured and rejected.
+ * The slots left out are exactly zero: they start at zero and receive
+ * nothing. That is what makes skipping them leave the arithmetic of every
+ * slot still computed bit-for-bit unchanged (D36).
  *
- * Post-order fills `pattern` from the back, which comes out as topological
- * order: a slot is emitted only after every slot it feeds, so writing
- * backwards puts it before them. Returns the index the pattern starts at —
- * it occupies pattern[return .. dim-1], not the front of the array.
- */
+ * Post-order fills `pattern` from the back. Returns the index the pattern
+ * starts at; it occupies pattern[return .. dim-1], not the front. */
 static int64_t btran_u_pattern(jm_lu *lu, const double *y, jm_work *w)
 {
     const int64_t n = lu->dim;
@@ -903,8 +822,6 @@ static int64_t btran_u_pattern(jm_lu *lu, const double *y, jm_work *w)
         }
     }
 
-    /* The search reads one matrix entry per edge it considers, so it is
-     * billed like any other kernel (D16). */
     jm_work_add(w, edges * JM_WORK_NONZERO);
     return top;
 }
@@ -931,8 +848,7 @@ void jm_lu_btran_sparse(jm_lu *lu, double *x, jm_work *w,
 
     /* U' v = y, over the slots that can produce a nonzero and no others.
      * Each is still a dot product over already-resolved slots, in the same
-     * order over the same column, so what this changes is how many of them
-     * run — not what any one of them computes. */
+     * order over the same column. */
     const int64_t first = btran_u_pattern(lu, y, w);
     for (int64_t k = first; k < n; k++) {
         int64_t s = lu->pattern[k];
@@ -945,8 +861,7 @@ void jm_lu_btran_sparse(jm_lu *lu, double *x, jm_work *w,
     }
 
     /* E^T = E_1^T ... E_t^T: reverse order, and each transposed swaps the
-     * roles of target and source. Getting this backwards produces
-     * plausible residuals that are quietly wrong. */
+     * roles of target and source. */
     for (int64_t k = lu->ft.n - 1; k >= 0; k--)
         y[lu->ft_source[k]] -= lu->ft.val[k] * y[lu->ft.idx[k]];
     jm_work_add(w, lu->ft.n * JM_WORK_NONZERO);
@@ -961,16 +876,9 @@ void jm_lu_btran_sparse(jm_lu *lu, double *x, jm_work *w,
         jm_work_add(w, (lu->l_start[s + 1] - lu->l_start[s]) * JM_WORK_NONZERO);
     }
 
-    /* The permutation back into the caller's indexing, and — where asked —
-     * a record of where the answer is nonzero, taken on the way past.
-     *
-     * This loop writes every slot either way, so the record costs a
-     * comparison against a value already loaded and a store on the slots
-     * that carry something. It is the same trade price_all makes for the
-     * pricing row's pattern, in the one place that can make it for `rho`:
-     * the caller would otherwise scan the whole result to find out what
-     * this loop already knew. Unordered, because the permutation decides
-     * what order it comes out in and no caller wants that one. */
+    /* The permutation back into the caller's indexing, and, where asked,
+     * a record of where the answer is nonzero. Unordered, because the
+     * permutation decides what order it comes out in. */
     if (pat == nullptr) {
         for (int64_t s = 0; s < n; s++)
             x[lu->perm_row[s]] = y[s];
@@ -994,10 +902,6 @@ void jm_lu_btran_sparse(jm_lu *lu, double *x, jm_work *w,
 /* Appends one row transformation. The three arrays grow together. */
 static bool ft_push(jm_lu *lu, int64_t target, int64_t source, double factor)
 {
-    /* (target, factor) is an ordinary index/value pair, so jm_svec carries
-     * it; source is one more parallel array, grown the same way pat_push
-     * grows its own. Two mechanisms with one capacity each beats one
-     * mechanism with three capacities to reconcile. */
     if (!jm_svec_push(&lu->ft, target, factor))
         return false;
     if (!JM_GROW(lu->ft_source, lu->ft_source_cap, lu->ft.n))
@@ -1023,8 +927,6 @@ jaos_status jm_lu_update(jm_lu *lu, int64_t col_out, const double *new_col,
     double *sp = lu->spike;
     double *row = lu->tmp;
 
-    /* Three O(dim) passes follow whatever the elimination costs; charge
-     * the floor so a work budget describes the run it actually buys. */
     jm_work_add(w, JM_WORK_UPDATE);
 
     /* The spike is the entering column seen through everything left of U. */
@@ -1081,8 +983,7 @@ jaos_status jm_lu_update(jm_lu *lu, int64_t col_out, const double *new_col,
     lu->pos_of[s_out] = n - 1;
 
     /* Eliminate the spike row, which now sits below the diagonal in the
-     * last position. Each step may create entries further right, which
-     * later steps then handle. */
+     * last position. */
     for (int64_t k = p; k < n - 1; k++) {
         int64_t s = lu->slot_at[k];
         if (fabs(row[s]) <= drop) {
@@ -1094,9 +995,6 @@ jaos_status jm_lu_update(jm_lu *lu, int64_t col_out, const double *new_col,
         const jm_svec *r = &lu->urow[s];
         for (int64_t q = 0; q < r->n; q++)
             row[r->idx[q]] -= factor * r->val[q];
-        /* Same elimination axpy as the factorization performs, so it costs
-         * the same: the unit is defined by what the operation does, not by
-         * which routine happens to be running it (D16). */
         jm_work_add(w, r->n * JM_WORK_ELIMINATED);
 
         if (!ft_push(lu, s_out, s, factor)) {

@@ -1,40 +1,14 @@
 /* Independent solution checker.
  *
  * Judges a claimed solution against the model exactly as it was loaded —
- * original space, no scaling, no access to any solver bookkeeping.
- *
- * What the independence actually rests on, since this is easy to get wrong:
- *
- *   - Independent inputs. The only things that enter are the model as
- *     loaded and the claimed (x, y). No basis, no factorization, no solver
- *     state. A solver that reasoned its way to a wrong answer cannot pass
- *     that reasoning in here.
- *   - Redundant identities. Primal feasibility, dual sign conditions,
- *     complementary slackness and the primal-dual gap are checked
- *     together, and they are not independent of each other. The dual
- *     objective is accumulated from bounds while activities come from a
- *     separate scatter over the matrix, so a corrupted dot product shows
- *     up as a nonzero gap even if it also corrupts the reduced costs. The
- *     system is overdetermined; one broken kernel cannot satisfy all four.
- *   - Better arithmetic. Accumulation is in long double, so the oracle's
- *     own rounding error is an order below what it is judging. A checker
- *     no more accurate than the solver measures partly itself.
- *
- * What it does NOT protect against, stated so nobody assumes otherwise:
- * a model built wrongly by the loader. Checker and solver read the same
- * a_start/a_index/a_value, and if those are wrong both agree about the
- * wrong problem. Only external ground truth — reference optima — closes
- * that, which is what the Netlib gate is for.
- *
- * The reduced-cost loop here resembles the one in src/simplex.c, and they
- * stay apart: sharing would make this file link against solver internals,
- * the exact coupling it exists to forbid. They do not even read the same
- * numbers any more: the solver's loop runs on the scaled copy, this one on
- * the model as it was loaded.
+ * original space, no scaling, no access to any solver bookkeeping (D18).
+ * It does NOT protect against a model built wrongly by the loader: checker
+ * and solver read the same a_start/a_index/a_value. The reduced-cost loop
+ * here resembles the one in src/simplex.c, and they stay apart: sharing
+ * would make this file link against solver internals.
  *
  * Everything is computed in minimize-canonical form: for maximization the
- * cost and the duals are negated internally (sigma), which turns the sign
- * conditions documented in jaos.h into one set of rules.
+ * cost and the duals are negated internally (sigma).
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -57,116 +31,28 @@ static double interval_violation(double v, double lo, double hi)
     return viol;
 }
 
-/* Sign-condition violation for a multiplier w attached to a value v with
- * bounds [lo, hi], in minimize-canonical form:
- *   at lower  -> w >= 0
- *   at upper  -> w <= 0
- *   interior  -> w == 0   (this is complementary slackness)
- *   fixed     -> anything
- * "At a bound" is judged within tol * scale, and a multiplier at or below
- * tol is held to no condition at all.
- *
- * `scale` is what the value being tested is made of, and it is not decoration.
- * A row activity is a sum, and a sum that cancels cannot be pinned to an
- * absolute tolerance: row 3 of Netlib's `finnis` adds terms whose magnitudes
- * total 4.0e10 and lands 1.5e-6 from its bound, where one ulp at 4.0e10 is
- * 7.6e-6. Judged absolutely at 1e-6 that row is "not at its bound" and its
- * multiplier of 28 is reported as a violation of 28 — a demand for seventeen
- * correct decimal digits, which no double-precision answer can meet and no
- * amount of solver work can produce. The scale asks instead for the tolerance
- * as a fraction of what the row actually carries.
- *
- * What stops that from being a licence is that this test is a diagnostic and
- * not the proof. The proof is the gap, and the two are tied together
- * exactly: P - D = sum over v of w_v (v - bound_v), so a value waived here at
- * a distance d with a multiplier w contributes w * d to the gap, which is
- * checked separately and is not relaxed by any of this. Waiving a large
- * distance on a large multiplier therefore cannot certify a bad solution; it
- * shows up in the gap at full size. What the scale removes is only the case
- * where the distance is noise at the row's own precision, and there w * d is
- * negligible by construction. tests/test_check.c builds the case that must
- * still be rejected and confirms it is.
- *
- * Also accumulates the multiplier's contribution to the dual objective: w
- * picks the bound its sign points at, and every multiplier contributes,
- * including the ones exempt from the condition. A meaningful multiplier
- * pointing at an infinite bound is itself a dual violation; a negligible
- * one pointing there contributes nothing and violates nothing, which is
- * also why the infinite-bound test comes before any w * bound product.
- *
- * And the same term again, split by sign. The identity the gap rests on is
- * P - D = sum of w_v (v - bound_v), so the gap is the difference of two
- * sums and not a sum: when a term is negative it cancels a positive one
- * elsewhere and the total goes quiet while neither half does. Keeping them
- * apart costs one add and is what makes the difference between "these two
- * objectives agree" and "these two objectives agree because two large
- * quantities cancelled" visible from outside (D24). */
-/* What the dual walk accumulates. Bundled rather than passed as five
- * out-parameters, which is where a caller starts handing them over in the
- * wrong order. */
+/* What the dual walk accumulates. `pos`/`neg` are magnitudes. */
 typedef struct {
     long double dual_obj;
     long double pos, neg;
 
-    /* The same two sums restricted to bounds the *model declared* (D91).
-     *
-     * An implied bound is sound — every feasible point satisfies it, so it
-     * moves neither the feasible region nor P* — but it is **slack**, and
-     * nothing puts the variable on it. Its term `w (v - bound)` is therefore
-     * live at an optimum, measuring how loose the bound is rather than how
-     * wrong the point is. Feeding that into the verdict is what made D87
-     * refuse to iterate the propagation: tightening harder made the gap
-     * worse, which is backwards.
-     *
-     * So the two questions are separated. `pos`/`neg` carry every term and
-     * bound the suboptimality, which is what D47 asked for. These carry only
-     * the terms that must vanish at an optimum of the problem as it was
-     * written, and that is what the verdict reads. */
+    /* The same two sums restricted to bounds the model declared (D91). An
+     * implied bound is sound but slack, so its term is live at an optimum.
+     * The verdict reads these; `pos`/`neg` bound the suboptimality. */
     long double pos_model, neg_model;
 
     /* The largest multiplier whose term the dual objective could not take,
-     * and how many there were.
-     *
-     * A multiplier whose sign points at an infinite bound has no `w * bound`
-     * to contribute — the term is minus infinity, because the dual objective
-     * of a variable free in the improving direction is unbounded below. The
-     * sum then belongs to a *different* problem, one where that variable had
-     * a finite bound, and `P - D = sum w_v (v - bound_v)` no longer holds for
-     * the problem that was asked about. So `gap_positive` stops being the
-     * bound it is documented as being, and nothing in the report used to say
-     * so (D47).
-     *
-     * These two are what says so. They decide nothing — no verdict reads
-     * them — because deciding would need a threshold, and D47 measured that
-     * no local test on a reduced cost separates the harmful case from the
-     * harmless one: what makes a dropped term cost anything is the distance
-     * the variable travels, which is a property of the polytope and not of
-     * the column. What the caller gets is the fact and its size. */
+     * and how many there were. No verdict reads them (D47). */
     double dropped_max;
     int64_t dropped_n;
 
-    /* The largest suboptimality any one dropped term certifies. See
-     * certified_step: it is `|w|` times a distance the point can actually
-     * travel, so it is a lower bound on `P - P*` and owes nothing to a
-     * reference value. Zero means nothing was certified, which is not the
-     * same as nothing being wrong. */
+    /* The largest suboptimality any one dropped term certifies: a lower
+     * bound on `P - P*` (D73). Zero means nothing was certified. */
     long double certified;
 
     /* Dropped columns that can move without limit while every row stays
-     * inside its bounds, and whose multiplier this checker nevertheless calls
-     * zero.
-     *
-     * They are counted rather than certified, and the distinction is the
-     * whole reason this field exists. Where the step is finite the product
-     * `|w| * t` is self-limiting — a multiplier that is really roundoff
-     * certifies a roundoff-sized suboptimality and does no harm, which is
-     * what lets the certificate work with no threshold at all. Where the step
-     * is infinite the product is infinite for *any* nonzero multiplier,
-     * including 1e-17, so it stops being a certificate and becomes the
-     * question D47 proved cannot be answered locally: is this multiplier
-     * real? Reporting infinity there would claim five models of the reference
-     * set are unbounded when every one of them matches a published finite
-     * optimum. */
+     * inside its bounds, and whose multiplier this checker calls zero.
+     * Counted rather than certified (D73). */
     int64_t rays;
 } dual_acc;
 
@@ -179,12 +65,7 @@ static void split_term(long double t, long double *pos, long double *neg)
 }
 
 /* Records a term the dual objective could not take. Every nonzero multiplier
- * pointing at an infinite bound counts, with no magnitude exemption: the
- * exemption below is about whether a *sign condition* is violated, and this
- * is about whether a *sum* is complete. A multiplier of 1e-15 is
- * indistinguishable from zero as a sign test and still drops a term of minus
- * infinity from an identity, and the whole content of D47 is that the two
- * questions have different answers. */
+ * pointing at an infinite bound counts, with no magnitude exemption (D47). */
 static void note_dropped(dual_acc *a, double w)
 {
     a->dropped_n++;
@@ -193,29 +74,11 @@ static void note_dropped(dual_acc *a, double w)
 }
 
 /* How far column j can travel in direction `dir` before some row leaves its
- * bounds, with **every other variable held exactly where it is**.
- *
- * That restriction is the whole point, and it is what makes the answer a
- * certificate rather than an estimate. The simplex direction lets the basics
- * absorb the move and travels further, but computing it needs `B^-1 a_j` —
- * which is what D47 costed route B at, because the checker would then need a
- * basis and a factorization of its own, and the thing that verifies the
- * answer would start sharing machinery with the thing that produced it.
- * Moving one column alone needs neither. It travels less far, so the
- * suboptimality it certifies is smaller than the true one; a smaller *lower*
- * bound is still a lower bound, and it is arrived at from the row activities
- * this file already computes and nothing else.
- *
- * The column's own opposite bound never limits it: this is only ever called
- * where that bound is infinite, which is what made the term droppable.
- *
- * Room is clamped at zero because the point being judged may sit a tolerance
- * outside a bound, and a negative slack would otherwise certify a negative
- * improvement — which is not a weaker claim, it is a wrong one.
- *
- * Returns HUGE_VAL when nothing blocks: the objective then improves without
- * limit along a direction that is feasible at every point of it, which is a
- * proof of unboundedness and not merely of suboptimality. */
+ * bounds, with every other variable held exactly where it is. It travels
+ * less far than the simplex direction, so what it certifies is a lower
+ * bound (D73). Only ever called where the column's own opposite bound is
+ * infinite. Room is clamped at zero because the point being judged may sit
+ * a tolerance outside a bound. Returns HUGE_VALL when nothing blocks. */
 static long double certified_step(const jaos_model *m, int64_t j, double dir,
                                   const long double *act)
 {
@@ -245,62 +108,14 @@ static long double certified_step(const jaos_model *m, int64_t j, double dir,
 }
 
 /* The cap on propagation rounds. Not a quality knob: the loop exits as soon
- * as a round bounds nothing new, so this is the safety stop, and it is set
- * where the propagation reaches its fixed point rather than anywhere useful
- * work is still being cut off.
- *
- * Swept over the standard set, counting certified answers — the canary that
- * had to move, and did:
- *
- *   rounds    1    2    4    8   16   32   64  128
- *   certified 17   23   32   38   46   47   48   48
- *
- * 64 is where it stops changing. The cost is flat across the whole sweep,
- * 119 s to 128 s against a gate that takes about 120 s, so the passes are
- * indistinguishable from noise and there is nothing to trade against.
- *
- * 8 was here first, chosen by nothing, and it left ten answers uncertified
- * (D91). */
+ * as a round bounds nothing new. Sweep in docs/tolerances.md (D91). */
 constexpr int64_t IMPLIED_ROUNDS = 64;
 
-/* The bounds the constraints imply for a variable the model left unbounded.
- *
- * **Why this closes D47's hole, and why it needs no factorization.** The dual
- * objective's term for a variable is `w * bound`, and where the bound on the
- * improving side is infinite the term is minus infinity: `sign_condition`
- * drops it, and `gap_positive` stops being the bound `jaos.h` documents.
- * D47 read that as needing the simplex direction — how far the variable can
- * actually travel — and costed route B at a basis and a factorization inside
- * the checker, which D18 forbids taking from the solver.
- *
- * It does not need one. The rows already bound the variable, and reading that
- * off them uses nothing but the model. From `rl <= sum_k a_ik x_k <= ru`,
- * holding every other variable inside its own box gives a finite range for
- * `x_j` whenever the rest of the row is bounded the right way — the standard
- * activity-based tightening presolve does, applied here for a different
- * purpose.
- *
- * **The bound it derives is implied, not imposed, and that is what makes it
- * sound.** Every feasible point already satisfies it, so adding it changes
- * neither the feasible region nor `P*`. A dual bound valid for the tightened
- * problem is therefore valid for the original — which is exactly the claim
- * `gap_positive` makes and could not support.
- *
- * On D47's own constructed case — `min -1e-7 x2` subject to `x1 + x2 <= 1e6`
- * with both variables non-negative and neither bounded above — the row gives
- * `x2 <= 1e6`, the dropped term becomes `-1e-7 * 1e6`, and `gap_positive`
- * goes from 0 to **0.1**, which is the true suboptimality exactly.
- *
- * Where the rows imply nothing the bound stays infinite and the term is still
- * dropped. That is the honest outcome and it is counted as before: this
- * narrows the hole to the cases that genuinely have no finite lever, it does
- * not pretend to close all of them.
- *
- * Accumulated in `long double` for the reason the rest of this file is: the
- * oracle's rounding has to sit below what it judges. Terms that are infinite
- * are counted rather than summed, so one unbounded variable in a row does not
- * poison the bound for the others — the row can still bound `x_j` when `x_j`
- * is the only unbounded term in it. */
+/* The bounds the constraints imply for a variable the model left unbounded
+ * (D87). The bound is implied, not imposed: every feasible point already
+ * satisfies it, so adding it changes neither the feasible region nor `P*`.
+ * Where the rows imply nothing the bound stays infinite and the term is
+ * still dropped. Terms that are infinite are counted rather than summed. */
 static void implied_bounds(const jaos_model *m, double *cl, double *cu,
                            long double *lo_sum, long double *up_sum,
                            int64_t *lo_inf, int64_t *up_inf)
@@ -312,22 +127,8 @@ static void implied_bounds(const jaos_model *m, double *cl, double *cu,
         cu[j] = m->col_upper[j];
     }
 
-    /* **Iterated, because one pass is not what the rows know (D91).** A bound
-     * derived this round makes its row's activity range finite where it was
-     * not, which lets the next round reach a column the first could not. That
-     * is ordinary constraint propagation.
-     *
-     * It was refused once, in D87, and for a reason that no longer applies:
-     * more bounds meant more terms in the gap, and the verdict read that gap,
-     * so tightening harder rejected correct answers. The verdict now reads
-     * only the terms from bounds the model declared, so a slack implied bound
-     * can no longer cost an answer its verdict — and the propagation is free
-     * to be as good as it can be.
-     *
-     * Only ever tightened, never loosened: each round starts from what the
-     * last left, and a bound is written only where it improves on what is
-     * there. The sequence is monotone, so stopping early is safe — an earlier
-     * round's bounds are as sound as a later one's, just weaker. */
+    /* Iterated (D91). Only ever tightened, never loosened: the sequence is
+     * monotone, so stopping early is safe. */
     for (int64_t pass = 0; pass < IMPLIED_ROUNDS; pass++) {
     bool moved = false;
 
@@ -338,8 +139,7 @@ static void implied_bounds(const jaos_model *m, double *cl, double *cu,
         up_inf[i] = 0;
     }
 
-    /* Each row's activity range over the column boxes, infinities counted
-     * rather than propagated. */
+    /* Each row's activity range over the column boxes, infinities counted. */
     for (int64_t j = 0; j < nc; j++) {
         const double xl = cl[j], xu = cu[j];
         for (int64_t k = m->a_start[j]; k < m->a_start[j + 1]; k++) {
@@ -419,6 +219,19 @@ static void implied_bounds(const jaos_model *m, double *cl, double *cu,
     }
 }
 
+/* Sign-condition violation for a multiplier w attached to a value v with
+ * bounds [lo, hi], in minimize-canonical form:
+ *   at lower  -> w >= 0
+ *   at upper  -> w <= 0
+ *   interior  -> w == 0   (this is complementary slackness)
+ *   fixed     -> anything
+ * "At a bound" is judged within tol * scale, and a multiplier at or below
+ * tol is held to no condition at all. `scale` is what the value being
+ * tested is made of (D23). A value waived here at a distance d with a
+ * multiplier w contributes w * d to the gap, which is checked separately.
+ * Also accumulates the multiplier's contribution to the dual objective: w
+ * picks the bound its sign points at, and every multiplier contributes,
+ * including the ones exempt from the condition (D22), split by sign (D24). */
 static double sign_condition(double v, double lo, double hi, double w,
                              double tol, double scale, dual_acc *a,
                              bool lo_implied, bool hi_implied)
@@ -427,30 +240,6 @@ static double sign_condition(double v, double lo, double hi, double w,
     bool at_lo = isfinite(lo) && v <= lo + window;
     bool at_hi = isfinite(hi) && v >= hi - window;
 
-    /* The magnitude exemption applies to the sign condition and stops
-     * there. A multiplier indistinguishable from zero should not force a
-     * variable onto a bound — but it still contributes w * bound to the
-     * dual objective, because D(y) = sum_v min over the variable's range
-     * of w_v t is a function of y alone, and truncating its terms by
-     * magnitude is not part of that definition.
-     *
-     * Dropping them, which is what this used to do, discards a quantity
-     * that is small only if the bound is: a multiplier of 1e-7 on a
-     * variable resting on a bound of 1e6 carries 0.1 of dual objective,
-     * and losing it while the primal still counts c_j v_j invents a gap
-     * proportional to tol. That is what rejected pilot-ja.
-     *
-     * Two rules that also close that case were tried and are wrong.
-     * Contributing w * v makes every term vanish, so on a model whose
-     * multipliers all sit under tol the gap is identically zero for any
-     * feasible point — it certifies the whole polytope. Choosing the bound
-     * by which one v is nearest, as HiGHS does for its own diagnostic,
-     * produces negative terms that cancel real residuals elsewhere, and on
-     * a free variable computes (-inf + inf) * 0.5.
-     *
-     * Keeping the definition intact is what makes the gap mean something:
-     * P - D = sum_v w_v (v - bound_v), every term non-negative, so an
-     * accepted solution has P - P* <= gap proved by weak duality. */
     bool negligible = fabs(w) <= tol;
 
     if (w > 0.0) {
@@ -501,13 +290,9 @@ jaos_status jaos_check_solution(const jaos_model *m,
     memset(out, 0, sizeof *out);
 
     /* Row activities from the CSC copy: column-order scatter-add. The order
-     * is fixed by the data structure, so the result is deterministic (D8).
-     * Accumulated wider than the values being judged, so what the report
-     * measures is the solver's error and not the checker's. */
+     * is fixed by the data structure, so the result is deterministic (D8). */
     long double *act = jm_calloc_array(m->num_row, sizeof(long double));
-    /* What each activity is made of, accumulated in the same pass: the sum
-     * of the magnitudes of the terms, which is the scale the sum's own
-     * precision is set by. Only the dual sign conditions read it. */
+    /* The sum of the magnitudes of each activity's terms: its scale. */
     long double *traffic = jm_calloc_array(m->num_row, sizeof(long double));
     if (act == nullptr || traffic == nullptr) {
         free(act);
@@ -537,15 +322,8 @@ jaos_status jaos_check_solution(const jaos_model *m,
         double viol = interval_violation((double)act[i], m->row_lower[i],
                                          m->row_upper[i]);
         row_viol = max2(row_viol, viol);
-        /* The same residue against what the row is made of. A row summing
-         * terms that total 4.0e10 in magnitude cannot place its activity
-         * more finely than an ulp at that size, so 1e-6 of absolute
-         * residue on it is a different quantity from 1e-6 on a row
-         * carrying 0.7 — and the absolute test cannot tell them apart.
-         * D24 refused to make the *predicate* relative and keeps the
-         * measurement here instead, where it decides nothing: the biggest
-         * relative residue and the biggest absolute one need not even be
-         * the same row, and that is the point of reporting both. */
+        /* The same residue against what the row is made of. It decides
+         * nothing: D24 keeps the predicate absolute. */
         row_viol_rel = max2(row_viol_rel,
                             viol / max2(1.0, (double)traffic[i]));
     }
@@ -564,14 +342,8 @@ jaos_status jaos_check_solution(const jaos_model *m,
         a.dual_obj = sigma * m->obj_offset;   /* canonical offset */
 
         /* What the constraints imply about the variables the model left
-         * unbounded, which is what stops the dual objective's term for them
-         * being minus infinity (D87). Allocation failure is not fatal: the
-         * bounds fall back to the model's own and the checker behaves exactly
-         * as it did before, which is a weaker report rather than a wrong one.
-         *
-         * A row's own range comes free with them — it is the activity range
-         * over the column boxes, which `implied_bounds` computes on the way —
-         * so a free row's multiplier stops being dropped too. */
+         * unbounded (D87). Allocation failure is not fatal: the bounds fall
+         * back to the model's own. A row's own range comes free with them. */
         double *icl = jm_calloc_array(m->num_col, sizeof(double));
         double *icu = jm_calloc_array(m->num_col, sizeof(double));
         long double *rlo = jm_calloc_array(m->num_row, sizeof(long double));
@@ -609,10 +381,8 @@ jaos_status jaos_check_solution(const jaos_model *m,
             for (int64_t k = m->a_start[j]; k < m->a_start[j + 1]; k++)
                 dw -= (long double)m->a_value[k] * row_dual[m->a_index[k]];
             double d = (double)dw;
-            /* A column value is not a sum of cancelling terms — it is one
-             * published number — so its scale is its own magnitude, which is
-             * the ordinary mixed absolute/relative form and not the argument
-             * above. The row case is the one that needed it. */
+            /* A column value is one published number, so its scale is its
+             * own magnitude. */
             dual_viol = max2(dual_viol,
                 sign_condition(col_value[j],
                                implied ? icl[j] : m->col_lower[j],
@@ -622,18 +392,8 @@ jaos_status jaos_check_solution(const jaos_model *m,
                                implied && !isfinite(m->col_lower[j]),
                                implied && !isfinite(m->col_upper[j])));
 
-            /* Where that call had to drop a term, this is where the matrix is
-             * in scope to say what the drop is worth. The condition is asked
-             * again rather than plumbed back out: it is two comparisons, and
-             * a field meaning "did the previous call drop" would be state
-             * that is only valid between two statements.
-             *
-             * Rows are not done, and that is a limitation rather than an
-             * oversight: a row's activity is not something that can be moved
-             * on its own, so there is no single-entity direction to measure a
-             * step along. What a dropped row multiplier is worth needs the
-             * simplex direction, which is the part that costs a
-             * factorization. */
+            /* Where that call had to drop a term, this says what the drop
+             * is worth. Rows are not done: no single-entity direction (D73). */
             const double w = sigma * d;
             const bool drops = (w > 0.0 && !isfinite(m->col_lower[j])) ||
                                (w < 0.0 && !isfinite(m->col_upper[j]));
@@ -642,11 +402,7 @@ jaos_status jaos_check_solution(const jaos_model *m,
                                                act);
                 if (isinf((double)t) && fabs(w) <= tol) {
                     /* An unbounded ray whose rate this checker calls zero.
-                     * Counted, not certified — see dual_acc. The test is the
-                     * same `negligible` the sign condition uses, and reusing
-                     * it is the point: it is this checker's own definition of
-                     * a multiplier being nonzero, not a second number chosen
-                     * to make an awkward case go away. */
+                     * Counted, not certified (see dual_acc). */
                     a.rays++;
                 } else {
                     long double gain = (long double)fabs(w) * t;
@@ -656,18 +412,9 @@ jaos_status jaos_check_solution(const jaos_model *m,
             }
         }
 
-        /* The gap is the identity that catches a corrupted dot product even
-         * when the sign conditions it also corrupts still pass, so it is
-         * formed at the wider precision and narrowed only at the end.
-         *
-         * **Two gaps, because they answer two questions (D91).** The one the
-         * verdict reads is over bounds the model declared, where every term
-         * must vanish at an optimum, so a nonzero value means the point is
-         * wrong. The other includes the implied bounds and is what bounds the
-         * suboptimality; a term there can be live purely because the implied
-         * bound is slack, so reading it as a verdict would reject correct
-         * answers — measured, in D87, where iterating the propagation
-         * rejected `pilot` at the intervals where it is right. */
+        /* Two gaps (D91). The one the verdict reads is over bounds the model
+         * declared, where every term must vanish at an optimum. The other
+         * includes the implied bounds and is what bounds the suboptimality. */
         long double true_dual_obj = sigma * a.dual_obj;
         long double scale = 1.0L + fabsl(primal_obj) + fabsl(true_dual_obj);
         double gap = (double)(fabsl(a.pos_model - a.neg_model) / scale);
@@ -677,30 +424,16 @@ jaos_status jaos_check_solution(const jaos_model *m,
         out->dual_objective = (double)true_dual_obj;
         out->objective_gap = gap;
 
-        /* The suboptimality bound, relative to the objective it bounds. An
-         * absolute bound says nothing without the magnitude it sits beside:
-         * 1e-4 on an objective of 3e2 and 1e-4 on one of 3e-4 are different
-         * claims. This is the number that catches a point which is genuinely
-         * far from optimal while every sign condition holds, which is what
-         * D47 was about. */
+        /* The suboptimality bound, relative to the objective (D47). */
         out->relative_suboptimality =
             (double)(a.pos / (1.0L + fabsl(primal_obj)));
-        /* Whether the identity the two halves come from was complete. Not a
-         * verdict and not compared against anything: it says whether
-         * gap_positive is the bound it is documented as being, which is a
-         * different question from whether this point is good. */
+        /* Whether the identity the two halves come from was complete (D47). */
         out->max_dropped_multiplier = a.dropped_max;
         out->dropped_terms = a.dropped_n;
         out->gap_certified = a.dropped_n == 0;
         out->certified_suboptimality = (double)a.certified;
         out->unquantified_rays = a.rays;
-        /* Reported in the objective's own units rather than against the
-         * scale above, because what they are for is the bound
-         * P - P* <= gap_positive, and a bound is only usable in the units
-         * of the thing it bounds. The gap is recovered from them by the
-         * division the line above does: |pos - neg| is the same quantity
-         * as `diff`, arrived at along an independent route, which is the
-         * kind of redundancy the rest of this file is built out of. */
+        /* In the objective's own units: they are for P - P* <= gap_positive. */
         out->gap_positive = (double)a.pos;
         out->gap_negative = (double)a.neg;
         out->dual_feasible = dual_viol <= tol && gap <= tol;

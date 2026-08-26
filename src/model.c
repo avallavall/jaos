@@ -54,11 +54,7 @@ static void model_release_arrays(jaos_model *m)
     free(m->start_col_status);
     free(m->start_row_status);
     /* The problem goes; the configuration stays. Saved as one object rather
-     * than field by field, because field by field is a list and a list can be
-     * forgotten — the primal tolerance was missing from it once, and the log
-     * callback was missing from it from the day logging landed until D78
-     * noticed. jaos_model_free calls this too and then frees the struct, so
-     * putting the configuration back there is harmless. */
+     * than field by field (D78). */
     const jm_config cfg = m->cfg;
     memset(m, 0, sizeof *m);
     m->cfg = cfg;
@@ -98,10 +94,7 @@ jaos_status jaos_set_time_limit(jaos_model *m, double seconds)
 }
 
 /* The two tolerances the caller owns. Rejected rather than clamped when they
- * are not usable numbers: a solver that silently substitutes its own value
- * for the one it was given reports success for a run the caller cannot
- * reason about. Zero restores the default, which is the only way to say
- * "whatever you would have done" once a value has been set. */
+ * are not usable numbers. Zero restores the default. */
 static jaos_status set_tolerance(jaos_model *m, double value, double *slot,
                                  const char *what)
 {
@@ -125,32 +118,21 @@ jaos_status jaos_set_dual_tolerance(jaos_model *m, double tol)
     return set_tolerance(m, tol, m ? &m->cfg.dual_tol : nullptr, "dual");
 }
 
-/* Every modification goes through this.
- *
- * The answer on the model was computed for the problem as it stood, and the
- * moment any of it moves that answer describes a different problem. Leaving
- * it queryable would let a caller change a bound and read back the previous
- * optimum with nothing to say it was stale — a wrong answer delivered with
- * full confidence, which is the failure this project is built against.
+/* Every modification goes through this (D66).
  *
  * The solution arrays are freed rather than kept: `jaos_solution` reports
  * JAOS_ERR_INVALID_INPUT when there is no optimum to copy, so a stale read
  * becomes an error at the call rather than a number.
  *
- * What is *not* invalidated, and deliberately: the scaling and the row-wise
- * mirror. Both are derived from the matrix alone — scale.c reads no bound
- * and no cost — so changing a bound or a cost leaves them exactly correct.
- * A modification that touches the matrix must invalidate them, and there are
- * five: jaos_set_coefficient and the four that move a dimension. All five go
- * through model_matrix_is_stale, which is this plus both derived copies, so
- * the two lists cannot drift apart.
+ * What is not invalidated: the scaling and the row-wise mirror. Both are
+ * derived from the matrix alone — scale.c reads no bound and no cost — so
+ * changing a bound or a cost leaves them exactly correct. A modification
+ * that touches the matrix must invalidate them, and there are five:
+ * jaos_set_coefficient and the four that move a dimension.
  *
- * Nor is the starting basis, and that one is not an omission but the point.
- * The answer stops being true when a bound moves; the basis that produced it
- * does not stop being a basis, and it is very probably close to the new
- * problem's. Discarding it here would throw away the one thing that makes
- * re-solving cheaper than solving, and it is why start_*_status is stored
- * apart from sol_*_status in the first place (see jaos_internal.h). */
+ * Nor is the starting basis. The answer stops being true when a bound moves;
+ * the basis that produced it does not stop being a basis (D68). That is why
+ * start_*_status is stored apart from sol_*_status (see jaos_internal.h). */
 static void model_answer_is_stale(jaos_model *m)
 {
     free(m->sol_col);        m->sol_col = nullptr;
@@ -170,17 +152,14 @@ static void model_answer_is_stale(jaos_model *m)
 
 /* Bounds may be infinite but never NaN, and `lower > upper` is a model with
  * no feasible point rather than a call to refuse — exactly the rule
- * jaos_load_lp applies, because a modification that accepted less than a
- * load would make the same model buildable one way and not the other. */
+ * jaos_load_lp applies. */
 static bool bound_pair_ok(double lower, double upper)
 {
     return !isnan(lower) && !isnan(upper);
 }
 
 /* Reading the problem back. Out of range is refused rather than answered with
- * a default, for the reason jaos_objective refuses when there is no optimum: a
- * number handed back for a column that does not exist cannot be told apart
- * from one that does. */
+ * a default. */
 jaos_status jaos_col_cost(const jaos_model *m, int64_t j, double *cost)
 {
     if (m == nullptr || cost == nullptr || j < 0 || j >= m->num_col)
@@ -256,19 +235,15 @@ jaos_status jaos_set_row_bounds(jaos_model *m, int64_t i,
     return JAOS_OK;
 }
 
-/* Changing one entry of the matrix.
+/* Changing one entry of the matrix (D67).
  *
- * The stored copy is the authority the checker judges against, and it holds
- * an invariant the readers and the solver both rely on: within a column,
- * entries ascend by row index, with no duplicates and no explicit zeros. So
- * this is three operations wearing one name — replace where the entry
+ * The stored copy holds an invariant the readers and the solver both rely
+ * on: within a column, entries ascend by row index, with no duplicates and
+ * no explicit zeros. So this is three operations — replace where the entry
  * exists, delete when the new value is zero, insert in sorted position where
- * it does not. Writing a zero into the array instead of removing it would
- * leave a model that loads differently from the one it came from.
+ * it does not.
  *
- * Unlike a bound or a cost, this invalidates both derived copies: the
- * row-wise mirror holds the values, and the scaling was computed from the
- * matrix that just changed. */
+ * Unlike a bound or a cost, this invalidates both derived copies. */
 jaos_status jaos_set_coefficient(jaos_model *m, int64_t row, int64_t col,
                                  double value)
 {
@@ -368,11 +343,8 @@ jaos_status jaos_set_log_level(jaos_model *m, jaos_log_level level)
     return JAOS_OK;
 }
 
-/* One line out. Not called unless jm_logging_at said the level is wanted, so
- * the formatting cost lands only on a caller who asked for the line.
- *
- * The buffer is a local: a log line is diagnostic, it is not solver state,
- * and nothing in the library may hold a pointer to it afterwards. */
+/* One line out. The buffer is a local: nothing in the library may hold a
+ * pointer to it afterwards. */
 void jm_log(const jaos_model *m, jaos_log_level level, const char *fmt, ...)
 {
     if (!jm_logging_at(m, level))
@@ -417,10 +389,8 @@ jaos_status jaos_solution(const jaos_model *m, double *col_value,
 {
     if (m == nullptr)
         return JAOS_ERR_INVALID_INPUT;
-    /* Same rule as jaos_objective, for the same reason: a solve that
-     * found no optimum has no solution to hand out, and a buffer of
-     * zeros cannot be told apart from an answer that is genuinely
-     * zero. */
+    /* Same rule as jaos_objective: a solve that found no optimum has no
+     * solution to hand out. */
     if (m->solve_status != JAOS_SOLVE_OPTIMAL || m->sol_col == nullptr)
         return JAOS_ERR_INVALID_INPUT;
 
@@ -454,8 +424,7 @@ jaos_status jaos_basis(const jaos_model *m, jaos_basis_status *col_status,
 
 /* Puts a basis where the next solve will find it. Allocates both arrays or
  * neither, so `start_col_status != nullptr` is the whole test of whether a
- * starting basis exists — two flags for one fact is an invariant the types
- * would not be enforcing. */
+ * starting basis exists. */
 static jaos_status store_basis(jaos_model *m, const jaos_basis_status *col,
                                const jaos_basis_status *row)
 {
@@ -488,40 +457,13 @@ jaos_status jm_model_remember_basis(jaos_model *m)
     return store_basis(m, m->sol_col_status, m->sol_row_status);
 }
 
-/* The objective of the solution the model is holding, computed from that
- * solution and from nothing else (D169).
- *
- * `jaos.h` promises "objective value of the solution held by the model", and
- * the two producers this replaces did not keep it.
- *
- * **The sum is compensated**, for the reason D165 and D168 give at their own
- * sites: `c' x` is a sum of many terms of differing magnitude taken in column
- * order, so a large term arriving before many small ones drops all of them.
- * Costs of +1e16, then 256 costs of 1, then -1e16, on columns fixed at 1,
- * publish an objective of 0 where the answer is 256 — the naive sum loses the
- * whole middle and the checker, which accumulates in `long double`, disagrees
- * with it by 100%. `long double` is not available here (D34).
- *
- * **And it is computed on the model that publishes it.** The presolve paths
- * used to report the REDUCED model's objective, or the reduced offset alone,
- * and neither is a sum over the values the caller reads: `finnis` published
- * 172791.06564493725 against Koch's 172791.06559561158, where the same point
- * summed here gives 172791.06559350481 — 23 times closer, and it is the same
- * point in both cases.
- *
- * Requires the six solution arrays and an OPTIMAL solve; callers reach it
- * only there. */
 /* One Neumaier step into a running sum and its compensation. Declared in
  * jaos_internal.h rather than kept here, because `settled_objective` in the
- * simplex needs the same step over the same kind of sum, and two copies of
- * this arithmetic in one tree is how they come to disagree (D175). */
+ * simplex needs the same step over the same kind of sum (D175). */
 void jm_obj_add(double *sum, double *comp, double t)
 {
     /* Aliased, the compensation is silently wrong: the correction would be
-     * added into the total it is correcting. That was a file-local promise
-     * while this was static and is a tree-wide one now, so it is asserted
-     * rather than described (`numerics-reviewer`). Not `restrict`, which
-     * promises what nothing can check — the shape D75 and D76 refused. */
+     * added into the total it is correcting. Not `restrict` (D75, D76). */
     assert(sum != comp);
     const double a = *sum, u = a + t;
     *comp += (fabs(a) >= fabs(t)) ? ((a - u) + t) : ((t - u) + a);
@@ -530,47 +472,24 @@ void jm_obj_add(double *sum, double *comp, double t)
 
 /* What `a * b` lost when it rounded to a double, by Dekker's split (D172).
  *
- * Compensating the sum removed the ACCUMULATION error and left the other one:
- * each `c_j * x_j` is rounded once before it is added, and no accumulator
- * reaches an error that is already inside a term. On `finnis`, where the terms
- * sum to 1.7e5 while their magnitudes sum to 3.2e12, that residue was
- * 2.65e-05 against the `long double` checker and is 2.30e-08 with this.
+ * Dekker's split rather than `fma`. The split is preferred because it needs
+ * no claim about libm at all (D169, D34).
  *
- * **Dekker's split rather than `fma`, and the difference is not the flag.**
- * `-ffp-contract=off` stops the COMPILER contracting `a*b+c` on its own; it
- * says nothing about an explicit `fma()` call, which IEEE-754 requires to be
- * correctly rounded and which would therefore be deterministic across machines
- * (`numerics-reviewer`, D169). The split is preferred because it needs no
- * claim about libm at all, and D34's list is about what the tree may rely on.
+ * What protects the split is `-fno-associative-math`, not
+ * `-ffp-contract=off`. What would delete `ca - (ca - a)` is reassociation,
+ * and only `-ffast-math` and `-Ofast` enable it; the Makefile uses neither.
  *
- * **What protects the split is `-fno-associative-math`, not
- * `-ffp-contract=off`, and this comment used to say the wrong one.** Measured
- * across six flag sets: contraction ON and OFF give bit-identical results,
- * because every product inside the split is exact and a fused multiply-add
- * rounds to the same value the separate operations do. What would delete
- * `ca - (ca - a)` is reassociation, and only `-ffast-math` and `-Ofast` enable
- * it; the Makefile uses neither, and the default is `-fno-associative-math`.
+ * The precondition is `FLT_EVAL_METHOD == 0`, asserted in `jaos_internal.h`
+ * beside the declaration (D175). At 2, `ca - (ca - a)` evaluated at 80 bits
+ * returns exactly `a`, so `al` is zero and the residue is wrong.
  *
- * **The precondition nothing else guards is `FLT_EVAL_METHOD == 0`**, asserted
- * below. At 2, which is i386 with x87, `ca - (ca - a)` evaluated at 80 bits
- * returns exactly `a`, so `al` is zero and the residue is wrong — a silent
- * cross-machine divergence in a published value, which is the failure D34
- * exists to prevent.
- *
- * **Two ends where the residue is not available, and both return zero.** A
- * product at the top of the range: the guard on the factors is NOT enough on
+ * Two ends where the residue is not available, and both return zero. A
+ * product at the top of the range: the guard on the factors is not enough on
  * its own, because Veltkamp's split rounds the high part and `|ah|` can exceed
- * `|a|` by up to 2^-26, so `ah * bh` overflows for a product within about
- * 1.5e-8 of `DBL_MAX` while `p` itself is finite and both factors are far
- * below the threshold. The first version of this shipped without that and
- * published `inf` where the naive sum published 1.7976931194842639e+308
- * (`numerics-reviewer`). Testing the result covers every overflow route rather
- * than the one that was found. And a subnormal product, where the true residue
+ * `|a|`, so `ah * bh` overflows while `p` itself is finite. Testing the result
+ * covers every overflow route. And a subnormal product, where the true residue
  * is below 2^-1074 and cannot be represented at all, so zero is the best
- * available and the magnitudes involved cannot reach an objective. */
-/* `static_assert(FLT_EVAL_METHOD == 0)` used to sit here, where it covered
- * the definition alone. It is in `jaos_internal.h` beside the declaration now,
- * so it is checked in every translation unit that can call this (D175). */
+ * available. */
 double jm_two_product_residue(double a, double b, double p)
 {
     constexpr double SPLIT = 134217729.0;   /* 2^27 + 1 */
@@ -583,13 +502,18 @@ double jm_two_product_residue(double a, double b, double p)
     return isfinite(e) ? e : 0.0;
 }
 
+/* The objective of the solution the model is holding, computed from that
+ * solution and from nothing else (D169). The sum is compensated (D165, D168);
+ * `long double` is not available here (D34).
+ *
+ * Requires the six solution arrays and an OPTIMAL solve; callers reach it
+ * only there. */
 void jm_model_publish_objective(jaos_model *m)
 {
-    /* The precondition, enforced rather than described (`numerics-reviewer`,
-     * D169). Without it a caller reaching here before the solution arrays
-     * exist gets the bare `obj_offset` published beside an OPTIMAL status,
-     * which is a quiet wrong answer rather than a failure. The null test
-     * stays, because a model with no columns has nothing to allocate. */
+    /* The precondition (D169). Without it a caller reaching here before the
+     * solution arrays exist gets the bare `obj_offset` published beside an
+     * OPTIMAL status. The null test stays, because a model with no columns
+     * has nothing to allocate. */
     assert(m->num_col == 0 || m->sol_col != nullptr);
 
     double sum = m->obj_offset, comp = 0.0;
@@ -614,20 +538,15 @@ static bool status_in_range(jaos_basis_status s)
            s == JAOS_BASIS_AT_UPPER || s == JAOS_BASIS_FREE;
 }
 
-/* What this checks, and what it deliberately leaves to the solve.
+/* What this checks, and what it leaves to the solve.
  *
  * Checked here: that the values are statuses at all, and that exactly num_row
- * of them are basic. Those are structural — they say whether the thing handed
- * over is a basis, and no later event can make a wrong count right.
+ * of them are basic.
  *
  * Not checked here: whether a nonbasic's status names a bound the variable
  * actually has, or whether the columns are linearly independent. Both depend
- * on numbers that move underneath a stored basis — jaos_set_col_bounds can
- * retire the very bound a status points at, and jaos_set_coefficient can turn
- * a nonsingular basis singular — so the solve has to cope with both anyway
- * (see build_initial_basis and repair_singular_basis). Refusing them here
- * would make a basis handed in behave differently from the identical one a
- * previous solve left behind, which is one rule too many for one object. */
+ * on numbers that move underneath a stored basis, so the solve has to cope
+ * with both anyway (see build_initial_basis and repair_singular_basis). */
 jaos_status jaos_set_basis(jaos_model *m, const jaos_basis_status *col_status,
                            const jaos_basis_status *row_status)
 {
@@ -840,8 +759,8 @@ jaos_status jaos_load_lp(jaos_model *m,
         return err;
     }
 
-    /* Configuration is not problem data, and model_release_arrays is now
-     * where that is enforced — there is nothing to list here any more. */
+    /* Configuration is not problem data, and model_release_arrays is where
+     * that is enforced. */
     model_release_arrays(m);
     m->num_col = num_col;
     m->num_row = num_row;
@@ -876,17 +795,14 @@ static void model_matrix_is_stale(jaos_model *m)
     model_answer_is_stale(m);
 }
 
-/* One rule for what a dimension change does to a stored basis, rather than a
- * case for each of the four operations: a model with n rows needs n basic
- * variables. That is exactly what jaos_set_basis enforces on a basis handed
- * in, and it is structural — no later event makes a wrong count right.
+/* One rule for what a dimension change does to a stored basis: a model with
+ * n rows needs n basic variables. That is exactly what jaos_set_basis
+ * enforces on a basis handed in.
  *
- * The adds are built to keep it: a new row arrives basic, which is where the
- * slack basis puts it, and a new column arrives nonbasic. The deletes usually
- * break it, and are meant to. A basis that no longer counts is not a worse
- * starting point, it is not a basis, so it goes here rather than being left
- * for build_warm_basis to reject — the model should never hold one it already
- * knows is unusable. */
+ * The adds are built to keep it: a new row arrives basic, and a new column
+ * arrives nonbasic. The deletes usually break it, and are meant to. A basis
+ * that no longer counts goes here rather than being left for
+ * build_warm_basis to reject. */
 static void basis_survives_or_goes(jaos_model *m)
 {
     if (m->start_col_status == nullptr || m->start_row_status == nullptr)
@@ -901,9 +817,7 @@ static void basis_survives_or_goes(jaos_model *m)
 }
 
 /* A set of indices to delete, checked as a set: in range, and each named
- * once. A repeated index is refused rather than absorbed because a caller who
- * has named one twice has lost track of what they are deleting, and the
- * second deletion they think they are asking for is of something else.
+ * once. A repeated index is refused rather than absorbed.
  *
  * Returns the keep mask, which the caller owns, or null on a bad set. */
 static bool *deletion_mask(jaos_model *m, int64_t n_del, const int64_t *idx,
@@ -935,8 +849,7 @@ static bool *deletion_mask(jaos_model *m, int64_t n_del, const int64_t *idx,
 }
 
 /* Where a nonbasic column rests when it arrives. A variable with no finite
- * bound has nowhere to rest, and the answer is not to invent one — see
- * jaos_add_cols. */
+ * bound has nowhere to rest — see jaos_add_cols. */
 static jaos_basis_status arriving_status(double lower, double upper)
 {
     if (isfinite(lower))
@@ -948,9 +861,7 @@ static jaos_basis_status arriving_status(double lower, double upper)
 
 /* Growing the stored basis. Failing to allocate here loses the basis and not
  * the operation: a starting basis is an optimisation, dropping one is always
- * correct, and refusing an otherwise complete modification because the
- * *hint* could not be extended would be trading a working call for a faster
- * one that never happens. */
+ * correct. */
 static void basis_extend(jaos_basis_status **arr, int64_t old_n, int64_t add,
                          const jaos_basis_status *fill, jaos_model *m)
 {
@@ -1150,10 +1061,8 @@ jaos_status jaos_add_rows(jaos_model *m, int64_t num_new,
     }
 
     /* The new rows arrive across and the matrix is stored down, so this is a
-     * transpose of the addition rather than an append: every column that any
-     * new row touches gains entries in the middle of the array. Counting per
-     * column first turns that into one rebuild instead of one insertion per
-     * entry, which is what jaos_set_coefficient would have cost. */
+     * transpose of the addition rather than an append. Counting per column
+     * first turns that into one rebuild instead of one insertion per entry. */
     int64_t *added = jm_calloc_array(m->num_col, sizeof(int64_t));
     if (added == nullptr)
         return JAOS_ERR_OUT_OF_MEMORY;
@@ -1290,7 +1199,7 @@ jaos_status jaos_delete_cols(jaos_model *m, int64_t num_del,
 
     /* What survives keeps its relative order, so one forward pass renumbers
      * it: the columns a caller did not name come out in the order they went
-     * in, densely, and nothing they hold has to be rewritten. */
+     * in. */
     int64_t out = 0, pos = 0;
     as[0] = 0;
     for (int64_t j = 0; j < m->num_col; j++) {
@@ -1347,7 +1256,7 @@ jaos_status jaos_delete_rows(jaos_model *m, int64_t num_del,
 
     /* Deleting a row renumbers every row after it, and the matrix stores row
      * indices, so every surviving entry has to be rewritten. The map is built
-     * once; doing it per entry is where the arithmetic would go wrong. */
+     * once. */
     int64_t *renum = jm_alloc_array(m->num_row, sizeof(int64_t));
     if (renum == nullptr) {
         free(keep);
