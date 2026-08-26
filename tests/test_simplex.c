@@ -2908,6 +2908,97 @@ static void test_the_summary_separates_phase_1_from_phase_2(void)
 #endif
 }
 
+/* The three counts belong to the solve that just ran, not to the one before.
+ *
+ * **Written because a solve that was ABANDONED published the previous solve's
+ * total.** `solve_iters` has one writer inside `publish`, and `publish` runs
+ * only when the solve returned `JAOS_OK`. So a refused solve left the field
+ * holding whatever the model was solved with last time, and any reader
+ * subtracting the primal counts from it got a difference between two
+ * different solves. `bench/primal.c` does exactly that subtraction, and it
+ * printed `dual:20835` for `pilot87` -- which is 38000 - 17165, the dual
+ * reference solve's total minus the primal's own count. `jm_dual_simplex`
+ * zeroes all three on entry now and writes the total on the abandoned branch.
+ *
+ * The shape is the one that failed: the same model solved twice, the dual
+ * first, so a carried-over total has a wrong value to carry rather than a
+ * zero that would pass by accident.
+ *
+ * **This model is too small to separate the two on its own, and saying so is
+ * the point.** Measured under `-DJAOS_NO_PRESOLVE`: the dual solve costs 1
+ * iteration and the refused primal solve costs 1 as well, so a carried total
+ * and an honest one are the same integer here. What the assertions below can
+ * still hold is the SHAPE -- a refused primal solve did no dual re-entry, so
+ * `solve_iters` and `solve_primal_iters` must be equal -- and that shape is
+ * what breaks on any model where the two solves differ. The instance that
+ * caught it is `pilot87`, at 38000 against 17165, and the negative control
+ * that proves these assertions are worth having is
+ * `bench/measurements/02-115/`.
+ *
+ * **The refusal branch is conditional, exactly as
+ * `test_the_primal_refuses_to_call_a_model_infeasible` is**: presolve may
+ * prove this model infeasible before the simplex runs. The chain above it is
+ * not conditional and holds on every solve in this test. The abandoned path
+ * is covered where it actually occurs -- 1 of 94 in the primal campaign --
+ * and the negative control for it is `bench/measurements/02-115/`. */
+static void test_the_counts_belong_to_the_solve_that_just_ran(void)
+{
+#if defined(JAOS_PRESOLVE_FAULT_OFFBYONE) || defined(JAOS_PRESOLVE_FAULT_WRONGDUAL)
+    TEST_IGNORE_MESSAGE("positive test -- skipped under either fault build");
+#else
+    const double c[]  = {1.0, 1.0};
+    const double cl[] = {0.0, 0.0}, cu[] = {5.0, 5.0};
+    const double rl[] = {10.0, -INFINITY};
+    const double ru[] = {INFINITY, 3.0};
+    const int64_t as[] = {0, 2, 4};
+    const int64_t ai[] = {0, 1, 0, 1};
+    const double av[] = {1.0, 1.0, 1.0, 2.0};
+
+    jaos_model *m = fresh();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_load_lp(m, 2, 2, JAOS_MINIMIZE, 0.0, c, cl, cu, rl, ru,
+                     4, as, ai, av));
+
+    /* A dual solve first, so there is a total on the model to carry. */
+    (void)jaos_solve(m);
+    const int64_t carried = m->solve_iters;
+    TEST_ASSERT_EQUAL_INT64_MESSAGE(0, m->solve_primal_iters,
+        "the dual took primal iterations");
+
+    jaos_clear_basis(m);
+    m->cfg.force_primal = true;
+    const jaos_status st = jaos_solve(m);
+
+    /* The chain, on every outcome. A count that is a part of another cannot
+     * exceed it, and the record's `dual re-entry` column is the outer
+     * difference. */
+    TEST_ASSERT_TRUE_MESSAGE(m->solve_phase1_iters >= 0,
+        "a negative phase-1 count");
+    TEST_ASSERT_TRUE_MESSAGE(
+        m->solve_phase1_iters <= m->solve_primal_iters,
+        "more phase-1 iterations than primal iterations");
+    TEST_ASSERT_TRUE_MESSAGE(m->solve_primal_iters <= m->solve_iters,
+        "more primal iterations than iterations");
+
+    if (st != JAOS_OK) {
+        /* The abandoned branch. `run_primal` refused, so nothing after it
+         * ran: no settling, no dual re-entry. Every iteration of this solve
+         * is therefore one the primal made, and the record's `dual re-entry`
+         * column -- `solve_iters - solve_primal_iters` -- must be zero.
+         *
+         * Under the defect this is the difference between two SOLVES, so it
+         * is zero only when they happened to cost the same. On `pilot87` it
+         * read 38000 - 17165. */
+        TEST_ASSERT_TRUE_MESSAGE(m->solve_primal_iters > 0,
+            "the primal was forced and reported no primal iterations");
+        TEST_ASSERT_EQUAL_INT64_MESSAGE(m->solve_primal_iters, m->solve_iters,
+            "a refused primal solve reports a dual re-entry that never ran");
+    }
+    (void)carried;
+    jaos_model_free(m);
+#endif
+}
+
 /* A model where the entering column's own box binds before any row does.
  *
  * `min -x - 0.5y` over `x + y <= 10` and `x + 2y <= 12`, with `x` in `[0, 1]`
@@ -3569,6 +3660,7 @@ int main(void)
     RUN_TEST(test_the_primal_and_the_dual_agree_on_the_same_model);
     RUN_TEST(test_a_watcher_can_stop_the_primal_phase_1);
     RUN_TEST(test_the_summary_separates_phase_1_from_phase_2);
+    RUN_TEST(test_the_counts_belong_to_the_solve_that_just_ran);
     RUN_TEST(test_the_entering_column_stops_at_its_own_bound);
     RUN_TEST(test_the_primal_phase_1_repairs_an_infeasible_start);
     RUN_TEST(test_the_primal_refuses_to_call_a_model_infeasible);

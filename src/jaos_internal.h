@@ -144,8 +144,13 @@ struct jaos_model {
      *
      * Written on EVERY exit from `jm_dual_simplex`, the abandoned one
      * included, because a solve that was abandoned is the one whose split
-     * anyone wants. Reporting only, exactly like `solve_work`/`solve_iters`:
-     * nothing inside the solver reads them back.
+     * anyone wants. Three returns run before an `sx` is even built (a
+     * presolve error, and `sx_init` failing on either the first build or the
+     * cold restart), so `jm_dual_simplex` zeroes all three counts on entry
+     * rather than letting them carry the previous solve's -- the defect that
+     * shape produced is written up beside that line. Reporting only, exactly
+     * like `solve_work`/`solve_iters`: nothing inside the solver reads them
+     * back.
      *
      * Not part of the public API (D-13, D64) -- bench/primal.c and tests/
      * read them directly because both are in-tree tooling and not consumers,

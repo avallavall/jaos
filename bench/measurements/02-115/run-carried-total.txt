@@ -1,0 +1,6 @@
+# does an abandoned solve publish the previous solve's total?
+# parent ref: dc2beee, working tree: the fix
+# the dual: column must be 20835 on the parent and 0 on the fix
+
+parent: pilot87      ERROR     dual=38000/17961110514 split=p1:17165/p2:0/dual:20835 column 478 prices at 0 in row 790 of the primal phase 1 on a freshly built factorization; this is a JAOS defect
+working-tree: pilot87      ERROR     dual=38000/17961110514 split=p1:17165/p2:0/dual:0 column 478 prices at 0 in row 790 of the primal phase 1 on a freshly built factorization; this is a JAOS defect

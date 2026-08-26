@@ -377,7 +377,11 @@ static void measure_one(const entry *e, const char *dir, int64_t factor,
                         "violation of") != nullptr;
         const bool is_p2 = why != nullptr &&
             strstr(why, "improves and no declared bound stops it") != nullptr;
-        char note[sizeof r->note];
+        /* Wider than `r->note`, because it PREPENDS to a message that can
+          * already fill it: `m->err` is 256 bytes and the prefix is 26 more.
+          * Sized here and truncated once, by `fail`, instead of losing the
+          * closing clause of every long refusal a second time. */
+        char note[sizeof r->note + 32];
         snprintf(note, sizeof note, "%s%s",
                  cites && !is_p1 && !is_p2
                      ? "UNCLASSIFIED D19 refusal: " : "",
@@ -437,7 +441,7 @@ static void measure_one(const entry *e, const char *dir, int64_t factor,
          * else, which is the exact complaint that block's own comment was
          * written to answer: it cannot tell a wrong answer from a refusal
          * the method was designed to make. */
-        char note[sizeof r->note];
+        char note[sizeof r->note + 32];   /* prepends; see the block above */
         snprintf(note, sizeof note, "different verdicts%s%s",
                  pnote[0] != '\0' ? ": " : "", pnote);
         fail(r, PRIMAL_DISAGREE, note);

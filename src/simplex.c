@@ -4385,6 +4385,13 @@ static jaos_status run_primal_phase1(sx *s, jaos_solve_status *out,
      * `c1_at`. No path reaches that today, because the only re-entry
      * runs `sx_free` then `sx_init` first, and it costs one test. */
     if (s->c1 == nullptr || s->c1_at == nullptr) {
+        /* Both freed first. In the partial-failure state this test was
+         * widened to catch -- `c1` allocated, `c1_at` not -- a later entry
+         * now passes the test and would overwrite a live pointer. Two lines
+         * close both halves. `free(nullptr)` is defined, so no test is
+         * needed. */
+        free(s->c1);    s->c1 = nullptr;
+        free(s->c1_at); s->c1_at = nullptr;
         /* Zeroed, because `primal_phase1_costs` no longer clears the whole
          * array and so no longer initialises it either. */
         s->c1 = jm_calloc_array(s->nvar, sizeof *s->c1);
@@ -4458,8 +4465,17 @@ static jaos_status run_primal_phase1(sx *s, jaos_solve_status *out,
             jaos_status st = refresh(s, &ok, false);
             if (st != JAOS_OK)
                 return st;
-            if (!ok)
-                return JAOS_ERR_NUMERICAL;
+            if (!ok) {
+                /* Soft, like every other copy of this gate. This one was the
+                 * fifth and it was missed when the other two in this function
+                 * were softened: `run()` and phase 2 both use the soft form
+                 * at the identical `refresh(..., false)` site. Left hard, a
+                 * basis `repair_singular_basis` cannot fix inside phase 1
+                 * reached `bench/primal` as `PRIMAL_ERROR` and exited 1,
+                 * while the same failure two branches later was a verdict. */
+                *out = JAOS_SOLVE_NUMERICAL_ERROR;
+                return JAOS_OK;
+            }
         }
 
         const double total = primal_phase1_costs(s);
@@ -5505,6 +5521,20 @@ jaos_status jm_dual_simplex(jaos_model *m)
     jm_presolve_init(&p);
     p.orig = m;
 
+    /* **A new solve owns these three, so no exit can publish the previous
+     * one's.** Three returns below run before any of them is written: a
+     * presolve error, and `sx_init` failing on either the first build or the
+     * cold restart. `solve_iters` has exactly one other writer, inside
+     * `publish`, which runs only when the solve returned `JAOS_OK` -- so an
+     * abandoned solve used to leave the field holding whatever the model was
+     * solved with last time. `bench/primal.c` reads all three and subtracts,
+     * and it printed `dual:20835` for `pilot87`, which is 38000 - 17165: the
+     * dual reference solve's total minus the primal's own count. Two
+     * different solves, one subtraction. */
+    m->solve_iters = 0;
+    m->solve_primal_iters = 0;
+    m->solve_phase1_iters = 0;
+
     /* D-14: presolve's own charge, on the accumulator sx_init's own s.work
      * continues below rather than a second, separate one -- one solve, one
      * total, the same way jaos_work_units already reads a single figure
@@ -5760,8 +5790,28 @@ jaos_status jm_dual_simplex(jaos_model *m)
      * copy need to exist at all, and only when the solve failed: a successful
      * one leaves nothing to report and must not disturb whatever `m->err`
      * already holds. */
-    if (st != JAOS_OK && target != m && target->err[0] != '\0')
+    /* **The condition is the outcome and not only the status, because the
+     * softened gates return `JAOS_OK`.** `refresh` sets a message on the
+     * failure the soft returns come from ("the basis went singular at
+     * iteration N and could not be repaired"), and while those gates returned
+     * `JAOS_ERR_NUMERICAL` this copy ran. Softening them made `st` `JAOS_OK`,
+     * so the message stayed on `p.reduced` and the caller got an empty
+     * string -- on the 86 of 94 instances presolve reduces. That is exactly
+     * the note `bench/primal.c` recovers for its DISAGREE lines.
+     *
+     * `st != JAOS_OK` stays FIRST: `outcome` is uninitialised on that branch,
+     * because the loop breaks before assigning it. */
+    if (target != m && target->err[0] != '\0' &&
+        (st != JAOS_OK || outcome != JAOS_SOLVE_OPTIMAL))
         memcpy(m->err, target->err, sizeof m->err);
+
+    /* The abandoned branch's own total. `publish` writes `solve_iters` for
+     * the branch below and never runs on this one, and the SUMMARY sentence
+     * has always printed the right number here -- which is where the parser
+     * this milestone deleted used to read it from. Two of the three counts
+     * moved onto the struct and the third stayed behind `publish`'s gate. */
+    if (st != JAOS_OK)
+        m->solve_iters = s.iters;
 
     if (st == JAOS_OK)
         st = publish(&s, outcome, &p);
