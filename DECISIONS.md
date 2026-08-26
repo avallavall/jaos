@@ -213,6 +213,7 @@ and you have the argument. Jump to the entry for the numbers behind it.
 - **[D203](#d203--d199s-scatter-clear-buys-no-seconds-costs-none-and-needs-no-density-fallback)** — D199's scatter clear buys no seconds, costs none, and needs no density fallback
 - **[D204](#d204--phase-1-is-395-of-the-campaign-is-a-statement-about-two-instances-and-the-median-instance-is-573)** — Phase 1 is 39.5% of the campaign is a statement about two instances, and the median instance is 57.3%
 - **[D205](#d205--the-most-common-primal-failure-published-a-verdict-with-no-sentence-on-31-of-94)** — The most common primal failure published a verdict with no sentence, on 31 of 94
+- **[D206](#d206--a-refusal-had-expired-unnoticed-the-record-was-checked-by-nothing-and-the-instrument-that-could-not-see-05-now-can)** — A refusal had expired unnoticed, the record was checked by nothing, and the instrument that could not see 0.5% now can
 
 ---
 
@@ -15618,6 +15619,96 @@ outlives the failure it describes.
 
 **Open.** Nothing. What those 31 instances mean for the primal is `TODO.md`
 section 0's open decision, not this entry's.
+
+## D206 — A refusal had expired unnoticed, the record was checked by nothing, and the instrument that could not see 0.5% now can
+
+**The question, as the maintainer asked it.** The record has 21175 lines and
+the source is 42% comments. Both were true when written. What checks that
+either is still true, and what re-runs a refusal whose premise may have
+expired? Three worries, in the maintainer's words: documentation stating
+old things, refusals made "inside the noise" that were never measurements,
+and decisions from 150 commits ago that the tree has moved out from under.
+The proposed cure was a branch that deletes every comment, `DECISIONS.md` and
+`CHANGELOG.md`, and audits the code from scratch.
+
+**The measurement, part one: how much drift, and where.** A mechanical
+sweep over 1729 identifier citations and 87 constants found essentially
+none: every mismatch was a sweep setting or a historical figure, correctly
+stated. A sweep over 178 present-tense claims of absence ("there is no X",
+"not yet", "does not exist") found seven false ones, all the same shape: true
+when written, silently false the day the thing was built (347c4fb). One was
+not a comment. `TODO.md` said `can_move`'s units stay unmeasured "until the
+primal lands", which is D184's stated reopen condition. It landed on
+2026-08-25 and nothing checked.
+
+So the drift is real, confined to one shape, and lived in the two documents
+and the comments that describe the present. The two history files cannot go
+stale by aging; an entry describes the day it closed. The branch-and-delete
+cure would have thrown away 27 measured refusals and 140 re-runnable
+experiments to fix a class of sentence that can be enumerated.
+
+**The measurement, part two: the expired refusal, re-run.**
+`bench/measurements/02-118/run-can-move-units.sh` applies D184's own
+one-line variant (rate against rate instead of rate-times-distance against
+rate) and runs the standard set and the forced-primal campaign on both trees.
+The standard set is byte-identical, as D184 found. **The primal campaign is
+not: `scsd1` and `scsd6` move.** The refusal has expired. What the right
+units are is section 0 stage 6 in `TODO.md`, open.
+
+**The measurement, part three: an instrument for what seconds cannot see.**
+This host repeats to 6.27% (D93) and work units cannot see a layout, branch or
+cache change (D45), so a refusal made because a change sat "inside the noise"
+was never a measurement of the change. `valgrind --tool=callgrind
+--toggle-collect='jm_dual_simplex*'` counts instructions inside the solver
+and only there (`jaos_solve` is LTO-inlined and counts zero; the whole
+process differs by about a hundred instructions per run from the driver's
+clock). Validated: `adlittle` retires 7755048 instructions, twice, and the same
+with ASLR off. `tools/icount.sh -r <ref> <instances>` is the tool, and it
+carries the D82 canary: every instance counting identically on both trees is
+a STOP, because that is what one binary measured twice looks like.
+
+First readings. D199's memset-to-scatter clear, which D203 could only call
+"inside the noise": **1.00017** over `afiro`, `adlittle`, `share2b`, an exact
+number, and the scatter costs a few hundred instructions more on a tiny model.
+D76's `restrict`, refused with the words "a pinned, quiet measurement host
+could resolve it": re-tested on the LU kernel signatures in
+`bench/measurements/02-119/`, `maros-r7` retires **13408694332 instructions
+on both trees, identical to the last one**. The qualifier changes nothing in
+the generated code, which is what D76 argued and could not show.
+
+**What was refuted.**
+
+- *That the record should be deleted and rebuilt from the code.* Code shows
+  what exists; it cannot show what was tried and refused, and "55 of 94" is a
+  campaign result, not a property of the source. The rebuild would have
+  produced `DECISIONS.md` again, without the measurements.
+- *That eleven refusals lacked a reopen condition.* A first count read the
+  entries; the conditions live in `TODO.md`'s refusals table, where step 7 of
+  the loop puts them. Truly missing were three: D36, D76, D156. They have
+  rows now, and so do D61 and D184.
+- *That "identical binaries" is a usable canary.* `-g` puts line numbers in
+  the object, so a comment-only edit changes the bytes. The canary is
+  identical counts, not identical files.
+- *That the 85 `D-NN` citations were dangling.* They name planning-era
+  decisions deleted with `.planning/` (D98), and the same number names two
+  different decisions in two phases. The appendix at the end of this file
+  carries both lists so a citation resolves; nothing new cites them.
+
+**What now checks the record.** `make test` runs `make record-check`
+(`tools/record-check.py`): every cited decision exists, every constant in
+`docs/tolerances.md` matches the source, every `SPECS.md` label is present
+tense and every `partial` row says what is missing, every measurement
+directory cited exists, every evidence script's anchor still matches or is
+pinned to its commit, and `docs/claims.txt` lists what the record says does
+not exist, so the line fails when one of them lands. It found 147 things on
+its first run and passes now. `bench/refusals.txt` lists every refusal with
+what would reopen it; `make refusals` re-runs the ones with a script. And
+`CLAUDE.md` has three process tiers, because this session spent the solver's
+full loop on a bench tool's record format.
+
+**Open.** The right units for `can_move` (section 0 stage 6). The assert debt
+the comment purge left, one line per contract, in `TODO.md`. `simplex.c` and
+`presolve.c` are thinned but not yet landed.
 
 ---
 

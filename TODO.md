@@ -1175,10 +1175,12 @@ is a primal pivot that did not exist. **Building the primal simplex makes that
 site live, so its units have to be settled before it decides anything.** That
 is D184's stated reopen condition.
 
-**It landed on 2026-08-25 (D188), so the condition is met and the question is
-live. Nothing has measured it since**, and the forced-primal campaign now
-spends 60.5% of its iterations in the re-entry that reads `can_move`. Found by
-the 2026-08-26 drift audit; it is on the refusal re-run list.
+**It landed on 2026-08-25 (D188), and the re-test on 2026-08-26 says the units
+are LIVE**: D184's one-line variant moves `scsd1` and `scsd6` on the
+forced-primal campaign and nothing on the dual set
+(`bench/measurements/02-118/run-can-move-units.sh`, D206). The refusal has
+expired. What the right units are, and whether they change any verdict rather
+than only a trajectory, is the open question; it is stage 6 of section 0.
 
 ### What the gate will and will not say
 
@@ -1249,7 +1251,7 @@ in `price_row:1700` are the machinery, and D26 is the decision behind them.
 | 3 | ~~the entering column's bound flip~~ | **DONE 2026-08-25** — D189, it was a wrong answer |
 | 4 | ~~phase 1 (Maros 1986) from a given basis~~ | **DONE 2026-08-25, short-step form** — 0 of 94 to 64 of 94 (D190) |
 | 5 | **Devex** | **Harris (1973), paywalled** |
-| 6 | **`can_move`'s units** — D184's stated reopen | stage 1 landing |
+| 6 | **`can_move`'s units** — D184's stated reopen | **condition MET 2026-08-25, and re-tested 2026-08-26: the units are LIVE** on the forced-primal campaign (`scsd1`, `scsd6` move; the dual set does not). `bench/measurements/02-118/`, D206. Open |
 | 7 | **the unboundedness verdict, and D19's refusal** | stage 4 |
 
 **Validate the harness before there is anything to measure.** Run stage 0 with
@@ -1391,6 +1393,20 @@ twenty are closed by D202 to D205, together with nine further findings from two
 fixes themselves introduced (D202), and it is the reason this paragraph names
 the review rather than only the decisions: the review that finds twenty things
 is also the one that catches what fixing them breaks.
+
+### OPEN: contracts the comment purge kept as prose, each of which deserves an assert or a test
+
+The 2026-08-26 purge thinned six files to their contracts (D30's rule: an
+invariant another piece of code depends on is an assert or a test, not a
+sentence). These survived as sentences. Each line is one debt; the purge
+reports name the exact surviving sentence. Add the assert or the test, then
+delete the line. Code changes: the full loop, per file.
+
+- `lu.c` — `grow_pair` leaves the first array freeable when the second grow fails (fault test); `jm_svec_push`'s `n < cap` holds for both arrays (assert in `grow_pair`); `find_pivot` visits a column whose live count reached zero (test: nonsingular matrix, `rank == dim`); `compact_pivot_row` leaves no duplicate column index (debug assert); the `piv_n == 0` path drops exactly what the general path drops (flag-forced comparison, L/U digests); `keep <= k` in the one-walk update (assert); `mult_set` all false at the top of each step (debug assert); renumber maps are total (`inv_row`/`inv_col >= 0` asserts); `btran_u_pattern`'s order is dependency-respecting and occupies the tail (debug check); `jm_lu_update` after the cyclic permutation has every spike entry above the diagonal (assert); a failed update leaves `rank < 0` and ftran/btran return without writing (test)
+- `model.c` — `start_col_status` and `start_row_status` are both null or both set (assert at the three readers; `basis_extend` holds it by luck today); `scale.c` reads no bound and no cost (test: change a bound and a cost, re-solve, scale factors byte-identical); every matrix modification invalidates `rowwise_valid` and `scale_valid` (one test per operation; `jaos_set_coefficient` bypasses `model_matrix_is_stale` and should call it); columns ascend by row with no duplicates and no explicit zeros after every mutation (debug checker); `jm_model_publish_objective` requires an OPTIMAL solve and all six arrays (assert); `jm_two_product_residue`'s overflow route returns 0.0 (test at 2^997); `-ffast-math` refused by the build (`#ifdef __FAST_MATH__ #error`); a column left empty by `jaos_delete_rows` is not an error (test)
+- `check.c` — `dual_acc.pos/neg` are magnitudes (assert before the gap); every multiplier contributes to the dual objective including the exempt ones (test: `w * b` moves it exactly); `note_dropped` counts a `1e-15` multiplier at an infinite bound (test); `certified_step` is only called where the opposite bound is infinite (assert) and never returns negative (assert, test); `implied_bounds` only tightens (assert after the loop), contains every feasible point (test), counts infinite terms rather than summing them (test), keeps an unreached bound infinite and still drops the term (test)
+- `jaos_internal.h` — `a_*` sorted, no duplicates, no zeros after every load (debug walk); every scale factor is a power of two (`frexp` assert); `solve_primal_iters`/`solve_phase1_iters` written on an INTERRUPTED exit (test); `solve_time` read back by nothing (grep test); `jm_harris_pick`'s `num >= 0`, `den > 0`, non-empty set for `n > 0` (asserts); exact minimum in `jm_bland_pick`/`jm_primal_row_wins` (pinned one-ulp test); `jm_pattern_order`'s `mark` all zero on entry and return (debug assert), output ascending and once (test); `jm_nonbasic_*` equals `{v : status[v] != BASIC}` after every basis change (debug rebuild-and-compare); `jm_nonbasic_build` with `nvar <= 0` (test); `jm_alloc_array(0)` non-null (test); `jm_presolve_rec.index` is an original index at every push (assert); a forcing row's `index2` records are all `FIXED_COL` at replay (assert); `reduced` aliases nothing of the caller's (debug assert); `jm_postsolve_expand` entered only when `REDUCED` (assert); updates never touch L (debug checksum); a rank-deficient factorization leaves `x` untouched (test)
+- `simplex.c`, `presolve.c` — their purge reports, when they land, extend this list
 
 ### OPEN: the instances the primal cannot solve and the dual can
 
@@ -3022,6 +3038,11 @@ change satisfies a condition in the right column, re-ask that question. Until
 then, do not — a refusal whose premise has not changed just fails again.
 
 | decision | what was refused or deferred | reopens when |
+| D184 | `can_move`'s product-against-rate units, measured dead on the dual (94/94 digests) | **EXPIRED 2026-08-26**: the primal landed and the units move two instances on its campaign (`02-118/`, D206). Open, section 0 stage 6 |
+| D76 | `restrict` in the LU kernels — refused because seconds could not resolve it | an instruction count can (`tools/icount.sh`); re-tested on the kernel signatures 2026-08-26, `bench/measurements/02-119/` (D206) |
+| D61 | inlining the hot LU calls — 0.997x, unresolvable in seconds | `tools/icount.sh` moves by more than 0.3% on the LU-dominated instances |
+| D36 | the scatter-form BTRAN — the saving is real and the arithmetic is not free | an instruction count of a re-ported candidate retires fewer instructions than it adds; the candidate is not on disk |
+| D156 | the destroyed row width as a defect — it dies below one ulp of the activity | a width dies above one ulp; D164's pin is what fires |
 |---|---|---|
 | D176 | compensating presolve's `obj_offset` — the reduced model's offset is measurably dead: poisoned with `1e300` and with `NaN`, all three sets stay bit-identical to a control that reproduces the committed records exactly | anything reading the reduced model's objective — a progress callback carrying it, a presolve statistic reporting it, or a postsolve path that adds `reduced.obj_offset` instead of recomputing on the caller's model. `bench/measurements/02-86/run-poison-offset.sh` is the test for that condition |
 | D173 | `finnis` publishing a point that is not the exact optimal vertex — its 7.62e-05 gap to Koch is **0.107 of `eps * sum |c_j x_j|`**, the floor arithmetic sets for a model carrying 3.198e+12 of traffic, and its row residual is under one eps of each row's own traffic | a model whose gap exceeds that floor. Four already do and they are open items rather than refusals: `pilot` 1.87e+08, `pilot87` 1.53e+06, `scsd6` 9.97e+04, `etamacro` 2.74e+04. The oracle is `bench/measurements/02-83/run-exact-objective.sh` and it needs no build of its own |

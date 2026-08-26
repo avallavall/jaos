@@ -11,6 +11,51 @@ open, `bench/README.md` for the gate, and the commit each entry came from.
 
 ### Added
 
+- **The record is checked with the code.** `make test` runs `make record-check`
+  (`tools/record-check.py`): every cited decision exists, every constant in
+  `docs/tolerances.md` matches the source, every `SPECS.md` label is present
+  tense and every `partial` row says what is missing, every evidence script's
+  anchor still matches or is pinned to its commit, and `docs/claims.txt` lists
+  what the record says does not exist — the line that fails when one of them
+  lands. First run: **147 failures**, all fixed or pinned (D206).
+
+- **`tools/icount.sh`, a deterministic instruction count inside the solver.**
+  Callgrind over `jm_dual_simplex*`; identical run to run. The third metric
+  beside digests and work units, for what seconds cannot resolve on a host that
+  repeats to 6.27%. D199's clear reads **1.00017**; D76's `restrict` retires
+  **identical** instructions on `maros-r7` (D206, `02-119/`).
+
+- **`bench/refusals.txt` and `make refusals`.** Every refusal with what would
+  reopen it; the ones with a script are re-run. The first run found D184
+  expired: `can_move`'s units are **live** on the primal campaign, `scsd1` and
+  `scsd6` move (D206, `02-118/`).
+
+- **A planning-era appendix in `DECISIONS.md`.** 85 `D-NN` citations named
+  decisions deleted with `.planning/` (D98), and the same number named two
+  decisions in two phases. Both lists, one line each, so a citation resolves.
+
+### Changed
+
+- **`SPECS.md` is present tense only.** Rows say what exists, what is partial
+  and what is missing, with the decision beside each. History left the rows;
+  one row that said four instances were off the optimum had been closed by
+  D184 and did not know it.
+
+- **Seven present-tense claims that expired when the primal landed** are
+  gone: two "no primal pivot before M6" comments, "`force_primal` has no
+  reader", "`certified_suboptimality` decides nothing", and three more (347c4fb).
+
+- **Four source files keep their contracts and lose their essays.** `lu.c`,
+  `model.c`, `check.c`, `jaos_internal.h`: 1450 comment lines to 690, every
+  code token unchanged by construction, every digest unchanged by the gate.
+  Three false sentences went with them. What survived as prose and deserves an
+  assert is one debt list in `TODO.md`.
+
+- **`CLAUDE.md` has three process tiers**, so a bench tool costs the gate once
+  and not the solver's full loop.
+
+### Added
+
 - **A watcher can stop the primal phase 1.** Phase 2 and the dual both offered
   `progress_cb`; phase 1 did not, so a caller could not see or stop the part of
   a forced-primal solve that spends **39.5%** of its iterations. `infeas_best`
