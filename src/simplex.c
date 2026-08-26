@@ -5755,7 +5755,8 @@ jaos_status jm_dual_simplex(jaos_model *m)
          * false and settle_shifts is a pure scan: no state moves, no work
          * is billed, and the gate stays bit-identical. */
         settle_shifts(&s);
-        if (settled_dual_violation(&s) != 0.0) {
+        const double breach = settled_dual_violation(&s);
+        if (breach != 0.0) {
             if (warm) {
                 jm_log(m, JAOS_LOG_SUMMARY,
                        "the settled point from the supplied basis is not "
@@ -5784,6 +5785,19 @@ jaos_status jm_dual_simplex(jaos_model *m)
                 allow_warm = false;
                 continue;
             }
+            /* **This verdict had no sentence, and it is the most common
+             * primal failure on the standard set: 31 of 94.** Every other
+             * `NUMERICAL_ERROR` in this file explains itself, so
+             * `jaos_model_error` returned "" on exactly the instances a
+             * reader would open it for -- `bench/primal.c` recovers the
+             * message for its record and had nothing to recover, and all 31
+             * `DISAGREE` lines read "different verdicts" and stopped there.
+             * A verdict a caller cannot act on is half a verdict. */
+            jm_set_err(m, "the settled point is not dual feasible: a "
+                          "reduced cost breaches its bound by %.6g after "
+                          "settling, from a %s start; publishing that as "
+                          "OPTIMAL would certify a point the reduced costs "
+                          "do not support", breach, warm ? "warm" : "cold");
             outcome = JAOS_SOLVE_NUMERICAL_ERROR;
             break;
         }
