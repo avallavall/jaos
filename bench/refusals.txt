@@ -10,6 +10,14 @@
 # milestone boundary. `TODO.md`'s refusals table carries the argument for each
 # condition; this file is the executable subset and the list.
 #
+# `make refusals` REWRITES COMMITTED EVIDENCE. Each script `tee`s into its own
+# measurement directory, so running the target overwrites the record that
+# refusal was decided on -- 02-118/run-can-move-units.txt and
+# 02-119/run-restrict-icount.txt both, as of 2026-08-27. Check `git status`
+# after every run and restore what you did not mean to replace. A re-test that
+# destroys the reading it is re-testing against is worth less than one that
+# does not (found by jaos-measurer while judging D207).
+#
 # Why this file exists. A refusal is true on the tree that measured it. Trees
 # move: D24's premise expired and D94 caught it by luck; D184's reopen
 # condition was met on 2026-08-25 and nothing noticed for a day. And a

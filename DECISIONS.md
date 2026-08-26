@@ -15797,6 +15797,41 @@ over any subset containing it, because `jm_primal_row_wins` orders on
 `(step, basis)`. That proof is now two unit tests rather than a comment
 (`tests/test_simplex.c`), one of which confirms the other is not vacuous.
 
+**The verdict, and what it caught.** `jaos-measurer` judged `9ef21ef` in a
+context that did not produce these numbers: **ACCEPT**. It ran the parent
+itself rather than trusting the committed record — the preflight warned that
+`primal.txt` predated four `src/` commits — and reproduced it byte for byte,
+which is what makes the before/after comparison here sound. 139 of 139 gate
+instances bit-identical by md5 taken before and after the run; 79 of 94
+forced-primal instances bit-identical; **no instance ends in a worse verdict**,
+checked per instance. It also reproduced `cand-1.txt` byte for byte from the
+shipping binary, so the environment-variable sweep build and the `constexpr`
+build are the same number.
+
+Three corrections came with it, none in the code:
+
+- **Fifteen instances move at `C = 1`, not twelve.** The three the first
+  reading missed — `scsd8`, `d6cube`, `dfl001` — are `overrun` on both sides,
+  and an `overrun` record line carries no `primal=` field at all, so a key of
+  verdict plus primal iterations reads them as unchanged. `stair` at
+  `C = 3e-1` was missed the same way, by a key that saw everything but the
+  work figure. Counted from a full line diff the census is exact in both
+  directions at both settings: 11 instances have `min r < 0.3` and 11 move,
+  15 have `min r < 1` and 15 move. `read-sweep.sh` counts from the diff now.
+- **The census histogram's legend was off by one decade.** `b0` collects
+  everything below 1, not `[0.1, 1)`. Read the wrong way, `wood1p`'s gate line
+  predicts that `C = 1` moves it, and the gate came back byte-identical. No
+  conclusion here used the histogram — they all use `min_r`, computed
+  separately — and the legend is corrected in place.
+- **`make refusals` overwrites the evidence it re-tests.** Each script `tee`s
+  into its own measurement directory, so the target rewrote
+  `02-118/run-can-move-units.txt` and `02-119/run-restrict-icount.txt` as a
+  side effect. `bench/refusals.txt` says so now.
+
+`make refusals` at this tree: D76 holds, D199 holds, **D184 flips** — and the
+flip is not this change. It flips at the parent too, with the same verdict
+text, and `TODO.md` §0 item 6 and `bench/refusals.txt` already carry it.
+
 **Open.** Whether the floor's column-dependent candidate set weakens Bland's
 finiteness argument; `improves_without_limit` and the three `alpha[q]` tests
 are still absolute. All three are in `TODO.md` §0.

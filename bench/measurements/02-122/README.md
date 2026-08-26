@@ -42,8 +42,20 @@ and no solver state is touched; the patch lands in a worktree of HEAD.
 
 `primal_ratio_test` is reached on the standard gate set by **three instances
 of 94**: `wood1p` (169 calls), `pilot87` (1), `etamacro` (1). Their minima are
-5.4855, 3.26e+14 and 2.03e+15. On `netlib-infeas` and `netlib-kennington`
-(`census-gate-sets.txt`) **it is reached by none at all**.
+5.4855, 3.26e+14 and 2.03e+15. On `netlib-infeas` **it is reached by none at
+all**, under a control that says the run happened: `32 record lines written`.
+
+**`census-gate-sets.txt`'s kennington section has no control line, so on its
+own it is not evidence.** The script was edited while bash was still executing
+it, which shifted every byte after the insertion: one section ran twice and
+the run ended on a syntax error. A clean re-run was cut short. The claim it
+was meant to support is covered from the other side instead — `jaos-measurer`
+ran `netlib-kennington` at `9ef21ef` and all 16 records came back
+byte-identical, which is what "the floor is never reached there" predicts.
+
+The gate section's call counts are double the README's — `wood1p` 338 rather
+than 169 — because `bench/run` solves every instance twice for the determinism
+check.
 
 So **no value of `PIVOT_MARGIN` below 5.4855 can move any gate set.** The
 constant is measured entirely on the forced-primal campaign, and the gate's
@@ -164,7 +176,18 @@ The window is bounded on both sides by measurement rather than by argument:
 below 3.3457e-06 the floor decides nothing at all, and above 5.4855 it would
 begin to reach the gate.
 
-At `C = 1`, twelve instances move and **not one of them to a worse verdict**:
+At `C = 1`, **fifteen** instances move and **not one of them to a worse
+verdict**. Fifteen is the count from a full line diff, and it is what the
+census predicted: exactly fifteen instances have `min r < 1`. At `C = 3e-1`
+eleven have `min r < 0.3` and eleven move. The prediction is exact in both
+directions at both settings.
+
+*This directory said twelve until `jaos-measurer` diffed the lines. The three
+it missed are `scsd8`, `d6cube` and `dfl001` — all `overrun` on both sides,
+which is a record line with no `primal=` field at all, so `read-sweep.sh`'s
+key read them as unchanged. `stair` at `C = 3e-1` was missed the same way,
+by a key that saw everything except the work figure. The count comes from a
+full line diff now and the key is for reading only.*
 
 - `pilot4` DISAGREE → **ok**;
 - `pilot87` ERROR → overrun, which is the other seven phase-1 instances' fate

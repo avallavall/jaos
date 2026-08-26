@@ -24,7 +24,13 @@ the order:**
    right units are, and whether they change a verdict or only a trajectory.
 3. **The assert debt** below (`bench/measurements/02-121/`), one file per
    commit, full loop each: contracts that survived the purge as prose.
-4. The skills debt (two scripts), then section 0's headline decision.
+4. The skills debt (two scripts), then section 0's headline decision. **One
+   more script joined it on 2026-08-27**: `jaos-measure`'s `geomean.py
+   --metric work` cannot read `bench/results/primal.txt` and exits 2 with "no
+   instance appears in both files", because that record carries
+   `dual=iters/work primal=iters/work` rather than one `work=` field. Every
+   primal-campaign work figure therefore has to go through `--pairs` by hand.
+   Found by `jaos-measurer` while judging D207.
 
 Each of these is the full loop for solver internals. `make refusals` after 1
 and 2, because both touch the re-entry and the ratio tests.
@@ -1275,7 +1281,7 @@ in `price_row:1700` are the machinery, and D26 is the decision behind them.
 | 7 | **the unboundedness verdict, and D19's refusal** | stage 4 |
 | 8 | ~~a relative pivot floor in the two primal ratio tests~~ | **DONE 2026-08-26** — `PIVOT_MARGIN = 1.0`, one ulp of the column's own largest entry, swept on both sides in `bench/measurements/02-122/` (D207). 56 of 94 agree against 55, and the one `ERROR` is gone |
 | 8a | **the `alpha[q]` side is still absolute** — three sites test `fabs(s->alpha[q]) < PIVOT_MIN` on the BTRAN pricing row while the column side now has a relative floor. `pilot87` was one direction of that asymmetry; the mirror is `col[r]` honest and `alpha[q]` a residue above 1e-9 but below its own row's noise, and then `theta_dual = d[q] / alpha[q]` scatters a huge dual step. Raised by `numerics-reviewer` on D207's diff | its own measurement: the pricing row's traffic is not the column's, so the constant does not carry over |
-| 8b | **does the floor weaken Bland's finiteness argument?** — Bland needs the lowest-index basic among those attaining the minimum ratio over a FIXED candidate set. `PIVOT_MIN` narrowed that set the same way for every column; `PIVOT_MARGIN * eps * cmax` narrows it per column, so the same row can be eligible for `q1` and rejected for `q2`. Determinism is not at risk, termination is. Circumstantial: `pilot87`'s phase 1 goes 17165 → 387235 iterations at `C = 1`. Raised by `numerics-reviewer` on D207's diff | a read of `n_bland` and the per-instance phase-1 iteration deltas across `cand-0` and `cand-1` for the twelve instances that moved, with the stall path logged |
+| 8b | **does the floor weaken Bland's finiteness argument?** — Bland needs the lowest-index basic among those attaining the minimum ratio over a FIXED candidate set. `PIVOT_MIN` narrowed that set the same way for every column; `PIVOT_MARGIN * eps * cmax` narrows it per column, so the same row can be eligible for `q1` and rejected for `q2`. Determinism is not at risk, termination is. Circumstantial: `pilot87`'s phase 1 goes 17165 → 387235 iterations at `C = 1`. Raised by `numerics-reviewer` on D207's diff | a read of `n_bland` and the per-instance phase-1 iteration deltas across `cand-0` and `cand-1` for **the fifteen** instances that moved, with the stall path logged. Fifteen, not twelve: `scsd8`, `d6cube` and `dfl001` overrun on both sides, so their record line has no `primal=` field and the first reading of the sweep called them unchanged (D207, found by `jaos-measurer`) |
 | 8c | **`improves_without_limit` kept the absolute floor** — same quantity, same dense FTRAN, and the one site where the test decides a *published* status (`JAOS_SOLVE_UNBOUNDED`). The direction is safe today: an absolute floor counts more rows as blocking, so it under-declares unbounded. But it suppresses a correct `UNBOUNDED` and returns a refusal instead. Belongs with stage 7 | stage 7, and its own measurement — this changes a published verdict |
 
 **Validate the harness before there is anything to measure.** Run stage 0 with

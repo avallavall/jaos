@@ -18,11 +18,23 @@ only_records() {
          $2=="REJECTED" || $2=="unbounded?" || $2=="skipped" ||
          $2=="unreached" {print}' "$1" | sort
 }
+# name, verdict, primal iterations, and the phase split.
+#
+# The split is in the key because an `overrun` line carries no `primal=` field
+# at all -- `bench/primal.c` drops it when the solve never finished -- so a key
+# of verdict plus primal iterations reads every overrun instance as unchanged
+# however far its phase 1 moved. That is how this script reported twelve
+# instances moving at C=1 when fifteen did: `scsd8`, `d6cube` and `dfl001` all
+# overrun on both sides with different phase-1 counts. `jaos-measurer` caught
+# it; a full line diff is the check this key now matches.
 key() {
     only_records "$1" | awk '{
-        n = "-"
-        if ($4 ~ /^primal=/) { n = $4; sub("primal=", "", n); sub("/.*", "", n) }
-        print $1, $2, n
+        n = "-"; sp = "-"
+        for (i = 3; i <= NF; i++) {
+            if ($i ~ /^primal=/) { n = $i; sub("primal=", "", n); sub("/.*", "", n) }
+            if ($i ~ /^split=/)  { sp = $i }
+        }
+        print $1, $2, n, sp
     }'
 }
 
@@ -46,11 +58,21 @@ for C in "$@"; do
     [ "$C" = 0 ] && continue
     [ -s "$w/r-$C" ] || continue
     key "$pfx-$C.txt" > "$w/kc"
-    echo "--- C=$C"
+    # The COUNT comes from a full line diff and never from the key. Any key is
+    # lossy: verdict plus iterations misses an `overrun` line, which carries no
+    # `primal=` field at all, and adding the split still misses an instance
+    # whose only change is its work figure -- `stair` at C=3e-1 is exactly
+    # that. Both were reported as "did not move" before `jaos-measurer` diffed
+    # the lines. The key below is for reading, not for counting.
+    moved=$(diff "$w/r-0" "$w/r-$C" | grep -c '^>')
+    echo "--- C=$C  ($moved instances moved, from a full line diff)"
+    diff "$w/r-0" "$w/r-$C" | awk '/^>/{print $2}' | sort | tr '\n' ' '
+    echo
     join -j1 "$w/k0" "$w/kc" |
-        awk '$2 != $4 || $3 != $5 {
+        awk '$2 != $5 || $3 != $6 || $4 != $7 {
             printf "    %-12s %-9s -> %-9s   iters %s -> %s\n",
-                   $1, $2, $4, $3, $5 }'
+                   $1, $2, $5, $3, $6
+            if ($4 != $7) printf "    %-12s   %s -> %s\n", "", $4, $7 }'
 done
 
 echo

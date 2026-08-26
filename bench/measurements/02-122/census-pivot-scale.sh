@@ -214,7 +214,13 @@ out="$here/census.txt"
   echo "# tree: $(git rev-parse --short "$ref") plus a JAOS_DIAG patch, outside the repo"
   echo "# r = |col[best]| / (DBL_EPSILON * max_i |col[i]|) for the row each call chose."
   echo "# A floor of C*eps*max|col| moves a solve iff that solve's min_r < C."
-  echo "# hist buckets are log10(r): b0 = r<1e-1, b1 = [1e-1,1), b2 = [1,10), ... b25 = >=1e24"
+  # Must match dg_note above: b = floor(log10(r)) + 1, clamped into [0, 25].
+  # So b0 collects EVERYTHING below 1, not just [0.1, 1). This legend said
+  # otherwise for one decade and `jaos-measurer` caught it: read the wrong
+  # way, `wood1p`'s gate line predicts that PIVOT_MARGIN = 1 moves it, and the
+  # gate came back byte-identical. No conclusion in this directory used the
+  # histogram -- they all use `min_r`, which is computed separately.
+  echo "# hist buckets: b0 = r<1 (everything below is clamped in), b1 = [1,10), b2 = [10,100), ... b25 = >=1e24"
   echo
   if [ "$which" = "standard" ]; then
     echo "## forced-primal campaign, 94 standard instances (bench/primal)"
