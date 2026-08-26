@@ -4145,6 +4145,34 @@ static int64_t primal_price(sx *s, double *total)
  * the point stays primal feasible. */
 static void primal_bound_flip(sx *s, int64_t q, double delta)
 {
+#ifndef NDEBUG
+    /* **The contract is checked here rather than only stated above it.**
+     * `s->col` must still hold `B^-1 M_q` from the ratio test, and `s->col` has
+     * five other writers — two of which alias it as `rhs`. `jaos-testing`'s
+     * rule is that an invariant another piece of code depends on is an assert
+     * or a test and not a comment, and this project has a documented case of a
+     * correct, prominent warning comment being violated by new code.
+     *
+     * Compared bit for bit, because the claim is that nothing wrote it, not
+     * that something wrote something close. Its own buffer, never the shared
+     * scratch, so the check cannot corrupt what it is observing. `s->work` is
+     * saved and restored so a debug build bills what the release build bills.
+     *
+     * Costs one FTRAN per flip and is compiled out of the shipping build by
+     * `-DNDEBUG`; `make test` and `make sanitize` are where it runs. */
+    {
+        double *chk = jm_alloc_array(s->nrow, sizeof *chk);
+        if (chk != nullptr) {
+            const jm_work saved = s->work;
+            var_column(s, q, chk);
+            jm_lu_ftran(&s->lu, chk, &s->work);
+            s->work = saved;
+            for (int64_t i = 0; i < s->nrow; i++)
+                assert(chk[i] == s->col[i]);
+            free(chk);
+        }
+    }
+#endif
     for (int64_t i = 0; i < s->nrow; i++)
         s->xb[i] -= delta * s->col[i];
     jm_work_add(&s->work, s->nrow * JM_WORK_NONZERO);
