@@ -187,6 +187,14 @@ measured rather than argued: the lowest ratio anywhere on the dual path is
 second pass never runs. On the primal campaign the floor is **0.5% cheaper**
 on average — the pivots it refuses were costing iterations.
 
+### The shipping build reproduces the sweep's build
+
+The sweep reads `PIVOT_MARGIN` from the environment so one binary serves every
+setting; the shipping code is `constexpr double PIVOT_MARGIN = 1.0`. Those are
+the same number only if `1.0 * DBL_EPSILON` folds identically either way.
+`make primal J=12` on the shipping tree writes `bench/results/primal.txt`
+**byte-identical to `cand-1.txt`**, all 94 record lines. It does.
+
 ## The gate, and the fourth metric
 
 `make configs` — **all five configurations build and pass**, which is the run
