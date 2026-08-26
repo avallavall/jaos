@@ -9,6 +9,19 @@ open, `bench/README.md` for the gate, and the commit each entry came from.
 
 ## [Unreleased]
 
+### Fixed
+
+- **The two primal ratio tests judge a pivot against the column's own scale,
+  not against an absolute 1e-9.** `PIVOT_MARGIN = 1.0`: an entry of
+  `B^-1 M_q` must stand above one ulp of that column's largest entry to be
+  pivoted on. It decides what may be pivoted on, never what blocks. The
+  forced-primal campaign goes to **56 of 94 agreeing** from 55, `pilot4`
+  DISAGREE → ok, and the one instance that refused calling itself defective
+  — `pilot87`, on an FTRAN residue of 1.59e-07 where the true entry is
+  exactly zero — is gone. **All three gate sets are byte-identical**, records
+  and work units both: the floor is not reached from the dual path (D207,
+  `bench/measurements/02-122/`).
+
 ### Added
 
 - **The record is checked with the code.** `make test` runs `make record-check`

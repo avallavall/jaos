@@ -1,0 +1,7 @@
+# working tree against 1fe8bc6d476022fc5f431e2ee2c48d2482015e9f
+instance              1fe8bc6   working-tree     ratio
+adlittle              7755048        7754912   0.99998
+afiro                 1065142        1065026   0.99989
+etamacro            219670091      219669993   1.00000
+wood1p             2192253358     2192431206   1.00008
+geometric mean of per-instance ratios: 0.99999  (below 1 = fewer instructions now)

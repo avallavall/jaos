@@ -214,6 +214,7 @@ and you have the argument. Jump to the entry for the numbers behind it.
 - **[D204](#d204--phase-1-is-395-of-the-campaign-is-a-statement-about-two-instances-and-the-median-instance-is-573)** — Phase 1 is 39.5% of the campaign is a statement about two instances, and the median instance is 57.3%
 - **[D205](#d205--the-most-common-primal-failure-published-a-verdict-with-no-sentence-on-31-of-94)** — The most common primal failure published a verdict with no sentence, on 31 of 94
 - **[D206](#d206--a-refusal-had-expired-unnoticed-the-record-was-checked-by-nothing-and-the-instrument-that-could-not-see-05-now-can)** — A refusal had expired unnoticed, the record was checked by nothing, and the instrument that could not see 0.5% now can
+- **[D207](#d207--the-primal-ratio-tests-pivot-floor-was-absolute-and-one-ulp-of-the-columns-own-largest-entry-is-the-value)** — The primal ratio tests' pivot floor was absolute, and one ulp of the column's own largest entry is the value
 
 ---
 
@@ -15712,6 +15713,93 @@ full loop on a bench tool's record format.
 **Open.** The right units for `can_move` (section 0 stage 6). The assert debt
 the comment purge left, one line per contract, in `TODO.md`. `simplex.c` and
 `presolve.c` are thinned but not yet landed.
+
+---
+
+## D207 — The primal ratio tests' pivot floor was absolute, and one ulp of the column's own largest entry is the value
+
+**The question.** `TODO.md` §0 stage 8. Both primal ratio tests accepted a
+blocking row when `|col[i]| >= PIVOT_MIN`, an absolute 1e-9.
+`bench/measurements/02-120/` showed what that costs: on `pilot87` the FTRAN
+returns -1.59e-07 for an entry of `B^-1 A_q` that is structurally exactly zero
+— row 790 of `B^-1` is a singleton and none of column 478's twelve nonzeros
+sits on it — the ratio test takes that row, the BTRAN pricing row reports the
+true zero, and on a freshly built factorization the solve refuses in its own
+words: *"this is a JAOS defect"*. It is the one `ERROR` of the standard 94.
+
+An absolute floor on a quantity computed from terms of wildly differing scale
+is simultaneously too strict and too lax, and which one it is depends on
+nothing but the column's magnitudes. `pilot87`'s column reaches 2.1e+14.
+
+**The constant, swept.** `bench/measurements/02-122/`. A `JAOS_DIAG` census
+recorded, for every ratio-test call that chose a row,
+`r = |col[best]| / (DBL_EPSILON * max_i |col[i]|)`. A floor of
+`C * DBL_EPSILON * max|col|` moves a solve **if and only if** that solve's
+minimum `r` is below `C`, so one census sweeps every `C` at once. It predicted
+the affected set exactly: **15 instances of 15**.
+
+| `PIVOT_MARGIN` | ok | DISAGREE | overrun | ERROR |
+|---|---|---|---|---|
+| 0 | 55 | 31 | 7 | 1 |
+| 3e-1 | 56 | 30 | 8 | 0 |
+| **1** | **56** | **30** | **8** | **0** |
+
+`C = 0` reproduces `bench/results/primal.txt` **byte for byte**, work units
+included, which is the control. The tally is flat from 0.3 to 1, so the value
+is not a spike. On the other side the census is decisive without a campaign:
+below `pilot87`'s 3.3457e-06 the floor decides nothing at all.
+
+**1.0 is not fitted to an instance.** It is one ulp of the column's largest
+entry: an entry below that cannot be told from zero by a computation that
+carried that largest entry. It is also stricter than what this codebase
+already calls structurally absent — `DROP_REL` is 1e-14 of the basis matrix's
+largest magnitude, about 45 ulps.
+
+**What it costs.** Work geometric mean of per-instance ratios, `C=0` → `C=1`:
+**1.000000x on the dual solve**, byte-identical on all 94, and **0.995321x on
+the forced primal**, worst `perold` at 1.271581x. The dual figure is the
+census's prediction measured rather than argued: the lowest `r` anywhere on
+the dual path is `wood1p`'s 5.4855, so at `C = 1` the floor never rejects a
+row there and the second pass never runs. On `netlib-infeas` and
+`netlib-kennington` `primal_ratio_test` is not reached at all.
+
+**What it does not do.** It does not solve `pilot87`. The refusal becomes
+`overrun` — 387235 phase-1 iterations against 17165 — which is the other seven
+phase-1 instances' fate and not a self-declared defect. The mechanism behind
+the refusal is untouched: the two computations of `(B^-1 A_q)_r` can still
+disagree on a fresh factorization, and the pricing-row side of the test is
+still absolute. That is carried in `TODO.md` §0.
+
+**What the review changed, and what it was worth.** `numerics-reviewer` found
+two serious defects in the first implementation, both about what removing a
+row does to the callers. First, an emptied candidate set returned -1, which
+both callers read as *"no declared bound stops this column"* and refuse on —
+the repair for one false refusal could manufacture another. Second, `*step`
+came from the floored pass, and the callers use it to decide a bound flip,
+which then moves every row including the one just called meaningless. The
+candidate keeps pass 0's answer for both: `*step` is read off every row, so
+flip behaviour is exactly the shipping one, and pass 0's winner stands when
+the floor leaves nothing. **Both fixes produce a byte-identical campaign
+record**, so neither state is reached by these 94 instances. They are
+insurance, and the record says so rather than claiming they were needed.
+
+**The implementation, and the trap it avoids.** The column's largest entry
+comes out of the loop that already runs, and a second pass runs only when the
+row that loop chose falls below the floor. A first version computed the
+maximum in a separate scan and billed it; `bench/primal` caps the primal solve
+at 10x the dual's **work**, so that charge shortened every primal solve and
+moved 18 instances with four verdict changes — `bnl2` at 10.0066x and `tuff`
+at 10.0186x sat on the bar. D203 had already written that limit down. The
+control caught it.
+
+Skipping the second pass is exact: the winner of a scan is still the winner
+over any subset containing it, because `jm_primal_row_wins` orders on
+`(step, basis)`. That proof is now two unit tests rather than a comment
+(`tests/test_simplex.c`), one of which confirms the other is not vacuous.
+
+**Open.** Whether the floor's column-dependent candidate set weakens Bland's
+finiteness argument; `improves_without_limit` and the three `alpha[q]` tests
+are still absolute. All three are in `TODO.md` §0.
 
 ---
 

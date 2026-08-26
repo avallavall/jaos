@@ -1,0 +1,168 @@
+the primal simplex against the dual, same model, nothing perturbed
+the primal is bounded at 10x the dual's work per instance; 'overrun' is that bound,
+and 'unreached' is a start its phase 1 could not repair. Neither is a defect.
+-j 12: the seconds below are inflated by contention and are not comparable across runs
+# instance    verdict   dual=iters/work  primal=iters/work  split=p1/p2/dual-re-entry
+25fv47       DISAGREE  dual=5135/154561310 primal=13092/542156454 split=p1:5506/p2:1/dual:7585 verdict=optimal/numerical error obj=5501.8458882867444/0 checker=dual:ok/primal:n/a different verdicts: the settled point is not dual feasible: a reduced cost breaches its bound by 2.20367 after settling, from a cold start; publishing that as OPTIMAL would certify a point the reduced costs do not support
+80bau3b      DISAGREE  dual=3616/67601531 primal=16189/676134371 split=p1:2457/p2:3/dual:13729 verdict=optimal/numerical error obj=987224.19240909023/0 checker=dual:ok/primal:n/a different verdicts: the settled point is not dual feasible: a reduced cost breaches its bound by 79.2408 after settling, from a cold start; publishing that as OPTIMAL would certify a point the reduced costs do not support
+adlittle     ok        dual=71/141748 primal=159/376771 split=p1:89/p2:1/dual:69 verdict=optimal/optimal obj=225494.96316238036/225494.96316238036 checker=dual:ok/primal:ok 
+      adlittle     dual 0.001 s, primal 0.002 s
+afiro        ok        dual=18/13033 primal=20/25250 split=p1:18/p2:1/dual:1 verdict=optimal/optimal obj=-464.75314285714285/-464.75314285714285 checker=dual:ok/primal:ok 
+      afiro        dual 0.000 s, primal 0.000 s
+agg          DISAGREE  dual=189/920205 primal=449/2916421 split=p1:399/p2:1/dual:49 verdict=optimal/numerical error obj=-35991767.286576502/0 checker=dual:ok/primal:n/a different verdicts: the settled point is not dual feasible: a reduced cost breaches its bound by 4769.62 after settling, from a cold start; publishing that as OPTIMAL would certify a point the reduced costs do not support
+agg2         ok        dual=299/1764698 primal=946/8298888 split=p1:732/p2:1/dual:213 verdict=optimal/optimal obj=-20239252.355977111/-20239252.355977111 checker=dual:ok/primal:ok 
+      agg2         dual 0.012 s, primal 0.042 s
+agg3         ok        dual=718/6328654 primal=965/8301999 split=p1:684/p2:1/dual:280 verdict=optimal/optimal obj=10312115.935089221/10312115.935089221 checker=dual:ok/primal:ok 
+      agg3         dual 0.030 s, primal 0.046 s
+bandm        DISAGREE  dual=393/3074437 primal=1221/11317138 split=p1:801/p2:1/dual:419 verdict=optimal/numerical error obj=-158.62801845012066/0 checker=dual:ok/primal:n/a different verdicts: the settled point is not dual feasible: a reduced cost breaches its bound by 0.174491 after settling, from a cold start; publishing that as OPTIMAL would certify a point the reduced costs do not support
+beaconfd     ok        dual=78/87635 primal=101/276006 split=p1:71/p2:1/dual:29 verdict=optimal/optimal obj=33592.485807199999/33592.485807199999 checker=dual:ok/primal:ok 
+      beaconfd     dual 0.001 s, primal 0.001 s
+blend        ok        dual=101/208820 primal=223/878582 split=p1:121/p2:1/dual:101 verdict=optimal/optimal obj=-30.812149845828223/-30.812149845828223 checker=dual:ok/primal:ok 
+      blend        dual 0.001 s, primal 0.003 s
+bnl1         ok        dual=790/7616594 primal=2467/45881786 split=p1:1773/p2:1/dual:693 verdict=optimal/optimal obj=1977.629561522888/1977.6295615228889 checker=dual:ok/primal:ok 
+      bnl1         dual 0.048 s, primal 0.181 s
+bnl2         DISAGREE  dual=1746/21655288 primal=4299/216696175 split=p1:4246/p2:1/dual:52 verdict=optimal/numerical error obj=1811.2365403585452/0 checker=dual:ok/primal:n/a different verdicts: the settled point is not dual feasible: a reduced cost breaches its bound by 49.0186 after settling, from a cold start; publishing that as OPTIMAL would certify a point the reduced costs do not support
+boeing1      ok        dual=374/1895087 primal=1329/10501707 split=p1:922/p2:2/dual:405 verdict=optimal/optimal obj=-335.21356750712664/-335.21356750712664 checker=dual:ok/primal:ok 
+      boeing1      dual 0.008 s, primal 0.039 s
+boeing2      ok        dual=118/323451 primal=452/1530485 split=p1:306/p2:1/dual:145 verdict=optimal/optimal obj=-315.0187280152029/-315.0187280152029 checker=dual:ok/primal:ok 
+      boeing2      dual 0.001 s, primal 0.006 s
+bore3d       ok        dual=134/360247 primal=228/1277928 split=p1:198/p2:1/dual:29 verdict=optimal/optimal obj=1373.0803942084929/1373.0803942084929 checker=dual:ok/primal:ok 
+      bore3d       dual 0.005 s, primal 0.005 s
+brandy       ok        dual=216/1343553 primal=607/4990769 split=p1:308/p2:1/dual:298 verdict=optimal/optimal obj=1518.5098964881283/1518.5098964881283 checker=dual:ok/primal:ok 
+      brandy       dual 0.004 s, primal 0.021 s
+capri        ok        dual=272/486386 primal=494/2777346 split=p1:406/p2:1/dual:87 verdict=optimal/optimal obj=2690.0129137681611/2690.0129137681611 checker=dual:ok/primal:ok 
+      capri        dual 0.005 s, primal 0.019 s
+cycle        DISAGREE  dual=1319/23011426 primal=7622/230217902 split=p1:786/p2:1/dual:6835 verdict=optimal/numerical error obj=-5.2263930248941017/0 checker=dual:ok/primal:n/a different verdicts: the settled point is not dual feasible: a reduced cost breaches its bound by 0.145091 after settling, from a cold start; publishing that as OPTIMAL would certify a point the reduced costs do not support
+czprob       DISAGREE  dual=1154/13051931 primal=3869/75174770 split=p1:2151/p2:1/dual:1717 verdict=optimal/numerical error obj=2185196.6988565773/0 checker=dual:ok/primal:n/a different verdicts: the settled point is not dual feasible: a reduced cost breaches its bound by 21.2681 after settling, from a cold start; publishing that as OPTIMAL would certify a point the reduced costs do not support
+d2q06c       DISAGREE  dual=29290/2279575982 primal=228999/22796015388 split=p1:9884/p2:1/dual:219114 verdict=optimal/numerical error obj=122784.21081418944/0 checker=dual:ok/primal:n/a different verdicts: the settled point is not dual feasible: a reduced cost breaches its bound by 123.318 after settling, from a cold start; publishing that as OPTIMAL would certify a point the reduced costs do not support
+d6cube       overrun   dual=420/25069715 split=p1:3139/p2:0/dual:0 over 10x the dual's work
+degen2       DISAGREE  dual=578/5416019 primal=3909/59705344 split=p1:2612/p2:1/dual:1296 verdict=optimal/numerical error obj=-1435.1780000000001/0 checker=dual:ok/primal:n/a different verdicts: the settled point is not dual feasible: a reduced cost breaches its bound by 23.1693 after settling, from a cold start; publishing that as OPTIMAL would certify a point the reduced costs do not support
+degen3       overrun   dual=2400/77947304 split=p1:14468/p2:0/dual:0 over 10x the dual's work
+dfl001       overrun   dual=22711/2912169925 split=p1:132000/p2:0/dual:0 over 10x the dual's work
+e226         ok        dual=266/1541303 primal=848/6977704 split=p1:453/p2:1/dual:394 verdict=optimal/optimal obj=-11.638929066370549/-11.638929066370549 checker=dual:ok/primal:ok 
+      e226         dual 0.005 s, primal 0.028 s
+etamacro     ok        dual=571/3308076 primal=855/5949148 split=p1:446/p2:1/dual:408 verdict=optimal/optimal obj=-755.7152333749134/-755.7152333749134 checker=dual:ok/primal:ok 
+      etamacro     dual 0.013 s, primal 0.026 s
+fffff800     ok        dual=850/6819400 primal=1224/15273447 split=p1:888/p2:1/dual:335 verdict=optimal/optimal obj=555679.56481749623/555679.56481749623 checker=dual:ok/primal:ok 
+      fffff800     dual 0.035 s, primal 0.063 s
+finnis       ok        dual=281/524911 primal=719/4415799 split=p1:284/p2:1/dual:434 verdict=optimal/optimal obj=172791.06567185125/172791.06567668528 checker=dual:ok/primal:ok 
+      finnis       dual 0.005 s, primal 0.038 s
+fit1d        DISAGREE  dual=66/1681317 primal=759/16872432 split=p1:635/p2:1/dual:123 verdict=optimal/numerical error obj=-9146.3780924209277/0 checker=dual:ok/primal:n/a different verdicts: the settled point is not dual feasible: a reduced cost breaches its bound by 6.29773 after settling, from a cold start; publishing that as OPTIMAL would certify a point the reduced costs do not support
+fit1p        DISAGREE  dual=494/13354704 primal=4627/133641072 split=p1:1618/p2:1/dual:3008 verdict=optimal/numerical error obj=9146.3780924209277/0 checker=dual:ok/primal:n/a different verdicts: the settled point is not dual feasible: a reduced cost breaches its bound by 18.2923 after settling, from a cold start; publishing that as OPTIMAL would certify a point the reduced costs do not support
+fit2d        ok        dual=131/72887380 primal=2609/648364912 split=p1:2330/p2:3/dual:276 verdict=optimal/optimal obj=-68464.293293832074/-68464.293293832074 checker=dual:ok/primal:ok 
+      fit2d        dual 0.155 s, primal 1.193 s
+fit2p        ok        dual=4663/657247720 primal=30933/4419088756 split=p1:11744/p2:1/dual:19188 verdict=optimal/optimal obj=68464.293293832074/68464.293293832074 checker=dual:ok/primal:ok 
+      fit2p        dual 8.002 s, primal 33.682 s
+forplan      ok        dual=194/1247104 primal=653/5929836 split=p1:361/p2:1/dual:291 verdict=optimal/optimal obj=-664.21896127220464/-664.21896127220487 checker=dual:ok/primal:ok 
+      forplan      dual 0.004 s, primal 0.022 s
+ganges       ok        dual=1310/3936269 primal=1696/31557992 split=p1:1591/p2:1/dual:104 verdict=optimal/optimal obj=-109585.73612927814/-109585.73612927823 checker=dual:ok/primal:ok 
+      ganges       dual 0.087 s, primal 0.151 s
+gfrd-pnc     ok        dual=547/3002997 primal=784/6453066 split=p1:449/p2:1/dual:334 verdict=optimal/optimal obj=6902235.9995488087/6902235.9995488087 checker=dual:ok/primal:ok 
+      gfrd-pnc     dual 0.017 s, primal 0.035 s
+greenbea     DISAGREE  dual=4932/225215399 primal=28429/2252434718 split=p1:7942/p2:1/dual:20486 verdict=optimal/numerical error obj=-72555248.129845977/0 checker=dual:ok/primal:n/a different verdicts: the settled point is not dual feasible: a reduced cost breaches its bound by 15476.3 after settling, from a cold start; publishing that as OPTIMAL would certify a point the reduced costs do not support
+greenbeb     DISAGREE  dual=11242/603994473 primal=56612/4499295477 split=p1:7525/p2:1/dual:49086 verdict=optimal/numerical error obj=-4302260.2612065868/0 checker=dual:ok/primal:n/a different verdicts: the settled point is not dual feasible: a reduced cost breaches its bound by 0.637939 after settling, from a cold start; publishing that as OPTIMAL would certify a point the reduced costs do not support
+grow15       ok        dual=2582/57565903 primal=10877/262379517 split=p1:486/p2:1/dual:10390 verdict=optimal/optimal obj=-106870941.29357533/-106870941.29357535 checker=dual:ok/primal:ok 
+      grow15       dual 0.198 s, primal 0.865 s
+grow22       ok        dual=27275/733504475 primal=46073/1386962660 split=p1:681/p2:1/dual:45391 verdict=optimal/optimal obj=-160834336.48256299/-160834336.48256296 checker=dual:ok/primal:ok 
+      grow22       dual 2.591 s, primal 4.980 s
+grow7        ok        dual=519/5970480 primal=4813/41680017 split=p1:212/p2:1/dual:4600 verdict=optimal/optimal obj=-47787811.814711504/-47787811.814711504 checker=dual:ok/primal:ok 
+      grow7        dual 0.014 s, primal 0.135 s
+israel       ok        dual=100/592566 primal=618/5240919 split=p1:374/p2:1/dual:243 verdict=optimal/optimal obj=-896644.82186304568/-896644.8218630458 checker=dual:ok/primal:ok 
+      israel       dual 0.002 s, primal 0.024 s
+kb2          ok        dual=52/74689 primal=62/125410 split=p1:1/p2:1/dual:60 verdict=optimal/optimal obj=-1749.9001299062058/-1749.9001299062058 checker=dual:ok/primal:ok 
+      kb2          dual 0.000 s, primal 0.001 s
+lotfi        ok        dual=232/826189 primal=239/814004 split=p1:155/p2:1/dual:83 verdict=optimal/optimal obj=-25.264706061880005/-25.264706061880005 checker=dual:ok/primal:ok 
+      lotfi        dual 0.003 s, primal 0.016 s
+maros        DISAGREE  dual=1054/12001990 primal=3665/66446564 split=p1:1607/p2:1/dual:2057 verdict=optimal/numerical error obj=-58063.743701125895/0 checker=dual:ok/primal:n/a different verdicts: the settled point is not dual feasible: a reduced cost breaches its bound by 86.6812 after settling, from a cold start; publishing that as OPTIMAL would certify a point the reduced costs do not support
+maros-r7     overrun   dual=2578/326016073 split=p1:5881/p2:0/dual:0 over 10x the dual's work
+modszk1      DISAGREE  dual=747/8994276 primal=768/4973283 split=p1:14/p2:1/dual:753 verdict=optimal/numerical error obj=320.61972906422608/0 checker=dual:ok/primal:n/a different verdicts: the settled point is not dual feasible: a reduced cost breaches its bound by 53.1536 after settling, from a cold start; publishing that as OPTIMAL would certify a point the reduced costs do not support
+nesm         ok        dual=5891/133071815 primal=6497/155269849 split=p1:2053/p2:1/dual:4443 verdict=optimal/optimal obj=14076036.487562733/14076036.487562733 checker=dual:ok/primal:ok 
+      nesm         dual 0.728 s, primal 0.863 s
+perold       ok        dual=2491/67576873 primal=9981/324596689 split=p1:3084/p2:1/dual:6896 verdict=optimal/optimal obj=-9380.7552782351613/-9380.7552782351613 checker=dual:ok/primal:ok 
+      perold       dual 0.324 s, primal 1.511 s
+pilot        ok        dual=22210/4311990571 primal=35666/12275974646 split=p1:13633/p2:3/dual:22030 verdict=optimal/optimal obj=-557.4897292893346/-557.4897292893346 checker=dual:ok/primal:ok 
+      pilot        dual 16.266 s, primal 32.052 s
+pilot-ja     ok        dual=2403/94515274 primal=18849/944150043 split=p1:6967/p2:1/dual:11881 verdict=optimal/optimal obj=-6113.1364655813431/-6113.1364655813431 checker=dual:ok/primal:ok 
+      pilot-ja     dual 0.460 s, primal 4.658 s
+pilot-we     DISAGREE  dual=4558/143901388 primal=34921/1342298325 split=p1:1992/p2:1/dual:32928 verdict=optimal/numerical error obj=-2720107.5328449644/0 checker=dual:ok/primal:n/a different verdicts: the settled point is not dual feasible: a reduced cost breaches its bound by 2748.61 after settling, from a cold start; publishing that as OPTIMAL would certify a point the reduced costs do not support
+pilot4       ok        dual=673/16066863 primal=4480/120014900 split=p1:2569/p2:1/dual:1910 verdict=optimal/optimal obj=-2581.1392588838889/-2581.1392588838889 checker=dual:ok/primal:ok 
+      pilot4       dual 0.070 s, primal 0.501 s
+pilot87      overrun   dual=38000/17961110514 split=p1:231769/p2:0/dual:0 over 10x the dual's work
+pilotnov     ok        dual=2135/80872352 primal=12640/599189490 split=p1:2270/p2:2/dual:10368 verdict=optimal/optimal obj=-4497.2761882188706/-4497.2761882188715 checker=dual:ok/primal:ok 
+      pilotnov     dual 0.436 s, primal 2.725 s
+recipe       ok        dual=42/23369 primal=57/80404 split=p1:37/p2:1/dual:19 verdict=optimal/optimal obj=-266.61599999999999/-266.61599999999999 checker=dual:ok/primal:ok 
+      recipe       dual 0.000 s, primal 0.000 s
+sc105        DISAGREE  dual=106/130495 primal=34/198800 split=p1:1/p2:1/dual:32 verdict=optimal/numerical error obj=-52.202061211707239/0 checker=dual:ok/primal:n/a different verdicts: the settled point is not dual feasible: a reduced cost breaches its bound by 0.105405 after settling, from a cold start; publishing that as OPTIMAL would certify a point the reduced costs do not support
+sc205        DISAGREE  dual=226/554624 primal=34/240723 split=p1:1/p2:1/dual:32 verdict=optimal/numerical error obj=-52.202061211707232/0 checker=dual:ok/primal:n/a different verdicts: the settled point is not dual feasible: a reduced cost breaches its bound by 0.105405 after settling, from a cold start; publishing that as OPTIMAL would certify a point the reduced costs do not support
+sc50a        DISAGREE  dual=47/35402 primal=40/183483 split=p1:1/p2:1/dual:38 verdict=optimal/numerical error obj=-64.575077058564489/0 checker=dual:ok/primal:n/a different verdicts: the settled point is not dual feasible: a reduced cost breaches its bound by 0.180657 after settling, from a cold start; publishing that as OPTIMAL would certify a point the reduced costs do not support
+sc50b        DISAGREE  dual=52/37889 primal=34/175934 split=p1:1/p2:1/dual:32 verdict=optimal/numerical error obj=-70/0 checker=dual:ok/primal:n/a different verdicts: the settled point is not dual feasible: a reduced cost breaches its bound by 0.215471 after settling, from a cold start; publishing that as OPTIMAL would certify a point the reduced costs do not support
+scagr25      ok        dual=513/2287144 primal=823/6777193 split=p1:616/p2:1/dual:206 verdict=optimal/optimal obj=-14753433.06076852/-14753433.060768522 checker=dual:ok/primal:ok 
+      scagr25      dual 0.015 s, primal 0.065 s
+scagr7       ok        dual=168/370201 primal=197/513659 split=p1:147/p2:1/dual:49 verdict=optimal/optimal obj=-2331389.8243309837/-2331389.8243309837 checker=dual:ok/primal:ok 
+      scagr7       dual 0.004 s, primal 0.003 s
+scfxm1       ok        dual=418/1912437 primal=680/5183310 split=p1:407/p2:1/dual:272 verdict=optimal/optimal obj=18416.759028348941/18416.759028348941 checker=dual:ok/primal:ok 
+      scfxm1       dual 0.034 s, primal 0.058 s
+scfxm2       ok        dual=895/6344649 primal=1585/20806838 split=p1:835/p2:1/dual:749 verdict=optimal/optimal obj=36660.261564998815/36660.261564998815 checker=dual:ok/primal:ok 
+      scfxm2       dual 0.111 s, primal 0.221 s
+scfxm3       ok        dual=1427/11414755 primal=2956/52451390 split=p1:1195/p2:1/dual:1760 verdict=optimal/optimal obj=54901.254549751458/54901.254549751458 checker=dual:ok/primal:ok 
+      scfxm3       dual 0.124 s, primal 0.485 s
+scorpion     ok        dual=249/471803 primal=330/1986055 split=p1:258/p2:1/dual:71 verdict=optimal/optimal obj=1878.1248227381068/1878.1248227381068 checker=dual:ok/primal:ok 
+      scorpion     dual 0.021 s, primal 0.013 s
+scrs8        overrun   dual=495/1914122 split=p1:1737/p2:0/dual:0 over 10x the dual's work
+scsd1        DISAGREE  dual=97/487980 primal=833/3593663 split=p1:118/p2:1/dual:714 verdict=optimal/numerical error obj=8.6666666743333653/0 checker=dual:ok/primal:n/a different verdicts: the settled point is not dual feasible: a reduced cost breaches its bound by 10.0591 after settling, from a cold start; publishing that as OPTIMAL would certify a point the reduced costs do not support
+scsd6        DISAGREE  dual=244/1672688 primal=2021/18868649 split=p1:798/p2:1/dual:1222 verdict=optimal/numerical error obj=50.500000077144342/0 checker=dual:ok/primal:n/a different verdicts: the settled point is not dual feasible: a reduced cost breaches its bound by 106.094 after settling, from a cold start; publishing that as OPTIMAL would certify a point the reduced costs do not support
+scsd8        overrun   dual=751/8925052 split=p1:2854/p2:0/dual:0 over 10x the dual's work
+sctap1       ok        dual=184/569802 primal=235/1110732 split=p1:146/p2:1/dual:88 verdict=optimal/optimal obj=1412.25/1412.25 checker=dual:ok/primal:ok 
+      sctap1       dual 0.003 s, primal 0.012 s
+sctap2       ok        dual=291/968548 primal=1468/14384993 split=p1:376/p2:1/dual:1091 verdict=optimal/optimal obj=1724.8071428571429/1724.8071428571429 checker=dual:ok/primal:ok 
+      sctap2       dual 0.041 s, primal 0.160 s
+sctap3       DISAGREE  dual=369/1281116 primal=2037/23369452 split=p1:489/p2:1/dual:1547 verdict=optimal/numerical error obj=1424/0 checker=dual:ok/primal:n/a different verdicts: the settled point is not dual feasible: a reduced cost breaches its bound by 48.4848 after settling, from a cold start; publishing that as OPTIMAL would certify a point the reduced costs do not support
+seba         ok        dual=107/183662 primal=132/1177286 split=p1:119/p2:1/dual:12 verdict=optimal/optimal obj=15711.6/15711.6 checker=dual:ok/primal:ok 
+      seba         dual 0.003 s, primal 0.020 s
+share1b      ok        dual=183/577296 primal=347/1678234 split=p1:150/p2:1/dual:196 verdict=optimal/optimal obj=-76589.318579185667/-76589.318579185681 checker=dual:ok/primal:ok 
+      share1b      dual 0.002 s, primal 0.013 s
+share2b      ok        dual=98/186602 primal=167/477553 split=p1:117/p2:1/dual:49 verdict=optimal/optimal obj=-415.73224074141922/-415.73224074141962 checker=dual:ok/primal:ok 
+      share2b      dual 0.001 s, primal 0.002 s
+shell        ok        dual=492/1753019 primal=911/7797297 split=p1:550/p2:1/dual:360 verdict=optimal/optimal obj=1208825346/1208825346 checker=dual:ok/primal:ok 
+      shell        dual 0.025 s, primal 0.059 s
+ship04l      ok        dual=407/646598 primal=748/6774622 split=p1:453/p2:1/dual:294 verdict=optimal/optimal obj=1793324.5379703557/1793324.5379703557 checker=dual:ok/primal:ok 
+      ship04l      dual 0.005 s, primal 0.038 s
+ship04s      ok        dual=333/431246 primal=394/2580515 split=p1:214/p2:1/dual:179 verdict=optimal/optimal obj=1798714.7004453922/1798714.7004453922 checker=dual:ok/primal:ok 
+      ship04s      dual 0.003 s, primal 0.015 s
+ship08l      DISAGREE  dual=710/2637328 primal=1316/18535171 split=p1:643/p2:1/dual:672 verdict=optimal/numerical error obj=1909055.2113891314/0 checker=dual:ok/primal:n/a different verdicts: the settled point is not dual feasible: a reduced cost breaches its bound by 324.173 after settling, from a cold start; publishing that as OPTIMAL would certify a point the reduced costs do not support
+ship08s      ok        dual=461/956645 primal=676/4982036 split=p1:287/p2:1/dual:388 verdict=optimal/optimal obj=1920098.2105346196/1920098.2105346196 checker=dual:ok/primal:ok 
+      ship08s      dual 0.006 s, primal 0.028 s
+ship12l      DISAGREE  dual=1014/4231366 primal=2060/39733056 split=p1:1241/p2:1/dual:818 verdict=optimal/numerical error obj=1470187.9193292649/0 checker=dual:ok/primal:n/a different verdicts: the settled point is not dual feasible: a reduced cost breaches its bound by 81.3845 after settling, from a cold start; publishing that as OPTIMAL would certify a point the reduced costs do not support
+ship12s      ok        dual=657/1550937 primal=1004/9333745 split=p1:554/p2:1/dual:449 verdict=optimal/optimal obj=1489236.1344061291/1489236.1344061291 checker=dual:ok/primal:ok 
+      ship12s      dual 0.018 s, primal 0.057 s
+sierra       ok        dual=610/1514196 primal=967/11520253 split=p1:493/p2:1/dual:473 verdict=optimal/optimal obj=15394362.183631929/15394362.183631931 checker=dual:ok/primal:ok 
+      sierra       dual 0.036 s, primal 0.097 s
+stair        ok        dual=549/11407200 primal=1087/24113607 split=p1:851/p2:1/dual:235 verdict=optimal/optimal obj=-251.26695119296332/-251.26695119296332 checker=dual:ok/primal:ok 
+      stair        dual 0.072 s, primal 0.127 s
+standata     ok        dual=55/92213 primal=63/358084 split=p1:47/p2:1/dual:15 verdict=optimal/optimal obj=1257.6994999999999/1257.6994999999999 checker=dual:ok/primal:ok 
+      standata     dual 0.001 s, primal 0.002 s
+standmps     ok        dual=197/336860 primal=661/3287011 split=p1:163/p2:1/dual:497 verdict=optimal/optimal obj=1406.0174999999999/1406.0174999999999 checker=dual:ok/primal:ok 
+      standmps     dual 0.003 s, primal 0.028 s
+stocfor1     ok        dual=123/287966 primal=216/508372 split=p1:165/p2:1/dual:50 verdict=optimal/optimal obj=-41131.976219436408/-41131.976219436408 checker=dual:ok/primal:ok 
+      stocfor1     dual 0.001 s, primal 0.007 s
+stocfor2     DISAGREE  dual=2193/16758275 primal=4587/129442353 split=p1:3139/p2:1/dual:1447 verdict=optimal/numerical error obj=-39024.408537882031/0 checker=dual:ok/primal:n/a different verdicts: the settled point is not dual feasible: a reduced cost breaches its bound by 8200.96 after settling, from a cold start; publishing that as OPTIMAL would certify a point the reduced costs do not support
+stocfor3     DISAGREE  dual=18238/549661288 primal=24504/4712011139 split=p1:22759/p2:1/dual:1744 verdict=optimal/numerical error obj=-39976.783943649592/0 checker=dual:ok/primal:n/a different verdicts: the settled point is not dual feasible: a reduced cost breaches its bound by 6715.65 after settling, from a cold start; publishing that as OPTIMAL would certify a point the reduced costs do not support
+truss        DISAGREE  dual=17271/1122246939 primal=4883/280168825 split=p1:2802/p2:1/dual:2080 verdict=optimal/numerical error obj=458815.84718561673/0 checker=dual:ok/primal:n/a different verdicts: the settled point is not dual feasible: a reduced cost breaches its bound by 2019.1 after settling, from a cold start; publishing that as OPTIMAL would certify a point the reduced costs do not support
+tuff         DISAGREE  dual=215/979802 primal=871/9816017 split=p1:779/p2:1/dual:91 verdict=optimal/numerical error obj=0.29214776509361279/0 checker=dual:ok/primal:n/a different verdicts: the settled point is not dual feasible: a reduced cost breaches its bound by 0.0279127 after settling, from a cold start; publishing that as OPTIMAL would certify a point the reduced costs do not support
+vtp-base     ok        dual=46/40852 primal=93/161147 split=p1:87/p2:5/dual:1 verdict=optimal/optimal obj=129831.46246136137/129831.46246136136 checker=dual:ok/primal:ok 
+      vtp-base     dual 0.000 s, primal 0.001 s
+wood1p       overrun   dual=694/53867372 split=p1:3820/p2:0/dual:0 over 10x the dual's work
+woodw        DISAGREE  dual=1228/40150968 primal=4203/172936857 split=p1:2670/p2:1/dual:1532 verdict=optimal/numerical error obj=1.3044763330842295/0 checker=dual:ok/primal:n/a different verdicts: the settled point is not dual feasible: a reduced cost breaches its bound by 8.67485 after settling, from a cold start; publishing that as OPTIMAL would certify a point the reduced costs do not support
+
+-- primal against dual --
+measured 56, skipped 0, unreached 0, unbounded? 0, overrun 8, disagreed 30, rejected 0, errors 0
+iterations by method: phase 1 546211 (51.2%), phase 2 98 (0.0%), dual re-entry 521150 (48.8%)
+  that is a sum over the set (D46): pilot87 carries 21.7% of it and d2q06c 21.5%. Median per-instance phase-1 share 57.4% over 94 instance(s).
+  8 of 94 did not finish inside 10x the dual's work. Dantzig pricing is the worst rule that is still correct, and that is TODO.md section 0 stage 5, not a defect.
+iterations (primal+1)/(dual+1), geometric mean: 2.2295
+work units primal/dual, geometric mean:         3.9746
+work ratio, best  lotfi at 0.9853
+work ratio, worst sctap2 at 14.8521
+took more iterations primal than dual:          56 of 56
+bit-identical cost on both sides:               0 of 56
+elapsed 520.9 s

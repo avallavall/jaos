@@ -1,0 +1,9 @@
+# tree: 1fe8bc6 plus a JAOS_DIAG patch, outside the repo
+# r = |col[best]| / (DBL_EPSILON * max_i |col[i]|) for the row each call chose.
+# A floor of C*eps*max|col| moves a solve iff that solve's min_r < C.
+# hist buckets are log10(r): b0 = r<1e-1, b1 = [1e-1,1), b2 = [1,10), ... b25 = >=1e24
+
+## the gate, netlib-infeas (bench/run) -- dual only
+# control: 32 record lines written
+
+## the gate, netlib-kennington (bench/run) -- dual only

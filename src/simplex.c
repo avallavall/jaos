@@ -34,6 +34,13 @@
  * copy of the model (see sx_init), and the checker judges the original. */
 constexpr double PRIMAL_TOL    = 1e-7;
 constexpr double PIVOT_MIN     = 1e-9;   /* smallest usable |alpha| */
+/* On top of PIVOT_MIN, in the two primal ratio tests only: how far an entry
+ * of `B^-1 M_q` has to stand above the rounding of the solve that produced
+ * it, in multiples of one ulp of that column's largest entry. It decides
+ * what may be pivoted on, never what blocks. Dimensionless, so it belongs to
+ * neither space; the threshold it builds is in scaled space, with `s->col`
+ * (D207, swept in `bench/measurements/02-122/`). */
+constexpr double PIVOT_MARGIN  = 1.0;
 /* The width of the Harris window, and what the solve calls zero for a
  * reduced cost (D174, D184); per-model override is D64. */
 constexpr double DUAL_TOL      = 1e-9;
@@ -2136,29 +2143,73 @@ static int64_t primal_ratio_test(sx *s, int64_t q, bool bland, bool *below,
     const double dir = s->d[q] < 0.0 ? 1.0 : -1.0;
     int64_t best = -1;
     double best_step = HUGE_VAL;
+    bool best_below = false;
+    double cmax = 0.0;
+    double thr = PIVOT_MIN;
+    /* Pass 0's answer, kept: `*step` is the caller's bound on how far q may
+     * travel and it must be read off EVERY row, floor or no floor, and it is
+     * what stands if the floor leaves nothing to pivot on. */
+    int64_t first = -1;
+    double first_step = HUGE_VAL;
+    bool first_below = false;
 
-    for (int64_t i = 0; i < s->nrow; i++) {
-        double move = -dir * s->col[i];      /* per unit q travels */
-        if (fabs(move) < PIVOT_MIN)
-            continue;                        /* cannot be told from zero */
+    /* Two passes at most. `PIVOT_MARGIN`'s floor needs the column's largest
+     * entry, which is known only once a scan has finished, so pass 0 runs on
+     * `PIVOT_MIN` and the floor is applied to the row it chose. A second pass
+     * runs only when that row is below the floor, and skipping it otherwise
+     * is exact: the winner of a scan is still the winner over any subset of
+     * it that contains that winner, and `jm_primal_row_wins` orders on
+     * `(step, basis)`, which removing rows does not change. `dir` is exactly
+     * ±1.0, so the filter and the test below compare the same bits. */
+    for (int pass = 0; pass < 2; pass++) {
+        best = -1;
+        best_step = HUGE_VAL;
+        best_below = false;
+        for (int64_t i = 0; i < s->nrow; i++) {
+            double move = -dir * s->col[i];      /* per unit q travels */
+            const double amove = fabs(move);
+            if (pass == 0 && amove > cmax)
+                cmax = amove;
+            if (amove < thr)
+                continue;                        /* cannot be told from zero */
 
-        int64_t b = s->basis[i];
-        double limit = move < 0.0 ? real_lower(s, b) : real_upper(s, b);
-        if (!isfinite(limit))
-            continue;
+            int64_t b = s->basis[i];
+            double limit = move < 0.0 ? real_lower(s, b) : real_upper(s, b);
+            if (!isfinite(limit))
+                continue;
 
-        double step = (limit - s->xb[i]) / move;
-        if (step < 0.0)
-            step = 0.0;                      /* already there: degenerate */
-        if (jm_primal_row_wins(step, b, best_step,
-                               best >= 0 ? s->basis[best] : -1, bland)) {
-            best_step = step;
-            best = i;
-            *below = move < 0.0;
+            double step = (limit - s->xb[i]) / move;
+            if (step < 0.0)
+                step = 0.0;                      /* already there: degenerate */
+            if (jm_primal_row_wins(step, b, best_step,
+                                   best >= 0 ? s->basis[best] : -1, bland)) {
+                best_step = step;
+                best = i;
+                best_below = move < 0.0;
+            }
         }
+        jm_work_add(&s->work, s->nrow * JM_WORK_NONZERO);
+        if (pass == 0) {
+            first = best;
+            first_step = best_step;
+            first_below = best_below;
+        }
+        const double rel = PIVOT_MARGIN * DBL_EPSILON * cmax;
+        /* Negated, so a NaN `rel` from a non-finite column stops here rather
+         * than running a second pass with no filter at all. */
+        if (!(rel > thr) || best < 0 || fabs(s->col[best]) >= rel)
+            break;
+        thr = rel;
     }
-    jm_work_add(&s->work, s->nrow * JM_WORK_NONZERO);
-    *step = best_step;
+    /* The floor decides what is worth pivoting on, never whether a row
+     * exists. Leaving nothing above it would otherwise return -1, which both
+     * callers read as "no declared bound stops this column" and refuse on. */
+    if (best < 0) {
+        best = first;
+        best_below = first_below;
+    }
+    *below = best_below;
+    *step = first_step;
     return best;
 }
 
@@ -2590,48 +2641,78 @@ static int64_t primal_phase1_ratio(sx *s, int64_t q, bool bland, bool *below,
     const double dir = s->d[q] < 0.0 ? 1.0 : -1.0;
     int64_t best = -1;
     double best_step = HUGE_VAL;
+    bool best_below = false;
+    double cmax = 0.0;
+    double thr = PIVOT_MIN;
+    int64_t first = -1;
+    double first_step = HUGE_VAL;
+    bool first_below = false;
 
-    for (int64_t i = 0; i < s->nrow; i++) {
-        const double move = -dir * s->col[i];      /* per unit q travels */
-        if (fabs(move) < PIVOT_MIN)
-            continue;                              /* cannot be told from zero */
+    /* Two passes at most, and pass 0's answer kept, both for the reasons the
+     * phase-2 test above states. */
+    for (int pass = 0; pass < 2; pass++) {
+        best = -1;
+        best_step = HUGE_VAL;
+        best_below = false;
+        for (int64_t i = 0; i < s->nrow; i++) {
+            const double move = -dir * s->col[i];      /* per unit q travels */
+            const double amove = fabs(move);
+            if (pass == 0 && amove > cmax)
+                cmax = amove;
+            if (amove < thr)
+                continue;                              /* cannot be told from zero */
 
-        const int64_t v = s->basis[i];
-        const double lo = real_lower(s, v), up = real_upper(s, v);
-        const bool under = isfinite(lo) && s->xb[i] < lo - s->primal_tol;
-        const bool over  = isfinite(up) && s->xb[i] > up + s->primal_tol;
+            const int64_t v = s->basis[i];
+            const double lo = real_lower(s, v), up = real_upper(s, v);
+            const bool under = isfinite(lo) && s->xb[i] < lo - s->primal_tol;
+            const bool over  = isfinite(up) && s->xb[i] > up + s->primal_tol;
 
-        double limit;
-        bool lands_low;
-        if (under) {
-            if (move < 0.0)
-                continue;                          /* going further under */
-            limit = lo;
-            lands_low = true;
-        } else if (over) {
-            if (move > 0.0)
-                continue;                          /* going further over */
-            limit = up;
-            lands_low = false;
-        } else {
-            limit = move < 0.0 ? lo : up;
-            lands_low = move < 0.0;
-            if (!isfinite(limit))
-                continue;
+            double limit;
+            bool lands_low;
+            if (under) {
+                if (move < 0.0)
+                    continue;                          /* going further under */
+                limit = lo;
+                lands_low = true;
+            } else if (over) {
+                if (move > 0.0)
+                    continue;                          /* going further over */
+                limit = up;
+                lands_low = false;
+            } else {
+                limit = move < 0.0 ? lo : up;
+                lands_low = move < 0.0;
+                if (!isfinite(limit))
+                    continue;
+            }
+
+            double t = (limit - s->xb[i]) / move;
+            if (t < 0.0)
+                t = 0.0;                               /* already there: degenerate */
+            if (jm_primal_row_wins(t, v, best_step,
+                                   best >= 0 ? s->basis[best] : -1, bland)) {
+                best_step = t;
+                best = i;
+                best_below = lands_low;
+            }
         }
-
-        double t = (limit - s->xb[i]) / move;
-        if (t < 0.0)
-            t = 0.0;                               /* already there: degenerate */
-        if (jm_primal_row_wins(t, v, best_step,
-                               best >= 0 ? s->basis[best] : -1, bland)) {
-            best_step = t;
-            best = i;
-            *below = lands_low;
+        jm_work_add(&s->work, s->nrow * JM_WORK_NONZERO);
+        if (pass == 0) {
+            first = best;
+            first_step = best_step;
+            first_below = best_below;
         }
+        const double rel = PIVOT_MARGIN * DBL_EPSILON * cmax;
+        if (!(rel > thr) || best < 0 || fabs(s->col[best]) >= rel)
+            break;
+        thr = rel;
     }
-    jm_work_add(&s->work, s->nrow * JM_WORK_NONZERO);
-    *step = best_step;
+    if (best < 0) {
+        best = first;
+        best_below = first_below;
+    }
+    *below = best_below;
+    *step = first_step;
     return best;
 }
 

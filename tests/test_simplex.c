@@ -1481,6 +1481,63 @@ static void test_primal_bland_takes_the_lowest_and_not_the_highest(void)
     TEST_ASSERT_FALSE(jm_primal_row_wins(0.0, 8, 0.0, 2, true));
 }
 
+/* The property the two primal ratio tests' relative pivot floor rests on
+ * (D207). Both run a scan on `PIVOT_MIN`, and re-scan on a higher floor only
+ * when the row that scan chose falls below it. Skipping the re-scan is sound
+ * only if the winner of a scan is still the winner over every subset that
+ * contains it — which holds because `jm_primal_row_wins` is the comparison of
+ * a strict total order, and the minimum of a set is the minimum of any subset
+ * holding it. Nothing in the tree checked that, and the ratio tests stopped
+ * re-checking it, so a later tie-break change would break the floor in
+ * silence. This is the check, over every subset of a fixed set, in both
+ * modes. */
+static int64_t greedy_winner(const double *step, const int64_t *var, int n,
+                             unsigned mask, bool bland)
+{
+    int64_t best = -1;
+    double best_step = HUGE_VAL;
+    for (int i = 0; i < n; i++) {
+        if ((mask & (1u << i)) == 0)
+            continue;
+        if (jm_primal_row_wins(step[i], var[i], best_step,
+                               best >= 0 ? var[best] : -1, bland))
+            best = i, best_step = step[i];
+    }
+    return best;
+}
+
+static void test_primal_row_wins_minimum_survives_every_subset(void)
+{
+    /* Degenerate ties, ordinary ratios, one that blocks late, and indices
+     * deliberately out of scan order so a lazy tie-break shows up. */
+    const double step[6] = { 0.0, 2.5, 0.0, 7.0, 2.5, 0.0 };
+    const int64_t var[6] = {  9,   3,   4,   0,   1,   7 };
+
+    for (int mode = 0; mode < 2; mode++) {
+        const bool bland = mode == 1;
+        const int64_t full = greedy_winner(step, var, 6, 0x3fu, bland);
+        TEST_ASSERT_TRUE(full >= 0);
+        for (unsigned mask = 1; mask < 64u; mask++) {
+            if ((mask & (1u << full)) == 0)
+                continue;      /* only subsets that keep the winner */
+            TEST_ASSERT_EQUAL_INT64(full, greedy_winner(step, var, 6,
+                                                        mask, bland));
+        }
+    }
+}
+
+/* And the case the floor must NOT be allowed to hide: with the winner
+ * removed, the answer is free to change. If this ever stopped changing the
+ * test above would be vacuous. */
+static void test_primal_row_wins_dropping_the_winner_can_change_it(void)
+{
+    const double step[3] = { 1.0, 2.0, 3.0 };
+    const int64_t var[3] = {  5,   6,   7  };
+    const int64_t full = greedy_winner(step, var, 3, 0x7u, false);
+    TEST_ASSERT_EQUAL_INT64(0, full);
+    TEST_ASSERT_EQUAL_INT64(1, greedy_winner(step, var, 3, 0x6u, false));
+}
+
 /* jm_pattern_order: the scatter's record of where it wrote, made into
  * something a consumer can walk. Every property below is one that no solve
  * would report — a dropped position only makes the answer different, and a
@@ -3636,6 +3693,8 @@ int main(void)
     RUN_TEST(test_primal_bland_first_row_always_wins);
     RUN_TEST(test_primal_bland_variable_zero_is_an_index);
     RUN_TEST(test_primal_bland_takes_the_lowest_and_not_the_highest);
+    RUN_TEST(test_primal_row_wins_minimum_survives_every_subset);
+    RUN_TEST(test_primal_row_wins_dropping_the_winner_can_change_it);
     RUN_TEST(test_pattern_order_sorts_and_dedups);
     RUN_TEST(test_pattern_order_scans_only_the_touched_range);
     RUN_TEST(test_pattern_order_keeps_a_full_pattern);

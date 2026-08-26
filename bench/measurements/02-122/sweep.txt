@@ -1,0 +1,120 @@
+patched
+### PIVOT_MARGIN=0
+exit=1  107 record lines
+woodw        DISAGREE  dual=1228/40150968 primal=3878/153308957 split=p1:2310/p2:1/dual:1567 verdict=optimal/numerical error obj=1.3044763330842295/0 checker=dual:ok/primal:n/a different verdicts: the settled point is not dual feasible: a reduced cost breaches its bound by 3.44929 after settling, from a cold start; publishing that as OPTIMAL would certify a point the reduced costs do not support
+
+-- primal against dual --
+measured 53, skipped 0, unreached 0, unbounded? 0, overrun 9, disagreed 31, rejected 0, errors 1
+iterations by method: phase 1 332294 (39.2%), phase 2 95 (0.0%), dual re-entry 514755 (60.8%)
+  that is a sum over the set (D46): d2q06c carries 26.3% of it and dfl001 15.6%. Median per-instance phase-1 share 57.3% over 94 instance(s).
+  9 of 94 did not finish inside 10x the dual's work. Dantzig pricing is the worst rule that is still correct, and that is TODO.md section 0 stage 5, not a defect.
+iterations (primal+1)/(dual+1), geometric mean: 2.1084
+work units primal/dual, geometric mean:         3.8954
+work ratio, best  lotfi at 1.0229
+work ratio, worst sctap2 at 16.4178
+took more iterations primal than dual:          53 of 53
+bit-identical cost on both sides:               0 of 53
+elapsed 109.9 s
+
+### PIVOT_MARGIN=3e-6
+exit=1  107 record lines
+woodw        DISAGREE  dual=1228/40150968 primal=3878/153308957 split=p1:2310/p2:1/dual:1567 verdict=optimal/numerical error obj=1.3044763330842295/0 checker=dual:ok/primal:n/a different verdicts: the settled point is not dual feasible: a reduced cost breaches its bound by 3.44929 after settling, from a cold start; publishing that as OPTIMAL would certify a point the reduced costs do not support
+
+-- primal against dual --
+measured 53, skipped 0, unreached 0, unbounded? 0, overrun 9, disagreed 31, rejected 0, errors 1
+iterations by method: phase 1 332294 (39.2%), phase 2 95 (0.0%), dual re-entry 514755 (60.8%)
+  that is a sum over the set (D46): d2q06c carries 26.3% of it and dfl001 15.6%. Median per-instance phase-1 share 57.3% over 94 instance(s).
+  9 of 94 did not finish inside 10x the dual's work. Dantzig pricing is the worst rule that is still correct, and that is TODO.md section 0 stage 5, not a defect.
+iterations (primal+1)/(dual+1), geometric mean: 2.1084
+work units primal/dual, geometric mean:         3.8954
+work ratio, best  lotfi at 1.0229
+work ratio, worst sctap2 at 16.4178
+took more iterations primal than dual:          53 of 53
+bit-identical cost on both sides:               0 of 53
+elapsed 102.1 s
+
+### PIVOT_MARGIN=1e-5
+exit=1  107 record lines
+woodw        DISAGREE  dual=1228/40150968 primal=3878/153308957 split=p1:2310/p2:1/dual:1567 verdict=optimal/numerical error obj=1.3044763330842295/0 checker=dual:ok/primal:n/a different verdicts: the settled point is not dual feasible: a reduced cost breaches its bound by 3.44929 after settling, from a cold start; publishing that as OPTIMAL would certify a point the reduced costs do not support
+
+-- primal against dual --
+measured 53, skipped 0, unreached 0, unbounded? 0, overrun 10, disagreed 31, rejected 0, errors 0
+iterations by method: phase 1 741979 (59.0%), phase 2 95 (0.0%), dual re-entry 514755 (41.0%)
+  that is a sum over the set (D46): pilot87 carries 34.0% of it and d2q06c 17.7%. Median per-instance phase-1 share 57.3% over 94 instance(s).
+  10 of 94 did not finish inside 10x the dual's work. Dantzig pricing is the worst rule that is still correct, and that is TODO.md section 0 stage 5, not a defect.
+iterations (primal+1)/(dual+1), geometric mean: 2.1084
+work units primal/dual, geometric mean:         3.8954
+work ratio, best  lotfi at 1.0229
+work ratio, worst sctap2 at 16.4178
+took more iterations primal than dual:          53 of 53
+bit-identical cost on both sides:               0 of 53
+elapsed 215.1 s
+
+### PIVOT_MARGIN=1e-3
+exit=1  107 record lines
+woodw        DISAGREE  dual=1228/40150968 primal=3878/153308957 split=p1:2310/p2:1/dual:1567 verdict=optimal/numerical error obj=1.3044763330842295/0 checker=dual:ok/primal:n/a different verdicts: the settled point is not dual feasible: a reduced cost breaches its bound by 3.44929 after settling, from a cold start; publishing that as OPTIMAL would certify a point the reduced costs do not support
+
+-- primal against dual --
+measured 53, skipped 0, unreached 0, unbounded? 0, overrun 8, disagreed 32, rejected 0, errors 1
+iterations by method: phase 1 656471 (55.9%), phase 2 96 (0.0%), dual re-entry 518487 (44.1%)
+  that is a sum over the set (D46): pilot87 carries 28.9% of it and d2q06c 19.0%. Median per-instance phase-1 share 57.3% over 94 instance(s).
+  8 of 94 did not finish inside 10x the dual's work. Dantzig pricing is the worst rule that is still correct, and that is TODO.md section 0 stage 5, not a defect.
+iterations (primal+1)/(dual+1), geometric mean: 2.1130
+work units primal/dual, geometric mean:         3.8992
+work ratio, best  lotfi at 1.0229
+work ratio, worst sctap2 at 16.4178
+took more iterations primal than dual:          53 of 53
+bit-identical cost on both sides:               0 of 53
+elapsed 148.1 s
+
+### PIVOT_MARGIN=1e-1
+exit=1  107 record lines
+woodw        DISAGREE  dual=1228/40150968 primal=3878/153308957 split=p1:2310/p2:1/dual:1567 verdict=optimal/numerical error obj=1.3044763330842295/0 checker=dual:ok/primal:n/a different verdicts: the settled point is not dual feasible: a reduced cost breaches its bound by 3.44929 after settling, from a cold start; publishing that as OPTIMAL would certify a point the reduced costs do not support
+
+-- primal against dual --
+measured 53, skipped 0, unreached 0, unbounded? 0, overrun 8, disagreed 32, rejected 0, errors 1
+iterations by method: phase 1 620447 (54.4%), phase 2 97 (0.0%), dual re-entry 520638 (45.6%)
+  that is a sum over the set (D46): pilot87 carries 26.9% of it and d2q06c 20.1%. Median per-instance phase-1 share 57.3% over 94 instance(s).
+  8 of 94 did not finish inside 10x the dual's work. Dantzig pricing is the worst rule that is still correct, and that is TODO.md section 0 stage 5, not a defect.
+iterations (primal+1)/(dual+1), geometric mean: 2.1130
+work units primal/dual, geometric mean:         3.9022
+work ratio, best  lotfi at 1.0229
+work ratio, worst sctap2 at 16.4178
+took more iterations primal than dual:          53 of 53
+bit-identical cost on both sides:               0 of 53
+elapsed 143.0 s
+
+### PIVOT_MARGIN=1
+exit=1  107 record lines
+woodw        DISAGREE  dual=1228/40150968 primal=4203/175982856 split=p1:2670/p2:1/dual:1532 verdict=optimal/numerical error obj=1.3044763330842295/0 checker=dual:ok/primal:n/a different verdicts: the settled point is not dual feasible: a reduced cost breaches its bound by 8.67485 after settling, from a cold start; publishing that as OPTIMAL would certify a point the reduced costs do not support
+
+-- primal against dual --
+measured 55, skipped 0, unreached 0, unbounded? 0, overrun 9, disagreed 30, rejected 0, errors 0
+iterations by method: phase 1 700610 (57.6%), phase 2 97 (0.0%), dual re-entry 514945 (42.4%)
+  that is a sum over the set (D46): pilot87 carries 31.8% of it and d2q06c 18.8%. Median per-instance phase-1 share 57.4% over 94 instance(s).
+  9 of 94 did not finish inside 10x the dual's work. Dantzig pricing is the worst rule that is still correct, and that is TODO.md section 0 stage 5, not a defect.
+iterations (primal+1)/(dual+1), geometric mean: 2.1970
+work units primal/dual, geometric mean:         3.9907
+work ratio, best  lotfi at 1.0229
+work ratio, worst sctap2 at 16.4178
+took more iterations primal than dual:          55 of 55
+bit-identical cost on both sides:               0 of 55
+elapsed 330.0 s
+
+### PIVOT_MARGIN=5
+exit=1  107 record lines
+woodw        DISAGREE  dual=1228/40150968 primal=4203/175982856 split=p1:2670/p2:1/dual:1532 verdict=optimal/numerical error obj=1.3044763330842295/0 checker=dual:ok/primal:n/a different verdicts: the settled point is not dual feasible: a reduced cost breaches its bound by 8.67485 after settling, from a cold start; publishing that as OPTIMAL would certify a point the reduced costs do not support
+
+-- primal against dual --
+measured 54, skipped 0, unreached 0, unbounded? 0, overrun 9, disagreed 31, rejected 0, errors 0
+iterations by method: phase 1 775701 (59.3%), phase 2 96 (0.0%), dual re-entry 531423 (40.7%)
+  that is a sum over the set (D46): pilot87 carries 35.1% of it and d2q06c 17.5%. Median per-instance phase-1 share 57.4% over 94 instance(s).
+  9 of 94 did not finish inside 10x the dual's work. Dantzig pricing is the worst rule that is still correct, and that is TODO.md section 0 stage 5, not a defect.
+iterations (primal+1)/(dual+1), geometric mean: 2.1845
+work units primal/dual, geometric mean:         3.9995
+work ratio, best  lotfi at 1.0229
+work ratio, worst sctap2 at 16.4178
+took more iterations primal than dual:          54 of 54
+bit-identical cost on both sides:               0 of 54
+elapsed 290.7 s
+
