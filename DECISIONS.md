@@ -204,6 +204,7 @@ and you have the argument. Jump to the entry for the numbers behind it.
 - **[D194](#d194--605-of-the-primal-campaigns-iterations-are-the-duals-the-primals-phase-2-runs-exactly-one-iteration-on-80-of-94-and-pilot4-is-not-a-primal-regression)** — 60.5% of the primal campaign's iterations are the dual's, the primal's phase 2 runs exactly one iteration on 80 of 94, and `pilot4` is not a primal regression
 - **[D195](#d195--the-bound-flips-1e10-delta-fires-on-nothing-and-chasing-it-found-that-d194-counted-phase-1-from-a-log-line-printed-only-on-success)** — The bound flip's 1e10 delta fires on nothing, and chasing it found that D194 counted phase 1 from a log line printed only on success
 - **[D196](#d196--the-iteration-cap-really-is-shared-across-both-primal-phases-and-the-dual-and-phase-1-spends-at-most-168-of-it-so-only-the-guards-message-needed-fixing)** — The iteration cap really is shared across both primal phases and the dual, and phase 1 spends at most 1.68% of it, so only the guard's message needed fixing
+- **[D197](#d197--the-primal-campaign-reports-which-method-did-the-work-and-two-instruments-now-agree-that-phase-2-is-00-of-it)** — The primal campaign reports which method did the work, and two instruments now agree that phase 2 is 0.0% of it
 
 ---
 
@@ -15033,3 +15034,86 @@ would have been cheaper if it did, and D194 would not have been wrong. Doing it
 honestly needs the solver to log phase 1's count on **every** exit and not only
 on success, which is the same defect D195 found in a probe. That is the next
 item in `TODO.md` §0 and it is independent of the 55-versus-17 decision.
+
+## D197 — The primal campaign reports which method did the work, and two instruments now agree that phase 2 is 0.0% of it
+
+`TODO.md` §0's "either way `bench/primal.c` should report the split", closed.
+It was written as independent of the 55-versus-17 decision and it is; that
+decision is still open.
+
+### The question
+
+D194, D195 and D196 were each spent working out from outside what a "primal"
+campaign's iterations actually are. The runner reported `primal=iters/work`
+for solves the dual finished, because `reenter_after_settling` calls `run()`.
+Nothing in the record said so.
+
+### What landed
+
+**`sx` gains `n_phase1_iters`, assigned after the phase-1 call in `run_primal`
+so it is written on every exit.** That placement is the substance: the count
+was previously readable only from `phase 1 reached a feasible point in N
+iterations`, which is printed on **success**, so a phase 1 that ran and did not
+finish read as one that never ran — the error D195 corrected in D194.
+
+Both closing summaries carry it. `bench/primal.c` prints
+`split=p1:N/p2:N/dual:N` on every record line, **including the overrun
+branch**, and leads its summary with the campaign's totals by method.
+
+### The measurement
+
+`bench/measurements/02-110/`. The runner's own summary over all 94:
+
+| | iterations | share |
+|---|---|---|
+| phase 1 | 336660 | 39.5% |
+| **phase 2** | **97** | **0.0%** |
+| dual re-entry | 515522 | 60.5% |
+
+**Identical to `bench/measurements/02-108/`**, which produced the same three
+figures through a patched worktree and a separate probe. Two instruments, two
+code paths, the same numbers — and per instance on five named cases including
+`wood1p` at p1:3820 p2:0 dual:0, the one D194 recorded backwards.
+
+Everything else the campaign reports is unchanged: measured 55, overrun 7,
+disagreed 31, errors 1, work geometric mean 3.9023.
+
+All three gate sets `gate: PASS`, `0 regressed, 0 improved, 0 new`, every file
+in `bench/results/` byte-identical. `make configs` exits 0 on all five.
+
+### The test is validated, and its first control was worthless
+
+`test_the_summary_separates_phase_1_from_phase_2` pins the property that
+failed. Injecting the defect — `n_phase1_iters` forced to 0 in a worktree —
+gives exactly one FAIL and it is this test.
+
+**The first control broke the build instead**, because zeroing the assignment
+left `phase1_entered` unused and `-Werror` refused it. A control that cannot
+compile proves nothing, and "make test came back non-zero" is not the claim
+"this test caught it". The script prints every FAIL line now rather than an
+exit code.
+
+The non-success path is not reproduced in the suite and the test says why: it
+needs a phase 1 that takes many iterations and then runs out of budget, which
+no two-row model reaches. `wood1p` is the named case in the campaign.
+
+### Two defects this shipped with, both caught before the record
+
+- **`make configs` caught the test helper**, used only inside a block the two
+  fault builds compile out, so `-Werror=unused-function` refused it there while
+  a plain `make test` passed. The same shape as D154 and D-10, and the third
+  time this trap has been paid for.
+- **`write_result` never learned the three new fields.** `read_result` expected
+  17 and the `fprintf` still wrote 14, so every worker file failed to parse and
+  `make primal J=12` reported all 94 as `worker died`. **Invisible at `-j 1`**,
+  which runs in process and never crosses that boundary — and `-j 1` is exactly
+  where the columns had been cross-checked. The `perl` substitution that should
+  have applied it reported success because `perl` exits 0 whether or not `s///`
+  matched. Every other edit in this change verified its match count; this one
+  did not, and that is the whole reason it survived.
+
+### What is left open
+
+The 55-versus-17 decision, unchanged and still the maintainer's. What this
+adds is that the campaign now states the case for it in its own output rather
+than needing three decisions to reconstruct.

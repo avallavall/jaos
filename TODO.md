@@ -13,36 +13,26 @@ line leaves this file in the same commit.
 3 and 4 have landed. **What is next is a DECISION, not code.** D194 measured
 that 60.5% of the primal campaign's iterations are the dual's and that the
 primal's phase 2 runs 97 iterations across the whole set, so §0's headline
-number does not mean what it reads as. That block is at the top of §0. After it:
-teach `bench/primal.c` to report the split, then stage 2 (Harris in primal
-form) or stage 5 (Devex, blocked on a paywalled source) — and D195 says stage
-5's pricing question belongs to phase 1, which is where every budget is spent.
-**All four of D191's answer-changing findings are disposed of** (D192, D193,
-D195, D196).
+number does not mean what it reads as. That block is at the top of §0, and
+`make primal` now prints those three figures itself (D197). After it: stage 2
+(Harris in primal form) or stage 5 (Devex, blocked on a paywalled source) — and
+D195 says stage 5's pricing question belongs to phase 1, which is where every
+budget is spent. **All four of D191's answer-changing findings are disposed
+of** (D192, D193, D195, D196).
 
 **The tree is clean and everything is committed. Nothing is pushed** — ask the
 remote for the count rather than trusting one written here, because it is stale
-the moment anything lands.
-`gate: PASS` with `0 regressed, 0 improved, 0 new` on all three sets, and every
-file in `bench/results/` byte-identical to the committed record — that campaign
-ran at D193's tree and covers the whole span from D188. `make configs` exits 0
-on all five configurations.
+the moment anything lands. **Push from the WINDOWS side**: the remote is an SSH
+alias that lives in the Windows `~/.ssh/config` only. `git fetch` first,
+because another Claude session commits here.
 
-Two untracked things are not a session's leftovers: `bench/measurements/02-31/`
-predates this work, and `bench/results/primal.txt` has never been tracked — the
-primal campaign is a comparison and not a gate.
-
-**Ask the remote rather than trusting a count:**
-`git rev-list --count origin/main..HEAD`. **Push from the WINDOWS side** — the
-remote is an SSH alias that lives in the Windows `~/.ssh/config` only. `git
-fetch` first, because another Claude session commits here.
-
-**Twenty decisions landed between 2026-08-24 and 2026-08-26, D177 to D196**,
-and two of the five open items closed. What each one did is below, newest
-first.
+**Twenty-one decisions landed between 2026-08-24 and 2026-08-26, D177 to
+D197**, and two of the five open items closed. What each one did is below,
+newest first.
 
 | | |
 |---|---|
+| **D197** | the campaign says which method did the work: phase 1 39.5%, phase 2 0.0%, dual 60.5% |
 | **D196** | the iteration cap is shared, phase 1 spends 1.68% of it, and the guard's message named the wrong phase |
 | **D195** | the flip's 1e10 delta fires on nothing, and D194 counted phase 1 from a success-only log line |
 | **D194** | 60.5% of the primal campaign is dual iterations; phase 2 runs 97 iterations in all |
@@ -1292,12 +1282,11 @@ Guarded, `truss` goes from 2802 phase-2 iterations to 422576, 44 instances lose
   every later stage is then measured against a number that moves for reasons
   the primal does not control.
 
-**Either way `bench/primal.c` should report the split, and it is the next
-item.** Two columns, primal and dual iterations, would have made this visible
-from the first campaign instead of after four decisions — and D194 would not
-have been wrong. **Doing it honestly needs the solver to log phase 1's count on
-EVERY exit and not only on success**, which is the same defect D195 found in a
-probe. Independent of the decision above and can land whatever it is.
+**`bench/primal.c` reports the split, and D197 closed that.** Every record line
+carries `split=p1:N/p2:N/dual:N` and the summary leads with the campaign's
+totals. Two instruments agree: phase 1 336660 (39.5%), phase 2 97 (0.0%), dual
+re-entry 515522 (60.5%). **The decision above is still open** — what the
+runner now does is state the case for it in its own output.
 
 **And D195 moved where the next optimisation belongs.** The 8 instances that
 never leave phase 1 spend every one of their budgets there — seven are `work

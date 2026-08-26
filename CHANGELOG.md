@@ -11,6 +11,15 @@ open, `bench/README.md` for the gate, and the commit each entry came from.
 
 ### Added
 
+- **`make primal` says which method did the work.** Every record line carries
+  `split=p1:N/p2:N/dual:N`, the overrun branch included, and the summary leads
+  with the campaign's totals: **phase 1 39.5%, phase 2 0.0% (97 iterations),
+  dual re-entry 60.5%**. The solver gains `n_phase1_iters`, assigned after the
+  phase-1 call so it is written on **every** exit — reading it from a
+  success-only log line is what made D194 wrong about eight instances. Matches
+  02-108's independent probe exactly, on the totals and per instance. Cost:
+  all three gate sets byte-identical (D197, `bench/measurements/02-110/`).
+
 - **A primal phase 1, and the reach goes from 0 of 94 to 64 of 94.** Composite,
   short-step, no artificial variables: it works on whatever basis it is given,
   which is what crossover needs. **54 instances now agree with the dual**,

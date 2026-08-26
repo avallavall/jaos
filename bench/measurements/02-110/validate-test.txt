@@ -1,0 +1,20 @@
+# negative control for test_the_summary_separates_phase_1_from_phase_2
+# tree: 6ffe655a5ae33fe51e351b6baed3a2998031e187 with n_phase1_iters forced to 0 in run_primal
+# the test MUST appear as a FAIL below, or it is not evidence
+
+make test rc=2
+
+## every FAIL line:
+tests/test_simplex.c:2857:test_the_summary_separates_phase_1_from_phase_2:FAIL: Expected 0 to be greater than 0:phase 1 ran from a primal infeasible start and reported none
+
+## suite totals:
+18 Tests 0 Failures 0 Ignored 
+5 Tests 0 Failures 0 Ignored 
+6 Tests 0 Failures 0 Ignored 
+18 Tests 0 Failures 0 Ignored 
+29 Tests 0 Failures 0 Ignored 
+6 Tests 0 Failures 0 Ignored 
+74 Tests 0 Failures 11 Ignored 
+12 Tests 0 Failures 0 Ignored 
+94 Tests 1 Failures 4 Ignored 
+4 Tests 0 Failures 0 Ignored 
