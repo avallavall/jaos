@@ -1171,9 +1171,14 @@ detector that catches a cycle.
 a bound on a rate everywhere else. D184 measured that holding it at the old
 value changes nothing — **94 of 94 identical digests** — and the likely reason
 is structural: `can_move` feeds `anything_to_move`, and what those columns need
-is a primal pivot that does not exist. **Building the primal simplex makes that
+is a primal pivot that did not exist. **Building the primal simplex makes that
 site live, so its units have to be settled before it decides anything.** That
 is D184's stated reopen condition.
+
+**It landed on 2026-08-25 (D188), so the condition is met and the question is
+live. Nothing has measured it since**, and the forced-primal campaign now
+spends 60.5% of its iterations in the re-entry that reads `can_move`. Found by
+the 2026-08-26 drift audit; it is on the refusal re-run list.
 
 ### What the gate will and will not say
 

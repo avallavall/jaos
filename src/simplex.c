@@ -2893,7 +2893,9 @@ static jaos_status pivot(sx *s, int64_t r, int64_t q, bool below,
  * Whatever cannot be repaired this way stays in the reported reduced
  * costs, where the independent checker will see it. Removing it properly
  * means moving a nonbasic variable until something blocks, which is a
- * primal simplex iteration, and there is no primal simplex before M6. */
+ * primal simplex iteration: `primal_cleanup` does exactly that on the
+ * re-entry (D30), and the primal simplex itself exists since D188. This
+ * repair stays cheap and local because it runs before either. */
 static void repair_dual_infeasibility(sx *s)
 {
     for (int64_t v = 0; v < s->nvar; v++) {
@@ -3975,10 +3977,12 @@ static bool improves_without_limit(sx *s, int64_t j)
  * bound phase 1 lent, and this method cannot reach it. Reaching it means
  * lifting the loan and re-solving, and the degenerate case of that — a
  * basic already pressed against a real bound in the ray's direction — needs
- * a primal pivot, which does not exist before M6. So the solve refuses out
- * loud instead. That is the whole change in kind: this used to be reported
- * as UNBOUNDED, silently and wrongly, on a model with a perfectly good
- * finite optimum. */
+ * a primal pivot. **That pivot exists now (D188), so this refusal's original
+ * premise has expired**; lifting the loan and re-solving with it is
+ * `TODO.md` section 0 stage 7, and the refusal stands only until that
+ * lands. So the solve refuses out loud instead. That is the whole change in
+ * kind: this used to be reported as UNBOUNDED, silently and wrongly, on a
+ * model with a perfectly good finite optimum. */
 static jaos_solve_status classify_optimum(sx *s)
 {
     int64_t blocked = -1;

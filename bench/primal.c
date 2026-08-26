@@ -28,15 +28,19 @@
  *
  * ## Validating the instrument before there is anything to measure
  *
- * `cfg.force_primal` has no reader yet, deliberately (see its comment in
- * `src/jaos_internal.h`). So today **both solves are the dual**, and the
- * whole set must come back `ok` with a work ratio of exactly 1.0 and
- * identical objectives. That is not a null result to be shrugged at: it is
- * the only run in which the answer is known in advance, and it is what makes
- * a later disagreement mean something about the primal rather than about
- * this file. Confirm the other direction too — doctor one side and watch it
- * report `DISAGREE` — because a predicate that has never been made to fire
- * is not evidence that it can.
+ * `cfg.force_primal` had no reader when this file was written, deliberately
+ * (see its comment in `src/jaos_internal.h`). So on that first run **both
+ * solves were the dual**, and the whole set had to come back `ok` with a work
+ * ratio of exactly 1.0 and identical objectives. That is not a null result to
+ * be shrugged at: it is the only run in which the answer is known in advance,
+ * and it is what makes a later disagreement mean something about the primal
+ * rather than about this file. The other direction was confirmed too — one
+ * side doctored, `DISAGREE` reported — because a predicate that has never
+ * been made to fire is not evidence that it can.
+ *
+ * The primal has had a reader since D188. The validation count survives in
+ * the summary, inverted: any instance that costs the same both ways NOW
+ * means the primal path was not taken.
  *
  * ## Why it reaches past jaos.h
  *
@@ -911,10 +915,10 @@ int main(int argc, char **argv)
         case PRIMAL_OK:       break;
         }
         measured++;
-        /* The count that validates this program while force_primal has no
-         * reader: two solves of the same model down the same path cost the
-         * same integer number of work units, so anything other than all of
-         * them is a defect in here. */
+        /* The count that validated this program before `force_primal` had a
+         * reader (D188's stage 0): two solves of the same model down the same
+         * path cost the same integer number of work units. Kept inverted now
+         * that it has one — see the summary line for what a non-zero means. */
         if (r->work_d == r->work_p && r->iters_d == r->iters_p)
             identical++;
         if (r->iters_p > r->iters_d)

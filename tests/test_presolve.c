@@ -1563,8 +1563,9 @@ static void test_an_implied_bound_outside_the_box_is_refused(void)
  * surviving basic column touches both reduced rows, so nothing is
  * uncovered, and row 0's logical is the first nonbasic one in index order.
  * It is also the exact member the first solve's swap took out. The
- * uncovered-rows branch has no small test yet; TODO.md's standing debts
- * carry it. */
+ * uncovered-rows branch has no small test; the campaign reaches it on
+ * `pilot-we` and `ship08l` (the table below), and TODO.md carries no debt
+ * for one. */
 static void test_a_short_mapped_basis_is_repaired_and_warm_survives(void)
 {
 #if defined(JAOS_PRESOLVE_FAULT_OFFBYONE) || defined(JAOS_PRESOLVE_FAULT_WRONGDUAL)

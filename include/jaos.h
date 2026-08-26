@@ -655,9 +655,10 @@ typedef struct jaos_check_report {
        a dropped row multiplier is worth is the part that would need the
        factorization.
 
-       Decides nothing today, and on the evidence it is not yet fit to: a
-       predicate that reads the same on a wrong answer as on a right one
-       cannot be a verdict.                                                  */
+       The library decides nothing on it. The gate does: `bench/run` holds
+       every solve to an absolute bar on this figure (D185). D73 had found
+       an earlier reading that could not tell a wrong answer from a right
+       one; the bar is what settled that this one can.                       */
     double certified_suboptimality;
 
     /* Columns that could move without limit — no row ever stops them — but
