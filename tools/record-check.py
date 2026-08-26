@@ -108,7 +108,9 @@ SOURCES = sorted(glob.glob('src/*.c') + glob.glob('src/*.h') +
                  glob.glob('include/*.h') + glob.glob('bench/*.c') +
                  glob.glob('bench/compare/*.c') + glob.glob('tests/*.c'))
 SKILLS = sorted(glob.glob('.claude/**/*.md', recursive=True))
-EVERYTHING = HISTORY + LIVE_DOCS + SOURCES + SKILLS + ['Makefile']
+TOOLS = sorted(glob.glob('tools/*.sh') + glob.glob('tools/*.py'))
+REGISTRIES = [p for p in ['bench/refusals.txt', 'docs/claims.txt'] if os.path.isfile(p)]
+EVERYTHING = HISTORY + LIVE_DOCS + SOURCES + SKILLS + TOOLS + REGISTRIES + ['Makefile']
 
 decisions = read('DECISIONS.md')
 headings = {}

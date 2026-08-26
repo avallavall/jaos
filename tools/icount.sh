@@ -18,14 +18,14 @@
 # What it is not. Instructions are not time: a cache miss costs the same
 # instruction as a hit. It answers "did this change make the CPU do less
 # work", which is the question seconds cannot answer here, and it is the
-# THIRD metric beside digests and work units, not a replacement for the time
-# ratio where that ratio is readable.
+# third metric beside digests and work units; the time ratio is the fourth,
+# and it is taken only where the count is not readable (D206).
 #
 # The count is taken inside `jm_dual_simplex*` and not the whole process,
 # because the driver reads a clock and formats seconds, which is about a
 # hundred instructions of noise per run. `jaos_solve` is inlined by LTO and
 # counts zero. Measured on adlittle: 7755048 twice, and identical with ASLR
-# off (bench/measurements/02-117/).
+# off (bench/measurements/02-117/, and the numbers are in D206).
 #
 # Cost: about 50x native. Name instances that take under a few seconds.
 set -u

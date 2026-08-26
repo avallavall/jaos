@@ -25,7 +25,20 @@ python3 .claude/skills/jaos-measure/scripts/record_diff.py bench/results/*.txt
 # any ratio, ever
 python3 .claude/skills/jaos-measure/scripts/geomean.py --metric work old.txt new.txt
 python3 .claude/skills/jaos-measure/scripts/geomean.py --pairs timings.txt
+
+# a comments-only change: the release object at REF and at HEAD must match
+bash .claude/skills/jaos-measure/scripts/comment_only.sh src/file.c [ref]
+# ...and the token-level proof, for a file edited outside git
+python3 tools/strip-comments.py ORIG NEW        # must print IDENTICAL CODE
 ```
+
+`comment_only.sh` covers the release object and not the debug builds; `make
+configs` covers those. `preflight.sh` runs `make test`, and `make test` runs
+`make record-check`: a STOP whose line starts `record-check:` is a defect in
+the written record (a cited decision that does not exist, a constant
+`docs/tolerances.md` states wrongly, a `SPECS.md` row that says `missing` for
+a thing the tree has). Fix the document, not the tree; it invalidates nothing
+already measured.
 
 `record_diff.py` reports which instances came back bit-identical, which
 predicates moved, which work ratios passed 2x, and whether the record's format
@@ -56,9 +69,10 @@ last thing it did is lying by one solve.
 bought 2.953x in units and 1.866x in seconds; the real cost of a billed unit
 spans 14.7x across the timed set. A ranking by work units alone can be wrong
 by an order of magnitude depending on which instance carries the total. So a
-change is judged on three things, not one: **digests for correctness, work
-units for determinism and cross-machine comparability, and a same-instance
-time ratio for what the other two cannot see.**
+change is judged on four things, not one: **digests for correctness, work
+units for determinism and cross-machine comparability, an instruction count
+for what units cannot see, and a same-instance time ratio only where the
+count is not readable** (D45, D206).
 
 ## The time ratio, and how to take one that means anything
 
@@ -68,10 +82,19 @@ baseline that changes every run cannot detect a regression. That is the whole
 of the rule; it is not a ban on measuring time, it is a ban on recording it.
 
 Some changes move nothing else. `restrict`, a layout change, a flag: the work
-counter cannot see them by construction, so seconds are the only evidence
-there is, and refusing to take them means the change cannot be judged at all.
+counter cannot see them by construction. **Run `tools/icount.sh -r <parent-sha>
+<instances>` first**, whenever digests and units are identical. It is a
+callgrind instruction count inside `jm_dual_simplex`, deterministic to the
+instruction (D206, `bench/measurements/02-117/`), so 0.5% is 0.5% and not a
+guess about the host. It carries the D82 canary: identical counts on both
+trees is a STOP, because that is one binary measured twice. It costs about 50x
+native, so name instances that take under a few seconds. Take a time ratio
+only if the count moved, or where the count is not the question (a cache
+effect is one instruction either way). A refusal that says "inside the noise"
+without an instruction count is not a measurement; D76 was one, and D206 gave
+it its number.
 
-The protocol, and every clause of it has a reason:
+The protocol for the time ratio, and every clause of it has a reason:
 
 - **`-j 1`.** A parallel run's seconds are inflated and the runner says so on
   every line of output (D57). Twelve solves contending for cache is not the
@@ -110,8 +133,10 @@ D60's 1.3% here would have made that false result look like a comfortable pass.
 
 Derived bars inherit the same problem: D-13's 4.2% is `3 × 1.4%` (**D81's**
 repeatability — *not* D83's, whose 1.4% is Clp landing within 1.4% of HiGHS on
-total time, a different quantity). A bar of 4.2% cannot be tested on a host
-whose own repeatability is 6.27%; say so rather than reporting a verdict.
+total time, a different quantity). A bar of 4.2% cannot be tested in seconds
+on a host whose own repeatability is 6.27%; say so rather than reporting a
+verdict. `tools/icount.sh` answers the instruction half of that question
+today, exactly, and that is the half the bar was usually about.
 
 ## Run all three instance sets, and let the largest decide
 
@@ -119,14 +144,20 @@ whose own repeatability is 6.27%; say so rather than reporting a verdict.
 make netlib J=12             # the standard feasible set    ~85 s
 make netlib-infeas J=12      # models with no feasible point ~10 s
 make netlib-kennington J=12  # much larger, correctness only ~8 min
+make refusals                # every refusal with a script, re-tested; minutes
 ```
 
-**`J=N` or they run sequentially and cost minutes instead of seconds
-(D57).** Forgetting it is the single most expensive habit available here: the
-standard set is 8 minutes at `J=1` and 84 seconds at `J=12`. The instances
-are independent and every figure the record carries is an integer the solver
-computed, so solving them at once cannot move one — the seconds are the only
-thing `-j` invalidates.
+**`J=N` or they run sequentially** (D57; `CLAUDE.md` carries the times).
+The instances are independent and every figure the record carries is an
+integer the solver computed, so solving them at once cannot move one — the
+seconds are the only thing `-j` invalidates.
+
+`make refusals` (`tools/refusals.sh`, list in `bench/refusals.txt`) prints
+HOLDS, FLIPPED or COULD NOT RUN per refusal and exits 1 on any FLIPPED; the
+logs are `build/refusal-D<n>.log`, which `make clean` deletes. Run it when a
+milestone closes and after any change to pricing, the re-entry, presolve's
+families or the LU kernels. D184's condition was met for a day before anyone
+looked; this is what looks.
 
 All three, every time, before believing anything. This is not caution, it is
 a lesson with a receipt: a repair once looked perfect on the standard set
@@ -143,23 +174,12 @@ watch both directions.
 
 Build and run from WSL; the Windows side has no compiler.
 
-**The exit code is lost by interpolating `$?`, not by crossing into WSL.**
-Measured three ways in one session: `wsl … bash -c 'exit 7'` from PowerShell
-leaves `LASTEXITCODE=7`, and a script returning 1 leaves `LASTEXITCODE=1` —
-the boundary itself is faithful. What lies is `$?` written *inside* the
-command string: through the Bash tool it is expanded before reaching WSL and
-came back `True`, and through PowerShell it read `0` on a script that had just
-exited 1. So:
-
-- **Write the commands to a script file and run that.** Inside a script `$?`
-  is correct, and the same fix covers heredocs through the Bash tool eating
-  backslashes.
-- If you must run one line, read the status from **`LASTEXITCODE`** in
-  PowerShell rather than echoing `$?` inside the string — and note that a
-  trailing `| head` or `| grep` replaces it with the pipe's status.
-
-`/tmp` does not persist between `wsl` invocations, so anything one step hands
-to the next belongs in one script.
+**The exit code is lost by interpolating `$?`, not by crossing into WSL**
+(`CLAUDE.md` carries the trap and its fix: write a script file and run that).
+Two facts it does not carry: from PowerShell the status is readable as
+**`LASTEXITCODE`**, and a trailing `| head` or `| grep` replaces it with the
+pipe's status. `/tmp` does not persist between `wsl` invocations, so anything
+one step hands to the next belongs in one script.
 
 The paths, because guessing them costs a full LTO rebuild each time: the
 library is `build/release/libjaos.a`, the acceptance runner is

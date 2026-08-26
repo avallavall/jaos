@@ -72,7 +72,7 @@ spends an hour of campaigns on a record format:
 |---|---|
 | `src/` or `include/`, any code | all seven steps, `numerics-reviewer` included |
 | `bench/*.c`, `tools/`, `docs/`, the four documents, the Makefile | `make configs`, then the three sets once; digests must be byte-identical unless the change is to a campaign's own record format |
-| comments only | `make test` (which runs `record-check`) and the three sets once; every digest and work figure byte-identical, and `tools/strip-comments`-style proof that no code token moved |
+| comments only | `python3 tools/strip-comments.py ORIG NEW` must print `IDENTICAL CODE` (no code token moved), then `make test` (which runs `record-check`) and the three sets once; every digest and work figure byte-identical |
 
 **The record is checked with the code.** `make test` runs `make record-check`
 (`tools/record-check.py`): every cited decision exists, every constant in
@@ -83,11 +83,13 @@ lists what the record says does not exist — the line that fails when it does.
 `bench/refusals.txt` with what would reopen it and, where one exists, the
 script that re-tests it; `make refusals` runs those at a milestone boundary.
 
-**The third metric.** Seconds on this host repeat to 6.27% and work units
-cannot see a layout or branch change, so "inside the noise" was never a
-measurement. `tools/icount.sh -r <ref> <instances>` is a deterministic
-instruction count inside the solver. A change that moves nothing else is
-judged on it.
+**A change is judged on four things.** Solution digests for correctness,
+work units for determinism, **an instruction count** (`tools/icount.sh -r
+<ref> <instances>`, deterministic to the instruction inside the solver,
+D206) for what units cannot see, and a same-instance time ratio only where
+the count is not readable. Seconds on this host repeat to 6.27%, so "inside
+the noise" was never a measurement; the count is what a change that moves
+nothing else is judged on.
 
 ## Build and test — WSL only
 
@@ -137,9 +139,10 @@ does not persist between `wsl` invocations.
   record; the seconds say whether the units bought anything, and **never
   enter `bench/results/*.txt` or a baseline** — a baseline that changes every
   run cannot detect a regression.
-- **A change is judged on three things** (D45): solution digests for
-  correctness, work units for determinism, and a same-instance time ratio to
-  catch what the other two cannot see.
+- **A change is judged on four things** (D45, D206): solution digests for
+  correctness, work units for determinism, an instruction count for what
+  units cannot see, and a same-instance time ratio only where the count is
+  not readable.
 
 ## The skills, and the moment each one is for
 
