@@ -14,12 +14,12 @@ line leaves this file in the same commit.
 that 60.5% of the primal campaign's iterations are the dual's and that the
 primal's phase 2 runs 97 iterations across the whole set, so §0's headline
 number does not mean what it reads as. That block is at the top of §0, and
-`make primal` now prints those three figures itself (D197). **Four smaller
-items need no decision** and sit just above it. After those: stage 2 (Harris in
+`make primal` now prints those three figures itself (D197). **Two smaller items
+need no decision** and sit just above it. After those: stage 2 (Harris in
 primal form) or stage 5 (Devex, blocked on a paywalled source) — and D195 says
 stage 5's pricing question belongs to phase 1, which is where every budget is
-spent. **All four of D191's answer-changing findings are disposed of** (D192, D193,
-D195, D196).
+spent. **All four of D191's answer-changing findings are disposed of** (D192,
+D193, D195, D196).
 
 **The tree is clean and everything is committed. Nothing is pushed** — ask the
 remote for the count rather than trusting one written here, because it is stale
@@ -27,12 +27,13 @@ the moment anything lands. **Push from the WINDOWS side**: the remote is an SSH
 alias that lives in the Windows `~/.ssh/config` only. `git fetch` first,
 because another Claude session commits here.
 
-**Twenty-three decisions landed between 2026-08-24 and 2026-08-26, D177 to
-D199**, and two of the five open items closed. What each one did is below,
+**Twenty-four decisions landed between 2026-08-24 and 2026-08-26, D177 to
+D200**, and two of the five open items closed. What each one did is below,
 newest first.
 
 | | |
 |---|---|
+| **D200** | phase 1 refreshes before refusing, reaches that branch 0 times, and can be stopped |
 | **D199** | the phase-1 clear is O(nrow) now; 0.9452 on the campaign, and 0 answers moved |
 | **D198** | phase 1 was under-billed by `nvar` an iteration; every instance moved and two left the budget |
 | **D197** | the campaign says which method did the work: phase 1 38.8%, phase 2 0.0%, dual 61.2% |
@@ -1243,15 +1244,10 @@ unable to see the feature itself.
 
 ### → NEXT, and it needs no decision
 
-**D199 closed the phase-1 clear.** What is left in §0 that does not wait on the
-decision below, cheapest first:
+**D199 closed the phase-1 clear; D200 closed the two refusals on carried
+numbers and phase 1's missing progress callback.** What is left in §0 that does
+not wait on the decision below:
 
-- **Phase 1 is not interruptible.** It never calls `progress_cb`, so a caller
-  cannot see or stop a solve that spends 39.5% of its iterations there. Phase 2
-  and the dual both do.
-- **Both phase-1 refusals conclude on carried numbers.** Phase 2's optimality
-  test refreshes first and cites D20 for it; phase 1's two `jm_set_err` paths
-  do not.
 - **The hand-over check has zero margin against two computations of `xb`.**
   `run_primal_phase1` decides feasibility from the `xb` it carried; `run_primal`
   then refreshes and re-checks against `primal_tol` exactly, with nothing
@@ -1259,6 +1255,10 @@ decision below, cheapest first:
 - **`s->col`'s contract is a comment with five writers.** `jaos-testing`'s rule
   is that an invariant something else depends on is an assert or a test, not a
   comment, and this one has cost weeks before.
+
+**And one count that came free** (D200): phase 1's tiny-pivot retry fires **13
+times across 5 instances** — `dfl001` 7, `d6cube` 2, `greenbeb` 2, `pilot87` 1,
+`tuff` 1. Nothing hangs on it; it is written down because it was never counted.
 
 ### → DECIDE THIS FIRST: what "55 of 94" means, and whether to keep it
 
@@ -1349,10 +1349,12 @@ billed `nrow` for an `nvar` memset, and the clear is `O(nrow)` now; and the
 four records that said "phase 2 only", "there is no primal phase 1 yet" and "a
 cold start never gets here" say what the code does.
 
-The remainder, listed in full at the top of this section: phase 1 is not interruptible (no `progress_cb`); both phase-1
-refusals conclude on carried numbers where phase 2's refresh first and cite
-D20; the hand-over check has zero margin against two different computations of
-`xb`; and the `s->col` contract is a comment with five writers.
+**Two more are CLOSED by D200**: phase 1 offers `progress_cb` now, and its two
+refusals that are verdicts refresh before refusing.
+
+The remainder, listed in full at the top of this section: the hand-over check
+has zero margin against two different computations of `xb`, and the `s->col`
+contract is a comment with five writers.
 
 ### OPEN: the instances the primal cannot solve and the dual can
 

@@ -11,6 +11,12 @@ open, `bench/README.md` for the gate, and the commit each entry came from.
 
 ### Added
 
+- **A watcher can stop the primal phase 1.** Phase 2 and the dual both offered
+  `progress_cb`; phase 1 did not, so a caller could not see or stop the part of
+  a forced-primal solve that spends **39.5%** of its iterations. `infeas_best`
+  carries phase 1's own total instead of the 0.0 that claimed the point was
+  already feasible (D200).
+
 - **`make primal` says which method did the work.** Every record line carries
   `split=p1:N/p2:N/dual:N`, the overrun branch included, and the summary leads
   with the campaign's totals: **phase 1 39.5%, phase 2 0.0% (97 iterations),
@@ -42,6 +48,14 @@ open, `bench/README.md` for the gate, and the commit each entry came from.
   (D188, `bench/measurements/02-101/`).
 
 ### Fixed
+
+- **Phase 1 refreshes before it refuses.** Two of its four refusals — "nothing
+  improves" and "no declared bound stops this column" — are verdicts, and both
+  read numbers `pivot()` had been stepping in place through a patched
+  factorization. D20 refuses that and phase 2 has gated on it since it landed.
+  Cost: nothing measurable, and the branch is **reached 0 times on all 94**,
+  with the probe's positive control firing in the same table (D200,
+  `bench/measurements/02-113/`).
 
 - **The phase-1 clear stops sweeping every variable to undo the basis.**
   `primal_phase1_costs` cleared `nvar` doubles to zero at most `nrow` entries;

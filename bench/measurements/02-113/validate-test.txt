@@ -1,0 +1,20 @@
+# negative control for test_a_watcher_can_stop_the_primal_phase_1
+# tree: 7e9c9d9389108b9d4b123dfbc68b92ac80d5b029 with phase 1's progress callback guarded off
+# the test MUST appear as a FAIL below, or it is not evidence
+
+make test rc=2
+
+## every FAIL line:
+tests/test_simplex.c:2871:test_a_watcher_can_stop_the_primal_phase_1:FAIL: Expected 7 Was 1:the watcher asked to stop and the solve did not
+
+## suite totals:
+18 Tests 0 Failures 0 Ignored 
+5 Tests 0 Failures 0 Ignored 
+6 Tests 0 Failures 0 Ignored 
+18 Tests 0 Failures 0 Ignored 
+29 Tests 0 Failures 0 Ignored 
+6 Tests 0 Failures 0 Ignored 
+74 Tests 0 Failures 11 Ignored 
+12 Tests 0 Failures 0 Ignored 
+95 Tests 1 Failures 4 Ignored 
+4 Tests 0 Failures 0 Ignored 

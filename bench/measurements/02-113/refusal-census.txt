@@ -1,0 +1,18 @@
+# phase 1's four refusals: which are reached, over the standard set
+# tree: a97a6bbc05495ba40a75b35813f24ebc1c68329a plus patch.py, in a worktree
+# only instances that reached one are listed
+
+d6cube.mps     tinypivot-retry=2
+dfl001.mps     tinypivot-retry=7
+greenbeb.mps   tinypivot-retry=2
+pilot87.mps    tinypivot=1  tinypivot-retry=1
+tuff.mps       tinypivot-retry=1
+
+TOTAL over 94 instances
+  q-retry            0
+  q-refuse           0
+  r-retry            0
+  r-refuse           0
+  tinypivot          1
+  tinypivot-retry    13
+probe rc=0

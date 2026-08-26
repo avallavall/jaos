@@ -207,6 +207,7 @@ and you have the argument. Jump to the entry for the numbers behind it.
 - **[D197](#d197--the-primal-campaign-reports-which-method-did-the-work-and-two-instruments-now-agree-that-phase-2-is-00-of-it)** — The primal campaign reports which method did the work, and two instruments now agree that phase 2 is 0.0% of it
 - **[D198](#d198--phase-1-was-under-billed-by-nvar-on-every-iteration-and-charging-it-honestly-costs-two-instances-and-exposes-an-onvar-clear-that-should-be-onrow)** — Phase 1 was under-billed by `nvar` on every iteration, and charging it honestly costs two instances and exposes an `O(nvar)` clear that should be `O(nrow)`
 - **[D199](#d199--the-phase-1-clear-stops-sweeping-every-variable-to-undo-the-basis-and-the-campaign-returns-to-its-pre-d198-verdicts-at-042-more-work)** — The phase-1 clear stops sweeping every variable to undo the basis, and the campaign returns to its pre-D198 verdicts at 0.42% more work
+- **[D200](#d200--two-of-phase-1s-four-refusals-now-refresh-before-refusing-neither-is-reached-on-the-standard-set-and-phase-1-can-finally-be-watched-and-stopped)** — Two of phase 1's four refusals now refresh before refusing, neither is reached on the standard set, and phase 1 can finally be watched and stopped
 
 ---
 
@@ -15264,3 +15265,89 @@ The general point is worth keeping where a reader will meet it: **an unbilled
 sweep is invisible to every campaign this project runs.** That is the argument
 behind `docs/work-units.md`'s rule, and this pair is the first time it has cost
 and then repaid something measurable.
+
+## D200 — Two of phase 1's four refusals now refresh before refusing, neither is reached on the standard set, and phase 1 can finally be watched and stopped
+
+`TODO.md` §0's remainder list, two items. No answer changes; a class of wrong
+refusal is removed and a capability that was missing for a milestone is added.
+
+### The question
+
+`pivot()` steps `d` in place every iteration and the factorization is patched
+rather than rebuilt, so a verdict read off those numbers is exactly what D20
+refuses. Phase 2's optimality test has gated on `!s->verified` since it landed.
+Phase 1 has four refusals and **two of them are verdicts**: `q < 0` ("nothing
+improves the phase-1 objective") and `r < 0` ("no declared bound stops this
+column"). Neither gated.
+
+The other two are not verdicts: the iteration guard is a defect guard, and the
+tiny-pivot refusal already rebuilds and retries.
+
+Expected: some of the 31 disagreeing instances would be rescued.
+
+### The measurement
+
+`bench/measurements/02-113/`.
+
+**The primal campaign came back byte-identical** — `diff` over the whole
+record, not the summary line. That rules out "the gate fired and the fresh
+reading agreed", which would have cost an extra refresh and moved the units.
+
+Counting over all 94 confirms the branch is not reached:
+
+| refusal | reached |
+|---|---|
+| `q-retry` (the new gate) | **0** |
+| `q-refuse` | **0** |
+| `r-retry` (the new gate) | **0** |
+| `r-refuse` | **0** |
+| `tinypivot` | 1 |
+| `tinypivot-retry` | 13 |
+
+**The positive control is inside the table.** `tinypivot` is ungated and
+`pilot87` ends there — the campaign's one ERROR — so a blind probe would show
+zero in that row too.
+
+**A count nobody had**: phase 1's tiny-pivot retry fires **13 times across 5
+instances** — `dfl001` 7, `d6cube` 2, `greenbeb` 2, `pilot87` 1, `tuff` 1.
+
+All three gate sets `gate: PASS`, `0 regressed, 0 improved, 0 new`, every file
+in `bench/results/` byte-identical. `make configs` exits 0 on all five.
+
+### What was refuted
+
+**The expectation that gating would rescue instances.** It rescues none,
+because neither branch is reached: the 31 disagreeing instances end at the D146
+guard in `run()` (D194 localised it to `src/simplex.c:5496`), not inside phase
+1 at all. Phase 1 either reaches feasibility or runs out of budget.
+
+### Landed with it: phase 1 can be watched and stopped
+
+Phase 2 and the dual both offer `progress_cb`; phase 1 did not, so a caller
+could neither see nor stop the part of a forced-primal solve that spends 39.5%
+of its iterations (D197). A budget could end it and a person could not.
+
+`infeas_best` now carries phase 1's own total. `run_primal` set it to 0.0 at
+entry with a comment saying the primal holds the point feasible from end to
+end — true of phase 2 and false of every cold start, which runs phase 1 first
+(D195). It becomes 0.0 at the hand-over, where it is true.
+
+**The test is validated and the record says which half caught the fault.**
+`test_a_watcher_can_stop_the_primal_phase_1` requires `INTERRUPTED` without the
+line phase 1 logs on finishing. With phase 1's callback guarded off, exactly one
+test fails and it is this one — **on the status assertion, not the log one**
+(`Expected 7 Was 1`): without the callback the two-row model reaches OPTIMAL,
+because phase 2 takes one iteration and the dual finishes before another
+callback beat. The log assertion covers the model where that would not hold.
+
+### What is left open
+
+**The gate stays, unfired.** It costs nothing when it does not fire and removes
+a class of wrong refusal no campaign here can currently produce — the standing
+`jm_bland_pick` has had since D26. **Reopen conditions**: any instance reaching
+`q-refuse` or `r-refuse`, and a starting basis that is not the slack basis,
+because a crossover's reaches phase 1 with drift a cold start never has.
+
+Two items remain on §0's remainder list: the hand-over check's zero margin
+against two computations of `xb`, and `s->col`'s contract being a comment with
+five writers.
