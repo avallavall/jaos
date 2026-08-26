@@ -751,6 +751,23 @@ typedef struct {
      * and bound should not pay for it per call. */
     double *c1;
 
+    /* Which positions of `c1` the last `primal_phase1_costs` set, and how
+     * many. At most `nrow`, because only a basic can be infeasible and a basis
+     * holds distinct variables.
+     *
+     * **It replaces a `memset` over all `nvar` doubles on every phase-1
+     * iteration.** `nvar` is `ncol + nrow`, and at most `nrow` of those
+     * positions are ever non-zero, so the clear was doing the work of the
+     * whole variable set to undo the work of the basis. That was invisible
+     * until D198 started billing it; charging it honestly cost a geometric
+     * mean of 1.0625 across the standard set and took two instances past the
+     * harness's budget, which is what this recovers (D199).
+     *
+     * `c1` is allocated zeroed, because the `memset` was its initialiser as
+     * well as its clear and nothing else writes it. */
+    int64_t *c1_at;
+    int64_t n_c1_at;
+
     /* Is the primal phase 1 in flight? Read by the three places a cost is
      * lent — `update_dual`, the tail of `pivot()`, and `refresh`'s sweep
      * after a singular-basis repair.
@@ -803,7 +820,7 @@ static void sx_free(sx *s)
     free(s->dbg_rrange);
 #endif
     free(s->bs); free(s->bi); free(s->bv);
-    free(s->fake); free(s->c1);
+    free(s->fake); free(s->c1); free(s->c1_at);
     free(s->sav_status); free(s->sav_basis);
     free(s->sav_lo); free(s->sav_up); free(s->sav_fake);
     free(s->bst_status); free(s->bst_basis);
@@ -4156,28 +4173,39 @@ static void primal_bound_flip(sx *s, int64_t q, double delta)
  * satisfying the test that sent it there. */
 static double primal_phase1_costs(sx *s)
 {
-    memset(s->c1, 0, (size_t)s->nvar * sizeof *s->c1);
+    /* Clear only what the last call set. See `c1_at` for why this is not a
+     * `memset` over `nvar`. The array is left in exactly the state a full
+     * clear would leave it in, value for value, so this moves no digit of any
+     * answer — only the units it costs. */
+    const int64_t cleared = s->n_c1_at;
+    for (int64_t k = 0; k < cleared; k++)
+        s->c1[s->c1_at[k]] = 0.0;
+    s->n_c1_at = 0;
+
     double total = 0.0;
     for (int64_t i = 0; i < s->nrow; i++) {
         const int64_t v = s->basis[i];
         const double lo = real_lower(s, v), up = real_upper(s, v);
         if (isfinite(lo) && s->xb[i] < lo - s->primal_tol) {
             s->c1[v] = -1.0;
+            s->c1_at[s->n_c1_at++] = v;
             total += lo - s->xb[i];
         } else if (isfinite(up) && s->xb[i] > up + s->primal_tol) {
             s->c1[v] = 1.0;
+            s->c1_at[s->n_c1_at++] = v;
             total += s->xb[i] - up;
         }
     }
-    /* **`nvar` for the memset and `nrow` for the scan, and it used to bill
-     * only the scan.** `docs/work-units.md`'s rule is one unit per variable
-     * looked at, and the clear above writes every one of `nvar` doubles on
-     * every phase-1 iteration. Billing `nrow` for it charged the loop and not
-     * the sweep, so phase 1 was under-reported by `nvar` per iteration —
-     * against 336660 phase-1 iterations across the standard set (D197), which
-     * is not a rounding error. Nothing on the gate moves: `run_primal` is the
-     * only path here and only `cfg.force_primal` reaches it (D198). */
-    jm_work_add(&s->work, (s->nvar + s->nrow) * JM_WORK_NONZERO);
+    /* **What was cleared, plus the rows scanned**, one unit per position
+     * touched, which is `docs/work-units.md`'s rule.
+     *
+     * D198 changed this from `nrow` to `nvar + nrow`, because the clear was a
+     * `memset` over `nvar` and was billed nothing. D199 made the clear
+     * `O(nrow)` instead, so the honest charge is now the count the clear
+     * actually visited. **Both changes are the same rule applied twice**: bill
+     * the positions touched, and the second one is only reachable because the
+     * first made the first term visible. */
+    jm_work_add(&s->work, (cleared + s->nrow) * JM_WORK_NONZERO);
     return total;
 }
 
@@ -4309,8 +4337,12 @@ static jaos_status run_primal_phase1(sx *s, jaos_solve_status *out,
 {
     *feasible = false;
     if (s->c1 == nullptr) {
-        s->c1 = jm_alloc_array(s->nvar, sizeof *s->c1);
-        if (s->c1 == nullptr)
+        /* Zeroed, because `primal_phase1_costs` no longer clears the whole
+         * array and so no longer initialises it either. */
+        s->c1 = jm_calloc_array(s->nvar, sizeof *s->c1);
+        s->c1_at = jm_alloc_array(s->nrow, sizeof *s->c1_at);
+        s->n_c1_at = 0;
+        if (s->c1 == nullptr || s->c1_at == nullptr)
             return JAOS_ERR_OUT_OF_MEMORY;
     }
 
