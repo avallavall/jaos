@@ -199,9 +199,15 @@ typedef struct {
      * mid-word, and phase 1's own refusal lost the D19 citation and every
      * clause after it. Two different refusals then landed in the record under
      * notes neither of which carried the text that tells them apart.
-     * `read_result`'s two scanf widths are sized from this and must move with
-     * it. */
-    char note[256];
+     * **288 and not 256, because two sites PREPEND to a message that can
+     * already fill `m->err`.** `m->err` is 256 bytes and the longest prefix is
+     * 26. Widening the LOCAL those two sites build in changes nothing: `fail`
+     * copies into this field with `sizeof r->note` as the width, so
+     * truncating at 287 and then again at 255 gives the same 255 characters
+     * as truncating once. The field is what has to move.
+     *
+     * `read_result`'s scanf width is sized from this and must move with it. */
+    char note[288];
 } result;
 
 /* The split is read straight off the model, from `solve_primal_iters` and
@@ -377,11 +383,7 @@ static void measure_one(const entry *e, const char *dir, int64_t factor,
                         "violation of") != nullptr;
         const bool is_p2 = why != nullptr &&
             strstr(why, "improves and no declared bound stops it") != nullptr;
-        /* Wider than `r->note`, because it PREPENDS to a message that can
-          * already fill it: `m->err` is 256 bytes and the prefix is 26 more.
-          * Sized here and truncated once, by `fail`, instead of losing the
-          * closing clause of every long refusal a second time. */
-        char note[sizeof r->note + 32];
+        char note[sizeof r->note];
         snprintf(note, sizeof note, "%s%s",
                  cites && !is_p1 && !is_p2
                      ? "UNCLASSIFIED D19 refusal: " : "",
@@ -441,7 +443,7 @@ static void measure_one(const entry *e, const char *dir, int64_t factor,
          * else, which is the exact complaint that block's own comment was
          * written to answer: it cannot tell a wrong answer from a refusal
          * the method was designed to make. */
-        char note[sizeof r->note + 32];   /* prepends; see the block above */
+        char note[sizeof r->note];
         snprintf(note, sizeof note, "different verdicts%s%s",
                  pnote[0] != '\0' ? ": " : "", pnote);
         fail(r, PRIMAL_DISAGREE, note);
@@ -602,7 +604,7 @@ static bool read_result(const char *p, result *r)
          * it is invisible at the `-O3 -flto` the Makefile uses. Sized
          * together here so there is nothing to truncate. */
         char note[sizeof r->note];
-        if (fscanf(f, " %255[^\n]", note) == 1 && strcmp(note, "-") != 0)
+        if (fscanf(f, " %287[^\n]", note) == 1 && strcmp(note, "-") != 0)
             snprintf(r->note, sizeof r->note, "%s", note);
     }
     fclose(f);

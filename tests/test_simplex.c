@@ -2981,18 +2981,28 @@ static void test_the_counts_belong_to_the_solve_that_just_ran(void)
         "more primal iterations than iterations");
 
     if (st != JAOS_OK) {
-        /* The abandoned branch. `run_primal` refused, so nothing after it
-         * ran: no settling, no dual re-entry. Every iteration of this solve
-         * is therefore one the primal made, and the record's `dual re-entry`
-         * column -- `solve_iters - solve_primal_iters` -- must be zero.
-         *
-         * Under the defect this is the difference between two SOLVES, so it
-         * is zero only when they happened to cost the same. On `pilot87` it
-         * read 38000 - 17165. */
         TEST_ASSERT_TRUE_MESSAGE(m->solve_primal_iters > 0,
             "the primal was forced and reported no primal iterations");
-        TEST_ASSERT_EQUAL_INT64_MESSAGE(m->solve_primal_iters, m->solve_iters,
-            "a refused primal solve reports a dual re-entry that never ran");
+
+        /* **The equality holds only when the refusal came from inside
+         * `run_primal`, and the test asks before it asserts.** There is a
+         * second way to reach `st != JAOS_OK`: `run_primal` reaches OPTIMAL
+         * and `reenter_after_settling` fails afterwards. On that path
+         * `primal_cleanup`'s pivots and the re-entry's own `run()` have both
+         * raised `s->iters` without touching `n_primal_iters`, so the
+         * difference is correctly positive. Asserting equality unconditionally
+         * would be asserting the defect. `bench/primal.c` reaches that path
+         * whenever its work limit bites during the re-entry.
+         *
+         * Phase 1's refusal names itself, so the question is answerable
+         * without new state. When it is the answer, nothing after `run_primal`
+         * ran, and the record's `dual re-entry` column must be zero. */
+        const char *why = jaos_model_error(m);
+        if (why != nullptr &&
+            strstr(why, "the primal phase 1 cannot reduce") != nullptr)
+            TEST_ASSERT_EQUAL_INT64_MESSAGE(m->solve_primal_iters,
+                m->solve_iters,
+                "a refused primal solve reports a dual re-entry that never ran");
     }
     (void)carried;
     jaos_model_free(m);

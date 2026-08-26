@@ -769,7 +769,20 @@ typedef struct {
      * harness's budget, which is what this recovers (D199).
      *
      * `c1` is allocated zeroed, because the `memset` was its initialiser as
-     * well as its clear and nothing else writes it. */
+     * well as its clear and nothing else writes it.
+     *
+     * **It has no `memset` fallback, and `price_all`'s `apat`/`anpat` pattern
+     * does, and the difference is not an oversight.** That fallback guards a
+     * CAPACITY overflow: the pricing pattern can be larger than the array
+     * kept for it, so `anpat < 0` means "too large to walk". This one cannot
+     * overflow -- at most `nrow` positions are ever set and `c1_at` is `nrow`
+     * long -- so the only question left is density, which is a wall-clock
+     * question the work counter cannot answer. It was measured:
+     * `bench/measurements/02-116/` reads a geometric mean of 1.0007 over four
+     * phase-1-dominated instances against 0.9853 over two the change cannot
+     * reach, both far inside this host's 6.27% repeatability. No effect in
+     * either direction, so no threshold, and a threshold here would be a
+     * constant with no measurement behind it. */
     int64_t *c1_at;
     int64_t n_c1_at;
 
@@ -3808,6 +3821,12 @@ static jaos_status reenter_after_settling(sx *s)
                     return st;
                 if (!ok)
                     return JAOS_ERR_NUMERICAL;
+                /* The refresh above wrote a message on its way to `!ok`, and
+                 * the restore just recovered from it. Nothing failed by the
+                 * time this returns, so nothing should still be explaining a
+                 * failure -- the verdict this solve goes on to reach would
+                 * otherwise be handed a sentence about a repair that worked. */
+                s->m->err[0] = '\0';
                 return JAOS_OK;
             }
             settle_shifts(s);
@@ -5757,6 +5776,11 @@ jaos_status jm_dual_simplex(jaos_model *m)
                 }
                 s.work = carried;
                 s.started = t0;
+                /* The warm attempt is being thrown away, and so is anything
+                 * it wrote to explain itself. A cold attempt that ends
+                 * without a message of its own must not be handed the
+                 * abandoned one. */
+                target->err[0] = '\0';
                 allow_warm = false;
                 continue;
             }
@@ -5799,19 +5823,24 @@ jaos_status jm_dual_simplex(jaos_model *m)
      * string -- on the 86 of 94 instances presolve reduces. That is exactly
      * the note `bench/primal.c` recovers for its DISAGREE lines.
      *
+     * **`== NUMERICAL_ERROR` and not `!= OPTIMAL`, because the buffer is not
+     * cleared between a recovered failure and the verdict.** Every one of the
+     * eleven `jm_set_err` sites in this file either returns
+     * `JAOS_ERR_NUMERICAL`, which the first clause already covers, or pairs
+     * with `NUMERICAL_ERROR` (`refresh`'s singular-basis message reaching the
+     * three soft gates, and `classify_optimum`'s own). Not one pairs with
+     * INFEASIBLE, UNBOUNDED, WORK_LIMIT, TIME_LIMIT or INTERRUPTED. Widening
+     * to every non-OPTIMAL outcome would therefore deliver no message that
+     * this narrow form does not, and would attach a stale one to a designed
+     * verdict -- `reenter_after_settling` recovers from a `refresh` failure
+     * that has already written a message, and the 29 correctly-refused
+     * instances would each be a candidate.
+     *
      * `st != JAOS_OK` stays FIRST: `outcome` is uninitialised on that branch,
      * because the loop breaks before assigning it. */
     if (target != m && target->err[0] != '\0' &&
-        (st != JAOS_OK || outcome != JAOS_SOLVE_OPTIMAL))
+        (st != JAOS_OK || outcome == JAOS_SOLVE_NUMERICAL_ERROR))
         memcpy(m->err, target->err, sizeof m->err);
-
-    /* The abandoned branch's own total. `publish` writes `solve_iters` for
-     * the branch below and never runs on this one, and the SUMMARY sentence
-     * has always printed the right number here -- which is where the parser
-     * this milestone deleted used to read it from. Two of the three counts
-     * moved onto the struct and the third stayed behind `publish`'s gate. */
-    if (st != JAOS_OK)
-        m->solve_iters = s.iters;
 
     if (st == JAOS_OK)
         st = publish(&s, outcome, &p);
@@ -5827,6 +5856,18 @@ jaos_status jm_dual_simplex(jaos_model *m)
      * used to do it and for how they drifted apart. Written on `m`, the
      * caller's model, so no postsolve copy is needed: the counts are the
      * same solve's whether presolve reduced it or not. */
+    /* **The abandoned branch's own total, and it is tested AFTER `publish`
+     * rather than before.** `publish` writes `solve_iters` on the branch
+     * below and never runs on this one, so the field kept the previous
+     * solve's count -- and `bench/primal.c` subtracts, giving a difference
+     * between two solves. Testing before `publish` left one door open: on the
+     * presolve-reduced path `publish` writes the REDUCED model and can then
+     * fail before `jm_postsolve_expand` copies up, so the caller's total
+     * stayed at the entry zero while the two counts below were written
+     * anyway. Below the call, all three cases come out right -- publish
+     * skipped, publish succeeded, publish failed. */
+    if (st != JAOS_OK)
+        m->solve_iters = s.iters;
     m->solve_primal_iters = s.n_primal_iters;
     m->solve_phase1_iters = s.n_phase1_iters;
 

@@ -1,0 +1,30 @@
+# D199 memset-to-scatter: does it buy seconds?
+# host repeatability 6.27% (D93). -j 1, min over 5 alternating rounds.
+
+canary -- the two trees must differ in the clear, or this measures one binary twice:
+  old (4d1ca2d): memset
+  new (f135e8b): scatter
+  ok: the two binaries differ
+
+round 1 done
+round 2 done
+round 3 done
+round 4 done
+round 5 done
+
+-- MOVERS (phase 1 is most of the solve) --
+instance         memset    scatter    ratio
+ganges           0.0500     0.0490   0.9800
+fit2d            0.3590     0.3590   1.0000
+pilot-ja     NO READING
+fit2p           13.2870    13.4490   1.0122
+pilot           14.1890    14.3430   1.0109
+geometric mean of per-instance ratios: 1.0007
+
+-- CONTROLS (the change cannot reach these) --
+instance         memset    scatter    ratio
+grow15           0.2270     0.2230   0.9824
+grow22           1.2790     1.2640   0.9883
+geometric mean of per-instance ratios: 0.9853
+
+a ratio below 1.0 means the scatter is faster.
