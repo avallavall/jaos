@@ -4169,7 +4169,15 @@ static double primal_phase1_costs(sx *s)
             total += s->xb[i] - up;
         }
     }
-    jm_work_add(&s->work, s->nrow * JM_WORK_NONZERO);
+    /* **`nvar` for the memset and `nrow` for the scan, and it used to bill
+     * only the scan.** `docs/work-units.md`'s rule is one unit per variable
+     * looked at, and the clear above writes every one of `nvar` doubles on
+     * every phase-1 iteration. Billing `nrow` for it charged the loop and not
+     * the sweep, so phase 1 was under-reported by `nvar` per iteration —
+     * against 336660 phase-1 iterations across the standard set (D197), which
+     * is not a rounding error. Nothing on the gate moves: `run_primal` is the
+     * only path here and only `cfg.force_primal` reaches it (D198). */
+    jm_work_add(&s->work, (s->nvar + s->nrow) * JM_WORK_NONZERO);
     return total;
 }
 
@@ -4501,7 +4509,8 @@ static jaos_status run_primal_phase1(sx *s, jaos_solve_status *out,
     }
 }
 
-/* The primal simplex, phase 2 only.
+/* The primal simplex: phase 1 when the point it is given is not primal
+ * feasible, then phase 2.
  *
  * Mirrors `run()` clause for clause where the question is the same — the
  * budgets, the callback, the iteration guard, the refusal to declare anything
@@ -4509,21 +4518,31 @@ static jaos_status run_primal_phase1(sx *s, jaos_solve_status *out,
  * differ: it prices a column and then finds the row, where the dual prices a
  * row and then finds the column.
  *
- * **It refuses to start from a primal infeasible point, and that refusal is
- * the whole of stage 1's honesty.** There is no primal phase 1 yet
- * (`TODO.md` §0 stage 4), and the two wrong things to do here are both
- * available and both worse. Reporting `INFEASIBLE` would be a wrong answer on
- * a model that has an optimum, which is the one outcome the infeasible set
- * exists to make impossible. Running anyway would drive an objective across a
- * region the point is not in and publish whatever it reached. So it returns
- * `NUMERICAL_ERROR` and says why, which is the shape `classify_optimum`
- * already uses for the answer this method cannot reach.
+ * **Every cold start goes through phase 1, and that is measured rather than
+ * expected.** `build_initial_basis` is dual feasible by construction and
+ * primal feasible by accident at best, so the hand-over below is not a rare
+ * branch: over the standard 94, **0 skip phase 1**, 86 finish it and 8 never
+ * leave it (D195, `bench/measurements/02-108/`). This header used to say the
+ * opposite in as many words — "there is no primal phase 1 yet", "a cold start
+ * never gets here" — for a whole milestone after phase 1 landed.
  *
- * Consequence, stated so nobody has to discover it from a campaign: **a cold
- * start never gets here.** `build_initial_basis` is dual feasible by
- * construction and primal feasible by accident at best, so on the reference
- * instances this refuses almost everywhere. Its reach today is a warm basis
- * that happens to be feasible, a crossover, or a test fixture. */
+ * **Phase 2 barely runs, and that is the fact anyone reading this needs
+ * first.** `update_dual` and the tail of `pivot()` zero `d[v]` on every
+ * breached nonbasic once per iteration, which is exactly what `primal_price`
+ * reads, so after the first phase-2 pivot there is nothing left to price. The
+ * method then declares optimality, `settle_shifts` finds the point dual
+ * infeasible, and the dual's re-entry solves the model. Across the standard
+ * set: phase 1 39.5% of all iterations, **phase 2 0.0% — 97 iterations in
+ * total** — and the dual's re-entry 60.5% (D194, D195, D197). Whether to guard
+ * phase 2 as well is an open decision in `TODO.md` §0 and not settled here.
+ *
+ * **A phase 1 that cannot repair the start refuses rather than guessing**, and
+ * the two wrong things are both available and both worse. Reporting
+ * `INFEASIBLE` would be a wrong answer on a model that has an optimum, which
+ * is the one outcome the infeasible set exists to make impossible. Running
+ * anyway would drive an objective across a region the point is not in and
+ * publish whatever it reached. So it returns `NUMERICAL_ERROR` and cites D19,
+ * which is the shape `classify_optimum` already uses. */
 static jaos_status run_primal(sx *s, jaos_solve_status *out)
 {
     s->dinfeas_best = HUGE_VAL;

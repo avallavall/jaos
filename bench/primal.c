@@ -121,10 +121,15 @@ typedef struct {
 typedef enum {
     PRIMAL_OK = 0,        /* both solved and agreed                      */
     PRIMAL_SKIPPED,       /* the dual reached no optimum to compare with */
-    /* The primal declined to start, which while there is no primal phase 1
-     * is the expected answer from a cold basis and not a defect. Its own
-     * verdict rather than an error, because a limitation that reads like a
-     * failure gets investigated once per person who sees it. */
+    /* Phase 1 could not repair the start, so the method refused rather than
+     * guessing, citing D19. Its own verdict rather than an error, because a
+     * refusal on principle that reads like a failure gets investigated once
+     * per person who sees it.
+     *
+     * **It used to mean "the primal declined to start because there is no
+     * phase 1", and that has been false since phase 1 landed.** It reads 0 on
+     * every one of the 94 today; a non-zero count is now a real refusal to go
+     * and look at. */
     PRIMAL_UNREACHED,
     /* The primal did not finish inside its work budget. A measured outcome
      * and not a failure: with Dantzig pricing it is the expected one on
@@ -804,10 +809,10 @@ int main(int argc, char **argv)
         const result *r = &results[k];
         switch ((verdict)r->verdict) {
         case PRIMAL_SKIPPED:  skipped++;   continue;
-        /* Not counted against `all_ok`: while §0 stage 4 is open this is the
-         * expected outcome from a cold basis, and a runner that exits
-         * non-zero on the expected outcome is a runner nobody can put in a
-         * script. */
+        /* Not counted against `all_ok`: a refusal the method is designed to
+         * make is not a failure, and a runner that exits non-zero on a
+         * designed outcome is a runner nobody can put in a script. It reads 0
+         * on all 94 today, so this is a guard rather than an allowance. */
         case PRIMAL_UNREACHED: unreached++; continue;
         /* Also not counted against `all_ok`: the primal running out of budget
          * is what Dantzig pricing does on anything large, and it is measured
@@ -870,12 +875,13 @@ int main(int argc, char **argv)
              "TODO.md section 0 stage 5, not a defect.\n",
              overrun, n_selected, (long long)factor);
     /* Said out loud rather than left to be inferred from a column of
-     * `unreached`. A reader who does not know §0's stage list would
-     * otherwise read the whole set declining as a broken primal. */
+     * `unreached`, and the sentence changed when phase 1 landed: it used to
+     * say there was no phase 1 at all, which stopped being true and stayed in
+     * the output. */
     if (unreached > 0)
-        emit("  %d of %d could not be started: no primal phase 1 yet, and a "
-             "cold basis is dual feasible rather than primal feasible. That "
-             "is TODO.md section 0 stage 4, not a defect.\n",
+        emit("  %d of %d could not be started: phase 1 could not repair the "
+             "point it was given, and reading that as infeasibility needs the "
+             "proof D19 requires. A refusal, not a defect.\n",
              unreached, n_selected);
     /* Split, because the two are different defects. A refused primal answer
      * says the new algorithm produced something the dual would not have; a
