@@ -520,11 +520,18 @@ static bool write_result(const char *p, const result *r)
     FILE *f = fopen(p, "w");
     if (f == nullptr)
         return false;
+    /* The three split counts go before the note, because the note is read with
+     * a to-end-of-line conversion and anything after it would be swallowed.
+     *
+     * **Adding a field here means bumping the count `read_result` checks.**
+     * Missing that is invisible at `-j 1`, which never crosses this boundary,
+     * and turns every instance into "worker died" at `-j 12`. */
     fprintf(f, "%s %d %d %d %d %d %lld %lld %lld %lld %.17g %.17g %.17g "
-               "%.17g\n%s\n",
+               "%.17g %lld %lld %lld\n%s\n",
             r->name, r->verdict, r->status_d, r->status_p, r->check_d,
             r->check_p, r->iters_d, r->iters_p, r->work_d, r->work_p,
             r->obj_d, r->obj_p, r->secs_d, r->secs_p,
+            r->p1_iters, r->p2_iters, r->dual_iters,
             r->note[0] ? r->note : "-");
     fclose(f);
     return true;
