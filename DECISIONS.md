@@ -209,6 +209,10 @@ and you have the argument. Jump to the entry for the numbers behind it.
 - **[D199](#d199--the-phase-1-clear-stops-sweeping-every-variable-to-undo-the-basis-and-the-campaign-returns-to-its-pre-d198-verdicts-at-042-more-work)** — The phase-1 clear stops sweeping every variable to undo the basis, and the campaign returns to its pre-D198 verdicts at 0.42% more work
 - **[D200](#d200--two-of-phase-1s-four-refusals-now-refresh-before-refusing-neither-is-reached-on-the-standard-set-and-phase-1-can-finally-be-watched-and-stopped)** — Two of phase 1's four refusals now refresh before refusing, neither is reached on the standard set, and phase 1 can finally be watched and stopped
 - **[D201](#d201--the-hand-overs-zero-margin-is-55000x-in-practice-and-s-cols-contract-stops-being-a-comment-with-five-other-writers)** — The hand-over's zero margin is 55000x in practice, and `s->col`'s contract stops being a comment with five other writers
+- **[D202](#d202--an-abandoned-solve-published-the-previous-solves-iteration-total-and-the-column-added-to-expose-the-split-is-what-exposed-it)** — An abandoned solve published the previous solve's iteration total, and the column added to expose the split is what exposed it
+- **[D203](#d203--d199s-scatter-clear-buys-no-seconds-costs-none-and-needs-no-density-fallback)** — D199's scatter clear buys no seconds, costs none, and needs no density fallback
+- **[D204](#d204--phase-1-is-395-of-the-campaign-is-a-statement-about-two-instances-and-the-median-instance-is-573)** — Phase 1 is 39.5% of the campaign is a statement about two instances, and the median instance is 57.3%
+- **[D205](#d205--the-most-common-primal-failure-published-a-verdict-with-no-sentence-on-31-of-94)** — The most common primal failure published a verdict with no sentence, on 31 of 94
 
 ---
 
@@ -15420,3 +15424,197 @@ in `bench/results/` byte-identical: the shipping build compiles the assert out.
 decision, which is the maintainer's, and then stage 2 (Harris in primal form)
 or stage 5 (Devex, blocked on a paywalled source) — and D195 has already said
 stage 5's pricing question belongs to phase 1 rather than phase 2.
+
+## D202 — An abandoned solve published the previous solve's iteration total, and the column added to expose the split is what exposed it
+
+**The question.** `bench/primal.c` needed three numbers per solve: total
+iterations, the primal's share, and phase 1's share of that. It read all three
+by parsing the solver's closing SUMMARY sentence, and `tests/test_simplex.c`
+carried a second copy of that parser which required a different substring.
+Moving the two new counts onto `jaos_model` beside `solve_iters` was expected
+to delete both parsers and be strictly safer than reading numbers out of prose.
+
+**The measurement.** `bench/measurements/02-115/`. `solve_iters` has exactly
+one writer, inside `publish()`, and `publish()` runs only when the solve
+returned `JAOS_OK`. So an abandoned solve left the field holding whatever the
+model was solved with last time. `bench/primal.c` solves each model with the
+dual first and then forces the primal on the same model, so what it subtracted
+was a difference between two different solves.
+
+`pilot87` is the whole population: the one instance of the standard 94 that
+takes the hard refusal path. Two trees, one machine, one session.
+
+| tree | pilot87's split column |
+|---|---|
+| parent `dc2beee` | `p1:17165 / p2:0 / dual:20835` |
+| the fix | `p1:17165 / p2:0 / dual:0` |
+
+38000 minus 17165 is 20835: the dual reference solve's total minus the primal's
+own count, printed as a dual re-entry that never ran. The campaign headline
+moved from 536270 (61.5%) to 515435 (60.5%) once it was removed.
+
+The defect was reachable only because two of the three counts moved onto the
+struct and the third stayed behind `publish()`'s gate. The parser this
+milestone deleted read the total from `"abandoned after %lld iterations"`,
+which is printed on both branches, so it had never been wrong about this.
+
+**What was refuted.**
+
+- *That "written on every exit from `jm_dual_simplex`" was true.* Three returns
+  run before an `sx` exists: a presolve error, and `sx_init` failing on either
+  the first build or the cold restart. `jm_dual_simplex` zeroes all three
+  counts on entry now, which is what makes the sentence true.
+- *That writing the total before `publish()` was enough.* On the
+  presolve-reduced path `publish` writes the REDUCED model and can fail before
+  `jm_postsolve_expand` copies up, leaving the caller's total at the entry zero
+  while the two counts below were written anyway. The same negative column,
+  through an out-of-memory door. The write belongs below the call.
+- *That `solve_iters == solve_primal_iters` is the invariant of an abandoned
+  solve.* It holds only when the refusal came from inside `run_primal`.
+  `run_primal` can reach OPTIMAL and `reenter_after_settling` fail afterwards,
+  and on that path `primal_cleanup`'s pivots and the re-entry's own `run()`
+  have correctly raised `s->iters` without touching `n_primal_iters`. A test
+  asserting the equality unconditionally would be asserting the defect, and
+  `bench/primal.c` reaches that path whenever its work limit bites during the
+  re-entry.
+- *That a two-row model could separate a carried total from an honest one.*
+  Measured under `-DJAOS_NO_PRESOLVE`: the dual solve costs 1 iteration and the
+  refused primal solve costs 1 as well, so the two are the same integer there.
+  The test says so rather than implying otherwise, and the evidence for the
+  defect lives in the measurement directory instead.
+
+**Open.** Nothing.
+
+## D203 — D199's scatter clear buys no seconds, costs none, and needs no density fallback
+
+**The question.** D199 replaced `primal_phase1_costs`'s `memset` over all
+`nvar` doubles with a scatter over the positions the last call set. It was
+accepted on a work geometric mean of **0.9452** with byte-identical digests,
+and no time ratio was taken anywhere in the entry. A review objected with a
+specific argument: a `memset` moves `8*nvar` bytes at 32-64 B/cycle while the
+replacement is `cleared` scattered 8-byte stores into an array of 0.5-2 MB, so
+break-even sits near `cleared` about `nvar/12` -- and the sampled density on
+this set is 11-13% of `nvar`. That is the one case where work units and seconds
+move in opposite directions, which is why D45 judges a change on three things
+rather than one.
+
+The gate cannot answer it. A cold start is dual feasible, so `make netlib`
+never enters phase 1 at all. `bench/primal` is the only campaign that does.
+
+**The measurement.** `bench/measurements/02-116/`. Two worktrees on one machine
+in one session, `4d1ca2d` (the memset) against `f135e8b` (the scatter). `-j 1`,
+alternated, minimum over 5 rounds, geometric mean of per-instance ratios. A
+ratio below 1.0 means the scatter is faster.
+
+| movers, phase 1 is 37-94% of the solve | ganges | fit2d | fit2p | pilot | **geomean** |
+|---|---|---|---|---|---|
+| ratio | 0.9800 | 1.0000 | 1.0122 | 1.0109 | **1.0007** |
+
+| controls, the change cannot reach these | grow15 | grow22 | **geomean** |
+|---|---|---|---|
+| ratio | 0.9824 | 0.9883 | **0.9853** |
+
+**No measurable effect in either direction.** The controls are the reading that
+decides it: they moved 1.5% towards "the scatter is faster" on solves the
+scatter never touches, so 1.5% is what noise looks like in this reading. The
+movers moved 0.07%. Both sit far inside this host's 6.27% repeatability (D93).
+
+**What was refuted.**
+
+- *The review's own hypothesis.* At the observed densities the scatter is
+  neither faster nor slower than the `memset` by anything this host can
+  measure. The two largest movers sit at +1.1% and +1.2%, which is smaller than
+  the controls' own excursion.
+- *That `c1_at` should copy `apat`/`anpat`'s `< 0` memset fallback.* That
+  fallback guards a CAPACITY overflow: the pricing pattern can be larger than
+  the array kept for it. `n_c1_at` cannot overflow, because at most `nrow`
+  positions are ever set -- only a basic variable can be infeasible and a basis
+  holds distinct variables -- and `c1_at` is `nrow` long. The density case is
+  what was measured here and it costs nothing. A threshold would be a constant
+  with no measurement behind it, which is what this project loses weeks to.
+
+**Limits, stated rather than left to be found.** `pilot-ja` produced no pair.
+`bench/primal` prints seconds only for instances that reach `ok`, and its
+budget is 10x the dual's work, so an instance near that edge can finish under
+one tree and overrun under the other -- which is exactly what a 5.5% work
+change does to whatever sits closest to the line. Two controls is thin; they
+agree with each other to 0.6%, which is why 1.5% is quoted as a floor rather
+than used as a correction.
+
+**Open.** Nothing.
+
+## D204 — Phase 1 is 39.5% of the campaign is a statement about two instances, and the median instance is 57.3%
+
+**The question.** `bench/primal`'s "iterations by method" line is a sum over
+the set. CLAUDE.md and D46 ban exactly that, because two instances are 74% of
+the standard set's total work and a total then becomes a statement about those
+two. The line shipped with a comment arguing D46 did not apply here, on the
+grounds that the answer is a property of the population rather than a ratio
+between two trees.
+
+**The measurement.** The campaign record refutes the comment.
+
+| | share of the campaign's 851596 iterations |
+|---|---|
+| `d2q06c` | 26.2% |
+| `dfl001` | 15.9% |
+| the two together | **42.1%** |
+
+`dfl001` never runs phase 2 or the re-entry at all, and `d2q06c` is 214244 of
+the 515435 dual re-entry iterations on its own. So "phase 1 39.5%, dual
+re-entry 60.5%" was substantially a statement about two instances.
+
+The gap is not small. Against the sum's **39.5%**, the **median per-instance
+phase-1 share is 57.3%** over 94 instances. The typical instance spends most of
+its forced-primal solve inside phase 1. The total says it spends rather less,
+because the two carriers are re-entry-heavy.
+
+**What was refuted.** *That a total is safe when it is a fraction of a
+population rather than a ratio between trees.* D46's objection is about which
+members carry the number, and that is independent of what the number divides.
+The fix is not to delete the total, which answers a real question, but to print
+the two largest carriers by name and the median beside it -- so a reader sees
+in the same line whether it describes the population or two members of it.
+
+**Open.** Nothing.
+
+## D205 — The most common primal failure published a verdict with no sentence, on 31 of 94
+
+**The question.** `bench/primal.c`'s record kept only "different verdicts" on
+every DISAGREE line, and its own comment says why that is not enough: it cannot
+tell a wrong answer from a refusal the method was designed to make. A block was
+added to recover `jaos_model_error` for those lines. It did not fix anything,
+and the reason was not on the bench side.
+
+**The measurement.** 31 of 94 instances end their forced-primal solve at
+`NUMERICAL_ERROR` because the settled point is not dual feasible. That site
+wrote no message at all. Every other `NUMERICAL_ERROR` in `src/simplex.c`
+explains itself -- eleven `jm_set_err` sites, each paired with the refusal it
+describes -- so `jaos_model_error` returned the empty string on exactly the
+instances a reader would open it for.
+
+| | DISAGREE lines carrying a solver message |
+|---|---|
+| before | **0 of 31** |
+| after | **31 of 31** |
+
+Measured before and after the bench-side recovery block landed, and it read 0
+of 31 both times, which is what says the bench was never the defect. The
+verdict now names the breach and the start it came from.
+
+**What was refuted.** *That the empty note was a bench defect.* Widening
+`jm_dual_simplex`'s message-copy condition to every non-OPTIMAL outcome was
+tried first, and it was the wrong repair twice over. It delivered nothing,
+because there was no message to deliver. And it opened a new exposure:
+`reenter_after_settling` recovers from a `refresh` failure that has already
+written "the basis went singular", nothing cleared the buffer, so every
+non-OPTIMAL verdict became a candidate for a stale sentence -- the 29
+correctly-refused instances among them. All eleven `jm_set_err` sites were then
+checked against the outcome they pair with, and not one pairs with INFEASIBLE,
+UNBOUNDED, WORK_LIMIT, TIME_LIMIT or INTERRUPTED. So the condition reads
+`== NUMERICAL_ERROR`, which loses no message and cannot attach one to a
+designed verdict, and the buffer is cleared at both points where a message
+outlives the failure it describes.
+
+**Open.** Nothing. What those 31 instances mean for the primal is `TODO.md`
+section 0's open decision, not this entry's.

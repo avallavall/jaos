@@ -49,6 +49,89 @@ open, `bench/README.md` for the gate, and the commit each entry came from.
 
 ### Fixed
 
+- **An abandoned solve published the previous solve's iteration total.**
+  `solve_iters` is written inside `publish()`, and `publish()` runs only on
+  `JAOS_OK`, so a refused solve kept whatever the model was solved with last
+  time. `bench/primal` solves with the dual first and subtracts, so `pilot87`
+  reported `dual:20835` for a re-entry that never ran — 38000 minus 17165,
+  two different solves. `jm_dual_simplex` zeroes all three counts on entry and
+  writes the total on the abandoned branch. The campaign headline moves from
+  536270 to 515435 (D202, `bench/measurements/02-115/`).
+
+- **The most common primal failure had no sentence.** 31 of 94 forced-primal
+  solves end at `NUMERICAL_ERROR` because the settled point is not dual
+  feasible, and that site wrote no message, so `jaos_model_error` was empty on
+  exactly the instances anyone would open it for. **0 of 31 DISAGREE lines
+  carried a message; 31 of 31 do now.** The verdict names the breach and the
+  start it came from (D205).
+
+- **`make primal`'s record can be re-derived from itself.** Eight defects, all
+  about the record rather than the solver: the split column was dropped for
+  `ERROR` and `skipped` while the headline still counted them (`pilot87` alone
+  hid **5.1%** of the phase-1 total), the `no split` sentinel was written too
+  late for six early failures and every dead worker, `fail()` overwrote the
+  solver message one branch after recovering it, and `note` was 64 bytes
+  against messages of about 250. A designed refusal is classified by its
+  phase's own sentence now, and one that cites D19 and matches neither phase is
+  an error rather than being refiled in silence — the third wrong match in
+  this classifier in two milestones (D202, D204, D205).
+
+- **The campaign's iterations-by-method line names its carriers.** It is a sum
+  over the set, and `d2q06c` and `dfl001` are **42.1%** of it, so "phase 1
+  39.5%" was largely a statement about two instances. The two largest carriers
+  and the **median per-instance phase-1 share, 57.3%**, are printed beside it
+  (D204).
+
+- **Six defects in the primal phase 1 a review found.** `infeas_best` stayed at
+  `HUGE_VAL` for a solve that skipped phase 1, so a warm or crossover basis
+  reported `inf` to every progress callback. Two `!s->verified` gates returned
+  a library error where the four they mirror return a verdict, and a fifth in
+  phase 1's `needs_refactor` block was missed with them. The `s->col` contract
+  check compared with `==` under a comment claiming bit for bit, which fires on
+  a NaN both sides computed and is blind to the `+0.0` over `-0.0` it exists to
+  catch; it is a `memcmp` into a buffer allocated once rather than per flip.
+  The lazy allocation guarded one pointer while allocating two, and phase 2's
+  refusal still said JAOS has no phase 1 (D202).
+
+- **Softening those gates stranded the refusal message.** `jm_dual_simplex`
+  copies the solve's message off the reduced model only when
+  `st != JAOS_OK`, which a soft return makes false — so it was lost on the 86
+  of 94 instances presolve reduces. The condition reads the outcome now, and
+  narrowly: all eleven `jm_set_err` sites pair with a numerical refusal and
+  none with INFEASIBLE, UNBOUNDED or a budget, so a wider test would only
+  attach a stale sentence to a designed verdict (D205).
+
+### Changed
+
+- **Both parsers of the SUMMARY sentence are gone.** `solve_primal_iters` and
+  `solve_phase1_iters` join `solve_iters` on the model, written on every exit.
+  `bench/primal.c` and `tests/test_simplex.c` each carried a copy of one
+  backwards character walk, and they were not the same parser — the bench
+  required a substring the test did not, so editing that sentence could leave
+  the suite green while the campaign reported no split on all 94 (D202).
+
+- **D199's clear was accepted on work units alone, and now has its seconds.**
+  The wall-clock ratio is **1.0007** over four phase-1-dominated instances
+  against **0.9853** over two the change cannot reach, both far inside this
+  host's 6.27% repeatability. No effect in either direction, and no density
+  fallback is warranted (D203, `bench/measurements/02-116/`).
+
+- **`docs/work-units.md` documents the primal phase 1's charges**, which had
+  no entry while the first of them changed twice (D198, D199).
+
+- **`bench/measurements/02-101/`'s negative control runs again.** It anchored
+  on a 30-line copy of `run_primal`'s body including a message a later commit
+  rewrote, so it exited 1 on ANCHOR NOT FOUND and its evidence stopped being
+  re-derivable. It anchors on the function signature now, asserted unique. All
+  42 measurement scripts from 02-9x on were checked; no other anchor has
+  drifted.
+
+Cost of the whole set: **110 solution digests and 29 infeasibility verdicts
+unmoved, over 139 instances** — all three gate sets byte-identical to the tree
+before it. `make configs` 5/5.
+
+### Fixed
+
 - **`s->col`'s contract is an assert, not a comment.** `primal_bound_flip` reads
   `B^-1 M_q` from a buffer with **five other writers**, two of which alias it as
   `rhs`. The check recomputes the column into its own buffer and compares bit
@@ -563,6 +646,7 @@ open, `bench/README.md` for the gate, and the commit each entry came from.
   changes, `gate: PASS` on each, and the twelve genuine infeasibility firings
   in `netlib-infeas` unmoved. Widest absolute window 6.494e-08 → 6.587e-08 on
   Kennington, under `PRIMAL_TOL` 1e-7.
+
 
 ## [0.1.1] — 2026-08-20
 

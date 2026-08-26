@@ -5,7 +5,7 @@ says why closed questions closed, `CHANGELOG.md` says what landed, `bench/`
 says what it costs. This file says what is next. When something lands, its
 line leaves this file in the same commit.
 
-## Where the last session stopped — 2026-08-25
+## Where the last session stopped — 2026-08-26
 
 ### → FRESH CONTEXT: READ THIS PARAGRAPH AND THEN §0
 
@@ -16,9 +16,15 @@ primal's phase 2 runs 97 iterations across the whole set, so §0's headline
 number does not mean what it reads as. That block is at the top of §0, and
 `make primal` now prints those three figures itself (D197).
 
-**§0's remainder list is empty and nothing from the `/code-review max` is
-open** (D192, D193, D195, D196, D199, D200, D201). Nothing in §0 waits on
-anything except that decision. After it: stage 2 (Harris in primal form) or
+**§0's remainder list is empty** (D192, D193, D195, D196, D199, D200, D201).
+Nothing in §0 waits on anything except that decision.
+
+**A second `/code-review max` ran on 2026-08-26 and found twenty items. All
+twenty are closed** (D202 to D205), and two rounds of `numerics-reviewer` on
+the fixes found nine more, including one the fixes themselves introduced. The
+one that mattered: moving the iteration split onto the model left `solve_iters`
+behind `publish()`'s gate, so an abandoned solve published the previous solve's
+total and `pilot87` reported a dual re-entry of 20835 that never ran. After it: stage 2 (Harris in primal form) or
 stage 5 (Devex, blocked on a paywalled source) — and D195 says stage 5's
 pricing question belongs to phase 1, which is where every budget is spent.
 
@@ -28,12 +34,16 @@ the moment anything lands. **Push from the WINDOWS side**: the remote is an SSH
 alias that lives in the Windows `~/.ssh/config` only. `git fetch` first,
 because another Claude session commits here.
 
-**Twenty-five decisions landed between 2026-08-24 and 2026-08-26, D177 to
-D201**, and two of the five open items closed. What each one did is below,
+**Twenty-nine decisions landed between 2026-08-24 and 2026-08-26, D177 to
+D205**, and two of the five open items closed. What each one did is below,
 newest first.
 
 | | |
 |---|---|
+| **D205** | 31 of 94 primal failures published a verdict with no sentence; 0 of 31 record lines carried one, 31 of 31 do |
+| **D204** | "phase 1 is 39.5%" is two instances; the median instance is 57.3%, and the line names its carriers now |
+| **D203** | D199's clear buys no seconds and costs none: movers 1.0007, controls 0.9853, host floor 6.27% |
+| **D202** | an abandoned solve published the PREVIOUS solve's total; `pilot87` reported 20835 re-entry iterations that never ran |
 | **D201** | the hand-over's zero margin is 55000x; `s->col`'s contract is an assert now |
 | **D200** | phase 1 refreshes before refusing, reaches that branch 0 times, and can be stopped |
 | **D199** | the phase-1 clear is O(nrow) now; 0.9452 on the campaign, and 0 answers moved |
@@ -79,6 +89,13 @@ produced output that read as a finished result:
 - a probe reporting 0 phase-1 Bland arms on all 94 read as a finished answer;
   0 is also what a probe that cannot see a phase-1 line prints. Forcing
   `STALL_FACTOR` to 0 in a worktree is what made the 0 mean something (D192)
+- a fix for the empty DISAGREE note was written on the bench side, landed, and
+  changed nothing: the record still read 0 of 31 afterwards, because the solver
+  never wrote a message on that path. Checking the record rather than the diff
+  is what caught it (D205)
+- widening a buffer's LOCAL rather than its FIELD produced identical bytes,
+  because the copy that follows truncates to the field's own size. A review
+  caught it; the test suite could not, and neither could reading the diff
 
 ### 2026-08-24: D177, and item 5 is half closed
 
