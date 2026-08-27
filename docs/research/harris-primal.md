@@ -62,8 +62,18 @@ pivot almost by identity. That is the three-line pattern in
 
 ## What is not confirmed
 
-- **Harris's own `delta`.** Text not reached. No value is carried. The
-  phase-1 argument below bounds it above by `PRIMAL_TOL`.
+- **Harris's own `delta`.** Text not reached. No value is carried from
+  Harris (1973). The phase-1 argument below bounds it above by `PRIMAL_TOL`.
+  What JAOS ships is the **ratio** `delta_f / 2`, and only the ratio. In the
+  MINOS and SNOPT documentation above that is where EXPAND *starts* a
+  tolerance which then grows by `tau` toward `delta_f` and resets every `K`.
+  JAOS holds its width fixed at `PRIMAL_HARRIS_DELTA = 0.5` and carries no
+  `tau`, no `K` and no reset, so this is one number borrowed from a method
+  that is not implemented here — not GMSW section 3.2, which is where the
+  two-pass test itself comes from. The seven-setting sweep behind the value
+  is `bench/measurements/02-127/` and D213, and it does not choose the value:
+  0.01 to 0.5 measures the same on the campaign and the gate does not move
+  anywhere in 0 to 10.
 - **A minimum pivot in pass 1.** Not in Hall and McKinnon's restatement. The
   MINOS/SNOPT line has an **absolute** pivot tolerance, 3.67e-11 (SNOPT
   documentation, read). Whether Harris 1973 has one is unverified.

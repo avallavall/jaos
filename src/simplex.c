@@ -42,6 +42,17 @@ constexpr double PIVOT_MIN     = 1e-9;   /* smallest usable |alpha| */
  * the threshold it builds is in scaled space, with `s->col`. Swept in
  * `bench/measurements/02-122/`. */
 constexpr double PIVOT_MARGIN  = 1.0;
+/* The width of the Harris window in the two PRIMAL ratio tests, as a multiple
+ * of `s->primal_tol` — the per-model field and not `PRIMAL_TOL`, so a model
+ * that tightens the tolerance tightens the window with it. The phase-1
+ * argument in `docs/research/harris-primal.md` bounds the width above by that
+ * tolerance, and `primal_pick` asserts it on the widened value. 0.5 is a power
+ * of two, so the product is exact for every normal tolerance and no
+ * contraction can round it differently; otherwise `-ffp-contract=off` would be
+ * the only thing holding the window's bits fixed across architectures. The
+ * seven-setting sweep, the plateau it found and the reason the value is argued
+ * rather than fitted are D213's (`bench/measurements/02-127/`). */
+constexpr double PRIMAL_HARRIS_DELTA = 0.5;
 /* The width of the Harris window, and what the solve calls zero for a
  * reduced cost (D174, D184); per-model override is D64. */
 constexpr double DUAL_TOL      = 1e-9;
@@ -2208,10 +2219,13 @@ static int64_t primal_apply_floor(sx *s, int64_t n, double cmax)
  * Wright 1989 section 3.2; `docs/research/harris-primal.md`; D212). `pnum`
  * is the exact distance to the blocking bound in the direction of travel,
  * never negative; `pden` the pivot magnitude. `jm_harris_pick` widens every
- * distance by `primal_tol`, takes the smallest quotient, and returns the
- * largest pivot whose exact quotient fits in it. The step handed back is
- * that exact quotient, so a basic can end at most `primal_tol` past its
- * bound, and `refresh` recomputes it. Under Bland's rule the exact minimum
+ * distance by `PRIMAL_HARRIS_DELTA * primal_tol`, takes the smallest quotient,
+ * and returns the largest pivot whose exact quotient fits in it. The step
+ * handed back is that exact quotient, so ONE relaxed step puts a basic at most
+ * that width past its bound (D213). Consecutive relaxed steps are bounded by
+ * nothing here, only by `refresh`; how far they reach is unmeasured and is
+ * D213's second open question. Under Bland's rule the
+ * exact minimum
  * with the lowest-index tie stays: the finiteness argument needs a fixed
  * rule and not a widened one (D26). Returns a candidate index, or -1. */
 static int64_t primal_pick(sx *s, int64_t n, bool bland)
@@ -2223,7 +2237,18 @@ static int64_t primal_pick(sx *s, int64_t n, bool bland)
         assert(s->pden[k] > 0.0 && s->pnum[k] >= 0.0);
 #endif
     if (!bland) {
-        const int64_t k = jm_harris_pick(n, s->pnum, s->pden, s->primal_tol);
+        const double width = PRIMAL_HARRIS_DELTA * s->primal_tol;
+        /* The phase-1 bound, asserted here and not beside the constant: a
+         * comparison of floating constants is not an integer constant
+         * expression, so `static_assert` cannot carry it (C23 6.7.11, and
+         * `-Wpedantic -Werror` rejects it). This site is the stronger place
+         * anyway, because it reads the per-model tolerance. The product
+         * underflows to zero for a subnormal `primal_tol`, which
+         * `jaos_set_primal_tolerance` accepts; zero is the no-relaxation width
+         * and is admitted, so the ratio is asserted separately (D213). */
+        assert(PRIMAL_HARRIS_DELTA > 0.0 && PRIMAL_HARRIS_DELTA <= 1.0);
+        assert(width >= 0.0 && width <= s->primal_tol);
+        const int64_t k = jm_harris_pick(n, s->pnum, s->pden, width);
         jm_work_add(&s->work, 2 * n * JM_WORK_NONZERO);
         return k;
     }
@@ -2243,14 +2268,15 @@ static int64_t primal_pick(sx *s, int64_t n, bool bland)
 }
 
 /* Harris's zero step (GMSW 1989 section 3.3): when the chosen row already
- * stands past its bound, by at most `primal_tol` from an earlier relaxed
+ * stands past its bound, by at most the Harris width from an earlier relaxed
  * step, the step is zero and the blocking variable is kept. `pivot` derives
  * its step from `xb[r]`, so snapping `xb[r]` onto the bound here makes that
  * step exactly zero: the leaving variable goes nonbasic at its bound, the
  * entering one enters at its own, nothing else moves, and the residual in
- * `Ax = b` this leaves is of order `primal_tol` until `refresh` recomputes
- * the basics. Without it the entering variable would land
- * `primal_tol / |alpha_q|` past its own bound (D212). */
+ * `Ax = b` this leaves is the distance snapped away, one Harris width for
+ * each relaxed step that put it there, until `refresh` recomputes the basics.
+ * Without it the entering variable would land that width over `|alpha_q|`
+ * past its own bound (D212). */
 static void snap_if_past(sx *s, int64_t r, bool below)
 {
     const int64_t v = s->basis[r];
@@ -2755,8 +2781,8 @@ static bool phase1_lands_low(const sx *s, int64_t i, double move)
  * it travels back towards; travelling away, nothing blocks. Short-step
  * form (`docs/research/primal-simplex.md` section 4), with Harris's two
  * passes over the candidates (`primal_pick`). Relaxing an infeasible
- * basic's blocking bound by `primal_tol` lets it travel that far into the
- * feasible region, which is harmless (`docs/research/harris-primal.md`).
+ * basic's blocking bound by the Harris width lets it travel that far into
+ * the feasible region, which is harmless (`docs/research/harris-primal.md`).
  * Returns the blocking position with `*below` saying which bound, or -1.
  * `*step` receives the distance. Leaves `B^-1 M_q` in `s->col`, as the
  * phase-2 test does. */

@@ -74,6 +74,17 @@ open, `bench/README.md` for the gate, and the commit each entry came from.
   `wood1p` publishes a different vertex of the same optimal face for **22% less
   work**, and `pilot87` still overruns (D212, `bench/measurements/02-127/`).
 
+- **The Harris width in those two tests is half `primal_tol`, not all of it.**
+  `PRIMAL_HARRIS_DELTA = 0.5`, multiplied onto the per-model field so a
+  tolerance override keeps the phase-1 bound. Seven widths swept: the
+  forced-primal campaign is flat at **61 of 94** from 0.01 to 0.5, the same 61
+  instances name for name, and all three gate sets stay byte-identical anywhere
+  from 0 to 10. No reading chooses inside that plateau, so the value is argued
+  rather than fitted: a factor of two under the bound
+  `docs/research/harris-primal.md` sets, the ratio MINOS and SNOPT start EXPAND
+  at, and a power of two so the product is exact. `pilot87`'s divergence does
+  not follow the width (D213, `bench/measurements/02-127/`).
+
 - **`SPECS.md` is present tense only.** Rows say what exists, what is partial
   and what is missing, with the decision beside each. History left the rows;
   one row that said four instances were off the optimum had been closed by

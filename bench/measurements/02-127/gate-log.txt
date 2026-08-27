@@ -1,0 +1,96 @@
+# The gate at seven Harris widths, verbatim stdout of three gate-delta.sh runs.
+# Each run rebuilds a worktree at HEAD 4d1295d with the width made an
+# environment read, and restores bench/results from git between settings.
+# 'lines that moved: 0' means the three sets are byte-identical to the
+# committed baselines. The 1e9 run is the positive control.
+
+===================== run 1: widths 1, 0.1, 0.5 =====================
+# gate at HEAD 4d1295d, width read from the environment
+patched
+
+########## JAOS_HARRIS_DELTA=1 ##########
+gate: PASS
+baseline: 0 regressed, 0 improved, 0 new
+gate: PASS
+baseline: 0 regressed, 0 improved, 0 new
+gate: PASS
+baseline: 0 regressed, 0 improved, 0 new
+--- per-instance diff against the committed baselines ---
+--- lines that moved: 0 ---
+
+########## JAOS_HARRIS_DELTA=0.1 ##########
+gate: PASS
+baseline: 0 regressed, 0 improved, 0 new
+gate: PASS
+baseline: 0 regressed, 0 improved, 0 new
+gate: PASS
+baseline: 0 regressed, 0 improved, 0 new
+--- per-instance diff against the committed baselines ---
+--- lines that moved: 0 ---
+
+########## JAOS_HARRIS_DELTA=0.5 ##########
+gate: PASS
+baseline: 0 regressed, 0 improved, 0 new
+gate: PASS
+baseline: 0 regressed, 0 improved, 0 new
+gate: PASS
+baseline: 0 regressed, 0 improved, 0 new
+--- per-instance diff against the committed baselines ---
+--- lines that moved: 0 ---
+
+===== done =====
+
+[exited with code 0]
+
+===================== run 2: widths 0, 10 =====================
+# gate at HEAD 4d1295d, width read from the environment
+patched
+
+########## JAOS_HARRIS_DELTA=0 ##########
+gate: PASS
+baseline: 0 regressed, 0 improved, 0 new
+gate: PASS
+baseline: 0 regressed, 0 improved, 0 new
+gate: PASS
+baseline: 0 regressed, 0 improved, 0 new
+--- per-instance diff against the committed baselines ---
+--- lines that moved: 0 ---
+
+########## JAOS_HARRIS_DELTA=10 ##########
+gate: PASS
+baseline: 0 regressed, 0 improved, 0 new
+gate: PASS
+baseline: 0 regressed, 0 improved, 0 new
+gate: PASS
+baseline: 0 regressed, 0 improved, 0 new
+--- per-instance diff against the committed baselines ---
+--- lines that moved: 0 ---
+
+===== done =====
+
+[exited with code 0]
+
+===================== run 3: width 1e9, the positive control =====================
+# gate at HEAD 4d1295d, width read from the environment
+patched
+
+########## JAOS_HARRIS_DELTA=1e9 ##########
+gate: NOT MET
+baseline: 1 regressed, 0 improved, 0 new
+--- per-instance diff against the committed baselines ---
+ bench/results/netlib.txt | 9 +++++----
+ 1 file changed, 5 insertions(+), 4 deletions(-)
+-pilot87      optimal    rows=2030 cols=4883 shape=ok iters=38000 work=17961112053 obj=301.71034733311052
++pilot87      optimal    rows=2030 cols=4883 shape=ok iters=38000 work=17961477424 obj=301.7103459906541
+-94 instances: 94 solved, 94 shape ok, 94 objective ok, 94 checker ok, 94 deterministic, 0 failed
+-gate: PASS
++94 instances: 94 solved, 94 shape ok, 94 objective ok, 93 checker ok, 94 deterministic, 0 failed
++gate: NOT MET
+-baseline: 0 regressed, 0 improved, 0 new
++pilot87      REGRESSED    checker: yes -> no (optimal -> optimal)
++baseline: 1 regressed, 0 improved, 0 new
+--- lines that moved: 9 ---
+
+===== done =====
+
+[exited with code 0]

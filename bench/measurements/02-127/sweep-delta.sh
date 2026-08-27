@@ -27,13 +27,20 @@ cleanup() { cd "$root" || exit; git worktree remove --force "$D/wt" 2>/dev/null;
 trap cleanup EXIT
 
 git diff HEAD -- src include > "$D/candidate.patch" || exit 2
-[ -s "$D/candidate.patch" ] || { echo "NO DIFF TO MEASURE"; exit 2; }
-echo "# candidate: $(git rev-parse --short "$ref") plus $(grep -c '^+' "$D/candidate.patch") added lines"
+if [ -s "$D/candidate.patch" ]; then
+    echo "# candidate: $(git rev-parse --short "$ref") plus $(grep -c '^+' "$D/candidate.patch") added lines"
+else
+    # Stage 2 is committed since the first run, so HEAD itself is the
+    # candidate and there is no working-tree diff to carry across.
+    echo "# candidate: $(git rev-parse --short "$ref") itself, no working-tree diff"
+fi
 
 git worktree add --detach "$D/wt" "$ref" >/dev/null 2>&1 || exit 2
 ln -s "$root/bench/instances" "$D/wt/bench/instances"
 cd "$D/wt" || exit 2
-git apply "$D/candidate.patch" || { echo "PATCH DID NOT APPLY"; exit 2; }
+if [ -s "$D/candidate.patch" ]; then
+    git apply "$D/candidate.patch" || { echo "PATCH DID NOT APPLY"; exit 2; }
+fi
 
 python3 - "$D/wt/src/simplex.c" "$D/wt/bench/primal.c" <<'PY'
 import sys
@@ -79,8 +86,11 @@ void jaos_diag_dump(const char *name)
         (void)!write(2, b, (size_t)n);
 }""")
 
-sub(sx, "const int64_t k = jm_harris_pick(n, s->pnum, s->pden, s->primal_tol);",
-        "const int64_t k = jm_harris_pick(n, s->pnum, s->pden, harris_delta() * s->primal_tol);")
+# The width is a constant since D213, so the anchor is the local that holds
+# it. Every width above 1.0 trips primal_pick's assert, which is why this must
+# stay a RELEASE build: the bench binaries carry -DNDEBUG (Makefile:107).
+sub(sx, "const double width = PRIMAL_HARRIS_DELTA * s->primal_tol;",
+        "const double width = harris_delta() * s->primal_tol;")
 
 sub(sx, """        const double total = primal_phase1_costs(s);
         /* On a count and never on a clock (D8). */""",

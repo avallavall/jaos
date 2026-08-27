@@ -220,6 +220,7 @@ and you have the argument. Jump to the entry for the numbers behind it.
 - **[D210](#d210--the-last-absolute-pivot-floor-stays-absolute-it-decides-nothing-on-139-instances-and-the-only-way-to-move-it-is-the-unsafe-one)** — The last absolute pivot floor stays absolute: it decides nothing on 139 instances, and the only way to move it is the unsafe one
 - **[D211](#d211--pilot87s-phase-1-diverges-because-the-primal-ratio-test-has-no-rule-against-a-tiny-pivot-and-a-stop-on-the-objective-rising-is-refused-because-a-solve-that-finishes-rises-25x)** — `pilot87`'s phase 1 diverges because the primal ratio test has no rule against a tiny pivot, and a stop on the objective rising is refused because a solve that finishes rises 25x
 - **[D212](#d212--harriss-two-pass-ratio-test-in-primal-form-60-of-94-agree-against-56-wood1p-publishes-a-different-vertex-for-22-less-work-and-pilot87-is-untouched)** — Harris's two-pass ratio test in primal form: 60 of 94 agree against 56, `wood1p` publishes a different vertex for 22% less work, and `pilot87` is untouched
+- **[D213](#d213--the-harris-width-is-half-primaltol-and-the-measurement-did-not-choose-it-one-flat-plateau-on-the-campaign-and-a-gate-that-does-not-move-at-all)** — The Harris width is half `primal_tol`, and the measurement did not choose it: one flat plateau on the campaign and a gate that does not move at all
 
 ---
 
@@ -16165,8 +16166,118 @@ not — or the relaxation gives back what the pivot preference buys. The width
 sweep separates those two: at `0` the test is pass two alone, the largest
 pivot among exact ties, with no relaxation at all.
 
-**Open.** The three regressions, and the width. Both belong to the sweep in
-`bench/measurements/02-127/`.
+**Open.** The three regressions, and the width. Both closed by D213, in the
+same sweep, `bench/measurements/02-127/`.
+
+---
+
+## D213 — The Harris width is half `primal_tol`, and the measurement did not choose it: one flat plateau on the campaign and a gate that does not move at all
+
+**The change.** `TODO.md` §0 stage 2a. `constexpr double PRIMAL_HARRIS_DELTA =
+0.5`, and pass one of the two primal ratio tests widens by
+`PRIMAL_HARRIS_DELTA * s->primal_tol` instead of `s->primal_tol`. D212 shipped
+the width equal to the tolerance. One constant and one call site; nothing else
+in the solver moves.
+
+**Seven settings, and the campaign is flat across four of them.**
+`sweep-delta.sh` reads the width from the environment so one binary serves
+every setting (D154). Agreement with the dual over the standard 94:
+
+| width | 0 | 0.01 | 0.1 | 0.3 | 0.5 | 1 (D212) | 10 |
+|---|---|---|---|---|---|---|---|
+| agree | 59 | **61** | **61** | **61** | **61** | 60 | 58 |
+
+**From 0.01 to 0.5 it is the same 61 instances, name for name.** The width buys
+nothing inside that band. What the band buys over D212's `1` is one instance,
+`wood1p`, and that is the only verdict separating `0.5` from `1`. `0.1` and
+`0.5` differ by one instance too, `pilot87`, which fails at both — an `ERROR`
+at `0.1`, an overrun at `0.5`.
+
+**The gate does not move anywhere in 0 to 10.** All three sets are
+byte-identical to the committed baselines at 0, 0.1, 0.5, 1 and 10, every set
+reading `0 regressed, 0 improved, 0 new` (`gate-delta.sh`, `gate-log.txt`).
+**At 1e9 it breaks**, and that is the reading that makes the five zeroes worth
+having: five identical clean results are also what a probe that never reached
+the code prints. At 1e9 the widening is 100 in the units of `xb`, pass one
+admits everything, pass two takes the globally largest pivot, and `pilot87`'s
+work and objective move and its checker rejects the answer — `gate: NOT MET`.
+The instrument reaches the code.
+
+**D211's counter chose nothing, and the earlier reading of it was wrong.**
+`pilot87`'s worst relative rise of the phase-1 objective reads 7.2e+11,
+8.3e+11, **1.4e+03**, 3.3e+16, 8.1e+11, 8.3e+13, 4.6e+11 across the seven
+widths. With only 0, 0.1, 1 and 10 measured, the 1351 at `0.1` looked like the
+width bringing the divergence under control, and this file's own measurement
+record said so. With `0.01` and `0.3` either side of it at 8.3e+11 and 3.3e+16,
+it is one point with no order around it. **The width does not control the
+divergence**, and no value here can be justified by `pilot87`.
+
+**So the value is argued, not fitted.** Three things point at `0.5` and none of
+them is a campaign number:
+
+1. **The bound.** `docs/research/harris-primal.md` bounds the width above by
+   `primal_tol`: a relaxed basic ends at most `delta` outside its bound and
+   that is feasible only while `delta <= primal_tol`. D212's `1` met the bound
+   with equality. `0.5` keeps a factor of two. An `assert` in `primal_pick`
+   pins it, on the widened value itself, because nothing else did: before it,
+   `1e9` passed `make test`, and no test reaches that call with a width that
+   matters. It does not pass now. `record-check` catches the table first, and
+   with the table edited to agree, `test_simplex` aborts on the assert. A
+   `static_assert` cannot carry the bound: a comparison of floating
+   constants is not an integer constant expression, and `-Wpedantic -Werror`
+   rejects one. The runtime check is the better place anyway, because it reads
+   the per-model `s->primal_tol` rather than the constant alone.
+2. **The published ratio.** MINOS and SNOPT start EXPAND's tolerance at
+   `delta_f / 2`. JAOS holds its width fixed and carries no `tau`, no `K` and
+   no reset, so this is one ratio borrowed from a method that is not
+   implemented here. That is weaker than "the published value" and it is
+   written that way in the source, because the first draft of this decision
+   cited it as GMSW section 3.2 and that is where the two-pass test comes
+   from, not the number.
+3. **`0.5` is a power of two**, so `PRIMAL_HARRIS_DELTA * s->primal_tol` is
+   exact and no contraction can round it differently. `0.1` and `0.3` cannot
+   say that. In a solver whose first rule is bit-identical results on every
+   machine, that separates two settings the campaign cannot.
+
+**One reading does separate `0.5`, and it is not a verdict count.** The sweep
+writes a per-instance histogram of the phase-1 pivot element by decade, and the
+first draft of this entry read only `pilot87`'s `max_rel` out of those files.
+Aggregated over all 94, the share of phase-1 pivots below 1e-3 reads 0.2603%,
+0.1766%, 0.2579%, 0.2503%, **0.1290%**, 19.0463% and 0.3261% across the seven
+widths. `0.5` is the lowest of the seven. The obvious objection to narrowing
+the window says the opposite — fewer candidates survive pass one, so pass two
+can only reach a smaller pivot — and `counters-*.txt` refutes it without a new
+campaign. **Width `1` is the outlier and it is one instance**: 110587 of its
+110759 tiny pivots are `pilot87`'s, over 308118 phase-1 pivots. That is a
+second reason `1` was a bad setting, independent of the verdict count.
+
+**The multiply is on the field, not the default.** `s->primal_tol` is the
+per-model override where one is set, so `delta <= primal_tol` holds for every
+model rather than only the default one. A hardcoded 5e-8 would have broken the
+argument on any model that tightened the tolerance.
+
+**D212's three regressions, from the same records.** `israel` agrees at width 0
+and disagrees at every width above it, so the relaxation costs it. `pilot-ja`
+and `pilotnov` disagree at width 0 too, where there is no relaxation at all:
+what costs them is pass two taking a larger pivot than the exact minimum did.
+All three fail on dual feasibility at the settled point.
+
+**Open, two things.**
+
+1. The plateau's upper edge is somewhere in `(0.5, 1]` and is not resolved.
+   Nothing is measured between them, and the cost of being wrong is one
+   instance of a campaign that is not a gate.
+2. **Consecutive relaxed steps are bounded by nothing in the code.** One
+   relaxed step puts a basic at most `width` past its bound. A row already past
+   its bound has its distance clamped to zero, so pass one still offers it
+   `width / den`, and the next iteration can push it a further `width`. Between
+   refactorizations the standing overshoot is therefore up to the number of
+   consecutive relaxed steps times the width, and `snap_if_past` checks no
+   magnitude at all before pulling that distance onto the bound. The reading
+   that would settle it is `max_i (xb[i] - up) / width` at entry to
+   `primal_ratio_test` over the forced-primal campaign. Halving the width moves
+   this in the safe direction, which is why it is open and not blocking. Found
+   by `numerics-reviewer` on this diff.
 
 ---
 

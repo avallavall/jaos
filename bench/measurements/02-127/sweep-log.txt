@@ -1,0 +1,35 @@
+# sweep-delta.sh from a committed HEAD: widths 1 (control), 0.01, 0.3, 0.5.
+# The width-1 run must reproduce the committed delta-1.txt and counters-1.txt
+# byte for byte; the empty git diff at the end is that control.
+
+===== HEAD =====
+4d1295d
+
+# candidate: 4d1295d itself, no working-tree diff
+patched
+### JAOS_HARRIS_DELTA=1
+records: 107   counters: 94
+overrun=4 DISAGREE=30 ok=60 
+RR pilot87 p1_iters=372035 max_rel=8.33038e+13 at_iter=120346 hist=0,0,0,21,17,71,106,188,110184,2113,7837,33288,32723,8
+
+### JAOS_HARRIS_DELTA=0.01
+records: 107   counters: 94
+overrun=4 DISAGREE=29 ok=61 
+RR pilot87 p1_iters=298758 max_rel=8.26947e+11 at_iter=123336 hist=0,0,0,32,32,34,76,142,461,2107,9102,117782,118150,984
+
+### JAOS_HARRIS_DELTA=0.3
+records: 107   counters: 94
+overrun=4 DISAGREE=29 ok=61 
+RR pilot87 p1_iters=287484 max_rel=3.28308e+16 at_iter=161777 hist=0,0,0,40,39,83,114,203,533,1627,8121,89046,85497,8479
+
+### JAOS_HARRIS_DELTA=0.5
+records: 107   counters: 94
+overrun=4 DISAGREE=29 ok=61 
+RR pilot87 p1_iters=381886 max_rel=8.06882e+11 at_iter=121407 hist=0,0,0,16,19,47,67,132,342,1352,6517,28416,285543,6803
+
+
+===== CONTROL: width 1 must be byte-identical to the committed record =====
+(empty above = control passes)
+===== done =====
+
+[exited with code 0]
