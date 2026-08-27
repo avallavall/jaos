@@ -44,8 +44,13 @@ what long runs do. That is a phase-1 defect, not a floor defect.
 
 **If you were told "continue", this is the order:**
 
-1. **Section 0 stage 6** — `can_move`'s units, LIVE since 02-118. What the
-   right units are, and whether they change a verdict or only a trajectory.
+1. **Section 0 stage 6** — `can_move`'s units. Measured on 2026-08-27 and
+   NOT landed: `bench/measurements/02-128/`. Both questions are answered. The
+   right units are a rate, and they change a trajectory and no verdict. What
+   is missing is one campaign, `make netlib-kennington` on the rate arm,
+   because D27's cautionary instance `pds-20` lives there and neither this
+   reading nor 02-118's ran it. The source change is one line and 02-128's
+   README carries it. Full loop; `numerics-reviewer` on the diff.
 2. **The assert debt** below (`bench/measurements/02-121/`), one file per
    commit, full loop each: contracts that survived the purge as prose.
 3. The skills debt (two scripts), then section 0's headline decision. **One
@@ -1303,7 +1308,7 @@ in `price_row:1700` are the machinery, and D26 is the decision behind them.
 | 3 | ~~the entering column's bound flip~~ | **DONE 2026-08-25** — D189, it was a wrong answer |
 | 4 | ~~phase 1 (Maros 1986) from a given basis~~ | **DONE 2026-08-25, short-step form** — 0 of 94 to 64 of 94 (D190) |
 | 5 | **Devex** | **Harris (1973), paywalled** |
-| 6 | **`can_move`'s units** — D184's stated reopen | **condition MET 2026-08-25, and re-tested 2026-08-26: the units are LIVE** on the forced-primal campaign (`scsd1`, `scsd6` move; the dual set does not). `bench/measurements/02-118/`, D206. Open |
+| 6 | **`can_move`'s units** — D184's stated reopen | **MEASURED 2026-08-27, NOT LANDED** (`bench/measurements/02-128/`). The units are still live on the third reading. A rate test (`wrong_way > s->dual_tol`) leaves the standard set byte-identical and **moves no verdict on either campaign**: 61 ok / 29 DISAGREE / 5 overrun / 0 ERROR at every arm. It buys a trajectory — `grow22` sheds a quarter of its work, the campaign's work geomean goes 3.7626 to 3.7398. **D27 chose the product on purpose**, because it reads the same in scaled and published space, and a rate has to pick one; D27's cautionary instance is `pds-20`, which is **Kennington and was not run**. `make netlib-kennington` on the rate arm is the reading that decides it. A third arm guarding a zero distance is dropped by argument: on a fixed column the flip is the better repair and is free. See 02-128's README, which carries the resume steps |
 | 7 | **the unboundedness verdict, and D19's refusal** | stage 4 |
 | 8 | ~~a relative pivot floor in the two primal ratio tests~~ | **DONE 2026-08-26** — `PIVOT_MARGIN = 1.0`, one ulp of the column's own largest entry, swept on both sides in `bench/measurements/02-122/` (D207). 56 of 94 agree against 55, and the one `ERROR` is gone |
 | 8a | ~~the `alpha[q]` side is still absolute~~ | **DONE 2026-08-27** — the three sites apply `PIVOT_MARGIN` against `sum_i \|rho_i * a_iq\|` as well (D209, `bench/measurements/02-124/`). The census turned the question around: `PIVOT_MIN` there is a **stability** floor, and every call it rejects has `alpha[q]` equal to its own traffic to seventeen digits. The noise floor was the one missing, and `scsd1` was pivoting at a third of one ulp |

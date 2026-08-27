@@ -1,0 +1,101 @@
+# can_move's units, three arms, on the tree at e5bfe3d
+#   base = product against a rate (HEAD)
+#   rate = rate against a rate (D184's variant)
+#   dist = rate against a rate, and the flip must move the column
+
+# base ran
+# rate ran
+# dist ran
+
+===================== netlib =====================
+rate vs base: BYTE-IDENTICAL
+
+dist vs base: BYTE-IDENTICAL
+
+rate vs dist: BYTE-IDENTICAL (the zero-distance guard fires on no instance here)
+
+===================== primal =====================
+rate vs base: MOVED, 20 differing lines
+15c15
+< boeing2      ok        dual=118/323451 primal=363/1291880 split=p1:303/p2:1/dual:59 verdict=optimal/optimal obj=-315.0187280152029/-315.0187280152029 checker=dual:ok/primal:ok 
+---
+> boeing2      ok        dual=118/323451 primal=362/1291752 split=p1:303/p2:1/dual:58 verdict=optimal/optimal obj=-315.0187280152029/-315.0187280152029 checker=dual:ok/primal:ok 
+40c40
+< grow22       ok        dual=27275/733504475 primal=36856/865799070 split=p1:764/p2:1/dual:36091 verdict=optimal/optimal obj=-160834336.48256299/-160834336.48256296 checker=dual:ok/primal:ok 
+---
+> grow22       ok        dual=27275/733504475 primal=22200/642728681 split=p1:764/p2:1/dual:21435 verdict=optimal/optimal obj=-160834336.48256299/-160834336.48256296 checker=dual:ok/primal:ok 
+48c48
+< nesm         ok        dual=5891/133071815 primal=6497/155675461 split=p1:2053/p2:1/dual:4443 verdict=optimal/optimal obj=14076036.487562733/14076036.487562733 checker=dual:ok/primal:ok 
+---
+> nesm         ok        dual=5891/133071815 primal=6138/144664201 split=p1:2053/p2:1/dual:4084 verdict=optimal/optimal obj=14076036.487562733/14076036.487562733 checker=dual:ok/primal:ok 
+51c51
+< pilot-ja     DISAGREE  dual=2403/94515274 primal=17456/945547269 split=p1:5704/p2:1/dual:11751 verdict=optimal/numerical error obj=-6113.1364655813431/0 checker=dual:ok/primal:n/a different verdicts: the settled point is not dual feasible: a reduced cost breaches its bound by 1473.32 after settling, from a cold start; publishing that as OPTIMAL would certify a point the reduced costs do not support
+---
+> pilot-ja     DISAGREE  dual=2403/94515274 primal=17375/945483114 split=p1:5704/p2:1/dual:11670 verdict=optimal/numerical error obj=-6113.1364655813431/0 checker=dual:ok/primal:n/a different verdicts: the settled point is not dual feasible: a reduced cost breaches its bound by 0.99105 after settling, from a cold start; publishing that as OPTIMAL would certify a point the reduced costs do not support
+53c53
+< pilot4       ok        dual=673/16066863 primal=4291/110665706 split=p1:2227/p2:1/dual:2063 verdict=optimal/optimal obj=-2581.1392588838889/-2581.1392588838889 checker=dual:ok/primal:ok 
+---
+> pilot4       ok        dual=673/16066863 primal=4289/110611890 split=p1:2227/p2:1/dual:2061 verdict=optimal/optimal obj=-2581.1392588838889/-2581.1392588838889 checker=dual:ok/primal:ok 
+55c55
+< pilotnov     DISAGREE  dual=2135/80872352 primal=16128/808953241 split=p1:1621/p2:2/dual:14505 verdict=optimal/numerical error obj=-4497.2761882188706/0 checker=dual:ok/primal:n/a different verdicts: the settled point is not dual feasible: a reduced cost breaches its bound by 0.221786 after settling, from a cold start; publishing that as OPTIMAL would certify a point the reduced costs do not support
+---
+> pilotnov     DISAGREE  dual=2135/80872352 primal=16320/808982456 split=p1:1621/p2:2/dual:14697 verdict=optimal/numerical error obj=-4497.2761882188706/0 checker=dual:ok/primal:n/a different verdicts: the settled point is not dual feasible: a reduced cost breaches its bound by 6.56892 after settling, from a cold start; publishing that as OPTIMAL would certify a point the reduced costs do not support
+99,100c99,100
+< iterations by method: phase 1 663332 (56.0%), phase 2 102 (0.0%), dual re-entry 521070 (44.0%)
+<   that is a sum over the set (D46): pilot87 carries 32.2% of it and d2q06c 19.1%. Median per-instance phase-1 share 53.9% over 94 instance(s).
+---
+> iterations by method: phase 1 663332 (56.7%), phase 2 102 (0.0%), dual re-entry 506163 (43.3%)
+>   that is a sum over the set (D46): pilot87 carries 32.6% of it and d2q06c 19.4%. Median per-instance phase-1 share 53.9% over 94 instance(s).
+102,103c102,103
+< iterations (primal+1)/(dual+1), geometric mean: 2.0266
+< work units primal/dual, geometric mean:         3.7626
+---
+> iterations (primal+1)/(dual+1), geometric mean: 2.0078
+> work units primal/dual, geometric mean:         3.7398
+
+dist vs base: MOVED, 20 differing lines
+15c15
+< boeing2      ok        dual=118/323451 primal=363/1291880 split=p1:303/p2:1/dual:59 verdict=optimal/optimal obj=-315.0187280152029/-315.0187280152029 checker=dual:ok/primal:ok 
+---
+> boeing2      ok        dual=118/323451 primal=362/1291752 split=p1:303/p2:1/dual:58 verdict=optimal/optimal obj=-315.0187280152029/-315.0187280152029 checker=dual:ok/primal:ok 
+40c40
+< grow22       ok        dual=27275/733504475 primal=36856/865799070 split=p1:764/p2:1/dual:36091 verdict=optimal/optimal obj=-160834336.48256299/-160834336.48256296 checker=dual:ok/primal:ok 
+---
+> grow22       ok        dual=27275/733504475 primal=22200/642728681 split=p1:764/p2:1/dual:21435 verdict=optimal/optimal obj=-160834336.48256299/-160834336.48256296 checker=dual:ok/primal:ok 
+48c48
+< nesm         ok        dual=5891/133071815 primal=6497/155675461 split=p1:2053/p2:1/dual:4443 verdict=optimal/optimal obj=14076036.487562733/14076036.487562733 checker=dual:ok/primal:ok 
+---
+> nesm         ok        dual=5891/133071815 primal=6138/144664201 split=p1:2053/p2:1/dual:4084 verdict=optimal/optimal obj=14076036.487562733/14076036.487562733 checker=dual:ok/primal:ok 
+51c51
+< pilot-ja     DISAGREE  dual=2403/94515274 primal=17456/945547269 split=p1:5704/p2:1/dual:11751 verdict=optimal/numerical error obj=-6113.1364655813431/0 checker=dual:ok/primal:n/a different verdicts: the settled point is not dual feasible: a reduced cost breaches its bound by 1473.32 after settling, from a cold start; publishing that as OPTIMAL would certify a point the reduced costs do not support
+---
+> pilot-ja     DISAGREE  dual=2403/94515274 primal=17375/945483114 split=p1:5704/p2:1/dual:11670 verdict=optimal/numerical error obj=-6113.1364655813431/0 checker=dual:ok/primal:n/a different verdicts: the settled point is not dual feasible: a reduced cost breaches its bound by 0.99105 after settling, from a cold start; publishing that as OPTIMAL would certify a point the reduced costs do not support
+53c53
+< pilot4       ok        dual=673/16066863 primal=4291/110665706 split=p1:2227/p2:1/dual:2063 verdict=optimal/optimal obj=-2581.1392588838889/-2581.1392588838889 checker=dual:ok/primal:ok 
+---
+> pilot4       ok        dual=673/16066863 primal=4289/110611890 split=p1:2227/p2:1/dual:2061 verdict=optimal/optimal obj=-2581.1392588838889/-2581.1392588838889 checker=dual:ok/primal:ok 
+55c55
+< pilotnov     DISAGREE  dual=2135/80872352 primal=16128/808953241 split=p1:1621/p2:2/dual:14505 verdict=optimal/numerical error obj=-4497.2761882188706/0 checker=dual:ok/primal:n/a different verdicts: the settled point is not dual feasible: a reduced cost breaches its bound by 0.221786 after settling, from a cold start; publishing that as OPTIMAL would certify a point the reduced costs do not support
+---
+> pilotnov     DISAGREE  dual=2135/80872352 primal=16320/808982456 split=p1:1621/p2:2/dual:14697 verdict=optimal/numerical error obj=-4497.2761882188706/0 checker=dual:ok/primal:n/a different verdicts: the settled point is not dual feasible: a reduced cost breaches its bound by 6.56892 after settling, from a cold start; publishing that as OPTIMAL would certify a point the reduced costs do not support
+99,100c99,100
+< iterations by method: phase 1 663332 (56.0%), phase 2 102 (0.0%), dual re-entry 521070 (44.0%)
+<   that is a sum over the set (D46): pilot87 carries 32.2% of it and d2q06c 19.1%. Median per-instance phase-1 share 53.9% over 94 instance(s).
+---
+> iterations by method: phase 1 663332 (56.7%), phase 2 102 (0.0%), dual re-entry 506163 (43.3%)
+>   that is a sum over the set (D46): pilot87 carries 32.6% of it and d2q06c 19.4%. Median per-instance phase-1 share 53.9% over 94 instance(s).
+102,103c102,103
+< iterations (primal+1)/(dual+1), geometric mean: 2.0266
+< work units primal/dual, geometric mean:         3.7626
+---
+> iterations (primal+1)/(dual+1), geometric mean: 2.0078
+> work units primal/dual, geometric mean:         3.7398
+
+rate vs dist: BYTE-IDENTICAL (the zero-distance guard fires on no instance here)
+
+===================== verdict counts =====================
+base  ok=61   DISAGREE=29   overrun=5    ERROR=0
+rate  ok=61   DISAGREE=29   overrun=5    ERROR=0
+dist  ok=61   DISAGREE=29   overrun=5    ERROR=0
+
+===== done =====
