@@ -61,7 +61,7 @@ flowchart TD
     MED --> LAND
     LIGHT --> LAND
 
-    subgraph build ["1 — Build and test, under WSL only"]
+    subgraph build ["1 — Build and test"]
         BUILD{"Did tests/ change,<br/>or a block behind<br/>a build flag?"}
         BUILD -->|"yes"| CONFIGS["make configs<br/>five configurations, make clean between<br/>make does NOT track EXTRA_CFLAGS,<br/>so running them by hand re-runs<br/>the plain binaries and exits 0 — D154"]
         BUILD -->|"no"| TESTSAN["make test<br/>make sanitize — ASan + UBSan"]
@@ -98,7 +98,7 @@ flowchart TD
         METRICS --> M1["1. Solution digests<br/>CORRECTNESS, and the proof of a no-op"]
         METRICS --> M2["2. Work units<br/>COST. Deterministic, so a regression is<br/>detectable across machines. Goes in the record"]
         METRICS --> M3["3. Instruction count — tools/icount.sh<br/>WHAT UNITS CANNOT SEE: layout, branches,<br/>cache. Deterministic to the instruction"]
-        METRICS --> M4["4. A same-instance time ratio<br/>ONLY where the count is not readable.<br/>J=1, minimum over alternating rounds,<br/>geometric mean. This host repeats to 6.27% — D93"]
+        METRICS --> M4["4. A same-instance time ratio<br/>ONLY where the count is not readable.<br/>J=1, minimum over alternating rounds,<br/>geometric mean. The reference host repeats<br/>to 6.27%, D93"]
     end
 
     M1 --> VERDICT
@@ -146,7 +146,7 @@ flowchart TD
     BASEYES --> PUSH
 
     PUSH{"Push?"}
-    PUSH -->|"needs EXPLICIT human approval.<br/>Commits are at Claude's discretion;<br/>pushes never are"| PUSHED(["Pushed<br/>from the Windows side — the remote<br/>is an SSH alias that only exists there.<br/>git fetch first: another session<br/>commits to this repo"])
+    PUSH -->|"needs explicit approval<br/>from the maintainer"| PUSHED(["Pushed.<br/>git fetch first: more than one<br/>contributor lands on main"])
     PUSH -->|"not yet"| HOLD(["Committed, held locally"])
 
     style FULL fill:#2d3748,color:#fff
@@ -244,6 +244,12 @@ run of `record-check` found **147 failures** (D206).
 
 ## Which skill, at which moment
 
+A skill here is a document under `.claude/skills/<name>/SKILL.md`, and an
+agent is one under `.claude/agents/`. They are written for an automated
+assistant to load, and they read as ordinary documents: a person doing the
+same step reads the same file. Each one carries what this project learned
+about that step and nowhere else.
+
 Load these **at the moment named**, not when the work is already finished.
 
 | at this moment | load |
@@ -293,12 +299,7 @@ that produced the change. Nothing spawns them automatically.
 
 ---
 
-## Two traps that cost real time
-
-**`$?` does not survive Git Bash → WSL.** Echoing it inside the
-`wsl … bash -c '…'` string does not rescue it: it is expanded before it
-reaches WSL. Write the commands to a **script file** and run that. The same
-fix covers heredocs eating backslashes.
+## The trap that cost the most time
 
 **A probe that measures the wrong thing looks clean.** It does not crash and
 it does not return empty — it returns a plausible number that agrees with the

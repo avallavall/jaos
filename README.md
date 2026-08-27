@@ -147,6 +147,11 @@ flowchart LR
     F -->|"REJECT"| H["a refusal, written down<br/>with what would reopen it"]
 ```
 
+`numerics-reviewer` and `jaos-measurer` are review roles defined under
+`.claude/agents/`: one reads a diff for the defect classes tests do not
+catch, the other runs every instance set on a finished candidate and returns
+a verdict. A person can follow the same definitions.
+
 - Every one of the 139 reference instances is compared against a committed
   baseline, per instance. A line reading `0 regressed` is not evidence on its
   own: it means no check flipped and nothing crossed a 2.0x work bar.
