@@ -34,6 +34,8 @@ D84  | MANUAL | same as D82
 D61  | MANUAL | a hot-path inlining that removes calls AND moves tools/icount.sh by more than the 0.3% D61 could not resolve in seconds
 D199 | bench/measurements/02-116/run-clear-timing.sh | the O(nrow) phase-1 clear costs wall-clock time at the measured densities (D203: it does not; icount 1.00017)
 
+D210 | bench/measurements/02-125/unbounded-census.sh | any instance reaches `improves_without_limit`, whose absolute PIVOT_MIN decides a published UNBOUNDED; today 0 of 139 do, and the only direction the floor could move is the one that declares a ray from the absence of a blocker (D19). Stage 7, lifting the lent bound and re-solving, is what would make it live
+
 # --- reopen conditions that are met, or executable today -----------------
 D184 | bench/measurements/02-118/run-can-move-units.sh | the primal simplex lands (MET 2026-08-25, D188): can_move's product-against-rate units move a digest on the dual or the primal campaign
 D101 | MANUAL | a model population where bench/measurements/02-07/'s counter reports a non-trivial share of duplicate or dominated rows and columns

@@ -1,0 +1,15 @@
+# tree: 1227a6c plus a JAOS_DIAG patch, outside the repo
+# calls            = times improves_without_limit ran
+# unlimited        = times it said yes, which publishes UNBOUNDED
+# skipped_blockers = rows the absolute floor skipped that HAD a finite
+#                    limit -- the only way this test can be wrong
+# min_skipped_r    = |step| / (eps * max|col|) for the largest such row
+
+## netlib, 94 standard
+# control: 97 record lines written
+
+## netlib-infeas, 29
+# control: 32 record lines written
+
+## netlib-kennington, 16
+# control: 19 record lines written

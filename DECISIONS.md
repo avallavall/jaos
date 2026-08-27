@@ -217,6 +217,7 @@ and you have the argument. Jump to the entry for the numbers behind it.
 - **[D207](#d207--the-primal-ratio-tests-pivot-floor-was-absolute-and-one-ulp-of-the-columns-own-largest-entry-is-the-value)** — The primal ratio tests' pivot floor was absolute, and one ulp of the column's own largest entry is the value
 - **[D208](#d208--the-pivot-floor-does-not-weaken-blands-rule-and-the-reason-pilot87-stalls-is-that-its-phase-1-has-already-diverged)** — The pivot floor does not weaken Bland's rule, and the reason `pilot87` stalls is that its phase 1 has already diverged
 - **[D209](#d209--pivotmin-on-the-pricing-row-is-a-stability-floor-not-a-noise-floor-and-the-noise-floor-it-was-mistaken-for-was-missing)** — `PIVOT_MIN` on the pricing row is a stability floor, not a noise floor, and the noise floor it was mistaken for was missing
+- **[D210](#d210--the-last-absolute-pivot-floor-stays-absolute-it-decides-nothing-on-139-instances-and-the-only-way-to-move-it-is-the-unsafe-one)** — The last absolute pivot floor stays absolute: it decides nothing on 139 instances, and the only way to move it is the unsafe one
 
 ---
 
@@ -15977,6 +15978,55 @@ identical**, on all 139 instances.
 
 **Open.** Nothing in 8a. `docs/tolerances.md`'s `PIVOT_MIN` row now says which
 job it does, which is the part of this that outlives the constant.
+
+---
+
+## D210 — The last absolute pivot floor stays absolute: it decides nothing on 139 instances, and the only way to move it is the unsafe one
+
+**The question.** `TODO.md` §0 stage 8c. After D207 and D209, one site still
+judges an FTRAN entry against an absolute `PIVOT_MIN`:
+`improves_without_limit`. It is also the only one whose test decides a
+**published status**, `JAOS_SOLVE_UNBOUNDED`.
+
+**The direction is the opposite of the other sites', and that is most of the
+answer.** The loop skips a row below the floor, and a skipped row is one that
+does not block. So a smaller floor counts **more** rows as blocking: the
+absolute 1e-9 **under**-declares unbounded and prefers `NUMERICAL_ERROR` to a
+wrong ray. A relative floor would skip more rows and declare a ray on the
+strength of ignoring them — and D19 already says unboundedness needs a proof
+against a ray rather than the absence of a blocker. On the other sites the
+relative floor trades a wrong pivot for a rejected one; here the same shape
+trades a safe refusal for a possibly wrong published verdict.
+
+**The measurement.** `bench/measurements/02-125/`. Under a `JAOS_DIAG` build,
+over all three gate sets: calls to the function, times it answered
+"unlimited", and rows the absolute floor skipped that had a finite limit —
+the only way the test as it stands can be wrong.
+
+| set | records written | calls |
+|---|---|---|
+| `netlib` | 97 | **0** |
+| `netlib-infeas` | 32 | **0** |
+| `netlib-kennington` | 19 | **0** |
+
+**Not one of the 139 gate instances reaches the function.** The dump is
+written only when the count is non-zero and all three control lines say the
+campaigns ran, so this is zero calls rather than zero output.
+
+**Refused.** A constant swept on a population that never exercises it is a
+number fitted to nothing, which `CLAUDE.md` names as how this project loses
+weeks. The floor stays absolute.
+
+**Not claimed.** The census cannot separate "`classify_optimum` is never
+reached" from "it is reached and no column is held by a lent bound". Both give
+zero calls. It does not change the refusal — either way the floor decides
+nothing — but it matters to stage 7, and one counter in `classify_optimum`
+tells them apart.
+
+**Reopens when** any instance reaches `improves_without_limit`. The census
+script is its own re-test and returns the exit codes `bench/refusals.txt`
+reads: 0 while the refusal holds, 1 when it does not, 2 when it could not run.
+Stage 7 — lifting the loan and re-solving — is what would make it live.
 
 ---
 
