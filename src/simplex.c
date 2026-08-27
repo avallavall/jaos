@@ -2049,6 +2049,55 @@ static double column_traffic(const sx *s, int64_t v)
  * leaves invariant, so it has no space. `|d|` counts only above the
  * rounding of its own dot product (NOISE_MARGIN). A column with no other
  * real bound contributes nothing; what it needs is a primal pivot. */
+/* Everything that went into `alpha[q] = rho' M_q`: the magnitudes of its own
+ * terms. `column_traffic`'s shape with the pricing row in place of `y`, and
+ * billed the way `price_entry` bills the same walk. */
+static double alpha_traffic(sx *s, int64_t v)
+{
+    if (v >= s->ncol) {
+        jm_work_add(&s->work, JM_WORK_NONZERO);
+        return fabs(s->rho[v - s->ncol]);   /* logicals enter as -I */
+    }
+    const jaos_model *m = s->m;
+    double t = 0.0;
+    for (int64_t k = m->a_start[v]; k < m->a_start[v + 1]; k++)
+        t += fabs(s->rho[m->a_index[k]] * s->av[k]);
+    jm_work_add(&s->work, (m->a_start[v + 1] - m->a_start[v]) *
+                          JM_WORK_NONZERO);
+    return t;
+}
+
+/* Is the pricing row's pivot element unusable? Two separate questions, and
+ * the constant they share is a coincidence of value and not of meaning.
+ *
+ * `PIVOT_MIN` is a STABILITY floor: `pivot` divides by this number and so
+ * does `theta_dual`, and 1e-10 is as dangerous to divide by when it is exact
+ * as when it is not. Every one of the thirteen calls it rejects over the
+ * standard 94 has `|alpha[q]|` equal to its own traffic to the last digit —
+ * a dot product with one term and no cancellation, which is the best
+ * determined a number gets (D209).
+ *
+ * `PIVOT_MARGIN` is the NOISE floor D207 put on the column side, and this is
+ * its mirror: below one ulp of the terms that produced it, a dot product has
+ * no value to read. `scsd1` reaches a call at 0.35 ulps and pivots on it.
+ *
+ * The stability test runs first, so the traffic walk is skipped on every call
+ * that is already rejected. `*min_alpha` receives whichever floor rejected
+ * it, because the two mean different things and the caller says so. */
+static bool alpha_unusable(sx *s, int64_t q, double *min_alpha)
+{
+    const double a = fabs(s->alpha[q]);
+    *min_alpha = PIVOT_MIN;
+    if (a < PIVOT_MIN)
+        return true;
+    const double rel = PIVOT_MARGIN * DBL_EPSILON * alpha_traffic(s, q);
+    if (a < rel) {
+        *min_alpha = rel;
+        return true;
+    }
+    return false;
+}
+
 static bool can_move(const sx *s, int64_t v)
 {
     double wrong_way;
@@ -2257,7 +2306,8 @@ static jaos_status primal_cleanup(sx *s, int64_t *pivots)
 
         build_pricing_row(s, r);
 
-        if (fabs(s->alpha[q]) < PIVOT_MIN)
+        double min_alpha = 0.0;
+        if (alpha_unusable(s, q, &min_alpha))
             continue;   /* the pricing row disagrees with the column: leave it */
 
         bool took = false;
@@ -2927,17 +2977,21 @@ static jaos_status run_primal_phase1(sx *s, jaos_solve_status *out,
         }
 
         build_pricing_row(s, r);
-        if (fabs(s->alpha[q]) < PIVOT_MIN) {
+        double min_alpha = 0.0;
+        if (alpha_unusable(s, q, &min_alpha)) {
             if (s->lu.n_updates > 0) {
                 s->needs_refactor = true;
                 s->n_stability++;
                 continue;
             }
+            /* Which floor rejected it is the whole diagnosis: PIVOT_MIN means
+             * the pivot is too small to divide by, the relative one means the
+             * number is below the rounding of its own dot product. */
             jm_set_err(s->m,
                        "column %lld prices at %.6g in row %lld of the primal "
-                       "phase 1 on a freshly built factorization; this is a "
-                       "JAOS defect", (long long)q, s->alpha[q],
-                       (long long)r);
+                       "phase 1 on a freshly built factorization, against a "
+                       "floor of %.6g; this is a JAOS defect",
+                       (long long)q, s->alpha[q], (long long)r, min_alpha);
             return JAOS_ERR_NUMERICAL;
         }
 
@@ -3171,7 +3225,8 @@ static jaos_status run_primal(sx *s, jaos_solve_status *out)
         }
 
         build_pricing_row(s, r);
-        if (fabs(s->alpha[q]) < PIVOT_MIN) {
+        double min_alpha = 0.0;
+        if (alpha_unusable(s, q, &min_alpha)) {
             /* The pricing row disagrees with the column about the pivot. */
             if (s->lu.n_updates > 0) {
                 s->needs_refactor = true;
@@ -3180,9 +3235,9 @@ static jaos_status run_primal(sx *s, jaos_solve_status *out)
             }
             jm_set_err(s->m,
                        "column %lld prices at %.6g in row %lld on a freshly "
-                       "built factorization, which no pivot can use; this is "
-                       "a JAOS defect", (long long)q, s->alpha[q],
-                       (long long)r);
+                       "built factorization, against a floor of %.6g, which "
+                       "no pivot can use; this is a JAOS defect",
+                       (long long)q, s->alpha[q], (long long)r, min_alpha);
             return JAOS_ERR_NUMERICAL;
         }
 

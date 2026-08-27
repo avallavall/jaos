@@ -11,6 +11,20 @@ open, `bench/README.md` for the gate, and the commit each entry came from.
 
 ### Fixed
 
+- **The pricing row's pivot element is judged against its own terms too, and
+  `PIVOT_MIN` is documented as what it actually is.** The three sites that
+  test `alpha[q]` were absolute; they now apply `PIVOT_MARGIN` against
+  `sum_i |rho_i * a_iq|` as well. The measurement behind it is the surprise:
+  every one of the thirteen calls the absolute test rejects over the standard
+  94 has `alpha[q]` equal to its own traffic **to seventeen digits** — a
+  one-term dot product, the best determined a number gets. `PIVOT_MIN` there
+  is a **stability** floor, not a noise floor, and `docs/tolerances.md` said
+  otherwise. The noise floor was simply absent, and `scsd1` was pivoting on a
+  value standing at a third of one ulp of its own terms. Costs a work
+  geometric mean of **1.000001x on the dual solve** and 1.000496x on the
+  forced primal; every digest, iteration count and objective on all 139 gate
+  instances is unchanged (D209, `bench/measurements/02-124/`).
+
 - **The two primal ratio tests judge a pivot against the column's own scale,
   not against an absolute 1e-9.** `PIVOT_MARGIN = 1.0`: an entry of
   `B^-1 M_q` must stand above one ulp of that column's largest entry to be

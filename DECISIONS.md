@@ -216,6 +216,7 @@ and you have the argument. Jump to the entry for the numbers behind it.
 - **[D206](#d206--a-refusal-had-expired-unnoticed-the-record-was-checked-by-nothing-and-the-instrument-that-could-not-see-05-now-can)** — A refusal had expired unnoticed, the record was checked by nothing, and the instrument that could not see 0.5% now can
 - **[D207](#d207--the-primal-ratio-tests-pivot-floor-was-absolute-and-one-ulp-of-the-columns-own-largest-entry-is-the-value)** — The primal ratio tests' pivot floor was absolute, and one ulp of the column's own largest entry is the value
 - **[D208](#d208--the-pivot-floor-does-not-weaken-blands-rule-and-the-reason-pilot87-stalls-is-that-its-phase-1-has-already-diverged)** — The pivot floor does not weaken Bland's rule, and the reason `pilot87` stalls is that its phase 1 has already diverged
+- **[D209](#d209--pivotmin-on-the-pricing-row-is-a-stability-floor-not-a-noise-floor-and-the-noise-floor-it-was-mistaken-for-was-missing)** — `PIVOT_MIN` on the pricing row is a stability floor, not a noise floor, and the noise floor it was mistaken for was missing
 
 ---
 
@@ -15900,6 +15901,82 @@ count is honest and this is what stands behind it.
 defect: what happens between iterations 341000 and 352000, and whether phase 1
 should stop when its own objective rises rather than grind to a work limit —
 a monotonicity it can check for the cost of one comparison. `TODO.md` §0.
+
+---
+
+## D209 — `PIVOT_MIN` on the pricing row is a stability floor, not a noise floor, and the noise floor it was mistaken for was missing
+
+**The question.** `TODO.md` §0 stage 8a. D207 gave the **column** side of the
+pivot test a floor relative to its own scale. The **pricing row** side stayed
+absolute: three sites tested `fabs(s->alpha[q]) < PIVOT_MIN` against 1e-9, in
+`primal_cleanup`, in phase 1 and in phase 2. D207's constant could not be
+carried over: `alpha[q]` is `rho' M_q`, so the terms behind it are
+`rho_i * a_iq` and its traffic is `sum_i |rho_i * a_iq|`. `max|col|` is a
+different quantity and says nothing about this one.
+
+**The census.** `bench/measurements/02-124/`. At each site, before the test,
+`r = |alpha[q]| / (DBL_EPSILON * sum_i |rho_i * a_iq|)`, kept per solve and
+separately for the calls where the absolute test fired. 94 instances, both
+solves, 106 records.
+
+**What fires today is the best-determined number in the set.** Thirteen calls
+fire, and every one has `|alpha[q]|` equal to its own traffic to all
+seventeen digits printed — `dfl001` -3.3951065374647217e-10 against
+3.3951065374647217e-10, `scsd6` 1.7233192650678575e-15 against itself.
+`|sum| = sum|terms|` is a dot product with one term and no cancellation, and
+`r ≈ 1/eps ≈ 4.5e+15` is the largest this ratio can be. These are exact.
+
+**So the constant was doing a job its name does not describe.** `PIVOT_MIN`
+here is a **stability** floor — `pivot` and `theta_dual` both divide by this
+number, and 1e-10 is as dangerous to divide by when it is exact as when it is
+not. Rejecting those thirteen is right. `docs/tolerances.md` said it was about
+telling a pivot from zero, which is the other question entirely.
+
+**And the other question was going unasked.** The smallest `r` on the set is
+`scsd1`'s **0.352457** at the cleanup site: `alpha[q]` standing at a third of
+one ulp of its own terms, which is cancellation and not a number. The absolute
+test passes it and the solve pivots on it. Nothing else on the set is below 1;
+the next values up are `wood1p` at 20740.5 in phase 1 and 32874.7 on the dual
+path, and `forplan` at 2.37e+14 in phase 2.
+
+**The repair** adds the relative floor rather than replacing the absolute one,
+because the two answer different questions:
+`max(PIVOT_MIN, PIVOT_MARGIN * DBL_EPSILON * alpha_traffic(s, q))`. The
+constant is D207's own 1.0 — one ulp of the quantity's own terms — and the
+census puts it in the middle of a window five orders wide, `(0.352, 20740)`,
+and 32874 times below anything the gate reaches.
+
+**The cost, separated from the effect.** The sweep varies one thing: at
+`C = 0` the relative half cannot fire while the traffic walk still runs and
+still bills, so `C = 0` against the committed record is the walk alone and
+`C = 1` against `C = 0` is the floor alone.
+
+| | work geomean | worst |
+|---|---|---|
+| the walk, dual solve | **1.000001x** | 1.000084x (`wood1p`) |
+| the walk, forced primal | **1.000496x** | 1.003609x (`beaconfd`) |
+
+The stability test runs first, so the walk is skipped on every call already
+rejected. That is what keeps it at 0.05%: D207's first implementation cost
+2.8% and lost `bnl2` and `tuff` to the 10x work bar (D203's trap), and this
+one changes **no verdict at all** — 56 / 30 / 8 / 0 at both settings and in the
+committed record.
+
+**The floor's own effect is one line in 94.** `scsd1`'s primal work,
+3595889 → 3598204. Same verdict, same iterations, same objective, same split.
+The census predicted one instance and one moved.
+
+**The gate.** `PASS` on all three sets, `0 regressed, 0 improved, 0 new`.
+Unlike D207 the records do **not** come back byte-identical, and that is the
+change rather than a regression: this floor sits at a site the dual reaches.
+Exactly three lines move, and they are the three instances the census counted
+— `etamacro` (1 call) 3308076 → 3308078, `pilot87` (1) 17961110514 →
+17961110549, `wood1p` (169) 53867372 → 53871917, which is 27 work units per
+call, one column's nonzeros. **Every digest, iteration count and objective is
+identical**, on all 139 instances.
+
+**Open.** Nothing in 8a. `docs/tolerances.md`'s `PIVOT_MIN` row now says which
+job it does, which is the part of this that outlives the constant.
 
 ---
 
