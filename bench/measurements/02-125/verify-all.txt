@@ -1,0 +1,53 @@
+===== tree state =====
+566e847 docs: TODO says stages 8a to 8c are closed, and what continue means now
+?? bench/measurements/02-125/verify-all.sh
+?? bench/measurements/02-31/
+
+===== record-check =====
+record-check: PASS
+
+===== make configs: all five build configurations =====
+== plain
+== -DJAOS_NO_PRESOLVE
+== -DJAOS_PRESOLVE_FAULT_OFFBYONE
+== -DJAOS_PRESOLVE_FAULT_WRONGDUAL
+== sanitize
+all 5 configurations build and pass
+
+===== the three gate sets =====
+gate: PASS
+baseline: 0 regressed, 0 improved, 0 new
+gate: PASS
+baseline: 0 regressed, 0 improved, 0 new
+gate: PASS
+baseline: 0 regressed, 0 improved, 0 new
+
+===== did any committed record move? (must be empty) =====
+(nothing above = every record reproduces from the committed tree)
+
+===== the primal campaign record =====
+primal.txt after regeneration:
+overrun=8 DISAGREE=30 ok=56 
+
+===== make refusals =====
+D145               MANUAL          condition met by D148, retried as D149, refused again on cost; closed
+D149               MANUAL          condition met by D151 (the cap swept on both sides, the capped repair landed at 4); closed
+D151               MANUAL          a rule that predicts a doomed warm trajectory before paying for it
+D156               MANUAL          a frozen-row width dies at more than one ulp of the activity it constrains; D164's pin is what fires
+D173               MANUAL          finnis's point is shown not to be the exact optimal vertex by an oracle finer than 0.107 of eps * sum
+D176               MANUAL          anything reads the reduced model's objective (a callback, a statistic, a postsolve path)
+SPECS-crash-basis  MANUAL          pricing stops starting from exact steepest-edge weights; Devex landing is the trigger
+D93                MANUAL          a controlled host that satisfies D17 (for the 4.2% bar); tools/icount.sh answers the instruction half of that question today
+D34                MANUAL          never, while the two absolute premises stand (locked 2026-08-13)
+
+refusals: 4 re-tested, 1 flipped, 27 manual
+make: *** [Makefile:208: refusals] Error 1
+
+===== git status after everything =====
+ M bench/measurements/02-118/run-can-move-units.txt
+ M bench/measurements/02-119/run-restrict-icount.txt
+ M bench/measurements/02-125/unbounded.txt
+?? bench/measurements/02-125/verify-all.sh
+?? bench/measurements/02-31/
+===== VERIFY DONE =====
+
