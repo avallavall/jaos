@@ -36,10 +36,11 @@ constexpr double PRIMAL_TOL    = 1e-7;
 constexpr double PIVOT_MIN     = 1e-9;   /* smallest usable |alpha| */
 /* On top of PIVOT_MIN, in the two primal ratio tests only: how far an entry
  * of `B^-1 M_q` has to stand above the rounding of the solve that produced
- * it, in multiples of one ulp of that column's largest entry. It decides
- * what may be pivoted on, never what blocks. Dimensionless, so it belongs to
- * neither space; the threshold it builds is in scaled space, with `s->col`
- * (D207, swept in `bench/measurements/02-122/`). */
+ * it, in multiples of one ulp of that column's largest entry. A row below it
+ * is dropped from the candidate list, so it neither pivots nor blocks
+ * (D207, D212). Dimensionless, so it belongs to neither space;
+ * the threshold it builds is in scaled space, with `s->col`. Swept in
+ * `bench/measurements/02-122/`. */
 constexpr double PIVOT_MARGIN  = 1.0;
 /* The width of the Harris window, and what the solve calls zero for a
  * reduced cost (D174, D184); per-model override is D64. */
@@ -199,6 +200,12 @@ typedef struct {
      * its reduced cost from infeasibility (`rnum`), its pivot (`rden`). */
     int64_t *cand;           /* [nvar] */
     double *rnum, *rden;     /* [nvar] */
+    /* The primal ratio tests' candidates (D212): row, exact distance to
+     * the blocking bound, pivot magnitude. Own arrays, never the dual's:
+     * primal_cleanup runs inside the dual's settle loop and iterates
+     * `cand` while calling primal_ratio_test. */
+    int64_t *prow;           /* [nrow] */
+    double *pnum, *pden;     /* [nrow] */
     double *rrange;          /* [nvar] width of the box, or infinity */
 
 #ifndef NDEBUG
@@ -326,6 +333,7 @@ static void sx_free(sx *s)
     free(s->nbmark);
     free(s->rpat); free(s->rmark); free(s->cpat);
     free(s->cand); free(s->rnum); free(s->rden); free(s->rrange);
+    free(s->prow); free(s->pnum); free(s->pden);
 #ifndef NDEBUG
     free(s->dbg_cand); free(s->dbg_rnum); free(s->dbg_rden);
     free(s->dbg_rrange); free(s->dbg_col);
@@ -404,6 +412,9 @@ static jaos_status sx_init(sx *s, jaos_model *m)
     s->rnum   = jm_alloc_array(s->nvar, sizeof(double));
     s->rden   = jm_alloc_array(s->nvar, sizeof(double));
     s->rrange = jm_alloc_array(s->nvar, sizeof(double));
+    s->prow   = jm_alloc_array(s->nrow, sizeof(int64_t));
+    s->pnum   = jm_alloc_array(s->nrow, sizeof(double));
+    s->pden   = jm_alloc_array(s->nrow, sizeof(double));
     s->bs     = jm_alloc_array(s->nrow + 1, sizeof(int64_t));
     s->fake   = jm_calloc_array(s->nvar, sizeof *s->fake);
 
@@ -415,7 +426,8 @@ static jaos_status sx_init(sx *s, jaos_model *m)
         !s->y || !s->rho || !s->tau || !s->alpha || !s->apat || !s->amark ||
         !s->nbmark ||
         !s->rpat || !s->rmark || !s->cpat || !s->cand || !s->rnum ||
-        !s->rden || !s->rrange || !s->bs || !s->fake) {
+        !s->rden || !s->rrange || !s->prow || !s->pnum || !s->pden ||
+        !s->bs || !s->fake) {
         sx_free(s);
         return JAOS_ERR_OUT_OF_MEMORY;
     }
@@ -2167,6 +2179,86 @@ static bool wants_a_pivot(const sx *s, int64_t v)
                                                 : real_lower(s, v));
 }
 
+/* D207's floor, applied to the candidate list rather than to the scan: a
+ * pivot must stand above PIVOT_MARGIN ulps of the column's largest entry.
+ * Compacting the list is exact where D207's skipped second pass was not:
+ * Harris's first pass takes a minimum over the candidates, so removing one
+ * can change the winner, and every removal has to be applied. A floor that
+ * would leave nothing keeps the list as it was: -1 means no declared bound
+ * blocks, and both callers refuse on it (D207). */
+static int64_t primal_apply_floor(sx *s, int64_t n, double cmax)
+{
+    const double rel = PIVOT_MARGIN * DBL_EPSILON * cmax;
+    if (!(rel > PIVOT_MIN) || n == 0)
+        return n;
+    int64_t m = 0;
+    for (int64_t k = 0; k < n; k++) {
+        if (s->pden[k] < rel)
+            continue;
+        s->prow[m] = s->prow[k];
+        s->pnum[m] = s->pnum[k];
+        s->pden[m] = s->pden[k];
+        m++;
+    }
+    jm_work_add(&s->work, n * JM_WORK_NONZERO);
+    return m > 0 ? m : n;
+}
+
+/* Harris's two-pass ratio test in primal form (Gill, Murray, Saunders and
+ * Wright 1989 section 3.2; `docs/research/harris-primal.md`; D212). `pnum`
+ * is the exact distance to the blocking bound in the direction of travel,
+ * never negative; `pden` the pivot magnitude. `jm_harris_pick` widens every
+ * distance by `primal_tol`, takes the smallest quotient, and returns the
+ * largest pivot whose exact quotient fits in it. The step handed back is
+ * that exact quotient, so a basic can end at most `primal_tol` past its
+ * bound, and `refresh` recomputes it. Under Bland's rule the exact minimum
+ * with the lowest-index tie stays: the finiteness argument needs a fixed
+ * rule and not a widened one (D26). Returns a candidate index, or -1. */
+static int64_t primal_pick(sx *s, int64_t n, bool bland)
+{
+    if (n <= 0)
+        return -1;
+#ifndef NDEBUG
+    for (int64_t k = 0; k < n; k++)
+        assert(s->pden[k] > 0.0 && s->pnum[k] >= 0.0);
+#endif
+    if (!bland) {
+        const int64_t k = jm_harris_pick(n, s->pnum, s->pden, s->primal_tol);
+        jm_work_add(&s->work, 2 * n * JM_WORK_NONZERO);
+        return k;
+    }
+    int64_t best = -1;
+    double best_step = HUGE_VAL;
+    for (int64_t k = 0; k < n; k++) {
+        const double t = s->pnum[k] / s->pden[k];
+        if (jm_primal_row_wins(t, s->basis[s->prow[k]], best_step,
+                               best >= 0 ? s->basis[s->prow[best]] : -1,
+                               true)) {
+            best_step = t;
+            best = k;
+        }
+    }
+    jm_work_add(&s->work, n * JM_WORK_NONZERO);
+    return best;
+}
+
+/* Harris's zero step (GMSW 1989 section 3.3): when the chosen row already
+ * stands past its bound, by at most `primal_tol` from an earlier relaxed
+ * step, the step is zero and the blocking variable is kept. `pivot` derives
+ * its step from `xb[r]`, so snapping `xb[r]` onto the bound here makes that
+ * step exactly zero: the leaving variable goes nonbasic at its bound, the
+ * entering one enters at its own, nothing else moves, and the residual in
+ * `Ax = b` this leaves is of order `primal_tol` until `refresh` recomputes
+ * the basics. Without it the entering variable would land
+ * `primal_tol / |alpha_q|` past its own bound (D212). */
+static void snap_if_past(sx *s, int64_t r, bool below)
+{
+    const int64_t v = s->basis[r];
+    const double bound = below ? real_lower(s, v) : real_upper(s, v);
+    if (below ? s->xb[r] < bound : s->xb[r] > bound)
+        s->xb[r] = bound;
+}
+
 /* How far column q can travel before a basic variable reaches a bound.
  * Moving q by `dx` moves the basics by `-B^-1 M_q dx`. The direction is
  * read off the reduced cost, not the status. Only bounds the model
@@ -2181,8 +2273,7 @@ static bool wants_a_pivot(const sx *s, int64_t v)
  *
  * `bland` is a parameter rather than a read of `s->bland` because one of
  * the two callers must not have it: `primal_cleanup` passes false; its
- * candidate set is a snapshot and each entry is pivoted at most once. The
- * tie is exact equality. */
+ * candidate set is a snapshot and each entry is pivoted at most once. */
 static int64_t primal_ratio_test(sx *s, int64_t q, bool bland, bool *below,
                                  double *step)
 {
@@ -2190,76 +2281,44 @@ static int64_t primal_ratio_test(sx *s, int64_t q, bool bland, bool *below,
     jm_lu_ftran(&s->lu, s->col, &s->work);
 
     const double dir = s->d[q] < 0.0 ? 1.0 : -1.0;
-    int64_t best = -1;
-    double best_step = HUGE_VAL;
-    bool best_below = false;
+    int64_t n = 0;
     double cmax = 0.0;
-    double thr = PIVOT_MIN;
-    /* Pass 0's answer, kept: `*step` is the caller's bound on how far q may
-     * travel and it must be read off EVERY row, floor or no floor, and it is
-     * what stands if the floor leaves nothing to pivot on. */
-    int64_t first = -1;
-    double first_step = HUGE_VAL;
-    bool first_below = false;
 
-    /* Two passes at most. `PIVOT_MARGIN`'s floor needs the column's largest
-     * entry, which is known only once a scan has finished, so pass 0 runs on
-     * `PIVOT_MIN` and the floor is applied to the row it chose. A second pass
-     * runs only when that row is below the floor, and skipping it otherwise
-     * is exact: the winner of a scan is still the winner over any subset of
-     * it that contains that winner, and `jm_primal_row_wins` orders on
-     * `(step, basis)`, which removing rows does not change. `dir` is exactly
-     * ±1.0, so the filter and the test below compare the same bits. */
-    for (int pass = 0; pass < 2; pass++) {
-        best = -1;
-        best_step = HUGE_VAL;
-        best_below = false;
-        for (int64_t i = 0; i < s->nrow; i++) {
-            double move = -dir * s->col[i];      /* per unit q travels */
-            const double amove = fabs(move);
-            if (pass == 0 && amove > cmax)
-                cmax = amove;
-            if (amove < thr)
-                continue;                        /* cannot be told from zero */
+    for (int64_t i = 0; i < s->nrow; i++) {
+        const double move = -dir * s->col[i];      /* per unit q travels */
+        const double amove = fabs(move);
+        if (amove > cmax)
+            cmax = amove;
+        if (!(amove >= PIVOT_MIN))
+            continue;                              /* cannot be told from zero, or NaN */
 
-            int64_t b = s->basis[i];
-            double limit = move < 0.0 ? real_lower(s, b) : real_upper(s, b);
-            if (!isfinite(limit))
-                continue;
+        const int64_t b = s->basis[i];
+        const double limit = move < 0.0 ? real_lower(s, b) : real_upper(s, b);
+        if (!isfinite(limit))
+            continue;
 
-            double step = (limit - s->xb[i]) / move;
-            if (step < 0.0)
-                step = 0.0;                      /* already there: degenerate */
-            if (jm_primal_row_wins(step, b, best_step,
-                                   best >= 0 ? s->basis[best] : -1, bland)) {
-                best_step = step;
-                best = i;
-                best_below = move < 0.0;
-            }
-        }
-        jm_work_add(&s->work, s->nrow * JM_WORK_NONZERO);
-        if (pass == 0) {
-            first = best;
-            first_step = best_step;
-            first_below = best_below;
-        }
-        const double rel = PIVOT_MARGIN * DBL_EPSILON * cmax;
-        /* Negated, so a NaN `rel` from a non-finite column stops here rather
-         * than running a second pass with no filter at all. */
-        if (!(rel > thr) || best < 0 || fabs(s->col[best]) >= rel)
-            break;
-        thr = rel;
+        double dist = move > 0.0 ? limit - s->xb[i] : s->xb[i] - limit;
+        if (dist < 0.0)
+            dist = 0.0;                            /* already there: degenerate */
+        s->prow[n] = i;
+        s->pnum[n] = dist;
+        s->pden[n] = amove;
+        n++;
     }
-    /* The floor decides what is worth pivoting on, never whether a row
-     * exists. Leaving nothing above it would otherwise return -1, which both
-     * callers read as "no declared bound stops this column" and refuse on. */
-    if (best < 0) {
-        best = first;
-        best_below = first_below;
+    jm_work_add(&s->work, s->nrow * JM_WORK_NONZERO);
+
+    n = primal_apply_floor(s, n, cmax);
+    const int64_t k = primal_pick(s, n, bland);
+    if (k < 0) {
+        *step = HUGE_VAL;
+        return -1;
     }
-    *below = best_below;
-    *step = first_step;
-    return best;
+    const int64_t r = s->prow[k];
+    *below = -dir * s->col[r] < 0.0;
+    *step = s->pnum[k] / s->pden[k];
+    if (*step == 0.0)
+        snap_if_past(s, r, *below);
+    return r;
 }
 
 /* Lets every column that wants a pivot have one, and reports how many.
@@ -2675,13 +2734,32 @@ static void primal_phase1_duals(sx *s)
     s->cost = real_cost;
 }
 
+/* Which bound row i's basic lands on if it leaves: an infeasible one lands
+ * on the bound it was travelling back to, a feasible one on the bound in
+ * the direction of travel. Recomputed for the chosen row rather than kept
+ * per candidate. */
+static bool phase1_lands_low(const sx *s, int64_t i, double move)
+{
+    const int64_t v = s->basis[i];
+    const double lo = real_lower(s, v), up = real_upper(s, v);
+    if (isfinite(lo) && s->xb[i] < lo - s->primal_tol)
+        return true;
+    if (isfinite(up) && s->xb[i] > up + s->primal_tol)
+        return false;
+    return move < 0.0;
+}
+
 /* How far q may travel in phase 1 before a basic reaches a bound that
  * matters. A feasible basic must stay feasible, so it blocks at the
  * declared bound the way it travels. An infeasible one blocks at the bound
  * it travels back towards; travelling away, nothing blocks. Short-step
- * form (`docs/research/primal-simplex.md` §4). Returns the blocking
- * position with `*below` saying which bound, or -1. `*step` receives the
- * distance. Leaves `B^-1 M_q` in `s->col`, as the phase-2 test does. */
+ * form (`docs/research/primal-simplex.md` section 4), with Harris's two
+ * passes over the candidates (`primal_pick`). Relaxing an infeasible
+ * basic's blocking bound by `primal_tol` lets it travel that far into the
+ * feasible region, which is harmless (`docs/research/harris-primal.md`).
+ * Returns the blocking position with `*below` saying which bound, or -1.
+ * `*step` receives the distance. Leaves `B^-1 M_q` in `s->col`, as the
+ * phase-2 test does. */
 static int64_t primal_phase1_ratio(sx *s, int64_t q, bool bland, bool *below,
                                    double *step)
 {
@@ -2689,81 +2767,60 @@ static int64_t primal_phase1_ratio(sx *s, int64_t q, bool bland, bool *below,
     jm_lu_ftran(&s->lu, s->col, &s->work);
 
     const double dir = s->d[q] < 0.0 ? 1.0 : -1.0;
-    int64_t best = -1;
-    double best_step = HUGE_VAL;
-    bool best_below = false;
+    int64_t n = 0;
     double cmax = 0.0;
-    double thr = PIVOT_MIN;
-    int64_t first = -1;
-    double first_step = HUGE_VAL;
-    bool first_below = false;
 
-    /* Two passes at most, and pass 0's answer kept, both for the reasons the
-     * phase-2 test above states. */
-    for (int pass = 0; pass < 2; pass++) {
-        best = -1;
-        best_step = HUGE_VAL;
-        best_below = false;
-        for (int64_t i = 0; i < s->nrow; i++) {
-            const double move = -dir * s->col[i];      /* per unit q travels */
-            const double amove = fabs(move);
-            if (pass == 0 && amove > cmax)
-                cmax = amove;
-            if (amove < thr)
-                continue;                              /* cannot be told from zero */
+    for (int64_t i = 0; i < s->nrow; i++) {
+        const double move = -dir * s->col[i];      /* per unit q travels */
+        const double amove = fabs(move);
+        if (amove > cmax)
+            cmax = amove;
+        if (!(amove >= PIVOT_MIN))
+            continue;                              /* cannot be told from zero, or NaN */
 
-            const int64_t v = s->basis[i];
-            const double lo = real_lower(s, v), up = real_upper(s, v);
-            const bool under = isfinite(lo) && s->xb[i] < lo - s->primal_tol;
-            const bool over  = isfinite(up) && s->xb[i] > up + s->primal_tol;
+        const int64_t v = s->basis[i];
+        const double lo = real_lower(s, v), up = real_upper(s, v);
+        const bool under = isfinite(lo) && s->xb[i] < lo - s->primal_tol;
+        const bool over  = isfinite(up) && s->xb[i] > up + s->primal_tol;
 
-            double limit;
-            bool lands_low;
-            if (under) {
-                if (move < 0.0)
-                    continue;                          /* going further under */
-                limit = lo;
-                lands_low = true;
-            } else if (over) {
-                if (move > 0.0)
-                    continue;                          /* going further over */
-                limit = up;
-                lands_low = false;
-            } else {
-                limit = move < 0.0 ? lo : up;
-                lands_low = move < 0.0;
-                if (!isfinite(limit))
-                    continue;
-            }
-
-            double t = (limit - s->xb[i]) / move;
-            if (t < 0.0)
-                t = 0.0;                               /* already there: degenerate */
-            if (jm_primal_row_wins(t, v, best_step,
-                                   best >= 0 ? s->basis[best] : -1, bland)) {
-                best_step = t;
-                best = i;
-                best_below = lands_low;
-            }
+        double limit;
+        assert(phase1_lands_low(s, i, move) == (under || (!over && move < 0.0)));
+        if (under) {
+            if (move < 0.0)
+                continue;                          /* going further under */
+            limit = lo;
+        } else if (over) {
+            if (move > 0.0)
+                continue;                          /* going further over */
+            limit = up;
+        } else {
+            limit = move < 0.0 ? lo : up;
+            if (!isfinite(limit))
+                continue;
         }
-        jm_work_add(&s->work, s->nrow * JM_WORK_NONZERO);
-        if (pass == 0) {
-            first = best;
-            first_step = best_step;
-            first_below = best_below;
-        }
-        const double rel = PIVOT_MARGIN * DBL_EPSILON * cmax;
-        if (!(rel > thr) || best < 0 || fabs(s->col[best]) >= rel)
-            break;
-        thr = rel;
+
+        double dist = move > 0.0 ? limit - s->xb[i] : s->xb[i] - limit;
+        if (dist < 0.0)
+            dist = 0.0;                            /* already there: degenerate */
+        s->prow[n] = i;
+        s->pnum[n] = dist;
+        s->pden[n] = amove;
+        n++;
     }
-    if (best < 0) {
-        best = first;
-        best_below = first_below;
+    jm_work_add(&s->work, s->nrow * JM_WORK_NONZERO);
+
+    n = primal_apply_floor(s, n, cmax);
+    const int64_t k = primal_pick(s, n, bland);
+    if (k < 0) {
+        *step = HUGE_VAL;
+        return -1;
     }
-    *below = best_below;
-    *step = first_step;
-    return best;
+    const int64_t r = s->prow[k];
+    *step = s->pnum[k] / s->pden[k];
+    *below = phase1_lands_low(s, r, -dir * s->col[r]);
+    if (*step == 0.0)
+        snap_if_past(s, r, *below);
+    return r;
 }
 
 /* Drives the sum of bound violations to zero, from whatever basis it is

@@ -219,6 +219,7 @@ and you have the argument. Jump to the entry for the numbers behind it.
 - **[D209](#d209--pivotmin-on-the-pricing-row-is-a-stability-floor-not-a-noise-floor-and-the-noise-floor-it-was-mistaken-for-was-missing)** — `PIVOT_MIN` on the pricing row is a stability floor, not a noise floor, and the noise floor it was mistaken for was missing
 - **[D210](#d210--the-last-absolute-pivot-floor-stays-absolute-it-decides-nothing-on-139-instances-and-the-only-way-to-move-it-is-the-unsafe-one)** — The last absolute pivot floor stays absolute: it decides nothing on 139 instances, and the only way to move it is the unsafe one
 - **[D211](#d211--pilot87s-phase-1-diverges-because-the-primal-ratio-test-has-no-rule-against-a-tiny-pivot-and-a-stop-on-the-objective-rising-is-refused-because-a-solve-that-finishes-rises-25x)** — `pilot87`'s phase 1 diverges because the primal ratio test has no rule against a tiny pivot, and a stop on the objective rising is refused because a solve that finishes rises 25x
+- **[D212](#d212--harriss-two-pass-ratio-test-in-primal-form-60-of-94-agree-against-56-wood1p-publishes-a-different-vertex-for-22-less-work-and-pilot87-is-untouched)** — Harris's two-pass ratio test in primal form: 60 of 94 agree against 56, `wood1p` publishes a different vertex for 22% less work, and `pilot87` is untouched
 
 ---
 
@@ -16099,6 +16100,73 @@ a work limit at 387235 on a solve lost either way.
 
 **Open.** Stage 2. And whether `pilot87` still diverges once it lands, which
 is the one measurement that says whether the wear was the whole story.
+
+---
+
+## D212 — Harris's two-pass ratio test in primal form: 60 of 94 agree against 56, `wood1p` publishes a different vertex for 22% less work, and `pilot87` is untouched
+
+**The change.** `TODO.md` §0 stage 2. Both primal ratio tests took the exact
+minimum ratio, ties on the basis index, and admitted any pivot down to
+`PIVOT_MIN`. D211 measured what that costs: `pilot87` took 582 pivots on
+elements below 1e-4 against a control's 3, and its phase-1 objective rose
+from 1e+12 to 1e+24. They now build a candidate list and select with
+`jm_harris_pick`, the same generic routine the dual side has used since D26:
+pass one widens every distance by `primal_tol` and takes the smallest
+quotient, pass two returns the **largest pivot** whose exact quotient still
+fits. Under Bland's rule the exact minimum with the lowest-index tie stays,
+because the finiteness argument needs a fixed rule and not a widened one.
+
+D207's relative floor moves with it. It used to skip a row in the scan while
+still reading the travel distance off every row; it now **compacts the
+candidate list**, so a floored row neither pivots nor blocks. That is exact
+where the skipped second pass was not: Harris's first pass is a minimum over
+the candidates, so a removal can change the winner and every removal has to
+be applied. A floor that would empty the list leaves it alone, which keeps
+D207's rule that `-1` means no declared bound blocks.
+
+**The published form.** `docs/research/harris-primal.md`. `literature-scout`
+verified the shape against Hall and McKinnon (2004), read in full, and the
+GMSW 1989 scan was then read directly for section 3.3, which settles two
+things the design note had marked unknown: Harris "sets α = 0 but retains the
+same blocking variable" when the chosen row already stands past its bound,
+and the snap this leaves is an error of order δ in `Ax = b`, "eliminated each
+time the basis is refactorized". Harris (1973) itself stays unread and no
+constant is carried from it.
+
+**The forced-primal campaign**, `bench/results/primal.txt`:
+
+| | before | after |
+|---|---|---|
+| agree with the dual | 56 | **60** |
+| disagree | 30 | 30 |
+| overrun a 10x budget | 8 | **4** |
+| iterations, primal/dual geomean | 2.2135 | **2.0411** |
+| work, primal/dual geomean | 3.9470 | **3.8224** |
+
+Seven instances gained agreement — `bandm`, `fit1d`, `sc50a`, `scrs8`,
+`scsd1`, `sctap3`, `tuff` — and **three lost it**: `israel`, `pilot-ja` and
+`pilotnov` go `ok` → DISAGREE, each on the settled point failing dual
+feasibility. Net +4. `grow15` is the best work ratio at 0.3843 against a
+previous best of 0.9861.
+
+**The gate passes all three sets** and three records move, the three whose
+dual path reaches `primal_cleanup`. `etamacro` and `pilot87` move by work
+alone. **`wood1p` publishes a different optimal vertex**: 694 iterations and
+53871917 work units become 560 and 42078864, a work ratio of **0.781**, with
+the objective identical to the last bit, the checker green, and the solution
+digest `ce88fc7e25bc72be` → `514493ffbde8a088`. A different vertex of the same
+optimal face is a correct answer and the gate's `0 regressed` covers it; it is
+recorded here because a summary line does not show it.
+
+**What it does not do.** `pilot87` still overruns, at 386392 phase-1
+iterations against 387235. D211 named that as the number that would say
+whether the tiny pivots were the whole story, and on this evidence they were
+not — or the relaxation gives back what the pivot preference buys. The width
+sweep separates those two: at `0` the test is pass two alone, the largest
+pivot among exact ties, with no relaxation at all.
+
+**Open.** The three regressions, and the width. Both belong to the sweep in
+`bench/measurements/02-127/`.
 
 ---
 

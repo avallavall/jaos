@@ -1481,16 +1481,13 @@ static void test_primal_bland_takes_the_lowest_and_not_the_highest(void)
     TEST_ASSERT_FALSE(jm_primal_row_wins(0.0, 8, 0.0, 2, true));
 }
 
-/* The property the two primal ratio tests' relative pivot floor rests on
- * (D207). Both run a scan on `PIVOT_MIN`, and re-scan on a higher floor only
- * when the row that scan chose falls below it. Skipping the re-scan is sound
- * only if the winner of a scan is still the winner over every subset that
- * contains it — which holds because `jm_primal_row_wins` is the comparison of
- * a strict total order, and the minimum of a set is the minimum of any subset
- * holding it. Nothing in the tree checked that, and the ratio tests stopped
- * re-checking it, so a later tie-break change would break the floor in
- * silence. This is the check, over every subset of a fixed set, in both
- * modes. */
+/* `jm_primal_row_wins` is the comparison of a strict total order on
+ * `(step, basis)`, so a greedy scan's winner is a function of the candidate
+ * SET alone: it survives every subset that keeps it, and no ordering of the
+ * candidates changes it. The primal ratio tests' Bland branch runs that scan
+ * over a list `primal_apply_floor` may have compacted (D207, D212); this is
+ * what says the compaction cannot change the answer. Checked over every
+ * subset of a fixed set, in both tie-break modes. */
 static int64_t greedy_winner(const double *step, const int64_t *var, int n,
                              unsigned mask, bool bland)
 {
