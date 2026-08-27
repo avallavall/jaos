@@ -9,8 +9,12 @@ line leaves this file in the same commit.
 
 ### → FRESH CONTEXT: READ THIS PARAGRAPH AND THEN §0
 
-**Stage 8 landed on 2026-08-27 and is NOT pushed** — three commits,
-`9ef21ef`, `faf6f93`, `24c7484`. `PIVOT_MARGIN = 1.0`: a primal pivot must
+**Stage 8 and all three of its follow-ups landed on 2026-08-27 and NOTHING is
+pushed** — seven commits, `9ef21ef` through `92e767d`. Ask the remote for the
+count rather than trusting one written here, and push from the WINDOWS side:
+the remote is an SSH alias that lives in the Windows `~/.ssh/config` only.
+
+`PIVOT_MARGIN = 1.0`: a primal pivot must
 stand above one ulp of its own FTRAN column's largest entry. The campaign goes
 to **56 of 94 agreeing** from 55, `pilot4` DISAGREE → ok, and **the one
 instance that refused calling itself defective is gone**. All three gate sets
@@ -18,13 +22,28 @@ came back byte-identical, records and work units both. `jaos-measurer`
 returned **ACCEPT** and caught three errors in the record, all now fixed
 (D207, `bench/measurements/02-122/`).
 
+**Stages 8a, 8b and 8c are all closed too, on 2026-08-27** — D208, D209, D210.
+8a landed (the pricing row's pivot is judged against its own terms, and
+`PIVOT_MIN` there turned out to be a **stability** floor that
+`docs/tolerances.md` had described as a noise floor). 8b closed on a
+measurement: the floor does **not** weaken Bland's rule, twelve of thirteen
+movers never stall. 8c is **refused** with a re-test in `bench/refusals.txt`:
+0 of 139 instances reach the site, and the only direction it could move
+declares a ray from the absence of a blocker, which D19 refuses.
+
+**8b turned up something bigger than itself, and it is now stage 8d.**
+`pilot87`'s phase-1 objective — a sum of bound violations, which must never
+rise — falls to 1.24365e+12 at iteration 341000, **turns at 342000**, reaches
+1.88282e+24 by 351000, and ends alternating between two values. `dfl001` runs
+136695 phase-1 iterations at both settings and never rises, so this is not
+what long runs do. That is a phase-1 defect, not a floor defect.
+
 **If you were told "continue", this is the order:**
 
-1. **Section 0 stages 8a, 8b, 8c** — the three `numerics-reviewer` and
-   `jaos-measurer` raised on stage 8's own diff, in the stage table below.
-   8b is the one with a real question behind it: the floor makes the ratio
-   test's candidate set depend on the column, and Bland's finiteness argument
-   assumed it did not. The read that settles it is written out in the row.
+1. **Section 0 stage 8d** — `pilot87`'s phase 1 diverges. The row below says
+   what to look at and, more usefully, what cannot be measured: without the
+   floor that solve stops at 17165, so the diverging regime is unreachable and
+   the two states cannot both be produced on that instance.
 2. **Section 0 stage 6** — `can_move`'s units, LIVE since 02-118. What the
    right units are, and whether they change a verdict or only a trajectory.
 3. **The assert debt** below (`bench/measurements/02-121/`), one file per
