@@ -63,6 +63,17 @@ open, `bench/README.md` for the gate, and the commit each entry came from.
 
 ### Changed
 
+- **The two primal ratio tests are Harris's two-pass form.** Pass one widens
+  every basic bound outward by `primal_tol` and takes the smallest quotient;
+  pass two returns the **largest pivot** whose exact quotient still fits, both
+  through `jm_harris_pick`, the generic routine the dual side has used since
+  D26. Bland's rule keeps the exact minimum, because its finiteness argument
+  needs a fixed rule. D207's relative floor now compacts the candidate list, so
+  a floored row neither pivots nor blocks. The forced-primal campaign goes to
+  **60 of 94 agreeing** from 56, overruns 8 → 4, work geomean 3.9470 → 3.8224;
+  `wood1p` publishes a different vertex of the same optimal face for **22% less
+  work**, and `pilot87` still overruns (D212, `bench/measurements/02-127/`).
+
 - **`SPECS.md` is present tense only.** Rows say what exists, what is partial
   and what is missing, with the decision beside each. History left the rows;
   one row that said four instances were off the optimum had been closed by

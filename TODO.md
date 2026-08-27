@@ -9,10 +9,14 @@ line leaves this file in the same commit.
 
 ### → FRESH CONTEXT: READ THIS PARAGRAPH AND THEN §0
 
-**Stage 8 and all three of its follow-ups landed on 2026-08-27 and NOTHING is
-pushed** — seven commits, `9ef21ef` through `92e767d`. Ask the remote for the
-count rather than trusting one written here, and push from the WINDOWS side:
-the remote is an SSH alias that lives in the Windows `~/.ssh/config` only.
+**Section 0 stage 2 landed on 2026-08-27** — D212, `da16a20`, the Harris
+two-pass ratio test in primal form. Everything through `aea0e26` is pushed.
+Ask the remote for the count rather than trusting one written here, and push
+from the WINDOWS side: the remote is an SSH alias that lives in the Windows
+`~/.ssh/config` only.
+
+**Stage 8 and all three of its follow-ups landed on 2026-08-27** — seven
+commits, `9ef21ef` through `92e767d`.
 
 `PIVOT_MARGIN = 1.0`: a primal pivot must
 stand above one ulp of its own FTRAN column's largest entry. The campaign goes
@@ -40,12 +44,13 @@ what long runs do. That is a phase-1 defect, not a floor defect.
 
 **If you were told "continue", this is the order:**
 
-1. **Section 0 stage 2** — the Harris two-pass in primal form. Stage 8d
-   closed on 2026-08-27 (D211) and made this the next item rather than an
-   option: `pilot87` diverges because the primal ratio test has no preference
-   for a larger pivot among near-ties, and stage 2 is that preference. The
-   verdict of the whole story is one number: whether `pilot87` still
-   diverges after it lands. Full loop; `numerics-reviewer` on the diff.
+1. **Section 0 stage 2a** — the Harris width, the multiple of `primal_tol`
+   that pass one relaxes by. Stage 2 shipped `1` and the sweep in
+   `bench/measurements/02-127/` says that is not the best setting: at `0.1`
+   `pilot87`'s worst relative rise falls ten orders of magnitude and the
+   campaign gains an instance. What is missing is the gate at 0.1, and a
+   reading at **0.5**, the value GMSW 1989 actually ship. Full loop;
+   `numerics-reviewer` on the diff.
 2. **Section 0 stage 6** — `can_move`'s units, LIVE since 02-118. What the
    right units are, and whether they change a verdict or only a trajectory.
 3. **The assert debt** below (`bench/measurements/02-121/`), one file per
@@ -76,11 +81,12 @@ twenty are closed** (D202 to D205), and two rounds of `numerics-reviewer` on
 the fixes found nine more, including one the fixes themselves introduced. The
 one that mattered: moving the iteration split onto the model left `solve_iters`
 behind `publish()`'s gate, so an abandoned solve published the previous solve's
-total and `pilot87` reported a dual re-entry of 20835 that never ran. After it: stage 2 (Harris in primal form) or
-stage 5 (Devex, blocked on a paywalled source) — and D195 says stage 5's
-pricing question belongs to phase 1, which is where every budget is spent.
+total and `pilot87` reported a dual re-entry of 20835 that never ran. Stage 2
+has landed since; what is left after stage 2a is stage 5 (Devex, blocked on a
+paywalled source) — and D195 says stage 5's pricing question belongs to phase
+1, which is where every budget is spent.
 
-**The tree is clean and everything is committed. Nothing is pushed** — ask the
+**The tree is clean and everything is committed and pushed** — ask the
 remote for the count rather than trusting one written here, because it is stale
 the moment anything lands. **Push from the WINDOWS side**: the remote is an SSH
 alias that lives in the Windows `~/.ssh/config` only. `git fetch` first,
@@ -1299,7 +1305,8 @@ in `price_row:1700` are the machinery, and D26 is the decision behind them.
 |---|---|---|
 | 0 | ~~the harness, `bench/primal.c` and the `cfg` switch~~ | **DONE 2026-08-25** — `bench/measurements/02-99/` |
 | 1 | ~~phase-2 primal, Dantzig pricing, Bland fallback~~ | **DONE 2026-08-25** — D188, `bench/measurements/02-101/` |
-| 2 | **Harris two-pass in primal form, and the snap** | nothing — `jm_harris_pick` is already generic. **And it is now the repair for a measured defect** (D211): `pilot87`'s phase 1 diverges because the primal ratio test admits any pivot down to `PIVOT_MIN` with no preference for a larger one, and took 582 pivots below 1e-4 on the way. The second Harris pass is that preference. The one measurement that closes the story is whether `pilot87` still diverges after this lands |
+| 2 | ~~Harris two-pass in primal form, and the snap~~ | **DONE 2026-08-27** — D212, `bench/measurements/02-127/`. Both tests build a candidate list and select with `jm_harris_pick`; D207's floor compacts that list, so a floored row neither pivots nor blocks. 60 of 94 agree against 56, overruns 8 → 4, work geomean 3.9470 → 3.8224, and `wood1p` publishes a different vertex of the same optimal face for **22% less work**. **The measurement that closed the story says no**: `pilot87` still overruns, 386392 phase-1 iterations against 387235 |
+| 2a | **the Harris width** — what multiple of `primal_tol` pass one relaxes by | nothing; the sweep is already run and it says the shipped value is not the best one. `bench/measurements/02-127/`, four settings. At **0.1** `pilot87`'s worst relative rise of the phase-1 objective falls from 8.33e+13 to **1351** and its phase-1 iterations from 372035 to 106485; the campaign goes to 61 of 94 and `wood1p` gains agreement. Two things stand in the way: at 0.1 `pilot87` then stops on `PIVOT_MIN` (an `ERROR` rather than an overrun), and **the gate has not been run at 0.1** — it reaches this code on three instances and one of them already publishes a different vertex. **0.5 is the published value and is not measured**: GMSW 1989 ship `delta_f / 2`, and `docs/research/harris-primal.md` bounds the width above by `PRIMAL_TOL`, which is exactly what ships now |
 | 3 | ~~the entering column's bound flip~~ | **DONE 2026-08-25** — D189, it was a wrong answer |
 | 4 | ~~phase 1 (Maros 1986) from a given basis~~ | **DONE 2026-08-25, short-step form** — 0 of 94 to 64 of 94 (D190) |
 | 5 | **Devex** | **Harris (1973), paywalled** |
@@ -1343,11 +1350,11 @@ D201 closed the last two:
 times across 5 instances** — `dfl001` 7, `d6cube` 2, `greenbeb` 2, `pilot87` 1,
 `tuff` 1. Nothing hangs on it; it is written down because it was never counted.
 
-After the decision below: stage 2 (Harris in primal form) or stage 5 (Devex,
-blocked on a paywalled source). **D195 says stage 5's pricing question belongs
-to phase 1**, which is where every budget is spent, and stage 2 is written as a
-phase-2 ratio test — which runs 97 iterations across the whole set. Read that
-before choosing.
+Stage 2 landed on 2026-08-27 (D212). What is left is stage 2a, its width, and
+then stage 5 (Devex, blocked on a paywalled source). **D195 says stage 5's
+pricing question belongs to phase 1**, which is where every budget is spent.
+Stage 2 turned out to reach phase 1 too: both ratio tests changed, and phase 1
+is where every one of its gains came from.
 
 ### → DECIDE THIS FIRST: what "55 of 94" means, and whether to keep it
 

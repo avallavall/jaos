@@ -40,15 +40,49 @@ D207 and D209 have been circling from the other side. It also separates the
 two questions: the width decides whether the objective stays under control,
 and `PIVOT_MIN` decides whether the solve can finish.
 
+## D212's three regressions: two of them are not the relaxation
+
+Read from the four `delta-*.txt` records already here, no new run.
+
+| instance | before D212 | width 0 | 0.1 | 1 | 10 |
+|---|---|---|---|---|---|
+| `israel` | ok | **ok** | DISAGREE | DISAGREE | DISAGREE |
+| `pilot-ja` | ok | DISAGREE | DISAGREE | DISAGREE | DISAGREE |
+| `pilotnov` | ok | DISAGREE | DISAGREE | DISAGREE | DISAGREE |
+
+`pilot-ja` and `pilotnov` disagree at width 0, where there is no relaxation at
+all. What loses them agreement is the **pivot preference** — pass two taking a
+larger pivot than the exact minimum did. Only `israel` belongs to the
+relaxation, and every width above 0 loses it.
+
+All three fail the same way, on dual feasibility at the settled point, and the
+size of the breach moves with the width without following it: `pilotnov`
+breaches its bound by 4.75223 at width 0, by 0.221786 at 0.1 and at 1, and by
+95.8043 at 10.
+
+## Every verdict that moves, width against width
+
+| pair | instances that differ |
+|---|---|
+| 0 vs 1 | `brandy` DIS→ok, `finnis` DIS→ok, `scrs8` DIS→ok, `d6cube` overrun→DIS, `fit1p` ok→DIS, `israel` ok→DIS |
+| **0.1 vs 1** | `wood1p` **ok**→DIS, `pilot87` **ERROR**→overrun |
+| 10 vs 1 | `bandm` DIS→ok, `pilot` overrun→ok |
+
+Only two instances separate 0.1 from 1. One is a gain for 0.1 (`wood1p`), the
+other is the same instance failing in a different way (`pilot87`, which fails
+at both).
+
 ## Open, and what would settle it
 
-1. Name the instance that `ERROR`s at 0.1 and read its message.
-2. The three regressions D212 carries — `israel`, `pilot-ja`, `pilotnov`,
-   `ok` → DISAGREE, each on the settled point failing dual feasibility — and
-   whether the width moves them.
-3. Then the choice between 1 and 0.1 on both sides, with the gate re-run at
-   whichever wins, because the gate reaches this code on three instances and
-   one of them already publishes a different vertex (D212).
+1. **0.5 is the published value and it is not measured.** GMSW 1989 ship
+   `delta_i = delta_f / 2`, and `docs/research/harris-primal.md` bounds the
+   width above by `PRIMAL_TOL` — which is exactly what ships. One more run of
+   `sweep-delta.sh 0.5` (with the setup adapted, because the script measures a
+   working-tree diff and stage 2 is committed now).
+2. Then the choice, **with the gate re-run at whichever wins**, because the
+   gate reaches this code on three instances and one of them already publishes
+   a different vertex (D212). Nothing here is a gate reading; all four settings
+   are the forced-primal campaign only.
 
 Nothing here changes `PIVOT_MARGIN`; that constant is D207's and was swept
 separately in `bench/measurements/02-122/`.
