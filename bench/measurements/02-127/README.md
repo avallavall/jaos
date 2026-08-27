@@ -23,9 +23,22 @@ orders of magnitude, on 106485 phase-1 iterations against 372035. Nothing
 else measured has moved that number. D211 named it as the reading that says
 whether the tiny pivots were the whole story.
 
-**And width 0.1 brings back one `ERROR`**, a solve that declares itself
-defective. Which instance, and whether it is a new defect or `pilot87`'s old
-refusal returning, is not measured here.
+**And width 0.1 brings back one `ERROR`** — `pilot87` itself, and its message
+names the cause, because D209 made these sites say which floor rejected them:
+
+> column 975 prices at 7.74039e-10 in row 758 of the primal phase 1 on a
+> freshly built factorization, against a floor of 1e-09
+
+That floor is `PIVOT_MIN`, the **stability** floor D209 identified, not the
+relative one. So at 0.1 `pilot87` does not diverge: it brings its objective
+under control, runs 106444 phase-1 iterations instead of 372035, and then
+stops on a pivot **1.3 times** below an absolute 1e-9 on a fresh
+factorization, where there is nothing left to rebuild.
+
+That is a different and much smaller failure than 1e+24, and it is the class
+D207 and D209 have been circling from the other side. It also separates the
+two questions: the width decides whether the objective stays under control,
+and `PIVOT_MIN` decides whether the solve can finish.
 
 ## Open, and what would settle it
 
