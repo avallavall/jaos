@@ -1,0 +1,33 @@
+# tree: cee723a plus a JAOS_DIAG patch, outside the repo
+# phase-1 infeasibility is a SUM OF BOUND VIOLATIONS: it must not rise.
+# instances: d6cube scsd8 scrs8 -- all three overrun inside phase 1 at both settings.
+
+## PIVOT_MARGIN=0
+DIV scrs8 | phase 1, iter 0: infeasibility 7.17736e+12, work 38148
+DIV scrs8 | phase 1, iter 1000: infeasibility 32.162, work 10084117
+DIV scsd8 | phase 1, iter 0: infeasibility 90, work 21869
+DIV scrs8 | work limit reached after 1737 iterations, 19146364 work units; 25 refactorizations, 0 weight restarts, 0 stalls, 3 stability rebuilds, 1737 primal iterations, 1737 of them phase 1
+DIV scsd8 | phase 1, iter 1000: infeasibility 90, work 26361470
+DIV d6cube | phase 1, iter 0: infeasibility 9363, work 117603
+DIV scsd8 | phase 1, iter 2000: infeasibility 90, work 58508792
+DIV scsd8 | work limit reached after 2867 iterations, 89281506 work units; 45 refactorizations, 1283 weight restarts, 0 stalls, 3 stability rebuilds, 2867 primal iterations, 2867 of them phase 1
+DIV d6cube | phase 1, iter 1000: infeasibility 9363, work 67653481
+DIV d6cube | phase 1, iter 2000: infeasibility 9363, work 152064355
+DIV d6cube | phase 1, iter 3000: infeasibility 9363, work 239646425
+DIV d6cube | work limit reached after 3127 iterations, 250784608 work units; 51 refactorizations, 177 weight restarts, 0 stalls, 16 stability rebuilds, 3127 primal iterations, 3127 of them phase 1
+# control: 9 record lines written
+
+## PIVOT_MARGIN=1
+DIV scrs8 | phase 1, iter 0: infeasibility 7.17736e+12, work 38148
+DIV scrs8 | phase 1, iter 1000: infeasibility 32.162, work 10084117
+DIV scsd8 | phase 1, iter 0: infeasibility 90, work 21869
+DIV scrs8 | work limit reached after 1737 iterations, 19146364 work units; 25 refactorizations, 0 weight restarts, 0 stalls, 3 stability rebuilds, 1737 primal iterations, 1737 of them phase 1
+DIV scsd8 | phase 1, iter 1000: infeasibility 90, work 26361470
+DIV d6cube | phase 1, iter 0: infeasibility 9363, work 117603
+DIV scsd8 | phase 1, iter 2000: infeasibility 90, work 58768398
+DIV scsd8 | work limit reached after 2861 iterations, 89256012 work units; 45 refactorizations, 1312 weight restarts, 0 stalls, 1 stability rebuilds, 2861 primal iterations, 2861 of them phase 1
+DIV d6cube | phase 1, iter 1000: infeasibility 9363, work 67546395
+DIV d6cube | phase 1, iter 2000: infeasibility 9363, work 151509244
+DIV d6cube | phase 1, iter 3000: infeasibility 9363, work 238421235
+DIV d6cube | work limit reached after 3139 iterations, 250723502 work units; 49 refactorizations, 155 weight restarts, 0 stalls, 5 stability rebuilds, 3139 primal iterations, 3139 of them phase 1
+# control: 9 record lines written

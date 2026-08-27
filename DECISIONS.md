@@ -215,6 +215,7 @@ and you have the argument. Jump to the entry for the numbers behind it.
 - **[D205](#d205--the-most-common-primal-failure-published-a-verdict-with-no-sentence-on-31-of-94)** — The most common primal failure published a verdict with no sentence, on 31 of 94
 - **[D206](#d206--a-refusal-had-expired-unnoticed-the-record-was-checked-by-nothing-and-the-instrument-that-could-not-see-05-now-can)** — A refusal had expired unnoticed, the record was checked by nothing, and the instrument that could not see 0.5% now can
 - **[D207](#d207--the-primal-ratio-tests-pivot-floor-was-absolute-and-one-ulp-of-the-columns-own-largest-entry-is-the-value)** — The primal ratio tests' pivot floor was absolute, and one ulp of the column's own largest entry is the value
+- **[D208](#d208--the-pivot-floor-does-not-weaken-blands-rule-and-the-reason-pilot87-stalls-is-that-its-phase-1-has-already-diverged)** — The pivot floor does not weaken Bland's rule, and the reason `pilot87` stalls is that its phase 1 has already diverged
 
 ---
 
@@ -15835,6 +15836,70 @@ text, and `TODO.md` §0 item 6 and `bench/refusals.txt` already carry it.
 **Open.** Whether the floor's column-dependent candidate set weakens Bland's
 finiteness argument; `improves_without_limit` and the three `alpha[q]` tests
 are still absolute. All three are in `TODO.md` §0.
+
+---
+
+## D208 — The pivot floor does not weaken Bland's rule, and the reason `pilot87` stalls is that its phase 1 has already diverged
+
+**The question.** `TODO.md` §0 stage 8b. D207's floor is
+`PIVOT_MARGIN * DBL_EPSILON * max_i |col[i]|`, so the ratio test's candidate
+set now depends on the entering column's own norm. Bland's rule needs the
+lowest-index basic among those attaining the minimum ratio over a **fixed**
+set; a set that changes per column is not that. Determinism is not at risk —
+the choice is a function of the data — but termination is. The evidence was
+circumstantial: `pilot87`'s phase 1 goes 17165 → 387235 iterations at `C = 1`.
+
+**The measurement.** `bench/measurements/02-123/`. `n_bland` counts how often
+a solve gives up on Dantzig and arms Bland's rule after a stall. The solver
+already prints it as `stalls`; `bench/primal` installs no log callback, so it
+was silent. Both settings, over the fifteen instances D207 moves plus three
+controls it cannot reach.
+
+**Thirteen instances' phase-1 counts move and twelve of them arm Bland's rule
+zero times**, as do all three controls. `pilot87` arms it **once, at iteration
+343682** — 89% of the way through the run, after 66031 iterations without
+progress.
+
+**The premise does not hold, and the stall is a symptom.** `pilot87`'s
+phase-1 objective is a sum of bound violations, so it must never rise. It
+falls to 1.24365e+12 at iteration 341000, **turns at 342000**, reaches
+1.88282e+24 by 351000 and ends alternating between 3.24653e+20 and
+3.23341e+20. **The rise begins before Bland arms.** The anti-cycling rule is
+not what went wrong; it fired because the numbers had already gone wrong.
+Late iterations cost about 27x more work each, across 6246 refactorizations,
+50419 weight restarts and 3139 stability rebuilds.
+
+**The control, and the first one that could not have been one.** `pilot87`
+cannot be compared against itself: at `C = 0` it refuses at 17165 and never
+reaches 341000. The first control — `d6cube`, `scsd8`, `scrs8` — came back
+perfectly clean at both settings and **proves nothing**, because their budgets
+end phase 1 at 1000 to 3000 iterations, three hundred thousand short of the
+effect. It is kept in the directory because it was nearly written up as
+reassurance. The control that works is `dfl001`, at 136695 phase-1 iterations
+the longest clean run in the set: its objective starts at 8209, **peaks at
+8209**, and ends at 6565.03 with the floor off and 6488.85 with it on. It
+never rises, at either setting.
+
+So the divergence is specific to `pilot87` and not a property of long phase-1
+runs.
+
+**What is refused, and what is not.** Stage 8b is **closed**: the floor does
+not weaken Bland's finiteness argument on this population. What is **not**
+settled is whether the floor causes `pilot87`'s divergence or merely uncovers
+it — without the floor that solve stops at 17165, so the diverging regime is
+unreachable and the two states cannot both be produced. No amount of re-running
+changes that.
+
+**And what it says about D207's own gain.** `pilot87` went `ERROR` → `overrun`,
+which reads as an improvement and did remove a self-declared defect. Both are
+failures. The new one costs 387235 iterations and 179.6e9 work units and ends
+1e25 outside its bounds; the old one cost 17165 and said so. `SPECS.md`'s
+count is honest and this is what stands behind it.
+
+**Open.** The divergence itself, which is a phase-1 defect and not a floor
+defect: what happens between iterations 341000 and 352000, and whether phase 1
+should stop when its own objective rises rather than grind to a work limit —
+a monotonicity it can check for the cost of one comparison. `TODO.md` §0.
 
 ---
 

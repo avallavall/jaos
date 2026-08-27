@@ -1,0 +1,118 @@
+# tree: cee723a plus a JAOS_DIAG patch, outside the repo
+# 'stalls' in each line is n_bland: how many times the solve gave up on
+# Dantzig and armed Bland's rule. Forced-primal solve only.
+# instances: 15 moved + 3 controls
+
+## PIVOT_MARGIN=0
+BLAND 25fv47 | numerical error after 13092 iterations, 542156454 work units; 237 refactorizations, 0 weight restarts, 0 stalls, 0 stability rebuilds, 5507 primal iterations, 5506 of them phase 1
+BLAND 25fv47 | presolve: 821 rows, 1571 columns, 10400 nonzeros -> 777 rows, 1539 columns, 10241 nonzeros; fixed_col=25 empty_row=1 empty_col=1 singleton_row=43 singleton_col=6 free_col_singleton=0 rounds=2
+BLAND 25fv47 | primal simplex: 821 rows, 1571 columns, 10400 nonzeros, primal tol 1e-07, dual tol 1e-09
+BLAND d2q06c | numerical error after 222995 iterations, 22796318051 work units; 3469 refactorizations, 215722 weight restarts, 0 stalls, 1 stability rebuilds, 8751 primal iterations, 8750 of them phase 1
+BLAND d2q06c | presolve: 2171 rows, 5167 columns, 32417 nonzeros -> 2098 rows, 4880 columns, 32044 nonzeros; fixed_col=10 empty_row=0 empty_col=0 singleton_row=73 singleton_col=277 free_col_singleton=0 rounds=1
+BLAND d2q06c | primal simplex: 2171 rows, 5167 columns, 32417 nonzeros, primal tol 1e-07, dual tol 1e-09
+BLAND d6cube | presolve: 415 rows, 6184 columns, 37704 nonzeros -> 403 rows, 6183 columns, 37696 nonzeros; fixed_col=1 empty_row=11 empty_col=0 singleton_row=1 singleton_col=0 free_col_singleton=0 rounds=1
+BLAND d6cube | primal simplex: 415 rows, 6184 columns, 37704 nonzeros, primal tol 1e-07, dual tol 1e-09
+BLAND d6cube | work limit reached after 3127 iterations, 250784608 work units; 51 refactorizations, 177 weight restarts, 0 stalls, 16 stability rebuilds, 3127 primal iterations, 3127 of them phase 1
+BLAND degen2 | numerical error after 3909 iterations, 59705344 work units; 76 refactorizations, 0 weight restarts, 0 stalls, 1 stability rebuilds, 2613 primal iterations, 2612 of them phase 1
+BLAND degen2 | presolve: nothing fired
+BLAND degen2 | primal simplex: 444 rows, 534 columns, 3978 nonzeros, primal tol 1e-07, dual tol 1e-09
+BLAND dfl001 | presolve: 6071 rows, 12230 columns, 35632 nonzeros -> 6071 rows, 11496 columns, 34898 nonzeros; fixed_col=0 empty_row=0 empty_col=0 singleton_row=0 singleton_col=734 free_col_singleton=0 rounds=1
+BLAND dfl001 | primal simplex: 6071 rows, 12230 columns, 35632 nonzeros, primal tol 1e-07, dual tol 1e-09
+BLAND dfl001 | work limit reached after 135068 iterations, 29121948379 work units; 2089 refactorizations, 57181 weight restarts, 0 stalls, 52 stability rebuilds, 135068 primal iterations, 135068 of them phase 1
+BLAND greenbea | numerical error after 27149 iterations, 2252460986 work units; 434 refactorizations, 20478 weight restarts, 0 stalls, 15 stability rebuilds, 8359 primal iterations, 8358 of them phase 1
+BLAND greenbea | presolve: 2392 rows, 5405 columns, 30877 nonzeros -> 1954 rows, 4114 columns, 24034 nonzeros; fixed_col=262 empty_row=20 empty_col=0 singleton_row=160 singleton_col=24 free_col_singleton=0 rounds=5
+BLAND greenbea | primal simplex: 2392 rows, 5405 columns, 30877 nonzeros, primal tol 1e-07, dual tol 1e-09
+BLAND maros | numerical error after 3665 iterations, 66446564 work units; 85 refactorizations, 0 weight restarts, 0 stalls, 1 stability rebuilds, 1608 primal iterations, 1607 of them phase 1
+BLAND maros | presolve: 846 rows, 1443 columns, 9614 nonzeros -> 690 rows, 1080 columns, 6822 nonzeros; fixed_col=72 empty_row=30 empty_col=0 singleton_row=67 singleton_col=27 free_col_singleton=0 rounds=4
+BLAND maros | primal simplex: 846 rows, 1443 columns, 9614 nonzeros, primal tol 1e-07, dual tol 1e-09
+BLAND perold | optimal after 7838 iterations, 255270246 work units; 152 refactorizations, 4871 weight restarts, 0 stalls, 3 stability rebuilds, 3114 primal iterations, 3113 of them phase 1
+BLAND perold | presolve: 625 rows, 1376 columns, 6018 nonzeros -> 600 rows, 1180 columns, 5562 nonzeros; fixed_col=72 empty_row=0 empty_col=0 singleton_row=9 singleton_col=89 free_col_singleton=0 rounds=4
+BLAND perold | primal simplex: 625 rows, 1376 columns, 6018 nonzeros, primal tol 1e-07, dual tol 1e-09
+BLAND pilot | optimal after 40487 iterations, 14203274341 work units; 662 refactorizations, 27201 weight restarts, 0 stalls, 7 stability rebuilds, 15169 primal iterations, 15167 of them phase 1
+BLAND pilot | presolve: 1441 rows, 3652 columns, 43167 nonzeros -> 1392 rows, 3371 columns, 40793 nonzeros; fixed_col=215 empty_row=1 empty_col=0 singleton_row=19 singleton_col=14 free_col_singleton=0 rounds=7
+BLAND pilot | primal simplex: 1441 rows, 3652 columns, 43167 nonzeros, primal tol 1e-07, dual tol 1e-09
+BLAND pilot-ja | optimal after 18536 iterations, 942008802 work units; 326 refactorizations, 11868 weight restarts, 0 stalls, 2 stability rebuilds, 7849 primal iterations, 7848 of them phase 1
+BLAND pilot-ja | presolve: 940 rows, 1988 columns, 14698 nonzeros -> 835 rows, 1495 columns, 11257 nonzeros; fixed_col=331 empty_row=16 empty_col=0 singleton_row=21 singleton_col=101 free_col_singleton=0 rounds=9
+BLAND pilot-ja | primal simplex: 940 rows, 1988 columns, 14698 nonzeros, primal tol 1e-07, dual tol 1e-09
+BLAND pilot4 | numerical error after 5914 iterations, 160758276 work units; 128 refactorizations, 3304 weight restarts, 0 stalls, 0 stability rebuilds, 2597 primal iterations, 2596 of them phase 1
+BLAND pilot4 | presolve: 410 rows, 1000 columns, 5141 nonzeros -> 397 rows, 864 columns, 4902 nonzeros; fixed_col=39 empty_row=0 empty_col=0 singleton_row=9 singleton_col=87 free_col_singleton=0 rounds=2
+BLAND pilot4 | primal simplex: 410 rows, 1000 columns, 5141 nonzeros, primal tol 1e-07, dual tol 1e-09
+BLAND pilot87 | abandoned after 17165 iterations, 3047106419 work units: numerical error; 238 refactorizations, 3990 weight restarts, 0 stalls, 8 stability rebuilds, 17165 primal iterations, 17165 of them phase 1
+BLAND pilot87 | presolve: 2030 rows, 4883 columns, 73152 nonzeros -> 1996 rows, 4606 columns, 70507 nonzeros; fixed_col=222 empty_row=1 empty_col=1 singleton_row=12 singleton_col=22 free_col_singleton=0 rounds=3
+BLAND pilot87 | primal simplex: 2030 rows, 4883 columns, 73152 nonzeros, primal tol 1e-07, dual tol 1e-09
+BLAND scsd1 | numerical error after 792 iterations, 3722309 work units; 37 refactorizations, 339 weight restarts, 0 stalls, 18 stability rebuilds, 119 primal iterations, 118 of them phase 1
+BLAND scsd1 | presolve: nothing fired
+BLAND scsd1 | primal simplex: 77 rows, 760 columns, 2388 nonzeros, primal tol 1e-07, dual tol 1e-09
+BLAND scsd6 | numerical error after 1648 iterations, 17737262 work units; 48 refactorizations, 346 weight restarts, 0 stalls, 13 stability rebuilds, 799 primal iterations, 798 of them phase 1
+BLAND scsd6 | presolve: nothing fired
+BLAND scsd6 | primal simplex: 147 rows, 1350 columns, 4316 nonzeros, primal tol 1e-07, dual tol 1e-09
+BLAND scsd8 | presolve: nothing fired
+BLAND scsd8 | primal simplex: 397 rows, 2750 columns, 8584 nonzeros, primal tol 1e-07, dual tol 1e-09
+BLAND scsd8 | work limit reached after 2867 iterations, 89281506 work units; 45 refactorizations, 1283 weight restarts, 0 stalls, 3 stability rebuilds, 2867 primal iterations, 2867 of them phase 1
+BLAND stair | optimal after 994 iterations, 22856727 work units; 43 refactorizations, 384 weight restarts, 0 stalls, 7 stability rebuilds, 783 primal iterations, 782 of them phase 1
+BLAND stair | presolve: 356 rows, 467 columns, 3856 nonzeros -> 356 rows, 385 columns, 3666 nonzeros; fixed_col=82 empty_row=0 empty_col=0 singleton_row=0 singleton_col=0 free_col_singleton=0 rounds=1
+BLAND stair | primal simplex: 356 rows, 467 columns, 3856 nonzeros, primal tol 1e-07, dual tol 1e-09
+BLAND tuff | numerical error after 860 iterations, 9816255 work units; 24 refactorizations, 230 weight restarts, 0 stalls, 9 stability rebuilds, 844 primal iterations, 843 of them phase 1
+BLAND tuff | presolve: 333 rows, 587 columns, 4520 nonzeros -> 284 rows, 500 columns, 4171 nonzeros; fixed_col=5 empty_row=39 empty_col=0 singleton_row=2 singleton_col=61 free_col_singleton=0 rounds=2
+BLAND tuff | primal simplex: 333 rows, 587 columns, 4520 nonzeros, primal tol 1e-07, dual tol 1e-09
+BLAND woodw | numerical error after 3878 iterations, 150502271 work units; 73 refactorizations, 1555 weight restarts, 0 stalls, 4 stability rebuilds, 2311 primal iterations, 2310 of them phase 1
+BLAND woodw | presolve: 1098 rows, 8405 columns, 37474 nonzeros -> 723 rows, 5286 columns, 23159 nonzeros; fixed_col=0 empty_row=0 empty_col=0 singleton_row=1 singleton_col=165 free_col_singleton=0 rounds=1
+BLAND woodw | primal simplex: 1098 rows, 8405 columns, 37474 nonzeros, primal tol 1e-07, dual tol 1e-09
+# control: 30 record lines written
+
+## PIVOT_MARGIN=1
+BLAND 25fv47 | numerical error after 13092 iterations, 542156454 work units; 237 refactorizations, 0 weight restarts, 0 stalls, 0 stability rebuilds, 5507 primal iterations, 5506 of them phase 1
+BLAND 25fv47 | presolve: 821 rows, 1571 columns, 10400 nonzeros -> 777 rows, 1539 columns, 10241 nonzeros; fixed_col=25 empty_row=1 empty_col=1 singleton_row=43 singleton_col=6 free_col_singleton=0 rounds=2
+BLAND 25fv47 | primal simplex: 821 rows, 1571 columns, 10400 nonzeros, primal tol 1e-07, dual tol 1e-09
+BLAND d2q06c | numerical error after 228999 iterations, 22796015388 work units; 3565 refactorizations, 220650 weight restarts, 0 stalls, 3 stability rebuilds, 9885 primal iterations, 9884 of them phase 1
+BLAND d2q06c | presolve: 2171 rows, 5167 columns, 32417 nonzeros -> 2098 rows, 4880 columns, 32044 nonzeros; fixed_col=10 empty_row=0 empty_col=0 singleton_row=73 singleton_col=277 free_col_singleton=0 rounds=1
+BLAND d2q06c | primal simplex: 2171 rows, 5167 columns, 32417 nonzeros, primal tol 1e-07, dual tol 1e-09
+BLAND d6cube | presolve: 415 rows, 6184 columns, 37704 nonzeros -> 403 rows, 6183 columns, 37696 nonzeros; fixed_col=1 empty_row=11 empty_col=0 singleton_row=1 singleton_col=0 free_col_singleton=0 rounds=1
+BLAND d6cube | primal simplex: 415 rows, 6184 columns, 37704 nonzeros, primal tol 1e-07, dual tol 1e-09
+BLAND d6cube | work limit reached after 3139 iterations, 250723502 work units; 49 refactorizations, 155 weight restarts, 0 stalls, 5 stability rebuilds, 3139 primal iterations, 3139 of them phase 1
+BLAND degen2 | numerical error after 3909 iterations, 59705344 work units; 76 refactorizations, 0 weight restarts, 0 stalls, 1 stability rebuilds, 2613 primal iterations, 2612 of them phase 1
+BLAND degen2 | presolve: nothing fired
+BLAND degen2 | primal simplex: 444 rows, 534 columns, 3978 nonzeros, primal tol 1e-07, dual tol 1e-09
+BLAND dfl001 | presolve: 6071 rows, 12230 columns, 35632 nonzeros -> 6071 rows, 11496 columns, 34898 nonzeros; fixed_col=0 empty_row=0 empty_col=0 singleton_row=0 singleton_col=734 free_col_singleton=0 rounds=1
+BLAND dfl001 | primal simplex: 6071 rows, 12230 columns, 35632 nonzeros, primal tol 1e-07, dual tol 1e-09
+BLAND dfl001 | work limit reached after 136695 iterations, 29121840732 work units; 2112 refactorizations, 57227 weight restarts, 0 stalls, 41 stability rebuilds, 136695 primal iterations, 136695 of them phase 1
+BLAND greenbea | numerical error after 27381 iterations, 2252499768 work units; 435 refactorizations, 21754 weight restarts, 0 stalls, 11 stability rebuilds, 6936 primal iterations, 6935 of them phase 1
+BLAND greenbea | presolve: 2392 rows, 5405 columns, 30877 nonzeros -> 1954 rows, 4114 columns, 24034 nonzeros; fixed_col=262 empty_row=20 empty_col=0 singleton_row=160 singleton_col=24 free_col_singleton=0 rounds=5
+BLAND greenbea | primal simplex: 2392 rows, 5405 columns, 30877 nonzeros, primal tol 1e-07, dual tol 1e-09
+BLAND maros | numerical error after 3665 iterations, 66446564 work units; 85 refactorizations, 0 weight restarts, 0 stalls, 1 stability rebuilds, 1608 primal iterations, 1607 of them phase 1
+BLAND maros | presolve: 846 rows, 1443 columns, 9614 nonzeros -> 690 rows, 1080 columns, 6822 nonzeros; fixed_col=72 empty_row=30 empty_col=0 singleton_row=67 singleton_col=27 free_col_singleton=0 rounds=4
+BLAND maros | primal simplex: 846 rows, 1443 columns, 9614 nonzeros, primal tol 1e-07, dual tol 1e-09
+BLAND perold | optimal after 9981 iterations, 324596689 work units; 186 refactorizations, 6873 weight restarts, 0 stalls, 2 stability rebuilds, 3085 primal iterations, 3084 of them phase 1
+BLAND perold | presolve: 625 rows, 1376 columns, 6018 nonzeros -> 600 rows, 1180 columns, 5562 nonzeros; fixed_col=72 empty_row=0 empty_col=0 singleton_row=9 singleton_col=89 free_col_singleton=0 rounds=4
+BLAND perold | primal simplex: 625 rows, 1376 columns, 6018 nonzeros, primal tol 1e-07, dual tol 1e-09
+BLAND pilot | optimal after 35666 iterations, 12275974646 work units; 586 refactorizations, 23966 weight restarts, 0 stalls, 6 stability rebuilds, 13636 primal iterations, 13633 of them phase 1
+BLAND pilot | presolve: 1441 rows, 3652 columns, 43167 nonzeros -> 1392 rows, 3371 columns, 40793 nonzeros; fixed_col=215 empty_row=1 empty_col=0 singleton_row=19 singleton_col=14 free_col_singleton=0 rounds=7
+BLAND pilot | primal simplex: 1441 rows, 3652 columns, 43167 nonzeros, primal tol 1e-07, dual tol 1e-09
+BLAND pilot-ja | optimal after 12597 iterations, 616484308 work units; 216 refactorizations, 7627 weight restarts, 0 stalls, 2 stability rebuilds, 6253 primal iterations, 6252 of them phase 1
+BLAND pilot-ja | presolve: 940 rows, 1988 columns, 14698 nonzeros -> 835 rows, 1495 columns, 11257 nonzeros; fixed_col=331 empty_row=16 empty_col=0 singleton_row=21 singleton_col=101 free_col_singleton=0 rounds=9
+BLAND pilot-ja | primal simplex: 940 rows, 1988 columns, 14698 nonzeros, primal tol 1e-07, dual tol 1e-09
+BLAND pilot4 | optimal after 4480 iterations, 120014900 work units; 89 refactorizations, 2143 weight restarts, 0 stalls, 0 stability rebuilds, 2570 primal iterations, 2569 of them phase 1
+BLAND pilot4 | presolve: 410 rows, 1000 columns, 5141 nonzeros -> 397 rows, 864 columns, 4902 nonzeros; fixed_col=39 empty_row=0 empty_col=0 singleton_row=9 singleton_col=87 free_col_singleton=0 rounds=2
+BLAND pilot4 | primal simplex: 410 rows, 1000 columns, 5141 nonzeros, primal tol 1e-07, dual tol 1e-09
+BLAND pilot87 | presolve: 2030 rows, 4883 columns, 73152 nonzeros -> 1996 rows, 4606 columns, 70507 nonzeros; fixed_col=222 empty_row=1 empty_col=1 singleton_row=12 singleton_col=22 free_col_singleton=0 rounds=3
+BLAND pilot87 | primal simplex: 2030 rows, 4883 columns, 73152 nonzeros, primal tol 1e-07, dual tol 1e-09
+BLAND pilot87 | work limit reached after 387235 iterations, 179611569008 work units; 6246 refactorizations, 50419 weight restarts, 1 stalls, 3139 stability rebuilds, 387235 primal iterations, 387235 of them phase 1
+BLAND scsd1 | numerical error after 833 iterations, 3593170 work units; 37 refactorizations, 218 weight restarts, 0 stalls, 12 stability rebuilds, 119 primal iterations, 118 of them phase 1
+BLAND scsd1 | presolve: nothing fired
+BLAND scsd1 | primal simplex: 77 rows, 760 columns, 2388 nonzeros, primal tol 1e-07, dual tol 1e-09
+BLAND scsd6 | numerical error after 2020 iterations, 18865715 work units; 48 refactorizations, 456 weight restarts, 0 stalls, 11 stability rebuilds, 799 primal iterations, 798 of them phase 1
+BLAND scsd6 | presolve: nothing fired
+BLAND scsd6 | primal simplex: 147 rows, 1350 columns, 4316 nonzeros, primal tol 1e-07, dual tol 1e-09
+BLAND scsd8 | presolve: nothing fired
+BLAND scsd8 | primal simplex: 397 rows, 2750 columns, 8584 nonzeros, primal tol 1e-07, dual tol 1e-09
+BLAND scsd8 | work limit reached after 2861 iterations, 89256012 work units; 45 refactorizations, 1312 weight restarts, 0 stalls, 1 stability rebuilds, 2861 primal iterations, 2861 of them phase 1
+BLAND stair | optimal after 1087 iterations, 24104808 work units; 46 refactorizations, 372 weight restarts, 0 stalls, 8 stability rebuilds, 852 primal iterations, 851 of them phase 1
+BLAND stair | presolve: 356 rows, 467 columns, 3856 nonzeros -> 356 rows, 385 columns, 3666 nonzeros; fixed_col=82 empty_row=0 empty_col=0 singleton_row=0 singleton_col=0 free_col_singleton=0 rounds=1
+BLAND stair | primal simplex: 356 rows, 467 columns, 3856 nonzeros, primal tol 1e-07, dual tol 1e-09
+BLAND tuff | numerical error after 871 iterations, 9816017 work units; 21 refactorizations, 276 weight restarts, 0 stalls, 6 stability rebuilds, 780 primal iterations, 779 of them phase 1
+BLAND tuff | presolve: 333 rows, 587 columns, 4520 nonzeros -> 284 rows, 500 columns, 4171 nonzeros; fixed_col=5 empty_row=39 empty_col=0 singleton_row=2 singleton_col=61 free_col_singleton=0 rounds=2
+BLAND tuff | primal simplex: 333 rows, 587 columns, 4520 nonzeros, primal tol 1e-07, dual tol 1e-09
+BLAND woodw | numerical error after 4203 iterations, 172936857 work units; 81 refactorizations, 1786 weight restarts, 0 stalls, 11 stability rebuilds, 2671 primal iterations, 2670 of them phase 1
+BLAND woodw | presolve: 1098 rows, 8405 columns, 37474 nonzeros -> 723 rows, 5286 columns, 23159 nonzeros; fixed_col=0 empty_row=0 empty_col=0 singleton_row=1 singleton_col=165 free_col_singleton=0 rounds=1
+BLAND woodw | primal simplex: 1098 rows, 8405 columns, 37474 nonzeros, primal tol 1e-07, dual tol 1e-09
+# control: 30 record lines written
