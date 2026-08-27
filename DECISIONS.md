@@ -218,6 +218,7 @@ and you have the argument. Jump to the entry for the numbers behind it.
 - **[D208](#d208--the-pivot-floor-does-not-weaken-blands-rule-and-the-reason-pilot87-stalls-is-that-its-phase-1-has-already-diverged)** — The pivot floor does not weaken Bland's rule, and the reason `pilot87` stalls is that its phase 1 has already diverged
 - **[D209](#d209--pivotmin-on-the-pricing-row-is-a-stability-floor-not-a-noise-floor-and-the-noise-floor-it-was-mistaken-for-was-missing)** — `PIVOT_MIN` on the pricing row is a stability floor, not a noise floor, and the noise floor it was mistaken for was missing
 - **[D210](#d210--the-last-absolute-pivot-floor-stays-absolute-it-decides-nothing-on-139-instances-and-the-only-way-to-move-it-is-the-unsafe-one)** — The last absolute pivot floor stays absolute: it decides nothing on 139 instances, and the only way to move it is the unsafe one
+- **[D211](#d211--pilot87s-phase-1-diverges-because-the-primal-ratio-test-has-no-rule-against-a-tiny-pivot-and-a-stop-on-the-objective-rising-is-refused-because-a-solve-that-finishes-rises-25x)** — `pilot87`'s phase 1 diverges because the primal ratio test has no rule against a tiny pivot, and a stop on the objective rising is refused because a solve that finishes rises 25x
 
 ---
 
@@ -16027,6 +16028,77 @@ tells them apart.
 script is its own re-test and returns the exit codes `bench/refusals.txt`
 reads: 0 while the refusal holds, 1 when it does not, 2 when it could not run.
 Stage 7 — lifting the loan and re-solving — is what would make it live.
+
+---
+
+## D211 — `pilot87`'s phase 1 diverges because the primal ratio test has no rule against a tiny pivot, and a stop on the objective rising is refused because a solve that finishes rises 25x
+
+**The question.** `TODO.md` §0 stage 8d, opened by D208. `pilot87`'s
+phase-1 objective is a sum of bound violations and must never rise; it falls
+to 1.24365e+12 at iteration 341000, turns at 342000 and reaches 1.88282e+24
+by 351000. Two questions in order: what happens in that window, and whether
+phase 1 should stop when its own objective rises.
+
+**A hypothesis refuted first.** `pivot` divides by the BTRAN value and moves
+the basics by the FTRAN value; the two are checked to `LU_AGREE_TOL` except
+on a freshly rebuilt factorization, where the pivot is taken unchecked so a
+refusal cannot loop (D86). The diverging regime rebuilds every 62 iterations.
+Counted over the run: 20 such unguarded disagreeing pivots on `pilot87`, the
+first at 306731, none on `dfl001`. The first sits 35000 iterations before
+the turn with the objective still falling, the worst is off by 0.3%, and at
+every pivot behind a large rise the two values agree to between 1e-10 and
+1e-16. Not the cause.
+
+**What happens.** `bench/measurements/02-126/`, every pivot in
+[340000, 352000] against the objective at the top of the next iteration.
+The turn is one pivot: iteration **341234**, pivot element **3.26e-09**,
+step 1.4e+06, predicted change -1.7e+09, actual **+3.4e+12**. The update
+refused the new diagonal (`LU_UPDATE_TOL`), the factorization was rebuilt
+(`n_updates` 28 → 0, `n_refactor` 3092 → 3093) and `xb` recomputed from the
+basis that now contains that pivot came back 3.4e+12 larger. The same three
+lines repeat at 341656 (2.45e-08) and 344067 (1.76e-09, with a step of
+3.3e-05 that cannot have moved anything, and a jump of +2.1e+11). By 341657
+the next pivot reads `alpha = -1.42e+08`: `B⁻¹` carries entries in the
+hundreds of millions from then on. Every pivot below 1e-8 in the window
+broke the prediction; the breaks at ordinary pivot sizes all sit after
+344350 on a basis already ruined.
+
+**Why here and not earlier.** The primal ratio test takes the minimum ratio,
+ties on the basis index, and admits any element down to `PIVOT_MIN`, with no
+preference for a larger pivot among near-ties. Over the run `pilot87` took
+**582** pivots on elements below 1e-4, 74 of them in [1e-9, 1e-8), the first
+at iteration 18341 with the objective at 2.2e+13 and 320000 falling
+iterations still to come. `dfl001` took 3. So no single tiny pivot is the
+cause; they are the wear, and 341234 is where it broke. The dual side has
+the rule the primal lacks: `jm_harris_pick`'s second pass returns the
+largest pivot whose true quotient still fits the step. **Stage 2, the Harris
+two-pass in primal form, is that rule for this side, blocked on nothing, and
+this is the measurement that makes it next.**
+
+**The stop rule, refused.** For all 94 forced-primal solves, the largest
+relative rise of the phase-1 objective above its running minimum:
+
+| instance | largest rise | ended |
+|---|---|---|
+| `pilot87` | 8.43e+13 | overrun |
+| **`pilot-ja`** | **25.0**, at iteration 2091 | **`ok`** |
+| `scsd8` | 8.94e-04 | overrun |
+| `perold` | 1.26e-05 | `ok` |
+| 90 others | below 1e-05, 82 of them below 1e-12 | |
+
+`pilot-ja` rose twenty-five times above its best value, spent 316 iterations
+more than double it, came back, reached feasibility at 6252 and agreed with
+the dual. A nearly singular basis is not a one-way street, and the objective
+rising is not a signal that the solve is lost. A threshold would sit between
+25 and 8e+13 with one instance on each side, which is a constant fitted to
+one instance twice, and it would buy `pilot87` a stop near 350000 instead of
+a work limit at 387235 on a solve lost either way.
+
+**Reopens when** no solve that ends `ok` rises above 1e-3 any more.
+`relrise.sh` is the re-test.
+
+**Open.** Stage 2. And whether `pilot87` still diverges once it lands, which
+is the one measurement that says whether the wear was the whole story.
 
 ---
 

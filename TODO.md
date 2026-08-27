@@ -40,10 +40,12 @@ what long runs do. That is a phase-1 defect, not a floor defect.
 
 **If you were told "continue", this is the order:**
 
-1. **Section 0 stage 8d** — `pilot87`'s phase 1 diverges. The row below says
-   what to look at and, more usefully, what cannot be measured: without the
-   floor that solve stops at 17165, so the diverging regime is unreachable and
-   the two states cannot both be produced on that instance.
+1. **Section 0 stage 2** — the Harris two-pass in primal form. Stage 8d
+   closed on 2026-08-27 (D211) and made this the next item rather than an
+   option: `pilot87` diverges because the primal ratio test has no preference
+   for a larger pivot among near-ties, and stage 2 is that preference. The
+   verdict of the whole story is one number: whether `pilot87` still
+   diverges after it lands. Full loop; `numerics-reviewer` on the diff.
 2. **Section 0 stage 6** — `can_move`'s units, LIVE since 02-118. What the
    right units are, and whether they change a verdict or only a trajectory.
 3. **The assert debt** below (`bench/measurements/02-121/`), one file per
@@ -1297,7 +1299,7 @@ in `price_row:1700` are the machinery, and D26 is the decision behind them.
 |---|---|---|
 | 0 | ~~the harness, `bench/primal.c` and the `cfg` switch~~ | **DONE 2026-08-25** — `bench/measurements/02-99/` |
 | 1 | ~~phase-2 primal, Dantzig pricing, Bland fallback~~ | **DONE 2026-08-25** — D188, `bench/measurements/02-101/` |
-| 2 | **Harris two-pass in primal form, and the snap** | nothing — `jm_harris_pick` is already generic |
+| 2 | **Harris two-pass in primal form, and the snap** | nothing — `jm_harris_pick` is already generic. **And it is now the repair for a measured defect** (D211): `pilot87`'s phase 1 diverges because the primal ratio test admits any pivot down to `PIVOT_MIN` with no preference for a larger one, and took 582 pivots below 1e-4 on the way. The second Harris pass is that preference. The one measurement that closes the story is whether `pilot87` still diverges after this lands |
 | 3 | ~~the entering column's bound flip~~ | **DONE 2026-08-25** — D189, it was a wrong answer |
 | 4 | ~~phase 1 (Maros 1986) from a given basis~~ | **DONE 2026-08-25, short-step form** — 0 of 94 to 64 of 94 (D190) |
 | 5 | **Devex** | **Harris (1973), paywalled** |
@@ -1306,7 +1308,7 @@ in `price_row:1700` are the machinery, and D26 is the decision behind them.
 | 8 | ~~a relative pivot floor in the two primal ratio tests~~ | **DONE 2026-08-26** — `PIVOT_MARGIN = 1.0`, one ulp of the column's own largest entry, swept on both sides in `bench/measurements/02-122/` (D207). 56 of 94 agree against 55, and the one `ERROR` is gone |
 | 8a | ~~the `alpha[q]` side is still absolute~~ | **DONE 2026-08-27** — the three sites apply `PIVOT_MARGIN` against `sum_i \|rho_i * a_iq\|` as well (D209, `bench/measurements/02-124/`). The census turned the question around: `PIVOT_MIN` there is a **stability** floor, and every call it rejects has `alpha[q]` equal to its own traffic to seventeen digits. The noise floor was the one missing, and `scsd1` was pivoting at a third of one ulp |
 | 8b | ~~does the floor weaken Bland's finiteness argument?~~ | **CLOSED 2026-08-27 — it does not** (D208, `bench/measurements/02-123/`). Thirteen instances' phase-1 counts move and **twelve arm Bland's rule zero times**, as do all three controls. `pilot87` arms it once, at iteration 343682, *after* its own objective has already begun rising |
-| 8d | **`pilot87`'s phase 1 diverges, and that is a phase-1 defect and not the floor's** — the phase-1 objective is a sum of bound violations and must never rise. On `pilot87` it falls to 1.24365e+12 at iteration 341000, **turns at 342000**, reaches 1.88282e+24 by 351000, and ends alternating between two values while each iteration costs 27x the work it used to. `dfl001` runs 136695 phase-1 iterations at both settings and its objective peaks at its starting value, so this is not what long runs do (D208) | two things, in this order: what happens between iterations 341000 and 352000; and whether phase 1 should stop when its own objective rises rather than grind to a work limit — a monotonicity it can check for the cost of one comparison. **Note what cannot be measured**: without the floor `pilot87` stops at 17165, so the diverging regime is unreachable and the two states cannot both be produced on that instance |
+| 8d | ~~`pilot87`'s phase 1 diverges~~ | **CLOSED 2026-08-27, both questions** (D211, `bench/measurements/02-126/`). *What happens:* the turn is one pivot on an element of 3.26e-09 at 341234; the update refuses it, the rebuild recomputes `xb` from a basis that now contains it, and the objective jumps 3.4e+12. `pilot87` took 582 pivots below 1e-4 on the way, the control 3: the primal ratio test has no preference for a larger pivot, and stage 2 is that preference. *Whether to stop on a rise:* **refused** — `pilot-ja` rises 25x and finishes `ok`. Re-test in `bench/refusals.txt` |
 | 8c | ~~`improves_without_limit` kept the absolute floor~~ | **REFUSED 2026-08-27** (D210, `bench/measurements/02-125/`). **0 of 139 gate instances reach the function**, so the floor decides nothing and a swept constant would be fitted to nothing. The one direction it could move is the unsafe one: a skipped row is a row that does not block, so a relative floor would declare a ray from the *absence* of a blocker, which D19 refuses. Its re-test is in `bench/refusals.txt`; stage 7 is what would make it live |
 
 **Validate the harness before there is anything to measure.** Run stage 0 with

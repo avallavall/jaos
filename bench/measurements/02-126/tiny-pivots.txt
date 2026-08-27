@@ -1,0 +1,9 @@
+# tree: 078a862 plus a JAOS_DIAG patch, outside the repo
+# hist: every phase-1 pivot taken, by decade of |alpha| -- 16 buckets,
+#   bucket k is [1e(k-12), 1e(k-11)); bucket 0 is below 1e-12, 15 is >= 1e3.
+# first[1eD]: the iteration of the first pivot with |alpha| in [1eD, 1eD+1),
+#   and the phase-1 objective at the top of that iteration.
+
+TP dfl001 hist=0,0,0,1,0,0,0,2,16,173,1945,27559,104718,2016,244,19 first[1e-9]=iter:15536,total:8191 first[1e-5]=iter:5408,total:8191 first[1e-4]=iter:4426,total:8191
+TP pilot87 hist=0,0,0,74,64,115,156,173,794,4204,21266,75874,75355,21458,4754,1558 first[1e-9]=iter:18341,total:2.22818e+13 first[1e-8]=iter:4687,total:5.90267e+13 first[1e-7]=iter:10549,total:3.06866e+13 first[1e-6]=iter:110,total:7.71859e+13 first[1e-5]=iter:136,total:7.71859e+13 first[1e-4]=iter:169,total:7.71859e+13
+# control: 8 record lines written
