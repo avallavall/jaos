@@ -13,7 +13,8 @@
 # digest and every work figure must come back byte-identical. That is the
 # prediction this run tests.
 set -u
-cd /mnt/c/Users/vall-/Desktop/projectes/jaos || exit 2
+JAOS_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
+cd "$JAOS_ROOT" || exit 2
 
 echo "===== make configs ====="
 make configs 2>&1 | tail -12

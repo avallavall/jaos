@@ -2,7 +2,8 @@
 # The LTO build inlines jaos_solve. Which symbol survives, and does a wildcard
 # toggle count it deterministically? Also try the deepest solver entry.
 set -u
-cd /mnt/c/Users/vall-/Desktop/projectes/jaos || exit 2
+JAOS_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
+cd "$JAOS_ROOT" || exit 2
 D=$(mktemp -d); trap 'rm -rf "$D"' EXIT
 echo "--- symbols that survive in build/bench/run ---"
 nm -C build/bench/run 2>/dev/null | grep -E ' (T|t) (jaos_solve|jm_dual_simplex|jm_lu_ftran|run_primal|publish)' | head

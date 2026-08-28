@@ -2,7 +2,8 @@
 # Does counting ONLY inside jaos_solve make the instruction count deterministic?
 # Two runs on two instances. Identical or the instrument is not usable.
 set -u
-cd /mnt/c/Users/vall-/Desktop/projectes/jaos || exit 2
+JAOS_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
+cd "$JAOS_ROOT" || exit 2
 D=$(mktemp -d); trap 'rm -rf "$D"' EXIT
 for inst in afiro adlittle; do
   for k in 1 2; do

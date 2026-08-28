@@ -2,7 +2,8 @@
 # icount.sh must (1) print counts, (2) refuse two byte-identical binaries,
 # (3) print a ratio and a geometric mean between two trees that differ.
 set -u
-cd /mnt/c/Users/vall-/Desktop/projectes/jaos || exit 2
+JAOS_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
+cd "$JAOS_ROOT" || exit 2
 chmod +x tools/icount.sh
 echo "== 1. no ref =="
 tools/icount.sh afiro adlittle

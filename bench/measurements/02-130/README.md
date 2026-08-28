@@ -65,9 +65,13 @@ next run of it cannot make the same claim silently. Both passes are in
 `run-attribute.txt`, the wrong one first.
 
 The line is fixed in `relrise.sh` itself: `root` is derived from the script's
-own location, which is what every other script here does and what makes
-`make refusals` behave identically while letting the script be pointed at any
-tree.
+own location, which makes `make refusals` behave identically while letting the
+script be pointed at any tree.
+
+**The rest of the directory carried the same defect, and it is closed in
+`02-132/` (D217).** 48 scripts, not the 28 counted here: the literal is written
+three ways — `root=`, `REPO=`/`MAIN=`, and a bare `cd` — and the count above
+came from one grep of the first form.
 
 ## What this does not do
 

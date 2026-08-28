@@ -4,8 +4,9 @@
 # shortens every primal solve's 10x work budget. Wait for the census, stop the
 # sweep, and run the corrected one over the whole range instead.
 set -u
+JAOS_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
 here="$(cd "$(dirname "$0")" && pwd)"
-root=/mnt/c/Users/vall-/Desktop/projectes/jaos
+root="$JAOS_ROOT"
 
 # The sweep's output file is created by the shell redirection before the build
 # starts, so its appearance is the signal that the census is done.

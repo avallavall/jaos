@@ -54,14 +54,8 @@ what long runs do. That is a phase-1 defect, not a floor defect.
    instrument it is swept against. Full loop; `numerics-reviewer` on the diff.
 2. **The assert debt** below (`bench/measurements/02-121/`), one file per
    commit, full loop each: contracts that survived the purge as prose.
-3. The skills debt (two scripts), then section 0's headline decision. **Two
-   more joined it.** `bench/measurements/` carries **28 scripts that hardcode
-   the absolute repository root**, so each one silently measures the main tree
-   when it is run from a worktree; that is what returned one number at three
-   different refs on 2026-08-28 before the canary caught it (D215). One of the
-   28 is a refusal re-test, `02-125/unbounded-census.sh`. `02-126/relrise.sh`
-   is fixed; the rest are not, because a script whose record nobody is
-   re-running should not be edited on the way past. **And from 2026-08-27**: `jaos-measure`'s `geomean.py
+3. The skills debt (two scripts), then section 0's headline decision. **From
+   2026-08-27**: `jaos-measure`'s `geomean.py
    --metric work` cannot read `bench/results/primal.txt` and exits 2 with "no
    instance appears in both files", because that record carries
    `dual=iters/work primal=iters/work` rather than one `work=` field. Every

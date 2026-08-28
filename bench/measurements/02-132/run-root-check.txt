@@ -1,0 +1,41 @@
+# every measurement script derives its root, checked at f1a892c
+
+===================== 1. the literal is gone =====================
+  .sh files still carrying the literal path: 0
+
+===================== 2. every script parses =====================
+  48 scripts declare JAOS_ROOT, syntax errors: 0
+
+===================== 3. it reads the tree it lives in =====================
+--- bench/measurements/02-125/unbounded-census.sh ---
+  cwd=/                                        main -> /mnt/c/Users/vall-/Desktop/projectes/jaos
+                                               wtre -> /tmp/tmp.NB0upuWOA2/wt
+  cwd=/mnt/c/Users/vall-/Desktop/projectes/jaos main -> /mnt/c/Users/vall-/Desktop/projectes/jaos
+                                               wtre -> /tmp/tmp.NB0upuWOA2/wt
+  cwd=/tmp                                     main -> /mnt/c/Users/vall-/Desktop/projectes/jaos
+                                               wtre -> /tmp/tmp.NB0upuWOA2/wt
+--- bench/measurements/02-122/gate.sh ---
+  cwd=/                                        main -> /mnt/c/Users/vall-/Desktop/projectes/jaos
+                                               wtre -> /tmp/tmp.NB0upuWOA2/wt
+  cwd=/mnt/c/Users/vall-/Desktop/projectes/jaos main -> /mnt/c/Users/vall-/Desktop/projectes/jaos
+                                               wtre -> /tmp/tmp.NB0upuWOA2/wt
+  cwd=/tmp                                     main -> /mnt/c/Users/vall-/Desktop/projectes/jaos
+                                               wtre -> /tmp/tmp.NB0upuWOA2/wt
+--- bench/measurements/02-21/excavate.sh ---
+  cwd=/                                        main -> /mnt/c/Users/vall-/Desktop/projectes/jaos
+                                               wtre -> /tmp/tmp.NB0upuWOA2/wt
+  cwd=/mnt/c/Users/vall-/Desktop/projectes/jaos main -> /mnt/c/Users/vall-/Desktop/projectes/jaos
+                                               wtre -> /tmp/tmp.NB0upuWOA2/wt
+  cwd=/tmp                                     main -> /mnt/c/Users/vall-/Desktop/projectes/jaos
+                                               wtre -> /tmp/tmp.NB0upuWOA2/wt
+--- bench/measurements/02-132/run-root-check.sh ---
+  cwd=/                                        main -> /mnt/c/Users/vall-/Desktop/projectes/jaos
+                                               wtre -> /tmp/tmp.NB0upuWOA2/wt
+  cwd=/mnt/c/Users/vall-/Desktop/projectes/jaos main -> /mnt/c/Users/vall-/Desktop/projectes/jaos
+                                               wtre -> /tmp/tmp.NB0upuWOA2/wt
+  cwd=/tmp                                     main -> /mnt/c/Users/vall-/Desktop/projectes/jaos
+                                               wtre -> /tmp/tmp.NB0upuWOA2/wt
+
+===================== verdict =====================
+PASS: no literal left, every script parses, and each reads the tree it lives in
+===== done =====

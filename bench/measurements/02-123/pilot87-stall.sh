@@ -27,8 +27,9 @@
 #
 # `pilot87` alone, at C=1, -j 1, DETAIL level. src/ is read, never written.
 set -u
+JAOS_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
 here="$(cd "$(dirname "$0")" && pwd)"
-root=/mnt/c/Users/vall-/Desktop/projectes/jaos
+root="$JAOS_ROOT"
 cd "$root" || exit 2
 ref="$(git rev-parse HEAD)"
 D=$(mktemp -d) || exit 2

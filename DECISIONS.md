@@ -224,6 +224,7 @@ and you have the argument. Jump to the entry for the numbers behind it.
 - **[D214](#d214--canmoves-units-are-a-rate-read-in-both-spaces-and-d27s-cautionary-pds-20-costs-a-fifth-of-the-work)** — `can_move`'s units are a rate read in both spaces, and D27's cautionary `pds-20` costs a fifth of the work
 - **[D215](#d215--d211s-refusal-expired-at-d212-and-the-script-that-proves-it-measured-the-main-tree-from-inside-three-separate-worktrees)** — D211's refusal expired at D212, and the script that proves it measured the main tree from inside three separate worktrees
 - **[D216](#d216--eight-of-lucs-prose-contracts-are-asserts-now-and-a-control-proves-they-catch-the-defect-they-exist-for)** — Eight of `lu.c`'s prose contracts are asserts now, and a control proves they catch the defect they exist for
+- **[D217](#d217--every-measurement-script-derives-the-repository-root-it-was-48-scripts-and-not-28-and-the-check-that-proves-it-said-stop-twice-for-the-right-reason)** — Every measurement script derives the repository root, it was 48 scripts and not 28, and the check that proves it said STOP twice for the right reason
 
 ---
 
@@ -16566,3 +16567,55 @@ function does not own. `model.c`, `check.c`, `jaos_internal.h`, `simplex.c`
 and `presolve.c` are untouched.
 
 `bench/measurements/02-131/`.
+
+## D217 — Every measurement script derives the repository root, it was 48 scripts and not 28, and the check that proves it said STOP twice for the right reason
+
+D215 found `02-126/relrise.sh` hardcoding the repository root and `cd`-ing
+there before reading `HEAD`, so a script run from a worktree measured the
+**main tree** and a three-ref attribution returned one number three times. It
+fixed that one script and recorded the rest as a debt. **The question here is
+whether the debt can be closed mechanically**, and what a mechanical sweep of
+48 scripts has to prove before it is believed.
+
+**D215's count was wrong, and the reason is worth keeping.** It came from one
+grep, `^root=`, and the literal is written three ways: `root=<literal>`,
+`REPO=`/`MAIN=<literal>`, and a bare `cd <literal> || exit 2`. 28 was the count
+of the first form. The real number is **48**. A count from one pattern is a
+count of that pattern, not of the defect.
+
+**The change.** One line per script, above any `cd` and after any `set -u`:
+
+    JAOS_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
+
+with every occurrence of the literal replaced by `"$JAOS_ROOT"`. The depth is
+computed per file rather than assumed; all 48 sit at
+`bench/measurements/<id>/`.
+
+**What was checked** (`bench/measurements/02-132/run-root-check.sh`): no `.sh`
+still carries the literal (0), every script parses (48 declare `JAOS_ROOT`, 0
+syntax errors), and the same script reads the main tree from the main tree and
+the worktree from a worktree, at three different working directories. `make
+refusals` exits 0 and runs one of the 48 — D210's census — for the same HOLDS;
+`make test` and `record-check` pass.
+
+**The failure that would have been silent, and was checked for before anything
+ran.** A `<<'PY'` heredoc does not expand variables. A replacement landing
+inside one would leave a literal `$JAOS_ROOT` inside a Python program, and the
+script would fail later at a path that does not exist rather than at the edit.
+0 occurrences.
+
+**What was refuted: the check itself, twice.** Its worktree comes from `HEAD`,
+the fix was uncommitted, and every probe read an empty line from a script that
+did not declare `JAOS_ROOT` yet — so the verdict said STOP. That is the correct
+answer to the question as asked, and it is the second time in two days that a
+verdict line has been the thing under test. It now copies the working tree's
+scripts into the worktree, because a check meant to run before a commit cannot
+only ever read the previous one.
+
+**What is left open**, handed to `TODO.md`. Nothing of this debt. None of the
+48 is re-run: the change is mechanical and the only thing it can alter is one
+path, which is checked directly. `02-21/excavate.sh` still hardcodes a
+scratchpad belonging to a session that ended, which is a dead path and not the
+repository root.
+
+`bench/measurements/02-132/`.

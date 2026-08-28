@@ -2,7 +2,8 @@
 # Is a cachegrind instruction count (a) obtainable on this host, (b) deterministic
 # across two runs, (c) affordable? Three questions, one small instance, twice.
 set -u
-cd /mnt/c/Users/vall-/Desktop/projectes/jaos || exit 2
+JAOS_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
+cd "$JAOS_ROOT" || exit 2
 [ -x build/bench/run ] || { echo "no build/bench/run"; exit 2; }
 D=$(mktemp -d); trap 'rm -rf "$D"' EXIT
 for k in 1 2; do

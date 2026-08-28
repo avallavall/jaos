@@ -13,7 +13,8 @@
 # be gone. The 02-07 counter is the tool that measures the residue properly;
 # this says whether that is worth building.
 set -u
-cd /mnt/c/Users/vall-/Desktop/projectes/jaos || exit 90
+JAOS_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
+cd "$JAOS_ROOT" || exit 90
 SP=/mnt/c/Users/vall-/AppData/Local/Temp/claude/C--Users-vall--Desktop-projectes-jaos/5d91d0a2-b4c5-4c6f-92a6-cfdcd8265db7/scratchpad
 [ -x "$SP/shape" ] || { echo "build shape first"; exit 91; }
 

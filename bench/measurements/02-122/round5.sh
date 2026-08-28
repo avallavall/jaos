@@ -12,6 +12,7 @@
 #
 # Then the clean gate-set census, then the three small settings for the shape.
 set -u
+JAOS_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
 here="$(cd "$(dirname "$0")" && pwd)"
 pkill -f sweep-cheap.sh
 pkill -f round3.sh
@@ -19,7 +20,7 @@ pkill -f round4.sh
 pkill -f 'bench/primal'
 sleep 2
 rm -f "$here/cheap-1e-5.txt" "$here/cheap-1e-5.log"
-cd /mnt/c/Users/vall-/Desktop/projectes/jaos && git worktree prune
+cd "$JAOS_ROOT" && git worktree prune
 
 bash "$here/sweep-cheap.sh" 1 3e-1 2 5
 echo "== the four that decide it are in =="

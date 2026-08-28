@@ -8,7 +8,8 @@
 #
 # Instrumented in a COPY of the tree. src/ is read and never written.
 set -u
-root=/mnt/c/Users/vall-/Desktop/projectes/jaos
+JAOS_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
+root="$JAOS_ROOT"
 wt=/mnt/c/Users/vall-/AppData/Local/Temp/claude/C--Users-vall--Desktop-projectes-jaos/dbf2e500-9288-4cc8-b7f1-c859a31990ff/scratchpad/jaos-5a
 out="$root/bench/measurements/02-29/reentry.txt"
 cd "$root" || exit 9

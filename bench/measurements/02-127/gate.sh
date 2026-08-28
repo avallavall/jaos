@@ -11,7 +11,8 @@
 # change there. What must not change is the verdict and the checker's
 # acceptance, per instance.
 set -u
-cd /mnt/c/Users/vall-/Desktop/projectes/jaos || exit 2
+JAOS_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
+cd "$JAOS_ROOT" || exit 2
 echo "===== make configs ====="
 make configs 2>&1 | grep -E '^==|configurations|broken|FAIL|record-check' | tail -12
 echo

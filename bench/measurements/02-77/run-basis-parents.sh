@@ -7,7 +7,8 @@
 # leaving the tree dirty is D127's warning and this script would otherwise be
 # the thing that trips it.
 set -u
-root=/mnt/c/Users/vall-/Desktop/projectes/jaos
+JAOS_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
+root="$JAOS_ROOT"
 cd "$root" || exit 9
 
 restore() { cd "$root" && git checkout -- src/presolve.c; }

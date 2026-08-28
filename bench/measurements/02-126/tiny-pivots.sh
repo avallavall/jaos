@@ -17,8 +17,9 @@
 # phase-1 pivot taken, and for each decade below 1e-4 the iteration of the
 # first pivot in it and the objective at that moment.
 set -u
+JAOS_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
 here="$(cd "$(dirname "$0")" && pwd)"
-root=/mnt/c/Users/vall-/Desktop/projectes/jaos
+root="$JAOS_ROOT"
 cd "$root" || exit 2
 ref="$(git rev-parse HEAD)"
 D=$(mktemp -d) || exit 2

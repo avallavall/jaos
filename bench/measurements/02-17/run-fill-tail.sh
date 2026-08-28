@@ -2,7 +2,8 @@
 # D110's left-open: the fill numbers for the comparison's tail instances at
 # HEAD, with the already-validated 02-17 instrument (post copy).
 set -u
-MAIN=/mnt/c/Users/vall-/Desktop/projectes/jaos
+JAOS_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
+MAIN="$JAOS_ROOT"
 SCRATCH=/mnt/c/Users/vall-/AppData/Local/Temp/claude/C--Users-vall--Desktop-projectes-jaos/f9716367-518e-4a13-aa7b-60c013ebb796/scratchpad
 POST=$SCRATCH/jaos-fill-post
 SCR=$SCRATCH/s1e

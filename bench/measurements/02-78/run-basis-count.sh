@@ -10,7 +10,8 @@
 # `make clean` deletes and `make configs` runs it five times, which has already
 # eaten one campaign's worktree mid-run.
 set -u
-root=/mnt/c/Users/vall-/Desktop/projectes/jaos
+JAOS_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
+root="$JAOS_ROOT"
 wt="${TMPDIR:-/tmp}/jaos-wt-basis-$$"
 cd "$root" || exit 9
 

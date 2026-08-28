@@ -18,8 +18,9 @@
 # still rises: that is the number that decides whether the wear was the whole
 # story.
 set -u
+JAOS_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
 here="$(cd "$(dirname "$0")" && pwd)"
-root=/mnt/c/Users/vall-/Desktop/projectes/jaos
+root="$JAOS_ROOT"
 cd "$root" || exit 2
 ref="$(git rev-parse HEAD)"
 D=$(mktemp -d) || exit 2

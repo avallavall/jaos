@@ -9,6 +9,19 @@ open, `bench/README.md` for the gate, and the commit each entry came from.
 
 ## [Unreleased]
 
+### Fixed
+
+- **Every measurement script derives the repository root instead of writing it
+  down.** The literal made a script measure the main tree whatever worktree it
+  ran in, which is how a three-ref attribution returned one number three times
+  (D215). **It was 48 scripts, not the 28 D215 counted**: the literal is
+  written three ways and that count came from one grep. Checked by
+  `bench/measurements/02-132/run-root-check.sh` — no literal left, all 48
+  parse, none of the replacements landed inside a single-quoted heredoc where
+  it would not expand, and the same script reads the main tree from the main
+  tree and a worktree from a worktree at three different working directories.
+  `make refusals` exits 0 and runs one of the 48 (D217).
+
 ### Added
 
 - **Eight of `lu.c`'s contracts are asserts instead of sentences.**

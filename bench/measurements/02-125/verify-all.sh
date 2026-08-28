@@ -6,7 +6,8 @@
 # not track a change in EXTRA_CFLAGS, so running them separately re-runs the
 # plain binaries and exits 0 (D154). This is the honest check.
 set -u
-cd /mnt/c/Users/vall-/Desktop/projectes/jaos || exit 2
+JAOS_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
+cd "$JAOS_ROOT" || exit 2
 
 echo "===== tree state ====="
 git log --oneline -1

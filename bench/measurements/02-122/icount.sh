@@ -8,7 +8,8 @@
 # (`census.txt`). `adlittle` and `afiro` are controls: they never reach it, so
 # their ratio is what "no change" reads as in this instrument.
 set -u
-cd /mnt/c/Users/vall-/Desktop/projectes/jaos || exit 2
+JAOS_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
+cd "$JAOS_ROOT" || exit 2
 ref=$(git rev-parse HEAD)
 echo "# working tree against $ref"
 tools/icount.sh -r "$ref" adlittle afiro etamacro wood1p

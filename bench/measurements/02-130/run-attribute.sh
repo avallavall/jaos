@@ -13,7 +13,8 @@
 # The canary: the three readings must NOT all be equal. If they are, this
 # script is measuring one tree again and its output means nothing.
 set -u
-root=/mnt/c/Users/vall-/Desktop/projectes/jaos
+JAOS_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
+root="$JAOS_ROOT"
 cd "$root" || exit 2
 D=$(mktemp -d) || exit 2
 cleanup() {
@@ -30,7 +31,7 @@ for ref in 3221397 2ee580f e2daf9c; do
     case $i in 1) w=a;; 2) w=b;; 3) w=c;; esac
     git worktree add --detach "$D/$w" "$ref" > /dev/null 2>&1 || { echo "$ref WORKTREE FAILED"; continue; }
     ln -s "$root/bench/instances" "$D/$w/bench/instances"
-    sed "s|^root=/mnt/c/Users/vall-/Desktop/projectes/jaos$|root=$D/$w|" \
+    sed "s|^root="$JAOS_ROOT"$|root=$D/$w|" \
         "$D/$w/bench/measurements/02-126/relrise.sh" > "$D/$w/rr.sh"
     grep -q "^root=$D/$w\$" "$D/$w/rr.sh" || { echo "$ref ROOT NOT REWRITTEN"; continue; }
     echo "===================== $ref ====================="

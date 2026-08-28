@@ -12,7 +12,8 @@
 # it: `wood1p` (169 calls), `pilot87` (1), `etamacro` (1). Work moves there and
 # nowhere else, and no digest may move anywhere.
 set -u
-cd /mnt/c/Users/vall-/Desktop/projectes/jaos || exit 2
+JAOS_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
+cd "$JAOS_ROOT" || exit 2
 
 echo "===== make test ====="
 make test 2>&1 | grep -E 'FAIL|Failures|record-check|error' | tail -8

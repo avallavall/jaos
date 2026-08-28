@@ -3,7 +3,8 @@
 # than on HEAD. The gate cannot see this change (the digest covers x and y and
 # not the basis, bench/run.c says so), so this probe is the evidence.
 set -u
-root=/mnt/c/Users/vall-/Desktop/projectes/jaos
+JAOS_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
+root="$JAOS_ROOT"
 wt="$root/build/diag/wt-verify"
 cd "$root" || exit 9
 

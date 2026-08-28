@@ -19,8 +19,9 @@
 # Throwaway build. Worktree under mktemp -d, OUTSIDE the repository, patched
 # there, built to its own tree. The main repo is never touched.
 set -u
+JAOS_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
 here="$(cd "$(dirname "$0")" && pwd)"
-root=/mnt/c/Users/vall-/Desktop/projectes/jaos
+root="$JAOS_ROOT"
 cd "$root" || exit 2
 ref="$(git rev-parse HEAD)"
 

@@ -11,7 +11,8 @@
 # something, and this one had two predecessors in this directory that produced
 # plausible totals while reading the wrong field.
 set -u
-REPO=/mnt/c/Users/vall-/Desktop/projectes/jaos
+JAOS_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
+REPO="$JAOS_ROOT"
 HERE=$REPO/bench/measurements/02-10
 W=${1:?usage: run-doubleton.sh <scratch-dir>}
 
