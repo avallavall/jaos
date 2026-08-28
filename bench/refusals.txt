@@ -34,7 +34,13 @@ D84  | MANUAL | same as D82
 D61  | MANUAL | a hot-path inlining that removes calls AND moves tools/icount.sh by more than the 0.3% D61 could not resolve in seconds
 D199 | bench/measurements/02-116/run-clear-timing.sh | the O(nrow) phase-1 clear costs wall-clock time at the measured densities (D203: it does not; icount 1.00017)
 
-D211 | bench/measurements/02-126/relrise.sh | a stop rule on the phase-1 objective rising has a window: no solve that ends `ok` rises more than 1e-3 above its running minimum any more. Today `pilot-ja` rises 25x at iteration 2091 and finishes ok, so any threshold worth a constant would kill a solve that was going to finish
+# D211's refusal EXPIRED at D212 and was caught here on 2026-08-28, the
+# first run of this file since D212 landed. `pilot-ja` rose 25.0449 and
+# finished ok when the refusal was written; it rises 3.3348e-12 now, and
+# the largest rise on any solve that ends ok is 9.36752e-10. The stop rule
+# has a window about nine orders wide and is open work in TODO.md, not a
+# refusal (D215, bench/measurements/02-130/). relrise.sh stays on disk: it
+# is the measurement the threshold will be swept against.
 D210 | bench/measurements/02-125/unbounded-census.sh | any instance reaches `improves_without_limit`, whose absolute PIVOT_MIN decides a published UNBOUNDED; today 0 of 139 do, and the only direction the floor could move is the one that declares a ray from the absence of a blocker (D19). Stage 7, lifting the lent bound and re-solving, is what would make it live
 
 # --- reopen conditions that are met, or executable today -----------------

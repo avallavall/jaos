@@ -26,7 +26,12 @@
 # Own counters, nothing billed. src/ is read and never written.
 set -u
 here="$(cd "$(dirname "$0")" && pwd)"
-root=/mnt/c/Users/vall-/Desktop/projectes/jaos
+# Derived from the script's own location and not written down. An absolute
+# path here made the script measure the main tree whatever worktree it was
+# run from, and a three-ref attribution came back with one number three
+# times (D215, `bench/measurements/02-130/`). `make refusals` runs this from
+# the repository root, where the two are the same path.
+root="$(cd "$here/../../.." && pwd)"
 cd "$root" || exit 2
 ref="$(git rev-parse HEAD)"
 D=$(mktemp -d) || exit 2

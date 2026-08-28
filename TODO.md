@@ -44,18 +44,34 @@ what long runs do. That is a phase-1 defect, not a floor defect.
 
 **If you were told "continue", this is the order:**
 
-1. **The assert debt** below (`bench/measurements/02-121/`), one file per
+1. **The phase-1 stop rule, reopened on 2026-08-28** — D211 refused it
+   because `pilot-ja` rose 25.0449 and still finished; D212 removed that rise
+   and nothing noticed for a day, until `make refusals` ran (D215,
+   `bench/measurements/02-130/`). The window is now about nine orders wide,
+   between 9.36752e-10 on the solves that finish and 8.07e+11 on `pilot87`.
+   **What is missing is the threshold**, and a threshold is a constant that
+   needs a sweep on both sides. `bench/measurements/02-126/relrise.sh` is the
+   instrument it is swept against. Full loop; `numerics-reviewer` on the diff.
+2. **The assert debt** below (`bench/measurements/02-121/`), one file per
    commit, full loop each: contracts that survived the purge as prose.
-2. The skills debt (two scripts), then section 0's headline decision. **One
-   more script joined it on 2026-08-27**: `jaos-measure`'s `geomean.py
+3. The skills debt (two scripts), then section 0's headline decision. **Two
+   more joined it.** `bench/measurements/` carries **28 scripts that hardcode
+   the absolute repository root**, so each one silently measures the main tree
+   when it is run from a worktree; that is what returned one number at three
+   different refs on 2026-08-28 before the canary caught it (D215). One of the
+   28 is a refusal re-test, `02-125/unbounded-census.sh`. `02-126/relrise.sh`
+   is fixed; the rest are not, because a script whose record nobody is
+   re-running should not be edited on the way past. **And from 2026-08-27**: `jaos-measure`'s `geomean.py
    --metric work` cannot read `bench/results/primal.txt` and exits 2 with "no
    instance appears in both files", because that record carries
    `dual=iters/work primal=iters/work` rather than one `work=` field. Every
    primal-campaign work figure therefore has to go through `--pairs` by hand.
    Found by `jaos-measurer` while judging D207.
 
-Each of these is the full loop for solver internals. `make refusals` after 1,
-because it touches the re-entry and the ratio tests.
+Each of these is the full loop for solver internals. `make refusals` after 1
+and 2, because both touch the ratio tests and the re-entry. **It exits 1 today**
+and will until item 1 is resolved: D211's line has left `bench/refusals.txt`,
+so the FLIPPED is gone, but the question it names is open.
 
 **Section 0 stage 6 landed on 2026-08-28** — D214,
 `bench/measurements/02-129/`. `can_move` reads `breached(s, v)`, a rate
@@ -1318,7 +1334,7 @@ in `price_row:1700` are the machinery, and D26 is the decision behind them.
 | 8 | ~~a relative pivot floor in the two primal ratio tests~~ | **DONE 2026-08-26** — `PIVOT_MARGIN = 1.0`, one ulp of the column's own largest entry, swept on both sides in `bench/measurements/02-122/` (D207). 56 of 94 agree against 55, and the one `ERROR` is gone |
 | 8a | ~~the `alpha[q]` side is still absolute~~ | **DONE 2026-08-27** — the three sites apply `PIVOT_MARGIN` against `sum_i \|rho_i * a_iq\|` as well (D209, `bench/measurements/02-124/`). The census turned the question around: `PIVOT_MIN` there is a **stability** floor, and every call it rejects has `alpha[q]` equal to its own traffic to seventeen digits. The noise floor was the one missing, and `scsd1` was pivoting at a third of one ulp |
 | 8b | ~~does the floor weaken Bland's finiteness argument?~~ | **CLOSED 2026-08-27 — it does not** (D208, `bench/measurements/02-123/`). Thirteen instances' phase-1 counts move and **twelve arm Bland's rule zero times**, as do all three controls. `pilot87` arms it once, at iteration 343682, *after* its own objective has already begun rising |
-| 8d | ~~`pilot87`'s phase 1 diverges~~ | **CLOSED 2026-08-27, both questions** (D211, `bench/measurements/02-126/`). *What happens:* the turn is one pivot on an element of 3.26e-09 at 341234; the update refuses it, the rebuild recomputes `xb` from a basis that now contains it, and the objective jumps 3.4e+12. `pilot87` took 582 pivots below 1e-4 on the way, the control 3: the primal ratio test has no preference for a larger pivot, and stage 2 is that preference. *Whether to stop on a rise:* **refused** — `pilot-ja` rises 25x and finishes `ok`. Re-test in `bench/refusals.txt` |
+| 8d | ~~`pilot87`'s phase 1 diverges~~ | **CLOSED 2026-08-27, both questions** (D211, `bench/measurements/02-126/`). *What happens:* the turn is one pivot on an element of 3.26e-09 at 341234; the update refuses it, the rebuild recomputes `xb` from a basis that now contains it, and the objective jumps 3.4e+12. `pilot87` took 582 pivots below 1e-4 on the way, the control 3: the primal ratio test has no preference for a larger pivot, and stage 2 is that preference. *Whether to stop on a rise:* refused at the time, **and that refusal expired at D212** — `pilot-ja` rose 25.0449 then and rises 3.3348e-12 now, because a two-pass ratio test keeps the recomputation close to the carried values. The stop rule is open work again (D215, `bench/measurements/02-130/`) |
 | 8c | ~~`improves_without_limit` kept the absolute floor~~ | **REFUSED 2026-08-27** (D210, `bench/measurements/02-125/`). **0 of 139 gate instances reach the function**, so the floor decides nothing and a swept constant would be fitted to nothing. The one direction it could move is the unsafe one: a skipped row is a row that does not block, so a relative floor would declare a ray from the *absence* of a blocker, which D19 refuses. Its re-test is in `bench/refusals.txt`; stage 7 is what would make it live |
 
 **Validate the harness before there is anything to measure.** Run stage 0 with
@@ -3107,6 +3123,7 @@ change satisfies a condition in the right column, re-ask that question. Until
 then, do not — a refusal whose premise has not changed just fails again.
 
 | decision | what was refused or deferred | reopens when |
+| D211 | a stop rule on the phase-1 objective rising — `pilot-ja` rose 25.0449 above its running minimum and still finished `ok` | **EXPIRED at D212, caught 2026-08-28**: `pilot-ja` rises 3.3348e-12 now and the largest rise on any `ok` solve is 9.36752e-10, so a threshold has a window about nine orders wide. Attributed to the commit in D215, `02-130/`. Open work below, and the line has left `bench/refusals.txt` |
 | D184 | `can_move`'s product-against-rate units, measured dead on the dual (94/94 digests) | **CLOSED 2026-08-28**: the reopen condition was met on 2026-08-25 and the question is settled. `can_move` reads `breached` now (D214, `02-129/`), and the line has left `bench/refusals.txt` |
 | D76 | `restrict` in the LU kernels — refused because seconds could not resolve it | an instruction count can (`tools/icount.sh`); re-tested on the kernel signatures 2026-08-26, `bench/measurements/02-119/` (D206) |
 | D61 | inlining the hot LU calls — 0.997x, unresolvable in seconds | `tools/icount.sh` moves by more than 0.3% on the LU-dominated instances |

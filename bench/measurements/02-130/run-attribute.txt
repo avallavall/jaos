@@ -1,0 +1,93 @@
+# Which commit flipped D211's refusal? relrise.sh at five refs.
+# Produced by run-attribute.sh; the two-ref narrowing pass used the same
+# script with its ref list edited to 'da16a20 e5bfe3d'.
+
+########## the FIRST attempt, which was wrong ##########
+# relrise.sh hardcodes root=/mnt/c/.../jaos and cds there before reading
+# HEAD, so running it inside a worktree measures the MAIN tree anyway.
+# Three refs, one binary, one number:
+
+===================== 2ee580f =====================
+exit 1
+# control: 106 record lines written
+largest rise on a solve that ends ok: 9.36752e-10
+REOPEN: no ok solve rises above 1e-3 any more; a stop rule has a window
+
+===================== 4d1295d =====================
+exit 1
+# control: 106 record lines written
+largest rise on a solve that ends ok: 9.36752e-10
+REOPEN: no ok solve rises above 1e-3 any more; a stop rule has a window
+
+===================== e2daf9c =====================
+exit 1
+# control: 106 record lines written
+largest rise on a solve that ends ok: 9.36752e-10
+REOPEN: no ok solve rises above 1e-3 any more; a stop rule has a window
+
+===== attribution done =====
+
+
+########## the corrected run, three refs ##########
+===================== 3221397 =====================
+exit 1
+tree it actually measured: 3221397
+# control: 106 record lines written
+largest rise on a solve that ends ok: 9.36752e-10
+REOPEN: no ok solve rises above 1e-3 any more; a stop rule has a window
+RR pilot-ja p1_iters=5705 max_rel=3.3348e-12 at_iter=1601 total=7.3819e+12 best=7.3819e+12 over_1e-9=0 over_1e-6=0 over_1e-3=0 over_1=0
+RR pilot87 p1_iters=381886 max_rel=8.06882e+11 at_iter=121407 total=1.0889e+24 best=1.34951e+12 over_1e-9=363032 over_1e-6=362439 over_1e-3=362354 over_1=362354
+RR wood1p p1_iters=251 max_rel=0 at_iter=-1 total=0 best=0 over_1e-9=0 over_1e-6=0 over_1e-3=0 over_1=0
+
+===================== 2ee580f =====================
+exit 1
+tree it actually measured: 2ee580f
+# control: 106 record lines written
+largest rise on a solve that ends ok: 9.36752e-10
+REOPEN: no ok solve rises above 1e-3 any more; a stop rule has a window
+RR pilot-ja p1_iters=5705 max_rel=3.3348e-12 at_iter=1601 total=7.3819e+12 best=7.3819e+12 over_1e-9=0 over_1e-6=0 over_1e-3=0 over_1=0
+RR pilot87 p1_iters=381886 max_rel=8.06882e+11 at_iter=121407 total=1.0889e+24 best=1.34951e+12 over_1e-9=363032 over_1e-6=362439 over_1e-3=362354 over_1=362354
+RR wood1p p1_iters=251 max_rel=0 at_iter=-1 total=0 best=0 over_1e-9=0 over_1e-6=0 over_1e-3=0 over_1=0
+
+===================== e2daf9c =====================
+exit 0
+tree it actually measured: e2daf9c
+# control: 106 record lines written
+largest rise on a solve that ends ok: 25.0449
+HOLDS: a stop rule at any threshold below 25.0449 would kill a solve that finishes
+RR pilot-ja p1_iters=6255 max_rel=25.0449 at_iter=2091 total=1.63158e+14 best=6.26451e+12 over_1e-9=608 over_1e-6=554 over_1e-3=447 over_1=316
+RR pilot87 p1_iters=390373 max_rel=8.43144e+13 at_iter=351201 total=7.92411e+25 best=9.39829e+11 over_1e-9=260677 over_1e-6=259587 over_1e-3=247308 over_1=80615
+RR wood1p p1_iters=3830 max_rel=0 at_iter=-1 total=0 best=0 over_1e-9=0 over_1e-6=0 over_1e-3=0 over_1=0
+
+===================== canary =====================
+the three refs differ, so each worktree really was built and run
+===== done =====
+
+[exited with code 0]
+
+########## the narrowing run, two refs ##########
+===================== da16a20 =====================
+exit 1
+tree it actually measured: da16a20
+# control: 106 record lines written
+largest rise on a solve that ends ok: 2.59079e-10
+REOPEN: no ok solve rises above 1e-3 any more; a stop rule has a window
+RR pilot-ja p1_iters=5881 max_rel=3.3348e-12 at_iter=1601 total=7.3819e+12 best=7.3819e+12 over_1e-9=0 over_1e-6=0 over_1e-3=0 over_1=0
+RR pilot87 p1_iters=372035 max_rel=8.33038e+13 at_iter=120346 total=5.49488e+25 best=6.59619e+11 over_1e-9=352091 over_1e-6=351445 over_1e-3=351443 over_1=324494
+RR wood1p p1_iters=251 max_rel=0 at_iter=-1 total=0 best=0 over_1e-9=0 over_1e-6=0 over_1e-3=0 over_1=0
+
+===================== e5bfe3d =====================
+exit 1
+tree it actually measured: e5bfe3d
+# control: 106 record lines written
+largest rise on a solve that ends ok: 9.36752e-10
+REOPEN: no ok solve rises above 1e-3 any more; a stop rule has a window
+RR pilot-ja p1_iters=5705 max_rel=3.3348e-12 at_iter=1601 total=7.3819e+12 best=7.3819e+12 over_1e-9=0 over_1e-6=0 over_1e-3=0 over_1=0
+RR pilot87 p1_iters=381886 max_rel=8.06882e+11 at_iter=121407 total=1.0889e+24 best=1.34951e+12 over_1e-9=363032 over_1e-6=362439 over_1e-3=362354 over_1=362354
+RR wood1p p1_iters=251 max_rel=0 at_iter=-1 total=0 best=0 over_1e-9=0 over_1e-6=0 over_1e-3=0 over_1=0
+
+===================== canary =====================
+the three refs differ, so each worktree really was built and run
+===== done =====
+
+[exited with code 0]

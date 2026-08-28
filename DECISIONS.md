@@ -222,6 +222,7 @@ and you have the argument. Jump to the entry for the numbers behind it.
 - **[D212](#d212--harriss-two-pass-ratio-test-in-primal-form-60-of-94-agree-against-56-wood1p-publishes-a-different-vertex-for-22-less-work-and-pilot87-is-untouched)** — Harris's two-pass ratio test in primal form: 60 of 94 agree against 56, `wood1p` publishes a different vertex for 22% less work, and `pilot87` is untouched
 - **[D213](#d213--the-harris-width-is-half-primaltol-and-the-measurement-did-not-choose-it-one-flat-plateau-on-the-campaign-and-a-gate-that-does-not-move-at-all)** — The Harris width is half `primal_tol`, and the measurement did not choose it: one flat plateau on the campaign and a gate that does not move at all
 - **[D214](#d214--canmoves-units-are-a-rate-read-in-both-spaces-and-d27s-cautionary-pds-20-costs-a-fifth-of-the-work)** — `can_move`'s units are a rate read in both spaces, and D27's cautionary `pds-20` costs a fifth of the work
+- **[D215](#d215--d211s-refusal-expired-at-d212-and-the-script-that-proves-it-measured-the-main-tree-from-inside-three-separate-worktrees)** — D211's refusal expired at D212, and the script that proves it measured the main tree from inside three separate worktrees
 
 ---
 
@@ -16429,3 +16430,75 @@ as the constant loosens, so that sweep describes the code at 1e-9 and not the
 shape of the curve away from it.
 
 `bench/measurements/02-129/`.
+
+## D215 — D211's refusal expired at D212, and the script that proves it measured the main tree from inside three separate worktrees
+
+`make refusals` reported `D211 FLIPPED` on 2026-08-28, the first time it ran
+since D212 landed. **The question is which commit expired the refusal**, and
+the answer had to be a commit rather than "somewhere in the last seven",
+because a reopened item nobody can attribute is a reopened item nobody trusts.
+
+D211 refused a stop rule on the phase-1 objective rising. In exact arithmetic
+a sum of bound violations never rises under a correct pivot; in floating point
+it does, because `xb` is recomputed from the factorization every 64 updates
+and the recomputation differs from the carried values by rounding. `pilot-ja`
+rose **25.0449** above its running minimum at iteration 2091 and finished
+`ok`, so any threshold worth a constant would have killed a solve that was
+going to finish.
+
+**The measurement.** `relrise.sh` at five refs, its own exit code as the
+verdict.
+
+| ref | what landed there | largest rise on a solve that ends `ok` | verdict |
+|---|---|---|---|
+| `e2daf9c` | D211 itself | **25.0449** | HOLDS |
+| `da16a20` | **D212, Harris in primal form** | **2.59079e-10** | **REOPEN** |
+| `e5bfe3d` | D213, the Harris width | 9.36752e-10 | REOPEN |
+| `2ee580f` | a bench record | 9.36752e-10 | REOPEN |
+| `3221397` | D214, `can_move`'s units | 9.36752e-10 | REOPEN |
+
+**D212 is the commit.** `pilot-ja`'s rise goes from 25.0449 to 3.3348e-12
+there and never moves again, and `wood1p`'s phase 1 goes from 3830 iterations
+to 251 in the same step, which is D212's own headline. A two-pass ratio test
+prefers a larger pivot, and a larger pivot is what keeps the recomputation
+close to the carried values. D213 moves the figure by a factor of four and no
+verdict, which agrees with D213's own finding that the width chooses nothing
+inside its plateau. D214 moves it not at all.
+
+**What is refuted: the first attribution, which was this decision's own.** The
+first pass created three worktrees, ran `relrise.sh` in each, and returned
+**9.36752e-10 at all three refs including the one where the refusal holds**.
+`relrise.sh:30` was `root=/mnt/c/Users/vall-/Desktop/projectes/jaos`, an
+absolute path, and the script `cd`s there before reading `HEAD`. Run from a
+worktree it measured the main tree and reported the main tree's ref. Three
+trees, one binary, one number — D82's failure, and the output read as a
+finished attribution.
+
+Nothing in the run said so. What said so was the arithmetic being too clean:
+three genuinely different trees cannot agree to six significant figures.
+`02-130/run-attribute.sh` gives each ref its own root by rewriting that line
+into the worktree's copy, and **ends with a canary that fails loudly when the
+readings are all equal**. Both passes are in `run-attribute.txt`, the wrong one
+first, because a corrected number with the wrong one deleted teaches nobody
+what to look for.
+
+`relrise.sh` derives `root` from its own location now, which is what the rest
+of the directory does and what leaves `make refusals` behaving identically.
+**28 other scripts under `bench/measurements/` still carry the absolute
+path**, one of them a refusal re-test (`02-125/unbounded-census.sh`). They are
+harmless where they are run from the repository root, which is the only way
+`make refusals` runs them, and they are a trap for the next attribution. That
+is a debt in `TODO.md`, not fixed here: a script whose record nobody is
+re-running should not be edited on the way past.
+
+**`pilot87` is not fixed by any of this.** Its rise is 8.07e+11 at `3221397`
+against 8.43e+13 at `e2daf9c`, still a divergence. What changed is that the one
+instance standing between the rise and a usable threshold no longer stands
+there, and the window is about nine orders of magnitude wide.
+
+**What is left open**, handed to `TODO.md`. The stop rule itself. A threshold
+is a constant and needs a sweep on both sides; nothing here sweeps one, and
+D211's *other* half — that the divergence is a ratio-test problem and stage 2
+is the preference it lacked — stays closed and is what D212 acted on.
+
+`bench/measurements/02-130/`.

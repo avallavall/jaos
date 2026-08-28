@@ -11,6 +11,17 @@ open, `bench/README.md` for the gate, and the commit each entry came from.
 
 ### Fixed
 
+- **`make refusals` found D211's refusal expired, and the script that
+  re-tests it could not have said where.** D212's two-pass ratio test removed
+  the rise that made a phase-1 stop rule impossible: `pilot-ja` rose 25.0449
+  above its running minimum and still finished `ok` when D211 was written, and
+  rises 3.3348e-12 now. The attribution needed three fixes of its own --
+  `bench/measurements/02-126/relrise.sh` hardcoded the repository root, so run
+  from a worktree it measured the main tree and returned one number at three
+  different refs. It derives `root` from its own location now; **28 other
+  scripts under `bench/measurements/` still do not**, one of them a refusal
+  re-test (D215, `bench/measurements/02-130/`).
+
 - **`can_move` compares a rate against a rate, and in both spaces.** Its last
   line multiplied the reduced cost by the distance to the other bound and
   tested that product against `DUAL_TOL`, which bounds a reduced cost at every
