@@ -223,6 +223,7 @@ and you have the argument. Jump to the entry for the numbers behind it.
 - **[D213](#d213--the-harris-width-is-half-primaltol-and-the-measurement-did-not-choose-it-one-flat-plateau-on-the-campaign-and-a-gate-that-does-not-move-at-all)** — The Harris width is half `primal_tol`, and the measurement did not choose it: one flat plateau on the campaign and a gate that does not move at all
 - **[D214](#d214--canmoves-units-are-a-rate-read-in-both-spaces-and-d27s-cautionary-pds-20-costs-a-fifth-of-the-work)** — `can_move`'s units are a rate read in both spaces, and D27's cautionary `pds-20` costs a fifth of the work
 - **[D215](#d215--d211s-refusal-expired-at-d212-and-the-script-that-proves-it-measured-the-main-tree-from-inside-three-separate-worktrees)** — D211's refusal expired at D212, and the script that proves it measured the main tree from inside three separate worktrees
+- **[D216](#d216--eight-of-lucs-prose-contracts-are-asserts-now-and-a-control-proves-they-catch-the-defect-they-exist-for)** — Eight of `lu.c`'s prose contracts are asserts now, and a control proves they catch the defect they exist for
 
 ---
 
@@ -16502,3 +16503,66 @@ D211's *other* half — that the divergence is a ratio-test problem and stage 2
 is the preference it lacked — stays closed and is what D212 acted on.
 
 `bench/measurements/02-130/`.
+
+## D216 — Eight of `lu.c`'s prose contracts are asserts now, and a control proves they catch the defect they exist for
+
+`TODO.md`'s assert debt: the 2026-08-26 comment purge kept a set of sentences
+because other code depends on them, and D30's rule with D201's receipt says
+such an invariant belongs in an assert rather than a comment. **The question
+was whether adding them is worth anything**, because an assert nothing ever
+exercises is a comment with punctuation.
+
+Eight went into `lu.c`: `grow_pair`'s capacity covering what was asked
+(`jm_svec_push` writes index `n` in both arrays after testing `n < cap`);
+`mult_set` all false at the top of every pivot step; `keep <= k` in the
+one-walk column update; both renumber maps total; `stamp > 0` after the
+increment in `btran_u_pattern`; `top >= 0` at its return; and every
+off-diagonal spike entry above the diagonal after `jm_lu_update`'s cyclic
+permutation.
+
+**The measurement.** `-DNDEBUG` is set by the release build, so `make configs`
+and `make sanitize` run these only over the unit suite's small matrices, and
+the gate — the only thing that factors a real basis tens of thousands of times
+— never runs them at all. `EXTRA_CFLAGS` is appended last to
+`RELEASE_CFLAGS`, so `make netlib EXTRA_CFLAGS=-UNDEBUG` is the shipping
+configuration with the asserts live.
+
+| arm | assertion failures | instances |
+|---|---|---|
+| the eight asserts | **0** | 94 solved, 94 checker ok, `gate: PASS` |
+| the same, with the `mult_set` clear loop deleted | **85** | 9 solved, 85 failed |
+
+Every control failure is one line, `src/lu.c:490: jm_lu_factor: Assertion
+'!e.mult_set[i]' failed`. Both arms reported the same two numbers on a second
+run. Under `-DNDEBUG` the three gate sets are byte-identical and all five
+configurations build and pass, which is the other half: the asserts cost the
+shipping build nothing.
+
+**What was refuted, twice, and the second one is this entry's own script.**
+The `compact_pivot_row` check the debt list suggested — every kept entry
+carries a nonzero value — restates the `if (aij == 0.0) continue;` three lines
+above it and can only fail if the compiler is wrong. It is not added. `keep <=
+k` is locally provable too and *is* added, because it guards a memory hazard
+rather than restating a branch: the loop writes `cv->idx[keep]` while reading
+`cv->idx[k]` in the same array, so it is a change detector for a second
+increment somebody adds later.
+
+The script's first run printed **`STOP: the control did not fire, so the
+step-top assert checks nothing`** directly beneath its own `control asserts
+fired: 85`. `grep -c` prints `0` and exits 1 when it matches nothing, so
+`$(grep -c ... || echo 0)` yielded two zeros on one line and every numeric
+test after it fell through to the last branch. The readings were correct
+throughout. It is recorded because it is D45's lesson from the other side: the
+summary line was wrong about data printed four lines above it, and nothing but
+reading the numbers would have caught it.
+
+**What is left open**, handed to `TODO.md`. `lu.c`'s remaining debt is the
+four items that need tests rather than asserts — the `grow_pair` fault build,
+`find_pivot` on a column whose live count reaches zero, the `piv_n == 0` path
+against the general one, and a failed update leaving ftran and btran
+non-writing — plus `btran_u_pattern`'s dependency-order check and
+`compact_pivot_row`'s duplicate-column half, which needs a stamp array the
+function does not own. `model.c`, `check.c`, `jaos_internal.h`, `simplex.c`
+and `presolve.c` are untouched.
+
+`bench/measurements/02-131/`.

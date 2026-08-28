@@ -9,6 +9,18 @@ open, `bench/README.md` for the gate, and the commit each entry came from.
 
 ## [Unreleased]
 
+### Added
+
+- **Eight of `lu.c`'s contracts are asserts instead of sentences.**
+  `grow_pair`'s capacity, `mult_set` clean at each pivot step, `keep <= k` in
+  the one-walk column update, both renumber maps total, `btran_u_pattern`'s
+  stamp and return, and the spike above the diagonal after `jm_lu_update`'s
+  permutation. Proven on 94 real factorizations with
+  `make netlib EXTRA_CFLAGS=-UNDEBUG`: **0 fired live, 85 fired** with the
+  `mult_set` clear loop deleted, all of them the step-top assert. `-DNDEBUG`
+  removes them, so the three gate sets are byte-identical and all five
+  configurations build and pass (D216, `bench/measurements/02-131/`).
+
 ### Fixed
 
 - **`make refusals` found D211's refusal expired, and the script that

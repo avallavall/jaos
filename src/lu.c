@@ -15,6 +15,7 @@
  */
 #include "jaos_internal.h"
 
+#include <assert.h>
 #include <math.h>
 #include <stdlib.h>
 #include <string.h>
@@ -54,6 +55,10 @@ static bool grow_pair(int64_t **idx, double **val, int64_t *cap, int64_t need)
     if (!jm_grow((void **)val, &cap_val, need, sizeof **val))
         return false;
     *cap = cap_idx < cap_val ? cap_idx : cap_val;
+    /* `jm_svec_push` writes index `n` in BOTH arrays after testing `n <
+     * cap`, so the smaller capacity has to cover what was asked for. This
+     * is `jm_grow`'s contract read from the caller's side (D30). */
+    assert(*cap >= need);
     return true;
 }
 
@@ -477,6 +482,13 @@ jaos_status jm_lu_factor(jm_lu *lu, int64_t dim,
         bucket_insert(&e, j);
 
     for (int64_t step = 0; step < dim; step++) {
+#ifndef NDEBUG
+        /* The previous step's clear loop walks `piv_row`, so it covers
+         * exactly what that step set. A column of this step would read a
+         * stale multiplier as its own. O(dim) a step, debug only (D30). */
+        for (int64_t i = 0; i < dim; i++)
+            assert(!e.mult_set[i]);
+#endif
         int64_t pi, pj;
         double pv;
         if (!find_pivot(&e, pivot_tol, &pi, &pj, &pv))
@@ -573,6 +585,8 @@ jaos_status jm_lu_factor(jm_lu *lu, int64_t dim,
              * reading it cannot overtake itself. */
             int64_t found = 0, keep = 0;
             for (int64_t k = 0; k < cv->n; k++) {
+                /* What makes writing the column while reading it safe. */
+                assert(keep <= k);
                 int64_t i = cv->idx[k];
                 if (e.row_done[i])
                     continue;
@@ -657,11 +671,14 @@ jaos_status jm_lu_factor(jm_lu *lu, int64_t dim,
         /* Renumber into slot space. Every row an eta touches is pivoted
          * after its own step, and likewise for U's columns, so the map is
          * total on what was stored. */
-        for (int64_t k = 0; k < lacc.n; k++)
+        for (int64_t k = 0; k < lacc.n; k++) {
+            assert(inv_row[lacc.idx[k]] >= 0);
             lacc.idx[k] = inv_row[lacc.idx[k]];
+        }
         for (int64_t s = 0; s < dim; s++) {
             for (int64_t k = us_start[s]; k < us_start[s + 1]; k++) {
                 int64_t c = lu->inv_col[uacc.idx[k]];
+                assert(c >= 0);
                 double v = uacc.val[k];
                 if (!jm_svec_push(&lu->urow[s], c, v) ||
                     !jm_svec_push(&lu->ucol[c], s, v)) {
@@ -785,6 +802,9 @@ static int64_t btran_u_pattern(jm_lu *lu, const double *y, jm_work *w)
     int64_t edges = 0;
 
     lu->stamp++;
+    /* `mark` starts zeroed and `stamp` at zero, so the first search's
+     * stamp of 1 matches nothing already in `mark`. */
+    assert(lu->stamp > 0);
     for (int64_t root = 0; root < n; root++) {
         if (y[root] == 0.0 || lu->mark[root] == lu->stamp)
             continue;
@@ -823,6 +843,9 @@ static int64_t btran_u_pattern(jm_lu *lu, const double *y, jm_work *w)
     }
 
     jm_work_add(w, edges * JM_WORK_NONZERO);
+    /* Each node is pushed once, so the post-order cannot outrun the array
+     * and the pattern occupies pattern[top .. dim-1]. */
+    assert(top >= 0);
     return top;
 }
 
@@ -981,6 +1004,13 @@ jaos_status jm_lu_update(jm_lu *lu, int64_t col_out, const double *new_col,
     }
     lu->slot_at[n - 1] = s_out;
     lu->pos_of[s_out] = n - 1;
+#ifndef NDEBUG
+    /* This is what buys the elimination: with `s_out` at the end, every
+     * off-diagonal entry of the installed spike now stands above the
+     * diagonal, so only the row is left to eliminate. */
+    for (int64_t k = 0; k < lu->ucol[s_out].n; k++)
+        assert(lu->pos_of[lu->ucol[s_out].idx[k]] < n - 1);
+#endif
 
     /* Eliminate the spike row, which now sits below the diagonal in the
      * last position. */

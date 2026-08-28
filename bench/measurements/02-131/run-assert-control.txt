@@ -1,0 +1,25 @@
+
+===================== canary: the two trees differ =====================
+they differ, and both carry the asserts:
+/tmp/tmp.zbAXQYDcb0/live/src/lu.c:8
+/tmp/tmp.zbAXQYDcb0/control/src/lu.c:8
+
+===================== live =====================
+live make exit 0
+assertion failures seen: 0
+94 instances: 94 solved, 94 shape ok, 94 objective ok, 94 checker ok, 94 deterministic, 0 failed
+gate: PASS
+
+===================== control =====================
+control make exit 2
+assertion failures seen: 85
+run: src/lu.c:490: jm_lu_factor: Assertion `!e.mult_set[i]' failed.
+run: src/lu.c:490: jm_lu_factor: Assertion `!e.mult_set[i]' failed.
+run: src/lu.c:490: jm_lu_factor: Assertion `!e.mult_set[i]' failed.
+94 instances: 9 solved, 9 shape ok, 9 objective ok, 9 checker ok, 9 deterministic, 85 failed
+gate: NOT MET
+
+===================== verdict =====================
+live asserts fired: 0    control asserts fired: 85
+PASS: the asserts hold on 94 real instances AND catch the defect they exist for
+===== done =====
