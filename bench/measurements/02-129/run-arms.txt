@@ -1,0 +1,155 @@
+# can_move's units on all three gate sets, two arms, tree 2ee580f
+#   rate  = wrong_way > s->dual_tol        (scaled space alone)
+#   union = breached(s, v)                 (both spaces, D92)
+# base    = the committed bench/results/, reproduced byte-for-byte by a
+#           run of clean HEAD on 2026-08-28
+
+===================== canary =====================
+rate can_move last line:         return false;
+union can_move last line:         return false;
+
+===================== rate: building and running =====================
+rate make exit 0
+--- rate netlib: gate line and baseline line ---
+gate: PASS
+baseline: 0 regressed, 0 improved, 0 new
+--- rate netlib-infeas: gate line and baseline line ---
+gate: PASS
+baseline: 0 regressed, 0 improved, 0 new
+--- rate netlib-kennington: gate line and baseline line ---
+gate: PASS
+baseline: 0 regressed, 0 improved, 0 new
+gcc-14 -std=c23 -Wall -Wextra -Wpedantic -ffp-contract=off -Werror -O3 -flto -g -DNDEBUG   -Iinclude -c src/alloc.c -o build/release/alloc.o
+gcc-14 -std=c23 -Wall -Wextra -Wpedantic -ffp-contract=off -Werror -O3 -flto -g -DNDEBUG   -Iinclude -c src/check.c -o build/release/check.o
+gcc-14 -std=c23 -Wall -Wextra -Wpedantic -ffp-contract=off -Werror -O3 -flto -g -DNDEBUG   -Iinclude -c src/lpfmt.c -o build/release/lpfmt.o
+gcc-14 -std=c23 -Wall -Wextra -Wpedantic -ffp-contract=off -Werror -O3 -flto -g -DNDEBUG   -Iinclude -c src/lu.c -o build/release/lu.o
+gcc-14 -std=c23 -Wall -Wextra -Wpedantic -ffp-contract=off -Werror -O3 -flto -g -DNDEBUG   -Iinclude -c src/model.c -o build/release/model.o
+
+===================== union: building and running =====================
+union make exit 0
+--- union netlib: gate line and baseline line ---
+gate: PASS
+baseline: 0 regressed, 0 improved, 0 new
+--- union netlib-infeas: gate line and baseline line ---
+gate: PASS
+baseline: 0 regressed, 0 improved, 0 new
+--- union netlib-kennington: gate line and baseline line ---
+gate: PASS
+baseline: 0 regressed, 0 improved, 0 new
+gcc-14 -std=c23 -Wall -Wextra -Wpedantic -ffp-contract=off -Werror -O3 -flto -g -DNDEBUG   -Iinclude -c src/alloc.c -o build/release/alloc.o
+gcc-14 -std=c23 -Wall -Wextra -Wpedantic -ffp-contract=off -Werror -O3 -flto -g -DNDEBUG   -Iinclude -c src/check.c -o build/release/check.o
+gcc-14 -std=c23 -Wall -Wextra -Wpedantic -ffp-contract=off -Werror -O3 -flto -g -DNDEBUG   -Iinclude -c src/lpfmt.c -o build/release/lpfmt.o
+gcc-14 -std=c23 -Wall -Wextra -Wpedantic -ffp-contract=off -Werror -O3 -flto -g -DNDEBUG   -Iinclude -c src/lu.c -o build/release/lu.o
+gcc-14 -std=c23 -Wall -Wextra -Wpedantic -ffp-contract=off -Werror -O3 -flto -g -DNDEBUG   -Iinclude -c src/model.c -o build/release/model.o
+
+===================== record_diff: rate vs base, netlib =====================
+========================================================================
+/tmp/tmp.8fZEfp3WNl/rate/bench/results/netlib.txt  vs  /mnt/c/Users/vall-/Desktop/projectes/jaos/bench/results/netlib.txt
+========================================================================
+94 instances compared: 94 bit-identical, 0 moved, 0 digest change(s)
+
+-- no regression --
+
+Every instance is bit-identical to the committed record.
+That is the strongest available evidence a change is a no-op.
+
+  (record_diff exit 0)
+
+===================== record_diff: union vs base, netlib =====================
+========================================================================
+/tmp/tmp.8fZEfp3WNl/union/bench/results/netlib.txt  vs  /mnt/c/Users/vall-/Desktop/projectes/jaos/bench/results/netlib.txt
+========================================================================
+94 instances compared: 94 bit-identical, 0 moved, 0 digest change(s)
+
+-- no regression --
+
+Every instance is bit-identical to the committed record.
+That is the strongest available evidence a change is a no-op.
+
+  (record_diff exit 0)
+
+===================== record_diff: rate vs base, netlib-infeas =====================
+========================================================================
+/tmp/tmp.8fZEfp3WNl/rate/bench/results/netlib-infeas.txt  vs  /mnt/c/Users/vall-/Desktop/projectes/jaos/bench/results/netlib-infeas.txt
+========================================================================
+29 instances compared: 29 bit-identical, 0 moved, 0 digest change(s)
+
+-- no regression --
+
+Every instance is bit-identical to the committed record.
+That is the strongest available evidence a change is a no-op.
+
+  (record_diff exit 0)
+
+===================== record_diff: union vs base, netlib-infeas =====================
+========================================================================
+/tmp/tmp.8fZEfp3WNl/union/bench/results/netlib-infeas.txt  vs  /mnt/c/Users/vall-/Desktop/projectes/jaos/bench/results/netlib-infeas.txt
+========================================================================
+29 instances compared: 29 bit-identical, 0 moved, 0 digest change(s)
+
+-- no regression --
+
+Every instance is bit-identical to the committed record.
+That is the strongest available evidence a change is a no-op.
+
+  (record_diff exit 0)
+
+===================== record_diff: rate vs base, netlib-kennington =====================
+========================================================================
+/tmp/tmp.8fZEfp3WNl/rate/bench/results/netlib-kennington.txt  vs  /mnt/c/Users/vall-/Desktop/projectes/jaos/bench/results/netlib-kennington.txt
+========================================================================
+16 instances compared: 14 bit-identical, 2 moved, 2 digest change(s)
+
+-- no regression --
+
+-- changes within threshold --
+  WORK               pds-06         237193725 -> 196806834  (0.8297x)
+  ITERS              pds-06         9305 -> 8769
+  RSUB               pds-06         2.39e-17 -> 3.15e-17
+  DIGEST             pds-06         fd1ebc17e5d116f5 -> 5759beaefe5d3323
+  WORK               pds-20         29627237041 -> 5837911437  (0.197x)
+  ITERS              pds-20         90938 -> 44790
+  RSUB               pds-20         1.77e-15 -> 1.15e-15
+  DIGEST             pds-20         7e72be68e812f370 -> bd43c947615d8767
+  FIGURE             basis          changed on 2 instance(s): pds-06, pds-20
+  FIGURE             col            changed on 2 instance(s): pds-06, pds-20
+  FIGURE             gap            changed on 2 instance(s): pds-06, pds-20
+  FIGURE             row            changed on 2 instance(s): pds-06, pds-20
+  FIGURE             rowrel         changed on 2 instance(s): pds-06, pds-20
+
+  (record_diff exit 0)
+
+===================== record_diff: union vs base, netlib-kennington =====================
+========================================================================
+/tmp/tmp.8fZEfp3WNl/union/bench/results/netlib-kennington.txt  vs  /mnt/c/Users/vall-/Desktop/projectes/jaos/bench/results/netlib-kennington.txt
+========================================================================
+16 instances compared: 14 bit-identical, 2 moved, 2 digest change(s)
+
+-- no regression --
+
+-- changes within threshold --
+  WORK               pds-06         237193725 -> 196806834  (0.8297x)
+  ITERS              pds-06         9305 -> 8769
+  RSUB               pds-06         2.39e-17 -> 3.15e-17
+  DIGEST             pds-06         fd1ebc17e5d116f5 -> 5759beaefe5d3323
+  WORK               pds-20         29627237041 -> 5837911437  (0.197x)
+  ITERS              pds-20         90938 -> 44790
+  RSUB               pds-20         1.77e-15 -> 1.15e-15
+  DIGEST             pds-20         7e72be68e812f370 -> bd43c947615d8767
+  FIGURE             basis          changed on 2 instance(s): pds-06, pds-20
+  FIGURE             col            changed on 2 instance(s): pds-06, pds-20
+  FIGURE             gap            changed on 2 instance(s): pds-06, pds-20
+  FIGURE             row            changed on 2 instance(s): pds-06, pds-20
+  FIGURE             rowrel         changed on 2 instance(s): pds-06, pds-20
+
+  (record_diff exit 0)
+
+===================== pds-20, the instance D27 warned about =====================
+--- base ---
+pds-20       optimal    rows=33874 cols=105728 shape=ok iters=90938 work=29627237041 presolve=33874/105728/230200->32287/103981/225342 obj=23821658640 ref=23821659000[netlib] objective=ok checker=ok (col=8.08e-28 row=4.55e-12 rowrel=8.39e-17 dual=0 gap=2.96e-16 Q=4.22e-05 N=8.57e-08 drop=0 cert=yes sub=0 rays=0 rsub=1.77e-15) det=ok digest=7e72be68e812f370 basis=827b94bd0e96c2f6
+--- rate ---
+pds-20       optimal    rows=33874 cols=105728 shape=ok iters=44790 work=5837911437 presolve=33874/105728/230200->32287/103981/225342 obj=23821658640 ref=23821659000[netlib] objective=ok checker=ok (col=1.01e-28 row=3.01e-12 rowrel=1.39e-15 dual=0 gap=2.24e-16 Q=2.75e-05 N=6.99e-08 drop=0 cert=yes sub=0 rays=0 rsub=1.15e-15) det=ok digest=bd43c947615d8767 basis=a36796f73346bfe2
+--- union ---
+pds-20       optimal    rows=33874 cols=105728 shape=ok iters=44790 work=5837911437 presolve=33874/105728/230200->32287/103981/225342 obj=23821658640 ref=23821659000[netlib] objective=ok checker=ok (col=1.01e-28 row=3.01e-12 rowrel=1.39e-15 dual=0 gap=2.24e-16 Q=2.75e-05 N=6.99e-08 drop=0 cert=yes sub=0 rays=0 rsub=1.15e-15) det=ok digest=bd43c947615d8767 basis=a36796f73346bfe2
+
+===== done =====

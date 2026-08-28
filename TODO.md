@@ -5,7 +5,7 @@ says why closed questions closed, `CHANGELOG.md` says what landed, `bench/`
 says what it costs. This file says what is next. When something lands, its
 line leaves this file in the same commit.
 
-## Where the last session stopped — 2026-08-27
+## Where the last session stopped — 2026-08-28
 
 ### → FRESH CONTEXT: READ THIS PARAGRAPH AND THEN §0
 
@@ -44,16 +44,9 @@ what long runs do. That is a phase-1 defect, not a floor defect.
 
 **If you were told "continue", this is the order:**
 
-1. **Section 0 stage 6** — `can_move`'s units. Measured on 2026-08-27 and
-   NOT landed: `bench/measurements/02-128/`. Both questions are answered. The
-   right units are a rate, and they change a trajectory and no verdict. What
-   is missing is one campaign, `make netlib-kennington` on the rate arm,
-   because D27's cautionary instance `pds-20` lives there and neither this
-   reading nor 02-118's ran it. The source change is one line and 02-128's
-   README carries it. Full loop; `numerics-reviewer` on the diff.
-2. **The assert debt** below (`bench/measurements/02-121/`), one file per
+1. **The assert debt** below (`bench/measurements/02-121/`), one file per
    commit, full loop each: contracts that survived the purge as prose.
-3. The skills debt (two scripts), then section 0's headline decision. **One
+2. The skills debt (two scripts), then section 0's headline decision. **One
    more script joined it on 2026-08-27**: `jaos-measure`'s `geomean.py
    --metric work` cannot read `bench/results/primal.txt` and exits 2 with "no
    instance appears in both files", because that record carries
@@ -61,8 +54,20 @@ what long runs do. That is a phase-1 defect, not a floor defect.
    primal-campaign work figure therefore has to go through `--pairs` by hand.
    Found by `jaos-measurer` while judging D207.
 
-Each of these is the full loop for solver internals. `make refusals` after 1
-and 2, because both touch the re-entry and the ratio tests.
+Each of these is the full loop for solver internals. `make refusals` after 1,
+because it touches the re-entry and the ratio tests.
+
+**Section 0 stage 6 landed on 2026-08-28** — D214,
+`bench/measurements/02-129/`. `can_move` reads `breached(s, v)`, a rate
+against a rate in both spaces. `netlib` 94 of 94 and `netlib-infeas` 29 of 29
+bit-identical; on Kennington `pds-20` publishes the same objective from a
+different vertex for a fifth of the work and `pds-06` for 0.8297x, a work
+geometric mean of 0.8930x over the 16. **D184's refusal is spent** and its
+line has left `bench/refusals.txt`. The two arms measured — the scaled rate
+alone and the union of both spaces — are byte-identical on all three sets, so
+the union was chosen by argument: `wants_a_pivot` already filters with
+`breached` over the complementary case, and the gap the scaled arm leaves is
+reachable through the public `jaos_set_dual_tolerance`.
 
 **The work in flight is the primal simplex, and §0 is the item.** Stages 0, 1,
 3 and 4 have landed. **What is next is a DECISION, not code.** D194 measured
@@ -1231,12 +1236,12 @@ is a primal pivot that did not exist. **Building the primal simplex makes that
 site live, so its units have to be settled before it decides anything.** That
 is D184's stated reopen condition.
 
-**It landed on 2026-08-25 (D188), and the re-test on 2026-08-26 says the units
-are LIVE**: D184's one-line variant moves `scsd1` and `scsd6` on the
-forced-primal campaign and nothing on the dual set
-(`bench/measurements/02-118/run-can-move-units.sh`, D206). The refusal has
-expired. What the right units are, and whether they change any verdict rather
-than only a trajectory, is the open question; it is stage 6 of section 0.
+**It landed on 2026-08-25 (D188), the re-test on 2026-08-26 said the units were
+LIVE (`bench/measurements/02-118/`, D206), and the question closed on
+2026-08-28.** `can_move` reads `breached(s, v)`, a rate against a rate in both
+spaces. No verdict moved on any of the three sets; two Kennington instances got
+cheaper and `pds-20` publishes the same objective for a fifth of the work
+(D214, `bench/measurements/02-129/`).
 
 ### What the gate will and will not say
 
@@ -1308,7 +1313,7 @@ in `price_row:1700` are the machinery, and D26 is the decision behind them.
 | 3 | ~~the entering column's bound flip~~ | **DONE 2026-08-25** — D189, it was a wrong answer |
 | 4 | ~~phase 1 (Maros 1986) from a given basis~~ | **DONE 2026-08-25, short-step form** — 0 of 94 to 64 of 94 (D190) |
 | 5 | **Devex** | **Harris (1973), paywalled** |
-| 6 | **`can_move`'s units** — D184's stated reopen | **MEASURED 2026-08-27, NOT LANDED** (`bench/measurements/02-128/`). The units are still live on the third reading. A rate test (`wrong_way > s->dual_tol`) leaves the standard set byte-identical and **moves no verdict on either campaign**: 61 ok / 29 DISAGREE / 5 overrun / 0 ERROR at every arm. It buys a trajectory — `grow22` sheds a quarter of its work, the campaign's work geomean goes 3.7626 to 3.7398. **D27 chose the product on purpose**, because it reads the same in scaled and published space, and a rate has to pick one; D27's cautionary instance is `pds-20`, which is **Kennington and was not run**. `make netlib-kennington` on the rate arm is the reading that decides it. A third arm guarding a zero distance is dropped by argument: on a fixed column the flip is the better repair and is free. See 02-128's README, which carries the resume steps |
+| 6 | ~~**`can_move`'s units** — D184's stated reopen~~ | **DONE 2026-08-28** — D214, `bench/measurements/02-129/`. `can_move` reads `breached(s, v)`: a rate against a rate, in both spaces. `netlib` 94 of 94 and `netlib-infeas` 29 of 29 bit-identical; on Kennington `pds-20` publishes the same objective from a different vertex for **a fifth of the work** (90938 iterations to 44790) and `pds-06` for 0.8297x, a work geometric mean of 0.8930x over the 16. **The two arms measured are byte-identical on all three sets** — the scaled rate alone and the union — so the union is chosen by argument: `wants_a_pivot` already filters with `breached` over the complementary case, and the gap the scaled arm leaves is reachable through the public `jaos_set_dual_tolerance`. **D27 chose the product to avoid choosing a space, and `pds-20`, the instance D27 chose it for, is the one that pays for it** |
 | 7 | **the unboundedness verdict, and D19's refusal** | stage 4 |
 | 8 | ~~a relative pivot floor in the two primal ratio tests~~ | **DONE 2026-08-26** — `PIVOT_MARGIN = 1.0`, one ulp of the column's own largest entry, swept on both sides in `bench/measurements/02-122/` (D207). 56 of 94 agree against 55, and the one `ERROR` is gone |
 | 8a | ~~the `alpha[q]` side is still absolute~~ | **DONE 2026-08-27** — the three sites apply `PIVOT_MARGIN` against `sum_i \|rho_i * a_iq\|` as well (D209, `bench/measurements/02-124/`). The census turned the question around: `PIVOT_MIN` there is a **stability** floor, and every call it rejects has `alpha[q]` equal to its own traffic to seventeen digits. The noise floor was the one missing, and `scsd1` was pivoting at a third of one ulp |
@@ -3102,7 +3107,7 @@ change satisfies a condition in the right column, re-ask that question. Until
 then, do not — a refusal whose premise has not changed just fails again.
 
 | decision | what was refused or deferred | reopens when |
-| D184 | `can_move`'s product-against-rate units, measured dead on the dual (94/94 digests) | **EXPIRED 2026-08-26**: the primal landed and the units move two instances on its campaign (`02-118/`, D206). Open, section 0 stage 6 |
+| D184 | `can_move`'s product-against-rate units, measured dead on the dual (94/94 digests) | **CLOSED 2026-08-28**: the reopen condition was met on 2026-08-25 and the question is settled. `can_move` reads `breached` now (D214, `02-129/`), and the line has left `bench/refusals.txt` |
 | D76 | `restrict` in the LU kernels — refused because seconds could not resolve it | an instruction count can (`tools/icount.sh`); re-tested on the kernel signatures 2026-08-26, `bench/measurements/02-119/` (D206) |
 | D61 | inlining the hot LU calls — 0.997x, unresolvable in seconds | `tools/icount.sh` moves by more than 0.3% on the LU-dominated instances |
 | D36 | the scatter-form BTRAN — the saving is real and the arithmetic is not free | an instruction count of a re-ported candidate retires fewer instructions than it adds; the candidate is not on disk |

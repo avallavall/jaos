@@ -11,6 +11,19 @@ open, `bench/README.md` for the gate, and the commit each entry came from.
 
 ### Fixed
 
+- **`can_move` compares a rate against a rate, and in both spaces.** Its last
+  line multiplied the reduced cost by the distance to the other bound and
+  tested that product against `DUAL_TOL`, which bounds a reduced cost at every
+  other site that reads it. It is `breached(s, v)` now, the filter
+  `wants_a_pivot` already applies to the complementary case. `netlib` comes
+  back 94 of 94 bit-identical and `netlib-infeas` 29 of 29; on Kennington two
+  instances move and both get cheaper, `pds-20` publishing the same objective
+  from a different vertex for **a fifth of the work** (90938 iterations to
+  44790) and `pds-06` for 0.8297x, a work geometric mean of **0.8930x** over
+  the 16. D27 chose the product to avoid choosing a space, and the instance it
+  chose it for is the one that pays for it (D214,
+  `bench/measurements/02-129/`).
+
 - **The pricing row's pivot element is judged against its own terms too, and
   `PIVOT_MIN` is documented as what it actually is.** The three sites that
   test `alpha[q]` were absolute; they now apply `PIVOT_MARGIN` against

@@ -221,6 +221,7 @@ and you have the argument. Jump to the entry for the numbers behind it.
 - **[D211](#d211--pilot87s-phase-1-diverges-because-the-primal-ratio-test-has-no-rule-against-a-tiny-pivot-and-a-stop-on-the-objective-rising-is-refused-because-a-solve-that-finishes-rises-25x)** — `pilot87`'s phase 1 diverges because the primal ratio test has no rule against a tiny pivot, and a stop on the objective rising is refused because a solve that finishes rises 25x
 - **[D212](#d212--harriss-two-pass-ratio-test-in-primal-form-60-of-94-agree-against-56-wood1p-publishes-a-different-vertex-for-22-less-work-and-pilot87-is-untouched)** — Harris's two-pass ratio test in primal form: 60 of 94 agree against 56, `wood1p` publishes a different vertex for 22% less work, and `pilot87` is untouched
 - **[D213](#d213--the-harris-width-is-half-primaltol-and-the-measurement-did-not-choose-it-one-flat-plateau-on-the-campaign-and-a-gate-that-does-not-move-at-all)** — The Harris width is half `primal_tol`, and the measurement did not choose it: one flat plateau on the campaign and a gate that does not move at all
+- **[D214](#d214--canmoves-units-are-a-rate-read-in-both-spaces-and-d27s-cautionary-pds-20-costs-a-fifth-of-the-work)** — `can_move`'s units are a rate read in both spaces, and D27's cautionary `pds-20` costs a fifth of the work
 
 ---
 
@@ -16328,3 +16329,103 @@ Nothing new cites these; a new decision gets a D-number.
 ### D-14 — Presolve bills the same `jm_work` counter every other kernel bills, one accumulator per solve (D16)
 ### D-15 — The deliverable number is a geometric mean of per-instance ratios (D46)
 ### D-16 — The phase does not recalibrate the comparison ladder; it records the ratio and D104 recalibrates
+
+## D214 — `can_move`'s units are a rate read in both spaces, and D27's cautionary `pds-20` costs a fifth of the work
+
+`can_move` decides whether a settled nonbasic with a wrong-signed reduced cost
+should be flipped to its other bound. Its last line compared
+
+    wrong_way * fabs(other - nonbasic_value(s, v)) > s->dual_tol
+
+a reduced cost times a distance, against a constant that bounds a reduced cost
+everywhere else in the file. **The question was which units are right**, and
+whether the answer changes a verdict or only a trajectory.
+
+D184 refused the correction in 2026-08-25 on a measurement — the dual set was
+94 of 94 identical — with the reopen condition that the primal simplex land.
+It landed (D188), 02-118 found the units live on the primal campaign, and
+02-128 re-read them after four commits to the ratio tests. **02-128 could not
+conclude**: `pds-20` is the instance D27's argument turns on, `pds-20` is a
+Kennington instance, and `make netlib-kennington` was never run.
+
+**The base had to be measured, not assumed.** `preflight.sh` reported the
+Kennington and infeasible records written before **25 `src/` commits**. A run
+of clean HEAD reproduced all three byte for byte, so those commits were
+no-ops on both sets and the committed record is a valid parent.
+
+**A numerics review, taken before the campaign, added a second arm**
+(`bench/measurements/02-129/review.md`). A pure scaled-rate test leaves a
+column breached only in the published space with no repair anywhere:
+`can_move` rejects it, `arm_reentry`'s else branch is guarded by the scaled
+`dual_breach` so it is not shifted either, and `wants_a_pivot` refuses it
+because its other bound is finite — while `settled_dual_violation`, which is
+what the checker judges, still counts it.
+
+| arm | last line |
+|---|---|
+| `rate` | `wrong_way > s->dual_tol`, D184's one-liner, the scaled space alone |
+| `union` | `breached(s, v)`, the same question in both spaces |
+
+**The measurement.** All three sets, both arms, `J=12`. `gate: PASS` and
+`baseline: 0 regressed, 0 improved, 0 new` everywhere. `netlib` 94 of 94
+bit-identical and `netlib-infeas` 29 of 29 bit-identical at both arms. On
+Kennington 14 of 16 are bit-identical and two move:
+
+| instance | iterations | work | ratio |
+|---|---|---|---|
+| `pds-20` | 90938 → 44790 | 29627237041 → 5837911437 | **0.1970x** |
+| `pds-06` | 9305 → 8769 | 237193725 → 196806834 | 0.8297x |
+
+Work geometric mean over the 16: **0.8930x**. Both publish the objective they
+published before — `pds-20` at 23821658640 — from a different vertex, so
+`digest` and `basis` move together. `checker=ok`, `cert=yes`, `dual=0` on
+both, and `pds-20`'s `Q` **falls** from 4.22e-05 to 2.75e-05.
+
+**What was refuted, and it is the review's own prediction.** The review
+expected that declining to flip D27's column would move `pds-20`'s `dual=` off
+0 and raise `Q`. Neither happened. D27 measured that column costing `pds-20`
+3.2x its work when the re-entry flipped columns it should not have; on this
+tree, refusing the same family of flips is what makes the instance cheap.
+**D27's product is not repaid by the instance D27 chose it for.**
+
+**The two arms are byte-identical to each other on all three sets**, so the
+gate cannot choose between them, and three of the four reasons for `union` are
+arguments. D92 says the two readings of a breach may not replace one another,
+and `rate` drops one. `wants_a_pivot` already filters with `breached` over the
+complementary case, so the two halves of one partition would otherwise
+disagree about what counts as breached. The gap `rate` leaves is reachable
+through the public `jaos_set_dual_tolerance`, where D27's own `etamacro`
+column — scaled 4.89e-8, column scale 1/32, published 1.56e-6 — reads as fine
+to `rate` and as a violation to the checker's `CHECK_TOL`.
+
+**The fourth reason is measured, on the build no reading of this change had
+used.** `run-nopresolve.sh` takes `netlib` on `-DJAOS_NO_PRESOLVE` at three
+arms, because the product differs from the union in two ways at once:
+`product -> rate` isolates the fixed column, whose distance is exactly zero,
+and `rate -> union` isolates the published space. `np-rate` comes back
+**byte-identical to `np-base`**, which settles the fixed-column question — the
+flip a zero distance used to forbid is reached on no instance of that set, on
+the build where fixed structural columns exist. `np-union` moves exactly one
+instance, `pilotnov`: 3541 iterations to 4182 and 1.2517x the work, for `row`
+2.61e-07 to 5.17e-09, `rowrel` 4.12e-11 to 1.28e-12, `Q` 2.22e-08 to 2.13e-10
+and the suboptimality bound `rsub` 4.94e-12 to **4.74e-14**. Its objective
+lands one ulp off the reference where the product landed on it exactly. The
+runner says the same from the other side: against the presolve baseline
+`np-base` regresses on the suboptimality bound, 45.5x, and `np-union` regresses
+on work instead. **The column the review said would lose its repair exists, it
+is on `pilotnov`, and repairing it buys two orders of magnitude of certificate
+for 25% more work on one instance of a build JAOS does not ship.**
+
+**What is left open**, handed to `TODO.md`. Nothing in this item; all three of
+the review's findings are answered above. Two record repairs came with it.
+`docs/tolerances.md`'s `DUAL_TOL` row named a reader called `points_outwards`
+that does not exist in `src/` — the function is `held_by_an_invented_bound`,
+whose own comment carries the phrase the name was made from — and the row also
+said the constant had one site reading it in the wrong units, which is no
+longer true. Both are corrected. The same name survives in this file's older
+entries, which are history and stay as written. `bench/measurements/02-84/`'s
+`DUAL_TOL` sweep was taken against the product; the two versions separate only
+as the constant loosens, so that sweep describes the code at 1e-9 and not the
+shape of the curve away from it.
+
+`bench/measurements/02-129/`.

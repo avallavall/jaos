@@ -2138,7 +2138,12 @@ static bool can_move(const sx *s, int64_t v)
                                                : real_lower(s, v);
     if (!isfinite(other))
         return false;
-    return wrong_way * fabs(other - nonbasic_value(s, v)) > s->dual_tol;
+    /* A rate against a rate, and in both spaces. `DUAL_TOL` bounds a
+     * reduced cost at every other site that reads it; this tested a rate
+     * times a distance against it until D214. `breached` gives up
+     * neither space (D92) and is what `wants_a_pivot` applies to the
+     * complementary case, a column with no other real bound (D27, D214). */
+    return breached(s, v);
 }
 
 static bool anything_to_move(const sx *s)

@@ -18,7 +18,6 @@ absent SPECS.md#3-barrier-and-crossover    \b(jm_cholesky|cholesky_|jm_barrier|b
 absent SPECS.md#3-milp                     \b(jm_bnb|branch_and_bound|jm_cut|cut_pool|jm_heuristic)\w*\s*\(
 absent SPECS.md#3-deterministic-parallelism \bpthread_create\s*\(
 absent SPECS.md#3-primal-devex             \b(devex|jm_devex)\w*\s*\(
-absent SPECS.md#3-primal-harris            \b(primal_harris|harris_primal)\w*\s*\(
 absent SPECS.md#3-presolve-duplicates      \b(static|jaos_status)\s+\w*\s*\*?\s*(ps_|jm_)?(duplicate_rows?|duplicate_cols?|dominated_cols?)\s*\(
 absent SPECS.md#5-sensitivity-and-ranging  \b(jaos_ranging|jaos_sensitivity|jm_ranging)\w*\s*\(
 absent SPECS.md#5-certificates             \b(jaos_certificate|jm_farkas|farkas_)\w*\s*\(

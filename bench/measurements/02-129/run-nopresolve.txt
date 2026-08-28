@@ -1,0 +1,58 @@
+# can_move on the -DJAOS_NO_PRESOLVE reference build, netlib, tree 2ee580f
+#   np-base  = HEAD, the product (a fixed column is always immovable)
+#   np-union = breached(s, v)
+
+===================== canary =====================
+np-base carries the product, np-union carries breached: the two trees differ
+
+===================== np-base =====================
+np-base make exit 2
+94 instances: 92 solved, 94 shape ok, 92 objective ok, 92 checker ok, 92 deterministic, 2 failed
+gate: NOT MET
+
+===================== np-rate =====================
+np-rate make exit 2
+94 instances: 92 solved, 94 shape ok, 92 objective ok, 92 checker ok, 92 deterministic, 2 failed
+gate: NOT MET
+
+===================== np-union =====================
+np-union make exit 2
+94 instances: 92 solved, 94 shape ok, 92 objective ok, 92 checker ok, 92 deterministic, 2 failed
+gate: NOT MET
+
+===================== np-rate vs np-base =====================
+BYTE-IDENTICAL
+
+===================== np-union vs np-base =====================
+DIFFER, 4 lines
+--- digest moved on ---
+    pilotnov digest=a15fb0fbd148c1c6 -> digest=208ba0db42b9c02a
+--- basis moved on ---
+    pilotnov basis=cb059869f2a84da8 -> basis=d79fba3b467f8352
+--- work moved on ---
+    pilotnov work=129908011 -> work=162607997
+--- iters moved on ---
+    pilotnov iters=3541 -> iters=4182
+
+===================== np-rate vs np-union =====================
+THEY DIFFER: the published space decides something here
+54c54
+< pilotnov     optimal    rows=975 cols=2172 shape=ok iters=3541 work=129908011 presolve=975/2172/13057->975/2172/13057 obj=-4497.2761882188715 ref=-4497.2761882188715[koch] objective=ok checker=ok (col=2.48e-16 row=2.61e-07 rowrel=4.12e-11 dual=0 gap=3.72e-16 Q=2.22e-08 N=4.5e-11 drop=0 cert=yes sub=1.2e-28 rays=0 rsub=4.94e-12) det=ok digest=a15fb0fbd148c1c6 basis=cb059869f2a84da8
+---
+> pilotnov     optimal    rows=975 cols=2172 shape=ok iters=4182 work=162607997 presolve=975/2172/13057->975/2172/13057 obj=-4497.2761882188706 ref=-4497.2761882188715[koch] objective=ok checker=ok (col=1.78e-16 row=5.17e-09 rowrel=1.28e-12 dual=0 gap=7.06e-17 Q=2.13e-10 N=5.6e-13 drop=0 cert=yes sub=6.67e-30 rays=0 rsub=4.74e-14) det=ok digest=208ba0db42b9c02a basis=d79fba3b467f8352
+113c113
+< pilotnov     REGRESSED    suboptimality bound: 1.09e-13 -> 4.94e-12 (45.5x relative to its own objective)
+---
+> pilotnov     REGRESSED    work: 80872352 -> 162607997 (2.0x), iters 2135 -> 4182
+
+===================== the full diff, np-base vs np-union =====================
+54c54
+< pilotnov     optimal    rows=975 cols=2172 shape=ok iters=3541 work=129908011 presolve=975/2172/13057->975/2172/13057 obj=-4497.2761882188715 ref=-4497.2761882188715[koch] objective=ok checker=ok (col=2.48e-16 row=2.61e-07 rowrel=4.12e-11 dual=0 gap=3.72e-16 Q=2.22e-08 N=4.5e-11 drop=0 cert=yes sub=1.2e-28 rays=0 rsub=4.94e-12) det=ok digest=a15fb0fbd148c1c6 basis=cb059869f2a84da8
+---
+> pilotnov     optimal    rows=975 cols=2172 shape=ok iters=4182 work=162607997 presolve=975/2172/13057->975/2172/13057 obj=-4497.2761882188706 ref=-4497.2761882188715[koch] objective=ok checker=ok (col=1.78e-16 row=5.17e-09 rowrel=1.28e-12 dual=0 gap=7.06e-17 Q=2.13e-10 N=5.6e-13 drop=0 cert=yes sub=6.67e-30 rays=0 rsub=4.74e-14) det=ok digest=208ba0db42b9c02a basis=d79fba3b467f8352
+113c113
+< pilotnov     REGRESSED    suboptimality bound: 1.09e-13 -> 4.94e-12 (45.5x relative to its own objective)
+---
+> pilotnov     REGRESSED    work: 80872352 -> 162607997 (2.0x), iters 2135 -> 4182
+
+===== done =====
