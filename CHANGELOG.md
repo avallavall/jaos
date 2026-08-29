@@ -11,6 +11,17 @@ open, `bench/README.md` for the gate, and the commit each entry came from.
 
 ### Added
 
+- **The first four tests of the assert debt.** `jm_bland_pick` compares its
+  minimum exactly, pinned at one ulp; a non-positive `nvar` leaves the
+  nonbasic bitmap alone; a zero-length allocation is not a failure; and
+  `jm_two_product_residue` returns 0.0 past 2^996, where the product is still
+  finite but the Dekker split overflows. Each proven to go red when its
+  contract breaks -- and two of them turn out to be load-bearing beyond their
+  own test, `jm_alloc_array(0)` failing four tests when broken. The residue
+  test exposed that the function guards that case TWICE, and that either half
+  suffices: the top `2^996` test is a fast path, the closing `isfinite` is
+  what makes it correct (D224, `bench/measurements/02-137/`).
+
 - **`jaos_internal.h`'s contracts are asserts in the files that implement
   them.** `jm_harris_pick`'s non-negative numerators, positive denominators
   and valid return; `jm_pattern_order`'s scratch bitmap clean on entry and

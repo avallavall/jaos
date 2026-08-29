@@ -333,6 +333,47 @@ static void test_the_objective_is_summed_from_the_values_it_publishes(void)
  * keeps it exact is `-fno-associative-math`, the default, and NOT
  * `-ffp-contract=off` — contraction on or off gives identical bits, because
  * every product inside the split is exact. `bench/measurements/02-82/` carries it. */
+/* "Beyond a factor magnitude of 2^996 the split would overflow, so it
+ * reports a zero residue there and the caller keeps the plain product"
+ * (D175, D224). The dangerous case is not an infinite product — it is a
+ * FINITE product whose Dekker split overflows on the way: `SPLIT * a` is
+ * `a * (2^27 + 1)`, so a factor at 2^997 overflows that multiply while
+ * `a * b` itself stays finite. Without the guard the residue comes back
+ * infinite or NaN and the compensated sum carries it into the objective.
+ *
+ * Zero is the right answer and not a cop-out: a zero residue means "I have
+ * no correction for you", and the caller then keeps the plain product,
+ * which is exactly as accurate as uncompensated arithmetic. */
+static void test_two_product_residue_gives_up_rather_than_overflow(void)
+{
+    const double big = ldexp(1.0, 997);     /* past the 2^996 bar */
+    const double small = ldexp(1.0, -997);
+
+    /* The product is finite, so nothing upstream would notice a problem. */
+    const double p = big * small;
+    TEST_ASSERT_TRUE(isfinite(p));
+    TEST_ASSERT_EQUAL_DOUBLE(1.0, p);
+
+    /* And the split of `big` is not: this is the overflow being dodged. */
+    TEST_ASSERT_FALSE(isfinite(134217729.0 * big));
+
+    TEST_ASSERT_EQUAL_DOUBLE(0.0, jm_two_product_residue(big, small, p));
+    TEST_ASSERT_EQUAL_DOUBLE(0.0, jm_two_product_residue(small, big, p));
+
+    /* A non-finite product is refused too, and for the same reason: there
+     * is no correction to a number that is already infinite. */
+    const double inf = jaos_infinity();
+    TEST_ASSERT_EQUAL_DOUBLE(0.0, jm_two_product_residue(2.0, inf, inf));
+
+    /* The control, one binade below the bar: the split is finite there and
+     * the residue is computed rather than given up on. Without this the
+     * test above passes for a function that always returns zero. */
+    const double ok = ldexp(1.0, 27) + 1.0;
+    TEST_ASSERT_TRUE(isfinite(134217729.0 * ok));
+    const double q = ok * ok;
+    TEST_ASSERT_EQUAL_DOUBLE(1.0, jm_two_product_residue(ok, ok, q));
+}
+
 static void test_the_objective_recovers_what_a_rounded_product_dropped(void)
 {
 #if defined(JAOS_PRESOLVE_FAULT_OFFBYONE) || defined(JAOS_PRESOLVE_FAULT_WRONGDUAL)
@@ -1057,6 +1098,7 @@ int main(void)
     RUN_TEST(test_a_changed_bound_reaches_the_solve);
     RUN_TEST(test_the_objective_is_summed_from_the_values_it_publishes);
     RUN_TEST(test_the_objective_keeps_its_constant_term_and_its_sense);
+    RUN_TEST(test_two_product_residue_gives_up_rather_than_overflow);
     RUN_TEST(test_the_objective_recovers_what_a_rounded_product_dropped);
     RUN_TEST(test_the_objective_is_finite_at_the_top_of_the_range);
     RUN_TEST(test_bounds_and_costs_read_back);

@@ -54,12 +54,36 @@ what long runs do. That is a phase-1 defect, not a floor defect.
 1. **The assert debt's TEST half** (`bench/measurements/02-121/`). **Every
    assert half has landed**: `lu.c` at D216, `model.c` at D219, `check.c` at
    D221, `jaos_internal.h` at D223, with `jaos_set_coefficient`'s inline-flags
-   defect fixed on the way and `-ffast-math` now a build error. What is left
-   is the tests, about two dozen across the four reports — the
-   scale-invariance test, the per-operation staleness tests, the column-order
-   debug checker, `jm_two_product_residue` at 2^997, the empty-column case,
-   `jm_alloc_array(0)`, `jm_nonbasic_build` at `nvar <= 0`, the pinned
-   one-ulp tie-break tests, and a failed LU update leaving `rank < 0`.
+   defect fixed on the way and `-ffast-math` now a build error. **Four tests
+   landed at D224** — the one-ulp tie-break, `jm_nonbasic_build` at
+   `nvar <= 0`, `jm_alloc_array(0)`, and `jm_two_product_residue` past 2^996.
+
+   **About twenty tests are left**, and the order below is by how much each
+   would tell you, not by which file it sits in. Every one needs the arm that
+   makes it go red; `bench/measurements/02-137/run-test-control.sh` is the
+   shape to copy, and its lesson is that a test can pass through a mechanism
+   it does not test.
+
+   - `check.c`, and these are the ones that guard a published verdict: every
+     multiplier contributes to the dual objective including the exempt ones
+     (`w * b` moves it exactly); `note_dropped` counts a `1e-15` multiplier at
+     an infinite bound; `certified_step` returns 0 and not a negative for a
+     point sitting `tol` outside a row bound; `implied_bounds` contains a
+     known feasible point, counts infinite terms rather than summing them, and
+     keeps an unreached bound infinite while still dropping the term.
+   - `lu.c`: `find_pivot` visits a column whose live count reached zero
+     (nonsingular matrix, `rank == dim`); a failed update leaves `rank < 0`
+     and ftran/btran return without writing; `grow_pair` leaves the first
+     array freeable when the second grow fails (fault build, ASan); the
+     `piv_n == 0` path drops exactly what the general path drops.
+   - `model.c`: `scale.c` reads no bound and no cost (change a bound and a
+     cost, re-solve, factors byte-identical); one test per matrix operation
+     that `rowwise_valid` and `scale_valid` go false; a column left empty by
+     `jaos_delete_rows` is not an error; the column-order debug checker after
+     every mutation.
+   - `jaos_internal.h`: `solve_primal_iters`/`solve_phase1_iters` written on
+     an INTERRUPTED exit; `jm_pattern_order` on a repeating unordered input;
+     `jm_nonbasic_*` rebuilt and compared after a basis change.
 2. Section 0's headline decision.
 
 **The phase-1 stop rule closed on 2026-08-29** — D218,

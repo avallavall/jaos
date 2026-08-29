@@ -231,6 +231,7 @@ and you have the argument. Jump to the entry for the numbers behind it.
 - **[D221](#d221--checkcs-four-contracts-are-asserts-and-the-breaker-that-fired-nothing-was-measuring-the-models-rather-than-the-assert)** — `check.c`'s four contracts are asserts, and the breaker that fired nothing was measuring the models rather than the assert
 - **[D222](#d222--a-cited-measurement-directory-has-to-be-in-the-repository-and-the-check-that-said-so-tested-this-disk-instead)** — A cited measurement directory has to be in the repository, and the check that said so tested this disk instead
 - **[D223](#d223--jaosinternalhs-contracts-are-asserts-in-the-files-that-implement-them-and-the-fourth-way-a-control-can-be-worthless-is-to-hang)** — `jaos_internal.h`'s contracts are asserts in the files that implement them, and the fourth way a control can be worthless is to hang
+- **[D224](#d224--the-first-four-tests-of-the-debt-and-jmtwoproductresidue-turns-out-to-guard-one-case-twice)** — The first four tests of the debt, and `jm_two_product_residue` turns out to guard one case twice
 
 ---
 
@@ -17202,3 +17203,61 @@ is the whole argument for having one that tests itself.
 ## What is left open
 
 The test halves of `02-121`'s four lists. `TODO.md` carries them.
+
+## D224 — The first four tests of the debt, and `jm_two_product_residue` turns out to guard one case twice
+
+`bench/measurements/02-121/`'s four reports list tests as well as asserts,
+about two dozen. These are the first four, with the control that shows each
+goes red when its contract breaks (`bench/measurements/02-137/`).
+
+| test | contract |
+|---|---|
+| `bland_compares_the_minimum_exactly_at_one_ulp` | the minimum is compared exactly, not through a window |
+| `nonbasic_build_on_no_variables_counts_zero` | a non-positive `nvar` returns zero and leaves the bitmap alone |
+| `alloc_array_of_zero_is_not_a_failure` | a zero-length request is a valid allocation, not out of memory |
+| `two_product_residue_gives_up_rather_than_overflow` | past 2^996 the residue is 0.0, and the product there is still finite |
+
+## Two contracts are load-bearing beyond their own test
+
+Making `jm_alloc_array(0)` answer null fails **four** tests: the new one, a
+warm basis of empty columns, and two presolve-reach cases. Making
+`jm_nonbasic_build` always touch a word fails two. Neither contract is a
+nicety, and the breaking arm is what says so.
+
+## `jm_two_product_residue` guards the overflow case twice
+
+The control refused to let the residue test go red, and the reason is a fact
+about the code.
+
+Past 2^996 `SPLIT * a` overflows to infinity, so `ah = ca - (ca - a)` is
+`inf - inf` = NaN and every later term is NaN. **Two separate things then
+return 0.0**: the explicit `fabs(a) > BIG` test at the top, and the closing
+`isfinite(e) ? e : 0.0`. Either alone is sufficient, so no single-guard break
+can make the test fail. Removing the top guard is quiet; removing the fallback
+is quiet for the new test and fails
+`test_the_objective_is_finite_at_the_top_of_the_range`, which already existed;
+removing both is what makes the new test fail.
+
+So the fallback was already covered and the top guard was not, and the new
+test covers the pair. The top guard is a fast path and a statement of intent;
+the fallback is what makes the function correct. Nothing in the source said
+which, and now the record does.
+
+## What was refuted
+
+That a passing test proves its own claim. This one passed for a mechanism it
+does not test, and only an arm that stayed quiet when it should have gone red
+exposed it.
+
+## The instrument, three times wrong
+
+A build failure that read as a result — removing the guard left `BIG` unused
+and `-Werror` refused the file, which is not a test failure and proves
+nothing. Then a passing test attributed to the wrong guard. Then a failing
+test that belonged to somebody else. The same shape as D219, D221 and D223:
+across four controls in this series the instrument has been wrong seven times
+and the thing under test wrong once.
+
+## What is left open
+
+About twenty tests across the four reports. `TODO.md` carries them.

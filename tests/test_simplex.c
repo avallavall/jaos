@@ -1377,6 +1377,63 @@ static void test_bland_edge_counts(void)
     TEST_ASSERT_EQUAL_INT64(-1, jm_bland_pick(0, var, num, den));
 }
 
+/* "The minimum is compared exactly" — pinned at one ulp, because that is the
+ * claim and nothing weaker tests it (D224). Two quotients one ulp apart: the
+ * rule must take the smaller one, not the lower index. If a window or an
+ * epsilon ever creeps into this comparison, the two become a tie and the
+ * lower index wins, and this is the test that says so.
+ *
+ * Both quotients are computed the way the rule computes them, so the
+ * expected answer does not depend on how the compiler folds a literal. */
+static void test_bland_compares_the_minimum_exactly_at_one_ulp(void)
+{
+    const int64_t var[] = {1, 9};
+    const double q  = 1.0;
+    const double qp = nextafter(q, 2.0);        /* exactly one ulp above */
+    TEST_ASSERT_TRUE(qp > q);
+    /* Candidate 0 blocks one ulp LATER, so candidate 1 must win on the
+     * quotient even though its index is higher. */
+    const double num[] = {qp, q};
+    const double den[] = {1.0, 1.0};
+    TEST_ASSERT_EQUAL_INT64(1, jm_bland_pick(2, var, num, den));
+
+    /* Swap them: now the lower index also holds the smaller quotient, and
+     * the answer moves. A rule that ignored the quotient would answer 0
+     * both times. */
+    const double num2[] = {q, qp};
+    TEST_ASSERT_EQUAL_INT64(0, jm_bland_pick(2, var, num2, den));
+
+    /* A true tie is where the index is allowed to decide. */
+    const double num3[] = {q, q};
+    TEST_ASSERT_EQUAL_INT64(0, jm_bland_pick(2, var, num3, den));
+}
+
+/* "A non-positive `nvar` ... return zero" (D224). The bitmap is untouched,
+ * which is what lets a caller pass a null pointer for an empty model. */
+static void test_nonbasic_build_on_no_variables_counts_zero(void)
+{
+    uint64_t mark[2] = {0xdeadbeefULL, 0xfeedfaceULL};
+    const jm_var_status status[] = {JM_AT_LOWER};
+    TEST_ASSERT_EQUAL_INT64(0, jm_nonbasic_build(0, status, mark));
+    TEST_ASSERT_EQUAL_INT64(0, jm_nonbasic_build(-1, status, mark));
+    /* Untouched: nwords is (nvar + 63) / 64, which is 0 for both. */
+    TEST_ASSERT_EQUAL_UINT64(0xdeadbeefULL, mark[0]);
+    TEST_ASSERT_EQUAL_UINT64(0xfeedfaceULL, mark[1]);
+}
+
+/* "n == 0 still returns a valid non-NULL allocation" (D224). Callers test
+ * the result against null to detect failure, so a zero-length request that
+ * answered null would read as out of memory on an empty model. */
+static void test_alloc_array_of_zero_is_not_a_failure(void)
+{
+    void *p = jm_alloc_array(0, sizeof(double));
+    TEST_ASSERT_NOT_NULL(p);
+    free(p);
+    void *c = jm_calloc_array(0, sizeof(double));
+    TEST_ASSERT_NOT_NULL(c);
+    free(c);
+}
+
 /* ---- Bland's rule on the primal side ----------------------------------
  *
  * The dual chooses a row and then a column, so its Bland's rule falls on the
@@ -3683,6 +3740,9 @@ int main(void)
     RUN_TEST(test_bland_has_no_window_to_trade);
     RUN_TEST(test_bland_does_not_let_the_index_beat_the_quotient);
     RUN_TEST(test_bland_edge_counts);
+    RUN_TEST(test_bland_compares_the_minimum_exactly_at_one_ulp);
+    RUN_TEST(test_nonbasic_build_on_no_variables_counts_zero);
+    RUN_TEST(test_alloc_array_of_zero_is_not_a_failure);
     RUN_TEST(test_primal_bland_breaks_a_degenerate_tie_on_the_lowest_index);
     RUN_TEST(test_primal_without_bland_a_tie_keeps_the_first_row);
     RUN_TEST(test_primal_bland_does_not_let_the_index_beat_the_step);

@@ -1,0 +1,45 @@
+# The tests D224 adds, and the proof each fails when its contract breaks.
+# tree ff62a46 plus the working tree's src/ and tests/.
+
+## live
+  failures: 0
+  suite line: 101 Tests 0 Failures 4 Ignored 
+## ulp
+  bland finds its minimum through a window instead of exactly
+  failures: 1
+    test_bland_compares_the_minimum_exactly_at_one_ulp
+  -> the named test failed, as required
+  suite line: 101 Tests 1 Failures 4 Ignored 
+## nvar
+  nonbasic_build always touches one word
+  failures: 2
+    test_nonbasic_build_on_no_variables_counts_zero
+    test_nonbasic_expand_handles_the_degenerate_counts
+  -> the named test failed, as required
+  suite line: 101 Tests 2 Failures 4 Ignored 
+## allo
+  jm_alloc_array(0) returns null, patched in src/alloc.c
+  failures: 4
+    test_a_row_no_column_reaches
+    test_a_row_no_column_reaches_but_that_holds_anyway
+    test_a_warm_basis_of_empty_columns_factors_and_is_infeasible
+    test_alloc_array_of_zero_is_not_a_failure
+  -> the named test failed, as required
+  suite line: 101 Tests 4 Failures 4 Ignored 
+## resi
+  the 2^996 overflow guard can no longer fire
+  failures: 0
+  suite line: 30 Tests 0 Failures 0 Ignored 
+## resi2
+  the NaN fallback is gone
+  failures: 1
+    test_the_objective_is_finite_at_the_top_of_the_range
+  suite line: 30 Tests 1 Failures 0 Ignored 
+## resi3
+  the 2^996 overflow guard can no longer fire
+  the NaN fallback is gone
+  failures: 2
+    test_the_objective_is_finite_at_the_top_of_the_range
+    test_two_product_residue_gives_up_rather_than_overflow
+  -> the named test failed, as required
+  suite line: 30 Tests 2 Failures 0 Ignored 
