@@ -5,15 +5,22 @@ says why closed questions closed, `CHANGELOG.md` says what landed, `bench/`
 says what it costs. This file says what is next. When something lands, its
 line leaves this file in the same commit.
 
-## Where the last session stopped — 2026-08-28
+## Where the last session stopped — 2026-08-29
 
 ### → FRESH CONTEXT: READ THIS PARAGRAPH AND THEN §0
 
+**The phase-1 stop rule and the whole skills debt landed on 2026-08-29** —
+D218, `bench/measurements/02-133/`. What is next is the assert debt, and
+`model.c` is its file. Ask the remote for the pushed count rather than
+trusting one written here, and push from the WINDOWS side: the remote is an
+SSH alias that lives in the Windows `~/.ssh/config` only.
+
 **Section 0 stage 2 landed on 2026-08-27** — D212, `da16a20`, the Harris
-two-pass ratio test in primal form. Everything through `aea0e26` is pushed.
-Ask the remote for the count rather than trusting one written here, and push
-from the WINDOWS side: the remote is an SSH alias that lives in the Windows
-`~/.ssh/config` only.
+two-pass ratio test in primal form.
+
+**02-126's trajectory for `pilot87` is stale and reads as current.** It says
+the objective turns at iteration 341234. That is the tree before D212. At
+HEAD it rises 633x at iteration 19532 and never recovers (D218).
 
 **Stage 8 and all three of its follow-ups landed on 2026-08-27** — seven
 commits, `9ef21ef` through `92e767d`.
@@ -44,26 +51,45 @@ what long runs do. That is a phase-1 defect, not a floor defect.
 
 **If you were told "continue", this is the order:**
 
-1. **The phase-1 stop rule, reopened on 2026-08-28** — D211 refused it
-   because `pilot-ja` rose 25.0449 and still finished; D212 removed that rise
-   and nothing noticed for a day, until `make refusals` ran (D215,
-   `bench/measurements/02-130/`). The window is now about nine orders wide,
-   between 9.36752e-10 on the solves that finish and 8.07e+11 on `pilot87`.
-   **What is missing is the threshold**, and a threshold is a constant that
-   needs a sweep on both sides. `bench/measurements/02-126/relrise.sh` is the
-   instrument it is swept against. Full loop; `numerics-reviewer` on the diff.
-2. **The assert debt** below (`bench/measurements/02-121/`), one file per
-   commit, full loop each: contracts that survived the purge as prose.
-3. The skills debt (two scripts), then section 0's headline decision.
-   **`geomean.py`'s half of that debt closed on 2026-08-29**: `--side
-   dual|primal` reads either half of `bench/results/primal.txt`'s
-   `dual=iters/work primal=iters/work` pair, and the old exit-2 message names
-   the cause and the flag instead of only the symptom.
+0. **`make test` is green here and red in a fresh checkout**, found on
+   2026-08-29 by running the gate in a worktree rather than in the main tree.
+   `tools/record-check.py:177` tests a cited measurement directory with
+   `os.path.isdir`, which is disk existence and not repository membership.
+   Two lines of this file cite `bench/measurements/02-31/`, which is untracked
+   and therefore absent from any clone, so the check passes on this machine
+   only because the stray directory happens to sit beside the repository.
+   `bench/measurements/README.md` cites it too. Two ways to close it and the
+   choice is the maintainer's: track the directory, which reverses the
+   deliberate call in `7ac820f`, or stop citing a path the repository does not
+   contain. **Do not fix it by loosening the check** — the check is right and
+   the citation is what is wrong.
+1. **The assert debt** (`bench/measurements/02-121/`), one file per commit,
+   full loop each: contracts that survived the purge as prose. `lu.c`'s eight
+   asserts landed at D216 and its tests are still open; `model.c` is next, and
+   its report also names a real defect to fix in the same commit —
+   `jaos_set_coefficient` sets the three matrix flags inline instead of
+   calling `model_matrix_is_stale`, so the two lists can drift.
+2. Section 0's headline decision.
 
-Each of these is the full loop for solver internals. `make refusals` after 1
-and 2, because both touch the ratio tests and the re-entry. **It exits 1 today**
-and will until item 1 is resolved: D211's line has left `bench/refusals.txt`,
-so the FLIPPED is gone, but the question it names is open.
+**The phase-1 stop rule closed on 2026-08-29** — D218,
+`bench/measurements/02-133/`. `PHASE1_RISE_MAX = 1.0`: phase 1 publishes
+`NUMERICAL_ERROR` when its total infeasibility doubles above its own running
+minimum. Censused over all 110 forced-primal solves, every threshold from
+1e-5 to 1e+2 stops `pilot87` at the same iteration and nothing else at all,
+so the value sits on a plateau eight decades wide. What settled it is not the
+window: `pilot87`'s running minimum last improved at phase-1 iteration 19532
+of 381886, so the 362354 iterations the rule removes lowered it by nothing.
+
+**The skills debt is closed** (D206's two scripts, plus the `geomean.py` half
+found later): `.claude/skills/jaos-measure/scripts/time_ratio.sh` is the `-j 1`
+alternating-minimum time ratio with the 6.27% host floor printed beside it,
+`.claude/skills/jaos-testing/scripts/reference_diff.sh` is the
+`-DJAOS_NO_PRESOLVE` comparison with the `presolve=` canary as a hard STOP,
+and `geomean.py --side dual|primal` reads either half of
+`bench/results/primal.txt`'s pair.
+
+Item 1 is the full loop for solver internals, `numerics-reviewer` included.
+`make refusals` after it, because the assert debt touches the LU kernels.
 
 **Section 0 stage 6 landed on 2026-08-28** — D214,
 `bench/measurements/02-129/`. `can_move` reads `breached(s, v)`, a rate

@@ -225,6 +225,7 @@ and you have the argument. Jump to the entry for the numbers behind it.
 - **[D215](#d215--d211s-refusal-expired-at-d212-and-the-script-that-proves-it-measured-the-main-tree-from-inside-three-separate-worktrees)** — D211's refusal expired at D212, and the script that proves it measured the main tree from inside three separate worktrees
 - **[D216](#d216--eight-of-lucs-prose-contracts-are-asserts-now-and-a-control-proves-they-catch-the-defect-they-exist-for)** — Eight of `lu.c`'s prose contracts are asserts now, and a control proves they catch the defect they exist for
 - **[D217](#d217--every-measurement-script-derives-the-repository-root-it-was-48-scripts-and-not-28-and-the-check-that-proves-it-said-stop-twice-for-the-right-reason)** — Every measurement script derives the repository root, it was 48 scripts and not 28, and the check that proves it said STOP twice for the right reason
+- **[D218](#d218--the-primal-phase-1-stops-when-its-own-infeasibility-doubles-and-the-one-instance-it-stops-had-stopped-improving-362354-iterations-earlier)** — The primal phase 1 stops when its own infeasibility doubles, and the one instance it stops had stopped improving 362354 iterations earlier
 
 ---
 
@@ -16619,3 +16620,210 @@ scratchpad belonging to a session that ended, which is a dead path and not the
 repository root.
 
 `bench/measurements/02-132/`.
+
+## D218 — The primal phase 1 stops when its own infeasibility doubles, and the one instance it stops had stopped improving 362354 iterations earlier
+
+D211 refused this rule. Its measurement: over the 94 forced-primal solves,
+`pilot-ja` rose **25.0449** above its running minimum at iteration 2091, spent
+316 iterations more than double it, came back, and solved to the dual's
+answer. A threshold with `pilot-ja` on one side and `pilot87` on the other is
+a constant fitted to one instance per side, which is how this project loses
+weeks.
+
+D212's two-pass ratio test in primal form removed that rise. `pilot-ja` rises
+3.3348e-12 now, and `make refusals` said so on 2026-08-28 (D215,
+`bench/measurements/02-130/`). The question came back to `TODO.md` as item 1
+with the constant still missing.
+
+## The question
+
+Where does the threshold go, and does stopping there throw away progress that
+was still coming? Both halves have to be answered, because the first one alone
+is what D211 already refused: a window is not a reason, it is only room.
+
+## The measurement, and why one campaign is the whole sweep
+
+The rule is a per-iteration gate on one quantity, so an instance either never
+reaches the threshold — and then nothing about it can change — or it reaches
+it first at one iteration and stops there. One instrumented run that records
+the first crossing of every decade therefore predicts every setting at once
+(`bench/measurements/02-133/rise-sweep.sh`; the method is D151's).
+
+Instances crossing each decade, over the standard 94:
+
+| decade | instances that reach it |
+|---|---|
+| 1e-12 | `dfl001` `pilot` `pilot-ja` `pilot87` `woodw` |
+| 1e-10 | `dfl001` `pilot` `pilot87` `woodw` |
+| 1e-9, 1e-8 | `pilot87` `woodw` |
+| **1e-7 through 1e+11** | **`pilot87`** |
+| above 8.06882e+11 | none |
+
+The nearest instance below is `woodw` at **4.26896e-08**, and the largest rise
+on any solve that ends `ok` is `pilot`'s **9.36752e-10**. So the band in which
+only the diverging instance stops is eighteen decades wide.
+
+**The 16 Kennington instances vote on the low side and none of them reaches
+even 1e-12.** The largest rise on the whole set is `cre-b`'s 3.75749e-13, and
+twelve of the sixteen never rise at all. Five of them overrun the campaign's
+budget and the rule would stop none of them, which is the distinction worth
+having: this is a rule about a basis going bad, not a second work limit.
+
+Inside it there is a plateau, and the plateau is what chooses. `pilot87`'s
+first crossing is iteration 9977 at 1e-7, 13991 at 1e-6, and **19532 for every
+threshold from 1e-5 to 1e+2** — one rise of 633.034 with nothing between
+2.04558e-06 and it. Every setting on that plateau produces the identical
+campaign. The measurement does not choose inside it, the same shape D213 found
+for the Harris width.
+
+**`PHASE1_RISE_MAX = 1.0` is the plateau's middle, and it is a sentence rather
+than a fitted number: phase 1's total infeasibility may double.** It stands
+2.3e+7 times above `woodw`, which must not stop, and 633 times below
+`pilot87`'s own crossing value, which must.
+
+## What settles it — the reading D211 did not have
+
+`pilot87` runs **381886** phase-1 iterations. Its running minimum last improved
+at phase-1 iteration **19532**, which is the iteration where it crosses 1.0.
+The remaining **362354** iterations lowered it by nothing at all.
+
+Every other instance in both sets has its last improvement on its last phase-1
+iteration, `dfl001` included: 125807 of 125807, still descending when the
+bench harness abandoned it at ten times the dual's work. `dfl001` is the
+control the rule must not touch, and at any threshold above 3.30714e-10 it
+does not. Over 110 forced-primal solves, `pilot87` is the only one whose
+phase 1 ever stopped improving before it stopped running.
+
+So the rule stops one solve, at the exact iteration after which it never
+improved again, and turns a bench-harness cutoff into a published refusal that
+says why. Measured on the campaign: `pilot87` ends at **19532 iterations and
+4234464248 work units**, against 381886 and 179611375417 — **2.36% of the
+work**, a factor of 42.4. The census predicted 4233028431 at that crossing;
+the difference is the one refactorization the retry below adds.
+
+The record line carries the sentence, which is half the point of the branch:
+
+> the primal phase 1's total infeasibility stands at 1.71098e+15 at iteration
+> 19532, 1267.85 times its own best of 1.34951e+12, on a freshly computed
+> point; the basis it is pivoting on is too ill-conditioned for another pivot
+> to repair the start
+
+**1267.85 and not the 633.034 the census read.** Recomputing the point from a
+fresh factorization did not soften the rise, it doubled it — which is 02-126's
+mechanism from the other side: the rise IS what a recomputation from a nearly
+singular basis produces.
+
+## The paid half, and the low side turns out to be a real loss
+
+The free sweep is an argument until a campaign checks it, so
+`run-rise-sweep-campaign.sh` names its prediction per setting and then runs
+the forced-primal campaign at each, every setting in its own worktree with its
+own `make clean` and its own binary (D82).
+
+| setting | ok | disagree | overrun | which instances moved |
+|---|---|---|---|---|
+| pre-rule | 61 | 29 | 4 | — |
+| `1e-12` | **60** | 32 | 2 | `dfl001` `pilot` `pilot87` |
+| **`1.0`** | **61** | 30 | 3 | `pilot87` |
+| `1e+12` | 61 | 29 | 4 | none, and the record identical byte for byte |
+
+**All three predictions held.** The `1e+12` arm is the strongest of them: above
+every rise ever measured, the branch is inert and the record is the pre-rule
+record.
+
+**The low side is now a measured loss and not a projection.** At `1e-12`
+`pilot` goes from `ok` to disagreeing: the rule takes an answer off a solve
+that was going to finish. That is the failure a threshold too low produces,
+observed rather than argued, and it bounds the constant from below the way
+`pilot87` bounds it from above.
+
+The `1e-12` arm also confirms what the review's first fix was for. Five
+instances cross `1e-12`, and only three stop: `pilot-ja` and `woodw` cross and
+then survive, because their rise does not repeat on a recomputed point. A rule
+that refused on first sighting would have stopped both.
+
+## What was refuted
+
+The 02-126 reading that `pilot87` turns at iteration 341234 describes the tree
+before D212. At HEAD its objective rises 633x at 19532 and never recovers;
+the turn moved with the ratio test, which is D212's own headline seen from the
+other side. Anyone re-reading 02-126 for a current trajectory gets the wrong
+one.
+
+## What the review changed, before any campaign ran
+
+`numerics-reviewer` on the diff found four things, none of them against the
+threshold. Three are fixed in the same commit and the fourth is measured:
+
+- **The refusal was taken on a carried point.** Every other "this cannot
+  happen under exact arithmetic" refusal in `run_primal_phase1` first
+  rebuilds the point and retries once, the D20 shape, and refuses only if
+  the fresh point still shows it. `pivot` moves `xb` incrementally, so a
+  rise read off carried values can be the drift rather than the basis — and
+  the sentence this branch publishes is a claim about the basis. **Fixed**:
+  the branch now mirrors the two exits below it. It terminates because the
+  retry sets `s->verified` and no pivot happens before the next test.
+- **`total == +inf` disabled the rule for the rest of the solve.** `xb[i]`
+  at `-inf` against a finite bound makes `total` infinite; `inf > inf` is
+  false, so the branch did not fire, and `inf < best_total` is false too, so
+  `best_total` stayed `HUGE_VAL` and every later infinite total repeated
+  both. The rule was off in the most extreme version of the case it exists
+  for. **Fixed**: `!isfinite(total)` is tested apart, in front of the ratio.
+  Rewriting the ratio does not fix it — `HUGE_VAL * 2.0` is `inf` and
+  `inf <= inf` is true.
+- **The recorded justification called the ratio dimensionless.** It is not.
+  The solve runs on a Curtis-Reid scaled copy, each violated variable
+  carries its own factor, and the ratio is invariant only while the violated
+  set is unchanged. **Fixed in `docs/tolerances.md`**, which now also says
+  the census was taken with scaling on and that `JM_SCALE_NONE` is
+  uncovered.
+- **A purely relative test with no floor under `best_total`.** Raised as a
+  suspicion rather than a defect: if `total` can descend to a few ulps of
+  the traffic it is summed from, "it doubled" is a statement about
+  cancellation and not about the basis. **Measured rather than guessed at**,
+  the same question D209 asked of `PIVOT_MIN`: `rise-sweep.sh` records, per
+  instance, the smallest value `total / (DBL_EPSILON * traffic)` ever
+  reaches. Over all 110 forced-primal solves the smallest is `wood1p`'s
+  **7.14466e+10**, at a total of 1.07876e-04 — nearly eleven decades above
+  the one ulp where the objection begins. **No floor is added**, and the
+  reason is a reading rather than an argument: a constant with no measured
+  side is what this project refuses. If a model population ever brings that
+  figure within two decades of 1, the floor is
+  `best_total > DBL_EPSILON * traffic`, and `primal_phase1_costs` already
+  walks the terms it would need.
+
+## What it does not touch, and the proof
+
+`run_primal` is reached only through `cfg.force_primal`, a development switch
+and not an option (D64, D188). No shipped solve reaches this branch, so the
+three gate sets cannot move and the campaign that matters is the forced-primal
+one. Run anyway, on the candidate, in a worktree: `gate: PASS` and
+`0 regressed, 0 improved, 0 new` on all three, and **all three records byte
+for byte identical to the committed ones** — 110 solution digests and 29
+infeasibility verdicts unmoved over 139 instances. `make sanitize` exits 0.
+
+**`SPECS.md`'s primal row was wrong twice, and the second one is the
+instructive kind.** It said "61 of 94 agree, 5 overrun, 29 disagree", which is
+95 instances; the campaign says 61 / 3 / 30 at this tree and said 61 / 4 / 29
+before it, so both the count and the arithmetic were wrong. It also restated
+"60.5% of that campaign's iterations belong to the dual's settling re-entry",
+a figure the record itself had already moved to 43.3% before this change
+touched anything, and which this change moves to 62.7% — because `pilot87`
+alone was 362354 of the phase-1 iterations. A percentage restated in a status
+table drifts with every campaign. The row cites `bench/results/primal.txt`'s
+own `iterations by method` line now instead of copying the number out of it,
+which is the rule about a measured figure having one owner.
+
+**Running the gate in a worktree rather than in the main tree found a defect
+in the record check itself**, and it is `TODO.md`'s item 0 now.
+`tools/record-check.py:177` tests a cited measurement directory with
+`os.path.isdir`, so `make test` passes here and fails in any clone: two lines
+of `TODO.md` and one of `bench/measurements/README.md` cite
+`bench/measurements/02-31/`, which is untracked. The check is right; the
+citation is what is wrong.
+
+## What is left open
+
+Nothing of the threshold. `pilot87`'s phase 1 still diverges; the rule reports
+it instead of grinding, and 02-126's answer one — the wear from 582 pivots
+below 1e-4 — is what would fix it.

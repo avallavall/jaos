@@ -1,0 +1,41 @@
+# tree: b9fd328 plus a JAOS_DIAG patch, outside the repo
+# set: kennington (-m bench/netlib-kennington.manifest -d bench/instances-kennington)
+# RRS: one per instance. RRX: one per decade the instance crosses,
+# at the FIRST crossing. best_at == best_final means every iteration
+# after that crossing improved the running minimum by nothing.
+
+RRS cre-a p1_iters=1972 max_rel=4.78388e-16 at_iter=1495 p1_work=83474056 total_work=168225248 last_gain_p1=1972 last_gain_work=83474056 best_final=0 min_ulps=5.3099e+12 min_ulps_total=0.339162
+RRS cre-b p1_iters=11845 max_rel=3.75749e-13 at_iter=11635 p1_work=2944354100 total_work=3401802273 last_gain_p1=11845 last_gain_work=2944354100 best_final=0 min_ulps=7.76677e+13 min_ulps_total=76.2984
+RRS cre-c p1_iters=2682 max_rel=4.29639e-14 at_iter=2665 p1_work=96791180 total_work=172809444 last_gain_p1=2682 last_gain_work=96791180 best_final=0 min_ulps=1.32957e+13 min_ulps_total=0.251674
+RRS cre-d p1_iters=12200 max_rel=5.59056e-15 at_iter=10595 p1_work=2376851171 total_work=2377101369 last_gain_p1=12200 last_gain_work=2376851171 best_final=1245.36 min_ulps=1.22161e+15 min_ulps_total=2502.44
+RRS ken-07 p1_iters=2359 max_rel=0 at_iter=-1 p1_work=44261998 total_work=44280696 last_gain_p1=2359 last_gain_work=44261998 best_final=1.03746e+06 min_ulps=4.43286e+15 min_ulps_total=1.05837e+06
+RRS ken-11 p1_iters=12146 max_rel=0 at_iter=-1 p1_work=1455164508 total_work=1455279197 last_gain_p1=12143 last_gain_work=1454782632 best_final=7.48054e+07 min_ulps=4.48825e+15 min_ulps_total=7.63143e+07
+RRS ken-13 p1_iters=28484 max_rel=0 at_iter=-1 p1_work=7470456742 total_work=7470702088 last_gain_p1=28484 last_gain_work=7470456742 best_final=2.89738e+08 min_ulps=4.49125e+15 min_ulps_total=3.27437e+08
+RRS ken-18 p1_iters=84574 max_rel=0 at_iter=-1 p1_work=78276913323 total_work=78277771659 last_gain_p1=84574 last_gain_work=78276913323 best_final=5.07036e+09 min_ulps=4.4988e+15 min_ulps_total=5.07321e+09
+RRS osa-07 p1_iters=555 max_rel=0 at_iter=-1 p1_work=86622316 total_work=128358747 last_gain_p1=555 last_gain_work=86622316 best_final=0 min_ulps=4.31192e+12 min_ulps_total=0.352
+RRS osa-14 p1_iters=1185 max_rel=0 at_iter=-1 p1_work=407377534 total_work=557952791 last_gain_p1=1185 last_gain_work=407377534 best_final=0 min_ulps=1.01751e+13 min_ulps_total=1.596
+RRS osa-30 p1_iters=2271 max_rel=0 at_iter=-1 p1_work=1485690929 total_work=2014762969 last_gain_p1=2271 last_gain_work=1485690929 best_final=0 min_ulps=1.61682e+12 min_ulps_total=0.446445
+RRS osa-60 p1_iters=4265 max_rel=0 at_iter=-1 p1_work=6317308014 total_work=7527464106 last_gain_p1=4265 last_gain_work=6317308014 best_final=0 min_ulps=7.97242e+12 min_ulps_total=2.21595
+RRS pds-02 p1_iters=12 max_rel=0 at_iter=-1 p1_work=516928 total_work=11410545 last_gain_p1=12 last_gain_work=516928 best_final=0 min_ulps=4.5036e+15 min_ulps_total=532980
+RRS pds-06 p1_iters=12 max_rel=0 at_iter=-1 p1_work=2007061 total_work=204354081 last_gain_p1=12 last_gain_work=2007061 best_final=0 min_ulps=4.5036e+15 min_ulps_total=532980
+RRS pds-10 p1_iters=12 max_rel=0 at_iter=-1 p1_work=3433120 total_work=636386088 last_gain_p1=12 last_gain_work=3433120 best_final=0 min_ulps=4.5036e+15 min_ulps_total=532980
+RRS pds-20 p1_iters=6150 max_rel=0 at_iter=-1 p1_work=3521330092 total_work=49207827012 last_gain_p1=6150 last_gain_work=3521330092 best_final=0 min_ulps=3.80139e+15 min_ulps_total=6756
+
+# verdicts, from the campaign record
+VERDICT cre-a DISAGREE
+VERDICT cre-b DISAGREE
+VERDICT cre-c DISAGREE
+VERDICT cre-d overrun
+VERDICT ken-07 overrun
+VERDICT ken-11 overrun
+VERDICT ken-13 overrun
+VERDICT ken-18 overrun
+VERDICT osa-07 DISAGREE
+VERDICT osa-14 DISAGREE
+VERDICT osa-30 DISAGREE
+VERDICT osa-60 DISAGREE
+VERDICT pds-02 ok
+VERDICT pds-06 ok
+VERDICT pds-10 ok
+VERDICT pds-20 DISAGREE
+# control: 24 record lines written

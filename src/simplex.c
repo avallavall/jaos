@@ -106,6 +106,12 @@ constexpr int64_t ITER_SANITY_FACTOR = 200;
  * a multiple of `nrow + ncol + 1` (D17). */
 constexpr int64_t STALL_FACTOR = 10;
 
+/* How far the primal phase 1's total infeasibility may rise above its own
+ * running minimum before the basis is called unrepairable, as a fraction of
+ * that minimum. 1.0 is "it may double". The quantity is a sum of bound
+ * violations and cannot rise at all under an exact pivot (D218). */
+constexpr double PHASE1_RISE_MAX = 1.0;
+
 /* How far above the rounding of its own dot product a reduced cost has to
  * stand before the re-entry will act on it (D23). */
 constexpr double NOISE_MARGIN = 1e5;
@@ -2952,6 +2958,55 @@ static jaos_status run_primal_phase1(sx *s, jaos_solve_status *out,
             s->infeas_best = total;   /* what a progress callback reads */
             s->last_gain = s->iters;
             s->bland = false;
+        }
+
+        /* `total` is a sum of bound violations and cannot rise under an
+         * exact pivot. It rises when the basis has gone near singular and
+         * `refresh` recomputes `xb` from it, which is what a run of pivots
+         * on tiny elements leads to (D211). Past `PHASE1_RISE_MAX` no
+         * further pivot on that basis has ever lowered it again (D218).
+         * A non-finite total is the same failure at its extreme, and is
+         * tested apart because `inf > inf` is false and the ratio below
+         * would let it through for the rest of the solve.
+         *
+         * The message is the point of the branch as much as the exit: a
+         * soft outcome with no sentence is what D205 removed.
+         *
+         * A ratio and not `best_total * (1 + max)`: `best_total` is
+         * `HUGE_VAL` until the first total lands, and a product would
+         * overflow to infinity and silently never fire. The `>` in front
+         * short-circuits it on every descending iteration, which is nearly
+         * all of them, so the division is not on the hot path. */
+        if (!isfinite(total) ||
+            (total > best_total &&
+             total / best_total > 1.0 + PHASE1_RISE_MAX)) {
+            /* Refuse on a recomputed point and never on a carried one, the
+             * same D20 shape as the two exits below and as `alpha_unusable`.
+             * `pivot` moves `xb` incrementally, so a rise read off carried
+             * values can be the drift rather than the basis, and the
+             * sentence this branch publishes is a claim about the basis. */
+            if (!s->verified) {
+                bool okv = false;
+                const jaos_status stv = refresh(s, &okv, true);
+                if (stv != JAOS_OK)
+                    return stv;
+                if (!okv) {
+                    *out = JAOS_SOLVE_NUMERICAL_ERROR;
+                    return JAOS_OK;
+                }
+                s->verified = true;
+                continue;
+            }
+            jm_set_err(s->m,
+                       "the primal phase 1's total infeasibility stands at "
+                       "%.6g at iteration %lld, %.6g times its own best of "
+                       "%.6g, on a freshly computed point; the basis it is "
+                       "pivoting on is too ill-conditioned for another pivot "
+                       "to repair the start",
+                       total, (long long)s->iters, total / best_total,
+                       best_total);
+            *out = JAOS_SOLVE_NUMERICAL_ERROR;
+            return JAOS_OK;
         }
 
         /* Decided once per iteration, before either choice is made. */

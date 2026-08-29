@@ -1,0 +1,31 @@
+# PHASE1_RISE_MAX swept over three settings, forced-primal campaign at each.
+# The rule arms carry the WORKING TREE's src/simplex.c on top of
+# b9fd328; the pre-rule arm is b9fd328,
+# found as the newest commit whose simplex.c does not define the constant.
+# Each setting has its own worktree, its own make clean and its own binary.
+
+## base  (ref b9fd328, PHASE1_RISE_MAX=as committed)
+  DISAGREE 29
+  ok 61
+  overrun 4
+## lo  (ref b9fd328, PHASE1_RISE_MAX=1e-12)
+  DISAGREE 32
+  ok 60
+  overrun 2
+## ship  (ref b9fd328, PHASE1_RISE_MAX=1.0)
+  DISAGREE 30
+  ok 61
+  overrun 3
+## hi  (ref b9fd328, PHASE1_RISE_MAX=1e+12)
+  DISAGREE 29
+  ok 61
+  overrun 4
+
+## which instances the rule stopped, per setting
+# against the pre-rule tree; an instance listed here changed verdict.
+lo: dfl001 pilot pilot87 
+ship: pilot87 
+hi: none
+
+## the hi control: every record line identical to the pre-rule tree?
+IDENTICAL -- the branch is inert when its constant is out of reach

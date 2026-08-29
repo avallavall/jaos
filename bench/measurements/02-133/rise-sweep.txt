@@ -1,0 +1,233 @@
+# tree: b9fd328 plus a JAOS_DIAG patch, outside the repo
+# set: standard
+# RRS: one per instance. RRX: one per decade the instance crosses,
+# at the FIRST crossing. best_at == best_final means every iteration
+# after that crossing improved the running minimum by nothing.
+
+RRS 25fv47 p1_iters=5369 max_rel=4.16501e-16 at_iter=2410 p1_work=248212708 total_work=1094399686 last_gain_p1=5369 last_gain_work=248212708 best_final=0 min_ulps=5.62314e+13 min_ulps_total=0.234306
+RRS 80bau3b p1_iters=2417 max_rel=0 at_iter=-1 p1_work=109684162 total_work=676110220 last_gain_p1=2417 last_gain_work=109684162 best_final=0 min_ulps=4.5036e+15 min_ulps_total=3.04627e+11
+RRS adlittle p1_iters=90 max_rel=0 at_iter=-1 p1_work=207222 total_work=380492 last_gain_p1=90 last_gain_work=207222 best_final=0 min_ulps=1.07435e+14 min_ulps_total=12.4977
+RRS afiro p1_iters=19 max_rel=0 at_iter=-1 p1_work=11814 total_work=25540 last_gain_p1=19 last_gain_work=11814 best_final=0 min_ulps=4.5036e+15 min_ulps_total=4.4e+10
+RRS agg p1_iters=399 max_rel=0 at_iter=-1 p1_work=2666908 total_work=2746165 last_gain_p1=399 last_gain_work=2666908 best_final=0 min_ulps=9.26961e+14 min_ulps_total=1556.58
+RRS agg2 p1_iters=729 max_rel=0 at_iter=-1 p1_work=6980136 total_work=8462954 last_gain_p1=729 last_gain_work=6980136 best_final=0 min_ulps=2.12179e+15 min_ulps_total=45535.5
+RRS agg3 p1_iters=691 max_rel=0 at_iter=-1 p1_work=6784569 total_work=8984855 last_gain_p1=691 last_gain_work=6784569 best_final=0 min_ulps=1.23624e+15 min_ulps_total=33860
+RRS bandm p1_iters=838 max_rel=0 at_iter=-1 p1_work=7949446 total_work=11787006 last_gain_p1=838 last_gain_work=7949446 best_final=0 min_ulps=4.29614e+14 min_ulps_total=0.389544
+RRS beaconfd p1_iters=74 max_rel=1.75782e-16 at_iter=65 p1_work=214771 total_work=289107 last_gain_p1=74 last_gain_work=214771 best_final=0 min_ulps=4.5036e+15 min_ulps_total=187.187
+RRS blend p1_iters=112 max_rel=0 at_iter=-1 p1_work=490975 total_work=780290 last_gain_p1=112 last_gain_work=490975 best_final=0 min_ulps=4.5036e+15 min_ulps_total=3e+10
+RRS bnl1 p1_iters=1742 max_rel=0 at_iter=-1 p1_work=33105381 total_work=48664063 last_gain_p1=1742 last_gain_work=33105381 best_final=0 min_ulps=4.6111e+12 min_ulps_total=0.00819935
+RRS bnl2 p1_iters=3667 max_rel=1.36733e-15 at_iter=3160 p1_work=175080679 total_work=216705795 last_gain_p1=3667 last_gain_work=175080679 best_final=0 min_ulps=1.37897e+13 min_ulps_total=0.115998
+RRS boeing1 p1_iters=879 max_rel=8.09728e-16 at_iter=750 p1_work=6824963 total_work=10140981 last_gain_p1=879 last_gain_work=6824963 best_final=0 min_ulps=1.61807e+15 min_ulps_total=125.889
+RRS boeing2 p1_iters=304 max_rel=0 at_iter=-1 p1_work=1012717 total_work=1291880 last_gain_p1=304 last_gain_work=1012717 best_final=0 min_ulps=5.44279e+14 min_ulps_total=12.2346
+RRS bore3d p1_iters=135 max_rel=0 at_iter=-1 p1_work=812784 total_work=893779 last_gain_p1=135 last_gain_work=812784 best_final=0 min_ulps=7.35976e+14 min_ulps_total=5.03783
+RRS brandy p1_iters=286 max_rel=0 at_iter=-1 p1_work=2513765 total_work=4875735 last_gain_p1=286 last_gain_work=2513765 best_final=0 min_ulps=7.39826e+14 min_ulps_total=204.042
+RRS capri p1_iters=405 max_rel=0 at_iter=-1 p1_work=2238114 total_work=2844028 last_gain_p1=405 last_gain_work=2238114 best_final=0 min_ulps=1.40534e+15 min_ulps_total=275.356
+RRS cycle p1_iters=556 max_rel=0 at_iter=-1 p1_work=13905408 total_work=55679947 last_gain_p1=556 last_gain_work=13905408 best_final=0 min_ulps=4.5036e+15 min_ulps_total=3.19387e+13
+RRS czprob p1_iters=2152 max_rel=0 at_iter=-1 p1_work=39220770 total_work=74521901 last_gain_p1=2152 last_gain_work=39220770 best_final=0 min_ulps=4.70974e+14 min_ulps_total=219.464
+RRS d2q06c p1_iters=8868 max_rel=1.93071e-16 at_iter=5349 p1_work=901372092 total_work=22796267334 last_gain_p1=8868 last_gain_work=901372092 best_final=0 min_ulps=4.5036e+15 min_ulps_total=3.4375e+09
+RRS d6cube p1_iters=2691 max_rel=4.85481e-13 at_iter=2340 p1_work=243490263 total_work=349911616 last_gain_p1=2691 last_gain_work=243490263 best_final=0 min_ulps=1.9884e+12 min_ulps_total=0.00176527
+RRS degen2 p1_iters=1874 max_rel=9.53674e-16 at_iter=1696 p1_work=28149896 total_work=50035019 last_gain_p1=1874 last_gain_work=28149896 best_final=0 min_ulps=2.07826e+12 min_ulps_total=0.0175439
+RRS degen3 p1_iters=13813 max_rel=3.98055e-16 at_iter=9377 p1_work=779465894 total_work=779536265 last_gain_p1=13809 last_gain_work=779183141 best_final=2.59e+12 min_ulps=4.5036e+15 min_ulps_total=2.59e+12
+RRS dfl001 p1_iters=125807 max_rel=3.30714e-10 at_iter=73580 p1_work=29121666569 total_work=29121869011 last_gain_p1=125807 last_gain_work=29121666569 best_final=6534.54 min_ulps=4.04647e+15 min_ulps_total=7260.41
+RRS e226 p1_iters=435 max_rel=0 at_iter=-1 p1_work=3835936 total_work=8919411 last_gain_p1=435 last_gain_work=3835936 best_final=0 min_ulps=4.5036e+15 min_ulps_total=2.84097e+11
+RRS etamacro p1_iters=500 max_rel=2.84227e-16 at_iter=165 p1_work=3609379 total_work=9574690 last_gain_p1=500 last_gain_work=3609379 best_final=0 min_ulps=4.68573e+14 min_ulps_total=1.46116
+RRS fffff800 p1_iters=778 max_rel=2.39977e-16 at_iter=260 p1_work=11211825 total_work=14137071 last_gain_p1=778 last_gain_work=11211825 best_final=0 min_ulps=4.3001e+14 min_ulps_total=0.753057
+RRS finnis p1_iters=281 max_rel=0 at_iter=-1 p1_work=2011685 total_work=4833534 last_gain_p1=281 last_gain_work=2011685 best_final=0 min_ulps=1.84402e+15 min_ulps_total=8732.57
+RRS fit1d p1_iters=619 max_rel=2.80709e-16 at_iter=399 p1_work=12333436 total_work=16064551 last_gain_p1=619 last_gain_work=12333436 best_final=0 min_ulps=4.5036e+15 min_ulps_total=8335.26
+RRS fit1p p1_iters=1297 max_rel=0 at_iter=-1 p1_work=58386619 total_work=132368513 last_gain_p1=1297 last_gain_work=58386619 best_final=0 min_ulps=2.78719e+14 min_ulps_total=15.2988
+RRS fit2d p1_iters=2331 max_rel=0 at_iter=-1 p1_work=407042065 total_work=648449400 last_gain_p1=2331 last_gain_work=407042065 best_final=0 min_ulps=4.5036e+15 min_ulps_total=40401.4
+RRS fit2p p1_iters=11703 max_rel=1.45336e-16 at_iter=325 p1_work=2694790776 total_work=3991388486 last_gain_p1=11703 last_gain_work=2694790776 best_final=0 min_ulps=2.80392e+14 min_ulps_total=205.143
+RRS forplan p1_iters=230 max_rel=0 at_iter=-1 p1_work=2870954 total_work=5276579 last_gain_p1=230 last_gain_work=2870954 best_final=0 min_ulps=4.50356e+15 min_ulps_total=7.30759e+10
+RRS ganges p1_iters=1661 max_rel=2.6006e-16 at_iter=353 p1_work=32262432 total_work=33401356 last_gain_p1=1661 last_gain_work=32262432 best_final=0 min_ulps=1.41668e+15 min_ulps_total=124413
+RRS gfrd-pnc p1_iters=436 max_rel=0 at_iter=-1 p1_work=3188387 total_work=7168701 last_gain_p1=436 last_gain_work=3188387 best_final=0 min_ulps=2.94664e+12 min_ulps_total=91.54
+RRS greenbea p1_iters=5654 max_rel=5.08626e-16 at_iter=4168 p1_work=452294491 total_work=2252467257 last_gain_p1=5654 last_gain_work=452294491 best_final=0 min_ulps=1.14623e+15 min_ulps_total=218.292
+RRS greenbeb p1_iters=5106 max_rel=1.47084e-14 at_iter=4988 p1_work=393341983 total_work=4268542587 last_gain_p1=5106 last_gain_work=393341983 best_final=0 min_ulps=3.44386e+15 min_ulps_total=1172.9
+RRS grow15 p1_iters=446 max_rel=0 at_iter=-1 p1_work=7698891 total_work=22123120 last_gain_p1=446 last_gain_work=7698891 best_final=0 min_ulps=4.5036e+15 min_ulps_total=5.85e+08
+RRS grow22 p1_iters=765 max_rel=0 at_iter=-1 p1_work=18751974 total_work=642728681 last_gain_p1=765 last_gain_work=18751974 best_final=0 min_ulps=4.5036e+15 min_ulps_total=8.58e+08
+RRS grow7 p1_iters=208 max_rel=0 at_iter=-1 p1_work=1851251 total_work=9811052 last_gain_p1=208 last_gain_work=1851251 best_final=0 min_ulps=4.5036e+15 min_ulps_total=2.73e+08
+RRS israel p1_iters=372 max_rel=0 at_iter=-1 p1_work=3815409 total_work=6907412 last_gain_p1=372 last_gain_work=3815409 best_final=0 min_ulps=6.49326e+13 min_ulps_total=1067.92
+RRS kb2 p1_iters=2 max_rel=0 at_iter=-1 p1_work=5490 total_work=122148 last_gain_p1=2 last_gain_work=5490 best_final=0 min_ulps=4.5036e+15 min_ulps_total=100
+RRS lotfi p1_iters=147 max_rel=0 at_iter=-1 p1_work=554306 total_work=1142805 last_gain_p1=147 last_gain_work=554306 best_final=0 min_ulps=9.44771e+14 min_ulps_total=399.524
+RRS maros p1_iters=1174 max_rel=2.18142e-16 at_iter=240 p1_work=20096615 total_work=59638141 last_gain_p1=1174 last_gain_work=20096615 best_final=0 min_ulps=4.5036e+15 min_ulps_total=1.13918e+12
+RRS maros-r7 p1_iters=5871 max_rel=0 at_iter=-1 p1_work=3259967555 total_work=3260530354 last_gain_p1=5871 last_gain_work=3259967555 best_final=6.31924e+07 min_ulps=9.26721e+14 min_ulps_total=9.58124e+07
+RRS modszk1 p1_iters=15 max_rel=0 at_iter=-1 p1_work=157157 total_work=14356858 last_gain_p1=15 last_gain_work=157157 best_final=0 min_ulps=4.5036e+15 min_ulps_total=55586.8
+RRS nesm p1_iters=2054 max_rel=1.25438e-16 at_iter=696 p1_work=56720215 total_work=144664201 last_gain_p1=2054 last_gain_work=56720215 best_final=0 min_ulps=3.0633e+12 min_ulps_total=0.983303
+RRS perold p1_iters=2026 max_rel=3.38798e-15 at_iter=1948 p1_work=63390397 total_work=339356403 last_gain_p1=2026 last_gain_work=63390397 best_final=0 min_ulps=4.32412e+14 min_ulps_total=88.8228
+RRS pilot p1_iters=11796 max_rel=9.36752e-10 at_iter=10813 p1_work=3721252479 total_work=15973159912 last_gain_p1=11796 last_gain_work=3721252479 best_final=0 min_ulps=2.69633e+15 min_ulps_total=0.39141
+RRS pilot-ja p1_iters=5705 max_rel=3.3348e-12 at_iter=1601 p1_work=254642001 total_work=945547269 last_gain_p1=5705 last_gain_work=254642001 best_final=0 min_ulps=4.13444e+15 min_ulps_total=276.446
+RRS pilot-we p1_iters=1895 max_rel=0 at_iter=-1 p1_work=65559471 total_work=1060496185 last_gain_p1=1895 last_gain_work=65559471 best_final=0 min_ulps=2.74393e+15 min_ulps_total=3359.36
+RRS pilot4 p1_iters=2228 max_rel=9.53472e-16 at_iter=1745 p1_work=49470357 total_work=110611890 last_gain_p1=2228 last_gain_work=49470357 best_final=0 min_ulps=1.86326e+15 min_ulps_total=477.81
+RRS pilot87 p1_iters=381886 max_rel=8.06882e+11 at_iter=121407 p1_work=179610921374 total_work=179611375417 last_gain_p1=19532 last_gain_work=4230217440 best_final=1.34951e+12 min_ulps=4.5036e+15 min_ulps_total=1.34951e+12
+RRS pilotnov p1_iters=1622 max_rel=2.06899e-16 at_iter=979 p1_work=80671705 total_work=808967407 last_gain_p1=1622 last_gain_work=80671705 best_final=0 min_ulps=2.65837e+14 min_ulps_total=1.83248
+RRS recipe p1_iters=38 max_rel=0 at_iter=-1 p1_work=52816 total_work=80632 last_gain_p1=38 last_gain_work=52816 best_final=0 min_ulps=4.5036e+15 min_ulps_total=392
+RRS sc105 p1_iters=2 max_rel=0 at_iter=-1 p1_work=5847 total_work=205596 last_gain_p1=2 last_gain_work=5847 best_final=0 min_ulps=4.5036e+15 min_ulps_total=2.1e+10
+RRS sc205 p1_iters=2 max_rel=0 at_iter=-1 p1_work=7523 total_work=247271 last_gain_p1=2 last_gain_work=7523 best_final=0 min_ulps=4.5036e+15 min_ulps_total=2.1e+10
+RRS sc50a p1_iters=2 max_rel=0 at_iter=-1 p1_work=4917 total_work=184654 last_gain_p1=2 last_gain_work=4917 best_final=0 min_ulps=4.5036e+15 min_ulps_total=2.1e+10
+RRS sc50b p1_iters=2 max_rel=0 at_iter=-1 p1_work=4864 total_work=172830 last_gain_p1=2 last_gain_work=4864 best_final=0 min_ulps=4.5036e+15 min_ulps_total=1.05e+10
+RRS scagr25 p1_iters=654 max_rel=3.05176e-16 at_iter=508 p1_work=5581888 total_work=7967039 last_gain_p1=654 last_gain_work=5581888 best_final=0 min_ulps=1.20596e+14 min_ulps_total=17.8382
+RRS scagr7 p1_iters=153 max_rel=0 at_iter=-1 p1_work=360513 total_work=614708 last_gain_p1=153 last_gain_work=360513 best_final=0 min_ulps=9.55638e+13 min_ulps_total=1.71268
+RRS scfxm1 p1_iters=355 max_rel=0 at_iter=-1 p1_work=3337833 total_work=5496483 last_gain_p1=355 last_gain_work=3337833 best_final=0 min_ulps=3.96256e+14 min_ulps_total=19.409
+RRS scfxm2 p1_iters=740 max_rel=1.51174e-16 at_iter=589 p1_work=10167545 total_work=17181536 last_gain_p1=740 last_gain_work=10167545 best_final=0 min_ulps=3.51879e+13 min_ulps_total=0.456571
+RRS scfxm3 p1_iters=1087 max_rel=1.04706e-15 at_iter=1043 p1_work=20621536 total_work=46644094 last_gain_p1=1087 last_gain_work=20621536 best_final=0 min_ulps=4.30515e+14 min_ulps_total=0.0790183
+RRS scorpion p1_iters=238 max_rel=0 at_iter=-1 p1_work=1063540 total_work=2028089 last_gain_p1=238 last_gain_work=1063540 best_final=0 min_ulps=4.5036e+15 min_ulps_total=5.0999
+RRS scrs8 p1_iters=704 max_rel=2.34758e-16 at_iter=551 p1_work=6894109 total_work=14988111 last_gain_p1=704 last_gain_work=6894109 best_final=0 min_ulps=4.45225e+15 min_ulps_total=9.08029
+RRS scsd1 p1_iters=82 max_rel=0 at_iter=-1 p1_work=548105 total_work=3257549 last_gain_p1=82 last_gain_work=548105 best_final=0 min_ulps=4.5036e+15 min_ulps_total=1
+RRS scsd6 p1_iters=252 max_rel=0 at_iter=-1 p1_work=3333247 total_work=15681625 last_gain_p1=252 last_gain_work=3333247 best_final=0 min_ulps=6.72476e+14 min_ulps_total=0.25984
+RRS scsd8 p1_iters=836 max_rel=1.91137e-15 at_iter=650 p1_work=25038786 total_work=57859371 last_gain_p1=836 last_gain_work=25038786 best_final=0 min_ulps=4.16856e+14 min_ulps_total=0.338876
+RRS sctap1 p1_iters=159 max_rel=0 at_iter=-1 p1_work=859112 total_work=1036446 last_gain_p1=159 last_gain_work=859112 best_final=0 min_ulps=3.20571e+14 min_ulps_total=0.207659
+RRS sctap2 p1_iters=283 max_rel=1.07205e-15 at_iter=260 p1_work=4260413 total_work=9413979 last_gain_p1=283 last_gain_work=4260413 best_final=0 min_ulps=4.47024e+14 min_ulps_total=0.197524
+RRS sctap3 p1_iters=427 max_rel=3.09933e-15 at_iter=390 p1_work=8386696 total_work=16661913 last_gain_p1=427 last_gain_work=8386696 best_final=0 min_ulps=1.50511e+14 min_ulps_total=0.00808487
+RRS seba p1_iters=119 max_rel=0 at_iter=-1 p1_work=1019308 total_work=1183508 last_gain_p1=119 last_gain_work=1019308 best_final=0 min_ulps=1.25448e+13 min_ulps_total=1
+RRS share1b p1_iters=151 max_rel=0 at_iter=-1 p1_work=660799 total_work=1692942 last_gain_p1=151 last_gain_work=660799 best_final=0 min_ulps=1.61446e+13 min_ulps_total=1.84852
+RRS share2b p1_iters=109 max_rel=0 at_iter=-1 p1_work=278675 total_work=423958 last_gain_p1=109 last_gain_work=278675 best_final=0 min_ulps=2.40561e+14 min_ulps_total=3.25922
+RRS shell p1_iters=551 max_rel=0 at_iter=-1 p1_work=5023544 total_work=7806093 last_gain_p1=551 last_gain_work=5023544 best_final=0 min_ulps=4.67366e+14 min_ulps_total=68028
+RRS ship04l p1_iters=454 max_rel=0 at_iter=-1 p1_work=5199342 total_work=6781926 last_gain_p1=454 last_gain_work=5199342 best_final=0 min_ulps=3.8364e+15 min_ulps_total=1.0608
+RRS ship04s p1_iters=215 max_rel=0 at_iter=-1 p1_work=1695561 total_work=2576335 last_gain_p1=215 last_gain_work=1695561 best_final=0 min_ulps=3.55505e+15 min_ulps_total=20.2238
+RRS ship08l p1_iters=644 max_rel=0 at_iter=-1 p1_work=12402129 total_work=18549711 last_gain_p1=644 last_gain_work=12402129 best_final=0 min_ulps=3.7083e+15 min_ulps_total=0.429719
+RRS ship08s p1_iters=288 max_rel=0 at_iter=-1 p1_work=2948031 total_work=4988867 last_gain_p1=288 last_gain_work=2948031 best_final=0 min_ulps=2.95037e+15 min_ulps_total=279.33
+RRS ship12l p1_iters=1242 max_rel=0 at_iter=-1 p1_work=31173348 total_work=39753663 last_gain_p1=1242 last_gain_work=31173348 best_final=0 min_ulps=1.43322e+15 min_ulps_total=0.273183
+RRS ship12s p1_iters=555 max_rel=0 at_iter=-1 p1_work=6688028 total_work=9343661 last_gain_p1=555 last_gain_work=6688028 best_final=0 min_ulps=3.78834e+15 min_ulps_total=773.346
+RRS sierra p1_iters=494 max_rel=0 at_iter=-1 p1_work=8435194 total_work=11532097 last_gain_p1=494 last_gain_work=8435194 best_final=0 min_ulps=4.2024e+15 min_ulps_total=518607
+RRS stair p1_iters=393 max_rel=0 at_iter=-1 p1_work=9702580 total_work=13839681 last_gain_p1=393 last_gain_work=9702580 best_final=0 min_ulps=2.73866e+13 min_ulps_total=0.402194
+RRS standata p1_iters=58 max_rel=0 at_iter=-1 p1_work=343212 total_work=402652 last_gain_p1=58 last_gain_work=343212 best_final=0 min_ulps=4.5036e+15 min_ulps_total=72
+RRS standmps p1_iters=164 max_rel=0 at_iter=-1 p1_work=1166256 total_work=3130548 last_gain_p1=164 last_gain_work=1166256 best_final=0 min_ulps=4.01785e+15 min_ulps_total=5.79
+RRS stocfor1 p1_iters=161 max_rel=0 at_iter=-1 p1_work=403873 total_work=530162 last_gain_p1=161 last_gain_work=403873 best_final=0 min_ulps=4.5036e+15 min_ulps_total=2.25e+11
+RRS stocfor2 p1_iters=2878 max_rel=2.07779e-16 at_iter=1527 p1_work=79776929 total_work=108888839 last_gain_p1=2878 last_gain_work=79776929 best_final=0 min_ulps=4.5036e+15 min_ulps_total=7.665e+12
+RRS stocfor3 p1_iters=21376 max_rel=4.92295e-15 at_iter=10910 p1_work=4096756206 total_work=4400697580 last_gain_p1=21376 last_gain_work=4096756206 best_final=0 min_ulps=4.5036e+15 min_ulps_total=6.034e+13
+RRS truss p1_iters=2362 max_rel=4.90812e-15 at_iter=1820 p1_work=166348532 total_work=243220779 last_gain_p1=2362 last_gain_work=166348532 best_final=0 min_ulps=3.06461e+14 min_ulps_total=2.80335
+RRS tuff p1_iters=543 max_rel=0 at_iter=-1 p1_work=7826907 total_work=9371662 last_gain_p1=543 last_gain_work=7826907 best_final=0 min_ulps=1.86099e+14 min_ulps_total=2.48016
+RRS vtp-base p1_iters=88 max_rel=0 at_iter=-1 p1_work=140941 total_work=162043 last_gain_p1=88 last_gain_work=140941 best_final=0 min_ulps=2.32627e+14 min_ulps_total=183.923
+RRS wood1p p1_iters=251 max_rel=0 at_iter=-1 p1_work=30132966 total_work=73036316 last_gain_p1=251 last_gain_work=30132966 best_final=0 min_ulps=7.14466e+10 min_ulps_total=0.000107876
+RRS woodw p1_iters=1231 max_rel=4.26896e-08 at_iter=455 p1_work=54869209 total_work=100420234 last_gain_p1=1231 last_gain_work=54869209 best_final=0 min_ulps=6.83582e+12 min_ulps_total=0.0266738
+RRX dfl001 thr=1e-10 first_iter=73580 first_p1iter=73581 first_work=16213491649 rel=3.30714e-10 best_at=6788.99
+RRX dfl001 thr=1e-11 first_iter=73580 first_p1iter=73581 first_work=16213491649 rel=3.30714e-10 best_at=6788.99
+RRX dfl001 thr=1e-12 first_iter=73580 first_p1iter=73581 first_work=16213491649 rel=3.30714e-10 best_at=6788.99
+RRX pilot thr=1e-10 first_iter=7484 first_p1iter=7485 first_work=1926117666 rel=2.17368e-10 best_at=8625.87
+RRX pilot thr=1e-11 first_iter=7484 first_p1iter=7485 first_work=1926117666 rel=2.17368e-10 best_at=8625.87
+RRX pilot thr=1e-12 first_iter=7484 first_p1iter=7485 first_work=1926117666 rel=2.17368e-10 best_at=8625.87
+RRX pilot-ja thr=1e-12 first_iter=1601 first_p1iter=1602 first_work=47576098 rel=3.3348e-12 best_at=7.3819e+12
+RRX pilot87 thr=1e+00 first_iter=19532 first_p1iter=19533 first_work=4233028431 rel=633.034 best_at=1.34951e+12
+RRX pilot87 thr=1e+01 first_iter=19532 first_p1iter=19533 first_work=4233028431 rel=633.034 best_at=1.34951e+12
+RRX pilot87 thr=1e+02 first_iter=19532 first_p1iter=19533 first_work=4233028431 rel=633.034 best_at=1.34951e+12
+RRX pilot87 thr=1e+03 first_iter=30975 first_p1iter=30976 first_work=7927261361 rel=2076.09 best_at=1.34951e+12
+RRX pilot87 thr=1e+04 first_iter=108761 first_p1iter=108788 first_work=32315692310 rel=13811.7 best_at=1.34951e+12
+RRX pilot87 thr=1e+05 first_iter=109797 first_p1iter=109827 first_work=32652139977 rel=199815 best_at=1.34951e+12
+RRX pilot87 thr=1e+06 first_iter=110515 first_p1iter=110545 first_work=32928211647 rel=1.35321e+06 best_at=1.34951e+12
+RRX pilot87 thr=1e+07 first_iter=114135 first_p1iter=114181 first_work=34256692536 rel=3.49359e+10 best_at=1.34951e+12
+RRX pilot87 thr=1e+08 first_iter=114135 first_p1iter=114181 first_work=34256692536 rel=3.49359e+10 best_at=1.34951e+12
+RRX pilot87 thr=1e+09 first_iter=114135 first_p1iter=114181 first_work=34256692536 rel=3.49359e+10 best_at=1.34951e+12
+RRX pilot87 thr=1e+10 first_iter=114135 first_p1iter=114181 first_work=34256692536 rel=3.49359e+10 best_at=1.34951e+12
+RRX pilot87 thr=1e+11 first_iter=117184 first_p1iter=117241 first_work=35374062232 rel=6.41204e+11 best_at=1.34951e+12
+RRX pilot87 thr=1e-01 first_iter=19532 first_p1iter=19533 first_work=4233028431 rel=633.034 best_at=1.34951e+12
+RRX pilot87 thr=1e-02 first_iter=19532 first_p1iter=19533 first_work=4233028431 rel=633.034 best_at=1.34951e+12
+RRX pilot87 thr=1e-03 first_iter=19532 first_p1iter=19533 first_work=4233028431 rel=633.034 best_at=1.34951e+12
+RRX pilot87 thr=1e-04 first_iter=19532 first_p1iter=19533 first_work=4233028431 rel=633.034 best_at=1.34951e+12
+RRX pilot87 thr=1e-05 first_iter=19532 first_p1iter=19533 first_work=4233028431 rel=633.034 best_at=1.34951e+12
+RRX pilot87 thr=1e-06 first_iter=13991 first_p1iter=13992 first_work=2631505469 rel=2.04558e-06 best_at=7.19969e+12
+RRX pilot87 thr=1e-07 first_iter=9977 first_p1iter=9978 first_work=1740066276 rel=4.16769e-07 best_at=1.94664e+13
+RRX pilot87 thr=1e-08 first_iter=9977 first_p1iter=9978 first_work=1740066276 rel=4.16769e-07 best_at=1.94664e+13
+RRX pilot87 thr=1e-09 first_iter=9977 first_p1iter=9978 first_work=1740066276 rel=4.16769e-07 best_at=1.94664e+13
+RRX pilot87 thr=1e-10 first_iter=9977 first_p1iter=9978 first_work=1740066276 rel=4.16769e-07 best_at=1.94664e+13
+RRX pilot87 thr=1e-11 first_iter=9977 first_p1iter=9978 first_work=1740066276 rel=4.16769e-07 best_at=1.94664e+13
+RRX pilot87 thr=1e-12 first_iter=9977 first_p1iter=9978 first_work=1740066276 rel=4.16769e-07 best_at=1.94664e+13
+RRX woodw thr=1e-08 first_iter=455 first_p1iter=456 first_work=20945730 rel=4.26896e-08 best_at=7.74004
+RRX woodw thr=1e-09 first_iter=455 first_p1iter=456 first_work=20945730 rel=4.26896e-08 best_at=7.74004
+RRX woodw thr=1e-10 first_iter=455 first_p1iter=456 first_work=20945730 rel=4.26896e-08 best_at=7.74004
+RRX woodw thr=1e-11 first_iter=455 first_p1iter=456 first_work=20945730 rel=4.26896e-08 best_at=7.74004
+RRX woodw thr=1e-12 first_iter=455 first_p1iter=456 first_work=20945730 rel=4.26896e-08 best_at=7.74004
+
+# verdicts, from the campaign record
+VERDICT 25fv47 DISAGREE
+VERDICT 80bau3b DISAGREE
+VERDICT adlittle ok
+VERDICT afiro ok
+VERDICT agg DISAGREE
+VERDICT agg2 ok
+VERDICT agg3 ok
+VERDICT bandm ok
+VERDICT beaconfd ok
+VERDICT blend ok
+VERDICT bnl1 ok
+VERDICT bnl2 DISAGREE
+VERDICT boeing1 ok
+VERDICT boeing2 ok
+VERDICT bore3d ok
+VERDICT brandy ok
+VERDICT capri ok
+VERDICT cycle DISAGREE
+VERDICT czprob DISAGREE
+VERDICT d2q06c DISAGREE
+VERDICT d6cube DISAGREE
+VERDICT degen2 DISAGREE
+VERDICT degen3 overrun
+VERDICT dfl001 overrun
+VERDICT e226 ok
+VERDICT etamacro ok
+VERDICT fffff800 ok
+VERDICT finnis ok
+VERDICT fit1d ok
+VERDICT fit1p DISAGREE
+VERDICT fit2d ok
+VERDICT fit2p ok
+VERDICT forplan ok
+VERDICT ganges ok
+VERDICT gfrd-pnc ok
+VERDICT greenbea DISAGREE
+VERDICT greenbeb DISAGREE
+VERDICT grow15 ok
+VERDICT grow22 ok
+VERDICT grow7 ok
+VERDICT israel DISAGREE
+VERDICT kb2 ok
+VERDICT lotfi ok
+VERDICT maros DISAGREE
+VERDICT maros-r7 overrun
+VERDICT modszk1 DISAGREE
+VERDICT nesm ok
+VERDICT perold ok
+VERDICT pilot ok
+VERDICT pilot-ja DISAGREE
+VERDICT pilot-we DISAGREE
+VERDICT pilot4 ok
+VERDICT pilot87 overrun
+VERDICT pilotnov DISAGREE
+VERDICT recipe ok
+VERDICT sc105 DISAGREE
+VERDICT sc205 DISAGREE
+VERDICT sc50a ok
+VERDICT sc50b DISAGREE
+VERDICT scagr25 ok
+VERDICT scagr7 ok
+VERDICT scfxm1 ok
+VERDICT scfxm2 ok
+VERDICT scfxm3 ok
+VERDICT scorpion ok
+VERDICT scrs8 ok
+VERDICT scsd1 ok
+VERDICT scsd6 DISAGREE
+VERDICT scsd8 DISAGREE
+VERDICT sctap1 ok
+VERDICT sctap2 ok
+VERDICT sctap3 ok
+VERDICT seba ok
+VERDICT share1b ok
+VERDICT share2b ok
+VERDICT shell ok
+VERDICT ship04l ok
+VERDICT ship04s ok
+VERDICT ship08l DISAGREE
+VERDICT ship08s ok
+VERDICT ship12l DISAGREE
+VERDICT ship12s ok
+VERDICT sierra ok
+VERDICT stair ok
+VERDICT standata ok
+VERDICT standmps ok
+VERDICT stocfor1 ok
+VERDICT stocfor2 DISAGREE
+VERDICT stocfor3 DISAGREE
+VERDICT truss DISAGREE
+VERDICT tuff ok
+VERDICT vtp-base ok
+VERDICT wood1p ok
+VERDICT woodw DISAGREE
+# control: 102 record lines written

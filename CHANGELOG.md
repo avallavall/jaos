@@ -9,6 +9,24 @@ open, `bench/README.md` for the gate, and the commit each entry came from.
 
 ## [Unreleased]
 
+### Added
+
+- **The primal phase 1 stops when its own total infeasibility doubles.** That
+  quantity is a sum of bound violations and cannot rise under an exact pivot;
+  it rises when the basis has gone near singular and `refresh` recomputes `xb`
+  from it. `PHASE1_RISE_MAX = 1.0` sits in the middle of a plateau eight
+  decades wide, censused over all 110 forced-primal solves: every threshold
+  from 1e-5 to 1e+2 stops `pilot87` at the same iteration and nothing else at
+  all, with `woodw` 2.3e+7 times below it. It refuses only on a point it has
+  recomputed first, the D20 shape the neighbouring exits use. `pilot87` ends
+  with a published refusal that says why, at 19532 iterations and 4234464248
+  work units against 381886 and 179611375417 — **2.36% of the work**, and its
+  running minimum had last improved 362354 iterations before the rule fires.
+  The campaign goes to 61 ok / 30 disagree / 3 overrun from 61 / 29 / 4, and
+  the low arm of the sweep is a real loss: at 1e-12 the rule costs `pilot`
+  its answer (D218, `bench/measurements/02-133/`). Behind `cfg.force_primal`,
+  so no shipped solve reaches it; all three gate sets byte-identical.
+
 ### Fixed
 
 - **`geomean.py` can read `bench/results/primal.txt`.** That record carries two

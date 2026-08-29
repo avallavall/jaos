@@ -51,7 +51,7 @@ pilot        ok        dual=22210/4311990571 primal=48361/15973159912 split=p1:1
 pilot-ja     DISAGREE  dual=2403/94515274 primal=17456/945547269 split=p1:5704/p2:1/dual:11751 verdict=optimal/numerical error obj=-6113.1364655813431/0 checker=dual:ok/primal:n/a different verdicts: the settled point is not dual feasible: a reduced cost breaches its bound by 1473.32 after settling, from a cold start; publishing that as OPTIMAL would certify a point the reduced costs do not support
 pilot-we     DISAGREE  dual=4558/143901388 primal=27153/1060496185 split=p1:1894/p2:1/dual:25258 verdict=optimal/numerical error obj=-2720107.5328449644/0 checker=dual:ok/primal:n/a different verdicts: the settled point is not dual feasible: a reduced cost breaches its bound by 6.74782 after settling, from a cold start; publishing that as OPTIMAL would certify a point the reduced costs do not support
 pilot4       ok        dual=673/16066863 primal=4289/110611890 split=p1:2227/p2:1/dual:2061 verdict=optimal/optimal obj=-2581.1392588838889/-2581.1392588838889 checker=dual:ok/primal:ok 
-pilot87      overrun   dual=38000/17961112053 split=p1:381805/p2:0/dual:0 over 10x the dual's work
+pilot87      DISAGREE  dual=38000/17961112053 primal=19532/4234464248 split=p1:19532/p2:0/dual:0 verdict=optimal/numerical error obj=301.71034733311052/0 checker=dual:ok/primal:n/a different verdicts: the primal phase 1's total infeasibility stands at 1.71098e+15 at iteration 19532, 1267.85 times its own best of 1.34951e+12, on a freshly computed point; the basis it is pivoting on is too ill-conditioned for another pivot to repair the start
 pilotnov     DISAGREE  dual=2135/80872352 primal=16328/808967407 split=p1:1621/p2:2/dual:14705 verdict=optimal/numerical error obj=-4497.2761882188706/0 checker=dual:ok/primal:n/a different verdicts: the settled point is not dual feasible: a reduced cost breaches its bound by 6.56892 after settling, from a cold start; publishing that as OPTIMAL would certify a point the reduced costs do not support
 recipe       ok        dual=42/23369 primal=57/80632 split=p1:37/p2:1/dual:19 verdict=optimal/optimal obj=-266.61599999999999/-266.61599999999999 checker=dual:ok/primal:ok 
 sc105        DISAGREE  dual=106/130495 primal=40/205596 split=p1:1/p2:1/dual:38 verdict=optimal/numerical error obj=-52.202061211707239/0 checker=dual:ok/primal:n/a different verdicts: the settled point is not dual feasible: a reduced cost breaches its bound by 0.424098 after settling, from a cold start; publishing that as OPTIMAL would certify a point the reduced costs do not support
@@ -95,10 +95,10 @@ wood1p       ok        dual=560/42078864 primal=857/73036316 split=p1:250/p2:1/d
 woodw        DISAGREE  dual=1228/40150968 primal=2899/100420234 split=p1:1230/p2:1/dual:1668 verdict=optimal/numerical error obj=1.3044763330842295/0 checker=dual:ok/primal:n/a different verdicts: the settled point is not dual feasible: a reduced cost breaches its bound by 3.98496 after settling, from a cold start; publishing that as OPTIMAL would certify a point the reduced costs do not support
 
 -- primal against dual --
-measured 61, skipped 0, unreached 0, unbounded? 0, overrun 4, disagreed 29, rejected 0, errors 0
-iterations by method: phase 1 663332 (56.7%), phase 2 102 (0.0%), dual re-entry 506253 (43.3%)
-  that is a sum over the set (D46): pilot87 carries 32.6% of it and d2q06c 19.4%. Median per-instance phase-1 share 53.9% over 94 instance(s).
-  4 of 94 did not finish inside 10x the dual's work. Dantzig pricing is the worst rule that is still correct, and that is TODO.md section 0 stage 5, not a defect.
+measured 61, skipped 0, unreached 0, unbounded? 0, overrun 3, disagreed 30, rejected 0, errors 0
+iterations by method: phase 1 301059 (37.3%), phase 2 102 (0.0%), dual re-entry 506253 (62.7%)
+  that is a sum over the set (D46): d2q06c carries 28.1% of it and dfl001 15.6%. Median per-instance phase-1 share 53.9% over 94 instance(s).
+  3 of 94 did not finish inside 10x the dual's work. Dantzig pricing is the worst rule that is still correct, and that is TODO.md section 0 stage 5, not a defect.
 iterations (primal+1)/(dual+1), geometric mean: 2.0079
 work units primal/dual, geometric mean:         3.7398
 work ratio, best  grow15 at 0.3843
