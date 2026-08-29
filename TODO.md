@@ -54,13 +54,11 @@ what long runs do. That is a phase-1 defect, not a floor defect.
    instrument it is swept against. Full loop; `numerics-reviewer` on the diff.
 2. **The assert debt** below (`bench/measurements/02-121/`), one file per
    commit, full loop each: contracts that survived the purge as prose.
-3. The skills debt (two scripts), then section 0's headline decision. **From
-   2026-08-27**: `jaos-measure`'s `geomean.py
-   --metric work` cannot read `bench/results/primal.txt` and exits 2 with "no
-   instance appears in both files", because that record carries
-   `dual=iters/work primal=iters/work` rather than one `work=` field. Every
-   primal-campaign work figure therefore has to go through `--pairs` by hand.
-   Found by `jaos-measurer` while judging D207.
+3. The skills debt (two scripts), then section 0's headline decision.
+   **`geomean.py`'s half of that debt closed on 2026-08-29**: `--side
+   dual|primal` reads either half of `bench/results/primal.txt`'s
+   `dual=iters/work primal=iters/work` pair, and the old exit-2 message names
+   the cause and the flag instead of only the symptom.
 
 Each of these is the full loop for solver internals. `make refusals` after 1
 and 2, because both touch the ratio tests and the re-entry. **It exits 1 today**

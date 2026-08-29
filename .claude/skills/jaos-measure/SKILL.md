@@ -25,6 +25,10 @@ python3 .claude/skills/jaos-measure/scripts/record_diff.py bench/results/*.txt
 # any ratio, ever
 python3 .claude/skills/jaos-measure/scripts/geomean.py --metric work old.txt new.txt
 python3 .claude/skills/jaos-measure/scripts/geomean.py --pairs timings.txt
+# bench/results/primal.txt has no `work=` field: it carries two solves a line,
+# as `dual=iters/work primal=iters/work`. Say which side.
+python3 .claude/skills/jaos-measure/scripts/geomean.py --metric work --side primal \
+        old-primal.txt new-primal.txt
 
 # a comments-only change: the release object at REF and at HEAD must match
 bash .claude/skills/jaos-measure/scripts/comment_only.sh src/file.c [ref]

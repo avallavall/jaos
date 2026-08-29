@@ -6,6 +6,11 @@ Usage:
     geomean.py --metric work  old.txt new.txt
     geomean.py --metric iters old.txt new.txt --plus-one
 
+    # bench/results/primal.txt carries TWO solves per line, as
+    # `dual=iters/work primal=iters/work`, and has no `work=` field at all.
+    # Say which side to read:
+    geomean.py --metric work --side primal old-primal.txt new-primal.txt
+
     # a time ratio, or anything else, from a table this script is handed
     geomean.py --pairs timings.txt
     printf 'maros-r7 4.10 3.55\\npilot87 9.80 8.11\\n' | geomean.py --pairs -
@@ -31,13 +36,25 @@ import re
 import sys
 from pathlib import Path
 
-LINE_RE = re.compile(r"^(?P<name>[A-Za-z0-9][A-Za-z0-9_.\-]*)\s+(?P<status>[a-z_]+)\s")
+# The verdict column is lower case in the gate records (`optimal`) and mixed
+# in bench/results/primal.txt (`ok`, `DISAGREE`, `overrun`). A prose line in
+# the trailer can match this shape too; it is dropped further down, because
+# it carries none of the fields a metric is read from.
+LINE_RE = re.compile(r"^(?P<name>[A-Za-z0-9][A-Za-z0-9_.\-]*)\s+(?P<status>[A-Za-z_]+)\s")
 KV_RE = re.compile(r"\b([a-z_]+)=([^\s()]+)")
+# `dual=5135/154561310 primal=25950/1094399686`, the shape bench/primal.c
+# writes: iterations before the slash, work units after it.
+SIDE_RE = re.compile(r"\b(dual|primal)=(\d+)/(\d+)\b")
 SUMMARY_RE = re.compile(r"^\d+\s+instances?:")
 
 
-def read_record(path, metric):
-    """name -> float(metric) from a bench results file."""
+def read_record(path, metric, side=None):
+    """name -> float(metric) from a bench results file.
+
+    With `side`, the figure comes from that side's `iters/work` pair rather
+    than from a `work=`/`iters=` field, which bench/results/primal.txt does
+    not have.
+    """
     out = {}
     text = Path(path).read_text(encoding="utf-8")
     for raw in text.split("\n"):
@@ -48,6 +65,13 @@ def read_record(path, metric):
         m = LINE_RE.match(line)
         if not m:
             continue
+        if side is not None:
+            pairs = dict((s, (i, w)) for s, i, w in SIDE_RE.findall(line))
+            if side not in pairs:
+                continue
+            iters, work = pairs[side]
+            out[m.group("name")] = float(iters if metric == "iters" else work)
+            continue
         kv = dict(KV_RE.findall(line))
         if metric in kv:
             try:
@@ -55,6 +79,19 @@ def read_record(path, metric):
             except ValueError:
                 pass
     return out
+
+
+def two_sided_record(path):
+    """True when the file carries `dual=i/w primal=i/w` and no plain field.
+
+    Used only to turn "no instance appears in both files" into the sentence
+    that says what to pass instead.
+    """
+    try:
+        text = Path(path).read_text(encoding="utf-8")
+    except OSError:
+        return False
+    return bool(SIDE_RE.search(text))
 
 
 def read_pairs(path):
@@ -83,6 +120,9 @@ def main(argv=None):
                     help="two results files (with --metric), or nothing (with --pairs)")
     ap.add_argument("--metric", choices=("work", "iters"),
                     help="figure to take from two bench results files")
+    ap.add_argument("--side", choices=("dual", "primal"),
+                    help="for bench/results/primal.txt, which of the two solves "
+                         "on each line to read; that record has no `work=` field")
     ap.add_argument("--pairs", metavar="FILE",
                     help="read 'name baseline candidate' rows; '-' for stdin")
     ap.add_argument("--plus-one", action="store_true",
@@ -103,22 +143,27 @@ def main(argv=None):
                   file=sys.stderr)
             return 2
         try:
-            a = read_record(args.files[0], args.metric)
-            b = read_record(args.files[1], args.metric)
+            a = read_record(args.files[0], args.metric, args.side)
+            b = read_record(args.files[1], args.metric, args.side)
         except OSError as e:
             print("error: %s" % e, file=sys.stderr)
             return 2
         shared = sorted(set(a) & set(b))
         if not shared:
-            print("no instance appears in both files -- check the metric and the "
-                  "files", file=sys.stderr)
+            print("no instance appears in both files: %d read from %s, %d from %s"
+                  % (len(a), args.files[0], len(b), args.files[1]), file=sys.stderr)
+            if args.side is None and any(two_sided_record(f) for f in args.files):
+                print("one of these carries `dual=iters/work primal=iters/work` "
+                      "and has no `%s=` field; pass --side dual or --side primal"
+                      % args.metric, file=sys.stderr)
             return 2
         only_a, only_b = sorted(set(a) - set(b)), sorted(set(b) - set(a))
         if only_a or only_b:
             print("note: %d instance(s) only in the first file, %d only in the "
                   "second; they are excluded" % (len(only_a), len(only_b)))
         rows = [(n, a[n], b[n]) for n in shared]
-        label = "%s: %s -> %s" % (args.metric, args.files[0], args.files[1])
+        what = args.metric if args.side is None else "%s %s" % (args.side, args.metric)
+        label = "%s: %s -> %s" % (what, args.files[0], args.files[1])
 
     logs, ratios, skipped = [], [], []
     for name, base, cand in rows:

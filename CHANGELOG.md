@@ -11,6 +11,16 @@ open, `bench/README.md` for the gate, and the commit each entry came from.
 
 ### Fixed
 
+- **`geomean.py` can read `bench/results/primal.txt`.** That record carries two
+  solves a line, as `dual=iters/work primal=iters/work`, and has no `work=`
+  field at all, so `--metric work` matched nothing and the script exited 2
+  saying "no instance appears in both files" — which named neither the cause
+  nor the fix, and sent every primal work figure through `--pairs` by hand.
+  A new `--side dual|primal` reads the wanted half of the pair, and the error
+  now says how many instances came out of each file and which flag to pass.
+  Validated on the case it must reject: `--side` against a gate record, which
+  has no such pair, still exits 2 rather than averaging nothing.
+
 - **Every measurement script derives the repository root instead of writing it
   down.** The literal made a script measure the main tree whatever worktree it
   ran in, which is how a three-ref attribution returned one number three times
