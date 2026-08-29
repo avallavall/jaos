@@ -226,6 +226,7 @@ and you have the argument. Jump to the entry for the numbers behind it.
 - **[D216](#d216--eight-of-lucs-prose-contracts-are-asserts-now-and-a-control-proves-they-catch-the-defect-they-exist-for)** — Eight of `lu.c`'s prose contracts are asserts now, and a control proves they catch the defect they exist for
 - **[D217](#d217--every-measurement-script-derives-the-repository-root-it-was-48-scripts-and-not-28-and-the-check-that-proves-it-said-stop-twice-for-the-right-reason)** — Every measurement script derives the repository root, it was 48 scripts and not 28, and the check that proves it said STOP twice for the right reason
 - **[D218](#d218--the-primal-phase-1-stops-when-its-own-infeasibility-doubles-and-the-one-instance-it-stops-had-stopped-improving-362354-iterations-earlier)** — The primal phase 1 stops when its own infeasibility doubles, and the one instance it stops had stopped improving 362354 iterations earlier
+- **[D219](#d219--four-of-modelcs-prose-contracts-are-asserts-and-one-is-a-build-error-and-the-control-that-proves-them-had-to-be-rebuilt-twice-before-it-proved-anything)** — Four of `model.c`'s prose contracts are asserts and one is a build error, and the control that proves them had to be rebuilt twice before it proved anything
 
 ---
 
@@ -16827,3 +16828,94 @@ citation is what is wrong.
 Nothing of the threshold. `pilot87`'s phase 1 still diverges; the rule reports
 it instead of grinding, and 02-126's answer one — the wear from 582 pivots
 below 1e-4 — is what would fix it.
+
+## D219 — Four of `model.c`'s prose contracts are asserts and one is a build error, and the control that proves them had to be rebuilt twice before it proved anything
+
+`bench/measurements/02-121/model.c.md` is the comment purge's report for this
+file. Its valuable section is "Contracts that survived and deserve an assert
+or a test": sentences the rule kept because another piece of code depends on
+them, which by D30's lesson and D201's receipt should be checked rather than
+written. This closes the assert half of that list.
+
+## What landed
+
+- **The two start-basis arrays are a pair.** `store_basis` allocates both or
+  neither, so `start_col_status != nullptr` is the whole test of whether a
+  starting basis exists. Nothing enforced it. `basis_extend` grows one array
+  at a time, and the pair survived a failure there only because its error
+  path calls `jaos_clear_basis`, which clears both — consistency by luck of
+  that call rather than by construction. `JM_BASIS_PAIRED` is asserted at the
+  three functions that read either array as a claim about the other:
+  `jm_model_remember_basis`, `basis_survives_or_goes`, `basis_extend`.
+- **`jm_model_publish_objective` checked one of the seven things its comment
+  promised.** The sentence says "the six solution arrays and an OPTIMAL
+  solve"; the code asserted `sol_col`. All six arrays and the status are
+  asserted now. All three callers already satisfy it.
+- **`jaos_set_coefficient` set the three matrix flags inline** instead of
+  calling `model_matrix_is_stale`, which is the same four statements. The
+  purge found the comment claiming all five matrix modifications go through
+  one place and deleted the claim as false. The claim is true now, and the
+  sentence is back.
+- **`-ffast-math` is a build error.** `jm_two_product_residue` splits a
+  product by Dekker's method, and the residue only exists if the compiler
+  does not reassociate. `-ffast-math` and `-Ofast` enable
+  `-fassociative-math`, which deletes it and leaves a plausible wrong answer.
+  The Makefile uses neither, and `#ifdef __FAST_MATH__ #error` is what
+  refuses one added later. Confirmed by compiling with the flag and watching
+  it fail.
+
+## The control, and why the first two versions were worthless
+
+An assert that never fires cannot be told from one that cannot fire. D216 set
+the shape for `lu.c`: 0 firings on the candidate, then break the invariant and
+watch the same assert fire by name. `bench/measurements/02-134/` is that, and
+it took three attempts.
+
+**Version one reported 0 assertions in all three arms, including both broken
+ones, and read as a finished result.** Every arm was dead, in a different way:
+
+- The pair breaker made `store_basis` leave `start_row_status` null, and
+  `store_basis`'s very next statement detects exactly that and clears BOTH
+  arrays. The breaker was undone by the code it was breaking.
+- The status breaker made `publish` publish an objective on its non-OPTIMAL
+  branch, and then ran the standard 94, where every solve is OPTIMAL and that
+  branch never executes.
+- Nothing separated "the invariant held" from "`-UNDEBUG` never reached the
+  compiler", which is D82's failure in another shape.
+
+**Version two added the canary and found the third defect.** An assert false
+by construction, in the function under test: it fires 94 times, so the flag
+does reach the compiler. With that established, the pair arm's 0 firings meant
+something, and what it meant is that **the gate cannot reach that assert at
+all**. The gate never changes a model's dimensions after solving it, so
+`basis_extend` and `basis_survives_or_goes` never run, and `publish` calls
+`jm_model_remember_basis` once per process with nothing reading the pair
+afterwards. 0 of 94 is what an unreachable assert looks like.
+
+The unit suite does reach it: `test_a_dimension_change_the_solve_can_see`
+solves, adds a row, adds a column and deletes both. **Version three runs the
+pair arm there**, with an unbroken companion arm to show the suite is quiet
+when the invariant holds.
+
+| arm | fired | which |
+|---|---|---|
+| `canary`, assert false by construction | **94** | the canary — so `-UNDEBUG` reaches the compiler |
+| `live`, the candidate on the gate | 0 | — |
+| `pair`, arrays unpaired past every guard, unit suite | **1** | `JM_BASIS_PAIRED(m)`, core dumped |
+| `pair-live`, unbroken, unit suite | 0 | 29 tests, 0 failures |
+| `status`, publish on a non-OPTIMAL solve, infeasible set | **19** | `m->solve_status == JAOS_SOLVE_OPTIMAL` |
+
+## What was refuted
+
+That a gate campaign is evidence about an assert. It is evidence about the
+instances. `jaos-testing` already says to check that something runs a function
+before trusting a green gate about it; this is the first time that rule caught
+one of this project's own asserts.
+
+## What is left open
+
+The test half of `02-121`'s `model.c` list, which is nine items and none of
+them an assert: the scale-invariance test, the per-operation staleness tests,
+the column-order debug checker, `jm_two_product_residue` at 2^997, and the
+empty-column case. `TODO.md` carries them. `check.c` and `jaos_internal.h`
+have not been started.

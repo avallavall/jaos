@@ -283,6 +283,14 @@ void jm_model_publish_objective(jaos_model *m);
  * below states wherever these are used. */
 static_assert(FLT_EVAL_METHOD == 0,
               "Dekker's split needs double arithmetic evaluated at double");
+/* The other half of the same precondition, and the build could not see it
+ * until D219. `-ffast-math` and `-Ofast` enable `-fassociative-math`, which
+ * lets the compiler rewrite `(a - u) + t` and delete the residue the split
+ * exists to compute; the result stays plausible and is silently wrong. The
+ * Makefile uses neither flag, and this is what refuses one added later. */
+#ifdef __FAST_MATH__
+#error "JAOS cannot be built with -ffast-math or -Ofast: associative maths deletes the compensated-summation residue (D34, D175, D219)"
+#endif
 
 void jm_obj_add(double *sum, double *comp, double t);
 JAOS_NODISCARD double jm_two_product_residue(double a, double b, double p);

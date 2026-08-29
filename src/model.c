@@ -118,6 +118,12 @@ jaos_status jaos_set_dual_tolerance(jaos_model *m, double tol)
     return set_tolerance(m, tol, m ? &m->cfg.dual_tol : nullptr, "dual");
 }
 
+/* Declared before its first caller: `jaos_set_coefficient` is the first of
+ * the five matrix modifications and the definition sits with the other four.
+ * It set the three flags inline until D219, which is how the list in the
+ * comment below could drift from the list that enforces it. */
+static void model_matrix_is_stale(jaos_model *m);
+
 /* Every modification goes through this (D66).
  *
  * The solution arrays are freed rather than kept: `jaos_solution` reports
@@ -128,7 +134,9 @@ jaos_status jaos_set_dual_tolerance(jaos_model *m, double tol)
  * derived from the matrix alone — scale.c reads no bound and no cost — so
  * changing a bound or a cost leaves them exactly correct. A modification
  * that touches the matrix must invalidate them, and there are five:
- * jaos_set_coefficient and the four that move a dimension.
+ * jaos_set_coefficient and the four that move a dimension. All five go
+ * through model_matrix_is_stale, which is this plus both derived copies, so
+ * the two lists cannot drift apart (D219).
  *
  * Nor is the starting basis. The answer stops being true when a bound moves;
  * the basis that produced it does not stop being a basis (D68). That is why
@@ -304,10 +312,7 @@ jaos_status jaos_set_coefficient(jaos_model *m, int64_t row, int64_t col,
         m->num_nz++;
     }
 
-    m->rowwise_valid = false;
-    m->scale_valid = false;
-    m->scale_clamped = false;
-    model_answer_is_stale(m);
+    model_matrix_is_stale(m);
     return JAOS_OK;
 }
 
@@ -422,6 +427,15 @@ jaos_status jaos_basis(const jaos_model *m, jaos_basis_status *col_status,
     return JAOS_OK;
 }
 
+/* Both start arrays are allocated together and freed together, so
+ * `start_col_status != nullptr` is the whole test of whether a starting basis
+ * exists. Nothing enforced it until D219: `basis_extend` grows one array at a
+ * time, and the pair survived a failure there only because its error path
+ * calls `jaos_clear_basis`, which clears both. This is that invariant, at
+ * every function that reads either array as a claim about the other. */
+#define JM_BASIS_PAIRED(m) \
+    (((m)->start_col_status == nullptr) == ((m)->start_row_status == nullptr))
+
 /* Puts a basis where the next solve will find it. Allocates both arrays or
  * neither, so `start_col_status != nullptr` is the whole test of whether a
  * starting basis exists. */
@@ -452,6 +466,7 @@ static jaos_status store_basis(jaos_model *m, const jaos_basis_status *col,
 
 jaos_status jm_model_remember_basis(jaos_model *m)
 {
+    assert(JM_BASIS_PAIRED(m));
     if (m->sol_col_status == nullptr || m->sol_row_status == nullptr)
         return JAOS_OK;   /* nothing to remember; not a failure */
     return store_basis(m, m->sol_col_status, m->sol_row_status);
@@ -513,8 +528,20 @@ void jm_model_publish_objective(jaos_model *m)
     /* The precondition (D169). Without it a caller reaching here before the
      * solution arrays exist gets the bare `obj_offset` published beside an
      * OPTIMAL status. The null test stays, because a model with no columns
-     * has nothing to allocate. */
+     * has nothing to allocate.
+     *
+     * The sentence above says "the six solution arrays and an OPTIMAL
+     * solve"; until D219 one array was checked and the status was not.
+     * All three callers set it before they reach here: `publish` at the top
+     * and on the OPTIMAL branch only, `jm_postsolve_expand` after its own
+     * non-OPTIMAL return, `jm_postsolve_solved` two statements earlier. */
+    assert(m->solve_status == JAOS_SOLVE_OPTIMAL);
     assert(m->num_col == 0 || m->sol_col != nullptr);
+    assert(m->num_row == 0 || m->sol_row != nullptr);
+    assert(m->num_row == 0 || m->sol_dual != nullptr);
+    assert(m->num_col == 0 || m->sol_redcost != nullptr);
+    assert(m->num_col == 0 || m->sol_col_status != nullptr);
+    assert(m->num_row == 0 || m->sol_row_status != nullptr);
 
     double sum = m->obj_offset, comp = 0.0;
     if (m->sol_col != nullptr) {
@@ -805,6 +832,7 @@ static void model_matrix_is_stale(jaos_model *m)
  * build_warm_basis to reject. */
 static void basis_survives_or_goes(jaos_model *m)
 {
+    assert(JM_BASIS_PAIRED(m));
     if (m->start_col_status == nullptr || m->start_row_status == nullptr)
         return;
     int64_t basic = 0;
@@ -865,6 +893,7 @@ static jaos_basis_status arriving_status(double lower, double upper)
 static void basis_extend(jaos_basis_status **arr, int64_t old_n, int64_t add,
                          const jaos_basis_status *fill, jaos_model *m)
 {
+    assert(JM_BASIS_PAIRED(m));
     if (*arr == nullptr)
         return;
     jaos_basis_status *grown =

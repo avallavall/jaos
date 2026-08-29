@@ -64,11 +64,14 @@ what long runs do. That is a phase-1 defect, not a floor defect.
    contain. **Do not fix it by loosening the check** — the check is right and
    the citation is what is wrong.
 1. **The assert debt** (`bench/measurements/02-121/`), one file per commit,
-   full loop each: contracts that survived the purge as prose. `lu.c`'s eight
-   asserts landed at D216 and its tests are still open; `model.c` is next, and
-   its report also names a real defect to fix in the same commit —
-   `jaos_set_coefficient` sets the three matrix flags inline instead of
-   calling `model_matrix_is_stale`, so the two lists can drift.
+   full loop each: contracts that survived the purge as prose. **`lu.c`'s
+   eight asserts landed at D216 and `model.c`'s four at D219**, with
+   `jaos_set_coefficient`'s inline-flags defect fixed in the same commit and
+   `-ffast-math` now a build error. What is left, in order: `check.c` and
+   `jaos_internal.h`, neither started; then the TEST halves, which are `lu.c`'s
+   four and `model.c`'s nine — the scale-invariance test, the per-operation
+   staleness tests, the column-order debug checker,
+   `jm_two_product_residue` at 2^997, the empty-column case.
 2. Section 0's headline decision.
 
 **The phase-1 stop rule closed on 2026-08-29** — D218,

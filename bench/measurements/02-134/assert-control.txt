@@ -1,0 +1,27 @@
+# The asserts D220 adds to model.c, and the control that proves each fires.
+# tree 3f4e579 plus the working tree's src/,
+# EXTRA_CFLAGS=-UNDEBUG, each arm its own worktree and its own make clean.
+
+## canary
+  canary planted
+  assertion failures in the run log: 94
+    Assertion `m->num_col != m->num_col' failed
+  record lines written: 1
+## live
+  assertion failures in the run log: 0
+  record lines written: 95
+## pair
+  pair broken past every guard
+bench/measurements/02-134/run-assert-control.sh: line 85:   789 Aborted                 (core dumped) ( cd "$wt" && ./build/dev/test_model ) > "$D/$tag.log" 2>&1
+  assertion failures in the run log: 1
+    Assertion `JM_BASIS_PAIRED(m)' failed
+  record lines written: 0
+## pair-live
+  assertion failures in the run log: 0
+  record lines written: 0
+  unit suite: 29 Tests 0 Failures 0 Ignored 
+## status
+  status precondition broken
+  assertion failures in the run log: 19
+    Assertion `m->solve_status == JAOS_SOLVE_OPTIMAL' failed
+  record lines written: 11

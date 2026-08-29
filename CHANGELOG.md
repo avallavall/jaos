@@ -11,6 +11,19 @@ open, `bench/README.md` for the gate, and the commit each entry came from.
 
 ### Added
 
+- **Four of `model.c`'s contracts are asserts and a fifth is a build error.**
+  The two start-basis arrays are a pair, checked at the three functions that
+  read either as a claim about the other; `jm_model_publish_objective`
+  checked one of the seven things its comment promised and checks all seven
+  now. `-ffast-math` and `-Ofast` are refused by `#error`, because they
+  enable the associative maths that deletes the compensated sum's residue.
+  Each assert was proven against the defect it exists for, and the control
+  needed three attempts: two versions reported 0 firings on arms that were
+  dead, and the third found that **the gate cannot reach the pair assert at
+  all** — it never changes a model's dimensions after solving one — so that
+  arm runs the unit suite (D219, `bench/measurements/02-134/`). Asserts
+  compile out under `-DNDEBUG`, so the three gate sets are byte-identical.
+
 - **The primal phase 1 stops when its own total infeasibility doubles.** That
   quantity is a sum of bound violations and cannot rise under an exact pivot;
   it rises when the basis has gone near singular and `refresh` recomputes `xb`
@@ -28,6 +41,13 @@ open, `bench/README.md` for the gate, and the commit each entry came from.
   so no shipped solve reaches it; all three gate sets byte-identical.
 
 ### Fixed
+
+- **`jaos_set_coefficient` invalidates the derived copies through
+  `model_matrix_is_stale`** instead of setting the three flags inline. The
+  effect was the same, but the two lists could drift, and the comment saying
+  all five matrix modifications go through one place was already false when
+  the comment purge found it and deleted it. The claim is true now and the
+  sentence is back (D219).
 
 - **D76's re-test proves its patch applied, and the record says so.** It
   reported "the refusal holds" while `tools/icount.sh` printed its D82 canary
