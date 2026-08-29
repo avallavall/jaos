@@ -42,6 +42,23 @@ open, `bench/README.md` for the gate, and the commit each entry came from.
 
 ### Fixed
 
+- **`record-check` reads the measurement records too.** A directory's
+  `README.md` is prose that cites decisions and its `.txt` is the reading a
+  decision was closed on, and neither was ever scanned — so
+  `02-134/assert-control.txt` could claim a decision number that does not
+  exist while the script that wrote it cited a different one, which means the
+  committed record was not the output of the committed script. Scanning them
+  raises the citation count from 3491 to 4460 and finds exactly that one bad
+  citation in the whole measurement history.
+
+- **`make refusals` says which committed records it replaced.** Every re-test
+  `tee`s into its own measurement directory, so the target overwrites the
+  reading its refusal was decided on; `bench/refusals.txt` warned about it in
+  prose and left the rest to memory. It now names the dirtied files and says
+  to keep them or restore them. Not undone automatically: a re-test at a newer
+  tree is often the reading worth keeping, and which it is this time is not a
+  script's decision.
+
 - **`jaos_set_coefficient` invalidates the derived copies through
   `model_matrix_is_stale`** instead of setting the three flags inline. The
   effect was the same, but the two lists could drift, and the comment saying

@@ -227,6 +227,7 @@ and you have the argument. Jump to the entry for the numbers behind it.
 - **[D217](#d217--every-measurement-script-derives-the-repository-root-it-was-48-scripts-and-not-28-and-the-check-that-proves-it-said-stop-twice-for-the-right-reason)** — Every measurement script derives the repository root, it was 48 scripts and not 28, and the check that proves it said STOP twice for the right reason
 - **[D218](#d218--the-primal-phase-1-stops-when-its-own-infeasibility-doubles-and-the-one-instance-it-stops-had-stopped-improving-362354-iterations-earlier)** — The primal phase 1 stops when its own infeasibility doubles, and the one instance it stops had stopped improving 362354 iterations earlier
 - **[D219](#d219--four-of-modelcs-prose-contracts-are-asserts-and-one-is-a-build-error-and-the-control-that-proves-them-had-to-be-rebuilt-twice-before-it-proved-anything)** — Four of `model.c`'s prose contracts are asserts and one is a build error, and the control that proves them had to be rebuilt twice before it proved anything
+- **[D220](#d220--jaos-measurer-accepted-both-changes-and-found-four-defects-in-the-record-and-the-one-that-mattered-was-a-committed-reading-that-its-own-script-could-not-have-written)** — `jaos-measurer` accepted both changes and found four defects in the record, and the one that mattered was a committed reading that its own script could not have written
 
 ---
 
@@ -16688,12 +16689,24 @@ than a fitted number: phase 1's total infeasibility may double.** It stands
 at phase-1 iteration **19532**, which is the iteration where it crosses 1.0.
 The remaining **362354** iterations lowered it by nothing at all.
 
-Every other instance in both sets has its last improvement on its last phase-1
-iteration, `dfl001` included: 125807 of 125807, still descending when the
-bench harness abandoned it at ten times the dual's work. `dfl001` is the
-control the rule must not touch, and at any threshold above 3.30714e-10 it
-does not. Over 110 forced-primal solves, `pilot87` is the only one whose
-phase 1 ever stopped improving before it stopped running.
+**381886 and the record's `p1:381805` are two different counters and neither
+is wrong.** The census counts every pass of the phase-1 loop; `s->n_phase1_iters`
+is `s->iters - phase1_entered` and a pass that refreshes and `continue`s
+changes no iteration count. The 81 between them is those passes. Said here
+because a reader comparing the two figures otherwise finds a mismatch and has
+nothing to resolve it with.
+
+`dfl001` is the control the rule must not touch: 125807 of 125807, still
+descending when the bench harness abandoned it at ten times the dual's work,
+and at no threshold above 3.30714e-10 does the rule reach it.
+
+**Two other instances of the 110 also stop improving before they stop
+running, and the size of the gap is what separates them from `pilot87`:**
+`ken-11` by 3 iterations and `degen3` by 4, against 362354. Neither is
+reachable at any threshold at or above 1e-12 — `ken-11` never rises at all
+and `degen3` rises 3.98055e-16. An earlier draft of this entry said `pilot87`
+was the only one; that was wrong, and `jaos-measurer` caught it by parsing
+the raw `last_gain_p1` column instead of reading the table above it.
 
 So the rule stops one solve, at the exact iteration after which it never
 improved again, and turns a bench-harness cutoff into a published refusal that
@@ -16919,3 +16932,86 @@ them an assert: the scale-invariance test, the per-operation staleness tests,
 the column-order debug checker, `jm_two_product_residue` at 2^997, and the
 empty-column case. `TODO.md` carries them. `check.c` and `jaos_internal.h`
 have not been started.
+
+## D220 — `jaos-measurer` accepted both changes and found four defects in the record, and the one that mattered was a committed reading that its own script could not have written
+
+D218 and D219 were judged by `jaos-measurer` in a context that did not produce
+the numbers, which is what `CLAUDE.md` asks for and what neither entry had had.
+Both came back **ACCEPT**. This entry is what the pass found on the way, because
+the findings are worth more than the verdict.
+
+## What it re-derived rather than believed
+
+All three gate sets at HEAD, per instance and by whole-file md5, against HEAD
+and against `b9fd328` — the parent of D218, so both changes at once. 139 of 139
+bit-identical, 0 moved, 0 digest changes. `make primal` reproduced
+`bench/results/primal.txt` byte for byte, `pilot87`'s line and its published
+sentence included, and a parse of both records rather than a read of the diff
+put the moved-instance count at exactly 1.
+
+**And it built the canary this session did not think of.** A bit-identical
+record is also what a stale binary produces. `strings build/bench/run` carries
+D218's sentence once and `b9fd328`'s build does not; the two binaries differ by
+md5. For D219: the release binary contains no `__assert_fail` and none of the
+assert text, while `build/dev/test_model` contains all of it. The second half
+is what makes the first mean something — the test finds the asserts where they
+should be, so finding none in the release binary is `NDEBUG` removing them and
+not the test being blind.
+
+## The four defects
+
+1. **A claim falsified by the column it was drawn from.** D218 said `pilot87`
+   was the only one of the 110 whose phase 1 stopped improving before it
+   stopped running. `rise-sweep.txt`'s own `last_gain_p1` says three do:
+   `ken-11` by 3 iterations, `degen3` by 4, `pilot87` by 362354. Harmless to
+   the constant — neither of the other two is reachable at any threshold at or
+   above 1e-12 — and the corrected sentence is stronger than the wrong one,
+   because the gap separates them by five orders. Wrong in three places, and
+   the session had noticed `ken-11`'s gap while reading the output, called it
+   trivial and then written the absolute claim anyway.
+
+2. **A committed reading its own script could not have written.**
+   `02-134/assert-control.txt` began "The asserts D220 adds to model.c", and
+   `run-assert-control.sh` emits "D219". The entry was renumbered after the
+   control ran and the record was not re-taken. **`record-check` could not see
+   it**: `bench/measurements/*/README.md` and `*/*.txt` were in none of its
+   file sets, so no citation in any measurement record had ever been checked.
+   They are now, which raises the citation count from 3491 to 4460 and finds
+   this one bad citation and no other in the whole history. The record was
+   re-taken so it is the script's output again.
+
+3. **Two counters that read as one wrong number.** D218 says `pilot87` runs
+   381886 phase-1 iterations; the record says `p1:381805`. The census counts
+   every pass of the phase-1 loop, `s->n_phase1_iters` is
+   `s->iters - phase1_entered`, and a pass that refreshes and `continue`s
+   changes no iteration count. The 81 between them is those passes. Both
+   figures are right and nothing said they were different quantities.
+
+4. **`make refusals` replaces committed evidence and said so only in prose.**
+   Each re-test `tee`s into its own measurement directory. `bench/refusals.txt`
+   carries the warning; the target itself was silent, which is D167's `| tee`
+   trap automated into something anyone can run. It now names the files it
+   dirtied and says to keep or restore them, and does not undo them: a re-test
+   at a newer tree is often the reading worth keeping, and which it is is not a
+   script's decision.
+
+## What it could not settle, recorded as open
+
+- **The instruction count is INCONCLUSIVE by `tools/icount.sh`'s own canary.**
+  It read exactly 1.00000 on six instances against both parents, which is a
+  STOP. The measurer built the control that separates the canary's two
+  branches: the same count taken on `build/bench/primal`, where D218's branch
+  does run, moves — `share2b` 1.00025, `scfxm1` 1.00005, `sctap3` 1.00001 —
+  while the gate binary's count on the same three instances in the same
+  session is 1.00000 to the instruction. So the STOP is "the change is not on
+  the measured path" and not "the trees are the same code". That resolves the
+  ambiguity; it does not turn `icount.sh`'s output into a pass, and the entry
+  says so rather than claiming one.
+- **`docs/tolerances.md` declares a gap this pass did not close**: the census
+  was taken with Curtis-Reid scaling on, and no reading covers an unscaled
+  (`JM_SCALE_NONE`) forced-primal solve.
+- The plateau's eight settings were measured on the carried point; only 1.0
+  was run as a campaign. The recomputed ratio at iteration 19532 is 1267.85,
+  above `1 + T` for every in-band `T`, so the plateau survives the retry by
+  inference from one campaign plus the census. The `1e+12` arm coming back
+  identical to the pre-rule tree is the stronger control.

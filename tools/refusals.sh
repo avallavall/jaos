@@ -45,4 +45,21 @@ while IFS= read -r line; do
 done < "$reg"
 echo
 echo "refusals: $ran re-tested, $flipped flipped, $manual manual"
+
+# Each re-test `tee`s into its own measurement directory, so running this
+# target REPLACES the reading its refusal was decided on. `bench/refusals.txt`
+# says so in prose and a reader has to remember it; this says it out loud with
+# the file names, every time, because D167 lost four lines of D162's evidence
+# to exactly this and only `git status` caught it. Reported and never undone:
+# a re-test at a newer tree is often the reading you want to keep, and which
+# it is this time is not a script's decision.
+if command -v git >/dev/null 2>&1 && git -C "$root" rev-parse --git-dir >/dev/null 2>&1; then
+    dirty=$(git -C "$root" diff --name-only -- bench/measurements/ 2>/dev/null)
+    if [ -n "$dirty" ]; then
+        echo
+        echo "NOTE: this run replaced committed evidence. Read the diff and decide:"
+        echo "$dirty" | sed 's/^/      /'
+        echo "      keep it (a re-test at this tree) or 'git checkout --' it back."
+    fi
+fi
 [ $flipped -eq 0 ]

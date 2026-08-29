@@ -63,11 +63,17 @@ than a fitted number: phase 1's total infeasibility may double. It stands
 This is the reading D211 did not have, and it is why the refusal does not
 simply come back.
 
-| instance | phase-1 iterations | last improvement of the running minimum |
-|---|---|---|
-| `pilot87` | 381886 | **19532** |
-| `dfl001` | 125807 | 125807 |
-| every other instance, both sets | | its own last iteration |
+| instance | phase-1 iterations | last improvement of the running minimum | gap |
+|---|---|---|---|
+| `pilot87` | 381886 | **19532** | **362354** |
+| `degen3` | 13813 | 13809 | 4 |
+| `ken-11` | 12146 | 12143 | 3 |
+| `dfl001` | 125807 | 125807 | 0 |
+| the other 106, both sets | | their own last iteration | 0 |
+
+Three of the 110 stop improving before they stop running, and the gap is what
+tells them apart. `degen3` and `ken-11` are unreachable at any threshold at or
+above 1e-12: `ken-11` never rises at all, `degen3` rises 3.98055e-16.
 
 `pilot87`'s minimum last improved at the very iteration where it crosses 1.0.
 The 362354 iterations after it lowered the objective by nothing. Stopping

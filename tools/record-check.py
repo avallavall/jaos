@@ -110,7 +110,16 @@ SOURCES = sorted(glob.glob('src/*.c') + glob.glob('src/*.h') +
 SKILLS = sorted(glob.glob('.claude/**/*.md', recursive=True))
 TOOLS = sorted(glob.glob('tools/*.sh') + glob.glob('tools/*.py'))
 REGISTRIES = [p for p in ['bench/refusals.txt', 'docs/claims.txt'] if os.path.isfile(p)]
-EVERYTHING = HISTORY + LIVE_DOCS + SOURCES + SKILLS + TOOLS + REGISTRIES + ['Makefile']
+# A measurement directory's README is prose that cites decisions, and its .txt
+# is the reading a decision was closed on. Neither was checked until a
+# measurer found `assert-control.txt` claiming a D-number that does not exist,
+# while the script that wrote it cited a different one — so the committed
+# record was not the output of the committed script, and nothing said so.
+# Tracked only: an untracked stray beside the repository is not the record.
+MEASUREMENTS = tracked(sorted(glob.glob('bench/measurements/*/README.md') +
+                              glob.glob('bench/measurements/*/*.txt')))
+EVERYTHING = (HISTORY + LIVE_DOCS + SOURCES + SKILLS + TOOLS + REGISTRIES +
+              MEASUREMENTS + ['Makefile'])
 
 decisions = read('DECISIONS.md')
 headings = {}
