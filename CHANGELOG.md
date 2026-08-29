@@ -72,6 +72,17 @@ open, `bench/README.md` for the gate, and the commit each entry came from.
   its answer (D218, `bench/measurements/02-133/`). Behind `cfg.force_primal`,
   so no shipped solve reaches it; all three gate sets byte-identical.
 
+### Changed
+
+- **A change is judged on five things, not four.** `tools/icount.sh -m`
+  reports L1 data read misses from callgrind's simulated cache instead of
+  instructions, deterministic to the miss and with the hardware prefetcher
+  modelled. Instructions judge a change that does LESS work; misses judge one
+  whose mechanism is memory-level, because every prefetch is a retired
+  instruction and the instruction count reports such a change as worse while
+  it is faster. Found when a literature pass turned up the first candidate of
+  that kind, which the existing arbiter would have rejected (D225).
+
 ### Fixed
 
 - **A cited measurement directory has to be in the repository.**

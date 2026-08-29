@@ -83,13 +83,20 @@ lists what the record says does not exist — the line that fails when it does.
 `bench/refusals.txt` with what would reopen it and, where one exists, the
 script that re-tests it; `make refusals` runs those at a milestone boundary.
 
-**A change is judged on four things.** Solution digests for correctness,
+**A change is judged on five things.** Solution digests for correctness,
 work units for determinism, **an instruction count** (`tools/icount.sh -r
 <ref> <instances>`, deterministic to the instruction inside the solver,
-D206) for what units cannot see, and a same-instance time ratio only where
-the count is not readable. Seconds on this host repeat to 6.27%, so "inside
-the noise" was never a measurement; the count is what a change that moves
-nothing else is judged on.
+D206) for what units cannot see, **a miss count** (`tools/icount.sh -m`,
+deterministic to the miss, D225) where instructions have the wrong sign, and
+a same-instance time ratio only where neither count is readable. Seconds on
+this host repeat to 6.27%, so "inside the noise" was never a measurement.
+
+**Which of the two counts is the arbiter depends on the mechanism, and
+getting that backwards manufactures a wrong refusal.** Instructions judge a
+change that does LESS work. Misses judge a change whose whole mechanism is
+memory-level — prefetching, layout, blocking — because every prefetch is a
+retired instruction, so the instruction count reports such a change as worse
+while it is faster (D225).
 
 ## Build and test — WSL only
 
@@ -139,10 +146,10 @@ does not persist between `wsl` invocations.
   record; the seconds say whether the units bought anything, and **never
   enter `bench/results/*.txt` or a baseline** — a baseline that changes every
   run cannot detect a regression.
-- **A change is judged on four things** (D45, D206): solution digests for
-  correctness, work units for determinism, an instruction count for what
-  units cannot see, and a same-instance time ratio only where the count is
-  not readable.
+- **A change is judged on five things** (D45, D206, D225): solution digests
+  for correctness, work units for determinism, an instruction count for what
+  units cannot see, a miss count where instructions have the wrong sign, and
+  a same-instance time ratio only where neither count is readable.
 
 ## The skills, and the moment each one is for
 

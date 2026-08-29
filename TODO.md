@@ -84,7 +84,33 @@ what long runs do. That is a phase-1 defect, not a floor defect.
    - `jaos_internal.h`: `solve_primal_iters`/`solve_phase1_iters` written on
      an INTERRUPTED exit; `jm_pattern_order` on a repeating unordered input;
      `jm_nonbasic_*` rebuilt and compared after a basis change.
-2. Section 0's headline decision.
+2. **Software prefetching on the indirect loads**, the first performance
+   candidate to survive a literature pass against the bit-identical
+   constraint. Ainsworth & Jones, CGO 2017 and ACM TOCS 36(3) 2019, DOI
+   10.1145/3319393: one prefetch per level of indirection, at
+   `offset = c(t - l) / t` — `t` loads in the chain, `l` a load's position,
+   `c` one microarchitecture constant. Their figure 6 puts `c = 64` close to
+   optimal across five microarchitectures, so the sweep is around 64 and not
+   from scratch. Determinism-safe: no value, order or control flow changes,
+   and GCC documents `__builtin_prefetch` as fault-free on a bad address.
+   Sites: `x[row[k]] -= val[k] * p` in FTRAN, and the row-wise pricing loop.
+
+   **Judge it on `tools/icount.sh -m`, not on instructions** — every prefetch
+   is a retired instruction, so the instruction count reports a working
+   change as worse (D225). Read the paper before writing the code: the PDF
+   is at `https://www.cl.cam.ac.uk/~tmj32/papers/docs/ainsworth19-tocs.pdf`
+   and `pdftotext` handles it; section 4.4 is the scheduling formula.
+
+   The same pass produced four refusals, all cited, none of which needs
+   re-deriving: structure-of-arrays versus array-of-structures has **no
+   peer-reviewed study for sparse linear algebra** and the cache-conscious
+   layout papers target pointer-chasing rather than flat indexed arrays;
+   cache blocking targets capacity-bound kernels and a hyper-sparse
+   triangular solve is latency-bound on dependent indirect loads; Sympiler's
+   symbolic analysis needs a pattern that does not change and the basis
+   changes every iteration; DCSC compresses out empty columns and presolve
+   already removes those.
+3. Section 0's headline decision.
 
 **The phase-1 stop rule closed on 2026-08-29** — D218,
 `bench/measurements/02-133/`. `PHASE1_RISE_MAX = 1.0`: phase 1 publishes

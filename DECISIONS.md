@@ -232,6 +232,7 @@ and you have the argument. Jump to the entry for the numbers behind it.
 - **[D222](#d222--a-cited-measurement-directory-has-to-be-in-the-repository-and-the-check-that-said-so-tested-this-disk-instead)** — A cited measurement directory has to be in the repository, and the check that said so tested this disk instead
 - **[D223](#d223--jaosinternalhs-contracts-are-asserts-in-the-files-that-implement-them-and-the-fourth-way-a-control-can-be-worthless-is-to-hang)** — `jaos_internal.h`'s contracts are asserts in the files that implement them, and the fourth way a control can be worthless is to hang
 - **[D224](#d224--the-first-four-tests-of-the-debt-and-jmtwoproductresidue-turns-out-to-guard-one-case-twice)** — The first four tests of the debt, and `jm_two_product_residue` turns out to guard one case twice
+- **[D225](#d225--a-change-that-trades-instructions-for-cache-misses-is-judged-on-misses-and-the-arbiter-that-would-have-rejected-it-now-exists)** — A change that trades instructions for cache misses is judged on misses, and the arbiter that would have rejected it now exists
 
 ---
 
@@ -17261,3 +17262,68 @@ and the thing under test wrong once.
 ## What is left open
 
 About twenty tests across the four reports. `TODO.md` carries them.
+
+## D225 — A change that trades instructions for cache misses is judged on misses, and the arbiter that would have rejected it now exists
+
+D206 made an instruction count the arbiter wherever seconds cannot resolve,
+because this host repeats to 6.27% (D93). That is right for a change that does
+less work. **It has the wrong sign for a change that does more work in order
+to wait less**, and a literature pass on 2026-08-29 found the first serious
+candidate of exactly that kind.
+
+## The question
+
+Ainsworth & Jones' software prefetching for indirect memory accesses (CGO
+2017; ACM TOCS 36(3), 2019, DOI 10.1145/3319393) inserts one prefetch per
+level of indirection at a look-ahead of `offset = c(t - l) / t`, where `t` is
+the number of loads in the chain, `l` a load's position in it, and `c` one
+microarchitecture-specific constant. Their figure 6 reports `c = 64` close to
+optimal across five microarchitectures, and gives the reason it is stable: the
+optimal look-ahead is memory latency divided by time per iteration, and in a
+memory-bound loop the time per iteration is itself dominated by memory
+latency, so the two largely cancel.
+
+`x[row[k]] -= val[k] * p` in FTRAN and the row-wise pricing loop are that
+shape. **Every prefetch is a retired instruction**, so `tools/icount.sh` would
+report the change as worse while it is faster. The arbiter would have
+manufactured a confident REJECT, and a refusal in this project is load-bearing.
+
+## The measurement
+
+`valgrind --tool=callgrind --cache-sim=yes --simulate-hwpref=yes` reports L1
+and last-level miss counts from a simulated cache model, and **the counts are
+deterministic**: two runs of one binary on `adlittle` give `Ir 7739873,
+D1mr 15325, DLmr 26` both times, to the integer. That is the same property
+that made the instruction count admissible at D206.
+
+`--simulate-hwpref=yes` is not optional. It moves `ILmr` from 934 to 842 and
+`DLmw` from 2098 to 1499 on the same run, so the model is live — and software
+prefetching only pays where the hardware prefetcher cannot see the pattern, so
+a model without one flatters every prefetch change.
+
+## What changed
+
+`tools/icount.sh` takes `-m`. It reports `D1mr`, L1 data read misses, instead
+of instructions, through the same worktree machinery and the same D82 canary.
+Without `-m` it is unchanged.
+
+**And the rule that goes with it.** A change is judged on:
+
+| metric | when it is the arbiter |
+|---|---|
+| solution digests | always, for correctness |
+| work units | always, for determinism and cross-machine cost |
+| instruction count | a change that does LESS work |
+| **miss count (`-m`)** | **a change whose mechanism is memory-level: prefetching, layout, blocking. Instructions have the wrong sign there** |
+| a same-instance time ratio | only where neither count is readable |
+
+## What this does NOT establish
+
+That the miss count detects a real prefetch win. It establishes that the
+metric exists, repeats exactly, and models a hardware prefetcher. Whether a
+prefetch on FTRAN moves it is the campaign's question and is open in
+`TODO.md`. Claiming more from a determinism probe would be the mistake this
+entry exists to prevent.
+
+Nor does it retire the instruction count. Most changes here do less work, and
+for those the count remains right.

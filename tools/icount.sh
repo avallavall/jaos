@@ -32,9 +32,16 @@ set -u
 root="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$root" || exit 2
 ref=""
-while getopts "r:" o; do case $o in r) ref=$OPTARG;; *) exit 2;; esac; done
+misses=0
+while getopts "r:m" o; do
+    case $o in
+        r) ref=$OPTARG;;
+        m) misses=1;;
+        *) exit 2;;
+    esac
+done
 shift $((OPTIND - 1))
-[ $# -ge 1 ] || { echo "usage: tools/icount.sh [-r REF] INSTANCE..." >&2; exit 2; }
+[ $# -ge 1 ] || { echo "usage: tools/icount.sh [-r REF] [-m] INSTANCE..." >&2; exit 2; }
 command -v valgrind >/dev/null || { echo "valgrind is not installed" >&2; exit 2; }
 
 D=$(mktemp -d) || exit 2
@@ -45,11 +52,25 @@ cleanup() {
 }
 trap cleanup EXIT
 
+# With -m the cache model is simulated too and the reported figure is L1 data
+# READ MISSES rather than instructions. `--simulate-hwpref=yes` is not
+# optional for that reading: software prefetching only pays where the
+# hardware prefetcher cannot see the pattern, so a model without one flatters
+# every prefetch change. Both are deterministic — two runs of one binary give
+# the same integers, checked on `adlittle` (D225).
+SIM=""
+[ "$misses" = 1 ] && SIM="--cache-sim=yes --simulate-hwpref=yes"
+# summary: Ir Dr Dw I1mr D1mr D1mw ILmr DLmr DLmw, so awk field 6 is D1mr
+# once `summary:` itself is field 1. Without -m the line has Ir alone.
+FIELD=2
+[ "$misses" = 1 ] && FIELD=6
+
 count() {   # $1 = tree dir, $2 = instance
-    ( cd "$1" && valgrind --tool=callgrind --toggle-collect='jm_dual_simplex*' \
+    # shellcheck disable=SC2086
+    ( cd "$1" && valgrind --tool=callgrind $SIM --toggle-collect='jm_dual_simplex*' \
           --callgrind-out-file="$D/cg" build/bench/run -j 1 -o "$D/out" "$2" \
           > /dev/null 2>&1 )
-    grep -E '^summary:' "$D/cg" | awk '{print $2}'
+    grep -E '^summary:' "$D/cg" | awk -v f="$FIELD" '{print $f}'
 }
 
 make build/bench/run > /dev/null 2>&1 || { echo "build failed" >&2; exit 2; }
@@ -57,9 +78,15 @@ if [ -n "$ref" ]; then
     git worktree add --detach "$D/wt" "$ref" > /dev/null 2>&1 || { echo "cannot check out $ref" >&2; exit 2; }
     ln -s "$root/bench/instances" "$D/wt/bench/instances"
     ( cd "$D/wt" && make build/bench/run > /dev/null 2>&1 ) || { echo "build of $ref failed" >&2; exit 2; }
+    [ "$misses" = 1 ] && \
+        echo "# L1 DATA READ MISSES (D1mr), hardware prefetch simulated (D225)"
     printf "%-14s %14s %14s %9s\n" instance "$(git rev-parse --short "$ref")" working-tree ratio
 else
-    printf "%-14s %14s\n" instance instructions
+    if [ "$misses" = 1 ]; then
+        printf "%-14s %14s\n" instance d1-read-misses
+    else
+        printf "%-14s %14s\n" instance instructions
+    fi
 fi
 sum=0; n=0
 for inst in "$@"; do
