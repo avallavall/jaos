@@ -229,6 +229,7 @@ and you have the argument. Jump to the entry for the numbers behind it.
 - **[D219](#d219--four-of-modelcs-prose-contracts-are-asserts-and-one-is-a-build-error-and-the-control-that-proves-them-had-to-be-rebuilt-twice-before-it-proved-anything)** — Four of `model.c`'s prose contracts are asserts and one is a build error, and the control that proves them had to be rebuilt twice before it proved anything
 - **[D220](#d220--jaos-measurer-accepted-both-changes-and-found-four-defects-in-the-record-and-the-one-that-mattered-was-a-committed-reading-that-its-own-script-could-not-have-written)** — `jaos-measurer` accepted both changes and found four defects in the record, and the one that mattered was a committed reading that its own script could not have written
 - **[D221](#d221--checkcs-four-contracts-are-asserts-and-the-breaker-that-fired-nothing-was-measuring-the-models-rather-than-the-assert)** — `check.c`'s four contracts are asserts, and the breaker that fired nothing was measuring the models rather than the assert
+- **[D222](#d222--a-cited-measurement-directory-has-to-be-in-the-repository-and-the-check-that-said-so-tested-this-disk-instead)** — A cited measurement directory has to be in the repository, and the check that said so tested this disk instead
 
 ---
 
@@ -16832,10 +16833,9 @@ which is the rule about a measured figure having one owner.
 **Running the gate in a worktree rather than in the main tree found a defect
 in the record check itself**, and it is `TODO.md`'s item 0 now.
 `tools/record-check.py:177` tests a cited measurement directory with
-`os.path.isdir`, so `make test` passes here and fails in any clone: two lines
-of `TODO.md` and one of `bench/measurements/README.md` cite
-`bench/measurements/02-31/`, which is untracked. The check is right; the
-citation is what is wrong.
+`os.path.isdir`, so `make test` passed here and failed in any clone: two lines
+of `TODO.md` cited `02-31/`, an untracked directory under the measurements
+directory. Closed at D222.
 
 ## What is left open
 
@@ -17075,3 +17075,58 @@ finite lower bound. It pays twice: firing on all 94 also proves
 
 The test half of `02-121`'s `check.c` list, which is eight items and none of
 them an assert. `jaos_internal.h` has not been started. `TODO.md` carries both.
+
+## D222 — A cited measurement directory has to be in the repository, and the check that said so tested this disk instead
+
+D220's second finding was that `record-check` had never read a measurement
+record. Closing that exposed the older half of the same defect, which is this
+one.
+
+## The question
+
+`tools/record-check.py`'s rule reads "every `bench/measurements/<id>/` cited
+exists". It tested `os.path.isdir`. Those are different claims, and the
+difference is the whole point of the check: a record that exists on one
+maintainer's disk is not evidence anyone else can re-derive.
+
+## What it cost
+
+`make test` passed here and failed in every clone. Two lines of `TODO.md`
+cited `02-31/`, an unfinished probe that `7ac820f` untracked on purpose,
+saying it belongs to whoever wrote it. The directory sits beside the
+repository on this machine and in no clone. Found by running the gate in a
+worktree rather than in the main tree; a worktree carries only tracked
+content, which is what a clone carries.
+
+## The change
+
+The check reads the tracked set now. Two refinements, both forced by what it
+found:
+
+- **`bench/measurements/README.md` was scanned by nothing**, although it is
+  the index of the measurement directories and cites them by number. It is a
+  live document now. It already wrote `02-31/` without the prefix, so it
+  needed no edit.
+- **Raw readings are exempt.** A measurement `.txt` is what a command printed,
+  and `02-125/verify-all.txt` captures a `git status` whose output names the
+  untracked directory. Rewording a raw reading to satisfy a check would
+  falsify the reading. The directory rule applies to prose; the D-number rule
+  from D220 still applies to both.
+
+The three surviving mentions keep the information and drop the prefix, so
+`02-31/` is named without claiming the repository contains it. `TODO.md` says
+why in the line itself, because the next person to write that path will
+otherwise restore the prefix and the check will fail for a reason that reads
+like a false alarm.
+
+## What was refused
+
+Tracking the directory. It would have made every citation valid in one line
+and reversed a decision another session made deliberately, on a file that is
+not this project's work.
+
+## The verdict
+
+Over the whole repository the stricter rule fails on exactly six citations and
+all six are that one directory. Nothing else cited a measurement record that
+is not in the repository.

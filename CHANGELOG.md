@@ -52,6 +52,18 @@ open, `bench/README.md` for the gate, and the commit each entry came from.
 
 ### Fixed
 
+- **A cited measurement directory has to be in the repository.**
+  `record-check` tested `os.path.isdir`, which is this disk and not repository
+  membership, so `make test` passed here and failed in every clone: two lines
+  of `TODO.md` cited a directory `7ac820f` untracked on purpose. It reads the
+  tracked set now. Two refinements the fix forced —
+  `bench/measurements/README.md` is scanned at last, although it is the index
+  of those directories, and raw `.txt` readings are exempt, because one
+  captures a `git status` that legitimately names the untracked directory and
+  rewording a reading to satisfy a check would falsify it. Proven in a
+  checkout carrying only tracked content: PASS there, and still FAIL on a
+  citation of a directory in no tree (D222).
+
 - **`record-check` reads the measurement records too.** A directory's
   `README.md` is prose that cites decisions and its `.txt` is the reading a
   decision was closed on, and neither was ever scanned — so

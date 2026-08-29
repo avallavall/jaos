@@ -102,7 +102,10 @@ def lines_of(p):
 
 HISTORY = ['DECISIONS.md', 'CHANGELOG.md']
 LIVE_DOCS = ['SPECS.md', 'TODO.md', 'CLAUDE.md', 'README.md', 'bench/README.md',
-             'bench/compare/README.md'] + sorted(glob.glob('docs/*.md'))
+             'bench/compare/README.md',
+             # The index of the measurement directories, and it was scanned by
+             # nothing until 2026-08-29 although it cites them by number.
+             'bench/measurements/README.md'] + sorted(glob.glob('docs/*.md'))
 LIVE_DOCS = [p for p in LIVE_DOCS if os.path.isfile(p)]
 SOURCES = sorted(glob.glob('src/*.c') + glob.glob('src/*.h') +
                  glob.glob('include/*.h') + glob.glob('bench/*.c') +
@@ -180,11 +183,35 @@ for p in [q for q in EVERYTHING if q not in HISTORY]:
                      "DECISIONS.md's appendix" % (p, n, m.group(1)))
 
 # ----------------------------------------------------- 3. measurement records
-for p in EVERYTHING:
+# A cited directory has to be IN THE REPOSITORY, not merely on this disk. The
+# check tested `os.path.isdir` until 2026-08-29, so `make test` passed here
+# and failed in every clone: TODO.md cited an untracked directory that happens
+# to sit beside the repository, and nothing said so. A record nobody who
+# clones can read is not evidence.
+measured_dirs = set()
+for q in (TRACKED or []):
+    m = re.match(r'bench/measurements/(\d\d-\d+)/', q)
+    if m:
+        measured_dirs.add(m.group(1))
+# Prose only. A measurement `.txt` is what a command printed, and several
+# capture `git status`, whose output legitimately names an untracked directory.
+# Rewording a raw reading to satisfy a check would falsify the reading.
+PROSE = [p for p in EVERYTHING
+         if not (p.startswith('bench/measurements/') and p.endswith('.txt'))]
+for p in PROSE:
     for n, line in lines_of(p):
         for m in re.finditer(r'bench/measurements/(\d\d-\d+)', line):
-            if not os.path.isdir('bench/measurements/' + m.group(1)):
-                fail('%s:%d cites bench/measurements/%s/, which does not exist' % (p, n, m.group(1)))
+            d = m.group(1)
+            if TRACKED is None:
+                if not os.path.isdir('bench/measurements/' + d):
+                    fail('%s:%d cites bench/measurements/%s/, which does not exist'
+                         % (p, n, d))
+            elif d not in measured_dirs:
+                on_disk = os.path.isdir('bench/measurements/' + d)
+                fail('%s:%d cites bench/measurements/%s/, which is not in the '
+                     'repository%s' % (p, n, d,
+                     ' (it is on this disk, untracked, so a clone does not have it)'
+                     if on_disk else ''))
 
 # ---------------------------------------------------------------- 4. constants
 src_const = {}

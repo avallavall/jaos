@@ -51,18 +51,6 @@ what long runs do. That is a phase-1 defect, not a floor defect.
 
 **If you were told "continue", this is the order:**
 
-0. **`make test` is green here and red in a fresh checkout**, found on
-   2026-08-29 by running the gate in a worktree rather than in the main tree.
-   `tools/record-check.py:177` tests a cited measurement directory with
-   `os.path.isdir`, which is disk existence and not repository membership.
-   Two lines of this file cite `bench/measurements/02-31/`, which is untracked
-   and therefore absent from any clone, so the check passes on this machine
-   only because the stray directory happens to sit beside the repository.
-   `bench/measurements/README.md` cites it too. Two ways to close it and the
-   choice is the maintainer's: track the directory, which reverses the
-   deliberate call in `7ac820f`, or stop citing a path the repository does not
-   contain. **Do not fix it by loosening the check** — the check is right and
-   the citation is what is wrong.
 1. **The assert debt** (`bench/measurements/02-121/`), one file per commit,
    full loop each: contracts that survived the purge as prose. **`lu.c`'s
    eight asserts landed at D216 and `model.c`'s four at D219**, with
@@ -445,8 +433,8 @@ session commits to this repository.
 ### The state of the tree at 2026-08-21, which the sections below assume
 
 **Nothing is in flight and no worktree is registered.** The tree is clean apart
-from one untracked directory that is not this session's
-(`bench/measurements/02-31/`, see below). **`make configs` exits 0** — all five
+from one untracked directory that is not this session's — `02-31/`, under the
+measurements directory, see below. **`make configs` exits 0** — all five
 build configurations.
 
 **The gate campaign at HEAD is valid and it is D175's** (`c648f86`, the only
@@ -911,9 +899,13 @@ infer:
   `docs/architecture.html`) and could not affect a solve, so no measurement was
   invalidated. If two sessions are live again, `CHANGELOG.md`, `DECISIONS.md`
   and `TODO.md` are the files that will collide.
-- **`bench/measurements/02-31/run-gaps.sh` is untracked and is not this
-  session's.** It is an unfinished probe of the `want_lo <= want_hi` gaps, for
-  the standing debt at the end of this file. It was left alone deliberately.
+- **`run-gaps.sh`, in the untracked `02-31/` under the measurements directory,
+  is not this session's.** It is an unfinished probe of the
+  `want_lo <= want_hi` gaps, for the standing debt at the end of this file. It
+  was left alone deliberately (`7ac820f`). **The path is written without its
+  `bench/measurements/` prefix on purpose**: `record-check` reads that prefix
+  as a claim that the directory is in the repository, and this one is not
+  (D222).
   Do not commit it without knowing whose it is.
 - **A campaign cannot be run in the main tree while it is dirty**, so a
   candidate is measured in a git worktree with `bench/instances*` symlinked in.
