@@ -70,10 +70,33 @@ PY
   echo "# tree: $(git rev-parse --short "$ref"); instances: $INSTANCES"
   echo "# geomean within 0.5% of 1.0 = the refusal holds; further = reopen"
   echo
+  # The control, and the record had none until 2026-08-29. Identical counts
+  # on both trees is the ANSWER to this question and is also exactly what a
+  # patch that never applied produces. So the two trees are counted here,
+  # in the record, before any instruction count is read: the measured tree
+  # must carry the qualifier and the reference must not.
+  new_n=$(grep -c 'restrict' "$D/wt/src/lu.c")
+  old_n=$(git show "$ref:src/lu.c" | grep -c 'restrict')
+  echo "# control: 'restrict' appears $old_n times in $(git rev-parse --short "$ref"):src/lu.c"
+  echo "#          and $new_n times in the patched tree that is measured"
+  if [ "$new_n" -le "$old_n" ]; then
+      echo "COULD NOT RUN: the patch did not add a qualifier, so the two trees are one tree"
+      exit 2
+  fi
+  echo
   ( cd "$D/wt" && bash tools/icount.sh -r "$ref" $INSTANCES )
   rc=$?
   echo "icount rc=$rc"
+  # rc=2 is `tools/icount.sh`'s D82 canary: it refuses to report a comparison
+  # in which every instance counted the same, because that is what one binary
+  # measured twice looks like. Here the control above has already shown the
+  # two trees differ in source, so identical counts are this question's
+  # answer -- GCC emits the same code with the qualifier and without it --
+  # and not a broken measurement. The verdict below therefore reads the
+  # geometric mean and not rc.
+  [ "$rc" = 2 ] && echo "# rc=2 is expected when the qualifier changes nothing; see the control above"
 } 2>&1 | tee "$here/run-restrict-icount.txt"
+grep -q '^COULD NOT RUN' "$here/run-restrict-icount.txt" && exit 2
 
 g=$(grep -oE 'geometric mean of per-instance ratios: [0-9.]+' "$here/run-restrict-icount.txt" | awk '{print $NF}')
 [ -z "$g" ] && exit 2

@@ -29,6 +29,16 @@ open, `bench/README.md` for the gate, and the commit each entry came from.
 
 ### Fixed
 
+- **D76's re-test proves its patch applied, and the record says so.** It
+  reported "the refusal holds" while `tools/icount.sh` printed its D82 canary
+  and exited 2, and the evidence file carried nothing separating "`restrict`
+  changes no instruction" from "the patch never applied" — identical counts
+  are what both look like. The record now counts the qualifier in both trees
+  before reading any instruction count, and refuses when the measured tree
+  does not actually differ: 0 occurrences in the reference against 7 in the
+  patched tree. The refusal holds, and for the first time the reading says
+  why rather than only what.
+
 - **`geomean.py` can read `bench/results/primal.txt`.** That record carries two
   solves a line, as `dual=iters/work primal=iters/work`, and has no `work=`
   field at all, so `--metric work` matched nothing and the script exited 2
