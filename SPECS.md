@@ -196,17 +196,28 @@ problem is solved is the solver's to decide (D64).
 | Warm re-solve against cold, one branching step per instance | **pass**; `disagreed=0, rejected=0` on both sets. The ratio lives in `bench/results/warm.txt` and `warm-kennington.txt`, never here (D92, D151) |
 | Full suite clean under ASan and UBSan | **pass** |
 | Reader robustness under fuzzing | **pass** |
-| Competitive gap at rung **P0** vs **HiGHS 1.15.1** | **3.15x slower**, on 2.04x the cost of an iteration (`bench/compare/results/P0.txt`, taken 2026-08-17) |
-| Competitive gap at rung **P0** vs **SoPlex 8.0.3** | **0.95x, faster per solve**, on 1.51x per iteration, faster on 11 of 20 (same record) |
-| Competitive gap at rung **P0** vs **Clp 1.17.11** | **2.57x slower**, on 1.95x per iteration (same record) |
+| Competitive gap at rung **P0** vs **HiGHS 1.15.1** | **3.60x slower**, on 1.78x the iterations and 2.02x the cost of one, faster on 1 of 17 (`bench/compare/results/P0.txt`, taken 2026-08-30) |
+| Competitive gap at rung **P0** vs **SoPlex 8.0.3** | **1.12x slower**, on **0.73x the iterations** and 1.52x the cost of one, faster on 10 of 21 (same record) |
+| Competitive gap at rung **P0** vs **Clp 1.17.11** | **2.96x slower**, on 1.56x the iterations and 1.90x the cost of one, faster on 1 of 14 (same record) |
+| Direction of the gap since 2026-08-17 | **wider on all three**: 3.15x → 3.60x, 0.95x → 1.12x, 2.57x → 2.96x. Consistent with D184 paying 1.0339x netlib and 1.0976x Kennington in work to remove four wrong answers, and with nothing since buying it back. No performance work has landed in that window |
 | Rungs T1–T3, which price presolve and algorithm choice | presolve is worth 1.42x to HiGHS and 1.14x to SoPlex; free algorithm choice is worth nothing, on identical iteration counts (D81) |
 | MIPLIB 2017 easy subset | not started |
 | MIPLIB 2017 benchmark subset | not started |
 
 P0 is each solver's own presolve on, the dual forced, no crash basis, one
 thread (D104). `bench/compare/README.md` owns the per-instance decomposition
-and the historical rungs. The diagnosis behind the gap: JAOS takes fewer
-iterations than SoPlex and each iteration costs 1.5x to 2.0x what it should,
-a property of JAOS and not of one rival (D83). The tail splits in two: the
-instances that need a cheaper iteration, and the instances that need fewer,
-whose cause is measured and bounded on both sides by correctness (D63).
+and the historical rungs.
+
+**The diagnosis has been stable for weeks and the current reading sharpens
+it: the algorithm is competitive and the iteration is not.** Against SoPlex
+JAOS takes **0.73x the iterations** — fewer than SoPlex needs — and still
+loses on total time. All three rivals disagree about the iteration count
+(1.78x, 0.73x, 1.56x) and agree about the cost of one (2.02x, 1.52x, 1.90x).
+That agreement is a property of JAOS and not of any one rival (D83), and it
+says where the work is: making an iteration cheaper, not making fewer of them.
+
+**Run `make compare COMPARE_ARGS='-t P0'`, never bare `make compare`.** The
+bare form defaults to rung T0, which was taken when JAOS had no presolve;
+against a presolving JAOS it puts presolve on one side only, reports a
+flattering number, and overwrites T0's stored record on the way. It read
+2.52x against HiGHS on 2026-08-30 where the honest rung reads 3.60x.
