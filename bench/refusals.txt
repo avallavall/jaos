@@ -26,6 +26,33 @@
 # resolve what seconds could not, so every refusal of that kind is worth one
 # re-run under it.
 
+# A refusal is also only true on the METRIC that measured it, and D225 moved
+# one. `tools/icount.sh -m` reports cache misses; instructions have the wrong
+# sign for a change whose mechanism is memory-level, because such a change
+# does more work in order to wait less. Every refusal below whose reopen
+# condition names the instruction count was sorted on 2026-08-30:
+#
+#   D36   WRONG METRIC. A scatter-form BTRAN trades instructions for
+#         locality, and the condition asks whether it "retires fewer
+#         instructions than the arithmetic it adds". That question cannot be
+#         answered in instructions. Re-ask it in misses.
+#   D199  WRONG METRIC, and the script says so itself. Its header: a memset
+#         moves 8*nvar bytes while the replacement makes `cleared` scattered
+#         stores, so "that is the one case where units and seconds can move
+#         in opposite directions". D203 answered it with icount 1.00017.
+#         Re-run under -m before this refusal is relied on again.
+#   D76   WORTH A RE-RUN. `restrict` changes what the compiler may assume
+#         about aliasing, which reaches vectorisation and load counts both.
+#         Instructions are defensible here and misses are unmeasured.
+#   D61   FINE. Inlining removes calls, so it removes instructions, and the
+#         instruction count is what that question is made of.
+#   D93   FINE, and already honest: it says "the instruction half".
+#
+# None of the three has been re-measured. They are listed so the next reader
+# does not mistake a standing refusal for one whose evidence still fits the
+# question -- which is the D24/D94, D184/D215 failure a third time, in a new
+# disguise.
+
 # --- performance refusals ------------------------------------------------
 D36  | MANUAL | the scatter-form BTRAN retires fewer instructions than the arithmetic it adds, under tools/icount.sh; the candidate is not on disk and would have to be re-ported from D36's description
 D76  | bench/measurements/02-119/run-restrict-icount.sh | `restrict` locals in the LU kernels move the instruction count by more than 0.5% on the LU-dominated instances; seconds could not resolve it (D76), instructions can
