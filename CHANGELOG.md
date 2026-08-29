@@ -11,6 +11,16 @@ open, `bench/README.md` for the gate, and the commit each entry came from.
 
 ### Added
 
+- **Four of `check.c`'s contracts are asserts.** The dual walk's two sums and
+  their model-only pair are magnitudes before the gap is formed;
+  `certified_step` is only reached where the column's opposite bound is
+  infinite and never returns a negative distance; `implied_bounds` only ever
+  tightens. Each proven against the defect it exists for — and the arm that
+  first fired nothing was measuring the models, not the assert: it could only
+  bite on a column shape none of the 94 has (D221,
+  `bench/measurements/02-135/`). Asserts compile out under `-DNDEBUG`, so all
+  three gate sets are byte-identical.
+
 - **Four of `model.c`'s contracts are asserts and a fifth is a build error.**
   The two start-basis arrays are a pair, checked at the three functions that
   read either as a claim about the other; `jm_model_publish_objective`

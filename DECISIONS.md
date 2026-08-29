@@ -228,6 +228,7 @@ and you have the argument. Jump to the entry for the numbers behind it.
 - **[D218](#d218--the-primal-phase-1-stops-when-its-own-infeasibility-doubles-and-the-one-instance-it-stops-had-stopped-improving-362354-iterations-earlier)** — The primal phase 1 stops when its own infeasibility doubles, and the one instance it stops had stopped improving 362354 iterations earlier
 - **[D219](#d219--four-of-modelcs-prose-contracts-are-asserts-and-one-is-a-build-error-and-the-control-that-proves-them-had-to-be-rebuilt-twice-before-it-proved-anything)** — Four of `model.c`'s prose contracts are asserts and one is a build error, and the control that proves them had to be rebuilt twice before it proved anything
 - **[D220](#d220--jaos-measurer-accepted-both-changes-and-found-four-defects-in-the-record-and-the-one-that-mattered-was-a-committed-reading-that-its-own-script-could-not-have-written)** — `jaos-measurer` accepted both changes and found four defects in the record, and the one that mattered was a committed reading that its own script could not have written
+- **[D221](#d221--checkcs-four-contracts-are-asserts-and-the-breaker-that-fired-nothing-was-measuring-the-models-rather-than-the-assert)** — `check.c`'s four contracts are asserts, and the breaker that fired nothing was measuring the models rather than the assert
 
 ---
 
@@ -17015,3 +17016,62 @@ not the test being blind.
   above `1 + T` for every in-band `T`, so the plateau survives the retry by
   inference from one campaign plus the census. The `1e+12` arm coming back
   identical to the pre-rule tree is the stronger control.
+
+## D221 — `check.c`'s four contracts are asserts, and the breaker that fired nothing was measuring the models rather than the assert
+
+`bench/measurements/02-121/check.c.md`'s assert list, closed. The file is the
+independent checker, so every one of these guards a claim the verdict rests on.
+
+## What landed
+
+- **`a.pos`/`a.neg` and `pos_model`/`neg_model` are magnitudes.**
+  `split_term` negates the negative half on the way in; a sign fault there
+  reads as a plausible smaller gap and nothing else, because the gap is their
+  difference and is only a gap while both are magnitudes.
+- **`certified_step` is only called where the column's own opposite bound is
+  infinite.** The caller's `drops` test is that condition. The assert states
+  it where the function's comment claims it.
+- **`certified_step` never returns a negative distance.** Room is clamped at
+  zero because the point being judged may sit a tolerance outside a bound; a
+  negative would turn a certified suboptimality into a claim that the point
+  is better than optimal.
+- **`implied_bounds` only ever tightens.** A loosened bound enlarges the
+  region the gap is measured over, and the verdict would then certify a point
+  the model does not contain.
+
+## The control, and the arm that fired nothing
+
+`bench/measurements/02-135/`, built on 02-134's shape with its three lessons
+in from the start: canary first, every breaker read against the code it
+breaks, every arm naming its set.
+
+| arm | fired | which |
+|---|---|---|
+| `canary`, false by construction | **94** | the canary |
+| `live` 94, `live-infeas` 29 | 0, 0 | — |
+| `magnitude`, `split_term` stops negating | **91** | `a.pos >= 0.0L && a.neg >= 0.0L` |
+| `step`, room unclamped | **86** | `t >= 0.0L` |
+| `loosen`, a declared bound written looser | **94** | `cl[j] >= m->col_lower[j]` |
+
+**The first `loosen` breaker fired 0 times and the assert was fine.** It
+dropped the `lim < cu[j]` test at one of the two upper-bound write sites, so
+it could only bite on a column whose lower bound is infinite and whose upper
+bound is finite — the outer loop skips a column with both finite — and then
+only where the implied limit exceeded the declared one. No column of the 94
+meets both conditions.
+
+So 0 of 94 was a statement about the models. **That is 02-134's lesson
+arriving a second time in a different disguise**: there the gate could not
+reach the function at all, here it could not reach the shape the breaker
+needed. The rule underneath both is one rule — a reading of the instances is
+never a reading of an assert, and the arm that fires is what makes the arm
+that does not mean something.
+
+The breaker writes the violation directly now, on the first column with a
+finite lower bound. It pays twice: firing on all 94 also proves
+`implied_bounds` is reached on these instances, which no `live` arm can say.
+
+## What is left open
+
+The test half of `02-121`'s `check.c` list, which is eight items and none of
+them an assert. `jaos_internal.h` has not been started. `TODO.md` carries both.

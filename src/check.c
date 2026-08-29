@@ -14,6 +14,7 @@
  */
 #include "jaos_internal.h"
 
+#include <assert.h>
 #include <math.h>
 #include <stdlib.h>
 #include <string.h>
@@ -82,6 +83,10 @@ static void note_dropped(dual_acc *a, double w)
 static long double certified_step(const jaos_model *m, int64_t j, double dir,
                                   const long double *act)
 {
+    /* Both sentences above, checked rather than written (D219). The caller
+     * reaches here only where `drops` held, and `drops` is the same test on
+     * the bound this direction travels away from. */
+    assert(!isfinite(dir < 0.0 ? m->col_lower[j] : m->col_upper[j]));
     long double t = HUGE_VALL;
     for (int64_t k = m->a_start[j]; k < m->a_start[j + 1]; k++) {
         int64_t i = m->a_index[k];
@@ -104,6 +109,10 @@ static long double certified_step(const jaos_model *m, int64_t j, double dir,
         if (limit < t)
             t = limit;
     }
+    /* "Room is clamped at zero", so what this returns is a distance and
+     * never a negative one; a negative would turn a certified suboptimality
+     * into a claim that the point is better than optimal (D219). */
+    assert(t >= 0.0L);
     return t;
 }
 
@@ -217,6 +226,18 @@ static void implied_bounds(const jaos_model *m, double *cl, double *cu,
     if (!moved)
         break;   /* a round that bounded nothing new cannot enable another */
     }
+
+    /* "Only ever tightened, never loosened", checked rather than written
+     * (D219). A loosened bound would enlarge the feasible region the gap is
+     * measured over, and the verdict would certify a point the model does
+     * not contain. Holds by construction: a bound is written only where it
+     * was infinite, and then only to a strictly tighter value. */
+#ifndef NDEBUG
+    for (int64_t j = 0; j < nc; j++) {
+        assert(cl[j] >= m->col_lower[j]);
+        assert(cu[j] <= m->col_upper[j]);
+    }
+#endif
 }
 
 /* Sign-condition violation for a multiplier w attached to a value v with
@@ -415,6 +436,12 @@ jaos_status jaos_check_solution(const jaos_model *m,
         /* Two gaps (D91). The one the verdict reads is over bounds the model
          * declared, where every term must vanish at an optimum. The other
          * includes the implied bounds and is what bounds the suboptimality. */
+        /* All four are magnitudes, which is what makes their difference the
+         * gap rather than a sum with a sign error in it (D219). `split_term`
+         * negates the negative half on the way in, so a sign fault there
+         * would read as a plausible smaller gap and nothing else. */
+        assert(a.pos >= 0.0L && a.neg >= 0.0L);
+        assert(a.pos_model >= 0.0L && a.neg_model >= 0.0L);
         long double true_dual_obj = sigma * a.dual_obj;
         long double scale = 1.0L + fabsl(primal_obj) + fabsl(true_dual_obj);
         double gap = (double)(fabsl(a.pos_model - a.neg_model) / scale);

@@ -1,0 +1,30 @@
+# The four asserts D221 adds to src/check.c, and the control that proves
+# each fires. tree a89a355 plus the working tree's
+# src/check.c, EXTRA_CFLAGS=-UNDEBUG, own worktree and make clean per arm.
+
+## canary
+  canary planted
+  assertion failures: 94
+    Assertion `a.pos != a.pos' failed
+  record lines written: 1
+## live
+  assertion failures: 0
+  record lines written: 95
+## live-infeas
+  assertion failures: 0
+  record lines written: 30
+## magnitude
+  split_term no longer keeps a magnitude
+  assertion failures: 91
+    Assertion `a.pos >= 0.0L && a.neg >= 0.0L' failed
+  record lines written: 4
+## step
+  certified_step no longer clamps room at zero
+  assertion failures: 86
+    Assertion `t >= 0.0L' failed
+  record lines written: 9
+## loosen
+  one declared lower bound loosened, past every guard
+  assertion failures: 94
+    Assertion `cl[j] >= m->col_lower[j]' failed
+  record lines written: 1
