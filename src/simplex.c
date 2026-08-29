@@ -1289,6 +1289,19 @@ static int64_t dual_ratio_test(sx *s, bool below, double violation,
             admit_candidate(s, s->apat[t], below, &n);
         jm_work_add(&s->work, s->anpat * JM_WORK_NONZERO);
     } else {
+        /* `nbmark` is maintained by hand at eight sites and rebuilt
+         * wholesale at four, and this is the only place that reads it. A
+         * bit out of step with `status` silently drops a candidate from the
+         * ratio test or offers a basic one, and no predicate any gate
+         * reports can see either. Rebuilt and compared here rather than
+         * trusted (D223). O(nvar) and no allocation, on the branch that is
+         * already the dense one. */
+#ifndef NDEBUG
+        for (int64_t v = 0; v < s->nvar; v++) {
+            const bool in_map = (s->nbmark[v >> 6] >> (v & 63)) & 1;
+            assert(in_map == (s->status[v] != JM_BASIC));
+        }
+#endif
         /* Charged per variable handed to admit_candidate (D93). */
         int64_t visited = 0;
         int64_t nwords = (s->nvar + 63) / 64;
@@ -1397,6 +1410,18 @@ int64_t jm_pattern_order(int64_t n, int64_t *pos, uint64_t *mark,
     if (n <= 0 || limit <= 0)
         return 0;
 
+    /* `mark` is borrowed scratch: all zero on entry, all zero again on
+     * return. A word left set by a previous call would put a position in
+     * this call's output that this call's input never named, and the
+     * pattern is what the next FTRAN trusts. Checked over the whole bitmap
+     * on entry and over the touched range on return, because that range is
+     * the only part this call may have written (D223). */
+#ifndef NDEBUG
+    const int64_t nwords_dbg = (limit + 63) / 64;
+    for (int64_t w = 0; w < nwords_dbg; w++)
+        assert(mark[w] == 0);
+#endif
+
     /* The touched range, so a small pattern does not pay for the bitmap. */
     int64_t lo = (limit + 63) / 64, hi = -1;
     for (int64_t t = 0; t < n; t++) {
@@ -1423,6 +1448,15 @@ int64_t jm_pattern_order(int64_t n, int64_t *pos, uint64_t *mark,
         }
     }
     *words = hi >= lo ? hi - lo + 1 : 0;
+#ifndef NDEBUG
+    for (int64_t w = lo; w <= hi; w++)
+        assert(mark[w] == 0);
+    /* Ascending and each position once: the read-back walks words upward and
+     * takes bits from low to high inside each, so this states what the loop
+     * shape already gives and would catch a rewrite that stopped giving it. */
+    for (int64_t t = 1; t < k; t++)
+        assert(pos[t] > pos[t - 1]);
+#endif
     return k;
 }
 
@@ -1478,6 +1512,18 @@ int64_t jm_harris_pick(int64_t n, const double *num, const double *den,
     if (n <= 0)
         return -1;
 
+    /* The header's two preconditions, checked rather than written (D223).
+     * A negative numerator widens the window the wrong way and a
+     * non-positive denominator divides by zero or flips the quotient's
+     * sign; either produces a step this test would then call the smallest,
+     * which is a wrong pivot and not a crash. */
+#ifndef NDEBUG
+    for (int64_t k = 0; k < n; k++) {
+        assert(num[k] >= 0.0);
+        assert(den[k] > 0.0);
+    }
+#endif
+
     double window = HUGE_VAL;
     for (int64_t k = 0; k < n; k++) {
         double t = (num[k] + dual_tol) / den[k];
@@ -1493,6 +1539,9 @@ int64_t jm_harris_pick(int64_t n, const double *num, const double *den,
             best = k;
         }
     }
+    /* "The set it chooses from is never empty for n > 0" — so a caller may
+     * use the return as an index without testing it, and several do (D223). */
+    assert(best >= 0 && best < n);
     return best;
 }
 

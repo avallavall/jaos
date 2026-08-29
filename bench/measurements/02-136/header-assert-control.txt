@@ -1,0 +1,41 @@
+# The asserts D223 adds for jaos_internal.h's contracts, and the control
+# that proves each fires. tree eb5fca2 plus the
+# working tree's src/, EXTRA_CFLAGS=-UNDEBUG, own worktree and make clean
+# per arm.
+
+## canary
+  canary planted
+  assertion failures: 94
+    Assertion `n != n' failed
+  record lines written: 1
+## live
+  assertion failures: 0
+  record lines written: 95
+## live-inf
+  assertion failures: 0
+  record lines written: 30
+## harris
+  a negative numerator reaches the precondition check
+  assertion failures: 94
+    Assertion `num[k] >= 0.0' failed
+  record lines written: 1
+## pattern
+  jm_pattern_order gets a dirty scratch word
+  assertion failures: 82
+    Assertion `mark[w] == 0' failed
+  record lines written: 13
+## nonbasic
+  nbmark no longer drops an entering variable
+  assertion failures: 84
+    Assertion `in_map == (s->status[v] != JM_BASIC)' failed
+  record lines written: 11
+## scale
+  one scale factor is no longer a power of two
+  assertion failures: 94
+    Assertion `m->row_scale[i] > 0.0 && frexp(m->row_scale[i], &e) == 0.5' failed
+  record lines written: 1
+## psindex
+  the first presolve record carries an impossible index
+  assertion failures: 22
+    Assertion `rec.index >= 0' failed
+  record lines written: 8

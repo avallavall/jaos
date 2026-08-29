@@ -51,15 +51,15 @@ what long runs do. That is a phase-1 defect, not a floor defect.
 
 **If you were told "continue", this is the order:**
 
-1. **The assert debt** (`bench/measurements/02-121/`), one file per commit,
-   full loop each: contracts that survived the purge as prose. **`lu.c`'s
-   eight asserts landed at D216 and `model.c`'s four at D219**, with
-   `jaos_set_coefficient`'s inline-flags defect fixed in the same commit and
-   `-ffast-math` now a build error. What is left, in order: `check.c` and
-   `jaos_internal.h`, neither started; then the TEST halves, which are `lu.c`'s
-   four and `model.c`'s nine — the scale-invariance test, the per-operation
-   staleness tests, the column-order debug checker,
-   `jm_two_product_residue` at 2^997, the empty-column case.
+1. **The assert debt's TEST half** (`bench/measurements/02-121/`). **Every
+   assert half has landed**: `lu.c` at D216, `model.c` at D219, `check.c` at
+   D221, `jaos_internal.h` at D223, with `jaos_set_coefficient`'s inline-flags
+   defect fixed on the way and `-ffast-math` now a build error. What is left
+   is the tests, about two dozen across the four reports — the
+   scale-invariance test, the per-operation staleness tests, the column-order
+   debug checker, `jm_two_product_residue` at 2^997, the empty-column case,
+   `jm_alloc_array(0)`, `jm_nonbasic_build` at `nvar <= 0`, the pinned
+   one-ulp tie-break tests, and a failed LU update leaving `rank < 0`.
 2. Section 0's headline decision.
 
 **The phase-1 stop rule closed on 2026-08-29** — D218,

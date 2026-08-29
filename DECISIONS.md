@@ -230,6 +230,7 @@ and you have the argument. Jump to the entry for the numbers behind it.
 - **[D220](#d220--jaos-measurer-accepted-both-changes-and-found-four-defects-in-the-record-and-the-one-that-mattered-was-a-committed-reading-that-its-own-script-could-not-have-written)** — `jaos-measurer` accepted both changes and found four defects in the record, and the one that mattered was a committed reading that its own script could not have written
 - **[D221](#d221--checkcs-four-contracts-are-asserts-and-the-breaker-that-fired-nothing-was-measuring-the-models-rather-than-the-assert)** — `check.c`'s four contracts are asserts, and the breaker that fired nothing was measuring the models rather than the assert
 - **[D222](#d222--a-cited-measurement-directory-has-to-be-in-the-repository-and-the-check-that-said-so-tested-this-disk-instead)** — A cited measurement directory has to be in the repository, and the check that said so tested this disk instead
+- **[D223](#d223--jaosinternalhs-contracts-are-asserts-in-the-files-that-implement-them-and-the-fourth-way-a-control-can-be-worthless-is-to-hang)** — `jaos_internal.h`'s contracts are asserts in the files that implement them, and the fourth way a control can be worthless is to hang
 
 ---
 
@@ -17130,3 +17131,74 @@ not this project's work.
 Over the whole repository the stricter rule fails on exactly six citations and
 all six are that one directory. Nothing else cited a measurement record that
 is not in the repository.
+
+## D223 — `jaos_internal.h`'s contracts are asserts in the files that implement them, and the fourth way a control can be worthless is to hang
+
+`bench/measurements/02-121/jaos_internal.h.md`'s assert list, closed. The
+contracts are declared in the header and the asserts live where the code is,
+so this reaches `src/simplex.c`, `src/presolve.c` and `src/scale.c`.
+
+## What landed
+
+- **`jm_harris_pick`'s two preconditions and its return.** The numerators are
+  non-negative and the denominators strictly positive; a negative numerator
+  widens the window the wrong way and a non-positive denominator divides by
+  zero or flips the quotient's sign, and either produces a wrong pivot rather
+  than a crash. The return is a valid index whenever `n > 0`, which callers
+  already rely on by indexing with it untested.
+- **`jm_pattern_order`'s scratch bitmap** is all zero on entry and left all
+  zero, checked over the whole bitmap on the way in and over the touched
+  range on the way out. A word left set by an earlier call puts a position in
+  the output that this call's input never named, and that pattern is what the
+  next FTRAN trusts. Its output ascending is asserted too.
+- **`nbmark` equals `{v : status[v] != JM_BASIC}`**, rebuilt and compared at
+  the one place that reads it. It is maintained by hand at eight sites and
+  rebuilt wholesale at four; a bit out of step silently drops a candidate
+  from the ratio test or offers a basic one, and no predicate any gate
+  reports can see either.
+- **A presolve record's `index` is non-negative at every push.** Only the
+  sign, and the reason is a finding of its own. The first version bounded it
+  against the original dimensions through `p->orig`, and **`jaos_internal.h`
+  says that field is set by `jm_dual_simplex` and that nothing inside
+  `presolve.c` needs to read it.** It is null during the presolve pass, so
+  every test that drives `jm_presolve_run` directly segfaulted — caught by
+  ASan in `make configs`, which is the configuration that exists for this.
+  The bound was redundant as well as wrong: the replay already checks it per
+  tag against the right dimension, at the sites that legitimately hold
+  `orig`. Two mistakes in one assert — reaching for a field without reading
+  its documentation, and duplicating a check that was already correct
+  elsewhere.
+- **`jm_postsolve_expand` is entered only when presolve reduced**, and the
+  reduced model aliases none of the caller's arrays.
+- **Every scale factor is an exact power of two**, by `frexp`. That is why
+  scaling and unscaling are exact; a factor that is not makes every scaled
+  quantity carry a rounding the record cannot see.
+
+All six hold on all 139 instances under `-UNDEBUG`, with the canary confirming
+the flag reached the compiler.
+
+## The fourth way to build a worthless control
+
+`bench/measurements/02-136/`, third in the series. It carried 02-134's and
+02-135's lessons in from the start — canary first, an unmodified arm per
+instance set — and still found a new one.
+
+**The first `harris` breaker wrote its negative numerator AFTER the assert
+block.** The assert passed on clean data, the corrupted value went on into the
+ratio test, and the solver took wrong steps for 24 minutes on a set that takes
+85 seconds. It never fired and it never finished.
+
+The give-away was the runtime, not the output. **A breaker that corrupts state
+instead of tripping a check does not announce itself**: no failure, no firing,
+no result. That is a fourth failure mode on top of the three already found —
+a dead arm, an assert the gate cannot reach, and an instance population with
+no case of the needed shape. Every arm has a 600 second timeout now that
+reports the failure rather than holding the control open.
+
+**Three controls in this series, each wrong before it was right, and the
+asserts correct every time.** What keeps being wrong is the instrument, which
+is the whole argument for having one that tests itself.
+
+## What is left open
+
+The test halves of `02-121`'s four lists. `TODO.md` carries them.

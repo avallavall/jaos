@@ -279,6 +279,15 @@ void jm_presolve_free(jm_presolve *p)
 /* Pushes one record. Returns false on allocation failure. */
 static bool ps_push(jm_presolve *p, jm_presolve_rec rec)
 {
+    /* `index` is always an ORIGINAL row or column index, never a reduced
+     * one. Only the sign is checkable here. The upper bound needs the
+     * original dimensions, and `p->orig` is the one field of this struct
+     * that presolve may not read: `jm_dual_simplex` sets it and
+     * `jaos_internal.h` says nothing inside presolve.c needs to. Reading it
+     * here segfaults every test that drives `jm_presolve_run` directly,
+     * which is what ASan reported (D223). The replay does bound it, per tag
+     * and against the right dimension, at the sites that have `orig`. */
+    assert(rec.index >= 0);
     if (!JM_GROW(p->arena, p->arena_cap, p->arena_len + 1))
         return false;
     p->arena[p->arena_len++] = rec;
@@ -1500,8 +1509,23 @@ static void ps_verify_row_activities(const jaos_model *orig)
 
 JAOS_NODISCARD jaos_status jm_postsolve_expand(jm_presolve *p)
 {
+    /* Entered from `publish`, before it returns, and only when presolve
+     * actually reduced. On JM_PRESOLVE_NONE the reduced model IS the
+     * caller's and this would replay an arena of records against it twice;
+     * on JM_PRESOLVE_SOLVED there is no reduced solve to expand (D223). */
+    assert(p->outcome == JM_PRESOLVE_REDUCED);
     jaos_model *orig = p->orig;
     const jaos_model *red = &p->reduced;
+    /* "none aliases the caller's model": the reduced model owns fresh
+     * arrays, and a shared pointer would have postsolve writing the answer
+     * over the data it is reading. */
+    assert(red->a_start != orig->a_start && red->a_index != orig->a_index &&
+           red->a_value != orig->a_value);
+    assert(red->col_lower != orig->col_lower &&
+           red->col_upper != orig->col_upper);
+    assert(red->row_lower != orig->row_lower &&
+           red->row_upper != orig->row_upper);
+    assert(red->col_cost != orig->col_cost);
 
     jaos_status est = jm_model_ensure_solution_arrays(orig);
     if (est != JAOS_OK)

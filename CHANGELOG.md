@@ -11,6 +11,17 @@ open, `bench/README.md` for the gate, and the commit each entry came from.
 
 ### Added
 
+- **`jaos_internal.h`'s contracts are asserts in the files that implement
+  them.** `jm_harris_pick`'s non-negative numerators, positive denominators
+  and valid return; `jm_pattern_order`'s scratch bitmap clean on entry and
+  left clean, output ascending; `nbmark` equal to the non-basic set, rebuilt
+  and compared at its one reader; a presolve record's index original at every
+  push; `jm_postsolve_expand` entered only when presolve reduced, with the
+  reduced model aliasing nothing of the caller's; every scale factor an exact
+  power of two. All six hold on all 139 instances, and each was proven against
+  the defect it exists for (D223, `bench/measurements/02-136/`). Asserts
+  compile out under `-DNDEBUG`, so all three gate sets are byte-identical.
+
 - **Four of `check.c`'s contracts are asserts.** The dual walk's two sums and
   their model-only pair are magnitudes before the gap is formed;
   `certified_step` is only reached where the column's opposite bound is

@@ -33,6 +33,7 @@
  */
 #include "jaos_internal.h"
 
+#include <assert.h>
 #include <math.h>
 #include <stdlib.h>
 
@@ -328,6 +329,22 @@ jaos_status jm_model_scale(jaos_model *m, jm_scale_mode mode)
         identity_fill(m);
         jm_set_err(m, "out of memory while scaling");
     }
+    /* "Every factor is an exact power of two" — the reason scaling and
+     * unscaling are exact and a solve on the scaled copy can be compared
+     * with one on the model as loaded. A factor that is not makes every
+     * scaled quantity carry a rounding the record cannot see, and no
+     * predicate any gate reports would fire. `frexp` returns a mantissa of
+     * exactly 0.5 for a power of two and nothing else (D223). */
+#ifndef NDEBUG
+    for (int64_t i = 0; i < m->num_row; i++) {
+        int e;
+        assert(m->row_scale[i] > 0.0 && frexp(m->row_scale[i], &e) == 0.5);
+    }
+    for (int64_t j = 0; j < m->num_col; j++) {
+        int e;
+        assert(m->col_scale[j] > 0.0 && frexp(m->col_scale[j], &e) == 0.5);
+    }
+#endif
     /* A clamped scaling is a success with a caveat, and the caveat travels
      * on m->scale_clamped. It deliberately does not touch m->err, which is
      * documented as describing the last *failed* operation — a caller that
