@@ -1588,6 +1588,21 @@ is also the one that catches what fixing them breaks.
 
 ### OPEN: contracts the comment purge kept as prose, each of which deserves an assert or a test
 
+> **Stale below, 2026-08-31.** The `lu.c`, `model.c`, `check.c` and
+> `jaos_internal.h` test lists in this section were closed by D227 through
+> D230 — thirteen tests, `bench/measurements/02-139/` to `02-142/`. Four of
+> the items turned out not to be tests at all and are recorded as such. Two
+> further notes here are simply wrong now: `jaos_set_coefficient` does call
+> `model_matrix_is_stale` (`src/model.c:315`), and `-ffast-math` is already
+> a build error. **What is genuinely left in this section is `simplex.c`'s
+> 65 contracts and `presolve.c`'s 72**, plus the four `model.c` and
+> `jaos_internal.h` items D227-D230 did not reach: `start_*_status` both
+> null or both set, `jm_model_publish_objective`'s six arrays, and the two
+> `lu.c` checks that are not asserts (`btran_u_pattern`'s order,
+> `compact_pivot_row`'s duplicates). The per-file lines are kept below for
+> what each one names.
+
+
 The 2026-08-26 purge thinned six files to their contracts (D30's rule: an
 invariant another piece of code depends on is an assert or a test, not a
 sentence). These survived as sentences. Each line is one debt; the purge
