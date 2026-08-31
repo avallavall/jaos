@@ -60,16 +60,24 @@ what long runs do. That is a phase-1 defect, not a floor defect.
 
 **If you were told "continue", this is the order:**
 
-1. **The assert debt's TEST half** (`bench/measurements/02-121/`). **Every
+1. ~~**The assert debt's TEST half**~~ — **CLOSED 2026-08-31**, D227 through
+   D230. Start at item 2, software prefetching. The paragraph below is kept
+   because it records what each group covered and what four of its items
+   turned into.
+
+   **The assert debt's TEST half** (`bench/measurements/02-121/`). **Every
    assert half has landed**: `lu.c` at D216, `model.c` at D219, `check.c` at
    D221, `jaos_internal.h` at D223, with `jaos_set_coefficient`'s inline-flags
    defect fixed on the way and `-ffast-math` now a build error. **Four tests
    landed at D224** — the one-ulp tie-break, `jm_nonbasic_build` at
    `nvar <= 0`, `jm_alloc_array(0)`, and `jm_two_product_residue` past 2^996.
 
-   **About eleven tests are left** — the `check.c` group closed on
-   2026-08-31 (D227) — and the order below is by how much each would tell
-   you, not by which file it sits in. Every one needs the arm that
+   **THE DEBT IS CLOSED**, all four groups on 2026-08-31: `check.c` at D227,
+   `lu.c` at D228, `model.c` at D229, `jaos_internal.h` at D230. Thirteen
+   tests landed and four items turned out not to be tests at all — an
+   injected allocator, a census, a three-build record comparison, and one
+   finding about which build carries which guard. The list below is kept for
+   what each group covered. Every one needs the arm that
    makes it go red; `bench/measurements/02-137/run-test-control.sh` is the
    shape to copy, and its lesson is that a test can pass through a mechanism
    it does not test.
@@ -84,19 +92,31 @@ what long runs do. That is a phase-1 defect, not a floor defect.
      Running the same breaker twice, once under `-DNDEBUG`, is what turned
      that from an assumption into a measurement, and no earlier control
      campaign here did it.
-   - `lu.c`: `find_pivot` visits a column whose live count reached zero
-     (nonsingular matrix, `rank == dim`); a failed update leaves `rank < 0`
-     and ftran/btran return without writing; `grow_pair` leaves the first
-     array freeable when the second grow fails (fault build, ASan); the
-     `piv_n == 0` path drops exactly what the general path drops.
-   - `model.c`: `scale.c` reads no bound and no cost (change a bound and a
-     cost, re-solve, factors byte-identical); one test per matrix operation
-     that `rowwise_valid` and `scale_valid` go false; a column left empty by
-     `jaos_delete_rows` is not an error; the column-order debug checker after
-     every mutation.
-   - `jaos_internal.h`: `solve_primal_iters`/`solve_phase1_iters` written on
-     an INTERRUPTED exit; `jm_pattern_order` on a repeating unordered input;
-     `jm_nonbasic_*` rebuilt and compared after a basis change.
+   - ~~`lu.c`~~ — **all four closed 2026-08-31, D228,
+     `bench/measurements/02-140/`**, and only one of them turned out to be a
+     test. The failed update's ftran/btran silence is
+     `test_a_wrecked_factorization_writes_nothing`. `grow_pair`'s second-array
+     failure needed an injected allocator, because both arrays hold
+     eight-byte elements and no input makes only the second grow fail. The
+     `piv_n == 0` shortcut needed three builds, because one binary runs one
+     path. And **`find_pivot`'s zero-count bucket is dead on this
+     population**: 0 of 23,103,784 accepted pivots came from it, skipping it
+     leaves every record byte-identical, and the whole unit suite is green
+     with the loop starting at one. The bound stays; the measurement is
+     beside it in `src/lu.c` because nothing else guards it.
+   - ~~`model.c`~~ — **closed 2026-08-31, D229, `bench/measurements/02-141/`.**
+     Four tests. The campaign's own finding is about controls, not about
+     `model.c`: two arms came back GREEN where a red test was expected, once
+     because the test changed a cost from one non-zero value to another and
+     the break was keyed on zero, and once because the break was placed at
+     `m->scale_valid = true`, which runs BEFORE the factors are computed.
+   - ~~`jaos_internal.h`~~ — **closed 2026-08-31, D230,
+     `bench/measurements/02-142/`.** Three tests, and one finding: letting
+     `jm_pattern_order` keep a position equal to `limit` is a **segfault**
+     in a release build, because `limit` sizes the bitmap and that position
+     indexes one word past it. With asserts it aborts; with `-DNDEBUG` the
+     hardware stops it. The defect cannot be silent, which is the opposite of
+     what D227 found about `certified_step`'s clamp.
 2. **Software prefetching on the indirect loads**, the first performance
    candidate to survive a literature pass against the bit-identical
    constraint. Ainsworth & Jones, CGO 2017 and ACM TOCS 36(3) 2019, DOI

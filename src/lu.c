@@ -229,7 +229,15 @@ static bool find_pivot(const elim *e, double tol, int64_t *pi, int64_t *pj,
     int examined = 0;
 
     /* Counts start at zero: a column can reach zero live entries and must
-     * still be visited, or a nonsingular matrix comes back rank deficient. */
+     * still be visited, or a nonsingular matrix comes back rank deficient.
+     *
+     * Defensive rather than exercised, and that is measured rather than
+     * assumed. Over the 94 standard instances the zero bucket supplied
+     * **0 of 23,103,784 accepted pivots** across 8462 factorizations, and
+     * starting this loop at one instead left every record byte-identical.
+     * No test reaches it either. So the bound stays, the reason above is
+     * the reason it stays, and nothing here rests on it (D228,
+     * bench/measurements/02-140/findpivot.txt). */
     for (int64_t cnt = 0; cnt <= e->dim; cnt++) {
         for (int64_t j = e->bhead[cnt]; j >= 0; j = e->bnext[j]) {
             double mx = col_max_abs(e, j);

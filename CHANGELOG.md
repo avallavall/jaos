@@ -39,6 +39,42 @@ open, `bench/README.md` for the gate, and the commit each entry came from.
   binary's exit code rather than the failure count — an abort prints no count
   at all (D226).
 
+- **The assert debt's test half is closed.** Thirteen tests across
+  `check.c`, `lu.c`, `model.c` and `jaos_internal.h`, each proven to go red
+  when the sentence it states breaks. Four of the listed items turned out not
+  to be tests at all: an injected allocator under LSan, a census of 23 million
+  pivots, a three-build record comparison, and a measurement of which build
+  carries which guard.
+
+  The lesson is about controls. Four arms across the four campaigns came back
+  green or aborting where a red test was expected, and every one was a defect
+  in the instrument: a test that could not see its own break, a break placed
+  where the code overwrote it, a counter that never fired because the worker
+  `_exit`s, and an assert that fires before any test can report. A campaign
+  whose arms are all expected to pass would have shown none of them.
+
+  One finding is a real hazard rather than a curiosity: letting
+  `jm_pattern_order` keep a position equal to `limit` is a segfault in a
+  release build, because `limit` sizes the bitmap (D229, D230,
+  `bench/measurements/02-141/` and `02-142/`).
+
+- **The LU half of the debt, and three of its four sentences could never
+  have been tests.** A failed update's silence is one, and it is a test.
+  `grow_pair`'s second-array failure needed an injected allocator, because
+  both arrays hold eight-byte elements and no input makes only the second
+  grow fail. The `piv_n == 0` shortcut needed three builds, because one
+  binary runs one path; removing it leaves the record byte-identical and
+  breaking it does not, which is what makes the first half mean anything.
+
+  And `find_pivot`'s zero-count bucket turns out to be dead: 0 of 23,103,784
+  accepted pivots on the standard set came from it, skipping it entirely
+  leaves every record byte-identical, and the unit suite is green with the
+  loop starting at one. The bound stays and the measurement now sits beside
+  it, because nothing else guards it. The census caught its own first
+  version too — `bench/run`'s workers `_exit`, so an `atexit` report never
+  fired, and the probe's own "the counter was never live" check is what said
+  so instead of a plausible zero (D228, `bench/measurements/02-140/`).
+
 - **The checker's five contracts have tests, and one guard turns out to
   live only in a debug build.** Every multiplier contributes `w * bound` to
   the dual objective including the exempt ones; `note_dropped` counts a

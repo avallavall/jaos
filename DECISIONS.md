@@ -235,6 +235,9 @@ and you have the argument. Jump to the entry for the numbers behind it.
 - **[D225](#d225--a-change-that-trades-instructions-for-cache-misses-is-judged-on-misses-and-the-arbiter-that-would-have-rejected-it-now-exists)** — A change that trades instructions for cache misses is judged on misses, and the arbiter that would have rejected it now exists
 - **[D226](#d226--a-writer-is-judged-by-what-its-own-reader-makes-of-the-file-and-one-construction-had-to-be-checked-rather-than-trusted)** — A writer is judged by what its own reader makes of the file, and one construction had to be checked rather than trusted
 - **[D227](#d227--five-tests-for-the-checker-and-one-guard-that-exists-only-in-a-debug-build)** — Five tests for the checker, and one guard that exists only in a debug build
+- **[D228](#d228--the-lu-half-of-the-debt-and-three-sentences-that-needed-an-instrument-instead-of-a-test)** — The LU half of the debt, and three sentences that needed an instrument instead of a test
+- **[D229](#d229--the-model-tests-and-two-ways-a-control-can-look-like-it-passed)** — The model tests, and two ways a control can look like it passed
+- **[D230](#d230--the-debt-is-closed-and-one-off-by-one-turns-out-to-be-a-segfault)** — The debt is closed, and one off-by-one turns out to be a segfault
 
 ---
 
@@ -17655,3 +17658,230 @@ digest and every work figure byte-identical.
 
 The `lu.c`, `model.c` and `jaos_internal.h` groups, about eleven tests,
 listed in `TODO.md` in the same order.
+
+## D228 — The LU half of the debt, and three sentences that needed an instrument instead of a test
+
+`TODO.md`'s assert debt lists four things for `src/lu.c`. Exactly one of them
+is a unit test. The other three cannot be, for three different reasons, and
+working out why is what this entry is for. `bench/measurements/02-140/`.
+
+## The one that is a test
+
+**A failed update leaves the factorization unusable, and both solves then
+write nothing.** `test_update_refuses_a_singular_replacement` already pinned
+`rank < 0`. What was missing is what a caller sees next, which is the whole
+difference between an error and a wrong answer:
+`test_a_wrecked_factorization_writes_nothing` pins that `jm_lu_ftran` and
+`jm_lu_btran` return with the caller's buffer untouched, and that the sparse
+forms report an empty pattern.
+
+The basis is diagonal 2, 4, 8 and not the identity, because on the identity a
+solve leaves the buffer alone anyway and "unchanged" would prove nothing.
+`run-lu-controls.sh` breaks the rank guard and the pattern reset separately,
+and the new test is the only one that goes red for either.
+
+## The one no input can reach
+
+**`grow_pair` leaves the first array freeable when the second grow fails.**
+It is static, and both arrays hold eight-byte elements, so the two `jm_grow`
+calls do identical arithmetic: either both succeed or both fail. No input
+makes only the second one fail.
+
+So the allocator was injected instead, with `-Wl,--wrap=realloc`, failing one
+call at a time while `jm_svec_push` runs under ASan, UBSan and LSan. The
+reallocs come in pairs — odd for the index array, even for the value array —
+and the probe refuses to report a clean result unless an even arm was reached,
+because failing only the first array would not be testing the sentence.
+
+The control is a deliberate leak on the same path. LSan reports it, which is
+what turns the silence on every other arm into evidence.
+
+## The one nothing reaches at all
+
+**`find_pivot` starts its scan at count zero**, and the comment gives the
+reason: a column can reach zero live entries and must still be visited, "or a
+nonsingular matrix comes back rank deficient."
+
+Start the loop at one and the **whole unit suite stays green**. So the 94
+standard instances were asked instead, with a counter on the bucket each
+accepted pivot came from:
+
+```
+factorizations=8462 pivots=23103784 from_zero_bucket=0
+```
+
+**Not one of 23,103,784 accepted pivots came from the zero bucket**, and the
+arm that skips the bucket entirely produced a byte-identical record.
+
+The bound stays and the reason stays, with the measurement written beside it
+in `src/lu.c`. What the campaign establishes is that nothing rests on it
+today: neither a test nor an instance reaches the case, so a future change
+that broke it would be caught by nothing. That is worth knowing about a line
+that reads like a load-bearing invariant.
+
+**The probe caught its own first version.** It reported nothing at all, and
+its "the counter recorded no pivots, so it was never live" check is what said
+so rather than a plausible zero. `bench/run`'s workers leave through
+`_exit(0)`, which runs no `atexit` handler. The report is called by hand on
+the way out now. A census whose counter is dead looks exactly like a census
+that found nothing (`jaos-measure`), and this is the second time that
+distinction has paid here.
+
+## The one that compares two builds
+
+**The `piv_n == 0` shortcut drops exactly what the general path drops.** One
+binary runs one path, so no test can state it. Three builds can: the shortcut
+intact, the shortcut removed so the general path handles the case, and the
+shortcut kept but dropping nothing.
+
+Removed against intact: **byte-identical**. Broken against intact:
+**93 of the 94 instances move**.
+
+The second arm is the point. Two identical records is also exactly what "the
+shortcut is never reached" looks like, and D82 is the entry where this
+project spent a sweep measuring one binary six times. Breaking the shortcut
+moves nearly the whole set, so the comparison can tell the two apart, and
+only then does the first arm say the paths agree.
+
+## What it cost
+
+`src/lu.c` gained a comment and nothing else; `tests/test_lu.c` gained one
+test. All five configurations build and pass, and the three gate sets came
+back with every digest and every work figure byte-identical.
+
+## What is left of the debt
+
+The `model.c` and `jaos_internal.h` groups, seven tests, listed in `TODO.md`
+in the same order.
+
+## D229 — The model tests, and two ways a control can look like it passed
+
+Four tests for what `src/model.c` says about its two derived copies, the
+row-wise mirror and the scaling. `bench/measurements/02-141/`. Seven arms,
+five breakers, all behaved — after three runs, and the two failures on the
+way are worth more than the green result.
+
+## What the four state
+
+- **Only a matrix change discards the derived copies.** The five operations
+  that touch the matrix must discard both; the three that move a bound or a
+  cost must discard neither. Both halves live in one test, because a version
+  that discards everything is never wrong and costs a re-scale on every
+  branch of a branch-and-bound loop. D219 turned the two lists into one
+  function so they could not drift; this is the test of what that function
+  has to do.
+- **The scaling reads no bound and no cost.** Change everything a scaling
+  could read, recompute from scratch, and every factor comes back identical
+  to the bit. That is what makes the sentence above safe rather than
+  convenient.
+- **A column left empty by `jaos_delete_rows` is not an error.**
+- **Row order inside a column survives a chain of mutations.**
+  `jaos_set_coefficient` binary-searches the column and the delete paths
+  merge rather than re-sort, so an unsorted column is silently wrong.
+
+## The first green control: the test could not catch its own defect
+
+The scaling arm came back green, which is a control saying the test would not
+notice.
+
+It was the test's fault. It changed each cost from one non-zero value to
+another, and the break was keyed on `cost != 0.0`, so the doubling applied
+before and after and cancelled. The test now moves a cost **across zero**,
+flips a sign, moves a magnitude seven orders and takes a bound to infinity.
+It also asserts, before comparing anything, that at least one factor is not
+1.0 — comparing all-ones against all-ones would pass whatever the scaling
+read.
+
+## The second green control: the break was overwritten before it did anything
+
+The repaired test came back green too, and this time the breaker was wrong.
+It had been placed at `m->scale_valid = true;`, which in `src/scale.c` runs
+**before** the factors are computed. The doubling ran on freshly allocated
+memory and the real computation wrote over all of it.
+
+Two green runs, two different causes, and both read exactly like a passing
+control. That is the shape this project keeps meeting: a probe that measured
+the wrong thing looks identical to a probe that found nothing. What separated
+them here is that the control was expected to FAIL, so a green arm was itself
+the alarm. A campaign whose arms are all expected to pass has no such alarm.
+
+The breaker sits after the dispatch now, and doubling was chosen because it
+keeps every factor an exact power of two, so `scale.c`'s own assert still
+holds and only the test can catch it.
+
+## What it cost
+
+Nothing. `src/model.c` and `src/scale.c` are untouched; `tests/test_model.c`
+grew four tests.
+
+## D230 — The debt is closed, and one off-by-one turns out to be a segfault
+
+The last three tests, for the three contracts `src/jaos_internal.h` states
+with nothing beside them. `bench/measurements/02-142/`. Eight arms, four
+breakers, two of them run twice.
+
+## What the three state
+
+- **`jm_pattern_order` sorts, deduplicates, drops what the limit excludes,
+  and leaves its bitmap clean.** The last clause is why the test calls it a
+  second time with the same, unzeroed bitmap and requires the same answer.
+- **The nonbasic bitmap matches a rebuild after a basis change.** It is
+  maintained by hand at every site that moves a variable in or out of the
+  basis, so what is worth testing is that the hand-maintained copy and a
+  wholesale rebuild agree word for word. The variables moved straddle a word
+  boundary, and the test builds the pre-change bitmap as well and requires it
+  to differ — otherwise the comparison is two copies of one call.
+- **The primal iteration split is written on an interrupted exit.**
+  `test_the_summary_separates_phase_1_from_phase_2` covers the successful
+  exit and says in its own comment that the abandoned one is not reproduced
+  there. This is that path. D194 published a wrong count for eight netlib
+  instances because a phase 1 that ran and did not finish reported nothing.
+
+## The finding: the same break, three different things catching it
+
+D227's lesson is that an arm which aborts on an assert is half a control — it
+proves the assert fires, not that anything catches the defect with asserts
+compiled out. Both `jm_pattern_order` breaks were therefore run again under
+`-DNDEBUG`, and they gave different answers.
+
+**The dirty bitmap is caught by the tests.** Five go red with no assert in
+the build, four of which existed before this campaign. That contract is
+guarded everywhere.
+
+**The off-by-one is caught by neither the tests nor an assert in a release
+build.** With asserts it aborts at 134. With asserts compiled out the suite
+exits **139**, a segfault. The reason is exactly what the bound is for:
+`limit` sizes the bitmap at `(limit + 63) / 64` words, so a position equal to
+`limit` indexes word `limit >> 6`, and when `limit` is a multiple of 64 that
+word is one past the allocation.
+
+That is a better answer than a failing test would have been. It says the
+defect cannot be silent: a debug build stops on the assert, a release build
+stops on the hardware. The contrast with D227's clamp is the point — there
+the release build was completely quiet, and one comparison in the caller was
+the whole guard.
+
+## What the debt closed as
+
+Thirteen tests across four files, four measurement directories, and four
+things that turned out not to be tests at all:
+
+| what | where it ended up |
+|---|---|
+| `check.c`, five tests | D227, `02-139/` |
+| `certified_step`'s clamp | a finding: the assert is its only guard in a release build |
+| `lu.c`, one test | D228, `02-140/` |
+| `grow_pair`'s second grow | an injected allocator under LSan |
+| `find_pivot`'s zero bucket | a census: 0 of 23,103,784 pivots, dead on this population |
+| the `piv_n == 0` shortcut | a three-build record comparison |
+| `model.c`, four tests | D229, `02-141/` |
+| `jaos_internal.h`, three tests | D230, `02-142/` |
+
+**The general lesson is about controls and not about any of these files.**
+Four separate arms in these four campaigns came back green or aborting when a
+red test was expected, and every one of them was a defect in the instrument
+rather than in the code: a test that could not see its own break, a break
+that was overwritten before it ran, a counter that never fired because the
+worker `_exit`s, and an assert that fires before any test can report. None of
+those would have been visible in a campaign whose arms were all expected to
+pass.

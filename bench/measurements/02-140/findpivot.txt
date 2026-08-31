@@ -1,0 +1,37 @@
+# 02-140 -- does find_pivot's zero-count bucket ever supply a pivot?
+# tree: 3e96b50
+# date: 2026-08-31T07:05:19Z
+# set:  bench/instances (94 instances), J=12
+
+== census: every accepted pivot, by the bucket it came from
+         1 PROBE factorizations=10 pivots=1230 from_zero_bucket=0
+         1 PROBE factorizations=10 pivots=1340 from_zero_bucket=0
+         1 PROBE factorizations=10 pivots=1470 from_zero_bucket=0
+         1 PROBE factorizations=10 pivots=2030 from_zero_bucket=0
+         1 PROBE factorizations=10 pivots=2840 from_zero_bucket=0
+         1 PROBE factorizations=10 pivots=2920 from_zero_bucket=0
+         1 PROBE factorizations=10 pivots=4070 from_zero_bucket=0
+         1 PROBE factorizations=114 pivots=230508 from_zero_bucket=0
+         1 PROBE factorizations=1174 pivots=2343304 from_zero_bucket=0
+         1 PROBE factorizations=12 pivots=12396 from_zero_bucket=0
+         1 PROBE factorizations=12 pivots=1944 from_zero_bucket=0
+         1 PROBE factorizations=12 pivots=2940 from_zero_bucket=0
+         1 PROBE factorizations=12 pivots=4788 from_zero_bucket=0
+         1 PROBE factorizations=12 pivots=5772 from_zero_bucket=0
+         1 PROBE factorizations=14 pivots=19712 from_zero_bucket=0
+         1 PROBE factorizations=14 pivots=3374 from_zero_bucket=0
+         1 PROBE factorizations=14 pivots=4172 from_zero_bucket=0
+         1 PROBE factorizations=144 pivots=101520 from_zero_bucket=0
+         1 PROBE factorizations=146 pivots=438000 from_zero_bucket=0
+         1 PROBE factorizations=154 pivots=300916 from_zero_bucket=0
+
+   totals across all processes:
+   factorizations=8462 pivots=23103784 from_zero_bucket=0
+
+== skip: the same set with the zero bucket never looked at
+   records are byte-identical
+
+== verdict
+   the zero bucket supplied 0 of 23103784 accepted pivots on this set
+   -- the loop bound is not exercised by real data, and the record
+   should say so rather than a test pretending otherwise

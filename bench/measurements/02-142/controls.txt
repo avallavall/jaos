@@ -1,0 +1,50 @@
+# 02-142 -- the jaos_internal.h tests, and the arm that makes each go red
+# tree: 3e96b50 WITH UNCOMMITTED CHANGES
+#       plus the working-tree copies of src/simplex.c tests/test_simplex.c
+# date: 2026-08-31T07:26:08Z
+
+== intact
+   nothing broken: the tree as it stands
+   suite:     104 Tests 0 Failures 4 Ignored  exit=0
+   PASS  nothing red, exit 0
+
+== dirty-bitmap
+   jm_pattern_order leaves its bitmap dirty
+   suite:       exit=134
+   PASS  the suite aborted before printing a count
+
+== off-by-one-range
+   jm_pattern_order keeps a position at limit
+   suite:       exit=134
+   PASS  the suite aborted before printing a count
+
+== wrong-word
+   jm_nonbasic_insert writes the wrong word
+   suite:     104 Tests 4 Failures 4 Ignored  exit=4
+   red tests: test_nonbasic_expand_is_ascending_across_words test_nonbasic_notices_a_missed_hook test_nonbasic_survives_interleaved_eviction test_the_nonbasic_bitmap_matches_a_rebuild_after_a_basis_change 
+   PASS  test_the_nonbasic_bitmap_matches_a_rebuild_after_a_basis_change is red
+
+== split-unwritten
+   the primal iteration split is never written back
+   suite:     104 Tests 2 Failures 4 Ignored  exit=2
+   red tests: test_the_iteration_split_is_written_on_an_interrupted_exit test_the_summary_separates_phase_1_from_phase_2 
+   PASS  test_the_iteration_split_is_written_on_an_interrupted_exit is red
+
+== dirty-bitmap-ndebug
+   the same break with the asserts compiled out
+   suite:     104 Tests 5 Failures 4 Ignored  exit=5
+   red tests: test_pattern_order_drops_what_it_cannot_hold test_pattern_order_keeps_a_full_pattern test_pattern_order_scans_only_the_touched_range test_pattern_order_sorts_and_dedups test_pattern_order_sorts_deduplicates_and_leaves_no_marks 
+   PASS  test_pattern_order_sorts_deduplicates_and_leaves_no_marks is red
+
+== off-by-one-ndebug
+   the same break with the asserts compiled out
+   suite:       exit=139
+   PASS  the suite aborted before printing a count
+
+== restored
+   the recipe again with nothing broken
+   suite:     104 Tests 0 Failures 4 Ignored  exit=0
+   PASS  nothing red, exit 0
+
+== verdict
+every arm behaved

@@ -1,0 +1,102 @@
+# grow_pair under an injected realloc failure, ASan + UBSan + LSan
+# tree: 3e96b50
+# date: 2026-08-31T06:57:54Z
+
+== sweep: one failing realloc per arm, 40 arms
+# jm_svec_push under a realloc that fails on call N
+# a clean line means no leak, no double free and no overflow
+
+unobstructed: 4096 pushed, 18 reallocs
+
+fail realloc #1    index array  pushed      0  checksum 0.0
+fail realloc #2    value array  pushed      0  checksum 0.0
+fail realloc #3    index array  pushed     16  checksum 248.0
+fail realloc #4    value array  pushed     16  checksum 248.0
+fail realloc #5    index array  pushed     32  checksum 1008.0
+fail realloc #6    value array  pushed     32  checksum 1008.0
+fail realloc #7    index array  pushed     64  checksum 4064.0
+fail realloc #8    value array  pushed     64  checksum 4064.0
+fail realloc #9    index array  pushed    128  checksum 16320.0
+fail realloc #10   value array  pushed    128  checksum 16320.0
+fail realloc #11   index array  pushed    256  checksum 65408.0
+fail realloc #12   value array  pushed    256  checksum 65408.0
+fail realloc #13   index array  pushed    512  checksum 261888.0
+fail realloc #14   value array  pushed    512  checksum 261888.0
+fail realloc #15   index array  pushed   1024  checksum 1048064.0
+fail realloc #16   value array  pushed   1024  checksum 1048064.0
+fail realloc #17   index array  pushed   2048  checksum 4193280.0
+fail realloc #18   value array  pushed   2048  checksum 4193280.0
+fail realloc #19   index array  pushed   4096  checksum 16775168.0
+fail realloc #20   value array  pushed   4096  checksum 16775168.0
+fail realloc #21   index array  pushed   4096  checksum 16775168.0
+fail realloc #22   value array  pushed   4096  checksum 16775168.0
+fail realloc #23   index array  pushed   4096  checksum 16775168.0
+fail realloc #24   value array  pushed   4096  checksum 16775168.0
+fail realloc #25   index array  pushed   4096  checksum 16775168.0
+fail realloc #26   value array  pushed   4096  checksum 16775168.0
+fail realloc #27   index array  pushed   4096  checksum 16775168.0
+fail realloc #28   value array  pushed   4096  checksum 16775168.0
+fail realloc #29   index array  pushed   4096  checksum 16775168.0
+fail realloc #30   value array  pushed   4096  checksum 16775168.0
+fail realloc #31   index array  pushed   4096  checksum 16775168.0
+fail realloc #32   value array  pushed   4096  checksum 16775168.0
+fail realloc #33   index array  pushed   4096  checksum 16775168.0
+fail realloc #34   value array  pushed   4096  checksum 16775168.0
+fail realloc #35   index array  pushed   4096  checksum 16775168.0
+fail realloc #36   value array  pushed   4096  checksum 16775168.0
+fail realloc #37   index array  pushed   4096  checksum 16775168.0
+fail realloc #38   value array  pushed   4096  checksum 16775168.0
+fail realloc #39   index array  pushed   4096  checksum 16775168.0
+fail realloc #40   value array  pushed   4096  checksum 16775168.0
+
+shortest fill under an injected failure: 0
+the value array's grow was failed too, and the vector still freed clean
+
+run again with GROWFAIL_LEAK=1 for the control arm
+sweep exit=0
+
+== control: the same path, leaking one vector on purpose
+   LSan must report this, or its silence above is not evidence
+
+=================================================================
+==392==ERROR: LeakSanitizer: detected memory leaks
+
+Direct leak of 32 byte(s) in 1 object(s) allocated from:
+    #0 0x775cc72fd340 in calloc ../../../../src/libsanitizer/asan/asan_malloc_linux.cpp:77
+    #1 0x63e2c8943c53 in main /mnt/c/Users/vall-/Desktop/projectes/jaos/bench/measurements/02-140/growfail.c:137
+    #2 0x775cc662a1c9 in __libc_start_call_main ../sysdeps/nptl/libc_start_call_main.h:58
+    #3 0x775cc662a28a in __libc_start_main_impl ../csu/libc-start.c:360
+    #4 0x63e2c8943484 in _start (/mnt/c/Users/vall-/Desktop/projectes/jaos/build/dev/growfail+0x25484) (BuildId: 8df1feee20d4f2f3d6f1339a74bfbed084e08ec6)
+
+Indirect leak of 512 byte(s) in 1 object(s) allocated from:
+    #0 0x775cc72fc778 in realloc ../../../../src/libsanitizer/asan/asan_malloc_linux.cpp:85
+    #1 0x63e2c8943604 in __wrap_realloc /mnt/c/Users/vall-/Desktop/projectes/jaos/bench/measurements/02-140/growfail.c:47
+    #2 0x63e2c895757f in jm_grow src/util.c:25
+    #3 0x63e2c8944a0b in grow_pair src/lu.c:55
+    #4 0x63e2c8946416 in jm_svec_push src/lu.c:71
+    #5 0x63e2c894357f in fill /mnt/c/Users/vall-/Desktop/projectes/jaos/bench/measurements/02-140/growfail.c:56
+    #6 0x63e2c8943c6b in main /mnt/c/Users/vall-/Desktop/projectes/jaos/bench/measurements/02-140/growfail.c:139
+    #7 0x775cc662a1c9 in __libc_start_call_main ../sysdeps/nptl/libc_start_call_main.h:58
+    #8 0x775cc662a28a in __libc_start_main_impl ../csu/libc-start.c:360
+    #9 0x63e2c8943484 in _start (/mnt/c/Users/vall-/Desktop/projectes/jaos/build/dev/growfail+0x25484) (BuildId: 8df1feee20d4f2f3d6f1339a74bfbed084e08ec6)
+
+Indirect leak of 512 byte(s) in 1 object(s) allocated from:
+    #0 0x775cc72fc778 in realloc ../../../../src/libsanitizer/asan/asan_malloc_linux.cpp:85
+    #1 0x63e2c8943604 in __wrap_realloc /mnt/c/Users/vall-/Desktop/projectes/jaos/bench/measurements/02-140/growfail.c:47
+    #2 0x63e2c895757f in jm_grow src/util.c:25
+    #3 0x63e2c8944949 in grow_pair src/lu.c:53
+    #4 0x63e2c8946416 in jm_svec_push src/lu.c:71
+    #5 0x63e2c894357f in fill /mnt/c/Users/vall-/Desktop/projectes/jaos/bench/measurements/02-140/growfail.c:56
+    #6 0x63e2c8943c6b in main /mnt/c/Users/vall-/Desktop/projectes/jaos/bench/measurements/02-140/growfail.c:139
+    #7 0x775cc662a1c9 in __libc_start_call_main ../sysdeps/nptl/libc_start_call_main.h:58
+    #8 0x775cc662a28a in __libc_start_main_impl ../csu/libc-start.c:360
+    #9 0x63e2c8943484 in _start (/mnt/c/Users/vall-/Desktop/projectes/jaos/build/dev/growfail+0x25484) (BuildId: 8df1feee20d4f2f3d6f1339a74bfbed084e08ec6)
+
+SUMMARY: AddressSanitizer: 1056 byte(s) leaked in 3 allocation(s).
+control exit=1
+
+== verdict
+   PASS  the sweep ran every arm and reported no fault
+   PASS  the control leak was reported, so the sanitizer is watching
+
+grow_pair leaves the first array freeable

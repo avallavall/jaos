@@ -128,7 +128,11 @@ print("  an infinite term is neither summed nor counted")
 
 # --------------------------------------------------------------------- #
 arm() {   # $1 = tag, $2 = breaker source or "", $3 = EXTRA_CFLAGS or ""
-    local tag=$1 breaker=$2 extra=${3:-} wt="$D/wt-$tag"
+    # Split, not one `local`: bash expands every word of a `local`
+    # before it assigns any of them, so "$D/wt-$tag" would read an
+    # unset `tag` when arm() is called from the top level.
+    local tag=$1 breaker=$2 extra=${3:-}
+    local wt="$D/wt-$tag"
     git worktree add --detach "$wt" "$ref" >/dev/null 2>&1 || return 2
     local f
     for f in $CARRY; do cp "$JAOS_ROOT/$f" "$wt/$f" || return 2; done

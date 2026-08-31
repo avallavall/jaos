@@ -1,0 +1,47 @@
+# 02-141 -- the model.c tests, and the arm that makes each go red
+# tree: 3e96b50 WITH UNCOMMITTED CHANGES
+#       plus the working-tree copies of src/model.c src/scale.c tests/test_model.c
+# date: 2026-08-31T07:21:38Z
+
+== intact
+   nothing broken: the tree as it stands
+   suite:     34 Tests 0 Failures 0 Ignored  exit=0
+   PASS  nothing red, exit 0
+
+== mirror-kept
+   a matrix change keeps the row-wise mirror
+   suite:     34 Tests 2 Failures 0 Ignored  exit=2
+   red tests: test_a_dimension_change_the_solve_can_see test_only_a_matrix_change_discards_the_derived_copies 
+   PASS  test_only_a_matrix_change_discards_the_derived_copies is red
+
+== bound-discards
+   a bound or a cost throws both derived copies away
+   suite:     34 Tests 1 Failures 0 Ignored  exit=1
+   red tests: test_only_a_matrix_change_discards_the_derived_copies 
+   PASS  test_only_a_matrix_change_discards_the_derived_copies is red
+
+== scale-reads-cost
+   the scaling reads a cost
+   suite:     34 Tests 1 Failures 0 Ignored  exit=1
+   red tests: test_the_scaling_does_not_read_a_bound_or_a_cost 
+   PASS  test_the_scaling_does_not_read_a_bound_or_a_cost is red
+
+== no-empty-column
+   jaos_delete_rows refuses to leave a column empty
+   suite:     34 Tests 4 Failures 0 Ignored  exit=4
+   red tests: test_a_column_left_empty_by_delete_rows_is_not_an_error test_a_dimension_change_the_solve_can_see test_deleting_renumbers_what_survives test_only_a_matrix_change_discards_the_derived_copies 
+   PASS  test_a_column_left_empty_by_delete_rows_is_not_an_error is red
+
+== unsorted-column
+   jaos_add_cols leaves a column in descending order
+   suite:     34 Tests 2 Failures 0 Ignored  exit=2
+   red tests: test_added_columns_append_and_leave_the_rest_alone test_column_order_survives_a_chain_of_mutations 
+   PASS  test_column_order_survives_a_chain_of_mutations is red
+
+== restored
+   the recipe again with nothing broken
+   suite:     34 Tests 0 Failures 0 Ignored  exit=0
+   PASS  nothing red, exit 0
+
+== verdict
+every arm behaved

@@ -664,6 +664,77 @@ static void test_update_refuses_a_singular_replacement(void)
     jm_lu_free(&lu);
 }
 
+/* After a failed update the factorization is unusable, and both solves say
+ * so by writing nothing at all.
+ *
+ * `test_update_refuses_a_singular_replacement` above pins `rank < 0`. This
+ * pins what a caller then sees, which is the half that decides whether a
+ * wrecked factorization is an error or a wrong answer. `jm_lu_ftran` and
+ * `jm_lu_btran` return before touching `x`, so the caller's buffer keeps
+ * whatever it held; the sparse forms additionally report an empty pattern.
+ *
+ * The basis is diagonal 2, 4, 8 rather than the identity on purpose. On the
+ * identity a solve leaves `x` alone anyway, so "unchanged" would prove
+ * nothing — the first arm below is the one that shows these calls do write
+ * when the factorization is good. */
+static void test_a_wrecked_factorization_writes_nothing(void)
+{
+    mat m;
+    m.n = 3;
+    memset(m.a, 0, sizeof m.a);
+    m.a[0][0] = 2.0;
+    m.a[1][1] = 4.0;
+    m.a[2][2] = 8.0;
+    mat_pack(&m);
+
+    jm_lu lu;
+    jm_work w = {0};
+    must_factor(&m, &lu, &w);
+
+    /* The arm that makes the rest mean something: while the factorization
+     * is good, both solves rewrite the buffer. */
+    double good[3] = {1.0, 2.0, 3.0};
+    jm_lu_ftran(&lu, good, &w);
+    TEST_ASSERT_TRUE(good[0] == 0.5 && good[1] == 0.5 && good[2] == 0.375);
+
+    /* Column 1 becomes a copy of column 0, so the basis loses rank. */
+    double col[3] = {2.0, 0.0, 0.0};
+    TEST_ASSERT_EQUAL_INT(JAOS_ERR_NUMERICAL,
+        jm_lu_update(&lu, 1, col, UPDATE_TOL, &w));
+    TEST_ASSERT_TRUE(lu.rank < 0);
+
+    static const double SENTINEL[3] = {-7.5, 11.25, -0.125};
+    double x[3];
+    int64_t pat[3];
+    int64_t npat;
+
+    memcpy(x, SENTINEL, sizeof x);
+    jm_lu_ftran(&lu, x, &w);
+    TEST_ASSERT_TRUE(x[0] == SENTINEL[0] && x[1] == SENTINEL[1] &&
+                     x[2] == SENTINEL[2]);
+
+    memcpy(x, SENTINEL, sizeof x);
+    jm_lu_btran(&lu, x, &w);
+    TEST_ASSERT_TRUE(x[0] == SENTINEL[0] && x[1] == SENTINEL[1] &&
+                     x[2] == SENTINEL[2]);
+
+    memcpy(x, SENTINEL, sizeof x);
+    npat = 999;
+    jm_lu_ftran_sparse(&lu, x, &w, pat, &npat);
+    TEST_ASSERT_EQUAL_INT64(0, npat);
+    TEST_ASSERT_TRUE(x[0] == SENTINEL[0] && x[1] == SENTINEL[1] &&
+                     x[2] == SENTINEL[2]);
+
+    memcpy(x, SENTINEL, sizeof x);
+    npat = 999;
+    jm_lu_btran_sparse(&lu, x, &w, pat, &npat);
+    TEST_ASSERT_EQUAL_INT64(0, npat);
+    TEST_ASSERT_TRUE(x[0] == SENTINEL[0] && x[1] == SENTINEL[1] &&
+                     x[2] == SENTINEL[2]);
+
+    jm_lu_free(&lu);
+}
+
 /* Replacing a column by the one already there is a no-op numerically, and
  * a good check that the spike machinery does not drift on its own. */
 static void test_update_with_the_same_column_is_stable(void)
@@ -765,6 +836,7 @@ int main(void)
     RUN_TEST(test_update_matches_the_new_basis);
     RUN_TEST(test_update_chain_agrees_with_refactorization);
     RUN_TEST(test_update_refuses_a_singular_replacement);
+    RUN_TEST(test_a_wrecked_factorization_writes_nothing);
     RUN_TEST(test_update_with_the_same_column_is_stable);
     RUN_TEST(test_update_rejects_bad_arguments);
     RUN_TEST(test_updates_are_bit_identical_across_runs);

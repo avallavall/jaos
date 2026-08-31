@@ -3700,6 +3700,203 @@ static void test_a_row_activity_still_refuses_a_real_shortfall(void)
     jaos_model_free(m);
 }
 
+/* --------------------------------------------------------------------- */
+/* The three contracts `jaos_internal.h` states that had no test (D230)   */
+/* --------------------------------------------------------------------- */
+
+/* `jm_pattern_order` turns an unordered, repeating list of positions into the
+ * ascending distinct list of them, drops anything outside [0, limit), and
+ * leaves its bitmap all zero again on return.
+ *
+ * Ascending is not a preference. Every consumer of a pricing row breaks its
+ * ties by scan position, so an order that is merely deterministic would still
+ * change which column enters.
+ *
+ * The bitmap being clean on the way out is what lets a caller reuse it
+ * without clearing, and the second call below is the arm that checks it: it
+ * hands back the SAME bitmap, unzeroed, and requires the same answer. */
+static void test_pattern_order_sorts_deduplicates_and_leaves_no_marks(void)
+{
+    constexpr int64_t limit = 10;
+    constexpr int64_t words_needed = (limit + 63) / 64;
+    uint64_t mark[words_needed];
+    memset(mark, 0, sizeof mark);
+
+    /* Unordered, repeating, and carrying three positions the limit excludes:
+     * a negative one, one just past the end, and one far past it. */
+    int64_t pos[] = {5, 2, 5, 0, 9, 2, -1, 10, 100, 9};
+    int64_t words = -1;
+    int64_t n = jm_pattern_order(10, pos, mark, limit, &words);
+
+    TEST_ASSERT_EQUAL_INT64(4, n);
+    TEST_ASSERT_EQUAL_INT64(0, pos[0]);
+    TEST_ASSERT_EQUAL_INT64(2, pos[1]);
+    TEST_ASSERT_EQUAL_INT64(5, pos[2]);
+    TEST_ASSERT_EQUAL_INT64(9, pos[3]);
+    TEST_ASSERT_GREATER_THAN_INT64_MESSAGE(0, words,
+        "no bitmap word was billed, so nothing was enumerated");
+
+    for (int64_t w = 0; w < words_needed; w++)
+        TEST_ASSERT_EQUAL_UINT64_MESSAGE(0, mark[w],
+            "a bit was left set, so the next caller starts dirty");
+
+    /* Same bitmap, not re-zeroed. A leftover bit would swallow a position. */
+    int64_t again[] = {9, 9, 0, 2, 5};
+    int64_t words2 = -1;
+    int64_t n2 = jm_pattern_order(5, again, mark, limit, &words2);
+    TEST_ASSERT_EQUAL_INT64(4, n2);
+    TEST_ASSERT_EQUAL_INT64(0, again[0]);
+    TEST_ASSERT_EQUAL_INT64(2, again[1]);
+    TEST_ASSERT_EQUAL_INT64(5, again[2]);
+    TEST_ASSERT_EQUAL_INT64(9, again[3]);
+    for (int64_t w = 0; w < words_needed; w++)
+        TEST_ASSERT_EQUAL_UINT64(0, mark[w]);
+
+    /* An empty list bills nothing and marks nothing. */
+    int64_t none[1] = {0};
+    int64_t words3 = -1;
+    TEST_ASSERT_EQUAL_INT64(0, jm_pattern_order(0, none, mark, limit, &words3));
+    for (int64_t w = 0; w < words_needed; w++)
+        TEST_ASSERT_EQUAL_UINT64(0, mark[w]);
+}
+
+/* The nonbasic bitmap is maintained by hand at every site that moves a
+ * variable into or out of the basis, and `jm_nonbasic_build` is the only
+ * thing that writes it wholesale. So the property worth testing is that the
+ * two agree: apply a basis change through `jm_nonbasic_insert` and
+ * `jm_nonbasic_remove`, rebuild from the status array, and compare word for
+ * word.
+ *
+ * Membership, and never "has a finite bound": a nonbasic FREE variable is in
+ * the set exactly as a bounded one is, which is why the status array below
+ * carries all four values. */
+static void test_the_nonbasic_bitmap_matches_a_rebuild_after_a_basis_change(void)
+{
+    constexpr int64_t nvar = 130;             /* three words, not a round one */
+    constexpr int64_t words_needed = (nvar + 63) / 64;
+    jm_var_status status[nvar];
+    int64_t want_nonbasic = 0;
+    for (int64_t v = 0; v < nvar; v++) {
+        switch (v % 4) {
+        case 0:  status[v] = JM_BASIC;    break;
+        case 1:  status[v] = JM_AT_LOWER; break;
+        case 2:  status[v] = JM_AT_UPPER; break;
+        default: status[v] = JM_FREE;     break;
+        }
+        if (status[v] != JM_BASIC)
+            want_nonbasic++;
+    }
+
+    uint64_t kept[words_needed], rebuilt[words_needed];
+    memset(kept, 0, sizeof kept);
+    memset(rebuilt, 0, sizeof rebuilt);
+
+    const int64_t n0 = jm_nonbasic_build(nvar, status, kept);
+    TEST_ASSERT_EQUAL_INT64(want_nonbasic, n0);
+
+    /* A basis change, of the shape an iteration makes: one variable enters
+     * the basis and one leaves it. 64 and 65 straddle a word boundary, which
+     * is where a bitmap gets its indexing wrong. */
+    const int64_t entering = 65;    /* was AT_LOWER, becomes basic */
+    const int64_t leaving  = 64;    /* was BASIC, becomes AT_UPPER */
+    TEST_ASSERT_EQUAL_INT(JM_AT_LOWER, status[entering]);
+    TEST_ASSERT_EQUAL_INT(JM_BASIC, status[leaving]);
+
+    status[entering] = JM_BASIC;
+    jm_nonbasic_remove(kept, entering);
+    status[leaving] = JM_AT_UPPER;
+    jm_nonbasic_insert(kept, leaving);
+
+    const int64_t n1 = jm_nonbasic_build(nvar, status, rebuilt);
+    TEST_ASSERT_EQUAL_INT64(n0, n1);            /* one in, one out */
+    for (int64_t w = 0; w < words_needed; w++)
+        TEST_ASSERT_EQUAL_UINT64_MESSAGE(rebuilt[w], kept[w],
+            "the hand-maintained bitmap drifted from a rebuild");
+
+    /* And the expansion of both is the same ascending list. */
+    int64_t a[nvar], b[nvar];
+    const int64_t na = jm_nonbasic_expand(nvar, kept, a);
+    const int64_t nb = jm_nonbasic_expand(nvar, rebuilt, b);
+    TEST_ASSERT_EQUAL_INT64(n1, na);
+    TEST_ASSERT_EQUAL_INT64(n1, nb);
+    for (int64_t k = 0; k < na; k++) {
+        TEST_ASSERT_EQUAL_INT64(b[k], a[k]);
+        if (k > 0)
+            TEST_ASSERT_TRUE_MESSAGE(a[k - 1] < a[k],
+                "jm_nonbasic_expand did not come back ascending");
+    }
+
+    /* The arm that makes the comparison mean something: a bitmap that was
+     * NOT maintained disagrees, so word-for-word equality is a real check
+     * and not two copies of the same call. */
+    uint64_t stale[words_needed];
+    memset(stale, 0, sizeof stale);
+    jm_var_status before[nvar];
+    memcpy(before, status, sizeof before);
+    before[entering] = JM_AT_LOWER;
+    before[leaving] = JM_BASIC;
+    (void)jm_nonbasic_build(nvar, before, stale);
+    bool differs = false;
+    for (int64_t w = 0; w < words_needed; w++)
+        differs = differs || stale[w] != rebuilt[w];
+    TEST_ASSERT_TRUE_MESSAGE(differs,
+        "the basis change moved no bit, so this test compares nothing");
+}
+
+/* `solve_primal_iters` and `solve_phase1_iters` are written on EVERY exit
+ * from `jm_dual_simplex`, "the abandoned one included".
+ *
+ * `test_the_summary_separates_phase_1_from_phase_2` covers the successful
+ * exit and says in its own comment that the non-success path is not
+ * reproduced there. This is that path: a forced primal solve stopped by a
+ * watcher, which is the one abandoned exit a two-row model can reach. D194
+ * published a wrong count for eight netlib instances precisely because a
+ * phase 1 that ran and did not finish reported nothing. */
+static void test_the_iteration_split_is_written_on_an_interrupted_exit(void)
+{
+#if defined(JAOS_PRESOLVE_FAULT_OFFBYONE) || defined(JAOS_PRESOLVE_FAULT_WRONGDUAL)
+    TEST_IGNORE_MESSAGE("positive test -- skipped under either fault build");
+#else
+    /* Run it once to the end first, so the interrupted numbers below have
+     * something to be a prefix of. */
+    jaos_model *full = fresh();
+    load_unreducible_model(full);
+    full->cfg.force_primal = true;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(full));
+    const int64_t full_primal = full->solve_primal_iters;
+    TEST_ASSERT_GREATER_THAN_INT64_MESSAGE(0, full_primal,
+        "the forced primal ran no iterations, so there is nothing to split");
+
+    /* Now the same solve, stopped at the first question. */
+    watcher w = fresh_watcher(0);
+    jaos_model *m = fresh();
+    load_unreducible_model(m);
+    m->cfg.force_primal = true;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_progress_callback(m, watch, &w));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+
+    TEST_ASSERT_EQUAL_INT_MESSAGE(JAOS_SOLVE_INTERRUPTED, jaos_status_of(m),
+        "the watcher asked to stop and the solve did not");
+    TEST_ASSERT_GREATER_THAN_INT_MESSAGE(0, w.calls,
+        "the watcher was never called, so nothing was interrupted");
+
+    /* Written, not left at whatever the previous solve put there: the
+     * counters are zeroed on entry, so an exit that skipped them would read
+     * zero here while `solve_iters` did not. */
+    TEST_ASSERT_EQUAL_INT64_MESSAGE(jaos_iterations(m), m->solve_primal_iters,
+        "an interrupted forced-primal solve did not write its primal count");
+    TEST_ASSERT_TRUE_MESSAGE(
+        m->solve_phase1_iters >= 0 &&
+        m->solve_phase1_iters <= m->solve_primal_iters,
+        "phase 1 claims more iterations than the primal ran");
+    TEST_ASSERT_TRUE_MESSAGE(m->solve_primal_iters <= full_primal,
+        "the interrupted solve ran past the complete one");
+
+    jaos_model_free(m);
+    jaos_model_free(full);
+#endif
+}
+
 int main(void)
 {
     UNITY_BEGIN();
@@ -3804,5 +4001,8 @@ int main(void)
     RUN_TEST(test_a_row_no_column_reaches_but_that_holds_anyway);
     RUN_TEST(test_a_row_activity_keeps_terms_below_an_ulp_of_its_own_total);
     RUN_TEST(test_a_row_activity_still_refuses_a_real_shortfall);
+    RUN_TEST(test_pattern_order_sorts_deduplicates_and_leaves_no_marks);
+    RUN_TEST(test_the_nonbasic_bitmap_matches_a_rebuild_after_a_basis_change);
+    RUN_TEST(test_the_iteration_split_is_written_on_an_interrupted_exit);
     return UNITY_END();
 }

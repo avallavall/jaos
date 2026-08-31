@@ -1082,6 +1082,262 @@ static void test_a_basis_that_would_stop_being_one_is_dropped(void)
     jaos_model_free(n);
 }
 
+/* --------------------------------------------------------------------- */
+/* The four sentences model.c states about its derived copies             */
+/*                                                                       */
+/* `src/model.c` says which operations invalidate the row-wise mirror and */
+/* the scaling, and why the others do not. D219 turned the list into one  */
+/* function so the two could not drift; these are the tests of what that  */
+/* function has to do. D229.                                             */
+/* --------------------------------------------------------------------- */
+
+/* Both derived copies present and marked valid, which is the state every
+ * test below starts from. */
+static void derive_both(jaos_model *m)
+{
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jm_model_ensure_rowwise(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+                          jm_model_scale(m, JM_SCALE_CURTIS_REID));
+    TEST_ASSERT_TRUE(m->rowwise_valid);
+    TEST_ASSERT_TRUE(m->scale_valid);
+}
+
+/* Row indices inside a column are ascending and never repeat. Nothing
+ * states this as an assert, and every mutation below has to preserve it:
+ * the binary search in jaos_set_coefficient and the merge in the delete
+ * paths both read the order rather than re-establishing it. */
+static void assert_columns_ascending(const jaos_model *m, const char *where)
+{
+    for (int64_t j = 0; j < m->num_col; j++)
+        for (int64_t k = m->a_start[j] + 1; k < m->a_start[j + 1]; k++)
+            TEST_ASSERT_TRUE_MESSAGE(m->a_index[k - 1] < m->a_index[k], where);
+}
+
+/* Every operation that touches the matrix discards both derived copies, and
+ * the ones that touch only a bound or a cost discard neither.
+ *
+ * That second half is the load-bearing one: `scale.c` reads no bound and no
+ * cost, so a model whose bound moved still has correct scale factors, and
+ * throwing them away would cost a re-scale on every bound change a
+ * branch-and-bound loop makes. The claim is checked directly by
+ * `test_the_scaling_does_not_read_a_bound_or_a_cost` below. */
+static void test_only_a_matrix_change_discards_the_derived_copies(void)
+{
+    const double one_cost[] = {1.0};
+    const double one_lo[] = {0.0}, one_hi[] = {1.0};
+    const int64_t one_start[] = {0, 1};
+    const int64_t one_index[] = {0};
+    const double one_value[] = {1.0};
+    const int64_t del0[] = {0};
+
+    /* The five that must discard both. */
+    struct { const char *name; int which; } matrix_ops[] = {
+        {"jaos_set_coefficient", 0},
+        {"jaos_add_cols",        1},
+        {"jaos_add_rows",        2},
+        {"jaos_delete_cols",     3},
+        {"jaos_delete_rows",     4},
+    };
+
+    for (size_t t = 0; t < sizeof matrix_ops / sizeof matrix_ops[0]; t++) {
+        jaos_model *m = nullptr;
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_model_new(&m));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, load_example(m));
+        derive_both(m);
+
+        switch (matrix_ops[t].which) {
+        case 0:
+            TEST_ASSERT_EQUAL_INT(JAOS_OK,
+                jaos_set_coefficient(m, 1, 0, 7.0));
+            break;
+        case 1:
+            TEST_ASSERT_EQUAL_INT(JAOS_OK,
+                jaos_add_cols(m, 1, one_cost, one_lo, one_hi,
+                              1, one_start, one_index, one_value));
+            break;
+        case 2:
+            TEST_ASSERT_EQUAL_INT(JAOS_OK,
+                jaos_add_rows(m, 1, one_lo, one_hi,
+                              1, one_start, one_index, one_value));
+            break;
+        case 3:
+            TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_delete_cols(m, 1, del0));
+            break;
+        default:
+            TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_delete_rows(m, 1, del0));
+            break;
+        }
+
+        TEST_ASSERT_FALSE_MESSAGE(m->rowwise_valid, matrix_ops[t].name);
+        TEST_ASSERT_FALSE_MESSAGE(m->scale_valid, matrix_ops[t].name);
+        assert_columns_ascending(m, matrix_ops[t].name);
+        jaos_model_free(m);
+    }
+
+    /* And the three that must discard neither. */
+    jaos_model *m = nullptr;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_model_new(&m));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, load_example(m));
+    derive_both(m);
+
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_col_cost(m, 0, 3.5));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_col_bounds(m, 1, -2.0, 9.0));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_row_bounds(m, 0, -1.0, 4.0));
+
+    TEST_ASSERT_TRUE_MESSAGE(m->rowwise_valid,
+        "a bound or a cost threw away the row-wise mirror");
+    TEST_ASSERT_TRUE_MESSAGE(m->scale_valid,
+        "a bound or a cost threw away the scaling");
+    jaos_model_free(m);
+}
+
+/* The scaling is a function of the matrix alone. Changing every bound and
+ * every cost in the model and scaling again has to produce the same factors
+ * to the bit — which is what lets a bound change keep them (D219).
+ *
+ * The factors are compared with `==` and not a tolerance, because the claim
+ * is that nothing was read, not that little was. */
+static void test_the_scaling_does_not_read_a_bound_or_a_cost(void)
+{
+    jaos_model *m = nullptr;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_model_new(&m));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, load_example(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+                          jm_model_scale(m, JM_SCALE_CURTIS_REID));
+
+    double row_before[2], col_before[3];
+    bool any_scaling = false;
+    for (int64_t i = 0; i < m->num_row; i++) {
+        row_before[i] = m->row_scale[i];
+        any_scaling = any_scaling || row_before[i] != 1.0;
+    }
+    for (int64_t j = 0; j < m->num_col; j++) {
+        col_before[j] = m->col_scale[j];
+        any_scaling = any_scaling || col_before[j] != 1.0;
+    }
+    /* Comparing all-ones against all-ones would pass whatever the scaling
+     * read, so the test says up front that it scaled something. */
+    TEST_ASSERT_TRUE_MESSAGE(any_scaling,
+        "every scale factor is 1.0, so this test compares nothing");
+
+    /* The change has to be one that ANY way of reading a cost or a bound
+     * would notice: a cost crossing zero, a cost changing sign, a magnitude
+     * moving seven orders, and a bound going infinite. A change from one
+     * non-zero cost to another would leave a break keyed on `cost != 0`
+     * invisible, which is exactly what the control arm caught the first
+     * time this test was written (D229). */
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_col_cost(m, 0, 0.0));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_col_cost(m, 1, -1e7));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_col_cost(m, 2, 3.25));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_set_col_bounds(m, 0, -INFINITY, INFINITY));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_col_bounds(m, 1, -1e5, 1e7));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_col_bounds(m, 2, 4.0, 4.0));
+    for (int64_t i = 0; i < m->num_row; i++)
+        TEST_ASSERT_EQUAL_INT(JAOS_OK,
+            jaos_set_row_bounds(m, i, -1e9, 1e9));
+
+    /* Recomputed from scratch, not read from the cache above. */
+    m->scale_valid = false;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+                          jm_model_scale(m, JM_SCALE_CURTIS_REID));
+
+    for (int64_t i = 0; i < m->num_row; i++)
+        TEST_ASSERT_TRUE_MESSAGE(row_before[i] == m->row_scale[i],
+                                 "a row scale factor moved with a bound");
+    for (int64_t j = 0; j < m->num_col; j++)
+        TEST_ASSERT_TRUE_MESSAGE(col_before[j] == m->col_scale[j],
+                                 "a column scale factor moved with a cost");
+    jaos_model_free(m);
+}
+
+/* Deleting rows can leave a column with no entries at all, and that is a
+ * model, not an error: a column with no coefficients is free to sit anywhere
+ * its own bounds allow, and the solve prices it on its cost alone.
+ *
+ * The example's column 1 lives only in row 1, so deleting that row empties
+ * it. The column has to survive with its cost and bounds intact, the matrix
+ * has to stay consistent, and `jaos_num_nz` has to drop by exactly what row
+ * 1 carried. */
+static void test_a_column_left_empty_by_delete_rows_is_not_an_error(void)
+{
+    jaos_model *m = nullptr;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_model_new(&m));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, load_example(m));
+
+    const int64_t before_nz = jaos_num_nz(m);
+    const int64_t row1[] = {1};
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_delete_rows(m, 1, row1));
+
+    TEST_ASSERT_EQUAL_INT64(1, jaos_num_row(m));
+    TEST_ASSERT_EQUAL_INT64(3, jaos_num_col(m));
+
+    /* Column 1 had its only entry in row 1 and is empty now. Row 1 carried
+     * two entries in all — column 1's and column 2's — because column 0's
+     * row-1 entry was the explicit zero the load drops. */
+    TEST_ASSERT_EQUAL_INT64(m->a_start[1], m->a_start[2]);
+    TEST_ASSERT_EQUAL_INT64(4, before_nz);
+    TEST_ASSERT_EQUAL_INT64(2, jaos_num_nz(m));
+
+    /* It is still a column, with everything a column has. */
+    double cost = 0.0, lo = 0.0, hi = 0.0;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_col_cost(m, 1, &cost));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_col_bounds(m, 1, &lo, &hi));
+    TEST_ASSERT_TRUE(cost == ex_cost[1] && lo == ex_cl[1] && hi == ex_cu[1]);
+
+    assert_columns_ascending(m, "after jaos_delete_rows");
+
+    /* And the derived copies rebuild on the model as it now stands. */
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jm_model_ensure_rowwise(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+                          jm_model_scale(m, JM_SCALE_CURTIS_REID));
+    jaos_model_free(m);
+}
+
+/* Row order inside a column survives a chain of mutations, not just one.
+ * The example is loaded with column 2 deliberately unsorted, so the load
+ * itself has to sort it; every operation after that has to keep it sorted,
+ * because jaos_set_coefficient binary-searches the column and the delete
+ * paths merge rather than re-sort. */
+static void test_column_order_survives_a_chain_of_mutations(void)
+{
+    const double one_cost[] = {2.0};
+    const double one_lo[] = {0.0}, one_hi[] = {5.0};
+    const int64_t two_start[] = {0, 2};
+    const int64_t two_index[] = {1, 0};      /* descending on purpose */
+    const double two_value[] = {6.0, 7.0};
+    const int64_t del1[] = {1};
+
+    jaos_model *m = nullptr;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_model_new(&m));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, load_example(m));
+    assert_columns_ascending(m, "after load");
+
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_add_cols(m, 1, one_cost, one_lo, one_hi,
+                      2, two_start, two_index, two_value));
+    assert_columns_ascending(m, "after add_cols with a descending column");
+
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_coefficient(m, 0, 1, 9.0));
+    assert_columns_ascending(m, "after inserting a coefficient");
+
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_coefficient(m, 0, 1, 0.0));
+    assert_columns_ascending(m, "after deleting a coefficient");
+
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_add_rows(m, 1, one_lo, one_hi,
+                      2, two_start, two_index, two_value));
+    assert_columns_ascending(m, "after add_rows");
+
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_delete_cols(m, 1, del1));
+    assert_columns_ascending(m, "after delete_cols");
+
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_delete_rows(m, 1, del1));
+    assert_columns_ascending(m, "after delete_rows");
+
+    jaos_model_free(m);
+}
+
 int main(void)
 {
     UNITY_BEGIN();
@@ -1115,5 +1371,9 @@ int main(void)
     RUN_TEST(test_a_dimension_change_refuses_what_it_must);
     RUN_TEST(test_the_basis_survives_an_addition_and_still_counts);
     RUN_TEST(test_a_basis_that_would_stop_being_one_is_dropped);
+    RUN_TEST(test_only_a_matrix_change_discards_the_derived_copies);
+    RUN_TEST(test_the_scaling_does_not_read_a_bound_or_a_cost);
+    RUN_TEST(test_a_column_left_empty_by_delete_rows_is_not_an_error);
+    RUN_TEST(test_column_order_survives_a_chain_of_mutations);
     return UNITY_END();
 }

@@ -1,0 +1,29 @@
+# 02-140 -- the lu.c tests, and the arm that makes each go red
+# tree: 3e96b50 WITH UNCOMMITTED CHANGES
+#       plus the working-tree copies of src/lu.c tests/test_lu.c
+# date: 2026-08-31T07:31:16Z
+
+== intact
+   nothing broken: the tree as it stands
+   suite:     19 Tests 0 Failures 0 Ignored  exit=0
+   PASS  nothing red, exit 0
+
+== no-rank-guard
+   ftran and btran answer from a wrecked factorization
+   suite:     19 Tests 1 Failures 0 Ignored  exit=1
+   red tests: test_a_wrecked_factorization_writes_nothing 
+   PASS  test_a_wrecked_factorization_writes_nothing is red
+
+== no-npat-reset
+   a wrecked factorization stops reporting an empty pattern
+   suite:     19 Tests 1 Failures 0 Ignored  exit=1
+   red tests: test_a_wrecked_factorization_writes_nothing 
+   PASS  test_a_wrecked_factorization_writes_nothing is red
+
+== restored
+   the recipe again with nothing broken
+   suite:     19 Tests 0 Failures 0 Ignored  exit=0
+   PASS  nothing red, exit 0
+
+== verdict
+every arm behaved
