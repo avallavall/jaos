@@ -1,0 +1,51 @@
+# 02-139 -- the five checker tests, and the arm that makes each go red
+# tree: ae3e32f WITH UNCOMMITTED CHANGES
+#       plus the working-tree copies of src/check.c tests/test_check.c
+# date: 2026-08-31T06:43:12Z
+
+== intact
+   nothing broken: the tree as it stands
+   suite:     23 Tests 0 Failures 0 Ignored  exit=0
+   PASS  nothing red, exit 0
+
+== exempt-drops-term
+   an exempt multiplier stops contributing w * bound
+   suite:     23 Tests 4 Failures 0 Ignored  exit=4
+   red tests: test_a_tiny_multiplier_on_a_large_bound_still_counts test_a_waived_sign_condition_is_still_caught_by_the_gap test_an_exempt_multiplier_still_moves_the_dual_objective test_the_gap_can_be_two_large_halves_cancelling 
+   PASS  test_an_exempt_multiplier_still_moves_the_dual_objective is red
+
+== dropped-exemption
+   note_dropped ignores anything under 1e-12
+   suite:     23 Tests 1 Failures 0 Ignored  exit=1
+   red tests: test_a_dropped_term_has_no_magnitude_exemption 
+   PASS  test_a_dropped_term_has_no_magnitude_exemption is red
+
+== no-clamp
+   certified_step stops clamping its room at zero
+   suite:       exit=134
+   PASS  the suite aborted before printing a count
+
+== implied-too-tight
+   the implied lower bound is one unit too tight
+   suite:     23 Tests 2 Failures 0 Ignored  exit=2
+   red tests: test_an_infinite_term_is_counted_not_summed test_the_implied_box_is_exactly_what_the_row_implies 
+   PASS  test_the_implied_box_is_exactly_what_the_row_implies is red
+
+== infinity-not-counted
+   an infinite term stops being counted
+   suite:     23 Tests 2 Failures 0 Ignored  exit=2
+   red tests: test_an_infinite_term_is_counted_not_summed test_the_implied_box_is_exactly_what_the_row_implies 
+   PASS  test_an_infinite_term_is_counted_not_summed is red
+
+== no-clamp-ndebug
+   the same break, with the asserts compiled out
+   suite:     23 Tests 0 Failures 0 Ignored  exit=0
+   PASS  nothing red, exit 0
+
+== restored
+   the recipe again with nothing broken
+   suite:     23 Tests 0 Failures 0 Ignored  exit=0
+   PASS  nothing red, exit 0
+
+== verdict
+every arm behaved

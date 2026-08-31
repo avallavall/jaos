@@ -234,6 +234,7 @@ and you have the argument. Jump to the entry for the numbers behind it.
 - **[D224](#d224--the-first-four-tests-of-the-debt-and-jmtwoproductresidue-turns-out-to-guard-one-case-twice)** — The first four tests of the debt, and `jm_two_product_residue` turns out to guard one case twice
 - **[D225](#d225--a-change-that-trades-instructions-for-cache-misses-is-judged-on-misses-and-the-arbiter-that-would-have-rejected-it-now-exists)** — A change that trades instructions for cache misses is judged on misses, and the arbiter that would have rejected it now exists
 - **[D226](#d226--a-writer-is-judged-by-what-its-own-reader-makes-of-the-file-and-one-construction-had-to-be-checked-rather-than-trusted)** — A writer is judged by what its own reader makes of the file, and one construction had to be checked rather than trusted
+- **[D227](#d227--five-tests-for-the-checker-and-one-guard-that-exists-only-in-a-debug-build)** — Five tests for the checker, and one guard that exists only in a debug build
 
 ---
 
@@ -17558,3 +17559,99 @@ and was not made here.
 Nothing reads the solution format back. It is written for a person and for
 other tools, and a reader for it would need its own round trip and its own
 decision.
+
+## D227 — Five tests for the checker, and one guard that exists only in a debug build
+
+`TODO.md`'s assert debt lists about twenty tests, ordered by how much each
+would tell you rather than by which file it sits in. The first six were the
+checker's, because those guard a published verdict. Five landed; the sixth
+turned into the finding below and needed no test of its own.
+
+`bench/measurements/02-139/`, and `run-check-controls.sh` is the whole of the
+evidence: seven arms, five breakers, one breaker run twice.
+
+## What the five state
+
+Each one states a sentence that landed in `src/check.c` at D221 or D223 with
+nothing beside it.
+
+- **Every multiplier contributes `w * bound` to the dual objective,
+  including the ones the sign condition exempts** (D22). The exemption
+  waives the condition, not the term. The model is one row and one column in
+  powers of two, so the assertions are exact, and the point sits 1024 above
+  the row's lower bound so that the multiplier being negligible is the only
+  thing waiving anything.
+- **`note_dropped` has no magnitude exemption** (D47). A multiplier of 1e-15
+  at an infinite bound is counted, and the same model shows the other half of
+  that sentence: a bound the rows imply nothing about stays infinite and its
+  term is still dropped. Every verdict in the report reads clean on that
+  point and `gap_certified` is the only field that says the bound proves
+  nothing, which is D47's shape exactly.
+- **`certified_step` never returns a negative distance** (D219). Below.
+- **The implied box is what the rows imply**, contains every feasible point,
+  and puts its bound at the constraint itself (D87).
+- **An infinite term in a row's range is counted, not summed** (D87). The
+  distinction only shows where a row carries one infinite term and one
+  finite one, because subtracting an infinity out of a sum that contains it
+  gives a NaN. That model is the test.
+
+## The finding: three guards on one property, and only one survives NDEBUG
+
+`certified_step` clamps its room at zero. Remove the clamp and the suite
+does not fail, it **aborts**: exit 134, no summary line, because D219's
+assert fires before Unity can report anything. That alone is worth having,
+and it is why every arm here records the test binary's exit code rather than
+only Unity's failure count.
+
+Then the same breaker was run again with `-DNDEBUG`, which is what
+`RELEASE_CFLAGS` carries and therefore what ships. **The whole suite came
+back green.**
+
+So the test beside that sentence does not catch the defect; it pins the value
+the report carries. What actually makes a negative distance harmless in the
+shipping build is a third thing, in the caller: `gain` is taken only when it
+beats the running maximum, and a negative never does. The clamp, the assert
+and that maximum are three guards on one property, and `-DNDEBUG` leaves one.
+
+That is worth writing down rather than repairing. The maximum is correct and
+the clamp is correct; what the campaign establishes is which of them a
+release build is relying on. If the maximum ever becomes a sum, the clamp is
+what keeps the property and the assert is what would catch it going away —
+in a debug build, which is where `make test` and `make sanitize` run.
+
+**The general lesson is about the control and not about this function.** An
+arm that aborts looks like a passing control and is only half of one: it
+proves the assert fires, not that anything catches the defect where asserts
+are compiled out. Running the same breaker under `-DNDEBUG` is what turns
+that into a measurement, and no earlier control campaign here did it.
+
+## Two arms move two tests each
+
+`test_the_implied_box_is_exactly_what_the_row_implies` and
+`test_an_infinite_term_is_counted_not_summed` both read `implied_bounds`, so
+either break turns both red. They stay separate because the signatures
+differ: a bound that is one unit too tight leaves `dropped_terms` at 0 and
+moves the dual objective, while an uncounted infinity implies no bound at all
+and takes `dropped_terms` to 1. An arm passes when its own test is red and
+the record lists everything else that moved.
+
+## The exemption is load-bearing past its own test
+
+Making a negligible multiplier skip its contribution turns **four** tests
+red, three of which already existed:
+`test_a_tiny_multiplier_on_a_large_bound_still_counts`,
+`test_a_waived_sign_condition_is_still_caught_by_the_gap` and
+`test_the_gap_can_be_two_large_halves_cancelling`. Same shape as D224's
+`jm_alloc_array(0)`: a one-line contract several tests lean on without
+saying so, and the new test is the one that states it.
+
+## What it cost
+
+Nothing. `src/check.c` is untouched; only `tests/test_check.c` grew. All five
+configurations build and pass, and the three gate sets came back with every
+digest and every work figure byte-identical.
+
+## What is left of the debt
+
+The `lu.c`, `model.c` and `jaos_internal.h` groups, about eleven tests,
+listed in `TODO.md` in the same order.

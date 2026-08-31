@@ -39,6 +39,21 @@ open, `bench/README.md` for the gate, and the commit each entry came from.
   binary's exit code rather than the failure count — an abort prints no count
   at all (D226).
 
+- **The checker's five contracts have tests, and one guard turns out to
+  live only in a debug build.** Every multiplier contributes `w * bound` to
+  the dual objective including the exempt ones; `note_dropped` counts a
+  1e-15 multiplier with no magnitude exemption; the implied box is exactly
+  what the row implies and its infinite terms are counted rather than
+  summed. Each proven to go red when its sentence breaks, and the exemption
+  turns out to be load-bearing for three tests that already existed.
+
+  The sixth became the finding. Removing `certified_step`'s clamp aborts the
+  suite on D219's assert — and under `-DNDEBUG`, which is what ships, the
+  same break leaves everything green. Three guards sit on that property and
+  a release build keeps one. Running the same breaker twice is what measured
+  it, and no earlier control campaign here did that (D227,
+  `bench/measurements/02-139/`).
+
 - **The first four tests of the assert debt.** `jm_bland_pick` compares its
   minimum exactly, pinned at one ulp; a non-positive `nvar` leaves the
   nonbasic bitmap alone; a zero-length allocation is not a failure; and

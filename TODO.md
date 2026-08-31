@@ -67,19 +67,23 @@ what long runs do. That is a phase-1 defect, not a floor defect.
    landed at D224** — the one-ulp tie-break, `jm_nonbasic_build` at
    `nvar <= 0`, `jm_alloc_array(0)`, and `jm_two_product_residue` past 2^996.
 
-   **About twenty tests are left**, and the order below is by how much each
-   would tell you, not by which file it sits in. Every one needs the arm that
+   **About eleven tests are left** — the `check.c` group closed on
+   2026-08-31 (D227) — and the order below is by how much each would tell
+   you, not by which file it sits in. Every one needs the arm that
    makes it go red; `bench/measurements/02-137/run-test-control.sh` is the
    shape to copy, and its lesson is that a test can pass through a mechanism
    it does not test.
 
-   - `check.c`, and these are the ones that guard a published verdict: every
-     multiplier contributes to the dual objective including the exempt ones
-     (`w * b` moves it exactly); `note_dropped` counts a `1e-15` multiplier at
-     an infinite bound; `certified_step` returns 0 and not a negative for a
-     point sitting `tol` outside a row bound; `implied_bounds` contains a
-     known feasible point, counts infinite terms rather than summing them, and
-     keeps an unreached bound infinite while still dropping the term.
+   - ~~`check.c`, and these are the ones that guard a published verdict~~ —
+     **all five landed 2026-08-31, D227, `bench/measurements/02-139/`.** The
+     sixth was `certified_step` returning 0 and not a negative, and it turned
+     into the campaign's finding instead of a test: the clamp, D219's assert
+     and the caller's running maximum are three guards on one property, and
+     **`-DNDEBUG` leaves only the maximum**. The test pins the reported value;
+     the assert is what would catch the clamp going away, in a debug build.
+     Running the same breaker twice, once under `-DNDEBUG`, is what turned
+     that from an assumption into a measurement, and no earlier control
+     campaign here did it.
    - `lu.c`: `find_pivot` visits a column whose live count reached zero
      (nonsingular matrix, `rank == dim`); a failed update leaves `rank < 0`
      and ftran/btran return without writing; `grow_pair` leaves the first

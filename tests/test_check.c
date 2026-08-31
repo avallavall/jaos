@@ -13,6 +13,12 @@ void tearDown(void) {}
 
 #define TOL 1e-9
 
+/* Exact, because these claims are identities and not approximations.
+ * Unity's EQUAL_DOUBLE carries a tolerance and would pass a term that
+ * went missing from a sum of numbers this small. */
+#define EXACT_D(want, got)                                                 \
+    TEST_ASSERT_TRUE_MESSAGE((want) == (got), #got " is not exactly " #want)
+
 /* T1 (minimize):  min x0 + x1  s.t.  x0 + x1 >= 1,  0 <= x <= 10.
  * Any point on the facet x0+x1 = 1 is optimal with objective 1;
  * the optimal row dual is y = 1, giving reduced costs d = (0, 0). */
@@ -674,6 +680,259 @@ static void test_the_relative_row_residue_is_reported_and_decides_nothing(void)
     jaos_model_free(m);
 }
 
+/* --------------------------------------------------------------------- */
+/* The dual accumulator's own contracts                                  */
+/*                                                                       */
+/* Four asserts and four sentences landed in `src/check.c` at D221 and    */
+/* D223 with no test beside them. These are those tests. Each states one  */
+/* sentence of the source and is built so that breaking that sentence     */
+/* alone turns it red.                                                    */
+/* --------------------------------------------------------------------- */
+
+/* Every multiplier contributes `w * bound` to the dual objective, including
+ * the ones the sign condition exempts. The exemption waives the CONDITION,
+ * not the term (D22). Drop the term and `dual_objective` starts describing
+ * a different problem while every verdict still reads clean.
+ *
+ *      min  2^-40 x   s.t.  x >= 1024,  0 <= x <= 2048,  y = 2^-40
+ *
+ * Powers of two throughout, so every product is exact and the assertions
+ * can be exact. Two properties of the point matter. It sits 1024 ABOVE the
+ * row's lower bound, so `at_lo` is false and the multiplier being
+ * negligible is the only thing waiving the condition — which is the path
+ * this test exists to reach. And the reduced cost is exactly zero, so the
+ * column adds nothing and the whole dual objective is the row's one term.
+ *
+ * The identity at the end is what makes this a test rather than three
+ * numbers: P - D is the sum the two halves come from. Skip the
+ * accumulation for an exempt multiplier and D loses 2^-30 while the halves
+ * do not, so the two sides stop agreeing. */
+static void test_an_exempt_multiplier_still_moves_the_dual_objective(void)
+{
+    const double w = ldexp(1.0, -40);        /* 9.09e-13, far under TOL */
+    const double c[] = {w};
+    const double cl[] = {0.0}, cu[] = {2048.0};
+    const double rl[] = {1024.0}, ru[] = {INFINITY};
+    const int64_t s[] = {0, 1}, ix[] = {0};
+    const double v[] = {1.0};
+    jaos_model *m = nullptr;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_model_new(&m));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_load_lp(m, 1, 1, JAOS_MINIMIZE, 0.0, c, cl, cu, rl, ru,
+                     1, s, ix, v));
+
+    const double x[] = {2048.0};
+    const double y[] = {w};
+    jaos_check_report r;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_check_solution(m, x, y, TOL, &r));
+
+    TEST_ASSERT_TRUE(r.primal_feasible);
+    /* Waived, so nothing is reported as a violation. */
+    EXACT_D(0.0, r.max_dual_violation);
+    /* And yet the term is there, to the bit. */
+    EXACT_D(ldexp(1.0, -30), r.dual_objective);
+    EXACT_D(ldexp(1.0, -29), r.primal_objective);
+    TEST_ASSERT_EQUAL_INT64(0, r.dropped_terms);
+    TEST_ASSERT_TRUE(r.gap_certified);
+    EXACT_D(r.primal_objective - r.dual_objective,
+            r.gap_positive - r.gap_negative);
+
+    jaos_model_free(m);
+}
+
+/* `note_dropped` has no magnitude exemption: every nonzero multiplier
+ * pointing at an infinite bound counts, however small (D47). The same model
+ * shows the other half of that sentence — a bound the rows imply nothing
+ * about stays infinite, and its term is still dropped.
+ *
+ *      min  -1e-15 x   s.t.  (a free row),  x >= 0
+ *
+ * The row is free at both ends, so nothing bounds x from above and the
+ * implied-bound pass cannot rescue the term. The multiplier is 1e-15,
+ * six orders under the tolerance, and the point is both primal and dual
+ * feasible: every verdict in the report reads clean and `gap_certified` is
+ * the only field that says the bound proves nothing. That is D47's shape,
+ * and a magnitude exemption inside `note_dropped` would hide it. */
+static void test_a_dropped_term_has_no_magnitude_exemption(void)
+{
+    const double c[] = {-1e-15};
+    const double cl[] = {0.0}, cu[] = {INFINITY};
+    const double rl[] = {-INFINITY}, ru[] = {INFINITY};
+    const int64_t s[] = {0, 1}, ix[] = {0};
+    const double v[] = {1.0};
+    jaos_model *m = nullptr;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_model_new(&m));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_load_lp(m, 1, 1, JAOS_MINIMIZE, 0.0, c, cl, cu, rl, ru,
+                     1, s, ix, v));
+
+    const double x[] = {0.0};
+    const double y[] = {0.0};
+    jaos_check_report r;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_check_solution(m, x, y, TOL, &r));
+
+    TEST_ASSERT_TRUE(r.primal_feasible);
+    TEST_ASSERT_TRUE(r.dual_feasible);
+    EXACT_D(0.0, r.max_dual_violation);
+
+    /* Counted, at its own size, with no threshold anywhere. */
+    TEST_ASSERT_EQUAL_INT64(1, r.dropped_terms);
+    EXACT_D(1e-15, r.max_dropped_multiplier);
+    TEST_ASSERT_FALSE(r.gap_certified);
+
+    /* Nothing stops the column, and this checker calls its rate zero, so
+     * the direction is counted rather than certified (D73). */
+    TEST_ASSERT_EQUAL_INT64(1, r.unquantified_rays);
+    EXACT_D(0.0, r.certified_suboptimality);
+
+    jaos_model_free(m);
+}
+
+/* `certified_step` clamps its room at zero, so what it returns is a
+ * distance and never a negative one. A negative would turn a certified
+ * suboptimality into a claim that the point is BETTER than optimal (D219).
+ *
+ *      min  -x   s.t.  x <= 5,  x >= 0 and unbounded above
+ *
+ * The point sits 1e-10 past the row bound, which is inside the tolerance,
+ * so the answer is accepted as feasible while the room the step would use
+ * is negative. Two arms, because a clamp that is never reached is a clamp
+ * nobody has tested: the second point is a whole unit inside the bound and
+ * certifies exactly 1.0, which is what says this test reaches the code.
+ *
+ * **What this test does NOT do is catch the clamp going away**, and that
+ * was measured rather than assumed (D227, `bench/measurements/02-139/`).
+ * Remove the clamp and a build with asserts aborts here; remove it under
+ * `-DNDEBUG`, which is what ships, and the whole suite stays green. A
+ * negative distance never reaches the report because `gain > a.certified`
+ * discards it, so the assert is the only enforcement of that sentence and
+ * this test pins the value the report carries. */
+static void test_a_step_from_outside_a_row_bound_is_zero_not_negative(void)
+{
+    const double c[] = {-1.0};
+    const double cl[] = {0.0}, cu[] = {INFINITY};
+    const double rl[] = {-INFINITY}, ru[] = {5.0};
+    const int64_t s[] = {0, 1}, ix[] = {0};
+    const double v[] = {1.0};
+    jaos_model *m = nullptr;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_model_new(&m));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_load_lp(m, 1, 1, JAOS_MINIMIZE, 0.0, c, cl, cu, rl, ru,
+                     1, s, ix, v));
+
+    const double y[] = {0.0};
+    jaos_check_report r;
+
+    /* Outside the bound, by less than the tolerance. */
+    const double past[] = {5.0 + 1e-10};
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_check_solution(m, past, y, TOL, &r));
+    TEST_ASSERT_TRUE(r.primal_feasible);
+    EXACT_D(0.0, r.certified_suboptimality);
+    TEST_ASSERT_EQUAL_INT64(0, r.unquantified_rays);
+
+    /* Inside it, and the same code path now has room to measure. */
+    const double inside[] = {4.0};
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_check_solution(m, inside, y, TOL, &r));
+    TEST_ASSERT_TRUE(r.primal_feasible);
+    EXACT_D(1.0, r.certified_suboptimality);
+
+    jaos_model_free(m);
+}
+
+/* The implied box is what the rows imply and not a decoration: it contains
+ * every feasible point, and its bound is the constraint itself (D87).
+ *
+ *      min  x   s.t.  x >= 3,  x free
+ *
+ * The only thing bounding x is the row, so the implied lower bound has to
+ * come out at exactly 3. Two points check the two halves of that. On
+ * x = 3, which is the optimum and sits ON the implied bound, the dual
+ * objective is 3 to the bit and the gap closes. On x = 10, which is
+ * feasible and far inside the box, the identity P - D = gap_positive holds
+ * at 7 — a bound one unit too tight or too loose moves both.
+ *
+ * The term is not dropped, because the bound is now finite; that is D87's
+ * whole point and `gap_certified` is what says so. */
+static void test_the_implied_box_is_exactly_what_the_row_implies(void)
+{
+    const double c[] = {1.0};
+    const double cl[] = {-INFINITY}, cu[] = {INFINITY};
+    const double rl[] = {3.0}, ru[] = {INFINITY};
+    const int64_t s[] = {0, 1}, ix[] = {0};
+    const double v[] = {1.0};
+    jaos_model *m = nullptr;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_model_new(&m));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_load_lp(m, 1, 1, JAOS_MINIMIZE, 0.0, c, cl, cu, rl, ru,
+                     1, s, ix, v));
+
+    const double y[] = {0.5};
+    jaos_check_report r;
+
+    const double opt[] = {3.0};
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_check_solution(m, opt, y, TOL, &r));
+    TEST_ASSERT_TRUE(r.primal_feasible);
+    TEST_ASSERT_TRUE(r.dual_feasible);
+    EXACT_D(3.0, r.primal_objective);
+    EXACT_D(3.0, r.dual_objective);      /* 0.5*3 from the row, 0.5*3 from x */
+    TEST_ASSERT_EQUAL_INT64(0, r.dropped_terms);
+    TEST_ASSERT_TRUE(r.gap_certified);
+
+    const double inside[] = {10.0};
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_check_solution(m, inside, y, TOL, &r));
+    TEST_ASSERT_TRUE(r.primal_feasible);
+    EXACT_D(10.0, r.primal_objective);
+    EXACT_D(3.0, r.dual_objective);      /* the dual objective has no x in it */
+    EXACT_D(7.0, r.gap_positive);
+    EXACT_D(0.0, r.gap_negative);
+    EXACT_D(r.primal_objective - r.dual_objective, r.gap_positive);
+    TEST_ASSERT_EQUAL_INT64(0, r.dropped_terms);
+
+    jaos_model_free(m);
+}
+
+/* An infinite term in a row's activity range is COUNTED, not summed. The
+ * distinction only shows where a row carries one infinite term and one
+ * finite one: subtracting an infinity out of a sum that contains it gives
+ * NaN, so a version that summed would imply nothing here and drop the term
+ * it should have bounded.
+ *
+ *      min  x0 + x1   s.t.  x0 + x1 >= 3,  x0 free,  x1 fixed at 1
+ *
+ * x1 contributes 1 to both ends of the row's range and x0 contributes an
+ * infinity to each. Taking x0's own share out has to leave 1, and the
+ * implied bound is then (3 - 1) / 1 = 2. The optimum is x = (2, 1) and the
+ * gap closes on it, which no NaN can do. */
+static void test_an_infinite_term_is_counted_not_summed(void)
+{
+    const double c[] = {1.0, 1.0};
+    const double cl[] = {-INFINITY, 1.0}, cu[] = {INFINITY, 1.0};
+    const double rl[] = {3.0}, ru[] = {INFINITY};
+    const int64_t s[] = {0, 1, 2}, ix[] = {0, 0};
+    const double v[] = {1.0, 1.0};
+    jaos_model *m = nullptr;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_model_new(&m));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_load_lp(m, 2, 1, JAOS_MINIMIZE, 0.0, c, cl, cu, rl, ru,
+                     2, s, ix, v));
+
+    const double x[] = {2.0, 1.0};
+    const double y[] = {0.5};
+    jaos_check_report r;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_check_solution(m, x, y, TOL, &r));
+
+    TEST_ASSERT_TRUE(r.primal_feasible);
+    TEST_ASSERT_TRUE(r.dual_feasible);
+    EXACT_D(3.0, r.primal_objective);
+    /* 0.5*2 from the implied bound on x0, 0.5*1 from x1, 0.5*3 from the
+     * row. A summed infinity implies nothing for x0 and this reads 2.0. */
+    EXACT_D(3.0, r.dual_objective);
+    TEST_ASSERT_EQUAL_INT64(0, r.dropped_terms);
+    TEST_ASSERT_TRUE(r.gap_certified);
+
+    jaos_model_free(m);
+}
+
 int main(void)
 {
     UNITY_BEGIN();
@@ -694,6 +953,11 @@ int main(void)
     RUN_TEST(test_a_waived_sign_condition_is_still_caught_by_the_gap);
     RUN_TEST(test_an_implied_bound_makes_the_dropped_term_finite);
     RUN_TEST(test_an_unbounded_ray_is_counted_unless_its_rate_is_real);
+    RUN_TEST(test_an_exempt_multiplier_still_moves_the_dual_objective);
+    RUN_TEST(test_a_dropped_term_has_no_magnitude_exemption);
+    RUN_TEST(test_a_step_from_outside_a_row_bound_is_zero_not_negative);
+    RUN_TEST(test_the_implied_box_is_exactly_what_the_row_implies);
+    RUN_TEST(test_an_infinite_term_is_counted_not_summed);
     RUN_TEST(test_check_rejects_bad_arguments);
     return UNITY_END();
 }
