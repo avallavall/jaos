@@ -5,15 +5,24 @@ says why closed questions closed, `CHANGELOG.md` says what landed, `bench/`
 says what it costs. This file says what is next. When something lands, its
 line leaves this file in the same commit.
 
-## Where the last session stopped — 2026-08-29
+## Where the last session stopped — 2026-08-31
 
 ### → FRESH CONTEXT: READ THIS PARAGRAPH AND THEN §0
 
+**The three file writers landed on 2026-08-31** — D226,
+`bench/measurements/02-138/`. `jaos_write_mps`, `jaos_write_lp` and
+`jaos_write_solution` are in `src/write.c`, `SPECS.md` section 6 reads done /
+partial / done, and the three `absent` lines for them are out of
+`docs/claims.txt`. What is next is the assert debt's TEST half, listed below.
+
+**The assert halves are all done.** `lu.c` at D216, `model.c` at D219,
+`check.c` at D221, `jaos_internal.h` at D223, and the first four tests at
+D224. Ask the remote for the pushed count rather than trusting one written
+here, and push from the WINDOWS side: the remote is an SSH alias that lives
+in the Windows `~/.ssh/config` only.
+
 **The phase-1 stop rule and the whole skills debt landed on 2026-08-29** —
-D218, `bench/measurements/02-133/`. What is next is the assert debt, and
-`model.c` is its file. Ask the remote for the pushed count rather than
-trusting one written here, and push from the WINDOWS side: the remote is an
-SSH alias that lives in the Windows `~/.ssh/config` only.
+D218, `bench/measurements/02-133/`.
 
 **Section 0 stage 2 landed on 2026-08-27** — D212, `da16a20`, the Harris
 two-pass ratio test in primal form.
@@ -1086,7 +1095,9 @@ cost's sign rather than the status is all a nonbasic free variable ever needed.
 
 §6's proposed order puts cheap breadth first — write MPS, write LP, write a
 solution file, Python bindings, sensitivity and ranging, infeasibility
-certificates — and the primal simplex after them. The maintainer chose the
+certificates — and the primal simplex after them. The three writers landed
+on 2026-08-31 (D226); the rest of the breadth is still after the primal
+simplex. The maintainer chose the
 primal simplex now because it is the only thing unblocking work already
 analysed in this file. **That is a change of order and not a change of plan.**
 
@@ -3152,14 +3163,25 @@ machines and ships its own checker — not matching Gurobi.
 `docs/feature-matrix.md` is the scoreboard; read it at every close. Whether
 M2 finishes as scoped is answered when presolve closes.
 
-Proposed order: cheap breadth first (write MPS, write LP, write a solution
-file, Python bindings, sensitivity and ranging, infeasibility certificates),
-then primal simplex, then barrier with crossover, then MILP, then
-QP/conic/NLP/MINLP. VIPR-format certificates are a cheap differentiator —
-only SCIP 10.0 emits them and JAOS already ships a checker. For exact
-rational verification, GMP is excluded (D11); the methods to weigh are
-iterative refinement, interval arithmetic in double, or hand-rolled
-rationals for the final basis only.
+Proposed order: cheap breadth first (~~write MPS, write LP, write a solution
+file~~ — all three landed 2026-08-31, D226 — then Python bindings,
+sensitivity and ranging, infeasibility certificates), then primal simplex,
+then barrier with crossover, then MILP, then QP/conic/NLP/MINLP.
+VIPR-format certificates are a cheap differentiator — only SCIP 10.0 emits
+them and JAOS already ships a checker. For exact rational verification, GMP
+is excluded (D11); the methods to weigh are iterative refinement, interval
+arithmetic in double, or hand-rolled rationals for the final basis only.
+
+**The one thing D226 left open: `jaos_read_lp` does not read a ranged
+constraint.** That is what keeps `jaos_write_lp` at `partial`. All three of
+its refusals close at once if the reader learns the form — a ranged row
+directly, a free row and an empty row because both become writable once a
+row may carry two bounds. 37 of the 139 gate instances are refused today, 34
+of them for an empty row (`bench/measurements/02-138/lpcover.txt`). It is a
+change to a reader and it was not made with the writer, deliberately: the
+writer's contract is that what it writes reads back, and widening the reader
+to make more writable is a separate question with its own dialect decision
+in `docs/format-support.md`.
 
 ## 7. Presolve is closed — what that means
 

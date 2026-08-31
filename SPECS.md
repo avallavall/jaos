@@ -171,9 +171,19 @@ problem is solved is the solver's to decide (D64).
 
 | | status | |
 |---|---|---|
-| Write MPS | **missing** | |
-| Write LP | **missing** | |
-| Write a solution file | **missing** | |
+| Write MPS | **done** | `jaos_write_mps`, free layout. Three refusals: a row whose lower bound is above its upper one and a bound at an infinity of the wrong sign, which MPS has no form for, and a ranged row that neither RANGES form reconstructs exactly, which the writer checks before it writes. No gate instance reaches any of them (D226) |
+| Write LP | **partial** | `jaos_write_lp`, the dialect `jaos_read_lp` accepts. **Missing:** a ranged row, a free row and a row with no coefficients — each refused by name and pointing at `jaos_write_mps`, which has none of the three. **102 of the 139 gate instances round-trip through it; 37 are refused**, 34 of them for an empty row, 2 ranged and 1 free (D226, `bench/measurements/02-138/`). All three would close at once by teaching `jaos_read_lp` a ranged constraint, which is a change to a reader |
+| Write a solution file | **done** | `jaos_write_solution`, JAOS's own line-oriented format (`docs/format-support.md`). Available only on an optimum, the rule `jaos_solution` and `jaos_basis` already apply, and only when every value in the answer is finite: an objective that overflowed would print a word the host libc spells, and the file would not be reproducible (D226) |
+
+**What JAOS writes, JAOS reads back as the same model**, and that is the
+contract all three are built to rather than a property they happen to have.
+Values carry the shortest of 15, 16 or 17 significant digits that reads back
+as the same double; the one construction the MPS reader rebuilds by
+arithmetic, a ranged row, is checked against what the reader will make of it
+before it is written; a format that cannot express a row or a column refuses
+and names it; and a refused write removes the partial file. `tests/test_write.c`
+checks the round trip field by field with `==`, and 139 of 139 gate instances
+round-trip exactly (D226, `bench/measurements/02-138/`).
 
 ## 7. Using it from another language
 

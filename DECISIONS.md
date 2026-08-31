@@ -233,6 +233,7 @@ and you have the argument. Jump to the entry for the numbers behind it.
 - **[D223](#d223--jaosinternalhs-contracts-are-asserts-in-the-files-that-implement-them-and-the-fourth-way-a-control-can-be-worthless-is-to-hang)** — `jaos_internal.h`'s contracts are asserts in the files that implement them, and the fourth way a control can be worthless is to hang
 - **[D224](#d224--the-first-four-tests-of-the-debt-and-jmtwoproductresidue-turns-out-to-guard-one-case-twice)** — The first four tests of the debt, and `jm_two_product_residue` turns out to guard one case twice
 - **[D225](#d225--a-change-that-trades-instructions-for-cache-misses-is-judged-on-misses-and-the-arbiter-that-would-have-rejected-it-now-exists)** — A change that trades instructions for cache misses is judged on misses, and the arbiter that would have rejected it now exists
+- **[D226](#d226--a-writer-is-judged-by-what-its-own-reader-makes-of-the-file-and-one-construction-had-to-be-checked-rather-than-trusted)** — A writer is judged by what its own reader makes of the file, and one construction had to be checked rather than trusted
 
 ---
 
@@ -17327,3 +17328,220 @@ entry exists to prevent.
 
 Nor does it retire the instruction count. Most changes here do less work, and
 for those the count remains right.
+
+## D226 — A writer is judged by what its own reader makes of the file, and one construction had to be checked rather than trusted
+
+`SPECS.md` section 6 had three `missing` rows and `docs/claims.txt` had three
+lines asserting the symbols did not exist. All three landed on 2026-08-31:
+`jaos_write_mps`, `jaos_write_lp` and `jaos_write_solution`, in `src/write.c`.
+
+## The contract, and why it is the contract
+
+**What JAOS writes, JAOS reads back as the same model.** Every other property
+of a writer follows from that one, and without it a writer is a formatter
+rather than a feature: a file that reads back as a different model is worse
+than no file, because it looks like the model.
+
+Two consequences shape the code.
+
+**The number of digits is not a style question.** `%.17g` of a finite double
+always reads back as that double, which is the IEEE-754 round-trip guarantee.
+Fifteen digits is enough for most real data and keeps a file readable, so the
+writer tries 15, then 16, then falls back to 17, and keeps the first that
+reads back equal. That is exact by construction rather than by luck.
+
+**Where a format cannot say what the model holds, the writer refuses.** It
+does not approximate, it does not drop the row, and it does not leave a
+partial file — a refused write calls `remove`. MPS refuses three shapes: a
+row whose lower bound is above its upper one, a bound at an infinity of the
+wrong sign, and a ranged row that neither RANGES form reconstructs exactly.
+The first two are legitimate models MPS has no form for; `jaos_set_row_bounds`
+accepts the first and the solve reports it infeasible. The third is the
+section below. The LP dialect refuses three more, and every one of those
+messages names the row or column and points at `jaos_write_mps`, which takes
+the same model.
+
+`jaos_write_solution` has a refusal of its own, and it is about the answer
+rather than the model. That one is at the end of this entry, because it was
+found by review rather than by the campaign.
+
+## The one thing that had to be checked rather than copied
+
+Every value the MPS reader assigns directly, except one. A ranged row it
+rebuilds by arithmetic: its `G` form gives `[b, b + |r|]` and its `L` form
+`[b - |r|, b]`. So writing `b = rl` and `r = ru - rl` recovers `ru` exactly
+only when that subtraction is exact, which is not guaranteed for arbitrary
+bounds.
+
+The writer therefore computes what the reader will make of both forms, keeps
+whichever reproduces the pair exactly, and refuses the row when neither does.
+`G` recovers the lower bound exactly and `L` the upper, so the two forms
+between them cover far more than either alone. On the 139 gate instances
+neither form was ever needed as a fallback for the other and no row was
+refused, but the check is what makes the claim true rather than probable.
+
+## The reader's negative-UP wart, from the other side
+
+`docs/format-support.md` records it: `UP` with a negative value on a column
+whose lower bound was never set explicitly drops that lower bound to -inf.
+A writer that emits bounds in the obvious order walks straight into it, and
+the damage is silent — the file is valid, it just describes a different
+column.
+
+So every `UP` the writer emits is preceded by an `LO` or an `MI`, including
+an `LO 0` at the default lower bound when the upper bound is negative.
+
+## What the evidence is, and what makes it evidence
+
+`bench/measurements/02-138/`. Every instance in the three gate sets read,
+written, read back, compared field by field with `==`: **139 of 139
+round-tripped exactly.**
+
+A clean reading from a new instrument means nothing on its own
+(`jaos-testing`, and the four false alarms behind that rule), so
+`run-controls.sh` breaks the writer two ways and re-runs all three checks.
+Each break works in its own worktree of `HEAD` plus the three uncommitted
+files, so nothing can leak back into this tree.
+
+| arm | unit suite | round trip, standard set | LP files reading back different |
+|---|---|---|---|
+| intact | 17 tests, 0 failures | 94 of 94 | 0 |
+| `wr_num` cut to six digits | **3 failures** | **47 of 94** | 35 |
+| the LP objective skips a zero cost | **3 failures** | 94 of 94 | **59** |
+
+Each break turns its own tests red and nobody else's, and breaking the LP
+objective leaves the MPS round trip whole, which is what says the two probes
+measure different things.
+
+The unit suite is the durable half. `test_mps_round_trip_every_shape` asserts
+on `nextafter(1.0, 2.0)`, a value needing all seventeen digits, so any later
+change that shortens what the writer prints goes red without this campaign
+being re-run.
+
+**Writing the control as a script rather than running it by hand found a red
+test.** `test_each_lp_guard_fires_on_its_own` was added after the probes were
+last run and had never been green. It built a model with a ranged row and a
+column bound at an infinity together, then asked for the message about the
+column; the first refusal wins by design, so the ranged row was reported and
+the column guard was never reached. The row is an equality row now. A
+hand-run control leaves that window open every time a test is added
+afterwards, and a script closes it.
+
+## The seventeen-digit fallback is asserted, so it is measured
+
+`wr_num` checks the 15- and 16-digit forms at run time and keeps one only
+when it reads back equal. The `%.17g` fallback is not checked that way: it
+rests on the IEEE-754 round-trip guarantee and on the host libc rounding
+`printf` correctly, and `src/write.c` asserts it. `digits.c` tries to fire
+that assert over a deterministic population — 4,000,000 random bit patterns,
+one-ulp walks from 1.0, small rationals and decimal fractions.
+
+**5,110,541 values, 2,222,696 of which reached the fallback, 0 that did not
+read back.**
+
+The split between the three lengths is the second answer, and it is what
+justifies trying the short forms at all. On random bit patterns the
+fifteen-digit form survives 6% of the time. On decimal fractions, which is
+what an MPS file usually carries, it survives 86%.
+
+## What it cost
+
+Nothing the gate can see. `src/write.c` is reached only from three new public
+entry points and nothing on a solve path calls it; the three sets came back
+with every digest and every work figure byte-identical.
+
+## The LP writer was wrong, and only counting caught it
+
+The round trip above covers `jaos_write_mps`. The LP writer has four
+refusals, so it cannot run over the same instances, and `SPECS.md` called it
+`partial` with no number beside it. This project's own rule is that what is
+left gets counted rather than guessed (D101), so a second probe was written:
+try to write LP for every gate instance, record which refusal fired, and
+where it succeeds read the file back and compare.
+
+**It did not measure what was left. It found a defect.** 83 of the 139
+instances wrote a valid LP file that read back without error as a
+**different model**.
+
+LP format has no `COLUMNS` section. The reader numbers a column where its
+name FIRST appears in the token stream, and the objective is the first
+section it reads. The writer listed only the columns with a non-zero cost
+there, so every zero-cost column was numbered by wherever its first
+coefficient happened to sit. Costs, bounds and coefficients all landed on the
+wrong columns. Nothing failed: the file is valid LP and the model it
+describes is a real model.
+
+The fix is one line of loop: the objective names every column, in index
+order, including the ones costing nothing. A zero term also lets LP name a
+column that appears in no row, so the fourth refusal disappeared with it and
+three remain. After the fix: **102 round-trip exactly, 37 refused by name, 0
+differ** — 34 refused for an empty row, 2 ranged, 1 free.
+
+**Why the unit tests did not catch it.** Every LP model in
+`tests/test_write.c` gave all its columns a non-zero cost, including the
+golden `tests/data/g1.lp`, so the skipped branch was never exercised.
+`test_lp_keeps_column_order_when_a_cost_is_zero` is the case that was
+missing, and putting the objective loop back to skipping zero costs turns it
+and `test_lp_takes_a_column_that_appears_in_no_row` red.
+
+That is the same shape as the false-clean readings this project keeps
+finding: a probe that ran on a population without the interesting case looks
+identical to a probe that passed. The instances were the population that had
+it.
+
+## What `numerics-reviewer` found, and it was the crash
+
+The campaign above was green and the review was run on the diff anyway,
+which is the loop's step 3. It returned one HIGH finding and the campaign
+could not have seen it, because nothing on the gate solves to a non-finite
+answer.
+
+**`jaos_write_solution` gave `wr_num` a value it does not accept.** `wr_num`
+promises the caller a finite argument and asserts that its seventeen-digit
+fallback reads back equal, which is false for a NaN. The two model writers
+discharge that promise from the model's own invariants: every setter and
+every loader rejects a non-finite cost, bound or coefficient. The solution
+arrays have no such invariant. `jm_objective_value` publishes a non-finite
+objective on purpose when the sum overflows, rather than lying about it.
+
+The reproducer is small: two columns fixed at 1e300 with costs 1e300 and
+-1e300, and one free row. The solve returns OPTIMAL and the objective is
+`inf + -inf`, a NaN. On any build with asserts — `make test`, `make
+sanitize`, and three of the five `make configs` arms — that aborted inside a
+plain public API call. On a build without them it returned `JAOS_OK` and
+wrote `objective -nan`, and whether that word carries a minus sign is the
+host libc's choice, so the file broke the project's first rule as well.
+
+The fix is the shape the other two writers already have: check the objective
+and the four solution arrays before opening anything, and refuse by name.
+`test_solution_refuses_a_value_no_file_can_carry` is the test, and it asserts
+the model still reaches the guard before it asserts the guard fires —
+otherwise a later change to presolve could make it pass on a model that never
+gets there. `run-controls.sh` grew a fourth arm for it, and that arm is why
+every arm now records the test binary's **exit code** and not only Unity's
+summary line: removing this guard makes the suite abort, and an abort prints
+no summary at all.
+
+Two smaller findings, both taken. The header said MPS had two refusals when
+`range_form` is a third; `ranges.c` now counts it, and `include/jaos.h`,
+`SPECS.md` and `docs/format-support.md` all say three. And four measured
+figures had been restated in the source, which is what the one-owner rule
+exists to stop; the comments cite the measurement file now.
+
+The review also re-derived the round trip independently — 39,534 MPS and
+5,311 LP write-read-compare cycles on random models under ASan and UBSan, 0
+mismatches — and checked the locale handling under `de_DE.UTF-8`, the
+borrowed-scratch question against `jm_model_ensure_rowwise`, and every
+`fclose` and `remove` path. Those came back clean.
+
+## What is still missing
+
+`SPECS.md` section 6 reads **done**, **partial**, **done**. The partial is the
+LP writer and its three refusals, which are a property of the dialect
+`jaos_read_lp` accepts rather than of the writer: teaching the reader ranged
+constraints would close all three at once, and that is a change to a reader
+and was not made here.
+
+Nothing reads the solution format back. It is written for a person and for
+other tools, and a reader for it would need its own round trip and its own
+decision.

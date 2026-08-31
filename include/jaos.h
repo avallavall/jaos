@@ -276,6 +276,85 @@ JAOS_NODISCARD jaos_status jaos_read_mps(jaos_model *m, const char *path);
  * rejected; see docs/format-support.md for the dialect. */
 JAOS_NODISCARD jaos_status jaos_read_lp(jaos_model *m, const char *path);
 
+/* ------------------------------------------------------------------------- */
+/* File writers                                                              */
+/* ------------------------------------------------------------------------- */
+
+/* Writes the model to `path`, replacing whatever was there.
+ *
+ * **What JAOS writes, JAOS reads back as the same model.** Values are
+ * written to enough digits to be exact, and the one construction the MPS
+ * reader rebuilds by arithmetic — a ranged row — is checked against what
+ * the reader will make of it before it goes out. Where the format cannot
+ * express what the model holds, the call fails with
+ * JAOS_ERR_INVALID_INPUT, jaos_model_error() names the row or column, and
+ * no file is left behind. A failed write removes the partial file.
+ *
+ * The model carries no names: it is indices from the moment it is loaded.
+ * So the writer generates them, `C1..Cn` for columns and `R1..Rm` for rows,
+ * with `COST` for the objective row. Reading the file back gives the same
+ * indices, because both formats list rows and columns in index order.
+ *
+ * MPS is written in free layout, which jaos_read_mps autodetects. It has
+ * three refusals, all of them about bounds.
+ *
+ * Two are shapes MPS has no form for: a row whose lower bound is above its
+ * upper one, and a bound sitting at an infinity of the wrong sign.
+ *
+ * The third is the ranged row that neither RANGES form reconstructs. The
+ * reader rebuilds a ranged row by arithmetic — its `G` form gives
+ * [b, b + |r|] and its `L` form [b - |r|, b] — so the writer computes what
+ * the reader will make of both and refuses the row when neither returns the
+ * pair exactly. It is rare and it is real: the refusal only ever fires on
+ * rows whose two bounds are unrelated, never on the shapes real data has,
+ * and no form the writer accepted has ever reconstructed wrong
+ * (bench/measurements/02-138/ranges.txt owns the counts).
+ *
+ * The number written for each value is the shortest of 15, 16 or 17
+ * significant digits that reads back as the same double, so files stay
+ * readable without becoming approximate. Numbers are written under an
+ * explicit "C" locale: the host application's locale cannot corrupt the
+ * file, which is the rule jaos_read_mps already applies to parsing. */
+JAOS_NODISCARD jaos_status jaos_write_mps(jaos_model *m, const char *path);
+
+/* Writes the model as a CPLEX-style LP file, in the dialect jaos_read_lp
+ * accepts. Same contract as jaos_write_mps, and three more refusals, because
+ * the dialect is narrower than MPS: a ranged row, a free row, and a row with
+ * no coefficients. Each is reported with the row named and a pointer to
+ * jaos_write_mps, which has none of these limits.
+ *
+ * The objective names every column, including the ones costing nothing. LP
+ * format has no COLUMNS section, so the reader numbers a column where its
+ * name first appears; listing only the costed columns would renumber the
+ * rest by wherever their first coefficient sits, and the file would read
+ * back as a different model without failing. docs/format-support.md has the
+ * dialect and what share of the gate survives it (D226). */
+JAOS_NODISCARD jaos_status jaos_write_lp(jaos_model *m, const char *path);
+
+/* Writes the last solve's answer to `path`: the objective, then every
+ * column with its value, reduced cost and basis status, then every row with
+ * its activity, dual and basis status. The format is JAOS's own, one record
+ * per line, documented in docs/format-support.md.
+ *
+ * Available only when the last solve found an optimum, under the same rule
+ * as jaos_solution and jaos_basis and for their reason: a solve that
+ * found no optimum has no solution to write down, and a file of zeros does
+ * not read as missing. Otherwise JAOS_ERR_INVALID_INPUT, with
+ * jaos_model_error() naming the status the solve actually reached.
+ *
+ * Refused as well when the answer holds a value no file can carry. An
+ * objective is a sum and can overflow, and a model whose bounds reach 1e300
+ * solves to an optimum with an infinity or a NaN in it. Writing one would
+ * print a word whose spelling belongs to the host libc, so the file would
+ * not be reproducible; the call fails instead and jaos_model_error() names
+ * the row or the column.
+ *
+ * Names match what jaos_write_mps and jaos_write_lp generate, so a solution
+ * file and a model file written from the same model refer to the same
+ * rows and columns. */
+JAOS_NODISCARD jaos_status jaos_write_solution(jaos_model *m,
+                                               const char *path);
+
 /* Detail message for the model's last failed operation, or "" when the last
  * operation succeeded. Static storage inside the model; never NULL. */
 JAOS_NODISCARD const char *jaos_model_error(const jaos_model *m);

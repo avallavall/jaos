@@ -1,0 +1,11 @@
+# range_form: which MPS form is picked, and when neither is exact
+# tree: 0ff6cdb WITH UNCOMMITTED CHANGES
+# date: 2026-08-31T06:21:55Z
+
+# range_form over 10000000 random ranged rows per shape, splitmix64 seed 20260831
+
+random finite pairs                10000000 pairs       5000993 G       4991532 L        7475 refused  0 reconstruct wrong
+a width beside its own bound        9961899 pairs       9961899 G             0 L           0 refused  0 reconstruct wrong
+eighths, as netlib data is          8002000 pairs       8002000 G             0 L           0 refused  0 reconstruct wrong
+
+27963899 ranged rows, 7475 refused (0.027%), 0 accepted that reconstruct wrong

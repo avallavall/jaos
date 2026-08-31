@@ -434,6 +434,19 @@ six: every one returned INFEASIBLE on models that have an optimum. The
 evidence is in the same directory and the reasoning is in `src/presolve.c`
 beside the reading that would have been the fourth.
 
+## The writers' numbers
+
+None of these is a tolerance and none decides an answer. They are here
+because every constant in the source has a home in this file, and because
+the first one looks like a style choice and is not.
+
+| Name | Value | What it decides |
+|---|---|---|
+| the digit count | 15, then 16, then 17 | How many significant digits `wr_num` prints. **It is the round trip, not the layout.** `%.17g` of a finite double always reads back as that double, which is the IEEE-754 guarantee, so seventeen is exact by construction; the writer tries fifteen and sixteen first and keeps one only when `strtod` returns the same value, so the short forms are exact by check. The fallback is the one path nothing checks at run time, and `src/write.c` asserts it. Measured over 5,110,541 values — 4,000,000 random bit patterns, one-ulp walks from 1.0, small rationals and decimal fractions — of which 2,222,696 reached the fallback: **0 did not read back** (D226, `bench/measurements/02-138/digits.txt`). The same reading says what the loop buys: fifteen digits survives 6% of random bit patterns and 86% of decimal fractions, which is what an MPS file usually carries |
+| `NAME_LEN` | 24 | Buffer for a generated name. One prefix character, at most 19 digits of an `int64_t`, a terminator, rounded up. Not a limit the writer can reach |
+| `NUM_LEN` | 32 | Buffer for a written number. Seventeen significant digits, a sign, a decimal point and a four-character exponent, rounded up. Not a limit the writer can reach |
+| `LP_WRAP` | 72 | Column at which `jaos_write_lp` breaks an expression across lines. The reader does not care and a person reading the file does. Nothing measures it |
+
 ## Acceptance, for the Netlib gate
 
 Separate from all of the above, and not a solver tolerance: an instance is

@@ -1,0 +1,13 @@
+# wr_num digit split and round trip
+# tree: 0ff6cdb WITH UNCOMMITTED CHANGES
+# date: 2026-08-31T05:55:05Z
+
+# wr_num over 4000000 random finite doubles, splitmix64 seed 20260830
+# plus the shapes LP data is actually made of
+
+random bit patterns             4000000 values      240806 at 15     1945344 at 16     1813850 at 17  0 did not read back
+one ulp at a time from 1.0       200000 values        4442 at 15       39968 at 16      155590 at 17  0 did not read back
+small rationals a/b              500500 values       60960 at 15      235470 at 16      204070 at 17  0 did not read back
+k times a power of ten           410041 values      353539 at 15        7316 at 16       49186 at 17  0 did not read back
+
+5110541 values, 2222696 reached the seventeen-digit fallback, 0 did not read back

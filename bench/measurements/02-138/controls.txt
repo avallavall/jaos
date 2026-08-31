@@ -1,0 +1,56 @@
+# D226 controls -- the four checks, and the arm that makes each go red
+# tree: 0ff6cdb WITH UNCOMMITTED CHANGES
+#       plus the uncommitted src/write.c tests/test_write.c include/jaos.h
+# date: 2026-08-31T06:22:21Z
+# set:  bench/instances (94 instances)
+
+== intact
+   nothing broken: the tree as it stands
+   suite:     18 Tests 0 Failures 0 Ignored  exit=0
+   roundtrip: 94 round-tripped exactly, 0 did not
+   lpcover:   66 round-tripped through LP, 28 refused, 0 differed
+
+== six-digits
+   wr_num cut to a flat six digits
+   suite:     18 Tests 3 Failures 0 Ignored  exit=3
+   red tests: test_each_mps_guard_fires_on_its_own test_lp_refuses_what_the_dialect_cannot_say test_mps_round_trip_every_shape 
+   roundtrip: 47 round-tripped exactly, 47 did not
+   lpcover:   31 round-tripped through LP, 28 refused, 35 differed
+
+== lp-skips-zero
+   the LP objective lists only the costed columns
+   suite:     18 Tests 3 Failures 0 Ignored  exit=3
+   red tests: test_each_lp_guard_fires_on_its_own test_lp_keeps_column_order_when_a_cost_is_zero test_lp_takes_a_column_that_appears_in_no_row 
+   roundtrip: 94 round-tripped exactly, 0 did not
+   lpcover:   7 round-tripped through LP, 28 refused, 59 differed
+
+== no-finite-check
+   jaos_write_solution stops checking the answer is finite
+   suite:       exit=134
+   roundtrip: 94 round-tripped exactly, 0 did not
+   lpcover:   66 round-tripped through LP, 28 refused, 0 differed
+
+== restored
+   the recipe again with nothing broken
+   suite:     18 Tests 0 Failures 0 Ignored  exit=0
+   roundtrip: 94 round-tripped exactly, 0 did not
+   lpcover:   66 round-tripped through LP, 28 refused, 0 differed
+
+== verdict
+   PASS  intact: the suite is green (got '0')
+   PASS  intact: the suite exits clean (got '0')
+   PASS  intact: every instance round-trips MPS (got '94')
+   PASS  intact: no LP file reads back different (got '0')
+   PASS  six digits: the suite exits dirty (got '3')
+   PASS  six digits: the MPS round trip breaks (got '47')
+   PASS  lp skips zero: the suite exits dirty (got '3')
+   PASS  lp skips zero: LP files read back wrong (got '59')
+   PASS  lp skips zero: MPS is untouched (got '94')
+   PASS  no finite check: the suite exits dirty (got '134')
+   PASS  no finite check: MPS is untouched (got '94')
+   PASS  restored: the suite is green again (got '0')
+   PASS  restored: the suite exits clean (got '0')
+   PASS  restored: the same test count as intact (got '18')
+   PASS  restored: the MPS round trip is whole (got '94')
+
+every arm behaved

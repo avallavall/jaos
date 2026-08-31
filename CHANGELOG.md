@@ -11,6 +11,34 @@ open, `bench/README.md` for the gate, and the commit each entry came from.
 
 ### Added
 
+- **Three writers: `jaos_write_mps`, `jaos_write_lp`,
+  `jaos_write_solution`.** MPS expresses everything a model can hold; the LP
+  dialect is narrower, so a ranged row, a free row and a row with no
+  coefficients are refused by name. What JAOS writes it reads back as the
+  same model, and that is checked rather than assumed: 139 of 139 gate
+  instances round-trip field for field, LP takes 102 of them and refuses 37,
+  and 5,110,541 values pass through the number writer without one reading
+  back different. Cutting the writer to six digits turns 47 of 94 instances
+  and three tests red; the digits are not a style question.
+
+  Counting what LP could not express is what found the writer's one real
+  defect: the objective listed only the costed columns, and because LP format
+  numbers a column where its name first appears, 83 of the 139 wrote a valid
+  file that read back as a different model with no error anywhere. Every LP
+  test had given all its columns a cost. Free on the gate — every digest and
+  work figure byte-identical, because nothing here is on a solve path (D226,
+  `bench/measurements/02-138/`).
+
+  `numerics-reviewer` found the one the campaign could not: nothing on the
+  gate solves to a non-finite answer, and `jaos_write_solution` handed one
+  straight to a printer that asserts its argument reads back. Two columns
+  fixed at 1e300 with opposite costs reach an optimum whose objective is a
+  NaN; that aborted on every build with asserts and wrote `objective -nan` on
+  the ones without, in whatever spelling the host libc uses. It is refused by
+  name now, and the control arm for it is why every arm reads the test
+  binary's exit code rather than the failure count — an abort prints no count
+  at all (D226).
+
 - **The first four tests of the assert debt.** `jm_bland_pick` compares its
   minimum exactly, pinned at one ulp; a non-positive `nvar` leaves the
   nonbasic bitmap alone; a zero-length allocation is not a failure; and

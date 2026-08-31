@@ -26,8 +26,10 @@ are there for reference and their entries come from public documentation, not
 from measurement here. CPLEX, Xpress, COPT and Mosek are in the same class as
 Gurobi and are left out only to keep the table readable.
 
-*Last checked: 2026-08-13. Versions: JAOS 0.1.0-dev · HiGHS 1.15 · SoPlex 8.0.3
-· Clp 1.17.11 · SCIP 10.0 · Gurobi 13.0 · Hexaly 15.0.*
+*JAOS's column was last checked against `src/` on 2026-08-31. The other
+columns were last checked against their published documentation on
+2026-08-13. Versions: JAOS 0.1.1 · HiGHS 1.15 · SoPlex 8.0.3 · Clp
+1.17.11 · SCIP 10.0 · Gurobi 13.0 · Hexaly 15.0.*
 
 ---
 
@@ -53,7 +55,7 @@ respectively, which is why those rows read "—" and not "○".
 | | JAOS | HiGHS | SoPlex | Clp | SCIP | Gurobi | Hexaly |
 |---|---|---|---|---|---|---|---|
 | Dual simplex | ● | ● | ● | ● | ● | ● | ? |
-| Primal simplex | ○ | ● | ● | ● | ● | ● | ? |
+| Primal simplex | ◐ | ● | ● | ● | ● | ● | ? |
 | Barrier / interior point | ○ | ● | ○ | ● | ● | ● | ? |
 | Crossover to a basic solution | ○ | ● | — | ◐ | ● | ● | ? |
 | First-order method (PDLP / PDHG) | ○ | ● | ○ | ○ | ○ | ● | ○ |
@@ -61,9 +63,15 @@ respectively, which is why those rows read "—" and not "○".
 | Concurrent solve (race several methods) | ○ | ◐ | ○ | ○ | ● | ● | ? |
 
 JAOS's dual simplex has steepest-edge pricing, a Harris two-pass ratio test with
-bound flipping, dual phase 1 by artificial bounds and a Bland fallback. The
-missing primal simplex is what blocks crossover, and it is the next work as of 2026-08-25 (`TODO.md` §0); it was measured and is not a
-speed argument on its own (D81, D85).
+bound flipping, dual phase 1 by artificial bounds and a Bland fallback.
+
+**The primal simplex reads ◐ rather than ○ since 2026-08-31**, and the reason it
+is not ● is that no caller can select it. `run_primal` and `run_primal_phase1`
+are in `src/simplex.c`, the tests reach them and `make primal` measures them.
+The only route in is `cfg.force_primal` in `src/jaos_internal.h`, a development
+switch and not public API (D64, D188). Devex pricing and the unboundedness
+verdict are missing (`TODO.md` §0, stages 5 and 7), so it still blocks
+crossover.
 
 HiGHS's GPU entry is ◐ because the GPU PDLP work is in progress rather than
 released.
@@ -163,13 +171,28 @@ line is missing against.
 | Read LP format | ◐ | ● | ○ | ● | ● | ● | ● |
 | Read compressed input | ○ | ● | ● | ● | ● | ● | ? |
 | Direct load from arrays | ● | ● | ● | ● | ● | ● | ● |
-| Write MPS | ○ | ● | ● | ● | ● | ● | ? |
-| Write LP | ○ | ● | ○ | ● | ● | ● | ? |
-| Write a solution file | ○ | ● | ● | ● | ● | ● | ● |
+| Write MPS | ● | ● | ● | ● | ● | ● | ? |
+| Write LP | ◐ | ● | ○ | ● | ● | ● | ? |
+| Write a solution file | ● | ● | ● | ● | ● | ● | ● |
 | Reject unsupported constructs with a line number | ● | ? | ? | ? | ? | ? | ? |
 
 JAOS's LP reader covers a CPLEX-style core; the exact subset is in
 `docs/format-support.md`.
+
+The three writer rows moved from ○ on 2026-08-31 (D226). Write LP is ◐ because
+the dialect is narrower than a model: a ranged row, a free row and a row with
+no coefficients are each refused by name, and each message points at
+`jaos_write_mps`, which has none of those limits. What JAOS writes it reads
+back as the same model, checked field by field: 139 of 139 gate instances
+through MPS, and 102 of 139 through LP with the other 37 refused rather than
+silently changed.
+
+Write MPS reads ● and still has three refusals, which is not a contradiction:
+two of them are shapes the format itself has no syntax for, and the third is a
+ranged row whose two bounds no RANGES entry reconstructs exactly. All three
+are refused with the row named. Nothing on the gate reaches any of them. The
+comparison this row invites is what the other solvers do with the same input,
+and this page has not measured that.
 
 ## 8. Using it from another language
 
@@ -239,8 +262,10 @@ this page says what it is missing against.
 **The current milestone will barely move this page, and that is by design.**
 M2 is about speed, not features. Of everything on this page, only the presolve
 rows change when M2 closes — and they change from ○ to ●, which is one line.
-The measured gap at tier T0 is 3.72x HiGHS, 1.34x SoPlex, 3.77x Clp, and closing
-it moves no cell here at all.
+The measured gap at rung P0 is 3.60x HiGHS, 1.12x SoPlex and 2.96x Clp
+(`bench/compare/results/P0.txt`, 2026-08-30), and closing it moves no cell
+here at all. P0 is the rung to read: T0 was taken before JAOS had a
+presolve, so against a presolving JAOS it puts presolve on one side only.
 
 That is the answer to "is the plan improving the features as phases close": for
 this milestone, almost not. If the feature matrix is the thing that should be
@@ -248,9 +273,10 @@ improving, the roadmap after M2 has to say so, because M2's own success
 criterion is a time ratio and nothing else.
 
 **What would move the most cells for the least work**, if features rather than
-speed became the goal: writing MPS and LP files, a solution file, and Python
-bindings. None is on the speed path, all four are currently in the backlog, and
-together they close most of sections 7 and 8. The barrier method and the MIP
+speed became the goal: Python bindings, then sensitivity and ranging. The three
+writer rows were the other half of that answer and they landed on 2026-08-31,
+which closes section 7 apart from compressed input. Neither of the two left is
+on the speed path. The barrier method and the MIP
 section are large pieces of work and are correctly not scheduled yet.
 
 ---
