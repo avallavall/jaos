@@ -17746,8 +17746,10 @@ only then does the first arm say the paths agree.
 ## What it cost
 
 `src/lu.c` gained a comment and nothing else; `tests/test_lu.c` gained one
-test. All five configurations build and pass, and the three gate sets came
-back with every digest and every work figure byte-identical.
+test. All five configurations build and pass, and the three gate sets at the
+landing commit `ddfccb9` read `gate: PASS` and
+`0 regressed, 0 improved, 0 new`, with `bench/results/` byte-identical to the
+committed record afterwards.
 
 ## What is left of the debt
 
@@ -17812,7 +17814,7 @@ holds and only the test can catch it.
 ## What it cost
 
 Nothing. `src/model.c` and `src/scale.c` are untouched; `tests/test_model.c`
-grew four tests.
+grew four tests. The gate result is D228's: same commit, same run.
 
 ## D230 — The debt is closed, and one off-by-one turns out to be a segfault
 
