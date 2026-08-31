@@ -17447,8 +17447,11 @@ what an MPS file usually carries, it survives 86%.
 ## What it cost
 
 Nothing the gate can see. `src/write.c` is reached only from three new public
-entry points and nothing on a solve path calls it; the three sets came back
-with every digest and every work figure byte-identical.
+entry points and nothing on a solve path calls it. The three sets were run
+again at the landing commit `6d293d8`: `gate: PASS` on all three,
+`0 regressed, 0 improved, 0 new`, and `git status bench/results/` silent
+afterwards, which is every digest and every work figure byte-identical to the
+committed record. `make configs` builds and passes all five configurations.
 
 ## The LP writer was wrong, and only counting caught it
 
@@ -17527,6 +17530,16 @@ Two smaller findings, both taken. The header said MPS had two refusals when
 `SPECS.md` and `docs/format-support.md` all say three. And four measured
 figures had been restated in the source, which is what the one-owner rule
 exists to stop; the comments cite the measurement file now.
+
+**One finding is refused.** The review flagged three comments in
+`src/write.c` as re-arguing this entry instead of citing it: the negative-UP
+workaround, the `G`/`L` selection, and the name scheme. Each of those sits at
+the code it describes and each says what that code does and why it is not the
+obvious thing, which is the case the comment rule keeps. Moving them out
+would leave three sites where the obvious edit looks safe and is not. The
+reason to have written this down is that the finding is correct about the
+overlap and the refusal is a judgement about which copy a reader reaches
+first.
 
 The review also re-derived the round trip independently — 39,534 MPS and
 5,311 LP write-read-compare cycles on random models under ASan and UBSan, 0

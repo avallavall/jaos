@@ -192,9 +192,11 @@ its test checks the file's own digits against `jaos_objective` rather than
 round-tripping.
 
 And nothing about speed. The writers are not on any solve path, and the three
-gate sets confirmed it: `git diff bench/results/` was empty, so every digest
-and every work figure is byte-identical, and all three read
-`0 regressed, 0 improved, 0 new`.
+gate sets confirmed it at the landing commit, `6d293d8`: all three read
+`gate: PASS` and `0 regressed, 0 improved, 0 new`, and `git status
+bench/results/` printed nothing afterwards, so every digest and every work
+figure came back byte-identical to the committed record. `make configs`
+builds and passes all five configurations.
 
 ## A note on the headers
 
