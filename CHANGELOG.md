@@ -39,6 +39,24 @@ open, `bench/README.md` for the gate, and the commit each entry came from.
   binary's exit code rather than the failure count — an abort prints no count
   at all (D226).
 
+- **Software prefetching is refused, and the arbiter meant to judge it turns
+  out to be blind.** The candidate was built at the paper's own schedule and
+  is bit-identical on all three sets. `tools/icount.sh -m` read 0.99996,
+  which is close enough to exactly 1 to be a broken instrument rather than a
+  change that does nothing — and a canary with eight scattered prefetches per
+  iteration, enough to thrash any real cache, moved it 0.061%. Valgrind does
+  not simulate prefetch instructions. D225 named prefetching first among the
+  cases the miss count covers and that part of it is wrong; `CLAUDE.md` now
+  says so.
+
+  With no readable metric left, the time ratio was 1.0268x on the five
+  heaviest instances — inside this host's 6.27% floor, so INCONCLUSIVE, with
+  four of five slower and the one reading outside the floor a slowdown.
+  Refused. The census that preceded it is kept and stands on its own: 54.1%
+  of inner-loop iterations happen in loops longer than the 64-iteration
+  look-ahead, so the technique applies and it is the instrument that is
+  missing (D231, `bench/measurements/02-143/` and `02-144/`).
+
 - **The assert debt's test half is closed.** Thirteen tests across
   `check.c`, `lu.c`, `model.c` and `jaos_internal.h`, each proven to go red
   when the sentence it states breaks. Four of the listed items turned out not

@@ -238,6 +238,7 @@ and you have the argument. Jump to the entry for the numbers behind it.
 - **[D228](#d228--the-lu-half-of-the-debt-and-three-sentences-that-needed-an-instrument-instead-of-a-test)** — The LU half of the debt, and three sentences that needed an instrument instead of a test
 - **[D229](#d229--the-model-tests-and-two-ways-a-control-can-look-like-it-passed)** — The model tests, and two ways a control can look like it passed
 - **[D230](#d230--the-debt-is-closed-and-one-off-by-one-turns-out-to-be-a-segfault)** — The debt is closed, and one off-by-one turns out to be a segfault
+- **[D231](#d231--software-prefetching-is-refused-and-the-arbiter-that-was-meant-to-judge-it-cannot-see-it)** — Software prefetching is refused, and the arbiter that was meant to judge it cannot see it
 
 ---
 
@@ -17887,3 +17888,98 @@ that was overwritten before it ran, a counter that never fired because the
 worker `_exit`s, and an assert that fires before any test can report. None of
 those would have been visible in a campaign whose arms were all expected to
 pass.
+
+## D231 — Software prefetching is refused, and the arbiter that was meant to judge it cannot see it
+
+`TODO.md` item 2, the first performance candidate to survive a literature
+pass against the bit-identical constraint. Built, measured, refused.
+`bench/measurements/02-143/` and `bench/measurements/02-144/`.
+
+The refusal is ordinary. What it uncovered is not: **`tools/icount.sh -m`
+cannot see a software prefetch**, and D225 created that mode naming
+prefetching as the first case it covers.
+
+## The precondition held, so this is not a refusal for inapplicability
+
+Ainsworth & Jones schedule at `offset = c(t - l) / t` with `c` about 64 (ACM
+TOCS 36(3) 2019, section 4.4 for the formula, section 7.6 for the constant —
+"the optimal choice was always around 64, regardless of workload or
+microarchitecture"). Every site here is a two-load chain, so the offsets are
+64 and 32.
+
+**A loop that runs three times cannot use a look-ahead of 64.** That question
+came first, because the answer would have ended the item without any code.
+02-143 counted it over the 94 standard instances: 32.5 billion inner-loop
+iterations, and **54.1% of them are in loops longer than 64**. At the busiest
+site, the U scatter, it is 70.0%. The look-ahead fits.
+
+Two things in that census are worth keeping beyond this decision. The mean
+would have killed the idea and would have been wrong — the U scatter averages
+13.8 iterations per entry while 56% of its iterations are in loops of 129 or
+more. And it enters 463 million times with zero iterations to run, 37% of its
+entries, which is a different candidate that nothing here measures.
+
+## The change is a true no-op on every answer
+
+All three gate sets came back `gate: PASS`, `0 regressed, 0 improved, 0 new`,
+with `bench/results/` byte-identical. `numerics-reviewer` verified the loop
+split is exactly equivalent for every trip count and that no prefetch
+argument can read out of bounds, and found four defects, all fixed before any
+measurement was taken: an unparenthesised macro a command-line value could
+bind wrong, a negative look-ahead that was an out-of-bounds read **and a
+wrong answer**, a zero setting that was not really off, and prefetch loops
+with no test coverage at all because the largest test matrix is 25 wide.
+
+## The arbiter is blind, and the canary is what said so
+
+The miss count came back at a geometric mean of **0.99996** over six
+instances, individual ratios spanning 0.99964 to 1.00035. A number that close
+to exactly 1 is the signature `jaos-measure` teaches to distrust.
+
+So the instrument was asked whether it can see a prefetch at all. A build
+with **eight scattered prefetches per U-scatter iteration**, enough to thrash
+any real cache, moved D1mr by **0.061% and 0.036%** — the same size as the
+noise in the real reading.
+
+Valgrind's cache model does not simulate prefetch instructions. `-m` reports
+the same figure whatever the prefetches do.
+
+**This qualifies D225 rather than retiring it.** The miss count is the right
+arbiter for a change whose mechanism moves real load addresses: layout,
+blocking, ordering. It is blind to the one mechanism that issues hints and
+changes no address. D225's own sentence names prefetching first, and that
+part of it is wrong. `CLAUDE.md` carries the correction.
+
+## The only reading outside the noise floor is a slowdown
+
+With the miss count out, the prescribed metric is a same-instance time ratio
+(D206). Five heaviest instances, `-j 1`, minimum over three alternating
+rounds: `pilot` 1.0709x, `pilot87` 1.0530x, `d2q06c` 1.0219x, `dfl001`
+1.0017x, `maros-r7` 0.9886x, geometric mean **1.0268x**.
+
+This host repeats to 6.27% (D93), so the mean is inside the floor and
+INCONCLUSIVE by this project's own rule. But four of five are slower, and the
+single instance that falls outside the floor is slower.
+
+## Why that is a refusal and not a shrug
+
+Three facts, none of them individually decisive and together unambiguous. No
+instrument here can show a benefit. The instruction count certainly rises,
+because every prefetch is a retired instruction. And the one reading that
+clears the noise floor is a slowdown.
+
+Landing it would be accepting a change because it is principled. That is the
+thing the loop exists to prevent, and it is the reason this project's most
+valuable entries are refusals.
+
+## What would reopen it
+
+`bench/refusals.txt` carries it. The condition is an instrument that can see
+a prefetch — hardware performance counters would be one, and WSL2 does not
+expose them, so this refusal is a statement about the host as much as about
+the change. A host whose repeatability is well under the effect size would
+also do, since 6.27% is what makes a few percent unreadable.
+
+The candidate itself is not in the tree. 02-144's README describes the diff
+in full, and `git stash` held it as "prefetch candidate, refused by D231" at
+the time of writing.

@@ -1,0 +1,61 @@
+# 02-143 -- how long the indirect inner loops actually run
+# tree: 5baaad2
+# date: 2026-08-31T11:04:17Z
+# set:  bench/instances (94 instances), J=12
+# a look-ahead of c needs a loop of more than c iterations to land
+# inside it at all; Ainsworth & Jones put c at 64 (section 7.6).
+
+== the probe changed nothing
+   records byte-identical to an unpatched build
+
+== trip counts, per site
+#  b1=1  b2=2  b3=3-4  b4=5-8  b5=9-16  b6=17-32  b7=33-64
+#  b8=65-128  b9=129+   (b0 = an empty loop)
+
+ftran-L          entries     iterations   share of iters
+  b0            15191778              0     0.00%
+  b1           183318732      183318732     3.53%
+  b2            82180308      164360616     3.17%
+  b3            88411492      295159710     5.69%
+  b4            49866204      306942350     5.91%
+  b5            36682454      430407766     8.29%
+  b6            30031604      721775506    13.90%
+  b7            38076714     1751651314    33.74%
+  b8            14678236     1236187282    23.81%
+  b9              704384      101905044     1.96%
+  total        539141906     5191708320
+
+  iterations in loops longer than 64: 25.774%
+  iterations in loops longer than 32: 59.513%
+
+ftran-U          entries     iterations   share of iters
+  b0           463210792              0     0.00%
+  b1           237754160      237754160     1.37%
+  b2           101958494      203916988     1.17%
+  b3           138314116      478072128     2.75%
+  b4            88058306      543025368     3.13%
+  b5            77072906      908535616     5.23%
+  b6            52371342     1199070424     6.90%
+  b7            35836632     1637668642     9.43%
+  b8            25341702     2378219016    13.69%
+  b9            42202090     9781013018    56.32%
+  total       1262120540    17367275360
+
+  iterations in loops longer than 64: 70.012%
+  iterations in loops longer than 32: 79.442%
+
+pricing          entries     iterations   share of iters
+  b1               93052          93052     0.00%
+  b2            28744684       57489368     0.58%
+  b3           125240552      434040806     4.37%
+  b4           101997456      617383390     6.22%
+  b5            66660820      788237340     7.94%
+  b6            80836980     2037111596    20.52%
+  b7            41641922     1921065096    19.35%
+  b8            20496552     1826203916    18.40%
+  b9            11282060     2244163914    22.61%
+  total        476994078     9925788478
+
+  iterations in loops longer than 64: 41.008%
+  iterations in loops longer than 32: 60.362%
+

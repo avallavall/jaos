@@ -94,9 +94,17 @@ this host repeat to 6.27%, so "inside the noise" was never a measurement.
 **Which of the two counts is the arbiter depends on the mechanism, and
 getting that backwards manufactures a wrong refusal.** Instructions judge a
 change that does LESS work. Misses judge a change whose whole mechanism is
-memory-level — prefetching, layout, blocking — because every prefetch is a
-retired instruction, so the instruction count reports such a change as worse
-while it is faster (D225).
+memory-level — layout, blocking, ordering — because those move real load
+addresses while adding instructions, so the instruction count reports such a
+change as worse while it is faster (D225).
+
+**The miss count is blind to software prefetching**, and that is measured:
+Valgrind's cache model does not simulate prefetch instructions, so a build
+with eight scattered prefetches per iteration reads within 0.061% of one
+with none
+(D231, `bench/measurements/02-144/`). D225 named prefetching first among the
+cases it covers and that part of it is wrong. A prefetch change has no
+readable metric on this host, which is why one is refused.
 
 ## Build and test — WSL only
 

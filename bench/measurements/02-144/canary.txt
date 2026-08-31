@@ -1,0 +1,12 @@
+  canary: eight scattered prefetches per U-scatter iteration
+# 02-144 canary -- does the cache model see a prefetch?
+# tree: 5baaad2
+# date: 2026-08-31T12:40:08Z
+
+instance           plain-D1mr      canary-D1mr      ratio
+bnl2                 45018442         45045746    1.00061
+stocfor2             49119177         49136841    1.00036
+
+largest deviation from 1: 0.061%
+VERDICT: the cache model IGNORES prefetch instructions. `-m` cannot
+         judge a software prefetch change (D231).

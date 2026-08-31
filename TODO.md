@@ -117,7 +117,18 @@ what long runs do. That is a phase-1 defect, not a floor defect.
      indexes one word past it. With asserts it aborts; with `-DNDEBUG` the
      hardware stops it. The defect cannot be silent, which is the opposite of
      what D227 found about `certified_step`'s clamp.
-2. **Software prefetching on the indirect loads**, the first performance
+2. ~~**Software prefetching on the indirect loads**~~ — **REFUSED 2026-08-31,
+   D231**, `bench/measurements/02-143/` and `02-144/`. Built, bit-identical on
+   all three sets, and unmeasurable: **`tools/icount.sh -m` cannot see a
+   prefetch at all**, proved by a canary whose eight scattered prefetches per
+   iteration moved the miss count 0.061%. The only reading outside the 6.27%
+   noise floor was a slowdown (`pilot`, 1.0709x). The reopen condition is in
+   `bench/refusals.txt`. What the census did establish is kept: 54.1% of
+   inner-loop iterations are in loops longer than 64, so the technique
+   applies and it is the instrument that is missing. The paragraph below is
+   the original item.
+
+   **Software prefetching on the indirect loads**, the first performance
    candidate to survive a literature pass against the bit-identical
    constraint. Ainsworth & Jones, CGO 2017 and ACM TOCS 36(3) 2019, DOI
    10.1145/3319393: one prefetch per level of indirection, at
