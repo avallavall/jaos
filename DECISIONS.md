@@ -18612,4 +18612,6 @@ those figures; the new ones live here and in `SPECS.md`.
 
 ## What it cost
 
-Three gate sets: GATE-PENDING
+Nothing. All three sets `gate: PASS`, `0 regressed, 0 improved, 0 new`, with
+`bench/results/` byte-identical: 110 solution digests and 29 infeasibility
+verdicts unmoved. The LP reader and writer are not on a solve path.

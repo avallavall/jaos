@@ -47,12 +47,8 @@ crossover), the 48 wrong basis counts (needs a rank argument, a design).
 **D239 is the shape to copy** — one feature, light loop, and it still found a
 wrong claim in `SPECS.md` on the way.
 
-**→ FIRST THING TO DO: finish D239.** Its entry ends with `GATE-PENDING`
-because the session ended mid-gate. Run
-`make netlib netlib-infeas netlib-kennington J=12`, check
-`git status bench/results/` is empty, replace that line with the result, and
-push. The LP reader is not on a solve path, so byte-identical is what to
-expect; anything else is a real finding and stops everything.
+**D239 is closed and pushed**, gate PASS on all three sets and
+`bench/results/` byte-identical. **Nothing is half-done. Start at `.gz`.**
 
 ### → the earlier handover, for the assert work that is now paused
 
