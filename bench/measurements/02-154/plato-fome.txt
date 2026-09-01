@@ -1,0 +1,4 @@
+fome11 FAMILIES liverows=12142 livecols=21720 remrow=0/0/0/0 remcol=0/0/0/0 dualfix=562
+fome12 FAMILIES liverows=24284 livecols=43440 remrow=0/0/0/0 remcol=0/0/0/0 dualfix=1124
+fome13 FAMILIES liverows=48568 livecols=86880 remrow=0/0/0/0 remcol=0/0/0/0 dualfix=2248
+fome21 FAMILIES liverows=64574 livecols=207962 remrow=0/0/0/0 remcol=0/0/0/0 dualfix=0

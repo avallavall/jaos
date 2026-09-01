@@ -9,6 +9,20 @@ open, `bench/README.md` for the gate, and the commit each entry came from.
 
 ## [Unreleased]
 
+### Changed
+
+- **D101's reopen condition is executable instead of manual**, and `make
+  refusals` runs it. The three deferred presolve families find **zero**
+  removable rows and zero removable columns on all 15 plato instances, 1.06M
+  live rows and 3.5M live columns. netlib is the control and reproduces
+  D101's 151 removable rows exactly.
+
+  Nothing was built. The bar for "non-trivial" is 5% of a set's live rows or
+  columns and is argued rather than measured: a first draft used 1%, which
+  would have reopened the question on netlib's own 0.913%. `plato-fome`
+  reports 3934 dual-fixing candidates, a family nothing in the record has
+  costed (D242, `bench/measurements/02-154/`).
+
 ### Added
 
 - **The primal simplex decides an unbounded ray it meets in phase 2**,

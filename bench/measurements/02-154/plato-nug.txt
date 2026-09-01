@@ -1,0 +1,3 @@
+nug08-3rd FAMILIES liverows=19728 livecols=20448 remrow=0/0/0/0 remcol=0/0/0/0 dualfix=0
+nug20 FAMILIES liverows=15240 livecols=72600 remrow=0/0/0/0 remcol=0/0/0/0 dualfix=0
+nug30 FAMILIES liverows=52260 livecols=379350 remrow=0/0/0/0 remcol=0/0/0/0 dualfix=0

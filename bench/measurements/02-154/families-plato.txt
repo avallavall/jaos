@@ -1,0 +1,34 @@
+tree: af460a6
+counter: bench/measurements/02-07/diag_families.inc, unchanged
+
+--- netlib: 94 instances, 94 reported
+    live rows 77405, live cols 157499
+    removable rows    151  (0.195%, on 17 instances)
+    removable columns 1438  (0.913%, on 30 instances)
+    dual-fixing candidates: 1054
+    D101 read 151 removable rows and 1450 removable columns here, over
+    78445 live rows and 157858 live cols. The rows match exactly. The
+    live counts and the column figure have moved because presolve has
+    gained reductions since, so the model it publishes is not the one
+    D101 measured. The counter itself is byte-identical.
+--- plato-pds: 8 instances, 8 reported
+    live rows 819165, live cols 2712108
+    removable rows    0  (0.000%, on 0 instances)
+    removable columns 0  (0.000%, on 0 instances)
+    dual-fixing candidates: 0
+--- plato-fome: 4 instances, 4 reported
+    live rows 149568, live cols 360002
+    removable rows    0  (0.000%, on 0 instances)
+    removable columns 0  (0.000%, on 0 instances)
+    dual-fixing candidates: 3934
+--- plato-nug: 3 instances, 3 reported
+    live rows 87228, live cols 472398
+    removable rows    0  (0.000%, on 0 instances)
+    removable columns 0  (0.000%, on 0 instances)
+    dual-fixing candidates: 0
+
+largest share in any set: 0.913% of live rows or columns
+VERDICT: D101 still holds. No set reaches the 5% bar.
+
+largest share in any set: 0.913% of live rows or columns
+VERDICT: D101 still holds. No set reaches the 5% bar.

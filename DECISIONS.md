@@ -249,6 +249,7 @@ and you have the argument. Jump to the entry for the numbers behind it.
 - **[D239](#d239--lp-reads-and-writes-a-ranged-row-and-specs-was-wrong-that-the-other-two-refusals-close-with-it)** — LP reads and writes a ranged row, and SPECS was wrong that the other two refusals close with it
 - **[D240](#d240--compressed-input-with-the-inflate-written-here)** — Compressed input, with the inflate written here
 - **[D241](#d241--the-primal-decides-its-own-ray-and-one-it-still-cannot-see)** — The primal decides its own ray, and one it still cannot see
+- **[D242](#d242--the-three-deferred-presolve-families-find-nothing-at-all-on-the-sets-added-since-d101)** — The three deferred presolve families find nothing at all on the sets added since D101
 
 ---
 
@@ -18697,4 +18698,53 @@ Deciding multi-column directions is open work in `TODO.md` section 0.
 
 Nothing on a solve path. All three sets `gate: PASS` with `bench/results/`
 byte-identical, which the census explains: the branch fires zero times there.
+
+
+## D242 — The three deferred presolve families find nothing at all on the sets added since D101
+
+D101 deferred duplicate rows, duplicate columns and dominated columns rather
+than refusing them, on the grounds that a count over 139 curated academic
+models says nothing about the population those families were invented for.
+Its reopen condition is a model population where 02-07's counter reports a
+non-trivial share. The tree has gained `plato-pds`, `plato-fome` and
+`plato-nug` since: 15 instances, 1.06 million live rows and 3.5 million live
+columns, the largest models it carries.
+
+**The counter reports zero removable rows and zero removable columns on every
+instance of all three sets.** Not a small share. Zero
+(`bench/measurements/02-154/`).
+
+**The control half reproduces, and the half that moved explains itself.**
+netlib reads 151 removable rows, exactly D101's figure, and 1438 removable
+columns against D101's 1450. `diag_families.inc` is byte-identical to the
+file D101 committed, but the live counts moved as well — 78445 rows to 77405
+and 157858 columns to 157499 — so presolve publishes a smaller model than it
+did then and something else already removed those twelve columns. The same
+number against a changed input would have been the suspicious reading.
+
+**The bar is 5% of a set's live rows or columns, and it is a choice.** D101
+never put a number on "non-trivial". Its own worst per-set share was netlib's
+columns at 0.92%, which it judged not worth building, so a bar at or below
+that would reopen the question on the reading that closed it. A first draft
+of the script used 1% and did exactly that, clearing today's netlib share by
+0.087 points. `d6cube` alone reaches about 12%, which D101 called the
+concentrated case. Every percentage is printed so the bar can be moved
+without re-running anything.
+
+**D101 stays deferred, its condition is executable now rather than manual,
+and `make refusals` runs it.** Nothing is built.
+
+**One observation handed forward.** `plato-fome` reports 3934 dual-fixing
+candidates, 1.1% of its live columns, against 1054 of 157499 on netlib and
+none on the other two sets. Dual fixing is not one of JAOS's six families and
+`SPECS.md` does not list it as missing, so nothing has ever costed it. A
+candidate is not a surviving reduction, and this is the counter's least
+validated arm — `02-07/validate.c` calibrates the row and column counts, not
+this one, and an earlier version of this same arm called 421615 Kennington
+columns fixable. It goes to `TODO.md` as an observation.
+
+## What it cost
+
+Nothing. No source file changed. All three sets `gate: PASS` with
+`bench/results/` byte-identical.
 

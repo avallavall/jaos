@@ -33,7 +33,6 @@ It is PAUSED. Do not add asserts. Do not run control campaigns.
 
 | | why it is next |
 |---|---|
-| **presolve: duplicate rows/columns, dominated columns** | already has its reopen condition written (D101) |
 | **sensitivity and ranging** | real user value, isolated from the solver |
 | **Python bindings** | the most user value, and touches no solver code |
 
@@ -81,7 +80,24 @@ does.
   feasible` from a cold start; the 3 overruns are Dantzig pricing, which is
   stage 5. Read from a run on 2026-09-01, `make primal J=12`.
 
-**Nothing is half-done. Start at presolve duplicates, or unblock Devex.**
+**Presolve duplicates were tested and not built, 2026-09-01** (D242,
+`bench/measurements/02-154/`). D101's reopen condition is executable now
+instead of manual, and `make refusals` runs it. On the three plato sets —
+1.06M live rows, 3.5M live columns, the largest models in the tree — the
+counter reports **zero** removable rows and zero removable columns. Not a
+small share. Zero. netlib is the control and reproduces D101's 151 rows
+exactly.
+
+**A third open item, from D242:** `plato-fome` reports 3934 dual-fixing
+candidates, 1.1% of its live columns, against 1054 of 157499 on netlib.
+Dual fixing is not one of JAOS's six families and `SPECS.md` does not list
+it as missing, so nothing has costed it. Before building it: a candidate is
+not a surviving reduction, and this is the counter's least validated arm —
+`02-07/validate.c` calibrates the row and column counts and not this one.
+Validate the arm first.
+
+**Nothing is half-done. Start at sensitivity and ranging, or unblock
+Devex.**
 
 ### → the earlier handover, for the assert work that is now paused
 

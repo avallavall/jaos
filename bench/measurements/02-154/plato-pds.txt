@@ -1,0 +1,8 @@
+pds-100 FAMILIES liverows=152300 livecols=489909 remrow=0/0/0/0 remcol=0/0/0/0 dualfix=0
+pds-30 FAMILIES liverows=47968 livecols=152869 remrow=0/0/0/0 remcol=0/0/0/0 dualfix=0
+pds-40 FAMILIES liverows=64276 livecols=210139 remrow=0/0/0/0 remcol=0/0/0/0 dualfix=0
+pds-50 FAMILIES liverows=80339 livecols=267244 remrow=0/0/0/0 remcol=0/0/0/0 dualfix=0
+pds-60 FAMILIES liverows=96514 livecols=326574 remrow=0/0/0/0 remcol=0/0/0/0 dualfix=0
+pds-70 FAMILIES liverows=111896 livecols=379066 remrow=0/0/0/0 remcol=0/0/0/0 dualfix=0
+pds-80 FAMILIES liverows=126120 livecols=423022 remrow=0/0/0/0 remcol=0/0/0/0 dualfix=0
+pds-90 FAMILIES liverows=139752 livecols=463285 remrow=0/0/0/0 remcol=0/0/0/0 dualfix=0
