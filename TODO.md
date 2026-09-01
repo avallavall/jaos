@@ -98,11 +98,19 @@ them.
   a missing answer rather than a wrong one, and its message no longer claims
   the optimum is finite. Deciding these needs a ray test over a direction
   rather than over a column (D241).
-- **The forced primal reads 61 ok, 30 DISAGREE, 3 overrun on the standard
-  94.** The campaign reports it every run and it is not new, but nothing in
-  this file tracked it. Most disagreements are `the settled point is not dual
-  feasible` from a cold start; the 3 overruns are Dantzig pricing, which is
-  stage 5. Read from `make primal J=12` on 2026-09-01.
+- **The forced primal reads 75 ok, 16 DISAGREE, 3 overrun**, against 61 / 30
+  / 3 before 2026-09-01. **Fourteen of the thirty were a round budget and not
+  a numerical problem**: `SETTLE_ROUNDS` was 32, the re-entry used all of them
+  with the violation still falling, and the constant's own comment called it
+  a backstop that does not bind (D245, `bench/measurements/02-157/`).
+- **What is left of that family is a different failure, and `agg` is the one
+  to read.** The re-entry's own dual run returns `JAOS_SOLVE_INFEASIBLE` at
+  round 0, from a point `arm_reentry` has just built, on a model the dual
+  solves normally. No number of rounds reaches it. Start there: the trace
+  script is `bench/measurements/02-157/`'s method, and the census at the
+  refusal says 44 columns breach on `agg`, 8 can move and 36 want a pivot.
+  **This is also D244's reopen condition**, so closing it puts the pricing
+  question back on the table.
 
 Not next, and each says why in `SPECS.md`: barrier and crossover (the
 starting point is undecided), MILP (a whole subsystem), D97 (needs

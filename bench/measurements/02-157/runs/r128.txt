@@ -91,7 +91,7 @@ stocfor3     DISAGREE  dual=18238/549661288 primal=31584/5047631853 split=p1:213
 truss        DISAGREE  dual=17271/1122246939 primal=10682/426936905 split=p1:2361/p2:1/dual:8320 verdict=optimal/numerical error obj=458815.84718561673/0 checker=dual:ok/primal:n/a different verdicts: the settled point is not dual feasible: a reduced cost breaches its bound by 1002.66 after settling, from a cold start; publishing that as OPTIMAL would certify a point the reduced costs do not support
 tuff         ok        dual=215/979802 primal=739/9371662 split=p1:542/p2:1/dual:196 verdict=optimal/optimal obj=0.29214776509361279/0.29214776509361279 checker=dual:ok/primal:ok 
 vtp-base     ok        dual=46/40852 primal=93/162043 split=p1:87/p2:5/dual:1 verdict=optimal/optimal obj=129831.46246136137/129831.46246136136 checker=dual:ok/primal:ok 
-wood1p       ok        dual=560/42078864 primal=857/73036316 split=p1:250/p2:1/dual:606 verdict=optimal/optimal obj=1.4429024115734093/1.4429024115734093 checker=dual:ok/primal:ok 
+wood1p       ok        dual=656/62770176 primal=857/73036316 split=p1:250/p2:1/dual:606 verdict=optimal/optimal obj=1.4429024115734093/1.4429024115734093 checker=dual:ok/primal:ok 
 woodw        DISAGREE  dual=1228/40150968 primal=5073/191205281 split=p1:1230/p2:1/dual:3842 verdict=optimal/numerical error obj=1.3044763330842295/0 checker=dual:ok/primal:n/a different verdicts: the settled point is not dual feasible: a reduced cost breaches its bound by 1.00233 after settling, from a cold start; publishing that as OPTIMAL would certify a point the reduced costs do not support
 
 -- primal against dual --
@@ -99,8 +99,8 @@ measured 75, skipped 0, unreached 0, unbounded? 0, overrun 3, disagreed 16, reje
 iterations by method: phase 1 301059 (35.3%), phase 2 102 (0.0%), dual re-entry 550929 (64.7%)
   that is a sum over the set (D46): d2q06c carries 26.6% of it and dfl001 14.8%. Median per-instance phase-1 share 48.2% over 94 instance(s).
   3 of 94 did not finish inside 10x the dual's work. Dantzig pricing is the worst rule that is still correct, and that is TODO.md section 0 stage 5, not a defect.
-iterations (primal+1)/(dual+1), geometric mean: 2.2058
-work units primal/dual, geometric mean:         4.2261
+iterations (primal+1)/(dual+1), geometric mean: 2.2012
+work units primal/dual, geometric mean:         4.2036
 work ratio, best  grow15 at 0.3843
 work ratio, worst degen2 at 15.0199
 took more iterations primal than dual:          69 of 75

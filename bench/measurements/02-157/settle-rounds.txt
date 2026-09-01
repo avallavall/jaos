@@ -1,0 +1,11 @@
+tree: cf5bba1
+
+| SETTLE_ROUNDS | binary   | ok | disagree | overrun | gate |
+|---------------|----------|----|----------|---------|------|
+| 32            | 82813b8b | 61 |       30 |       3 | 3 of 3, rc 0 |
+| 64            | 2bbfa206 | 69 |       22 |       3 | 3 of 3, rc 0 |
+| 128           | 63551eaf | 75 |       16 |       3 | 3 of 3, rc 0 |
+| 256           | 4ba232e6 | 76 |       15 |       3 | 3 of 3, rc 0 |
+
+32 is what ships. The gate column must read 3 of 3 at every setting
+or the constant cannot be moved for the primal's sake alone.

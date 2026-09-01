@@ -252,6 +252,7 @@ and you have the argument. Jump to the entry for the numbers behind it.
 - **[D242](#d242--the-three-deferred-presolve-families-find-nothing-at-all-on-the-sets-added-since-d101)** — The three deferred presolve families find nothing at all on the sets added since D101
 - **[D243](#d243--python-over-ctypes-and-a-claim-of-absence-that-would-not-have-fired)** — Python over ctypes, and a claim of absence that would not have fired
 - **[D244](#d244--an-approximate-edge-rule-for-the-primal-derived-here-and-refused-on-the-measurement)** — An approximate edge rule for the primal, derived here, and refused on the measurement
+- **[D245](#d245--half-the-forced-primals-failures-were-a-backstop-that-binds-and-its-own-comment-said-it-does-not)** — Half the forced primal's failures were a backstop that binds, and its own comment said it does not
 
 ---
 
@@ -18861,4 +18862,73 @@ start from "never reset", the row that reduced both iterations and work.
 Nothing. `src/simplex.c` is back at what it was, so all three sets
 `gate: PASS` with `bench/results/` byte-identical. What is kept is the
 derivation and the measurement.
+
+
+## D245 — Half the forced primal's failures were a backstop that binds, and its own comment said it does not
+
+`TODO.md` recorded the forced primal as 61 of 94 agreeing with the dual and
+30 disagreeing, and noted that nothing tracked them. They were assumed
+numerical. **Fourteen of them were a round budget.**
+
+**The census, at the moment of refusal.** On `25fv47` 188 columns carry a
+wrong-signed reduced cost, **none can move and all 188 want a pivot**; on
+`80bau3b` 746, of which 734 want a pivot; on `agg` 44, of which 36 do. That
+is `primal_cleanup`'s work, and the re-entry loop is what hands it out.
+
+**The trace.** One line per round of `reenter_after_settling` on `25fv47`:
+all 32 rounds used, the violation falling 784.9 → 10.8 throughout, and the
+objective descending monotonically. The solve is not stuck. It is cut off.
+
+**The constant's comment says "a backstop, not a limit meant to bind (D30)",
+and on the dual path that is true** — D89 measured the oscillation's waste
+on `pilot87` at 278 of 116071 iterations, 0.24%. It had never been checked
+on the primal path, where the re-entry arrives with a whole solve's worth of
+dual infeasibility rather than a handful of columns.
+
+**The sweep, with all three gate sets run at every setting**
+(`bench/measurements/02-157/`):
+
+| SETTLE_ROUNDS | ok | disagree | gate |
+|---|---|---|---|
+| 32 | 61 | 30 | 3 of 3 PASS, `0 regressed, 0 improved, 0 new` |
+| 64 | 69 | 22 | same |
+| **128** | **75** | **16** | same |
+| 256 | 76 | 15 | same |
+
+Four distinct binaries. Bounded on both sides — 64 gives back only 8 of the
+14, and 256 buys one further instance — so 128 is the knee.
+
+**And the gate column is not what it looks like, which is why this constant
+is now two constants.** The sweep read `0 regressed, 0 improved, 0 new` at
+every setting, and a full run at 128 then left `bench/results/netlib.txt`
+MODIFIED: `wood1p` goes from 560 iterations and 42078864 work units to 656
+and 62770176, **1.49x work for a bit-identical answer** — same digest, same
+basis, same objective. The gate said nothing because its regression bar is
+2.0x, which is the failure `TODO.md` and D46 both warn about and which was
+walked into here anyway.
+
+So the dual path DOES reach 32, on `wood1p`, and raising the bound for
+everyone would charge the shipped path half as much work again on a gate
+instance to help a development switch. **`SETTLE_ROUNDS` stays 32 and
+`SETTLE_ROUNDS_PRIMAL` is 128**, chosen once per solve on
+`cfg.force_primal`. The shipped path is then byte-identical by construction
+rather than by measurement, and the measurement confirms it.
+
+**What it does not fix, and it is a different failure.** Sixteen still
+disagree, and on `agg` the re-entry's own dual run returns
+`JAOS_SOLVE_INFEASIBLE` at round 0, from a point `arm_reentry` had just
+built, on a model the dual solves normally. No number of rounds reaches
+that. It goes to `TODO.md` as its own item.
+
+**This moves how often the forced primal produces an answer, not how good
+its pricing is.** Most of that campaign's iterations belong to the dual's
+settling re-entry, which `SPECS.md` already says, and D244 refused a pricing
+rule three hours earlier on that same set.
+
+## What it cost
+
+Nothing on the shipped path, and that is now true by construction: a solve
+that does not set `cfg.force_primal` reads the same 32 it always did. All
+three sets `gate: PASS` with `bench/results/` byte-identical. The one
+instance that would have paid, `wood1p` at 1.49x, does not.
 

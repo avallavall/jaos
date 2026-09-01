@@ -11,6 +11,18 @@ open, `bench/README.md` for the gate, and the commit each entry came from.
 
 ### Changed
 
+- **The re-entry's round backstop is per method now, and the forced primal
+  goes from 61 of 94 agreeing with the dual to 75.** Fourteen of its thirty
+  failures were the round budget and not a numerical problem: on `25fv47` all
+  32 rounds run with the violation still falling, 784.9 to 10.8, and the
+  objective descending throughout.
+
+  **`SETTLE_ROUNDS` stays 32 and `SETTLE_ROUNDS_PRIMAL` is 128**, because the
+  dual path does reach 32 — `wood1p` costs 1.49x work at the higher bound for
+  a bit-identical answer, same digest and same basis. The gate's `0
+  regressed` never said otherwise: its bar is 2.0x. The shipped path is
+  byte-identical by construction (D245, `bench/measurements/02-157/`).
+
 - **An approximate steepest-edge rule for the primal was derived here, built,
   swept and refused.** The maintainer chose deriving one over buying the
   paper Devex is in. The derivation stays in

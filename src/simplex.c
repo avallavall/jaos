@@ -123,9 +123,26 @@ constexpr double PHASE1_RISE_MAX = 1.0;
  * stand before the re-entry will act on it (D23). */
 constexpr double NOISE_MARGIN = 1e5;
 
-/* How many times a settled point may be handed back to the dual simplex. A
- * backstop, not a limit meant to bind (D30). */
+/* How many times a settled point may be handed back to the dual simplex.
+ * A backstop (D30), and the two paths need different ones because they hand
+ * the loop completely different amounts of work.
+ *
+ * **32 for the dual, and it is not raised.** The dual arrives with a
+ * handful of columns to repair. It does still reach 32 — `wood1p` does —
+ * and raising the bound there costs it **1.49x work for a bit-identical
+ * answer**, same digest and same basis, which the gate does not report
+ * because its bar is 2.0x. That is the whole reason this constant is not
+ * one number.
+ *
+ * **128 for a solve that came through the forced primal**, which arrives
+ * with a whole solve's worth of dual infeasibility. It was binding on 14 of
+ * the standard 94: on `25fv47` all 32 rounds ran with the violation still
+ * falling, 784.9 to 10.8, and the objective descending throughout. 128
+ * takes the forced primal from 61 instances agreeing with the dual to 75;
+ * 64 gives back only 8 of the 14 and 256 buys one further instance, so this
+ * is the knee (D245, `bench/measurements/02-157/`). */
 constexpr int64_t SETTLE_ROUNDS = 32;
+constexpr int64_t SETTLE_ROUNDS_PRIMAL = 128;
 
 /* How short a mapped starting basis may be and still be repaired rather than
  * refused (D149, D151). */
@@ -2648,7 +2665,13 @@ static jaos_status reenter_after_settling(sx *s)
     if (!save_best(s))
         return JAOS_ERR_OUT_OF_MEMORY;
 
-    for (int64_t round = 0; round < SETTLE_ROUNDS; round++) {
+    /* Which backstop applies is decided by which method produced the point,
+     * once, before the loop. `cfg.force_primal` is a development switch and
+     * not an option (D64), so a shipping solve always takes the first. */
+    const int64_t rounds = s->m->cfg.force_primal ? SETTLE_ROUNDS_PRIMAL
+                                                  : SETTLE_ROUNDS;
+
+    for (int64_t round = 0; round < rounds; round++) {
         /* Asked before anything is saved: the saving is the whole cost of a
          * round with nothing to repair. */
         if (!anything_to_move(s)) {
