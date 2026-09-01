@@ -1,0 +1,52 @@
+# 02-146 -- the assert verified_fresh carries, and what makes it fire
+# tree: 4d1430e WITH UNCOMMITTED CHANGES
+#       plus the working-tree copy of src/simplex.c
+# date: 2026-09-01T05:44:24Z
+# an arm passes only when the log carries the assert's own expression
+
+== intact
+   nothing broken: the tree as it stands
+   suites:    104 Tests 0 Failures 4 Ignored|6 Tests 0 Failures 0 Ignored|
+   exits:     -- test_simplex exit=0|-- test_lp exit=0|-- probe exit=0|
+   PASS  nothing fired, both suites and the probe clean
+
+== canary
+   set_verified stops resetting the counter, so the assert must be live
+   suites:    6 Tests 0 Failures 0 Ignored|
+   exits:     -- test_simplex exit=134|-- test_lp exit=0|
+   fired:     Assertion `!s->verified || s->dbg_piv_since_verify == 0' failed
+   fired in:  test_simplex
+   PASS  the assert fired
+
+== reenter-clears-gone
+   reenter_after_settling stops spending its verification, both paths
+   suites:    104 Tests 0 Failures 4 Ignored|6 Tests 0 Failures 0 Ignored|
+   exits:     -- test_simplex exit=0|-- test_lp exit=0|-- probe exit=0|
+   PASS  nothing fired, both suites and the probe clean
+
+== dual-clear-gone
+   the dual loop pivots without spending its verification
+   suites:    104 Tests 0 Failures 4 Ignored|6 Tests 0 Failures 0 Ignored|
+   exits:     -- test_simplex exit=0|-- test_lp exit=0|-- probe exit=0|
+   PASS  nothing fired, both suites and the probe clean
+
+== phase1-clear-gone
+   the primal phase 1 pivots without spending its verification
+   suites:    104 Tests 0 Failures 4 Ignored|6 Tests 0 Failures 0 Ignored|
+   exits:     -- test_simplex exit=0|-- test_lp exit=0|-- probe exit=0|
+   PASS  nothing fired, both suites and the probe clean
+
+== cleanup-clear-gone
+   reenter_after_settling keeps the flag across primal_cleanup
+   suites:    104 Tests 0 Failures 4 Ignored|6 Tests 0 Failures 0 Ignored|
+   exits:     -- test_simplex exit=0|-- test_lp exit=0|-- probe exit=0|
+   PASS  nothing fired, both suites and the probe clean
+
+== restored
+   the recipe again with nothing broken
+   suites:    104 Tests 0 Failures 4 Ignored|6 Tests 0 Failures 0 Ignored|
+   exits:     -- test_simplex exit=0|-- test_lp exit=0|-- probe exit=0|
+   PASS  nothing fired, both suites and the probe clean
+
+== verdict
+every arm behaved

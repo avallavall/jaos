@@ -240,6 +240,7 @@ and you have the argument. Jump to the entry for the numbers behind it.
 - **[D230](#d230--the-debt-is-closed-and-one-off-by-one-turns-out-to-be-a-segfault)** — The debt is closed, and one off-by-one turns out to be a segfault
 - **[D231](#d231--software-prefetching-is-refused-and-the-arbiter-that-was-meant-to-judge-it-cannot-see-it)** — Software prefetching is refused, and the arbiter that was meant to judge it cannot see it
 - **[D232](#d232--ten-contracts-in-the-last-two-files-become-asserts-one-proposed-assert-fires-on-the-shipping-suite-and-the-one-assert-no-arm-can-fire-is-measured-instead)** — Ten contracts in the last two files become asserts, one proposed assert fires on the shipping suite, and the one assert no arm can fire is measured instead
+- **[D233](#d233--pivot-runs-with-the-verification-still-set-six-times-in-a-million-and-the-assert-the-prose-asked-for-would-abort-three-instances)** — `pivot()` runs with the verification still set six times in a million, and the assert the prose asked for would abort three instances
 
 ---
 
@@ -18132,3 +18133,90 @@ change's: `netlib.txt` was written before 10 `src/` commits,
 `netlib-kennington.txt` before 8, `netlib-infeas.txt` before 34. The run
 answers the question they ask. A record that comes back byte-identical says
 those commits were no-ops on that set.
+
+## D233 — pivot() runs with the verification still set six times in a million, and the assert the prose asked for would abort three instances
+
+D232 left this open and said it needed one instrumented run before anyone
+added the assert. It did. `bench/measurements/02-146/`.
+
+`bench/measurements/02-121/simplex.c.md` proposed `assert(!s->verified)` at
+`pivot()`'s entry, for the sentence "every caller clears it before `pivot()`".
+
+## The census
+
+Four counters in a RELEASE build, over all 139 gate instances:
+
+| set | pivots | with the flag already set | stale reads | longest stale run |
+|---|---|---|---|---|
+| 94 standard | 527020 | 6 | 0 | 1 |
+| 29 infeasible | 71882 | 0 | 0 | 0 |
+| 16 Kennington | 434624 | 0 | 0 | 0 |
+
+The six are two each on `etamacro`, `wood1p` and `pilot87`. They come through
+`reenter_after_settling`, which calls `primal_cleanup` — and `primal_cleanup`
+pivots — before it clears the flag.
+
+**So the proposed assert is false, and adding it would have aborted three of
+the 94 standard instances in every debug build.** That is the answer D232
+declined to guess at.
+
+**No reader ever sees a verification a pivot has spent**: `stale_read` is 0
+over 1033526 pivots. The prose is wrong and the code is right.
+
+A release build with counters costs a gate run rather than the fifty minutes
+an assert-enabled Kennington costs (D232, 02-145). `bench/run`'s workers leave
+through `_exit(0)`, which runs no destructor (D229), so the report is called
+by hand at that site; one worker is one instance, so it is per instance, and
+it is one `write()` because twelve workers share one stderr (02-99).
+
+## What replaced the proposed assert
+
+`verified` now has exactly one writer and one reader. `set_verified` writes
+the flag and zeroes a debug-only counter beside it; `verified_fresh` reads the
+flag and asserts what is actually true:
+
+    assert(!s->verified || s->dbg_piv_since_verify == 0);
+
+`pivot()` increments that counter, on entry rather than at the basis change,
+so a declined pivot counts too — the conservative direction, and the one the
+census measured. Fifteen writes and seven reads went through the two helpers,
+so the counter cannot drift from the flag the way a hand-maintained one does.
+D201 is the receipt for that failure mode: `s->col` had five writers and a
+correct, prominent comment, and D30 was caused by violating it.
+
+## Only the canary fires it, and four arms say why
+
+The canary — `set_verified` stops resetting the counter — trips the assert in
+`test_simplex`. That is what says it is live.
+
+**No realistic single-site edit fires it.** Three clears turn out to be
+dominated, which the census alone could not have shown:
+
+- The dual loop's pre-pivot clear and the primal phase 1's can both be
+  deleted with every suite and probe still clean. The flag is already false
+  wherever those two loops pivot, so both are defensive rather than
+  load-bearing.
+- Either one of `reenter_after_settling`'s two clears can be deleted, because
+  the other still covers the property.
+- **Deleting both is also quiet.** After a `primal_cleanup` pivot,
+  `reenter_after_settling` either returns or ends its round. It never reaches
+  one of `run()`'s seven readers, so the sequence the assert catches — verify,
+  then pivot, then read — is unreachable on this population however many
+  clears are removed.
+
+The assert stays for the reason D232 kept the FORCING one: it is free in a
+shipping build, it states the property the prose got wrong, and the canary
+shows it would catch the sequence if a refactor created it. What the record
+must not say is that a realistic defect proved it, and it does not.
+
+## What it cost
+
+The counter and the assert are both `#ifndef NDEBUG`, and the two helpers are
+`static inline` assignments, so nothing here reaches the shipping build. The
+three gate sets run on the commit that lands this entry, and their result is
+recorded in the commit after it.
+
+## What is left open
+
+Nothing from this lead. The second lead D232 handed over — `pilot` publishing
+a point 2.31e-05 above the optimum — is untouched and stays in `TODO.md`.

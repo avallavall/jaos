@@ -1619,14 +1619,14 @@ is also the one that catches what fixing them breaks.
 >
 > **Two things came out of that campaign and are open.**
 >
-> - `assert(!s->verified)` at `pivot()`'s entry would very likely fire, and
->   it was deliberately NOT added. `reenter_after_settling` calls
->   `primal_cleanup`, which reaches `pivot()`, and `s->verified = false`
->   happens only afterwards; `run()` sets `verified = true` before returning
->   OPTIMAL and `jm_dual_simplex` calls `reenter_after_settling` on that
->   path. Either `primal_cleanup` is a latent defect or the prose is wrong.
->   **One instrumented run decides it** (`jaos-debug`); adding the assert
->   first would turn an open question into an abort on the gate.
+> - ~~`assert(!s->verified)` at `pivot()`'s entry~~ — **CLOSED 2026-09-01**,
+>   D233, `bench/measurements/02-146/`. It fires, so the prose is wrong and
+>   adding it would have aborted `etamacro`, `wood1p` and `pilot87` in every
+>   debug build: 6 pivots out of 1033526 enter with the flag set, all through
+>   `reenter_after_settling`. **No reader ever sees a spent verification**
+>   (`stale_read` 0), so `primal_cleanup` is not a defect. The flag has one
+>   writer and one reader now, and `verified_fresh` asserts the property that
+>   is true. Three of the four clears turn out to be dominated.
 > - The FORCING branch guards a column at a derived bound **twice**, and the
 >   `col_pending_dual` test takes every rejection: 165 over 139 instances,
 >   against 0 for the bound comparison that follows it, out of 98415 pinned

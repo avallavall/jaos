@@ -11,6 +11,22 @@ open, `bench/README.md` for the gate, and the commit each entry came from.
 
 ### Added
 
+- **`s->verified` has one writer and one reader, and the reader asserts what
+  is true of it.** `set_verified` writes the flag and zeroes a debug-only
+  pivot counter beside it; `verified_fresh` reads it and asserts that no
+  pivot has happened since it was set. Fifteen writes and seven reads go
+  through the two, so the counter cannot drift from the flag.
+
+  The assert the comment purge asked for was `assert(!s->verified)` at
+  `pivot()`, and it is false: 6 pivots out of 1033526 over the 139 gate
+  instances enter with the flag still set, on `etamacro`, `wood1p` and
+  `pilot87`, so adding it would have aborted three instances in every debug
+  build. What is true is that no reader ever sees a verification a pivot has
+  spent — 0 times in that same census. Only a canary fires the new assert;
+  three of the four clears in the source turn out to be dominated, and the
+  record says so rather than claiming a defect proved it (D233,
+  `bench/measurements/02-146/`).
+
 - **Ten of `simplex.c`'s and `presolve.c`'s prose contracts are checks.**
   Eleven asserts, because the forcing row's replay needed two: the cumulative
   iteration cap's floor as a `static_assert`, a retired bound-flip

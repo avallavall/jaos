@@ -1,0 +1,25 @@
+# 02-146 -- is s->verified ever stale when a reader looks at it?
+# tree: 4d1430e
+# date: 2026-09-01T05:32:19Z
+# release build with counters, no baseline read
+
+== netlib
+   exit=0  records=94
+   census lines=94
+   piv=527020 piv_verified=6 stale_read=0 stale_max=1
+   etamacro: piv_verified=2 stale_read=0
+   wood1p: piv_verified=2 stale_read=0
+   pilot87: piv_verified=2 stale_read=0
+
+== netlib-infeas
+   exit=0  records=29
+   census lines=29
+   piv=71882 piv_verified=0 stale_read=0 stale_max=0
+
+== netlib-kennington
+   exit=0  records=16
+   census lines=16
+   piv=434624 piv_verified=0 stale_read=0 stale_max=0
+
+== verdict
+stale_read is 0: no reader ever sees a verification a pivot has spent

@@ -241,6 +241,9 @@ typedef struct {
     /* The scratch primal_bound_flip's s->col cross-check computes into. Its
      * own buffer, not one of the four above. */
     double *dbg_col;                 /* [nrow] */
+    /* Pivots since the last write to `verified`, so `verified_fresh` can say
+     * whether the flag still describes the point in front of it (D233). */
+    int64_t dbg_piv_since_verify;
 #endif
 
     /* Refactorization buffers, grown once and reused. */
@@ -272,7 +275,9 @@ typedef struct {
     bool needs_refactor;
 
     /* Has optimality been re-checked against a freshly computed point since
-     * the last basis change? See the r < 0 branch in run(). */
+     * the last basis change? See the r < 0 branch in run(). Written only
+     * through `set_verified` and read only through `verified_fresh`, which
+     * is what keeps the debug counter beside it honest (D233). */
     bool verified;
 
     /* Does the next refresh owe a full sweep of shift_to_feasible? Set by a
@@ -340,6 +345,35 @@ typedef struct {
     bool in_phase1;
 } sx;
 
+
+/* The only writer of `verified`, and the only reader, so the debug counter
+ * beside the flag cannot drift from it the way a hand-maintained one does
+ * (D201 is the receipt for that failure mode).
+ *
+ * Both a set and a clear end the stretch: a clear because the flag is gone,
+ * a set because the verification is fresh again.
+ *
+ * `pivot()` may run with the flag still set. That is measured rather than
+ * assumed: 6 entries out of 1033526 over the 139 gate instances, on
+ * `etamacro`, `wood1p` and `pilot87`, all of them through
+ * `reenter_after_settling` calling `primal_cleanup` before it clears the
+ * flag. The prose used to say every caller clears it first, which is false.
+ * What is true is what `verified_fresh` asserts: no READER ever sees a
+ * verification a pivot has spent, 0 times in that same census (D233,
+ * `bench/measurements/02-146/`). */
+static inline void set_verified(sx *s, bool v)
+{
+    s->verified = v;
+#ifndef NDEBUG
+    s->dbg_piv_since_verify = 0;
+#endif
+}
+
+static inline bool verified_fresh(const sx *s)
+{
+    assert(!s->verified || s->dbg_piv_since_verify == 0);
+    return s->verified;
+}
 
 /* --------------------------------------------------------------------- */
 /* Setup                                                                 */
@@ -1721,6 +1755,12 @@ static void update_dual(sx *s, int64_t v, int64_t q, double theta_dual)
 static jaos_status pivot(sx *s, int64_t r, int64_t q, bool below,
                          double theta_dual, bool *took)
 {
+#ifndef NDEBUG
+    /* Counted on entry rather than at the basis change, so a declined pivot
+     * counts too. That is the conservative direction and it is the version
+     * 02-146 measured (D233). */
+    s->dbg_piv_since_verify++;
+#endif
     int64_t leaving = s->basis[r];
     double bound = below ? s->lo[leaving] : s->up[leaving];
     double alpha_q = s->alpha[q];
@@ -2099,7 +2139,7 @@ static jaos_status take_best_if_better(sx *s, bool *ok)
     jm_nonbasic_build(s->nvar, s->status, s->nbmark);
 
     s->needs_refactor = true;
-    s->verified = false;
+    set_verified(s, false);
     return refresh(s, ok, true);
 }
 
@@ -2529,7 +2569,7 @@ static jaos_status reenter_after_settling(sx *s)
             /* The basis has changed under the point; nothing may look at
              * the state before a refresh. */
             bool ok = false;
-            s->verified = false;
+            set_verified(s, false);
             s->needs_refactor = true;
             st = refresh(s, &ok, true);
             if (st != JAOS_OK)
@@ -2557,7 +2597,7 @@ static jaos_status reenter_after_settling(sx *s)
         arm_reentry(s);
 
         /* The point changed, so any verification is spent. */
-        s->verified = false;
+        set_verified(s, false);
         s->needs_refactor = true;
 
         jaos_solve_status again = JAOS_SOLVE_NOT_RUN;
@@ -3059,7 +3099,7 @@ static jaos_status run_primal_phase1(sx *s, jaos_solve_status *out,
              * `pivot` moves `xb` incrementally, so a rise read off carried
              * values can be the drift rather than the basis, and the
              * sentence this branch publishes is a claim about the basis. */
-            if (!s->verified) {
+            if (!verified_fresh(s)) {
                 bool okv = false;
                 const jaos_status stv = refresh(s, &okv, true);
                 if (stv != JAOS_OK)
@@ -3068,7 +3108,7 @@ static jaos_status run_primal_phase1(sx *s, jaos_solve_status *out,
                     *out = JAOS_SOLVE_NUMERICAL_ERROR;
                     return JAOS_OK;
                 }
-                s->verified = true;
+                set_verified(s, true);
                 continue;
             }
             jm_set_err(s->m,
@@ -3126,7 +3166,7 @@ static jaos_status run_primal_phase1(sx *s, jaos_solve_status *out,
 
         if (q < 0) {
             /* Nothing improves, but read off carried numbers (D20). */
-            if (!s->verified) {
+            if (!verified_fresh(s)) {
                 bool okv = false;
                 const jaos_status stv = refresh(s, &okv, true);
                 if (stv != JAOS_OK)
@@ -3136,7 +3176,7 @@ static jaos_status run_primal_phase1(sx *s, jaos_solve_status *out,
                     *out = JAOS_SOLVE_NUMERICAL_ERROR;
                     return JAOS_OK;
                 }
-                s->verified = true;
+                set_verified(s, true);
                 continue;
             }
             jm_set_err(s->m,
@@ -3162,7 +3202,7 @@ static jaos_status run_primal_phase1(sx *s, jaos_solve_status *out,
                 const double delta = other - nonbasic_value(s, q);
                 if (fabs(delta) <= step) {
                     primal_bound_flip(s, q, delta);
-                    s->verified = false;
+                    set_verified(s, false);
                     s->iters++;
                     s->n_primal_iters++;
                     continue;
@@ -3172,7 +3212,7 @@ static jaos_status run_primal_phase1(sx *s, jaos_solve_status *out,
 
         if (r < 0) {
             /* An impossibility, so the numbers had better be fresh (D20). */
-            if (!s->verified) {
+            if (!verified_fresh(s)) {
                 bool okv = false;
                 const jaos_status stv = refresh(s, &okv, true);
                 if (stv != JAOS_OK)
@@ -3182,7 +3222,7 @@ static jaos_status run_primal_phase1(sx *s, jaos_solve_status *out,
                     *out = JAOS_SOLVE_NUMERICAL_ERROR;
                     return JAOS_OK;
                 }
-                s->verified = true;
+                set_verified(s, true);
                 continue;
             }
             jm_set_err(s->m,
@@ -3212,7 +3252,7 @@ static jaos_status run_primal_phase1(sx *s, jaos_solve_status *out,
             return JAOS_ERR_NUMERICAL;
         }
 
-        s->verified = false;
+        set_verified(s, false);
         bool took = false;
         /* `d` here holds phase-1 reduced costs, so `pivot()` maintains the
          * phase-1 pricing; the phase-2 costs are recomputed at hand-over. */
@@ -3376,7 +3416,7 @@ static jaos_status run_primal(sx *s, jaos_solve_status *out)
         if (q < 0) {
             /* Optimality for the costs in force, but read off carried
              * numbers (D20). */
-            if (!s->verified) {
+            if (!verified_fresh(s)) {
                 st = refresh(s, &ok, true);
                 if (st != JAOS_OK)
                     return st;
@@ -3384,7 +3424,7 @@ static jaos_status run_primal(sx *s, jaos_solve_status *out)
                     *out = JAOS_SOLVE_NUMERICAL_ERROR;
                     return JAOS_OK;
                 }
-                s->verified = true;
+                set_verified(s, true);
                 continue;
             }
             *out = JAOS_SOLVE_OPTIMAL;
@@ -3408,7 +3448,7 @@ static jaos_status run_primal(sx *s, jaos_solve_status *out)
                     primal_bound_flip(s, q, delta);
                     /* The point moved, so any verification is spent. The
                      * basis did not. */
-                    s->verified = false;
+                    set_verified(s, false);
                     s->iters++;
                     s->n_primal_iters++;
                     continue;
@@ -3420,7 +3460,7 @@ static jaos_status run_primal(sx *s, jaos_solve_status *out)
             /* Nothing the model declared stops this column. Not declared
              * unbounded (D19): the column may be leaving a bound dual phase
              * 1 invented. That verdict is §0 stage 7. */
-            if (!s->verified) {
+            if (!verified_fresh(s)) {
                 st = refresh(s, &ok, true);
                 if (st != JAOS_OK)
                     return st;
@@ -3428,7 +3468,7 @@ static jaos_status run_primal(sx *s, jaos_solve_status *out)
                     *out = JAOS_SOLVE_NUMERICAL_ERROR;
                     return JAOS_OK;
                 }
-                s->verified = true;
+                set_verified(s, true);
                 continue;
             }
             jm_set_err(s->m,
@@ -3458,7 +3498,7 @@ static jaos_status run_primal(sx *s, jaos_solve_status *out)
             return JAOS_ERR_NUMERICAL;
         }
 
-        s->verified = false;
+        set_verified(s, false);
         bool took = false;
         st = pivot(s, r, q, below, s->d[q] / s->alpha[q], &took);
         if (st != JAOS_OK)
@@ -3551,7 +3591,7 @@ static jaos_status run(sx *s, jaos_solve_status *out)
             /* Optimality is not accepted on carried numbers (D20): recompute
              * from a fresh factorization and price again. This refresh is
              * the one that refines (D29). */
-            if (!s->verified) {
+            if (!verified_fresh(s)) {
                 st = refresh(s, &ok, true);
                 if (st != JAOS_OK)
                     return st;
@@ -3559,7 +3599,7 @@ static jaos_status run(sx *s, jaos_solve_status *out)
                     *out = JAOS_SOLVE_NUMERICAL_ERROR;
                     return JAOS_OK;
                 }
-                s->verified = true;
+                set_verified(s, true);
                 continue;
             }
             /* Optimal for the problem as bounded; classify_optimum decides
@@ -3574,7 +3614,7 @@ static jaos_status run(sx *s, jaos_solve_status *out)
             /* No entering column can repair row r: the dual is unbounded
              * and the primal has no feasible point. Read off carried
              * numbers (D20, D39). Take a second opinion first. */
-            if (!s->verified) {
+            if (!verified_fresh(s)) {
                 st = refresh(s, &ok, true);
                 if (st != JAOS_OK)
                     return st;
@@ -3582,7 +3622,7 @@ static jaos_status run(sx *s, jaos_solve_status *out)
                     *out = JAOS_SOLVE_NUMERICAL_ERROR;
                     return JAOS_OK;
                 }
-                s->verified = true;
+                set_verified(s, true);
                 continue;
             }
             *out = JAOS_SOLVE_INFEASIBLE;
@@ -3590,7 +3630,7 @@ static jaos_status run(sx *s, jaos_solve_status *out)
         }
 
         /* The basis is about to change, so any verification is spent. */
-        s->verified = false;
+        set_verified(s, false);
         bool took = false;
         st = pivot(s, r, q, below, theta_dual, &took);
         if (st != JAOS_OK)
