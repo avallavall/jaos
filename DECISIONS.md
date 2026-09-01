@@ -239,6 +239,7 @@ and you have the argument. Jump to the entry for the numbers behind it.
 - **[D229](#d229--the-model-tests-and-two-ways-a-control-can-look-like-it-passed)** — The model tests, and two ways a control can look like it passed
 - **[D230](#d230--the-debt-is-closed-and-one-off-by-one-turns-out-to-be-a-segfault)** — The debt is closed, and one off-by-one turns out to be a segfault
 - **[D231](#d231--software-prefetching-is-refused-and-the-arbiter-that-was-meant-to-judge-it-cannot-see-it)** — Software prefetching is refused, and the arbiter that was meant to judge it cannot see it
+- **[D232](#d232--ten-contracts-in-the-last-two-files-become-asserts-one-proposed-assert-fires-on-the-shipping-suite-and-the-one-assert-no-arm-can-fire-is-measured-instead)** — Ten contracts in the last two files become asserts, one proposed assert fires on the shipping suite, and the one assert no arm can fire is measured instead
 
 ---
 
@@ -17983,3 +17984,144 @@ also do, since 6.27% is what makes a few percent unreadable.
 The candidate itself is not in the tree. 02-144's README describes the diff
 in full, and `git stash` held it as "prefetch candidate, refused by D231" at
 the time of writing.
+
+## D232 — Ten contracts in the last two files become asserts, one proposed assert fires on the shipping suite, and the one assert no arm can fire is measured instead
+
+`src/simplex.c` and `src/presolve.c` are the whole remainder of the comment
+purge's prose contracts — 65 and 72 of them, listed in
+`bench/measurements/02-121/`. D216 through D223 closed every other file. Ten
+of those 137 are checks now, eleven asserts in all, because the forcing row's
+replay needed two. `bench/measurements/02-145/`, fourteen arms and a census.
+
+## What each one costs when it is violated
+
+`src/simplex.c`, five checks:
+
+| the contract | what a violation gives |
+|---|---|
+| `ITER_SANITY_FACTOR >= 60` | a legitimate long solve reported as a JAOS defect |
+| a retired bound-flip candidate has a finite box | `xb` goes NaN |
+| the phase-1 append count never passes `nrow` | a write past the heap |
+| `cost` is not the lent array on entry | phase 2 optimises phase 1's objective |
+| `jm_pattern_order` returns no more positions than it was given | `price_all` sums over stale `alpha` |
+
+`src/presolve.c`, six checks:
+
+| the contract | what a violation gives |
+|---|---|
+| the count pass and the fill pass agree | a wrong matrix, then a write past `num_nz` |
+| a FORCING row pins only at the caller's own bounds | a dual-infeasible published point |
+| `FREE_COL_SINGLETON` replays only a genuinely free column | an invented zero reduced cost and zero dual |
+| the backward arena walk stays in bounds | a read before the arena |
+| a pinned column's coefficient is not zero | NaN duals |
+| a singleton column enters at cost exactly zero | a cost silently dropped |
+
+The first is a `static_assert`, so its arm is the build, and the build refuses
+it. Nine of the other ten fire on their own arm.
+
+## The pass criterion is tighter than the four campaigns before it, and that is what caught the double free
+
+D227 through D230 passed an arm when the suite failed to come back clean.
+That cannot tell one assert from another, and it cannot tell either from a
+crash. Every arm here requires the **exact expression glibc prints** for the
+assert it is for.
+
+The `cost-left-lent` arm is why that matters. Leaving the phase-1 objective
+lent means `cost` and `c1` are the same pointer at teardown, so `test_simplex`
+dies on `free(): double free detected in tcache 2` — exit 134, no assert
+message, and the assert never reached. Under the old rule that arm passes and
+credits `assert(s->cost != s->c1)` with a catch it did not make. It does fire,
+on the probe, and the record now says which binary fired each assert.
+
+Two arms needed more than the unit suites, which is why `probe.c` sits beside
+the script: presolve's families need a real model, and the primal phase 1 runs
+only under `cfg.force_primal`, which no test sets.
+
+## Two arms came back quiet, and the two reasons are different
+
+**One was a broken instrument.** The bound-flip arm first deleted both breaks
+from `bfrt_walk`, so every candidate retired and `live` reached zero — and
+`dual_ratio_test` returns at `live == 0` **before** it calls `apply_flips`.
+Forty-seven tests went red and the assert was never reached. The breaker that
+works removes only the width test and reads an infinite width as zero in the
+spend test, which retires exactly one candidate and leaves the rest live. This
+is the fifth distinct way a control has been worthless here, after D227's
+abort-before-the-count, D229's two mis-keyed breaks and D223's hang: **a
+breaker can move the defect out of the assert's reach.**
+
+**The other is a property of the population, and a census is what makes that a
+measurement.** The FORCING arm removes the guard on a column pinned at a
+derived bound and stays green. Removing the second guard as well stays green
+too. `census-forcing.sh` counts what those arms saw, over all 139 gate
+instances, with each solve stopped as soon as presolve returns:
+
+| set | FORCING rows seen | rejected as pending | rejected as derived | rows applied | columns pinned |
+|---|---|---|---|---|---|
+| 94 standard | 1854 | 18 | 0 | 1836 | 10278 |
+| 16 Kennington | 5233 | 97 | 0 | 5136 | 87225 |
+| 29 infeasible | 149 | 50 | 0 | 99 | 912 |
+
+Not one pinned column sits at a bound the caller's model did not carry. The
+assert holds every time it is reached, on a population of 98,415 pinnings.
+
+**The source guards that shape twice, and only one of the two ever bites.**
+The single site that writes a derived column bound is the `SINGLETON_ROW`
+fold, and it also sets `col_pending_dual[j]`. The `col_pending_dual` test runs
+first in the same loop, so it takes every rejection and the bound comparison
+after it takes none. That is why removing the comparison alone changes
+nothing. The comparison stays, because a later change to the fold could make
+it the only guard left. It is dead on every instance measured, and a reader
+who deletes it would see no test go red.
+
+## The other half of the question: they stay quiet where they should
+
+An arm proves an assert fires when its contract is broken. It says nothing
+about whether the assert is quiet on a tree where the contract holds, and the
+arms here reach one third of one set: the probe solves 33 instances and the
+census stops every solve as soon as presolve returns. D152's rule is that an
+assert-enabled build runs every instance, so `run-assert-population.sh` builds
+`bench/run` with `-UNDEBUG` in a throwaway worktree and solves all of them:
+94 standard, 29 infeasible, 16 Kennington, **139 records and zero assertion
+lines**. No baseline is read, because the question is whether anything aborts.
+
+It costs about fifty minutes, and Kennington is all of it. The reason is
+already in the file: `dual_ratio_test`'s debug block runs a second full
+`admit_candidate` scan over every variable, every iteration, and rebuilds
+`nbmark` beside it.
+
+The first attempt of that run reported the infeasible set as a failure and
+wrote no record at all. The set needs `-e infeasible`; without it every
+instance is judged against an expectation of OPTIMAL. An arm that exits 1 for
+a reason of its own says nothing about the asserts, which is the same lesson
+as the two quiet arms above.
+
+## One proposed assert is refused, and it fires on the existing suite
+
+`assert(!m->scale_valid)` at `jm_presolve_run`'s entry, for the sentence
+"presolve runs on the model as loaded, before scaling: a THIRD tolerance
+space, and nothing converts into it."
+
+It fires. The premise is wrong. `scale_valid` says the scale FACTORS are
+computed, and `src/jaos_internal.h` is explicit that the stored matrix is
+never touched, so presolve reads unscaled data whether the flag is set or not.
+What the sentence really claims is that nothing in the file applies
+`row_scale` or `col_scale`, which is a property of the whole translation unit
+and not of any value in scope. A comment sits where the assert would have
+gone, saying so, because the next reader will propose the same assert.
+
+## One lead is open and was deliberately not acted on
+
+`assert(!s->verified)` at `pivot()`'s entry would very likely fire.
+`reenter_after_settling` calls `primal_cleanup`, which reaches `pivot()`, and
+`s->verified = false` happens only afterwards; `run()` sets `verified = true`
+before returning OPTIMAL, and `jm_dual_simplex` calls `reenter_after_settling`
+on that path. So either `primal_cleanup` is a latent defect or the prose is
+wrong. Adding the assert first would turn an open question into an abort on
+the gate. It needs one instrumented run, and `TODO.md` carries it.
+
+## What it cost
+
+Asserts compile out under `-DNDEBUG`, so none of the eleven reaches the
+shipping build, and the campaign builds only in throwaway worktrees. The
+three gate sets run on the commit that lands this entry, and their result is
+recorded in the commit after it.

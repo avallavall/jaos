@@ -318,6 +318,16 @@ JAOS_NODISCARD jaos_status jm_presolve_run(const jaos_model *m, jm_presolve *p,
 {
     const int64_t nr = m->num_row, nc = m->num_col;
 
+    /* "Presolve runs on the model as loaded, before scaling: a THIRD
+     * tolerance space, and nothing converts into it." There is no assert
+     * for this and `assert(!m->scale_valid)` is NOT it -- that flag says the
+     * FACTORS are computed, and `jaos_internal.h` is explicit that the
+     * stored matrix is never touched, so presolve reads unscaled data
+     * whatever the flag says. It fires on the existing suite, which is how
+     * that was found. What the sentence really claims is that nothing here
+     * applies `row_scale`/`col_scale`, and that is a property of the whole
+     * file rather than of a value in scope (D232). */
+
     /* The one cost-directional rule is stated for MINIMIZE; a MAXIMIZE model
      * arrives with unflipped costs. */
     const double sigma = (m->sense == JAOS_MAXIMIZE) ? -1.0 : 1.0;
@@ -578,6 +588,11 @@ JAOS_NODISCARD jaos_status jm_presolve_run(const jaos_model *m, jm_presolve *p,
             }
 
             if (col_deg[j] == 1 && cur_cost[j] == 0.0) {
+                /* "Singleton columns fire only at cost exactly zero." Both
+                 * families below drop the column from the objective, so a
+                 * nonzero cost is silently lost. Guarded by the condition
+                 * above today; this is what survives a refactor of it. */
+                assert(cur_cost[j] == 0.0);
                 int64_t i = -1;
                 double a = 0.0;
                 for (int64_t k = m->a_start[j]; k < m->a_start[j + 1]; k++) {
@@ -807,6 +822,12 @@ JAOS_NODISCARD jaos_status jm_presolve_run(const jaos_model *m, jm_presolve *p,
                                                       : (rw.rval[k] < 0.0);
                         const double v = want_lo ? cur_cl[j] : cur_cu[j];
                         assert(isfinite(v));
+                        /* "Only when every attaining bound is one the
+                         * CALLER's model carried." A column pinned at a
+                         * DERIVED bound is interior in the caller's box, so
+                         * no multiplier makes its reduced cost zero and the
+                         * published point is dual infeasible (D232). */
+                        assert(v == m->col_lower[j] || v == m->col_upper[j]);
 
                         p->reduced.obj_offset += cur_cost[j] * v;
                         jm_work_add(w, (m->a_start[j + 1] - m->a_start[j]) *
@@ -1046,6 +1067,11 @@ JAOS_NODISCARD jaos_status jm_presolve_run(const jaos_model *m, jm_presolve *p,
             p->reduced.a_value[dst] = m->a_value[k];
             dst++;
         }
+        /* The count pass and this fill pass apply the same "alive column AND
+         * alive row" predicate, separately. If they ever disagree, one
+         * column's entries land in the next column's slots -- a silently
+         * wrong matrix -- and the last column writes past `num_nz` (D232). */
+        assert(dst == p->reduced.a_start[rj2 + 1]);
     }
 
     /* A removed row or column recorded basic undercounts the basic total;
@@ -1350,6 +1376,11 @@ static void ps_replay_one(jaos_model *orig, const jm_presolve *p, int64_t r,
         const int64_t j = rec->index2;
         assert(i >= 0 && i < orig->num_row);
         assert(j >= 0 && j < orig->num_col);
+        /* This branch publishes a zero reduced cost and a zero dual with no
+         * arithmetic behind either. That is sound for a genuinely free
+         * column and invents both on a bounded one (D232). */
+        assert(!isfinite(orig->col_lower[j]) &&
+               !isfinite(orig->col_upper[j]));
 
         /* Mutual singleton: the row's whole activity is column j's. x_j is
          * free and cost-0, so d_j == 0 exactly forces y_i == 0 exactly; any
@@ -1426,8 +1457,15 @@ static void ps_replay_one(jaos_model *orig, const jm_presolve *p, int64_t r,
          * BEFORE this one, so this replays first. */
         double y = 0.0;
         for (int64_t t = 1; t <= rec->index2; t++) {
+            /* `r - t` walks the arena backwards from this record. A count
+             * that disagrees with what was pushed reads before the arena. */
+            assert(r - t >= 0);
             const jm_presolve_rec *cr = &p->arena[r - t];
             assert(cr->tag == JM_PS_FIXED_COL);
+            /* The divisor below. The forward pass excludes zero-coefficient
+             * columns from the count, so a zero here means the two counts
+             * disagree and `y` goes NaN (D232). */
+            assert(cr->coef != 0.0);
             const int64_t j = cr->index;
             assert(j >= 0 && j < orig->num_col);
 

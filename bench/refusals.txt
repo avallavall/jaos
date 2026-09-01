@@ -102,3 +102,4 @@ SPECS-crash-basis | MANUAL | pricing stops starting from exact steepest-edge wei
 D93  | MANUAL | a controlled host that satisfies D17 (for the 4.2% bar); tools/icount.sh answers the instruction half of that question today
 D34  | MANUAL | never, while the two absolute premises stand (locked 2026-08-13)
 D231 | MANUAL | an instrument that can SEE a software prefetch exists here; tools/icount.sh -m cannot (02-144's canary), and WSL2 exposes no hardware counters. A host whose repeatability is well under a few percent would also reopen it, since D93's 6.27% is what makes the effect unreadable
+D232 | MANUAL | scaling starts writing the stored matrix, or presolve starts running after the scale factors are applied; either makes m->scale_valid a claim about presolve INPUT rather than about the factors, and assert(!m->scale_valid) becomes the right check

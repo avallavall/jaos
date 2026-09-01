@@ -154,7 +154,11 @@ what long runs do. That is a phase-1 defect, not a floor defect.
    symbolic analysis needs a pattern that does not change and the basis
    changes every iteration; DCSC compresses out empty columns and presolve
    already removes those.
-3. Section 0's headline decision.
+3. ~~**Ten of `simplex.c`'s and `presolve.c`'s prose contracts**~~ —
+   **LANDED 2026-09-01**, D232, `bench/measurements/02-145/`. Eleven asserts,
+   fourteen arms, and a census for the one assert no arm can fire. The rest
+   of that debt is in the OPEN section below and it is not next: §0 is.
+4. Section 0's headline decision.
 
 **The phase-1 stop rule closed on 2026-08-29** — D218,
 `bench/measurements/02-133/`. `PHASE1_RISE_MAX = 1.0`: phase 1 publishes
@@ -1601,6 +1605,33 @@ is also the one that catches what fixing them breaks.
 > `lu.c` checks that are not asserts (`btran_u_pattern`'s order,
 > `compact_pivot_row`'s duplicates). The per-file lines are kept below for
 > what each one names.
+>
+> **2026-09-01: ten of `simplex.c`'s and `presolve.c`'s contracts are checks
+> now** — D232, `bench/measurements/02-145/`. Eleven asserts, because the
+> forcing row's replay needed two. `simplex.c`: the cumulative iteration
+> cap's floor (a `static_assert`), a retired bound-flip candidate's finite
+> box, the phase-1 append count, `cost` not lent on entry to
+> `primal_phase1_duals`, and `jm_pattern_order` returning no more than it was
+> given. `presolve.c`: the compaction's two passes agreeing, a FORCING row
+> pinning only at the caller's own bounds, `FREE_COL_SINGLETON` replaying
+> only a free column, the backward arena walk's lower bound, a pinned
+> column's non-zero coefficient, and a singleton column's exactly-zero cost.
+>
+> **Two things came out of that campaign and are open.**
+>
+> - `assert(!s->verified)` at `pivot()`'s entry would very likely fire, and
+>   it was deliberately NOT added. `reenter_after_settling` calls
+>   `primal_cleanup`, which reaches `pivot()`, and `s->verified = false`
+>   happens only afterwards; `run()` sets `verified = true` before returning
+>   OPTIMAL and `jm_dual_simplex` calls `reenter_after_settling` on that
+>   path. Either `primal_cleanup` is a latent defect or the prose is wrong.
+>   **One instrumented run decides it** (`jaos-debug`); adding the assert
+>   first would turn an open question into an abort on the gate.
+> - The FORCING branch guards a column at a derived bound **twice**, and the
+>   `col_pending_dual` test takes every rejection: 165 over 139 instances,
+>   against 0 for the bound comparison that follows it, out of 98415 pinned
+>   columns (`bench/measurements/02-145/census.txt`). The comparison stays,
+>   but nothing goes red if a later reader deletes it.
 
 
 The 2026-08-26 purge thinned six files to their contracts (D30's rule: an

@@ -1,0 +1,21 @@
+# 02-145 -- the eleven asserts over all 139 instances, -UNDEBUG
+# tree: 10ea90f WITH UNCOMMITTED CHANGES
+#       plus the working-tree copies of src/simplex.c src/presolve.c
+# date: 2026-08-31T23:43:16Z
+# no baseline is read: this asks whether anything ABORTS
+
+== build: bench/run with -UNDEBUG, from clean
+== netlib
+   exit=0  records=94
+   assertion lines=0
+
+== netlib-infeas
+   exit=0  records=29
+   assertion lines=0
+
+== netlib-kennington
+   exit=0  records=16
+   assertion lines=0
+
+== verdict
+every set completed and no assert fired

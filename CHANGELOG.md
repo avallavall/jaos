@@ -11,6 +11,29 @@ open, `bench/README.md` for the gate, and the commit each entry came from.
 
 ### Added
 
+- **Ten of `simplex.c`'s and `presolve.c`'s prose contracts are checks.**
+  Eleven asserts, because the forcing row's replay needed two: the cumulative
+  iteration cap's floor as a `static_assert`, a retired bound-flip
+  candidate's finite box, the phase-1 append count, the lent objective
+  restored on entry, and `jm_pattern_order`'s output no longer than its
+  input; in presolve, the compaction's two passes agreeing, a FORCING row
+  pinning only at the caller's own bounds, a free column really free at
+  replay, the arena walk's lower bound, a non-zero divisor, and a singleton
+  column's exactly-zero cost. Nine fire on their own arm; the build refuses
+  the tenth (D232, `bench/measurements/02-145/`).
+
+  An arm passes only on the exact expression glibc prints, which is stricter
+  than D227 to D230 and is what caught a breaker whose suite died on a double
+  free — exit 134, no assert reached, and the old rule would have credited
+  the assert with that catch. One assert cannot be fired at all, and a census
+  says why rather than leaving a gap: no FORCING row over 139 instances pins
+  a column at a bound the caller's model did not carry, and the
+  `col_pending_dual` test ahead of it takes every rejection.
+  `assert(!m->scale_valid)` was proposed and refused, because it fires on the
+  existing suite: the flag says the scale factors exist, not that the stored
+  matrix was touched. All eleven hold on all 139 instances under `-UNDEBUG`
+  (D152's rule): 139 records, zero assertion lines.
+
 - **Three writers: `jaos_write_mps`, `jaos_write_lp`,
   `jaos_write_solution`.** MPS expresses everything a model can hold; the LP
   dialect is narrower, so a ranged row, a free row and a row with no

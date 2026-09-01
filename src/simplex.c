@@ -101,6 +101,13 @@ constexpr double ARTIFICIAL_BOUND = 1e10;
 
 /* A guard against a loop that fails to terminate through a bug. */
 constexpr int64_t ITER_SANITY_FACTOR = 200;
+/* The cap is CUMULATIVE: phase 1, phase 2 and the dual re-entry all test the
+ * same `s->iters` against it. D196 measured the headroom -- phase 1 spends at
+ * most 1.68% of it, on `pilot-ja` -- and said to rebase the cap per phase if
+ * this ever drops below about 60. Below that a legitimate long solve is
+ * reported as a JAOS defect, which is a wrong answer about the solver (D232). */
+static_assert(ITER_SANITY_FACTOR >= 60,
+              "the iteration cap is shared across phases (D196)");
 
 /* How long a solve may fail to improve before it is treated as cycling, as
  * a multiple of `nrow + ncol + 1` (D17). */
@@ -1204,6 +1211,11 @@ static void apply_flips(sx *s, int64_t at, int64_t n)
     memset(rhs, 0, (size_t)s->nrow * sizeof *rhs);
 
     for (int64_t k = at; k < n; k++) {
+        /* `bfrt_walk` retires a candidate only after `if (!isfinite(width))
+         * break;`, so everything in [live, n) has a finite box. Flipping one
+         * that does not makes `nonbasic_value` return an infinity and `xb`
+         * NaN, which is a wrong answer and not a crash (D232). */
+        assert(isfinite(s->rrange[k]));
         int64_t v = s->cand[k];
         double from = nonbasic_value(s, v);
         s->status[v] = s->status[v] == JM_AT_LOWER ? JM_AT_UPPER
@@ -1449,6 +1461,11 @@ int64_t jm_pattern_order(int64_t n, int64_t *pos, uint64_t *mark,
     }
     *words = hi >= lo ? hi - lo + 1 : 0;
 #ifndef NDEBUG
+    /* "Reading back over the input is safe: the distinct count can only be
+     * smaller than what went in." A pattern longer than its input names
+     * positions no FTRAN scattered, and `price_all` then sums over whatever
+     * `alpha` happened to hold (D232). */
+    assert(k <= n);
     for (int64_t w = lo; w <= hi; w++)
         assert(mark[w] == 0);
     /* Ascending and each position once: the read-back walks words upward and
@@ -2803,6 +2820,10 @@ static double primal_phase1_costs(sx *s)
             total += s->xb[i] - up;
         }
     }
+    /* At most one append per row, because only a basic variable can be
+     * infeasible (D199), and `c1_at` is allocated at `nrow`. A third branch
+     * in the loop above, or a wider bound on it, writes past the heap (D232). */
+    assert(s->n_c1_at <= s->nrow);
     /* What was cleared, plus the rows scanned (D198, D199). */
     jm_work_add(&s->work, (cleared + s->nrow) * JM_WORK_NONZERO);
     return total;
@@ -2814,6 +2835,10 @@ static double primal_phase1_costs(sx *s)
  * not offered: phase-1 duals are rebuilt every iteration (D29). */
 static void primal_phase1_duals(sx *s)
 {
+    /* The restore below is unconditional, so `cost` is never the lent array
+     * on the way in. A re-entrant call that left it lent would have phase 2
+     * optimising the phase-1 objective (D232). */
+    assert(s->cost != s->c1);
     double *real_cost = s->cost;
     s->cost = s->c1;
     compute_duals(s, false);

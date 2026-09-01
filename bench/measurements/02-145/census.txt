@@ -1,0 +1,22 @@
+# 02-145 -- how often a FORCING row meets a column at a derived bound
+# tree: 10ea90f WITH UNCOMMITTED CHANGES
+#       plus the working-tree copies of src/simplex.c src/presolve.c
+# date: 2026-08-31T22:33:24Z
+# dual method only: presolve runs the same either way, and the primal
+# does not finish the heavier instances
+
+== bench/instances  (94 instances)
+   probe exit=0
+   solved=94
+   FORCING-CENSUS seen=1854 pending=18 derived=0 taken=1836 pinned=10278
+
+== bench/instances-kennington  (16 instances)
+   probe exit=0
+   solved=16
+   FORCING-CENSUS seen=5233 pending=97 derived=0 taken=5136 pinned=87225
+
+== bench/instances-infeas  (29 instances)
+   probe exit=0
+   solved=29
+   FORCING-CENSUS seen=149 pending=50 derived=0 taken=99 pinned=912
+

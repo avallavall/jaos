@@ -1,0 +1,112 @@
+# 02-145 -- the ten asserts of D232, and the arm that fires each one
+# tree: 10ea90f WITH UNCOMMITTED CHANGES
+#       plus the working-tree copies of src/simplex.c src/presolve.c
+# date: 2026-08-31T22:36:50Z
+# an arm passes only when the log carries the expression glibc prints
+# for that assert, so each arm names the guard it proved
+# the two forcing arms are deliberately quiet: census.txt beside this
+# file counts the population they measured
+
+== intact
+   nothing broken: the tree as it stands
+   suites:    104 Tests 0 Failures 4 Ignored|74 Tests 0 Failures 11 Ignored|6 Tests 0 Failures 0 Ignored|
+   exits:     -- test_simplex exit=0|-- test_presolve exit=0|-- test_lp exit=0|  -- probe exit=0
+   PASS  three suites green, the probe solved every instance
+
+== iter-cap
+   ITER_SANITY_FACTOR drops to 50, below the cumulative floor (D196)
+   build:     exit=2
+   PASS  the build refused it: the iteration cap is shared across phases (D196)
+
+== bfrt-infinite-box
+   bfrt_walk retires a candidate with an infinite box
+   suites:    74 Tests 0 Failures 11 Ignored|6 Tests 0 Failures 0 Ignored|
+   exits:     -- test_simplex exit=134|-- test_presolve exit=0|-- test_lp exit=0|  
+   fired:     Assertion `isfinite(s->rrange[k])' failed
+   fired in:  test_simplex
+   PASS  the assert fired: isfinite(s->rrange[k])
+
+== pattern-longer
+   jm_pattern_order names two positions per input
+   suites:    6 Tests 0 Failures 0 Ignored|
+   exits:     -- test_simplex exit=134|-- test_presolve exit=134|-- test_lp exit=0|  
+   fired:     Assertion `k <= n' failed
+   fired in:  test_simplex
+   PASS  the assert fired: k <= n
+
+== c1-at-overflow
+   the phase-1 append count starts at nrow
+   suites:    74 Tests 0 Failures 11 Ignored|6 Tests 0 Failures 0 Ignored|
+   exits:     -- test_simplex exit=134|-- test_presolve exit=0|-- test_lp exit=0|  
+   fired:     Assertion `s->n_c1_at <= s->nrow' failed
+   fired in:  test_simplex
+   PASS  the assert fired: s->n_c1_at <= s->nrow
+
+== cost-left-lent
+   primal_phase1_duals never restores the objective
+   suites:    74 Tests 0 Failures 11 Ignored|6 Tests 0 Failures 0 Ignored|
+   exits:     -- test_simplex exit=134|-- test_presolve exit=0|-- test_lp exit=0|  -- probe exit=134
+   fired:     Assertion `s->cost != s->c1' failed
+   fired in:  probe
+   PASS  the assert fired: s->cost != s->c1
+
+== compaction-disagrees
+   the count pass and the fill pass use different predicates
+   suites:    6 Tests 0 Failures 0 Ignored|
+   exits:     -- test_simplex exit=134|-- test_presolve exit=134|-- test_lp exit=0|  
+   fired:     Assertion `dst == p->reduced.a_start[rj2 + 1]' failed
+   fired in:  test_simplex
+   PASS  the assert fired: dst == p->reduced.a_start[rj2 + 1]
+
+== forcing-inner-only
+   only the bound comparison is gone; col_pending_dual still guards
+   suites:    104 Tests 0 Failures 4 Ignored|74 Tests 0 Failures 11 Ignored|6 Tests 0 Failures 0 Ignored|
+   exits:     -- test_simplex exit=0|-- test_presolve exit=0|-- test_lp exit=0|  -- probe exit=0
+   PASS  three suites green, the probe solved every instance
+
+== forcing-both-guards-gone
+   both guards gone: the shape is absent from all 139 instances
+   suites:    104 Tests 0 Failures 4 Ignored|74 Tests 0 Failures 11 Ignored|6 Tests 0 Failures 0 Ignored|
+   exits:     -- test_simplex exit=0|-- test_presolve exit=0|-- test_lp exit=0|  -- probe exit=0
+   PASS  three suites green, the probe solved every instance
+
+== free-col-not-free
+   a bounded singleton column is recorded as free
+   suites:    104 Tests 0 Failures 4 Ignored|6 Tests 0 Failures 0 Ignored|
+   exits:     -- test_simplex exit=0|-- test_presolve exit=134|-- test_lp exit=0|  
+   fired:     Assertion `!isfinite(orig->col_lower[j]) && !isfinite(orig->col_upper[j])' failed
+   fired in:  test_presolve
+   PASS  the assert fired: !isfinite(orig->col_lower[j]) && !isfinite(orig->col_upper[j])
+
+== forcing-count-high
+   the forcing row over-counts its pinned columns by four
+   suites:    104 Tests 0 Failures 4 Ignored|6 Tests 0 Failures 0 Ignored|
+   exits:     -- test_simplex exit=0|-- test_presolve exit=134|-- test_lp exit=0|  
+   fired:     Assertion `r - t >= 0' failed
+   fired in:  test_presolve
+   PASS  the assert fired: r - t >= 0
+
+== forcing-zero-coef
+   a pinned column records a zero coefficient
+   suites:    104 Tests 0 Failures 4 Ignored|6 Tests 0 Failures 0 Ignored|
+   exits:     -- test_simplex exit=0|-- test_presolve exit=134|-- test_lp exit=0|  
+   fired:     Assertion `cr->coef != 0.0' failed
+   fired in:  test_presolve
+   PASS  the assert fired: cr->coef != 0.0
+
+== singleton-nonzero-cost
+   a singleton column with a nonzero cost enters the family
+   suites:    6 Tests 0 Failures 0 Ignored|
+   exits:     -- test_simplex exit=134|-- test_presolve exit=134|-- test_lp exit=0|  
+   fired:     Assertion `cur_cost[j] == 0.0' failed
+   fired in:  test_simplex
+   PASS  the assert fired: cur_cost[j] == 0.0
+
+== restored
+   the recipe again with nothing broken
+   suites:    104 Tests 0 Failures 4 Ignored|74 Tests 0 Failures 11 Ignored|6 Tests 0 Failures 0 Ignored|
+   exits:     -- test_simplex exit=0|-- test_presolve exit=0|-- test_lp exit=0|  -- probe exit=0
+   PASS  three suites green, the probe solved every instance
+
+== verdict
+every arm behaved
