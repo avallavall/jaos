@@ -533,6 +533,23 @@ static jaos_status sx_init(sx *s, jaos_model *m)
     }
     /* The one write to cost0 (D121). */
     memcpy(s->cost0, s->cost, (size_t)s->nvar * sizeof *s->cost0);
+
+#ifndef NDEBUG
+    /* "Infinities survive: no bound changes side." Every scale factor is a
+     * positive power of two (asserted in `scale.c`, D223), so dividing or
+     * multiplying by one moves a bound's magnitude and never its finiteness
+     * or its sign. A factor that reached zero or infinity would turn a real
+     * bound into an absent one, which no predicate downstream can see: the
+     * solve would simply stop enforcing it (D237). */
+    for (int64_t j = 0; j < s->ncol; j++) {
+        assert(isfinite(s->lo[j]) == isfinite(m->col_lower[j]));
+        assert(isfinite(s->up[j]) == isfinite(m->col_upper[j]));
+    }
+    for (int64_t i = 0; i < s->nrow; i++) {
+        assert(isfinite(s->lo[s->ncol + i]) == isfinite(m->row_lower[i]));
+        assert(isfinite(s->up[s->ncol + i]) == isfinite(m->row_upper[i]));
+    }
+#endif
     return JAOS_OK;
 }
 
@@ -641,6 +658,23 @@ static void build_initial_basis(sx *s)
     /* Built rather than patched: the loops above are the whole membership
      * state. */
     jm_nonbasic_build(s->nvar, s->status, s->nbmark);
+
+#ifndef NDEBUG
+    /* "A loan only ever replaced an infinity, so `fake` is enough to undo
+     * it." The loop above is the only place either flag is set and it sets
+     * one only where the bound was not finite, so a faked end is always
+     * sitting on the artificial value. `real_lower`/`real_upper` undo the
+     * loan by reading the flag alone; a faked end holding anything else
+     * means they would hand back an infinity the solve never lent (D237). */
+    for (int64_t v = 0; v < s->nvar; v++) {
+        assert(s->fake[v] != FAKE_LO || s->lo[v] == -ARTIFICIAL_BOUND);
+        assert(s->fake[v] != FAKE_UP || s->up[v] == ARTIFICIAL_BOUND);
+        /* Both ends faked would mean the column was free and got two loans;
+         * the branches above are mutually exclusive. */
+        assert(s->fake[v] == NOT_FAKE || s->fake[v] == FAKE_LO ||
+               s->fake[v] == FAKE_UP);
+    }
+#endif
 }
 
 /* The basis a previous solve or a caller left on the model, installed as the

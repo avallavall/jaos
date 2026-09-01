@@ -244,6 +244,7 @@ and you have the argument. Jump to the entry for the numbers behind it.
 - **[D234](#d234--four-scratch-contracts-become-asserts-and-the-bitmap-the-primal-maintains-had-nothing-checking-it)** — Four scratch contracts become asserts, and the bitmap the primal maintains had nothing checking it
 - **[D235](#d235--four-presolve-contracts-become-asserts-and-one-of-them-was-written-wrong-until-the-population-said-so)** — Four presolve contracts become asserts, and one of them was written wrong until the population said so
 - **[D236](#d236--two-more-presolve-contracts-become-asserts-and-five-items-on-the-debt-list-turn-out-to-be-already-done)** — Two more presolve contracts become asserts, and five items on the debt list turn out to be already done
+- **[D237](#d237--scaling-never-moves-a-bounds-finiteness-and-the-canary-caught-a-stop-point-that-skipped-the-assert-it-was-measuring)** — Scaling never moves a bound's finiteness, and the canary caught a stop point that skipped the assert it was measuring
 
 ---
 
@@ -18461,3 +18462,58 @@ Both are `#ifndef NDEBUG`, so the shipping build is unchanged. All three gate
 sets came back `gate: PASS`, `0 regressed, 0 improved, 0 new`, with
 `bench/results/` byte-identical: 110 solution digests and 29 infeasibility
 verdicts unmoved, over 139 instances.
+
+## D237 — Scaling never moves a bound's finiteness, and the canary caught a stop point that skipped the assert it was measuring
+
+Two contracts from `bench/measurements/02-121/simplex.c.md`.
+`bench/measurements/02-150/`, six arms over all 139 instances.
+
+| the contract | where | the check |
+|---|---|---|
+| infinities survive: no bound changes side | `sx_init` | `isfinite(s->lo[v])` matches the model's, per variable |
+| a loan only ever replaced an infinity | `build_initial_basis` | a faked end always holds the artificial value |
+
+The first is what makes every downstream `isfinite` test mean what it says.
+Every scale factor is a positive power of two (D223), so scaling moves a
+bound's magnitude and never its finiteness or its sign. A factor that reached
+zero would turn a real bound into an absent one, and **the solve would stop
+enforcing a bound it was given with nothing able to report it** — not the
+checker, which judges the original model against the published point, and not
+a digest, which would simply be a different answer.
+
+## The canary caught the instrument, again
+
+Both contracts run once per solve and before any iteration, so the arms stop
+every solve as soon as the starting basis is built: 139 instances in about a
+minute rather than the fifty an assert-enabled Kennington costs when the
+simplex runs (D232, 02-145).
+
+The first version stopped one step too early, after `sx_init` returned. The
+loan assert fired nothing, **and so did its inverted canary** — the signature
+of a check that is never reached rather than one that holds.
+`build_initial_basis` runs later, from the warm/cold choice in
+`jm_dual_simplex`'s retry loop.
+
+Without the canary this would have been written up as "holds on 139
+instances" for an assert no instance executed. That is the third instrument
+failure this session, after D233's breaker that moved the defect out of the
+assert's reach and D235's assert that was simply wrong, and all three were
+caught by the same two habits: invert the assert, and count what the arm saw.
+
+## The arms
+
+| arm | firings | what it says |
+|---|---|---|
+| `intact` | 0 | both hold on all 139 |
+| `canary-scale` | 129 | `sx_init`'s loop is reached on 129 instances |
+| `canary-loan` | 129 | `build_initial_basis`'s loop is too |
+| `break-scale` | 129 | column 0 scaled by zero |
+| `break-loan` | 1 | the loan recorded without moving the bound |
+
+`break-loan` reaches one instance, because it needs a column with an absent
+lower bound and a positive cost — the shape the loan exists for. One is
+enough for what the arm is asked: the assert catches it.
+
+## What it cost
+
+Both are `#ifndef NDEBUG`, so the shipping build is unchanged. GATE-PENDING

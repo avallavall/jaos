@@ -20,6 +20,7 @@ D232 handed forward are both closed.
 | **D234** | four scratch contracts, and `nbmark` on the primal paths, `02-147/` |
 | **D235** | four presolve contracts, `02-148/` |
 | **D236** | two more, and five debt items already done, `02-149/` |
+| **D237** | scaling never moves a bound's finiteness, `02-150/` |
 
 **Three things that session learned, in the order they cost time:**
 
@@ -31,7 +32,10 @@ D232 handed forward are both closed.
    The proposed assert D233 was handed was false the same way.
 3. **A quiet assert needs a canary, and an unreachability claim needs the
    assert INVERTED.** One that is never evaluated is never violated.
-   `bench/measurements/02-148/` and `02-149/` do it both ways.
+   `bench/measurements/02-148/` and `02-149/` do it both ways, and in
+   `02-150/` the canary caught the arm stopping one step before the assert it
+   was measuring — a result that would otherwise have been written up as
+   "holds on 139 instances".
 
 **A presolve assert costs three minutes to judge, not fifty.** Patch an early
 return after `jm_presolve_run` and all 139 instances run in under a minute

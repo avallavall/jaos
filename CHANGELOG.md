@@ -11,6 +11,21 @@ open, `bench/README.md` for the gate, and the commit each entry came from.
 
 ### Added
 
+- **Scaling never moves a bound's finiteness, and a loan only ever replaced
+  an infinity.** Two asserts at the start of a solve: `sx_init` checks
+  `isfinite(s->lo[v])` against the model's for every variable, and
+  `build_initial_basis` checks that a faked end holds the artificial value.
+  The first is what makes every downstream `isfinite` test mean what it says
+  — a scale factor reaching zero would turn a real bound into an absent one
+  and the solve would stop enforcing it, with neither the checker nor a
+  digest able to report why.
+
+  Both hold on all 139 instances, and the inverted canaries show each is
+  reached on 129. The canary is also what caught the arm stopping one step
+  too early: the loan assert lives in `build_initial_basis`, which runs after
+  `sx_init`, so the first run measured an assert no instance executed (D237,
+  `bench/measurements/02-150/`).
+
 - **Two more `presolve.c` contracts are asserts: boxes only narrow, and the
   reduced matrix never carries a row index of -1.** An inverted column box is
   legal input, so the first excludes those columns rather than claiming
