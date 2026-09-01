@@ -1,0 +1,42 @@
+# 02-149 -- two more presolve asserts (D236), over all 139 instances
+# tree: bbb959e WITH UNCOMMITTED CHANGES
+# date: 2026-09-01T07:31:51Z
+# every solve stops when presolve returns; the runner's verdicts are
+# meaningless and the only signal is whether the right assert fired
+
+== intact
+   nothing broken: the tree as it stands, all 139
+   assertion lines=0
+   PASS  nothing fired over 139 instances
+
+== canary-box
+   the box assert inverted: reaching it must fire
+   assertion lines=131
+   fired:     jm_presolve_run: Assertion `cur_cl[j] < m->col_lower[j]' failed
+   PASS  the assert fired
+
+== canary-compaction
+   the compaction assert inverted: reaching it must fire
+   assertion lines=115
+   fired:     jm_presolve_run: Assertion `p->reduced.a_index[dst] < 0' failed
+   PASS  the assert fired
+
+== break-box
+   the fold stops intersecting the implied bound with the box
+   assertion lines=42
+   fired:     jm_presolve_run: Assertion `cur_cl[j] >= m->col_lower[j]' failed
+   PASS  the assert fired
+
+== break-compaction
+   the fill pass keeps a dead row's entry
+   assertion lines=75
+   fired:     jm_presolve_run: Assertion `p->reduced.a_index[dst] >= 0' failed
+   PASS  the assert fired
+
+== restored
+   the recipe again with nothing broken
+   assertion lines=0
+   PASS  nothing fired over 139 instances
+
+== verdict
+every arm behaved

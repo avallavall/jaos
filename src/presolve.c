@@ -937,6 +937,17 @@ JAOS_NODISCARD jaos_status jm_presolve_run(const jaos_model *m, jm_presolve *p,
          * the wrong side of zero, and a NaN fails this too (D235). */
         assert(row_traffic[i] >= 0.0);
     }
+    /* "Boxes only narrow." Past initialisation the one writer of
+     * `cur_cl`/`cur_cu` is the singleton-row fold, and it clamps into the
+     * column's own box (D158), so a live column never leaves the box the
+     * caller gave it. An INVERTED box is legal input (`jaos.h`) and the clamp
+     * is skipped there, so it is excluded rather than asserted about (D236). */
+    for (int64_t j = 0; j < nc; j++) {
+        if (col_dead[j] || m->col_lower[j] > m->col_upper[j])
+            continue;
+        assert(cur_cl[j] >= m->col_lower[j]);
+        assert(cur_cu[j] <= m->col_upper[j]);
+    }
 #endif
 
     /* --- Frozen rows, tested for feasibility once the boxes are final. --
@@ -1094,6 +1105,11 @@ JAOS_NODISCARD jaos_status jm_presolve_run(const jaos_model *m, jm_presolve *p,
             if (row_dead[i])
                 continue;
             p->reduced.a_index[dst] = p->row_map[i];
+            /* "An entry survives only when its column AND its row are alive."
+             * A dead row's `row_map` is -1, so a skip this loop missed lands
+             * here as a row index of -1 and the reduced matrix carries it
+             * into the solve (D236). */
+            assert(p->reduced.a_index[dst] >= 0);
             p->reduced.a_value[dst] = m->a_value[k];
             dst++;
         }

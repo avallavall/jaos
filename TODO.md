@@ -1645,9 +1645,20 @@ is also the one that catches what fixing them breaks.
 > It fired 58 times before anything was committed. **Run the population
 > before landing an assert, not after.**
 >
-> **One item on the `simplex.c` list needs no work: `amark` "zero between
-> iterations".** `jm_pattern_order` asserts the whole bitmap is zero on entry
-> and leaves it zero (D223), and `price_all` is the only path that uses it.
+> **2026-09-01: two more in `presolve.c`** — D236,
+> `bench/measurements/02-149/`. Boxes only narrow, and the reduced matrix
+> never carries a row index of -1.
+>
+> **FIVE items on these lists were already implemented when this session
+> reached them** (D236). Check the code before working from the list:
+>
+> | the item | where it actually landed |
+> |---|---|
+> | `start_*_status` are a pair | D219 |
+> | `jm_model_publish_objective`'s precondition | D219 |
+> | `amark` zero between iterations | D223, inside `jm_pattern_order` |
+> | the reduced model aliases nothing of the caller's | D223 |
+> | `pilot`'s 2.31e-05 | D184; the gap is 5.27e-09 |
 >
 > **Two things came out of the D232 campaign and are open.**
 >

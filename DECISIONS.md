@@ -243,6 +243,7 @@ and you have the argument. Jump to the entry for the numbers behind it.
 - **[D233](#d233--pivot-runs-with-the-verification-still-set-six-times-in-a-million-and-the-assert-the-prose-asked-for-would-abort-three-instances)** — `pivot()` runs with the verification still set six times in a million, and the assert the prose asked for would abort three instances
 - **[D234](#d234--four-scratch-contracts-become-asserts-and-the-bitmap-the-primal-maintains-had-nothing-checking-it)** — Four scratch contracts become asserts, and the bitmap the primal maintains had nothing checking it
 - **[D235](#d235--four-presolve-contracts-become-asserts-and-one-of-them-was-written-wrong-until-the-population-said-so)** — Four presolve contracts become asserts, and one of them was written wrong until the population said so
+- **[D236](#d236--two-more-presolve-contracts-become-asserts-and-five-items-on-the-debt-list-turn-out-to-be-already-done)** — Two more presolve contracts become asserts, and five items on the debt list turn out to be already done
 
 ---
 
@@ -18401,3 +18402,59 @@ verdicts unmoved, over 139 instances.
 
 `simplex.c` and `presolve.c` still carry most of the 137 contracts, and the
 two `lu.c` checks that are not asserts. `TODO.md` has the count.
+
+## D236 — Two more presolve contracts become asserts, and five items on the debt list turn out to be already done
+
+Two contracts from `bench/measurements/02-121/presolve.c.md`.
+`bench/measurements/02-149/`, six arms over all 139 instances.
+
+| the contract | the check |
+|---|---|
+| boxes only narrow | a live column never leaves the box the caller gave it |
+| an entry survives only when its column AND its row are alive | the reduced matrix never carries a row index of -1 |
+
+An INVERTED box is legal input (`jaos.h`) and the singleton-row fold's clamp
+is skipped there, so the first assert excludes those columns rather than
+claiming anything about them.
+
+## Three questions per assert, and this batch answers all three
+
+| arm | firings | what it says |
+|---|---|---|
+| `intact` | 0 | both hold on all 139 |
+| `canary-box` | 131 | the box loop is reached on 131 instances |
+| `canary-compaction` | 115 | the fill loop is reached on 115 |
+| `break-box` | 42 | the fold taking the implied bound without intersecting the box |
+| `break-compaction` | 75 | the fill pass keeping a dead row's entry |
+| `restored` | 0 | — |
+
+Reached, quiet, and fired by a realistic one-line defect. D233's assert could
+answer only the first two, and D232's FORCING assert only the first.
+
+## The debt list is stale, and that is now the expensive part
+
+Five items on the two contract lists were already implemented when this
+session reached them:
+
+| the item | where it actually landed |
+|---|---|
+| `start_col_status`/`start_row_status` are a pair | D219, `JM_BASIS_PAIRED` at its three readers |
+| `jm_model_publish_objective` needs the status and six arrays | D219, seven asserts |
+| `amark` is zero between iterations | D223, inside `jm_pattern_order` |
+| the reduced model aliases nothing of the caller's | D223, at `jm_postsolve_expand` |
+| `pilot` publishes 2.31e-05 above the optimum | D184, and the gap is 5.27e-09 (D233) |
+
+None of these was a mistake in the code. Every one was a statement in
+`TODO.md` or in a purge report that stayed as it was written while the code
+moved past it. Two of them cost a real detour this session: D233 was handed
+`pilot` as a live lead, and the `assert(!s->verified)` it was also handed was
+false.
+
+**The rule this reinforces is `CLAUDE.md`'s first one.** A statement lives in
+exactly one place. A debt list is a statement about the code, so it has to be
+checked against the code before it is worked from — grep for the symbol
+first, and only then write the assert.
+
+## What it cost
+
+Both are `#ifndef NDEBUG`, so the shipping build is unchanged. GATE-PENDING

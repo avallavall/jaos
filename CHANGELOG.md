@@ -11,6 +11,21 @@ open, `bench/README.md` for the gate, and the commit each entry came from.
 
 ### Added
 
+- **Two more `presolve.c` contracts are asserts: boxes only narrow, and the
+  reduced matrix never carries a row index of -1.** An inverted column box is
+  legal input, so the first excludes those columns rather than claiming
+  anything about them. Both are reached (inverted, they fire on 131 and 115
+  of 139 instances), quiet on all 139, and fired by a realistic one-line
+  defect — the three questions an assert has to answer, and the first batch
+  here to answer all three (D236, `bench/measurements/02-149/`).
+
+  **Five items on the assert-debt list turned out to be already
+  implemented**: the `start_*_status` pair and
+  `jm_model_publish_objective`'s precondition at D219, `amark` and the
+  reduced model's non-aliasing at D223, and `pilot`'s 2.31e-05 at D184. None
+  was a defect in the code; each was a statement that stayed as written while
+  the code moved past it.
+
 - **Four `presolve.c` contracts are asserts, and one of them was wrong until
   the gate population said so.** The round count never passes the structural
   backstop; `row_traffic` is a magnitude; an already-infinite row end is not
