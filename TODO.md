@@ -1599,12 +1599,19 @@ is also the one that catches what fixing them breaks.
 > further notes here are simply wrong now: `jaos_set_coefficient` does call
 > `model_matrix_is_stale` (`src/model.c:315`), and `-ffast-math` is already
 > a build error. **What is genuinely left in this section is `simplex.c`'s
-> 65 contracts and `presolve.c`'s 72**, plus the four `model.c` and
-> `jaos_internal.h` items D227-D230 did not reach: `start_*_status` both
-> null or both set, `jm_model_publish_objective`'s six arrays, and the two
-> `lu.c` checks that are not asserts (`btran_u_pattern`'s order,
-> `compact_pivot_row`'s duplicates). The per-file lines are kept below for
-> what each one names.
+> 65 contracts and `presolve.c`'s 72**, plus the two `lu.c` checks that are
+> not asserts (`btran_u_pattern`'s order, `compact_pivot_row`'s duplicates).
+> The per-file lines are kept below for what each one names.
+>
+> **2026-09-01: two of the four items this note called open were already
+> closed, by D219 on 2026-08-29** (D233). `start_col_status` and
+> `start_row_status` being both null or both set is the `JM_BASIS_PAIRED`
+> macro in `src/model.c`, asserted at its three readers;
+> `jm_model_publish_objective` opens with seven asserts, the OPTIMAL status
+> and all six solution arrays. The note read
+> "D227-D230 did not reach them", which was true and is not the same claim
+> as "they are open". **Check the code before believing a list of what is
+> left**; this is the same shape as the `pilot` row D233 found stale.
 >
 > **2026-09-01: ten of `simplex.c`'s and `presolve.c`'s contracts are checks
 > now** — D232, `bench/measurements/02-145/`. Eleven asserts, because the
