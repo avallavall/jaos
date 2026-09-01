@@ -1345,12 +1345,25 @@ static void ps_replay_one(jaos_model *orig, const jm_presolve *p, int64_t r,
             (dc > 0.0 && rec->row_tightens_lo && v0 == rec->lo) ||
             (dc < 0.0 && rec->row_tightens_hi && v0 == rec->hi);
 
+        /* The divisor below, on the branch this row owns. A singleton row has
+         * exactly one live entry and it is what `coef` records, so a zero
+         * here makes every dual this row publishes infinite (D238). */
+        assert(rec->coef != 0.0);
+
         double y_i;
         if (zero_works || !this_row_owns) {
             y_i = 0.0;
         } else {
             /* x_j rests at a bound the ROW induced, which the ORIGINAL
-             * column never had: interior there, so BASIC. */
+             * column never had: interior there, so BASIC.
+             *
+             * `zero_works` is false, so `v0` is not ON the caller's bound on
+             * `d0`'s side, and the fold only ever narrows (D236) — so it is
+             * strictly inside it. A value sitting exactly on the caller's
+             * bound here would be published BASIC while resting on a bound,
+             * which is what the checker's basis predicate rejects (D238). */
+            assert(dc > 0.0 ? v0 > orig->col_lower[j]
+                            : v0 < orig->col_upper[j]);
             y_i = d0 / rec->coef;
             orig->sol_redcost[j] = 0.0;
             orig->sol_col_status[j] = JAOS_BASIS_BASIC;

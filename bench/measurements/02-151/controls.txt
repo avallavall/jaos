@@ -1,0 +1,44 @@
+# 02-151 -- two SINGLETON_ROW replay contracts (D238)
+# tree: ff62300 WITH UNCOMMITTED CHANGES
+# date: 2026-09-01T08:08:20Z
+# postsolve asserts, so the whole solve runs: 94 standard and 29
+# infeasible per arm. Kennington is left out because six arms of it is
+# five hours; the two asserts are presolve-family and the standard set
+# carries every family (bench/README.md)
+
+== intact
+   nothing broken: the tree as it stands
+   assertion lines=0
+   PASS  nothing fired
+
+== canary-coef
+   the coef assert inverted: reaching it must fire
+   assertion lines=70
+   fired:     ps_replay_one: Assertion `rec->coef == 0.0' failed
+   PASS  the assert fired
+
+== canary-interior
+   the interior assert inverted: reaching it must fire
+   assertion lines=61
+   fired:     ps_replay_one: Assertion `dc > 0.0 ? v0 <= orig->col_lower[j] : v0 >= orig->col_upper[j]' failed
+   PASS  the assert fired
+
+== break-coef
+   the singleton-row record keeps a zero coefficient
+   assertion lines=70
+   fired:     ps_replay_one: Assertion `rec->coef != 0.0' failed
+   PASS  the assert fired
+
+== break-interior
+   a record owns a bound it did not induce, and zero_works stops noticing
+   assertion lines=48
+   fired:     ps_replay_one: Assertion `dc > 0.0 ? v0 > orig->col_lower[j] : v0 < orig->col_upper[j]' failed
+   PASS  the assert fired
+
+== restored
+   the recipe again with nothing broken
+   assertion lines=0
+   PASS  nothing fired
+
+== verdict
+every arm behaved

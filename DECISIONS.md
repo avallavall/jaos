@@ -245,6 +245,7 @@ and you have the argument. Jump to the entry for the numbers behind it.
 - **[D235](#d235--four-presolve-contracts-become-asserts-and-one-of-them-was-written-wrong-until-the-population-said-so)** — Four presolve contracts become asserts, and one of them was written wrong until the population said so
 - **[D236](#d236--two-more-presolve-contracts-become-asserts-and-five-items-on-the-debt-list-turn-out-to-be-already-done)** — Two more presolve contracts become asserts, and five items on the debt list turn out to be already done
 - **[D237](#d237--scaling-never-moves-a-bounds-finiteness-and-the-canary-caught-a-stop-point-that-skipped-the-assert-it-was-measuring)** — Scaling never moves a bound's finiteness, and the canary caught a stop point that skipped the assert it was measuring
+- **[D238](#d238--two-singleton-row-replay-contracts-one-contract-on-the-list-that-is-a-tautology-and-a-property-guarded-twice-again)** — Two singleton-row replay contracts, one contract on the list that is a tautology, and a property guarded twice again
 
 ---
 
@@ -18520,3 +18521,61 @@ Both are `#ifndef NDEBUG`, so the shipping build is unchanged. All three gate
 sets came back `gate: PASS`, `0 regressed, 0 improved, 0 new`, with
 `bench/results/` byte-identical: 110 solution digests and 29 infeasibility
 verdicts unmoved, over 139 instances.
+
+## D238 — Two singleton-row replay contracts, one contract on the list that is a tautology, and a property guarded twice again
+
+Two contracts from `bench/measurements/02-121/presolve.c.md`.
+`bench/measurements/02-151/`, six arms.
+
+| the contract | the check |
+|---|---|
+| the row's coefficient is the divisor | `rec->coef != 0.0` before the branch that divides by it |
+| the owned bound is one the ROW induced | `dc > 0.0 ? v0 > col_lower[j] : v0 < col_upper[j]` |
+
+## One item on the list cannot fail, so it was not taken
+
+The list proposes asserting `v0 == rec->lo || v0 == rec->hi` inside the
+`this_row_owns` branch. **That branch is defined by that equality**, so the
+assert restates its own precondition and no edit to the file can violate it.
+
+The divisor guard replaces it and is real: a singleton row has exactly one
+live entry, `coef` is what records it, and a zero there makes every dual the
+row publishes an infinity. `break-coef` fires it on 70 instances.
+
+This is the second kind of bad item found on these lists, after the five that
+were already implemented (D236). A proposed assert can be already done, it can
+be false (D235), or it can be unfalsifiable. **Read what the branch already
+guarantees before writing the assert inside it.**
+
+## The interior property is guarded twice, which the quiet arm is what found
+
+`break-interior` first removed only `zero_works`'s two bound tests and fired
+nothing on 123 instances. That is not a gap: `this_row_owns` requires
+`row_tightens_lo`, and a row that tightened put `rec->lo` strictly above the
+caller's bound, so `v0 == rec->lo` is already strictly interior whatever
+`zero_works` says.
+
+The breaker that fires also lets a record claim a bound it did not induce.
+Either guard alone covers the property — the same shape as D232's FORCING
+double guard and D233's two reenter clears, now the third time this pattern
+has turned up in the presolve and simplex contracts.
+
+## The arms
+
+| arm | firings | what it says |
+|---|---|---|
+| `intact` | 0 | both hold |
+| `canary-coef` | 70 | the divisor line is reached on 70 instances |
+| `canary-interior` | 61 | the owned branch is reached on 61 |
+| `break-coef` | 70 | a zero coefficient in the record |
+| `break-interior` | 48 | a record owning a bound it did not induce |
+| `restored` | 0 | — |
+
+These are postsolve asserts, so the whole solve runs and there is no early
+return to lean on (D235, D237). Kennington is left out and the record says
+so: six arms of it under `-UNDEBUG` is about five hours, and the standard set
+carries every presolve family.
+
+## What it cost
+
+Both are `#ifndef NDEBUG`, so the shipping build is unchanged. GATE-PENDING

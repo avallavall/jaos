@@ -21,12 +21,16 @@ D232 handed forward are both closed.
 | **D235** | four presolve contracts, `02-148/` |
 | **D236** | two more, and five debt items already done, `02-149/` |
 | **D237** | scaling never moves a bound's finiteness, `02-150/` |
+| **D238** | two singleton-row replay contracts, `02-151/` |
 
 **Three things that session learned, in the order they cost time:**
 
-1. **The debt list is stale. Grep for the symbol before writing the assert.**
-   Five of its items were already implemented (the table is in the assert-debt
-   section below). Two of them cost a real detour.
+1. **A proposed assert on the debt list can be wrong in three ways.** Already
+   implemented — five of them were, and the table is in the assert-debt
+   section below (D236). **False** — D235's read true and fired 58 times.
+   **Unfalsifiable** — D238's restates the equality that defines the branch it
+   sits in. Grep for the symbol, then read what the branch already
+   guarantees, and only then write it.
 2. **Run the gate population BEFORE landing an assert.** D235 wrote one that
    read true, passed every unit suite, and fired 58 times on the population.
    The proposed assert D233 was handed was false the same way.

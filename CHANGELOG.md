@@ -11,6 +11,19 @@ open, `bench/README.md` for the gate, and the commit each entry came from.
 
 ### Added
 
+- **Two singleton-row replay contracts are asserts: the row's coefficient is
+  the divisor, and the bound it claims to own is one it induced.** Both hold
+  on 94 standard and 29 infeasible instances, both are reached (70 and 61),
+  and both are fired by a defect.
+
+  **One contract on the debt list was not taken, because it cannot fail**: it
+  proposes asserting the equality that defines the branch it sits inside. A
+  proposed assert can be already implemented (D236), false (D235), or
+  unfalsifiable; this is the third kind. The interior property also turns out
+  to be guarded twice, so breaking one guard fires nothing — the same shape as
+  D232's FORCING assert and D233's reenter clears (D238,
+  `bench/measurements/02-151/`).
+
 - **Scaling never moves a bound's finiteness, and a loan only ever replaced
   an infinity.** Two asserts at the start of a solve: `sx_init` checks
   `isfinite(s->lo[v])` against the model's for every variable, and
