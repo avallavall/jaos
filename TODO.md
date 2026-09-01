@@ -40,6 +40,8 @@ byte-identical.
 | **D242** | D101's reopen condition is executable and still holds. Zero removable rows or columns on all 15 plato instances (`02-154/`) |
 | **D243** | Python, over ctypes and the standard library. `make shared`, then `make python-test` (`02-155/`) |
 | — | seven more free sources read for the Devex recurrence, none has it |
+| **D244** | an approximate edge rule for the primal, derived here and **refused**: it loses to Dantzig at every setting swept. The derivation is kept, the code is not (`02-156/`) |
+| **D245** | half the forced primal's failures were a round backstop that binds. 61 of 94 agreeing becomes 75. The constant is two constants now, one per solve path, because the dual reaches the old bound too (`02-157/`) |
 
 **The handover's feature list is finished.** What is left needs a decision
 that is not Claude's to make.
