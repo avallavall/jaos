@@ -18392,8 +18392,10 @@ the canary is what makes the quiet result mean something.
 
 ## What it cost
 
-All four are `#ifndef NDEBUG`, so the shipping build is unchanged.
-GATE-PENDING
+All four are `#ifndef NDEBUG`, so the shipping build is unchanged. All three
+gate sets came back `gate: PASS`, `0 regressed, 0 improved, 0 new`, with
+`bench/results/` byte-identical: 110 solution digests and 29 infeasibility
+verdicts unmoved, over 139 instances.
 
 ## What is left
 
