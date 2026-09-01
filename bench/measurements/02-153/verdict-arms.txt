@@ -1,0 +1,12 @@
+tree: 7d92921
+
+arm 1, verdict off, default build:   test_the_primal_declares_a_ray_it_meets_in_phase_2 
+arm 1, verdict off, reference build: test_the_primal_declares_a_ray_it_meets_in_phase_2 test_the_primal_declares_a_ray_through_a_free_column 
+arm 2, no cost ever owed:            none
+no arm, default build:               none
+no arm, reference build:             none
+
+VERDICT: PASS. The verdict is what makes the ray tests green, both
+of them once presolve is out of the way. Arm 2 moves nothing, and
+that is reported rather than claimed as evidence: no model here
+reaches the branch with a cost still borrowed.

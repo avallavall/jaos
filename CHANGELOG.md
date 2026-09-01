@@ -11,6 +11,19 @@ open, `bench/README.md` for the gate, and the commit each entry came from.
 
 ### Added
 
+- **The primal simplex decides an unbounded ray it meets in phase 2**,
+  instead of refusing there. The condition added is that no borrowed cost is
+  outstanding; the rest of D19's proof was already standing at that line, and
+  a second opinion written for it turned out to restate the first and was
+  deleted.
+
+  **0 firings in 102 phase-2 ratio tests on the standard set**, because the
+  dual re-entry takes the model after about one phase-2 iteration. Two
+  constructed models reach it and both go red without the verdict. A separate
+  ray that moves two columns at once is still refused, and the refusal no
+  longer claims the optimum is finite: capping that model gives exactly -2x
+  the cap over nine orders of magnitude (D241, `bench/measurements/02-153/`).
+
 - **Both readers take a gzip-compressed file.** `src/inflate.c` is a gzip and
   DEFLATE decoder written here, because JAOS links nothing but libc and libm.
   The choice is made on the file's first two bytes, so no new call and no new

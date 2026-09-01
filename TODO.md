@@ -33,8 +33,6 @@ It is PAUSED. Do not add asserts. Do not run control campaigns.
 
 | | why it is next |
 |---|---|
-| **Devex pricing** (§0 stage 5) | unblocks crossover, which unblocks D97 |
-| **the unboundedness verdict** (§0 stage 7) | same section, D19 is the constraint |
 | **presolve: duplicate rows/columns, dominated columns** | already has its reopen condition written (D101) |
 | **sensitivity and ranging** | real user value, isolated from the solver |
 | **Python bindings** | the most user value, and touches no solver code |
@@ -51,9 +49,39 @@ decoder written here; both readers detect it from the first two bytes.
 `record-check` refused the commit until `docs/claims.txt` and the `SPECS.md`
 row moved, which is the mechanism working. The evidence is 369 comparisons
 against the real `gzip` over 123 instances plus 31 large ones, all
-byte-identical, and 13 unit tests.
+byte-identical, and 15 unit tests (D240, `bench/measurements/02-152/`).
 
-**Nothing is half-done. Start at Devex pricing.**
+**Stage 7, the unboundedness verdict, landed 2026-09-01** (D241,
+`bench/measurements/02-153/`). It is smaller than this file said it was:
+`classify_optimum` already answered UNBOUNDED for every model whose ray is
+one column leaving a lent bound, and the forced primal already shared it.
+What was missing was the branch inside phase 2, and it fires zero times on
+the standard set.
+
+**Devex pricing is the next line of §0 and it is BLOCKED.** Its weight-update
+recurrence and reset threshold are in Harris (1973), which is paywalled and
+appears in none of the nine free sources read. The copy in
+`docs/research/primal-simplex.md` §3 is unverified and must not be coded
+from. Getting a citable source is what unblocks it; nothing else in the tree
+does.
+
+**Two new open items, both from D241:**
+
+- **A ray that moves several columns at once is not decided.**
+  `improves_without_limit` moves one column, so a model unbounded only along
+  a combined direction reaches the refusal instead of a verdict. `min -p - q`
+  over `p - q = 0, p + q >= 2` with neither column capped is one, and the cap
+  ladder in `tests/test_simplex.c` proves it unbounded. The refusal is safe —
+  a missing answer, not a wrong one — and its message no longer claims the
+  optimum is finite. Deciding these needs a ray test over a direction rather
+  than over a column.
+- **The forced primal reads 61 ok, 30 DISAGREE, 3 overrun on the standard
+  94.** The campaign reports it every run and it is not new, but nothing in
+  this file tracks it. Most disagreements are `the settled point is not dual
+  feasible` from a cold start; the 3 overruns are Dantzig pricing, which is
+  stage 5. Read from a run on 2026-09-01, `make primal J=12`.
+
+**Nothing is half-done. Start at presolve duplicates, or unblock Devex.**
 
 ### → the earlier handover, for the assert work that is now paused
 
@@ -1533,7 +1561,7 @@ in `price_row:1700` are the machinery, and D26 is the decision behind them.
 | 4 | ~~phase 1 (Maros 1986) from a given basis~~ | **DONE 2026-08-25, short-step form** — 0 of 94 to 64 of 94 (D190) |
 | 5 | **Devex** | **Harris (1973), paywalled** |
 | 6 | ~~**`can_move`'s units** — D184's stated reopen~~ | **DONE 2026-08-28** — D214, `bench/measurements/02-129/`. `can_move` reads `breached(s, v)`: a rate against a rate, in both spaces. `netlib` 94 of 94 and `netlib-infeas` 29 of 29 bit-identical; on Kennington `pds-20` publishes the same objective from a different vertex for **a fifth of the work** (90938 iterations to 44790) and `pds-06` for 0.8297x, a work geometric mean of 0.8930x over the 16. **The two arms measured are byte-identical on all three sets** — the scaled rate alone and the union — so the union is chosen by argument: `wants_a_pivot` already filters with `breached` over the complementary case, and the gap the scaled arm leaves is reachable through the public `jaos_set_dual_tolerance`. **D27 chose the product to avoid choosing a space, and `pds-20`, the instance D27 chose it for, is the one that pays for it** |
-| 7 | **the unboundedness verdict, and D19's refusal** | stage 4 |
+| 7 | ~~the unboundedness verdict, and D19's refusal~~ | **DONE 2026-09-01** — D241, `bench/measurements/02-153/`. `run_primal`'s phase 2 returns `JAOS_SOLVE_UNBOUNDED` where it refused, on one added condition: no borrowed cost outstanding. The rest of D19's proof was already standing at that line, and a second opinion written for it restated the first and was deleted — `primal_apply_floor` returns the unfiltered list when its floor would empty one, so it can never remove the last candidate. **0 firings in 102 phase-2 ratio tests** on the standard set, because the dual re-entry takes the model after about one phase-2 iteration; two constructed models reach it, both where the loaded column is pulled into the basis. **A ray that moves two columns at once is still not decided**, and that is the new item below |
 | 8 | ~~a relative pivot floor in the two primal ratio tests~~ | **DONE 2026-08-26** — `PIVOT_MARGIN = 1.0`, one ulp of the column's own largest entry, swept on both sides in `bench/measurements/02-122/` (D207). 56 of 94 agree against 55, and the one `ERROR` is gone |
 | 8a | ~~the `alpha[q]` side is still absolute~~ | **DONE 2026-08-27** — the three sites apply `PIVOT_MARGIN` against `sum_i \|rho_i * a_iq\|` as well (D209, `bench/measurements/02-124/`). The census turned the question around: `PIVOT_MIN` there is a **stability** floor, and every call it rejects has `alpha[q]` equal to its own traffic to seventeen digits. The noise floor was the one missing, and `scsd1` was pivoting at a third of one ulp |
 | 8b | ~~does the floor weaken Bland's finiteness argument?~~ | **CLOSED 2026-08-27 — it does not** (D208, `bench/measurements/02-123/`). Thirteen instances' phase-1 counts move and **twelve arm Bland's rule zero times**, as do all three controls. `pilot87` arms it once, at iteration 343682, *after* its own objective has already begun rising |

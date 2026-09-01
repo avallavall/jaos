@@ -2051,6 +2051,18 @@ static bool repay_shifts(sx *s)
     return any;
 }
 
+/* The same question without repaying: does the solve still owe a cost? A
+ * verdict read off a reduced cost is a verdict about whichever objective
+ * that cost belongs to, so anything deciding one asks this first. Tests
+ * the cost as well as the record, for the reason above. */
+static bool shifts_outstanding(const sx *s)
+{
+    for (int64_t v = 0; v < s->nvar; v++)
+        if (s->cost[v] != s->cost0[v] || s->shift[v] != 0.0)
+            return true;
+    return false;
+}
+
 /* Calls in the loans, recomputes the duals from the model's own costs,
  * then repairs what the true costs leave infeasible. */
 static void settle_shifts(sx *s)
@@ -2773,8 +2785,18 @@ static bool improves_without_limit(sx *s, int64_t j)
 /* The verdict on a point the bounded problem calls optimal. A ray off an
  * invented bound is unbounded; no column held by a loan is optimal. What
  * is left is a column stopped by a real constraint past the bound phase 1
- * lent: the solve refuses. Lifting the loan and re-solving is `TODO.md`
- * section 0 stage 7 (D188). */
+ * lent: the solve refuses.
+ *
+ * `improves_without_limit` moves ONE column, so what this proves is the
+ * existence of a ray along a single column's direction. A model can be
+ * unbounded along a direction that moves several at once and reach this
+ * refusal, and one does: `min -p - q` over `p - q = 0, p + q >= 2` with
+ * both columns free above. Capping p there gives an optimum of exactly
+ * -2p over nine orders of magnitude, so the uncapped model has no finite
+ * optimum (D241, `bench/measurements/02-153/`). The refusal is still safe,
+ * because it is a missing answer and not a wrong one, and the message says
+ * only what was actually established. Deciding those directions is open
+ * work in `TODO.md` section 0. */
 static jaos_solve_status classify_optimum(sx *s)
 {
     int64_t blocked = -1;
@@ -2792,9 +2814,12 @@ static jaos_solve_status classify_optimum(sx *s)
         return JAOS_SOLVE_OPTIMAL;
 
     jm_set_err(s->m, "column %lld improves past the bound dual phase 1 lent "
-                     "it, and a constraint stops it short of infinity: the "
-                     "optimum is finite but lies beyond the reach of this "
-                     "phase 1", (long long)blocked);
+                     "it, and moving that column alone runs into a "
+                     "constraint; the model is therefore either bounded at "
+                     "an optimum beyond the reach of this phase 1, or "
+                     "unbounded along a direction that moves several columns "
+                     "at once, and this test decides neither",
+                     (long long)blocked);
     return JAOS_SOLVE_NUMERICAL_ERROR;
 }
 
@@ -3556,9 +3581,10 @@ static jaos_status run_primal(sx *s, jaos_solve_status *out)
         }
 
         if (r < 0) {
-            /* Nothing the model declared stops this column. Not declared
-             * unbounded (D19): the column may be leaving a bound dual phase
-             * 1 invented. That verdict is §0 stage 7. */
+            /* Nothing the ratio test looked at stops this column. The
+             * verdict is taken below, on a freshly computed point, and only
+             * when the ray is proved a second way. Carried numbers first
+             * (D20): a stale point is not evidence of anything. */
             if (!verified_fresh(s)) {
                 st = refresh(s, &ok, true);
                 if (st != JAOS_OK)
@@ -3570,12 +3596,41 @@ static jaos_status run_primal(sx *s, jaos_solve_status *out)
                 set_verified(s, true);
                 continue;
             }
+
+            /* The ray D19 asks for, and every part of the proof is already
+             * standing here:
+             *
+             * - No basic meets a bound THE MODEL DECLARED. That is what
+             *   `r < 0` says and nothing weaker: the ratio test reads
+             *   `real_lower`/`real_upper` only, and its relative floor
+             *   hands back the unfiltered list rather than an empty one, so
+             *   a candidate can never be filtered out of existence.
+             * - q meets no declared bound of its own. The bound flip above
+             *   would have taken it otherwise: `step` is `HUGE_VAL` here,
+             *   so a finite opposite bound always satisfies its test.
+             * - The point is primal feasible for those bounds, because
+             *   phase 2 keeps it so and a loan only ever tightened one.
+             * - It is freshly computed, checked just above (D20).
+             *
+             * The one part that is not structural is the objective. A cost
+             * the solve borrowed makes `d[q]` a reduced cost of a shifted
+             * problem, and a ray of that is not a ray of the model's.
+             *
+             * This is the same standard the dual's verdict already holds:
+             * `improves_without_limit` skips a row moving slower than
+             * `PIVOT_MIN` too, so both verdicts read a ray off the rows
+             * they can tell from zero (D210). */
+            if (!shifts_outstanding(s)) {
+                *out = JAOS_SOLVE_UNBOUNDED;
+                return JAOS_OK;
+            }
             jm_set_err(s->m,
                        "column %lld improves and no declared bound stops it, "
-                       "on a freshly computed point; reading that as an "
-                       "unbounded ray needs the proof D19 requires, and the "
-                       "column may be leaving a bound dual phase 1 invented "
-                       "rather than one the model declared",
+                       "on a freshly computed point, but a cost this solve "
+                       "borrowed is still outstanding: the reduced cost that "
+                       "says the column improves belongs to a shifted "
+                       "objective, and a ray of that is not the ray D19 "
+                       "requires of the model's own",
                        (long long)q);
             return JAOS_ERR_NUMERICAL;
         }

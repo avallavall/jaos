@@ -1,0 +1,19 @@
+tree: 7d92921
+make primal exit 2; a non-zero exit is expected, the primal DISAGREEs
+with the dual on some instances and that is its own open work.
+
+phase-2 ratio tests run:            102   <- the control
+columns nothing blocked:            0
+decided UNBOUNDED there:            0
+
+phase-2 iterations per instance, as the campaign reports them:
+     83 p2:1
+      4 p2:2
+      4 p2:0
+      2 p2:3
+      1 p2:5
+
+VERDICT: unreached on this set, in 102 phase-2 ratio tests. Phase 2
+runs about one iteration per instance before the dual re-entry
+takes the model, so the branch has very little chance to appear
+here. tests/test_simplex.c carries the models that do reach it.

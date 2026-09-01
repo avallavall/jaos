@@ -3897,6 +3897,176 @@ static void test_the_iteration_split_is_written_on_an_interrupted_exit(void)
 #endif
 }
 
+/* The primal's own unboundedness verdict (TODO.md §0 stage 7).
+ *
+ * The dual reaches this verdict through `classify_optimum`: a column held
+ * by a bound phase 1 lent it, whose direction meets nothing real. That
+ * catches every unbounded model whose ray is one column leaving its
+ * starting bound, which is most of them, and the primal shares it.
+ *
+ * These two are the ones it does not catch. In both, the column carrying
+ * the negative cost is pulled into the BASIS on the way, so at the end
+ * there is no column sitting on a loan to read the verdict off. The primal
+ * meets the ray during phase 2 instead, as a column nothing blocks, and
+ * before this test existed it refused there rather than deciding.
+ *
+ * The dual is the oracle: it answers UNBOUNDED on both, so the primal
+ * agreeing is the whole claim. Run both ways for exactly that reason. */
+static void solved_both_ways_as_unbounded(jaos_model *m)
+{
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT_MESSAGE(JAOS_SOLVE_UNBOUNDED, jaos_status_of(m),
+                                  "the dual, which is the oracle here");
+    m->cfg.force_primal = true;
+    jaos_clear_basis(m);
+    TEST_ASSERT_EQUAL_INT_MESSAGE(JAOS_OK, jaos_solve(m),
+                                  jaos_model_error(m));
+    TEST_ASSERT_EQUAL_INT_MESSAGE(JAOS_SOLVE_UNBOUNDED, jaos_status_of(m),
+                                  "the primal must agree with the dual");
+}
+
+/* min -y  s.t. y - w = 0, x + w >= 3, x in [0,1], y and w >= 0 with no
+ * ceiling. w may grow without limit, y follows it, and the objective runs
+ * to -inf. The `>=` row gives phase 1 something to repair first. */
+static void test_the_primal_declares_a_ray_it_meets_in_phase_2(void)
+{
+    const double c[] = {-1.0, 0.0, 0.0};
+    const double cl[] = {0.0, 0.0, 0.0};
+    const double cu[] = {INFINITY, INFINITY, 1.0};
+    const double rl[] = {0.0, 3.0}, ru[] = {0.0, INFINITY};
+    const int64_t as[] = {0, 1, 3, 4};
+    const int64_t ai[] = {0, 0, 1, 1};
+    const double av[] = {1.0, -1.0, 1.0, 1.0};
+
+    jaos_model *m = fresh();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_load_lp(m, 3, 2, JAOS_MINIMIZE, 0.0, c, cl, cu, rl, ru,
+                     4, as, ai, av));
+    solved_both_ways_as_unbounded(m);
+    jaos_model_free(m);
+}
+
+/* min z  s.t. z + w = 0, z free, w >= 0 with no ceiling. w grows, z = -w
+ * follows it down, and the objective is z. A free column needs no loan at
+ * all, so there is nothing for the lent-bound verdict to look at. */
+static void test_the_primal_declares_a_ray_through_a_free_column(void)
+{
+    const double c[] = {1.0, 0.0};
+    const double cl[] = {-INFINITY, 0.0};
+    const double cu[] = {INFINITY, INFINITY};
+    const double rl[] = {0.0}, ru[] = {0.0};
+    const int64_t as[] = {0, 1, 2}, ai[] = {0, 0};
+    const double av[] = {1.0, 1.0};
+
+    jaos_model *m = fresh();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_load_lp(m, 2, 1, JAOS_MINIMIZE, 0.0, c, cl, cu, rl, ru,
+                     2, as, ai, av));
+    solved_both_ways_as_unbounded(m);
+    jaos_model_free(m);
+}
+
+/* The bounded neighbour of the first one, one sign apart: the equality caps
+ * the pair instead of tying them together.
+ *
+ *   min -y  s.t. y + w = 3, x + w >= 3, x in [0,1], y, w >= 0
+ *
+ * The second row forces w >= 2, the equality then caps y at 1, and the
+ * optimum is -1. No ray exists and neither method may report one.
+ *
+ * This is a regression test and not a control. It was written as one, and
+ * the arm that would make it a control was run and did not move it: with
+ * the verdict forced to fire, this model still solves, because it never
+ * reaches the branch at all (`bench/measurements/02-153/`). What it does
+ * hold is the pair — two models one sign apart, one a ray and one not. */
+static void test_a_bounded_neighbour_of_that_model_is_not_a_ray(void)
+{
+    const double c[] = {-1.0, 0.0, 0.0};
+    const double cl[] = {0.0, 0.0, 0.0};
+    const double cu[] = {INFINITY, INFINITY, 1.0};
+    const double rl[] = {3.0, 3.0}, ru[] = {3.0, INFINITY};
+    const int64_t as[] = {0, 1, 3, 4};
+    const int64_t ai[] = {0, 0, 1, 1};
+    const double av[] = {1.0, 1.0, 1.0, 1.0};
+
+    jaos_model *m = fresh();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_load_lp(m, 3, 2, JAOS_MINIMIZE, 0.0, c, cl, cu, rl, ru,
+                     4, as, ai, av));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+    double obj = 0.0;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(m, &obj));
+    TEST_ASSERT_DOUBLE_WITHIN(1e-9, -1.0, obj);
+
+    m->cfg.force_primal = true;
+    jaos_clear_basis(m);
+    TEST_ASSERT_EQUAL_INT_MESSAGE(JAOS_OK, jaos_solve(m),
+                                  jaos_model_error(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(m, &obj));
+    TEST_ASSERT_DOUBLE_WITHIN(1e-9, -1.0, obj);
+    jaos_model_free(m);
+}
+
+/* The gap the verdict above does not close, pinned so that closing it is
+ * noticed.
+ *
+ *   min -p - q  s.t. p - q = 0, p + q >= 2, p and q >= 0, neither capped
+ *
+ * The equality ties the two together and the inequality pushes the pair
+ * out, so p = q may grow for ever and the objective is -2p. Moving either
+ * column ALONE runs into the equality, which is all `improves_without_limit`
+ * ever tries, so the ray is invisible to it and the solve refuses.
+ *
+ * That refusal is a missing answer and not a wrong one, which is why this
+ * test asserts it rather than calling it a defect. The second half is the
+ * evidence that the model really is unbounded, and JAOS cannot be its own
+ * witness here: cap p and the optimum comes back as exactly -2 times the
+ * cap, at every size tried. */
+static void test_a_ray_needing_two_columns_is_refused_not_answered(void)
+{
+    const double c[] = {-1.0, -1.0};
+    const double cl[] = {0.0, 0.0};
+    const double rl[] = {0.0, 2.0}, ru[] = {0.0, INFINITY};
+    const int64_t as[] = {0, 2, 4};
+    const int64_t ai[] = {0, 1, 0, 1};
+    const double av[] = {1.0, 1.0, -1.0, 1.0};
+
+    const double caps[] = {10.0, 1e3, 1e6, 1e9};
+    for (size_t k = 0; k < sizeof caps / sizeof *caps; k++) {
+        const double cu[] = {caps[k], INFINITY};
+        jaos_model *m = fresh();
+        TEST_ASSERT_EQUAL_INT(JAOS_OK,
+            jaos_load_lp(m, 2, 2, JAOS_MINIMIZE, 0.0, c, cl, cu, rl, ru,
+                         4, as, ai, av));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+        TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+        double obj = 0.0;
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(m, &obj));
+        TEST_ASSERT_DOUBLE_WITHIN(1e-6 * caps[k], -2.0 * caps[k], obj);
+        jaos_model_free(m);
+    }
+
+    /* Uncapped: refused, and the refusal must not claim the optimum is
+     * finite, because the ladder above says it is not. */
+    const double cu[] = {INFINITY, INFINITY};
+    jaos_model *m = fresh();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_load_lp(m, 2, 2, JAOS_MINIMIZE, 0.0, c, cl, cu, rl, ru,
+                     4, as, ai, av));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_NUMERICAL_ERROR, jaos_status_of(m));
+    const char *why = jaos_model_error(m);
+    TEST_ASSERT_NOT_NULL(why);
+    TEST_ASSERT_NULL_MESSAGE(strstr(why, "the optimum is finite"),
+                             "the refusal claims something the cap ladder "
+                             "above refutes");
+    TEST_ASSERT_NOT_NULL_MESSAGE(strstr(why, "several columns"),
+                                 "the refusal must name what it did not try");
+    jaos_model_free(m);
+}
+
 int main(void)
 {
     UNITY_BEGIN();
@@ -4004,5 +4174,9 @@ int main(void)
     RUN_TEST(test_pattern_order_sorts_deduplicates_and_leaves_no_marks);
     RUN_TEST(test_the_nonbasic_bitmap_matches_a_rebuild_after_a_basis_change);
     RUN_TEST(test_the_iteration_split_is_written_on_an_interrupted_exit);
+    RUN_TEST(test_the_primal_declares_a_ray_it_meets_in_phase_2);
+    RUN_TEST(test_the_primal_declares_a_ray_through_a_free_column);
+    RUN_TEST(test_a_bounded_neighbour_of_that_model_is_not_a_ray);
+    RUN_TEST(test_a_ray_needing_two_columns_is_refused_not_answered);
     return UNITY_END();
 }

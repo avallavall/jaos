@@ -248,6 +248,7 @@ and you have the argument. Jump to the entry for the numbers behind it.
 - **[D238](#d238--two-singleton-row-replay-contracts-one-contract-on-the-list-that-is-a-tautology-and-a-property-guarded-twice-again)** — Two singleton-row replay contracts, one contract on the list that is a tautology, and a property guarded twice again
 - **[D239](#d239--lp-reads-and-writes-a-ranged-row-and-specs-was-wrong-that-the-other-two-refusals-close-with-it)** — LP reads and writes a ranged row, and SPECS was wrong that the other two refusals close with it
 - **[D240](#d240--compressed-input-with-the-inflate-written-here)** — Compressed input, with the inflate written here
+- **[D241](#d241--the-primal-decides-its-own-ray-and-one-it-still-cannot-see)** — The primal decides its own ray, and one it still cannot see
 
 ---
 
@@ -18651,3 +18652,49 @@ Nothing on a solve path. All three sets `gate: PASS` with `bench/results/`
 byte-identical. The readers slurp rather than stream now, so an MPS file is
 held in memory while it is parsed; the LP reader already did this, and the
 largest instance in the tree is 40 MB.
+
+## D241 — The primal decides its own ray, and one it still cannot see
+
+`run_primal`'s phase 2 met a column nothing blocked and returned
+`JAOS_ERR_NUMERICAL` rather than a verdict. It returns `JAOS_SOLVE_UNBOUNDED`
+now, on one added condition: no cost the solve borrowed may still be
+outstanding, because `d[q]` then belongs to a shifted objective and a ray of
+that is not a ray of the model's.
+
+**Everything else D19 asks for was already standing at that line.** No basic
+meets a bound the model declared, which is what `r < 0` says and nothing
+weaker; q meets no declared bound of its own, or the bound flip above would
+have taken it, since `step` is `HUGE_VAL` there; the point is primal feasible
+for those bounds and freshly computed.
+
+**A second opinion was written, armed, and deleted.** It re-asked the ray
+question with the absolute pivot floor, on D210's grounds that the ratio
+test's relative floor might have dropped a blocking row. The arm moved no
+test. `primal_apply_floor` ends `return m > 0 ? m : n;`: when its floor would
+empty the candidate list it returns the unfiltered one, so it can never
+remove the last candidate, and the second question restated the first.
+Both this verdict and the dual's skip a row moving slower than `PIVOT_MIN`,
+and that is written where the verdict is taken.
+
+**The branch is unreached on the standard set: 0 firings in 102 phase-2
+ratio tests.** Phase 2 runs one iteration on 83 of the 94 instances before
+the dual re-entry takes the model (D194, D197). Two constructed models do
+reach it, both ones where the loaded column is pulled into the basis so
+`classify_optimum` has nothing on a loan to read.
+
+**A separate ray neither verdict can see, and the refusal was claiming
+something false about it.** `min -p - q` over `p - q = 0, p + q >= 2` with
+neither column capped is unbounded, but moving either column alone runs into
+the equality, which is all `improves_without_limit` tries. Capping `p` gives
+an optimum of exactly `-2` times the cap at 10, 1e3, 1e6 and 1e9, so the
+uncapped model has no finite optimum. The refusal said "the optimum is finite
+but lies beyond the reach of this phase 1"; it now says only that moving that
+column alone is blocked and that neither answer follows. The verdict was
+always safe, because a refusal is a missing answer and not a wrong one.
+Deciding multi-column directions is open work in `TODO.md` section 0.
+
+## What it cost
+
+Nothing on a solve path. All three sets `gate: PASS` with `bench/results/`
+byte-identical, which the census explains: the branch fires zero times there.
+
