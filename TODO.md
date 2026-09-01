@@ -1748,10 +1748,16 @@ a wrong answer, and nothing open today has a model that reproduces one.
 broadly and needs its own campaign and its own interpretation, so none is a
 half-hour item. In the order a session with fresh context should weigh them:
 
+> **This table was written 2026-08-20 and one of its four rows closed five
+> days later.** The second copy of a row is how a closed item stays open: the
+> `pilot` row at line 588 was struck through by D184 on 2026-08-25 and this
+> one was not, so D232 read it and handed it to the next session as a live
+> lead. Check both copies, or keep one (D233).
+
 | candidate | what it needs before any code | size |
 |---|---|---|
 | **§2, 48 solves publish a wrong basis** | the rank argument, and now only that. D179 measured the supply: 19 of the 24 instances covered, two with zero candidates at any tolerance, so a wider rule improves the residue and cannot close it | design |
-| **`pilot` publishes a point 2.31e-05 above the optimum** | which tolerance lets the solve stop there, from a `jaos-debug` throwaway build. The point is feasible, so the dual test accepted a column that was still improving. Read D127 first — the unclamped dual step is refused there because the perturbation is what keeps `pilot87` moving (D173) | bounded |
+| ~~**`pilot` publishes a point 2.31e-05 above the optimum**~~ | **CLOSED 2026-08-25 by D184**, which this table predates. `DUAL_TOL` is 1e-9 and the gap is **5.27e-09**: `bench/results/netlib.txt` has `obj=-557.4897292893346` against `ref=-557.48972928406818`. The same row at line 588 has said so since D184; this copy did not, and D232 handed the stale wording forward as an open lead (D233) | closed |
 | **§3, `degen2` behind D151's cap** | a second instance of the mechanism. **`scsd1` is no longer part of this item** — its guard never fires (D178), so a doomed trajectory happens once in twenty and eleven quantities known before the solve separate nothing | blocked on §4 |
 | **`D97`** | a dual postsolve for an imposed bound. `docs/research/dual-postsolve-imposed-bound.md` is the design; nothing is built. Unlocks §3's doubleton equalities too | largest prize |
 

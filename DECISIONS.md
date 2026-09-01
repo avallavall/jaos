@@ -18212,11 +18212,31 @@ must not say is that a realistic defect proved it, and it does not.
 ## What it cost
 
 The counter and the assert are both `#ifndef NDEBUG`, and the two helpers are
-`static inline` assignments, so nothing here reaches the shipping build. The
-three gate sets run on the commit that lands this entry, and their result is
-recorded in the commit after it.
+`static inline` assignments, so nothing here reaches the shipping build. All
+three gate sets came back `gate: PASS`, `0 regressed, 0 improved, 0 new`, and
+`bench/results/` is byte-identical: 110 solution digests and 29 infeasibility
+verdicts unmoved, over 139 instances. Twenty-two call sites moved and no
+answer did.
+
+## The second lead D232 handed over was already closed, and that is a defect in the record
+
+`pilot` publishing a point 2.31e-05 above the optimum was **closed on
+2026-08-25 by D184**. `bench/results/netlib.txt` has
+`obj=-557.4897292893346` against `ref=-557.48972928406818`, a gap of
+5.27e-09, which is what D184 reported.
+
+`TODO.md` carries that item **twice**. The copy at line 588 was struck
+through when D184 landed. The copy in the 2026-08-20 candidate table was not,
+so it read as live for a week, and D232 handed it to the next session as one
+of two open leads. Both copies are marked now and the table carries its own
+date.
+
+This is the third time a second copy of a statement in `TODO.md` has outlived
+the first: `10ea90f` is the commit before this one and it fixed the same
+shape in the assert-debt list. **A statement lives in exactly one place** is
+the rule `CLAUDE.md` opens with, and a table that repeats a row is how it
+gets broken quietly.
 
 ## What is left open
 
-Nothing from this lead. The second lead D232 handed over — `pilot` publishing
-a point 2.31e-05 above the optimum — is untouched and stays in `TODO.md`.
+Nothing from either lead.
