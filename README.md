@@ -48,6 +48,10 @@ jaos_model_free(m);
   `docs/format-support.md` lists what is outside that subset.
 - Reads a gzip-compressed file wherever it reads a plain one. The inflate is
   written here, because JAOS links nothing but libc and libm.
+- Writes MPS, LP and a solution file. What JAOS writes, JAOS reads back as
+  the same model; where a format cannot express what the model holds, the
+  call fails and names the row or column rather than writing something
+  weaker.
 - Usable from Python: `python/jaos.py` over `libjaos.so`, standard library
   only, so it needs no compiler and no packages. `make shared`, then
   `make python-test`.
@@ -73,14 +77,15 @@ and what is only partly there.
 
 ## What it does not do
 
-JAOS writes no files, and it can be called only from C. There is no barrier
-method and no mixed-integer solver.
+There is no barrier method and no mixed-integer solver, and no sensitivity or
+ranging analysis.
 
 A primal simplex exists but no caller can reach it. It sits behind a
 development switch rather than an option, and `make primal` is what measures
-it. On the 94 standard instances it agrees with the dual on 56. The missing
-pieces are named in `SPECS.md`: the Harris ratio test in primal form, Devex
-pricing, and the unboundedness verdict.
+it. On the 94 standard instances it agrees with the dual on 75, and the one
+piece `SPECS.md` still lists as missing is Devex pricing — which is blocked
+on a paywalled source, and an own rule derived in its place lost to Dantzig
+and was refused (D244, D245).
 
 The public API has forty-three functions. Seven of them configure something:
 two tolerances, two budgets, where the log goes, how much of it there is, and
@@ -146,7 +151,7 @@ flowchart LR
     A["a change"] --> B["make configs<br/>five build configurations"]
     B --> C["numerics-reviewer<br/>on the diff, before any campaign"]
     C --> D["three gate sets<br/>139 instances, read per instance"]
-    D --> E["four metrics<br/>digests, work units,<br/>instructions, time"]
+    D --> E["five metrics<br/>digests, work units, instructions,<br/>misses, time"]
     E --> F{"jaos-measurer<br/>in a context that did not<br/>produce the numbers"}
     F -->|"ACCEPT"| G["land it, and the record<br/>says what it cost"]
     F -->|"REJECT"| H["a refusal, written down<br/>with what would reopen it"]
@@ -184,6 +189,8 @@ make sanitize   # unit suite under ASan and UBSan
 make configs    # the suite in all five build configurations, from clean
 make netlib     # the 94-instance acceptance gate (fetches the instances first)
 make pgo        # rebuild the library from a profile of it solving real models
+make shared     # build/release/libjaos.so, which the Python binding loads
+make python-test  # the binding's own suite; not part of `make test`
 ```
 
 `make netlib-kennington` and `make netlib-infeas` run the other two reference
@@ -204,6 +211,7 @@ the two switches `NATIVE=1` and `LTO=0`, are in [`docs/build.md`](docs/build.md)
 include/jaos.h        the public header, the only one
 src/                  library sources
 tests/                unit suite; tests/vendor/unity/ is the one vendored dependency
+python/               the binding, over ctypes and the standard library only
 bench/                instance manifests, the acceptance runner, results
 bench/compare/        the harness that times JAOS against other solvers
 bench/measurements/   one directory per measured verdict, so it is re-derivable

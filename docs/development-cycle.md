@@ -25,7 +25,7 @@ Six things make that concrete.
 1. **The record is five documents.** A statement lives in exactly one; the
    others cite it.
 2. **Nothing is judged on a summary line.** 139 instances, read one by one.
-3. **A change is judged on four metrics**, not one.
+3. **A change is judged on five metrics**, not one.
 4. **A refusal is a result**, written down with what would reopen it.
 5. **The record is executable.** `make test` fails if the documents lie.
 6. **The verdict comes from a fresh context.** The person who built it does
@@ -93,18 +93,20 @@ flowchart TD
 
     READ --> METRICS
 
-    subgraph metrics ["4 — Four metrics, and what each one can see"]
-        METRICS["A change is judged on four things — D45, D206"]
+    subgraph metrics ["4 — Five metrics, and what each one can see"]
+        METRICS["A change is judged on five things — D45, D206, D225"]
         METRICS --> M1["1. Solution digests<br/>CORRECTNESS, and the proof of a no-op"]
         METRICS --> M2["2. Work units<br/>COST. Deterministic, so a regression is<br/>detectable across machines. Goes in the record"]
-        METRICS --> M3["3. Instruction count — tools/icount.sh<br/>WHAT UNITS CANNOT SEE: layout, branches,<br/>cache. Deterministic to the instruction"]
-        METRICS --> M4["4. A same-instance time ratio<br/>ONLY where the count is not readable.<br/>J=1, minimum over alternating rounds,<br/>geometric mean. The reference host repeats<br/>to 6.27%, D93"]
+        METRICS --> M3["3. Instruction count — tools/icount.sh -r<br/>A change that does LESS WORK.<br/>Deterministic to the instruction"]
+        METRICS --> M4["4. Miss count — tools/icount.sh -m<br/>A change whose mechanism is MEMORY-LEVEL:<br/>layout, blocking, ordering. Instructions have<br/>the wrong sign there — D225. Blind to<br/>software prefetching — D231"]
+        METRICS --> M5["5. A same-instance time ratio<br/>ONLY where NEITHER count is readable.<br/>J=1, minimum over alternating rounds,<br/>geometric mean. The reference host repeats<br/>to 6.27%, D93"]
     end
 
     M1 --> VERDICT
     M2 --> VERDICT
     M3 --> VERDICT
     M4 --> VERDICT
+    M5 --> VERDICT
 
     subgraph verdict ["5 — The verdict, from a context that did not produce the numbers"]
         VERDICT["jaos-measurer<br/>re-runs every set on the candidate<br/>and reads the evidence itself"]

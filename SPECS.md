@@ -40,7 +40,8 @@ grows:
 - **The first two premises are absolute, with no exceptions.** Everything
   planned from here is costed under them. A barrier method needs a sparse
   Cholesky factorization: it is written here, and it is deterministic. Reading
-  compressed input needs an inflate written here, or the feature stays absent.
+  compressed input needs an inflate written here, or the feature stays absent
+  — and it was written here, in `src/inflate.c` (D240).
   Any parallelism is deterministic by design rather than by luck. A feature
   that cannot be built under these two rules is not built. This makes each
   feature two to five times more expensive than it is elsewhere, and it is
