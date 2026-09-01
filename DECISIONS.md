@@ -18516,4 +18516,7 @@ enough for what the arm is asked: the assert catches it.
 
 ## What it cost
 
-Both are `#ifndef NDEBUG`, so the shipping build is unchanged. GATE-PENDING
+Both are `#ifndef NDEBUG`, so the shipping build is unchanged. All three gate
+sets came back `gate: PASS`, `0 regressed, 0 improved, 0 new`, with
+`bench/results/` byte-identical: 110 solution digests and 29 infeasibility
+verdicts unmoved, over 139 instances.
