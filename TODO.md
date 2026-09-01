@@ -5,9 +5,43 @@ says why closed questions closed, `CHANGELOG.md` says what landed, `bench/`
 says what it costs. This file says what is next. When something lands, its
 line leaves this file in the same commit.
 
-## Where the last session stopped — 2026-08-31
+## Where the last session stopped — 2026-09-01
 
 ### → FRESH CONTEXT: READ THIS PARAGRAPH AND THEN §0
+
+**Five decisions landed on 2026-09-01, D232 to D236**, all pushed. Twenty of
+the comment purge's 137 prose contracts are checks now, and the two leads
+D232 handed forward are both closed.
+
+| | |
+|---|---|
+| **D232** | ten contracts in `simplex.c` and `presolve.c`, `02-145/` |
+| **D233** | `s->verified` has one writer and one reader, `02-146/` |
+| **D234** | four scratch contracts, and `nbmark` on the primal paths, `02-147/` |
+| **D235** | four presolve contracts, `02-148/` |
+| **D236** | two more, and five debt items already done, `02-149/` |
+
+**Three things that session learned, in the order they cost time:**
+
+1. **The debt list is stale. Grep for the symbol before writing the assert.**
+   Five of its items were already implemented (the table is in the assert-debt
+   section below). Two of them cost a real detour.
+2. **Run the gate population BEFORE landing an assert.** D235 wrote one that
+   read true, passed every unit suite, and fired 58 times on the population.
+   The proposed assert D233 was handed was false the same way.
+3. **A quiet assert needs a canary, and an unreachability claim needs the
+   assert INVERTED.** One that is never evaluated is never violated.
+   `bench/measurements/02-148/` and `02-149/` do it both ways.
+
+**A presolve assert costs three minutes to judge, not fifty.** Patch an early
+return after `jm_presolve_run` and all 139 instances run in under a minute
+(`02-148/run-presolve-population.sh`). A `simplex.c` assert needs the real
+thing, and Kennington under `-UNDEBUG` is about 50 minutes of it.
+
+**What is next in that debt**: `simplex.c` and `presolve.c` still carry most
+of the 137, and the two `lu.c` checks that are not asserts. Those two need a
+stamp array in the LU struct, which is the most delicate file here and wants
+`numerics-reviewer` on the diff.
 
 **The three file writers landed on 2026-08-31** — D226,
 `bench/measurements/02-138/`. `jaos_write_mps`, `jaos_write_lp` and
