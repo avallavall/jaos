@@ -7,7 +7,54 @@ line leaves this file in the same commit.
 
 ## Where the last session stopped — 2026-09-01
 
-### → FRESH CONTEXT: READ THIS PARAGRAPH AND THEN §0
+### → FRESH CONTEXT: READ THIS FIRST. THE PACE CHANGED.
+
+**The maintainer's call, 2026-09-01: features, not hardening, and a lighter
+loop.** The assert debt was eating whole sessions for no visible product.
+It is PAUSED. Do not add asserts. Do not run control campaigns.
+
+**The light loop, per feature:**
+
+1. Write it, with tests.
+2. `make configs` — five configurations. **Not optional and not
+   substitutable**: on D239 the three suites a shortcut ran were green and
+   `test_write` was red, because it asserted the contract the feature
+   changed.
+3. `python3 tools/record-check.py`.
+4. Commit. **`CHANGELOG.md` in 5 lines**, and a `DECISIONS.md` entry only
+   when a measurement settled something — 15 lines, not 80.
+5. `make netlib netlib-infeas netlib-kennington J=12`, read
+   `git status bench/results/`. **This is the one step never to skip**: 12
+   minutes of machine time, and it is what catches a wrong answer.
+6. Push from the Windows side.
+
+**What is next, in order.** Each closes a `missing` or `partial` row in
+`SPECS.md`:
+
+| | why it is next |
+|---|---|
+| **`.gz` input** | small, self-contained, closes a `missing` row |
+| **Devex pricing** (§0 stage 5) | unblocks crossover, which unblocks D97 |
+| **the unboundedness verdict** (§0 stage 7) | same section, D19 is the constraint |
+| **presolve: duplicate rows/columns, dominated columns** | already has its reopen condition written (D101) |
+| **sensitivity and ranging** | real user value, isolated from the solver |
+| **Python bindings** | the most user value, and touches no solver code |
+
+Not next, and each says why in `SPECS.md`: barrier and crossover (the
+starting point is undecided), MILP (a whole subsystem), D97 (needs
+crossover), the 48 wrong basis counts (needs a rank argument, a design).
+
+**D239 is the shape to copy** — one feature, light loop, and it still found a
+wrong claim in `SPECS.md` on the way.
+
+**→ FIRST THING TO DO: finish D239.** Its entry ends with `GATE-PENDING`
+because the session ended mid-gate. Run
+`make netlib netlib-infeas netlib-kennington J=12`, check
+`git status bench/results/` is empty, replace that line with the result, and
+push. The LP reader is not on a solve path, so byte-identical is what to
+expect; anything else is a real finding and stops everything.
+
+### → the earlier handover, for the assert work that is now paused
 
 **Five decisions landed on 2026-09-01, D232 to D236**, all pushed. Twenty of
 the comment purge's 137 prose contracts are checks now, and the two leads
