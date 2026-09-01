@@ -11,6 +11,20 @@ open, `bench/README.md` for the gate, and the commit each entry came from.
 
 ### Added
 
+- **Four `presolve.c` contracts are asserts, and one of them was wrong until
+  the gate population said so.** The round count never passes the structural
+  backstop; `row_traffic` is a magnitude; an already-infinite row end is not
+  subtracted from; and the empty row's bound-scale fallback is unreachable.
+
+  The third was written as an equality first — a finite row end stays finite
+  through the singleton-column shift — and that is false: `!free_col` means
+  at least one column bound is finite, not both, so a column boxed at
+  `[0, +inf)` turns a finite end infinite. It fired 58 times before anything
+  was committed. The fourth needed the assert inverted rather than a defect,
+  because an assert that is never evaluated is never violated; inverted it
+  fires on 5 of 94, so the branch is reached and the comment D155 left behind
+  is measured now (D235, `bench/measurements/02-148/`).
+
 - **Four scratch contracts in `simplex.c` are asserts, and one of them
   covers a path nothing checked.** `apat` names every slot where `alpha` can
   be nonzero and `rpat` every slot where `rho` is — both as a count, because

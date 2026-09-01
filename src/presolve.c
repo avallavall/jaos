@@ -404,7 +404,12 @@ JAOS_NODISCARD jaos_status jm_presolve_run(const jaos_model *m, jm_presolve *p,
                 assert(ps_traffic_usable(cur_rl[i], cur_ru[i], row_traffic[i]));
                 if (row_traffic[i] > 0.0) {
                     /* An infinite window accepts every violation, so the
-                     * bound scale stands in. Unreachable since D155. */
+                     * bound scale stands in. Unreachable since D155, and the
+                     * assert is what says so rather than the comment: the
+                     * fallback stays as the safe reading, and if it ever runs
+                     * a debug build stops instead of silently widening every
+                     * window on that row (D235). */
+                    assert(isfinite(row_traffic[i]));
                     const double scale = isfinite(row_traffic[i])
                         ? row_traffic[i]
                         : ps_bound_scale(cur_rl[i], cur_ru[i]);
@@ -654,6 +659,19 @@ JAOS_NODISCARD jaos_status jm_presolve_run(const jaos_model *m, jm_presolve *p,
                         moved = fabs(cmax);
                     if (hi_absorbs && isfinite(cmin) && fabs(cmin) > moved)
                         moved = fabs(cmin);
+                    /* "An already-infinite end is not subtracted from": an
+                     * end that did not absorb was never shifted, so it is
+                     * still infinite. One way only. The converse is FALSE and
+                     * that is measured: `!free_col` means at least one column
+                     * bound is finite, not both, so a column boxed at
+                     * [0, +inf) makes one of `cmin`/`cmax` infinite and turns
+                     * a finite end infinite. Asserting the equality fired 58
+                     * times on the gate (D235, `bench/measurements/02-148/`).
+                     * `moved` is what carries that: it counts an end only
+                     * where the term it took was finite. */
+                    assert(lo_absorbs || !isfinite(cur_rl[i]));
+                    assert(hi_absorbs || !isfinite(cur_ru[i]));
+                    assert(moved >= 0.0 && isfinite(moved));
                     row_traffic[i] += moved;
                     col_dead[j] = true;
                     row_deg[i]--;
@@ -901,12 +919,24 @@ JAOS_NODISCARD jaos_status jm_presolve_run(const jaos_model *m, jm_presolve *p,
         rounds_done++;
     }
     p->counts.rounds = rounds_done;
+    /* "Never above the structural backstop." The loop's cap is the smaller of
+     * that and `JM_PRESOLVE_ROUNDS`, which is on the `EXTRA_CFLAGS` hook and
+     * can be swept; the backstop is what must hold whatever it is set to,
+     * because a round that changes nothing breaks the loop and every round
+     * that changes something kills at least one row or column (D235). */
+    assert(p->counts.rounds <= nr + nc + 1);
     }
 
 #ifndef NDEBUG
     /* Over every row: unguarded `a * v` producers can poison any row. */
-    for (int64_t i = 0; i < nr; i++)
+    for (int64_t i = 0; i < nr; i++) {
         assert(ps_traffic_usable(cur_rl[i], cur_ru[i], row_traffic[i]));
+        /* "Magnitude subtracted from each row's bounds so far." Every writer
+         * adds `fabs(t)` or a `moved` built from magnitudes, so the budget
+         * only grows. A negative one would hand `ps_round_tol` a window on
+         * the wrong side of zero, and a NaN fails this too (D235). */
+        assert(row_traffic[i] >= 0.0);
+    }
 #endif
 
     /* --- Frozen rows, tested for feasibility once the boxes are final. --

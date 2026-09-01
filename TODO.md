@@ -1633,6 +1633,18 @@ is also the one that catches what fixing them breaks.
 > reached `pivot()` three ways with nothing checking the bitmap it maintains.
 > Nothing was wrong, and that is measured on 33 instances in both methods.
 >
+> **2026-09-01: four more, all in `presolve.c`** — D235,
+> `bench/measurements/02-148/`. The round count never passes the structural
+> backstop; `row_traffic` is a magnitude; an already-infinite row end is not
+> subtracted from; and the empty row's bound-scale fallback is unreachable,
+> which is measured now rather than asserted in a comment.
+>
+> **One of those four was written wrong and the gate population caught it.**
+> "A finite row end stays finite through the singleton-column shift" is
+> false: `!free_col` means at least one column bound is finite, not both.
+> It fired 58 times before anything was committed. **Run the population
+> before landing an assert, not after.**
+>
 > **One item on the `simplex.c` list needs no work: `amark` "zero between
 > iterations".** `jm_pattern_order` asserts the whole bitmap is zero on entry
 > and leaves it zero (D223), and `price_all` is the only path that uses it.

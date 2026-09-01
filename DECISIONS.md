@@ -242,6 +242,7 @@ and you have the argument. Jump to the entry for the numbers behind it.
 - **[D232](#d232--ten-contracts-in-the-last-two-files-become-asserts-one-proposed-assert-fires-on-the-shipping-suite-and-the-one-assert-no-arm-can-fire-is-measured-instead)** — Ten contracts in the last two files become asserts, one proposed assert fires on the shipping suite, and the one assert no arm can fire is measured instead
 - **[D233](#d233--pivot-runs-with-the-verification-still-set-six-times-in-a-million-and-the-assert-the-prose-asked-for-would-abort-three-instances)** — `pivot()` runs with the verification still set six times in a million, and the assert the prose asked for would abort three instances
 - **[D234](#d234--four-scratch-contracts-become-asserts-and-the-bitmap-the-primal-maintains-had-nothing-checking-it)** — Four scratch contracts become asserts, and the bitmap the primal maintains had nothing checking it
+- **[D235](#d235--four-presolve-contracts-become-asserts-and-one-of-them-was-written-wrong-until-the-population-said-so)** — Four presolve contracts become asserts, and one of them was written wrong until the population said so
 
 ---
 
@@ -18320,3 +18321,81 @@ verdicts unmoved, over 139 instances.
 
 `simplex.c` and `presolve.c` still carry the rest of the 137 contracts, and
 the two `lu.c` checks that are not asserts. `TODO.md` has the count.
+
+## D235 — Four presolve contracts become asserts, and one of them was written wrong until the population said so
+
+Four of `presolve.c`'s prose contracts from `bench/measurements/02-121/`.
+`bench/measurements/02-148/`, six arms and a population run with a canary.
+
+| the contract | the check |
+|---|---|
+| `rounds` never passes the structural backstop | `p->counts.rounds <= nr + nc + 1` at loop exit |
+| `row_traffic` is a magnitude | `row_traffic[i] >= 0.0`, over every row |
+| an already-infinite row end is not subtracted from | `lo_absorbs \|\| !isfinite(cur_rl[i])` after the singleton-col shifts |
+| the empty row's bound-scale fallback is unreachable | `isfinite(row_traffic[i])` before the ternary |
+
+## The measurement caught an assert that was wrong
+
+The third contract was written as an **equality** first:
+`lo_absorbs == isfinite(cur_rl[i])`. The reasoning was that this branch has
+finite column bounds, so shifting a finite row end by a finite term leaves it
+finite.
+
+That reasoning has a hole. `free_col` is `!isfinite(cur_cl[j]) &&
+!isfinite(cur_cu[j])`, so **`!free_col` means at least one column bound is
+finite, not both**. A column boxed at `[0, +inf)` gives `c2 = a * inf`, one of
+`cmin`/`cmax` is infinite, and a finite row end becomes infinite.
+
+**It fired 58 times on the first population run**, before anything was
+committed. The contract only ever claimed one direction — an end that was
+already infinite is not subtracted from, because it is not shifted at all —
+and that is the assert now. The false converse sits beside it in the comment
+with its firing count, so the next reader does not re-derive it.
+
+This is the value of running the population before landing, and it is the
+same shape as D233: a sentence that reads true, an assert that restates it
+slightly wider, and a gate population that says no.
+
+## The fourth assert needed an inverted canary, not a defect
+
+`isfinite(row_traffic[i])` states that the empty row's bound-scale fallback
+is unreachable — a comment D155 left behind and nothing has tested since. An
+assert that is never evaluated is never violated, so a quiet run proves
+nothing about it.
+
+The `fallback-canary` arm flips it to `!isfinite(row_traffic[i])` and requires
+that to fire. **It fires on 5 of the 94 standard instances.** So the branch is
+reached, the budget is finite every time it is reached, and "unreachable since
+D155" is a measurement rather than a claim.
+
+## What the arms say
+
+| arm | firings | what fired |
+|---|---|---|
+| `intact` | 0 | — |
+| `rounds` | 94 | the backstop |
+| `traffic-sign` | 37 | the magnitude |
+| `absorbs` | 12 | the one-way implication |
+| `fallback-canary` | 5 | the inverted fallback assert |
+| `restored` | 0 | — |
+
+The arms run the 94 standard instances; the population run covers all 139 and
+comes back with nothing fired, against a canary that fires 131 times.
+
+## The population run costs three minutes, not fifty
+
+Every solve stops as soon as presolve returns. These are presolve asserts,
+presolve runs once at the top of every solve, and the simplex is the whole
+cost of an assert-enabled Kennington (D232, 02-145). The runner then reports
+every instance as failed, which is expected and is not the signal being read;
+the canary is what makes the quiet result mean something.
+
+## What it cost
+
+All four are `#ifndef NDEBUG`, so the shipping build is unchanged.
+GATE-PENDING
+
+## What is left
+
+`simplex.c` and `presolve.c` still carry most of the 137 contracts, and the
+two `lu.c` checks that are not asserts. `TODO.md` has the count.

@@ -1,0 +1,17 @@
+# 02-148 -- D235's four presolve asserts over all 139 instances
+# tree: 4ab975f WITH UNCOMMITTED CHANGES
+#       plus the working-tree copies of src/simplex.c src/presolve.c
+# date: 2026-09-01T07:15:11Z
+# every solve stops when presolve returns; the runner's own verdicts are
+# meaningless here and the only signal is whether an assert fired
+
+== intact: the four asserts over 139 instances
+   assertion lines=0
+
+== canary: counts.rounds pushed past the backstop
+   assertion lines=131
+   FIRED: run: src/presolve.c:927: jm_presolve_run: Assertion `p->counts.rounds <= nr + nc + 1' failed.
+   FIRED: run: src/presolve.c:927: jm_presolve_run: Assertion `p->counts.rounds <= nr + nc + 1' failed.
+
+== verdict
+nothing fired on 139 instances, and the canary proves the run could see it
