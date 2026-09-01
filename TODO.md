@@ -56,12 +56,23 @@ one column leaving a lent bound, and the forced primal already shared it.
 What was missing was the branch inside phase 2, and it fires zero times on
 the standard set.
 
-**Devex pricing is the next line of §0 and it is BLOCKED.** Its weight-update
-recurrence and reset threshold are in Harris (1973), which is paywalled and
-appears in none of the nine free sources read. The copy in
-`docs/research/primal-simplex.md` §3 is unverified and must not be coded
-from. Getting a citable source is what unblocks it; nothing else in the tree
-does.
+**Devex pricing is the next line of §0 and it is BLOCKED, and the search was
+repeated on 2026-09-01.** Its weight-update recurrence and reset threshold
+are in Harris (1973), which is paywalled. **Seven more free sources were
+downloaded and read in full that day and not one states it** — Koberstein's
+thesis, Hall's parallel simplex paper, Hall & Huangfu, Huangfu & Hall,
+Yarmish, Maros's pricing report and the arXiv simplex-initialization survey.
+Sixteen free sources now. Every one that discusses Devex cites Harris for it
+and gives the idea rather than the arithmetic. The list is in
+`docs/research/primal-simplex.md` §8 so nobody repeats it.
+
+**It needs a decision, not another search.** Either someone obtains Harris
+(1973), Forrest & Goldfarb (1992) or Maros (2003) — all paywalled, all a
+purchase — or JAOS derives its own approximate-steepest-edge rule and
+measures its reset threshold like any other constant, which the premises
+allow and which would not be called Devex. The copy in
+`docs/research/primal-simplex.md` §3 is unverified and must not be coded from
+either way.
 
 **Two new open items, both from D241:**
 

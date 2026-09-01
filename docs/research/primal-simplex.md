@@ -692,3 +692,32 @@ blocks code.**
 source (arXiv:1803.05167) and needs neither Goldfarb & Reid nor Forrest &
 Goldfarb. Maros's pricing report is read. The formulas in sections 1 and 4 are
 standard and were not in doubt.
+
+### Seven more free sources checked on 2026-09-01, and none has the recurrence
+
+The search above was repeated with different terms, and every full text was
+downloaded and read rather than judged from its abstract. **Not one states the
+Devex weight update or its reset threshold.** They are listed so that the
+next person does not spend the same hour.
+
+| source | what it actually says about Devex |
+|---|---|
+| Koberstein, *The dual simplex method* (thesis, Paderborn 2005) | four mentions, all in passing; cites Harris (1973) and states no formula |
+| Maros, *A General Pricing Scheme for the Simplex Method* (Imperial DTR01-3a) | already read here; names Devex as the first effective normalized pricing and cites Harris |
+| Hall & Huangfu, *A high performance dual revised simplex solver* (ERGO-11-007) | one mention, in a reference title |
+| Hall, *Towards a practical parallelisation of the simplex method* | 23 mentions and the most detail of any of them: Devex "maintains approximate edge weights" and the weights are "updated using row p of the updated tableau". Which is the shape, not the formula |
+| Yarmish, *Steepest Edge as Applied to the Standard Simplex Method* | describes Devex as an approximation and gives the Forrest-Goldfarb steepest-edge update instead |
+| Huangfu & Hall, *Parallelizing the dual revised simplex method* | no mention |
+| *Simplex Initialization: A Survey* (arXiv:2111.03376) | no mention |
+
+**The pattern is consistent enough to be evidence.** Every source that
+discusses Devex cites Harris (1973) for it and states the idea rather than
+the arithmetic. Sixteen free sources have now been read without finding it.
+The blocker is real and is not going to dissolve under another search.
+
+**So there are two ways forward and both need a decision.** Obtain Harris
+(1973), or Forrest & Goldfarb (1992), or Maros's 2003 book — all three are
+paywalled and a purchase is not something this repository can make on its
+own. Or derive an approximate-steepest-edge rule here and measure its reset
+threshold like any other constant, which the premises allow, and stop calling
+it Devex, because it would not be Harris's rule.
