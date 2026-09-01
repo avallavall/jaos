@@ -1,0 +1,7 @@
+tree: 970ac45
+
+arm 1, a distance tree of all-zero lengths refused: 1 test(s) fail
+arm 2, the gzip header checksum ignored:            1 test(s) fail
+restored, no arm applied:                           0 test(s) fail
+
+VERDICT: PASS, each guard is the only thing keeping its test green

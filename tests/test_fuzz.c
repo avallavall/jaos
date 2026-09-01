@@ -29,6 +29,11 @@
  * Every case is offered to both readers. An LP file handed to the MPS reader
  * is corrupted input by any definition, and costs nothing to try.
  *
+ * The corpus is whatever tests/data holds, so the `.gz` fixtures are in it
+ * too and every mutation class reaches src/inflate.c. That is where the
+ * decoder's memory safety is tested: tests/test_inflate.c checks what it
+ * decodes, this file checks what it does with bytes nobody meant.
+ *
  * Determinism (D8): the corpus is the sorted contents of tests/data, the
  * mutations come from a splitmix64 written out below rather than rand(),
  * and the case counts are fixed constants. The same commit fuzzes the same

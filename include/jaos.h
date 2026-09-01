@@ -262,6 +262,12 @@ JAOS_NODISCARD jaos_status jaos_delete_rows(jaos_model *m, int64_t num_del,
 /* File readers                                                              */
 /* ------------------------------------------------------------------------- */
 
+/* Both readers accept a gzip-compressed file wherever they accept a plain
+ * one. The choice is made on the first two bytes, so the name does not
+ * matter and no separate call is needed. A gzip file whose checksum or
+ * length does not match its contents is refused, never parsed.
+ * docs/format-support.md, "Compressed input". */
+
 /* Reads an MPS file (fixed or free layout) into the model, replacing its
  * contents. On failure the model's problem data is left as it was and
  * jaos_model_error() carries a message with the offending line number.

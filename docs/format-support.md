@@ -6,6 +6,26 @@ end of this file. Anything not listed here is
 either standard behaviour or not yet decided; when an edge case is settled
 during the Netlib campaign, it lands in this file in the same commit.
 
+## Compressed input
+
+Both readers take a gzip file (RFC 1952) wherever they take a plain one. The
+decision is made on the first two bytes of the file, so a `.gz` name is
+neither required nor trusted, and a file that is not gzip goes to the parser
+unchanged. No other container is recognised: a bzip2 or xz file reaches the
+MPS or LP parser as text and is refused there, with a parse error rather than
+a message about compression.
+
+The decoder is `src/inflate.c`. It is written here because JAOS links nothing
+but libc and libm, which is the same rule that puts every other dependency
+out of reach. It reads all three DEFLATE block types (RFC 1951, section 3.2),
+every optional gzip header field, and a file made of several members end to
+end. Zero bytes after the last member are ignored, which is what gzip itself
+does; any other trailing byte is an error.
+
+Both trailer fields are checked, the CRC-32 and the length. A file that
+inflates to bytes other than the ones it was built from is refused, so a
+damaged instance is never solved as though it were a different model.
+
 ## MPS
 
 One reader for both layouts: lines are tokenized on whitespace, a section

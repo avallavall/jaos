@@ -12,7 +12,6 @@
 # Patterns are symbol-shaped on purpose. Prose cannot trigger them because
 # comments are stripped before matching.
 
-absent SPECS.md#1-compressed-input         \b(inflate|zlib|gzip|gunzip)\w*\s*\(
 absent SPECS.md#3-crash-basis              \b(build_crash_basis|jm_crash|crash_basis)\b
 absent SPECS.md#3-barrier-and-crossover    \b(jm_cholesky|cholesky_|jm_barrier|barrier_|jm_crossover|crossover_)\w*\s*\(
 absent SPECS.md#3-milp                     \b(jm_bnb|branch_and_bound|jm_cut|cut_pool|jm_heuristic)\w*\s*\(

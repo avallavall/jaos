@@ -256,6 +256,14 @@ bool jm_nmap_get(const jm_nmap *m, const char *name, int64_t *val);
 /* The caller must have checked the name is absent. */
 bool jm_nmap_insert(jm_nmap *m, const char *name, int64_t value);
 
+/* Reads a whole input file. A file that starts with the gzip magic is
+ * inflated by src/inflate.c; any other file comes back byte for byte. On
+ * success *out is a NUL-terminated buffer the caller frees and *out_len is
+ * its length, which may itself contain NUL bytes. On failure *out is NULL
+ * and the model carries the message. */
+JAOS_NODISCARD jaos_status jm_slurp(jaos_model *m, const char *path,
+                                    char **out, int64_t *out_len);
+
 /* Builds the CSR mirror if it is not current. */
 JAOS_NODISCARD jaos_status jm_model_ensure_rowwise(jaos_model *m);
 

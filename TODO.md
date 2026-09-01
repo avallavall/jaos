@@ -33,7 +33,6 @@ It is PAUSED. Do not add asserts. Do not run control campaigns.
 
 | | why it is next |
 |---|---|
-| **`.gz` input** | small, self-contained, closes a `missing` row |
 | **Devex pricing** (§0 stage 5) | unblocks crossover, which unblocks D97 |
 | **the unboundedness verdict** (§0 stage 7) | same section, D19 is the constraint |
 | **presolve: duplicate rows/columns, dominated columns** | already has its reopen condition written (D101) |
@@ -47,8 +46,14 @@ crossover), the 48 wrong basis counts (needs a rank argument, a design).
 **D239 is the shape to copy** — one feature, light loop, and it still found a
 wrong claim in `SPECS.md` on the way.
 
-**D239 is closed and pushed**, gate PASS on all three sets and
-`bench/results/` byte-identical. **Nothing is half-done. Start at `.gz`.**
+**`.gz` input landed 2026-09-01.** `src/inflate.c` is a gzip and DEFLATE
+decoder written here; both readers detect it from the first two bytes.
+`record-check` refused the commit until `docs/claims.txt` and the `SPECS.md`
+row moved, which is the mechanism working. The evidence is 369 comparisons
+against the real `gzip` over 123 instances plus 31 large ones, all
+byte-identical, and 13 unit tests.
+
+**Nothing is half-done. Start at Devex pricing.**
 
 ### → the earlier handover, for the assert work that is now paused
 

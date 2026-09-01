@@ -101,7 +101,7 @@ when it closes.
 | LP format | **partial** | CPLEX-style core. **Missing:** everything outside the subset `docs/format-support.md` lists |
 | Locale-independent number parsing | **done** | own, because `strtod` under a comma-decimal locale corrupts instances |
 | Direct load from CSC arrays | **done** | `jaos_load_lp` |
-| Compressed input (`.gz`) | **missing** | the fetch script inflates outside the library |
+| Compressed input (`.gz`) | **done** | gzip over DEFLATE, written here in `src/inflate.c`; both readers detect it from the file itself, not from the name |
 
 ## 2. Holding and changing a problem
 

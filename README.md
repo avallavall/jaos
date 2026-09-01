@@ -46,6 +46,8 @@ jaos_model_free(m);
 
 - Reads fixed and free MPS, and the CPLEX-style core of the LP format.
   `docs/format-support.md` lists what is outside that subset.
+- Reads a gzip-compressed file wherever it reads a plain one. The inflate is
+  written here, because JAOS links nothing but libc and libm.
 - Presolve with six reduction families. Postsolve returns values, statuses
   and duals in terms of the caller's original problem.
 - Curtis-Reid scaling.

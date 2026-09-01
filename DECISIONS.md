@@ -247,6 +247,7 @@ and you have the argument. Jump to the entry for the numbers behind it.
 - **[D237](#d237--scaling-never-moves-a-bounds-finiteness-and-the-canary-caught-a-stop-point-that-skipped-the-assert-it-was-measuring)** — Scaling never moves a bound's finiteness, and the canary caught a stop point that skipped the assert it was measuring
 - **[D238](#d238--two-singleton-row-replay-contracts-one-contract-on-the-list-that-is-a-tautology-and-a-property-guarded-twice-again)** — Two singleton-row replay contracts, one contract on the list that is a tautology, and a property guarded twice again
 - **[D239](#d239--lp-reads-and-writes-a-ranged-row-and-specs-was-wrong-that-the-other-two-refusals-close-with-it)** — LP reads and writes a ranged row, and SPECS was wrong that the other two refusals close with it
+- **[D240](#d240--compressed-input-with-the-inflate-written-here)** — Compressed input, with the inflate written here
 
 ---
 
@@ -18615,3 +18616,38 @@ those figures; the new ones live here and in `SPECS.md`.
 Nothing. All three sets `gate: PASS`, `0 regressed, 0 improved, 0 new`, with
 `bench/results/` byte-identical: 110 solution digests and 29 infeasibility
 verdicts unmoved. The LP reader and writer are not on a solve path.
+
+## D240 — Compressed input, with the inflate written here
+
+`SPECS.md` carried `Compressed input (.gz)` as **missing** because the rule
+against dependencies puts zlib out of reach. `src/inflate.c` is that inflate:
+gzip (RFC 1952) over DEFLATE (RFC 1951), integer arithmetic end to end, about
+500 lines. Both readers now go through `jm_slurp`, which decides on the
+file's first two bytes, so no call and no argument changed.
+
+**The evidence is a population run, not the unit tests.** Fixtures this
+repository generates and this repository decodes prove only that the
+generator and the decoder agree. `gzip 1.12` compressing every instance in
+the tree is the independent check: **400 comparisons, none differing**, 123
+instances at three levels plus 31 large ones, with a damaged-checksum control
+that must be refused (`bench/measurements/02-152/`).
+
+**Two guards came out of reading the code, and both are load-bearing.** A
+DEFLATE block with no back-reference may declare its one distance code with
+length zero; zlib never writes one, so no fixture built by `gzip` reaches it
+and refusing it would refuse a legal file. And the gzip header carries its
+own CRC-16 when `FHCRC` is set, which the first version ignored. Removing
+either turns exactly one test red, and `tests/data/gz_nodist.gz` had to be
+assembled bit by bit because no setting of `gzip` produces it.
+
+**`record-check` refused the commit before the record moved.** The claim of
+absence in `docs/claims.txt` matched `inflate_codes(` the moment the file
+existed, and named the `SPECS.md` row to change. That is the second time the
+mechanism has caught a row going stale in the same commit that made it stale.
+
+## What it cost
+
+Nothing on a solve path. All three sets `gate: PASS` with `bench/results/`
+byte-identical. The readers slurp rather than stream now, so an MPS file is
+held in memory while it is parsed; the LP reader already did this, and the
+largest instance in the tree is 40 MB.

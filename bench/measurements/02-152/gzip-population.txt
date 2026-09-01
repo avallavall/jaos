@@ -1,0 +1,8 @@
+tree:      970ac45 + uncommitted
+gzip:      gzip 1.12
+
+standard and infeasible: 123 instances, 369 comparisons identical, 0 failures
+kennington and plato:    31 instances, 31 identical, 0 failures
+control: a damaged checksum is refused
+
+VERDICT: PASS, 400 comparisons, none differing

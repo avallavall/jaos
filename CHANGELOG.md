@@ -11,6 +11,19 @@ open, `bench/README.md` for the gate, and the commit each entry came from.
 
 ### Added
 
+- **Both readers take a gzip-compressed file.** `src/inflate.c` is a gzip and
+  DEFLATE decoder written here, because JAOS links nothing but libc and libm.
+  The choice is made on the file's first two bytes, so no new call and no new
+  argument. Both trailer fields are checked, so a damaged instance is refused
+  rather than solved as a different model.
+
+  **369 comparisons against the real `gzip` at three levels, over 123 netlib
+  and infeasible instances, all byte-identical**, plus 31 of the large
+  Kennington and plato files. 13 unit tests cover the three DEFLATE block
+  types, every optional header field, several members in one file and six
+  rejections; the fuzzer's corpus now carries the `.gz` fixtures, so the
+  decoder is mutated under ASan with everything else.
+
 - **`jaos_read_lp` accepts a ranged constraint, and `jaos_write_lp` writes
   one.** `l <= expr <= u` and its mirror, both operators pointing the same
   way. A leading number is only the left bound when an operator follows it,

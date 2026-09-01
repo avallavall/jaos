@@ -672,39 +672,17 @@ jaos_status jaos_read_lp(jaos_model *m, const char *path)
     if (m == nullptr || path == nullptr)
         return JAOS_ERR_INVALID_INPUT;
 
-    FILE *f = fopen(path, "r");
-    if (f == nullptr) {
-        jm_set_err(m, "cannot open '%s'", path);
-        return JAOS_ERR_IO;
-    }
-
     lp pp = {0};
     lp *p = &pp;
     p->m = m;
     p->line = 1;
     p->sense = JAOS_MINIMIZE;
 
-    /* slurp the file; token scanning needs free lookahead */
-    jaos_status st = JAOS_OK;
-    {
-        int64_t cap = 0;
-        char chunk[65536];
-        size_t got;
-        while ((got = fread(chunk, 1, sizeof chunk, f)) > 0) {
-            if (!JM_GROW(p->buf, cap, p->len + (int64_t)got + 1))
-                FAIL_OOM();
-            memcpy(p->buf + p->len, chunk, got);
-            p->len += (int64_t)got;
-        }
-        if (ferror(f)) {
-            st = JAOS_ERR_IO;
-            jm_set_err(m, "read error on '%s'", path);
-            goto done;
-        }
-        if (p->buf == nullptr && !JM_GROW(p->buf, cap, 1))
-            FAIL_OOM();
-        p->buf[p->len] = '\0';
-    }
+    /* The whole file at once: token scanning needs free lookahead, and this
+     * is also what inflates a `.gz` instance. */
+    jaos_status st = jm_slurp(m, path, &p->buf, &p->len);
+    if (st != JAOS_OK)
+        goto done;
 
     /* Numbers must parse identically whatever locale the host set. */
     {
@@ -730,6 +708,5 @@ done:
     free(p->ev);
     free(p->stamp);
     free(p->slot);
-    fclose(f);
     return st;
 }

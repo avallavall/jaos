@@ -380,10 +380,19 @@ jaos_status jaos_read_mps(jaos_model *m, const char *path)
     if (m == nullptr || path == nullptr)
         return JAOS_ERR_INVALID_INPUT;
 
-    FILE *f = fopen(path, "r");
+    /* Read through jm_slurp so a `.gz` instance costs this reader nothing
+     * but the call, then hand the bytes back to getline through fmemopen:
+     * the line loop below is unchanged by compression. */
+    char *src = nullptr;
+    int64_t srclen = 0;
+    jaos_status open_st = jm_slurp(m, path, &src, &srclen);
+    if (open_st != JAOS_OK)
+        return open_st;
+    FILE *f = fmemopen(src, (size_t)srclen, "r");
     if (f == nullptr) {
-        jm_set_err(m, "cannot open '%s'", path);
-        return JAOS_ERR_IO;
+        free(src);
+        jm_set_err(m, "out of memory reading '%s'", path);
+        return JAOS_ERR_OUT_OF_MEMORY;
     }
 
     /* Numbers must parse identically whatever locale the host application
@@ -575,5 +584,6 @@ done:
         freelocale(cloc);
     }
     fclose(f);
+    free(src);
     return st;
 }
