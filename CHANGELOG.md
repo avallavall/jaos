@@ -9,6 +9,17 @@ open, `bench/README.md` for the gate, and the commit each entry came from.
 
 ## [Unreleased]
 
+### Added
+
+- **An LP can be written in Python now, not only loaded.** `Problem` takes
+  variables, expressions and ordinary comparisons, builds `jaos_load_lp`'s
+  arrays whole at solve time, and sends a later bound or cost change through
+  the C setters instead, so the next solve resumes warm. The seven C calls
+  the binding did not reach — add and delete of rows and columns,
+  `jaos_set_basis`, `jaos_check_solution`, the progress callback — are bound.
+  `make python-test` is 61 tests; three armed defect shapes each redden it
+  (`bench/measurements/02-158/`).
+
 ### Changed
 
 - **The re-entry's round backstop is per method now, and the forced primal

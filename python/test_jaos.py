@@ -319,5 +319,376 @@ class TestChangingAModel(unittest.TestCase):
             self.assertAlmostEqual(m.objective(), -5.0, places=9)
 
 
+class TestGrowingAndShrinking(unittest.TestCase):
+    """The append and delete calls. Each optimum here is distinct from the
+    one before it, so a call that silently did nothing fails the next
+    assertion rather than passing it."""
+
+    def golden(self):
+        """min -x - 2y  s.t. x + y <= 4, x, y >= 0: optimum -8, the same
+        model tests/test_simplex.c asserts on."""
+        m = jaos.Model()
+        m.load(num_col=2, num_row=1,
+               col_cost=[-1.0, -2.0],
+               col_lower=[0.0, 0.0],
+               col_upper=[jaos.INFINITY, jaos.INFINITY],
+               row_lower=[-jaos.INFINITY], row_upper=[4.0],
+               a_start=[0, 1, 2], a_index=[0, 0], a_value=[1.0, 1.0])
+        return m
+
+    def test_adding_a_row_binds_and_deleting_it_unbinds(self):
+        with self.golden() as m:
+            self.assertIs(m.solve(), jaos.SolveStatus.OPTIMAL)
+            self.assertAlmostEqual(m.objective(), -8.0, places=9)
+
+            m.add_rows([-jaos.INFINITY], [3.0],           # y <= 3
+                       a_start=[0, 1], a_index=[1], a_value=[1.0])
+            self.assertEqual((m.num_row, m.num_nz), (2, 3))
+            m.solve()                          # y = 3, x = 1
+            self.assertAlmostEqual(m.objective(), -7.0, places=9)
+
+            m.delete_rows([1])
+            self.assertEqual(m.num_row, 1)
+            m.solve()
+            self.assertAlmostEqual(m.objective(), -8.0, places=9)
+
+    def test_adding_a_column_improves_the_optimum(self):
+        with self.golden() as m:
+            m.solve()
+            m.add_cols([-3.0], [0.0], [2.0],   # z in [0,2], joins the row
+                       a_start=[0, 1], a_index=[0], a_value=[1.0])
+            self.assertEqual((m.num_col, m.num_nz), (3, 3))
+            m.solve()                          # z = 2, y = 2
+            self.assertAlmostEqual(m.objective(), -10.0, places=9)
+
+    def test_deleting_a_column_removes_its_contribution(self):
+        with self.golden() as m:
+            m.delete_cols([1])                 # y is gone; min -x, x <= 4
+            self.assertEqual((m.num_col, m.num_nz), (1, 1))
+            m.solve()
+            self.assertAlmostEqual(m.objective(), -4.0, places=9)
+
+    def test_a_repeated_delete_index_is_refused(self):
+        with self.golden() as m:
+            with self.assertRaises(jaos.JaosError):
+                m.delete_cols([0, 0])
+
+
+class TestBasisRoundTrip(unittest.TestCase):
+    def test_a_basis_read_out_can_be_handed_back(self):
+        with jaos.Model() as a:
+            a.read_mps(data("solve1.mps"))
+            a.solve()
+            b = a.basis()
+
+        with jaos.Model() as m:
+            m.read_mps(data("solve1.mps"))
+            m.set_basis(b.col_status, b.row_status)
+            self.assertIs(m.solve(), jaos.SolveStatus.OPTIMAL)
+            self.assertAlmostEqual(m.objective(), 29.0, places=9)
+
+    def test_a_wrong_length_never_reaches_c(self):
+        with jaos.Model() as m:
+            m.read_mps(data("solve1.mps"))
+            with self.assertRaises(ValueError):
+                m.set_basis([jaos.BasisStatus.BASIC], [])
+
+
+class TestTheChecker(unittest.TestCase):
+    """jaos_check_solution through the binding. The accepting case alone
+    would also pass if the report came back unfilled, so the rejecting case
+    is the one that proves the fields land."""
+
+    def test_the_true_solution_checks_out(self):
+        with jaos.Model() as m:
+            m.read_mps(data("solve1.mps"))
+            m.solve()
+            s = m.solution()
+            r = m.check_solution(s.col_value, s.row_dual)
+            self.assertTrue(r.primal_feasible)
+            self.assertTrue(r.dual_feasible)
+            self.assertTrue(r.checked_duals)
+            self.assertAlmostEqual(r.primal_objective, 29.0, places=9)
+
+    def test_a_corrupted_solution_is_flagged(self):
+        with jaos.Model() as m:
+            m.read_mps(data("solve1.mps"))
+            m.solve()
+            s = m.solution()
+            wrong = [v + 100.0 for v in s.col_value]
+            r = m.check_solution(wrong, s.row_dual)
+            self.assertFalse(r.primal_feasible)
+            self.assertGreater(max(r.max_col_violation,
+                                   r.max_row_violation), 1.0)
+
+    def test_no_duals_means_no_dual_verdict(self):
+        with jaos.Model() as m:
+            m.read_mps(data("solve1.mps"))
+            m.solve()
+            r = m.check_solution(m.solution().col_value)
+            self.assertFalse(r.checked_duals)
+
+
+class TestProgressCallback(unittest.TestCase):
+    def test_the_callback_sees_the_solve(self):
+        seen = []
+        with jaos.Model() as m:
+            m.read_mps(data("solve1.mps"))
+            m.set_progress_callback(lambda p: seen.append(p))
+            self.assertIs(m.solve(), jaos.SolveStatus.OPTIMAL)
+        # jaos.h promises the first call comes before anything is priced.
+        self.assertTrue(seen)
+        for p in seen:
+            self.assertIsInstance(p, jaos.Progress)
+            self.assertGreaterEqual(p.iterations, 0)
+
+    def test_watching_does_not_change_the_answer(self):
+        """The header's determinism claim, at the binding: a callback that
+        always continues returns the same bits as no callback."""
+        with jaos.Model() as quiet:
+            quiet.read_mps(data("solve1.mps"))
+            quiet.solve()
+            a, wa = quiet.objective(), quiet.work_units
+        with jaos.Model() as watched:
+            watched.read_mps(data("solve1.mps"))
+            watched.set_progress_callback(
+                lambda p: jaos.CallbackAction.CONTINUE)
+            watched.solve()
+            b, wb = watched.objective(), watched.work_units
+        self.assertEqual(a, b)
+        self.assertEqual(wa, wb)
+
+    def test_stop_interrupts_and_leaves_nothing_to_read(self):
+        with jaos.Model() as m:
+            m.read_mps(data("solve1.mps"))
+            m.set_progress_callback(lambda p: jaos.CallbackAction.STOP)
+            self.assertIs(m.solve(), jaos.SolveStatus.INTERRUPTED)
+            with self.assertRaises(jaos.JaosError):
+                m.objective()
+            m.set_progress_callback(None)
+            self.assertIs(m.solve(), jaos.SolveStatus.OPTIMAL)
+
+
+class TestExpressions(unittest.TestCase):
+    """The algebra the modeling layer owns. Coefficients are asserted
+    exactly: building an expression is bookkeeping, not arithmetic, and a
+    half-lost term here becomes a silently different model."""
+
+    def setUp(self):
+        self.p = jaos.Problem()
+        self.x = self.p.add_var(name="x")
+        self.y = self.p.add_var(name="y")
+
+    def test_terms_combine_and_constants_fold(self):
+        e = 2 * self.x + 3 * self.x - self.x + 1 + (self.y - 4) / 2
+        self.assertEqual(e._t[self.x], 4.0)
+        self.assertEqual(e._t[self.y], 0.5)
+        self.assertEqual(e._c, -1.0)
+
+    def test_subtraction_from_a_number(self):
+        e = 5 - self.x
+        self.assertEqual(e._t[self.x], -1.0)
+        self.assertEqual(e._c, 5.0)
+
+    def test_sum_and_quicksum_agree(self):
+        xs = [self.x, self.y, self.x]
+        a, b = sum(xs), jaos.quicksum(xs)
+        self.assertEqual(a._t, b._t)
+        self.assertEqual(a._t[self.x], 2.0)
+
+    def test_a_product_of_variables_is_refused(self):
+        with self.assertRaises(TypeError):
+            self.x * self.y
+        with self.assertRaises(TypeError):
+            (self.x + 1) * (self.y + 1)
+        with self.assertRaises(TypeError):
+            1 / self.x
+
+    def test_not_equal_is_refused(self):
+        with self.assertRaises(TypeError):
+            self.x != self.y
+
+    def test_a_chained_comparison_cannot_lose_a_bound(self):
+        """Python evaluates 0 <= e <= 5 as (0 <= e) and (e <= 5), and the
+        'and' would silently drop the lower bound. The constraint's refusal
+        to have a truth value is what turns that into an error."""
+        with self.assertRaises(TypeError):
+            0 <= self.x <= 5
+
+    def test_variables_of_two_problems_do_not_mix(self):
+        q = jaos.Problem()
+        z = q.add_var()
+        with self.assertRaises(ValueError):
+            self.x + z
+        with self.assertRaises(ValueError):
+            self.p.add(z <= 1)
+
+
+class TestProblemSolves(unittest.TestCase):
+    def test_the_golden_model_through_the_layer(self):
+        """The same LP and the same six numbers as the raw-layer test
+        above: min -x - 2y s.t. x + y <= 4."""
+        p = jaos.Problem()
+        x = p.add_var()
+        y = p.add_var()
+        c = p.add(x + y <= 4)
+        p.minimize(-x - 2 * y)
+        self.assertIs(p.solve(), jaos.SolveStatus.OPTIMAL)
+        self.assertAlmostEqual(p.objective_value, -8.0, places=9)
+        self.assertAlmostEqual(x.value, 0.0, places=9)
+        self.assertAlmostEqual(y.value, 4.0, places=9)
+        self.assertAlmostEqual(c.activity, 4.0, places=9)
+        self.assertAlmostEqual(c.dual, -2.0, places=9)
+        self.assertAlmostEqual(x.reduced_cost, 1.0, places=9)
+        self.assertAlmostEqual(y.reduced_cost, 0.0, places=9)
+
+    def test_maximize_is_not_minimize(self):
+        p = jaos.Problem()
+        x = p.add_var()
+        y = p.add_var()
+        p.add(x + y <= 4)
+        p.maximize(x + 2 * y)
+        p.solve()
+        self.assertAlmostEqual(p.objective_value, 8.0, places=9)
+
+    def test_an_equality_constraint_holds(self):
+        p = jaos.Problem()
+        x = p.add_var()
+        y = p.add_var()
+        p += x + y == 3
+        p.minimize(-x)
+        p.solve()
+        self.assertAlmostEqual(p.objective_value, -3.0, places=9)
+
+    def test_a_range_constraint_uses_both_sides(self):
+        """The lower side is the binding one here, so a range that lost it
+        (the chained-comparison mistake) answers 0 instead of 1."""
+        p = jaos.Problem()
+        x = p.add_var()
+        y = p.add_var()
+        p.add_range(1, x + y, 5)
+        p.minimize(x + y)
+        p.solve()
+        self.assertAlmostEqual(p.objective_value, 1.0, places=9)
+
+    def test_the_objective_constant_is_reported(self):
+        p = jaos.Problem()
+        x = p.add_var(lb=2)
+        p.minimize(x + 7)
+        p.solve()
+        self.assertAlmostEqual(p.objective_value, 9.0, places=9)
+
+    def test_a_problem_with_no_constraints_solves_on_bounds(self):
+        p = jaos.Problem()
+        x = p.add_var(lb=3)
+        p.minimize(x)
+        p.solve()
+        self.assertAlmostEqual(p.objective_value, 3.0, places=9)
+
+    def test_a_variable_in_no_constraint_still_loads(self):
+        p = jaos.Problem()
+        x = p.add_var()
+        z = p.add_var(ub=2)                    # never in a row
+        p.add(x <= 4)
+        p.minimize(-x - 3 * z)
+        p.solve()
+        self.assertAlmostEqual(p.objective_value, -10.0, places=9)
+        self.assertAlmostEqual(z.value, 2.0, places=9)
+
+    def test_two_identical_builds_answer_identically(self):
+        """Determinism reaches the layer: the same script builds the same
+        arrays, so the objectives are equal as bits, not as approximations."""
+        def build():
+            p = jaos.Problem()
+            xs = p.add_vars(3, ub=9)
+            p.add(jaos.quicksum(xs) <= 10)
+            p.add(xs[0] - xs[2] >= -2)
+            p.minimize(-2 * xs[0] - 3 * xs[1] - xs[2])
+            p.solve()
+            return p.objective_value, p.work_units
+        self.assertEqual(build(), build())
+
+    def test_infeasible_is_reported_not_raised(self):
+        p = jaos.Problem()
+        x = p.add_var(ub=1)
+        p.add(x >= 2)
+        self.assertIs(p.solve(), jaos.SolveStatus.INFEASIBLE)
+
+    def test_the_layers_checker_accepts_its_own_answer(self):
+        p = jaos.Problem()
+        x = p.add_var()
+        p.add(x <= 4)
+        p.minimize(-x)
+        p.solve()
+        r = p.check()
+        self.assertTrue(r.primal_feasible)
+        self.assertTrue(r.dual_feasible)
+
+
+class TestProblemResolves(unittest.TestCase):
+    """The change-tracking path: a value moved after a solve goes through
+    the C setters, everything else rebuilds. Each case is judged against a
+    fresh Problem built directly in the changed state, so a delta applied
+    to the wrong slot cannot agree with it."""
+
+    def build(self, row_ub=4.0, x_lb=0.0):
+        p = jaos.Problem()
+        x = p.add_var(lb=x_lb)
+        y = p.add_var()
+        c = p.add(x + y <= row_ub)
+        p.minimize(-x - 2 * y)
+        return p, x, y, c
+
+    def test_moving_a_rhs_agrees_with_a_fresh_build(self):
+        p, x, y, c = self.build()
+        p.solve()
+        c.ub = 3.0
+        p.solve()
+        fresh, *_ = self.build(row_ub=3.0)
+        fresh.solve()
+        self.assertAlmostEqual(p.objective_value, fresh.objective_value,
+                               places=9)
+        self.assertAlmostEqual(p.objective_value, -6.0, places=9)
+
+    def test_moving_a_variable_bound_agrees_with_a_fresh_build(self):
+        p, x, y, c = self.build()
+        p.solve()
+        x.lb = 1.0
+        p.solve()                              # x = 1, y = 3
+        fresh, *_ = self.build(x_lb=1.0)
+        fresh.solve()
+        self.assertAlmostEqual(p.objective_value, fresh.objective_value,
+                               places=9)
+        self.assertAlmostEqual(p.objective_value, -7.0, places=9)
+
+    def test_a_new_objective_goes_through_the_cost_setter(self):
+        p, x, y, c = self.build()
+        p.solve()
+        p.minimize(-3 * x - 2 * y)             # same sense, same constant
+        p.solve()                              # x = 4 now
+        self.assertAlmostEqual(p.objective_value, -12.0, places=9)
+
+    def test_adding_a_variable_after_a_solve_rebuilds(self):
+        p, x, y, c = self.build()
+        p.solve()
+        z = p.add_var(ub=2)
+        p.minimize(-x - 2 * y - 3 * z)
+        p.solve()
+        self.assertAlmostEqual(p.objective_value, -14.0, places=9)
+        self.assertAlmostEqual(z.value, 2.0, places=9)
+
+    def test_a_stale_value_refuses_to_answer(self):
+        p, x, y, c = self.build()
+        p.solve()
+        self.assertAlmostEqual(y.value, 4.0, places=9)
+        c.ub = 3.0
+        with self.assertRaises(ValueError):
+            y.value
+        with self.assertRaises(ValueError):
+            p.objective_value
+        p.solve()
+        self.assertAlmostEqual(y.value, 3.0, places=9)
+
+
 if __name__ == "__main__":
     unittest.main()

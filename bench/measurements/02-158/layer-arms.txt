@@ -1,0 +1,18 @@
+tree: 931af54
+
+arm 1, a dirty row bound never applied on the warm path:
+  [80034186] test_a_stale_value_refuses_to_answer test_moving_a_rhs_agrees_with_a_fresh_build 
+
+arm 2, the check report's eighteen fields reversed:
+  [7db1c56a] test_a_corrupted_solution_is_flagged test_the_layers_checker_accepts_its_own_answer test_the_true_solution_checks_out 
+
+arm 3, a comparison's constant not folded into the bound:
+  [0240b4ba] test_a_new_objective_goes_through_the_cost_setter test_a_stale_value_refuses_to_answer test_a_variable_in_no_constraint_still_loads test_adding_a_variable_after_a_solve_rebuilds test_an_equality_constraint_holds test_maximize_is_not_minimize test_moving_a_rhs_agrees_with_a_fresh_build test_moving_a_variable_bound_agrees_with_a_fresh_build test_the_golden_model_through_the_layer test_the_layers_checker_accepts_its_own_answer test_two_identical_builds_answer_identically 
+
+no arm applied:
+  [cb6625b4] 
+
+distinct sources across the four runs: 4 of 4
+
+VERDICT: PASS, all three defect shapes are caught and a clean tree
+is green.
