@@ -440,14 +440,13 @@ static void test_each_lp_guard_fires_on_its_own(void)
         bool entry;
         const char *want;
     } cases[] = {
-        {1.0, 4.0,             0.0, INFINITY, true,  "is ranged"},
+        /* A ranged row is NOT here: the LP dialect writes one now (D239). */
         {-INFINITY, INFINITY,  0.0, INFINITY, true,  "is free"},
         {0.0, 0.0,             0.0, INFINITY, false, "no coefficients"},
         {INFINITY, INFINITY,   0.0, INFINITY, true,  "at an infinity"},
         /* An equality row, so the row loop passes it and the column loop
-         * is reached. A ranged row here would fire the ranged guard first
-         * -- the first refusal wins -- and this case would test that one
-         * twice instead of the column bound. */
+         * is reached: the first refusal wins, so a row this loop rejects
+         * would test that one twice instead of the column bound. */
         {0.0, 0.0,        INFINITY, INFINITY, true,  "at an infinity"},
     };
 
@@ -461,6 +460,24 @@ static void test_each_lp_guard_fires_on_its_own(void)
         TEST_ASSERT_FALSE(file_exists(TMP_LP));
         jaos_model_free(m);
     }
+}
+
+/* A ranged row survives the LP round trip as one row with both ends, which
+ * is the case the guard above used to refuse (D239). */
+static void test_a_ranged_row_round_trips_through_lp(void)
+{
+    jaos_model *m = one_by_one(1.0, 4.0, 0.0, INFINITY, true);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_write_lp(m, TMP_LP));
+    jaos_model_free(m);
+
+    jaos_model *back = nullptr;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_model_new(&back));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_read_lp(back, TMP_LP));
+    TEST_ASSERT_EQUAL_INT64(1, jaos_num_row(back));
+    TEST_ASSERT_EQUAL_DOUBLE(1.0, back->row_lower[0]);
+    TEST_ASSERT_EQUAL_DOUBLE(4.0, back->row_upper[0]);
+    jaos_model_free(back);
+    remove(TMP_LP);
 }
 
 /* The two MPS branches the refusal test above does not reach. */
@@ -696,6 +713,7 @@ int main(void)
     RUN_TEST(test_lp_keeps_column_order_when_a_cost_is_zero);
     RUN_TEST(test_lp_takes_a_column_that_appears_in_no_row);
     RUN_TEST(test_each_lp_guard_fires_on_its_own);
+    RUN_TEST(test_a_ranged_row_round_trips_through_lp);
     RUN_TEST(test_each_mps_guard_fires_on_its_own);
     RUN_TEST(test_a_refusal_leaves_an_existing_file_alone);
     RUN_TEST(test_solution_file_carries_the_answer);

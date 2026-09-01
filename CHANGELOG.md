@@ -11,6 +11,17 @@ open, `bench/README.md` for the gate, and the commit each entry came from.
 
 ### Added
 
+- **`jaos_read_lp` accepts a ranged constraint, and `jaos_write_lp` writes
+  one.** `l <= expr <= u` and its mirror, both operators pointing the same
+  way. A leading number is only the left bound when an operator follows it,
+  so `3 x + y >= 2` still reads its 3 as a coefficient.
+
+  **104 of the 139 gate instances round-trip through LP now, against 102**,
+  and ranged refusals go from 2 to 0. `SPECS.md` said all three refusals
+  would close at once with this change and that was wrong: the 1 free row and
+  34 empty rows are not a reader problem — LP cannot write a constraint with
+  no terms, and the two-sided form takes numbers rather than `inf` (D239).
+
 - **Two singleton-row replay contracts are asserts: the row's coefficient is
   the divisor, and the bound it claims to own is one it induced.** Both hold
   on 94 standard and 29 infeasible instances, both are reached (70 and 61),

@@ -108,6 +108,29 @@ static void test_g2_maximize_exponents_summing_wrapping(void)
     jaos_model_free(m);
 }
 
+/* A two-sided constraint is one row with two finite ends, not two rows.
+ * Both directions name the same interval: "1 <= e <= 5" and "5 >= e >= 1".
+ * A leading number is only the left bound when an operator follows it, so
+ * the third row is the case that would break a naive lookahead — its 3 is a
+ * coefficient. */
+static void test_a_ranged_constraint_is_one_row_with_two_ends(void)
+{
+    jaos_model *m = fresh();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_read_lp(m, "tests/data/g_ranged.lp"));
+
+    TEST_ASSERT_EQUAL_INT64(3, jaos_num_row(m));
+    TEST_ASSERT_EQUAL_DOUBLE(1.0, m->row_lower[0]);
+    TEST_ASSERT_EQUAL_DOUBLE(5.0, m->row_upper[0]);
+    TEST_ASSERT_EQUAL_DOUBLE(1.0, m->row_lower[1]);
+    TEST_ASSERT_EQUAL_DOUBLE(5.0, m->row_upper[1]);
+
+    /* "3 x + y >= 2": the 3 is a coefficient and the row is one-sided. */
+    TEST_ASSERT_EQUAL_DOUBLE(2.0, m->row_lower[2]);
+    TEST_ASSERT_TRUE(isinf(m->row_upper[2]) && m->row_upper[2] > 0.0);
+    jaos_model_free(m);
+}
+
 static void expect_reject(const char *path, const char *needle)
 {
     jaos_model *m = fresh();
@@ -119,7 +142,7 @@ static void expect_reject(const char *path, const char *needle)
 static void test_rejection_reasons_are_specific(void)
 {
     expect_reject("tests/data/el_int.lp", "integer");
-    expect_reject("tests/data/el_ranged.lp", "ranged");
+    expect_reject("tests/data/el_rangedir.lp", "same way");
     expect_reject("tests/data/el_const.lp", "constant term");
     expect_reject("tests/data/el_unkbound.lp", "unknown variable");
     expect_reject("tests/data/el_badchar.lp", "unexpected character");
@@ -129,7 +152,7 @@ static void test_rejection_reasons_are_specific(void)
 static void test_rejections_carry_line_numbers(void)
 {
     expect_reject("tests/data/el_int.lp", "line 5");
-    expect_reject("tests/data/el_ranged.lp", "line 4");
+    expect_reject("tests/data/el_rangedir.lp", "line 4");
     expect_reject("tests/data/el_const.lp", "line 4");
     expect_reject("tests/data/el_unkbound.lp", "line 6");
     expect_reject("tests/data/el_badchar.lp", "line 4");
@@ -148,7 +171,7 @@ static void test_failed_read_preserves_previous_model(void)
     jaos_model *m = fresh();
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_read_lp(m, "tests/data/g1.lp"));
     TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT,
-        jaos_read_lp(m, "tests/data/el_ranged.lp"));
+        jaos_read_lp(m, "tests/data/el_rangedir.lp"));
 
     TEST_ASSERT_EQUAL_INT64(3, jaos_num_col(m));
     TEST_ASSERT_EQUAL_INT64(7, jaos_num_nz(m));
@@ -161,6 +184,7 @@ int main(void)
     UNITY_BEGIN();
     RUN_TEST(test_g1_labels_relations_bounds);
     RUN_TEST(test_g2_maximize_exponents_summing_wrapping);
+    RUN_TEST(test_a_ranged_constraint_is_one_row_with_two_ends);
     RUN_TEST(test_rejection_reasons_are_specific);
     RUN_TEST(test_rejections_carry_line_numbers);
     RUN_TEST(test_missing_file_is_io_error);

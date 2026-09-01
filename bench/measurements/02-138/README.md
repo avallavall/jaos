@@ -203,3 +203,9 @@ builds and passes all five configurations.
 Every `.txt` here says `WITH UNCOMMITTED CHANGES`. They have to: the writers
 are the change being measured and were untracked when the readings were
 taken. Nothing else in the tree differed from the commit each header names.
+
+**Superseded for the ranged row, 2026-09-01.** `jaos_read_lp` accepts the
+two-sided form now, so the writer no longer refuses a ranged row: the same
+script reports **104 round-tripped, 35 refused, 0 differed**, and the split is
+1 free row and 34 empty rows. The figures above are this campaign own and are
+left as they were measured (D239).

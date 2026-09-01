@@ -246,6 +246,7 @@ and you have the argument. Jump to the entry for the numbers behind it.
 - **[D236](#d236--two-more-presolve-contracts-become-asserts-and-five-items-on-the-debt-list-turn-out-to-be-already-done)** — Two more presolve contracts become asserts, and five items on the debt list turn out to be already done
 - **[D237](#d237--scaling-never-moves-a-bounds-finiteness-and-the-canary-caught-a-stop-point-that-skipped-the-assert-it-was-measuring)** — Scaling never moves a bound's finiteness, and the canary caught a stop point that skipped the assert it was measuring
 - **[D238](#d238--two-singleton-row-replay-contracts-one-contract-on-the-list-that-is-a-tautology-and-a-property-guarded-twice-again)** — Two singleton-row replay contracts, one contract on the list that is a tautology, and a property guarded twice again
+- **[D239](#d239--lp-reads-and-writes-a-ranged-row-and-specs-was-wrong-that-the-other-two-refusals-close-with-it)** — LP reads and writes a ranged row, and SPECS was wrong that the other two refusals close with it
 
 ---
 
@@ -18582,3 +18583,33 @@ Both are `#ifndef NDEBUG`, so the shipping build is unchanged. All three gate
 sets came back `gate: PASS`, `0 regressed, 0 improved, 0 new`, with
 `bench/results/` byte-identical: 110 solution digests and 29 infeasibility
 verdicts unmoved, over 139 instances.
+
+## D239 — LP reads and writes a ranged row, and SPECS was wrong that the other two refusals close with it
+
+`jaos_read_lp` accepts `l <= expr <= u` and its mirror, both operators
+pointing the same way. `jaos_write_lp` emits it and no longer refuses a
+ranged row.
+
+A leading number is the left bound only when a relational operator follows
+it. In `3 x + y >= 2` the same number is a coefficient, so the parser reads
+the number, lets the next token decide, and pushes it back with its sign
+folded in where it is not a bound. `tests/data/g_ranged.lp` carries all three
+shapes and `el_rangedir.lp` is the mismatched pair `1 <= e >= 5`, which is
+refused by name and line.
+
+**The measured result**: 104 of the 139 gate instances round-trip through LP,
+against 102, and ranged refusals go from 2 to 0
+(`bench/measurements/02-138/run-lpcover.sh`, re-run).
+
+**`SPECS.md` claimed all three refusals would close at once with this change.
+That is wrong** and the row says so now. The 1 free row and 34 empty rows are
+not a reader problem: LP cannot write a constraint with no terms at all, and
+the two-sided form takes numbers rather than `inf`. Closing them needs the
+writer to gain a form, not the reader.
+
+02-138's `lpcover.txt` is left as D226 measured it, because its README cites
+those figures; the new ones live here and in `SPECS.md`.
+
+## What it cost
+
+Three gate sets: GATE-PENDING

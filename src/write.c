@@ -455,10 +455,6 @@ jaos_status jaos_write_lp(jaos_model *m, const char *path)
             wr_fail(w, JAOS_ERR_INVALID_INPUT,
                     "row '%s' is free, which LP format cannot express; write "
                     "MPS instead", rn);
-        else if (rl != ru && rl != -INFINITY && ru != INFINITY)
-            wr_fail(w, JAOS_ERR_INVALID_INPUT,
-                    "row '%s' is ranged, which this LP dialect cannot "
-                    "express; write MPS instead", rn);
         else if (!isfinite(rl == -INFINITY ? ru : rl))
             wr_fail(w, JAOS_ERR_INVALID_INPUT,
                     "row '%s' has a bound at an infinity LP format cannot "
@@ -512,17 +508,32 @@ jaos_status jaos_write_lp(jaos_model *m, const char *path)
         fprintf(w->f, "Subject To\n");
         for (int64_t i = 0; i < m->num_row; i++) {
             const double rl = m->row_lower[i], ru = m->row_upper[i];
+            /* Ranged: two finite ends that differ. Written as the two-sided
+             * form, whose left bound sits between the label and the terms. */
+            const bool ranged = rl != ru && rl != -INFINITY && ru != INFINITY;
+            char lonum[NUM_LEN];
             row_name(rn, i);
             fprintf(w->f, " %s:", rn);
             col = (int)strlen(rn) + 2;
+            if (ranged) {
+                wr_num(lonum, rl);
+                fprintf(w->f, " %s <=", lonum);
+                col += (int)strlen(lonum) + 4;
+            }
             first = true;
             for (int64_t k = m->ar_start[i]; k < m->ar_start[i + 1]; k++) {
                 col_name(nm, m->ar_index[k]);
                 lp_term(w, &col, &first, m->ar_value[k], nm);
             }
-            const char *rel = rl == ru ? "=" : (rl == -INFINITY ? "<=" : ">=");
-            wr_num(num, rl == -INFINITY ? ru : rl);
-            fprintf(w->f, " %s %s\n", rel, num);
+            if (ranged) {
+                wr_num(num, ru);
+                fprintf(w->f, " <= %s\n", num);
+            } else {
+                const char *rel =
+                    rl == ru ? "=" : (rl == -INFINITY ? "<=" : ">=");
+                wr_num(num, rl == -INFINITY ? ru : rl);
+                fprintf(w->f, " %s %s\n", rel, num);
+            }
         }
 
         /* One statement per column is all the reader needs: later

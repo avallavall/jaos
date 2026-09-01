@@ -8,13 +8,14 @@
  *   objective  := [label ':'] expr?
  *   subject    := SUBJECT TO | SUCH THAT | ST | S.T.
  *   constraint := [label ':'] expr relop rhs
+ *               | [label ':'] l relop expr relop u    (both relops alike)
  *   expr       := [+|-] term (( '+' | '-' ) term)*
  *   term       := number name | name | number      (bare number: obj only)
  *   relop      := '<=' | '<' | '=<' | '>=' | '>' | '=>' | '='
  *   bounds     := (l '<=' name ['<=' u]) | (name relop v) | (name FREE)
  *
  * Rejected loudly: integer sections (until M3), SOS and semi-continuous,
- * ranged constraints, constants inside constraints, bounds on unknown
+ * constants inside constraints, bounds on unknown
  * variables. Repeated variables inside one expression sum, as algebra says
  * they should. Dialect notes live in docs/format-support.md.
  *
@@ -426,12 +427,6 @@ static jaos_status parse(lp *p)
         if (at_reserved(p))
             break;
 
-        /* A constraint starting with a number or sign is the two-sided
-         * form "l <= expr <= u" — recognize it, reject it precisely. */
-        if (p->tok.t == T_NUM || p->tok.t == T_PLUS || p->tok.t == T_MINUS)
-            FAIL("line %" PRId64 ": ranged constraints are not supported",
-                 p->tok.line);
-
         /* optional label */
         if (p->tok.t == T_NAME) {
             token saved = p->tok;
@@ -453,10 +448,47 @@ static jaos_status parse(lp *p)
         p->rs[row] = p->nent;
         p->nrow++;
 
+        /* The two-sided form "l <= expr <= u". A leading signed number is
+         * the left bound ONLY when a relational operator follows it: in
+         * "3 x + 2 y <= 5" the same number is a coefficient. So the number is
+         * read, the next token decides, and where it does not decide for a
+         * range the number is pushed back with its sign folded in, which is
+         * what `parse_expr` would have made of the pair anyway. */
+        bool ranged = false;
+        toktype lo_rel = T_EOF;
+        double lo_val = 0.0;
+        if (p->tok.t == T_NUM || p->tok.t == T_PLUS || p->tok.t == T_MINUS) {
+            double lsign = 1.0;
+            if (p->tok.t == T_PLUS || p->tok.t == T_MINUS) {
+                lsign = p->tok.t == T_MINUS ? -1.0 : 1.0;
+                if ((st = lx_next(p)) != JAOS_OK)
+                    goto done;
+                if (p->tok.t != T_NUM)
+                    FAIL("line %" PRId64 ": expected a number after the sign",
+                         p->tok.line);
+            }
+            token num_tok = p->tok;
+            num_tok.num = lsign * p->tok.num;
+            if ((st = lx_next(p)) != JAOS_OK)
+                goto done;
+            if (p->tok.t == T_LE || p->tok.t == T_GE) {
+                ranged = true;
+                lo_rel = p->tok.t;
+                lo_val = num_tok.num;
+                if ((st = lx_next(p)) != JAOS_OK)
+                    goto done;
+            } else {
+                lx_push(p, &num_tok);
+            }
+        }
+
         if ((st = parse_expr(p, row)) != JAOS_OK)
             goto done;
 
         toktype rel = p->tok.t;
+        /* The operator's own line: by the time a ranged mismatch is found the
+         * stream has read past the right-hand side and on to the next line. */
+        const int64_t rel_line = p->tok.line;
         if (rel != T_LE && rel != T_GE && rel != T_EQ)
             FAIL("line %" PRId64 ": expected <=, >= or = after the "
                  "constraint expression", p->tok.line);
@@ -477,11 +509,24 @@ static jaos_status parse(lp *p)
             goto done;
 
         if (p->tok.t == T_LE || p->tok.t == T_GE)
-            FAIL("line %" PRId64 ": ranged constraints are not supported",
+            FAIL("line %" PRId64 ": a third bound on one constraint",
                  p->tok.line);
 
-        p->rlb[row] = rel == T_LE ? -INFINITY : rhs;
-        p->rub[row] = rel == T_GE ? INFINITY : rhs;
+        if (ranged) {
+            /* Both operators must point the same way, so the pair really is
+             * an interval: "3 <= x >= 8" says nothing. */
+            if (rel == T_EQ || (lo_rel == T_LE) != (rel == T_LE))
+                FAIL("line %" PRId64 ": the two operators of a ranged "
+                     "constraint must point the same way", rel_line);
+            /* "l <= expr <= u" gives [l, u]; ">=" mirrors it. An inverted
+             * pair is legal input to jaos.h and is left for the solve to
+             * report infeasible, exactly as MPS RANGES leaves it. */
+            p->rlb[row] = lo_rel == T_LE ? lo_val : rhs;
+            p->rub[row] = lo_rel == T_LE ? rhs : lo_val;
+        } else {
+            p->rlb[row] = rel == T_LE ? -INFINITY : rhs;
+            p->rub[row] = rel == T_GE ? INFINITY : rhs;
+        }
     }
 
     /* bounds */
