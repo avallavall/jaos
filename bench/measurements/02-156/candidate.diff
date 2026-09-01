@@ -1,0 +1,325 @@
+diff --git a/src/simplex.c b/src/simplex.c
+index 235d68e..ce0a75d 100644
+--- a/src/simplex.c
++++ b/src/simplex.c
+@@ -42,6 +42,19 @@ constexpr double PIVOT_MIN     = 1e-9;   /* smallest usable |alpha| */
+  * the threshold it builds is in scaled space, with `s->col`. Swept in
+  * `bench/measurements/02-122/`. */
+ constexpr double PIVOT_MARGIN  = 1.0;
++/* When the primal's approximate edge weights have drifted far enough to be
++ * thrown away. The entering column's EXACT weight is free every iteration —
++ * the ratio test has already built `B^-1 M_q` — so the drift is measured
++ * against the truth rather than guessed at: past this ratio every weight
++ * goes back to 1, which is a valid lower bound for all of them and so is
++ * always safe to take. Dimensionless, a ratio of two squared norms in the
++ * same space. Derived in `docs/research/approximate-edge-pricing.md` §4 and
++ * swept on both sides in `bench/measurements/02-156/`.
++ *
++ * This is NOT Devex's reset threshold, which is in a paywalled source
++ * nobody here has read; `docs/claims.txt` still says JAOS has no Devex and
++ * that is still true. */
++constexpr double PRIMAL_EDGE_DRIFT = 4.0;
+ /* The width of the Harris window in the two PRIMAL ratio tests, as a multiple
+  * of `s->primal_tol` — the per-model field and not `PRIMAL_TOL`, so a model
+  * that tightens the tolerance tightens the window with it. The phase-1
+@@ -174,6 +187,14 @@ typedef struct {
+      * ||row i of B^-1||^2. Carried across refactorizations. */
+     double *dse;             /* [nrow] */
+ 
++    /* The primal's approximate edge weights, one per variable, and whether
++     * anything is maintaining them. `run()` clears the flag, so a dual
++     * solve — which is every solve that does not set `cfg.force_primal` —
++     * never reads or writes `pedge` and pays nothing for it.
++     * `docs/research/approximate-edge-pricing.md` derives the recurrence. */
++    double *pedge;           /* [nvar] */
++    bool edge_live;
++
+     jm_lu lu;
+     jm_work work;
+ 
+@@ -312,6 +333,11 @@ typedef struct {
+     /* Counted always, reported only if someone is listening. */
+     int64_t n_refactor;
+     int64_t n_weight_restart;
++    /* Kept apart from n_weight_restart on purpose: that one counts the
++     * DUAL's exact weights being rebuilt, this one the PRIMAL's approximate
++     * weights being thrown away, and reading a sum of the two would say
++     * nothing about either. */
++    int64_t n_edge_reset;
+     int64_t n_bland;
+     /* Pivots declined because the factorization contradicted itself (D86). */
+     int64_t n_stability;
+@@ -388,6 +414,7 @@ static void sx_free(sx *s)
+     free(s->col); free(s->raw); free(s->rhsc); free(s->resc);
+     free(s->y); free(s->rho);
+     free(s->tau); free(s->alpha); free(s->apat); free(s->amark);
++    free(s->pedge);
+     free(s->nbmark);
+     free(s->rpat); free(s->rmark); free(s->cpat);
+     free(s->cand); free(s->rnum); free(s->rden); free(s->rrange);
+@@ -456,6 +483,7 @@ static jaos_status sx_init(sx *s, jaos_model *m)
+     s->rho    = jm_calloc_array(s->nrow, sizeof(double));
+     s->tau    = jm_calloc_array(s->nrow, sizeof(double));
+     s->alpha  = jm_calloc_array(s->nvar, sizeof(double));
++    s->pedge  = jm_calloc_array(s->nvar, sizeof(double));
+     s->apat   = jm_alloc_array(s->nvar, sizeof(int64_t));
+     s->amark  = jm_calloc_array((s->nvar + 63) / 64, sizeof(uint64_t));
+     s->nbmark = jm_calloc_array((s->nvar + 63) / 64, sizeof(uint64_t));
+@@ -482,7 +510,7 @@ static jaos_status sx_init(sx *s, jaos_model *m)
+         !s->where || !s->xb || !s->d || !s->dse ||
+         !s->col || !s->raw || !s->rhsc || !s->resc ||
+         !s->y || !s->rho || !s->tau || !s->alpha || !s->apat || !s->amark ||
+-        !s->nbmark ||
++        !s->pedge || !s->nbmark ||
+         !s->rpat || !s->rmark || !s->cpat || !s->cand || !s->rnum ||
+         !s->rden || !s->rrange || !s->prow || !s->pnum || !s->pden ||
+         !s->bs || !s->fake) {
+@@ -1843,6 +1871,13 @@ static void update_dual(sx *s, int64_t v, int64_t q, double theta_dual)
+  * leaves to the bound it violated. `*took` says whether it happened: a
+  * declined pivot leaves every field exactly as it found them and asks for
+  * a refactorization, so the caller must not bill an iteration for it. */
++/* The primal's edge weights, maintained here and defined with the pricing
++ * rule that reads them. */
++static void primal_edge_reset(sx *s);
++static bool primal_edge_update(sx *s, int64_t leaving, int64_t q,
++                               double alpha_q);
++static double primal_edge_exact(sx *s);
++
+ static jaos_status pivot(sx *s, int64_t r, int64_t q, bool below,
+                          double theta_dual, bool *took)
+ {
+@@ -1904,6 +1939,19 @@ static jaos_status pivot(sx *s, int64_t r, int64_t q, bool below,
+     s->d[leaving] = -theta_dual;
+     s->d[q] = 0.0;
+ 
++    /* The primal's approximate edge weights, while the old basis is still
++     * in force and `s->alpha` still holds row r. The drift is read against
++     * the entering column's EXACT weight, which this iteration has already
++     * paid for. `run()` clears the flag, so a dual solve never gets here.
++     * `docs/research/approximate-edge-pricing.md`. */
++    if (s->edge_live) {
++        const bool drifted =
++            primal_edge_exact(s) > PRIMAL_EDGE_DRIFT * s->pedge[q];
++        const bool finite = primal_edge_update(s, leaving, q, alpha_q);
++        if (drifted || !finite)
++            primal_edge_reset(s);
++    }
++
+     /* Steepest-edge weights, while the old basis is still in force. rho
+      * still holds row r of B^-1 from build_pricing_row, the one piece of
+      * state this function inherits rather than derives. */
+@@ -2874,6 +2922,95 @@ static double primal_worst_violation(const sx *s)
+  * D82, D84). Eligibility is `dual_breach` and not `breached` (D92). A
+  * fixed column never enters. Ties go to the lowest index, which the strict
+  * `>` gives (D8). `*total` receives the sum of every breach. */
++/* --------------------------------------------------------------------- */
++/* The primal's approximate edge weights                                   */
++/* --------------------------------------------------------------------- */
++
++/* Every weight back to 1. `gamma_j >= 1` for every j — the `+1` from the j
++ * coordinate of the edge vector can never be lost — so 1 is a valid lower
++ * bound for all of them and a reset is always safe to take. It degrades
++ * the rule towards Dantzig and never towards a wrong answer
++ * (`docs/research/approximate-edge-pricing.md` §3). */
++static void primal_edge_reset(sx *s)
++{
++    for (int64_t v = 0; v < s->nvar; v++)
++        s->pedge[v] = 1.0;
++    jm_work_add(&s->work, s->nvar * JM_WORK_NONZERO);
++    s->n_edge_reset++;
++}
++
++/* One variable's share of the update: `w'_j = max(w_j, mu_j^2 w_q)` with
++ * `mu_j = alpha_rj / alpha_rq`. Says whether the weight is still finite. */
++static bool edge_one(sx *s, int64_t v, int64_t q, double wq, double alpha_q)
++{
++    if (v == q || s->status[v] == JM_BASIC)
++        return true;
++    const double mu = s->alpha[v] / alpha_q;
++    const double cand = mu * mu * wq;
++    if (cand > s->pedge[v])
++        s->pedge[v] = cand;
++    return isfinite(s->pedge[v]);
++}
++
++/* One pivot's worth of update, taken while the OLD basis is still in force
++ * and `s->alpha` still holds row r of `B^-1 M`. A variable the pricing row
++ * does not reach has `mu_j = 0` and keeps its weight, so this walks that
++ * row's pattern and no more — the same walk `update_dual` makes just above.
++ *
++ * The leaving variable is the one case the recurrence gives exactly:
++ * `eta'_s = -(1/alpha_rq) eta_q`, so `w'_s = w_q / alpha_rq^2`, floored at
++ * the 1 every weight is bounded below by (§2, Claim 2).
++ *
++ * Returns false when a weight stopped being finite. That is a stall rather
++ * than a wrong answer — a non-finite weight scores zero for ever and its
++ * column would never be priced again — and the caller resets. */
++static bool primal_edge_update(sx *s, int64_t leaving, int64_t q,
++                               double alpha_q)
++{
++    const double wq = s->pedge[q];
++    bool finite = true;
++
++    if (s->anpat < 0) {
++        for (int64_t v = 0; v < s->nvar; v++)
++            finite = edge_one(s, v, q, wq, alpha_q) && finite;
++        jm_work_add(&s->work, s->nvar * JM_WORK_NONZERO);
++    } else {
++        for (int64_t t = 0; t < s->anpat; t++)
++            finite = edge_one(s, s->apat[t], q, wq, alpha_q) && finite;
++        jm_work_add(&s->work, s->anpat * JM_WORK_NONZERO);
++    }
++
++    const double wl = wq / (alpha_q * alpha_q);
++    s->pedge[leaving] = wl > 1.0 ? wl : 1.0;
++    if (!isfinite(s->pedge[leaving]))
++        finite = false;
++    /* q is basic now and is priced again only after it leaves, which sets
++     * its weight from the recurrence above. */
++    s->pedge[q] = 1.0;
++    return finite;
++}
++
++/* The exact weight of the entering column, which costs one pass over a
++ * vector this iteration has already built: `s->col` is `B^-1 M_q` from the
++ * ratio test. Comparing it against the carried weight measures the drift
++ * against the truth rather than guessing at it (§4). */
++static double primal_edge_exact(sx *s)
++{
++    double g = 1.0;
++    if (s->ncpat >= 0) {
++        for (int64_t k = 0; k < s->ncpat; k++) {
++            const double v = s->col[s->cpat[k]];
++            g += v * v;
++        }
++        jm_work_add(&s->work, s->ncpat * JM_WORK_NONZERO);
++    } else {
++        for (int64_t i = 0; i < s->nrow; i++)
++            g += s->col[i] * s->col[i];
++        jm_work_add(&s->work, s->nrow * JM_WORK_NONZERO);
++    }
++    return g;
++}
++
+ static int64_t primal_price(sx *s, double *total)
+ {
+     /* Decided before the loop, so one iteration uses one rule throughout. */
+@@ -2888,7 +3025,7 @@ static int64_t primal_price(sx *s, double *total)
+     }
+ 
+     int64_t best = -1;
+-    double best_breach = 0.0;
++    double best_score = 0.0;
+     double sum = 0.0;
+ 
+     for (int64_t v = 0; v < s->nvar; v++) {
+@@ -2899,7 +3036,7 @@ static int64_t primal_price(sx *s, double *total)
+         const double breach = dual_breach(s, v);
+         if (breach == 0.0)
+             continue;
+-        sum += breach;
++        sum += breach;             /* the stall detector's number, always */
+ 
+         /* Under Bland's rule: the lowest-indexed eligible one (D26). */
+         if (s->bland) {
+@@ -2907,8 +3044,17 @@ static int64_t primal_price(sx *s, double *total)
+                 best = v;          /* ascending scan: the first is the lowest */
+             continue;
+         }
+-        if (breach > best_breach) {
+-            best_breach = breach;
++        /* The objective falls by `breach` per unit of x_v and the point
++         * travels `sqrt(gamma_v)` per unit of x_v, so the fall per unit of
++         * DISTANCE is what this compares. Dantzig's rule is this with every
++         * weight at 1, which is why it follows the scaling of the columns.
++         * Squared to keep it a comparison of two ratios without a square
++         * root: `breach` is non-negative here. */
++        const double score = s->edge_live
++                                 ? breach * breach / s->pedge[v]
++                                 : breach;
++        if (score > best_score) {
++            best_score = score;
+             best = v;
+         }
+     }
+@@ -3261,10 +3407,15 @@ static jaos_status run_primal_phase1(sx *s, jaos_solve_status *out,
+ 
+         primal_phase1_duals(s);
+ 
+-        /* The entering column on the phase-1 objective: Dantzig, with the
+-         * plain sign test rather than `dual_breach`. */
++        /* The entering column on the phase-1 objective, with the plain sign
++         * test rather than `dual_breach`. Eligibility is still the gain
++         * against `dual_tol`; what is compared among the eligible is the
++         * gain per unit of DISTANCE, on the same weights phase 2 uses. The
++         * edge geometry is `B^-1 M_j` and does not know which costs are in
++         * force, so a weight built in phase 1 is as good in phase 2 and is
++         * carried straight across. */
+         int64_t q = -1;
+-        double best_d = s->dual_tol;
++        double best_score = 0.0;
+         for (int64_t v = 0; v < s->nvar; v++) {
+             if (s->status[v] == JM_BASIC || s->lo[v] == s->up[v])
+                 continue;
+@@ -3275,14 +3426,19 @@ static jaos_status run_primal_phase1(sx *s, jaos_solve_status *out,
+             case JM_FREE:     gain = fabs(s->d[v]); break;
+             default:          continue;
+             }
++            if (!(gain > s->dual_tol))
++                continue;          /* not eligible, whatever the rule */
+             /* Under Bland's rule: the lowest-indexed eligible one. */
+             if (s->bland) {
+-                if (q < 0 && gain > s->dual_tol)
++                if (q < 0)
+                     q = v;     /* ascending scan: the first is the lowest */
+                 continue;
+             }
+-            if (gain > best_d) {
+-                best_d = gain;
++            const double score = s->edge_live
++                                     ? gain * gain / s->pedge[v]
++                                     : gain;
++            if (score > best_score) {
++                best_score = score;
+                 q = v;
+             }
+         }
+@@ -3420,6 +3576,16 @@ static jaos_status run_primal(sx *s, jaos_solve_status *out)
+         return JAOS_OK;
+     }
+ 
++    /* Both phases price on approximate edge weights, and one set serves
++     * both: the weights are a property of `B^-1 M`, not of the costs in
++     * force, so what phase 1 learns about the geometry is still true in
++     * phase 2 and is carried across rather than thrown away. Reset here
++     * rather than at `sx_init` so a re-entry starts from the basis it will
++     * actually price against
++     * (`docs/research/approximate-edge-pricing.md`). */
++    primal_edge_reset(s);
++    s->edge_live = true;
++
+     if (primal_worst_violation(s) > s->primal_tol) {
+         bool feasible = false;
+         const int64_t phase1_entered = s->iters;
+@@ -3466,6 +3632,7 @@ static jaos_status run_primal(sx *s, jaos_solve_status *out)
+      * `include/jaos.h` licenses the infinity for the first call only. */
+     s->infeas_best = 0.0;
+ 
++
+     /* The cap is shared with phase 1 and the dual's re-entry, and the
+      * CUMULATIVE `s->iters` is tested against it (D196); rebase the cap per
+      * phase if `ITER_SANITY_FACTOR` ever drops below about 60. */
+@@ -3667,6 +3834,13 @@ static jaos_status run_primal(sx *s, jaos_solve_status *out)
+ 
+ static jaos_status run(sx *s, jaos_solve_status *out)
+ {
++    /* This is the dual, and it neither reads nor maintains the primal's
++     * edge weights. Clearing the flag here is what makes every solve that
++     * does not set `cfg.force_primal` bit-identical to the one before this
++     * rule existed, and it also covers the dual re-entry after a forced
++     * primal, which would otherwise pay for weights nobody reads. */
++    s->edge_live = false;
++
+     /* Each entry into the loop is its own solve: a re-entry (D25) must not
+      * inherit a plateau counted against the pass before it. */
+     s->infeas_best = HUGE_VAL;

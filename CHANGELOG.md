@@ -11,6 +11,19 @@ open, `bench/README.md` for the gate, and the commit each entry came from.
 
 ### Changed
 
+- **An approximate steepest-edge rule for the primal was derived here, built,
+  swept and refused.** The maintainer chose deriving one over buying the
+  paper Devex is in. The derivation stays in
+  `docs/research/approximate-edge-pricing.md`; the code does not.
+
+  It loses to Dantzig on the standard 94 at every setting swept. Maintaining
+  the weights costs **10.9% work at the control, where no decision changes at
+  all**, and only "never reset" ever earns that back. Every setting agrees
+  with the dual on fewer instances than Dantzig, 61 down to 53, and
+  `bench/primal.c` says agreement is the gate and speed only the report. The
+  candidate is kept as measured so a retry starts from it (D244,
+  `bench/measurements/02-156/`).
+
 - **D101's reopen condition is executable instead of manual**, and `make
   refusals` runs it. The three deferred presolve families find **zero**
   removable rows and zero removable columns on all 15 plato instances, 1.06M

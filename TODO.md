@@ -46,7 +46,17 @@ that is not Claude's to make.
 
 ### → the two decisions this list is waiting on
 
-**1. Devex pricing (§0 stage 5).** Sixteen free sources have now been read
+**1. Devex pricing (§0 stage 5) — ANSWERED 2026-09-01, and the answer was
+no.** The maintainer chose to derive a rule rather than buy the paper. It
+was derived (`docs/research/approximate-edge-pricing.md`), built, swept on
+both sides and **refused**: it loses to Dantzig on the standard 94 at every
+setting, costs 10.9% work at the control where no decision changes, and
+agrees with the dual on fewer instances than Dantzig at every setting
+(D244, `bench/measurements/02-156/`). The reopen condition is in
+`bench/refusals.txt` and the candidate is kept as measured. **The paragraph
+below is the state of the published rule and is unchanged.**
+
+Sixteen free sources have now been read
 and none states the weight-update recurrence or the reset threshold. Every
 one that discusses Devex cites Harris (1973) for it and gives the idea
 rather than the arithmetic; the seven read on 2026-09-01 are listed in

@@ -1,0 +1,16 @@
+Dantzig, as committed: ok 61, disagree 30, overrun 3, 94 instances
+
+Paired against Dantzig over the instances ok under BOTH.
+A ratio below 1 means the edge rule used less.
+
+| DRIFT      | binary   | paired | iters  | work   | ok | ds | ov |
+|------------|----------|--------|--------|--------|----|----|----|
+| 1.0000001  | 2fde61d7 |     60 | 1.0000 | 1.1089 | 60 | 30 |  4 |
+| 1.5        | 3cd7986c |     59 | 0.9948 | 1.1033 | 59 | 31 |  4 |
+| 2.0        | 6d31b4eb |     60 | 0.9458 | 1.0462 | 60 | 30 |  4 |
+| 4.0        | 13e87e69 |     58 | 1.0365 | 1.1182 | 59 | 31 |  4 |
+| 16.0       | 2e7ef65a |     53 | 0.9834 | 1.0186 | 53 | 37 |  4 |
+| 1e300      | db892f0a |     57 | 0.9513 | 0.9335 | 59 | 34 |  1 |
+
+The control is the first row. Anything but 1.0000 on both means
+the weights are reaching pricing when they should all be 1.

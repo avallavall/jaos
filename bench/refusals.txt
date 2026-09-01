@@ -76,6 +76,7 @@ D210 | bench/measurements/02-125/unbounded-census.sh | any instance reaches `imp
 # 2026-08-28: can_move reads `breached` now, both spaces, one rate against
 # another (D214, bench/measurements/02-129/). The refusal is spent and its
 # script would now be re-testing the landed code against itself.
+D244 | bench/measurements/02-156/run-edge-sweep.sh | the forced primal's "settled point is not dual feasible" family is fixed, so a pricing rule can be compared on a set where agreement is not already broken; start the retry from "never reset", the row that reduced both iterations and work
 D101 | bench/measurements/02-154/run-families-plato.sh | a set where 02-07's counter reports 5% or more of live rows or columns removable; netlib is the control and the bar is argued in 02-154 (D242)
 D107 | MANUAL | a model population where bench/measurements/02-13/run-sign-count.sh reports a non-trivial sign-ok share
 D109 | MANUAL | a model population where bench/measurements/02-16/run-floorless.sh reports a moved instance line

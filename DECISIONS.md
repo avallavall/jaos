@@ -251,6 +251,7 @@ and you have the argument. Jump to the entry for the numbers behind it.
 - **[D241](#d241--the-primal-decides-its-own-ray-and-one-it-still-cannot-see)** — The primal decides its own ray, and one it still cannot see
 - **[D242](#d242--the-three-deferred-presolve-families-find-nothing-at-all-on-the-sets-added-since-d101)** — The three deferred presolve families find nothing at all on the sets added since D101
 - **[D243](#d243--python-over-ctypes-and-a-claim-of-absence-that-would-not-have-fired)** — Python over ctypes, and a claim of absence that would not have fired
+- **[D244](#d244--an-approximate-edge-rule-for-the-primal-derived-here-and-refused-on-the-measurement)** — An approximate edge rule for the primal, derived here, and refused on the measurement
 
 ---
 
@@ -18801,4 +18802,63 @@ Nothing in the C library; no file under `src/` or `include/` changed. The
 Makefile gained a `-fPIC` object directory and two targets, neither reached
 by `make test`. All three sets `gate: PASS` with `bench/results/`
 byte-identical.
+
+
+## D244 — An approximate edge rule for the primal, derived here, and refused on the measurement
+
+The maintainer's decision on 2026-09-01 was to derive a pricing rule rather
+than buy the paper Devex is in (`primal-simplex.md` §8). The rule is derived
+from scratch in `docs/research/approximate-edge-pricing.md`: the edge vector
+`eta_j`, the identity `eta'_j = eta_j - mu_j eta_q` for a pivot, the exact
+recursion it gives, and the one term dropped to make it affordable. Nothing
+in it is taken from a source, and it is not Devex.
+
+**It loses to Dantzig on the standard 94 at every swept setting, and the
+code is not kept** (`bench/measurements/02-156/`, `candidate.diff`).
+
+| DRIFT | paired iters | paired work | ok |
+|---|---|---|---|
+| Dantzig | 1.0000 | 1.0000 | **61** |
+| 1.0000001 | **1.0000** | 1.1089 | 60 |
+| 2.0 | 0.9458 | 1.0462 | 60 |
+| 16.0 | 0.9834 | 1.0186 | 53 |
+| 1e300 | 0.9513 | **0.9335** | 59 |
+
+**The control reads exactly 1.0000, which is what makes the rest readable.**
+At a ratio just above 1 the weights are thrown away at the end of nearly
+every pivot, so pricing always sees 1s and the rule must choose what Dantzig
+chooses. It does, to four decimals, so the recurrence and the pricing change
+are both doing what they are meant to.
+
+**The first sweep was not paired and its control failed.** It read 1.9901
+against 2.0079 and looked like a different rule. The campaign bounds the
+primal at ten times the dual's work per instance; this rule spends work of
+its own; one instance crossed that bound; and the two geometric means were
+then over two different populations. Every figure above is over the
+instances `ok` under both.
+
+**The maintenance costs 10.9% work for nothing at the control** — that row
+changes no decision and still reads 1.1089 — and only "never reset" ever
+earns it back.
+
+**Every setting agrees with the dual on fewer instances than Dantzig**, 61
+down to 53. `bench/primal.c` states that agreement is the gate and speed is
+only the report, so that decides it.
+
+**What is in the rule's favour, and why it is still not enough.** It creates
+no new way to fail: the losses land in the two families the forced primal
+already fails on, 29 and 1 under Dantzig against 32 and 2. And one loss is
+not a pricing decision at all — at the control, where nothing changes, an
+instance still moves from `ok` to `overrun` on the work the weights cost.
+
+**The reopen condition is in `bench/refusals.txt`.** The comparison is being
+made on a method that already fails a third of the set, so when the "settled
+point is not dual feasible" family is fixed, re-run `run-edge-sweep.sh` and
+start from "never reset", the row that reduced both iterations and work.
+
+## What it cost
+
+Nothing. `src/simplex.c` is back at what it was, so all three sets
+`gate: PASS` with `bench/results/` byte-identical. What is kept is the
+derivation and the measurement.
 
