@@ -190,7 +190,7 @@ round-trip exactly (D226, `bench/measurements/02-138/`).
 | | status | |
 |---|---|---|
 | C API | **done** | `include/jaos.h`, the only header |
-| Python | **missing** | |
+| Python | **done** | `python/jaos.py`, a ctypes wrapper over `libjaos.so` (`make shared`). Standard library only, so it needs no compiler, no header and no package index at install time — the same no-dependency rule the C library holds. 27 tests, `make python-test`, and three defect shapes armed in `bench/measurements/02-155/` (D243) |
 | Anything else | **missing** | |
 
 ---

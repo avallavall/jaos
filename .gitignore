@@ -46,3 +46,7 @@
 
 # HiGHS writes this into the working directory when it runs.
 /Highs.log
+
+# Python bytecode from the binding and its tests.
+__pycache__/
+*.pyc

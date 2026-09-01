@@ -128,8 +128,15 @@ B := build
 REL_OBJ  := $(SRC:src/%.c=$(B)/release/%.o)
 DEV_OBJ  := $(SRC:src/%.c=$(B)/dev/%.o)
 ASAN_OBJ := $(SRC:src/%.c=$(B)/asan/%.o)
+PIC_OBJ  := $(SRC:src/%.c=$(B)/pic/%.o)
 
 LIB := $(B)/release/libjaos.a
+
+# A shared library exists for one reason: the Python binding loads it with
+# ctypes, and ctypes cannot load an archive. Same flags as the static build
+# plus -fPIC, in their own object directory so neither build can pick up the
+# other's objects. Nothing in the C tree links against it.
+SHLIB := $(B)/release/libjaos.so
 
 DEV_TESTS  := $(TESTS:tests/%.c=$(B)/dev/%)
 ASAN_TESTS := $(TESTS:tests/%.c=$(B)/asan/%)
@@ -141,6 +148,7 @@ ASAN_TESTS := $(TESTS:tests/%.c=$(B)/asan/%)
 	plato plato-pds plato-fome plato-nug \
 	plato-pds-baseline plato-fome-baseline plato-nug-baseline \
 	warm warm-kennington primal primal-kennington \
+	shared python-test \
 	pgo clean
 
 # Keep intermediate objects; make otherwise deletes and rebuilds them
@@ -179,6 +187,14 @@ $(B)/dev/%.o: src/%.c $(HDRS) | $(B)/dev
 $(B)/asan/%.o: src/%.c $(HDRS) | $(B)/asan
 	$(CC) $(ASAN_CFLAGS) $(INC) -c $< -o $@
 
+$(B)/pic/%.o: src/%.c $(HDRS) | $(B)/pic
+	$(CC) $(RELEASE_CFLAGS) -fPIC $(INC) -c $< -o $@
+
+$(SHLIB): $(PIC_OBJ)
+	$(CC) $(RELEASE_CFLAGS) -shared -o $@ $^ $(LDLIBS)
+
+shared: $(SHLIB)
+
 $(B)/dev/unity.o: $(UNITY_DIR)/unity.c | $(B)/dev
 	$(CC) $(UNITY_CFLAGS) -I$(UNITY_DIR) -c $< -o $@
 
@@ -212,6 +228,12 @@ test: record-check $(DEV_TESTS) $(BENCH_TOOLS)
 
 sanitize: $(ASAN_TESTS)
 	@fail=0; for t in $(ASAN_TESTS); do echo "== $$t"; ./$$t || fail=1; done; exit $$fail
+
+# The Python binding's own suite, against the shared library it loads. Not
+# part of `make test`: that target must stay a C build with no interpreter in
+# it, and `make configs` builds five of them. Run it when python/ changes.
+python-test: $(SHLIB)
+	@JAOS_LIBRARY=$(CURDIR)/$(SHLIB) python3 -m unittest discover -s python -v
 
 # Every build configuration the suite has, each from clean.
 #
@@ -511,7 +533,7 @@ pgo:
 		all
 	@echo "== $(LIB) is now built from a profile of $(if $(PGO_LOAD),$(words $(PGO_LOAD)),94) real models"
 
-$(B)/release $(B)/dev $(B)/asan $(B)/bench:
+$(B)/release $(B)/dev $(B)/asan $(B)/bench $(B)/pic:
 	mkdir -p $@
 
 clean:

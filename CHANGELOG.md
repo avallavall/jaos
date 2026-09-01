@@ -25,6 +25,18 @@ open, `bench/README.md` for the gate, and the commit each entry came from.
 
 ### Added
 
+- **JAOS is usable from Python.** `python/jaos.py` wraps `libjaos.so` with
+  ctypes and the standard library, so it needs no compiler, no header and no
+  package index — the same no-dependency rule the C library holds. `make
+  shared` builds the library and `make python-test` runs 27 tests. `make
+  test` does not, on purpose: five configurations must not depend on an
+  interpreter.
+
+  All 27 passed first time, so three defect shapes were armed and each
+  reddens the tests meant to catch it. Two arms were wrong before they were
+  right, and one of them found that the suite checked array lengths and never
+  values (D243, `bench/measurements/02-155/`).
+
 - **The primal simplex decides an unbounded ray it meets in phase 2**,
   instead of refusing there. The condition added is that no borrowed cost is
   outstanding; the rest of D19's proof was already standing at that line, and

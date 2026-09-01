@@ -1,0 +1,18 @@
+tree: 59a4e7a
+
+arm 1, col_lower and col_upper swapped:
+  [a7c498e7] test_a_changed_bound_changes_the_answer test_a_matrix_of_no_entries_loads test_an_unbounded_model_says_so test_no_objective_after_a_solve_that_found_none test_setting_a_coefficient_moves_the_optimum test_the_same_model_built_in_memory 
+
+arm 2, every row dual's sign flipped:
+  [a8b517d9] test_the_same_model_built_in_memory 
+
+arm 3, every status code dropped:
+  [ad494af0] test_a_damaged_gzip_file_is_refused test_a_malformed_file_carries_its_line_number test_a_missing_file_is_an_io_error test_an_index_out_of_range_is_refused test_no_objective_after_a_solve_that_found_none test_no_objective_before_a_solve 
+
+no arm applied:
+  [e6019953] 
+
+distinct sources across the four runs: 4 of 4
+
+VERDICT: PASS, all three defect shapes are caught and a clean tree
+is green.

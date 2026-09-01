@@ -33,8 +33,7 @@ It is PAUSED. Do not add asserts. Do not run control campaigns.
 
 | | why it is next |
 |---|---|
-| **sensitivity and ranging** | real user value, isolated from the solver |
-| **Python bindings** | the most user value, and touches no solver code |
+| **sensitivity and ranging** | real user value. **"Isolated from the solver" is wrong** and this line said it until 2026-09-01: ranging needs the basis and a factorization of it, and the published basis is wrong on 48 of 188 solves (item 2 below). Either it is computed inside the solve while `sx` still holds both, which is a `simplex.c` change that moves no answer, or it reads a basis known to be wrong a quarter of the time. Cost it before starting: cost ranging over basic columns is one BTRAN and one row PRICE each, so `ken-18` is 105127 of them |
 
 Not next, and each says why in `SPECS.md`: barrier and crossover (the
 starting point is undecided), MILP (a whole subsystem), D97 (needs
@@ -96,8 +95,14 @@ not a surviving reduction, and this is the counter's least validated arm —
 `02-07/validate.c` calibrates the row and column counts and not this one.
 Validate the arm first.
 
-**Nothing is half-done. Start at sensitivity and ranging, or unblock
-Devex.**
+**Python bindings landed 2026-09-01** (D243, `bench/measurements/02-155/`).
+`python/jaos.py` over ctypes, standard library only. `make shared` then
+`make python-test`. `make test` does not run it and must not: five
+configurations cannot depend on an interpreter.
+
+**Nothing is half-done. What is left in this list is sensitivity and
+ranging, which needs the basis question answered first, and Devex, which
+needs a citable source.**
 
 ### → the earlier handover, for the assert work that is now paused
 

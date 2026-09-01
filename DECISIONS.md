@@ -250,6 +250,7 @@ and you have the argument. Jump to the entry for the numbers behind it.
 - **[D240](#d240--compressed-input-with-the-inflate-written-here)** — Compressed input, with the inflate written here
 - **[D241](#d241--the-primal-decides-its-own-ray-and-one-it-still-cannot-see)** — The primal decides its own ray, and one it still cannot see
 - **[D242](#d242--the-three-deferred-presolve-families-find-nothing-at-all-on-the-sets-added-since-d101)** — The three deferred presolve families find nothing at all on the sets added since D101
+- **[D243](#d243--python-over-ctypes-and-a-claim-of-absence-that-would-not-have-fired)** — Python over ctypes, and a claim of absence that would not have fired
 
 ---
 
@@ -18747,4 +18748,57 @@ columns fixable. It goes to `TODO.md` as an observation.
 
 Nothing. No source file changed. All three sets `gate: PASS` with
 `bench/results/` byte-identical.
+
+
+## D243 — Python over ctypes, and a claim of absence that would not have fired
+
+`python/jaos.py` wraps `libjaos.so` with `ctypes` and the standard library,
+nothing else. `make shared` builds the library, `make python-test` runs the
+suite. `SPECS.md` had Python as **missing** with nothing beside it.
+
+**ctypes rather than a C extension, for the project's own reason.** A C
+extension needs `Python.h`, a compiler on the user's machine and a build
+step at install time. Those are dependencies, and the rule that keeps zlib
+out of `src/inflate.c` keeps them out here. ctypes needs a shared library and
+the standard library. The call overhead it costs is microseconds against
+solves measured in seconds.
+
+**`make test` does not run it, deliberately.** That target is a C build and
+`make configs` builds five of them; putting an interpreter inside it would
+make five configurations depend on `python3` being present with the right
+version. The binding's suite is its own target.
+
+**All 27 tests passed the first time, so three defect shapes were armed**
+(`bench/measurements/02-155/`): an argument in the wrong slot, a value
+corrupted on the way out, and every status code dropped. Each reddens the
+tests meant to catch it and a clean tree is green.
+
+**Two of those arms were wrong before they were right, and both taught
+something.** Arm 2 first reported arm 1's six failures name for name; two
+arms agreeing that precisely means one ran against the other's source, so
+the file's md5 is printed with every result and four distinct ones are
+required. They were four distinct sources, and the truth was worse: that
+arm swapped the `row_dual` and `col_dual` arguments, which on the test model
+writes two doubles into a one-double buffer, and six unrelated tests fell
+over on corrupted memory. It tested nothing about the binding. The arm now
+flips a row dual's sign and nothing else, which only an assertion on a
+**value** can catch — and only one test had one. That is why
+`test_the_same_model_built_in_memory` now pins the duals and reduced costs
+as well as the array lengths.
+
+**The claim of absence would not have fired.** `docs/claims.txt` matched
+`PyInit_`, `Py_InitModule`, `PYBIND` and `cython`; a ctypes binding is none
+of them, so the claim would have stayed silent while the feature shipped.
+Nothing went wrong, because the row and the claim moved in this commit
+anyway. The lesson is in `claims.txt`'s header now: a pattern enumerates
+implementation techniques and is blind to any it does not list, so write it
+for the CHEAPEST technique rather than the most likely one, because the
+cheapest is the one that gets built.
+
+## What it cost
+
+Nothing in the C library; no file under `src/` or `include/` changed. The
+Makefile gained a `-fPIC` object directory and two targets, neither reached
+by `make test`. All three sets `gate: PASS` with `bench/results/`
+byte-identical.
 

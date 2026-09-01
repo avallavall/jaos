@@ -48,6 +48,9 @@ jaos_model_free(m);
   `docs/format-support.md` lists what is outside that subset.
 - Reads a gzip-compressed file wherever it reads a plain one. The inflate is
   written here, because JAOS links nothing but libc and libm.
+- Usable from Python: `python/jaos.py` over `libjaos.so`, standard library
+  only, so it needs no compiler and no packages. `make shared`, then
+  `make python-test`.
 - Presolve with six reduction families. Postsolve returns values, statuses
   and duals in terms of the caller's original problem.
 - Curtis-Reid scaling.
