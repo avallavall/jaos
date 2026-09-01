@@ -28,92 +28,77 @@ It is PAUSED. Do not add asserts. Do not run control campaigns.
    minutes of machine time, and it is what catches a wrong answer.
 6. Push from the Windows side.
 
-**What is next, in order.** Each closes a `missing` or `partial` row in
-`SPECS.md`:
+**What landed on 2026-09-01, after the pace changed.** Six items, each
+through the light loop, each with the gate green and `bench/results/`
+byte-identical.
 
-| | why it is next |
+| | |
 |---|---|
-| **sensitivity and ranging** | real user value. **"Isolated from the solver" is wrong** and this line said it until 2026-09-01: ranging needs the basis and a factorization of it, and the published basis is wrong on 48 of 188 solves (item 2 below). Either it is computed inside the solve while `sx` still holds both, which is a `simplex.c` change that moves no answer, or it reads a basis known to be wrong a quarter of the time. Cost it before starting: cost ranging over basic columns is one BTRAN and one row PRICE each, so `ken-18` is 105127 of them |
+| **D239** | LP reads and writes a ranged row |
+| **D240** | `.gz` input. `src/inflate.c` is a gzip and DEFLATE decoder written here; both readers decide on the file's first two bytes. 400 comparisons against the real `gzip`, none differing (`02-152/`) |
+| **D241** | the primal decides its own unbounded ray. Smaller than this file claimed: `classify_optimum` already answered every model whose ray is one column leaving a lent bound (`02-153/`) |
+| **D242** | D101's reopen condition is executable and still holds. Zero removable rows or columns on all 15 plato instances (`02-154/`) |
+| **D243** | Python, over ctypes and the standard library. `make shared`, then `make python-test` (`02-155/`) |
+| — | seven more free sources read for the Devex recurrence, none has it |
+
+**The handover's feature list is finished.** What is left needs a decision
+that is not Claude's to make.
+
+### → the two decisions this list is waiting on
+
+**1. Devex pricing (§0 stage 5).** Sixteen free sources have now been read
+and none states the weight-update recurrence or the reset threshold. Every
+one that discusses Devex cites Harris (1973) for it and gives the idea
+rather than the arithmetic; the seven read on 2026-09-01 are listed in
+`docs/research/primal-simplex.md` §8 so nobody repeats them. **Another
+search will not settle this.** Either someone obtains Harris (1973), Forrest
+& Goldfarb (1992) or Maros (2003) — all paywalled, all a purchase — or JAOS
+derives its own approximate-steepest-edge rule and measures its reset
+threshold like any other constant, which the premises allow and which would
+not be called Devex. The copy in `docs/research/primal-simplex.md` §3 is
+unverified and must not be coded from either way.
+
+**2. Sensitivity and ranging.** This list said "isolated from the solver"
+until 2026-09-01 and that was wrong. Ranging needs the basis and a
+factorization of it. The published basis is wrong on 48 of 188 solves (item
+2 below), so either it is computed inside the solve while `sx` still holds
+both — a `simplex.c` change that moves no answer — or it reads a basis known
+to be wrong a quarter of the time. **And presolve is the harder half**:
+ranges computed on the reduced model have to map back to the original, and
+nothing in the record treats that. Cost it before starting: cost ranging over
+basic columns is one BTRAN and one row PRICE each, so `ken-18` is 105127 of
+them.
+
+### → what is open and needs no decision, smallest first
+
+- **Validate 02-07's dual-fixing arm.** `plato-fome` reports 3934 dual-fixing
+  candidates, 1.1% of its live columns, against 1054 of 157499 on netlib.
+  Dual fixing is not one of JAOS's six presolve families and `SPECS.md` does
+  not list it as missing, so nothing has costed it. **But a candidate is not
+  a surviving reduction, and this is the counter's least validated arm** —
+  `02-07/validate.c` calibrates the removable-row and removable-column counts
+  against a model with a known answer and not this one, and an earlier
+  version of this same arm called 421615 Kennington columns fixable. Extend
+  `validate.c` first; the count decides whether anything gets built (D242).
+- **A ray that moves several columns at once is not decided.**
+  `improves_without_limit` moves one column, so a model unbounded only along
+  a combined direction reaches a refusal instead of a verdict. `min -p - q`
+  over `p - q = 0, p + q >= 2` with neither column capped is one, and the cap
+  ladder in `tests/test_simplex.c` proves it unbounded. The refusal is safe,
+  a missing answer rather than a wrong one, and its message no longer claims
+  the optimum is finite. Deciding these needs a ray test over a direction
+  rather than over a column (D241).
+- **The forced primal reads 61 ok, 30 DISAGREE, 3 overrun on the standard
+  94.** The campaign reports it every run and it is not new, but nothing in
+  this file tracked it. Most disagreements are `the settled point is not dual
+  feasible` from a cold start; the 3 overruns are Dantzig pricing, which is
+  stage 5. Read from `make primal J=12` on 2026-09-01.
 
 Not next, and each says why in `SPECS.md`: barrier and crossover (the
 starting point is undecided), MILP (a whole subsystem), D97 (needs
 crossover), the 48 wrong basis counts (needs a rank argument, a design).
 
-**D239 is the shape to copy** — one feature, light loop, and it still found a
-wrong claim in `SPECS.md` on the way.
-
-**`.gz` input landed 2026-09-01.** `src/inflate.c` is a gzip and DEFLATE
-decoder written here; both readers detect it from the first two bytes.
-`record-check` refused the commit until `docs/claims.txt` and the `SPECS.md`
-row moved, which is the mechanism working. The evidence is 369 comparisons
-against the real `gzip` over 123 instances plus 31 large ones, all
-byte-identical, and 15 unit tests (D240, `bench/measurements/02-152/`).
-
-**Stage 7, the unboundedness verdict, landed 2026-09-01** (D241,
-`bench/measurements/02-153/`). It is smaller than this file said it was:
-`classify_optimum` already answered UNBOUNDED for every model whose ray is
-one column leaving a lent bound, and the forced primal already shared it.
-What was missing was the branch inside phase 2, and it fires zero times on
-the standard set.
-
-**Devex pricing is the next line of §0 and it is BLOCKED, and the search was
-repeated on 2026-09-01.** Its weight-update recurrence and reset threshold
-are in Harris (1973), which is paywalled. **Seven more free sources were
-downloaded and read in full that day and not one states it** — Koberstein's
-thesis, Hall's parallel simplex paper, Hall & Huangfu, Huangfu & Hall,
-Yarmish, Maros's pricing report and the arXiv simplex-initialization survey.
-Sixteen free sources now. Every one that discusses Devex cites Harris for it
-and gives the idea rather than the arithmetic. The list is in
-`docs/research/primal-simplex.md` §8 so nobody repeats it.
-
-**It needs a decision, not another search.** Either someone obtains Harris
-(1973), Forrest & Goldfarb (1992) or Maros (2003) — all paywalled, all a
-purchase — or JAOS derives its own approximate-steepest-edge rule and
-measures its reset threshold like any other constant, which the premises
-allow and which would not be called Devex. The copy in
-`docs/research/primal-simplex.md` §3 is unverified and must not be coded from
-either way.
-
-**Two new open items, both from D241:**
-
-- **A ray that moves several columns at once is not decided.**
-  `improves_without_limit` moves one column, so a model unbounded only along
-  a combined direction reaches the refusal instead of a verdict. `min -p - q`
-  over `p - q = 0, p + q >= 2` with neither column capped is one, and the cap
-  ladder in `tests/test_simplex.c` proves it unbounded. The refusal is safe —
-  a missing answer, not a wrong one — and its message no longer claims the
-  optimum is finite. Deciding these needs a ray test over a direction rather
-  than over a column.
-- **The forced primal reads 61 ok, 30 DISAGREE, 3 overrun on the standard
-  94.** The campaign reports it every run and it is not new, but nothing in
-  this file tracks it. Most disagreements are `the settled point is not dual
-  feasible` from a cold start; the 3 overruns are Dantzig pricing, which is
-  stage 5. Read from a run on 2026-09-01, `make primal J=12`.
-
-**Presolve duplicates were tested and not built, 2026-09-01** (D242,
-`bench/measurements/02-154/`). D101's reopen condition is executable now
-instead of manual, and `make refusals` runs it. On the three plato sets —
-1.06M live rows, 3.5M live columns, the largest models in the tree — the
-counter reports **zero** removable rows and zero removable columns. Not a
-small share. Zero. netlib is the control and reproduces D101's 151 rows
-exactly.
-
-**A third open item, from D242:** `plato-fome` reports 3934 dual-fixing
-candidates, 1.1% of its live columns, against 1054 of 157499 on netlib.
-Dual fixing is not one of JAOS's six families and `SPECS.md` does not list
-it as missing, so nothing has costed it. Before building it: a candidate is
-not a surviving reduction, and this is the counter's least validated arm —
-`02-07/validate.c` calibrates the row and column counts and not this one.
-Validate the arm first.
-
-**Python bindings landed 2026-09-01** (D243, `bench/measurements/02-155/`).
-`python/jaos.py` over ctypes, standard library only. `make shared` then
-`make python-test`. `make test` does not run it and must not: five
-configurations cannot depend on an interpreter.
-
-**Nothing is half-done. What is left in this list is sensitivity and
-ranging, which needs the basis question answered first, and Devex, which
-needs a citable source.**
+**Nothing is half-done.**
 
 ### → the earlier handover, for the assert work that is now paused
 
