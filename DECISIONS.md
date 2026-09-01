@@ -18122,6 +18122,13 @@ the gate. It needs one instrumented run, and `TODO.md` carries it.
 ## What it cost
 
 Asserts compile out under `-DNDEBUG`, so none of the eleven reaches the
-shipping build, and the campaign builds only in throwaway worktrees. The
-three gate sets run on the commit that lands this entry, and their result is
-recorded in the commit after it.
+shipping build, and every campaign here builds in a throwaway worktree. All
+three gate sets came back `gate: PASS`, `0 regressed, 0 improved, 0 new`, and
+`bench/results/` is byte-identical to what is committed: 110 solution digests
+and 29 infeasibility verdicts unmoved, over 139 instances.
+
+Preflight raised eight warnings, all of one shape and none of them this
+change's: `netlib.txt` was written before 10 `src/` commits,
+`netlib-kennington.txt` before 8, `netlib-infeas.txt` before 34. The run
+answers the question they ask. A record that comes back byte-identical says
+those commits were no-ops on that set.

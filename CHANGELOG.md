@@ -32,7 +32,9 @@ open, `bench/README.md` for the gate, and the commit each entry came from.
   `assert(!m->scale_valid)` was proposed and refused, because it fires on the
   existing suite: the flag says the scale factors exist, not that the stored
   matrix was touched. All eleven hold on all 139 instances under `-UNDEBUG`
-  (D152's rule): 139 records, zero assertion lines.
+  (D152's rule): 139 records, zero assertion lines. Free on the gate, because
+  asserts compile out under `-DNDEBUG` — 110 solution digests and 29
+  infeasibility verdicts unmoved, `bench/results/` byte-identical.
 
 - **Three writers: `jaos_write_mps`, `jaos_write_lp`,
   `jaos_write_solution`.** MPS expresses everything a model can hold; the LP
