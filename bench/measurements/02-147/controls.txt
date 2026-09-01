@@ -1,0 +1,52 @@
+# 02-147 -- the four scratch asserts of D234, and what fires each
+# tree: 1682a7c WITH UNCOMMITTED CHANGES
+#       plus the working-tree copy of src/simplex.c
+# date: 2026-09-01T07:01:37Z
+# an arm passes only on the exact expression glibc prints
+
+== intact
+   nothing broken: the tree as it stands
+   suites:    104 Tests 0 Failures 4 Ignored|6 Tests 0 Failures 0 Ignored|
+   exits:     -- test_simplex exit=0|-- test_lp exit=0|-- probe exit=0|
+   PASS  nothing fired, both suites and the probe clean
+
+== alpha-pattern
+   the logical slot is written but never recorded in apat
+   suites:    6 Tests 0 Failures 0 Ignored|
+   exits:     -- test_simplex exit=134|-- test_lp exit=0|
+   fired:     price_all: Assertion `nz_total == nz_pat' failed
+   fired in:  test_simplex
+   PASS  the assert fired
+
+== rho-pattern
+   the rho pattern drops its last entry
+   suites:    6 Tests 0 Failures 0 Ignored|
+   exits:     -- test_simplex exit=134|-- test_lp exit=0|
+   fired:     build_pricing_row: Assertion `nz_total == nz_pat' failed
+   fired in:  test_simplex
+   PASS  the assert fired
+
+== c1-clear
+   the incremental clear of c1 stops one short
+   suites:    6 Tests 0 Failures 0 Ignored|
+   exits:     -- test_simplex exit=134|-- test_lp exit=0|
+   fired:     primal_phase1_costs: Assertion `s->c1[v] == 0.0' failed
+   fired in:  test_simplex
+   PASS  the assert fired
+
+== nbmark
+   pivot leaves the bitmap behind the status
+   suites:    6 Tests 0 Failures 0 Ignored|
+   exits:     -- test_simplex exit=134|-- test_lp exit=0|
+   fired:     refresh: Assertion `nbmark_consistent(s)' failed
+   fired in:  test_simplex
+   PASS  the assert fired
+
+== restored
+   the recipe again with nothing broken
+   suites:    104 Tests 0 Failures 4 Ignored|6 Tests 0 Failures 0 Ignored|
+   exits:     -- test_simplex exit=0|-- test_lp exit=0|-- probe exit=0|
+   PASS  nothing fired, both suites and the probe clean
+
+== verdict
+every arm behaved

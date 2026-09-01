@@ -1624,7 +1624,20 @@ is also the one that catches what fixing them breaks.
 > only a free column, the backward arena walk's lower bound, a pinned
 > column's non-zero coefficient, and a singleton column's exactly-zero cost.
 >
-> **Two things came out of that campaign and are open.**
+> **2026-09-01: four more, all in `simplex.c`** — D234,
+> `bench/measurements/02-147/`. `apat` names every slot where `alpha` can be
+> nonzero and `rpat` every slot where `rho` is, both as a count rather than a
+> marker array; `c1` is all zero after its incremental clear; and **`nbmark`
+> matches `status` at every successful `refresh`**. That last one is the gap
+> worth naming: D223's cross-check sits in `dual_ratio_test`, so the primal
+> reached `pivot()` three ways with nothing checking the bitmap it maintains.
+> Nothing was wrong, and that is measured on 33 instances in both methods.
+>
+> **One item on the `simplex.c` list needs no work: `amark` "zero between
+> iterations".** `jm_pattern_order` asserts the whole bitmap is zero on entry
+> and leaves it zero (D223), and `price_all` is the only path that uses it.
+>
+> **Two things came out of the D232 campaign and are open.**
 >
 > - ~~`assert(!s->verified)` at `pivot()`'s entry~~ — **CLOSED 2026-09-01**,
 >   D233, `bench/measurements/02-146/`. It fires, so the prose is wrong and

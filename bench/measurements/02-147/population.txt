@@ -1,0 +1,25 @@
+# 02-147 -- the four scratch asserts of D234 over the population
+# tree: 1682a7c WITH UNCOMMITTED CHANGES
+#       plus the working-tree copy of src/simplex.c
+# date: 2026-09-01T06:02:48Z
+# no baseline is read: this asks whether anything ABORTS
+
+== build: bench/run with -UNDEBUG, from clean
+== dual: netlib
+   exit=0  records=94
+   assertion lines=0
+
+== dual: netlib-infeas
+   exit=0  records=29
+   assertion lines=0
+
+== dual: netlib-kennington
+   exit=0  records=16
+   assertion lines=0
+
+== probe: 33 instances, both methods
+   exit=0  solves=66
+   assertion lines=0
+
+== verdict
+every arm completed and no assert fired

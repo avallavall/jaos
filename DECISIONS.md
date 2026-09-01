@@ -241,6 +241,7 @@ and you have the argument. Jump to the entry for the numbers behind it.
 - **[D231](#d231--software-prefetching-is-refused-and-the-arbiter-that-was-meant-to-judge-it-cannot-see-it)** — Software prefetching is refused, and the arbiter that was meant to judge it cannot see it
 - **[D232](#d232--ten-contracts-in-the-last-two-files-become-asserts-one-proposed-assert-fires-on-the-shipping-suite-and-the-one-assert-no-arm-can-fire-is-measured-instead)** — Ten contracts in the last two files become asserts, one proposed assert fires on the shipping suite, and the one assert no arm can fire is measured instead
 - **[D233](#d233--pivot-runs-with-the-verification-still-set-six-times-in-a-million-and-the-assert-the-prose-asked-for-would-abort-three-instances)** — `pivot()` runs with the verification still set six times in a million, and the assert the prose asked for would abort three instances
+- **[D234](#d234--four-scratch-contracts-become-asserts-and-the-bitmap-the-primal-maintains-had-nothing-checking-it)** — Four scratch contracts become asserts, and the bitmap the primal maintains had nothing checking it
 
 ---
 
@@ -18240,3 +18241,79 @@ gets broken quietly.
 ## What is left open
 
 Nothing from either lead.
+
+## D234 — Four scratch contracts become asserts, and the bitmap the primal maintains had nothing checking it
+
+Four of `simplex.c`'s prose contracts from `bench/measurements/02-121/`.
+`bench/measurements/02-147/`, six arms and a population run on both methods.
+
+| the contract | the check |
+|---|---|
+| `apat` names every slot where `alpha` can be nonzero | nonzeros in `alpha` equals nonzeros among `apat`'s entries |
+| `rpat` names every slot where `rho` is nonzero | the same count, covering both writers |
+| `c1` is all zero after its incremental clear | an O(nvar) walk |
+| `nbmark` matches `status` | `nbmark_consistent`, at `refresh`'s successful exit |
+
+## A count stands in for a membership test, and that is why no scratch is needed
+
+The obvious check for "the pattern names every nonzero" is a marker array,
+which the function does not own — the objection that stopped
+`compact_pivot_row`'s duplicate check in D228. There is no need for one here.
+`jm_pattern_order` already asserts its output is ascending and **distinct**
+(D223), and distinctness is exactly what lets a count decide membership:
+count the nonzeros of `alpha`, count the entries of `apat` whose `alpha` is
+nonzero, and require the two to be equal. The pattern may name a slot that
+cancelled back to zero, which is the documented behaviour; it may not miss one
+that did not.
+
+## The fourth is the one that was missing, and D223 is why
+
+D223 landed the `nbmark` cross-check inline in `dual_ratio_test`. That is the
+dual path. `run_primal`, `run_primal_phase1` and `primal_cleanup` all reach
+`pivot()` without passing through it, so **the primal has been maintaining
+that bitmap with nothing checking it since it was built**. The walk is a
+helper now and the assert sits at `refresh`'s successful exit, which every
+basis change is followed by, so it covers both methods.
+
+Nothing was wrong. That is the measurement, not an assumption: 33 instances
+solved in both methods with no firing, on top of all 139 on the dual.
+
+## They hold on the population
+
+| arm | records | assertion lines |
+|---|---|---|
+| dual, 94 standard | 94 | 0 |
+| dual, 29 infeasible | 29 | 0 |
+| dual, 16 Kennington | 16 | 0 |
+| probe, 33 instances, both methods | 66 solves | 0 |
+
+The probe arm is not optional. The whole point of the fourth assert is the
+primal, and `bench/run` only ever runs the dual — the same gap that let the
+contract go unchecked in the first place.
+
+## Each fires for its own defect, and two of them print the same sentence
+
+| arm | the edit | what fires |
+|---|---|---|
+| `alpha-pattern` | the logical column's slot is written but never recorded | `price_all`'s count |
+| `rho-pattern` | the row pattern drops its last entry | `build_pricing_row`'s count |
+| `c1-clear` | the incremental clear stops one short | the `c1` walk |
+| `nbmark` | `pivot` moves the status and leaves the bitmap | `nbmark_consistent` |
+
+`alpha`'s assert and `rho`'s are the same expression, so an arm matching on
+that alone passes when the *other* one fires. Both the pass criterion and the
+record carry the function name glibc prints before the expression. This is
+D232's lesson landing in a new place: the text an arm matches has to identify
+the guard, and an exit code or a bare expression does not.
+
+Unlike D233, every assert here is proven by a realistic single-site edit
+rather than by a canary.
+
+## What it cost
+
+All four are `#ifndef NDEBUG`, so the shipping build is unchanged. GATE-PENDING
+
+## What is left
+
+`simplex.c` and `presolve.c` still carry the rest of the 137 contracts, and
+the two `lu.c` checks that are not asserts. `TODO.md` has the count.

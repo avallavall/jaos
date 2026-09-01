@@ -1041,6 +1041,28 @@ static bool repair_singular_basis(sx *s)
  * when the basis will not factor and the repair above cannot put it right.
  * `refine` asks the two solves for one step of iterative refinement, and
  * only callers whose result can be published ask (D20, D29). */
+#ifndef NDEBUG
+/* `nbmark` is maintained by hand at four sites and rebuilt wholesale at four
+ * more. A bit out of step with `status` silently drops a candidate from the
+ * ratio test or offers a basic one, and no predicate any gate reports can see
+ * either (D223). O(nvar) and no allocation.
+ *
+ * D223 put this walk inline in `dual_ratio_test`, which is the dual path
+ * only. `run_primal`, `run_primal_phase1` and `primal_cleanup` all reach
+ * `pivot()` without passing it, so the primal maintained the bitmap with
+ * nothing checking it. Asserting it at `refresh`'s successful exit covers
+ * every path, because every basis change is followed by one (D234). */
+static bool nbmark_consistent(const sx *s)
+{
+    for (int64_t v = 0; v < s->nvar; v++) {
+        const bool in_map = (s->nbmark[v >> 6] >> (v & 63)) & 1;
+        if (in_map != (s->status[v] != JM_BASIC))
+            return false;
+    }
+    return true;
+}
+#endif
+
 static jaos_status refresh(sx *s, bool *ok, bool refine)
 {
     bool repaired = false;
@@ -1079,6 +1101,10 @@ static jaos_status refresh(sx *s, bool *ok, bool refine)
             for (int64_t v = 0; v < s->nvar; v++)
                 shift_to_feasible(s, v);
     }
+
+    /* Every basis change is followed by a refresh, so this is the one place
+     * that sees the bitmap on the primal paths as well as the dual (D234). */
+    assert(nbmark_consistent(s));
 
     *ok = true;
     return JAOS_OK;
@@ -1342,12 +1368,7 @@ static int64_t dual_ratio_test(sx *s, bool below, double violation,
          * reports can see either. Rebuilt and compared here rather than
          * trusted (D223). O(nvar) and no allocation, on the branch that is
          * already the dense one. */
-#ifndef NDEBUG
-        for (int64_t v = 0; v < s->nvar; v++) {
-            const bool in_map = (s->nbmark[v >> 6] >> (v & 63)) & 1;
-            assert(in_map == (s->status[v] != JM_BASIC));
-        }
-#endif
+        assert(nbmark_consistent(s));
         /* Charged per variable handed to admit_candidate (D93). */
         int64_t visited = 0;
         int64_t nwords = (s->nvar + 63) / 64;
@@ -1677,6 +1698,24 @@ static void price_all(sx *s)
     int64_t words = 0;
     s->anpat = jm_pattern_order(np, s->apat, s->amark, s->nvar, &words);
     jm_work_add(&s->work, (np + words + s->anpat) * JM_WORK_NONZERO);
+
+#ifndef NDEBUG
+    /* "Where `alpha` can be nonzero" -- the pattern must name every nonzero,
+     * because the next call's clear works from it and a missed slot survives
+     * into a row it does not belong to. `jm_pattern_order` already asserts
+     * the output is ascending and distinct (D223); what is left is
+     * completeness, and distinct entries make a count enough for it: the
+     * pattern may name slots that cancelled back to zero, but it may not
+     * miss one that did not (D234). */
+    int64_t nz_total = 0, nz_pat = 0;
+    for (int64_t v = 0; v < s->nvar; v++)
+        if (s->alpha[v] != 0.0)
+            nz_total++;
+    for (int64_t k = 0; k < s->anpat; k++)
+        if (s->alpha[s->apat[k]] != 0.0)
+            nz_pat++;
+    assert(nz_total == nz_pat);
+#endif
 }
 
 /* Row r of `B^-1` into `rho`, and row r of `B^-1 M` into `alpha`, shared
@@ -1699,6 +1738,24 @@ static void build_pricing_row(sx *s, int64_t r)
     }
 
     price_all(s);
+
+#ifndef NDEBUG
+    /* "Where `rho` is nonzero, ascending." Both writers land here: the
+     * sparse branch takes `jm_pattern_order`'s output, and the dense one is
+     * rebuilt inside `price_all`, which is what `pivot`'s exact weight reads
+     * (D42). Ascending and distinct are asserted where the pattern is built;
+     * this is completeness, counted the same way as `alpha`'s above (D234). */
+    if (s->nrpat >= 0) {
+        int64_t nz_total = 0, nz_pat = 0;
+        for (int64_t i = 0; i < s->nrow; i++)
+            if (s->rho[i] != 0.0)
+                nz_total++;
+        for (int64_t k = 0; k < s->nrpat; k++)
+            if (s->rho[s->rpat[k]] != 0.0)
+                nz_pat++;
+        assert(nz_total == nz_pat);
+    }
+#endif
 }
 
 /* Builds row r of B^-1 M and picks the entering variable from it. May also
@@ -2845,6 +2902,14 @@ static double primal_phase1_costs(sx *s)
     for (int64_t k = 0; k < cleared; k++)
         s->c1[s->c1_at[k]] = 0.0;
     s->n_c1_at = 0;
+#ifndef NDEBUG
+    /* `c1` is allocated zeroed and the clear above works from the list of
+     * exactly what the last call set, so the whole vector is zero here. A
+     * clear that misses a slot leaves a phase-1 cost on a variable that is
+     * feasible now, and phase 1 then drives a violation nobody has (D234). */
+    for (int64_t v = 0; v < s->nvar; v++)
+        assert(s->c1[v] == 0.0);
+#endif
 
     double total = 0.0;
     for (int64_t i = 0; i < s->nrow; i++) {

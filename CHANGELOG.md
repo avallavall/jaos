@@ -11,6 +11,22 @@ open, `bench/README.md` for the gate, and the commit each entry came from.
 
 ### Added
 
+- **Four scratch contracts in `simplex.c` are asserts, and one of them
+  covers a path nothing checked.** `apat` names every slot where `alpha` can
+  be nonzero and `rpat` every slot where `rho` is — both as a count, because
+  `jm_pattern_order` already guarantees the pattern is distinct and that is
+  what lets a count decide membership without a marker array the function
+  does not own. `c1` is all zero after its incremental clear.
+
+  The fourth is `nbmark` matching `status`, asserted at `refresh`'s
+  successful exit. D223 put that walk in `dual_ratio_test`, which is the dual
+  path; `run_primal`, `run_primal_phase1` and `primal_cleanup` all reach
+  `pivot()` without it, so the primal had been maintaining the bitmap with
+  nothing checking it. Nothing was wrong — 139 instances on the dual and 33
+  in both methods, zero assertion lines. Each assert is proven by a realistic
+  one-line defect, and the two that print the same expression are told apart
+  by the function name (D234, `bench/measurements/02-147/`).
+
 - **`s->verified` has one writer and one reader, and the reader asserts what
   is true of it.** `set_verified` writes the flag and zeroes a debug-only
   pivot counter beside it; `verified_fresh` reads it and asserts that no
