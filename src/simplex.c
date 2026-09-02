@@ -1310,6 +1310,19 @@ static int64_t bfrt_walk(sx *s, int64_t n, double remaining)
         s->rden[k]   = s->rden[live];   s->rden[live]   = b;
         s->rrange[k] = s->rrange[live]; s->rrange[live] = c;
     }
+
+    if (live == 0 && remaining <= s->primal_tol) {
+        /* The walk consumed every candidate and what is left stands inside
+         * the feasibility tolerance — the shape that published a one-ulp
+         * leftover as INFEASIBLE (D248). The step must end in a pivot, not
+         * in nothing: the last retiree, which the swaps leave at index 0
+         * and which is the largest quotient taken, is put back as the
+         * blocker, and the pivot on it runs both halves of the step. The
+         * entering variable absorbs the leftover, the same widened family
+         * as a Harris step (D213). Every walk this branch does not end is
+         * byte-identical to the walk before it existed (D249). */
+        live = 1;
+    }
     return live;
 }
 
@@ -1359,6 +1372,12 @@ static void apply_flips(sx *s, int64_t at, int64_t n)
             s->xb[i] -= rhs[i];
         jm_work_add(&s->work, s->nrow * JM_WORK_NONZERO);
     }
+
+    /* `cpat` was borrowed above and no longer matches `ncpat`. Today the
+     * only reader of the pair refills both first (pivot), but a stated
+     * invariant with no enforcement fails eventually (D201): mark the
+     * pair unknown. */
+    s->ncpat = -1;
 }
 
 /* One variable's eligibility, and its place in the candidate arrays. */
@@ -1396,7 +1415,9 @@ static void admit_candidate(sx *s, int64_t v, bool below, int64_t *n)
  * candidate takes it. The numerator is the distance from v's reduced cost
  * to infeasibility, not its magnitude: clamped at zero, an
  * already-infeasible cost blocks at once and the step repairs it exactly.
- * The flips are applied here: they are part of the step. */
+ * The flips are applied here: they are part of the step. Returns the
+ * entering variable, or -1 when nothing can repair the row, which is the
+ * infeasibility verdict (D249 owns why -1 always means a real gap). */
 static int64_t dual_ratio_test(sx *s, bool below, double violation,
                                double *theta_out)
 {
@@ -1476,7 +1497,13 @@ static int64_t dual_ratio_test(sx *s, bool below, double violation,
 
     int64_t live = bfrt_walk(s, n, violation);
     if (live == 0)
-        return -1;   /* nothing blocks the step; the model is infeasible */
+        return -1;   /* nothing blocks the step and what stands is past the
+                      * feasibility tolerance: the dual ray is real and the
+                      * model has no feasible point. The walk's exhaustion
+                      * branch is what makes this sound — a sub-tolerance
+                      * leftover puts its last retiree back as the blocker,
+                      * so the one-ulp residue D248 measured can no longer
+                      * reach this line (D249) */
 
     int64_t k = jm_harris_pick(live, s->rnum, s->rden, s->dual_tol);
     jm_work_add(&s->work, 2 * live * JM_WORK_NONZERO);

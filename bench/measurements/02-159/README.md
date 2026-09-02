@@ -14,6 +14,12 @@ read next and named `agg` the instance to read it on.
 
 Derives the repository root and runs from anywhere (D217). The repository
 tree is never touched; the patch asserts each anchor matched exactly once.
+`agg-diag.txt` is the run as taken on the defective tree. On a tree
+carrying D249's repair the walk probe still fires on `agg` — the walk
+still exhausts with the 7.28e-12 leftover — but the INFEASIBLE probe no
+longer does: the exhaustion branch converts the leftover into a blocker
+and the solve continues. A re-run is that negative control, not a
+replacement for the record.
 
 ## The finding, in one line
 

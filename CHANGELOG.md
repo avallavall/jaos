@@ -19,6 +19,16 @@ open, `bench/README.md` for the gate, and the commit each entry came from.
   the refusal, which says both directions were tried. All three sets and the
   forced-primal record byte-identical (D247).
 
+### Fixed
+
+- **A bound-flip walk that exhausts within the feasibility tolerance ends
+  in a pivot now, not in a false INFEASIBLE.** Four lines at the walk's
+  exit put its last retiree back as the blocker; every walk the branch
+  does not end is byte-identical, and the gate confirms it — three sets
+  `0 regressed` with `bench/results/` unchanged. `agg`'s forced primal
+  goes DISAGREE → ok on the same objective as the dual, 76 of 94 now.
+  Three repair shapes were measured; two are refused in the entry (D249).
+
 ### Changed
 
 - **agg's re-entry failure is diagnosed: a one-ulp residue read as

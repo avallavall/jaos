@@ -112,19 +112,16 @@ them.
   a numerical problem**: `SETTLE_ROUNDS` was 32, the re-entry used all of them
   with the violation still falling, and the constant's own comment called it
   a backstop that does not bind (D245, `bench/measurements/02-157/`).
-- **The `agg` family is diagnosed (D248) and the repair is the open item.**
-  `bfrt_walk` absorbs the entire violation to within 7.28e-12 — one ulp of
-  its terms, five orders under `primal_tol` — and the strict `> 0.0` in its
-  blocking test publishes that residue as INFEASIBLE. The repair: a
-  `live == 0` return with remaining violation at or under `primal_tol` is a
-  repaired row — apply the flips, re-price — not an infeasible model. Build
-  the family test (capacities summing to the violation minus a
-  sub-tolerance, exactly representable gap), then the full loop; **read the
-  29 reference infeasibles per instance**, because their verdicts cross
-  this branch with margins nobody has read. The fixed column admitted as a
-  candidate (absorbs nothing, can never enter, drains `live`) is a second
-  question to settle in the same pass. **Landing this repair is D244's
-  reopen condition**, so it puts the pricing question back on the table.
+- **The forced primal's remaining disagreements: 15, of which fourteen
+  still refuse as "the settled point is not dual feasible".** `agg` left
+  the family through D249 (the walk-exhaustion repair); the fourteen fail
+  the same way for reasons not yet read — D248's method (a probe at the
+  refusal, then the walk) is the way in, one instance at a time. **D244's
+  reopen condition is the whole family fixed**, so these fourteen are what
+  stands between the pricing question and the table. The fixed column
+  admitted as a bound-flip candidate (absorbs nothing, can never usefully
+  enter, drains `live`) is a separate measured question D248 flagged and
+  D249 did not touch.
 
 Not next, and each says why in `SPECS.md`: barrier and crossover (the
 starting point is undecided), MILP (a whole subsystem), D97 (needs

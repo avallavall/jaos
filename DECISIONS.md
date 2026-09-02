@@ -256,6 +256,7 @@ and you have the argument. Jump to the entry for the numbers behind it.
 - **[D246](#d246--the-dual-fixing-count-is-validated-and-what-it-counts-does-not-buy-a-seventh-presolve-family)** — The dual-fixing count is validated, and what it counts does not buy a seventh presolve family
 - **[D247](#d247--a-ray-that-needs-several-columns-is-decided-by-moving-every-held-column-together)** — A ray that needs several columns is decided by moving every held column together
 - **[D248](#d248--aggs-round-zero-infeasible-is-a-one-ulp-residue-read-with-no-tolerance)** — agg's round-zero INFEASIBLE is a one-ulp residue read with no tolerance
+- **[D249](#d249--a-flip-gap-at-or-under-the-tolerance-repairs-the-row-instead-of-refusing-the-model)** — A flip gap at or under the tolerance repairs the row instead of refusing the model
 
 ---
 
@@ -19072,3 +19073,74 @@ against the 29 reference infeasibles, whose verdicts cross this branch
 with margins nobody has read. Separately: a fixed column is admitted as a
 candidate, can never flip usefully or enter, and today only drains `live`.
 Closing the repair is D244's reopen condition.
+## D249 — A flip gap at or under the tolerance repairs the row instead of refusing the model
+
+**The question.** D248 measured `agg`'s round-zero INFEASIBLE as a
+7.28e-12 leftover — one ulp of the walk's own sums, five orders under
+`primal_tol` — read by a strict `> 0.0`. What is the right reading of a
+`live == 0` return, and what does fixing it do to `agg`'s family, to the
+29 reference infeasibles, and to the gate?
+
+**The change.** Four lines at the end of `bfrt_walk`: when the walk has
+retired every candidate and the leftover violation is at or under
+`primal_tol`, the last retiree — the largest quotient taken, which the
+swaps leave at index 0 — is put back as the blocker. A normal Harris pick
+and a normal pivot follow, so both halves of the step happen — the primal
+flips and the dual update with its shifts — and the entering variable
+absorbs the leftover, the same widened family as any Harris step (D213).
+`live == 0` past that branch implies the leftover is real, so INFEASIBLE
+keeps its meaning. The threshold is `primal_tol`, the bar `price_row`
+prices by: no new constant, no new space. Every walk the branch does not
+end is byte-identical to the walk before it existed, which is what the
+gate confirms below.
+
+**Two shapes were built first, and each was killed by its own measurement.**
+The second shape moved the retire guard itself — retire only while the
+post-flip leftover exceeds `primal_tol` — which is sound but blocks
+mid-walk on ordinary solves: the gate went red on it, 3 netlib instances
+and `pds-20` regressed on their certified suboptimality bounds (2.2x to
+2.7x at the 1e-13 scale), and `bench/results/netlib.txt` moved on 39
+lines. The defect needs the tolerance only where the walk EXHAUSTS; paying
+trajectory changes across the whole set for it bought nothing.
+
+**The shape before that was killed on review.** The first repair
+kept the retirement rule, compared the leftover at `live == 0`, and on a
+sub-tolerance gap applied the flips and handed the row back to pricing
+with no pivot. The reviewer traced what that publishes: every flipped
+candidate keeps the reduced cost whose sign belonged to its OLD bound —
+nothing on that path runs the dual half of the step — so the constructed
+family test would publish OPTIMAL with reduced costs of +1 and +2 at
+upper bounds on a minimisation, a dual violation seven orders past
+`DUAL_TOL`, invisible to a test that read only the status and the
+objective. The settle loop would also re-arm those columns every round and
+the flip-only branch would re-flip them, 32 refactorizations of steady
+state. Both defects vanish with the blocker shape, and the family test now
+asserts the published certificate through `jaos_check_solution`.
+
+**The family test, both sides.** agg's gap cannot be rebuilt small (one
+ulp of 5e4-magnitude sums, four hundred iterations deep), so the tests
+build the family with an exact gap: flip capacity missing the violation by
+2^-40 must answer OPTIMAL where it refused, and the same shape missing by
+1.0 must stay INFEASIBLE (`tests/test_simplex.c`, both under the reference
+build; presolve answers these models first in the default one).
+
+**The measurement.** All five build configurations pass. The three gate
+sets read `0 regressed, 0 improved, 0 new` and `bench/results/` is
+byte-identical — the construction claim, confirmed by the gate rather than
+assumed. The forced primal record moves on `agg`'s lines and nowhere else:
+DISAGREE becomes ok, both methods publish -35991767.286576502 to the last
+digit, the checker accepts both, and the campaign reads 76 ok, 15
+disagreed, 3 overrun against 75/16/3 (`bench/results/primal.txt`). The
+family tests hold both sides: the 2^-40 gap answers OPTIMAL with a
+certificate `jaos_check_solution` accepts, the 1.0 gap stays INFEASIBLE.
+Armed — the exhaustion branch made a no-op — exactly the sub-tolerance
+test goes red, as INFEASIBLE. On a worktree carrying the refused
+flips-only shape the same test also goes red, at the status assert: the
+driver's own dual-feasibility backstop catches that shape's bad
+certificate on this model and refuses, so the certificate assertion
+guards the publication path in case that backstop ever narrows.
+
+**What this does not reopen.** D244's condition is the whole "settled
+point is not dual feasible" family fixed. Fourteen of the fifteen
+remaining disagreements still carry that message; `agg` alone left it.
+The refusal stands, and the fourteen are the item this entry hands back.

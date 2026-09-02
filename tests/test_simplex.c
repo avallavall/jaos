@@ -4111,6 +4111,94 @@ static void test_two_held_columns_whose_sum_is_still_blocked(void)
 #endif
 }
 
+/* The family D248 diagnosed on agg, built small: the bound-flip walk
+ * retires every candidate and the leftover violation is real but inside
+ * `primal_tol`, so the flips are the repair and the answer is OPTIMAL —
+ * publishing INFEASIBLE off that leftover is what the old strict zero did.
+ *
+ *   min x1 + 2 x2  s.t.  x1 + x2 >= 4,  x1 in [0,2],  x2 in [0, 2 - 2^-40]
+ *
+ * Flip capacity is 2 + (2 - 2^-40), which misses the violation of 4 by
+ * exactly 2^-40 ~ 9.1e-13 — representable, deterministic, and five orders
+ * inside the 1e-7 tolerance. Under D249's exhaustion branch the walk puts
+ * its last retiree back as the blocker, a normal pivot runs, and both
+ * halves of the step happen — the certificate assertion below is what a
+ * flips-only repair failed on review, publishing OPTIMAL with reduced
+ * costs of the wrong sign. agg's own gap cannot be rebuilt small (one ulp
+ * of 5e4-magnitude sums, four hundred iterations deep), so this tests the
+ * family: same branch, same decision, exact gap (D249).
+ *
+ * Guarded: presolve computes the same activity range and would answer for
+ * the model before the simplex ever prices it. The branch under test is
+ * the simplex's own. */
+static void test_a_sub_tolerance_flip_gap_is_repaired_not_infeasible(void)
+{
+#if !defined(JAOS_NO_PRESOLVE)
+    TEST_IGNORE_MESSAGE("simplex-internal test — presolve answers this "
+                        "model first; runs only under "
+                        "EXTRA_CFLAGS=-DJAOS_NO_PRESOLVE");
+#else
+    const double c[] = {1.0, 2.0};
+    const double cl[] = {0.0, 0.0};
+    const double cu[] = {2.0, 2.0 - 0x1p-40};
+    const double rl[] = {4.0}, ru[] = {INFINITY};
+    const int64_t as[] = {0, 1, 2}, ai[] = {0, 0};
+    const double av[] = {1.0, 1.0};
+
+    jaos_model *m = fresh();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_load_lp(m, 2, 1, JAOS_MINIMIZE, 0.0, c, cl, cu, rl, ru,
+                     2, as, ai, av));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT_MESSAGE(JAOS_SOLVE_OPTIMAL, jaos_status_of(m),
+                                  "a sub-tolerance flip gap must repair, "
+                                  "not refuse");
+    double obj = 0.0;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(m, &obj));
+    TEST_ASSERT_DOUBLE_WITHIN(1e-9, 6.0, obj);
+
+    /* The certificate, not only the answer: the published point must
+     * carry dual-feasible reduced costs, which is the half of the step a
+     * flips-only repair skipped. */
+    double cv[2], ra[1], rd[1], cd[2];
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solution(m, cv, ra, rd, cd));
+    jaos_check_report rep;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+                          jaos_check_solution(m, cv, rd, CHECK_TOL, &rep));
+    TEST_ASSERT_TRUE(rep.primal_feasible);
+    TEST_ASSERT_TRUE_MESSAGE(rep.dual_feasible,
+                             "the repair must publish a clean certificate");
+    jaos_model_free(m);
+#endif
+}
+
+/* The other side of D249's comparison: the same shape with a gap of 1.0,
+ * seven orders past the tolerance, stays INFEASIBLE. A repair that
+ * swallowed this one would be hiding real infeasibility behind flips. */
+static void test_a_real_flip_gap_past_tolerance_stays_infeasible(void)
+{
+#if !defined(JAOS_NO_PRESOLVE)
+    TEST_IGNORE_MESSAGE("simplex-internal test — presolve answers this "
+                        "model first; runs only under "
+                        "EXTRA_CFLAGS=-DJAOS_NO_PRESOLVE");
+#else
+    const double c[] = {1.0, 2.0};
+    const double cl[] = {0.0, 0.0};
+    const double cu[] = {2.0, 1.0};
+    const double rl[] = {4.0}, ru[] = {INFINITY};
+    const int64_t as[] = {0, 1, 2}, ai[] = {0, 0};
+    const double av[] = {1.0, 1.0};
+
+    jaos_model *m = fresh();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_load_lp(m, 2, 1, JAOS_MINIMIZE, 0.0, c, cl, cu, rl, ru,
+                     2, as, ai, av));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_INFEASIBLE, jaos_status_of(m));
+    jaos_model_free(m);
+#endif
+}
+
 /* The combined direction that cancels to nothing in row space.
  *
  *   min -p - q  s.t. p - q = 0, p - q <= 5, p and q >= 0, neither capped
@@ -4252,6 +4340,8 @@ int main(void)
     RUN_TEST(test_a_bounded_neighbour_of_that_model_is_not_a_ray);
     RUN_TEST(test_a_ray_needing_two_columns_is_answered);
     RUN_TEST(test_two_held_columns_whose_sum_is_still_blocked);
+    RUN_TEST(test_a_sub_tolerance_flip_gap_is_repaired_not_infeasible);
+    RUN_TEST(test_a_real_flip_gap_past_tolerance_stays_infeasible);
     RUN_TEST(test_a_ray_whose_direction_cancels_in_row_space);
     return UNITY_END();
 }

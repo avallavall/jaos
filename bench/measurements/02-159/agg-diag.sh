@@ -79,11 +79,16 @@ anchor = '#define _POSIX_C_SOURCE 200809L'
 assert s.count(anchor) == 1
 s = s.replace(anchor, anchor + chr(10) + '#ifdef JAOS_DIAG' + chr(10) +
               '#include <stdio.h>' + chr(10) + '#endif', 1)
+# The probe sits between the walk's loop and D249's exhaustion branch, so
+# on the repaired tree it still fires where the walk exhausts sub-tolerance
+# (agg) and the run then shows the branch converting it into a blocker
+# instead of a false INFEASIBLE.
 old2 = """        s->rnum[k]   = s->rnum[live];   s->rnum[live]   = a;
         s->rden[k]   = s->rden[live];   s->rden[live]   = b;
         s->rrange[k] = s->rrange[live]; s->rrange[live] = c;
     }
-    return live;"""
+
+    if (live == 0 && remaining <= s->primal_tol) {"""
 assert s.count(old2) == 1, 'bfrt tail not unique'
 new2 = """        s->rnum[k]   = s->rnum[live];   s->rnum[live]   = a;
         s->rden[k]   = s->rden[live];   s->rden[live]   = b;
@@ -100,7 +105,8 @@ new2 = """        s->rnum[k]   = s->rnum[live];   s->rnum[live]   = a;
                     s->rnum[k2] / s->rden[k2]);
     }
 #endif
-    return live;"""
+
+    if (live == 0 && remaining <= s->primal_tol) {"""
 s = s.replace(old2, new2, 1)
 open(p, 'w').write(s)
 print('patched', file=sys.stderr)
