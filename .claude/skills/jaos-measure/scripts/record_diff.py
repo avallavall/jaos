@@ -34,11 +34,11 @@ WORK_RATIO_LIMIT = 2.0   # bench/README.md: work may grow up to 2x
 
 # The quantity behind the `checker` predicate, which the predicate itself
 # cannot report on because it degrades quietly. These mirror
-# RSUB_REGRESSION_FACTOR and RSUB_FLOOR in bench/run.c:244-245 and must keep
+# RSUB_REGRESSION_FACTOR and RSUB_FLOOR in bench/run.c:297-298 and must keep
 # mirroring them -- two copies of one threshold in two languages have already
 # diverged once here, which is how this check came to be missing.
 RSUB_RATIO_LIMIT = 2.0
-RSUB_FLOOR = 1e-9
+RSUB_FLOOR = 1e-16
 
 # D88 watched the checker's *dropped term*. D91 moved the watch: with the
 # implied bounds propagated the dropped terms fell to arithmetic noise, and

@@ -4199,6 +4199,88 @@ static void test_a_real_flip_gap_past_tolerance_stays_infeasible(void)
 #endif
 }
 
+/* The dual's ratio test used to admit a fixed column as a bound-flip
+ * candidate: the walk retired it — its width is zero, so it absorbed
+ * nothing — and apply_flips toggled its published label. D252 refuses it
+ * at admission, the same rule the primal pricing sites already apply.
+ * Built so the old walk retired the fixed column:
+ *
+ *   min x1 + 2 x2 + 2 x3  s.t.  x1 + x2 + x3 >= 4,
+ *   x1 in [0,2], x2 in [0,2], x3 fixed at 1
+ *
+ * The walk flips x1, x2 blocks and enters, and the optimum is 6. x3's
+ * final reduced cost is exactly 0.0 (2 minus the row dual of 2), so no
+ * dual-feasibility cleanup renames its label after the solve — a
+ * breached fixed column IS renamed to its feasible side, which is why a
+ * nonzero final reduced cost cannot watch the walk. The only writer
+ * left is the walk's own toggle: the old code published AT_UPPER.
+ *
+ * Guarded: presolve removes the fixed column and answers the reduced
+ * model; the branch under test is the simplex's own. */
+static void test_a_fixed_column_is_not_a_flip_candidate(void)
+{
+#if !defined(JAOS_NO_PRESOLVE)
+    TEST_IGNORE_MESSAGE("simplex-internal test — presolve answers this "
+                        "model first; runs only under "
+                        "EXTRA_CFLAGS=-DJAOS_NO_PRESOLVE");
+#else
+    const double c[] = {1.0, 2.0, 2.0};
+    const double cl[] = {0.0, 0.0, 1.0};
+    const double cu[] = {2.0, 2.0, 1.0};
+    const double rl[] = {4.0}, ru[] = {INFINITY};
+    const int64_t as[] = {0, 1, 2, 3}, ai[] = {0, 0, 0};
+    const double av[] = {1.0, 1.0, 1.0};
+
+    jaos_model *m = fresh();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_load_lp(m, 3, 1, JAOS_MINIMIZE, 0.0, c, cl, cu, rl, ru,
+                     3, as, ai, av));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+    double obj = 0.0;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(m, &obj));
+    TEST_ASSERT_DOUBLE_WITHIN(1e-9, 6.0, obj);
+
+    jaos_basis_status cs[3], rs[1];
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_basis(m, cs, rs));
+    /* x1's flip is what proves the walk ran at all in this solve. */
+    TEST_ASSERT_EQUAL_INT_MESSAGE(JAOS_BASIS_AT_UPPER, cs[0],
+                                  "the walk must have flipped x1");
+    TEST_ASSERT_EQUAL_INT_MESSAGE(JAOS_BASIS_AT_LOWER, cs[2],
+                                  "a fixed column never joins the walk, so "
+                                  "its label never toggles");
+    jaos_model_free(m);
+#endif
+}
+
+/* The other side: a row whose only same-signed candidates are fixed
+ * columns has no repair at all — under D252 the candidate list is empty
+ * where the old walk retired them for nothing — and the verdict must
+ * still be INFEASIBLE, not a crash and not an answer. */
+static void test_a_row_repairable_only_by_fixed_columns_is_infeasible(void)
+{
+#if !defined(JAOS_NO_PRESOLVE)
+    TEST_IGNORE_MESSAGE("simplex-internal test — presolve answers this "
+                        "model first; runs only under "
+                        "EXTRA_CFLAGS=-DJAOS_NO_PRESOLVE");
+#else
+    const double c[] = {1.0, 0.0};
+    const double cl[] = {1.0, 0.5};
+    const double cu[] = {1.0, 0.5};
+    const double rl[] = {4.0}, ru[] = {INFINITY};
+    const int64_t as[] = {0, 1, 2}, ai[] = {0, 0};
+    const double av[] = {1.0, 1.0};
+
+    jaos_model *m = fresh();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_load_lp(m, 2, 1, JAOS_MINIMIZE, 0.0, c, cl, cu, rl, ru,
+                     2, as, ai, av));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_INFEASIBLE, jaos_status_of(m));
+    jaos_model_free(m);
+#endif
+}
+
 /* A work limit may expire anywhere, the settling re-entry included, and
  * the verdict must always be the stop itself: seven of the forced
  * primal's fourteen "not dual feasible" refusals were budget stops
@@ -4406,6 +4488,8 @@ int main(void)
     RUN_TEST(test_two_held_columns_whose_sum_is_still_blocked);
     RUN_TEST(test_a_sub_tolerance_flip_gap_is_repaired_not_infeasible);
     RUN_TEST(test_a_real_flip_gap_past_tolerance_stays_infeasible);
+    RUN_TEST(test_a_fixed_column_is_not_a_flip_candidate);
+    RUN_TEST(test_a_row_repairable_only_by_fixed_columns_is_infeasible);
     RUN_TEST(test_every_work_limit_stops_honestly_and_resumes);
     RUN_TEST(test_a_ray_whose_direction_cancels_in_row_space);
     return UNITY_END();

@@ -259,6 +259,7 @@ and you have the argument. Jump to the entry for the numbers behind it.
 - **[D249](#d249--a-flip-gap-at-or-under-the-tolerance-repairs-the-row-instead-of-refusing-the-model)** — A flip gap at or under the tolerance repairs the row instead of refusing the model
 - **[D250](#d250--a-budget-stop-inside-the-re-entry-is-the-solves-verdict-not-a-numerical-error)** — A budget stop inside the re-entry is the solve's verdict, not a numerical error
 - **[D251](#d251--three-of-the-seven-round-exhausted-re-entries-are-stuck-not-slow-and-256-is-the-plateaus-edge)** — Three of the seven round-exhausted re-entries are stuck, not slow, and 256 is the plateau's edge
+- **[D252](#d252--a-fixed-column-never-joins-the-dual-ratio-test)** — A fixed column never joins the dual ratio test
 
 ---
 
@@ -19224,3 +19225,34 @@ question in D89's family, not a constant), `d6cube` and `truss` grinding
 far from target, and one disagreement outside this family. No numerics
 reviewer round: the diff is a swept count with its plateau measured on
 both sides, and no arithmetic path changed.
+
+## D252 — A fixed column never joins the dual ratio test
+
+**The question.** D248 measured `agg`'s walk retiring a FIXED column
+(`lo == up`): it absorbed nothing, and `apply_flips` toggled its
+published label. Harris could even pick one as the entering variable.
+The primal pricing sites already refuse fixed columns ("fixed: nowhere
+to go"). What does refusing them at `admit_candidate` cost or buy?
+
+**The reasoning.** A fixed column is dual feasible at any reduced cost,
+so it can never limit the dual step, and a width-zero flip absorbs
+nothing. Equality-row slacks are fixed too, so the rule reaches most
+models, and the gate decides what the trajectories do.
+
+**The measurement** (`bench/measurements/02-162/`). All five
+configurations pass; the label test fails on the parent and passes with
+the change, so it discriminates. Standard netlib: work geomean
+**0.9449x** over 94, 49 digests move, best `nesm` 0.4193x and `25fv47`
+0.4418x (5135 → 2644 iterations). Six flags, all read: `grow22` work
+2.09x (27275 → 52901 iterations) and five suboptimality bounds up 3.2x
+to 68.3x, largest `stair` at 2.12e-09 — every checker verdict stays ok.
+Kennington: geomean **1.0050x**, no flags; the ken family pays 1.14 to
+1.20x at equal iterations (the excluded fixed slacks were cheap entering
+columns that kept the factorization sparse there) and `cre-b` wins
+0.849x. All 29 infeasible verdicts hold. The forced primal reads
+74/14/6 against 77/11/6: the three ok → overrun conversions are the
+10x-of-dual bar tightening under a cheaper dual, `cycle` leaves DISAGREE
+for overrun the same way, and `stocfor3` now finishes under the bar and
+disagrees at settling (breach 3.15) — the family stays at six.
+**Accepted**; the three baselines are rewritten deliberately with every
+flag named here.

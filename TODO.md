@@ -30,11 +30,14 @@ multi-column ray decided (D247). `agg`'s false INFEASIBLE diagnosed to a
 one-ulp residue (D248) and repaired on the third measured shape (D249).
 Seven budget stops relabeled honestly, fixing the `jaos_set_work_limit`
 resume contract (D250). The round backstop to 256 with 512 refused on a
-byte-identical record (D251). The forced primal stands at **77 ok / 11
-overrun / 6 disagreed**, and all six disagreements are named and owned in
-the bullet below. What remains there is design work or a maintainer
-decision; the one measured question left for a fresh session is the
-fixed-column bound-flip candidate.
+byte-identical record (D251). The fixed-column question that run left
+open closed the next day: a fixed column never joins the dual ratio
+test, netlib geomean 0.9449x, accepted with its flags named (D252). The
+forced primal stands at **74 ok / 14 overrun / 6 disagreed** — the
+three ok → overrun moves are the 10x-of-dual bar tightening under a
+cheaper dual, not the primal slowing (D252) — and all six disagreements
+are named and owned in the bullet below. What remains there is design
+work or a maintainer decision.
 
 **Also 2026-09-02: the multi-column ray is decided (D247).** The lent-bound
 verdict tries one combined direction — every held column off its loan at
@@ -124,22 +127,24 @@ them.
   a numerical problem**: `SETTLE_ROUNDS` was 32, the re-entry used all of them
   with the violation still falling, and the constant's own comment called it
   a backstop that does not bind (D245, `bench/measurements/02-157/`).
-- **The forced primal's remaining disagreements: 6.** Three re-entries
-  are stuck in ways no round budget reaches — `cycle`'s objective frozen
-  fifty rounds, `modszk1`'s never moving once, `scsd8`'s violation pinned
-  at ~181 (the trace is `02-161/`) — which is D89's oscillation family
-  and a design question, not a constant. `d6cube` and `truss` grind far
-  from target at decelerating rates, which is the pricing rule's cost and
-  stage 5's territory. The sixth is `pilot87`, and it is its own family:
-  the primal phase 1 diverges — total infeasibility 1268x its own best at
-  iteration 19532 — and D218's guard refuses before phase 2 ever runs, on
-  the instance whose conditioning already splits the published optima of
-  other solvers (D183). A fix is phase-1 design work, not a constant. `SETTLE_ROUNDS_PRIMAL` sits at 256 with 512 refused on a
+- **The forced primal's remaining disagreements: 6** (since D252:
+  `cycle` sits behind the tightened overrun bar instead, and `stocfor3`
+  finishes under it and disagrees at settling, breach 3.15). Three
+  re-entries are stuck in ways no round budget reaches — `modszk1`'s
+  objective never moving once, `scsd8`'s violation pinned at ~181 (the
+  trace is `02-161/`), `stocfor3`'s settled point not dual feasible —
+  which is D89's oscillation family and a design question, not a
+  constant. `d6cube` and `truss` grind far from target at decelerating
+  rates, which is the pricing rule's cost and stage 5's territory. The
+  sixth is `pilot87`, and it is its own family: the primal phase 1
+  diverges — total infeasibility 1268x its own best at iteration 19532 —
+  and D218's guard refuses before phase 2 ever runs, on the instance
+  whose conditioning already splits the published optima of other
+  solvers (D183). A fix is phase-1 design work, not a constant.
+  `SETTLE_ROUNDS_PRIMAL` sits at 256 with 512 refused on a
   byte-identical record (D251). **D244's reopen condition is the whole
   family fixed**, and these six are what stands between the pricing
-  question and the table. The fixed column admitted as a bound-flip
-  candidate (absorbs nothing, can never usefully enter, drains `live`)
-  is a separate measured question D248 flagged and D249 did not touch.
+  question and the table.
 
 Not next, and each says why in `SPECS.md`: barrier and crossover (the
 starting point is undecided), MILP (a whole subsystem), D97 (needs

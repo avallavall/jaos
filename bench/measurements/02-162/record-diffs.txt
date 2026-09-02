@@ -1,0 +1,57 @@
+Candidate tree: D252 change on top of 3f60df2. Compared against the
+records and baselines committed at 3f60df2. Taken 2026-09-02.
+
+== netlib.txt: record_diff.py (repaired RSUB floor, matches bench/run.c) ==
+94 instances compared: 17 bit-identical, 77 moved, 49 digest change(s)
+-- REGRESSIONS --
+  RSUB               dfl001         suboptimality bound 4.9e-14 -> 1.56e-13  (3.2x, D91 threshold)
+  RSUB               ganges         suboptimality bound 6.79e-15 -> 2.22e-14  (3.3x, D91 threshold)
+  WORK               grow22         733504475 -> 1535156517  (2.093x)
+  RSUB               grow22         suboptimality bound 5.83e-15 -> 3.99e-13  (68.4x, D91 threshold)
+  RSUB               pilotnov       suboptimality bound 1.09e-13 -> 1.4e-12  (12.8x, D91 threshold)
+  RSUB               stair          suboptimality bound 3.76e-10 -> 2.12e-09  (5.6x, D91 threshold)
+(the runner printed the same six lines; before the floor repair
+record_diff.py printed only grow22 WORK and stair RSUB)
+
+== netlib.txt: geomean.py --metric work, 3f60df2 vs candidate ==
+  instances averaged   94
+  GEOMETRIC MEAN       0.9449x
+  best  nesm           0.4193x
+  worst grow22         2.0929x
+  ratio of totals      0.9686x     (not the result, D46)
+25fv47: work 154561310 -> 68280686 (0.4418x), iters 5135 -> 2644
+grow22: iters 27275 -> 52901
+
+== netlib-kennington.txt: record_diff.py ==
+16 instances compared: 4 bit-identical, 12 moved, 11 digest change(s)
+-- no regression --
+  WORK  cre-b   659260465 -> 559738825   (0.849x)
+  WORK  ken-07  4426130 -> 5089107       (1.15x)
+  WORK  ken-11  145515766 -> 167268687   (1.149x)
+  WORK  ken-13  747060770 -> 849577439   (1.137x)
+  WORK  ken-18  7827756793 -> 9352893337 (1.195x), iters 77812 -> 77687
+(the ken family pays at equal iterations: the excluded fixed slacks were
+cheap entering columns that kept the factorization sparse there)
+
+== netlib-kennington.txt: geomean.py --metric work ==
+  instances averaged   16
+  GEOMETRIC MEAN       1.0050x
+  best  cre-b          0.8490x
+  worst ken-18         1.1948x
+
+== netlib-infeas.txt ==
+0 regressed, 0 improved, 0 new; 11 lines move by small work counts,
+all 29 verdicts stay infeasible, det=ok everywhere.
+
+== primal.txt: record_diff.py ==
+-- REGRESSIONS --
+  STATUS             25fv47         ok -> overrun
+  STATUS             pilot-we       ok -> overrun
+  STATUS             tuff           ok -> overrun
+  (cycle DISAGREE -> overrun; stocfor3 overrun -> DISAGREE)
+Totals move 77/11/6 -> 74 ok / 14 overrun / 6 DISAGREE. The overrun bar
+is 10x the dual's own work; the dual got cheaper on 25fv47 (0.44x),
+pilot-we, tuff and cycle, so the bar tightened — the primal did not slow.
+stocfor3's dual costs 1.108x more, the bar loosened past the primal's
+5.87G units, it finishes and its settled point breaches by 3.15: the
+disagreement the budget was hiding, D251's stuck family.

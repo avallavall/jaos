@@ -9,6 +9,23 @@ open, `bench/README.md` for the gate, and the commit each entry came from.
 
 ## [Unreleased]
 
+### Changed
+
+- **A fixed column never joins the dual ratio test.** `admit_candidate`
+  refuses `lo == up`, the rule the primal pricing already applied: it never
+  limits the step, and its width-zero flip only toggled its published
+  label. Netlib work geomean 0.9449x, Kennington 1.0050x; grow22 pays
+  2.09x and stair's bound reads 2.12e-09, both named and accepted
+  (D252, `bench/measurements/02-162/`).
+
+### Fixed
+
+- **`record_diff.py` watched a floor the runner dropped a week earlier.**
+  Its RSUB mirror still said 1e-9 where `bench/run.c` moved to 1e-16 on
+  2026-08-24, so it reported 2 of the 6 flags the runner printed on the
+  same records. Both constants read 1e-16 now, validated by the two
+  instruments printing the same six lines on D252's diff.
+
 ### Added
 
 - **A ray that needs several columns at once is proved now.** When every

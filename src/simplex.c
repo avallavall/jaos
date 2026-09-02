@@ -1388,6 +1388,10 @@ static void admit_candidate(sx *s, int64_t v, bool below, int64_t *n)
 {
     if (s->status[v] == JM_BASIC)
         return;
+    if (s->lo[v] == s->up[v])
+        return;              /* fixed: any reduced cost is dual feasible on
+                                it, so it never limits the step, and its
+                                width-zero flip absorbs nothing (D252) */
     double a = s->alpha[v];
     if (fabs(a) < PIVOT_MIN)
         return;
