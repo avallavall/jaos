@@ -1,6 +1,6 @@
 # instance    verdict   dual=iters/work  primal=iters/work  split=p1/p2/dual-re-entry
 25fv47       ok        dual=5135/154561310 primal=27956/1170157542 split=p1:5368/p2:1/dual:22587 verdict=optimal/optimal obj=5501.8458882867444/5501.8458882867444 checker=dual:ok/primal:ok 
-80bau3b      DISAGREE  dual=3616/67601531 primal=16742/676110220 split=p1:2416/p2:3/dual:14323 verdict=optimal/numerical error obj=987224.19240909023/0 checker=dual:ok/primal:n/a different verdicts: the settled point is not dual feasible: a reduced cost breaches its bound by 79.2408 after settling, from a cold start; publishing that as OPTIMAL would certify a point the reduced costs do not support
+80bau3b      overrun   dual=3616/67601531 split=p1:2416/p2:3/dual:14323 over 10x the dual's work
 adlittle     ok        dual=71/141748 primal=159/380492 split=p1:89/p2:1/dual:69 verdict=optimal/optimal obj=225494.96316238036/225494.96316238036 checker=dual:ok/primal:ok 
 afiro        ok        dual=18/13033 primal=20/25540 split=p1:18/p2:1/dual:1 verdict=optimal/optimal obj=-464.75314285714285/-464.75314285714285 checker=dual:ok/primal:ok 
 agg          ok        dual=189/920205 primal=483/3104326 split=p1:398/p2:1/dual:84 verdict=optimal/optimal obj=-35991767.286576502/-35991767.286576502 checker=dual:ok/primal:ok 
@@ -10,7 +10,7 @@ bandm        ok        dual=393/3074437 primal=1240/11787006 split=p1:837/p2:1/d
 beaconfd     ok        dual=78/87635 primal=105/289107 split=p1:73/p2:1/dual:31 verdict=optimal/optimal obj=33592.485807199999/33592.485807199999 checker=dual:ok/primal:ok 
 blend        ok        dual=101/208820 primal=179/780290 split=p1:111/p2:1/dual:67 verdict=optimal/optimal obj=-30.812149845828223/-30.812149845828223 checker=dual:ok/primal:ok 
 bnl1         ok        dual=790/7616594 primal=2574/48664063 split=p1:1741/p2:1/dual:832 verdict=optimal/optimal obj=1977.629561522888/1977.6295615228885 checker=dual:ok/primal:ok 
-bnl2         DISAGREE  dual=1746/21655288 primal=4525/216705795 split=p1:3666/p2:1/dual:858 verdict=optimal/numerical error obj=1811.2365403585452/0 checker=dual:ok/primal:n/a different verdicts: the settled point is not dual feasible: a reduced cost breaches its bound by 568.002 after settling, from a cold start; publishing that as OPTIMAL would certify a point the reduced costs do not support
+bnl2         overrun   dual=1746/21655288 split=p1:3666/p2:1/dual:858 over 10x the dual's work
 boeing1      ok        dual=374/1895087 primal=1319/10140981 split=p1:878/p2:1/dual:440 verdict=optimal/optimal obj=-335.21356750712664/-335.21356750712664 checker=dual:ok/primal:ok 
 boeing2      ok        dual=118/323451 primal=363/1291880 split=p1:303/p2:1/dual:59 verdict=optimal/optimal obj=-315.0187280152029/-315.0187280152029 checker=dual:ok/primal:ok 
 bore3d       ok        dual=134/360247 primal=150/893779 split=p1:134/p2:1/dual:15 verdict=optimal/optimal obj=1373.0803942084929/1373.0803942084929 checker=dual:ok/primal:ok 
@@ -18,7 +18,7 @@ brandy       ok        dual=216/1343553 primal=567/4875735 split=p1:285/p2:1/dua
 capri        ok        dual=272/486386 primal=528/2844028 split=p1:404/p2:1/dual:123 verdict=optimal/optimal obj=2690.0129137681611/2690.0129137681615 checker=dual:ok/primal:ok 
 cycle        DISAGREE  dual=1319/23011426 primal=9086/219994380 split=p1:555/p2:1/dual:8530 verdict=optimal/numerical error obj=-5.2263930248941017/0 checker=dual:ok/primal:n/a different verdicts: the settled point is not dual feasible: a reduced cost breaches its bound by 0.54115 after settling, from a cold start; publishing that as OPTIMAL would certify a point the reduced costs do not support
 czprob       ok        dual=1154/13051931 primal=4653/95537111 split=p1:2151/p2:1/dual:2501 verdict=optimal/optimal obj=2185196.6988565773/2185196.6988565773 checker=dual:ok/primal:ok 
-d2q06c       DISAGREE  dual=29290/2279575982 primal=226697/22796267334 split=p1:8867/p2:2/dual:217828 verdict=optimal/numerical error obj=122784.21081418944/0 checker=dual:ok/primal:n/a different verdicts: the settled point is not dual feasible: a reduced cost breaches its bound by 123.268 after settling, from a cold start; publishing that as OPTIMAL would certify a point the reduced costs do not support
+d2q06c       overrun   dual=29290/2279575982 split=p1:8867/p2:2/dual:217828 over 10x the dual's work
 d6cube       DISAGREE  dual=420/25069715 primal=11011/555705793 split=p1:2690/p2:1/dual:8320 verdict=optimal/numerical error obj=315.49166666666667/0 checker=dual:ok/primal:n/a different verdicts: the settled point is not dual feasible: a reduced cost breaches its bound by 15.1574 after settling, from a cold start; publishing that as OPTIMAL would certify a point the reduced costs do not support
 degen2       ok        dual=578/5416019 primal=5141/81347802 split=p1:1873/p2:1/dual:3267 verdict=optimal/optimal obj=-1435.1780000000001/-1435.1780000000001 checker=dual:ok/primal:ok 
 degen3       overrun   dual=2400/77947304 split=p1:13813/p2:0/dual:0 over 10x the dual's work
@@ -28,13 +28,13 @@ etamacro     ok        dual=571/3308082 primal=1255/9574690 split=p1:499/p2:1/du
 fffff800     ok        dual=850/6819400 primal=1164/14137071 split=p1:777/p2:1/dual:386 verdict=optimal/optimal obj=555679.56481749623/555679.56481749623 checker=dual:ok/primal:ok 
 finnis       ok        dual=281/524911 primal=797/4833534 split=p1:280/p2:1/dual:516 verdict=optimal/optimal obj=172791.06567185125/172791.06567668528 checker=dual:ok/primal:ok 
 fit1d        ok        dual=66/1681317 primal=731/16064551 split=p1:618/p2:1/dual:112 verdict=optimal/optimal obj=-9146.3780924209277/-9146.3780924209277 checker=dual:ok/primal:ok 
-fit1p        DISAGREE  dual=494/13354704 primal=4981/133667743 split=p1:1296/p2:1/dual:3684 verdict=optimal/numerical error obj=9146.3780924209277/0 checker=dual:ok/primal:n/a different verdicts: the settled point is not dual feasible: a reduced cost breaches its bound by 87.7603 after settling, from a cold start; publishing that as OPTIMAL would certify a point the reduced costs do not support
+fit1p        overrun   dual=494/13354704 split=p1:1296/p2:1/dual:3684 over 10x the dual's work
 fit2d        ok        dual=131/72887380 primal=2609/648449400 split=p1:2330/p2:3/dual:276 verdict=optimal/optimal obj=-68464.293293832074/-68464.293293832074 checker=dual:ok/primal:ok 
 fit2p        ok        dual=4663/657247720 primal=26949/3991388486 split=p1:11702/p2:1/dual:15246 verdict=optimal/optimal obj=68464.293293832074/68464.293293832074 checker=dual:ok/primal:ok 
 forplan      ok        dual=194/1247104 primal=536/5276579 split=p1:229/p2:1/dual:306 verdict=optimal/optimal obj=-664.21896127220464/-664.21896127220464 checker=dual:ok/primal:ok 
 ganges       ok        dual=1310/3936269 primal=1737/33401356 split=p1:1660/p2:1/dual:76 verdict=optimal/optimal obj=-109585.73612927814/-109585.73612927817 checker=dual:ok/primal:ok 
 gfrd-pnc     ok        dual=547/3002997 primal=755/7168701 split=p1:435/p2:1/dual:319 verdict=optimal/optimal obj=6902235.9995488087/6902235.9995488087 checker=dual:ok/primal:ok 
-greenbea     DISAGREE  dual=4932/225215399 primal=26908/2252467257 split=p1:5653/p2:1/dual:21254 verdict=optimal/numerical error obj=-72555248.129845977/0 checker=dual:ok/primal:n/a different verdicts: the settled point is not dual feasible: a reduced cost breaches its bound by 36901 after settling, from a cold start; publishing that as OPTIMAL would certify a point the reduced costs do not support
+greenbea     overrun   dual=4932/225215399 split=p1:5653/p2:1/dual:21254 over 10x the dual's work
 greenbeb     ok        dual=11242/603994473 primal=53314/4272107464 split=p1:5105/p2:1/dual:48208 verdict=optimal/optimal obj=-4302260.2612065868/-4302260.2612065868 checker=dual:ok/primal:ok 
 grow15       ok        dual=2582/57565903 primal=1090/22123120 split=p1:445/p2:1/dual:644 verdict=optimal/optimal obj=-106870941.29357533/-106870941.29357533 checker=dual:ok/primal:ok 
 grow22       ok        dual=27275/733504475 primal=22200/642728681 split=p1:764/p2:1/dual:21435 verdict=optimal/optimal obj=-160834336.48256299/-160834336.48256296 checker=dual:ok/primal:ok 
@@ -48,11 +48,11 @@ modszk1      DISAGREE  dual=747/8994276 primal=2211/53760204 split=p1:14/p2:1/du
 nesm         ok        dual=5891/133071815 primal=6138/144664201 split=p1:2053/p2:1/dual:4084 verdict=optimal/optimal obj=14076036.487562733/14076036.487562733 checker=dual:ok/primal:ok 
 perold       ok        dual=2491/67576873 primal=10120/339356403 split=p1:2025/p2:1/dual:8094 verdict=optimal/optimal obj=-9380.7552782351613/-9380.7552782351613 checker=dual:ok/primal:ok 
 pilot        ok        dual=22210/4311990571 primal=48361/15973159912 split=p1:11795/p2:2/dual:36564 verdict=optimal/optimal obj=-557.4897292893346/-557.48972928406818 checker=dual:ok/primal:ok 
-pilot-ja     DISAGREE  dual=2403/94515274 primal=17456/945547269 split=p1:5704/p2:1/dual:11751 verdict=optimal/numerical error obj=-6113.1364655813431/0 checker=dual:ok/primal:n/a different verdicts: the settled point is not dual feasible: a reduced cost breaches its bound by 1473.32 after settling, from a cold start; publishing that as OPTIMAL would certify a point the reduced costs do not support
+pilot-ja     overrun   dual=2403/94515274 split=p1:5704/p2:1/dual:11751 over 10x the dual's work
 pilot-we     ok        dual=4558/143901388 primal=27163/1060751475 split=p1:1894/p2:1/dual:25268 verdict=optimal/optimal obj=-2720107.5328449644/-2720107.5328449644 checker=dual:ok/primal:ok 
 pilot4       ok        dual=673/16066863 primal=4289/110611890 split=p1:2227/p2:1/dual:2061 verdict=optimal/optimal obj=-2581.1392588838889/-2581.1392588838889 checker=dual:ok/primal:ok 
 pilot87      DISAGREE  dual=38000/17961112053 primal=19532/4234464248 split=p1:19532/p2:0/dual:0 verdict=optimal/numerical error obj=301.71034733311052/0 checker=dual:ok/primal:n/a different verdicts: the primal phase 1's total infeasibility stands at 1.71098e+15 at iteration 19532, 1267.85 times its own best of 1.34951e+12, on a freshly computed point; the basis it is pivoting on is too ill-conditioned for another pivot to repair the start
-pilotnov     DISAGREE  dual=2135/80872352 primal=16328/808967407 split=p1:1621/p2:2/dual:14705 verdict=optimal/numerical error obj=-4497.2761882188706/0 checker=dual:ok/primal:n/a different verdicts: the settled point is not dual feasible: a reduced cost breaches its bound by 6.56892 after settling, from a cold start; publishing that as OPTIMAL would certify a point the reduced costs do not support
+pilotnov     overrun   dual=2135/80872352 split=p1:1621/p2:2/dual:14705 over 10x the dual's work
 recipe       ok        dual=42/23369 primal=57/80632 split=p1:37/p2:1/dual:19 verdict=optimal/optimal obj=-266.61599999999999/-266.61599999999999 checker=dual:ok/primal:ok 
 sc105        ok        dual=106/130495 primal=95/414542 split=p1:1/p2:1/dual:93 verdict=optimal/optimal obj=-52.202061211707239/-52.202061211707239 checker=dual:ok/primal:ok 
 sc205        ok        dual=226/554624 primal=242/1429975 split=p1:1/p2:1/dual:240 verdict=optimal/optimal obj=-52.202061211707232/-52.202061211707232 checker=dual:ok/primal:ok 
@@ -95,10 +95,10 @@ wood1p       ok        dual=560/42078864 primal=857/73036316 split=p1:250/p2:1/d
 woodw        DISAGREE  dual=1228/40150968 primal=5073/191205281 split=p1:1230/p2:1/dual:3842 verdict=optimal/numerical error obj=1.3044763330842295/0 checker=dual:ok/primal:n/a different verdicts: the settled point is not dual feasible: a reduced cost breaches its bound by 1.00233 after settling, from a cold start; publishing that as OPTIMAL would certify a point the reduced costs do not support
 
 -- primal against dual --
-measured 76, skipped 0, unreached 0, unbounded? 0, overrun 3, disagreed 15, rejected 0, errors 0
+measured 76, skipped 0, unreached 0, unbounded? 0, overrun 10, disagreed 8, rejected 0, errors 0
 iterations by method: phase 1 301059 (35.3%), phase 2 102 (0.0%), dual re-entry 551012 (64.7%)
   that is a sum over the set (D46): d2q06c carries 26.6% of it and dfl001 14.8%. Median per-instance phase-1 share 48.2% over 94 instance(s).
-  3 of 94 did not finish inside 10x the dual's work. Dantzig pricing is the worst rule that is still correct, and that is TODO.md section 0 stage 5, not a defect.
+  10 of 94 did not finish inside 10x the dual's work. Dantzig pricing is the worst rule that is still correct, and that is TODO.md section 0 stage 5, not a defect.
 iterations (primal+1)/(dual+1), geometric mean: 2.2100
 work units primal/dual, geometric mean:         4.2136
 work ratio, best  grow15 at 0.3843

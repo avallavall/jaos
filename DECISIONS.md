@@ -257,6 +257,7 @@ and you have the argument. Jump to the entry for the numbers behind it.
 - **[D247](#d247--a-ray-that-needs-several-columns-is-decided-by-moving-every-held-column-together)** — A ray that needs several columns is decided by moving every held column together
 - **[D248](#d248--aggs-round-zero-infeasible-is-a-one-ulp-residue-read-with-no-tolerance)** — agg's round-zero INFEASIBLE is a one-ulp residue read with no tolerance
 - **[D249](#d249--a-flip-gap-at-or-under-the-tolerance-repairs-the-row-instead-of-refusing-the-model)** — A flip gap at or under the tolerance repairs the row instead of refusing the model
+- **[D250](#d250--a-budget-stop-inside-the-re-entry-is-the-solves-verdict-not-a-numerical-error)** — A budget stop inside the re-entry is the solve's verdict, not a numerical error
 
 ---
 
@@ -19144,3 +19145,49 @@ guards the publication path in case that backstop ever narrows.
 point is not dual feasible" family fixed. Fourteen of the fifteen
 remaining disagreements still carry that message; `agg` alone left it.
 The refusal stands, and the fourteen are the item this entry hands back.
+## D250 — A budget stop inside the re-entry is the solve's verdict, not a numerical error
+
+**The question.** Fourteen forced-primal solves refuse as "the settled
+point is not dual feasible". Are they one numerical family? A census of
+`reenter_after_settling`'s exits (`bench/measurements/02-160/`) says no:
+seven are the work budget expiring inside the re-entry's dual run, and
+seven are `SETTLE_ROUNDS_PRIMAL` binding at 128. Neither is arithmetic.
+
+**The defect the first seven expose.** When the inner run stopped on
+`JAOS_SOLVE_WORK_LIMIT`, the re-entry restored the settled point and
+returned as if the round had merely failed; the driver then read the
+outstanding dual breach — of course outstanding, the repair was cut off —
+and published NUMERICAL_ERROR. A budget stop wore a numerical error's
+label, on the public path too: any caller whose `jaos_set_work_limit`
+expired inside a re-entry got a verdict that hides that raising the limit
+and solving again would continue, which is the resume contract the header
+states at that function.
+
+**The change.** `reenter_after_settling` reports a WORK_LIMIT, TIME_LIMIT
+or INTERRUPTED stop of its inner run through an out-parameter, with the
+settled point restored as the resumable state; the driver publishes that
+stop as the outcome instead of judging the point. The dual-breach refusal
+still stands for every other non-optimal exit.
+
+**The measurement.** All five build configurations pass, the new
+work-limit ladder test included: every limit value on the golden model,
+both methods, stops honestly and resumes to the same optimum. The three
+gate sets read `0 regressed` with `bench/results/` byte-identical — no
+gate solve carries a work limit, so the branch is unreached there. The
+forced primal record: the seven census instances move from DISAGREE with
+a numerical-error verdict to **overrun** with the honest label, and the
+campaign reads 76 ok, 10 overrun, 8 disagreed against 76/3/15
+(`bench/results/primal.txt`).
+
+**Two properties the review pinned, carried here.** A resume with an
+UNCHANGED budget after a re-entry stop makes no progress: the stop rewinds
+the round to the settled point, so the same budget replays the same round
+to the same charge — the recipe is raising the limit, exactly as the
+header states it. And the best-point ranking is deliberately not consulted
+at a stop: a budget stop has no answer to read, and take_best's own
+failure path is the very mislabeling this entry removes.
+
+**Open, handed to `TODO.md`.** The other seven of the fourteen exhaust all
+128 settle rounds. Whether their trajectories still descend (a budget
+binding, D245's shape) or oscillate (D89's) is the next question, and
+`02-157/run-settle-rounds.sh` is the instrument.

@@ -112,16 +112,20 @@ them.
   a numerical problem**: `SETTLE_ROUNDS` was 32, the re-entry used all of them
   with the violation still falling, and the constant's own comment called it
   a backstop that does not bind (D245, `bench/measurements/02-157/`).
-- **The forced primal's remaining disagreements: 15, of which fourteen
-  still refuse as "the settled point is not dual feasible".** `agg` left
-  the family through D249 (the walk-exhaustion repair); the fourteen fail
-  the same way for reasons not yet read — D248's method (a probe at the
-  refusal, then the walk) is the way in, one instance at a time. **D244's
-  reopen condition is the whole family fixed**, so these fourteen are what
-  stands between the pricing question and the table. The fixed column
-  admitted as a bound-flip candidate (absorbs nothing, can never usefully
-  enter, drains `live`) is a separate measured question D248 flagged and
-  D249 did not touch.
+- **The forced primal's remaining disagreements: 8, of which seven
+  exhaust all 128 settle rounds** (`cycle`, `d6cube`, `modszk1`, `scsd8`,
+  `stocfor3`, `truss`, `woodw`; the census is `02-160/`). The other seven
+  of D248's family were budget stops mislabeled as numerical errors and
+  read **overrun** honestly now (D250). Next question for the seven: do
+  their trajectories still descend at round 128 (a budget binding, D245's
+  shape — then sweep `SETTLE_ROUNDS_PRIMAL` with
+  `02-157/run-settle-rounds.sh`) or oscillate (D89's shape — then a
+  design question, not a constant)? **D244's reopen condition is the
+  whole family fixed**, and these seven plus one are what stands between
+  the pricing question and the table. The fixed column admitted as a
+  bound-flip candidate (absorbs nothing, can never usefully enter, drains
+  `live`) is a separate measured question D248 flagged and D249 did not
+  touch.
 
 Not next, and each says why in `SPECS.md`: barrier and crossover (the
 starting point is undecided), MILP (a whole subsystem), D97 (needs

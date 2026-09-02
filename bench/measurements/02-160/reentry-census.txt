@@ -1,0 +1,42 @@
+== 80bau3b
+      1 DIAG-REENTRY exit=dual-not-optimal again=4 round=27
+      1 DIAG-REENTRY exit=cleanup-no-pivots round=0
+== bnl2
+      1 DIAG-REENTRY exit=dual-not-optimal again=4 round=0
+      1 DIAG-REENTRY exit=cleanup-no-pivots round=0
+== cycle
+      1 DIAG-REENTRY exit=rounds-exhausted rounds=128
+      1 DIAG-REENTRY exit=cleanup-no-pivots round=0
+== d2q06c
+      1 DIAG-REENTRY exit=dual-not-optimal again=4 round=23
+      1 DIAG-REENTRY exit=cleanup-no-pivots round=0
+== d6cube
+      1 DIAG-REENTRY exit=rounds-exhausted rounds=128
+      1 DIAG-REENTRY exit=cleanup-no-pivots round=0
+== fit1p
+      1 DIAG-REENTRY exit=dual-not-optimal again=4 round=32
+      1 DIAG-REENTRY exit=cleanup-no-pivots round=0
+== greenbea
+      1 DIAG-REENTRY exit=dual-not-optimal again=4 round=4
+      1 DIAG-REENTRY exit=cleanup-no-pivots round=0
+== modszk1
+      1 DIAG-REENTRY exit=rounds-exhausted rounds=128
+      1 DIAG-REENTRY exit=cleanup-no-pivots round=0
+== pilot-ja
+      1 DIAG-REENTRY exit=dual-not-optimal again=4 round=11
+      1 DIAG-REENTRY exit=cleanup-no-pivots round=0
+== pilotnov
+      1 DIAG-REENTRY exit=dual-not-optimal again=4 round=7
+      1 DIAG-REENTRY exit=cleanup-no-pivots round=0
+== scsd8
+      1 DIAG-REENTRY exit=rounds-exhausted rounds=128
+      1 DIAG-REENTRY exit=cleanup-no-pivots round=0
+== stocfor3
+      1 DIAG-REENTRY exit=rounds-exhausted rounds=128
+      1 DIAG-REENTRY exit=cleanup-no-pivots round=0
+== truss
+      1 DIAG-REENTRY exit=rounds-exhausted rounds=128
+      1 DIAG-REENTRY exit=cleanup-no-pivots round=0
+== woodw
+      1 DIAG-REENTRY exit=rounds-exhausted rounds=128
+      1 DIAG-REENTRY exit=cleanup-no-pivots round=0

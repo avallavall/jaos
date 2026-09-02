@@ -21,6 +21,14 @@ open, `bench/README.md` for the gate, and the commit each entry came from.
 
 ### Fixed
 
+- **A budget expiring inside the settling re-entry publishes as the stop
+  it is, not as a numerical error.** Seven of the forced primal's fourteen
+  "not dual feasible" refusals were the harness's 10x work budget dying
+  mid-re-entry; they read **overrun** honestly now (76 ok / 10 overrun / 8
+  disagreed), and a caller's `jaos_set_work_limit` expiring there gets the
+  resumable WORK_LIMIT verdict the header promises. Gate byte-identical on
+  all three sets (D250, census in `bench/measurements/02-160/`).
+
 - **A bound-flip walk that exhausts within the feasibility tolerance ends
   in a pivot now, not in a false INFEASIBLE.** Four lines at the walk's
   exit put its last retiree back as the blocker; every walk the branch

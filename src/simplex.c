@@ -2684,8 +2684,10 @@ static jaos_status primal_cleanup(sx *s, int64_t *pivots)
 /* Hands a settled point back to the dual simplex. Anything other than a
  * second optimum is discarded and the settled point stands. A library
  * error propagates. Among optima the best point is kept (better_point,
- * D89). */
-static jaos_status reenter_after_settling(sx *s)
+ * D89). A budget or a caller stopping the inner run is reported through
+ * `*stopped` with the settled point restored and resumable, because that
+ * stop is the whole solve's verdict and not a numerical failure (D250). */
+static jaos_status reenter_after_settling(sx *s, jaos_solve_status *stopped)
 {
     /* The point on entry is a candidate like any other (D89). */
     s->bst_valid = false;
@@ -2774,6 +2776,17 @@ static jaos_status reenter_after_settling(sx *s)
         if (!ok)
             return JAOS_ERR_NUMERICAL;
         settle_shifts(s);
+        if (again == JAOS_SOLVE_WORK_LIMIT ||
+            again == JAOS_SOLVE_TIME_LIMIT ||
+            again == JAOS_SOLVE_INTERRUPTED) {
+            /* The round was stopped by a budget or by the caller, not by
+             * arithmetic. Seven of the forced primal's fourteen
+             * "not dual feasible" refusals were this exit wearing a
+             * numerical error's label (D250). The settled point above is
+             * the resumable state jaos_set_work_limit promises. */
+            *stopped = again;
+            return JAOS_OK;
+        }
         st = take_best_if_better(s, &ok);
         if (st != JAOS_OK)
             return st;
@@ -4191,9 +4204,18 @@ jaos_status jm_dual_simplex(jaos_model *m)
         /* Settle first, then judge: the verdict reads the model's own
          * reduced costs, not the shifted ones. */
         settle_shifts(&s);
-        st = reenter_after_settling(&s);
+        jaos_solve_status stopped = JAOS_SOLVE_NOT_RUN;
+        st = reenter_after_settling(&s, &stopped);
         if (st != JAOS_OK)
             break;
+        if (stopped != JAOS_SOLVE_NOT_RUN) {
+            /* The re-entry's own run hit a budget or was stopped. That is
+             * the whole solve's outcome: the state is resumable, and a
+             * numerical refusal here would break the resume contract of
+             * jaos_set_work_limit (D250). */
+            outcome = stopped;
+            break;
+        }
 
         /* The best point can carry a dual violation into an OPTIMAL verdict
          * (D146, D147), so it is read before publishing. Exact-zero on

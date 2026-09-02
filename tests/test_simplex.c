@@ -4199,6 +4199,70 @@ static void test_a_real_flip_gap_past_tolerance_stays_infeasible(void)
 #endif
 }
 
+/* A work limit may expire anywhere, the settling re-entry included, and
+ * the verdict must always be the stop itself: seven of the forced
+ * primal's fourteen "not dual feasible" refusals were budget stops
+ * wearing a numerical error's label (D250). The ladder walks the limit
+ * through every stopping point this model has, on both methods; no limit
+ * value may produce an error, and every stop must resume to the same
+ * optimum once the budget is lifted, which is jaos_set_work_limit's
+ * stated contract. The re-entry stop itself cannot be pinned to one
+ * limit value here — where a budget lands depends on every charge before
+ * it — so this tests the family, and the campaign's seven instances are
+ * the new branch's own evidence.
+ *
+ * Two coverage notes, on review. In the default build presolve may answer
+ * this small model outright and collapse the ladder to OPTIMAL at its
+ * first rung; the stops and resumes are then walked by the
+ * -DJAOS_NO_PRESOLVE configurations, which `make configs` runs. And
+ * TIME_LIMIT and INTERRUPTED take the same branch as WORK_LIMIT and are
+ * deliberately not laddered here: a clock stop cannot be pinned, and a
+ * callback-driven ladder is a follow-up, not this test. */
+static void test_every_work_limit_stops_honestly_and_resumes(void)
+{
+    const double c[] = {-1.0, -2.0};
+    const double cl[] = {0.0, 0.0};
+    const double cu[] = {INFINITY, INFINITY};
+    const double rl[] = {-INFINITY}, ru[] = {4.0};
+    const int64_t as[] = {0, 1, 2}, ai[] = {0, 0};
+    const double av[] = {1.0, 1.0};
+
+    for (int method = 0; method < 2; method++) {
+        bool reached_optimal = false;
+        for (int64_t lim = 1; lim < INT64_C(1) << 40; lim *= 4) {
+            jaos_model *m = fresh();
+            TEST_ASSERT_EQUAL_INT(JAOS_OK,
+                jaos_load_lp(m, 2, 1, JAOS_MINIMIZE, 0.0, c, cl, cu,
+                             rl, ru, 2, as, ai, av));
+            m->cfg.force_primal = method == 1;
+            TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_work_limit(m, lim));
+            TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+            jaos_solve_status st = jaos_status_of(m);
+            TEST_ASSERT_TRUE_MESSAGE(st == JAOS_SOLVE_WORK_LIMIT ||
+                                     st == JAOS_SOLVE_OPTIMAL,
+                                     "a budget stop must say so, on every "
+                                     "limit value");
+            if (st == JAOS_SOLVE_WORK_LIMIT) {
+                TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_work_limit(m, 0));
+                TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+                TEST_ASSERT_EQUAL_INT_MESSAGE(JAOS_SOLVE_OPTIMAL,
+                                              jaos_status_of(m),
+                                              "a stop must resume");
+            }
+            double obj = 0.0;
+            TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(m, &obj));
+            TEST_ASSERT_DOUBLE_WITHIN(1e-9, -8.0, obj);
+            bool done = st == JAOS_SOLVE_OPTIMAL;
+            jaos_model_free(m);
+            if (done) {
+                reached_optimal = true;
+                break;
+            }
+        }
+        TEST_ASSERT_TRUE(reached_optimal);
+    }
+}
+
 /* The combined direction that cancels to nothing in row space.
  *
  *   min -p - q  s.t. p - q = 0, p - q <= 5, p and q >= 0, neither capped
@@ -4342,6 +4406,7 @@ int main(void)
     RUN_TEST(test_two_held_columns_whose_sum_is_still_blocked);
     RUN_TEST(test_a_sub_tolerance_flip_gap_is_repaired_not_infeasible);
     RUN_TEST(test_a_real_flip_gap_past_tolerance_stays_infeasible);
+    RUN_TEST(test_every_work_limit_stops_honestly_and_resumes);
     RUN_TEST(test_a_ray_whose_direction_cancels_in_row_space);
     return UNITY_END();
 }
