@@ -5,7 +5,21 @@ says why closed questions closed, `CHANGELOG.md` says what landed, `bench/`
 says what it costs. This file says what is next. When something lands, its
 line leaves this file in the same commit.
 
-## Where the last session stopped — 2026-09-02
+## Where the last session stopped — 2026-09-03
+
+**2026-09-03: the published basis has the promised count on every gate
+solve (D257, `bench/measurements/02-166/`).** Item 2 below, the file's
+largest open correctness item since D131, closed without the rank argument
+it had asked for since D179: the 46 wrong netlib solves were three
+exact-equality tests on values the replay had rounded, and every postsolve
+status is now decided from the reduction's structure. 188 of 188 netlib
+and 32 of 32 Kennington solves publish exactly `num_row` basics, D170's
+five reduced-cost sign breaches are gone, and D141's reopen condition is
+marked expired in the refusals table. The `SPECS.md` basis row reads done.
+What this unblocks is named at decision 2 below: ranging can now read
+`jaos_basis`. What it does not touch is the MAPPED basis that a warm
+re-solve hands presolve, which still arrives short (D186) — a different
+object, and the next thing worth measuring on the warm campaign.
 
 **2026-09-02: v0.2.0 is tagged and pushed.** Two things landed since the
 table below: the Python modeling layer — `Problem`, expressions, constraints
@@ -124,10 +138,11 @@ unverified and must not be coded from either way.
 
 **2. Sensitivity and ranging.** This list said "isolated from the solver"
 until 2026-09-01 and that was wrong. Ranging needs the basis and a
-factorization of it. The published basis is wrong on 48 of 188 solves (item
-2 below), so either it is computed inside the solve while `sx` still holds
-both — a `simplex.c` change that moves no answer — or it reads a basis known
-to be wrong a quarter of the time. **And presolve is the harder half**:
+factorization of it. ~~The published basis is wrong on 48 of 188 solves (item
+2 below)~~ **Since D257 the published basis has the promised count on every
+gate solve**, so ranging can read `jaos_basis` and factor it, or be computed
+inside the solve while `sx` still holds both — a `simplex.c` change that
+moves no answer. **And presolve is the harder half**:
 ranges computed on the reduced model have to map back to the original, and
 nothing in the record treats that. Cost it before starting: cost ranging over
 basic columns is one BTRAN and one row PRICE each, so `ken-18` is 105127 of
@@ -162,7 +177,9 @@ them.
 
 Not next, and each says why in `SPECS.md`: barrier and crossover (the
 starting point is undecided), MILP (a whole subsystem), D97 (needs
-crossover), the 48 wrong basis counts (needs a rank argument, a design).
+crossover). ~~The 48 wrong basis counts (needs a rank argument, a design)~~
+**closed 2026-09-03 (D257)**: the residue was two rounding classes and no
+rank argument was needed.
 
 **Nothing is half-done.**
 
@@ -787,7 +804,7 @@ short of measurement.**
 |---|---|---|---|
 | **0** | **BUILD THE PRIMAL SIMPLEX** | the literature first, then a design. **This is the next session's work and the maintainer chose it on 2026-08-25.** It is the one missing feature anything in this file waits on: it blocks crossover, crossover blocks D97, and D97 is item 4 | **§0 below** |
 | 1 | ~~**`pilot` publishes a point 2.31e-05 above the optimum**~~ **CLOSED 2026-08-25 (D184)** — `DUAL_TOL` is 1e-9 and all four instances that published a point off the optimum no longer do; `pilot87` and `scsd6` publish Koch exactly. Work geometric mean 1.0339x on netlib and **1.0976x on Kennington, which D174 had not measured** (`pds-20` 4.815x, `d2q06c` 5.319x). `gate: PASS` on all three, no answer worse. Taken on the maintainer's decision | §4 below |
-| 2 | **48 netlib solves publish an invalid basis** | **the rank argument, and now only that.** D179 measured the supply a wider rule would draw on: it covers 19 of the 24 instances outright, and `fit1p` and `share1b` have zero candidates at every tier, so such a rule improves the residue and cannot close it. Every local repair was already refused (D140, D141); D171 made it worse by 2. Accepting the residue now has a measured floor of 3 of 24 | §2 below |
+| 2 | ~~**48 netlib solves publish an invalid basis**~~ **CLOSED 2026-09-03 (D257)** — every status is decided from the reduction's structure and 188 of 188 netlib solves publish the promised count, 32 of 32 Kennington; the rank argument this row asked for was never needed, because the whole residue was two exact-equality tests on rounded values (`bench/measurements/02-166/`). The row's old text: the rank argument, and now only that; D179 measured the supply a wider rule would draw on, 19 of 24 instances, `fit1p` and `share1b` with zero candidates; every local repair refused (D140, D141); D171 made it worse by 2 | §2 below |
 | 3 | **`degen2` behind D151's cap — and `scsd1` is a SEPARATE question** | **the premise that they lose the same way is refuted** (D178). Only `degen2` is D148's guard, at a settled dual violation of 12.91; `scsd1`'s guard never fires and it genuinely runs 314 iterations against cold's 89. So a doomed trajectory happens ONCE in twenty, and eleven quantities known before the solve separate nothing. Needs a second instance, which means §4's fourth set | §3 below |
 | 4 | **`D97`, the dual postsolve for an imposed bound** | nothing is built; `docs/research/dual-postsolve-imposed-bound.md` is the design with the literature verified. **The largest prize in the file** — it unlocks bound tightening AND doubleton equalities, 8.55% of netlib's live rows and 29.36% of Kennington's. **§8d is measured now and rewritten around it (02-87, 02-88)**: its refusal declines 50.2% of netlib's imposed bounds and 82.3% of Kennington's, and the hazard it prevents occurs **12 times in 98146 opportunities**. **The better design is postsolve detection and THIS TREE CANNOT HAVE IT**: the collision leaves the point one constraint short of a vertex, which needs a crossover, and `SPECS.md` has crossover and the primal simplex that blocks it both `missing`. So the first version is the refusal narrowed to equality rows — 35.5% and 20.3% — over-paying by three orders, and that price is the missing crossover rather than the reduction. §12 item 7 | "If all of the above is dropped" |
 | 5 | ~~**the gate cannot see a suboptimal answer**~~ **CLOSED 2026-08-25 (D185)** — `RSUB_CEILING = 1e-6` is a per-instance verdict that reads no baseline. Placed on **123 solves across five sets**, worst 1.4e-07, so it clears by 7.1x and fires on nothing today. Validated against the case it must reject: on the pre-D184 solver it fires on `pilot` and `pilot87`, stays quiet on `wood1p`, and the verdict goes `gate: NOT MET`. **It was blocked by item 1 and nothing else** | §4 below |
@@ -2000,7 +2017,7 @@ half-hour item. In the order a session with fresh context should weigh them:
 
 | candidate | what it needs before any code | size |
 |---|---|---|
-| **§2, 48 solves publish a wrong basis** | the rank argument, and now only that. D179 measured the supply: 19 of the 24 instances covered, two with zero candidates at any tolerance, so a wider rule improves the residue and cannot close it | design |
+| ~~**§2, 48 solves publish a wrong basis**~~ | **CLOSED 2026-09-03 by D257**, which this table predates: no rank argument, the residue was rounding at exact-equality tests and the statuses are structural now | closed |
 | ~~**`pilot` publishes a point 2.31e-05 above the optimum**~~ | **CLOSED 2026-08-25 by D184**, which this table predates. `DUAL_TOL` is 1e-9 and the gap is **5.27e-09**: `bench/results/netlib.txt` has `obj=-557.4897292893346` against `ref=-557.48972928406818`. The same row at line 588 has said so since D184; this copy did not, and D232 handed the stale wording forward as an open lead (D233) | closed |
 | **§3, `degen2` behind D151's cap** | a second instance of the mechanism. **`scsd1` is no longer part of this item** — its guard never fires (D178), so a doomed trajectory happens once in twenty and eleven quantities known before the solve separate nothing | blocked on §4 |
 | **`D97`** | a dual postsolve for an imposed bound. `docs/research/dual-postsolve-imposed-bound.md` is the design; nothing is built. Unlocks §3's doubleton equalities too | largest prize |
@@ -2044,7 +2061,20 @@ input; and the clamp doubles the row residual, which on a gap near the top of
 the window crosses an absolute `CHECK_TOL` the midpoint's split stayed under.
 The second is kept deliberately and D158 says why.
 
-### 2. 48 netlib solves still publish a wrong basis count
+### 2. ~~48 netlib solves still publish a wrong basis count~~ CLOSED 2026-09-03 (D257)
+
+**Closed by D257, `bench/measurements/02-166/`.** The 46 wrong solves were
+three exact-equality tests on values the replay had rounded: the singleton
+column's recovery division landing an ulp inside the bound that is its
+exact answer (D140's 80), the folded activity missing the row bound by an
+ulp so the exchange declined (D141's 152), and the singleton row's status
+read off `activity == bound` (D136's 40). Every postsolve status is now
+decided from the reduction's structure, and where the structure says a
+value rests on a bound, the bound is what is published. 188 of 188 netlib
+solves and 32 of 32 Kennington publish the promised count, and D170's five
+reduced-cost sign breaches are gone. No rank argument was needed; D141's
+reopen condition asked for the wrong thing, and its row in the refusals
+table says so. The paragraphs below are the history as it was written.
 
 Measured, attributed to two families, and every LOCAL repair is refused with
 its measurement (D140, D141). What is left is a design wider than the firing
@@ -2613,7 +2643,11 @@ In order:
    two worst outcomes. What is still open is the two instances that lose
    real work behind the cap, in the refusals table.
 
-## `jaos_basis` publishes something that is not a basis
+## `jaos_basis` publishes something that is not a basis — CLOSED 2026-09-03 (D257)
+
+**Closed.** The count is exact on every gate solve since D257 (item 2
+above, `bench/measurements/02-166/`). What follows is the history of the
+item as it was written, kept because eleven decisions cite it by section.
 
 **This is the largest open correctness item in the file and it was a standing
 debt an hour ago.** Refreshing the stale `warm` records (D129) led to it in
@@ -3552,7 +3586,7 @@ then, do not — a refusal whose premise has not changed just fails again.
 | D151 | the instances that still lose real work behind the cap. **The two-instance framing is refuted by D178**: only `degen2` is D148's guard, at a settled dual violation of 12.91, and `scsd1`'s guard never fires — it runs 314 iterations against cold's 89 and is a separate question. Current ratios are 3.6751x and 3.7165x, not 4.09x and 4.65x | a rule that predicts a doomed trajectory before paying for it. **The shortfall cannot be that rule and this is measured**: both are short by 1, the same shortfall as the sixteen instances that win. Raising the cap is separately refused — the sweep in `bench/measurements/02-60/` reads 15.48x on `greenbea` at 7 |
 | D145 | the warm count repair in `build_warm_basis` — refused because 8 netlib solves published a wrong objective through the termination hole | **condition MET by D148** (the certificate guard landed), retried as D149 and refused again on cost. This row stays as the record of the refusal and its expiry |
 | D142 | a count guard in `jm_model_remember_basis` — the premise "build_warm_basis already rejects it" is false: it counts the MAPPED basis, and clearing the stored publish costs `capri` and `fffff800` their warm starts (1→273 and 7→945 iterations) for nothing any consumer reads | a consumer of `start_*` appears that reads the orig-space count as a claim, or warm starting stops going through presolve's mapping. The candidate and its validated test are at `bench/measurements/02-51/remember-guard-candidate.diff` |
-| D141 | a within-row demotion for the published-basis residue — 152 of the 232 declines have no basic column of the row at a bound, and the snap for the 80 breaks the row-bound exactness 02-49 measured (74 of 80 exact) | a demotion design whose candidate set is wider than the firing row AND that carries a rank argument for the demoted member; the fallback in the published shape (Galabova 2023) is accepting the residue |
+| D141 | a within-row demotion for the published-basis residue — 152 of the 232 declines have no basic column of the row at a bound, and the snap for the 80 breaks the row-bound exactness 02-49 measured (74 of 80 exact) | ~~a demotion design whose candidate set is wider than the firing row AND that carries a rank argument for the demoted member~~ **expired 2026-09-03 (D257)**: the residue was closed without any demotion or rank argument, by deciding the statuses from the structure and publishing the bound the structure names. The exactness D141 defended was never a property of the tree; the simplex's own nonbasic rows are published through an unscaling division. The refusal's verdict on a within-row demotion stands as a fact about that design |
 | D101 | duplicate rows, duplicate columns, dominated columns — 0.15% left to remove on these 139 models | a model population where `bench/measurements/02-07/`'s counter reports a non-trivial share. The condition is executable, not a matter of opinion. Three pieces of the work have no published source and would have to be derived with their own tests |
 | D97 | bound tightening — INFEASIBLE on models with an optimum, six designs | **first precondition met 2026-08-17 (D114)**: the over-tightening is derived — a forcing window scaled by the activity certified 5.86 of slack as zero, and the design requirements for a retry are in `bench/measurements/02-21/`. What remains: a dual postsolve for an imposed bound; then only under a campaign. **The condition is unchanged and the prize is not**: doubleton substitution needs the same machinery, and it is 8.55% of netlib's live rows and 29.36% of Kennington's, of which 19 rows in total can be built without it (§3). D97 weighed this feature alone; it now unlocks two |
 | SPECS §3 | crash basis — destroys the exact slack-basis steepest-edge weights | pricing stops starting from exact steepest-edge weights; REQ-devex-pricing landing is the trigger. **Checked against §0 on 2026-08-25; the answer depends on a rule not yet chosen.** Exact primal steepest-edge weights also start exact at `B = -I`, which would strengthen this refusal. Devex weights are 1 at any reset whatever the basis, which would not touch it. `docs/research/primal-simplex.md` §3 recommends Devex first, so re-read this row once the pricing rule is decided |

@@ -9,6 +9,15 @@ open, `bench/README.md` for the gate, and the commit each entry came from.
 
 ## [Unreleased]
 
+### Fixed
+
+- **The published basis has the promised count on every gate solve.**
+  Every postsolve status is decided from the reduction's structure, never
+  from an equality test on a value the replay rounded, and a value the
+  structure puts on a bound is published as that bound. 46 wrong netlib
+  solves become 0, D170's five reduced-cost sign breaches become 0, and
+  the gate reading is in D257 (`bench/measurements/02-166/`).
+
 ### Added
 
 - **The Python binding reaches the certificates.** `Model.certificate`,

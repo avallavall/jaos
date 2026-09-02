@@ -284,8 +284,9 @@ Compressed input is present (D240) and so is Python (D243), both under the
 premise that keeps every dependency out: the inflate is written here and the
 binding is ctypes over the standard library. **Sensitivity and ranging is the
 one left**, and it is no longer the small job this paragraph implied — it
-needs the basis and a factorization of it, and the published basis is wrong on
-48 of 188 solves. `TODO.md` carries what that costs.
+needs the basis and a factorization of it. The published basis has the
+promised count on every gate solve since D257; `TODO.md` carries what the
+presolve half costs.
 
 ---
 

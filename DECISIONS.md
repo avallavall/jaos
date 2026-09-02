@@ -19410,4 +19410,72 @@ singleton-column and singleton-row families, and every local repair
 was refused (D140, D141). What was left was called a design wider
 than the firing row with a rank argument. Is it?
 
-(provisional heading; the entry is written after the measurement)
+**It is not.** All 46 were exact-equality tests on values the replay
+had rounded, in three shapes D140 and D136 had already counted: the
+cost-0 singleton column's recovery division `(rl - rest) / a` landing
+an ulp inside the bound that is its exact answer, with the surviving
+row's logical already nonbasic on the relaxed end (80); the same
+column interior with the logical basic, where the exchange asked the
+folded activity to equal the row bound bit for bit and declined on
+rounding (152); and the singleton row's status read off
+`activity == bound` in a second pass (40). The exactness D141 defended
+was never a property of the tree: the simplex publishes its own
+nonbasic rows through an unscaling division (`publish`).
+
+**The change.** Every postsolve status is decided from the reduction's
+structure. The singleton column reads its surviving row's logical:
+nonbasic at an end means the reduced activity rests exactly on the
+relaxed end, so the exact recovery is the column's bound that end
+absorbed, and that bound is published; basic means the lower end of
+the intersection, and an interior recovery makes the column basic and
+takes the logical out for the end the division targeted, whatever the
+sum rounds to afterwards. The singleton row makes its column basic and
+its own logical nonbasic at the producing end whenever the column
+rests, nonbasic, on a bound the row induced and the reduced cost's
+sign says that bound is what holds it; the sign condition the old
+`this_row_owns` carried is kept and extended to a zero reduced cost
+and to a caller's-own bound on the wrong side. A forcing row with a
+nonzero multiplier puts its ratio-setting pin in the basis and its
+logical at the attained end, so the published multiplier belongs to a
+basic solution; pins' statuses are the row's to decide. The second
+pass over the arena is gone from both entry points.
+
+**The measurement** (`bench/measurements/02-166/`). 02-78's count
+probe and 02-80's two public-API detectors, before and after:
+
+| | parent | candidate |
+|---|---|---|
+| netlib solves with the promised count | 142 of 188 | **188 of 188** |
+| Kennington | 32 of 32 | 32 of 32 |
+| instances whose published reduced cost contradicts its status (D170) | 5, worst 15018.5 on `nesm` | **0**, worst 4.09e-10 |
+
+Five configurations pass; three pinned tests build the inward-rounding
+tie, the ulp-short folded activity, and a column a row fixed inside
+its own box, and the forcing-row test is re-pinned at the basis both
+builds now agree on. **The control that says the sign is load-bearing**:
+the first build of the singleton-row rule, without the reduced cost's
+sign, read an exact count on all 220 solves and 15 checker rejections
+on dual feasibility, worst 9.27e+04 on `pds-10`, because a column a
+collapsed fold fixed sits fixed in the reduced solve, where its reduced
+cost obeys no sign, and that sign became a row multiplier at the wrong
+end. A count probe alone would have accepted it.
+
+**The gate.** All three sets `gate: PASS`, `0 regressed, 0 improved`,
+and not one iteration or work figure moved on any of the 139
+instances. The infeasible 29 are bit-identical. Kennington's 16 keep
+every x/y digest and move the basis hash on 12. netlib moves the basis
+hash on 55 instances and the x/y digest on six — `bandm`, `finnis`,
+`nesm`, `perold`, `pilot-ja`, `pilotnov` — the first five being
+exactly D170's five, whose published duals now belong to the basis
+beside them (the singleton row's multiplier is taken where the old
+rule left zero), plus the ulp-sized snaps of a recovered column onto
+the bound that is its exact value. Every checker predicate holds on
+all 139. The baselines are not rewritten: nothing they read moved.
+
+**What it does not touch.** The MAPPED basis a warm re-solve hands
+presolve, which arrives short by 5.6% of rows on `fome` and past
+D151's cap on 35 of 90 netlib warm starts (D186). That is the reverse
+mapping, a different object, and it is where the warm campaign's next
+measurement is. D141's reopen condition expires: the residue closed
+without any demotion, and the refusal's verdict on a within-row
+demotion stands as a fact about that design.

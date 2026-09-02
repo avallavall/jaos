@@ -70,4 +70,18 @@ rounding of the sum says afterwards.
 
 ## The gate
 
-Filled in below after the three sets ran on the finished tree.
+Run on `4555b70`, the commit that carries the change, at `J=12`. All
+three sets `gate: PASS`, `0 regressed, 0 improved, 0 new`. Read with
+`record_diff.py` against the committed records:
+
+| set | bit-identical | basis hash moved | x/y digest moved | work or iterations moved |
+|---|---|---|---|---|
+| netlib, 94 | 39 | 55 | 6: `bandm`, `finnis`, `nesm`, `perold`, `pilot-ja`, `pilotnov` | 0 |
+| infeasible, 29 | 29 | 0 | 0 | 0 |
+| Kennington, 16 | 4 | 12 | 0 | 0 |
+
+The six digest moves are the published duals on D170's five instances,
+which now belong to the basis published beside them, and the ulp-sized
+snap of a recovered column onto the bound that is its exact value.
+Every checker predicate holds on all 139, and no baseline is rewritten
+because nothing a baseline reads moved.
