@@ -21,6 +21,13 @@ open, `bench/README.md` for the gate, and the commit each entry came from.
 
 ### Changed
 
+- **agg's re-entry failure is diagnosed: a one-ulp residue read as
+  infeasibility.** The bound-flip walk absorbs the armed point's 57911
+  violation to within 7.28e-12 and its strict `> 0.0` blocking test
+  publishes that as INFEASIBLE at round 0. Deterministic on both verdict
+  passes; two loan hypotheses and one census instrument refuted on the way
+  (D248, `bench/measurements/02-159/`). The repair is open in `TODO.md`.
+
 - **Dual fixing is measured, and refused.** The family counter's dual-fixing
   arm — its least validated — is calibrated now: a known answer of seven on
   `02-07/validate.c`'s model, and the armed historical defect reads eight.

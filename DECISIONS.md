@@ -255,6 +255,7 @@ and you have the argument. Jump to the entry for the numbers behind it.
 - **[D245](#d245--half-the-forced-primals-failures-were-a-backstop-that-binds-and-its-own-comment-said-it-does-not)** — Half the forced primal's failures were a backstop that binds, and its own comment said it does not
 - **[D246](#d246--the-dual-fixing-count-is-validated-and-what-it-counts-does-not-buy-a-seventh-presolve-family)** — The dual-fixing count is validated, and what it counts does not buy a seventh presolve family
 - **[D247](#d247--a-ray-that-needs-several-columns-is-decided-by-moving-every-held-column-together)** — A ray that needs several columns is decided by moving every held column together
+- **[D248](#d248--aggs-round-zero-infeasible-is-a-one-ulp-residue-read-with-no-tolerance)** — agg's round-zero INFEASIBLE is a one-ulp residue read with no tolerance
 
 ---
 
@@ -19033,3 +19034,41 @@ giving its two columns equal factors: a future scaler change can push it
 back to the refusal, and `test_a_ray_needing_two_columns_is_answered`
 going red is the intended detector of exactly that, not a solver
 regression.
+## D248 — agg's round-zero INFEASIBLE is a one-ulp residue read with no tolerance
+
+**The question.** D245 closed the round-budget half of the forced primal's
+failures and left a family it named `agg` for: the re-entry arms its
+settled point (8 bound flips, 36 cost shifts) and hands it to the dual,
+and the dual answers `JAOS_SOLVE_INFEASIBLE` at round 0, on a model it
+solves to a checked optimum from cold. No number of rounds reaches such a
+point. What, exactly, concludes infeasibility?
+
+**The measurement** (`bench/measurements/02-159/`, three probes in a
+throwaway build). At iteration 400 the dual prices row 381: its basic sits
+at -57911.196 under a real floor of zero — the bound is the model's, not a
+loan. The pricing row is complete (the pattern-vs-dense assert holds in an
+assert-enabled run) and carries three admissible candidates, all on real
+bounds. `bfrt_walk` retires all three: two genuine flips absorbing
+4337.113 and 53574.083, and one FIXED column (`lo == up`, width zero) that
+absorbs nothing. The remaining violation at `live == 0` is **7.28e-12** —
+one ulp of the 5e4-magnitude terms, five orders under `primal_tol`, eleven
+under the violation — and the strict `> 0.0` in the blocking test reads it
+as real. Both verdict passes, carried and verified-fresh, print the
+identical walk: deterministic, and refreshing cannot help because the
+residue is the arithmetic's own.
+
+**What was refuted.** Two hypotheses about loans, each by a probe: the
+priced bound is real, and the candidates the Farkas reading rests on are
+real-bounded too (the four lent-bound columns in the row are sign-locked
+the harmless way). And one instrument: a census that read the dense alpha
+array over every nonbasic reported stale entries — outside the sparse
+pattern nothing maintains them; the kept probe walks what the ratio test
+walked.
+
+**Open, handed to `TODO.md`.** The repair: a `live == 0` return whose
+remaining violation is at or under `primal_tol` is a repaired row — apply
+the flips and re-price — not an infeasible model. It must be measured
+against the 29 reference infeasibles, whose verdicts cross this branch
+with margins nobody has read. Separately: a fixed column is admitted as a
+candidate, can never flip usefully or enter, and today only drains `live`.
+Closing the repair is D244's reopen condition.

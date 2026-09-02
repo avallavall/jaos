@@ -1,0 +1,21 @@
+patched
+DIAG-BFRT n=3 remaining=7.2759576141834259e-12 of 462557.36342460982
+DIAG-FLIP v=528 absorb=0 width=0 quot=800.63999999999999
+DIAG-FLIP v=5 absorb=53574.083232151526 width=38847.134531325886 quot=180.49515186549411
+DIAG-FLIP v=0 absorb=4337.1126760563384 width=3802.816901408451 quot=50.335957858573387
+DIAG-BFRT n=3 remaining=7.2759576141834259e-12 of 462557.36342460982
+DIAG-FLIP v=528 absorb=0 width=0 quot=800.63999999999999
+DIAG-FLIP v=5 absorb=53574.083232151526 width=38847.134531325886 quot=180.49515186549394
+DIAG-FLIP v=0 absorb=4337.1126760563384 width=3802.816901408451 quot=50.335957858573181
+DIAG-INFEAS iter=400 r=381 v=125 xb=-57911.195908207868 lo=0 up=inf real_lo=0 real_up=inf fake=0 below=1 viol=57911.195908207868
+DIAG-SCAN anpat=8
+DIAG-CAND v=0 alpha=1.1405 status=2 fake=0 d=-57.4082 lo=0 up=3802.82 rlo=0 rup=3802.82
+DIAG-CAND v=5 alpha=1.3791 status=2 fake=0 d=-248.921 lo=0 up=38847.1 rlo=0 rup=38847.1
+DIAG-CAND v=10 alpha=1.35574 status=1 fake=2 d=0 lo=0 up=1e+10 rlo=0 rup=inf
+DIAG-CAND v=15 alpha=0.74596 status=1 fake=2 d=0 lo=0 up=1e+10 rlo=0 rup=inf
+DIAG-CAND v=20 alpha=0.864 status=1 fake=2 d=1.59162e-12 lo=0 up=1e+10 rlo=0 rup=inf
+DIAG-CAND v=24 alpha=0.432 status=1 fake=2 d=2.50111e-12 lo=0 up=1e+10 rlo=0 rup=inf
+DIAG-CAND v=528 alpha=1 status=2 fake=0 d=-800.64 lo=0 up=0 rlo=0 rup=0
+DIAG-ROW walked_alpha_over_min=7
+agg          DISAGREE  dual=189/920205 primal=400/2746165 split=p1:398/p2:1/dual:1 verdict=optimal/numerical error obj=-35991767.286576502/0 checker=dual:ok/primal:n/a different verdicts: the settled point is not dual feasible: a reduced cost breaches its bound by 392728 after settling, from a cold start; publishing that as OPTIMAL would certify a point the reduced costs do not support
+  that is a sum over the set (D46): agg carries 100.0% of it and - 0.0%. Median per-instance phase-1 share 99.5% over 1 instance(s).
