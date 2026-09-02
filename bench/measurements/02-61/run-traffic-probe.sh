@@ -73,8 +73,8 @@ s = s.replace(alloc, alloc + """
 #endif""")
 
 # Read both windows at the empty-intersection site.
-anchor = """        const double xv = want_lo < rec->lo ? rec->lo"""
-assert s.count(anchor) == 1, "the clamp is not in the tree being probed"
+anchor = """        const jaos_basis_status rs = orig->sol_row_status[i];"""
+assert s.count(anchor) == 1, "the status site after the intersection is not in the tree being probed"
 s = s.replace(anchor, """#ifdef JAOS_DIAG
         if (want_lo > want_hi) {
             const double ends2 = (isfinite(rl) ? fabs(rl) : 0.0) +

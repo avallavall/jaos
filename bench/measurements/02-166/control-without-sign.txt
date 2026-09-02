@@ -1,0 +1,27 @@
+# Control: the same replay with the singleton row's ownership test lacking the reduced-cost sign condition.
+# (the first build of D257, before the sign was put back). The count is exact everywhere and the
+# checker refuses the duals: a column a collapsed fold fixed carries a reduced cost of either sign
+# in the reduced solve, and that sign became a row multiplier at the wrong end.
+tree: 7c5b288 dirty=1
+netlib       optimal=188 exact=188 WRONG=0 (over=0 under=0) worst +0/-0  SUM=+0
+kennington   optimal=32 exact=32 WRONG=0 (over=0 under=0) worst +0/-0  SUM=+0
+94 instances: 94 solved, 94 shape ok, 94 objective ok, 85 checker ok, 94 deterministic, 0 failed
+gate: NOT MET
+16 instances: 16 solved, 16 shape ok, 16 objective ok, 10 checker ok, 16 deterministic, 0 failed
+gate: NOT MET
+# checker=REJECTED, worst dual breach per instance:
+80bau3b dual=34.9
+boeing1 dual=29.7
+bore3d dual=1
+greenbea dual=244
+greenbeb dual=99.6
+maros dual=11
+perold dual=28.5
+pilot-we dual=15.1
+vtp-base dual=2.58e+03
+cre-c dual=3.93e+03
+cre-d dual=5.09e+03
+pds-02 dual=13
+pds-06 dual=6.67e+04
+pds-10 dual=9.27e+04
+pds-20 dual=8.84e+04

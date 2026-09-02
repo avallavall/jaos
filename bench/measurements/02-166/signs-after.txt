@@ -1,0 +1,7 @@
+### reduced-cost sign breaches, netlib
+-- 94 instances, 0 above the 1e-7 dual tolerance. worst 4.09273e-10 on dfl001.mps
+
+### crosstab against the count promise, netlib
+instance            off     d!=0   
+
+-- 94 optimal solves: both 0, count only 0, REDCOST ONLY 0, clean 94

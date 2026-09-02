@@ -264,6 +264,7 @@ and you have the argument. Jump to the entry for the numbers behind it.
 - **[D254](#d254--a-simplex-proved-infeasible-publishes-its-farkas-ray-and-the-checker-can-refuse-it)** — A simplex-proved INFEASIBLE publishes its Farkas ray, and the checker can refuse it
 - **[D255](#d255--a-simplex-proved-unbounded-publishes-its-ray-from-all-three-proof-sites)** — A simplex-proved UNBOUNDED publishes its ray, from all three proof sites
 - **[D256](#d256--a-certificate-crosses-back-through-presolve-and-each-presolve-proof-seeds-its-own)** — A certificate crosses back through presolve, and each presolve proof seeds its own
+- **[D257](#d257--every-postsolve-status-is-decided-from-the-reductions-structure-and-the-count-promise-holds-on-every-gate-solve)** — Every postsolve status is decided from the reduction's structure, and the count promise holds on every gate solve
 
 ---
 
@@ -19399,3 +19400,14 @@ of its traffic and the lift preserves exactly that margin, where the
 simplex's own ray for the same model reads 0.266 by combining rows.
 The three gate sets are byte-identical, `bench/results/` untouched;
 the lift is unbilled publication on a path no optimal solve takes.
+
+## D257 — Every postsolve status is decided from the reduction's structure, and the count promise holds on every gate solve
+
+**The question.** `jaos.h` promises exactly `num_row` basic statuses.
+Since D139 netlib had published a wrong count on 46 of its 188 optimal
+solves (23 instances, twice each), worst 21 over, all of it the
+singleton-column and singleton-row families, and every local repair
+was refused (D140, D141). What was left was called a design wider
+than the firing row with a rank argument. Is it?
+
+(provisional heading; the entry is written after the measurement)

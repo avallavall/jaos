@@ -1254,51 +1254,25 @@ static void ps_add_to_other_rows(jaos_model *orig, double *rowc, int64_t j,
     }
 }
 
-/* A restored singleton row's status, from its own dual and FINAL activity
- * (D136): a basic variable has a zero dual, a nonbasic one rests on a bound.
- * A step that introduces a row adds exactly one basic variable (D132). */
-static jaos_basis_status ps_singleton_row_status(const jaos_model *orig,
-                                                 int64_t i)
+/* The status rule every replay case below follows (D257): a status is
+ * decided from the STRUCTURE of the reduction -- which bound the exact
+ * arithmetic puts a value on, which end a row's multiplier was solved
+ * from -- and never from an equality test on a value the replay rounded.
+ * A step that introduces a row adds exactly one basic variable (D132); a
+ * step that introduces a column and no row adds none unless it takes its
+ * row's logical out. Where the structure says a value rests on a bound,
+ * the bound itself is published, so the status and the value agree. The
+ * activity of a nonbasic row is the replayed sum and sits within rounding
+ * of its bound, which is also what the simplex publishes for its own
+ * nonbasic rows (`publish`, the unscaling division). */
+
+/* A fixed column rests on the bound its value names; a fixed column
+ * accepts any status (check.c, "fixed -> anything"). */
+static jaos_basis_status ps_fixed_status(const jaos_model *orig, int64_t j,
+                                         double value)
 {
-    /* `ps_published` normalises -0.0, so this is not sign-sensitive. */
-    if (orig->sol_dual[i] == 0.0)
-        return JAOS_BASIS_BASIC;
-
-    const double act = orig->sol_row[i];
-    if (act == orig->row_lower[i])
-        return JAOS_BASIS_AT_LOWER;
-    if (act == orig->row_upper[i])
-        return JAOS_BASIS_AT_UPPER;
-    return JAOS_BASIS_BASIC;
-}
-
-/* The exchange a restored cost-0 bounded column singleton owes: it restores
- * no row (D132), yet an interior value MUST be basic (D133), so row i's
- * logical, basic in the reduced solve, leaves. Read after the replay AND the
- * carry fold (D140). JM_PS_SINGLETON_ROW rewrites the status. */
-static void ps_singleton_col_swap(jaos_model *orig, const jm_presolve_rec *rec)
-{
-    const int64_t j = ps_restore_index(rec->index2, orig->num_col);
-    /* A recorded nonbasic status still matches the value the replay wrote;
-     * a writer moving sol_col[j] off that bound would misfire this swap. */
-    assert(orig->sol_col_status[j] != JAOS_BASIS_AT_LOWER ||
-           orig->sol_col[j] == rec->lo);
-    assert(orig->sol_col_status[j] != JAOS_BASIS_AT_UPPER ||
-           orig->sol_col[j] == rec->hi);
-    if (orig->sol_col[j] == rec->lo || orig->sol_col[j] == rec->hi)
-        return;                 /* the column rests on a bound; nothing owed */
-
-    const int64_t i = rec->index;   /* the row survives, so it is not restored */
-    if (orig->sol_row_status[i] != JAOS_BASIS_BASIC)
-        return;                 /* no partner to take out */
-
-    const double act = orig->sol_row[i];
-    if (act == orig->row_lower[i])
-        orig->sol_row_status[i] = JAOS_BASIS_AT_LOWER;
-    else if (act == orig->row_upper[i])
-        orig->sol_row_status[i] = JAOS_BASIS_AT_UPPER;
-    /* Otherwise the row is not on a bound and its logical cannot be made
-     * nonbasic without claiming one. Left alone deliberately. */
+    return (value == orig->col_upper[j] && value != orig->col_lower[j])
+               ? JAOS_BASIS_AT_UPPER : JAOS_BASIS_AT_LOWER;
 }
 
 static void ps_replay_one(jaos_model *orig, const jm_presolve *p, int64_t r,
@@ -1319,12 +1293,15 @@ static void ps_replay_one(jaos_model *orig, const jm_presolve *p, int64_t r,
         assert(j >= 0 && j < orig->num_col);
 
         orig->sol_col[j] = ps_published(rec->value);
-        /* A fixed column accepts any status (check.c, "fixed -> anything");
-         * an empty one sits at the bound the cost picked. */
-        orig->sol_col_status[j] =
-            (rec->value == orig->col_upper[j] &&
-             rec->value != orig->col_lower[j])
-                ? JAOS_BASIS_AT_UPPER : JAOS_BASIS_AT_LOWER;
+        /* A column a forcing row pinned (coef != 0, jaos_internal.h) had its
+         * status decided by that row's own replay, one record later in the
+         * arena and so one step earlier in this walk: nonbasic at the pinned
+         * bound, or BASIC for the one column whose reduced cost the row's
+         * multiplier was solved to zero (D257). Every other producer of
+         * this tag decides here: an empty column sits at the bound the cost
+         * picked, a fixed one on the bound its value names. */
+        if (rec->coef == 0.0)
+            orig->sol_col_status[j] = ps_fixed_status(orig, j, rec->value);
 
         /* Over the column's ORIGINAL entries: a row not yet replayed (removed
          * earlier, replays later) still reads a well-defined 0 here. */
@@ -1334,7 +1311,12 @@ static void ps_replay_one(jaos_model *orig, const jm_presolve *p, int64_t r,
             assert(i >= 0 && i < orig->num_row);
             dw -= orig->a_value[k] * orig->sol_dual[i];
         }
-        orig->sol_redcost[j] = ps_published(dw);
+        /* A basic variable's reduced cost is zero by definition; the forcing
+         * row's multiplier is d0 / coef, and `dw` here is that division's
+         * residue, d0 - coef * (d0 / coef). */
+        orig->sol_redcost[j] =
+            (orig->sol_col_status[j] == JAOS_BASIS_BASIC) ? 0.0
+                                                          : ps_published(dw);
 
         for (int64_t k = orig->a_start[j]; k < orig->a_start[j + 1]; k++) {
             const int64_t i = orig->a_index[k];
@@ -1362,26 +1344,37 @@ static void ps_replay_one(jaos_model *orig, const jm_presolve *p, int64_t r,
         assert(i >= 0 && i < orig->num_row);
         assert(j >= 0 && j < orig->num_col);
 
-        /* x_j's value/status/reduced cost is already final here. Does leaving
-         * this row's multiplier at zero satisfy x_j's sign condition? Exact:
-         * a value presolve assigned rests on a bound by equality. Otherwise
-         * the row absorbs the whole reduced cost, y_i = d'_j / a_ij. */
+        /* x_j's value, status and reduced cost are already final here. The
+         * one question is structural (D257): is x_j, nonbasic, held where
+         * it rests by a bound THIS row induced, rather than by one of the
+         * caller's own? Then it is BASIC here, the row's logical is
+         * nonbasic at the end that produced the bound, and the row's
+         * multiplier absorbs the whole reduced cost, y_i = d'_j / a_ij, so
+         * that d_j = 0 and the multiplier carries the sign that end needs.
+         * Otherwise the row restores with a zero multiplier and its own
+         * logical basic, and x_j keeps what it had.
+         *
+         * "Held" reads the reduced cost's sign: a bound holds a variable
+         * whose reduced cost points into it, and a zero reduced cost is
+         * held by any bound it rests on. Exact: a value presolve assigned
+         * rests on a bound by equality. A column the fold collapsed to a
+         * point sat fixed in the reduced solve, where its reduced cost has
+         * no sign to obey; the sign is what says which of the two ends the
+         * row holds it from. Several rows can fold into one column, in an
+         * order the LIFO replay does not follow, so each record asks whether
+         * the bound is its own: exact, since rec->lo/hi is the same
+         * computation. A fold another row overwrote declines here and is
+         * claimed at that row's replay (D158). */
         const double d0 = orig->sol_redcost[j];
         const double v0 = orig->sol_col[j];
         /* dc is d0 in the checker's canonical minimise space (sigma above). */
         const double dc = sigma * d0;
-        const bool zero_works =
-            dc == 0.0 ||
-            (dc > 0.0 && v0 == orig->col_lower[j]) ||
-            (dc < 0.0 && v0 == orig->col_upper[j]);
-
-        /* Several rows can fold into one column, in an order the LIFO replay
-         * does not follow, so each record asks: does x_j rest on the bound
-         * THIS row produced, on d0's side? Exact: rec->lo/hi is the same
-         * computation. An overwritten fold declines (D158). */
-        const bool this_row_owns =
-            (dc > 0.0 && rec->row_tightens_lo && v0 == rec->lo) ||
-            (dc < 0.0 && rec->row_tightens_hi && v0 == rec->hi);
+        const bool nonbasic_j = orig->sol_col_status[j] != JAOS_BASIS_BASIC;
+        const bool held_by_own_bound =
+            (dc >= 0.0 && v0 == orig->col_lower[j]) ||
+            (dc <= 0.0 && v0 == orig->col_upper[j]);
+        const bool owns_lo = rec->row_tightens_lo && v0 == rec->lo && dc >= 0.0;
+        const bool owns_hi = rec->row_tightens_hi && v0 == rec->hi && dc <= 0.0;
 
         /* The divisor below, on the branch this row owns. A singleton row has
          * exactly one live entry and it is what `coef` records, so a zero
@@ -1389,22 +1382,26 @@ static void ps_replay_one(jaos_model *orig, const jm_presolve *p, int64_t r,
         assert(rec->coef != 0.0);
 
         double y_i;
-        if (zero_works || !this_row_owns) {
-            y_i = 0.0;
-        } else {
-            /* x_j rests at a bound the ROW induced, which the ORIGINAL
-             * column never had: interior there, so BASIC.
-             *
-             * `zero_works` is false, so `v0` is not ON the caller's bound on
-             * `d0`'s side, and the fold only ever narrows (D236) — so it is
-             * strictly inside it. A value sitting exactly on the caller's
-             * bound here would be published BASIC while resting on a bound,
-             * which is what the checker's basis predicate rejects (D238). */
-            assert(dc > 0.0 ? v0 > orig->col_lower[j]
-                            : v0 < orig->col_upper[j]);
+        if (nonbasic_j && !held_by_own_bound && (owns_lo || owns_hi)) {
+            /* Which of the row's own ends produced the bound: the lower
+             * implied bound comes from the row's lower end when the entry
+             * is positive and from its upper end when negative (the forward
+             * pass's division). Both own it only at a zero reduced cost on
+             * a collapsed fold, and either end is then right. */
+            const bool from_lo = owns_lo;
+            /* The fold only ever narrows (D236), so the bound that holds
+             * x_j is strictly inside the caller's own on that side. */
+            assert(from_lo ? v0 > orig->col_lower[j]
+                           : v0 < orig->col_upper[j]);
+            orig->sol_row_status[i] =
+                (from_lo == (rec->coef > 0.0)) ? JAOS_BASIS_AT_LOWER
+                                               : JAOS_BASIS_AT_UPPER;
             y_i = d0 / rec->coef;
             orig->sol_redcost[j] = 0.0;
             orig->sol_col_status[j] = JAOS_BASIS_BASIC;
+        } else {
+            y_i = 0.0;
+            orig->sol_row_status[i] = JAOS_BASIS_BASIC;
         }
 #if defined(JAOS_PRESOLVE_FAULT_WRONGDUAL)
         /* Per-family fault: always take the reduced solve's value instead
@@ -1418,7 +1415,7 @@ static void ps_replay_one(jaos_model *orig, const jm_presolve *p, int64_t r,
         orig->sol_row[i] = ps_published(rec->coef * xv);
         rowc[i] = 0.0;   /* an assignment resets the carry with the sum */
         /* Only the row's own term; later records add theirs through
-         * ps_row_add. ps_singleton_row_status decides the status (D136). */
+         * ps_row_add. */
         break;
     }
 
@@ -1441,25 +1438,68 @@ static void ps_replay_one(jaos_model *orig, const jm_presolve *p, int64_t r,
             lo_j = isfinite(ru) ? (ru - rest) / rec->coef : -HUGE_VAL;
             hi_j = isfinite(rl) ? (rl - rest) / rec->coef : HUGE_VAL;
         }
-        /* Any point of the intersection is optimal (cost 0): the lower end. */
+        /* The intersection of the row's demand with the column's own box.
+         * Empty by an ulp at most (D152), so the ends are clamped into the
+         * box below and no windowed assert reads the gap: the residue is the
+         * SIMPLEX's (bench/measurements/02-61/ probes it here). */
         const double want_lo = rec->lo > lo_j ? rec->lo : lo_j;
         const double want_hi = rec->hi < hi_j ? rec->hi : hi_j;
-
-        /* Empty by an ulp here at most, so the value is clamped into the
-         * column's OWN recorded box (D152): the stored end wins. No windowed
-         * assert: the residue is the SIMPLEX's (bench/measurements/02-61/). */
-        assert(rec->lo <= rec->hi);
         (void)want_hi;   /* the emptiness check that read it was removed */
+        assert(rec->lo <= rec->hi);
 
-        const double xv = want_lo < rec->lo ? rec->lo
-                        : want_lo > rec->hi ? rec->hi
-                                            : want_lo;
+        /* Any point of the intersection is optimal (cost 0). Which point,
+         * and with which statuses, is decided by the row's logical (D257).
+         *
+         * The row survived, relaxed by this column's whole range. Its
+         * logical NONBASIC here means the activity rests exactly on the
+         * relaxed end the row's own records still name -- the reduced
+         * solve's vertex, or an earlier record of this family that put its
+         * column interior at that end -- and there the exact recovery is
+         * this column at the bound that end absorbed: on the lower end the
+         * bound that maximises a_ij * x_j, on the upper the one that
+         * minimises it. The division `lo_j` lands ulps inside that bound
+         * (D140's 80 declines); the bound is published instead, so the
+         * status and the value agree, and the row's logical stays out.
+         *
+         * Its logical BASIC means the reduced activity sat strictly inside
+         * the relaxed range, and the lower end of the intersection is taken:
+         * the column on its own bound when that satisfies the row, otherwise
+         * interior at the value that puts the row exactly on its end, where
+         * the column is BASIC and the row's logical leaves for that end
+         * (D133, D139). The old exchange asked the folded activity to equal
+         * the bound bit for bit and declined 152 times on rounding (D141);
+         * the end is known from the arithmetic that targeted it. */
+        const jaos_basis_status rs = orig->sol_row_status[i];
+        double xv;
+        if (rs == JAOS_BASIS_AT_LOWER || rs == JAOS_BASIS_AT_UPPER) {
+            const bool take_hi = (rs == JAOS_BASIS_AT_LOWER) == (rec->coef > 0.0);
+            xv = take_hi ? rec->hi : rec->lo;
+            /* The end the row rests on is finite, so the bound it absorbed
+             * is: an infinite term would have opened that end. */
+            assert(isfinite(xv));
+            orig->sol_col_status[j] = take_hi ? JAOS_BASIS_AT_UPPER
+                                              : JAOS_BASIS_AT_LOWER;
+        } else if (want_lo == rec->lo) {
+            /* The column's own end satisfies the row. */
+            xv = rec->lo;
+            orig->sol_col_status[j] = JAOS_BASIS_AT_LOWER;
+        } else if (want_lo >= rec->hi) {
+            /* Past the box by an ulp at most: the row cannot reach its end
+             * even with the column at this bound, by rounding. The stored
+             * end wins (D152). */
+            xv = rec->hi;
+            orig->sol_col_status[j] = JAOS_BASIS_AT_UPPER;
+        } else {
+            xv = want_lo;
+            orig->sol_col_status[j] = JAOS_BASIS_BASIC;
+            /* lo_j targets the row's lower end for a positive entry and its
+             * upper end for a negative one (the two divisions above). */
+            orig->sol_row_status[i] = (rec->coef > 0.0) ? JAOS_BASIS_AT_LOWER
+                                                        : JAOS_BASIS_AT_UPPER;
+        }
         assert(xv >= rec->lo && xv <= rec->hi);
 
         orig->sol_col[j] = ps_published(xv);
-        orig->sol_col_status[j] =
-            (xv == rec->lo) ? JAOS_BASIS_AT_LOWER :
-            (xv == rec->hi) ? JAOS_BASIS_AT_UPPER : JAOS_BASIS_BASIC;
         /* d_j = 0 - a_ij * y_i: a cost-0 column has no sign requirement. */
         orig->sol_redcost[j] = ps_published(-rec->coef * orig->sol_dual[i]);
         /* Through ps_row_add: re-basing on `rest` discarded the residue. */
@@ -1553,6 +1593,7 @@ static void ps_replay_one(jaos_model *orig, const jm_presolve *p, int64_t r,
          * the LOWER case mirrors. The columns are the `index2` records just
          * BEFORE this one, so this replays first. */
         double y = 0.0;
+        int64_t pick = -1;   /* the column whose ratio set `y` */
         for (int64_t t = 1; t <= rec->index2; t++) {
             /* `r - t` walks the arena backwards from this record. A count
              * that disagrees with what was pushed reads before the arena. */
@@ -1565,6 +1606,10 @@ static void ps_replay_one(jaos_model *orig, const jm_presolve *p, int64_t r,
             assert(cr->coef != 0.0);
             const int64_t j = cr->index;
             assert(j >= 0 && j < orig->num_col);
+            /* Each pin's status is this row's to decide (D257): on the bound
+             * it was pinned at, unless it is the pick below. Its own record
+             * replays next and leaves the status alone. */
+            orig->sol_col_status[j] = ps_fixed_status(orig, j, cr->value);
 
             double d0 = cr->cost;
             for (int64_t k = orig->a_start[j]; k < orig->a_start[j + 1]; k++)
@@ -1572,17 +1617,30 @@ static void ps_replay_one(jaos_model *orig, const jm_presolve *p, int64_t r,
 
             /* Canonical through the loop, flipped back once; sigma is +-1. */
             const double lim = sigma * (d0 / cr->coef);
-            if (t == 1)
+            if (t == 1 || (rec->row_tightens_hi ? (lim < y) : (lim > y))) {
                 y = lim;
-            else if (rec->row_tightens_hi ? (lim < y) : (lim > y))
-                y = lim;
+                pick = j;
+            }
         }
         if (rec->row_tightens_hi ? (y > 0.0) : (y < 0.0))
             y = 0.0;
 
         orig->sol_dual[i] = ps_published(sigma * y);
-        /* Row-count invariant: the row takes the single basic slot. */
-        orig->sol_row_status[i] = JAOS_BASIS_BASIC;
+        /* Row-count invariant: one row, so one basic slot. A zero
+         * multiplier leaves every pin's reduced cost as it was, so the row's
+         * own logical takes the slot. A nonzero one was solved from the
+         * pick's ratio, so the pick's reduced cost is zero: the pick is
+         * BASIC, resting on its pinned bound, and the row's logical is
+         * nonbasic at the end the range attained (D257). */
+        if (y == 0.0) {
+            orig->sol_row_status[i] = JAOS_BASIS_BASIC;
+        } else {
+            assert(pick >= 0);
+            orig->sol_col_status[pick] = JAOS_BASIS_BASIC;
+            orig->sol_row_status[i] = rec->row_tightens_hi
+                                          ? JAOS_BASIS_AT_UPPER
+                                          : JAOS_BASIS_AT_LOWER;
+        }
         break;
     }
     }
@@ -2030,18 +2088,6 @@ JAOS_NODISCARD jaos_status jm_postsolve_expand(jm_presolve *p)
         orig->sol_row[i] = ps_published(orig->sol_row[i] + rowc[i]);
     free(rowc);
 
-    /* Singleton row statuses, with every activity final; forward order, one
-     * record per row (D8). ps_restore_index is applied as in the replay. */
-    for (int64_t r = 0; r < p->arena_len; r++) {
-        const jm_presolve_rec *rec = &p->arena[r];
-        if (rec->tag == JM_PS_SINGLETON_ROW) {
-            const int64_t i = ps_restore_index(rec->index, orig->num_row);
-            orig->sol_row_status[i] = ps_singleton_row_status(orig, i);
-        } else if (rec->tag == JM_PS_SINGLETON_COL) {
-            ps_singleton_col_swap(orig, rec);
-        }
-    }
-
 #ifndef NDEBUG
     ps_verify_row_activities(orig);
 #endif
@@ -2094,17 +2140,6 @@ JAOS_NODISCARD jaos_status jm_postsolve_solved(jm_presolve *p)
     for (int64_t i = 0; i < orig->num_row; i++)
         orig->sol_row[i] = ps_published(orig->sol_row[i] + rowc[i]);
     free(rowc);
-
-    /* The same second pass as jm_postsolve_expand, on BOTH paths. */
-    for (int64_t r = 0; r < p->arena_len; r++) {
-        const jm_presolve_rec *rec = &p->arena[r];
-        if (rec->tag == JM_PS_SINGLETON_ROW) {
-            const int64_t i = ps_restore_index(rec->index, orig->num_row);
-            orig->sol_row_status[i] = ps_singleton_row_status(orig, i);
-        } else if (rec->tag == JM_PS_SINGLETON_COL) {
-            ps_singleton_col_swap(orig, rec);
-        }
-    }
 
 #ifndef NDEBUG
     ps_verify_row_activities(orig);

@@ -1,0 +1,6 @@
+tree: 7c5b288 dirty=0
+netlib       optimal=188 exact=142 WRONG=46 (over=46 under=0) worst +21/-0  SUM=+276
+kennington   optimal=32 exact=32 WRONG=0 (over=0 under=0) worst +0/-0  SUM=+0
+/mnt/c/Users/vall-/AppData/Local/Temp/claude/C--Users-vall--Desktop-projectes-jaos/5eb69744-1633-4e64-acda-cbfd4f03f339/scratchpad/before-nl.log:1
+/mnt/c/Users/vall-/AppData/Local/Temp/claude/C--Users-vall--Desktop-projectes-jaos/5eb69744-1633-4e64-acda-cbfd4f03f339/scratchpad/before-kn.log:1
+probe before done

@@ -1126,6 +1126,182 @@ static void test_singleton_col_between_two_removals_solved_path(void)
 #endif
 }
 
+/* -- The two rounding shapes behind netlib's wrong basis counts (D257) --
+ *
+ * Both models reduce to nothing, so postsolve alone publishes the basis;
+ * the reference build reaches the same point through the simplex and is
+ * the oracle for the count and for the column's value. Each shape's
+ * numbers are chosen so that the recovery division rounds the wrong way. */
+
+/* The exact tie the division rounds INWARD (D140's 80 declines).
+ *
+ * min x0  s.t.  x0 + 3*x1 >= 3,  x0 in [0, 10],  x1 in [0, 0.7] cost 0
+ *
+ * x1 is a cost-0 singleton column: the row's lower bound absorbs 3*0.7 =
+ * 2.0999999999999996 and becomes 0.9000000000000004. The singleton row then
+ * folds that into x0's lower bound and x0 empties out at it. At replay, the
+ * row's logical rests at that absorbed end, so the exact recovery of x1 is
+ * its own upper bound 0.7 -- and (3 - 0.9000000000000004) / 3 is
+ * 0.6999999999999998, one ulp inside it. The old replay published that as
+ * an interior BASIC x1 beside a nonbasic row and a basic x0: two basics
+ * against one row. Now the bound is published, nonbasic, and the count is
+ * exact. In the reference build x1 is nonbasic at 0.7 by construction, so
+ * every assertion holds in both builds. */
+static void test_an_exact_tie_the_division_rounds_inward_publishes_the_bound(void)
+{
+#if defined(JAOS_PRESOLVE_FAULT_OFFBYONE) || defined(JAOS_PRESOLVE_FAULT_WRONGDUAL)
+    TEST_IGNORE_MESSAGE("positive test — skipped under either fault build");
+#else
+    const double c[]  = {1.0, 0.0};
+    const double cl[] = {0.0, 0.0}, cu[] = {10.0, 0.7};
+    const double rl[] = {3.0}, ru[] = {INFINITY};
+    const int64_t s[]  = {0, 1, 2};
+    const int64_t ix[] = {0, 0};
+    const double v[]   = {1.0, 3.0};
+    jaos_model *m = nullptr;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_model_new(&m));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_load_lp(m, 2, 1, JAOS_MINIMIZE, 0.0, c, cl, cu, rl, ru,
+                     2, s, ix, v));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+
+    /* The premise of the shape: the division really does round inward. */
+    const double absorbed = 3.0 * 0.7;
+    const double rest = 3.0 - absorbed;
+    TEST_ASSERT_TRUE((3.0 - rest) / 3.0 < 0.7);
+
+    double x[2], act[1], y[1], dj[2];
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solution(m, x, act, y, dj));
+    const double expected_x1 = 0.7;
+    TEST_ASSERT_EQUAL_MEMORY(&expected_x1, &x[1], sizeof x[1]);
+
+    jaos_check_report r;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_check_solution(m, x, y, TOL, &r));
+    TEST_ASSERT_TRUE(r.primal_feasible);
+    TEST_ASSERT_TRUE(r.dual_feasible);
+
+    jaos_basis_status cs[2], rs[1];
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_basis(m, cs, rs));
+    TEST_ASSERT_EQUAL_INT(JAOS_BASIS_AT_UPPER, cs[1]);
+    TEST_ASSERT_EQUAL_INT(JAOS_BASIS_BASIC, cs[0]);
+    TEST_ASSERT_EQUAL_INT(JAOS_BASIS_AT_LOWER, rs[0]);
+    int64_t basic = 0;
+    for (int64_t j = 0; j < 2; j++) basic += (cs[j] == JAOS_BASIS_BASIC);
+    basic += (rs[0] == JAOS_BASIS_BASIC);
+    TEST_ASSERT_EQUAL_INT64(1, basic);
+
+    jaos_model_free(m);
+#endif
+}
+
+/* The interior recovery whose folded activity misses the bound by an ulp
+ * (D141's 152 declines).
+ *
+ * min x0  s.t.  x0 + 3*x1 >= 1,  x0 in [0.1, 10],  x1 in [0, 5] cost 0
+ *
+ * x1's range takes the row's lower bound to -14, so the reduced row is
+ * slack and x0 rests on its own lower bound 0.1. At replay x1 must supply
+ * 0.3: interior, so BASIC, and the row's logical leaves for the lower end
+ * the division targeted. The replayed activity 0.1 + 3 * 0.3 is
+ * 0.9999999999999999, and the old exchange, asking it to equal 1 bit for
+ * bit, declined and left the row basic too. The end is known from the
+ * arithmetic, not read back from its rounding. */
+static void test_an_interior_recovery_takes_the_row_out_whatever_the_ulps_say(void)
+{
+#if defined(JAOS_PRESOLVE_FAULT_OFFBYONE) || defined(JAOS_PRESOLVE_FAULT_WRONGDUAL)
+    TEST_IGNORE_MESSAGE("positive test — skipped under either fault build");
+#else
+    const double c[]  = {1.0, 0.0};
+    const double cl[] = {0.1, 0.0}, cu[] = {10.0, 5.0};
+    const double rl[] = {1.0}, ru[] = {INFINITY};
+    const int64_t s[]  = {0, 1, 2};
+    const int64_t ix[] = {0, 0};
+    const double v[]   = {1.0, 3.0};
+    jaos_model *m = nullptr;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_model_new(&m));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_load_lp(m, 2, 1, JAOS_MINIMIZE, 0.0, c, cl, cu, rl, ru,
+                     2, s, ix, v));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+
+    /* The premise of the shape: the folded activity misses 1 by an ulp. */
+    TEST_ASSERT_TRUE(0.1 + 3.0 * ((1.0 - 0.1) / 3.0) != 1.0);
+
+    double x[2], act[1], y[1], dj[2];
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solution(m, x, act, y, dj));
+    const double expected_x0 = 0.1;
+    TEST_ASSERT_EQUAL_MEMORY(&expected_x0, &x[0], sizeof x[0]);
+    TEST_ASSERT_DOUBLE_WITHIN(1e-15, 1.0, act[0]);
+
+    jaos_check_report r;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_check_solution(m, x, y, TOL, &r));
+    TEST_ASSERT_TRUE(r.primal_feasible);
+    TEST_ASSERT_TRUE(r.dual_feasible);
+
+    jaos_basis_status cs[2], rs[1];
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_basis(m, cs, rs));
+    TEST_ASSERT_EQUAL_INT(JAOS_BASIS_AT_LOWER, cs[0]);
+    TEST_ASSERT_EQUAL_INT(JAOS_BASIS_BASIC, cs[1]);
+    TEST_ASSERT_EQUAL_INT(JAOS_BASIS_AT_LOWER, rs[0]);
+    int64_t basic = 0;
+    for (int64_t j = 0; j < 2; j++) basic += (cs[j] == JAOS_BASIS_BASIC);
+    basic += (rs[0] == JAOS_BASIS_BASIC);
+    TEST_ASSERT_EQUAL_INT64(1, basic);
+
+    jaos_model_free(m);
+#endif
+}
+
+/* A column a singleton row fixed strictly inside its own box is basic.
+ *
+ * min x1  s.t.  2*x0 = 4,  x0 in [0, 10] cost 0,  x1 in [0, 1] (no row)
+ *
+ * The row folds x0 to the point 2, which is neither of the caller's bounds
+ * on x0. Its reduced cost is zero, so until D257 the replay left x0 with
+ * the nonbasic status it had at the point and gave the row's logical the
+ * basic slot: a right count naming a nonbasic variable that rests on no
+ * bound it has. x0 is basic and the row's logical is out. The reference
+ * build publishes the row's logical at one of its two equal ends; which
+ * one is the simplex's to choose, so only "not basic" is asserted. */
+static void test_a_column_a_row_fixed_inside_its_box_is_basic(void)
+{
+#if defined(JAOS_PRESOLVE_FAULT_OFFBYONE) || defined(JAOS_PRESOLVE_FAULT_WRONGDUAL)
+    TEST_IGNORE_MESSAGE("positive test — skipped under either fault build");
+#else
+    const double c[]  = {0.0, 1.0};
+    const double cl[] = {0.0, 0.0}, cu[] = {10.0, 1.0};
+    const double rl[] = {4.0}, ru[] = {4.0};
+    const int64_t s[]  = {0, 1, 1};
+    const int64_t ix[] = {0};
+    const double v[]   = {2.0};
+    jaos_model *m = nullptr;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_model_new(&m));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_load_lp(m, 2, 1, JAOS_MINIMIZE, 0.0, c, cl, cu, rl, ru,
+                     1, s, ix, v));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+
+    double x[2], y[1], dj[2];
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solution(m, x, nullptr, y, dj));
+    const double expected_x0 = 2.0;
+    TEST_ASSERT_EQUAL_MEMORY(&expected_x0, &x[0], sizeof x[0]);
+
+    jaos_basis_status cs[2], rs[1];
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_basis(m, cs, rs));
+    TEST_ASSERT_EQUAL_INT(JAOS_BASIS_BASIC, cs[0]);
+    TEST_ASSERT_TRUE(rs[0] != JAOS_BASIS_BASIC);
+    TEST_ASSERT_EQUAL_INT(JAOS_BASIS_AT_LOWER, cs[1]);
+    /* A basic variable's reduced cost is zero. */
+    const double zero = 0.0;
+    TEST_ASSERT_EQUAL_MEMORY(&zero, &dj[0], sizeof dj[0]);
+
+    jaos_model_free(m);
+#endif
+}
+
 /* -- The basis count promise, on a column the implied free family declines --
  *
  * min x0  s.t.  row0: x0 + x1 = 7,  x0 in [0, 20],  x1 in [0, 100] cost 0
@@ -2299,16 +2475,16 @@ static void test_forcing_row_round_trip(void)
 
     jaos_basis_status cs[4], rs[2];
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_basis(m, cs, rs));
-#if !defined(JAOS_NO_PRESOLVE)
-    /* Postsolve's own choice, and only presolve's to make: the row takes
-     * the single basic slot its removal owes back, because the columns it
-     * pinned are all nonbasic. The un-presolved simplex reaches the same
-     * point by its own route and leaves this row at its upper bound with a
-     * column basic instead, which is an equally valid basis for the same
-     * answer — so this one assertion is presolve-side only, while the count
-     * below holds for both builds. */
-    TEST_ASSERT_EQUAL_INT(JAOS_BASIS_BASIC, rs[0]);   /* the forcing row */
-#endif
+    /* The basis behind that multiplier. y0 = -1 is nonzero, so row0's
+     * logical is NOT basic: it rests at the upper bound the range attained,
+     * and the pinned column whose ratio set y0 is basic in its place, with
+     * a zero reduced cost (D257). Until D257 postsolve published the row
+     * basic beside its nonzero multiplier, a pair no basic solution has,
+     * and this assertion was presolve-side only because the un-presolved
+     * simplex already published the row at its upper bound. Both builds
+     * now agree, so it holds for both, and so does the count. */
+    TEST_ASSERT_EQUAL_INT(JAOS_BASIS_AT_UPPER, rs[0]);   /* the forcing row */
+    TEST_ASSERT_TRUE(cs[0] == JAOS_BASIS_BASIC || cs[1] == JAOS_BASIS_BASIC);
     int64_t basic = 0;
     for (int64_t j = 0; j < 4; j++) basic += cs[j] == JAOS_BASIS_BASIC;
     for (int64_t i = 0; i < 2; i++) basic += rs[i] == JAOS_BASIS_BASIC;
@@ -4246,6 +4422,9 @@ int main(void)
     RUN_TEST(test_singleton_col_index_off_by_one);
     RUN_TEST(test_singleton_col_after_fixed_col);
     RUN_TEST(test_singleton_col_between_two_removals_solved_path);
+    RUN_TEST(test_an_exact_tie_the_division_rounds_inward_publishes_the_bound);
+    RUN_TEST(test_an_interior_recovery_takes_the_row_out_whatever_the_ulps_say);
+    RUN_TEST(test_a_column_a_row_fixed_inside_its_box_is_basic);
     RUN_TEST(test_the_basis_count_promise_breaks_on_a_declined_column);
     RUN_TEST(test_a_short_mapped_basis_is_repaired_and_warm_survives);
     RUN_TEST(test_the_warm_repair_stops_at_its_cap);

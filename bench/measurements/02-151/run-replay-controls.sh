@@ -3,9 +3,9 @@
 #
 #   the divisor is not zero      a singleton row's one live entry is what
 #                                `coef` records
-#   the owned bound is interior  `zero_works` false plus a fold that only
+#   the owned bound is interior  `held_by_own_bound` false plus a fold that only
 #                                narrows puts x_j strictly inside the
-#                                caller's bound on d0's side
+#                                caller's box (`zero_works` until D257)
 #
 # **These are POSTSOLVE asserts, so the whole solve has to run.** There is no
 # early return to lean on the way 02-148 and 02-150 could, and Kennington
@@ -13,8 +13,8 @@
 # judging a postsolve contract and it is worth naming rather than avoiding.
 #
 # Two arms are the asserts INVERTED. A postsolve branch that no instance
-# reaches would leave a quiet arm meaning nothing, and the `this_row_owns`
-# branch is exactly the kind that might not fire (D235, D237).
+# reaches would leave a quiet arm meaning nothing, and the owned
+# branch (`owns_lo` / `owns_hi`) is exactly the kind that might not fire (D235, D237).
 #
 # Not a gate tool. Run from anywhere:
 #   bash bench/measurements/02-151/run-replay-controls.sh
@@ -51,10 +51,11 @@ print("  the singleton-row record keeps a zero coefficient")
 # TWO edits, because the interior property is guarded twice and either guard
 # alone covers it.
 #
-# `this_row_owns` requires `row_tightens_lo`, and a row that tightened put
+# `owns_lo` requires `row_tightens_lo`, and a row that tightened put
 # `rec->lo` strictly above the caller`s bound -- so `v0 == rec->lo` is already
-# strictly interior whatever `zero_works` says. Breaking `zero_works` alone
-# therefore fires nothing, which is measured: that arm came back silent.
+# strictly interior whatever `held_by_own_bound` says. Breaking it alone
+# therefore fires nothing, which is measured: that arm came back silent
+# (as `zero_works`, the guard's name until D257).
 #
 # So the record must also claim to own a bound it did not induce. With both,
 # a column resting on the caller`s own lower bound takes the owned branch and
@@ -65,14 +66,13 @@ s = open(p, encoding="utf-8").read()
 old = """                const bool tightens_lo = implied_lo > cur_cl[j];"""
 assert s.count(old) == 1, "the tightens_lo test matched %d times" % s.count(old)
 s = s.replace(old, """                const bool tightens_lo = true;""")
-old2 = """        const bool zero_works =
-            dc == 0.0 ||
-            (dc > 0.0 && v0 == orig->col_lower[j]) ||
-            (dc < 0.0 && v0 == orig->col_upper[j]);"""
-assert s.count(old2) == 1, "the zero_works test matched %d times" % s.count(old2)
-s = s.replace(old2, """        const bool zero_works = dc == 0.0;""")
+old2 = """        const bool held_by_own_bound =
+            (dc >= 0.0 && v0 == orig->col_lower[j]) ||
+            (dc <= 0.0 && v0 == orig->col_upper[j]);"""
+assert s.count(old2) == 1, "the held_by_own_bound test matched %d times" % s.count(old2)
+s = s.replace(old2, """        const bool held_by_own_bound = false;""")
 open(p, "w", encoding="utf-8").write(s)
-print("  a record owns a bound it did not induce, and zero_works stops noticing")
+print("  a record owns a bound it did not induce, and held_by_own_bound stops noticing")
 '
 
 # NOT defects: each assert inverted, so reaching it must fire.
@@ -93,11 +93,11 @@ print("  the coef assert is inverted, so reaching it must fire")
 CANARY_INTERIOR='
 p = "src/presolve.c"
 s = open(p, encoding="utf-8").read()
-old = """            assert(dc > 0.0 ? v0 > orig->col_lower[j]
-                            : v0 < orig->col_upper[j]);"""
+old = """            assert(from_lo ? v0 > orig->col_lower[j]
+                           : v0 < orig->col_upper[j]);"""
 assert s.count(old) == 1, "the interior assert matched %d times" % s.count(old)
-new = """            assert(dc > 0.0 ? v0 <= orig->col_lower[j]
-                            : v0 >= orig->col_upper[j]);"""
+new = """            assert(from_lo ? v0 <= orig->col_lower[j]
+                           : v0 >= orig->col_upper[j]);"""
 open(p, "w", encoding="utf-8").write(s.replace(old, new))
 print("  the interior assert is inverted, so reaching it must fire")
 '
@@ -189,7 +189,7 @@ run_arm break-coef "$BREAK_COEF" \
     "rec->coef != 0.0"
 
 run_arm break-interior "$BREAK_INTERIOR" \
-    "a record owns a bound it did not induce, and zero_works stops noticing" \
+    "a record owns a bound it did not induce, and held_by_own_bound stops noticing" \
     "v0 > orig->col_lower[j]"
 
 run_arm restored "" "the recipe again with nothing broken" ""

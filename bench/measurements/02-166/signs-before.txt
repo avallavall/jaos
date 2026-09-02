@@ -1,0 +1,35 @@
+### reduced-cost sign breaches, netlib
+bandm.mps      worst published-reduced-cost sign breach = 5.37717
+finnis.mps     worst published-reduced-cost sign breach = 54.1683
+nesm.mps       worst published-reduced-cost sign breach = 15018.5
+perold.mps     worst published-reduced-cost sign breach = 354.25
+pilot-ja.mps   worst published-reduced-cost sign breach = 0.235109
+-- 94 instances, 5 above the 1e-7 dual tolerance. worst 15018.5 on nesm.mps
+
+### crosstab against the count promise, netlib
+instance            off     d!=0   
+25fv47.mps            1        0   count only
+bandm.mps            19        6   both
+bnl2.mps              1        0   count only
+brandy.mps            2        0   count only
+capri.mps             6        0   count only
+czprob.mps            4        0   count only
+dfl001.mps            8        0   count only
+etamacro.mps          1        0   count only
+fffff800.mps          4        0   count only
+finnis.mps            2        2   both
+fit1p.mps            21        0   count only
+forplan.mps          14        0   count only
+ganges.mps            1        0   count only
+maros.mps             2        0   count only
+nesm.mps             18       17   both
+perold.mps            8        1   both
+pilot-ja.mps          8        1   both
+pilot-we.mps          1        0   count only
+pilot87.mps           1        0   count only
+pilotnov.mps         10        0   count only
+scrs8.mps             3        0   count only
+share1b.mps           2        0   count only
+tuff.mps              1        0   count only
+
+-- 94 optimal solves: both 5, count only 18, REDCOST ONLY 0, clean 71
