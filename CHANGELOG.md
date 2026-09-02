@@ -11,6 +11,13 @@ open, `bench/README.md` for the gate, and the commit each entry came from.
 
 ### Added
 
+- **An unbounded answer can prove itself too.** `jaos_unbounded_ray`
+  publishes the direction from the simplex's three ray-proof sites — the
+  single column off its loan, D247's combined direction, the primal's
+  unblocked column — and `jaos_check_ray` judges it from the model alone.
+  Presolve-proved unboundedness publishes none, the same named gap as the
+  Farkas side (D255).
+
 - **An infeasible answer can prove itself.** `jaos_certificate` publishes
   the Farkas ray behind a simplex-proved INFEASIBLE and
   `jaos_check_certificate` judges it from the model alone, both halves of

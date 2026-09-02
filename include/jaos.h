@@ -861,6 +861,40 @@ typedef struct jaos_certificate_report {
 JAOS_NODISCARD jaos_status jaos_check_certificate(const jaos_model *m,
     const double *row_ray, double tol, jaos_certificate_report *out);
 
+/* The ray behind the last solve's JAOS_SOLVE_UNBOUNDED: a direction d
+ * over the structural columns such that moving any feasible point along
+ * it stays feasible forever and improves the objective at a fixed rate.
+ * jaos_check_ray verifies exactly that from the model alone.
+ *
+ * Available only when the solve itself proved a ray on this model's own
+ * columns: unboundedness proved by presolve carries none, and a ray on
+ * a presolve-reduced model lives in the wrong column space. Both refuse
+ * here; SPECS.md records the gap. col_ray receives num_col values. */
+JAOS_NODISCARD jaos_status jaos_unbounded_ray(const jaos_model *m,
+                                              double *col_ray);
+
+/* Verdict of jaos_check_ray. */
+typedef struct jaos_ray_report {
+    double rate;            /* c'd, in the model's own sense: certifying
+                               needs it improving — negative when
+                               minimizing, positive when maximizing     */
+    double max_col_escape;  /* the largest |d_j| that pushes past a
+                               finite column bound side; 0 when clean   */
+    double max_row_escape;  /* the largest |(Ad)_i| past its own traffic
+                               floor that pushes past a finite row
+                               side; 0 when clean                       */
+    bool certified;         /* both escapes zero, and the rate clears
+                               tol against the cost terms' own size     */
+} jaos_ray_report;
+
+/* Judges a claimed unbounded ray against the model as it was loaded —
+ * original space, model bounds only, no solver bookkeeping. d_j may
+ * only point past an infinite bound side; each row's movement (Ad)_i is
+ * a sum and counts only above tol times the magnitudes that formed it,
+ * the same scaled rule as everywhere in this header. */
+JAOS_NODISCARD jaos_status jaos_check_ray(const jaos_model *m,
+    const double *col_ray, double tol, jaos_ray_report *out);
+
 #ifdef __cplusplus
 }
 #endif

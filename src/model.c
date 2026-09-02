@@ -52,6 +52,7 @@ static void model_release_arrays(jaos_model *m)
     free(m->sol_col_status);
     free(m->sol_row_status);
     free(m->sol_farkas);
+    free(m->sol_ray);
     free(m->start_col_status);
     free(m->start_row_status);
     /* The problem goes; the configuration stays. Saved as one object rather
@@ -152,6 +153,8 @@ static void model_answer_is_stale(jaos_model *m)
     free(m->sol_row_status); m->sol_row_status = nullptr;
     free(m->sol_farkas);     m->sol_farkas = nullptr;
     m->farkas_ok = false;
+    free(m->sol_ray);        m->sol_ray = nullptr;
+    m->ray_ok = false;
     m->solve_status = JAOS_SOLVE_NOT_RUN;
     m->objective = 0.0;
     m->solve_work = 0;
@@ -441,6 +444,21 @@ jaos_status jaos_certificate(const jaos_model *m, double *row_ray)
         m->sol_farkas == nullptr)
         return JAOS_ERR_INVALID_INPUT;
     memcpy(row_ray, m->sol_farkas, (size_t)m->num_row * sizeof *row_ray);
+    return JAOS_OK;
+}
+
+jaos_status jaos_unbounded_ray(const jaos_model *m, double *col_ray)
+{
+    if (m == nullptr || col_ray == nullptr)
+        return JAOS_ERR_INVALID_INPUT;
+    /* Same availability discipline as jaos_certificate: only a ray
+     * proof on this model's own columns set the flag (D255). Presolve-
+     * proved unboundedness, and a proof on a presolve-reduced model,
+     * leave it false. */
+    if (m->solve_status != JAOS_SOLVE_UNBOUNDED || !m->ray_ok ||
+        m->sol_ray == nullptr)
+        return JAOS_ERR_INVALID_INPUT;
+    memcpy(col_ray, m->sol_ray, (size_t)m->num_col * sizeof *col_ray);
     return JAOS_OK;
 }
 

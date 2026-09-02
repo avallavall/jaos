@@ -99,6 +99,12 @@ struct jaos_model {
      * publishes one. */
     double *sol_farkas;      /* [num_row] */
     bool farkas_ok;
+    /* The unbounded ray behind a simplex-proved UNBOUNDED, per structural
+     * column in the caller's units (D255). Same availability discipline
+     * as the Farkas ray: false on solve entry, true only at a ray proof
+     * on this model's own columns. */
+    double *sol_ray;         /* [num_col] */
+    bool ray_ok;
     int64_t solve_work;
     int64_t solve_iters;
     /* How many of `solve_iters` the primal method ran, and how many of THOSE

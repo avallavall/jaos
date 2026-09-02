@@ -262,6 +262,7 @@ and you have the argument. Jump to the entry for the numbers behind it.
 - **[D252](#d252--a-fixed-column-never-joins-the-dual-ratio-test)** — A fixed column never joins the dual ratio test
 - **[D253](#d253--btrans-l-pass-walks-its-pattern-not-every-slot)** — BTRAN's L' pass walks its pattern, not every slot
 - **[D254](#d254--a-simplex-proved-infeasible-publishes-its-farkas-ray-and-the-checker-can-refuse-it)** — A simplex-proved INFEASIBLE publishes its Farkas ray, and the checker can refuse it
+- **[D255](#d255--a-simplex-proved-unbounded-publishes-its-ray-from-all-three-proof-sites)** — A simplex-proved UNBOUNDED publishes its ray, from all three proof sites
 
 ---
 
@@ -19328,3 +19329,32 @@ infinity. The checker's own half of that lesson is the traffic floor on
 cleanup cannot manufacture a proof: the checker re-judges the published
 ray from the model alone, which is also what makes a ray leaning on a
 lent artificial bound refusable at last.
+
+## D255 — A simplex-proved UNBOUNDED publishes its ray, from all three proof sites
+
+**The question.** D254 gave INFEASIBLE its certificate and left the
+other half of the SPECS row: three sites already prove a ray — the
+single column off its loan, D247's combined direction, and the primal
+phase 2's unblocked column — and none published it. What does exporting
+the direction cost, and what can `jaos_check_ray` refuse?
+
+**The change.** Each proof site fills `uray` from the same transformed
+column it read, under its own PIVOT_MIN floor; publication unscales per
+column (`jaos_unbounded_ray`). The checker re-judges from the model
+alone: columns may only point past infinite sides, each row's movement
+counts only above tol times its own traffic, and the rate must clear
+tol against the cost terms' size, in the model's own sense. Presolve-
+proved unboundedness and reduced-model rays refuse, like D254's.
+
+**The measurement.** All five configurations pass, and the ray test
+certifies on the first run — the direction, the basic responses off the
+transformed column, the unscaling and the checker's three conditions
+agree end to end, which is the sign derivation confirmed rather than
+assumed. The three gate sets and the forced-primal record are
+byte-identical to the committed files: no gate instance is unbounded,
+so the capture never fires there, and the publication path bills
+nothing. The bounded control refuses the fabricated ray with
+`max_col_escape` reading the exact bound it violates; the default-build
+twin shows presolve-proved unboundedness refusing the accessor. No
+measurement directory: every reading above is a test in
+`tests/test_check.c` or a byte-identical gate, both in this commit.

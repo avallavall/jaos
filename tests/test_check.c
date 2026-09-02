@@ -1047,6 +1047,89 @@ static void test_a_certificate_needing_an_absent_bound_is_rejected(void)
     jaos_model_free(m);
 }
 
+
+/* A model the solve itself must prove unbounded: min -x0 with x0 free
+ * upward. The published ray must move x0 up, improve the objective, and
+ * certify against the model alone (D255). */
+static void test_ray_of_a_simplex_proved_unboundedness(void)
+{
+#if !defined(JAOS_NO_PRESOLVE)
+    TEST_IGNORE_MESSAGE("simplex-internal test — presolve proves this "
+                        "model unbounded first; runs only under "
+                        "EXTRA_CFLAGS=-DJAOS_NO_PRESOLVE");
+#else
+    const double c[] = {-1.0, 0.0};
+    const double cl[] = {0.0, 0.0}, cu[] = {INFINITY, INFINITY};
+    const double rl[] = {1.0}, ru[] = {INFINITY};
+    const int64_t s[] = {0, 1, 2}, ix[] = {0, 0};
+    const double v[] = {1.0, 1.0};
+    jaos_model *m = nullptr;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_model_new(&m));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_load_lp(m, 2, 1, JAOS_MINIMIZE, 0.0, c, cl, cu, rl, ru,
+                     2, s, ix, v));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_UNBOUNDED, jaos_status_of(m));
+
+    double d[2] = {0.0, 0.0};
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_unbounded_ray(m, d));
+    TEST_ASSERT_TRUE_MESSAGE(d[0] > 0.0, "the ray must move x0 upward");
+
+    jaos_ray_report rep;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_check_ray(m, d, 1e-7, &rep));
+    TEST_ASSERT_TRUE_MESSAGE(rep.certified,
+                             "the published ray must certify its own "
+                             "model");
+    TEST_ASSERT_TRUE(rep.rate < 0.0);
+    jaos_model_free(m);
+#endif
+}
+
+/* The same model in the default build: presolve proves the
+ * unboundedness and no ray ever exists; the accessor must refuse. */
+static void test_ray_refused_when_presolve_proved_it(void)
+{
+#if defined(JAOS_NO_PRESOLVE)
+    TEST_IGNORE_MESSAGE("presolve-path test — runs only in the default "
+                        "build, where presolve answers this model");
+#else
+    const double c[] = {-1.0, 0.0};
+    const double cl[] = {0.0, 0.0}, cu[] = {INFINITY, INFINITY};
+    const double rl[] = {1.0}, ru[] = {INFINITY};
+    const int64_t s[] = {0, 1, 2}, ix[] = {0, 0};
+    const double v[] = {1.0, 1.0};
+    jaos_model *m = nullptr;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_model_new(&m));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_load_lp(m, 2, 1, JAOS_MINIMIZE, 0.0, c, cl, cu, rl, ru,
+                     2, s, ix, v));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_UNBOUNDED, jaos_status_of(m));
+    double d[2];
+    TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT, jaos_unbounded_ray(m, d));
+    jaos_model_free(m);
+#endif
+}
+
+/* The case the ray predicate must reject: T1 is bounded, so a direction
+ * pushing x0 up runs into its upper bound of 10, and the accessor must
+ * refuse on an OPTIMAL answer. */
+static void test_a_wrong_ray_is_rejected(void)
+{
+    jaos_model *m = make_t1();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+    double d[2] = {1.0, 0.0};
+    TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT, jaos_unbounded_ray(m, d));
+
+    jaos_ray_report rep;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_check_ray(m, d, 1e-7, &rep));
+    TEST_ASSERT_FALSE_MESSAGE(rep.certified,
+                              "a bounded model must reject the ray");
+    TEST_ASSERT_DOUBLE_WITHIN(1e-12, 1.0, rep.max_col_escape);
+    jaos_model_free(m);
+}
+
 int main(void)
 {
     UNITY_BEGIN();
@@ -1077,5 +1160,8 @@ int main(void)
     RUN_TEST(test_certificate_refused_when_presolve_proved_it);
     RUN_TEST(test_a_wrong_certificate_is_rejected);
     RUN_TEST(test_a_certificate_needing_an_absent_bound_is_rejected);
+    RUN_TEST(test_ray_of_a_simplex_proved_unboundedness);
+    RUN_TEST(test_ray_refused_when_presolve_proved_it);
+    RUN_TEST(test_a_wrong_ray_is_rejected);
     return UNITY_END();
 }

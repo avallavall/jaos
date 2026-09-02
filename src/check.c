@@ -563,3 +563,89 @@ jaos_status jaos_check_certificate(const jaos_model *m,
         tol * (1.0 + fabs(out->sup_columns) + fabs(out->inf_rows));
     return JAOS_OK;
 }
+
+/* Judges a claimed unbounded ray against the model as loaded: original
+ * space, the model's own bounds, no solver bookkeeping (D18). The claim
+ * has three parts, and all three are read from the model alone: every
+ * moving column points past an infinite bound side, every moving row —
+ * (Ad)_i, a sum, counted only above tol times its own traffic — points
+ * past an infinite row side, and the objective improves along d at a
+ * rate that stands above tol times the cost terms' own size (D255). */
+jaos_status jaos_check_ray(const jaos_model *m, const double *col_ray,
+                           double tol, jaos_ray_report *out)
+{
+    if (m == nullptr || col_ray == nullptr || out == nullptr ||
+        !isfinite(tol) || tol < 0.0)
+        return JAOS_ERR_INVALID_INPUT;
+    out->rate = 0.0;
+    out->max_col_escape = 0.0;
+    out->max_row_escape = 0.0;
+    out->certified = false;
+
+    for (int64_t j = 0; j < m->num_col; j++)
+        if (!isfinite(col_ray[j]))
+            return JAOS_ERR_INVALID_INPUT;
+
+    /* Column direction against the column boxes. */
+    for (int64_t j = 0; j < m->num_col; j++) {
+        const double d = col_ray[j];
+        if (d > 0.0 && isfinite(m->col_upper[j])) {
+            if (d > out->max_col_escape)
+                out->max_col_escape = d;
+        } else if (d < 0.0 && isfinite(m->col_lower[j])) {
+            if (-d > out->max_col_escape)
+                out->max_col_escape = -d;
+        }
+    }
+
+    /* Row movement, accumulated column-wise, with the traffic that says
+     * how finely each sum can be read. */
+    double *move = calloc((size_t)(m->num_row > 0 ? m->num_row : 1),
+                          sizeof *move);
+    double *traf = calloc((size_t)(m->num_row > 0 ? m->num_row : 1),
+                          sizeof *traf);
+    if (move == nullptr || traf == nullptr) {
+        free(move);
+        free(traf);
+        return JAOS_ERR_OUT_OF_MEMORY;
+    }
+    for (int64_t j = 0; j < m->num_col; j++) {
+        const double d = col_ray[j];
+        if (d == 0.0)
+            continue;
+        for (int64_t p = m->a_start[j]; p < m->a_start[j + 1]; p++) {
+            const double t = m->a_value[p] * d;
+            move[m->a_index[p]] += t;
+            traf[m->a_index[p]] += fabs(t);
+        }
+    }
+    for (int64_t i = 0; i < m->num_row; i++) {
+        const double r = move[i];
+        if (fabs(r) <= tol * traf[i])
+            continue;
+        if (r > 0.0 && isfinite(m->row_upper[i])) {
+            if (r > out->max_row_escape)
+                out->max_row_escape = r;
+        } else if (r < 0.0 && isfinite(m->row_lower[i])) {
+            if (-r > out->max_row_escape)
+                out->max_row_escape = -r;
+        }
+    }
+    free(move);
+    free(traf);
+
+    /* The rate, in the model's own sense, judged canonically. */
+    long double rate = 0.0L, ctraf = 0.0L;
+    for (int64_t j = 0; j < m->num_col; j++) {
+        const long double t = (long double)m->col_cost[j] * col_ray[j];
+        rate += t;
+        ctraf += fabsl(t);
+    }
+    out->rate = (double)rate;
+    const double sigma = (m->sense == JAOS_MAXIMIZE) ? -1.0 : 1.0;
+    const bool improves =
+        sigma * out->rate < -tol * (1.0 + (double)ctraf);
+    out->certified = improves && out->max_col_escape == 0.0 &&
+                     out->max_row_escape == 0.0;
+    return JAOS_OK;
+}

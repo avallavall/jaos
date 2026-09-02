@@ -226,6 +226,14 @@ typedef struct {
     double farkas_sign;
     int64_t farkas_basic;
 
+    /* The unbounded direction, when one of the three ray proofs stands:
+     * per-unit movement of every structural column, in scaled space,
+     * basics filled from the same transformed column the proof read and
+     * under the proof's own PIVOT_MIN floor. Publication unscales it
+     * (D255). */
+    double *uray;        /* [ncol] */
+    bool uray_ok;
+
     /* Where `alpha` can be nonzero, ascending and without repeats, or
      * `anpat < 0` when the array has to be read in full. `amark` is the
      * bitmap jm_pattern_order orders through; zero between iterations. */
@@ -429,6 +437,7 @@ static void sx_free(sx *s)
 #endif
     free(s->bs); free(s->bi); free(s->bv);
     free(s->fake); free(s->c1); free(s->c1_at);
+    free(s->uray);
     free(s->sav_status); free(s->sav_basis);
     free(s->sav_lo); free(s->sav_up); free(s->sav_fake);
     free(s->bst_status); free(s->bst_basis);
@@ -506,6 +515,7 @@ static jaos_status sx_init(sx *s, jaos_model *m)
     s->pden   = jm_alloc_array(s->nrow, sizeof(double));
     s->bs     = jm_alloc_array(s->nrow + 1, sizeof(int64_t));
     s->fake   = jm_calloc_array(s->nvar, sizeof *s->fake);
+    s->uray   = jm_calloc_array(s->ncol, sizeof(double));
 
     if (!s->av || !s->arv || !s->lo || !s->up || !s->cost || !s->cost0 ||
         !s->shift ||
@@ -516,7 +526,7 @@ static jaos_status sx_init(sx *s, jaos_model *m)
         !s->nbmark ||
         !s->rpat || !s->rmark || !s->cpat || !s->cand || !s->rnum ||
         !s->rden || !s->rrange || !s->prow || !s->pnum || !s->pden ||
-        !s->bs || !s->fake) {
+        !s->bs || !s->fake || !s->uray) {
         sx_free(s);
         return JAOS_ERR_OUT_OF_MEMORY;
     }
@@ -2921,6 +2931,24 @@ static bool combined_improves_without_limit(sx *s)
  * named one; D247 decides it). Both verdicts are proofs; the refusal is a
  * missing answer and not a wrong one, and its message says only what was
  * actually established. */
+/* Fills `uray` with the basic half of a ray: per unit of the ray's own
+ * parameter, the basic at position i moves by bsign times col[i].
+ * Entries the proof itself could not tell from zero — below PIVOT_MIN,
+ * the same floor every ray verdict reads by — stay zero, and so do
+ * slacks: the checker recomputes every row's movement from the columns
+ * alone (D255). */
+static void ray_basics(sx *s, double bsign)
+{
+    memset(s->uray, 0, (size_t)s->ncol * sizeof *s->uray);
+    for (int64_t i = 0; i < s->nrow; i++) {
+        if (fabs(s->col[i]) < PIVOT_MIN)
+            continue;
+        const int64_t b = s->basis[i];
+        if (b < s->ncol)
+            s->uray[b] = bsign * s->col[i];
+    }
+}
+
 static jaos_solve_status classify_optimum(sx *s)
 {
     int64_t blocked = -1;
@@ -2928,8 +2956,15 @@ static jaos_solve_status classify_optimum(sx *s)
     for (int64_t j = 0; j < s->ncol; j++) {
         if (!held_by_an_invented_bound(s, j))
             continue;
-        if (improves_without_limit(s, j))
+        if (improves_without_limit(s, j)) {
+            /* col still holds this column's FTRAN; the column leaves its
+             * loan at unit rate, downwards off a lower one (D255). */
+            const double sgn = (s->fake[j] == FAKE_LO) ? 1.0 : -1.0;
+            ray_basics(s, sgn);
+            s->uray[j] = -sgn;
+            s->uray_ok = true;
             return JAOS_SOLVE_UNBOUNDED;
+        }
         if (blocked < 0)
             blocked = j;
     }
@@ -2937,8 +2972,17 @@ static jaos_solve_status classify_optimum(sx *s)
     if (blocked < 0)
         return JAOS_SOLVE_OPTIMAL;
 
-    if (combined_improves_without_limit(s))
+    if (combined_improves_without_limit(s)) {
+        /* col holds the combined direction's row image, signs already
+         * folded in; every held column rides off its loan at unit rate
+         * (D247, D255). */
+        ray_basics(s, 1.0);
+        for (int64_t j = 0; j < s->ncol; j++)
+            if (held_by_an_invented_bound(s, j))
+                s->uray[j] = (s->fake[j] == FAKE_LO) ? -1.0 : 1.0;
+        s->uray_ok = true;
         return JAOS_SOLVE_UNBOUNDED;
+    }
 
     jm_set_err(s->m, "column %lld improves past the bound dual phase 1 lent "
                      "it; moving that column alone runs into a constraint, "
@@ -3749,6 +3793,16 @@ static jaos_status run_primal(sx *s, jaos_solve_status *out)
              * `PIVOT_MIN` too, so both verdicts read a ray off the rows
              * they can tell from zero (D210). */
             if (!shifts_outstanding(s)) {
+                /* col still holds q's FTRAN from the ratio test; q moves
+                 * by dir per unit, the basics by -dir times col. A slack
+                 * q publishes no column entry of its own — the checker
+                 * recomputes every row's movement from the columns
+                 * (D255). */
+                const double dir = s->d[q] < 0.0 ? 1.0 : -1.0;
+                ray_basics(s, -dir);
+                if (q < s->ncol)
+                    s->uray[q] = dir;
+                s->uray_ok = true;
                 *out = JAOS_SOLVE_UNBOUNDED;
                 return JAOS_OK;
             }
@@ -3952,10 +4006,10 @@ jaos_status jm_model_ensure_solution_arrays(jaos_model *m)
     if (m->sol_col != nullptr && m->sol_row != nullptr &&
         m->sol_dual != nullptr && m->sol_redcost != nullptr &&
         m->sol_col_status != nullptr && m->sol_row_status != nullptr &&
-        m->sol_farkas != nullptr)
+        m->sol_farkas != nullptr && m->sol_ray != nullptr)
         return JAOS_OK;
 
-    /* All seven or none. A partial set must not read as "already there". */
+    /* All eight or none. A partial set must not read as "already there". */
     free(m->sol_col);        m->sol_col = nullptr;
     free(m->sol_row);        m->sol_row = nullptr;
     free(m->sol_dual);       m->sol_dual = nullptr;
@@ -3963,6 +4017,7 @@ jaos_status jm_model_ensure_solution_arrays(jaos_model *m)
     free(m->sol_col_status); m->sol_col_status = nullptr;
     free(m->sol_row_status); m->sol_row_status = nullptr;
     free(m->sol_farkas);     m->sol_farkas = nullptr;
+    free(m->sol_ray);        m->sol_ray = nullptr;
 
     m->sol_col     = jm_alloc_array(m->num_col, sizeof(double));
     m->sol_row     = jm_alloc_array(m->num_row, sizeof(double));
@@ -3971,8 +4026,10 @@ jaos_status jm_model_ensure_solution_arrays(jaos_model *m)
     m->sol_col_status = jm_alloc_array(m->num_col, sizeof(jaos_basis_status));
     m->sol_row_status = jm_alloc_array(m->num_row, sizeof(jaos_basis_status));
     m->sol_farkas  = jm_alloc_array(m->num_row, sizeof(double));
+    m->sol_ray     = jm_alloc_array(m->num_col, sizeof(double));
     if (!m->sol_col || !m->sol_row || !m->sol_dual || !m->sol_redcost ||
-        !m->sol_col_status || !m->sol_row_status || !m->sol_farkas) {
+        !m->sol_col_status || !m->sol_row_status || !m->sol_farkas ||
+        !m->sol_ray) {
         free(m->sol_col);        m->sol_col = nullptr;
         free(m->sol_row);        m->sol_row = nullptr;
         free(m->sol_dual);       m->sol_dual = nullptr;
@@ -3980,6 +4037,7 @@ jaos_status jm_model_ensure_solution_arrays(jaos_model *m)
         free(m->sol_col_status); m->sol_col_status = nullptr;
         free(m->sol_row_status); m->sol_row_status = nullptr;
         free(m->sol_farkas);     m->sol_farkas = nullptr;
+        free(m->sol_ray);        m->sol_ray = nullptr;
         return JAOS_ERR_OUT_OF_MEMORY;
     }
     return JAOS_OK;
@@ -4060,6 +4118,16 @@ static jaos_status publish(sx *s, jaos_solve_status status, jm_presolve *p)
                                              m->row_scale[i]);
             }
             m->farkas_ok = true;
+        }
+
+        /* The unbounded direction, unscaled the way the primal values
+         * are: a column carries its factor (D255). Same discipline as
+         * the Farkas ray above, reduced models included. */
+        memset(m->sol_ray, 0, (size_t)m->num_col * sizeof(double));
+        if (status == JAOS_SOLVE_UNBOUNDED && s->uray_ok) {
+            for (int64_t j = 0; j < m->num_col; j++)
+                m->sol_ray[j] = published(m->col_scale[j] * s->uray[j]);
+            m->ray_ok = true;
         }
 
         /* The basis is written, kept, and only then cleared. Kept because a
@@ -4161,11 +4229,13 @@ jaos_status jm_dual_simplex(jaos_model *m)
     m->solve_iters = 0;
     m->solve_primal_iters = 0;
     m->solve_phase1_iters = 0;
-    /* And the certificate: only the dual's own refusal, on THIS model's
-     * rows, may turn it back on (D254). A capture on a presolve-reduced
-     * model writes the reduced model's copy of this flag, which nothing
-     * publishes, so the original's stays honestly false there. */
+    /* And the certificates: only a proof on THIS model's own rows and
+     * columns may turn either back on (D254, D255). A capture on a
+     * presolve-reduced model writes the reduced model's copies of these
+     * flags, which nothing publishes, so the original's stay honestly
+     * false there. */
     m->farkas_ok = false;
+    m->ray_ok = false;
 
     /* Presolve's own charge, continued on the same accumulator as the
      * solve's. Always {0}, even under JAOS_NO_PRESOLVE. */
