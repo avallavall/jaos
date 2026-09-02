@@ -118,8 +118,11 @@ them.
   at ~181 (the trace is `02-161/`) — which is D89's oscillation family
   and a design question, not a constant. `d6cube` and `truss` grind far
   from target at decelerating rates, which is the pricing rule's cost and
-  stage 5's territory. One more disagrees outside this family and has not
-  been read. `SETTLE_ROUNDS_PRIMAL` sits at 256 with 512 refused on a
+  stage 5's territory. The sixth is `pilot87`, and it is its own family:
+  the primal phase 1 diverges — total infeasibility 1268x its own best at
+  iteration 19532 — and D218's guard refuses before phase 2 ever runs, on
+  the instance whose conditioning already splits the published optima of
+  other solvers (D183). A fix is phase-1 design work, not a constant. `SETTLE_ROUNDS_PRIMAL` sits at 256 with 512 refused on a
   byte-identical record (D251). **D244's reopen condition is the whole
   family fixed**, and these six are what stands between the pricing
   question and the table. The fixed column admitted as a bound-flip
