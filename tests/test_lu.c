@@ -253,6 +253,39 @@ static void test_random_matrices_solve_correctly(void)
     TEST_ASSERT_EQUAL_INT(75, cases);
 }
 
+/* A one-entry right-hand side drives BTRAN's two reachability passes
+ * (D36, D253) through real sub-patterns, where a wrong or short pattern
+ * publishes a wrong zero rather than crashing. The dense walks made this
+ * true by construction; every answer must still solve B' x = e_k. */
+static void test_btran_unit_vectors_solve_exactly(void)
+{
+    const double densities[] = {0.05, 0.2, 0.6};
+
+    for (int64_t n = 2; n <= 25; n += 7) {
+        for (int d = 0; d < 3; d++) {
+            rng_seed((uint64_t)(n * 1000 + d + 7));
+            mat m;
+            make_random(&m, n, densities[d]);
+
+            jm_lu lu;
+            jm_work w = {0};
+            must_factor(&m, &lu, &w);
+            TEST_ASSERT_EQUAL_INT64(m.n, lu.rank);
+
+            for (int64_t k = 0; k < m.n; k++) {
+                double x[MAXN] = {0}, back[MAXN];
+                x[k] = 1.0;
+                jm_lu_btran(&lu, x, &w);
+                mat_mul_t(&m, x, back);
+                for (int64_t i = 0; i < m.n; i++)
+                    TEST_ASSERT_DOUBLE_WITHIN(1e-8, i == k ? 1.0 : 0.0,
+                                              back[i]);
+            }
+            jm_lu_free(&lu);
+        }
+    }
+}
+
 /* Dense matrices produce total fill: the elimination path where every
  * update touches every remaining entry. */
 static void test_dense_matrices(void)
@@ -825,6 +858,7 @@ int main(void)
     RUN_TEST(test_permutation_matrix);
     RUN_TEST(test_triangular_matrices);
     RUN_TEST(test_random_matrices_solve_correctly);
+    RUN_TEST(test_btran_unit_vectors_solve_exactly);
     RUN_TEST(test_dense_matrices);
     RUN_TEST(test_singular_matrices_are_reported_not_hidden);
     RUN_TEST(test_markowitz_prefers_singletons);

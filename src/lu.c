@@ -350,6 +350,8 @@ void jm_lu_free(jm_lu *lu)
     free(lu->dfs_node);
     free(lu->dfs_next);
     free(lu->pattern);
+    free(lu->lrow_start);
+    free(lu->lrow_index);
     memset(lu, 0, sizeof *lu);
 }
 
@@ -700,6 +702,36 @@ jaos_status jm_lu_factor(jm_lu *lu, int64_t dim,
     /* L keeps the accumulator's storage. */
     svec_release(&lacc, &lu->l_index, &lu->l_value);
 
+    /* The row structure of L, for the L' reachability pass. Filled in
+     * ascending column order, so each row's list is ascending and the DFS
+     * that walks it visits in one deterministic order (D253). Only a
+     * full-rank factorization is ever solved with, so a singular one,
+     * whose tail slots never got their L columns, builds nothing — and
+     * neither does dimension zero, where even l_start[0] was never
+     * written. */
+    if (lu->rank == dim && dim > 0) {
+        const int64_t lnnz = lu->l_start[dim];
+        lu->lrow_start = jm_calloc_array(dim + 1, sizeof(int64_t));
+        lu->lrow_index = jm_alloc_array(lnnz > 0 ? lnnz : 1,
+                                        sizeof(int64_t));
+        if (lu->lrow_start == nullptr || lu->lrow_index == nullptr) {
+            st = JAOS_ERR_OUT_OF_MEMORY;
+            goto done;
+        }
+        for (int64_t p = 0; p < lnnz; p++)
+            lu->lrow_start[lu->l_index[p] + 1]++;
+        for (int64_t t = 0; t < dim; t++)
+            lu->lrow_start[t + 1] += lu->lrow_start[t];
+        for (int64_t s = 0; s < dim; s++)
+            for (int64_t p = lu->l_start[s]; p < lu->l_start[s + 1]; p++)
+                lu->lrow_index[lu->lrow_start[lu->l_index[p]]++] = s;
+        /* The cursors above advanced each row's start to its end; shift
+         * once and the starts are back. */
+        for (int64_t t = dim; t > 0; t--)
+            lu->lrow_start[t] = lu->lrow_start[t - 1];
+        lu->lrow_start[0] = 0;
+    }
+
 done:
     free(us_start);
     free(inv_row);
@@ -857,6 +889,63 @@ static int64_t btran_u_pattern(jm_lu *lu, const double *y, jm_work *w)
     return top;
 }
 
+/* The same reachability for the L' pass, over L's row structure. u[s]
+ * depends on u[t] exactly when column s of L carries row t, which is when
+ * row t lists s — so the slots that can come out nonzero are the ones
+ * reachable from y's support along the rows, and the reverse post-order
+ * puts every feeder before what it feeds [9]. A slot left out starts at
+ * zero and receives nothing, so a computed slot's dot product reads the
+ * same operands the full backward walk read, in the same order (D253). */
+static int64_t btran_l_pattern(jm_lu *lu, const double *y, jm_work *w)
+{
+    const int64_t n = lu->dim;
+    int64_t top = n;
+    int64_t edges = 0;
+
+    lu->stamp++;
+    assert(lu->stamp > 0);
+    for (int64_t root = 0; root < n; root++) {
+        if (y[root] == 0.0 || lu->mark[root] == lu->stamp)
+            continue;
+
+        lu->mark[root] = lu->stamp;
+        lu->dfs_node[0] = root;
+        lu->dfs_next[0] = 0;
+        int64_t sp = 1;
+
+        while (sp > 0) {
+            const int64_t t = lu->dfs_node[sp - 1];
+            const int64_t re = lu->lrow_start[t + 1];
+            int64_t p = lu->lrow_start[t] + lu->dfs_next[sp - 1];
+            bool descended = false;
+
+            while (p < re) {
+                const int64_t c = lu->lrow_index[p];
+                p++;
+                edges++;
+                if (lu->mark[c] != lu->stamp) {
+                    lu->mark[c] = lu->stamp;
+                    lu->dfs_next[sp - 1] = p - lu->lrow_start[t];
+                    lu->dfs_node[sp] = c;
+                    lu->dfs_next[sp] = 0;
+                    sp++;
+                    descended = true;
+                    break;
+                }
+            }
+            if (!descended) {
+                lu->dfs_next[sp - 1] = p - lu->lrow_start[t];
+                sp--;
+                lu->pattern[--top] = t;
+            }
+        }
+    }
+
+    jm_work_add(w, edges * JM_WORK_NONZERO);
+    assert(top >= 0);
+    return top;
+}
+
 void jm_lu_btran(jm_lu *lu, double *x, jm_work *w)
 {
     jm_lu_btran_sparse(lu, x, w, nullptr, nullptr);
@@ -897,9 +986,15 @@ void jm_lu_btran_sparse(jm_lu *lu, double *x, jm_work *w,
         y[lu->ft_source[k]] -= lu->ft.val[k] * y[lu->ft.idx[k]];
     jm_work_add(w, lu->ft.n * JM_WORK_NONZERO);
 
-    /* L' u = v, backward: L by columns is L' by rows, a dot product. L is
-     * unit triangular, so there is no division. */
-    for (int64_t s = n - 1; s >= 0; s--) {
+    /* L' u = v, over the slots that can produce a nonzero and no others:
+     * L by columns is L' by rows, a dot product, and L is unit triangular
+     * so there is no division. Each computed slot runs the same dot
+     * product over the same column in the same order the full backward
+     * walk ran, so its value is bit for bit the same; a skipped slot is
+     * exactly zero (D253). */
+    const int64_t lfirst = btran_l_pattern(lu, y, w);
+    for (int64_t k = lfirst; k < n; k++) {
+        const int64_t s = lu->pattern[k];
         double sum = y[s];
         for (int64_t p = lu->l_start[s]; p < lu->l_start[s + 1]; p++)
             sum -= lu->l_value[p] * y[lu->l_index[p]];

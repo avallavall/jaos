@@ -93,8 +93,10 @@ ranging analysis.
 
 A primal simplex exists but no caller can reach it. It sits behind a
 development switch rather than an option, and `make primal` is what measures
-it. On the 94 standard instances it agrees with the dual on 74, every one
-of the remaining failures is classified and owned (D248 to D252), and the
+it. On the 94 standard instances it agrees with the dual on most (the
+per-instance record is `bench/results/primal.txt`; its budget column is
+priced in the dual's own work, so the counts move whenever the dual gets
+cheaper), every failure is classified and owned (D248 to D253), and the
 one piece `SPECS.md` still lists as missing is Devex pricing — which is
 blocked on a paywalled source, and an own rule derived in its place lost to
 Dantzig and was refused (D244, D245).

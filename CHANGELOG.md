@@ -11,6 +11,12 @@ open, `bench/README.md` for the gate, and the commit each entry came from.
 
 ### Changed
 
+- **BTRAN's L' pass walks its pattern, not every slot.** The reachability
+  DFS the U' pass has had since D36, over a row structure of L built once
+  per factorization. Every digest and iteration count on all 139 instances
+  is byte-identical; Kennington reads 0.9862x in work and the standard set
+  pays 1.0088x for the edge billing (D253, `bench/measurements/02-163/`).
+
 - **A fixed column never joins the dual ratio test.** `admit_candidate`
   refuses `lo == up`, the rule the primal pricing already applied: it never
   limits the step, and its width-zero flip only toggled its published

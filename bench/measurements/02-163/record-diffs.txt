@@ -1,0 +1,47 @@
+Candidate tree: D253 change on top of b7d93b5. Compared against the
+records and baselines committed at b7d93b5. Taken 2026-09-02.
+
+== netlib.txt: record_diff.py ==
+94 instances compared: 9 bit-identical, 85 moved, 0 digest change(s)
+-- no regression --
+Only WORK lines moved; not one ITERS, RSUB or DIGEST line.
+
+== netlib.txt: geomean.py --metric work, b7d93b5 vs candidate ==
+  instances averaged   94
+  GEOMETRIC MEAN       1.0088x
+  best  ganges         0.9443x
+  worst dfl001         1.0689x
+  (the DFS bills its edges, the D36 convention; where the result is not
+  sparse that billing outweighs the pattern)
+
+== netlib-kennington.txt: record_diff.py ==
+16 instances compared: 2 bit-identical, 14 moved, 0 digest change(s)
+-- no regression --
+  WORK  cre-a   20260037 -> 18943707     (0.935x)
+  WORK  pds-20  5066546616 -> 4912970026 (0.9697x)
+  WORK  pds-10  612779628 -> 595269969   (0.9714x)
+  WORK  ken-18  9352893337 -> 9308339814 (0.9952x)
+  (the ken models barely move: network bases factor with almost no
+  fill, and nnz(L) bounds what the L' pass can save)
+
+== netlib-kennington.txt: geomean.py --metric work ==
+  instances averaged   16
+  GEOMETRIC MEAN       0.9862x
+  best  cre-a          0.9350x
+  worst osa-60         1.0019x
+
+== netlib-infeas.txt ==
+29 instances compared: 16 bit-identical, 13 moved, 0 digest change(s).
+All verdicts hold; only work counts moved.
+
+== primal.txt: record_diff.py ==
+92 instances compared: 8 bit-identical, 84 moved, 0 digest change(s)
+-- REGRESSIONS --
+  STATUS             ganges         ok -> overrun
+  (and stocfor3 DISAGREE -> overrun)
+The overrun bar is 10x the dual's own work: the dual's billing dropped
+5.6% on ganges and 4.1% on stocfor3, both were within a few percent of
+the bar, and both crossed back. The split columns moved on 13 instances
+for the same reason — the driver's budget stops are priced in work.
+Counts move 74/14/6 -> 73 ok / 16 overrun / 5 DISAGREE; stocfor3's
+settling disagreement (breach 3.15, D252) is budget-masked again.

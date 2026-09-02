@@ -32,8 +32,7 @@ import sys
 p = sys.argv[1]
 s = open(p).read()
 old = """    svec_release(&lacc, &lu->l_index, &lu->l_value);
-
-done:"""
+"""
 new = """    svec_release(&lacc, &lu->l_index, &lu->l_value);
 
     {
@@ -45,8 +44,7 @@ new = """    svec_release(&lacc, &lu->l_index, &lu->l_value);
                 (long long)dim, (long long)start[dim],
                 (long long)fill_lnz, (long long)fill_unz);
     }
-
-done:"""
+"""
 if s.count(old) != 1:
     sys.exit("FILL patch anchor found %d times in %s, want 1" % (s.count(old), p))
 s = "#include <stdio.h>\n" + s.replace(old, new)

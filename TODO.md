@@ -32,12 +32,14 @@ Seven budget stops relabeled honestly, fixing the `jaos_set_work_limit`
 resume contract (D250). The round backstop to 256 with 512 refused on a
 byte-identical record (D251). The fixed-column question that run left
 open closed the next day: a fixed column never joins the dual ratio
-test, netlib geomean 0.9449x, accepted with its flags named (D252). The
-forced primal stands at **74 ok / 14 overrun / 6 disagreed** — the
-three ok → overrun moves are the 10x-of-dual bar tightening under a
-cheaper dual, not the primal slowing (D252) — and all six disagreements
-are named and owned in the bullet below. What remains there is design
-work or a maintainer decision.
+test, netlib geomean 0.9449x, accepted with its flags named (D252).
+BTRAN's L' pass computes only its reachable slots since D253, with
+every digest and iteration count byte-identical. The forced primal's
+counts live in `bench/results/primal.txt` and are not restated here:
+its overrun bar is 10x the dual's own work, so any change to the dual's
+cost or billing moves boundary instances between columns (D252, D253).
+The disagreement family is named and owned in the bullet below; what
+remains there is design work or a maintainer decision.
 
 **Also 2026-09-02: the multi-column ray is decided (D247).** The lent-bound
 verdict tries one combined direction — every held column off its loan at
@@ -122,29 +124,30 @@ them.
 
 ### → what is open and needs no decision, smallest first
 
-- **The forced primal reads 75 ok, 16 DISAGREE, 3 overrun**, against 61 / 30
-  / 3 before 2026-09-01. **Fourteen of the thirty were a round budget and not
-  a numerical problem**: `SETTLE_ROUNDS` was 32, the re-entry used all of them
-  with the violation still falling, and the constant's own comment called it
-  a backstop that does not bind (D245, `bench/measurements/02-157/`).
-- **The forced primal's remaining disagreements: 6** (since D252:
-  `cycle` sits behind the tightened overrun bar instead, and `stocfor3`
-  finishes under it and disagrees at settling, breach 3.15). Three
+- **D245 moved the forced primal from 61 / 30 / 3 to 75 / 16 / 3**
+  (ok / DISAGREE / overrun, as read then; the current counts live in
+  `bench/results/primal.txt`). **Fourteen of the thirty were a round
+  budget and not a numerical problem**: `SETTLE_ROUNDS` was 32, the
+  re-entry used all of them with the violation still falling, and the
+  constant's own comment called it a backstop that does not bind (D245,
+  `bench/measurements/02-157/`).
+- **The forced primal's disagreement family, named and owned.** Three
   re-entries are stuck in ways no round budget reaches — `modszk1`'s
   objective never moving once, `scsd8`'s violation pinned at ~181 (the
-  trace is `02-161/`), `stocfor3`'s settled point not dual feasible —
+  trace is `02-161/`), `stocfor3`'s settled point not dual feasible
+  (breach 3.15, D252; since D253 the overrun bar masks it again) —
   which is D89's oscillation family and a design question, not a
-  constant. `d6cube` and `truss` grind far from target at decelerating
-  rates, which is the pricing rule's cost and stage 5's territory. The
-  sixth is `pilot87`, and it is its own family: the primal phase 1
-  diverges — total infeasibility 1268x its own best at iteration 19532 —
-  and D218's guard refuses before phase 2 ever runs, on the instance
-  whose conditioning already splits the published optima of other
-  solvers (D183). A fix is phase-1 design work, not a constant.
-  `SETTLE_ROUNDS_PRIMAL` sits at 256 with 512 refused on a
-  byte-identical record (D251). **D244's reopen condition is the whole
-  family fixed**, and these six are what stands between the pricing
-  question and the table.
+  constant. `cycle` is the same family, behind the bar since D252.
+  `d6cube` and `truss` grind far from target at decelerating rates,
+  which is the pricing rule's cost and stage 5's territory. `pilot87`
+  is its own family: the primal phase 1 diverges — total infeasibility
+  1268x its own best at iteration 19532 — and D218's guard refuses
+  before phase 2 ever runs, on the instance whose conditioning already
+  splits the published optima of other solvers (D183). A fix is phase-1
+  design work, not a constant. `SETTLE_ROUNDS_PRIMAL` sits at 256 with
+  512 refused on a byte-identical record (D251). **D244's reopen
+  condition is the whole family fixed**, and this family is what stands
+  between the pricing question and the table.
 
 Not next, and each says why in `SPECS.md`: barrier and crossover (the
 starting point is undecided), MILP (a whole subsystem), D97 (needs

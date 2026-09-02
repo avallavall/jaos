@@ -260,6 +260,7 @@ and you have the argument. Jump to the entry for the numbers behind it.
 - **[D250](#d250--a-budget-stop-inside-the-re-entry-is-the-solves-verdict-not-a-numerical-error)** — A budget stop inside the re-entry is the solve's verdict, not a numerical error
 - **[D251](#d251--three-of-the-seven-round-exhausted-re-entries-are-stuck-not-slow-and-256-is-the-plateaus-edge)** — Three of the seven round-exhausted re-entries are stuck, not slow, and 256 is the plateau's edge
 - **[D252](#d252--a-fixed-column-never-joins-the-dual-ratio-test)** — A fixed column never joins the dual ratio test
+- **[D253](#d253--btrans-l-pass-walks-its-pattern-not-every-slot)** — BTRAN's L' pass walks its pattern, not every slot
 
 ---
 
@@ -19256,3 +19257,36 @@ for overrun the same way, and `stocfor3` now finishes under the bar and
 disagrees at settling (breach 3.15) — the family stays at six.
 **Accepted**; the three baselines are rewritten deliberately with every
 flag named here.
+
+## D253 — BTRAN's L' pass walks its pattern, not every slot
+
+**The question.** `SPECS.md` row for hyper-sparsity named the missing
+half: a solve pass billed per slot that walks every slot rather than
+the pattern. The one such pass is BTRAN's final L' dot-product walk,
+which bills all of nnz(L) on every call however sparse the answer is.
+The U' pass has had its reachability DFS since D36. What does giving
+L' the same mechanism cost and buy?
+
+**The change.** A row structure of L (indices only, built once per
+full-rank factorization; updates never touch L) feeds the same DFS the
+U' pass uses, reusing its stamped workspace. A computed slot runs the
+identical dot product over the identical column in the identical order,
+so every digest must come back byte-identical; a skipped slot is
+exactly zero. The DFS bills its edges, the D36 convention.
+
+**The measurement** (`bench/measurements/02-163/`). All five
+configurations pass. **Zero digest changes and zero iteration changes on
+all 139 instances** — the identity claim, confirmed by the gate rather
+than assumed. Work: Kennington geomean **0.9862x** (`cre-a` 0.9350x, the
+pds family to 0.9697x; the ken models barely move because their network
+bases factor with almost no fill, and nnz(L) bounds what this pass can
+save); standard netlib **1.0088x** (worst `dfl001` 1.0689x) — the DFS
+edge billing outweighs the pattern where results are not sparse; the
+infeasible 29 hold every verdict. **Accepted switchless on D36's
+precedent**: the win grows with size and sparsity, the cost is bounded
+by the billing convention, and a density switch is the named follow-up
+if the standard set's 0.88% ever matters. The primal record re-prices
+its 10x-of-dual bar with the dual's billing: `ganges` and `stocfor3`
+cross back to overrun (the counts move 74/14/6 → 73/16/5), and
+`stocfor3`'s settling disagreement (D252) is budget-masked again — the
+counts belong to `bench/results/primal.txt`, not to prose.

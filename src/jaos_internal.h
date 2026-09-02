@@ -568,13 +568,21 @@ typedef struct {
     double *tmp;         /* [dim] solve workspace, owned */
     double *spike;       /* [dim] update workspace, owned */
 
-    /* Reachability workspace for BTRAN's U' pass [9]. `mark` is stamped
-     * rather than cleared. */
+    /* Reachability workspace for BTRAN's U' and L' passes [9]. `mark` is
+     * stamped rather than cleared. */
     int64_t *mark;       /* [dim] visit stamp                            */
     int64_t stamp;       /* current stamp; mark[s] == stamp means visited */
     int64_t *dfs_node;   /* [dim] explicit DFS stack: node at each level  */
     int64_t *dfs_next;   /* [dim] and how far into its row it has got     */
     int64_t *pattern;    /* [dim] reachable slots, in topological order   */
+
+    /* L by row, structure only, for the L' reachability pass: row t lists
+     * the slots s whose column of L carries row t (each s < t), ascending.
+     * The solve's arithmetic still reads the column form; this is only who
+     * feeds whom. Built once per full-rank factorization; updates never
+     * touch L (D253). */
+    int64_t *lrow_start; /* [dim + 1] */
+    int64_t *lrow_index; /* [nnz(L)]  */
 } jm_lu;
 
 void jm_lu_init(jm_lu *lu);

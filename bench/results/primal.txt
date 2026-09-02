@@ -1,107 +1,107 @@
 # instance    verdict   dual=iters/work  primal=iters/work  split=p1/p2/dual-re-entry
-25fv47       overrun   dual=2644/68280686 split=p1:5368/p2:1/dual:10665 over 10x the dual's work
-80bau3b      overrun   dual=3616/67601531 split=p1:2416/p2:3/dual:14323 over 10x the dual's work
-adlittle     ok        dual=70/141512 primal=159/380023 split=p1:89/p2:1/dual:69 verdict=optimal/optimal obj=225494.96316238036/225494.96316238036 checker=dual:ok/primal:ok 
-afiro        ok        dual=18/12993 primal=20/25540 split=p1:18/p2:1/dual:1 verdict=optimal/optimal obj=-464.75314285714285/-464.75314285714285 checker=dual:ok/primal:ok 
-agg          ok        dual=186/908826 primal=480/3098859 split=p1:398/p2:1/dual:81 verdict=optimal/optimal obj=-35991767.286576502/-35991767.286576502 checker=dual:ok/primal:ok 
-agg2         ok        dual=288/1691816 primal=960/8464706 split=p1:728/p2:1/dual:231 verdict=optimal/optimal obj=-20239252.355977111/-20239252.355977111 checker=dual:ok/primal:ok 
-agg3         ok        dual=676/5986872 primal=1011/8987600 split=p1:690/p2:1/dual:320 verdict=optimal/optimal obj=10312115.935089223/10312115.935089223 checker=dual:ok/primal:ok 
-bandm        ok        dual=421/3162886 primal=1240/11787006 split=p1:837/p2:1/dual:402 verdict=optimal/optimal obj=-158.62801845012066/-158.62801845012066 checker=dual:ok/primal:ok 
-beaconfd     ok        dual=78/87635 primal=105/289107 split=p1:73/p2:1/dual:31 verdict=optimal/optimal obj=33592.485807199999/33592.485807199999 checker=dual:ok/primal:ok 
-blend        ok        dual=93/178675 primal=179/779966 split=p1:111/p2:1/dual:67 verdict=optimal/optimal obj=-30.812149845828223/-30.812149845828223 checker=dual:ok/primal:ok 
-bnl1         ok        dual=802/7578391 primal=2905/53973911 split=p1:1741/p2:1/dual:1163 verdict=optimal/optimal obj=1977.6295615228885/1977.6295615228878 checker=dual:ok/primal:ok 
-bnl2         overrun   dual=1719/22064722 split=p1:3666/p2:1/dual:949 over 10x the dual's work
-boeing1      ok        dual=374/1894478 primal=1319/10139368 split=p1:878/p2:1/dual:440 verdict=optimal/optimal obj=-335.21356750712664/-335.21356750712664 checker=dual:ok/primal:ok 
-boeing2      ok        dual=118/322703 primal=363/1291255 split=p1:303/p2:1/dual:59 verdict=optimal/optimal obj=-315.0187280152029/-315.0187280152029 checker=dual:ok/primal:ok 
-bore3d       ok        dual=134/355144 primal=150/893779 split=p1:134/p2:1/dual:15 verdict=optimal/optimal obj=1373.0803942084929/1373.0803942084929 checker=dual:ok/primal:ok 
-brandy       ok        dual=225/1431540 primal=565/4834000 split=p1:285/p2:1/dual:279 verdict=optimal/optimal obj=1518.5098964881283/1518.5098964881283 checker=dual:ok/primal:ok 
-capri        ok        dual=258/435518 primal=528/2842012 split=p1:404/p2:1/dual:123 verdict=optimal/optimal obj=2690.0129137681615/2690.0129137681615 checker=dual:ok/primal:ok 
-cycle        overrun   dual=910/12658004 split=p1:555/p2:1/dual:6044 over 10x the dual's work
-czprob       ok        dual=1154/12905997 primal=4653/95537111 split=p1:2151/p2:1/dual:2501 verdict=optimal/optimal obj=2185196.6988565773/2185196.6988565773 checker=dual:ok/primal:ok 
-d2q06c       overrun   dual=27935/2140501631 split=p1:8867/p2:2/dual:202525 over 10x the dual's work
-d6cube       DISAGREE  dual=419/24799711 primal=19331/845160940 split=p1:2690/p2:1/dual:16640 verdict=optimal/numerical error obj=315.49166666666667/0 checker=dual:ok/primal:n/a different verdicts: the settled point is not dual feasible: a reduced cost breaches its bound by 12.7354 after settling, from a cold start; publishing that as OPTIMAL would certify a point the reduced costs do not support
-degen2       ok        dual=577/5334249 primal=5141/81347802 split=p1:1873/p2:1/dual:3267 verdict=optimal/optimal obj=-1435.1780000000001/-1435.1780000000001 checker=dual:ok/primal:ok 
-degen3       overrun   dual=2364/75229162 split=p1:13403/p2:0/dual:0 over 10x the dual's work
-dfl001       overrun   dual=21938/2668461203 split=p1:115818/p2:0/dual:0 over 10x the dual's work
-e226         ok        dual=265/1538499 primal=1037/8880994 split=p1:434/p2:1/dual:602 verdict=optimal/optimal obj=-11.638929066370549/-11.638929066370551 checker=dual:ok/primal:ok 
-etamacro     ok        dual=560/3457700 primal=1221/9299997 split=p1:499/p2:1/dual:721 verdict=optimal/optimal obj=-755.7152333749134/-755.7152333749134 checker=dual:ok/primal:ok 
-fffff800     ok        dual=1200/10228394 primal=1164/14137071 split=p1:777/p2:1/dual:386 verdict=optimal/optimal obj=555679.56481749623/555679.56481749623 checker=dual:ok/primal:ok 
-finnis       ok        dual=281/526939 primal=797/4832291 split=p1:280/p2:1/dual:516 verdict=optimal/optimal obj=172791.06567185125/172791.06567668528 checker=dual:ok/primal:ok 
-fit1d        ok        dual=66/1681050 primal=731/16062416 split=p1:618/p2:1/dual:112 verdict=optimal/optimal obj=-9146.3780924209277/-9146.3780924209277 checker=dual:ok/primal:ok 
-fit1p        overrun   dual=494/13354704 split=p1:1296/p2:1/dual:3684 over 10x the dual's work
-fit2d        ok        dual=131/72873181 primal=2609/648418498 split=p1:2330/p2:3/dual:276 verdict=optimal/optimal obj=-68464.293293832074/-68464.293293832074 checker=dual:ok/primal:ok 
-fit2p        ok        dual=4663/657247720 primal=26949/3991388486 split=p1:11702/p2:1/dual:15246 verdict=optimal/optimal obj=68464.293293832074/68464.293293832074 checker=dual:ok/primal:ok 
-forplan      ok        dual=184/1140815 primal=536/5276579 split=p1:229/p2:1/dual:306 verdict=optimal/optimal obj=-664.21896127220464/-664.21896127220464 checker=dual:ok/primal:ok 
-ganges       ok        dual=1207/3372001 primal=1738/33497828 split=p1:1660/p2:1/dual:77 verdict=optimal/optimal obj=-109585.73612927823/-109585.7361292782 checker=dual:ok/primal:ok 
+25fv47       overrun   dual=2644/70700607 split=p1:5368/p2:1/dual:10342 over 10x the dual's work
+80bau3b      overrun   dual=3616/66807625 split=p1:2416/p2:3/dual:14080 over 10x the dual's work
+adlittle     ok        dual=70/142060 primal=159/386845 split=p1:89/p2:1/dual:69 verdict=optimal/optimal obj=225494.96316238036/225494.96316238036 checker=dual:ok/primal:ok 
+afiro        ok        dual=18/12973 primal=20/25520 split=p1:18/p2:1/dual:1 verdict=optimal/optimal obj=-464.75314285714285/-464.75314285714285 checker=dual:ok/primal:ok 
+agg          ok        dual=186/913305 primal=480/3106664 split=p1:398/p2:1/dual:81 verdict=optimal/optimal obj=-35991767.286576502/-35991767.286576502 checker=dual:ok/primal:ok 
+agg2         ok        dual=288/1701733 primal=960/8483620 split=p1:728/p2:1/dual:231 verdict=optimal/optimal obj=-20239252.355977111/-20239252.355977111 checker=dual:ok/primal:ok 
+agg3         ok        dual=676/6074236 primal=1011/9006838 split=p1:690/p2:1/dual:320 verdict=optimal/optimal obj=10312115.935089223/10312115.935089223 checker=dual:ok/primal:ok 
+bandm        ok        dual=421/3237020 primal=1240/12156171 split=p1:837/p2:1/dual:402 verdict=optimal/optimal obj=-158.62801845012066/-158.62801845012066 checker=dual:ok/primal:ok 
+beaconfd     ok        dual=78/87635 primal=105/289156 split=p1:73/p2:1/dual:31 verdict=optimal/optimal obj=33592.485807199999/33592.485807199999 checker=dual:ok/primal:ok 
+blend        ok        dual=93/180360 primal=179/794340 split=p1:111/p2:1/dual:67 verdict=optimal/optimal obj=-30.812149845828223/-30.812149845828223 checker=dual:ok/primal:ok 
+bnl1         ok        dual=802/7684512 primal=2905/55571109 split=p1:1741/p2:1/dual:1163 verdict=optimal/optimal obj=1977.6295615228885/1977.6295615228878 checker=dual:ok/primal:ok 
+bnl2         overrun   dual=1719/22025587 split=p1:3666/p2:1/dual:783 over 10x the dual's work
+boeing1      ok        dual=374/1890352 primal=1319/10245071 split=p1:878/p2:1/dual:440 verdict=optimal/optimal obj=-335.21356750712664/-335.21356750712664 checker=dual:ok/primal:ok 
+boeing2      ok        dual=118/325556 primal=363/1301375 split=p1:303/p2:1/dual:59 verdict=optimal/optimal obj=-315.0187280152029/-315.0187280152029 checker=dual:ok/primal:ok 
+bore3d       ok        dual=134/356600 primal=150/897070 split=p1:134/p2:1/dual:15 verdict=optimal/optimal obj=1373.0803942084929/1373.0803942084929 checker=dual:ok/primal:ok 
+brandy       ok        dual=225/1463818 primal=565/4986073 split=p1:285/p2:1/dual:279 verdict=optimal/optimal obj=1518.5098964881283/1518.5098964881283 checker=dual:ok/primal:ok 
+capri        ok        dual=258/429295 primal=528/2840766 split=p1:404/p2:1/dual:123 verdict=optimal/optimal obj=2690.0129137681615/2690.0129137681615 checker=dual:ok/primal:ok 
+cycle        overrun   dual=910/12597945 split=p1:555/p2:1/dual:6044 over 10x the dual's work
+czprob       ok        dual=1154/12928247 primal=4653/96034326 split=p1:2151/p2:1/dual:2501 verdict=optimal/optimal obj=2185196.6988565773/2185196.6988565773 checker=dual:ok/primal:ok 
+d2q06c       overrun   dual=27935/2244254492 split=p1:8867/p2:2/dual:200641 over 10x the dual's work
+d6cube       DISAGREE  dual=419/25119405 primal=19331/856134818 split=p1:2690/p2:1/dual:16640 verdict=optimal/numerical error obj=315.49166666666667/0 checker=dual:ok/primal:n/a different verdicts: the settled point is not dual feasible: a reduced cost breaches its bound by 12.7354 after settling, from a cold start; publishing that as OPTIMAL would certify a point the reduced costs do not support
+degen2       ok        dual=577/5465552 primal=5141/84538527 split=p1:1873/p2:1/dual:3267 verdict=optimal/optimal obj=-1435.1780000000001/-1435.1780000000001 checker=dual:ok/primal:ok 
+degen3       overrun   dual=2364/77686234 split=p1:13607/p2:0/dual:0 over 10x the dual's work
+dfl001       overrun   dual=21938/2852360650 split=p1:118171/p2:0/dual:0 over 10x the dual's work
+e226         ok        dual=265/1563186 primal=1037/9082710 split=p1:434/p2:1/dual:602 verdict=optimal/optimal obj=-11.638929066370549/-11.638929066370551 checker=dual:ok/primal:ok 
+etamacro     ok        dual=560/3477641 primal=1221/9368238 split=p1:499/p2:1/dual:721 verdict=optimal/optimal obj=-755.7152333749134/-755.7152333749134 checker=dual:ok/primal:ok 
+fffff800     ok        dual=1200/10291622 primal=1164/14178998 split=p1:777/p2:1/dual:386 verdict=optimal/optimal obj=555679.56481749623/555679.56481749623 checker=dual:ok/primal:ok 
+finnis       ok        dual=281/521722 primal=797/4844873 split=p1:280/p2:1/dual:516 verdict=optimal/optimal obj=172791.06567185125/172791.06567668528 checker=dual:ok/primal:ok 
+fit1d        ok        dual=66/1681250 primal=731/16101111 split=p1:618/p2:1/dual:112 verdict=optimal/optimal obj=-9146.3780924209277/-9146.3780924209277 checker=dual:ok/primal:ok 
+fit1p        overrun   dual=494/13381180 split=p1:1296/p2:1/dual:3683 over 10x the dual's work
+fit2d        ok        dual=131/72878407 primal=2609/648518022 split=p1:2330/p2:3/dual:276 verdict=optimal/optimal obj=-68464.293293832074/-68464.293293832074 checker=dual:ok/primal:ok 
+fit2p        ok        dual=4663/657680369 primal=26949/3994494497 split=p1:11702/p2:1/dual:15246 verdict=optimal/optimal obj=68464.293293832074/68464.293293832074 checker=dual:ok/primal:ok 
+forplan      ok        dual=184/1152912 primal=536/5353598 split=p1:229/p2:1/dual:306 verdict=optimal/optimal obj=-664.21896127220464/-664.21896127220464 checker=dual:ok/primal:ok 
+ganges       overrun   dual=1207/3184040 split=p1:1624/p2:0/dual:0 over 10x the dual's work
 gfrd-pnc     ok        dual=547/3002997 primal=755/7187146 split=p1:435/p2:1/dual:319 verdict=optimal/optimal obj=6902235.9995488087/6902235.9995488087 checker=dual:ok/primal:ok 
-greenbea     overrun   dual=3601/151460066 split=p1:5653/p2:1/dual:12988 over 10x the dual's work
-greenbeb     ok        dual=9795/536097847 primal=58949/4595407747 split=p1:5105/p2:1/dual:53843 verdict=optimal/optimal obj=-4302260.2612065868/-4302260.2612065868 checker=dual:ok/primal:ok 
-grow15       ok        dual=1871/36887743 primal=1040/22106020 split=p1:445/p2:1/dual:594 verdict=optimal/optimal obj=-106870941.29357533/-106870941.29357533 checker=dual:ok/primal:ok 
-grow22       ok        dual=52901/1535156517 primal=30387/940271891 split=p1:764/p2:1/dual:29622 verdict=optimal/optimal obj=-160834336.48256308/-160834336.48256296 checker=dual:ok/primal:ok 
-grow7        ok        dual=614/8040146 primal=383/4325400 split=p1:207/p2:1/dual:175 verdict=optimal/optimal obj=-47787811.814711504/-47787811.814711504 checker=dual:ok/primal:ok 
-israel       ok        dual=100/592566 primal=851/7438891 split=p1:371/p2:1/dual:479 verdict=optimal/optimal obj=-896644.82186304568/-896644.8218630458 checker=dual:ok/primal:ok 
-kb2          ok        dual=51/73549 primal=55/118534 split=p1:1/p2:1/dual:53 verdict=optimal/optimal obj=-1749.9001299062058/-1749.9001299062058 checker=dual:ok/primal:ok 
-lotfi        ok        dual=260/1031480 primal=322/1142742 split=p1:146/p2:1/dual:175 verdict=optimal/optimal obj=-25.264706061880005/-25.264706061880005 checker=dual:ok/primal:ok 
-maros        ok        dual=1133/12915805 primal=3563/63237345 split=p1:1173/p2:1/dual:2389 verdict=optimal/optimal obj=-58063.743701125903/-58063.743701125903 checker=dual:ok/primal:ok 
-maros-r7     overrun   dual=2597/312460295 split=p1:5678/p2:0/dual:0 over 10x the dual's work
-modszk1      DISAGREE  dual=646/6881958 primal=4058/102839709 split=p1:14/p2:1/dual:4043 verdict=optimal/numerical error obj=320.61972906430327/0 checker=dual:ok/primal:n/a different verdicts: the settled point is not dual feasible: a reduced cost breaches its bound by 1.70365 after settling, from a cold start; publishing that as OPTIMAL would certify a point the reduced costs do not support
-nesm         ok        dual=2586/55800787 primal=6166/144763671 split=p1:2053/p2:1/dual:4112 verdict=optimal/optimal obj=14076036.487562733/14076036.487562733 checker=dual:ok/primal:ok 
-perold       ok        dual=2299/60622131 primal=7578/252503120 split=p1:2025/p2:1/dual:5552 verdict=optimal/optimal obj=-9380.7552782351613/-9380.7552782351613 checker=dual:ok/primal:ok 
-pilot        ok        dual=20304/4019197108 primal=49328/16610690951 split=p1:11795/p2:2/dual:37531 verdict=optimal/optimal obj=-557.4897292893346/-557.48972928406818 checker=dual:ok/primal:ok 
-pilot-ja     overrun   dual=2218/79991319 split=p1:5704/p2:1/dual:9462 over 10x the dual's work
-pilot-we     overrun   dual=2289/63209447 split=p1:1894/p2:1/dual:14943 over 10x the dual's work
-pilot4       ok        dual=686/16555316 primal=4424/115153955 split=p1:2227/p2:1/dual:2196 verdict=optimal/optimal obj=-2581.1392588838889/-2581.1392588838889 checker=dual:ok/primal:ok 
-pilot87      DISAGREE  dual=37362/17205098025 primal=19532/4234464248 split=p1:19532/p2:0/dual:0 verdict=optimal/numerical error obj=301.71034733311052/0 checker=dual:ok/primal:n/a different verdicts: the primal phase 1's total infeasibility stands at 1.71098e+15 at iteration 19532, 1267.85 times its own best of 1.34951e+12, on a freshly computed point; the basis it is pivoting on is too ill-conditioned for another pivot to repair the start
-pilotnov     overrun   dual=1705/59123586 split=p1:1621/p2:2/dual:9861 over 10x the dual's work
+greenbea     overrun   dual=3601/155149480 split=p1:5653/p2:1/dual:12502 over 10x the dual's work
+greenbeb     ok        dual=9795/560955378 primal=58949/4859881016 split=p1:5105/p2:1/dual:53843 verdict=optimal/optimal obj=-4302260.2612065868/-4302260.2612065868 checker=dual:ok/primal:ok 
+grow15       ok        dual=1871/37290690 primal=1040/22599685 split=p1:445/p2:1/dual:594 verdict=optimal/optimal obj=-106870941.29357533/-106870941.29357533 checker=dual:ok/primal:ok 
+grow22       ok        dual=52901/1566663146 primal=30387/1002701609 split=p1:764/p2:1/dual:29622 verdict=optimal/optimal obj=-160834336.48256308/-160834336.48256296 checker=dual:ok/primal:ok 
+grow7        ok        dual=614/8403755 primal=383/4555895 split=p1:207/p2:1/dual:175 verdict=optimal/optimal obj=-47787811.814711504/-47787811.814711504 checker=dual:ok/primal:ok 
+israel       ok        dual=100/597266 primal=851/7573588 split=p1:371/p2:1/dual:479 verdict=optimal/optimal obj=-896644.82186304568/-896644.8218630458 checker=dual:ok/primal:ok 
+kb2          ok        dual=51/73693 primal=55/119397 split=p1:1/p2:1/dual:53 verdict=optimal/optimal obj=-1749.9001299062058/-1749.9001299062058 checker=dual:ok/primal:ok 
+lotfi        ok        dual=260/1041595 primal=322/1144775 split=p1:146/p2:1/dual:175 verdict=optimal/optimal obj=-25.264706061880005/-25.264706061880005 checker=dual:ok/primal:ok 
+maros        ok        dual=1133/13059323 primal=3563/64487980 split=p1:1173/p2:1/dual:2389 verdict=optimal/optimal obj=-58063.743701125903/-58063.743701125903 checker=dual:ok/primal:ok 
+maros-r7     overrun   dual=2597/312724262 split=p1:5591/p2:0/dual:0 over 10x the dual's work
+modszk1      DISAGREE  dual=646/7001140 primal=4058/104395860 split=p1:14/p2:1/dual:4043 verdict=optimal/numerical error obj=320.61972906430327/0 checker=dual:ok/primal:n/a different verdicts: the settled point is not dual feasible: a reduced cost breaches its bound by 1.70365 after settling, from a cold start; publishing that as OPTIMAL would certify a point the reduced costs do not support
+nesm         ok        dual=2586/56504108 primal=6166/145877968 split=p1:2053/p2:1/dual:4112 verdict=optimal/optimal obj=14076036.487562733/14076036.487562733 checker=dual:ok/primal:ok 
+perold       ok        dual=2299/64134926 primal=7578/268083705 split=p1:2025/p2:1/dual:5552 verdict=optimal/optimal obj=-9380.7552782351613/-9380.7552782351613 checker=dual:ok/primal:ok 
+pilot        ok        dual=20304/4211269653 primal=49328/17591342339 split=p1:11795/p2:2/dual:37531 verdict=optimal/optimal obj=-557.4897292893346/-557.48972928406818 checker=dual:ok/primal:ok 
+pilot-ja     overrun   dual=2218/83664219 split=p1:5704/p2:1/dual:9384 over 10x the dual's work
+pilot-we     overrun   dual=2289/65171700 split=p1:1894/p2:1/dual:14688 over 10x the dual's work
+pilot4       ok        dual=686/17256145 primal=4424/120065744 split=p1:2227/p2:1/dual:2196 verdict=optimal/optimal obj=-2581.1392588838889/-2581.1392588838889 checker=dual:ok/primal:ok 
+pilot87      DISAGREE  dual=37362/18197088108 primal=19532/4447095543 split=p1:19532/p2:0/dual:0 verdict=optimal/numerical error obj=301.71034733311052/0 checker=dual:ok/primal:n/a different verdicts: the primal phase 1's total infeasibility stands at 1.71098e+15 at iteration 19532, 1267.85 times its own best of 1.34951e+12, on a freshly computed point; the basis it is pivoting on is too ill-conditioned for another pivot to repair the start
+pilotnov     overrun   dual=1705/61188447 split=p1:1621/p2:2/dual:9670 over 10x the dual's work
 recipe       ok        dual=42/23369 primal=57/80605 split=p1:37/p2:1/dual:19 verdict=optimal/optimal obj=-266.61599999999999/-266.61599999999999 checker=dual:ok/primal:ok 
-sc105        ok        dual=100/122133 primal=95/414542 split=p1:1/p2:1/dual:93 verdict=optimal/optimal obj=-52.202061211707239/-52.202061211707239 checker=dual:ok/primal:ok 
-sc205        ok        dual=209/541320 primal=242/1429975 split=p1:1/p2:1/dual:240 verdict=optimal/optimal obj=-52.202061211707232/-52.202061211707232 checker=dual:ok/primal:ok 
-sc50a        ok        dual=46/34393 primal=46/184654 split=p1:1/p2:1/dual:44 verdict=optimal/optimal obj=-64.575077058564489/-64.575077058564489 checker=dual:ok/primal:ok 
-sc50b        ok        dual=48/34183 primal=51/195642 split=p1:1/p2:1/dual:49 verdict=optimal/optimal obj=-70/-70 checker=dual:ok/primal:ok 
-scagr25      ok        dual=513/2260076 primal=933/7971489 split=p1:653/p2:1/dual:279 verdict=optimal/optimal obj=-14753433.06076852/-14753433.06076852 checker=dual:ok/primal:ok 
-scagr7       ok        dual=168/366805 primal=227/618550 split=p1:152/p2:1/dual:74 verdict=optimal/optimal obj=-2331389.8243309837/-2331389.8243309837 checker=dual:ok/primal:ok 
-scfxm1       ok        dual=413/1827212 primal=636/5479875 split=p1:354/p2:1/dual:281 verdict=optimal/optimal obj=18416.759028348944/18416.759028348944 checker=dual:ok/primal:ok 
-scfxm2       ok        dual=888/5466894 primal=1251/16109229 split=p1:739/p2:1/dual:511 verdict=optimal/optimal obj=36660.261564998815/36660.261564998815 checker=dual:ok/primal:ok 
-scfxm3       ok        dual=1335/10961336 primal=3057/55973854 split=p1:1086/p2:1/dual:1970 verdict=optimal/optimal obj=54901.254549751458/54901.254549751458 checker=dual:ok/primal:ok 
-scorpion     ok        dual=249/478502 primal=337/2028086 split=p1:237/p2:1/dual:99 verdict=optimal/optimal obj=1878.1248227381068/1878.1248227381068 checker=dual:ok/primal:ok 
-scrs8        ok        dual=490/1900275 primal=1524/14988111 split=p1:703/p2:1/dual:820 verdict=optimal/optimal obj=904.29695380079147/904.29695380079147 checker=dual:ok/primal:ok 
-scsd1        ok        dual=98/496409 primal=634/3257549 split=p1:81/p2:1/dual:552 verdict=optimal/optimal obj=8.6666666743333653/8.6666666743333653 checker=dual:ok/primal:ok 
-scsd6        ok        dual=240/1625975 primal=2949/21818090 split=p1:251/p2:1/dual:2697 verdict=optimal/optimal obj=50.500000077144342/50.500000077144342 checker=dual:ok/primal:ok 
-scsd8        DISAGREE  dual=654/7330528 primal=17476/281236639 split=p1:835/p2:1/dual:16640 verdict=optimal/numerical error obj=904.99999992546441/0 checker=dual:ok/primal:n/a different verdicts: the settled point is not dual feasible: a reduced cost breaches its bound by 47.3334 after settling, from a cold start; publishing that as OPTIMAL would certify a point the reduced costs do not support
-sctap1       ok        dual=184/569802 primal=206/1036446 split=p1:158/p2:1/dual:47 verdict=optimal/optimal obj=1412.25/1412.25 checker=dual:ok/primal:ok 
-sctap2       ok        dual=291/968548 primal=1078/9413979 split=p1:282/p2:1/dual:795 verdict=optimal/optimal obj=1724.8071428571429/1724.8071428571429 checker=dual:ok/primal:ok 
-sctap3       ok        dual=369/1281116 primal=1414/16661913 split=p1:426/p2:1/dual:987 verdict=optimal/optimal obj=1424/1424 checker=dual:ok/primal:ok 
-seba         ok        dual=107/183662 primal=131/1183484 split=p1:118/p2:1/dual:12 verdict=optimal/optimal obj=15711.6/15711.6 checker=dual:ok/primal:ok 
-share1b      ok        dual=169/515495 primal=344/1687847 split=p1:150/p2:1/dual:193 verdict=optimal/optimal obj=-76589.318579185667/-76589.318579185681 checker=dual:ok/primal:ok 
-share2b      ok        dual=97/184547 primal=143/424022 split=p1:108/p2:1/dual:34 verdict=optimal/optimal obj=-415.73224074141922/-415.73224074141945 checker=dual:ok/primal:ok 
+sc105        ok        dual=100/123337 primal=95/417227 split=p1:1/p2:1/dual:93 verdict=optimal/optimal obj=-52.202061211707239/-52.202061211707239 checker=dual:ok/primal:ok 
+sc205        ok        dual=209/547834 primal=242/1455834 split=p1:1/p2:1/dual:240 verdict=optimal/optimal obj=-52.202061211707232/-52.202061211707232 checker=dual:ok/primal:ok 
+sc50a        ok        dual=46/34617 primal=46/185429 split=p1:1/p2:1/dual:44 verdict=optimal/optimal obj=-64.575077058564489/-64.575077058564489 checker=dual:ok/primal:ok 
+sc50b        ok        dual=48/34403 primal=51/196335 split=p1:1/p2:1/dual:49 verdict=optimal/optimal obj=-70/-70 checker=dual:ok/primal:ok 
+scagr25      ok        dual=513/2281335 primal=933/8110853 split=p1:653/p2:1/dual:279 verdict=optimal/optimal obj=-14753433.06076852/-14753433.06076852 checker=dual:ok/primal:ok 
+scagr7       ok        dual=168/367953 primal=227/624713 split=p1:152/p2:1/dual:74 verdict=optimal/optimal obj=-2331389.8243309837/-2331389.8243309837 checker=dual:ok/primal:ok 
+scfxm1       ok        dual=413/1824544 primal=636/5529899 split=p1:354/p2:1/dual:281 verdict=optimal/optimal obj=18416.759028348944/18416.759028348944 checker=dual:ok/primal:ok 
+scfxm2       ok        dual=888/5417104 primal=1251/16186085 split=p1:739/p2:1/dual:511 verdict=optimal/optimal obj=36660.261564998815/36660.261564998815 checker=dual:ok/primal:ok 
+scfxm3       ok        dual=1335/10765360 primal=3057/56517551 split=p1:1086/p2:1/dual:1970 verdict=optimal/optimal obj=54901.254549751458/54901.254549751458 checker=dual:ok/primal:ok 
+scorpion     ok        dual=249/465993 primal=337/2040411 split=p1:237/p2:1/dual:99 verdict=optimal/optimal obj=1878.1248227381068/1878.1248227381068 checker=dual:ok/primal:ok 
+scrs8        ok        dual=490/1899816 primal=1524/15101162 split=p1:703/p2:1/dual:820 verdict=optimal/optimal obj=904.29695380079147/904.29695380079147 checker=dual:ok/primal:ok 
+scsd1        ok        dual=98/498349 primal=634/3289194 split=p1:81/p2:1/dual:552 verdict=optimal/optimal obj=8.6666666743333653/8.6666666743333653 checker=dual:ok/primal:ok 
+scsd6        ok        dual=240/1631721 primal=2949/21883506 split=p1:251/p2:1/dual:2697 verdict=optimal/optimal obj=50.500000077144342/50.500000077144342 checker=dual:ok/primal:ok 
+scsd8        DISAGREE  dual=654/7357328 primal=17476/279958529 split=p1:835/p2:1/dual:16640 verdict=optimal/numerical error obj=904.99999992546441/0 checker=dual:ok/primal:n/a different verdicts: the settled point is not dual feasible: a reduced cost breaches its bound by 47.3334 after settling, from a cold start; publishing that as OPTIMAL would certify a point the reduced costs do not support
+sctap1       ok        dual=184/571254 primal=206/1038654 split=p1:158/p2:1/dual:47 verdict=optimal/optimal obj=1412.25/1412.25 checker=dual:ok/primal:ok 
+sctap2       ok        dual=291/966018 primal=1078/9358143 split=p1:282/p2:1/dual:795 verdict=optimal/optimal obj=1724.8071428571429/1724.8071428571429 checker=dual:ok/primal:ok 
+sctap3       ok        dual=369/1278546 primal=1414/16541621 split=p1:426/p2:1/dual:987 verdict=optimal/optimal obj=1424/1424 checker=dual:ok/primal:ok 
+seba         ok        dual=107/183662 primal=131/1183490 split=p1:118/p2:1/dual:12 verdict=optimal/optimal obj=15711.6/15711.6 checker=dual:ok/primal:ok 
+share1b      ok        dual=169/521477 primal=344/1724559 split=p1:150/p2:1/dual:193 verdict=optimal/optimal obj=-76589.318579185667/-76589.318579185681 checker=dual:ok/primal:ok 
+share2b      ok        dual=97/185379 primal=143/428604 split=p1:108/p2:1/dual:34 verdict=optimal/optimal obj=-415.73224074141922/-415.73224074141945 checker=dual:ok/primal:ok 
 shell        ok        dual=492/1777779 primal=911/7796809 split=p1:550/p2:1/dual:360 verdict=optimal/optimal obj=1208825346/1208825346 checker=dual:ok/primal:ok 
-ship04l      ok        dual=407/646598 primal=748/6781926 split=p1:453/p2:1/dual:294 verdict=optimal/optimal obj=1793324.5379703557/1793324.5379703557 checker=dual:ok/primal:ok 
-ship04s      ok        dual=333/431246 primal=392/2576335 split=p1:214/p2:1/dual:177 verdict=optimal/optimal obj=1798714.7004453922/1798714.7004453922 checker=dual:ok/primal:ok 
-ship08l      ok        dual=710/2637328 primal=1612/22675747 split=p1:643/p2:1/dual:968 verdict=optimal/optimal obj=1909055.2113891314/1909055.2113891316 checker=dual:ok/primal:ok 
-ship08s      ok        dual=461/956645 primal=676/4988867 split=p1:287/p2:1/dual:388 verdict=optimal/optimal obj=1920098.2105346196/1920098.2105346196 checker=dual:ok/primal:ok 
-ship12l      ok        dual=1014/4231366 primal=2240/43084341 split=p1:1241/p2:1/dual:998 verdict=optimal/optimal obj=1470187.9193292649/1470187.9193292649 checker=dual:ok/primal:ok 
-ship12s      ok        dual=657/1550937 primal=1004/9343661 split=p1:554/p2:1/dual:449 verdict=optimal/optimal obj=1489236.1344061291/1489236.1344061291 checker=dual:ok/primal:ok 
-sierra       ok        dual=610/1555293 primal=988/11800266 split=p1:493/p2:1/dual:494 verdict=optimal/optimal obj=15394362.183631929/15394362.183631931 checker=dual:ok/primal:ok 
-stair        ok        dual=446/9124805 primal=471/13703234 split=p1:392/p2:1/dual:78 verdict=optimal/optimal obj=-251.26695119296332/-251.26695119296332 checker=dual:ok/primal:ok 
+ship04l      ok        dual=407/646598 primal=748/6772477 split=p1:453/p2:1/dual:294 verdict=optimal/optimal obj=1793324.5379703557/1793324.5379703557 checker=dual:ok/primal:ok 
+ship04s      ok        dual=333/431017 primal=392/2574261 split=p1:214/p2:1/dual:177 verdict=optimal/optimal obj=1798714.7004453922/1798714.7004453922 checker=dual:ok/primal:ok 
+ship08l      ok        dual=710/2619421 primal=1612/22659983 split=p1:643/p2:1/dual:968 verdict=optimal/optimal obj=1909055.2113891314/1909055.2113891316 checker=dual:ok/primal:ok 
+ship08s      ok        dual=461/948597 primal=676/4980844 split=p1:287/p2:1/dual:388 verdict=optimal/optimal obj=1920098.2105346196/1920098.2105346196 checker=dual:ok/primal:ok 
+ship12l      ok        dual=1014/4228054 primal=2240/43062124 split=p1:1241/p2:1/dual:998 verdict=optimal/optimal obj=1470187.9193292649/1470187.9193292649 checker=dual:ok/primal:ok 
+ship12s      ok        dual=657/1549339 primal=1004/9343554 split=p1:554/p2:1/dual:449 verdict=optimal/optimal obj=1489236.1344061291/1489236.1344061291 checker=dual:ok/primal:ok 
+sierra       ok        dual=610/1555293 primal=988/11792641 split=p1:493/p2:1/dual:494 verdict=optimal/optimal obj=15394362.183631929/15394362.183631931 checker=dual:ok/primal:ok 
+stair        ok        dual=446/9450403 primal=471/14258139 split=p1:392/p2:1/dual:78 verdict=optimal/optimal obj=-251.26695119296332/-251.26695119296332 checker=dual:ok/primal:ok 
 standata     ok        dual=55/91946 primal=73/402652 split=p1:57/p2:1/dual:15 verdict=optimal/optimal obj=1257.6994999999999/1257.6994999999999 checker=dual:ok/primal:ok 
-standmps     ok        dual=197/358640 primal=632/3057137 split=p1:163/p2:1/dual:468 verdict=optimal/optimal obj=1406.0174999999999/1406.0174999999999 checker=dual:ok/primal:ok 
-stocfor1     ok        dual=114/223360 primal=210/529983 split=p1:160/p2:1/dual:49 verdict=optimal/optimal obj=-41131.976219436408/-41131.976219436408 checker=dual:ok/primal:ok 
-stocfor2     ok        dual=2266/18384276 primal=4607/116334943 split=p1:2877/p2:2/dual:1728 verdict=optimal/optimal obj=-39024.408537882031/-39024.408537882038 checker=dual:ok/primal:ok 
-stocfor3     DISAGREE  dual=17980/608918953 primal=37354/5868584041 split=p1:21375/p2:1/dual:15978 verdict=optimal/numerical error obj=-39976.783943649592/0 checker=dual:ok/primal:n/a different verdicts: the settled point is not dual feasible: a reduced cost breaches its bound by 3.14972 after settling, from a cold start; publishing that as OPTIMAL would certify a point the reduced costs do not support
-truss        DISAGREE  dual=17732/1140061992 primal=19002/636489275 split=p1:2361/p2:1/dual:16640 verdict=optimal/numerical error obj=458815.84718561673/0 checker=dual:ok/primal:n/a different verdicts: the settled point is not dual feasible: a reduced cost breaches its bound by 668.921 after settling, from a cold start; publishing that as OPTIMAL would certify a point the reduced costs do not support
-tuff         overrun   dual=199/830748 split=p1:542/p2:1/dual:97 over 10x the dual's work
-vtp-base     ok        dual=46/41235 primal=93/162043 split=p1:87/p2:5/dual:1 verdict=optimal/optimal obj=129831.46246136137/129831.46246136136 checker=dual:ok/primal:ok 
-wood1p       ok        dual=550/36517149 primal=857/73036316 split=p1:250/p2:1/dual:606 verdict=optimal/optimal obj=1.442902411573409/1.4429024115734093 checker=dual:ok/primal:ok 
-woodw        ok        dual=1186/39503223 primal=6035/228390365 split=p1:1230/p2:1/dual:4804 verdict=optimal/optimal obj=1.3044763330842295/1.3044763330842295 checker=dual:ok/primal:ok 
+standmps     ok        dual=197/358640 primal=632/3057335 split=p1:163/p2:1/dual:468 verdict=optimal/optimal obj=1406.0174999999999/1406.0174999999999 checker=dual:ok/primal:ok 
+stocfor1     ok        dual=114/226929 primal=210/530308 split=p1:160/p2:1/dual:49 verdict=optimal/optimal obj=-41131.976219436408/-41131.976219436408 checker=dual:ok/primal:ok 
+stocfor2     ok        dual=2266/18050396 primal=4607/116342176 split=p1:2877/p2:2/dual:1728 verdict=optimal/optimal obj=-39024.408537882031/-39024.408537882038 checker=dual:ok/primal:ok 
+stocfor3     overrun   dual=17980/583969024 split=p1:21375/p2:1/dual:15906 over 10x the dual's work
+truss        DISAGREE  dual=17732/1163737072 primal=19002/626364978 split=p1:2361/p2:1/dual:16640 verdict=optimal/numerical error obj=458815.84718561673/0 checker=dual:ok/primal:n/a different verdicts: the settled point is not dual feasible: a reduced cost breaches its bound by 668.921 after settling, from a cold start; publishing that as OPTIMAL would certify a point the reduced costs do not support
+tuff         overrun   dual=199/831452 split=p1:542/p2:1/dual:97 over 10x the dual's work
+vtp-base     ok        dual=46/41359 primal=93/162291 split=p1:87/p2:5/dual:1 verdict=optimal/optimal obj=129831.46246136137/129831.46246136136 checker=dual:ok/primal:ok 
+wood1p       ok        dual=550/37322484 primal=857/75174292 split=p1:250/p2:1/dual:606 verdict=optimal/optimal obj=1.442902411573409/1.4429024115734093 checker=dual:ok/primal:ok 
+woodw        ok        dual=1186/39708721 primal=6035/228756318 split=p1:1230/p2:1/dual:4804 verdict=optimal/optimal obj=1.3044763330842295/1.3044763330842295 checker=dual:ok/primal:ok 
 
 -- primal against dual --
-measured 74, skipped 0, unreached 0, unbounded? 0, overrun 14, disagreed 6, rejected 0, errors 0
-iterations by method: phase 1 290467 (34.9%), phase 2 102 (0.0%), dual re-entry 541486 (65.1%)
-  that is a sum over the set (D46): d2q06c carries 25.4% of it and dfl001 13.9%. Median per-instance phase-1 share 50.1% over 94 instance(s).
-  14 of 94 did not finish inside 10x the dual's work. Dantzig pricing is the worst rule that is still correct, and that is TODO.md section 0 stage 5, not a defect.
-iterations (primal+1)/(dual+1), geometric mean: 2.1815
-work units primal/dual, geometric mean:         4.1731
-work ratio, best  grow7 at 0.5380
-work ratio, worst degen2 at 15.2501
-took more iterations primal than dual:          68 of 74
-bit-identical cost on both sides:               0 of 74
+measured 73, skipped 0, unreached 0, unbounded? 0, overrun 16, disagreed 5, rejected 0, errors 0
+iterations by method: phase 1 292901 (35.3%), phase 2 101 (0.0%), dual re-entry 537710 (64.7%)
+  that is a sum over the set (D46): d2q06c carries 25.2% of it and dfl001 14.2%. Median per-instance phase-1 share 50.1% over 94 instance(s).
+  16 of 94 did not finish inside 10x the dual's work. Dantzig pricing is the worst rule that is still correct, and that is TODO.md section 0 stage 5, not a defect.
+iterations (primal+1)/(dual+1), geometric mean: 2.1940
+work units primal/dual, geometric mean:         4.1431
+work ratio, best  grow7 at 0.5421
+work ratio, worst degen2 at 15.4675
+took more iterations primal than dual:          67 of 73
+bit-identical cost on both sides:               0 of 73
