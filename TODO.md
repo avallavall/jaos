@@ -24,6 +24,18 @@ historical defect reads eight; the validated shares are 0.67% of netlib's
 live columns and 1.09% of fome's against 02-154's 5% bar. The reopen script
 is `bench/measurements/02-07/retest-dualfix.sh`.
 
+**Also 2026-09-02, the autonomous run after v0.2.0 — D246 to D251, all
+pushed.** The dual-fixing count validated and refused (D246). The
+multi-column ray decided (D247). `agg`'s false INFEASIBLE diagnosed to a
+one-ulp residue (D248) and repaired on the third measured shape (D249).
+Seven budget stops relabeled honestly, fixing the `jaos_set_work_limit`
+resume contract (D250). The round backstop to 256 with 512 refused on a
+byte-identical record (D251). The forced primal stands at **77 ok / 11
+overrun / 6 disagreed**, and all six disagreements are named and owned in
+the bullet below. What remains there is design work or a maintainer
+decision; the one measured question left for a fresh session is the
+fixed-column bound-flip candidate.
+
 **Also 2026-09-02: the multi-column ray is decided (D247).** The lent-bound
 verdict tries one combined direction — every held column off its loan at
 unit rate, one FTRAN — and D241's named example answers UNBOUNDED from both
