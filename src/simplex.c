@@ -139,10 +139,13 @@ constexpr double NOISE_MARGIN = 1e5;
  * the standard 94: on `25fv47` all 32 rounds ran with the violation still
  * falling, 784.9 to 10.8, and the objective descending throughout. 128
  * takes the forced primal from 61 instances agreeing with the dual to 75;
- * 64 gives back only 8 of the 14 and 256 buys one further instance, so this
- * is the knee (D245, `bench/measurements/02-157/`). */
+ * 64 gives back only 8 of the 14 (D245, `bench/measurements/02-157/`).
+ * 256 converts one more and moves another to an honest overrun, and 512
+ * is byte-identical to 256 — the plateau — because three of the remaining
+ * trajectories are stuck flat, not slow: no round budget reaches them
+ * (D251, `bench/measurements/02-161/`). */
 constexpr int64_t SETTLE_ROUNDS = 32;
-constexpr int64_t SETTLE_ROUNDS_PRIMAL = 128;
+constexpr int64_t SETTLE_ROUNDS_PRIMAL = 256;
 
 /* How short a mapped starting basis may be and still be repaired rather than
  * refused (D149, D151). */

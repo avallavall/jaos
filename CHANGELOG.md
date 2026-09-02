@@ -19,6 +19,16 @@ open, `bench/README.md` for the gate, and the commit each entry came from.
   the refusal, which says both directions were tried. All three sets and the
   forced-primal record byte-identical (D247).
 
+### Changed
+
+- **`SETTLE_ROUNDS_PRIMAL` is 256, and 512 is refused on a byte-identical
+  record.** The trace behind it: three of the seven round-exhausted
+  re-entries are stuck flat — no budget reaches a frozen trajectory — and
+  of the four still descending, 256 converts `woodw` and moves `stocfor3`
+  to an honest overrun. The forced primal reads 77 ok / 11 overrun / 6
+  disagreed; the gate cannot see the constant and the campaign confirms it
+  (D251, `bench/measurements/02-161/`).
+
 ### Fixed
 
 - **A budget expiring inside the settling re-entry publishes as the stop

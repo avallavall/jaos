@@ -1,0 +1,27 @@
+=== SETTLE_ROUNDS_PRIMAL = 256 ===
+SETTLE_ROUNDS_PRIMAL = 256
+elapsed 103.5 s
+make: *** [Makefile:313: primal] Error 1
+  cycle  DISAGREE
+  d6cube  DISAGREE
+  modszk1  DISAGREE
+  scsd8  DISAGREE
+  stocfor3  overrun
+  truss  DISAGREE
+  woodw  ok
+measured 77, skipped 0, unreached 0, unbounded? 0, overrun 11, disagreed 6, rejected 0, errors 0
+=== SETTLE_ROUNDS_PRIMAL = 512 ===
+SETTLE_ROUNDS_PRIMAL = 512
+elapsed 103.9 s
+make: *** [Makefile:313: primal] Error 1
+  cycle  DISAGREE
+  d6cube  DISAGREE
+  modszk1  DISAGREE
+  scsd8  DISAGREE
+  stocfor3  overrun
+  truss  DISAGREE
+  woodw  ok
+measured 77, skipped 0, unreached 0, unbounded? 0, overrun 11, disagreed 6, rejected 0, errors 0
+SETTLE_ROUNDS_PRIMAL = 128
+=== restored; source diff (must be empty): ===
+=== done ===

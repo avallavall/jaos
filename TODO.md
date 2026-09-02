@@ -112,20 +112,19 @@ them.
   a numerical problem**: `SETTLE_ROUNDS` was 32, the re-entry used all of them
   with the violation still falling, and the constant's own comment called it
   a backstop that does not bind (D245, `bench/measurements/02-157/`).
-- **The forced primal's remaining disagreements: 8, of which seven
-  exhaust all 128 settle rounds** (`cycle`, `d6cube`, `modszk1`, `scsd8`,
-  `stocfor3`, `truss`, `woodw`; the census is `02-160/`). The other seven
-  of D248's family were budget stops mislabeled as numerical errors and
-  read **overrun** honestly now (D250). Next question for the seven: do
-  their trajectories still descend at round 128 (a budget binding, D245's
-  shape — then sweep `SETTLE_ROUNDS_PRIMAL` with
-  `02-157/run-settle-rounds.sh`) or oscillate (D89's shape — then a
-  design question, not a constant)? **D244's reopen condition is the
-  whole family fixed**, and these seven plus one are what stands between
-  the pricing question and the table. The fixed column admitted as a
-  bound-flip candidate (absorbs nothing, can never usefully enter, drains
-  `live`) is a separate measured question D248 flagged and D249 did not
-  touch.
+- **The forced primal's remaining disagreements: 6.** Three re-entries
+  are stuck in ways no round budget reaches — `cycle`'s objective frozen
+  fifty rounds, `modszk1`'s never moving once, `scsd8`'s violation pinned
+  at ~181 (the trace is `02-161/`) — which is D89's oscillation family
+  and a design question, not a constant. `d6cube` and `truss` grind far
+  from target at decelerating rates, which is the pricing rule's cost and
+  stage 5's territory. One more disagrees outside this family and has not
+  been read. `SETTLE_ROUNDS_PRIMAL` sits at 256 with 512 refused on a
+  byte-identical record (D251). **D244's reopen condition is the whole
+  family fixed**, and these six are what stands between the pricing
+  question and the table. The fixed column admitted as a bound-flip
+  candidate (absorbs nothing, can never usefully enter, drains `live`)
+  is a separate measured question D248 flagged and D249 did not touch.
 
 Not next, and each says why in `SPECS.md`: barrier and crossover (the
 starting point is undecided), MILP (a whole subsystem), D97 (needs

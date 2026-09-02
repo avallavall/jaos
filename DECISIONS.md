@@ -258,6 +258,7 @@ and you have the argument. Jump to the entry for the numbers behind it.
 - **[D248](#d248--aggs-round-zero-infeasible-is-a-one-ulp-residue-read-with-no-tolerance)** — agg's round-zero INFEASIBLE is a one-ulp residue read with no tolerance
 - **[D249](#d249--a-flip-gap-at-or-under-the-tolerance-repairs-the-row-instead-of-refusing-the-model)** — A flip gap at or under the tolerance repairs the row instead of refusing the model
 - **[D250](#d250--a-budget-stop-inside-the-re-entry-is-the-solves-verdict-not-a-numerical-error)** — A budget stop inside the re-entry is the solve's verdict, not a numerical error
+- **[D251](#d251--three-of-the-seven-round-exhausted-re-entries-are-stuck-not-slow-and-256-is-the-plateaus-edge)** — Three of the seven round-exhausted re-entries are stuck, not slow, and 256 is the plateau's edge
 
 ---
 
@@ -19191,3 +19192,35 @@ failure path is the very mislabeling this entry removes.
 128 settle rounds. Whether their trajectories still descend (a budget
 binding, D245's shape) or oscillate (D89's) is the next question, and
 `02-157/run-settle-rounds.sh` is the instrument.
+## D251 — Three of the seven round-exhausted re-entries are stuck, not slow, and 256 is the plateau's edge
+
+**The question.** D250 left seven forced-primal solves exhausting all 128
+settle rounds. D245 answered this shape once by reading the trajectory;
+the same read one level up: cut off while converging, or oscillating?
+
+**The trace** (`bench/measurements/02-161/round-trace.txt`, one line per
+round). Three are stuck in ways no round budget reaches: `cycle`'s
+objective freezes at -4.23387 for its last fifty rounds, `modszk1`'s never
+moves once in 128, and `scsd8`'s violation is pinned at ~181 throughout.
+Four still descend: `woodw` close, `d6cube`, `stocfor3` and `truss` far
+from the dual's answer at decelerating rates.
+
+**The sweep** (`rounds-sweep.txt`; in-place setting with `make clean`
+between, the 02-157 discipline). At 256 `woodw` converts to ok — 77
+measured — and `stocfor3` moves to the honest overrun column. At 512 the
+record is **byte-identical to 256**, per instance and in total: the
+plateau the trace predicted. `SETTLE_ROUNDS_PRIMAL` moves 128 → 256;
+**512 is refused on an identical record.** The constant is read only by a
+solve that set `cfg.force_primal`, a development switch, so the gate
+cannot move — and the campaign below confirms rather than assumes it.
+
+**The measurement at the landed setting.** All five configurations pass;
+the three gate sets read `0 regressed` with `bench/results/`
+byte-identical; the forced primal record reads 77 ok, 11 overrun, 6
+disagreed (`bench/results/primal.txt`).
+
+**Open, handed to `TODO.md`.** The six: three stuck re-entries (a design
+question in D89's family, not a constant), `d6cube` and `truss` grinding
+far from target, and one disagreement outside this family. No numerics
+reviewer round: the diff is a swept count with its plateau measured on
+both sides, and no arithmetic path changed.
