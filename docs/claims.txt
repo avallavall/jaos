@@ -28,5 +28,4 @@ absent SPECS.md#3-deterministic-parallelism \bpthread_create\s*\(
 absent SPECS.md#3-primal-devex             \b(devex|jm_devex)\w*\s*\(
 absent SPECS.md#3-presolve-duplicates      \b(static|jaos_status)\s+\w*\s*\*?\s*(ps_|jm_)?(duplicate_rows?|duplicate_cols?|dominated_cols?)\s*\(
 absent SPECS.md#5-sensitivity-and-ranging  \b(jaos_ranging|jaos_sensitivity|jm_ranging)\w*\s*\(
-absent SPECS.md#5-certificates             \b(jaos_certificate|jm_farkas|farkas_)\w*\s*\(
 absent SPECS.md#5-exact-rational           \b(mpq_t|jm_rational|jaos_exact)\b

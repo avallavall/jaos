@@ -477,3 +477,89 @@ jaos_status jaos_check_solution(const jaos_model *m,
     free(traffic);
     return JAOS_OK;
 }
+
+/* Judges a claimed infeasibility certificate against the model as loaded:
+ * original space, the model's own bounds, no solver bookkeeping (D18).
+ * The claim is an impossibility: the smallest value the row bounds allow
+ * y'(Ax) to take still exceeds the largest value the column bounds allow
+ * (A'y)'x to take — and the two are the same number for any x, so no
+ * feasible x exists. A ray that needs an infinite bound side makes its
+ * sum infinite and the proof dies, whatever produced the ray (D254). */
+jaos_status jaos_check_certificate(const jaos_model *m,
+    const double *row_ray, double tol, jaos_certificate_report *out)
+{
+    if (m == nullptr || row_ray == nullptr || out == nullptr ||
+        !isfinite(tol) || tol < 0.0)
+        return JAOS_ERR_INVALID_INPUT;
+    out->sup_columns = 0.0;
+    out->inf_rows = 0.0;
+    out->gap = 0.0;
+    out->certified = false;
+
+    for (int64_t i = 0; i < m->num_row; i++)
+        if (!isfinite(row_ray[i]))
+            return JAOS_ERR_INVALID_INPUT;
+
+    bool bounded = true;
+    long double sup_cols = 0.0L;
+    for (int64_t j = 0; j < m->num_col && bounded; j++) {
+        long double a = 0.0L, traffic = 0.0L;
+        for (int64_t p = m->a_start[j]; p < m->a_start[j + 1]; p++) {
+            const long double t =
+                (long double)m->a_value[p] * row_ray[m->a_index[p]];
+            a += t;
+            traffic += fabsl(t);
+        }
+        /* How precisely this sum can be placed is set by the terms that
+         * went into it (the same rule the bound-rest test above states):
+         * below tol times its own traffic, (A'y)_j is a zero the
+         * arithmetic cannot distinguish — read literally against an
+         * infinite bound it would turn roundoff on a structurally zero
+         * column into an infinite sup (D254). */
+        if (fabsl(a) <= tol * traffic)
+            continue;
+        if (a > 0.0L) {
+            if (isfinite(m->col_upper[j]))
+                sup_cols += a * (long double)m->col_upper[j];
+            else
+                bounded = false;
+        } else if (a < 0.0L) {
+            if (isfinite(m->col_lower[j]))
+                sup_cols += a * (long double)m->col_lower[j];
+            else
+                bounded = false;
+        }
+    }
+
+    long double inf_rows = 0.0L;
+    for (int64_t i = 0; i < m->num_row && bounded; i++) {
+        const double y = row_ray[i];
+        if (y > 0.0) {
+            if (isfinite(m->row_lower[i]))
+                inf_rows += (long double)y * m->row_lower[i];
+            else
+                bounded = false;
+        } else if (y < 0.0) {
+            if (isfinite(m->row_upper[i]))
+                inf_rows += (long double)y * m->row_upper[i];
+            else
+                bounded = false;
+        }
+    }
+
+    if (!bounded) {
+        /* The sup (or inf) really is infinite; published as such, and
+         * the gap with it, so the report says which side died. */
+        out->sup_columns = INFINITY;
+        out->inf_rows = -INFINITY;
+        out->gap = -INFINITY;
+        return JAOS_OK;
+    }
+
+    out->sup_columns = (double)sup_cols;
+    out->inf_rows = (double)inf_rows;
+    out->gap = (double)(inf_rows - sup_cols);
+    out->certified = out->gap >
+        tol * (1.0 + fabs(out->sup_columns) + fabs(out->inf_rows));
+    return JAOS_OK;
+}

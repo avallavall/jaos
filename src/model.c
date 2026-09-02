@@ -51,6 +51,7 @@ static void model_release_arrays(jaos_model *m)
     free(m->sol_redcost);
     free(m->sol_col_status);
     free(m->sol_row_status);
+    free(m->sol_farkas);
     free(m->start_col_status);
     free(m->start_row_status);
     /* The problem goes; the configuration stays. Saved as one object rather
@@ -149,6 +150,8 @@ static void model_answer_is_stale(jaos_model *m)
     free(m->sol_redcost);    m->sol_redcost = nullptr;
     free(m->sol_col_status); m->sol_col_status = nullptr;
     free(m->sol_row_status); m->sol_row_status = nullptr;
+    free(m->sol_farkas);     m->sol_farkas = nullptr;
+    m->farkas_ok = false;
     m->solve_status = JAOS_SOLVE_NOT_RUN;
     m->objective = 0.0;
     m->solve_work = 0;
@@ -424,6 +427,20 @@ jaos_status jaos_basis(const jaos_model *m, jaos_basis_status *col_status,
     if (row_status)
         memcpy(row_status, m->sol_row_status,
                (size_t)m->num_row * sizeof *row_status);
+    return JAOS_OK;
+}
+
+jaos_status jaos_certificate(const jaos_model *m, double *row_ray)
+{
+    if (m == nullptr || row_ray == nullptr)
+        return JAOS_ERR_INVALID_INPUT;
+    /* The flag is the availability: the simplex's own refusal on this
+     * model's rows set it, and nothing else can (D254). Presolve-proved
+     * infeasibility, and a solve presolve reduced first, leave it false. */
+    if (m->solve_status != JAOS_SOLVE_INFEASIBLE || !m->farkas_ok ||
+        m->sol_farkas == nullptr)
+        return JAOS_ERR_INVALID_INPUT;
+    memcpy(row_ray, m->sol_farkas, (size_t)m->num_row * sizeof *row_ray);
     return JAOS_OK;
 }
 

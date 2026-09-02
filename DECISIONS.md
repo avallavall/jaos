@@ -261,6 +261,7 @@ and you have the argument. Jump to the entry for the numbers behind it.
 - **[D251](#d251--three-of-the-seven-round-exhausted-re-entries-are-stuck-not-slow-and-256-is-the-plateaus-edge)** — Three of the seven round-exhausted re-entries are stuck, not slow, and 256 is the plateau's edge
 - **[D252](#d252--a-fixed-column-never-joins-the-dual-ratio-test)** — A fixed column never joins the dual ratio test
 - **[D253](#d253--btrans-l-pass-walks-its-pattern-not-every-slot)** — BTRAN's L' pass walks its pattern, not every slot
+- **[D254](#d254--a-simplex-proved-infeasible-publishes-its-farkas-ray-and-the-checker-can-refuse-it)** — A simplex-proved INFEASIBLE publishes its Farkas ray, and the checker can refuse it
 
 ---
 
@@ -19290,3 +19291,40 @@ its 10x-of-dual bar with the dual's billing: `ganges` and `stocfor3`
 cross back to overrun (the counts move 74/14/6 → 73/16/5), and
 `stocfor3`'s settling disagreement (D252) is budget-masked again — the
 counts belong to `bench/results/primal.txt`, not to prose.
+
+## D254 — A simplex-proved INFEASIBLE publishes its Farkas ray, and the checker can refuse it
+
+**The question.** `SPECS.md` listed certificates as missing whole. The
+dual's INFEASIBLE already rests on a ray — the refused row's B^-T e_r —
+that nothing published, and nothing independent could confirm an
+infeasibility verdict at all. What does exporting it cost, and what can
+an original-space check of it actually reject?
+
+**The change.** At the ratio test's refusal the direction is recorded;
+publication signs `rho` with it and unscales it the way the row duals
+are (`jaos_certificate`, `sol_farkas`). `jaos_check_certificate` judges
+the ray from the model alone: the smallest value the row bounds allow
+y'(Ax) to take must exceed the largest the column bounds allow (A'y)'x
+to take, both halves published (the fp discipline for a difference of
+sums). A ray needing an infinite bound side dies in the check — a lent
+artificial bound cannot fake a proof. Presolve-proved infeasibility and
+rays on presolve-reduced rows publish nothing, refused honestly; the
+mapping through reductions is the SPECS row's named missing half.
+
+**The measurement** (`bench/measurements/02-164/`). All five
+configurations pass, and the three gate sets are byte-identical per
+instance — the capture is unbilled publication on a path no optimal
+solve takes. The population arm: **all 29 reference infeasibles under
+the reference build publish a ray the checker certifies**, gaps 6e-5
+(`cplex2`) to 9.7e6 (`cplex1`), and both feasible controls refuse a
+certificate. Getting to 29 took two structural zeros the first firing
+population exposed, 13 of 29 dying on an infinite side: rho entries on
+basic-slack rows (exactly zero by B^-1 B = I, roundoff in the computed
+row) and entries below PIVOT_MIN (the ratio test itself refuses to read
+them, so no capacity of those rows entered the argument) — published on
+a free or one-sided row, either read roundoff as a load-bearing
+infinity. The checker's own half of that lesson is the traffic floor on
+(A'y)_j, the same scaled rule `jaos_check_solution` documents. The
+cleanup cannot manufacture a proof: the checker re-judges the published
+ray from the model alone, which is also what makes a ray leaning on a
+lent artificial bound refusable at last.

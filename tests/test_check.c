@@ -933,6 +933,120 @@ static void test_an_infinite_term_is_counted_not_summed(void)
     jaos_model_free(m);
 }
 
+
+/* A model the simplex itself must refuse: x0 in [0,2] cannot lift the
+ * row to its floor of 4. The certificate is the refused row's ray, and
+ * the checker's two halves are exact by hand: the row side cannot go
+ * below 4, the column side cannot go above 2 (D254). */
+static void test_certificate_of_a_simplex_proved_infeasibility(void)
+{
+#if !defined(JAOS_NO_PRESOLVE)
+    TEST_IGNORE_MESSAGE("simplex-internal test — presolve proves this "
+                        "model infeasible first; runs only under "
+                        "EXTRA_CFLAGS=-DJAOS_NO_PRESOLVE");
+#else
+    const double c[] = {1.0};
+    const double cl[] = {0.0}, cu[] = {2.0};
+    const double rl[] = {4.0}, ru[] = {INFINITY};
+    const int64_t s[] = {0, 1}, ix[] = {0};
+    const double v[] = {1.0};
+    jaos_model *m = nullptr;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_model_new(&m));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_load_lp(m, 1, 1, JAOS_MINIMIZE, 0.0, c, cl, cu, rl, ru,
+                     1, s, ix, v));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_INFEASIBLE, jaos_status_of(m));
+
+    double y[1] = {0.0};
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_certificate(m, y));
+
+    jaos_certificate_report rep;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+                          jaos_check_certificate(m, y, 1e-7, &rep));
+    TEST_ASSERT_TRUE_MESSAGE(rep.certified,
+                             "the published ray must certify its own "
+                             "model");
+    TEST_ASSERT_DOUBLE_WITHIN(1e-9, 4.0, rep.inf_rows);
+    TEST_ASSERT_DOUBLE_WITHIN(1e-9, 2.0, rep.sup_columns);
+    TEST_ASSERT_DOUBLE_WITHIN(1e-9, 2.0, rep.gap);
+    jaos_model_free(m);
+#endif
+}
+
+/* The same model in the default build: presolve proves the
+ * infeasibility by reduction and no ray ever exists. The accessor must
+ * refuse rather than hand back stale or invented values (D254). */
+static void test_certificate_refused_when_presolve_proved_it(void)
+{
+#if defined(JAOS_NO_PRESOLVE)
+    TEST_IGNORE_MESSAGE("presolve-path test — runs only in the default "
+                        "build, where presolve answers this model");
+#else
+    const double c[] = {1.0};
+    const double cl[] = {0.0}, cu[] = {2.0};
+    const double rl[] = {4.0}, ru[] = {INFINITY};
+    const int64_t s[] = {0, 1}, ix[] = {0};
+    const double v[] = {1.0};
+    jaos_model *m = nullptr;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_model_new(&m));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_load_lp(m, 1, 1, JAOS_MINIMIZE, 0.0, c, cl, cu, rl, ru,
+                     1, s, ix, v));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_INFEASIBLE, jaos_status_of(m));
+    double y[1];
+    TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT, jaos_certificate(m, y));
+    jaos_model_free(m);
+#endif
+}
+
+/* The case the predicate must reject: T1 is feasible, so no ray can
+ * certify it, and the accessor must refuse on an OPTIMAL answer. */
+static void test_a_wrong_certificate_is_rejected(void)
+{
+    jaos_model *m = make_t1();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+    double y[1] = {1.0};
+    TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT, jaos_certificate(m, y));
+
+    jaos_certificate_report rep;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+                          jaos_check_certificate(m, y, 1e-7, &rep));
+    TEST_ASSERT_FALSE_MESSAGE(rep.certified,
+                              "a feasible model must reject every ray");
+    TEST_ASSERT_DOUBLE_WITHIN(1e-9, 1.0, rep.inf_rows);
+    TEST_ASSERT_DOUBLE_WITHIN(1e-9, 20.0, rep.sup_columns);
+    jaos_model_free(m);
+}
+
+/* A ray that leans on a bound the model does not have: with x0's upper
+ * bound gone the column side is infinite, the report says so, and the
+ * proof dies — this is exactly what makes a lent artificial bound
+ * unable to fake a certificate (D254). */
+static void test_a_certificate_needing_an_absent_bound_is_rejected(void)
+{
+    const double c[] = {1.0};
+    const double cl[] = {0.0}, cu[] = {INFINITY};
+    const double rl[] = {4.0}, ru[] = {INFINITY};
+    const int64_t s[] = {0, 1}, ix[] = {0};
+    const double v[] = {1.0};
+    jaos_model *m = nullptr;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_model_new(&m));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_load_lp(m, 1, 1, JAOS_MINIMIZE, 0.0, c, cl, cu, rl, ru,
+                     1, s, ix, v));
+    const double y[1] = {1.0};
+    jaos_certificate_report rep;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+                          jaos_check_certificate(m, y, 1e-7, &rep));
+    TEST_ASSERT_FALSE(rep.certified);
+    TEST_ASSERT_TRUE_MESSAGE(isinf(rep.sup_columns) && rep.sup_columns > 0,
+                             "the report must say which side died");
+    jaos_model_free(m);
+}
+
 int main(void)
 {
     UNITY_BEGIN();
@@ -959,5 +1073,9 @@ int main(void)
     RUN_TEST(test_the_implied_box_is_exactly_what_the_row_implies);
     RUN_TEST(test_an_infinite_term_is_counted_not_summed);
     RUN_TEST(test_check_rejects_bad_arguments);
+    RUN_TEST(test_certificate_of_a_simplex_proved_infeasibility);
+    RUN_TEST(test_certificate_refused_when_presolve_proved_it);
+    RUN_TEST(test_a_wrong_certificate_is_rejected);
+    RUN_TEST(test_a_certificate_needing_an_absent_bound_is_rejected);
     return UNITY_END();
 }

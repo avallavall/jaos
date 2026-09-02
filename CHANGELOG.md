@@ -9,6 +9,15 @@ open, `bench/README.md` for the gate, and the commit each entry came from.
 
 ## [Unreleased]
 
+### Added
+
+- **An infeasible answer can prove itself.** `jaos_certificate` publishes
+  the Farkas ray behind a simplex-proved INFEASIBLE and
+  `jaos_check_certificate` judges it from the model alone, both halves of
+  the gap published. All 29 reference infeasibles certify under the
+  reference build; presolve-proved infeasibility publishes no ray yet
+  (D254, `bench/measurements/02-164/`).
+
 ### Changed
 
 - **BTRAN's L' pass walks its pattern, not every slot.** The reachability

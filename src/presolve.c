@@ -265,6 +265,7 @@ void jm_presolve_free(jm_presolve *p)
     free(p->reduced.sol_redcost);
     free(p->reduced.sol_col_status);
     free(p->reduced.sol_row_status);
+    free(p->reduced.sol_farkas);
     free(p->reduced.start_col_status);
     free(p->reduced.start_row_status);
 
@@ -1043,6 +1044,8 @@ JAOS_NODISCARD jaos_status jm_presolve_run(const jaos_model *m, jm_presolve *p,
     p->reduced.sol_redcost = nullptr;
     p->reduced.sol_col_status = nullptr;
     p->reduced.sol_row_status = nullptr;
+    p->reduced.sol_farkas = nullptr;
+    p->reduced.farkas_ok = false;
     p->reduced.start_col_status = nullptr;
     p->reduced.start_row_status = nullptr;
     p->reduced.solve_status = JAOS_SOLVE_NOT_RUN;

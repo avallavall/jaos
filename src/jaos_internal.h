@@ -91,6 +91,14 @@ struct jaos_model {
     double *sol_redcost;     /* [num_col] reduced costs      */
     jaos_basis_status *sol_col_status;  /* [num_col] where each column rests */
     jaos_basis_status *sol_row_status;  /* [num_row] and each row activity   */
+    /* The Farkas ray behind a simplex-proved INFEASIBLE, in the caller's
+     * units (D254). `farkas_ok` is the availability: false on every solve
+     * entry, true only at the dual's own refusal — presolve proves
+     * infeasibility without ever building a ray, and a ray captured on a
+     * presolve-reduced model lives in the wrong row space, so neither
+     * publishes one. */
+    double *sol_farkas;      /* [num_row] */
+    bool farkas_ok;
     int64_t solve_work;
     int64_t solve_iters;
     /* How many of `solve_iters` the primal method ran, and how many of THOSE

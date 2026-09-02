@@ -215,6 +215,17 @@ typedef struct {
     double *tau;             /* [nrow] B^-1 rho, for the weight update */
     double *alpha;           /* [nvar] pricing row */
 
+    /* Set only at the ratio test's refusal, the one site that concludes
+     * INFEASIBLE: -1 when the failing row was below its bound, +1 above,
+     * 0.0 while no refusal has happened. Publication signs `rho` with it
+     * into `sol_farkas` (D254); `rho` is written by build_pricing_row
+     * alone, so it still holds the refused row's B^-T e_r there.
+     * `farkas_basic` is the refused row's basic variable, so publication
+     * can tell the one basic slack whose rho entry is real from the ones
+     * whose entries are structural zeros carrying roundoff. */
+    double farkas_sign;
+    int64_t farkas_basic;
+
     /* Where `alpha` can be nonzero, ascending and without repeats, or
      * `anpat < 0` when the array has to be read in full. `amark` is the
      * bitmap jm_pattern_order orders through; zero between iterations. */
@@ -3896,6 +3907,18 @@ static jaos_status run(sx *s, jaos_solve_status *out)
                 set_verified(s, true);
                 continue;
             }
+            /* The refused row's B^-T e_r is the Farkas ray; publication
+             * signs and unscales it (D254). Below a lower bound the
+             * positive orientation must read the lower row sides, which
+             * works out to -rho: with the slack basis on `x1 >= 4,
+             * x1 in [0,2]`, rho is -e_r and the certified y is +e_r.
+             * The basic variable of the refused row rides along:
+             * publication zeroes rho where a row's own slack is basic —
+             * those entries are exactly zero by B^-1 B = I and carry
+             * only roundoff — and that identity does not apply to the
+             * refused row itself when its basic is a slack. */
+            s->farkas_sign = below ? -1.0 : 1.0;
+            s->farkas_basic = s->basis[r];
             *out = JAOS_SOLVE_INFEASIBLE;
             return JAOS_OK;
         }
@@ -3928,16 +3951,18 @@ jaos_status jm_model_ensure_solution_arrays(jaos_model *m)
 {
     if (m->sol_col != nullptr && m->sol_row != nullptr &&
         m->sol_dual != nullptr && m->sol_redcost != nullptr &&
-        m->sol_col_status != nullptr && m->sol_row_status != nullptr)
+        m->sol_col_status != nullptr && m->sol_row_status != nullptr &&
+        m->sol_farkas != nullptr)
         return JAOS_OK;
 
-    /* All six or none. A partial set must not read as "already there". */
+    /* All seven or none. A partial set must not read as "already there". */
     free(m->sol_col);        m->sol_col = nullptr;
     free(m->sol_row);        m->sol_row = nullptr;
     free(m->sol_dual);       m->sol_dual = nullptr;
     free(m->sol_redcost);    m->sol_redcost = nullptr;
     free(m->sol_col_status); m->sol_col_status = nullptr;
     free(m->sol_row_status); m->sol_row_status = nullptr;
+    free(m->sol_farkas);     m->sol_farkas = nullptr;
 
     m->sol_col     = jm_alloc_array(m->num_col, sizeof(double));
     m->sol_row     = jm_alloc_array(m->num_row, sizeof(double));
@@ -3945,14 +3970,16 @@ jaos_status jm_model_ensure_solution_arrays(jaos_model *m)
     m->sol_redcost = jm_alloc_array(m->num_col, sizeof(double));
     m->sol_col_status = jm_alloc_array(m->num_col, sizeof(jaos_basis_status));
     m->sol_row_status = jm_alloc_array(m->num_row, sizeof(jaos_basis_status));
+    m->sol_farkas  = jm_alloc_array(m->num_row, sizeof(double));
     if (!m->sol_col || !m->sol_row || !m->sol_dual || !m->sol_redcost ||
-        !m->sol_col_status || !m->sol_row_status) {
+        !m->sol_col_status || !m->sol_row_status || !m->sol_farkas) {
         free(m->sol_col);        m->sol_col = nullptr;
         free(m->sol_row);        m->sol_row = nullptr;
         free(m->sol_dual);       m->sol_dual = nullptr;
         free(m->sol_redcost);    m->sol_redcost = nullptr;
         free(m->sol_col_status); m->sol_col_status = nullptr;
         free(m->sol_row_status); m->sol_row_status = nullptr;
+        free(m->sol_farkas);     m->sol_farkas = nullptr;
         return JAOS_ERR_OUT_OF_MEMORY;
     }
     return JAOS_OK;
@@ -4002,6 +4029,38 @@ static jaos_status publish(sx *s, jaos_solve_status status, jm_presolve *p)
         memset(m->sol_row, 0, (size_t)m->num_row * sizeof(double));
         memset(m->sol_dual, 0, (size_t)m->num_row * sizeof(double));
         memset(m->sol_redcost, 0, (size_t)m->num_col * sizeof(double));
+
+        /* The certificate, in the caller's units, unscaled the way the
+         * row duals are. Publication and not solving: unbilled, like
+         * every other sol_* write. When m is a presolve-reduced model
+         * this sets the reduced copy's flag, which nothing publishes —
+         * mapping the ray through the reductions is the missing half the
+         * SPECS row names (D254). */
+        memset(m->sol_farkas, 0, (size_t)m->num_row * sizeof(double));
+        if (status == JAOS_SOLVE_INFEASIBLE && s->farkas_sign != 0.0) {
+            for (int64_t i = 0; i < m->num_row; i++) {
+                /* Two families of entries are not part of the walk's
+                 * argument and carry only roundoff. A row whose own
+                 * slack is basic has a rho entry that is exactly zero by
+                 * B^-1 B = I. And an entry below PIVOT_MIN is one the
+                 * ratio test itself refuses to read, so no capacity of
+                 * that row was ever consumed. Published on a free or
+                 * one-sided row either would kill the certificate's
+                 * finiteness for nothing; zeroed instead, and the
+                 * checker re-judges the published ray from scratch, so
+                 * this cannot manufacture a proof. The refused row's own
+                 * basic is the one entry both rules must leave (D254). */
+                const int64_t sl = m->num_col + i;
+                if ((s->status[sl] == JM_BASIC ||
+                     fabs(s->rho[i]) < PIVOT_MIN) && sl != s->farkas_basic) {
+                    m->sol_farkas[i] = 0.0;
+                    continue;
+                }
+                m->sol_farkas[i] = published(s->farkas_sign * s->rho[i] *
+                                             m->row_scale[i]);
+            }
+            m->farkas_ok = true;
+        }
 
         /* The basis is written, kept, and only then cleared. Kept because a
          * budget stop, infeasible or unbounded all leave a good basis for
@@ -4102,6 +4161,11 @@ jaos_status jm_dual_simplex(jaos_model *m)
     m->solve_iters = 0;
     m->solve_primal_iters = 0;
     m->solve_phase1_iters = 0;
+    /* And the certificate: only the dual's own refusal, on THIS model's
+     * rows, may turn it back on (D254). A capture on a presolve-reduced
+     * model writes the reduced model's copy of this flag, which nothing
+     * publishes, so the original's stays honestly false there. */
+    m->farkas_ok = false;
 
     /* Presolve's own charge, continued on the same accumulator as the
      * solve's. Always {0}, even under JAOS_NO_PRESOLVE. */

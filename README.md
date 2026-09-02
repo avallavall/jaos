@@ -101,7 +101,7 @@ one piece `SPECS.md` still lists as missing is Devex pricing — which is
 blocked on a paywalled source, and an own rule derived in its place lost to
 Dantzig and was refused (D244, D245).
 
-The public API has forty-five functions. Seven of them configure something:
+The public API has forty-seven functions. Seven of them configure something:
 two tolerances, two budgets, where the log goes, how much of it there is, and
 a callback that decides whether a solve continues. No function selects a
 method. The solver decides which pricing rule runs, when it refactorizes, and

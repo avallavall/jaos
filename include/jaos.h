@@ -817,6 +817,50 @@ JAOS_NODISCARD jaos_status jaos_check_solution(const jaos_model *m,
     const double *col_value, const double *row_dual, double tol,
     jaos_check_report *out);
 
+/* The infeasibility certificate behind the last solve's
+ * JAOS_SOLVE_INFEASIBLE: a vector y of num_row values such that, for
+ * every x inside the column bounds whose row activities lie inside the
+ * row bounds, the identity y'(Ax) = (A'y)'x cannot hold — the smallest
+ * the left side can be still exceeds the largest the right side can be.
+ * jaos_check_certificate verifies exactly that from the model alone.
+ *
+ * Available only when the simplex itself refused a row: infeasibility
+ * proved by presolve's reductions carries no ray, and when presolve
+ * reduced the model first the ray lives in the reduced row space, which
+ * is not the caller's. Both refuse here; that gap is recorded in
+ * SPECS.md. row_ray receives num_row values. */
+JAOS_NODISCARD jaos_status jaos_certificate(const jaos_model *m,
+                                            double *row_ray);
+
+/* Verdict of jaos_check_certificate. The proof is a difference of two
+ * sums, so both halves are published beside it: from the difference
+ * alone, a small gap between two large halves and a genuinely small
+ * quantity read the same. */
+typedef struct jaos_certificate_report {
+    double sup_columns;  /* sum over columns j of the largest (A'y)_j x_j
+                            the column's own bounds allow; +infinity when
+                            a needed bound side is infinite, and the
+                            proof dies with it                           */
+    double inf_rows;     /* sum over rows i of the smallest y_i (Ax)_i
+                            the row's own bounds allow; -infinity when a
+                            needed side is infinite                      */
+    double gap;          /* inf_rows - sup_columns; > 0 is the proof     */
+    bool certified;      /* gap > tol * (1 + |sup_columns| + |inf_rows|) */
+} jaos_certificate_report;
+
+/* Judges a claimed infeasibility certificate against the model as it was
+ * loaded — original space, model bounds only, no solver bookkeeping. A
+ * ray that leans on a bound the model does not have makes one of the two
+ * sums infinite and is rejected, whatever produced it. tol plays the
+ * same role as the objective gap's in jaos_check_solution: the gap is
+ * judged relative to the size of the two halves it is a difference of.
+ * Each column's (A'y)_j is itself a sum, placeable no more finely than
+ * its terms allow, so below tol times the sum of their magnitudes it
+ * counts as zero — the same scaled rule jaos_check_solution documents
+ * above. */
+JAOS_NODISCARD jaos_status jaos_check_certificate(const jaos_model *m,
+    const double *row_ray, double tol, jaos_certificate_report *out);
+
 #ifdef __cplusplus
 }
 #endif
