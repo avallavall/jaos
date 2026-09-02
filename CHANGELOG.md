@@ -9,6 +9,16 @@ open, `bench/README.md` for the gate, and the commit each entry came from.
 
 ## [Unreleased]
 
+### Added
+
+- **A ray that needs several columns at once is proved now.** When every
+  single held column is blocked, the lent-bound verdict moves them all off
+  their loans together at unit rate, one FTRAN, and declares UNBOUNDED on
+  the same no-real-bound line as before; D241's named example answers from
+  both methods where it refused. A subset or unequal-rate ray still reaches
+  the refusal, which says both directions were tried. All three sets and the
+  forced-primal record byte-identical (D247).
+
 ### Changed
 
 - **Dual fixing is measured, and refused.** The family counter's dual-fixing

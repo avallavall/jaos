@@ -2805,21 +2805,64 @@ static bool improves_without_limit(sx *s, int64_t j)
     return unlimited;
 }
 
+/* The one combined direction this verdict tries when single columns are
+ * blocked: every column phase 1 is still holding moves off its loan at
+ * unit rate, together. Its objective rate is the sum of their improving
+ * reduced costs, each strictly past the dual tolerance, so the direction
+ * improves by construction; and it is a ray of the original problem on
+ * exactly the line the single-column test reads — no basic runs into a
+ * bound the model itself declared. The signs are folded in before the one
+ * FTRAN, which is the same arithmetic as after it: negating an FTRAN
+ * input negates its output bit for bit. A direction that cancels to zero
+ * in row space is still a ray — the held columns ride off their loans
+ * with no basic moving at all. Unit rates are one direction, not all of
+ * them; what this decides and what still reaches the refusal below is
+ * D247's. */
+static bool combined_improves_without_limit(sx *s)
+{
+    const jaos_model *m = s->m;
+
+    memset(s->col, 0, (size_t)s->nrow * sizeof *s->col);
+    for (int64_t j = 0; j < s->ncol; j++) {
+        if (!held_by_an_invented_bound(s, j))
+            continue;
+        const double sgn = (s->fake[j] == FAKE_LO) ? 1.0 : -1.0;
+        for (int64_t k = m->a_start[j]; k < m->a_start[j + 1]; k++)
+            s->col[m->a_index[k]] += sgn * s->av[k];
+        jm_work_add(&s->work,
+                    (m->a_start[j + 1] - m->a_start[j]) * JM_WORK_NONZERO);
+    }
+    jm_lu_ftran(&s->lu, s->col, &s->work);
+
+    bool unlimited = true;
+    for (int64_t i = 0; i < s->nrow; i++) {
+        const double step = s->col[i];
+        if (fabs(step) < PIVOT_MIN)
+            continue;
+        const int64_t b = s->basis[i];
+        const double limit = step > 0.0 ? real_upper(s, b) : real_lower(s, b);
+        if (isfinite(limit)) {
+            unlimited = false;
+            break;
+        }
+    }
+    jm_work_add(&s->work, s->nrow * JM_WORK_NONZERO);
+    return unlimited;
+}
+
 /* The verdict on a point the bounded problem calls optimal. A ray off an
  * invented bound is unbounded; no column held by a loan is optimal. What
  * is left is a column stopped by a real constraint past the bound phase 1
- * lent: the solve refuses.
+ * lent: two directions are tried — the column alone, then every held
+ * column together — and when both are blocked the solve refuses.
  *
- * `improves_without_limit` moves ONE column, so what this proves is the
- * existence of a ray along a single column's direction. A model can be
- * unbounded along a direction that moves several at once and reach this
- * refusal, and one does: `min -p - q` over `p - q = 0, p + q >= 2` with
- * both columns free above. Capping p there gives an optimum of exactly
- * -2p over nine orders of magnitude, so the uncapped model has no finite
- * optimum (D241, `bench/measurements/02-153/`). The refusal is still safe,
- * because it is a missing answer and not a wrong one, and the message says
- * only what was actually established. Deciding those directions is open
- * work in `TODO.md` section 0. */
+ * `improves_without_limit` moves ONE column, so what it proves is the
+ * existence of a ray along a single column's direction.
+ * `combined_improves_without_limit` moves every held column at unit rate,
+ * which decides the models whose ray needs several columns at once (D241
+ * named one; D247 decides it). Both verdicts are proofs; the refusal is a
+ * missing answer and not a wrong one, and its message says only what was
+ * actually established. */
 static jaos_solve_status classify_optimum(sx *s)
 {
     int64_t blocked = -1;
@@ -2836,12 +2879,16 @@ static jaos_solve_status classify_optimum(sx *s)
     if (blocked < 0)
         return JAOS_SOLVE_OPTIMAL;
 
+    if (combined_improves_without_limit(s))
+        return JAOS_SOLVE_UNBOUNDED;
+
     jm_set_err(s->m, "column %lld improves past the bound dual phase 1 lent "
-                     "it, and moving that column alone runs into a "
-                     "constraint; the model is therefore either bounded at "
-                     "an optimum beyond the reach of this phase 1, or "
-                     "unbounded along a direction that moves several columns "
-                     "at once, and this test decides neither",
+                     "it; moving that column alone runs into a constraint, "
+                     "and so does the one direction that moves several "
+                     "columns together at unit rate; the model is therefore "
+                     "either bounded at an optimum beyond the reach of this "
+                     "phase 1, or unbounded along a direction neither test "
+                     "tries, and this verdict decides neither",
                      (long long)blocked);
     return JAOS_SOLVE_NUMERICAL_ERROR;
 }

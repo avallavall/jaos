@@ -362,10 +362,16 @@ static void test_an_optimum_past_the_lent_bound_is_refused(void)
     TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_NUMERICAL_ERROR, jaos_status_of(m));
 
     /* Refusing silently would be no better than answering wrongly: a
-     * caller has to be able to find out which column could not be sized. */
+     * caller has to be able to find out which column could not be sized.
+     * With one held column the combined direction equals the single one,
+     * so this refusal also proves the combined test read a blocked
+     * direction as blocked (D247). */
     const char *err = jaos_model_error(m);
     TEST_ASSERT_NOT_NULL(err);
     TEST_ASSERT_NOT_NULL(strstr(err, "phase 1"));
+    TEST_ASSERT_NOT_NULL_MESSAGE(strstr(err, "together"),
+                                 "the refusal must say the combined "
+                                 "direction was tried and blocked");
     jaos_model_free(m);
 #endif
 }
@@ -4009,22 +4015,22 @@ static void test_a_bounded_neighbour_of_that_model_is_not_a_ray(void)
     jaos_model_free(m);
 }
 
-/* The gap the verdict above does not close, pinned so that closing it is
- * noticed.
+/* The gap D241 pinned, closed (D247).
  *
  *   min -p - q  s.t. p - q = 0, p + q >= 2, p and q >= 0, neither capped
  *
  * The equality ties the two together and the inequality pushes the pair
  * out, so p = q may grow for ever and the objective is -2p. Moving either
- * column ALONE runs into the equality, which is all `improves_without_limit`
- * ever tries, so the ray is invisible to it and the solve refuses.
+ * column ALONE runs into the equality, so `improves_without_limit` cannot
+ * see the ray; the combined direction moves both at unit rate, cancels in
+ * the equality, and only lifts the sum row off its floor, so
+ * `combined_improves_without_limit` decides UNBOUNDED.
  *
- * That refusal is a missing answer and not a wrong one, which is why this
- * test asserts it rather than calling it a defect. The second half is the
- * evidence that the model really is unbounded, and JAOS cannot be its own
- * witness here: cap p and the optimum comes back as exactly -2 times the
- * cap, at every size tried. */
-static void test_a_ray_needing_two_columns_is_refused_not_answered(void)
+ * The cap ladder stays because it is the independent evidence the verdict
+ * is right, and JAOS cannot be its own witness: cap p and the optimum
+ * comes back as exactly -2 times the cap, at every size tried, so the
+ * uncapped model has no finite optimum. */
+static void test_a_ray_needing_two_columns_is_answered(void)
 {
     const double c[] = {-1.0, -1.0};
     const double cl[] = {0.0, 0.0};
@@ -4048,22 +4054,89 @@ static void test_a_ray_needing_two_columns_is_refused_not_answered(void)
         jaos_model_free(m);
     }
 
-    /* Uncapped: refused, and the refusal must not claim the optimum is
-     * finite, because the ladder above says it is not. */
+    /* Uncapped: UNBOUNDED, by the combined direction, and both methods
+     * must say so — the ladder above is the witness that they are right. */
     const double cu[] = {INFINITY, INFINITY};
     jaos_model *m = fresh();
     TEST_ASSERT_EQUAL_INT(JAOS_OK,
         jaos_load_lp(m, 2, 2, JAOS_MINIMIZE, 0.0, c, cl, cu, rl, ru,
                      4, as, ai, av));
+    solved_both_ways_as_unbounded(m);
+    jaos_model_free(m);
+}
+
+/* Two held columns whose combined direction is blocked: the refusal must
+ * survive D247, not just its single-column form.
+ *
+ *   min -u - v  s.t. u <= 1e11 (row), v <= 1e11 (row), u and v >= 0
+ *
+ * Phase 1 lends both columns a bound well under 1e11, so the relaxed
+ * optimum holds BOTH on loans. Each column alone runs into its own row's
+ * real ceiling, and the unit-rate sum raises both row activities at once,
+ * so the combined direction is blocked too — by a bound the model
+ * declared, on a model that is genuinely bounded (at -2e11, past the lent
+ * bounds). Publishing UNBOUNDED here would be a wrong answer; the refusal
+ * is the correct one, and it must say both directions were tried.
+ *
+ * Guarded like test_an_optimum_past_the_lent_bound_is_refused above, and
+ * for the same reason: each row is a singleton row, and presolve folds
+ * those into column bounds, which removes the loans this test exists to
+ * read. */
+static void test_two_held_columns_whose_sum_is_still_blocked(void)
+{
+#if !defined(JAOS_NO_PRESOLVE)
+    TEST_IGNORE_MESSAGE("simplex-internal test — presolve folds the "
+                        "singleton rows into bounds; runs only under "
+                        "EXTRA_CFLAGS=-DJAOS_NO_PRESOLVE");
+#else
+    const double c[] = {-1.0, -1.0};
+    const double cl[] = {0.0, 0.0};
+    const double cu[] = {INFINITY, INFINITY};
+    const double rl[] = {-INFINITY, -INFINITY}, ru[] = {1e11, 1e11};
+    const int64_t as[] = {0, 1, 2}, ai[] = {0, 1};
+    const double av[] = {1.0, 1.0};
+
+    jaos_model *m = fresh();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_load_lp(m, 2, 2, JAOS_MINIMIZE, 0.0, c, cl, cu, rl, ru,
+                     2, as, ai, av));
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
     TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_NUMERICAL_ERROR, jaos_status_of(m));
-    const char *why = jaos_model_error(m);
-    TEST_ASSERT_NOT_NULL(why);
-    TEST_ASSERT_NULL_MESSAGE(strstr(why, "the optimum is finite"),
-                             "the refusal claims something the cap ladder "
-                             "above refutes");
-    TEST_ASSERT_NOT_NULL_MESSAGE(strstr(why, "several columns"),
-                                 "the refusal must name what it did not try");
+    const char *err = jaos_model_error(m);
+    TEST_ASSERT_NOT_NULL(err);
+    TEST_ASSERT_NOT_NULL_MESSAGE(strstr(err, "together"),
+                                 "the refusal must say the combined "
+                                 "direction was tried and blocked");
+    jaos_model_free(m);
+#endif
+}
+
+/* The combined direction that cancels to nothing in row space.
+ *
+ *   min -p - q  s.t. p - q = 0, p - q <= 5, p and q >= 0, neither capped
+ *
+ * Along (1,1) every row activity is unchanged and the objective falls, so
+ * the model is unbounded; either column alone runs into the equality. The
+ * combined direction sums to exactly zero in row space, and a zero
+ * direction that every held column rides off its loan is still a ray —
+ * the verdict must not mistake "no basic moves" for "no direction exists"
+ * (D247). The second row is there so neither column is a singleton, which
+ * keeps presolve's column rules out of the model's way. */
+static void test_a_ray_whose_direction_cancels_in_row_space(void)
+{
+    const double c[] = {-1.0, -1.0};
+    const double cl[] = {0.0, 0.0};
+    const double cu[] = {INFINITY, INFINITY};
+    const double rl[] = {0.0, -INFINITY}, ru[] = {0.0, 5.0};
+    const int64_t as[] = {0, 2, 4};
+    const int64_t ai[] = {0, 1, 0, 1};
+    const double av[] = {1.0, 1.0, -1.0, -1.0};
+
+    jaos_model *m = fresh();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_load_lp(m, 2, 2, JAOS_MINIMIZE, 0.0, c, cl, cu, rl, ru,
+                     4, as, ai, av));
+    solved_both_ways_as_unbounded(m);
     jaos_model_free(m);
 }
 
@@ -4177,6 +4250,8 @@ int main(void)
     RUN_TEST(test_the_primal_declares_a_ray_it_meets_in_phase_2);
     RUN_TEST(test_the_primal_declares_a_ray_through_a_free_column);
     RUN_TEST(test_a_bounded_neighbour_of_that_model_is_not_a_ray);
-    RUN_TEST(test_a_ray_needing_two_columns_is_refused_not_answered);
+    RUN_TEST(test_a_ray_needing_two_columns_is_answered);
+    RUN_TEST(test_two_held_columns_whose_sum_is_still_blocked);
+    RUN_TEST(test_a_ray_whose_direction_cancels_in_row_space);
     return UNITY_END();
 }

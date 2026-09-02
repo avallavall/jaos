@@ -254,6 +254,7 @@ and you have the argument. Jump to the entry for the numbers behind it.
 - **[D244](#d244--an-approximate-edge-rule-for-the-primal-derived-here-and-refused-on-the-measurement)** — An approximate edge rule for the primal, derived here, and refused on the measurement
 - **[D245](#d245--half-the-forced-primals-failures-were-a-backstop-that-binds-and-its-own-comment-said-it-does-not)** — Half the forced primal's failures were a backstop that binds, and its own comment said it does not
 - **[D246](#d246--the-dual-fixing-count-is-validated-and-what-it-counts-does-not-buy-a-seventh-presolve-family)** — The dual-fixing count is validated, and what it counts does not buy a seventh presolve family
+- **[D247](#d247--a-ray-that-needs-several-columns-is-decided-by-moving-every-held-column-together)** — A ray that needs several columns is decided by moving every held column together
 
 ---
 
@@ -18970,3 +18971,65 @@ reads a single share, because a count from an uncalibrated counter is what
 this entry exists to prevent.
 
 **Open.** Nothing. The item leaves `TODO.md` with this entry.
+## D247 — A ray that needs several columns is decided by moving every held column together
+
+**The question.** D241 left `classify_optimum` able to prove a ray only
+along one column's direction, and named a model it therefore refuses:
+`min -p - q` over `p - q = 0, p + q >= 2`, both columns free above. The
+cap ladder in `bench/measurements/02-153/` proves that model unbounded —
+capping `p` returns exactly `-2p` over nine orders of magnitude — so the
+refusal was a missing answer. `TODO.md` asked for a ray test over a
+direction rather than over a column.
+
+**The direction chosen, and why it is a proof.** When every single held
+column is blocked, `combined_improves_without_limit` moves every column
+phase 1 is still holding off its loan at unit rate, together. Its
+objective rate is the sum of their improving reduced costs, each strictly
+past the dual tolerance, so the direction improves by construction. It is
+a ray of the original model on exactly the line D241's single-column test
+reads: no basic runs into a bound the model itself declared — lent bounds
+do not count, so the verdict stays independent of `ARTIFICIAL_BOUND`. One
+FTRAN, signs folded in before it, which is the same arithmetic as after
+it: negating an FTRAN input negates its output bit for bit. A direction
+that cancels to zero in row space is still a ray — the held columns ride
+off their loans with no basic moving at all — and one of the two new
+tests is exactly that shape.
+
+**The measurement.** Both constructed models answer UNBOUNDED from both
+methods, dual and forced primal, where the first refused before
+(`tests/test_simplex.c`: `test_a_ray_needing_two_columns_is_answered`,
+with the cap ladder kept as the witness, and
+`test_a_ray_whose_direction_cancels_in_row_space`). Two refusals stand
+guard on the other side: the single-column test, where the combined
+direction equals the single one, and — added on review — two held columns
+whose unit-rate sum drives both singleton rows into their real ceilings
+on a model that is genuinely bounded
+(`test_two_held_columns_whose_sum_is_still_blocked`). The instrument was
+calibrated by arming the fault it is most exposed to: with the
+accumulation's sign flipped, exactly those three tests go red in the
+reference build, and the two-held one reds as a wrong UNBOUNDED on a
+bounded model, which is the failure the verdict must never ship.
+
+**What it cost.** Nothing a reference instance can see: all three sets
+`0 regressed, 0 improved, 0 new` with `bench/results/` byte-identical,
+and the forced-primal record unchanged byte for byte — no gate instance
+reaches the branch (D241 measured 0 firings). All five build
+configurations pass.
+
+**What this does not decide, on purpose.** Unit rates are one direction,
+not all of them: a subset of the held columns, or unequal rates, can form
+a ray this sum misses, and those models still reach the refusal, whose
+message now says both directions were tried. Deciding an arbitrary
+recession direction is a homogeneous LP in its own right, and building a
+second solve for a state no reference instance reaches was not bought.
+
+**Two exposures, named by review and carried.** The verdict skips a basic
+whose |step| is under `PIVOT_MIN`, the same skip D241 accepted for the
+single-column test; that constant's sweep is for pivot admissibility, and
+its verdict role has never been swept on either test. The addition here is
+only the pre-FTRAN accumulation, whose cancellation noise sits far below
+the floor in scaled space. And the decided instance depends on the scaler
+giving its two columns equal factors: a future scaler change can push it
+back to the refusal, and `test_a_ray_needing_two_columns_is_answered`
+going red is the intended detector of exactly that, not a solver
+regression.

@@ -24,6 +24,13 @@ historical defect reads eight; the validated shares are 0.67% of netlib's
 live columns and 1.09% of fome's against 02-154's 5% bar. The reopen script
 is `bench/measurements/02-07/retest-dualfix.sh`.
 
+**Also 2026-09-02: the multi-column ray is decided (D247).** The lent-bound
+verdict tries one combined direction — every held column off its loan at
+unit rate, one FTRAN — and D241's named example answers UNBOUNDED from both
+methods. Subset and unequal-rate rays still reach the refusal, which now
+says both directions were tried; that residual is documented in D247 and is
+not listed here as open work.
+
 ### → FRESH CONTEXT: READ THIS FIRST. THE PACE CHANGED.
 
 **The maintainer's call, 2026-09-01: features, not hardening, and a lighter
@@ -100,14 +107,6 @@ them.
 
 ### → what is open and needs no decision, smallest first
 
-- **A ray that moves several columns at once is not decided.**
-  `improves_without_limit` moves one column, so a model unbounded only along
-  a combined direction reaches a refusal instead of a verdict. `min -p - q`
-  over `p - q = 0, p + q >= 2` with neither column capped is one, and the cap
-  ladder in `tests/test_simplex.c` proves it unbounded. The refusal is safe,
-  a missing answer rather than a wrong one, and its message no longer claims
-  the optimum is finite. Deciding these needs a ray test over a direction
-  rather than over a column (D241).
 - **The forced primal reads 75 ok, 16 DISAGREE, 3 overrun**, against 61 / 30
   / 3 before 2026-09-01. **Fourteen of the thirty were a round budget and not
   a numerical problem**: `SETTLE_ROUNDS` was 32, the re-entry used all of them
