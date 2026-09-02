@@ -253,6 +253,7 @@ and you have the argument. Jump to the entry for the numbers behind it.
 - **[D243](#d243--python-over-ctypes-and-a-claim-of-absence-that-would-not-have-fired)** — Python over ctypes, and a claim of absence that would not have fired
 - **[D244](#d244--an-approximate-edge-rule-for-the-primal-derived-here-and-refused-on-the-measurement)** — An approximate edge rule for the primal, derived here, and refused on the measurement
 - **[D245](#d245--half-the-forced-primals-failures-were-a-backstop-that-binds-and-its-own-comment-said-it-does-not)** — Half the forced primal's failures were a backstop that binds, and its own comment said it does not
+- **[D246](#d246--the-dual-fixing-count-is-validated-and-what-it-counts-does-not-buy-a-seventh-presolve-family)** — The dual-fixing count is validated, and what it counts does not buy a seventh presolve family
 
 ---
 
@@ -18931,4 +18932,41 @@ Nothing on the shipped path, and that is now true by construction: a solve
 that does not set `cfg.force_primal` reads the same 32 it always did. All
 three sets `gate: PASS` with `bench/results/` byte-identical. The one
 instance that would have paid, `wood1p` at 1.49x, does not.
+## D246 — The dual-fixing count is validated, and what it counts does not buy a seventh presolve family
 
+**The question.** 02-154 found 3934 dual-fixing candidates on `plato-fome`,
+1.1% of its live columns, from the one arm of 02-07's counter that had no
+known-answer calibration — and an earlier version of exactly that arm had
+called 421615 Kennington columns fixable by ignoring row senses. `TODO.md`
+asked for the calibration first, with the count then deciding whether dual
+fixing gets built as a presolve family.
+
+**The calibration.** `02-07/validate.c` carries a known dual-fixing answer
+of seven now: five columns fixable at their lower bound the trivial way
+(positive entries in rows bounded only above, nonnegative cost), one more
+spanning two such rows, and one fixable at its upper bound (negative cost,
+every entry loosening its rows) — against three columns that must NOT
+count: two touching a row bounded on both sides, which disqualifies a
+column outright, and one with mixed senses. The counter reads exactly 7
+(`02-07/counts/validate.txt`). Armed with the historical defect — the
+two-sided guard deleted — it reads 8, and the one false candidate is the
+two-sided case, the exact shape that produced the 421615.
+
+**The measurement, now believed.** As 02-154 took it and re-taken on this
+tree (`02-07/retest-dualfix.sh`, 12 s): netlib 1054 candidates of 157499
+live columns, 0.67%; `plato-fome` 3934 of 360002, 1.09% — 562, 1124 and
+2248 on `fome11/12/13`, 2.59% of each, zero on `fome21` — and zero on pds,
+nug and Kennington. A candidate is an upper bound on the reduction: a
+column the rule could fix, not one whose removal survives postsolve.
+
+**Refused.** The bar 02-154 argued for reopening a deferred family is 5% of
+a set's live columns — about five times what D101 dismissed, well under the
+concentrated case it flagged. Dual fixing's high-water marks are 1.09% of a
+set and 2.59% of one instance, and the candidate count overstates what
+would survive. A seventh family, its postsolve, and its place in the
+cascade are not bought by that share. The reopen line is in
+`bench/refusals.txt`, and its script re-validates the calibration before it
+reads a single share, because a count from an uncalibrated counter is what
+this entry exists to prevent.
+
+**Open.** Nothing. The item leaves `TODO.md` with this entry.

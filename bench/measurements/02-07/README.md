@@ -20,12 +20,24 @@ families have run to a fixed point. To rebuild it:
            -Iinclude -Isrc src/*.c diag.c -o famrun -lm
 
 `validate.c` is the calibration and it is the reason the counts are worth
-anything. Five rows and five columns with a known answer: three mutually
-parallel rows, so two removable, and one parallel column pair whose costs
-match the same factor, so one removable. The counter reports exactly
-`remrow=2/2/2/2 remcol=1/1/1/1`. The model is built so none of the five live
-families can remove any of it first — every row's activity range is far wider
-than its bounds, and every column has degree two and a nonzero cost.
+anything. Eight rows and ten columns with a known answer on all three arms:
+three mutually parallel rows, so two removable; one parallel column pair
+whose costs match the same factor, so one removable; and a dual-fixing
+answer of seven — five trivial lower fixes, one spanning two rows, one upper
+fix at negative cost — against three columns that must not count, two
+touching a two-sided row and one with mixed senses (added for D246; the arm
+had no known answer before that). The counter reports exactly
+`liverows=8 livecols=10 remrow=2/2/2/2 remcol=1/1/1/1 dualfix=7`. The model
+is built so none of the live families can remove any of it first — every
+row's bounds sit strictly inside its activity range, and every row and
+column has degree two or more and a nonzero cost.
+
+`run-validate.sh` runs that calibration from anywhere and writes
+`counts/validate.txt`: the counter as shipped must read the exact line, and
+armed with the historical two-sided defect it must read `dualfix=8` — the
+guard is what the test exercises. `retest-dualfix.sh` is D246's reopen
+condition: it re-validates first, then re-counts the two sets where the
+dual-fixing count is nonzero against the 5% bar 02-154 argues.
 
 **Two earlier versions of this counter were wrong, and both announced
 themselves by being too clean.** The first hung off a label that most exit

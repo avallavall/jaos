@@ -1,0 +1,10 @@
+tree: a17cf46
+
+counter as shipped:
+  [320ee320] FAMILIES liverows=8 livecols=10 remrow=2/2/2/2 remcol=1/1/1/1 dualfix=7
+
+armed, two-sided guard deleted (the historical defect):
+  [a8c14bb9] FAMILIES liverows=8 livecols=10 remrow=2/2/2/2 remcol=1/1/1/1 dualfix=8
+
+VERDICT: PASS. The dual-fixing arm counts its two candidate rules,
+refuses its three non-candidate rules, and the armed defect is caught.

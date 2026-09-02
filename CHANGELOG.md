@@ -9,6 +9,15 @@ open, `bench/README.md` for the gate, and the commit each entry came from.
 
 ## [Unreleased]
 
+### Changed
+
+- **Dual fixing is measured, and refused.** The family counter's dual-fixing
+  arm — its least validated — is calibrated now: a known answer of seven on
+  `02-07/validate.c`'s model, and the armed historical defect reads eight.
+  The validated shares are 0.67% of netlib's live columns and 1.09% of
+  fome's against 02-154's 5% bar, so the seventh presolve family is not
+  built (D246; the reopen script is in `bench/refusals.txt`).
+
 ## [0.2.0] — 2026-09-02
 
 The reach release. JAOS reads gzip input through an inflate written here

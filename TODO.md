@@ -18,6 +18,12 @@ preserved in `results/P0-2026-08-17.txt`), README's API count said
 forty-three where the header has forty-five, and README's speed table was
 two readings old.
 
+**Also 2026-09-02: the dual-fixing question is closed (D246, refused).** The
+counter's arm is calibrated against a known answer of seven and the armed
+historical defect reads eight; the validated shares are 0.67% of netlib's
+live columns and 1.09% of fome's against 02-154's 5% bar. The reopen script
+is `bench/measurements/02-07/retest-dualfix.sh`.
+
 ### → FRESH CONTEXT: READ THIS FIRST. THE PACE CHANGED.
 
 **The maintainer's call, 2026-09-01: features, not hardening, and a lighter
@@ -94,15 +100,6 @@ them.
 
 ### → what is open and needs no decision, smallest first
 
-- **Validate 02-07's dual-fixing arm.** `plato-fome` reports 3934 dual-fixing
-  candidates, 1.1% of its live columns, against 1054 of 157499 on netlib.
-  Dual fixing is not one of JAOS's six presolve families and `SPECS.md` does
-  not list it as missing, so nothing has costed it. **But a candidate is not
-  a surviving reduction, and this is the counter's least validated arm** —
-  `02-07/validate.c` calibrates the removable-row and removable-column counts
-  against a model with a known answer and not this one, and an earlier
-  version of this same arm called 421615 Kennington columns fixable. Extend
-  `validate.c` first; the count decides whether anything gets built (D242).
 - **A ray that moves several columns at once is not decided.**
   `improves_without_limit` moves one column, so a model unbounded only along
   a combined direction reaches a refusal instead of a verdict. `min -p - q`
