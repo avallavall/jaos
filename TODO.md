@@ -5,7 +5,18 @@ says why closed questions closed, `CHANGELOG.md` says what landed, `bench/`
 says what it costs. This file says what is next. When something lands, its
 line leaves this file in the same commit.
 
-## Where the last session stopped — 2026-09-01
+## Where the last session stopped — 2026-09-02
+
+**2026-09-02: v0.2.0 is tagged and pushed.** Two things landed since the
+table below: the Python modeling layer — `Problem`, expressions, constraints
+from comparisons, warm re-solve on moved bounds, plus the seven C calls the
+binding had not reached, 61 tests and three armed defect shapes
+(`02-158/`) — and a documentation reconciliation for the release:
+`bench/compare/README.md` had been left describing `P0.txt` as the
+2026-08-17 reading after the file was re-taken 2026-08-30 (the 08-17 take is
+preserved in `results/P0-2026-08-17.txt`), README's API count said
+forty-three where the header has forty-five, and README's speed table was
+two readings old.
 
 ### → FRESH CONTEXT: READ THIS FIRST. THE PACE CHANGED.
 

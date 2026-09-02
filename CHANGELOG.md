@@ -9,6 +9,22 @@ open, `bench/README.md` for the gate, and the commit each entry came from.
 
 ## [Unreleased]
 
+## [0.2.0] — 2026-09-02
+
+The reach release. JAOS reads gzip input through an inflate written here
+(D240), reads and writes ranged LP rows (D239), and is usable from Python: a
+ctypes binding over the whole C API with a modeling layer on top, standard
+library only (D243). Underneath, the four answers that stopped measurably
+short of the published optimum are gone (D184), the record is machine-checked
+— `make test` fails when a document disagrees with the code — and a change is
+judged on five metrics instead of three (D206, D225). A primal simplex exists
+behind a development switch; a derived pricing rule for it was measured and
+refused (D244, D245).
+
+One honest number the other way: the competitive gap is wider than at 0.1.1
+on all three solvers, because D184 bought correctness with work and nothing
+has bought it back yet. `SPECS.md` section 8 carries the direction.
+
 ### Added
 
 - **An LP can be written in Python now, not only loaded.** `Problem` takes

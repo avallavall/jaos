@@ -70,7 +70,7 @@ offers, not from what JAOS has, so most of it is empty for JAOS on purpose.
 page improved the code and not the product.
 
 **JAOS is an LP solver.** Of the nine areas the matrix measures, JAOS is
-present in four. That is expected at 0.1.1.
+present in four. That is expected at 0.2.0.
 
 **Three things JAOS has that the field mostly does not.** Bit-identical
 results across machines, which Gurobi explicitly does not promise. An

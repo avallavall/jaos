@@ -14,7 +14,7 @@ accepts it against the model as the caller loaded it.
 
 ## Status
 
-The last tagged release is 0.1.1, from 2026-08-20. `main` carries everything
+The last tagged release is 0.2.0, from 2026-09-02. `main` carries everything
 landed since, and `CHANGELOG.md` lists it under *Unreleased*. The current
 milestone is M2, which is about the cost of an iteration; `SPECS.md` states
 its success criterion.
@@ -53,8 +53,19 @@ jaos_model_free(m);
   call fails and names the row or column rather than writing something
   weaker.
 - Usable from Python: `python/jaos.py` over `libjaos.so`, standard library
-  only, so it needs no compiler and no packages. `make shared`, then
+  only, so it needs no compiler and no packages. Models are written directly
+  — variables, expressions, constraints from ordinary comparisons — or
+  loaded from a file; every C call is reachable. `make shared`, then
   `make python-test`.
+
+  ```python
+  p = jaos.Problem()
+  x = p.add_var(ub=4)
+  y = p.add_var()
+  p.add(x + y <= 4)
+  p.maximize(x + 2*y)
+  p.solve()
+  ```
 - Presolve with six reduction families. Postsolve returns values, statuses
   and duals in terms of the caller's original problem.
 - Curtis-Reid scaling.
@@ -87,7 +98,7 @@ piece `SPECS.md` still lists as missing is Devex pricing — which is blocked
 on a paywalled source, and an own rule derived in its place lost to Dantzig
 and was refused (D244, D245).
 
-The public API has forty-three functions. Seven of them configure something:
+The public API has forty-five functions. Seven of them configure something:
 two tolerances, two budgets, where the log goes, how much of it there is, and
 a callback that decides whether a solve continues. No function selects a
 method. The solver decides which pricing rule runs, when it refactorizes, and
@@ -120,24 +131,25 @@ Two finer statements, each with the measurement behind it:
 
 `make compare` times JAOS against HiGHS, SoPlex and Clp, with each solver's
 own presolve on and the dual simplex forced on every side. The reading below
-is from 2026-08-17; `bench/compare/README.md` owns it and says how it was
+is from 2026-08-30; `bench/compare/README.md` owns it and says how it was
 taken.
 
-| P0, 2026-08-17 | vs HiGHS 1.15.1 | vs SoPlex 8.0.3 | vs Clp 1.17.11 |
+| P0, 2026-08-30 | vs HiGHS 1.15.1 | vs SoPlex 8.0.3 | vs Clp 1.17.11 |
 |---|---|---|---|
-| time per solve | 3.15x | 0.95x | 2.57x |
-| iterations | 1.55x | 0.63x | 1.31x |
-| time per iteration | 2.04x | 1.51x | 1.95x |
-| JAOS faster on | 1 of 17 | 11 of 20 | 2 of 13 |
-| worst instance | `stocfor3`, 30.0x | `grow22`, 8.4x | `stocfor3`, 26.4x |
+| time per solve | 3.60x | 1.12x | 2.96x |
+| iterations | 1.78x | 0.73x | 1.56x |
+| time per iteration | 2.02x | 1.52x | 1.90x |
+| JAOS faster on | 1 of 17 | 10 of 21 | 1 of 14 |
+| worst instance | `stocfor3`, 27.4x | `grow22`, 14.8x | `stocfor3`, 22.8x |
 
-The iteration counts are competitive and the cost of one iteration is what
-separates JAOS from the field. That is what milestone M2 works on. The worst
-instance is a presolve gap: HiGHS reduces `stocfor3` strongly and JAOS barely
-touches it, and `TODO.md` §5 carries that question.
-
-That reading predates D184, which added 3.4% work on the standard set. `make
-compare` reproduces the table on the current tree.
+JAOS still takes fewer iterations than SoPlex, and the cost of one iteration
+is what separates it from the field everywhere. That is what milestone M2
+works on. The gap is wider than the 2026-08-17 reading on all three
+competitors: D184 bought four exactly-right answers with 3.4% more work on
+the standard set, and nothing since has bought it back — `SPECS.md` section 8
+carries the direction. The worst instance is a presolve gap: HiGHS reduces
+`stocfor3` strongly and JAOS barely touches it, and `TODO.md` §5 carries
+that question.
 
 ## How a change gets in
 

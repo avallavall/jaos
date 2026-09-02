@@ -28,9 +28,9 @@ extern "C" {
 #endif
 
 #define JAOS_VERSION_MAJOR 0
-#define JAOS_VERSION_MINOR 1
-#define JAOS_VERSION_PATCH 1
-#define JAOS_VERSION_STRING "0.1.1"
+#define JAOS_VERSION_MINOR 2
+#define JAOS_VERSION_PATCH 0
+#define JAOS_VERSION_STRING "0.2.0"
 
 /* Runtime library version, e.g. "0.1.1". Static storage, never NULL. */
 JAOS_NODISCARD const char *jaos_version(void);

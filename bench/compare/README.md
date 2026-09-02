@@ -33,19 +33,25 @@ only, and that is not a rung.
 **P0 was re-taken 2026-08-17, after the implied free column singleton
 (D106).** That reduction took `maros-r7` from 21010708013 work units to
 328053926, and `maros-r7` was the single worst instance here: 72.5x HiGHS at
-the 2026-08-14 reading, 1.33x on 1.05x the iterations now. JAOS is faster
-than SoPlex per solve for the first time, 0.95x. The worst instance is now
-`stocfor3` at 30.0x HiGHS, and `TODO.md` §5 owns that gap. The 2026-08-14
-reading is kept in `results/P0-2026-08-14.txt`; every figure on this page
-that was computed from it says so.
+the 2026-08-14 reading, 1.33x on 1.05x the iterations at the 08-17 take.
+JAOS read faster than SoPlex per solve for the first time, 0.95x. The
+2026-08-14 reading is kept in `results/P0-2026-08-14.txt` and the 2026-08-17
+one in `results/P0-2026-08-17.txt`; every figure on this page that was
+computed from one of them says so.
 
-| P0, `results/P0.txt`, 2026-08-17 | vs HiGHS 1.15.1 | vs SoPlex 8.0.3 | vs Clp 1.17.11 |
+**P0 was re-taken again 2026-08-30, after 69 `src/` commits, and the gap is
+wider on all three** — 3.15x → 3.60x, 0.95x → 1.12x, 2.57x → 2.96x.
+Consistent with D184 buying four exactly-right answers at 1.0339x
+standard-set work, and with no performance work landing in that window. The
+worst instance is `stocfor3` at 27.4x HiGHS, and `TODO.md` §5 owns that gap.
+
+| P0, `results/P0.txt`, 2026-08-30 | vs HiGHS 1.15.1 | vs SoPlex 8.0.3 | vs Clp 1.17.11 |
 |---|---|---|---|
-| time per solve | 3.15x | **0.95x** | 2.57x |
-| iterations | 1.55x | **0.63x** | 1.31x |
-| **time per iteration** | **2.04x** | **1.51x** | **1.95x** |
-| JAOS faster on | 1 of 17 | **11 of 20** | 2 of 13 |
-| worst instance | `stocfor3` 30.0x | `grow22` 8.4x | `stocfor3` 26.4x |
+| time per solve | 3.60x | 1.12x | 2.96x |
+| iterations | 1.78x | **0.73x** | 1.56x |
+| **time per iteration** | **2.02x** | **1.52x** | **1.90x** |
+| JAOS faster on | 1 of 17 | **10 of 21** | 1 of 14 |
+| worst instance | `stocfor3` 27.4x | `grow22` 14.8x | `stocfor3` 22.8x |
 
 Against T0's 3.72x / 1.34x / 3.77x (D83): closer on all three. **Read a rung
 difference against each solver's own presolve, not through JAOS** — same
@@ -65,9 +71,9 @@ So JAOS's presolve is worth about what the others' are worth. At the
 on `maros-r7` HiGHS's presolve read 0.378x and halved its iteration count
 while JAOS's read 1.065x and removed nothing, and `stocfor3` was the same
 shape, 0.198x against 0.965x. D106 closed the `maros-r7` half: JAOS now
-removes 980 rows there and the instance reads 1.33x. `stocfor3` remains, at
-30.0x HiGHS and 26.4x Clp, and it is now the worst instance in the
-comparison.
+removes 980 rows there and the instance read 1.33x at the 08-17 take.
+`stocfor3` remains, at 27.4x HiGHS and 22.8x Clp on the current reading, and
+it is the worst instance in the comparison.
 
 **The rung reproduces two figures taken a different way**, which is what makes
 it believable: HiGHS's 0.692x is 1.445x inverted, against the 1.417x of D81
@@ -76,13 +82,13 @@ were measured as T2 − T1, with algorithm choice free; this is T0 → P0 at the
 2026-08-14 reading, with the dual forced. Two routes, one number.
 
 Two readings in `results/P0.txt` are worth knowing about, and both hold in
-both takes. On `pilot87` both SoPlex and Clp publish 301.7106806 where JAOS
+every take. On `pilot87` both SoPlex and Clp publish 301.7106806 where JAOS
 and HiGHS agree on 301.7103474, so the harness discards their times — the
 rule that a time without a verified answer is thrown away is doing its job,
-and it is JAOS and HiGHS on one side of it. And `grow22` reads 8.8x slower
-than at T0 (9.5x at the 2026-08-14 reading), which is presolve's own
-regression on that model (D103) confirming in seconds what the work counter
-said; `TODO.md` §2 owns it.
+and it is JAOS and HiGHS on one side of it. And `grow22` read 8.8x slower
+than at T0 at the 08-17 take (9.5x at the 2026-08-14 reading), which is
+presolve's own regression on that model (D103) confirming in seconds what
+the work counter said; `TODO.md` §2 owns it.
 
 The header of `results/P0-2026-08-14.txt` says `WITH UNCOMMITTED CHANGES`.
 Those were the three P0 tier files themselves, which are harness inputs;
@@ -101,11 +107,11 @@ two iteration rows, and prints how many it dropped and which.
 Recomputed from the stored records, so the ladder is complete for the first
 time. Time per solve:
 
-| | T0 | T1 | T2 | T3 | P0 (08-17) |
-|---|---|---|---|---|---|
-| vs HiGHS | 3.72x | 3.71x | 4.53x | 4.46x | **3.15x** |
-| vs SoPlex | 1.34x | 1.33x | 1.46x | 1.50x | **0.95x** |
-| vs Clp | 3.77x | 3.79x | 5.88x | 5.92x | **2.57x** |
+| | T0 | T1 | T2 | T3 | P0 (08-17) | P0 (08-30) |
+|---|---|---|---|---|---|---|
+| vs HiGHS | 3.72x | 3.71x | 4.53x | 4.46x | 3.15x | **3.60x** |
+| vs SoPlex | 1.34x | 1.33x | 1.46x | 1.50x | 0.95x | **1.12x** |
+| vs Clp | 3.77x | 3.79x | 5.88x | 5.92x | 2.57x | **2.96x** |
 
 T2 − T1 prices Clp's presolve at 1.55x, which the direct T0 → P0 reading of
 Clp against itself put at 1.49x on the 2026-08-14 take. Two routes, and they

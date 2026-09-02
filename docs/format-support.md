@@ -205,7 +205,7 @@ missing.
 
 ```
 # JAOS solution file, format 1
-# written by JAOS 0.1.1
+# written by JAOS 0.2.0
 status optimal
 objective 5501.8458882867444
 columns 1571
