@@ -937,14 +937,11 @@ static void test_an_infinite_term_is_counted_not_summed(void)
 /* A model the simplex itself must refuse: x0 in [0,2] cannot lift the
  * row to its floor of 4. The certificate is the refused row's ray, and
  * the checker's two halves are exact by hand: the row side cannot go
- * below 4, the column side cannot go above 2 (D254). */
+ * below 4, the column side cannot go above 2 (D254). In the default
+ * build presolve's singleton-row site proves the same model and seeds
+ * the same ray, so the numbers hold in both builds (D256). */
 static void test_certificate_of_a_simplex_proved_infeasibility(void)
 {
-#if !defined(JAOS_NO_PRESOLVE)
-    TEST_IGNORE_MESSAGE("simplex-internal test — presolve proves this "
-                        "model infeasible first; runs only under "
-                        "EXTRA_CFLAGS=-DJAOS_NO_PRESOLVE");
-#else
     const double c[] = {1.0};
     const double cl[] = {0.0}, cu[] = {2.0};
     const double rl[] = {4.0}, ru[] = {INFINITY};
@@ -971,21 +968,236 @@ static void test_certificate_of_a_simplex_proved_infeasibility(void)
     TEST_ASSERT_DOUBLE_WITHIN(1e-9, 2.0, rep.sup_columns);
     TEST_ASSERT_DOUBLE_WITHIN(1e-9, 2.0, rep.gap);
     jaos_model_free(m);
+}
+
+/* Presolve proves this one with a forcing row in the way. Row 0 pins x0
+ * and x1 at their lower bounds, and the singleton row 1 then asks x2 for
+ * the 3 it cannot give. The row-1 seed alone leans on x0's caller box of
+ * [0, 5]: sup 7 against inf 3, refused. The lift gives the forcing row
+ * the multiplier -1 that turns x0's term toward its pinned side, and the
+ * halves read 3 against 2 (D256). */
+static void test_certificate_lifted_through_a_forcing_row(void)
+{
+#if defined(JAOS_NO_PRESOLVE)
+    TEST_IGNORE_MESSAGE("presolve-path test — runs only in the default "
+                        "build, where presolve answers this model");
+#elif defined(JAOS_PRESOLVE_FAULT_OFFBYONE)
+    TEST_IGNORE_MESSAGE("the lift restores through the faulted index");
+#else
+    const double c[] = {0.0, 1.0, 1.0};
+    const double cl[] = {0.0, 0.0, 0.0}, cu[] = {5.0, 5.0, 2.0};
+    const double rl[] = {-INFINITY, 3.0}, ru[] = {0.0, INFINITY};
+    const int64_t s[] = {0, 2, 3, 4}, ix[] = {0, 1, 0, 1};
+    const double v[] = {1.0, 1.0, 1.0, 1.0};
+    jaos_model *m = nullptr;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_model_new(&m));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_load_lp(m, 3, 2, JAOS_MINIMIZE, 0.0, c, cl, cu, rl, ru,
+                     4, s, ix, v));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_INFEASIBLE, jaos_status_of(m));
+    TEST_ASSERT_EQUAL_INT64(0, jaos_iterations(m));
+
+    double y[2] = {0.0, 0.0};
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_certificate(m, y));
+    TEST_ASSERT_DOUBLE_WITHIN(1e-12, -1.0, y[0]);
+    TEST_ASSERT_DOUBLE_WITHIN(1e-12, 1.0, y[1]);
+
+    jaos_certificate_report rep;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+                          jaos_check_certificate(m, y, 1e-7, &rep));
+    TEST_ASSERT_TRUE(rep.certified);
+    TEST_ASSERT_DOUBLE_WITHIN(1e-9, 3.0, rep.inf_rows);
+    TEST_ASSERT_DOUBLE_WITHIN(1e-9, 2.0, rep.sup_columns);
+    TEST_ASSERT_DOUBLE_WITHIN(1e-9, 1.0, rep.gap);
+    jaos_model_free(m);
 #endif
 }
 
-/* The same model in the default build: presolve proves the
- * infeasibility by reduction and no ray ever exists. The accessor must
- * refuse rather than hand back stale or invented values (D254). */
-static void test_certificate_refused_when_presolve_proved_it(void)
+/* The same forcing row, and an infeasibility presolve cannot see: rows
+ * 1 and 2 disagree about x2 + x3 only together. The simplex refuses on
+ * the reduced pair, its ray comes back through the forcing row, and the
+ * multiplier that row takes is what makes the certificate hold in the
+ * caller's wider box (D256). */
+static void test_certificate_of_a_reduced_solve_is_lifted(void)
+{
+#if defined(JAOS_NO_PRESOLVE)
+    TEST_IGNORE_MESSAGE("presolve-path test — runs only in the default "
+                        "build, where presolve reduces this model");
+#elif defined(JAOS_PRESOLVE_FAULT_OFFBYONE)
+    TEST_IGNORE_MESSAGE("the lift restores through the faulted index");
+#else
+    const double c[] = {0.0, 1.0, 1.0, 1.0};
+    const double cl[] = {0.0, 0.0, 0.0, 0.0}, cu[] = {5.0, 5.0, 2.0, 2.0};
+    const double rl[] = {-INFINITY, 3.0, -INFINITY};
+    const double ru[] = {0.0, INFINITY, 1.0};
+    const int64_t s[] = {0, 2, 3, 5, 7}, ix[] = {0, 1, 0, 1, 2, 1, 2};
+    const double v[] = {1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0};
+    jaos_model *m = nullptr;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_model_new(&m));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_load_lp(m, 4, 3, JAOS_MINIMIZE, 0.0, c, cl, cu, rl, ru,
+                     7, s, ix, v));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_INFEASIBLE, jaos_status_of(m));
+
+    double y[3] = {0.0, 0.0, 0.0};
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_certificate(m, y));
+    TEST_ASSERT_TRUE_MESSAGE(y[0] < 0.0, "the forcing row must carry a "
+                             "multiplier toward its upper side");
+    TEST_ASSERT_TRUE(y[1] > 0.0);
+    TEST_ASSERT_TRUE(y[2] < 0.0);
+
+    jaos_certificate_report rep;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+                          jaos_check_certificate(m, y, 1e-7, &rep));
+    TEST_ASSERT_TRUE(rep.certified);
+
+    /* The control the lift is measured against: the same ray with the
+     * forcing row's multiplier removed leans on x0's box of [0, 5] and
+     * the checker refuses it. */
+    y[0] = 0.0;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+                          jaos_check_certificate(m, y, 1e-7, &rep));
+    TEST_ASSERT_FALSE(rep.certified);
+    jaos_model_free(m);
+#endif
+}
+
+/* A singleton-row fold absorbed: row 0 narrows x0 to [0, 2], and row 1
+ * then cannot reach 5 with x0 + x1 at most 4. The seed on row 1 leans
+ * on x0's upper side, which the caller's box puts at 10; the fold that
+ * produced the 2 takes y = -1 and the halves read 3 against 2. Under
+ * the off-by-one fault the fold's multiplier lands on row 1 instead and
+ * the checker refuses, which is what shows the lift restores through
+ * the same index the replay does (D256). */
+static void test_certificate_lifted_through_a_singleton_row_fold(void)
+{
+#if defined(JAOS_NO_PRESOLVE)
+    TEST_IGNORE_MESSAGE("presolve-path test — runs only in the default "
+                        "build, where presolve answers this model");
+#else
+    const double c[] = {1.0, 1.0};
+    const double cl[] = {0.0, 0.0}, cu[] = {10.0, 2.0};
+    const double rl[] = {-INFINITY, 5.0}, ru[] = {2.0, INFINITY};
+    const int64_t s[] = {0, 2, 3}, ix[] = {0, 1, 1};
+    const double v[] = {1.0, 1.0, 1.0};
+    jaos_model *m = nullptr;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_model_new(&m));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_load_lp(m, 2, 2, JAOS_MINIMIZE, 0.0, c, cl, cu, rl, ru,
+                     3, s, ix, v));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_INFEASIBLE, jaos_status_of(m));
+    TEST_ASSERT_EQUAL_INT64(0, jaos_iterations(m));
+
+    double y[2] = {0.0, 0.0};
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_certificate(m, y));
+    jaos_certificate_report rep;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+                          jaos_check_certificate(m, y, 1e-7, &rep));
+#if defined(JAOS_PRESOLVE_FAULT_OFFBYONE)
+    TEST_ASSERT_FALSE_MESSAGE(rep.certified,
+                              "a lift restoring one row off must not "
+                              "certify");
+#else
+    TEST_ASSERT_DOUBLE_WITHIN(1e-12, -1.0, y[0]);
+    TEST_ASSERT_DOUBLE_WITHIN(1e-12, 1.0, y[1]);
+    TEST_ASSERT_TRUE(rep.certified);
+    TEST_ASSERT_DOUBLE_WITHIN(1e-9, 3.0, rep.inf_rows);
+    TEST_ASSERT_DOUBLE_WITHIN(1e-9, 2.0, rep.sup_columns);
+    TEST_ASSERT_DOUBLE_WITHIN(1e-9, 1.0, rep.gap);
+#endif
+    jaos_model_free(m);
+#endif
+}
+
+/* The empty-row site: two fixed columns leave row 0 with nothing live
+ * and a shifted upper bound of -2. The seed is -1 on that row; the
+ * halves read -2 against -4 in the caller's own terms (D256). */
+static void test_certificate_of_an_empty_row(void)
+{
+#if defined(JAOS_NO_PRESOLVE)
+    TEST_IGNORE_MESSAGE("presolve-path test — runs only in the default "
+                        "build, where presolve answers this model");
+#else
+    const double c[] = {0.0, 0.0};
+    const double cl[] = {3.0, 1.0}, cu[] = {3.0, 1.0};
+    const double rl[] = {-INFINITY}, ru[] = {2.0};
+    const int64_t s[] = {0, 1, 2}, ix[] = {0, 0};
+    const double v[] = {1.0, 1.0};
+    jaos_model *m = nullptr;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_model_new(&m));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_load_lp(m, 2, 1, JAOS_MINIMIZE, 0.0, c, cl, cu, rl, ru,
+                     2, s, ix, v));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_INFEASIBLE, jaos_status_of(m));
+
+    double y[1] = {0.0};
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_certificate(m, y));
+    jaos_certificate_report rep;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+                          jaos_check_certificate(m, y, 1e-7, &rep));
+    TEST_ASSERT_TRUE(rep.certified);
+    TEST_ASSERT_DOUBLE_WITHIN(1e-9, -2.0, rep.inf_rows);
+    TEST_ASSERT_DOUBLE_WITHIN(1e-9, -4.0, rep.sup_columns);
+    TEST_ASSERT_DOUBLE_WITHIN(1e-9, 2.0, rep.gap);
+    jaos_model_free(m);
+#endif
+}
+
+/* The frozen-row site: x0 is a cost-0 singleton column that relaxes row
+ * 0's floor from 5 to 4 and freezes it, row 1 is redundant, x2 empties,
+ * and the frozen check then finds x1 alone cannot reach 4. Three record
+ * families sit between the seed and the caller, none of which owes a
+ * multiplier; the halves read 5 against 3 (D256). */
+static void test_certificate_of_a_frozen_row(void)
+{
+#if defined(JAOS_NO_PRESOLVE)
+    TEST_IGNORE_MESSAGE("presolve-path test — runs only in the default "
+                        "build, where presolve answers this model");
+#else
+    const double c[] = {0.0, 1.0, 1.0};
+    const double cl[] = {0.0, 0.0, 0.0}, cu[] = {1.0, 2.0, 1.0};
+    const double rl[] = {5.0, -INFINITY}, ru[] = {INFINITY, 10.0};
+    const int64_t s[] = {0, 1, 3, 4}, ix[] = {0, 0, 1, 1};
+    const double v[] = {1.0, 1.0, 1.0, 1.0};
+    jaos_model *m = nullptr;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_model_new(&m));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_load_lp(m, 3, 2, JAOS_MINIMIZE, 0.0, c, cl, cu, rl, ru,
+                     4, s, ix, v));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_INFEASIBLE, jaos_status_of(m));
+    TEST_ASSERT_EQUAL_INT64(0, jaos_iterations(m));
+
+    double y[2] = {0.0, 0.0};
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_certificate(m, y));
+    jaos_certificate_report rep;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+                          jaos_check_certificate(m, y, 1e-7, &rep));
+    TEST_ASSERT_TRUE(rep.certified);
+    TEST_ASSERT_DOUBLE_WITHIN(1e-9, 5.0, rep.inf_rows);
+    TEST_ASSERT_DOUBLE_WITHIN(1e-9, 3.0, rep.sup_columns);
+    TEST_ASSERT_DOUBLE_WITHIN(1e-9, 2.0, rep.gap);
+    jaos_model_free(m);
+#endif
+}
+
+/* The one refusal that stays: a row whose own bounds are inverted. The
+ * singleton-row site proves it, no side of the row is one the column
+ * cannot reach, and there is no ray to publish; the accessor says so
+ * rather than handing out a unit vector the checker would refuse. */
+static void test_certificate_refused_on_inverted_bounds(void)
 {
 #if defined(JAOS_NO_PRESOLVE)
     TEST_IGNORE_MESSAGE("presolve-path test — runs only in the default "
                         "build, where presolve answers this model");
 #else
     const double c[] = {1.0};
-    const double cl[] = {0.0}, cu[] = {2.0};
-    const double rl[] = {4.0}, ru[] = {INFINITY};
+    const double cl[] = {0.0}, cu[] = {10.0};
+    const double rl[] = {5.0}, ru[] = {3.0};
     const int64_t s[] = {0, 1}, ix[] = {0};
     const double v[] = {1.0};
     jaos_model *m = nullptr;
@@ -1050,14 +1262,12 @@ static void test_a_certificate_needing_an_absent_bound_is_rejected(void)
 
 /* A model the solve itself must prove unbounded: min -x0 with x0 free
  * upward. The published ray must move x0 up, improve the objective, and
- * certify against the model alone (D255). */
+ * certify against the model alone (D255). In the default build x1 is a
+ * singleton column that relaxes the row's floor away, the simplex proves
+ * the reduced model and the lift owes nothing because the row's upper
+ * side is open; the ray certifies in both builds (D256). */
 static void test_ray_of_a_simplex_proved_unboundedness(void)
 {
-#if !defined(JAOS_NO_PRESOLVE)
-    TEST_IGNORE_MESSAGE("simplex-internal test — presolve proves this "
-                        "model unbounded first; runs only under "
-                        "EXTRA_CFLAGS=-DJAOS_NO_PRESOLVE");
-#else
     const double c[] = {-1.0, 0.0};
     const double cl[] = {0.0, 0.0}, cu[] = {INFINITY, INFINITY};
     const double rl[] = {1.0}, ru[] = {INFINITY};
@@ -1082,22 +1292,60 @@ static void test_ray_of_a_simplex_proved_unboundedness(void)
                              "model");
     TEST_ASSERT_TRUE(rep.rate < 0.0);
     jaos_model_free(m);
-#endif
 }
 
-/* The same model in the default build: presolve proves the
- * unboundedness and no ray ever exists; the accessor must refuse. */
-static void test_ray_refused_when_presolve_proved_it(void)
+/* The empty-column site: x0 has no entry at all and a cost that runs off
+ * its open upper side. Presolve proves it and seeds the unit ray; the
+ * fold of x1 sits in the arena and owes nothing (D256). */
+static void test_ray_of_a_presolve_proved_unboundedness(void)
 {
 #if defined(JAOS_NO_PRESOLVE)
     TEST_IGNORE_MESSAGE("presolve-path test — runs only in the default "
                         "build, where presolve answers this model");
 #else
+    const double c[] = {-1.0, 1.0};
+    const double cl[] = {0.0, 0.0}, cu[] = {INFINITY, 10.0};
+    const double rl[] = {-INFINITY}, ru[] = {3.0};
+    const int64_t s[] = {0, 0, 1}, ix[] = {0};
+    const double v[] = {1.0};
+    jaos_model *m = nullptr;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_model_new(&m));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_load_lp(m, 2, 1, JAOS_MINIMIZE, 0.0, c, cl, cu, rl, ru,
+                     1, s, ix, v));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_UNBOUNDED, jaos_status_of(m));
+    TEST_ASSERT_EQUAL_INT64(0, jaos_iterations(m));
+
+    double d[2] = {0.0, 0.0};
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_unbounded_ray(m, d));
+    TEST_ASSERT_DOUBLE_WITHIN(1e-12, 1.0, d[0]);
+    TEST_ASSERT_DOUBLE_WITHIN(1e-12, 0.0, d[1]);
+    jaos_ray_report rep;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_check_ray(m, d, 1e-7, &rep));
+    TEST_ASSERT_TRUE(rep.certified);
+    TEST_ASSERT_DOUBLE_WITHIN(1e-12, -1.0, rep.rate);
+    jaos_model_free(m);
+#endif
+}
+
+/* A singleton column that must absorb: x1 is cost-0 and open upward, so
+ * presolve relaxes row 0's ceiling of 4 away and the reduced solve runs
+ * x0 off alone. In the caller's model that direction runs row 0 past 4;
+ * the lift moves x1 with x0 and the row stands still (D256). */
+static void test_ray_lifted_through_a_singleton_column(void)
+{
+#if defined(JAOS_NO_PRESOLVE)
+    TEST_IGNORE_MESSAGE("presolve-path test — runs only in the default "
+                        "build, where presolve reduces this model");
+#elif defined(JAOS_PRESOLVE_FAULT_OFFBYONE)
+    TEST_IGNORE_MESSAGE("the lift restores through the faulted index");
+#else
     const double c[] = {-1.0, 0.0};
     const double cl[] = {0.0, 0.0}, cu[] = {INFINITY, INFINITY};
-    const double rl[] = {1.0}, ru[] = {INFINITY};
+    const double rl[] = {-INFINITY}, ru[] = {4.0};
     const int64_t s[] = {0, 1, 2}, ix[] = {0, 0};
-    const double v[] = {1.0, 1.0};
+    const double v[] = {1.0, -1.0};
     jaos_model *m = nullptr;
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_model_new(&m));
     TEST_ASSERT_EQUAL_INT(JAOS_OK,
@@ -1105,8 +1353,68 @@ static void test_ray_refused_when_presolve_proved_it(void)
                      2, s, ix, v));
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
     TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_UNBOUNDED, jaos_status_of(m));
-    double d[2];
-    TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT, jaos_unbounded_ray(m, d));
+
+    double d[2] = {0.0, 0.0};
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_unbounded_ray(m, d));
+    TEST_ASSERT_TRUE(d[0] > 0.0);
+    TEST_ASSERT_TRUE_MESSAGE(d[1] > 0.0, "x1 must move with x0 to keep "
+                             "row 0 under its ceiling");
+    jaos_ray_report rep;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_check_ray(m, d, 1e-7, &rep));
+    TEST_ASSERT_TRUE(rep.certified);
+
+    /* The control: x0's direction alone is what the reduced solve
+     * proved, and the caller's row 0 refuses it. */
+    d[1] = 0.0;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_check_ray(m, d, 1e-7, &rep));
+    TEST_ASSERT_FALSE(rep.certified);
+    TEST_ASSERT_TRUE(rep.max_row_escape > 0.0);
+    jaos_model_free(m);
+#endif
+}
+
+/* An implied-free column substituted out: x0 is free with one entry in
+ * the equality row 0, presolve removes both and moves x0's cost onto x1.
+ * The reduced solve runs x1 and x2 off together along row 1; the lift
+ * gives x0 the step that keeps row 0 at its 1, and the rate reads the
+ * caller's own costs (D256). */
+static void test_ray_lifted_through_an_implied_free_column(void)
+{
+#if defined(JAOS_NO_PRESOLVE)
+    TEST_IGNORE_MESSAGE("presolve-path test — runs only in the default "
+                        "build, where presolve reduces this model");
+#elif defined(JAOS_PRESOLVE_FAULT_OFFBYONE)
+    TEST_IGNORE_MESSAGE("the lift restores through the faulted index");
+#else
+    const double c[] = {1.0, 0.0, 0.5};
+    const double cl[] = {-INFINITY, 0.0, 0.0};
+    const double cu[] = {INFINITY, INFINITY, INFINITY};
+    const double rl[] = {1.0, -INFINITY}, ru[] = {1.0, 5.0};
+    const int64_t s[] = {0, 1, 3, 4}, ix[] = {0, 0, 1, 1};
+    const double v[] = {1.0, 1.0, 1.0, -1.0};
+    jaos_model *m = nullptr;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_model_new(&m));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_load_lp(m, 3, 2, JAOS_MINIMIZE, 0.0, c, cl, cu, rl, ru,
+                     4, s, ix, v));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_UNBOUNDED, jaos_status_of(m));
+
+    double d[3] = {0.0, 0.0, 0.0};
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_unbounded_ray(m, d));
+    TEST_ASSERT_TRUE(d[1] > 0.0);
+    TEST_ASSERT_TRUE_MESSAGE(d[0] < 0.0, "x0 must fall as x1 rises to "
+                             "hold the equality row");
+    jaos_ray_report rep;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_check_ray(m, d, 1e-7, &rep));
+    TEST_ASSERT_TRUE(rep.certified);
+    TEST_ASSERT_TRUE(rep.rate < 0.0);
+
+    /* The control: without x0's step the equality row moves. */
+    d[0] = 0.0;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_check_ray(m, d, 1e-7, &rep));
+    TEST_ASSERT_FALSE(rep.certified);
+    TEST_ASSERT_TRUE(rep.max_row_escape > 0.0);
     jaos_model_free(m);
 #endif
 }
@@ -1157,11 +1465,18 @@ int main(void)
     RUN_TEST(test_an_infinite_term_is_counted_not_summed);
     RUN_TEST(test_check_rejects_bad_arguments);
     RUN_TEST(test_certificate_of_a_simplex_proved_infeasibility);
-    RUN_TEST(test_certificate_refused_when_presolve_proved_it);
+    RUN_TEST(test_certificate_lifted_through_a_forcing_row);
+    RUN_TEST(test_certificate_of_a_reduced_solve_is_lifted);
+    RUN_TEST(test_certificate_lifted_through_a_singleton_row_fold);
+    RUN_TEST(test_certificate_of_an_empty_row);
+    RUN_TEST(test_certificate_of_a_frozen_row);
+    RUN_TEST(test_certificate_refused_on_inverted_bounds);
     RUN_TEST(test_a_wrong_certificate_is_rejected);
     RUN_TEST(test_a_certificate_needing_an_absent_bound_is_rejected);
     RUN_TEST(test_ray_of_a_simplex_proved_unboundedness);
-    RUN_TEST(test_ray_refused_when_presolve_proved_it);
+    RUN_TEST(test_ray_of_a_presolve_proved_unboundedness);
+    RUN_TEST(test_ray_lifted_through_a_singleton_column);
+    RUN_TEST(test_ray_lifted_through_an_implied_free_column);
     RUN_TEST(test_a_wrong_ray_is_rejected);
     return UNITY_END();
 }

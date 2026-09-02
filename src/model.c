@@ -438,8 +438,9 @@ jaos_status jaos_certificate(const jaos_model *m, double *row_ray)
     if (m == nullptr || row_ray == nullptr)
         return JAOS_ERR_INVALID_INPUT;
     /* The flag is the availability: the simplex's own refusal on this
-     * model's rows set it, and nothing else can (D254). Presolve-proved
-     * infeasibility, and a solve presolve reduced first, leave it false. */
+     * model's rows set it, or the postsolve did after lifting a reduced
+     * solve's or a presolve site's ray back into them (D254, D256). An
+     * inverted box, which has no ray, leaves it false. */
     if (m->solve_status != JAOS_SOLVE_INFEASIBLE || !m->farkas_ok ||
         m->sol_farkas == nullptr)
         return JAOS_ERR_INVALID_INPUT;
@@ -451,10 +452,9 @@ jaos_status jaos_unbounded_ray(const jaos_model *m, double *col_ray)
 {
     if (m == nullptr || col_ray == nullptr)
         return JAOS_ERR_INVALID_INPUT;
-    /* Same availability discipline as jaos_certificate: only a ray
-     * proof on this model's own columns set the flag (D255). Presolve-
-     * proved unboundedness, and a proof on a presolve-reduced model,
-     * leave it false. */
+    /* Same availability discipline as jaos_certificate: a ray proof on
+     * this model's own columns, or one lifted into them by the postsolve,
+     * set the flag (D255, D256). */
     if (m->solve_status != JAOS_SOLVE_UNBOUNDED || !m->ray_ok ||
         m->sol_ray == nullptr)
         return JAOS_ERR_INVALID_INPUT;

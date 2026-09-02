@@ -4091,9 +4091,8 @@ static jaos_status publish(sx *s, jaos_solve_status status, jm_presolve *p)
         /* The certificate, in the caller's units, unscaled the way the
          * row duals are. Publication and not solving: unbilled, like
          * every other sol_* write. When m is a presolve-reduced model
-         * this sets the reduced copy's flag, which nothing publishes —
-         * mapping the ray through the reductions is the missing half the
-         * SPECS row names (D254). */
+         * this sets the reduced copy's flag, and jm_postsolve_expand
+         * below lifts the ray into the caller's rows (D254, D256). */
         memset(m->sol_farkas, 0, (size_t)m->num_row * sizeof(double));
         if (status == JAOS_SOLVE_INFEASIBLE && s->farkas_sign != 0.0) {
             for (int64_t i = 0; i < m->num_row; i++) {
@@ -4229,11 +4228,11 @@ jaos_status jm_dual_simplex(jaos_model *m)
     m->solve_iters = 0;
     m->solve_primal_iters = 0;
     m->solve_phase1_iters = 0;
-    /* And the certificates: only a proof on THIS model's own rows and
-     * columns may turn either back on (D254, D255). A capture on a
-     * presolve-reduced model writes the reduced model's copies of these
-     * flags, which nothing publishes, so the original's stay honestly
-     * false there. */
+    /* And the certificates: only a proof that stands on THIS model's own
+     * rows and columns may turn either back on (D254, D255). A capture on
+     * a presolve-reduced model writes the reduced model's copies of these
+     * flags; the postsolve lifts the ray and sets the original's only
+     * when the lift completed (D256). */
     m->farkas_ok = false;
     m->ray_ok = false;
 

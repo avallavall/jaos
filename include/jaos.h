@@ -824,11 +824,13 @@ JAOS_NODISCARD jaos_status jaos_check_solution(const jaos_model *m,
  * the left side can be still exceeds the largest the right side can be.
  * jaos_check_certificate verifies exactly that from the model alone.
  *
- * Available only when the simplex itself refused a row: infeasibility
- * proved by presolve's reductions carries no ray, and when presolve
- * reduced the model first the ray lives in the reduced row space, which
- * is not the caller's. Both refuse here; that gap is recorded in
- * SPECS.md. row_ray receives num_row values. */
+ * Available whether the simplex refused a row or presolve did: a ray
+ * proved on a presolve-reduced model is lifted back through the
+ * reductions into this model's own rows, and a reduction that proves
+ * infeasibility by itself seeds one from the bound it refused. The one
+ * refusal left is a model whose own bounds are inverted, which has no
+ * ray to offer: the bounds are the proof. row_ray receives num_row
+ * values. */
 JAOS_NODISCARD jaos_status jaos_certificate(const jaos_model *m,
                                             double *row_ray);
 
@@ -866,10 +868,11 @@ JAOS_NODISCARD jaos_status jaos_check_certificate(const jaos_model *m,
  * it stays feasible forever and improves the objective at a fixed rate.
  * jaos_check_ray verifies exactly that from the model alone.
  *
- * Available only when the solve itself proved a ray on this model's own
- * columns: unboundedness proved by presolve carries none, and a ray on
- * a presolve-reduced model lives in the wrong column space. Both refuse
- * here; SPECS.md records the gap. col_ray receives num_col values. */
+ * Available whether the solve proved the ray or presolve did: a ray on a
+ * presolve-reduced model is lifted back into this model's own columns,
+ * and the one reduction that proves unboundedness by itself, a column
+ * with no live entry whose cost runs off an open side, seeds one.
+ * col_ray receives num_col values. */
 JAOS_NODISCARD jaos_status jaos_unbounded_ray(const jaos_model *m,
                                               double *col_ray);
 

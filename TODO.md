@@ -41,6 +41,15 @@ cost or billing moves boundary instances between columns (D252, D253).
 The disagreement family is named and owned in the bullet below; what
 remains there is design work or a maintainer decision.
 
+**Also 2026-09-02: the certificates cross presolve (D254 to D256).** An
+INFEASIBLE answer publishes its Farkas ray and an UNBOUNDED one its
+direction, from the simplex's own proof sites (D254, D255) and, since
+D256, from a presolve-reduced solve and from every presolve proof site,
+lifted back through the reductions. 28 of the 29 reference infeasibles
+certify at 1e-7 under the default build and `gran` at 1e-9
+(`bench/measurements/02-165/`). The SPECS row reads done; what it does
+not cover is a model whose own bounds are inverted, which has no ray.
+
 **Also 2026-09-02: the multi-column ray is decided (D247).** The lent-bound
 verdict tries one combined direction — every held column off its loan at
 unit rate, one FTRAN — and D241's named example answers UNBOUNDED from both

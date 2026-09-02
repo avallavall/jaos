@@ -11,6 +11,13 @@ open, `bench/README.md` for the gate, and the commit each entry came from.
 
 ### Added
 
+- **A certificate crosses back through presolve.** A ray the simplex
+  proved on a reduced model is lifted into the caller's rows or columns,
+  and each presolve proof site seeds its own from the bound it refused;
+  the one refusal left is an inverted box. Under the default build 28 of
+  the 29 reference infeasibles certify at 1e-7 and `gran` at 1e-9, with
+  every gate digest byte-identical (D256, `bench/measurements/02-165/`).
+
 - **An unbounded answer can prove itself too.** `jaos_unbounded_ray`
   publishes the direction from the simplex's three ray-proof sites — the
   single column off its loan, D247's combined direction, the primal's

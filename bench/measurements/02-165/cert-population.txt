@@ -1,0 +1,32 @@
+bench/instances-infeas/bgdbg1.mps certified (presolve) gap=10 sup=0 inf=10 rel=0.909
+bench/instances-infeas/bgetam.mps certified (simplex) gap=422.27 sup=-0.966025 inf=421.304 rel=0.998
+bench/instances-infeas/bgindy.mps certified (simplex) gap=67911.7 sup=0 inf=67911.7 rel=1
+bench/instances-infeas/bgprtr.mps certified (simplex) gap=22.1455 sup=0 inf=22.1455 rel=0.957
+bench/instances-infeas/box1.mps certified (simplex) gap=1 sup=-1 inf=0 rel=0.5
+bench/instances-infeas/ceria3d.mps certified (presolve) gap=0.25 sup=0 inf=0.25 rel=0.2
+bench/instances-infeas/chemcom.mps certified (simplex) gap=7880.6 sup=-7998.6 inf=-118 rel=0.971
+bench/instances-infeas/cplex1.mps certified (simplex) gap=9.665e+06 sup=0 inf=9.665e+06 rel=1
+bench/instances-infeas/cplex2.mps certified (simplex) gap=6.01132e-05 sup=0 inf=6.01132e-05 rel=6.01e-05
+bench/instances-infeas/ex72a.mps certified (simplex) gap=1 sup=-1 inf=0 rel=0.5
+bench/instances-infeas/ex73a.mps certified (simplex) gap=1 sup=-1 inf=0 rel=0.5
+bench/instances-infeas/forest6.mps certified (simplex) gap=130099 sup=394253 inf=524352 rel=0.142
+bench/instances-infeas/galenet.mps certified (presolve) gap=10 sup=20 inf=30 rel=0.196
+bench/instances-infeas/gosh.mps certified (simplex) gap=0.07996 sup=0 inf=0.07996 rel=0.074
+bench/instances-infeas/gran.mps THIN (presolve) certifies at 1e-9, not 1e-7: gap=8e-06 sup=-97.7 inf=-97.7 rel=4.07e-08
+bench/instances-infeas/greenbea.mps certified (presolve) gap=320 sup=-320 inf=0 rel=0.997
+bench/instances-infeas/itest2.mps certified (presolve) gap=11 sup=0 inf=11 rel=0.917
+bench/instances-infeas/itest6.mps certified (presolve) gap=80000 sup=0 inf=80000 rel=1
+bench/instances-infeas/klein1.mps certified (simplex) gap=1.5989e+06 sup=0 inf=1.5989e+06 rel=1
+bench/instances-infeas/klein2.mps certified (simplex) gap=23504.3 sup=0 inf=23504.3 rel=1
+bench/instances-infeas/klein3.mps certified (simplex) gap=209443 sup=0 inf=209443 rel=1
+bench/instances-infeas/mondou2.mps certified (simplex) gap=6118 sup=53886 inf=60004 rel=0.0537
+bench/instances-infeas/pang.mps certified (simplex) gap=25234.8 sup=23475.8 inf=48710.5 rel=0.35
+bench/instances-infeas/pilot4i.mps certified (presolve) gap=15.17 sup=0 inf=15.17 rel=0.938
+bench/instances-infeas/qual.mps certified (simplex) gap=1.74975e+06 sup=-7.21513e+08 inf=-7.19763e+08 rel=0.00121
+bench/instances-infeas/reactor.mps certified (presolve) gap=1 sup=-1 inf=0 rel=0.5
+bench/instances-infeas/refinery.mps certified (simplex) gap=985394 sup=-1.59028e+07 inf=-1.49174e+07 rel=0.032
+bench/instances-infeas/vol1.mps certified (simplex) gap=852285 sup=-2.11549e+08 inf=-2.10696e+08 rel=0.00202
+bench/instances-infeas/woodinfe.mps certified (presolve) gap=5 sup=-5 inf=0 rel=0.833
+bench/instances/afiro.mps control: optimal, no certificate
+bench/instances/adlittle.mps control: optimal, no certificate
+certified 28 (9 by presolve alone), thin 1, controls 2, bad 0

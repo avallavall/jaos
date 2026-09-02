@@ -263,6 +263,7 @@ and you have the argument. Jump to the entry for the numbers behind it.
 - **[D253](#d253--btrans-l-pass-walks-its-pattern-not-every-slot)** — BTRAN's L' pass walks its pattern, not every slot
 - **[D254](#d254--a-simplex-proved-infeasible-publishes-its-farkas-ray-and-the-checker-can-refuse-it)** — A simplex-proved INFEASIBLE publishes its Farkas ray, and the checker can refuse it
 - **[D255](#d255--a-simplex-proved-unbounded-publishes-its-ray-from-all-three-proof-sites)** — A simplex-proved UNBOUNDED publishes its ray, from all three proof sites
+- **[D256](#d256--a-certificate-crosses-back-through-presolve-and-each-presolve-proof-seeds-its-own)** — A certificate crosses back through presolve, and each presolve proof seeds its own
 
 ---
 
@@ -19358,3 +19359,43 @@ nothing. The bounded control refuses the fabricated ray with
 twin shows presolve-proved unboundedness refusing the accessor. No
 measurement directory: every reading above is a test in
 `tests/test_check.c` or a byte-identical gate, both in this commit.
+
+## D256 — A certificate crosses back through presolve, and each presolve proof seeds its own
+
+**The question.** D254 and D255 left the SPECS row's named half: a ray
+proved on a presolve-reduced model lived in the reduced space and was
+not published, and a verdict presolve proved by reduction had no ray at
+all. In the default build that is most infeasible models. Can the ray
+be lifted into the caller's space exactly, and what does each presolve
+site have to offer?
+
+**The change.** `jm_postsolve_expand` lifts a reduced solve's Farkas
+ray or unbounded ray through the arena, LIFO as the replay, and each
+of the six presolve proof sites records the one signed unit that is
+its proof — the refused row for the five infeasible sites, the open
+column for the empty-column site — which
+`jm_postsolve_infeasible_or_unbounded` lifts the same way. The Farkas
+lift is the dual replay with the cost read as zero: a singleton-row
+fold that produced the side the ray leans on takes `-(A'y)_j / a_ij`,
+a forcing row takes the replay's own min-capped multiplier, every
+other family's row takes zero because its column's term is exactly
+the shift or relaxation its row absorbed. The ray lift moves a removed
+column only where its row would otherwise run past a finite side: a
+singleton column absorbs when its opening is what made the row's side
+infinite, an implied-free or mutual-singleton column holds its
+equality row at zero. A caller's inverted box is the one site with no
+ray; it publishes none and the accessor refuses.
+
+**The measurement** (`bench/measurements/02-165/`). All five
+configurations pass; fourteen certificate tests run in the default
+build, and two carry the control the lift is judged against: the same
+ray with the lifted multiplier removed, which the checker refuses. The
+population is 02-164's under the default build: **28 of the 29
+reference infeasibles certify at 1e-7, 9 of them proved by presolve
+alone**, both feasible controls refuse a ray, and one, `gran`, is thin —
+a proof at 1e-9 and not at 1e-7, relative margin 4.07e-08. That is
+what a site-seeded ray carries: presolve refuses a row at eight ulps
+of its traffic and the lift preserves exactly that margin, where the
+simplex's own ray for the same model reads 0.266 by combining rows.
+The three gate sets are byte-identical, `bench/results/` untouched;
+the lift is unbilled publication on a path no optimal solve takes.

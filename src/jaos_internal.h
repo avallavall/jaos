@@ -91,18 +91,17 @@ struct jaos_model {
     double *sol_redcost;     /* [num_col] reduced costs      */
     jaos_basis_status *sol_col_status;  /* [num_col] where each column rests */
     jaos_basis_status *sol_row_status;  /* [num_row] and each row activity   */
-    /* The Farkas ray behind a simplex-proved INFEASIBLE, in the caller's
-     * units (D254). `farkas_ok` is the availability: false on every solve
-     * entry, true only at the dual's own refusal — presolve proves
-     * infeasibility without ever building a ray, and a ray captured on a
-     * presolve-reduced model lives in the wrong row space, so neither
-     * publishes one. */
+    /* The Farkas ray behind INFEASIBLE, in the caller's units (D254).
+     * `farkas_ok` is the availability: false on every solve entry, true
+     * once a ray stands on this model's own rows — the dual's refusal
+     * directly, or a reduced solve's refusal and a presolve site's own
+     * bound lifted back through the reductions (D256). A site with no ray
+     * to offer, a caller's inverted box, leaves it false. */
     double *sol_farkas;      /* [num_row] */
     bool farkas_ok;
-    /* The unbounded ray behind a simplex-proved UNBOUNDED, per structural
-     * column in the caller's units (D255). Same availability discipline
-     * as the Farkas ray: false on solve entry, true only at a ray proof
-     * on this model's own columns. */
+    /* The unbounded ray behind UNBOUNDED, per structural column in the
+     * caller's units (D255). Same availability discipline as the Farkas
+     * ray, presolve's lift included (D256). */
     double *sol_ray;         /* [num_col] */
     bool ray_ok;
     int64_t solve_work;
@@ -489,6 +488,14 @@ typedef struct {
     int64_t arena_len, arena_cap;
     jm_presolve_counts counts;
     jm_presolve_outcome outcome;
+    /* The seed of a presolve-proved verdict's certificate (D256): the
+     * ORIGINAL row whose own bound refused (INFEASIBLE) or the ORIGINAL
+     * column whose cost runs off an open side (UNBOUNDED), and the sign
+     * the ray takes there. -1 when the site has no ray to offer, which is
+     * a caller's inverted box. jm_postsolve_infeasible_or_unbounded lifts
+     * it through the arena. */
+    int64_t proof_index;
+    double proof_sign;
     jaos_model *orig;
 } jm_presolve;
 
@@ -514,7 +521,9 @@ JAOS_NODISCARD jaos_status jm_postsolve_expand(jm_presolve *p);
 JAOS_NODISCARD jaos_status jm_postsolve_solved(jm_presolve *p);
 
 /* Publishes JAOS_SOLVE_INFEASIBLE or JAOS_SOLVE_UNBOUNDED with no sx built
- * and no simplex iteration, for JM_PRESOLVE_INFEASIBLE/JM_PRESOLVE_UNBOUNDED. */
+ * and no simplex iteration, for JM_PRESOLVE_INFEASIBLE/JM_PRESOLVE_UNBOUNDED,
+ * and the certificate the refusing site seeded, lifted into the caller's
+ * space (D256). */
 JAOS_NODISCARD jaos_status jm_postsolve_infeasible_or_unbounded(
     jm_presolve *p, jaos_solve_status status);
 

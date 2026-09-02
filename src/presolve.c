@@ -241,6 +241,8 @@ static bool ps_traffic_usable(double rl, double ru, double traffic)
 void jm_presolve_init(jm_presolve *p)
 {
     memset(p, 0, sizeof *p);
+    /* No certificate seed until a proof site writes one (D256). */
+    p->proof_index = -1;
 }
 
 void jm_presolve_free(jm_presolve *p)
@@ -420,6 +422,10 @@ JAOS_NODISCARD jaos_status jm_presolve_run(const jaos_model *m, jm_presolve *p,
                 }
                 if (cur_rl[i] > etol || cur_ru[i] < -etol) {
                     p->outcome = JM_PRESOLVE_INFEASIBLE;
+                    /* The proof is this row's own bound against the
+                     * activity every removed column left in it (D256). */
+                    p->proof_index = i;
+                    p->proof_sign = cur_rl[i] > etol ? 1.0 : -1.0;
                     goto done;
                 }
                 if (!ps_push(p, (jm_presolve_rec){
@@ -499,8 +505,19 @@ JAOS_NODISCARD jaos_status jm_presolve_run(const jaos_model *m, jm_presolve *p,
                 const double btol = ps_round_tol(bscale);
 
                 if (new_lo > new_hi + btol) {
-                    /* PAST the opposite bound by more than rounding. */
+                    /* PAST the opposite bound by more than rounding. Which
+                     * of the row's own sides the column's box cannot reach
+                     * names the ray's sign; when neither does, the caller's
+                     * own bounds are inverted and there is no ray to lift
+                     * (D256). */
                     p->outcome = JM_PRESOLVE_INFEASIBLE;
+                    if (implied_lo > cur_cu[j]) {
+                        p->proof_index = i;
+                        p->proof_sign = a > 0.0 ? 1.0 : -1.0;
+                    } else if (implied_hi < cur_cl[j]) {
+                        p->proof_index = i;
+                        p->proof_sign = a > 0.0 ? -1.0 : 1.0;
+                    }
                     goto done;
                 }
                 if (new_lo > new_hi) {
@@ -579,6 +596,10 @@ JAOS_NODISCARD jaos_status jm_presolve_run(const jaos_model *m, jm_presolve *p,
                 if (!ps_empty_col_value(cur_cl[j], cur_cu[j],
                                         sigma * cur_cost[j], &v)) {
                     p->outcome = JM_PRESOLVE_UNBOUNDED;
+                    /* The ray is this column alone, toward the open side
+                     * its canonical cost runs off (D256). */
+                    p->proof_index = j;
+                    p->proof_sign = sigma * cur_cost[j] > 0.0 ? -1.0 : 1.0;
                     goto done;
                 }
                 p->reduced.obj_offset += cur_cost[j] * v;
@@ -794,6 +815,11 @@ JAOS_NODISCARD jaos_status jm_presolve_run(const jaos_model *m, jm_presolve *p,
             if ((isfinite(ru) && min_act > ru + itol) ||
                 (isfinite(rl) && max_act < rl - itol)) {
                 p->outcome = JM_PRESOLVE_INFEASIBLE;
+                /* The row's own bound against the range its live boxes
+                 * allow: -1 leans on the upper side, +1 on the lower (D256). */
+                p->proof_index = i;
+                p->proof_sign =
+                    (isfinite(ru) && min_act > ru + itol) ? -1.0 : 1.0;
                 goto done;
             }
 
@@ -978,6 +1004,12 @@ JAOS_NODISCARD jaos_status jm_presolve_run(const jaos_model *m, jm_presolve *p,
         if ((isfinite(cur_ru[i]) && min_act > cur_ru[i] + rtol) ||
             (isfinite(cur_rl[i]) && max_act < cur_rl[i] - rtol)) {
             p->outcome = JM_PRESOLVE_INFEASIBLE;
+            /* Same seed as the activity pass: the relaxed bound is the
+             * caller's own less what the removed column can give (D256). */
+            p->proof_index = i;
+            p->proof_sign =
+                (isfinite(cur_ru[i]) && min_act > cur_ru[i] + rtol) ? -1.0
+                                                                    : 1.0;
             goto done;
         }
     }
@@ -1556,6 +1588,242 @@ static void ps_replay_one(jaos_model *orig, const jm_presolve *p, int64_t r,
     }
 }
 
+/* --- Certificate lift (D256) ------------------------------------------ */
+
+/* The box every column carries at the end of presolve, or at its own
+ * removal: the caller's bounds, narrowed by each singleton-row fold in
+ * push order and collapsed to a point by a fixing. This is the box the
+ * reduced problem's proof read for that column, and the Farkas lift asks
+ * of each fold whether the side the ray leans on is the fold's own. */
+static void ps_final_boxes(const jm_presolve *p, double *lo, double *hi)
+{
+    const jaos_model *orig = p->orig;
+    for (int64_t j = 0; j < orig->num_col; j++) {
+        lo[j] = orig->col_lower[j];
+        hi[j] = orig->col_upper[j];
+    }
+    for (int64_t r = 0; r < p->arena_len; r++) {
+        const jm_presolve_rec *rec = &p->arena[r];
+        switch (rec->tag) {
+        case JM_PS_SINGLETON_ROW:
+            lo[rec->index2] = rec->lo;
+            hi[rec->index2] = rec->hi;
+            break;
+        case JM_PS_FIXED_COL:
+        case JM_PS_EMPTY_COL:
+            lo[rec->index] = rec->value;
+            hi[rec->index] = rec->value;
+            break;
+        default:
+            break;
+        }
+    }
+}
+
+/* (A'y)_j over the caller's matrix, from the rows assigned so far: a
+ * removed row the walk has not reached still reads its zero. */
+static double ps_column_dot(const jaos_model *orig, const double *y,
+                            int64_t j)
+{
+    double g = 0.0;
+    for (int64_t k = orig->a_start[j]; k < orig->a_start[j + 1]; k++)
+        g += orig->a_value[k] * y[orig->a_index[k]];
+    return g;
+}
+
+/* Lifts a Farkas ray into the caller's row space. On entry `y` carries
+ * the ray on the rows the proof was made on -- the reduced model's
+ * survivors, or the one row a presolve site refused -- and zero on every
+ * removed row. Each removed row then takes the multiplier that keeps the
+ * proof's gap where it was, walking the arena LIFO as the replay does.
+ *
+ * The proof's column half is, per column, the sup over its box of
+ * (A'y)_j x_j, and the reduced problem took that sup over the NARROWED
+ * box. A singleton-row fold that produced the side the sup leans on takes
+ * y_i = -(A'y)_j / a_ij: the column's term becomes zero and the same
+ * amount reappears, exactly, as y_i times the row's own bound. A fold
+ * that produced neither side, or a side the caller's own bound already
+ * is, takes zero. A forcing row's pinned columns rest on caller-side
+ * bounds inside a box wider than the point the reduced problem saw, so
+ * the row takes the multiplier that turns every pinned column's (A'y)_j
+ * toward its pinned side -- ps_replay_one's own rule with the cost read
+ * as zero, because a ray has none. Every other family's row takes zero:
+ * a fixed column's term is exactly the shift its rows absorbed, a
+ * singleton column's exactly what its row was relaxed by, and an
+ * implied-free or mutual singleton's row would only add a term nothing
+ * needs. `absorbed` is the explicit zero the replay writes into
+ * sol_redcost: a term one row took is not read again as roundoff by an
+ * earlier fold of the same column. False only on allocation failure. */
+JAOS_NODISCARD static bool ps_lift_farkas(const jm_presolve *p, double *y)
+{
+    const jaos_model *orig = p->orig;
+    const int64_t nr = orig->num_row, nc = orig->num_col;
+
+    double *lo = malloc((size_t)(nc > 0 ? nc : 1) * sizeof *lo);
+    double *hi = malloc((size_t)(nc > 0 ? nc : 1) * sizeof *hi);
+    bool *absorbed = calloc((size_t)(nc > 0 ? nc : 1), sizeof *absorbed);
+    if (lo == nullptr || hi == nullptr || absorbed == nullptr) {
+        free(lo);
+        free(hi);
+        free(absorbed);
+        return false;
+    }
+    ps_final_boxes(p, lo, hi);
+
+    for (int64_t r = p->arena_len - 1; r >= 0; r--) {
+        const jm_presolve_rec *rec = &p->arena[r];
+        switch (rec->tag) {
+        case JM_PS_SINGLETON_ROW: {
+            const int64_t i = ps_restore_index(rec->index, nr);
+            const int64_t j = rec->index2;
+            assert(i >= 0 && i < nr && j >= 0 && j < nc);
+            if (absorbed[j])
+                break;
+            const double g = ps_column_dot(orig, y, j);
+            if (g == 0.0)
+                break;
+            const bool up = g > 0.0;
+            const double used = up ? hi[j] : lo[j];
+            const double own = up ? orig->col_upper[j] : orig->col_lower[j];
+            if (used == own)
+                break;
+            const bool this_row_owns =
+                up ? (rec->row_tightens_hi && rec->hi == used)
+                   : (rec->row_tightens_lo && rec->lo == used);
+            if (!this_row_owns)
+                break;
+            /* The divisor: a singleton row's one live entry (D238). */
+            assert(rec->coef != 0.0);
+            y[i] = ps_published(-g / rec->coef);
+            absorbed[j] = true;
+            break;
+        }
+
+        case JM_PS_FORCING_ROW: {
+            const int64_t i = ps_restore_index(rec->index, nr);
+            assert(i >= 0 && i < nr);
+            double yi = 0.0;
+            for (int64_t t = 1; t <= rec->index2; t++) {
+                assert(r - t >= 0);
+                const jm_presolve_rec *cr = &p->arena[r - t];
+                assert(cr->tag == JM_PS_FIXED_COL);
+                assert(cr->coef != 0.0);
+                const int64_t j = cr->index;
+                assert(j >= 0 && j < nc);
+                const double lim = -ps_column_dot(orig, y, j) / cr->coef;
+                if (t == 1)
+                    yi = lim;
+                else if (rec->row_tightens_hi ? (lim < yi) : (lim > yi))
+                    yi = lim;
+            }
+            if (rec->row_tightens_hi ? (yi > 0.0) : (yi < 0.0))
+                yi = 0.0;
+            y[i] = ps_published(yi);
+            break;
+        }
+
+        default:
+            break;
+        }
+    }
+
+    free(lo);
+    free(hi);
+    free(absorbed);
+    return true;
+}
+
+/* One column's contribution to A d, kept current as the lift assigns. */
+static void ps_ray_move(const jaos_model *orig, double *move, int64_t j,
+                        double dj)
+{
+    for (int64_t k = orig->a_start[j]; k < orig->a_start[j + 1]; k++)
+        move[orig->a_index[k]] += orig->a_value[k] * dj;
+}
+
+/* Lifts an unbounded ray into the caller's column space. On entry `d`
+ * carries the direction on the columns the proof was made on and zero on
+ * every removed column. A removed column moves only where the row it sits
+ * in would otherwise run past a finite side. A singleton column absorbs
+ * its row's movement when the row's own bound on the moving side is
+ * finite and the column is open on the side that cancels it: the
+ * relaxation made the row's side infinite through exactly that opening,
+ * so a finite opening means the reduced proof leaned on the row's own
+ * side and nothing is owed. An implied-free column keeps its equality
+ * row at zero, which is what "implied free" lets it do, and a mutual
+ * singleton's free column keeps its row at zero the same way. A fixed,
+ * pinned or empty column stays at zero. Every other removed row's side
+ * is read by the checker as it was by the reduced proof. False only on
+ * allocation failure. */
+JAOS_NODISCARD static bool ps_lift_ray(const jm_presolve *p, double *d)
+{
+    const jaos_model *orig = p->orig;
+    const int64_t nr = orig->num_row, nc = orig->num_col;
+
+    double *move = calloc((size_t)(nr > 0 ? nr : 1), sizeof *move);
+    if (move == nullptr)
+        return false;
+    for (int64_t j = 0; j < nc; j++)
+        if (d[j] != 0.0)
+            ps_ray_move(orig, move, j, d[j]);
+
+    for (int64_t r = p->arena_len - 1; r >= 0; r--) {
+        const jm_presolve_rec *rec = &p->arena[r];
+        switch (rec->tag) {
+        case JM_PS_SINGLETON_COL: {
+            const int64_t i = rec->index;
+            const int64_t j = ps_restore_index(rec->index2, nc);
+            assert(i >= 0 && i < nr && j >= 0 && j < nc);
+            const double mi = move[i];
+            if (mi == 0.0)
+                break;
+            const double side = mi > 0.0 ? orig->row_upper[i]
+                                         : orig->row_lower[i];
+            if (!isfinite(side))
+                break;
+            assert(rec->coef != 0.0);
+            const double dj = -mi / rec->coef;
+            const double open = dj > 0.0 ? orig->col_upper[j]
+                                         : orig->col_lower[j];
+            if (isfinite(open))
+                break;
+            d[j] = ps_published(dj);
+            ps_ray_move(orig, move, j, dj);
+            break;
+        }
+
+        case JM_PS_IMPLIED_FREE_COL:
+        case JM_PS_FREE_COL_SINGLETON: {
+            const int64_t i = ps_restore_index(rec->index, nr);
+            const int64_t j = rec->index2;
+            assert(i >= 0 && i < nr && j >= 0 && j < nc);
+            const double mi = move[i];
+            if (mi == 0.0)
+                break;
+            assert(rec->coef != 0.0);
+            const double dj = -mi / rec->coef;
+            /* An implied-free column is open wherever its equality row
+             * can move it; read from the caller's box all the same, so
+             * a roundoff movement toward a finite side is left to the
+             * checker's own floor rather than pushed past it. */
+            const double open = dj > 0.0 ? orig->col_upper[j]
+                                         : orig->col_lower[j];
+            if (isfinite(open))
+                break;
+            d[j] = ps_published(dj);
+            ps_ray_move(orig, move, j, dj);
+            break;
+        }
+
+        default:
+            break;
+        }
+    }
+
+    free(move);
+    return true;
+}
+
 #ifndef NDEBUG
 /* Catches the two producers that ASSIGN `sol_row[i]` (D106). Only on an
  * OPTIMAL solve; elsewhere sol_col and sol_row need not agree. */
@@ -1652,6 +1920,23 @@ JAOS_NODISCARD jaos_status jm_postsolve_expand(jm_presolve *p)
         memset(orig->sol_row, 0, (size_t)orig->num_row * sizeof(double));
         memset(orig->sol_dual, 0, (size_t)orig->num_row * sizeof(double));
         memset(orig->sol_redcost, 0, (size_t)orig->num_col * sizeof(double));
+
+        /* The certificates cross back here too (D256): a ray the reduced
+         * solve proved on the survivors is lifted into the caller's own
+         * row or column space, and only a lift that completed turns the
+         * flag on. */
+        memset(orig->sol_farkas, 0, (size_t)orig->num_row * sizeof(double));
+        memset(orig->sol_ray, 0, (size_t)orig->num_col * sizeof(double));
+        if (red->solve_status == JAOS_SOLVE_INFEASIBLE && red->farkas_ok) {
+            for (int64_t ri = 0; ri < red->num_row; ri++)
+                orig->sol_farkas[p->orig_row[ri]] = red->sol_farkas[ri];
+            orig->farkas_ok = ps_lift_farkas(p, orig->sol_farkas);
+        }
+        if (red->solve_status == JAOS_SOLVE_UNBOUNDED && red->ray_ok) {
+            for (int64_t rj = 0; rj < red->num_col; rj++)
+                orig->sol_ray[p->orig_col[rj]] = red->sol_ray[rj];
+            orig->ray_ok = ps_lift_ray(p, orig->sol_ray);
+        }
 
         /* Status only, from red->start_* (publish()'s non-optimal branch
          * copies the interrupted status there and then zeroes sol_*). */
@@ -1859,5 +2144,23 @@ JAOS_NODISCARD jaos_status jm_postsolve_infeasible_or_unbounded(jm_presolve *p,
            (size_t)orig->num_col * sizeof *orig->sol_col_status);
     memset(orig->sol_row_status, 0,
            (size_t)orig->num_row * sizeof *orig->sol_row_status);
+
+    /* The certificate: the refusing site's own bound, one signed unit on
+     * its row or column, lifted through every reduction pushed before it
+     * (D256). A site with no seed -- a caller's inverted box -- publishes
+     * none, and the flag says so. */
+    memset(orig->sol_farkas, 0, (size_t)orig->num_row * sizeof(double));
+    memset(orig->sol_ray, 0, (size_t)orig->num_col * sizeof(double));
+    if (p->proof_index >= 0) {
+        if (status == JAOS_SOLVE_INFEASIBLE) {
+            assert(p->proof_index < orig->num_row);
+            orig->sol_farkas[p->proof_index] = p->proof_sign;
+            orig->farkas_ok = ps_lift_farkas(p, orig->sol_farkas);
+        } else {
+            assert(p->proof_index < orig->num_col);
+            orig->sol_ray[p->proof_index] = p->proof_sign;
+            orig->ray_ok = ps_lift_ray(p, orig->sol_ray);
+        }
+    }
     return JAOS_OK;
 }

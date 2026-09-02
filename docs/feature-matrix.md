@@ -141,7 +141,7 @@ including the row where the field is ahead.
 | Exact solving with no numerical tolerances | ○ | ○ | ● | ○ | ● | ○ | ○ |
 | Machine-checkable certificate of the result | ○ | ○ | ◐ | ○ | ● | ○ | ○ |
 | Certified bound on suboptimality | ◐ | ○ | ● | ○ | ● | ○ | ○ |
-| Infeasibility / unboundedness certificate | ○ | ◐ | ◐ | ◐ | ● | ● | ? |
+| Infeasibility / unboundedness certificate | ● | ◐ | ◐ | ◐ | ● | ● | ? |
 | Irreducible infeasible subsystem (IIS) | ○ | ○ | ○ | ○ | ○ | ● | ? |
 
 Two rows carry most of the meaning.
