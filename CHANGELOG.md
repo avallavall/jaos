@@ -11,6 +11,12 @@ open, `bench/README.md` for the gate, and the commit each entry came from.
 
 ### Added
 
+- **The Python binding reaches the certificates.** `Model.certificate`,
+  `unbounded_ray`, `check_certificate` and `check_ray`, with the two
+  report tuples, and `certificate` / `unbounded_ray` on `Problem`, one
+  entry per constraint or variable in the order they were added. The
+  binding covers every call in `jaos.h` again; 68 tests.
+
 - **A certificate crosses back through presolve.** A ray the simplex
   proved on a reduced model is lifted into the caller's rows or columns,
   and each presolve proof site seeds its own from the bound it refused;

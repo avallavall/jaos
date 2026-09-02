@@ -49,6 +49,8 @@ lifted back through the reductions. 28 of the 29 reference infeasibles
 certify at 1e-7 under the default build and `gran` at 1e-9
 (`bench/measurements/02-165/`). The SPECS row reads done; what it does
 not cover is a model whose own bounds are inverted, which has no ray.
+The Python binding reaches all four calls, on `Model` and on `Problem`,
+so its "every call in `jaos.h`" claim is true again (68 tests).
 
 **Also 2026-09-02: the multi-column ray is decided (D247).** The lent-bound
 verdict tries one combined direction — every held column off its loan at

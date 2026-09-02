@@ -64,7 +64,7 @@ __all__ = [
     "BasisStatus", "CallbackAction", "Solution", "Basis", "INFINITY",
     "version", "library_path",
     "Problem", "Var", "LinExpr", "Constraint", "quicksum",
-    "CheckReport", "Progress",
+    "CheckReport", "CertificateReport", "RayReport", "Progress",
 ]
 
 
@@ -222,6 +222,32 @@ class _CheckReport(ctypes.Structure):
 CheckReport = namedtuple("CheckReport",
                          [f for f, _ in _CheckReport._fields_])
 
+
+class _CertificateReport(ctypes.Structure):
+    """jaos_certificate_report, field for field. The proof is a difference
+    of two sums, and both halves come back beside it (jaos.h)."""
+    _fields_ = [
+        ("sup_columns", _D),
+        ("inf_rows", _D),
+        ("gap", _D),
+        ("certified", ctypes.c_bool),
+    ]
+
+
+class _RayReport(ctypes.Structure):
+    """jaos_ray_report, field for field."""
+    _fields_ = [
+        ("rate", _D),
+        ("max_col_escape", _D),
+        ("max_row_escape", _D),
+        ("certified", ctypes.c_bool),
+    ]
+
+
+CertificateReport = namedtuple("CertificateReport",
+                               [f for f, _ in _CertificateReport._fields_])
+RayReport = namedtuple("RayReport", [f for f, _ in _RayReport._fields_])
+
 _LOG_FN = ctypes.CFUNCTYPE(None, _VP, ctypes.c_int, _CS)
 _PROGRESS_FN = ctypes.CFUNCTYPE(ctypes.c_int, _P(_Progress), _VP)
 
@@ -280,6 +306,11 @@ _sig("jaos_set_basis", ctypes.c_int, _VP, _P(ctypes.c_int),
 _sig("jaos_clear_basis", None, _VP)
 _sig("jaos_check_solution", ctypes.c_int, _VP, _P(_D), _P(_D), _D,
      _P(_CheckReport))
+_sig("jaos_certificate", ctypes.c_int, _VP, _P(_D))
+_sig("jaos_check_certificate", ctypes.c_int, _VP, _P(_D), _D,
+     _P(_CertificateReport))
+_sig("jaos_unbounded_ray", ctypes.c_int, _VP, _P(_D))
+_sig("jaos_check_ray", ctypes.c_int, _VP, _P(_D), _D, _P(_RayReport))
 _sig("jaos_work_units", _I64, _VP)
 _sig("jaos_iterations", _I64, _VP)
 _sig("jaos_solve_time", _D, _VP)
@@ -729,6 +760,48 @@ class Model:
                                              float(tol), ctypes.byref(rep)))
         return CheckReport(*(getattr(rep, f)
                              for f, _ in _CheckReport._fields_))
+
+    def certificate(self):
+        """The Farkas ray behind the last solve's INFEASIBLE, one value per
+        row. Raises unless the last solve answered INFEASIBLE with a ray to
+        publish; a model whose own bounds are inverted has none, and the
+        bounds are its proof (jaos_certificate in jaos.h)."""
+        nr = self.num_row
+        y = (_D * max(nr, 1))()
+        self._check(_lib.jaos_certificate(self._handle(), y))
+        return list(y[:nr])
+
+    def check_certificate(self, row_ray, tol=1e-7):
+        """Judges a claimed infeasibility certificate against the model as
+        loaded, from the model alone. Returns a `CertificateReport`: the
+        two halves and the gap between them, and `certified` when the gap
+        clears tol against the size of the halves."""
+        y, _ = _doubles(row_ray, "row_ray", self.num_row)
+        rep = _CertificateReport()
+        self._check(_lib.jaos_check_certificate(self._handle(), y,
+                                                float(tol),
+                                                ctypes.byref(rep)))
+        return CertificateReport(*(getattr(rep, f)
+                                   for f, _ in _CertificateReport._fields_))
+
+    def unbounded_ray(self):
+        """The direction behind the last solve's UNBOUNDED, one value per
+        column. Raises unless the last solve answered UNBOUNDED."""
+        nc = self.num_col
+        d = (_D * max(nc, 1))()
+        self._check(_lib.jaos_unbounded_ray(self._handle(), d))
+        return list(d[:nc])
+
+    def check_ray(self, col_ray, tol=1e-7):
+        """Judges a claimed unbounded ray against the model as loaded, from
+        the model alone. Returns a `RayReport`: the objective's rate along
+        the ray, the largest push past a finite column or row side, and
+        `certified` when both pushes are zero and the rate improves."""
+        d, _ = _doubles(col_ray, "col_ray", self.num_col)
+        rep = _RayReport()
+        self._check(_lib.jaos_check_ray(self._handle(), d, float(tol),
+                                        ctypes.byref(rep)))
+        return RayReport(*(getattr(rep, f) for f, _ in _RayReport._fields_))
 
     @property
     def work_units(self):
@@ -1325,6 +1398,24 @@ class Problem:
         the model as loaded. Returns a CheckReport."""
         s = self._solution()
         return self._m.check_solution(s.col_value, s.row_dual, tol)
+
+    def certificate(self):
+        """The Farkas ray behind an INFEASIBLE answer: one multiplier per
+        constraint, in the order they were added. Raises while the problem
+        is ahead of its last solve, and when there is no ray to publish;
+        `model.check_certificate` judges it from the model alone."""
+        if self._pending():
+            raise ValueError("the problem changed since the last solve; "
+                             "call solve() before reading values")
+        return self._m.certificate()
+
+    def unbounded_ray(self):
+        """The direction behind an UNBOUNDED answer: one step per variable,
+        in the order they were added. Same availability as certificate()."""
+        if self._pending():
+            raise ValueError("the problem changed since the last solve; "
+                             "call solve() before reading values")
+        return self._m.unbounded_ray()
 
     @property
     def variables(self):

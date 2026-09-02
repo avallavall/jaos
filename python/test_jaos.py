@@ -429,6 +429,71 @@ class TestTheChecker(unittest.TestCase):
             self.assertFalse(r.checked_duals)
 
 
+class TestCertificates(unittest.TestCase):
+    """jaos_certificate, jaos_unbounded_ray and their two checkers through
+    the binding. The numbers are the ones tests/test_check.c asserts on the
+    same models; the refusing cases are what prove the report's fields
+    land and that an OPTIMAL answer hands out no ray."""
+
+    def test_an_infeasible_model_proves_it(self):
+        with jaos.Model() as m:
+            m.load(num_col=1, num_row=1,
+                   col_cost=[1.0], col_lower=[0.0], col_upper=[2.0],
+                   row_lower=[4.0], row_upper=[jaos.INFINITY],
+                   a_start=[0, 1], a_index=[0], a_value=[1.0])
+            self.assertIs(m.solve(), jaos.SolveStatus.INFEASIBLE)
+            y = m.certificate()
+            self.assertEqual(len(y), 1)
+            r = m.check_certificate(y)
+            self.assertTrue(r.certified)
+            self.assertAlmostEqual(r.inf_rows, 4.0, places=9)
+            self.assertAlmostEqual(r.sup_columns, 2.0, places=9)
+            self.assertAlmostEqual(r.gap, 2.0, places=9)
+
+    def test_a_feasible_model_has_no_certificate(self):
+        with jaos.Model() as m:
+            m.read_mps(data("solve1.mps"))
+            self.assertIs(m.solve(), jaos.SolveStatus.OPTIMAL)
+            with self.assertRaises(jaos.JaosError):
+                m.certificate()
+            with self.assertRaises(jaos.JaosError):
+                m.unbounded_ray()
+            r = m.check_certificate([1.0] * m.num_row)
+            self.assertFalse(r.certified)
+
+    def test_an_unbounded_model_proves_it(self):
+        with jaos.Model() as m:
+            m.load(num_col=1, num_row=1,
+                   col_cost=[-1.0], col_lower=[0.0],
+                   col_upper=[jaos.INFINITY],
+                   row_lower=[-jaos.INFINITY], row_upper=[jaos.INFINITY],
+                   a_start=[0, 1], a_index=[0], a_value=[1.0])
+            self.assertIs(m.solve(), jaos.SolveStatus.UNBOUNDED)
+            d = m.unbounded_ray()
+            self.assertEqual(len(d), 1)
+            self.assertGreater(d[0], 0.0)
+            r = m.check_ray(d)
+            self.assertTrue(r.certified)
+            self.assertLess(r.rate, 0.0)
+            self.assertEqual(r.max_col_escape, 0.0)
+
+    def test_a_ray_into_a_bound_is_refused(self):
+        with jaos.Model() as m:
+            m.read_mps(data("solve1.mps"))
+            m.solve()
+            r = m.check_ray([1.0] + [0.0] * (m.num_col - 1))
+            self.assertFalse(r.certified)
+            self.assertGreater(r.max_col_escape, 0.0)
+
+    def test_a_wrong_length_never_reaches_c(self):
+        with jaos.Model() as m:
+            m.read_mps(data("solve1.mps"))
+            with self.assertRaises(ValueError):
+                m.check_certificate([1.0])
+            with self.assertRaises(ValueError):
+                m.check_ray([1.0])
+
+
 class TestProgressCallback(unittest.TestCase):
     def test_the_callback_sees_the_solve(self):
         seen = []
@@ -613,6 +678,34 @@ class TestProblemSolves(unittest.TestCase):
         x = p.add_var(ub=1)
         p.add(x >= 2)
         self.assertIs(p.solve(), jaos.SolveStatus.INFEASIBLE)
+
+    def test_the_layers_certificate_is_one_multiplier_per_constraint(self):
+        p = jaos.Problem()
+        x = p.add_var(ub=1)
+        y = p.add_var(ub=1)
+        p.add(x + y <= 2)
+        p.add(x + y >= 3)
+        self.assertIs(p.solve(), jaos.SolveStatus.INFEASIBLE)
+        ray = p.certificate()
+        self.assertEqual(len(ray), 2)
+        self.assertTrue(p.model.check_certificate(ray).certified)
+        # Ahead of its solve, the layer refuses rather than hand out a
+        # ray for a model that no longer exists.
+        p.add(x >= 0.5)
+        with self.assertRaises(ValueError):
+            p.certificate()
+
+    def test_the_layers_ray_is_one_step_per_variable(self):
+        p = jaos.Problem()
+        x = p.add_var()
+        y = p.add_var(ub=1)
+        p.add(x - y >= 0)
+        p.maximize(x)
+        self.assertIs(p.solve(), jaos.SolveStatus.UNBOUNDED)
+        d = p.unbounded_ray()
+        self.assertEqual(len(d), 2)
+        self.assertGreater(d[0], 0.0)
+        self.assertTrue(p.model.check_ray(d).certified)
 
     def test_the_layers_checker_accepts_its_own_answer(self):
         p = jaos.Problem()

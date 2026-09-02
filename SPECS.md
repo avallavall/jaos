@@ -191,7 +191,7 @@ round-trip exactly (D226, `bench/measurements/02-138/`).
 | | status | |
 |---|---|---|
 | C API | **done** | `include/jaos.h`, the only header |
-| Python | **done** | `python/jaos.py`: a ctypes wrapper covering every call in `jaos.h` (`make shared`), and a modeling layer on top — `Problem`, variables, expressions, constraints from ordinary comparisons, warm re-solve when only bounds or costs moved. Standard library only, so it needs no compiler, no header and no package index at install time — the same no-dependency rule the C library holds. 61 tests, `make python-test`; defect shapes armed in `bench/measurements/02-155/` (D243) and `bench/measurements/02-158/` |
+| Python | **done** | `python/jaos.py`: a ctypes wrapper covering every call in `jaos.h` (`make shared`), and a modeling layer on top — `Problem`, variables, expressions, constraints from ordinary comparisons, warm re-solve when only bounds or costs moved. Standard library only, so it needs no compiler, no header and no package index at install time — the same no-dependency rule the C library holds. The four certificate calls and their checkers are reached too, `Model.certificate` / `unbounded_ray` / `check_certificate` / `check_ray` and the same pair on `Problem`. 68 tests, `make python-test`; defect shapes armed in `bench/measurements/02-155/` (D243) and `bench/measurements/02-158/` |
 | Anything else | **missing** | |
 
 ---
