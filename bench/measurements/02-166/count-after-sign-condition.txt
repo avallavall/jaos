@@ -1,0 +1,7 @@
+# The count and the two detectors re-read on the tree that carries the D257 review's fix (sign_decides), D258 and D259, before that gate ran.
+tree: 6965f41 dirty=4
+netlib       optimal=188 exact=188 WRONG=0 (over=0 under=0) worst +0/-0  SUM=+0
+kennington   optimal=32 exact=32 WRONG=0 (over=0 under=0) worst +0/-0  SUM=+0
+/mnt/c/Users/vall-/Desktop/projectes/jaos/bench/measurements/02-166/after3-nl.log:1
+/mnt/c/Users/vall-/Desktop/projectes/jaos/bench/measurements/02-166/after3-kn.log:1
+probe after3 done

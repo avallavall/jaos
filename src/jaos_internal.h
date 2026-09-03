@@ -278,6 +278,11 @@ JAOS_NODISCARD jaos_status jm_slurp(jaos_model *m, const char *path,
                                     char **out, int64_t *out_len);
 
 /* Builds the CSR mirror if it is not current. */
+/* Whether a lower bound sits above its upper by more than presolve's own
+ * rounding window (src/presolve.c). The solve's entry refuses such a box
+ * as infeasible in every build (D259). */
+bool jm_box_inverted(double lower, double upper);
+
 JAOS_NODISCARD jaos_status jm_model_ensure_rowwise(jaos_model *m);
 
 /* Allocates m's six sol_* arrays if any is missing, all six or none.
@@ -607,6 +612,12 @@ typedef struct {
     int64_t *lrow_start; /* [dim + 1] */
     int64_t *lrow_index; /* [nnz(L)]  */
 } jm_lu;
+
+/* Markowitz threshold: a pivot must be at least this fraction of the
+ * largest magnitude in its column (docs/tolerances.md). Shared by the
+ * solve's factorizations and by ranging's factorization of the published
+ * basis (D258), so both read one owner. */
+constexpr double LU_PIVOT_TOL = 0.1;
 
 void jm_lu_init(jm_lu *lu);
 void jm_lu_free(jm_lu *lu);

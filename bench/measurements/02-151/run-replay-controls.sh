@@ -67,8 +67,8 @@ old = """                const bool tightens_lo = implied_lo > cur_cl[j];"""
 assert s.count(old) == 1, "the tightens_lo test matched %d times" % s.count(old)
 s = s.replace(old, """                const bool tightens_lo = true;""")
 old2 = """        const bool held_by_own_bound =
-            (dc >= 0.0 && v0 == orig->col_lower[j]) ||
-            (dc <= 0.0 && v0 == orig->col_upper[j]);"""
+            (v0 == orig->col_lower[j] && (!sign_decides || dc >= 0.0)) ||
+            (v0 == orig->col_upper[j] && (!sign_decides || dc <= 0.0));"""
 assert s.count(old2) == 1, "the held_by_own_bound test matched %d times" % s.count(old2)
 s = s.replace(old2, """        const bool held_by_own_bound = false;""")
 open(p, "w", encoding="utf-8").write(s)

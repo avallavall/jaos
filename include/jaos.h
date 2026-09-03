@@ -898,6 +898,49 @@ typedef struct jaos_ray_report {
 JAOS_NODISCARD jaos_status jaos_check_ray(const jaos_model *m,
     const double *col_ray, double tol, jaos_ray_report *out);
 
+/* --- Sensitivity and ranging ------------------------------------------ */
+
+/* How far one number in the model may move, everything else held, before
+ * the basis behind the last optimum stops being optimal. The three calls
+ * below answer that for every cost, every row bound and every column
+ * bound at once, each interval containing the number's current value. An
+ * end that is not limited reads +-jaos_infinity(); a degenerate basis
+ * reports intervals of zero width on the side a tie closes, which is the
+ * truthful answer and not a failure.
+ *
+ * All three factor the published basis on the model as loaded, so they
+ * need what jaos_basis needs: the last solve found an optimum. The
+ * intervals are about the basis and not about the answer: at a model with
+ * more than one optimal basis, another basis can carry the same optimum
+ * further, and the answer to "how far can this cost move before the
+ * optimal VALUES change" is the union over those bases, which is not
+ * computed here. Reproducible bit for bit, like everything else (D8).
+ *
+ * The cost is stated rather than billed, since jaos_work_units belongs to
+ * the solve: one factorization of the basis per call, then for cost
+ * ranging one BTRAN and one row price per basic structural column, and
+ * for either bound ranging one FTRAN per nonbasic variable. On a model of
+ * a hundred thousand rows a full cost ranging is comparable to the solve. */
+
+/* Cost ranging: for every column j, the interval col_cost[j] may take.
+ * Both arrays take num_col values; either may be NULL. A fixed column's
+ * cost decides nothing and reads unlimited both ways. */
+JAOS_NODISCARD jaos_status jaos_cost_ranging(jaos_model *m,
+                                             double *lower, double *upper);
+
+/* Right-hand-side ranging: for every row, the interval each of its two
+ * bounds may take -- [lower_lo, lower_hi] for row_lower and
+ * [upper_lo, upper_hi] for row_upper. All four arrays take num_row values;
+ * any may be NULL. A bound the row's activity does not rest on may close
+ * in on the activity and no further; the bound it rests on moves the
+ * basic variables with it and is limited by their own bounds. */
+JAOS_NODISCARD jaos_status jaos_rhs_ranging(jaos_model *m,
+    double *lower_lo, double *lower_hi, double *upper_lo, double *upper_hi);
+
+/* The same for every column's own bounds, num_col values each. */
+JAOS_NODISCARD jaos_status jaos_bound_ranging(jaos_model *m,
+    double *lower_lo, double *lower_hi, double *upper_lo, double *upper_hi);
+
 #ifdef __cplusplus
 }
 #endif

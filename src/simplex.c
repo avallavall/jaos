@@ -56,7 +56,8 @@ constexpr double PRIMAL_HARRIS_DELTA = 0.5;
 /* The width of the Harris window, and what the solve calls zero for a
  * reduced cost (D174, D184); per-model override is D64. */
 constexpr double DUAL_TOL      = 1e-9;
-constexpr double LU_PIVOT_TOL  = 0.1;    /* Markowitz threshold */
+/* LU_PIVOT_TOL, the Markowitz threshold, is in jaos_internal.h: ranging
+ * factors the published basis with the same one (D258). */
 constexpr double LU_UPDATE_TOL = 1e-9;
 
 /* Floor on a steepest-edge weight: the recurrence subtracts and can cancel
@@ -4217,6 +4218,61 @@ static jaos_status publish(sx *s, jaos_solve_status status, jm_presolve *p)
     return JAOS_OK;
 }
 
+/* An inverted box -- a lower bound above its upper -- is legal input and
+ * a trivially infeasible model whose feasibility is the solver's to decide
+ * (jaos.h, jaos_load_lp). Nothing downstream decides it: a nonbasic
+ * variable rests on one bound and no ratio test asks whether its other
+ * bound lies on the far side, so both builds answered OPTIMAL on one until
+ * ranging's oracle moved a bound across the value its row rested on
+ * (D259). Refused here, before presolve, in every build, when the
+ * inversion exceeds presolve's rounding window (jm_box_inverted): inside
+ * it a fold collapses the box to a point (D158) and the simplex holds it
+ * to within its tolerance, which is the contract tests/test_presolve.c
+ * pins. The bounds are the proof and there is no ray to publish (D256).
+ * The verdict is published the way a presolve proof is: zeroed arrays,
+ * no basis offered. */
+static jaos_status publish_inverted_box(jaos_model *m)
+{
+    jaos_status est = jm_model_ensure_solution_arrays(m);
+    if (est != JAOS_OK)
+        return est;
+    m->solve_status = JAOS_SOLVE_INFEASIBLE;
+    m->solve_work = 0;
+    m->solve_time = 0.0;
+    m->objective = 0.0;
+    m->presolve_num_row = m->num_row;
+    m->presolve_num_col = m->num_col;
+    m->presolve_num_nz  = m->num_nz;
+    memset(m->sol_col, 0, (size_t)m->num_col * sizeof(double));
+    memset(m->sol_row, 0, (size_t)m->num_row * sizeof(double));
+    memset(m->sol_dual, 0, (size_t)m->num_row * sizeof(double));
+    memset(m->sol_redcost, 0, (size_t)m->num_col * sizeof(double));
+    memset(m->sol_col_status, 0,
+           (size_t)m->num_col * sizeof *m->sol_col_status);
+    memset(m->sol_row_status, 0,
+           (size_t)m->num_row * sizeof *m->sol_row_status);
+    memset(m->sol_farkas, 0, (size_t)m->num_row * sizeof(double));
+    memset(m->sol_ray, 0, (size_t)m->num_col * sizeof(double));
+    return JAOS_OK;
+}
+
+static bool has_inverted_box(const jaos_model *m, bool *is_row, int64_t *at)
+{
+    for (int64_t j = 0; j < m->num_col; j++)
+        if (jm_box_inverted(m->col_lower[j], m->col_upper[j])) {
+            *is_row = false;
+            *at = j;
+            return true;
+        }
+    for (int64_t i = 0; i < m->num_row; i++)
+        if (jm_box_inverted(m->row_lower[i], m->row_upper[i])) {
+            *is_row = true;
+            *at = i;
+            return true;
+        }
+    return false;
+}
+
 jaos_status jm_dual_simplex(jaos_model *m)
 {
     jm_presolve p;
@@ -4235,6 +4291,21 @@ jaos_status jm_dual_simplex(jaos_model *m)
      * when the lift completed (D256). */
     m->farkas_ok = false;
     m->ray_ok = false;
+
+    {
+        bool is_row = false;
+        int64_t at = -1;
+        if (has_inverted_box(m, &is_row, &at)) {
+            jm_log(m, JAOS_LOG_SUMMARY,
+                   "%s %lld has its lower bound %.17g above its upper %.17g: "
+                   "infeasible, no simplex run",
+                   is_row ? "row" : "column", (long long)at,
+                   is_row ? m->row_lower[at] : m->col_lower[at],
+                   is_row ? m->row_upper[at] : m->col_upper[at]);
+            jm_presolve_free(&p);
+            return publish_inverted_box(m);
+        }
+    }
 
     /* Presolve's own charge, continued on the same accumulator as the
      * solve's. Always {0}, even under JAOS_NO_PRESOLVE. */

@@ -4374,6 +4374,70 @@ static void test_a_ray_whose_direction_cancels_in_row_space(void)
     jaos_model_free(m);
 }
 
+/* -- An inverted box is infeasible, before any solve runs (D259) ----------
+ *
+ * jaos_load_lp says a lower bound above its upper is legal input and a
+ * trivially infeasible model. Both builds answered OPTIMAL on one, cold
+ * and warm, because a nonbasic variable rests on a bound and nothing asks
+ * whether its other bound lies on the far side; ranging's oracle (D258)
+ * found it by moving a row's upper bound below the lower bound the row
+ * rested on. The model is the oracle's own, with one box inverted. */
+static jaos_model *make_inverted(bool row)
+{
+    const double c[]  = {2.0, 3.0, 1.0, 4.0};
+    const double cl[] = {0.0, 0.0, row ? 0.0 : 2.0, 0.0};
+    const double cu[] = {5.0, 5.0, row ? 5.0 : 1.0, 5.0};
+    const double rl[] = {2.0, -3.0, 1.0}, ru[] = {row ? 1.0 : 8.0, 3.0, 5.0};
+    const int64_t s[]  = {0, 3, 5, 7, 10};
+    const int64_t ix[] = {0, 1, 2, 0, 1, 0, 2, 0, 1, 2};
+    const double v[]   = {1.0, 1.0, 2.0, 1.0, -1.0, 1.0, 1.0, 1.0, 2.0, -1.0};
+    jaos_model *m = nullptr;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_model_new(&m));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_load_lp(m, 4, 3, JAOS_MINIMIZE, 0.0, c, cl, cu, rl, ru,
+                     10, s, ix, v));
+    return m;
+}
+
+static void expect_trivially_infeasible(jaos_model *m)
+{
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_INFEASIBLE, jaos_status_of(m));
+    TEST_ASSERT_EQUAL_INT64(0, jaos_iterations(m));
+    TEST_ASSERT_EQUAL_INT64(0, jaos_work_units(m));
+    /* The bounds are the proof; there is no ray to hand out. */
+    double y[3];
+    TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT, jaos_certificate(m, y));
+    jaos_basis_status cs[4], rs[3];
+    TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT, jaos_basis(m, cs, rs));
+}
+
+static void test_an_inverted_column_box_is_infeasible(void)
+{
+    jaos_model *m = make_inverted(false);
+    expect_trivially_infeasible(m);
+    /* Repaired, it solves; the refusal left nothing behind. */
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_col_bounds(m, 2, 0.0, 5.0));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+    jaos_model_free(m);
+}
+
+static void test_an_inverted_row_box_is_infeasible(void)
+{
+    jaos_model *m = make_inverted(true);
+    expect_trivially_infeasible(m);
+    /* And warm, from a basis that solved the repaired model: the check
+     * runs before the basis is even read. */
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_row_bounds(m, 0, 2.0, 8.0));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_row_bounds(m, 0, 2.0, 2.0 - 1e-4));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_INFEASIBLE, jaos_status_of(m));
+    jaos_model_free(m);
+}
+
 int main(void)
 {
     UNITY_BEGIN();
@@ -4492,5 +4556,7 @@ int main(void)
     RUN_TEST(test_a_row_repairable_only_by_fixed_columns_is_infeasible);
     RUN_TEST(test_every_work_limit_stops_honestly_and_resumes);
     RUN_TEST(test_a_ray_whose_direction_cancels_in_row_space);
+    RUN_TEST(test_an_inverted_column_box_is_infeasible);
+    RUN_TEST(test_an_inverted_row_box_is_infeasible);
     return UNITY_END();
 }

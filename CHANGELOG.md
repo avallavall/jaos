@@ -9,7 +9,21 @@ open, `bench/README.md` for the gate, and the commit each entry came from.
 
 ## [Unreleased]
 
+### Added
+
+- **Sensitivity and ranging.** `jaos_cost_ranging`, `jaos_rhs_ranging`
+  and `jaos_bound_ranging` report, for every cost and every row and column
+  bound, the interval it may take with the basis behind the last optimum
+  staying optimal: the textbook ratio tests on that basis refactored over
+  the model as loaded, reached from Python on `Model` and `Problem`. The
+  solver is the oracle in the tests (D258).
+
 ### Fixed
+
+- **An inverted box is answered INFEASIBLE.** A lower bound above its
+  upper by more than presolve's rounding window is refused at the solve's
+  entry in every build; both builds had answered OPTIMAL on one, cold and
+  warm, and the ranging oracle found it (D259).
 
 - **The published basis has the promised count on every gate solve.**
   Every postsolve status is decided from the reduction's structure, never

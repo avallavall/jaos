@@ -265,6 +265,8 @@ and you have the argument. Jump to the entry for the numbers behind it.
 - **[D255](#d255--a-simplex-proved-unbounded-publishes-its-ray-from-all-three-proof-sites)** — A simplex-proved UNBOUNDED publishes its ray, from all three proof sites
 - **[D256](#d256--a-certificate-crosses-back-through-presolve-and-each-presolve-proof-seeds-its-own)** — A certificate crosses back through presolve, and each presolve proof seeds its own
 - **[D257](#d257--every-postsolve-status-is-decided-from-the-reductions-structure-and-the-count-promise-holds-on-every-gate-solve)** — Every postsolve status is decided from the reduction's structure, and the count promise holds on every gate solve
+- **[D258](#d258--sensitivity-and-ranging-run-on-the-published-basis-over-the-model-as-loaded-and-presolve-has-no-half-in-it)** — Sensitivity and ranging run on the published basis, over the model as loaded, and presolve has no half in it
+- **[D259](#d259--an-inverted-box-is-refused-before-any-solve-runs-in-every-build)** — An inverted box is refused before any solve runs, in every build
 
 ---
 
@@ -19479,3 +19481,85 @@ mapping, a different object, and it is where the warm campaign's next
 measurement is. D141's reopen condition expires: the residue closed
 without any demotion, and the refusal's verdict on a within-row
 demotion stands as a fact about that design.
+
+## D258 — Sensitivity and ranging run on the published basis, over the model as loaded, and presolve has no half in it
+
+**The question.** `TODO.md`'s second open decision said ranging needs
+the basis and a factorization of it, that the published basis was wrong
+a quarter of the time, and that presolve was the harder half because
+ranges on a reduced model would have to map back. With D257 the
+published basis has the promised count on every gate solve. What is
+left of the costing?
+
+**Nothing that needs presolve.** A range is a statement about a basis:
+how far one number may move, everything else held, before that basis
+stops being optimal. Since D257 the published basis is a basis of the
+caller's own model, so `src/ranging.c` refactors it on the unscaled
+matrix with the solve's own Markowitz threshold, recomputes the basic
+values and the canonical duals and reduced costs from that
+factorization, and runs the textbook ratio tests (Chvatal 1983, ch. 10):
+cost ranging keeps primal feasibility for free and asks every nonbasic
+reduced cost to keep its sign, one BTRAN and one row price per basic
+structural column; bound ranging keeps dual feasibility for free and
+asks every basic value to stay inside its bounds, one FTRAN per nonbasic
+variable, rows entering as their logicals. Three calls, `jaos_cost_ranging`,
+`jaos_rhs_ranging` and `jaos_bound_ranging`, each reporting for every
+cost or for each of a row's or column's two bounds the interval it may
+take, the current value always inside it, an open end at infinity, a
+degenerate tie a zero-width side. Not billed to `jaos_work_units`, which
+belongs to the solve; the cost is stated in `jaos.h`, and on a model of
+a hundred thousand rows a full cost ranging is comparable to the solve.
+Reached from Python on `Model` and `Problem`.
+
+**The measurement.** Two models worked by hand, the textbook pair of
+rows in both senses and a model presolve answers by itself, so every
+range there comes from D257's postsolved basis. Then the solver as the
+oracle, on a model presolve leaves alone: for every cost, every row
+bound and every column bound whose range has a finite end away from the
+value, the number is moved to just inside that end and the published
+basis must re-solve warm for nothing, then to just outside it and the
+re-solve must pivot or the model must be infeasible; 22 ends probed,
+and a range widened by hand is refused at its new end, so a quiet
+oracle is not mistaken for a right one. The oracle found D259 on its
+first run. Five configurations pass and the ranges are bit-identical
+across calls and across a cold re-solve.
+
+**The gate.** Run on the commit that carries this code; its reading is in the record commit that follows.
+
+**What it does not answer.** The interval a model with more than one
+optimal basis can carry the same optimal values over is the union over
+those bases, which nothing here computes; a degenerate vertex reports
+the zero-width side truthfully. A free nonbasic variable's bounds are
+reported as closing in on its value, the same as a basic one's, which
+is one status detail short of the ratio test and a case a cold solve
+never publishes.
+
+## D259 — An inverted box is refused before any solve runs, in every build
+
+**The question.** `jaos_load_lp` says an inverted box, a lower bound
+above its upper, is legal input and a trivially infeasible model whose
+feasibility is the solver's to decide. Ranging's oracle (D258) moved a
+row's upper bound below the lower bound the row rested on and the solve
+answered OPTIMAL in zero iterations. Does anything decide it?
+
+**Nothing did.** A nonbasic variable rests on one bound and no ratio
+test asks whether its other bound lies on the far side, so a column
+box `[2, 1]` and a row box `[2, 1]` were both answered OPTIMAL, cold
+and warm, under the default build and the reference build alike, on a
+point the checker refuses (row violation 1). Presolve refuses an
+inverted box only where a fold meets it (D158's collapse, D256's
+proof site); a live column or row with more than one entry never
+reaches either. The gate could not see it: no instance carries one.
+
+**The change.** The solve's entry scans every box before presolve, in
+every build, and refuses one inverted by more than presolve's own
+rounding window, `jm_box_inverted`: eight ulps of the bounds' scale,
+the window the fold judges a collapsed interval by, so that a box
+inverted by rounding is still the point D158 made of it and
+`tests/test_presolve.c` pins, and one inverted by more is INFEASIBLE
+with no ray, the bounds being the proof (D256). Zero iterations, zero
+work, no basis offered. Two tests in `tests/test_simplex.c` build a
+column and a row box inverted by a whole unit, and the ranging oracle
+probes the case at 1e-4 on every run.
+
+**The gate.** Run with D258, on the same commit; the reading follows in the record commit.

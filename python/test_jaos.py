@@ -718,6 +718,70 @@ class TestProblemSolves(unittest.TestCase):
         self.assertTrue(r.dual_feasible)
 
 
+class TestRanging(unittest.TestCase):
+    """The three ranging calls through the binding, on the textbook pair
+    of rows tests/test_ranging.c works by hand: max x0 + x1 subject to
+    x0 + 2 x1 <= 4 and 3 x0 + x1 <= 6, optimum (1.6, 1.2)."""
+
+    def load(self, m):
+        m.load(num_col=2, num_row=2, sense=jaos.ObjSense.MAXIMIZE,
+               col_cost=[1.0, 1.0], col_lower=[0.0, 0.0],
+               col_upper=[jaos.INFINITY, jaos.INFINITY],
+               row_lower=[-jaos.INFINITY, -jaos.INFINITY],
+               row_upper=[4.0, 6.0],
+               a_start=[0, 2, 4], a_index=[0, 1, 0, 1],
+               a_value=[1.0, 3.0, 2.0, 1.0])
+
+    def test_cost_ranging_reads_the_textbook_intervals(self):
+        with jaos.Model() as m:
+            self.load(m)
+            self.assertIs(m.solve(), jaos.SolveStatus.OPTIMAL)
+            r = m.cost_ranging()
+            self.assertEqual(len(r.lower), 2)
+            self.assertAlmostEqual(r.lower[0], 0.5, places=12)
+            self.assertAlmostEqual(r.upper[0], 3.0, places=12)
+            self.assertAlmostEqual(r.lower[1], 1.0 / 3.0, places=12)
+            self.assertAlmostEqual(r.upper[1], 2.0, places=12)
+
+    def test_rhs_and_bound_ranging_come_back_four_lists_each(self):
+        with jaos.Model() as m:
+            self.load(m)
+            m.solve()
+            r = m.rhs_ranging()
+            self.assertAlmostEqual(r.upper_lo[0], 2.0, places=12)
+            self.assertAlmostEqual(r.upper_hi[0], 12.0, places=12)
+            self.assertEqual(r.lower_lo[1], -jaos.INFINITY)
+            self.assertAlmostEqual(r.lower_hi[1], 6.0, places=12)
+            b = m.bound_ranging()
+            self.assertEqual(b.lower_lo[0], -jaos.INFINITY)
+            self.assertAlmostEqual(b.lower_hi[0], 1.6, places=12)
+            self.assertAlmostEqual(b.upper_lo[1], 1.2, places=12)
+            self.assertEqual(b.upper_hi[1], jaos.INFINITY)
+
+    def test_ranging_needs_an_optimum(self):
+        with jaos.Model() as m:
+            self.load(m)
+            with self.assertRaises(jaos.JaosError):
+                m.cost_ranging()
+
+    def test_the_layer_ranges_in_the_order_variables_were_added(self):
+        p = jaos.Problem()
+        x = p.add_var()
+        y = p.add_var()
+        p.add(x + 2 * y <= 4)
+        p.add(3 * x + y <= 6)
+        p.maximize(x + y)
+        self.assertIs(p.solve(), jaos.SolveStatus.OPTIMAL)
+        r = p.cost_ranging()
+        self.assertAlmostEqual(r.lower[0], 0.5, places=12)
+        self.assertAlmostEqual(r.upper[1], 2.0, places=12)
+        self.assertEqual(len(p.rhs_ranging().upper_hi), 2)
+        self.assertEqual(len(p.bound_ranging().lower_hi), 2)
+        y.ub = 1.0
+        with self.assertRaises(ValueError):
+            p.cost_ranging()
+
+
 class TestProblemResolves(unittest.TestCase):
     """The change-tracking path: a value moved after a solve goes through
     the C setters, everything else rebuilds. Each case is judged against a

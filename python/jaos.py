@@ -136,6 +136,10 @@ class JaosError(Exception):
 Solution = namedtuple("Solution",
                       "col_value row_activity row_dual col_dual")
 Basis = namedtuple("Basis", "col_status row_status")
+# Ranging: each field is a list of one interval end per column or per row.
+CostRanging = namedtuple("CostRanging", "lower upper")
+BoundRanging = namedtuple("BoundRanging",
+                          "lower_lo lower_hi upper_lo upper_hi")
 
 # What the solve reports about itself mid-run. See jaos_progress in jaos.h:
 # there is deliberately no objective in it.
@@ -311,6 +315,9 @@ _sig("jaos_check_certificate", ctypes.c_int, _VP, _P(_D), _D,
      _P(_CertificateReport))
 _sig("jaos_unbounded_ray", ctypes.c_int, _VP, _P(_D))
 _sig("jaos_check_ray", ctypes.c_int, _VP, _P(_D), _D, _P(_RayReport))
+_sig("jaos_cost_ranging", ctypes.c_int, _VP, _P(_D), _P(_D))
+_sig("jaos_rhs_ranging", ctypes.c_int, _VP, _P(_D), _P(_D), _P(_D), _P(_D))
+_sig("jaos_bound_ranging", ctypes.c_int, _VP, _P(_D), _P(_D), _P(_D), _P(_D))
 _sig("jaos_work_units", _I64, _VP)
 _sig("jaos_iterations", _I64, _VP)
 _sig("jaos_solve_time", _D, _VP)
@@ -802,6 +809,32 @@ class Model:
         self._check(_lib.jaos_check_ray(self._handle(), d, float(tol),
                                         ctypes.byref(rep)))
         return RayReport(*(getattr(rep, f) for f, _ in _RayReport._fields_))
+
+    def cost_ranging(self):
+        """How far each column's cost may move, everything else held, with
+        the basis behind the last optimum staying optimal: a `CostRanging`
+        of two lists, one interval end per column. An open end is +-inf.
+        Needs an optimum, like basis(); jaos.h states the cost."""
+        nc = self.num_col
+        lo = (_D * max(nc, 1))()
+        hi = (_D * max(nc, 1))()
+        self._check(_lib.jaos_cost_ranging(self._handle(), lo, hi))
+        return CostRanging(list(lo[:nc]), list(hi[:nc]))
+
+    def _bound_ranging(self, fn, n):
+        arrs = [(_D * max(n, 1))() for _ in range(4)]
+        self._check(fn(self._handle(), *arrs))
+        return BoundRanging(*(list(a[:n]) for a in arrs))
+
+    def rhs_ranging(self):
+        """How far each row's two bounds may move: a `BoundRanging` of four
+        lists, [lower_lo, lower_hi] for row_lower and [upper_lo, upper_hi]
+        for row_upper, one entry per row."""
+        return self._bound_ranging(_lib.jaos_rhs_ranging, self.num_row)
+
+    def bound_ranging(self):
+        """The same for each column's own bounds, one entry per column."""
+        return self._bound_ranging(_lib.jaos_bound_ranging, self.num_col)
 
     @property
     def work_units(self):
@@ -1416,6 +1449,30 @@ class Problem:
             raise ValueError("the problem changed since the last solve; "
                              "call solve() before reading values")
         return self._m.unbounded_ray()
+
+    def _settled(self):
+        if self._pending():
+            raise ValueError("the problem changed since the last solve; "
+                             "call solve() before reading values")
+
+    def cost_ranging(self):
+        """How far each variable's objective coefficient may move with the
+        basis behind the answer staying optimal: a `CostRanging` of two
+        lists, one entry per variable in the order they were added."""
+        self._settled()
+        return self._m.cost_ranging()
+
+    def rhs_ranging(self):
+        """How far each constraint's two bounds may move: a `BoundRanging`
+        of four lists, one entry per constraint in the order they were
+        added."""
+        self._settled()
+        return self._m.rhs_ranging()
+
+    def bound_ranging(self):
+        """The same for each variable's own bounds."""
+        self._settled()
+        return self._m.bound_ranging()
 
     @property
     def variables(self):

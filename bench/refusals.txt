@@ -91,7 +91,10 @@ D97  | MANUAL | a crossover exists at postsolve (the imposed-bound collision the
 D118 | MANUAL | D119's rewritten condition
 D126 | MANUAL | the dual step stops being computed from an unclamped d, or update_dual stops being what pushes the same variable
 D127 | MANUAL | a correctly-signed step that keeps the perturbation update_dual spreads (a new constant, needs its own sweep), or pilot87 stalls again
-D141 | MANUAL | a demotion design wider than the firing row that carries a rank argument for the demoted member
+# D141's refusal EXPIRED at D257 (2026-09-03): the published-basis residue it
+# was about closed without any demotion or rank argument, by deciding the
+# statuses from the structure of each reduction. Its verdict on a within-row
+# demotion stands as a fact about that design and nothing re-tests it.
 D142 | MANUAL | a consumer of start_* reads the orig-space count as a claim, or warm starting stops going through presolve's mapping
 D145 | MANUAL | condition met by D148, retried as D149, refused again on cost; closed
 D149 | MANUAL | condition met by D151 (the cap swept on both sides, the capped repair landed at 4); closed

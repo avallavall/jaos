@@ -20,6 +20,7 @@ structure says a value rests on a bound, the bound is what is published.
 | `wrong-solves-before.txt` | the 46 wrong solves at the parent, by dimensions, each instance twice (the gate solves each instance twice) |
 | `signs-before.txt`, `signs-after.txt` | 02-80's detector: published reduced costs against the published statuses |
 | `control-without-sign.txt` | the candidate's first build, whose singleton-row ownership test lacked the reduced cost's sign; the count is exact and the checker refuses 15 solves |
+| `count-after-sign-condition.txt`, `signs-after-sign-condition.txt` | the same two readings on the tree that carries the review's fix to the sign condition (the sign asked only where a fold fixed the column), taken with D258 and D259 in the tree before their gate: exact on all 220, zero breaches, worst 4.09e-10 |
 
 ## The reading
 

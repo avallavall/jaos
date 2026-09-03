@@ -21,6 +21,20 @@ What this unblocks is named at decision 2 below: ranging can now read
 re-solve hands presolve, which still arrives short (D186) — a different
 object, and the next thing worth measuring on the warm campaign.
 
+**Also 2026-09-03: sensitivity and ranging landed (D258), and its oracle
+found a defect (D259).** Three calls, `jaos_cost_ranging`, `jaos_rhs_ranging`
+and `jaos_bound_ranging`, over the published basis refactored on the model
+as loaded, reached from Python. The tests use the solver as the oracle: a
+number moved just inside its range re-solves warm for nothing, just outside
+it the re-solve pivots. That oracle moved a row's upper bound below the
+lower bound the row rested on and both builds answered OPTIMAL: an inverted
+box, legal input by `jaos.h` and trivially infeasible, was decided by
+nobody. The solve's entry refuses one now, beyond presolve's rounding
+window, in every build. The review of D257 also found and closed a hole in
+the singleton row's ownership rule (a fold bound held by a reduced cost the
+wrong way inside the tolerance); the sign is asked only where the fold
+fixed the column.
+
 **2026-09-02: v0.2.0 is tagged and pushed.** Two things landed since the
 table below: the Python modeling layer — `Problem`, expressions, constraints
 from comparisons, warm re-solve on moved bounds, plus the seven C calls the
@@ -136,7 +150,15 @@ threshold like any other constant, which the premises allow and which would
 not be called Devex. The copy in `docs/research/primal-simplex.md` §3 is
 unverified and must not be coded from either way.
 
-**2. Sensitivity and ranging.** This list said "isolated from the solver"
+**2. ~~Sensitivity and ranging.~~ LANDED 2026-09-03 (D258).** Three calls
+over the published basis refactored on the model as loaded; presolve has no
+half in it, because since D257 that basis is a basis of the caller's model.
+Costed as the paragraph below asked: one factorization per call, one BTRAN
+and one row price per basic structural for cost ranging, one FTRAN per
+nonbasic for bound ranging, stated in `jaos.h` and not billed. The
+paragraph below is the question as it stood.
+
+This list said "isolated from the solver"
 until 2026-09-01 and that was wrong. Ranging needs the basis and a
 factorization of it. ~~The published basis is wrong on 48 of 188 solves (item
 2 below)~~ **Since D257 the published basis has the promised count on every

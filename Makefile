@@ -190,7 +190,7 @@ $(B)/asan/%.o: src/%.c $(HDRS) | $(B)/asan
 $(B)/pic/%.o: src/%.c $(HDRS) | $(B)/pic
 	$(CC) $(RELEASE_CFLAGS) -fPIC $(INC) -c $< -o $@
 
-$(SHLIB): $(PIC_OBJ)
+$(SHLIB): $(PIC_OBJ) | $(B)/release
 	$(CC) $(RELEASE_CFLAGS) -shared -o $@ $^ $(LDLIBS)
 
 shared: $(SHLIB)

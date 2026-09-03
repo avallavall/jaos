@@ -226,6 +226,18 @@ static double ps_bound_scale(double a, double b)
     return s;
 }
 
+/* A box inverted by more than rounding: its lower bound above its upper by
+ * more than the window the fold judges a collapsed interval by, so that no
+ * point satisfies both ends to within the arithmetic that could have
+ * produced them. Within the window a fold collapses the box to a point
+ * (D158) and the simplex holds it to within its own tolerance; beyond it
+ * the model is infeasible and the solve refuses it before anything runs
+ * (D259). One window, one owner. */
+bool jm_box_inverted(double lower, double upper)
+{
+    return lower > upper + ps_round_tol(ps_bound_scale(lower, upper));
+}
+
 #ifndef NDEBUG
 /* `row_traffic[i]` is the error budget for `cur_rl[i]`/`cur_ru[i]`, so it
  * has to be a number wherever one of those still is; a row whose two ends
@@ -1300,8 +1312,22 @@ static void ps_replay_one(jaos_model *orig, const jm_presolve *p, int64_t r,
          * multiplier was solved to zero (D257). Every other producer of
          * this tag decides here: an empty column sits at the bound the cost
          * picked, a fixed one on the bound its value names. */
-        if (rec->coef == 0.0)
+        if (rec->coef == 0.0) {
             orig->sol_col_status[j] = ps_fixed_status(orig, j, rec->value);
+        } else {
+            /* The contract the skip above relies on: a pin sits in the run
+             * of pins immediately before its forcing row, and that row's
+             * count reaches back to it. Nothing else pushes coef != 0. */
+#ifndef NDEBUG
+            int64_t k = r + 1;
+            while (k < p->arena_len && p->arena[k].tag == JM_PS_FIXED_COL &&
+                   p->arena[k].coef != 0.0)
+                k++;
+            assert(k < p->arena_len &&
+                   p->arena[k].tag == JM_PS_FORCING_ROW &&
+                   p->arena[k].index2 >= k - r);
+#endif
+        }
 
         /* Over the column's ORIGINAL entries: a row not yet replayed (removed
          * earlier, replays later) still reads a well-defined 0 here. */
@@ -1354,27 +1380,36 @@ static void ps_replay_one(jaos_model *orig, const jm_presolve *p, int64_t r,
          * Otherwise the row restores with a zero multiplier and its own
          * logical basic, and x_j keeps what it had.
          *
-         * "Held" reads the reduced cost's sign: a bound holds a variable
-         * whose reduced cost points into it, and a zero reduced cost is
-         * held by any bound it rests on. Exact: a value presolve assigned
-         * rests on a bound by equality. A column the fold collapsed to a
-         * point sat fixed in the reduced solve, where its reduced cost has
-         * no sign to obey; the sign is what says which of the two ends the
-         * row holds it from. Several rows can fold into one column, in an
-         * order the LIFO replay does not follow, so each record asks whether
-         * the bound is its own: exact, since rec->lo/hi is the same
-         * computation. A fold another row overwrote declines here and is
-         * claimed at that row's replay (D158). */
+         * "Held" is read from the value, exactly: a value presolve assigned
+         * rests on a bound by equality, and the reduced solve chose that
+         * bound, so its reduced cost's sign is right there to within the
+         * dual tolerance and is not asked. The one place the sign is asked
+         * is a fold collapsed to a point: that column sat FIXED in the
+         * reduced solve, where its reduced cost obeys no sign, and both of
+         * the row's ends meet at its value, so the sign is the only evidence
+         * of which end holds it (and of whether the caller's own bound it
+         * may also sit on does). Asking the sign elsewhere reopened a hole
+         * the review of D257 found: a column at a fold bound inside the
+         * caller's box with a wrong-way reduced cost under the tolerance
+         * was owned by nobody and published nonbasic off both its bounds.
+         * Several rows can fold into one column, in an order the LIFO
+         * replay does not follow, so each record asks whether the bound is
+         * its own: exact, since rec->lo/hi is the same computation. A fold
+         * another row overwrote declines here and is claimed at that row's
+         * replay (D158). */
         const double d0 = orig->sol_redcost[j];
         const double v0 = orig->sol_col[j];
         /* dc is d0 in the checker's canonical minimise space (sigma above). */
         const double dc = sigma * d0;
         const bool nonbasic_j = orig->sol_col_status[j] != JAOS_BASIS_BASIC;
+        const bool sign_decides = rec->lo == rec->hi;
         const bool held_by_own_bound =
-            (dc >= 0.0 && v0 == orig->col_lower[j]) ||
-            (dc <= 0.0 && v0 == orig->col_upper[j]);
-        const bool owns_lo = rec->row_tightens_lo && v0 == rec->lo && dc >= 0.0;
-        const bool owns_hi = rec->row_tightens_hi && v0 == rec->hi && dc <= 0.0;
+            (v0 == orig->col_lower[j] && (!sign_decides || dc >= 0.0)) ||
+            (v0 == orig->col_upper[j] && (!sign_decides || dc <= 0.0));
+        const bool owns_lo = rec->row_tightens_lo && v0 == rec->lo &&
+                             (!sign_decides || dc >= 0.0);
+        const bool owns_hi = rec->row_tightens_hi && v0 == rec->hi &&
+                             (!sign_decides || dc <= 0.0);
 
         /* The divisor below, on the branch this row owns. A singleton row has
          * exactly one live entry and it is what `coef` records, so a zero
@@ -1387,7 +1422,9 @@ static void ps_replay_one(jaos_model *orig, const jm_presolve *p, int64_t r,
              * implied bound comes from the row's lower end when the entry
              * is positive and from its upper end when negative (the forward
              * pass's division). Both own it only at a zero reduced cost on
-             * a collapsed fold, and either end is then right. */
+             * a collapsed fold, and either end is then right. Where only
+             * one flag is set on a collapsed fold, the sign that passed
+             * above is the one that end's multiplier needs. */
             const bool from_lo = owns_lo;
             /* The fold only ever narrows (D236), so the bound that holds
              * x_j is strictly inside the caller's own on that side. */
@@ -1457,18 +1494,24 @@ static void ps_replay_one(jaos_model *orig, const jm_presolve *p, int64_t r,
          * column interior at that end -- and there the exact recovery is
          * this column at the bound that end absorbed: on the lower end the
          * bound that maximises a_ij * x_j, on the upper the one that
-         * minimises it. The division `lo_j` lands ulps inside that bound
-         * (D140's 80 declines); the bound is published instead, so the
-         * status and the value agree, and the row's logical stays out.
+         * minimises it. The division `lo_j` lands ulps inside that bound;
+         * the bound is published instead, so the status and the value
+         * agree, and the row's logical stays out.
          *
          * Its logical BASIC means the reduced activity sat strictly inside
          * the relaxed range, and the lower end of the intersection is taken:
          * the column on its own bound when that satisfies the row, otherwise
          * interior at the value that puts the row exactly on its end, where
-         * the column is BASIC and the row's logical leaves for that end
-         * (D133, D139). The old exchange asked the folded activity to equal
-         * the bound bit for bit and declined 152 times on rounding (D141);
-         * the end is known from the arithmetic that targeted it. */
+         * the column is BASIC and the row's logical leaves for that end,
+         * known from the arithmetic that targeted it and never read back
+         * from the rounded sum (D257).
+         *
+         * A logical published FREE, nonbasic at zero on a row both of whose
+         * ends this family opened, is treated as basic below. It can only
+         * arrive through a caller's remembered basis (a cold solve keeps a
+         * free logical basic), and no assignment of this column makes a
+         * basis of it: the reduced basis holds a structural in the slot the
+         * logical left. The count is then over by one, as before D257. */
         const jaos_basis_status rs = orig->sol_row_status[i];
         double xv;
         if (rs == JAOS_BASIS_AT_LOWER || rs == JAOS_BASIS_AT_UPPER) {

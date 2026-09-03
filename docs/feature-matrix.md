@@ -216,7 +216,7 @@ and this page has not measured that.
 | Progress callback that can stop the solve | ● | ● | ? | ● | ● | ● | ● |
 | Callbacks that steer the search | ○ | ◐ | ○ | ○ | ● | ● | ○ |
 | Choose the algorithm | ○ | ● | ● | ● | ● | ● | — |
-| Sensitivity analysis and ranging | ○ | ● | ○ | ● | ○ | ● | ? |
+| Sensitivity analysis and ranging | ● | ● | ○ | ● | ○ | ● | ? |
 
 JAOS's "choose the algorithm" is ○ by decision, not by omission: D64 draws the
 line at what depends on the caller's data against what depends on the method,
@@ -282,11 +282,12 @@ section are large pieces of work and are correctly not scheduled yet.
 **That answer was taken up on 2026-09-01 and two of the three cells moved.**
 Compressed input is present (D240) and so is Python (D243), both under the
 premise that keeps every dependency out: the inflate is written here and the
-binding is ctypes over the standard library. **Sensitivity and ranging is the
-one left**, and it is no longer the small job this paragraph implied — it
+binding is ctypes over the standard library. **Sensitivity and ranging landed
+on 2026-09-03 (D258)**, and it was not the small job this paragraph implied — it
 needs the basis and a factorization of it. The published basis has the
-promised count on every gate solve since D257; `TODO.md` carries what the
-presolve half costs.
+promised count on every gate solve since D257, and D258 ranges over that
+basis refactored on the model as loaded, so the presolve half this paragraph
+feared does not exist.
 
 ---
 
