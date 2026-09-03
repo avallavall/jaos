@@ -4046,7 +4046,13 @@ static void test_a_folds_value_carries_its_rows_error_into_the_next(void)
  * What is asserted is that the midpoint STANDS: x0 lands strictly between the
  * two crossed bounds rather than on either of them, which is what "the clamp
  * did not fire" looks like from outside. The behaviour is bit-identical to
- * the tree before D158. */
+ * the tree before D158.
+ *
+ * Since D259 the solve's entry refuses a box inverted by more than the same
+ * window, so this model reaches the fold only because 5e-7 is inside eight
+ * ulps of 1e9 (1.78e-6, a factor 3.55 of margin). The window sits on the
+ * JAOS_PRESOLVE_ROUND_ULPS_VALUE sweep hook: at two ulps or fewer the entry
+ * refuses this model and the assertion on jaos_solution is what fails. */
 static void test_a_collapse_on_an_inverted_box_keeps_the_midpoint(void)
 {
     const double c[]  = {1.0};

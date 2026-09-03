@@ -553,7 +553,11 @@ typedef enum jaos_basis_status {
  * Available only when the last solve found an optimum, under the same rule
  * as jaos_solution and for a sharper version of the same reason: a buffer of
  * zeros does not read as missing, it reads as a solution in which everything
- * is basic. Exactly num_row of the num_col + num_row statuses are basic. */
+ * is basic. Exactly num_row of the num_col + num_row statuses are basic, a
+ * nonbasic status names a bound the variable has, and a column whose two
+ * bounds are equal is named at the one its reduced cost points into, so the
+ * statuses are a basis of this model as loaded and the ranging calls below
+ * read them as one (D257, D258). */
 JAOS_NODISCARD jaos_status jaos_basis(const jaos_model *m,
     jaos_basis_status *col_status, jaos_basis_status *row_status);
 

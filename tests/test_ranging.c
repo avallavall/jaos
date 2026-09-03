@@ -191,41 +191,60 @@ static void test_a_presolved_basis_ranges_like_any_other(void)
 
 /* -- The solver as the oracle -------------------------------------------
  *
- *   min 2 x0 + 3 x1 + x2 + 4 x3
- *   row0:   x0 + x1 + x2 + x3 in [2, 8]
- *   row1:   x0 - x1     + 2 x3 in [-3, 3]
- *   row2: 2 x0      + x2 - x3 in [1, 5]
- *   x in [0, 5]
+ *   min 2 x0 + 3 x1 + x2 + 4 x3 - x4
+ *   row0:   x0 + x1 + x2 + x3 + x4 in [2, 8]
+ *   row1:   x0 - x1     + 2 x3      in [-3, 3]
+ *   row2: 2 x0      + x2 - x3 + x4 in [1, 5]
+ *   x0..x3 in [0, 5],  x4 in [1, 1]
  *
  * Every column has at least two entries and a nonzero cost, no row's range
- * lies inside or outside its bounds, so presolve removes nothing and a warm
- * start from the published basis is the published basis. */
+ * lies inside or outside its bounds, so presolve removes nothing but the
+ * fixed column and a warm start from the published basis is the published
+ * basis. x4 is fixed with a cost that wants it higher: its published status
+ * is whichever bound the solver named, and ranging must read the side that
+ * holds it from the reduced cost's sign, not from the status. */
 #define ORACLE_EPS 1e-4
+#define ORACLE_NCOL 5
+#define ORACLE_NROW 3
 
+/* The oracle crosses presolve, whose replay is wrong on purpose under the
+ * two fault builds, so its helpers exist only where its tests run. */
+#if !defined(JAOS_PRESOLVE_FAULT_OFFBYONE) && !defined(JAOS_PRESOLVE_FAULT_WRONGDUAL)
 static jaos_model *make_oracle(void)
 {
-    const double c[]  = {2.0, 3.0, 1.0, 4.0};
-    const double cl[] = {0.0, 0.0, 0.0, 0.0}, cu[] = {5.0, 5.0, 5.0, 5.0};
+    const double c[]  = {2.0, 3.0, 1.0, 4.0, -1.0};
+    const double cl[] = {0.0, 0.0, 0.0, 0.0, 1.0};
+    const double cu[] = {5.0, 5.0, 5.0, 5.0, 1.0};
     const double rl[] = {2.0, -3.0, 1.0}, ru[] = {8.0, 3.0, 5.0};
     /* col0: rows 0,1,2 = 1,1,2. col1: rows 0,1 = 1,-1. col2: rows 0,2 = 1,1.
-     * col3: rows 0,1,2 = 1,2,-1. */
-    const int64_t s[]  = {0, 3, 5, 7, 10};
-    const int64_t ix[] = {0, 1, 2, 0, 1, 0, 2, 0, 1, 2};
-    const double v[]   = {1.0, 1.0, 2.0, 1.0, -1.0, 1.0, 1.0, 1.0, 2.0, -1.0};
+     * col3: rows 0,1,2 = 1,2,-1. col4: rows 0,2 = 1,1. */
+    const int64_t s[]  = {0, 3, 5, 7, 10, 12};
+    const int64_t ix[] = {0, 1, 2, 0, 1, 0, 2, 0, 1, 2, 0, 2};
+    const double v[]   = {1.0, 1.0, 2.0, 1.0, -1.0, 1.0, 1.0, 1.0, 2.0, -1.0,
+                          1.0, 1.0};
     jaos_model *m = nullptr;
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_model_new(&m));
     TEST_ASSERT_EQUAL_INT(JAOS_OK,
-        jaos_load_lp(m, 4, 3, JAOS_MINIMIZE, 0.0, c, cl, cu, rl, ru,
-                     10, s, ix, v));
+        jaos_load_lp(m, ORACLE_NCOL, ORACLE_NROW, JAOS_MINIMIZE, 0.0,
+                     c, cl, cu, rl, ru, 12, s, ix, v));
     return m;
 }
 
-static bool same_basis(const jaos_basis_status *cs, const jaos_basis_status *rs,
+/* The same basis: the same statuses, except that a variable fixed in the
+ * model as it stood may be named at either bound. */
+static bool same_basis(const jaos_model *m, const jaos_basis_status *cs,
+                       const jaos_basis_status *rs,
                        const jaos_basis_status *cs2,
                        const jaos_basis_status *rs2)
 {
-    return memcmp(cs, cs2, 4 * sizeof *cs) == 0 &&
-           memcmp(rs, rs2, 3 * sizeof *rs) == 0;
+    for (int64_t j = 0; j < ORACLE_NCOL; j++) {
+        double l, u;
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_col_bounds(m, j, &l, &u));
+        if (l == u ? (cs[j] == JAOS_BASIS_BASIC) != (cs2[j] == JAOS_BASIS_BASIC)
+                   : cs[j] != cs2[j])
+            return false;
+    }
+    return memcmp(rs, rs2, ORACLE_NROW * sizeof *rs) == 0;
 }
 
 /* Re-solves warm from the published basis with one number moved, and
@@ -260,9 +279,9 @@ static bool basis_survives(jaos_model *m, move_kind what, int64_t idx,
      * way for the basis not to survive; the solver has to say so (D259). */
     bool survived = false;
     if (jaos_status_of(m) == JAOS_SOLVE_OPTIMAL) {
-        jaos_basis_status cs2[4], rs2[3];
+        jaos_basis_status cs2[ORACLE_NCOL], rs2[ORACLE_NROW];
         TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_basis(m, cs2, rs2));
-        survived = jaos_iterations(m) == 0 && same_basis(cs, rs, cs2, rs2);
+        survived = jaos_iterations(m) == 0 && same_basis(m, cs, rs, cs2, rs2);
     }
     switch (what) {
     case MOVE_COST:
@@ -321,29 +340,34 @@ static void probe_interval(jaos_model *m, move_kind what, int64_t idx,
         (*probed)++;
     }
 }
+#endif
 
 static void test_the_solver_agrees_with_every_range(void)
 {
+#if defined(JAOS_PRESOLVE_FAULT_OFFBYONE) || defined(JAOS_PRESOLVE_FAULT_WRONGDUAL)
+    /* The fixed column crosses presolve, whose replay is wrong on purpose. */
+    TEST_IGNORE_MESSAGE("positive test — skipped under either fault build");
+#else
     jaos_model *m = make_oracle();
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
     TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
     TEST_ASSERT_TRUE(jaos_iterations(m) > 0);   /* the simplex, not presolve */
-    jaos_basis_status cs[4], rs[3];
+    jaos_basis_status cs[ORACLE_NCOL], rs[ORACLE_NROW];
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_basis(m, cs, rs));
     /* The premise of the oracle: an unchanged model re-solves for nothing. */
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
     TEST_ASSERT_EQUAL_INT64(0, jaos_iterations(m));
 
-    double lo[4], hi[4], ll[4], lh[4], ul[4], uh[4];
+    double lo[ORACLE_NCOL], hi[ORACLE_NCOL], ll[ORACLE_NCOL], lh[ORACLE_NCOL], ul[ORACLE_NCOL], uh[ORACLE_NCOL];
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_cost_ranging(m, lo, hi));
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_rhs_ranging(m, ll, lh, ul, uh));
     int probed = 0;
-    for (int64_t j = 0; j < 4; j++) {
+    for (int64_t j = 0; j < ORACLE_NCOL; j++) {
         double c;
         TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_col_cost(m, j, &c));
         probe_interval(m, MOVE_COST, j, c, lo[j], hi[j], &probed, cs, rs);
     }
-    for (int64_t i = 0; i < 3; i++) {
+    for (int64_t i = 0; i < ORACLE_NROW; i++) {
         double l, u;
         TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_row_bounds(m, i, &l, &u));
         probe_interval(m, MOVE_ROW_LO, i, l, ll[i], lh[i], &probed, cs, rs);
@@ -357,7 +381,7 @@ static void test_the_solver_agrees_with_every_range(void)
     TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
     TEST_ASSERT_EQUAL_INT64(0, jaos_iterations(m));
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_bound_ranging(m, ll, lh, ul, uh));
-    for (int64_t j = 0; j < 4; j++) {
+    for (int64_t j = 0; j < ORACLE_NCOL; j++) {
         double l, u;
         TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_col_bounds(m, j, &l, &u));
         probe_interval(m, MOVE_COL_LO, j, l, ll[j], lh[j], &probed, cs, rs);
@@ -367,20 +391,24 @@ static void test_the_solver_agrees_with_every_range(void)
      * from the current value, and the count says the probes ran. */
     TEST_ASSERT_TRUE_MESSAGE(probed >= 10, "fewer than ten range ends were probed");
     jaos_model_free(m);
+#endif
 }
 
 /* The case the oracle must reject: a range widened by hand, the way a
  * wrong ratio test would widen it, is refused at its new end. */
 static void test_the_oracle_rejects_a_widened_range(void)
 {
+#if defined(JAOS_PRESOLVE_FAULT_OFFBYONE) || defined(JAOS_PRESOLVE_FAULT_WRONGDUAL)
+    TEST_IGNORE_MESSAGE("positive test — skipped under either fault build");
+#else
     jaos_model *m = make_oracle();
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
-    jaos_basis_status cs[4], rs[3];
+    jaos_basis_status cs[ORACLE_NCOL], rs[ORACLE_NROW];
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_basis(m, cs, rs));
-    double lo[4], hi[4];
+    double lo[ORACLE_NCOL], hi[ORACLE_NCOL];
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_cost_ranging(m, lo, hi));
     int found = 0;
-    for (int64_t j = 0; j < 4 && !found; j++) {
+    for (int64_t j = 0; j < ORACLE_NCOL && !found; j++) {
         if (!isfinite(hi[j]))
             continue;
         /* Twice as wide on the upper side: the basis does not survive
@@ -393,15 +421,19 @@ static void test_the_oracle_rejects_a_widened_range(void)
     }
     TEST_ASSERT_TRUE_MESSAGE(found, "no finite upper cost end to widen");
     jaos_model_free(m);
+#endif
 }
 
 /* Bit-identical on a second call, and on a second solve of the same model:
  * the ranges are functions of the basis and nothing else. */
 static void test_ranging_is_reproducible(void)
 {
+#if defined(JAOS_PRESOLVE_FAULT_OFFBYONE) || defined(JAOS_PRESOLVE_FAULT_WRONGDUAL)
+    TEST_IGNORE_MESSAGE("positive test — skipped under either fault build");
+#else
     jaos_model *m = make_oracle();
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
-    double a[4], b[4], c[4], d[4];
+    double a[ORACLE_NCOL], b[ORACLE_NCOL], c[ORACLE_NCOL], d[ORACLE_NCOL];
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_cost_ranging(m, a, b));
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_cost_ranging(m, c, d));
     TEST_ASSERT_EQUAL_MEMORY(a, c, sizeof a);
@@ -412,12 +444,108 @@ static void test_ranging_is_reproducible(void)
     TEST_ASSERT_EQUAL_MEMORY(a, c, sizeof a);
     TEST_ASSERT_EQUAL_MEMORY(b, d, sizeof b);
     jaos_model_free(m);
+#endif
+}
+
+/* A model with no rows at all: the basis is empty, every column is
+ * nonbasic, and the reduced costs are the costs. Presolve answers it by
+ * itself. The review of D258 found an early return that left every
+ * reduced cost at zero here and published [1, +inf) for a cost of 1. */
+static void test_a_model_with_no_rows_ranges_its_costs(void)
+{
+#if defined(JAOS_PRESOLVE_FAULT_OFFBYONE) || defined(JAOS_PRESOLVE_FAULT_WRONGDUAL)
+    TEST_IGNORE_MESSAGE("positive test — skipped under either fault build");
+#else
+    const double c[]  = {1.0, -2.0};
+    const double cl[] = {0.0, 0.0}, cu[] = {10.0, 3.0};
+    jaos_model *m = nullptr;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_model_new(&m));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_load_lp(m, 2, 0, JAOS_MINIMIZE, 0.0, c, cl, cu, nullptr, nullptr,
+                     0, nullptr, nullptr, nullptr));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+    double lo[2], hi[2];
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_cost_ranging(m, lo, hi));
+    NEAR(0.0, lo[0]);              /* x0 at 0: its cost may fall to 0 */
+    EXACT_D(INFINITY, hi[0]);
+    EXACT_D(-INFINITY, lo[1]);     /* x1 at 3: its cost may rise to 0 */
+    NEAR(0.0, hi[1]);
+    double ll[2], lh[2], ul[2], uh[2];
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_bound_ranging(m, ll, lh, ul, uh));
+    EXACT_D(-INFINITY, ll[0]);     /* no basic to hold x0's lower bound */
+    NEAR(10.0, lh[0]);             /* up to where it meets the upper */
+    NEAR(0.0, ul[0]);
+    EXACT_D(INFINITY, uh[0]);
+    EXACT_D(-INFINITY, ll[1]);
+    NEAR(3.0, lh[1]);
+    NEAR(0.0, ul[1]);
+    EXACT_D(INFINITY, uh[1]);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_rhs_ranging(m, ll, lh, ul, uh));
+    jaos_model_free(m);
+#endif
+}
+
+/* A mutual singleton whose row is open below:
+ *
+ *   min 0 x  s.t.  2 x <= 5,  x free
+ *
+ * Presolve removes both and the replay puts x at 5/2, basic, with the
+ * row's logical out at the end the value was read from -- the UPPER one.
+ * Until the review of D258 it was published at the lower end, a bound
+ * of -inf the row does not have, and ranging refused the model. The
+ * reference build stops at x = 0 with x nonbasic free and the row basic,
+ * an equally optimal basis with its own ranges, so the numbers are
+ * asserted on presolve's basis and only the calls' success on both. */
+static void test_a_mutual_singleton_on_an_open_row_ranges(void)
+{
+#if defined(JAOS_PRESOLVE_FAULT_OFFBYONE) || defined(JAOS_PRESOLVE_FAULT_WRONGDUAL)
+    TEST_IGNORE_MESSAGE("positive test — skipped under either fault build");
+#else
+    const double c[]  = {0.0};
+    const double cl[] = {-INFINITY}, cu[] = {INFINITY};
+    const double rl[] = {-INFINITY}, ru[] = {5.0};
+    const int64_t s[]  = {0, 1};
+    const int64_t ix[] = {0};
+    const double v[]   = {2.0};
+    jaos_model *m = nullptr;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_model_new(&m));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_load_lp(m, 1, 1, JAOS_MINIMIZE, 0.0, c, cl, cu, rl, ru,
+                     1, s, ix, v));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+    double lo[1], hi[1], ll[1], lh[1], ul[1], uh[1];
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_cost_ranging(m, lo, hi));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_rhs_ranging(m, ll, lh, ul, uh));
+    TEST_ASSERT_TRUE(lo[0] <= 0.0 && 0.0 <= hi[0]);
+    TEST_ASSERT_TRUE(ul[0] <= 5.0 && 5.0 <= uh[0]);
+#if !defined(JAOS_NO_PRESOLVE)
+    jaos_basis_status cs[1], rs[1];
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_basis(m, cs, rs));
+    TEST_ASSERT_EQUAL_INT(JAOS_BASIS_BASIC, cs[0]);
+    TEST_ASSERT_EQUAL_INT(JAOS_BASIS_AT_UPPER, rs[0]);
+    /* x basic at 2.5: a positive cost would send it down without limit,
+     * any negative one keeps it against the row. */
+    EXACT_D(-INFINITY, lo[0]);
+    NEAR(0.0, hi[0]);
+    /* The row's upper bound moves x with it and nothing limits x. */
+    EXACT_D(-INFINITY, ul[0]);
+    EXACT_D(INFINITY, uh[0]);
+    EXACT_D(-INFINITY, ll[0]);
+    NEAR(5.0, lh[0]);
+#endif
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_bound_ranging(m, ll, lh, ul, uh));
+    jaos_model_free(m);
+#endif
 }
 
 int main(void)
 {
     UNITY_BEGIN();
     RUN_TEST(test_nothing_to_range_before_an_optimum);
+    RUN_TEST(test_a_model_with_no_rows_ranges_its_costs);
+    RUN_TEST(test_a_mutual_singleton_on_an_open_row_ranges);
     RUN_TEST(test_textbook_cost_ranging);
     RUN_TEST(test_textbook_cost_ranging_maximised);
     RUN_TEST(test_textbook_rhs_and_bound_ranging);

@@ -1278,13 +1278,32 @@ static void ps_add_to_other_rows(jaos_model *orig, double *rowc, int64_t j,
  * of its bound, which is also what the simplex publishes for its own
  * nonbasic rows (`publish`, the unscaling division). */
 
-/* A fixed column rests on the bound its value names; a fixed column
- * accepts any status (check.c, "fixed -> anything"). */
+/* A fixed column rests on the bound its value names. A column fixed by the
+ * CALLER names one value with both bounds and accepts any status (check.c,
+ * "fixed -> anything"); the basis names the side its canonical reduced cost
+ * `dc` points into, as the simplex publishes its own (D258), so that
+ * opening the other side later re-solves warm for nothing. */
 static jaos_basis_status ps_fixed_status(const jaos_model *orig, int64_t j,
-                                         double value)
+                                         double value, double dc)
 {
+    if (orig->col_lower[j] == orig->col_upper[j])
+        return dc < 0.0 ? JAOS_BASIS_AT_UPPER : JAOS_BASIS_AT_LOWER;
     return (value == orig->col_upper[j] && value != orig->col_lower[j])
                ? JAOS_BASIS_AT_UPPER : JAOS_BASIS_AT_LOWER;
+}
+
+/* c_j - a_j' y over the column's ORIGINAL entries and the duals assigned
+ * so far; a row not yet replayed still reads its zero. */
+static double ps_reduced_cost_now(const jaos_model *orig, int64_t j,
+                                  double cost)
+{
+    double dw = cost;
+    for (int64_t k = orig->a_start[j]; k < orig->a_start[j + 1]; k++) {
+        const int64_t i = orig->a_index[k];
+        assert(i >= 0 && i < orig->num_row);
+        dw -= orig->a_value[k] * orig->sol_dual[i];
+    }
+    return dw;
 }
 
 static void ps_replay_one(jaos_model *orig, const jm_presolve *p, int64_t r,
@@ -1305,15 +1324,20 @@ static void ps_replay_one(jaos_model *orig, const jm_presolve *p, int64_t r,
         assert(j >= 0 && j < orig->num_col);
 
         orig->sol_col[j] = ps_published(rec->value);
+        /* Over the column's ORIGINAL entries: a row not yet replayed (removed
+         * earlier, replays later) still reads a well-defined 0 here. */
+        const double dw = ps_reduced_cost_now(orig, j, rec->cost);
         /* A column a forcing row pinned (coef != 0, jaos_internal.h) had its
          * status decided by that row's own replay, one record later in the
          * arena and so one step earlier in this walk: nonbasic at the pinned
          * bound, or BASIC for the one column whose reduced cost the row's
          * multiplier was solved to zero (D257). Every other producer of
          * this tag decides here: an empty column sits at the bound the cost
-         * picked, a fixed one on the bound its value names. */
+         * picked, a fixed one on the bound its value names, and a column
+         * the caller fixed on the side its reduced cost points into. */
         if (rec->coef == 0.0) {
-            orig->sol_col_status[j] = ps_fixed_status(orig, j, rec->value);
+            orig->sol_col_status[j] =
+                ps_fixed_status(orig, j, rec->value, sigma * dw);
         } else {
             /* The contract the skip above relies on: a pin sits in the run
              * of pins immediately before its forcing row, and that row's
@@ -1329,14 +1353,6 @@ static void ps_replay_one(jaos_model *orig, const jm_presolve *p, int64_t r,
 #endif
         }
 
-        /* Over the column's ORIGINAL entries: a row not yet replayed (removed
-         * earlier, replays later) still reads a well-defined 0 here. */
-        double dw = rec->cost;
-        for (int64_t k = orig->a_start[j]; k < orig->a_start[j + 1]; k++) {
-            const int64_t i = orig->a_index[k];
-            assert(i >= 0 && i < orig->num_row);
-            dw -= orig->a_value[k] * orig->sol_dual[i];
-        }
         /* A basic variable's reduced cost is zero by definition; the forcing
          * row's multiplier is d0 / coef, and `dw` here is that division's
          * residue, d0 - coef * (d0 / coef). */
@@ -1545,6 +1561,12 @@ static void ps_replay_one(jaos_model *orig, const jm_presolve *p, int64_t r,
         orig->sol_col[j] = ps_published(xv);
         /* d_j = 0 - a_ij * y_i: a cost-0 column has no sign requirement. */
         orig->sol_redcost[j] = ps_published(-rec->coef * orig->sol_dual[i]);
+        /* A column the caller fixed names the side its reduced cost points
+         * into, as everywhere (D258). */
+        if (orig->col_lower[j] == orig->col_upper[j] &&
+            orig->sol_col_status[j] != JAOS_BASIS_BASIC)
+            orig->sol_col_status[j] =
+                ps_fixed_status(orig, j, xv, sigma * orig->sol_redcost[j]);
         /* Through ps_row_add: re-basing on `rest` discarded the residue. */
         ps_row_add(orig, rowc, i, rec->coef * xv);
         ps_add_to_other_rows(orig, rowc, j, i, xv);
@@ -1579,10 +1601,13 @@ static void ps_replay_one(jaos_model *orig, const jm_presolve *p, int64_t r,
         ps_row_add(orig, rowc, i, rec->coef * xv);
         ps_add_to_other_rows(orig, rowc, j, i, xv);
         /* Row-count invariant: this pair restores one row and one column, so
-         * exactly one of the two is basic, the other nonbasic at a bound. */
+         * exactly one of the two is basic, the other nonbasic at a bound --
+         * the end `target` was read from, which is the upper one when the
+         * row is open below (the review of D258 found the lower end named
+         * on a bound the row did not have, and ranging refused the model). */
         orig->sol_row_status[i] =
-            (orig->sol_col_status[j] == JAOS_BASIS_FREE)
-                ? JAOS_BASIS_BASIC : JAOS_BASIS_AT_LOWER;
+            (orig->sol_col_status[j] == JAOS_BASIS_FREE) ? JAOS_BASIS_BASIC
+            : isfinite(rec->lo) ? JAOS_BASIS_AT_LOWER : JAOS_BASIS_AT_UPPER;
         break;
     }
 
@@ -1651,12 +1676,12 @@ static void ps_replay_one(jaos_model *orig, const jm_presolve *p, int64_t r,
             assert(j >= 0 && j < orig->num_col);
             /* Each pin's status is this row's to decide (D257): on the bound
              * it was pinned at, unless it is the pick below. Its own record
-             * replays next and leaves the status alone. */
-            orig->sol_col_status[j] = ps_fixed_status(orig, j, cr->value);
+             * replays next and leaves the status alone. A pin the caller had
+             * fixed takes its side from the reduced cost once this row's
+             * multiplier is known, in the pass after the loop. */
+            orig->sol_col_status[j] = ps_fixed_status(orig, j, cr->value, 0.0);
 
-            double d0 = cr->cost;
-            for (int64_t k = orig->a_start[j]; k < orig->a_start[j + 1]; k++)
-                d0 -= orig->a_value[k] * orig->sol_dual[orig->a_index[k]];
+            const double d0 = ps_reduced_cost_now(orig, j, cr->cost);
 
             /* Canonical through the loop, flipped back once; sigma is +-1. */
             const double lim = sigma * (d0 / cr->coef);
@@ -1683,6 +1708,17 @@ static void ps_replay_one(jaos_model *orig, const jm_presolve *p, int64_t r,
             orig->sol_row_status[i] = rec->row_tightens_hi
                                           ? JAOS_BASIS_AT_UPPER
                                           : JAOS_BASIS_AT_LOWER;
+        }
+        /* The pins the caller had fixed, with this row's multiplier in. */
+        for (int64_t t = 1; t <= rec->index2; t++) {
+            const jm_presolve_rec *cr = &p->arena[r - t];
+            const int64_t j = cr->index;
+            if (orig->col_lower[j] != orig->col_upper[j] ||
+                orig->sol_col_status[j] == JAOS_BASIS_BASIC)
+                continue;
+            orig->sol_col_status[j] = ps_fixed_status(
+                orig, j, cr->value,
+                sigma * ps_reduced_cost_now(orig, j, cr->cost));
         }
         break;
     }
@@ -1937,6 +1973,20 @@ static void ps_verify_row_activities(const jaos_model *orig)
 #else
     if (orig->solve_status != JAOS_SOLVE_OPTIMAL)
         return;
+
+    /* FREE is nonbasic at zero with both bounds infinite, nothing else.
+     * The stronger claim, that AT_LOWER and AT_UPPER name a finite bound,
+     * is not asserted: the simplex publishes a column resting on a bound it
+     * LENT (D19) as nonbasic there, four of `finnis`'s among them, and that
+     * is the solve's to change (`TODO.md`, D258). The mutual singleton's
+     * own version of that defect is pinned by a test instead. */
+    for (int64_t j = 0; j < orig->num_col; j++)
+        assert(orig->sol_col_status[j] != JAOS_BASIS_FREE ||
+               (!isfinite(orig->col_lower[j]) && !isfinite(orig->col_upper[j])));
+    for (int64_t i = 0; i < orig->num_row; i++)
+        assert(orig->sol_row_status[i] != JAOS_BASIS_FREE ||
+               (!isfinite(orig->row_lower[i]) && !isfinite(orig->row_upper[i])));
+
     if (orig->num_row <= 0 || orig->sol_row == nullptr ||
         orig->sol_col == nullptr)
         return;

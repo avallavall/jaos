@@ -19482,6 +19482,29 @@ measurement is. D141's reopen condition expires: the residue closed
 without any demotion, and the refusal's verdict on a within-row
 demotion stands as a fact about that design.
 
+**The review, and its dispositions.** `numerics-reviewer` on the
+landed tree found one hole and four low items. The hole: the ownership
+rule asked the reduced cost's sign everywhere, so a column resting on a
+fold-induced bound inside the caller's box with a wrong-way reduced
+cost inside the dual tolerance was owned by nobody and published
+nonbasic off both its bounds, the count right and the status set not a
+basis. Fixed in the commit that carries D258: the sign is asked only
+where the fold fixed the column (`rec->lo == rec->hi`), the one place
+it is the only evidence; elsewhere the value decides. The count and the
+sign detector re-read exact on all 220 solves with it
+(`bench/measurements/02-166/count-after-sign-condition.txt`). Carried,
+and said here so a later diff is not read as a regression: a wrong-way
+reduced cost the reduced solve accepted at up to the dual tolerance is
+now divided by the fold's coefficient into the row's multiplier, so a
+5e-10 on a column with a 1e-3 entry reads as 5e-7 on the caller's row,
+which the checker sees rather than hides. Also fixed: a debug check
+pins the forcing-row pin window the FIXED_COL replay relies on. Refused:
+an assert on `rs == FREE` and a warm campaign to fire it, since the
+case is a caller's remembered basis and no assignment makes a basis of
+it; it is named in the code instead. A value note: a basic column
+resting bit-exactly on a fold bound with a rounding-size reduced cost
+used to hand `d0 / coef` to its row and now hands zero.
+
 ## D258 — Sensitivity and ranging run on the published basis, over the model as loaded, and presolve has no half in it
 
 **The question.** `TODO.md`'s second open decision said ranging needs
@@ -19511,18 +19534,48 @@ belongs to the solve; the cost is stated in `jaos.h`, and on a model of
 a hundred thousand rows a full cost ranging is comparable to the solve.
 Reached from Python on `Model` and `Problem`.
 
+**A fixed column names the side its reduced cost points into.** The
+review's one high finding: a column the caller fixed accepts any
+status, the solve published whichever side it landed on, and its
+reduced cost obeys no sign, so bound ranging read the wrong holder and
+a warm re-solve after opening the other side had to pivot. Ranging now
+reads the holder from the reduced cost's sign, and so does the
+publication, in the simplex and at every postsolve site, so the
+published basis is dual feasible as a status set and the three agree.
+Values do not move; basis hashes do, wherever a fixed column sat on
+the side its cost did not want.
+
 **The measurement.** Two models worked by hand, the textbook pair of
 rows in both senses and a model presolve answers by itself, so every
-range there comes from D257's postsolved basis. Then the solver as the
-oracle, on a model presolve leaves alone: for every cost, every row
-bound and every column bound whose range has a finite end away from the
-value, the number is moved to just inside that end and the published
-basis must re-solve warm for nothing, then to just outside it and the
-re-solve must pivot or the model must be infeasible; 22 ends probed,
-and a range widened by hand is refused at its new end, so a quiet
-oracle is not mistaken for a right one. The oracle found D259 on its
-first run. Five configurations pass and the ranges are bit-identical
-across calls and across a cold re-solve.
+range there comes from D257's postsolved basis; a model with no rows
+at all; a mutual singleton on a row open below. Then the solver as the
+oracle, on a model presolve leaves alone but for one fixed column: for
+every cost, every row bound and every column bound whose range has a
+finite end away from the value, the number is moved to just inside that
+end and the published basis must re-solve warm for nothing, then to
+just outside it and the re-solve must pivot or the model must be
+infeasible; a range widened by hand is refused at its new end, so a
+quiet oracle is not mistaken for a right one. The oracle found D259 on
+its first run and the fixed-column holder on its second. Five
+configurations pass and the ranges are bit-identical across calls and
+across a cold re-solve. Over the population
+(`bench/measurements/02-167/`): all three calls on every instance the
+solver answers, with the header's promises checked -- no NaN, every
+current number inside its own interval, a nonbasic column's cost end
+where its reduced cost says, no two bounds crossing. netlib: 94 solved,
+**93 ranged, 1 refused, 0 with a failed check**, 4.8 seconds of ranging
+in all, `dfl001` the slowest at 1.4. Kennington: **16 of 16 ranged, 0
+failed**, 65.8 seconds, `ken-18` 41.5 of them against a solve of about
+120. The refusal is `finnis`, four columns the solve published nonbasic
+at a bound it lent them (D19) with a zero reduced cost and no such
+bound in the model; the statuses are not a basis of the model, ranging
+says so by name, and the solve owns the fix (`TODO.md`). The one
+precision caveat is the pilot family: the reduced costs recomputed from
+the unscaled factorization differ from the published ones by 2.14 on
+`pilot-ja`, 2.25e-3 on `pilot-we` and 1.32e-5 on `perold`, so the
+intervals there are those of an ill-conditioned factorization; every
+interval still holds its value, and factoring with the solve's own
+scaling is the named follow-up.
 
 **The gate.** Run on the commit that carries this code; its reading is in the record commit that follows.
 
@@ -19561,5 +19614,16 @@ with no ray, the bounds being the proof (D256). Zero iterations, zero
 work, no basis offered. Two tests in `tests/test_simplex.c` build a
 column and a row box inverted by a whole unit, and the ranging oracle
 probes the case at 1e-4 on every run.
+
+**What the window leaves.** The window is relative to the bounds'
+scale while the checker judges a violation absolutely (D24), so a
+column of two or more live entries with a box inverted by less than
+eight ulps of its scale but more than the checker's tolerance -- at
+scale 1e9, between 1e-7 and 1.78e-6 -- passes the entry, is folded by
+nothing, and is answered OPTIMAL on a point the checker refuses. That
+is D158's own choice for the fold, where the collapsed point sits the
+same distance off both bounds, and it is not reopened here: no model
+in the sets carries one, and the two D259 tests at unit scale sit six
+orders past the window. Found by the review; carried with its address.
 
 **The gate.** Run with D258, on the same commit; the reading follows in the record commit.

@@ -4198,6 +4198,22 @@ static jaos_status publish(sx *s, jaos_solve_status status, jm_presolve *p)
     for (int64_t i = 0; i < m->num_row; i++)
         m->sol_row_status[i] = published_status(s->status[m->num_col + i]);
 
+    /* A fixed column's two bounds name one value and the solve holds it at
+     * whichever side it happened to; the basis names the side its reduced
+     * cost points into, so that a caller who later opens the other side
+     * re-solves warm for nothing and ranging reads the same side (D258).
+     * A zero reduced cost keeps the solve's own side. */
+    for (int64_t j = 0; j < m->num_col; j++) {
+        if (m->col_lower[j] != m->col_upper[j] ||
+            m->sol_col_status[j] == JAOS_BASIS_BASIC)
+            continue;
+        const double dc = sigma * m->sol_redcost[j];
+        if (dc < 0.0)
+            m->sol_col_status[j] = JAOS_BASIS_AT_UPPER;
+        else if (dc > 0.0)
+            m->sol_col_status[j] = JAOS_BASIS_AT_LOWER;
+    }
+
     /* From the values just written, compensated (D169). */
     jm_model_publish_objective(m);
     m->solve_work = s->work.units;

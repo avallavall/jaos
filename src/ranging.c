@@ -218,8 +218,8 @@ static jaos_status rg_build(jaos_model *m, rg *g)
                    (long long)g->lu.rank, (long long)nrow);
         return JAOS_ERR_NUMERICAL;
     }
-    if (nrow == 0)
-        return JAOS_OK;
+    /* No early return on a row-less model: both solves are no-ops at
+     * dimension zero and the reduced costs below are still the costs. */
 
     /* x_B = B^-1 (-N x_N): the nonbasics' columns, at their resting values,
      * scattered by row with the sign the equation Ax - s = 0 gives them. */
@@ -345,12 +345,17 @@ jaos_status jaos_cost_ranging(jaos_model *m, double *lower, double *upper)
             U = INFINITY;
         } else if (g.pos[j] < 0) {
             /* Nonbasic: its own reduced cost moves one for one with its
-             * cost and must keep its sign; `base` is where it reaches 0. */
+             * cost and must keep its sign; `base` is where it reaches 0.
+             * The current cost stays inside: a reduced cost the solve
+             * accepted on the wrong side of zero inside its tolerance
+             * would otherwise put `base` past it. */
             const double base = cc - g.d[j];
+            const double lo_end = base < cc ? base : cc;
+            const double hi_end = base > cc ? base : cc;
             switch (m->sol_col_status[j]) {
-            case JAOS_BASIS_AT_LOWER: L = base;      U = INFINITY; break;
-            case JAOS_BASIS_AT_UPPER: L = -INFINITY; U = base;     break;
-            default:                  L = base;      U = base;     break;
+            case JAOS_BASIS_AT_LOWER: L = lo_end;    U = INFINITY; break;
+            case JAOS_BASIS_AT_UPPER: L = -INFINITY; U = hi_end;   break;
+            default:                  L = lo_end;    U = hi_end;   break;
             }
         } else {
             /* Basic at position p: the row r = e_p' B^-1 says how every
@@ -425,14 +430,21 @@ static void rg_bound_range(rg *g, int64_t v, double *lo_lo, double *lo_hi,
     double LL, LU, UL, UU;
 
     if (s == JAOS_BASIS_BASIC) {
+        /* Each bound may close in on the value; the current bound stays
+         * inside when the recomputed value sits a rounding past it. */
         const double x = g->xb[g->pos[v]];
-        LL = -INFINITY; LU = x;
-        UL = x;         UU = INFINITY;
+        LL = -INFINITY; LU = x > l ? x : l;
+        UL = x < u ? x : u; UU = INFINITY;
     } else if (s == JAOS_BASIS_FREE) {
         LL = -INFINITY; LU = 0.0;
         UL = 0.0;       UU = INFINITY;
     } else {
-        const bool at_lo = (s == JAOS_BASIS_AT_LOWER);
+        /* A fixed variable's status names either bound and its reduced
+         * cost obeys no sign, so which bound holds it is read from that
+         * sign: a negative canonical reduced cost wants to rise and is
+         * held by the upper bound. */
+        const bool at_lo = (l == u) ? !(g->d[v] < 0.0)
+                                    : (s == JAOS_BASIS_AT_LOWER);
         const int64_t nrow = g->nrow;
         memset(g->vec, 0, (size_t)nrow * sizeof *g->vec);
         rg_scatter(g, v, g->vec);

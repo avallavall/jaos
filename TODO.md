@@ -126,7 +126,7 @@ byte-identical.
 **The handover's feature list is finished.** What is left needs a decision
 that is not Claude's to make.
 
-### → the two decisions this list is waiting on
+### → the two decisions this list was waiting on, both closed (Devex refused at D244; ranging landed at D258)
 
 **1. Devex pricing (§0 stage 5) — ANSWERED 2026-09-01, and the answer was
 no.** The maintainer chose to derive a rule rather than buy the paper. It
@@ -172,6 +172,21 @@ them.
 
 ### → what is open and needs no decision, smallest first
 
+- **A column resting on a bound the solve lent it is published nonbasic
+  there, and the model has no such bound.** Found by ranging's population
+  run (D258, `bench/measurements/02-167/`): `finnis` publishes four columns
+  AT_UPPER at 1e10 to 4e10 with `[0, inf)` boxes and a zero reduced cost,
+  the lent bound of D19 on a flat direction of the optimal face. The
+  answer is right; the statuses are not a basis of the model, and ranging
+  refuses `finnis` by name. What it needs is the solve's: pivot such a
+  column into the basis it is degenerate in before publishing, or publish
+  it basic and take a logical out with the rank argument that implies.
+  One instance of 110; the ranging refusal is the detector.
+- **Ranging factors the published basis unscaled.** On the pilot family
+  the reduced costs it recomputes differ from the published ones, by 2.14
+  on `pilot-ja`, 2.25e-3 on `pilot-we`, 1.32e-5 on `perold`; every
+  interval still holds its current value. Factoring with the solve's own
+  power-of-two scaling is the follow-up, and `02-167`'s driver reads it.
 - **D245 moved the forced primal from 61 / 30 / 3 to 75 / 16 / 3**
   (ok / DISAGREE / overrun, as read then; the current counts live in
   `bench/results/primal.txt`). **Fourteen of the thirty were a round

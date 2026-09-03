@@ -16,7 +16,10 @@ open, `bench/README.md` for the gate, and the commit each entry came from.
   bound, the interval it may take with the basis behind the last optimum
   staying optimal: the textbook ratio tests on that basis refactored over
   the model as loaded, reached from Python on `Model` and `Problem`. The
-  solver is the oracle in the tests (D258).
+  solver is the oracle in the tests (D258). With it, a column the caller
+  fixed is published at the bound its reduced cost points into, in the
+  simplex and at postsolve, so a warm re-solve that opens the other side
+  costs nothing.
 
 ### Fixed
 
