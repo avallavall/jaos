@@ -19577,7 +19577,16 @@ intervals there are those of an ill-conditioned factorization; every
 interval still holds its value, and factoring with the solve's own
 scaling is the named follow-up.
 
-**The gate.** Run on the commit that carries this code; its reading is in the record commit that follows.
+**The gate.** Run twice: on `a2caad1`, the first landing, and on
+`ea855c1`, which carries the review's fixes and the fixed-column
+publication. Both: all three sets `gate: PASS`, `0 regressed, 0
+improved`, no iteration or work figure moved on any of the 139
+instances, the infeasible 29 and Kennington's 16 bit-identical. On
+netlib one x/y digest moves, `pilotnov`, where the D257 review's hole
+had fired and the row now holds the column; the second run moves the
+basis hash on 21 instances, every one a fixed column re-sided to the
+bound its reduced cost points into. The baselines are not rewritten:
+nothing they read moved.
 
 **What it does not answer.** The interval a model with more than one
 optimal basis can carry the same optimal values over is the union over
@@ -19626,4 +19635,7 @@ same distance off both bounds, and it is not reopened here: no model
 in the sets carries one, and the two D259 tests at unit scale sit six
 orders past the window. Found by the review; carried with its address.
 
-**The gate.** Run with D258, on the same commit; the reading follows in the record commit.
+**The gate.** Run with D258, on the same two commits: all three sets
+`gate: PASS`, `0 regressed`, and no digest, iteration or work figure
+moved for this change, since no instance in the sets carries an
+inverted box. The two tests and the ranging oracle are its evidence.
