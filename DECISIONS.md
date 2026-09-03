@@ -272,6 +272,7 @@ and you have the argument. Jump to the entry for the numbers behind it.
 - **[D262](#d262--d173s-refusal-of-finnis-was-a-refusal-of-the-lent-bounds-and-the-exact-oracle-now-clears-both-the-objective-and-the-checker-on-110-of-110)** — D173's refusal of finnis was a refusal of the lent bounds, and the exact oracle now clears both the objective and the checker on 110 of 110
 - **[D263](#d263--the-relative-row-window-is-carrying-nothing-on-the-standard-set-now-and-that-is-a-reason-to-write-the-example-in-the-past-tense-rather-than-to-remove-the-window)** — The relative row window is carrying nothing on the standard set now, and that is a reason to write the example in the past tense rather than to remove the window
 - **[D264](#d264--an-iis-is-one-warm-re-solve-per-side-of-the-certificates-support-and-its-first-population-run-found-a-postsolve-branch-publishing-minus-infinity)** — An IIS is one warm re-solve per side of the certificate's support, and its first population run found a postsolve branch publishing minus infinity
+- **[D265](#d265--the-lp-writers-coverage-had-no-owner-specs-carried-a-number-no-file-held-and-two-documents-still-described-the-reader-before-d239)** — The LP writer's coverage had no owner: SPECS carried a number no file held, and two documents still described the reader before D239
 
 ---
 
@@ -19953,3 +19954,33 @@ byte-identical, so no gate instance reaches it.
 
 **What is left open.** The fixpoint pass, refused above. The cost is
 stated in the report and not billed, like ranging's.
+
+## D265 — The LP writer's coverage had no owner: SPECS carried a number no file held, and two documents still described the reader before D239
+
+**The question.** `SPECS.md` said 104 of the 139 gate instances round-trip
+through `jaos_write_lp` and 35 are refused, citing "a re-run of
+`bench/measurements/02-138/run-lpcover.sh`". No such output was committed.
+`TODO.md` §6 and `docs/format-support.md` both still said 102 / 37 with two
+ranged refusals, and both still said `jaos_read_lp` does not read a ranged
+constraint. D239 taught it that form. One of the three was right and nothing
+on disk said which.
+
+**The measurement.** `bench/measurements/02-172/`, the 02-138 instrument
+unchanged, run at HEAD: **104 round-trip, 35 refused, 0 differed; 34 empty
+row, 1 free row, 0 ranged.** `SPECS.md` was right. Its number has a file
+now, and that file is the owner.
+
+**Why a new directory.** Re-running 02-138's script in place would have
+replaced D226's evidence with a post-D239 reading, in a file whose header
+still names the older decision. `jaos-measure` names that trap and D167 is
+where it happened. 02-138 keeps its reading; this directory carries the
+later one and says so.
+
+**What changed in the record.** `docs/format-support.md` drops the ranged
+row from the LP refusal list and takes the measured counts.  `TODO.md` §6
+says D239 closed the reader question and that only one of the three
+refusals closed with it. `SPECS.md` cites 02-172 instead of a re-run.
+
+**What did not change.** No code. Every digest byte-identical over the
+three sets; the writer's two remaining refusals are limits of the dialect
+and are not reopened here.

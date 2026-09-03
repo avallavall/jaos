@@ -24,6 +24,19 @@ session started did not finish (the machine went down mid-run); its one
 complete re-test, D76's under the instruction counter at `454b8a7`, is
 kept and still holds.
 
+**2026-09-03, last: D264 is committed, and the LP writer's coverage number
+got an owner (D265, `bench/measurements/02-172/`).** The machine went down
+before D264 was committed and took the git index with it; the index was
+rebuilt from HEAD and nothing was lost. `make configs` then found two
+`test_iis.c` count assertions failing under `JAOS_PRESOLVE_FAULT_OFFBYONE`,
+which shuffles every postsolve restore index, so the certificate's support
+moves; both are guarded now, and both still run under the wrong-dual build.
+While reading the record, three documents disagreed about `jaos_write_lp`:
+`SPECS.md` had the post-D239 counts citing a re-run nobody committed, and
+`TODO.md` §6 and `docs/format-support.md` still described the reader before
+D239. Measured at HEAD, `SPECS.md` was right. **`make refusals` is still
+unrun.**
+
 **2026-09-03: a loan nobody holds is retired before the answer is
 published, and it was hiding a wrong objective (D261,
 `bench/measurements/02-168/`).** The smallest item on this file's open
@@ -3628,16 +3641,16 @@ them and JAOS already ships a checker. For exact rational verification, GMP
 is excluded (D11); the methods to weigh are iterative refinement, interval
 arithmetic in double, or hand-rolled rationals for the final basis only.
 
-**The one thing D226 left open: `jaos_read_lp` does not read a ranged
-constraint.** That is what keeps `jaos_write_lp` at `partial`. All three of
-its refusals close at once if the reader learns the form — a ranged row
-directly, a free row and an empty row because both become writable once a
-row may carry two bounds. 37 of the 139 gate instances are refused today, 34
-of them for an empty row (`bench/measurements/02-138/lpcover.txt`). It is a
-change to a reader and it was not made with the writer, deliberately: the
-writer's contract is that what it writes reads back, and widening the reader
-to make more writable is a separate question with its own dialect decision
-in `docs/format-support.md`.
+**The one thing D226 left open closed at D239: `jaos_read_lp` reads a ranged
+constraint now.** It did not take `jaos_write_lp` off `partial`. This
+paragraph predicted that all three of the writer's refusals would close at
+once with the reader, and only one of them did. 35 of the 139 gate instances
+are refused today, 34 for an empty row and 1 free (D265,
+`bench/measurements/02-172/lpcover.txt`). The two that stayed are limits of
+the forms rather than of the reader: the two-sided form takes numbers and
+not `inf`, so a free row has no spelling, and no LP constraint can carry an
+empty expression. The dialect question that decision belongs to is in
+`docs/format-support.md`.
 
 ## 7. Presolve is closed — what that means
 

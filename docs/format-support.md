@@ -179,19 +179,24 @@ name a column that appears in no row at all.
 
 ### What the LP dialect cannot express
 
-Three more, on top of the two above. Each is refused by name and each message
+Two more, on top of the two above. Each is refused by name and each message
 points at `jaos_write_mps`, which takes the same model:
 
-- a **ranged row**, which the reader rejects;
 - a **free row**, which the format has no place for;
 - a **row with no coefficients**, which needs an expression the format cannot
   write empty.
 
-**102 of the 139 gate instances round-trip through the LP writer and 37 are
-refused** — 34 for an empty row, 2 ranged, 1 free
-(`bench/measurements/02-138/lpcover.txt`). All three refusals would close at
-once by teaching `jaos_read_lp` a ranged constraint, which is a change to a
-reader and has not been made.
+A ranged row was a third one until D239. The reader learned the two-sided
+form, the writer emits it, and the row reads back as one row with two ends.
+The other two did not close with it, and the reason is in the forms rather
+than in the reader: the two-sided form takes numbers and not `inf`, so a
+free row has no spelling, and no LP constraint can carry an empty
+expression.
+
+**104 of the 139 gate instances round-trip through the LP writer and 35 are
+refused** — 34 for an empty row, 1 free
+(`bench/measurements/02-172/lpcover.txt`, D265). 02-138's own file is the
+D226 reading, taken before D239, and is left as it was.
 
 Expressions are wrapped at 72 characters, which the reader does not care
 about and a person reading the file does.

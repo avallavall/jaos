@@ -35,6 +35,13 @@ open, `bench/README.md` for the gate, and the commit each entry came from.
 
 ### Fixed
 
+- **The LP writer's coverage number had no owner.** `SPECS.md` cited a re-run
+  that was never committed; `TODO.md` and `docs/format-support.md` still read
+  102 of 139 round-tripping with two ranged refusals, and still said
+  `jaos_read_lp` rejects a ranged constraint, which D239 changed. Measured at
+  HEAD: 104 round-trip, 35 refused, 34 for an empty row and 1 free. No code
+  changed (D265, `bench/measurements/02-172/`).
+
 - **A cost-0 singleton column open below published minus infinity.** The
   presolve replay took the column's lower bound when the row asked nothing
   from below, and that bound can be -inf: an answer that said OPTIMAL with
