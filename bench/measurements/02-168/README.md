@@ -136,3 +136,32 @@ retired, **94 of 94** netlib instances range where 93 did, `finnis` among
 them at a nonbasic-end gap of 1.14e-13, and 16 of 16 Kennington. Zero
 refusals and zero failed checks on both sets. `ranging-recheck.txt` is the
 reading.
+
+## The gate, and whose the baseline rewrite is
+
+All three sets: 0 regressed, 0 improved, 0 new. `record_diff.py` reads 93
+of 94 netlib instances bit-identical, and all 29 infeasible and 16
+Kennington ones, with `finnis` the only line that moved.
+
+The baseline rewrite touches **five** lines, not one. `bandm`, `nesm`,
+`perold` and `pilotnov` moved their `rsub` in digits the record's
+three-figure `rsub=` field rounds away, and `bench/netlib.baseline` had
+last been written at `27e40c7` with seven `src/` commits landed since.
+Running `make netlib-baseline` at the parent commit `642f71a`, in a
+worktree outside the repository, reproduces all four of the new values and
+none of the committed ones:
+
+```
+committed (642f71a)  vs  the parent tree re-run:  5 lines differ
+the parent tree      vs  the candidate:           1 line differs (finnis)
+```
+
+So those four belong to the seven earlier commits and the rewrite is where
+they are finally written down. Leaving a baseline stale for seven commits
+is what hid them; the results file's rounding is what let it happen
+quietly.
+
+## Every assert live, over all three sets
+
+`run-lent-bound-census.sh -UNDEBUG`: 94 netlib, 29 infeasible and 16
+Kennington instances, nothing aborts.

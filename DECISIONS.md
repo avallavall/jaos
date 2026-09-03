@@ -19760,6 +19760,19 @@ an evicted basic on `s->lo`/`s->up` without asking whether that end was
 lent; `restore_settled`'s `ok` now read as it is at the two other restore
 sites; and `objective_traffic` failing closed on a non-finite sum.
 
+**What the gate says, and what the baseline rewrite does NOT belong to
+this change.** All three sets pass with 0 regressed, 0 improved, 0 new;
+`record_diff.py` reads 93 of 94 netlib instances bit-identical and all 45
+Kennington and infeasible ones, with `finnis` the only line that moved.
+The baseline rewrite touches five lines, not one: `bandm`, `nesm`,
+`perold` and `pilotnov` moved their `rsub` in digits the record's
+three-figure `rsub=` field rounds away, and `bench/netlib.baseline` had
+last been written at `27e40c7` with seven `src/` commits landed since.
+Running the netlib gate at the parent commit reproduces all four of those
+new values and none of the committed ones, so they belong to those seven
+and the rewrite is where they are finally recorded. The parent against the
+candidate is one line, `finnis`.
+
 **What it unblocks.** D258's ranging driver, copied into `02-168/` rather
 than re-run where it lives, ranges **94 of 94** netlib instances against
 93, with `finnis` among them at a nonbasic-end gap of 1.14e-13, and 16 of
