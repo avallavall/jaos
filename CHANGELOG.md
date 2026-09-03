@@ -25,6 +25,16 @@ open, `bench/README.md` for the gate, and the commit each entry came from.
 
 ### Fixed
 
+- **A bound the solve lent itself is retired before the answer goes out.**
+  A column left resting on one was published nonbasic on a bound the model
+  has not got, at 1e10, and `c'x` then cancelled 1e10-magnitude terms down
+  to the objective: `finnis` was wrong in its eighth significant figure and
+  now lands on the netlib reference to 3e-8, with its checker row violation
+  down from 8.4e-7 to 1.6e-13. Over 200000 small models the published
+  answers carrying such a status go from 1717 to 0, and from 1701 to 0 with
+  presolve compiled out. 138 of the 139 gate instances are byte-identical;
+  `finnis` costs 3.96% more work (D261, `bench/measurements/02-168/`).
+
 - **An inverted box is answered INFEASIBLE.** A lower bound above its
   upper by more than presolve's rounding window is refused at the solve's
   entry in every build; both builds had answered OPTIMAL on one, cold and

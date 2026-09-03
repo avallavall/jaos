@@ -7,6 +7,23 @@ line leaves this file in the same commit.
 
 ## Where the last session stopped — 2026-09-03
 
+**2026-09-03: a loan nobody holds is retired before the answer is
+published, and it was hiding a wrong objective (D261,
+`bench/measurements/02-168/`).** The smallest item on this file's open
+list turned out to be more than a status defect. A column left resting on
+a bound dual phase 1 lent it is published there at 1e10, and `c'x` then
+cancels 1e10-magnitude terms down to the objective: `finnis` published
+172791.06567185125 against netlib's reference of 172791.06559561158, wrong
+in its eighth significant figure, and now lands on the reference to 3e-8
+with its checker row violation down from 8.4e-7 to 1.6e-13. Over 200000
+small models the published answers carrying such a status go from 1717 to
+0, and from 1701 to 0 with presolve compiled out. Ranging takes 94 of 94
+netlib instances where it took 93. 138 of the 139 gate instances are
+byte-identical; `finnis` costs 3.96% more work. Six of
+`numerics-reviewer`'s nine findings changed the code, and the D261 entry
+names each. **The open list below is now the disagreement family alone.**
+
+
 **2026-09-03: the published basis has the promised count on every gate
 solve (D257, `bench/measurements/02-166/`).** Item 2 below, the file's
 largest open correctness item since D131, closed without the rank argument
@@ -172,28 +189,6 @@ them.
 
 ### → what is open and needs no decision, smallest first
 
-- **A column resting on a bound the solve lent it is published nonbasic
-  there, and the model has no such bound.** Found by ranging's population
-  run (D258, `bench/measurements/02-167/`): `finnis` publishes four columns
-  AT_UPPER at 1e10 to 4e10 with `[0, inf)` boxes and a zero reduced cost,
-  the lent bound of D19 on a flat direction of the optimal face. The
-  answer is right; the statuses are not a basis of the model, and ranging
-  refuses `finnis` by name. What it needs is the solve's, and the recipe
-  is sized (2026-09-03): `classify_optimum` (`src/simplex.c`) looks only
-  at columns `held_by_an_invented_bound`, whose reduced cost presses on
-  the loan; a column on a loan with `|d| <= dual_tol` is never visited and
-  is published there. After the verdict OPTIMAL, walk each such column
-  (`s->fake[j] != 0`, not held) toward its real bound with
-  `primal_ratio_test` in that direction, `step` capped by the distance to
-  the real bound: reached, it is nonbasic there (the bound flip the ratio
-  test leaves `B^-1 M_q` in `s->col` for, then clear `fake[j]`); blocked
-  first, `pivot(s, r, q, below, ...)` as `primal_cleanup` does, and the
-  column is basic. A column with both bounds infinite and both directions
-  unblocked is a free direction of the optimal face: move it to 0 and
-  publish FREE. The objective does not move (`d` is within tolerance);
-  `finnis`'s x and digest do. Full loop: `numerics-reviewer`, five
-  configurations, the three sets, and `bench/measurements/02-167/`'s
-  driver reads the refusal count, 1 to 0. One instance of 110.
 - **D245 moved the forced primal from 61 / 30 / 3 to 75 / 16 / 3**
   (ok / DISAGREE / overrun, as read then; the current counts live in
   `bench/results/primal.txt`). **Fourteen of the thirty were a round

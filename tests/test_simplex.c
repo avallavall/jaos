@@ -4423,6 +4423,170 @@ static void test_an_inverted_column_box_is_infeasible(void)
     jaos_model_free(m);
 }
 
+/* Everything the published answer of a model with no infinite bound in it
+ * has to satisfy, whatever the solve did on the way. Exactly `num_row`
+ * basics; no nonbasic status naming a bound the model does not have; every
+ * value inside its own box; and the independent checker satisfied. The
+ * third is what catches a value of 1e10 published for a model whose
+ * numbers are all below ten.
+ *
+ * Compiled out under either fault build, with its two callers: both are
+ * positive tests and a deliberately broken presolve fails them. */
+#if !defined(JAOS_PRESOLVE_FAULT_OFFBYONE) && \
+    !defined(JAOS_PRESOLVE_FAULT_WRONGDUAL)
+static void assert_basis_is_of_the_model(jaos_model *m, int64_t nc,
+                                         int64_t nr, const double *cl,
+                                         const double *cu, const double *rl,
+                                         const double *ru)
+{
+    double *x = malloc((size_t)nc * sizeof *x);
+    double *cd = malloc((size_t)nc * sizeof *cd);
+    double *act = malloc((size_t)nr * sizeof *act);
+    double *rd = malloc((size_t)nr * sizeof *rd);
+    jaos_basis_status *cs = malloc((size_t)nc * sizeof *cs);
+    jaos_basis_status *rs = malloc((size_t)nr * sizeof *rs);
+    TEST_ASSERT_NOT_NULL(x); TEST_ASSERT_NOT_NULL(cd);
+    TEST_ASSERT_NOT_NULL(act); TEST_ASSERT_NOT_NULL(rd);
+    TEST_ASSERT_NOT_NULL(cs); TEST_ASSERT_NOT_NULL(rs);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solution(m, x, act, rd, cd));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_basis(m, cs, rs));
+
+    int64_t basics = 0;
+    for (int64_t j = 0; j < nc; j++) {
+        if (cs[j] == JAOS_BASIS_BASIC) basics++;
+        TEST_ASSERT_FALSE_MESSAGE(
+            cs[j] == JAOS_BASIS_AT_LOWER && cl[j] == -INFINITY,
+            "a column is nonbasic on a lower bound the model has not got");
+        TEST_ASSERT_FALSE_MESSAGE(
+            cs[j] == JAOS_BASIS_AT_UPPER && cu[j] == INFINITY,
+            "a column is nonbasic on an upper bound the model has not got");
+        TEST_ASSERT_TRUE_MESSAGE(x[j] >= cl[j] - CHECK_TOL &&
+                                 x[j] <= cu[j] + CHECK_TOL,
+                                 "a published column value is outside its "
+                                 "own box");
+    }
+    for (int64_t i = 0; i < nr; i++) {
+        if (rs[i] == JAOS_BASIS_BASIC) basics++;
+        TEST_ASSERT_FALSE_MESSAGE(
+            rs[i] == JAOS_BASIS_AT_LOWER && rl[i] == -INFINITY,
+            "a row is nonbasic on a lower bound the model has not got");
+        TEST_ASSERT_FALSE_MESSAGE(
+            rs[i] == JAOS_BASIS_AT_UPPER && ru[i] == INFINITY,
+            "a row is nonbasic on an upper bound the model has not got");
+    }
+    TEST_ASSERT_EQUAL_INT64_MESSAGE(nr, basics,
+                                    "jaos_basis promises num_row basics");
+
+    jaos_check_report rep;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+                          jaos_check_solution(m, x, rd, CHECK_TOL, &rep));
+    TEST_ASSERT_TRUE(rep.primal_feasible);
+    TEST_ASSERT_TRUE(rep.dual_feasible);
+    free(x); free(cd); free(act); free(rd); free(cs); free(rs);
+}
+#endif
+
+/* Dual phase 1 lends a bound to a column whose cost has no bound on the
+ * side it wants, and at the end nothing may still be resting on one: the
+ * value is 1e10, the model never authorised it, and `jaos_basis` promises
+ * that a nonbasic status names a bound the variable has.
+ *
+ * Both models come from the family search in
+ * `bench/measurements/02-168/`, which walks small models and reports the
+ * ones whose solve reaches the retirement -- 458 of 50000, where every
+ * shape built by hand missed it. On the tree before the retirement each
+ * publishes ONE column nonbasic at 1e10 and another BASIC at 9999999999.5,
+ * with a correct objective the two absurd values cancel into. Both run in
+ * every build: the search finds the same models with presolve compiled
+ * out.
+ *
+ *   min x0 - x2
+ *   s.t. -2 x0 + 2 x2 <= 1, 2 x0 + x1 - 2 x2 <= 3,
+ *        x0 - 2 x1 - x2 <= 1, -x2 <= 4,  all x >= 0 and no upper bound
+ *
+ * The optimum is -1/2 at x = (0, 0, 1/2). x2 is the column that earns the
+ * loan; its reduced cost settles at zero, so nothing prices it back off
+ * 1e10 and the retirement is what moves it. */
+static void test_a_loan_nobody_holds_is_retired_before_publishing(void)
+{
+#if defined(JAOS_PRESOLVE_FAULT_OFFBYONE) || defined(JAOS_PRESOLVE_FAULT_WRONGDUAL)
+    TEST_IGNORE_MESSAGE("positive test — skipped under either fault build");
+#else
+    const double c[] = {1.0, 0.0, -1.0};
+    const double cl[] = {0.0, 0.0, 0.0};
+    const double cu[] = {INFINITY, INFINITY, INFINITY};
+    const double rl[] = {-INFINITY, -INFINITY, -INFINITY, -INFINITY};
+    const double ru[] = {1.0, 3.0, 1.0, 4.0};
+    const int64_t as[] = {0, 3, 5, 9};
+    const int64_t ai[] = {0, 1, 2, 1, 2, 0, 1, 2, 3};
+    const double av[] = {-2.0, 2.0, 1.0, 1.0, -2.0, 2.0, -2.0, -1.0, -1.0};
+
+    jaos_model *m = fresh();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_load_lp(m, 3, 4, JAOS_MINIMIZE, 0.0, c, cl, cu, rl, ru,
+                     9, as, ai, av));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+    double obj = 0.0;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(m, &obj));
+    TEST_ASSERT_DOUBLE_WITHIN(1e-9, -0.5, obj);
+    assert_basis_is_of_the_model(m, 3, 4, cl, cu, rl, ru);
+
+    /* The point itself, and not only its objective: before the retirement
+     * this reads (9999999999.5, 0, 1e10). */
+    double x[3], act[4], rd[4], cd[3];
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solution(m, x, act, rd, cd));
+    TEST_ASSERT_DOUBLE_WITHIN(1e-9, 0.0, x[0]);
+    TEST_ASSERT_DOUBLE_WITHIN(1e-9, 0.0, x[1]);
+    TEST_ASSERT_DOUBLE_WITHIN(1e-9, 0.5, x[2]);
+    jaos_model_free(m);
+#endif
+}
+
+/* The second model of the pair, whose retirement ends in a bound flip
+ * rather than a pivot: x2 walks the whole way from 5e9 down to its own
+ * lower bound of zero and x1 takes the basis it leaves.
+ *
+ *   min x1 - x2
+ *   s.t. x0 - 2 x1 + 2 x2 <= 5,  x1 - 2 x2 <= 5,
+ *        -x0 + x1 - 2 x2 <= 0,  -x2 <= 5,  all x >= 0, no upper bound
+ *
+ * The optimum is -5/2 at x = (0, 0, 5/2); before the retirement it reads
+ * (0, 4999999997.5, 5e9). */
+static void test_a_retired_loan_leaves_a_basis_of_the_model(void)
+{
+#if defined(JAOS_PRESOLVE_FAULT_OFFBYONE) || defined(JAOS_PRESOLVE_FAULT_WRONGDUAL)
+    TEST_IGNORE_MESSAGE("positive test — skipped under either fault build");
+#else
+    const double c[] = {0.0, 1.0, -1.0};
+    const double cl[] = {0.0, 0.0, 0.0};
+    const double cu[] = {INFINITY, INFINITY, INFINITY};
+    const double rl[] = {-INFINITY, -INFINITY, -INFINITY, -INFINITY};
+    const double ru[] = {5.0, 5.0, 0.0, 5.0};
+    const int64_t as[] = {0, 2, 5, 9};
+    const int64_t ai[] = {0, 2, 0, 1, 2, 0, 1, 2, 3};
+    const double av[] = {1.0, -1.0, -2.0, 2.0, 1.0, 2.0, -2.0, -2.0, -1.0};
+
+    jaos_model *m = fresh();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_load_lp(m, 3, 4, JAOS_MINIMIZE, 0.0, c, cl, cu, rl, ru,
+                     9, as, ai, av));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+    double obj = 0.0;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(m, &obj));
+    TEST_ASSERT_DOUBLE_WITHIN(1e-9, -2.5, obj);
+    assert_basis_is_of_the_model(m, 3, 4, cl, cu, rl, ru);
+
+    double x[3], act[4], rd[4], cd[3];
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solution(m, x, act, rd, cd));
+    TEST_ASSERT_DOUBLE_WITHIN(1e-9, 0.0, x[0]);
+    TEST_ASSERT_DOUBLE_WITHIN(1e-9, 0.0, x[1]);
+    TEST_ASSERT_DOUBLE_WITHIN(1e-9, 2.5, x[2]);
+    jaos_model_free(m);
+#endif
+}
+
 static void test_an_inverted_row_box_is_infeasible(void)
 {
     jaos_model *m = make_inverted(true);
@@ -4558,5 +4722,7 @@ int main(void)
     RUN_TEST(test_a_ray_whose_direction_cancels_in_row_space);
     RUN_TEST(test_an_inverted_column_box_is_infeasible);
     RUN_TEST(test_an_inverted_row_box_is_infeasible);
+    RUN_TEST(test_a_loan_nobody_holds_is_retired_before_publishing);
+    RUN_TEST(test_a_retired_loan_leaves_a_basis_of_the_model);
     return UNITY_END();
 }

@@ -268,6 +268,7 @@ and you have the argument. Jump to the entry for the numbers behind it.
 - **[D258](#d258--sensitivity-and-ranging-run-on-the-published-basis-over-the-model-as-loaded-and-presolve-has-no-half-in-it)** — Sensitivity and ranging run on the published basis, over the model as loaded, and presolve has no half in it
 - **[D259](#d259--an-inverted-box-is-refused-before-any-solve-runs-in-every-build)** — An inverted box is refused before any solve runs, in every build
 - **[D260](#d260--ranging-factors-the-published-basis-with-the-solves-own-scaling)** — Ranging factors the published basis with the solve's own scaling
+- **[D261](#d261--a-loan-nobody-holds-is-retired-before-the-answer-is-published-and-finniss-objective-was-wrong-until-it-was)** — A loan nobody holds is retired before the answer is published, and finnis's objective was wrong until it was
 
 ---
 
@@ -19670,3 +19671,100 @@ Kennington: 16 of 16 ranged, 0 failed, worst 2.92e-10 against 4.07e-10
 before. Five configurations pass and every unit
 test on the hand-worked models holds to 1e-12, since the small models
 scale by one or two.
+
+## D261 — A loan nobody holds is retired before the answer is published, and finnis's objective was wrong until it was
+
+**The question.** Dual phase 1 lends an artificial bound to a column whose
+cost points at a side the model left open (D19). `classify_optimum` reads
+whether that loan is still HELD — the reduced cost pressing on it past
+`dual_tol` — and refuses or declares a ray when it is. A loan nobody holds
+is never looked at, so the column is published nonbasic on a bound the
+model does not have, at 1e10. D258's ranging population found four on
+`finnis` and refuses that instance by name. How far does it reach, and what
+does moving those columns cost?
+
+**Further than the status.** `finnis` publishes its four at 1e10 to 4e10
+with `[0, inf)` boxes, and `c'x` is then a sum of 1e10-magnitude terms
+cancelling to 1.7e5. Its published objective was **172791.06567185125**
+against netlib's reference of **172791.06559561158**: wrong in the eighth
+significant figure, by 7.6e-5. The gate never saw it, because no predicate
+any of the three sets reports reads a basis status and the objective test
+is relative.
+
+**The repair.** After an OPTIMAL verdict, and only then, each column still
+resting on a loan is walked toward the bound the model does declare. It
+reaches it (a bound flip), or a basic reaches a bound the model declared
+first (a pivot, and the column is basic), or nothing stops it and the
+model's box is open on both sides, which makes it a flat direction of the
+optimal face: parked at zero and published FREE. The point is rebuilt from
+a fresh factorization before it is judged, then put back if it breaches
+its dual signs or its own bounds.
+
+**Two rules, and the measurement moved both off where they started.**
+
+*The admission test is not the tolerance.* Reaching the retirement means
+`|d_j| <= dual_tol`, and that is not enough to move a column 1e10: the
+objective moves by exactly `d_j * delta`, and at `DUAL_TOL` over
+`ARTIFICIAL_BOUND` that is 1e1. The rule is
+`|d_j| * reach <= DBL_EPSILON * objective_traffic`, one ulp of the sum of
+the magnitudes of `c'x`'s own terms — the retirement may not move the
+objective by more than the objective at that point leaves undetermined. It
+carries no constant of its own. *Exactly zero* was tried first and is too
+strict: three of 200000 family models had reduced costs of one and two
+ulps and stayed on 1e10.
+
+*The objective must not rank the two points.* The first version ranked them
+with `better_point` (D89). That is a defect. A point holding 1e10 carries
+about 1e-6 of cancellation in `c'x`, so its objective reads LOWER than the
+retired point's by more than the retired point's whole error, and the
+ranking keeps the untrustworthy one. It put the 1e10 point back on four
+family models; on one, the independent checker calls the point it kept
+primal infeasible by 2.4e-7 where the retired point is feasible.
+
+**The measurement** (`bench/measurements/02-168/`). On `finnis`: the
+objective lands on the reference to 3e-8, the checker's row violation goes
+from 8.43917e-07 to **1.57527e-13** and its objective gap from 2.20608e-10
+to **1.19851e-16**, for 284 iterations against 281 and 542379 work units
+against 521722, **+3.96%** on that instance alone. On the family — a
+deterministic walk of 200000 small models, 2 to 6 columns and 1 to 4 rows —
+published answers carrying a status on a bound the model lacks go from
+**1717 to 0** in the default build and **1701 to 0** with presolve compiled
+out, and the count of answers carrying a value at or past 1e9 goes the same
+way. The retirement fires on exactly 1717 and 1701 solves, which is every
+offender. Over the three gate sets the census reads 4 offenders on 1
+instance before and **0** after; the other 138 instances are byte-identical,
+because the scan bills no work units and returns at once when no loan is
+outstanding.
+
+**What was refuted, and by what.** Six shapes built by hand to leave a
+column on its loan — two columns sharing a capacity row, a column touching
+no binding row, an equality row with a capped partner — and the dual
+simplex retires the column on all six before the verdict. The defect needs
+a degenerate optimal face the pricing never visits, which is not what a
+shape chosen by hand produces. The family search is what found it, and two
+of its models are pinned in `tests/test_simplex.c`; against the tree
+without the repair they fail and the other 117 tests in that file pass.
+
+**What `numerics-reviewer` found on the diff, and what each cost.** Nine
+findings. Three changed the code and are above or here: the admission test
+being taken once for a pass while a pivot rewrites every reduced cost
+underneath it, now re-read per column; `loan_reach` returning an infinity
+for the one exit that walks a finite distance, which had disabled the FREE
+park for every non-zero reduced cost; and `primal_worst_violation` being
+read off an `x_B` carried incrementally through a step of 1e10, about 2.2e-6
+of rounding against a `primal_tol` of 1e-7, which is why the point is
+rebuilt before it is judged and where `finnis`'s five orders of row
+violation came from. Three more are in the code as written: a second scan,
+because a mid-loop `refresh` can reach `repair_singular_basis`, which parks
+an evicted basic on `s->lo`/`s->up` without asking whether that end was
+lent; `restore_settled`'s `ok` now read as it is at the two other restore
+sites; and `objective_traffic` failing closed on a non-finite sum.
+
+**What it unblocks.** D258's ranging driver, copied into `02-168/` rather
+than re-run where it lives, ranges **94 of 94** netlib instances against
+93, with `finnis` among them at a nonbasic-end gap of 1.14e-13, and 16 of
+16 Kennington. Zero refusals and zero failed checks on both sets.
+
+**What is left open.** Nothing on this item. The `SPECS.md` basis row and
+`jaos.h`'s promise now hold on the family as well as on the three gate
+sets.

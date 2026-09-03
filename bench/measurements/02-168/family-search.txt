@@ -1,0 +1,11 @@
+# tree: /mnt/c/Users/vall-/Desktop/projectes/jaos-ref-02168, retire_lent_bounds occurrences: 0
+## default build
+-- 200000 models, 144092 optimal, 0 reached the retirement; 1717 published a status on a bound the model lacks, 1717 published a value at or past 1e+09
+## -DJAOS_NO_PRESOLVE
+-- 200000 models, 144092 optimal, 0 reached the retirement; 1701 published a status on a bound the model lacks, 1701 published a value at or past 1e+09
+
+# tree: /mnt/c/Users/vall-/Desktop/projectes/jaos, retire_lent_bounds occurrences: 5
+## default build
+-- 200000 models, 144092 optimal, 1717 reached the retirement; 0 published a status on a bound the model lacks, 0 published a value at or past 1e+09
+## -DJAOS_NO_PRESOLVE
+-- 200000 models, 144092 optimal, 1701 reached the retirement; 0 published a status on a bound the model lacks, 0 published a value at or past 1e+09

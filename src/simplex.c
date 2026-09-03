@@ -2578,28 +2578,37 @@ static void snap_if_past(sx *s, int64_t r, bool below)
         s->xb[r] = bound;
 }
 
-/* How far column q can travel before a basic variable reaches a bound.
- * Moving q by `dx` moves the basics by `-B^-1 M_q dx`. The direction is
- * read off the reduced cost, not the status. Only bounds the model
- * declared can stop it: a basic at rest on a lent bound would be published
- * at a value the model never allowed. If nothing real blocks, this returns
- * -1 and the column is left alone (D19). `*step` receives the distance to
- * the blocking position, `HUGE_VAL` when nothing blocks.
+/* Which way the reduced cost sends column q: `+1` up, `-1` down. The two
+ * simplex callers travel the improving way; `retire_lent_bounds` is the
+ * one caller with a direction of its own, so the ratio test takes it as an
+ * argument rather than reading it here. */
+static double primal_dir(const sx *s, int64_t q)
+{
+    return s->d[q] < 0.0 ? 1.0 : -1.0;
+}
+
+/* How far column q can travel, in the direction `dir`, before a basic
+ * variable reaches a bound. Moving q by `dx` moves the basics by
+ * `-B^-1 M_q dx`. Only bounds the model declared can stop it: a basic at
+ * rest on a lent bound would be published at a value the model never
+ * allowed. If nothing real blocks, this returns -1 and the column is left
+ * alone (D19). `*step` receives the distance to the blocking position,
+ * `HUGE_VAL` when nothing blocks.
  *
  * It leaves `B^-1 M_q` in `s->col`, and a bound flip reads it there.
  * Anything writing `col` between this and that would be writing the flip's
  * input.
  *
- * `bland` is a parameter rather than a read of `s->bland` because one of
- * the two callers must not have it: `primal_cleanup` passes false; its
- * candidate set is a snapshot and each entry is pivoted at most once. */
-static int64_t primal_ratio_test(sx *s, int64_t q, bool bland, bool *below,
-                                 double *step)
+ * `bland` is a parameter rather than a read of `s->bland` because two of
+ * the three callers must not have it: `primal_cleanup` passes false, its
+ * candidate set being a snapshot with each entry pivoted at most once, and
+ * `retire_lent_bounds` runs after the last verdict. */
+static int64_t primal_ratio_test(sx *s, int64_t q, double dir, bool bland,
+                                 bool *below, double *step)
 {
     var_column(s, q, s->col);
     jm_lu_ftran(&s->lu, s->col, &s->work);
 
-    const double dir = s->d[q] < 0.0 ? 1.0 : -1.0;
     int64_t n = 0;
     double cmax = 0.0;
 
@@ -2678,7 +2687,8 @@ static jaos_status primal_cleanup(sx *s, int64_t *pivots)
         double step = 0.0;
         /* `step` is unread here: `wants_a_pivot` admits only columns with no
          * declared bound in the improving direction. */
-        int64_t r = primal_ratio_test(s, q, false, &below, &step);
+        int64_t r = primal_ratio_test(s, q, primal_dir(s, q), false, &below,
+                                      &step);
         if (r < 0)
             continue;
 
@@ -3090,11 +3100,12 @@ static int64_t primal_price(sx *s, double *total)
     return best;
 }
 
-/* q crosses its own box to the other bound; no basis changes. Only the
+/* q travels `delta` and comes to rest as `to`; no basis changes. Only the
  * point moves, by `-delta * B^-1 M_q`, read out of `s->col` where the
  * ratio test left it. The caller has established that no basic blocks
- * sooner. */
-static void primal_bound_flip(sx *s, int64_t q, double delta)
+ * sooner. `to` is a parameter because `retire_lent_bounds` parks a column
+ * FREE at zero, which is not the flip below. */
+static void primal_move_to(sx *s, int64_t q, double delta, jm_var_status to)
 {
 #ifndef NDEBUG
     /* `s->col` must still hold `B^-1 M_q` from the ratio test, and `s->col`
@@ -3116,7 +3127,279 @@ static void primal_bound_flip(sx *s, int64_t q, double delta)
         s->xb[i] -= delta * s->col[i];
     jm_work_add(&s->work, s->nrow * JM_WORK_NONZERO);
 
-    s->status[q] = s->status[q] == JM_AT_LOWER ? JM_AT_UPPER : JM_AT_LOWER;
+    s->status[q] = to;
+}
+
+/* q crosses its own box to the other bound. */
+static void primal_bound_flip(sx *s, int64_t q, double delta)
+{
+    primal_move_to(s, q, delta,
+                   s->status[q] == JM_AT_LOWER ? JM_AT_UPPER : JM_AT_LOWER);
+}
+
+/* --------------------------------------------------------------------- */
+/* Retiring the loans                                                    */
+/* --------------------------------------------------------------------- */
+
+/* Walks one column off the bound this solve lent it, toward the bound the
+ * model does declare. Three ways out. The model's own bound is reached
+ * first and the column rests there. A basic reaches a bound the model
+ * declared first, so that basic leaves and the column takes its place.
+ * Or nothing stops it and the model's box is open on both sides, which
+ * makes the column a flat direction of the optimal face: it is parked at
+ * zero and published FREE, the value a nonbasic free variable rests at.
+ *
+ * `*off` says whether the column actually left. It does not when the
+ * pricing row disagrees with the ratio test's column, or when the
+ * factorization contradicts itself -- both of which `primal_cleanup`
+ * also answers by leaving the column alone. */
+static jaos_status retire_one_loan(sx *s, int64_t j, bool *off)
+{
+    *off = false;
+
+    /* Off a lent lower bound is up, off a lent upper is down; the model's
+     * own bound on that side is the other end of the box, and it is real
+     * because only one end of a box is ever lent. */
+    const bool lent_low = s->fake[j] == FAKE_LO;
+    const double dir = lent_low ? 1.0 : -1.0;
+    const double target = lent_low ? s->up[j] : s->lo[j];
+    const double from = nonbasic_value(s, j);
+
+    bool below = false;
+    double step = 0.0;
+    const int64_t r = primal_ratio_test(s, j, dir, false, &below, &step);
+    const double reach = isfinite(target) ? fabs(target - from) : HUGE_VAL;
+
+    if (r >= 0 && step < reach) {
+        build_pricing_row(s, r);
+        double min_alpha = 0.0;
+        if (alpha_unusable(s, j, &min_alpha))
+            return JAOS_OK;
+        bool took = false;
+        const jaos_status st = pivot(s, r, j, below, s->d[j] / s->alpha[j],
+                                     &took);
+        if (st != JAOS_OK)
+            return st;
+        if (!took)
+            return JAOS_OK;
+        s->iters++;                            /* a pivot is an iteration (D16) */
+    } else if (isfinite(target)) {
+        primal_bound_flip(s, j, target - from);
+    } else {
+        primal_move_to(s, j, -from, JM_FREE);
+    }
+
+    /* Only now, and asserted rather than argued: undoing the loan while the
+     * column still rested on it would make `nonbasic_value` hand back the
+     * infinity the loan replaced. All three exits above return before this
+     * line, and each of the three branches leaves j basic, on its other
+     * bound, or free. */
+    assert(s->status[j] != (lent_low ? JM_AT_LOWER : JM_AT_UPPER));
+    if (lent_low)
+        s->lo[j] = -HUGE_VAL;
+    else
+        s->up[j] = HUGE_VAL;
+    s->fake[j] = NOT_FAKE;
+    set_verified(s, false);
+    *off = true;
+    return JAOS_OK;
+}
+
+/* Is this column still sitting on the bound the solve lent it? */
+static bool rests_on_a_loan(const sx *s, int64_t j)
+{
+    return (s->fake[j] == FAKE_LO && s->status[j] == JM_AT_LOWER) ||
+           (s->fake[j] == FAKE_UP && s->status[j] == JM_AT_UPPER);
+}
+
+/* The furthest `retire_one_loan` can carry this column, which is what its
+ * three exits travel: to the bound the model DID declare -- the other end
+ * of the box, real because only one end is ever lent -- or, when the model
+ * left that end open too, from the loan back to zero. A blocked column
+ * stops sooner than either. Never infinite, so a reduced cost of zero
+ * cannot meet one in a product. */
+static double loan_reach(const sx *s, int64_t j)
+{
+    const double from = nonbasic_value(s, j);
+    const double target = s->fake[j] == FAKE_LO ? s->up[j] : s->lo[j];
+    return isfinite(target) ? fabs(target - from) : fabs(from);
+}
+
+/* The roundoff already in `c'x` at the point as it stands: one ulp of the
+ * sum of the magnitudes of its own terms. Not a formality -- a point still
+ * holding a lent bound carries a value of ARTIFICIAL_BOUND, so terms of
+ * 1e10 cancel down to an objective of single digits and this is what says
+ * how much of that objective is real. A sum that is not finite reads as
+ * zero, which admits nothing but an exactly zero reduced cost: the open
+ * direction would admit everything. */
+static double objective_traffic(const sx *s)
+{
+    double t = 0.0;
+    for (int64_t v = 0; v < s->nvar; v++) {
+        const double x = s->status[v] == JM_BASIC ? s->xb[s->where[v]]
+                                                  : nonbasic_value(s, v);
+        t += fabs(s->cost0[v] * x);
+    }
+    return isfinite(t) ? t : 0.0;
+}
+
+/* Would walking this column off its loan move the objective by more than
+ * the objective at this point is worth? Moving it by `delta` moves `c'x`
+ * by exactly `d_j * delta`, and `bar` is one ulp of that objective's own
+ * terms. `|d_j| <= dual_tol` is NOT enough on its own: at DUAL_TOL and a
+ * reach of ARTIFICIAL_BOUND the product is 1e1, seven orders past a `bar`
+ * of about 2e-6 on such a point, and it would rewrite the answer. */
+static bool loan_moves_the_objective(const sx *s, int64_t j, double bar)
+{
+    return fabs(s->d[j]) * loan_reach(s, j) > bar;
+}
+
+/* Puts the point back as it stood before any loan was retired, and says
+ * why in the log. The three failing exits share it: a rebuild that could
+ * not repair a singular basis, and the two conditions the OPTIMAL verdict
+ * rests on. A restore that cannot itself rebuild is `JAOS_ERR_NUMERICAL`,
+ * as it is at the two other restore sites; `refresh` wrote a message on
+ * its way to `!ok` and the recovered path clears it, so a solve that
+ * publishes OPTIMAL carries no explanation of a failure that did not
+ * happen. `settle_shifts` afterwards for the reason it runs above: a
+ * `refresh` that repaired anything lends a cost. */
+static jaos_status retirement_undone(sx *s, int64_t retired, double dviol,
+                                     double pviol)
+{
+    bool ok = false;
+    const jaos_status st = restore_settled(s, &ok);
+    if (st != JAOS_OK)
+        return st;
+    if (!ok)
+        return JAOS_ERR_NUMERICAL;
+    s->m->err[0] = '\0';
+    settle_shifts(s);
+    jm_log(s->m, JAOS_LOG_DETAIL,
+           "%lld lent bounds retired and put back: the point that came out "
+           "breaches its dual signs by %.6g and its own bounds by %.6g",
+           (long long)retired, dviol, pviol);
+    return JAOS_OK;
+}
+
+/* A column left resting on a bound this solve lent it (D19) is published
+ * as a nonbasic on a bound the model does not have, which breaks what
+ * `jaos_basis` promises -- and it is published at the loan's own value,
+ * 1e10, for a model that may have nothing above ten in it. `finnis`
+ * publishes four such columns and ranging refuses that instance by name
+ * (D258, `bench/measurements/02-167/`).
+ *
+ * Reached only from an OPTIMAL verdict, and `classify_optimum` returns
+ * that only when no loan is still HELD, so every column here has
+ * `|d_j| <= dual_tol`. **That is not enough to move one**, which is
+ * `loan_moves_the_objective`'s business.
+ *
+ * The two conditions the OPTIMAL verdict rests on are re-read on a rebuilt
+ * point afterwards, and the point is put back if either broke.
+ * **The objective is not one of them**, and comparing the two objectives
+ * would be a defect: a point holding values of 1e10 carries about 1e-6 of
+ * cancellation in `c'x`, so its objective reads LOWER than the retired
+ * point's by more than the retired point's whole error, and ranking the
+ * two keeps the one that cannot be trusted. Measured on four family
+ * models, one of them primal infeasible by 2.4e-7 where the retired point
+ * is feasible (`bench/measurements/02-168/`).
+ *
+ * Costs nothing on a solve with no loan outstanding: the scan bills no
+ * work units, as `classify_optimum`'s own scan does not. */
+static jaos_status retire_lent_bounds(sx *s)
+{
+    bool any = false;
+    for (int64_t j = 0; j < s->ncol && !any; j++)
+        any = rests_on_a_loan(s, j);
+    if (!any)
+        return JAOS_OK;
+
+    if (!save_settled(s))
+        return JAOS_ERR_OUT_OF_MEMORY;
+
+    int64_t retired = 0, declined = 0, priced = 0;
+    /* Two passes, and normally the first is the whole of it. A mid-loop
+     * `refresh` can reach `repair_singular_basis`, which parks an evicted
+     * basic on `s->lo`/`s->up` without asking whether that end was lent, so
+     * a column the scan has already gone past can come back resting on a
+     * loan. The bound is two rather than "until nothing moves": a pivot the
+     * factorization declines also asks for a rebuild, and retrying that one
+     * forever is the loop that would not end. */
+    for (int pass = 0; pass < 2; pass++) {
+        bool rebuilt = false;
+        for (int64_t j = 0; j < s->ncol; j++) {
+            if (!rests_on_a_loan(s, j))
+                continue;
+            /* Both readings are taken fresh for every column, never once
+             * for the pass: a pivot moves every reduced cost by
+             * `-theta_dual * alpha`, and it moves the point `bar` is one
+             * ulp of. The test is what stands between a retirement and an
+             * arbitrary rewrite of the published objective, so it is read
+             * where it is used. */
+            const double bar = DBL_EPSILON * objective_traffic(s);
+            if (loan_moves_the_objective(s, j, bar)) {
+                if (pass == 0)
+                    priced++;
+                continue;
+            }
+            bool off = false;
+            const jaos_status st = retire_one_loan(s, j, &off);
+            if (st != JAOS_OK)
+                return st;
+            if (off)
+                retired++;
+            else
+                declined++;
+
+            /* A pivot can ask for a rebuild, and every ratio test after it
+             * would be reading a factorization that no longer matches. */
+            if (s->needs_refactor) {
+                bool ok = false;
+                const jaos_status rst = refresh(s, &ok, true);
+                if (rst != JAOS_OK)
+                    return rst;
+                rebuilt = true;
+                if (!ok)
+                    return retirement_undone(s, retired, HUGE_VAL, HUGE_VAL);
+            }
+        }
+        if (!rebuilt)
+            break;
+    }
+
+    /* The point is rebuilt before it is judged, and this is one of the few
+     * places where recomputing buys accuracy rather than moving the error
+     * around. `primal_move_to` updates `x_B` through a step of 1e10, which
+     * leaves about 2.2e-6 of rounding in every row it touched against a
+     * `primal_tol` of 1e-7; and with the loan gone from `x_N`,
+     * `compute_primal`'s `b - N x_N` no longer cancels a 1e10 term down to
+     * an O(1) answer. Both existing readers of `primal_worst_violation`
+     * take it on a freshly rebuilt point (D20). */
+    {
+        bool ok = false;
+        s->needs_refactor = true;
+        const jaos_status st = refresh(s, &ok, true);
+        if (st != JAOS_OK)
+            return st;
+        if (!ok)
+            return retirement_undone(s, retired, HUGE_VAL, HUGE_VAL);
+    }
+
+    /* `pivot` and `refresh` both shift a cost through `shift_to_feasible`
+     * when the dual step leaves a reduced cost on the wrong side, and
+     * `publish` asserts that nothing is owed. A no-op when nothing was. */
+    settle_shifts(s);
+
+    const double dviol = settled_dual_violation(s);
+    const double pviol = primal_worst_violation(s);
+    if (dviol != 0.0 || pviol > s->primal_tol)
+        return retirement_undone(s, retired, dviol, pviol);
+
+    jm_log(s->m, JAOS_LOG_DETAIL,
+           "%lld lent bounds retired, %lld declined by the pricing row, "
+           "%lld left because moving them would move the objective; worst "
+           "bound breach %.6g", (long long)retired, (long long)declined,
+           (long long)priced, pviol);
+    return JAOS_OK;
 }
 
 /* --------------------------------------------------------------------- */
@@ -3730,7 +4013,8 @@ static jaos_status run_primal(sx *s, jaos_solve_status *out)
 
         bool below = false;
         double step = 0.0;
-        int64_t r = primal_ratio_test(s, q, s->bland, &below, &step);
+        int64_t r = primal_ratio_test(s, q, primal_dir(s, q), s->bland, &below,
+                                      &step);
 
         /* Does q reach its own opposite bound first? No basic can express
          * that limit. `real_upper`/`real_lower`, never `up`/`lo`: flipping
@@ -4492,6 +4776,11 @@ jaos_status jm_dual_simplex(jaos_model *m)
             break;
         }
         outcome = classify_optimum(&s);
+        /* The verdict first, the statuses after: `classify_optimum` reads
+         * the loans that are still held, and this retires the ones that
+         * are not so that no status names a bound the model lacks. */
+        if (outcome == JAOS_SOLVE_OPTIMAL)
+            st = retire_lent_bounds(&s);
         break;
     }
 

@@ -1,0 +1,9 @@
+# tree: 642f71a WITH UNCOMMITTED src/ CHANGES, built -DNDEBUG
+### netlib
+-- 94 instances: 94 optimal, 0 with a lent-bound status, 0 offenders, worst |d| 0
+
+### netlib-infeas
+-- 29 instances: 0 optimal, 0 with a lent-bound status, 0 offenders, worst |d| 0
+
+### kennington
+-- 16 instances: 16 optimal, 0 with a lent-bound status, 0 offenders, worst |d| 0
