@@ -178,10 +178,22 @@ them.
   AT_UPPER at 1e10 to 4e10 with `[0, inf)` boxes and a zero reduced cost,
   the lent bound of D19 on a flat direction of the optimal face. The
   answer is right; the statuses are not a basis of the model, and ranging
-  refuses `finnis` by name. What it needs is the solve's: pivot such a
-  column into the basis it is degenerate in before publishing, or publish
-  it basic and take a logical out with the rank argument that implies.
-  One instance of 110; the ranging refusal is the detector.
+  refuses `finnis` by name. What it needs is the solve's, and the recipe
+  is sized (2026-09-03): `classify_optimum` (`src/simplex.c`) looks only
+  at columns `held_by_an_invented_bound`, whose reduced cost presses on
+  the loan; a column on a loan with `|d| <= dual_tol` is never visited and
+  is published there. After the verdict OPTIMAL, walk each such column
+  (`s->fake[j] != 0`, not held) toward its real bound with
+  `primal_ratio_test` in that direction, `step` capped by the distance to
+  the real bound: reached, it is nonbasic there (the bound flip the ratio
+  test leaves `B^-1 M_q` in `s->col` for, then clear `fake[j]`); blocked
+  first, `pivot(s, r, q, below, ...)` as `primal_cleanup` does, and the
+  column is basic. A column with both bounds infinite and both directions
+  unblocked is a free direction of the optimal face: move it to 0 and
+  publish FREE. The objective does not move (`d` is within tolerance);
+  `finnis`'s x and digest do. Full loop: `numerics-reviewer`, five
+  configurations, the three sets, and `bench/measurements/02-167/`'s
+  driver reads the refusal count, 1 to 0. One instance of 110.
 - **D245 moved the forced primal from 61 / 30 / 3 to 75 / 16 / 3**
   (ok / DISAGREE / overrun, as read then; the current counts live in
   `bench/results/primal.txt`). **Fourteen of the thirty were a round
