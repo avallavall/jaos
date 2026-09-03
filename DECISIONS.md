@@ -267,6 +267,7 @@ and you have the argument. Jump to the entry for the numbers behind it.
 - **[D257](#d257--every-postsolve-status-is-decided-from-the-reductions-structure-and-the-count-promise-holds-on-every-gate-solve)** — Every postsolve status is decided from the reduction's structure, and the count promise holds on every gate solve
 - **[D258](#d258--sensitivity-and-ranging-run-on-the-published-basis-over-the-model-as-loaded-and-presolve-has-no-half-in-it)** — Sensitivity and ranging run on the published basis, over the model as loaded, and presolve has no half in it
 - **[D259](#d259--an-inverted-box-is-refused-before-any-solve-runs-in-every-build)** — An inverted box is refused before any solve runs, in every build
+- **[D260](#d260--ranging-factors-the-published-basis-with-the-solves-own-scaling)** — Ranging factors the published basis with the solve's own scaling
 
 ---
 
@@ -19570,12 +19571,11 @@ failed**, 65.8 seconds, `ken-18` 41.5 of them against a solve of about
 at a bound it lent them (D19) with a zero reduced cost and no such
 bound in the model; the statuses are not a basis of the model, ranging
 says so by name, and the solve owns the fix (`TODO.md`). The one
-precision caveat is the pilot family: the reduced costs recomputed from
-the unscaled factorization differ from the published ones by 2.14 on
-`pilot-ja`, 2.25e-3 on `pilot-we` and 1.32e-5 on `perold`, so the
-intervals there are those of an ill-conditioned factorization; every
-interval still holds its value, and factoring with the solve's own
-scaling is the named follow-up.
+precision caveat was the pilot family: the reduced costs recomputed from
+the unscaled factorization differed from the published ones by 2.14 on
+`pilot-ja`, 2.25e-3 on `pilot-we` and 1.32e-5 on `perold`; every
+interval still held its value. D260 factors with the solve's own
+scaling and closes that by six orders.
 
 **The gate.** Run twice: on `a2caad1`, the first landing, and on
 `ea855c1`, which carries the review's fixes and the fixed-column
@@ -19639,3 +19639,34 @@ orders past the window. Found by the review; carried with its address.
 `gate: PASS`, `0 regressed`, and no digest, iteration or work figure
 moved for this change, since no instance in the sets carries an
 inverted box. The two tests and the ranging oracle are its evidence.
+
+## D260 — Ranging factors the published basis with the solve's own scaling
+
+**The question.** D258 factored the published basis on the unscaled
+matrix, and its population run read reduced costs on the pilot family
+that differ from the published ones by up to 2.14 (`pilot-ja`), the
+conditioning of an unscaled basis. Does factoring with the solve's own
+power-of-two scaling close that?
+
+**It does, by six orders.** `src/ranging.c` factors the basis as the
+solve does, on `rho_i a_ij gamma_j` with the model's own Curtis-Reid
+factors (computed on the spot when the solve scaled a presolve-reduced
+model instead), and scales every answer back: the right-hand side into
+the scaled row space and each basic value out by its own factor, the
+costs in by their column scale and the duals out by the row scale, the
+pricing row by the row scales and a unit of the ranged cost by its
+column scale, a nonbasic's column in by the row scales and each basic's
+move out by its own factor. A logical's scale is the inverse of its
+row's, as `publish` has it. Every factor is an exact power of two, so
+the ranges stay bit-reproducible.
+
+**The measurement** (`bench/measurements/02-167/`, the same driver
+re-run). netlib: 94 solved, 93 ranged, `finnis` refused as before, **0
+with a failed check**; the worst disagreement between ranging's end for
+a nonbasic column's cost and the published reduced cost goes from
+**2.14 to 1.39e-6** on `pilot-ja`, `pilot-we` from 2.25e-3 to 1.42e-8,
+`perold` from 1.32e-5 to below 1e-8, and nothing else is above 1.4e-7.
+Kennington: 16 of 16 ranged, 0 failed, worst 2.92e-10 against 4.07e-10
+before. Five configurations pass and every unit
+test on the hand-worked models holds to 1e-12, since the small models
+scale by one or two.

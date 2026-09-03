@@ -33,3 +33,12 @@ reduced cost: 4.07e-10 or below everywhere but the pilot family, where
 `pilot-ja` reads 2.14, `pilot-we` 2.25e-3, `perold` 1.32e-5 and `pilot87`
 1.59e-6, the conditioning of an unscaled basis. Every interval on every
 ranged instance holds its current value.
+
+## The second reading, with the solve's scaling (D260)
+
+The same driver on the tree that factors the basis scaled as the solve
+scales it. netlib: 93 ranged, `finnis` refused as before, 0 failed
+checks, and the gap column collapses: `pilot-ja` 1.39e-6, `pilot`
+1.4e-7, `wood1p` 7.18e-8, `dfl001` 1.78e-8, `pilot-we` 1.42e-8, nothing
+else above 1e-8. `ranging-population.txt` is this reading; the first is
+in the D258 entry and in the table above.

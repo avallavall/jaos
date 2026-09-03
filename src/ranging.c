@@ -2,9 +2,10 @@
  * caller's own model (D258).
  *
  * The published basis is a basis of the model as loaded, count and all
- * (D257), so it is refactored here on the unscaled matrix, and every range
- * is a statement about that factorization: how far one number in the model
- * may move, everything else held, before this basis stops being optimal.
+ * (D257), so it is refactored here, on the matrix scaled as the solve
+ * scales it (D260), and every range is a statement about that
+ * factorization: how far one number in the model may move, everything
+ * else held, before this basis stops being optimal.
  * Cost ranging keeps primal feasibility for free and asks every nonbasic
  * reduced cost to keep the sign its status requires; bound ranging keeps
  * dual feasibility for free and asks every basic value to stay inside its
@@ -37,6 +38,8 @@ typedef struct {
     int64_t nrow, ncol, nvar;   /* nvar = ncol + nrow; variable v >= ncol
                                    is the logical of row v - ncol */
     double sigma;               /* +1 minimise, -1 maximise */
+    const double *rho;          /* [nrow] the solve's row scales (D260) */
+    const double *gam;          /* [ncol] and column scales, powers of two */
     int64_t *basis;             /* [nrow] the variable at each position */
     int64_t *pos;               /* [nvar] a basic's position, -1 nonbasic */
     jm_lu lu;
@@ -82,6 +85,14 @@ static jaos_basis_status rg_status(const rg *g, int64_t v)
 {
     return v < g->ncol ? g->m->sol_col_status[v]
                        : g->m->sol_row_status[v - g->ncol];
+}
+
+/* A variable's own scale: x = scale * x_scaled. A structural's is its
+ * column scale; a logical's is the inverse of its row's, since the solve
+ * scales an activity by the row (`publish`, s = s_scaled / rho). */
+static double rg_vscale(const rg *g, int64_t v)
+{
+    return v < g->ncol ? g->gam[v] : 1.0 / g->rho[v - g->ncol];
 }
 
 /* The value a nonbasic variable rests at. False when its status names a
@@ -133,6 +144,18 @@ static jaos_status rg_build(jaos_model *m, rg *g)
     jaos_status st = jm_model_ensure_rowwise(m);
     if (st != JAOS_OK)
         return st;
+    /* The basis is factored as the solve factors it, on the scaled matrix
+     * rho_i a_ij gamma_j with the same power-of-two factors, and every
+     * answer is scaled back (D260). A solve on a presolve-reduced model
+     * scaled that model, not this one, so the factors are computed here
+     * when missing; they are deterministic and exact powers of two. */
+    if (!m->scale_valid) {
+        st = jm_model_scale(m, JM_SCALE_CURTIS_REID);
+        if (st != JAOS_OK)
+            return st;
+    }
+    g->rho = m->row_scale;
+    g->gam = m->col_scale;
 
     int64_t nb = 0;
     for (int64_t j = 0; j < ncol; j++)
@@ -198,10 +221,11 @@ static jaos_status rg_build(jaos_model *m, rg *g)
         if (v < ncol) {
             for (int64_t k = m->a_start[v]; k < m->a_start[v + 1]; k++) {
                 bi[q] = m->a_index[k];
-                bv[q] = m->a_value[k];
+                bv[q] = g->rho[m->a_index[k]] * m->a_value[k] * g->gam[v];
                 q++;
             }
         } else {
+            /* A logical's scaled column is -e_i: s_scaled = rho_i s. */
             bi[q] = v - ncol;
             bv[q] = -1.0;
             q++;
@@ -242,17 +266,24 @@ static jaos_status rg_build(jaos_model *m, rg *g)
             g->vec[v - ncol] += xv;
         }
     }
+    /* Into the scaled row space, solve, and each basic back to its own. */
+    for (int64_t i = 0; i < nrow; i++)
+        g->vec[i] *= g->rho[i];
     jm_lu_ftran(&g->lu, g->vec, &g->w);
-    memcpy(g->xb, g->vec, (size_t)nrow * sizeof *g->xb);
+    for (p = 0; p < nrow; p++)
+        g->xb[p] = g->vec[p] * rg_vscale(g, g->basis[p]);
     memset(g->vec, 0, (size_t)nrow * sizeof *g->vec);
 
-    /* y' = c_B' B^-1 in the canonical space; a logical costs nothing. */
+    /* y' = c_B' B^-1 in the canonical space on the scaled costs, gamma_j
+     * c_j; a logical costs nothing. The scaled dual comes back through the
+     * row scale, y = rho y_scaled (`publish`). */
     for (p = 0; p < nrow; p++) {
         const int64_t v = g->basis[p];
-        g->vec[p] = v < ncol ? g->sigma * m->col_cost[v] : 0.0;
+        g->vec[p] = v < ncol ? g->sigma * m->col_cost[v] * g->gam[v] : 0.0;
     }
     jm_lu_btran(&g->lu, g->vec, &g->w);
-    memcpy(g->y, g->vec, (size_t)nrow * sizeof *g->y);
+    for (int64_t i = 0; i < nrow; i++)
+        g->y[i] = g->vec[i] * g->rho[i];
     memset(g->vec, 0, (size_t)nrow * sizeof *g->vec);
 
     /* d_N = c_N - N' y, canonical; a logical's is its row's dual, since its
@@ -368,9 +399,14 @@ jaos_status jaos_cost_ranging(jaos_model *m, double *lower, double *upper)
             jm_lu_btran_sparse(&g.lu, g.vec, &g.w, g.pat, &npat);
             npat = jm_pattern_order(npat, g.pat, g.mark, nrow, &words);
 
+            /* The row comes back in the scaled space; r_i = rho_i r~_i
+             * prices the caller's entries, and a unit of this column's
+             * cost is gamma_j units of its scaled cost (D260). */
+            const double gj = g.gam[j];
             int64_t nt = 0;
             for (int64_t t = 0; t < npat; t++) {
                 const int64_t i = g.pat[t];
+                g.vec[i] *= g.rho[i] * gj;
                 const double ri = g.vec[i];
                 if (ri == 0.0)
                     continue;
@@ -448,16 +484,26 @@ static void rg_bound_range(rg *g, int64_t v, double *lo_lo, double *lo_hi,
         const int64_t nrow = g->nrow;
         memset(g->vec, 0, (size_t)nrow * sizeof *g->vec);
         rg_scatter(g, v, g->vec);
+        /* The column into the scaled row space; the solve then gives each
+         * basic's move per unit of v in v's own units once it is scaled
+         * back by the basic's own factor (D260). */
+        if (v < g->ncol) {
+            const jaos_model *m = g->m;
+            for (int64_t k = m->a_start[v]; k < m->a_start[v + 1]; k++)
+                g->vec[m->a_index[k]] *= g->rho[m->a_index[k]];
+        } else {
+            g->vec[v - g->ncol] *= g->rho[v - g->ncol];
+        }
         int64_t npat = 0;
         jm_lu_ftran_sparse(&g->lu, g->vec, &g->w, g->pat, &npat);
 
         double dmin = -INFINITY, dmax = INFINITY;
         for (int64_t t = 0; t < npat; t++) {
             const int64_t p = g->pat[t];
-            const double wp = g->vec[p];
+            const int64_t q = g->basis[p];
+            const double wp = g->vec[p] * rg_vscale(g, q);
             if (wp == 0.0)
                 continue;
-            const int64_t q = g->basis[p];
             const double lq = rg_lower(g, q), uq = rg_upper(g, q);
             const double x = g->xb[p];
             /* lq <= x - delta * wp <= uq */

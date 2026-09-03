@@ -182,11 +182,6 @@ them.
   column into the basis it is degenerate in before publishing, or publish
   it basic and take a logical out with the rank argument that implies.
   One instance of 110; the ranging refusal is the detector.
-- **Ranging factors the published basis unscaled.** On the pilot family
-  the reduced costs it recomputes differ from the published ones, by 2.14
-  on `pilot-ja`, 2.25e-3 on `pilot-we`, 1.32e-5 on `perold`; every
-  interval still holds its current value. Factoring with the solve's own
-  power-of-two scaling is the follow-up, and `02-167`'s driver reads it.
 - **D245 moved the forced primal from 61 / 30 / 3 to 75 / 16 / 3**
   (ok / DISAGREE / overrun, as read then; the current counts live in
   `bench/results/primal.txt`). **Fourteen of the thirty were a round

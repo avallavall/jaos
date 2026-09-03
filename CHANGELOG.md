@@ -19,7 +19,9 @@ open, `bench/README.md` for the gate, and the commit each entry came from.
   solver is the oracle in the tests (D258). With it, a column the caller
   fixed is published at the bound its reduced cost points into, in the
   simplex and at postsolve, so a warm re-solve that opens the other side
-  costs nothing.
+  costs nothing. The basis is factored with the solve's own power-of-two
+  scaling, which is what the pilot family's conditioning needed (D260,
+  `bench/measurements/02-167/`).
 
 ### Fixed
 
