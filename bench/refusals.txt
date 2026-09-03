@@ -100,7 +100,16 @@ D145 | MANUAL | condition met by D148, retried as D149, refused again on cost; c
 D149 | MANUAL | condition met by D151 (the cap swept on both sides, the capped repair landed at 4); closed
 D151 | MANUAL | a rule that predicts a doomed warm trajectory before paying for it
 D156 | MANUAL | a frozen-row width dies at more than one ulp of the activity it constrains; D164's pin is what fires
-D173 | MANUAL | finnis's point is shown not to be the exact optimal vertex by an oracle finer than 0.107 of eps * sum|c_j x_j|
+# D173's refusal EXPIRED at D261 and was caught here on 2026-09-03 (D262).
+# Its condition asked for an oracle finer than 0.107 of eps * sum|c_j x_j|;
+# what happened instead is that the traffic went away. finnis carried
+# 3.198e+12 of it because four columns were published at 1e10 on bounds the
+# solve had lent them, and with those retired the traffic is 3.143e+05 and
+# the gap to Koch is 1.57e-11. The threshold D173 argued for is unchanged
+# and still holds at 0.2244; the premise it was applied to is gone.
+# Fourth occurrence of a refusal outliving its premise: D24/D94,
+# D184/D206, D141/D257, this one. Nothing re-tests it; the oracle is in
+# bench/measurements/02-169/ and 02-83/.
 D176 | MANUAL | anything reads the reduced model's objective (a callback, a statistic, a postsolve path)
 SPECS-crash-basis | MANUAL | pricing stops starting from exact steepest-edge weights; Devex landing is the trigger
 D93  | MANUAL | a controlled host that satisfies D17 (for the 4.2% bar); tools/icount.sh answers the instruction half of that question today

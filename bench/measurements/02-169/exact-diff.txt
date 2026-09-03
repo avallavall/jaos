@@ -1,0 +1,7 @@
+# instances whose exact objective, gap to the reference or row
+# residual moved between the parent tree and the candidate.
+# parent   < ... ,  candidate  > ...
+28c28
+< finnis        172791.06567185125715632010...   -9.84009e-12  -2.30019e-08   -0.338 -790.338   7.62397e-05   7.62397e-05   8.439e-07   2.888e-05           0   3.198e+12        0.1074   0.0001051   2.888e-05   no koch
+---
+> finnis        172791.06559561159631028178...    1.34411e-11   1.34411e-11    0.462    0.462   1.56628e-11   2.91038e-11   1.576e-13   1.807e-11           0   3.143e+05        0.2244   6.436e-11   1.633e-11   no koch

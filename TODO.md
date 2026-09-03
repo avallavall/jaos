@@ -23,6 +23,17 @@ byte-identical; `finnis` costs 3.96% more work. Six of
 `numerics-reviewer`'s nine findings changed the code, and the D261 entry
 names each. **The open list below is now the disagreement family alone.**
 
+**And it spent a refusal: D173 (D262, `bench/measurements/02-169/`).** D173
+refused `finnis` as a candidate wrong vertex because its 7.62e-05 gap to
+Koch was only 0.107 of `eps` times its own traffic of 3.198e+12. That
+traffic WAS the loan. With the columns retired the traffic is 3.143e+05,
+the gap is 1.57e-11, the exact row residual is 1.58e-13, and
+`jaos_check_solution`'s objective — 790 ulps out on `finnis` and exact on
+the other 109 — is exact on **110 of 110**. Fourth time a refusal has
+outlived its premise here, and the first found by reading
+`bench/refusals.txt` in the same session as the change. `pilot`'s line in
+that same record is stale too and nobody moved it; that one is open below.
+
 
 **2026-09-03: the published basis has the promised count on every gate
 solve (D257, `bench/measurements/02-166/`).** Item 2 below, the file's
@@ -942,8 +953,11 @@ harness is blind.**
 - **`jaos_objective` is finished. Do not open the published objective again.**
   It is the correctly rounded exact objective of the published point on **110
   of 110**, worst 0.493 ulp, measured against an oracle that rounds nowhere.
-  The remaining disagreement with the checker is the CHECKER's — 790 ulps on
-  `finnis` — because `long double` cannot hold a binary64 product's 106 bits.
+  **The checker manages 110 of 110 too since D262**, worst 0.493 ulp on
+  `ship08l` in both columns. Its 790 ulps on `finnis` were a model carrying
+  3.2e12 of traffic in columns published on a bound the solve had lent them,
+  and D261 retired those; `long double`'s 64-bit mantissa still cannot hold
+  a binary64 product's 106 bits, and no gate instance now asks it to.
 - **A probe validates itself before it is believed.**
   `run-exact-objective.sh` refuses to take a reading when its self-test fails,
   and that self-test caught a wrong expected value typed in this session. Its
@@ -2461,7 +2475,14 @@ part rather than the measurement.
   one pass over the columns per solve, so the campaign question is accuracy
   rather than time. Nothing shows it losing a verdict.
 - ~~**`finnis` publishes a point that is not the exact optimal vertex.**~~
-  **REFUSED 2026-08-20 (D173, `bench/measurements/02-83/`).** The exact
+  **REFUSED 2026-08-20 (D173, `bench/measurements/02-83/`), and the refusal
+  EXPIRED 2026-09-03 (D262, `bench/measurements/02-169/`).** The traffic the
+  refusal rested on was the loan: four columns published at 1e10 to 4e10 on
+  bounds the solve had lent them (D261). With those retired `sum |c_j x_j|`
+  is 3.143e+05 against 3.198e+12, the gap to Koch is **1.57e-11** against
+  7.62e-05, and the worst exact row residual is 1.58e-13 against 8.44e-07.
+  The paragraph below is the refusal as it stood.
+  The exact
   oracle was built — a 5632-bit fixed-point accumulator, so every `c_j x_j`
   is added with no rounding — and it says there is nothing to repair.
   `finnis` carries `sum |c_j x_j| = 3.198e+12` against an objective of
@@ -2471,13 +2492,21 @@ part rather than the measurement.
   optimal as binary64 allows on this model.
   **Two things the entry settles beyond the item.** `jaos_objective` is the
   correctly rounded exact objective of the published point on **94 of 94**,
-  worst 0.493 ulp; the checker manages 93 and is **790 ulps** out on `finnis`,
-  so D172's "neither can be called more right" resolves in the published
+  worst 0.493 ulp; the checker manages 93 and is **790 ulps** out on `finnis`
+  (**94 of 94 since D262**), so D172's "neither can be called more right"
+  resolves in the published
   number's favour. And the instrument was validated twice before any reading,
   which caught a wrong expected value this session had typed — the second
   oracle is Python's `fractions`, sharing no code with the accumulator.
 - **`pilot` publishes a point 2.31e-05 above the optimum, and it is the only
-  netlib instance every other solver beats.** New from D173. Measured against
+  netlib instance every other solver beats.** **The figures below are D173's
+  and they are stale; `pilot` moved and nobody noticed.** The oracle at
+  `642f71a` reads `exact-ref = -5.26646e-09` and `refeps = -4.254e+04`, on
+  the OTHER side of Koch, against D173's 2.31157e-05 and 1.87e+08. The
+  parent tree and D261's candidate agree on it, so it moved somewhere
+  between D173 and `642f71a` — which commit, and whether the new position
+  is better, is unmeasured (D262, `bench/measurements/02-169/`). Re-read
+  this item before acting on any number in it. New from D173. Measured against
   `eps * sum |c_j x_j|`, which is the floor arithmetic sets for that model,
   the gap is **1.87e+08** of that unit; 68 of the 93 Koch-referenced
   instances are inside 0.5. Three others are above 1e4: `pilot87` 1.53e+06,
@@ -3620,7 +3649,7 @@ then, do not — a refusal whose premise has not changed just fails again.
 | D156 | the destroyed row width as a defect — it dies below one ulp of the activity | a width dies above one ulp; D164's pin is what fires |
 |---|---|---|
 | D176 | compensating presolve's `obj_offset` — the reduced model's offset is measurably dead: poisoned with `1e300` and with `NaN`, all three sets stay bit-identical to a control that reproduces the committed records exactly | anything reading the reduced model's objective — a progress callback carrying it, a presolve statistic reporting it, or a postsolve path that adds `reduced.obj_offset` instead of recomputing on the caller's model. `bench/measurements/02-86/run-poison-offset.sh` is the test for that condition |
-| D173 | `finnis` publishing a point that is not the exact optimal vertex — its 7.62e-05 gap to Koch is **0.107 of `eps * sum |c_j x_j|`**, the floor arithmetic sets for a model carrying 3.198e+12 of traffic, and its row residual is under one eps of each row's own traffic | a model whose gap exceeds that floor. Four already do and they are open items rather than refusals: `pilot` 1.87e+08, `pilot87` 1.53e+06, `scsd6` 9.97e+04, `etamacro` 2.74e+04. The oracle is `bench/measurements/02-83/run-exact-objective.sh` and it needs no build of its own |
+| D173 | **EXPIRED at D261, caught 2026-09-03 (D262)** — the traffic the refusal rested on was the loan itself, and `bench/measurements/02-169/` reads the gap at 1.57e-11 on a traffic of 3.143e+05. The row stays as the record of the refusal and its expiry. `finnis` publishing a point that is not the exact optimal vertex — its 7.62e-05 gap to Koch is **0.107 of `eps * sum |c_j x_j|`**, the floor arithmetic sets for a model carrying 3.198e+12 of traffic, and its row residual is under one eps of each row's own traffic | a model whose gap exceeds that floor. Four already do and they are open items rather than refusals: `pilot` 1.87e+08, `pilot87` 1.53e+06, `scsd6` 9.97e+04, `etamacro` 2.74e+04. The oracle is `bench/measurements/02-83/run-exact-objective.sh` and it needs no build of its own |
 | D149 | the blanket warm count repair, retried behind the certificate guard — correct now (`disagreed=0, rejected=0`) and refused on cost: `dfl001` at 172x work for a doomed 596-short repair, netlib geomean 0.2605 vs 0.2553 | **condition MET by D151**: the cap was swept on both sides and the capped repair landed at 4. This row stays as the record of the refusal and its expiry |
 | D151 | the instances that still lose real work behind the cap. **The two-instance framing is refuted by D178**: only `degen2` is D148's guard, at a settled dual violation of 12.91, and `scsd1`'s guard never fires — it runs 314 iterations against cold's 89 and is a separate question. Current ratios are 3.6751x and 3.7165x, not 4.09x and 4.65x | a rule that predicts a doomed trajectory before paying for it. **The shortfall cannot be that rule and this is measured**: both are short by 1, the same shortfall as the sixteen instances that win. Raising the cap is separately refused — the sweep in `bench/measurements/02-60/` reads 15.48x on `greenbea` at 7 |
 | D145 | the warm count repair in `build_warm_basis` — refused because 8 netlib solves published a wrong objective through the termination hole | **condition MET by D148** (the certificate guard landed), retried as D149 and refused again on cost. This row stays as the record of the refusal and its expiry |

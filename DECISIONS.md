@@ -269,6 +269,7 @@ and you have the argument. Jump to the entry for the numbers behind it.
 - **[D259](#d259--an-inverted-box-is-refused-before-any-solve-runs-in-every-build)** — An inverted box is refused before any solve runs, in every build
 - **[D260](#d260--ranging-factors-the-published-basis-with-the-solves-own-scaling)** — Ranging factors the published basis with the solve's own scaling
 - **[D261](#d261--a-loan-nobody-holds-is-retired-before-the-answer-is-published-and-finniss-objective-was-wrong-until-it-was)** — A loan nobody holds is retired before the answer is published, and finnis's objective was wrong until it was
+- **[D262](#d262--d173s-refusal-of-finnis-was-a-refusal-of-the-lent-bounds-and-the-exact-oracle-now-clears-both-the-objective-and-the-checker-on-110-of-110)** — D173's refusal of finnis was a refusal of the lent bounds, and the exact oracle now clears both the objective and the checker on 110 of 110
 
 ---
 
@@ -19781,3 +19782,60 @@ than re-run where it lives, ranges **94 of 94** netlib instances against
 **What is left open.** Nothing on this item. The `SPECS.md` basis row and
 `jaos.h`'s promise now hold on the family as well as on the three gate
 sets.
+
+## D262 — D173's refusal of finnis was a refusal of the lent bounds, and the exact oracle now clears both the objective and the checker on 110 of 110
+
+**The question.** D173 refused `finnis` as a candidate wrong vertex. Its
+argument was about the model, not the solve: `finnis` carried
+`sum |c_j x_j| = 3.198e+12` against an objective of 1.7e+05, so one eps of
+its own traffic is 7.10e-04 and the 7.62e-05 gap to Koch is 0.107 of that
+— no larger than writing the answer down costs. D261 removed the four
+columns published at 1e10 that the traffic was made of. Does the refusal
+survive its own premise?
+
+**It does not.** D173's oracle, copied into `bench/measurements/02-169/`
+rather than re-run where it lives, over the whole standard set on the
+parent tree and on the candidate. **Exactly one line differs**, `finnis`,
+so nothing here is credited to a commit that did not do it:
+
+| `finnis` | parent | candidate |
+|---|---|---|
+| exact `c'x + c0` | 172791.06567185125715632010… | **172791.06559561159631028178…** |
+| gap to Koch's 172791.06559561158 | 7.62397e-05 | **1.56628e-11** |
+| worst exact row residual | 8.439e-07 | **1.576e-13** |
+| `sum \|c_j x_j\|` | 3.198e+12 | **3.143e+05** |
+| the published objective, in ulps of the exact one | -0.338 | 0.462 |
+| **the checker's, in the same ulps** | **-790.338** | **0.462** |
+| `refeps`, the gap in units of `eps * objtraf` | 0.1074 | 0.2244 |
+
+The traffic collapses by seven orders because it WAS the loan: four
+columns at 1e10 to 4e10 with costs of order one. What was left after they
+went is a point 1.6e-11 from Koch's optimum, which is where Koch's own
+decimal stops.
+
+**The consequence beyond the instance.** D173 measured the checker at 109
+of 110, `finnis` the one it missed and by 790 ulps, and settled D172's
+"neither number can be called more right" in the published number's
+favour. With the loans retired the checker manages **110 of 110**: no
+netlib instance is past 0.5 ulps in either column, the worst is `ship08l`
+at 0.493 in both, and Kennington's 16 are untouched at 0.476 on `cre-a`
+(`02-83/`, bit-identical under D261). `long double`'s 64-bit mantissa
+still cannot hold a binary64 product's 106 bits; what it could not survive
+was a model carrying 3.2e12 of traffic, and no gate instance has one now.
+
+**What was refuted.** The threshold D173 argued for is fine and is not
+what expired: `refeps` is 0.2244 here, still inside 0.5, so a reader
+applying the same rule to the same numbers would reach the same verdict.
+The premise that expired is the traffic the rule was applied to. That is
+the fourth time in this repository a refusal has outlived its premise
+(D24 caught by D94, D184 caught by D206, D141 expired at D257), and the
+third to be caught by reading `bench/refusals.txt` after a change rather
+than by luck.
+
+**What is left open.** `pilot`'s line moved too, and not here: the parent
+tree and the candidate agree on it, so it belongs to a commit between
+D173 and `642f71a`. `TODO.md` still describes it as "2.31e-05 above the
+optimum, 1.87e+08 of that unit" and the parent already reads
+`exact-ref = -5.26646e-09` and `refeps = -4.254e+04`, on the other side of
+Koch. Nothing here says which commit moved it or whether the new position
+is better; that is its own question and `TODO.md` carries it.

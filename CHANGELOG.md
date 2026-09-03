@@ -25,6 +25,14 @@ open, `bench/README.md` for the gate, and the commit each entry came from.
 
 ### Fixed
 
+- **The independent checker's objective is exact on 110 of 110 too.** It
+  was 109: `long double` cannot hold a binary64 product's 106 bits, and
+  `finnis` carried 3.2e12 of `sum |c_j x_j|` in columns published on lent
+  bounds, which put the checker 790 ulps out. With those retired the worst
+  disagreement on either side is 0.493 ulp (`ship08l`). D173's refusal of
+  `finnis` expired with its premise, the fourth time in this repository
+  (D262, `bench/measurements/02-169/`).
+
 - **A bound the solve lent itself is retired before the answer goes out.**
   A column left resting on one was published nonbasic on a bound the model
   has not got, at 1e10, and `c'x` then cancelled 1e10-magnitude terms down
