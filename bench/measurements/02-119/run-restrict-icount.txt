@@ -1,15 +1,15 @@
 # D76 re-tested under the instruction counter: restrict on the LU kernel signatures
-# tree: 6eb8012; instances: maros-r7 dfl001 25fv47 fit2p
+# tree: 454b8a7; instances: maros-r7 dfl001 25fv47 fit2p
 # geomean within 0.5% of 1.0 = the refusal holds; further = reopen
 
-# control: 'restrict' appears 0 times in 6eb8012:src/lu.c
+# control: 'restrict' appears 0 times in 454b8a7:src/lu.c
 #          and 7 times in the patched tree that is measured
 
-instance              6eb8012   working-tree     ratio
-maros-r7          13401178561    13401178561   1.00000
-dfl001           180801859643   180801859643   1.00000
-25fv47             6936760664     6936760664   1.00000
-fit2p            102170513703   102170513703   1.00000
+instance              454b8a7   working-tree     ratio
+maros-r7          13262636620    13262636620   1.00000
+dfl001           183235047055   183235047055   1.00000
+25fv47             3454569583     3454569583   1.00000
+fit2p            102449324483   102449324483   1.00000
 geometric mean of per-instance ratios: 1.00000  (below 1 = fewer instructions now)
 STOP: every instance retired exactly the same instructions on both trees;
       the change is not on the measured path, or the trees are the same code

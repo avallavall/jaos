@@ -942,9 +942,11 @@ harness is blind.**
 **Four habits worth keeping.**
 
 - **Measure a gap against `eps * sum |c_j x_j|`, not against the objective.**
-  `finnis` looks like the worst instance on the set at 7.62e-05 and is 0.107 of
-  its own floor; `pilot` at 2.31e-05 is 1.87e+08 of its. The raw gaps say the
-  opposite of the truth.
+  `finnis` looked like the worst instance on the set at 7.62e-05 and was 0.107
+  of its own floor; `pilot` at 2.31e-05 was 1.87e+08 of its. The raw gaps say
+  the opposite of the truth. **Both numbers have moved since** — `finnis`'s
+  floor was the lent bounds and D261 removed them (D262); `pilot`'s moved and
+  nobody attributed it. The habit is what to keep, not the figures.
 - **A caller-owned tolerance sweeps with no rebuild.** `DUAL_TOL` is settable
   through `jaos_set_dual_tolerance`, so seven settings over three sets cost one
   binary — and the control that passing the default explicitly reproduces the
@@ -2460,8 +2462,12 @@ part rather than the measurement.
   on either set, where D169 had four going further at the last bit. `gate:
   PASS`, 0 digest changes anywhere, 11 netlib and 1 Kennington `obj` figures
   moved and nothing else.
-  **The one left is `finnis` at 2.2992e-08, and that is the end of the
-  objective's own story.** `(long double) c * x` is not an exact product — a
+  **The one left was `finnis` at 2.2992e-08, and it closed at D261**: the
+  `sum|t| = 3.2e12` below was four columns published at 1e10 on bounds the
+  solve had lent them, and with those retired the checker agrees on **110 of
+  110** (D262). The paragraph is kept because the bound in it is the one to
+  reach for the next time the two numbers disagree.
+  `(long double) c * x` is not an exact product — a
   binary64 product needs 106 bits and that mantissa holds 64 — so each term
   carries up to `2^-64 |t|`, which over `finnis`'s `sum|t| = 3.2e12` is
   1.73e-07 before `src/check.c` sums anything. The observed 2.2992e-08 is 7.5
