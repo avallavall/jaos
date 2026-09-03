@@ -65,6 +65,7 @@ __all__ = [
     "version", "library_path",
     "Problem", "Var", "LinExpr", "Constraint", "quicksum",
     "CheckReport", "CertificateReport", "RayReport", "Progress",
+    "IISSide", "IISReport", "IIS",
 ]
 
 
@@ -252,6 +253,31 @@ CertificateReport = namedtuple("CertificateReport",
                                [f for f, _ in _CertificateReport._fields_])
 RayReport = namedtuple("RayReport", [f for f, _ in _RayReport._fields_])
 
+
+class IISSide(enum.IntFlag):
+    """Which sides of a bound belong to an irreducible infeasible
+    subsystem (jaos_iis_side): a row's or a column's two bounds are two
+    constraints, and an IIS may hold either without the other."""
+    NONE = 0
+    LOWER = 1
+    UPPER = 2
+    BOTH = 3
+
+
+class _IISReport(ctypes.Structure):
+    """jaos_iis_report, field for field."""
+    _fields_ = [
+        ("members", ctypes.c_int64),
+        ("candidates", ctypes.c_int64),
+        ("solves", ctypes.c_int64),
+        ("work_units", ctypes.c_int64),
+        ("from_certificate", ctypes.c_bool),
+    ]
+
+
+IISReport = namedtuple("IISReport", [f for f, _ in _IISReport._fields_])
+IIS = namedtuple("IIS", "row_side col_side report")
+
 _LOG_FN = ctypes.CFUNCTYPE(None, _VP, ctypes.c_int, _CS)
 _PROGRESS_FN = ctypes.CFUNCTYPE(ctypes.c_int, _P(_Progress), _VP)
 
@@ -315,6 +341,8 @@ _sig("jaos_check_certificate", ctypes.c_int, _VP, _P(_D), _D,
      _P(_CertificateReport))
 _sig("jaos_unbounded_ray", ctypes.c_int, _VP, _P(_D))
 _sig("jaos_check_ray", ctypes.c_int, _VP, _P(_D), _D, _P(_RayReport))
+_sig("jaos_iis", ctypes.c_int, _VP, _P(ctypes.c_int), _P(ctypes.c_int),
+     _P(_IISReport))
 _sig("jaos_cost_ranging", ctypes.c_int, _VP, _P(_D), _P(_D))
 _sig("jaos_rhs_ranging", ctypes.c_int, _VP, _P(_D), _P(_D), _P(_D), _P(_D))
 _sig("jaos_bound_ranging", ctypes.c_int, _VP, _P(_D), _P(_D), _P(_D), _P(_D))
@@ -809,6 +837,25 @@ class Model:
         self._check(_lib.jaos_check_ray(self._handle(), d, float(tol),
                                         ctypes.byref(rep)))
         return RayReport(*(getattr(rep, f) for f, _ in _RayReport._fields_))
+
+    def iis(self):
+        """An irreducible infeasible subsystem of the last INFEASIBLE
+        answer: an `IIS` of one `IISSide` per row and per column naming
+        the bound sides that are infeasible on their own and all needed,
+        and an `IISReport` of what finding it cost. The re-solves run on a
+        private copy, so this model's answer and certificate stay as they
+        are. Raises unless the last solve answered INFEASIBLE, and when a
+        re-solve stopped on a budget or a numerical failure (jaos_iis in
+        jaos.h)."""
+        nr, nc = self.num_row, self.num_col
+        rs = (ctypes.c_int * max(nr, 1))()
+        cs = (ctypes.c_int * max(nc, 1))()
+        rep = _IISReport()
+        self._check(_lib.jaos_iis(self._handle(), rs, cs, ctypes.byref(rep)))
+        return IIS([IISSide(v) for v in rs[:nr]],
+                   [IISSide(v) for v in cs[:nc]],
+                   IISReport(*(getattr(rep, f)
+                               for f, _ in _IISReport._fields_)))
 
     def cost_ranging(self):
         """How far each column's cost may move, everything else held, with
@@ -1449,6 +1496,21 @@ class Problem:
             raise ValueError("the problem changed since the last solve; "
                              "call solve() before reading values")
         return self._m.unbounded_ray()
+
+    def iis(self):
+        """An irreducible infeasible subsystem of an INFEASIBLE answer, in
+        this layer's own terms: a list of (Constraint, IISSide) and a list
+        of (Var, IISSide), members only, and the `IISReport` behind them.
+        Same availability as certificate()."""
+        if self._pending():
+            raise ValueError("the problem changed since the last solve; "
+                             "call solve() before reading values")
+        found = self._m.iis()
+        cons = [(c, s) for c, s in zip(self._cons, found.row_side)
+                if s != IISSide.NONE]
+        bounds = [(v, s) for v, s in zip(self._vars, found.col_side)
+                  if s != IISSide.NONE]
+        return IIS(cons, bounds, found.report)
 
     def _settled(self):
         if self._pending():

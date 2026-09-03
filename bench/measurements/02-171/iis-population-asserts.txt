@@ -1,0 +1,32 @@
+# tree: 6b4aae2 + uncommitted src/include; build: asserts (-Og -g)
+# instance   rows x cols   candidates  from         members rows cols solves work         oracle
+bgdbg1.mps   348 x 407   cand=2     certificate members=2    rows=2    cols=0    solves=3     work=2948         irreducible
+bgetam.mps   400 x 688   cand=28    certificate members=28   rows=9    cols=19   solves=29    work=321658       irreducible
+bgindy.mps  2671 x 10116 cand=2091  certificate members=2091 rows=4    cols=2087 solves=2092  work=163211466    irreducible
+bgprtr.mps    20 x 34    cand=22    certificate members=22   rows=13   cols=9    solves=23    work=213067       irreducible
+box1.mps     231 x 261   cand=9     certificate members=9    rows=8    cols=1    solves=10    work=93751        irreducible
+ceria3d.mps  3576 x 824   cand=238   certificate members=238  rows=238  cols=0    solves=239   work=6542534      irreducible
+chemcom.mps   288 x 720   cand=44    certificate members=44   rows=7    cols=37   solves=45    work=453537       irreducible
+cplex1.mps  3005 x 3221  cand=7     certificate members=6    rows=5    cols=1    solves=8     work=142555       irreducible
+cplex2.mps ABORTED rc=134: iispop-asserts: src/presolve.c:2011: ps_verify_row_activities: Assertion `orig->sol_row_status[i] != JAOS_BASIS_FREE || (!isfinite(orig->row_lower[i]) && !isfinite(orig->row_upper[i]))' failed.
+ex72a.mps    197 x 215   cand=59    certificate members=59   rows=58   cols=1    solves=60    work=826931       irreducible
+ex73a.mps    193 x 211   cand=25    certificate members=25   rows=24   cols=1    solves=26    work=265139       irreducible
+forest6.mps    66 x 95    cand=99    certificate members=92   rows=65   cols=27   solves=100   work=2409602      irreducible
+galenet.mps     8 x 8     cand=5     certificate members=5    rows=2    cols=3    solves=6     work=33069        irreducible
+gosh.mps    3792 x 10733 cand=9     certificate members=9    rows=9    cols=0    solves=10    work=1057270      irreducible
+gran.mps    2658 x 2520  cand=2     certificate members=2    rows=1    cols=1    solves=3     work=40523        irreducible
+greenbea.mps  2504 x 5405  cand=94    certificate members=94   rows=1    cols=93   solves=95    work=4092560      irreducible
+itest2.mps     9 x 4     cand=3     certificate members=3    rows=3    cols=0    solves=4     work=16542        irreducible
+itest6.mps    11 x 8     cand=3     certificate members=3    rows=3    cols=0    solves=4     work=16550        irreducible
+klein1.mps    54 x 54    cand=76    certificate members=55   rows=51   cols=4    solves=77    work=13844502     irreducible
+klein2.mps   477 x 54    cand=75    certificate members=55   rows=50   cols=5    solves=76    work=14874752     irreducible
+klein3.mps   994 x 88    cand=122   certificate members=89   rows=84   cols=5    solves=123   work=523507018    irreducible
+mondou2.mps   312 x 604   cand=64    certificate members=64   rows=34   cols=30   solves=65    work=857975       irreducible
+pang.mps     361 x 460   cand=43    certificate members=35   rows=12   cols=23   solves=44    work=540327       irreducible
+pilot4i.mps   410 x 1000  cand=43    certificate members=43   rows=1    cols=42   solves=44    work=575644       irreducible
+qual.mps   ABORTED rc=134: iispop-asserts: src/presolve.c:2011: ps_verify_row_activities: Assertion `orig->sol_row_status[i] != JAOS_BASIS_FREE || (!isfinite(orig->row_lower[i]) && !isfinite(orig->row_upper[i]))' failed.
+reactor.mps   318 x 637   cand=15    certificate members=15   rows=1    cols=14   solves=16    work=152928       irreducible
+refinery.mps ABORTED rc=134: iispop-asserts: src/presolve.c:2011: ps_verify_row_activities: Assertion `orig->sol_row_status[i] != JAOS_BASIS_FREE || (!isfinite(orig->row_lower[i]) && !isfinite(orig->row_upper[i]))' failed.
+vol1.mps   ABORTED rc=134: iispop-asserts: src/presolve.c:2011: ps_verify_row_activities: Assertion `orig->sol_row_status[i] != JAOS_BASIS_FREE || (!isfinite(orig->row_lower[i]) && !isfinite(orig->row_upper[i]))' failed.
+woodinfe.mps    35 x 89    cand=2     certificate members=2    rows=1    cols=1    solves=3     work=281          irreducible
+# result: 25 of 29 pass the oracle; aborted on an assert: cplex2 qual refinery vol1

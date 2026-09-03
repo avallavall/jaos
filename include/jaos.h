@@ -902,6 +902,60 @@ typedef struct jaos_ray_report {
 JAOS_NODISCARD jaos_status jaos_check_ray(const jaos_model *m,
     const double *col_ray, double tol, jaos_ray_report *out);
 
+/* --- Diagnosing an infeasible model ----------------------------------- */
+
+/* Which sides of a bound belong to an irreducible infeasible subsystem.
+ * A row's two bounds are two constraints, and so are a column's; an IIS
+ * may hold either one without the other. The values combine as bits. */
+typedef enum jaos_iis_side {
+    JAOS_IIS_NONE  = 0,
+    JAOS_IIS_LOWER = 1,
+    JAOS_IIS_UPPER = 2,
+    JAOS_IIS_BOTH  = 3,
+} jaos_iis_side;
+
+/* What jaos_iis did, beside the answer. */
+typedef struct jaos_iis_report {
+    int64_t members;         /* bound sides in the IIS, rows and columns
+                                together                                 */
+    int64_t candidates;      /* sides the deletion filter started from   */
+    int64_t solves;          /* re-solves the filters ran, on a private
+                                copy of the model                        */
+    int64_t work_units;      /* their total, in jaos_work_units' unit;
+                                not billed to the model                  */
+    bool from_certificate;   /* the candidates were the sides the
+                                certificate leans on; false when the
+                                filter had to start from every finite
+                                side of the model                        */
+} jaos_iis_report;
+
+/* An irreducible infeasible subsystem of the last solve's INFEASIBLE
+ * model: a set of bound sides, rows' and columns', that is infeasible on
+ * its own and becomes feasible when any one of them is dropped. Every
+ * other side of the model may be relaxed to its infinity and the
+ * subsystem stays infeasible, so the sides named are where to look.
+ * row_side receives num_row values and col_side num_col; either may be
+ * NULL. A model may have several IISs; this call finds one, the same
+ * one on every machine and every run.
+ *
+ * Chinneck and Dravnieks's sensitivity filter followed by their deletion
+ * filter (ORSA Journal on Computing 3(2), 1991): the certificate's
+ * support first, which is an infeasible subsystem already, then one
+ * warm re-solve per candidate side to ask whether the rest is still
+ * infeasible without it. The re-solves run on a private copy with the
+ * objective removed, so the caller's model, answer, certificate and
+ * basis are untouched; the copy carries the caller's limits and
+ * tolerances and the progress callback, so a watcher can stop it, and
+ * not the log callback. A re-solve that stops on a budget, an
+ * interruption or a numerical failure cannot decide its side and the
+ * call returns JAOS_ERR_NUMERICAL with the model's error text saying
+ * which. The cost is stated, not billed: one solve to confirm the
+ * candidates and one per candidate, and the report says how many and
+ * what they cost. */
+JAOS_NODISCARD jaos_status jaos_iis(jaos_model *m, jaos_iis_side *row_side,
+                                    jaos_iis_side *col_side,
+                                    jaos_iis_report *out);
+
 /* --- Sensitivity and ranging ------------------------------------------ */
 
 /* How far one number in the model may move, everything else held, before

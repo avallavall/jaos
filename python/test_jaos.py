@@ -494,6 +494,54 @@ class TestCertificates(unittest.TestCase):
                 m.check_ray([1.0])
 
 
+class TestIIS(unittest.TestCase):
+    """jaos_iis through the binding: the two-row model tests/test_iis.c
+    works by hand, on Model and on Problem, and the refusals."""
+
+    def test_two_rows_and_not_the_column_bound(self):
+        with jaos.Model() as m:
+            m.load(num_col=1, num_row=2,
+                   col_cost=[1.0], col_lower=[0.0], col_upper=[jaos.INFINITY],
+                   row_lower=[1.0, -jaos.INFINITY],
+                   row_upper=[jaos.INFINITY, 0.0],
+                   a_start=[0, 2], a_index=[0, 1], a_value=[1.0, 1.0])
+            self.assertIs(m.solve(), jaos.SolveStatus.INFEASIBLE)
+            found = m.iis()
+            self.assertEqual(found.row_side,
+                             [jaos.IISSide.LOWER, jaos.IISSide.UPPER])
+            self.assertEqual(found.col_side, [jaos.IISSide.NONE])
+            self.assertEqual(found.report.members, 2)
+            self.assertEqual(found.report.solves, 3)
+            self.assertTrue(found.report.from_certificate)
+            # The model's own answer is still there afterwards.
+            self.assertIs(m.status, jaos.SolveStatus.INFEASIBLE)
+            self.assertEqual(len(m.certificate()), 2)
+
+    def test_a_feasible_model_has_none(self):
+        with jaos.Model() as m:
+            m.read_mps(data("solve1.mps"))
+            self.assertIs(m.solve(), jaos.SolveStatus.OPTIMAL)
+            with self.assertRaises(jaos.JaosError):
+                m.iis()
+
+    def test_the_layer_names_constraints_and_variables(self):
+        p = jaos.Problem()
+        x = p.add_var(ub=0.0)
+        y = p.add_var()
+        c0 = p.add(x + y >= 1)
+        c1 = p.add(y <= 0)
+        p.minimize(x + y)
+        self.assertIs(p.solve(), jaos.SolveStatus.INFEASIBLE)
+        found = p.iis()
+        self.assertEqual([(c, s) for c, s in found.row_side],
+                         [(c0, jaos.IISSide.LOWER), (c1, jaos.IISSide.UPPER)])
+        self.assertEqual(found.col_side, [(x, jaos.IISSide.UPPER)])
+        self.assertEqual(found.report.members, 3)
+        p.add(x >= -1)
+        with self.assertRaises(ValueError):
+            p.iis()
+
+
 class TestProgressCallback(unittest.TestCase):
     def test_the_callback_sees_the_solve(self):
         seen = []

@@ -1423,6 +1423,62 @@ static void test_the_basis_count_promise_breaks_on_a_declined_column(void)
  * other new test produces. row1 keeps the reduced model non-empty so
  * this runs on jm_postsolve_expand. By hand: x = {4, 6, 0, 1, 0},
  * obj = 13. */
+/* A cost-0 singleton column open below, on a row that asks nothing from
+ * below either: x0 free, x1 in (-inf, 1], row0 = x0 + x1 <= 10, no
+ * costs; and the same with row0 free. The replay used to publish x1 at
+ * its lower bound, which is -inf, and the row's activity as NaN, on an
+ * answer that said OPTIMAL. Found by the IIS filter, whose re-solves are
+ * all zero-cost models with relaxed bounds (D264). The point must be
+ * finite, the checker must accept it, the row's activity must be the
+ * sum of the published values, and the basis must have one basic. */
+static void test_singleton_col_open_below_publishes_a_finite_point(void)
+{
+#if defined(JAOS_PRESOLVE_FAULT_OFFBYONE) || defined(JAOS_PRESOLVE_FAULT_WRONGDUAL)
+    TEST_IGNORE_MESSAGE("positive test — skipped under either fault build");
+#else
+    const double rus[2] = {10.0, INFINITY};
+    for (int shape = 0; shape < 2; shape++) {
+        const double c[]  = {0.0, 0.0};
+        const double cl[] = {-INFINITY, -INFINITY}, cu[] = {INFINITY, 1.0};
+        const double rl[] = {-INFINITY}, ru[] = {rus[shape]};
+        const int64_t s[]  = {0, 1, 2};
+        const int64_t ix[] = {0, 0};
+        const double v[]   = {1.0, 1.0};
+        jaos_model *m = nullptr;
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_model_new(&m));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK,
+            jaos_load_lp(m, 2, 1, JAOS_MINIMIZE, 0.0, c, cl, cu, rl, ru,
+                         2, s, ix, v));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+        TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+        /* The shape reaches the family: presolve decides it whole. */
+        TEST_ASSERT_EQUAL_INT64(0, jaos_iterations(m));
+
+        double x[2], act[1], y[1], dj[2];
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solution(m, x, act, y, dj));
+        TEST_ASSERT_TRUE_MESSAGE(isfinite(x[0]) && isfinite(x[1]),
+                                 "a published value is not finite");
+        TEST_ASSERT_TRUE(isfinite(act[0]));
+        TEST_ASSERT_DOUBLE_WITHIN(1e-12, x[0] + x[1], act[0]);
+        TEST_ASSERT_TRUE(x[1] <= 1.0);
+        TEST_ASSERT_TRUE(act[0] <= rus[shape]);
+
+        jaos_check_report r;
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_check_solution(m, x, y, TOL, &r));
+        TEST_ASSERT_TRUE(r.primal_feasible);
+        TEST_ASSERT_TRUE(r.dual_feasible);
+
+        jaos_basis_status cs[2], rs[1];
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_basis(m, cs, rs));
+        const int basics = (cs[0] == JAOS_BASIS_BASIC) +
+                           (cs[1] == JAOS_BASIS_BASIC) +
+                           (rs[0] == JAOS_BASIS_BASIC);
+        TEST_ASSERT_EQUAL_INT(1, basics);
+        jaos_model_free(m);
+    }
+#endif
+}
+
 static void test_two_singleton_cols_on_one_row(void)
 {
 #if defined(JAOS_PRESOLVE_FAULT_OFFBYONE) || defined(JAOS_PRESOLVE_FAULT_WRONGDUAL)
@@ -4435,6 +4491,7 @@ int main(void)
     RUN_TEST(test_a_short_mapped_basis_is_repaired_and_warm_survives);
     RUN_TEST(test_the_warm_repair_stops_at_its_cap);
     RUN_TEST(test_a_long_mapped_basis_falls_back_cold);
+    RUN_TEST(test_singleton_col_open_below_publishes_a_finite_point);
     RUN_TEST(test_two_singleton_cols_on_one_row);
     RUN_TEST(test_free_col_singleton_round_trip);
     RUN_TEST(test_free_col_singleton_index_off_by_one);

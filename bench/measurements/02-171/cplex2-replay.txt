@@ -1,0 +1,29 @@
+# tree: 6b4aae2 + uncommitted src/include
+members=232 candidates=238 solves=239
+=== column 26 lower, bounds [0, 1]: the IIS without it, cold -> infeasible
+  [iis-minus-side] certificate gap=6.78991e-05 rel=6.79e-05 certified=1 iters=158
+  sides dropped before it: 6
+  A: K cold -> infeasible
+  [A-cold] certificate gap=2.40453e-05 rel=2.4e-05 certified=1 iters=172
+  A: K minus the side, warm -> infeasible
+  [A-warm] certificate gap=2.40453e-05 rel=2.4e-05 certified=1 iters=0
+  B: K minus the side, cold -> infeasible
+  [B-cold] certificate gap=6.78991e-05 rel=6.79e-05 certified=1 iters=158
+=== column 30 upper, bounds [0, 1]: the IIS without it, cold -> infeasible
+  [iis-minus-side] certificate gap=2.40453e-05 rel=2.4e-05 certified=1 iters=162
+  sides dropped before it: 6
+  A: K cold -> infeasible
+  [A-cold] certificate gap=2.40453e-05 rel=2.4e-05 certified=1 iters=172
+  A: K minus the side, warm -> infeasible
+  [A-warm] certificate gap=2.40453e-05 rel=2.4e-05 certified=1 iters=0
+  B: K minus the side, cold -> infeasible
+  [B-cold] certificate gap=2.40453e-05 rel=2.4e-05 certified=1 iters=162
+=== column 35 lower, bounds [0, 1]: the IIS without it, cold -> infeasible
+  [iis-minus-side] certificate gap=2.40453e-05 rel=2.4e-05 certified=1 iters=172
+  sides dropped before it: 6
+  A: K cold -> infeasible
+  [A-cold] certificate gap=2.40453e-05 rel=2.4e-05 certified=1 iters=172
+  A: K minus the side, warm -> infeasible
+  [A-warm] certificate gap=2.40453e-05 rel=2.4e-05 certified=1 iters=0
+  B: K minus the side, cold -> infeasible
+  [B-cold] certificate gap=2.40453e-05 rel=2.4e-05 certified=1 iters=172

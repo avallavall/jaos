@@ -26,7 +26,7 @@ are there for reference and their entries come from public documentation, not
 from measurement here. CPLEX, Xpress, COPT and Mosek are in the same class as
 Gurobi and are left out only to keep the table readable.
 
-*JAOS's column was last checked against `src/` on 2026-08-31. The other
+*JAOS's column was last checked against `src/` on 2026-09-03. The other
 columns were last checked against their published documentation on
 2026-08-13. Versions: JAOS 0.1.1 · HiGHS 1.15 · SoPlex 8.0.3 · Clp
 1.17.11 · SCIP 10.0 · Gurobi 13.0 · Hexaly 15.0.*
@@ -142,9 +142,18 @@ including the row where the field is ahead.
 | Machine-checkable certificate of the result | ○ | ○ | ◐ | ○ | ● | ○ | ○ |
 | Certified bound on suboptimality | ◐ | ○ | ● | ○ | ● | ○ | ○ |
 | Infeasibility / unboundedness certificate | ● | ◐ | ◐ | ◐ | ● | ● | ? |
-| Irreducible infeasible subsystem (IIS) | ○ | ○ | ○ | ○ | ○ | ● | ? |
+| Irreducible infeasible subsystem (IIS) | ● | ○ | ○ | ○ | ○ | ● | ? |
 
-Two rows carry most of the meaning.
+Three rows carry most of the meaning.
+
+**The IIS.** `jaos_iis` names, for an INFEASIBLE answer, a set of bound
+sides (a row's or a column's lower or upper bound) that is infeasible on its
+own and becomes feasible when any one of them is dropped: Chinneck and
+Dravnieks's sensitivity filter over the published certificate, then their
+deletion filter, one warm re-solve per candidate on a private copy of the
+model. The solver itself is the oracle in the tests and on the 29 reference
+infeasibles (`bench/measurements/02-171/`). Among the open solvers here only
+Gurobi documents the feature.
 
 **Cross-machine bit-identity.** Gurobi's own documentation states it is
 deterministic on the same machine but not between different machines, and that

@@ -1482,6 +1482,11 @@ static void ps_replay_one(jaos_model *orig, const jm_presolve *p, int64_t r,
          * sol_row[i] holds the columns live when this record was pushed, so
          * x_j is judged against the bounds recorded at that moment. */
         const double rest = orig->sol_row[i] + rowc[i];
+        /* The family's precondition: every earlier record of this row
+         * published a finite value. A non-finite `rest` would make the
+         * branches below publish a plausible finite x_j on a row that is
+         * already broken, which is a repair that hides (D264's review). */
+        assert(isfinite(rest));
         const double rl = rec->row_lo, ru = rec->row_hi;
         double lo_j, hi_j;
         if (rec->coef > 0.0) {
@@ -1497,7 +1502,6 @@ static void ps_replay_one(jaos_model *orig, const jm_presolve *p, int64_t r,
          * SIMPLEX's (bench/measurements/02-61/ probes it here). */
         const double want_lo = rec->lo > lo_j ? rec->lo : lo_j;
         const double want_hi = rec->hi < hi_j ? rec->hi : hi_j;
-        (void)want_hi;   /* the emptiness check that read it was removed */
         assert(rec->lo <= rec->hi);
 
         /* Any point of the intersection is optimal (cost 0). Which point,
@@ -1538,10 +1542,30 @@ static void ps_replay_one(jaos_model *orig, const jm_presolve *p, int64_t r,
             assert(isfinite(xv));
             orig->sol_col_status[j] = take_hi ? JAOS_BASIS_AT_UPPER
                                               : JAOS_BASIS_AT_LOWER;
-        } else if (want_lo == rec->lo) {
+        } else if (want_lo == rec->lo && isfinite(rec->lo)) {
             /* The column's own end satisfies the row. */
             xv = rec->lo;
             orig->sol_col_status[j] = JAOS_BASIS_AT_LOWER;
+        } else if (want_lo == -HUGE_VAL) {
+            /* Open below on both counts: the column has no lower bound and
+             * the row asks nothing from below. The column's finite end is
+             * its upper one (a column open on both sides takes another
+             * family), and the two cases below are mirrored on it: the
+             * bound when the row admits it, otherwise interior at the
+             * value that puts the row exactly on the end hi_j targets,
+             * the upper for a positive entry and the lower for a negative
+             * one. Before D264 this read `rec->lo` and published -inf. */
+            assert(isfinite(rec->hi) && isfinite(want_hi));
+            if (want_hi == rec->hi) {
+                xv = rec->hi;
+                orig->sol_col_status[j] = JAOS_BASIS_AT_UPPER;
+            } else {
+                xv = want_hi;
+                orig->sol_col_status[j] = JAOS_BASIS_BASIC;
+                orig->sol_row_status[i] = (rec->coef > 0.0)
+                                              ? JAOS_BASIS_AT_UPPER
+                                              : JAOS_BASIS_AT_LOWER;
+            }
         } else if (want_lo >= rec->hi) {
             /* Past the box by an ulp at most: the row cannot reach its end
              * even with the column at this bound, by rounding. The stored

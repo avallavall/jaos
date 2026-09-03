@@ -271,6 +271,7 @@ and you have the argument. Jump to the entry for the numbers behind it.
 - **[D261](#d261--a-loan-nobody-holds-is-retired-before-the-answer-is-published-and-finniss-objective-was-wrong-until-it-was)** — A loan nobody holds is retired before the answer is published, and finnis's objective was wrong until it was
 - **[D262](#d262--d173s-refusal-of-finnis-was-a-refusal-of-the-lent-bounds-and-the-exact-oracle-now-clears-both-the-objective-and-the-checker-on-110-of-110)** — D173's refusal of finnis was a refusal of the lent bounds, and the exact oracle now clears both the objective and the checker on 110 of 110
 - **[D263](#d263--the-relative-row-window-is-carrying-nothing-on-the-standard-set-now-and-that-is-a-reason-to-write-the-example-in-the-past-tense-rather-than-to-remove-the-window)** — The relative row window is carrying nothing on the standard set now, and that is a reason to write the example in the past tense rather than to remove the window
+- **[D264](#d264--an-iis-is-one-warm-re-solve-per-side-of-the-certificates-support-and-its-first-population-run-found-a-postsolve-branch-publishing-minus-infinity)** — An IIS is one warm re-solve per side of the certificate's support, and its first population run found a postsolve branch publishing minus infinity
 
 ---
 
@@ -19896,3 +19897,59 @@ that finally made it visible.
 **What is left open.** Nothing here. The census over both trees differs on
 one line, `finnis`, so every figure above belongs to D261 and to nothing
 else.
+
+## D264 — An IIS is one warm re-solve per side of the certificate's support, and its first population run found a postsolve branch publishing minus infinity
+
+**The question.** `jaos_iis` (`src/iis.c`) names an irreducible infeasible
+subsystem of an INFEASIBLE model: Chinneck and Dravnieks's sensitivity
+filter (ORSA Journal on Computing 3(2), 1991), which reads the published
+certificate's support by the rule `jaos_check_certificate` reads a ray
+with, then their deletion filter, one warm re-solve per candidate bound
+side on a private zero-cost copy of the model. Is what it returns
+infeasible on its own, and is every member needed?
+
+**The reading**, `bench/measurements/02-171/run-iis-population.sh`: the
+29 reference infeasibles under the default build, the solver as the
+oracle. The members kept alone must re-solve INFEASIBLE, each member
+dropped must re-solve OPTIMAL, and a second call must return the same
+sides and the same counts.
+
+| | |
+|---|---|
+| pass the oracle | **28 of 29** |
+| reproduce | 29 of 29 |
+| candidates from the certificate's support | 29 of 29, no fallback to every side |
+| largest | `bgindy`, 2091 members of 2092 candidates, 2087 of them column sides |
+| smallest | `bgdbg1`, `gran`, `woodinfe`: 2 members, 3 re-solves |
+| most reduced | `qual`, 342 candidates to 219 members |
+| costliest | `klein3`, 138 re-solves, 5.8e8 work units |
+
+**The one that does not: `cplex2`**, 338 members of 349 candidates. The
+oracle finds three row sides it does not need, rows 34, 41 and 203's
+lower bounds: without any one of them the rest re-solves INFEASIBLE with
+a ray the checker certifies. `cplex2-replay.c` rebuilds the kept set the
+filter held when it reached row 41 and re-solves without that side, cold
+and warm alike: OPTIMAL, on a point the checker accepts at 1e-7 with a
+worst row violation of 9.99e-10, while a subset of those constraints is
+provably infeasible. Both verdicts are consistent with the solver's
+tolerances: `cplex2` is infeasible by less than the feasibility
+tolerance, and which side of the bar a subsystem lands on depends on the
+subsystem. **A tolerance-judged deletion filter is irreducible up to the
+tolerance, and this is the instance that shows it.** Warm from the
+IIS-alone basis all three re-solve INFEASIBLE, so iterating the filter to
+a fixpoint would drop them, at the IIS's size in re-solves per pass and
+with no bound on the passes. Refused on that cost against one instance in
+29; the reopen condition is in `bench/refusals.txt`.
+
+**What the population found beyond itself.** The copies are zero-cost
+models with relaxed bounds, a shape no gate instance has, and the first
+unit test aborted in `ps_verify_row_activities`: the `JM_PS_SINGLETON_COL`
+replay, on a column open below in a row that asks nothing from below,
+published `x_j = rec->lo`, which is -inf, and a NaN row activity, on an
+answer that said OPTIMAL. `tests/test_presolve.c` pins both shapes
+(`test_singleton_col_open_below_publishes_a_finite_point`); the branch now
+mirrors the lower-end logic on the finite upper end. Every gate digest is
+byte-identical, so no gate instance reaches it.
+
+**What is left open.** The fixpoint pass, refused above. The cost is
+stated in the report and not billed, like ranging's.

@@ -11,6 +11,16 @@ open, `bench/README.md` for the gate, and the commit each entry came from.
 
 ### Added
 
+- **An irreducible infeasible subsystem.** `jaos_iis` names, for an
+  INFEASIBLE answer, the bound sides that are infeasible on their own and
+  all needed: Chinneck and Dravnieks's sensitivity filter over the
+  published certificate, then their deletion filter, one warm re-solve per
+  candidate on a private zero-cost copy, reached from Python on `Model`
+  and `Problem`. The solver is the oracle on the 29 reference infeasibles:
+  28 pass, and `cplex2`, infeasible by less than the tolerance, keeps three
+  sides of 338 that a cold re-solve does not need (D264,
+  `bench/measurements/02-171/`).
+
 - **Sensitivity and ranging.** `jaos_cost_ranging`, `jaos_rhs_ranging`
   and `jaos_bound_ranging` report, for every cost and every row and column
   bound, the interval it may take with the basis behind the last optimum
@@ -24,6 +34,13 @@ open, `bench/README.md` for the gate, and the commit each entry came from.
   `bench/measurements/02-167/`).
 
 ### Fixed
+
+- **A cost-0 singleton column open below published minus infinity.** The
+  presolve replay took the column's lower bound when the row asked nothing
+  from below, and that bound can be -inf: an answer that said OPTIMAL with
+  a NaN row activity. The branch now mirrors the finite upper end. Found by
+  the IIS filter's zero-cost copies; no gate instance reaches it, every
+  digest byte-identical (D264).
 
 - **The independent checker's objective is exact on 110 of 110 too.** It
   was 109: `long double` cannot hold a binary64 product's 106 bits, and

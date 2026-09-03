@@ -7,6 +7,23 @@ line leaves this file in the same commit.
 
 ## Where the last session stopped — 2026-09-03
 
+**2026-09-03, later: an irreducible infeasible subsystem (D264,
+`bench/measurements/02-171/`).** `jaos_iis` names, for an INFEASIBLE
+answer, the bound sides that are infeasible on their own and all needed:
+the certificate's support first, then one warm re-solve per candidate
+side on a private zero-cost copy. The solver is the oracle on the 29
+reference infeasibles: 28 pass, all 29 reproduce, and `cplex2`, infeasible
+by less than the feasibility tolerance, keeps three of 338 sides a cold
+re-solve does not need. The fixpoint pass that would drop them is refused
+on cost and sits in `bench/refusals.txt`. The feature's first unit test
+found a postsolve branch publishing -inf on a zero-cost model with
+relaxed bounds, a shape no gate instance has; fixed, pinned in
+`tests/test_presolve.c`, every digest byte-identical. **Nothing is open
+from it beyond that refusal.** The `make refusals` run the previous
+session started did not finish (the machine went down mid-run); its one
+complete re-test, D76's under the instruction counter at `454b8a7`, is
+kept and still holds.
+
 **2026-09-03: a loan nobody holds is retired before the answer is
 published, and it was hiding a wrong objective (D261,
 `bench/measurements/02-168/`).** The smallest item on this file's open
