@@ -88,14 +88,29 @@ column j   s = max(1, |x_j|)
 ```
 
 A row activity is a sum, and a sum whose terms cancel cannot be pinned to an
-absolute tolerance. Row 3 of Netlib's `finnis` adds terms totalling 4.0e10 in
-magnitude and comes to rest 1.5e-6 from its bound, where **one ulp at 4.0e10
-is 7.6e-6** — the residue is a fifth of a single rounding step at the scale
-the row works at. Judged absolutely at 1e-6, that row is "not at its bound"
-and its multiplier of 28 is reported as a violation of 28, on a solution
-whose duality gap is 3.96e-11. No double-precision answer can pass that test
-and no amount of solver work can produce one; the demand is for seventeen
-correct decimal digits of a sum that cancels ten orders of magnitude.
+absolute tolerance. Row 3 of Netlib's `finnis` used to add terms totalling
+4.0e10 in magnitude and come to rest 1.5e-6 from its bound, where **one ulp
+at 4.0e10 is 7.6e-6** — the residue is a fifth of a single rounding step at
+the scale the row worked at. Judged absolutely at 1e-6, that row is "not at
+its bound" and its multiplier of 28 is reported as a violation of 28, on a
+solution whose duality gap is 2.2e-10. No double-precision answer can pass
+that test and no amount of solver work can produce one; the demand is for
+seventeen correct decimal digits of a sum that cancels ten orders of
+magnitude.
+
+**That row is the whole load the relative window was carrying, and D261
+took it off.** `finnis`'s 4.0e10 came from four columns published on bounds
+the solve had lent them; with those retired row 3 carries 7734 and rests
+exactly on its bound. Measured over the standard set at `tol = 1e-6`
+(`bench/measurements/02-170/run-window-need.sh`): before D261, **one
+instance** had rows an absolute window would refuse — `finnis` row 0 at 3.39
+times the window and row 3 at 1.52, both admitted by the relative one. After
+it, **zero of 94**, worst 0. The window stays, and the reason is D24's: it
+exists because a row activity is a sum, which is a fact about arithmetic and
+not about this population, and a population that is quiet today is not an
+argument for removing the only thing that would catch it. What has changed
+is that no gate instance now demonstrates it, so the case above is written
+in the past tense and the script is what re-asks the question.
 
 A column value is one published number rather than a sum of cancelling
 terms, so it takes the ordinary mixed absolute/relative form and nothing
@@ -178,9 +193,12 @@ whether it is small because both halves are small or because two large ones
 met. The bound that survives the distinction is `P − P* <= Q`: it is the
 positive half alone, so a negative half cannot buy it down. `tests/test_check.c`
 builds the case where the gap reads zero on a point carrying 900 of each, and
-`finnis` shows the same shape at the size a real instance produces — a gap of
-`3.96e-11` over halves of `4.25e-5` and `2.89e-5`, which is to say the gap
-understates its own bound threefold.
+`grow22` shows the same shape at the size a real instance produces — a gap of
+`1.99e-13` over halves of `6.41e-05` and `1.24e-07`, which is to say the gap
+understates its own bound by eight orders. `finnis` used to be the example
+here, at `2.21e-10` over `1.05e-04` and `2.89e-05`, and D261 took its halves
+down to `6.44e-11` and `1.63e-11`. The census of both halves over the
+standard set is `bench/measurements/02-170/row-census-candidate.txt`.
 
 What this is *not* is a false acceptance, and D24 says so in the same breath
 as raising it: hiding a negative half costs an equal positive one, and the
@@ -225,9 +243,12 @@ the same quantity the bound-proximity window is built from. It decides
 nothing, and D24 is the argument for why it is not allowed to: primal
 feasibility is the hypothesis the identity above stands on, so relaxing it
 would remove D23's licence rather than extend it. The measurement is kept
-because it is real — `finnis` clears the absolute 1e-6 bar with 16% of the
-margin to spare while its residue is a tenth of one ulp of the row it sits
-in, and the absolute number cannot tell that from a row carrying 0.7.
+because it is real — `greenbea` clears the absolute 1e-6 bar with 95% of the
+margin to spare, at 4.66e-08 on a row carrying 6.5e+05, and the absolute
+number cannot tell that from the same residue on a row carrying 0.7.
+`finnis` was the example here, clearing the same bar with 16% of the margin;
+D261 took its residue to 1.58e-13 and `greenbea` is the worst on the
+standard set now (`bench/measurements/02-170/`).
 
 The four tests are deliberately not independent. Activities come from a
 scatter over the matrix while the dual objective accumulates from bounds,
@@ -370,7 +391,11 @@ is the rounding of each product**: on `finnis` the accumulation is exact to
 double, where one term of 6.5e11 rounds by up to 7.2e-05 on its own.
 `bench/measurements/02-79/split-the-error.txt` separates the two, and any
 claim that compensating a sum made it accurate should separate them the same
-way first.
+way first. **The `finnis` figures in this paragraph are D169's and the term
+of 6.5e11 was a column published on a bound the solve had lent it; D261
+retired it and `sum |c_j x_j|` there is 3.14e+05** (D262,
+`bench/measurements/02-169/`). The argument is unchanged: a compensated sum
+cannot reach a rounded product, and that is why the two-product exists.
 
 ## The proxy the constant used to rest on
 

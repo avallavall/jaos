@@ -270,6 +270,7 @@ and you have the argument. Jump to the entry for the numbers behind it.
 - **[D260](#d260--ranging-factors-the-published-basis-with-the-solves-own-scaling)** — Ranging factors the published basis with the solve's own scaling
 - **[D261](#d261--a-loan-nobody-holds-is-retired-before-the-answer-is-published-and-finniss-objective-was-wrong-until-it-was)** — A loan nobody holds is retired before the answer is published, and finnis's objective was wrong until it was
 - **[D262](#d262--d173s-refusal-of-finnis-was-a-refusal-of-the-lent-bounds-and-the-exact-oracle-now-clears-both-the-objective-and-the-checker-on-110-of-110)** — D173's refusal of finnis was a refusal of the lent bounds, and the exact oracle now clears both the objective and the checker on 110 of 110
+- **[D263](#d263--the-relative-row-window-is-carrying-nothing-on-the-standard-set-now-and-that-is-a-reason-to-write-the-example-in-the-past-tense-rather-than-to-remove-the-window)** — The relative row window is carrying nothing on the standard set now, and that is a reason to write the example in the past tense rather than to remove the window
 
 ---
 
@@ -19839,3 +19840,59 @@ optimum, 1.87e+08 of that unit" and the parent already reads
 `exact-ref = -5.26646e-09` and `refeps = -4.254e+04`, on the other side of
 Koch. Nothing here says which commit moved it or whether the new position
 is better; that is its own question and `TODO.md` carries it.
+
+## D263 — The relative row window is carrying nothing on the standard set now, and that is a reason to write the example in the past tense rather than to remove the window
+
+**The question.** `docs/tolerances.md` argues that the
+complementary-slackness test on a row must scale by the row's own traffic,
+`s = max(1, sum_j |a_ij x_j|)`, because a row activity is a sum whose terms
+cancel. Its worked example is `finnis` row 3: 4.0e10 of traffic, a
+multiplier of 28, and a recomputed activity 1.5e-6 from its bound, where
+one ulp at 4.0e10 is 7.6e-6. D261 took that traffic away. Does any
+instance still need the window?
+
+**No, and the answer is exact.** `bench/measurements/02-170/window-need.c`
+restates `src/check.c`'s test over the published answer and asks, per row
+with a non-negligible multiplier, how far the recomputed activity is from
+the bound the multiplier points at, in units of `tol = 1e-6`. Over the 94
+standard instances:
+
+| tree | instances with a row an absolute window refuses | worst |
+|---|---|---|
+| `642f71a` | **1**, `finnis` rows 0 and 3 | 3.389 windows, row 0 |
+| with D261 | **0** | 0 |
+
+`finnis` row 0 sat 3.38884e-06 from its bound on 8e+10 of traffic with a
+multiplier of 16.17; row 3 sat 1.51815e-06 on 4e+10 with 27.996. Those are
+the doc's own numbers, and both rows are recomputed sums containing four
+columns published at 1e10 on bounds the solve had lent them. Row 3 now
+carries 7733.97 and rests exactly on its bound.
+
+**The window stays, and D24 is why.** It exists because a row activity is a
+sum, which is a fact about arithmetic rather than about these 94 models. A
+population that is quiet today is not an argument for deleting the only
+thing that would catch it; that is the reasoning D24 used to refuse making
+`interval_violation` relative, and it runs the same way in this direction.
+What changed is that no gate instance demonstrates it, so the example in
+`docs/tolerances.md` is written in the past tense and
+`run-window-need.sh` is what re-asks the question on a later tree.
+
+**Two other worked examples moved with it**, and the doc now names the
+instance that carries each. The gap against its two halves: `finnis` read
+2.21e-10 over 1.05e-04 and 2.89e-05 and now reads 1.20e-16 over 6.44e-11
+and 1.63e-11, so `grow22` carries it at 1.99e-13 over 6.41e-05 and
+1.24e-07. The worst absolute row residue against the 1e-6 bar: `finnis`
+cleared it with 16% of the margin and now clears it by seven orders, so
+`greenbea` carries it at 4.66e-08 on a row holding 6.5e+05, 95% of the
+margin.
+
+**What was refuted.** The doc's gap figures were already stale before D261
+and nobody had noticed: it said 3.96e-11 over 4.25e-5 and 2.89e-5, and the
+parent tree reads 2.21e-10 over 1.05e-04 and 2.89e-05. Only `gapneg`
+matched. A worked example with no owner drifts exactly like a derived
+total, and this one drifted through at least one commit before the change
+that finally made it visible.
+
+**What is left open.** Nothing here. The census over both trees differs on
+one line, `finnis`, so every figure above belongs to D261 and to nothing
+else.

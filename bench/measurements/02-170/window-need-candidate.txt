@@ -1,0 +1,5 @@
+# tree: /mnt/c/Users/vall-/Desktop/projectes/jaos, retire_lent_bounds occurrences: 5
+# rows the ABSOLUTE window would report and the relative one admits,
+# at tol=1e-06. `need` is (distance to the bound) / tol, so a row above
+# 1 is one the absolute window refuses.
+-- 94 optimal instances, 0 with at least one row the absolute window refuses; worst need 0 on none row -1
