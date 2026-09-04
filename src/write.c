@@ -459,10 +459,11 @@ jaos_status jaos_write_lp(jaos_model *m, const char *path)
             wr_fail(w, JAOS_ERR_INVALID_INPUT,
                     "row '%s' has a bound at an infinity LP format cannot "
                     "express", rn);
-        else if (m->ar_start[i] == m->ar_start[i + 1])
+        else if (m->ar_start[i] == m->ar_start[i + 1] && m->num_col == 0)
             wr_fail(w, JAOS_ERR_INVALID_INPUT,
-                    "row '%s' has no coefficients, which LP format cannot "
-                    "express; write MPS instead", rn);
+                    "row '%s' has no coefficients and the model has no "
+                    "columns to write a zero term against; write MPS "
+                    "instead", rn);
     }
     for (int64_t j = 0; w->st == JAOS_OK && j < m->num_col; j++) {
         col_name(nm, j);
@@ -524,6 +525,21 @@ jaos_status jaos_write_lp(jaos_model *m, const char *path)
             for (int64_t k = m->ar_start[i]; k < m->ar_start[i + 1]; k++) {
                 col_name(nm, m->ar_index[k]);
                 lp_term(w, &col, &first, m->ar_value[k], nm);
+            }
+            if (m->ar_start[i] == m->ar_start[i + 1]) {
+                /* A row with no coefficients. LP has no form for a
+                 * constraint with an empty body, but a term whose
+                 * coefficient is zero is an ordinary term, and the reader
+                 * drops explicit zeros on the way back in (`model.c` keeps
+                 * the matrix free of them), so `0 x1 >= 5` round-trips to
+                 * the empty row it came from. Column 0 every time: a fixed
+                 * rule, not a choice the data can influence.
+                 *
+                 * This was refused as unwritable until D276 measured the
+                 * round trip. It is 34 of the 35 gate instances the LP
+                 * writer used to turn away. */
+                col_name(nm, 0);
+                lp_term(w, &col, &first, 0.0, nm);
             }
             if (ranged) {
                 wr_num(num, ru);

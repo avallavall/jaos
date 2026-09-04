@@ -93,6 +93,15 @@ open, `bench/README.md` for the gate, and the commit each entry came from.
 
 ### Changed
 
+- **The LP writer takes a row with no coefficients**, as a zero term against
+  column 0, which the reader drops on the way back in. **138 of the 139 gate
+  instances round-trip now, 1 is refused, 0 differ**, against 104 and 35
+  before. The refusal it replaces was right that LP has no form for an empty
+  constraint body and wrong that this made the row unwritable: a term whose
+  coefficient is zero is an ordinary term, and the writer already emitted
+  those in the objective. The one still refused is a free row, which LP
+  genuinely cannot say (D276, `bench/measurements/02-181/`).
+
 - **`JM_EXACT_LIMBS` is swept, and the verifier's refusal is the constant
   rather than the mathematics.** Over the standard 94, doubling it four times
   takes the proved count from 28 to 57 and the refused count from 60 to 24,

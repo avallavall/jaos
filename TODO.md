@@ -133,12 +133,16 @@ of them were wrong answers; all eleven are fixed and `SPECS.md` names them.
    a runner prints which it linked. Seconds already committed under `02-176`
    through `02-179` were taken at `-Og` and say so; do not re-run them for
    this.
-2. **The refusal test does not cover the right-hand side.** `whole + worst`
-   bounds the matrix minors. The column an elimination carries beside them
-   also holds model bound values and the accumulated denominator, and neither
-   is in the bound, so a basis that passes can still run out of limbs during
-   the work. That is a refusal too and the report models it, but the a priori
-   test is weaker than it reads. Bounding the right-hand side would close it.
+2. ~~The refusal test does not cover the right-hand side.~~ **Refused on a
+   measurement, and the gap is empty** (`bench/refusals.txt`, D275-rhs). The
+   bound covers the matrix minors and not the right-hand side column, so a
+   basis that passes it could in principle run out of limbs during the work.
+   Over four capacity settings and 166 refusals it happens **zero times**.
+   The four refusals that do come after work has started are `degen3` and
+   `dfl001` at 512 and 1024 limbs, and both hit `VERIFY_BLOCK_BYTES` on a
+   735-row and a 3159-row block: the memory ceiling, a different mechanism,
+   and the one the report already names. The gap is real, stated in `jaos.h`,
+   and nothing falls into it.
 3. ~~74 of 110 are refused, and Hadamard is loose.~~ **Answered (D275,
    `bench/measurements/02-180/`).** The refusal is the constant, not the
    mathematics: over the standard 94, doubling `JM_EXACT_LIMBS` four times

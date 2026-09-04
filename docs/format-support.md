@@ -179,24 +179,28 @@ name a column that appears in no row at all.
 
 ### What the LP dialect cannot express
 
-Two more, on top of the two above. Each is refused by name and each message
+One more, on top of the two above. It is refused by name and the message
 points at `jaos_write_mps`, which takes the same model:
 
-- a **free row**, which the format has no place for;
-- a **row with no coefficients**, which needs an expression the format cannot
-  write empty.
+- a **free row**, which the format has no place for. A constraint with no
+  bound on either side is not a constraint, and the two-sided form takes
+  numbers rather than `inf`, so there is no spelling for one.
 
-A ranged row was a third one until D239. The reader learned the two-sided
-form, the writer emits it, and the row reads back as one row with two ends.
-The other two did not close with it, and the reason is in the forms rather
-than in the reader: the two-sided form takes numbers and not `inf`, so a
-free row has no spelling, and no LP constraint can carry an empty
-expression.
+Two others were on this list and both closed. A ranged row until D239: the
+reader learned the two-sided form and the row reads back as one row with two
+ends. **A row with no coefficients until D276**, and that one closed by
+re-reading the refusal rather than by teaching anything. The format has no
+form for an empty constraint BODY, which is what the note here said, and an
+ordinary form for a term whose coefficient is zero, which is what it missed.
+`R1693: 0 C1 = 5` is a legal constraint, the reader drops explicit zeros, and
+the row comes back empty. The writer already emitted zero terms in the
+objective, where every column appears whatever its cost.
 
-**104 of the 139 gate instances round-trip through the LP writer and 35 are
-refused** — 34 for an empty row, 1 free
-(`bench/measurements/02-172/lpcover.txt`, D265). 02-138's own file is the
-D226 reading, taken before D239, and is left as it was.
+**138 of the 139 gate instances round-trip through the LP writer, 1 is
+refused and 0 differ** (`bench/measurements/02-181/lpcover.txt`, D276). It
+was 104 and 35 at D265 (`02-172`), and 02-138's own file is the D226 reading,
+taken before D239; all three are left as they were, because one file cannot
+carry three trees.
 
 Expressions are wrapped at 72 characters, which the reader does not care
 about and a person reading the file does.

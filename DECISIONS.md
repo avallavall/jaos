@@ -283,6 +283,7 @@ and you have the argument. Jump to the entry for the numbers behind it.
 - **[D273](#d273--both-earlier-budgets-counted-a-matrix-the-verifier-cannot-hold-and-the-honest-reach-is-85-of-110)** — Both earlier budgets counted a matrix the verifier cannot hold, and the honest reach is 85 of 110
 - **[D274](#d274--the-exact-verifier-is-here-it-proves-30-of-110-and-the-six-it-disproves-are-right-answers-on-bases-that-are-not-exactly-optimal)** — The exact verifier is here, it proves 30 of 110, and the six it disproves are right answers on bases that are not exactly optimal
 - **[D275](#d275--the-verifiers-refusal-is-the-capacity-constant-and-not-the-mathematics-and-widening-it-is-bought-with-block-size)** — The verifier's refusal is the capacity constant and not the mathematics, and widening it is bought with block size
+- **[D276](#d276--lp-could-always-express-a-row-with-no-coefficients-and-the-refusal-that-said-otherwise-cost-34-of-the-139)** — LP could always express a row with no coefficients, and the refusal that said otherwise cost 34 of the 139
 
 ---
 
@@ -20728,3 +20729,48 @@ here comes near them.
 it: the reach it buys is real and the seconds it costs are worse, and a
 caller who wants the wider reach can have it with `-DJM_EXACT_LIMBS=N`, which
 is what the constant is for. `docs/tolerances.md` carries the table.
+
+## D276 — LP could always express a row with no coefficients, and the refusal that said otherwise cost 34 of the 139
+
+**What the record said.** `SPECS.md` listed `jaos_write_lp` as partial,
+missing "a free row and a row with no coefficients — each refused by name",
+and D265 measured what that cost: 104 of the 139 gate instances round-tripped
+and 35 were refused, **34 of them for an empty row**. The row's reasoning was
+"LP has no way to write a constraint with no terms".
+
+**The sentence is true and the conclusion drawn from it is not.** LP has no
+form for an empty constraint BODY. A term whose coefficient is zero is an
+ordinary term, and `src/model.c` drops explicit zeros on load, so
+
+    R1693: 0 C1 = 5
+
+reads back as exactly the empty row it was written from. The writer already
+emitted zero terms in the objective, where every column appears whatever its
+cost, so nothing new had to be taught to either side.
+
+**The reading** (`bench/measurements/02-181/`), 02-138's instrument unchanged:
+
+| | round-tripped | refused | differed |
+|---|---|---|---|
+| D265 (`02-172`) | 104 | 35 | 0 |
+| **here** | **138** | **1** | **0** |
+
+**`0 differed` is the figure that matters.** The instrument reads each file
+back and compares every field with `==`, so a writer that produced a valid
+file saying something else would show. The 34 that moved from refused to
+written all came back the model they went out as.
+
+**What is still refused, and it is the right one.** A free row: a constraint
+with no bound on either side is not a constraint, and the two-sided form takes
+numbers rather than `inf`. One gate instance. `jaos_write_mps` has neither
+limit and every refusal message points at it.
+
+**The zero term goes on column 0 every time**, a fixed rule and not a choice
+the data can influence (D8). A model with a row and no columns at all is still
+refused, because there is no variable to hang the term on, and
+`tests/test_write.c` carries that case beside the round trip.
+
+**The shape of this mistake is worth naming.** The refusal was not wrong about
+the format; it was wrong about what the format's own zero means, and it stood
+for two measurements that both counted its cost without re-reading its
+premise. A refusal that names a cost is easy to keep and hard to re-examine.

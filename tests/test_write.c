@@ -440,9 +440,11 @@ static void test_each_lp_guard_fires_on_its_own(void)
         bool entry;
         const char *want;
     } cases[] = {
-        /* A ranged row is NOT here: the LP dialect writes one now (D239). */
+        /* A ranged row is NOT here: the LP dialect writes one now (D239).
+         * Nor is a row with no coefficients: it is written as a zero term
+         * since D276, and `test_a_row_with_no_coefficients_round_trips`
+         * below is what replaced this line. */
         {-INFINITY, INFINITY,  0.0, INFINITY, true,  "is free"},
-        {0.0, 0.0,             0.0, INFINITY, false, "no coefficients"},
         {INFINITY, INFINITY,   0.0, INFINITY, true,  "at an infinity"},
         /* An equality row, so the row loop passes it and the column loop
          * is reached: the first refusal wins, so a row this loop rejects
@@ -460,6 +462,58 @@ static void test_each_lp_guard_fires_on_its_own(void)
         TEST_ASSERT_FALSE(file_exists(TMP_LP));
         jaos_model_free(m);
     }
+}
+
+/* A row with no coefficients survives the LP round trip, which is the case
+ * the guard above used to refuse (D276).
+ *
+ * LP has no form for a constraint with an empty body, and that is what the
+ * refusal said. It does have a form for a term whose coefficient is zero,
+ * and the reader drops explicit zeros on the way back in, so the row comes
+ * back empty. The assertions below are what make that a round trip rather
+ * than a hope: the row must come back with **zero** entries, not one entry
+ * of zero, and its bounds must be the ones it went out with.
+ *
+ * The negative half is `test_each_lp_guard_fires_on_its_own`, which still
+ * refuses a free row and an infinite bound: this did not open the gate to
+ * everything. */
+static void test_a_row_with_no_coefficients_round_trips_through_lp(void)
+{
+    jaos_model *m = one_by_one(5.0, 5.0, 0.0, INFINITY, false);
+    TEST_ASSERT_EQUAL_INT64(0, jaos_num_nz(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_write_lp(m, TMP_LP));
+    jaos_model_free(m);
+
+    jaos_model *back = fresh();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_read_lp(back, TMP_LP));
+    TEST_ASSERT_EQUAL_INT64(1, jaos_num_row(back));
+    TEST_ASSERT_EQUAL_INT64(1, jaos_num_col(back));
+    TEST_ASSERT_EQUAL_INT64_MESSAGE(0, jaos_num_nz(back),
+        "the zero term came back as an entry instead of being dropped");
+    /* The column-wise store is the authoritative one and is always built;
+     * `ar_start` is a mirror made on demand and is null on a model nothing
+     * has asked for one. Reading it here segfaulted. */
+    TEST_ASSERT_EQUAL_INT64(0, back->a_start[1] - back->a_start[0]);
+    TEST_ASSERT_EQUAL_DOUBLE(5.0, back->row_lower[0]);
+    TEST_ASSERT_EQUAL_DOUBLE(5.0, back->row_upper[0]);
+    jaos_model_free(back);
+    remove(TMP_LP);
+}
+
+/* And a model with a row but no columns at all still refuses: there is no
+ * variable to hang the zero term on. */
+static void test_a_row_with_no_columns_is_still_refused(void)
+{
+    const double rl[] = {5.0}, ru[] = {5.0};
+    const int64_t as[] = {0};
+    jaos_model *m = fresh();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_load_lp(m, 0, 1, JAOS_MINIMIZE, 0.0, nullptr, nullptr, nullptr,
+                     rl, ru, 0, as, nullptr, nullptr));
+    TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT, jaos_write_lp(m, TMP_LP));
+    TEST_ASSERT_NOT_NULL(strstr(jaos_model_error(m), "no columns"));
+    TEST_ASSERT_FALSE(file_exists(TMP_LP));
+    jaos_model_free(m);
 }
 
 /* A ranged row survives the LP round trip as one row with both ends, which
@@ -713,6 +767,8 @@ int main(void)
     RUN_TEST(test_lp_keeps_column_order_when_a_cost_is_zero);
     RUN_TEST(test_lp_takes_a_column_that_appears_in_no_row);
     RUN_TEST(test_each_lp_guard_fires_on_its_own);
+    RUN_TEST(test_a_row_with_no_coefficients_round_trips_through_lp);
+    RUN_TEST(test_a_row_with_no_columns_is_still_refused);
     RUN_TEST(test_a_ranged_row_round_trips_through_lp);
     RUN_TEST(test_each_mps_guard_fires_on_its_own);
     RUN_TEST(test_a_refusal_leaves_an_existing_file_alone);
