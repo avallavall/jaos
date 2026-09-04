@@ -51,6 +51,18 @@ open, `bench/README.md` for the gate, and the commit each entry came from.
   scaling, which is what the pilot family's conditioning needed (D260,
   `bench/measurements/02-167/`).
 
+- **An exact verifier's budget, answered before the verifier exists.**
+  Bareiss's entries are minors of the basis, so the Hadamard bound on
+  `log2 |det B|` is one pass over the basis columns in floating point, before
+  a limb is allocated, and it is the refusal test and the capacity test in
+  one. **97 of 110 gate bases fit in the 4096 bits `src/exact.c` already
+  has**, so a verifier with no block-structure work is buildable on 88% of
+  the gate. The thirteen that do not fit are a count problem rather than a
+  magnitude one — every `ken` and `pds` among them has a largest column of
+  0.79 bits and `ken-18` has 88775 basic structurals — which is what block
+  triangular form addresses and what raising the limb count would only buy
+  at a quadratic cost (D271, `bench/measurements/02-176/`).
+
 ### Fixed
 
 - **The checker broke the cross-machine claim the solver refuses `long double`

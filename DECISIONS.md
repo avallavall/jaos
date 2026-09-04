@@ -278,6 +278,7 @@ and you have the argument. Jump to the entry for the numbers behind it.
 - **[D268](#d268--the-review-of-the-exact-arithmetic-found-nine-defects-its-own-measurement-could-not-see-and-the-checker-is-not-compensated-at-all)** — The review of the exact arithmetic found nine defects its own measurement could not see, and the checker is not compensated at all
 - **[D269](#d269--six-of-d264s-numbers-came-from-a-run-superseded-eleven-minutes-later-one-of-them-reached-six-other-files-and-the-record-check-cannot-see-any-of-it)** — Six of D264's numbers came from a run superseded eleven minutes later, one of them reached six other files, and the record check cannot see any of it
 - **[D270](#d270--the-checker-broke-the-cross-machine-claim-the-solver-refuses-long-double-to-keep-and-nobody-had-asked)** — The checker broke the cross-machine claim the solver refuses long double to keep, and nobody had asked
+- **[D271](#d271--an-exact-verifier-could-prove-97-of-110-gate-bases-at-todays-capacity-and-one-pass-over-the-basis-says-so-before-anything-is-built)** — An exact verifier could prove 97 of 110 gate bases at today's capacity, and one pass over the basis says so before anything is built
 
 ---
 
@@ -20377,3 +20378,50 @@ bar of 1e-7, which is D267's finding and this does not change it.
   a NaN, and in a zero-cost column that NaN in the objective is all there is:
   the column violates no bound. The skip is gone; adding an exact zero to a
   Neumaier accumulator was free anyway.
+
+## D271 — An exact verifier could prove 97 of 110 gate bases at today's capacity, and one pass over the basis says so before anything is built
+
+**The question `TODO.md` has carried since D266.** "Exact elimination on a
+basis of 105127 rows is not going to happen, so the call needs an honest
+'could not prove this one' and a measurement of how many of the 139 it can
+prove." That measurement looked like it needed the verifier first. It does
+not.
+
+**Hadamard is the whole answer.** Bareiss's entries are minors of the basis,
+so `log2 |det B| <= sum_j log2 ||b_j||_2` bounds the largest number the
+factorization ever holds. That is one pass over the basis columns in floating
+point, before a limb is allocated, and it is the refusal test and the
+capacity test in one. A slack column is a unit vector and costs the sum
+nothing, which is why the answer is not simply "no".
+
+**The reading** (`bench/measurements/02-176/`): **97 of 110 fit in 4096
+bits; 13 do not.** The other 29 of the 139 are the infeasible set and have no
+basis. So a verifier with no block-structure discovery at all is buildable on
+88% of the gate at the capacity `src/exact.c` already has.
+
+**The thirteen say which remedy is right, and it is not the obvious one.**
+
+| | rows | basic structurals | bits | largest column |
+|---|---|---|---|---|
+| `ken-18` | 105127 | 88775 | 52523 | **0.79** |
+| `stocfor3` | 16675 | 12169 | 36847 | 9.85 |
+| `pds-20` | 33874 | 27909 | 15682 | **0.79** |
+| `ken-13` | 28632 | 25257 | 14708 | **0.79** |
+| `d2q06c` | 2171 | 1780 | 6596 | 11.18 |
+
+Every `ken` and every `pds` has a largest column of exactly 0.79 bits. Their
+entries are tiny. What puts them past the capacity is the **count**: 88775
+columns each worth about 0.59 bits on average is still 52523. Raising
+`JM_EXACT_LIMBS` would buy them — `ken-18` wants 1642 limbs where there are
+128 — at 6.6 KB per magnitude and a cost that grows with the square of the
+model. **Block triangular form is what the shape argues for instead**: the
+bound is a sum over columns, so splitting the basis splits the sum, and this
+is exactly the case where the count is the problem and the entries are not.
+`stocfor3` at 9.85 bits per column and `d2q06c` at 11.18 are a different
+family and may not be bought by blocks alone.
+
+**What it does not say.** Nothing has been factored. Hadamard is an upper
+bound and a loose one, so an instance that fails it may still factor inside
+the budget; the 97 is a floor on what can be proved, not a ceiling. And every
+figure assumes the whole basis is one block, which is the worst case a
+verifier would ever face.

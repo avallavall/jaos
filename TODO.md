@@ -51,6 +51,29 @@ built. And the budget: exact elimination on a basis of 105127 rows is not
 going to happen, so the call needs an honest "could not prove this one" and
 a measurement of how many of the 139 it can prove.
 
+**2026-09-04, and the budget question is now ANSWERED with a number (D271,
+`bench/measurements/02-176/`).** It did not need the verifier first. Bareiss's
+entries are minors of the basis, so the Hadamard bound on `log2 |det B|` is
+one pass over the basis columns in floating point, before a limb is
+allocated, and it is the refusal test and the capacity test in one.
+**97 of 110 fit in 4096 bits; 13 do not.** So a verifier with no
+block-structure discovery at all is buildable on 88% of the gate at the
+capacity `src/exact.c` already has, and the honest "could not prove this one"
+is cheap and a priori.
+
+**And the thirteen say which remedy to build.** Every `ken` and every `pds`
+among them has a largest column of **0.79 bits** — their entries are tiny and
+it is the count that kills them, 88775 basic structurals on `ken-18`.
+Raising `JM_EXACT_LIMBS` would buy them at 6.6 KB a magnitude and a cost
+quadratic in the model. **Block triangular form is the one the shape argues
+for**, because the bound is a sum over columns and splitting the basis splits
+the sum. `stocfor3` at 9.85 bits per column and `d2q06c` at 11.18 are the
+other family and may need more than blocks.
+
+**So the build order is settled**: the elimination first, on the 97, with the
+Hadamard refusal in front of it; blocks second, measured against this same
+file; and only then the question of the capacity constant.
+
 **2026-09-04: the scout has answered both, and the answer is in
 `docs/research/exact-verification.md`.** Bareiss fraction-free elimination
 on a block-triangularised basis, not rationals normalised at every step:
