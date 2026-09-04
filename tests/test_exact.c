@@ -509,6 +509,455 @@ static void test_a_long_sum_of_halves_stays_exact_and_small(void)
     TEST_ASSERT_EQUAL_INT64(k + 1, jm_nat_bits(&sum.den));
 }
 
+
+/* ------------------------------------------------------------- dyadics */
+
+/* The same value as a general rational, so the two exact types can be made
+ * to check each other. Both ends of the conversion are already normalised:
+ * a dyadic keeps m odd, and a power of two shares no factor with an odd
+ * number, so nothing is left to reduce. */
+static jm_rational rat_from_dyadic(const jm_dyadic *d)
+{
+    jm_rational r;
+    r.num = d->m;
+    jm_nat_set_u64(&r.den, 1);
+    if (d->e >= 0)
+        TEST_ASSERT_TRUE(jm_nat_shl(&r.num.mag, &r.num.mag, d->e));
+    else
+        TEST_ASSERT_TRUE(jm_nat_shl(&r.den, &r.den, -d->e));
+    return r;
+}
+
+static void dyadic_round_trips(double v)
+{
+    jm_dyadic d;
+    TEST_ASSERT_TRUE(jm_dyadic_from_double(&d, v));
+    const double back = jm_dyadic_to_double(&d);
+    TEST_ASSERT_EQUAL_MEMORY(&v, &back, sizeof v);
+}
+
+static void test_a_dyadic_round_trips_every_double_bit_for_bit(void)
+{
+    const double named[] = {
+        0.0, 1.0, -1.0, 0.1, -0.1, DBL_MIN, DBL_MAX, -DBL_MAX,
+        DBL_TRUE_MIN, DBL_EPSILON, ldexp(1.0, -1074), ldexp(1.0, 1023),
+    };
+    for (size_t i = 0; i < sizeof named / sizeof named[0]; i++)
+        dyadic_round_trips(named[i]);
+
+    /* -0.0 is the one double that does not come back, and it is left out
+     * of the list above rather than hidden. The dyadics have one zero and
+     * its sign is positive. The list used to carry -0.0 with a `== 0.0`
+     * ternary that turned it into +0.0 before the round trip saw it, so
+     * the test's name claimed more than the test checked (D268). */
+    jm_dyadic z;
+    TEST_ASSERT_TRUE(jm_dyadic_from_double(&z, -0.0));
+    TEST_ASSERT_TRUE(jm_dyadic_is_zero(&z));
+    const double zback = jm_dyadic_to_double(&z);
+    TEST_ASSERT_EQUAL_MEMORY(&(double){0.0}, &zback, sizeof zback);
+
+    rng_reset();
+    for (int k = 0; k < 5000; k++) {
+        uint64_t bits = rng_next();
+        double v;
+        memcpy(&v, &bits, sizeof v);
+        if (!isfinite(v) || v == 0.0)
+            continue;   /* both zeros are the case just above */
+        dyadic_round_trips(v);
+    }
+}
+
+/* jm_rational_cmp answers 0 both for "equal" and for "the cross-multiply
+ * did not fit", deliberately. At 128 limbs a pair that came from doubles
+ * never exhausts it -- the widest cross-multiply here wants 74 -- but
+ * JM_EXACT_LIMBS is meant to be swept, and a build with it swept down
+ * would pass every comparison below while comparing nothing (D268). So
+ * the comparison states what it depends on. */
+static void rationals_must_agree(const jm_rational *a, const jm_rational *b,
+                                 int want)
+{
+    const int64_t cap = 32 * (int64_t)JM_EXACT_LIMBS;
+    TEST_ASSERT_TRUE(jm_nat_bits(&a->num.mag) + jm_nat_bits(&b->den) < cap);
+    TEST_ASSERT_TRUE(jm_nat_bits(&b->num.mag) + jm_nat_bits(&a->den) < cap);
+    TEST_ASSERT_EQUAL_INT(want, jm_rational_cmp(a, b));
+}
+
+/* Two exact types, written separately, made to agree. A defect in either
+ * one has to be a defect in both, in the same direction, to pass this. */
+static void test_a_dyadic_agrees_with_the_general_rational(void)
+{
+    rng_reset();
+    int checked = 0;
+    for (int k = 0; k < 2000; k++) {
+        uint64_t ba = rng_next(), bb = rng_next();
+        double a, b;
+        memcpy(&a, &ba, sizeof a);
+        memcpy(&b, &bb, sizeof b);
+        if (!isfinite(a) || !isfinite(b))
+            continue;
+
+        jm_dyadic da, db, dr;
+        jm_rational ra, rb, rr;
+        TEST_ASSERT_TRUE(jm_dyadic_from_double(&da, a));
+        TEST_ASSERT_TRUE(jm_dyadic_from_double(&db, b));
+        TEST_ASSERT_TRUE(jm_rational_from_double(&ra, a));
+        TEST_ASSERT_TRUE(jm_rational_from_double(&rb, b));
+
+        /* This used to be written as `if (jm_dyadic_add(...))`, on the
+         * belief that two random bit patterns could be too far apart to
+         * align. They cannot: a dyadic from a double has `e` between 971
+         * and -1074, so the widest gap is 2045 bits, and with 53 of
+         * mantissa the shift needs 66 of the 128 limbs. The skip never
+         * ran (D268). The add's false path needs a pair of PRODUCTS, and
+         * test_a_row_wider_than_the_limbs_refuses_and_says_so has it. */
+        TEST_ASSERT_TRUE(jm_dyadic_add(&dr, &da, &db));
+        TEST_ASSERT_TRUE(jm_rational_add(&rr, &ra, &rb));
+        jm_rational conv = rat_from_dyadic(&dr);
+        rationals_must_agree(&conv, &rr, 0);
+        checked++;
+
+        TEST_ASSERT_TRUE(jm_dyadic_mul(&dr, &da, &db));
+        TEST_ASSERT_TRUE(jm_rational_mul(&rr, &ra, &rb));
+        conv = rat_from_dyadic(&dr);
+        rationals_must_agree(&conv, &rr, 0);
+
+        int c = 0;
+        TEST_ASSERT_TRUE(jm_dyadic_cmp(&da, &db, &c));
+        rationals_must_agree(&ra, &rb, c);
+    }
+    /* Not a guard on the skip any more, since there is none: this says the
+     * draw produced enough finite pairs to be worth calling a comparison. */
+    TEST_ASSERT_TRUE(checked > 100);
+}
+
+static void test_a_dyadic_keeps_its_mantissa_odd(void)
+{
+    /* 4 is 1 * 2^2, not 4 * 2^0. Without that the mantissa grows by the
+     * exponent spread of every row it walks. */
+    jm_dyadic d;
+    TEST_ASSERT_TRUE(jm_dyadic_from_double(&d, 4.0));
+    TEST_ASSERT_EQUAL_INT64(1, jm_nat_bits(&d.m.mag));
+    TEST_ASSERT_EQUAL_INT64(2, d.e);
+
+    /* And after arithmetic: 3/4 + 1/4 is 1, whose mantissa is one bit. */
+    jm_dyadic a, b, r;
+    TEST_ASSERT_TRUE(jm_dyadic_from_double(&a, 0.75));
+    TEST_ASSERT_TRUE(jm_dyadic_from_double(&b, 0.25));
+    TEST_ASSERT_TRUE(jm_dyadic_add(&r, &a, &b));
+    TEST_ASSERT_EQUAL_INT64(1, jm_nat_bits(&r.m.mag));
+    TEST_ASSERT_EQUAL_INT64(0, r.e);
+
+    /* Zero has one form, and its exponent is zero whatever produced it. */
+    TEST_ASSERT_TRUE(jm_dyadic_sub(&r, &a, &a));
+    TEST_ASSERT_TRUE(jm_dyadic_is_zero(&r));
+    TEST_ASSERT_EQUAL_INT64(0, r.e);
+    TEST_ASSERT_EQUAL_INT(0, jm_dyadic_sign(&r));
+}
+
+/* The same two-rounding defect lived in jm_rational_to_double, which is
+ * older than the dyadics and had no test that could see it: a value that
+ * already is a double never drops a bit on the way back (D268). */
+static void test_a_rational_subnormal_is_rounded_once(void)
+{
+    /* (37 * 2^125 + 1) / 2^1200 is 37*2^-1075 + 2^-1200, a hair above the
+     * halfway point between 18 and 19 subnormals, and the hair sits 125
+     * bits below the last of 53. */
+    jm_rational r;
+    jm_nat one, big;
+    jm_nat_set_u64(&big, 37);
+    TEST_ASSERT_TRUE(jm_nat_shl(&big, &big, 125));
+    jm_nat_set_u64(&one, 1);
+    TEST_ASSERT_TRUE(jm_nat_add(&r.num.mag, &big, &one));
+    r.num.sign = 1;
+    jm_nat_set_u64(&r.den, 1);
+    TEST_ASSERT_TRUE(jm_nat_shl(&r.den, &r.den, 1200));
+
+    const double want = ldexp(19.0, -1074);
+    const double got = jm_rational_to_double(&r);
+    TEST_ASSERT_EQUAL_MEMORY(&want, &got, sizeof want);
+
+    /* The control: rounding to 53 bits first loses the hair, and the tie
+     * that is left goes to the even neighbour. */
+    TEST_ASSERT_EQUAL_MEMORY(&(double){ldexp(18.0, -1074)},
+                             &(double){ldexp(18.5, -1074)}, sizeof(double));
+}
+
+/* Every other overflow in this file is a refusal, so the exponent's is
+ * one too. Left unchecked it is signed overflow, which is undefined and
+ * not something a verifier may do (D268). */
+static void test_an_exponent_that_does_not_fit_is_refused(void)
+{
+    jm_dyadic hi, lo, r;
+    TEST_ASSERT_TRUE(jm_dyadic_from_double(&hi, 1.0));
+    hi.e = INT64_MAX / 2 + 2;
+    TEST_ASSERT_FALSE(jm_dyadic_mul(&r, &hi, &hi));
+
+    TEST_ASSERT_TRUE(jm_dyadic_from_double(&lo, 1.0));
+    lo.e = INT64_MIN / 2 - 2;
+    TEST_ASSERT_FALSE(jm_dyadic_add(&r, &hi, &lo));
+
+    /* The control: an ordinary pair still multiplies and adds. */
+    TEST_ASSERT_TRUE(jm_dyadic_from_double(&hi, 3.0));
+    TEST_ASSERT_TRUE(jm_dyadic_from_double(&lo, 0.5));
+    TEST_ASSERT_TRUE(jm_dyadic_mul(&r, &hi, &lo));
+    TEST_ASSERT_EQUAL_DOUBLE(1.5, jm_dyadic_to_double(&r));
+}
+
+/* A power of two as a dyadic, below what a double can hold. The struct is
+ * the canonical form itself -- mantissa 1 is odd -- so setting the
+ * exponent is the whole construction. */
+static void dyadic_pow2(jm_dyadic *d, int64_t e)
+{
+    TEST_ASSERT_TRUE(jm_dyadic_from_double(d, 1.0));
+    d->e = e;
+}
+
+/* Below 2^-1022 the double grid is 2^-1074 whatever the magnitude, so
+ * rounding to 53 bits first and converting after is two roundings, and the
+ * second one decides a tie the first one manufactured (D268). */
+static void test_a_subnormal_result_is_rounded_once(void)
+{
+    /* 2^-1073 + 2^-1075 is 2.5 * 2^-1074, exactly halfway between two
+     * subnormals. The 2^-1200 puts the true value above that halfway
+     * point, and it sits 75 bits below the last of 53, so a first
+     * rounding loses it. */
+    jm_dyadic v, t;
+    dyadic_pow2(&v, -1073);
+    dyadic_pow2(&t, -1075);
+    TEST_ASSERT_TRUE(jm_dyadic_add(&v, &v, &t));
+    dyadic_pow2(&t, -1200);
+    TEST_ASSERT_TRUE(jm_dyadic_add(&v, &v, &t));
+
+    const double want = ldexp(3.0, -1074);  /* above the tie: round up */
+    const double got = jm_dyadic_to_double(&v);
+    TEST_ASSERT_EQUAL_MEMORY(&want, &got, sizeof want);
+
+    /* The control: what rounding twice gives. To 53 bits it is the halfway
+     * value, and ties-to-even on the subnormal grid then goes down. */
+    const double twice = ldexp(2.5, -1074);
+    TEST_ASSERT_EQUAL_MEMORY(&twice, &(double){ldexp(2.0, -1074)},
+                             sizeof twice);
+    TEST_ASSERT_FALSE(want == twice);
+
+    /* The tie itself still goes to even, and a hair above it does not. */
+    dyadic_pow2(&v, -1075);
+    const double even = jm_dyadic_to_double(&v);
+    TEST_ASSERT_EQUAL_MEMORY(&(double){0.0}, &even, sizeof even);
+    dyadic_pow2(&t, -1200);
+    TEST_ASSERT_TRUE(jm_dyadic_add(&v, &v, &t));
+    const double up = jm_dyadic_to_double(&v);
+    TEST_ASSERT_EQUAL_MEMORY(&(double){ldexp(1.0, -1074)}, &up, sizeof up);
+
+    /* And far below every subnormal the answer is a signed zero, reached
+     * without walking the exponent one bit at a time. */
+    dyadic_pow2(&v, -4000);
+    TEST_ASSERT_EQUAL_MEMORY(&(double){0.0}, &(double){jm_dyadic_to_double(&v)},
+                             sizeof(double));
+    jm_bigint_neg(&v.m);
+    TEST_ASSERT_EQUAL_MEMORY(&(double){-0.0},
+                             &(double){jm_dyadic_to_double(&v)},
+                             sizeof(double));
+}
+
+/* ---------------------------------------------------- evaluating a point */
+
+/* Two columns and one free row over both. The caller owns nothing. */
+static jaos_model *two_column_model(const double *cost, const double *cl,
+                                    const double *cu, double rl, double ru)
+{
+    const int64_t s[] = {0, 1, 2};
+    const int64_t ix[] = {0, 0};
+    const double v[] = {1.0, 1.0};
+    jaos_model *m = nullptr;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_model_new(&m));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_load_lp(m, 2, 1, JAOS_MINIMIZE, 0.0, cost, cl, cu, &rl, &ru,
+                     2, s, ix, v));
+    return m;
+}
+
+/* One row over two columns, with the caller choosing both coefficients
+ * and both bounds free, so only the row is judged. */
+static jaos_model *one_row_model(double a0, double a1)
+{
+    const int64_t s[] = {0, 1, 2};
+    const int64_t ix[] = {0, 0};
+    const double v[] = {a0, a1};
+    const double cost[] = {0.0, 0.0};
+    const double cl[] = {-INFINITY, -INFINITY};
+    const double cu[] = {INFINITY, INFINITY};
+    double rl = 0.0, ru = 1.0;
+    jaos_model *m = nullptr;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_model_new(&m));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_load_lp(m, 2, 1, JAOS_MINIMIZE, 0.0, cost, cl, cu, &rl, &ru,
+                     2, s, ix, v));
+    return m;
+}
+
+/* The limb budget is 4096 bits, and the comment beside it used to reason
+ * about a pair of doubles: those span 2045 bits and fit in 66 limbs. The
+ * evaluator adds PRODUCTS, whose exponents span 4090 bits, and with a
+ * 106-bit mantissa on top the alignment wants 132 limbs (D268). Four
+ * ordinary finite doubles reach it. What the test is for is not the
+ * refusal, which is correct, but that the refusal is reported instead of
+ * being published as a row with nothing wrong with it. */
+static void test_a_row_wider_than_the_limbs_refuses_and_says_so(void)
+{
+    const double tiny = 0x1p-1074;             /* the smallest subnormal */
+    jaos_model *m = one_row_model(DBL_MAX, tiny);
+    const double x[] = {DBL_MAX, tiny};
+    jm_exact_point p;
+    TEST_ASSERT_FALSE(jm_exact_evaluate(m, x, &p));
+    TEST_ASSERT_TRUE(isnan(p.row_violation));
+    TEST_ASSERT_TRUE(isnan(p.objective));
+    TEST_ASSERT_EQUAL_INT64(-1, p.row_at);
+    jaos_model_free(m);
+
+    /* The control: the same shape with the exponents closer together is
+     * inside the budget and answers. 1e150 squared against 1e-150 squared
+     * is about 1992 bits apart. */
+    m = one_row_model(1e150, 1e-150);
+    const double y[] = {1e150, 1e-150};
+    TEST_ASSERT_TRUE(jm_exact_evaluate(m, y, &p));
+    TEST_ASSERT_EQUAL_INT64(2, p.terms);
+    TEST_ASSERT_FALSE(isnan(p.row_violation));
+    jaos_model_free(m);
+}
+
+/* The case the whole file is for. Two products whose difference is
+ * 2^-104, which is below the last bit of either of them, so a double sum
+ * of the same two terms is exactly zero however carefully it is summed:
+ * the loss is in the products, before any summation sees them. That is
+ * D262's shape, and long double cannot hold it either -- a binary64
+ * product needs 106 bits and long double has 64. */
+static void test_the_evaluator_keeps_a_product_a_double_sum_cannot(void)
+{
+    const double a = 1.0 + DBL_EPSILON;        /* 1 + 2^-52 */
+    const double b = 1.0 + 2.0 * DBL_EPSILON;  /* 1 + 2^-51 */
+    const double cost[] = {a, -1.0};
+    const double cl[] = {-INFINITY, -INFINITY};
+    const double cu[] = {INFINITY, INFINITY};
+    const double x[] = {a, b};
+
+    /* The control, in the arithmetic everything else here uses. */
+    const double naive = cost[0] * x[0] + cost[1] * x[1];
+    const double zero = 0.0;
+    TEST_ASSERT_EQUAL_MEMORY(&zero, &naive, sizeof zero);
+
+    jaos_model *m = two_column_model(cost, cl, cu, -INFINITY, INFINITY);
+    jm_exact_point p;
+    TEST_ASSERT_TRUE(jm_exact_evaluate(m, x, &p));
+
+    const double want = ldexp(1.0, -104);      /* a*a - b, exactly */
+    TEST_ASSERT_EQUAL_MEMORY(&want, &p.objective, sizeof want);
+    /* Two products in the objective and two more in the single row: the
+     * count is every product the walk formed, which is what its cost
+     * scales with, and not the objective's share of them. */
+    TEST_ASSERT_EQUAL_INT64(4, p.terms);
+    jaos_model_free(m);
+}
+
+static void test_the_evaluator_names_the_worst_row_and_column(void)
+{
+    const double cost[] = {0.0, 0.0};
+    const double cl[] = {0.0, 0.0};
+    const double cu[] = {1.0, 1.0};
+    /* Row activity is x0 + x1, held to [0, 1]. */
+    jaos_model *m = two_column_model(cost, cl, cu, 0.0, 1.0);
+
+    /* Inside everything: no violation and no index. */
+    const double good[] = {0.25, 0.5};
+    jm_exact_point p;
+    TEST_ASSERT_TRUE(jm_exact_evaluate(m, good, &p));
+    TEST_ASSERT_EQUAL_DOUBLE(0.0, p.row_violation);
+    TEST_ASSERT_EQUAL_DOUBLE(0.0, p.col_violation);
+    TEST_ASSERT_EQUAL_INT64(-1, p.row_at);
+    TEST_ASSERT_EQUAL_INT64(-1, p.col_at);
+
+    /* x1 is 0.5 over its upper bound, and the row is 2.0 over its own. */
+    const double bad[] = {1.5, 1.5};
+    TEST_ASSERT_TRUE(jm_exact_evaluate(m, bad, &p));
+    TEST_ASSERT_EQUAL_DOUBLE(2.0, p.row_violation);
+    TEST_ASSERT_EQUAL_DOUBLE(0.5, p.col_violation);
+    TEST_ASSERT_EQUAL_INT64(0, p.row_at);
+    TEST_ASSERT_EQUAL_INT64(0, p.col_at);
+
+    /* Below the lower bound counts the same way. */
+    const double low[] = {-0.25, 0.0};
+    TEST_ASSERT_TRUE(jm_exact_evaluate(m, low, &p));
+    TEST_ASSERT_EQUAL_DOUBLE(0.25, p.col_violation);
+    TEST_ASSERT_EQUAL_INT64(0, p.col_at);
+    /* The row activity is -0.25, which is 0.25 below its own lower bound. */
+    TEST_ASSERT_EQUAL_DOUBLE(0.25, p.row_violation);
+    jaos_model_free(m);
+}
+
+/* An infinite bound constrains nothing and must not become a violation of
+ * infinity, which is the shape that would make every free row the worst
+ * one in the model. */
+static void test_an_infinite_bound_is_not_a_violation(void)
+{
+    const double cost[] = {1.0, 1.0};
+    const double cl[] = {-INFINITY, -INFINITY};
+    const double cu[] = {INFINITY, INFINITY};
+    jaos_model *m = two_column_model(cost, cl, cu, -INFINITY, INFINITY);
+    const double x[] = {1e300, -1e300};
+    jm_exact_point p;
+    TEST_ASSERT_TRUE(jm_exact_evaluate(m, x, &p));
+    TEST_ASSERT_EQUAL_DOUBLE(0.0, p.row_violation);
+    TEST_ASSERT_EQUAL_DOUBLE(0.0, p.col_violation);
+    TEST_ASSERT_EQUAL_DOUBLE(0.0, p.objective);
+    jaos_model_free(m);
+}
+
+static void test_the_evaluator_refuses_what_it_cannot_read(void)
+{
+    const double cost[] = {1.0, 1.0};
+    const double cl[] = {0.0, 0.0};
+    const double cu[] = {1.0, 1.0};
+    jaos_model *m = two_column_model(cost, cl, cu, 0.0, 1.0);
+    const double x[] = {0.5, 0.5};
+    jm_exact_point p;
+    TEST_ASSERT_FALSE(jm_exact_evaluate(nullptr, x, &p));
+    TEST_ASSERT_FALSE(jm_exact_evaluate(m, nullptr, &p));
+    TEST_ASSERT_FALSE(jm_exact_evaluate(m, x, nullptr));
+    /* A point carrying an infinity has no exact value, and saying so is
+     * the difference between a verifier and a guess. */
+    const double inf_x[] = {HUGE_VAL, 0.5};
+    TEST_ASSERT_FALSE(jm_exact_evaluate(m, inf_x, &p));
+    jaos_model_free(m);
+}
+
+/* The failure a caller could miss. A zero cost on the offending column
+ * makes the objective loop skip it, so the objective is computed and only
+ * the column walk refuses. Published as it was computed, that reads
+ * "objective 0.5, nothing violated" -- byte for byte what a clean point
+ * gives -- and the caller who ignored the false has a verdict from a walk
+ * that never reached the rows (D268). */
+static void test_a_refused_walk_does_not_read_as_a_clean_point(void)
+{
+    const double cost[] = {0.0, 1.0};
+    const double cl[] = {0.0, 0.0};
+    const double cu[] = {1.0, 1.0};
+    jaos_model *m = two_column_model(cost, cl, cu, 0.0, 1.0);
+
+    /* The control: the same walk on a readable point does publish. */
+    const double good[] = {0.25, 0.5};
+    jm_exact_point p;
+    TEST_ASSERT_TRUE(jm_exact_evaluate(m, good, &p));
+    TEST_ASSERT_EQUAL_DOUBLE(0.5, p.objective);
+    TEST_ASSERT_EQUAL_INT64(-1, p.row_at);
+
+    const double bad[] = {HUGE_VAL, 0.5};
+    TEST_ASSERT_FALSE(jm_exact_evaluate(m, bad, &p));
+    TEST_ASSERT_TRUE(isnan(p.objective));
+    TEST_ASSERT_TRUE(isnan(p.row_violation));
+    TEST_ASSERT_TRUE(isnan(p.col_violation));
+    TEST_ASSERT_EQUAL_INT64(-1, p.row_at);
+    TEST_ASSERT_EQUAL_INT64(-1, p.col_at);
+    jaos_model_free(m);
+}
 int main(void)
 {
     UNITY_BEGIN();
@@ -533,5 +982,17 @@ int main(void)
     RUN_TEST(test_a_halfway_value_rounds_to_even);
     RUN_TEST(test_the_round_trip_would_notice_a_dropped_bit);
     RUN_TEST(test_a_long_sum_of_halves_stays_exact_and_small);
+    RUN_TEST(test_a_dyadic_round_trips_every_double_bit_for_bit);
+    RUN_TEST(test_a_dyadic_agrees_with_the_general_rational);
+    RUN_TEST(test_a_dyadic_keeps_its_mantissa_odd);
+    RUN_TEST(test_a_rational_subnormal_is_rounded_once);
+    RUN_TEST(test_an_exponent_that_does_not_fit_is_refused);
+    RUN_TEST(test_a_subnormal_result_is_rounded_once);
+    RUN_TEST(test_a_row_wider_than_the_limbs_refuses_and_says_so);
+    RUN_TEST(test_the_evaluator_keeps_a_product_a_double_sum_cannot);
+    RUN_TEST(test_the_evaluator_names_the_worst_row_and_column);
+    RUN_TEST(test_an_infinite_bound_is_not_a_violation);
+    RUN_TEST(test_the_evaluator_refuses_what_it_cannot_read);
+    RUN_TEST(test_a_refused_walk_does_not_read_as_a_clean_point);
     return UNITY_END();
 }

@@ -761,4 +761,62 @@ JAOS_NODISCARD bool jm_rational_mul(jm_rational *r, const jm_rational *a,
                                     const jm_rational *c);
 JAOS_NODISCARD bool jm_rational_div(jm_rational *r, const jm_rational *a,
                                     const jm_rational *c);
+
+/* A dyadic rational, m * 2^e. Every finite double is one and sums and
+ * products of them are, so evaluating a row never leaves the type. Kept
+ * with m odd, or m zero and e zero, which is its only canonical form.
+ *
+ * It sits beside jm_rational rather than replacing it: a general rational
+ * normalises with a gcd and two divisions, and this normalises by
+ * stripping trailing zero bits. Both are exact. Division is what needs
+ * jm_rational, and evaluating a point does not divide. */
+typedef struct {
+    jm_bigint m;
+    int64_t   e;
+} jm_dyadic;
+
+void    jm_dyadic_set_zero(jm_dyadic *d);
+bool    jm_dyadic_is_zero(const jm_dyadic *d);
+int32_t jm_dyadic_sign(const jm_dyadic *d);
+/* The nearest double, ties to even: one rounding, not a chain of them --
+ * which for a subnormal result means rounding at 2^-1074 and not at 53
+ * bits, or ldexp would round a second time (D268). */
+double  jm_dyadic_to_double(const jm_dyadic *d);
+/* False for an infinity or a NaN. Every finite double is exact. */
+JAOS_NODISCARD bool jm_dyadic_from_double(jm_dyadic *d, double v);
+/* False when the result does not fit in JM_EXACT_LIMBS. jm_dyadic_cmp
+ * writes the sign of a - b and fails only when that difference does not
+ * fit, rather than guessing an order. */
+JAOS_NODISCARD bool jm_dyadic_add(jm_dyadic *r, const jm_dyadic *a,
+                                  const jm_dyadic *b);
+JAOS_NODISCARD bool jm_dyadic_sub(jm_dyadic *r, const jm_dyadic *a,
+                                  const jm_dyadic *b);
+JAOS_NODISCARD bool jm_dyadic_mul(jm_dyadic *r, const jm_dyadic *a,
+                                  const jm_dyadic *b);
+JAOS_NODISCARD bool jm_dyadic_cmp(const jm_dyadic *a, const jm_dyadic *b,
+                                  int *out);
+
+/* What a claimed point is worth, with no rounding anywhere in the walk and
+ * one at the end of it. `objective` is the model's own form, offset
+ * included and the sense not applied, so it compares directly with
+ * jaos_objective. The two violations are the largest over all rows and all
+ * columns, and the two indices name where, or -1 when nothing is violated.
+ * `terms` counts the products formed, which is what the cost scales with. */
+typedef struct {
+    double  objective;
+    double  row_violation;
+    double  col_violation;
+    int64_t row_at;
+    int64_t col_at;
+    int64_t terms;
+} jm_exact_point;
+
+/* False when the model has no row-wise mirror to build, or when some
+ * operation ran out of limbs. There is no partial answer: a verifier that
+ * could not finish has to say so. On false the three doubles are NaN and
+ * both indices are -1, because a half-written walk would otherwise read
+ * as a point with nothing wrong with it (D268). `terms` still says how
+ * far it got. */
+JAOS_NODISCARD bool jm_exact_evaluate(jaos_model *m, const double *x,
+                                      jm_exact_point *out);
 #endif /* JAOS_INTERNAL_H */

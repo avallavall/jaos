@@ -1,0 +1,51 @@
+=== ARM 0: the tree as it stands (all must PASS) ===
+tests/test_exact.c:959:test_a_rational_subnormal_is_rounded_once:PASS
+tests/test_exact.c:960:test_an_exponent_that_does_not_fit_is_refused:PASS
+tests/test_exact.c:961:test_a_subnormal_result_is_rounded_once:PASS
+tests/test_exact.c:962:test_a_row_wider_than_the_limbs_refuses_and_says_so:PASS
+tests/test_exact.c:967:test_a_refused_walk_does_not_read_as_a_clean_point:PASS
+
+=== ARM 1: the dyadic subnormal repair removed ===
+expect: test_a_subnormal_result_is_rounded_once FAILS, rest PASS
+tests/test_exact.c:959:test_a_rational_subnormal_is_rounded_once:PASS
+tests/test_exact.c:960:test_an_exponent_that_does_not_fit_is_refused:PASS
+tests/test_exact.c:704:test_a_subnormal_result_is_rounded_once:FAIL: Memory Mismatch. Byte 0 Expected 0x03 Was 0x02
+tests/test_exact.c:962:test_a_row_wider_than_the_limbs_refuses_and_says_so:PASS
+tests/test_exact.c:967:test_a_refused_walk_does_not_read_as_a_clean_point:PASS
+
+=== ARM 2: the NaN poison removed ===
+expect: the two evaluator tests FAIL, rest PASS
+tests/test_exact.c:959:test_a_rational_subnormal_is_rounded_once:PASS
+tests/test_exact.c:960:test_an_exponent_that_does_not_fit_is_refused:PASS
+tests/test_exact.c:961:test_a_subnormal_result_is_rounded_once:PASS
+tests/test_exact.c:783:test_a_row_wider_than_the_limbs_refuses_and_says_so:FAIL: Expected TRUE Was FALSE
+tests/test_exact.c:925:test_a_refused_walk_does_not_read_as_a_clean_point:FAIL: Expected TRUE Was FALSE
+
+=== ARM 3: the rational subnormal repair removed ===
+expect: test_a_rational_subnormal_is_rounded_once FAILS, rest PASS
+tests/test_exact.c:648:test_a_rational_subnormal_is_rounded_once:FAIL: Memory Mismatch. Byte 0 Expected 0x13 Was 0x12
+tests/test_exact.c:960:test_an_exponent_that_does_not_fit_is_refused:PASS
+tests/test_exact.c:961:test_a_subnormal_result_is_rounded_once:PASS
+tests/test_exact.c:962:test_a_row_wider_than_the_limbs_refuses_and_says_so:PASS
+tests/test_exact.c:967:test_a_refused_walk_does_not_read_as_a_clean_point:PASS
+
+=== ARM 4: the exponent overflow guards removed ===
+expect: test_an_exponent_that_does_not_fit_is_refused FAILS, rest PASS
+this arm's tree has signed overflow in it, which is the finding: the
+sum is undefined, and whatever it produces is not a refusal.
+ckd_ calls left in src/exact.c (0 means both guards are out):
+0
+tests/test_exact.c:959:test_a_rational_subnormal_is_rounded_once:PASS
+tests/test_exact.c:664:test_an_exponent_that_does_not_fit_is_refused:FAIL: Expected FALSE Was TRUE
+tests/test_exact.c:961:test_a_subnormal_result_is_rounded_once:PASS
+tests/test_exact.c:962:test_a_row_wider_than_the_limbs_refuses_and_says_so:PASS
+tests/test_exact.c:967:test_a_refused_walk_does_not_read_as_a_clean_point:PASS
+
+=== RESTORED: rebuilding and re-running (all must PASS) ===
+tests/test_exact.c:959:test_a_rational_subnormal_is_rounded_once:PASS
+tests/test_exact.c:960:test_an_exponent_that_does_not_fit_is_refused:PASS
+tests/test_exact.c:961:test_a_subnormal_result_is_rounded_once:PASS
+tests/test_exact.c:962:test_a_row_wider_than_the_limbs_refuses_and_says_so:PASS
+tests/test_exact.c:967:test_a_refused_walk_does_not_read_as_a_clean_point:PASS
+diff against keep:
+identical

@@ -24,6 +24,7 @@
 #include "jaos_internal.h"
 
 #include <math.h>
+#include <stdckdint.h>
 #include <string.h>
 
 /* ---------------------------------------------------------------- naturals
@@ -677,10 +678,19 @@ double jm_rational_to_double(const jm_rational *r)
     if (!jm_nat_divmod(&q, &rem, &num, &den))
         return r->num.sign > 0 ? HUGE_VAL : -HUGE_VAL;
 
-    /* Drop to 53 bits, remembering whether anything was dropped. */
-    int64_t drop = jm_nat_bits(&q) - 53;
+    /* Drop to 53 bits, remembering whether anything was dropped -- or to
+     * the subnormal grid, whichever is coarser. The result's exponent is
+     * `drop - shift`, and below 2^-1022 the double grid is 2^-1074
+     * whatever the magnitude, so stopping at 53 bits and letting ldexp
+     * place the value rounds a second time (D268). */
+    const int64_t qbits = jm_nat_bits(&q);
+    int64_t drop = qbits - 53;
+    if (shift - 1074 > drop)
+        drop = shift - 1074;
     if (drop < 0)
         drop = 0;
+    if (drop > qbits)
+        drop = qbits + 1;   /* below half the last bit: a zero either way */
     bool sticky = !jm_nat_is_zero(&rem);
     bool round_bit = false;
     if (drop > 0) {
@@ -702,4 +712,366 @@ double jm_rational_to_double(const jm_rational *r)
 
     const double v = ldexp((double)m, (int)e2);
     return r->num.sign > 0 ? v : -v;
+}
+
+/* ------------------------------------------------------- dyadic rationals
+ *
+ * m * 2^e, with m a signed integer and e an ordinary int64_t. Every finite
+ * double is one, and a sum or a product of them is one, so evaluating
+ * `sum a_ij x_j` never leaves this type.
+ *
+ * That is the whole reason it exists beside jm_rational. A general
+ * rational normalises after every operation, which is a gcd and two
+ * divisions; over the nonzeros of a Kennington instance that is not a
+ * cost anyone would pay. Here normalising is stripping trailing zero bits
+ * off m, and adding is one shift and one addition. Both types are exact
+ * and the choice between them is only ever about speed. */
+
+/* Trailing zero bits of a magnitude, and 0 for zero itself. */
+static int64_t nat_ctz(const jm_nat *a)
+{
+    if (a->n == 0)
+        return 0;
+    int64_t z = 0;
+    for (int64_t i = 0; i < a->n; i++) {
+        if (a->w[i] == 0) {
+            z += 32;
+            continue;
+        }
+        uint32_t v = a->w[i];
+        while ((v & 1u) == 0u) {
+            z++;
+            v >>= 1;
+        }
+        break;
+    }
+    return z;
+}
+
+/* The one canonical form: m odd, or m zero with e zero. Keeping it is what
+ * stops the mantissa growing by the exponent spread of the whole row. */
+static void dyadic_trim(jm_dyadic *d)
+{
+    if (d->m.sign == 0) {
+        d->e = 0;
+        return;
+    }
+    const int64_t z = nat_ctz(&d->m.mag);
+    if (z > 0) {
+        jm_nat_shr(&d->m.mag, &d->m.mag, z);
+        d->e += z;
+    }
+}
+
+void jm_dyadic_set_zero(jm_dyadic *d)
+{
+    jm_bigint_set_zero(&d->m);
+    d->e = 0;
+}
+
+bool jm_dyadic_is_zero(const jm_dyadic *d)
+{
+    return d->m.sign == 0;
+}
+
+int32_t jm_dyadic_sign(const jm_dyadic *d)
+{
+    return d->m.sign;
+}
+
+/* The exact value of a finite double, and false for an infinity or a NaN.
+ * frexp puts the point where the 53-bit significand is an integer, for a
+ * subnormal as much as for anything else. */
+bool jm_dyadic_from_double(jm_dyadic *d, double v)
+{
+    if (!isfinite(v))
+        return false;
+    if (v == 0.0) {
+        jm_dyadic_set_zero(d);
+        return true;
+    }
+    int e = 0;
+    const double f = frexp(v, &e);
+    jm_bigint_set_i64(&d->m, (int64_t)ldexp(f, 53));
+    d->e = (int64_t)e - 53;
+    dyadic_trim(d);
+    return true;
+}
+
+bool jm_dyadic_mul(jm_dyadic *r, const jm_dyadic *a, const jm_dyadic *b)
+{
+    if (!jm_bigint_mul(&r->m, &a->m, &b->m))
+        return false;
+    /* The mantissa's overflow is a refusal, so the exponent's is too.
+     * Repeated squaring doubles `e` each time and reaches int64_t in 53
+     * steps from the smallest subnormal, which is signed overflow and not
+     * something a verifier may do (D268). */
+    if (ckd_add(&r->e, a->e, b->e))
+        return false;
+    dyadic_trim(r);
+    return true;
+}
+
+/* Align on the smaller exponent, then add. The shift is the only place
+ * this can run out of limbs, and JM_EXACT_LIMBS is 4096 bits.
+ *
+ * A pair of doubles cannot reach that: `e` runs 971 down to -1074, a span
+ * of 2045 bits, so 66 limbs hold any two of them. **A pair of PRODUCTS
+ * can.** Their exponents run 1942 down to -2148, a span of 4090 bits, and
+ * with up to 106 bits of mantissa on top the alignment wants 132 limbs.
+ * One row holding `DBL_MAX * DBL_MAX` and `DBL_TRUE_MIN * DBL_TRUE_MIN`
+ * refuses here, from four ordinary finite doubles; `1e300 * 1e300` beside
+ * `1e-300 * 1e-300` is the last pair that fits (D268). The refusal is
+ * correct and it is reported -- see jm_exact_evaluate, which publishes
+ * nothing when it cannot finish. */
+bool jm_dyadic_add(jm_dyadic *r, const jm_dyadic *a, const jm_dyadic *b)
+{
+    if (a->m.sign == 0) {
+        *r = *b;
+        return true;
+    }
+    if (b->m.sign == 0) {
+        *r = *a;
+        return true;
+    }
+    const jm_dyadic *lo = a->e <= b->e ? a : b;
+    const jm_dyadic *hi = a->e <= b->e ? b : a;
+
+    jm_bigint up = hi->m;
+    int64_t diff;
+    if (ckd_sub(&diff, hi->e, lo->e))
+        return false;   /* the gap itself does not fit; the shift cannot */
+    if (diff > 0 && !jm_nat_shl(&up.mag, &hi->m.mag, diff))
+        return false;
+    if (!jm_bigint_add(&r->m, &lo->m, &up))
+        return false;
+    r->e = lo->e;
+    dyadic_trim(r);
+    return true;
+}
+
+bool jm_dyadic_sub(jm_dyadic *r, const jm_dyadic *a, const jm_dyadic *b)
+{
+    jm_dyadic nb = *b;
+    jm_bigint_neg(&nb.m);
+    return jm_dyadic_add(r, a, &nb);
+}
+
+/* Sign of a - b into *out. False only when the difference does not fit,
+ * which the caller reports rather than guessing an order. */
+bool jm_dyadic_cmp(const jm_dyadic *a, const jm_dyadic *b, int *out)
+{
+    if (a->m.sign != b->m.sign) {
+        *out = a->m.sign < b->m.sign ? -1 : 1;
+        return true;
+    }
+    jm_dyadic d;
+    if (!jm_dyadic_sub(&d, a, b))
+        return false;
+    *out = d.m.sign;
+    return true;
+}
+
+/* The nearest double, ties to even. The value is m * 2^e with m exact, so
+ * this is one rounding and not a chain of them -- which is the difference
+ * the whole file is about. An exponent past what a double holds gives an
+ * infinity or a zero, as the arithmetic itself would.
+ *
+ * Where to round is not always 53 bits. Below 2^-1022 the double grid is
+ * coarser than the significand is wide: every subnormal's last bit sits at
+ * 2^-1074 whatever its magnitude. Rounding to 53 bits and letting ldexp
+ * round again is two roundings, and the second one breaks a tie the first
+ * one manufactured -- 1.0% of subnormal results came out wrong that way
+ * (D268). So the drop is the larger of the two demands, and the answer is
+ * still one rounding. */
+double jm_dyadic_to_double(const jm_dyadic *d)
+{
+    if (d->m.sign == 0)
+        return 0.0;
+
+    jm_nat q = d->m.mag;
+    const int64_t bits = jm_nat_bits(&q);
+    int64_t drop = bits - 53;
+    if (-1074 - d->e > drop)
+        drop = -1074 - d->e;   /* the subnormal grid: no bit below 2^-1074 */
+    if (drop < 0)
+        drop = 0;
+    /* Past every bit there is, the answer is a zero either way, and this
+     * keeps the sticky scan below from walking an exponent-sized range to
+     * discover it. */
+    if (drop > bits)
+        drop = bits + 1;
+    bool sticky = false, round_bit = false;
+    if (drop > 0) {
+        round_bit = nat_bit(&q, drop - 1);
+        for (int64_t i = 0; i < drop - 1 && !sticky; i++)
+            sticky = nat_bit(&q, i);
+        jm_nat_shr(&q, &q, drop);
+    }
+
+    uint64_t m = nat_to_u64(&q);
+    int64_t e2 = d->e + drop;
+    if (round_bit && (sticky || (m & 1u))) {
+        m++;
+        if (m == (1ull << 53)) {
+            m >>= 1;
+            e2++;
+        }
+    }
+
+    /* ldexp takes an int, and e2 is an int64_t that a long shift can put
+     * far outside it. Clamping here rather than converting keeps the
+     * overflow from wrapping into a finite answer. */
+    if (e2 > 2048)
+        return d->m.sign > 0 ? HUGE_VAL : -HUGE_VAL;
+    if (e2 < -2200)
+        return d->m.sign > 0 ? 0.0 : -0.0;
+    const double v = ldexp((double)m, (int)e2);
+    return d->m.sign > 0 ? v : -v;
+}
+
+/* ------------------------------------------------- evaluating a point
+ *
+ * The objective and every bound violation of a claimed point, computed
+ * without a single rounding and reported as one.
+ *
+ * src/check.c does the same walk in long double and does NOT compensate:
+ * `act[i] += term` at check.c:329 and `primal_obj += c_j x_j` at
+ * check.c:340 are plain running sums. (`split_term` there splits the DUAL
+ * gap into two halves for D219; it never touches the primal walk. The
+ * compensated accumulators D168 and D169 measured are in src/simplex.c.)
+ * So there is a middle option between the checker and this file -- a
+ * Neumaier sum in check.c, roughly twice the walk rather than the ~1000x
+ * here -- and any verdict that rejects exact evaluation on cost has to say
+ * why it skipped that one (D268). What exact arithmetic reaches and no
+ * compensated sum can is the rounding of each product, and D262 is the
+ * case where that reached the answer on `finnis`. Its figures live there;
+ * they are not restated here. */
+
+/* violation of "v must lie in [lo, hi]", exactly, and zero when it does.
+ * An infinite bound constrains nothing, which is why it is skipped rather
+ * than converted: there is no dyadic infinity and there should not be. */
+static bool exact_violation(jm_dyadic *out, const jm_dyadic *v, double lo,
+                            double hi)
+{
+    jm_dyadic_set_zero(out);
+    jm_dyadic b, d;
+    int c = 0;
+    if (isfinite(lo)) {
+        if (!jm_dyadic_from_double(&b, lo) || !jm_dyadic_sub(&d, &b, v))
+            return false;
+        if (!jm_dyadic_cmp(&d, out, &c))
+            return false;
+        if (c > 0)
+            *out = d;
+    }
+    if (isfinite(hi)) {
+        if (!jm_dyadic_from_double(&b, hi) || !jm_dyadic_sub(&d, v, &b))
+            return false;
+        if (!jm_dyadic_cmp(&d, out, &c))
+            return false;
+        if (c > 0)
+            *out = d;
+    }
+    return true;
+}
+
+bool jm_exact_evaluate(jaos_model *m, const double *x, jm_exact_point *out)
+{
+    if (m == nullptr || x == nullptr || out == nullptr)
+        return false;
+
+    /* Built here and published in one assignment at the end. Writing the
+     * objective before the rows are walked would leave `row_violation` at
+     * zero and `row_at` at -1 on a failure, and that is byte for byte what
+     * a clean point produces: a caller that missed the false would read
+     * "nothing is violated" out of a walk that never finished (D268). */
+    jm_exact_point p = { .objective = 0.0,
+                         .row_violation = 0.0,
+                         .col_violation = 0.0,
+                         .row_at = -1,
+                         .col_at = -1,
+                         .terms = 0 };
+    jm_dyadic acc, term, xv, cv, viol, worst;
+
+    if (jm_model_ensure_rowwise(m) != JAOS_OK)
+        goto fail;
+
+    /* The objective, over the model as loaded: sum c_j x_j plus the
+     * constant. The sense is not applied -- this reports what jaos_objective
+     * reports, and that is the minimize-form value either way. */
+    if (!jm_dyadic_from_double(&acc, m->obj_offset))
+        goto fail;
+    for (int64_t j = 0; j < m->num_col; j++) {
+        if (m->col_cost[j] == 0.0 || x[j] == 0.0)
+            continue;
+        if (!jm_dyadic_from_double(&cv, m->col_cost[j]) ||
+            !jm_dyadic_from_double(&xv, x[j]) ||
+            !jm_dyadic_mul(&term, &cv, &xv) ||
+            !jm_dyadic_add(&acc, &acc, &term))
+            goto fail;
+        p.terms++;
+    }
+    p.objective = jm_dyadic_to_double(&acc);
+
+    /* Column bounds. Both sides are doubles, so the comparison itself is
+     * exact in double already; the difference is what is not. */
+    jm_dyadic_set_zero(&worst);
+    for (int64_t j = 0; j < m->num_col; j++) {
+        if (!jm_dyadic_from_double(&xv, x[j]))
+            goto fail;
+        if (!exact_violation(&viol, &xv, m->col_lower[j], m->col_upper[j]))
+            goto fail;
+        int c = 0;
+        if (!jm_dyadic_cmp(&viol, &worst, &c))
+            goto fail;
+        if (c > 0) {
+            worst = viol;
+            p.col_at = j;
+        }
+    }
+    p.col_violation = jm_dyadic_to_double(&worst);
+
+    /* Row activities, one row at a time out of the CSR mirror. Column
+     * order would need one accumulator per row, which on the largest gate
+     * instance is six figures of them and not worth the memory. */
+    jm_dyadic_set_zero(&worst);
+    for (int64_t i = 0; i < m->num_row; i++) {
+        jm_dyadic_set_zero(&acc);
+        for (int64_t k = m->ar_start[i]; k < m->ar_start[i + 1]; k++) {
+            const int64_t j = m->ar_index[k];
+            if (m->ar_value[k] == 0.0 || x[j] == 0.0)
+                continue;
+            if (!jm_dyadic_from_double(&cv, m->ar_value[k]) ||
+                !jm_dyadic_from_double(&xv, x[j]) ||
+                !jm_dyadic_mul(&term, &cv, &xv) ||
+                !jm_dyadic_add(&acc, &acc, &term))
+                goto fail;
+            p.terms++;
+        }
+        if (!exact_violation(&viol, &acc, m->row_lower[i], m->row_upper[i]))
+            goto fail;
+        int c = 0;
+        if (!jm_dyadic_cmp(&viol, &worst, &c))
+            goto fail;
+        if (c > 0) {
+            worst = viol;
+            p.row_at = i;
+        }
+    }
+    p.row_violation = jm_dyadic_to_double(&worst);
+    *out = p;
+    return true;
+
+fail:
+    /* Neither a partial answer nor a clean one. A caller that ignores the
+     * return value gets NaNs it cannot mistake for a verdict, and `terms`
+     * says how far the walk got. */
+    out->objective = (double)NAN;
+    out->row_violation = (double)NAN;
+    out->col_violation = (double)NAN;
+    out->row_at = -1;
+    out->col_at = -1;
+    out->terms = p.terms;
+    return false;
 }

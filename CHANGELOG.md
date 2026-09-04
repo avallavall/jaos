@@ -11,6 +11,16 @@ open, `bench/README.md` for the gate, and the commit each entry came from.
 
 ### Added
 
+- **Exact evaluation of a claimed point**, `jm_exact_evaluate`: the
+  objective and the worst row and column violation with no rounding in the
+  walk and one at the end. It runs on a dyadic `m * 2^e` rather than a
+  general rational, so a term is a shift and an addition instead of a gcd
+  and two divisions, and `ken-13` costs 0.02 s. Measured against the
+  checker over the gate: every objective agrees to the ulp, 75 of 110
+  worst-row violations differ by 1e-11 or less, and no verdict moves, so
+  nothing is exposed and the condition that would change that is in
+  `bench/refusals.txt` (D267, `bench/measurements/02-173/`).
+
 - **Exact integer and rational arithmetic**, in `src/exact.c`, for verifying
   an answer rather than computing one. Big integers on 32-bit limbs with no
   allocation and no external library, and rationals kept in lowest terms.
@@ -42,6 +52,31 @@ open, `bench/README.md` for the gate, and the commit each entry came from.
   `bench/measurements/02-167/`).
 
 ### Fixed
+
+- **Nine defects in the exact arithmetic, found by review and not by its own
+  139-instance run.** Four could give a wrong answer, four were tests and
+  comments claiming more than they checked, and one was the record.
+  A refused walk published the objective and left
+  `row_violation` at zero and `row_at` at -1, which reads as a clean point;
+  it is built in a local and poisoned with NaN on failure now. Both
+  conversions back to a double rounded twice for a subnormal result, wrong
+  on 1.0% of them; they round at the 2^-1074 grid. `jm_dyadic_add`'s limb
+  comment reasoned about a pair of doubles where the evaluator adds
+  products, which span twice as many bits and can genuinely refuse. And
+  `jm_dyadic_mul` added exponents unchecked, which is signed overflow after
+  53 squarings. Five tests, each validated against the tree with its own
+  repair removed. On the test side: a skip branch that never ran, a `-0.0`
+  converted away before it was tested, a comparison that would answer
+  without comparing at a swept-down `JM_EXACT_LIMBS`, and four measured
+  numbers restated where D262 and the bench records own them
+  (D268, `bench/measurements/02-174/`).
+
+- **The record said `src/check.c` uses a compensated sum and it does not.**
+  `act[i] += term` and `primal_obj += c_j x_j` are plain `long double`
+  running sums; `split_term` splits the dual gap for D219 and the
+  compensated accumulators D168 and D169 measured are in `src/simplex.c`.
+  D267's verdict does not move, but the false sentence hid a middle option
+  between the checker and exact arithmetic, which is open work now (D268).
 
 - **The LP writer's coverage number had no owner.** `SPECS.md` cited a re-run
   that was never committed; `TODO.md` and `docs/format-support.md` still read

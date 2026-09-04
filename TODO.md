@@ -51,6 +51,49 @@ built. And the budget: exact elimination on a basis of 105127 rows is not
 going to happen, so the call needs an honest "could not prove this one" and
 a measurement of how many of the 139 it can prove.
 
+**2026-09-04: the scout has answered both, and the answer is in
+`docs/research/exact-verification.md`.** Bareiss fraction-free elimination
+on a block-triangularised basis, not rationals normalised at every step:
+Bareiss's entries are minors of the original matrix so Hadamard bounds them,
+and the solution comes out over one common denominator, `det B`, which needs
+no per-entry gcd at all and fits `src/exact.c`'s fixed capacity. Wiedemann,
+which the 2003 paper used, is excluded here because it is randomized. The
+budget question has a cheap answer too, and it is the next thing to build:
+**the column-norm Hadamard bound is the refusal test and the capacity test
+in one**, it costs one pass over B, and measuring it over the 139 gate
+instances says how many can be proved before any elimination is written.
+That measurement is step 2 of §9 in the research file and is where this
+starts.
+
+**And the arithmetic has been measured against the checker (D267,
+`bench/measurements/02-173/`).** `jm_exact_evaluate` walks a model's
+published point with no rounding: 110 of the 139 have an optimum to
+evaluate, **none exhausts the limb budget**, every objective agrees with
+`jaos_check_solution`'s to the ulp, and 75 of 110 worst-row violations
+differ by 1e-11 or less. Against a 1e-7 bar nothing moves, so nothing is
+exposed and `bench/refusals.txt` carries the condition that would change
+that. Two of the three questions the paragraph above raised are answered:
+the capacity is enough for this population, and the cost is 0.02 s on
+`ken-13`. **The elimination is the one still open**, and it is what the
+verifier needs.
+
+**2026-09-04: the review of that diff found nine defects the 139-instance
+run could not (D268, `bench/measurements/02-174/`).** Four could give a
+wrong answer, four were tests and comments claiming more than they checked,
+and one was the record itself. A refused walk
+published a real objective with `row_violation` at zero and `row_at` at -1,
+which is what a clean point looks like. Both conversions back to a double
+rounded twice for a subnormal result, wrong on 1.0% of them, and one of
+those two is older code than this feature. `jm_dyadic_add`'s limb comment
+reasoned about a pair of doubles where the evaluator adds products, which
+span 4090 bits and can genuinely refuse. `jm_dyadic_mul` added exponents
+unchecked, which is signed overflow. And D267's premise sentence was false:
+`src/check.c` does not compensate anywhere in its primal walk. All nine are
+fixed, and each of the four code repairs has a test that goes red when that
+repair alone is removed. **The check.c one opened work**, listed below:
+there is a middle option between the checker and exact arithmetic that
+nobody had costed, because the record said it was already taken.
+
 **2026-09-03: a loan nobody holds is retired before the answer is
 published, and it was hiding a wrong objective (D261,
 `bench/measurements/02-168/`).** The smallest item on this file's open
@@ -243,6 +286,19 @@ basic columns is one BTRAN and one row PRICE each, so `ken-18` is 105127 of
 them.
 
 ### → what is open and needs no decision, smallest first
+
+- **Compensate the checker's primal walk, and measure it against the exact
+  one (D268).** `src/check.c` sums row activities at line 329 and the
+  objective at line 340 as plain `long double` running sums. Presolve and
+  the simplex both compensate theirs — D165, D168, D169 — and the checker
+  was skipped because the record wrongly said it already did. It is a
+  Neumaier accumulator in two places, roughly twice the walk, against the
+  ~1000x of exact arithmetic. **What makes it worth doing is that the
+  measurement already exists**: 02-173 holds the exact worst-row violation
+  for all 110 instances, so the compensated checker can be scored against
+  the exact answer directly, and the 75 that differ say how much of the
+  gap a compensated sum closes. Everything a solve publishes must stay
+  byte-identical; only the checker's reported figures may move.
 
 - **D245 moved the forced primal from 61 / 30 / 3 to 75 / 16 / 3**
   (ok / DISAGREE / overrun, as read then; the current counts live in

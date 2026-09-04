@@ -1,0 +1,145 @@
+# jm_exact_evaluate over every gate instance's published point
+# instrument: bench/measurements/02-173/exact-cover.c
+# tree: d8b1846 WITH UNCOMMITTED CHANGES
+# date: 2026-09-04T02:09:32Z
+# obj_ulps: distance between the checker's objective and the exact one
+# secs is a development number and belongs in no baseline
+
+instance       status        rows    terms   obj_ulps    row_chk  row_exact     secs
+25fv47.mps     optimal        821     3969          0   1.71e-13   1.71e-13     0.00
+80bau3b.mps    optimal       2262     8904          0   7.67e-13   7.67e-13     0.00
+adlittle.mps   optimal         56      241          0   4.59e-14   2.16e-13     0.00
+afiro.mps      optimal         27       44          0   4.26e-14   3.91e-14     0.00
+agg.mps        optimal        488     1178          0   2.02e-10   2.02e-10     0.00
+agg2.mps       optimal        516     2250          0   5.09e-11   5.09e-11     0.00
+agg3.mps       optimal        516     2239          0   4.81e-11   4.82e-11     0.00
+bandm.mps      optimal        305     1963          0   8.98e-14   8.98e-14     0.00
+beaconfd.mps   optimal        173      813          0   1.92e-11   1.92e-11     0.00
+blend.mps      optimal         74      378          0   3.86e-15   3.87e-15     0.00
+bnl1.mps       optimal        643     2200          0   1.09e-13   1.09e-13     0.00
+bnl2.mps       optimal       2324     5080          0   1.28e-13   1.28e-13     0.00
+boeing1.mps    optimal        351     1889          0   3.91e-14   3.91e-14     0.00
+boeing2.mps    optimal        166      590          0   7.82e-14   7.82e-14     0.00
+bore3d.mps     optimal        233      559          0    1.8e-12    1.8e-12     0.00
+brandy.mps     optimal        220     1049          0   1.91e-13   1.91e-13     0.00
+capri.mps      optimal        271     1333          0   8.82e-13   8.82e-13     0.00
+cycle.mps      optimal       1903     1248          0   1.91e-12   1.91e-12     0.00
+czprob.mps     optimal        929     3413          0   1.22e-12   1.22e-12     0.00
+d2q06c.mps     optimal       2171    11369          0    1.2e-11    1.2e-11     0.00
+d6cube.mps     optimal        415     1654          0   2.64e-13   3.37e-13     0.00
+degen2.mps     optimal        444     2166          0   1.11e-16   2.78e-16     0.00
+degen3.mps     optimal       1503    11205          0   1.67e-16   1.11e-15     0.00
+dfl001.mps     optimal       6071    12133          0   1.35e-14   1.35e-14     0.00
+e226.mps       optimal        223     1081          0    1.6e-14   1.54e-14     0.00
+etamacro.mps   optimal        400     1302          0    1.7e-13    1.7e-13     0.00
+fffff800.mps   optimal        524     1615          0   4.41e-12   1.44e-11     0.00
+finnis.mps     optimal        497     1549          0   1.58e-13   1.58e-13     0.00
+fit1d.mps      optimal         24     5155          0   4.88e-14   4.93e-14     0.00
+fit1p.mps      optimal        627     5345          0    1.6e-14   1.53e-14     0.00
+fit2d.mps      optimal         25    60564          0   6.88e-14   6.92e-14     0.01
+fit2p.mps      optimal       3000    41795          0   3.55e-14   3.73e-14     0.01
+forplan.mps    optimal        161      493          0   1.06e-12   1.06e-12     0.00
+ganges.mps     optimal       1309     6418          0   1.18e-11   1.17e-11     0.00
+gfrd-pnc.mps   optimal        616     1290          0   3.64e-12   3.64e-12     0.00
+greenbea.mps   optimal       2392     5025          0   4.66e-08   4.66e-08     0.00
+greenbeb.mps   optimal       2392     5799          0   7.57e-12   7.56e-12     0.00
+grow15.mps     optimal        300     4605          0    3.5e-10    3.5e-10     0.00
+grow22.mps     optimal        440     6356          0    1.7e-08    1.7e-08     0.00
+grow7.mps      optimal        140     2276          0   2.26e-10   2.26e-10     0.00
+israel.mps     optimal        174     1424          0   5.79e-12   6.62e-12     0.00
+kb2.mps        optimal         43      219          0    4.2e-13    4.2e-13     0.00
+lotfi.mps      optimal        153      400          0   2.16e-10   2.16e-10     0.00
+maros-r7.mps   optimal       3136    63835          0   4.55e-13   1.35e-12     0.01
+maros.mps      optimal        846     2371          0   3.82e-10   3.82e-10     0.00
+modszk1.mps    optimal        687     2253          0   2.18e-11   2.18e-11     0.00
+nesm.mps       optimal        662     3863          0   1.37e-12   1.37e-12     0.00
+perold.mps     optimal        625     3639          0   2.18e-10   2.19e-10     0.00
+pilot-ja.mps   optimal        940     5778          0   1.58e-10   1.58e-10     0.00
+pilot-we.mps   optimal        722     3405          0   2.84e-10   2.84e-10     0.00
+pilot.mps      optimal       1441    21962          0   3.22e-13   3.22e-13     0.00
+pilot4.mps     optimal        410     3628          0   7.31e-11   7.31e-11     0.00
+pilot87.mps    optimal       2030    39714          0   2.03e-12   2.03e-12     0.00
+pilotnov.mps   optimal        975     5043          0   2.05e-08   2.05e-08     0.00
+recipe.mps     optimal         91      112          0          0          0     0.00
+sc105.mps      optimal        105      233          0   2.84e-14   2.84e-14     0.00
+sc205.mps      optimal        205      503          0   2.56e-13   2.56e-13     0.00
+sc50a.mps      optimal         50      115          0   2.84e-14   2.84e-14     0.00
+sc50b.mps      optimal         50      119          0   1.42e-14   2.13e-14     0.00
+scagr25.mps    optimal        471     1311          0   2.25e-12   2.25e-12     0.00
+scagr7.mps     optimal        129      444          0   9.78e-13   9.78e-13     0.00
+scfxm1.mps     optimal        330     1134          0   8.78e-13   8.79e-13     0.00
+scfxm2.mps     optimal        660     2353          0   1.21e-12   1.21e-12     0.00
+scfxm3.mps     optimal        990     3580          0    1.1e-12    1.1e-12     0.00
+scorpion.mps   optimal        388     1078          0   2.96e-16   2.96e-16     0.00
+scrs8.mps      optimal        490      985          0   1.42e-14   1.14e-14     0.00
+scsd1.mps      optimal         77       63          0   6.83e-17   6.83e-17     0.00
+scsd6.mps      optimal        147      229          0   1.11e-16   1.03e-16     0.00
+scsd8.mps      optimal        397     1174          0    1.8e-15    1.8e-15     0.00
+sctap1.mps     optimal        300      519          0   3.55e-15   2.89e-15     0.00
+sctap2.mps     optimal       1090     1054          0    3.3e-15    3.3e-15     0.00
+sctap3.mps     optimal       1480     1228          0   2.78e-15   2.78e-15     0.00
+seba.mps       optimal        515     2170          0          0          0     0.00
+share1b.mps    optimal        117      562          0   1.02e-10   1.02e-10     0.00
+share2b.mps    optimal         96      431          0    1.4e-13    1.4e-13     0.00
+shell.mps      optimal        536     1617          0          0          0     0.00
+ship04l.mps    optimal        402     1059          0   6.77e-15   6.77e-15     0.00
+ship04s.mps    optimal        402     1117          0      2e-15      2e-15     0.00
+ship08l.mps    optimal        778     1712          0    4.5e-15    4.5e-15     0.00
+ship08s.mps    optimal        778     1786          0   3.34e-15   3.34e-15     0.00
+ship12l.mps    optimal       1151     2828          0   3.61e-15   3.61e-15     0.00
+ship12s.mps    optimal       1151     2892          0   4.44e-15   4.44e-15     0.00
+sierra.mps     optimal       1227     1532          0   1.52e-13   1.52e-13     0.00
+stair.mps      optimal        356     3777          0   5.68e-14   5.68e-14     0.00
+standata.mps   optimal        359      190          0   4.26e-14   4.26e-14     0.00
+standmps.mps   optimal        467      665          0   1.04e-13   1.04e-13     0.00
+stocfor1.mps   optimal        117      270          0   7.35e-13   7.35e-13     0.00
+stocfor2.mps   optimal       2157     5835          0   8.08e-13   8.08e-13     0.00
+stocfor3.mps   optimal      16675    45065          0   6.71e-13   6.71e-13     0.01
+truss.mps      optimal       1000     3242          0   7.32e-14   7.32e-14     0.00
+tuff.mps       optimal        333      546          0   2.47e-13   2.47e-13     0.00
+vtp-base.mps   optimal        198      341          0   4.35e-12   4.36e-12     0.00
+wood1p.mps     optimal        244     1043          0   1.07e-14   1.07e-14     0.00
+woodw.mps      optimal       1098     2656          0   3.48e-14   3.48e-14     0.00
+bgdbg1.mps     infeasible (skipped: no optimum to evaluate)
+bgetam.mps     infeasible (skipped: no optimum to evaluate)
+bgindy.mps     infeasible (skipped: no optimum to evaluate)
+bgprtr.mps     infeasible (skipped: no optimum to evaluate)
+box1.mps       infeasible (skipped: no optimum to evaluate)
+ceria3d.mps    infeasible (skipped: no optimum to evaluate)
+chemcom.mps    infeasible (skipped: no optimum to evaluate)
+cplex1.mps     infeasible (skipped: no optimum to evaluate)
+cplex2.mps     infeasible (skipped: no optimum to evaluate)
+ex72a.mps      infeasible (skipped: no optimum to evaluate)
+ex73a.mps      infeasible (skipped: no optimum to evaluate)
+forest6.mps    infeasible (skipped: no optimum to evaluate)
+galenet.mps    infeasible (skipped: no optimum to evaluate)
+gosh.mps       infeasible (skipped: no optimum to evaluate)
+gran.mps       infeasible (skipped: no optimum to evaluate)
+greenbea.mps   infeasible (skipped: no optimum to evaluate)
+itest2.mps     infeasible (skipped: no optimum to evaluate)
+itest6.mps     infeasible (skipped: no optimum to evaluate)
+klein1.mps     infeasible (skipped: no optimum to evaluate)
+klein2.mps     infeasible (skipped: no optimum to evaluate)
+klein3.mps     infeasible (skipped: no optimum to evaluate)
+mondou2.mps    infeasible (skipped: no optimum to evaluate)
+pang.mps       infeasible (skipped: no optimum to evaluate)
+pilot4i.mps    infeasible (skipped: no optimum to evaluate)
+qual.mps       infeasible (skipped: no optimum to evaluate)
+reactor.mps    infeasible (skipped: no optimum to evaluate)
+refinery.mps   infeasible (skipped: no optimum to evaluate)
+vol1.mps       infeasible (skipped: no optimum to evaluate)
+woodinfe.mps   infeasible (skipped: no optimum to evaluate)
+cre-a.mps      optimal       3516     2515          0   2.84e-14   1.14e-13     0.00
+cre-b.mps      optimal       9648     2694          0   2.13e-14   8.53e-14     0.01
+cre-c.mps      optimal       3068     2529          0    1.6e-14   1.14e-13     0.00
+cre-d.mps      optimal       8926     2452          0   2.75e-14   2.84e-14     0.01
+ken-07.mps     optimal       2426     9270          0          0          0     0.00
+ken-11.mps     optimal      14694    59090          0          0          0     0.01
+ken-13.mps     optimal      28632   121425          0          0          0     0.02
+ken-18.mps     optimal     105127   456835          0          0          0     0.06
+osa-07.mps     optimal       1118     2485          0          0   3.44e-17     0.00
+osa-14.mps     optimal       2337     5467          0          0   5.55e-17     0.01
+osa-30.mps     optimal       4350    10744          0          0          0     0.01
+osa-60.mps     optimal      10280    20391          0          0   4.96e-17     0.02
+pds-02.mps     optimal       2953     1046          0          0          0     0.00
+pds-06.mps     optimal       9881     3831          0   1.14e-13   1.14e-13     0.00

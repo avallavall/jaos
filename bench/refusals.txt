@@ -120,3 +120,4 @@ D246 | bench/measurements/02-07/retest-dualfix.sh | a population where the valid
 
 # --- a feature's residue -------------------------------------------------
 D264 | MANUAL | a caller needs a strictly minimal IIS on a model infeasible by less than the feasibility tolerance (cplex2 keeps three of 338 sides a cold re-solve does not need, 02-171); iterating the deletion filter to a fixpoint would drop them at the IIS's size in re-solves per pass, with no bound on the passes
+D267 | MANUAL | an instance whose worst row violation lands within a factor of ten of the checker's tolerance. Exact evaluation and the checker's plain long double sum differ on 75 of 110 gate points, by up to 7.12x on cre-c and 9.99e-12 absolute on fffff800 (02-173); at 1e-11 against a 1e-7 bar that decorates the report, and nearer the bar it would decide it

@@ -1,0 +1,9 @@
+=== JM_EXACT_LIMBS=128 ===
+tests/test_exact.c:986:test_a_dyadic_agrees_with_the_general_rational:PASS
+33 Tests 0 Failures 0 Ignored 
+=== JM_EXACT_LIMBS=70 ===
+tests/test_exact.c:580:test_a_dyadic_agrees_with_the_general_rational:FAIL: Expected TRUE Was FALSE
+33 Tests 1 Failures 0 Ignored 
+
+Expected: 128 PASS, 70 FAIL on the width assertion. A PASS at 70
+would mean the comparison is answering 0 without comparing.

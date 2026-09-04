@@ -274,6 +274,8 @@ and you have the argument. Jump to the entry for the numbers behind it.
 - **[D264](#d264--an-iis-is-one-warm-re-solve-per-side-of-the-certificates-support-and-its-first-population-run-found-a-postsolve-branch-publishing-minus-infinity)** — An IIS is one warm re-solve per side of the certificate's support, and its first population run found a postsolve branch publishing minus infinity
 - **[D265](#d265--the-lp-writers-coverage-had-no-owner-specs-carried-a-number-no-file-held-and-two-documents-still-described-the-reader-before-d239)** — The LP writer's coverage had no owner: SPECS carried a number no file held, and two documents still described the reader before D239
 - **[D266](#d266--exact-arithmetic-here-is-32-bit-limbs-and-no-allocation-because-both-of-the-obvious-shortcuts-are-excluded-by-the-premises)** — Exact arithmetic here is 32-bit limbs and no allocation, because both of the obvious shortcuts are excluded by the premises
+- **[D267](#d267--exact-evaluation-agrees-with-the-checker-on-every-objective-disagrees-on-75-of-110-row-violations-and-moves-no-verdict-so-nothing-is-exposed)** — Exact evaluation agrees with the checker on every objective, disagrees on 75 of 110 row violations, and moves no verdict, so nothing is exposed
+- **[D268](#d268--the-review-of-the-exact-arithmetic-found-nine-defects-its-own-measurement-could-not-see-and-the-checker-is-not-compensated-at-all)** — The review of the exact arithmetic found nine defects its own measurement could not see, and the checker is not compensated at all
 
 ---
 
@@ -20029,3 +20031,163 @@ is the half that looked like the point.
 solves it over the rationals and returns a proof, so `SPECS.md` reads
 partial rather than done and `docs/claims.txt` still forbids a public
 `jaos_verify` symbol.
+
+## D267 — Exact evaluation agrees with the checker on every objective, disagrees on 75 of 110 row violations, and moves no verdict, so nothing is exposed
+
+**The question.** `src/check.c` sums in `long double` and is not exact.
+(**This paragraph said "with a compensation term" and that was false. It
+is corrected at D268**: `act[i] += term` and `primal_obj += c_j x_j` are
+plain running sums, and the compensated accumulators D168 and D169
+measured are in `src/simplex.c`.)
+D262 found one place where the difference reached the answer: the checker's
+objective was 790 ulps out on `finnis`, because `long double` holds 64 bits
+and a binary64 product needs 106. That was found by accident, on one
+instance. With `src/exact.c` in the tree the population can be asked
+directly, and it was: `bench/measurements/02-173/`.
+
+**The measurement.** `jm_exact_evaluate` beside `jaos_check_solution` on
+the same published point, over all 139 gate instances. 110 have an optimum
+to evaluate; the other 29 are the infeasible set.
+
+- **0 refused for limbs.** Nothing on the population exhausts
+  `JM_EXACT_LIMBS`, so D266's capacity of 128 has its measurement now.
+- **0 of 110 objectives differ.** Not one ulp. `long double` holds this
+  population's objective without help, and `finnis` no longer differs
+  because D261 retired the lent bounds that were putting 3.2e12 of traffic
+  through it.
+- **75 of 110 worst-row violations differ**, 33 of them visibly at three
+  significant digits. Exact is larger on 24 of the 33 and smaller on 9.
+  Largest ratio 7.12x on `cre-c`, largest absolute gap 9.99e-12 on
+  `fffff800`.
+
+**What it decides.** Nothing is exposed. Every difference is at 1e-11 or
+below against a checker bar of 1e-7, so no gate verdict reads differently
+and a public exact checker would today return the same words in a more
+expensive way. The reopen condition is in `bench/refusals.txt`: an instance
+whose worst row violation lands within a factor of ten of the tolerance,
+where a 7x difference in the figure would decide the verdict rather than
+decorate it.
+
+**The cost, which was the other half of the question, is small.** `ken-13`
+is 28632 rows and 121425 products in 0.02 s. The representation is why: a
+dyadic rational is `m * 2^e`, so adding two is a shift and an addition,
+where a general rational would want a gcd and two divisions per term. The
+product count also runs far under the nonzero count, 2515 against 14987 on
+`cre-a`, because a term with a zero coefficient or a zero variable is
+skipped and at an optimum most variables are zero.
+
+**What is left open.** The verifier itself, which is what `SPECS.md`
+section 5 still calls missing. Evaluating a point is not proving a basis
+optimal: that needs the basis solved over the rationals, and division is
+what takes it out of the dyadics and into `jm_rational`.
+
+## D268 — The review of the exact arithmetic found nine defects its own measurement could not see, and the checker is not compensated at all
+
+**Where this came from.** `numerics-reviewer` on the D267 diff, before the
+campaign. D267's own probe exercised one caller on 139 instances and every
+one of them succeeded, so nothing it measured could reach any of this.
+Every repair carries a test, and `bench/measurements/02-174/` runs the set
+against the tree with each repair taken back out in turn: each test goes red
+for its own repair and stays green for the others'.
+
+**1. A refused walk read as a clean point.** `jm_exact_evaluate` wrote
+`out->objective` as soon as the objective was summed and `out->col_violation`
+after the column loop, and could still fail in the row loop. What the caller
+then held was a real objective with `row_violation = 0.0` and `row_at = -1`,
+which is byte for byte what a complete clean walk produces. The header
+promised "there is no partial answer" and the code did not keep it. The
+trigger is two columns, `col_cost = {0.0, 1.0}` and `x = {inf, 0.5}`: the
+zero cost makes the objective loop skip the infinity, so the objective is
+published and only the column walk refuses. Built in a local and published
+in one assignment now, with NaN and -1 written on the failure path so a
+caller that ignores the `false` cannot read a verdict out of it.
+`tests/test_exact.c` carries the trigger and the clean control beside it.
+
+**2. Two roundings, not one, for a subnormal result.** `jm_dyadic_to_double`
+rounded the mantissa to 53 bits and then let `ldexp` place it, and below
+2^-1022 that placement rounds again: every subnormal's last bit sits at
+2^-1074 whatever its magnitude, so the first rounding can land on a halfway
+point the true value was not on and ties-to-even then goes the wrong way.
+The reviewer's sweep put it at **1.0% of subnormal results**, 572 of 56112
+draws. The drop is the larger of the two demands now, `bits - 53` and
+`-1074 - e`, with a clamp past the last bit so the sticky scan cannot walk
+an exponent-sized range. `2^-1073 + 2^-1075 + 2^-1200` is the pinned case:
+correctly `3 * 2^-1074`, and `2 * 2^-1074` when rounded twice.
+
+**The same defect was in `jm_rational_to_double`, which is older than the
+dyadics.** Same repair, on `drop - shift` instead of `e`; the pinned case
+there is `(37 * 2^125 + 1) / 2^1200`, correctly 19 subnormals and 18 when
+rounded twice. Nothing could have caught it: `tests/test_exact.c`'s round
+trip only ever asks about values that already are doubles, and those drop
+no bits on the way back.
+
+**3. The limb comment reasoned about the wrong operands.** `jm_dyadic_add`
+said its shift fails only past "4096 bits between them, which is well past
+anything a double pair spans". A double pair spans 2045 bits and fits in 66
+of the 128 limbs, so that much is true. The evaluator adds **products**,
+whose exponents span 4090 bits, and with up to 106 bits of mantissa on top
+the alignment wants 132 limbs. One row holding `DBL_MAX * DBL_MAX` beside
+`DBL_TRUE_MIN * DBL_TRUE_MIN` refuses, from four ordinary finite doubles;
+`1e300 * 1e300` beside `1e-300 * 1e-300` is the last pair that fits. The
+refusal itself is correct and stays. What was wrong was the comment, and
+what made it dangerous was defect 1: this is the reachable route to a
+refusal published as a row with nothing wrong with it.
+
+**4. The mantissa's overflow was a refusal and the exponent's was not.**
+`jm_dyadic_mul` did `r->e = a->e + b->e` unchecked. Fifty-three chained
+squarings of the smallest subnormal double `e` each time and reach
+`int64_t`, which is signed overflow. `jm_dyadic_add`'s alignment gap has
+the same shape. Both go through `ckd_add` / `ckd_sub` now, the way
+`src/alloc.c` already guards its allocation size. Not reachable from
+`jm_exact_evaluate`, which forms one product per term, but the two
+functions are exported.
+
+**5. `src/check.c` does not compensate, and D267 said it did.** The primal
+walk is `act[i] += term` (`check.c:329`) and `primal_obj += c_j x_j`
+(`check.c:340`), both plain `long double` running sums. `split_term`
+(`check.c:60`) splits the **dual** gap into two halves for D219 and never
+touches the primal walk, and the compensated accumulators D168 and D169
+measured are in `src/simplex.c`. The false sentence was load-bearing. It
+told the reader the checker's arithmetic was already as good as floating
+point gets, so exact arithmetic at roughly 1000x was the only way up. It is
+not. A Neumaier sum in `check.c` costs about twice the walk, is untried, and
+sits between the two. D267's verdict does not move, because nothing is
+exposed either way, but its reasoning does, and the middle option is open
+work now rather than an option nobody knew was there.
+
+**6 to 9, in the tests, where nothing was broken and three things were not
+being checked.** None of these changes an answer. All four are cases of a
+test claiming more than it verified.
+
+- **The skip that never ran.** `test_a_dyadic_agrees_with_the_general_rational`
+  guarded its addition with `if (jm_dyadic_add(...))` on the belief that two
+  random bit patterns could be too far apart to align. They cannot: the
+  widest gap between two doubles is 2045 bits and the shift wants 66 of the
+  128 limbs. The branch is unconditional now, and the add's false path is
+  covered where it is actually reachable, by a pair of products.
+- **`-0.0` was converted away before it was tested.** The round-trip list
+  held `-0.0` and passed it through `named[i] == 0.0 ? 0.0 : named[i]`,
+  which is true for both zeros. `-0.0` is the one double that does not come
+  back, because the dyadics have one zero and its sign is positive. It is
+  now asserted for what it does rather than hidden, and the random arm skips
+  both zeros instead of failing on one draw in 5000.
+- **A comparison that could answer without comparing, and this one was
+  tested rather than argued.** `jm_rational_cmp` returns 0 both for "equal"
+  and for "the cross-multiply did not fit". At 128 limbs a pair from doubles
+  never exhausts it, so the test is sound as shipped — but `JM_EXACT_LIMBS`
+  is documented as sweepable. `bench/measurements/02-174/sweep-limbs.sh`
+  builds the suite at 128 and at 70, the setting where both multiplies still
+  fit and only the comparator overflows. At 70 the test now fails on the
+  width assertion it did not used to make; before the assertion it would
+  have passed while comparing nothing.
+- **Four measured numbers restated where they have an owner.** ken-18's
+  nonzero count and row count, and two of D262's `finnis` figures, were
+  copied into comments in `src/exact.c` and into 02-173's probe. The
+  citations stay and the figures are gone.
+
+**What this says about the loop.** All nine sat in a diff whose unit tests
+passed, whose five build configurations passed, and whose 139-instance probe
+reported no failure at all. A population run exercises the path the
+population takes and says nothing about the path it never takes. The review
+step is where those are found, and running it before the campaign rather
+than after is what kept this cheap.
