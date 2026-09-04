@@ -74,6 +74,39 @@ other family and may need more than blocks.
 Hadamard refusal in front of it; blocks second, measured against this same
 file; and only then the question of the capacity constant.
 
+**2026-09-04, and that build order is wrong on both counts (D272, D273,
+`bench/measurements/02-177/` and `02-178/`).** Blocks are not second and not
+optional, and the refusal test is not D271's bound.
+
+Block triangular form took the thirteen refusals to **110 of 110**, with
+`ken-11` and `ken-13` fully triangular -- every block a single row, nothing
+to eliminate -- and the block work costs nothing: `ken-13` is 59.57 s of
+solve and 0.00 s from the read through the basis build.
+
+Then D273 read the premise both earlier entries share. Each bounds
+`log2 |det B|` by the basis entries **as read**, and Bareiss is exact only
+over the integers. A basis entry like `1.06` is a dyadic rational with a
+53-bit mantissa and an exponent of -52, so making its row integral costs 53
+to 72 bits. Measured over the same 110 bases: **86 fit in 4096 bits, and 85
+also fit a dense elimination's memory and time.** Not 97 and not 110.
+`pilot87` is out by a factor of 47, `truss` by 124, and the 19 whose entries
+are integers already (every `ken`, every `pds`, and nine more) keep the
+earlier figures unchanged.
+
+**So the build order now**: block triangular form first, because without it
+`truss` fits and `ken-18` does not and with it the reverse; the INTEGRAL
+bound per block as the refusal test, a priori and allocating nothing; then
+Bareiss on the blocks that pass. **The capacity constant is closed, not
+deferred**: `pilot87` wants 2556 limbs and a dense 1488-row block at that
+width is 21 GiB, so widening it does not reach that family.
+`bench/refusals.txt` carries what would.
+
+**What is open from D273** is one thing and it is a measurement, not a
+question of design: the memory figure that costs `dfl001` its place is a
+DENSE one. Bareiss on a sparse block fills in but does not start full, so a
+sparse implementation would reach further than the table says, and nobody
+has measured the fill.
+
 **2026-09-04: the scout has answered both, and the answer is in
 `docs/research/exact-verification.md`.** Bareiss fraction-free elimination
 on a block-triangularised basis, not rationals normalised at every step:

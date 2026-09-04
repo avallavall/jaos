@@ -279,6 +279,8 @@ and you have the argument. Jump to the entry for the numbers behind it.
 - **[D269](#d269--six-of-d264s-numbers-came-from-a-run-superseded-eleven-minutes-later-one-of-them-reached-six-other-files-and-the-record-check-cannot-see-any-of-it)** — Six of D264's numbers came from a run superseded eleven minutes later, one of them reached six other files, and the record check cannot see any of it
 - **[D270](#d270--the-checker-broke-the-cross-machine-claim-the-solver-refuses-long-double-to-keep-and-nobody-had-asked)** — The checker broke the cross-machine claim the solver refuses long double to keep, and nobody had asked
 - **[D271](#d271--an-exact-verifier-could-prove-97-of-110-gate-bases-at-todays-capacity-and-one-pass-over-the-basis-says-so-before-anything-is-built)** — An exact verifier could prove 97 of 110 gate bases at today's capacity, and one pass over the basis says so before anything is built
+- **[D272](#d272--block-triangular-form-takes-every-refused-basis-inside-the-capacity-and-two-of-the-kennington-ones-come-out-fully-triangular)** — Block triangular form takes every refused basis inside the capacity, and two of the Kennington ones come out fully triangular
+- **[D273](#d273--both-earlier-budgets-counted-a-matrix-the-verifier-cannot-hold-and-the-honest-reach-is-85-of-110)** — Both earlier budgets counted a matrix the verifier cannot hold, and the honest reach is 85 of 110
 
 ---
 
@@ -20425,3 +20427,135 @@ bound and a loose one, so an instance that fails it may still factor inside
 the budget; the 97 is a floor on what can be proved, not a ceiling. And every
 figure assumes the whole basis is one block, which is the worst case a
 verifier would ever face.
+
+## D272 — Block triangular form takes every refused basis inside the capacity, and two of the Kennington ones come out fully triangular
+
+**What D271 left.** Its last paragraph said every figure assumed the whole
+basis was one block, which is the worst case. Thirteen bases were outside
+4096 bits and every `ken` and `pds` among them had a largest column of 0.79
+bits, so the count was the problem and not the magnitude. The bound is a sum
+over columns, so splitting the basis splits the sum.
+
+**Two deterministic stages, both cited and neither randomized.** A maximum
+transversal so every diagonal entry is nonzero (Duff, ACM TOMS
+7(3):315-330, 1981), then the strongly connected components of the digraph
+with an edge `i -> j` when the permuted `B[i][j]` is nonzero (Pothen and Fan,
+ACM TOMS 16(4):303-324, 1990), Tarjan's algorithm, iterative because 105127
+nodes would take the stack down. Every loop runs in index order and every
+candidate list is scanned in index order, so the answer is a function of the
+matrix alone.
+
+**The figure that decides is the largest block, not the sum.** A block
+triangular solve holds one block at a time: it factors that block, solves it,
+substitutes into the blocks below and moves on. Nothing ever holds two
+determinants at once.
+
+**The reading** (`bench/measurements/02-177/`): **110 of 110**. Every basis
+D271 refused fits once it is split.
+
+| | rows | whole basis | blocks | largest | worst block |
+|---|---|---|---|---|---|
+| `ken-11` | 14694 | 7855.2 | 14694 | 1 | **0.0** |
+| `ken-13` | 28632 | 14707.9 | 28632 | 1 | **0.0** |
+| `ken-18` | 105127 | 52522.7 | 105000 | 67 | 34.1 |
+| `osa-60` | 10280 | 6395.8 | 10280 | 1 | 1.2 |
+| `pds-20` | 33874 | 15681.6 | 32098 | 1542 | 855.5 |
+| `stocfor3` | 16675 | 36846.7 | 16099 | 39 | 118.8 |
+| `d2q06c` | 2171 | 6596.4 | 1196 | 892 | 3061.5 |
+
+`ken-11` and `ken-13` come out **fully triangular**: every block is a single
+row, so their determinant is a product of scalars and there is nothing to
+eliminate. `ken-18` is nearly so. The family D271 warned blocks might not
+buy, `stocfor3` at 9.85 bits per column and `d2q06c` at 11.18, both split far
+enough; `d2q06c` keeps an 892-row block and still lands at 3061.5.
+
+**The block work is free.** Split by phase on Kennington: `ken-13` is 59.57 s
+of solve and 0.00 s from the read through the basis build; `ken-11` 6.88 s
+and 0.00 s; `pds-10` 21.30 s and 0.00 s. A run that looked stuck for 33
+minutes was solving `ken-18`, and the instrument's output file lagged a
+buffer behind, which places a reader about ten instances behind where the run
+is.
+
+**A change that was made and buys nothing.** `augment` carries the lookahead
+of Duff's MC21A, added on the theory that the matching was the cost. It is
+not, and the lookahead is kept only because the cited algorithm has it. It
+changes no answer: the 81 netlib instances a pre-lookahead run had finished
+are byte-identical under it, which is also the empirical check on Pothen and
+Fan's result that the fine decomposition does not depend on which maximum
+transversal is chosen.
+
+**What this does not say, and D273 says instead.** Every number here counts
+the basis entries as if they were integers.
+
+## D273 — Both earlier budgets counted a matrix the verifier cannot hold, and the honest reach is 85 of 110
+
+**The premise D271 and D272 share, unstated in both.** Each bounds
+`log2 |det B|` by the column norms of the basis **as read**. Bareiss is a
+fraction-free elimination and it is exact because its intermediate entries
+are minors of an INTEGER matrix. The published basis is not one. An entry
+like `1.06` is a dyadic rational whose odd mantissa needs 53 bits and whose
+exponent is -52.
+
+**Scaling is exact and it is not free.** Scale row `i` by `2^-s_i`, with
+`s_i` the smallest dyadic exponent in that row, and every entry becomes an
+integer. Then `det Z = det B * 2^(-sum_i s_i)`, and it is `Z` that the
+elimination holds. The same cost appears whichever route is taken: a `k`-th
+order minor of a dyadic matrix needs `log2 |minor|` bits plus the `k` row
+shifts, so running over `jm_dyadic` with an exact division buys nothing over
+scaling to `jm_bigint` first.
+
+**The reading** (`bench/measurements/02-178/`), same 110 bases, same blocks,
+same code from the basis build through the SCCs:
+
+| | bases inside 4096 bits |
+|---|---|
+| D271, whole basis as read | 97 |
+| D272, largest block as read | 110 |
+| **largest block once integral** | **86** |
+
+| instance | rows | block as read | block once integral | row scale | rows needing one |
+|---|---|---|---|---|---|
+| `pilot87` | 2030 | 1734.3 | **81771.3** | 72 | 1786 |
+| `pilot` | 1441 | 302.1 | 61430.1 | 72 | 1172 |
+| `d2q06c` | 2171 | 3061.5 | 42807.6 | 65 | 1432 |
+| `greenbeb` | 2392 | 297.2 | 27666.1 | 67 | 1332 |
+| `truss` | 1000 | 54.6 | 6760.0 | 54 | 970 |
+
+`pilot87` is out by a factor of 47 and `truss` by 124. The row scale where
+one is needed is 53 to 72 bits, which is a double's 53 mantissa bits plus the
+exponent of the smallest entry in the row.
+
+**The prediction held exactly.** 19 of the 110 need no scaling at all, and
+they are every `ken`, every `pds`, and `d6cube`, `degen2`, `degen3`, `fit2d`,
+`recipe`, `sctap1`, `sctap2`, `sctap3`, `seba`, `shell`, `sierra`. Their
+entries are integers, so D271's and D272's figures stand for them unchanged.
+Every one of the 24 that falls out carries decimal data.
+
+**A second budget, in neither earlier entry.** A verifier eliminating a block
+of `k` rows holds `k*k` numbers at once and forms about `k**3/3` products of
+them, so block SIZE limits it as hard as block width. `budgets.py` joins the
+size from `02-177/blocks.txt` with the width from `integral.txt`, because
+neither file can answer alone and no number is restated. At 1024 MiB held and
+1e10 products formed it costs exactly one instance: **`dfl001`**, whose
+largest block is 3159 rows -- cheap entries at 72 limbs, but 2817 MiB dense
+and 1.05e10 products. `pds-20` passes both at 1542 rows, 27 limbs, 263 MiB
+and 1.22e9 products.
+
+**So the reach is 85 of 110, and both refusals are a priori**: one pass over
+the basis gives the width, the SCC pass gives `k`, and neither allocates a
+limb.
+
+**What this closes.** The build order `TODO.md` carried said "the elimination
+first, on the 97, with the Hadamard refusal in front of it; blocks second".
+Blocks are not second and not optional -- without them `truss` fits and
+`ken-18` does not, with them the reverse -- and the refusal test is the
+integral bound. **`pilot87` is not reachable by widening the capacity
+constant**: it wants 2556 limbs, and a dense 1488-row block at that width is
+21 GiB. That belongs in `bench/refusals.txt` as a refusal with no reopen
+condition on the constant alone.
+
+**What it does not say.** Hadamard is an upper bound and a loose one, so an
+instance outside it may still factor inside the budget; 85 is a floor. The
+memory figure is dense, and Bareiss on a sparse block fills in but does not
+start full, so a sparse implementation would do better than the table says.
+Neither is measured here.

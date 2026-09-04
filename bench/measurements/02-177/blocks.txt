@@ -1,0 +1,126 @@
+# instrument: bench/measurements/02-177/blocks.c
+# tree: 9efbf20
+# date: 2026-09-04T18:30:59Z
+# block triangular form of the published basis, per gate instance
+# capacity: JM_EXACT_LIMBS=128, 4096 bits
+# whole: the Hadamard bound with the basis as one block (D271)
+# blocks: how many strongly connected components
+# largest: the biggest one
+# sumblocks: the same bound summed over every block
+# worstblock: the largest single block, and THIS is the capacity
+#             question -- a block solve holds one at a time
+
+instance           rows        whole   blocks   largest    sumblocks   worstblock   was   now
+25fv47.mps          821       1724.5      433       364       1085.1        937.4   yes   yes
+80bau3b.mps        2262       1344.0     2196        34        -52.5         12.2   yes   yes
+adlittle.mps         56         55.4       33        19         29.9         16.7   yes   yes
+afiro.mps            27         10.5       24         4          2.0          1.1   yes   yes
+agg.mps             488        227.2      477         9         72.9         34.8   yes   yes
+agg2.mps            516        375.0      513         3        218.7          8.7   yes   yes
+agg3.mps            516        363.8      509         3        243.6         21.4   yes   yes
+bandm.mps           305        786.3      208        83        460.6        333.3   yes   yes
+beaconfd.mps        173        292.6      173         1        119.6          6.6   yes   yes
+blend.mps            74        122.0       46        16         64.2         48.5   yes   yes
+bnl1.mps            643        749.2      499        77         85.0        142.5   yes   yes
+bnl2.mps           2324       1408.5     2064       135         21.5        107.1   yes   yes
+boeing1.mps         351        698.5      290        41        343.8        148.9   yes   yes
+boeing2.mps         166        214.7      160         7        112.1         35.8   yes   yes
+bore3d.mps          233        231.9      189        44         66.4         62.5   yes   yes
+brandy.mps          220        472.5      131        90        302.4        304.6   yes   yes
+capri.mps           271        346.0      204        46         71.3         36.4   yes   yes
+cycle.mps          1903       1861.3     1667        70        651.0        212.4   yes   yes
+czprob.mps          929        432.0      924         6        -96.1          0.0   yes   yes
+d2q06c.mps         2171       6596.4     1196       892       3556.9       3061.5    NO   yes
+d6cube.mps          415        810.3      193       223        670.0        623.4   yes   yes
+degen2.mps          444        470.1      216       229        257.6        257.6   yes   yes
+degen3.mps         1503       1987.3      761       735        972.2        967.4   yes   yes
+dfl001.mps         6071       4230.3     2909      3159       2279.0       2279.4    NO   yes
+e226.mps            223        446.4      158        62        207.9        200.9   yes   yes
+etamacro.mps        400       1084.1      315        61        591.8         95.5   yes   yes
+fffff800.mps        524        902.1      487        27        271.5         57.3   yes   yes
+finnis.mps          497        280.8      489         4        -31.2          1.5   yes   yes
+fit1d.mps            24        104.9       15        10         84.1         83.1   yes   yes
+fit1p.mps           627         67.3      618        10         31.6         30.6   yes   yes
+fit2d.mps            25        148.5        6        20        148.5        148.5   yes   yes
+fit2p.mps          3000        130.6     2981        20         60.2         60.2   yes   yes
+forplan.mps         161         85.6      101        50         35.8         23.8   yes   yes
+ganges.mps         1309        526.3      988        43        -54.2          0.0   yes   yes
+gfrd-pnc.mps        616        532.7      616         1        240.2          9.8   yes   yes
+greenbea.mps       2392       1498.5     1848       417       -332.5        248.2   yes   yes
+greenbeb.mps       2392       1938.9     1757       513        -85.9        297.2   yes   yes
+grow15.mps          300        -27.7       13       239        -40.8          0.0   yes   yes
+grow22.mps          440        -12.1        9       199        -27.9          3.2   yes   yes
+grow7.mps           140        -21.3        8        78        -29.5          0.0   yes   yes
+israel.mps          174        527.6      120        55        425.1        415.2   yes   yes
+kb2.mps              43        131.5       23        19         83.2         80.8   yes   yes
+lotfi.mps           153        556.0      152         2         45.1         10.0   yes   yes
+maros-r7.mps       3136        306.4     2020       104        -36.5          5.0   yes   yes
+maros.mps           846       2577.9      680       107       1189.9        691.8   yes   yes
+modszk1.mps         687        397.5      488       174         28.6         51.3   yes   yes
+nesm.mps            662       1138.3      386       268        974.7        590.1   yes   yes
+perold.mps          625       2348.4      204       419       2018.1       1768.5   yes   yes
+pilot-ja.mps        940       3924.1      383       544       3375.7       3140.3   yes   yes
+pilot-we.mps        722       3123.4      191       519       2718.3       2388.6   yes   yes
+pilot.mps          1441        643.0      330      1102        372.7        302.1   yes   yes
+pilot4.mps          410       1545.4      128       279       1410.0       1314.5   yes   yes
+pilot87.mps        2030       2397.3      492      1488       1713.4       1734.3   yes   yes
+pilotnov.mps        975       3346.5      429       484       2823.1       2175.1   yes   yes
+recipe.mps           91         12.0       91         1          0.0          0.0   yes   yes
+sc105.mps           105         76.5       21        85         66.8         66.8   yes   yes
+sc205.mps           205        160.4       22       184        150.8        150.8   yes   yes
+sc50a.mps            50         37.0        9        42         32.6         32.6   yes   yes
+sc50b.mps            50         45.2        3        48         45.2         45.2   yes   yes
+scagr25.mps         471        251.3      398        54         35.5         25.9   yes   yes
+scagr7.mps          129         84.2      129         1         -3.3          0.6   yes   yes
+scfxm1.mps          330        471.7      281        13        148.6         41.3   yes   yes
+scfxm2.mps          660        942.6      555        25        316.8         78.8   yes   yes
+scfxm3.mps          990       1442.3      828        25        495.3         78.8   yes   yes
+scorpion.mps        388        199.1      283        14         28.5          5.6   yes   yes
+scrs8.mps           490        384.9      422        23         79.0         25.6   yes   yes
+scsd1.mps            77         33.0       62        13         -2.4          5.1   yes   yes
+scsd6.mps           147         66.6      126        19        -17.2          7.2   yes   yes
+scsd8.mps           397        196.3      163       149         79.8         64.2   yes   yes
+sctap1.mps          300        456.0      256        42        243.9        135.1   yes   yes
+sctap2.mps         1090        901.4     1083         2        638.3          8.6   yes   yes
+sctap3.mps         1480       1148.6     1475         5        842.5         16.4   yes   yes
+seba.mps            515        196.5      515         1          0.0          0.0   yes   yes
+share1b.mps         117        600.4       77        10        356.7         82.9   yes   yes
+share2b.mps          96        336.3       69        10        187.1         47.9   yes   yes
+shell.mps           536        251.8      536         1          0.0          0.0   yes   yes
+ship04l.mps         402        219.9      402         1         -6.2          0.0   yes   yes
+ship04s.mps         402        220.6      399         4         -5.2          1.0   yes   yes
+ship08l.mps         778        349.9      771         8          2.0          2.0   yes   yes
+ship08s.mps         778        349.2      771         8          2.0          2.0   yes   yes
+ship12l.mps        1151        570.0     1147         5         -5.1          0.0   yes   yes
+ship12s.mps        1151        570.0     1147         5         -5.1          0.0   yes   yes
+sierra.mps         1227       1120.6     1227         1        597.9         16.6   yes   yes
+stair.mps           356        379.0       33       324        346.7        346.7   yes   yes
+standata.mps        359         85.3      359         1          0.0          0.0   yes   yes
+standmps.mps        467        497.5      467         1         13.9          4.6   yes   yes
+stocfor1.mps        117        179.6      105        13         61.7         46.3   yes   yes
+stocfor2.mps       2157       4504.9     2025        40       1204.6        126.4    NO   yes
+stocfor3.mps      16675      36846.7    16099        39       7973.0        118.8    NO   yes
+truss.mps          1000        493.5      561       134         35.1         54.6   yes   yes
+tuff.mps            333        396.0      301        33        113.4        117.9   yes   yes
+vtp-base.mps        198        350.8      166        31         81.3         79.2   yes   yes
+wood1p.mps          244       1986.6      175        38       1909.4        389.5   yes   yes
+woodw.mps          1098       8643.3     1076        21       7301.6        216.3    NO   yes
+cre-a.mps          3516       2617.4     3386       115        622.0        286.1   yes   yes
+cre-b.mps          9648       5198.4     9400       180        922.0        384.8    NO   yes
+cre-c.mps          3068       2444.8     2883       167        713.3        375.5   yes   yes
+cre-d.mps          8926       4092.8     8743       109        569.1        167.8   yes   yes
+ken-07.mps         2426       1405.4     2426         1          0.0          0.0   yes   yes
+ken-11.mps        14694       7855.2    14694         1          0.0          0.0    NO   yes
+ken-13.mps        28632      14707.9    28632         1          0.0          0.0    NO   yes
+ken-18.mps       105127      52522.7   105000        67         65.7         34.1    NO   yes
+osa-07.mps         1118        816.8     1118         1          1.5          1.5   yes   yes
+osa-14.mps         2337       1730.0     2337         1          1.2          1.2   yes   yes
+osa-30.mps         4350       3386.7     4350         1          1.2          1.2   yes   yes
+osa-60.mps        10280       6395.8    10280         1          1.2          1.2    NO   yes
+pds-02.mps         2953       1014.5     2931        23         12.4         12.4   yes   yes
+pds-06.mps         9881       4186.7     9702       180         98.2         98.2    NO   yes
+pds-10.mps        16558       7416.1    16051       500        278.5        273.7    NO   yes
+pds-20.mps        33874      15681.6    32098      1542        979.0        855.5    NO   yes
+
+110 bases
+fit as one block: 97;  fit split into blocks: 110;  gained: 13

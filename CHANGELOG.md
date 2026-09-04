@@ -63,6 +63,26 @@ open, `bench/README.md` for the gate, and the commit each entry came from.
   triangular form addresses and what raising the limb count would only buy
   at a quadratic cost (D271, `bench/measurements/02-176/`).
 
+- **Block triangular form of the published basis**, a maximum transversal
+  (Duff 1981) then the strongly connected components (Pothen and Fan 1990),
+  both deterministic. It takes D271's 97 of 110 to **110 of 110**, and
+  `ken-11` and `ken-13` come out fully triangular, every block a single row.
+  The block work is free: `ken-13` is 59.57 s of solve and 0.00 s from the
+  read through the basis build (D272, `bench/measurements/02-177/`).
+
+### Changed
+
+- **The verifier's budget was measured on a matrix it cannot hold, twice.**
+  D271 and D272 both bounded `log2 |det B|` by the basis entries as read;
+  Bareiss needs those entries to be integers, and scaling a row to make one
+  costs 53 to 72 bits. Measured over the same 110 bases: **86 fit in 4096
+  bits, not 97 and not 110**, and 85 also fit a dense elimination's memory
+  and time. `pilot87` is out by a factor of 47 and is not reachable by
+  widening the capacity constant — 2556 limbs and a 21 GiB block. The 19
+  instances whose entries are already integers, every `ken` and every `pds`
+  among them, keep the earlier figures unchanged (D273,
+  `bench/measurements/02-178/`).
+
 ### Fixed
 
 - **The checker broke the cross-machine claim the solver refuses `long double`

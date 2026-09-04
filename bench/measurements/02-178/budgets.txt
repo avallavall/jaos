@@ -1,0 +1,124 @@
+# the two budgets, joined from 02-177/blocks.txt and 02-178/integral.txt
+# k:      the largest block, from blocks.txt
+# bits:   that block's Hadamard bound once integral, from integral.txt
+# limbs:  ceil(bits / 32), what one number costs
+# mem:    k*k numbers of that width, dense, in MiB
+# mults:  about k**3/3 products of them
+# width:  does bits fit the 4096 the file has
+# both:   width, and the block small enough to hold and to run
+
+instance              k       bits   limbs      mem_MiB        mults  width  both
+25fv47.mps          364    17724.2     554        281.0     1.61e+07     NO    NO
+80bau3b.mps          34     1710.3      54          0.2     1.31e+04    yes   yes
+adlittle.mps         19     1066.9      34          0.0     2.29e+03    yes   yes
+afiro.mps             4      215.1       7          0.0         21.3    yes   yes
+agg.mps               9      509.7      16          0.0          243    yes   yes
+agg2.mps              3      157.6       5          0.0            9    yes   yes
+agg3.mps              3      176.4       6          0.0            9    yes   yes
+bandm.mps            83     4306.7     135          3.6     1.91e+05     NO    NO
+beaconfd.mps          1        4.6       1          0.0        0.333    yes   yes
+blend.mps            16      827.1      26          0.0     1.37e+03    yes   yes
+bnl1.mps             77     3716.7     117          2.7     1.52e+05    yes   yes
+bnl2.mps            135     6961.0     218         15.3      8.2e+05     NO    NO
+boeing1.mps          41      601.8      19          0.1      2.3e+04    yes   yes
+boeing2.mps           7      228.3       8          0.0          114    yes   yes
+bore3d.mps           44     2227.7      70          0.5     2.84e+04    yes   yes
+brandy.mps           90     4947.3     155          4.9     2.43e+05     NO    NO
+capri.mps            46     1855.4      58          0.5     3.24e+04    yes   yes
+cre-a.mps           115     3546.2     111          5.7     5.07e+05    yes   yes
+cre-b.mps           180     4563.1     143         17.9     1.94e+06     NO    NO
+cre-c.mps           167     4287.4     134         14.5     1.55e+06     NO    NO
+cre-d.mps           109      859.2      27          1.3     4.32e+05    yes   yes
+cycle.mps            70     3927.7     123          2.3     1.14e+05    yes   yes
+czprob.mps            6      319.7      10          0.0           72    yes   yes
+d2q06c.mps          892    42807.6    1338       4067.2     2.37e+08     NO    NO
+d6cube.mps          223      623.4      20          4.2      3.7e+06    yes   yes
+degen2.mps          229      257.6       9          2.2        4e+06    yes   yes
+degen3.mps          735      967.4      31         68.0     1.32e+08    yes   yes
+dfl001.mps         3159     2280.5      72       2817.0     1.05e+10    yes    NO
+e226.mps             62     3070.0      96          1.4     7.94e+04    yes   yes
+etamacro.mps         61     2435.8      77          1.1     7.57e+04    yes   yes
+fffff800.mps         27      304.3      10          0.0     6.56e+03    yes   yes
+finnis.mps            4      115.4       4          0.0         21.3    yes   yes
+fit1d.mps            10      531.6      17          0.0          333    yes   yes
+fit1p.mps            10       99.0       4          0.0          333    yes   yes
+fit2d.mps            20      148.5       5          0.0     2.67e+03    yes   yes
+fit2p.mps            20       59.2       2          0.0     2.67e+03    yes   yes
+forplan.mps          50     2672.6      84          0.8     4.17e+04    yes   yes
+ganges.mps           43      983.4      31          0.2     2.65e+04    yes   yes
+gfrd-pnc.mps          1       52.6       2          0.0        0.333    yes   yes
+greenbea.mps        417    21358.3     668        444.4     2.42e+07     NO    NO
+greenbeb.mps        513    27666.1     865        870.4      4.5e+07     NO    NO
+grow15.mps          239    11868.4     371         81.3     4.55e+06     NO    NO
+grow22.mps          199     9223.7     289         44.0     2.63e+06     NO    NO
+grow7.mps            78     4197.6     132          3.1     1.58e+05     NO    NO
+israel.mps           55     2119.4      67          0.8     5.55e+04    yes   yes
+kb2.mps              19     1047.2      33          0.0     2.29e+03    yes   yes
+ken-07.mps            1        0.0       1          0.0        0.333    yes   yes
+ken-11.mps            1        0.0       1          0.0        0.333    yes   yes
+ken-13.mps            1        0.0       1          0.0        0.333    yes   yes
+ken-18.mps           67       34.1       2          0.1        1e+05    yes   yes
+lotfi.mps             2        8.5       1          0.0         2.67    yes   yes
+maros-r7.mps        104     6206.3     194          8.1     3.75e+05     NO    NO
+maros.mps           107     4691.6     147          6.5     4.08e+05     NO    NO
+modszk1.mps         174     3521.6     111         13.1     1.76e+06    yes   yes
+nesm.mps            268    12957.4     405        111.5     6.42e+06     NO    NO
+osa-07.mps            1       52.5       2          0.0        0.333    yes   yes
+osa-14.mps            1       52.2       2          0.0        0.333    yes   yes
+osa-30.mps            1       52.2       2          0.0        0.333    yes   yes
+osa-60.mps            1       52.2       2          0.0        0.333    yes   yes
+pds-02.mps           23       12.4       1          0.0     4.06e+03    yes   yes
+pds-06.mps          180       98.2       4          0.7     1.94e+06    yes   yes
+pds-10.mps          500      273.7       9         10.5     4.17e+07    yes   yes
+pds-20.mps         1542      855.5      27        263.0     1.22e+09    yes   yes
+perold.mps          419    22481.2     703        472.1     2.45e+07     NO    NO
+pilot-ja.mps        544    29002.0     907       1026.2     5.37e+07     NO    NO
+pilot-we.mps        519    27647.6     864        889.8     4.66e+07     NO    NO
+pilot.mps          1102    61430.1    1920       8903.8     4.46e+08     NO    NO
+pilot4.mps          279    15894.9     497        148.2     7.24e+06     NO    NO
+pilot87.mps        1488    81771.3    2556      21605.6      1.1e+09     NO    NO
+pilotnov.mps        484    25030.1     783        701.5     3.78e+07     NO    NO
+recipe.mps            1        0.0       1          0.0        0.333    yes   yes
+sc105.mps            85      758.0      24          0.7     2.05e+05    yes   yes
+sc205.mps           184     1334.7      42          5.7     2.08e+06    yes   yes
+sc50a.mps            42      456.7      15          0.1     2.47e+04    yes   yes
+sc50b.mps            48     1083.1      34          0.3     3.69e+04    yes   yes
+scagr25.mps          54     2418.4      76          0.9     5.25e+04    yes   yes
+scagr7.mps            1       52.3       2          0.0        0.333    yes   yes
+scfxm1.mps           13      626.7      20          0.0          732    yes   yes
+scfxm2.mps           25     1300.5      41          0.1     5.21e+03    yes   yes
+scfxm3.mps           25     1300.5      41          0.1     5.21e+03    yes   yes
+scorpion.mps         14      748.4      24          0.0          915    yes   yes
+scrs8.mps            23     1213.7      38          0.1     4.06e+03    yes   yes
+scsd1.mps            13      369.6      12          0.0          732    yes   yes
+scsd6.mps            19      474.6      15          0.0     2.29e+03    yes   yes
+scsd8.mps           149     3815.6     120         10.3      1.1e+06    yes   yes
+sctap1.mps           42      128.1       4          0.0     2.47e+04    yes   yes
+sctap2.mps            2        8.6       1          0.0         2.67    yes   yes
+sctap3.mps            5       13.4       1          0.0         41.7    yes   yes
+seba.mps              1        0.0       1          0.0        0.333    yes   yes
+share1b.mps          10      536.8      17          0.0          333    yes   yes
+share2b.mps          10      543.1      17          0.0          333    yes   yes
+shell.mps             1        0.0       1          0.0        0.333    yes   yes
+ship04l.mps           1       51.8       2          0.0        0.333    yes   yes
+ship04s.mps           4      105.1       4          0.0         21.3    yes   yes
+ship08l.mps           8      215.2       7          0.0          171    yes   yes
+ship08s.mps           8      215.9       7          0.0          171    yes   yes
+ship12l.mps           5      160.3       5          0.0         41.7    yes   yes
+ship12s.mps           5      160.3       5          0.0         41.7    yes   yes
+sierra.mps            1       11.6       1          0.0        0.333    yes   yes
+stair.mps           324    18534.8     580        233.1     1.13e+07     NO    NO
+standata.mps          1        0.0       1          0.0        0.333    yes   yes
+standmps.mps          1        4.6       1          0.0        0.333    yes   yes
+stocfor1.mps         13      605.5      19          0.0          732    yes   yes
+stocfor2.mps         40     1900.3      60          0.4     2.13e+04    yes   yes
+stocfor3.mps         39     1851.0      58          0.3     1.98e+04    yes   yes
+truss.mps           134     6760.0     212         14.7     8.02e+05     NO    NO
+tuff.mps             33     1499.3      47          0.2      1.2e+04    yes   yes
+vtp-base.mps         31      157.3       5          0.0     9.93e+03    yes   yes
+wood1p.mps           38     2551.1      80          0.5     1.83e+04    yes   yes
+woodw.mps            21      667.7      21          0.0     3.09e+03    yes   yes
+
+110 instances joined
+width alone says yes on 86
+width and block size together say yes on 85 (memory ceiling 1024 MiB, 1e+10 products)
