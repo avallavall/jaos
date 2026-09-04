@@ -277,6 +277,7 @@ and you have the argument. Jump to the entry for the numbers behind it.
 - **[D267](#d267--exact-evaluation-agrees-with-the-checker-on-every-objective-disagrees-on-75-of-110-row-violations-and-moves-no-verdict-so-nothing-is-exposed)** — Exact evaluation agrees with the checker on every objective, disagrees on 75 of 110 row violations, and moves no verdict, so nothing is exposed
 - **[D268](#d268--the-review-of-the-exact-arithmetic-found-nine-defects-its-own-measurement-could-not-see-and-the-checker-is-not-compensated-at-all)** — The review of the exact arithmetic found nine defects its own measurement could not see, and the checker is not compensated at all
 - **[D269](#d269--six-of-d264s-numbers-came-from-a-run-superseded-eleven-minutes-later-one-of-them-reached-six-other-files-and-the-record-check-cannot-see-any-of-it)** — Six of D264's numbers came from a run superseded eleven minutes later, one of them reached six other files, and the record check cannot see any of it
+- **[D270](#d270--the-checker-broke-the-cross-machine-claim-the-solver-refuses-long-double-to-keep-and-nobody-had-asked)** — The checker broke the cross-machine claim the solver refuses long double to keep, and nobody had asked
 
 ---
 
@@ -20265,3 +20266,114 @@ arbitrary figure out of English and find its owner — is not a small tool.
 What is small and worth having is narrower: a check that every
 `bench/measurements/<id>/` whose README cites a `.txt` in the same directory
 is not older than that `.txt`, which is exactly the trap here.
+
+## D270 — The checker broke the cross-machine claim the solver refuses long double to keep, and nobody had asked
+
+**The question, and it came out of D268.** D268 found that `src/check.c`
+does not compensate its primal sums, and that the record said it did. Fixing
+that meant reading the file, and the file turned out to have a larger problem
+than the one D268 named.
+
+**`long double` is not the same type on two machines.** It is 64 mantissa
+bits on x86-64 and 113 on aarch64. `src/check.c` uses it in 51 places, and
+what it computes is printed into `bench/results/*.txt` — `col=`, `row=`,
+`rowrel=`, `dual=`, `gap=`, `sub=`, `rsub=` — which the gate reads and one of
+which (`rsub`) is stored in the committed baselines. So the figures this
+project checks itself against are not the same on two architectures.
+
+**The solver already refuses `long double` for exactly this reason, twice in
+writing.** D162: "`long double` is unavailable (D34); Neumaier is portable
+and already here." D168: "`long double` would buy the same accuracy and break
+the cross-machine determinism claim (D34)." The checker was written before
+either and was never revisited. Grepping the whole record for `x87`,
+`binary128`, `aarch64` or `80-bit` returns one hit, and it is about
+`FLT_EVAL_METHOD` guarding Dekker's split, not about the type's width.
+
+**What changed.** The primal walk only: row activities, their scale, and the
+primal objective. They accumulate in `double` with a Neumaier compensation
+(`jm_obj_add`) and Dekker's exact product residue
+(`jm_two_product_residue`) — the pattern `src/model.c:586` and
+`src/simplex.c:2235` already use for the published objective. This is
+portable **and more accurate than what it replaces**: 64 mantissa bits cannot
+hold the product of two binary64 numbers at all, which is D262's defect, and
+Dekker's split holds it exactly.
+
+**What did not change, and it is the larger half.** The dual walk is still
+`long double`: `dual_obj`, the four `pos`/`neg` halves, `certified`, `scale`,
+the reduced cost `dw`, and `implied_bounds`'s two range sums. Six of those
+reach the report. And `implied_bounds` **decides** rather than reports — a
+bound it tightens sets `sign_condition`'s window, which reaches `check_ok`.
+So the claim is not restored by this change; it is half restored, and
+`TODO.md` carries the rest. Doing it in one go would have put the whole
+checker through one campaign, and the primal half is the one D268 measured.
+
+**The measurement** (`bench/measurements/02-175/`). The judge is
+`jm_exact_evaluate`, which does not round at all and did not change; the
+exact column reads the same in both halves on all 110, which is the control.
+The before half was re-measured rather than quoted, because D267's own
+evidence file was truncated by the machine going down mid-run — its counts
+are right, and this run reproduces the 75 exactly, but they could not be read
+out of what survived.
+
+| | before, `long double` | after, compensated `double` |
+|---|---|---|
+| evaluated exactly | 110 | 110 |
+| refused for limbs | 0 | 0 |
+| objectives differing from exact | 0 | 0 |
+| **worst-row violations differing** | **75** | **37** |
+
+**The disagreement halves and nothing regresses**: 38 instances agree with
+exact arithmetic to the last bit that did not, and 0 that agreed now do not.
+
+**What it does not fix is the more interesting half.** The instances with the
+largest disagreements did not move at all — `cre-c` at 7.12x, `degen3` at
+6.65x, `adlittle` at 4.72x, `cre-a` at 4.01x, `fffff800` at 3.27x, every one
+byte-identical before and after. Their accumulation was never the problem.
+The figure the checker publishes is a **subtraction**: `interval_violation`
+computes `lo - act` or `act - hi`, and where an activity sits within an ulp
+of its bound that subtraction cancels nearly everything it is handed. A
+perfectly accumulated activity does not help, because the loss is in the last
+operation rather than in the sum. `jm_exact_evaluate` avoids it by
+subtracting exactly too. So a compensated sum closes what a sum can close and
+the residue is a different defect, which is worth knowing before anyone tries
+to close it with a better accumulator.
+
+**No verdict moves.** Every difference is at 1e-11 or below against a checker
+bar of 1e-7, which is D267's finding and this does not change it.
+
+**The review found nine things and two were blockers, one of them mine.**
+`numerics-reviewer` on the diff, before the campaign.
+
+- **The objective was published folded and read raw.** `primal_obj` became
+  the sum half of a pair, and the dual side kept reading it at two sites that
+  both decide: `relative_suboptimality`, which `bench/run.c:772` tests against
+  1e-6, and `objective_gap`, which is half of `check_ok`. On terms
+  `1e25, 1e8, -1e25, 1` the sum ends at 1 and the compensation holds 1e8, so
+  the divisor is 2 where it should be 100000002 and the figure reads 0.5
+  instead of 1e-8. **A correct answer would have failed the gate.**
+  `tests/test_check.c` builds that case, and
+  `bench/measurements/02-175/validate-d270.sh` puts the raw read back and
+  watches it fail: `Expected 9.9999998e-09 Was 0.5`.
+- **The comment claimed a portability the file does not have** — finding 3
+  above. It says which half is done now, and names the rest as open.
+- **"`traffic` decides nothing (D24)" was false.** `traffic[i]` is
+  `sign_condition`'s scale, and the window is `tol * scale`, which is D23's
+  rule and reaches `check_ok`. Dropping the product residue there moves the
+  window by about `nnz * eps` relative, which is defensible and is now stated
+  as what it is.
+- **The intermediate range drops from 1.2e4932 to 1.8e308.** A row holding
+  `1e200 * 1e200` used to reach a finite activity if a matching negative term
+  followed; it reaches `+inf` now and cannot come back. The verdict stays
+  safe, no gate instance is near it, and it is written down as the price.
+- **`certified_step` is the one place the old type was better.** It consumed
+  `act[i]` at more than double precision; everything else cast to `double`
+  first. For a row with no cancellation and under about 2000 nonzeros the old
+  value was more accurate, by up to 2^11. It feeds
+  `certified_suboptimality`, which no verdict reads.
+- **Nothing enforced that the two halves are never read apart.** The names
+  `act` and `traffic` are declared after the fold now, so a reader placed
+  above it does not compile. That is the only enforcement C offers.
+- **A skip removed the one signal an infinite value leaves.** `0.0 * inf` is
+  a NaN, and in a zero-cost column that NaN in the objective is all there is:
+  the column violates no bound. The skip is gone; adding an exact zero to a
+  Neumaier accumulator was free anyway.

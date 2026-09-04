@@ -306,18 +306,26 @@ them.
 
 ### → what is open and needs no decision, smallest first
 
-- **Compensate the checker's primal walk, and measure it against the exact
-  one (D268).** `src/check.c` sums row activities at line 329 and the
-  objective at line 340 as plain `long double` running sums. Presolve and
-  the simplex both compensate theirs — D165, D168, D169 — and the checker
-  was skipped because the record wrongly said it already did. It is a
-  Neumaier accumulator in two places, roughly twice the walk, against the
-  ~1000x of exact arithmetic. **What makes it worth doing is that the
-  measurement already exists**: 02-173 holds the exact worst-row violation
-  for all 110 instances, so the compensated checker can be scored against
-  the exact answer directly, and the 75 that differ say how much of the
-  gap a compensated sum closes. Everything a solve publishes must stay
-  byte-identical; only the checker's reported figures may move.
+- ~~**Compensate the checker's primal walk**~~ — **LANDED 2026-09-04 (D270,
+  `bench/measurements/02-175/`).** It turned out to be more than an accuracy
+  item: `long double` is 64 mantissa bits on x86-64 and 113 on aarch64, and
+  `src/check.c`'s figures go into `bench/results/`, so the checker was
+  breaking the cross-machine claim the solver refuses that type to keep.
+  75 of 110 worst-row disagreements with exact arithmetic become 37, none
+  newly disagreeing. **The largest disagreements do not move**, because the
+  published figure is a subtraction that cancels and no accumulator reaches
+  it — worth knowing before anyone tries a better sum.
+
+- **Finish the checker in `double`: the dual walk is still `long double`
+  (D270).** `dual_obj`, the four `pos`/`neg` halves, `certified`, `scale`,
+  the reduced cost `dw`, and `implied_bounds`'s two range sums. Six reach
+  the report, and **`implied_bounds` decides rather than reports**: a bound
+  it tightens sets `sign_condition`'s window, which reaches `check_ok`, so
+  on aarch64 a bound can land on the other side and flip a verdict. The
+  primal half was done alone so that one campaign judged one thing. The
+  measurement to score it against already exists in 02-175. This is the
+  half that carries a verdict, so it wants `numerics-reviewer` on the diff
+  and a careful read of the gate's dual columns.
 
 - **D245 moved the forced primal from 61 / 30 / 3 to 75 / 16 / 3**
   (ok / DISAGREE / overrun, as read then; the current counts live in

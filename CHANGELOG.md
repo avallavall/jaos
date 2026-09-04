@@ -53,6 +53,19 @@ open, `bench/README.md` for the gate, and the commit each entry came from.
 
 ### Fixed
 
+- **The checker broke the cross-machine claim the solver refuses `long double`
+  to keep.** `long double` is 64 mantissa bits on x86-64 and 113 on aarch64,
+  and `src/check.c`'s figures are printed into `bench/results/`, one of them
+  into the baselines. D162 and D168 both refuse the type in the solver for
+  exactly that reason and the checker was never revisited. Its **primal**
+  walk is a Neumaier sum over Dekker's exact products in `double` now, which
+  is portable and holds more: against exact arithmetic the worst-row figures
+  that disagree go from 75 of 110 to 37, with none newly disagreeing. The
+  instances with the largest disagreements do not move, because the figure is
+  a subtraction that cancels and no accumulator reaches it. **The dual walk
+  is still `long double`** and is named as open (D270,
+  `bench/measurements/02-175/`).
+
 - **Six of D264's numbers were from a run its own directory superseded eleven
   minutes later**, and one of them had been copied into six other files.
   `cplex2` keeps three of its **232** members a cold re-solve does not need,

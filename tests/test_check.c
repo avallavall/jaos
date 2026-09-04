@@ -614,6 +614,56 @@ static void test_the_gap_can_be_two_large_halves_cancelling(void)
     jaos_model_free(m);
 }
 
+/* The objective is a compensated pair now (D270), and reading the sum half
+ * alone is silently wrong wherever the compensation carries the value. This
+ * builds that case on purpose: the terms are 1e25, 1e8, -1e25 and 1, so the
+ * running sum ends at 1 and the compensation holds 1e8. The dual side
+ * divides by `1 + |objective|` twice, and with the raw half that divisor is
+ * 2 instead of 100000002 -- fifty million times too small, which takes
+ * `relative_suboptimality` from 1e-8 to 0.5 and past the gate's own 1e-6
+ * bar on a correct answer. */
+static void test_the_objective_is_read_with_its_compensation(void)
+{
+    const double c[] = {1e25, 1e8, -1e25, 1.0};
+    const double cl[] = {1.0, 1.0, 1.0, 0.0};
+    const double cu[] = {1.0, 1.0, 1.0, INFINITY};
+    const double rl[] = {-INFINITY}, ru[] = {INFINITY};   /* a free row */
+    const int64_t s[] = {0, 1, 1, 1, 1}, ix[] = {0};
+    const double v[] = {1.0};
+    jaos_model *m = nullptr;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_model_new(&m));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_load_lp(m, 4, 1, JAOS_MINIMIZE, 0.0, c, cl, cu, rl, ru,
+                     1, s, ix, v));
+
+    const double x[] = {1.0, 1.0, 1.0, 1.0};
+    const double y[] = {0.0};
+    jaos_check_report r;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_check_solution(m, x, y, 1e-6, &r));
+
+    /* The control: the sum half alone is 1.0, and the answer is not. */
+    const double want = 100000001.0;             /* 1e8 + 1, exactly */
+    TEST_ASSERT_EQUAL_MEMORY(&want, &r.primal_objective, sizeof want);
+
+    /* Column 3 rests a whole unit above its lower bound with a reduced cost
+     * of 1, so the positive half of the gap is exactly that unit. */
+    TEST_ASSERT_DOUBLE_WITHIN(1e-12, 1.0, r.gap_positive);
+
+    /* And this is the figure the gate reads. Against the raw half it would
+     * be 0.5. */
+    TEST_ASSERT_DOUBLE_WITHIN(1e-16, 1.0 / (1.0 + want),
+                              r.relative_suboptimality);
+    TEST_ASSERT_TRUE(r.relative_suboptimality < 1e-6);
+
+    /* The other divisor, reached through the scale identity the cancelling
+     * test above uses. */
+    const double scale =
+        1.0 + fabs(r.primal_objective) + fabs(r.dual_objective);
+    TEST_ASSERT_DOUBLE_WITHIN(1e-18, r.objective_gap,
+                              fabs(r.gap_positive - r.gap_negative) / scale);
+    jaos_model_free(m);
+}
+
 /* The ordinary case, so that the halves are pinned where nothing cancels:
  * on T1's true optimum every term is zero, and on the waived-but-costly
  * point of the test above this one, the whole 0.1 of gap sits in the
@@ -1442,6 +1492,7 @@ int main(void)
 {
     UNITY_BEGIN();
     RUN_TEST(test_the_gap_can_be_two_large_halves_cancelling);
+    RUN_TEST(test_the_objective_is_read_with_its_compensation);
     RUN_TEST(test_a_clean_point_carries_no_negative_half);
     RUN_TEST(test_the_relative_row_residue_is_reported_and_decides_nothing);
     RUN_TEST(test_a_row_at_its_bound_to_its_own_precision_is_accepted);

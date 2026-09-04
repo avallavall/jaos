@@ -16,6 +16,25 @@ ask the population.
 |---|---|
 | `exact-cover.c` / `run-exact-cover.sh` | one line per instance: rows, products formed, the distance in ulps between the checker's objective and the exact one, both worst-row violations, and the seconds the exact walk took. Writes `exact-cover.txt` |
 
+## `exact-cover.txt` here is truncated, and 02-175 holds the complete run
+
+Found 2026-09-04, writing D270. This file stops at `pds-06`: it holds 108 of
+the 110 instances that have an optimum, is missing `pds-10` and `pds-20`,
+and has **no summary line**, so neither of the two counts below can be read
+out of it. The machine went down while the session that produced it was
+running, which is what truncated it.
+
+Everything else here is confirmed against the file, figure by figure:
+`cre-a`'s 2515 products, `ken-13`'s 28632 rows and 121425 products at 0.02 s,
+`cre-c`'s 1.6e-14 against 1.14e-13, and `fffff800`'s 1.44e-11 against
+4.41e-12, whose difference is 9.99e-12. The two counts came from the summary
+line of the complete run and are not wrong; they are unverifiable from what
+survived.
+
+**`bench/measurements/02-175/before-exact-cover.txt` is the same probe on
+the same checker, re-run complete on 2026-09-04 with its summary line.** Read
+the counts there.
+
 ## The reading
 
 **110 of the 139 instances have an optimum to evaluate**, the other 29

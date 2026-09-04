@@ -57,6 +57,15 @@ typedef struct {
     int64_t rays;
 } dual_acc;
 
+/* The value of a compensated pair. A non-finite sum turns the compensation
+ * into a NaN, and a NaN makes every comparison against it false, so the
+ * pair reads as its sum there. Presolve's accumulator has the same rule and
+ * for the same reason (D165). */
+static double acc_value(double sum, double comp)
+{
+    return (isfinite(sum) && isfinite(comp)) ? sum + comp : sum;
+}
+
 static void split_term(long double t, long double *pos, long double *neg)
 {
     if (t > 0.0L)
@@ -81,7 +90,7 @@ static void note_dropped(dual_acc *a, double w)
  * infinite. Room is clamped at zero because the point being judged may sit
  * a tolerance outside a bound. Returns HUGE_VALL when nothing blocks. */
 static long double certified_step(const jaos_model *m, int64_t j, double dir,
-                                  const long double *act)
+                                  const double *act)
 {
     /* Both sentences above, checked rather than written (D219). The caller
      * reaches here only where `drops` held, and `drops` is the same test on
@@ -311,48 +320,113 @@ jaos_status jaos_check_solution(const jaos_model *m,
     memset(out, 0, sizeof *out);
 
     /* Row activities from the CSC copy: column-order scatter-add. The order
-     * is fixed by the data structure, so the result is deterministic (D8). */
-    long double *act = jm_calloc_array(m->num_row, sizeof(long double));
+     * is fixed by the data structure, so the result is deterministic (D8).
+     *
+     * The PRIMAL walk is compensated in `double`, not accumulated in `long
+     * double` (D270). Two reasons, and the first is the one that had been
+     * missed. `long double` is 64 mantissa bits on x86-64 and 113 on
+     * aarch64, so a figure this file publishes differs between machines --
+     * and these figures go into `bench/results/`, which the gate reads. The
+     * solver refuses `long double` for exactly that reason (D162, D168) and
+     * the checker did not. The second reason is accuracy: a Neumaier sum
+     * loses nothing in the accumulation and Dekker's split keeps each
+     * product whole, where 64 mantissa bits cannot hold a binary64 product
+     * at all (D262).
+     *
+     * **The dual half of this file is still `long double` and still has the
+     * first problem.** `dual_obj`, the four `pos`/`neg` halves, `certified`
+     * and `implied_bounds`'s two range sums all reach the report, and
+     * `implied_bounds` decides rather than reports: a bound it tightens sets
+     * `sign_condition`'s window, which reaches `check_ok`. That half is
+     * named as open in `TODO.md` rather than fixed here (D270).
+     *
+     * What this costs: the intermediate range drops from about 1.2e4932 to
+     * 1.8e308. A row holding `1e200 * 1e200` used to reach a finite activity
+     * if a matching negative term followed; it reaches `+inf` now and cannot
+     * come back, because `inf + t` is `inf` for every finite `t`. The verdict
+     * is safe -- an infinite activity fails `primal_feasible` -- and no gate
+     * instance is anywhere near it. Accepted as the price of the
+     * portability. */
+    double *acts = jm_calloc_array(m->num_row, sizeof(double));
+    double *actc = jm_calloc_array(m->num_row, sizeof(double));
     /* The sum of the magnitudes of each activity's terms: its scale. */
-    long double *traffic = jm_calloc_array(m->num_row, sizeof(long double));
-    if (act == nullptr || traffic == nullptr) {
-        free(act);
-        free(traffic);
+    double *traffics = jm_calloc_array(m->num_row, sizeof(double));
+    double *trafficc = jm_calloc_array(m->num_row, sizeof(double));
+    if (acts == nullptr || actc == nullptr ||
+        traffics == nullptr || trafficc == nullptr) {
+        free(acts);
+        free(actc);
+        free(traffics);
+        free(trafficc);
         return JAOS_ERR_OUT_OF_MEMORY;
     }
     for (int64_t j = 0; j < m->num_col; j++) {
-        double xj = col_value[j];
+        const double xj = col_value[j];
         if (xj == 0.0)
             continue;
         for (int64_t k = m->a_start[j]; k < m->a_start[j + 1]; k++) {
-            long double term = (long double)m->a_value[k] * xj;
-            act[m->a_index[k]] += term;
-            traffic[m->a_index[k]] += fabsl(term);
+            const int64_t i = m->a_index[k];
+            const double t = m->a_value[k] * xj;
+            const double e = jm_two_product_residue(m->a_value[k], xj, t);
+            jm_obj_add(&acts[i], &actc[i], t);
+            if (e != 0.0)
+                jm_obj_add(&acts[i], &actc[i], e);
+            /* The scale carries the rounded term only, so it is short by at
+             * most half an ulp of each term. It is not a reported figure
+             * alone: it is D23's window, `tol * scale` in `sign_condition`,
+             * so a value sitting within nnz ulps of the window's edge could
+             * land on the other side of it. Nothing on the gate does. */
+            jm_obj_add(&traffics[i], &trafficc[i], fabs(t));
         }
     }
+    for (int64_t i = 0; i < m->num_row; i++) {
+        acts[i] = acc_value(acts[i], actc[i]);
+        traffics[i] = acc_value(traffics[i], trafficc[i]);
+    }
+    free(actc);
+    free(trafficc);
+    /* The names the rest of the file reads, declared after the fold on
+     * purpose. A reader placed above this line does not compile, which is
+     * the only enforcement C offers that the halves are never read apart
+     * (D270). */
+    const double *const act = acts;
+    const double *const traffic = traffics;
 
     /* Primal side. */
     double col_viol = 0.0, row_viol = 0.0, row_viol_rel = 0.0;
-    long double primal_obj = m->obj_offset;
+    double primal_obj = m->obj_offset, primal_objc = 0.0;
     for (int64_t j = 0; j < m->num_col; j++) {
         col_viol = max2(col_viol, interval_violation(col_value[j],
                                     m->col_lower[j], m->col_upper[j]));
-        primal_obj += (long double)m->col_cost[j] * col_value[j];
+        const double c = m->col_cost[j], x = col_value[j];
+        /* No skip on a zero factor. `0.0 * inf` is a NaN, and that NaN
+         * reaching the objective is the only signal an infinite value in a
+         * zero-cost column leaves: the column violates no bound, so
+         * `col_viol` says nothing about it (D270). Adding an exact zero to
+         * a Neumaier accumulator is free, so the skip bought nothing. */
+        const double t = c * x;
+        jm_obj_add(&primal_obj, &primal_objc, t);
+        const double e = jm_two_product_residue(c, x, t);
+        if (e != 0.0)
+            jm_obj_add(&primal_obj, &primal_objc, e);
     }
+    /* The pair is worth nothing read half at a time. Folded once, here,
+     * because the dual side reads it twice more (D270). */
+    const double pobj = acc_value(primal_obj, primal_objc);
     for (int64_t i = 0; i < m->num_row; i++) {
-        double viol = interval_violation((double)act[i], m->row_lower[i],
+        double viol = interval_violation(act[i], m->row_lower[i],
                                          m->row_upper[i]);
         row_viol = max2(row_viol, viol);
-        /* The same residue against what the row is made of. It decides
-         * nothing: D24 keeps the predicate absolute. */
+        /* The same residue against what the row is made of. The predicate
+         * itself stays absolute (D24); this figure is reported. */
         row_viol_rel = max2(row_viol_rel,
-                            viol / max2(1.0, (double)traffic[i]));
+                            viol / max2(1.0, traffic[i]));
     }
 
     out->max_col_violation = col_viol;
     out->max_row_violation = row_viol;
     out->max_row_violation_relative = row_viol_rel;
-    out->primal_objective = (double)primal_obj;
+    out->primal_objective = pobj;
     out->primal_feasible = col_viol <= tol && row_viol <= tol;
 
     /* Dual side, minimize-canonical. */
@@ -391,8 +465,8 @@ jaos_status jaos_check_solution(const jaos_model *m,
                 }
             }
             dual_viol = max2(dual_viol,
-                sign_condition((double)act[i], rl, ru, sigma * row_dual[i],
-                               tol, max2(1.0, (double)traffic[i]), &a,
+                sign_condition(act[i], rl, ru, sigma * row_dual[i],
+                               tol, max2(1.0, traffic[i]), &a,
                                rl_imp, ru_imp));
         }
 
@@ -443,7 +517,7 @@ jaos_status jaos_check_solution(const jaos_model *m,
         assert(a.pos >= 0.0L && a.neg >= 0.0L);
         assert(a.pos_model >= 0.0L && a.neg_model >= 0.0L);
         long double true_dual_obj = sigma * a.dual_obj;
-        long double scale = 1.0L + fabsl(primal_obj) + fabsl(true_dual_obj);
+        long double scale = 1.0L + fabs(pobj) + fabsl(true_dual_obj);
         double gap = (double)(fabsl(a.pos_model - a.neg_model) / scale);
 
         out->checked_duals = true;
@@ -453,7 +527,7 @@ jaos_status jaos_check_solution(const jaos_model *m,
 
         /* The suboptimality bound, relative to the objective (D47). */
         out->relative_suboptimality =
-            (double)(a.pos / (1.0L + fabsl(primal_obj)));
+            (double)(a.pos / (1.0L + fabs(pobj)));
         /* Whether the identity the two halves come from was complete (D47). */
         out->max_dropped_multiplier = a.dropped_max;
         out->dropped_terms = a.dropped_n;
@@ -473,8 +547,8 @@ jaos_status jaos_check_solution(const jaos_model *m,
         free(rui);
     }
 
-    free(act);
-    free(traffic);
+    free(acts);
+    free(traffics);
     return JAOS_OK;
 }
 

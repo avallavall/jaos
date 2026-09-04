@@ -1,0 +1,19 @@
+=== ARM 0: the tree as it stands (all PASS) ===
+tests/test_check.c:1494:test_the_gap_can_be_two_large_halves_cancelling:PASS
+tests/test_check.c:1495:test_the_objective_is_read_with_its_compensation:PASS
+38 Tests 0 Failures 0 Ignored 
+
+=== ARM 1: the two dual-side reads take the sum half again ===
+expect: read_with_its_compensation FAILS, the cancelling test still PASSES
+pobj reads left in the dual half (0 means both are back to the raw sum):
+0
+tests/test_check.c:1494:test_the_gap_can_be_two_large_halves_cancelling:PASS
+tests/test_check.c:654:test_the_objective_is_read_with_its_compensation:FAIL: Expected 9.9999998e-09 Was 0.5
+38 Tests 1 Failures 0 Ignored 
+
+=== RESTORED (all PASS) ===
+tests/test_check.c:1494:test_the_gap_can_be_two_large_halves_cancelling:PASS
+tests/test_check.c:1495:test_the_objective_is_read_with_its_compensation:PASS
+38 Tests 0 Failures 0 Ignored 
+diff against keep:
+identical

@@ -1,0 +1,14 @@
+before: # tree: d88578e WITH UNCOMMITTED CHANGES
+after : # tree: d88578e WITH UNCOMMITTED CHANGES
+
+instances compared (both optimal): 110
+
+  exact column moved (must be 0)          : 0
+  objectives differing from exact, before : 0
+  objectives differing from exact, after  : 0
+  worst-row differing from exact, before  : 33
+  worst-row differing from exact, after   : 24
+  checker row figure moved at all         : 11
+
+  now agreeing that did not (9): agg3.mps blend.mps fit1d.mps fit2d.mps greenbeb.mps pds-10.mps pds-20.mps scfxm1.mps vtp-base.mps
+  now disagreeing that did (0):
