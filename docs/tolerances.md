@@ -555,7 +555,30 @@ returns false. Every other number in this file decides what counts as zero.
 
 | constant | value | |
 |---|---|---|
-| `JM_EXACT_LIMBS` | 128 | Limbs of 32 bits in one magnitude, so 4096 bits, and a `jm_rational` is 1048 bytes. The floor is what one double costs: a finite double is `m * 2^e` with `e` no smaller than -1074, so its denominator needs up to 1075 bits and its numerator up to 1024, and 34 limbs holds either. The rest is headroom for the sums and products that read them. **Not swept, and the reason is that nothing reads it yet beyond `tests/test_exact.c`**: the sweep that means something is over the models a verifier can prove, and that verifier is what `SPECS.md` section 5 still lists as missing. Override with `-DJM_EXACT_LIMBS=N` when it arrives (D266) |
+| `JM_EXACT_LIMBS` | 128 | Limbs of 32 bits in one magnitude, so 4096 bits, and a `jm_rational` is 1048 bytes. The floor is what one double costs: a finite double is `m * 2^e` with `e` no smaller than -1074, so its denominator needs up to 1075 bits and its numerator up to 1024, and 34 limbs holds either. The rest is headroom for the sums and products that read them. **Not swept, and since D274 the reason is a measurement rather than an absence of one.** `jaos_verify` reads it as its refusal test, and D273 measured what widening it would buy: `pilot87` wants 2556 limbs, and a dense elimination on its 1488-row block at that width is 21 GiB, so the family that fails the test is not reachable by raising the number. Raising it also costs every basis 8 bytes a limb in every one of a block's `k*(k+1)` entries. Override with `-DJM_EXACT_LIMBS=N`; `tests/test_verify.c` reaches the refusal branch without one (D266, D273, D274) |
+
+## The verifier's one number, and the one that was removed
+
+`src/verify.c` has a single constant, and like `JM_EXACT_LIMBS` it is a
+capacity rather than a tolerance: no setting of it can change an answer, only
+whether the call gives one.
+
+| constant | value | |
+|---|---|---|
+| `VERIFY_BLOCK_BYTES` | 536870912 | 512 MiB. What one call may hold for a single block's dense elimination. **Arithmetic, not a fitted value**: a block of `k` rows holds `k*(k+1)` numbers and a `jm_bigint` is `JM_EXACT_LIMBS` limbs plus a sign, so at 128 limbs a number is 520 bytes and this ceiling is a block of 990 rows. It exists so an oversized block is refused before the allocation rather than by it. Bounded below by what the gate needs: D272 measured the largest block of every gate basis, and the biggest that also passes the width test is `pds-20`'s 1542 rows, which needs 263 MiB at its own 27 limbs — under this ceiling, so it is not what refuses `pds-20`. Bounded above by nothing except the machine (D272, D274) |
+
+**A second constant was removed rather than left unmeasured.** An earlier
+draft of `jaos_verify` kept `VERIFY_BOUND_MARGIN`, 64 bits of slack below the
+capacity, to cover the rounding in a bound computed with `log2`. The bound is
+integer arithmetic now and has no rounding to cover, so the margin had no
+quantity to guard and no measurement on either side. The test is
+`bound_bits > capacity_bits` and nothing else. **That test is not a
+guarantee and the header says so**: it bounds the matrix minors, while the
+right-hand side column an elimination carries also holds model bound values
+and the accumulated denominator, and neither is in it. A basis that passes it
+can still run out of limbs during the work, which is a refusal too, with
+`terms` saying how far it got. No margin closes that gap; only bounding the
+right-hand side would, and nobody has (D274).
 
 Two things in `tests/test_exact.c` pin the capacity rather than describe it.
 The largest magnitude the array holds is built, and shifting it one bit,

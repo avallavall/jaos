@@ -107,6 +107,45 @@ DENSE one. Bareiss on a sparse block fills in but does not start full, so a
 sparse implementation would reach further than the table says, and nobody
 has measured the fill.
 
+**2026-09-04, last: the verifier itself landed (D274,
+`bench/measurements/02-179/`).** `jaos_verify` proves **30 of the 110** gate
+bases with no tolerance anywhere, refuses 74 a priori, and disproves 6. The
+bound admitted exactly the 36 D273 predicted, instance for instance. The six
+disproved are the result rather than a defect: five carry one nonbasic
+reduced cost of exactly the wrong sign and `sierra` one basic value exactly
+outside its bound, every figure five orders or more below `PRIMAL_TOL` and
+`DUAL_TOL`, so the published answers are right and the bases are optimal only
+to a tolerance. `numerics-reviewer` found eleven defects in the diff and two
+of them were wrong answers; all eleven are fixed and `SPECS.md` names them.
+
+**What D274 leaves open, in the order it should happen.**
+
+1. **Sixteen instruments link the wrong build, and it costs a factor of
+   4.6.** Every `bench/measurements/*/run-*.sh` links `build/dev/*.o`, which
+   is `-Og`; the gate links `build/release`, which is `-O3 -flto
+   -march=native -DNDEBUG`. Measured on one tree: the gate solves `ken-13` in
+   12.97 s and `02-179/proofs.txt` records 52.76 s for the same solve. A
+   139-instance run costs about 50 minutes where it should cost 11. **Three
+   must NOT change**: `02-145`, `02-146` and `02-147` exercise asserts, and
+   release compiles those out, so switching them would leave them green for
+   the reason "zero firings prove nothing" describes. The rule to write into
+   `bench/README.md`: release to measure cost, dev to exercise an assert, and
+   a runner prints which it linked. Seconds already committed under `02-176`
+   through `02-179` were taken at `-Og` and say so; do not re-run them for
+   this.
+2. **The refusal test does not cover the right-hand side.** `whole + worst`
+   bounds the matrix minors. The column an elimination carries beside them
+   also holds model bound values and the accumulated denominator, and neither
+   is in the bound, so a basis that passes can still run out of limbs during
+   the work. That is a refusal too and the report models it, but the a priori
+   test is weaker than it reads. Bounding the right-hand side would close it.
+3. **74 of 110 are refused, and Hadamard is loose.** Nobody has measured how
+   loose: an instance refused at 5000 bits might factor inside 4096. The
+   measurement is to raise `JM_EXACT_LIMBS` and count what moves, which
+   `docs/tolerances.md` says the constant exists to allow.
+4. `python/jaos.py` has no binding for `jaos_verify`. Every other public call
+   since D258 got one.
+
 **2026-09-04: the scout has answered both, and the answer is in
 `docs/research/exact-verification.md`.** Bareiss fraction-free elimination
 on a block-triangularised basis, not rationals normalised at every step:

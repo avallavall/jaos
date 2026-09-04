@@ -999,6 +999,78 @@ JAOS_NODISCARD jaos_status jaos_rhs_ranging(jaos_model *m,
 JAOS_NODISCARD jaos_status jaos_bound_ranging(jaos_model *m,
     double *lower_lo, double *lower_hi, double *upper_lo, double *upper_hi);
 
+/* --- Exact verification of a final basis ------------------------------ */
+
+/* What jaos_verify concluded. REFUSED is not a failure: it is the honest
+ * answer when the numbers the proof needs do not fit, and the report says
+ * how far outside they were. */
+typedef enum jaos_proof {
+    JAOS_PROOF_OPTIMAL = 0,  /* proved, with no tolerance anywhere    */
+    JAOS_PROOF_BROKEN,       /* the basis does not certify the answer */
+    JAOS_PROOF_REFUSED,      /* the arithmetic does not fit           */
+} jaos_proof;
+
+/* Which of the checks a BROKEN verdict came from. They run in this order and
+ * the first to fail is the one reported, so a basis can fail more than one. */
+typedef enum jaos_proof_stage {
+    JAOS_PROOF_STAGE_NONE = 0,
+    JAOS_PROOF_STAGE_RANK,    /* the basis has no transversal          */
+    JAOS_PROOF_STAGE_PRIMAL,  /* a basic value is outside its bounds   */
+    JAOS_PROOF_STAGE_DUAL,    /* a reduced cost points out of the model */
+} jaos_proof_stage;
+
+/* What jaos_verify did, beside the verdict. */
+typedef struct jaos_verify_report {
+    jaos_proof status;
+    jaos_proof_stage stage;  /* on BROKEN, which check said so             */
+    double  bound_bits;      /* what the proof needs, read before any of it
+                                is attempted: the Hadamard bound of the
+                                scaled basis plus that of its largest block */
+    double  capacity_bits;   /* what the arithmetic holds                  */
+    int64_t blocks;          /* strongly connected components of the basis */
+    int64_t largest_block;   /* rows in the biggest one                    */
+    int64_t at_row;          /* on BROKEN, the row that breaks it, or -1   */
+    int64_t at_col;          /* and the column, or -1                      */
+    double  violation;       /* on BROKEN, how far out it is. The only
+                                rounded number in the report: what decided
+                                the verdict was an exact comparison, and
+                                this is what the caller is told afterwards */
+    int64_t bytes_held;      /* the largest single block table allocated   */
+    int64_t terms;           /* integer products formed; the cost scales
+                                with this                                  */
+} jaos_verify_report;
+
+/* Proves, or refuses to prove, that the last solve's published basis
+ * certifies its answer. Nothing here compares against a tolerance.
+ *
+ * The basis is rebuilt over the integers -- each row scaled by the power of
+ * two that clears its mantissas, which is exact -- permuted to block
+ * triangular form by a maximum transversal and the strongly connected
+ * components, and each block eliminated by Bareiss's fraction-free method.
+ * The basic values and the duals come out as exact rationals, and the
+ * verdict is OPTIMAL when every basic value lies inside its bounds and every
+ * nonbasic reduced cost points into the model.
+ *
+ * REFUSED comes before the work, not during it: one pass over the basis
+ * bounds every number the proof would hold, and `bound_bits` against
+ * `capacity_bits` is the whole test. A basis past it is refused with nothing
+ * allocated. It can also come during, when the bound was loose enough to
+ * admit a basis the arithmetic then could not hold; `terms` says how far it
+ * got. Measured over the gate: the bound admits 36 of the 110 instances that
+ * have a basis to read, and it is an upper bound and a loose one, so more
+ * than 36 may prove (D273, D274).
+ *
+ * BROKEN names the first row or column that fails, in the order the checks
+ * run: the basic values against their bounds, then the reduced costs.
+ *
+ * Reproducible bit for bit, like everything else (D8): every loop runs in
+ * index order and no tie is broken by an address. The cost is stated rather
+ * than billed to jaos_work_units, and it is not small -- an elimination on a
+ * block of k rows holds k*(k+1) numbers and forms about k**3 products of
+ * them. */
+JAOS_NODISCARD jaos_status jaos_verify(jaos_model *m,
+                                       jaos_verify_report *out);
+
 #ifdef __cplusplus
 }
 #endif

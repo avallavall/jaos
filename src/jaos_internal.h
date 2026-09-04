@@ -738,6 +738,15 @@ JAOS_NODISCARD bool jm_bigint_sub(jm_bigint *r, const jm_bigint *a,
                                   const jm_bigint *b);
 JAOS_NODISCARD bool jm_bigint_mul(jm_bigint *r, const jm_bigint *a,
                                   const jm_bigint *b);
+/* a * 2^bits, bits >= 0 only: this makes a row of doubles integral and a
+ * right shift that dropped a set bit would be a silent rounding. */
+JAOS_NODISCARD bool jm_bigint_shl(jm_bigint *r, const jm_bigint *a,
+                                  int64_t bits);
+/* a / b where b divides a exactly. False on a zero divisor, on a result
+ * that does not fit, and on a nonzero remainder -- which in a fraction-free
+ * elimination means the elimination is wrong, not that the input is hard. */
+JAOS_NODISCARD bool jm_bigint_divexact(jm_bigint *q, const jm_bigint *a,
+                                       const jm_bigint *b);
 
 void    jm_rational_set_zero(jm_rational *r);
 void    jm_rational_set_i64(jm_rational *r, int64_t v);
@@ -745,7 +754,15 @@ bool    jm_rational_is_zero(const jm_rational *r);
 int32_t jm_rational_sign(const jm_rational *r);
 void    jm_rational_neg(jm_rational *r);
 /* Sign of a - c. Both are normalised, so this is exact. */
+/* Sign of a - c. Out of limbs this reports 0, the same answer it gives for
+ * a real equality, so **a caller that cannot rule the overflow out must use
+ * the checked form**: reading a failed comparison as "equal" is how a bound
+ * test certifies a value it never compared. */
 int     jm_rational_cmp(const jm_rational *a, const jm_rational *c);
+/* The same, writing the sign and returning false when a cross-multiply does
+ * not fit. On false *out is untouched. */
+JAOS_NODISCARD bool jm_rational_cmp_checked(const jm_rational *a,
+                                            const jm_rational *c, int *out);
 /* The nearest double, ties to even. For a report only: a proof never
  * leaves the rationals. */
 double  jm_rational_to_double(const jm_rational *r);

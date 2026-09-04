@@ -36,4 +36,4 @@ absent SPECS.md#3-milp                     \b(jm_bnb|branch_and_bound|jm_cut|cut
 absent SPECS.md#3-deterministic-parallelism \bpthread_create\s*\(
 absent SPECS.md#3-primal-devex             \b(devex|jm_devex)\w*\s*\(
 absent SPECS.md#3-presolve-duplicates      \b(static|jaos_status)\s+\w*\s*\*?\s*(ps_|jm_)?(duplicate_rows?|duplicate_cols?|dominated_cols?)\s*\(
-absent SPECS.md#5-exact-verifier           \b(mpq_t|mpz_t|__gmpq|jaos_verify|jaos_exact|jm_verify|jm_bareiss|jm_fraction_free|jm_exact_solve|jm_exact_factor|jm_exact_lu|jm_exact_basis|jm_exact_prove)\w*
+absent SPECS.md#5-exact-verifier           \b(mpq_t|mpz_t|__gmpq)\w*

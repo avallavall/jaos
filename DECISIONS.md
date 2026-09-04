@@ -281,6 +281,7 @@ and you have the argument. Jump to the entry for the numbers behind it.
 - **[D271](#d271--an-exact-verifier-could-prove-97-of-110-gate-bases-at-todays-capacity-and-one-pass-over-the-basis-says-so-before-anything-is-built)** — An exact verifier could prove 97 of 110 gate bases at today's capacity, and one pass over the basis says so before anything is built
 - **[D272](#d272--block-triangular-form-takes-every-refused-basis-inside-the-capacity-and-two-of-the-kennington-ones-come-out-fully-triangular)** — Block triangular form takes every refused basis inside the capacity, and two of the Kennington ones come out fully triangular
 - **[D273](#d273--both-earlier-budgets-counted-a-matrix-the-verifier-cannot-hold-and-the-honest-reach-is-85-of-110)** — Both earlier budgets counted a matrix the verifier cannot hold, and the honest reach is 85 of 110
+- **[D274](#d274--the-exact-verifier-is-here-it-proves-30-of-110-and-the-six-it-disproves-are-right-answers-on-bases-that-are-not-exactly-optimal)** — The exact verifier is here, it proves 30 of 110, and the six it disproves are right answers on bases that are not exactly optimal
 
 ---
 
@@ -20559,3 +20560,114 @@ instance outside it may still factor inside the budget; 85 is a floor. The
 memory figure is dense, and Bareiss on a sparse block fills in but does not
 start full, so a sparse implementation would do better than the table says.
 Neither is measured here.
+
+## D274 — The exact verifier is here, it proves 30 of 110, and the six it disproves are right answers on bases that are not exactly optimal
+
+**What landed.** `jaos_verify` takes the basis the last solve published and
+proves, with no tolerance anywhere, that it certifies the answer. It rebuilds
+the basis over the integers, permutes it to block triangular form, eliminates
+each block by Bareiss's fraction-free method, and returns OPTIMAL, BROKEN
+naming the row or column and how far out it is, or REFUSED with the bits it
+would have needed. `src/verify.c`, `tests/test_verify.c`, and two additions
+to `src/exact.c`.
+
+**The reading** (`bench/measurements/02-179/`): **30 proved, 74 refused,
+6 broken**, over the 110 gate instances that have a basis to read.
+
+**The bound admitted exactly the 36 D273 predicted.** 30 proved plus 6
+disproved is 36, instance for instance, from an instrument that measures a
+budget and one that spends it, written separately. Neither had a way to see
+the other's answer.
+
+**The six broken are the result worth having.**
+
+| | stage | how far out |
+|---|---|---|
+| `degen3` | dual | 5.638e-16 |
+| `ship12s` | dual | 7.105e-15 |
+| `ship12l` | dual | 1.421e-14 |
+| `ship04l`, `ship04s` | dual | 5.684e-14 |
+| `sierra` | primal | 7.550e-14 |
+
+Five have one nonbasic reduced cost of exactly the wrong sign and `sierra`
+has one basic value exactly outside its bound. Every figure is five orders or
+more below `PRIMAL_TOL` at 1e-7 and `DUAL_TOL` at 1e-9, and
+`jaos_check_solution` accepts all six against its own bar, correctly. **The
+answers are not wrong.** A basis is optimal to a tolerance, which is what a
+floating-point simplex promises, and this is the first instrument in the
+repository that can tell that apart from optimal.
+
+**The cost follows the largest block, not the model.** `pds-02` is 2953 rows
+in 2931 blocks and costs 0.02 s; `sc205` is 205 rows in 22 blocks with one of
+184 and costs 7.34 s, 17.1 MiB and 7276112 integer products. Two of the 30
+take more than a second. That is what D272's block measurement buys, and it
+is why the blocks are in the shipping code even though they buy no width.
+
+**Blocks buy memory and time, not width, and the header says so.** The
+answer's denominator is `det B` whichever way it is computed, so the
+whole-basis bound is what refuses. A `jm_bigint` is a fixed-size struct, so a
+dense elimination on n rows holds n*n of them whatever the entries are worth:
+`sierra` at 1227 rows would want 780 MiB where its largest block is one row.
+
+**The review found eleven things and two of them were wrong answers**
+(`numerics-reviewer` on the diff, before the campaign, which is what the loop
+asks for).
+
+1. **A false proof.** `jm_rational_cmp` answers 0 both for "equal" and for
+   "the cross-multiply did not fit", a contract `tests/test_exact.c` states
+   and whose callers had all been pairs that came from doubles. The bound
+   check is not: it compares a solved value whose numerator reaches the whole
+   limb budget against a bound like 0.1 carrying a 56-bit denominator, and it
+   read that 0 as "inside the bound". A basic value arbitrarily far outside
+   its bound would have been certified OPTIMAL. `jm_rational_cmp_checked`
+   returns false instead, and the verdict becomes REFUSED.
+2. **A disproved basis reported as a shortage of limbs.** `block_solve`
+   returned one `false` for "no pivot, the basis is rank deficient, proved
+   exactly" and for "out of limbs". Two proportional columns pass the
+   transversal and cancel in the elimination; that is BROKEN at the rank
+   stage, not REFUSED.
+
+Then: the bound was not an upper bound, because a column's shared power of
+two was subtracted from it without being divided out of the matrix (a defect
+introduced earlier in the same session, on a 3x3 whose determinant needs 64
+bits the bound read 45.5); `finnis` returned an error rather than a verdict,
+because a column can rest on a bound the solve lent itself and `jaos.h` never
+promised AT_LOWER names a finite one; two comments still described bugs
+already fixed twelve lines below them; and REFUSED had no test that produced
+it.
+
+**The bound is integer arithmetic, and the third attempt at it is the one
+that works.** `log2` and `exp2` are not pinned across C libraries, so a
+verdict computed from them could differ between two machines, which D8 does
+not allow. Summing whole bit counts is deterministic and far too coarse:
+`jm_nat_bits` overstates `log2 v` by up to a bit, so `ken-11`'s 14694 columns
+of plus and minus one collected 14694 bits of slack and its bound read 23365
+where the measured figure is 7855. What works is a running product held to
+256 bits and rounded up at every shift: `ken-11` now reads 7856 against
+7855.2 measured, `ken-13` 14709 against 14707.9, `ken-07` 1406 against
+1405.4. Under one bit of slack over a hundred thousand columns.
+
+**A constant was removed rather than left unmeasured.** `VERIFY_BOUND_MARGIN`
+held 64 bits of slack below the capacity to cover the rounding in the
+floating-point bound. There is no rounding to cover now, so it guarded
+nothing and had no measurement on either side. `VERIFY_BLOCK_BYTES` stays and
+is in `docs/tolerances.md` with its arithmetic: 512 MiB is a block of 990
+rows at 128 limbs, and the largest block that also passes the width test is
+`pds-20`'s 1542 rows at 263 MiB, so this ceiling is not what refuses anything
+on the gate.
+
+**What it does not say.** The test is not a guarantee and the header says so.
+`whole + worst` bounds the matrix minors; the right-hand side column an
+elimination carries also holds model bound values and the accumulated
+denominator, and neither is in the bound. A basis that passes can still run
+out of limbs during the work, which is a refusal too, with `terms` saying how
+far it got. No margin closes that; only bounding the right-hand side would,
+and nobody has.
+
+**And the seconds in that directory are not the gate's.** `run-proofs.sh`
+links `build/dev/*.o` at `-Og` where the gate links `-O3 -flto
+-march=native`. On the same tree the gate solves `ken-13` in 12.97 s and the
+instrument records 52.76 s for the same solve: 4.6x, and it is the link. All
+seventeen instruments under `bench/measurements/` link that way and three of
+them must, because they exercise asserts that release compiles out. `TODO.md`
+carries the rest.

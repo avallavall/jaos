@@ -958,6 +958,60 @@ static void test_a_refused_walk_does_not_read_as_a_clean_point(void)
     TEST_ASSERT_EQUAL_INT64(-1, p.col_at);
     jaos_model_free(m);
 }
+/* `jm_rational_cmp` answers 0 both for "equal" and for "the cross-multiply
+ * did not fit". That is a deliberate contract and it has one trap in it: a
+ * caller that reads the second as the first certifies a pair it never
+ * compared. A bound test that does this calls a value inside a bound it is
+ * arbitrarily far outside of.
+ *
+ * `jm_rational_cmp_checked` is what a caller who cannot rule the overflow out
+ * uses instead. This builds a pair that provably overflows, and asserts BOTH
+ * halves: the checked form refuses, and the plain one returns the zero that
+ * would be mistaken for equality. Asserting only the first would leave the
+ * trap undocumented and the test would pass on an implementation that had
+ * quietly made the plain form refuse too. */
+static void test_a_comparison_that_does_not_fit_says_so(void)
+{
+    const int64_t cap = 32 * JM_EXACT_LIMBS;
+
+    /* a = 2^(cap - 100) / 1 and c = 1 / 2^(cap - 100). Their cross-multiply
+     * wants 2 * (cap - 100) bits, which is nearly twice the budget, and both
+     * are legal normalised rationals on their own. */
+    jm_rational a, c;
+    jm_rational_set_i64(&a, 1);
+    TEST_ASSERT_TRUE(jm_nat_shl(&a.num.mag, &a.num.mag, cap - 100));
+    a.num.sign = 1;
+    jm_rational_set_i64(&c, 1);
+    TEST_ASSERT_TRUE(jm_nat_shl(&c.den, &c.den, cap - 100));
+
+    TEST_ASSERT_TRUE_MESSAGE(jm_nat_bits(&a.num.mag) + jm_nat_bits(&c.den)
+                             > cap,
+        "the pair does not actually overflow, so the test proves nothing");
+
+    int got = 12345;
+    TEST_ASSERT_FALSE_MESSAGE(jm_rational_cmp_checked(&a, &c, &got),
+        "a comparison that cannot fit reports success");
+    TEST_ASSERT_EQUAL_INT_MESSAGE(12345, got,
+        "the failed comparison wrote an answer anyway");
+
+    TEST_ASSERT_EQUAL_INT_MESSAGE(0, jm_rational_cmp(&a, &c),
+        "the plain form no longer reports equal on an overflow, so every "
+        "caller of it needs rereading");
+
+    /* And a pair that does fit still answers, so the checked form is not
+     * simply refusing everything. */
+    jm_rational one, two;
+    jm_rational_set_i64(&one, 1);
+    jm_rational_set_i64(&two, 2);
+    int ord = 0;
+    TEST_ASSERT_TRUE(jm_rational_cmp_checked(&one, &two, &ord));
+    TEST_ASSERT_EQUAL_INT(-1, ord);
+    TEST_ASSERT_TRUE(jm_rational_cmp_checked(&two, &one, &ord));
+    TEST_ASSERT_EQUAL_INT(1, ord);
+    TEST_ASSERT_TRUE(jm_rational_cmp_checked(&one, &one, &ord));
+    TEST_ASSERT_EQUAL_INT(0, ord);
+}
+
 int main(void)
 {
     UNITY_BEGIN();
@@ -994,5 +1048,6 @@ int main(void)
     RUN_TEST(test_an_infinite_bound_is_not_a_violation);
     RUN_TEST(test_the_evaluator_refuses_what_it_cannot_read);
     RUN_TEST(test_a_refused_walk_does_not_read_as_a_clean_point);
+    RUN_TEST(test_a_comparison_that_does_not_fit_says_so);
     return UNITY_END();
 }

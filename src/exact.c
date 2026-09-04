@@ -438,6 +438,44 @@ bool jm_bigint_mul(jm_bigint *r, const jm_bigint *a, const jm_bigint *b)
     return true;
 }
 
+/* a * 2^bits. A negative shift is not accepted: this exists to make a row
+ * of doubles integral, which only ever shifts up, and a right shift that
+ * dropped a set bit would be a silent rounding in code whose whole point is
+ * that there is none. */
+bool jm_bigint_shl(jm_bigint *r, const jm_bigint *a, int64_t bits)
+{
+    if (bits < 0)
+        return false;
+    if (!jm_nat_shl(&r->mag, &a->mag, bits))
+        return false;
+    int_fix_sign(r, a->sign);
+    return true;
+}
+
+/* a / b, where b divides a exactly. False when it does not, and false on a
+ * zero divisor.
+ *
+ * Every division a fraction-free elimination performs is exact -- that is
+ * what makes it fraction-free -- so a nonzero remainder here is not an
+ * awkward input, it is the elimination being wrong. Checking rather than
+ * assuming is what turns that from a wrong answer into a refusal. */
+bool jm_bigint_divexact(jm_bigint *q, const jm_bigint *a, const jm_bigint *b)
+{
+    if (b->sign == 0)
+        return false;
+    if (a->sign == 0) {
+        jm_bigint_set_zero(q);
+        return true;
+    }
+    jm_nat rem;
+    if (!jm_nat_divmod(&q->mag, &rem, &a->mag, &b->mag))
+        return false;
+    if (!jm_nat_is_zero(&rem))
+        return false;
+    int_fix_sign(q, a->sign * b->sign);
+    return true;
+}
+
 /* --------------------------------------------------------------- rationals
  *
  * num / den, with den > 0 and gcd(|num|, den) == 1. Zero is 0/1, and it is
@@ -629,26 +667,48 @@ bool jm_rational_div(jm_rational *r, const jm_rational *a,
 }
 
 /* Sign of a - c, without forming a - c: both denominators are positive, so
- * the comparison is between a.num * c.den and c.num * a.den. */
-int jm_rational_cmp(const jm_rational *a, const jm_rational *c)
+ * the comparison is between a.num * c.den and c.num * a.den. False when
+ * either cross-multiply does not fit, and then *out is not written.
+ *
+ * A caller that cannot tell "equal" from "did not fit" can certify something
+ * it never compared: a bound test reads a failed comparison as "inside the
+ * bound" and calls the point good. `jaos_verify` compares solved values whose
+ * numerators reach the whole limb budget, which is exactly the population
+ * where the cross-multiply can fail, so it uses this and refuses. */
+bool jm_rational_cmp_checked(const jm_rational *a, const jm_rational *c,
+                             int *out)
 {
-    if (a->num.sign != c->num.sign)
-        return a->num.sign < c->num.sign ? -1 : 1;
-    if (a->num.sign == 0)
-        return 0;
+    if (a->num.sign != c->num.sign) {
+        *out = a->num.sign < c->num.sign ? -1 : 1;
+        return true;
+    }
+    if (a->num.sign == 0) {
+        *out = 0;
+        return true;
+    }
 
     jm_bigint l, rr;
     jm_bigint wcd = {.mag = c->den, .sign = 1};
     jm_bigint wad = {.mag = a->den, .sign = 1};
     if (!jm_bigint_mul(&l, &a->num, &wcd) ||
-        !jm_bigint_mul(&rr, &c->num, &wad)) {
-        /* Out of limbs. Both operands are normalised and share a sign, so
-         * falling back on the difference of bit lengths cannot be done
-         * honestly; report equal rather than invent an order, and let the
-         * caller's own overflow check be the thing that fires. */
+        !jm_bigint_mul(&rr, &c->num, &wad))
+        return false;
+    *out = jm_bigint_cmp(&l, &rr);
+    return true;
+}
+
+/* The same, for a caller that has already established the widths fit.
+ * Out of limbs it reports equal: both operands are normalised and share a
+ * sign, so falling back on the difference of bit lengths cannot be done
+ * honestly, and inventing an order would be worse. **A caller that cannot
+ * rule the overflow out must use jm_rational_cmp_checked instead**, because
+ * this zero is indistinguishable from a real equality. */
+int jm_rational_cmp(const jm_rational *a, const jm_rational *c)
+{
+    int r = 0;
+    if (!jm_rational_cmp_checked(a, c, &r))
         return 0;
-    }
-    return jm_bigint_cmp(&l, &rr);
+    return r;
 }
 
 /* The nearest double, ties to even, or an infinity when the value is past

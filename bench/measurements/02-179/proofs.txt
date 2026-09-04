@@ -1,0 +1,132 @@
+# instrument: bench/measurements/02-179/proofs.c
+# tree: d5d3509 WITH UNCOMMITTED CHANGES
+# date: 2026-09-04T21:11:59Z
+# what jaos_verify does on every gate basis (D274)
+# bound/cap: the bits the proof needs and the bits there are,
+#            both read before any of the work is attempted
+# blocks:    strongly connected components of the basis
+# largest:   rows in the biggest one
+# held:      the biggest block table allocated, in MiB
+# terms:     integer products formed
+# solve/proof: seconds, per instance, never summed
+
+instance           rows      bound   blocks  largest  held_MiB        terms  solve_s  proof_s verdict
+25fv47.mps          821    51939.0      433      364       0.0            0     0.18     0.00 refused
+80bau3b.mps        2262    74119.0     2196       34       0.0            0     0.38     0.00 refused
+adlittle.mps         56     3549.0       33       19       0.2         9324     0.00     0.07 PROVED
+afiro.mps            27     1169.0       24        4       0.0          221     0.00     0.00 PROVED
+agg.mps             488     4513.0      477        9       0.0            0     0.00     0.00 refused
+agg2.mps            516     7263.0      513        3       0.0            0     0.01     0.00 refused
+agg3.mps            516     6995.0      509        3       0.0            0     0.02     0.00 refused
+bandm.mps           305    16763.0      208       83       0.0            0     0.01     0.00 refused
+beaconfd.mps        173     3921.0      173        1       0.0         4301     0.00     0.03 PROVED
+blend.mps            74     3739.0       46       16       0.1         8904     0.00     0.06 PROVED
+bnl1.mps            643    27337.0      499       77       0.0            0     0.03     0.00 refused
+bnl2.mps           2324    64470.0     2064      135       0.0            0     0.15     0.00 refused
+boeing1.mps         351    12847.0      290       41       0.0            0     0.01     0.00 refused
+boeing2.mps         166     4466.0      160        7       0.0            0     0.00     0.00 refused
+bore3d.mps          233     6815.0      189       44       0.0            0     0.00     0.00 refused
+brandy.mps          220    12903.0      131       90       0.0            0     0.00     0.00 refused
+capri.mps           271    12533.0      204       46       0.0            0     0.00     0.00 refused
+cycle.mps          1903    36648.0     1667       70       0.0            0     0.06     0.00 refused
+czprob.mps          929    45906.0      924        6       0.0            0     0.05     0.00 refused
+d2q06c.mps         2171   127613.0     1196      892       0.0            0     7.70     0.01 refused
+d6cube.mps          415     1434.0      193      223      25.2     13205202     0.06     4.62 PROVED
+degen2.mps          444      729.0      216      229      26.5     13049485     0.02     0.42 PROVED
+degen3.mps         1503     2955.0      761      735     272.4    410037476     0.28    21.51 BROKEN
+    degen3.mps broken in the dual at row -1 col 1024 by 5.638e-16
+dfl001.mps         6071     8549.0     2909     3159       0.0            0    17.37     0.01 refused
+e226.mps            223    10368.0      158       62       0.0            0     0.00     0.00 refused
+etamacro.mps        400    14913.0      315       61       0.0            0     0.01     0.00 refused
+fffff800.mps        524    17021.0      487       27       0.0            0     0.03     0.00 refused
+finnis.mps          497    11534.0      489        4       0.0            0     0.00     0.00 refused
+fit1d.mps            24     1171.0       15       10       0.1        15240     0.00     0.09 PROVED
+fit1p.mps           627     1323.0      618       10       0.1        16540     0.03     0.07 PROVED
+fit2d.mps            25      298.0        6       20       0.2       143645     0.07     0.71 PROVED
+fit2p.mps          3000     1210.0     2981       20       0.2        98834     2.73     0.22 PROVED
+forplan.mps         161     6645.0      101       50       0.0            0     0.00     0.00 refused
+ganges.mps         1309    32012.0      988       43       0.0            0     0.03     0.00 refused
+gfrd-pnc.mps        616     4764.0      616        1       0.0            0     0.01     0.00 refused
+greenbea.mps       2392   123061.0     1848      417       0.0            0     0.52     0.00 refused
+greenbeb.mps       2392   140736.0     1757      513       0.0            0     1.69     0.00 refused
+grow15.mps          300    27089.0       13      239       0.0            0     0.07     0.00 refused
+grow22.mps          440    29159.0        9      199       0.0            0     2.41     0.00 refused
+grow7.mps           140    11950.0        8       78       0.0            0     0.01     0.00 refused
+israel.mps          174     5993.0      120       55       0.0            0     0.00     0.00 refused
+kb2.mps              43     2450.0       23       19       0.2         9586     0.00     0.05 PROVED
+lotfi.mps           153     2320.0      152        2       0.0         1597     0.00     0.00 PROVED
+maros-r7.mps       3136    89214.0     2020      104       0.0            0     0.64     0.04 refused
+maros.mps           846    27651.0      680      107       0.0            0     0.05     0.00 refused
+modszk1.mps         687    17320.0      488      174       0.0            0     0.02     0.00 refused
+nesm.mps            662    40051.0      386      268       0.0            0     0.16     0.00 refused
+perold.mps          625    52756.0      204      419       0.0            0     0.13     0.00 refused
+pilot-ja.mps        940    68753.0      383      544       0.0            0     0.18     0.00 refused
+pilot-we.mps        722    63384.0      191      519       0.0            0     0.15     0.00 refused
+pilot.mps          1441   133700.0      330     1102       0.0            0     6.86     0.00 refused
+pilot4.mps          410    36644.0      128      279       0.0            0     0.03     0.00 refused
+pilot87.mps        2030   184697.0      492     1488       0.0            0    27.01     0.01 refused
+pilotnov.mps        975    63034.0      429      484       0.0            0     0.14     0.00 refused
+recipe.mps           91       13.0       91        1       0.0          803     0.00     0.00 PROVED
+sc105.mps           105     1528.0       21       85       3.7       701063     0.00     0.47 PROVED
+sc205.mps           205     2681.0       22      184      17.1      7276112     0.00     7.34 PROVED
+sc50a.mps            50      920.0        9       42       0.9        86581     0.00     0.03 PROVED
+sc50b.mps            50     2167.0        3       48       1.2       140140     0.00     0.14 PROVED
+scagr25.mps         471    16172.0      398       54       0.0            0     0.01     0.00 refused
+scagr7.mps          129     4501.0      129        1       0.0            0     0.00     0.00 refused
+scfxm1.mps          330    10935.0      281       13       0.0            0     0.01     0.00 refused
+scfxm2.mps          660    22006.0      555       25       0.0            0     0.02     0.00 refused
+scfxm3.mps          990    32556.0      828       25       0.0            0     0.05     0.00 refused
+scorpion.mps        388    13170.0      283       14       0.0            0     0.00     0.00 refused
+scrs8.mps           490    15158.0      422       23       0.0            0     0.01     0.00 refused
+scsd1.mps            77     2662.0       62       13       0.1         5640     0.00     0.06 PROVED
+scsd6.mps           147     4410.0      126       19       0.0            0     0.01     0.00 refused
+scsd8.mps           397    12518.0      163      149       0.0            0     0.02     0.00 refused
+sctap1.mps          300      592.0      256       42       0.9        88022     0.00     0.02 PROVED
+sctap2.mps         1090      911.0     1083        2       0.0         8886     0.01     0.01 PROVED
+sctap3.mps         1480     1166.0     1475        5       0.0        11964     0.01     0.02 PROVED
+seba.mps            515      198.0      515        1       0.0         6452     0.00     0.01 PROVED
+share1b.mps         117     4862.0       77       10       0.0            0     0.00     0.00 refused
+share2b.mps          96     3384.0       69       10       0.1         3374     0.00     0.04 PROVED
+shell.mps           536      253.0      536        1       0.0         4134     0.01     0.01 PROVED
+ship04l.mps         402      641.0      402        1       0.0         2479     0.01     0.01 BROKEN
+    ship04l.mps broken in the dual at row -1 col 195 by 5.684e-14
+ship04s.mps         402      695.0      399        4       0.0         2420     0.00     0.01 BROKEN
+    ship04s.mps broken in the dual at row -1 col 140 by 5.684e-14
+ship08l.mps         778     1208.0      771        8       0.0        15482     0.02     0.11 PROVED
+ship08s.mps         778     1207.0      771        8       0.0         9795     0.01     0.05 PROVED
+ship12l.mps        1151     1800.0     1147        5       0.0        13021     0.03     0.09 BROKEN
+    ship12l.mps broken in the dual at row -1 col 2970 by 1.421e-14
+ship12s.mps        1151     1800.0     1147        5       0.0         9763     0.01     0.06 BROKEN
+    ship12s.mps broken in the dual at row -1 col 1939 by 7.105e-15
+sierra.mps         1227     1138.0     1227        1       0.0         2302     0.02     0.00 BROKEN
+    sierra.mps broken in the primal at row -1 col 33 by 7.550e-14
+stair.mps           356    38559.0       33      324       0.0            0     0.02     0.00 refused
+standata.mps        359      849.0      359        1       0.0         3738     0.00     0.01 PROVED
+standmps.mps        467     7147.0      467        1       0.0            0     0.00     0.00 refused
+stocfor1.mps        117     4396.0      105       13       0.0            0     0.00     0.00 refused
+stocfor2.mps       2157    54099.0     2025       40       0.0            0     0.15     0.00 refused
+stocfor3.mps      16675   408768.0    16099       39       0.0            0    22.08     0.04 refused
+truss.mps          1000    52335.0      561      134       0.0            0     2.98     0.00 refused
+tuff.mps            333     9632.0      301       33       0.0            0     0.00     0.00 refused
+vtp-base.mps        198     2092.0      166       31       0.5        37922     0.00     0.01 PROVED
+wood1p.mps          244    15119.0      175       38       0.0            0     0.04     0.00 refused
+woodw.mps          1098    33054.0     1076       21       0.0            0     0.10     0.00 refused
+cre-a.mps          3516    22837.0     3386      115       0.0            0     0.24     0.00 refused
+cre-b.mps          9648    31830.0     9400      180       0.0            0     3.17     0.00 refused
+cre-c.mps          3068    23401.0     2883      167       0.0            0     0.19     0.00 refused
+cre-d.mps          8926    20776.0     8743      109       0.0            0     1.54     0.00 refused
+ken-07.mps         2426     1406.0     2426        1       0.0        14054     0.07     0.04 PROVED
+ken-11.mps        14694     7856.0    14694        1       0.0            0     5.92     0.01 refused
+ken-13.mps        28632    14709.0    28632        1       0.0            0    52.76     0.02 refused
+ken-18.mps       105127    52558.0   105000       67       0.0            0  1693.49     0.16 refused
+osa-07.mps         1118    19427.0     1118        1       0.0            0     0.14     0.00 refused
+osa-14.mps         2337    42703.0     2337        1       0.0            0     0.67     0.00 refused
+osa-30.mps         4350    84135.0     4350        1       0.0            0     2.90     0.00 refused
+osa-60.mps        10280   161809.0    10280        1       0.0            0    22.41     0.00 refused
+pds-02.mps         2953     1027.0     2931       23       0.3        36510     0.16     0.03 PROVED
+pds-06.mps         9881     4286.0     9702      180       0.0            0     4.20     0.01 refused
+pds-10.mps        16558     7691.0    16051      500       0.0            0    18.93     0.02 refused
+pds-20.mps        33874    16538.0    32098     1542       0.0            0   183.30     0.04 refused
+
+110 bases
+proved 30;  refused 74;  broken 6

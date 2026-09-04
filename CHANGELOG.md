@@ -70,6 +70,22 @@ open, `bench/README.md` for the gate, and the commit each entry came from.
   The block work is free: `ken-13` is 59.57 s of solve and 0.00 s from the
   read through the basis build (D272, `bench/measurements/02-177/`).
 
+- **An exact verifier for a published basis**, `jaos_verify`. It proves, with
+  no tolerance anywhere, that the basis the last solve published certifies its
+  answer — or names the row or column that breaks it and by how much, or
+  refuses with the bits it would have needed. The basis is rebuilt over the
+  integers, split into blocks by a maximum transversal and the strongly
+  connected components, and each block eliminated by Bareiss's fraction-free
+  method. **30 of the 110 gate bases prove, 74 are refused a priori, 6 are
+  disproved** (D274, `bench/measurements/02-179/`). The six are the result and
+  not a defect: five have one nonbasic reduced cost of exactly the wrong sign
+  and `sierra` one basic value exactly outside its bound, all five orders or
+  more below the solver's own tolerances, so the answers are right and the
+  bases are optimal only to a tolerance. Cost follows the largest block:
+  `pds-02` is 2953 rows at 0.02 s, `sc205` is 205 rows with a block of 184 at
+  7.34 s. The review of the diff found eleven defects, two of them wrong
+  answers.
+
 ### Changed
 
 - **The verifier's budget was measured on a matrix it cannot hold, twice.**
