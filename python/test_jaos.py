@@ -542,6 +542,62 @@ class TestIIS(unittest.TestCase):
             p.iis()
 
 
+class TestVerify(unittest.TestCase):
+    """jaos_verify through the binding.
+
+    The first test is the one that matters and it is not about Python. A
+    ctypes Structure that does not match the C layout reads adjacent fields
+    as its own and every assertion after it is about the wrong bytes.
+    `capacity_bits` is the only field whose exact value is known from
+    outside -- 32 * JM_EXACT_LIMBS, 4096 at the shipping setting -- so it is
+    what pins the layout."""
+
+    def test_the_struct_matches_the_c_layout(self):
+        with jaos.Model() as m:
+            m.read_mps(data("solve1.mps"))
+            self.assertIs(m.solve(), jaos.SolveStatus.OPTIMAL)
+            r = m.verify()
+            # If a field were misplaced this would be a bound, a count or a
+            # pointer's low half, none of which is 4096.
+            self.assertEqual(r.capacity_bits, 4096.0,
+                             "the report's field order does not match "
+                             "jaos_verify_report in jaos.h")
+            self.assertGreaterEqual(r.bound_bits, 0.0)
+            self.assertGreaterEqual(r.blocks, 1)
+            self.assertGreaterEqual(r.largest_block, 1)
+            self.assertLessEqual(r.largest_block, m.num_row)
+
+    def test_a_small_optimum_is_proved(self):
+        with jaos.Model() as m:
+            m.read_mps(data("solve1.mps"))
+            self.assertIs(m.solve(), jaos.SolveStatus.OPTIMAL)
+            r = m.verify()
+            self.assertIs(r.status, jaos.Proof.OPTIMAL)
+            self.assertIs(r.stage, jaos.ProofStage.NONE)
+            self.assertEqual(r.at_row, -1)
+            self.assertEqual(r.at_col, -1)
+            self.assertEqual(r.violation, 0.0)
+
+    def test_it_needs_an_optimum(self):
+        with jaos.Model() as m:
+            m.read_mps(data("solve1.mps"))
+            with self.assertRaises(jaos.JaosError):
+                m.verify()
+
+    def test_the_layer_reaches_it_and_refuses_a_stale_answer(self):
+        p = jaos.Problem()
+        x = p.add_var(ub=3.0)
+        y = p.add_var()
+        c = p.add(x + y <= 4)
+        p.minimize(-x - y)
+        self.assertIs(p.solve(), jaos.SolveStatus.OPTIMAL)
+        r = p.verify()
+        self.assertIs(r.status, jaos.Proof.OPTIMAL)
+        c.ub = 3.0
+        with self.assertRaises(ValueError):
+            p.verify()
+
+
 class TestProgressCallback(unittest.TestCase):
     def test_the_callback_sees_the_solve(self):
         seen = []

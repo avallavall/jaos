@@ -282,6 +282,7 @@ and you have the argument. Jump to the entry for the numbers behind it.
 - **[D272](#d272--block-triangular-form-takes-every-refused-basis-inside-the-capacity-and-two-of-the-kennington-ones-come-out-fully-triangular)** — Block triangular form takes every refused basis inside the capacity, and two of the Kennington ones come out fully triangular
 - **[D273](#d273--both-earlier-budgets-counted-a-matrix-the-verifier-cannot-hold-and-the-honest-reach-is-85-of-110)** — Both earlier budgets counted a matrix the verifier cannot hold, and the honest reach is 85 of 110
 - **[D274](#d274--the-exact-verifier-is-here-it-proves-30-of-110-and-the-six-it-disproves-are-right-answers-on-bases-that-are-not-exactly-optimal)** — The exact verifier is here, it proves 30 of 110, and the six it disproves are right answers on bases that are not exactly optimal
+- **[D275](#d275--the-verifiers-refusal-is-the-capacity-constant-and-not-the-mathematics-and-widening-it-is-bought-with-block-size)** — The verifier's refusal is the capacity constant and not the mathematics, and widening it is bought with block size
 
 ---
 
@@ -20671,3 +20672,59 @@ instrument records 52.76 s for the same solve: 4.6x, and it is the link. All
 seventeen instruments under `bench/measurements/` link that way and three of
 them must, because they exercise asserts that release compiles out. `TODO.md`
 carries the rest.
+
+## D275 — The verifier's refusal is the capacity constant and not the mathematics, and widening it is bought with block size
+
+**The question D274 left.** It proved 30 of 110 and refused 74 on a Hadamard
+bound that is an upper bound and a loose one, and nobody had measured how
+loose. `docs/tolerances.md` said `JM_EXACT_LIMBS` was not swept and that the
+sweep which means something is over the models a verifier can prove. It is
+now swept.
+
+**The reading** (`bench/measurements/02-180/`), D274's instrument over the
+standard 94, `make clean` between settings and the capacity as the canary:
+
+| limbs | capacity | proved | refused | broken | seconds |
+|---|---|---|---|---|---|
+| 128 | 4096 | 28 | 60 | 6 | 79 |
+| 256 | 8192 | **40** | 48 | 6 | 68 |
+| 512 | 16384 | **51** | 34 | 9 | 142 |
+| 1024 | 32768 | **57** | 24 | 13 | 2500 |
+
+**The default refuses, not the mathematics.** Four doublings take the proved
+count from 28 to 57 and the refused count from 60 to 24. At 32768 bits **70
+of the 94 get a verdict** rather than a shrug, so the great majority of
+D274's refusals are the constant.
+
+**The cost is what stops it.** 79 s, 68 s, 142 s, then 2500 s: the last
+doubling costs 18x the one before, because a multiply is quadratic in limbs
+and more instances get far enough to do real work. A verifier at 1024 limbs
+is an overnight diagnostic, not a call, and that is the argument for leaving
+the shipping value at 128 rather than any property of the answers.
+
+**The two constants pull against each other, and no single run shows it.**
+`degen3` is BROKEN at 128 limbs on a 272.4 MiB table and 410037476 products;
+at 256 and 512 it is **refused** after 3618 products and 0.1 MiB. Its largest
+block is 735 rows, so at 128 the table is 268 MiB and fits
+`VERIFY_BLOCK_BYTES`, and at 256 it is 532 MiB and does not. **Width is
+bought at the price of block size**: at 1024 the ceiling admits a block of
+about 350 rows where at 128 it admits 990.
+
+**Fourteen percent of the netlib bases are exactly infeasible.** Thirteen of
+94 are disproved at 1024, up from six: `bnl1`, `boeing1`, `boeing2`,
+`ganges`, `maros`, `modszk1`, `scorpion`, `ship04l`, `ship04s`, `ship12l`,
+`ship12s`, `sierra`, `wood1p`, by 1.735e-18 to 1.080e-13. Every figure is
+four orders or more below `PRIMAL_TOL` and `DUAL_TOL`, so the published
+answers are right. **A basis optimal to a tolerance and not exactly is the
+normal case here rather than the strange one**, and it stays hidden while the
+arithmetic refuses to look. D274 saw six of these; the number was a property
+of the capacity and not of the population.
+
+**What it does not say.** The standard 94 only. The 16 Kennington bases carry
+the widest bounds on the gate — `osa-60` wants 161809 bits — and no setting
+here comes near them.
+
+**The shipping value stays at 128.** Nothing in the sweep argues for moving
+it: the reach it buys is real and the seconds it costs are worse, and a
+caller who wants the wider reach can have it with `-DJM_EXACT_LIMBS=N`, which
+is what the constant is for. `docs/tolerances.md` carries the table.

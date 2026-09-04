@@ -1,0 +1,121 @@
+# what jaos_verify does on every gate basis (D274)
+# capacity: JM_EXACT_LIMBS=1024, 32768 bits
+# bound/cap: the bits the proof needs and the bits there are,
+#            both read before any of the work is attempted
+# blocks:    strongly connected components of the basis
+# largest:   rows in the biggest one
+# held:      the biggest block table allocated, in MiB
+# terms:     integer products formed
+# solve/proof: seconds, per instance, never summed
+
+instance           rows      bound   blocks  largest  held_MiB        terms  solve_s  proof_s verdict
+25fv47.mps          821    51939.0      433      364       0.0            0     0.11     0.00 refused
+80bau3b.mps        2262    74119.0     2196       34       0.0            0     0.18     0.01 refused
+adlittle.mps         56     3549.0       33       19       1.5         9324     0.00     0.04 PROVED
+afiro.mps            27     1169.0       24        4       0.1          221     0.00     0.00 PROVED
+agg.mps             488     4513.0      477        9       0.4         5521     0.00     0.06 PROVED
+agg2.mps            516     7263.0      513        3       0.0         7356     0.00     0.05 PROVED
+agg3.mps            516     6995.0      509        3       0.0         7367     0.01     0.05 PROVED
+bandm.mps           305    16763.0      208       83      27.3       722030     0.01    23.39 PROVED
+beaconfd.mps        173     3921.0      173        1       0.0         4301     0.00     0.02 PROVED
+blend.mps            74     3739.0       46       16       1.1         8904     0.00     0.04 PROVED
+bnl1.mps            643    27337.0      499       77      23.6       251834     0.02     3.51 BROKEN
+    bnl1.mps broken in the primal at row 13 col -1 by 6.971e-18
+bnl2.mps           2324    64470.0     2064      135       0.0            0     0.07     0.00 refused
+boeing1.mps         351    12847.0      290       41       6.8        87080     0.00     0.16 BROKEN
+    boeing1.mps broken in the dual at row -1 col 53 by 1.735e-18
+boeing2.mps         166     4466.0      160        7       0.2         1979     0.00     0.00 BROKEN
+    boeing2.mps broken in the dual at row -1 col 24 by 2.397e-18
+bore3d.mps          233     6815.0      189       44       7.8       105238     0.00     0.65 PROVED
+brandy.mps          220    12903.0      131       90      32.1       872951     0.00    17.40 PROVED
+capri.mps           271    12533.0      204       46       8.5       122580     0.00     0.60 PROVED
+cycle.mps          1903    36648.0     1667       70       0.0            0     0.03     0.00 refused
+czprob.mps          929    45906.0      924        6       0.0            0     0.03     0.00 refused
+d2q06c.mps         2171   127613.0     1196      892       0.0            0     4.30     0.03 refused
+d6cube.mps          415     1434.0      193      223     195.9     13205202     0.03     5.34 PROVED
+degen2.mps          444      729.0      216      229     206.5     13049485     0.01     2.20 PROVED
+degen3.mps         1503     2955.0      761      735       0.4         3618     0.18     0.02 refused
+dfl001.mps         6071     8549.0     2909     3159       0.0         6356    10.08     0.10 refused
+e226.mps            223    10368.0      158       62      15.3       285034     0.00     2.74 PROVED
+etamacro.mps        400    14913.0      315       61      14.8       275339     0.01     0.53 PROVED
+fffff800.mps        524    17021.0      487       27       3.0        34039     0.02     0.11 PROVED
+finnis.mps          497    11534.0      489        4       0.1         3758     0.00     0.04 PROVED
+fit1d.mps            24     1171.0       15       10       0.4        15240     0.00     0.09 PROVED
+fit1p.mps           627     1323.0      618       10       0.4        16540     0.02     0.07 PROVED
+fit2d.mps            25      298.0        6       20       1.6       143645     0.06     0.71 PROVED
+fit2p.mps          3000     1210.0     2981       20       1.6        98834     2.21     0.35 PROVED
+forplan.mps         161     6645.0      101       50      10.0       194042     0.00     2.28 PROVED
+ganges.mps         1309    32012.0      988       43       7.4        81514     0.02     0.16 BROKEN
+    ganges.mps broken in the primal at row 1260 col -1 by 6.514e-14
+gfrd-pnc.mps        616     4764.0      616        1       0.0         3633     0.01     0.02 PROVED
+greenbea.mps       2392   123061.0     1848      417       0.0            0     0.31     0.02 refused
+greenbeb.mps       2392   140736.0     1757      513       0.0            0     0.98     0.01 refused
+grow15.mps          300    27089.0       13      239     224.9     16742102     0.05  1455.46 PROVED
+grow22.mps          440    29159.0        9      199     156.1     14505890     1.70   876.58 PROVED
+grow7.mps           140    11950.0        8       78      24.2       729216     0.01    26.24 PROVED
+israel.mps          174     5993.0      120       55      12.1       219605     0.00     1.06 PROVED
+kb2.mps              43     2450.0       23       19       1.5         9586     0.00     0.03 PROVED
+lotfi.mps           153     2320.0      152        2       0.0         1597     0.00     0.00 PROVED
+maros-r7.mps       3136    89214.0     2020      104       0.0            0     0.43     0.15 refused
+maros.mps           846    27651.0      680      107      45.3       747207     0.03    11.13 BROKEN
+    maros.mps broken in the primal at row -1 col 289 by 1.035e-17
+modszk1.mps         687    17320.0      488      174     119.4      2971343     0.01    36.52 BROKEN
+    modszk1.mps broken in the primal at row 55 col -1 by 1.080e-13
+nesm.mps            662    40051.0      386      268       0.0            0     0.09     0.00 refused
+perold.mps          625    52756.0      204      419       0.0            0     0.09     0.00 refused
+pilot-ja.mps        940    68753.0      383      544       0.0            0     0.11     0.00 refused
+pilot-we.mps        722    63384.0      191      519       0.0            0     0.09     0.00 refused
+pilot.mps          1441   133700.0      330     1102       0.0            0     4.95     0.04 refused
+pilot4.mps          410    36644.0      128      279       0.0            0     0.02     0.00 refused
+pilot87.mps        2030   184697.0      492     1488       0.0            0    20.23     0.08 refused
+pilotnov.mps        975    63034.0      429      484       0.0            0     0.09     0.00 refused
+recipe.mps           91       13.0       91        1       0.0          803     0.00     0.00 PROVED
+sc105.mps           105     1528.0       21       85      28.7       701063     0.00     0.35 PROVED
+sc205.mps           205     2681.0       22      184     133.5      7276112     0.00     5.64 PROVED
+sc50a.mps            50      920.0        9       42       7.1        86581     0.00     0.03 PROVED
+sc50b.mps            50     2167.0        3       48       9.2       140140     0.00     0.10 PROVED
+scagr25.mps         471    16172.0      398       54      11.6       184602     0.01     0.38 PROVED
+scagr7.mps          129     4501.0      129        1       0.0          833     0.00     0.01 PROVED
+scfxm1.mps          330    10935.0      281       13       0.7         9784     0.00     0.14 PROVED
+scfxm2.mps          660    22006.0      555       25       2.5        36619     0.01     0.44 PROVED
+scfxm3.mps          990    32556.0      828       25       2.5        63305     0.03     0.74 PROVED
+scorpion.mps        388    13170.0      283       14       0.8         8824     0.00     0.05 BROKEN
+    scorpion.mps broken in the primal at row 17 col -1 by 1.281e-17
+scrs8.mps           490    15158.0      422       23       2.2        22870     0.01     0.17 PROVED
+scsd1.mps            77     2662.0       62       13       0.7         5640     0.00     0.05 PROVED
+scsd6.mps           147     4410.0      126       19       1.5        13049     0.00     0.08 PROVED
+scsd8.mps           397    12518.0      163      149      87.6      3865933     0.01    25.64 PROVED
+sctap1.mps          300      592.0      256       42       7.1        88022     0.00     0.02 PROVED
+sctap2.mps         1090      911.0     1083        2       0.0         8886     0.00     0.02 PROVED
+sctap3.mps         1480     1166.0     1475        5       0.1        11964     0.01     0.02 PROVED
+seba.mps            515      198.0      515        1       0.0         6452     0.00     0.01 PROVED
+share1b.mps         117     4862.0       77       10       0.4         5141     0.00     0.05 PROVED
+share2b.mps          96     3384.0       69       10       0.4         3374     0.00     0.03 PROVED
+shell.mps           536      253.0      536        1       0.0         4134     0.01     0.01 PROVED
+ship04l.mps         402      641.0      402        1       0.0         2479     0.00     0.01 BROKEN
+    ship04l.mps broken in the dual at row -1 col 195 by 5.684e-14
+ship04s.mps         402      695.0      399        4       0.1         2420     0.00     0.01 BROKEN
+    ship04s.mps broken in the dual at row -1 col 140 by 5.684e-14
+ship08l.mps         778     1208.0      771        8       0.3        15482     0.01     0.09 PROVED
+ship08s.mps         778     1207.0      771        8       0.3         9795     0.00     0.04 PROVED
+ship12l.mps        1151     1800.0     1147        5       0.1        13021     0.01     0.07 BROKEN
+    ship12l.mps broken in the dual at row -1 col 2970 by 1.421e-14
+ship12s.mps        1151     1800.0     1147        5       0.1         9763     0.01     0.05 BROKEN
+    ship12s.mps broken in the dual at row -1 col 1939 by 7.105e-15
+sierra.mps         1227     1138.0     1227        1       0.0         2302     0.01     0.01 BROKEN
+    sierra.mps broken in the primal at row -1 col 33 by 7.550e-14
+stair.mps           356    38559.0       33      324       0.0            0     0.01     0.00 refused
+standata.mps        359      849.0      359        1       0.0         3738     0.00     0.01 PROVED
+standmps.mps        467     7147.0      467        1       0.0         4878     0.00     0.01 PROVED
+stocfor1.mps        117     4396.0      105       13       0.7         3583     0.00     0.02 PROVED
+stocfor2.mps       2157    54099.0     2025       40       0.0            0     0.08     0.00 refused
+stocfor3.mps      16675   408768.0    16099       39       0.0            0     4.38     0.18 refused
+truss.mps          1000    52335.0      561      134       0.0            0     1.58     0.00 refused
+tuff.mps            333     9632.0      301       33       4.4        49575     0.00     0.28 PROVED
+vtp-base.mps        198     2092.0      166       31       3.9        37922     0.00     0.01 PROVED
+wood1p.mps          244    15119.0      175       38       5.8        57879     0.03     0.99 BROKEN
+    wood1p.mps broken in the primal at row 33 col -1 by 1.555e-14
+woodw.mps          1098    33054.0     1076       21       0.0            0     0.06     0.00 refused
+
+94 bases
+proved 57;  refused 24;  broken 13

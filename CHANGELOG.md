@@ -86,7 +86,25 @@ open, `bench/README.md` for the gate, and the commit each entry came from.
   7.34 s. The review of the diff found eleven defects, two of them wrong
   answers.
 
+- **`verify()` on the Python layer**, on both `Model` and `Problem`, with
+  `Proof`, `ProofStage` and `VerifyReport`. The first of its four tests pins
+  the ctypes layout against the C struct: a field out of place reads its
+  neighbour and every assertion after it is about the wrong bytes.
+
 ### Changed
+
+- **`JM_EXACT_LIMBS` is swept, and the verifier's refusal is the constant
+  rather than the mathematics.** Over the standard 94, doubling it four times
+  takes the proved count from 28 to 57 and the refused count from 60 to 24,
+  so 70 of 94 get a verdict at 32768 bits. **The value stays at 128 for the
+  seconds**: the last doubling costs 2500 s against 142, a multiply being
+  quadratic in limbs. The sweep also showed the two capacity constants
+  pulling against each other — a wider limb count shrinks the block
+  `VERIFY_BLOCK_BYTES` admits, and `degen3` goes from BROKEN to refused
+  between 128 and 256 for that reason alone — and that **thirteen of the 94
+  netlib bases are exactly infeasible**, by 1.7e-18 to 1.1e-13, which is four
+  orders below the solver's own tolerances and leaves every published answer
+  right (D275, `bench/measurements/02-180/`).
 
 - **The verifier's budget was measured on a matrix it cannot hold, twice.**
   D271 and D272 both bounded `log2 |det B|` by the basis entries as read;

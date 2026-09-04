@@ -139,12 +139,34 @@ of them were wrong answers; all eleven are fixed and `SPECS.md` names them.
    is in the bound, so a basis that passes can still run out of limbs during
    the work. That is a refusal too and the report models it, but the a priori
    test is weaker than it reads. Bounding the right-hand side would close it.
-3. **74 of 110 are refused, and Hadamard is loose.** Nobody has measured how
-   loose: an instance refused at 5000 bits might factor inside 4096. The
-   measurement is to raise `JM_EXACT_LIMBS` and count what moves, which
-   `docs/tolerances.md` says the constant exists to allow.
-4. `python/jaos.py` has no binding for `jaos_verify`. Every other public call
-   since D258 got one.
+3. ~~74 of 110 are refused, and Hadamard is loose.~~ **Answered (D275,
+   `bench/measurements/02-180/`).** The refusal is the constant, not the
+   mathematics: over the standard 94, doubling `JM_EXACT_LIMBS` four times
+   takes the proved count from 28 to 57 and leaves 70 of 94 with a verdict.
+   The value stays at 128 for the seconds -- the last doubling costs 18x the
+   one before, 2500 s against 142 -- and not for the answers. Two things the
+   sweep opened. **The two constants pull against each other**: a `jm_bigint`
+   is `4 * limbs + 8` bytes, so `VERIFY_BLOCK_BYTES` admits a 990-row block
+   at 128 limbs and about 350 at 1024, and `degen3` goes from BROKEN to
+   refused between 128 and 256 for that reason alone. Nobody has asked what
+   the right pair is. And **the sweep is over the standard 94 only**: the 16
+   Kennington bases carry the widest bounds on the gate, `osa-60` at 161809
+   bits, and no setting reached them.
+4. ~~`python/jaos.py` has no binding for `jaos_verify`.~~ **Done**: `Model`
+   and `Problem` both carry `verify()`, with `Proof`, `ProofStage` and
+   `VerifyReport`. The first of its four tests pins the ctypes layout against
+   the C struct by asserting `capacity_bits` is 4096, because a field out of
+   place reads its neighbour and every assertion after it is about the wrong
+   bytes.
+5. **Fourteen percent of the netlib bases are exactly infeasible** and that is
+   a fact about the solver, not about the verifier (D275). Thirteen of 94 at
+   1024 limbs, by 1.735e-18 to 1.080e-13 -- four orders or more below
+   `PRIMAL_TOL` and `DUAL_TOL`, so every published answer is right. What is
+   open is whether anything should be done about it at all. Nothing in
+   `SPECS.md` promises an exactly optimal basis, and a simplex that worked to
+   no tolerance would not terminate; the honest options are to say so in the
+   record and stop, or to ask whether the count moves with `DUAL_TOL`, which
+   D184 already sweeps for other reasons.
 
 **2026-09-04: the scout has answered both, and the answer is in
 `docs/research/exact-verification.md`.** Bareiss fraction-free elimination

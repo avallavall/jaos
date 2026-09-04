@@ -1,0 +1,10 @@
+# instrument: bench/measurements/02-179/proofs.c, over the standard set
+# tree: 499c142 WITH UNCOMMITTED CHANGES
+# objects: release, rebuilt clean per setting
+# date: 2026-09-04T22:31:15Z
+#
+# limbs  capacity  proved  refused  broken  seconds
+    128      4096      28       60       6       79
+    256      8192      40       48       6       68
+    512     16384      51       34       9      142
+   1024     32768      57       24      13     2500

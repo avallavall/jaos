@@ -47,6 +47,12 @@ static const char *verdict(jaos_proof p)
 int main(int argc, char **argv)
 {
     printf("# what jaos_verify does on every gate basis (D274)\n");
+    /* The capacity every refusal below was judged against. A reading that
+     * does not say which is as ambiguous as one that does not say which
+     * objects it linked, and it is what a sweep of JM_EXACT_LIMBS uses as
+     * its canary: a setting whose capacity did not move did not rebuild. */
+    printf("# capacity: JM_EXACT_LIMBS=%d, %d bits\n",
+           (int)JM_EXACT_LIMBS, (int)(32 * JM_EXACT_LIMBS));
     printf("# bound/cap: the bits the proof needs and the bits there are,\n");
     printf("#            both read before any of the work is attempted\n");
     printf("# blocks:    strongly connected components of the basis\n");

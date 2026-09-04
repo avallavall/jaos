@@ -66,6 +66,7 @@ __all__ = [
     "Problem", "Var", "LinExpr", "Constraint", "quicksum",
     "CheckReport", "CertificateReport", "RayReport", "Progress",
     "IISSide", "IISReport", "IIS",
+    "Proof", "ProofStage", "VerifyReport",
 ]
 
 
@@ -278,6 +279,45 @@ class _IISReport(ctypes.Structure):
 IISReport = namedtuple("IISReport", [f for f, _ in _IISReport._fields_])
 IIS = namedtuple("IIS", "row_side col_side report")
 
+
+class Proof(enum.IntEnum):
+    """What jaos_verify concluded (jaos_proof). REFUSED is not a failure:
+    it is the honest answer when the numbers a proof needs do not fit, and
+    the report says how far outside they were."""
+    OPTIMAL = 0
+    BROKEN = 1
+    REFUSED = 2
+
+
+class ProofStage(enum.IntEnum):
+    """Which check a BROKEN verdict came from (jaos_proof_stage). They run
+    in this order and the first to fail is the one reported."""
+    NONE = 0
+    RANK = 1
+    PRIMAL = 2
+    DUAL = 3
+
+
+class _VerifyReport(ctypes.Structure):
+    """jaos_verify_report, field for field."""
+    _fields_ = [
+        ("status", ctypes.c_int),
+        ("stage", ctypes.c_int),
+        ("bound_bits", _D),
+        ("capacity_bits", _D),
+        ("blocks", ctypes.c_int64),
+        ("largest_block", ctypes.c_int64),
+        ("at_row", ctypes.c_int64),
+        ("at_col", ctypes.c_int64),
+        ("violation", _D),
+        ("bytes_held", ctypes.c_int64),
+        ("terms", ctypes.c_int64),
+    ]
+
+
+VerifyReport = namedtuple("VerifyReport",
+                          [f for f, _ in _VerifyReport._fields_])
+
 _LOG_FN = ctypes.CFUNCTYPE(None, _VP, ctypes.c_int, _CS)
 _PROGRESS_FN = ctypes.CFUNCTYPE(ctypes.c_int, _P(_Progress), _VP)
 
@@ -346,6 +386,7 @@ _sig("jaos_iis", ctypes.c_int, _VP, _P(ctypes.c_int), _P(ctypes.c_int),
 _sig("jaos_cost_ranging", ctypes.c_int, _VP, _P(_D), _P(_D))
 _sig("jaos_rhs_ranging", ctypes.c_int, _VP, _P(_D), _P(_D), _P(_D), _P(_D))
 _sig("jaos_bound_ranging", ctypes.c_int, _VP, _P(_D), _P(_D), _P(_D), _P(_D))
+_sig("jaos_verify", ctypes.c_int, _VP, _P(_VerifyReport))
 _sig("jaos_work_units", _I64, _VP)
 _sig("jaos_iterations", _I64, _VP)
 _sig("jaos_solve_time", _D, _VP)
@@ -856,6 +897,32 @@ class Model:
                    [IISSide(v) for v in cs[:nc]],
                    IISReport(*(getattr(rep, f)
                                for f, _ in _IISReport._fields_)))
+
+    def verify(self):
+        """Prove, or refuse to prove, that the basis behind the last
+        optimum certifies its answer. Returns a `VerifyReport` whose
+        `status` is a `Proof`: OPTIMAL when every basic value lies inside
+        its bounds and every nonbasic reduced cost points into the model,
+        BROKEN with `stage`, `at_row` or `at_col` and `violation` naming
+        what fails, REFUSED when the numbers the proof needs do not fit in
+        the arithmetic there is.
+
+        Nothing here compares against a tolerance. The basis is rebuilt
+        over the integers, split into blocks and eliminated by Bareiss's
+        fraction-free method, so `violation` is the only rounded number
+        the report carries and it decided nothing.
+
+        REFUSED is normal rather than exceptional: over the gate it is 74
+        of 110, and `bound_bits` against `capacity_bits` says by how much
+        (D274). The cost is stated rather than billed to work units, and
+        it is not small; `terms` says what it was. Needs an optimum, like
+        basis() (jaos_verify in jaos.h)."""
+        rep = _VerifyReport()
+        self._check(_lib.jaos_verify(self._handle(), ctypes.byref(rep)))
+        vals = {f: getattr(rep, f) for f, _ in _VerifyReport._fields_}
+        vals["status"] = Proof(vals["status"])
+        vals["stage"] = ProofStage(vals["stage"])
+        return VerifyReport(**vals)
 
     def cost_ranging(self):
         """How far each column's cost may move, everything else held, with
@@ -1516,6 +1583,15 @@ class Problem:
         if self._pending():
             raise ValueError("the problem changed since the last solve; "
                              "call solve() before reading values")
+
+    def verify(self):
+        """Prove, or refuse to prove, that the basis behind this answer
+        certifies it, with no tolerance anywhere. Returns a `VerifyReport`;
+        see `Model.verify`. `at_row` and `at_col` are indices into the
+        constraints and the variables in the order they were added, or -1.
+        Same availability as cost_ranging()."""
+        self._settled()
+        return self._m.verify()
 
     def cost_ranging(self):
         """How far each variable's objective coefficient may move with the
