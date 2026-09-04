@@ -269,9 +269,15 @@ bool jm_nat_divmod(jm_nat *q, jm_nat *rem, const jm_nat *a, const jm_nat *b)
     jm_nat cur, quo;
     jm_nat_set_zero(&cur);
     const int64_t top = jm_nat_bits(a);
-    quo.n = (top + 31) / 32;
-    if (quo.n > JM_EXACT_LIMBS)
+    /* `a >= b >= 1` here, both earlier returns having taken the other cases,
+     * so `top` is at least one and the count below is at least one. Saying so
+     * is not decoration: with only the upper half of the range written down,
+     * GCC's analysis at an LTO link cannot rule out a negative count and
+     * warns that the memset's length reaches 1.8e19. The bound is real either
+     * way; this states the half the code always relied on. */
+    if (top <= 0 || (top + 31) / 32 > JM_EXACT_LIMBS)
         return false;
+    quo.n = (top + 31) / 32;
     memset(quo.w, 0, (size_t)quo.n * sizeof quo.w[0]);
 
     for (int64_t i = top - 1; i >= 0; i--) {

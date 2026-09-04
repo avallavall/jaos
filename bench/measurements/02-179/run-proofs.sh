@@ -4,17 +4,21 @@
 #
 #   bash bench/measurements/02-179/run-proofs.sh          # all three sets
 #   bash bench/measurements/02-179/run-proofs.sh netlib   # the first only
+#
+# Links the release objects. The committed proofs.txt was taken against the
+# dev objects, before `objs.sh` existed, and its header says so; to reproduce
+# it exactly, run with JAOS_OBJS=dev. The verdicts are the same either way --
+# only the seconds move, and by about 7x.
 set -u
 here="$(cd "$(dirname "$0")" && pwd)"
 cd "$here/../../.." || exit 1
 
 CC=${CC:-gcc-14}
-mkdir -p build/dev
-make build/dev/test_verify >/dev/null 2>&1 || { echo "library build failed"; exit 1; }
-objs=$(ls build/dev/*.o | grep -v unity)
+. bench/measurements/objs.sh
+jaos_objs || exit 1
 
-$CC -std=c23 -Wall -Wextra -Wpedantic -ffp-contract=off -g -O2 -DNDEBUG \
-    -Iinclude -Isrc "$here/proofs.c" $objs -o build/dev/proofs -lm || exit 1
+$CC $JAOS_OBJS_FLAGS -Iinclude -Isrc "$here/proofs.c" $JAOS_OBJS_LIST \
+    -o "build/proofs-$JAOS_OBJS_KIND" -lm || exit 1
 
 case "${1:-all}" in
     netlib) sets="bench/instances" ;;
@@ -32,9 +36,10 @@ out="$here/proofs.txt"
 {
     echo "# instrument: bench/measurements/02-179/proofs.c"
     echo "# tree: $(git rev-parse --short HEAD)$(git diff --quiet HEAD || echo ' WITH UNCOMMITTED CHANGES')"
+    echo "# objects: $JAOS_OBJS_KIND -- the seconds below mean nothing without this"
     echo "# date: $(date -u +%Y-%m-%dT%H:%M:%SZ)"
     # shellcheck disable=SC2086
-    ./build/dev/proofs $files
+    "./build/proofs-$JAOS_OBJS_KIND" $files
 } > "$out"
 rc=$?
 

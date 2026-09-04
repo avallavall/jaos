@@ -287,6 +287,33 @@ happened as correct, which is the one thing it must not do. Regenerate it when
 a change's effect on these numbers has been read and accepted — and say so in
 the commit.
 
+## Which build an instrument links, and why it is not a detail
+
+An instrument under `bench/measurements/` links the library's object files
+directly. There are two sets of them and **the choice changes a seconds column
+by a factor of seven**.
+
+**release to measure a cost, dev to exercise an assert.**
+
+`build/dev` is `-Og`. `build/release` is `-O3 -flto -march=native -DNDEBUG`,
+which is what the gate runs. Measured on one tree, the same `ken-13` solve
+takes **52.76 s** linked against dev and **7.23 s** against release, with the
+instrument's own answer identical to the digit (D274,
+`bench/measurements/02-179/`). Fourteen instruments had been linking dev by
+copying the runner before them, so a 139-instance run cost about fifty
+minutes where it should cost eleven.
+
+The exception is why dev is still offered. `-DNDEBUG` compiles every assert
+out, so an assert campaign linked against release measures the instances
+rather than the assert and comes out green for the wrong reason.
+`02-145`, `02-146` and `02-147` are those campaigns and they ask for dev.
+
+`bench/measurements/objs.sh` is the one place that knows this. Source it,
+call `jaos_objs`, and use `$JAOS_OBJS_FLAGS` and `$JAOS_OBJS_LIST`.
+**A runner writes `# objects: <kind>` into its output**, because a seconds
+column means nothing without it, and a reading taken before this existed is
+reproduced with `JAOS_OBJS=dev`.
+
 ## A verdict commits its readings
 
 The seconds never enter `bench/results/*.txt` or a baseline. That rule is not

@@ -1,5 +1,6 @@
 # instrument: bench/measurements/02-179/proofs.c
 # tree: d5d3509 WITH UNCOMMITTED CHANGES
+# objects: dev -- taken before bench/measurements/objs.sh existed; a release-linked re-run gives the same verdicts about 7x faster (D274)
 # date: 2026-09-04T21:11:59Z
 # what jaos_verify does on every gate basis (D274)
 # bound/cap: the bits the proof needs and the bits there are,
