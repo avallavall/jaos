@@ -20,6 +20,15 @@
 # nothing was wrong in the end. When writing one of these, ask what the
 # CHEAPEST implementation would look like, not the most likely one, because
 # the cheapest is the one that gets built.
+#
+# It happened a second time and this one was live for two commits (D268,
+# 2026-09-04). The exact-arithmetic line matched mpq_t, jaos_exact and
+# jaos_verify. What landed was jm_exact_evaluate and jm_dyadic_*, so
+# `make record-check` stayed green through D266 and D267 while half the
+# feature shipped. The lesson the D243 note drew is not enough on its own:
+# a claim of absence also has to be REREAD when its row moves from missing
+# to partial, because the half that is still missing is a different thing
+# from the whole, and the pattern was written for the whole.
 
 absent SPECS.md#3-crash-basis              \b(build_crash_basis|jm_crash|crash_basis)\b
 absent SPECS.md#3-barrier-and-crossover    \b(jm_cholesky|cholesky_|jm_barrier|barrier_|jm_crossover|crossover_)\w*\s*\(
@@ -27,4 +36,4 @@ absent SPECS.md#3-milp                     \b(jm_bnb|branch_and_bound|jm_cut|cut
 absent SPECS.md#3-deterministic-parallelism \bpthread_create\s*\(
 absent SPECS.md#3-primal-devex             \b(devex|jm_devex)\w*\s*\(
 absent SPECS.md#3-presolve-duplicates      \b(static|jaos_status)\s+\w*\s*\*?\s*(ps_|jm_)?(duplicate_rows?|duplicate_cols?|dominated_cols?)\s*\(
-absent SPECS.md#5-exact-rational           \b(mpq_t|jaos_exact|jaos_verify)\b
+absent SPECS.md#5-exact-verifier           \b(mpq_t|mpz_t|__gmpq|jaos_verify|jaos_exact|jm_verify|jm_bareiss|jm_fraction_free|jm_exact_solve|jm_exact_factor|jm_exact_lu|jm_exact_basis|jm_exact_prove)\w*

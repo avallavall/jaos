@@ -276,6 +276,7 @@ and you have the argument. Jump to the entry for the numbers behind it.
 - **[D266](#d266--exact-arithmetic-here-is-32-bit-limbs-and-no-allocation-because-both-of-the-obvious-shortcuts-are-excluded-by-the-premises)** — Exact arithmetic here is 32-bit limbs and no allocation, because both of the obvious shortcuts are excluded by the premises
 - **[D267](#d267--exact-evaluation-agrees-with-the-checker-on-every-objective-disagrees-on-75-of-110-row-violations-and-moves-no-verdict-so-nothing-is-exposed)** — Exact evaluation agrees with the checker on every objective, disagrees on 75 of 110 row violations, and moves no verdict, so nothing is exposed
 - **[D268](#d268--the-review-of-the-exact-arithmetic-found-nine-defects-its-own-measurement-could-not-see-and-the-checker-is-not-compensated-at-all)** — The review of the exact arithmetic found nine defects its own measurement could not see, and the checker is not compensated at all
+- **[D269](#d269--six-of-d264s-numbers-came-from-a-run-superseded-eleven-minutes-later-one-of-them-reached-six-other-files-and-the-record-check-cannot-see-any-of-it)** — Six of D264's numbers came from a run superseded eleven minutes later, one of them reached six other files, and the record check cannot see any of it
 
 ---
 
@@ -19923,19 +19924,29 @@ sides and the same counts.
 | pass the oracle | **28 of 29** |
 | reproduce | 29 of 29 |
 | candidates from the certificate's support | 29 of 29, no fallback to every side |
-| largest | `bgindy`, 2091 members of 2092 candidates, 2087 of them column sides |
+| largest | `bgindy`, 2091 members of 2091 candidates, 2087 of them column sides, 2092 re-solves |
 | smallest | `bgdbg1`, `gran`, `woodinfe`: 2 members, 3 re-solves |
-| most reduced | `qual`, 342 candidates to 219 members |
-| costliest | `klein3`, 138 re-solves, 5.8e8 work units |
+| most reduced | `klein1`, 76 candidates to 55 members, 27.6% dropped |
+| costliest | `klein3`, 123 re-solves, 5.24e8 work units |
 
-**The one that does not: `cplex2`**, 338 members of 349 candidates. The
-oracle finds three row sides it does not need, rows 34, 41 and 203's
-lower bounds: without any one of them the rest re-solves INFEASIBLE with
-a ray the checker certifies. `cplex2-replay.c` rebuilds the kept set the
-filter held when it reached row 41 and re-solves without that side, cold
-and warm alike: OPTIMAL, on a point the checker accepts at 1e-7 with a
-worst row violation of 9.99e-10, while a subset of those constraints is
-provably infeasible. Both verdicts are consistent with the solver's
+**Every figure in the table above and the paragraph below was wrong when
+this entry was written, and is corrected here. D269 says how.** The entry
+was written against a run that a later one superseded eleven minutes
+later, and the numbers were then copied into six other places. What
+follows is recomputed from `bench/measurements/02-171/iis-population.txt`
+and a re-run of `cplex2-replay.txt` at `6cae092`.
+
+**The one that does not: `cplex2`**, 232 members of 238 candidates. The
+oracle finds three sides it does not need, and they are **column** sides:
+column 26's lower bound, column 30's upper and column 35's lower. Without
+any one of them the rest re-solves INFEASIBLE with a ray the checker
+certifies. `cplex2-replay.c` rebuilds the kept set the filter held when
+it reached each side and re-solves without it: cold and warm the answer
+is INFEASIBLE, and on the filter's own walk, with the side relaxed at the
+re-solve where the filter reached it, the answer is OPTIMAL on a point
+the checker accepts at 1e-7 with a worst column violation of 3.45e-08 and
+a worst row violation of 1.09e-16 — while a subset of those constraints
+is provably infeasible. Both verdicts are consistent with the solver's
 tolerances: `cplex2` is infeasible by less than the feasibility
 tolerance, and which side of the bar a subsystem lands on depends on the
 subsystem. **A tolerance-judged deletion filter is irreducible up to the
@@ -20191,3 +20202,66 @@ reported no failure at all. A population run exercises the path the
 population takes and says nothing about the path it never takes. The review
 step is where those are found, and running it before the campaign rather
 than after is what kept this cheap.
+
+## D269 — Six of D264's numbers came from a run superseded eleven minutes later, one of them reached six other files, and the record check cannot see any of it
+
+**Where this came from.** An audit of `SPECS.md` against the code, asked for
+because nobody could say when either that file or `docs/feature-matrix.md`
+had last been true. It found three wrong claims in `SPECS.md`, and the
+largest of them was not `SPECS.md`'s fault: it had copied a figure out of
+D264.
+
+**What was wrong in D264.** Six figures, all recomputed here from the
+committed `bench/measurements/02-171/`:
+
+| D264 said | the measurement says |
+|---|---|
+| `bgindy`, 2091 members of **2092** candidates | 2091 of **2091**; 2092 is the re-solve count |
+| most reduced: **`qual`**, 342 candidates to 219 | **`klein1`**, 76 to 55, 27.6% dropped |
+| costliest: `klein3`, **138** re-solves, **5.8e8** work | **123** re-solves, **5.24e8** work |
+| `cplex2`, **338** members of **349** candidates | **232** members of **238** |
+| three **row** sides: rows 34, 41, 203 lower | three **column** sides: 26 lower, 30 upper, 35 lower |
+| worst **row** violation **9.99e-10** | worst **column** violation 3.45e-08, worst row 1.09e-16 |
+
+**Why.** `bench/measurements/02-171/README.md` is timestamped 18:27 and
+`iis-population.txt` 18:38. The entry and the directory's own page were
+written against a run the directory replaced eleven minutes later, and
+nobody re-read them against the file that landed. The rule this breaks is to check the regenerated
+artefact rather than the edit that produced it.
+
+**And the output file was older than its own script.** `cplex2-replay.c` is
+19:09 and `cplex2-replay.txt` was 18:39. The arm that produces the OPTIMAL
+answer — the filter's own walk, with the side relaxed at the re-solve where
+the filter reached it — was added after the output was last written, so the
+committed `.txt` had no OPTIMAL anywhere in it while D264 and the directory
+README both described one. Re-run at `6cae092`: **the claim reproduces**.
+Arms A and B answer INFEASIBLE, arm C answers OPTIMAL at 1e-7. The argument
+D264 makes was right; the evidence file did not contain it.
+
+**The one figure that spread.** "three of 338 sides" was in `SPECS.md`,
+`TODO.md`, `CHANGELOG.md`, `bench/refusals.txt`,
+`bench/measurements/02-171/README.md` and `docs/feature-matrix.md` — six
+files beyond D264. Every one now reads "three of its 232 members". CLAUDE.md
+already says a measured number has one owner and the others point at it; this
+is what the rule costs when it is not kept, and the copies were made in the
+same session that made the entry.
+
+**Two more wrong claims in `SPECS.md`, unrelated to D264.** The primal
+simplex row said the standard set reads 77 agree / 11 overrun / 6 disagree;
+`bench/results/primal.txt` says **73 / 16 / 5**, and has since D253. The row
+already carried a sentence saying the split lives in the file "because a
+percentage restated here drifts with every campaign", and restated it anyway.
+It states no counts now. The presolve row listed `grow22`, `grow7` and
+`greenbeb` as **Open**; `TODO.md` closed the first two at D112 and `greenbeb`
+at D108, and `greenbeb` was never part of that item.
+
+**What no check catches.** `tools/record-check.py` verifies that a cited
+decision exists, that a constant matches its source, that a claim of absence
+still holds and that a `partial` row says what is missing. It does not read a
+number in prose and compare it with the file the prose cites. Every defect
+above would have been caught by that, and none of them was caught by
+anything. Named here rather than built, because the general form — parse an
+arbitrary figure out of English and find its owner — is not a small tool.
+What is small and worth having is narrower: a check that every
+`bench/measurements/<id>/` whose README cites a `.txt` in the same directory
+is not older than that `.txt`, which is exactly the trap here.

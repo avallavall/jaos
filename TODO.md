@@ -13,7 +13,7 @@ answer, the bound sides that are infeasible on their own and all needed:
 the certificate's support first, then one warm re-solve per candidate
 side on a private zero-cost copy. The solver is the oracle on the 29
 reference infeasibles: 28 pass, all 29 reproduce, and `cplex2`, infeasible
-by less than the feasibility tolerance, keeps three of 338 sides a cold
+by less than the feasibility tolerance, keeps three of its 232 members a cold
 re-solve does not need. The fixpoint pass that would drop them is refused
 on cost and sits in `bench/refusals.txt`. The feature's first unit test
 found a postsolve branch publishing -inf on a zero-cost model with
@@ -76,6 +76,25 @@ that. Two of the three questions the paragraph above raised are answered:
 the capacity is enough for this population, and the cost is 0.02 s on
 `ken-13`. **The elimination is the one still open**, and it is what the
 verifier needs.
+
+**2026-09-04, and this one was not about the code: the record was audited
+against the code and three of its claims were false (D269).** Nobody could
+say when `SPECS.md` or `docs/feature-matrix.md` had last been true, so both
+were read row by row. The cell symbols in the matrix were all right. What was
+wrong: six of D264's figures came from a run its own directory superseded
+eleven minutes later, and "three of 338 sides" had been copied into six files
+beyond the entry; `SPECS.md` restated the primal's reach as 77/11/6 where
+`bench/results/primal.txt` says 73/16/5; and it listed a closed presolve item
+as open. On the matrix's side the IIS row claimed the feature was Gurobi's
+alone among the open solvers, and HiGHS and SCIP have both had one since
+before that page was written. **And `docs/claims.txt`'s exact-arithmetic
+guard had gone blind**: it named symbols nothing was called, so
+`make record-check` stayed green while half the feature shipped. All fixed;
+the guard now fires on nine candidate names for a verifier
+(`bench/measurements/02-174/canary-claims.txt`). **What D269 leaves open** is
+one small check nobody has written: no tool notices when a measurement
+directory's README is older than the `.txt` it cites, which is exactly the
+trap D264 fell into.
 
 **2026-09-04: the review of that diff found nine defects the 139-instance
 run could not (D268, `bench/measurements/02-174/`).** Four could give a

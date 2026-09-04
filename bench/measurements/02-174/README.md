@@ -12,6 +12,8 @@ removed at a time, and watches each test go red for its own.
 | `validate-d268.txt` | its output |
 | `sweep-limbs.sh` | D268 finding 9: builds the whole suite at `JM_EXACT_LIMBS=128` and at 70, the setting where both multiplies still fit and only `jm_rational_cmp`'s cross-multiply overflows |
 | `sweep-limbs.txt` | its output |
+| `canary-claims.sh` | D269: fires `docs/claims.txt`'s replacement exact-verifier guard on nine candidate names, one at a time, and puts `src/exact.c` back after each |
+| `canary-claims.txt` | its output |
 
 ## The reading
 
@@ -73,6 +75,36 @@ would have passed while comparing nothing.
 
 Only one test fails at 70, so the rest of the suite is honest at that
 setting.
+
+## The claims guard, which had gone blind (D269)
+
+`docs/claims.txt` carried a claim of absence for exact rational verification,
+matching `mpq_t`, `jaos_exact` and `jaos_verify`. What landed at D266 and
+D267 is called `jm_exact_evaluate` and `jm_dyadic_*`, so the pattern matched
+nothing and `make record-check` stayed green through two commits that shipped
+half the feature. That is the failure mode the file's own header describes
+for the Python line at D243, happening a second time.
+
+The replacement guards **the verifier**, which is the half still missing.
+`canary-claims.sh` appends one candidate name to `src/exact.c` at a time and
+runs `record-check`:
+
+| name added | record-check |
+|---|---|
+| nothing (control) | PASS |
+| `jm_bareiss_step` | **1 failure** |
+| `jm_exact_solve_lower` | **1 failure** |
+| `jm_exact_factor` | **1 failure** |
+| `jm_exact_lu_build` | **1 failure** |
+| `jm_verify_basis` | **1 failure** |
+| `jaos_verify` | **1 failure** |
+| `jm_exact_prove` | **1 failure** |
+| `jm_fraction_free_step` | **1 failure** |
+| `jm_exact_basis_new` | **1 failure** |
+| restored | PASS, `src/exact.c` identical |
+
+Nine of nine fire. The old pattern would have fired on one of them,
+`jaos_verify`, and JAOS's internal names never start with `jaos_`.
 
 ## What it does not cover
 

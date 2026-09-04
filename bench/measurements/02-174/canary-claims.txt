@@ -1,0 +1,42 @@
+=== control: the tree as it stands ===
+record-check: PASS
+
+=== jm_bareiss_step ===
+  FAIL  src/exact.c:1079 matches /\b(mpq_t|mpz_t|__gmpq|jaos_verify|jaos_exact|jm_verify|jm_bareiss|jm_fraction_free|jm_exact_solve|jm_exact_factor|jm_exact_lu|jm_exact_basis|jm_exact_prove)\w*/, but SPECS.md#5-exact-verifier says it does not exist (docs/claims.txt:39)
+record-check: 1 failure(s)
+
+=== jm_exact_solve_lower ===
+  FAIL  src/exact.c:1079 matches /\b(mpq_t|mpz_t|__gmpq|jaos_verify|jaos_exact|jm_verify|jm_bareiss|jm_fraction_free|jm_exact_solve|jm_exact_factor|jm_exact_lu|jm_exact_basis|jm_exact_prove)\w*/, but SPECS.md#5-exact-verifier says it does not exist (docs/claims.txt:39)
+record-check: 1 failure(s)
+
+=== jm_exact_factor ===
+  FAIL  src/exact.c:1079 matches /\b(mpq_t|mpz_t|__gmpq|jaos_verify|jaos_exact|jm_verify|jm_bareiss|jm_fraction_free|jm_exact_solve|jm_exact_factor|jm_exact_lu|jm_exact_basis|jm_exact_prove)\w*/, but SPECS.md#5-exact-verifier says it does not exist (docs/claims.txt:39)
+record-check: 1 failure(s)
+
+=== jm_exact_lu_build ===
+  FAIL  src/exact.c:1079 matches /\b(mpq_t|mpz_t|__gmpq|jaos_verify|jaos_exact|jm_verify|jm_bareiss|jm_fraction_free|jm_exact_solve|jm_exact_factor|jm_exact_lu|jm_exact_basis|jm_exact_prove)\w*/, but SPECS.md#5-exact-verifier says it does not exist (docs/claims.txt:39)
+record-check: 1 failure(s)
+
+=== jm_verify_basis ===
+  FAIL  src/exact.c:1079 matches /\b(mpq_t|mpz_t|__gmpq|jaos_verify|jaos_exact|jm_verify|jm_bareiss|jm_fraction_free|jm_exact_solve|jm_exact_factor|jm_exact_lu|jm_exact_basis|jm_exact_prove)\w*/, but SPECS.md#5-exact-verifier says it does not exist (docs/claims.txt:39)
+record-check: 1 failure(s)
+
+=== jaos_verify ===
+  FAIL  src/exact.c:1079 matches /\b(mpq_t|mpz_t|__gmpq|jaos_verify|jaos_exact|jm_verify|jm_bareiss|jm_fraction_free|jm_exact_solve|jm_exact_factor|jm_exact_lu|jm_exact_basis|jm_exact_prove)\w*/, but SPECS.md#5-exact-verifier says it does not exist (docs/claims.txt:39)
+record-check: 1 failure(s)
+
+=== jm_exact_prove ===
+  FAIL  src/exact.c:1079 matches /\b(mpq_t|mpz_t|__gmpq|jaos_verify|jaos_exact|jm_verify|jm_bareiss|jm_fraction_free|jm_exact_solve|jm_exact_factor|jm_exact_lu|jm_exact_basis|jm_exact_prove)\w*/, but SPECS.md#5-exact-verifier says it does not exist (docs/claims.txt:39)
+record-check: 1 failure(s)
+
+=== jm_fraction_free_step ===
+  FAIL  src/exact.c:1079 matches /\b(mpq_t|mpz_t|__gmpq|jaos_verify|jaos_exact|jm_verify|jm_bareiss|jm_fraction_free|jm_exact_solve|jm_exact_factor|jm_exact_lu|jm_exact_basis|jm_exact_prove)\w*/, but SPECS.md#5-exact-verifier says it does not exist (docs/claims.txt:39)
+record-check: 1 failure(s)
+
+=== jm_exact_basis_new ===
+  FAIL  src/exact.c:1079 matches /\b(mpq_t|mpz_t|__gmpq|jaos_verify|jaos_exact|jm_verify|jm_bareiss|jm_fraction_free|jm_exact_solve|jm_exact_factor|jm_exact_lu|jm_exact_basis|jm_exact_prove)\w*/, but SPECS.md#5-exact-verifier says it does not exist (docs/claims.txt:39)
+record-check: 1 failure(s)
+
+=== restored ===
+record-check: PASS
+src/exact.c identical

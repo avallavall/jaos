@@ -36,7 +36,7 @@ open, `bench/README.md` for the gate, and the commit each entry came from.
   candidate on a private zero-cost copy, reached from Python on `Model`
   and `Problem`. The solver is the oracle on the 29 reference infeasibles:
   28 pass, and `cplex2`, infeasible by less than the tolerance, keeps three
-  sides of 338 that a cold re-solve does not need (D264,
+  of its 232 members that a cold re-solve does not need (D264,
   `bench/measurements/02-171/`).
 
 - **Sensitivity and ranging.** `jaos_cost_ranging`, `jaos_rhs_ranging`
@@ -52,6 +52,28 @@ open, `bench/README.md` for the gate, and the commit each entry came from.
   `bench/measurements/02-167/`).
 
 ### Fixed
+
+- **Six of D264's numbers were from a run its own directory superseded eleven
+  minutes later**, and one of them had been copied into six other files.
+  `cplex2` keeps three of its **232** members a cold re-solve does not need,
+  not "three of 338 sides", and they are column sides rather than row sides.
+  The argument D264 makes reproduces at HEAD; the evidence file did not
+  contain it, because the arm that answers OPTIMAL was added to the replay
+  after its output was last written. `SPECS.md` also read 77/11/6 for the
+  primal's reach where `bench/results/primal.txt` says 73/16/5, and listed a
+  closed presolve item as open (D269, `bench/measurements/02-171/`).
+
+- **`docs/feature-matrix.md` claimed the IIS was Gurobi's alone among the open
+  solvers.** HiGHS ships `Highs::getIis` and SCIP 10.0 an IIS Finder, both
+  before that page was written. Six rival cells corrected, eight prose
+  statements repaired, and the version line moved from 0.1.1 to 0.2.0.
+
+- **`docs/claims.txt`'s exact-arithmetic guard was blind to what landed.** Its
+  pattern named `mpq_t`, `jaos_exact` and `jaos_verify`; the code that shipped
+  is `jm_exact_evaluate` and `jm_dyadic_*`, so `make record-check` stayed green
+  through D266 and D267. It guards the verifier now, and nine candidate names
+  for one are shown to turn the check red
+  (`bench/measurements/02-174/canary-claims.txt`).
 
 - **Nine defects in the exact arithmetic, found by review and not by its own
   139-instance run.** Four could give a wrong answer, four were tests and
