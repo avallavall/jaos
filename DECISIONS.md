@@ -273,6 +273,7 @@ and you have the argument. Jump to the entry for the numbers behind it.
 - **[D263](#d263--the-relative-row-window-is-carrying-nothing-on-the-standard-set-now-and-that-is-a-reason-to-write-the-example-in-the-past-tense-rather-than-to-remove-the-window)** — The relative row window is carrying nothing on the standard set now, and that is a reason to write the example in the past tense rather than to remove the window
 - **[D264](#d264--an-iis-is-one-warm-re-solve-per-side-of-the-certificates-support-and-its-first-population-run-found-a-postsolve-branch-publishing-minus-infinity)** — An IIS is one warm re-solve per side of the certificate's support, and its first population run found a postsolve branch publishing minus infinity
 - **[D265](#d265--the-lp-writers-coverage-had-no-owner-specs-carried-a-number-no-file-held-and-two-documents-still-described-the-reader-before-d239)** — The LP writer's coverage had no owner: SPECS carried a number no file held, and two documents still described the reader before D239
+- **[D266](#d266--exact-arithmetic-here-is-32-bit-limbs-and-no-allocation-because-both-of-the-obvious-shortcuts-are-excluded-by-the-premises)** — Exact arithmetic here is 32-bit limbs and no allocation, because both of the obvious shortcuts are excluded by the premises
 
 ---
 
@@ -19984,3 +19985,47 @@ refusals closed with it. `SPECS.md` cites 02-172 instead of a re-run.
 **What did not change.** No code. Every digest byte-identical over the
 three sets; the writer's two remaining refusals are limits of the dialect
 and are not reopened here.
+
+## D266 — Exact arithmetic here is 32-bit limbs and no allocation, because both of the obvious shortcuts are excluded by the premises
+
+**The question.** `SPECS.md` section 5 has listed exact rational
+verification as missing since the file was written, and section 1 names it
+as the one place JAOS is behind where it believed it was ahead: SoPlex
+solves over the rationals and SCIP emits a certificate an external program
+checks exactly, while `jaos_check_solution` judges against tolerances and is
+not a proof. Nothing could be built until the arithmetic existed.
+
+**What the premises decide, before any design.** Two shortcuts are the
+obvious ones and both are closed. GMP and every other external library are
+excluded by D11. `__int128` is excluded by the build: the flags are
+`-Wpedantic -Werror`, ISO C has no 128-bit integer type, and the warning is
+an error here. That is not a preference, it is a compile failure, and it is
+why the limbs are `uint32_t` with the products landing in `uint64_t` —
+standard C23, identical on every machine, which is what D8 requires of
+anything that can reach an answer.
+
+**No allocation.** A magnitude is a fixed array of `JM_EXACT_LIMBS` limbs
+and an operation that would not fit returns false. A verifier is the one
+place where that is the right failure: it proves the answer, or it says it
+could not prove it, and it never rounds and never wraps. The alternative,
+growing the arrays, buys a proof for a larger model at the cost of an
+out-of-memory path inside the thing whose whole job is to be trustworthy.
+
+**The capacity.** 128 limbs, 4096 bits, `docs/tolerances.md` carries the
+argument. It is not swept, and the reason is written beside it: nothing
+reads it yet except the unit tests, so the sweep that would mean something
+is over the models a verifier can prove, and that verifier does not exist.
+
+**What the suite found on its first run.** `jm_nat_shl` charged a spare limb
+for any shift that was not a whole number of limbs, and so refused a value
+that fits: shifting 1 by 4095 bits gives a 4096-bit magnitude, which is
+exactly 128 limbs, and the first version answered false. The width is
+computed from the answer's own bit length now. It was caught by the control
+half of the capacity test — the case one bit below the limit, where every
+operation must succeed — and not by the half that asserts the refusal, which
+is the half that looked like the point.
+
+**What is left open.** The verifier. Nothing yet takes a published basis,
+solves it over the rationals and returns a proof, so `SPECS.md` reads
+partial rather than done and `docs/claims.txt` still forbids a public
+`jaos_verify` symbol.

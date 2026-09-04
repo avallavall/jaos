@@ -37,6 +37,20 @@ While reading the record, three documents disagreed about `jaos_write_lp`:
 D239. Measured at HEAD, `SPECS.md` was right. **`make refusals` is still
 unrun.**
 
+**2026-09-03, and this is what is in flight: exact arithmetic landed, the
+verifier did not (D266).** `src/exact.c` carries exact integers and
+rationals, `tests/test_exact.c` has 21 tests over them, and `SPECS.md`
+section 5 moves from missing to partial. **What is next is the verifier
+itself**: take the published basis, build it over the rationals, solve
+`B x_B = b - N x_N` and `B' y = c_B` exactly, and return a proof of
+optimality or the row that breaks it. Two things to settle when it is
+written. The elimination: rationals normalised at every step is the simple
+one, Bareiss's fraction-free form keeps integers and is the one the
+literature uses, and `literature-scout` should be asked before either is
+built. And the budget: exact elimination on a basis of 105127 rows is not
+going to happen, so the call needs an honest "could not prove this one" and
+a measurement of how many of the 139 it can prove.
+
 **2026-09-03: a loan nobody holds is retired before the answer is
 published, and it was hiding a wrong objective (D261,
 `bench/measurements/02-168/`).** The smallest item on this file's open

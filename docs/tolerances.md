@@ -545,3 +545,22 @@ on a number, and every one was something else. A tolerance that survived
 eight opportunities to be the culprit and never was is a number with evidence
 behind it — which is what these now are (D31), and why moving one from here
 on takes a measurement on both sides and a changelog entry.
+
+## The exact arithmetic's one number
+
+`src/exact.c` has a single constant and it is not a tolerance. It is a
+capacity, and the difference matters: no setting of it can change an answer,
+because it decides only how large a magnitude fits before an operation
+returns false. Every other number in this file decides what counts as zero.
+
+| constant | value | |
+|---|---|---|
+| `JM_EXACT_LIMBS` | 128 | Limbs of 32 bits in one magnitude, so 4096 bits, and a `jm_rational` is 1048 bytes. The floor is what one double costs: a finite double is `m * 2^e` with `e` no smaller than -1074, so its denominator needs up to 1075 bits and its numerator up to 1024, and 34 limbs holds either. The rest is headroom for the sums and products that read them. **Not swept, and the reason is that nothing reads it yet beyond `tests/test_exact.c`**: the sweep that means something is over the models a verifier can prove, and that verifier is what `SPECS.md` section 5 still lists as missing. Override with `-DJM_EXACT_LIMBS=N` when it arrives (D266) |
+
+Two things in `tests/test_exact.c` pin the capacity rather than describe it.
+The largest magnitude the array holds is built, and shifting it one bit,
+adding it to itself and doubling it all return false. Beside that runs the
+control, one bit lower, where all three succeed. That pair is what makes the
+limit a measurement instead of a comment, and it caught the first version of
+`jm_nat_shl`, which charged a spare limb for any shift that was not a whole
+number of limbs and so refused a value that fits.

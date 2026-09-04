@@ -11,6 +11,14 @@ open, `bench/README.md` for the gate, and the commit each entry came from.
 
 ### Added
 
+- **Exact integer and rational arithmetic**, in `src/exact.c`, for verifying
+  an answer rather than computing one. Big integers on 32-bit limbs with no
+  allocation and no external library, and rationals kept in lowest terms.
+  Every finite double converts exactly, so a model's data carries with no
+  rounding; an operation that runs out of limbs says so instead of wrapping.
+  Internal for now: the verifier that will read it is still missing, and
+  `SPECS.md` section 5 moves from missing to partial (D266).
+
 - **An irreducible infeasible subsystem.** `jaos_iis` names, for an
   INFEASIBLE answer, the bound sides that are infeasible on their own and
   all needed: Chinneck and Dravnieks's sensitivity filter over the
