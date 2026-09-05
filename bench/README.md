@@ -110,6 +110,10 @@ what each cost, and the same directory holds the sweep that set the cut
 rounds and refused the dive. About 75 s of solve time at `J=12`.
 `miplib-baseline` rewrites the baseline, kept apart from `miplib` for the
 reason `netlib-baseline` is kept apart from `netlib`.
+The baseline has been rewritten twice on purpose since: for the rounding
+heuristic (D290, `02-190`) and for pseudocost branching (D292, `02-191`);
+the dive (D289) and strong branching (D293, `02-192`) were measured on it
+and refused as defaults.
 
 
 The infeasible set is the only thing in M1 that looks for a *wrong* answer

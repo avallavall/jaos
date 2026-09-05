@@ -121,10 +121,15 @@ and cost minutes instead of seconds** (D57). Times below are `J=12`:
 
 `make netlib` (~85 s) · `make netlib-infeas` (~10 s) ·
 `make netlib-kennington` (~8 min) · `make warm` (~2 min) ·
-`make warm-kennington` (~4 min) · `make compare` · `make pgo`
+`make warm-kennington` (~4 min) · `make miplib` (~75 s of solves) ·
+`make compare` · `make pgo`
 
 The three `netlib*` targets are the gate. `warm*` measures what warm
-re-solving buys and is not a gate: it reports a ratio, not a verdict.
+re-solving buys and is not a gate: it reports a ratio, not a verdict. `miplib` is
+the MIP set (D289): 17 MIPLIB 3 instances against `bench/miplib.baseline`,
+which carries the node count; not a gate, run it whenever `src/mip.c` or
+anything under it changes, and rewrite its baseline with `miplib-baseline`
+only after the tree's change is read and accepted.
 
 Two traps. **`$?` does not survive Git Bash → WSL** — echoing it inside the
 `wsl … bash -c '…'` string does not rescue it, because it is expanded before

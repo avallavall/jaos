@@ -1307,14 +1307,52 @@ comment edit and for anything behind `NDEBUG`, which cleared `ab87c99`,
 the library built from `src/` alone, so a `tests/` edit cannot reach a campaign
 at all.
 
-### → IF YOU ARE A FRESH CONTEXT, THIS IS THE HANDOVER
+### → IF YOU ARE A FRESH CONTEXT, THIS IS THE HANDOVER (rewritten 2026-09-05)
 
-**Everything below in this section is finished and committed.** Nothing is
-half-done, no measurement is owed, and no agent is waiting. What follows is the
-list of what to pick up, in order, and every item names what it needs before
-any code.
+**Everything is finished, committed and pushed.** Nothing is half-done, no
+measurement is owed, and no agent is waiting. The "Where the last session
+stopped" section at the top of this file is the live state; this block is
+the short form of it and of how the work runs now.
 
-### → THE NEXT SESSION BUILDS THE PRIMAL SIMPLEX. Section §0 below.
+**How the work runs since 2026-09-01: the light loop, features in batches.**
+The maintainer asked for features, several per round of checks, and paused
+the assert debt and the control campaigns. A batch is: write the features
+with their tests, `make test`, `make python-test`, `make configs`, commit
+with a `CHANGELOG.md` entry and a `DECISIONS.md` entry per feature, the
+three gate sets byte-identical (`make netlib netlib-infeas
+netlib-kennington J=12`), then push. When a batch touches `src/mip.c`, run
+`make miplib J=12` as well, against `bench/miplib.baseline`, and rewrite
+that baseline on purpose when the trees moved and the reading is accepted.
+Every new C call reaches `python/jaos.py` at both layers, `Model` and
+`Problem`, in the same batch; the maintainer asked for that explicitly.
+
+**What landed on 2026-09-05, in eight batches: D284 to D293.** Names and
+certificate files; exact values, model copy, model name, `--start`; integer
+columns and branch and bound; the MIP set (17 MIPLIB 3 instances, `make
+miplib`) with one round of Gomory cuts at the root at 0.660x and the dive
+refused at 1.125x; a rounding heuristic that moves the first incumbent
+earlier for 1.8% of the work; a node limit and an incumbent callback;
+pseudocost branching at 0.722x with the fraction breaking a tie; strong
+branching until reliable, behind a switch and refused at every setting.
+
+**What is next, in order** (the D293 paragraph at the top says the same):
+a cheaper strong-branching probe, a work cap per child at a small multiple
+of the node's own solve, which is what reopens D293 and is the cheapest
+item; cuts below the root against the D292 baseline; a child rule for the
+dive that is not nearer-side first, which is what reopens D289; the seven
+held MIP constants in `docs/tolerances.md`, each swept on the MIP set once
+something moves them. Two MIP refusals sit in `bench/refusals.txt` with
+re-test scripts; `make refusals` runs them.
+
+**What the older sections below say, and how to read them.** §0, the primal
+simplex, was chosen on 2026-08-25 and its stages 1 to 8 have landed; what is
+left of it is Devex pricing and the unboundedness verdict, which is why
+`docs/feature-matrix.md` reads ◐ there and why crossover is still blocked.
+The handover table under it is the 2026-08-25 list, kept for its
+measurements; its open rows (`degen2`, D97) are still open and still not
+short of measurement. Do not start there without the maintainer asking.
+
+### → THE 2026-08-25 HANDOVER, kept for the record. §0 below was the item then.
 
 **Decided by the maintainer on 2026-08-25.** Items 1 and 5 closed that day,
 and what is left cannot move without either a decision or a feature. The

@@ -90,6 +90,18 @@ scratch. A callback can watch a running
 solve and stop it. A stopped solve keeps its basis, so raising the limit and
 solving again continues from where it stopped.
 
+A column can be marked integer, from the API or from an MPS `MARKER` pair,
+an LP `General` or `Binary` section, and a model with one solves by branch
+and bound over the same dual simplex: one round of Gomory cuts at the root,
+a rounding heuristic at every node, pseudocost branching, the incumbent
+published with the relaxation's duals. The tree reports its nodes, cuts and
+bound, takes a node limit beside the work and time limits, and tells a
+callback of every new incumbent. Two things that measured worse are behind
+switches and off: a dive from each selected node, and strong branching
+until a column's pseudocost is reliable. Every default in the tree was set
+on a 17-instance MIPLIB 3 set with its own baseline, `make miplib`, and the
+readings are in `bench/measurements/02-189/` to `02-192/`.
+
 `SPECS.md` lists every feature with its status: what exists, what is missing,
 and what is only partly there.
 
@@ -124,6 +136,12 @@ every feasible instance solves to the published optimum within the gate's
 tolerance, the checker accepts all 110 answers, and the 29 infeasible models
 are refused. `bench/README.md` owns those counts and explains how the three
 sets are composed.
+
+A fourth set is for the tree and is not a gate: 17 MIPLIB 3 instances, each
+solved to the catalogue's integer optimum, the point integral and feasible
+to the checker, two cold searches building the same tree node for node
+(`make miplib`, D289). Its baseline records the node count beside the work,
+and every default in the branch and bound was set against it.
 
 Two finer statements, each with the measurement behind it:
 
@@ -209,6 +227,7 @@ make test       # unit suite and the CLI's test, plus a check that the documents
 make sanitize   # unit suite under ASan and UBSan
 make configs    # the suite in all five build configurations, from clean
 make netlib     # the 94-instance acceptance gate (fetches the instances first)
+make miplib     # the 17-instance MIP set, not a gate; run it when the tree changes
 make pgo        # rebuild the library from a profile of it solving real models
 make shared     # build/release/libjaos.so, which the Python binding loads
 make python-test  # the binding's own suite; not part of `make test`
