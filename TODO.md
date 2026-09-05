@@ -7,6 +7,14 @@ line leaves this file in the same commit.
 
 ## Where the last session stopped — 2026-09-03
 
+**2026-09-05, later still: a command-line tool, `cli/jaos.c`.** Built in a
+separate worktree while D283 landed here, over the public header only.
+`solve` and `convert` so far; `check`, `iis`, `verify` and `ranging` are
+in flight on the same branch. Its first test run found the LP writer's
+refusal list in `jaos.h`'s comment stale since D239 and D276 — a third
+place in the format family that drifted, and again found by accident
+(D278 lists the other two). Corrected in the same commit.
+
 **2026-09-05, later: the objective's sense and constant have getters and
 setters, and the matrix reads back (D283).** Seven calls, no solver path
 touched, all three gate sets byte-identical. The one consequence outside

@@ -376,10 +376,12 @@ JAOS_NODISCARD jaos_status jaos_read_lp(jaos_model *m, const char *path);
 JAOS_NODISCARD jaos_status jaos_write_mps(jaos_model *m, const char *path);
 
 /* Writes the model as a CPLEX-style LP file, in the dialect jaos_read_lp
- * accepts. Same contract as jaos_write_mps, and three more refusals, because
- * the dialect is narrower than MPS: a ranged row, a free row, and a row with
- * no coefficients. Each is reported with the row named and a pointer to
- * jaos_write_mps, which has none of these limits.
+ * accepts. Same contract as jaos_write_mps, and one more refusal, because
+ * the dialect is narrower than MPS: a free row, which has no spelling in
+ * the format. It is reported with the row named and a pointer to
+ * jaos_write_mps, which has no such limit. Two refusals this comment once
+ * listed are gone: a ranged row is written as the two-sided form (D239),
+ * and a row with no coefficients as a zero term the reader drops (D276).
  *
  * The objective names every column, including the ones costing nothing. LP
  * format has no COLUMNS section, so the reader numbers a column where its

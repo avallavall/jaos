@@ -108,7 +108,8 @@ LIVE_DOCS = ['SPECS.md', 'TODO.md', 'CLAUDE.md', 'README.md', 'bench/README.md',
              'bench/measurements/README.md'] + sorted(glob.glob('docs/*.md'))
 LIVE_DOCS = [p for p in LIVE_DOCS if os.path.isfile(p)]
 SOURCES = sorted(glob.glob('src/*.c') + glob.glob('src/*.h') +
-                 glob.glob('include/*.h') + glob.glob('bench/*.c') +
+                 glob.glob('include/*.h') + glob.glob('cli/*.c') +
+                 glob.glob('bench/*.c') +
                  glob.glob('bench/compare/*.c') + glob.glob('tests/*.c'))
 SKILLS = sorted(glob.glob('.claude/**/*.md', recursive=True))
 TOOLS = sorted(glob.glob('tools/*.sh') + glob.glob('tools/*.py'))

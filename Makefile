@@ -5,6 +5,7 @@
 #   all       release static library (default)
 #   test      build and run the unit suite (dev flags)
 #   sanitize  build and run the unit suite under ASan+UBSan
+#   cli       build the command-line tool, build/cli/jaos (docs/cli.md)
 #   bench     build the Netlib acceptance runner (bench/fetch.sh first)
 #   compare   time JAOS against the other solvers on one rung of the ladder
 #   compare-solvers   fetch, verify and build the competitors, nothing else
@@ -141,7 +142,7 @@ SHLIB := $(B)/release/libjaos.so
 DEV_TESTS  := $(TESTS:tests/%.c=$(B)/dev/%)
 ASAN_TESTS := $(TESTS:tests/%.c=$(B)/asan/%)
 
-.PHONY: all test sanitize configs bench compare-build compare-solvers compare record-check refusals \
+.PHONY: all test sanitize configs cli bench compare-build compare-solvers compare record-check refusals \
 	netlib netlib-baseline \
 	netlib-kennington \
 	netlib-infeas netlib-kennington-baseline netlib-infeas-baseline \
@@ -171,6 +172,11 @@ all: $(LIB)
 # nobody compiles is not a guarantee, and this is the cheapest place to make
 # it one.
 BENCH_TOOLS := $(B)/bench/run $(B)/bench/warm $(B)/bench/primal
+
+# The command-line tool is compiled by `make test` for the same reason, and
+# unlike the bench tools it is also run there: tests/cli.sh needs nothing but
+# tests/data/, so it can be.
+CLI := $(B)/cli/jaos
 
 $(LIB): $(REL_OBJ)
 	$(AR) rcs $@ $^
@@ -223,8 +229,9 @@ refusals:
 	@mkdir -p $(B)
 	@bash tools/refusals.sh
 
-test: record-check $(DEV_TESTS) $(BENCH_TOOLS)
-	@fail=0; for t in $(DEV_TESTS); do echo "== $$t"; ./$$t || fail=1; done; exit $$fail
+test: record-check $(DEV_TESTS) $(BENCH_TOOLS) $(CLI)
+	@fail=0; for t in $(DEV_TESTS); do echo "== $$t"; ./$$t || fail=1; done; \
+	echo "== tests/cli.sh"; bash tests/cli.sh $(CLI) || fail=1; exit $$fail
 
 sanitize: $(ASAN_TESTS)
 	@fail=0; for t in $(ASAN_TESTS); do echo "== $$t"; ./$$t || fail=1; done; exit $$fail
@@ -283,6 +290,15 @@ $(B)/bench/run: bench/run.c $(LIB) | $(B)/bench
 	$(CC) $(RELEASE_CFLAGS) $(INC) -Isrc $< $(LIB) -o $@ $(LDLIBS)
 
 bench: $(B)/bench/run
+
+# The command-line tool (docs/cli.md). Same relationship to the archive as
+# any outside consumer — the public header and nothing else, no -Isrc — so
+# what it can do is exactly what the library offers. Built by `make cli` and
+# by `make test`, which also runs tests/cli.sh against it.
+$(CLI): cli/jaos.c $(LIB) | $(B)/cli
+	$(CC) $(RELEASE_CFLAGS) $(INC) $< $(LIB) -o $@ $(LDLIBS)
+
+cli: $(CLI)
 
 # What warm re-solve buys, which the gate cannot say: the gate solves each
 # instance once from a fresh load, and that is the case warm starting does
@@ -533,7 +549,7 @@ pgo:
 		all
 	@echo "== $(LIB) is now built from a profile of $(if $(PGO_LOAD),$(words $(PGO_LOAD)),94) real models"
 
-$(B)/release $(B)/dev $(B)/asan $(B)/bench $(B)/pic:
+$(B)/release $(B)/dev $(B)/asan $(B)/bench $(B)/cli $(B)/pic:
 	mkdir -p $@
 
 clean:

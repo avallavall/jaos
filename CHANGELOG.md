@@ -11,6 +11,13 @@ open, `bench/README.md` for the gate, and the commit each entry came from.
 
 ### Added
 
+- **A command-line tool.** `make cli` builds `build/cli/jaos` from
+  `cli/jaos.c`, over the public header only. `jaos solve FILE` prints one
+  fact per line and every line but `time` is byte-identical between runs;
+  the exit code is the verdict, 0 optimal to 5 usage. `jaos convert IN OUT`
+  moves between MPS and LP. `tests/cli.sh` runs under `make test`
+  (`docs/cli.md`).
+
 - **The objective's sense and constant read back and change.**
   `jaos_objective_sense`, `jaos_objective_offset` and their two setters. A
   model read from a file could not say whether it was a maximum, and only

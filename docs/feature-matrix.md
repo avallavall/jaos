@@ -260,6 +260,7 @@ and this page has not measured that.
 
 | | JAOS | HiGHS | SoPlex | Clp | SCIP | Gurobi | Hexaly |
 |---|---|---|---|---|---|---|---|
+| Command-line tool | ● | ● | ● | ● | ● | ● | ? |
 | C or C++ | ● | ● | ● | ● | ● | ● | ● |
 | Python | ● | ● | ● | ● | ● | ● | ● |
 | Julia | ○ | ● | ● | ● | ● | ● | ? |

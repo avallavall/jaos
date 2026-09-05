@@ -52,6 +52,11 @@ jaos_model_free(m);
   the same model; where a format cannot express what the model holds, the
   call fails and names the row or column rather than writing something
   weaker.
+- A command-line tool, `make cli`: `jaos solve model.mps` prints the status,
+  the objective, the iteration and work counts and the time, one per line,
+  and everything but the time line is byte-identical between runs; the exit
+  code is the verdict. `jaos convert in.mps out.lp` moves between the
+  formats. [`docs/cli.md`](docs/cli.md).
 - Usable from Python: `python/jaos.py` over `libjaos.so`, standard library
   only, so it needs no compiler and no packages. Models are written directly
   — variables, expressions, constraints from ordinary comparisons — or
@@ -207,6 +212,7 @@ make netlib     # the 94-instance acceptance gate (fetches the instances first)
 make pgo        # rebuild the library from a profile of it solving real models
 make shared     # build/release/libjaos.so, which the Python binding loads
 make python-test  # the binding's own suite; not part of `make test`
+make cli        # the command-line tool, build/cli/jaos
 ```
 
 `make netlib-kennington` and `make netlib-infeas` run the other two reference
@@ -228,6 +234,7 @@ include/jaos.h        the public header, the only one
 src/                  library sources
 tests/                unit suite; tests/vendor/unity/ is the one vendored dependency
 python/               the binding, over ctypes and the standard library only
+cli/                  the command-line tool, over the public header only
 bench/                instance manifests, the acceptance runner, results
 bench/compare/        the harness that times JAOS against other solvers
 bench/measurements/   one directory per measured verdict, so it is re-derivable
