@@ -286,6 +286,7 @@ and you have the argument. Jump to the entry for the numbers behind it.
 - **[D276](#d276--lp-could-always-express-a-row-with-no-coefficients-and-the-refusal-that-said-otherwise-cost-34-of-the-139)** — LP could always express a row with no coefficients, and the refusal that said otherwise cost 34 of the 139
 - **[D277](#d277--the-checkers-dual-half-is-compensated-double-now-no-verdict-moves-and-the-review-found-an-overflow-that-aborts)** — The checker's dual half is compensated `double` now, no verdict moves, and the review found an overflow that aborts
 - **[D278](#d278--the-lp-reader-told-the-caller-to-do-arithmetic-it-could-do-itself-and-folding-it-moved-nothing-else)** — The LP reader told the caller to do arithmetic it could do itself, and folding it moved nothing else
+- **[D279](#d279--a-measurement-directory-is-one-decisions-evidence-and-nothing-said-so-the-rule-that-would-catch-the-other-half-is-refused-on-its-own-firing-population)** — A measurement directory is one decision's evidence, and nothing said so; the rule that would catch the other half is refused on its own firing population
 
 ---
 
@@ -20893,3 +20894,49 @@ D239 closed. The same family of drift D265 found and fixed in two other
 files; this is the third. `docs/claims.txt` cannot see it, because the claim
 is about what the reader refuses and no symbol goes missing when it stops
 refusing.
+
+## D279 — A measurement directory is one decision's evidence, and nothing said so; the rule that would catch the other half is refused on its own firing population
+
+**Two traps, a day apart in the record and both about the same thing.** D264
+quoted six figures from a run its own directory superseded eleven minutes
+later, and D269 left the general form open: nothing notices when a
+measurement README is older than the reading it cites. Then on 2026-09-05 a
+session picked `02-181` as the next free id by reading the tail of
+`ls bench/measurements/`, which sorts `02-90` after `02-181`. `02-181` was
+D276's. The files were created into it with no error and D276's `README.md`
+was overwritten; it surfaced two hours later as a `CHANGELOG.md` line citing
+one directory for two decisions.
+
+**What ships** (`bench/measurements/02-184/`). `record-check` requires a
+README whose first heading names a measurement id to name its OWN directory.
+Judged on the 123 of 179 directories whose heading already uses that form;
+the 56 that predate it are skipped rather than renamed, because renumbering
+breaks live citations. **The firing population is 0**, which is what makes
+it a guard against the next one and not a claim about the past — and what
+makes the canary beside it necessary. `canary-readme-id.sh` rewrites one
+heading to `02-999`, requires the check to go red, requires the message to
+name both the wrong id and the real directory, and requires it to go green
+again. Matching the message and not only the exit code is the point: a red
+run from anything else in the record looks identical.
+
+**What is refused, and this is the measured half.** The rule D269 actually
+asked for — a `.txt` committed after the README that names it — fires 5
+times over 227 README/reading pairs. Two are header-only: `499c142` added an
+`# objects: dev` line to two readings under `02-179` without moving a
+number. Filtering to commits that move a non-comment line leaves 3, and
+**each of the three was read and none is a defect**: `02-134`'s only moved
+data line is a process id inside a captured `Aborted` message, `02-179`'s is
+a seconds column whose README says separately that its seconds are not the
+gate's, and `02-73`'s README already carries both the before and the after
+in one table. So the rule would ship red on three directories it is wrong
+about, and a rule that has to be argued with on every build is worse than no
+rule — the three standing `M3` warnings here are already read as noise.
+`bench/refusals.txt` carries what would reopen it: a reading format whose
+data lines are separable from its noise, at which point all three false
+positives go.
+
+**What neither rule covers.** A second decision writing into another's
+directory while that README is left alone. Nothing in the files says which
+decision owns a directory, and the heading only helps once the heading is
+wrong. What catches it is `git status --short bench/measurements/` showing
+an `M` where only `??` belongs, which is a habit and not a check.

@@ -7,6 +7,20 @@ line leaves this file in the same commit.
 
 ## Where the last session stopped — 2026-09-03
 
+**2026-09-05, last: D269's open item is answered, and half of it is a
+refusal (D279, `bench/measurements/02-184/`).** D269 left "no tool notices
+when a measurement directory's README is older than the `.txt` it cites".
+Measured over 227 README/reading pairs: the rule fires 5 times, 2 are
+header-only, and all 3 that survive were read and none is a defect. It would
+ship red on three directories it is wrong about, so it is refused with what
+would reopen it. **What ships instead** is the rule for the trap this
+session actually hit: a README heading that names a measurement id must name
+its own directory. 0 firings today, so `canary-readme-id.sh` is what shows
+it works. **What neither covers** is a second decision writing into
+another's directory while that README is left alone; the signal there is
+`git status --short bench/measurements/` showing an `M` where only `??`
+belongs, and that stays a habit.
+
 **2026-09-05, after D277: the LP reader stopped asking the caller to do its
 arithmetic (D278, `bench/measurements/02-183/`).** A bare number inside a
 constraint expression was refused with a message that named the fix. It is

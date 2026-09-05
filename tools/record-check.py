@@ -213,6 +213,35 @@ for p in PROSE:
                      ' (it is on this disk, untracked, so a clone does not have it)'
                      if on_disk else ''))
 
+
+# A README that names a measurement id must name its OWN directory (D279).
+#
+# Every file in `bench/measurements/<id>/` is one decision's evidence. Two
+# decisions sharing a directory cannot be told apart from the files, and
+# nothing else here notices: on 2026-09-05 a session picked `02-181` as the
+# next free id off the tail of `ls`, which sorts `02-90` after `02-181`,
+# wrote a second decision's readings into D276's directory and overwrote its
+# README. It surfaced two hours later as a CHANGELOG line citing one id for
+# two decisions.
+#
+# Judged only where the README already names an id in its first heading:
+# 123 of the 179 directories do, and the 56 that predate the convention are
+# left alone rather than renamed, because renumbering breaks live citations.
+# The firing population when this was added was 0, which is what makes it a
+# guard against the next one rather than a claim about the past
+# (`bench/measurements/02-184/`).
+for d in sorted(measured_dirs):
+    r = 'bench/measurements/%s/README.md' % d
+    if r not in (TRACKED or ()):
+        continue
+    head = read(r).split('\n', 1)[0]
+    m = re.match(r'^#\s+(\d\d-\d+)\b', head)
+    if m and m.group(1) != d:
+        fail('%s names %s in its first heading, and it is %s\'s README. A '
+             'measurement directory is one decision\'s evidence; if this '
+             'one was moved, repoint the heading, and if a second decision '
+             'wrote into it, give that one its own id' % (r, m.group(1), d))
+
 # ---------------------------------------------------------------- 4. constants
 src_const = {}
 for p in SOURCES:

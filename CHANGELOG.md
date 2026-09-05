@@ -93,6 +93,17 @@ open, `bench/README.md` for the gate, and the commit each entry came from.
 
 ### Changed
 
+- **`make record-check` refuses a measurement README whose heading names
+  another directory.** A measurement directory is one decision's evidence,
+  and nothing said so: on 2026-09-05 a session took an id that was already
+  used, wrote a second decision's readings into it and overwrote the first
+  README, with no error anywhere. Judged on the 123 of 179 directories whose
+  heading already names an id; it fires 0 times today, so the canary beside
+  it is what shows it works (D279, `bench/measurements/02-184/`). The rule
+  D269 actually asked for — a reading committed after the README that cites
+  it — is **refused** on its own firing population: 3 of 227 pairs survive
+  every filter and none of the three is a defect (`bench/refusals.txt`).
+
 - **The LP reader folds a constant inside a constraint** into the
   right-hand side with its sign flipped, so `3x + 5 <= 10` is the row
   `3x <= 5`; on a two-sided row both ends shift by it. It used to refuse
