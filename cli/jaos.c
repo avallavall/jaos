@@ -10,7 +10,7 @@
  * Usage:
  *   jaos solve FILE [--solution OUT] [--start SOLUTION] [--work-limit N]
  *                   [--time-limit SECONDS] [--primal-tol T] [--dual-tol T]
- *                   [--cut-rounds N] [--dive] [--no-heuristics]
+ *                   [--cut-rounds N] [--dive] [--no-heuristics] [--node-limit N]
  *                   [--log LEVEL] [--quiet]
  *   jaos convert IN OUT
  *   jaos check FILE SOLUTION [--tol T]
@@ -70,7 +70,7 @@ static const char USAGE[] =
     "Usage:\n"
     "  jaos solve FILE [--solution OUT] [--start SOLUTION] [--work-limit N]\n"
     "                  [--time-limit SECONDS] [--primal-tol T] [--dual-tol T]\n"
-    "                  [--cut-rounds N] [--dive] [--no-heuristics]\n"
+    "                  [--cut-rounds N] [--dive] [--no-heuristics] [--node-limit N]\n"
     "                  [--log LEVEL] [--quiet]\n"
     "  jaos convert IN OUT\n"
     "  jaos check FILE SOLUTION [--tol T]\n"
@@ -94,6 +94,7 @@ static const char USAGE[] =
     "                   1; 0 for none)\n"
     "  --dive           dive from each selected node of a MIP (off by default)\n"
     "  --no-heuristics  no rounding heuristic at the nodes of a MIP\n"
+    "  --node-limit N   stop a MIP before its N-th node past the limit (N > 0)\n"
     "  --log LEVEL      solver log on stderr: off, summary, progress, detail\n"
     "  --quiet          print the status line only\n"
     "  Exit: 0 optimal, 1 infeasible, 2 unbounded, 3 stopped by a limit or\n"
@@ -325,6 +326,7 @@ static const char *status_word(jaos_solve_status s)
     case JAOS_SOLVE_TIME_LIMIT:      return "time_limit";
     case JAOS_SOLVE_NUMERICAL_ERROR: return "numerical_error";
     case JAOS_SOLVE_INTERRUPTED:     return "interrupted";
+    case JAOS_SOLVE_NODE_LIMIT:      return "node_limit";
     }
     return "unknown";
 }
@@ -341,6 +343,7 @@ static int exit_code_for(jaos_solve_status s)
     case JAOS_SOLVE_WORK_LIMIT:      return EXIT_STOPPED;
     case JAOS_SOLVE_TIME_LIMIT:      return EXIT_STOPPED;
     case JAOS_SOLVE_INTERRUPTED:     return EXIT_STOPPED;
+    case JAOS_SOLVE_NODE_LIMIT:      return EXIT_STOPPED;
     case JAOS_SOLVE_NUMERICAL_ERROR: return EXIT_NUMERICAL;
     case JAOS_SOLVE_NOT_RUN:         return EXIT_NUMERICAL;
     }
@@ -363,6 +366,7 @@ struct solve_options {
     int64_t work_limit;      /* 0: not given; the parser refuses <= 0 */
     double time_limit;       /* 0: not given; the parser refuses <= 0 */
     int64_t cut_rounds;      /* -1: not given (the library's default)     */
+    int64_t node_limit;      /* 0: not given; the parser refuses <= 0     */
     bool dive, no_heuristics;
     /* The tolerances carry a flag rather than a sentinel: any finite value
      * is passed to the library, which is what refuses a negative one, and a
@@ -420,6 +424,10 @@ static int parse_solve_options(int argc, char **argv, int first,
             if (!parse_double(v, &o->time_limit) || o->time_limit <= 0.0)
                 return usage_error("--time-limit needs a positive number of "
                                    "seconds, not '%s'", v);
+        } else if (strcmp(a, "--node-limit") == 0) {
+            if (!parse_int64(v, &o->node_limit) || o->node_limit <= 0)
+                return usage_error("--node-limit needs a positive integer, "
+                                   "not '%s'", v);
         } else if (strcmp(a, "--cut-rounds") == 0) {
             if (!parse_int64(v, &o->cut_rounds) || o->cut_rounds < 0)
                 return usage_error("--cut-rounds needs a count of rounds, 0 or "
@@ -469,6 +477,10 @@ static int cmd_solve(int argc, char **argv)
     }
     if (o.time_limit > 0.0 && jaos_set_time_limit(m, o.time_limit) != JAOS_OK) {
         rc = library_error("set the time limit for", o.file, m);
+        goto out;
+    }
+    if (o.node_limit > 0 && jaos_set_mip_node_limit(m, o.node_limit) != JAOS_OK) {
+        rc = library_error("set the node limit for", o.file, m);
         goto out;
     }
     if (o.cut_rounds >= 0 && jaos_set_mip_cut_rounds(m, o.cut_rounds) != JAOS_OK) {

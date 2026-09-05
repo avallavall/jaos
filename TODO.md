@@ -7,7 +7,24 @@ line leaves this file in the same commit.
 
 ## Where the last session stopped — 2026-09-05
 
-**2026-09-05, last: a rounding heuristic at every node, and the tree
+**2026-09-05, last: a node limit on the tree and an incumbent callback
+(D291).** The sixth batch of the day, and the one D290 asked for: a
+budget stop is what the heuristic is for, so the tree has its own
+budget now, `jaos_set_mip_node_limit`, stopping as
+`JAOS_SOLVE_NODE_LIMIT` with the incumbent kept; and
+`jaos_set_incumbent_callback` tells the caller of each incumbent as it
+appears, with the bound beside it, and may stop the search. Neither
+moves a default: the MIP set and the three gate sets are byte-identical.
+Both at both Python layers. **What is next**, in order: cuts below the
+root against the D290 baseline; a child rule for the dive that is not
+nearer-side first, which is what would reopen D289's refusal; and the
+four held cut constants, each swept on this set once something moves
+them. The matrix's MILP column is ◐ on cuts and heuristics and ● on the
+tree, and "callbacks that steer the search" stays ○ on purpose: a
+callback here may look and may stop, and D64's line keeps the method on
+the other side.
+
+**2026-09-05, later: a rounding heuristic at every node, and the tree
 logs where it is (D290).** The fifth batch of the day and the smallest.
 The matrix's MILP column has no ○ left for JAOS. The measurement is the
 part worth keeping: **a heuristic cannot shrink a best-bound tree**, and

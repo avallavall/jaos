@@ -463,6 +463,94 @@ static void test_the_tree_logs_its_start_root_and_end(void)
     jaos_model_free(m);
 }
 
+/* The node limit and the incumbent callback (D291), on the model whose
+ * root rounds to its optimum. A limit of one node stops after the root,
+ * as NODE_LIMIT, with the rounding's point held for jaos_mip_incumbent
+ * and refused by jaos_solution; the callback saw that point once, at
+ * node 1, marked as the heuristic's; and a callback that says STOP ends
+ * the search as INTERRUPTED with the incumbent kept. */
+typedef struct {
+    int calls;
+    jaos_incumbent last;
+    double x[2];
+    jaos_callback_action answer;
+} seen_t;
+
+static jaos_callback_action see_incumbent(const jaos_incumbent *inc, void *user)
+{
+    seen_t *s = user;
+    s->calls++;
+    s->last = *inc;
+    s->x[0] = inc->col_value[0];
+    s->x[1] = inc->col_value[1];
+    return s->answer;
+}
+
+static jaos_model *neighbour_model(void)
+{
+    const double cost[2] = { 1.0, 1.0 }, cl[2] = { 0, 0 }, cu[2] = { 2.2, 1.4 };
+    const double rl[1] = { -INFINITY }, ru[1] = { 3.6 };
+    const int64_t as[3] = { 0, 1, 2 }, ai[2] = { 0, 0 };
+    const double av[2] = { 1.0, 1.0 };
+    jaos_model *m = fresh();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_load_lp(m, 2, 1, JAOS_MAXIMIZE, 0.0, cost, cl, cu, rl, ru,
+                     2, as, ai, av));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_col_integer(m, 0, true));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_col_integer(m, 1, true));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_cut_rounds(m, 0));
+    return m;
+}
+
+static void test_a_node_limit_stops_with_the_incumbent_the_callback_saw(void)
+{
+    jaos_model *m = neighbour_model();
+    seen_t seen = { .answer = JAOS_CALLBACK_CONTINUE };
+    TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT, jaos_set_mip_node_limit(m, -1));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_node_limit(m, 1));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_incumbent_callback(m, see_incumbent, &seen));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_NODE_LIMIT, jaos_status_of(m));
+    TEST_ASSERT_EQUAL_STRING("node limit reached",
+                             jaos_solve_status_str(JAOS_SOLVE_NODE_LIMIT));
+    double x[2], obj = 0.0;
+    TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT,
+                          jaos_solution(m, x, nullptr, nullptr, nullptr));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_mip_incumbent(m, x, &obj));
+    TEST_ASSERT_TRUE(x[0] == 2.0 && x[1] == 1.0);
+    TEST_ASSERT_DOUBLE_WITHIN(1e-9, 3.0, obj);
+    TEST_ASSERT_EQUAL_INT(1, seen.calls);
+    TEST_ASSERT_EQUAL_INT64(1, seen.last.node);
+    TEST_ASSERT_TRUE(seen.last.by_rounding);
+    TEST_ASSERT_EQUAL_INT64(2, seen.last.num_col);
+    TEST_ASSERT_TRUE(seen.x[0] == 2.0 && seen.x[1] == 1.0);
+    TEST_ASSERT_DOUBLE_WITHIN(1e-9, 3.0, seen.last.objective);
+    TEST_ASSERT_TRUE(seen.last.bound >= 3.0);
+    jaos_mip_report rep;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_mip_result(m, &rep));
+    TEST_ASSERT_EQUAL_INT64(1, rep.nodes);
+    TEST_ASSERT_TRUE(rep.has_incumbent);
+
+    /* No limit, and a callback that stops on the first incumbent. */
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_node_limit(m, 0));
+    seen.answer = JAOS_CALLBACK_STOP;
+    seen.calls = 0;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_INTERRUPTED, jaos_status_of(m));
+    TEST_ASSERT_EQUAL_INT(1, seen.calls);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_mip_result(m, &rep));
+    TEST_ASSERT_TRUE(rep.has_incumbent);
+
+    /* And the callback removed: the search runs to its optimum, the same
+     * bits as with a callback that always continued. */
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_incumbent_callback(m, nullptr, nullptr));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(m, &obj));
+    TEST_ASSERT_DOUBLE_WITHIN(1e-9, 3.0, obj);
+    jaos_model_free(m);
+}
+
 int main(void)
 {
     UNITY_BEGIN();
@@ -483,5 +571,6 @@ int main(void)
     RUN_TEST(test_the_rounding_heuristic_takes_the_relaxations_neighbour);
     RUN_TEST(test_an_infeasible_rounding_is_not_taken);
     RUN_TEST(test_the_tree_logs_its_start_root_and_end);
+    RUN_TEST(test_a_node_limit_stops_with_the_incumbent_the_callback_saw);
     return UNITY_END();
 }

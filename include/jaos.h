@@ -60,6 +60,8 @@ typedef enum jaos_solve_status {
      * line would renumber every one below it for anyone who did not
      * recompile. */
     JAOS_SOLVE_INTERRUPTED,
+    /* A branch and bound stopped by jaos_set_mip_node_limit (D291). */
+    JAOS_SOLVE_NODE_LIMIT,
 } jaos_solve_status;
 
 /* Human-readable name for a status. Static storage; never NULL, including for
@@ -328,6 +330,14 @@ JAOS_NODISCARD jaos_status jaos_set_mip_cut_rounds(jaos_model *m,
  * relaxation it was rounded from, which jaos_mip_result counts under
  * `heuristic_points`. */
 JAOS_NODISCARD jaos_status jaos_set_mip_heuristics(jaos_model *m, bool on);
+
+/* A budget on the tree itself (D291): the branch and bound stops before
+ * solving its `nodes`-th node past the limit and reports
+ * JAOS_SOLVE_NODE_LIMIT, keeping the incumbent it has for
+ * jaos_mip_incumbent. 0 removes the limit; a negative value is refused.
+ * Read between nodes, like the work limit; an LP ignores it. */
+JAOS_NODISCARD jaos_status jaos_set_mip_node_limit(jaos_model *m,
+                                                   int64_t nodes);
 
 /* What the last branch and bound did. `bound` is the best objective any
  * open node could still reach when the search stopped, in the model's
@@ -735,6 +745,31 @@ typedef jaos_callback_action (*jaos_progress_fn)(const jaos_progress *p,
 JAOS_NODISCARD jaos_status jaos_set_progress_callback(jaos_model *m,
                                                       jaos_progress_fn cb,
                                                       void *user);
+
+/* Told every time the branch and bound takes a new incumbent (D291), with
+ * the point and where the search stands. `col_value` holds num_col values,
+ * integral where the model says so, and is valid during the call only.
+ * The rule is the progress callback's: look, or ask the search to stop,
+ * and never call into JAOS on this model from inside. A stop keeps the
+ * incumbent and ends the solve as JAOS_SOLVE_INTERRUPTED, so
+ * jaos_mip_incumbent reads what was found. The search is bit-identical
+ * for the same sequence of answers, since nothing else about it depends
+ * on the callback existing. */
+typedef struct jaos_incumbent {
+    int64_t node;            /* the node it was found at, 1 for the root */
+    double  objective;       /* the model's own sense                     */
+    double  bound;           /* the best any open node could still reach  */
+    const double *col_value;
+    int64_t num_col;
+    bool    by_rounding;     /* the heuristic's, not a relaxation's       */
+} jaos_incumbent;
+
+typedef jaos_callback_action (*jaos_incumbent_fn)(const jaos_incumbent *inc,
+                                                  void *user);
+
+JAOS_NODISCARD jaos_status jaos_set_incumbent_callback(jaos_model *m,
+                                                       jaos_incumbent_fn cb,
+                                                       void *user);
 
 /* Solves the model. The outcome is reported by jaos_solve_status, which the
  * return value does not duplicate: JAOS_OK means the solve ran, not that it

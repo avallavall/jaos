@@ -11,6 +11,17 @@ open, `bench/README.md` for the gate, and the commit each entry came from.
 
 ### Added
 
+- **A node limit on the tree, and an incumbent callback.**
+  `jaos_set_mip_node_limit` and `--node-limit N` stop a branch and bound
+  before a node past the limit as `JAOS_SOLVE_NODE_LIMIT` (appended to
+  the enum; the status word is `node_limit`, exit 3), keeping the
+  incumbent for `jaos_mip_incumbent`. `jaos_set_incumbent_callback` is
+  told of every new incumbent with the node, the objective, the bound,
+  the point and whether the rounding found it, and may stop the search,
+  which keeps the incumbent and ends as `INTERRUPTED`. Both at both
+  Python layers, `Problem` handing the point back by variable. No default
+  moves: the MIP set and the three gate sets are byte-identical (D291).
+
 - **A rounding heuristic at every node, and the tree logs where it is.**
   Every fractional node's relaxation is rounded and kept as the incumbent
   when it is inside every bound and row; `jaos_set_mip_heuristics` and

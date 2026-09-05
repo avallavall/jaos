@@ -1190,6 +1190,30 @@ class TestBranchAndBound(unittest.TestCase):
         self.assertEqual(rep.heuristic_points, 0)
         self.assertGreaterEqual(rep.nodes, 2)
 
+    def test_a_node_limit_stops_with_the_incumbent_and_the_callback_sees_it(self):
+        # The same model: a limit of one node stops after the root, where the
+        # rounding already found (2, 1), and the callback saw it (D291).
+        seen = []
+        p = jaos.Problem()
+        x = p.add_var(ub=2.2, integer=True, name="x")
+        y = p.add_var(ub=1.4, integer=True, name="y")
+        p.add(x + y <= 3.6)
+        p.maximize(x + y)
+        p.set_mip_cut_rounds(0).set_mip_node_limit(1)
+        p.set_incumbent_callback(lambda inc: seen.append(inc))
+        self.assertIs(p.solve(), jaos.SolveStatus.NODE_LIMIT)
+        self.assertEqual(len(seen), 1)
+        self.assertEqual(seen[0].node, 1)
+        self.assertTrue(seen[0].by_rounding)
+        self.assertEqual((seen[0].values[x], seen[0].values[y]), (2.0, 1.0))
+        obj, point = p.mip_incumbent()
+        self.assertAlmostEqual(obj, 3.0, places=9)
+        # And a callback that says STOP ends the search as INTERRUPTED.
+        p.set_mip_node_limit(0)
+        p.set_incumbent_callback(lambda inc: jaos.CallbackAction.STOP)
+        self.assertIs(p.solve(), jaos.SolveStatus.INTERRUPTED)
+        self.assertTrue(p.mip_report().has_incumbent)
+
     def test_the_rounding_heuristic_finds_the_root_relaxations_neighbour(self):
         # max x + y, x + y <= 3.6, x <= 2.2, y <= 1.4, both integer: the
         # relaxation sits at (2.2, 1.4) and rounds to (2, 1), which is the

@@ -50,6 +50,11 @@ typedef struct {
     int64_t mip_cut_rounds;
     /* The rounding heuristic at every node (D290); on unless set. */
     bool mip_no_heuristics;
+    /* A budget on the tree, 0 for none (D291), and who is told of each
+     * incumbent. */
+    int64_t mip_node_limit;
+    jaos_incumbent_fn incumbent_cb;
+    void *incumbent_user;
 } jm_config;
 
 /* Name -> value map for the readers and for lookup by name: FNV-1a, open

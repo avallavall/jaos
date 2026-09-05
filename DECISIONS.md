@@ -298,6 +298,7 @@ and you have the argument. Jump to the entry for the numbers behind it.
 - **[D288](#d288--integer-columns-solve-by-branch-and-bound-over-the-dual-simplex-warm-from-the-parent-best-bound-first-and-nothing-else-yet)** — Integer columns solve by branch and bound over the dual simplex, warm from the parent, best bound first, and nothing else yet
 - **[D289](#d289--a-mip-set-of-17-miplib-3-instances-one-round-of-gomory-cuts-at-the-root-and-a-dive-refused-at-1125x)** — A MIP set of 17 MIPLIB 3 instances, one round of Gomory cuts at the root, and a dive refused at 1.125x
 - **[D290](#d290--a-rounding-heuristic-at-every-node-it-cannot-shrink-a-best-bound-tree-and-it-moves-the-first-incumbent-up-to-three-orders-of-magnitude-earlier-for-18-of-the-work)** — A rounding heuristic at every node: it cannot shrink a best-bound tree, and it moves the first incumbent up to three orders of magnitude earlier for 1.8% of the work
+- **[D291](#d291--a-node-limit-on-the-tree-and-an-incumbent-callback-because-a-budget-stop-is-what-the-heuristic-is-for)** — A node limit on the tree and an incumbent callback, because a budget stop is what the heuristic is for
 
 ---
 
@@ -21345,3 +21346,38 @@ beyond the pass, and `bench/miplib.baseline` is rewritten by 1.8% to say
 so. `MIP_LOG_EVERY` decides nothing and is not in `docs/tolerances.md`,
 like `PROGRESS_EVERY`. No LP path is touched: the three gate sets are
 byte-identical.
+
+## D291 — A node limit on the tree and an incumbent callback, because a budget stop is what the heuristic is for
+
+**The gap.** D290 made an incumbent appear early so a stopped search hands
+one back, and the only budgets were the model's work and time limits,
+which an LP reads too. Nothing told the caller an incumbent existed
+until the search ended.
+
+**What it does now.** `jaos_set_mip_node_limit` stops the branch and
+bound before solving a node past the limit and reports a new status,
+`JAOS_SOLVE_NODE_LIMIT`, appended to the enum so nobody who did not
+recompile is renumbered; `jaos_mip_incumbent` reads what was found and
+`jaos_solution` refuses, as after every budget stop. `--node-limit N`
+and the status word `node_limit`, exit 3. `jaos_set_incumbent_callback`
+is called with each new incumbent -- the node, the objective, the best
+bound any open node could still reach, the point, and whether the
+rounding found it -- under the progress callback's rule: look, or stop,
+never call back in. A stop keeps the incumbent and ends as
+`JAOS_SOLVE_INTERRUPTED`. Python carries both at both layers, the
+`Problem` layer handing the point back as a dict from variable to value.
+
+**Evidence.** No default changes: the MIP set is byte-identical against
+its D290 baseline, and the three gate sets against theirs. The unit
+tests hold a limit of one node to the root's rounding point, the
+callback to one call at node 1 marked as the heuristic's, a STOP to
+INTERRUPTED with the incumbent kept, and the callback's removal to the
+same optimum. The search is bit-identical for the same sequence of
+answers, since nothing else about it depends on the callback existing,
+which is the progress callback's argument and is what the last test
+checks.
+
+**What it is not.** The callback cannot steer: no branching decision, no
+cut, no bound change from inside, for the reason `jaos.h` gives on the
+progress callback. The feature matrix's "callbacks that steer the
+search" stays ○.

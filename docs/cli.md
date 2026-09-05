@@ -46,7 +46,7 @@ time 0.000087
 ```
 
 - `status` is one word: `optimal`, `infeasible`, `unbounded`, `work_limit`,
-  `time_limit`, `numerical_error` or `interrupted`.
+  `time_limit`, `node_limit`, `numerical_error` or `interrupted`.
 - `objective` is printed only when the solve found an optimum. The library
   refuses to give an objective for any other outcome, because a number
   cannot be told apart from a genuine objective of zero, and the tool
@@ -93,6 +93,7 @@ prints the same facts as the same model solved silently.
 | `--cut-rounds N` | rounds of Gomory mixed-integer cuts at the root of a mixed-integer model (D289): one cut per fractional integer column of the relaxation's basis per round, kept for the whole tree. Default 1, the setting that measured 0.660x the plain tree's work with no instance past 2x (D289); `0` turns them off. A negative count is a usage error. No effect on an LP. |
 | `--dive` | dives from each selected node of a branch and bound: the child on the nearer side of the fraction is solved next and its sibling joins the open set, until a node is pruned or integral. Off by default, because it measured 1.125x the work of the plain best-bound order over the MIP set (D289). No effect on an LP. |
 | `--no-heuristics` | turns the rounding heuristic off: by default every fractional node's relaxation is rounded to the nearest integers and kept as the incumbent when it is inside every bound and row (D290). No effect on an LP. |
+| `--node-limit N` | stops a branch and bound before its `N`-th node past the limit, as `node_limit`, keeping the incumbent it has; `N` must be a positive integer (D291). No effect on an LP. |
 | `--log LEVEL` | prints the solver's log on stderr. `LEVEL` is `off`, `summary`, `progress` or `detail`. Default `off`. |
 | `--quiet` | prints the `status` line only. |
 

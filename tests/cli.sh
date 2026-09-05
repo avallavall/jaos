@@ -219,6 +219,18 @@ expect_exit 0 "and the rounding heuristic switches off" \
     || flunk "no-heuristics MIP: $(line_of objective) / $(line_of heuristic_points)"
 expect_exit 5 "a negative round count is a usage error" \
     "$JAOS" solve "$DATA/t4_int.mps" --cut-rounds -1
+# A node limit (D291): nl_int.lp's root is fractional with the cuts off,
+# and the rounding finds the optimum there, so a limit of one node stops
+# as node_limit with exit 3 and an incumbent on the first node; zero is
+# refused.
+expect_exit 3 "a node limit stops the tree" \
+    "$JAOS" solve "$DATA/nl_int.lp" --cut-rounds 0 --node-limit 1
+[ "$(line_of status)" = "status node_limit" ] && [ "$(line_of nodes)" = "nodes 1" ] \
+    && [ "$(line_of first_incumbent)" = "first_incumbent 1" ] \
+    && pass "as node_limit after one node with an incumbent" \
+    || flunk "node limit: $(line_of status) / $(line_of nodes) / $(line_of first_incumbent)"
+expect_exit 5 "--node-limit refuses zero" \
+    "$JAOS" solve "$DATA/nl_int.lp" --node-limit 0
 expect_exit 0 "and converts to LP with its marks" \
     "$JAOS" convert "$DATA/t4_int.mps" "$tmp/t4.lp"
 grep -q '^General$' "$tmp/t4.lp" && pass "the LP carries a General section" \

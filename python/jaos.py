@@ -95,6 +95,7 @@ class SolveStatus(enum.IntEnum):
     TIME_LIMIT = 5
     NUMERICAL_ERROR = 6
     INTERRUPTED = 7
+    NODE_LIMIT = 8
 
 
 class ObjSense(enum.IntEnum):
@@ -148,6 +149,12 @@ BoundRanging = namedtuple("BoundRanging",
 # there is deliberately no objective in it.
 Progress = namedtuple("Progress",
                       "iterations work_units primal_infeasibility")
+
+# What a branch and bound says of each new incumbent (D291): the node it
+# was found at, its objective, the best bound any open node could still
+# reach, the point as a list, and whether the rounding heuristic found it.
+Incumbent = namedtuple("Incumbent",
+                       "node objective bound values by_rounding")
 
 
 # --------------------------------------------------------------------------
@@ -341,6 +348,21 @@ _LOG_FN = ctypes.CFUNCTYPE(None, _VP, ctypes.c_int, _CS)
 _PROGRESS_FN = ctypes.CFUNCTYPE(ctypes.c_int, _P(_Progress), _VP)
 
 
+class _Incumbent(ctypes.Structure):
+    """jaos_incumbent, field for field."""
+    _fields_ = [
+        ("node", _I64),
+        ("objective", _D),
+        ("bound", _D),
+        ("col_value", _P(_D)),
+        ("num_col", _I64),
+        ("by_rounding", ctypes.c_bool),
+    ]
+
+
+_INCUMBENT_FN = ctypes.CFUNCTYPE(ctypes.c_int, _P(_Incumbent), _VP)
+
+
 def _sig(name, restype, *argtypes):
     fn = getattr(_lib, name)
     fn.restype = restype
@@ -420,6 +442,8 @@ _sig("jaos_set_dual_tolerance", ctypes.c_int, _VP, _D)
 _sig("jaos_set_log_callback", ctypes.c_int, _VP, _LOG_FN, _VP)
 _sig("jaos_set_log_level", ctypes.c_int, _VP, ctypes.c_int)
 _sig("jaos_set_progress_callback", ctypes.c_int, _VP, _PROGRESS_FN, _VP)
+_sig("jaos_set_mip_node_limit", ctypes.c_int, _VP, _I64)
+_sig("jaos_set_incumbent_callback", ctypes.c_int, _VP, _INCUMBENT_FN, _VP)
 _sig("jaos_solve", ctypes.c_int, _VP)
 _sig("jaos_status_of", ctypes.c_int, _VP)
 _sig("jaos_objective", ctypes.c_int, _VP, _P(_D))
@@ -506,6 +530,7 @@ class Model:
         # references below are what stop that.
         self._log_cb = None
         self._progress_cb = None
+        self._incumbent_cb = None
 
     # -- lifetime ----------------------------------------------------------
 
@@ -517,6 +542,7 @@ class Model:
             self._m = None
             self._log_cb = None
             self._progress_cb = None
+            self._incumbent_cb = None
 
     def __del__(self):
         try:
@@ -774,6 +800,40 @@ class Model:
         on by default."""
         self._check(_lib.jaos_set_mip_heuristics(self._handle(), bool(on)))
 
+    def set_mip_node_limit(self, nodes):
+        """Stops a branch and bound before its `nodes`-th node past the
+        limit, as NODE_LIMIT, keeping the incumbent; 0 removes it (D291)."""
+        self._check(_lib.jaos_set_mip_node_limit(self._handle(), int(nodes)))
+
+    def set_incumbent_callback(self, fn):
+        """Asks a branch and bound to call `fn(incumbent)` for each new
+        incumbent, where `incumbent` is an `Incumbent` tuple (D291). Return
+        `CallbackAction.STOP` to stop the search, which keeps the incumbent
+        and ends as INTERRUPTED; None or CONTINUE lets it run on. Pass None
+        to remove the callback. The rule and the exception handling are the
+        progress callback's."""
+        if fn is None:
+            self._incumbent_cb = None
+            self._check(_lib.jaos_set_incumbent_callback(
+                self._handle(), ctypes.cast(None, _INCUMBENT_FN), None))
+            return self
+
+        def trampoline(p, _user):
+            try:
+                c = p.contents
+                vals = [c.col_value[i] for i in range(c.num_col)]
+                r = fn(Incumbent(c.node, c.objective, c.bound, vals,
+                                 bool(c.by_rounding)))
+                return int(CallbackAction.CONTINUE if r is None else r)
+            except Exception:
+                sys.excepthook(*sys.exc_info())
+                return int(CallbackAction.STOP)
+
+        self._incumbent_cb = _INCUMBENT_FN(trampoline)
+        self._check(_lib.jaos_set_incumbent_callback(self._handle(),
+                                                     self._incumbent_cb, None))
+        return self
+
     def mip_report(self):
         rep = _MipReport()
         self._check(_lib.jaos_mip_result(self._handle(), ctypes.byref(rep)))
@@ -810,6 +870,7 @@ class Model:
         m._m = handle
         m._log_cb = None
         m._progress_cb = None
+        m._incumbent_cb = None
         return m
 
     def col_index(self, name):
@@ -1994,6 +2055,24 @@ class Problem:
         """Whether every fractional node is rounded for an incumbent (D290);
         on by default."""
         self._m.set_mip_heuristics(on)
+        return self
+
+    def set_mip_node_limit(self, nodes):
+        self._m.set_mip_node_limit(nodes)
+        return self
+
+    def set_incumbent_callback(self, fn):
+        """Like Model.set_incumbent_callback, with `values` as a dict from
+        variable to value (D291)."""
+        if fn is None:
+            self._m.set_incumbent_callback(None)
+            return self
+        vars_ = self._vars
+
+        def wrap(inc):
+            return fn(inc._replace(values={v: inc.values[i]
+                                           for i, v in enumerate(vars_)}))
+        self._m.set_incumbent_callback(wrap)
         return self
 
     def mip_report(self):

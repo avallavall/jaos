@@ -24,6 +24,7 @@ const char *jaos_solve_status_str(jaos_solve_status s)
     case JAOS_SOLVE_TIME_LIMIT:      return "time limit reached";
     case JAOS_SOLVE_NUMERICAL_ERROR: return "numerical error";
     case JAOS_SOLVE_INTERRUPTED:     return "interrupted by callback";
+    case JAOS_SOLVE_NODE_LIMIT:      return "node limit reached";
     }
     return "unknown status";
 }

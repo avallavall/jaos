@@ -524,6 +524,26 @@ static bool incumbent_take_point(incumbent *inc, const jaos_model *lp,
  * many nodes. Decides nothing. */
 constexpr int64_t MIP_LOG_EVERY = 100;
 
+/* Tells the caller of a new incumbent (D291) and returns false when it
+ * asks the search to stop. The bound is the best any open node could
+ * still reach, in the model's sense. */
+static bool incumbent_announce(const jaos_model *m, const incumbent *inc,
+                               int64_t node, double bound, bool by_rounding)
+{
+    if (m->cfg.incumbent_cb == nullptr)
+        return true;
+    const jaos_incumbent ev = {
+        .node = node,
+        .objective = inc->obj,
+        .bound = bound,
+        .col_value = inc->x,
+        .num_col = m->num_col,
+        .by_rounding = by_rounding,
+    };
+    return m->cfg.incumbent_cb(&ev, m->cfg.incumbent_user) !=
+           JAOS_CALLBACK_STOP;
+}
+
 /* --- The tree ---------------------------------------------------------- */
 
 jaos_status jm_branch_and_bound(jaos_model *m)
@@ -620,6 +640,10 @@ jaos_status jm_branch_and_bound(jaos_model *m)
         }
         if (m->cfg.time_limit > 0.0 && now_seconds() - t0 >= m->cfg.time_limit) {
             outcome = JAOS_SOLVE_TIME_LIMIT;
+            break;
+        }
+        if (m->cfg.mip_node_limit > 0 && nodes >= m->cfg.mip_node_limit) {
+            outcome = JAOS_SOLVE_NODE_LIMIT;
             break;
         }
 
@@ -738,6 +762,12 @@ jaos_status jm_branch_and_bound(jaos_model *m)
                     jm_log(m, JAOS_LOG_PROGRESS,
                            "node %lld: incumbent %.17g by rounding",
                            (long long)nodes, hobj);
+                    if (!incumbent_announce(m, &inc, nodes,
+                            sigma * (heap.n > 0 && heap.v[0]->key < key
+                                     ? heap.v[0]->key : key), true)) {
+                        outcome = JAOS_SOLVE_INTERRUPTED;
+                        break;
+                    }
                 }
             }
         }
@@ -761,6 +791,12 @@ jaos_status jm_branch_and_bound(jaos_model *m)
                     inc.x[j] = round(inc.x[j]);
             jm_log(m, JAOS_LOG_PROGRESS, "node %lld: incumbent %.17g, integral",
                    (long long)nodes, obj);
+            if (!incumbent_announce(m, &inc, nodes,
+                    sigma * (heap.n > 0 && heap.v[0]->key < key
+                             ? heap.v[0]->key : key), false)) {
+                outcome = JAOS_SOLVE_INTERRUPTED;
+                break;
+            }
             continue;
         }
         const double v = x[branch];

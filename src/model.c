@@ -892,6 +892,28 @@ jaos_status jaos_set_mip_heuristics(jaos_model *m, bool on)
     return JAOS_OK;
 }
 
+jaos_status jaos_set_mip_node_limit(jaos_model *m, int64_t nodes)
+{
+    if (m == nullptr)
+        return JAOS_ERR_INVALID_INPUT;
+    if (nodes < 0) {
+        jm_set_err(m, "the node limit must be 0 or more");
+        return JAOS_ERR_INVALID_INPUT;
+    }
+    m->cfg.mip_node_limit = nodes;
+    return JAOS_OK;
+}
+
+jaos_status jaos_set_incumbent_callback(jaos_model *m, jaos_incumbent_fn cb,
+                                        void *user)
+{
+    if (m == nullptr)
+        return JAOS_ERR_INVALID_INPUT;
+    m->cfg.incumbent_cb = cb;
+    m->cfg.incumbent_user = user;
+    return JAOS_OK;
+}
+
 jaos_solve_status jaos_status_of(const jaos_model *m)
 {
     return m ? m->solve_status : JAOS_SOLVE_NOT_RUN;
