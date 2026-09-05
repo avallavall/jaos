@@ -357,7 +357,11 @@ JAOS_NODISCARD jaos_status jaos_write_lp(jaos_model *m, const char *path);
  *
  * Names match what jaos_write_mps and jaos_write_lp generate, so a solution
  * file and a model file written from the same model refer to the same
- * rows and columns. */
+ * rows and columns.
+ *
+ * jaos_read_solution reads the file back. It is declared below rather than
+ * here, because its signature needs jaos_basis_status and that type is
+ * declared with the basis calls. */
 JAOS_NODISCARD jaos_status jaos_write_solution(jaos_model *m,
                                                const char *path);
 
@@ -630,6 +634,38 @@ JAOS_NODISCARD jaos_status jaos_set_basis(jaos_model *m,
  * a basis and is refused, and a call that means "none" should not have to be
  * spelled as a special case of a call that means "this one". */
 void jaos_clear_basis(jaos_model *m);
+
+/* Reads a file jaos_write_solution wrote, back into caller arrays.
+ *
+ * Every output pointer is optional; pass NULL for anything not wanted.
+ * `objective` receives one value. `col_value`, `col_dual` and `col_status`
+ * receive num_col values each; `row_activity`, `row_dual` and `row_status`
+ * receive num_row. The model is not modified -- only its error message is.
+ *
+ * **The model decides the shape, and a file that does not fit is refused
+ * rather than read.** The counts in the file must equal this model's, and
+ * each record's name must be the one this library generates for that index.
+ * The model holds no names -- a reader's are gone by the time it is loaded
+ * -- so a generated name is the only name a file can carry, and one that
+ * does not match means the file describes a different model. Records are
+ * taken in index order; nothing is searched by name.
+ *
+ * Only `status optimal` is read, because only an optimum is ever written.
+ * A number that is not finite is refused for the same reason: the writer
+ * will not produce one.
+ *
+ * It installs nothing. To warm-start from a file, read the statuses and
+ * pass them to jaos_set_basis above; that keeps reading a file and changing
+ * a model two separate decisions, which is the same separation
+ * jaos_clear_basis exists for.
+ *
+ * JAOS_ERR_IO when the file cannot be opened, JAOS_ERR_INVALID_INPUT for
+ * anything the format does not allow, with jaos_model_error() naming the
+ * line and what was wrong with it. */
+JAOS_NODISCARD jaos_status jaos_read_solution(jaos_model *m,
+    const char *path, double *objective,
+    double *col_value, double *col_dual, jaos_basis_status *col_status,
+    double *row_activity, double *row_dual, jaos_basis_status *row_status);
 
 /* Work units consumed by the last solve. */
 JAOS_NODISCARD int64_t jaos_work_units(const jaos_model *m);

@@ -599,6 +599,273 @@ static void test_a_refusal_leaves_an_existing_file_alone(void)
 /* Solution                                                              */
 /* --------------------------------------------------------------------- */
 
+/* --------------------------------------------------------------------- */
+/* The solution reader (D282)                                             */
+/* --------------------------------------------------------------------- */
+
+/* A model with three columns and two rows, solved, so there is an answer
+ * with more than one of everything to round-trip. Free for the caller. */
+static jaos_model *solved_model(void)
+{
+    /* minimize -x - 2y + z,  x + y <= 4,  y + z >= 1,  all in [0, 3] */
+    const double cost[] = {-1.0, -2.0, 1.0};
+    const double cl[]   = {0.0, 0.0, 0.0};
+    const double cu[]   = {3.0, 3.0, 3.0};
+    const double rl[]   = {-INFINITY, 1.0};
+    const double ru[]   = {4.0, INFINITY};
+    const int64_t as[]  = {0, 1, 3, 4};
+    const int64_t ai[]  = {0, 0, 1, 1};
+    const double  av[]  = {1.0, 1.0, 1.0, 1.0};
+
+    jaos_model *m = fresh();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_load_lp(m, 3, 2, JAOS_MINIMIZE, 0.0, cost, cl, cu, rl, ru,
+                     4, as, ai, av));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+    return m;
+}
+
+/* Written and read back is the same answer, bit for bit. `%.17g` of a
+ * finite double reads back as that double, so this is an equality test and
+ * not a tolerance test -- a tolerance here would pass on a writer that
+ * rounded. */
+static void test_a_solution_file_reads_back_exactly(void)
+{
+    jaos_model *m = solved_model();
+
+    double x[3], d[3], ra[2], rd[2], obj_w = 0.0;
+    jaos_basis_status cs[3], rs[2];
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solution(m, x, ra, rd, d));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_basis(m, cs, rs));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(m, &obj_w));
+
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_write_solution(m, TMP_SOL));
+
+    double x2[3], d2[3], ra2[2], rd2[2], obj_r = 0.0;
+    jaos_basis_status cs2[3], rs2[2];
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_read_solution(m, TMP_SOL, &obj_r, x2, d2, cs2, ra2, rd2, rs2));
+    TEST_ASSERT_EQUAL_STRING("", jaos_model_error(m));
+
+    TEST_ASSERT_EQUAL_MEMORY(&obj_w, &obj_r, sizeof obj_w);
+    for (int j = 0; j < 3; j++) {
+        TEST_ASSERT_EQUAL_MEMORY(&x[j], &x2[j], sizeof x[j]);
+        TEST_ASSERT_EQUAL_MEMORY(&d[j], &d2[j], sizeof d[j]);
+        TEST_ASSERT_EQUAL_INT(cs[j], cs2[j]);
+    }
+    for (int i = 0; i < 2; i++) {
+        TEST_ASSERT_EQUAL_MEMORY(&ra[i], &ra2[i], sizeof ra[i]);
+        TEST_ASSERT_EQUAL_MEMORY(&rd[i], &rd2[i], sizeof rd[i]);
+        TEST_ASSERT_EQUAL_INT(rs[i], rs2[i]);
+    }
+    remove(TMP_SOL);
+    jaos_model_free(m);
+}
+
+/* Every output pointer is optional, and asking for nothing must still
+ * validate the whole file. The control is that a broken file passed with
+ * all-NULL outputs is still refused. */
+static void test_every_output_of_the_solution_reader_is_optional(void)
+{
+    jaos_model *m = solved_model();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_write_solution(m, TMP_SOL));
+
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_read_solution(m, TMP_SOL, nullptr, nullptr, nullptr, nullptr,
+                           nullptr, nullptr, nullptr));
+
+    double obj = 0.0;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_read_solution(m, TMP_SOL, &obj, nullptr, nullptr, nullptr,
+                           nullptr, nullptr, nullptr));
+    TEST_ASSERT_TRUE(obj < 0.0);
+    remove(TMP_SOL);
+    jaos_model_free(m);
+}
+
+/* The basis comes back well enough to warm-start from, which is the point
+ * of reading the statuses at all: set it, re-solve, and the answer is the
+ * same one. */
+static void test_a_read_basis_can_be_set_back(void)
+{
+    jaos_model *m = solved_model();
+    double obj_first = 0.0;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(m, &obj_first));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_write_solution(m, TMP_SOL));
+
+    jaos_basis_status cs[3], rs[2];
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_read_solution(m, TMP_SOL, nullptr, nullptr, nullptr, cs,
+                           nullptr, nullptr, rs));
+
+    jaos_clear_basis(m);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_basis(m, cs, rs));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+
+    double obj_again = 0.0;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(m, &obj_again));
+    TEST_ASSERT_EQUAL_MEMORY(&obj_first, &obj_again, sizeof obj_first);
+    remove(TMP_SOL);
+    jaos_model_free(m);
+}
+
+/* Writes `text` to TMP_SOL, reads it against `m`, and requires the refusal
+ * to carry `needle`. */
+static void expect_sol_reject(jaos_model *m, const char *text,
+                              const char *needle)
+{
+    FILE *f = fopen(TMP_SOL, "w");
+    TEST_ASSERT_NOT_NULL(f);
+    fputs(text, f);
+    fclose(f);
+    TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT,
+        jaos_read_solution(m, TMP_SOL, nullptr, nullptr, nullptr, nullptr,
+                           nullptr, nullptr, nullptr));
+    TEST_ASSERT_NOT_NULL(strstr(jaos_model_error(m), needle));
+    remove(TMP_SOL);
+}
+
+/* One refusal per failure class, each with its own message.
+ *
+ * The model here has one column and one row, so a file describing anything
+ * else is the "different model" case. The first entry is the control: the
+ * same text with the right counts is ACCEPTED, so every refusal below is
+ * about the one thing it changes and not about the file being malformed in
+ * general. */
+static void test_the_solution_reader_refuses_by_name(void)
+{
+    const double cost[] = {1.0};
+    const double cl[]   = {0.0};
+    const double cu[]   = {INFINITY};
+    const double rl[]   = {2.0};
+    const double ru[]   = {INFINITY};
+    const int64_t as[]  = {0, 1};
+    const int64_t ai[]  = {0};
+    const double  av[]  = {1.0};
+
+    jaos_model *m = fresh();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_load_lp(m, 1, 1, JAOS_MINIMIZE, 0.0, cost, cl, cu, rl, ru,
+                     1, as, ai, av));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+
+    /* The control: this exact text is a valid file for this model. */
+    FILE *f = fopen(TMP_SOL, "w");
+    TEST_ASSERT_NOT_NULL(f);
+    fputs("# JAOS solution file, format 1\n"
+          "status optimal\nobjective 2\ncolumns 1\nrows 1\n"
+          "col C1 2 0 basic\nrow R1 2 1 lower\nend\n", f);
+    fclose(f);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_read_solution(m, TMP_SOL, nullptr, nullptr, nullptr, nullptr,
+                           nullptr, nullptr, nullptr));
+    remove(TMP_SOL);
+
+    /* A file from a model with a different shape. */
+    expect_sol_reject(m,
+        "status optimal\nobjective 2\ncolumns 2\nrows 1\n"
+        "col C1 2 0 basic\ncol C2 0 0 lower\nrow R1 2 1 lower\nend\n",
+        "this model has");
+
+    /* A name that is not the one this index gets. */
+    expect_sol_reject(m,
+        "status optimal\nobjective 2\ncolumns 1\nrows 1\n"
+        "col X1 2 0 basic\nrow R1 2 1 lower\nend\n",
+        "records are in index order");
+
+    /* A status word that is not one of the four. */
+    expect_sol_reject(m,
+        "status optimal\nobjective 2\ncolumns 1\nrows 1\n"
+        "col C1 2 0 superbasic\nrow R1 2 1 lower\nend\n",
+        "not a basis status");
+
+    /* A number the writer would never produce. */
+    expect_sol_reject(m,
+        "status optimal\nobjective 2\ncolumns 1\nrows 1\n"
+        "col C1 inf 0 basic\nrow R1 2 1 lower\nend\n",
+        "not a finite number");
+
+    /* Trailing characters after a number: 1.5x is not 1.5. */
+    expect_sol_reject(m,
+        "status optimal\nobjective 2\ncolumns 1\nrows 1\n"
+        "col C1 1.5x 0 basic\nrow R1 2 1 lower\nend\n",
+        "not a finite number");
+
+    /* A solve that was not an optimum. */
+    expect_sol_reject(m,
+        "status infeasible\nobjective 2\ncolumns 1\nrows 1\n"
+        "col C1 2 0 basic\nrow R1 2 1 lower\nend\n",
+        "only 'optimal' is");
+
+    /* Fewer records than the count promises. */
+    expect_sol_reject(m,
+        "status optimal\nobjective 2\ncolumns 1\nrows 1\n"
+        "col C1 2 0 basic\nend\n",
+        "carries");
+
+    /* More records than the count allows. */
+    expect_sol_reject(m,
+        "status optimal\nobjective 2\ncolumns 1\nrows 1\n"
+        "col C1 2 0 basic\ncol C2 0 0 lower\nrow R1 2 1 lower\nend\n",
+        "more 'col' records");
+
+    /* A record before the counts, so nothing knows how many to expect. */
+    expect_sol_reject(m,
+        "status optimal\nobjective 2\n"
+        "col C1 2 0 basic\ncolumns 1\nrows 1\nrow R1 2 1 lower\nend\n",
+        "before both counts");
+
+    /* No end. */
+    expect_sol_reject(m,
+        "status optimal\nobjective 2\ncolumns 1\nrows 1\n"
+        "col C1 2 0 basic\nrow R1 2 1 lower\n",
+        "without 'end'");
+
+    /* Content after end. */
+    expect_sol_reject(m,
+        "status optimal\nobjective 2\ncolumns 1\nrows 1\n"
+        "col C1 2 0 basic\nrow R1 2 1 lower\nend\nrow R2 0 0 lower\n",
+        "after 'end'");
+
+    /* A record nothing recognizes. */
+    expect_sol_reject(m,
+        "status optimal\nobjective 2\ncolumns 1\nrows 1\n"
+        "col C1 2 0 basic\nrow R1 2 1 lower\nquux 1\nend\n",
+        "unknown record");
+
+    /* No objective line. */
+    expect_sol_reject(m,
+        "status optimal\ncolumns 1\nrows 1\n"
+        "col C1 2 0 basic\nrow R1 2 1 lower\nend\n",
+        "no 'objective' line");
+
+    /* No status line. */
+    expect_sol_reject(m,
+        "objective 2\ncolumns 1\nrows 1\n"
+        "col C1 2 0 basic\nrow R1 2 1 lower\nend\n",
+        "no 'status' line");
+
+    jaos_model_free(m);
+}
+
+static void test_the_solution_reader_rejects_bad_arguments(void)
+{
+    jaos_model *m = fresh();
+    TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT,
+        jaos_read_solution(nullptr, TMP_SOL, nullptr, nullptr, nullptr,
+                           nullptr, nullptr, nullptr, nullptr));
+    TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT,
+        jaos_read_solution(m, nullptr, nullptr, nullptr, nullptr, nullptr,
+                           nullptr, nullptr, nullptr));
+    TEST_ASSERT_EQUAL_INT(JAOS_ERR_IO,
+        jaos_read_solution(m, "tests/data/does_not_exist.sol", nullptr,
+                           nullptr, nullptr, nullptr, nullptr, nullptr,
+                           nullptr));
+    jaos_model_free(m);
+}
+
 static void test_solution_file_carries_the_answer(void)
 {
     /* minimize x, x >= 2. The optimum is 2. */
@@ -775,6 +1042,11 @@ int main(void)
     RUN_TEST(test_solution_file_carries_the_answer);
     RUN_TEST(test_solution_refuses_a_value_no_file_can_carry);
     RUN_TEST(test_solution_refused_without_an_optimum);
+    RUN_TEST(test_a_solution_file_reads_back_exactly);
+    RUN_TEST(test_every_output_of_the_solution_reader_is_optional);
+    RUN_TEST(test_a_read_basis_can_be_set_back);
+    RUN_TEST(test_the_solution_reader_refuses_by_name);
+    RUN_TEST(test_the_solution_reader_rejects_bad_arguments);
     RUN_TEST(test_bad_arguments_and_unwritable_paths);
     RUN_TEST(test_empty_model_round_trips);
     return UNITY_END();

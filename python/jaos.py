@@ -359,6 +359,9 @@ _sig("jaos_read_lp", ctypes.c_int, _VP, _CS)
 _sig("jaos_write_mps", ctypes.c_int, _VP, _CS)
 _sig("jaos_write_lp", ctypes.c_int, _VP, _CS)
 _sig("jaos_write_solution", ctypes.c_int, _VP, _CS)
+_sig("jaos_read_solution", ctypes.c_int, _VP, _CS, _P(_D),
+     _P(_D), _P(_D), _P(ctypes.c_int),
+     _P(_D), _P(_D), _P(ctypes.c_int))
 _sig("jaos_set_work_limit", ctypes.c_int, _VP, _I64)
 _sig("jaos_set_time_limit", ctypes.c_int, _VP, _D)
 _sig("jaos_set_primal_tolerance", ctypes.c_int, _VP, _D)
@@ -547,6 +550,31 @@ class Model:
 
     def write_solution(self, path):
         self._check(_lib.jaos_write_solution(self._handle(), _path(path)))
+
+    def read_solution(self, path):
+        """Reads back a file write_solution wrote, as a
+        (objective, Solution, Basis) triple.
+
+        The model decides the shape: a file whose counts or names do not
+        match this model is refused rather than read. Nothing is installed
+        -- pass the basis to set_basis() to warm-start from it, which keeps
+        reading a file and changing a model two separate decisions."""
+        nc, nr = self.num_col, self.num_row
+        obj = _D()
+        cv = (_D * max(nc, 1))()
+        cd = (_D * max(nc, 1))()
+        cs = (ctypes.c_int * max(nc, 1))()
+        ra = (_D * max(nr, 1))()
+        rd = (_D * max(nr, 1))()
+        rs = (ctypes.c_int * max(nr, 1))()
+        self._check(_lib.jaos_read_solution(
+            self._handle(), _path(path), ctypes.byref(obj),
+            cv, cd, cs, ra, rd, rs))
+        return (obj.value,
+                Solution(list(cv[:nc]), list(ra[:nr]),
+                         list(rd[:nr]), list(cd[:nc])),
+                Basis([BasisStatus(v) for v in cs[:nc]],
+                      [BasisStatus(v) for v in rs[:nr]]))
         return self
 
     # -- reading the problem back ------------------------------------------
@@ -1663,6 +1691,10 @@ class Problem:
 
     def write_solution(self, path):
         self._m.write_solution(path)
+
+    def read_solution(self, path):
+        """Reads back a file write_solution wrote; see Model.read_solution."""
+        return self._m.read_solution(path)
         return self
 
     @property

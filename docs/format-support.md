@@ -252,7 +252,22 @@ end
 `<status>` is one of `basic`, `lower`, `upper`, `free`, which are the four
 `jaos_basis_status` values. Names match what the two model writers generate,
 so a solution file and a model file written from the same model refer to the
-same rows and columns. Nothing reads this format back yet.
+same rows and columns.
+
+**`jaos_read_solution` reads it back** (D282). The model decides the shape:
+the counts in the file must equal the model's, and each record's name must be
+the one this library generates for that index. The model holds no names, so a
+generated name is the only name a file can carry, and one that does not match
+means the file describes a different model. Records are taken in index order
+and nothing is searched by name. Only `status optimal` is read and only
+finite numbers are accepted, because only those are ever written. Every
+output is optional. It installs nothing: to warm-start from a file, read the
+statuses and hand them to `jaos_set_basis`.
+
+The reader lives beside the writer in `src/write.c` rather than in a file of
+its own, because it is the exact inverse of it — the same generated names,
+the same four status words, the same `format 1` line — and split across two
+files they drift.
 
 **A value no file can carry is refused, and this is the one refusal that is
 about the answer rather than about the model.** The two model writers get

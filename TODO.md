@@ -7,6 +7,15 @@ line leaves this file in the same commit.
 
 ## Where the last session stopped — 2026-09-03
 
+**2026-09-05: the solution format has a reader (D282,
+`bench/measurements/02-187/`).** `jaos_write_solution` wrote a format
+nothing could read, and `docs/format-support.md` said so. `jaos_read_solution`
+is its inverse, in the same file, because split across two files a writer and
+its reader drift and nothing notices until a file written by one version
+fails to read in another. **What it deliberately does not do** is install
+anything: a warm start from a file is a read and then a `jaos_set_basis`,
+which keeps reading a file and changing a model two separate decisions.
+
 **2026-09-05: a bound may be written value-first either way round (D281,
 `bench/measurements/02-186/`), and the validation found a gap in its own
 test.** `10 >= x` and `8 >= y >= 2` were refused; they are read now, and a

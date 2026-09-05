@@ -951,5 +951,74 @@ class TestProblemResolves(unittest.TestCase):
         self.assertAlmostEqual(y.value, 3.0, places=9)
 
 
+class TestSolutionFileRoundTrip(unittest.TestCase):
+    """jaos_read_solution through the binding. The accepting case alone
+    would also pass if every list came back empty, so the shape and the
+    values are checked, and the refusing case is what proves the C side is
+    reached at all."""
+
+    def test_a_solution_file_reads_back_as_the_same_answer(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = os.path.join(tmp, "answer.sol")
+            with jaos.Model() as m:
+                m.read_mps(data("solve1.mps"))
+                m.solve()
+                want_obj = m.objective()
+                want = m.solution()
+                want_basis = m.basis()
+                m.write_solution(path)
+
+                obj, sol, basis = m.read_solution(path)
+
+                self.assertEqual(obj, want_obj)
+                self.assertEqual(sol.col_value, want.col_value)
+                self.assertEqual(sol.col_dual, want.col_dual)
+                self.assertEqual(sol.row_activity, want.row_activity)
+                self.assertEqual(sol.row_dual, want.row_dual)
+                self.assertEqual(basis.col_status, want_basis.col_status)
+                self.assertEqual(basis.row_status, want_basis.row_status)
+
+    def test_a_read_basis_warm_starts_the_next_solve(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = os.path.join(tmp, "answer.sol")
+            with jaos.Model() as a:
+                a.read_mps(data("solve1.mps"))
+                a.solve()
+                a.write_solution(path)
+
+            with jaos.Model() as m:
+                m.read_mps(data("solve1.mps"))
+                _, _, basis = m.read_solution(path)
+                m.set_basis(basis.col_status, basis.row_status)
+                self.assertIs(m.solve(), jaos.SolveStatus.OPTIMAL)
+                self.assertAlmostEqual(m.objective(), 29.0, places=9)
+
+    def test_a_file_from_another_model_is_refused(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = os.path.join(tmp, "wrong.sol")
+            with open(path, "w") as f:
+                f.write("status optimal\nobjective 1\n"
+                        "columns 99\nrows 99\nend\n")
+            with jaos.Model() as m:
+                m.read_mps(data("solve1.mps"))
+                m.solve()
+                with self.assertRaises(Exception):
+                    m.read_solution(path)
+
+    def test_a_problem_reads_its_own_solution_file_back(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = os.path.join(tmp, "p.sol")
+            p = jaos.Problem()
+            x = p.add_var(lb=0, ub=10, name="x")
+            p.add(x >= 3)
+            p.minimize(x)
+            p.solve()
+            p.write_solution(path)
+            obj, sol, basis = p.read_solution(path)
+            self.assertAlmostEqual(obj, 3.0, places=9)
+            self.assertEqual(len(sol.col_value), 1)
+            self.assertEqual(len(basis.col_status), 1)
+
+
 if __name__ == "__main__":
     unittest.main()

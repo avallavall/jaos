@@ -11,6 +11,18 @@ open, `bench/README.md` for the gate, and the commit each entry came from.
 
 ### Added
 
+- **`jaos_read_solution` reads back the solution file JAOS writes.** The
+  format had a writer and no reader -- `docs/format-support.md` said so in
+  as many words -- so the one file format this library invented was the one
+  it could not read. The model decides the shape: the counts must match and
+  every record's name must be the one this library generates for that index,
+  so a file from another model is refused rather than read into the wrong
+  arrays. Only `status optimal` and only finite numbers, because only those
+  are ever written. Every output is optional, and it installs nothing: a
+  warm start from a file is a read and then a `jaos_set_basis`. Reached from
+  Python on `Model` and `Problem`. Fourteen refusal classes are pinned, each
+  with its own message (D282, `bench/measurements/02-187/`).
+
 - **The MPS reader takes an `OBJNAME` section.** It says which free row is
   the objective in a file that has more than one, and the reader refused the
   whole file for it before. The same two spellings `OBJSENSE` has; every

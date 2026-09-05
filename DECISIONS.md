@@ -289,6 +289,7 @@ and you have the argument. Jump to the entry for the numbers behind it.
 - **[D279](#d279--a-measurement-directory-is-one-decisions-evidence-and-nothing-said-so-the-rule-that-would-catch-the-other-half-is-refused-on-its-own-firing-population)** — A measurement directory is one decision's evidence, and nothing said so; the rule that would catch the other half is refused on its own firing population
 - **[D280](#d280--objname-says-which-free-row-is-the-objective-and-the-test-that-matters-is-the-one-where-the-section-parses-and-the-rule-does-not-run)** — OBJNAME says which free row is the objective, and the test that matters is the one where the section parses and the rule does not run
 - **[D281](#d281--a-bound-may-be-written-value-first-either-way-round-and-the-arm-that-proves-the-refusal-is-tested-found-a-gap-in-the-test-instead)** — A bound may be written value-first either way round, and the arm that proves the refusal is tested found a gap in the test instead
+- **[D282](#d282--the-one-format-this-library-invented-was-the-one-it-could-not-read-and-the-arm-that-would-prove-the-round-trip-aborted-on-the-writers-own-guard)** — The one format this library invented was the one it could not read, and the arm that would prove the round trip aborted on the writer's own guard
 
 ---
 
@@ -21022,3 +21023,54 @@ reads looks like from outside. The assertion was added and both suites move
 now. **The arm was written to check the code and it checked the test**,
 which is the second time in this session that the validation of a test was
 worth more than the test.
+
+## D282 — The one format this library invented was the one it could not read, and the arm that would prove the round trip aborted on the writer's own guard
+
+**The gap, stated in the record.** `docs/format-support.md` ended its
+description of the solution file with "Nothing reads this format back yet".
+MPS and LP both round-trip; JAOS's own format had a writer and no reader.
+
+**What it does now.** `jaos_read_solution` fills caller arrays from a file
+`jaos_write_solution` wrote: the objective, and per column and row the value,
+the dual and the basis status. Every output is optional. **The model decides
+the shape**: the counts must equal the model's, and each record's name must
+be the one this library generates for that index. The model holds no names —
+a reader's are gone by the time it is loaded — so a generated name is the
+only name a file can carry, records are taken in index order, and nothing is
+searched. A file with the right counts and the wrong names describes a
+different model and is refused rather than read into the wrong arrays. Only
+`status optimal` and only finite numbers, because only those are ever
+written (D226). Fourteen refusal classes, each with its own message, and the
+first entry of that test is the control: the same text with the right counts
+is accepted, so each refusal is about the one thing it changes.
+
+**It installs nothing**, and that is the design rather than an omission. A
+warm start from a file is a read and then a `jaos_set_basis`, which keeps
+reading a file and changing a model two separate decisions — the separation
+`jaos_clear_basis` already exists for. The test does exactly that and gets
+the same objective back bit for bit.
+
+**The reader lives beside the writer in `src/write.c`.** It is the inverse of
+the function forty lines above it and shares the generated names, the four
+status words and the `format 1` line. In two files they drift, and nothing
+notices until a file written by one version fails to read in another.
+
+**No population run, and there cannot be one.** No gate instance is a
+solution file and the reader touches nothing the solver does; all three sets
+are byte-identical, which says the change is a no-op and nothing more. So
+the evidence is the tests, and the tests get their own
+(`bench/measurements/02-187/`). Arm 1 moves every number the READER parses by
+one ulp and requires the round-trip test to go red — it compares bit for bit
+rather than within a tolerance, so one ulp is enough. Arm 2 removes the name
+check and requires the refusal test to go red, which is what says the
+wrong-name file is refused by that check and not by something further down.
+
+**And the first version of arm 1 aborted.** It cut the WRITER from `%.17g` to
+`%.15g`, on the theory that a 15-digit file still parses and is no longer the
+same double. The suite did not fail, it aborted at `exit=134`: `wr_num`
+tries 15 digits, then 16, then 17, and asserts that what it printed reads
+back as the value it was given (D226). A break on the writer's side can
+never reach the reader, so the arm belongs on the reader's side. **An arm
+that aborts is not an arm that passed**, and the exit code is the only thing
+that says which — the same lesson D277's overflow arm carries, twice in one
+session.

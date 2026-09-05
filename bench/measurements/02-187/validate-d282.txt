@@ -1,0 +1,28 @@
+# D282 -- do the solution-reader tests catch what they check?
+# date: 2026-09-05T11:30:10Z
+# tree: 6be2405
+
+== candidate
+tests/test_write.c:1045:test_a_solution_file_reads_back_exactly:PASS
+tests/test_write.c:1048:test_the_solution_reader_refuses_by_name:PASS
+exit=0
+
+== arm 1: the reader moves every parsed number by one ulp
+  every number the reader parses comes back one ulp higher
+tests/test_write.c:651:test_a_solution_file_reads_back_exactly:FAIL: Memory Mismatch. Byte 0 Expected 0x00 Was 0xFF
+tests/test_write.c:1048:test_the_solution_reader_refuses_by_name:PASS
+exit=1
+
+== arm 2: a record name is not checked
+  a record name is no longer checked against its index
+tests/test_write.c:1045:test_a_solution_file_reads_back_exactly:PASS
+tests/test_write.c:723:test_the_solution_reader_refuses_by_name:FAIL: Expected 1 Was 0
+exit=1
+
+== restored
+tests/test_write.c:1045:test_a_solution_file_reads_back_exactly:PASS
+tests/test_write.c:1048:test_the_solution_reader_refuses_by_name:PASS
+exit=0
+
+the round trip is a round trip, and the name check is what refuses
+verdict-exit=0

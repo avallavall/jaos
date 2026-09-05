@@ -1,4 +1,10 @@
-/* MPS, LP and solution writers.
+/* MPS, LP and solution writers, and the solution format's reader.
+ *
+ * The reader is here and not in a file of its own because it is the exact
+ * inverse of the writer forty lines above it: the same generated names, the
+ * same four status words, the same "format 1" line. Split across two files
+ * they drift, and nothing would notice until a file written by one version
+ * failed to read in another (D282).
  *
  * One contract shapes all three: a file JAOS writes is a file JAOS reads
  * back as the same model. Where a format cannot express what the model
@@ -25,6 +31,7 @@
 #include "jaos_internal.h"
 
 #include <assert.h>
+#include <errno.h>
 #include <inttypes.h>
 #include <locale.h>
 #include <math.h>
@@ -685,4 +692,199 @@ jaos_status jaos_write_solution(jaos_model *m, const char *path)
 
     fprintf(w->f, "end\n");
     return wr_close(w, path, prev, cloc);
+}
+
+/* --------------------------------------------------------------------- */
+/* The solution reader                                                    */
+/* --------------------------------------------------------------------- */
+
+/* The inverse of `basis_word`. Returns false on a word that is not one of
+ * the four. */
+static bool basis_of_word(const char *w, jaos_basis_status *out)
+{
+    if (strcmp(w, "basic") == 0)      { *out = JAOS_BASIS_BASIC;    return true; }
+    if (strcmp(w, "lower") == 0)      { *out = JAOS_BASIS_AT_LOWER; return true; }
+    if (strcmp(w, "upper") == 0)      { *out = JAOS_BASIS_AT_UPPER; return true; }
+    if (strcmp(w, "free") == 0)       { *out = JAOS_BASIS_FREE;     return true; }
+    return false;
+}
+
+/* One finite number, parsed under the caller's already-installed "C"
+ * locale. Rejects what `strtod` leaves behind, so `1.5x` is an error and
+ * not 1.5, and rejects an infinity or a NaN: the writer refuses to write
+ * one (D226), so a file holding one was not written by this library. */
+static bool rd_num(const char *tok, double *out)
+{
+    char *end = nullptr;
+    errno = 0;
+    const double v = strtod(tok, &end);
+    if (end == tok || *end != '\0' || !isfinite(v))
+        return false;
+    *out = v;
+    return true;
+}
+
+jaos_status jaos_read_solution(jaos_model *m, const char *path,
+    double *objective,
+    double *col_value, double *col_dual, jaos_basis_status *col_status,
+    double *row_activity, double *row_dual, jaos_basis_status *row_status)
+{
+    if (m == nullptr || path == nullptr)
+        return JAOS_ERR_INVALID_INPUT;
+
+    FILE *f = fopen(path, "r");
+    if (f == nullptr) {
+        jm_set_err(m, "cannot open '%s' for reading", path);
+        return JAOS_ERR_IO;
+    }
+
+    /* The same locale rule the model readers follow, and for the same
+     * reason: a host application under a comma-decimal locale would read
+     * "1.5" as 1. */
+    locale_t cloc = newlocale(LC_ALL_MASK, "C", (locale_t)0);
+    locale_t prev = cloc ? uselocale(cloc) : (locale_t)0;
+
+    jaos_status st = JAOS_OK;
+    char *line = nullptr;
+    size_t lsz = 0;
+    int64_t lno = 0, ncol = -1, nrow = -1, seen_col = 0, seen_row = 0;
+    bool have_status = false, have_obj = false, ended = false;
+    double obj = 0.0;
+    char nm[NAME_LEN];
+
+#define RD_FAIL(...)  do { st = JAOS_ERR_INVALID_INPUT; \
+    jm_set_err(m, __VA_ARGS__); goto done; } while (0)
+
+    while (getline(&line, &lsz, f) >= 0) {
+        lno++;
+        if (ended)
+            RD_FAIL("line %" PRId64 ": content after 'end'", lno);
+
+        char *tok[8];
+        int nt = 0;
+        for (char *p = strtok(line, " \t\r\n");
+             p != nullptr && nt < 8; p = strtok(nullptr, " \t\r\n"))
+            tok[nt++] = p;
+        if (nt == 0 || tok[0][0] == '#')
+            continue;   /* blank, or one of the writer's comment lines */
+
+        if (strcmp(tok[0], "status") == 0) {
+            if (nt != 2)
+                RD_FAIL("line %" PRId64 ": 'status' takes one word", lno);
+            /* Only an optimum is ever written (D226), so only an optimum
+             * can be read. A file saying anything else was not written by
+             * this library and its records mean something else. */
+            if (strcmp(tok[1], "optimal") != 0)
+                RD_FAIL("line %" PRId64 ": status is '%s'; only 'optimal' is "
+                        "written and only 'optimal' is read", lno, tok[1]);
+            have_status = true;
+        } else if (strcmp(tok[0], "objective") == 0) {
+            if (nt != 2 || !rd_num(tok[1], &obj))
+                RD_FAIL("line %" PRId64 ": 'objective' takes one finite "
+                        "number", lno);
+            have_obj = true;
+        } else if (strcmp(tok[0], "columns") == 0 ||
+                   strcmp(tok[0], "rows") == 0) {
+            const bool is_col = tok[0][0] == 'c';
+            if (nt != 2)
+                RD_FAIL("line %" PRId64 ": '%s' takes one count", lno, tok[0]);
+            char *end = nullptr;
+            errno = 0;
+            const long long v = strtoll(tok[1], &end, 10);
+            if (end == tok[1] || *end != '\0' || errno != 0 || v < 0)
+                RD_FAIL("line %" PRId64 ": '%s' is not a count", lno, tok[1]);
+            /* The model decides the shape. A file from another model is
+             * refused here rather than read into the wrong arrays. */
+            const int64_t want = is_col ? m->num_col : m->num_row;
+            if ((int64_t)v != want)
+                RD_FAIL("line %" PRId64 ": the file has %lld %s and this "
+                        "model has %" PRId64, lno, v, tok[0], want);
+            if (is_col)
+                ncol = (int64_t)v;
+            else
+                nrow = (int64_t)v;
+        } else if (strcmp(tok[0], "col") == 0 ||
+                   strcmp(tok[0], "row") == 0) {
+            const bool is_col = tok[0][0] == 'c';
+            if (ncol < 0 || nrow < 0)
+                RD_FAIL("line %" PRId64 ": a record before both counts", lno);
+            if (nt != 5)
+                RD_FAIL("line %" PRId64 ": a '%s' record takes a name, two "
+                        "numbers and a status", lno, tok[0]);
+            const int64_t k = is_col ? seen_col : seen_row;
+            const int64_t lim = is_col ? ncol : nrow;
+            if (k >= lim)
+                RD_FAIL("line %" PRId64 ": more '%s' records than the count "
+                        "says", lno, tok[0]);
+            /* Records are positional; the name is checked, not searched.
+             * The model holds no names, so the only name a file can carry
+             * is the one this library generates for that index -- and a
+             * mismatch means the file describes a different model. */
+            if (is_col)
+                col_name(nm, k);
+            else
+                row_name(nm, k);
+            if (strcmp(tok[1], nm) != 0)
+                RD_FAIL("line %" PRId64 ": expected '%s' here and the file "
+                        "says '%s'; records are in index order", lno, nm,
+                        tok[1]);
+            double v1, v2;
+            jaos_basis_status bs;
+            if (!rd_num(tok[2], &v1))
+                RD_FAIL("line %" PRId64 ": '%s' is not a finite number", lno,
+                        tok[2]);
+            if (!rd_num(tok[3], &v2))
+                RD_FAIL("line %" PRId64 ": '%s' is not a finite number", lno,
+                        tok[3]);
+            if (!basis_of_word(tok[4], &bs))
+                RD_FAIL("line %" PRId64 ": '%s' is not a basis status", lno,
+                        tok[4]);
+            if (is_col) {
+                if (col_value != nullptr)  col_value[k] = v1;
+                if (col_dual != nullptr)   col_dual[k] = v2;
+                if (col_status != nullptr) col_status[k] = bs;
+                seen_col++;
+            } else {
+                if (row_activity != nullptr) row_activity[k] = v1;
+                if (row_dual != nullptr)     row_dual[k] = v2;
+                if (row_status != nullptr)   row_status[k] = bs;
+                seen_row++;
+            }
+        } else if (strcmp(tok[0], "end") == 0) {
+            if (nt != 1)
+                RD_FAIL("line %" PRId64 ": 'end' takes nothing", lno);
+            ended = true;
+        } else {
+            RD_FAIL("line %" PRId64 ": unknown record '%s'", lno, tok[0]);
+        }
+    }
+
+    if (!ended)
+        RD_FAIL("the file ends without 'end'");
+    if (!have_status)
+        RD_FAIL("no 'status' line");
+    if (!have_obj)
+        RD_FAIL("no 'objective' line");
+    if (ncol < 0 || nrow < 0)
+        RD_FAIL("the file gives no column or row count");
+    if (seen_col != ncol)
+        RD_FAIL("the file says %" PRId64 " columns and carries %" PRId64,
+                ncol, seen_col);
+    if (seen_row != nrow)
+        RD_FAIL("the file says %" PRId64 " rows and carries %" PRId64,
+                nrow, seen_row);
+
+    if (objective != nullptr)
+        *objective = obj;
+    jm_set_err(m, "%s", "");
+
+#undef RD_FAIL
+done:
+    free(line);
+    fclose(f);
+    if (cloc) {
+        uselocale(prev ? prev : LC_GLOBAL_LOCALE);
+        freelocale(cloc);
+    }
+    return st;
 }
