@@ -82,6 +82,36 @@ solve time and 6.4 hours of wall clock at `J=4`; `pds-100` alone costs 6.425e11
 work units, twenty times the whole standard set. How often it should run is
 open in `TODO.md`.
 
+### The MIP set — integer columns, with a reference optimum, no gate
+
+D289. Seventeen members of MIPLIB 3, pinned in `miplib.manifest` and served
+as plain gzipped MPS by ZIB's mirror, so the pipeline is `mps-gz` and no
+expander is needed:
+
+| set | instances | what it asks | run with |
+|---|---|---|---|
+| `miplib` | 17 | the catalogue's integer optimum, an integral point the checker accepts, two cold searches agreeing node for node | `make miplib J=12` |
+
+**17 pinned, 17 measured, 17 digests**, and separate from every figure
+above. The three gate sets have no integer column, so nothing in them can
+ask what this set asks; it is not a gate set either, and is run whenever
+`src/mip.c` or anything under it changes. `-e mip` is the runner's rule for
+it: the objective is scored against the manifest's reference, the checker's
+verdict is its primal one with integrality in it (the duals a MIP answer
+carries are its final relaxation's, whose bounds are the branching's, so
+the dual verdict is not asked), and determinism is the whole tree, `nodes=`
+and `cuts=` included. The baseline carries a `nodes` column the LP
+baselines do not, so a search that changed shape with the answer unmoved is
+said in the diff.
+
+The 17 are the members the plain tree of D288 solved inside 60 s on this
+host, of 38 tried; `bench/measurements/02-189/plain.txt` has all 38 with
+what each cost, and the same directory holds the sweep that set the cut
+rounds and refused the dive. About 75 s of solve time at `J=12`.
+`miplib-baseline` rewrites the baseline, kept apart from `miplib` for the
+reason `netlib-baseline` is kept apart from `netlib`.
+
+
 The infeasible set is the only thing in M1 that looks for a *wrong* answer
 rather than confirming a right one: it asks whether a model with no feasible
 point ever comes back with an optimum. Not a hypothetical failure mode — the
@@ -131,8 +161,8 @@ exits non-zero unless every instance met every condition.
 
 | File | |
 |---|---|
-| `netlib.manifest`, `netlib-kennington.manifest`, `netlib-infeas.manifest` | one instance list per set: pinned sha256, expected shape, reference optimum |
-| `netlib.baseline`, `netlib-kennington.baseline`, `netlib-infeas.baseline` | what each instance did last time, so a regression can be seen |
+| `netlib.manifest`, `netlib-kennington.manifest`, `netlib-infeas.manifest`, `miplib.manifest` | one instance list per set: pinned sha256, expected shape, reference optimum |
+| `netlib.baseline`, `netlib-kennington.baseline`, `netlib-infeas.baseline`, `miplib.baseline` | what each instance did last time, so a regression can be seen; the MIP baseline carries a `nodes` column the others do not (D289) |
 | `fetch.sh` | downloads each instance and refuses any whose checksum does not match |
 | `run.c` | solves each one and judges it against the manifest, the checker, and the baseline |
 | `results/` | output of a run; ignored by git except for this directory itself |

@@ -274,13 +274,14 @@ JAOS_NODISCARD jaos_status jaos_row_index(jaos_model *m, const char *name,
 
 /* Integer columns (D288). A column marked integer takes integer values in
  * every answer, and a model with one goes through branch and bound when
- * it is solved: the plain Land-Doig scheme over the dual simplex, no cuts
- * and no heuristics. Marking one discards the answer, as every
- * modification does, and the mark rides with its column through every
- * add and delete. Both readers set it from the file -- MPS's MARKER
- * lines and its BV, LI and UI bounds, LP's General and Binary sections --
- * and both writers print it back. jaos_check_solution judges integrality
- * against the same tolerance as a bound.
+ * it is solved: the dual simplex on each node's relaxation, a dive from
+ * each selected node and Gomory cuts at the root (D289); no heuristics.
+ * Marking one discards the answer, as every modification does, and the
+ * mark rides with its column through every add and delete. Both readers
+ * set it from the file -- MPS's MARKER lines and its BV, LI and UI
+ * bounds, LP's General and Binary sections -- and both writers print it
+ * back. jaos_check_solution judges integrality against the same tolerance
+ * as a bound.
  *
  * What a mixed-integer answer carries: the values, at integers where
  * they must be; the row activities of that point; and the duals, reduced
@@ -299,6 +300,26 @@ JAOS_NODISCARD jaos_status jaos_col_integer(const jaos_model *m, int64_t col,
  * is not finite and non-negative is refused. */
 JAOS_NODISCARD jaos_status jaos_set_mip_gap(jaos_model *m, double gap);
 
+/* Two switches on the search (D289). The dive is off by default: on, after
+ * a branch the child on the nearer side of the fraction is solved next
+ * and its sibling goes to the open set, until a node is pruned or
+ * integral. Over the MIP set it measured 1.125x the work of the plain
+ * best-bound order, better on one instance and worse on six, which is
+ * why it is off. The root gets rounds of Gomory mixed-integer cuts, each
+ * round one cut per fractional integer column of the relaxation's basis,
+ * added as rows of the private copy and kept for the whole tree; `rounds`
+ * 0 turns them off and a negative value restores the default of 1, which
+ * measured 0.660x the plain tree's work over the MIP set with no
+ * instance past 2x; two rounds read 0.609x with three instances past 2x,
+ * and three broke one instance numerically. With a cut in the tree the
+ * relaxation has more rows than the model, so the duals and statuses
+ * jaos_solution publishes are those of the model's own rows and the
+ * statuses may not form a basis of the model; jaos_mip_result says how
+ * many cuts there were. */
+JAOS_NODISCARD jaos_status jaos_set_mip_dive(jaos_model *m, bool on);
+JAOS_NODISCARD jaos_status jaos_set_mip_cut_rounds(jaos_model *m,
+                                                   int64_t rounds);
+
 /* What the last branch and bound did. `bound` is the best objective any
  * open node could still reach when the search stopped, in the model's
  * own sense, and equals the incumbent when the answer is OPTIMAL;
@@ -312,6 +333,7 @@ typedef struct jaos_mip_report {
     bool    has_incumbent;
     double  incumbent;       /* its objective, when there is one       */
     double  bound;
+    int64_t cuts;            /* rows the root cuts added (D289)        */
 } jaos_mip_report;
 
 JAOS_NODISCARD jaos_status jaos_mip_result(const jaos_model *m,

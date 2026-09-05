@@ -18,6 +18,7 @@
 #             no reference optimum and so runs under -e noref
 #   plato     all three of them
 #   plato-pds-baseline, plato-fome-baseline, plato-nug-baseline   rewrite those
+#   miplib    the MIP set, MIPLIB 3's small members (D289); miplib-baseline rewrites it
 #   pgo       rebuild the library from a profile of it solving real models
 #   clean     remove all build output
 #
@@ -148,6 +149,7 @@ ASAN_TESTS := $(TESTS:tests/%.c=$(B)/asan/%)
 	netlib-infeas netlib-kennington-baseline netlib-infeas-baseline \
 	plato plato-pds plato-fome plato-nug \
 	plato-pds-baseline plato-fome-baseline plato-nug-baseline \
+	miplib miplib-baseline \
 	warm warm-kennington primal primal-kennington \
 	shared python-test \
 	pgo clean
@@ -512,6 +514,31 @@ plato-nug-baseline: $(B)/bench/run
 		-d bench/instances-plato-nug \
 		-w bench/plato-nug.baseline \
 		-o bench/results/plato-nug.txt
+
+# The MIP set (D289): MIPLIB 3's small members, plain gzipped MPS from the
+# ZIB mirror, scored against the catalogue's optimum under `-e mip`, which
+# asks the checker's primal verdict with integrality in it and two cold
+# searches agreeing node for node. Not one of the three gate sets; run it
+# whenever src/mip.c or anything under it changes.
+miplib: $(B)/bench/run
+	@bench/fetch.sh -m bench/miplib.manifest \
+		-b https://miplib2010.zib.de/miplib3/miplib3 -p mps-gz \
+		bench/instances-miplib
+	@mkdir -p bench/results
+	./$(B)/bench/run -j $(J) -m bench/miplib.manifest -e mip \
+		-d bench/instances-miplib \
+		-b bench/miplib.baseline \
+		-o bench/results/miplib.txt
+
+miplib-baseline: $(B)/bench/run
+	@bench/fetch.sh -m bench/miplib.manifest \
+		-b https://miplib2010.zib.de/miplib3/miplib3 -p mps-gz \
+		bench/instances-miplib
+	@mkdir -p bench/results
+	./$(B)/bench/run -j $(J) -m bench/miplib.manifest -e mip \
+		-d bench/instances-miplib \
+		-w bench/miplib.baseline \
+		-o bench/results/miplib.txt
 
 # Profile-guided rebuild: compile instrumented, solve real models with it,
 # then compile again with what that recorded. Worth 1.1122x over the plain

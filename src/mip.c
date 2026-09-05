@@ -1,22 +1,35 @@
 /* Mixed-integer linear programming: branch and bound over the dual simplex
- * (D288).
+ * (D288), with a dive from each selected node and Gomory mixed-integer
+ * cuts at the root (D289).
  *
- * The plain Land-Doig scheme as Wolsey states it (Integer Programming,
- * Wiley 1998, ch. 7): a node is the root's relaxation with the bounds of
- * some integer columns tightened; its relaxation is solved warm from its
- * parent's basis; a node whose relaxation is infeasible, or no better than
- * the incumbent, is pruned; one whose solution is integral is a new
+ * The Land-Doig scheme as Wolsey states it (Integer Programming, Wiley
+ * 1998, ch. 7): a node is the root's relaxation with the bounds of some
+ * integer columns tightened; its relaxation is solved warm from its
+ * parent's basis; a node whose relaxation is infeasible, or no better
+ * than the incumbent, is pruned; one whose solution is integral is a new
  * incumbent; any other is split on its most fractional integer column,
- * down and up. Nodes are taken best bound first, ties by creation order,
- * so the search is the same on every machine and every run (D8). No cuts
- * and no heuristics: the two are separate features and each has its own
- * claim of absence in docs/claims.txt.
+ * down and up. The open set is ordered best bound first, ties by creation
+ * order. A dive from each selected node -- the child on the nearer side
+ * of the fraction solved next, its sibling into the open set, until a
+ * node is pruned or integral -- is behind jaos_set_mip_dive and off:
+ * over the MIP set it measured 1.125x the work of the plain order, better
+ * on one instance and worse on six (D289, refused). The search is the
+ * same on every machine and every run (D8).
+ *
+ * The root's relaxation gets rounds of Gomory mixed-integer cuts before
+ * the tree starts: one cut per basic integer column whose value is
+ * fractional, read off its tableau row as Balas, Ceria, Cornuejols and
+ * Natraj state the cut (Gomory cuts revisited, Operations Research
+ * Letters 19, 1996), rewritten over the model's own columns and added as
+ * a row of the private copy, where it stays for every node. Cuts are
+ * valid for the whole tree because they are derived at the root over the
+ * model's own bounds. No heuristics: docs/claims.txt carries the claim.
  *
  * The relaxations are solved on ONE private copy of the model, re-bounded
  * per node, with the log callback off and everything else the caller set
  * carried over, the same arrangement the IIS uses. The work of every node
- * is billed to the model; the caller's work limit is read between nodes
- * and by each node's own solve.
+ * and of every cut round is billed to the model; the caller's work limit
+ * is read between nodes and by each node's own solve.
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -36,6 +49,25 @@ constexpr double MIP_INT_TOL = 1e-6;
  * (incumbent - bound) <= MIP_GAP * (1 + |incumbent|), in minimize form.
  * docs/tolerances.md carries the sweep. jaos_set_mip_gap overrides it. */
 constexpr double MIP_GAP = 1e-6;
+
+/* The root cuts' four numbers (D289); docs/tolerances.md carries each
+ * one's sweep or the reason it has none. */
+/* Rounds of cuts at the root; a round with no cut ends them early.
+ * jaos_set_mip_cut_rounds overrides it. */
+constexpr int64_t MIP_CUT_ROUNDS = 1;
+/* A basic integer column is cut only when its fraction sits inside
+ * [MIP_CUT_AWAY, 1 - MIP_CUT_AWAY]: the cut's coefficients divide by the
+ * fraction and by its complement, and a fraction near 0 or 1 gives a cut
+ * the relaxation cannot hold to tolerance. */
+constexpr double MIP_CUT_AWAY = 0.01;
+/* A coefficient below MIP_CUT_DROP times the cut's largest is folded into
+ * the right-hand side through the column's bound, which keeps the cut
+ * valid and drops the entry; kept when that bound is infinite. */
+constexpr double MIP_CUT_DROP = 1e-9;
+/* The largest ratio of a kept cut's largest to smallest coefficient; a
+ * cut past it is not added, since the simplex would hold it to
+ * tolerance in the large entries and not at all in the small. */
+constexpr double MIP_CUT_DYNAMISM = 1e6;
 
 /* One open node: the bound changes along its path from the root, in the
  * order they were made, and the basis its parent's relaxation ended on. */
@@ -217,20 +249,240 @@ bool jm_model_has_integer(const jaos_model *m)
     return false;
 }
 
+
+/* The most fractional integer column, lowest index on a tie; -1 when the
+ * point is integral to MIP_INT_TOL. */
+static int64_t most_fractional(const jaos_model *m, const double *x)
+{
+    int64_t branch = -1;
+    double worst = MIP_INT_TOL;
+    for (int64_t j = 0; j < m->num_col; j++) {
+        if (!m->col_integer[j])
+            continue;
+        const double f = fabs(x[j] - round(x[j]));
+        if (f > worst) {
+            worst = f;
+            branch = j;
+        }
+    }
+    return branch;
+}
+
+/* --- Gomory mixed-integer cuts at the root ----------------------------- */
+
+/* The cuts of one round, rows across, held until the tableau they were
+ * read from is freed: jaos_add_rows drops the scaling the tableau points
+ * into, so a round is generated whole and added whole. */
+typedef struct {
+    int64_t *start, *idx;
+    double *val, *lo;
+    int64_t n, nnz;
+    int64_t cap_start, cap_lo, cap_idx, cap_val;   /* one each: JM_GROW
+                                                      reads its own cap */
+} cutbuf;
+
+static void cutbuf_free(cutbuf *cb)
+{
+    free(cb->start); free(cb->idx); free(cb->val); free(cb->lo);
+}
+
+static bool cutbuf_push(cutbuf *cb, const double *cut, int64_t nc, double lo)
+{
+    if (!JM_GROW(cb->start, cb->cap_start, cb->n + 2) ||
+        !JM_GROW(cb->lo, cb->cap_lo, cb->n + 2))
+        return false;
+    int64_t nz = 0;
+    for (int64_t k = 0; k < nc; k++)
+        nz += cut[k] != 0.0;
+    if (!JM_GROW(cb->idx, cb->cap_idx, cb->nnz + nz) ||
+        !JM_GROW(cb->val, cb->cap_val, cb->nnz + nz))
+        return false;
+    cb->start[cb->n] = cb->nnz;
+    for (int64_t k = 0; k < nc; k++) {
+        if (cut[k] == 0.0)
+            continue;
+        cb->idx[cb->nnz] = k;
+        cb->val[cb->nnz] = cut[k];
+        cb->nnz++;
+    }
+    cb->lo[cb->n] = lo;
+    cb->n++;
+    cb->start[cb->n] = cb->nnz;
+    return true;
+}
+
+/* One round: for every basic integer column of the copy's optimal basis
+ * whose value is fractional, in column order, the Gomory mixed-integer
+ * cut of its tableau row
+ *
+ *     x_B + sum_v a_v x_v = b,   f0 = b - floor(b),
+ *
+ * over the nonbasics shifted to their bounds, x'_v = x_v - l_v at lower or
+ * u_v - x_v at upper (which negates a_v):
+ *
+ *     sum_{v int, f_v <= f0} f_v / f0 x'_v
+ *   + sum_{v int, f_v >  f0} (1 - f_v) / (1 - f0) x'_v
+ *   + sum_{v cont, a_v >= 0}  a_v / f0 x'_v
+ *   + sum_{v cont, a_v <  0} -a_v / (1 - f0) x'_v  >=  1,
+ *
+ * a nonbasic counting as integer when it is an integer column resting on
+ * an integer bound; a logical is its row's activity and always
+ * continuous. The shifts go to the right-hand side and a logical's term
+ * is spread over its row, so the cut is a row over the model's columns.
+ * A row with a free nonbasic in it is skipped: x' has no sign there.
+ * Returns the number of cuts put in `cb`, or -1 on failure. */
+static int64_t gomory_round(jaos_model *lp, const jaos_model *m,
+                            const double *x, cutbuf *cb, double *row,
+                            double *cut, int64_t *work)
+{
+    const int64_t nc = lp->num_col, nr = lp->num_row, nv = nc + nr;
+    jm_tableau *tb = nullptr;
+    if (jm_tableau_build(lp, &tb) != JAOS_OK)
+        return -1;
+    int64_t added = 0;
+    for (int64_t j = 0; j < nc; j++) {
+        if (!m->col_integer[j])
+            continue;
+        const int64_t p = jm_tableau_position(tb, j);
+        if (p < 0)
+            continue;
+        const double xb = jm_tableau_value(tb, p);
+        const double f0 = xb - floor(xb);
+        if (f0 < MIP_CUT_AWAY || f0 > 1.0 - MIP_CUT_AWAY)
+            continue;
+        if (jm_tableau_row(tb, p, row) != JAOS_OK) {
+            added = -1;
+            break;
+        }
+        memset(cut, 0, (size_t)nc * sizeof *cut);
+        double rhs = 1.0;
+        bool ok = true;
+        for (int64_t v = 0; v < nv && ok; v++) {
+            const double a = row[v];
+            if (a == 0.0)
+                continue;
+            const bool structural = v < nc;
+            const int64_t i = v - nc;
+            const jaos_basis_status s = structural ? lp->sol_col_status[v]
+                                                   : lp->sol_row_status[i];
+            double ap, shift;
+            bool at_upper;
+            if (s == JAOS_BASIS_AT_LOWER) {
+                at_upper = false;
+                ap = a;
+                shift = structural ? lp->col_lower[v] : lp->row_lower[i];
+            } else if (s == JAOS_BASIS_AT_UPPER) {
+                at_upper = true;
+                ap = -a;
+                shift = structural ? lp->col_upper[v] : lp->row_upper[i];
+            } else {
+                ok = false;
+                break;
+            }
+            if (!isfinite(shift)) {
+                ok = false;
+                break;
+            }
+            const bool integral = structural && m->col_integer[v] &&
+                                  floor(shift) == shift;
+            double g;
+            if (integral) {
+                const double f = ap - floor(ap);
+                g = f <= f0 ? f / f0 : (1.0 - f) / (1.0 - f0);
+            } else {
+                g = ap >= 0.0 ? ap / f0 : -ap / (1.0 - f0);
+            }
+            if (g == 0.0)
+                continue;
+            /* g x'_v = g (x_v - l) or g (u - x_v); the constant crosses. */
+            const double sgn = at_upper ? -g : g;
+            rhs += sgn * shift;
+            if (structural) {
+                cut[v] += sgn;
+            } else {
+                for (int64_t k = lp->ar_start[i]; k < lp->ar_start[i + 1]; k++)
+                    cut[lp->ar_index[k]] += sgn * lp->ar_value[k];
+            }
+        }
+        if (!ok)
+            continue;
+        double amax = 0.0;
+        for (int64_t k = 0; k < nc; k++)
+            if (fabs(cut[k]) > amax)
+                amax = fabs(cut[k]);
+        if (amax == 0.0)
+            continue;
+        double amin = INFINITY;
+        int64_t nnz = 0;
+        for (int64_t k = 0; k < nc; k++) {
+            const double c = cut[k];
+            if (c == 0.0)
+                continue;
+            if (fabs(c) < MIP_CUT_DROP * amax) {
+                /* c x_k >= rhs - rest; the term is largest at the bound
+                 * its sign points to, and a finite one absorbs it. */
+                const double b = c > 0.0 ? lp->col_upper[k] : lp->col_lower[k];
+                if (isfinite(b)) {
+                    rhs -= c * b;
+                    cut[k] = 0.0;
+                    continue;
+                }
+            }
+            if (fabs(c) < amin)
+                amin = fabs(c);
+            nnz++;
+        }
+        if (nnz == 0 || amax / amin > MIP_CUT_DYNAMISM)
+            continue;
+        double act = 0.0;
+        for (int64_t k = 0; k < nc; k++)
+            act += cut[k] * x[k];
+        if (!(rhs - act > 0.0))
+            continue;
+        if (!cutbuf_push(cb, cut, nc, rhs)) {
+            added = -1;
+            break;
+        }
+        added++;
+    }
+    *work += jm_tableau_work(tb);
+    jm_tableau_free(tb);
+    return added;
+}
+
+static jaos_status cuts_add(jaos_model *lp, const cutbuf *cb)
+{
+    double *up = malloc((size_t)cb->n * sizeof *up);
+    if (up == nullptr)
+        return JAOS_ERR_OUT_OF_MEMORY;
+    for (int64_t r = 0; r < cb->n; r++)
+        up[r] = INFINITY;
+    const jaos_status st = jaos_add_rows(lp, cb->n, cb->lo, up, cb->nnz,
+                                         cb->start, cb->idx, cb->val);
+    free(up);
+    return st;
+}
+
+/* --- The tree ---------------------------------------------------------- */
+
 jaos_status jm_branch_and_bound(jaos_model *m)
 {
     const double t0 = now_seconds();
     const int64_t nc = m->num_col, nr = m->num_row;
     const double sigma = m->sense == JAOS_MAXIMIZE ? -1.0 : 1.0;
     const double gap = m->cfg.mip_gap > 0.0 ? m->cfg.mip_gap : MIP_GAP;
+    const int64_t rounds = m->cfg.mip_cut_rounds_set ? m->cfg.mip_cut_rounds
+                                                     : MIP_CUT_ROUNDS;
+    const bool dive = m->cfg.mip_dive;
 
     jaos_status rc = JAOS_ERR_OUT_OF_MEMORY;
     jaos_model *lp = nullptr;
     bheap heap = {0};
     incumbent inc = {0};
-    bnode *cur = nullptr;
-    double *x = nullptr;
-    int64_t next_id = 0, nodes = 0, solves = 0;
+    cutbuf cb = {0};
+    bnode *cur = nullptr, *next = nullptr;
+    double *x = nullptr, *row = nullptr, *cut = nullptr;
+    int64_t next_id = 0, nodes = 0, solves = 0, cuts = 0;
     int64_t work = 0, iters = 0;
     double best_bound = -INFINITY;     /* minimize form */
     jaos_solve_status outcome = JAOS_SOLVE_NOT_RUN;
@@ -238,7 +490,7 @@ jaos_status jm_branch_and_bound(jaos_model *m)
     /* The answer the model holds is about the previous problem. */
     free(m->mip_inc_x);
     m->mip_inc_x = nullptr;
-    m->mip_nodes = m->mip_solves = 0;
+    m->mip_nodes = m->mip_solves = m->mip_cuts = 0;
     m->mip_bound = 0.0;
     m->mip_has_incumbent = false;
 
@@ -255,19 +507,31 @@ jaos_status jm_branch_and_bound(jaos_model *m)
 
     /* The root is the node with no changes. */
     for (;;) {
-        /* Which node: the root first, then the best open one; a node whose
-         * key no longer beats the incumbent is dropped unsolved. */
+        /* Which node: the root first; then the dive's child, or the best
+         * open one; a node whose key no longer beats the incumbent is
+         * dropped unsolved, which ends a dive. */
         if (nodes > 0) {
             node_free(cur);
-            cur = heap_pop(&heap);
-            if (cur == nullptr) {
-                outcome = inc.have ? JAOS_SOLVE_OPTIMAL : JAOS_SOLVE_INFEASIBLE;
+            for (;;) {
+                if (next != nullptr) {
+                    cur = next;
+                    next = nullptr;
+                } else {
+                    cur = heap_pop(&heap);
+                    if (cur == nullptr)
+                        break;
+                    best_bound = cur->key;
+                }
+                if (inc.have &&
+                    inc.key - cur->key <= gap * (1.0 + fabs(inc.key))) {
+                    node_free(cur);
+                    cur = nullptr;
+                    continue;
+                }
                 break;
             }
-            best_bound = cur->key;
-            if (inc.have &&
-                inc.key - cur->key <= gap * (1.0 + fabs(inc.key))) {
-                outcome = JAOS_SOLVE_OPTIMAL;
+            if (cur == nullptr) {
+                outcome = inc.have ? JAOS_SOLVE_OPTIMAL : JAOS_SOLVE_INFEASIBLE;
                 break;
             }
         }
@@ -285,7 +549,7 @@ jaos_status jm_branch_and_bound(jaos_model *m)
         if (node_apply(lp, m, nodes > 0 ? cur : nullptr) != JAOS_OK)
             goto done;
         nodes++;
-        const jaos_status st = jaos_solve(lp);
+        jaos_status st = jaos_solve(lp);
         solves++;
         work += jaos_work_units(lp);
         iters += jaos_iterations(lp);
@@ -298,7 +562,7 @@ jaos_status jm_branch_and_bound(jaos_model *m)
             }
             goto done;
         }
-        const jaos_solve_status ns = jaos_status_of(lp);
+        jaos_solve_status ns = jaos_status_of(lp);
         if (ns == JAOS_SOLVE_INFEASIBLE)
             continue;
         if (ns == JAOS_SOLVE_UNBOUNDED) {
@@ -318,24 +582,67 @@ jaos_status jm_branch_and_bound(jaos_model *m)
         if (jaos_objective(lp, &obj) != JAOS_OK ||
             jaos_solution(lp, x, nullptr, nullptr, nullptr) != JAOS_OK)
             goto done;
-        const double key = sigma * obj;
+        double key = sigma * obj;
+        int64_t branch = most_fractional(m, x);
+
+        /* The root's cuts: rounds until one adds nothing or the point is
+         * integral. A relaxation the cuts make infeasible is an infeasible
+         * integer program, since every cut is valid for it. The tableau
+         * row spans the columns and every row the copy can come to hold. */
+        if (nodes == 1 && branch >= 0 && rounds > 0) {
+            row = malloc((size_t)(nc + lp->num_row + 1 +
+                                  (nc > 0 ? nc : 1) * rounds) * sizeof *row);
+            cut = malloc((size_t)(nc > 0 ? nc : 1) * sizeof *cut);
+            if (row == nullptr || cut == nullptr)
+                goto done;
+            bool stop = false;
+            for (int64_t r = 0; r < rounds && !stop; r++) {
+                cb.n = cb.nnz = 0;
+                const int64_t got = gomory_round(lp, m, x, &cb, row, cut,
+                                                 &work);
+                if (got < 0)
+                    goto done;
+                if (got == 0)
+                    break;
+                if (cuts_add(lp, &cb) != JAOS_OK)
+                    goto done;
+                cuts += got;
+                st = jaos_solve(lp);
+                solves++;
+                work += jaos_work_units(lp);
+                iters += jaos_iterations(lp);
+                if (st != JAOS_OK) {
+                    if (st == JAOS_ERR_NUMERICAL) {
+                        outcome = JAOS_SOLVE_NUMERICAL_ERROR;
+                        jm_set_err(m, "root cuts, round %lld: %s",
+                                   (long long)(r + 1), jaos_model_error(lp));
+                        stop = true;
+                        break;
+                    }
+                    goto done;
+                }
+                ns = jaos_status_of(lp);
+                if (ns != JAOS_SOLVE_OPTIMAL) {
+                    outcome = ns;
+                    stop = true;
+                    break;
+                }
+                if (jaos_objective(lp, &obj) != JAOS_OK ||
+                    jaos_solution(lp, x, nullptr, nullptr, nullptr) != JAOS_OK)
+                    goto done;
+                key = sigma * obj;
+                branch = most_fractional(m, x);
+                if (branch < 0)
+                    break;
+            }
+            if (stop)
+                break;
+        }
         if (nodes == 1)
             best_bound = key;
         if (inc.have && inc.key - key <= gap * (1.0 + fabs(inc.key)))
             continue;                  /* cannot improve enough */
 
-        /* The most fractional integer column, lowest index on a tie. */
-        int64_t branch = -1;
-        double worst = MIP_INT_TOL;
-        for (int64_t j = 0; j < nc; j++) {
-            if (!m->col_integer[j])
-                continue;
-            const double f = fabs(x[j] - round(x[j]));
-            if (f > worst) {
-                worst = f;
-                branch = j;
-            }
-        }
         if (branch < 0) {
             if (!incumbent_take(&inc, lp, key))
                 goto done;
@@ -345,15 +652,34 @@ jaos_status jm_branch_and_bound(jaos_model *m)
             continue;
         }
         const double v = x[branch];
-        bnode *down = node_child(nodes > 0 ? cur : nullptr, nc, nr, lp, branch,
-                                 lp->col_lower[branch], floor(v), key,
+        const int64_t nrl = lp->num_row;
+        bnode *down = node_child(nodes > 0 ? cur : nullptr, nc, nrl, lp,
+                                 branch, lp->col_lower[branch], floor(v), key,
                                  next_id++);
-        bnode *up = node_child(nodes > 0 ? cur : nullptr, nc, nr, lp, branch,
+        bnode *up = node_child(nodes > 0 ? cur : nullptr, nc, nrl, lp, branch,
                                ceil(v), lp->col_upper[branch], key,
                                next_id++);
-        if (down == nullptr || up == nullptr ||
-            !heap_push(&heap, down) || !heap_push(&heap, up)) {
+        if (down == nullptr || up == nullptr) {
             node_free(down);
+            node_free(up);
+            goto done;
+        }
+        /* The dive takes the nearer side next; a fraction of one half goes
+         * down. Off, both children join the open set. */
+        bnode *first = v - floor(v) < 0.5 ? down : up;
+        bnode *other = first == down ? up : down;
+        if (dive) {
+            if (!heap_push(&heap, other)) {
+                node_free(down);
+                node_free(up);
+                goto done;
+            }
+            next = first;
+        } else if (!heap_push(&heap, down)) {
+            node_free(down);
+            node_free(up);
+            goto done;
+        } else if (!heap_push(&heap, up)) {
             node_free(up);
             goto done;
         }
@@ -366,6 +692,7 @@ jaos_status jm_branch_and_bound(jaos_model *m)
     m->solve_time = now_seconds() - t0;
     m->mip_nodes = nodes;
     m->mip_solves = solves;
+    m->mip_cuts = cuts;
     m->mip_bound = sigma * (heap.n > 0 && heap.v[0]->key < best_bound
                             ? heap.v[0]->key : best_bound);
     if (outcome == JAOS_SOLVE_OPTIMAL)
@@ -382,6 +709,8 @@ jaos_status jm_branch_and_bound(jaos_model *m)
             m->solve_status = JAOS_SOLVE_NOT_RUN;
             goto done;
         }
+        /* The model's own rows come first in the copy; a cut's row is
+         * after them and is not published. */
         if (nc > 0) {
             memcpy(m->sol_col, m->mip_inc_x, (size_t)nc * sizeof *m->sol_col);
             memcpy(m->sol_redcost, inc.cd, (size_t)nc * sizeof *m->sol_redcost);
@@ -399,10 +728,14 @@ done:
     if (rc != JAOS_OK && m->solve_status != outcome)
         jm_set_err(m, "%s", m->err[0] ? m->err : "out of memory in branch and bound");
     free(x);
+    free(row);
+    free(cut);
+    cutbuf_free(&cb);
     while (heap.n > 0)
         node_free(heap_pop(&heap));
     free(heap.v);
     node_free(cur);
+    node_free(next);
     incumbent_free(&inc);
     jaos_model_free(lp);
     return rc;
@@ -417,6 +750,7 @@ jaos_status jaos_mip_result(const jaos_model *m, jaos_mip_report *out)
     out->has_incumbent = m->mip_has_incumbent;
     out->incumbent = m->mip_has_incumbent ? m->mip_inc_obj : 0.0;
     out->bound = m->mip_bound;
+    out->cuts = m->mip_cuts;
     return JAOS_OK;
 }
 

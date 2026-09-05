@@ -1172,10 +1172,22 @@ class TestBranchAndBound(unittest.TestCase):
         self.assertIs(p.solve(), jaos.SolveStatus.OPTIMAL)
         self.assertAlmostEqual(p.objective_value, 9.0, places=9)
         self.assertEqual((a.value, b.value, c.value), (1.0, 1.0, 0.0))
-        rep = p._m.mip_report()
+        rep = p.mip_report()
         self.assertTrue(rep.has_incumbent)
-        self.assertGreaterEqual(rep.nodes, 2)
+        obj, point = p.mip_incumbent()
+        self.assertAlmostEqual(obj, 9.0, places=9)
+        self.assertEqual((point[a], point[b], point[c]), (1.0, 1.0, 0.0))
+        # The root cuts close it at one node (D289); without them the tree
+        # branches, and the answer is the same either way.
+        self.assertGreaterEqual(rep.cuts, 1)
+        self.assertEqual(rep.nodes, 1)
         self.assertTrue(p._m.col_integer(0))
+        p.set_mip_cut_rounds(0).set_mip_dive(True)
+        self.assertIs(p.solve(), jaos.SolveStatus.OPTIMAL)
+        self.assertAlmostEqual(p.objective_value, 9.0, places=9)
+        rep = p.mip_report()
+        self.assertEqual(rep.cuts, 0)
+        self.assertGreaterEqual(rep.nodes, 2)
 
     def test_the_model_layer_marks_and_reports(self):
         with jaos.Model() as m:

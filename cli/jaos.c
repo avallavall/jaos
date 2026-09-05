@@ -10,7 +10,7 @@
  * Usage:
  *   jaos solve FILE [--solution OUT] [--start SOLUTION] [--work-limit N]
  *                   [--time-limit SECONDS] [--primal-tol T] [--dual-tol T]
- *                   [--log LEVEL] [--quiet]
+ *                   [--cut-rounds N] [--dive] [--log LEVEL] [--quiet]
  *   jaos convert IN OUT
  *   jaos check FILE SOLUTION [--tol T]
  *   jaos iis FILE
@@ -69,7 +69,7 @@ static const char USAGE[] =
     "Usage:\n"
     "  jaos solve FILE [--solution OUT] [--start SOLUTION] [--work-limit N]\n"
     "                  [--time-limit SECONDS] [--primal-tol T] [--dual-tol T]\n"
-    "                  [--log LEVEL] [--quiet]\n"
+    "                  [--cut-rounds N] [--dive] [--log LEVEL] [--quiet]\n"
     "  jaos convert IN OUT\n"
     "  jaos check FILE SOLUTION [--tol T]\n"
     "  jaos iis FILE\n"
@@ -88,6 +88,9 @@ static const char USAGE[] =
     "  --time-limit S   stop after S seconds of wall clock (S > 0)\n"
     "  --primal-tol T   primal feasibility tolerance (default 1e-7)\n"
     "  --dual-tol T     dual feasibility tolerance (default 1e-7)\n"
+    "  --cut-rounds N   rounds of Gomory cuts at the root of a MIP (default\n"
+    "                   1; 0 for none)\n"
+    "  --dive           dive from each selected node of a MIP (off by default)\n"
     "  --log LEVEL      solver log on stderr: off, summary, progress, detail\n"
     "  --quiet          print the status line only\n"
     "  Exit: 0 optimal, 1 infeasible, 2 unbounded, 3 stopped by a limit or\n"
@@ -356,6 +359,8 @@ struct solve_options {
     const char *start;       /* a solution file to warm-start from */
     int64_t work_limit;      /* 0: not given; the parser refuses <= 0 */
     double time_limit;       /* 0: not given; the parser refuses <= 0 */
+    int64_t cut_rounds;      /* -1: not given (the library's default)     */
+    bool dive;
     /* The tolerances carry a flag rather than a sentinel: any finite value
      * is passed to the library, which is what refuses a negative one, and a
      * sentinel below zero would have swallowed exactly that case. It did,
@@ -373,6 +378,7 @@ static int parse_solve_options(int argc, char **argv, int first,
 {
     memset(o, 0, sizeof *o);
     o->log_level = JAOS_LOG_OFF;
+    o->cut_rounds = -1;
 
     for (int i = first; i < argc; i++) {
         const char *a = argv[i];
@@ -385,6 +391,10 @@ static int parse_solve_options(int argc, char **argv, int first,
         }
         if (strcmp(a, "--quiet") == 0) {
             o->quiet = true;
+            continue;
+        }
+        if (strcmp(a, "--dive") == 0) {
+            o->dive = true;
             continue;
         }
         /* Everything else takes a value. */
@@ -403,6 +413,10 @@ static int parse_solve_options(int argc, char **argv, int first,
             if (!parse_double(v, &o->time_limit) || o->time_limit <= 0.0)
                 return usage_error("--time-limit needs a positive number of "
                                    "seconds, not '%s'", v);
+        } else if (strcmp(a, "--cut-rounds") == 0) {
+            if (!parse_int64(v, &o->cut_rounds) || o->cut_rounds < 0)
+                return usage_error("--cut-rounds needs a count of rounds, 0 or "
+                                   "more, not '%s'", v);
         } else if (strcmp(a, "--primal-tol") == 0) {
             if (!parse_double(v, &o->primal_tol))
                 return usage_error("--primal-tol needs a number, not '%s'", v);
@@ -448,6 +462,14 @@ static int cmd_solve(int argc, char **argv)
     }
     if (o.time_limit > 0.0 && jaos_set_time_limit(m, o.time_limit) != JAOS_OK) {
         rc = library_error("set the time limit for", o.file, m);
+        goto out;
+    }
+    if (o.cut_rounds >= 0 && jaos_set_mip_cut_rounds(m, o.cut_rounds) != JAOS_OK) {
+        rc = library_error("set the cut rounds for", o.file, m);
+        goto out;
+    }
+    if (o.dive && jaos_set_mip_dive(m, true) != JAOS_OK) {
+        rc = library_error("turn the dive on for", o.file, m);
         goto out;
     }
     if (o.has_primal_tol &&
@@ -530,6 +552,7 @@ static int cmd_solve(int argc, char **argv)
         jaos_mip_report mrep;
         if (jaos_mip_result(m, &mrep) == JAOS_OK && mrep.nodes > 0) {
             printf("nodes %" PRId64 "\n", mrep.nodes);
+            printf("cuts %" PRId64 "\n", mrep.cuts);
             printf("bound %.17g\n", mrep.bound);
         }
         /* Last, and the only line that moves between runs. */

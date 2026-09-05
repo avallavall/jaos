@@ -7,7 +7,24 @@ line leaves this file in the same commit.
 
 ## Where the last session stopped — 2026-09-05
 
-**2026-09-05, last: integer columns and branch and bound (D288).** The
+**2026-09-05, last: the MIP set, one round of Gomory cuts at the root,
+and the dive refused (D289).** The fourth batch of the day and the first
+with a measurement in it. `bench/miplib.manifest` pins 17 MIPLIB 3
+instances, `make miplib J=12` runs them under the runner's `-e mip`, and
+the baseline keeps `nodes` beside `work`. The root cuts read off the
+tableau `src/ranging.c` now exports; one round is **0.660x** the plain
+tree's work with no instance past 2x, two rounds 0.609x with three past
+it, three rounds break `pk1` at the root
+(`bench/measurements/02-189/`). The dive from each selected node is
+**1.125x**, better on one and worse on six, so it is off behind
+`jaos_set_mip_dive` and in the refusals table below. **What is next**, in
+order: cuts below the root, which the same tableau gives at any node,
+against this baseline; a child rule for the dive that is not nearer-side
+first, which is what would reopen it; a rounding or diving heuristic,
+which is the last ○ the matrix's MILP column has for JAOS; and the four
+held cut constants, each swept on this set once something moves them.
+
+**2026-09-05, later: integer columns and branch and bound (D288).** The
 third batch of the day and the one that moves the matrix most: `src/mip.c`
 is the plain Land-Doig scheme over the dual simplex, one private copy
 re-bounded per node, warm from the parent, best bound first with creation
@@ -4040,6 +4057,7 @@ change satisfies a condition in the right column, re-ask that question. Until
 then, do not — a refusal whose premise has not changed just fails again.
 
 | decision | what was refused or deferred | reopens when |
+| D289 | a dive from each selected node of the branch and bound: nearer-side child first, sibling to the open set, until a prune — **1.125x** the plain best-bound order in work over the MIP set, one instance better and six worse, and 1.09x on top of one round of cuts (`bench/measurements/02-189/`) | a child rule that is not nearer-side first (up first for binaries, the pseudocost direction) or a backtracking dive reads at or under 0.95x with no instance past 2x on the same set; `02-189/retest-dive.sh` asks, and `make refusals` runs it |
 | D211 | a stop rule on the phase-1 objective rising — `pilot-ja` rose 25.0449 above its running minimum and still finished `ok` | **EXPIRED at D212, caught 2026-08-28**: `pilot-ja` rises 3.3348e-12 now and the largest rise on any `ok` solve is 9.36752e-10, so a threshold has a window about nine orders wide. Attributed to the commit in D215, `02-130/`. Open work below, and the line has left `bench/refusals.txt` |
 | D184 | `can_move`'s product-against-rate units, measured dead on the dual (94/94 digests) | **CLOSED 2026-08-28**: the reopen condition was met on 2026-08-25 and the question is settled. `can_move` reads `breached` now (D214, `02-129/`), and the line has left `bench/refusals.txt` |
 | D76 | `restrict` in the LU kernels — refused because seconds could not resolve it | an instruction count can (`tools/icount.sh`); re-tested on the kernel signatures 2026-08-26, `bench/measurements/02-119/` (D206) |

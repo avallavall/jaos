@@ -64,7 +64,10 @@ static void test_the_knapsack_finds_the_integer_optimum(void)
     TEST_ASSERT_TRUE(x[0] == 1.0 && x[1] == 1.0 && x[2] == 0.0);
     jaos_mip_report rep;
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_mip_result(m, &rep));
-    TEST_ASSERT_TRUE(rep.nodes >= 2);       /* the root was fractional */
+    /* The root was fractional and the cuts closed it: one node. The
+     * tree without them is the next test's. */
+    TEST_ASSERT_TRUE(rep.cuts >= 1);
+    TEST_ASSERT_EQUAL_INT64(1, rep.nodes);
     TEST_ASSERT_TRUE(rep.has_incumbent);
     TEST_ASSERT_DOUBLE_WITHIN(1e-9, 9.0, rep.incumbent);
     TEST_ASSERT_DOUBLE_WITHIN(1e-9, 9.0, rep.bound);
@@ -110,7 +113,8 @@ static void test_a_fractional_root_branches_to_the_integer_answer(void)
     TEST_ASSERT_DOUBLE_WITHIN(1e-9, 1.0, obj);
     jaos_mip_report rep;
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_mip_result(m, &rep));
-    TEST_ASSERT_TRUE(rep.nodes >= 3);
+    TEST_ASSERT_TRUE(rep.cuts >= 1);
+    TEST_ASSERT_EQUAL_INT64(1, rep.nodes);
     /* A second solve is the same search: same nodes, same point. */
     double x1[2], x2[2];
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solution(m, x1, nullptr, nullptr, nullptr));
@@ -256,6 +260,105 @@ static void test_the_readers_and_writers_carry_the_marks(void)
     jaos_model_free(m);
 }
 
+/* The two switches of D289, the cuts turned off and the dive turned on, on
+ * the knapsack and on the model whose relaxation is 1.5: the answer is
+ * the same either way, which is what a switch has to show. */
+static void test_without_cuts_or_dive_the_tree_branches_to_the_same_answer(void)
+{
+    jaos_model *m = knapsack();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_cut_rounds(m, 0));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+    double obj = 0.0;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(m, &obj));
+    TEST_ASSERT_DOUBLE_WITHIN(1e-9, 9.0, obj);
+    jaos_mip_report rep;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_mip_result(m, &rep));
+    TEST_ASSERT_EQUAL_INT64(0, rep.cuts);
+    TEST_ASSERT_TRUE(rep.nodes >= 2);       /* the root was fractional */
+    const int64_t dived = rep.nodes;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_dive(m, true));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(m, &obj));
+    TEST_ASSERT_DOUBLE_WITHIN(1e-9, 9.0, obj);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_mip_result(m, &rep));
+    TEST_ASSERT_TRUE(rep.nodes >= 2);
+    (void)dived;
+    /* A negative count restores the default and the cuts come back. */
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_cut_rounds(m, -1));
+    TEST_ASSERT_FALSE(m->cfg.mip_cut_rounds_set);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_mip_result(m, &rep));
+    TEST_ASSERT_TRUE(rep.cuts >= 1);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(m, &obj));
+    TEST_ASSERT_DOUBLE_WITHIN(1e-9, 9.0, obj);
+    jaos_model_free(m);
+
+    const double cost[2] = { 1.0, 1.0 }, cl[2] = { 0, 0 };
+    const double cu[2] = { INFINITY, INFINITY };
+    const double rl[1] = { -INFINITY }, ru[1] = { 3.0 };
+    const int64_t as[3] = { 0, 1, 2 }, ai[2] = { 0, 0 };
+    const double av[2] = { 2.0, 2.0 };
+    m = fresh();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_load_lp(m, 2, 1, JAOS_MAXIMIZE, 0.0, cost, cl, cu, rl, ru,
+                     2, as, ai, av));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_col_integer(m, 0, true));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_col_integer(m, 1, true));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_cut_rounds(m, 0));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(m, &obj));
+    TEST_ASSERT_DOUBLE_WITHIN(1e-9, 1.0, obj);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_mip_result(m, &rep));
+    TEST_ASSERT_TRUE(rep.nodes >= 3);
+    jaos_model_free(m);
+}
+
+/* A mixed model, enumerated by hand: max 3x + 2y + w with 2x + y + w <=
+ * 5.5, x + 2y + w <= 4.5, x and y integer in [0, 3], w continuous in
+ * [0, 1]. Of the integer pairs inside both rows, (2, 1) leaves w at most
+ * 0.5 and is worth 8.5; (2, 0) allows w = 1 and is worth 7; (1, 1) 6;
+ * (0, 2) 4.5. The relaxation with w at 0 sits at x = 13/6, y = 7/6,
+ * worth 8.83, so the root is fractional and the cut has a continuous
+ * column and an upper-bounded one to get right. */
+static void test_a_cut_over_continuous_columns_keeps_the_integer_optimum(void)
+{
+    const double cost[3] = { 3.0, 2.0, 1.0 }, cl[3] = { 0, 0, 0 };
+    const double cu[3] = { 3.0, 3.0, 1.0 };
+    const double rl[2] = { -INFINITY, -INFINITY }, ru[2] = { 5.5, 4.5 };
+    const int64_t as[4] = { 0, 2, 4, 6 }, ai[6] = { 0, 1, 0, 1, 0, 1 };
+    const double av[6] = { 2.0, 1.0, 1.0, 2.0, 1.0, 1.0 };
+    for (int pass = 0; pass < 2; pass++) {
+        jaos_model *m = fresh();
+        TEST_ASSERT_EQUAL_INT(JAOS_OK,
+            jaos_load_lp(m, 3, 2, JAOS_MAXIMIZE, 0.0, cost, cl, cu, rl, ru,
+                         6, as, ai, av));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_col_integer(m, 0, true));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_col_integer(m, 1, true));
+        if (pass == 1)
+            TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_cut_rounds(m, 0));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+        TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+        double obj = 0.0, x[3];
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(m, &obj));
+        TEST_ASSERT_DOUBLE_WITHIN(1e-9, 8.5, obj);
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solution(m, x, nullptr, nullptr, nullptr));
+        TEST_ASSERT_TRUE(x[0] == 2.0 && x[1] == 1.0);
+        TEST_ASSERT_DOUBLE_WITHIN(1e-9, 0.5, x[2]);
+        jaos_mip_report rep;
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_mip_result(m, &rep));
+        if (pass == 0)
+            TEST_ASSERT_TRUE(rep.cuts >= 1);
+        else
+            TEST_ASSERT_EQUAL_INT64(0, rep.cuts);
+        jaos_check_report ck;
+        TEST_ASSERT_EQUAL_INT(JAOS_OK,
+            jaos_check_solution(m, x, nullptr, 1e-7, &ck));
+        TEST_ASSERT_TRUE(ck.primal_feasible);
+        jaos_model_free(m);
+    }
+}
+
 int main(void)
 {
     UNITY_BEGIN();
@@ -271,5 +374,7 @@ int main(void)
     RUN_TEST(test_a_work_limit_stops_the_tree_and_keeps_the_incumbent);
     RUN_TEST(test_the_marks_ride_with_their_columns_and_copy);
     RUN_TEST(test_the_readers_and_writers_carry_the_marks);
+    RUN_TEST(test_without_cuts_or_dive_the_tree_branches_to_the_same_answer);
+    RUN_TEST(test_a_cut_over_continuous_columns_keeps_the_integer_optimum);
     return UNITY_END();
 }

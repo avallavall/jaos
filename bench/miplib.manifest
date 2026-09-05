@@ -1,0 +1,49 @@
+# The MIP set — 17 instances from MIPLIB 3, pinned (D289).
+#
+# What it asks: does branch and bound reach the published integer optimum,
+# is the point it publishes integral and feasible to the checker, and do
+# two cold searches build the same tree. Nothing in the three gate sets
+# can ask any of that, because none of them has an integer column. Not a
+# gate set: run it whenever src/mip.c or anything under it changes, and
+# read `nodes=` beside `work=`, since a tree that changed shape with the
+# answer unmoved is what the digest cannot show.
+#
+#   make miplib J=12
+#
+# The 17 are the members of MIPLIB 3 (Bixby, Ceria, McZeal, Savelsbergh,
+# Optima 58, 1998) that the plain tree of D288 solves inside 60 s on
+# this host, out of 38 tried; the rest are in
+# bench/measurements/02-189/ with what each cost. Served by ZIB's mirror
+# at miplib2010.zib.de/miplib3/miplib3 as plain gzipped MPS, so the
+# pipeline is mps-gz and no expander is needed.
+#
+# Format matches netlib.manifest so one parser serves every set:
+#
+#     name  sha256  rows  cols  reference  source  objconst
+#
+# sha256 is of the served .mps.gz. rows and cols are the catalogue's
+# (miplib.cat in the mirror's tarball), which count constraints without
+# the objective row, as JAOS does. reference is the catalogue's INT SOLN
+# column; two entries carry more digits than the catalogue prints, since
+# its rounding of rgn (82.1999) is outside the runner's 1e-6 and egout
+# (568.101) inside it by a hair: 82.19999924 and 568.1007 are MIPLIB
+# 2010's figures for the same files and what every search here reaches.
+# objconst is 0 throughout; none of these carries an objective constant.
+#
+air03     333b97429ba8bbe09d41d877475370717bb21683eeae7c7ee08a0871c61607ba 124 10757 340160 miplib3 0
+blend2    7e863727bc2af1abd128d2b04570198e01d3fe90b229e39583105ecd0d11e43a 274 353 7.598985 miplib3 0
+dcmulti   f1e90841466c9c635b6a43ad4437fdf4495f543c70966ab5a371ad63435eeba5 290 548 188182 miplib3 0
+egout     444704637e81849427df6ca0bc7464417203647aee60d0f8794667a3845a51f1 98 141 568.1007 miplib3 0
+enigma    eeae727af2ec40bf6cf330f254b91186c852fb63f0e13ffca1f232f69a10aa1c 21 100 0 miplib3 0
+flugpl    a4ba311dafaf013adee3417c547130f6a58698215a58531b222a6e4ee31df388 18 18 1201500 miplib3 0
+khb05250  7e10b350e85d0d7c638c797caf2489657164dc284762d3b1f4ace750488c7832 101 1350 106940226 miplib3 0
+lseu      230eab07c9e1c7b6f4e827b0343b8aca3d3d1ad39da445b18562e22737a1e1b8 28 89 1120 miplib3 0
+misc03    541b96ab0d74601623f29c736ab527af01d91f2471a1409db91ebbcbc388c16d 96 160 3360 miplib3 0
+misc06    87f0af08a3856d9e9bfd02d40f4125bd3749405c21eee009b3caf56d9692ebf5 820 1808 12850.8607 miplib3 0
+mod008    b2b19ab9cb0917dd81608e2ebda83521f71544c3c43c17b8827a30432e684ba7 6 319 307 miplib3 0
+mod010    3126553fe9c1387ea947191ca08f65a928d01a9f03b47037f8f1e14d8e2392a7 146 2655 6548 miplib3 0
+p0033     d606d733c9c7165d4e6ed621b20870e2b0dbce3c3dfd42f0f8e5b35d418f6a5e 16 33 3089 miplib3 0
+p0201     3df3dac32b6e096db1a7b136eca8bf8c4bc901203b5f4959f4c9e0ccc0c20204 133 201 7615 miplib3 0
+rgn       87a378d85ccf61cee56b20978915e03226d457591f78438bef599a36e0fc23aa 24 180 82.19999924 miplib3 0
+stein27   559caf031adb6e3536d47b39325c82e52dc60507487e73ff046e6a43268c4abb 118 27 18 miplib3 0
+stein45   a94080bbd95388abdbf89eeb8454e9f8d6dd674ae45795bcb0897c59c466321c 331 45 30 miplib3 0

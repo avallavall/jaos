@@ -1,0 +1,22 @@
+air03        optimal    rows=124 cols=10757 shape=ok iters=443 work=26197067 nodes=1 cuts=35 obj=340160 ref=340160[miplib3] objective=ok checker=ok (col=0 row=0 int=0) det=ok digest=7bbd12f10d3de40d basis=dc4d6ca4fff81ade
+blend2       optimal    rows=274 cols=353 shape=ok iters=1131606 work=4823293608 nodes=32325 cuts=0 obj=7.5989849999999999 ref=7.5989849999999999[miplib3] objective=ok checker=ok (col=0 row=0 int=0) det=ok digest=8e9d4307ddba8d05 basis=ff421adc289517fe
+dcmulti      optimal    rows=290 cols=548 shape=ok iters=82909 work=377145052 nodes=1787 cuts=33 obj=188182 ref=188182[miplib3] objective=ok checker=ok (col=3.94e-15 row=2.84e-14 int=0) det=ok digest=7bfee5df77a050f3 basis=880d2d952891a51b
+egout        optimal    rows=98 cols=141 shape=ok iters=19314 work=351870039 nodes=40481 cuts=27 obj=568.10069999999996 ref=568.10069999999996[miplib3] objective=ok checker=ok (col=1.64e-15 row=1.07e-14 int=0) det=ok digest=4af061fc37718d5a basis=888756079e704794
+enigma       optimal    rows=21 cols=100 shape=ok iters=30480 work=63823649 nodes=3239 cuts=6 obj=0 ref=0[miplib3] objective=ok checker=ok (col=0 row=0 int=0) det=ok digest=85c3cfe896052103 basis=c4e46634ae2f2711
+flugpl       optimal    rows=18 cols=18 shape=ok iters=11692 work=93216305 nodes=12949 cuts=10 obj=1201500 ref=1201500[miplib3] objective=ok checker=ok (col=0 row=1.55e-15 int=0) det=ok digest=ea4e1f3aff073366 basis=b74914055c64ec98
+khb05250     optimal    rows=101 cols=1350 shape=ok iters=10348 work=72874443 nodes=351 cuts=19 obj=106940226 ref=106940226[miplib3] objective=ok checker=ok (col=5.14e-13 row=2.84e-13 int=0) det=ok digest=7ed3aeed9c5ec59f basis=92ba9d32106b9a22
+lseu         optimal    rows=28 cols=89 shape=ok iters=150716 work=631167430 nodes=30003 cuts=12 obj=1120 ref=1120[miplib3] objective=ok checker=ok (col=0 row=0 int=0) det=ok digest=c4b93e19184515ec basis=b46b2845aaf42149
+misc03       optimal    rows=96 cols=160 shape=ok iters=50158 work=200044509 nodes=1399 cuts=14 obj=3360 ref=3360[miplib3] objective=ok checker=ok (col=0 row=0 int=0) det=ok digest=93409732f6f0dc30 basis=29cbcb6111651940
+misc06       optimal    rows=820 cols=1808 shape=ok iters=103493 work=669768011 nodes=181 cuts=3 obj=12850.86073738254 ref=12850.860699999999[miplib3] objective=ok checker=ok (col=1.04e-16 row=1.05e-12 int=0) det=ok digest=3091f7125f77e182 basis=1d97aea6a833c7bf
+mod008       optimal    rows=6 cols=319 shape=ok iters=161075 work=1213210000 nodes=26313 cuts=5 obj=307 ref=307[miplib3] objective=ok checker=ok (col=0 row=0 int=0) det=ok digest=2c6bf5d4de27849a basis=16f639c307bc5430
+mod010       optimal    rows=146 cols=2655 shape=ok iters=12580 work=620362720 nodes=7 cuts=39 obj=6548 ref=6548[miplib3] objective=ok checker=ok (col=0 row=0 int=0) det=ok digest=7dbe69e4f3da3604 basis=7a7439da45443061
+p0033        optimal    rows=16 cols=33 shape=ok iters=1906 work=10837611 nodes=943 cuts=8 obj=3089 ref=3089[miplib3] objective=ok checker=ok (col=0 row=0 int=0) det=ok digest=d0b3ce0f9852e8f4 basis=3767f04a9d7b189c
+p0201        optimal    rows=133 cols=201 shape=ok iters=96581 work=548139516 nodes=3201 cuts=20 obj=7615 ref=7615[miplib3] objective=ok checker=ok (col=0 row=0 int=0) det=ok digest=e8de35b0c148451d basis=65335b9cb69eb220
+rgn          optimal    rows=24 cols=180 shape=ok iters=88846 work=195526919 nodes=4371 cuts=18 obj=82.199999239999983 ref=82.199999239999997[miplib3] objective=ok checker=ok (col=0 row=0 int=0) det=ok digest=9f9dea6c1a870bed basis=881d87ed0f3683cd
+stein27      optimal    rows=118 cols=27 shape=ok iters=33278 work=124441939 nodes=9799 cuts=21 obj=18 ref=18[miplib3] objective=ok checker=ok (col=0 row=0 int=0) det=ok digest=90d0e97d7ed9fa5a basis=c8daf8954a059900
+stein45      optimal    rows=331 cols=45 shape=ok iters=1144989 work=3562514535 nodes=145699 cuts=35 obj=30 ref=30[miplib3] objective=ok checker=ok (col=0 row=0 int=0) det=ok digest=201b415ae5cc3d63 basis=79d056f20960d388
+
+17 instances: 17 solved, 17 shape ok, 17 objective ok, 17 checker ok, 17 deterministic, 0 failed
+gate: PASS
+
+baseline: NOT COMPARED (no baseline given)

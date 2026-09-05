@@ -41,6 +41,13 @@ typedef struct {
     /* The relative gap that closes a branch and bound; <= 0 means
      * MIP_GAP (src/mip.c). */
     double mip_gap;
+
+    /* Branch and bound's two switches (D289): whether a selected node is
+     * dived from, and how many rounds of Gomory cuts the root gets;
+     * `mip_cut_rounds_set` false means MIP_CUT_ROUNDS (src/mip.c). */
+    bool mip_dive;
+    bool mip_cut_rounds_set;
+    int64_t mip_cut_rounds;
 } jm_config;
 
 /* Name -> value map for the readers and for lookup by name: FNV-1a, open
@@ -104,7 +111,7 @@ struct jaos_model {
     /* What the last branch and bound did: nodes solved, relaxations solved,
      * the best bound in the model's sense, and the incumbent when a stop
      * left one short of a proof. */
-    int64_t mip_nodes, mip_solves;
+    int64_t mip_nodes, mip_solves, mip_cuts;
     double mip_bound;
     bool mip_has_incumbent;
     double mip_inc_obj;
@@ -220,6 +227,19 @@ typedef enum {
  * the model; the model itself is never modified, and everything written
  * back is in the model's own units. */
 JAOS_NODISCARD jaos_status jm_dual_simplex(jaos_model *m);
+
+/* The factorization behind the last optimum, as ranging builds it, for
+ * the cut generator (D289): rows of B^-1 [A | -I] in the model's units.
+ * Built on a model whose last solve was OPTIMAL and freed by the caller;
+ * the work it does is read with jm_tableau_work and billed by the caller. */
+typedef struct jm_tableau jm_tableau;
+JAOS_NODISCARD jaos_status jm_tableau_build(jaos_model *m, jm_tableau **out);
+void jm_tableau_free(jm_tableau *t);
+int64_t jm_tableau_position(const jm_tableau *t, int64_t v); /* -1 nonbasic */
+int64_t jm_tableau_variable(const jm_tableau *t, int64_t p);
+double jm_tableau_value(const jm_tableau *t, int64_t p);
+int64_t jm_tableau_work(const jm_tableau *t);
+JAOS_NODISCARD jaos_status jm_tableau_row(jm_tableau *t, int64_t p, double *row);
 
 /* Forrest-Goldfarb dual steepest-edge weight update [8].
  * w[i] tracks ||row i of B^-1||^2. Column q enters the basis at row r.

@@ -867,6 +867,23 @@ jaos_status jaos_set_mip_gap(jaos_model *m, double gap)
     return JAOS_OK;
 }
 
+jaos_status jaos_set_mip_dive(jaos_model *m, bool on)
+{
+    if (m == nullptr)
+        return JAOS_ERR_INVALID_INPUT;
+    m->cfg.mip_dive = on;
+    return JAOS_OK;
+}
+
+jaos_status jaos_set_mip_cut_rounds(jaos_model *m, int64_t rounds)
+{
+    if (m == nullptr)
+        return JAOS_ERR_INVALID_INPUT;
+    m->cfg.mip_cut_rounds_set = rounds >= 0;
+    m->cfg.mip_cut_rounds = rounds >= 0 ? rounds : 0;
+    return JAOS_OK;
+}
+
 jaos_solve_status jaos_status_of(const jaos_model *m)
 {
     return m ? m->solve_status : JAOS_SOLVE_NOT_RUN;

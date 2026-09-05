@@ -142,7 +142,7 @@ on a work-unit measurement.
 | | JAOS | HiGHS | SoPlex | Clp | SCIP | Gurobi | Hexaly |
 |---|---|---|---|---|---|---|---|
 | Branch and bound | ● | ● | — | — | ● | ● | ● |
-| Cutting planes | ○ | ● | — | — | ● | ● | ● |
+| Cutting planes | ◐ | ● | — | — | ● | ● | ● |
 | Primal heuristics | ○ | ● | — | — | ● | ● | ● |
 | Solution pool | ○ | ○ | — | — | ● | ● | ● |
 | Deterministic parallel tree search | ○ | ◐ | — | — | ● | ● | ? |

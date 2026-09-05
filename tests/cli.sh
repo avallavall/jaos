@@ -200,6 +200,18 @@ expect_exit 0 "a mixed-integer model solves" "$JAOS" solve "$DATA/t4_int.mps"
 [ -n "$(line_of nodes)" ] && [ "$(line_of bound)" = "bound 3.5" ] \
     && pass "and prints its nodes and bound" \
     || flunk "MIP lines: $(line_of nodes) / $(line_of bound)"
+# The two switches of D289 through the command line: a cuts line beside
+# nodes, both switches accepted and the answer unmoved by either, and a
+# negative round count refused as a usage error.
+[ -n "$(line_of cuts)" ] && pass "and a cuts line" \
+    || flunk "no cuts line: $(line_of cuts)"
+expect_exit 0 "no cuts and a dive still solve it" \
+    "$JAOS" solve "$DATA/t4_int.mps" --cut-rounds 0 --dive
+[ "$(line_of objective)" = "objective 3.5" ] && [ "$(line_of cuts)" = "cuts 0" ] \
+    && pass "to 3.5 with cuts 0" \
+    || flunk "switched-off MIP: $(line_of objective) / $(line_of cuts)"
+expect_exit 5 "a negative round count is a usage error" \
+    "$JAOS" solve "$DATA/t4_int.mps" --cut-rounds -1
 expect_exit 0 "and converts to LP with its marks" \
     "$JAOS" convert "$DATA/t4_int.mps" "$tmp/t4.lp"
 grep -q '^General$' "$tmp/t4.lp" && pass "the LP carries a General section" \

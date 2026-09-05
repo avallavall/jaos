@@ -11,6 +11,16 @@ open, `bench/README.md` for the gate, and the commit each entry came from.
 
 ### Added
 
+- **A MIP set, Gomory cuts at the root, and a dive that measured worse.**
+  `bench/miplib.manifest` pins 17 MIPLIB 3 instances; `make miplib J=12`
+  runs them under the runner's new `-e mip` mode and the baseline keeps
+  `nodes` beside `work`. The root of a branch and bound gets one round of
+  Gomory mixed-integer cuts, read off the tableau `src/ranging.c` now
+  exports, kept for the whole tree: 0.660x the plain tree's work over the
+  set, no instance past 2x. A dive from each selected node is behind
+  `jaos_set_mip_dive` and `--dive`, off, at 1.125x. `jaos_set_mip_cut_rounds`,
+  `--cut-rounds`, the `cuts` line and report field, both in Python (D289).
+
 - **Integer columns, and branch and bound to solve them.**
   `jaos_set_col_integer`, MPS `MARKER` pairs and `BV`/`LI`/`UI` bounds, LP
   `General` and `Binary` sections, all read and written back. A model with

@@ -591,14 +591,20 @@ control, one bit lower, where all three succeed. That pair is what makes the
 limit a measurement instead of a comment, and it caught the first version of
 `jm_nat_shl`, which charged a spare limb for any shift that was not a whole
 number of limbs and so refused a value that fits.
-## Branch and bound's two numbers
+## Branch and bound's six numbers
 
-Both in `src/mip.c` (D288). Neither has been swept beyond the unit suite
-yet: there is no integer instance set in the gate, and a constant with one
-side measured is listed here so that `record-check` holds it to the source
-until the sweep exists.
+All in `src/mip.c`: the first two are D288's, the four under them are the
+root cuts' (D289). The MIP set (`make miplib J=12`, 17 instances,
+`bench/miplib.manifest`) is where a sweep of any of them runs. The rounds
+have theirs; the other five are held to the source by `record-check` with
+what each one waits for stated beside it.
 
 | constant | value | what it decides |
 |---|---|---|
-| `MIP_INT_TOL` | 1e-6 | how far a relaxation's value may sit from the nearest integer and count as integral, in the model's own units. A value inside it is published rounded. Below the primal tolerance it would call integral what the relaxation cannot place; far above it a fractional point would be published as an answer |
-| `MIP_GAP` | 1e-6 | the relative gap that closes the search: stop, and call the answer OPTIMAL, when no open node's bound beats the incumbent by more than `MIP_GAP * (1 + |incumbent|)`, in minimize form. `jaos_set_mip_gap` overrides it; 0 restores it |
+| `MIP_INT_TOL` | 1e-6 | how far a relaxation's value may sit from the nearest integer and count as integral, in the model's own units. A value inside it is published rounded. Below the primal tolerance it would call integral what the relaxation cannot place; far above it a fractional point would be published as an answer. Not swept: every line of `bench/results/miplib.txt` reads `int=0`, so no instance of the set sits near it and a sweep would move nothing |
+| `MIP_GAP` | 1e-6 | the relative gap that closes the search: stop, and call the answer OPTIMAL, when no open node's bound beats the incumbent by more than `MIP_GAP * (1 + |incumbent|)`, in minimize form. `jaos_set_mip_gap` overrides it; 0 restores it. Not swept: every instance of the set closes with the bound equal to the incumbent |
+| `MIP_CUT_ROUNDS` | 1 | rounds of Gomory mixed-integer cuts at the root, one cut per fractional integer column of the relaxation's basis per round; a round that adds nothing ends them, and `jaos_set_mip_cut_rounds` overrides it. **Swept at 0, 1, 2, 3 and 5** over the 17 instances the plain tree of D288 solves, dive off (`bench/measurements/02-189/`, D289). Work against the plain tree, geometric mean of per-instance ratios: **0.660x at 1** (7 better, 8 worse, none past 2x, worst `p0201` at 1.66x); 0.609x at 2, with three past the gate's own regression factor of 2 (`p0201` 4.08x, `misc03` 3.50x, `rgn` 2.31x); 0.706x at 3, with `misc03` at 13.1x, `p0201` at 10.1x and `pk1` failing numerically at the root; 0.839x at 5 with the dive on, `stein45` no longer finishing. One is the setting with the best mean that keeps every instance under 2x. `bell3a`, which the plain tree does not finish in 40 s, finishes at every setting from 1 |
+| `MIP_CUT_AWAY` | 0.01 | a basic integer column is cut only when its fraction sits inside `[AWAY, 1 - AWAY]`: the cut divides by the fraction and by its complement, and a fraction near 0 or 1 gives a cut the relaxation cannot hold to tolerance. The bound Balas, Ceria, Cornuejols and Natraj use (Gomory cuts revisited, 1996). Not swept: held |
+| `MIP_CUT_DROP` | 1e-9 | a coefficient below `DROP` times the cut's largest is folded into the right-hand side through its column's bound, which keeps the cut valid and drops the entry; kept when that bound is infinite. Not swept: held |
+| `MIP_CUT_DYNAMISM` | 1e6 | the largest ratio of a kept cut's largest to smallest coefficient; a cut past it is not added. Not swept: held. The `pk1` failure at three rounds happened under it, so it is not what protects the root from a bad cut; the rounds count is |
+

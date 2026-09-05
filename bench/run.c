@@ -17,7 +17,7 @@
  * whether the units a change removed were units that cost anything (D45).
  *
  * Usage: run [-d DIR] [-m MANIFEST] [-o FILE] [-b FILE] [-w FILE]
- *            [-e optimal|infeasible] [-j N] [instance ...]
+ *            [-e optimal|infeasible|noref|mip] [-j N] [instance ...]
  *   -d DIR       where the .mps files are (default bench/instances)
  *   -m MANIFEST  manifest to read (default bench/netlib.manifest)
  *   -o FILE      write the table here as well as to stdout
@@ -26,7 +26,10 @@
  *   -e WHAT      what the set expects: a verified optimum (default), or
  *                INFEASIBLE for netlib's infeasible subset, where the
  *                verdict is the reference and a reported optimum is the
- *                failure being looked for
+ *                failure being looked for; NOREF for a set with no
+ *                published optimum; MIP for an integer set (D289), scored
+ *                on the manifest's optimum, the checker's primal verdict
+ *                with integrality, and two cold searches agreeing
  *   -j N         solve up to N instances at once, one process each
  *   instance     run only these; default is every instance in the manifest
  *
@@ -232,6 +235,9 @@ typedef struct {
     bool solved;        /* reached a verified optimum */
     bool shape, objective, checker, det;
     long long iters, work;
+    /* Nodes of a branch and bound (D289); 0 on an LP set, where the
+     * baseline does not carry the column. */
+    long long nodes;
     /* The suboptimality this answer carries as a fraction of its own
      * objective. Tracked here because `checker` cannot see it: the whole of
      * D47 is that such a term makes `gap_positive` stop being a bound while
@@ -372,10 +378,10 @@ static bool baseline_load(const char *path)
          * older baseline should cost the reader that one check, not the
          * whole run. */
         o.rsub = -1.0;
-        int got = sscanf(line, "%63s %23s %d %d %d %d %d %lld %lld %lf",
+        int got = sscanf(line, "%63s %23s %d %d %d %d %d %lld %lld %lf %lld",
                          o.name, o.status, &solved, &shape, &obj, &chk, &det,
-                         &o.iters, &o.work, &o.rsub);
-        if (got != 9 && got != 10)
+                         &o.iters, &o.work, &o.rsub, &o.nodes);
+        if (got != 9 && got != 10 && got != 11)
             continue;
         o.solved = solved != 0;
         o.shape = shape != 0;
@@ -391,7 +397,7 @@ static bool baseline_load(const char *path)
 /* `noref` is passed rather than read off `g_expect`, which is declared below
  * this point — and passing it is the better shape anyway: what the header says
  * is an argument about this file, not ambient state the writer reaches for. */
-static bool baseline_write(const char *path, bool noref)
+static bool baseline_write(const char *path, bool noref, bool mip)
 {
     FILE *f = fopen(path, "w");
     if (f == nullptr) {
@@ -416,17 +422,23 @@ static bool baseline_write(const char *path, bool noref)
                    "# This set has no published optimum, so the `objective`\n"
                    "# column is 0 throughout and means NOT VERIFIED, never\n"
                    "# wrong. Run with `-e noref`; see TODO.md section 4.\n");
+    /* The node column exists on a MIP set only: an LP baseline is read by
+     * older readers as ten fields, and a column every LP set would carry
+     * as 0 is a format change for nothing. */
     fprintf(f, "#\n"
                "# name status solved shape objective checker det iters work "
-               "dropped\n");
+               "dropped%s\n", mip ? " nodes" : "");
     for (int i = 0; i < g_ngot; i++) {
         const outcome *o = &g_got[i];
         /* The dropped term at full precision, because it is compared as a
          * number and a rounded one would make a ratio out of the rounding. */
-        fprintf(f, "%-12s %-12s %d %d %d %d %d %lld %lld %.17g\n",
+        fprintf(f, "%-12s %-12s %d %d %d %d %d %lld %lld %.17g",
                 o->name, o->status, o->solved ? 1 : 0, o->shape ? 1 : 0,
                 o->objective ? 1 : 0, o->checker ? 1 : 0, o->det ? 1 : 0,
                 o->iters, o->work, o->rsub);
+        if (mip)
+            fprintf(f, " %lld", o->nodes);
+        fputc('\n', f);
     }
     fclose(f);
     return true;
@@ -452,6 +464,13 @@ static void record(const char *name, const char *status, bool solved,
     o->rsub = rsub;
 }
 
+/* The node count of the outcome just recorded (D289). */
+static void record_nodes(long long nodes)
+{
+    if (g_ngot > 0)
+        g_got[g_ngot - 1].nodes = nodes;
+}
+
 /* What the gate expects an instance to come back as. The standard and
  * Kennington sets are solved to a verified optimum; the infeasible set asks
  * a different question entirely — that JAOS says a model with no feasible
@@ -469,7 +488,11 @@ static void record(const char *name, const char *status, bool solved,
  * is recorded false throughout, meaning "not verified" rather than "wrong",
  * and the console prints `objective=none` so the two cannot be confused. */
 typedef enum {
-    EXPECT_OPTIMAL, EXPECT_INFEASIBLE, EXPECT_OPTIMAL_NOREF
+    EXPECT_OPTIMAL, EXPECT_INFEASIBLE, EXPECT_OPTIMAL_NOREF,
+    /* A mixed-integer set (D289): solved to the manifest's optimum, the
+     * checker's primal verdict with integrality in it, and two cold
+     * searches agreeing; see run_one_mip. */
+    EXPECT_MIP
 } expectation;
 
 static expectation g_expect = EXPECT_OPTIMAL;
@@ -587,12 +610,167 @@ static bool run_one_infeasible(const entry *e, const char *dir, tally *t)
     return shape && refused && det;
 }
 
+/* One mixed-integer instance (D289). What the gate asks of it: the shape,
+ * the reference optimum from the manifest, the checker's primal verdict
+ * with integrality in it, and two cold searches agreeing node for node
+ * and bit for bit. The dual verdict is not asked: the duals a MIP answer
+ * carries are its final relaxation's, whose bounds are the branching's
+ * (jaos.h), and the suboptimality bound is that relaxation's too. The
+ * tree's size goes in the record as `nodes=` and `cuts=` and the baseline
+ * keeps the node count, so a search that changed shows as a moved number
+ * even when the answer did not move. */
+static bool run_one_mip(const entry *e, const char *dir, tally *t)
+{
+    char path[512];
+    if (!instance_path(path, sizeof path, dir, e->name)) {
+        emit("%-12s PATH-TOO-LONG\n", e->name);
+        t->instances++;
+        t->failed++;
+        return false;
+    }
+
+    jaos_model *m = nullptr;
+    if (jaos_model_new(&m) != JAOS_OK)
+        return false;
+
+    t->instances++;
+
+    jaos_status st = jaos_read_mps(m, path);
+    if (st != JAOS_OK) {
+        emit("%-12s READ-FAILED  %s | %s\n", e->name,
+                jaos_status_str(st),
+                jaos_model_error(m) ? jaos_model_error(m) : "");
+        jaos_model_free(m);
+        t->failed++;
+        record(e->name, "READ-FAILED", false, false, false, false, false, 0, 0,
+               -1.0);
+        return false;
+    }
+
+    int64_t nr = jaos_num_row(m), nc = jaos_num_col(m);
+    bool shape = (nr == e->rows && nc == e->cols);
+    if (shape)
+        t->shape_ok++;
+
+    const double t0 = now_seconds();
+    st = jaos_solve(m);
+    const double dt = now_seconds() - t0;
+    jaos_mip_report mr;
+    memset(&mr, 0, sizeof mr);
+    (void)jaos_mip_result(m, &mr);
+    if (st != JAOS_OK) {
+        stamp(e->name, dt);
+        emit("%-12s SOLVE-ERROR  %s | %s\n", e->name,
+                jaos_status_str(st),
+                jaos_model_error(m) ? jaos_model_error(m) : "");
+        jaos_model_free(m);
+        t->failed++;
+        record(e->name, "SOLVE-ERROR", false, shape, false, false, false, 0, 0,
+               -1.0);
+        record_nodes(mr.nodes);
+        return false;
+    }
+
+    jaos_solve_status ss = jaos_status_of(m);
+    int64_t iters = jaos_iterations(m), work = jaos_work_units(m);
+
+    if (ss != JAOS_SOLVE_OPTIMAL) {
+        stamp(e->name, dt);
+        emit("%-12s %-10s rows=%lld cols=%lld shape=%s iters=%lld "
+                     "work=%lld nodes=%lld cuts=%lld | %s\n",
+                e->name, jaos_solve_status_str(ss), (long long)nr,
+                (long long)nc, shape ? "ok" : "MISMATCH", (long long)iters,
+                (long long)work, (long long)mr.nodes, (long long)mr.cuts,
+                jaos_model_error(m) ? jaos_model_error(m) : "");
+        record(e->name, jaos_solve_status_str(ss), false, shape, false, false,
+               false, (long long)iters, (long long)work, -1.0);
+        record_nodes(mr.nodes);
+        jaos_model_free(m);
+        t->failed++;
+        return false;
+    }
+    t->solved++;
+
+    double obj = 0.0;
+    (void)jaos_objective(m, &obj);
+    const double expected = e->reference + e->objconst;
+    const bool obj_ok = objective_accepted(obj, expected);
+    if (obj_ok)
+        t->objective_ok++;
+
+    double *x = calloc((size_t)(nc > 0 ? nc : 1), sizeof(double));
+    double *y = calloc((size_t)(nr > 0 ? nr : 1), sizeof(double));
+    bool check_ok = false;
+    jaos_check_report rep;
+    memset(&rep, 0, sizeof rep);
+    if (x != nullptr && y != nullptr &&
+        jaos_solution(m, x, nullptr, y, nullptr) == JAOS_OK &&
+        jaos_check_solution(m, x, y, CHECK_TOL, &rep) == JAOS_OK)
+        check_ok = rep.primal_feasible;
+    if (check_ok)
+        t->checker_ok++;
+
+    uint64_t d1 = digest(x, nc, 1469598103934665603u);
+    d1 = digest(y, nr, d1);
+    const uint64_t b1 = basis_digest(m, 1469598103934665603u);
+
+    /* The second search is cold, like the LP path's second solve: the
+     * basis is cleared so the root starts from nothing, and the whole
+     * tree has to come out the same. */
+    jaos_clear_basis(m);
+    st = jaos_solve(m);
+    double obj2 = 0.0;
+    (void)jaos_objective(m, &obj2);
+    jaos_mip_report mr2;
+    memset(&mr2, 0, sizeof mr2);
+    (void)jaos_mip_result(m, &mr2);
+    bool det = false;
+    if (st == JAOS_OK && jaos_status_of(m) == ss &&
+        jaos_iterations(m) == iters && jaos_work_units(m) == work &&
+        mr2.nodes == mr.nodes && mr2.cuts == mr.cuts &&
+        memcmp(&obj, &obj2, sizeof obj) == 0 &&
+        jaos_solution(m, x, nullptr, y, nullptr) == JAOS_OK) {
+        uint64_t d2 = digest(x, nc, 1469598103934665603u);
+        d2 = digest(y, nr, d2);
+        det = (d1 == d2) && (b1 == basis_digest(m, 1469598103934665603u));
+    }
+    if (det)
+        t->deterministic++;
+
+    stamp(e->name, dt);
+    emit("%-12s optimal    rows=%lld cols=%lld shape=%s iters=%lld "
+            "work=%lld nodes=%lld cuts=%lld"
+            " obj=%.17g ref=%.17g[%s] objective=%s checker=%s"
+            " (col=%.3g row=%.3g int=%.3g)"
+            " det=%s digest=%016llx basis=%016llx\n",
+            e->name, (long long)nr, (long long)nc, shape ? "ok" : "MISMATCH",
+            (long long)iters, (long long)work, (long long)mr.nodes,
+            (long long)mr.cuts, obj, expected, e->source,
+            obj_ok ? "ok" : "OUT-OF-TOLERANCE",
+            check_ok ? "ok" : "REJECTED",
+            rep.max_col_violation, rep.max_row_violation,
+            rep.max_integrality_violation,
+            det ? "ok" : "DIVERGED", (unsigned long long)d1,
+            (unsigned long long)b1);
+
+    record(e->name, "optimal", true, shape, obj_ok, check_ok, det,
+           (long long)iters, (long long)work, -1.0);
+    record_nodes(mr.nodes);
+
+    free(x);
+    free(y);
+    jaos_model_free(m);
+    return shape && obj_ok && check_ok && det;
+}
+
 /* One instance, start to finish. Returns false if anything the gate asks for
  * did not hold. */
 static bool run_one(const entry *e, const char *dir, tally *t)
 {
     if (g_expect == EXPECT_INFEASIBLE)
         return run_one_infeasible(e, dir, t);
+    if (g_expect == EXPECT_MIP)
+        return run_one_mip(e, dir, t);
 
     char path[512];
     if (!instance_path(path, sizeof path, dir, e->name)) {
@@ -843,6 +1021,15 @@ static int64_t compare_to_baseline(bool full_run)
             regressed++;
         }
 
+        /* The tree's size, on a MIP set. Said whenever it moved, because a
+         * search that changed with the answer unmoved is exactly what the
+         * digest cannot show; not counted, since the work above judges what
+         * the change cost. */
+        if (b->solved && g->solved && b->nodes > 0 && g->nodes != b->nodes)
+            emit("%-12s changed      nodes: %lld -> %lld (work %.2fx)\n",
+                 g->name, b->nodes, g->nodes,
+                 b->work > 0 ? (double)g->work / (double)b->work : 0.0);
+
         /* And the guarantee behind the `checker` predicate, which the
          * predicate itself cannot report on. Same shape as work above and for
          * the same reason: it degrades quietly. A baseline written before this
@@ -937,10 +1124,10 @@ static void run_worker(const entry *e, const char *dir, const char *tmp, int k)
             (long long)ct.failed);
     if (g_ngot > 0) {
         const outcome *o = &g_got[0];
-        fprintf(mf, "%s %s %d %d %d %d %d %lld %lld %.17g\n", o->name,
+        fprintf(mf, "%s %s %d %d %d %d %d %lld %lld %.17g %lld\n", o->name,
                 o->status, o->solved ? 1 : 0, o->shape ? 1 : 0,
                 o->objective ? 1 : 0, o->checker ? 1 : 0, o->det ? 1 : 0,
-                o->iters, o->work, o->rsub);
+                o->iters, o->work, o->rsub, o->nodes);
     }
     fclose(mf);
     _exit(0);
@@ -975,12 +1162,14 @@ static bool collect_worker(const entry *e, const char *tmp, int k, tally *t,
     if (nout > 0) {
         char oname[64], ostat[24];
         int s = 0, sh = 0, ob = 0, ck = 0, dt = 0;
-        long long it = 0, wk = 0;
+        long long it = 0, wk = 0, nd = 0;
         double dr = -1.0;
-        if (fscanf(mf, "%63s %23s %d %d %d %d %d %lld %lld %lf", oname, ostat,
-                   &s, &sh, &ob, &ck, &dt, &it, &wk, &dr) == 10)
+        if (fscanf(mf, "%63s %23s %d %d %d %d %d %lld %lld %lf %lld", oname,
+                   ostat, &s, &sh, &ob, &ck, &dt, &it, &wk, &dr, &nd) == 11) {
             record(oname, ostat, s != 0, sh != 0, ob != 0, ck != 0, dt != 0,
                    it, wk, dr);
+            record_nodes(nd);
+        }
     }
     fclose(mf);
 
@@ -1143,9 +1332,11 @@ int main(int argc, char **argv)
                 g_expect = EXPECT_INFEASIBLE;
             else if (strcmp(want, "noref") == 0)
                 g_expect = EXPECT_OPTIMAL_NOREF;
+            else if (strcmp(want, "mip") == 0)
+                g_expect = EXPECT_MIP;
             else {
                 fprintf(stderr,
-                        "-e takes optimal, infeasible or noref, not %s\n",
+                        "-e takes optimal, infeasible, noref or mip, not %s\n",
                         want);
                 return 2;
             }
@@ -1239,7 +1430,7 @@ int main(int argc, char **argv)
     for (int k = 0; k < n_entries; k++) {
         const entry *e = &manifest_entries[k];
         const bool noref = strcmp(e->source, "none") == 0;
-        if (noref && g_expect == EXPECT_OPTIMAL) {
+        if (noref && (g_expect == EXPECT_OPTIMAL || g_expect == EXPECT_MIP)) {
             fprintf(stderr, "%s: manifest carries no reference optimum "
                     "(source `none`) and this run scores against one. "
                     "Use -e noref.\n", e->name);
@@ -1331,7 +1522,8 @@ int main(int argc, char **argv)
         emit("\nbaseline: NOT COMPARED (no baseline given)\n");
 
     if (write_baseline != nullptr &&
-        !baseline_write(write_baseline, g_expect == EXPECT_OPTIMAL_NOREF)) {
+        !baseline_write(write_baseline, g_expect == EXPECT_OPTIMAL_NOREF,
+                        g_expect == EXPECT_MIP)) {
         if (g_record != nullptr)
             fclose(g_record);
         return 2;

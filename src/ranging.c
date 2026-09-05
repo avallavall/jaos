@@ -33,7 +33,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-typedef struct {
+struct jm_tableau {
     jaos_model *m;
     int64_t nrow, ncol, nvar;   /* nvar = ncol + nrow; variable v >= ncol
                                    is the logical of row v - ncol */
@@ -53,7 +53,8 @@ typedef struct {
     int64_t *touched;           /* [ncol] which alpha slots are live */
     unsigned char *seen;        /* [ncol] the same, as a flag */
     jm_work w;                  /* counted and not reported (jaos.h) */
-} rg;
+};
+typedef struct jm_tableau rg;
 
 static void rg_free(rg *g)
 {
@@ -579,4 +580,100 @@ jaos_status jaos_bound_ranging(jaos_model *m, double *lower_lo,
                                double *upper_hi)
 {
     return rg_bounds(m, false, lower_lo, lower_hi, upper_lo, upper_hi);
+}
+
+/* --- The tableau, for the cut generator ------------------------------- */
+
+/* The factorization above, handed to src/mip.c so a Gomory cut can read a
+ * row of B^-1 [A | -I] over the model as loaded, in the model's own units
+ * (D289). Nothing here is reachable through the public header. */
+
+jaos_status jm_tableau_build(jaos_model *m, jm_tableau **out)
+{
+    *out = nullptr;
+    if (!rg_has_optimum(m)) {
+        jm_set_err(m, "no optimal basis to read a tableau from");
+        return JAOS_ERR_INVALID_INPUT;
+    }
+    rg *g = calloc(1, sizeof *g);
+    if (g == nullptr)
+        return JAOS_ERR_OUT_OF_MEMORY;
+    const jaos_status st = rg_build(m, g);
+    if (st != JAOS_OK) {
+        rg_free(g);
+        free(g);
+        return st;
+    }
+    *out = g;
+    return JAOS_OK;
+}
+
+void jm_tableau_free(jm_tableau *g)
+{
+    if (g == nullptr)
+        return;
+    rg_free(g);
+    free(g);
+}
+
+int64_t jm_tableau_position(const jm_tableau *g, int64_t v)
+{
+    return g->pos[v];
+}
+
+int64_t jm_tableau_variable(const jm_tableau *g, int64_t p)
+{
+    return g->basis[p];
+}
+
+double jm_tableau_value(const jm_tableau *g, int64_t p)
+{
+    return g->xb[p];
+}
+
+int64_t jm_tableau_work(const jm_tableau *g)
+{
+    return g->w.units;
+}
+
+/* Row p of the tableau: x_B(p) + sum_v row[v] x_v = value, over every
+ * nonbasic variable v (a basic's entry is 0), in the model's own units.
+ * The row of the inverse comes back in the scaled space, e_p' B_s^-1, and
+ * an entry of the scaled tableau is (1/scale_B(p)) a~_v scale_v, so each
+ * is put back by scale_B(p) / scale_v; a logical's scaled column is -e_i
+ * (rg_build) and its scale 1/rho_i (rg_vscale). The row is priced over
+ * the rows the inverse's row reaches, ascending (D35), so it is the same
+ * on every machine (D8). */
+jaos_status jm_tableau_row(jm_tableau *g, int64_t p, double *row)
+{
+    const jaos_model *m = g->m;
+    const int64_t nrow = g->nrow, ncol = g->ncol;
+    memset(row, 0, (size_t)g->nvar * sizeof *row);
+    memset(g->vec, 0, (size_t)nrow * sizeof *g->vec);
+    g->vec[p] = 1.0;
+    int64_t npat = 0, words = 0;
+    jm_lu_btran_sparse(&g->lu, g->vec, &g->w, g->pat, &npat);
+    npat = jm_pattern_order(npat, g->pat, g->mark, nrow, &words);
+    const double sb = rg_vscale(g, g->basis[p]);
+    for (int64_t t = 0; t < npat; t++) {
+        const int64_t i = g->pat[t];
+        const double ri = g->vec[i];
+        g->vec[i] = 0.0;
+        if (ri == 0.0)
+            continue;
+        /* Structurals: sum_i r~_i rho_i a_ij, then times scale_B / gamma_j
+         * against the scaled column's gamma_j: the two cancel. */
+        const double t_i = ri * g->rho[i] * sb;
+        for (int64_t k = m->ar_start[i]; k < m->ar_start[i + 1]; k++) {
+            const int64_t j = m->ar_index[k];
+            if (g->pos[j] < 0)
+                row[j] += t_i * m->ar_value[k];
+        }
+        /* The logical of row i, when nonbasic: -r~_i times scale_B over
+         * its own scale 1/rho_i. */
+        if (g->pos[ncol + i] < 0)
+            row[ncol + i] = -ri * sb * g->rho[i];
+    }
+    jm_work_add(&g->w, npat);
+    return JAOS_OK;
 }

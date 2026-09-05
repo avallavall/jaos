@@ -296,6 +296,7 @@ and you have the argument. Jump to the entry for the numbers behind it.
 - **[D286](#d286--a-proved-basis-gives-its-coordinates-exactly-and-that-is-an-exact-answer-for-the-bases-the-proof-reaches-not-an-exact-solver)** — A proved basis gives its coordinates exactly, and that is an exact answer for the bases the proof reaches, not an exact solver
 - **[D287](#d287--a-model-copies-whole-answer-excluded-so-a-what-if-or-a-branch-starts-from-the-basis-and-not-from-nothing)** — A model copies whole, answer excluded, so a what-if or a branch starts from the basis and not from nothing
 - **[D288](#d288--integer-columns-solve-by-branch-and-bound-over-the-dual-simplex-warm-from-the-parent-best-bound-first-and-nothing-else-yet)** — Integer columns solve by branch and bound over the dual simplex, warm from the parent, best bound first, and nothing else yet
+- **[D289](#d289--a-mip-set-of-17-miplib-3-instances-one-round-of-gomory-cuts-at-the-root-and-a-dive-refused-at-1125x)** — A MIP set of 17 MIPLIB 3 instances, one round of Gomory cuts at the root, and a dive refused at 1.125x
 
 ---
 
@@ -21244,3 +21245,60 @@ whose relaxation is worth 10.67 answers 9, the model whose relaxation is
 INFEASIBLE, and two solves of the same tree agree node for node and bit
 for bit. What is not measured yet is any integer instance set; the two
 constants are listed in `docs/tolerances.md` with that said.
+
+## D289 — A MIP set of 17 MIPLIB 3 instances, one round of Gomory cuts at the root, and a dive refused at 1.125x
+
+**The gap.** D288 built the tree and measured it on four hand-enumerated
+models. Its own entry said what was missing: an integer instance set, so
+the tree is measured and not only enumerated; a dive from each selected
+node, named as the standard first improvement; and cuts at the root.
+
+**What it does now.** `bench/miplib.manifest` pins 17 members of MIPLIB
+3 (the ones of 38 tried that the plain tree solves inside 60 s on this
+host), served as plain gzipped MPS by ZIB's mirror and scored under a new
+runner mode, `-e mip`: the catalogue's optimum, the checker's primal
+verdict with integrality in it, and two cold searches agreeing node for
+node and bit for bit; the baseline carries `nodes` beside `work`, so a
+tree that changed shape with the answer unmoved is said. `make miplib
+J=12` runs it, `make miplib-baseline` rewrites it, and it is not a gate
+set. The root gets Gomory mixed-integer cuts, one round by default: for
+every basic integer column whose value is fractional, the cut Balas,
+Ceria, Cornuejols and Natraj state (Gomory cuts revisited, OR Letters
+19, 1996) is read off its tableau row, which `src/ranging.c` now hands
+to `src/mip.c` as `jm_tableau`, rewritten over the model's own columns
+and added as a row of the private copy for the whole tree. A dive from
+each selected node exists behind `jaos_set_mip_dive` and `--dive`, and
+is off. `jaos_set_mip_cut_rounds`, `--cut-rounds`, the `cuts` line and
+field, and both switches in Python.
+
+**Evidence** (`bench/measurements/02-189/`). Every arm is the same
+binary under its switches, and the control arm (`--cut-rounds 0
+--no-dive` on the tree before the default flipped) reproduces the plain
+build of D288 node for node on all 20 instances, which is what makes the
+rest a measurement. Work against that control, geometric mean of
+per-instance ratios over the 17 solved by both, dive off: **0.660x at
+one round** (7 better, 8 worse, none past 2x, worst `p0201` 1.66x, best
+`mod010` 0.056x and `khb05250` 0.116x); 0.609x at two rounds with three
+instances past the gate's own regression factor (`p0201` 4.08x, `misc03`
+3.50x, `rgn` 2.31x); 0.706x at three, `misc03` 13.1x and `pk1` failing
+numerically at the root; 0.839x at five with the dive, `stein45` no
+longer finishing. `bell3a`, unsolved by the plain tree in 40 s, solves
+at every setting from one round. One round is the setting with the best
+mean that keeps every instance under 2x; that is the whole argument, and
+the tails at two are why the better mean lost.
+
+**The dive is refused.** Nearer-side child first, sibling to the open
+set, until a prune: over the same 17 it reads **1.125x** with the cuts
+off, better on one instance (`enigma` 0.80x) and worse on six (`blend2`
+1.98x, `misc06` 1.68x, `air03` 1.43x), and 1.09x on top of one round of
+cuts (0.717x against 0.660x). The mechanism is the usual one, an early
+incumbent, and on this set the incumbent is not what limits the tree.
+`bench/refusals.txt` carries the reopen condition and
+`02-189/retest-dive.sh` re-tests it.
+
+**What it is not.** No other cut family, no cuts below the root, no
+heuristics, and the four cut constants beyond the rounds are held, not
+swept (`docs/tolerances.md`). With a cut in the tree the statuses a MIP
+answer publishes are the relaxation's over the model's own rows and may
+not form a basis of the model; `jaos.h` says so. No LP path is touched:
+all three gate sets are byte-identical.

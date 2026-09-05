@@ -235,6 +235,7 @@ class _MipReport(ctypes.Structure):
         ("has_incumbent", ctypes.c_bool),
         ("incumbent", _D),
         ("bound", _D),
+        ("cuts", _I64),
     ]
 
 
@@ -375,6 +376,8 @@ _sig("jaos_row_index", ctypes.c_int, _VP, _CS, _P(_I64))
 _sig("jaos_set_col_integer", ctypes.c_int, _VP, _I64, ctypes.c_bool)
 _sig("jaos_col_integer", ctypes.c_int, _VP, _I64, _P(ctypes.c_bool))
 _sig("jaos_set_mip_gap", ctypes.c_int, _VP, _D)
+_sig("jaos_set_mip_dive", ctypes.c_int, _VP, ctypes.c_bool)
+_sig("jaos_set_mip_cut_rounds", ctypes.c_int, _VP, _I64)
 _sig("jaos_mip_result", ctypes.c_int, _VP, _P(_MipReport))
 _sig("jaos_mip_incumbent", ctypes.c_int, _VP, _P(_D), _P(_D))
 _sig("jaos_model_name", ctypes.c_int, _VP, ctypes.c_char_p, _I64)
@@ -752,6 +755,16 @@ class Model:
         """The relative gap that closes a branch and bound; 0 restores the
         default of 1e-6."""
         self._check(_lib.jaos_set_mip_gap(self._handle(), float(gap)))
+
+    def set_mip_dive(self, on=True):
+        """Whether a selected node is dived from. Off by default: the dive
+        measured 1.125x the work of the plain best-bound order (D289)."""
+        self._check(_lib.jaos_set_mip_dive(self._handle(), bool(on)))
+
+    def set_mip_cut_rounds(self, rounds):
+        """Rounds of Gomory cuts at the root (D289): 0 for none, a
+        negative value for the default of 1."""
+        self._check(_lib.jaos_set_mip_cut_rounds(self._handle(), int(rounds)))
 
     def mip_report(self):
         rep = _MipReport()
@@ -1949,6 +1962,43 @@ class Problem:
     def set_dual_tolerance(self, tol):
         self._m.set_dual_tolerance(tol)
         return self
+
+    # -- branch and bound (D288, D289) ---------------------------------------
+
+    def set_mip_gap(self, gap):
+        """The relative gap that closes a branch and bound; 0 restores the
+        default of 1e-6."""
+        self._m.set_mip_gap(gap)
+        return self
+
+    def set_mip_dive(self, on=True):
+        """Whether a selected node is dived from; off by default (D289)."""
+        self._m.set_mip_dive(on)
+        return self
+
+    def set_mip_cut_rounds(self, rounds):
+        """Rounds of Gomory cuts at the root: 0 for none, negative for the
+        default of 1 (D289)."""
+        self._m.set_mip_cut_rounds(rounds)
+        return self
+
+    def mip_report(self):
+        """What the last branch and bound did: nodes, lp_solves,
+        has_incumbent, incumbent, bound, cuts. Raises while the problem is
+        ahead of its last solve."""
+        if self._pending():
+            raise ValueError("the problem changed since the last solve; "
+                             "call solve() before reading values")
+        return self._m.mip_report()
+
+    def mip_incumbent(self):
+        """The best integer point the last branch and bound found, proved or
+        not, as (objective, {variable: value}). Raises when there is none."""
+        if self._pending():
+            raise ValueError("the problem changed since the last solve; "
+                             "call solve() before reading values")
+        obj, x = self._m.mip_incumbent()
+        return obj, {v: x[i] for i, v in enumerate(self._vars)}
 
     def set_log_callback(self, fn, level=LogLevel.SUMMARY):
         self._m.set_log_callback(fn, level)
