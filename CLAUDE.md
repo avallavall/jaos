@@ -71,7 +71,7 @@ spends an hour of campaigns on a record format:
 | what changed | what runs |
 |---|---|
 | `src/` or `include/`, any code | all seven steps, `numerics-reviewer` included |
-| `bench/*.c`, `tools/`, `docs/`, the four documents, the Makefile | `make configs`, then the three sets once; digests must be byte-identical unless the change is to a campaign's own record format |
+| `bench/*.c`, `cli/`, `tests/cli.sh`, `tools/`, `docs/`, the four documents, the Makefile | `make configs`, then the three sets once; digests must be byte-identical unless the change is to a campaign's own record format |
 | comments only | `python3 tools/strip-comments.py ORIG NEW` must print `IDENTICAL CODE` (no code token moved), then `make test` (which runs `record-check`) and the three sets once; every digest and work figure byte-identical |
 
 **The record is checked with the code.** `make test` runs `make record-check`

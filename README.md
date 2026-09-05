@@ -205,7 +205,7 @@ GCC 14 or later, Linux only. On Windows, use WSL.
 
 ```
 make            # the static library, build/release/libjaos.a
-make test       # unit suite, plus a check that the documents match the code
+make test       # unit suite and the CLI's test, plus a check that the documents match the code
 make sanitize   # unit suite under ASan and UBSan
 make configs    # the suite in all five build configurations, from clean
 make netlib     # the 94-instance acceptance gate (fetches the instances first)

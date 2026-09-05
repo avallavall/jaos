@@ -26,7 +26,7 @@ are there for reference and their entries come from public documentation, not
 from measurement here. CPLEX, Xpress, COPT and Mosek are in the same class as
 Gurobi and are left out only to keep the table readable.
 
-*JAOS's column was last checked against `src/` on 2026-09-04. The other
+*JAOS's column was last checked against `src/` and `cli/` on 2026-09-05. The other
 columns were last checked against their published documentation on
 2026-09-04, and that pass moved six cells — two of them corrections rather
 than news, because HiGHS's and SCIP's IIS both predate the previous check.

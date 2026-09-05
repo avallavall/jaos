@@ -5,7 +5,7 @@ says why closed questions closed, `CHANGELOG.md` says what landed, `bench/`
 says what it costs. This file says what is next. When something lands, its
 line leaves this file in the same commit.
 
-## Where the last session stopped — 2026-09-03
+## Where the last session stopped — 2026-09-05
 
 **2026-09-05, later still: a command-line tool, `cli/jaos.c`.** Built in a
 separate worktree while D283 landed here, over the public header only.
