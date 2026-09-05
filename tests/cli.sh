@@ -175,8 +175,14 @@ grep -q '^status optimal$' "$tmp/a.sol" \
 
 expect_exit 1 "--solution on an infeasible model keeps exit 1" \
     "$JAOS" solve "$DATA/t1.mps" --solution "$tmp/b.sol"
-[ ! -e "$tmp/b.sol" ] && pass "and writes no file" \
-    || flunk "a solution file was written for an infeasible model"
+grep -q '^status infeasible$' "$tmp/b.sol" 2>/dev/null \
+    && pass "and writes the certificate (D285)" \
+    || flunk "no certificate file for an infeasible model: $(head -n 3 "$tmp/b.sol" 2>&1)"
+# A solve cut by a budget has no answer of any kind, so no file.
+expect_exit 3 "--solution on a work-limited solve keeps exit 3" \
+    "$JAOS" solve "$DATA/solve1.mps" --work-limit 1 --solution "$tmp/w.sol"
+[ ! -e "$tmp/w.sol" ] && pass "and writes no file" \
+    || flunk "a solution file was written for a solve that did not finish"
 [ -n "$err" ] && pass "and says so on stderr" \
     || flunk "nothing on stderr about the missing solution file"
 
@@ -247,18 +253,22 @@ for k in "primal_feasible yes" "dual_feasible yes" "checked_duals yes"; do
     [ "$(line_of "${k% *}")" = "$k" ] && pass "it prints '$k'" \
         || flunk "check printed '$(line_of "${k% *}")', wanted '$k'"
 done
-[ "$(printf '%s\n' "$out" | wc -l)" -eq 18 ] \
-    && pass "check prints the report's 18 fields" \
+[ "$(printf '%s\n' "$out" | head -n 1)" = "status optimal" ] \
+    && pass "check says first what kind of answer the file holds" \
+    || flunk "check began with '$(printf '%s\n' "$out" | head -n 1)'"
+[ "$(printf '%s\n' "$out" | wc -l)" -eq 19 ] \
+    && pass "check prints the status and the report's 18 fields" \
     || flunk "check printed $(printf '%s\n' "$out" | wc -l) lines"
 "$JAOS" check "$DATA/solve1.mps" "$tmp/a.sol" > "$tmp/chk1"
 "$JAOS" check "$DATA/solve1.mps" "$tmp/a.sol" > "$tmp/chk2"
 cmp -s "$tmp/chk1" "$tmp/chk2" && pass "two check runs agree byte for byte" \
     || { flunk "two check runs differ"; diff "$tmp/chk1" "$tmp/chk2"; }
 
-# The same answer with C1 pushed to 400, past its bound of 100, is not
-# primal feasible, and it is the checker that says so, not the reader.
-sed 's/^col C1 [^ ]* /col C1 400 /' "$tmp/a.sol" > "$tmp/bad.sol"
-grep -q '^col C1 400 ' "$tmp/bad.sol" || flunk "the tampered file was not built"
+# The same answer with X1 pushed to 400, past its bound of 100, is not
+# primal feasible, and it is the checker that says so, not the reader. The
+# record carries the file's own column name (D284).
+sed 's/^col X1 [^ ]* /col X1 400 /' "$tmp/a.sol" > "$tmp/bad.sol"
+grep -q '^col X1 400 ' "$tmp/bad.sol" || flunk "the tampered file was not built"
 expect_exit 1 "check of an infeasible answer exits 1" \
     "$JAOS" check "$DATA/solve1.mps" "$tmp/bad.sol"
 [ "$(line_of primal_feasible)" = "primal_feasible no" ] \
@@ -280,16 +290,53 @@ expect_exit 5 "check --tol refuses a word" \
 [ "$faulty" -eq 0 ] && expect_exit 0 "check --tol takes a number" \
     "$JAOS" check "$DATA/solve1.mps" "$tmp/a.sol" --tol 1e-6
 
+# An infeasible solve writes its certificate to the solution file, and
+# check judges that certificate from the model alone (D285). t1.mps is
+# infeasible; its file says so and carries one multiplier per row.
+expect_exit 1 "solve --solution on an infeasible model exits 1" \
+    "$JAOS" solve "$DATA/t1.mps" --solution "$tmp/t1.sol"
+grep -q '^status infeasible$' "$tmp/t1.sol" \
+    && pass "and writes a file that says infeasible" \
+    || flunk "t1.sol: $(head -n 3 "$tmp/t1.sol" 2>&1)"
+[ "$(grep -c '^ray \(LIM1\|LIM2\|EQ1\) ' "$tmp/t1.sol")" -eq 3 ] \
+    && pass "with one ray record per row, under the file's names" \
+    || flunk "ray records: $(grep '^ray' "$tmp/t1.sol")"
+expect_exit 0 "check of a certificate exits 0" \
+    "$JAOS" check "$DATA/t1.mps" "$tmp/t1.sol"
+[ "$(printf '%s\n' "$out" | head -n 1)" = "status infeasible" ] \
+    && pass "and says the file holds a certificate" \
+    || flunk "check began with '$(printf '%s\n' "$out" | head -n 1)'"
+[ "$(line_of certified)" = "certified yes" ] && pass "and certifies it" \
+    || flunk "check printed '$(line_of certified)'"
+for k in sup_columns inf_rows gap; do
+    [ -n "$(line_of $k)" ] && pass "it prints a $k line" \
+        || flunk "no $k line in: $out"
+done
+# The same certificate with every multiplier zeroed proves nothing, and it
+# is the checker that says so: the reader takes it.
+sed 's/^ray \([^ ]*\) .*/ray \1 0/' "$tmp/t1.sol" > "$tmp/t1zero.sol"
+expect_exit 1 "check of a zeroed certificate exits 1" \
+    "$JAOS" check "$DATA/t1.mps" "$tmp/t1zero.sol"
+[ "$(line_of certified)" = "certified no" ] && pass "and says it certifies nothing" \
+    || flunk "check printed '$(line_of certified)'"
+expect_exit 5 "check of a certificate against another model exits 5" \
+    "$JAOS" check "$DATA/solve1.mps" "$tmp/t1.sol"
+
 # -------------------------------------------------------------------- iis
 expect_exit 0 "iis of an infeasible model exits 0" "$JAOS" iis "$DATA/t1.mps"
 [ "$(printf '%s\n' "$out" | head -n 1)" = "status infeasible" ] \
     && pass "its first line is the status" \
     || flunk "iis began with '$(printf '%s\n' "$out" | head -n 1)'"
 members=$(line_of members | cut -d' ' -f2)
-sides=$(printf '%s\n' "$out" | grep -c '^\(row\|col\) [0-9]* \(lower\|upper\)$')
+sides=$(printf '%s\n' "$out" | grep -c '^\(row\|col\) [^ ]* \(lower\|upper\)$')
 [ -n "$members" ] && [ "$members" -ge 1 ] && [ "$sides" -eq "$members" ] \
     && pass "one side line per member ($members)" \
     || flunk "members=$members but $sides side lines"
+# Sides are named as the file names them (D284): t1's rows are LIM1, LIM2
+# and EQ1 and its columns X1..X3, and nothing else may appear.
+[ "$(printf '%s\n' "$out" | grep -c '^\(row \(LIM1\|LIM2\|EQ1\)\|col X[123]\) \(lower\|upper\)$')" -eq "$sides" ] \
+    && pass "every side carries the file's own name" \
+    || flunk "a side is not named by the file: $(printf '%s\n' "$out" | grep '^\(row\|col\) ')"
 for k in candidates solves work_units from_certificate; do
     [ -n "$(line_of $k)" ] && pass "it prints a $k line" \
         || flunk "no $k line in: $out"
@@ -340,14 +387,14 @@ expect_exit 0 "ranging of an optimum exits 0" "$JAOS" ranging "$DATA/solve1.mps"
     || flunk "ranging began with '$(printf '%s\n' "$out" | head -n 1)'"
 # solve1 has three columns and three rows: three lines per block, with the
 # right number of fields on each.
-[ "$(printf '%s\n' "$out" | grep -c '^cost [0-9]* [^ ]* [^ ]*$')" -eq 3 ] \
-    && pass "three cost lines of two numbers" \
+[ "$(printf '%s\n' "$out" | grep -c '^cost X[123] [^ ]* [^ ]*$')" -eq 3 ] \
+    && pass "three cost lines of two numbers, named by the file" \
     || flunk "cost lines: $(printf '%s\n' "$out" | grep '^cost')"
-[ "$(printf '%s\n' "$out" | grep -c '^rhs [0-9]* [^ ]* [^ ]* [^ ]* [^ ]*$')" -eq 3 ] \
-    && pass "three rhs lines of four numbers" \
+[ "$(printf '%s\n' "$out" | grep -c '^rhs \(DEMAND\|CAP1\|CAP2\) [^ ]* [^ ]* [^ ]* [^ ]*$')" -eq 3 ] \
+    && pass "three rhs lines of four numbers, named by the file" \
     || flunk "rhs lines: $(printf '%s\n' "$out" | grep '^rhs')"
-[ "$(printf '%s\n' "$out" | grep -c '^bound [0-9]* [^ ]* [^ ]* [^ ]* [^ ]*$')" -eq 3 ] \
-    && pass "three bound lines of four numbers" \
+[ "$(printf '%s\n' "$out" | grep -c '^bound X[123] [^ ]* [^ ]* [^ ]* [^ ]*$')" -eq 3 ] \
+    && pass "three bound lines of four numbers, named by the file" \
     || flunk "bound lines: $(printf '%s\n' "$out" | grep '^bound')"
 [ "$(printf '%s\n' "$out" | wc -l)" -eq 10 ] \
     && pass "and nothing else" \
@@ -355,12 +402,12 @@ expect_exit 0 "ranging of an optimum exits 0" "$JAOS" ranging "$DATA/solve1.mps"
 printf '%s\n' "$out" | grep -qi 'nan' && flunk "ranging printed a NaN" \
     || pass "no NaN in the intervals"
 # Every interval contains the number it is about (jaos.h): the cost interval
-# of column 0 holds its cost of 2, and an unlimited end reads inf or -inf.
-printf '%s\n' "$out" | awk '$1 == "cost" && $2 == 0 {
+# of column X1 holds its cost of 2, and an unlimited end reads inf or -inf.
+printf '%s\n' "$out" | awk '$1 == "cost" && $2 == "X1" {
     lo = ($3 == "-inf") ? -1e300 : $3 + 0; hi = ($4 == "inf") ? 1e300 : $4 + 0;
     found = 1; exit !(lo <= 2 && 2 <= hi) } END { if (!found) exit 1 }' \
-    && pass "the cost interval of column 0 contains its cost" \
-    || flunk "cost 0 interval does not contain 2: $(line_of 'cost 0')"
+    && pass "the cost interval of column X1 contains its cost" \
+    || flunk "cost X1 interval does not contain 2: $(line_of 'cost X1')"
 "$JAOS" ranging "$DATA/solve1.mps" > "$tmp/rng1"
 "$JAOS" ranging "$DATA/solve1.mps" > "$tmp/rng2"
 cmp -s "$tmp/rng1" "$tmp/rng2" && pass "two ranging runs agree byte for byte" \

@@ -291,6 +291,8 @@ and you have the argument. Jump to the entry for the numbers behind it.
 - **[D281](#d281--a-bound-may-be-written-value-first-either-way-round-and-the-arm-that-proves-the-refusal-is-tested-found-a-gap-in-the-test-instead)** — A bound may be written value-first either way round, and the arm that proves the refusal is tested found a gap in the test instead
 - **[D282](#d282--the-one-format-this-library-invented-was-the-one-it-could-not-read-and-the-arm-that-would-prove-the-round-trip-aborted-on-the-writers-own-guard)** — The one format this library invented was the one it could not read, and the arm that would prove the round trip aborted on the writer's own guard
 - **[D283](#d283--the-objectives-sense-had-no-getter-and-no-setter-and-the-python-layer-rebuilt-the-model-to-flip-it)** — The objective's sense had no getter and no setter, and the Python layer rebuilt the model to flip it
+- **[D284](#d284--rows-and-columns-have-names-and-the-model-was-the-one-place-in-the-pipeline-that-dropped-them)** — Rows and columns have names, and the model was the one place in the pipeline that dropped them
+- **[D285](#d285--the-solution-file-carries-the-certificate-behind-an-infeasible-or-unbounded-answer-and-check-judges-it-from-the-model-alone)** — The solution file carries the certificate behind an infeasible or unbounded answer, and `check` judges it from the model alone
 
 ---
 
@@ -21104,3 +21106,62 @@ comparison: the sense test's model gives 114 as a maximum, 105 once the
 setter flips it to a minimum, and 5 with the constant taken away, each
 compared to the bit because the objective is summed from the published
 values and the constant is added exactly once (D173).
+
+## D284 — Rows and columns have names, and the model was the one place in the pipeline that dropped them
+
+**The gap.** Both readers parsed names, both writers generated `C1..Cn` and
+`R1..Rm`, the solution file carried the generated ones, and the CLI printed
+a 0-based index because it had nothing else. A row called `DEMAND` in the
+file was `R1` in every output and `0` on the command line.
+
+**What it does now.** Every row and column has a name: the file's, or the
+setter's, or its position where nobody named it, and the objective is
+`COST` unless named. Both readers keep the file's names, both writers print
+them, the solution reader checks them, and the CLI prints them. Three
+choices shape it. Uniqueness is the writers' business and not the
+setters': naming a hundred thousand columns must not pay a lookup each,
+so `jaos_set_col_name` copies and returns, and a writer refuses two of a
+name -- positional ones included -- before it opens the file. A name the LP
+scanner cannot read back is refused by the LP writer pointing at MPS, and
+the scanner's name rule was widened to the CPLEX symbol set so that the
+names other solvers' files carry are not among them. Lookup by name is a
+map built on the first `jaos_col_index` after any change, so a rename
+costs nothing and a lookup pays once.
+
+**Evidence.** No solver path is touched and all three gate sets are
+byte-identical. The round trip is asserted on the names now, in every
+writer test. **And one published number moved, the wrong way and
+honestly**: the LP writer's reach over the gate was 138 of 139 while it
+printed `C1..Cn`, which no scanner refuses, and is **104 of 139 under the
+model's own names, 35 refused, 0 differing** (`bench/measurements/02-188/`).
+Thirty-four of the refusals are Netlib names -- `1D1IK`, `.ETHSD`,
+`FLAV*1`, `BBBL-1`, an objective called `1` -- that start with a digit or a
+`.` or hold an operator, which no LP reader takes as a name. Renaming them
+silently would write a file that reads back as a different model, which
+is what the writer exists to prevent, so they are refused by name with the
+message pointing at MPS, which takes every name.
+
+## D285 — The solution file carries the certificate behind an infeasible or unbounded answer, and `check` judges it from the model alone
+
+**The gap.** `jaos_write_solution` refused everything but an optimum, so a
+solve that proved a model infeasible or unbounded left nothing on disk,
+and the certificate it had computed -- which `jaos_check_certificate` and
+`jaos_check_ray` judge from the model alone -- could not leave the
+process that found it. `docs/feature-matrix.md` read "machine-checkable
+certificate: absent" for that reason.
+
+**What it does now.** The same file, with its `status` line deciding the
+records: `optimal` carries the point and the basis as before, `infeasible`
+one `ray` record per row with the Farkas multiplier, `unbounded` one per
+column with the direction. `jaos_read_certificate` reads the two new
+kinds and `jaos_solution_file_status` says which kind a file holds, so a
+caller need not know the format to pick a reader; one internal reader
+serves all three and refuses a record that contradicts the status line.
+`jaos solve --solution` writes whichever the solve reached and `jaos
+check` prints the kind first and then the matching checker's report, exit
+0 when certified.
+
+**Evidence.** No solver path is touched and all three gate sets are
+byte-identical. `tests/test_write.c` round-trips both certificates bit for
+bit and pins ten refusals; `tests/cli.sh` zeroes a written certificate and
+watches the checker, not the reader, refuse it.

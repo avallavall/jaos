@@ -39,6 +39,31 @@ typedef struct {
     bool force_primal;
 } jm_config;
 
+/* Name -> value map for the readers and for lookup by name: FNV-1a, open
+ * addressing, names kept in one arena. Absence and value are separate —
+ * values may be negative. */
+typedef struct {
+    char *pool;              /* all names, NUL-separated */
+    int64_t pool_len, pool_cap;
+    int64_t *off, *val;      /* entry e: name at pool+off[e], value val[e] */
+    int64_t n, cap;
+    int64_t *slot;           /* entry indices, -1 empty; power-of-two size */
+    int64_t nslot;
+} jm_nmap;
+
+void jm_nmap_free(jm_nmap *m);
+bool jm_nmap_get(const jm_nmap *m, const char *name, int64_t *val);
+/* The caller must have checked the name is absent. */
+bool jm_nmap_insert(jm_nmap *m, const char *name, int64_t value);
+/* An owned copy of a string, or nullptr out of memory. */
+char *jm_name_copy(const char *name);
+/* The map's names as an array of n owned strings indexed by value: entry
+ * v holds the name whose value is v, for every value in 0..n-1, and
+ * nullptr where no name has that value. Values outside the range are
+ * skipped. nullptr out of memory. This is how a reader hands its names to
+ * the model. */
+char **jm_nmap_to_names(const jm_nmap *m, int64_t n);
+
 struct jaos_model {
     int64_t num_col;
     int64_t num_row;
@@ -51,6 +76,20 @@ struct jaos_model {
     double *col_cost;
     double *col_lower, *col_upper;
     double *row_lower, *row_upper;
+
+    /* Names. Either array is nullptr until a row (column) is given one;
+     * inside it an entry is an owned string or nullptr for a row (column)
+     * with no name of its own, which is called by its position: R<i+1>,
+     * C<j+1>. `obj_name` is the objective row's, nullptr for COST. A name
+     * rides with its row or column through an add or a delete and goes
+     * with a load (D284). The two maps are the lookup by name, built on the
+     * first jaos_col_index / jaos_row_index and dropped by anything that
+     * changes a name or a dimension. */
+    char **col_name;    /* [num_col] or nullptr */
+    char **row_name;    /* [num_row] or nullptr */
+    char *obj_name;
+    bool name_map_valid;
+    jm_nmap col_map, row_map;
 
     /* Constraint matrix, compressed sparse column; entries within a column
      * sorted by row index, no duplicates, no explicit zeros. This is the
@@ -253,21 +292,34 @@ bool jm_grow(void **arr, int64_t *cap, int64_t need, size_t elsize);
 #define JM_GROW(a, cap, need) \
     ((need) <= (cap) ? true : jm_grow((void **)&(a), &(cap), (need), sizeof *(a)))
 
-/* Name -> value map for the readers: FNV-1a, open addressing, names kept in
- * one arena. Absence and value are separate — values may be negative. */
-typedef struct {
-    char *pool;              /* all names, NUL-separated */
-    int64_t pool_len, pool_cap;
-    int64_t *off, *val;      /* entry e: name at pool+off[e], value val[e] */
-    int64_t n, cap;
-    int64_t *slot;           /* entry indices, -1 empty; power-of-two size */
-    int64_t nslot;
-} jm_nmap;
+/* Names (src/model.c). A row's or column's name is its own when it has one
+ * and its position otherwise, R<i+1> or C<j+1>, written into `buf`, which
+ * holds JM_NAME_BUF bytes; the pointer returned is the stored name or
+ * `buf`. Both are what every writer prints and what the solution reader
+ * checks against, so a file and the model agree on what a row is called
+ * whether or not anyone named it. `jm_obj_name` is the objective row's,
+ * "COST" when none was given. */
+constexpr int JM_NAME_BUF = 24;
+const char *jm_col_name(const jaos_model *m, int64_t j, char *buf);
+const char *jm_row_name(const jaos_model *m, int64_t i, char *buf);
+const char *jm_obj_name(const jaos_model *m);
 
-void jm_nmap_free(jm_nmap *m);
-bool jm_nmap_get(const jm_nmap *m, const char *name, int64_t *val);
-/* The caller must have checked the name is absent. */
-bool jm_nmap_insert(jm_nmap *m, const char *name, int64_t value);
+/* Installs names a reader collected, taking ownership of every string and
+ * of both arrays, which are sized by the model's current dimensions and may
+ * hold nullptr entries; any of the three may be nullptr. Replaces what the
+ * model held. Called after the reader's jaos_load_lp, which dropped the
+ * previous names. */
+void jm_model_take_names(jaos_model *m, char **col, char **row, char *obj);
+
+/* Whether a string may be a name: not empty, at most JAOS_NAME_MAX bytes,
+ * no whitespace and no control character, because every file this library
+ * writes separates its fields by whitespace. The readers apply it to the
+ * names they meet and the setters to the names they are given. */
+bool jm_name_ok(const char *name);
+
+/* Whether the LP reader's scanner reads `s` back as one name that is not a
+ * keyword (src/lpfmt.c): the LP writer's test for a name it may print. */
+bool jm_lp_name_ok(const char *s);
 
 /* Reads a whole input file. A file that starts with the gzip magic is
  * inflated by src/inflate.c; any other file comes back byte for byte. On

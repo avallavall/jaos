@@ -4,6 +4,7 @@
 #include "unity.h"
 
 #include <math.h>
+#include <string.h>
 
 void setUp(void) {}
 void tearDown(void) {}
@@ -1525,6 +1526,195 @@ static void test_column_order_survives_a_chain_of_mutations(void)
     jaos_model_free(m);
 }
 
+/* --------------------------------------------------------------------- */
+/* Names (D284)                                                          */
+/* --------------------------------------------------------------------- */
+
+static void test_an_unnamed_row_or_column_is_called_by_its_position(void)
+{
+    jaos_model *m = nullptr;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_model_new(&m));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, load_example(m));
+
+    char buf[JAOS_NAME_MAX + 1];
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_col_name(m, 0, buf, sizeof buf));
+    TEST_ASSERT_EQUAL_STRING("C1", buf);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_col_name(m, 2, buf, sizeof buf));
+    TEST_ASSERT_EQUAL_STRING("C3", buf);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_row_name(m, 1, buf, sizeof buf));
+    TEST_ASSERT_EQUAL_STRING("R2", buf);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective_name(m, buf, sizeof buf));
+    TEST_ASSERT_EQUAL_STRING("COST", buf);
+
+    /* The positional name resolves too, so a name read off the model can
+     * always be handed back. */
+    int64_t k = -1;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_col_index(m, "C3", &k));
+    TEST_ASSERT_EQUAL_INT64(2, k);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_row_index(m, "R1", &k));
+    TEST_ASSERT_EQUAL_INT64(0, k);
+    /* Out of range, a leading zero, or the wrong prefix is nothing. */
+    TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT, jaos_col_index(m, "C4", &k));
+    TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT, jaos_col_index(m, "C0", &k));
+    TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT, jaos_col_index(m, "C01", &k));
+    TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT, jaos_col_index(m, "R1", &k));
+    TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT, jaos_col_index(m, "", &k));
+    TEST_ASSERT_NOT_NULL(strstr(jaos_model_error(m), "no column is named"));
+
+    /* A buffer too small is refused, never truncated into. */
+    char tiny[2];
+    TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT, jaos_col_name(m, 0, tiny, 2));
+    TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT, jaos_col_name(m, 3, buf, sizeof buf));
+    TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT, jaos_row_name(m, -1, buf, sizeof buf));
+    TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT, jaos_col_name(nullptr, 0, buf, sizeof buf));
+    jaos_model_free(m);
+}
+
+static void test_a_name_set_reads_back_and_resolves(void)
+{
+    jaos_model *m = nullptr;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_model_new(&m));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, load_example(m));
+
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_col_name(m, 1, "flow"));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_row_name(m, 0, "cap"));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_objective_name(m, "profit"));
+
+    char buf[JAOS_NAME_MAX + 1];
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_col_name(m, 1, buf, sizeof buf));
+    TEST_ASSERT_EQUAL_STRING("flow", buf);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_col_name(m, 0, buf, sizeof buf));
+    TEST_ASSERT_EQUAL_STRING("C1", buf);         /* the others keep theirs */
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_row_name(m, 0, buf, sizeof buf));
+    TEST_ASSERT_EQUAL_STRING("cap", buf);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective_name(m, buf, sizeof buf));
+    TEST_ASSERT_EQUAL_STRING("profit", buf);
+
+    int64_t k = -1;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_col_index(m, "flow", &k));
+    TEST_ASSERT_EQUAL_INT64(1, k);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_row_index(m, "cap", &k));
+    TEST_ASSERT_EQUAL_INT64(0, k);
+    /* A named column is no longer reachable by its position. */
+    TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT, jaos_col_index(m, "C2", &k));
+    /* An unnamed one still is, beside the named. */
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_col_index(m, "C3", &k));
+    TEST_ASSERT_EQUAL_INT64(2, k);
+
+    /* A rename is seen by the next lookup, and "" takes a name away. */
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_col_name(m, 1, "flow2"));
+    TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT, jaos_col_index(m, "flow", &k));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_col_index(m, "flow2", &k));
+    TEST_ASSERT_EQUAL_INT64(1, k);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_col_name(m, 1, ""));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_col_name(m, 1, buf, sizeof buf));
+    TEST_ASSERT_EQUAL_STRING("C2", buf);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_col_index(m, "C2", &k));
+    TEST_ASSERT_EQUAL_INT64(1, k);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_objective_name(m, nullptr));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective_name(m, buf, sizeof buf));
+    TEST_ASSERT_EQUAL_STRING("COST", buf);
+
+    /* Two columns may carry one name; the lower index answers. */
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_col_name(m, 2, "same"));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_col_name(m, 0, "same"));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_col_index(m, "same", &k));
+    TEST_ASSERT_EQUAL_INT64(0, k);
+    /* A stored name wins over a positional one for the same string. */
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_row_name(m, 1, "R1"));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_row_index(m, "R1", &k));
+    TEST_ASSERT_EQUAL_INT64(1, k);
+    jaos_model_free(m);
+}
+
+static void test_a_name_the_formats_cannot_carry_is_refused(void)
+{
+    jaos_model *m = nullptr;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_model_new(&m));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, load_example(m));
+
+    TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT, jaos_set_col_name(m, 0, "a b"));
+    TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT, jaos_set_col_name(m, 0, "a\tb"));
+    TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT, jaos_set_row_name(m, 0, "a\n"));
+    TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT, jaos_set_objective_name(m, "\x01"));
+    char longname[JAOS_NAME_MAX + 2];
+    memset(longname, 'x', sizeof longname - 1);
+    longname[sizeof longname - 1] = '\0';
+    TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT, jaos_set_col_name(m, 0, longname));
+    longname[JAOS_NAME_MAX] = '\0';        /* exactly the limit is fine */
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_col_name(m, 0, longname));
+    char buf[JAOS_NAME_MAX + 1];
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_col_name(m, 0, buf, sizeof buf));
+    TEST_ASSERT_EQUAL_STRING(longname, buf);
+    TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT, jaos_col_name(m, 0, buf, JAOS_NAME_MAX));
+
+    TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT, jaos_set_col_name(m, 3, "x"));
+    TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT, jaos_set_row_name(m, 2, "x"));
+    TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT, jaos_set_col_name(nullptr, 0, "x"));
+    /* A refused name changes nothing, and the answer is untouched too: a
+     * name is not problem data. */
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_row_name(m, 1, "demand"));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+    jaos_model_free(m);
+}
+
+static void test_names_ride_with_their_rows_and_columns(void)
+{
+    jaos_model *m = nullptr;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_model_new(&m));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, load_example(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_col_name(m, 0, "a"));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_col_name(m, 2, "c"));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_row_name(m, 1, "second"));
+
+    /* Delete the first column: "c" moves from index 2 to 1 and the unnamed
+     * column between them is now called C1. */
+    const int64_t del0[] = {0};
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_delete_cols(m, 1, del0));
+    char buf[JAOS_NAME_MAX + 1];
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_col_name(m, 0, buf, sizeof buf));
+    TEST_ASSERT_EQUAL_STRING("C1", buf);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_col_name(m, 1, buf, sizeof buf));
+    TEST_ASSERT_EQUAL_STRING("c", buf);
+    int64_t k = -1;
+    TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT, jaos_col_index(m, "a", &k));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_col_index(m, "c", &k));
+    TEST_ASSERT_EQUAL_INT64(1, k);
+
+    /* Added columns and rows arrive unnamed; the existing names stay. */
+    const double one = 1.0, zero = 0.0, inf = INFINITY;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_add_cols(m, 1, &one, &zero, &inf, 0, nullptr, nullptr, nullptr));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_col_name(m, 2, buf, sizeof buf));
+    TEST_ASSERT_EQUAL_STRING("C3", buf);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_col_name(m, 1, buf, sizeof buf));
+    TEST_ASSERT_EQUAL_STRING("c", buf);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_add_rows(m, 1, &zero, &one, 0, nullptr, nullptr, nullptr));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_row_name(m, 2, buf, sizeof buf));
+    TEST_ASSERT_EQUAL_STRING("R3", buf);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_row_name(m, 1, buf, sizeof buf));
+    TEST_ASSERT_EQUAL_STRING("second", buf);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_col_name(m, 2, "new"));
+
+    /* Delete the named row: the one after it moves up, unnamed. */
+    const int64_t del1[] = {1};
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_delete_rows(m, 1, del1));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_row_name(m, 1, buf, sizeof buf));
+    TEST_ASSERT_EQUAL_STRING("R2", buf);
+    TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT, jaos_row_index(m, "second", &k));
+
+    /* A load replaces everything, names included. */
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, load_example(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_col_name(m, 1, buf, sizeof buf));
+    TEST_ASSERT_EQUAL_STRING("C2", buf);
+    TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT, jaos_col_index(m, "c", &k));
+    jaos_model_free(m);
+}
+
+
 int main(void)
 {
     UNITY_BEGIN();
@@ -1564,5 +1754,9 @@ int main(void)
     RUN_TEST(test_column_order_survives_a_chain_of_mutations);
     RUN_TEST(test_the_objective_sense_and_constant_read_back_and_change);
     RUN_TEST(test_the_matrix_reads_back_by_column_row_and_entry);
+    RUN_TEST(test_an_unnamed_row_or_column_is_called_by_its_position);
+    RUN_TEST(test_a_name_set_reads_back_and_resolves);
+    RUN_TEST(test_a_name_the_formats_cannot_carry_is_refused);
+    RUN_TEST(test_names_ride_with_their_rows_and_columns);
     return UNITY_END();
 }

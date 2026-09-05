@@ -7,6 +7,28 @@ line leaves this file in the same commit.
 
 ## Where the last session stopped — 2026-09-05
 
+**2026-09-05, last: two features through one set of checks, names and
+certificate files (D284, D285).** The maintainer asked for several
+features per round of checks, so both went through `make configs` and the
+gate together. **Names**: every row and column has one, the file's or the
+setter's or its position; both readers keep them, both writers print them,
+the solution file checks them, the CLI prints `cost X1` instead of `cost
+0`, and `jaos_col_index` resolves one. **What it cost, and it is real**:
+the LP writer's reach fell from 138 of 139 to **104 of 139**, because 34
+Netlib names start with a digit or hold `*` or `-` and no LP reader takes
+those as names; they are refused by name, not renamed, pointing at MPS
+(`bench/measurements/02-188/`). The LP scanner took the CPLEX symbol set
+on the way, which reaches none of the 34. **Certificates**: the solution
+file carries the Farkas multipliers of an infeasible answer or the ray of
+an unbounded one under `status infeasible` / `status unbounded`;
+`jaos_read_certificate` reads them back, `jaos_solution_file_status` says
+which kind a file holds, and `jaos check` judges a certificate from the
+model alone. The feature matrix's "machine-checkable certificate" cell
+moves from ○ to ◐; ● wants the exact proof written to a file. **What is
+next** is not settled by this session: the matrix's remaining ○ cells for
+JAOS are exact rational solutions, Julia and other bindings, and the whole
+MILP and barrier columns.
+
 **2026-09-05, later still: a command-line tool, `cli/jaos.c`.** Built in a
 separate worktree while D283 landed here, over the public header only.
 `solve` and `convert` first, then `check`, `iis`, `verify` and `ranging`

@@ -215,6 +215,63 @@ JAOS_NODISCARD jaos_status jaos_set_objective_sense(jaos_model *m,
 JAOS_NODISCARD jaos_status jaos_set_objective_offset(jaos_model *m,
                                                      double offset);
 
+/* Names.
+ *
+ * Every row and every column has a name, whether or not anyone gave it
+ * one. A row that was named -- by the file it was read from, or by
+ * jaos_set_row_name -- is called that; one that was not is called by its
+ * position, `R<i+1>`, and a column `C<j+1>`. The objective row is called
+ * `COST` unless it was named. That rule is what every file this library
+ * writes prints and what jaos_read_solution checks against, so a file and
+ * the model agree on what a row is called either way (D284).
+ *
+ * The getters copy the name into `buf`, which holds `cap` bytes, and
+ * refuse when it does not fit: JAOS_NAME_MAX + 1 bytes always suffice. A
+ * setter given NULL or "" takes the name away, so the row is called by its
+ * position again. A name may not be empty, longer than JAOS_NAME_MAX, or
+ * hold whitespace or a control character, because every format here
+ * separates fields by whitespace; anything else is accepted as given,
+ * and it is the WRITERS that refuse what their format cannot spell:
+ * jaos_write_lp a name outside the LP identifier rule or a reserved word,
+ * both by name, pointing at jaos_write_mps.
+ *
+ * Uniqueness is not enforced by the setters, and that is deliberate: a
+ * caller naming a hundred thousand columns one at a time must not pay a
+ * lookup per call. The writers enforce it instead, refusing by name a
+ * model in which two rows (the objective among them) or two columns are
+ * called the same, because such a file reads back as a different model.
+ * A positional name counts: a column named `C2` collides with the second
+ * column when that one has no name of its own.
+ *
+ * A name rides with its row or column: it survives every add and delete
+ * of other rows and columns, and every modification. jaos_load_lp and the
+ * two readers replace the names with the file's, or with none.
+ *
+ * Renaming costs nothing; it is the lookup that pays. jaos_col_index and
+ * jaos_row_index answer from a map built on the first call after any
+ * rename, add, delete or load, so alternating a rename with a lookup
+ * rebuilds it each time. A stored name is answered before a positional
+ * one, and a name held by two rows answers the lower index. A name held
+ * by nothing is JAOS_ERR_INVALID_INPUT with the name in the message. */
+#define JAOS_NAME_MAX 255
+
+JAOS_NODISCARD jaos_status jaos_col_name(const jaos_model *m, int64_t col,
+                                         char *buf, int64_t cap);
+JAOS_NODISCARD jaos_status jaos_row_name(const jaos_model *m, int64_t row,
+                                         char *buf, int64_t cap);
+JAOS_NODISCARD jaos_status jaos_objective_name(const jaos_model *m,
+                                               char *buf, int64_t cap);
+JAOS_NODISCARD jaos_status jaos_set_col_name(jaos_model *m, int64_t col,
+                                             const char *name);
+JAOS_NODISCARD jaos_status jaos_set_row_name(jaos_model *m, int64_t row,
+                                             const char *name);
+JAOS_NODISCARD jaos_status jaos_set_objective_name(jaos_model *m,
+                                                   const char *name);
+JAOS_NODISCARD jaos_status jaos_col_index(jaos_model *m, const char *name,
+                                          int64_t *col);
+JAOS_NODISCARD jaos_status jaos_row_index(jaos_model *m, const char *name,
+                                          int64_t *row);
+
 /* Read the matrix back: one column, one row, or one entry.
  *
  * `count` receives the number of entries. When `index` and `value` are not
@@ -348,10 +405,12 @@ JAOS_NODISCARD jaos_status jaos_read_lp(jaos_model *m, const char *path);
  * JAOS_ERR_INVALID_INPUT, jaos_model_error() names the row or column, and
  * no file is left behind. A failed write removes the partial file.
  *
- * The model carries no names: it is indices from the moment it is loaded.
- * So the writer generates them, `C1..Cn` for columns and `R1..Rm` for rows,
- * with `COST` for the objective row. Reading the file back gives the same
- * indices, because both formats list rows and columns in index order.
+ * Rows and columns are written under their names, which are the file's
+ * where the model came from one and positional -- `C<j+1>`, `R<i+1>`,
+ * `COST` -- where it did not (D284). Reading the file back gives the same
+ * indices and the same names, because both formats list rows and columns
+ * in index order. Two rows or two columns called the same are refused by
+ * name, since the file would read back as a different model.
  *
  * MPS is written in free layout, which jaos_read_mps autodetects. It has
  * three refusals, all of them about bounds.
@@ -391,16 +450,22 @@ JAOS_NODISCARD jaos_status jaos_write_mps(jaos_model *m, const char *path);
  * dialect and what share of the gate survives it (D226). */
 JAOS_NODISCARD jaos_status jaos_write_lp(jaos_model *m, const char *path);
 
-/* Writes the last solve's answer to `path`: the objective, then every
- * column with its value, reduced cost and basis status, then every row with
- * its activity, dual and basis status. The format is JAOS's own, one record
- * per line, documented in docs/format-support.md.
+/* Writes the last solve's answer to `path`. For an optimum: the objective,
+ * then every column with its value, reduced cost and basis status, then
+ * every row with its activity, dual and basis status. For an INFEASIBLE
+ * answer: the certificate jaos_certificate hands out, one multiplier per
+ * row. For an UNBOUNDED one: the ray jaos_unbounded_ray hands out, one
+ * direction per column. The status line says which, and the format is
+ * JAOS's own, one record per line, documented in docs/format-support.md
+ * (D282, D285).
  *
- * Available only when the last solve found an optimum, under the same rule
- * as jaos_solution and jaos_basis and for their reason: a solve that
- * found no optimum has no solution to write down, and a file of zeros does
- * not read as missing. Otherwise JAOS_ERR_INVALID_INPUT, with
- * jaos_model_error() naming the status the solve actually reached.
+ * Available only when the last solve left one of those three, under the
+ * same rule as jaos_solution, jaos_certificate and jaos_unbounded_ray and
+ * for their reason: a solve that stopped on a budget has no answer to write
+ * down, and a file of zeros does not read as missing. Otherwise
+ * JAOS_ERR_INVALID_INPUT, with jaos_model_error() naming the status the
+ * solve actually reached -- or saying that an INFEASIBLE or UNBOUNDED solve
+ * left no certificate, which an inverted box does.
  *
  * Refused as well when the answer holds a value no file can carry. An
  * objective is a sum and can overflow, and a model whose bounds reach 1e300
@@ -409,13 +474,14 @@ JAOS_NODISCARD jaos_status jaos_write_lp(jaos_model *m, const char *path);
  * not be reproducible; the call fails instead and jaos_model_error() names
  * the row or the column.
  *
- * Names match what jaos_write_mps and jaos_write_lp generate, so a solution
- * file and a model file written from the same model refer to the same
- * rows and columns.
+ * Names are the model's, the same ones jaos_write_mps and jaos_write_lp
+ * print, so a solution file and a model file written from the same model
+ * refer to the same rows and columns.
  *
- * jaos_read_solution reads the file back. It is declared below rather than
- * here, because its signature needs jaos_basis_status and that type is
- * declared with the basis calls. */
+ * jaos_read_solution reads an optimum back and jaos_read_certificate a
+ * certificate; jaos_solution_file_status says which a file holds. They are
+ * declared below rather than here, because the first needs
+ * jaos_basis_status and that type is declared with the basis calls. */
 JAOS_NODISCARD jaos_status jaos_write_solution(jaos_model *m,
                                                const char *path);
 
@@ -698,15 +764,14 @@ void jaos_clear_basis(jaos_model *m);
  *
  * **The model decides the shape, and a file that does not fit is refused
  * rather than read.** The counts in the file must equal this model's, and
- * each record's name must be the one this library generates for that index.
- * The model holds no names -- a reader's are gone by the time it is loaded
- * -- so a generated name is the only name a file can carry, and one that
- * does not match means the file describes a different model. Records are
- * taken in index order; nothing is searched by name.
+ * each record's name must be the name this model gives that index -- its
+ * own, or the positional one (D284) -- so a name that does not match means
+ * the file describes a different model, or this one renamed since. Records
+ * are taken in index order; nothing is searched by name.
  *
- * Only `status optimal` is read, because only an optimum is ever written.
- * A number that is not finite is refused for the same reason: the writer
- * will not produce one.
+ * Only `status optimal` is read here; a file holding a certificate is
+ * refused with a message pointing at jaos_read_certificate. A number that
+ * is not finite is refused because the writer will not produce one.
  *
  * It installs nothing. To warm-start from a file, read the statuses and
  * pass them to jaos_set_basis above; that keeps reading a file and changing
@@ -720,6 +785,29 @@ JAOS_NODISCARD jaos_status jaos_read_solution(jaos_model *m,
     const char *path, double *objective,
     double *col_value, double *col_dual, jaos_basis_status *col_status,
     double *row_activity, double *row_dual, jaos_basis_status *row_status);
+
+/* Reads a certificate jaos_write_solution wrote for an INFEASIBLE or an
+ * UNBOUNDED answer (D285). `status` receives which; `row_ray` receives
+ * num_row multipliers when the file is infeasible and `col_ray` num_col
+ * directions when it is unbounded, and whichever does not apply is left
+ * untouched. Every output is optional. The shape rule and the name rule are
+ * jaos_read_solution's, and a file holding an optimum is refused with a
+ * message pointing there.
+ *
+ * What comes back is what jaos_check_certificate or jaos_check_ray judges
+ * from the model alone, so a certificate written by one program can be
+ * verified by another that holds nothing but the model and this file. */
+JAOS_NODISCARD jaos_status jaos_read_certificate(jaos_model *m,
+    const char *path, jaos_solve_status *status,
+    double *row_ray, double *col_ray);
+
+/* Which of the three a solution file holds, read from the whole file, so
+ * a file that would be refused by the reader for its kind is refused here
+ * too. This is how a caller decides between jaos_read_solution and
+ * jaos_read_certificate without knowing the file's format. The model is
+ * needed for the shape check and is not modified. */
+JAOS_NODISCARD jaos_status jaos_solution_file_status(jaos_model *m,
+    const char *path, jaos_solve_status *status);
 
 /* Work units consumed by the last solve. */
 JAOS_NODISCARD int64_t jaos_work_units(const jaos_model *m);

@@ -175,12 +175,22 @@ including the row where the field is ahead.
 | Independent checker shipped with the solver | ● | ○ | ○ | ○ | ○ | ○ | ○ |
 | Exact rational LP solutions | ○ | ○ | ● | ○ | ● | ○ | ○ |
 | Exact solving with no numerical tolerances | ○ | ○ | ● | ○ | ● | ○ | ○ |
-| Machine-checkable certificate of the result | ○ | ○ | ◐ | ○ | ● | ○ | ○ |
+| Machine-checkable certificate of the result | ◐ | ○ | ◐ | ○ | ● | ○ | ○ |
 | Certified bound on suboptimality | ◐ | ○ | ● | ○ | ● | ○ | ○ |
 | Infeasibility / unboundedness certificate | ● | ◐ | ◐ | ◐ | ● | ● | ? |
 | Irreducible infeasible subsystem (IIS) | ● | ● | ○ | ○ | ● | ● | ? |
 
 Three rows carry most of the meaning.
+
+**The machine-checkable certificate moved from ○ to ◐ on 2026-09-05
+(D285).** The solution file now carries the Farkas certificate of an
+infeasible answer and the ray of an unbounded one, and `jaos check` judges
+either from the model and the file alone, so a verdict can leave the
+process that found it and be checked by another. It is ◐ and not ● because
+the optimum's proof is still the tolerance-judged checker report: the
+exact rational proof `jaos_verify` computes is not written to a file, and
+the point and duals a solution file carries certify optimality only to a
+tolerance.
 
 **The IIS, and this row was wrong until 2026-09-04.** It read "among the open
 solvers here only Gurobi documents the feature", with HiGHS and SCIP at ○.
@@ -244,10 +254,13 @@ message points at `jaos_write_mps`, which has no such limit. A ranged row is
 **not** refused — D239 writes it as the two-sided form and reads it back as
 one row with two ends — and a row with no coefficients is written as a zero
 term and read back as the empty row it was (D276). What JAOS writes it reads
-back as the same model, checked field by field: 139 of 139 gate instances
-through MPS, and **138 of 139 through LP with 1 refused and 0 differing**
-(D276, `bench/measurements/02-181/lpcover.txt`); it was 104 and 35 until the
-empty-row refusal was re-read (D265, `02-172`).
+back as the same model, checked field by field and name by name: 139 of 139
+gate instances through MPS, and **104 of 139 through LP with 35 refused and
+0 differing** (D284, `bench/measurements/02-188/lpcover.txt`). 34 of the 35
+are a name the LP scanner cannot read back -- Netlib names start with digits
+and hold `*` and `-` -- and the writer refuses them by name rather than
+rename them, pointing at MPS. It was 138 and 1 while the writer printed
+positional names (D276, `02-181/`), which no scanner refuses.
 
 Write MPS reads ● and still has three refusals, which is not a contradiction:
 two of them are shapes the format itself has no syntax for, and the third is a

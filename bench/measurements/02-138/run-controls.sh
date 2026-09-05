@@ -65,13 +65,13 @@ BREAK_LP_OBJ='
 p = "src/write.c"
 s = open(p, encoding="utf-8").read()
 old = """        for (int64_t j = 0; j < m->num_col; j++) {
-            col_name(nm, j);
+            col_name(m, nm, j);
             lp_term(w, &col, &first, m->col_cost[j], nm);
         }"""
 assert s.count(old) == 1, "objective loop matched %d times" % s.count(old)
 new = """        for (int64_t j = 0; j < m->num_col; j++) {
             if (m->col_cost[j] == 0.0) continue;
-            col_name(nm, j);
+            col_name(m, nm, j);
             lp_term(w, &col, &first, m->col_cost[j], nm);
         }"""
 open(p, "w", encoding="utf-8").write(s.replace(old, new))

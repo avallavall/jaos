@@ -134,6 +134,30 @@ static void test_t1_fixed_layout_full_model(void)
         TEST_ASSERT_EQUAL_INT64(want_index[k], m->a_index[k]);
         TEST_ASSERT_EQUAL_DOUBLE(want_value[k], m->a_value[k]);
     }
+
+    /* The file's names are the model's (D284), and resolve back. */
+    char nm[JAOS_NAME_MAX + 1];
+    const char *want_col[] = {"X1", "X2", "X3"};
+    const char *want_row[] = {"LIM1", "LIM2", "EQ1"};
+    for (int j = 0; j < 3; j++) {
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_col_name(m, j, nm, sizeof nm));
+        TEST_ASSERT_EQUAL_STRING(want_col[j], nm);
+        int64_t k = -1;
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_col_index(m, want_col[j], &k));
+        TEST_ASSERT_EQUAL_INT64(j, k);
+    }
+    for (int i = 0; i < 3; i++) {
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_row_name(m, i, nm, sizeof nm));
+        TEST_ASSERT_EQUAL_STRING(want_row[i], nm);
+        int64_t k = -1;
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_row_index(m, want_row[i], &k));
+        TEST_ASSERT_EQUAL_INT64(i, k);
+    }
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective_name(m, nm, sizeof nm));
+    TEST_ASSERT_EQUAL_STRING("COST", nm);
+    /* The objective is not a row, so its name is not a row's. */
+    int64_t k = -1;
+    TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT, jaos_row_index(m, "COST", &k));
     jaos_model_free(m);
 }
 

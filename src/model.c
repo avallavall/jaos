@@ -55,11 +55,297 @@ static void model_release_arrays(jaos_model *m)
     free(m->sol_ray);
     free(m->start_col_status);
     free(m->start_row_status);
+    jm_model_take_names(m, nullptr, nullptr, nullptr);
     /* The problem goes; the configuration stays. Saved as one object rather
      * than field by field (D78). */
     const jm_config cfg = m->cfg;
     memset(m, 0, sizeof *m);
     m->cfg = cfg;
+}
+
+/* --------------------------------------------------------------------- */
+/* Names                                                                 */
+/* --------------------------------------------------------------------- */
+
+/* A name array's strings, then the array. `n` entries, any of them null. */
+static void free_names(char **names, int64_t n)
+{
+    if (names == nullptr)
+        return;
+    for (int64_t k = 0; k < n; k++)
+        free(names[k]);
+    free(names);
+}
+
+/* An owned copy of a name. strdup is C23 but not every libc exposes it
+ * under -std=c23 alone, and this is two lines. */
+static char *dup_name(const char *name)
+{
+    const size_t len = strlen(name) + 1;
+    char *copy = malloc(len);
+    if (copy != nullptr)
+        memcpy(copy, name, len);
+    return copy;
+}
+
+/* The lookup is rebuilt on the next jaos_col_index or jaos_row_index. */
+static void name_map_is_stale(jaos_model *m)
+{
+    jm_nmap_free(&m->col_map);
+    jm_nmap_free(&m->row_map);
+    m->name_map_valid = false;
+}
+
+void jm_model_take_names(jaos_model *m, char **col, char **row, char *obj)
+{
+    free_names(m->col_name, m->num_col);
+    free_names(m->row_name, m->num_row);
+    free(m->obj_name);
+    m->col_name = col;
+    m->row_name = row;
+    m->obj_name = obj;
+    name_map_is_stale(m);
+}
+
+bool jm_name_ok(const char *name)
+{
+    if (name == nullptr || name[0] == '\0')
+        return false;
+    int64_t len = 0;
+    for (const unsigned char *p = (const unsigned char *)name; *p; p++) {
+        if (*p <= ' ' || *p == 0x7f)
+            return false;
+        if (++len > JAOS_NAME_MAX)
+            return false;
+    }
+    return true;
+}
+
+const char *jm_col_name(const jaos_model *m, int64_t j, char *buf)
+{
+    if (m->col_name != nullptr && m->col_name[j] != nullptr)
+        return m->col_name[j];
+    snprintf(buf, JM_NAME_BUF, "C%lld", (long long)j + 1);
+    return buf;
+}
+
+const char *jm_row_name(const jaos_model *m, int64_t i, char *buf)
+{
+    if (m->row_name != nullptr && m->row_name[i] != nullptr)
+        return m->row_name[i];
+    snprintf(buf, JM_NAME_BUF, "R%lld", (long long)i + 1);
+    return buf;
+}
+
+const char *jm_obj_name(const jaos_model *m)
+{
+    return m->obj_name != nullptr ? m->obj_name : "COST";
+}
+
+/* Copies `name` into the caller's buffer, or refuses with the size it
+ * would have needed. */
+static jaos_status name_out(jaos_model *m, const char *name, char *buf,
+                            int64_t cap)
+{
+    const size_t len = strlen(name);
+    if (buf == nullptr || cap <= 0 || (size_t)cap <= len) {
+        jm_set_err(m, "the name '%s' needs %zu bytes and the buffer holds "
+                   "%lld", name, len + 1, (long long)cap);
+        return JAOS_ERR_INVALID_INPUT;
+    }
+    memcpy(buf, name, len + 1);
+    return JAOS_OK;
+}
+
+jaos_status jaos_col_name(const jaos_model *m, int64_t j, char *buf,
+                          int64_t cap)
+{
+    if (m == nullptr || j < 0 || j >= m->num_col)
+        return JAOS_ERR_INVALID_INPUT;
+    char tmp[JM_NAME_BUF];
+    return name_out((jaos_model *)m, jm_col_name(m, j, tmp), buf, cap);
+}
+
+jaos_status jaos_row_name(const jaos_model *m, int64_t i, char *buf,
+                          int64_t cap)
+{
+    if (m == nullptr || i < 0 || i >= m->num_row)
+        return JAOS_ERR_INVALID_INPUT;
+    char tmp[JM_NAME_BUF];
+    return name_out((jaos_model *)m, jm_row_name(m, i, tmp), buf, cap);
+}
+
+jaos_status jaos_objective_name(const jaos_model *m, char *buf, int64_t cap)
+{
+    if (m == nullptr)
+        return JAOS_ERR_INVALID_INPUT;
+    return name_out((jaos_model *)m, jm_obj_name(m), buf, cap);
+}
+
+/* Stores one name into slot k of an array of n, allocating the array on
+ * the first name it ever holds. NULL or "" clears the slot. */
+static jaos_status set_name(jaos_model *m, char ***names, int64_t n,
+                            int64_t k, const char *name)
+{
+    if (name != nullptr && name[0] != '\0' && !jm_name_ok(name)) {
+        jm_set_err(m, "a name is 1 to %d bytes with no whitespace or "
+                   "control character", JAOS_NAME_MAX);
+        return JAOS_ERR_INVALID_INPUT;
+    }
+    char *copy = nullptr;
+    if (name != nullptr && name[0] != '\0') {
+        copy = dup_name(name);
+        if (copy == nullptr)
+            return JAOS_ERR_OUT_OF_MEMORY;
+    }
+    if (*names == nullptr) {
+        if (copy == nullptr)
+            return JAOS_OK;            /* clearing a name nothing holds */
+        *names = jm_calloc_array(n, sizeof(char *));
+        if (*names == nullptr) {
+            free(copy);
+            return JAOS_ERR_OUT_OF_MEMORY;
+        }
+    }
+    free((*names)[k]);
+    (*names)[k] = copy;
+    name_map_is_stale(m);
+    return JAOS_OK;
+}
+
+jaos_status jaos_set_col_name(jaos_model *m, int64_t j, const char *name)
+{
+    if (m == nullptr || j < 0 || j >= m->num_col)
+        return JAOS_ERR_INVALID_INPUT;
+    return set_name(m, &m->col_name, m->num_col, j, name);
+}
+
+jaos_status jaos_set_row_name(jaos_model *m, int64_t i, const char *name)
+{
+    if (m == nullptr || i < 0 || i >= m->num_row)
+        return JAOS_ERR_INVALID_INPUT;
+    return set_name(m, &m->row_name, m->num_row, i, name);
+}
+
+jaos_status jaos_set_objective_name(jaos_model *m, const char *name)
+{
+    if (m == nullptr)
+        return JAOS_ERR_INVALID_INPUT;
+    if (name != nullptr && name[0] != '\0' && !jm_name_ok(name)) {
+        jm_set_err(m, "a name is 1 to %d bytes with no whitespace or "
+                   "control character", JAOS_NAME_MAX);
+        return JAOS_ERR_INVALID_INPUT;
+    }
+    char *copy = nullptr;
+    if (name != nullptr && name[0] != '\0') {
+        copy = dup_name(name);
+        if (copy == nullptr)
+            return JAOS_ERR_OUT_OF_MEMORY;
+    }
+    free(m->obj_name);
+    m->obj_name = copy;
+    return JAOS_OK;
+}
+
+/* Fills one map from one name array: stored names only, the first holder
+ * of a repeated name winning, which is the "lower index" the header
+ * promises. */
+static bool build_name_map(jm_nmap *map, char **names, int64_t n)
+{
+    if (names == nullptr)
+        return true;
+    for (int64_t k = 0; k < n; k++) {
+        int64_t dummy;
+        if (names[k] == nullptr || jm_nmap_get(map, names[k], &dummy))
+            continue;
+        if (!jm_nmap_insert(map, names[k], k))
+            return false;
+    }
+    return true;
+}
+
+/* A positional name, `<prefix><k>` with k in 1..n and no leading zero,
+ * naming slot k-1 -- but only when that slot has no name of its own,
+ * because then it is called something else. */
+static bool positional(const char *name, char prefix, char **names,
+                       int64_t n, int64_t *out)
+{
+    if (name[0] != prefix || name[1] < '1' || name[1] > '9')
+        return false;
+    int64_t k = 0;
+    for (const char *p = name + 1; *p; p++) {
+        if (*p < '0' || *p > '9' || k > n)
+            return false;
+        k = k * 10 + (*p - '0');
+    }
+    if (k < 1 || k > n || (names != nullptr && names[k - 1] != nullptr))
+        return false;
+    *out = k - 1;
+    return true;
+}
+
+static jaos_status find_by_name(jaos_model *m, bool is_col, const char *name,
+                                int64_t *out)
+{
+    if (m == nullptr || name == nullptr || out == nullptr)
+        return JAOS_ERR_INVALID_INPUT;
+    if (!m->name_map_valid) {
+        name_map_is_stale(m);
+        if (!build_name_map(&m->col_map, m->col_name, m->num_col) ||
+            !build_name_map(&m->row_map, m->row_name, m->num_row)) {
+            name_map_is_stale(m);
+            return JAOS_ERR_OUT_OF_MEMORY;
+        }
+        m->name_map_valid = true;
+    }
+    if (jm_nmap_get(is_col ? &m->col_map : &m->row_map, name, out))
+        return JAOS_OK;
+    if (is_col ? positional(name, 'C', m->col_name, m->num_col, out)
+               : positional(name, 'R', m->row_name, m->num_row, out))
+        return JAOS_OK;
+    jm_set_err(m, "no %s is named '%s'", is_col ? "column" : "row", name);
+    return JAOS_ERR_INVALID_INPUT;
+}
+
+jaos_status jaos_col_index(jaos_model *m, const char *name, int64_t *col)
+{
+    return find_by_name(m, true, name, col);
+}
+
+jaos_status jaos_row_index(jaos_model *m, const char *name, int64_t *row)
+{
+    return find_by_name(m, false, name, row);
+}
+
+/* Names through a dimension change. Growing appends unnamed slots; a
+ * deletion keeps the survivors' names in their new positions and frees the
+ * rest. Both leave the array nullptr when it was, since no name arrived. */
+static jaos_status names_grow(char ***names, int64_t old_n, int64_t add)
+{
+    if (*names == nullptr)
+        return JAOS_OK;
+    char **p = realloc(*names, (size_t)(old_n + add) * sizeof *p);
+    if (p == nullptr)
+        return JAOS_ERR_OUT_OF_MEMORY;
+    for (int64_t k = old_n; k < old_n + add; k++)
+        p[k] = nullptr;
+    *names = p;
+    return JAOS_OK;
+}
+
+static void names_compact(char **names, const bool *keep, int64_t old_n)
+{
+    if (names == nullptr)
+        return;
+    int64_t at = 0;
+    for (int64_t k = 0; k < old_n; k++) {
+        if (keep[k])
+            names[at++] = names[k];
+        else
+            free(names[k]);
+    }
+    for (; at < old_n; at++)
+        names[at] = nullptr;
 }
 
 void jaos_model_free(jaos_model *m)
@@ -1186,6 +1472,15 @@ jaos_status jaos_add_cols(jaos_model *m, int64_t num_new,
         }
     }
 
+    /* The names of the columns already here stay; the new ones arrive
+     * unnamed. Grown before anything is swapped, so a failure leaves the
+     * model as it was. */
+    if (names_grow(&m->col_name, m->num_col, num_new) != JAOS_OK) {
+        free(arriving);
+        free(cost); free(cl); free(cu); free(as); free(ai); free(av);
+        return JAOS_ERR_OUT_OF_MEMORY;
+    }
+
     free(m->col_cost);  free(m->col_lower); free(m->col_upper);
     free(m->a_start);   free(m->a_index);   free(m->a_value);
     m->col_cost = cost; m->col_lower = cl;  m->col_upper = cu;
@@ -1199,6 +1494,7 @@ jaos_status jaos_add_cols(jaos_model *m, int64_t num_new,
     m->num_nz  = nnz;
 
     model_matrix_is_stale(m);
+    name_map_is_stale(m);
     basis_survives_or_goes(m);
     return JAOS_OK;
 }
@@ -1318,6 +1614,11 @@ jaos_status jaos_add_rows(jaos_model *m, int64_t num_new,
         return err;
     }
 
+    if (names_grow(&m->row_name, m->num_row, num_new) != JAOS_OK) {
+        free(rl); free(ru); free(as); free(ai); free(av);
+        return JAOS_ERR_OUT_OF_MEMORY;
+    }
+
     free(m->row_lower); free(m->row_upper);
     free(m->a_start);   free(m->a_index); free(m->a_value);
     m->row_lower = rl;  m->row_upper = ru;
@@ -1342,6 +1643,7 @@ jaos_status jaos_add_rows(jaos_model *m, int64_t num_new,
     m->num_nz  = nnz;
 
     model_matrix_is_stale(m);
+    name_map_is_stale(m);
     basis_survives_or_goes(m);
     return JAOS_OK;
 }
@@ -1405,6 +1707,7 @@ jaos_status jaos_delete_cols(jaos_model *m, int64_t num_del,
             if (keep[j])
                 m->start_col_status[at++] = m->start_col_status[j];
     }
+    names_compact(m->col_name, keep, m->num_col);
     free(keep);
 
     free(m->col_cost);  free(m->col_lower); free(m->col_upper);
@@ -1415,6 +1718,7 @@ jaos_status jaos_delete_cols(jaos_model *m, int64_t num_del,
     m->num_nz  = nnz;
 
     model_matrix_is_stale(m);
+    name_map_is_stale(m);
     basis_survives_or_goes(m);
     return JAOS_OK;
 }
@@ -1495,6 +1799,7 @@ jaos_status jaos_delete_rows(jaos_model *m, int64_t num_del,
             if (keep[i])
                 m->start_row_status[at++] = m->start_row_status[i];
     }
+    names_compact(m->row_name, keep, m->num_row);
     free(keep);
 
     free(m->row_lower); free(m->row_upper);
@@ -1505,6 +1810,7 @@ jaos_status jaos_delete_rows(jaos_model *m, int64_t num_del,
     m->num_nz  = nnz;
 
     model_matrix_is_stale(m);
+    name_map_is_stale(m);
     basis_survives_or_goes(m);
     return JAOS_OK;
 }

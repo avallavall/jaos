@@ -67,6 +67,11 @@ typedef struct {
     int64_t *rs;                 /* [nrow+1] entry start per row */
     double *rlb, *rub;
     int64_t nrow, rs_cap, rlb_cap, rub_cap;
+    /* the labels, nullptr where a constraint had none, and the objective's;
+     * handed to the model at the end (D284) */
+    char **rname;
+    int64_t rname_cap;
+    char *oname;
     int64_t *ei;                 /* entry column index */
     double *ev;                  /* entry value */
     int64_t nent, ei_cap, ev_cap;
@@ -88,14 +93,26 @@ typedef struct {
 /* Scanner                                                               */
 /* --------------------------------------------------------------------- */
 
+/* The characters a name may hold beyond letters, digits, `_` and `.`: the
+ * CPLEX LP set, which is what the files other solvers write carry. What is
+ * left out is what the scanner reads as something else -- the operators,
+ * `:`, whitespace, `\` -- and `[`, `]`, `*` and `^`, which CPLEX reserves
+ * for the quadratic forms this dialect rejects. A name still may not start
+ * with a digit or a `.`, because that is a number (D284). */
+static bool name_symbol(char c)
+{
+    return strchr("!\"#$%&()/,;?@`'{}|~", c) != nullptr && c != '\0';
+}
+
 static bool name_start(char c)
 {
-    return isalpha((unsigned char)c) || c == '_';
+    return isalpha((unsigned char)c) || c == '_' || name_symbol(c);
 }
 
 static bool name_cont(char c)
 {
-    return isalnum((unsigned char)c) || c == '_' || c == '.';
+    return isalnum((unsigned char)c) || c == '_' || c == '.' ||
+           name_symbol(c);
 }
 
 static jaos_status lx_next(lp *p)
@@ -249,6 +266,20 @@ static bool is_reserved(const char *s)
 static bool at_reserved(const lp *p)
 {
     return p->tok.t == T_NAME && is_reserved(p->tok.text);
+}
+
+/* What the LP writer may print as a name: exactly what this scanner reads
+ * back as one T_NAME token that is not a keyword. Kept here, beside the
+ * scanner, so the two cannot disagree. */
+bool jm_lp_name_ok(const char *s)
+{
+    if (s == nullptr || !name_start(s[0]))
+        return false;
+    size_t n = 0;
+    for (const char *p = s; *p; p++, n++)
+        if (!name_cont(*p))
+            return false;
+    return n <= NAME_MAX_LEN && !is_reserved(s);
 }
 
 /* --------------------------------------------------------------------- */
@@ -414,6 +445,9 @@ static jaos_status parse(lp *p)
         if ((st = lx_next(p)) != JAOS_OK)
             goto done;
         if (p->tok.t == T_COLON) {
+            p->oname = jm_name_copy(saved.text);
+            if (p->oname == nullptr)
+                FAIL_OOM();
             if ((st = lx_next(p)) != JAOS_OK)
                 goto done;
         } else {
@@ -442,14 +476,20 @@ static jaos_status parse(lp *p)
         if (at_reserved(p))
             break;
 
-        /* optional label */
+        /* optional label, kept as the row's name */
+        char *label = nullptr;
         if (p->tok.t == T_NAME) {
             token saved = p->tok;
             if ((st = lx_next(p)) != JAOS_OK)
                 goto done;
             if (p->tok.t == T_COLON) {
-                if ((st = lx_next(p)) != JAOS_OK)
+                label = jm_name_copy(saved.text);
+                if (label == nullptr)
+                    FAIL_OOM();
+                if ((st = lx_next(p)) != JAOS_OK) {
+                    free(label);
                     goto done;
+                }
             } else {
                 lx_push(p, &saved);
             }
@@ -458,9 +498,13 @@ static jaos_status parse(lp *p)
         int64_t row = p->nrow;
         if (!JM_GROW(p->rs, p->rs_cap, row + 2) ||
             !JM_GROW(p->rlb, p->rlb_cap, row + 1) ||
-            !JM_GROW(p->rub, p->rub_cap, row + 1))
+            !JM_GROW(p->rub, p->rub_cap, row + 1) ||
+            !JM_GROW(p->rname, p->rname_cap, row + 1)) {
+            free(label);
             FAIL_OOM();
+        }
         p->rs[row] = p->nent;
+        p->rname[row] = label;
         p->nrow++;
 
         /* The two-sided form "l <= expr <= u". A leading signed number is
@@ -698,8 +742,27 @@ static jaos_status parse(lp *p)
         free(as);
         free(ai);
         free(av);
-        if (st != JAOS_OK)
+        if (st != JAOS_OK) {
             jm_set_err(p->m, "internal: assembled model failed validation");
+            goto done;
+        }
+
+        /* The file's names, onto the model (D284): every column has one,
+         * a constraint has one where it was labelled, the objective where
+         * it was. The row array may be shorter than the row count when the
+         * last constraints had no label and nothing grew it; the model
+         * reads it by row, so it is grown to the count. */
+        if (!JM_GROW(p->rname, p->rname_cap, p->nrow))
+            FAIL_OOM();
+        char **cn = jm_nmap_to_names(&p->cmap, p->ncol);
+        if (cn == nullptr)
+            FAIL_OOM();
+        jm_model_take_names(p->m, cn, p->nrow > 0 ? p->rname : nullptr,
+                            p->oname);
+        if (p->nrow == 0)
+            free(p->rname);
+        p->rname = nullptr;
+        p->oname = nullptr;
     }
 
 done:
@@ -747,5 +810,11 @@ done:
     free(p->ev);
     free(p->stamp);
     free(p->slot);
+    /* On success both were handed to the model and are null here. */
+    if (p->rname != nullptr)
+        for (int64_t i = 0; i < p->nrow; i++)
+            free(p->rname[i]);
+    free(p->rname);
+    free(p->oname);
     return st;
 }

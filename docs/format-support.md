@@ -99,8 +99,16 @@ CPLEX-style core dialect, token-stream parsed: expressions wrap lines freely.
   Keywords are case-insensitive and reserved — a variable may not be called
   `free`, `st`, `end`, `inf`, etc.
 - **Comments**: `\` to end of line.
-- **Names**: start with a letter or `_`; continue with letters, digits, `_`
-  or `.`. Anything else is rejected loudly (so `3*x` reports the `*`).
+- **Names**: start with a letter, `_` or one of the CPLEX symbols
+  `! " # $ % & ( ) / , ; ? @ \` ' { } | ~`; continue with those, digits or
+  `.`. A name may not start with a digit or a `.`, which is a number, and
+  may not hold an operator, `:`, `[`, `]`, `*` or `^`. Anything else is
+  rejected loudly (so `3*x` reports the `*`). The symbols were letters and
+  `_` only until D284 widened the rule to what other solvers' files carry.
+- **Labels are kept**: a constraint's label is the row's name, the
+  objective's label is the objective's, and every variable's name is its
+  column's (D284). A constraint with no label is called by its position,
+  `R<i+1>` counting from 1.
 - **Terms**: coefficient and variable, multiplication implicit; `3x` and
   `3 x` both work. A repeated variable inside one expression **sums**, as
   algebra says it should (`x + x` is `2x`) — unlike the MPS reader, where a
@@ -140,12 +148,20 @@ same model.** Where a format cannot express what the model holds, the call
 fails, `jaos_model_error` names the row or the column, and no file is left
 behind.
 
-- **Names.** The model holds none — it is indices from the moment it is
-  loaded — so the writer generates `C1..Cn` for columns, `R1..Rm` for rows and
-  `COST` for the objective row. Reading the file back gives the same indices,
-  because both formats list rows and columns in index order and both readers
-  assign indices in order of first appearance. `COST` cannot collide with a
-  generated column name, which is always `C` followed by digits.
+- **Names.** Rows and columns are written under the model's names (D284):
+  the file's, where the model was read from one, and positional --
+  `C<j+1>` for a column, `R<i+1>` for a row, `COST` for the objective --
+  where nobody named them. Reading the file back gives the same indices and
+  the same names, because both formats list rows and columns in index order
+  and both readers assign indices in order of first appearance. Two rows
+  (the objective among them) or two columns called the same are refused by
+  name, whichever format, because no reader can tell them apart; a
+  positional name takes part, so a column named `C2` beside an unnamed
+  second column is such a pair. MPS has one more refusal, a row named
+  `'MARKER'`, which its reader takes for an integer marker. LP refuses a
+  name its scanner would not read back as one token -- one outside the rule
+  in the LP section above, or a keyword -- pointing at MPS, which takes
+  every name the model accepts.
 - **Numbers** are the shortest of 15, 16 or 17 significant digits that reads
   back as the same double. Seventeen is the IEEE-754 round-trip guarantee, so
   the fallback is always exact; the shorter forms keep the file readable.
@@ -215,11 +231,13 @@ ordinary form for a term whose coefficient is zero, which is what it missed.
 the row comes back empty. The writer already emitted zero terms in the
 objective, where every column appears whatever its cost.
 
-**138 of the 139 gate instances round-trip through the LP writer, 1 is
-refused and 0 differ** (`bench/measurements/02-181/lpcover.txt`, D276). It
-was 104 and 35 at D265 (`02-172`), and 02-138's own file is the D226 reading,
-taken before D239; all four are left as they were, because one file cannot
-carry four trees. D278 re-took the same reading after the reader change and
+**104 of the 139 gate instances round-trip through the LP writer under the
+model's own names, 35 are refused and 0 differ**
+(`bench/measurements/02-188/lpcover.txt`, D284): 34 for a name the scanner
+cannot read back and 1 for a free row. It was 138 and 1 while the writer
+printed positional names (`02-181/`, D276), 104 and 35 at D265 (`02-172`),
+and 02-138's own file is the D226 reading, taken before D239; every file is
+left as it was, because one file cannot carry two trees. D278 re-took the same reading after the reader change and
 got the same three numbers and the same single refusal
 (`bench/measurements/02-183/lpcover.txt`), which is what a change to the
 reader alone should do: the writer never emits a constant inside a
@@ -230,10 +248,13 @@ about and a person reading the file does.
 
 ### The solution file
 
-JAOS's own format, line-oriented, one record per line, written only when the
-last solve reached an optimum — the rule `jaos_solution` and `jaos_basis`
-already apply, and for their reason: a file of zeros does not read as
-missing.
+JAOS's own format, line-oriented, one record per line, written when the
+last solve reached an optimum or proved the model infeasible or unbounded
+(D285) — the rule `jaos_solution`, `jaos_certificate` and
+`jaos_unbounded_ray` already apply, and for their reason: a solve that
+stopped on a budget left nothing to write, and a file of zeros does not
+read as missing. The `status` line says which of the three the file holds
+and decides the records that follow it.
 
 ```
 # JAOS solution file, format 1
@@ -250,24 +271,50 @@ end
 ```
 
 `<status>` is one of `basic`, `lower`, `upper`, `free`, which are the four
-`jaos_basis_status` values. Names match what the two model writers generate,
-so a solution file and a model file written from the same model refer to the
-same rows and columns.
+`jaos_basis_status` values. Names are the model's, the same ones the two
+model writers print (D284), so a solution file and a model file written from
+the same model refer to the same rows and columns.
 
-**`jaos_read_solution` reads it back** (D282). The model decides the shape:
-the counts in the file must equal the model's, and each record's name must be
-the one this library generates for that index. The model holds no names, so a
-generated name is the only name a file can carry, and one that does not match
-means the file describes a different model. Records are taken in index order
-and nothing is searched by name. Only `status optimal` is read and only
-finite numbers are accepted, because only those are ever written. Every
-output is optional. It installs nothing: to warm-start from a file, read the
-statuses and hand them to `jaos_set_basis`.
+**A certificate is the same file with a different status** (D285). For an
+infeasible model the records are one `ray` per row carrying the Farkas
+multiplier `jaos_certificate` hands out; for an unbounded one, one `ray`
+per column carrying the direction `jaos_unbounded_ray` hands out. There is
+no `objective` line, and no `col` or `row` record.
+
+```
+# JAOS solution file, format 1
+# written by JAOS 0.2.0
+status infeasible
+columns 3
+rows 3
+# ray <row name> <multiplier>
+ray LIM1 0
+ray LIM2 -1
+ray EQ1 1
+end
+```
+
+**`jaos_read_solution` reads an optimum back** (D282) and
+**`jaos_read_certificate` a certificate**, with `jaos_solution_file_status`
+saying which a file holds so a caller need not know. One reader serves all
+three and the model decides the shape: the counts in the file must equal
+the model's, and each record's name must be the name the model gives that
+index -- its own, or the positional one -- so a name that does not match
+means the file describes a different model, or this one renamed since.
+Records are taken in index order and nothing is searched by name. A record
+that contradicts the status line -- a `col` in a certificate, a `ray` in an
+optimum, an `objective` in either certificate -- is refused, and so is a
+status nobody writes. Only finite numbers are accepted, because only those
+are ever written. Every output is optional. Neither reader installs
+anything: to warm-start from a file, read the statuses and hand them to
+`jaos_set_basis`; to judge a certificate, hand the ray to
+`jaos_check_certificate` or `jaos_check_ray`, which is what `jaos check`
+does.
 
 The reader lives beside the writer in `src/write.c` rather than in a file of
-its own, because it is the exact inverse of it — the same generated names,
-the same four status words, the same `format 1` line — and split across two
-files they drift.
+its own, because it is the exact inverse of it — the same names, the same
+four status words, the same `format 1` line — and split across two files
+they drift.
 
 **A value no file can carry is refused, and this is the one refusal that is
 about the answer rather than about the model.** The two model writers get

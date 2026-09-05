@@ -72,6 +72,23 @@ static void assert_same_model(const jaos_model *a, const jaos_model *b)
         TEST_ASSERT_EQUAL_INT64(a->a_index[k], b->a_index[k]);
         SAME_D(a->a_value[k], b->a_value[k]);
     }
+    /* And the names, as the model gives them: a row nobody named is
+     * called by its position on both sides, so it compares equal to a row
+     * the file named that way (D284). */
+    char na[JAOS_NAME_MAX + 1], nb[JAOS_NAME_MAX + 1];
+    for (int64_t j = 0; j < a->num_col; j++) {
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_col_name(a, j, na, sizeof na));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_col_name(b, j, nb, sizeof nb));
+        TEST_ASSERT_EQUAL_STRING(na, nb);
+    }
+    for (int64_t i = 0; i < a->num_row; i++) {
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_row_name(a, i, na, sizeof na));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_row_name(b, i, nb, sizeof nb));
+        TEST_ASSERT_EQUAL_STRING(na, nb);
+    }
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective_name(a, na, sizeof na));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective_name(b, nb, sizeof nb));
+    TEST_ASSERT_EQUAL_STRING(na, nb);
 }
 
 /* --------------------------------------------------------------------- */
@@ -793,11 +810,16 @@ static void test_the_solution_reader_refuses_by_name(void)
         "col C1 1.5x 0 basic\nrow R1 2 1 lower\nend\n",
         "not a finite number");
 
-    /* A solve that was not an optimum. */
+    /* A certificate is the other reader's (D285), and a status nobody
+     * writes is nobody's. */
     expect_sol_reject(m,
         "status infeasible\nobjective 2\ncolumns 1\nrows 1\n"
         "col C1 2 0 basic\nrow R1 2 1 lower\nend\n",
-        "only 'optimal' is");
+        "jaos_read_certificate");
+    expect_sol_reject(m,
+        "status work_limit\nobjective 2\ncolumns 1\nrows 1\n"
+        "col C1 2 0 basic\nrow R1 2 1 lower\nend\n",
+        "only 'optimal'");
 
     /* Fewer records than the count promises. */
     expect_sol_reject(m,
@@ -841,11 +863,13 @@ static void test_the_solution_reader_refuses_by_name(void)
         "col C1 2 0 basic\nrow R1 2 1 lower\nend\n",
         "no 'objective' line");
 
-    /* No status line. */
+    /* No status line: refused at the first record that needs one, and at
+     * the end when nothing did. */
     expect_sol_reject(m,
         "objective 2\ncolumns 1\nrows 1\n"
         "col C1 2 0 basic\nrow R1 2 1 lower\nend\n",
-        "no 'status' line");
+        "before 'status'");
+    expect_sol_reject(m, "columns 1\nrows 1\nend\n", "no 'status' line");
 
     jaos_model_free(m);
 }
@@ -1020,6 +1044,422 @@ static void test_empty_model_round_trips(void)
     remove(TMP_MPS);
 }
 
+/* --------------------------------------------------------------------- */
+/* Names (D284)                                                          */
+/* --------------------------------------------------------------------- */
+
+/* A model with a name on some rows and columns and not others, so the
+ * round trip has to carry both kinds: the stored ones as they are, the
+ * unnamed ones as their positions. */
+static jaos_model *build_named(void)
+{
+    jaos_model *m = build_lp_shaped();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_col_name(m, 0, "x.first"));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_col_name(m, 2, "z_3"));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_row_name(m, 1, "supply"));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_objective_name(m, "profit"));
+    return m;
+}
+
+static void test_names_round_trip_through_both_formats(void)
+{
+    jaos_model *a = build_named();
+    char buf[JAOS_NAME_MAX + 1];
+
+    jaos_model *b = fresh();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_write_mps(a, TMP_MPS));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_read_mps(b, TMP_MPS));
+    assert_same_model(a, b);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective_name(b, buf, sizeof buf));
+    TEST_ASSERT_EQUAL_STRING("profit", buf);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_col_name(b, 1, buf, sizeof buf));
+    TEST_ASSERT_EQUAL_STRING("C2", buf);
+    jaos_model_free(b);
+
+    b = fresh();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_write_lp(a, TMP_LP));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_read_lp(b, TMP_LP));
+    assert_same_model(a, b);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective_name(b, buf, sizeof buf));
+    TEST_ASSERT_EQUAL_STRING("profit", buf);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_row_name(b, 1, buf, sizeof buf));
+    TEST_ASSERT_EQUAL_STRING("supply", buf);
+    jaos_model_free(b);
+
+    /* The golden MPS instance's own names survive a trip through LP. */
+    jaos_model *g = fresh();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_read_mps(g, "tests/data/t1.mps"));
+    b = fresh();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_write_lp(g, TMP_LP));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_read_lp(b, TMP_LP));
+    assert_same_model(g, b);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_row_name(b, 2, buf, sizeof buf));
+    TEST_ASSERT_EQUAL_STRING("EQ1", buf);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective_name(b, buf, sizeof buf));
+    TEST_ASSERT_EQUAL_STRING("COST", buf);
+    jaos_model_free(b);
+    jaos_model_free(g);
+    jaos_model_free(a);
+    remove(TMP_MPS);
+    remove(TMP_LP);
+}
+
+static void test_two_of_a_name_are_refused_by_every_writer(void)
+{
+    jaos_model *m = build_named();
+    /* Column 1 is unnamed and called C2; a stored C2 elsewhere collides
+     * with it, which is the positional case the header promises. */
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_col_name(m, 0, "C2"));
+    TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT, jaos_write_mps(m, TMP_MPS));
+    TEST_ASSERT_NOT_NULL(strstr(jaos_model_error(m), "columns 0 and 1"));
+    TEST_ASSERT_FALSE(file_exists(TMP_MPS));
+    TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT, jaos_write_lp(m, TMP_LP));
+    TEST_ASSERT_NOT_NULL(strstr(jaos_model_error(m), "'C2'"));
+    TEST_ASSERT_FALSE(file_exists(TMP_LP));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+    remove(TMP_SOL);                 /* an earlier test may have left one */
+    TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT, jaos_write_solution(m, TMP_SOL));
+    TEST_ASSERT_FALSE(file_exists(TMP_SOL));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_col_name(m, 0, "x.first"));
+
+    /* The objective shares the rows' namespace in MPS, so it is one rule
+     * for every format. */
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_row_name(m, 2, "profit"));
+    TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT, jaos_write_mps(m, TMP_MPS));
+    TEST_ASSERT_NOT_NULL(strstr(jaos_model_error(m), "the objective"));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_row_name(m, 2, "supply"));
+    TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT, jaos_write_lp(m, TMP_LP));
+    TEST_ASSERT_NOT_NULL(strstr(jaos_model_error(m), "rows 1 and 2"));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_row_name(m, 2, nullptr));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_write_lp(m, TMP_LP));
+    remove(TMP_LP);
+    jaos_model_free(m);
+}
+
+static void test_lp_refuses_a_name_its_scanner_would_not_read_back(void)
+{
+    jaos_model *m = build_named();
+    /* A `-` is an operator; a leading digit is a number; a keyword is a
+     * keyword whatever its case. MPS takes all three. */
+    const char *bad[] = {"x-1", "2x", "Free", "a:b", "INF"};
+    for (size_t k = 0; k < sizeof bad / sizeof *bad; k++) {
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_col_name(m, 1, bad[k]));
+        TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT, jaos_write_lp(m, TMP_LP));
+        TEST_ASSERT_NOT_NULL(strstr(jaos_model_error(m), bad[k]));
+        TEST_ASSERT_NOT_NULL(strstr(jaos_model_error(m), "MPS"));
+        TEST_ASSERT_FALSE(file_exists(TMP_LP));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_write_mps(m, TMP_MPS));
+        jaos_model *b = fresh();
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_read_mps(b, TMP_MPS));
+        assert_same_model(m, b);
+        jaos_model_free(b);
+    }
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_col_name(m, 1, nullptr));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_row_name(m, 0, "r-0"));
+    TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT, jaos_write_lp(m, TMP_LP));
+    TEST_ASSERT_NOT_NULL(strstr(jaos_model_error(m), "row 'r-0'"));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_row_name(m, 0, nullptr));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_objective_name(m, "min"));
+    TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT, jaos_write_lp(m, TMP_LP));
+    TEST_ASSERT_NOT_NULL(strstr(jaos_model_error(m), "objective"));
+
+    /* And what the CPLEX set allows, the scanner now reads: the symbols
+     * other solvers' files carry, `.` first among them. */
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_objective_name(m, "obj"));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_col_name(m, 1, "y(2)/a$b#c!d"));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_write_lp(m, TMP_LP));
+    jaos_model *b = fresh();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_read_lp(b, TMP_LP));
+    assert_same_model(m, b);
+    jaos_model_free(b);
+    remove(TMP_LP);
+    remove(TMP_MPS);
+    jaos_model_free(m);
+}
+
+static void test_mps_refuses_the_row_name_its_reader_takes_for_a_marker(void)
+{
+    jaos_model *m = build_named();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_row_name(m, 0, "'MARKER'"));
+    TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT, jaos_write_mps(m, TMP_MPS));
+    TEST_ASSERT_NOT_NULL(strstr(jaos_model_error(m), "MARKER"));
+    TEST_ASSERT_FALSE(file_exists(TMP_MPS));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_row_name(m, 0, nullptr));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_objective_name(m, "'MARKER'"));
+    TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT, jaos_write_mps(m, TMP_MPS));
+    jaos_model_free(m);
+}
+
+static void test_a_solution_file_carries_the_names_and_is_checked_on_them(void)
+{
+    jaos_model *m = build_named();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+    const jaos_status wst = jaos_write_solution(m, TMP_SOL);
+    TEST_ASSERT_EQUAL_INT_MESSAGE(JAOS_OK, wst, jaos_model_error(m));
+
+    /* The file names the columns as the model does. */
+    FILE *f = fopen(TMP_SOL, "r");
+    TEST_ASSERT_NOT_NULL(f);
+    char line[512];
+    bool saw_named = false, saw_positional = false;
+    while (fgets(line, sizeof line, f) != nullptr) {
+        if (strncmp(line, "col x.first ", 12) == 0) saw_named = true;
+        if (strncmp(line, "col C2 ", 7) == 0)       saw_positional = true;
+    }
+    fclose(f);
+    TEST_ASSERT_TRUE(saw_named);
+    TEST_ASSERT_TRUE(saw_positional);
+
+    /* It reads back into the model that wrote it, and not into the same
+     * model renamed. Not under the two presolve fault builds: they corrupt
+     * the postsolved basis on purpose, so the file can carry a status word
+     * the reader rightly refuses, the rule every test that reads a
+     * postsolved answer follows. */
+#if !defined(JAOS_PRESOLVE_FAULT_OFFBYONE) && !defined(JAOS_PRESOLVE_FAULT_WRONGDUAL)
+    double x[3];
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_read_solution(m, TMP_SOL, nullptr, x, nullptr, nullptr,
+                           nullptr, nullptr, nullptr));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_col_name(m, 0, "renamed"));
+    TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT,
+        jaos_read_solution(m, TMP_SOL, nullptr, x, nullptr, nullptr,
+                           nullptr, nullptr, nullptr));
+    TEST_ASSERT_NOT_NULL(strstr(jaos_model_error(m), "'renamed'"));
+#endif
+    remove(TMP_SOL);
+    jaos_model_free(m);
+}
+
+
+/* --------------------------------------------------------------------- */
+/* Certificates in the solution file (D285)                              */
+/* --------------------------------------------------------------------- */
+
+/* x >= 3 and x <= 2 through one row: infeasible, with a certificate. */
+static jaos_model *build_infeasible(void)
+{
+    const double cost[] = {1.0}, cl[] = {3.0}, cu[] = {INFINITY};
+    const double rl[] = {-INFINITY}, ru[] = {2.0};
+    const int64_t as[] = {0, 1}, ai[] = {0};
+    const double av[] = {1.0};
+    jaos_model *m = fresh();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_load_lp(m, 1, 1, JAOS_MINIMIZE, 0.0, cost, cl, cu, rl, ru,
+                     1, as, ai, av));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_row_name(m, 0, "cap"));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_INFEASIBLE, jaos_status_of(m));
+    return m;
+}
+
+/* min -x - y with x - y <= 1: unbounded along (1, 1). */
+static jaos_model *build_unbounded(void)
+{
+    const double cost[] = {-1.0, -1.0}, cl[] = {0.0, 0.0};
+    const double cu[] = {INFINITY, INFINITY};
+    const double rl[] = {-INFINITY}, ru[] = {1.0};
+    const int64_t as[] = {0, 1, 2}, ai[] = {0, 0};
+    const double av[] = {1.0, -1.0};
+    jaos_model *m = fresh();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_load_lp(m, 2, 1, JAOS_MINIMIZE, 0.0, cost, cl, cu, rl, ru,
+                     2, as, ai, av));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_col_name(m, 1, "y"));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_UNBOUNDED, jaos_status_of(m));
+    return m;
+}
+
+static void test_an_infeasibility_certificate_round_trips(void)
+{
+    jaos_model *m = build_infeasible();
+    double want[1], got[1] = {NAN};
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_certificate(m, want));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_write_solution(m, TMP_SOL));
+
+    /* The file says what it is, and names the row as the model does. */
+    FILE *f = fopen(TMP_SOL, "r");
+    TEST_ASSERT_NOT_NULL(f);
+    char line[256];
+    bool saw_status = false, saw_ray = false, saw_obj = false;
+    while (fgets(line, sizeof line, f) != nullptr) {
+        if (strcmp(line, "status infeasible\n") == 0) saw_status = true;
+        if (strncmp(line, "ray cap ", 8) == 0)        saw_ray = true;
+        if (strncmp(line, "objective", 9) == 0)       saw_obj = true;
+    }
+    fclose(f);
+    TEST_ASSERT_TRUE(saw_status);
+    TEST_ASSERT_TRUE(saw_ray);
+    TEST_ASSERT_FALSE(saw_obj);
+
+    /* It reads back bit for bit, says which kind it is, and the checker
+     * accepts it from the model alone. */
+    jaos_solve_status kind = JAOS_SOLVE_NOT_RUN;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solution_file_status(m, TMP_SOL, &kind));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_INFEASIBLE, kind);
+    kind = JAOS_SOLVE_NOT_RUN;
+    double untouched[2] = {7.0, 7.0};
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_read_certificate(m, TMP_SOL, &kind, got, untouched));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_INFEASIBLE, kind);
+    SAME_D(want[0], got[0]);
+    SAME_D(7.0, untouched[0]);
+    jaos_certificate_report rep;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_check_certificate(m, got, 1e-7, &rep));
+    TEST_ASSERT_TRUE(rep.certified);
+
+    /* The optimum reader refuses it and says where to go instead. */
+    double x[1];
+    TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT,
+        jaos_read_solution(m, TMP_SOL, nullptr, x, nullptr, nullptr,
+                           nullptr, nullptr, nullptr));
+    TEST_ASSERT_NOT_NULL(strstr(jaos_model_error(m), "jaos_read_certificate"));
+    remove(TMP_SOL);
+    jaos_model_free(m);
+}
+
+static void test_an_unbounded_ray_round_trips(void)
+{
+    jaos_model *m = build_unbounded();
+    double want[2], got[2] = {NAN, NAN};
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_unbounded_ray(m, want));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_write_solution(m, TMP_SOL));
+
+    FILE *f = fopen(TMP_SOL, "r");
+    TEST_ASSERT_NOT_NULL(f);
+    char line[256];
+    bool saw_status = false, saw_c1 = false, saw_y = false;
+    while (fgets(line, sizeof line, f) != nullptr) {
+        if (strcmp(line, "status unbounded\n") == 0) saw_status = true;
+        if (strncmp(line, "ray C1 ", 7) == 0)        saw_c1 = true;
+        if (strncmp(line, "ray y ", 6) == 0)         saw_y = true;
+    }
+    fclose(f);
+    TEST_ASSERT_TRUE(saw_status);
+    TEST_ASSERT_TRUE(saw_c1);
+    TEST_ASSERT_TRUE(saw_y);
+
+    jaos_solve_status kind = JAOS_SOLVE_NOT_RUN;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_read_certificate(m, TMP_SOL, &kind, nullptr, got));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_UNBOUNDED, kind);
+    SAME_D(want[0], got[0]);
+    SAME_D(want[1], got[1]);
+    jaos_ray_report rep;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_check_ray(m, got, 1e-7, &rep));
+    TEST_ASSERT_TRUE(rep.certified);
+
+    /* A ray tampered with in the file still reads -- the reader judges
+     * the format, not the mathematics -- and the checker then refuses it,
+     * which is the division of labour the CLI's `check` rests on. */
+    f = fopen(TMP_SOL, "w");
+    TEST_ASSERT_NOT_NULL(f);
+    fputs("# JAOS solution file, format 1\nstatus unbounded\n"
+          "columns 2\nrows 1\nray C1 1\nray y -1\nend\n", f);
+    fclose(f);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_read_certificate(m, TMP_SOL, &kind, nullptr, got));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_check_ray(m, got, 1e-7, &rep));
+    TEST_ASSERT_FALSE(rep.certified);
+    remove(TMP_SOL);
+    jaos_model_free(m);
+}
+
+static void test_the_certificate_reader_refuses_what_is_not_one(void)
+{
+    jaos_model *m = build_unbounded();
+    jaos_solve_status kind;
+    double ray[2];
+    /* `peek` cases go through jaos_solution_file_status, which takes any
+     * of the three kinds, so a fault past an `optimal` status line is
+     * reached rather than refused at the line itself. */
+    struct { const char *text; const char *why; bool peek; } cases[] = {
+        /* an optimum is the other reader's */
+        {"status optimal\nobjective 1\ncolumns 2\nrows 1\n"
+         "col C1 0 0 lower\ncol y 0 0 lower\nrow R1 0 0 basic\nend\n",
+         "jaos_read_solution", false},
+        /* a status nobody writes */
+        {"status work_limit\ncolumns 2\nrows 1\nend\n", "only 'optimal'",
+         false},
+        /* a ray record where the status says an optimum */
+        {"status optimal\nobjective 1\ncolumns 2\nrows 1\nray C1 1\nend\n",
+         "'ray' record", true},
+        /* an objective in a certificate */
+        {"status unbounded\nobjective 1\ncolumns 2\nrows 1\nray C1 1\n"
+         "ray y 1\nend\n", "'objective'", false},
+        /* a col record in a certificate */
+        {"status unbounded\ncolumns 2\nrows 1\ncol C1 0 0 lower\nend\n",
+         "'col' record", false},
+        /* the wrong name */
+        {"status unbounded\ncolumns 2\nrows 1\nray C1 1\nray C2 1\nend\n",
+         "expected 'y'", false},
+        /* too few entries */
+        {"status unbounded\ncolumns 2\nrows 1\nray C1 1\nend\n", "carries 1",
+         false},
+        /* too many */
+        {"status unbounded\ncolumns 2\nrows 1\nray C1 1\nray y 1\nray y 1\n"
+         "end\n", "more 'ray' records", false},
+        /* a record before the status line */
+        {"columns 2\nrows 1\nray C1 1\nstatus unbounded\nray y 1\nend\n",
+         "before 'status'", false},
+        /* an infeasible certificate over the wrong side */
+        {"status infeasible\ncolumns 2\nrows 1\nray C1 1\nend\n",
+         "expected 'R1'", false},
+        /* not a number */
+        {"status unbounded\ncolumns 2\nrows 1\nray C1 inf\nray y 1\nend\n",
+         "finite", false},
+    };
+    for (size_t k = 0; k < sizeof cases / sizeof *cases; k++) {
+        FILE *f = fopen(TMP_SOL, "w");
+        TEST_ASSERT_NOT_NULL(f);
+        fputs(cases[k].text, f);
+        fclose(f);
+        const jaos_status st = cases[k].peek
+            ? jaos_solution_file_status(m, TMP_SOL, &kind)
+            : jaos_read_certificate(m, TMP_SOL, &kind, nullptr, ray);
+        TEST_ASSERT_EQUAL_INT_MESSAGE(JAOS_ERR_INVALID_INPUT, st,
+                                      cases[k].text);
+        TEST_ASSERT_NOT_NULL_MESSAGE(strstr(jaos_model_error(m), cases[k].why),
+                                     jaos_model_error(m));
+    }
+    /* And the status peek refuses the same files, since it reads them
+     * whole, but accepts every kind it does read. */
+    TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT,
+        jaos_solution_file_status(m, TMP_SOL, &kind));
+    TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT,
+        jaos_read_certificate(m, TMP_SOL, nullptr, nullptr, nullptr));
+    TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT,
+        jaos_read_certificate(nullptr, TMP_SOL, &kind, nullptr, ray));
+    TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT,
+        jaos_solution_file_status(m, TMP_SOL, nullptr));
+    TEST_ASSERT_EQUAL_INT(JAOS_ERR_IO,
+        jaos_solution_file_status(m, "build/no-such-dir/x.sol", &kind));
+    remove(TMP_SOL);
+    jaos_model_free(m);
+}
+
+static void test_a_solve_with_no_certificate_writes_nothing(void)
+{
+    /* An inverted box is infeasible with no ray to offer (jaos.h,
+     * jaos_certificate), so there is nothing to write and the message says
+     * so; a budget stop has no answer of any kind. */
+    const double cost[] = {1.0}, cl[] = {5.0}, cu[] = {2.0};
+    jaos_model *m = fresh();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_load_lp(m, 1, 0, JAOS_MINIMIZE, 0.0, cost, cl, cu, nullptr,
+                     nullptr, 0, nullptr, nullptr, nullptr));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_INFEASIBLE, jaos_status_of(m));
+    remove(TMP_SOL);                 /* an earlier test may have left one */
+    TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT, jaos_write_solution(m, TMP_SOL));
+    TEST_ASSERT_NOT_NULL(strstr(jaos_model_error(m), "no certificate"));
+    TEST_ASSERT_FALSE(file_exists(TMP_SOL));
+    jaos_model_free(m);
+}
+
+
 int main(void)
 {
     UNITY_BEGIN();
@@ -1049,5 +1489,14 @@ int main(void)
     RUN_TEST(test_the_solution_reader_rejects_bad_arguments);
     RUN_TEST(test_bad_arguments_and_unwritable_paths);
     RUN_TEST(test_empty_model_round_trips);
+    RUN_TEST(test_names_round_trip_through_both_formats);
+    RUN_TEST(test_two_of_a_name_are_refused_by_every_writer);
+    RUN_TEST(test_lp_refuses_a_name_its_scanner_would_not_read_back);
+    RUN_TEST(test_mps_refuses_the_row_name_its_reader_takes_for_a_marker);
+    RUN_TEST(test_a_solution_file_carries_the_names_and_is_checked_on_them);
+    RUN_TEST(test_an_infeasibility_certificate_round_trips);
+    RUN_TEST(test_an_unbounded_ray_round_trips);
+    RUN_TEST(test_the_certificate_reader_refuses_what_is_not_one);
+    RUN_TEST(test_a_solve_with_no_certificate_writes_nothing);
     return UNITY_END();
 }

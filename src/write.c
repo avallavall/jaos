@@ -16,13 +16,14 @@
  * readers parse under one: a host application running under a comma-decimal
  * locale would otherwise write "1,5" and produce files nothing can read.
  *
- * The model holds no names. It is indices from the moment it is loaded, and
- * a reader's names are gone by then. So the writer generates one name per
- * index: `C1..Cn` for columns, `R1..Rm` for rows, `COST` for the objective.
- * That round-trips because both formats list rows and columns in index
- * order and both readers assign indices in the order names appear. `COST`
- * cannot collide with a generated column name, which is always `C`
- * followed by digits.
+ * Rows and columns are written under the model's names (D284): the file's
+ * where the model came from one, and positional -- `C<j+1>`, `R<i+1>`,
+ * `COST` -- where nobody named them. That round-trips because both formats
+ * list rows and columns in index order and both readers assign indices in
+ * the order names appear. What can break it is two rows or two columns
+ * called the same, which no reader can tell apart, so every writer here
+ * refuses that by name before it opens the file; and, for LP, a name the
+ * dialect's scanner would not read back as one token, refused the same way.
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -44,21 +45,24 @@
 /* Names and numbers                                                     */
 /* --------------------------------------------------------------------- */
 
-/* One prefix character, at most 19 digits of int64, a terminator, rounded
- * up to something a reader of this file does not have to check. */
-constexpr int NAME_LEN = 24;
+/* A name is at most JAOS_NAME_MAX bytes, and a positional one far fewer. */
+constexpr int NAME_LEN = JAOS_NAME_MAX + 1;
 constexpr int NUM_LEN = 32;
 
-static const char *OBJ_NAME = "COST";
-
-static void col_name(char *buf, int64_t j)
+/* The model's name for column j (row i), into the caller's NAME_LEN
+ * buffer: its own, or its position (src/model.c). */
+static void col_name(const jaos_model *m, char *buf, int64_t j)
 {
-    snprintf(buf, NAME_LEN, "C%" PRId64, j + 1);
+    char tmp[JM_NAME_BUF];
+    const char *s = jm_col_name(m, j, tmp);
+    memcpy(buf, s, strlen(s) + 1);
 }
 
-static void row_name(char *buf, int64_t i)
+static void row_name(const jaos_model *m, char *buf, int64_t i)
 {
-    snprintf(buf, NAME_LEN, "R%" PRId64, i + 1);
+    char tmp[JM_NAME_BUF];
+    const char *s = jm_row_name(m, i, tmp);
+    memcpy(buf, s, strlen(s) + 1);
 }
 
 /* "%.17g" of a finite double always reads back as that double: that is the
@@ -166,6 +170,49 @@ static jaos_status wr_close(wr *w, const char *path, locale_t prev,
     return w->st;
 }
 
+/* Two rows, the objective among them, or two columns called the same
+ * would read back as one, so no writer here writes them. Checked before
+ * the file is opened, in one pass per side over a map of what has been
+ * seen. A positional name takes part: a column named `C2` collides with
+ * an unnamed second column. */
+static void names_unique(wr *w)
+{
+    const jaos_model *m = w->m;
+    jm_nmap seen = {0};
+    char nm[NAME_LEN];
+    int64_t prior;
+
+    for (int64_t j = 0; w->st == JAOS_OK && j < m->num_col; j++) {
+        col_name(m, nm, j);
+        if (jm_nmap_get(&seen, nm, &prior))
+            wr_fail(w, JAOS_ERR_INVALID_INPUT,
+                    "columns %" PRId64 " and %" PRId64 " are both named "
+                    "'%s', which no file can tell apart", prior, j, nm);
+        else if (!jm_nmap_insert(&seen, nm, j))
+            wr_fail(w, JAOS_ERR_OUT_OF_MEMORY, "out of memory");
+    }
+    jm_nmap_free(&seen);
+
+    if (w->st == JAOS_OK && !jm_nmap_insert(&seen, jm_obj_name(m), -1))
+        wr_fail(w, JAOS_ERR_OUT_OF_MEMORY, "out of memory");
+    for (int64_t i = 0; w->st == JAOS_OK && i < m->num_row; i++) {
+        row_name(m, nm, i);
+        if (jm_nmap_get(&seen, nm, &prior)) {
+            if (prior < 0)
+                wr_fail(w, JAOS_ERR_INVALID_INPUT,
+                        "row %" PRId64 " and the objective are both named "
+                        "'%s', which no file can tell apart", i, nm);
+            else
+                wr_fail(w, JAOS_ERR_INVALID_INPUT,
+                        "rows %" PRId64 " and %" PRId64 " are both named "
+                        "'%s', which no file can tell apart", prior, i, nm);
+        } else if (!jm_nmap_insert(&seen, nm, i)) {
+            wr_fail(w, JAOS_ERR_OUT_OF_MEMORY, "out of memory");
+        }
+    }
+    jm_nmap_free(&seen);
+}
+
 /* --------------------------------------------------------------------- */
 /* MPS                                                                   */
 /* --------------------------------------------------------------------- */
@@ -206,7 +253,7 @@ static void mps_row_kind(wr *w, int64_t i, char *type, double *rhs,
 {
     const double rl = w->m->row_lower[i], ru = w->m->row_upper[i];
     char name[NAME_LEN];
-    row_name(name, i);
+    row_name(w->m, name, i);
     /* Set on every path including the two refusals, because `type` comes
      * from jm_alloc_array, which is malloc. Leaving it to the caller's
      * `w->st == JAOS_OK` guards would make three separate loop conditions
@@ -268,6 +315,7 @@ jaos_status jaos_write_mps(jaos_model *m, const char *path)
      * already had at that path. */
     wr ww = {.f = nullptr, .m = m, .st = JAOS_OK};
     wr *w = &ww;
+    const char *obj = jm_obj_name(m);
 
     char *type = jm_alloc_array(m->num_row, sizeof(char));
     double *rhs = jm_alloc_array(m->num_row, sizeof(double));
@@ -284,11 +332,27 @@ jaos_status jaos_write_mps(jaos_model *m, const char *path)
 
     for (int64_t j = 0; w->st == JAOS_OK && j < m->num_col; j++) {
         if (m->col_lower[j] == INFINITY || m->col_upper[j] == -INFINITY) {
-            col_name(nm, j);
+            col_name(m, nm, j);
             wr_fail(w, JAOS_ERR_INVALID_INPUT,
                     "column '%s' has a bound at an infinity MPS cannot "
                     "express", nm);
         }
+    }
+
+    /* The names. Two the same are refused for every format; MPS has one
+     * more, because the reader takes a second field of 'MARKER' in COLUMNS
+     * as an integer marker, so a row called that would not read back as a
+     * row. */
+    if (w->st == JAOS_OK)
+        names_unique(w);
+    for (int64_t i = -1; w->st == JAOS_OK && i < m->num_row; i++) {
+        if (i >= 0)
+            row_name(m, rn, i);
+        if (strcmp(i < 0 ? obj : rn, "'MARKER'") == 0)
+            wr_fail(w, JAOS_ERR_INVALID_INPUT,
+                    "%s is named 'MARKER', which the MPS reader takes for "
+                    "an integer marker; rename it", i < 0 ? "the objective"
+                                                          : "a row");
     }
 
     locale_t prev = (locale_t)0, cloc = (locale_t)0;
@@ -306,9 +370,9 @@ jaos_status jaos_write_mps(jaos_model *m, const char *path)
             fprintf(w->f, "OBJSENSE      MAX\n");
 
         fprintf(w->f, "ROWS\n");
-        fprintf(w->f, " N  %s\n", OBJ_NAME);
+        fprintf(w->f, " N  %s\n", obj);
         for (int64_t i = 0; i < m->num_row; i++) {
-            row_name(rn, i);
+            row_name(m, rn, i);
             fprintf(w->f, " %c  %s\n", type[i], rn);
         }
 
@@ -317,16 +381,16 @@ jaos_status jaos_write_mps(jaos_model *m, const char *path)
          * with nothing to say gets its objective entry written anyway. */
         fprintf(w->f, "COLUMNS\n");
         for (int64_t j = 0; j < m->num_col; j++) {
-            col_name(nm, j);
+            col_name(m, nm, j);
             const int64_t beg = m->a_start[j], end = m->a_start[j + 1];
             int pending = 0;
             if (m->col_cost[j] != 0.0 || beg == end) {
                 wr_num(num, m->col_cost[j]);
-                fprintf(w->f, "    %-9s %-9s %s", nm, OBJ_NAME, num);
+                fprintf(w->f, "    %-9s %-9s %s", nm, obj, num);
                 pending = 1;
             }
             for (int64_t k = beg; k < end; k++) {
-                row_name(rn, m->a_index[k]);
+                row_name(m, rn, m->a_index[k]);
                 wr_num(num, m->a_value[k]);
                 if (pending == 0)
                     fprintf(w->f, "    %-9s %-9s %s", nm, rn, num);
@@ -346,12 +410,12 @@ jaos_status jaos_write_mps(jaos_model *m, const char *path)
         fprintf(w->f, "RHS\n");
         if (m->obj_offset != 0.0) {
             wr_num(num, -m->obj_offset);
-            fprintf(w->f, "    RHS       %-9s %s\n", OBJ_NAME, num);
+            fprintf(w->f, "    RHS       %-9s %s\n", obj, num);
         }
         for (int64_t i = 0; i < m->num_row; i++) {
             if (type[i] == 'N' || rhs[i] == 0.0)
                 continue;      /* a row never named in RHS defaults to 0 */
-            row_name(rn, i);
+            row_name(m, rn, i);
             wr_num(num, rhs[i]);
             fprintf(w->f, "    RHS       %-9s %s\n", rn, num);
         }
@@ -360,7 +424,7 @@ jaos_status jaos_write_mps(jaos_model *m, const char *path)
         for (int64_t i = 0; i < m->num_row; i++) {
             if (isnan(rng[i]))
                 continue;
-            row_name(rn, i);
+            row_name(m, rn, i);
             wr_num(num, rng[i]);
             fprintf(w->f, "    RNG       %-9s %s\n", rn, num);
         }
@@ -372,7 +436,7 @@ jaos_status jaos_write_mps(jaos_model *m, const char *path)
         fprintf(w->f, "BOUNDS\n");
         for (int64_t j = 0; j < m->num_col; j++) {
             const double cl = m->col_lower[j], cu = m->col_upper[j];
-            col_name(nm, j);
+            col_name(m, nm, j);
             if (cl == 0.0 && cu == INFINITY)
                 continue;                          /* the reader's default */
             if (cl == -INFINITY && cu == INFINITY) {
@@ -457,7 +521,7 @@ jaos_status jaos_write_lp(jaos_model *m, const char *path)
      * them, which is why every message here points at it. */
     for (int64_t i = 0; w->st == JAOS_OK && i < m->num_row; i++) {
         const double rl = m->row_lower[i], ru = m->row_upper[i];
-        row_name(rn, i);
+        row_name(m, rn, i);
         if (rl == -INFINITY && ru == INFINITY)
             wr_fail(w, JAOS_ERR_INVALID_INPUT,
                     "row '%s' is free, which LP format cannot express; write "
@@ -473,11 +537,35 @@ jaos_status jaos_write_lp(jaos_model *m, const char *path)
                     "instead", rn);
     }
     for (int64_t j = 0; w->st == JAOS_OK && j < m->num_col; j++) {
-        col_name(nm, j);
+        col_name(m, nm, j);
         if (m->col_lower[j] == INFINITY || m->col_upper[j] == -INFINITY)
             wr_fail(w, JAOS_ERR_INVALID_INPUT,
                     "column '%s' has a bound at an infinity LP format cannot "
                     "express", nm);
+    }
+
+    /* The names: two the same, as every writer refuses, and one the LP
+     * scanner would not read back as one token -- a name starting with a
+     * digit, holding a `-` or a `:`, or spelling a keyword. MPS takes
+     * every name this library holds, which is why the message points
+     * there. The objective's name is a label like any other. */
+    if (w->st == JAOS_OK)
+        names_unique(w);
+    for (int64_t j = 0; w->st == JAOS_OK && j < m->num_col; j++) {
+        col_name(m, nm, j);
+        if (!jm_lp_name_ok(nm))
+            wr_fail(w, JAOS_ERR_INVALID_INPUT,
+                    "column '%s' has a name LP format cannot spell; write "
+                    "MPS instead", nm);
+    }
+    for (int64_t i = -1; w->st == JAOS_OK && i < m->num_row; i++) {
+        if (i >= 0)
+            row_name(m, rn, i);
+        if (!jm_lp_name_ok(i < 0 ? jm_obj_name(m) : rn))
+            wr_fail(w, JAOS_ERR_INVALID_INPUT,
+                    "%s '%s' has a name LP format cannot spell; write MPS "
+                    "instead", i < 0 ? "the objective" : "row",
+                    i < 0 ? jm_obj_name(m) : rn);
     }
 
     locale_t prev = (locale_t)0, cloc = (locale_t)0;
@@ -499,11 +587,11 @@ jaos_status jaos_write_lp(jaos_model *m, const char *path)
          * bench/measurements/02-138/lpcover.txt owns the count (D226). A
          * zero term is also what lets LP name a column that appears in no
          * row at all. */
-        fprintf(w->f, " obj:");
-        int col = 5;
+        fprintf(w->f, " %s:", jm_obj_name(m));
+        int col = (int)strlen(jm_obj_name(m)) + 2;
         bool first = true;
         for (int64_t j = 0; j < m->num_col; j++) {
-            col_name(nm, j);
+            col_name(m, nm, j);
             lp_term(w, &col, &first, m->col_cost[j], nm);
         }
         if (m->obj_offset != 0.0) {
@@ -520,7 +608,7 @@ jaos_status jaos_write_lp(jaos_model *m, const char *path)
              * form, whose left bound sits between the label and the terms. */
             const bool ranged = rl != ru && rl != -INFINITY && ru != INFINITY;
             char lonum[NUM_LEN];
-            row_name(rn, i);
+            row_name(m, rn, i);
             fprintf(w->f, " %s:", rn);
             col = (int)strlen(rn) + 2;
             if (ranged) {
@@ -530,7 +618,7 @@ jaos_status jaos_write_lp(jaos_model *m, const char *path)
             }
             first = true;
             for (int64_t k = m->ar_start[i]; k < m->ar_start[i + 1]; k++) {
-                col_name(nm, m->ar_index[k]);
+                col_name(m, nm, m->ar_index[k]);
                 lp_term(w, &col, &first, m->ar_value[k], nm);
             }
             if (m->ar_start[i] == m->ar_start[i + 1]) {
@@ -545,7 +633,7 @@ jaos_status jaos_write_lp(jaos_model *m, const char *path)
                  * This was refused as unwritable until D276 measured the
                  * round trip. It is 34 of the 35 gate instances the LP
                  * writer used to turn away. */
-                col_name(nm, 0);
+                col_name(m, nm, 0);
                 lp_term(w, &col, &first, 0.0, nm);
             }
             if (ranged) {
@@ -564,7 +652,7 @@ jaos_status jaos_write_lp(jaos_model *m, const char *path)
         fprintf(w->f, "Bounds\n");
         for (int64_t j = 0; j < m->num_col; j++) {
             const double cl = m->col_lower[j], cu = m->col_upper[j];
-            col_name(nm, j);
+            col_name(m, nm, j);
             if (cl == 0.0 && cu == INFINITY)
                 continue;
             if (cl == -INFINITY && cu == INFINITY) {
@@ -607,19 +695,44 @@ static const char *basis_word(jaos_basis_status s)
     return "unknown";
 }
 
+/* The three words a file's status line may carry, and the three the reader
+ * accepts: the outcomes that carry an answer, `optimal` with a point and a
+ * basis and the other two with a certificate (D285). */
+static const char *status_word(jaos_solve_status s)
+{
+    switch (s) {
+    case JAOS_SOLVE_OPTIMAL:    return "optimal";
+    case JAOS_SOLVE_INFEASIBLE: return "infeasible";
+    case JAOS_SOLVE_UNBOUNDED:  return "unbounded";
+    default:                    return nullptr;
+    }
+}
+
 jaos_status jaos_write_solution(jaos_model *m, const char *path)
 {
     if (m == nullptr || path == nullptr)
         return JAOS_ERR_INVALID_INPUT;
-    /* The rule jaos_solution and jaos_basis apply, for their reason: a
-     * solve that found no optimum has no solution to write down, and a file
-     * of zeros does not read as missing. */
-    if (m->solve_status != JAOS_SOLVE_OPTIMAL || m->sol_col == nullptr ||
-        m->sol_col_status == nullptr || m->sol_redcost == nullptr ||
-        m->sol_row == nullptr || m->sol_dual == nullptr ||
-        m->sol_row_status == nullptr) {
-        jm_set_err(m, "no optimal solution to write: the last solve is '%s'",
-                   jaos_solve_status_str(m->solve_status));
+    /* What the last solve left to write down: an optimum with its point
+     * and basis, or a certificate. The rule jaos_solution, jaos_certificate
+     * and jaos_unbounded_ray apply, for their reason: a solve that left
+     * none of the three has nothing to write, and a file of zeros does not
+     * read as missing. */
+    const jaos_solve_status ss = m->solve_status;
+    const bool optimal = ss == JAOS_SOLVE_OPTIMAL && m->sol_col != nullptr &&
+        m->sol_col_status != nullptr && m->sol_redcost != nullptr &&
+        m->sol_row != nullptr && m->sol_dual != nullptr &&
+        m->sol_row_status != nullptr;
+    const bool infeasible = ss == JAOS_SOLVE_INFEASIBLE && m->farkas_ok &&
+        m->sol_farkas != nullptr;
+    const bool unbounded = ss == JAOS_SOLVE_UNBOUNDED && m->ray_ok &&
+        m->sol_ray != nullptr;
+    if (!optimal && !infeasible && !unbounded) {
+        if (ss == JAOS_SOLVE_INFEASIBLE || ss == JAOS_SOLVE_UNBOUNDED)
+            jm_set_err(m, "the last solve is '%s' and left no certificate "
+                       "to write", jaos_solve_status_str(ss));
+        else
+            jm_set_err(m, "nothing to write: the last solve is '%s'",
+                       jaos_solve_status_str(ss));
         return JAOS_ERR_INVALID_INPUT;
     }
 
@@ -630,33 +743,57 @@ jaos_status jaos_write_solution(jaos_model *m, const char *path)
     /* wr_num's caller guarantees a finite value. The two model writers
      * discharge that from the model's own invariants: every setter and
      * every loader rejects a non-finite cost, bound or coefficient. The
-     * solution arrays carry no such invariant. `jm_objective_value`
+     * answer arrays carry no such invariant. `jm_objective_value`
      * publishes a non-finite objective deliberately when the sum overflows,
      * and a model whose bounds reach 1e300 solves to OPTIMAL with an
-     * infinity or a NaN in any of the four arrays.
+     * infinity or a NaN in any of the four arrays; a certificate is a
+     * vector the solve computed and is checked the same way.
      *
      * Writing one would abort wr_num's assert on a build that has asserts,
      * and print a libc-dependent "nan" or "-nan" on one that does not,
      * which is a file this project's first rule says must not exist. So it
      * is refused by name, before anything is opened (D226). */
-    if (!isfinite(m->objective))
-        wr_fail(w, JAOS_ERR_INVALID_INPUT,
-                "the objective is not finite, so there is no solution to "
-                "write down");
-    for (int64_t j = 0; w->st == JAOS_OK && j < m->num_col; j++) {
-        col_name(nm, j);
-        if (!isfinite(m->sol_col[j]) || !isfinite(m->sol_redcost[j]))
+    if (optimal) {
+        if (!isfinite(m->objective))
             wr_fail(w, JAOS_ERR_INVALID_INPUT,
-                    "column '%s' has a value or a reduced cost that is not "
-                    "finite", nm);
+                    "the objective is not finite, so there is no solution to "
+                    "write down");
+        for (int64_t j = 0; w->st == JAOS_OK && j < m->num_col; j++) {
+            col_name(m, nm, j);
+            if (!isfinite(m->sol_col[j]) || !isfinite(m->sol_redcost[j]))
+                wr_fail(w, JAOS_ERR_INVALID_INPUT,
+                        "column '%s' has a value or a reduced cost that is "
+                        "not finite", nm);
+        }
+        for (int64_t i = 0; w->st == JAOS_OK && i < m->num_row; i++) {
+            row_name(m, nm, i);
+            if (!isfinite(m->sol_row[i]) || !isfinite(m->sol_dual[i]))
+                wr_fail(w, JAOS_ERR_INVALID_INPUT,
+                        "row '%s' has an activity or a dual that is not "
+                        "finite", nm);
+        }
+    } else if (infeasible) {
+        for (int64_t i = 0; w->st == JAOS_OK && i < m->num_row; i++) {
+            row_name(m, nm, i);
+            if (!isfinite(m->sol_farkas[i]))
+                wr_fail(w, JAOS_ERR_INVALID_INPUT,
+                        "row '%s' has a certificate entry that is not "
+                        "finite", nm);
+        }
+    } else {
+        for (int64_t j = 0; w->st == JAOS_OK && j < m->num_col; j++) {
+            col_name(m, nm, j);
+            if (!isfinite(m->sol_ray[j]))
+                wr_fail(w, JAOS_ERR_INVALID_INPUT,
+                        "column '%s' has a ray entry that is not finite",
+                        nm);
+        }
     }
-    for (int64_t i = 0; w->st == JAOS_OK && i < m->num_row; i++) {
-        row_name(nm, i);
-        if (!isfinite(m->sol_row[i]) || !isfinite(m->sol_dual[i]))
-            wr_fail(w, JAOS_ERR_INVALID_INPUT,
-                    "row '%s' has an activity or a dual that is not finite",
-                    nm);
-    }
+    /* Records are positional and the reader would take a repeated name in
+     * its stride, so this refusal is for the person reading the file, and
+     * for one rule across the three writers. */
+    if (w->st == JAOS_OK)
+        names_unique(w);
     if (w->st != JAOS_OK)
         return w->st;
 
@@ -666,28 +803,50 @@ jaos_status jaos_write_solution(jaos_model *m, const char *path)
 
     fprintf(w->f, "# JAOS solution file, format 1\n");
     fprintf(w->f, "# written by JAOS %s\n", JAOS_VERSION_STRING);
-    fprintf(w->f, "status optimal\n");
-    wr_num(a, m->objective);
-    fprintf(w->f, "objective %s\n", a);
+    fprintf(w->f, "status %s\n", status_word(ss));
+    if (optimal) {
+        wr_num(a, m->objective);
+        fprintf(w->f, "objective %s\n", a);
+    }
     fprintf(w->f, "columns %" PRId64 "\n", m->num_col);
     fprintf(w->f, "rows %" PRId64 "\n", m->num_row);
 
-    fprintf(w->f, "# col <name> <value> <reduced cost> <status>\n");
-    for (int64_t j = 0; j < m->num_col; j++) {
-        col_name(nm, j);
-        wr_num(a, m->sol_col[j]);
-        wr_num(b, m->sol_redcost[j]);
-        fprintf(w->f, "col %s %s %s %s\n", nm, a, b,
-                basis_word(m->sol_col_status[j]));
-    }
-
-    fprintf(w->f, "# row <name> <activity> <dual> <status>\n");
-    for (int64_t i = 0; i < m->num_row; i++) {
-        row_name(nm, i);
-        wr_num(a, m->sol_row[i]);
-        wr_num(b, m->sol_dual[i]);
-        fprintf(w->f, "row %s %s %s %s\n", nm, a, b,
-                basis_word(m->sol_row_status[i]));
+    if (optimal) {
+        fprintf(w->f, "# col <name> <value> <reduced cost> <status>\n");
+        for (int64_t j = 0; j < m->num_col; j++) {
+            col_name(m, nm, j);
+            wr_num(a, m->sol_col[j]);
+            wr_num(b, m->sol_redcost[j]);
+            fprintf(w->f, "col %s %s %s %s\n", nm, a, b,
+                    basis_word(m->sol_col_status[j]));
+        }
+        fprintf(w->f, "# row <name> <activity> <dual> <status>\n");
+        for (int64_t i = 0; i < m->num_row; i++) {
+            row_name(m, nm, i);
+            wr_num(a, m->sol_row[i]);
+            wr_num(b, m->sol_dual[i]);
+            fprintf(w->f, "row %s %s %s %s\n", nm, a, b,
+                    basis_word(m->sol_row_status[i]));
+        }
+    } else if (infeasible) {
+        /* The Farkas certificate, one entry per row: jaos_certificate's
+         * vector, which jaos_check_certificate judges from the model
+         * alone. */
+        fprintf(w->f, "# ray <row name> <multiplier>\n");
+        for (int64_t i = 0; i < m->num_row; i++) {
+            row_name(m, nm, i);
+            wr_num(a, m->sol_farkas[i]);
+            fprintf(w->f, "ray %s %s\n", nm, a);
+        }
+    } else {
+        /* The unbounded ray, one entry per column: jaos_unbounded_ray's
+         * vector, which jaos_check_ray judges from the model alone. */
+        fprintf(w->f, "# ray <column name> <direction>\n");
+        for (int64_t j = 0; j < m->num_col; j++) {
+            col_name(m, nm, j);
+            wr_num(a, m->sol_ray[j]);
+            fprintf(w->f, "ray %s %s\n", nm, a);
+        }
     }
 
     fprintf(w->f, "end\n");
@@ -709,6 +868,15 @@ static bool basis_of_word(const char *w, jaos_basis_status *out)
     return false;
 }
 
+/* The inverse of `status_word`. */
+static bool status_of_word(const char *w, jaos_solve_status *out)
+{
+    if (strcmp(w, "optimal") == 0)    { *out = JAOS_SOLVE_OPTIMAL;    return true; }
+    if (strcmp(w, "infeasible") == 0) { *out = JAOS_SOLVE_INFEASIBLE; return true; }
+    if (strcmp(w, "unbounded") == 0)  { *out = JAOS_SOLVE_UNBOUNDED;  return true; }
+    return false;
+}
+
 /* One finite number, parsed under the caller's already-installed "C"
  * locale. Rejects what `strtod` leaves behind, so `1.5x` is an error and
  * not 1.5, and rejects an infinity or a NaN: the writer refuses to write
@@ -724,14 +892,27 @@ static bool rd_num(const char *tok, double *out)
     return true;
 }
 
-jaos_status jaos_read_solution(jaos_model *m, const char *path,
-    double *objective,
-    double *col_value, double *col_dual, jaos_basis_status *col_status,
-    double *row_activity, double *row_dual, jaos_basis_status *row_status)
-{
-    if (m == nullptr || path == nullptr)
-        return JAOS_ERR_INVALID_INPUT;
+/* Where a read puts what it finds. Every pointer is optional. */
+typedef struct {
+    jaos_solve_status status;
+    double objective;
+    double *col_value, *col_dual;
+    jaos_basis_status *col_status;
+    double *row_activity, *row_dual;
+    jaos_basis_status *row_status;
+    double *row_ray;         /* on infeasible, num_row entries */
+    double *col_ray;         /* on unbounded, num_col entries  */
+} sol_read;
 
+/* The one reader behind the three public calls: the whole file, every
+ * record checked against the model and against the status the file
+ * declared, so a `col` record in an infeasible file or a `ray` record in
+ * an optimal one is refused rather than taken. `want_optimal` is +1 when
+ * the caller can only take an optimum, -1 when only a certificate, and 0
+ * for either; the refusal names the call that reads the other kind. */
+static jaos_status read_solution_file(jaos_model *m, const char *path,
+                                      int want_optimal, sol_read *o)
+{
     FILE *f = fopen(path, "r");
     if (f == nullptr) {
         jm_set_err(m, "cannot open '%s' for reading", path);
@@ -747,8 +928,10 @@ jaos_status jaos_read_solution(jaos_model *m, const char *path,
     jaos_status st = JAOS_OK;
     char *line = nullptr;
     size_t lsz = 0;
-    int64_t lno = 0, ncol = -1, nrow = -1, seen_col = 0, seen_row = 0;
+    int64_t lno = 0, ncol = -1, nrow = -1, seen_col = 0, seen_row = 0,
+            seen_ray = 0;
     bool have_status = false, have_obj = false, ended = false;
+    jaos_solve_status ss = JAOS_SOLVE_NOT_RUN;
     double obj = 0.0;
     char nm[NAME_LEN];
 
@@ -771,14 +954,30 @@ jaos_status jaos_read_solution(jaos_model *m, const char *path,
         if (strcmp(tok[0], "status") == 0) {
             if (nt != 2)
                 RD_FAIL("line %" PRId64 ": 'status' takes one word", lno);
-            /* Only an optimum is ever written (D226), so only an optimum
-             * can be read. A file saying anything else was not written by
-             * this library and its records mean something else. */
-            if (strcmp(tok[1], "optimal") != 0)
-                RD_FAIL("line %" PRId64 ": status is '%s'; only 'optimal' is "
-                        "written and only 'optimal' is read", lno, tok[1]);
+            if (have_status)
+                RD_FAIL("line %" PRId64 ": a second 'status' line", lno);
+            /* Only the three outcomes with something to write are ever
+             * written (D226, D285), so only those are read. A file saying
+             * anything else was not written by this library. */
+            if (!status_of_word(tok[1], &ss))
+                RD_FAIL("line %" PRId64 ": status is '%s'; only 'optimal', "
+                        "'infeasible' and 'unbounded' are written and read",
+                        lno, tok[1]);
+            if (want_optimal > 0 && ss != JAOS_SOLVE_OPTIMAL)
+                RD_FAIL("line %" PRId64 ": status is '%s', and this call "
+                        "reads an optimum; jaos_read_certificate reads a "
+                        "certificate", lno, tok[1]);
+            if (want_optimal < 0 && ss == JAOS_SOLVE_OPTIMAL)
+                RD_FAIL("line %" PRId64 ": status is 'optimal', and this "
+                        "call reads a certificate; jaos_read_solution reads "
+                        "an optimum", lno);
             have_status = true;
         } else if (strcmp(tok[0], "objective") == 0) {
+            if (!have_status)
+                RD_FAIL("line %" PRId64 ": 'objective' before 'status'", lno);
+            if (ss != JAOS_SOLVE_OPTIMAL)
+                RD_FAIL("line %" PRId64 ": an 'objective' in a file whose "
+                        "status is '%s'", lno, status_word(ss));
             if (nt != 2 || !rd_num(tok[1], &obj))
                 RD_FAIL("line %" PRId64 ": 'objective' takes one finite "
                         "number", lno);
@@ -806,6 +1005,11 @@ jaos_status jaos_read_solution(jaos_model *m, const char *path,
         } else if (strcmp(tok[0], "col") == 0 ||
                    strcmp(tok[0], "row") == 0) {
             const bool is_col = tok[0][0] == 'c';
+            if (!have_status)
+                RD_FAIL("line %" PRId64 ": a record before 'status'", lno);
+            if (ss != JAOS_SOLVE_OPTIMAL)
+                RD_FAIL("line %" PRId64 ": a '%s' record in a file whose "
+                        "status is '%s'", lno, tok[0], status_word(ss));
             if (ncol < 0 || nrow < 0)
                 RD_FAIL("line %" PRId64 ": a record before both counts", lno);
             if (nt != 5)
@@ -817,17 +1021,17 @@ jaos_status jaos_read_solution(jaos_model *m, const char *path,
                 RD_FAIL("line %" PRId64 ": more '%s' records than the count "
                         "says", lno, tok[0]);
             /* Records are positional; the name is checked, not searched.
-             * The model holds no names, so the only name a file can carry
-             * is the one this library generates for that index -- and a
-             * mismatch means the file describes a different model. */
+             * It must be the name this model gives that index -- its own
+             * or the positional one (D284) -- so a mismatch means the file
+             * describes a different model, or this one renamed since. */
             if (is_col)
-                col_name(nm, k);
+                col_name(m, nm, k);
             else
-                row_name(nm, k);
+                row_name(m, nm, k);
             if (strcmp(tok[1], nm) != 0)
                 RD_FAIL("line %" PRId64 ": expected '%s' here and the file "
-                        "says '%s'; records are in index order", lno, nm,
-                        tok[1]);
+                        "says '%s'; records are in index order and named "
+                        "as the model names them", lno, nm, tok[1]);
             double v1, v2;
             jaos_basis_status bs;
             if (!rd_num(tok[2], &v1))
@@ -840,16 +1044,54 @@ jaos_status jaos_read_solution(jaos_model *m, const char *path,
                 RD_FAIL("line %" PRId64 ": '%s' is not a basis status", lno,
                         tok[4]);
             if (is_col) {
-                if (col_value != nullptr)  col_value[k] = v1;
-                if (col_dual != nullptr)   col_dual[k] = v2;
-                if (col_status != nullptr) col_status[k] = bs;
+                if (o->col_value != nullptr)  o->col_value[k] = v1;
+                if (o->col_dual != nullptr)   o->col_dual[k] = v2;
+                if (o->col_status != nullptr) o->col_status[k] = bs;
                 seen_col++;
             } else {
-                if (row_activity != nullptr) row_activity[k] = v1;
-                if (row_dual != nullptr)     row_dual[k] = v2;
-                if (row_status != nullptr)   row_status[k] = bs;
+                if (o->row_activity != nullptr) o->row_activity[k] = v1;
+                if (o->row_dual != nullptr)     o->row_dual[k] = v2;
+                if (o->row_status != nullptr)   o->row_status[k] = bs;
                 seen_row++;
             }
+        } else if (strcmp(tok[0], "ray") == 0) {
+            /* A certificate entry: over the rows of an infeasible file,
+             * over the columns of an unbounded one, in index order and
+             * under the model's names, the same rule as the records
+             * above. */
+            if (!have_status)
+                RD_FAIL("line %" PRId64 ": a record before 'status'", lno);
+            if (ss == JAOS_SOLVE_OPTIMAL)
+                RD_FAIL("line %" PRId64 ": a 'ray' record in a file whose "
+                        "status is 'optimal'", lno);
+            if (ncol < 0 || nrow < 0)
+                RD_FAIL("line %" PRId64 ": a record before both counts", lno);
+            if (nt != 3)
+                RD_FAIL("line %" PRId64 ": a 'ray' record takes a name and "
+                        "a number", lno);
+            const bool over_rows = ss == JAOS_SOLVE_INFEASIBLE;
+            const int64_t lim = over_rows ? nrow : ncol;
+            if (seen_ray >= lim)
+                RD_FAIL("line %" PRId64 ": more 'ray' records than the count "
+                        "says", lno);
+            if (over_rows)
+                row_name(m, nm, seen_ray);
+            else
+                col_name(m, nm, seen_ray);
+            if (strcmp(tok[1], nm) != 0)
+                RD_FAIL("line %" PRId64 ": expected '%s' here and the file "
+                        "says '%s'; records are in index order and named "
+                        "as the model names them", lno, nm, tok[1]);
+            double v;
+            if (!rd_num(tok[2], &v))
+                RD_FAIL("line %" PRId64 ": '%s' is not a finite number", lno,
+                        tok[2]);
+            if (over_rows) {
+                if (o->row_ray != nullptr) o->row_ray[seen_ray] = v;
+            } else {
+                if (o->col_ray != nullptr) o->col_ray[seen_ray] = v;
+            }
+            seen_ray++;
         } else if (strcmp(tok[0], "end") == 0) {
             if (nt != 1)
                 RD_FAIL("line %" PRId64 ": 'end' takes nothing", lno);
@@ -863,19 +1105,28 @@ jaos_status jaos_read_solution(jaos_model *m, const char *path,
         RD_FAIL("the file ends without 'end'");
     if (!have_status)
         RD_FAIL("no 'status' line");
-    if (!have_obj)
-        RD_FAIL("no 'objective' line");
     if (ncol < 0 || nrow < 0)
         RD_FAIL("the file gives no column or row count");
-    if (seen_col != ncol)
-        RD_FAIL("the file says %" PRId64 " columns and carries %" PRId64,
-                ncol, seen_col);
-    if (seen_row != nrow)
-        RD_FAIL("the file says %" PRId64 " rows and carries %" PRId64,
-                nrow, seen_row);
+    if (ss == JAOS_SOLVE_OPTIMAL) {
+        if (!have_obj)
+            RD_FAIL("no 'objective' line");
+        if (seen_col != ncol)
+            RD_FAIL("the file says %" PRId64 " columns and carries %" PRId64,
+                    ncol, seen_col);
+        if (seen_row != nrow)
+            RD_FAIL("the file says %" PRId64 " rows and carries %" PRId64,
+                    nrow, seen_row);
+    } else {
+        const int64_t lim = ss == JAOS_SOLVE_INFEASIBLE ? nrow : ncol;
+        if (seen_ray != lim)
+            RD_FAIL("the file says %" PRId64 " %s and its certificate "
+                    "carries %" PRId64, lim,
+                    ss == JAOS_SOLVE_INFEASIBLE ? "rows" : "columns",
+                    seen_ray);
+    }
 
-    if (objective != nullptr)
-        *objective = obj;
+    o->status = ss;
+    o->objective = obj;
     jm_set_err(m, "%s", "");
 
 #undef RD_FAIL
@@ -886,5 +1137,46 @@ done:
         uselocale(prev ? prev : LC_GLOBAL_LOCALE);
         freelocale(cloc);
     }
+    return st;
+}
+
+jaos_status jaos_read_solution(jaos_model *m, const char *path,
+    double *objective,
+    double *col_value, double *col_dual, jaos_basis_status *col_status,
+    double *row_activity, double *row_dual, jaos_basis_status *row_status)
+{
+    if (m == nullptr || path == nullptr)
+        return JAOS_ERR_INVALID_INPUT;
+    sol_read o = {.col_value = col_value, .col_dual = col_dual,
+                  .col_status = col_status, .row_activity = row_activity,
+                  .row_dual = row_dual, .row_status = row_status};
+    const jaos_status st = read_solution_file(m, path, +1, &o);
+    if (st == JAOS_OK && objective != nullptr)
+        *objective = o.objective;
+    return st;
+}
+
+jaos_status jaos_read_certificate(jaos_model *m, const char *path,
+                                  jaos_solve_status *status,
+                                  double *row_ray, double *col_ray)
+{
+    if (m == nullptr || path == nullptr)
+        return JAOS_ERR_INVALID_INPUT;
+    sol_read o = {.row_ray = row_ray, .col_ray = col_ray};
+    const jaos_status st = read_solution_file(m, path, -1, &o);
+    if (st == JAOS_OK && status != nullptr)
+        *status = o.status;
+    return st;
+}
+
+jaos_status jaos_solution_file_status(jaos_model *m, const char *path,
+                                      jaos_solve_status *status)
+{
+    if (m == nullptr || path == nullptr || status == nullptr)
+        return JAOS_ERR_INVALID_INPUT;
+    sol_read o = {0};
+    const jaos_status st = read_solution_file(m, path, 0, &o);
+    if (st == JAOS_OK)
+        *status = o.status;
     return st;
 }

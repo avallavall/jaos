@@ -380,6 +380,79 @@ class TestChangingAModel(unittest.TestCase):
                 m.coefficient(2, 0)
 
 
+class TestNames(unittest.TestCase):
+    """Names (D284): the file's, or one set here, or the position."""
+
+    def test_a_file_s_names_come_through(self):
+        with jaos.Model() as m:
+            m.read_mps(data("t1.mps"))
+            self.assertEqual([m.col_name(j) for j in range(3)],
+                             ["X1", "X2", "X3"])
+            self.assertEqual([m.row_name(i) for i in range(3)],
+                             ["LIM1", "LIM2", "EQ1"])
+            self.assertEqual(m.objective_name, "COST")
+            self.assertEqual(m.col_index("X2"), 1)
+            self.assertEqual(m.row_index("EQ1"), 2)
+            with self.assertRaises(jaos.JaosError):
+                m.row_index("COST")
+
+    def test_a_name_set_here_reads_back_and_the_rest_are_positional(self):
+        with jaos.Model() as m:
+            m.load(num_col=2, num_row=1,
+                   col_cost=[-1.0, -2.0],
+                   col_lower=[0.0, 0.0],
+                   col_upper=[jaos.INFINITY, jaos.INFINITY],
+                   row_lower=[-jaos.INFINITY], row_upper=[4.0],
+                   a_start=[0, 1, 2], a_index=[0, 0],
+                   a_value=[1.0, 1.0])
+            self.assertEqual(m.col_name(0), "C1")
+            self.assertEqual(m.row_name(0), "R1")
+            m.set_col_name(1, "y")
+            m.set_row_name(0, "cap")
+            m.set_objective_name("profit")
+            self.assertEqual(m.col_name(1), "y")
+            self.assertEqual(m.col_name(0), "C1")
+            self.assertEqual(m.row_name(0), "cap")
+            self.assertEqual(m.objective_name, "profit")
+            self.assertEqual(m.col_index("y"), 1)
+            self.assertEqual(m.col_index("C1"), 0)
+            self.assertEqual(m.row_index("cap"), 0)
+            with self.assertRaises(jaos.JaosError):
+                m.col_index("C2")        # named y now, not reachable so
+            m.set_col_name(1, None)
+            self.assertEqual(m.col_name(1), "C2")
+            with self.assertRaises(jaos.JaosError):
+                m.set_col_name(0, "a b")
+            with self.assertRaises(jaos.JaosError):
+                m.set_col_name(0, "x" * (jaos.NAME_MAX + 1))
+            m.set_col_name(0, "x" * jaos.NAME_MAX)
+            self.assertEqual(len(m.col_name(0)), jaos.NAME_MAX)
+            # A name is not problem data: the answer survives a rename.
+            m.solve()
+            m.set_row_name(0, "capacity")
+            self.assertIs(m.status, jaos.SolveStatus.OPTIMAL)
+
+    def test_names_round_trip_through_a_file(self):
+        with jaos.Model() as m, tempfile.TemporaryDirectory() as d:
+            m.read_lp(data("g1.lp"))
+            self.assertEqual(m.objective_name, "obj")
+            self.assertEqual(m.row_name(1), "c2")
+            m.set_row_name(1, "second")
+            path = os.path.join(d, "named.mps")
+            m.write_mps(path)
+            with jaos.Model() as back:
+                back.read_mps(path)
+                self.assertEqual(back.row_name(1), "second")
+                self.assertEqual(back.col_name(2), "z")
+                self.assertEqual(back.objective_name, "obj")
+            # Two columns called the same cannot be written, whichever
+            # format, and the refusal names them.
+            m.set_col_name(0, "z")
+            with self.assertRaises(jaos.JaosError) as cm:
+                m.write_lp(os.path.join(d, "dup.lp"))
+            self.assertIn("'z'", str(cm.exception))
+
+
 class TestGrowingAndShrinking(unittest.TestCase):
     """The append and delete calls. Each optimum here is distinct from the
     one before it, so a call that silently did nothing fails the next
@@ -1045,6 +1118,44 @@ class TestProblemResolves(unittest.TestCase):
         p.solve()
         self.assertAlmostEqual(p.objective_value, 92.0, places=9)
         self.assertEqual(p._m.obj_offset, 100.0)
+
+
+class TestCertificateFile(unittest.TestCase):
+    """The solution file carries the certificate of an infeasible or an
+    unbounded answer (D285), and it reads back as what the C calls hand
+    out."""
+
+    def test_an_infeasible_answer_writes_its_certificate(self):
+        with tempfile.TemporaryDirectory() as tmp, jaos.Model() as m:
+            path = os.path.join(tmp, "t1.sol")
+            m.read_mps(data("t1.mps"))
+            self.assertIs(m.solve(), jaos.SolveStatus.INFEASIBLE)
+            want = m.certificate()
+            m.write_solution(path)
+            self.assertIs(m.solution_file_status(path),
+                          jaos.SolveStatus.INFEASIBLE)
+            status, ray = m.read_certificate(path)
+            self.assertIs(status, jaos.SolveStatus.INFEASIBLE)
+            self.assertEqual(ray, want)
+            self.assertTrue(m.check_certificate(ray).certified)
+            with self.assertRaises(jaos.JaosError) as cm:
+                m.read_solution(path)
+            self.assertIn("read_certificate", str(cm.exception))
+
+    def test_an_unbounded_answer_writes_its_ray(self):
+        with tempfile.TemporaryDirectory() as tmp, jaos.Model() as m:
+            path = os.path.join(tmp, "ray.sol")
+            m.load(num_col=2, num_row=1,
+                   col_cost=[-1.0, -1.0], col_lower=[0.0, 0.0],
+                   col_upper=[jaos.INFINITY, jaos.INFINITY],
+                   row_lower=[-jaos.INFINITY], row_upper=[1.0],
+                   a_start=[0, 1, 2], a_index=[0, 0], a_value=[1.0, -1.0])
+            self.assertIs(m.solve(), jaos.SolveStatus.UNBOUNDED)
+            m.write_solution(path)
+            status, ray = m.read_certificate(path)
+            self.assertIs(status, jaos.SolveStatus.UNBOUNDED)
+            self.assertEqual(ray, m.unbounded_ray())
+            self.assertTrue(m.check_ray(ray).certified)
 
 
 class TestSolutionFileRoundTrip(unittest.TestCase):

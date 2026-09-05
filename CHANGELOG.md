@@ -11,6 +11,21 @@ open, `bench/README.md` for the gate, and the commit each entry came from.
 
 ### Added
 
+- **Rows, columns and the objective have names.** Both readers keep the
+  file's, the setters take one, and a row nobody named is called by its
+  position, `R<i+1>`, `C<j+1>`, `COST`. Both writers print them, the
+  solution file carries and checks them, the CLI prints `cost X1` instead
+  of `cost 0`, and `jaos_col_index` resolves one. The LP scanner takes the
+  CPLEX symbol set in a name now, and the LP writer refuses a name it
+  cannot read back, pointing at MPS (D284, `bench/measurements/02-188/`).
+
+- **The solution file carries a certificate.** An infeasible or unbounded
+  solve writes its Farkas multipliers or its ray as `ray` records under
+  `status infeasible` or `status unbounded`; `jaos_read_certificate` reads
+  them back, `jaos_solution_file_status` says which kind a file holds, and
+  `jaos check` prints the kind first and judges a certificate from the
+  model alone, exit 0 when certified (D285).
+
 - **A command-line tool.** `make cli` builds `build/cli/jaos` from
   `cli/jaos.c`, over the public header only. `jaos solve FILE` prints one
   fact per line and every line but `time` is byte-identical between runs;

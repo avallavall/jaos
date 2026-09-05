@@ -62,7 +62,7 @@ from collections import namedtuple
 __all__ = [
     "Model", "JaosError", "Status", "SolveStatus", "ObjSense", "LogLevel",
     "BasisStatus", "CallbackAction", "Solution", "Basis", "INFINITY",
-    "version", "library_path",
+    "NAME_MAX", "version", "library_path",
     "Problem", "Var", "LinExpr", "Constraint", "quicksum",
     "CheckReport", "CertificateReport", "RayReport", "Progress",
     "IISSide", "IISReport", "IIS",
@@ -348,6 +348,14 @@ _sig("jaos_objective_sense", ctypes.c_int, _VP, _P(ctypes.c_int))
 _sig("jaos_objective_offset", ctypes.c_int, _VP, _P(_D))
 _sig("jaos_set_objective_sense", ctypes.c_int, _VP, ctypes.c_int)
 _sig("jaos_set_objective_offset", ctypes.c_int, _VP, _D)
+_sig("jaos_col_name", ctypes.c_int, _VP, _I64, ctypes.c_char_p, _I64)
+_sig("jaos_row_name", ctypes.c_int, _VP, _I64, ctypes.c_char_p, _I64)
+_sig("jaos_objective_name", ctypes.c_int, _VP, ctypes.c_char_p, _I64)
+_sig("jaos_set_col_name", ctypes.c_int, _VP, _I64, _CS)
+_sig("jaos_set_row_name", ctypes.c_int, _VP, _I64, _CS)
+_sig("jaos_set_objective_name", ctypes.c_int, _VP, _CS)
+_sig("jaos_col_index", ctypes.c_int, _VP, _CS, _P(_I64))
+_sig("jaos_row_index", ctypes.c_int, _VP, _CS, _P(_I64))
 _sig("jaos_col_entries", ctypes.c_int, _VP, _I64, _P(_I64), _P(_I64), _P(_D))
 _sig("jaos_row_entries", ctypes.c_int, _VP, _I64, _P(_I64), _P(_I64), _P(_D))
 _sig("jaos_coefficient", ctypes.c_int, _VP, _I64, _I64, _P(_D))
@@ -369,6 +377,9 @@ _sig("jaos_write_solution", ctypes.c_int, _VP, _CS)
 _sig("jaos_read_solution", ctypes.c_int, _VP, _CS, _P(_D),
      _P(_D), _P(_D), _P(ctypes.c_int),
      _P(_D), _P(_D), _P(ctypes.c_int))
+_sig("jaos_read_certificate", ctypes.c_int, _VP, _CS, _P(ctypes.c_int),
+     _P(_D), _P(_D))
+_sig("jaos_solution_file_status", ctypes.c_int, _VP, _CS, _P(ctypes.c_int))
 _sig("jaos_set_work_limit", ctypes.c_int, _VP, _I64)
 _sig("jaos_set_time_limit", ctypes.c_int, _VP, _D)
 _sig("jaos_set_primal_tolerance", ctypes.c_int, _VP, _D)
@@ -402,6 +413,10 @@ _sig("jaos_iterations", _I64, _VP)
 _sig("jaos_solve_time", _D, _VP)
 
 INFINITY = _lib.jaos_infinity()
+
+# JAOS_NAME_MAX in jaos.h: the longest name a row, column or objective may
+# carry, in bytes.
+NAME_MAX = 255
 
 
 def version():
@@ -582,7 +597,33 @@ class Model:
                          list(rd[:nr]), list(cd[:nc])),
                 Basis([BasisStatus(v) for v in cs[:nc]],
                       [BasisStatus(v) for v in rs[:nr]]))
-        return self
+
+    def solution_file_status(self, path):
+        """Which of the three a solution file holds: OPTIMAL, INFEASIBLE or
+        UNBOUNDED. The whole file is read, so one the readers would refuse
+        is refused here too (D285)."""
+        out = ctypes.c_int()
+        self._check(_lib.jaos_solution_file_status(
+            self._handle(), _path(path), ctypes.byref(out)))
+        return SolveStatus(out.value)
+
+    def read_certificate(self, path):
+        """Reads back the certificate write_solution wrote for an
+        INFEASIBLE or UNBOUNDED answer, as a (status, ray) pair: one
+        multiplier per row when infeasible, one direction per column when
+        unbounded. check_certificate() or check_ray() judges it from the
+        model alone. A file holding an optimum is refused; read_solution
+        reads those."""
+        nc, nr = self.num_col, self.num_row
+        st = ctypes.c_int()
+        rr = (_D * max(nr, 1))()
+        cr = (_D * max(nc, 1))()
+        self._check(_lib.jaos_read_certificate(
+            self._handle(), _path(path), ctypes.byref(st), rr, cr))
+        status = SolveStatus(st.value)
+        ray = list(rr[:nr]) if status is SolveStatus.INFEASIBLE \
+            else list(cr[:nc])
+        return status, ray
 
     # -- reading the problem back ------------------------------------------
 
@@ -627,6 +668,59 @@ class Model:
         out = _D()
         self._check(_lib.jaos_objective_offset(self._handle(),
                                                ctypes.byref(out)))
+        return out.value
+
+    # -- names (D284) ------------------------------------------------------
+    #
+    # Every row and column has a name: the file's, or one set here, or its
+    # position -- R<i+1>, C<j+1>, COST for the objective -- where nobody
+    # gave one. None or "" takes a name away.
+
+    def _name(self, fn, *args):
+        buf = ctypes.create_string_buffer(NAME_MAX + 1)
+        self._check(fn(self._handle(), *args, buf, NAME_MAX + 1))
+        return buf.value.decode("utf-8", "replace")
+
+    def col_name(self, col):
+        return self._name(_lib.jaos_col_name, int(col))
+
+    def row_name(self, row):
+        return self._name(_lib.jaos_row_name, int(row))
+
+    @property
+    def objective_name(self):
+        return self._name(_lib.jaos_objective_name)
+
+    @staticmethod
+    def _name_arg(name):
+        return None if name is None else str(name).encode("utf-8")
+
+    def set_col_name(self, col, name):
+        self._check(_lib.jaos_set_col_name(self._handle(), int(col),
+                                           self._name_arg(name)))
+
+    def set_row_name(self, row, name):
+        self._check(_lib.jaos_set_row_name(self._handle(), int(row),
+                                           self._name_arg(name)))
+
+    def set_objective_name(self, name):
+        self._check(_lib.jaos_set_objective_name(self._handle(),
+                                                 self._name_arg(name)))
+
+    def col_index(self, name):
+        """The column called `name`, positional names included. Raises
+        JaosError when nothing is."""
+        out = _I64()
+        self._check(_lib.jaos_col_index(self._handle(),
+                                        str(name).encode("utf-8"),
+                                        ctypes.byref(out)))
+        return out.value
+
+    def row_index(self, name):
+        out = _I64()
+        self._check(_lib.jaos_row_index(self._handle(),
+                                        str(name).encode("utf-8"),
+                                        ctypes.byref(out)))
         return out.value
 
     def _entries(self, fn, k):

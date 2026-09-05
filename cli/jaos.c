@@ -415,6 +415,8 @@ static int parse_solve_options(int argc, char **argv, int first,
     return -1;
 }
 
+static bool solve_finished(jaos_solve_status ss);
+
 static int cmd_solve(int argc, char **argv)
 {
     struct solve_options o;
@@ -500,9 +502,11 @@ static int cmd_solve(int argc, char **argv)
     fflush(stdout);
 
     if (o.solution != nullptr) {
-        if (ss != JAOS_SOLVE_OPTIMAL) {
+        /* An optimum, or the certificate behind an infeasible or unbounded
+         * verdict (D285). A solve that stopped on a budget has neither. */
+        if (!solve_finished(ss)) {
             fprintf(stderr, "jaos: no solution file written: the solve "
-                    "ended %s, and only an optimum has a solution\n",
+                    "ended %s, which leaves no answer to write\n",
                     jaos_solve_status_str(ss));
         } else if (jaos_write_solution(m, o.solution) != JAOS_OK) {
             /* The answer is fine and the file is not: the caller asked for
@@ -650,7 +654,55 @@ static int cmd_check(int argc, char **argv)
     }
 
     /* The model decides the shape: a file for a different model is refused
-     * here by count or by name, and the message says which record. */
+     * here by count or by name, and the message says which record. What
+     * the file claims -- an optimum, or a certificate that there is none --
+     * decides which checker judges it (D285); the first line says which. */
+    jaos_solve_status kind;
+    if (jaos_solution_file_status(m, solution, &kind) != JAOS_OK) {
+        rc = library_error("read", solution, m);
+        goto out;
+    }
+    printf("status %s\n", status_word(kind));
+
+    if (kind == JAOS_SOLVE_INFEASIBLE) {
+        jaos_certificate_report crep;
+        memset(&crep, 0, sizeof crep);
+        if (jaos_read_certificate(m, solution, nullptr, y, nullptr)
+                != JAOS_OK) {
+            rc = library_error("read", solution, m);
+            goto out;
+        }
+        if (jaos_check_certificate(m, y, tol, &crep) != JAOS_OK) {
+            rc = library_error("check", solution, m);
+            goto out;
+        }
+        print_num("sup_columns", crep.sup_columns);
+        print_num("inf_rows", crep.inf_rows);
+        print_num("gap", crep.gap);
+        print_bool("certified", crep.certified);
+        rc = crep.certified ? EXIT_OPTIMAL : EXIT_INFEASIBLE;
+        goto out;
+    }
+    if (kind == JAOS_SOLVE_UNBOUNDED) {
+        jaos_ray_report rrep;
+        memset(&rrep, 0, sizeof rrep);
+        if (jaos_read_certificate(m, solution, nullptr, nullptr, x)
+                != JAOS_OK) {
+            rc = library_error("read", solution, m);
+            goto out;
+        }
+        if (jaos_check_ray(m, x, tol, &rrep) != JAOS_OK) {
+            rc = library_error("check", solution, m);
+            goto out;
+        }
+        print_num("rate", rrep.rate);
+        print_num("max_col_escape", rrep.max_col_escape);
+        print_num("max_row_escape", rrep.max_row_escape);
+        print_bool("certified", rrep.certified);
+        rc = rrep.certified ? EXIT_OPTIMAL : EXIT_INFEASIBLE;
+        goto out;
+    }
+
     if (jaos_read_solution(m, solution, nullptr, x, nullptr, nullptr,
                            nullptr, y, nullptr) != JAOS_OK) {
         rc = library_error("read", solution, m);
@@ -694,16 +746,36 @@ out:
     return rc;
 }
 
+/* A row's or a column's name as the model gives it: the file's, or the
+ * positional one for a row nobody named. JAOS_NAME_MAX + 1 always fits. */
+typedef char namebuf[JAOS_NAME_MAX + 1];
+
+static const char *row_name(const jaos_model *m, int64_t i, namebuf buf)
+{
+    if (jaos_row_name(m, i, buf, sizeof(namebuf)) != JAOS_OK)
+        buf[0] = '\0';
+    return buf;
+}
+
+static const char *col_name(const jaos_model *m, int64_t j, namebuf buf)
+{
+    if (jaos_col_name(m, j, buf, sizeof(namebuf)) != JAOS_OK)
+        buf[0] = '\0';
+    return buf;
+}
+
 /* One line per bound side, so a member that is both sides of one row is two
  * lines and the line count equals `members`. */
-static void print_sides(const char *kind, const jaos_iis_side *side,
-                        int64_t n)
+static void print_sides(const jaos_model *m, bool is_col,
+                        const jaos_iis_side *side, int64_t n)
 {
+    namebuf nm;
     for (int64_t i = 0; i < n; i++) {
+        const char *name = is_col ? col_name(m, i, nm) : row_name(m, i, nm);
         if (side[i] & JAOS_IIS_LOWER)
-            printf("%s %" PRId64 " lower\n", kind, i);
+            printf("%s %s lower\n", is_col ? "col" : "row", name);
         if (side[i] & JAOS_IIS_UPPER)
-            printf("%s %" PRId64 " upper\n", kind, i);
+            printf("%s %s upper\n", is_col ? "col" : "row", name);
     }
 }
 
@@ -755,8 +827,8 @@ static int cmd_iis(int argc, char **argv)
         goto out;
     }
 
-    print_sides("row", rows, nr);
-    print_sides("col", cols, nc);
+    print_sides(m, false, rows, nr);
+    print_sides(m, true, cols, nc);
     print_int("members", rep.members);
     print_int("candidates", rep.candidates);
     print_int("solves", rep.solves);
@@ -918,15 +990,16 @@ static int cmd_ranging(int argc, char **argv)
     }
 
     numbuf a, b, c, d;
+    namebuf nm;
     for (int64_t j = 0; j < nc; j++)
-        printf("cost %" PRId64 " %s %s\n", j, num(a, cost[j]),
+        printf("cost %s %s %s\n", col_name(m, j, nm), num(a, cost[j]),
                num(b, cost[c1 + j]));
     for (int64_t i = 0; i < nr; i++)
-        printf("rhs %" PRId64 " %s %s %s %s\n", i, num(a, rhs[i]),
+        printf("rhs %s %s %s %s %s\n", row_name(m, i, nm), num(a, rhs[i]),
                num(b, rhs[r1 + i]), num(c, rhs[2 * r1 + i]),
                num(d, rhs[3 * r1 + i]));
     for (int64_t j = 0; j < nc; j++)
-        printf("bound %" PRId64 " %s %s %s %s\n", j, num(a, bnd[j]),
+        printf("bound %s %s %s %s %s\n", col_name(m, j, nm), num(a, bnd[j]),
                num(b, bnd[c1 + j]), num(c, bnd[2 * c1 + j]),
                num(d, bnd[3 * c1 + j]));
     rc = EXIT_OPTIMAL;

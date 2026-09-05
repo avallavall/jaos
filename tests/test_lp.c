@@ -34,6 +34,15 @@ static void test_g1_labels_relations_bounds(void)
 
     /* "+ 5" in the objective is a direct constant. */
     TEST_ASSERT_EQUAL_DOUBLE(5.0, m->obj_offset);
+
+    /* The labels are the names (D284): obj, c1..c3, x y z. */
+    char nm[JAOS_NAME_MAX + 1];
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective_name(m, nm, sizeof nm));
+    TEST_ASSERT_EQUAL_STRING("obj", nm);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_row_name(m, 2, nm, sizeof nm));
+    TEST_ASSERT_EQUAL_STRING("c3", nm);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_col_name(m, 2, nm, sizeof nm));
+    TEST_ASSERT_EQUAL_STRING("z", nm);
     TEST_ASSERT_EQUAL_DOUBLE(3.0, m->col_cost[0]);
     TEST_ASSERT_EQUAL_DOUBLE(2.0, m->col_cost[1]);
     TEST_ASSERT_EQUAL_DOUBLE(-1.0, m->col_cost[2]);
@@ -105,6 +114,26 @@ static void test_g2_maximize_exponents_summing_wrapping(void)
         TEST_ASSERT_EQUAL_INT64(want_index[k], m->a_index[k]);
         TEST_ASSERT_EQUAL_DOUBLE(want_value[k], m->a_value[k]);
     }
+
+    /* Names (D284): the columns carry the file's, the labelled second
+     * constraint carries its label, and the unlabelled first one is called
+     * by its position, as is the objective, which has no label here. */
+    char nm[JAOS_NAME_MAX + 1];
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_col_name(m, 0, nm, sizeof nm));
+    TEST_ASSERT_EQUAL_STRING("x1", nm);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_col_name(m, 1, nm, sizeof nm));
+    TEST_ASSERT_EQUAL_STRING("x2", nm);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_row_name(m, 0, nm, sizeof nm));
+    TEST_ASSERT_EQUAL_STRING("R1", nm);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_row_name(m, 1, nm, sizeof nm));
+    TEST_ASSERT_EQUAL_STRING("c", nm);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective_name(m, nm, sizeof nm));
+    TEST_ASSERT_EQUAL_STRING("COST", nm);
+    int64_t k = -1;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_row_index(m, "c", &k));
+    TEST_ASSERT_EQUAL_INT64(1, k);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_col_index(m, "x2", &k));
+    TEST_ASSERT_EQUAL_INT64(1, k);
     jaos_model_free(m);
 }
 

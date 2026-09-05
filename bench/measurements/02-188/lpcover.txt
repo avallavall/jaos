@@ -1,0 +1,149 @@
+# jaos_write_lp coverage over every gate instance, names included
+# instrument: bench/measurements/02-188/lpcover-names.c
+# tree: b347bfa WITH UNCOMMITTED CHANGES
+# objects: release
+# date: 2026-09-05T14:50:20Z
+# write LP; where it succeeds, read back and compare every field and every name with ==
+
+bench/instances/25fv47.mps               refused  name           column '1G0EXP' has a name LP format cannot spell; write MPS instead
+bench/instances/80bau3b.mps              ok
+bench/instances/adlittle.mps             refused  name           column '...100' has a name LP format cannot spell; write MPS instead
+bench/instances/afiro.mps                ok
+bench/instances/agg.mps                  ok
+bench/instances/agg2.mps                 ok
+bench/instances/agg3.mps                 ok
+bench/instances/bandm.mps                refused  name           column '4CORNS' has a name LP format cannot spell; write MPS instead
+bench/instances/beaconfd.mps             refused  name           column '10022' has a name LP format cannot spell; write MPS instead
+bench/instances/blend.mps                refused  name           column '1' has a name LP format cannot spell; write MPS instead
+bench/instances/bnl1.mps                 ok
+bench/instances/bnl2.mps                 ok
+bench/instances/boeing1.mps              refused  name           row 'FLAV*1' has a name LP format cannot spell; write MPS instead
+bench/instances/boeing2.mps              refused  name           row 'FLAV*1' has a name LP format cannot spell; write MPS instead
+bench/instances/bore3d.mps               ok
+bench/instances/brandy.mps               refused  name           column '100001' has a name LP format cannot spell; write MPS instead
+bench/instances/capri.mps                ok
+bench/instances/cycle.mps                ok
+bench/instances/czprob.mps               refused  name           column '.B5..1' has a name LP format cannot spell; write MPS instead
+bench/instances/d2q06c.mps               refused  name           column '0DAB2A' has a name LP format cannot spell; write MPS instead
+bench/instances/d6cube.mps               refused  name           column '1' has a name LP format cannot spell; write MPS instead
+bench/instances/degen2.mps               ok
+bench/instances/degen3.mps               ok
+bench/instances/dfl001.mps               ok
+bench/instances/e226.mps                 refused  name           column '.ETHSD' has a name LP format cannot spell; write MPS instead
+bench/instances/etamacro.mps             ok
+bench/instances/fffff800.mps             refused  name           column '..P....E' has a name LP format cannot spell; write MPS instead
+bench/instances/finnis.mps               refused  name           column '1MINHCO1' has a name LP format cannot spell; write MPS instead
+bench/instances/fit1d.mps                ok
+bench/instances/fit1p.mps                ok
+bench/instances/fit2d.mps                ok
+bench/instances/fit2p.mps                ok
+bench/instances/forplan.mps              refused  name           column 'GP+++0' has a name LP format cannot spell; write MPS instead
+bench/instances/ganges.mps               ok
+bench/instances/gfrd-pnc.mps             ok
+bench/instances/greenbea.mps             ok
+bench/instances/greenbeb.mps             ok
+bench/instances/grow15.mps               ok
+bench/instances/grow22.mps               ok
+bench/instances/grow7.mps                ok
+bench/instances/israel.mps               ok
+bench/instances/kb2.mps                  ok
+bench/instances/lotfi.mps                refused  name           the objective '1' has a name LP format cannot spell; write MPS instead
+bench/instances/maros-r7.mps             ok
+bench/instances/maros.mps                ok
+bench/instances/modszk1.mps              ok
+bench/instances/nesm.mps                 ok
+bench/instances/perold.mps               ok
+bench/instances/pilot-ja.mps             ok
+bench/instances/pilot-we.mps             ok
+bench/instances/pilot.mps                ok
+bench/instances/pilot4.mps               ok
+bench/instances/pilot87.mps              ok
+bench/instances/pilotnov.mps             ok
+bench/instances/recipe.mps               ok
+bench/instances/sc105.mps                ok
+bench/instances/sc205.mps                ok
+bench/instances/sc50a.mps                ok
+bench/instances/sc50b.mps                ok
+bench/instances/scagr25.mps              ok
+bench/instances/scagr7.mps               ok
+bench/instances/scfxm1.mps               refused  name           column '1D1IK' has a name LP format cannot spell; write MPS instead
+bench/instances/scfxm2.mps               refused  name           column '1D1IK' has a name LP format cannot spell; write MPS instead
+bench/instances/scfxm3.mps               refused  name           column '1D1IK' has a name LP format cannot spell; write MPS instead
+bench/instances/scorpion.mps             ok
+bench/instances/scrs8.mps                ok
+bench/instances/scsd1.mps                refused  name           column '30001002' has a name LP format cannot spell; write MPS instead
+bench/instances/scsd6.mps                refused  name           column '30001002' has a name LP format cannot spell; write MPS instead
+bench/instances/scsd8.mps                refused  name           column '30001002' has a name LP format cannot spell; write MPS instead
+bench/instances/sctap1.mps               ok
+bench/instances/sctap2.mps               ok
+bench/instances/sctap3.mps               ok
+bench/instances/seba.mps                 refused  name           column '10018000' has a name LP format cannot spell; write MPS instead
+bench/instances/share1b.mps              refused  name           the objective '000000' has a name LP format cannot spell; write MPS instead
+bench/instances/share2b.mps              refused  name           column '010101' has a name LP format cannot spell; write MPS instead
+bench/instances/shell.mps                refused  name           the objective '3537' has a name LP format cannot spell; write MPS instead
+bench/instances/ship04l.mps              ok
+bench/instances/ship04s.mps              ok
+bench/instances/ship08l.mps              ok
+bench/instances/ship08s.mps              ok
+bench/instances/ship12l.mps              ok
+bench/instances/ship12s.mps              ok
+bench/instances/sierra.mps               refused  name           column 'BBBL-1' has a name LP format cannot spell; write MPS instead
+bench/instances/stair.mps                ok
+bench/instances/standata.mps             ok
+bench/instances/standmps.mps             ok
+bench/instances/stocfor1.mps             ok
+bench/instances/stocfor2.mps             ok
+bench/instances/stocfor3.mps             refused  name           column 'CLASS33*' has a name LP format cannot spell; write MPS instead
+bench/instances/truss.mps                ok
+bench/instances/tuff.mps                 ok
+bench/instances/vtp-base.mps             ok
+bench/instances/wood1p.mps               ok
+bench/instances/woodw.mps                ok
+bench/instances-infeas/bgdbg1.mps        refused  name           the objective '1' has a name LP format cannot spell; write MPS instead
+bench/instances-infeas/bgetam.mps        ok
+bench/instances-infeas/bgindy.mps        refused  name           the objective '1' has a name LP format cannot spell; write MPS instead
+bench/instances-infeas/bgprtr.mps        refused  name           the objective '1' has a name LP format cannot spell; write MPS instead
+bench/instances-infeas/box1.mps          ok
+bench/instances-infeas/ceria3d.mps       ok
+bench/instances-infeas/chemcom.mps       ok
+bench/instances-infeas/cplex1.mps        ok
+bench/instances-infeas/cplex2.mps        ok
+bench/instances-infeas/ex72a.mps         ok
+bench/instances-infeas/ex73a.mps         ok
+bench/instances-infeas/forest6.mps       ok
+bench/instances-infeas/galenet.mps       ok
+bench/instances-infeas/gosh.mps          refused  name           column '1APC1BC' has a name LP format cannot spell; write MPS instead
+bench/instances-infeas/gran.mps          ok
+bench/instances-infeas/greenbea.mps      refused  free row       row 'B...ML..' is free, which LP format cannot express; write MPS instead
+bench/instances-infeas/itest2.mps        ok
+bench/instances-infeas/itest6.mps        ok
+bench/instances-infeas/klein1.mps        ok
+bench/instances-infeas/klein2.mps        ok
+bench/instances-infeas/klein3.mps        ok
+bench/instances-infeas/mondou2.mps       refused  name           column '1' has a name LP format cannot spell; write MPS instead
+bench/instances-infeas/pang.mps          refused  name           column '1AKWTBR' has a name LP format cannot spell; write MPS instead
+bench/instances-infeas/pilot4i.mps       ok
+bench/instances-infeas/qual.mps          ok
+bench/instances-infeas/reactor.mps       ok
+bench/instances-infeas/refinery.mps      ok
+bench/instances-infeas/vol1.mps          ok
+bench/instances-infeas/woodinfe.mps      ok
+bench/instances-kennington/cre-a.mps     ok
+bench/instances-kennington/cre-b.mps     ok
+bench/instances-kennington/cre-c.mps     ok
+bench/instances-kennington/cre-d.mps     ok
+bench/instances-kennington/ken-07.mps    ok
+bench/instances-kennington/ken-11.mps    ok
+bench/instances-kennington/ken-13.mps    ok
+bench/instances-kennington/ken-18.mps    ok
+bench/instances-kennington/osa-07.mps    ok
+bench/instances-kennington/osa-14.mps    ok
+bench/instances-kennington/osa-30.mps    ok
+bench/instances-kennington/osa-60.mps    ok
+bench/instances-kennington/pds-02.mps    ok
+bench/instances-kennington/pds-06.mps    ok
+bench/instances-kennington/pds-10.mps    ok
+bench/instances-kennington/pds-20.mps    ok
+
+104 round-tripped through LP with names, 35 refused, 0 differed
+first refusal per instance: 0 ranged row, 1 free row, 0 empty row, 0 orphan column, 34 name, 0 duplicate name, 0 other

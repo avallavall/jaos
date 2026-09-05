@@ -112,6 +112,9 @@ typedef struct {
      * freed with everything else, because the token it is copied from
      * points into the line buffer and the next line overwrites it. */
     char *objname;
+    /* The objective row's own name as ROWS gave it, handed to the model at
+     * the end; nullptr until the row is met. */
+    char *objrow;
 
     jm_nmap cmap;                      /* column name -> index */
     double *cost, *cl, *cu;
@@ -150,6 +153,7 @@ static void rd_free(rd *r)
     free(r->av);
     free(r->rowstamp);
     free(r->objname);
+    free(r->objrow);
 }
 
 /* OBJNAME's row name, copied. Returns false only out of memory. */
@@ -182,6 +186,12 @@ static jaos_status rd_rows_line(rd *r, char **tok, int nt)
         FAIL("line %" PRId64 ": unknown row type '%s'", r->lno, tok[0]);
     if (jm_nmap_get(&r->rmap, tok[1], &dummy))
         FAIL("line %" PRId64 ": duplicate row name '%s'", r->lno, tok[1]);
+    /* The name is kept on the model (D284), so it has to be one the model
+     * accepts: a token has no whitespace, so this is the length and the
+     * control characters. */
+    if (!jm_name_ok(tok[1]))
+        FAIL("line %" PRId64 ": row name '%s' is longer than %d bytes or "
+             "holds a control character", r->lno, tok[1], JAOS_NAME_MAX);
 
     char t = tok[0][0];
     /* Which N row is the objective. Without an OBJNAME section it is the
@@ -192,8 +202,12 @@ static jaos_status rd_rows_line(rd *r, char **tok, int nt)
     const bool is_obj = t == 'N' && !r->have_obj &&
         (r->objname == nullptr || strcmp(tok[1], r->objname) == 0);
     if (is_obj) {
-        /* The objective is not a matrix row. */
+        /* The objective is not a matrix row. Its name goes to the model
+         * as the objective's, so a file written back carries it. */
         if (!jm_nmap_insert(&r->rmap, tok[1], OBJ_ROW))
+            FAIL_OOM();
+        r->objrow = jm_name_copy(tok[1]);
+        if (r->objrow == nullptr)
             FAIL_OOM();
         r->have_obj = true;
         return JAOS_OK;
@@ -242,6 +256,10 @@ static jaos_status rd_columns_line(rd *r, char **tok, int nt)
         if (jm_nmap_get(&r->cmap, tok[0], &dummy))
             FAIL("line %" PRId64 ": column '%s' reappears; column entries "
                  "must be contiguous", r->lno, tok[0]);
+        if (!jm_name_ok(tok[0]))
+            FAIL("line %" PRId64 ": column name '%s' is longer than %d bytes "
+                 "or holds a control character", r->lno, tok[0],
+                 JAOS_NAME_MAX);
         j = r->ncol;
         if (!JM_GROW(r->cost, r->cost_cap, j + 1) ||
             !JM_GROW(r->cl, r->cl_cap, j + 1) ||
@@ -638,6 +656,21 @@ jaos_status jaos_read_mps(jaos_model *m, const char *path)
             jm_set_err(m, "internal: assembled model failed validation");
             goto done;
         }
+
+        /* The file's names, onto the model (D284). The row map's objective
+         * entry carries OBJ_ROW and is skipped as out of range; the
+         * objective's own name travels separately. */
+        char **cn = jm_nmap_to_names(&r->cmap, r->ncol);
+        char **rn = jm_nmap_to_names(&r->rmap, r->nrow);
+        if (cn == nullptr || rn == nullptr) {
+            free(cn);
+            free(rn);
+            jm_set_err(m, "out of memory keeping the names");
+            st = JAOS_ERR_OUT_OF_MEMORY;
+            goto done;
+        }
+        jm_model_take_names(m, cn, rn, r->objrow);
+        r->objrow = nullptr;
     }
 
 done:

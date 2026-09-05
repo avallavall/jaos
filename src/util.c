@@ -123,3 +123,34 @@ bool jm_nmap_insert(jm_nmap *m, const char *name, int64_t value)
     m->slot[i] = m->n - 1;
     return true;
 }
+
+/* ---- names for the model ------------------------------------------- */
+
+char *jm_name_copy(const char *name)
+{
+    const size_t len = strlen(name) + 1;
+    char *copy = malloc(len);
+    if (copy != nullptr)
+        memcpy(copy, name, len);
+    return copy;
+}
+
+char **jm_nmap_to_names(const jm_nmap *m, int64_t n)
+{
+    char **names = jm_calloc_array(n, sizeof(char *));
+    if (names == nullptr)
+        return nullptr;
+    for (int64_t e = 0; e < m->n; e++) {
+        const int64_t v = m->val[e];
+        if (v < 0 || v >= n)
+            continue;
+        names[v] = jm_name_copy(m->pool + m->off[e]);
+        if (names[v] == nullptr) {
+            for (int64_t k = 0; k < n; k++)
+                free(names[k]);
+            free(names);
+            return nullptr;
+        }
+    }
+    return names;
+}

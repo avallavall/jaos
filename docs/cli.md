@@ -26,11 +26,11 @@ Options take their value as the next argument: `--work-limit 1000`, not
 `--work-limit=1000`.
 
 Every command prints one fact per line on stdout, as `key value`. Rows and
-columns are named by index, counting from 0. Column `J` is the column the
-model files JAOS writes call `C<J+1>`, and row `I` is `R<I+1>`. Numbers
-are printed with 17 significant digits, so they read back as the same
-double; an infinite bound reads `inf` or `-inf`. Everything that is not a
-fact about the model goes to stderr.
+columns are named as the file names them; a constraint an LP file left
+unlabelled is called by its position, `R<I+1>` counting from 1, and a
+column `C<J+1>` (D284). Numbers are printed with 17 significant digits, so
+they read back as the same double; an infinite bound reads `inf` or `-inf`.
+Everything that is not a fact about the model goes to stderr.
 
 ## `solve`
 
@@ -77,7 +77,7 @@ prints the same facts as the same model solved silently.
 
 | option | what it does |
 |---|---|
-| `--solution OUT` | writes the solution file to `OUT` when the solve is optimal. For any other outcome no file is written and stderr says why. The file format is JAOS's own; `docs/format-support.md` describes it. |
+| `--solution OUT` | writes the solution file to `OUT`: the optimum when the solve found one, and the certificate when it proved the model infeasible or unbounded (D285). A solve that stopped on a budget or an interrupt has no answer to write; no file is written and stderr says why. The file format is JAOS's own; `docs/format-support.md` describes it. |
 | `--work-limit N` | stops the solve after `N` deterministic work units. `N` must be a positive integer. The outcome is `work_limit`. |
 | `--time-limit SECONDS` | stops the solve after that many wall-clock seconds. Must be positive; fractions are fine. The outcome is `time_limit`. |
 | `--primal-tol T` | how far a variable may sit outside its bounds and still count as feasible. Default 1e-7. |
@@ -101,9 +101,12 @@ mid-way.
 LP, and any other extension is a usage error. The output name is checked
 before the input is read.
 
-What JAOS writes, JAOS reads back as the same model. The model carries no
-names, so the writers generate them: `C1..Cn` for columns, `R1..Rm` for
-rows, `COST` for the objective.
+What JAOS writes, JAOS reads back as the same model, names included: the
+input's names are written out, and a row or column the input did not name
+is written by its position, `R<I+1>`, `C<J+1>`, `COST` (D284). A name the
+LP dialect cannot spell -- one holding a `-`, starting with a digit, or
+spelling a keyword -- is refused by name when converting to LP, with the
+message pointing at MPS, which takes every name.
 
 A write the format cannot express is refused: the tool prints the library's
 message, which names the row or column, exits 5, and leaves no file behind.
@@ -114,14 +117,19 @@ When the LP writer refuses a model, converting it to `.mps` instead works.
 ## `check`
 
 `check FILE SOLUTION` reads the model from `FILE`, reads `SOLUTION`, a file
-that `solve --solution` wrote, and judges the column values and row duals in
-it with the library's independent checker. The checker works on the model as
-loaded, in its original units, and shares no code with the solver.
+that `solve --solution` wrote, and judges what it holds with the library's
+independent checkers. The checkers work on the model as loaded, in its
+original units, and share no code with the solver. The first line says
+which kind of answer the file claims, `status optimal`, `status
+infeasible` or `status unbounded`, and that decides which checker runs and
+which report follows.
 
-The output is the checker's report, one field per line, with the field
-names of `jaos_check_report` in `include/jaos.h`:
+For an optimum the checker judges the column values and row duals, and the
+output is its report, one field per line, with the field names of
+`jaos_check_report` in `include/jaos.h`:
 
 ```
+status optimal
 max_col_violation 0
 max_row_violation 0
 max_row_violation_relative 0
@@ -147,15 +155,34 @@ of them decide nothing on their own. The two that decide are
 `primal_feasible` and `dual_feasible`. The exit code is 0 when both are
 `yes` and 1 otherwise.
 
+For a certificate (D285) the file carries one `ray` record per row when the
+model was proved infeasible, or per column when it was proved unbounded,
+and the matching checker judges it from the model alone. The report is
+`jaos_certificate_report`'s fields for an infeasible file and
+`jaos_ray_report`'s for an unbounded one, then `certified`:
+
+```
+status infeasible
+sup_columns 4
+inf_rows 7
+gap 3
+certified yes
+```
+
+The exit code is 0 when `certified` is `yes` and 1 otherwise. A
+certificate whose numbers were changed still reads, because the reader
+judges the format and not the mathematics; it is the checker that refuses
+it.
+
 `--tol T` is the checker's tolerance. It defaults to 1e-7, the solver's own
 feasibility tolerance. `docs/tolerances.md` says how the checker applies it.
 
 The solution file must be for this model. The library refuses a file whose
 row or column count differs from the model's, or whose records carry names
-the model would not generate, and the tool exits 5 with the library's
-message. It reads the values and the row duals; the reduced costs,
-activities and basis statuses in the file are not used, because the checker
-recomputes what it needs from the model.
+other than the model's own, and the tool exits 5 with the library's
+message. From an optimum it reads the values and the row duals; the reduced
+costs, activities and basis statuses in the file are not used, because the
+checker recomputes what it needs from the model.
 
 ## `iis`
 
@@ -167,10 +194,10 @@ then the counts from the report:
 
 ```
 status infeasible
-row 1 upper
-row 2 lower
-col 0 lower
-col 1 lower
+row LIM2 upper
+row EQ1 lower
+col X1 lower
+col X2 lower
 members 4
 candidates 4
 solves 5
@@ -180,7 +207,8 @@ from_certificate yes
 
 A row's two bounds are two constraints, and so are a column's, so a row
 whose both sides are in the subsystem appears twice. The number of side
-lines equals `members`. Rows come first, then columns, each in index order.
+lines equals `members`. Rows come first, then columns, each in index order
+and each under its name.
 
 `candidates`, `solves` and `work_units` are the cost: how many sides the
 deletion filter started from, how many re-solves it ran, and what they cost
@@ -248,22 +276,25 @@ reads `inf` or `-inf`.
 
 ```
 status optimal
-cost 0 -inf 4
-cost 1 -inf 4
-cost 2 3 inf
-rhs 0 7 107 10 inf
-rhs 1 -inf 4 0 7
-rhs 2 -inf 3 0 6
-bound 0 -inf 4 4 inf
-bound 1 -inf 3 3 inf
-bound 2 -inf 3 3 inf
+cost X1 -inf 4
+cost X2 -inf 4
+cost X3 3 inf
+rhs DEMAND 7 107 10 inf
+rhs CAP1 -inf 4 0 7
+rhs CAP2 -inf 3 0 6
+bound X1 -inf 4 4 inf
+bound X2 -inf 3 3 inf
+bound X3 -inf 3 3 inf
 ```
 
-- `cost J LOWER UPPER`: the interval the cost of column `J` may take.
-- `rhs I LOWER_LO LOWER_HI UPPER_LO UPPER_HI`: for row `I`, the interval
-  its lower bound may take, then the interval its upper bound may take.
-- `bound J LOWER_LO LOWER_HI UPPER_LO UPPER_HI`: the same for the two
-  bounds of column `J`.
+- `cost NAME LOWER UPPER`: the interval the cost of column `NAME` may take.
+- `rhs NAME LOWER_LO LOWER_HI UPPER_LO UPPER_HI`: for row `NAME`, the
+  interval its lower bound may take, then the interval its upper bound may
+  take.
+- `bound NAME LOWER_LO LOWER_HI UPPER_LO UPPER_HI`: the same for the two
+  bounds of column `NAME`.
+
+Rows and columns come in index order, each under its name.
 
 The intervals are about the basis, not about the answer. A model with more
 than one optimal basis may carry the same optimum further along another
