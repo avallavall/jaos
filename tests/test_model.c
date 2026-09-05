@@ -1113,6 +1113,193 @@ static void assert_columns_ascending(const jaos_model *m, const char *where)
             TEST_ASSERT_TRUE_MESSAGE(m->a_index[k - 1] < m->a_index[k], where);
 }
 
+/* The sense and the constant read back, change, and reach the solve (D283).
+ *
+ * The model is test_the_objective_keeps_its_constant_term_and_its_sense's:
+ * max 2x0 + 3x1 + 5x2 + 100 with x2 fixed at 1 and x0 + x1 <= 4 gives 114.
+ * Flipped to a minimum by the setter, the same model gives 105 -- both
+ * free columns at their lower bound of zero -- and with the constant taken
+ * away, 5. Each figure is compared to the bit, because the objective is
+ * summed from the published values and the constant is added once (D173). */
+static void test_the_objective_sense_and_constant_read_back_and_change(void)
+{
+    const double c[] = {2.0, 3.0, 5.0};
+    const double cl[] = {0.0, 0.0, 1.0}, cu[] = {4.0, 4.0, 1.0};
+    const double rl[] = {-INFINITY}, ru[] = {4.0};
+    const int64_t as[] = {0, 1, 2, 3}, ai[] = {0, 0, 0};
+    const double av[] = {1.0, 1.0, 1.0};
+
+    jaos_model *m = nullptr;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_model_new(&m));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_load_lp(m, 3, 1, JAOS_MAXIMIZE, 100.0, c, cl, cu, rl, ru,
+                     3, as, ai, av));
+
+    /* What was loaded is what comes back. */
+    jaos_obj_sense sense = JAOS_MINIMIZE;
+    double offset = 0.0;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective_sense(m, &sense));
+    TEST_ASSERT_EQUAL_INT(JAOS_MAXIMIZE, sense);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective_offset(m, &offset));
+    TEST_ASSERT_EQUAL_DOUBLE(100.0, offset);
+
+    /* Refusals: a sense outside the enum, a constant that is not a number,
+     * and nowhere to put the answer. None of them changes the model. */
+    TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT,
+        jaos_set_objective_sense(m, (jaos_obj_sense)7));
+    TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT,
+        jaos_set_objective_offset(m, NAN));
+    TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT,
+        jaos_set_objective_offset(m, INFINITY));
+    TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT,
+        jaos_objective_sense(m, nullptr));
+    TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT,
+        jaos_objective_offset(m, nullptr));
+    TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT,
+        jaos_objective_sense(nullptr, &sense));
+    TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT,
+        jaos_set_objective_sense(nullptr, JAOS_MINIMIZE));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective_sense(m, &sense));
+    TEST_ASSERT_EQUAL_INT(JAOS_MAXIMIZE, sense);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective_offset(m, &offset));
+    TEST_ASSERT_EQUAL_DOUBLE(100.0, offset);
+
+#if !defined(JAOS_PRESOLVE_FAULT_OFFBYONE) && !defined(JAOS_PRESOLVE_FAULT_WRONGDUAL)
+    /* Positive half, skipped under either fault build like every other
+     * test that reads an objective off a postsolved point. */
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+    double obj = 0.0;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(m, &obj));
+    const double as_max = 114.0;
+    TEST_ASSERT_EQUAL_MEMORY(&as_max, &obj, sizeof obj);
+
+    /* The setter discards the answer, keeps the basis and keeps both
+     * derived copies: it touched neither the matrix nor a bound. */
+    derive_both(m);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_objective_sense(m, JAOS_MINIMIZE));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_NOT_RUN, jaos_status_of(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT, jaos_objective(m, &obj));
+    TEST_ASSERT_NOT_NULL(m->start_col_status);
+    TEST_ASSERT_TRUE(m->rowwise_valid);
+    TEST_ASSERT_TRUE(m->scale_valid);
+
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(m, &obj));
+    const double as_min = 105.0;
+    TEST_ASSERT_EQUAL_MEMORY(&as_min, &obj, sizeof obj);
+
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_objective_offset(m, 0.0));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_NOT_RUN, jaos_status_of(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(m, &obj));
+    const double no_constant = 5.0;
+    TEST_ASSERT_EQUAL_MEMORY(&no_constant, &obj, sizeof obj);
+
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective_sense(m, &sense));
+    TEST_ASSERT_EQUAL_INT(JAOS_MINIMIZE, sense);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective_offset(m, &offset));
+    TEST_ASSERT_EQUAL_DOUBLE(0.0, offset);
+#endif
+    jaos_model_free(m);
+}
+
+/* The matrix reads back by column, by row and by entry, and what it reads
+ * is the stored copy: the explicit zero the load dropped is not there, the
+ * column the load sorted comes back sorted, and after a coefficient change
+ * the row-wise mirror is rebuilt before it is read (D283). */
+static void test_the_matrix_reads_back_by_column_row_and_entry(void)
+{
+    jaos_model *m = nullptr;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_model_new(&m));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, load_example(m));
+
+    int64_t count = -1;
+    int64_t idx[3] = {-1, -1, -1};
+    double val[3] = {0.0, 0.0, 0.0};
+
+    /* Column 2 was given as (1,4),(0,2) and comes back ascending. The
+     * count-only call answers the same count and writes nothing. */
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_col_entries(m, 2, &count, nullptr, nullptr));
+    TEST_ASSERT_EQUAL_INT64(2, count);
+    TEST_ASSERT_EQUAL_INT64(-1, idx[0]);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_col_entries(m, 2, &count, idx, val));
+    TEST_ASSERT_EQUAL_INT64(2, count);
+    TEST_ASSERT_EQUAL_INT64(0, idx[0]);
+    TEST_ASSERT_EQUAL_INT64(1, idx[1]);
+    TEST_ASSERT_EQUAL_DOUBLE(2.0, val[0]);
+    TEST_ASSERT_EQUAL_DOUBLE(4.0, val[1]);
+
+    /* Column 0 held an explicit zero at row 1; the load dropped it and the
+     * read does not resurrect it. A column read builds no mirror. */
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_col_entries(m, 0, &count, idx, val));
+    TEST_ASSERT_EQUAL_INT64(1, count);
+    TEST_ASSERT_EQUAL_INT64(0, idx[0]);
+    TEST_ASSERT_EQUAL_DOUBLE(1.0, val[0]);
+    TEST_ASSERT_FALSE(m->rowwise_valid);
+
+    /* Row 1 is (col 1, 3.0), (col 2, 4.0), read off the mirror, which the
+     * row read builds. */
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_row_entries(m, 1, &count, idx, val));
+    TEST_ASSERT_TRUE(m->rowwise_valid);
+    TEST_ASSERT_EQUAL_INT64(2, count);
+    TEST_ASSERT_EQUAL_INT64(1, idx[0]);
+    TEST_ASSERT_EQUAL_INT64(2, idx[1]);
+    TEST_ASSERT_EQUAL_DOUBLE(3.0, val[0]);
+    TEST_ASSERT_EQUAL_DOUBLE(4.0, val[1]);
+
+    /* One entry: present, absent (which is zero), and the dropped zero. */
+    double v = -1.0;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_coefficient(m, 1, 2, &v));
+    TEST_ASSERT_EQUAL_DOUBLE(4.0, v);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_coefficient(m, 0, 1, &v));
+    TEST_ASSERT_EQUAL_DOUBLE(0.0, v);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_coefficient(m, 1, 0, &v));
+    TEST_ASSERT_EQUAL_DOUBLE(0.0, v);
+
+    /* A change reaches every read: inserting (1,0) puts a third entry in
+     * row 1 and a second in column 0, and the stale mirror is rebuilt. */
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_coefficient(m, 1, 0, 7.0));
+    TEST_ASSERT_FALSE(m->rowwise_valid);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_row_entries(m, 1, &count, idx, val));
+    TEST_ASSERT_EQUAL_INT64(3, count);
+    TEST_ASSERT_EQUAL_INT64(0, idx[0]);
+    TEST_ASSERT_EQUAL_DOUBLE(7.0, val[0]);
+    TEST_ASSERT_EQUAL_INT64(1, idx[1]);
+    TEST_ASSERT_EQUAL_INT64(2, idx[2]);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_col_entries(m, 0, &count, idx, val));
+    TEST_ASSERT_EQUAL_INT64(2, count);
+    TEST_ASSERT_EQUAL_INT64(1, idx[1]);
+    TEST_ASSERT_EQUAL_DOUBLE(7.0, val[1]);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_coefficient(m, 1, 0, &v));
+    TEST_ASSERT_EQUAL_DOUBLE(7.0, v);
+
+    /* Deleting both of column 0's entries leaves an empty column, which
+     * reads as a count of zero and writes nothing. */
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_coefficient(m, 0, 0, 0.0));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_coefficient(m, 1, 0, 0.0));
+    idx[0] = -1;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_col_entries(m, 0, &count, idx, val));
+    TEST_ASSERT_EQUAL_INT64(0, count);
+    TEST_ASSERT_EQUAL_INT64(-1, idx[0]);
+
+    /* Out of range is refused, never answered with zero; a count has to
+     * have somewhere to go. */
+    TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT,
+        jaos_col_entries(m, 3, &count, nullptr, nullptr));
+    TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT,
+        jaos_row_entries(m, -1, &count, nullptr, nullptr));
+    TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT,
+        jaos_col_entries(m, 0, nullptr, idx, val));
+    TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT, jaos_coefficient(m, 2, 0, &v));
+    TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT, jaos_coefficient(m, 0, 3, &v));
+    TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT, jaos_coefficient(m, 0, 0, nullptr));
+    TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT,
+        jaos_col_entries(nullptr, 0, &count, nullptr, nullptr));
+    jaos_model_free(m);
+}
+
 /* Every operation that touches the matrix discards both derived copies, and
  * the ones that touch only a bound or a cost discard neither.
  *
@@ -1375,5 +1562,7 @@ int main(void)
     RUN_TEST(test_the_scaling_does_not_read_a_bound_or_a_cost);
     RUN_TEST(test_a_column_left_empty_by_delete_rows_is_not_an_error);
     RUN_TEST(test_column_order_survives_a_chain_of_mutations);
+    RUN_TEST(test_the_objective_sense_and_constant_read_back_and_change);
+    RUN_TEST(test_the_matrix_reads_back_by_column_row_and_entry);
     return UNITY_END();
 }

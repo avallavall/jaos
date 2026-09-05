@@ -290,6 +290,7 @@ and you have the argument. Jump to the entry for the numbers behind it.
 - **[D280](#d280--objname-says-which-free-row-is-the-objective-and-the-test-that-matters-is-the-one-where-the-section-parses-and-the-rule-does-not-run)** — OBJNAME says which free row is the objective, and the test that matters is the one where the section parses and the rule does not run
 - **[D281](#d281--a-bound-may-be-written-value-first-either-way-round-and-the-arm-that-proves-the-refusal-is-tested-found-a-gap-in-the-test-instead)** — A bound may be written value-first either way round, and the arm that proves the refusal is tested found a gap in the test instead
 - **[D282](#d282--the-one-format-this-library-invented-was-the-one-it-could-not-read-and-the-arm-that-would-prove-the-round-trip-aborted-on-the-writers-own-guard)** — The one format this library invented was the one it could not read, and the arm that would prove the round trip aborted on the writer's own guard
+- **[D283](#d283--the-objectives-sense-had-no-getter-and-no-setter-and-the-python-layer-rebuilt-the-model-to-flip-it)** — The objective's sense had no getter and no setter, and the Python layer rebuilt the model to flip it
 
 ---
 
@@ -21074,3 +21075,32 @@ never reach the reader, so the arm belongs on the reader's side. **An arm
 that aborts is not an arm that passed**, and the exit code is the only thing
 that says which — the same lesson D277's overflow arm carries, twice in one
 session.
+
+## D283 — The objective's sense had no getter and no setter, and the Python layer rebuilt the model to flip it
+
+**The gap.** `jaos_load_lp` took the sense and the constant and nothing else
+did. A model read from a file could not say whether it was a maximum or a
+minimum, and `python/jaos.py` said in a comment that no C setter existed, so
+a `Problem` whose objective changed sense or constant was reloaded from
+scratch and the next solve ran cold. The matrix had the same shape of gap:
+a bound and a cost have read back since D77 and an entry did not, so a
+caller could change a coefficient it had no way to see.
+
+**What it does now.** Four calls for the objective — `jaos_objective_sense`,
+`jaos_objective_offset` and their two setters — and three for the matrix,
+`jaos_col_entries`, `jaos_row_entries` and `jaos_coefficient`. Both setters
+discard the answer and keep the basis, the D66 and D68 rules, and neither
+touches the matrix, so both derived copies stay; `tests/test_model.c`
+asserts that on the two validity flags. A row is read off the row-wise
+mirror the solve builds and keeps, so nothing is derived that a solve would
+not have derived, and a column read builds nothing. The Python `Problem`
+now marks a sense or constant change dirty the way it marks a cost and
+applies it through the setters; its test holds the `Model` object across
+the flip and checks nothing was marked structural.
+
+**Evidence.** No solver path is touched and all three gate sets are
+byte-identical. The tests carry the rest, and the one that matters is a bit
+comparison: the sense test's model gives 114 as a maximum, 105 once the
+setter flips it to a minimum, and 5 with the constant taken away, each
+compared to the bit because the objective is summed from the published
+values and the constant is added exactly once (D173).

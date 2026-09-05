@@ -318,6 +318,67 @@ class TestChangingAModel(unittest.TestCase):
             m.solve()
             self.assertAlmostEqual(m.objective(), -5.0, places=9)
 
+    def test_the_sense_and_constant_read_back_and_flip(self):
+        """max x + 10 with x <= 3 is 13; the same model as a minimum is 10,
+        and with the constant taken away, 0."""
+        with jaos.Model() as m:
+            m.load(num_col=1, num_row=1,
+                   col_cost=[1.0], col_lower=[0.0], col_upper=[3.0],
+                   row_lower=[-jaos.INFINITY], row_upper=[10.0],
+                   a_start=[0, 1], a_index=[0], a_value=[1.0],
+                   sense=jaos.ObjSense.MAXIMIZE, obj_offset=10.0)
+            self.assertIs(m.sense, jaos.ObjSense.MAXIMIZE)
+            self.assertEqual(m.obj_offset, 10.0)
+            m.solve()
+            self.assertAlmostEqual(m.objective(), 13.0, places=9)
+
+            m.set_sense(jaos.ObjSense.MINIMIZE)
+            self.assertIs(m.sense, jaos.ObjSense.MINIMIZE)
+            self.assertIs(m.status, jaos.SolveStatus.NOT_RUN)
+            m.solve()
+            self.assertAlmostEqual(m.objective(), 10.0, places=9)
+
+            m.set_obj_offset(0.0)
+            self.assertEqual(m.obj_offset, 0.0)
+            m.solve()
+            self.assertAlmostEqual(m.objective(), 0.0, places=9)
+
+            with self.assertRaises(jaos.JaosError):
+                m.set_obj_offset(float("nan"))
+            with self.assertRaises(ValueError):
+                m.set_sense(7)
+
+    def test_the_matrix_reads_back(self):
+        """A = [1 0 2; 0 3 4], given with column 2 unsorted and an explicit
+        zero in column 0 that the load drops -- the C suite's example."""
+        with jaos.Model() as m:
+            m.load(num_col=3, num_row=2,
+                   col_cost=[1.0, 1.0, 1.0],
+                   col_lower=[0.0, 0.0, 0.0], col_upper=[10.0, 10.0, 10.0],
+                   row_lower=[0.0, 0.0], row_upper=[5.0, 5.0],
+                   a_start=[0, 2, 3, 5], a_index=[0, 1, 1, 1, 0],
+                   a_value=[1.0, 0.0, 3.0, 4.0, 2.0])
+            self.assertEqual(m.num_nz, 4)
+            self.assertEqual(m.col_entries(0), ([0], [1.0]))
+            self.assertEqual(m.col_entries(1), ([1], [3.0]))
+            self.assertEqual(m.col_entries(2), ([0, 1], [2.0, 4.0]))
+            self.assertEqual(m.row_entries(0), ([0, 2], [1.0, 2.0]))
+            self.assertEqual(m.row_entries(1), ([1, 2], [3.0, 4.0]))
+            self.assertEqual(m.coefficient(1, 2), 4.0)
+            self.assertEqual(m.coefficient(1, 0), 0.0)     # the dropped zero
+            self.assertEqual(m.coefficient(0, 1), 0.0)
+
+            m.set_coefficient(1, 0, 7.0)
+            self.assertEqual(m.row_entries(1), ([0, 1, 2], [7.0, 3.0, 4.0]))
+            m.set_coefficient(0, 0, 0.0)
+            m.set_coefficient(1, 0, 0.0)
+            self.assertEqual(m.col_entries(0), ([], []))
+
+            with self.assertRaises(jaos.JaosError):
+                m.col_entries(3)
+            with self.assertRaises(jaos.JaosError):
+                m.coefficient(2, 0)
+
 
 class TestGrowingAndShrinking(unittest.TestCase):
     """The append and delete calls. Each optimum here is distinct from the
@@ -949,6 +1010,41 @@ class TestProblemResolves(unittest.TestCase):
             p.objective_value
         p.solve()
         self.assertAlmostEqual(y.value, 3.0, places=9)
+
+    def test_flipping_the_sense_keeps_the_loaded_model(self):
+        """Until D283 a new sense rebuilt the model and the next solve ran
+        cold. Now it goes through the setter: the Model object is the same
+        one, nothing is marked structural, and the answer agrees with a
+        fresh build of the flipped problem."""
+        p, x, y, c = self.build()
+        p.solve()
+        loaded = p._m
+        p.maximize(-x - 2 * y)                 # same costs, other sense
+        self.assertFalse(p._structural)
+        self.assertTrue(p._dirty_objective)
+        with self.assertRaises(ValueError):
+            p.objective_value                  # pending, so it refuses
+        p.solve()
+        self.assertIs(p._m, loaded)
+        self.assertAlmostEqual(p.objective_value, 0.0, places=9)
+
+        fresh = jaos.Problem()
+        fx = fresh.add_var()
+        fy = fresh.add_var()
+        fresh.add(fx + fy <= 4.0)
+        fresh.maximize(-fx - 2 * fy)
+        fresh.solve()
+        self.assertAlmostEqual(p.objective_value, fresh.objective_value,
+                               places=9)
+
+    def test_a_new_constant_goes_through_the_setter(self):
+        p, x, y, c = self.build()
+        p.solve()
+        p.minimize(-x - 2 * y + 100)
+        self.assertFalse(p._structural)
+        p.solve()
+        self.assertAlmostEqual(p.objective_value, 92.0, places=9)
+        self.assertEqual(p._m.obj_offset, 100.0)
 
 
 class TestSolutionFileRoundTrip(unittest.TestCase):

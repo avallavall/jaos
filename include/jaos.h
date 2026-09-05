@@ -191,6 +191,58 @@ JAOS_NODISCARD jaos_status jaos_set_col_bounds(jaos_model *m, int64_t col,
 JAOS_NODISCARD jaos_status jaos_set_row_bounds(jaos_model *m, int64_t row,
                                                double lower, double upper);
 
+/* The objective's sense and its constant term, read back and changed.
+ *
+ * These exist for the reason the three getters above do. A model read from
+ * a file arrives with a sense and a constant the caller never typed, and a
+ * caller who cannot ask which way the objective points cannot tell a maximum
+ * of 5 from a minimum of 5. Until D283 jaos_load_lp was the only way to set
+ * either, so flipping the sense of a loaded model meant rebuilding it from
+ * scratch and losing the basis it held -- which is what the Python layer did.
+ *
+ * Both setters discard the answer, as every modification does (D66), and
+ * neither touches the matrix, so the row-wise mirror and the scaling stay.
+ * The basis survives both: flipping the sense leaves every basic variable
+ * basic, and a basis that is no longer dual feasible is what the dual
+ * simplex's phase 1 exists for. The constant must be finite, the rule
+ * jaos_load_lp applies; a sense that is neither value of the enum is refused. */
+JAOS_NODISCARD jaos_status jaos_objective_sense(const jaos_model *m,
+                                                jaos_obj_sense *sense);
+JAOS_NODISCARD jaos_status jaos_objective_offset(const jaos_model *m,
+                                                 double *offset);
+JAOS_NODISCARD jaos_status jaos_set_objective_sense(jaos_model *m,
+                                                    jaos_obj_sense sense);
+JAOS_NODISCARD jaos_status jaos_set_objective_offset(jaos_model *m,
+                                                     double offset);
+
+/* Read the matrix back: one column, one row, or one entry.
+ *
+ * `count` receives the number of entries. When `index` and `value` are not
+ * NULL they receive the entries and must hold at least `count` of them, so
+ * the intended use is two calls: the first with both arrays NULL to learn
+ * the count, the second with arrays of that size. Entries come sorted
+ * ascending by index -- a column by row, a row by column -- with no explicit
+ * zeros, because that is the invariant the stored copy holds and the layout
+ * jaos_load_lp would have to be given to produce the same model.
+ *
+ * A row is read off the row-wise mirror, the copy the solve itself builds
+ * and keeps, and jaos_row_entries takes a non-const model for that reason:
+ * the first call after a matrix change builds the mirror and every later
+ * one reads it. Nothing is built that a solve would not have built, and a
+ * column read builds nothing at all.
+ *
+ * jaos_coefficient answers 0.0 for an entry the model does not hold, which
+ * is what that coefficient is. An index out of range is refused, never
+ * answered with zero, on every one of the three. */
+JAOS_NODISCARD jaos_status jaos_col_entries(const jaos_model *m, int64_t col,
+                                            int64_t *count, int64_t *index,
+                                            double *value);
+JAOS_NODISCARD jaos_status jaos_row_entries(jaos_model *m, int64_t row,
+                                            int64_t *count, int64_t *index,
+                                            double *value);
+JAOS_NODISCARD jaos_status jaos_coefficient(const jaos_model *m, int64_t row,
+                                            int64_t col, double *value);
+
 /* Change one matrix entry, which may create it or remove it. Setting a
  * coefficient to exactly 0.0 deletes it, because the loaded model holds no
  * explicit zeros — writing one in would leave a model that no longer matches

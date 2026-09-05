@@ -239,15 +239,15 @@ JAOS's LP reader covers a CPLEX-style core; the exact subset is in
 `docs/format-support.md`.
 
 The three writer rows moved from ○ on 2026-08-31 (D226). Write LP is ◐ because
-the dialect is narrower than a model: a free row and a row with no
-coefficients are refused by name, and each message points at
-`jaos_write_mps`, which has neither limit. A ranged row is **not** refused —
-D239 writes it as the two-sided form and reads it back as one row with two
-ends, and 0 of the 139 refuse for that reason. What JAOS writes it reads back
-as the same model, checked field by field: 139 of 139 gate instances through
-MPS, and **104 of 139 through LP with the other 35 refused** rather than
-silently changed, 34 of them for an empty row and 1 for a free one
-(D265, `bench/measurements/02-172/lpcover.txt`).
+the dialect is narrower than a model: a free row is refused by name, and the
+message points at `jaos_write_mps`, which has no such limit. A ranged row is
+**not** refused — D239 writes it as the two-sided form and reads it back as
+one row with two ends — and a row with no coefficients is written as a zero
+term and read back as the empty row it was (D276). What JAOS writes it reads
+back as the same model, checked field by field: 139 of 139 gate instances
+through MPS, and **138 of 139 through LP with 1 refused and 0 differing**
+(D276, `bench/measurements/02-181/lpcover.txt`); it was 104 and 35 until the
+empty-row refusal was re-read (D265, `02-172`).
 
 Write MPS reads ● and still has three refusals, which is not a contradiction:
 two of them are shapes the format itself has no syntax for, and the third is a

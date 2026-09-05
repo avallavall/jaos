@@ -77,9 +77,11 @@ jaos_model_free(m);
 - An independent checker that verifies every answer against the original,
   unscaled problem.
 
-A loaded model can be modified: one bound, cost or coefficient at a time, or
-whole rows and columns added or deleted. A re-solve then starts from the basis
-of the previous solve instead of from scratch. A callback can watch a running
+A loaded model can be modified: one bound, cost or coefficient at a time, the
+objective's sense or constant, or whole rows and columns added or deleted, and
+every one of those reads back, the matrix by column, by row or by entry. A
+re-solve then starts from the basis of the previous solve instead of from
+scratch. A callback can watch a running
 solve and stop it. A stopped solve keeps its basis, so raising the limit and
 solving again continues from where it stopped.
 
@@ -88,8 +90,7 @@ and what is only partly there.
 
 ## What it does not do
 
-There is no barrier method and no mixed-integer solver, and no sensitivity or
-ranging analysis.
+There is no barrier method and no mixed-integer solver.
 
 A primal simplex exists but no caller can reach it. It sits behind a
 development switch rather than an option, and `make primal` is what measures
@@ -101,7 +102,7 @@ one piece `SPECS.md` still lists as missing is Devex pricing — which is
 blocked on a paywalled source, and an own rule derived in its place lost to
 Dantzig and was refused (D244, D245).
 
-The public API has fifty-two functions. Seven of them configure something:
+The public API is `include/jaos.h`. Seven of its functions configure something:
 two tolerances, two budgets, where the log goes, how much of it there is, and
 a callback that decides whether a solve continues. No function selects a
 method. The solver decides which pricing rule runs, when it refactorizes, and

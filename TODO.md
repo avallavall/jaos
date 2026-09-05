@@ -7,6 +7,16 @@ line leaves this file in the same commit.
 
 ## Where the last session stopped — 2026-09-03
 
+**2026-09-05, later: the objective's sense and constant have getters and
+setters, and the matrix reads back (D283).** Seven calls, no solver path
+touched, all three gate sets byte-identical. The one consequence outside
+the C API is in `python/jaos.py`: a `Problem` whose objective flips sense
+no longer rebuilds the model, so the next solve starts from the basis. The
+same session found `README.md` still saying there was no ranging analysis
+(D258 landed it) and `docs/feature-matrix.md` still carrying the LP writer's
+pre-D276 coverage; both corrected, and neither had a check that would have
+caught it.
+
 **2026-09-05: the solution format has a reader (D282,
 `bench/measurements/02-187/`).** `jaos_write_solution` wrote a format
 nothing could read, and `docs/format-support.md` said so. `jaos_read_solution`

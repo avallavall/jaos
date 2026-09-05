@@ -11,6 +11,19 @@ open, `bench/README.md` for the gate, and the commit each entry came from.
 
 ### Added
 
+- **The objective's sense and constant read back and change.**
+  `jaos_objective_sense`, `jaos_objective_offset` and their two setters. A
+  model read from a file could not say whether it was a maximum, and only
+  `jaos_load_lp` could set either, so the Python `Problem` rebuilt the model
+  to flip the sense and solved cold; it goes through the setters and
+  re-solves warm now (D283).
+
+- **The matrix reads back.** `jaos_col_entries`, `jaos_row_entries` and
+  `jaos_coefficient`: one column, one row or one entry, sorted, no explicit
+  zeros. A row comes off the row-wise mirror the solve keeps, so the read
+  derives nothing new. On `Model` in Python as `col_entries`, `row_entries`
+  and `coefficient` (D283).
+
 - **`jaos_read_solution` reads back the solution file JAOS writes.** The
   format had a writer and no reader -- `docs/format-support.md` said so in
   as many words -- so the one file format this library invented was the one

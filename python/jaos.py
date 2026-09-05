@@ -344,6 +344,13 @@ _sig("jaos_num_nz", _I64, _VP)
 _sig("jaos_col_cost", ctypes.c_int, _VP, _I64, _P(_D))
 _sig("jaos_col_bounds", ctypes.c_int, _VP, _I64, _P(_D), _P(_D))
 _sig("jaos_row_bounds", ctypes.c_int, _VP, _I64, _P(_D), _P(_D))
+_sig("jaos_objective_sense", ctypes.c_int, _VP, _P(ctypes.c_int))
+_sig("jaos_objective_offset", ctypes.c_int, _VP, _P(_D))
+_sig("jaos_set_objective_sense", ctypes.c_int, _VP, ctypes.c_int)
+_sig("jaos_set_objective_offset", ctypes.c_int, _VP, _D)
+_sig("jaos_col_entries", ctypes.c_int, _VP, _I64, _P(_I64), _P(_I64), _P(_D))
+_sig("jaos_row_entries", ctypes.c_int, _VP, _I64, _P(_I64), _P(_I64), _P(_D))
+_sig("jaos_coefficient", ctypes.c_int, _VP, _I64, _I64, _P(_D))
 _sig("jaos_set_col_cost", ctypes.c_int, _VP, _I64, _D)
 _sig("jaos_set_col_bounds", ctypes.c_int, _VP, _I64, _D, _D)
 _sig("jaos_set_row_bounds", ctypes.c_int, _VP, _I64, _D, _D)
@@ -608,7 +615,61 @@ class Model:
                                          ctypes.byref(lo), ctypes.byref(hi)))
         return lo.value, hi.value
 
+    @property
+    def sense(self):
+        out = ctypes.c_int()
+        self._check(_lib.jaos_objective_sense(self._handle(),
+                                              ctypes.byref(out)))
+        return ObjSense(out.value)
+
+    @property
+    def obj_offset(self):
+        out = _D()
+        self._check(_lib.jaos_objective_offset(self._handle(),
+                                               ctypes.byref(out)))
+        return out.value
+
+    def _entries(self, fn, k):
+        # Two calls, as the header describes: the count, then the arrays.
+        n = _I64()
+        self._check(fn(self._handle(), k, ctypes.byref(n), None, None))
+        idx = (_I64 * max(n.value, 1))()
+        val = (_D * max(n.value, 1))()
+        self._check(fn(self._handle(), k, ctypes.byref(n), idx, val))
+        return list(idx[:n.value]), list(val[:n.value])
+
+    def col_entries(self, col):
+        """One column of the matrix: (row indices, values), ascending by
+        row, with no explicit zeros."""
+        return self._entries(_lib.jaos_col_entries, col)
+
+    def row_entries(self, row):
+        """One row of the matrix: (column indices, values), ascending by
+        column. The first call after a matrix change builds the row-wise
+        copy the solve would have built anyway."""
+        return self._entries(_lib.jaos_row_entries, row)
+
+    def coefficient(self, row, col):
+        """One entry; 0.0 where the model holds none."""
+        out = _D()
+        self._check(_lib.jaos_coefficient(self._handle(), row, col,
+                                          ctypes.byref(out)))
+        return out.value
+
     # -- changing it -------------------------------------------------------
+
+    def set_sense(self, sense):
+        """Minimize or maximize. Discards the answer, keeps the basis."""
+        self._check(_lib.jaos_set_objective_sense(self._handle(),
+                                                  int(ObjSense(sense))))
+        return self
+
+    def set_obj_offset(self, offset):
+        """The objective's constant term. Discards the answer, keeps the
+        basis."""
+        self._check(_lib.jaos_set_objective_offset(self._handle(),
+                                                   float(offset)))
+        return self
 
     def set_col_cost(self, col, cost):
         self._check(_lib.jaos_set_col_cost(self._handle(), col, float(cost)))
@@ -1338,10 +1399,10 @@ class Problem:
         p.solve()
 
     The problem is built in Python and loaded into a Model whole at the
-    first solve. From then on, moving bounds or objective coefficients goes
-    through the C setters and the next solve resumes warm; adding variables
-    or constraints, or changing the objective's sense or constant, rebuilds
-    and the next solve runs cold.
+    first solve. From then on, moving bounds or objective coefficients, or
+    changing the objective's sense or constant, goes through the C setters
+    and the next solve resumes warm; adding variables or constraints
+    rebuilds and the next solve runs cold.
 
     Reading a value after the problem changed raises rather than answering
     from the stale solution. The header rule reaches here: no numbers the
@@ -1363,6 +1424,7 @@ class Problem:
         # model and no floating point accumulates across them.
         self._dirty_var_bounds = set()
         self._dirty_costs = set()
+        self._dirty_objective = False   # the sense or the constant moved
         self._dirty_row_bounds = set()
 
     # -- lifetime ----------------------------------------------------------
@@ -1451,14 +1513,13 @@ class Problem:
         new = {v: float(c) for v, c in e._t.items()}
         self._sol = None
         if self._loaded and not self._structural:
+            # Every part of the objective has a C setter (D283), so none of
+            # this is structural and the next solve resumes from the basis.
             if sense is not self._sense or float(e._c) != self._obj_c:
-                # No C setter exists for the sense or the constant, so this
-                # is a structural change: reload, and the next solve is cold.
-                self._structural = True
-            else:
-                for v in set(self._obj) | set(new):
-                    if self._obj.get(v, 0.0) != new.get(v, 0.0):
-                        self._dirty_costs.add(v._i)
+                self._dirty_objective = True
+            for v in set(self._obj) | set(new):
+                if self._obj.get(v, 0.0) != new.get(v, 0.0):
+                    self._dirty_costs.add(v._i)
         self._obj = new
         self._obj_c = float(e._c)
         self._sense = sense
@@ -1483,6 +1544,7 @@ class Problem:
 
     def _pending(self):
         return (not self._loaded or self._structural
+                or self._dirty_objective
                 or bool(self._dirty_costs) or bool(self._dirty_var_bounds)
                 or bool(self._dirty_row_bounds))
 
@@ -1522,6 +1584,7 @@ class Problem:
         self._dirty_var_bounds.clear()
         self._dirty_costs.clear()
         self._dirty_row_bounds.clear()
+        self._dirty_objective = False
         self._structural = False
         self._loaded = True
 
@@ -1531,6 +1594,10 @@ class Problem:
         if not self._loaded or self._structural:
             self._build_and_load()
         else:
+            if self._dirty_objective:
+                self._m.set_sense(self._sense)
+                self._m.set_obj_offset(self._obj_c)
+                self._dirty_objective = False
             for i in self._dirty_costs:
                 self._m.set_col_cost(i, self._obj.get(self._vars[i], 0.0))
             for i in self._dirty_var_bounds:

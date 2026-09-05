@@ -249,6 +249,123 @@ jaos_status jaos_set_row_bounds(jaos_model *m, int64_t i,
     return JAOS_OK;
 }
 
+/* The objective's sense and constant, read back and changed (D283). Every
+ * consumer reads m->sense at the moment it needs the sign -- the simplex,
+ * presolve, the checker, ranging and the verifier each compute their sigma
+ * from it -- so nothing derived from the sense is cached and the setter has
+ * nothing to invalidate beyond the answer. The same holds for the constant:
+ * jaos_objective adds m->obj_offset when it is asked. */
+jaos_status jaos_objective_sense(const jaos_model *m, jaos_obj_sense *sense)
+{
+    if (m == nullptr || sense == nullptr)
+        return JAOS_ERR_INVALID_INPUT;
+    *sense = m->sense;
+    return JAOS_OK;
+}
+
+jaos_status jaos_objective_offset(const jaos_model *m, double *offset)
+{
+    if (m == nullptr || offset == nullptr)
+        return JAOS_ERR_INVALID_INPUT;
+    *offset = m->obj_offset;
+    return JAOS_OK;
+}
+
+jaos_status jaos_set_objective_sense(jaos_model *m, jaos_obj_sense sense)
+{
+    if (m == nullptr)
+        return JAOS_ERR_INVALID_INPUT;
+    if (sense != JAOS_MINIMIZE && sense != JAOS_MAXIMIZE) {
+        jm_set_err(m, "objective sense %d is neither JAOS_MINIMIZE nor "
+                      "JAOS_MAXIMIZE", (int)sense);
+        return JAOS_ERR_INVALID_INPUT;
+    }
+    m->sense = sense;
+    model_answer_is_stale(m);
+    return JAOS_OK;
+}
+
+jaos_status jaos_set_objective_offset(jaos_model *m, double offset)
+{
+    if (m == nullptr)
+        return JAOS_ERR_INVALID_INPUT;
+    if (!isfinite(offset)) {
+        jm_set_err(m, "objective constant must be finite");
+        return JAOS_ERR_INVALID_INPUT;
+    }
+    m->obj_offset = offset;
+    model_answer_is_stale(m);
+    return JAOS_OK;
+}
+
+/* Reading the matrix back (D283). A column is a slice of the stored copy. A
+ * row is a slice of the row-wise mirror, which is built here if a matrix
+ * change discarded it -- the same build the next solve would do, so the
+ * cost is moved and not added. The copies are guarded on their length
+ * because memcpy of zero bytes from a null source is undefined, and an
+ * empty column or row is exactly the case with nothing to copy. */
+static void copy_slice(int64_t lo, int64_t hi,
+                       const int64_t *src_index, const double *src_value,
+                       int64_t *index, double *value)
+{
+    const size_t n = (size_t)(hi - lo);
+    if (n == 0)
+        return;
+    if (index)
+        memcpy(index, &src_index[lo], n * sizeof *index);
+    if (value)
+        memcpy(value, &src_value[lo], n * sizeof *value);
+}
+
+jaos_status jaos_col_entries(const jaos_model *m, int64_t j, int64_t *count,
+                             int64_t *index, double *value)
+{
+    if (m == nullptr || count == nullptr || j < 0 || j >= m->num_col)
+        return JAOS_ERR_INVALID_INPUT;
+    const int64_t lo = m->a_start[j], hi = m->a_start[j + 1];
+    *count = hi - lo;
+    copy_slice(lo, hi, m->a_index, m->a_value, index, value);
+    return JAOS_OK;
+}
+
+jaos_status jaos_row_entries(jaos_model *m, int64_t i, int64_t *count,
+                             int64_t *index, double *value)
+{
+    if (m == nullptr || count == nullptr || i < 0 || i >= m->num_row)
+        return JAOS_ERR_INVALID_INPUT;
+    const jaos_status st = jm_model_ensure_rowwise(m);
+    if (st != JAOS_OK)
+        return st;
+    const int64_t lo = m->ar_start[i], hi = m->ar_start[i + 1];
+    *count = hi - lo;
+    copy_slice(lo, hi, m->ar_index, m->ar_value, index, value);
+    return JAOS_OK;
+}
+
+jaos_status jaos_coefficient(const jaos_model *m, int64_t i, int64_t j,
+                             double *value)
+{
+    if (m == nullptr || value == nullptr || i < 0 || i >= m->num_row ||
+        j < 0 || j >= m->num_col)
+        return JAOS_ERR_INVALID_INPUT;
+    /* The column is sorted by row with no duplicates, so a binary search
+     * either lands on the entry or proves its absence. */
+    int64_t lo = m->a_start[j], hi = m->a_start[j + 1];
+    *value = 0.0;
+    while (lo < hi) {
+        const int64_t mid = lo + (hi - lo) / 2;
+        if (m->a_index[mid] < i) {
+            lo = mid + 1;
+        } else if (m->a_index[mid] > i) {
+            hi = mid;
+        } else {
+            *value = m->a_value[mid];
+            break;
+        }
+    }
+    return JAOS_OK;
+}
+
 /* Changing one entry of the matrix (D67).
  *
  * The stored copy holds an invariant the readers and the solver both rely
