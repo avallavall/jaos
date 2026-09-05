@@ -15,7 +15,9 @@ open, `bench/README.md` for the gate, and the commit each entry came from.
   `cli/jaos.c`, over the public header only. `jaos solve FILE` prints one
   fact per line and every line but `time` is byte-identical between runs;
   the exit code is the verdict, 0 optimal to 5 usage. `jaos convert IN OUT`
-  moves between MPS and LP. `tests/cli.sh` runs under `make test`
+  moves between MPS and LP; `check`, `iis`, `verify` and `ranging` expose
+  the checker, the IIS, the exact proof and the ranging tables, one field
+  per line. `tests/cli.sh` runs under `make test`, 123 checks
   (`docs/cli.md`).
 
 - **The objective's sense and constant read back and change.**

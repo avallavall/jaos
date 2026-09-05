@@ -228,6 +228,134 @@ expect_exit 0 "a ranged row converts to LP" \
     "$JAOS" convert "$DATA/g_ranged.lp" "$tmp/ranged.lp"
 expect_exit 0 "and the written LP solves" "$JAOS" solve "$tmp/ranged.lp"
 
+# ------------------------------------------------------------------ check
+# a.sol is solve1's own answer, written above.
+expect_exit 0 "check of a model's own solution exits 0" \
+    "$JAOS" check "$DATA/solve1.mps" "$tmp/a.sol"
+for k in "primal_feasible yes" "dual_feasible yes" "checked_duals yes"; do
+    [ "$(line_of "${k% *}")" = "$k" ] && pass "it prints '$k'" \
+        || flunk "check printed '$(line_of "${k% *}")', wanted '$k'"
+done
+[ "$(printf '%s\n' "$out" | wc -l)" -eq 18 ] \
+    && pass "check prints the report's 18 fields" \
+    || flunk "check printed $(printf '%s\n' "$out" | wc -l) lines"
+"$JAOS" check "$DATA/solve1.mps" "$tmp/a.sol" > "$tmp/chk1"
+"$JAOS" check "$DATA/solve1.mps" "$tmp/a.sol" > "$tmp/chk2"
+cmp -s "$tmp/chk1" "$tmp/chk2" && pass "two check runs agree byte for byte" \
+    || { flunk "two check runs differ"; diff "$tmp/chk1" "$tmp/chk2"; }
+
+# The same answer with C1 pushed to 400, past its bound of 100, is not
+# primal feasible, and it is the checker that says so, not the reader.
+sed 's/^col C1 [^ ]* /col C1 400 /' "$tmp/a.sol" > "$tmp/bad.sol"
+grep -q '^col C1 400 ' "$tmp/bad.sol" || flunk "the tampered file was not built"
+expect_exit 1 "check of an infeasible answer exits 1" \
+    "$JAOS" check "$DATA/solve1.mps" "$tmp/bad.sol"
+[ "$(line_of primal_feasible)" = "primal_feasible no" ] \
+    && pass "it prints 'primal_feasible no'" \
+    || flunk "check printed '$(line_of primal_feasible)'"
+
+# g2.lp has two columns and two rows; solve1's file has three of each, and
+# the reader refuses a file that does not fit the model.
+expect_exit 5 "check with a solution for another model exits 5" \
+    "$JAOS" check "$DATA/g2.lp" "$tmp/a.sol"
+[ -n "$err" ] && pass "and says why on stderr" || flunk "no message on stderr"
+expect_exit 5 "check with a missing solution file exits 5" \
+    "$JAOS" check "$DATA/solve1.mps" "$tmp/no-such.sol"
+expect_exit 5 "check without SOLUTION is a usage error" \
+    "$JAOS" check "$DATA/solve1.mps"
+expect_exit 5 "check --tol refuses a word" \
+    "$JAOS" check "$DATA/solve1.mps" "$tmp/a.sol" --tol wide
+expect_exit 0 "check --tol takes a number" \
+    "$JAOS" check "$DATA/solve1.mps" "$tmp/a.sol" --tol 1e-6
+
+# -------------------------------------------------------------------- iis
+expect_exit 0 "iis of an infeasible model exits 0" "$JAOS" iis "$DATA/t1.mps"
+[ "$(printf '%s\n' "$out" | head -n 1)" = "status infeasible" ] \
+    && pass "its first line is the status" \
+    || flunk "iis began with '$(printf '%s\n' "$out" | head -n 1)'"
+members=$(line_of members | cut -d' ' -f2)
+sides=$(printf '%s\n' "$out" | grep -c '^\(row\|col\) [0-9]* \(lower\|upper\)$')
+[ -n "$members" ] && [ "$members" -ge 1 ] && [ "$sides" -eq "$members" ] \
+    && pass "one side line per member ($members)" \
+    || flunk "members=$members but $sides side lines"
+for k in candidates solves work_units from_certificate; do
+    [ -n "$(line_of $k)" ] && pass "it prints a $k line" \
+        || flunk "no $k line in: $out"
+done
+"$JAOS" iis "$DATA/t1.mps" > "$tmp/iis1"
+"$JAOS" iis "$DATA/t1.mps" > "$tmp/iis2"
+cmp -s "$tmp/iis1" "$tmp/iis2" && pass "two iis runs agree byte for byte" \
+    || { flunk "two iis runs differ"; diff "$tmp/iis1" "$tmp/iis2"; }
+
+expect_exit 1 "iis of an optimal model exits 1" "$JAOS" iis "$DATA/solve1.mps"
+[ "$out" = "status optimal" ] && pass "and prints only the status" \
+    || flunk "iis of an optimal model printed: $out"
+[ -n "$err" ] && pass "and says so on stderr" || flunk "no message on stderr"
+expect_exit 5 "iis without a file is a usage error" "$JAOS" iis
+expect_exit 5 "iis of a missing file exits 5" "$JAOS" iis "$tmp/no-such.mps"
+
+# ----------------------------------------------------------------- verify
+expect_exit 0 "verify of a small optimum exits 0" "$JAOS" verify "$DATA/solve1.mps"
+[ "$(line_of proof)" = "proof optimal" ] && pass "it prints 'proof optimal'" \
+    || flunk "verify printed '$(line_of proof)'"
+[ "$(line_of stage)" = "stage none" ] && pass "and 'stage none'" \
+    || flunk "verify printed '$(line_of stage)'"
+for k in bound_bits capacity_bits blocks largest_block bytes_held terms; do
+    [ -n "$(line_of $k)" ] && pass "it prints a $k line" \
+        || flunk "no $k line in: $out"
+done
+[ -z "$(line_of at_row)" ] && [ -z "$(line_of violation)" ] \
+    && pass "a proved basis names no breaking row" \
+    || flunk "a proved basis printed a breaking row or a violation"
+"$JAOS" verify "$DATA/solve1.mps" > "$tmp/ver1"
+"$JAOS" verify "$DATA/solve1.mps" > "$tmp/ver2"
+cmp -s "$tmp/ver1" "$tmp/ver2" && pass "two verify runs agree byte for byte" \
+    || { flunk "two verify runs differ"; diff "$tmp/ver1" "$tmp/ver2"; }
+
+expect_exit 5 "verify of an infeasible model exits 5" "$JAOS" verify "$DATA/t1.mps"
+[ "$out" = "status infeasible" ] && pass "and prints only the status" \
+    || flunk "verify of an infeasible model printed: $out"
+[ -n "$err" ] && pass "and says so on stderr" || flunk "no message on stderr"
+expect_exit 5 "verify without a file is a usage error" "$JAOS" verify
+
+# ---------------------------------------------------------------- ranging
+expect_exit 0 "ranging of an optimum exits 0" "$JAOS" ranging "$DATA/solve1.mps"
+[ "$(printf '%s\n' "$out" | head -n 1)" = "status optimal" ] \
+    && pass "its first line is the status" \
+    || flunk "ranging began with '$(printf '%s\n' "$out" | head -n 1)'"
+# solve1 has three columns and three rows: three lines per block, with the
+# right number of fields on each.
+[ "$(printf '%s\n' "$out" | grep -c '^cost [0-9]* [^ ]* [^ ]*$')" -eq 3 ] \
+    && pass "three cost lines of two numbers" \
+    || flunk "cost lines: $(printf '%s\n' "$out" | grep '^cost')"
+[ "$(printf '%s\n' "$out" | grep -c '^rhs [0-9]* [^ ]* [^ ]* [^ ]* [^ ]*$')" -eq 3 ] \
+    && pass "three rhs lines of four numbers" \
+    || flunk "rhs lines: $(printf '%s\n' "$out" | grep '^rhs')"
+[ "$(printf '%s\n' "$out" | grep -c '^bound [0-9]* [^ ]* [^ ]* [^ ]* [^ ]*$')" -eq 3 ] \
+    && pass "three bound lines of four numbers" \
+    || flunk "bound lines: $(printf '%s\n' "$out" | grep '^bound')"
+[ "$(printf '%s\n' "$out" | wc -l)" -eq 10 ] \
+    && pass "and nothing else" \
+    || flunk "ranging printed $(printf '%s\n' "$out" | wc -l) lines"
+printf '%s\n' "$out" | grep -qi 'nan' && flunk "ranging printed a NaN" \
+    || pass "no NaN in the intervals"
+# Every interval contains the number it is about (jaos.h): the cost interval
+# of column 0 holds its cost of 2, and an unlimited end reads inf or -inf.
+printf '%s\n' "$out" | awk '$1 == "cost" && $2 == 0 {
+    lo = ($3 == "-inf") ? -1e300 : $3 + 0; hi = ($4 == "inf") ? 1e300 : $4 + 0;
+    found = 1; exit !(lo <= 2 && 2 <= hi) } END { if (!found) exit 1 }' \
+    && pass "the cost interval of column 0 contains its cost" \
+    || flunk "cost 0 interval does not contain 2: $(line_of 'cost 0')"
+"$JAOS" ranging "$DATA/solve1.mps" > "$tmp/rng1"
+"$JAOS" ranging "$DATA/solve1.mps" > "$tmp/rng2"
+cmp -s "$tmp/rng1" "$tmp/rng2" && pass "two ranging runs agree byte for byte" \
+    || { flunk "two ranging runs differ"; diff "$tmp/rng1" "$tmp/rng2"; }
+
+expect_exit 5 "ranging of an infeasible model exits 5" "$JAOS" ranging "$DATA/t1.mps"
+[ -n "$err" ] && pass "and says so on stderr" || flunk "no message on stderr"
+expect_exit 5 "ranging with two files is a usage error" \
+    "$JAOS" ranging "$DATA/solve1.mps" "$DATA/t1.mps"
+
 # ------------------------------------------------------------------ done
 if [ "$fail" -ne 0 ]; then
     echo "tests/cli.sh: FAILED"

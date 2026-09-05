@@ -9,8 +9,10 @@ line leaves this file in the same commit.
 
 **2026-09-05, later still: a command-line tool, `cli/jaos.c`.** Built in a
 separate worktree while D283 landed here, over the public header only.
-`solve` and `convert` so far; `check`, `iis`, `verify` and `ranging` are
-in flight on the same branch. Its first test run found the LP writer's
+`solve` and `convert` first, then `check`, `iis`, `verify` and `ranging`
+in a second round on the same branch; 123 script checks under `make test`.
+Indices in its output are 0-based, because the model holds no names, which
+is the next gap to close. Its first test run found the LP writer's
 refusal list in `jaos.h`'s comment stale since D239 and D276 — a third
 place in the format family that drifted, and again found by accident
 (D278 lists the other two). Corrected in the same commit.
