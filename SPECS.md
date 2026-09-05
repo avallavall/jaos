@@ -104,7 +104,7 @@ when it closes.
 
 | | status | |
 |---|---|---|
-| Fixed MPS | **done** | |
+| Fixed MPS | **done** | `OBJNAME` picks which free row is the objective, and the rest stay free rows; without it the first `N` row is, as in every file that omits the section (D280, `bench/measurements/02-185/`) |
 | Free MPS, autodetected | **done** | |
 | `RANGES` with per-row-type semantics | **done** | |
 | All `BOUNDS` types, `OBJSENSE`, objective constant | **done** | |

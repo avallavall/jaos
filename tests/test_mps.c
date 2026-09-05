@@ -21,6 +21,62 @@ static jaos_model *fresh(void)
     return m;
 }
 
+/* OBJNAME says which free row is the objective, and t3 has two of them so
+ * the answer is not the first (D280). Read with the first-N-row rule the
+ * same text is a DIFFERENT model: `IGNORED` would be the objective at
+ * 10x + 20y and `PROFIT` would be a free row. Both are legal models, which
+ * is what makes this worth pinning field by field rather than by a status.
+ *
+ * The `IGNORED` row survives as an ordinary free row with both bounds
+ * infinite, which is what the standard says an extra N row is. Dropping it
+ * would renumber every row after it. */
+static void check_t3(jaos_model *m)
+{
+    TEST_ASSERT_EQUAL_STRING("", jaos_model_error(m));
+
+    /* Two rows: IGNORED (free) and BALANCE (E). PROFIT is the objective and
+     * is not a matrix row, exactly as the first N row is not in t1. */
+    TEST_ASSERT_EQUAL_INT64(2, jaos_num_row(m));
+    TEST_ASSERT_EQUAL_INT64(2, jaos_num_col(m));
+
+    /* Row 0 is IGNORED, and it is free rather than gone. */
+    TEST_ASSERT_TRUE(isinf(m->row_lower[0]) && m->row_lower[0] < 0.0);
+    TEST_ASSERT_TRUE(isinf(m->row_upper[0]) && m->row_upper[0] > 0.0);
+
+    /* Row 1 is BALANCE, an equality at 4. */
+    TEST_ASSERT_EQUAL_DOUBLE(4.0, m->row_lower[1]);
+    TEST_ASSERT_EQUAL_DOUBLE(4.0, m->row_upper[1]);
+
+    /* The costs come from PROFIT and not from IGNORED. This is the
+     * assertion the whole feature is: against the first-N-row rule they
+     * would be 10 and 20. */
+    TEST_ASSERT_EQUAL_DOUBLE(3.0, m->col_cost[0]);
+    TEST_ASSERT_EQUAL_DOUBLE(1.0, m->col_cost[1]);
+
+    /* Both columns still carry their IGNORED entry, in the row it became. */
+    TEST_ASSERT_EQUAL_INT64(4, jaos_num_nz(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_MINIMIZE, m->sense);
+}
+
+static void test_t3_objname_picks_the_second_free_row(void)
+{
+    jaos_model *m = fresh();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_read_mps(m, "tests/data/t3_objname.mps"));
+    check_t3(m);
+    jaos_model_free(m);
+}
+
+/* The name on the line after the header rather than on it. OBJSENSE has the
+ * same two spellings and t2 covers its second one; this covers this one. */
+static void test_objname_on_the_next_line_is_the_same_model(void)
+{
+    jaos_model *m = fresh();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_read_mps(m, "tests/data/t3_objname_nextline.mps"));
+    check_t3(m);
+    jaos_model_free(m);
+}
+
 static void test_t1_fixed_layout_full_model(void)
 {
     jaos_model *m = fresh();
@@ -138,6 +194,15 @@ static void test_rejection_reasons_are_specific(void)
     expect_reject("tests/data/e_recol.mps", "contiguous");
     expect_reject("tests/data/e_dupcoef.mps", "duplicate coefficient");
     expect_reject("tests/data/e_noendata.mps", "ENDATA");
+
+    /* OBJNAME's own four, each with its own message. The last one is the
+     * one worth reading: a G row named by OBJNAME never matches, because
+     * the objective has to be a free row, so it reports the same "no free
+     * row by that name" as a name that matches nothing at all. */
+    expect_reject("tests/data/e_objname_missing.mps", "no free row by that name");
+    expect_reject("tests/data/e_objname_late.mps", "OBJNAME after ROWS");
+    expect_reject("tests/data/e_objname_twice.mps", "a second OBJNAME");
+    expect_reject("tests/data/e_objname_notfree.mps", "no free row by that name");
 }
 
 static void test_missing_file_is_io_error(void)
@@ -167,6 +232,8 @@ int main(void)
 {
     UNITY_BEGIN();
     RUN_TEST(test_t1_fixed_layout_full_model);
+    RUN_TEST(test_t3_objname_picks_the_second_free_row);
+    RUN_TEST(test_objname_on_the_next_line_is_the_same_model);
     RUN_TEST(test_t2_free_layout_objsense_ranges_wart);
     RUN_TEST(test_rejections_carry_line_numbers);
     RUN_TEST(test_rejection_reasons_are_specific);

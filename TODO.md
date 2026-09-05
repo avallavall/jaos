@@ -7,6 +7,19 @@ line leaves this file in the same commit.
 
 ## Where the last session stopped — 2026-09-03
 
+**2026-09-05, and this one was a format gap the record had listed for
+months: the MPS reader takes `OBJNAME` (D280,
+`bench/measurements/02-185/`).** `docs/format-support.md` said "not
+supported yet (rejected loudly); no target instance uses it", and the reader
+refused the whole file. It reads it now, and the first-`N`-row rule is
+unchanged for every file without the section. **What is worth carrying
+forward is the shape of the validation, not the feature**: arm 1 puts HEAD's
+reader back and the tests fail, which proves almost nothing, because any
+broken reader fails the same way. Arm 2 keeps the section parsed and removes
+only the line that consults it, and the tests fail on the COST — `Expected 3
+Was 10` — which is what says they test the choice and not the syntax. Any
+reader feature added here wants that second arm.
+
 **2026-09-05, last: D269's open item is answered, and half of it is a
 refusal (D279, `bench/measurements/02-184/`).** D269 left "no tool notices
 when a measurement directory's README is older than the `.txt` it cites".

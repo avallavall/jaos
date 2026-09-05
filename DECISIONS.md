@@ -287,6 +287,7 @@ and you have the argument. Jump to the entry for the numbers behind it.
 - **[D277](#d277--the-checkers-dual-half-is-compensated-double-now-no-verdict-moves-and-the-review-found-an-overflow-that-aborts)** — The checker's dual half is compensated `double` now, no verdict moves, and the review found an overflow that aborts
 - **[D278](#d278--the-lp-reader-told-the-caller-to-do-arithmetic-it-could-do-itself-and-folding-it-moved-nothing-else)** — The LP reader told the caller to do arithmetic it could do itself, and folding it moved nothing else
 - **[D279](#d279--a-measurement-directory-is-one-decisions-evidence-and-nothing-said-so-the-rule-that-would-catch-the-other-half-is-refused-on-its-own-firing-population)** — A measurement directory is one decision's evidence, and nothing said so; the rule that would catch the other half is refused on its own firing population
+- **[D280](#d280--objname-says-which-free-row-is-the-objective-and-the-test-that-matters-is-the-one-where-the-section-parses-and-the-rule-does-not-run)** — OBJNAME says which free row is the objective, and the test that matters is the one where the section parses and the rule does not run
 
 ---
 
@@ -20940,3 +20941,47 @@ directory while that README is left alone. Nothing in the files says which
 decision owns a directory, and the heading only helps once the heading is
 wrong. What catches it is `git status --short bench/measurements/` showing
 an `M` where only `??` belongs, which is a habit and not a check.
+
+## D280 — OBJNAME says which free row is the objective, and the test that matters is the one where the section parses and the rule does not run
+
+**The gap.** `docs/format-support.md` said `OBJNAME` was "not supported yet
+(rejected loudly); no target instance uses it". The reader hit its
+`unsupported section` branch and refused the whole file. The section is how
+an MPS file with more than one free row says which one is the objective.
+
+**What it does now.** The section takes the same two spellings `OBJSENSE`
+has: the name on the header line, or on the line after it. The `N` row it
+names is the objective and every other `N` row stays an ordinary free row
+with both bounds infinite, **including the ones that come before it** —
+which is why the choice cannot be made by position. Without the section the
+first `N` row is the objective, unchanged, because that is the rule every
+file that omits one is written to. Four refusals, each by name: the section
+after `ROWS`, a second one, a name no free row carries, and — reported the
+same way — a name that belongs to a `G` or `L` row, since the objective has
+to be free and such a row never matches. The missing-name case is reported at
+`COLUMNS`, the first line at which every row is known.
+
+**No population run, and the record says why.** No gate instance carries an
+`OBJNAME` section, so a campaign can only say the change is a no-op. All
+three sets say that: `bench/results/` is byte-identical.
+
+**So the evidence is the validation, and it has three arms**
+(`bench/measurements/02-185/`). Arm 1 is HEAD, which refuses the section;
+both golden tests fail at their first assertion. That arm alone is weak,
+because any change that broke the reader would fail the same way.
+
+**Arm 2 is the one worth having.** The candidate keeps parsing the section
+and storing the name, and only the one line in `rd_rows_line` that consults
+it is removed — so the first `N` row wins again. Both tests still go red,
+and the record shows where: `Expected 3 Was 10` on the cost assertion. `3` is
+the named row's coefficient and `10` is the first row's. The tests fail
+because the wrong row was chosen and not because the file did not parse,
+which is what makes them tests of the feature rather than of the syntax.
+
+**The golden model is two free rows on purpose.** Read with the
+first-`N`-row rule, `tests/data/t3_objname.mps` is a DIFFERENT model with
+the same text: the objective would be `10x + 20y` and the named row would be
+free. Both are legal, so the test pins the costs field by field rather than
+checking that the read succeeded. And the unnamed free row survives rather
+than being dropped: dropping it would renumber every row after it, and a
+caller reading row activities would get a vector the file does not describe.

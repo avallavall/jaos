@@ -11,6 +11,18 @@ open, `bench/README.md` for the gate, and the commit each entry came from.
 
 ### Added
 
+- **The MPS reader takes an `OBJNAME` section.** It says which free row is
+  the objective in a file that has more than one, and the reader refused the
+  whole file for it before. The same two spellings `OBJSENSE` has; every
+  other `N` row stays an ordinary free row, including the ones before the
+  named one; without the section the first `N` row is the objective, as
+  before. Four refusals by name, and the missing-name one is reported at
+  `COLUMNS`, the first line at which every row is known. No gate instance
+  uses the section, so all three sets are byte-identical and the evidence is
+  the validation: the tests are watched failing both against a reader that
+  refuses the section and against one that parses it and ignores it (D280,
+  `bench/measurements/02-185/`).
+
 - **Exact evaluation of a claimed point**, `jm_exact_evaluate`: the
   objective and the worst row and column violation with no rounding in the
   walk and one at the end. It runs on a dyadic `m * 2^e` rather than a

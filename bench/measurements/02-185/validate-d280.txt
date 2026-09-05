@@ -1,0 +1,29 @@
+# D280 -- do the OBJNAME tests catch what they were written for?
+# date: 2026-09-05T10:58:39Z
+# tree: 313ffe8
+
+== candidate
+tests/test_mps.c:235:test_t3_objname_picks_the_second_free_row:PASS
+tests/test_mps.c:236:test_objname_on_the_next_line_is_the_same_model:PASS
+exit=0
+
+== arm 1: HEAD, which refuses OBJNAME as an unsupported section
+tests/test_mps.c:64:test_t3_objname_picks_the_second_free_row:FAIL: Expected 0 Was 1
+tests/test_mps.c:74:test_objname_on_the_next_line_is_the_same_model:FAIL: Expected 0 Was 1
+exit=3
+
+== arm 2: OBJNAME parsed and then ignored
+  the ROWS rule no longer consults OBJNAME
+tests/test_mps.c:53:test_t3_objname_picks_the_second_free_row:FAIL: Expected 3 Was 10
+tests/test_mps.c:53:test_objname_on_the_next_line_is_the_same_model:FAIL: Expected 3 Was 10
+exit=3
+  what arm 2 failed on:
+tests/test_mps.c:53:test_t3_objname_picks_the_second_free_row:FAIL: Expected 3 Was 10
+
+== arm 3: restored
+tests/test_mps.c:235:test_t3_objname_picks_the_second_free_row:PASS
+tests/test_mps.c:236:test_objname_on_the_next_line_is_the_same_model:PASS
+exit=0
+
+both tests are red without the rule, not merely without the section
+verdict-exit=0

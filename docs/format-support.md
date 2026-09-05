@@ -81,8 +81,14 @@ header is a line whose first character is non-blank, `*` opens a comment.
   locale cannot corrupt instances — and Fortran `D` exponents are accepted
   (`1.5D+2` reads as `1.5E+2`, found in old Netlib files).
 - **`ENDATA` is required**; EOF without it is an error.
-- **`OBJNAME` is not supported yet** (rejected loudly); no target instance
-  uses it.
+- **`OBJNAME`**: section form, the same two spellings `OBJSENSE` has (the
+  name on the header line or on the next data line). It says which free row
+  is the objective; every other `N` row stays an ordinary free row with both
+  bounds infinite, INCLUDING any that came before it. Without the section the
+  first `N` row is the objective, which is the rule every file that omits one
+  is written to. It must come before `ROWS`, it may appear once, and a name
+  that no `N` row carries is refused by name at `COLUMNS` — which is the
+  first line at which every row is known (D280).
 
 ## LP
 

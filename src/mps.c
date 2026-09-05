@@ -82,7 +82,8 @@ static bool parse_num(const char *t, double *out)
 /* Reader                                                                */
 /* --------------------------------------------------------------------- */
 
-enum section { S_START, S_OBJSENSE, S_ROWS, S_COLUMNS, S_RHS, S_RANGES,
+enum section { S_START, S_OBJSENSE, S_OBJNAME, S_ROWS, S_COLUMNS, S_RHS,
+               S_RANGES,
                S_BOUNDS };
 
 /* The objective row's value in the row map. Real rows are >= 0. */
@@ -104,6 +105,13 @@ typedef struct {
     int64_t nrow;
     int64_t rtype_cap, rhs_cap, range_cap, rflag_cap;
     bool have_obj;
+
+    /* OBJNAME names which free row is the objective. `nullptr` means the
+     * section was absent and the first N row takes the job, which is the
+     * rule every file that omits one is written to (D280). Owned here and
+     * freed with everything else, because the token it is copied from
+     * points into the line buffer and the next line overwrites it. */
+    char *objname;
 
     jm_nmap cmap;                      /* column name -> index */
     double *cost, *cl, *cu;
@@ -141,6 +149,20 @@ static void rd_free(rd *r)
     free(r->ai);
     free(r->av);
     free(r->rowstamp);
+    free(r->objname);
+}
+
+/* OBJNAME's row name, copied. Returns false only out of memory. */
+static bool set_objname(rd *r, const char *name)
+{
+    const size_t len = strlen(name) + 1;
+    char *p = malloc(len);
+    if (p == nullptr)
+        return false;
+    memcpy(p, name, len);
+    free(r->objname);
+    r->objname = p;
+    return true;
 }
 
 #define FAIL_OOM()  do { st = JAOS_ERR_OUT_OF_MEMORY; \
@@ -162,8 +184,15 @@ static jaos_status rd_rows_line(rd *r, char **tok, int nt)
         FAIL("line %" PRId64 ": duplicate row name '%s'", r->lno, tok[1]);
 
     char t = tok[0][0];
-    if (t == 'N' && !r->have_obj) {
-        /* The first N row is the objective; it is not a matrix row. */
+    /* Which N row is the objective. Without an OBJNAME section it is the
+     * first, which is the rule every file that omits one is written to.
+     * With one it is the row that section named, and every other N row is
+     * an ordinary free row -- including the ones that come BEFORE it, which
+     * is why this cannot be decided by position (D280). */
+    const bool is_obj = t == 'N' && !r->have_obj &&
+        (r->objname == nullptr || strcmp(tok[1], r->objname) == 0);
+    if (is_obj) {
+        /* The objective is not a matrix row. */
         if (!jm_nmap_insert(&r->rmap, tok[1], OBJ_ROW))
             FAIL_OOM();
         r->have_obj = true;
@@ -409,6 +438,7 @@ jaos_status jaos_read_mps(jaos_model *m, const char *path)
     enum section sec = S_START;
     bool ended = false;
     bool objsense_pending = false;
+    bool objname_pending = false;
 
     char *line = nullptr;
     size_t lsz = 0;
@@ -431,6 +461,7 @@ jaos_status jaos_read_mps(jaos_model *m, const char *path)
             snprintf(kw, sizeof kw, "%s", tok[0]);
             upcase(kw);
             objsense_pending = false;
+            objname_pending = false;
             if (strcmp(kw, "NAME") == 0) {
                 /* the instance name is not retained */
             } else if (strcmp(kw, "OBJSENSE") == 0) {
@@ -449,11 +480,35 @@ jaos_status jaos_read_mps(jaos_model *m, const char *path)
                     objsense_pending = true;
                 }
                 sec = S_OBJSENSE;
+            } else if (strcmp(kw, "OBJNAME") == 0) {
+                /* The same two spellings the OBJSENSE section has: the name
+                 * on the header line, or on the line after it. */
+                if (sec >= S_ROWS)
+                    FAIL("line %" PRId64 ": OBJNAME after ROWS; it says which "
+                         "free row to read as the objective, so it has to "
+                         "come first", r->lno);
+                if (r->objname != nullptr)
+                    FAIL("line %" PRId64 ": a second OBJNAME section", r->lno);
+                if (nt >= 2) {
+                    if (!set_objname(r, tok[1]))
+                        FAIL_OOM();
+                } else {
+                    objname_pending = true;
+                }
+                sec = S_OBJNAME;
             } else if (strcmp(kw, "ROWS") == 0) {
+                if (objname_pending)
+                    FAIL("line %" PRId64 ": OBJNAME with no row name",
+                         r->lno);
                 sec = S_ROWS;
             } else if (strcmp(kw, "COLUMNS") == 0) {
                 if (sec != S_ROWS)
                     FAIL("line %" PRId64 ": COLUMNS must follow ROWS", r->lno);
+                /* Every row is known by here, so this is the first moment a
+                 * name that matches nothing can be reported (D280). */
+                if (r->objname != nullptr && !r->have_obj)
+                    FAIL("line %" PRId64 ": OBJNAME names '%s', and ROWS has "
+                         "no free row by that name", r->lno, r->objname);
                 r->rowstamp = jm_calloc_array(r->nrow, sizeof(int64_t));
                 if (r->rowstamp == nullptr)
                     FAIL_OOM();
@@ -480,6 +535,15 @@ jaos_status jaos_read_mps(jaos_model *m, const char *path)
         }
 
         switch (sec) {
+        case S_OBJNAME:
+            if (!objname_pending)
+                FAIL("line %" PRId64 ": unexpected data in OBJNAME", r->lno);
+            if (nt != 1)
+                FAIL("line %" PRId64 ": OBJNAME takes one row name", r->lno);
+            if (!set_objname(r, tok[0]))
+                FAIL_OOM();
+            objname_pending = false;
+            break;
         case S_OBJSENSE:
             if (!objsense_pending)
                 FAIL("line %" PRId64 ": unexpected data in OBJSENSE", r->lno);
