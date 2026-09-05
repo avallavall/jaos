@@ -231,7 +231,7 @@ refusals:
 
 test: record-check $(DEV_TESTS) $(BENCH_TOOLS) $(CLI)
 	@fail=0; for t in $(DEV_TESTS); do echo "== $$t"; ./$$t || fail=1; done; \
-	echo "== tests/cli.sh"; bash tests/cli.sh $(CLI) || fail=1; exit $$fail
+	echo "== tests/cli.sh"; JAOS_CLI_TEST_FLAGS='$(EXTRA_CFLAGS)' bash tests/cli.sh $(CLI) || fail=1; exit $$fail
 
 sanitize: $(ASAN_TESTS)
 	@fail=0; for t in $(ASAN_TESTS); do echo "== $$t"; ./$$t || fail=1; done; exit $$fail

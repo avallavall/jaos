@@ -37,6 +37,16 @@ expect_exit() {
 # line_of PREFIX : the one line of $out starting with PREFIX, or nothing.
 line_of() { printf '%s\n' "$out" | grep "^$1 "; }
 
+# The positive analysis checks -- check, verify and ranging on a correct
+# answer -- are skipped under either presolve fault build, the rule the C
+# suite applies to every test that reads a postsolved answer. Those builds
+# corrupt the answer on purpose: the published basis comes out one long, and
+# a wrong count is what jaos_verify and the ranging calls refuse. `make test`
+# passes its EXTRA_CFLAGS in JAOS_CLI_TEST_FLAGS so this script can tell.
+faulty=0
+case "${JAOS_CLI_TEST_FLAGS:-}" in *JAOS_PRESOLVE_FAULT*) faulty=1 ;; esac
+[ "$faulty" -eq 1 ] && echo "note fault build: positive analysis checks skipped"
+
 # The binary must exist; without it every check below fails for one reason.
 if [ ! -x "$JAOS" ]; then
     echo "FAIL $JAOS is not an executable; build it with make cli"
@@ -230,6 +240,7 @@ expect_exit 0 "and the written LP solves" "$JAOS" solve "$tmp/ranged.lp"
 
 # ------------------------------------------------------------------ check
 # a.sol is solve1's own answer, written above.
+if [ "$faulty" -eq 0 ]; then
 expect_exit 0 "check of a model's own solution exits 0" \
     "$JAOS" check "$DATA/solve1.mps" "$tmp/a.sol"
 for k in "primal_feasible yes" "dual_feasible yes" "checked_duals yes"; do
@@ -253,6 +264,7 @@ expect_exit 1 "check of an infeasible answer exits 1" \
 [ "$(line_of primal_feasible)" = "primal_feasible no" ] \
     && pass "it prints 'primal_feasible no'" \
     || flunk "check printed '$(line_of primal_feasible)'"
+fi
 
 # g2.lp has two columns and two rows; solve1's file has three of each, and
 # the reader refuses a file that does not fit the model.
@@ -265,7 +277,7 @@ expect_exit 5 "check without SOLUTION is a usage error" \
     "$JAOS" check "$DATA/solve1.mps"
 expect_exit 5 "check --tol refuses a word" \
     "$JAOS" check "$DATA/solve1.mps" "$tmp/a.sol" --tol wide
-expect_exit 0 "check --tol takes a number" \
+[ "$faulty" -eq 0 ] && expect_exit 0 "check --tol takes a number" \
     "$JAOS" check "$DATA/solve1.mps" "$tmp/a.sol" --tol 1e-6
 
 # -------------------------------------------------------------------- iis
@@ -295,6 +307,7 @@ expect_exit 5 "iis without a file is a usage error" "$JAOS" iis
 expect_exit 5 "iis of a missing file exits 5" "$JAOS" iis "$tmp/no-such.mps"
 
 # ----------------------------------------------------------------- verify
+if [ "$faulty" -eq 0 ]; then
 expect_exit 0 "verify of a small optimum exits 0" "$JAOS" verify "$DATA/solve1.mps"
 [ "$(line_of proof)" = "proof optimal" ] && pass "it prints 'proof optimal'" \
     || flunk "verify printed '$(line_of proof)'"
@@ -311,6 +324,7 @@ done
 "$JAOS" verify "$DATA/solve1.mps" > "$tmp/ver2"
 cmp -s "$tmp/ver1" "$tmp/ver2" && pass "two verify runs agree byte for byte" \
     || { flunk "two verify runs differ"; diff "$tmp/ver1" "$tmp/ver2"; }
+fi
 
 expect_exit 5 "verify of an infeasible model exits 5" "$JAOS" verify "$DATA/t1.mps"
 [ "$out" = "status infeasible" ] && pass "and prints only the status" \
@@ -319,6 +333,7 @@ expect_exit 5 "verify of an infeasible model exits 5" "$JAOS" verify "$DATA/t1.m
 expect_exit 5 "verify without a file is a usage error" "$JAOS" verify
 
 # ---------------------------------------------------------------- ranging
+if [ "$faulty" -eq 0 ]; then
 expect_exit 0 "ranging of an optimum exits 0" "$JAOS" ranging "$DATA/solve1.mps"
 [ "$(printf '%s\n' "$out" | head -n 1)" = "status optimal" ] \
     && pass "its first line is the status" \
@@ -350,6 +365,7 @@ printf '%s\n' "$out" | awk '$1 == "cost" && $2 == 0 {
 "$JAOS" ranging "$DATA/solve1.mps" > "$tmp/rng2"
 cmp -s "$tmp/rng1" "$tmp/rng2" && pass "two ranging runs agree byte for byte" \
     || { flunk "two ranging runs differ"; diff "$tmp/rng1" "$tmp/rng2"; }
+fi
 
 expect_exit 5 "ranging of an infeasible model exits 5" "$JAOS" ranging "$DATA/t1.mps"
 [ -n "$err" ] && pass "and says so on stderr" || flunk "no message on stderr"
