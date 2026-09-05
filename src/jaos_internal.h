@@ -48,6 +48,8 @@ typedef struct {
     bool mip_dive;
     bool mip_cut_rounds_set;
     int64_t mip_cut_rounds;
+    /* The rounding heuristic at every node (D290); on unless set. */
+    bool mip_no_heuristics;
 } jm_config;
 
 /* Name -> value map for the readers and for lookup by name: FNV-1a, open
@@ -111,7 +113,7 @@ struct jaos_model {
     /* What the last branch and bound did: nodes solved, relaxations solved,
      * the best bound in the model's sense, and the incumbent when a stop
      * left one short of a proof. */
-    int64_t mip_nodes, mip_solves, mip_cuts;
+    int64_t mip_nodes, mip_solves, mip_cuts, mip_heur, mip_first_inc;
     double mip_bound;
     bool mip_has_incumbent;
     double mip_inc_obj;
@@ -227,6 +229,11 @@ typedef enum {
  * the model; the model itself is never modified, and everything written
  * back is in the model's own units. */
 JAOS_NODISCARD jaos_status jm_dual_simplex(jaos_model *m);
+
+/* The primal tolerance a solve of this model uses: the per-model field when
+ * set, PRIMAL_TOL otherwise (src/simplex.c). The rounding heuristic judges
+ * a point by it (D290). */
+double jm_primal_tolerance(const jaos_model *m);
 
 /* The factorization behind the last optimum, as ranging builds it, for
  * the cut generator (D289): rows of B^-1 [A | -I] in the model's units.

@@ -95,7 +95,7 @@ and what is only partly there.
 
 ## What it does not do
 
-There is no barrier method. Integer columns solve by branch and bound over the dual simplex, with a dive from each selected node and Gomory cuts at the root, and no heuristics yet (D288, D289).
+There is no barrier method. Integer columns solve by branch and bound over the dual simplex, with Gomory cuts at the root and a rounding heuristic at every node; the dive from each selected node measured worse and is off (D288, D289, D290).
 
 A primal simplex exists but no caller can reach it. It sits behind a
 development switch rather than an option, and `make primal` is what measures

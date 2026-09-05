@@ -1,0 +1,19 @@
+== heur against control: work ratio, first incumbent off -> on
+air03     1.0000x  heur=0  first 1 -> 1
+blend2    1.0125x  heur=2  first 29903 -> 14897
+dcmulti   1.0086x  heur=0  first 1740 -> 1740
+egout     1.0398x  heur=0  first 32957 -> 32957
+enigma    1.0169x  heur=0  first 3239 -> 3239
+flugpl    1.0069x  heur=0  first 10635 -> 10635
+khb05250  1.0197x  heur=0  first 231 -> 231
+lseu      1.0202x  heur=3  first 17479 -> 518
+misc03    1.0136x  heur=0  first 323 -> 323
+misc06    1.0023x  heur=0  first 168 -> 168
+mod008    1.0339x  heur=2  first 1409 -> 2
+mod010    1.0001x  heur=1  first 4 -> 3
+p0033     1.0097x  heur=1  first 857 -> 8
+p0201     1.0131x  heur=1  first 1001 -> 959
+rgn       1.0106x  heur=0  first 317 -> 317
+stein27   1.0375x  heur=4  first 1444 -> 74
+stein45   1.0575x  heur=4  first 25450 -> 40
+geomean 1.0177x over 17; first incumbent earlier on 8, later on 0

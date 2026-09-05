@@ -23,7 +23,9 @@
  * Letters 19, 1996), rewritten over the model's own columns and added as
  * a row of the private copy, where it stays for every node. Cuts are
  * valid for the whole tree because they are derived at the root over the
- * model's own bounds. No heuristics: docs/claims.txt carries the claim.
+ * model's own bounds. A rounding heuristic at every fractional node
+ * (D290) is the only heuristic; docs/claims.txt carries the claim that
+ * there is no other.
  *
  * The relaxations are solved on ONE private copy of the model, re-bounded
  * per node, with the log callback off and everything else the caller set
@@ -463,6 +465,65 @@ static jaos_status cuts_add(jaos_model *lp, const cutbuf *cb)
     return st;
 }
 
+/* --- The rounding heuristic (D290) ------------------------------------- */
+
+/* The relaxation's point with every integer column rounded to the nearest
+ * integer, judged against the model's own bounds and rows to the primal
+ * tolerance; true when it is feasible, with its objective in `obj` (the
+ * model's sense) and its row activities in `ra`. The cut rows are not
+ * consulted: a point inside the model's rows is a point of the integer
+ * program whatever the cuts say. Every sum runs in index order (D8). */
+static bool rounded_point(const jaos_model *m, const double *x, double *xr,
+                          double *ra, double *obj)
+{
+    const int64_t nc = m->num_col, nr = m->num_row;
+    const double tol = jm_primal_tolerance(m);
+    for (int64_t j = 0; j < nc; j++) {
+        double v = m->col_integer[j] ? round(x[j]) : x[j];
+        if (v < m->col_lower[j] - tol || v > m->col_upper[j] + tol)
+            return false;
+        xr[j] = v;
+    }
+    for (int64_t i = 0; i < nr; i++)
+        ra[i] = 0.0;
+    double z = m->obj_offset;
+    for (int64_t j = 0; j < nc; j++) {
+        const double v = xr[j];
+        if (v == 0.0)
+            continue;
+        z += m->col_cost[j] * v;
+        for (int64_t k = m->a_start[j]; k < m->a_start[j + 1]; k++)
+            ra[m->a_index[k]] += m->a_value[k] * v;
+    }
+    for (int64_t i = 0; i < nr; i++)
+        if (ra[i] < m->row_lower[i] - tol || ra[i] > m->row_upper[i] + tol)
+            return false;
+    *obj = z;
+    return true;
+}
+
+/* Takes a heuristic point as the incumbent: its own values and activities,
+ * with the duals, reduced costs and statuses of the relaxation it was
+ * rounded from, since a rounded point has no basis of its own. */
+static bool incumbent_take_point(incumbent *inc, const jaos_model *lp,
+                                 const jaos_model *m, const double *xr,
+                                 const double *ra, double obj, double key)
+{
+    if (!incumbent_take(inc, lp, key))
+        return false;
+    const int64_t nc = m->num_col, nr = m->num_row;
+    if (nc > 0)
+        memcpy(inc->x, xr, (size_t)nc * sizeof *inc->x);
+    if (nr > 0)
+        memcpy(inc->ra, ra, (size_t)nr * sizeof *inc->ra);
+    inc->obj = obj;
+    return true;
+}
+
+/* How often the tree says where it is, at JAOS_LOG_PROGRESS: every this
+ * many nodes. Decides nothing. */
+constexpr int64_t MIP_LOG_EVERY = 100;
+
 /* --- The tree ---------------------------------------------------------- */
 
 jaos_status jm_branch_and_bound(jaos_model *m)
@@ -474,6 +535,7 @@ jaos_status jm_branch_and_bound(jaos_model *m)
     const int64_t rounds = m->cfg.mip_cut_rounds_set ? m->cfg.mip_cut_rounds
                                                      : MIP_CUT_ROUNDS;
     const bool dive = m->cfg.mip_dive;
+    const bool heur = !m->cfg.mip_no_heuristics;
 
     jaos_status rc = JAOS_ERR_OUT_OF_MEMORY;
     jaos_model *lp = nullptr;
@@ -482,7 +544,9 @@ jaos_status jm_branch_and_bound(jaos_model *m)
     cutbuf cb = {0};
     bnode *cur = nullptr, *next = nullptr;
     double *x = nullptr, *row = nullptr, *cut = nullptr;
-    int64_t next_id = 0, nodes = 0, solves = 0, cuts = 0;
+    double *xr = nullptr, *ra = nullptr;
+    int64_t next_id = 0, nodes = 0, solves = 0, cuts = 0, heur_points = 0;
+    int64_t first_inc = 0;             /* the node of the first incumbent */
     int64_t work = 0, iters = 0;
     double best_bound = -INFINITY;     /* minimize form */
     jaos_solve_status outcome = JAOS_SOLVE_NOT_RUN;
@@ -490,7 +554,8 @@ jaos_status jm_branch_and_bound(jaos_model *m)
     /* The answer the model holds is about the previous problem. */
     free(m->mip_inc_x);
     m->mip_inc_x = nullptr;
-    m->mip_nodes = m->mip_solves = m->mip_cuts = 0;
+    m->mip_nodes = m->mip_solves = m->mip_cuts = m->mip_heur = 0;
+    m->mip_first_inc = 0;
     m->mip_bound = 0.0;
     m->mip_has_incumbent = false;
 
@@ -502,8 +567,20 @@ jaos_status jm_branch_and_bound(jaos_model *m)
     jaos_clear_basis(lp);
 
     x = malloc((size_t)(nc > 0 ? nc : 1) * sizeof *x);
-    if (x == nullptr)
+    xr = malloc((size_t)(nc > 0 ? nc : 1) * sizeof *xr);
+    ra = malloc((size_t)(nr > 0 ? nr : 1) * sizeof *ra);
+    if (x == nullptr || xr == nullptr || ra == nullptr)
         goto done;
+    if (jm_logging_at(m, JAOS_LOG_SUMMARY)) {
+        int64_t nint = 0;
+        for (int64_t j = 0; j < nc; j++)
+            nint += m->col_integer[j];
+        jm_log(m, JAOS_LOG_SUMMARY,
+               "branch and bound: %lld integer columns of %lld, %lld rounds "
+               "of cuts, dive %s, rounding %s",
+               (long long)nint, (long long)nc, (long long)rounds,
+               dive ? "on" : "off", heur ? "on" : "off");
+    }
 
     /* The root is the node with no changes. */
     for (;;) {
@@ -638,17 +715,52 @@ jaos_status jm_branch_and_bound(jaos_model *m)
             if (stop)
                 break;
         }
-        if (nodes == 1)
+        if (nodes == 1) {
             best_bound = key;
+            jm_log(m, JAOS_LOG_SUMMARY, "root: relaxation %.17g after %lld cuts",
+                   obj, (long long)cuts);
+        }
+        /* The rounding heuristic, on a fractional node: a feasible rounding
+         * that beats the incumbent is taken before the node is judged, so
+         * the node itself is pruned when its bound is now inside the gap. */
+        if (heur && branch >= 0) {
+            double hobj = 0.0;
+            /* One pass over the matrix, billed like any kernel (D16). */
+            work += m->num_nz + nc + nr;
+            if (rounded_point(m, x, xr, ra, &hobj)) {
+                const double hkey = sigma * hobj;
+                if (!inc.have || hkey < inc.key) {
+                    if (!incumbent_take_point(&inc, lp, m, xr, ra, hobj, hkey))
+                        goto done;
+                    heur_points++;
+                    if (first_inc == 0)
+                        first_inc = nodes;
+                    jm_log(m, JAOS_LOG_PROGRESS,
+                           "node %lld: incumbent %.17g by rounding",
+                           (long long)nodes, hobj);
+                }
+            }
+        }
+        if (nodes % MIP_LOG_EVERY == 0)
+            jm_log(m, JAOS_LOG_PROGRESS,
+                   "node %lld: %lld open, bound %.17g, incumbent %s",
+                   (long long)nodes, (long long)heap.n,
+                   sigma * (heap.n > 0 && heap.v[0]->key < best_bound
+                            ? heap.v[0]->key : best_bound),
+                   inc.have ? "yes" : "none");
         if (inc.have && inc.key - key <= gap * (1.0 + fabs(inc.key)))
             continue;                  /* cannot improve enough */
 
         if (branch < 0) {
             if (!incumbent_take(&inc, lp, key))
                 goto done;
+            if (first_inc == 0)
+                first_inc = nodes;
             for (int64_t j = 0; j < nc; j++)
                 if (m->col_integer[j])
                     inc.x[j] = round(inc.x[j]);
+            jm_log(m, JAOS_LOG_PROGRESS, "node %lld: incumbent %.17g, integral",
+                   (long long)nodes, obj);
             continue;
         }
         const double v = x[branch];
@@ -693,10 +805,17 @@ jaos_status jm_branch_and_bound(jaos_model *m)
     m->mip_nodes = nodes;
     m->mip_solves = solves;
     m->mip_cuts = cuts;
+    m->mip_heur = heur_points;
+    m->mip_first_inc = first_inc;
     m->mip_bound = sigma * (heap.n > 0 && heap.v[0]->key < best_bound
                             ? heap.v[0]->key : best_bound);
     if (outcome == JAOS_SOLVE_OPTIMAL)
         m->mip_bound = inc.obj;
+    jm_log(m, JAOS_LOG_SUMMARY,
+           "branch and bound: %s after %lld nodes, %lld solves, %lld cuts, "
+           "%lld points by rounding", jaos_solve_status_str(outcome),
+           (long long)nodes, (long long)solves, (long long)cuts,
+           (long long)heur_points);
     if (inc.have) {
         m->mip_has_incumbent = true;
         m->mip_inc_obj = inc.obj;
@@ -728,6 +847,8 @@ done:
     if (rc != JAOS_OK && m->solve_status != outcome)
         jm_set_err(m, "%s", m->err[0] ? m->err : "out of memory in branch and bound");
     free(x);
+    free(xr);
+    free(ra);
     free(row);
     free(cut);
     cutbuf_free(&cb);
@@ -751,6 +872,8 @@ jaos_status jaos_mip_result(const jaos_model *m, jaos_mip_report *out)
     out->incumbent = m->mip_has_incumbent ? m->mip_inc_obj : 0.0;
     out->bound = m->mip_bound;
     out->cuts = m->mip_cuts;
+    out->heuristic_points = m->mip_heur;
+    out->first_incumbent_node = m->mip_first_inc;
     return JAOS_OK;
 }
 

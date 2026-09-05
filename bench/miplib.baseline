@@ -6,19 +6,19 @@
 #
 # name status solved shape objective checker det iters work dropped nodes
 air03        optimal      1 1 1 1 1 443 26197067 -1 1
-blend2       optimal      1 1 1 1 1 1131606 4823293608 -1 32325
-dcmulti      optimal      1 1 1 1 1 82909 377145052 -1 1787
-egout        optimal      1 1 1 1 1 19314 351870039 -1 40481
-enigma       optimal      1 1 1 1 1 30480 63823649 -1 3239
-flugpl       optimal      1 1 1 1 1 11692 93216305 -1 12949
-khb05250     optimal      1 1 1 1 1 10348 72874443 -1 351
-lseu         optimal      1 1 1 1 1 150716 631167430 -1 30003
-misc03       optimal      1 1 1 1 1 50158 200044509 -1 1399
-misc06       optimal      1 1 1 1 1 103493 669768011 -1 181
-mod008       optimal      1 1 1 1 1 161075 1213210000 -1 26313
-mod010       optimal      1 1 1 1 1 12580 620362720 -1 7
-p0033        optimal      1 1 1 1 1 1906 10837611 -1 943
-p0201        optimal      1 1 1 1 1 96581 548139516 -1 3201
-rgn          optimal      1 1 1 1 1 88846 195526919 -1 4371
-stein27      optimal      1 1 1 1 1 33278 124441939 -1 9799
-stein45      optimal      1 1 1 1 1 1144989 3562514535 -1 145699
+blend2       optimal      1 1 1 1 1 1131606 4883713944 -1 32325
+dcmulti      optimal      1 1 1 1 1 82909 380381011 -1 1787
+egout        optimal      1 1 1 1 1 19314 365862015 -1 40481
+enigma       optimal      1 1 1 1 1 30480 64901949 -1 3239
+flugpl       optimal      1 1 1 1 1 11692 93861153 -1 12949
+khb05250     optimal      1 1 1 1 1 10348 74310689 -1 351
+lseu         optimal      1 1 1 1 1 150716 643931242 -1 30003
+misc03       optimal      1 1 1 1 1 50158 202757584 -1 1399
+misc06       optimal      1 1 1 1 1 103493 671295671 -1 181
+mod008       optimal      1 1 1 1 1 161075 1254321392 -1 26313
+mod010       optimal      1 1 1 1 1 12580 620432740 -1 7
+p0033        optimal      1 1 1 1 1 1906 10943010 -1 943
+p0201        optimal      1 1 1 1 1 96581 555346117 -1 3201
+rgn          optimal      1 1 1 1 1 88846 197605239 -1 4371
+stein27      optimal      1 1 1 1 1 33278 129111283 -1 9799
+stein45      optimal      1 1 1 1 1 1144989 3767242305 -1 145699

@@ -297,6 +297,7 @@ and you have the argument. Jump to the entry for the numbers behind it.
 - **[D287](#d287--a-model-copies-whole-answer-excluded-so-a-what-if-or-a-branch-starts-from-the-basis-and-not-from-nothing)** — A model copies whole, answer excluded, so a what-if or a branch starts from the basis and not from nothing
 - **[D288](#d288--integer-columns-solve-by-branch-and-bound-over-the-dual-simplex-warm-from-the-parent-best-bound-first-and-nothing-else-yet)** — Integer columns solve by branch and bound over the dual simplex, warm from the parent, best bound first, and nothing else yet
 - **[D289](#d289--a-mip-set-of-17-miplib-3-instances-one-round-of-gomory-cuts-at-the-root-and-a-dive-refused-at-1125x)** — A MIP set of 17 MIPLIB 3 instances, one round of Gomory cuts at the root, and a dive refused at 1.125x
+- **[D290](#d290--a-rounding-heuristic-at-every-node-it-cannot-shrink-a-best-bound-tree-and-it-moves-the-first-incumbent-up-to-three-orders-of-magnitude-earlier-for-18-of-the-work)** — A rounding heuristic at every node: it cannot shrink a best-bound tree, and it moves the first incumbent up to three orders of magnitude earlier for 1.8% of the work
 
 ---
 
@@ -21302,3 +21303,45 @@ swept (`docs/tolerances.md`). With a cut in the tree the statuses a MIP
 answer publishes are the relaxation's over the model's own rows and may
 not form a basis of the model; `jaos.h` says so. No LP path is touched:
 all three gate sets are byte-identical.
+
+## D290 — A rounding heuristic at every node: it cannot shrink a best-bound tree, and it moves the first incumbent up to three orders of magnitude earlier for 1.8% of the work
+
+**The gap.** The feature matrix's MILP column had one ○ left for JAOS,
+primal heuristics, and a search stopped by a budget had an incumbent only
+if the tree had happened to reach an integral node.
+
+**What it does now.** At every node whose relaxation is fractional, the
+integer columns are rounded to the nearest integer and the point is judged
+against the model's own bounds and rows to the primal tolerance; a feasible
+point that beats the incumbent is taken, with the duals and statuses of the
+relaxation it was rounded from, and the node is then judged against it.
+`jaos_set_mip_heuristics` and `--no-heuristics` turn it off;
+`jaos_mip_result` counts the points under `heuristic_points` and reports
+`first_incumbent_node`, the node at which the first incumbent appeared. The
+tree also says where it is through the log callback: one line when it
+starts, one for the root, one every 100 nodes at `JAOS_LOG_PROGRESS`, one
+per incumbent, one when it ends. The pass over the matrix is billed.
+
+**Evidence** (`bench/measurements/02-190/`). The control arm,
+`--no-heuristics`, reproduces `bench/miplib.baseline` node for node and
+unit for unit on all 17. With the heuristic on, **no tree changes**: the
+node count is the same on every instance, and it has to be. Under a
+best-bound order the optimum is found at a node whose bound is at most the
+optimum, and every node with a smaller bound is solved either way; an
+incumbent found earlier can prune only nodes with a bound above it, and
+those are never taken once the optimum is known. What the pass costs is
+**1.0177x** in work (geometric mean, worst `stein45` at 1.058x). What it
+buys is the number that judges a heuristic under this order: the first
+incumbent appears **earlier on 8 of 17 and later on none** -- `stein45`
+at node 40 instead of 25450, `mod008` at 2 instead of 1409, `lseu` at 518
+instead of 17479, `stein27` at 74 instead of 1444, `p0033` at 8 instead of
+857, `blend2` at 14897 instead of 29903 -- which is what a stop on a work
+or time limit hands back through `jaos_mip_incumbent`. On the other nine
+the rounding never lands inside the rows, and the count says so.
+
+**What it is not.** Not a diving, feasibility-pump or RINS heuristic;
+`docs/claims.txt` names those as absent. Not a change to the tree's cost
+beyond the pass, and `bench/miplib.baseline` is rewritten by 1.8% to say
+so. `MIP_LOG_EVERY` decides nothing and is not in `docs/tolerances.md`,
+like `PROGRESS_EVERY`. No LP path is touched: the three gate sets are
+byte-identical.

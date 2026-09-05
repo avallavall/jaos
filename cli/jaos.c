@@ -10,7 +10,8 @@
  * Usage:
  *   jaos solve FILE [--solution OUT] [--start SOLUTION] [--work-limit N]
  *                   [--time-limit SECONDS] [--primal-tol T] [--dual-tol T]
- *                   [--cut-rounds N] [--dive] [--log LEVEL] [--quiet]
+ *                   [--cut-rounds N] [--dive] [--no-heuristics]
+ *                   [--log LEVEL] [--quiet]
  *   jaos convert IN OUT
  *   jaos check FILE SOLUTION [--tol T]
  *   jaos iis FILE
@@ -69,7 +70,8 @@ static const char USAGE[] =
     "Usage:\n"
     "  jaos solve FILE [--solution OUT] [--start SOLUTION] [--work-limit N]\n"
     "                  [--time-limit SECONDS] [--primal-tol T] [--dual-tol T]\n"
-    "                  [--cut-rounds N] [--dive] [--log LEVEL] [--quiet]\n"
+    "                  [--cut-rounds N] [--dive] [--no-heuristics]\n"
+    "                  [--log LEVEL] [--quiet]\n"
     "  jaos convert IN OUT\n"
     "  jaos check FILE SOLUTION [--tol T]\n"
     "  jaos iis FILE\n"
@@ -91,6 +93,7 @@ static const char USAGE[] =
     "  --cut-rounds N   rounds of Gomory cuts at the root of a MIP (default\n"
     "                   1; 0 for none)\n"
     "  --dive           dive from each selected node of a MIP (off by default)\n"
+    "  --no-heuristics  no rounding heuristic at the nodes of a MIP\n"
     "  --log LEVEL      solver log on stderr: off, summary, progress, detail\n"
     "  --quiet          print the status line only\n"
     "  Exit: 0 optimal, 1 infeasible, 2 unbounded, 3 stopped by a limit or\n"
@@ -360,7 +363,7 @@ struct solve_options {
     int64_t work_limit;      /* 0: not given; the parser refuses <= 0 */
     double time_limit;       /* 0: not given; the parser refuses <= 0 */
     int64_t cut_rounds;      /* -1: not given (the library's default)     */
-    bool dive;
+    bool dive, no_heuristics;
     /* The tolerances carry a flag rather than a sentinel: any finite value
      * is passed to the library, which is what refuses a negative one, and a
      * sentinel below zero would have swallowed exactly that case. It did,
@@ -395,6 +398,10 @@ static int parse_solve_options(int argc, char **argv, int first,
         }
         if (strcmp(a, "--dive") == 0) {
             o->dive = true;
+            continue;
+        }
+        if (strcmp(a, "--no-heuristics") == 0) {
+            o->no_heuristics = true;
             continue;
         }
         /* Everything else takes a value. */
@@ -470,6 +477,10 @@ static int cmd_solve(int argc, char **argv)
     }
     if (o.dive && jaos_set_mip_dive(m, true) != JAOS_OK) {
         rc = library_error("turn the dive on for", o.file, m);
+        goto out;
+    }
+    if (o.no_heuristics && jaos_set_mip_heuristics(m, false) != JAOS_OK) {
+        rc = library_error("turn the heuristics off for", o.file, m);
         goto out;
     }
     if (o.has_primal_tol &&
@@ -553,6 +564,8 @@ static int cmd_solve(int argc, char **argv)
         if (jaos_mip_result(m, &mrep) == JAOS_OK && mrep.nodes > 0) {
             printf("nodes %" PRId64 "\n", mrep.nodes);
             printf("cuts %" PRId64 "\n", mrep.cuts);
+            printf("heuristic_points %" PRId64 "\n", mrep.heuristic_points);
+            printf("first_incumbent %" PRId64 "\n", mrep.first_incumbent_node);
             printf("bound %.17g\n", mrep.bound);
         }
         /* Last, and the only line that moves between runs. */

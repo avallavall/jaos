@@ -13,6 +13,7 @@
 #include "unity.h"
 
 #include <math.h>
+#include <stdio.h>
 #include <string.h>
 
 void setUp(void) {}
@@ -359,6 +360,109 @@ static void test_a_cut_over_continuous_columns_keeps_the_integer_optimum(void)
     }
 }
 
+/* The rounding heuristic (D290) on a model where it must fire: max x + y
+ * with x + y <= 3.6, x in [0, 2.2], y in [0, 1.4], both integer. The
+ * relaxation sits at (2.2, 1.4), which rounds to (2, 1), inside every
+ * row and bound and worth 3, and 3 is the optimum: no integer x exceeds
+ * 2 nor y 1. With the heuristic off the tree finds the same point and
+ * reports no heuristic point, which is what the switch has to show. The
+ * cuts are off so the root stays fractional either way. */
+static void test_the_rounding_heuristic_takes_the_relaxations_neighbour(void)
+{
+    const double cost[2] = { 1.0, 1.0 }, cl[2] = { 0, 0 }, cu[2] = { 2.2, 1.4 };
+    const double rl[1] = { -INFINITY }, ru[1] = { 3.6 };
+    const int64_t as[3] = { 0, 1, 2 }, ai[2] = { 0, 0 };
+    const double av[2] = { 1.0, 1.0 };
+    for (int on = 1; on >= 0; on--) {
+        jaos_model *m = fresh();
+        TEST_ASSERT_EQUAL_INT(JAOS_OK,
+            jaos_load_lp(m, 2, 1, JAOS_MAXIMIZE, 0.0, cost, cl, cu, rl, ru,
+                         2, as, ai, av));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_col_integer(m, 0, true));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_col_integer(m, 1, true));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_cut_rounds(m, 0));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_heuristics(m, on != 0));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+        TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+        double obj = 0.0, x[2], ra[1];
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(m, &obj));
+        TEST_ASSERT_DOUBLE_WITHIN(1e-9, 3.0, obj);
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solution(m, x, ra, nullptr, nullptr));
+        TEST_ASSERT_TRUE(x[0] == 2.0 && x[1] == 1.0);
+        /* The activities a heuristic point publishes are its own. */
+        TEST_ASSERT_DOUBLE_WITHIN(1e-12, 3.0, ra[0]);
+        jaos_mip_report rep;
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_mip_result(m, &rep));
+        if (on) {
+            TEST_ASSERT_TRUE(rep.heuristic_points >= 1);
+            TEST_ASSERT_EQUAL_INT64(1, rep.first_incumbent_node);
+        } else {
+            TEST_ASSERT_EQUAL_INT64(0, rep.heuristic_points);
+            TEST_ASSERT_TRUE(rep.first_incumbent_node >= 2);
+        }
+        jaos_check_report ck;
+        TEST_ASSERT_EQUAL_INT(JAOS_OK,
+            jaos_check_solution(m, x, nullptr, 1e-7, &ck));
+        TEST_ASSERT_TRUE(ck.primal_feasible);
+        jaos_model_free(m);
+    }
+}
+
+/* A rounding that lands outside a row is never taken: max x + y with
+ * 2x + 2y <= 3 rounds (1.5, 0) to (2, 0), which breaks the row, so the
+ * count stays 0 and the tree finds 1 as before. */
+static void test_an_infeasible_rounding_is_not_taken(void)
+{
+    const double cost[2] = { 1.0, 1.0 }, cl[2] = { 0, 0 };
+    const double cu[2] = { INFINITY, INFINITY };
+    const double rl[1] = { -INFINITY }, ru[1] = { 3.0 };
+    const int64_t as[3] = { 0, 1, 2 }, ai[2] = { 0, 0 };
+    const double av[2] = { 2.0, 2.0 };
+    jaos_model *m = fresh();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_load_lp(m, 2, 1, JAOS_MAXIMIZE, 0.0, cost, cl, cu, rl, ru,
+                     2, as, ai, av));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_col_integer(m, 0, true));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_col_integer(m, 1, true));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_cut_rounds(m, 0));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    double obj = 0.0;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(m, &obj));
+    TEST_ASSERT_DOUBLE_WITHIN(1e-9, 1.0, obj);
+    jaos_mip_report rep;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_mip_result(m, &rep));
+    TEST_ASSERT_EQUAL_INT64(0, rep.heuristic_points);
+    jaos_model_free(m);
+}
+
+/* The tree's log lines (D290): one when it starts, one for the root, one
+ * when it ends, at JAOS_LOG_SUMMARY; and the same bits either way. */
+static char g_log[4096];
+static void capture_log(void *user, jaos_log_level level, const char *line)
+{
+    (void)level; (void)user;
+    const size_t have = strlen(g_log);
+    snprintf(g_log + have, sizeof g_log - have, "%s\n", line);
+}
+
+static void test_the_tree_logs_its_start_root_and_end(void)
+{
+    jaos_model *m = knapsack();
+    double x1[3], x2[3];
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solution(m, x1, nullptr, nullptr, nullptr));
+    g_log[0] = '\0';
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_log_callback(m, capture_log, nullptr));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_log_level(m, JAOS_LOG_SUMMARY));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solution(m, x2, nullptr, nullptr, nullptr));
+    TEST_ASSERT_EQUAL_MEMORY(x1, x2, sizeof x1);
+    TEST_ASSERT_NOT_NULL(strstr(g_log, "branch and bound: 3 integer columns of 3"));
+    TEST_ASSERT_NOT_NULL(strstr(g_log, "root: relaxation"));
+    TEST_ASSERT_NOT_NULL(strstr(g_log, "branch and bound: optimal after"));
+    jaos_model_free(m);
+}
+
 int main(void)
 {
     UNITY_BEGIN();
@@ -376,5 +480,8 @@ int main(void)
     RUN_TEST(test_the_readers_and_writers_carry_the_marks);
     RUN_TEST(test_without_cuts_or_dive_the_tree_branches_to_the_same_answer);
     RUN_TEST(test_a_cut_over_continuous_columns_keeps_the_integer_optimum);
+    RUN_TEST(test_the_rounding_heuristic_takes_the_relaxations_neighbour);
+    RUN_TEST(test_an_infeasible_rounding_is_not_taken);
+    RUN_TEST(test_the_tree_logs_its_start_root_and_end);
     return UNITY_END();
 }

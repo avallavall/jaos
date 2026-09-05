@@ -1182,12 +1182,35 @@ class TestBranchAndBound(unittest.TestCase):
         self.assertGreaterEqual(rep.cuts, 1)
         self.assertEqual(rep.nodes, 1)
         self.assertTrue(p._m.col_integer(0))
-        p.set_mip_cut_rounds(0).set_mip_dive(True)
+        p.set_mip_cut_rounds(0).set_mip_dive(True).set_mip_heuristics(False)
         self.assertIs(p.solve(), jaos.SolveStatus.OPTIMAL)
         self.assertAlmostEqual(p.objective_value, 9.0, places=9)
         rep = p.mip_report()
         self.assertEqual(rep.cuts, 0)
+        self.assertEqual(rep.heuristic_points, 0)
         self.assertGreaterEqual(rep.nodes, 2)
+
+    def test_the_rounding_heuristic_finds_the_root_relaxations_neighbour(self):
+        # max x + y, x + y <= 3.6, x <= 2.2, y <= 1.4, both integer: the
+        # relaxation sits at (2.2, 1.4) and rounds to (2, 1), which is the
+        # optimum (D290); with the heuristic off the tree finds it instead.
+        for on in (True, False):
+            p = jaos.Problem()
+            x = p.add_var(ub=2.2, integer=True, name="x")
+            y = p.add_var(ub=1.4, integer=True, name="y")
+            p.add(x + y <= 3.6)
+            p.maximize(x + y)
+            p.set_mip_cut_rounds(0).set_mip_heuristics(on)
+            self.assertIs(p.solve(), jaos.SolveStatus.OPTIMAL)
+            self.assertAlmostEqual(p.objective_value, 3.0, places=9)
+            self.assertEqual((x.value, y.value), (2.0, 1.0))
+            rep = p.mip_report()
+            if on:
+                self.assertGreaterEqual(rep.heuristic_points, 1)
+                self.assertEqual(rep.first_incumbent_node, 1)
+            else:
+                self.assertEqual(rep.heuristic_points, 0)
+                self.assertGreaterEqual(rep.first_incumbent_node, 2)
 
     def test_the_model_layer_marks_and_reports(self):
         with jaos.Model() as m:

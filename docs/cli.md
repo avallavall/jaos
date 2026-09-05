@@ -53,10 +53,12 @@ time 0.000087
   respects that refusal. The value is printed with 17 significant digits, so
   it reads back as the same double.
 - `iterations` and `work_units` are the solve's own counts.
-- `nodes`, `cuts` and `bound` are printed for a mixed-integer model only
-  (D288, D289): the relaxations the tree solved, the rows the root cuts
-  added, and the best objective any open node could still reach, which is
-  the optimum when the status is `optimal`.
+- `nodes`, `cuts`, `heuristic_points`, `first_incumbent` and `bound` are
+  printed for a mixed-integer model only (D288, D289, D290): the
+  relaxations the tree solved, the rows the root cuts added, the incumbents
+  the rounding heuristic found, the node at which the first incumbent
+  appeared (0 when none), and the best objective any open node could still
+  reach, which is the optimum when the status is `optimal`.
 - `time` is the solve's wall-clock seconds. It is always the last line.
 
 `--quiet` prints the `status` line only.
@@ -90,6 +92,7 @@ prints the same facts as the same model solved silently.
 | `--dual-tol T` | how far a reduced cost may sit on the wrong side of zero. Default 1e-7. |
 | `--cut-rounds N` | rounds of Gomory mixed-integer cuts at the root of a mixed-integer model (D289): one cut per fractional integer column of the relaxation's basis per round, kept for the whole tree. Default 1, the setting that measured 0.660x the plain tree's work with no instance past 2x (D289); `0` turns them off. A negative count is a usage error. No effect on an LP. |
 | `--dive` | dives from each selected node of a branch and bound: the child on the nearer side of the fraction is solved next and its sibling joins the open set, until a node is pruned or integral. Off by default, because it measured 1.125x the work of the plain best-bound order over the MIP set (D289). No effect on an LP. |
+| `--no-heuristics` | turns the rounding heuristic off: by default every fractional node's relaxation is rounded to the nearest integers and kept as the incumbent when it is inside every bound and row (D290). No effect on an LP. |
 | `--log LEVEL` | prints the solver's log on stderr. `LEVEL` is `off`, `summary`, `progress` or `detail`. Default `off`. |
 | `--quiet` | prints the `status` line only. |
 

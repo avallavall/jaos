@@ -884,6 +884,14 @@ jaos_status jaos_set_mip_cut_rounds(jaos_model *m, int64_t rounds)
     return JAOS_OK;
 }
 
+jaos_status jaos_set_mip_heuristics(jaos_model *m, bool on)
+{
+    if (m == nullptr)
+        return JAOS_ERR_INVALID_INPUT;
+    m->cfg.mip_no_heuristics = !on;
+    return JAOS_OK;
+}
+
 jaos_solve_status jaos_status_of(const jaos_model *m)
 {
     return m ? m->solve_status : JAOS_SOLVE_NOT_RUN;

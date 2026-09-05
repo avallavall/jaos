@@ -274,8 +274,8 @@ JAOS_NODISCARD jaos_status jaos_row_index(jaos_model *m, const char *name,
 
 /* Integer columns (D288). A column marked integer takes integer values in
  * every answer, and a model with one goes through branch and bound when
- * it is solved: the dual simplex on each node's relaxation, a dive from
- * each selected node and Gomory cuts at the root (D289); no heuristics.
+ * it is solved: the dual simplex on each node's relaxation, Gomory cuts
+ * at the root (D289) and a rounding heuristic at every node (D290).
  * Marking one discards the answer, as every modification does, and the
  * mark rides with its column through every add and delete. Both readers
  * set it from the file -- MPS's MARKER lines and its BV, LI and UI
@@ -320,6 +320,15 @@ JAOS_NODISCARD jaos_status jaos_set_mip_dive(jaos_model *m, bool on);
 JAOS_NODISCARD jaos_status jaos_set_mip_cut_rounds(jaos_model *m,
                                                    int64_t rounds);
 
+/* The rounding heuristic (D290): at every node whose relaxation is
+ * fractional, the integer columns are rounded to the nearest integer and
+ * the point is kept as the incumbent when it is inside every bound and
+ * every row to the primal tolerance and beats what is held. On by
+ * default. A point it found carries the duals and statuses of the
+ * relaxation it was rounded from, which jaos_mip_result counts under
+ * `heuristic_points`. */
+JAOS_NODISCARD jaos_status jaos_set_mip_heuristics(jaos_model *m, bool on);
+
 /* What the last branch and bound did. `bound` is the best objective any
  * open node could still reach when the search stopped, in the model's
  * own sense, and equals the incumbent when the answer is OPTIMAL;
@@ -334,6 +343,10 @@ typedef struct jaos_mip_report {
     double  incumbent;       /* its objective, when there is one       */
     double  bound;
     int64_t cuts;            /* rows the root cuts added (D289)        */
+    int64_t heuristic_points; /* incumbents the rounding found (D290)  */
+    int64_t first_incumbent_node; /* the node at which the first incumbent
+                                     appeared, 0 when none: what the
+                                     rounding buys under a budget (D290) */
 } jaos_mip_report;
 
 JAOS_NODISCARD jaos_status jaos_mip_result(const jaos_model *m,

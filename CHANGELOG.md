@@ -11,6 +11,17 @@ open, `bench/README.md` for the gate, and the commit each entry came from.
 
 ### Added
 
+- **A rounding heuristic at every node, and the tree logs where it is.**
+  Every fractional node's relaxation is rounded and kept as the incumbent
+  when it is inside every bound and row; `jaos_set_mip_heuristics` and
+  `--no-heuristics` turn it off. It cannot shrink a best-bound tree and
+  does not: no node count moved. It costs 1.0177x in work and moves the
+  first incumbent earlier on 8 of 17 instances, `stein45` from node 25450
+  to 40; `jaos_mip_result` reports `heuristic_points` and
+  `first_incumbent_node`, the CLI prints both, Python carries both at both
+  layers. The tree logs its start, root, progress, incumbents and end
+  through the log callback (D290).
+
 - **A MIP set, Gomory cuts at the root, and a dive that measured worse.**
   `bench/miplib.manifest` pins 17 MIPLIB 3 instances; `make miplib J=12`
   runs them under the runner's new `-e mip` mode and the baseline keeps

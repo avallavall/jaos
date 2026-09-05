@@ -7,7 +7,23 @@ line leaves this file in the same commit.
 
 ## Where the last session stopped — 2026-09-05
 
-**2026-09-05, last: the MIP set, one round of Gomory cuts at the root,
+**2026-09-05, last: a rounding heuristic at every node, and the tree
+logs where it is (D290).** The fifth batch of the day and the smallest.
+The matrix's MILP column has no ○ left for JAOS. The measurement is the
+part worth keeping: **a heuristic cannot shrink a best-bound tree**, and
+on the MIP set it did not, on any of the 17; what it moves is the node
+at which the first incumbent appears, earlier on 8 and later on none,
+`stein45` from 25450 to 40, for 1.8% of the work
+(`bench/measurements/02-190/`). `jaos_mip_result` reports that node now,
+so the next heuristic is judged on it and not on a tree it cannot
+change. **What is next**, in order: cuts below the root against the
+D289 baseline; a child rule for the dive that is not nearer-side first,
+which is what would reopen D289's refusal; a work or node budget for the
+tree separate from the model's, since a budget stop is now what the
+heuristic is for; and the four held cut constants, each swept on this set
+once something moves them.
+
+**2026-09-05, later: the MIP set, one round of Gomory cuts at the root,
 and the dive refused (D289).** The fourth batch of the day and the first
 with a measurement in it. `bench/miplib.manifest` pins 17 MIPLIB 3
 instances, `make miplib J=12` runs them under the runner's `-e mip`, and

@@ -677,10 +677,11 @@ static bool run_one_mip(const entry *e, const char *dir, tally *t)
     if (ss != JAOS_SOLVE_OPTIMAL) {
         stamp(e->name, dt);
         emit("%-12s %-10s rows=%lld cols=%lld shape=%s iters=%lld "
-                     "work=%lld nodes=%lld cuts=%lld | %s\n",
+                     "work=%lld nodes=%lld cuts=%lld heur=%lld | %s\n",
                 e->name, jaos_solve_status_str(ss), (long long)nr,
                 (long long)nc, shape ? "ok" : "MISMATCH", (long long)iters,
                 (long long)work, (long long)mr.nodes, (long long)mr.cuts,
+                (long long)mr.heuristic_points,
                 jaos_model_error(m) ? jaos_model_error(m) : "");
         record(e->name, jaos_solve_status_str(ss), false, shape, false, false,
                false, (long long)iters, (long long)work, -1.0);
@@ -728,6 +729,8 @@ static bool run_one_mip(const entry *e, const char *dir, tally *t)
     if (st == JAOS_OK && jaos_status_of(m) == ss &&
         jaos_iterations(m) == iters && jaos_work_units(m) == work &&
         mr2.nodes == mr.nodes && mr2.cuts == mr.cuts &&
+        mr2.heuristic_points == mr.heuristic_points &&
+        mr2.first_incumbent_node == mr.first_incumbent_node &&
         memcmp(&obj, &obj2, sizeof obj) == 0 &&
         jaos_solution(m, x, nullptr, y, nullptr) == JAOS_OK) {
         uint64_t d2 = digest(x, nc, 1469598103934665603u);
@@ -739,13 +742,14 @@ static bool run_one_mip(const entry *e, const char *dir, tally *t)
 
     stamp(e->name, dt);
     emit("%-12s optimal    rows=%lld cols=%lld shape=%s iters=%lld "
-            "work=%lld nodes=%lld cuts=%lld"
+            "work=%lld nodes=%lld cuts=%lld heur=%lld first=%lld"
             " obj=%.17g ref=%.17g[%s] objective=%s checker=%s"
             " (col=%.3g row=%.3g int=%.3g)"
             " det=%s digest=%016llx basis=%016llx\n",
             e->name, (long long)nr, (long long)nc, shape ? "ok" : "MISMATCH",
             (long long)iters, (long long)work, (long long)mr.nodes,
-            (long long)mr.cuts, obj, expected, e->source,
+            (long long)mr.cuts, (long long)mr.heuristic_points,
+            (long long)mr.first_incumbent_node, obj, expected, e->source,
             obj_ok ? "ok" : "OUT-OF-TOLERANCE",
             check_ok ? "ok" : "REJECTED",
             rep.max_col_violation, rep.max_row_violation,

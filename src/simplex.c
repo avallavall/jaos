@@ -4835,3 +4835,8 @@ jaos_status jm_dual_simplex(jaos_model *m)
     jm_presolve_free(&p);
     return st;
 }
+
+double jm_primal_tolerance(const jaos_model *m)
+{
+    return m->cfg.primal_tol > 0.0 ? m->cfg.primal_tol : PRIMAL_TOL;
+}

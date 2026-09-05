@@ -143,7 +143,7 @@ on a work-unit measurement.
 |---|---|---|---|---|---|---|---|
 | Branch and bound | ● | ● | — | — | ● | ● | ● |
 | Cutting planes | ◐ | ● | — | — | ● | ● | ● |
-| Primal heuristics | ○ | ● | — | — | ● | ● | ● |
+| Primal heuristics | ◐ | ● | — | — | ● | ● | ● |
 | Solution pool | ○ | ○ | — | — | ● | ● | ● |
 | Deterministic parallel tree search | ○ | ◐ | — | — | ● | ● | ? |
 

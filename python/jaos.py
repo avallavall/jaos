@@ -236,6 +236,8 @@ class _MipReport(ctypes.Structure):
         ("incumbent", _D),
         ("bound", _D),
         ("cuts", _I64),
+        ("heuristic_points", _I64),
+        ("first_incumbent_node", _I64),
     ]
 
 
@@ -378,6 +380,7 @@ _sig("jaos_col_integer", ctypes.c_int, _VP, _I64, _P(ctypes.c_bool))
 _sig("jaos_set_mip_gap", ctypes.c_int, _VP, _D)
 _sig("jaos_set_mip_dive", ctypes.c_int, _VP, ctypes.c_bool)
 _sig("jaos_set_mip_cut_rounds", ctypes.c_int, _VP, _I64)
+_sig("jaos_set_mip_heuristics", ctypes.c_int, _VP, ctypes.c_bool)
 _sig("jaos_mip_result", ctypes.c_int, _VP, _P(_MipReport))
 _sig("jaos_mip_incumbent", ctypes.c_int, _VP, _P(_D), _P(_D))
 _sig("jaos_model_name", ctypes.c_int, _VP, ctypes.c_char_p, _I64)
@@ -765,6 +768,11 @@ class Model:
         """Rounds of Gomory cuts at the root (D289): 0 for none, a
         negative value for the default of 1."""
         self._check(_lib.jaos_set_mip_cut_rounds(self._handle(), int(rounds)))
+
+    def set_mip_heuristics(self, on=True):
+        """Whether every fractional node is rounded for an incumbent (D290);
+        on by default."""
+        self._check(_lib.jaos_set_mip_heuristics(self._handle(), bool(on)))
 
     def mip_report(self):
         rep = _MipReport()
@@ -1982,9 +1990,16 @@ class Problem:
         self._m.set_mip_cut_rounds(rounds)
         return self
 
+    def set_mip_heuristics(self, on=True):
+        """Whether every fractional node is rounded for an incumbent (D290);
+        on by default."""
+        self._m.set_mip_heuristics(on)
+        return self
+
     def mip_report(self):
         """What the last branch and bound did: nodes, lp_solves,
-        has_incumbent, incumbent, bound, cuts. Raises while the problem is
+        has_incumbent, incumbent, bound, cuts, heuristic_points,
+        first_incumbent_node. Raises while the problem is
         ahead of its last solve."""
         if self._pending():
             raise ValueError("the problem changed since the last solve; "

@@ -210,6 +210,13 @@ expect_exit 0 "no cuts and a dive still solve it" \
 [ "$(line_of objective)" = "objective 3.5" ] && [ "$(line_of cuts)" = "cuts 0" ] \
     && pass "to 3.5 with cuts 0" \
     || flunk "switched-off MIP: $(line_of objective) / $(line_of cuts)"
+expect_exit 0 "and the rounding heuristic switches off" \
+    "$JAOS" solve "$DATA/t4_int.mps" --no-heuristics
+[ "$(line_of objective)" = "objective 3.5" ] \
+    && [ "$(line_of heuristic_points)" = "heuristic_points 0" ] \
+    && [ -n "$(line_of first_incumbent)" ] \
+    && pass "to 3.5 with heuristic_points 0 and a first_incumbent line" \
+    || flunk "no-heuristics MIP: $(line_of objective) / $(line_of heuristic_points)"
 expect_exit 5 "a negative round count is a usage error" \
     "$JAOS" solve "$DATA/t4_int.mps" --cut-rounds -1
 expect_exit 0 "and converts to LP with its marks" \
