@@ -51,10 +51,12 @@ CARRY="src/check.c tests/test_check.c"
 BREAK_EXEMPT='
 p = "src/check.c"
 s = open(p, encoding="utf-8").read()
-old = """        a->dual_obj += (long double)w * lo;"""
+old = """        const double c = w * lo;
+        jm_obj_add(&a->dual_obj, &a->dual_objc, c);"""
 assert s.count(old) == 1, "anchor matched %d times" % s.count(old)
 new = """        if (negligible) return 0.0;
-        a->dual_obj += (long double)w * lo;"""
+        const double c = w * lo;
+        jm_obj_add(&a->dual_obj, &a->dual_objc, c);"""
 open(p, "w", encoding="utf-8").write(s.replace(old, new))
 print("  a negligible multiplier no longer contributes w * bound")
 '
@@ -80,10 +82,10 @@ print("  note_dropped ignores a multiplier under 1e-12")
 BREAK_CLAMP='
 p = "src/check.c"
 s = open(p, encoding="utf-8").read()
-old = """            limit = (room > 0.0L ? room : 0.0L) / per_t;"""
+old = """            limit = (room > 0.0 ? room : 0.0) / per_t;"""
 assert s.count(old) == 1, "upper-branch clamp matched %d times" % s.count(old)
 s = s.replace(old, """            limit = room / per_t;""")
-old2 = """            limit = (room > 0.0L ? room : 0.0L) / -per_t;"""
+old2 = """            limit = (room > 0.0 ? room : 0.0) / -per_t;"""
 assert s.count(old2) == 1, "lower-branch clamp matched %d times" % s.count(old2)
 s = s.replace(old2, """            limit = room / -per_t;""")
 open(p, "w", encoding="utf-8").write(s)
@@ -95,11 +97,9 @@ print("  certified_step returns whatever room is, negative included")
 BREAK_IMPLIED_TIGHT='
 p = "src/check.c"
 s = open(p, encoding="utf-8").read()
-old = """                const long double lim =
-                    ((long double)m->row_lower[i] - rest_up) / aij;"""
+old = """                const double lim = (m->row_lower[i] - rest_up) / aij;"""
 assert s.count(old) == 1, "anchor matched %d times" % s.count(old)
-new = """                const long double lim =
-                    ((long double)m->row_lower[i] - rest_up) / aij + 1.0L;"""
+new = """                const double lim = (m->row_lower[i] - rest_up) / aij + 1.0;"""
 open(p, "w", encoding="utf-8").write(s.replace(old, new))
 print("  the implied lower bound is one unit tighter than the row implies")
 '
@@ -109,19 +109,39 @@ print("  the implied lower bound is one unit tighter than the row implies")
 BREAK_INF_COUNT='
 p = "src/check.c"
 s = open(p, encoding="utf-8").read()
-old = """            if (isfinite(t_lo))
-                lo_sum[i] += (long double)aij * t_lo;
-            else
+old = """            if (isfinite(t_lo)) {
+                const double p = aij * t_lo;
+                const double e = jm_two_product_residue(aij, t_lo, p);
+                jm_obj_add(&lo_sum[i], &lo_comp[i], p);
+                if (e != 0.0)
+                    jm_obj_add(&lo_sum[i], &lo_comp[i], e);
+            } else {
                 lo_inf[i]++;
-            if (isfinite(t_up))
-                up_sum[i] += (long double)aij * t_up;
-            else
-                up_inf[i]++;"""
+            }
+            if (isfinite(t_up)) {
+                const double p = aij * t_up;
+                const double e = jm_two_product_residue(aij, t_up, p);
+                jm_obj_add(&up_sum[i], &up_comp[i], p);
+                if (e != 0.0)
+                    jm_obj_add(&up_sum[i], &up_comp[i], e);
+            } else {
+                up_inf[i]++;
+            }"""
 assert s.count(old) == 1, "anchor matched %d times" % s.count(old)
-new = """            if (isfinite(t_lo))
-                lo_sum[i] += (long double)aij * t_lo;
-            if (isfinite(t_up))
-                up_sum[i] += (long double)aij * t_up;"""
+new = """            if (isfinite(t_lo)) {
+                const double p = aij * t_lo;
+                const double e = jm_two_product_residue(aij, t_lo, p);
+                jm_obj_add(&lo_sum[i], &lo_comp[i], p);
+                if (e != 0.0)
+                    jm_obj_add(&lo_sum[i], &lo_comp[i], e);
+            }
+            if (isfinite(t_up)) {
+                const double p = aij * t_up;
+                const double e = jm_two_product_residue(aij, t_up, p);
+                jm_obj_add(&up_sum[i], &up_comp[i], p);
+                if (e != 0.0)
+                    jm_obj_add(&up_sum[i], &up_comp[i], e);
+            }"""
 open(p, "w", encoding="utf-8").write(s.replace(old, new))
 print("  an infinite term is neither summed nor counted")
 '

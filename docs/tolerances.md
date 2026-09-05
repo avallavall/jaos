@@ -56,8 +56,12 @@ original space. There is no default: a checker that chose its own would be
 grading on a curve it set.
 
 Given a claimed `x` and row duals `y`, with activities `a_i = A_i · x`
-accumulated in `long double`, and everything canonicalised to minimisation
-(for a maximisation model the costs and duals are negated internally):
+accumulated as a Neumaier sum over Dekker's exact products in `double`, and
+everything canonicalised to minimisation (for a maximisation model the costs
+and duals are negated internally). No walk in the file uses `long double`:
+that type is 64 mantissa bits on x86-64 and 113 on aarch64, and what the
+checker computes reaches `bench/results/`, so it would not be the same
+figure on two machines (D270 for the primal walk, D277 for the rest):
 
 **Primal.** For each column and each row, the violation of `v ∈ [lo, hi]`
 is `max(lo − v, v − hi, 0)`, counting only bounds that are finite. The

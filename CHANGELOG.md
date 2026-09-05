@@ -93,6 +93,18 @@ open, `bench/README.md` for the gate, and the commit each entry came from.
 
 ### Changed
 
+- **The checker computes every figure in `double` now.** D270 converted its
+  primal walk; this finishes the file -- the dual walk's objective and both
+  gap halves, the reduced cost, `certified_step`, `implied_bounds`'s two
+  row-range sums, and both certificate checkers, each a Neumaier sum over
+  Dekker's exact products. `long double` is 64 mantissa bits on x86-64 and
+  113 on aarch64 and these figures are printed into `bench/results/`, so the
+  checker was breaking the cross-machine claim the solver refuses that type
+  to keep. **No verdict moves on any of the 139 gate instances** and every
+  solution digest is byte-identical; twelve netlib lines move a checker
+  figure in its third significant digit (D277,
+  `bench/measurements/02-182/`).
+
 - **The LP writer takes a row with no coefficients**, as a zero term against
   column 0, which the reader drops on the way back in. **138 of the 139 gate
   instances round-trip now, 1 is refused, 0 differ**, against 104 and 35
@@ -127,6 +139,16 @@ open, `bench/README.md` for the gate, and the commit each entry came from.
   `bench/measurements/02-178/`).
 
 ### Fixed
+
+- **A gap term that overflows no longer poisons the half it lands in.**
+  Where `w * (v - bound)` overflows, the correction for what the subtraction
+  lost overflowed the other way, so `+inf` and `-inf` met in one accumulator
+  and made a NaN: an abort with asserts on, and a NaN in `gap_positive` and
+  `relative_suboptimality` without them. Found by review rather than by the
+  139-instance run, which is nowhere near 1e300. Two smaller ones with it:
+  `jaos_check_ray`'s row movement was an uncompensated sum that decides
+  `certified`, and `implied_bounds` could write an infinity as a column
+  bound, leaving a box no point is inside (D277).
 
 - **The checker broke the cross-machine claim the solver refuses `long double`
   to keep.** `long double` is 64 mantissa bits on x86-64 and 113 on aarch64,

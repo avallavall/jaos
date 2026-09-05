@@ -1488,11 +1488,153 @@ static void test_a_wrong_ray_is_rejected(void)
     jaos_model_free(m);
 }
 
+/* The dual objective is a compensated pair now (D277), and the type it
+ * replaced could not hold this sum. `long double` carries 64 mantissa bits
+ * on x86-64, so `1e25 + 1.0` rounds straight back to `1e25`: the unit is a
+ * millionth of that sum's own ulp. The three terms here are 1e25, 1.0 and
+ * -1e25, in that order, so the wide type answers 0 and the compensated pair
+ * answers exactly 1.
+ *
+ * Every column is fixed, so nothing is at a distance from a bound and both
+ * gap halves are empty. What is left is the dual objective alone, which is
+ * what this pins.
+ *
+ * Remove the compensation from `sign_condition` and this test goes red at
+ * the first assertion. That is what makes it evidence (D219). */
+static void test_the_dual_objective_keeps_a_term_the_wide_type_would_lose(void)
+{
+    const double c[] = {1e25, 1.0, -1e25};
+    const double cl[] = {1.0, 1.0, 1.0};
+    const double cu[] = {1.0, 1.0, 1.0};
+    const double rl[] = {-INFINITY}, ru[] = {INFINITY};   /* a free row */
+    const int64_t st[] = {0, 1, 2, 3}, ix[] = {0, 0, 0};
+    const double v[] = {1.0, 1.0, 1.0};
+    jaos_model *m = nullptr;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_model_new(&m));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_load_lp(m, 3, 1, JAOS_MINIMIZE, 0.0, c, cl, cu, rl, ru,
+                     3, st, ix, v));
+
+    const double x[] = {1.0, 1.0, 1.0};
+    const double y[] = {0.0};      /* the free row carries no multiplier */
+    jaos_check_report r;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_check_solution(m, x, y, 1e-6, &r));
+
+    /* Exactly 1, not within a tolerance of it: the whole point is that the
+     * bit survives. The uncompensated sum is 0.0 and would pass a
+     * tolerance-based assertion against 1 only by accident. */
+    const double want = 1.0;
+    TEST_ASSERT_EQUAL_MEMORY(&want, &r.dual_objective, sizeof want);
+
+    /* The primal objective is the same three terms, and D270 already made
+     * that half exact. Both halves agreeing is what makes the gap zero. */
+    TEST_ASSERT_EQUAL_MEMORY(&want, &r.primal_objective, sizeof want);
+
+    /* Nothing rests away from a bound, so neither gap half has a term. */
+    TEST_ASSERT_EQUAL_DOUBLE(0.0, r.gap_positive);
+    TEST_ASSERT_EQUAL_DOUBLE(0.0, r.gap_negative);
+    TEST_ASSERT_EQUAL_DOUBLE(0.0, r.objective_gap);
+    TEST_ASSERT_TRUE(r.dual_feasible);
+    jaos_model_free(m);
+}
+
+/* The ray checker's rate is the same kind of sum and it was the same wide
+ * type (D277). `c'd` here is 1e25, -1.0, -1e25: zero to the type that was,
+ * exactly -1 to the compensated pair.
+ *
+ * The ray is handed in rather than solved for, because `jaos_check_ray`
+ * judges a claimed direction against the model alone and needs no solve.
+ * The rate is published whatever the verdict, and the verdict here is
+ * false either way -- 2e25 of cost traffic puts the tolerance bar at 2e18,
+ * which -1 does not clear. This pins the figure, not the verdict. */
+static void test_the_ray_rate_keeps_a_term_the_wide_type_would_lose(void)
+{
+    const double c[] = {1e25, -1.0, -1e25};
+    const double cl[] = {0.0, 0.0, 0.0};
+    const double cu[] = {INFINITY, INFINITY, INFINITY};
+    const double rl[] = {-INFINITY}, ru[] = {INFINITY};   /* a free row */
+    const int64_t st[] = {0, 1, 2, 3}, ix[] = {0, 0, 0};
+    const double v[] = {1.0, 1.0, 1.0};
+    jaos_model *m = nullptr;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_model_new(&m));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_load_lp(m, 3, 1, JAOS_MINIMIZE, 0.0, c, cl, cu, rl, ru,
+                     3, st, ix, v));
+
+    const double d[] = {1.0, 1.0, 1.0};
+    jaos_ray_report rr;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_check_ray(m, d, 1e-7, &rr));
+
+    const double want = -1.0;
+    TEST_ASSERT_EQUAL_MEMORY(&want, &rr.rate, sizeof want);
+
+    /* Every column runs at an infinite upper side and the row is free, so
+     * neither escape is what stops the certificate. */
+    TEST_ASSERT_EQUAL_DOUBLE(0.0, rr.max_col_escape);
+    TEST_ASSERT_EQUAL_DOUBLE(0.0, rr.max_row_escape);
+    TEST_ASSERT_FALSE(rr.certified);
+    jaos_model_free(m);
+}
+
+/* A gap term that overflows must not poison the half it lands in.
+ *
+ * The review of D277 found this one and it aborts. `bound_term` computes
+ * `w * (v - b)` and adds back what the subtraction lost, as `w * dve`. When
+ * the product itself overflows, that correction overflows the other way, so
+ * `split_term` adds `+inf` and then `-inf` into the same accumulator and
+ * gets a NaN -- and the magnitude assert on the gap halves fails. Under
+ * `-DNDEBUG` there is no abort and `gap_positive` publishes the NaN.
+ *
+ * The values are the ones the review reproduced with, kept exactly. The
+ * reduced cost is `c - a y` = -9.27e299 + 3.34e599, which overflows to
+ * `+inf`, and that infinity is the multiplier `w`. The column rests
+ * 1.3e300 above its upper bound, so the point is not feasible and no
+ * verdict here is a claim about a real answer -- the test is that the
+ * checker returns rather than dies, and that the figure it publishes is a
+ * number.
+ *
+ * Remove the `isfinite(t)` guard in `bound_term` and this test aborts the
+ * suite in a dev build and fails on the last assertion under `-DNDEBUG`. */
+static void test_an_overflowing_gap_term_does_not_poison_the_accumulator(void)
+{
+    const double c[]  = {-9.269728764946841e+299};
+    const double cl[] = {-9.8070032592151977e+299};
+    const double cu[] = {-8.6967484764852674e+299};
+    const double rl[] = {-INFINITY}, ru[] = {INFINITY};   /* a free row */
+    const int64_t st[] = {0, 1}, ix[] = {0};
+    const double v[]  = {7.7022702441179374e+299};
+    jaos_model *m = nullptr;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_model_new(&m));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_load_lp(m, 1, 1, JAOS_MINIMIZE, 0.0, c, cl, cu, rl, ru,
+                     1, st, ix, v));
+
+    const double x[] = {4.4129140369091983e+299};
+    const double y[] = {-4.3379028085657922e+299};
+    jaos_check_report r;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_check_solution(m, x, y, 1e-9, &r));
+
+    /* The point is outside its own column bound, so nothing here is
+     * feasible and nothing claims to be. */
+    TEST_ASSERT_FALSE(r.primal_feasible);
+    TEST_ASSERT_FALSE(r.dual_feasible);
+
+    /* The half the overflowed term landed in is a magnitude, not a NaN. */
+    TEST_ASSERT_FALSE(isnan(r.gap_positive));
+    TEST_ASSERT_FALSE(isnan(r.gap_negative));
+    TEST_ASSERT_TRUE(r.gap_positive >= 0.0);
+    TEST_ASSERT_TRUE(r.gap_negative >= 0.0);
+    jaos_model_free(m);
+}
+
 int main(void)
 {
     UNITY_BEGIN();
     RUN_TEST(test_the_gap_can_be_two_large_halves_cancelling);
     RUN_TEST(test_the_objective_is_read_with_its_compensation);
+    RUN_TEST(test_the_dual_objective_keeps_a_term_the_wide_type_would_lose);
+    RUN_TEST(test_the_ray_rate_keeps_a_term_the_wide_type_would_lose);
+    RUN_TEST(test_an_overflowing_gap_term_does_not_poison_the_accumulator);
     RUN_TEST(test_a_clean_point_carries_no_negative_half);
     RUN_TEST(test_the_relative_row_residue_is_reported_and_decides_nothing);
     RUN_TEST(test_a_row_at_its_bound_to_its_own_precision_is_accepted);

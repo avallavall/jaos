@@ -284,6 +284,7 @@ and you have the argument. Jump to the entry for the numbers behind it.
 - **[D274](#d274--the-exact-verifier-is-here-it-proves-30-of-110-and-the-six-it-disproves-are-right-answers-on-bases-that-are-not-exactly-optimal)** — The exact verifier is here, it proves 30 of 110, and the six it disproves are right answers on bases that are not exactly optimal
 - **[D275](#d275--the-verifiers-refusal-is-the-capacity-constant-and-not-the-mathematics-and-widening-it-is-bought-with-block-size)** — The verifier's refusal is the capacity constant and not the mathematics, and widening it is bought with block size
 - **[D276](#d276--lp-could-always-express-a-row-with-no-coefficients-and-the-refusal-that-said-otherwise-cost-34-of-the-139)** — LP could always express a row with no coefficients, and the refusal that said otherwise cost 34 of the 139
+- **[D277](#d277--the-checkers-dual-half-is-compensated-double-now-no-verdict-moves-and-the-review-found-an-overflow-that-aborts)** — The checker's dual half is compensated `double` now, no verdict moves, and the review found an overflow that aborts
 
 ---
 
@@ -20774,3 +20775,75 @@ refused, because there is no variable to hang the term on, and
 the format; it was wrong about what the format's own zero means, and it stood
 for two measurements that both counted its cost without re-reading its
 premise. A refusal that names a cost is easy to keep and hard to re-examine.
+
+## D277 — The checker's dual half is compensated `double` now, no verdict moves, and the review found an overflow that aborts
+
+**What was left.** D270 converted `jaos_check_solution`'s primal walk from an
+uncompensated `long double` accumulation to a Neumaier sum over Dekker's
+exact products in `double`, and named the rest of the file as open. The rest
+is the dual walk's `dual_obj`, its four `pos`/`neg` halves and `certified`,
+the reduced cost, `certified_step`, `implied_bounds`'s two row-range sums,
+and both certificate checkers. The reason is not accuracy: `long double` is
+64 mantissa bits on x86-64 and 113 on aarch64, and every one of those
+figures is printed into `bench/results/`, which the gate reads. The dual
+half is also **the half that decides** -- a bound `implied_bounds` tightens
+sets `sign_condition`'s window, and that window reaches `dual_feasible` --
+so on aarch64 a bound could land on the other side of it and flip a verdict.
+
+**The measurement** (`bench/measurements/02-182/`). One probe prints every
+figure the dual side publishes, at 17 digits, for all 139 gate instances;
+the before half is HEAD's checker, taken in a worktree so the candidate tree
+was never disturbed. The solve is untouched by the change, so both halves
+judge the same point. **No status changes and no verdict moves**: `pfeas`,
+`dfeas`, `gcert` and `cert` are identical on all 139. 101 of 139 move at
+least one published figure, all of them by rounding: the largest is
+`gap_positive` on `greenbea`, 2.2107377e-05 to 2.2106843e-05, which is
+2.4e-5 of the figure and is the cancelling sum where a compensated
+accumulator makes the most difference. The worst `relative_suboptimality` on
+the set is 1.277e-07 against `RSUB_CEILING = 1e-6`, and it moves in its
+eleventh significant digit.
+
+**One field moves for a reason that is not rounding.** `scsd8`'s dropped
+term count goes 121 to 124. `note_dropped` counts every nonzero multiplier
+pointing at an infinite bound with no magnitude exemption (D47), so a
+reduced cost that was exactly zero in the wide type is a tiny nonzero in the
+compensated one. `gap_certified` reads `dropped == 0` and `scsd8` was
+already at 121, so nothing follows from it.
+
+**There is no exact oracle for these figures, and the record does not
+pretend there is.** `jm_exact_evaluate` (D267) covers the primal side and
+nothing equivalent exists for the dual. The run says which figures moved. It
+does not say which value is closer to the truth; the argument that the
+compensated one is, is D262's and D270's and is not re-measured here.
+
+**The review found six things and one of them aborts.** `bound_term`
+computes `w * (v - b)` and adds back what the subtraction lost, as
+`w * dve`. Where the product itself overflows, `jm_two_product_residue`
+correctly returns zero but that correction still runs and overflows the
+other way, so `split_term` adds `+inf` and then `-inf` into the same
+accumulator and gets a NaN -- and the magnitude assert on the gap halves
+fires. Reached with an infinite reduced cost and bounds near 1e300. It is
+guarded now, it has a test, and `validate-d277.sh`'s second arm removes the
+guard and records the abort as `exit=134` with the assertion text read out,
+because a double free gives 134 too. The other five: the ray checker's row
+movement was still an uncompensated sum and it decides `certified`, so it is
+compensated too; an implied bound could be written as an infinity, which
+passes the monotonicity assert and leaves a box no point is inside, so
+`implied_bounds` requires `isfinite(lim)` now; a NaN gap term was being
+dropped silently where the old code poisoned the accumulator and failed the
+verdict, so the `else` is back; and two comments claimed more than the file
+did.
+
+**What this costs, and it is written into the file.** The intermediate range
+drops from 1.2e4932 to 1.8e308. Three places reach it and no gate instance
+is near any of them. Two are documented rather than repaired, because
+nothing decides on them: an overflowing row activity, and `certified_step`'s
+`room`, which publishes an infinite `certified_suboptimality` where the wide
+type published about 2.9e305. The third, `implied_bounds`, is repaired,
+because a bound it writes decides.
+
+**Three tests, each watched going red.** Two pin a sum whose terms span more
+than 64 mantissa bits -- 1e25, 1.0, -1e25, which the wide type answers 0 and
+the compensated pair answers exactly 1 -- one on the dual objective and one
+on `jaos_check_ray`'s rate. Both fail against HEAD's checker. The third is
+the overflow above. `bench/measurements/02-182/validate-d277.txt` is the run.

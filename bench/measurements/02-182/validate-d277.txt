@@ -1,0 +1,30 @@
+# D277 -- do the three new tests catch what they were written for?
+# date: 2026-09-05T09:43:35Z
+# tree: cc1a452
+
+== candidate, long double uses: 4
+tests/test_check.c:1635:test_the_dual_objective_keeps_a_term_the_wide_type_would_lose:PASS
+tests/test_check.c:1636:test_the_ray_rate_keeps_a_term_the_wide_type_would_lose:PASS
+tests/test_check.c:1637:test_an_overflowing_gap_term_does_not_poison_the_accumulator:PASS
+exit=0
+
+== arm 1: HEAD's long double checker
+   long double uses: 48
+tests/test_check.c:1527:test_the_dual_objective_keeps_a_term_the_wide_type_would_lose:FAIL: Memory Mismatch. Byte 6 Expected 0xF0 Was 0x00
+tests/test_check.c:1569:test_the_ray_rate_keeps_a_term_the_wide_type_would_lose:FAIL: Memory Mismatch. Byte 6 Expected 0xF0 Was 0x00
+tests/test_check.c:1637:test_an_overflowing_gap_term_does_not_poison_the_accumulator:PASS
+exit=2
+
+== arm 2: the candidate with bound_term's non-finite guard removed
+  bound_term no longer stops at a non-finite product
+exit=134
+  abort says: Assertion `a.pos >= 0.0 && a.neg >= 0.0' failed
+
+== restored, long double uses: 4
+tests/test_check.c:1635:test_the_dual_objective_keeps_a_term_the_wide_type_would_lose:PASS
+tests/test_check.c:1636:test_the_ray_rate_keeps_a_term_the_wide_type_would_lose:PASS
+tests/test_check.c:1637:test_an_overflowing_gap_term_does_not_poison_the_accumulator:PASS
+exit=0
+
+every arm behaved: each test is red without the thing it tests
+verdict-exit=0

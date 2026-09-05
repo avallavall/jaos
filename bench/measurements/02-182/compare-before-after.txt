@@ -1,0 +1,35 @@
+D277 -- the checker's dual half, before and after
+
+control: `long double` uses in src/check.c
+  before: 48
+  after:  4
+  -> the two halves are different binaries
+
+instances compared: 139
+names that are not unique across the three sets: greenbea.mps
+  (compared by position, so both readings are counted)
+status changed:     0 
+instances with any field moved: 101 of 139
+
+VERDICTS MOVED: 0
+  none -- every pfeas, dfeas, gcert and cert is unchanged
+
+field         moved   worst instance relative move
+certsub          36   d2q06c.mps     1.87e-19
+                                     4.9808074361092635e-16 -> 4.9826733236391607e-16
+cgap              3   vol1.mps       3.55e-15
+                                     852284.64880294085 -> 852284.64880293782
+dobj              3   forplan.mps    4.62e-15
+                                     -664.21896186293111 -> -664.21896186293418
+dropmax          25   fit2p.mps      1.15e-14
+                                     2.6245672302138701e-13 -> 2.7400304247748863e-13
+dropped           1   scsd8.mps      3
+                                     121 -> 124
+gap              95   modszk1.mps    1.65e-17
+                                     6.700375455471518e-13 -> 6.7002100288228629e-13
+gneg              2   greenbea.mps   6.62e-24
+                                     4.2873056325905648e-08 -> 4.2873056325905642e-08
+gpos             94   greenbea.mps   5.34e-10
+                                     2.2107377009287941e-05 -> 2.2106842914815784e-05
+relsub           96   forplan.mps    4.59e-15
+                                     8.8801838807104983e-10 -> 8.8802297836606687e-10

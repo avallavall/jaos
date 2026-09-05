@@ -7,6 +7,20 @@ line leaves this file in the same commit.
 
 ## Where the last session stopped — 2026-09-03
 
+**2026-09-05: the checker is `long double`-free, and the review found an
+abort the campaign could not (D277, `bench/measurements/02-182/`).** The
+last item on the "open and needs no decision" list below is closed. The
+measurement to read is the before-and-after over all 139 gate instances:
+no status changes, no verdict moves, 101 of 139 move a published figure by
+rounding, and the worst `relative_suboptimality` on the set stays 8x below
+`RSUB_CEILING`. **The one thing worth carrying forward** is that
+`numerics-reviewer` found a defect that aborts on valid input while the
+139-instance run stayed green either way. Two smaller notes:
+`bench/measurements/02-181/` was already D276's and this work was written
+into it before anyone noticed (restored from git, moved to 02-182), and
+`greenbea.mps` exists in two instance directories as two different models,
+which silently cost one instance in the first comparison.
+
 **2026-09-03, later: an irreducible infeasible subsystem (D264,
 `bench/measurements/02-171/`).** `jaos_iis` names, for an INFEASIBLE
 answer, the bound sides that are infeasible on their own and all needed:
@@ -437,16 +451,18 @@ them.
   published figure is a subtraction that cancels and no accumulator reaches
   it — worth knowing before anyone tries a better sum.
 
-- **Finish the checker in `double`: the dual walk is still `long double`
-  (D270).** `dual_obj`, the four `pos`/`neg` halves, `certified`, `scale`,
-  the reduced cost `dw`, and `implied_bounds`'s two range sums. Six reach
-  the report, and **`implied_bounds` decides rather than reports**: a bound
-  it tightens sets `sign_condition`'s window, which reaches `check_ok`, so
-  on aarch64 a bound can land on the other side and flip a verdict. The
-  primal half was done alone so that one campaign judged one thing. The
-  measurement to score it against already exists in 02-175. This is the
-  half that carries a verdict, so it wants `numerics-reviewer` on the diff
-  and a careful read of the gate's dual columns.
+- ~~**Finish the checker in `double`: the dual walk is still `long
+  double`.**~~ **LANDED 2026-09-05 (D277, `bench/measurements/02-182/`).**
+  No `long double` is left in `src/check.c`. **No verdict moves on any of
+  the 139 gate instances** -- `primal_feasible`, `dual_feasible`,
+  `gap_certified` and the certificate's `certified` are identical -- every
+  solution digest is byte-identical, and twelve netlib lines move a checker
+  figure in its third significant digit. The review of the diff found six
+  things and one of them aborts; all six are fixed and the entry names them.
+  **What it leaves open is nothing about the checker and one thing about the
+  record**: there is no exact oracle for the dual figures the way
+  `jm_exact_evaluate` is one for the primal side, so 02-182 says which
+  figures moved and cannot say which value is right.
 
 - **D245 moved the forced primal from 61 / 30 / 3 to 75 / 16 / 3**
   (ok / DISAGREE / overrun, as read then; the current counts live in
