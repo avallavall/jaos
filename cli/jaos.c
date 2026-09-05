@@ -11,7 +11,7 @@
  *   jaos solve FILE [--solution OUT] [--start SOLUTION] [--work-limit N]
  *                   [--time-limit SECONDS] [--primal-tol T] [--dual-tol T]
  *                   [--cut-rounds N] [--dive] [--no-heuristics] [--node-limit N]
- *                   [--log LEVEL] [--quiet]
+ *                   [--branching RULE] [--log LEVEL] [--quiet]
  *   jaos convert IN OUT
  *   jaos check FILE SOLUTION [--tol T]
  *   jaos iis FILE
@@ -71,7 +71,7 @@ static const char USAGE[] =
     "  jaos solve FILE [--solution OUT] [--start SOLUTION] [--work-limit N]\n"
     "                  [--time-limit SECONDS] [--primal-tol T] [--dual-tol T]\n"
     "                  [--cut-rounds N] [--dive] [--no-heuristics] [--node-limit N]\n"
-    "                  [--log LEVEL] [--quiet]\n"
+    "                  [--branching RULE] [--log LEVEL] [--quiet]\n"
     "  jaos convert IN OUT\n"
     "  jaos check FILE SOLUTION [--tol T]\n"
     "  jaos iis FILE\n"
@@ -95,6 +95,8 @@ static const char USAGE[] =
     "  --dive           dive from each selected node of a MIP (off by default)\n"
     "  --no-heuristics  no rounding heuristic at the nodes of a MIP\n"
     "  --node-limit N   stop a MIP before its N-th node past the limit (N > 0)\n"
+    "  --branching RULE which column a MIP branches on: pseudocost (default)\n"
+    "                   or most-fractional\n"
     "  --log LEVEL      solver log on stderr: off, summary, progress, detail\n"
     "  --quiet          print the status line only\n"
     "  Exit: 0 optimal, 1 infeasible, 2 unbounded, 3 stopped by a limit or\n"
@@ -367,6 +369,7 @@ struct solve_options {
     double time_limit;       /* 0: not given; the parser refuses <= 0 */
     int64_t cut_rounds;      /* -1: not given (the library's default)     */
     int64_t node_limit;      /* 0: not given; the parser refuses <= 0     */
+    int branching;           /* -1: not given; else a jaos_branching      */
     bool dive, no_heuristics;
     /* The tolerances carry a flag rather than a sentinel: any finite value
      * is passed to the library, which is what refuses a negative one, and a
@@ -386,6 +389,7 @@ static int parse_solve_options(int argc, char **argv, int first,
     memset(o, 0, sizeof *o);
     o->log_level = JAOS_LOG_OFF;
     o->cut_rounds = -1;
+    o->branching = -1;
 
     for (int i = first; i < argc; i++) {
         const char *a = argv[i];
@@ -424,6 +428,14 @@ static int parse_solve_options(int argc, char **argv, int first,
             if (!parse_double(v, &o->time_limit) || o->time_limit <= 0.0)
                 return usage_error("--time-limit needs a positive number of "
                                    "seconds, not '%s'", v);
+        } else if (strcmp(a, "--branching") == 0) {
+            if (strcmp(v, "pseudocost") == 0)
+                o->branching = JAOS_BRANCH_PSEUDOCOST;
+            else if (strcmp(v, "most-fractional") == 0)
+                o->branching = JAOS_BRANCH_MOST_FRACTIONAL;
+            else
+                return usage_error("--branching needs pseudocost or "
+                                   "most-fractional, not '%s'", v);
         } else if (strcmp(a, "--node-limit") == 0) {
             if (!parse_int64(v, &o->node_limit) || o->node_limit <= 0)
                 return usage_error("--node-limit needs a positive integer, "
@@ -477,6 +489,11 @@ static int cmd_solve(int argc, char **argv)
     }
     if (o.time_limit > 0.0 && jaos_set_time_limit(m, o.time_limit) != JAOS_OK) {
         rc = library_error("set the time limit for", o.file, m);
+        goto out;
+    }
+    if (o.branching >= 0 &&
+        jaos_set_mip_branching(m, (jaos_branching)o.branching) != JAOS_OK) {
+        rc = library_error("set the branching rule for", o.file, m);
         goto out;
     }
     if (o.node_limit > 0 && jaos_set_mip_node_limit(m, o.node_limit) != JAOS_OK) {

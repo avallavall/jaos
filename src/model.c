@@ -904,6 +904,18 @@ jaos_status jaos_set_mip_node_limit(jaos_model *m, int64_t nodes)
     return JAOS_OK;
 }
 
+jaos_status jaos_set_mip_branching(jaos_model *m, jaos_branching rule)
+{
+    if (m == nullptr)
+        return JAOS_ERR_INVALID_INPUT;
+    if (rule != JAOS_BRANCH_PSEUDOCOST && rule != JAOS_BRANCH_MOST_FRACTIONAL) {
+        jm_set_err(m, "the branching rule must be pseudocost or most-fractional");
+        return JAOS_ERR_INVALID_INPUT;
+    }
+    m->cfg.mip_branching = (int)rule;
+    return JAOS_OK;
+}
+
 jaos_status jaos_set_incumbent_callback(jaos_model *m, jaos_incumbent_fn cb,
                                         void *user)
 {

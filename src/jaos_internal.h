@@ -53,6 +53,7 @@ typedef struct {
     /* A budget on the tree, 0 for none (D291), and who is told of each
      * incumbent. */
     int64_t mip_node_limit;
+    int mip_branching;       /* a jaos_branching; 0 is pseudocost (D292) */
     jaos_incumbent_fn incumbent_cb;
     void *incumbent_user;
 } jm_config;

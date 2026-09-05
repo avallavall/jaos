@@ -122,6 +122,12 @@ class CallbackAction(enum.IntEnum):
     STOP = 1
 
 
+class Branching(enum.IntEnum):
+    """Which column a fractional node branches on (D292); jaos_branching."""
+    PSEUDOCOST = 0
+    MOST_FRACTIONAL = 1
+
+
 class JaosError(Exception):
     """A C call that did not return OK.
 
@@ -443,6 +449,7 @@ _sig("jaos_set_log_callback", ctypes.c_int, _VP, _LOG_FN, _VP)
 _sig("jaos_set_log_level", ctypes.c_int, _VP, ctypes.c_int)
 _sig("jaos_set_progress_callback", ctypes.c_int, _VP, _PROGRESS_FN, _VP)
 _sig("jaos_set_mip_node_limit", ctypes.c_int, _VP, _I64)
+_sig("jaos_set_mip_branching", ctypes.c_int, _VP, ctypes.c_int)
 _sig("jaos_set_incumbent_callback", ctypes.c_int, _VP, _INCUMBENT_FN, _VP)
 _sig("jaos_solve", ctypes.c_int, _VP)
 _sig("jaos_status_of", ctypes.c_int, _VP)
@@ -804,6 +811,11 @@ class Model:
         """Stops a branch and bound before its `nodes`-th node past the
         limit, as NODE_LIMIT, keeping the incumbent; 0 removes it (D291)."""
         self._check(_lib.jaos_set_mip_node_limit(self._handle(), int(nodes)))
+
+    def set_mip_branching(self, rule):
+        """Which column a fractional node branches on: a `Branching`;
+        PSEUDOCOST by default (D292)."""
+        self._check(_lib.jaos_set_mip_branching(self._handle(), int(rule)))
 
     def set_incumbent_callback(self, fn):
         """Asks a branch and bound to call `fn(incumbent)` for each new
@@ -2059,6 +2071,10 @@ class Problem:
 
     def set_mip_node_limit(self, nodes):
         self._m.set_mip_node_limit(nodes)
+        return self
+
+    def set_mip_branching(self, rule):
+        self._m.set_mip_branching(rule)
         return self
 
     def set_incumbent_callback(self, fn):

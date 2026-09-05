@@ -7,7 +7,25 @@ line leaves this file in the same commit.
 
 ## Where the last session stopped — 2026-09-05
 
-**2026-09-05, last: a node limit on the tree and an incumbent callback
+**2026-09-05, last: pseudocost branching at 0.722x, and integer bounds
+rounded inward (D292).** The seventh batch of the day and the second
+with a factor in it. The tree branches on the column whose two
+directions have cost the objective most per unit moved, the fraction
+breaking a tie: 0.722x the most-fractional tree's work over the MIP
+set, better on 10 and worse on 2, `blend2` from 32325 nodes to 6827.
+**One reading worth keeping**: without the tie-break the rule read
+0.787x with `enigma` at 2.90x, because a zero objective never shows a
+gain and every score is the floor squared, so the choice was the lowest
+index; a tie-break that is the old rule is what fixed it, and both
+readings are in `bench/measurements/02-191/`. **What is next**, in
+order: strong branching on a few candidates at the root to initialise
+the pseudocosts, since a column's first branch is judged by the mean of
+the others now; cuts below the root against this baseline; a child rule
+for the dive that is not nearer-side first, which is what would reopen
+D289's refusal; and the six held constants, each swept on this set once
+something moves them.
+
+**2026-09-05, later: a node limit on the tree and an incumbent callback
 (D291).** The sixth batch of the day, and the one D290 asked for: a
 budget stop is what the heuristic is for, so the tree has its own
 budget now, `jaos_set_mip_node_limit`, stopping as

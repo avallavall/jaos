@@ -339,6 +339,24 @@ JAOS_NODISCARD jaos_status jaos_set_mip_heuristics(jaos_model *m, bool on);
 JAOS_NODISCARD jaos_status jaos_set_mip_node_limit(jaos_model *m,
                                                    int64_t nodes);
 
+/* Which column a fractional node branches on (D292). Pseudocost branching
+ * scores each fractional integer column by the objective gain a unit move
+ * in each direction has cost so far in this tree; a column never branched
+ * on takes the average of those that have, and in a tree with no history
+ * yet the score is the fraction alone, which is the most-fractional rule.
+ * The product of the two directions wins, lowest index on a tie, so the
+ * choice is the same on every machine (D8). Most-fractional branching
+ * takes the column farthest from an integer. Pseudocost is the default;
+ * D292 carries what each cost over the MIP set. A value outside the enum
+ * is refused. */
+typedef enum jaos_branching {
+    JAOS_BRANCH_PSEUDOCOST = 0,
+    JAOS_BRANCH_MOST_FRACTIONAL,
+} jaos_branching;
+
+JAOS_NODISCARD jaos_status jaos_set_mip_branching(jaos_model *m,
+                                                  jaos_branching rule);
+
 /* What the last branch and bound did. `bound` is the best objective any
  * open node could still reach when the search stopped, in the model's
  * own sense, and equals the incumbent when the answer is OPTIMAL;

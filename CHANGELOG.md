@@ -11,6 +11,16 @@ open, `bench/README.md` for the gate, and the commit each entry came from.
 
 ### Added
 
+- **Pseudocost branching, and integer bounds rounded inward.** A
+  fractional node branches on the column whose two directions have cost
+  the objective most per unit moved so far, the fraction breaking a tie;
+  most-fractional stays behind `jaos_set_mip_branching` and `--branching`.
+  Over the MIP set: 0.722x the work, better on 10 of 17, worse on 2, none
+  past 2x, `blend2` from 32325 nodes to 6827; the baseline is rewritten.
+  An integer column's fractional bounds are rounded inward before the
+  root, and crossed ones answer INFEASIBLE with no node solved. Python
+  carries the rule at both layers (D292).
+
 - **A node limit on the tree, and an incumbent callback.**
   `jaos_set_mip_node_limit` and `--node-limit N` stop a branch and bound
   before a node past the limit as `JAOS_SOLVE_NODE_LIMIT` (appended to

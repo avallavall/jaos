@@ -1,0 +1,19 @@
+== pc against control: work ratio and nodes off -> on
+air03     1.000x  nodes 1 -> 1
+blend2    0.217x  nodes 32325 -> 6827
+dcmulti   0.520x  nodes 1787 -> 577
+egout     0.965x  nodes 40481 -> 39127
+enigma    2.900x  nodes 3239 -> 9520
+flugpl    0.303x  nodes 12949 -> 4495
+khb05250  0.629x  nodes 351 -> 243
+lseu      0.831x  nodes 30003 -> 27377
+misc03    0.488x  nodes 1399 -> 839
+misc06    0.681x  nodes 181 -> 117
+mod008    0.969x  nodes 26313 -> 25743
+mod010    1.000x  nodes 7 -> 7
+p0033     1.591x  nodes 943 -> 1609
+p0201     0.745x  nodes 3201 -> 1805
+rgn       1.046x  nodes 4371 -> 5011
+stein27   1.022x  nodes 9799 -> 9897
+stein45   0.829x  nodes 145699 -> 108283
+geomean 0.787x over 17: 9 better, 2 worse, 1 past 2x

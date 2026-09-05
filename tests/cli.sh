@@ -231,6 +231,16 @@ expect_exit 3 "a node limit stops the tree" \
     || flunk "node limit: $(line_of status) / $(line_of nodes) / $(line_of first_incumbent)"
 expect_exit 5 "--node-limit refuses zero" \
     "$JAOS" solve "$DATA/nl_int.lp" --node-limit 0
+# The branching rule (D292): both names accepted and the answer unmoved,
+# an unknown name a usage error.
+expect_exit 0 "most-fractional branching still solves it" \
+    "$JAOS" solve "$DATA/nl_int.lp" --cut-rounds 0 --branching most-fractional
+[ "$(line_of objective)" = "objective 3" ] && pass "to 3" \
+    || flunk "most-fractional: $(line_of objective)"
+expect_exit 0 "and pseudocost branching by name" \
+    "$JAOS" solve "$DATA/nl_int.lp" --cut-rounds 0 --branching pseudocost
+expect_exit 5 "--branching refuses an unknown rule" \
+    "$JAOS" solve "$DATA/nl_int.lp" --branching random
 expect_exit 0 "and converts to LP with its marks" \
     "$JAOS" convert "$DATA/t4_int.mps" "$tmp/t4.lp"
 grep -q '^General$' "$tmp/t4.lp" && pass "the LP carries a General section" \

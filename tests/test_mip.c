@@ -144,6 +144,9 @@ static void test_an_integer_model_with_no_integer_point_is_infeasible(void)
     jaos_mip_report rep;
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_mip_result(m, &rep));
     TEST_ASSERT_FALSE(rep.has_incumbent);
+    /* Known before a relaxation is solved: the rounded bounds cross
+     * (D292). */
+    TEST_ASSERT_EQUAL_INT64(0, rep.nodes);
     double x[1];
     TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT, jaos_mip_incumbent(m, x, nullptr));
     jaos_model_free(m);
@@ -361,30 +364,32 @@ static void test_a_cut_over_continuous_columns_keeps_the_integer_optimum(void)
 }
 
 /* The rounding heuristic (D290) on a model where it must fire: max x + y
- * with x + y <= 3.6, x in [0, 2.2], y in [0, 1.4], both integer. The
- * relaxation sits at (2.2, 1.4), which rounds to (2, 1), inside every
- * row and bound and worth 3, and 3 is the optimum: no integer x exceeds
- * 2 nor y 1. With the heuristic off the tree finds the same point and
+ * with x + y <= 3.6, x <= 2.2 and y <= 1.4 as rows -- a bound would be
+ * rounded inward before the root (D292) -- both integer and non-negative.
+ * The relaxation sits at (2.2, 1.4), which rounds to (2, 1), inside every
+ * row and worth 3, and 3 is the optimum: no integer x exceeds 2 nor y 1. With the heuristic off the tree finds the same point and
  * reports no heuristic point, which is what the switch has to show. The
  * cuts are off so the root stays fractional either way. */
 static void test_the_rounding_heuristic_takes_the_relaxations_neighbour(void)
 {
-    const double cost[2] = { 1.0, 1.0 }, cl[2] = { 0, 0 }, cu[2] = { 2.2, 1.4 };
-    const double rl[1] = { -INFINITY }, ru[1] = { 3.6 };
-    const int64_t as[3] = { 0, 1, 2 }, ai[2] = { 0, 0 };
-    const double av[2] = { 1.0, 1.0 };
+    const double cost[2] = { 1.0, 1.0 }, cl[2] = { 0, 0 };
+    const double cu[2] = { INFINITY, INFINITY };
+    const double rl[3] = { -INFINITY, -INFINITY, -INFINITY };
+    const double ru[3] = { 3.6, 2.2, 1.4 };
+    const int64_t as[3] = { 0, 2, 4 }, ai[4] = { 0, 1, 0, 2 };
+    const double av[4] = { 1.0, 1.0, 1.0, 1.0 };
     for (int on = 1; on >= 0; on--) {
         jaos_model *m = fresh();
         TEST_ASSERT_EQUAL_INT(JAOS_OK,
-            jaos_load_lp(m, 2, 1, JAOS_MAXIMIZE, 0.0, cost, cl, cu, rl, ru,
-                         2, as, ai, av));
+            jaos_load_lp(m, 2, 3, JAOS_MAXIMIZE, 0.0, cost, cl, cu, rl, ru,
+                         4, as, ai, av));
         TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_col_integer(m, 0, true));
         TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_col_integer(m, 1, true));
         TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_cut_rounds(m, 0));
         TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_heuristics(m, on != 0));
         TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
         TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
-        double obj = 0.0, x[2], ra[1];
+        double obj = 0.0, x[2], ra[3];
         TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(m, &obj));
         TEST_ASSERT_DOUBLE_WITHIN(1e-9, 3.0, obj);
         TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solution(m, x, ra, nullptr, nullptr));
@@ -488,14 +493,16 @@ static jaos_callback_action see_incumbent(const jaos_incumbent *inc, void *user)
 
 static jaos_model *neighbour_model(void)
 {
-    const double cost[2] = { 1.0, 1.0 }, cl[2] = { 0, 0 }, cu[2] = { 2.2, 1.4 };
-    const double rl[1] = { -INFINITY }, ru[1] = { 3.6 };
-    const int64_t as[3] = { 0, 1, 2 }, ai[2] = { 0, 0 };
-    const double av[2] = { 1.0, 1.0 };
+    const double cost[2] = { 1.0, 1.0 }, cl[2] = { 0, 0 };
+    const double cu[2] = { INFINITY, INFINITY };
+    const double rl[3] = { -INFINITY, -INFINITY, -INFINITY };
+    const double ru[3] = { 3.6, 2.2, 1.4 };
+    const int64_t as[3] = { 0, 2, 4 }, ai[4] = { 0, 1, 0, 2 };
+    const double av[4] = { 1.0, 1.0, 1.0, 1.0 };
     jaos_model *m = fresh();
     TEST_ASSERT_EQUAL_INT(JAOS_OK,
-        jaos_load_lp(m, 2, 1, JAOS_MAXIMIZE, 0.0, cost, cl, cu, rl, ru,
-                     2, as, ai, av));
+        jaos_load_lp(m, 2, 3, JAOS_MAXIMIZE, 0.0, cost, cl, cu, rl, ru,
+                     4, as, ai, av));
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_col_integer(m, 0, true));
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_col_integer(m, 1, true));
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_cut_rounds(m, 0));
@@ -551,6 +558,73 @@ static void test_a_node_limit_stops_with_the_incumbent_the_callback_saw(void)
     jaos_model_free(m);
 }
 
+/* The branching rule (D292) changes the tree and never the answer: both
+ * rules on the knapsack and on the neighbour model, cuts off so the
+ * root branches, reach the same optimum and the same point; a value
+ * outside the enum is refused. */
+static void test_both_branching_rules_reach_the_same_optimum(void)
+{
+    const jaos_branching rules[2] = { JAOS_BRANCH_MOST_FRACTIONAL,
+                                      JAOS_BRANCH_PSEUDOCOST };
+    for (int r = 0; r < 2; r++) {
+        jaos_model *m = knapsack();
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_cut_rounds(m, 0));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_branching(m, rules[r]));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+        TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+        double obj = 0.0, x[3];
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(m, &obj));
+        TEST_ASSERT_DOUBLE_WITHIN(1e-9, 9.0, obj);
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solution(m, x, nullptr, nullptr, nullptr));
+        TEST_ASSERT_TRUE(x[0] == 1.0 && x[1] == 1.0 && x[2] == 0.0);
+        jaos_model_free(m);
+
+        m = neighbour_model();
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_heuristics(m, false));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_branching(m, rules[r]));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+        TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(m, &obj));
+        TEST_ASSERT_DOUBLE_WITHIN(1e-9, 3.0, obj);
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solution(m, x, nullptr, nullptr, nullptr));
+        TEST_ASSERT_TRUE(x[0] == 2.0 && x[1] == 1.0);
+        jaos_model_free(m);
+    }
+    jaos_model *m = fresh();
+    TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT,
+                          jaos_set_mip_branching(m, (jaos_branching)7));
+    jaos_model_free(m);
+}
+
+/* An integer column bounded in [1.2, 2.8] holds the integer 2 only, and
+ * the root's rounded bounds say so: the relaxation is solved at x = 2
+ * without a branch. */
+static void test_a_fractional_bound_on_an_integer_column_is_rounded_inward(void)
+{
+    const double cost[1] = { -1.0 }, cl[1] = { 1.2 }, cu[1] = { 2.8 };
+    jaos_model *m = fresh();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_load_lp(m, 1, 0, JAOS_MINIMIZE, 0.0, cost, cl, cu, nullptr,
+                     nullptr, 0, nullptr, nullptr, nullptr));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_col_integer(m, 0, true));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+    double obj = 0.0, x[1];
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(m, &obj));
+    TEST_ASSERT_DOUBLE_WITHIN(1e-9, -2.0, obj);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solution(m, x, nullptr, nullptr, nullptr));
+    TEST_ASSERT_TRUE(x[0] == 2.0);
+    jaos_mip_report rep;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_mip_result(m, &rep));
+    TEST_ASSERT_EQUAL_INT64(1, rep.nodes);
+    /* And the model's own bounds are untouched: the copy was rounded. */
+    double lo = 0.0, hi = 0.0;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_col_bounds(m, 0, &lo, &hi));
+    TEST_ASSERT_EQUAL_DOUBLE(1.2, lo);
+    TEST_ASSERT_EQUAL_DOUBLE(2.8, hi);
+    jaos_model_free(m);
+}
+
 int main(void)
 {
     UNITY_BEGIN();
@@ -572,5 +646,7 @@ int main(void)
     RUN_TEST(test_an_infeasible_rounding_is_not_taken);
     RUN_TEST(test_the_tree_logs_its_start_root_and_end);
     RUN_TEST(test_a_node_limit_stops_with_the_incumbent_the_callback_saw);
+    RUN_TEST(test_both_branching_rules_reach_the_same_optimum);
+    RUN_TEST(test_a_fractional_bound_on_an_integer_column_is_rounded_inward);
     return UNITY_END();
 }

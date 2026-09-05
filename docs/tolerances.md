@@ -591,12 +591,12 @@ control, one bit lower, where all three succeed. That pair is what makes the
 limit a measurement instead of a comment, and it caught the first version of
 `jm_nat_shl`, which charged a spare limb for any shift that was not a whole
 number of limbs and so refused a value that fits.
-## Branch and bound's six numbers
+## Branch and bound's seven numbers
 
-All in `src/mip.c`: the first two are D288's, the four under them are the
-root cuts' (D289). The MIP set (`make miplib J=12`, 17 instances,
+All in `src/mip.c`: the first two are D288's, the four under them the root
+cuts' (D289), the last the branching rule's (D292). The MIP set (`make miplib J=12`, 17 instances,
 `bench/miplib.manifest`) is where a sweep of any of them runs. The rounds
-have theirs; the other five are held to the source by `record-check` with
+have theirs; the other six are held to the source by `record-check` with
 what each one waits for stated beside it.
 
 | constant | value | what it decides |
@@ -607,4 +607,5 @@ what each one waits for stated beside it.
 | `MIP_CUT_AWAY` | 0.01 | a basic integer column is cut only when its fraction sits inside `[AWAY, 1 - AWAY]`: the cut divides by the fraction and by its complement, and a fraction near 0 or 1 gives a cut the relaxation cannot hold to tolerance. The bound Balas, Ceria, Cornuejols and Natraj use (Gomory cuts revisited, 1996). Not swept: held |
 | `MIP_CUT_DROP` | 1e-9 | a coefficient below `DROP` times the cut's largest is folded into the right-hand side through its column's bound, which keeps the cut valid and drops the entry; kept when that bound is infinite. Not swept: held |
 | `MIP_CUT_DYNAMISM` | 1e6 | the largest ratio of a kept cut's largest to smallest coefficient; a cut past it is not added. Not swept: held. The `pk1` failure at three rounds happened under it, so it is not what protects the root from a bad cut; the rounds count is |
+| `MIP_PC_EPS` | 1e-6 | the floor of a direction's pseudocost score (D292): the score is the product of the two directions' expected gains, and a direction whose gain was 0 would otherwise zero the column out of the choice. Achterberg, Koch and Martin (Branching rules revisited, 2005) use the same floor. Decides an order between columns, never a number in an answer. Not swept: held |
 

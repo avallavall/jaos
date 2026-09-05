@@ -71,6 +71,13 @@ constexpr double MIP_CUT_DROP = 1e-9;
  * tolerance in the large entries and not at all in the small. */
 constexpr double MIP_CUT_DYNAMISM = 1e6;
 
+/* The floor of a direction's pseudocost score (D292): the product of the
+ * two directions is the score, and a direction whose gain was 0 would
+ * otherwise zero the column out of the choice. Achterberg, Koch and
+ * Martin (Branching rules revisited, OR Letters 33, 2005) use the same
+ * floor. Decides an order, not a number; docs/tolerances.md lists it. */
+constexpr double MIP_PC_EPS = 1e-6;
+
 /* One open node: the bound changes along its path from the root, in the
  * order they were made, and the basis its parent's relaxation ended on. */
 typedef struct {
@@ -80,6 +87,8 @@ typedef struct {
     int64_t *col;
     double *lo, *hi;
     jaos_basis_status *cs, *rs;
+    double frac;               /* the fraction the branch moved         */
+    bool up;                   /* which way                              */
 } bnode;
 
 static void node_free(bnode *n)
@@ -141,7 +150,8 @@ static bnode *heap_pop(bheap *h)
  * change, carrying the basis the relaxation just ended on. */
 static bnode *node_child(const bnode *parent, int64_t nc, int64_t nr,
                          const jaos_model *lp, int64_t col, double lo,
-                         double hi, double key, int64_t id)
+                         double hi, double key, int64_t id, double frac,
+                         bool up)
 {
     bnode *n = calloc(1, sizeof *n);
     if (n == nullptr)
@@ -167,6 +177,8 @@ static bnode *node_child(const bnode *parent, int64_t nc, int64_t nr,
     n->depth = d;
     n->key = key;
     n->id = id;
+    n->frac = frac;
+    n->up = up;
     if (nc > 0)
         memcpy(n->cs, lp->sol_col_status, (size_t)nc * sizeof *n->cs);
     if (nr > 0)
@@ -175,14 +187,16 @@ static bnode *node_child(const bnode *parent, int64_t nc, int64_t nr,
 }
 
 /* Puts the relaxation at `n`: every integer column back at the root's
- * bounds, then the path's changes in order, then the parent's basis. */
+ * bounds -- the model's, rounded inward to integers (D292) -- then the
+ * path's changes in order, then the parent's basis. */
 static jaos_status node_apply(jaos_model *lp, const jaos_model *m,
+                              const double *ilo, const double *ihi,
                               const bnode *n)
 {
     jaos_status st = JAOS_OK;
     for (int64_t j = 0; st == JAOS_OK && j < m->num_col; j++)
         if (m->col_integer[j])
-            st = jaos_set_col_bounds(lp, j, m->col_lower[j], m->col_upper[j]);
+            st = jaos_set_col_bounds(lp, j, ilo[j], ihi[j]);
     for (int64_t k = 0; st == JAOS_OK && n != nullptr && k < n->depth; k++)
         st = jaos_set_col_bounds(lp, n->col[k], n->lo[k], n->hi[k]);
     if (st == JAOS_OK && n != nullptr)
@@ -268,6 +282,80 @@ static int64_t most_fractional(const jaos_model *m, const double *x)
         }
     }
     return branch;
+}
+
+/* --- Pseudocost branching (D292) ---------------------------------------- */
+
+/* What a unit move of column j in direction d (0 down, 1 up) has cost the
+ * objective so far, in minimize form: the mean of the gains seen, or the
+ * mean over every column that has one when j has none, or 1 when the
+ * tree has no history at all, which makes the score below the fraction
+ * alone. `pc_sum` and `pc_n` are [2 * num_col], direction-major. */
+static double pseudocost(int64_t j, int d, int64_t nc, const double *pc_sum,
+                         const int64_t *pc_n)
+{
+    if (pc_n[d * nc + j] > 0)
+        return pc_sum[d * nc + j] / (double)pc_n[d * nc + j];
+    double sum = 0.0;
+    int64_t cnt = 0;
+    for (int64_t k = 0; k < nc; k++)
+        if (pc_n[d * nc + k] > 0) {
+            sum += pc_sum[d * nc + k] / (double)pc_n[d * nc + k];
+            cnt++;
+        }
+    return cnt > 0 ? sum / (double)cnt : 1.0;
+}
+
+/* The column to branch on under `rule`, -1 when the point is integral.
+ * Pseudocost: the largest product of the two directions' expected gains,
+ * each floored at MIP_PC_EPS, lowest index on a tie. */
+static int64_t select_branch(const jaos_model *m, const double *x,
+                             jaos_branching rule, const double *pc_sum,
+                             const int64_t *pc_n)
+{
+    if (rule == JAOS_BRANCH_MOST_FRACTIONAL)
+        return most_fractional(m, x);
+    const int64_t nc = m->num_col;
+    int64_t branch = -1;
+    double best = -1.0, best_away = -1.0;
+    for (int64_t j = 0; j < nc; j++) {
+        if (!m->col_integer[j])
+            continue;
+        const double f = x[j] - floor(x[j]);
+        if (f <= MIP_INT_TOL || f >= 1.0 - MIP_INT_TOL)
+            continue;
+        const double qd = f * pseudocost(j, 0, nc, pc_sum, pc_n);
+        const double qu = (1.0 - f) * pseudocost(j, 1, nc, pc_sum, pc_n);
+        const double score = (qd > MIP_PC_EPS ? qd : MIP_PC_EPS) *
+                             (qu > MIP_PC_EPS ? qu : MIP_PC_EPS);
+        /* Equal scores -- every one of them, on a model whose objective is
+         * zero, where no gain is ever seen -- fall back to the fraction:
+         * the column farthest from an integer, then the lowest index. */
+        const double away = f < 1.0 - f ? f : 1.0 - f;
+        if (score > best || (score == best && away > best_away)) {
+            best = score;
+            best_away = away;
+            branch = j;
+        }
+    }
+    return branch;
+}
+
+/* A solved child teaches its column: the gain over its parent per unit
+ * of the fraction it moved, in the direction it moved. A gain below zero
+ * is the relaxation's tolerance and counts as none. */
+static void pseudocost_learn(const bnode *n, double key, int64_t nc,
+                             double *pc_sum, int64_t *pc_n)
+{
+    if (n == nullptr || n->depth == 0 || n->frac <= 0.0)
+        return;
+    const int64_t j = n->col[n->depth - 1];
+    const int d = n->up ? 1 : 0;
+    double gain = key - n->key;
+    if (gain < 0.0)
+        gain = 0.0;
+    pc_sum[d * nc + j] += gain / n->frac;
+    pc_n[d * nc + j] += 1;
 }
 
 /* --- Gomory mixed-integer cuts at the root ----------------------------- */
@@ -556,6 +644,7 @@ jaos_status jm_branch_and_bound(jaos_model *m)
                                                      : MIP_CUT_ROUNDS;
     const bool dive = m->cfg.mip_dive;
     const bool heur = !m->cfg.mip_no_heuristics;
+    const jaos_branching rule = (jaos_branching)m->cfg.mip_branching;
 
     jaos_status rc = JAOS_ERR_OUT_OF_MEMORY;
     jaos_model *lp = nullptr;
@@ -565,6 +654,8 @@ jaos_status jm_branch_and_bound(jaos_model *m)
     bnode *cur = nullptr, *next = nullptr;
     double *x = nullptr, *row = nullptr, *cut = nullptr;
     double *xr = nullptr, *ra = nullptr;
+    double *ilo = nullptr, *ihi = nullptr, *pc_sum = nullptr;
+    int64_t *pc_n = nullptr;
     int64_t next_id = 0, nodes = 0, solves = 0, cuts = 0, heur_points = 0;
     int64_t first_inc = 0;             /* the node of the first incumbent */
     int64_t work = 0, iters = 0;
@@ -589,21 +680,39 @@ jaos_status jm_branch_and_bound(jaos_model *m)
     x = malloc((size_t)(nc > 0 ? nc : 1) * sizeof *x);
     xr = malloc((size_t)(nc > 0 ? nc : 1) * sizeof *xr);
     ra = malloc((size_t)(nr > 0 ? nr : 1) * sizeof *ra);
-    if (x == nullptr || xr == nullptr || ra == nullptr)
+    ilo = malloc((size_t)(nc > 0 ? nc : 1) * sizeof *ilo);
+    ihi = malloc((size_t)(nc > 0 ? nc : 1) * sizeof *ihi);
+    pc_sum = calloc((size_t)(nc > 0 ? 2 * nc : 1), sizeof *pc_sum);
+    pc_n = calloc((size_t)(nc > 0 ? 2 * nc : 1), sizeof *pc_n);
+    if (x == nullptr || xr == nullptr || ra == nullptr || ilo == nullptr ||
+        ihi == nullptr || pc_sum == nullptr || pc_n == nullptr)
         goto done;
+    /* An integer column's bounds rounded inward (D292): a fractional bound
+     * admits no integer between it and the next one, and a column whose
+     * two rounded bounds cross has no integer at all, which is the whole
+     * program's answer before a relaxation is solved. */
+    for (int64_t j = 0; j < nc; j++) {
+        ilo[j] = m->col_integer[j] ? ceil(m->col_lower[j]) : m->col_lower[j];
+        ihi[j] = m->col_integer[j] ? floor(m->col_upper[j]) : m->col_upper[j];
+        if (m->col_integer[j] && ilo[j] > ihi[j])
+            outcome = JAOS_SOLVE_INFEASIBLE;
+    }
     if (jm_logging_at(m, JAOS_LOG_SUMMARY)) {
         int64_t nint = 0;
         for (int64_t j = 0; j < nc; j++)
             nint += m->col_integer[j];
         jm_log(m, JAOS_LOG_SUMMARY,
                "branch and bound: %lld integer columns of %lld, %lld rounds "
-               "of cuts, dive %s, rounding %s",
+               "of cuts, dive %s, rounding %s, %s branching",
                (long long)nint, (long long)nc, (long long)rounds,
-               dive ? "on" : "off", heur ? "on" : "off");
+               dive ? "on" : "off", heur ? "on" : "off",
+               rule == JAOS_BRANCH_MOST_FRACTIONAL ? "most-fractional"
+                                                   : "pseudocost");
     }
 
-    /* The root is the node with no changes. */
-    for (;;) {
+    /* The root is the node with no changes. An outcome already known --
+     * a column with no integer inside its bounds -- skips the tree. */
+    for (; outcome == JAOS_SOLVE_NOT_RUN;) {
         /* Which node: the root first; then the dive's child, or the best
          * open one; a node whose key no longer beats the incumbent is
          * dropped unsolved, which ends a dive. */
@@ -647,7 +756,7 @@ jaos_status jm_branch_and_bound(jaos_model *m)
             break;
         }
 
-        if (node_apply(lp, m, nodes > 0 ? cur : nullptr) != JAOS_OK)
+        if (node_apply(lp, m, ilo, ihi, nodes > 0 ? cur : nullptr) != JAOS_OK)
             goto done;
         nodes++;
         jaos_status st = jaos_solve(lp);
@@ -684,7 +793,9 @@ jaos_status jm_branch_and_bound(jaos_model *m)
             jaos_solution(lp, x, nullptr, nullptr, nullptr) != JAOS_OK)
             goto done;
         double key = sigma * obj;
-        int64_t branch = most_fractional(m, x);
+        if (nodes > 1)
+            pseudocost_learn(cur, key, nc, pc_sum, pc_n);
+        int64_t branch = select_branch(m, x, rule, pc_sum, pc_n);
 
         /* The root's cuts: rounds until one adds nothing or the point is
          * integral. A relaxation the cuts make infeasible is an infeasible
@@ -732,7 +843,7 @@ jaos_status jm_branch_and_bound(jaos_model *m)
                     jaos_solution(lp, x, nullptr, nullptr, nullptr) != JAOS_OK)
                     goto done;
                 key = sigma * obj;
-                branch = most_fractional(m, x);
+                branch = select_branch(m, x, rule, pc_sum, pc_n);
                 if (branch < 0)
                     break;
             }
@@ -803,10 +914,10 @@ jaos_status jm_branch_and_bound(jaos_model *m)
         const int64_t nrl = lp->num_row;
         bnode *down = node_child(nodes > 0 ? cur : nullptr, nc, nrl, lp,
                                  branch, lp->col_lower[branch], floor(v), key,
-                                 next_id++);
+                                 next_id++, v - floor(v), false);
         bnode *up = node_child(nodes > 0 ? cur : nullptr, nc, nrl, lp, branch,
                                ceil(v), lp->col_upper[branch], key,
-                               next_id++);
+                               next_id++, ceil(v) - v, true);
         if (down == nullptr || up == nullptr) {
             node_free(down);
             node_free(up);
@@ -885,6 +996,10 @@ done:
     free(x);
     free(xr);
     free(ra);
+    free(ilo);
+    free(ihi);
+    free(pc_sum);
+    free(pc_n);
     free(row);
     free(cut);
     cutbuf_free(&cb);

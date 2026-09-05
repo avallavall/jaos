@@ -1195,9 +1195,11 @@ class TestBranchAndBound(unittest.TestCase):
         # rounding already found (2, 1), and the callback saw it (D291).
         seen = []
         p = jaos.Problem()
-        x = p.add_var(ub=2.2, integer=True, name="x")
-        y = p.add_var(ub=1.4, integer=True, name="y")
+        x = p.add_var(integer=True, name="x")
+        y = p.add_var(integer=True, name="y")
         p.add(x + y <= 3.6)
+        p.add(x <= 2.2)      # rows, not bounds: a bound is rounded (D292)
+        p.add(y <= 1.4)
         p.maximize(x + y)
         p.set_mip_cut_rounds(0).set_mip_node_limit(1)
         p.set_incumbent_callback(lambda inc: seen.append(inc))
@@ -1214,15 +1216,34 @@ class TestBranchAndBound(unittest.TestCase):
         self.assertIs(p.solve(), jaos.SolveStatus.INTERRUPTED)
         self.assertTrue(p.mip_report().has_incumbent)
 
+    def test_both_branching_rules_reach_the_knapsack_optimum(self):
+        # The rule changes the tree, never the answer (D292); a value outside
+        # the enum is refused.
+        for rule in (jaos.Branching.MOST_FRACTIONAL, jaos.Branching.PSEUDOCOST):
+            p = jaos.Problem()
+            a = p.add_var(binary=True, name="a")
+            b = p.add_var(binary=True, name="b")
+            c = p.add_var(binary=True, name="c")
+            p.add(2 * a + 3 * b + c <= 5)
+            p.maximize(5 * a + 4 * b + 3 * c)
+            p.set_mip_cut_rounds(0).set_mip_branching(rule)
+            self.assertIs(p.solve(), jaos.SolveStatus.OPTIMAL)
+            self.assertAlmostEqual(p.objective_value, 9.0, places=9)
+            self.assertEqual((a.value, b.value, c.value), (1.0, 1.0, 0.0))
+        with self.assertRaises(jaos.JaosError):
+            p.set_mip_branching(7)
+
     def test_the_rounding_heuristic_finds_the_root_relaxations_neighbour(self):
         # max x + y, x + y <= 3.6, x <= 2.2, y <= 1.4, both integer: the
         # relaxation sits at (2.2, 1.4) and rounds to (2, 1), which is the
         # optimum (D290); with the heuristic off the tree finds it instead.
         for on in (True, False):
             p = jaos.Problem()
-            x = p.add_var(ub=2.2, integer=True, name="x")
-            y = p.add_var(ub=1.4, integer=True, name="y")
+            x = p.add_var(integer=True, name="x")
+            y = p.add_var(integer=True, name="y")
             p.add(x + y <= 3.6)
+            p.add(x <= 2.2)  # rows, not bounds: a bound is rounded (D292)
+            p.add(y <= 1.4)
             p.maximize(x + y)
             p.set_mip_cut_rounds(0).set_mip_heuristics(on)
             self.assertIs(p.solve(), jaos.SolveStatus.OPTIMAL)

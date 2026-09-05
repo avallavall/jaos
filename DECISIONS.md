@@ -299,6 +299,7 @@ and you have the argument. Jump to the entry for the numbers behind it.
 - **[D289](#d289--a-mip-set-of-17-miplib-3-instances-one-round-of-gomory-cuts-at-the-root-and-a-dive-refused-at-1125x)** — A MIP set of 17 MIPLIB 3 instances, one round of Gomory cuts at the root, and a dive refused at 1.125x
 - **[D290](#d290--a-rounding-heuristic-at-every-node-it-cannot-shrink-a-best-bound-tree-and-it-moves-the-first-incumbent-up-to-three-orders-of-magnitude-earlier-for-18-of-the-work)** — A rounding heuristic at every node: it cannot shrink a best-bound tree, and it moves the first incumbent up to three orders of magnitude earlier for 1.8% of the work
 - **[D291](#d291--a-node-limit-on-the-tree-and-an-incumbent-callback-because-a-budget-stop-is-what-the-heuristic-is-for)** — A node limit on the tree and an incumbent callback, because a budget stop is what the heuristic is for
+- **[D292](#d292--pseudocost-branching-at-0722x-with-the-fraction-breaking-a-tie-so-a-zero-objective-does-not-degrade-it-and-an-integer-columns-fractional-bounds-rounded-inward)** — Pseudocost branching at 0.722x, with the fraction breaking a tie so a zero objective does not degrade it, and an integer column's fractional bounds rounded inward
 
 ---
 
@@ -21381,3 +21382,46 @@ checks.
 cut, no bound change from inside, for the reason `jaos.h` gives on the
 progress callback. The feature matrix's "callbacks that steer the
 search" stays ○.
+
+## D292 — Pseudocost branching at 0.722x, with the fraction breaking a tie so a zero objective does not degrade it, and an integer column's fractional bounds rounded inward
+
+**The gap.** D288 branched on the most fractional column, which
+Achterberg, Koch and Martin measured as no better than a random choice
+(Branching rules revisited, OR Letters 33, 2005), and it was the only rule.
+
+**What it does now.** Every solved child teaches its column: the
+objective gain over its parent per unit of the fraction it moved, in the
+direction it moved. A fractional node scores each integer column by the
+product of the two directions' expected gains, each times the fraction
+that direction would move and floored at `MIP_PC_EPS`; a column never
+branched on takes the mean of those that have, and in a tree with no
+history the score is the fraction alone, which is the old rule. Equal
+scores fall back to the fraction, then the lowest index, so the choice is
+the same on every machine (D8). `jaos_set_mip_branching` and
+`--branching` switch back to most-fractional; Python carries the rule at
+both layers. Before the root, an integer column's fractional bound is
+rounded inward, and two rounded bounds that cross answer INFEASIBLE
+before a relaxation is solved.
+
+**Evidence** (`bench/measurements/02-191/`). The control arm,
+`--branching most-fractional`, reproduces `bench/miplib.baseline` node for
+node and unit for unit on all 17. Pseudocost against it, work in
+geometric mean over the 17: **0.722x, better on 10, worse on 2, none
+past 2x**. `blend2` 0.217x (32325 to 6827 nodes), `flugpl` 0.303x,
+`misc03` 0.491x, `dcmulti` 0.521x, `p0201` 0.521x; `p0033` 1.59x and
+`rgn` 1.08x the other way. **The tie-break is measured, not assumed.**
+Without it the same rule read 0.787x with `enigma` at 2.90x: its
+objective is zero, so no child ever shows a gain, every score is the
+floor squared, and the choice degrades to the lowest index. A tie is not
+rare, since binaries at one half tie exactly, so the tie-break moves 9
+of the 17 trees: 6 better (`enigma` to 0.958x, `p0201` 0.745x to 0.521x,
+`stein27` 1.022x to 0.935x) and 3 worse (`stein45` 0.829x to 0.902x,
+`rgn` 1.046x to 1.077x, `dcmulti` within 1%); the mean goes from 0.787x
+to 0.722x and the worst instance from 2.90x to 1.59x, which is what
+decides it (`sweep-pc-notie.txt` beside `sweep-pc.txt`). The baseline is
+rewritten to the new trees.
+
+**What it is not.** No strong branching to initialise a pseudocost, no
+reliability threshold, no history carried between solves; a column's
+first branch in a tree is judged by the mean of the others. No LP path is
+touched: the three gate sets are byte-identical.
