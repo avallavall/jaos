@@ -12,7 +12,8 @@
  *   expr       := [+|-] term (( '+' | '-' ) term)*
  *   term       := number name | name | number      (bare number: obj only)
  *   relop      := '<=' | '<' | '=<' | '>=' | '>' | '=>' | '='
- *   bounds     := (l '<=' name ['<=' u]) | (name relop v) | (name FREE)
+ *   bounds     := (v relop name [relop v]) | (name relop v) | (name FREE)
+ *                 -- both relops of a two-sided form point the same way
  *
  * Rejected loudly: integer sections (until M3), SOS and semi-continuous,
  * constants inside constraints, bounds on unknown
@@ -594,12 +595,20 @@ static jaos_status parse(lp *p)
                     FAIL("line %" PRId64 ": malformed bound", p->tok.line);
                 }
             } else {
-                /* value <= name [<= value] */
-                double lo;
-                if ((st = parse_bound_value(p, &lo)) != JAOS_OK)
+                /* value relop name [relop value], and the mirror of it.
+                 * `10 >= x >= 2` is `2 <= x <= 10` written the other way
+                 * round and says the same thing (D281). What the first
+                 * operator decides is which SIDE the leading value is, and
+                 * the second must point the same way -- `3 <= x >= 8` names
+                 * two lower bounds and no interval, the same fault the
+                 * ranged constraint above refuses in the same words. */
+                double first;
+                if ((st = parse_bound_value(p, &first)) != JAOS_OK)
                     goto done;
-                if (p->tok.t != T_LE)
-                    FAIL("line %" PRId64 ": expected <= after the bound "
+                const toktype rel1 = p->tok.t;
+                const int64_t rel1_line = p->tok.line;
+                if (rel1 != T_LE && rel1 != T_GE)
+                    FAIL("line %" PRId64 ": expected <= or >= after the bound "
                          "value", p->tok.line);
                 if ((st = lx_next(p)) != JAOS_OK)
                     goto done;
@@ -609,19 +618,26 @@ static jaos_status parse(lp *p)
                 if (!jm_nmap_get(&p->cmap, p->tok.text, &j))
                     FAIL("line %" PRId64 ": bound on unknown variable '%s'",
                          p->tok.line, p->tok.text);
-                p->cl[j] = lo;
+                if (rel1 == T_LE)
+                    p->cl[j] = first;
+                else
+                    p->cu[j] = first;
                 if ((st = lx_next(p)) != JAOS_OK)
                     goto done;
-                if (p->tok.t == T_LE) {
-                    double up;
+                if (p->tok.t == T_LE || p->tok.t == T_GE) {
+                    if (p->tok.t != rel1)
+                        FAIL("line %" PRId64 ": the two operators of a "
+                             "two-sided bound must point the same way",
+                             rel1_line);
+                    double second;
                     if ((st = lx_next(p)) != JAOS_OK)
                         goto done;
-                    if ((st = parse_bound_value(p, &up)) != JAOS_OK)
+                    if ((st = parse_bound_value(p, &second)) != JAOS_OK)
                         goto done;
-                    p->cu[j] = up;
-                } else if (p->tok.t == T_GE) {
-                    FAIL("line %" PRId64 ": reversed bounds are not "
-                         "supported", p->tok.line);
+                    if (rel1 == T_LE)
+                        p->cu[j] = second;
+                    else
+                        p->cl[j] = second;
                 }
             }
         }

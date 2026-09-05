@@ -105,6 +105,14 @@ open, `bench/README.md` for the gate, and the commit each entry came from.
 
 ### Changed
 
+- **The LP reader takes a bound written value-first either way round**:
+  `10 >= x` and `8 >= y >= 2`, alongside the `l <= x <= u` forms it already
+  took. The first operator says which side the leading value is and the
+  second must point the same way, so `3 <= w >= 8` is refused at the first
+  operator's line, in the same words a ranged constraint gets. The writer
+  emits only `l <= x <= u`, so no round trip takes the new path and all
+  three gate sets are byte-identical (D281, `bench/measurements/02-186/`).
+
 - **`make record-check` refuses a measurement README whose heading names
   another directory.** A measurement directory is one decision's evidence,
   and nothing said so: on 2026-09-05 a session took an id that was already

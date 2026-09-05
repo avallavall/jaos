@@ -1,0 +1,31 @@
+# D281 -- do the reversed-bound tests catch what they were written for?
+# date: 2026-09-05T11:10:29Z
+# tree: 53e67fc
+
+== candidate
+tests/test_lp.c:275:test_a_bound_can_be_written_value_first_either_way:PASS
+tests/test_lp.c:276:test_rejection_reasons_are_specific:PASS
+tests/test_lp.c:277:test_rejections_carry_line_numbers:PASS
+exit=0
+
+== arm 1: HEAD, which refuses a value-first bound written with >=
+tests/test_lp.c:195:test_a_bound_can_be_written_value_first_either_way:FAIL: Expected 0 Was 1
+tests/test_lp.c:222:test_rejection_reasons_are_specific:FAIL: Expected Non-NULL
+tests/test_lp.c:277:test_rejections_carry_line_numbers:PASS
+exit=2
+
+== arm 2: the two operators no longer have to agree
+  the two operators no longer have to point the same way
+tests/test_lp.c:275:test_a_bound_can_be_written_value_first_either_way:PASS
+tests/test_lp.c:221:test_rejection_reasons_are_specific:FAIL: Expected 1 Was 0
+tests/test_lp.c:221:test_rejections_carry_line_numbers:FAIL: Expected 1 Was 0
+exit=2
+
+== arm 3: restored
+tests/test_lp.c:275:test_a_bound_can_be_written_value_first_either_way:PASS
+tests/test_lp.c:276:test_rejection_reasons_are_specific:PASS
+tests/test_lp.c:277:test_rejections_carry_line_numbers:PASS
+exit=0
+
+the mirror is tested, and so is the rule that refuses a mixed pair
+verdict-exit=0

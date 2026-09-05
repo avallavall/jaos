@@ -7,6 +7,16 @@ line leaves this file in the same commit.
 
 ## Where the last session stopped — 2026-09-03
 
+**2026-09-05: a bound may be written value-first either way round (D281,
+`bench/measurements/02-186/`), and the validation found a gap in its own
+test.** `10 >= x` and `8 >= y >= 2` were refused; they are read now, and a
+mixed pair is refused at the first operator's line. **The part worth
+carrying forward**: the arm that removes only the direction check reported
+`NOT TESTED` on the line-number suite, because the new refusal file had been
+added to one rejection suite and not the other, so that suite never read it.
+The arm was written to check the code and it checked the test. Second time
+today.
+
 **2026-09-05, and this one was a format gap the record had listed for
 months: the MPS reader takes `OBJNAME` (D280,
 `bench/measurements/02-185/`).** `docs/format-support.md` said "not

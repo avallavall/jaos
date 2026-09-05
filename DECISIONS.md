@@ -288,6 +288,7 @@ and you have the argument. Jump to the entry for the numbers behind it.
 - **[D278](#d278--the-lp-reader-told-the-caller-to-do-arithmetic-it-could-do-itself-and-folding-it-moved-nothing-else)** — The LP reader told the caller to do arithmetic it could do itself, and folding it moved nothing else
 - **[D279](#d279--a-measurement-directory-is-one-decisions-evidence-and-nothing-said-so-the-rule-that-would-catch-the-other-half-is-refused-on-its-own-firing-population)** — A measurement directory is one decision's evidence, and nothing said so; the rule that would catch the other half is refused on its own firing population
 - **[D280](#d280--objname-says-which-free-row-is-the-objective-and-the-test-that-matters-is-the-one-where-the-section-parses-and-the-rule-does-not-run)** — OBJNAME says which free row is the objective, and the test that matters is the one where the section parses and the rule does not run
+- **[D281](#d281--a-bound-may-be-written-value-first-either-way-round-and-the-arm-that-proves-the-refusal-is-tested-found-a-gap-in-the-test-instead)** — A bound may be written value-first either way round, and the arm that proves the refusal is tested found a gap in the test instead
 
 ---
 
@@ -20985,3 +20986,39 @@ free. Both are legal, so the test pins the costs field by field rather than
 checking that the read succeeded. And the unnamed free row survives rather
 than being dropped: dropping it would renumber every row after it, and a
 caller reading row activities would get a vector the file does not describe.
+
+## D281 — A bound may be written value-first either way round, and the arm that proves the refusal is tested found a gap in the test instead
+
+**The gap.** `docs/format-support.md` said "Reversed forms (`u >= x`) are
+rejected". `10 >= x` is `x <= 10` and `8 >= y >= 2` is `2 <= y <= 8`; both
+say what the accepted forms say with the value written first, and the reader
+answered `expected <= after the bound value`.
+
+**What it does now.** The first operator says which side the leading value
+is, and the second must point the same way. `3 <= w >= 8` names two lower
+bounds and no interval, which is the fault a ranged constraint is refused
+for, and it is refused in the same words and at the FIRST operator's line —
+the parser has read past the second by the time it knows.
+
+**No population run, and the record says why.** The LP writer emits
+`l <= x <= u` and never the mirror, so no round trip takes the new path.
+All three gate sets are byte-identical.
+
+**The evidence is three arms** (`bench/measurements/02-186/`), and the
+second is the one that matters. `el_bounddir.lp` is refused at HEAD too,
+with a different message: HEAD never reaches the second operator, because it
+refuses the statement where it expects a value. So the file being refused
+proves nothing on its own. Arm 2 removes ONLY the `p->tok.t != rel1` check
+and requires both rejection suites to go red, which separates "refused by
+the rule this test is about" from "refused by the parser somewhere earlier".
+
+**And the first run of that arm failed, on the test rather than on the
+code.** `el_bounddir.lp` had been added to
+`test_rejection_reasons_are_specific` and not to
+`test_rejections_carry_line_numbers`, so the second suite never read the
+file and stayed green with the check removed. The script reported it as
+`NOT TESTED: ... refused by something else`, which is what a file no suite
+reads looks like from outside. The assertion was added and both suites move
+now. **The arm was written to check the code and it checked the test**,
+which is the second time in this session that the validation of a test was
+worth more than the test.

@@ -179,6 +179,42 @@ static void test_a_constant_in_a_constraint_folds_into_the_rhs(void)
     jaos_model_free(m);
 }
 
+/* A bound with the value first, written both ways round (D281).
+ * `10 >= x` is `x <= 10` and `8 >= y >= 2` is `2 <= y <= 8`. The first
+ * operator says which SIDE the leading value is, and the second must point
+ * the same way -- `3 <= w >= 8` names two lower bounds and no interval, and
+ * is refused in the same words a ranged constraint is.
+ *
+ * The `1 <= z <= 5` statement is in the same file on purpose: it is the
+ * form that already worked, so a change that broke it while adding the
+ * mirror shows here rather than in another test. `w free` is there for the
+ * same reason. */
+static void test_a_bound_can_be_written_value_first_either_way(void)
+{
+    jaos_model *m = fresh();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_read_lp(m, "tests/data/g_revbounds.lp"));
+
+    TEST_ASSERT_EQUAL_INT64(4, jaos_num_col(m));
+
+    /* `10 >= x`: an upper bound, and the default lower bound stays. */
+    TEST_ASSERT_EQUAL_DOUBLE(0.0, m->col_lower[0]);
+    TEST_ASSERT_EQUAL_DOUBLE(10.0, m->col_upper[0]);
+
+    /* `8 >= y >= 2`: the leading value is the UPPER one here. */
+    TEST_ASSERT_EQUAL_DOUBLE(2.0, m->col_lower[1]);
+    TEST_ASSERT_EQUAL_DOUBLE(8.0, m->col_upper[1]);
+
+    /* The control: the form that already worked, unchanged. */
+    TEST_ASSERT_EQUAL_DOUBLE(1.0, m->col_lower[2]);
+    TEST_ASSERT_EQUAL_DOUBLE(5.0, m->col_upper[2]);
+
+    /* And the other control. */
+    TEST_ASSERT_TRUE(isinf(m->col_lower[3]) && m->col_lower[3] < 0.0);
+    TEST_ASSERT_TRUE(isinf(m->col_upper[3]) && m->col_upper[3] > 0.0);
+    jaos_model_free(m);
+}
+
 static void expect_reject(const char *path, const char *needle)
 {
     jaos_model *m = fresh();
@@ -191,6 +227,7 @@ static void test_rejection_reasons_are_specific(void)
 {
     expect_reject("tests/data/el_int.lp", "integer");
     expect_reject("tests/data/el_rangedir.lp", "same way");
+    expect_reject("tests/data/el_bounddir.lp", "same way");
     expect_reject("tests/data/el_unkbound.lp", "unknown variable");
     expect_reject("tests/data/el_badchar.lp", "unexpected character");
     expect_reject("tests/data/el_noend.lp", "End");
@@ -200,6 +237,9 @@ static void test_rejections_carry_line_numbers(void)
 {
     expect_reject("tests/data/el_int.lp", "line 5");
     expect_reject("tests/data/el_rangedir.lp", "line 4");
+    /* The line of the FIRST operator, which is where the pair goes wrong;
+     * the parser has already read past the second by the time it knows. */
+    expect_reject("tests/data/el_bounddir.lp", "line 8");
     expect_reject("tests/data/el_unkbound.lp", "line 6");
     expect_reject("tests/data/el_badchar.lp", "line 4");
 }
@@ -232,6 +272,7 @@ int main(void)
     RUN_TEST(test_g2_maximize_exponents_summing_wrapping);
     RUN_TEST(test_a_ranged_constraint_is_one_row_with_two_ends);
     RUN_TEST(test_a_constant_in_a_constraint_folds_into_the_rhs);
+    RUN_TEST(test_a_bound_can_be_written_value_first_either_way);
     RUN_TEST(test_rejection_reasons_are_specific);
     RUN_TEST(test_rejections_carry_line_numbers);
     RUN_TEST(test_missing_file_is_io_error);

@@ -117,10 +117,14 @@ CPLEX-style core dialect, token-stream parsed: expressions wrap lines freely.
   relation follows it, so the `3` in `3 x + y >= 2` is still a
   coefficient.
 - **Bounds** forms: `l <= x <= u`, `l <= x`, `x <= u`, `x >= l`, `x = v`,
-  `x free`; `inf`/`infinity` with optional sign as values. Later statements
-  override earlier ones component-wise. Bounds on a variable that appears
-  nowhere else are an error (it is almost always a typo). Reversed forms
-  (`u >= x`) are rejected.
+  `x free`, and the same statements written value-first either way round —
+  `u >= x`, `u >= x >= l` (D281). The first operator says which side the
+  leading value is; the second must point the same way, so `3 <= x >= 8`
+  is refused at the first operator's line, the same rule and the same
+  words a ranged constraint gets. `inf`/`infinity` with optional sign as
+  values. Later statements override earlier ones component-wise. Bounds on
+  a variable that appears nowhere else are an error (it is almost always a
+  typo).
 - **Default bounds** are `[0, +inf)`, as in MPS.
 - **Integer sections** (`General`, `Integers`, `Binary`, ...): recognized
   and rejected until M3. `Semi-continuous` and `SOS`: rejected.
