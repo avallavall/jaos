@@ -32,7 +32,7 @@
 
 absent SPECS.md#3-crash-basis              \b(build_crash_basis|jm_crash|crash_basis)\b
 absent SPECS.md#3-barrier-and-crossover    \b(jm_cholesky|cholesky_|jm_barrier|barrier_|jm_crossover|crossover_)\w*\s*\(
-absent SPECS.md#3-milp                     \b(jm_bnb|branch_and_bound|jm_cut|cut_pool|jm_heuristic)\w*\s*\(
+absent SPECS.md#3-milp-cuts-heuristics  \b(jm_cut|cut_pool|jm_heuristic|jm_gomory|jm_feaspump)\w*\s*\(
 absent SPECS.md#3-deterministic-parallelism \bpthread_create\s*\(
 absent SPECS.md#3-primal-devex             \b(devex|jm_devex)\w*\s*\(
 absent SPECS.md#3-presolve-duplicates      \b(static|jaos_status)\s+\w*\s*\*?\s*(ps_|jm_)?(duplicate_rows?|duplicate_cols?|dominated_cols?)\s*\(

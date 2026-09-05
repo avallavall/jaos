@@ -143,7 +143,7 @@ when it closes.
 | Crash basis | **missing** | [12]; measured and refused: it destroys the exact starting steepest-edge weights of the slack basis. Reopens when pricing stops starting from exact weights (`TODO.md` refusals) |
 | Partial and multiple pricing | **measured and refused** | [1]: both built and swept. The leaving-row sweep's units are the cheapest in the solver, and every scheme for scanning it less often pays in trajectory and in wrong answers (D82, D84) |
 | Barrier and crossover | **missing** | not optional at large scale. Crossover is what D97's ideal design needs at postsolve (`bench/measurements/02-88/`). Crossover as published starts from an interior point and JAOS has none; where the starting point comes from is undecided (`docs/research/primal-simplex.md` §5) |
-| MILP: branch and bound, cuts, heuristics | **missing** | [14][15][16][17][18] |
+| MILP: branch and bound, cuts, heuristics | **partial** | Branch and bound, `src/mip.c`: integer columns through `jaos_set_col_integer` and both readers, the plain Land-Doig scheme over the dual simplex, one private copy re-bounded per node and warm from its parent, best bound first with creation order breaking ties, so the tree is the same on every machine; `jaos_mip_result`, `jaos_mip_incumbent`, `jaos_set_mip_gap`; the checker judges integrality like a bound (D288). Judged on hand-enumerated models only: there is no integer instance set in the gate yet. **Missing:** cutting planes, primal heuristics, a MIP instance set and the sweep of `MIP_INT_TOL` and `MIP_GAP` it would allow [14][15][16][17][18] |
 | Deterministic parallelism | **missing** | [10][13] |
 
 Citation numbers are the bibliography in `docs/archive/PLAN.md`.

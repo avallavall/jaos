@@ -15,7 +15,8 @@
  *   bounds     := (v relop name [relop v]) | (name relop v) | (name FREE)
  *                 -- both relops of a two-sided form point the same way
  *
- * Rejected loudly: integer sections (until M3), SOS and semi-continuous,
+ * Rejected loudly: SOS and semi-continuous sections (integer sections are
+ * read since D288),
  * constants inside constraints, bounds on unknown
  * variables. Repeated variables inside one expression sum, as algebra says
  * they should. Dialect notes live in docs/format-support.md.
@@ -72,6 +73,10 @@ typedef struct {
     char **rname;
     int64_t rname_cap;
     char *oname;
+
+    /* integer marks from General / Binary, [ncint] valid (D288) */
+    bool *cint;
+    int64_t cint_cap, ncint;
     int64_t *ei;                 /* entry column index */
     double *ev;                  /* entry value */
     int64_t nent, ei_cap, ev_cap;
@@ -687,12 +692,38 @@ static jaos_status parse(lp *p)
         }
     }
 
+    /* The integer sections (D288): General (Generals, Gen, Integer,
+     * Integers) lists integer variables, Binary (Binaries, Bin) integer
+     * ones bounded to [0, 1]. Names until the next keyword, each a
+     * variable the file has met, in any order and any number of times. */
+    while (tok_is(p, "general") || tok_is(p, "generals") ||
+           tok_is(p, "gen") || tok_is(p, "integer") ||
+           tok_is(p, "integers") || tok_is(p, "binary") ||
+           tok_is(p, "binaries") || tok_is(p, "bin")) {
+        const bool binary = tok_is(p, "binary") || tok_is(p, "binaries") ||
+                            tok_is(p, "bin");
+        if ((st = lx_next(p)) != JAOS_OK)
+            goto done;
+        while (p->tok.t == T_NAME && !at_reserved(p)) {
+            if (!jm_nmap_get(&p->cmap, p->tok.text, &j))
+                FAIL("line %" PRId64 ": '%s' in an integer section is not a "
+                     "variable of the model", p->tok.line, p->tok.text);
+            if (!JM_GROW(p->cint, p->cint_cap, p->ncol))
+                FAIL_OOM();
+            for (int64_t k = p->ncint; k < p->ncol; k++)
+                p->cint[k] = false;
+            p->ncint = p->ncol;
+            p->cint[j] = true;
+            if (binary) {
+                p->cl[j] = 0.0;
+                p->cu[j] = 1.0;
+            }
+            if ((st = lx_next(p)) != JAOS_OK)
+                goto done;
+        }
+    }
+
     /* remaining sections: recognized, rejected */
-    if (tok_is(p, "general") || tok_is(p, "generals") || tok_is(p, "gen") ||
-        tok_is(p, "integer") || tok_is(p, "integers") ||
-        tok_is(p, "binary") || tok_is(p, "binaries") || tok_is(p, "bin"))
-        FAIL("line %" PRId64 ": integer variables are not supported yet "
-             "(PLAN.md, M3)", p->tok.line);
     if (tok_is(p, "semi") || tok_is(p, "semis"))
         FAIL("line %" PRId64 ": semi-continuous variables are not supported",
              p->tok.line);
@@ -763,6 +794,16 @@ static jaos_status parse(lp *p)
             free(p->rname);
         p->rname = nullptr;
         p->oname = nullptr;
+        /* The integer marks, when a section named any (D288). */
+        free(p->m->col_integer);
+        p->m->col_integer = nullptr;
+        if (p->ncint > 0) {
+            bool *ci = jm_calloc_array(p->ncol, sizeof(bool));
+            if (ci == nullptr)
+                FAIL_OOM();
+            memcpy(ci, p->cint, (size_t)p->ncint * sizeof *ci);
+            p->m->col_integer = ci;
+        }
     }
 
 done:
@@ -816,5 +857,6 @@ done:
             free(p->rname[i]);
     free(p->rname);
     free(p->oname);
+    free(p->cint);
     return st;
 }

@@ -118,6 +118,14 @@ typedef struct {
     /* NAME's first word, likewise. */
     char *modelname;
 
+    /* Integer columns (D288): inside a 'MARKER' 'INTORG' .. 'INTEND' pair
+     * every new column is integer; BV, LI and UI bounds mark one too.
+     * `cint` is grown beside the columns and handed to the model. */
+    bool in_intorg;
+    bool *cint;
+    int64_t cint_cap;
+    bool any_int;
+
     jm_nmap cmap;                      /* column name -> index */
     double *cost, *cl, *cu;
     uint8_t *cflag;                 /* bit0: lower set, bit1: obj coef seen */
@@ -157,6 +165,7 @@ static void rd_free(rd *r)
     free(r->objname);
     free(r->objrow);
     free(r->modelname);
+    free(r->cint);
 }
 
 /* OBJNAME's row name, copied. Returns false only out of memory. */
@@ -235,13 +244,19 @@ static jaos_status rd_columns_line(rd *r, char **tok, int nt)
 {
     jaos_status st = JAOS_OK;
 
-    /* Integer markers: recognized, rejected until M3. */
+    /* Integer markers (D288): the columns between INTORG and INTEND are
+     * integer. The marker's own name, tok[0], is not a column. */
     if (nt >= 2 && strcmp(tok[1], "'MARKER'") == 0) {
-        for (int i = 2; i < nt; i++)
-            if (strcmp(tok[i], "'INTORG'") == 0 ||
-                strcmp(tok[i], "'INTEND'") == 0)
-                FAIL("line %" PRId64 ": integer variables are not supported "
-                     "yet (PLAN.md, M3)", r->lno);
+        for (int i = 2; i < nt; i++) {
+            if (strcmp(tok[i], "'INTORG'") == 0) {
+                r->in_intorg = true;
+                return JAOS_OK;
+            }
+            if (strcmp(tok[i], "'INTEND'") == 0) {
+                r->in_intorg = false;
+                return JAOS_OK;
+            }
+        }
         FAIL("line %" PRId64 ": unrecognized marker", r->lno);
     }
 
@@ -268,10 +283,13 @@ static jaos_status rd_columns_line(rd *r, char **tok, int nt)
             !JM_GROW(r->cl, r->cl_cap, j + 1) ||
             !JM_GROW(r->cu, r->cu_cap, j + 1) ||
             !JM_GROW(r->cflag, r->cflag_cap, j + 1) ||
+            !JM_GROW(r->cint, r->cint_cap, j + 1) ||
             !JM_GROW(r->as, r->as_cap, j + 2))
             FAIL_OOM();
         if (!jm_nmap_insert(&r->cmap, tok[0], j))
             FAIL_OOM();
+        r->cint[j] = r->in_intorg;
+        r->any_int |= r->in_intorg;
         r->cost[j] = 0.0;
         r->cl[j] = 0.0;
         r->cu[j] = INFINITY;
@@ -371,10 +389,14 @@ static jaos_status rd_bounds_line(rd *r, char **tok, int nt)
                        strcmp(type, "FX") == 0;
     bool no_value    = strcmp(type, "FR") == 0 || strcmp(type, "MI") == 0 ||
                        strcmp(type, "PL") == 0;
-    if (strcmp(type, "BV") == 0 || strcmp(type, "LI") == 0 ||
-        strcmp(type, "UI") == 0)
-        FAIL("line %" PRId64 ": bound type '%s' needs integer support "
-             "(PLAN.md, M3)", r->lno, type);
+    /* The integer bound types (D288): BV is [0, 1] and integer, LI and UI
+     * an integer column's lower or upper bound. */
+    const bool int_type = strcmp(type, "BV") == 0 || strcmp(type, "LI") == 0 ||
+                          strcmp(type, "UI") == 0;
+    if (strcmp(type, "LI") == 0 || strcmp(type, "UI") == 0)
+        needs_value = true;
+    if (strcmp(type, "BV") == 0)
+        no_value = true;
     if (strcmp(type, "SC") == 0 || strcmp(type, "SI") == 0)
         FAIL("line %" PRId64 ": semi-continuous bound type '%s' is not "
              "supported", r->lno, type);
@@ -396,6 +418,22 @@ static jaos_status rd_bounds_line(rd *r, char **tok, int nt)
     double v = 0.0;
     if (needs_value && !parse_num(tok[3], &v))
         FAIL("line %" PRId64 ": bad number '%s'", r->lno, tok[3]);
+
+    if (int_type) {
+        r->cint[j] = true;
+        r->any_int = true;
+        if (strcmp(type, "BV") == 0) {
+            r->cl[j] = 0.0;
+            r->cu[j] = 1.0;
+            r->cflag[j] |= 1u;
+        } else if (strcmp(type, "LI") == 0) {
+            r->cl[j] = v;
+            r->cflag[j] |= 1u;
+        } else {
+            r->cu[j] = v;
+        }
+        return JAOS_OK;
+    }
 
     if (strcmp(type, "UP") == 0) {
         /* Classic MPS wart: a negative upper bound on a column whose lower
@@ -687,6 +725,13 @@ jaos_status jaos_read_mps(jaos_model *m, const char *path)
         free(m->model_name);
         m->model_name = r->modelname;
         r->modelname = nullptr;
+        /* The integer marks, only when there is one (D288). */
+        free(m->col_integer);
+        m->col_integer = nullptr;
+        if (r->any_int && r->ncol > 0) {
+            m->col_integer = r->cint;
+            r->cint = nullptr;
+        }
     }
 
 done:

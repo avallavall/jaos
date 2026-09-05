@@ -205,17 +205,16 @@ static void expect_reject(const char *path, const char *needle)
 
 static void test_rejections_carry_line_numbers(void)
 {
-    expect_reject("tests/data/e_intorg.mps", "line 6");
+    expect_reject("tests/data/e_sc.mps", "line 8");
     expect_reject("tests/data/e_badnum.mps", "line 6");
     expect_reject("tests/data/e_unknown_row.mps", "line 5");
     expect_reject("tests/data/e_recol.mps", "line 9");
     expect_reject("tests/data/e_dupcoef.mps", "line 6");
-    expect_reject("tests/data/e_bv.mps", "line 8");
 }
 
 static void test_rejection_reasons_are_specific(void)
 {
-    expect_reject("tests/data/e_intorg.mps", "integer");
+    expect_reject("tests/data/e_sc.mps", "semi-continuous");
     expect_reject("tests/data/e_badnum.mps", "bad number");
     expect_reject("tests/data/e_unknown_row.mps", "unknown row");
     expect_reject("tests/data/e_recol.mps", "contiguous");

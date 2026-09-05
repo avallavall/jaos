@@ -7,6 +7,21 @@ line leaves this file in the same commit.
 
 ## Where the last session stopped — 2026-09-05
 
+**2026-09-05, last: integer columns and branch and bound (D288).** The
+third batch of the day and the one that moves the matrix most: `src/mip.c`
+is the plain Land-Doig scheme over the dual simplex, one private copy
+re-bounded per node, warm from the parent, best bound first with creation
+order breaking ties; both readers and both writers carry the marks; the
+checker judges integrality; `jaos solve` prints `nodes` and `bound`;
+Python `add_var(integer=True)`. **What it is not**: no cuts, no
+heuristics, no diving, and no integer instance set -- the two constants in
+`docs/tolerances.md` are held to the source and swept nowhere. **What is
+next**, in order: a small MIP instance set (MIPLIB's easy members) with
+its own baseline so the tree is measured and not only enumerated by hand;
+then a depth-first dive from each selected node, which is the standard
+first improvement; then Gomory cuts at the root, which is where the
+matrix's next cell is.
+
 **2026-09-05, later: a second batch through one set of checks (D286,
 D287).** A proved basis gives its coordinates exactly: after `jaos_verify`
 every column's value, every row's dual and the objective are on the model

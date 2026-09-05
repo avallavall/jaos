@@ -189,6 +189,28 @@ expect_exit 3 "--solution on a work-limited solve keeps exit 3" \
 expect_exit 5 "--solution to an unwritable path is an error" \
     "$JAOS" solve "$DATA/solve1.mps" --solution "$tmp/no/such/dir/c.sol"
 
+# A mixed-integer model solves by branch and bound and says so with a
+# nodes line and a bound line (D288); t4_int's optimum is 3.5, and its
+# relaxation is worth the same, so the marks are what the round trip
+# through convert has to carry.
+if [ "$faulty" -eq 0 ]; then
+expect_exit 0 "a mixed-integer model solves" "$JAOS" solve "$DATA/t4_int.mps"
+[ "$(line_of objective)" = "objective 3.5" ] && pass "to its integer optimum" \
+    || flunk "MIP objective '$(line_of objective)'"
+[ -n "$(line_of nodes)" ] && [ "$(line_of bound)" = "bound 3.5" ] \
+    && pass "and prints its nodes and bound" \
+    || flunk "MIP lines: $(line_of nodes) / $(line_of bound)"
+expect_exit 0 "and converts to LP with its marks" \
+    "$JAOS" convert "$DATA/t4_int.mps" "$tmp/t4.lp"
+grep -q '^General$' "$tmp/t4.lp" && pass "the LP carries a General section" \
+    || flunk "no General section in the converted LP"
+expect_exit 0 "and the LP solves to the same optimum" "$JAOS" solve "$tmp/t4.lp"
+[ "$(line_of objective)" = "objective 3.5" ] && pass "objective 3.5 again" \
+    || flunk "converted MIP objective '$(line_of objective)'"
+expect_exit 0 "an LP model prints no nodes line" "$JAOS" solve "$DATA/solve1.mps"
+[ -z "$(line_of nodes)" ] && pass "and it does not" || flunk "an LP printed nodes"
+fi
+
 # --start warm-starts from the basis a solution file carries: the model's
 # own optimum re-solves with no iteration at all, and the objective line
 # is the same. A file for another model, or a certificate, is refused.

@@ -525,6 +525,13 @@ static int cmd_solve(int argc, char **argv)
             printf("objective %.17g\n", obj);
         printf("iterations %" PRId64 "\n", jaos_iterations(m));
         printf("work_units %" PRId64 "\n", jaos_work_units(m));
+        /* A mixed-integer solve says how big its tree was and what bound
+         * it reached (D288); a plain LP prints neither line. */
+        jaos_mip_report mrep;
+        if (jaos_mip_result(m, &mrep) == JAOS_OK && mrep.nodes > 0) {
+            printf("nodes %" PRId64 "\n", mrep.nodes);
+            printf("bound %.17g\n", mrep.bound);
+        }
         /* Last, and the only line that moves between runs. */
         printf("time %.6f\n", jaos_solve_time(m));
     }

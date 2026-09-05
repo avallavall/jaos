@@ -67,7 +67,7 @@ __all__ = [
     "Problem", "Var", "LinExpr", "Constraint", "quicksum",
     "CheckReport", "CertificateReport", "RayReport", "Progress",
     "IISSide", "IISReport", "IIS",
-    "Proof", "ProofStage", "VerifyReport",
+    "Proof", "ProofStage", "VerifyReport", "MipReport",
 ]
 
 
@@ -223,7 +223,22 @@ class _CheckReport(ctypes.Structure):
         ("dual_feasible", ctypes.c_bool),
         ("checked_duals", ctypes.c_bool),
         ("gap_certified", ctypes.c_bool),
+        ("max_integrality_violation", _D),
     ]
+
+
+class _MipReport(ctypes.Structure):
+    """jaos_mip_report, in the header's order."""
+    _fields_ = [
+        ("nodes", _I64),
+        ("lp_solves", _I64),
+        ("has_incumbent", ctypes.c_bool),
+        ("incumbent", _D),
+        ("bound", _D),
+    ]
+
+
+MipReport = namedtuple("MipReport", [f for f, _ in _MipReport._fields_])
 
 
 CheckReport = namedtuple("CheckReport",
@@ -357,6 +372,11 @@ _sig("jaos_set_row_name", ctypes.c_int, _VP, _I64, _CS)
 _sig("jaos_set_objective_name", ctypes.c_int, _VP, _CS)
 _sig("jaos_col_index", ctypes.c_int, _VP, _CS, _P(_I64))
 _sig("jaos_row_index", ctypes.c_int, _VP, _CS, _P(_I64))
+_sig("jaos_set_col_integer", ctypes.c_int, _VP, _I64, ctypes.c_bool)
+_sig("jaos_col_integer", ctypes.c_int, _VP, _I64, _P(ctypes.c_bool))
+_sig("jaos_set_mip_gap", ctypes.c_int, _VP, _D)
+_sig("jaos_mip_result", ctypes.c_int, _VP, _P(_MipReport))
+_sig("jaos_mip_incumbent", ctypes.c_int, _VP, _P(_D), _P(_D))
 _sig("jaos_model_name", ctypes.c_int, _VP, ctypes.c_char_p, _I64)
 _sig("jaos_set_model_name", ctypes.c_int, _VP, _CS)
 _sig("jaos_model_copy", ctypes.c_int, _VP, _P(_VP))
@@ -713,6 +733,40 @@ class Model:
     def set_objective_name(self, name):
         self._check(_lib.jaos_set_objective_name(self._handle(),
                                                  self._name_arg(name)))
+
+    # -- integer columns (D288) --------------------------------------------
+
+    def set_col_integer(self, col, is_integer=True):
+        """Marks a column integer; a model with one solves by branch and
+        bound. Discards the answer like every modification."""
+        self._check(_lib.jaos_set_col_integer(self._handle(), int(col),
+                                              bool(is_integer)))
+
+    def col_integer(self, col):
+        out = ctypes.c_bool()
+        self._check(_lib.jaos_col_integer(self._handle(), int(col),
+                                          ctypes.byref(out)))
+        return out.value
+
+    def set_mip_gap(self, gap):
+        """The relative gap that closes a branch and bound; 0 restores the
+        default of 1e-6."""
+        self._check(_lib.jaos_set_mip_gap(self._handle(), float(gap)))
+
+    def mip_report(self):
+        rep = _MipReport()
+        self._check(_lib.jaos_mip_result(self._handle(), ctypes.byref(rep)))
+        return MipReport(*[getattr(rep, f) for f, _ in _MipReport._fields_])
+
+    def mip_incumbent(self):
+        """The best integer point a branch and bound found, proved or not,
+        as (objective, values). Raises when there is none."""
+        nc = self.num_col
+        x = (_D * max(nc, 1))()
+        obj = _D()
+        self._check(_lib.jaos_mip_incumbent(self._handle(), x,
+                                            ctypes.byref(obj)))
+        return obj.value, list(x[:nc])
 
     @property
     def name(self):
@@ -1282,7 +1336,7 @@ class Var:
     # constraint-building __eq__ to tell two variables apart.
     __hash__ = object.__hash__
 
-    __slots__ = ("_p", "_i", "_lb", "_ub", "name")
+    __slots__ = ("_p", "_i", "_lb", "_ub", "name", "integer")
 
     def __init__(self, problem, index, lb, ub, name):
         self._p = problem
@@ -1593,10 +1647,16 @@ class Problem:
 
     # -- writing the problem -----------------------------------------------
 
-    def add_var(self, lb=0.0, ub=INFINITY, name=None):
-        """A new variable, bounded below at zero unless said otherwise."""
+    def add_var(self, lb=0.0, ub=INFINITY, name=None, integer=False,
+                binary=False):
+        """A new variable, bounded below at zero unless said otherwise.
+        `integer=True` marks it integer, and the problem then solves by
+        branch and bound (D288); `binary=True` is integer in [0, 1]."""
+        if binary:
+            lb, ub, integer = 0.0, 1.0, True
         v = Var(self, len(self._vars), lb, ub,
                 name if name is not None else f"x{len(self._vars)}")
+        v.integer = bool(integer)
         self._vars.append(v)
         self._touch_structure()
         return v
@@ -1734,6 +1794,8 @@ class Problem:
         # the solve, with the library's message.
         for v in self._vars:
             self._m.set_col_name(v._i, v.name)
+            if getattr(v, "integer", False):
+                self._m.set_col_integer(v._i, True)
         for c in self._cons:
             self._m.set_row_name(c._i, c.name)
         self._dirty_var_bounds.clear()

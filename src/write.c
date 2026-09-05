@@ -381,7 +381,17 @@ jaos_status jaos_write_mps(jaos_model *m, const char *path)
          * or the round trip loses the ones with no coefficients. A column
          * with nothing to say gets its objective entry written anyway. */
         fprintf(w->f, "COLUMNS\n");
+        bool in_int = false;
         for (int64_t j = 0; j < m->num_col; j++) {
+            /* Integer columns sit between MARKER lines (D288): one pair
+             * per run of them, opened before the first and closed after
+             * the last. */
+            const bool is_int = m->col_integer != nullptr && m->col_integer[j];
+            if (is_int != in_int) {
+                fprintf(w->f, "    MARKER    'MARKER'   %s\n",
+                        is_int ? "'INTORG'" : "'INTEND'");
+                in_int = is_int;
+            }
             col_name(m, nm, j);
             const int64_t beg = m->a_start[j], end = m->a_start[j + 1];
             int pending = 0;
@@ -405,6 +415,8 @@ jaos_status jaos_write_mps(jaos_model *m, const char *path)
             if (pending != 0)
                 fprintf(w->f, "\n");
         }
+        if (in_int)
+            fprintf(w->f, "    MARKER    'MARKER'   'INTEND'\n");
 
         /* The objective constant travels as an RHS entry on the objective
          * row, negated: the reader stores `-v` (docs/format-support.md). */
@@ -672,6 +684,22 @@ jaos_status jaos_write_lp(jaos_model *m, const char *path)
                 wr_num(lo, cl);
                 wr_num(num, cu);
                 fprintf(w->f, " %s <= %s <= %s\n", lo, nm, num);
+            }
+        }
+
+        /* Integer columns under General (D288); their bounds are already
+         * above, so a binary one round-trips as General with [0, 1]. */
+        if (m->col_integer != nullptr) {
+            bool any = false;
+            for (int64_t j = 0; j < m->num_col; j++)
+                any |= m->col_integer[j];
+            if (any) {
+                fprintf(w->f, "General\n");
+                for (int64_t j = 0; j < m->num_col; j++)
+                    if (m->col_integer[j]) {
+                        col_name(m, nm, j);
+                        fprintf(w->f, " %s\n", nm);
+                    }
             }
         }
 

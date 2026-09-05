@@ -272,6 +272,60 @@ JAOS_NODISCARD jaos_status jaos_col_index(jaos_model *m, const char *name,
 JAOS_NODISCARD jaos_status jaos_row_index(jaos_model *m, const char *name,
                                           int64_t *row);
 
+/* Integer columns (D288). A column marked integer takes integer values in
+ * every answer, and a model with one goes through branch and bound when
+ * it is solved: the plain Land-Doig scheme over the dual simplex, no cuts
+ * and no heuristics. Marking one discards the answer, as every
+ * modification does, and the mark rides with its column through every
+ * add and delete. Both readers set it from the file -- MPS's MARKER
+ * lines and its BV, LI and UI bounds, LP's General and Binary sections --
+ * and both writers print it back. jaos_check_solution judges integrality
+ * against the same tolerance as a bound.
+ *
+ * What a mixed-integer answer carries: the values, at integers where
+ * they must be; the row activities of that point; and the duals, reduced
+ * costs and basis of the relaxation that produced it, whose bounds are
+ * the branching's and not the model's, which is what every solver
+ * reports for a MIP and what jaos_check_solution's dual verdict is not
+ * about. The exact proof and ranging are about that relaxation too. */
+JAOS_NODISCARD jaos_status jaos_set_col_integer(jaos_model *m, int64_t col,
+                                                bool is_integer);
+JAOS_NODISCARD jaos_status jaos_col_integer(const jaos_model *m, int64_t col,
+                                            bool *is_integer);
+
+/* The relative gap that closes a branch and bound: the search stops, and
+ * the answer is OPTIMAL, when no open node can beat the incumbent by more
+ * than gap * (1 + |incumbent|). Default 1e-6; 0 restores it. A value that
+ * is not finite and non-negative is refused. */
+JAOS_NODISCARD jaos_status jaos_set_mip_gap(jaos_model *m, double gap);
+
+/* What the last branch and bound did. `bound` is the best objective any
+ * open node could still reach when the search stopped, in the model's
+ * own sense, and equals the incumbent when the answer is OPTIMAL;
+ * `has_incumbent` says whether a stop on a budget left an integer point,
+ * which jaos_mip_incumbent then reads. */
+typedef struct jaos_mip_report {
+    int64_t nodes;           /* relaxations solved, the root included  */
+    int64_t lp_solves;       /* the same count today; kept apart so a
+                                heuristic's solves can be told from the
+                                tree's when one exists                 */
+    bool    has_incumbent;
+    double  incumbent;       /* its objective, when there is one       */
+    double  bound;
+} jaos_mip_report;
+
+JAOS_NODISCARD jaos_status jaos_mip_result(const jaos_model *m,
+                                           jaos_mip_report *out);
+
+/* The best integer point a branch and bound found, whether or not it
+ * proved it optimal: after a stop on a work or time limit, or an
+ * interrupt, jaos_solution refuses (there is no proved answer) and this
+ * is how the point is read. col_value receives num_col values; either
+ * pointer may be NULL. Refused when no integer point was found. */
+JAOS_NODISCARD jaos_status jaos_mip_incumbent(const jaos_model *m,
+                                              double *col_value,
+                                              double *objective);
+
 /* The model's own name: the first word of an MPS file's NAME line, what
  * jaos_write_mps prints there, and "JAOS" until one is given. The same
  * rule as every other name; a load or a read replaces it. */
@@ -403,8 +457,7 @@ JAOS_NODISCARD jaos_status jaos_delete_rows(jaos_model *m, int64_t num_del,
  * contents. On failure the model's problem data is left as it was and
  * jaos_model_error() carries a message with the offending line number.
  * Dialect decisions are documented in docs/format-support.md. Integer
- * markers and integer bound types are recognized and rejected until MILP
- * support lands (PLAN.md, M3). */
+ * markers and integer bound types mark integer columns (D288). */
 JAOS_NODISCARD jaos_status jaos_read_mps(jaos_model *m, const char *path);
 
 /* Reads a CPLEX-style LP-format file into the model, replacing its
@@ -994,6 +1047,11 @@ typedef struct jaos_check_report {
        False does not mean the answer is wrong — most dropped multipliers
        are roundoff — it means this report does not prove it right.        */
     bool gap_certified;
+    /* The largest distance of an integer column's value from the nearest
+       integer (D288); 0 when the model has none. primal_feasible requires
+       it within tol, like a bound. Appended last, so a caller compiled
+       against the previous layout reads every earlier field where it was. */
+    double max_integrality_violation;
 } jaos_check_report;
 
 /* Judges a claimed solution against the model as loaded — original space,

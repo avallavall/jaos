@@ -5,5 +5,5 @@ ROWS
 COLUMNS
     x         r1           1.0
 BOUNDS
- BV B x
+ SC B x 5
 ENDATA

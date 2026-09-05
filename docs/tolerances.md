@@ -591,3 +591,14 @@ control, one bit lower, where all three succeed. That pair is what makes the
 limit a measurement instead of a comment, and it caught the first version of
 `jm_nat_shl`, which charged a spare limb for any shift that was not a whole
 number of limbs and so refused a value that fits.
+## Branch and bound's two numbers
+
+Both in `src/mip.c` (D288). Neither has been swept beyond the unit suite
+yet: there is no integer instance set in the gate, and a constant with one
+side measured is listed here so that `record-check` holds it to the source
+until the sweep exists.
+
+| constant | value | what it decides |
+|---|---|---|
+| `MIP_INT_TOL` | 1e-6 | how far a relaxation's value may sit from the nearest integer and count as integral, in the model's own units. A value inside it is published rounded. Below the primal tolerance it would call integral what the relaxation cannot place; far above it a fractional point would be published as an answer |
+| `MIP_GAP` | 1e-6 | the relative gap that closes the search: stop, and call the answer OPTIMAL, when no open node's bound beats the incumbent by more than `MIP_GAP * (1 + |incumbent|)`, in minimize form. `jaos_set_mip_gap` overrides it; 0 restores it |

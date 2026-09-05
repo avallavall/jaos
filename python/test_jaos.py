@@ -1158,6 +1158,42 @@ class TestProblemResolves(unittest.TestCase):
         self.assertEqual(p._m.obj_offset, 100.0)
 
 
+class TestBranchAndBound(unittest.TestCase):
+    """Integer columns through both layers (D288). The knapsack is the one
+    tests/test_mip.c solves to 9 against a relaxation of 10.67."""
+
+    def test_the_knapsack_through_the_problem_layer(self):
+        p = jaos.Problem()
+        a = p.add_var(binary=True, name="a")
+        b = p.add_var(binary=True, name="b")
+        c = p.add_var(binary=True, name="c")
+        p.add(2 * a + 3 * b + c <= 5)
+        p.maximize(5 * a + 4 * b + 3 * c)
+        self.assertIs(p.solve(), jaos.SolveStatus.OPTIMAL)
+        self.assertAlmostEqual(p.objective_value, 9.0, places=9)
+        self.assertEqual((a.value, b.value, c.value), (1.0, 1.0, 0.0))
+        rep = p._m.mip_report()
+        self.assertTrue(rep.has_incumbent)
+        self.assertGreaterEqual(rep.nodes, 2)
+        self.assertTrue(p._m.col_integer(0))
+
+    def test_the_model_layer_marks_and_reports(self):
+        with jaos.Model() as m:
+            m.read_mps(data("t4_int.mps"))
+            self.assertTrue(m.col_integer(0))
+            self.assertFalse(m.col_integer(1))
+            self.assertIs(m.solve(), jaos.SolveStatus.OPTIMAL)
+            self.assertAlmostEqual(m.objective(), 3.5, places=9)
+            obj, x = m.mip_incumbent()
+            self.assertAlmostEqual(obj, 3.5, places=9)
+            self.assertEqual(x[0], float(int(x[0])))
+            ck = m.check_solution(m.solution().col_value)
+            self.assertTrue(ck.primal_feasible)
+            self.assertEqual(ck.max_integrality_violation, 0.0)
+            with self.assertRaises(jaos.JaosError):
+                m.set_mip_gap(-1.0)
+
+
 class TestExactValues(unittest.TestCase):
     """The proved basis's exact coordinates (D286), as Fractions."""
 

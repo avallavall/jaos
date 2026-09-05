@@ -67,8 +67,12 @@ header is a line whose first character is non-blank, `*` opens a comment.
     Public documentation is ambiguous on the negative-`r` sub-case; this is
     the CPLEX/lp_solve convention.
   - RANGES on the objective or on an `N` row is an error.
-- **BOUNDS**: `UP LO FX FR MI PL` supported. `BV LI UI` (integer) and
-  `SC SI` (semi-continuous) are recognized and rejected until M3.
+- **BOUNDS**: `UP LO FX FR MI PL` supported. `BV LI UI` mark the column
+  integer (D288): `BV` is [0, 1], `LI` and `UI` set the bound. `SC SI`
+  (semi-continuous) are recognized and rejected.
+- **Integer markers**: the columns between `'MARKER' 'INTORG'` and
+  `'MARKER' 'INTEND'` are integer, and the writer prints one such pair
+  per run of integer columns (D288).
   - **Negative-UP wart**: `UP` with a negative value on a column whose lower
     bound was never set explicitly drops that lower bound to -inf. This
     matches the classic convention documented by CPLEX and lp_solve.
@@ -80,8 +84,6 @@ header is a line whose first character is non-blank, `*` opens a comment.
   coefficient in one column, a column whose entries are not contiguous.
 - **OBJSENSE**: section form (value on the header line or on the next data
   line), `MIN[IMIZE]` / `MAX[IMIZE]`. Default is minimize.
-- **Integer markers** (`'MARKER'` / `'INTORG'` / `'INTEND'`): recognized and
-  rejected with a clear message until MILP lands (M3).
 - **Numbers**: parsed under an explicit "C" locale — the host application's
   locale cannot corrupt instances — and Fortran `D` exponents are accepted
   (`1.5D+2` reads as `1.5E+2`, found in old Netlib files).
@@ -139,8 +141,12 @@ CPLEX-style core dialect, token-stream parsed: expressions wrap lines freely.
   a variable that appears nowhere else are an error (it is almost always a
   typo).
 - **Default bounds** are `[0, +inf)`, as in MPS.
-- **Integer sections** (`General`, `Integers`, `Binary`, ...): recognized
-  and rejected until M3. `Semi-continuous` and `SOS`: rejected.
+- **Integer sections** (`General`, `Generals`, `Gen`, `Integer`, `Integers`;
+  `Binary`, `Binaries`, `Bin`): names of variables the file has met, one per
+  token until the next keyword; `Binary` also bounds them to [0, 1]. A name
+  no variable carries is refused (D288). The writer prints every integer
+  column under `General`, its bounds already above. `Semi-continuous` and
+  `SOS`: rejected.
 - **Numbers**: parsed under an explicit "C" locale, like MPS. No Fortran
   `D` exponents here — they are not part of any LP dialect.
 - **`End` is required**; content after it is an error.

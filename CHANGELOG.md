@@ -11,6 +11,15 @@ open, `bench/README.md` for the gate, and the commit each entry came from.
 
 ### Added
 
+- **Integer columns, and branch and bound to solve them.**
+  `jaos_set_col_integer`, MPS `MARKER` pairs and `BV`/`LI`/`UI` bounds, LP
+  `General` and `Binary` sections, all read and written back. A model with
+  an integer column solves by the plain Land-Doig scheme over the dual
+  simplex in `src/mip.c`, warm from the parent, best bound first; no cuts,
+  no heuristics. `jaos_mip_result`, `jaos_mip_incumbent`, `jaos_set_mip_gap`;
+  the checker gains `max_integrality_violation`; `jaos solve` prints
+  `nodes` and `bound`; Python `add_var(integer=True)` (D288).
+
 - **A proved basis gives its coordinates exactly.** After `jaos_verify`
   proves the answer, `jaos_exact_col_value`, `jaos_exact_row_dual` and
   `jaos_exact_objective` return every value as a decimal rational with no

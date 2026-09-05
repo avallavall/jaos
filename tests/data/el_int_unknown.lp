@@ -1,7 +1,7 @@
 Minimize
- x + y
-Subject To
- c: x + y >= 1
-General
  x
+Subject To
+ c: x >= 1
+General
+ w
 End

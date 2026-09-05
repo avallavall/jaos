@@ -295,6 +295,7 @@ and you have the argument. Jump to the entry for the numbers behind it.
 - **[D285](#d285--the-solution-file-carries-the-certificate-behind-an-infeasible-or-unbounded-answer-and-check-judges-it-from-the-model-alone)** — The solution file carries the certificate behind an infeasible or unbounded answer, and `check` judges it from the model alone
 - **[D286](#d286--a-proved-basis-gives-its-coordinates-exactly-and-that-is-an-exact-answer-for-the-bases-the-proof-reaches-not-an-exact-solver)** — A proved basis gives its coordinates exactly, and that is an exact answer for the bases the proof reaches, not an exact solver
 - **[D287](#d287--a-model-copies-whole-answer-excluded-so-a-what-if-or-a-branch-starts-from-the-basis-and-not-from-nothing)** — A model copies whole, answer excluded, so a what-if or a branch starts from the basis and not from nothing
+- **[D288](#d288--integer-columns-solve-by-branch-and-bound-over-the-dual-simplex-warm-from-the-parent-best-bound-first-and-nothing-else-yet)** — Integer columns solve by branch and bound over the dual simplex, warm from the parent, best bound first, and nothing else yet
 
 ---
 
@@ -21214,3 +21215,32 @@ is the same call.
 byte-identical. `tests/test_model.c` copies a solved, named model, checks
 every array, name and setting, solves the copy to the same objective bit
 for bit, and changes the copy to show the original untouched.
+
+## D288 — Integer columns solve by branch and bound over the dual simplex, warm from the parent, best bound first, and nothing else yet
+
+**The gap.** Both readers refused an integer marker "until MILP support
+lands", the feature matrix had JAOS absent from its whole mixed-integer
+column, and the README said so.
+
+**What it does now.** `jaos_set_col_integer` marks a column, both readers
+set it from the file (MPS `MARKER` pairs and `BV`, `LI`, `UI` bounds; LP
+`General` and `Binary` sections), both writers print it back, and a solve
+with any integer column runs `jm_branch_and_bound` in `src/mip.c`: the
+plain Land-Doig scheme as Wolsey states it, a node's relaxation solved on
+one private copy re-bounded per node and warm from its parent's basis,
+pruned when infeasible or no better than the incumbent, branched on its
+most fractional column, nodes taken best bound first with creation order
+breaking ties, so the search is the same on every machine (D8). No cuts
+and no heuristics: each keeps its claim of absence in `docs/claims.txt`.
+The answer is the incumbent's point with the relaxation's duals and basis,
+which is what every solver reports for a MIP; `jaos_mip_result` says what
+the tree cost and `jaos_mip_incumbent` reads a point a budget stop left
+short of a proof. The checker judges integrality like a bound.
+
+**Evidence.** No LP path is touched and all three gate sets are
+byte-identical. The oracle is enumeration by hand: the three-item knapsack
+whose relaxation is worth 10.67 answers 9, the model whose relaxation is
+1.5 answers 1 after branching, the integer column boxed in [0.2, 0.8] is
+INFEASIBLE, and two solves of the same tree agree node for node and bit
+for bit. What is not measured yet is any integer instance set; the two
+constants are listed in `docs/tolerances.md` with that said.

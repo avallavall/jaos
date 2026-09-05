@@ -568,11 +568,24 @@ jaos_status jaos_check_solution(const jaos_model *m,
                             viol / max2(1.0, traffic[i]));
     }
 
+    /* Integrality (D288): the distance to the nearest integer, judged like
+     * a bound. A model with no integer column reads 0 here. */
+    double int_viol = 0.0;
+    if (m->col_integer != nullptr)
+        for (int64_t j = 0; j < m->num_col; j++)
+            if (m->col_integer[j]) {
+                const double f = fabs(col_value[j] - round(col_value[j]));
+                if (f > int_viol)
+                    int_viol = f;
+            }
+    out->max_integrality_violation = int_viol;
+
     out->max_col_violation = col_viol;
     out->max_row_violation = row_viol;
     out->max_row_violation_relative = row_viol_rel;
     out->primal_objective = pobj;
-    out->primal_feasible = col_viol <= tol && row_viol <= tol;
+    out->primal_feasible = col_viol <= tol && row_viol <= tol &&
+                           int_viol <= tol;
 
     /* Dual side, minimize-canonical. */
     if (row_dual != nullptr) {

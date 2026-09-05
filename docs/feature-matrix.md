@@ -43,7 +43,7 @@ since 2026-08-13; only patch levels did.*
 | Linear programming (LP) | ● | ● | ● | ● | ● | ● | ● |
 | Quadratic programming (QP) | ○ | ● | ○ | ○ | ● | ● | ● |
 | Quadratically constrained (QCP, SOCP) | ○ | ○ | ○ | ○ | ● | ● | ● |
-| Mixed-integer linear (MILP) | ○ | ● | — | — | ● | ● | ● |
+| Mixed-integer linear (MILP) | ◐ | ● | — | — | ● | ● | ● |
 | Mixed-integer quadratic (MIQP, MIQCP) | ○ | ○ | — | — | ● | ● | ● |
 | Nonlinear (NLP) | ○ | ○ | — | — | ● | ● | ● |
 | Mixed-integer nonlinear (MINLP) | ○ | ○ | — | — | ● | ● | ● |
@@ -141,7 +141,7 @@ on a work-unit measurement.
 
 | | JAOS | HiGHS | SoPlex | Clp | SCIP | Gurobi | Hexaly |
 |---|---|---|---|---|---|---|---|
-| Branch and bound | ○ | ● | — | — | ● | ● | ● |
+| Branch and bound | ● | ● | — | — | ● | ● | ● |
 | Cutting planes | ○ | ● | — | — | ● | ● | ● |
 | Primal heuristics | ○ | ● | — | — | ● | ● | ● |
 | Solution pool | ○ | ○ | — | — | ● | ● | ● |

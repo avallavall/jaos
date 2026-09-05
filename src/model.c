@@ -58,6 +58,8 @@ static void model_release_arrays(jaos_model *m)
     jm_model_drop_exact(m);
     jm_model_take_names(m, nullptr, nullptr, nullptr);
     free(m->model_name);
+    free(m->col_integer);
+    free(m->mip_inc_x);
     /* The problem goes; the configuration stays. Saved as one object rather
      * than field by field (D78). */
     const jm_config cfg = m->cfg;
@@ -475,6 +477,10 @@ static void model_answer_is_stale(jaos_model *m)
     free(m->sol_ray);        m->sol_ray = nullptr;
     m->ray_ok = false;
     jm_model_drop_exact(m);
+    free(m->mip_inc_x);      m->mip_inc_x = nullptr;
+    m->mip_has_incumbent = false;
+    m->mip_nodes = m->mip_solves = 0;
+    m->mip_bound = 0.0;
     m->solve_status = JAOS_SOLVE_NOT_RUN;
     m->objective = 0.0;
     m->solve_work = 0;
@@ -812,7 +818,53 @@ jaos_status jaos_solve(jaos_model *m)
     m->err[0] = '\0';
     /* A proof was about the previous answer. */
     jm_model_drop_exact(m);
+    /* An integer column sends the whole model through branch and bound
+     * (D288); the relaxations it solves come back here with none. */
+    if (jm_model_has_integer(m))
+        return jm_branch_and_bound(m);
     return jm_dual_simplex(m);
+}
+
+/* --------------------------------------------------------------------- */
+/* Integer columns (D288)                                                */
+/* --------------------------------------------------------------------- */
+
+jaos_status jaos_set_col_integer(jaos_model *m, int64_t j, bool is_integer)
+{
+    if (m == nullptr || j < 0 || j >= m->num_col)
+        return JAOS_ERR_INVALID_INPUT;
+    if (m->col_integer == nullptr) {
+        if (!is_integer)
+            return JAOS_OK;
+        m->col_integer = jm_calloc_array(m->num_col, sizeof(bool));
+        if (m->col_integer == nullptr)
+            return JAOS_ERR_OUT_OF_MEMORY;
+    }
+    if (m->col_integer[j] != is_integer) {
+        m->col_integer[j] = is_integer;
+        model_answer_is_stale(m);
+    }
+    return JAOS_OK;
+}
+
+jaos_status jaos_col_integer(const jaos_model *m, int64_t j, bool *is_integer)
+{
+    if (m == nullptr || is_integer == nullptr || j < 0 || j >= m->num_col)
+        return JAOS_ERR_INVALID_INPUT;
+    *is_integer = m->col_integer != nullptr && m->col_integer[j];
+    return JAOS_OK;
+}
+
+jaos_status jaos_set_mip_gap(jaos_model *m, double gap)
+{
+    if (m == nullptr)
+        return JAOS_ERR_INVALID_INPUT;
+    if (!(gap >= 0.0) || !isfinite(gap)) {
+        jm_set_err(m, "the MIP gap must be finite and non-negative");
+        return JAOS_ERR_INVALID_INPUT;
+    }
+    m->cfg.mip_gap = gap;
+    return JAOS_OK;
 }
 
 jaos_solve_status jaos_status_of(const jaos_model *m)
@@ -1509,12 +1561,23 @@ jaos_status jaos_add_cols(jaos_model *m, int64_t num_new,
     }
 
     /* The names of the columns already here stay; the new ones arrive
-     * unnamed. Grown before anything is swapped, so a failure leaves the
-     * model as it was. */
+     * unnamed, and continuous. Grown before anything is swapped, so a
+     * failure leaves the model as it was. */
     if (names_grow(&m->col_name, m->num_col, num_new) != JAOS_OK) {
         free(arriving);
         free(cost); free(cl); free(cu); free(as); free(ai); free(av);
         return JAOS_ERR_OUT_OF_MEMORY;
+    }
+    if (m->col_integer != nullptr) {
+        bool *p = realloc(m->col_integer, (size_t)ncol * sizeof *p);
+        if (p == nullptr) {
+            free(arriving);
+            free(cost); free(cl); free(cu); free(as); free(ai); free(av);
+            return JAOS_ERR_OUT_OF_MEMORY;
+        }
+        for (int64_t j = m->num_col; j < ncol; j++)
+            p[j] = false;
+        m->col_integer = p;
     }
 
     free(m->col_cost);  free(m->col_lower); free(m->col_upper);
@@ -1744,6 +1807,12 @@ jaos_status jaos_delete_cols(jaos_model *m, int64_t num_del,
                 m->start_col_status[at++] = m->start_col_status[j];
     }
     names_compact(m->col_name, keep, m->num_col);
+    if (m->col_integer != nullptr) {
+        int64_t at = 0;
+        for (int64_t j = 0; j < m->num_col; j++)
+            if (keep[j])
+                m->col_integer[at++] = m->col_integer[j];
+    }
     free(keep);
 
     free(m->col_cost);  free(m->col_lower); free(m->col_upper);
@@ -1953,6 +2022,14 @@ jaos_status jaos_model_copy(const jaos_model *src, jaos_model **out)
     if (src->model_name != nullptr &&
         (m->model_name = jm_name_copy(src->model_name)) == nullptr)
         goto oom;
+    if (src->col_integer != nullptr) {
+        m->col_integer = malloc((size_t)(src->num_col > 0 ? src->num_col : 1)
+                                * sizeof *m->col_integer);
+        if (m->col_integer == nullptr)
+            goto oom;
+        memcpy(m->col_integer, src->col_integer,
+               (size_t)src->num_col * sizeof *m->col_integer);
+    }
 
     /* Settings travel whole, callbacks and their user pointers included:
      * the copy is the caller's, and what they installed on the source is

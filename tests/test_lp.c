@@ -254,7 +254,7 @@ static void expect_reject(const char *path, const char *needle)
 
 static void test_rejection_reasons_are_specific(void)
 {
-    expect_reject("tests/data/el_int.lp", "integer");
+    expect_reject("tests/data/el_int_unknown.lp", "not a variable");
     expect_reject("tests/data/el_rangedir.lp", "same way");
     expect_reject("tests/data/el_bounddir.lp", "same way");
     expect_reject("tests/data/el_unkbound.lp", "unknown variable");
@@ -264,7 +264,7 @@ static void test_rejection_reasons_are_specific(void)
 
 static void test_rejections_carry_line_numbers(void)
 {
-    expect_reject("tests/data/el_int.lp", "line 5");
+    expect_reject("tests/data/el_int_unknown.lp", "line 6");
     expect_reject("tests/data/el_rangedir.lp", "line 4");
     /* The line of the FIRST operator, which is where the pair goes wrong;
      * the parser has already read past the second by the time it knows. */

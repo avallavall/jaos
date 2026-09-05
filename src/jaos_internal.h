@@ -37,6 +37,10 @@ typedef struct {
      * API: in-tree tooling built with `-Isrc` reaches it (D64).
      * `jaos_model_new` calloc's the model, so the default is the dual. */
     bool force_primal;
+
+    /* The relative gap that closes a branch and bound; <= 0 means
+     * MIP_GAP (src/mip.c). */
+    double mip_gap;
 } jm_config;
 
 /* Name -> value map for the readers and for lookup by name: FNV-1a, open
@@ -92,6 +96,19 @@ struct jaos_model {
     char *model_name;
     bool name_map_valid;
     jm_nmap col_map, row_map;
+
+    /* Which columns are integer (D288): nullptr until one is, then
+     * [num_col]. Rides through add and delete like a name. A solve with any
+     * true entry goes to jm_branch_and_bound. */
+    bool *col_integer;
+    /* What the last branch and bound did: nodes solved, relaxations solved,
+     * the best bound in the model's sense, and the incumbent when a stop
+     * left one short of a proof. */
+    int64_t mip_nodes, mip_solves;
+    double mip_bound;
+    bool mip_has_incumbent;
+    double mip_inc_obj;
+    double *mip_inc_x;       /* [num_col] or nullptr */
 
     /* Constraint matrix, compressed sparse column; entries within a column
      * sorted by row index, no duplicates, no explicit zeros. This is the
@@ -335,6 +352,11 @@ bool jm_lp_name_ok(const char *s);
 /* Frees the exact values a proof left on the model (src/verify.c). Called
  * by everything that drops the answer. */
 void jm_model_drop_exact(jaos_model *m);
+
+/* Branch and bound (src/mip.c, D288): jaos_solve's path when any column is
+ * integer. Writes the outcome back like jm_dual_simplex does. */
+JAOS_NODISCARD jaos_status jm_branch_and_bound(jaos_model *m);
+bool jm_model_has_integer(const jaos_model *m);
 
 /* Reads a whole input file. A file that starts with the gzip magic is
  * inflated by src/inflate.c; any other file comes back byte for byte. On
