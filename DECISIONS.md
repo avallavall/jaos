@@ -285,6 +285,7 @@ and you have the argument. Jump to the entry for the numbers behind it.
 - **[D275](#d275--the-verifiers-refusal-is-the-capacity-constant-and-not-the-mathematics-and-widening-it-is-bought-with-block-size)** — The verifier's refusal is the capacity constant and not the mathematics, and widening it is bought with block size
 - **[D276](#d276--lp-could-always-express-a-row-with-no-coefficients-and-the-refusal-that-said-otherwise-cost-34-of-the-139)** — LP could always express a row with no coefficients, and the refusal that said otherwise cost 34 of the 139
 - **[D277](#d277--the-checkers-dual-half-is-compensated-double-now-no-verdict-moves-and-the-review-found-an-overflow-that-aborts)** — The checker's dual half is compensated `double` now, no verdict moves, and the review found an overflow that aborts
+- **[D278](#d278--the-lp-reader-told-the-caller-to-do-arithmetic-it-could-do-itself-and-folding-it-moved-nothing-else)** — The LP reader told the caller to do arithmetic it could do itself, and folding it moved nothing else
 
 ---
 
@@ -20847,3 +20848,48 @@ than 64 mantissa bits -- 1e25, 1.0, -1e25, which the wide type answers 0 and
 the compensated pair answers exactly 1 -- one on the dual objective and one
 on `jaos_check_ray`'s rate. Both fail against HEAD's checker. The third is
 the overflow above. `bench/measurements/02-182/validate-d277.txt` is the run.
+
+## D278 — The LP reader told the caller to do arithmetic it could do itself, and folding it moved nothing else
+
+**The refusal.** `src/lpfmt.c` read a bare number inside a constraint
+expression and said `constant term in a constraint; fold it into the
+right-hand side`. That message names the whole fix: `3x + 5 <= 10` and
+`3x <= 5` are the same constraint, the fold is one subtraction, and nothing
+about the first form is ambiguous. The objective already folded its own
+constants into `obj_offset`; the constraint path was the one that did not.
+
+**What it does now.** `parse_expr` collects the constants a constraint's
+expression carries and the caller subtracts them from the right-hand side.
+On a two-sided row **both ends shift by it**, subtracted once at one place
+so the two ends cannot move by different amounts. A signed number at the
+head of a constraint is still a left-hand bound when a relation follows it,
+so `3 x + y >= 2` keeps its `3` as a coefficient; where a `+` follows
+instead, the parser pushes the number back with its sign folded in and it
+arrives as an ordinary constant. That is `c2` in the test file and it is the
+route that would have been missed.
+
+**The measurement is that nothing else moved**
+(`bench/measurements/02-183/`). 02-138's coverage instrument, unchanged,
+over all 139 gate instances: 138 round-trip through the LP writer, 1 is
+refused, 0 differ, and the breakdown by first cause is identical to D276's
+— 0 ranged, 1 free row, 0 empty row, 0 orphan column, 0 other. The writer
+never emits a constant inside a constraint, so nothing it produces takes the
+new path, and a table that had moved would have been the finding. All three
+gate sets are byte-identical.
+
+**The test has two arms and the second is the one worth having.**
+`tests/data/g_const.lp` has one constraint per route through the parser:
+after the terms, before them and negative, inside a range, and two of them
+on an equality. Against HEAD's reader the test fails at its first assertion,
+because HEAD refuses the file outright. The second arm asks whether the
+change is NARROW: a reader that accepted a constant by loosening the term
+rule would take other refusals with it, so both rejection suites must stay
+green — `el_int`, `el_rangedir`, `el_unkbound`, `el_badchar` and `el_noend`
+are still refused, each with its own message and its own line number.
+
+**And it found a stale claim in the record.** `docs/format-support.md` still
+said ranged constraints were "recognized and rejected with a message", which
+D239 closed. The same family of drift D265 found and fixed in two other
+files; this is the third. `docs/claims.txt` cannot see it, because the claim
+is about what the reader refuses and no symbol goes missing when it stops
+refusing.

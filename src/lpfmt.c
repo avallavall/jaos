@@ -281,10 +281,18 @@ static bool get_or_create_col(lp *p, const char *name, int64_t *out)
  * (bare constants allowed); row >= 0 appends entries for that row, merging
  * repeated variables. Afterwards p->tok is the first token past the
  * expression. Zero terms is acceptable only for the objective. */
-static jaos_status parse_expr(lp *p, int64_t row)
+static jaos_status parse_expr(lp *p, int64_t row, double *konst)
 {
     jaos_status st = JAOS_OK;
     bool any = false;
+
+    /* What the bare numbers in the expression added up to. The objective
+     * folds them into `obj_offset` here; a constraint's caller folds them
+     * into the right-hand side, which is the only place they can go (D278).
+     * Summed in the order the file lists them, which is what makes two
+     * readings of one file agree (D8). */
+    if (konst != nullptr)
+        *konst = 0.0;
 
     for (;;) {
         double sign = 1.0;
@@ -329,10 +337,16 @@ static jaos_status parse_expr(lp *p, int64_t row)
             if ((st = lx_next(p)) != JAOS_OK)
                 goto done;
         } else if (have_num) {
+            /* A bare number. In the objective it is the offset; in a
+             * constraint it moves to the other side of the relation, with
+             * its sign flipped, which is what the caller does with what
+             * this collects. Refused until D278, which is a refusal the
+             * reader never needed: `3x + 5 <= 10` and `3x <= 5` are the
+             * same constraint and nothing about the first is ambiguous. */
             if (row >= 0)
-                FAIL("line %" PRId64 ": constant term in a constraint; fold "
-                     "it into the right-hand side", p->tok.line);
-            p->offset += coef;
+                *konst += coef;
+            else
+                p->offset += coef;
         } else if (have_sign) {
             FAIL("line %" PRId64 ": expected a term after the sign",
                  p->tok.line);
@@ -405,7 +419,7 @@ static jaos_status parse(lp *p)
             lx_push(p, &saved);
         }
     }
-    if ((st = parse_expr(p, -1)) != JAOS_OK)
+    if ((st = parse_expr(p, -1, nullptr)) != JAOS_OK)
         goto done;
 
     /* SUBJECT TO | SUCH THAT | ST | S.T. */
@@ -482,7 +496,8 @@ static jaos_status parse(lp *p)
             }
         }
 
-        if ((st = parse_expr(p, row)) != JAOS_OK)
+        double konst = 0.0;
+        if ((st = parse_expr(p, row, &konst)) != JAOS_OK)
             goto done;
 
         toktype rel = p->tok.t;
@@ -511,6 +526,14 @@ static jaos_status parse(lp *p)
         if (p->tok.t == T_LE || p->tok.t == T_GE)
             FAIL("line %" PRId64 ": a third bound on one constraint",
                  p->tok.line);
+
+        /* A constant inside the expression moves to the other side, so
+         * every bound this row gets shifts by it -- BOTH ends of a ranged
+         * row, because the constant sits between them (D278). Subtracted
+         * once here rather than at each use, so the two ends of a range
+         * cannot be shifted by different amounts. */
+        rhs -= konst;
+        lo_val -= konst;
 
         if (ranged) {
             /* Both operators must point the same way, so the pair really is

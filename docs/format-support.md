@@ -102,8 +102,14 @@ CPLEX-style core dialect, token-stream parsed: expressions wrap lines freely.
 - **Objective**: optional label (`obj:`); bare constants allowed and add to
   the objective offset; may be empty.
 - **Constraints**: optional label; linear expression, one of `<= < =< >= >
-  => =`, then a number. Constants inside the expression and ranged
-  (two-sided) constraints are recognized and rejected with a message.
+  => =`, then a number. **A ranged (two-sided) constraint** `l <= expr <= u`
+  reads as one row with two ends (D239); the two operators must point the
+  same way. **A constant inside the expression** moves to the other side of
+  the relation with its sign flipped, so `3x + 5 <= 10` is the row
+  `3x <= 5`; on a two-sided row both ends shift by it (D278). A signed
+  number at the head of a constraint is a left-hand bound only when a
+  relation follows it, so the `3` in `3 x + y >= 2` is still a
+  coefficient.
 - **Bounds** forms: `l <= x <= u`, `l <= x`, `x <= u`, `x >= l`, `x = v`,
   `x free`; `inf`/`infinity` with optional sign as values. Later statements
   override earlier ones component-wise. Bounds on a variable that appears
@@ -188,7 +194,10 @@ points at `jaos_write_mps`, which takes the same model:
 
 Two others were on this list and both closed. A ranged row until D239: the
 reader learned the two-sided form and the row reads back as one row with two
-ends. **A row with no coefficients until D276**, and that one closed by
+ends. A third was on the READER's list and closed the same way: a constant
+inside a constraint expression, refused until D278 by a rule the reader
+never needed, because `3x + 5 <= 10` and `3x <= 5` are the same constraint
+and nothing about the first is ambiguous. **A row with no coefficients until D276**, and that one closed by
 re-reading the refusal rather than by teaching anything. The format has no
 form for an empty constraint BODY, which is what the note here said, and an
 ordinary form for a term whose coefficient is zero, which is what it missed.
@@ -199,8 +208,12 @@ objective, where every column appears whatever its cost.
 **138 of the 139 gate instances round-trip through the LP writer, 1 is
 refused and 0 differ** (`bench/measurements/02-181/lpcover.txt`, D276). It
 was 104 and 35 at D265 (`02-172`), and 02-138's own file is the D226 reading,
-taken before D239; all three are left as they were, because one file cannot
-carry three trees.
+taken before D239; all four are left as they were, because one file cannot
+carry four trees. D278 re-took the same reading after the reader change and
+got the same three numbers and the same single refusal
+(`bench/measurements/02-183/lpcover.txt`), which is what a change to the
+reader alone should do: the writer never emits a constant inside a
+constraint, so nothing it produces takes the new path.
 
 Expressions are wrapped at 72 characters, which the reader does not care
 about and a person reading the file does.

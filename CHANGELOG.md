@@ -93,6 +93,16 @@ open, `bench/README.md` for the gate, and the commit each entry came from.
 
 ### Changed
 
+- **The LP reader folds a constant inside a constraint** into the
+  right-hand side with its sign flipped, so `3x + 5 <= 10` is the row
+  `3x <= 5`; on a two-sided row both ends shift by it. It used to refuse
+  one and tell the caller to do the subtraction. A signed number at the
+  head of a constraint is still a left-hand bound where a relation follows
+  it, so `3 x + y >= 2` keeps its `3` as a coefficient. LP round-trip
+  coverage over the 139 gate instances is unchanged at 138 / 1 refused /
+  0 differ, with the same single free row as its cause, and all three gate
+  sets are byte-identical (D278, `bench/measurements/02-183/`).
+
 - **The checker computes every figure in `double` now.** D270 converted its
   primal walk; this finishes the file -- the dual walk's objective and both
   gap halves, the reduced cost, `certified_step`, `implied_bounds`'s two

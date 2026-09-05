@@ -1,0 +1,24 @@
+# D278 -- does the new test catch what it was written for?
+# date: 2026-09-05T10:09:04Z
+# tree: 8d19533
+
+== candidate: the reader folds a constant
+tests/test_lp.c:234:test_a_constant_in_a_constraint_folds_into_the_rhs:PASS
+tests/test_lp.c:235:test_rejection_reasons_are_specific:PASS
+tests/test_lp.c:236:test_rejections_carry_line_numbers:PASS
+exit=0
+
+== HEAD: the reader refuses one
+tests/test_lp.c:155:test_a_constant_in_a_constraint_folds_into_the_rhs:FAIL: Expected 0 Was 1
+tests/test_lp.c:235:test_rejection_reasons_are_specific:PASS
+tests/test_lp.c:236:test_rejections_carry_line_numbers:PASS
+exit=1
+
+== restored
+tests/test_lp.c:234:test_a_constant_in_a_constraint_folds_into_the_rhs:PASS
+tests/test_lp.c:235:test_rejection_reasons_are_specific:PASS
+tests/test_lp.c:236:test_rejections_carry_line_numbers:PASS
+exit=0
+
+the test is red without the change, and no refusal moved with it
+verdict-exit=0

@@ -109,7 +109,7 @@ when it closes.
 | `RANGES` with per-row-type semantics | **done** | |
 | All `BOUNDS` types, `OBJSENSE`, objective constant | **done** | |
 | Unsupported constructs rejected with a line number | **done** | SOS by name and any unrecognised section by name, each with its line number; never silently skipped |
-| LP format | **partial** | CPLEX-style core. **Missing:** everything outside the subset `docs/format-support.md` lists |
+| LP format | **partial** | CPLEX-style core. A ranged row reads as one row with two ends (D239), and a constant inside a constraint expression folds into the right-hand side, both ends of a two-sided row shifting by it (D278, `bench/measurements/02-183/`). **Missing:** everything outside the subset `docs/format-support.md` lists |
 | Locale-independent number parsing | **done** | own, because `strtod` under a comma-decimal locale corrupts instances |
 | Direct load from CSC arrays | **done** | `jaos_load_lp` |
 | Compressed input (`.gz`) | **done** | gzip over DEFLATE, written here in `src/inflate.c`; both readers detect it from the file itself, not from the name |

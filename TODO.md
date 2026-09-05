@@ -7,6 +7,18 @@ line leaves this file in the same commit.
 
 ## Where the last session stopped — 2026-09-03
 
+**2026-09-05, after D277: the LP reader stopped asking the caller to do its
+arithmetic (D278, `bench/measurements/02-183/`).** A bare number inside a
+constraint expression was refused with a message that named the fix. It is
+folded now, both ends of a two-sided row with it. Nothing else moved: LP
+round-trip coverage is 138 / 1 / 0 as at D276, and all three gate sets are
+byte-identical. **It found a stale claim while it was there**:
+`docs/format-support.md` still said ranged constraints were rejected, which
+D239 closed. That is the third file in this family to drift and the second
+time it was found by accident rather than by a check. `docs/claims.txt`
+cannot see this class, because nothing goes missing when a reader stops
+refusing something.
+
 **2026-09-05: the checker is `long double`-free, and the review found an
 abort the campaign could not (D277, `bench/measurements/02-182/`).** The
 last item on the "open and needs no decision" list below is closed. The
