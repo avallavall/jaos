@@ -30,6 +30,7 @@
 
 #include <float.h>
 #include <math.h>
+#include <stdlib.h>
 #include <string.h>
 
 void setUp(void) {}
@@ -1012,6 +1013,70 @@ static void test_a_comparison_that_does_not_fit_says_so(void)
     TEST_ASSERT_EQUAL_INT(0, ord);
 }
 
+/* ------------------------------------------------------ decimal spelling */
+
+/* jm_rational_decimal against printf on the values C's integers can spell,
+ * and against arithmetic by hand where they cannot: 2^100 and 10^30 are
+ * known digit strings, and the denominator's presence is the one thing
+ * the rational form adds. */
+static void test_a_rational_spells_itself_in_decimal(void)
+{
+    struct { int64_t num; int64_t den; const char *want; } small[] = {
+        {0, 1, "0"}, {1, 1, "1"}, {-1, 1, "-1"}, {7, 3, "7/3"},
+        {-7, 3, "-7/3"}, {6, 4, "3/2"}, {1000000000, 1, "1000000000"},
+        {999999999, 1, "999999999"}, {1000000001, 9, "1000000001/9"},
+        {INT64_MAX, 1, "9223372036854775807"},
+        {INT64_MIN + 1, 1, "-9223372036854775807"},
+    };
+    for (size_t k = 0; k < sizeof small / sizeof *small; k++) {
+        jm_rational a, b, r;
+        jm_rational_set_i64(&a, small[k].num);
+        jm_rational_set_i64(&b, small[k].den);
+        TEST_ASSERT_TRUE(jm_rational_div(&r, &a, &b));
+        char *s = jm_rational_decimal(&r);
+        TEST_ASSERT_NOT_NULL(s);
+        TEST_ASSERT_EQUAL_STRING(small[k].want, s);
+        free(s);
+    }
+
+    /* 2^100 = 1267650600228229401496703205376, and 1/2^100 keeps the
+     * denominator; 10^30 crosses several 10^9 chunks with zeros inside,
+     * which is the padding case. */
+    jm_rational p;
+    jm_rational_set_i64(&p, 1);
+    TEST_ASSERT_TRUE(jm_nat_shl(&p.num.mag, &p.num.mag, 100));
+    p.num.sign = 1;
+    char *s = jm_rational_decimal(&p);
+    TEST_ASSERT_NOT_NULL(s);
+    TEST_ASSERT_EQUAL_STRING("1267650600228229401496703205376", s);
+    free(s);
+    jm_rational one, inv;
+    jm_rational_set_i64(&one, 1);
+    TEST_ASSERT_TRUE(jm_rational_div(&inv, &one, &p));
+    s = jm_rational_decimal(&inv);
+    TEST_ASSERT_NOT_NULL(s);
+    TEST_ASSERT_EQUAL_STRING("1/1267650600228229401496703205376", s);
+    free(s);
+    jm_rational ten, big;
+    jm_rational_set_i64(&ten, 10);
+    jm_rational_set_i64(&big, 1);
+    for (int e = 0; e < 30; e++)
+        TEST_ASSERT_TRUE(jm_rational_mul(&big, &big, &ten));
+    s = jm_rational_decimal(&big);
+    TEST_ASSERT_NOT_NULL(s);
+    TEST_ASSERT_EQUAL_STRING("1000000000000000000000000000000", s);
+    free(s);
+
+    /* A double's exact value: 0.1 is 3602879701896397/36028797018963968. */
+    jm_rational tenth;
+    TEST_ASSERT_TRUE(jm_rational_from_double(&tenth, 0.1));
+    s = jm_rational_decimal(&tenth);
+    TEST_ASSERT_NOT_NULL(s);
+    TEST_ASSERT_EQUAL_STRING("3602879701896397/36028797018963968", s);
+    free(s);
+}
+
+
 int main(void)
 {
     UNITY_BEGIN();
@@ -1049,5 +1114,6 @@ int main(void)
     RUN_TEST(test_the_evaluator_refuses_what_it_cannot_read);
     RUN_TEST(test_a_refused_walk_does_not_read_as_a_clean_point);
     RUN_TEST(test_a_comparison_that_does_not_fit_says_so);
+    RUN_TEST(test_a_rational_spells_itself_in_decimal);
     return UNITY_END();
 }

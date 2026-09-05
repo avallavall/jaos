@@ -571,6 +571,130 @@ static void test_refuses_a_model_that_was_not_solved(void)
     jaos_model_free(m);
 }
 
+/* ------------------------------------------------------- the exact values */
+
+/* min x  s.t.  3x >= 1, x >= 0: the optimum is x = 1/3, the row's dual
+ * 1/3, the objective 1/3, none of them a double. The oracle is arithmetic
+ * by hand. */
+static jaos_model *model_third(jaos_obj_sense sense)
+{
+    jaos_model *m = nullptr;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_model_new(&m));
+    const double cost[1] = { sense == JAOS_MINIMIZE ? 1.0 : -1.0 };
+    const double cl[1] = { 0.0 }, cu[1] = { INFINITY };
+    const double rl[1] = { 1.0 }, ru[1] = { INFINITY };
+    const int64_t start[2] = { 0, 1 }, index[1] = { 0 };
+    const double value[1] = { 3.0 };
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_load_lp(m, 1, 1, sense, 0.5, cost, cl, cu, rl, ru,
+                     1, start, index, value));
+    return m;
+}
+
+static void test_a_proved_basis_gives_its_values_exactly(void)
+{
+    jaos_model *m = model_third(JAOS_MINIMIZE);
+    const char *v = nullptr;
+    /* Nothing before a proof, and nothing after a solve alone. */
+    TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT, jaos_exact_col_value(m, 0, &v));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT, jaos_exact_objective(m, &v));
+    TEST_ASSERT_NOT_NULL(strstr(jaos_model_error(m), "jaos_verify"));
+
+    jaos_verify_report rep;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_verify(m, &rep));
+    TEST_ASSERT_EQUAL_INT(JAOS_PROOF_OPTIMAL, rep.status);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_exact_col_value(m, 0, &v));
+    TEST_ASSERT_EQUAL_STRING("1/3", v);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_exact_row_dual(m, 0, &v));
+    TEST_ASSERT_EQUAL_STRING("1/3", v);
+    /* 1/3 + 1/2 = 5/6, the constant summed exactly. */
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_exact_objective(m, &v));
+    TEST_ASSERT_EQUAL_STRING("5/6", v);
+    /* And the floating answer agrees to a rounding, which is what the
+     * exact one is for: the double is 0.8333..., the rational is 5/6. */
+    double obj = 0.0;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(m, &obj));
+    TEST_ASSERT_DOUBLE_WITHIN(1e-12, 5.0 / 6.0, obj);
+
+    /* Out of range, and a null out. */
+    TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT, jaos_exact_col_value(m, 1, &v));
+    TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT, jaos_exact_row_dual(m, -1, &v));
+    TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT, jaos_exact_col_value(m, 0, nullptr));
+
+    /* A modification drops them: the proof was about the old model. */
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_col_cost(m, 0, 2.0));
+    TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT, jaos_exact_col_value(m, 0, &v));
+    jaos_model_free(m);
+}
+
+static void test_exact_values_carry_the_model_s_own_sign(void)
+{
+    /* max -x with the same row: the same point, x = 1/3, objective
+     * -1/3 + 1/2 = 1/6, and the dual in the model's convention. For a
+     * maximum the checker's signs flip, so the row at its lower bound
+     * carries y <= 0: -1/3. */
+    jaos_model *m = model_third(JAOS_MAXIMIZE);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+    jaos_verify_report rep;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_verify(m, &rep));
+    TEST_ASSERT_EQUAL_INT(JAOS_PROOF_OPTIMAL, rep.status);
+    const char *v = nullptr;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_exact_col_value(m, 0, &v));
+    TEST_ASSERT_EQUAL_STRING("1/3", v);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_exact_objective(m, &v));
+    TEST_ASSERT_EQUAL_STRING("1/6", v);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_exact_row_dual(m, 0, &v));
+    TEST_ASSERT_EQUAL_STRING("-1/3", v);
+    /* And the published double dual carries the same sign -- except under
+     * the wrong-dual fault build, whose whole purpose is a published dual
+     * of the wrong sign; the exact one above comes from the proof and is
+     * right either way. */
+#if !defined(JAOS_PRESOLVE_FAULT_WRONGDUAL)
+    double y[1];
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solution(m, nullptr, nullptr, y, nullptr));
+    TEST_ASSERT_TRUE(y[0] < 0.0);
+#endif
+    jaos_model_free(m);
+}
+
+static void test_a_nonbasic_column_reads_its_bound_and_the_two_by_two_its_solve(void)
+{
+    /* min -x - 2y  s.t.  x + y <= 4,  x <= 3: the optimum is unique, y = 4
+     * basic, x = 0 nonbasic at its lower bound, objective -8, the row's
+     * dual -2. model_two's optimum is a whole edge and the solver may stop
+     * at either end of it, which is why this is not model_two. */
+    jaos_model *m = nullptr;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_model_new(&m));
+    const double cost[2] = { -1.0, -2.0 }, cl[2] = { 0.0, 0.0 };
+    const double cu[2] = { 3.0, INFINITY }, rl[1] = { -INFINITY }, ru[1] = { 4.0 };
+    const int64_t start[3] = { 0, 1, 2 }, index[2] = { 0, 0 };
+    const double value[2] = { 1.0, 1.0 };
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_load_lp(m, 2, 1, JAOS_MINIMIZE, 0.0, cost, cl, cu, rl, ru,
+                     2, start, index, value));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    jaos_verify_report rep;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_verify(m, &rep));
+    TEST_ASSERT_EQUAL_INT(JAOS_PROOF_OPTIMAL, rep.status);
+    const char *v = nullptr;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_exact_col_value(m, 0, &v));
+    TEST_ASSERT_EQUAL_STRING("0", v);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_exact_col_value(m, 1, &v));
+    TEST_ASSERT_EQUAL_STRING("4", v);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_exact_objective(m, &v));
+    TEST_ASSERT_EQUAL_STRING("-8", v);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_exact_row_dual(m, 0, &v));
+    TEST_ASSERT_EQUAL_STRING("-2", v);
+    /* A second solve drops them until the next proof. */
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT, jaos_exact_col_value(m, 0, &v));
+    jaos_model_free(m);
+}
+
+
 int main(void)
 {
     UNITY_BEGIN();
@@ -591,5 +715,8 @@ int main(void)
     RUN_TEST(test_a_unit_basis_costs_no_bits);
     RUN_TEST(test_is_reproducible);
     RUN_TEST(test_refuses_a_model_that_was_not_solved);
+    RUN_TEST(test_a_proved_basis_gives_its_values_exactly);
+    RUN_TEST(test_exact_values_carry_the_model_s_own_sign);
+    RUN_TEST(test_a_nonbasic_column_reads_its_bound_and_the_two_by_two_its_solve);
     return UNITY_END();
 }

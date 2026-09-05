@@ -58,6 +58,7 @@ import enum
 import os
 import sys
 from collections import namedtuple
+from fractions import Fraction
 
 __all__ = [
     "Model", "JaosError", "Status", "SolveStatus", "ObjSense", "LogLevel",
@@ -356,6 +357,12 @@ _sig("jaos_set_row_name", ctypes.c_int, _VP, _I64, _CS)
 _sig("jaos_set_objective_name", ctypes.c_int, _VP, _CS)
 _sig("jaos_col_index", ctypes.c_int, _VP, _CS, _P(_I64))
 _sig("jaos_row_index", ctypes.c_int, _VP, _CS, _P(_I64))
+_sig("jaos_model_name", ctypes.c_int, _VP, ctypes.c_char_p, _I64)
+_sig("jaos_set_model_name", ctypes.c_int, _VP, _CS)
+_sig("jaos_model_copy", ctypes.c_int, _VP, _P(_VP))
+_sig("jaos_exact_col_value", ctypes.c_int, _VP, _I64, _P(_CS))
+_sig("jaos_exact_row_dual", ctypes.c_int, _VP, _I64, _P(_CS))
+_sig("jaos_exact_objective", ctypes.c_int, _VP, _P(_CS))
 _sig("jaos_col_entries", ctypes.c_int, _VP, _I64, _P(_I64), _P(_I64), _P(_D))
 _sig("jaos_row_entries", ctypes.c_int, _VP, _I64, _P(_I64), _P(_I64), _P(_D))
 _sig("jaos_coefficient", ctypes.c_int, _VP, _I64, _I64, _P(_D))
@@ -707,6 +714,29 @@ class Model:
         self._check(_lib.jaos_set_objective_name(self._handle(),
                                                  self._name_arg(name)))
 
+    @property
+    def name(self):
+        """The model's own name: an MPS file's NAME word, "JAOS" until one
+        is given."""
+        return self._name(_lib.jaos_model_name)
+
+    @name.setter
+    def name(self, value):
+        self._check(_lib.jaos_set_model_name(self._handle(),
+                                             self._name_arg(value)))
+
+    def copy(self):
+        """A new Model holding this one's problem, names, settings and
+        starting basis, and not its answer (D287)."""
+        handle = ctypes.c_void_p()
+        self._check(_lib.jaos_model_copy(self._handle(),
+                                         ctypes.byref(handle)))
+        m = Model.__new__(Model)
+        m._m = handle
+        m._log_cb = None
+        m._progress_cb = None
+        return m
+
     def col_index(self, name):
         """The column called `name`, positional names included. Raises
         JaosError when nothing is."""
@@ -722,6 +752,29 @@ class Model:
                                         str(name).encode("utf-8"),
                                         ctypes.byref(out)))
         return out.value
+
+    # -- exact values (D286) -----------------------------------------------
+    #
+    # After verify() proved the basis, every value is on the model as an
+    # exact rational, and comes back as a fractions.Fraction.
+
+    def _exact(self, fn, *args):
+        out = _CS()
+        self._check(fn(self._handle(), *args, ctypes.byref(out)))
+        return Fraction(out.value.decode("ascii"))
+
+    def exact_col_value(self, col):
+        """The exact value of a column at the proved optimum. Raises
+        JaosError until verify() has proved the last answer."""
+        return self._exact(_lib.jaos_exact_col_value, int(col))
+
+    def exact_row_dual(self, row):
+        return self._exact(_lib.jaos_exact_row_dual, int(row))
+
+    def exact_objective(self):
+        """c'x + c0 summed with no rounding. Raises when the sum did not
+        fit the limb budget although the values did."""
+        return self._exact(_lib.jaos_exact_objective)
 
     def _entries(self, fn, k):
         # Two calls, as the header describes: the count, then the arrays.
@@ -1675,6 +1728,14 @@ class Problem:
                      [c._hi for c in self._cons],
                      a_start, a_index, a_value,
                      sense=self._sense, obj_offset=self._obj_c)
+        # The names go with it (D284), so a file written from the Model
+        # and the CLI's output call things what this layer calls them. A
+        # name the library refuses -- whitespace in it -- raises here, at
+        # the solve, with the library's message.
+        for v in self._vars:
+            self._m.set_col_name(v._i, v.name)
+        for c in self._cons:
+            self._m.set_row_name(c._i, c.name)
         self._dirty_var_bounds.clear()
         self._dirty_costs.clear()
         self._dirty_row_bounds.clear()

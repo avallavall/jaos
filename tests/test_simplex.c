@@ -4001,17 +4001,27 @@ static void test_a_bounded_neighbour_of_that_model_is_not_a_ray(void)
                      4, as, ai, av));
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
     TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+    /* The value is read only outside the two presolve fault builds, which
+     * corrupt the postsolved answer on purpose. This one read -1 under the
+     * off-by-one fault by the accident of what lay beyond the array, and
+     * NaN once the model grew a field (D286): the rule every test that
+     * reads a postsolved answer follows, and this one had not. */
     double obj = 0.0;
+#if !defined(JAOS_PRESOLVE_FAULT_OFFBYONE) && !defined(JAOS_PRESOLVE_FAULT_WRONGDUAL)
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(m, &obj));
     TEST_ASSERT_DOUBLE_WITHIN(1e-9, -1.0, obj);
+#endif
 
     m->cfg.force_primal = true;
     jaos_clear_basis(m);
     TEST_ASSERT_EQUAL_INT_MESSAGE(JAOS_OK, jaos_solve(m),
                                   jaos_model_error(m));
     TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+#if !defined(JAOS_PRESOLVE_FAULT_OFFBYONE) && !defined(JAOS_PRESOLVE_FAULT_WRONGDUAL)
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(m, &obj));
     TEST_ASSERT_DOUBLE_WITHIN(1e-9, -1.0, obj);
+#endif
+    (void)obj;
     jaos_model_free(m);
 }
 

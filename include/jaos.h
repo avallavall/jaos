@@ -272,6 +272,28 @@ JAOS_NODISCARD jaos_status jaos_col_index(jaos_model *m, const char *name,
 JAOS_NODISCARD jaos_status jaos_row_index(jaos_model *m, const char *name,
                                           int64_t *row);
 
+/* The model's own name: the first word of an MPS file's NAME line, what
+ * jaos_write_mps prints there, and "JAOS" until one is given. The same
+ * rule as every other name; a load or a read replaces it. */
+JAOS_NODISCARD jaos_status jaos_model_name(const jaos_model *m,
+                                           char *buf, int64_t cap);
+JAOS_NODISCARD jaos_status jaos_set_model_name(jaos_model *m,
+                                               const char *name);
+
+/* A new model holding a copy of this one's problem, names, settings and
+ * starting basis -- and not its answer, which belongs to the solve that
+ * produced it; the copy reads JAOS_SOLVE_NOT_RUN until it is solved (D287).
+ *
+ * Settings travel whole, the callbacks and their user pointers included:
+ * the copy is the caller's, and what they installed on the original is
+ * what they would install on it. The starting basis travels because a
+ * copy exists to be solved somewhere the original is not -- a
+ * branch-and-bound child, a what-if beside the model it came from -- and
+ * that is where a warm start is worth the most. Frees with
+ * jaos_model_free like any other. */
+JAOS_NODISCARD jaos_status jaos_model_copy(const jaos_model *src,
+                                           jaos_model **out);
+
 /* Read the matrix back: one column, one row, or one entry.
  *
  * `count` receives the number of entries. When `index` and `value` are not
@@ -1248,6 +1270,37 @@ typedef struct jaos_verify_report {
  * them. */
 JAOS_NODISCARD jaos_status jaos_verify(jaos_model *m,
                                        jaos_verify_report *out);
+
+/* What a proved basis says the answer IS, exactly (D286).
+ *
+ * After a jaos_verify that returned JAOS_PROOF_OPTIMAL, every column's
+ * value, every row's dual and the objective are on the model as decimal
+ * rationals -- "1/3", "-7/2", "29" -- with no rounding anywhere: a basic
+ * value is what the exact elimination solved, a nonbasic one is the bound
+ * its status names, a dual is the exact multiplier, and the objective is
+ * c'x + c0 summed over those. The duals carry the model's own sign
+ * convention, the one jaos_check_solution documents.
+ *
+ * `*out` points into the model's storage and stays valid until the next
+ * solve, verify, load or modification, all of which drop the values; a
+ * getter after that refuses rather than answering from a stale proof, and
+ * so does one before any proof. The objective alone can be absent beside
+ * present values: its sum can outgrow the limb budget on a model whose
+ * values fitted, and then jaos_exact_objective refuses with a message
+ * saying so.
+ *
+ * This is an exact answer for the bases the proof reaches and not an
+ * exact solver: the simplex found the basis in floating point, the proof
+ * shows it optimal with no tolerance, and these are its coordinates.
+ * SPECS.md section 5 says how many of the reference bases that is. */
+JAOS_NODISCARD jaos_status jaos_exact_col_value(const jaos_model *m,
+                                                int64_t col,
+                                                const char **out);
+JAOS_NODISCARD jaos_status jaos_exact_row_dual(const jaos_model *m,
+                                               int64_t row,
+                                               const char **out);
+JAOS_NODISCARD jaos_status jaos_exact_objective(const jaos_model *m,
+                                                const char **out);
 
 #ifdef __cplusplus
 }

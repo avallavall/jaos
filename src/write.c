@@ -365,7 +365,8 @@ jaos_status jaos_write_mps(jaos_model *m, const char *path)
 
     {
         fprintf(w->f, "* written by JAOS %s\n", JAOS_VERSION_STRING);
-        fprintf(w->f, "NAME          JAOS\n");
+        fprintf(w->f, "NAME          %s\n",
+                m->model_name != nullptr ? m->model_name : "JAOS");
         if (m->sense == JAOS_MAXIMIZE)
             fprintf(w->f, "OBJSENSE      MAX\n");
 

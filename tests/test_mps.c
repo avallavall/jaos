@@ -155,6 +155,9 @@ static void test_t1_fixed_layout_full_model(void)
     }
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective_name(m, nm, sizeof nm));
     TEST_ASSERT_EQUAL_STRING("COST", nm);
+    /* And the NAME line's word is the model's name. */
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_model_name(m, nm, sizeof nm));
+    TEST_ASSERT_EQUAL_STRING("T1", nm);
     /* The objective is not a row, so its name is not a row's. */
     int64_t k = -1;
     TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT, jaos_row_index(m, "COST", &k));

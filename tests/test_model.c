@@ -1715,6 +1715,102 @@ static void test_names_ride_with_their_rows_and_columns(void)
 }
 
 
+/* --------------------------------------------------------------------- */
+/* Copying a model (D287), and the model's own name                     */
+/* --------------------------------------------------------------------- */
+
+static void test_a_copy_is_the_same_problem_and_not_the_same_answer(void)
+{
+    jaos_model *m = nullptr;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_model_new(&m));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, load_example(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_col_name(m, 1, "flow"));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_model_name(m, "example"));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_work_limit(m, 12345));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+
+    jaos_model *c = nullptr;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_model_copy(m, &c));
+    TEST_ASSERT_NOT_NULL(c);
+    TEST_ASSERT_EQUAL_INT64(m->num_col, c->num_col);
+    TEST_ASSERT_EQUAL_INT64(m->num_row, c->num_row);
+    TEST_ASSERT_EQUAL_INT64(m->num_nz, c->num_nz);
+    for (int64_t k = 0; k < m->num_nz; k++) {
+        TEST_ASSERT_EQUAL_INT64(m->a_index[k], c->a_index[k]);
+        TEST_ASSERT_EQUAL_DOUBLE(m->a_value[k], c->a_value[k]);
+    }
+    for (int64_t j = 0; j < m->num_col; j++) {
+        TEST_ASSERT_EQUAL_DOUBLE(m->col_cost[j], c->col_cost[j]);
+        TEST_ASSERT_EQUAL_DOUBLE(m->col_upper[j], c->col_upper[j]);
+    }
+    /* Names and settings travel; the answer does not, the basis does. */
+    char nm[JAOS_NAME_MAX + 1];
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_col_name(c, 1, nm, sizeof nm));
+    TEST_ASSERT_EQUAL_STRING("flow", nm);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_model_name(c, nm, sizeof nm));
+    TEST_ASSERT_EQUAL_STRING("example", nm);
+    TEST_ASSERT_EQUAL_INT64(12345, c->cfg.work_limit);
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_NOT_RUN, jaos_status_of(c));
+    TEST_ASSERT_NOT_NULL(c->start_col_status);
+    TEST_ASSERT_NOT_NULL(m->start_col_status);
+    for (int64_t j = 0; j < m->num_col; j++)
+        TEST_ASSERT_EQUAL_INT(m->start_col_status[j], c->start_col_status[j]);
+
+    /* The copy solves to the same answer, and changing it leaves the
+     * original alone. */
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(c));
+    double a = 0.0, b = 0.0;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(m, &a));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(c, &b));
+    TEST_ASSERT_EQUAL_MEMORY(&a, &b, sizeof a);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_col_cost(c, 0, 100.0));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_col_name(c, 0, "changed"));
+    TEST_ASSERT_EQUAL_DOUBLE(1.0, m->col_cost[0]);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_col_name(m, 0, nm, sizeof nm));
+    TEST_ASSERT_EQUAL_STRING("C1", nm);
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+
+    /* An empty model copies too, and the bad arguments are refused. */
+    jaos_model *e = nullptr, *ec = nullptr;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_model_new(&e));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_model_copy(e, &ec));
+    TEST_ASSERT_EQUAL_INT64(0, jaos_num_col(ec));
+    TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT, jaos_model_copy(nullptr, &ec));
+    TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT, jaos_model_copy(m, nullptr));
+    jaos_model_free(ec);
+    jaos_model_free(e);
+    jaos_model_free(c);
+    jaos_model_free(m);
+}
+
+static void test_the_model_name_is_jaos_until_given(void)
+{
+    jaos_model *m = nullptr;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_model_new(&m));
+    char nm[JAOS_NAME_MAX + 1];
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_model_name(m, nm, sizeof nm));
+    TEST_ASSERT_EQUAL_STRING("JAOS", nm);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_model_name(m, "plan.2026"));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_model_name(m, nm, sizeof nm));
+    TEST_ASSERT_EQUAL_STRING("plan.2026", nm);
+    TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT, jaos_set_model_name(m, "a b"));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_model_name(m, nm, sizeof nm));
+    TEST_ASSERT_EQUAL_STRING("plan.2026", nm);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_model_name(m, ""));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_model_name(m, nm, sizeof nm));
+    TEST_ASSERT_EQUAL_STRING("JAOS", nm);
+    /* A load takes it away with everything else. */
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_model_name(m, "gone"));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, load_example(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_model_name(m, nm, sizeof nm));
+    TEST_ASSERT_EQUAL_STRING("JAOS", nm);
+    TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT, jaos_model_name(m, nm, 2));
+    TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT, jaos_model_name(nullptr, nm, sizeof nm));
+    jaos_model_free(m);
+}
+
+
 int main(void)
 {
     UNITY_BEGIN();
@@ -1758,5 +1854,7 @@ int main(void)
     RUN_TEST(test_a_name_set_reads_back_and_resolves);
     RUN_TEST(test_a_name_the_formats_cannot_carry_is_refused);
     RUN_TEST(test_names_ride_with_their_rows_and_columns);
+    RUN_TEST(test_a_copy_is_the_same_problem_and_not_the_same_answer);
+    RUN_TEST(test_the_model_name_is_jaos_until_given);
     return UNITY_END();
 }

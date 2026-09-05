@@ -432,6 +432,44 @@ class TestNames(unittest.TestCase):
             m.set_row_name(0, "capacity")
             self.assertIs(m.status, jaos.SolveStatus.OPTIMAL)
 
+    def test_the_model_name_and_a_copy(self):
+        with jaos.Model() as m:
+            m.read_mps(data("t1.mps"))
+            self.assertEqual(m.name, "T1")
+            m.name = "renamed"
+            self.assertEqual(m.name, "renamed")
+            with self.assertRaises(jaos.JaosError):
+                m.name = "two words"
+            m.solve()
+            c = m.copy()
+            with c:
+                self.assertEqual(c.name, "renamed")
+                self.assertEqual(c.col_name(2), "X3")
+                self.assertEqual((c.num_col, c.num_row, c.num_nz),
+                                 (m.num_col, m.num_row, m.num_nz))
+                self.assertIs(c.status, jaos.SolveStatus.NOT_RUN)
+                self.assertIs(c.solve(), m.status)
+                c.set_col_name(0, "mine")
+                self.assertEqual(m.col_name(0), "X1")
+
+    def test_a_problem_s_names_reach_the_library(self):
+        with tempfile.TemporaryDirectory() as d:
+            p = jaos.Problem()
+            x = p.add_var(ub=4, name="apples")
+            y = p.add_var()
+            p.add(x + y <= 4, name="crate")
+            p.maximize(x + 2 * y)
+            p.solve()
+            self.assertEqual(p._m.col_name(0), "apples")
+            self.assertEqual(p._m.col_name(1), "x1")
+            self.assertEqual(p._m.row_name(0), "crate")
+            path = os.path.join(d, "p.lp")
+            p.write_lp(path)
+            with open(path) as f:
+                text = f.read()
+            self.assertIn("apples", text)
+            self.assertIn("crate:", text)
+
     def test_names_round_trip_through_a_file(self):
         with jaos.Model() as m, tempfile.TemporaryDirectory() as d:
             m.read_lp(data("g1.lp"))
@@ -1118,6 +1156,33 @@ class TestProblemResolves(unittest.TestCase):
         p.solve()
         self.assertAlmostEqual(p.objective_value, 92.0, places=9)
         self.assertEqual(p._m.obj_offset, 100.0)
+
+
+class TestExactValues(unittest.TestCase):
+    """The proved basis's exact coordinates (D286), as Fractions."""
+
+    def test_a_third_comes_back_as_a_third(self):
+        """min x s.t. 3x >= 1: x = 1/3, dual 1/3, and with a constant of
+        1/2 the objective is 5/6, none of them a double."""
+        from fractions import Fraction
+        with jaos.Model() as m:
+            m.load(num_col=1, num_row=1,
+                   col_cost=[1.0], col_lower=[0.0], col_upper=[jaos.INFINITY],
+                   row_lower=[1.0], row_upper=[jaos.INFINITY],
+                   a_start=[0, 1], a_index=[0], a_value=[3.0],
+                   obj_offset=0.5)
+            with self.assertRaises(jaos.JaosError):
+                m.exact_col_value(0)
+            self.assertIs(m.solve(), jaos.SolveStatus.OPTIMAL)
+            rep = m.verify()
+            self.assertIs(rep.status, jaos.Proof.OPTIMAL)
+            self.assertEqual(m.exact_col_value(0), Fraction(1, 3))
+            self.assertEqual(m.exact_row_dual(0), Fraction(1, 3))
+            self.assertEqual(m.exact_objective(), Fraction(5, 6))
+            self.assertAlmostEqual(m.objective(), 5 / 6, places=12)
+            m.set_col_cost(0, 2.0)
+            with self.assertRaises(jaos.JaosError):
+                m.exact_objective()
 
 
 class TestCertificateFile(unittest.TestCase):

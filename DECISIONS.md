@@ -293,6 +293,8 @@ and you have the argument. Jump to the entry for the numbers behind it.
 - **[D283](#d283--the-objectives-sense-had-no-getter-and-no-setter-and-the-python-layer-rebuilt-the-model-to-flip-it)** — The objective's sense had no getter and no setter, and the Python layer rebuilt the model to flip it
 - **[D284](#d284--rows-and-columns-have-names-and-the-model-was-the-one-place-in-the-pipeline-that-dropped-them)** — Rows and columns have names, and the model was the one place in the pipeline that dropped them
 - **[D285](#d285--the-solution-file-carries-the-certificate-behind-an-infeasible-or-unbounded-answer-and-check-judges-it-from-the-model-alone)** — The solution file carries the certificate behind an infeasible or unbounded answer, and `check` judges it from the model alone
+- **[D286](#d286--a-proved-basis-gives-its-coordinates-exactly-and-that-is-an-exact-answer-for-the-bases-the-proof-reaches-not-an-exact-solver)** — A proved basis gives its coordinates exactly, and that is an exact answer for the bases the proof reaches, not an exact solver
+- **[D287](#d287--a-model-copies-whole-answer-excluded-so-a-what-if-or-a-branch-starts-from-the-basis-and-not-from-nothing)** — A model copies whole, answer excluded, so a what-if or a branch starts from the basis and not from nothing
 
 ---
 
@@ -21165,3 +21167,50 @@ check` prints the kind first and then the matching checker's report, exit
 byte-identical. `tests/test_write.c` round-trips both certificates bit for
 bit and pins ten refusals; `tests/cli.sh` zeroes a written certificate and
 watches the checker, not the reader, refuse it.
+
+## D286 — A proved basis gives its coordinates exactly, and that is an exact answer for the bases the proof reaches, not an exact solver
+
+**The gap.** `jaos_verify` solved the basis over the rationals, compared
+every value against its bound with no tolerance, and threw the values
+away. The feature matrix read "exact rational LP solutions: absent" while
+the arithmetic that produces them ran on 30 of the 110 gate bases.
+
+**What it does now.** On `JAOS_PROOF_OPTIMAL` the values stay on the model
+as decimal rationals: every column's -- a basic one's solved value, a
+nonbasic one's bound, which a double spells exactly -- every row's dual in
+the model's own sign, and the objective summed with no rounding.
+`jaos_exact_col_value`, `jaos_exact_row_dual` and `jaos_exact_objective`
+read them; `jaos verify --values` prints them under the names; Python
+returns `fractions.Fraction`. Anything that drops the answer drops them,
+so a stale proof cannot be read. Two choices. Strings rather than a
+public rational type, because a caller who wants arithmetic has a bignum
+library and one who does not wants to print; and the objective may be
+absent beside present values, because its sum can outgrow the limbs on a
+model whose values fitted, and a wrong objective is worse than none.
+
+**Evidence.** No solver path is touched and all three gate sets are
+byte-identical. The oracle is arithmetic by hand: `min x, 3x >= 1` with a
+constant of 1/2 gives `1/3`, `1/3` and `5/6`, none of them a double, and
+the same model as a maximum gives the dual with the model's sign. The
+decimal spelling is judged against `printf` where C's integers reach and
+against 2^100 and 10^30 by hand where they do not.
+
+## D287 — A model copies whole, answer excluded, so a what-if or a branch starts from the basis and not from nothing
+
+**The gap.** The only way to a second model with the same problem was to
+read the arrays back one call at a time and load them again, which lost
+the names, the settings and the starting basis; the IIS built its private
+copy that way internally and nothing public could.
+
+**What it does now.** `jaos_model_copy` builds a new model from the
+source's problem, names, model name, settings -- callbacks and their user
+pointers included, since the copy is the caller's -- and starting basis.
+The answer does not travel: it belongs to the solve that produced it, and
+the copy reads `JAOS_SOLVE_NOT_RUN`. The copy is built whole before it is
+handed back, so a failure leaves nothing half-made. Python's `Model.copy`
+is the same call.
+
+**Evidence.** No solver path is touched and all three gate sets are
+byte-identical. `tests/test_model.c` copies a solved, named model, checks
+every array, name and setting, solves the copy to the same objective bit
+for bit, and changes the copy to show the original untouched.

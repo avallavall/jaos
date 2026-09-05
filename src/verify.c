@@ -1038,6 +1038,11 @@ static int rat_in_bounds(const jm_rational *v, double lo, double hi,
 
 /* -------------------------------------------------------------- 6. the call */
 
+/* Section 7 below: what a proof leaves on the model (D286). */
+static bool exact_store(jaos_model *m, const vbasis *b, const int64_t *mr,
+                        const jm_rational *xs, const jm_rational *us,
+                        double sigma);
+
 jaos_status jaos_verify(jaos_model *m, jaos_verify_report *out)
 {
     if (m == nullptr || out == nullptr)
@@ -1045,6 +1050,9 @@ jaos_status jaos_verify(jaos_model *m, jaos_verify_report *out)
     if (m->solve_status != JAOS_SOLVE_OPTIMAL || m->sol_col_status == nullptr ||
         m->sol_row_status == nullptr)
         return JAOS_ERR_INVALID_INPUT;
+    /* A previous proof's values go first, so nothing stale survives a
+     * verdict that is not OPTIMAL. */
+    jm_model_drop_exact(m);
 
     jaos_verify_report rep = { .status = JAOS_PROOF_REFUSED,
                                .stage = JAOS_PROOF_STAGE_NONE,
@@ -1448,6 +1456,10 @@ jaos_status jaos_verify(jaos_model *m, jaos_verify_report *out)
 
     rep.status = JAOS_PROOF_OPTIMAL;
     rc = JAOS_OK;
+    /* The proof stands; what it proved is kept for the getters (D286). Out
+     * of memory here leaves the values absent and the verdict as it is:
+     * the bookkeeping cannot demote a proof. */
+    (void)exact_store(m, &b, mr, xs, us, sigma);
 
 done:
     free(rhs); free(xs); free(us);
@@ -1457,4 +1469,175 @@ done:
     vbasis_free(&b);
     *out = rep;
     return rc;
+}
+
+/* -------------------------------------------------- 7. the exact values */
+
+/* What a proved basis says the answer IS, kept on the model as decimal
+ * rationals (D286). Every column: a basic one's solved value, a nonbasic
+ * one's the bound its status names, which a double spells exactly. Every
+ * row's dual. And the objective, summed over the columns with no rounding,
+ * which can outgrow the limb budget on a model the proof itself fitted;
+ * then it alone is absent and the getter says so. */
+static void exact_drop(jaos_model *m)
+{
+    if (m->exact_col != nullptr)
+        for (int64_t j = 0; j < m->num_col; j++)
+            free(m->exact_col[j]);
+    if (m->exact_dual != nullptr)
+        for (int64_t i = 0; i < m->num_row; i++)
+            free(m->exact_dual[i]);
+    free(m->exact_col);
+    free(m->exact_dual);
+    free(m->exact_obj);
+    m->exact_col = nullptr;
+    m->exact_dual = nullptr;
+    m->exact_obj = nullptr;
+}
+
+void jm_model_drop_exact(jaos_model *m)
+{
+    exact_drop(m);
+}
+
+/* Fills the three from the solved systems: `xs[i]` is basis column
+ * `mr[i]`'s value, `us[i]` row i's dual. Returns false out of memory; a
+ * limb overflow in the objective is not a failure, it leaves exact_obj
+ * null. */
+static bool exact_store(jaos_model *m, const vbasis *b, const int64_t *mr,
+                        const jm_rational *xs, const jm_rational *us,
+                        double sigma)
+{
+    exact_drop(m);
+    m->exact_col = jm_calloc_array(m->num_col, sizeof(char *));
+    m->exact_dual = jm_calloc_array(m->num_row, sizeof(char *));
+    if (m->exact_col == nullptr || m->exact_dual == nullptr)
+        goto fail;
+
+    /* Basic columns and rows from the solve. A basic row's activity is not
+     * kept: the getters answer columns and duals, which is what an exact
+     * answer is made of. */
+    for (int64_t i = 0; i < b->n; i++) {
+        const int64_t w = b->who[mr[i]];
+        if (w < 0)
+            continue;
+        m->exact_col[w] = jm_rational_decimal(&xs[i]);
+        if (m->exact_col[w] == nullptr)
+            goto fail;
+    }
+    /* Nonbasic columns rest on a bound, and a bound is a double, which is
+     * a rational exactly (a free nonbasic rests at zero). */
+    for (int64_t j = 0; j < m->num_col; j++) {
+        if (m->exact_col[j] != nullptr)
+            continue;
+        double at = 0.0;
+        switch (m->sol_col_status[j]) {
+        case JAOS_BASIS_AT_LOWER: at = m->col_lower[j]; break;
+        case JAOS_BASIS_AT_UPPER: at = m->col_upper[j]; break;
+        default:                  at = 0.0;             break;
+        }
+        jm_rational r;
+        if (!isfinite(at) || !jm_rational_from_double(&r, at))
+            goto fail;
+        m->exact_col[j] = jm_rational_decimal(&r);
+        if (m->exact_col[j] == nullptr)
+            goto fail;
+    }
+    /* The duals, in the model's own sense: the proof worked in minimize
+     * form and `sigma` is the sign that undoes it. */
+    for (int64_t i = 0; i < m->num_row; i++) {
+        jm_rational y = us[i];
+        if (sigma < 0.0)
+            jm_rational_neg(&y);
+        m->exact_dual[i] = jm_rational_decimal(&y);
+        if (m->exact_dual[i] == nullptr)
+            goto fail;
+    }
+    /* The objective: c'x + c0 with no rounding. Basic values come from
+     * `xs`, nonbasic ones from their bound, and any product or sum that
+     * outgrows the limbs leaves the objective absent rather than wrong. */
+    {
+        jm_rational acc, t, cj, xj;
+        bool fits = jm_rational_from_double(&acc, m->obj_offset);
+        for (int64_t i = 0; fits && i < b->n; i++) {
+            const int64_t w = b->who[mr[i]];
+            if (w < 0 || m->col_cost[w] == 0.0)
+                continue;
+            fits = jm_rational_from_double(&cj, m->col_cost[w]) &&
+                   jm_rational_mul(&t, &cj, &xs[i]) &&
+                   jm_rational_add(&acc, &acc, &t);
+        }
+        for (int64_t j = 0; fits && j < m->num_col; j++) {
+            if (m->sol_col_status[j] == JAOS_BASIS_BASIC ||
+                m->col_cost[j] == 0.0)
+                continue;
+            double at = 0.0;
+            if (m->sol_col_status[j] == JAOS_BASIS_AT_LOWER)
+                at = m->col_lower[j];
+            else if (m->sol_col_status[j] == JAOS_BASIS_AT_UPPER)
+                at = m->col_upper[j];
+            fits = jm_rational_from_double(&cj, m->col_cost[j]) &&
+                   jm_rational_from_double(&xj, at) &&
+                   jm_rational_mul(&t, &cj, &xj) &&
+                   jm_rational_add(&acc, &acc, &t);
+        }
+        if (fits) {
+            m->exact_obj = jm_rational_decimal(&acc);
+            if (m->exact_obj == nullptr)
+                goto fail;
+        }
+    }
+    return true;
+fail:
+    exact_drop(m);
+    return false;
+}
+
+/* The getters. A value is on the model only while a proof stands: the
+ * arrays are dropped by the next solve, load or modification, so a stale
+ * answer cannot be read. */
+static jaos_status exact_get(const jaos_model *m, char **arr, int64_t k,
+                             int64_t n, const char **out)
+{
+    if (m == nullptr || out == nullptr || k < 0 || k >= n)
+        return JAOS_ERR_INVALID_INPUT;
+    if (arr == nullptr) {
+        jm_set_err((jaos_model *)m, "no exact values: jaos_verify has not "
+                   "proved the last answer");
+        return JAOS_ERR_INVALID_INPUT;
+    }
+    *out = arr[k];
+    return JAOS_OK;
+}
+
+jaos_status jaos_exact_col_value(const jaos_model *m, int64_t col,
+                                 const char **out)
+{
+    return exact_get(m, m ? m->exact_col : nullptr, col,
+                     m ? m->num_col : 0, out);
+}
+
+jaos_status jaos_exact_row_dual(const jaos_model *m, int64_t row,
+                                const char **out)
+{
+    return exact_get(m, m ? m->exact_dual : nullptr, row,
+                     m ? m->num_row : 0, out);
+}
+
+jaos_status jaos_exact_objective(const jaos_model *m, const char **out)
+{
+    if (m == nullptr || out == nullptr)
+        return JAOS_ERR_INVALID_INPUT;
+    if (m->exact_col == nullptr) {
+        jm_set_err((jaos_model *)m, "no exact values: jaos_verify has not "
+                   "proved the last answer");
+        return JAOS_ERR_INVALID_INPUT;
+    }
+    if (m->exact_obj == nullptr) {
+        jm_set_err((jaos_model *)m, "the exact objective did not fit the "
+                   "limb budget; the values did");
+        return JAOS_ERR_INVALID_INPUT;
+    }
+    *out = m->exact_obj;
+    return JAOS_OK;
 }

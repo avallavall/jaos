@@ -173,7 +173,7 @@ including the row where the field is ahead.
 | **Bit-identical results across different machines** | ● | ? | ? | ? | ? | ○ | ? |
 | Deterministic on the same machine and version | ● | ● | ● | ● | ● | ● | ● |
 | Independent checker shipped with the solver | ● | ○ | ○ | ○ | ○ | ○ | ○ |
-| Exact rational LP solutions | ○ | ○ | ● | ○ | ● | ○ | ○ |
+| Exact rational LP solutions | ◐ | ○ | ● | ○ | ● | ○ | ○ |
 | Exact solving with no numerical tolerances | ○ | ○ | ● | ○ | ● | ○ | ○ |
 | Machine-checkable certificate of the result | ◐ | ○ | ◐ | ○ | ● | ○ | ○ |
 | Certified bound on suboptimality | ◐ | ○ | ● | ○ | ● | ○ | ○ |
@@ -181,6 +181,16 @@ including the row where the field is ahead.
 | Irreducible infeasible subsystem (IIS) | ● | ● | ○ | ○ | ● | ● | ? |
 
 Three rows carry most of the meaning.
+
+**Exact rational LP solutions moved from ○ to ◐ on 2026-09-05 (D286).**
+After `jaos_verify` proves a basis, every column's value, every row's dual
+and the objective are on the model as exact rationals, and `jaos verify
+--values` prints them. It is ◐ because it is an exact answer for the bases
+the proof reaches -- 30 of the 110 gate bases at the current limb budget --
+and not an exact solver: the simplex still finds the basis in floating
+point, and where the proof is refused there are no values. SoPlex and SCIP
+solve over the rationals; JAOS proves and reports what a floating-point
+basis is, exactly.
 
 **The machine-checkable certificate moved from ○ to ◐ on 2026-09-05
 (D285).** The solution file now carries the Farkas certificate of an

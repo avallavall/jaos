@@ -8,12 +8,13 @@
  * have to write a program first.
  *
  * Usage:
- *   jaos solve FILE [--solution OUT] [--work-limit N] [--time-limit SECONDS]
- *                   [--primal-tol T] [--dual-tol T] [--log LEVEL] [--quiet]
+ *   jaos solve FILE [--solution OUT] [--start SOLUTION] [--work-limit N]
+ *                   [--time-limit SECONDS] [--primal-tol T] [--dual-tol T]
+ *                   [--log LEVEL] [--quiet]
  *   jaos convert IN OUT
  *   jaos check FILE SOLUTION [--tol T]
  *   jaos iis FILE
- *   jaos verify FILE
+ *   jaos verify FILE [--values]
  *   jaos ranging FILE
  *   jaos --version
  *   jaos --help
@@ -66,12 +67,13 @@ enum {
 
 static const char USAGE[] =
     "Usage:\n"
-    "  jaos solve FILE [--solution OUT] [--work-limit N] [--time-limit SECONDS]\n"
-    "                  [--primal-tol T] [--dual-tol T] [--log LEVEL] [--quiet]\n"
+    "  jaos solve FILE [--solution OUT] [--start SOLUTION] [--work-limit N]\n"
+    "                  [--time-limit SECONDS] [--primal-tol T] [--dual-tol T]\n"
+    "                  [--log LEVEL] [--quiet]\n"
     "  jaos convert IN OUT\n"
     "  jaos check FILE SOLUTION [--tol T]\n"
     "  jaos iis FILE\n"
-    "  jaos verify FILE\n"
+    "  jaos verify FILE [--values]\n"
     "  jaos ranging FILE\n"
     "  jaos --version\n"
     "  jaos --help\n"
@@ -79,7 +81,9 @@ static const char USAGE[] =
     "solve reads FILE, solves it and prints one fact per line on stdout:\n"
     "  status, objective (only when the solve found one), iterations,\n"
     "  work_units and time. Every line but time is reproducible.\n"
-    "  --solution OUT   write the solution file when the solve is optimal\n"
+    "  --solution OUT   write the answer: the optimum, or the certificate\n"
+    "                   of an infeasible or unbounded model\n"
+    "  --start SOLUTION warm-start from the basis in a solution file\n"
     "  --work-limit N   stop after N deterministic work units (N > 0)\n"
     "  --time-limit S   stop after S seconds of wall clock (S > 0)\n"
     "  --primal-tol T   primal feasibility tolerance (default 1e-7)\n"
@@ -101,6 +105,8 @@ static const char USAGE[] =
     "verify solves FILE and proves, or refuses to prove, its optimal basis\n"
     "  in exact arithmetic. Exit 0 proved, 1 the basis does not certify the\n"
     "  answer, 3 refused because the numbers do not fit.\n"
+    "  --values         after a proof, print every column's value, every\n"
+    "                   row's dual and the objective as exact rationals\n"
     "ranging solves FILE and prints, for the optimal basis, the interval\n"
     "  every cost, row bound and column bound may move in:\n"
     "  `cost J lo hi`, `rhs I lower_lo lower_hi upper_lo upper_hi`,\n"
@@ -347,6 +353,7 @@ static bool parse_log_level(const char *s, jaos_log_level *out)
 struct solve_options {
     const char *file;
     const char *solution;
+    const char *start;       /* a solution file to warm-start from */
     int64_t work_limit;      /* 0: not given; the parser refuses <= 0 */
     double time_limit;       /* 0: not given; the parser refuses <= 0 */
     /* The tolerances carry a flag rather than a sentinel: any finite value
@@ -386,6 +393,8 @@ static int parse_solve_options(int argc, char **argv, int first,
         const char *v = argv[++i];
         if (strcmp(a, "--solution") == 0) {
             o->solution = v;
+        } else if (strcmp(a, "--start") == 0) {
+            o->start = v;
         } else if (strcmp(a, "--work-limit") == 0) {
             if (!parse_int64(v, &o->work_limit) || o->work_limit <= 0)
                 return usage_error("--work-limit needs a positive integer, "
@@ -468,6 +477,26 @@ static int cmd_solve(int argc, char **argv)
     if (read_model(m, o.file) != JAOS_OK) {
         rc = library_error("read", o.file, m);
         goto out;
+    }
+
+    /* A warm start from a solution file: read the statuses, hand them to
+     * the model, two separate calls as jaos.h wants them. The file must be
+     * this model's, which the reader checks by count and by name. */
+    if (o.start != nullptr) {
+        const int64_t nc = jaos_num_col(m), nr = jaos_num_row(m);
+        jaos_basis_status *cs = zeroed(nc, sizeof *cs);
+        jaos_basis_status *rs = zeroed(nr, sizeof *rs);
+        jaos_status rd = JAOS_ERR_OUT_OF_MEMORY;
+        if (cs != nullptr && rs != nullptr &&
+            (rd = jaos_read_solution(m, o.start, nullptr, nullptr, nullptr,
+                                     cs, nullptr, nullptr, rs)) == JAOS_OK)
+            rd = jaos_set_basis(m, cs, rs);
+        free(cs);
+        free(rs);
+        if (rd != JAOS_OK) {
+            rc = library_error("warm-start from", o.start, m);
+            goto out;
+        }
     }
 
     jaos_status st = jaos_solve(m);
@@ -870,9 +899,21 @@ static const char *stage_word(jaos_proof_stage s)
  * fit. A refusal is not a failure, which is why it is not 5. */
 static int cmd_verify(int argc, char **argv)
 {
-    if (argc != 3)
-        return usage_error("verify takes exactly one file");
-    const char *file = argv[2];
+    const char *file = nullptr;
+    bool values = false;
+    for (int i = 2; i < argc; i++) {
+        if (strcmp(argv[i], "--values") == 0)
+            values = true;
+        else if (argv[i][0] == '-')
+            return usage_error("unknown option '%s'", argv[i]);
+        else if (file == nullptr)
+            file = argv[i];
+        else
+            return usage_error("verify takes one file, and got '%s' and "
+                               "'%s'", file, argv[i]);
+    }
+    if (file == nullptr)
+        return usage_error("verify needs a file");
 
     jaos_model *m = nullptr;
     int rc = load(file, &m);
@@ -918,6 +959,22 @@ static int cmd_verify(int argc, char **argv)
     }
     print_int("bytes_held", rep.bytes_held);
     print_int("terms", rep.terms);
+
+    /* What the proof proved, as exact rationals (D286): one line per
+     * column and per row, then the objective, only when asked for and only
+     * when there is a proof. Nothing here moves between runs. */
+    if (values && rep.status == JAOS_PROOF_OPTIMAL) {
+        namebuf nm;
+        const char *v = nullptr;
+        for (int64_t j = 0; j < jaos_num_col(m); j++)
+            if (jaos_exact_col_value(m, j, &v) == JAOS_OK)
+                printf("x %s %s\n", col_name(m, j, nm), v);
+        for (int64_t i = 0; i < jaos_num_row(m); i++)
+            if (jaos_exact_row_dual(m, i, &v) == JAOS_OK)
+                printf("y %s %s\n", row_name(m, i, nm), v);
+        if (jaos_exact_objective(m, &v) == JAOS_OK)
+            printf("objective_exact %s\n", v);
+    }
 
     switch (rep.status) {
     case JAOS_PROOF_OPTIMAL: rc = EXIT_OPTIMAL;    break;

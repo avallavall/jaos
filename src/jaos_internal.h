@@ -88,6 +88,8 @@ struct jaos_model {
     char **col_name;    /* [num_col] or nullptr */
     char **row_name;    /* [num_row] or nullptr */
     char *obj_name;
+    /* The model's own name, MPS's NAME line; nullptr for "JAOS". */
+    char *model_name;
     bool name_map_valid;
     jm_nmap col_map, row_map;
 
@@ -143,6 +145,15 @@ struct jaos_model {
      * ray, presolve's lift included (D256). */
     double *sol_ray;         /* [num_col] */
     bool ray_ok;
+    /* What a proved basis says the answer is, as decimal rationals
+     * ("-7/3"), one per column and one dual per row, and the objective
+     * (D286). Filled by jaos_verify on OPTIMAL only, and dropped by
+     * anything that drops the answer, so a stale proof cannot be read.
+     * `exact_obj` alone may be null beside filled arrays: the objective's
+     * sum can outgrow the limbs on a model whose values fitted. */
+    char **exact_col;        /* [num_col] or nullptr */
+    char **exact_dual;       /* [num_row] or nullptr */
+    char *exact_obj;
     int64_t solve_work;
     int64_t solve_iters;
     /* How many of `solve_iters` the primal method ran, and how many of THOSE
@@ -320,6 +331,10 @@ bool jm_name_ok(const char *name);
 /* Whether the LP reader's scanner reads `s` back as one name that is not a
  * keyword (src/lpfmt.c): the LP writer's test for a name it may print. */
 bool jm_lp_name_ok(const char *s);
+
+/* Frees the exact values a proof left on the model (src/verify.c). Called
+ * by everything that drops the answer. */
+void jm_model_drop_exact(jaos_model *m);
 
 /* Reads a whole input file. A file that starts with the gzip magic is
  * inflated by src/inflate.c; any other file comes back byte for byte. On
@@ -818,6 +833,9 @@ JAOS_NODISCARD bool jm_rational_cmp_checked(const jm_rational *a,
 /* The nearest double, ties to even. For a report only: a proof never
  * leaves the rationals. */
 double  jm_rational_to_double(const jm_rational *r);
+/* The rational spelled in decimal, "-7/3", "12", "0", as an owned string;
+ * nullptr out of memory. A denominator of one is not written. */
+char   *jm_rational_decimal(const jm_rational *r);
 /* False for an infinity or a NaN; every finite double is exact here. */
 JAOS_NODISCARD bool jm_rational_from_double(jm_rational *r, double d);
 /* False when the result does not fit, and jm_rational_div also when the

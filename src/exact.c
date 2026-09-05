@@ -25,6 +25,8 @@
 
 #include <math.h>
 #include <stdckdint.h>
+#include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 /* ---------------------------------------------------------------- naturals
@@ -1140,4 +1142,76 @@ fail:
     out->col_at = -1;
     out->terms = p.terms;
     return false;
+}
+
+/* ---- decimal spelling ------------------------------------------------ */
+
+/* The digits of a magnitude, most significant first, by repeated division
+ * by 10^9: each quotient step is one jm_nat_divmod, so a full 4096-bit
+ * value costs about 140 of them, which is nothing beside the elimination
+ * that produced it. Returns the length written, or -1 when `cap` is too
+ * small. No allocation: the chunks live on the stack. */
+static int64_t nat_decimal(const jm_nat *a, char *buf, int64_t cap)
+{
+    /* 10^9 takes 29.9 bits, so a limb budget of 32 * JM_EXACT_LIMBS bits
+     * needs at most that many chunks plus one. */
+    uint32_t chunk[(32 * JM_EXACT_LIMBS) / 29 + 2];
+    int64_t n = 0;
+    if (jm_nat_is_zero(a)) {
+        if (cap < 1)
+            return -1;
+        buf[0] = '0';
+        return 1;
+    }
+    jm_nat cur = *a, q, rem, base;
+    jm_nat_set_u64(&base, 1000000000u);
+    while (!jm_nat_is_zero(&cur)) {
+        if (!jm_nat_divmod(&q, &rem, &cur, &base))
+            return -1;
+        chunk[n++] = rem.n > 0 ? rem.w[0] : 0;
+        cur = q;
+    }
+    int64_t len = 0;
+    for (int64_t k = n - 1; k >= 0; k--) {
+        char piece[16];
+        const int w = k == n - 1 ? snprintf(piece, sizeof piece, "%u", chunk[k])
+                                 : snprintf(piece, sizeof piece, "%09u", chunk[k]);
+        if (len + w > cap)
+            return -1;
+        memcpy(buf + len, piece, (size_t)w);
+        len += w;
+    }
+    return len;
+}
+
+char *jm_rational_decimal(const jm_rational *r)
+{
+    /* Sign, numerator, '/', denominator, terminator. A 4096-bit magnitude
+     * is at most 1234 decimal digits, so this is generous and exact. */
+    constexpr int64_t CAP = 2 * ((32 * JM_EXACT_LIMBS) * 30103 / 100000 + 2) + 4;
+    char *s = malloc((size_t)CAP);
+    if (s == nullptr)
+        return nullptr;
+    int64_t at = 0;
+    if (r->num.sign < 0)
+        s[at++] = '-';
+    int64_t w = nat_decimal(&r->num.mag, s + at, CAP - at - 1);
+    if (w < 0) {
+        free(s);
+        return nullptr;
+    }
+    at += w;
+    jm_nat one;
+    jm_nat_set_u64(&one, 1);
+    if (jm_nat_cmp(&r->den, &one) != 0) {
+        s[at++] = '/';
+        w = nat_decimal(&r->den, s + at, CAP - at - 1);
+        if (w < 0) {
+            free(s);
+            return nullptr;
+        }
+        at += w;
+    }
+    s[at] = '\0';
+    return s;
 }

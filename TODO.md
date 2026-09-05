@@ -7,7 +7,21 @@ line leaves this file in the same commit.
 
 ## Where the last session stopped — 2026-09-05
 
-**2026-09-05, last: two features through one set of checks, names and
+**2026-09-05, later: a second batch through one set of checks (D286,
+D287).** A proved basis gives its coordinates exactly: after `jaos_verify`
+every column's value, every row's dual and the objective are on the model
+as decimal rationals, `jaos verify --values` prints them and Python gets
+`Fraction`s; the feature matrix's "exact rational LP solutions" cell moves
+from ○ to ◐, and ● would want the simplex itself over the rationals, which
+is not planned. `jaos_model_copy` copies a model whole, answer excluded.
+Three small ones rode along: the model's own name from MPS's NAME line,
+`jaos solve --start SOLUTION`, and the Python `Problem` layer's names
+reaching the library. **One thing worth carrying forward from the tests**:
+`model_two` in `tests/test_verify.c` has a whole edge of optima and the
+solver stops at the end the test's own comment did not expect, x = 0 and
+y = 4; a test that asserts coordinates needs a unique optimum.
+
+**2026-09-05, earlier: two features through one set of checks, names and
 certificate files (D284, D285).** The maintainer asked for several
 features per round of checks, so both went through `make configs` and the
 gate together. **Names**: every row and column has one, the file's or the

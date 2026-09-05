@@ -11,6 +11,23 @@ open, `bench/README.md` for the gate, and the commit each entry came from.
 
 ### Added
 
+- **A proved basis gives its coordinates exactly.** After `jaos_verify`
+  proves the answer, `jaos_exact_col_value`, `jaos_exact_row_dual` and
+  `jaos_exact_objective` return every value as a decimal rational with no
+  rounding anywhere; `jaos verify --values` prints them under the names
+  and Python returns `fractions.Fraction`. Dropped by anything that drops
+  the answer (D286).
+
+- **A model copies.** `jaos_model_copy`: the problem, names, settings and
+  starting basis into a new model, and not the answer; Python's
+  `Model.copy()` (D287).
+
+- **Smaller.** The model's own name, MPS's NAME word, reads back and is
+  written back (`jaos_model_name`, `jaos_set_model_name`; D284). `jaos
+  solve --start SOLUTION` warm-starts from a solution file. The Python
+  `Problem` layer's variable and constraint names reach the library, so a
+  file written from one carries them.
+
 - **Rows, columns and the objective have names.** Both readers keep the
   file's, the setters take one, and a row nobody named is called by its
   position, `R<i+1>`, `C<j+1>`, `COST`. Both writers print them, the

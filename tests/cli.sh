@@ -189,6 +189,25 @@ expect_exit 3 "--solution on a work-limited solve keeps exit 3" \
 expect_exit 5 "--solution to an unwritable path is an error" \
     "$JAOS" solve "$DATA/solve1.mps" --solution "$tmp/no/such/dir/c.sol"
 
+# --start warm-starts from the basis a solution file carries: the model's
+# own optimum re-solves with no iteration at all, and the objective line
+# is the same. A file for another model, or a certificate, is refused.
+if [ "$faulty" -eq 0 ]; then
+expect_exit 0 "--start from the model's own solution exits 0" \
+    "$JAOS" solve "$DATA/solve1.mps" --start "$tmp/a.sol"
+[ "$(line_of iterations)" = "iterations 0" ] \
+    && pass "and the warm start needs no iteration" \
+    || flunk "warm start printed '$(line_of iterations)'"
+[ "$(line_of objective)" = "$mps_objective" ] \
+    && pass "and gives the same objective line" \
+    || flunk "warm objective '$(line_of objective)' vs '$mps_objective'"
+fi
+expect_exit 5 "--start with a file for another model exits 5" \
+    "$JAOS" solve "$DATA/g2.lp" --start "$tmp/a.sol"
+expect_exit 5 "--start from a certificate exits 5" \
+    "$JAOS" solve "$DATA/t1.mps" --start "$tmp/b.sol"
+[ -n "$err" ] && pass "and says why on stderr" || flunk "no message on stderr"
+
 # ---------------------------------------------------------------- convert
 expect_exit 0 "convert MPS to LP exits 0" \
     "$JAOS" convert "$DATA/solve1.mps" "$tmp/solve1.lp"
@@ -371,7 +390,27 @@ done
 "$JAOS" verify "$DATA/solve1.mps" > "$tmp/ver2"
 cmp -s "$tmp/ver1" "$tmp/ver2" && pass "two verify runs agree byte for byte" \
     || { flunk "two verify runs differ"; diff "$tmp/ver1" "$tmp/ver2"; }
+# --values prints what the proof proved, exactly (D286): solve1's optimum
+# is X1=4, X2=3, X3=3 for 29, integers a rational spells without a slash.
+expect_exit 0 "verify --values exits 0 on a proved optimum" \
+    "$JAOS" verify "$DATA/solve1.mps" --values
+[ "$(line_of 'x X1')" = "x X1 4" ] && [ "$(line_of 'x X2')" = "x X2 3" ] \
+    && [ "$(line_of 'x X3')" = "x X3 3" ] \
+    && pass "it prints every column's exact value under its name" \
+    || flunk "exact values: $(printf '%s\n' "$out" | grep '^x ')"
+[ "$(printf '%s\n' "$out" | grep -c '^y \(DEMAND\|CAP1\|CAP2\) ')" -eq 3 ] \
+    && pass "and every row's exact dual" \
+    || flunk "exact duals: $(printf '%s\n' "$out" | grep '^y ')"
+[ "$(line_of objective_exact)" = "objective_exact 29" ] \
+    && pass "and the exact objective" \
+    || flunk "verify printed '$(line_of objective_exact)'"
+expect_exit 0 "verify without --values prints no values" \
+    "$JAOS" verify "$DATA/solve1.mps"
+[ -z "$(line_of objective_exact)" ] && pass "and no objective_exact line" \
+    || flunk "verify printed values without being asked"
 fi
+expect_exit 5 "verify refuses an unknown option" \
+    "$JAOS" verify "$DATA/solve1.mps" --bogus
 
 expect_exit 5 "verify of an infeasible model exits 5" "$JAOS" verify "$DATA/t1.mps"
 [ "$out" = "status infeasible" ] && pass "and prints only the status" \

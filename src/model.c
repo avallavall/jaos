@@ -55,7 +55,9 @@ static void model_release_arrays(jaos_model *m)
     free(m->sol_ray);
     free(m->start_col_status);
     free(m->start_row_status);
+    jm_model_drop_exact(m);
     jm_model_take_names(m, nullptr, nullptr, nullptr);
+    free(m->model_name);
     /* The problem goes; the configuration stays. Saved as one object rather
      * than field by field (D78). */
     const jm_config cfg = m->cfg;
@@ -244,6 +246,37 @@ jaos_status jaos_set_objective_name(jaos_model *m, const char *name)
     }
     free(m->obj_name);
     m->obj_name = copy;
+    return JAOS_OK;
+}
+
+/* The model's own name: MPS's NAME line, "JAOS" until one is given. The
+ * same rule as every other name, and a load or a read replaces it. */
+jaos_status jaos_model_name(const jaos_model *m, char *buf, int64_t cap)
+{
+    if (m == nullptr)
+        return JAOS_ERR_INVALID_INPUT;
+    return name_out((jaos_model *)m,
+                    m->model_name != nullptr ? m->model_name : "JAOS",
+                    buf, cap);
+}
+
+jaos_status jaos_set_model_name(jaos_model *m, const char *name)
+{
+    if (m == nullptr)
+        return JAOS_ERR_INVALID_INPUT;
+    if (name != nullptr && name[0] != '\0' && !jm_name_ok(name)) {
+        jm_set_err(m, "a name is 1 to %d bytes with no whitespace or "
+                   "control character", JAOS_NAME_MAX);
+        return JAOS_ERR_INVALID_INPUT;
+    }
+    char *copy = nullptr;
+    if (name != nullptr && name[0] != '\0') {
+        copy = dup_name(name);
+        if (copy == nullptr)
+            return JAOS_ERR_OUT_OF_MEMORY;
+    }
+    free(m->model_name);
+    m->model_name = copy;
     return JAOS_OK;
 }
 
@@ -441,6 +474,7 @@ static void model_answer_is_stale(jaos_model *m)
     m->farkas_ok = false;
     free(m->sol_ray);        m->sol_ray = nullptr;
     m->ray_ok = false;
+    jm_model_drop_exact(m);
     m->solve_status = JAOS_SOLVE_NOT_RUN;
     m->objective = 0.0;
     m->solve_work = 0;
@@ -776,6 +810,8 @@ jaos_status jaos_solve(jaos_model *m)
     if (m == nullptr)
         return JAOS_ERR_INVALID_INPUT;
     m->err[0] = '\0';
+    /* A proof was about the previous answer. */
+    jm_model_drop_exact(m);
     return jm_dual_simplex(m);
 }
 
@@ -1865,4 +1901,80 @@ jaos_status jm_model_ensure_rowwise(jaos_model *m)
     m->ar_value = rv;
     m->rowwise_valid = true;
     return JAOS_OK;
+}
+
+/* --------------------------------------------------------------------- */
+/* Copying a model                                                       */
+/* --------------------------------------------------------------------- */
+
+/* A copy of `src`'s problem, names, settings and starting basis into a new
+ * model, and not of its answer (D287). Built whole before anything is
+ * handed back, so a failure leaves nothing half-made. */
+jaos_status jaos_model_copy(const jaos_model *src, jaos_model **out)
+{
+    if (src == nullptr || out == nullptr)
+        return JAOS_ERR_INVALID_INPUT;
+    *out = nullptr;
+    jaos_model *m = nullptr;
+    jaos_status st = jaos_model_new(&m);
+    if (st != JAOS_OK)
+        return st;
+    st = jaos_load_lp(m, src->num_col, src->num_row, src->sense,
+                      src->obj_offset, src->col_cost, src->col_lower,
+                      src->col_upper, src->row_lower, src->row_upper,
+                      src->num_nz, src->a_start, src->a_index, src->a_value);
+    if (st != JAOS_OK)
+        goto fail;
+
+    /* Names, where the source has any. */
+    char **cn = nullptr, **rn = nullptr, *on = nullptr;
+    if (src->col_name != nullptr) {
+        cn = jm_calloc_array(src->num_col, sizeof(char *));
+        if (cn == nullptr)
+            goto oom;
+        for (int64_t j = 0; j < src->num_col; j++)
+            if (src->col_name[j] != nullptr &&
+                (cn[j] = jm_name_copy(src->col_name[j])) == nullptr)
+                goto oom_names;
+    }
+    if (src->row_name != nullptr) {
+        rn = jm_calloc_array(src->num_row, sizeof(char *));
+        if (rn == nullptr)
+            goto oom_names;
+        for (int64_t i = 0; i < src->num_row; i++)
+            if (src->row_name[i] != nullptr &&
+                (rn[i] = jm_name_copy(src->row_name[i])) == nullptr)
+                goto oom_names;
+    }
+    if (src->obj_name != nullptr &&
+        (on = jm_name_copy(src->obj_name)) == nullptr)
+        goto oom_names;
+    jm_model_take_names(m, cn, rn, on);
+    if (src->model_name != nullptr &&
+        (m->model_name = jm_name_copy(src->model_name)) == nullptr)
+        goto oom;
+
+    /* Settings travel whole, callbacks and their user pointers included:
+     * the copy is the caller's, and what they installed on the source is
+     * what they would install on it. */
+    m->cfg = src->cfg;
+
+    /* The starting basis, which is a starting point and not an answer. */
+    if (src->start_col_status != nullptr && src->start_row_status != nullptr) {
+        st = jaos_set_basis(m, src->start_col_status, src->start_row_status);
+        if (st != JAOS_OK)
+            goto fail;
+    }
+    *out = m;
+    return JAOS_OK;
+
+oom_names:
+    free_names(cn, src->num_col);
+    free_names(rn, src->num_row);
+    free(on);
+oom:
+    st = JAOS_ERR_OUT_OF_MEMORY;
+fail:
+    jaos_model_free(m);
+    return st;
 }

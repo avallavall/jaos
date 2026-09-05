@@ -55,6 +55,11 @@ header is a line whose first character is non-blank, `*` opens a comment.
   would break every model whose author meant it, to agree with two reference
   sets that predate the convention.
 - **Default RHS is 0** for rows never named in the RHS section.
+- **`NAME`**: the first word after it is the model's name, read back by
+  `jaos_model_name` and written back by `jaos_write_mps`; a name with
+  spaces in it, which fixed layout allows, keeps its first word only,
+  because nothing this library writes can spell whitespace in a name. A
+  bare `NAME` line leaves the model called `JAOS` (D284).
 - **RANGES** with rhs `b` and range `r`:
   - `G` row: bounds `[b, b + |r|]`
   - `L` row: bounds `[b - |r|, b]`

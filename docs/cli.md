@@ -11,12 +11,13 @@ compiles it and runs its test, `tests/cli.sh`.
 ## Usage
 
 ```
-jaos solve FILE [--solution OUT] [--work-limit N] [--time-limit SECONDS]
-                [--primal-tol T] [--dual-tol T] [--log LEVEL] [--quiet]
+jaos solve FILE [--solution OUT] [--start SOLUTION] [--work-limit N]
+                [--time-limit SECONDS] [--primal-tol T] [--dual-tol T]
+                [--log LEVEL] [--quiet]
 jaos convert IN OUT
 jaos check FILE SOLUTION [--tol T]
 jaos iis FILE
-jaos verify FILE
+jaos verify FILE [--values]
 jaos ranging FILE
 jaos --version
 jaos --help
@@ -78,6 +79,7 @@ prints the same facts as the same model solved silently.
 | option | what it does |
 |---|---|
 | `--solution OUT` | writes the solution file to `OUT`: the optimum when the solve found one, and the certificate when it proved the model infeasible or unbounded (D285). A solve that stopped on a budget or an interrupt has no answer to write; no file is written and stderr says why. The file format is JAOS's own; `docs/format-support.md` describes it. |
+| `--start SOLUTION` | warm-starts from the basis in `SOLUTION`, a file `solve --solution` wrote for this model's optimum: the statuses are read and handed to the model before the solve, so re-solving a model from its own answer costs no iteration. A file for another model, or one holding a certificate, is refused with the library's message and exit 5. |
 | `--work-limit N` | stops the solve after `N` deterministic work units. `N` must be a positive integer. The outcome is `work_limit`. |
 | `--time-limit SECONDS` | stops the solve after that many wall-clock seconds. Must be positive; fractions are fine. The outcome is `time_limit`. |
 | `--primal-tol T` | how far a variable may sit outside its bounds and still count as feasible. Default 1e-7. |
@@ -254,6 +256,25 @@ terms 10
 - On `broken`, `at_row` and `at_col` name the row or column that breaks the
   proof, when one does, and `violation` says how far out it is.
 - `blocks`, `largest_block`, `bytes_held` and `terms` describe the work.
+
+`--values` prints, after a `proof optimal`, what the proof proved (D286):
+one `x NAME VALUE` line per column, one `y NAME DUAL` line per row, then
+`objective_exact VALUE`, every value an exact rational -- `4`, `1/3`,
+`-7/2` -- with no rounding anywhere. A basic column's value is what the
+exact elimination solved, a nonbasic one's is the bound its status names,
+and the objective is summed from those. The `objective_exact` line is
+absent when that sum outgrew the arithmetic on a model whose values fitted.
+Nothing is printed for a `broken` or `refused` proof.
+
+```
+x X1 4
+x X2 3
+x X3 3
+y DEMAND 4
+y CAP1 -2
+y CAP2 -1
+objective_exact 29
+```
 
 The exit code is the verdict: 0 proved, 1 broken, 3 refused. A model whose
 solve is not optimal has no basis to prove; the tool prints its status line,

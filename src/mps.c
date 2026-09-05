@@ -115,6 +115,8 @@ typedef struct {
     /* The objective row's own name as ROWS gave it, handed to the model at
      * the end; nullptr until the row is met. */
     char *objrow;
+    /* NAME's first word, likewise. */
+    char *modelname;
 
     jm_nmap cmap;                      /* column name -> index */
     double *cost, *cl, *cu;
@@ -154,6 +156,7 @@ static void rd_free(rd *r)
     free(r->rowstamp);
     free(r->objname);
     free(r->objrow);
+    free(r->modelname);
 }
 
 /* OBJNAME's row name, copied. Returns false only out of memory. */
@@ -481,7 +484,17 @@ jaos_status jaos_read_mps(jaos_model *m, const char *path)
             objsense_pending = false;
             objname_pending = false;
             if (strcmp(kw, "NAME") == 0) {
-                /* the instance name is not retained */
+                /* The first word after NAME is the model's name (D284). A
+                 * fixed-layout file may put spaces in it; only the first
+                 * word is kept, because a name with whitespace has no
+                 * spelling in anything this library writes. */
+                free(r->modelname);
+                r->modelname = nullptr;
+                if (nt >= 2 && jm_name_ok(tok[1])) {
+                    r->modelname = jm_name_copy(tok[1]);
+                    if (r->modelname == nullptr)
+                        FAIL_OOM();
+                }
             } else if (strcmp(kw, "OBJSENSE") == 0) {
                 if (nt >= 2) {
                     upcase(tok[1]);
@@ -671,6 +684,9 @@ jaos_status jaos_read_mps(jaos_model *m, const char *path)
         }
         jm_model_take_names(m, cn, rn, r->objrow);
         r->objrow = nullptr;
+        free(m->model_name);
+        m->model_name = r->modelname;
+        r->modelname = nullptr;
     }
 
 done:

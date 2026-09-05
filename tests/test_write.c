@@ -91,6 +91,16 @@ static void assert_same_model(const jaos_model *a, const jaos_model *b)
     TEST_ASSERT_EQUAL_STRING(na, nb);
 }
 
+/* The model's name travels through MPS, which has a line for it, and not
+ * through LP, which has none: an LP round trip comes back as "JAOS". */
+static void assert_same_model_name(const jaos_model *a, const jaos_model *b)
+{
+    char na[JAOS_NAME_MAX + 1], nb[JAOS_NAME_MAX + 1];
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_model_name(a, na, sizeof na));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_model_name(b, nb, sizeof nb));
+    TEST_ASSERT_EQUAL_STRING(na, nb);
+}
+
 /* --------------------------------------------------------------------- */
 /* The models under test                                                 */
 /* --------------------------------------------------------------------- */
@@ -1067,9 +1077,13 @@ static void test_names_round_trip_through_both_formats(void)
     char buf[JAOS_NAME_MAX + 1];
 
     jaos_model *b = fresh();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_model_name(a, "named.model"));
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_write_mps(a, TMP_MPS));
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_read_mps(b, TMP_MPS));
     assert_same_model(a, b);
+    assert_same_model_name(a, b);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_model_name(b, buf, sizeof buf));
+    TEST_ASSERT_EQUAL_STRING("named.model", buf);
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective_name(b, buf, sizeof buf));
     TEST_ASSERT_EQUAL_STRING("profit", buf);
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_col_name(b, 1, buf, sizeof buf));
