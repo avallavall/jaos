@@ -11,6 +11,16 @@ open, `bench/README.md` for the gate, and the commit each entry came from.
 
 ### Added
 
+- **Strong branching until a column is reliable, off by default.**
+  `jaos_set_mip_reliability` and `--reliability N` solve the children of
+  a column with fewer than `N` branches per direction on the spot, at most
+  eight columns per node, and the gains initialise its pseudocost; the
+  probes are billed and counted as `lp_solves`. Measured over the MIP set
+  it shrinks every tree and costs more than it saves at every setting,
+  0.971x at best with two instances past 2x, so the default is 0 and the
+  refusal is in `bench/refusals.txt` with its reopen condition. Python
+  carries the setting at both layers (D293).
+
 - **Pseudocost branching, and integer bounds rounded inward.** A
   fractional node branches on the column whose two directions have cost
   the objective most per unit moved so far, the fraction breaking a tie;

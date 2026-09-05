@@ -11,7 +11,8 @@
  *   jaos solve FILE [--solution OUT] [--start SOLUTION] [--work-limit N]
  *                   [--time-limit SECONDS] [--primal-tol T] [--dual-tol T]
  *                   [--cut-rounds N] [--dive] [--no-heuristics] [--node-limit N]
- *                   [--branching RULE] [--log LEVEL] [--quiet]
+ *                   [--branching RULE] [--reliability N] [--log LEVEL]
+ *                   [--quiet]
  *   jaos convert IN OUT
  *   jaos check FILE SOLUTION [--tol T]
  *   jaos iis FILE
@@ -71,7 +72,8 @@ static const char USAGE[] =
     "  jaos solve FILE [--solution OUT] [--start SOLUTION] [--work-limit N]\n"
     "                  [--time-limit SECONDS] [--primal-tol T] [--dual-tol T]\n"
     "                  [--cut-rounds N] [--dive] [--no-heuristics] [--node-limit N]\n"
-    "                  [--branching RULE] [--log LEVEL] [--quiet]\n"
+    "                  [--branching RULE] [--reliability N] [--log LEVEL]\n"
+    "                  [--quiet]\n"
     "  jaos convert IN OUT\n"
     "  jaos check FILE SOLUTION [--tol T]\n"
     "  jaos iis FILE\n"
@@ -97,6 +99,9 @@ static const char USAGE[] =
     "  --node-limit N   stop a MIP before its N-th node past the limit (N > 0)\n"
     "  --branching RULE which column a MIP branches on: pseudocost (default)\n"
     "                   or most-fractional\n"
+    "  --reliability N  branches per direction before a column's pseudocost\n"
+    "                   is trusted; below it its children are solved (default\n"
+    "                   0, never: D293 refused it as a default)\n"
     "  --log LEVEL      solver log on stderr: off, summary, progress, detail\n"
     "  --quiet          print the status line only\n"
     "  Exit: 0 optimal, 1 infeasible, 2 unbounded, 3 stopped by a limit or\n"
@@ -370,6 +375,7 @@ struct solve_options {
     int64_t cut_rounds;      /* -1: not given (the library's default)     */
     int64_t node_limit;      /* 0: not given; the parser refuses <= 0     */
     int branching;           /* -1: not given; else a jaos_branching      */
+    int64_t reliability;     /* -1: not given (the library's default)     */
     bool dive, no_heuristics;
     /* The tolerances carry a flag rather than a sentinel: any finite value
      * is passed to the library, which is what refuses a negative one, and a
@@ -390,6 +396,7 @@ static int parse_solve_options(int argc, char **argv, int first,
     o->log_level = JAOS_LOG_OFF;
     o->cut_rounds = -1;
     o->branching = -1;
+    o->reliability = -1;
 
     for (int i = first; i < argc; i++) {
         const char *a = argv[i];
@@ -428,6 +435,10 @@ static int parse_solve_options(int argc, char **argv, int first,
             if (!parse_double(v, &o->time_limit) || o->time_limit <= 0.0)
                 return usage_error("--time-limit needs a positive number of "
                                    "seconds, not '%s'", v);
+        } else if (strcmp(a, "--reliability") == 0) {
+            if (!parse_int64(v, &o->reliability) || o->reliability < 0)
+                return usage_error("--reliability needs a count of branches, 0 "
+                                   "or more, not '%s'", v);
         } else if (strcmp(a, "--branching") == 0) {
             if (strcmp(v, "pseudocost") == 0)
                 o->branching = JAOS_BRANCH_PSEUDOCOST;
@@ -489,6 +500,11 @@ static int cmd_solve(int argc, char **argv)
     }
     if (o.time_limit > 0.0 && jaos_set_time_limit(m, o.time_limit) != JAOS_OK) {
         rc = library_error("set the time limit for", o.file, m);
+        goto out;
+    }
+    if (o.reliability >= 0 &&
+        jaos_set_mip_reliability(m, o.reliability) != JAOS_OK) {
+        rc = library_error("set the reliability for", o.file, m);
         goto out;
     }
     if (o.branching >= 0 &&

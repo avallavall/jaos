@@ -300,6 +300,7 @@ and you have the argument. Jump to the entry for the numbers behind it.
 - **[D290](#d290--a-rounding-heuristic-at-every-node-it-cannot-shrink-a-best-bound-tree-and-it-moves-the-first-incumbent-up-to-three-orders-of-magnitude-earlier-for-18-of-the-work)** — A rounding heuristic at every node: it cannot shrink a best-bound tree, and it moves the first incumbent up to three orders of magnitude earlier for 1.8% of the work
 - **[D291](#d291--a-node-limit-on-the-tree-and-an-incumbent-callback-because-a-budget-stop-is-what-the-heuristic-is-for)** — A node limit on the tree and an incumbent callback, because a budget stop is what the heuristic is for
 - **[D292](#d292--pseudocost-branching-at-0722x-with-the-fraction-breaking-a-tie-so-a-zero-objective-does-not-degrade-it-and-an-integer-columns-fractional-bounds-rounded-inward)** — Pseudocost branching at 0.722x, with the fraction breaking a tie so a zero objective does not degrade it, and an integer column's fractional bounds rounded inward
+- **[D293](#d293--strong-branching-until-a-column-is-reliable-refused-as-a-default-the-probes-cost-more-than-the-smaller-trees-saved-at-every-setting)** — Strong branching until a column is reliable, refused as a default: the probes cost more than the smaller trees saved at every setting
 
 ---
 
@@ -21425,3 +21426,41 @@ rewritten to the new trees.
 reliability threshold, no history carried between solves; a column's
 first branch in a tree is judged by the mean of the others. No LP path is
 touched: the three gate sets are byte-identical.
+
+## D293 — Strong branching until a column is reliable, refused as a default: the probes cost more than the smaller trees saved at every setting
+
+**The gap.** D292 judged a column's first branch by the mean of the
+others' pseudocosts. Achterberg, Koch and Martin's answer is reliability
+branching: solve the two children of a column that has too little
+history, and let what they show initialise its pseudocost.
+
+**What it does now.** `jaos_set_mip_reliability` and `--reliability` set
+how many branches in each direction a column needs before its pseudocost
+is trusted; below it, at most `MIP_STRONG_CANDIDATES` (8) fractional
+columns per node, the best by score, have each untrusted child solved
+from the node's optimal basis, the gain teaches the pseudocost as a real
+branch would, and the node is put back with one more solve. The probes
+are billed and counted as `lp_solves`. **The default is 0**, never, and
+that is this decision. Python carries the setting at both layers.
+
+**Evidence** (`bench/measurements/02-192/`). The control arm,
+`--reliability 0`, reproduces `bench/miplib.baseline` node for node and
+unit for unit on all 17. Against it, work in geometric mean over the 17:
+**0.971x at reliability 1** (7 better, 9 worse, `mod010` 2.84x and
+`enigma` 2.07x past the gate's factor), **1.064x at 2**, **1.173x at 4**,
+**1.437x at 8**. The trees shrink at every setting -- `dcmulti` 585 to
+135 nodes at 4, `mod010` 7 to 3, `p0201` 1357 to 329 at 1, `p0033` 1609
+to 391 at 1 -- so the information is real; each probe is a full child
+solve, and that price is not. `blend2` at 0.383x and `flugpl` at 0.436x
+under reliability 1 say what a cheaper probe could be worth.
+
+**What reopens it.** A probe capped at a small multiple of the node's own
+solve work, or probing at the root only, measured on the same set at or
+under 0.95x with no instance past 2x; `bench/refusals.txt` carries the
+condition and `02-192/retest-reliability.sh` re-runs reliability 1
+against 0. `MIP_STRONG_CANDIDATES` is held: a cap on the candidates only
+lowers the price of a thing that did not pay at any price measured.
+
+**What it is not.** No change to any default: the MIP set is
+byte-identical against its D292 baseline and the three gate sets against
+theirs.

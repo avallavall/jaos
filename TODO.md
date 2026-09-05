@@ -7,7 +7,23 @@ line leaves this file in the same commit.
 
 ## Where the last session stopped — 2026-09-05
 
-**2026-09-05, last: pseudocost branching at 0.722x, and integer bounds
+**2026-09-05, last: strong branching until reliable, refused as a
+default (D293).** The eighth batch of the day and the second refusal.
+`jaos_set_mip_reliability` and `--reliability` exist and are off: at
+every setting from 1 to 8 the probes cost more work than the smaller
+trees saved, 0.971x at best with `mod010` 2.84x and `enigma` 2.07x, and
+the trees shrink everywhere, `dcmulti` 585 to 135 nodes
+(`bench/measurements/02-192/`). The information is real and the price
+is a full child solve. **What is next**, in order: a cheaper probe, a
+work cap per child at a small multiple of the node's own solve, which is
+what would reopen D293 and is the cheapest thing on this list; cuts
+below the root against the D292 baseline; a child rule for the dive that
+is not nearer-side first, which is what would reopen D289; and the seven
+held constants, each swept on this set once something moves them. Two
+refusals with re-test scripts now sit in `bench/refusals.txt` for the
+MIP; `make refusals` runs both.
+
+**2026-09-05, later: pseudocost branching at 0.722x, and integer bounds
 rounded inward (D292).** The seventh batch of the day and the second
 with a factor in it. The tree branches on the column whose two
 directions have cost the objective most per unit moved, the fraction
@@ -4108,6 +4124,7 @@ change satisfies a condition in the right column, re-ask that question. Until
 then, do not — a refusal whose premise has not changed just fails again.
 
 | decision | what was refused or deferred | reopens when |
+| D293 | strong branching until a column is reliable, as a default: each unreliable child solved in full, at most eight columns per node — **0.971x at reliability 1** with `mod010` 2.84x and `enigma` 2.07x, 1.064x at 2, 1.173x at 4, 1.437x at 8, while every setting shrinks the trees (`bench/measurements/02-192/`) | a cheaper probe — a work cap per child at a small multiple of the node's own solve, or probing at the root only — reads at or under 0.95x with no instance past 2x on the same set; `02-192/retest-reliability.sh` asks, and `make refusals` runs it |
 | D289 | a dive from each selected node of the branch and bound: nearer-side child first, sibling to the open set, until a prune — **1.125x** the plain best-bound order in work over the MIP set, one instance better and six worse, and 1.09x on top of one round of cuts (`bench/measurements/02-189/`) | a child rule that is not nearer-side first (up first for binaries, the pseudocost direction) or a backtracking dive reads at or under 0.95x with no instance past 2x on the same set; `02-189/retest-dive.sh` asks, and `make refusals` runs it |
 | D211 | a stop rule on the phase-1 objective rising — `pilot-ja` rose 25.0449 above its running minimum and still finished `ok` | **EXPIRED at D212, caught 2026-08-28**: `pilot-ja` rises 3.3348e-12 now and the largest rise on any `ok` solve is 9.36752e-10, so a threshold has a window about nine orders wide. Attributed to the commit in D215, `02-130/`. Open work below, and the line has left `bench/refusals.txt` |
 | D184 | `can_move`'s product-against-rate units, measured dead on the dual (94/94 digests) | **CLOSED 2026-08-28**: the reopen condition was met on 2026-08-25 and the question is settled. `can_move` reads `breached` now (D214, `02-129/`), and the line has left `bench/refusals.txt` |

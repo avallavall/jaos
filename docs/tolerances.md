@@ -591,12 +591,12 @@ control, one bit lower, where all three succeed. That pair is what makes the
 limit a measurement instead of a comment, and it caught the first version of
 `jm_nat_shl`, which charged a spare limb for any shift that was not a whole
 number of limbs and so refused a value that fits.
-## Branch and bound's seven numbers
+## Branch and bound's nine numbers
 
 All in `src/mip.c`: the first two are D288's, the four under them the root
-cuts' (D289), the last the branching rule's (D292). The MIP set (`make miplib J=12`, 17 instances,
+cuts' (D289), the next the branching rule's (D292), the last two strong branching's (D293). The MIP set (`make miplib J=12`, 17 instances,
 `bench/miplib.manifest`) is where a sweep of any of them runs. The rounds
-have theirs; the other six are held to the source by `record-check` with
+and the reliability have theirs; the other seven are held to the source by `record-check` with
 what each one waits for stated beside it.
 
 | constant | value | what it decides |
@@ -608,4 +608,6 @@ what each one waits for stated beside it.
 | `MIP_CUT_DROP` | 1e-9 | a coefficient below `DROP` times the cut's largest is folded into the right-hand side through its column's bound, which keeps the cut valid and drops the entry; kept when that bound is infinite. Not swept: held |
 | `MIP_CUT_DYNAMISM` | 1e6 | the largest ratio of a kept cut's largest to smallest coefficient; a cut past it is not added. Not swept: held. The `pk1` failure at three rounds happened under it, so it is not what protects the root from a bad cut; the rounds count is |
 | `MIP_PC_EPS` | 1e-6 | the floor of a direction's pseudocost score (D292): the score is the product of the two directions' expected gains, and a direction whose gain was 0 would otherwise zero the column out of the choice. Achterberg, Koch and Martin (Branching rules revisited, 2005) use the same floor. Decides an order between columns, never a number in an answer. Not swept: held |
+| `MIP_RELIABILITY` | 0 | branches per direction before a column's pseudocost is trusted; below it the column's children are solved on the spot and the gains initialise the pseudocosts (D293). `jaos_set_mip_reliability` overrides it. **Swept at 0, 1, 2, 4 and 8** over the MIP set, pseudocost branching, everything else at its default (`bench/measurements/02-192/`): work against 0 reads 0.971x at 1 (7 better, 9 worse, `mod010` 2.84x and `enigma` 2.07x past the gate's factor), 1.064x at 2, 1.173x at 4 and 1.437x at 8, while the node counts fall at every setting (`dcmulti` 585 to 135 at 4, `mod010` 7 to 3). The probes are worth their information and not their price: each is a full child solve. 0 is the default and the setting is refused as a default; `bench/refusals.txt` carries what reopens it |
+| `MIP_STRONG_CANDIDATES` | 8 | how many unreliable columns a node probes, the best by pseudocost score. Not swept: held, since no setting of the count above was worth its work, and a cap on the candidates only lowers the price of a thing that did not pay at any price measured |
 

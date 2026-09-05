@@ -1232,6 +1232,17 @@ class TestBranchAndBound(unittest.TestCase):
             self.assertEqual((a.value, b.value, c.value), (1.0, 1.0, 0.0))
         with self.assertRaises(jaos.JaosError):
             p.set_mip_branching(7)
+        # Strong branching until reliable (D293): the probes are counted as
+        # lp_solves beyond the nodes, and the answer is the same at 0 and 8.
+        for rel in (0, 8):
+            p.set_mip_branching(jaos.Branching.PSEUDOCOST).set_mip_reliability(rel)
+            self.assertIs(p.solve(), jaos.SolveStatus.OPTIMAL)
+            self.assertAlmostEqual(p.objective_value, 9.0, places=9)
+            rep = p.mip_report()
+            if rel == 0:
+                self.assertEqual(rep.lp_solves, rep.nodes)
+            else:
+                self.assertGreater(rep.lp_solves, rep.nodes)
 
     def test_the_rounding_heuristic_finds_the_root_relaxations_neighbour(self):
         # max x + y, x + y <= 3.6, x <= 2.2, y <= 1.4, both integer: the

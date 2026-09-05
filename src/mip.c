@@ -78,6 +78,15 @@ constexpr double MIP_CUT_DYNAMISM = 1e6;
  * floor. Decides an order, not a number; docs/tolerances.md lists it. */
 constexpr double MIP_PC_EPS = 1e-6;
 
+/* Reliability branching (D293): a column whose pseudocost has fewer than
+ * MIP_RELIABILITY branches in a direction has that child solved on the
+ * spot, for at most MIP_STRONG_CANDIDATES columns per node, taken in
+ * score order. jaos_set_mip_reliability overrides the first;
+ * docs/tolerances.md carries the sweep of the first and the reason the
+ * second is held. */
+constexpr int64_t MIP_RELIABILITY = 0;
+constexpr int64_t MIP_STRONG_CANDIDATES = 8;
+
 /* One open node: the bound changes along its path from the root, in the
  * order they were made, and the basis its parent's relaxation ended on. */
 typedef struct {
@@ -356,6 +365,114 @@ static void pseudocost_learn(const bnode *n, double key, int64_t nc,
         gain = 0.0;
     pc_sum[d * nc + j] += gain / n->frac;
     pc_n[d * nc + j] += 1;
+}
+
+/* The pseudocost score of column j at fraction f, the product select_branch
+ * ranks by. */
+static double pc_score(int64_t j, double f, int64_t nc, const double *pc_sum,
+                       const int64_t *pc_n)
+{
+    const double qd = f * pseudocost(j, 0, nc, pc_sum, pc_n);
+    const double qu = (1.0 - f) * pseudocost(j, 1, nc, pc_sum, pc_n);
+    return (qd > MIP_PC_EPS ? qd : MIP_PC_EPS) * (qu > MIP_PC_EPS ? qu : MIP_PC_EPS);
+}
+
+/* Strong branching on the node the copy holds (D293): the fractional
+ * integer columns with fewer than `reliability` branches in some
+ * direction, the best MIP_STRONG_CANDIDATES by score, have each such
+ * child solved from the node's optimal basis, and the gain seen teaches
+ * the pseudocost as a real branch would. An infeasible child teaches
+ * nothing. The node is then put back -- its bounds, its basis, one solve
+ * that ends where it started -- so what follows sees the node as it was.
+ * `cs`, `rs` and `cand` are scratch of the copy's size; every probe is
+ * billed to `work` and counted in `solves`. */
+static jaos_status strong_probe(jaos_model *lp, const jaos_model *m,
+                                const double *x, double key, double sigma,
+                                int64_t reliability, double *pc_sum,
+                                int64_t *pc_n, int64_t *work, int64_t *solves,
+                                jaos_basis_status *cs, jaos_basis_status *rs,
+                                int64_t *cand)
+{
+    const int64_t nc = m->num_col, nr = lp->num_row;
+    int64_t ncand = 0;
+    for (int64_t j = 0; j < nc; j++) {
+        if (!m->col_integer[j])
+            continue;
+        const double f = x[j] - floor(x[j]);
+        if (f <= MIP_INT_TOL || f >= 1.0 - MIP_INT_TOL)
+            continue;
+        if (pc_n[j] >= reliability && pc_n[nc + j] >= reliability)
+            continue;
+        /* Insertion by score, descending, earlier index first on a tie:
+         * the list is short and the order must be the same everywhere. */
+        const double sc = pc_score(j, f, nc, pc_sum, pc_n);
+        int64_t p = ncand < MIP_STRONG_CANDIDATES ? ncand : MIP_STRONG_CANDIDATES - 1;
+        if (p == MIP_STRONG_CANDIDATES - 1 && ncand == MIP_STRONG_CANDIDATES) {
+            const int64_t last = cand[p];
+            const double fl = x[last] - floor(x[last]);
+            if (sc <= pc_score(last, fl, nc, pc_sum, pc_n))
+                continue;
+        }
+        while (p > 0) {
+            const int64_t k = cand[p - 1];
+            const double fk = x[k] - floor(x[k]);
+            if (pc_score(k, fk, nc, pc_sum, pc_n) >= sc)
+                break;
+            cand[p] = cand[p - 1];
+            p--;
+        }
+        cand[p] = j;
+        if (ncand < MIP_STRONG_CANDIDATES)
+            ncand++;
+    }
+    if (ncand == 0)
+        return JAOS_OK;
+    if (nc > 0)
+        memcpy(cs, lp->sol_col_status, (size_t)nc * sizeof *cs);
+    if (nr > 0)
+        memcpy(rs, lp->sol_row_status, (size_t)nr * sizeof *rs);
+    jaos_status st = JAOS_OK;
+    for (int64_t c = 0; c < ncand && st == JAOS_OK; c++) {
+        const int64_t j = cand[c];
+        const double f = x[j] - floor(x[j]);
+        const double lo0 = lp->col_lower[j], hi0 = lp->col_upper[j];
+        for (int d = 0; d < 2 && st == JAOS_OK; d++) {
+            if (pc_n[d * nc + j] >= reliability)
+                continue;
+            st = d == 0 ? jaos_set_col_bounds(lp, j, lo0, floor(x[j]))
+                        : jaos_set_col_bounds(lp, j, ceil(x[j]), hi0);
+            if (st == JAOS_OK)
+                st = jaos_set_basis(lp, cs, rs);
+            if (st == JAOS_OK)
+                st = jaos_solve(lp);
+            (*solves)++;
+            *work += jaos_work_units(lp);
+            if (st == JAOS_OK && jaos_status_of(lp) == JAOS_SOLVE_OPTIMAL) {
+                double obj = 0.0;
+                if (jaos_objective(lp, &obj) == JAOS_OK) {
+                    double gain = sigma * obj - key;
+                    if (gain < 0.0)
+                        gain = 0.0;
+                    pc_sum[d * nc + j] += gain / (d == 0 ? f : 1.0 - f);
+                    pc_n[d * nc + j] += 1;
+                }
+            }
+            const jaos_status back = jaos_set_col_bounds(lp, j, lo0, hi0);
+            if (st == JAOS_OK)
+                st = back;
+        }
+    }
+    if (st != JAOS_OK)
+        return st;
+    /* The node as it was: its optimal basis is a start that ends at once. */
+    st = jaos_set_basis(lp, cs, rs);
+    if (st == JAOS_OK)
+        st = jaos_solve(lp);
+    (*solves)++;
+    *work += jaos_work_units(lp);
+    if (st == JAOS_OK && jaos_status_of(lp) != JAOS_SOLVE_OPTIMAL)
+        st = JAOS_ERR_NUMERICAL;
+    return st;
 }
 
 /* --- Gomory mixed-integer cuts at the root ----------------------------- */
@@ -645,6 +762,9 @@ jaos_status jm_branch_and_bound(jaos_model *m)
     const bool dive = m->cfg.mip_dive;
     const bool heur = !m->cfg.mip_no_heuristics;
     const jaos_branching rule = (jaos_branching)m->cfg.mip_branching;
+    const int64_t reliability = rule == JAOS_BRANCH_PSEUDOCOST
+        ? (m->cfg.mip_reliability_set ? m->cfg.mip_reliability : MIP_RELIABILITY)
+        : 0;
 
     jaos_status rc = JAOS_ERR_OUT_OF_MEMORY;
     jaos_model *lp = nullptr;
@@ -655,7 +775,8 @@ jaos_status jm_branch_and_bound(jaos_model *m)
     double *x = nullptr, *row = nullptr, *cut = nullptr;
     double *xr = nullptr, *ra = nullptr;
     double *ilo = nullptr, *ihi = nullptr, *pc_sum = nullptr;
-    int64_t *pc_n = nullptr;
+    int64_t *pc_n = nullptr, *cand = nullptr;
+    jaos_basis_status *pcs = nullptr, *prs = nullptr;
     int64_t next_id = 0, nodes = 0, solves = 0, cuts = 0, heur_points = 0;
     int64_t first_inc = 0;             /* the node of the first incumbent */
     int64_t work = 0, iters = 0;
@@ -684,8 +805,11 @@ jaos_status jm_branch_and_bound(jaos_model *m)
     ihi = malloc((size_t)(nc > 0 ? nc : 1) * sizeof *ihi);
     pc_sum = calloc((size_t)(nc > 0 ? 2 * nc : 1), sizeof *pc_sum);
     pc_n = calloc((size_t)(nc > 0 ? 2 * nc : 1), sizeof *pc_n);
+    cand = malloc((size_t)MIP_STRONG_CANDIDATES * sizeof *cand);
+    pcs = malloc((size_t)(nc > 0 ? nc : 1) * sizeof *pcs);
     if (x == nullptr || xr == nullptr || ra == nullptr || ilo == nullptr ||
-        ihi == nullptr || pc_sum == nullptr || pc_n == nullptr)
+        ihi == nullptr || pc_sum == nullptr || pc_n == nullptr ||
+        cand == nullptr || pcs == nullptr)
         goto done;
     /* An integer column's bounds rounded inward (D292): a fractional bound
      * admits no integer between it and the next one, and a column whose
@@ -703,11 +827,12 @@ jaos_status jm_branch_and_bound(jaos_model *m)
             nint += m->col_integer[j];
         jm_log(m, JAOS_LOG_SUMMARY,
                "branch and bound: %lld integer columns of %lld, %lld rounds "
-               "of cuts, dive %s, rounding %s, %s branching",
+               "of cuts, dive %s, rounding %s, %s branching, reliability %lld",
                (long long)nint, (long long)nc, (long long)rounds,
                dive ? "on" : "off", heur ? "on" : "off",
                rule == JAOS_BRANCH_MOST_FRACTIONAL ? "most-fractional"
-                                                   : "pseudocost");
+                                                   : "pseudocost",
+               (long long)reliability);
     }
 
     /* The root is the node with no changes. An outcome already known --
@@ -910,8 +1035,31 @@ jaos_status jm_branch_and_bound(jaos_model *m)
             }
             continue;
         }
-        const double v = x[branch];
         const int64_t nrl = lp->num_row;
+        /* Strong branching on the unreliable candidates, then the choice
+         * again with what they taught (D293). The row scratch follows the
+         * copy, which the root's cuts may have widened. */
+        if (reliability > 0) {
+            jaos_basis_status *grown = realloc(prs, (size_t)(nrl > 0 ? nrl : 1)
+                                                        * sizeof *prs);
+            if (grown == nullptr)
+                goto done;
+            prs = grown;
+            const jaos_status ps = strong_probe(lp, m, x, key, sigma,
+                                                reliability, pc_sum, pc_n,
+                                                &work, &solves, pcs, prs, cand);
+            if (ps != JAOS_OK) {
+                if (ps == JAOS_ERR_NUMERICAL) {
+                    outcome = JAOS_SOLVE_NUMERICAL_ERROR;
+                    jm_set_err(m, "node %lld, strong branching: %s",
+                               (long long)nodes, jaos_model_error(lp));
+                    break;
+                }
+                goto done;
+            }
+            branch = select_branch(m, x, rule, pc_sum, pc_n);
+        }
+        const double v = x[branch];
         bnode *down = node_child(nodes > 0 ? cur : nullptr, nc, nrl, lp,
                                  branch, lp->col_lower[branch], floor(v), key,
                                  next_id++, v - floor(v), false);
@@ -1000,6 +1148,9 @@ done:
     free(ihi);
     free(pc_sum);
     free(pc_n);
+    free(cand);
+    free(pcs);
+    free(prs);
     free(row);
     free(cut);
     cutbuf_free(&cb);

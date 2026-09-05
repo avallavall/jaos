@@ -357,6 +357,18 @@ typedef enum jaos_branching {
 JAOS_NODISCARD jaos_status jaos_set_mip_branching(jaos_model *m,
                                                   jaos_branching rule);
 
+/* How many branches in each direction a column needs before its pseudocost
+ * is trusted (D293). Below that, at most a few candidates per node have
+ * their two children solved on the spot -- strong branching -- and the
+ * gains seen initialise the pseudocosts, so a column's first branch is judged
+ * by its own children and not by the mean of the others. 0 never probes,
+ * and 0 is the default: over the MIP set the probes cost more work than
+ * the smaller trees saved at every setting from 1 to 8 (D293, refused). A
+ * negative value restores 0; the probes are counted as `lp_solves` and
+ * their work is billed. */
+JAOS_NODISCARD jaos_status jaos_set_mip_reliability(jaos_model *m,
+                                                    int64_t branches);
+
 /* What the last branch and bound did. `bound` is the best objective any
  * open node could still reach when the search stopped, in the model's
  * own sense, and equals the incumbent when the answer is OPTIMAL;

@@ -625,6 +625,50 @@ static void test_a_fractional_bound_on_an_integer_column_is_rounded_inward(void)
     jaos_model_free(m);
 }
 
+/* Strong branching until reliable (D293): on the knapsack with the cuts
+ * off, reliability 0 solves one relaxation per node and reliability 8
+ * solves more, since the root's fractional column has its two children
+ * probed and the node is put back with one more solve; the answer is the
+ * same either way, the probes are billed, and a negative value restores
+ * the default. */
+static void test_strong_branching_probes_are_counted_and_change_no_answer(void)
+{
+    int64_t solves0 = 0, nodes0 = 0, work0 = 0;
+    for (int pass = 0; pass < 2; pass++) {
+        jaos_model *m = knapsack();
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_cut_rounds(m, 0));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_reliability(m, pass == 0 ? 0 : 8));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+        TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+        double obj = 0.0, x[3];
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(m, &obj));
+        TEST_ASSERT_DOUBLE_WITHIN(1e-9, 9.0, obj);
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solution(m, x, nullptr, nullptr, nullptr));
+        TEST_ASSERT_TRUE(x[0] == 1.0 && x[1] == 1.0 && x[2] == 0.0);
+        jaos_mip_report rep;
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_mip_result(m, &rep));
+        if (pass == 0) {
+            TEST_ASSERT_EQUAL_INT64(rep.nodes, rep.lp_solves);
+            solves0 = rep.lp_solves;
+            nodes0 = rep.nodes;
+            work0 = jaos_work_units(m);
+        } else {
+            TEST_ASSERT_TRUE(rep.lp_solves > rep.nodes);
+            TEST_ASSERT_TRUE(rep.lp_solves > solves0);
+            TEST_ASSERT_TRUE(rep.nodes <= nodes0);
+            TEST_ASSERT_TRUE(jaos_work_units(m) > work0 || rep.nodes < nodes0);
+        }
+        /* A negative value restores the default, and the tree is the
+         * default's again. */
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_reliability(m, -1));
+        TEST_ASSERT_FALSE(m->cfg.mip_reliability_set);
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(m, &obj));
+        TEST_ASSERT_DOUBLE_WITHIN(1e-9, 9.0, obj);
+        jaos_model_free(m);
+    }
+}
+
 int main(void)
 {
     UNITY_BEGIN();
@@ -648,5 +692,6 @@ int main(void)
     RUN_TEST(test_a_node_limit_stops_with_the_incumbent_the_callback_saw);
     RUN_TEST(test_both_branching_rules_reach_the_same_optimum);
     RUN_TEST(test_a_fractional_bound_on_an_integer_column_is_rounded_inward);
+    RUN_TEST(test_strong_branching_probes_are_counted_and_change_no_answer);
     return UNITY_END();
 }

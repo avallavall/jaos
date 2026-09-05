@@ -95,6 +95,7 @@ prints the same facts as the same model solved silently.
 | `--no-heuristics` | turns the rounding heuristic off: by default every fractional node's relaxation is rounded to the nearest integers and kept as the incumbent when it is inside every bound and row (D290). No effect on an LP. |
 | `--node-limit N` | stops a branch and bound before its `N`-th node past the limit, as `node_limit`, keeping the incumbent it has; `N` must be a positive integer (D291). No effect on an LP. |
 | `--branching RULE` | which column a fractional node branches on: `pseudocost`, the default, scores each column by the objective gain a unit move in each direction has cost so far in the tree; `most-fractional` takes the column farthest from an integer (D292). No effect on an LP. |
+| `--reliability N` | how many branches in each direction a column needs before its pseudocost is trusted; below it, at most eight candidates per node have their children solved on the spot and the gains initialise the pseudocosts. Default 0, never: over the MIP set the probes cost more work than the smaller trees saved at every setting from 1 to 8 (D293, refused, `bench/refusals.txt`). No effect on an LP or under most-fractional branching. |
 | `--log LEVEL` | prints the solver's log on stderr. `LEVEL` is `off`, `summary`, `progress` or `detail`. Default `off`. |
 | `--quiet` | prints the `status` line only. |
 

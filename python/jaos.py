@@ -450,6 +450,7 @@ _sig("jaos_set_log_level", ctypes.c_int, _VP, ctypes.c_int)
 _sig("jaos_set_progress_callback", ctypes.c_int, _VP, _PROGRESS_FN, _VP)
 _sig("jaos_set_mip_node_limit", ctypes.c_int, _VP, _I64)
 _sig("jaos_set_mip_branching", ctypes.c_int, _VP, ctypes.c_int)
+_sig("jaos_set_mip_reliability", ctypes.c_int, _VP, _I64)
 _sig("jaos_set_incumbent_callback", ctypes.c_int, _VP, _INCUMBENT_FN, _VP)
 _sig("jaos_solve", ctypes.c_int, _VP)
 _sig("jaos_status_of", ctypes.c_int, _VP)
@@ -816,6 +817,13 @@ class Model:
         """Which column a fractional node branches on: a `Branching`;
         PSEUDOCOST by default (D292)."""
         self._check(_lib.jaos_set_mip_branching(self._handle(), int(rule)))
+
+    def set_mip_reliability(self, branches):
+        """Branches per direction before a column's pseudocost is trusted;
+        below it the column's children are solved on the spot (D293). 0
+        never probes and is the default, since the probes measured worse
+        as a default; a negative value restores 0."""
+        self._check(_lib.jaos_set_mip_reliability(self._handle(), int(branches)))
 
     def set_incumbent_callback(self, fn):
         """Asks a branch and bound to call `fn(incumbent)` for each new
@@ -2075,6 +2083,10 @@ class Problem:
 
     def set_mip_branching(self, rule):
         self._m.set_mip_branching(rule)
+        return self
+
+    def set_mip_reliability(self, branches):
+        self._m.set_mip_reliability(branches)
         return self
 
     def set_incumbent_callback(self, fn):

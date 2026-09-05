@@ -916,6 +916,15 @@ jaos_status jaos_set_mip_branching(jaos_model *m, jaos_branching rule)
     return JAOS_OK;
 }
 
+jaos_status jaos_set_mip_reliability(jaos_model *m, int64_t branches)
+{
+    if (m == nullptr)
+        return JAOS_ERR_INVALID_INPUT;
+    m->cfg.mip_reliability_set = branches >= 0;
+    m->cfg.mip_reliability = branches >= 0 ? branches : 0;
+    return JAOS_OK;
+}
+
 jaos_status jaos_set_incumbent_callback(jaos_model *m, jaos_incumbent_fn cb,
                                         void *user)
 {

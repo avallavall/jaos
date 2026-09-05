@@ -54,6 +54,10 @@ typedef struct {
      * incumbent. */
     int64_t mip_node_limit;
     int mip_branching;       /* a jaos_branching; 0 is pseudocost (D292) */
+    /* Strong branching until a column is reliable (D293); unset means
+     * MIP_RELIABILITY (src/mip.c). */
+    bool mip_reliability_set;
+    int64_t mip_reliability;
     jaos_incumbent_fn incumbent_cb;
     void *incumbent_user;
 } jm_config;

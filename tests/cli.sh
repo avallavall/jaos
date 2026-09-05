@@ -241,6 +241,14 @@ expect_exit 0 "and pseudocost branching by name" \
     "$JAOS" solve "$DATA/nl_int.lp" --cut-rounds 0 --branching pseudocost
 expect_exit 5 "--branching refuses an unknown rule" \
     "$JAOS" solve "$DATA/nl_int.lp" --branching random
+# Reliability (D293): zero never probes and still solves; a negative count
+# is a usage error.
+expect_exit 0 "reliability zero still solves it" \
+    "$JAOS" solve "$DATA/nl_int.lp" --cut-rounds 0 --reliability 0
+[ "$(line_of objective)" = "objective 3" ] && pass "to 3" \
+    || flunk "reliability 0: $(line_of objective)"
+expect_exit 5 "--reliability refuses a negative" \
+    "$JAOS" solve "$DATA/nl_int.lp" --reliability -1
 expect_exit 0 "and converts to LP with its marks" \
     "$JAOS" convert "$DATA/t4_int.mps" "$tmp/t4.lp"
 grep -q '^General$' "$tmp/t4.lp" && pass "the LP carries a General section" \
