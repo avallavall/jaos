@@ -845,6 +845,141 @@ static void test_the_proof_checker_rejects_what_is_not_optimal(void)
 }
 
 
+
+/* x free, one row x >= 1 and one row x <= 0: infeasible, and the Farkas
+ * multipliers are 1 on the first row and -1 on the second. (A'y) is
+ * exactly zero, so no column bound is needed at all, and the infimum over
+ * the row bounds is 1 against a supremum of 0. That is a certificate the
+ * exact checker takes with no tolerance anywhere (D328). */
+static jaos_model *model_infeasible(void)
+{
+    jaos_model *m = nullptr;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_model_new(&m));
+    const double cost[1] = { 1.0 };
+    const double cl[1] = { -INFINITY }, cu[1] = { INFINITY };
+    const double rl[2] = { 1.0, -INFINITY }, ru[2] = { INFINITY, 0.0 };
+    const int64_t start[2] = { 0, 2 }, index[2] = { 0, 1 };
+    const double value[2] = { 1.0, 1.0 };
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_load_lp(m, 1, 2, JAOS_MINIMIZE, 0.0, cost, cl, cu, rl, ru,
+                     2, start, index, value));
+    return m;
+}
+
+static void test_an_infeasibility_certificate_is_checked_exactly(void)
+{
+    jaos_model *m = model_infeasible();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_INFEASIBLE, jaos_status_of(m));
+    /* No jaos_verify anywhere: a certificate is a vector the solve
+     * already published, and every double in it is an exact rational. */
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_write_proof(m, TMP_PROOF));
+    jaos_model_free(m);
+
+    jaos_proof_report pr;
+    jaos_model *a = model_infeasible();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_check_proof(a, TMP_PROOF, &pr));
+    TEST_ASSERT_EQUAL_INT(JAOS_PROOF_FILE_INFEASIBLE, pr.kind);
+#if defined(JAOS_PRESOLVE_FAULT_OFFBYONE)
+    /* The fault build lifts the ray onto the wrong row, and the exact
+     * checker must refuse it -- the same assertion `test_check.c` makes
+     * about `jaos_check_certificate` on this shape, and the reason this
+     * arm is not merely skipped here: a checker that accepts a build
+     * built to be wrong is not a checker. The edits below cannot run,
+     * because they name multipliers this build does not write. */
+    TEST_ASSERT_FALSE_MESSAGE(pr.certified,
+                              "a ray lifted onto the wrong row must not "
+                              "certify, exactly or otherwise");
+    jaos_model_free(a);
+    remove(TMP_PROOF);
+    return;
+#else
+    TEST_ASSERT_TRUE(pr.certified);
+    /* The optimum's three tests mean nothing here and say so. */
+    TEST_ASSERT_FALSE(pr.primal);
+    jaos_model_free(a);
+#endif
+
+    /* The case it must reject: one multiplier zeroed, which leaves the
+     * infimum over the rows at 0 against a supremum of 0 -- no strict
+     * gap, so no proof. */
+    jaos_model *b = model_infeasible();
+    TEST_ASSERT_TRUE(proof_edit("ray R2 -1", "ray R2 0"));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_check_proof(b, TMP_PROOF, &pr));
+    TEST_ASSERT_EQUAL_INT(JAOS_PROOF_FILE_INFEASIBLE, pr.kind);
+    TEST_ASSERT_FALSE(pr.certified);
+    jaos_model_free(b);
+    TEST_ASSERT_TRUE(proof_edit("ray R2 0", "ray R2 -1"));
+
+    /* A `col` record does not belong to a certificate, and an objective
+     * does not either: a certificate proves that no answer exists, not
+     * what one is. */
+    jaos_model *c = model_infeasible();
+    TEST_ASSERT_TRUE(proof_edit("ray R1 1", "col C1 1"));
+    TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT,
+                          jaos_check_proof(c, TMP_PROOF, &pr));
+    TEST_ASSERT_TRUE(proof_edit("col C1 1", "ray R1 1"));
+    TEST_ASSERT_TRUE(proof_edit("proof infeasible", "proof infeasible\nobjective 0"));
+    TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT,
+                          jaos_check_proof(c, TMP_PROOF, &pr));
+    TEST_ASSERT_TRUE(proof_edit("proof infeasible\nobjective 0",
+                                "proof infeasible"));
+    /* And it is taken again, so every refusal above was the edit. */
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_check_proof(c, TMP_PROOF, &pr));
+    TEST_ASSERT_TRUE(pr.certified);
+    jaos_model_free(c);
+    remove(TMP_PROOF);
+}
+
+/* min -x with x >= 0 and no row that holds it: unbounded, and the ray is
+ * the single column moving up. It escapes no finite bound and the
+ * objective falls along it, which is the whole of the exact test. */
+static void test_an_unbounded_ray_is_checked_exactly(void)
+{
+    jaos_model *m = nullptr;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_model_new(&m));
+    const double cost[1] = { -1.0 };
+    const double cl[1] = { 0.0 }, cu[1] = { INFINITY };
+    const double rl[1] = { -INFINITY }, ru[1] = { INFINITY };
+    const int64_t start[2] = { 0, 1 }, index[1] = { 0 };
+    const double value[1] = { 1.0 };
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_load_lp(m, 1, 1, JAOS_MINIMIZE, 0.0, cost, cl, cu, rl, ru,
+                     1, start, index, value));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    if (jaos_status_of(m) != JAOS_SOLVE_UNBOUNDED) {
+        /* The solve reached a different verdict on this build; there is
+         * nothing to write and nothing to check, and saying so is better
+         * than asserting a path that is not the subject. */
+        jaos_model_free(m);
+        TEST_IGNORE_MESSAGE("this build did not report UNBOUNDED here");
+        return;
+    }
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_write_proof(m, TMP_PROOF));
+    jaos_model_free(m);
+
+    jaos_model *a = nullptr;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_model_new(&a));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_load_lp(a, 1, 1, JAOS_MINIMIZE, 0.0, cost, cl, cu, rl, ru,
+                     1, start, index, value));
+    jaos_proof_report pr;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_check_proof(a, TMP_PROOF, &pr));
+    TEST_ASSERT_EQUAL_INT(JAOS_PROOF_FILE_UNBOUNDED, pr.kind);
+    TEST_ASSERT_TRUE(pr.certified);
+
+    /* The case it must reject: the direction reversed. It now runs into
+     * the column's own lower bound of 0, which is finite, so it escapes
+     * nothing and proves nothing. */
+    TEST_ASSERT_TRUE(proof_edit("ray C1 1", "ray C1 -1"));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_check_proof(a, TMP_PROOF, &pr));
+    TEST_ASSERT_FALSE(pr.certified);
+    TEST_ASSERT_EQUAL_INT64(0, pr.bad_col);
+    jaos_model_free(a);
+    remove(TMP_PROOF);
+}
+
+
 int main(void)
 {
     UNITY_BEGIN();
@@ -868,6 +1003,8 @@ int main(void)
     RUN_TEST(test_a_proved_basis_gives_its_values_exactly);
     RUN_TEST(test_a_proof_file_round_trips_and_is_checked_exactly);
     RUN_TEST(test_the_proof_checker_rejects_what_is_not_optimal);
+    RUN_TEST(test_an_infeasibility_certificate_is_checked_exactly);
+    RUN_TEST(test_an_unbounded_ray_is_checked_exactly);
     RUN_TEST(test_exact_values_carry_the_model_s_own_sign);
     RUN_TEST(test_a_nonbasic_column_reads_its_bound_and_the_two_by_two_its_solve);
     return UNITY_END();

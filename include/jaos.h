@@ -1868,6 +1868,15 @@ JAOS_NODISCARD jaos_status jaos_exact_objective(const jaos_model *m,
  * is not this model's; JAOS_ERR_IO when it cannot be read; and
  * JAOS_ERR_NUMERICAL when a product or a sum outgrew JM_EXACT_LIMBS,
  * which is an honest "cannot judge" and not a verdict. */
+/* Which of the three a proof file claims (D328). The optimum's proof is
+ * D325's; the other two carry the same vectors jaos_certificate and
+ * jaos_unbounded_ray publish, written as exact rationals. */
+typedef enum {
+    JAOS_PROOF_FILE_OPTIMAL = 0,
+    JAOS_PROOF_FILE_INFEASIBLE,
+    JAOS_PROOF_FILE_UNBOUNDED,
+} jaos_proof_kind;
+
 typedef struct jaos_proof_report {
     bool    primal;      /* every column and every row activity inside its
                             own bounds, exactly                          */
@@ -1875,12 +1884,35 @@ typedef struct jaos_proof_report {
                             the side its quantity rests on, and anything
                             strictly inside carries zero                 */
     bool    objective;   /* c'x + c0 is what the file claims             */
-    int64_t bad_row;     /* the first row that failed either test, or -1 */
+    int64_t bad_row;     /* the first row that failed a test, or -1      */
     int64_t bad_col;
     int64_t terms;       /* exact products formed: what the cost scales
                             with, and how far a refused check got        */
+    /* Which claim the file made, and whether it holds. For an optimum,
+     * `certified` is the three booleans above together. For the other two
+     * kinds those three are false and mean nothing, and `certified` is
+     * the whole verdict; `bad_col` or `bad_row` names where it failed
+     * (D328). */
+    jaos_proof_kind kind;
+    bool    certified;
 } jaos_proof_report;
 
+/* jaos_write_proof writes whichever of the three the last solve left. An
+ * optimum needs a jaos_verify that returned JAOS_PROOF_OPTIMAL, since its
+ * coordinates are the proof. An INFEASIBLE or an UNBOUNDED answer needs
+ * no verify at all (D328): the certificate is a vector, every double in
+ * it is already an exact rational, and what is uncertain is not the
+ * number but whether it certifies -- which is exactly what the checker
+ * decides.
+ *
+ * The exact check of a certificate has no tolerance and so no near miss.
+ * jaos_check_certificate ignores a term below its own traffic, because a
+ * sum of doubles cannot place a zero more finely than that;
+ * jaos_check_proof cannot and does not. A multiplier that is a rounding
+ * away from zero on a column with no finite bound on the side it points
+ * at makes the supremum infinite, and the file is refused. So the two
+ * checkers can disagree, the exact one is the strict one, and D328
+ * carries how often they do over the reference infeasibles. */
 JAOS_NODISCARD jaos_status jaos_write_proof(jaos_model *m, const char *path);
 JAOS_NODISCARD jaos_status jaos_check_proof(jaos_model *m, const char *path,
                                             jaos_proof_report *out);

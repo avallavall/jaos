@@ -1,0 +1,29 @@
+bgdbg1       infeasible  holds   
+bgetam       infeasible  broken  at_col 327
+bgindy       infeasible  broken  at_col 7153
+bgprtr       infeasible  broken  at_col 27
+box1         infeasible  holds   
+ceria3d      infeasible  holds   
+chemcom      infeasible  holds   
+cplex1       infeasible  holds   
+cplex2       infeasible  holds   
+ex72a        infeasible  holds   
+ex73a        infeasible  holds   
+forest6      infeasible  broken  at_col 5
+galenet      infeasible  holds   
+gosh         infeasible  holds   
+gran         infeasible  holds   
+greenbea     infeasible  holds   
+itest2       infeasible  holds   
+itest6       infeasible  holds   
+klein1       infeasible  broken  at_col 3
+klein2       infeasible  broken  at_col 0
+klein3       infeasible  broken  at_col 0
+mondou2      infeasible  holds   
+pang         infeasible  broken  at_col 83
+pilot4i      infeasible  holds   
+qual         infeasible  broken  at_col 9
+reactor      infeasible  holds   
+refinery     infeasible  broken  at_col 11
+vol1         infeasible  broken  at_col 12
+woodinfe     infeasible  holds   

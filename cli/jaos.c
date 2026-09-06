@@ -10,6 +10,7 @@
  * Usage:
  *   jaos solve FILE [--solution OUT] [--start SOLUTION] [--work-limit N]
  *                   [--mip-start SOLUTION] [--cutoff V]
+ *                   [--proof PATH]
  *                   [--time-limit SECONDS] [--primal-tol T] [--dual-tol T]
  *                   [--cut-rounds N] [--cover-rounds N] [--cut-depth D]
  *                   [--node-cut-cap K] [--cut-stall F] [--node-cut-stall F]
@@ -87,6 +88,7 @@ static const char USAGE[] =
     "Usage:\n"
     "  jaos solve FILE [--solution OUT] [--start SOLUTION] [--work-limit N]\n"
     "                  [--mip-start SOLUTION] [--cutoff V]\n"
+    "                  [--proof PATH]\n"
     "                  [--time-limit SECONDS] [--primal-tol T] [--dual-tol T]\n"
     "                  [--cut-rounds N] [--cover-rounds N] [--cut-depth D]\n"
     "                  [--node-cut-cap K] [--cut-stall F] [--node-cut-stall F]\n"
@@ -195,6 +197,12 @@ static const char USAGE1B[] =
     "                   its relaxation is solved; 0 turns it off\n"
     "  --propagate-depth D  deepest node propagation runs at, the root\n"
     "                   being 0; negative, the default, is every node\n"
+    "  --proof PATH     write the answer's exact proof to PATH: an\n"
+    "                   optimum's coordinates after a jaos_verify that\n"
+    "                   proved them, or the certificate of an infeasible\n"
+    "                   or unbounded answer, as exact rationals.\n"
+    "                   `jaos check FILE --proof PATH` judges any of the\n"
+    "                   three from the model alone, with no tolerance\n"
     "  --no-heuristics  no rounding heuristic at the nodes of a MIP\n"
     "  --node-limit N   stop a MIP before its N-th node past the limit (N > 0)\n"
     "  --branching RULE which column a MIP branches on: pseudocost (default)\n"
@@ -495,6 +503,8 @@ struct solve_options {
                                 tree (D326)                          */
     bool has_cutoff;
     double cutoff;
+    const char *proof;       /* where to write the exact proof (D325,
+                                D328)                                */
     int64_t work_limit;      /* 0: not given; the parser refuses <= 0 */
     double time_limit;       /* 0: not given; the parser refuses <= 0 */
     int64_t cut_rounds;      /* -1: not given (the library's default)     */
@@ -646,6 +656,8 @@ static int parse_solve_options(int argc, char **argv, int first,
         const char *v = argv[++i];
         if (strcmp(a, "--solution") == 0) {
             o->solution = v;
+        } else if (strcmp(a, "--proof") == 0) {
+            o->proof = v;
         } else if (strcmp(a, "--mip-start") == 0) {
             o->mip_start = v;
         } else if (strcmp(a, "--cutoff") == 0) {
@@ -811,6 +823,16 @@ static int parse_solve_options(int argc, char **argv, int first,
 }
 
 static bool solve_finished(jaos_solve_status ss);
+
+static const char *proof_word(jaos_proof p)
+{
+    switch (p) {
+    case JAOS_PROOF_OPTIMAL: return "optimal";
+    case JAOS_PROOF_BROKEN:  return "broken";
+    case JAOS_PROOF_REFUSED: return "refused";
+    }
+    return "unknown";
+}
 
 static int cmd_solve(int argc, char **argv)
 {
@@ -1125,6 +1147,36 @@ static int cmd_solve(int argc, char **argv)
         }
     }
 
+    /* The exact proof (D325, D328). An optimum's proof is its coordinates
+     * and needs a jaos_verify first; a certificate is a vector the solve
+     * already published and needs none. A verify that refuses is not a
+     * failure of the solve, so it is said on stderr and the exit code
+     * stays the answer's. */
+    if (o.proof != nullptr) {
+        if (!solve_finished(ss)) {
+            fprintf(stderr, "jaos: no proof written: the solve ended %s\n",
+                    jaos_solve_status_str(ss));
+        } else {
+            bool ready = true;
+            if (ss == JAOS_SOLVE_OPTIMAL) {
+                jaos_verify_report vr;
+                memset(&vr, 0, sizeof vr);
+                if (jaos_verify(m, &vr) != JAOS_OK) {
+                    rc = library_error("verify the basis of", o.file, m);
+                    goto out;
+                }
+                ready = vr.status == JAOS_PROOF_OPTIMAL;
+                if (!ready)
+                    fprintf(stderr, "jaos: no proof written: the basis of %s "
+                            "is %s\n", o.file, proof_word(vr.status));
+            }
+            if (ready && jaos_write_proof(m, o.proof) != JAOS_OK)
+                rc = library_error("write the proof of", o.file, m);
+            else if (ready)
+                printf("proof_file %s\n", o.proof);
+        }
+    }
+
 out:
     jaos_model_free(m);
     return rc;
@@ -1279,18 +1331,25 @@ static int cmd_check(int argc, char **argv)
                     jaos_model_error(m));
             goto out;
         }
-        printf("primal %s\n", pr.primal ? "ok" : "violated");
-        printf("dual %s\n", pr.dual ? "ok" : "violated");
-        printf("objective %s\n", pr.objective ? "ok" : "violated");
+        /* An optimum's proof has three parts and says which failed;
+         * a certificate has one verdict and a place (D328). */
+        printf("claims %s\n",
+               pr.kind == JAOS_PROOF_FILE_INFEASIBLE ? "infeasible"
+               : pr.kind == JAOS_PROOF_FILE_UNBOUNDED ? "unbounded"
+               : "optimal");
+        if (pr.kind == JAOS_PROOF_FILE_OPTIMAL) {
+            printf("primal %s\n", pr.primal ? "ok" : "violated");
+            printf("dual %s\n", pr.dual ? "ok" : "violated");
+            printf("objective %s\n",
+                   pr.objective ? "ok" : "violated");
+        }
         if (pr.bad_row >= 0)
             print_int("at_row", pr.bad_row);
         if (pr.bad_col >= 0)
             print_int("at_col", pr.bad_col);
         print_int("terms", pr.terms);
-        printf("proof %s\n",
-               (pr.primal && pr.dual && pr.objective) ? "optimal" : "broken");
-        rc = (pr.primal && pr.dual && pr.objective) ? EXIT_OPTIMAL
-                                                    : EXIT_INFEASIBLE;
+        printf("proof %s\n", pr.certified ? "holds" : "broken");
+        rc = pr.certified ? EXIT_OPTIMAL : EXIT_INFEASIBLE;
         goto out;
     }
 
@@ -1491,16 +1550,6 @@ out:
     free(cols);
     jaos_model_free(m);
     return rc;
-}
-
-static const char *proof_word(jaos_proof p)
-{
-    switch (p) {
-    case JAOS_PROOF_OPTIMAL: return "optimal";
-    case JAOS_PROOF_BROKEN:  return "broken";
-    case JAOS_PROOF_REFUSED: return "refused";
-    }
-    return "unknown";
 }
 
 static const char *stage_word(jaos_proof_stage s)

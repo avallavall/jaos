@@ -52,23 +52,68 @@
 /* The writer                                                          */
 /* ------------------------------------------------------------------ */
 
+/* A double as the exact rational it already is, in the same decimal-ratio
+ * spelling jm_rational_decimal gives an exact value (D328). The caller
+ * frees it; nullptr is out of limbs or out of memory, and every finite
+ * double fits, so in practice it is out of memory. */
+static char *rational_of_double(double v)
+{
+    jm_rational r;
+    if (!jm_rational_from_double(&r, v))
+        return nullptr;
+    return jm_rational_decimal(&r);
+}
+
+/* One `ray` record per row or per column, the vector written as exact
+ * rationals. Returns false on an I/O or memory failure. */
+static bool write_ray(FILE *f, const jaos_model *m, const double *v,
+                      bool per_row)
+{
+    char nm[JAOS_NAME_MAX + 1];
+    const int64_t n = per_row ? m->num_row : m->num_col;
+    for (int64_t k = 0; k < n; k++) {
+        const jaos_status st = per_row ? jaos_row_name(m, k, nm, sizeof nm)
+                                       : jaos_col_name(m, k, nm, sizeof nm);
+        if (st != JAOS_OK)
+            return false;
+        char *d = rational_of_double(v[k]);
+        if (d == nullptr)
+            return false;
+        fprintf(f, "ray %s %s\n", nm, d);
+        free(d);
+    }
+    return true;
+}
+
 jaos_status jaos_write_proof(jaos_model *m, const char *path)
 {
     if (m == nullptr || path == nullptr)
         return JAOS_ERR_INVALID_INPUT;
-    /* The proof is what jaos_verify left, under the same rule the exact
-     * getters apply: no proof, no file. A file of zeros does not read as
-     * missing, so it is refused by name instead. */
-    if (m->exact_col == nullptr || m->exact_dual == nullptr) {
-        jm_set_err(m, "no exact proof to write: call jaos_verify and get "
-                      "JAOS_PROOF_OPTIMAL first");
-        return JAOS_ERR_INVALID_INPUT;
-    }
-    if (m->exact_obj == nullptr) {
-        jm_set_err(m, "the proof has values but no objective: its sum "
-                      "outgrew the limb budget, and a proof file without "
-                      "one cannot be checked");
-        return JAOS_ERR_INVALID_INPUT;
+    /* Which of the three the last solve left. An optimum's proof is its
+     * coordinates and needs a jaos_verify; a certificate is a vector the
+     * solve already published, and every double in it is exact, so it
+     * needs no verify at all (D328). */
+    const jaos_solve_status ss = m->solve_status;
+    const bool infeasible = ss == JAOS_SOLVE_INFEASIBLE && m->farkas_ok &&
+        m->sol_farkas != nullptr;
+    const bool unbounded = ss == JAOS_SOLVE_UNBOUNDED && m->ray_ok &&
+        m->sol_ray != nullptr;
+    if (!infeasible && !unbounded) {
+        /* The proof is what jaos_verify left, under the same rule the
+         * exact getters apply: no proof, no file. A file of zeros does not
+         * read as missing, so it is refused by name instead. */
+        if (m->exact_col == nullptr || m->exact_dual == nullptr) {
+            jm_set_err(m, "no exact proof to write: call jaos_verify and get "
+                          "JAOS_PROOF_OPTIMAL first, or solve to an "
+                          "INFEASIBLE or UNBOUNDED answer with a certificate");
+            return JAOS_ERR_INVALID_INPUT;
+        }
+        if (m->exact_obj == nullptr) {
+            jm_set_err(m, "the proof has values but no objective: its sum "
+                          "outgrew the limb budget, and a proof file without "
+                          "one cannot be checked");
+            return JAOS_ERR_INVALID_INPUT;
+        }
     }
 
     FILE *f = fopen(path, "w");
@@ -81,22 +126,35 @@ jaos_status jaos_write_proof(jaos_model *m, const char *path)
     fprintf(f, "# JAOS proof file, format 1\n");
     fprintf(f, "# written by JAOS %s\n", JAOS_VERSION_STRING);
     fprintf(f, "# every number is an integer or a ratio of two, exactly\n");
-    fprintf(f, "proof optimal\n");
+    fprintf(f, "proof %s\n", infeasible ? "infeasible"
+                             : unbounded ? "unbounded" : "optimal");
     fprintf(f, "sense %s\n", m->sense == JAOS_MAXIMIZE ? "max" : "min");
     fprintf(f, "columns %" PRId64 "\n", m->num_col);
     fprintf(f, "rows %" PRId64 "\n", m->num_row);
-    fprintf(f, "objective %s\n", m->exact_obj);
-    fprintf(f, "# col <name> <exact value>\n");
-    for (int64_t j = 0; j < m->num_col; j++) {
-        if (jaos_col_name(m, j, nm, sizeof nm) != JAOS_OK)
+    if (infeasible) {
+        /* The Farkas multipliers, one per row: the same vector
+         * jaos_certificate publishes, spelled exactly. */
+        fprintf(f, "# ray <row name> <exact multiplier>\n");
+        if (!write_ray(f, m, m->sol_farkas, true))
             goto io_error;
-        fprintf(f, "col %s %s\n", nm, m->exact_col[j]);
-    }
-    fprintf(f, "# row <name> <exact dual>\n");
-    for (int64_t i = 0; i < m->num_row; i++) {
-        if (jaos_row_name(m, i, nm, sizeof nm) != JAOS_OK)
+    } else if (unbounded) {
+        fprintf(f, "# ray <column name> <exact direction>\n");
+        if (!write_ray(f, m, m->sol_ray, false))
             goto io_error;
-        fprintf(f, "row %s %s\n", nm, m->exact_dual[i]);
+    } else {
+        fprintf(f, "objective %s\n", m->exact_obj);
+        fprintf(f, "# col <name> <exact value>\n");
+        for (int64_t j = 0; j < m->num_col; j++) {
+            if (jaos_col_name(m, j, nm, sizeof nm) != JAOS_OK)
+                goto io_error;
+            fprintf(f, "col %s %s\n", nm, m->exact_col[j]);
+        }
+        fprintf(f, "# row <name> <exact dual>\n");
+        for (int64_t i = 0; i < m->num_row; i++) {
+            if (jaos_row_name(m, i, nm, sizeof nm) != JAOS_OK)
+                goto io_error;
+            fprintf(f, "row %s %s\n", nm, m->exact_dual[i]);
+        }
     }
     fprintf(f, "end\n");
 
@@ -192,7 +250,10 @@ jaos_status jaos_check_proof(jaos_model *m, const char *path,
 
     *out = (jaos_proof_report){ .primal = false, .dual = false,
                                 .objective = false, .bad_row = -1,
-                                .bad_col = -1, .terms = 0 };
+                                .bad_col = -1, .terms = 0,
+                                .kind = JAOS_PROOF_FILE_OPTIMAL,
+                                .certified = false };
+    jaos_proof_kind kind = JAOS_PROOF_FILE_OPTIMAL;
 
     x = calloc((size_t)(nc > 0 ? nc : 1), sizeof *x);
     y = calloc((size_t)(nr > 0 ? nr : 1), sizeof *y);
@@ -220,12 +281,20 @@ jaos_status jaos_check_proof(jaos_model *m, const char *path,
             continue;
         if (strcmp(k, "proof") == 0) {
             const char *w = tok(&p);
-            if (w == nullptr || strcmp(w, "optimal") != 0) {
-                jm_set_err(m, "%s:%lld: a proof file proves an optimum and "
-                              "nothing else", path, (long long)lineno);
+            if (w != nullptr && strcmp(w, "optimal") == 0) {
+                kind = JAOS_PROOF_FILE_OPTIMAL;
+            } else if (w != nullptr && strcmp(w, "infeasible") == 0) {
+                kind = JAOS_PROOF_FILE_INFEASIBLE;
+            } else if (w != nullptr && strcmp(w, "unbounded") == 0) {
+                kind = JAOS_PROOF_FILE_UNBOUNDED;
+            } else {
+                jm_set_err(m, "%s:%lld: a proof file proves an optimum, an "
+                              "infeasibility or an unboundedness, and nothing "
+                              "else", path, (long long)lineno);
                 rc = JAOS_ERR_INVALID_INPUT;
                 goto done;
             }
+            out->kind = kind;
             saw_proof = true;
         } else if (strcmp(k, "sense") == 0) {
             const char *w = tok(&p);
@@ -262,6 +331,13 @@ jaos_status jaos_check_proof(jaos_model *m, const char *path,
             }
             have_obj = true;
         } else if (strcmp(k, "col") == 0 || strcmp(k, "row") == 0) {
+            if (kind != JAOS_PROOF_FILE_OPTIMAL) {
+                jm_set_err(m, "%s:%lld: a '%s' record belongs to an optimum's "
+                              "proof, and this file claims something else",
+                           path, (long long)lineno, k);
+                rc = JAOS_ERR_INVALID_INPUT;
+                goto done;
+            }
             const bool is_col = k[0] == 'c';
             char *nm = tok(&p);
             char *val = tok(&p);
@@ -289,6 +365,46 @@ jaos_status jaos_check_proof(jaos_model *m, const char *path,
                 goto done;
             }
             *seen = true;
+        } else if (strcmp(k, "ray") == 0) {
+            /* A certificate's own record (D328): one per row for an
+             * infeasibility, one per column for an unboundedness. It goes
+             * into the same two arrays -- `y` carries the Farkas
+             * multipliers, `x` the ray's direction -- so the parser needs
+             * no third one. */
+            if (!saw_proof || kind == JAOS_PROOF_FILE_OPTIMAL) {
+                jm_set_err(m, "%s:%lld: a 'ray' record needs a file that "
+                              "claims an infeasibility or an unboundedness",
+                           path, (long long)lineno);
+                rc = JAOS_ERR_INVALID_INPUT;
+                goto done;
+            }
+            const bool per_row = kind == JAOS_PROOF_FILE_INFEASIBLE;
+            char *nm = tok(&p);
+            char *val = tok(&p);
+            int64_t at = -1;
+            if (nm == nullptr || val == nullptr ||
+                (per_row ? jaos_row_index(m, nm, &at)
+                         : jaos_col_index(m, nm, &at)) != JAOS_OK) {
+                jm_set_err(m, "%s:%lld: no %s of this model is named '%s'",
+                           path, (long long)lineno, per_row ? "row" : "column",
+                           nm ? nm : "");
+                rc = JAOS_ERR_INVALID_INPUT;
+                goto done;
+            }
+            bool *seen = per_row ? &seen_row[at] : &seen_col[at];
+            if (*seen) {
+                jm_set_err(m, "%s:%lld: '%s' appears twice", path,
+                           (long long)lineno, nm);
+                rc = JAOS_ERR_INVALID_INPUT;
+                goto done;
+            }
+            if (!jm_rational_from_decimal(per_row ? &y[at] : &x[at], val)) {
+                jm_set_err(m, "%s:%lld: '%s' is not an exact rational this "
+                              "build can hold", path, (long long)lineno, val);
+                rc = JAOS_ERR_INVALID_INPUT;
+                goto done;
+            }
+            *seen = true;
         } else if (strcmp(k, "end") == 0) {
             saw_end = true;
         } else {
@@ -303,8 +419,16 @@ jaos_status jaos_check_proof(jaos_model *m, const char *path,
         rc = JAOS_ERR_IO;
         goto done;
     }
-    if (!saw_proof || !saw_end || !have_obj) {
+    if (!saw_proof || !saw_end ||
+        (kind == JAOS_PROOF_FILE_OPTIMAL && !have_obj)) {
         jm_set_err(m, "'%s' is not a complete proof file", path);
+        rc = JAOS_ERR_INVALID_INPUT;
+        goto done;
+    }
+    if (kind != JAOS_PROOF_FILE_OPTIMAL && have_obj) {
+        jm_set_err(m, "'%s' claims a certificate and carries an objective; a "
+                      "certificate proves that no answer exists, not what one "
+                      "is", path);
         rc = JAOS_ERR_INVALID_INPUT;
         goto done;
     }
@@ -316,16 +440,22 @@ jaos_status jaos_check_proof(jaos_model *m, const char *path,
         rc = JAOS_ERR_INVALID_INPUT;
         goto done;
     }
-    for (int64_t j = 0; j < nc; j++)
+    /* Which half must be complete depends on the claim: an optimum needs
+     * both, a Farkas certificate the rows alone, a ray the columns alone.
+     * The half a claim does not use stays at zero, which is what the
+     * checks below read for a multiplier that is not there. */
+    const bool need_col = kind != JAOS_PROOF_FILE_INFEASIBLE;
+    const bool need_row = kind != JAOS_PROOF_FILE_UNBOUNDED;
+    for (int64_t j = 0; need_col && j < nc; j++)
         if (!seen_col[j]) {
-            jm_set_err(m, "'%s' names no value for column %lld", path,
+            jm_set_err(m, "'%s' names nothing for column %lld", path,
                        (long long)j);
             rc = JAOS_ERR_INVALID_INPUT;
             goto done;
         }
-    for (int64_t i = 0; i < nr; i++)
+    for (int64_t i = 0; need_row && i < nr; i++)
         if (!seen_row[i]) {
-            jm_set_err(m, "'%s' names no dual for row %lld", path,
+            jm_set_err(m, "'%s' names nothing for row %lld", path,
                        (long long)i);
             rc = JAOS_ERR_INVALID_INPUT;
             goto done;
@@ -340,6 +470,131 @@ jaos_status jaos_check_proof(jaos_model *m, const char *path,
     jm_rational acc, term, a, b, lo, hi;
     jm_rational_set_zero(&lo);
     jm_rational_set_zero(&hi);
+
+    /* A Farkas certificate, exactly (D328). y is admissible when every
+     * column's (A'y)_j has a finite bound on the side it points at and
+     * every row's y_i has one on its own side; then the supremum of y'Ax
+     * over the box and the infimum of y'(row activity) over the row
+     * bounds are both finite, and y proves the model infeasible exactly
+     * when the second is STRICTLY above the first.
+     *
+     * There is no tolerance here and so no near miss.
+     * jaos_check_certificate skips a term below its own traffic, because
+     * a sum of doubles cannot place a zero more finely; this walk cannot,
+     * and a multiplier that is a rounding away from zero on a column with
+     * no bound on that side makes the supremum infinite and refuses the
+     * file. The two checkers can disagree, and this one is the strict
+     * one. */
+    if (kind == JAOS_PROOF_FILE_INFEASIBLE) {
+        jm_rational sup, inf;
+        jm_rational_set_zero(&sup);
+        jm_rational_set_zero(&inf);
+        bool bounded = true;
+        for (int64_t j = 0; bounded && j < nc; j++) {
+            jm_rational_set_zero(&acc);
+            for (int64_t k = m->a_start[j]; k < m->a_start[j + 1]; k++) {
+                const int64_t i = m->a_index[k];
+                if (jm_rational_is_zero(&y[i]))
+                    continue;
+                RQ(jm_rational_from_double(&a, m->a_value[k]));
+                RQ(jm_rational_mul(&term, &a, &y[i]));
+                RQ(jm_rational_add(&acc, &acc, &term));
+                terms++;
+            }
+            const int32_t sg = jm_rational_sign(&acc);
+            if (sg == 0)
+                continue;
+            const double bnd = sg > 0 ? m->col_upper[j] : m->col_lower[j];
+            if (!isfinite(bnd)) {
+                bounded = false;
+                out->bad_col = j;
+                break;
+            }
+            RQ(jm_rational_from_double(&a, bnd));
+            RQ(jm_rational_mul(&term, &acc, &a));
+            RQ(jm_rational_add(&sup, &sup, &term));
+        }
+        for (int64_t i = 0; bounded && i < nr; i++) {
+            const int32_t sg = jm_rational_sign(&y[i]);
+            if (sg == 0)
+                continue;
+            const double bnd = sg > 0 ? m->row_lower[i] : m->row_upper[i];
+            if (!isfinite(bnd)) {
+                bounded = false;
+                out->bad_row = i;
+                break;
+            }
+            RQ(jm_rational_from_double(&a, bnd));
+            RQ(jm_rational_mul(&term, &y[i], &a));
+            RQ(jm_rational_add(&inf, &inf, &term));
+        }
+        if (bounded) {
+            RQ(jm_rational_sub(&b, &inf, &sup));
+            out->certified = jm_rational_sign(&b) > 0;
+        }
+        out->terms = terms;
+        rc = JAOS_OK;
+        goto done;
+    }
+
+    /* An unbounded ray, exactly (D328). d is admissible when no column
+     * moves toward a finite bound and no row activity does either, and it
+     * proves the model unbounded exactly when c'd improves the objective
+     * in the model's own sense -- strictly, since a rate of zero is a
+     * direction that goes nowhere. */
+    if (kind == JAOS_PROOF_FILE_UNBOUNDED) {
+        bool escapes = false;
+        for (int64_t j = 0; j < nc; j++) {
+            const int32_t sg = jm_rational_sign(&x[j]);
+            if (sg == 0)
+                continue;
+            const double bnd = sg > 0 ? m->col_upper[j] : m->col_lower[j];
+            if (isfinite(bnd)) {
+                escapes = true;
+                out->bad_col = j;
+                break;
+            }
+        }
+        for (int64_t i = 0; !escapes && i < nr; i++) {
+            jm_rational_set_zero(&acc);
+            for (int64_t k = m->ar_start[i]; k < m->ar_start[i + 1]; k++) {
+                const int64_t j = m->ar_index[k];
+                if (jm_rational_is_zero(&x[j]))
+                    continue;
+                RQ(jm_rational_from_double(&a, m->ar_value[k]));
+                RQ(jm_rational_mul(&term, &a, &x[j]));
+                RQ(jm_rational_add(&acc, &acc, &term));
+                terms++;
+            }
+            const int32_t sg = jm_rational_sign(&acc);
+            if (sg == 0)
+                continue;
+            const double bnd = sg > 0 ? m->row_upper[i] : m->row_lower[i];
+            if (isfinite(bnd)) {
+                escapes = true;
+                out->bad_row = i;
+                break;
+            }
+        }
+        if (!escapes) {
+            jm_rational_set_zero(&acc);
+            for (int64_t j = 0; j < nc; j++) {
+                if (m->col_cost[j] == 0.0 || jm_rational_is_zero(&x[j]))
+                    continue;
+                RQ(jm_rational_from_double(&a, m->col_cost[j]));
+                RQ(jm_rational_mul(&term, &a, &x[j]));
+                RQ(jm_rational_add(&acc, &acc, &term));
+                terms++;
+            }
+            int32_t rate = jm_rational_sign(&acc);
+            if (maximize)
+                rate = -rate;
+            out->certified = rate < 0;   /* the minimize form improves */
+        }
+        out->terms = terms;
+        rc = JAOS_OK;
+        goto done;
+    }
 
     /* 1. The columns, inside their own bounds. */
     bool primal = true;
@@ -448,6 +703,7 @@ dual_failed:
     }
     RQ(jm_rational_sub(&b, &acc, &claimed));
     out->objective = jm_rational_is_zero(&b);
+    out->certified = out->primal && out->dual && out->objective;
     out->terms = terms;
     rc = JAOS_OK;
     goto done;

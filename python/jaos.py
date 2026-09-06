@@ -274,6 +274,13 @@ class _ModelStats(ctypes.Structure):
     ]
 
 
+class ProofKind(enum.IntEnum):
+    """Which of the three a proof file claims (jaos_proof_kind, D328)."""
+    OPTIMAL = 0
+    INFEASIBLE = 1
+    UNBOUNDED = 2
+
+
 class _ProofReport(ctypes.Structure):
     """jaos_proof_report, in the header's order."""
     _fields_ = [
@@ -283,6 +290,8 @@ class _ProofReport(ctypes.Structure):
         ("bad_row", _I64),
         ("bad_col", _I64),
         ("terms", _I64),
+        ("kind", ctypes.c_int),
+        ("certified", ctypes.c_bool),
     ]
 
 
@@ -1197,9 +1206,13 @@ class Model:
         return self
 
     def write_proof(self, path):
-        """Write the exact optimality proof to a file.
+        """Write the answer's exact proof to a file.
 
-        Needs a verify() that returned Proof.OPTIMAL: the file holds
+        An optimum needs a verify() that returned Proof.OPTIMAL; an
+        INFEASIBLE or an UNBOUNDED answer needs none, because its
+        certificate is a vector the solve already published and every
+        double in it is an exact rational (D328). For an optimum the file
+        holds
         every column's value and every row's dual as exact rationals, with
         the exact objective, and no basis. Raises when there is no proof
         to write.
@@ -1210,16 +1223,20 @@ class Model:
     def check_proof(self, path):
         """Judge a proof file from this model alone, over the rationals.
 
-        Reads no basis and needs no solve. Returns a ProofReport with
-        primal, dual, objective, bad_row, bad_col and terms; all three
-        booleans true is a proved optimum. Raises when the file is not a
-        proof for this model, or when the exact arithmetic ran out.
+        Reads no basis and needs no solve. Returns a ProofReport whose
+        `kind` says what the file claims and whose `certified` is the
+        verdict. For an optimum, `certified` is `primal and dual and
+        objective`; for a certificate those three are False and mean
+        nothing, and `bad_row` or `bad_col` names where it failed. Raises
+        when the file is not a proof for this model, or when the exact
+        arithmetic ran out.
         """
         rep = _ProofReport()
         self._check(_lib.jaos_check_proof(self._handle(), _path(path),
                                           ctypes.byref(rep)))
-        return ProofReport(*[getattr(rep, f)
-                             for f, _ in _ProofReport._fields_])
+        vals = {f: getattr(rep, f) for f, _ in _ProofReport._fields_}
+        vals["kind"] = ProofKind(vals["kind"])
+        return ProofReport(**vals)
 
     def mip_report(self):
         rep = _MipReport()

@@ -1680,6 +1680,21 @@ class TestBranchAndBound(unittest.TestCase):
                 f.write(body.replace("col x 1/3", "col x 1/4"))
             bad = q.check_proof(path)
             self.assertFalse(bad.primal)
+            self.assertFalse(bad.certified)
+            self.assertIs(bad.kind, jaos.ProofKind.OPTIMAL)
+
+            # An infeasible answer's certificate needs no verify at all,
+            # and is judged exactly (D328).
+            r = jaos.Problem()
+            z = r.add_var(lb=float("-inf"), name="z")
+            r.add(z >= 1)
+            r.add(z <= 0)
+            r.minimize(z)
+            self.assertIs(r.solve(), jaos.SolveStatus.INFEASIBLE)
+            r.write_proof(path)
+            rep2 = r.check_proof(path)
+            self.assertIs(rep2.kind, jaos.ProofKind.INFEASIBLE)
+            self.assertTrue(rep2.certified)
         finally:
             if os.path.exists(path):
                 os.remove(path)

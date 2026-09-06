@@ -208,6 +208,14 @@ FILE --proof PATH` writes one and `jaos check FILE --proof PATH` judges
 one. What stops it is the limb budget and nothing else, and that is
 reported as "cannot judge" rather than as a verdict.
 
+**Since D328 the file carries all three outcomes**: a Farkas certificate
+and an unbounded ray as well, checked the same way and with no tolerance.
+Those two need no proof step at all, because the vector the solve
+publishes is already exact. Measured over the reference sets
+(`bench/measurements/02-211/`): 18 of the 29 pinned infeasibles certify
+exactly, and every one of the 28 optimum proofs that exists passes the
+file checker, which shares no code with the prover that made it.
+
 **It moved from ○ to ◐ on 2026-09-05
 (D285).** The solution file now carries the Farkas certificate of an
 infeasible answer and the ray of an unbounded one, and `jaos check` judges

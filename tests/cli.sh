@@ -734,6 +734,21 @@ if [ "$faulty" -eq 0 ]; then
       "$JAOS" check "$DATA/g1.lp" --proof "$P"
   [ "$(line_of proof)" = "proof broken" ] && pass "and says so" \
       || flunk "verdict: $(line_of proof)"
+  # A certificate is a proof too, and needs no verify (D328): the
+  # solve publishes the ray and every double in it is already an
+  # exact rational. bgdbg1 is one whose certificate holds exactly.
+  Q="$tmp/inf.proof"
+  expect_exit 1 "solve --proof writes an infeasible certificate" \
+      "$JAOS" solve bench/instances-infeas/bgdbg1.mps --proof "$Q"
+  grep -q "^proof infeasible$" "$Q" && pass "and says what it claims" \
+      || flunk "no infeasible line"
+  expect_exit 0 "check --proof takes the certificate" \
+      "$JAOS" check bench/instances-infeas/bgdbg1.mps --proof "$Q"
+  [ "$(line_of claims)" = "claims infeasible" ] && pass "as a certificate" \
+      || flunk "claims: $(line_of claims)"
+  [ "$(line_of proof)" = "proof holds" ] && pass "and it holds exactly" \
+      || flunk "verdict: $(line_of proof)"
+  rm -f "$Q"
   rm -f "$P"
 fi
 expect_exit 5 "check refuses a solution and a proof at once" \

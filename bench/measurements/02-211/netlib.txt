@@ -1,0 +1,94 @@
+25fv47       optimal     NO PROOF
+80bau3b      optimal     NO PROOF
+adlittle     optimal     holds   
+afiro        optimal     holds   
+agg          optimal     NO PROOF
+agg2         optimal     NO PROOF
+agg3         optimal     NO PROOF
+bandm        optimal     NO PROOF
+beaconfd     optimal     holds   
+blend        optimal     holds   
+bnl1         optimal     NO PROOF
+bnl2         optimal     NO PROOF
+boeing1      optimal     NO PROOF
+boeing2      optimal     NO PROOF
+bore3d       optimal     NO PROOF
+brandy       optimal     NO PROOF
+capri        optimal     NO PROOF
+cycle        optimal     NO PROOF
+czprob       optimal     NO PROOF
+d2q06c       optimal     NO PROOF
+d6cube       optimal     holds   
+degen2       optimal     holds   
+degen3       optimal     NO PROOF
+dfl001       optimal     NO PROOF
+e226         optimal     NO PROOF
+etamacro     optimal     NO PROOF
+fffff800     optimal     NO PROOF
+finnis       optimal     NO PROOF
+fit1d        optimal     holds   
+fit1p        optimal     holds   
+fit2d        optimal     holds   
+fit2p        optimal     holds   
+forplan      optimal     NO PROOF
+ganges       optimal     NO PROOF
+gfrd-pnc     optimal     NO PROOF
+greenbea     optimal     NO PROOF
+greenbeb     optimal     NO PROOF
+grow15       optimal     NO PROOF
+grow22       optimal     NO PROOF
+grow7        optimal     NO PROOF
+israel       optimal     NO PROOF
+kb2          optimal     holds   
+lotfi        optimal     holds   
+maros        optimal     NO PROOF
+maros-r7     optimal     NO PROOF
+modszk1      optimal     NO PROOF
+nesm         optimal     NO PROOF
+perold       optimal     NO PROOF
+pilot        optimal     NO PROOF
+pilot-ja     optimal     NO PROOF
+pilot-we     optimal     NO PROOF
+pilot4       optimal     NO PROOF
+pilot87      optimal     NO PROOF
+pilotnov     optimal     NO PROOF
+recipe       optimal     holds   
+sc105        optimal     holds   
+sc205        optimal     holds   
+sc50a        optimal     holds   
+sc50b        optimal     holds   
+scagr25      optimal     NO PROOF
+scagr7       optimal     NO PROOF
+scfxm1       optimal     NO PROOF
+scfxm2       optimal     NO PROOF
+scfxm3       optimal     NO PROOF
+scorpion     optimal     NO PROOF
+scrs8        optimal     NO PROOF
+scsd1        optimal     holds   
+scsd6        optimal     NO PROOF
+scsd8        optimal     NO PROOF
+sctap1       optimal     holds   
+sctap2       optimal     holds   
+sctap3       optimal     holds   
+seba         optimal     holds   
+share1b      optimal     NO PROOF
+share2b      optimal     holds   
+shell        optimal     holds   
+ship04l      optimal     NO PROOF
+ship04s      optimal     NO PROOF
+ship08l      optimal     holds   
+ship08s      optimal     holds   
+ship12l      optimal     NO PROOF
+ship12s      optimal     NO PROOF
+sierra       optimal     NO PROOF
+stair        optimal     NO PROOF
+standata     optimal     holds   
+standmps     optimal     NO PROOF
+stocfor1     optimal     NO PROOF
+stocfor2     optimal     NO PROOF
+stocfor3     optimal     NO PROOF
+truss        optimal     NO PROOF
+tuff         optimal     NO PROOF
+vtp-base     optimal     holds   
+wood1p       optimal     NO PROOF
+woodw        optimal     NO PROOF

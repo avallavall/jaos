@@ -357,6 +357,27 @@ with no exponent and no decimal point. That is what
 makes this the one file in the project whose reader and writer need no
 locale handling at all: there is no radix character to get wrong.
 
+**The same file carries a certificate** (D328). `proof infeasible` is
+followed by one `ray` record per row holding the Farkas multiplier, and
+`proof unbounded` by one per column holding the direction. Neither carries
+an `objective` line, and neither carries a `col` or `row` record: a
+certificate proves that no answer exists, not what one is, and a file that
+mixes the two is refused.
+
+```
+# JAOS proof file, format 1
+# written by JAOS 0.2.0
+# every number is an integer or a ratio of two, exactly
+proof infeasible
+sense min
+columns 1
+rows 2
+# ray <row name> <exact multiplier>
+ray R1 1
+ray R2 -1
+end
+```
+
 Records may come in any order and are found by name, unlike the solution
 file's, which are taken in index order. Every column and every row of the
 model must appear exactly once; a name the model does not have, a name

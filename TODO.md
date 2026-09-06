@@ -7,6 +7,29 @@ line leaves this file in the same commit.
 
 ## Where the last session stopped — 2026-09-06
 
+**2026-09-07, the day batch, eleventh round: the proof file carries a
+certificate, and two independent checkers agree 28 times out of 28
+(D328).** `proof infeasible` holds the Farkas multipliers and `proof
+unbounded` the ray, exactly; `jaos solve FILE --proof PATH` writes
+whichever the answer left and `jaos check FILE --proof PATH` judges any of
+the three. A certificate needs no `jaos_verify`: the vector the solve
+publishes is already exact, and what is uncertain is whether it certifies.
+**Measured** (`bench/measurements/02-211/`): **18 of the 29 pinned
+infeasibles certify exactly**, and all eleven failures are the same shape
+-- a single column whose `(A'y)_j` is a rounding away from zero with no
+finite bound on the side it points at. That is exactly the term
+`jaos_check_certificate` ignores by design (D254), which is why it reads
+28 of 29 at 1e-7 and this reads 18 at nothing; both numbers are right and
+they answer different questions. **The reading worth more**: over the 94
+netlib instances **28 proofs hold and 0 are broken**, the other 66 refused
+a priori by `jaos_verify` before a limb is allocated. `jaos_verify` and
+`jaos_check_proof` share no code -- one proves a basis by exact
+elimination, the other re-derives optimality from the model with no basis
+at all -- and they agree every time. **What is next**, in order: an exact
+Farkas ray derived from the final basis, which is the same machinery as
+the optimum's coordinates pointed at a different right-hand side and would
+close the eleven; then the seven held constants.
+
 **2026-09-07, the day batch, tenth round: the tree's two caller inputs
 and a model census (D326, D327).** `jaos_set_mip_start` hands the branch
 and bound a point the caller already has, and `jaos_set_mip_cutoff` an

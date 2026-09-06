@@ -335,6 +335,7 @@ and you have the argument. Jump to the entry for the numbers behind it.
 - **[D325](#d325--the-exact-optimality-proof-on-disk-and-a-checker-that-reads-no-basis-the-certificate-row-reaches)** — The exact optimality proof on disk, and a checker that reads no basis: the certificate row reaches ●
 - **[D326](#d326--the-trees-two-inputs-a-point-the-caller-already-has-and-an-objective-they-do-not-care-to-beat)** — The tree's two inputs: a point the caller already has, and an objective they do not care to beat
 - **[D327](#d327--what-a-model-is-counted-jaosmodelstatistics-and-jaos-stats)** — What a model is, counted: `jaos_model_statistics` and `jaos stats`
+- **[D328](#d328--certificates-in-the-proof-file-too-checked-with-no-tolerance-18-of-29-infeasibilities-hold-exactly-and-all-28-optimum-proofs-do)** — Certificates in the proof file too, checked with no tolerance: 18 of 29 infeasibilities hold exactly, and all 28 optimum proofs do
 
 ---
 
@@ -23020,3 +23021,62 @@ row count and the four column counts to the column count. A count that is
 merely printed is not evidence that the walk saw every row and every
 column; a sum that closes is. The same two sums are checked again from
 `tests/cli.sh` and from Python.
+
+## D328 — Certificates in the proof file too, checked with no tolerance: 18 of 29 infeasibilities hold exactly, and all 28 optimum proofs do
+
+**What it is.** D325's proof file carried an optimum. It carries all three
+outcomes now: `proof infeasible` with one `ray` record per row holding the
+Farkas multiplier, and `proof unbounded` with one per column holding the
+direction — the same vectors `jaos_certificate` and `jaos_unbounded_ray`
+publish, written as exact rationals. `jaos solve FILE --proof PATH` writes
+whichever the answer left, and `jaos check FILE --proof PATH` judges any
+of the three. `jaos_proof_report` gains `kind` and `certified`; the
+Python layer gains `ProofKind`.
+
+**A certificate needs no `jaos_verify`, and that is not a shortcut.** An
+optimum's proof is its coordinates, which have to be computed exactly. A
+certificate is a vector the solve already published, and every double in
+it is already an exact rational. What is uncertain is not the number but
+whether it certifies, and that is exactly what the checker decides.
+
+**What the checker checks.** For an infeasibility: every column's
+`(A'y)_j` must have a finite bound on the side it points at and every
+`y_i` one on its own side, and then the infimum over the row bounds must
+be **strictly** above the supremum over the box. For an unboundedness: no
+column and no row activity may move toward a finite bound, and `c'd` must
+improve the objective strictly. Both over the rationals, both from the
+model alone.
+
+**What was measured** (`bench/measurements/02-211/`). Over the 29 pinned
+infeasibles: **18 hold, 11 broken.** Over the 94 netlib instances: **28
+hold, 0 broken, 66 with no proof**, the 66 being the ones `jaos_verify`
+refuses a priori before a limb is allocated (D273, D274), which write no
+file.
+
+**All eleven failures are the same thing, and it is always a column.**
+Each names an `at_col` and never an `at_row`: a column whose `(A'y)_j` is
+exactly nonzero while the bound on the side it points at is infinite, so
+the supremum is infinite and no gap can be proved. That is precisely the
+term `jaos_check_certificate` ignores on purpose — its rule is that a sum
+of doubles cannot place a zero more finely than the magnitudes that went
+into it (D254). The exact checker has no such rule because it has no
+tolerance. **So the two disagree on exactly these eleven and the exact one
+is the strict one.** D256 reads 28 of 29 certifying at 1e-7; this reads 18
+of 29 certifying at nothing. Neither is wrong: they answer "is this a
+certificate to the precision doubles express?" and "is this a
+certificate?".
+
+**The 28 of 28 is worth more than the 18 of 29.** The two paths share no
+code. `jaos_verify` proves a basis by exact block elimination and reports
+its coordinates; `jaos_check_proof` reads those coordinates out of a file,
+knows nothing about any basis, and re-derives primal feasibility, dual
+feasibility and complementary slackness from the model. Two independent
+routes to the same verdict, agreeing 28 times out of 28. A disagreement
+would have been a defect in one of them, and there is none.
+
+**What this does not say.** The eleven are not wrong answers. The models
+are infeasible and the gate says so on all 29; what is measured is whether
+the published vector proves it with no tolerance, and on eleven it does
+not. Making it do so would want the Farkas multipliers derived exactly
+from the final basis, the way the optimum's coordinates are — the same
+machinery, pointed at a different right-hand side. That is not built.

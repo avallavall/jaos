@@ -11,6 +11,20 @@ open, `bench/README.md` for the gate, and the commit each entry came from.
 
 ### Added
 
+- **The proof file carries a certificate too, checked with no tolerance.**
+  `proof infeasible` holds the Farkas multipliers and `proof unbounded`
+  the ray, as exact rationals; `jaos solve FILE --proof PATH` writes
+  whichever the answer left and `jaos check FILE --proof PATH` judges any
+  of the three. A certificate needs no `jaos_verify`, because the vector
+  the solve publishes is already exact. Measured
+  (`bench/measurements/02-211/`): **18 of the 29 pinned infeasibles
+  certify exactly**, every one of the 11 failures a single column whose
+  multiplier is a rounding away from zero with no finite bound on that
+  side -- the term `jaos_check_certificate` ignores by design, which is
+  why it reads 28 of 29 at 1e-7. And **28 of 28 optimum proofs hold with
+  0 broken**: `jaos_verify` and `jaos_check_proof` share no code and
+  agree every time (D328).
+
 - **The tree takes a starting point and a cutoff, and the model can be
   counted.** `jaos_set_mip_start` hands the branch and bound an integer
   point before it runs and `jaos_set_mip_cutoff` an objective it need not
