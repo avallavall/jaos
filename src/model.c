@@ -1131,6 +1131,29 @@ jaos_status jaos_set_mip_feaspump(jaos_model *m, int64_t rounds)
     return JAOS_OK;
 }
 
+jaos_status jaos_set_mip_pump_general(jaos_model *m, int on)
+{
+    if (m == nullptr)
+        return JAOS_ERR_INVALID_INPUT;
+    m->cfg.mip_pump_general_set = on >= 0;
+    m->cfg.mip_pump_general = on > 0;
+    return JAOS_OK;
+}
+
+jaos_status jaos_set_mip_pump_obj(jaos_model *m, double decay)
+{
+    if (m == nullptr)
+        return JAOS_ERR_INVALID_INPUT;
+    if (isnan(decay) || decay >= 1.0) {
+        jm_set_err(m, "the objective pump's decay must be a fraction below "
+                      "1, 0 for the plain pump, or negative for the default");
+        return JAOS_ERR_INVALID_INPUT;
+    }
+    m->cfg.mip_pump_obj_set = decay >= 0.0;
+    m->cfg.mip_pump_obj = decay >= 0.0 ? decay : 0.0;
+    return JAOS_OK;
+}
+
 jaos_status jaos_set_mip_node_mir(jaos_model *m, int on)
 {
     if (m == nullptr)

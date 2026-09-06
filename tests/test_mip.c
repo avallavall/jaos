@@ -1971,6 +1971,165 @@ static void test_the_feasibility_pump_finds_a_point_at_the_root(void)
     jaos_model_free(m);
 }
 
+/* min x + y over 4x + 4y in [6, 8] and |x - y| <= 1, both integer in
+ * [0, 4]: the relaxation sits fractional and away from every bound, so the
+ * plain pump's distance has no term for either column. The optimum is
+ * (1, 1). */
+static jaos_model *interior_pair(void)
+{
+    const double cost[2] = { 1.0, 1.0 };
+    const double cl[2] = { 0, 0 }, cu[2] = { 4, 4 };
+    const double rl[4] = { 6.0, -INFINITY, -INFINITY, -INFINITY };
+    const double ru[4] = { INFINITY, 8.0, 1.0, 1.0 };
+    const int64_t as[3] = { 0, 4, 8 };
+    const int64_t ai[8] = { 0, 1, 2, 3, 0, 1, 2, 3 };
+    const double av[8] = { 4.0, 4.0, 1.0, -1.0, 4.0, 4.0, -1.0, 1.0 };
+    jaos_model *m = fresh();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_load_lp(m, 2, 4, JAOS_MINIMIZE, 0.0, cost, cl, cu, rl, ru,
+                     8, as, ai, av));
+    for (int64_t j = 0; j < 2; j++)
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_col_integer(m, j, true));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_cut_rounds(m, 0));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_cover_rounds(m, 0));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_mir_rounds(m, 0));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_cut_depth(m, 0));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_heuristics(m, false));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_dive_heuristic(m, 0));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_feaspump(m, 20));
+    /* The plain distance, so the arms below differ in the auxiliaries
+     * alone and not in the objective pump's blend (D321). */
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_pump_obj(m, 0.0));
+    return m;
+}
+
+/* The pump's general-integer distance: on interior_pair the plain pump
+ * finds nothing in twenty rounds and the first incumbent comes from the
+ * tree, while the auxiliaries put it at the root. The answer does not
+ * move and two cold searches agree. The canary is the first incumbent
+ * under the plain arm: it must sit past the root, or the general arm
+ * proves nothing. */
+static void test_the_general_pump_reaches_a_general_integer_point(void)
+{
+    int64_t first[2] = { 0, 0 };
+    for (int arm = 0; arm < 2; arm++) {
+        double x1[2], x2[2];
+        int64_t nodes1 = 0;
+        for (int pass = 0; pass < 2; pass++) {
+            jaos_model *m = interior_pair();
+            TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_pump_general(m, arm));
+            TEST_ASSERT_TRUE(m->cfg.mip_pump_general_set);
+            TEST_ASSERT_EQUAL_INT(arm == 1, m->cfg.mip_pump_general);
+            TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+            TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+            double obj = 0.0;
+            TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(m, &obj));
+            TEST_ASSERT_DOUBLE_WITHIN(1e-9, 2.0, obj);
+            TEST_ASSERT_EQUAL_INT(JAOS_OK,
+                jaos_solution(m, pass == 0 ? x1 : x2, nullptr, nullptr,
+                              nullptr));
+            jaos_mip_report rep;
+            TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_mip_result(m, &rep));
+            if (pass == 0) {
+                nodes1 = rep.nodes;
+                first[arm] = rep.first_incumbent_node;
+            } else {
+                TEST_ASSERT_EQUAL_INT64(nodes1, rep.nodes);
+                TEST_ASSERT_EQUAL_INT64(first[arm], rep.first_incumbent_node);
+            }
+            jaos_model_free(m);
+        }
+        TEST_ASSERT_TRUE(x1[0] == 1.0 && x1[1] == 1.0);
+        TEST_ASSERT_EQUAL_MEMORY(x1, x2, sizeof x1);
+    }
+    TEST_ASSERT_TRUE(first[0] > 1);
+    TEST_ASSERT_EQUAL_INT64(1, first[1]);
+
+    jaos_model *m = knapsack();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_pump_general(m, -1));
+    TEST_ASSERT_FALSE(m->cfg.mip_pump_general_set);
+    jaos_model_free(m);
+}
+
+static jaos_callback_action first_incumbent_objective(const jaos_incumbent *inc,
+                                                      void *user)
+{
+    double *first = user;
+    if (isnan(*first))
+        *first = inc->objective;
+    return JAOS_CALLBACK_CONTINUE;
+}
+
+/* The objective pump: on a five-item binary knapsack the plain pump's
+ * root point is worth 10 and the objective pump's, at a decay of 0.9, is
+ * worth more, both at node 1, with the optimum 23 unmoved and two cold
+ * searches agreeing. A decay of 1 or more, or NaN, is refused; a negative
+ * one restores the default. */
+static void test_the_objective_pump_finds_a_better_root_point(void)
+{
+    const double decay[2] = { 0.0, 0.9 };
+    double root[2] = { NAN, NAN };
+    for (int arm = 0; arm < 2; arm++) {
+        double x1[5], x2[5];
+        for (int pass = 0; pass < 2; pass++) {
+            const double cost[5] = { 10.0, 13.0, 7.0, 6.0, 4.0 };
+            const double cl[5] = { 0, 0, 0, 0, 0 }, cu[5] = { 1, 1, 1, 1, 1 };
+            const double rl[1] = { -INFINITY }, ru[1] = { 8.0 };
+            const int64_t as[6] = { 0, 1, 2, 3, 4, 5 };
+            const int64_t ai[5] = { 0, 0, 0, 0, 0 };
+            const double av[5] = { 3.0, 5.0, 2.0, 4.0, 2.0 };
+            jaos_model *m = fresh();
+            TEST_ASSERT_EQUAL_INT(JAOS_OK,
+                jaos_load_lp(m, 5, 1, JAOS_MAXIMIZE, 0.0, cost, cl, cu, rl,
+                             ru, 5, as, ai, av));
+            for (int64_t j = 0; j < 5; j++)
+                TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_col_integer(m, j, true));
+            TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_cut_rounds(m, 0));
+            TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_cover_rounds(m, 0));
+            TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_mir_rounds(m, 0));
+            TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_cut_depth(m, 0));
+            TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_heuristics(m, false));
+            TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_dive_heuristic(m, 0));
+            TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_feaspump(m, 20));
+            TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_pump_obj(m, decay[arm]));
+            TEST_ASSERT_TRUE(m->cfg.mip_pump_obj_set);
+            double seen = NAN;
+            TEST_ASSERT_EQUAL_INT(JAOS_OK,
+                jaos_set_incumbent_callback(m, first_incumbent_objective,
+                                            &seen));
+            TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+            TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+            double obj = 0.0;
+            TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(m, &obj));
+            TEST_ASSERT_DOUBLE_WITHIN(1e-9, 23.0, obj);
+            TEST_ASSERT_EQUAL_INT(JAOS_OK,
+                jaos_solution(m, pass == 0 ? x1 : x2, nullptr, nullptr,
+                              nullptr));
+            jaos_mip_report rep;
+            TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_mip_result(m, &rep));
+            TEST_ASSERT_EQUAL_INT64(1, rep.first_incumbent_node);
+            TEST_ASSERT_FALSE(isnan(seen));
+            if (pass == 0)
+                root[arm] = seen;
+            else
+                TEST_ASSERT_TRUE(root[arm] == seen);
+            jaos_model_free(m);
+        }
+        TEST_ASSERT_EQUAL_MEMORY(x1, x2, sizeof x1);
+    }
+    TEST_ASSERT_DOUBLE_WITHIN(1e-9, 10.0, root[0]);
+    TEST_ASSERT_TRUE(root[1] > root[0]);
+
+    jaos_model *m = knapsack();
+    TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT, jaos_set_mip_pump_obj(m, 1.0));
+    TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT, jaos_set_mip_pump_obj(m, NAN));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_pump_obj(m, 0.5));
+    TEST_ASSERT_TRUE(m->cfg.mip_pump_obj_set);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_pump_obj(m, -1.0));
+    TEST_ASSERT_FALSE(m->cfg.mip_pump_obj_set);
+    jaos_model_free(m);
+}
+
 
 /* max x + y, 2x + 2y <= 3, both binary: the relaxation sits at (0.75,
  * 0.75), rounds to (1, 1), and the distance objective for that rounding is
@@ -2084,6 +2243,8 @@ int main(void)
     RUN_TEST(test_the_dive_heuristic_finds_the_first_incumbent);
     RUN_TEST(test_the_dive_heuristic_runs_below_the_root);
     RUN_TEST(test_the_feasibility_pump_finds_a_point_at_the_root);
+    RUN_TEST(test_the_general_pump_reaches_a_general_integer_point);
+    RUN_TEST(test_the_objective_pump_finds_a_better_root_point);
     RUN_TEST(test_the_pump_perturbs_a_rounding_that_repeats);
     RUN_TEST(test_rins_searches_the_incumbents_neighbourhood);
     RUN_TEST(test_a_dive_bounded_by_the_degradation_keeps_the_optimum);

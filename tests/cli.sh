@@ -351,6 +351,22 @@ expect_exit 0 "the feasibility pump still solves it" \
     || flunk "feaspump: $(line_of objective)"
 expect_exit 5 "--feaspump refuses a negative" \
     "$JAOS" solve "$DATA/nl_int.lp" --feaspump -1
+# The pump's two extensions: the general-integer distance and the
+# objective pump each parse and leave the answer alone, for the reason
+# the pump's own check above gives; 2 is not a switch and a decay of 1
+# would never fade, so both are usage errors.
+expect_exit 0 "the general pump still solves it" \
+    "$JAOS" solve "$DATA/nl_int.lp" --cut-rounds 0 --cover-rounds 0 --mir-rounds 0 --cut-depth 0 --no-heuristics --dive-heuristic 0 --feaspump 5 --pump-general 1
+[ "$(line_of objective)" = "objective 3" ] && pass "to 3" \
+    || flunk "pump general: $(line_of objective)"
+expect_exit 0 "the objective pump still solves it" \
+    "$JAOS" solve "$DATA/nl_int.lp" --cut-rounds 0 --cover-rounds 0 --mir-rounds 0 --cut-depth 0 --no-heuristics --dive-heuristic 0 --feaspump 5 --pump-obj 0.9
+[ "$(line_of objective)" = "objective 3" ] && pass "to 3" \
+    || flunk "pump obj: $(line_of objective)"
+expect_exit 5 "--pump-general refuses 2" \
+    "$JAOS" solve "$DATA/nl_int.lp" --pump-general 2
+expect_exit 5 "--pump-obj refuses 1" \
+    "$JAOS" solve "$DATA/nl_int.lp" --pump-obj 1
 # The slack-cut drop (D297), the probe depth (D298) and the pool (D299):
 # each accepted with the answer unmoved; a pool line only when asked for;
 # a pool of zero and a negative probe depth are usage errors.

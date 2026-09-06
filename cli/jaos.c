@@ -18,7 +18,7 @@
  *                   [--dive-gap F] [--node-mir | --no-node-mir]
  *                   [--mir-aggregate N] [--dive-heuristic N]
  *                   [--dive-heuristic-depth D] [--rins N] [--dive-degrade F]
- *                   [--feaspump N]
+ *                   [--feaspump N] [--pump-general 0|1] [--pump-obj F]
  *                   [--no-heuristics] [--node-limit N] [--branching RULE]
  *                   [--reliability N] [--probe-cap M] [--probe-depth D]
  *                   [--no-cut-drop] [--pool-size K] [--log LEVEL]
@@ -90,6 +90,7 @@ static const char USAGE[] =
     "                  [--mir-aggregate N] [--dive-heuristic N]\n"
     "                  [--dive-heuristic-depth D] [--rins N]\n"
     "                  [--dive-degrade F] [--feaspump N]\n"
+    "                  [--pump-general 0|1] [--pump-obj F]\n"
     "                  [--no-heuristics] [--node-limit N] [--branching RULE]\n"
     "                  [--reliability N] [--probe-cap M] [--probe-depth D]\n"
     "                  [--no-cut-drop] [--pool-size K] [--log LEVEL]\n"
@@ -159,6 +160,12 @@ static const char USAGE1B[] =
     "                   (F >= 0; 0 for no bound)\n"
     "  --feaspump N     rounds the feasibility pump may run at the root\n"
     "                   (N >= 0; default 0, off)\n"
+    "  --pump-general B whether the pump carries an auxiliary distance\n"
+    "                   column per general integer column (0 or 1)\n"
+    "  --pump-obj F     the objective pump: each round blends the model's\n"
+    "                   own objective into the distance at a weight that\n"
+    "                   multiplies by F per round (0 <= F < 1; 0 is the\n"
+    "                   plain pump; default 0.5)\n"
     "  --no-heuristics  no rounding heuristic at the nodes of a MIP\n"
     "  --node-limit N   stop a MIP before its N-th node past the limit (N > 0)\n"
     "  --branching RULE which column a MIP branches on: pseudocost (default)\n"
@@ -464,6 +471,9 @@ struct solve_options {
     int64_t dive_heuristic_depth; /* -1: not given                        */
     int64_t rins;            /* -1: not given (the library's default)     */
     int64_t feaspump;        /* -1: not given (the library's default)     */
+    int pump_general;        /* -1: not given; else 0 or 1                */
+    bool has_pump_obj;       /* the decay is a double, so a flag, not -1  */
+    double pump_obj;
     bool has_dive_degrade;
     double dive_degrade;
     int64_t node_limit;      /* 0: not given; the parser refuses <= 0     */
@@ -507,6 +517,7 @@ static int parse_solve_options(int argc, char **argv, int first,
     o->dive_heuristic_depth = -1;
     o->rins = -1;
     o->feaspump = -1;
+    o->pump_general = -1;
     o->branching = -1;
     o->reliability = -1;
     o->dive_child = -1;
@@ -657,6 +668,18 @@ static int parse_solve_options(int argc, char **argv, int first,
             if (!parse_int64(v, &o->feaspump) || o->feaspump < 0)
                 return usage_error("--feaspump needs a count of rounds, "
                                    "0 or more, not '%s'", v);
+        } else if (strcmp(a, "--pump-general") == 0) {
+            int64_t b = 0;
+            if (!parse_int64(v, &b) || (b != 0 && b != 1))
+                return usage_error("--pump-general needs 0 or 1, not '%s'",
+                                   v);
+            o->pump_general = (int)b;
+        } else if (strcmp(a, "--pump-obj") == 0) {
+            if (!parse_double(v, &o->pump_obj) || o->pump_obj < 0.0 ||
+                o->pump_obj >= 1.0)
+                return usage_error("--pump-obj needs a decay from 0 up to "
+                                   "but not including 1, not '%s'", v);
+            o->has_pump_obj = true;
         } else if (strcmp(a, "--rins") == 0) {
             if (!parse_int64(v, &o->rins) || o->rins < 0)
                 return usage_error("--rins needs a count of solves, 0 or "
@@ -841,6 +864,15 @@ static int cmd_solve(int argc, char **argv)
     }
     if (o.feaspump >= 0 && jaos_set_mip_feaspump(m, o.feaspump) != JAOS_OK) {
         rc = library_error("set the feasibility pump for", o.file, m);
+        goto out;
+    }
+    if (o.pump_general >= 0 &&
+        jaos_set_mip_pump_general(m, o.pump_general) != JAOS_OK) {
+        rc = library_error("set the pump's general distance for", o.file, m);
+        goto out;
+    }
+    if (o.has_pump_obj && jaos_set_mip_pump_obj(m, o.pump_obj) != JAOS_OK) {
+        rc = library_error("set the objective pump for", o.file, m);
         goto out;
     }
     if (o.has_dive_degrade &&

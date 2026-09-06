@@ -203,6 +203,21 @@ constexpr int64_t MIP_FEASPUMP = 20;
  * choice inside it is by distance, which is a total order. Held: it moves
  * which points the pump visits and no number in an answer. */
 constexpr int64_t MIP_PUMP_FLIPS = 10;
+/* Whether the pump writes the general-integer distance, one auxiliary
+ * column and two rows per integer column whose bounds hold more than two
+ * integers, on the pump's private copy (Bertacco, Fischetti and Lodi,
+ * 2007). jaos_set_mip_pump_general overrides it; docs/tolerances.md
+ * carries the measurement, in the prose beside the table. */
+constexpr bool MIP_PUMP_GENERAL = false;
+/* The objective pump's decay (D321, after Achterberg and Berthold, 2007):
+ * each round minimizes (1 - a) times the distance plus a times the
+ * model's own objective, the two scaled to comparable norms, and a
+ * multiplies by this each round from 1. 0 is the plain pump; 0.5 is the
+ * default, the best mean of the four decays swept and the one that moves
+ * a first incumbent to the root without moving another away from it
+ * (D321). jaos_set_mip_pump_obj overrides it; docs/tolerances.md carries
+ * the sweep. */
+constexpr double MIP_PUMP_OBJ = 0.5;
 /* Whether a node inside the cut depth gets MIR cuts over its own bounds
  * beside its Gomory round (D310), local to its subtree like the rest.
  * jaos_set_mip_node_mir overrides it; docs/tolerances.md carries the
@@ -1703,6 +1718,17 @@ static bool pump_flip(const jaos_model *m, const double *x, double *rnd)
     return moved;
 }
 
+/* An integer column whose bounds hold more than two integers, so its
+ * rounding can sit away from both and the binary distance loses it. A
+ * bound at infinity counts as such a column. The one predicate the
+ * auxiliaries, their rows and the cost loop all read, so a column cannot
+ * get both an auxiliary and a +-1 term, or neither. */
+static inline bool pump_general_col(const jaos_model *m, int64_t j)
+{
+    return m->col_integer[j] &&
+           m->col_upper[j] - m->col_lower[j] > 1.0 + MIP_INT_TOL;
+}
+
 /* The pump of Fischetti, Glover and Lodi (The feasibility pump,
  * Mathematical Programming 104, 2005), at the root, on a copy of the
  * relaxation as the cuts left it. One round rounds the point it holds to
@@ -1724,6 +1750,28 @@ static bool pump_flip(const jaos_model *m, const double *x, double *rnd)
  * auxiliaries; what is here is the binary pump, exactly, and a general
  * integer column pulls on it only while its rounding sits on a bound.
  *
+ * `general` writes those auxiliaries (Bertacco, Fischetti and Lodi, A
+ * feasibility pump heuristic for general mixed-integer problems, Discrete
+ * Optimization 4, 2007): every integer column whose bounds hold more than
+ * two integers gets one column `d_q >= 0` with cost 1 and the two rows
+ * `x_j - d_q <= r_j` and `x_j + d_q >= r_j` on the pump's private copy,
+ * so minimizing pays exactly `|x_j - r_j|` wherever the rounding `r_j`
+ * sits. The rows keep their coefficients and only their bounds move each
+ * round, which keeps the copy's basis. Such a column has no +-1 term.
+ *
+ * `obj_decay`, when positive, is the objective pump (Achterberg and
+ * Berthold, Improving the feasibility pump, Discrete Optimization 4,
+ * 2007): the round's cost is `(1 - a)` times the distance plus
+ * `a * |dist| / |c|` times the model's own minimized objective, the norms
+ * Euclidean, and `a` multiplies by `obj_decay` each round from 1, so the
+ * blend fades to the plain distance. `a` decays by multiplication, never
+ * through pow(), whose last bit is libm's. A model with no objective
+ * blends nothing. The norm squares each cost, so a cost past 1.3e154
+ * overflows it to infinity and the blend's weight on the objective is
+ * then zero, a plain pump scaled by `(1 - a)`; a cost under 1.5e-162
+ * squares to zero. No instance of the MIP set is within a hundred
+ * orders of either, and the exposure is stated rather than repaired.
+ *
  * A rounding that comes back unchanged would repeat for ever, so
  * `MIP_PUMP_FLIPS` of its columns are moved to the other side, chosen by
  * how far the relaxation's value sits from the rounding, the lowest index
@@ -1737,21 +1785,115 @@ static bool pump_flip(const jaos_model *m, const double *x, double *rnd)
  * paper's restart exists for. `out` carries the point, `rnd`, `prev` and
  * `prev2` are scratch of num_col.
  * Returns 1 with an integral point in `out`, 0 when there is none, -1
- * only when the copy could not be made. Every solve is billed and
- * counted. */
+ * only when the copy or its auxiliaries could not be made. Every solve is
+ * billed and counted. */
 static int pump_for_point(const jaos_model *m, const jaos_model *lp,
-                          const double *x, int64_t rounds, double *out,
-                          double *rnd, double *prev, double *prev2,
-                          int64_t *work, int64_t *solves_done)
+                          const double *x, int64_t rounds, bool general,
+                          double obj_decay, double *out, double *rnd,
+                          double *prev, double *prev2, int64_t *work,
+                          int64_t *solves_done)
 {
     const int64_t nc = m->num_col;
+    const int64_t nr0 = lp->num_row;
     jaos_model *pv = nullptr;
+    double *sol = nullptr;             /* the copy's point, nc + g wide */
+    int64_t *gcol = nullptr;           /* the general columns, index order */
+    int64_t g = 0;
     if (jaos_model_copy(lp, &pv) != JAOS_OK)
         return -1;
     int rc = 0;
     if (jaos_set_objective_sense(pv, JAOS_MINIMIZE) != JAOS_OK ||
         jaos_set_objective_offset(pv, 0.0) != JAOS_OK)
         goto out_free;
+    if (general) {
+        *work += nc;                   /* one pass to count them (D16) */
+        for (int64_t j = 0; j < nc; j++)
+            if (pump_general_col(m, j))
+                g++;
+    }
+    if (g > 0) {
+        /* The auxiliaries, once: the rows' bounds move each round, their
+         * coefficients never do, so the copy keeps its basis. One pass
+         * to place them, and the two adds each rebuild the copy's matrix
+         * (D16). */
+        *work += nc;
+        gcol = malloc((size_t)g * sizeof *gcol);
+        double *ac = malloc((size_t)g * sizeof *ac);
+        double *alo = malloc((size_t)g * sizeof *alo);
+        double *ahi = malloc((size_t)g * sizeof *ahi);
+        double *rlo = malloc((size_t)(2 * g) * sizeof *rlo);
+        double *rhi = malloc((size_t)(2 * g) * sizeof *rhi);
+        int64_t *rs = malloc((size_t)(2 * g + 1) * sizeof *rs);
+        int64_t *ri = malloc((size_t)(4 * g) * sizeof *ri);
+        double *rv = malloc((size_t)(4 * g) * sizeof *rv);
+        bool ok = gcol != nullptr && ac != nullptr && alo != nullptr &&
+                  ahi != nullptr && rlo != nullptr && rhi != nullptr &&
+                  rs != nullptr && ri != nullptr && rv != nullptr;
+        if (ok) {
+            int64_t t = 0;
+            for (int64_t j = 0; j < nc; j++)
+                if (pump_general_col(m, j))
+                    gcol[t++] = j;
+            for (int64_t q = 0; q < g; q++) {
+                ac[q] = 1.0;
+                alo[q] = 0.0;
+                ahi[q] = INFINITY;
+                rlo[2 * q] = -INFINITY;    /* set before every solve */
+                rhi[2 * q] = INFINITY;
+                rlo[2 * q + 1] = -INFINITY;
+                rhi[2 * q + 1] = INFINITY;
+                rs[2 * q] = 4 * q;
+                rs[2 * q + 1] = 4 * q + 2;
+                ri[4 * q] = gcol[q];
+                rv[4 * q] = 1.0;
+                ri[4 * q + 1] = nc + q;
+                rv[4 * q + 1] = -1.0;
+                ri[4 * q + 2] = gcol[q];
+                rv[4 * q + 2] = 1.0;
+                ri[4 * q + 3] = nc + q;
+                rv[4 * q + 3] = 1.0;
+            }
+            rs[2 * g] = 4 * g;
+            ok = jaos_add_cols(pv, g, ac, alo, ahi, 0, nullptr, nullptr,
+                               nullptr) == JAOS_OK &&
+                 jaos_add_rows(pv, 2 * g, rlo, rhi, 4 * g, rs, ri, rv)
+                     == JAOS_OK;
+            if (ok)
+                *work += 2 * (pv->num_nz + pv->num_col);
+        }
+        free(ac);
+        free(alo);
+        free(ahi);
+        free(rlo);
+        free(rhi);
+        free(rs);
+        free(ri);
+        free(rv);
+        if (!ok) {
+            rc = -1;
+            goto out_free;
+        }
+    }
+    /* The copy's point is `out` itself unless the auxiliaries widened it,
+     * so the plain pump touches exactly the memory it always did. */
+    sol = out;
+    if (g > 0) {
+        sol = malloc((size_t)(nc + g) * sizeof *sol);
+        if (sol == nullptr) {
+            rc = -1;
+            goto out_free;
+        }
+    }
+    double cnorm = 0.0;
+    if (obj_decay > 0.0) {
+        *work += nc;                   /* the norm's one pass (D16) */
+        for (int64_t j = 0; j < nc; j++)
+            cnorm += m->col_cost[j] * m->col_cost[j];
+        cnorm = sqrt(cnorm);
+    }
+    const bool blend = obj_decay > 0.0 && cnorm > 0.0;
+    const double sgn = m->sense == JAOS_MAXIMIZE ? -1.0 : 1.0;
+    double alpha = 1.0;
     memcpy(out, x, (size_t)(nc > 0 ? nc : 1) * sizeof *out);
     for (int64_t r = 0; r < rounds; r++) {
         /* One pass to round, one to write the objective (D16). */
@@ -1791,18 +1933,62 @@ static int pump_for_point(const jaos_model *m, const jaos_model *lp,
             if (!pump_flip(m, out, rnd))
                 break;                 /* nothing left to flip */
         }
+        if (g > 0) {
+            /* The auxiliaries' rows follow the rounding, after any flip. A
+             * column the relaxation left at NaN has no rounding, and its
+             * pair stays free, as the +-1 form gives such a column no
+             * term. */
+            *work += 2 * g;
+            for (int64_t q = 0; q < g; q++) {
+                const double r = rnd[gcol[q]];
+                const double lo = isfinite(r) ? r : -INFINITY;
+                const double hi = isfinite(r) ? r : INFINITY;
+                if (jaos_set_row_bounds(pv, nr0 + 2 * q, -INFINITY, hi)
+                        != JAOS_OK ||
+                    jaos_set_row_bounds(pv, nr0 + 2 * q + 1, lo, INFINITY)
+                        != JAOS_OK)
+                    goto out_free;
+            }
+        }
+        double factor = 0.0, a = 0.0;
+        if (blend) {
+            /* One extra pass to count the distance's terms (D16). */
+            *work += nc;
+            alpha *= obj_decay;
+            a = alpha;
+            int64_t terms = g;
+            for (int64_t j = 0; j < nc; j++) {
+                if (!m->col_integer[j])
+                    continue;
+                if (general && pump_general_col(m, j))
+                    continue;
+                if ((isfinite(m->col_lower[j]) &&
+                     rnd[j] <= m->col_lower[j] + MIP_INT_TOL) ||
+                    (isfinite(m->col_upper[j]) &&
+                     rnd[j] >= m->col_upper[j] - MIP_INT_TOL))
+                    terms++;
+            }
+            factor = a * sqrt((double)terms) / cnorm;
+        }
         for (int64_t j = 0; j < nc; j++) {
-            double c = 0.0;
-            if (m->col_integer[j]) {
+            double d = 0.0;
+            if (m->col_integer[j] && !(general && pump_general_col(m, j))) {
                 if (isfinite(m->col_lower[j]) &&
                     rnd[j] <= m->col_lower[j] + MIP_INT_TOL)
-                    c = 1.0;
+                    d = 1.0;
                 else if (isfinite(m->col_upper[j]) &&
                          rnd[j] >= m->col_upper[j] - MIP_INT_TOL)
-                    c = -1.0;
+                    d = -1.0;
             }
+            const double c = (1.0 - a) * d + factor * sgn * m->col_cost[j];
             if (jaos_set_col_cost(pv, j, c) != JAOS_OK)
                 goto out_free;
+        }
+        if (blend && g > 0) {
+            *work += g;
+            for (int64_t q = 0; q < g; q++)
+                if (jaos_set_col_cost(pv, nc + q, 1.0 - a) != JAOS_OK)
+                    goto out_free;
         }
         if (jaos_solve(pv) != JAOS_OK)
             break;
@@ -1810,10 +1996,15 @@ static int pump_for_point(const jaos_model *m, const jaos_model *lp,
         (*solves_done)++;
         if (jaos_status_of(pv) != JAOS_SOLVE_OPTIMAL)
             break;
-        if (jaos_solution(pv, out, nullptr, nullptr, nullptr) != JAOS_OK)
+        if (jaos_solution(pv, sol, nullptr, nullptr, nullptr) != JAOS_OK)
             break;
+        if (g > 0)
+            memcpy(out, sol, (size_t)nc * sizeof *out);
     }
 out_free:
+    if (g > 0)
+        free(sol);
+    free(gcol);
     jaos_model_free(pv);
     return rc;
 }
@@ -1994,6 +2185,10 @@ jaos_status jm_branch_and_bound(jaos_model *m)
     const int64_t rins = m->cfg.mip_rins_set ? m->cfg.mip_rins : MIP_RINS;
     const int64_t feaspump = m->cfg.mip_feaspump_set ? m->cfg.mip_feaspump
                                                      : MIP_FEASPUMP;
+    const bool pump_general = m->cfg.mip_pump_general_set
+        ? m->cfg.mip_pump_general : MIP_PUMP_GENERAL;
+    const double pump_obj = m->cfg.mip_pump_obj_set ? m->cfg.mip_pump_obj
+                                                    : MIP_PUMP_OBJ;
     const double degrade = m->cfg.mip_dive_degrade_set
         ? m->cfg.mip_dive_degrade : MIP_DIVE_DEGRADE;
     const bool dive = m->cfg.mip_dive;
@@ -2470,8 +2665,9 @@ jaos_status jm_branch_and_bound(jaos_model *m)
                 if (prnd == nullptr || pprev == nullptr || pprev2 == nullptr)
                     goto done;
             }
-            const int got = pump_for_point(m, lp, x, feaspump, xr, prnd,
-                                           pprev, pprev2, &work, &solves);
+            const int got = pump_for_point(m, lp, x, feaspump, pump_general,
+                                           pump_obj, xr, prnd, pprev, pprev2,
+                                           &work, &solves);
             if (got < 0)
                 goto done;
             double hobj = 0.0;

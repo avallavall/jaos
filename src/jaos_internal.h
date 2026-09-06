@@ -102,6 +102,10 @@ typedef struct {
     int64_t mip_rins;
     bool mip_feaspump_set;
     int64_t mip_feaspump;
+    bool mip_pump_general_set;
+    bool mip_pump_general;   /* aux distance columns for general integers */
+    bool mip_pump_obj_set;
+    double mip_pump_obj;     /* the objective pump's decay; 0 is off */
     bool mip_dive_degrade_set;
     double mip_dive_degrade;
     /* The rounding heuristic at every node (D290); on unless set. */

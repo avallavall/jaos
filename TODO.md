@@ -7,6 +7,30 @@ line leaves this file in the same commit.
 
 ## Where the last session stopped — 2026-09-06
 
+**2026-09-06, the day batch, seventh round: the objective pump lands and
+the general-integer distance is refused (D320, D321).** The objective
+pump blends the model's own objective into each of the pump's rounds at
+a weight that decays per round, and at 0.5 reads **0.984x** the plain
+pump's work over the 24, 2 better and 0 worse, none past 2x, no node
+count moved, and `gt2`'s first incumbent from node 382 to 1 with none
+later; 0.3 reads 0.987x, and 0.7 and 0.9 lose `lseu`'s root point. On by
+default and the baseline rewritten (D321). The two better, `misc03`
+0.786x and `dcmulti` 0.908x, are the pump's own re-solves costing less on
+trees that did not change, which makes this the first heuristic setting
+here that pays for itself in work. The general-integer distance, an
+auxiliary column and two rows per general integer column, reads 1.007x
+alone with `gt2` alone moved at 1.163x its work, and 0.990x beside the
+objective pump, which reaches `gt2` without it; refused (D320). **Two
+things to carry forward.** First, the review before the campaign found
+the auxiliaries billed six units where two matrix rebuilds run, and the
+plain path allocating a point it never needed; the general arm was
+re-run on the fixed tree and the plain arm reproduces the control unit
+for unit. Second, D318's guard, the pump running only where nothing has
+an answer, was bought for a pump that looks for any point; this one
+looks for a good one, and whether it should run beside the dive's
+incumbent is not measured. **What is next**, in order: that guard
+question, one arm; then the seven held constants.
+
 **2026-09-06, the day batch, sixth round: the pump lands, the dive is
 closed, and the record finally has a total (D317, D318, D319).** The
 feasibility pump reads **1.026x** the work over the 24 at twenty rounds,
@@ -4410,6 +4434,7 @@ then, do not — a refusal whose premise has not changed just fails again.
 | D312 | the aggregated form of MIR as a default: a row substitutes a continuous column out with another row before the rounding, N times — **1.140x** over the 24 at three steps, 1.185x at one, 1.165x at two, 1.192x at six, every arm leaving `bell5` at the 240 s cap and every arm with `gen` past 2x, and 1.030x over the 17 against 1.523x over the seven (`bench/measurements/02-205/`) | an aggregation whose row choice is not the largest coefficient in the aggregate — a row chosen for the violation its aggregate would give, or the tableau's own row rather than a model row — at or under 0.95x with no instance past 2x on the same set; `02-205/retest-mir-aggregate.sh` asks, and `make refusals` runs it |
 | D314 | the dive heuristic below the root as a default — **1.049x** over the 24 at depth 1, 1.144x at 2 with two past 2x, 1.356x at 4 with four past 2x and `khb05250` 2.846x on an unmoved tree, while the first incumbent moves earlier on 4, 5 and 8 instances and later on none (`bench/measurements/02-206/`) | a node dive that costs less than a chain of full re-solves — one that reuses the node's basis, or fires on a rule rather than at every node inside a depth — moving the first incumbent on at least as many instances for at most D313's 3.2%, on the same set; `02-206/retest-dive-heuristic-depth.sh` asks the work half, and `make refusals` runs it |
 | D315 | RINS as a default — **1.008x** over the 24 at 50 solves and the same at 10 and at 200, none past 2x, but a point on one instance (`rgn`) and no first incumbent moved, since D313's root dive reaches them first (`02-206/`) | RINS at a node whose incumbent D313's root dive did not find — after an incumbent the tree itself found, or at a depth where the root's point and the node's have diverged — at or under 0.95x, or moving a first incumbent D313 does not, on the same set; `02-206/retest-rins.sh` asks, and `make refusals` runs it |
+| D320 | the pump's general-integer distance as a default — an auxiliary column and two rows per general integer column on the pump's copy: **1.007x** alone over the 24 with `gt2` alone moved (382 to 1) at 1.163x its work, and 0.990x beside the objective pump against 0.984x without it, `gt2` already at node 1 by the blend (`02-209/`) | a general-integer instance set on which the auxiliaries reach a point the blend does not, or the auxiliaries written without the two matrix rebuilds that are most of `gt2`'s cost, at or under 0.95x or at D318's rate of first incumbents per percent of work; `02-209/retest-pump-general.sh` asks the work half, and `make refusals` runs it |
 | D316 | the dive's degradation bound as a default: the dive goes on into a child only while the node's own bound is within F of (1 + \|its parent's\|) — **1.048x** at 1e-1 against the plain dive, 1.081x at 1e-2, 1.097x at 1e-3, every fraction worse than no bound and `bell5` unfinished in every one (`02-206/`) | nothing: D289's three named forms are all measured and the question that is live is D289's own, which now rests on `bell5` alone; `02-206/retest-dive-degrade.sh` re-asks this one, and `make refusals` runs it |
 | D310 | MIR cuts at a node over its own bounds, beside its Gomory round, as a default — **0.991x** over the 24 at the default cap with `bell5` 3.44x and `gt2` 3.38x, 1.106x at a cap of eight, 1.135x uncapped, 1.010x at cut depth 6, and every arm 0.843x to 1.023x over the 17 against 1.33x to 1.56x over the seven (`bench/measurements/02-204/`) | a MIR round at a node that is not the single-row form — one that aggregates the node's rows, or reads the node's tableau rather than the model's rows — at or under 0.95x with no instance past 2x on the same set; `02-204/retest-node-mir.sh` asks, and `make refusals` runs it |
 | D307 | Balas's lifted covers as a default — **1.005x** over the 24 with `l152lav` 2.06x, 0.965x over the 17 and 1.109x over the seven (`02-202/`) | a lifting other than the simultaneous one — sequential over the items outside the cover, or the cover chosen for the lifting rather than for the point — at or under 0.95x with no instance past 2x on the same set; `02-202/retest-cover-lift.sh` asks, and `make refusals` runs it |

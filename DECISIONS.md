@@ -327,6 +327,8 @@ and you have the argument. Jump to the entry for the numbers behind it.
 - **[D317](#d317--the-dive-is-measured-out-bell5s-open-set-grows-without-stop-and-no-length-on-the-dive-fixes-it-so-d289-closes-instead-of-naming-an-eighth-form)** — The dive is measured out: `bell5`'s open set grows without stop, and no length on the dive fixes it, so D289 closes instead of naming an eighth form
 - **[D318](#d318--the-feasibility-pump-lands-at-twenty-rounds-six-of-the-24-get-their-first-answer-at-the-root-for-26-of-the-work-and-it-runs-only-while-nothing-has-one)** — The feasibility pump lands at twenty rounds: six of the 24 get their first answer at the root for 2.6% of the work, and it runs only while nothing has one
 - **[D319](#d319--what-every-accepted-default-since-d288-is-worth-together-6021x-measured-and-four-instances-the-plain-tree-does-not-finish-at-all)** — What every accepted default since D288 is worth together: 6.021x, measured, and four instances the plain tree does not finish at all
+- **[D320](#d320--the-pumps-general-integer-distance-refused-as-a-default-one-first-incumbent-moved-gt2s-at-a-cost-the-objective-pump-reaches-for-nothing)** — The pump's general-integer distance, refused as a default: one first incumbent moved, `gt2`'s, at a cost the objective pump reaches for nothing
+- **[D321](#d321--the-objective-pump-lands-at-a-decay-of-05-0984x-the-plain-pumps-work-gt2s-first-incumbent-at-the-root-and-nothing-lost)** — The objective pump lands at a decay of 0.5: 0.984x the plain pump's work, `gt2`'s first incumbent at the root, and nothing lost
 
 ---
 
@@ -22660,3 +22662,92 @@ total is telling half its own story. The estimate from multiplying was
 no longer arithmetic. Re-run it whenever an accepted default lands: the
 arm is one line of `bench/measurements/02-208/sweep-b6.sh` and it costs
 one pass over the set.
+
+## D320 — The pump's general-integer distance, refused as a default: one first incumbent moved, `gt2`'s, at a cost the objective pump reaches for nothing
+
+**What it is.** Bertacco, Fischetti and Lodi (A feasibility pump heuristic
+for general mixed-integer problems, Discrete Optimization 4, 2007) extend
+the pump to general integers with an auxiliary per column: `d_q >= 0`, cost
+1, and the two rows `x_j - d_q <= r_j` and `x_j + d_q >= r_j`, so the round
+pays exactly `|x_j - r_j|` wherever the rounding `r_j` sits. D318's pump
+writes the binary distance, one `+-x_j` term per column, and a general
+integer column pulls on it only while its rounding is on a bound. The
+form is built, `jaos_set_mip_pump_general` and `--pump-general 1`, on the
+pump's private copy: the columns and rows are added once, their bounds
+follow the rounding each round, and the copy keeps its basis.
+
+**What was measured** (`bench/measurements/02-209/`, 24 instances, 240 s
+cap). Alone, against the plain pump: **1.007x** the work, one first incumbent
+moved, `gt2`'s from node 382 to 1, at 1.163x its own work, no other
+instance touched at all, none past 2x. Beside the objective pump at its
+default (D321): **0.990x** against 0.984x for the objective pump alone,
+with `gt2` already at node 1 by the blend, so the auxiliaries add a cost
+and no point. On the other 23 the first incumbent is the control's and
+the work reads 1.001x, which is the switch's own counting pass and, where
+a general integer column exists, the auxiliaries' rounds: the form
+reaches nothing the binary distance does not on any of them.
+
+**The decision.** Off. By D290's rule a heuristic is bought with the first
+incumbent: D318 moved 6 of 24 for 2.6%, and this moves 1 of 24 for 0.7%
+alone and nothing beside the default. The reopen condition is in
+`bench/refusals.txt` with `02-209/retest-pump-general.sh`.
+
+**What the review changed, before the campaign.** `numerics-reviewer`
+found the auxiliaries billed six units per column where `jaos_add_cols`
+and `jaos_add_rows` each rebuild the copy's matrix, and the pass that
+places them not billed at all: both are charged now, `2 * (nz + cols)`
+for the rebuilds and one pass for the placement, so the arm above pays
+what it costs. It also found the plain path now allocating a wider point
+and copying it every round: the copy's point is `out` itself unless the
+auxiliaries widened it, so the plain pump touches exactly the memory it
+always did, and `ctl2-same-as-control.txt` says the plain arm reproduces
+the control unit for unit. A column the relaxation left at NaN would have
+had its rows refused; its pair stays free now, as the binary form gives
+such a column no term. The predicate that says which columns are general
+is one function, `pump_general_col`, read by the count, the placement and
+the cost loop, so a column cannot get both an auxiliary and a `+-1` term.
+The cost norm's overflow past 1.3e154 is stated in the source and not
+repaired: no instance is within a hundred orders of it.
+
+## D321 — The objective pump lands at a decay of 0.5: 0.984x the plain pump's work, `gt2`'s first incumbent at the root, and nothing lost
+
+**What it is.** Achterberg and Berthold (Improving the feasibility pump,
+Discrete Optimization 4, 2007): each of the pump's rounds minimizes
+`(1 - a)` times the distance to the rounding plus `a` times the model's
+own objective, the two scaled to comparable Euclidean norms, and `a`
+multiplies by a decay each round from 1, so early rounds pull toward good
+points and late rounds toward feasible ones. `jaos_set_mip_pump_obj` and
+`--pump-obj F`. `a` decays by multiplication and never through `pow()`,
+whose last bit is libm's; the norm is a `sqrt`, which every libm rounds
+correctly and which the cut efficacies already use. A model with no
+objective blends nothing. The guard D318 bought stands: the pump runs
+only while nothing has an answer at the root.
+
+**What was measured** (`bench/measurements/02-209/`, 24 instances, 240 s
+cap, geometric mean of per-instance work ratios against the plain pump).
+**0.987x at 0.3, 0.984x at 0.5, 0.985x at 0.7, 0.985x at 0.9**; 2 better
+and 0 worse at every decay, none past 2x, and no node count moved
+anywhere. At 0.3 and 0.5 the first incumbent moves to node 1 on `gt2`
+(from 382) and later on none; at 0.7 and 0.9 `lseu`'s moves from node 1
+to 47, the blend fading too slowly for the pump to reach a point in its
+twenty rounds. Over the two groups of D303 at 0.5: 0.982x over the 17 and
+0.989x over the seven.
+
+**Where the work goes.** The two better are `dcmulti` at 0.908x and
+`misc03` at 0.786x, and neither tree changed and neither first incumbent
+moved: the gain is the pump's own re-solves costing less. A plain round
+replaces the objective with a distance whose sign pattern can flip on
+many columns at once, and the dual simplex pays for that in iterations; a
+blended round keeps part of the objective it just optimized, and the
+re-solve is shorter. So this is the first heuristic setting here that
+pays for itself in work, and D290's rule was not needed to accept it,
+although it also moves a first incumbent and loses none.
+
+**The decision.** On, at 0.5: the best mean of the four, and the largest
+decay that moves `gt2` without moving `lseu`. `bench/miplib.baseline` is
+rewritten; `obj5b-same-as-obj5.txt` says the default on the final tree
+reproduces the sweep's arm unit for unit. The general-integer distance
+beside it is measured and refused in D320. What is left open is the
+guard: this pump looks for a good point as well as a feasible one, so
+running it where the dive already put an incumbent at the root is a
+question D318's guard closed for the plain pump and not for this one.

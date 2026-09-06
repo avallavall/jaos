@@ -505,6 +505,32 @@ JAOS_NODISCARD jaos_status jaos_set_mip_rins(jaos_model *m, int64_t solves);
 JAOS_NODISCARD jaos_status jaos_set_mip_feaspump(jaos_model *m,
                                                  int64_t rounds);
 
+/* The pump's general-integer distance (after Bertacco, Fischetti and Lodi,
+ * A feasibility pump heuristic for general mixed-integer problems,
+ * Discrete Optimization 4, 2007): every integer column whose bounds hold
+ * more than two integers gets one auxiliary column and two rows on the
+ * pump's private copy, so its distance to the rounding is exact wherever
+ * the rounding sits, where the plain pump's distance sees such a column
+ * only while its rounding is on a bound. Off, the plain distance, is the
+ * default; a negative value restores it. Nothing happens with the pump
+ * off, and a model whose integer columns are all binary is unchanged
+ * either way. D320 carries what it cost over the MIP set: one first
+ * incumbent moved, and the objective pump reaches that one without it. */
+JAOS_NODISCARD jaos_status jaos_set_mip_pump_general(jaos_model *m, int on);
+
+/* The objective feasibility pump (after Achterberg and Berthold,
+ * Improving the feasibility pump, Discrete Optimization 4, 2007): each of
+ * the pump's rounds minimizes (1 - a) times the distance plus a times the
+ * model's own objective, the two scaled to comparable norms, and `a`
+ * multiplies by `decay` each round, so early rounds pull toward good
+ * points and late rounds toward feasible ones. `decay` is a fraction in
+ * [0, 1): 0 is the plain pump and 0.5 is the default, the best of the
+ * four decays swept and the largest that moves a first incumbent to the
+ * root without moving another away from it; a negative value restores
+ * it. Nothing happens with the pump off or on a model whose objective is
+ * all zero. D321 carries what each decay cost over the MIP set. */
+JAOS_NODISCARD jaos_status jaos_set_mip_pump_obj(jaos_model *m, double decay);
+
 /* How far a node's own bound may fall away from its parent's, as a
  * fraction of (1 + |parent's bound|), for the dive to go on into one of
  * its children (D316); 0, the default, puts no bound on it. A negative

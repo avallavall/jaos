@@ -1567,6 +1567,28 @@ class TestBranchAndBound(unittest.TestCase):
         self.assertEqual(firsts[1], 1)
         p.set_mip_feaspump(-1)
 
+    def test_the_pumps_two_extensions_keep_the_answer(self):
+        # The general-integer distance and the objective pump both leave
+        # the optimum of a general-integer model alone, in every
+        # combination; a decay of 1 or more is refused.
+        for general, decay in ((0, 0.0), (1, 0.0), (0, 0.9), (1, 0.9)):
+            p = jaos.Problem()
+            x = p.add_var(integer=True, ub=4, name="x")
+            y = p.add_var(integer=True, ub=4, name="y")
+            p.add(x + y <= 3.6)
+            p.add(2 * x + y <= 5.5)
+            p.maximize(3 * x + 2 * y)
+            p.set_mip_cut_rounds(0).set_mip_cover_rounds(0).set_mip_mir_rounds(0)
+            p.set_mip_cut_depth(0).set_mip_heuristics(False)
+            p.set_mip_dive_heuristic(0).set_mip_feaspump(10)
+            p.set_mip_pump_general(general).set_mip_pump_obj(decay)
+            self.assertIs(p.solve(), jaos.SolveStatus.OPTIMAL)
+            self.assertAlmostEqual(p.objective_value, 8.0, places=9)
+        with self.assertRaises(jaos.JaosError):
+            p.set_mip_pump_obj(1.0)
+        p.set_mip_pump_general(-1)
+        p.set_mip_pump_obj(-1.0)
+
     def test_the_dive_heuristic_runs_below_the_root(self):
         # The same model as the root dive's, with the dive at every node:
         # the answer does not move and the extra dives cost solves (D314).

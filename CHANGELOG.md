@@ -11,6 +11,24 @@ open, `bench/README.md` for the gate, and the commit each entry came from.
 
 ### Added
 
+- **The objective pump lands, and the pump's general-integer distance is
+  measured and refused.** `jaos_set_mip_pump_obj` and `--pump-obj F` blend
+  the model's own objective into each of the pump's rounds at a weight
+  that decays by `F` per round; 0.5 by default: **0.984x the plain pump's
+  work** over the MIP set of 24, 2 better (`misc03` 0.786x, `dcmulti`
+  0.908x, on unchanged trees, because the blended re-solves are shorter),
+  0 worse, none past 2x, `gt2`'s first incumbent from node 382 to 1 and
+  none later; 0.3, 0.7 and 0.9 swept, the last two losing `lseu`'s root
+  point; the baseline is rewritten (D321). `jaos_set_mip_pump_general`
+  and `--pump-general 1` carry an auxiliary column and two rows per
+  general integer column so its distance is exact off its bounds: 1.007x
+  alone with `gt2` alone moved at 1.163x its work, and 0.990x beside the
+  objective pump against 0.984x without it; off (D320). The review before
+  the campaign found the auxiliaries billed six units where two matrix
+  rebuilds run, and the plain path allocating a point it never needed;
+  both fixed, and the plain arm reproduces the control unit for unit
+  (`bench/measurements/02-209/`). Python has both calls at both layers.
+
 - **The feasibility pump lands, the dive is closed, and the record finally
   says what the solver gained overall.** `jaos_set_mip_feaspump` and
   `--feaspump N` round the root relaxation's point, re-solve for the

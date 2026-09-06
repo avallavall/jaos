@@ -432,6 +432,8 @@ _sig("jaos_set_mip_dive_heuristic", ctypes.c_int, _VP, _I64)
 _sig("jaos_set_mip_dive_heuristic_depth", ctypes.c_int, _VP, _I64)
 _sig("jaos_set_mip_rins", ctypes.c_int, _VP, _I64)
 _sig("jaos_set_mip_feaspump", ctypes.c_int, _VP, _I64)
+_sig("jaos_set_mip_pump_general", ctypes.c_int, _VP, ctypes.c_int)
+_sig("jaos_set_mip_pump_obj", ctypes.c_int, _VP, ctypes.c_double)
 _sig("jaos_set_mip_dive_degrade", ctypes.c_int, _VP, ctypes.c_double)
 _sig("jaos_set_mip_heuristics", ctypes.c_int, _VP, ctypes.c_bool)
 _sig("jaos_mip_result", ctypes.c_int, _VP, _P(_MipReport))
@@ -942,6 +944,25 @@ class Model:
         value restores it.
         """
         self._check(_lib.jaos_set_mip_feaspump(self._handle(), int(rounds)))
+
+    def set_mip_pump_general(self, on):
+        """Whether the pump carries an auxiliary distance column per
+        general integer column, so such a column's distance to its
+        rounding counts wherever the rounding sits. Off by default; a
+        negative value restores the default.
+        """
+        self._check(_lib.jaos_set_mip_pump_general(self._handle(), int(on)))
+
+    def set_mip_pump_obj(self, decay):
+        """The objective pump's decay.
+
+        Each round blends the model's own objective into the pump's
+        distance at a weight that multiplies by ``decay`` per round from
+        1. 0 is the plain pump and 0.5 the default; a negative value
+        restores it; 1 or more is refused.
+        """
+        self._check(_lib.jaos_set_mip_pump_obj(self._handle(),
+                                               float(decay)))
 
     def set_mip_dive_degrade(self, frac):
         """How far a node's bound may fall from its parent's and still dive.
@@ -2360,6 +2381,18 @@ class Problem:
         """Rounds the feasibility pump may run at the root (D318); 0 is off
         and the default, negative restores it."""
         self._m.set_mip_feaspump(rounds)
+        return self
+
+    def set_mip_pump_general(self, on):
+        """Whether the pump's distance carries an auxiliary column per
+        general integer column; off by default, negative restores it."""
+        self._m.set_mip_pump_general(on)
+        return self
+
+    def set_mip_pump_obj(self, decay):
+        """The objective pump's decay, a fraction below 1; 0 is the plain
+        pump, 0.5 the default, negative restores it."""
+        self._m.set_mip_pump_obj(decay)
         return self
 
     def set_mip_dive_degrade(self, frac):
