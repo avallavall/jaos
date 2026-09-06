@@ -12,7 +12,8 @@
  *                   [--time-limit SECONDS] [--primal-tol T] [--dual-tol T]
  *                   [--cut-rounds N] [--cut-depth D] [--dive] [--dive-child RULE]
  *                   [--no-heuristics] [--node-limit N] [--branching RULE]
- *                   [--reliability N] [--probe-cap M] [--log LEVEL]
+ *                   [--reliability N] [--probe-cap M] [--probe-depth D]
+ *                   [--no-cut-drop] [--pool-size K] [--log LEVEL]
  *                   [--quiet]
  *   jaos convert IN OUT
  *   jaos check FILE SOLUTION [--tol T]
@@ -74,7 +75,8 @@ static const char USAGE[] =
     "                  [--time-limit SECONDS] [--primal-tol T] [--dual-tol T]\n"
     "                  [--cut-rounds N] [--cut-depth D] [--dive] [--dive-child RULE]\n"
     "                  [--no-heuristics] [--node-limit N] [--branching RULE]\n"
-    "                  [--reliability N] [--probe-cap M] [--log LEVEL]\n"
+    "                  [--reliability N] [--probe-cap M] [--probe-depth D]\n"
+    "                  [--no-cut-drop] [--pool-size K] [--log LEVEL]\n"
     "                  [--quiet]\n"
     "  jaos convert IN OUT\n"
     "  jaos check FILE SOLUTION [--tol T]\n"
@@ -98,6 +100,8 @@ static const char USAGE[] =
     "                   1; 0 for none)\n"
     "  --cut-depth D    one round of Gomory cuts at every node of a MIP down\n"
     "                   to depth D (default 0: the root only)\n"
+    "  --no-cut-drop    carry a node's cut to every node under it even once\n"
+    "                   its slack is basic (by default it is dropped there)\n"
     "  --dive           dive from each selected node of a MIP (off by default)\n"
     "  --dive-child RULE which child the dive solves first: nearer (default),\n"
     "                   up, down or pseudocost\n"
@@ -110,10 +114,16 @@ static const char USAGE[] =
     "                   0, never: D293 refused it as a default)\n"
     "  --probe-cap M    stop each such child solve at M times the node's own\n"
     "                   work (M >= 0; 0 for no cap)\n"
+    "  --probe-depth D  probe at nodes down to depth D only (D >= 0; 0 is the\n"
+    "                   root; every depth by default)\n"
+    "  --pool-size K    keep the K best integer points of a MIP (K >= 1;\n"
+    "                   default 1) and print how many were found\n"
     "  --log LEVEL      solver log on stderr: off, summary, progress, detail\n"
     "  --quiet          print the status line only\n"
     "  Exit: 0 optimal, 1 infeasible, 2 unbounded, 3 stopped by a limit or\n"
-    "  by Ctrl-C, 4 numerical failure.\n"
+    "  by Ctrl-C, 4 numerical failure.\n";
+/* The second half, because ISO C only promises a 4095-byte literal. */
+static const char USAGE2[] =
     "convert reads IN and writes OUT in the format OUT's extension names,\n"
     "  .mps or .lp. Exit 0 when written.\n"
     "check judges SOLUTION, a file `solve --solution` wrote, against FILE\n"
@@ -150,6 +160,7 @@ static int usage_error(const char *fmt, ...)
     va_end(ap);
     fputs("\n\n", stderr);
     fputs(USAGE, stderr);
+    fputs(USAGE2, stderr);
     return EXIT_USAGE;
 }
 
@@ -388,6 +399,9 @@ struct solve_options {
     int dive_child;          /* -1: not given; else a jaos_dive_child     */
     bool has_probe_cap;      /* the cap is a double, so a flag, not -1    */
     double probe_cap;
+    int64_t probe_depth;     /* -1: not given (every depth)               */
+    int64_t pool_size;       /* 0: not given; the parser refuses <= 0     */
+    bool no_cut_drop;
     bool dive, no_heuristics;
     /* The tolerances carry a flag rather than a sentinel: any finite value
      * is passed to the library, which is what refuses a negative one, and a
@@ -411,6 +425,7 @@ static int parse_solve_options(int argc, char **argv, int first,
     o->branching = -1;
     o->reliability = -1;
     o->dive_child = -1;
+    o->probe_depth = -1;
 
     for (int i = first; i < argc; i++) {
         const char *a = argv[i];
@@ -427,6 +442,10 @@ static int parse_solve_options(int argc, char **argv, int first,
         }
         if (strcmp(a, "--dive") == 0) {
             o->dive = true;
+            continue;
+        }
+        if (strcmp(a, "--no-cut-drop") == 0) {
+            o->no_cut_drop = true;
             continue;
         }
         if (strcmp(a, "--no-heuristics") == 0) {
@@ -453,6 +472,14 @@ static int parse_solve_options(int argc, char **argv, int first,
             if (!parse_int64(v, &o->reliability) || o->reliability < 0)
                 return usage_error("--reliability needs a count of branches, 0 "
                                    "or more, not '%s'", v);
+        } else if (strcmp(a, "--probe-depth") == 0) {
+            if (!parse_int64(v, &o->probe_depth) || o->probe_depth < 0)
+                return usage_error("--probe-depth needs a depth, 0 or more, "
+                                   "not '%s'", v);
+        } else if (strcmp(a, "--pool-size") == 0) {
+            if (!parse_int64(v, &o->pool_size) || o->pool_size <= 0)
+                return usage_error("--pool-size needs a positive integer, "
+                                   "not '%s'", v);
         } else if (strcmp(a, "--probe-cap") == 0) {
             if (!parse_double(v, &o->probe_cap) || o->probe_cap < 0.0)
                 return usage_error("--probe-cap needs a multiple of the node's "
@@ -549,6 +576,19 @@ static int cmd_solve(int argc, char **argv)
     }
     if (o.has_probe_cap && jaos_set_mip_probe_cap(m, o.probe_cap) != JAOS_OK) {
         rc = library_error("set the probe cap for", o.file, m);
+        goto out;
+    }
+    if (o.probe_depth >= 0 &&
+        jaos_set_mip_probe_depth(m, o.probe_depth) != JAOS_OK) {
+        rc = library_error("set the probe depth for", o.file, m);
+        goto out;
+    }
+    if (o.pool_size > 0 && jaos_set_mip_pool_size(m, o.pool_size) != JAOS_OK) {
+        rc = library_error("set the pool size for", o.file, m);
+        goto out;
+    }
+    if (o.no_cut_drop && jaos_set_mip_cut_drop(m, false) != JAOS_OK) {
+        rc = library_error("keep the slack cuts for", o.file, m);
         goto out;
     }
     if (o.dive_child >= 0 &&
@@ -660,6 +700,10 @@ static int cmd_solve(int argc, char **argv)
             printf("heuristic_points %" PRId64 "\n", mrep.heuristic_points);
             printf("first_incumbent %" PRId64 "\n", mrep.first_incumbent_node);
             printf("bound %.17g\n", mrep.bound);
+            /* The pool's count, only when a pool was asked for (D299). */
+            int64_t held = 0;
+            if (o.pool_size > 0 && jaos_mip_pool_count(m, &held) == JAOS_OK)
+                printf("pool_points %" PRId64 "\n", held);
         }
         /* Last, and the only line that moves between runs. */
         printf("time %.6f\n", jaos_solve_time(m));

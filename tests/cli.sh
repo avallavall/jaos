@@ -227,6 +227,28 @@ expect_exit 0 "cuts to depth 3 still solve it" \
     || flunk "cut depth: $(line_of objective)"
 expect_exit 5 "--cut-depth refuses a negative" \
     "$JAOS" solve "$DATA/nl_int.lp" --cut-depth -1
+# The slack-cut drop (D297), the probe depth (D298) and the pool (D299):
+# each accepted with the answer unmoved; a pool line only when asked for;
+# a pool of zero and a negative probe depth are usage errors.
+expect_exit 0 "slack cuts kept still solve it" \
+    "$JAOS" solve "$DATA/nl_int.lp" --cut-rounds 0 --cut-depth 2 --no-cut-drop
+[ "$(line_of objective)" = "objective 3" ] && pass "to 3" \
+    || flunk "no-cut-drop: $(line_of objective)"
+expect_exit 0 "probing at the root only still solves it" \
+    "$JAOS" solve "$DATA/nl_int.lp" --cut-rounds 0 --reliability 1 --probe-depth 0
+[ "$(line_of objective)" = "objective 3" ] && [ -z "$(line_of pool_points)" ] \
+    && pass "to 3 with no pool line" \
+    || flunk "probe depth: $(line_of objective) / $(line_of pool_points)"
+expect_exit 5 "--probe-depth refuses a negative" \
+    "$JAOS" solve "$DATA/nl_int.lp" --probe-depth -1
+expect_exit 0 "a pool of two still solves it" \
+    "$JAOS" solve "$DATA/nl_int.lp" --cut-rounds 0 --pool-size 2
+[ "$(line_of objective)" = "objective 3" ] && [ -n "$(line_of pool_points)" ] \
+    && [ "$(line_of pool_points)" != "pool_points 0" ] \
+    && pass "to 3 with a pool_points line" \
+    || flunk "pool: $(line_of objective) / $(line_of pool_points)"
+expect_exit 5 "--pool-size refuses zero" \
+    "$JAOS" solve "$DATA/nl_int.lp" --pool-size 0
 # A node limit (D291): nl_int.lp's root is fractional with the cuts off,
 # and the rounding finds the optimum there, so a limit of one node stops
 # as node_limit with exit 3 and an incumbent on the first node; zero is

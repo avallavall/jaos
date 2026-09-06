@@ -1298,6 +1298,39 @@ class TestBranchAndBound(unittest.TestCase):
         self.assertIs(p.solve(), jaos.SolveStatus.OPTIMAL)
         self.assertAlmostEqual(p.objective_value, 23.0, places=9)
 
+    def test_the_solution_pool_and_the_two_depth_switches(self):
+        # The five-item knapsack again: a pool of three holds the optimum
+        # first, distinct feasible points after it, in objective order
+        # (D299); the cut drop (D297) and the probe depth (D298) keep the
+        # optimum; a pool of 0 is refused.
+        def knapsack5():
+            p = jaos.Problem()
+            v = [p.add_var(binary=True, name=n) for n in "abcde"]
+            a, b, c, d, e = v
+            p.add(3 * a + 5 * b + 2 * c + 4 * d + 2 * e <= 8)
+            p.maximize(10 * a + 13 * b + 7 * c + 9 * d + 5 * e)
+            return p, v
+        p, v = knapsack5()
+        p.set_mip_cut_rounds(0).set_mip_pool_size(3)
+        self.assertIs(p.solve(), jaos.SolveStatus.OPTIMAL)
+        pool = p.mip_pool()
+        self.assertTrue(1 <= len(pool) <= 3)
+        self.assertAlmostEqual(pool[0][0], 23.0, places=9)
+        self.assertEqual((pool[0][1][v[0]], pool[0][1][v[1]]), (1.0, 1.0))
+        objs = [obj for obj, _ in pool]
+        self.assertEqual(objs, sorted(objs, reverse=True))
+        self.assertEqual(len({tuple(x[u] for u in v) for _, x in pool}), len(pool))
+        with self.assertRaises(jaos.JaosError):
+            p.set_mip_pool_size(0)
+        p, v = knapsack5()
+        p.set_mip_cut_rounds(0).set_mip_cut_depth(100).set_mip_cut_drop(False)
+        self.assertIs(p.solve(), jaos.SolveStatus.OPTIMAL)
+        self.assertAlmostEqual(p.objective_value, 23.0, places=9)
+        p.set_mip_cut_drop(True).set_mip_reliability(8).set_mip_probe_depth(0)
+        self.assertIs(p.solve(), jaos.SolveStatus.OPTIMAL)
+        self.assertAlmostEqual(p.objective_value, 23.0, places=9)
+        self.assertGreater(p.mip_report().lp_solves, p.mip_report().nodes)
+
     def test_the_rounding_heuristic_finds_the_root_relaxations_neighbour(self):
         # max x + y, x + y <= 3.6, x <= 2.2, y <= 1.4, both integer: the
         # relaxation sits at (2.2, 1.4) and rounds to (2, 1), which is the

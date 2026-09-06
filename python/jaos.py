@@ -462,6 +462,11 @@ _sig("jaos_set_mip_branching", ctypes.c_int, _VP, ctypes.c_int)
 _sig("jaos_set_mip_reliability", ctypes.c_int, _VP, _I64)
 _sig("jaos_set_mip_probe_cap", ctypes.c_int, _VP, _D)
 _sig("jaos_set_mip_dive_child", ctypes.c_int, _VP, ctypes.c_int)
+_sig("jaos_set_mip_cut_drop", ctypes.c_int, _VP, ctypes.c_bool)
+_sig("jaos_set_mip_probe_depth", ctypes.c_int, _VP, _I64)
+_sig("jaos_set_mip_pool_size", ctypes.c_int, _VP, _I64)
+_sig("jaos_mip_pool_count", ctypes.c_int, _VP, _P(_I64))
+_sig("jaos_mip_pool_solution", ctypes.c_int, _VP, _I64, _P(_D), _P(_D))
 _sig("jaos_set_incumbent_callback", ctypes.c_int, _VP, _INCUMBENT_FN, _VP)
 _sig("jaos_solve", ctypes.c_int, _VP)
 _sig("jaos_status_of", ctypes.c_int, _VP)
@@ -853,6 +858,39 @@ class Model:
         """Which child a dive solves first, a `DiveChild` (D295); NEARER by
         default. Only matters with the dive on."""
         self._check(_lib.jaos_set_mip_dive_child(self._handle(), int(rule)))
+
+    def set_mip_cut_drop(self, on=True):
+        """Whether a local cut leaves the relaxation once its slack is basic
+        at a node (D297); on by default. Only matters with a cut depth."""
+        self._check(_lib.jaos_set_mip_cut_drop(self._handle(), bool(on)))
+
+    def set_mip_probe_depth(self, depth):
+        """Strong branching probes at nodes down to `depth` only, the root
+        being 0 (D298); a negative value, the default, probes at every
+        depth. Nothing happens under reliability 0."""
+        self._check(_lib.jaos_set_mip_probe_depth(self._handle(), int(depth)))
+
+    def set_mip_pool_size(self, size):
+        """How many of the best integer points a branch and bound keeps
+        (D299); 1, the default, is the incumbent alone. 0 is refused and a
+        negative value restores 1."""
+        self._check(_lib.jaos_set_mip_pool_size(self._handle(), int(size)))
+
+    def mip_pool(self):
+        """The solution pool after a branch and bound (D299): a list of
+        (objective, values), best first; empty when no integer point was
+        found."""
+        n = _I64()
+        self._check(_lib.jaos_mip_pool_count(self._handle(), ctypes.byref(n)))
+        nc = self.num_col
+        out = []
+        for k in range(n.value):
+            x = (_D * max(nc, 1))()
+            obj = _D()
+            self._check(_lib.jaos_mip_pool_solution(self._handle(), k, x,
+                                                    ctypes.byref(obj)))
+            out.append((obj.value, list(x[:nc])))
+        return out
 
     def set_incumbent_callback(self, fn):
         """Asks a branch and bound to call `fn(incumbent)` for each new
@@ -2132,6 +2170,18 @@ class Problem:
         self._m.set_mip_dive_child(rule)
         return self
 
+    def set_mip_cut_drop(self, on=True):
+        self._m.set_mip_cut_drop(on)
+        return self
+
+    def set_mip_probe_depth(self, depth):
+        self._m.set_mip_probe_depth(depth)
+        return self
+
+    def set_mip_pool_size(self, size):
+        self._m.set_mip_pool_size(size)
+        return self
+
     def set_incumbent_callback(self, fn):
         """Like Model.set_incumbent_callback, with `values` as a dict from
         variable to value (D291)."""
@@ -2164,6 +2214,15 @@ class Problem:
                              "call solve() before reading values")
         obj, x = self._m.mip_incumbent()
         return obj, {v: x[i] for i, v in enumerate(self._vars)}
+
+    def mip_pool(self):
+        """The solution pool after a branch and bound (D299): a list of
+        (objective, {variable: value}), best first."""
+        if self._pending():
+            raise ValueError("the problem changed since the last solve; "
+                             "call solve() before reading values")
+        return [(obj, {v: x[i] for i, v in enumerate(self._vars)})
+                for obj, x in self._m.mip_pool()]
 
     def set_log_callback(self, fn, level=LogLevel.SUMMARY):
         self._m.set_log_callback(fn, level)

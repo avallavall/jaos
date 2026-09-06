@@ -60,6 +60,8 @@ static void model_release_arrays(jaos_model *m)
     free(m->model_name);
     free(m->col_integer);
     free(m->mip_inc_x);
+    free(m->mip_pool_x);
+    free(m->mip_pool_obj);
     /* The problem goes; the configuration stays. Saved as one object rather
      * than field by field (D78). */
     const jm_config cfg = m->cfg;
@@ -478,6 +480,9 @@ static void model_answer_is_stale(jaos_model *m)
     m->ray_ok = false;
     jm_model_drop_exact(m);
     free(m->mip_inc_x);      m->mip_inc_x = nullptr;
+    free(m->mip_pool_x);     m->mip_pool_x = nullptr;
+    free(m->mip_pool_obj);   m->mip_pool_obj = nullptr;
+    m->mip_pool_n = 0;
     m->mip_has_incumbent = false;
     m->mip_nodes = m->mip_solves = 0;
     m->mip_bound = 0.0;
@@ -959,6 +964,36 @@ jaos_status jaos_set_mip_dive_child(jaos_model *m, jaos_dive_child rule)
         return JAOS_ERR_INVALID_INPUT;
     }
     m->cfg.mip_dive_child = (int)rule;
+    return JAOS_OK;
+}
+
+jaos_status jaos_set_mip_cut_drop(jaos_model *m, bool on)
+{
+    if (m == nullptr)
+        return JAOS_ERR_INVALID_INPUT;
+    m->cfg.mip_no_cut_drop = !on;
+    return JAOS_OK;
+}
+
+jaos_status jaos_set_mip_probe_depth(jaos_model *m, int64_t depth)
+{
+    if (m == nullptr)
+        return JAOS_ERR_INVALID_INPUT;
+    m->cfg.mip_probe_depth_set = depth >= 0;
+    m->cfg.mip_probe_depth = depth >= 0 ? depth : 0;
+    return JAOS_OK;
+}
+
+jaos_status jaos_set_mip_pool_size(jaos_model *m, int64_t size)
+{
+    if (m == nullptr)
+        return JAOS_ERR_INVALID_INPUT;
+    if (size == 0) {
+        jm_set_err(m, "the solution pool must hold at least one point; a "
+                      "negative size restores 1");
+        return JAOS_ERR_INVALID_INPUT;
+    }
+    m->cfg.mip_pool_size = size > 0 ? size : 0;
     return JAOS_OK;
 }
 

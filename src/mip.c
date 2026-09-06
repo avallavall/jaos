@@ -104,6 +104,11 @@ constexpr int64_t MIP_STRONG_CANDIDATES = 8;
  * carries the sweep. */
 constexpr double MIP_PROBE_CAP = 0.0;
 
+/* Where strong branching probes (D298): at nodes whose depth is at most
+ * this, the root being 0; negative is every depth. jaos_set_mip_probe_depth
+ * overrides it; docs/tolerances.md carries the sweep. */
+constexpr int64_t MIP_PROBE_DEPTH = -1;
+
 /* Cuts, rows across: the cuts of one round, held until the tableau they
  * were read from is freed (jaos_add_rows drops the scaling the tableau
  * points into, so a round is generated whole and added whole), and the
@@ -254,7 +259,8 @@ static bnode *heap_pop(bheap *h)
  * change, carrying the local cuts in force, `act[0..act_n)`, and the basis
  * the relaxation just ended on, whose `nr` rows are the copy's now. */
 static bnode *node_child(const bnode *parent, int64_t nc, int64_t nr,
-                         const jaos_model *lp, int64_t col, double lo,
+                         const jaos_basis_status *cs,
+                         const jaos_basis_status *rs, int64_t col, double lo,
                          double hi, double key, int64_t id, double frac,
                          bool up, const int64_t *act, int64_t act_n)
 {
@@ -289,10 +295,33 @@ static bnode *node_child(const bnode *parent, int64_t nc, int64_t nr,
     n->frac = frac;
     n->up = up;
     if (nc > 0)
-        memcpy(n->cs, lp->sol_col_status, (size_t)nc * sizeof *n->cs);
+        memcpy(n->cs, cs, (size_t)nc * sizeof *n->cs);
     if (nr > 0)
-        memcpy(n->rs, lp->sol_row_status, (size_t)nr * sizeof *n->rs);
+        memcpy(n->rs, rs, (size_t)nr * sizeof *n->rs);
     return n;
+}
+
+/* The local cuts the copy holds right now, as pool indices in row order
+ * (D297): node_apply compares a node's list against it and moves no row
+ * when they are the same. */
+typedef struct {
+    int64_t *v;
+    int64_t n, cap;
+} cutlist;
+
+static bool cutlist_set(cutlist *l, const int64_t *v, int64_t n)
+{
+    if (!JM_GROW(l->v, l->cap, n > 0 ? n : 1))
+        return false;
+    if (n > 0)
+        memcpy(l->v, v, (size_t)n * sizeof *v);
+    l->n = n;
+    return true;
+}
+
+static bool cutlist_same(const cutlist *l, const int64_t *v, int64_t n)
+{
+    return l->n == n && (n == 0 || memcmp(l->v, v, (size_t)n * sizeof *v) == 0);
 }
 
 /* Puts the relaxation at `n`: the local cuts of the node before it out of
@@ -304,23 +333,29 @@ static bnode *node_child(const bnode *parent, int64_t nc, int64_t nr,
 static jaos_status node_apply(jaos_model *lp, const jaos_model *m,
                               const double *ilo, const double *ihi,
                               const bnode *n, const cutbuf *pool,
-                              int64_t nfixed, int64_t *in_copy)
+                              int64_t nfixed, cutlist *in_copy)
 {
     jaos_status st = JAOS_OK;
-    if (*in_copy > 0) {
-        int64_t *del = malloc((size_t)*in_copy * sizeof *del);
-        if (del == nullptr)
+    const int64_t want_n = n != nullptr ? n->ncuts : 0;
+    const int64_t *want = n != nullptr ? n->cuts : nullptr;
+    /* The same rows in the same order are the same relaxation (D297): the
+     * scaling and the mirror a delete and an add would drop are rebuilt
+     * from the same matrix, so nothing moves and nothing is moved. */
+    if (!cutlist_same(in_copy, want, want_n)) {
+        if (in_copy->n > 0) {
+            int64_t *del = malloc((size_t)in_copy->n * sizeof *del);
+            if (del == nullptr)
+                return JAOS_ERR_OUT_OF_MEMORY;
+            for (int64_t k = 0; k < in_copy->n; k++)
+                del[k] = nfixed + k;
+            st = jaos_delete_rows(lp, in_copy->n, del);
+            free(del);
+            in_copy->n = 0;
+        }
+        if (st == JAOS_OK && want_n > 0)
+            st = pool_add(lp, pool, want, want_n);
+        if (st == JAOS_OK && !cutlist_set(in_copy, want, want_n))
             return JAOS_ERR_OUT_OF_MEMORY;
-        for (int64_t k = 0; k < *in_copy; k++)
-            del[k] = nfixed + k;
-        st = jaos_delete_rows(lp, *in_copy, del);
-        free(del);
-        *in_copy = 0;
-    }
-    if (st == JAOS_OK && n != nullptr && n->ncuts > 0) {
-        st = pool_add(lp, pool, n->cuts, n->ncuts);
-        if (st == JAOS_OK)
-            *in_copy = n->ncuts;
     }
     for (int64_t j = 0; st == JAOS_OK && j < m->num_col; j++)
         if (m->col_integer[j])
@@ -869,6 +904,61 @@ static bool incumbent_announce(const jaos_model *m, const incumbent *inc,
            JAOS_CALLBACK_STOP;
 }
 
+/* --- The solution pool (D299) ------------------------------------------ */
+
+/* The best `cap` distinct integer points offered so far, best first by
+ * key (minimize form), the earlier first on a tie; `obj` is each one's
+ * objective in the model's sense. Every comparison is exact, so the pool
+ * is the same on every machine (D8). */
+typedef struct {
+    double *x, *key, *obj;
+    int64_t n, cap, nc;
+} spool;
+
+static bool spool_init(spool *sp, int64_t cap, int64_t nc)
+{
+    sp->n = 0;
+    sp->cap = cap;
+    sp->nc = nc;
+    sp->x = malloc((size_t)(cap * (nc > 0 ? nc : 1)) * sizeof *sp->x);
+    sp->key = malloc((size_t)cap * sizeof *sp->key);
+    sp->obj = malloc((size_t)cap * sizeof *sp->obj);
+    return sp->x != nullptr && sp->key != nullptr && sp->obj != nullptr;
+}
+
+static void spool_free(spool *sp)
+{
+    free(sp->x); free(sp->key); free(sp->obj);
+}
+
+static void spool_offer(spool *sp, const double *x, double key, double obj)
+{
+    const int64_t nc = sp->nc;
+    if (sp->n == sp->cap && !(key < sp->key[sp->n - 1]))
+        return;
+    for (int64_t i = 0; i < sp->n; i++)
+        if (sp->key[i] == key &&
+            (nc == 0 || memcmp(sp->x + i * nc, x, (size_t)nc * sizeof *x) == 0))
+            return;                    /* held already */
+    int64_t pos = 0;
+    while (pos < sp->n && !(key < sp->key[pos]))
+        pos++;
+    const int64_t last = sp->n < sp->cap ? sp->n : sp->cap - 1;
+    if (last > pos) {
+        memmove(sp->key + pos + 1, sp->key + pos, (size_t)(last - pos) * sizeof *sp->key);
+        memmove(sp->obj + pos + 1, sp->obj + pos, (size_t)(last - pos) * sizeof *sp->obj);
+        if (nc > 0)
+            memmove(sp->x + (pos + 1) * nc, sp->x + pos * nc,
+                    (size_t)((last - pos) * nc) * sizeof *sp->x);
+    }
+    sp->key[pos] = key;
+    sp->obj[pos] = obj;
+    if (nc > 0)
+        memcpy(sp->x + pos * nc, x, (size_t)nc * sizeof *x);
+    if (sp->n < sp->cap)
+        sp->n++;
+}
+
 static const char *dive_child_str(int rule)
 {
     switch (rule) {
@@ -900,6 +990,10 @@ jaos_status jm_branch_and_bound(jaos_model *m)
     const int dive_child = m->cfg.mip_dive_child;
     const int64_t cut_depth = m->cfg.mip_cut_depth_set ? m->cfg.mip_cut_depth
                                                        : MIP_CUT_DEPTH;
+    const bool cut_drop = !m->cfg.mip_no_cut_drop;
+    const int64_t probe_depth = m->cfg.mip_probe_depth_set
+        ? m->cfg.mip_probe_depth : MIP_PROBE_DEPTH;
+    const int64_t pool_size = m->cfg.mip_pool_size > 0 ? m->cfg.mip_pool_size : 1;
 
     jaos_status rc = JAOS_ERR_OUT_OF_MEMORY;
     jaos_model *lp = nullptr;
@@ -909,8 +1003,12 @@ jaos_status jm_branch_and_bound(jaos_model *m)
     int64_t *act = nullptr;            /* the local cuts in force, pool
                                           indices, and their count/cap  */
     int64_t act_n = 0, act_cap = 0;
-    int64_t nfixed = nr, in_copy = 0;  /* rows with no local cut in the
-                                          copy; local rows in it now    */
+    int64_t nfixed = nr;               /* rows with no local cut in the copy */
+    cutlist in_copy = {0};             /* the local cuts the copy holds now */
+    jaos_basis_status *crs = nullptr;  /* a child's row statuses when a cut
+                                          is dropped (D297)                */
+    int64_t crs_cap = 0;
+    spool sp = {0};
     int64_t local_cuts = 0;
     bnode *cur = nullptr, *next = nullptr;
     double *x = nullptr, *row = nullptr, *cut = nullptr;
@@ -929,6 +1027,11 @@ jaos_status jm_branch_and_bound(jaos_model *m)
     /* The answer the model holds is about the previous problem. */
     free(m->mip_inc_x);
     m->mip_inc_x = nullptr;
+    free(m->mip_pool_x);
+    m->mip_pool_x = nullptr;
+    free(m->mip_pool_obj);
+    m->mip_pool_obj = nullptr;
+    m->mip_pool_n = 0;
     m->mip_nodes = m->mip_solves = m->mip_cuts = m->mip_heur = 0;
     m->mip_first_inc = 0;
     m->mip_bound = 0.0;
@@ -952,7 +1055,7 @@ jaos_status jm_branch_and_bound(jaos_model *m)
     pcs = malloc((size_t)(nc > 0 ? nc : 1) * sizeof *pcs);
     if (x == nullptr || xr == nullptr || ra == nullptr || ilo == nullptr ||
         ihi == nullptr || pc_sum == nullptr || pc_n == nullptr ||
-        cand == nullptr || pcs == nullptr)
+        cand == nullptr || pcs == nullptr || !spool_init(&sp, pool_size, nc))
         goto done;
     /* An integer column's bounds rounded inward (D292): a fractional bound
      * admits no integer between it and the next one, and a column whose
@@ -1030,6 +1133,7 @@ jaos_status jm_branch_and_bound(jaos_model *m)
         if (node_apply(lp, m, ilo, ihi, nodes > 0 ? cur : nullptr, &pool,
                        nfixed, &in_copy) != JAOS_OK)
             goto done;
+        const int64_t depth_here = nodes > 0 ? cur->depth : 0;
         act_n = 0;
         if (nodes > 0 && cur->ncuts > 0) {
             if (!JM_GROW(act, act_cap, cur->ncuts))
@@ -1170,11 +1274,12 @@ jaos_status jm_branch_and_bound(jaos_model *m)
                     goto done;
                 for (int64_t r = 0; r < got; r++) {
                     if (!cutbuf_append(&pool, &cb, r) ||
-                        !JM_GROW(act, act_cap, act_n + 1))
+                        !JM_GROW(act, act_cap, act_n + 1) ||
+                        !JM_GROW(in_copy.v, in_copy.cap, in_copy.n + 1))
                         goto done;
                     act[act_n++] = pool.n - 1;
+                    in_copy.v[in_copy.n++] = pool.n - 1;
                 }
-                in_copy += got;
                 cuts += got;
                 local_cuts += got;
                 st = jaos_solve(lp);
@@ -1213,6 +1318,7 @@ jaos_status jm_branch_and_bound(jaos_model *m)
             work += m->num_nz + nc + nr;
             if (rounded_point(m, x, xr, ra, &hobj)) {
                 const double hkey = sigma * hobj;
+                spool_offer(&sp, xr, hkey, hobj);
                 if (!inc.have || hkey < inc.key) {
                     if (!incumbent_take_point(&inc, lp, m, xr, ra, hobj, hkey))
                         goto done;
@@ -1249,6 +1355,7 @@ jaos_status jm_branch_and_bound(jaos_model *m)
             for (int64_t j = 0; j < nc; j++)
                 if (m->col_integer[j])
                     inc.x[j] = round(inc.x[j]);
+            spool_offer(&sp, inc.x, key, obj);
             jm_log(m, JAOS_LOG_PROGRESS, "node %lld: incumbent %.17g, integral",
                    (long long)nodes, obj);
             if (!incumbent_announce(m, &inc, nodes,
@@ -1263,7 +1370,7 @@ jaos_status jm_branch_and_bound(jaos_model *m)
         /* Strong branching on the unreliable candidates, then the choice
          * again with what they taught (D293). The row scratch follows the
          * copy, which the root's cuts may have widened. */
-        if (reliability > 0) {
+        if (reliability > 0 && (probe_depth < 0 || depth_here <= probe_depth)) {
             jaos_basis_status *grown = realloc(prs, (size_t)(nrl > 0 ? nrl : 1)
                                                         * sizeof *prs);
             if (grown == nullptr)
@@ -1291,13 +1398,45 @@ jaos_status jm_branch_and_bound(jaos_model *m)
             }
             branch = select_branch(m, x, rule, pc_sum, pc_n);
         }
+        /* A local cut whose slack is basic here does not bind, and is not
+         * carried under this node (D297): the children's list and row
+         * statuses skip it, and what they carry is still a basis, since a
+         * row and its basic slack leave together. `act[k]` is the cut in
+         * row nfixed + k, in order, which node_apply and the round above
+         * keep true. */
+        int64_t nr_child = nrl;
+        const jaos_basis_status *child_rs = lp->sol_row_status;
+        if (cut_drop && act_n > 0) {
+            if (nrl > crs_cap) {
+                jaos_basis_status *g = realloc(crs, (size_t)nrl * sizeof *crs);
+                if (g == nullptr)
+                    goto done;
+                crs = g;
+                crs_cap = nrl;
+            }
+            memcpy(crs, lp->sol_row_status, (size_t)nfixed * sizeof *crs);
+            int64_t kept = 0;
+            for (int64_t k = 0; k < act_n; k++) {
+                const jaos_basis_status s = lp->sol_row_status[nfixed + k];
+                if (s == JAOS_BASIS_BASIC)
+                    continue;
+                act[kept] = act[k];
+                crs[nfixed + kept] = s;
+                kept++;
+            }
+            act_n = kept;
+            nr_child = nfixed + kept;
+            child_rs = crs;
+        }
         const double v = x[branch];
-        bnode *down = node_child(nodes > 0 ? cur : nullptr, nc, nrl, lp,
-                                 branch, lp->col_lower[branch], floor(v), key,
+        bnode *down = node_child(nodes > 0 ? cur : nullptr, nc, nr_child,
+                                 lp->sol_col_status, child_rs, branch,
+                                 lp->col_lower[branch], floor(v), key,
                                  next_id++, v - floor(v), false, act, act_n);
-        bnode *up = node_child(nodes > 0 ? cur : nullptr, nc, nrl, lp, branch,
-                               ceil(v), lp->col_upper[branch], key,
-                               next_id++, ceil(v) - v, true, act, act_n);
+        bnode *up = node_child(nodes > 0 ? cur : nullptr, nc, nr_child,
+                               lp->sol_col_status, child_rs, branch, ceil(v),
+                               lp->col_upper[branch], key, next_id++,
+                               ceil(v) - v, true, act, act_n);
         if (down == nullptr || up == nullptr) {
             node_free(down);
             node_free(up);
@@ -1360,6 +1499,11 @@ jaos_status jm_branch_and_bound(jaos_model *m)
            jaos_solve_status_str(outcome), (long long)nodes,
            (long long)solves, (long long)cuts, (long long)local_cuts,
            (long long)heur_points, (long long)probes, (long long)capped);
+    /* The pool goes to the model whole, proved or not, like the incumbent. */
+    m->mip_pool_n = sp.n;
+    m->mip_pool_x = sp.x;
+    m->mip_pool_obj = sp.obj;
+    sp.x = sp.obj = nullptr;
     if (inc.have) {
         m->mip_has_incumbent = true;
         m->mip_inc_obj = inc.obj;
@@ -1403,6 +1547,9 @@ done:
     free(row);
     free(cut);
     free(act);
+    free(crs);
+    free(in_copy.v);
+    spool_free(&sp);
     cutbuf_free(&cb);
     cutbuf_free(&pool);
     while (heap.n > 0)
@@ -1427,6 +1574,33 @@ jaos_status jaos_mip_result(const jaos_model *m, jaos_mip_report *out)
     out->cuts = m->mip_cuts;
     out->heuristic_points = m->mip_heur;
     out->first_incumbent_node = m->mip_first_inc;
+    return JAOS_OK;
+}
+
+jaos_status jaos_mip_pool_count(const jaos_model *m, int64_t *count)
+{
+    if (m == nullptr || count == nullptr)
+        return JAOS_ERR_INVALID_INPUT;
+    *count = m->mip_pool_n;
+    return JAOS_OK;
+}
+
+jaos_status jaos_mip_pool_solution(const jaos_model *m, int64_t k,
+                                   double *col_value, double *objective)
+{
+    if (m == nullptr)
+        return JAOS_ERR_INVALID_INPUT;
+    if (k < 0 || k >= m->mip_pool_n || m->mip_pool_x == nullptr) {
+        jm_set_err((jaos_model *)m, "the solution pool holds %lld point(s); "
+                   "there is no point %lld", (long long)m->mip_pool_n,
+                   (long long)k);
+        return JAOS_ERR_INVALID_INPUT;
+    }
+    if (col_value != nullptr && m->num_col > 0)
+        memcpy(col_value, m->mip_pool_x + k * m->num_col,
+               (size_t)m->num_col * sizeof *col_value);
+    if (objective != nullptr)
+        *objective = m->mip_pool_obj[k];
     return JAOS_OK;
 }
 

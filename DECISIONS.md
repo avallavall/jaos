@@ -304,6 +304,9 @@ and you have the argument. Jump to the entry for the numbers behind it.
 - **[D294](#d294--a-work-cap-on-each-strong-branching-probe-refused-a-probe-that-stops-early-pays-and-teaches-nothing-and-every-cap-reads-worse-than-none)** — A work cap on each strong-branching probe, refused: a probe that stops early pays and teaches nothing, and every cap reads worse than none
 - **[D295](#d295--a-child-rule-for-the-dive-and-no-rule-reopens-d289-nearer-1053x-up-0999x-down-1316x-the-pseudocost-side-0991x)** — A child rule for the dive, and no rule reopens D289: nearer 1.053x, up 0.999x, down 1.316x, the pseudocost side 0.991x
 - **[D296](#d296--gomory-cuts-below-the-root-refused-as-a-default-the-trees-shrink-and-the-rows-carried-cost-more-than-the-nodes-saved-1056x-at-depth-1-and-2440x-at-every-node)** — Gomory cuts below the root, refused as a default: the trees shrink and the rows carried cost more than the nodes saved, 1.056x at depth 1 and 2.440x at every node
+- **[D297](#d297--a-local-cut-leaves-the-relaxation-once-its-slack-is-basic-which-takes-cuts-below-the-root-from-1056x-to-0896x-at-depth-1-and-to-0802x-at-depth-2-one-instance-short-of-the-bar-the-row-churn-costs-no-work-unit)** — A local cut leaves the relaxation once its slack is basic, which takes cuts below the root from 1.056x to 0.896x at depth 1 and to 0.802x at depth 2, one instance short of the bar; the row churn costs no work unit
+- **[D298](#d298--strong-branching-at-the-root-only-refused-0987x-with-two-instances-past-2x-the-same-tree-at-every-reliability-and-d293s-reopen-condition-is-measured-on-both-clauses)** — Strong branching at the root only, refused: 0.987x with two instances past 2x, the same tree at every reliability, and D293's reopen condition is measured on both clauses
+- **[D299](#d299--a-solution-pool-the-best-integer-points-found-best-first-with-the-search-unchanged)** — A solution pool: the best integer points found, best first, with the search unchanged
 
 ---
 
@@ -21567,3 +21570,102 @@ cut that leaves the relaxation once its slack is basic at a node, and no
 row churn between nodes that hold the same cuts, measured on this set
 against these arms; `bench/refusals.txt` carries the condition and
 `02-195/retest-cut-depth.sh` re-tests depth 1 against the default.
+
+## D297 — A local cut leaves the relaxation once its slack is basic, which takes cuts below the root from 1.056x to 0.896x at depth 1 and to 0.802x at depth 2, one instance short of the bar; the row churn costs no work unit
+
+**The gap.** D296 refused cuts below the root because a node's cuts rode
+as rows with every node under it, `p0201` paying 4.22x at depth 1 with its
+tree unchanged, and named two things that could reopen it: a cut that
+leaves the relaxation once its slack is basic, and no row churn between
+nodes that hold the same cuts.
+
+**What it does now.** When a node branches, a local cut whose row is
+basic at the node's optimum -- its slack basic, the cut not binding -- is
+left out of the children's list and their row statuses, so nothing under
+the node carries it; a row and its basic slack leave together, so what the
+children carry is still a basis. `jaos_set_mip_cut_drop` and
+`--no-cut-drop` keep D296's form. And `node_apply` compares the node's
+list with the rows the copy holds and moves nothing when they are the
+same. The root's cuts still stay for the whole tree.
+
+**Evidence** (`bench/measurements/02-196/`). The control reproduces
+`bench/miplib.baseline` node for node and unit for unit on all 17. The
+churn skip alone, depth 1 with the drop off against D296's depth-1 arm:
+every tree the same and **1.000x** in work -- `jaos_add_rows` and
+`jaos_delete_rows` bill nothing, so D296's sentence that the work counts
+the churn was wrong, and the skip's worth is in seconds, which the record
+does not carry (D45). The drop, against the control: **0.896x at depth 1**
+(7 better, 7 worse, 3 past 2x: `misc03` 2.06x, `flugpl` 2.01x, `p0201`
+2.01x), **0.802x at depth 2** (7 better, 6 worse, one past 2x: `misc03`
+2.053x), 0.833x at depth 4 over the 16 that finish, `misc06` ending in a
+numerical error. Against D296's arms at the same depth the drop is worth
+0.849x, 0.637x and 0.525x. `egout` reads 0.065x at depth 2, 39127 to
+2291 nodes; `lseu` 0.573x; `dcmulti` 1.71x the other way.
+
+**What it is not.** The cut depth stays 0: depth 2 misses D296's bar by
+`misc03` at 2.053x against the gate's factor of 2, the same bar that
+refused two Gomory rounds at the root (D289). No default moves; the MIP
+set is byte-identical against its D292 baseline and the three gate sets
+against theirs. `bench/refusals.txt` now names what would reopen D296:
+`misc03` under 2x at depth 2, by a cap on the cuts a node may add or a
+floor on the violation a cut must have.
+
+## D298 — Strong branching at the root only, refused: 0.987x with two instances past 2x, the same tree at every reliability, and D293's reopen condition is measured on both clauses
+
+**The gap.** D293 refused strong branching as a default and named two
+cheaper forms; D294 measured the work cap and refused it. Probing at the
+root only was the other.
+
+**What it does now.** `jaos_set_mip_probe_depth` and `--probe-depth D`
+probe at nodes whose depth is at most D, the root being 0; a negative
+value, the default, probes at every depth. Python carries the setting at
+both layers.
+
+**Evidence** (`bench/measurements/02-197/`). The control reproduces
+`bench/miplib.baseline` node for node and unit for unit on all 17. At the
+root only, work against the control: **0.987x** (9 better, 5 worse,
+`mod010` 2.84x and `enigma` 2.58x past 2x), and it is one reading at
+reliability 1, 2, 4 and 8, because at the root no column has a history
+and every candidate is unreliable at any reliability from 1 up. One level
+down at reliability 4, 1.010x with 3 past 2x; two levels, 1.024x with 2.
+`blend2` at 0.464x and `p0033` at 0.551x say what the root's information
+is worth; `mod010`, 7 nodes to 3 for 2.84x the work, says what eight
+probes cost on an instance whose root solve is the whole tree.
+
+**What it is not.** Refused as a default, with D293: the bar is 0.95x with
+no instance past 2x. Both clauses of D293's reopen condition are measured
+now (D294 and this), so `bench/refusals.txt` names what is left: a probe
+that learns from an unfinished child solve, the dual bound at a work-limit
+stop, which the solver's stop path does not publish today. No default
+moves; the MIP set and the three gate sets are byte-identical.
+
+## D299 — A solution pool: the best integer points found, best first, with the search unchanged
+
+**The gap.** The feature matrix's MIP rows had one ○ left for JAOS, the
+solution pool: a branch and bound kept its incumbent and threw every other
+integer point it met away.
+
+**What it does now.** `jaos_set_mip_pool_size` says how many of the best
+integer points are kept, 1 by default, which is the incumbent alone; every
+integral relaxation and every feasible rounding is offered to the pool,
+which keeps them distinct as vectors and best first by objective, the
+earlier first on a tie, with every comparison exact so the pool is the
+same on every machine (D8). `jaos_mip_pool_count` and
+`jaos_mip_pool_solution` read it after a solve, proved or stopped by a
+budget, and the first point is `jaos_mip_incumbent`'s. `--pool-size K`
+prints `pool_points N`; Python has `set_mip_pool_size` and `mip_pool()` at
+both layers, the `Problem` one as a list of (objective, dict).
+
+**Evidence.** No default changes and the search is untouched: offering a
+point to a pool of one reads nothing back, so the MIP set is byte-identical
+against its D292 baseline and the three gate sets against theirs (the
+control of `bench/measurements/02-196/` is this tree). The unit tests hold
+a pool of three on a five-item knapsack to the incumbent first, every point
+distinct, feasible and worth its objective, in objective order; a pool of
+one to the incumbent alone; 0 refused, a negative size the default again,
+and an index past the count refused. The feature matrix's solution pool
+moves from ○ to ●.
+
+**What it is not.** Not a search for alternative optima: the pool holds
+what the tree met, and a best-bound tree meets few points. Not billed: a
+comparison of two vectors is not a kernel.

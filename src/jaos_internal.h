@@ -51,6 +51,7 @@ typedef struct {
     /* Cuts below the root (D296); unset means MIP_CUT_DEPTH (src/mip.c). */
     bool mip_cut_depth_set;
     int64_t mip_cut_depth;
+    bool mip_no_cut_drop;    /* a local cut stays once slack (D297)     */
     /* The rounding heuristic at every node (D290); on unless set. */
     bool mip_no_heuristics;
     /* A budget on the tree, 0 for none (D291), and who is told of each
@@ -65,6 +66,11 @@ typedef struct {
      * (D294); unset means MIP_PROBE_CAP (src/mip.c). */
     bool mip_probe_cap_set;
     double mip_probe_cap;
+    /* Strong branching down to a depth (D298); unset means MIP_PROBE_DEPTH
+     * (src/mip.c), every depth. */
+    bool mip_probe_depth_set;
+    int64_t mip_probe_depth;
+    int64_t mip_pool_size;   /* the solution pool's size; 0 means 1 (D299) */
     int mip_dive_child;      /* a jaos_dive_child; 0 is nearer (D295) */
     jaos_incumbent_fn incumbent_cb;
     void *incumbent_user;
@@ -136,6 +142,11 @@ struct jaos_model {
     bool mip_has_incumbent;
     double mip_inc_obj;
     double *mip_inc_x;       /* [num_col] or nullptr */
+    /* The solution pool (D299): mip_pool_n points, best first, each
+       num_col values, with their objectives in the model's sense. */
+    double *mip_pool_x;      /* [mip_pool_n * num_col] or nullptr */
+    double *mip_pool_obj;    /* [mip_pool_n] or nullptr */
+    int64_t mip_pool_n;
 
     /* Constraint matrix, compressed sparse column; entries within a column
      * sorted by row index, no duplicates, no explicit zeros. This is the

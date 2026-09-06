@@ -591,15 +591,16 @@ control, one bit lower, where all three succeed. That pair is what makes the
 limit a measurement instead of a comment, and it caught the first version of
 `jm_nat_shl`, which charged a spare limb for any shift that was not a whole
 number of limbs and so refused a value that fits.
-## Branch and bound's eleven numbers
+## Branch and bound's twelve numbers
 
 All in `src/mip.c`: the first two are D288's, the four under them the root
 cuts' (D289), then the cut depth's (D296), the branching rule's (D292), the
-two after it strong branching's (D293), the last the probe cap's (D294). The
-MIP set (`make miplib J=12`, 17 instances, `bench/miplib.manifest`) is where
-a sweep of any of them runs. The rounds, the depth, the reliability and the
-cap have theirs; the other seven are held to the source by `record-check`
-with what each one waits for stated beside it.
+two after it strong branching's (D293), then the probe cap's (D294) and the
+probe depth's (D298). The MIP set (`make miplib J=12`, 17 instances,
+`bench/miplib.manifest`) is where a sweep of any of them runs. The rounds,
+the cut depth, the reliability, the cap and the probe depth have theirs; the
+other seven are held to the source by `record-check` with what each one
+waits for stated beside it.
 
 | constant | value | what it decides |
 |---|---|---|
@@ -609,9 +610,10 @@ with what each one waits for stated beside it.
 | `MIP_CUT_AWAY` | 0.01 | a basic integer column is cut only when its fraction sits inside `[AWAY, 1 - AWAY]`: the cut divides by the fraction and by its complement, and a fraction near 0 or 1 gives a cut the relaxation cannot hold to tolerance. The bound Balas, Ceria, Cornuejols and Natraj use (Gomory cuts revisited, 1996). Not swept: held |
 | `MIP_CUT_DROP` | 1e-9 | a coefficient below `DROP` times the cut's largest is folded into the right-hand side through its column's bound, which keeps the cut valid and drops the entry; kept when that bound is infinite. Not swept: held |
 | `MIP_CUT_DYNAMISM` | 1e6 | the largest ratio of a kept cut's largest to smallest coefficient; a cut past it is not added. Not swept: held. The `pk1` failure at three rounds happened under it, so it is not what protects the root from a bad cut; the rounds count is |
-| `MIP_CUT_DEPTH` | 0 | a node whose depth is at most this gets one round of Gomory cuts on its own relaxation (D296), the root being depth 0 and getting `MIP_CUT_ROUNDS`; a node's cuts are read over its bounds, so they hold in its subtree only and are in the copy for exactly the nodes under it. `jaos_set_mip_cut_depth` overrides it. **Swept at 0, 1, 2, 4, 8 and 1000** over the MIP set (`bench/measurements/02-195/`, D296): 1.056x at 1 (6 better, 10 worse, 3 past 2x), 1.260x at 2, 1.508x at 4, 1.948x at 8 over the 16 that finish, 2.440x at every node. The node counts fall on most instances at every depth (`egout` 39127 to 1803) and the rows carried cost more than the nodes saved (`p0201` 46x at every node), so 0 is the default and a deeper setting is refused as a default |
+| `MIP_CUT_DEPTH` | 0 | a node whose depth is at most this gets one round of Gomory cuts on its own relaxation (D296), the root being depth 0 and getting `MIP_CUT_ROUNDS`; a node's cuts are read over its bounds, so they hold in its subtree only and are in the copy for exactly the nodes under it. `jaos_set_mip_cut_depth` overrides it. **Swept at 0, 1, 2, 4, 8 and 1000** over the MIP set (`bench/measurements/02-195/`, D296): 1.056x at 1 (6 better, 10 worse, 3 past 2x), 1.260x at 2, 1.508x at 4, 1.948x at 8 over the 16 that finish, 2.440x at every node. The node counts fall on most instances at every depth (`egout` 39127 to 1803) and the rows carried cost more than the nodes saved (`p0201` 46x at every node), so 0 is the default and a deeper setting is refused as a default. With a slack cut leaving the relaxation (D297, `bench/measurements/02-196/`): 0.896x at 1 (3 past 2x), 0.802x at 2 with `misc03` alone past 2x at 2.053x, 0.833x at 4 over the 16 that finish; 0 stays, one instance short |
 | `MIP_PC_EPS` | 1e-6 | the floor of a direction's pseudocost score (D292): the score is the product of the two directions' expected gains, and a direction whose gain was 0 would otherwise zero the column out of the choice. Achterberg, Koch and Martin (Branching rules revisited, 2005) use the same floor. Decides an order between columns, never a number in an answer. Not swept: held |
 | `MIP_RELIABILITY` | 0 | branches per direction before a column's pseudocost is trusted; below it the column's children are solved on the spot and the gains initialise the pseudocosts (D293). `jaos_set_mip_reliability` overrides it. **Swept at 0, 1, 2, 4 and 8** over the MIP set, pseudocost branching, everything else at its default (`bench/measurements/02-192/`): work against 0 reads 0.971x at 1 (7 better, 9 worse, `mod010` 2.84x and `enigma` 2.07x past the gate's factor), 1.064x at 2, 1.173x at 4 and 1.437x at 8, while the node counts fall at every setting (`dcmulti` 585 to 135 at 4, `mod010` 7 to 3). The probes are worth their information and not their price: each is a full child solve. 0 is the default and the setting is refused as a default; `bench/refusals.txt` carries what reopens it |
 | `MIP_STRONG_CANDIDATES` | 8 | how many unreliable columns a node probes, the best by pseudocost score. Not swept: held, since no setting of the count above was worth its work, and a cap on the candidates only lowers the price of a thing that did not pay at any price measured |
 | `MIP_PROBE_CAP` | 0.0 | the work cap on each strong-branching probe as a multiple of the work the node's own relaxation took (D294); a probe that reaches it stops and teaches nothing; 0 is no cap. `jaos_set_mip_probe_cap` overrides it. **Swept at 0, 0.5, 1 and 2** at reliability 1 and at 2 over the MIP set (`bench/measurements/02-193/`, D294): at reliability 1, 0.971x uncapped, 1.228x at 0.5, 0.998x at 1, 1.018x at 2; at reliability 2, 1.064x, 1.307x, 1.081x, 1.091x. Every capped arm has an instance past 2x (`mod010` 4.51x at 1 with its tree unchanged at 7 nodes). A probe that reaches the cap pays its work and teaches nothing, so no cap is the default and the cap is refused as a default |
+| `MIP_PROBE_DEPTH` | -1 | the deepest node at which strong branching probes, the root being 0; negative is every depth (D298). `jaos_set_mip_probe_depth` overrides it. **Swept at 0 with reliability 1, 2, 4 and 8, and at 1 and 2 with reliability 4** over the MIP set (`bench/measurements/02-197/`, D298): 0.987x at the root only, one reading at every reliability because every root candidate is unreliable (9 better, 5 worse, `mod010` 2.84x and `enigma` 2.58x past 2x), 1.010x one level down, 1.024x two. Refused as a default with D293; every depth stays the default |
 

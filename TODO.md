@@ -7,6 +7,27 @@ line leaves this file in the same commit.
 
 ## Where the last session stopped — 2026-09-06
 
+**2026-09-06, the overnight batch, second round: the slack-cut drop, root-only
+probing, and a solution pool (D297, D298, D299).** A local cut leaves the
+relaxation once its slack is basic at a node, and two nodes with the same
+cuts share the rows: cuts to depth 2 now read **0.802x** against 1.260x
+without the drop, and miss D296's bar by one instance, `misc03` at 2.053x
+(`bench/measurements/02-196/`); depth 1 is 0.896x with three past 2x and
+depth 4 breaks `misc06` numerically. The churn skip costs no work unit, so
+D296's sentence that the work counted the churn was wrong, and D297 says
+so. Strong branching at the root only reads 0.987x with two instances past
+2x, the same tree at every reliability, and both clauses of D293's reopen
+condition are now measured and closed (`02-197/`). The solution pool keeps
+the best distinct integer points met, best first, with the search
+unchanged, and the feature matrix's last ○ on the MIP rows is ●. Nothing
+moved a default. **What is next**, in order: `misc03` under 2x with cuts to
+depth 2, by a cap on the cuts a node may add or a floor on the violation a
+cut must have, which would flip the cut depth to 2 at about 0.80x; a
+second cut family at the root, knapsack covers, against the D292 baseline;
+root cuts that leave below a node where they go slack, which would move
+the default tree; and the seven held constants, each swept once something
+moves them.
+
 **2026-09-06, the overnight batch: three switches measured and refused as
 defaults (D294, D295, D296).** A work cap on each strong-branching probe,
 `--probe-cap`: every cap reads worse than no cap, 1.228x at 0.5 against

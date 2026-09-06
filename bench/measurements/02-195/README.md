@@ -36,7 +36,10 @@ with every node under it, so the relaxations grow with the depth, and
 `p0201` at depth 1 pays 4.22x with its tree unchanged (1357 to 1353
 nodes) for 82 rows carried through it; at every node it carries 14892
 cuts and pays 46x for a tree of 399. Each arm also adds and removes the
-local rows between nodes whose lists differ, which the work counts.
+local rows between nodes whose lists differ. **Correction (D297,
+`02-196/d1nd-against-d1.txt`): that churn costs no work unit**; with it
+skipped the trees are the same and the work reads 1.000x, so the price
+above is the rows in the relaxation alone.
 
 **What reopens it.** A cut that leaves the relaxation once its slack is
 basic at a node, so a row that no longer binds is not carried under it;

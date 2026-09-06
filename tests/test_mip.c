@@ -798,6 +798,131 @@ static void test_cuts_below_the_root_reach_the_same_optimum(void)
     jaos_model_free(m);
 }
 
+/* The five-item knapsack of the cut-depth test, loaded fresh. */
+static jaos_model *knapsack5(void)
+{
+    const double cost[5] = { 10.0, 13.0, 7.0, 9.0, 5.0 };
+    const double cl[5] = { 0, 0, 0, 0, 0 }, cu[5] = { 1, 1, 1, 1, 1 };
+    const double rl[1] = { -INFINITY }, ru[1] = { 8.0 };
+    const int64_t as[6] = { 0, 1, 2, 3, 4, 5 }, ai[5] = { 0, 0, 0, 0, 0 };
+    const double av[5] = { 3.0, 5.0, 2.0, 4.0, 2.0 };
+    jaos_model *m = fresh();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_load_lp(m, 5, 1, JAOS_MAXIMIZE, 0.0, cost, cl, cu, rl, ru,
+                     5, as, ai, av));
+    for (int64_t j = 0; j < 5; j++)
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_col_integer(m, j, true));
+    return m;
+}
+
+/* A slack cut leaves the relaxation (D297): with the cuts to depth 100 and
+ * the root's off, dropping on and off both reach 23 with the same point,
+ * and each is bit-reproducible across two cold searches. */
+static void test_dropping_slack_cuts_keeps_the_optimum(void)
+{
+    for (int drop = 0; drop < 2; drop++) {
+        double x1[5], x2[5];
+        int64_t nodes1 = 0;
+        for (int pass = 0; pass < 2; pass++) {
+            jaos_model *m = knapsack5();
+            TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_cut_rounds(m, 0));
+            TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_cut_depth(m, 100));
+            TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_cut_drop(m, drop == 1));
+            TEST_ASSERT_EQUAL_INT(drop == 0, m->cfg.mip_no_cut_drop);
+            TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+            TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+            double obj = 0.0;
+            TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(m, &obj));
+            TEST_ASSERT_DOUBLE_WITHIN(1e-9, 23.0, obj);
+            TEST_ASSERT_EQUAL_INT(JAOS_OK,
+                jaos_solution(m, pass == 0 ? x1 : x2, nullptr, nullptr, nullptr));
+            jaos_mip_report rep;
+            TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_mip_result(m, &rep));
+            if (pass == 0)
+                nodes1 = rep.nodes;
+            else
+                TEST_ASSERT_EQUAL_INT64(nodes1, rep.nodes);
+            jaos_model_free(m);
+        }
+        TEST_ASSERT_TRUE(x1[0] == 1.0 && x1[1] == 1.0);
+        TEST_ASSERT_EQUAL_MEMORY(x1, x2, sizeof x1);
+    }
+}
+
+/* Strong branching down to a depth (D298): at the root only, the root's
+ * probes still run and the answer is the same; a negative depth restores
+ * every depth. */
+static void test_probing_at_the_root_only_reaches_the_same_optimum(void)
+{
+    jaos_model *m = knapsack();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_cut_rounds(m, 0));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_reliability(m, 8));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_probe_depth(m, 0));
+    TEST_ASSERT_TRUE(m->cfg.mip_probe_depth_set);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+    double obj = 0.0, x[3];
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(m, &obj));
+    TEST_ASSERT_DOUBLE_WITHIN(1e-9, 9.0, obj);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solution(m, x, nullptr, nullptr, nullptr));
+    TEST_ASSERT_TRUE(x[0] == 1.0 && x[1] == 1.0 && x[2] == 0.0);
+    jaos_mip_report rep;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_mip_result(m, &rep));
+    TEST_ASSERT_TRUE(rep.lp_solves > rep.nodes);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_probe_depth(m, -1));
+    TEST_ASSERT_FALSE(m->cfg.mip_probe_depth_set);
+    jaos_model_free(m);
+}
+
+/* The solution pool (D299): with room for three, the best point is the
+ * incumbent, the points are distinct and feasible and in objective order,
+ * and a size of one holds the incumbent alone; 0 is refused, a negative
+ * size restores 1, and an index past the count is refused. */
+static void test_the_solution_pool_holds_the_best_points_best_first(void)
+{
+    const double w[5] = { 3.0, 5.0, 2.0, 4.0, 2.0 }, c[5] = { 10, 13, 7, 9, 5 };
+    for (int size = 3; size >= 1; size -= 2) {
+        jaos_model *m = knapsack5();
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_cut_rounds(m, 0));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_pool_size(m, size));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+        TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+        int64_t held = -1;
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_mip_pool_count(m, &held));
+        TEST_ASSERT_TRUE(held >= 1 && held <= size);
+        double best[5], inc[5], incobj = 0.0, prev = INFINITY;
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_mip_incumbent(m, inc, &incobj));
+        for (int64_t k = 0; k < held; k++) {
+            double x[5], obj = 0.0, weight = 0.0, value = 0.0;
+            TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_mip_pool_solution(m, k, x, &obj));
+            for (int j = 0; j < 5; j++) {
+                TEST_ASSERT_TRUE(x[j] == 0.0 || x[j] == 1.0);
+                weight += w[j] * x[j];
+                value += c[j] * x[j];
+            }
+            TEST_ASSERT_TRUE(weight <= 8.0);
+            TEST_ASSERT_DOUBLE_WITHIN(1e-9, value, obj);
+            TEST_ASSERT_TRUE(obj <= prev);    /* maximize: best first */
+            prev = obj;
+            if (k == 0) {
+                memcpy(best, x, sizeof best);
+                TEST_ASSERT_EQUAL_MEMORY(inc, x, sizeof inc);
+                TEST_ASSERT_DOUBLE_WITHIN(1e-9, 23.0, obj);
+            } else {
+                TEST_ASSERT_TRUE(memcmp(best, x, sizeof best) != 0);
+            }
+        }
+        if (size == 1)
+            TEST_ASSERT_EQUAL_INT64(1, held);
+        TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT,
+                              jaos_mip_pool_solution(m, held, nullptr, nullptr));
+        TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT, jaos_set_mip_pool_size(m, 0));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_pool_size(m, -1));
+        TEST_ASSERT_EQUAL_INT64(0, m->cfg.mip_pool_size);
+        jaos_model_free(m);
+    }
+}
+
 int main(void)
 {
     UNITY_BEGIN();
@@ -825,5 +950,8 @@ int main(void)
     RUN_TEST(test_a_capped_probe_reaches_the_same_optimum);
     RUN_TEST(test_every_dive_child_rule_reaches_the_same_optimum);
     RUN_TEST(test_cuts_below_the_root_reach_the_same_optimum);
+    RUN_TEST(test_dropping_slack_cuts_keeps_the_optimum);
+    RUN_TEST(test_probing_at_the_root_only_reaches_the_same_optimum);
+    RUN_TEST(test_the_solution_pool_holds_the_best_points_best_first);
     return UNITY_END();
 }

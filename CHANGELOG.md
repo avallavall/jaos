@@ -11,6 +11,29 @@ open, `bench/README.md` for the gate, and the commit each entry came from.
 
 ### Added
 
+- **A solution pool.** `jaos_set_mip_pool_size`, `jaos_mip_pool_count`,
+  `jaos_mip_pool_solution` and `--pool-size K` keep the `K` best distinct
+  integer points a branch and bound meets, best first, with the search
+  unchanged; the first is the incumbent. Python `set_mip_pool_size` and
+  `mip_pool()` at both layers. The feature matrix's solution pool moves
+  from ○ to ● (D299).
+
+- **Strong branching down to a depth, refused as a default.**
+  `jaos_set_mip_probe_depth` and `--probe-depth D` probe at nodes down to
+  depth `D` only. At the root only it reads 0.987x over the MIP set with
+  two instances past 2x, one tree at every reliability; deeper reads worse.
+  Both clauses of D293's reopen condition are now measured and closed
+  (D298).
+
+- **A slack local cut leaves the relaxation, and no row churn between
+  nodes with the same cuts.** A cut whose slack is basic at a node is not
+  carried under it (`jaos_set_mip_cut_drop`, `--no-cut-drop` to keep it):
+  cuts to depth 2 read 0.802x against 1.260x without the drop, one instance
+  past 2x (`misc03` 2.053x), so the depth stays 0 and D296's reopen
+  condition narrows to that instance. The churn skip moves no answer and
+  no work unit; D296's claim that the work counted the churn was wrong
+  (D297).
+
 - **Gomory cuts below the root, refused as a default.**
   `jaos_set_mip_cut_depth` and `--cut-depth D` give every node down to
   depth `D` one round of Gomory cuts on its own relaxation; a node's cuts

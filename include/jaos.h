@@ -332,6 +332,14 @@ JAOS_NODISCARD jaos_status jaos_set_mip_cut_rounds(jaos_model *m,
 JAOS_NODISCARD jaos_status jaos_set_mip_cut_depth(jaos_model *m,
                                                   int64_t depth);
 
+/* Whether a local cut leaves the relaxation once its slack is basic at a
+ * node (D297). On, the default: a cut that does not bind at a node is not
+ * carried under it, and two nodes that hold the same cuts share the rows
+ * without a delete and an add between them. Off: every cut rides to every
+ * node under it, which is D296's refused form. The root's cuts stay for
+ * the whole tree either way. */
+JAOS_NODISCARD jaos_status jaos_set_mip_cut_drop(jaos_model *m, bool on);
+
 /* The rounding heuristic (D290): at every node whose relaxation is
  * fractional, the integer columns are rounded to the nearest integer and
  * the point is kept as the incumbent when it is inside every bound and
@@ -388,6 +396,13 @@ JAOS_NODISCARD jaos_status jaos_set_mip_reliability(jaos_model *m,
 JAOS_NODISCARD jaos_status jaos_set_mip_probe_cap(jaos_model *m,
                                                   double multiple);
 
+/* Where strong branching probes (D298): at nodes whose depth is at most
+ * `depth`, the root being depth 0. A negative value, the default, probes
+ * at every depth; 0 probes at the root only. Nothing happens under
+ * reliability 0. D298 carries what each depth cost over the MIP set. */
+JAOS_NODISCARD jaos_status jaos_set_mip_probe_depth(jaos_model *m,
+                                                    int64_t depth);
+
 /* Which child a dive solves first (D295), when the dive is on. NEARER is
  * the side the fraction is closer to, D289's refused form; UP and DOWN are
  * fixed; PSEUDOCOST is the direction whose expected objective loss is the
@@ -435,6 +450,23 @@ JAOS_NODISCARD jaos_status jaos_mip_result(const jaos_model *m,
 JAOS_NODISCARD jaos_status jaos_mip_incumbent(const jaos_model *m,
                                               double *col_value,
                                               double *objective);
+
+/* A pool of the best integer points a branch and bound found (D299): every
+ * integral relaxation and every feasible rounding is offered to it, and it
+ * keeps the `size` best as distinct vectors, best first by objective, the
+ * earlier one first on a tie. 1 is the default and keeps the incumbent
+ * alone, so the search is the same with or without a pool and the pool's
+ * first point is jaos_mip_incumbent's. A size below 1 is refused; a
+ * negative value restores 1. jaos_mip_pool_count says how many points the
+ * last solve left, whether or not it proved one optimal, and
+ * jaos_mip_pool_solution reads the k-th best, 0 first, into num_col
+ * values; either pointer may be NULL, and k out of range is refused. */
+JAOS_NODISCARD jaos_status jaos_set_mip_pool_size(jaos_model *m, int64_t size);
+JAOS_NODISCARD jaos_status jaos_mip_pool_count(const jaos_model *m,
+                                               int64_t *count);
+JAOS_NODISCARD jaos_status jaos_mip_pool_solution(const jaos_model *m,
+                                                  int64_t k, double *col_value,
+                                                  double *objective);
 
 /* The model's own name: the first word of an MPS file's NAME line, what
  * jaos_write_mps prints there, and "JAOS" until one is given. The same

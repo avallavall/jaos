@@ -144,8 +144,13 @@ on a work-unit measurement.
 | Branch and bound | ● | ● | — | — | ● | ● | ● |
 | Cutting planes | ◐ | ● | — | — | ● | ● | ● |
 | Primal heuristics | ◐ | ● | — | — | ● | ● | ● |
-| Solution pool | ○ | ○ | — | — | ● | ● | ● |
+| Solution pool | ● | ○ | — | — | ● | ● | ● |
 | Deterministic parallel tree search | ○ | ◐ | — | — | ● | ● | ? |
+
+**The solution pool moved from ○ to ● on 2026-09-06 (D299).**
+`jaos_set_mip_pool_size` keeps the best distinct integer points a branch
+and bound meets, best first, and `jaos_mip_pool_solution` reads them; the
+default of 1 is the incumbent alone, so the search is unchanged.
 
 This whole section is out of scope for the current milestone and is not
 scheduled. It is here because it is most of what separates an LP solver from a
