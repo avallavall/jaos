@@ -423,6 +423,8 @@ _sig("jaos_set_mip_cut_stall", ctypes.c_int, _VP, _D)
 _sig("jaos_set_mip_node_cut_stall", ctypes.c_int, _VP, _D)
 _sig("jaos_set_mip_root_cut_drop", ctypes.c_int, _VP, ctypes.c_int)
 _sig("jaos_set_mip_cover_lift", ctypes.c_int, _VP, ctypes.c_int)
+_sig("jaos_set_mip_mir_rounds", ctypes.c_int, _VP, _I64)
+_sig("jaos_set_mip_dive_backtrack", ctypes.c_int, _VP, _I64)
 _sig("jaos_set_mip_heuristics", ctypes.c_int, _VP, ctypes.c_bool)
 _sig("jaos_mip_result", ctypes.c_int, _VP, _P(_MipReport))
 _sig("jaos_mip_incumbent", ctypes.c_int, _VP, _P(_D), _P(_D))
@@ -869,6 +871,17 @@ class Model:
         instead of the extended cover's; None restores the default."""
         v = -1 if on is None else int(bool(on))
         self._check(_lib.jaos_set_mip_cover_lift(self._handle(), v))
+
+    def set_mip_mir_rounds(self, rounds):
+        """Rounds of mixed-integer rounding cuts on the model's rows at the
+        root (D309): 0 for none, a negative value for the default of 6."""
+        self._check(_lib.jaos_set_mip_mir_rounds(self._handle(), int(rounds)))
+
+    def set_mip_dive_backtrack(self, times):
+        """How many times a dive may resume from the deepest sibling it
+        left on its stack (D308); 0 is D289's dive, a negative value the
+        default. Only matters with the dive on."""
+        self._check(_lib.jaos_set_mip_dive_backtrack(self._handle(), int(times)))
 
     def set_mip_heuristics(self, on=True):
         """Whether every fractional node is rounded for an incumbent (D290);
@@ -2224,6 +2237,18 @@ class Problem:
         """Whether a cover cut is lifted with Balas's coefficients (D307);
         None restores the default."""
         self._m.set_mip_cover_lift(on)
+        return self
+
+    def set_mip_mir_rounds(self, rounds):
+        """Rounds of MIR cuts on the model's rows at the root (D309); 0 for
+        none, negative for the default."""
+        self._m.set_mip_mir_rounds(rounds)
+        return self
+
+    def set_mip_dive_backtrack(self, times):
+        """How many times a dive may resume from its stack (D308); 0 is
+        D289's dive, negative the default."""
+        self._m.set_mip_dive_backtrack(times)
         return self
 
     def set_mip_heuristics(self, on=True):

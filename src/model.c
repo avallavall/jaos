@@ -1039,6 +1039,24 @@ jaos_status jaos_set_mip_cover_lift(jaos_model *m, int on)
     return JAOS_OK;
 }
 
+jaos_status jaos_set_mip_mir_rounds(jaos_model *m, int64_t rounds)
+{
+    if (m == nullptr)
+        return JAOS_ERR_INVALID_INPUT;
+    m->cfg.mip_mir_rounds_set = rounds >= 0;
+    m->cfg.mip_mir_rounds = rounds >= 0 ? rounds : 0;
+    return JAOS_OK;
+}
+
+jaos_status jaos_set_mip_dive_backtrack(jaos_model *m, int64_t times)
+{
+    if (m == nullptr)
+        return JAOS_ERR_INVALID_INPUT;
+    m->cfg.mip_dive_backtrack_set = times >= 0;
+    m->cfg.mip_dive_backtrack = times >= 0 ? times : 0;
+    return JAOS_OK;
+}
+
 jaos_status jaos_set_mip_probe_depth(jaos_model *m, int64_t depth)
 {
     if (m == nullptr)

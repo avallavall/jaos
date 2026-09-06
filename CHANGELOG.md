@@ -11,6 +11,27 @@ open, `bench/README.md` for the gate, and the commit each entry came from.
 
 ### Added
 
+- **Mixed-integer rounding cuts on the model's rows, six rounds by
+  default.** `jaos_set_mip_mir_rounds` and `--mir-rounds N`: every model
+  row, each finite side, shifted to the bounds nearer the point, scaled by
+  one of a few candidates and rounded the way Marchand and Wolsey round a
+  single row, the most violated scaling added beside the Gomory and cover
+  rounds. Over the MIP set of 24: 0.719x the work, 6 better, 1 worse, none
+  past 2x, 0.847x over the 17 and 0.482x over the seven that joined at
+  D302; `bench/miplib.baseline` is rewritten. "No cuts at all" is now
+  `--cut-rounds 0 --cover-rounds 0 --mir-rounds 0 --cut-depth 0`. A side
+  whose right-hand side cannot be computed to `MIP_MIR_ROUND` gets no cut.
+  Python carries the setting at both layers (D309,
+  `bench/measurements/02-203/`).
+
+- **A backtracking dive.** `jaos_set_mip_dive_backtrack` and
+  `--dive-backtrack N`, with the dive on: the dive resumes from the
+  deepest sibling it left, up to N resumed nodes per dive, and the
+  published bound reads the waiting siblings too. Off by default: 0.992x
+  at sixteen with two instances past 2x, 1.170x unbounded, refused, and
+  D289's reopen condition is fully measured (D308). Python carries the
+  setting at both layers. `--help` prints every option again.
+
 - **Root cuts leave below a node where their slack is basic.**
   `jaos_set_mip_root_cut_drop` and `--root-cut-drop` /
   `--no-root-cut-drop`: the root's cuts are pool cuts like a node's own

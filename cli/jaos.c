@@ -13,7 +13,8 @@
  *                   [--cut-rounds N] [--cover-rounds N] [--cut-depth D]
  *                   [--node-cut-cap K] [--cut-stall F] [--node-cut-stall F]
  *                   [--root-cut-drop | --no-root-cut-drop]
- *                   [--cover-lift | --no-cover-lift] [--dive] [--dive-child RULE]
+ *                   [--cover-lift | --no-cover-lift] [--mir-rounds N]
+ *                   [--dive] [--dive-child RULE] [--dive-backtrack N]
  *                   [--no-heuristics] [--node-limit N] [--branching RULE]
  *                   [--reliability N] [--probe-cap M] [--probe-depth D]
  *                   [--no-cut-drop] [--pool-size K] [--log LEVEL]
@@ -79,7 +80,8 @@ static const char USAGE[] =
     "                  [--cut-rounds N] [--cover-rounds N] [--cut-depth D]\n"
     "                  [--node-cut-cap K] [--cut-stall F] [--node-cut-stall F]\n"
     "                  [--root-cut-drop | --no-root-cut-drop]\n"
-    "                  [--cover-lift | --no-cover-lift] [--dive] [--dive-child RULE]\n"
+    "                  [--cover-lift | --no-cover-lift] [--mir-rounds N]\n"
+    "                  [--dive] [--dive-child RULE] [--dive-backtrack N]\n"
     "                  [--no-heuristics] [--node-limit N] [--branching RULE]\n"
     "                  [--reliability N] [--probe-cap M] [--probe-depth D]\n"
     "                  [--no-cut-drop] [--pool-size K] [--log LEVEL]\n"
@@ -121,9 +123,16 @@ static const char USAGE[] =
     "                   root cut\n"
     "  --cover-lift     lift each cover cut with Balas's coefficients;\n"
     "                   --no-cover-lift keeps the extended cover\n"
+    "  --mir-rounds N   rounds of mixed-integer rounding cuts on the model's\n"
+    "                   rows at the root of a MIP (default 6; 0 for none)\n"
     "  --dive           dive from each selected node of a MIP (off by default)\n"
     "  --dive-child RULE which child the dive solves first: nearer (default),\n"
     "                   up, down or pseudocost\n"
+    "  --dive-backtrack N  let a dive resume from the deepest sibling it\n"
+    "                   left, up to N times per dive (default 0)\n";
+
+/* The second piece, because ISO C only promises a 4095-byte literal. */
+static const char USAGE1B[] =
     "  --no-heuristics  no rounding heuristic at the nodes of a MIP\n"
     "  --node-limit N   stop a MIP before its N-th node past the limit (N > 0)\n"
     "  --branching RULE which column a MIP branches on: pseudocost (default)\n"
@@ -141,7 +150,7 @@ static const char USAGE[] =
     "  --quiet          print the status line only\n"
     "  Exit: 0 optimal, 1 infeasible, 2 unbounded, 3 stopped by a limit or\n"
     "  by Ctrl-C, 4 numerical failure.\n";
-/* The second half, because ISO C only promises a 4095-byte literal. */
+/* The third piece. */
 static const char USAGE2[] =
     "convert reads IN and writes OUT in the format OUT's extension names,\n"
     "  .mps or .lp. Exit 0 when written.\n"
@@ -179,6 +188,7 @@ static int usage_error(const char *fmt, ...)
     va_end(ap);
     fputs("\n\n", stderr);
     fputs(USAGE, stderr);
+    fputs(USAGE1B, stderr);
     fputs(USAGE2, stderr);
     return EXIT_USAGE;
 }
@@ -418,6 +428,8 @@ struct solve_options {
     double cut_stall, node_cut_stall;
     int root_cut_drop;       /* -1: not given; else 0 or 1                */
     int cover_lift;          /* -1: not given; else 0 or 1                */
+    int64_t mir_rounds;      /* -1: not given (the library's default)     */
+    int64_t dive_backtrack;  /* -1: not given (the library's default)     */
     int64_t node_limit;      /* 0: not given; the parser refuses <= 0     */
     int branching;           /* -1: not given; else a jaos_branching      */
     int64_t reliability;     /* -1: not given (the library's default)     */
@@ -451,6 +463,8 @@ static int parse_solve_options(int argc, char **argv, int first,
     o->node_cut_cap = -1;
     o->root_cut_drop = -1;
     o->cover_lift = -1;
+    o->mir_rounds = -1;
+    o->dive_backtrack = -1;
     o->branching = -1;
     o->reliability = -1;
     o->dive_child = -1;
@@ -572,6 +586,14 @@ static int parse_solve_options(int argc, char **argv, int first,
             if (!parse_int64(v, &o->node_cut_cap) || o->node_cut_cap < 0)
                 return usage_error("--node-cut-cap needs a count of cuts, 0 "
                                    "or more, not '%s'", v);
+        } else if (strcmp(a, "--mir-rounds") == 0) {
+            if (!parse_int64(v, &o->mir_rounds) || o->mir_rounds < 0)
+                return usage_error("--mir-rounds needs a count of rounds, 0 "
+                                   "or more, not '%s'", v);
+        } else if (strcmp(a, "--dive-backtrack") == 0) {
+            if (!parse_int64(v, &o->dive_backtrack) || o->dive_backtrack < 0)
+                return usage_error("--dive-backtrack needs a count, 0 or "
+                                   "more, not '%s'", v);
         } else if (strcmp(a, "--cover-rounds") == 0) {
             if (!parse_int64(v, &o->cover_rounds) || o->cover_rounds < 0)
                 return usage_error("--cover-rounds needs a count of rounds, 0 "
@@ -697,6 +719,15 @@ static int cmd_solve(int argc, char **argv)
     }
     if (o.cover_lift >= 0 && jaos_set_mip_cover_lift(m, o.cover_lift) != JAOS_OK) {
         rc = library_error("set the cover lift for", o.file, m);
+        goto out;
+    }
+    if (o.mir_rounds >= 0 && jaos_set_mip_mir_rounds(m, o.mir_rounds) != JAOS_OK) {
+        rc = library_error("set the MIR rounds for", o.file, m);
+        goto out;
+    }
+    if (o.dive_backtrack >= 0 &&
+        jaos_set_mip_dive_backtrack(m, o.dive_backtrack) != JAOS_OK) {
+        rc = library_error("set the dive's backtracks for", o.file, m);
         goto out;
     }
     if (o.dive && jaos_set_mip_dive(m, true) != JAOS_OK) {
@@ -1357,6 +1388,8 @@ int main(int argc, char **argv)
     if (strcmp(cmd, "--help") == 0 || strcmp(cmd, "-h") == 0 ||
         strcmp(cmd, "help") == 0) {
         fputs(USAGE, stdout);
+        fputs(USAGE1B, stdout);
+        fputs(USAGE2, stdout);
         return EXIT_OPTIMAL;
     }
     if (strcmp(cmd, "solve") == 0)

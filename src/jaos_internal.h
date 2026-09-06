@@ -74,6 +74,13 @@ typedef struct {
     /* Whether a cover cut is lifted (D307); unset means MIP_COVER_LIFT. */
     bool mip_cover_lift_set;
     bool mip_cover_lift;
+    /* MIR cuts at the root (D309); unset means MIP_MIR_ROUNDS. */
+    bool mip_mir_rounds_set;
+    int64_t mip_mir_rounds;
+    /* How often a dive may resume from its stack (D308); unset means
+     * MIP_DIVE_BACKTRACK. */
+    bool mip_dive_backtrack_set;
+    int64_t mip_dive_backtrack;
     /* The rounding heuristic at every node (D290); on unless set. */
     bool mip_no_heuristics;
     /* A budget on the tree, 0 for none (D291), and who is told of each

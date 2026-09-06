@@ -92,30 +92,31 @@ solving again continues from where it stopped.
 
 A column can be marked integer, from the API or from an MPS `MARKER` pair,
 an LP `General` or `Binary` section, and a model with one solves by branch
-and bound over the same dual simplex: one round of Gomory cuts and four
-rounds of knapsack cover cuts at the root, one round of Gomory cuts at
-every node down to depth 3 with the four most efficacious kept, any cut
-dropped below a node where its slack is basic, a rounding heuristic at every node,
+and bound over the same dual simplex: one round of Gomory cuts, four
+rounds of knapsack cover cuts and six rounds of mixed-integer rounding
+cuts at the root, one round of Gomory cuts at every node down to depth 3
+with the four most efficacious kept, any cut dropped below a node where
+its slack is basic, a rounding heuristic at every node,
 pseudocost branching, the incumbent published with the relaxation's duals.
 The tree reports its nodes, cuts and bound, takes a node limit beside the
 work and time limits, tells a callback of every new incumbent, and keeps a
 pool of the best integer points it met. Things that measured worse are
 behind switches and off: a dive from each selected node with any of four
-child rules, strong branching until a column's pseudocost is reliable,
-capped or not, at any depth, a cut round that stops when the bound stops
-moving, at the root or under a node, and lifted covers. Every default in
-the tree was set on a MIPLIB 3 set with its own baseline, `make miplib`,
-17 instances until D302 and 24 since; the readings are in
-`bench/measurements/02-189/` to `02-202/`, D303 says the two cut defaults
-hold over the 24 and lose over the seven instances they were not tuned on,
-and D306 is the first default that helps both.
+child rules and any backtrack budget, strong branching until a column's
+pseudocost is reliable, capped or not, at any depth, a cut round that
+stops when the bound stops moving, at the root or under a node, and
+lifted covers. Every default in the tree was set on a MIPLIB 3 set with
+its own baseline, `make miplib`, 17 instances until D302 and 24 since; the
+readings are in `bench/measurements/02-189/` to `02-203/`, D303 says the
+two cut defaults hold over the 24 and lose over the seven instances they
+were not tuned on, and D306 and D309 are the defaults that help both.
 
 `SPECS.md` lists every feature with its status: what exists, what is missing,
 and what is only partly there.
 
 ## What it does not do
 
-There is no barrier method. Integer columns solve by branch and bound over the dual simplex, with Gomory and cover cuts at the root, Gomory cuts down to depth 3 and a rounding heuristic at every node; the dive from each selected node and strong branching measured worse and are off (D288 to D301).
+There is no barrier method. Integer columns solve by branch and bound over the dual simplex, with Gomory, cover and mixed-integer rounding cuts at the root, Gomory cuts down to depth 3 and a rounding heuristic at every node; the dive from each selected node and strong branching measured worse and are off (D288 to D309).
 
 A primal simplex exists but no caller can reach it. It sits behind a
 development switch rather than an option, and `make primal` is what measures

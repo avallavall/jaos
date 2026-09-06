@@ -315,6 +315,8 @@ and you have the argument. Jump to the entry for the numbers behind it.
 - **[D305](#d305--a-node-whose-cut-round-moved-nothing-ends-the-cuts-under-it-0816x-alone-at-a-stall-of-002-and-refused-as-a-default-beside-the-root-cut-drop-which-it-never-combines-with-under-the-bar)** — A node whose cut round moved nothing ends the cuts under it: 0.816x alone at a stall of 0.02, and refused as a default beside the root-cut drop, which it never combines with under the bar
 - **[D306](#d306--the-roots-cuts-leave-below-a-node-where-their-slack-is-basic-0799x-the-work-over-the-24-thirteen-better-two-worse-none-past-2x-and-the-baseline-is-rewritten)** — The root's cuts leave below a node where their slack is basic: 0.799x the work over the 24, thirteen better, two worse, none past 2x, and the baseline is rewritten
 - **[D307](#d307--lifted-covers-balass-coefficients-on-every-cover-cut-refused-as-a-default-1005x-over-the-24-with-l152lav-past-2x)** — Lifted covers, Balas's coefficients on every cover cut, refused as a default: 1.005x over the 24 with l152lav past 2x
+- **[D308](#d308--a-backtracking-dive-refused-as-a-default-at-every-budget-0992x-at-sixteen-resumes-with-two-instances-past-2x-1170x-unbounded-and-d289s-last-reopen-clause-is-measured-and-closed)** — A backtracking dive, refused as a default at every budget: 0.992x at sixteen resumes with two instances past 2x, 1.170x unbounded, and D289's last reopen clause is measured and closed
+- **[D309](#d309--mixed-integer-rounding-cuts-on-the-models-rows-at-the-root-six-rounds-by-default-0719x-the-work-over-the-24-six-better-one-worse-none-past-2x-and-the-baseline-is-rewritten)** — Mixed-integer rounding cuts on the model's rows at the root, six rounds by default: 0.719x the work over the 24, six better, one worse, none past 2x, and the baseline is rewritten
 
 ---
 
@@ -21986,3 +21988,96 @@ against zero: a rounded sum of decimal weights could make a cover of a
 set that fits, and the cut would then be wrong. A cover short of the
 margin is a lost cut, never a wrong one. The drop code's row contract has
 three writers since D306 and is an assert now.
+
+## D308 — A backtracking dive, refused as a default at every budget: 0.992x at sixteen resumes with two instances past 2x, 1.170x unbounded, and D289's last reopen clause is measured and closed
+
+**The gap.** D289 refused the dive and D295 its four child rules, and
+both left one thing that could reopen them: a dive that backtracks
+instead of returning to the best open node when a node is pruned.
+
+**What it does now.** `jaos_set_mip_dive_backtrack` and
+`--dive-backtrack N`, with the dive on: the sibling of each child the
+dive takes waits on a stack, and when a dive node is pruned or integral
+the dive resumes from the deepest sibling waiting, up to `N` resumed
+nodes per dive (a sibling the incumbent prunes unsolved spends none, the
+review's note); then, and when the stack is empty, what waits joins the
+open set and the search takes the best bound again. `open_key` reads the
+best key over the heap and the stack, so the bound published to the
+incumbent callback, the progress log and `jaos_mip_result` stays a lower
+bound with siblings waiting. 0, the default, is D289's dive. Python
+carries the setting at both layers.
+
+**Evidence** (`bench/measurements/02-203/`, the D306 defaults as the
+control, byte-identical to `bench/miplib.baseline`). The dive with no
+backtracking on this tree reads 0.835x over the 23 that finish, `bell5`
+at the cap, 11 better, 8 worse, `lseu` 2.75x and `misc06` 2.06x past 2x,
+`gt2` 0.125x and `p0282` 0.232x. With resumes, work against the control:
+one 1.026x over 23 (three past 2x, `gt2` 3.94x); two 1.134x (four past
+2x); four 1.007x (two past); **sixteen 0.992x over all 24** (12 better, 9
+worse, `enigma` 5.24x and `lseu` 2.19x past 2x, `p0282` 0.155x, `bell5`
+0.540x); unbounded 1.170x over 23 with five past 2x, `enigma` 9.28x and
+`gt2` 8.18x. The pseudocost side, D295's best child rule, reads 1.011x at
+four and 1.142x unbounded. Over the seven that joined at D302 every dive
+arm reads under 0.80x and over the 17 every one reads over 1.0x.
+
+**The decision.** Refused as a default; 0 stays, and the dive stays off.
+Backtracking trades the best-bound order for depth, and on this set
+depth pays on the seven and costs on the 17, never under the bar on
+both. D289's refusal holds and its reopen condition is now fully
+measured: the child rules (D295) and the backtracking (here). What could
+reopen it is a dive bounded by the gap rather than by a count, a resume
+only while the node's bound is within a fraction of the best open one,
+measured on the same set; `02-189/retest-dive.sh` still asks the original
+question and `make refusals` runs it.
+
+## D309 — Mixed-integer rounding cuts on the model's rows at the root, six rounds by default: 0.719x the work over the 24, six better, one worse, none past 2x, and the baseline is rewritten
+
+**The gap.** Two cut families, Gomory's off the tableau and covers off
+the binary knapsack rows, and `SPECS.md` listing a third as missing.
+Marchand and Wolsey's mixed-integer rounding is the family every general
+row admits.
+
+**What it does now.** `jaos_set_mip_mir_rounds` and `--mir-rounds N`, in
+rounds beside the other two families at the root: every model row, each
+finite side, with its columns shifted to the bound nearer the point so
+the shifted variables are non-negative, scaled by one of a few deltas --
+1 and the |a_j| of the integer columns whose shifted value is fractional,
+at most `MIP_MIR_DELTAS` of them -- and rounded the way Marchand and
+Wolsey round a single row (Aggregation and mixed integer rounding to
+solve MIPs, Operations Research 49, 2001; Wolsey, Integer Programming,
+1998, ch. 8.6): the integer coefficients become floor plus the excess of
+their fraction over the right-hand side's, the continuous ones with a
+negative coefficient are scaled by one over one minus that fraction and
+the positive ones dropped. The most violated delta is a row of the
+private copy for the whole tree, finished by the same drop, dynamism and
+violation rules every cut goes through, which `cut_finish` now holds for
+both families. A side whose shifted right-hand side cannot be computed
+to within `MIP_MIR_ROUND` gets no cut, the review's finding: the cut
+divides by that sum's fraction, and a fraction below the true one is a
+cut that is not valid. Six rounds by default; "no cuts at all" is now
+`--cut-rounds 0 --cover-rounds 0 --mir-rounds 0 --cut-depth 0`, and the
+tests say so. Python carries the setting at both layers.
+
+**Evidence** (`bench/measurements/02-203/`, the D306 defaults as the
+control, byte-identical to `bench/miplib.baseline`). Work against the
+control in geometric mean over the 24: one round 1.017x (4 better, 3
+worse), two 0.933x, three 0.790x, four 0.752x (7 better, none worse),
+five 0.773x, **six 0.719x** (6 better, 1 worse, none past 2x), eight
+0.725x, twelve 0.737x; over the 17 the cuts were tuned on 0.847x at six
+and over the seven that joined at D302 0.482x. The cuts touch twelve of
+the 24 and leave the rest byte-identical. At six rounds `gen` closes at 7
+nodes from 589 (0.025x), `mod008` 2631 from 17385 (0.198x), `gt2` 0.246x,
+`p0033` 0.374x, `p0201` 0.683x; `lseu` 1.26x is the one worse.
+
+**The decision.** Six rounds is the default: the best mean that keeps
+every instance under 2x, and the curve is flat past it. The baseline is
+rewritten to the new trees, and `make miplib` on the landed tree
+reproduces them node for node. What the family rests on is the rows it
+can read: a general-integer row with a finite side, which the covers
+cannot touch and the Gomory cut only reaches through the basis.
+
+**What it is not.** Not the aggregated c-MIR: no row is added to another,
+no delta is divided further, and no cut is read at a node. Each of those
+is a separate question on the same set. The exposure the review found in
+the MIR right-hand side also exists in the Gomory cut's basic value and
+is carried, since that value comes out of a solve and not a sum here.

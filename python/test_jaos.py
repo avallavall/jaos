@@ -1182,7 +1182,7 @@ class TestBranchAndBound(unittest.TestCase):
         self.assertGreaterEqual(rep.cuts, 1)
         self.assertEqual(rep.nodes, 1)
         self.assertTrue(p._m.col_integer(0))
-        p.set_mip_cut_rounds(0).set_mip_cover_rounds(0).set_mip_cut_depth(0).set_mip_dive(True).set_mip_heuristics(False)
+        p.set_mip_cut_rounds(0).set_mip_cover_rounds(0).set_mip_mir_rounds(0).set_mip_cut_depth(0).set_mip_dive(True).set_mip_heuristics(False)
         self.assertIs(p.solve(), jaos.SolveStatus.OPTIMAL)
         self.assertAlmostEqual(p.objective_value, 9.0, places=9)
         rep = p.mip_report()
@@ -1201,7 +1201,7 @@ class TestBranchAndBound(unittest.TestCase):
         p.add(x <= 2.2)      # rows, not bounds: a bound is rounded (D292)
         p.add(y <= 1.4)
         p.maximize(x + y)
-        p.set_mip_cut_rounds(0).set_mip_cover_rounds(0).set_mip_cut_depth(0).set_mip_node_limit(1)
+        p.set_mip_cut_rounds(0).set_mip_cover_rounds(0).set_mip_mir_rounds(0).set_mip_cut_depth(0).set_mip_node_limit(1)
         p.set_incumbent_callback(lambda inc: seen.append(inc))
         self.assertIs(p.solve(), jaos.SolveStatus.NODE_LIMIT)
         self.assertEqual(len(seen), 1)
@@ -1226,7 +1226,7 @@ class TestBranchAndBound(unittest.TestCase):
             c = p.add_var(binary=True, name="c")
             p.add(2 * a + 3 * b + c <= 5)
             p.maximize(5 * a + 4 * b + 3 * c)
-            p.set_mip_cut_rounds(0).set_mip_cover_rounds(0).set_mip_cut_depth(0).set_mip_branching(rule)
+            p.set_mip_cut_rounds(0).set_mip_cover_rounds(0).set_mip_mir_rounds(0).set_mip_cut_depth(0).set_mip_branching(rule)
             self.assertIs(p.solve(), jaos.SolveStatus.OPTIMAL)
             self.assertAlmostEqual(p.objective_value, 9.0, places=9)
             self.assertEqual((a.value, b.value, c.value), (1.0, 1.0, 0.0))
@@ -1258,7 +1258,7 @@ class TestBranchAndBound(unittest.TestCase):
             return p, (a, b, c)
         for cap in (0.5, 0.0, 4.0):
             p, (a, b, c) = knapsack()
-            p.set_mip_cut_rounds(0).set_mip_cover_rounds(0).set_mip_cut_depth(0).set_mip_reliability(8).set_mip_probe_cap(cap)
+            p.set_mip_cut_rounds(0).set_mip_cover_rounds(0).set_mip_mir_rounds(0).set_mip_cut_depth(0).set_mip_reliability(8).set_mip_probe_cap(cap)
             self.assertIs(p.solve(), jaos.SolveStatus.OPTIMAL)
             self.assertAlmostEqual(p.objective_value, 9.0, places=9)
             self.assertEqual((a.value, b.value, c.value), (1.0, 1.0, 0.0))
@@ -1267,7 +1267,7 @@ class TestBranchAndBound(unittest.TestCase):
             p.set_mip_probe_cap(float("nan"))
         for rule in jaos.DiveChild:
             p, (a, b, c) = knapsack()
-            p.set_mip_cut_rounds(0).set_mip_cover_rounds(0).set_mip_cut_depth(0).set_mip_dive(True).set_mip_dive_child(rule)
+            p.set_mip_cut_rounds(0).set_mip_cover_rounds(0).set_mip_mir_rounds(0).set_mip_cut_depth(0).set_mip_dive(True).set_mip_dive_child(rule)
             self.assertIs(p.solve(), jaos.SolveStatus.OPTIMAL)
             self.assertAlmostEqual(p.objective_value, 9.0, places=9)
             self.assertEqual((a.value, b.value, c.value), (1.0, 1.0, 0.0))
@@ -1286,7 +1286,7 @@ class TestBranchAndBound(unittest.TestCase):
             a, b, c, d, e = v
             p.add(3 * a + 5 * b + 2 * c + 4 * d + 2 * e <= 8)
             p.maximize(10 * a + 13 * b + 7 * c + 9 * d + 5 * e)
-            p.set_mip_cut_rounds(0).set_mip_cover_rounds(0).set_mip_cut_depth(depth)
+            p.set_mip_cut_rounds(0).set_mip_cover_rounds(0).set_mip_mir_rounds(0).set_mip_cut_depth(depth)
             self.assertIs(p.solve(), jaos.SolveStatus.OPTIMAL)
             self.assertAlmostEqual(p.objective_value, 23.0, places=9)
             self.assertEqual([x.value for x in v], [1.0, 1.0, 0.0, 0.0, 0.0])
@@ -1311,7 +1311,7 @@ class TestBranchAndBound(unittest.TestCase):
             p.maximize(10 * a + 13 * b + 7 * c + 9 * d + 5 * e)
             return p, v
         p, v = knapsack5()
-        p.set_mip_cut_rounds(0).set_mip_cover_rounds(0).set_mip_cut_depth(0).set_mip_pool_size(3)
+        p.set_mip_cut_rounds(0).set_mip_cover_rounds(0).set_mip_mir_rounds(0).set_mip_cut_depth(0).set_mip_pool_size(3)
         self.assertIs(p.solve(), jaos.SolveStatus.OPTIMAL)
         pool = p.mip_pool()
         self.assertTrue(1 <= len(pool) <= 3)
@@ -1323,7 +1323,7 @@ class TestBranchAndBound(unittest.TestCase):
         with self.assertRaises(jaos.JaosError):
             p.set_mip_pool_size(0)
         p, v = knapsack5()
-        p.set_mip_cut_rounds(0).set_mip_cover_rounds(0).set_mip_cut_depth(100).set_mip_cut_drop(False)
+        p.set_mip_cut_rounds(0).set_mip_cover_rounds(0).set_mip_mir_rounds(0).set_mip_cut_depth(100).set_mip_cut_drop(False)
         self.assertIs(p.solve(), jaos.SolveStatus.OPTIMAL)
         self.assertAlmostEqual(p.objective_value, 23.0, places=9)
         p.set_mip_cut_drop(True).set_mip_reliability(8).set_mip_probe_depth(0)
@@ -1340,13 +1340,13 @@ class TestBranchAndBound(unittest.TestCase):
         c = p.add_var(binary=True, name="c")
         p.add(2 * a + 3 * b + c <= 5)
         p.maximize(5 * a + 4 * b + 3 * c)
-        p.set_mip_cut_rounds(0).set_mip_cover_rounds(1)
+        p.set_mip_cut_rounds(0).set_mip_mir_rounds(0).set_mip_cover_rounds(1)
         self.assertIs(p.solve(), jaos.SolveStatus.OPTIMAL)
         self.assertAlmostEqual(p.objective_value, 9.0, places=9)
         rep = p.mip_report()
         self.assertEqual(rep.nodes, 1)
         self.assertGreaterEqual(rep.cuts, 1)
-        p.set_mip_cover_rounds(0).set_mip_cut_depth(0)
+        p.set_mip_cover_rounds(0).set_mip_mir_rounds(0).set_mip_cut_depth(0)
         self.assertIs(p.solve(), jaos.SolveStatus.OPTIMAL)
         self.assertGreaterEqual(p.mip_report().nodes, 2)
 
@@ -1379,7 +1379,7 @@ class TestBranchAndBound(unittest.TestCase):
         # after the first, so one cut and a tree (D304). NaN is refused.
         for stall, cuts in ((0.0, 3), (1.0, 1)):
             p, (a, b) = self._knapsack5()
-            p.set_mip_cut_rounds(5).set_mip_cover_rounds(0).set_mip_cut_depth(0)
+            p.set_mip_cut_rounds(5).set_mip_cover_rounds(0).set_mip_mir_rounds(0).set_mip_cut_depth(0)
             p.set_mip_cut_stall(stall)
             self.assertIs(p.solve(), jaos.SolveStatus.OPTIMAL)
             self.assertAlmostEqual(p.objective_value, 23.0, places=9)
@@ -1390,13 +1390,13 @@ class TestBranchAndBound(unittest.TestCase):
         p.set_mip_cut_stall(-1)
 
     def test_a_stalled_round_ends_the_cuts_under_it(self):
-        # The five-item knapsack with cuts to every depth and no cap: a node
-        # stall of 1 judges the root's phase stalled, so no node cuts and
-        # fewer cuts than without it, the same optimum (D305).
+        # The five-item knapsack with cuts to every depth, no cap and the MIR
+        # rounds off: a node stall of 1 judges the root's phase stalled, so
+        # no node cuts and fewer cuts than without it, the same optimum (D305).
         counts = []
         for stall in (0.0, 1.0):
             p, (a, b) = self._knapsack5()
-            p.set_mip_cut_depth(100).set_mip_node_cut_cap(0).set_mip_node_cut_stall(stall)
+            p.set_mip_mir_rounds(0).set_mip_cut_depth(100).set_mip_node_cut_cap(0).set_mip_node_cut_stall(stall)
             self.assertIs(p.solve(), jaos.SolveStatus.OPTIMAL)
             self.assertAlmostEqual(p.objective_value, 23.0, places=9)
             self.assertEqual((a.value, b.value), (1.0, 1.0))
@@ -1430,7 +1430,7 @@ class TestBranchAndBound(unittest.TestCase):
             p.add(4 * a + 4 * b + 3 * f + 8 * d <= 10)
             p.maximize(10 * a + 10 * b + 6 * f + 15 * d)
             p.set_mip_cut_rounds(0).set_mip_cover_rounds(1).set_mip_cut_depth(0)
-            p.set_mip_cover_lift(lift)
+            p.set_mip_mir_rounds(0).set_mip_cover_lift(lift)
             self.assertIs(p.solve(), jaos.SolveStatus.OPTIMAL)
             self.assertAlmostEqual(p.objective_value, 20.0, places=9)
             self.assertEqual((a.value, b.value, f.value, d.value), (1.0, 1.0, 0.0, 0.0))
@@ -1438,6 +1438,37 @@ class TestBranchAndBound(unittest.TestCase):
             self.assertGreaterEqual(rep.cuts, 1)
             self.assertEqual(rep.nodes == 1, one_node)
         p.set_mip_cover_lift(None)
+
+    def test_a_mir_cut_closes_the_halved_row_at_the_root(self):
+        # max x + y, 2x + 2y <= 3, x and y integer: the row scaled by 2 and
+        # rounded is x + y <= 1, which closes the root (D309); without it
+        # the tree branches to the same answer.
+        for rounds, one_node in ((1, True), (0, False)):
+            p = jaos.Problem()
+            x = p.add_var(integer=True, name="x")
+            y = p.add_var(integer=True, name="y")
+            p.add(2 * x + 2 * y <= 3)
+            p.maximize(x + y)
+            p.set_mip_cut_rounds(0).set_mip_cover_rounds(0).set_mip_mir_rounds(0).set_mip_cut_depth(0)
+            p.set_mip_mir_rounds(rounds)
+            self.assertIs(p.solve(), jaos.SolveStatus.OPTIMAL)
+            self.assertAlmostEqual(p.objective_value, 1.0, places=9)
+            rep = p.mip_report()
+            self.assertEqual(rep.nodes == 1, one_node)
+            self.assertEqual(rep.cuts >= 1, one_node)
+        p.set_mip_mir_rounds(-1)
+
+    def test_a_backtracking_dive_reaches_the_same_optimum(self):
+        # The five-item knapsack with the cuts off, the dive on and up to
+        # 1000 backtracks per dive reaches 23 like the plain dive (D308).
+        for times in (0, 1, 1000):
+            p, (a, b) = self._knapsack5()
+            p.set_mip_cut_rounds(0).set_mip_cover_rounds(0).set_mip_mir_rounds(0).set_mip_cut_depth(0)
+            p.set_mip_dive(True).set_mip_dive_backtrack(times)
+            self.assertIs(p.solve(), jaos.SolveStatus.OPTIMAL)
+            self.assertAlmostEqual(p.objective_value, 23.0, places=9)
+            self.assertEqual((a.value, b.value), (1.0, 1.0))
+        p.set_mip_dive_backtrack(-1)
 
     def test_the_rounding_heuristic_finds_the_root_relaxations_neighbour(self):
         # max x + y, x + y <= 3.6, x <= 2.2, y <= 1.4, both integer: the
@@ -1451,7 +1482,7 @@ class TestBranchAndBound(unittest.TestCase):
             p.add(x <= 2.2)  # rows, not bounds: a bound is rounded (D292)
             p.add(y <= 1.4)
             p.maximize(x + y)
-            p.set_mip_cut_rounds(0).set_mip_cover_rounds(0).set_mip_cut_depth(0).set_mip_heuristics(on)
+            p.set_mip_cut_rounds(0).set_mip_cover_rounds(0).set_mip_mir_rounds(0).set_mip_cut_depth(0).set_mip_heuristics(on)
             self.assertIs(p.solve(), jaos.SolveStatus.OPTIMAL)
             self.assertAlmostEqual(p.objective_value, 3.0, places=9)
             self.assertEqual((x.value, y.value), (2.0, 1.0))

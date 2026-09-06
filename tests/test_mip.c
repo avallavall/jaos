@@ -272,6 +272,7 @@ static void test_without_cuts_or_dive_the_tree_branches_to_the_same_answer(void)
     jaos_model *m = knapsack();
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_cut_rounds(m, 0));
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_cover_rounds(m, 0));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_mir_rounds(m, 0));
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_cut_depth(m, 0));
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
     TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
@@ -313,6 +314,7 @@ static void test_without_cuts_or_dive_the_tree_branches_to_the_same_answer(void)
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_col_integer(m, 1, true));
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_cut_rounds(m, 0));
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_cover_rounds(m, 0));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_mir_rounds(m, 0));
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_cut_depth(m, 0));
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(m, &obj));
@@ -346,6 +348,7 @@ static void test_a_cut_over_continuous_columns_keeps_the_integer_optimum(void)
         if (pass == 1)
             TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_cut_rounds(m, 0));
         TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_cover_rounds(m, 0));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_mir_rounds(m, 0));
         TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_cut_depth(m, 0));
         TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
         TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
@@ -393,6 +396,7 @@ static void test_the_rounding_heuristic_takes_the_relaxations_neighbour(void)
         TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_col_integer(m, 1, true));
         TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_cut_rounds(m, 0));
         TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_cover_rounds(m, 0));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_mir_rounds(m, 0));
         TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_cut_depth(m, 0));
         TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_heuristics(m, on != 0));
         TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
@@ -439,6 +443,7 @@ static void test_an_infeasible_rounding_is_not_taken(void)
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_col_integer(m, 1, true));
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_cut_rounds(m, 0));
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_cover_rounds(m, 0));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_mir_rounds(m, 0));
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_cut_depth(m, 0));
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
     double obj = 0.0;
@@ -517,6 +522,7 @@ static jaos_model *neighbour_model(void)
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_col_integer(m, 1, true));
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_cut_rounds(m, 0));
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_cover_rounds(m, 0));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_mir_rounds(m, 0));
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_cut_depth(m, 0));
     return m;
 }
@@ -582,6 +588,7 @@ static void test_both_branching_rules_reach_the_same_optimum(void)
         jaos_model *m = knapsack();
         TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_cut_rounds(m, 0));
         TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_cover_rounds(m, 0));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_mir_rounds(m, 0));
         TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_cut_depth(m, 0));
         TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_branching(m, rules[r]));
         TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
@@ -652,6 +659,7 @@ static void test_strong_branching_probes_are_counted_and_change_no_answer(void)
         jaos_model *m = knapsack();
         TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_cut_rounds(m, 0));
         TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_cover_rounds(m, 0));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_mir_rounds(m, 0));
         TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_cut_depth(m, 0));
         TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_reliability(m, pass == 0 ? 0 : 8));
         TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
@@ -698,6 +706,7 @@ static void test_a_capped_probe_reaches_the_same_optimum(void)
         jaos_model *m = knapsack();
         TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_cut_rounds(m, 0));
         TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_cover_rounds(m, 0));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_mir_rounds(m, 0));
         TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_cut_depth(m, 0));
         TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_reliability(m, 8));
         TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_probe_cap(m, caps[c]));
@@ -735,6 +744,7 @@ static void test_every_dive_child_rule_reaches_the_same_optimum(void)
         jaos_model *m = knapsack();
         TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_cut_rounds(m, 0));
         TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_cover_rounds(m, 0));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_mir_rounds(m, 0));
         TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_cut_depth(m, 0));
         TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_dive(m, true));
         TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_dive_child(m, rules[r]));
@@ -785,6 +795,7 @@ static void test_cuts_below_the_root_reach_the_same_optimum(void)
                 TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_col_integer(m, j, true));
             TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_cut_rounds(m, 0));
         TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_cover_rounds(m, 0));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_mir_rounds(m, 0));
         TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_cut_depth(m, 0));
             TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_cut_depth(m, depths[d]));
             TEST_ASSERT_TRUE(m->cfg.mip_cut_depth_set);
@@ -849,6 +860,7 @@ static void test_dropping_slack_cuts_keeps_the_optimum(void)
             jaos_model *m = knapsack5();
             TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_cut_rounds(m, 0));
         TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_cover_rounds(m, 0));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_mir_rounds(m, 0));
         TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_cut_depth(m, 0));
             TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_cut_depth(m, 100));
             TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_cut_drop(m, drop == 1));
@@ -881,6 +893,7 @@ static void test_probing_at_the_root_only_reaches_the_same_optimum(void)
     jaos_model *m = knapsack();
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_cut_rounds(m, 0));
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_cover_rounds(m, 0));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_mir_rounds(m, 0));
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_cut_depth(m, 0));
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_reliability(m, 8));
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_probe_depth(m, 0));
@@ -911,6 +924,7 @@ static void test_the_solution_pool_holds_the_best_points_best_first(void)
         jaos_model *m = knapsack5();
         TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_cut_rounds(m, 0));
         TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_cover_rounds(m, 0));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_mir_rounds(m, 0));
         TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_cut_depth(m, 0));
         TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_pool_size(m, size));
         TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
@@ -961,6 +975,7 @@ static void test_a_cover_cut_closes_the_knapsack_at_the_root(void)
 {
     jaos_model *m = knapsack();
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_cut_rounds(m, 0));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_mir_rounds(m, 0));
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_cover_rounds(m, 1));
     TEST_ASSERT_TRUE(m->cfg.mip_cover_rounds_set);
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
@@ -975,6 +990,7 @@ static void test_a_cover_cut_closes_the_knapsack_at_the_root(void)
     TEST_ASSERT_EQUAL_INT64(1, rep.nodes);
     TEST_ASSERT_TRUE(rep.cuts >= 1);
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_cover_rounds(m, 0));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_mir_rounds(m, 0));
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_cut_depth(m, 0));
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_mip_result(m, &rep));
@@ -989,6 +1005,7 @@ static void test_a_cover_cut_closes_the_knapsack_at_the_root(void)
     m = knapsack();
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_col_integer(m, 2, false));
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_cut_rounds(m, 0));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_mir_rounds(m, 0));
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_cut_depth(m, 0));
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_cover_rounds(m, 1));
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
@@ -1061,6 +1078,7 @@ static void test_a_stalled_root_round_is_the_last(void)
         for (int pass = 0; pass < 2; pass++) {
             jaos_model *m = knapsack5();
             TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_cover_rounds(m, 0));
+            TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_mir_rounds(m, 0));
             TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_cut_depth(m, 0));
             TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_cut_rounds(m, 5));
             TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_cut_stall(m, stall[arm]));
@@ -1103,7 +1121,8 @@ static void test_a_stalled_root_round_is_the_last(void)
 }
 
 /* A round that moves nothing ends the cuts under its node (D305): on the
- * five-item knapsack with cuts to every depth and no cap, the root's
+ * five-item knapsack with cuts to every depth, no cap and the MIR rounds
+ * off (they close the root since D309), the root's
  * phase moves the bound by less than the bound itself, so a stall of 1
  * judges it stalled and no node cuts: fewer cuts than without the stall,
  * 23 with the same point, two cold searches agreeing. With the root's
@@ -1117,6 +1136,7 @@ static void test_a_stalled_round_ends_the_cuts_under_it(void)
         int64_t nodes1 = 0;
         for (int pass = 0; pass < 2; pass++) {
             jaos_model *m = knapsack5();
+            TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_mir_rounds(m, 0));
             TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_cut_depth(m, 100));
             TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_node_cut_cap(m, 0));
             TEST_ASSERT_EQUAL_INT(JAOS_OK,
@@ -1147,6 +1167,7 @@ static void test_a_stalled_round_ends_the_cuts_under_it(void)
     jaos_model *m = knapsack5();
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_cut_rounds(m, 0));
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_cover_rounds(m, 0));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_mir_rounds(m, 0));
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_cut_depth(m, 100));
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_node_cut_cap(m, 0));
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_node_cut_stall(m, 1.0));
@@ -1249,6 +1270,7 @@ static void test_a_lifted_cover_closes_what_the_extended_cover_leaves(void)
         jaos_model *m = knapsack_lift();
         TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_cut_rounds(m, 0));
         TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_cover_rounds(m, 1));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_mir_rounds(m, 0));
         TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_cut_depth(m, 0));
         TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_cover_lift(m, lift));
         TEST_ASSERT_TRUE(m->cfg.mip_cover_lift_set);
@@ -1269,6 +1291,146 @@ static void test_a_lifted_cover_closes_what_the_extended_cover_leaves(void)
             TEST_ASSERT_TRUE(rep.nodes >= 2);
         TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_cover_lift(m, -1));
         TEST_ASSERT_FALSE(m->cfg.mip_cover_lift_set);
+        jaos_model_free(m);
+    }
+}
+
+/* max x + y  s.t.  2x + 2y <= 3, x and y integer at least 0, no upper
+ * bound: the relaxation sits on x + y = 3/2 and the answer is 1. The row
+ * shifted to the lower bounds and scaled by 2, the coefficient of the
+ * fractional column, is x + y <= 3/2, whose rounding is x + y <= 1; at
+ * scale 1 the right-hand side is integral and nothing is cut. */
+static jaos_model *halved_row(void)
+{
+    const double cost[2] = { 1.0, 1.0 }, cl[2] = { 0, 0 };
+    const double cu[2] = { INFINITY, INFINITY };
+    const double rl[1] = { -INFINITY }, ru[1] = { 3.0 };
+    const int64_t as[3] = { 0, 1, 2 }, ai[2] = { 0, 0 };
+    const double av[2] = { 2.0, 2.0 };
+    jaos_model *m = fresh();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_load_lp(m, 2, 1, JAOS_MAXIMIZE, 0.0, cost, cl, cu, rl, ru,
+                     2, as, ai, av));
+    for (int64_t j = 0; j < 2; j++)
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_col_integer(m, j, true));
+    return m;
+}
+
+/* A MIR cut closes the halved row at the root (D309): one MIR round and
+ * nothing else is one node at 1 with a cut; no round is a tree to the
+ * same answer. On the five-item knapsack two rounds beside the defaults
+ * keep 23 with the same point and two cold searches agree. A negative
+ * count restores the default. */
+static void test_a_mir_cut_closes_the_halved_row_at_the_root(void)
+{
+    for (int rounds = 1; rounds >= 0; rounds--) {
+        jaos_model *m = halved_row();
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_cut_rounds(m, 0));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_cover_rounds(m, 0));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_mir_rounds(m, 0));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_cut_depth(m, 0));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_mir_rounds(m, rounds));
+        TEST_ASSERT_TRUE(m->cfg.mip_mir_rounds_set);
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+        TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+        double obj = 0.0;
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(m, &obj));
+        TEST_ASSERT_DOUBLE_WITHIN(1e-9, 1.0, obj);
+        jaos_mip_report rep;
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_mip_result(m, &rep));
+        if (rounds == 1) {
+            TEST_ASSERT_EQUAL_INT64(1, rep.nodes);
+            TEST_ASSERT_TRUE(rep.cuts >= 1);
+        } else {
+            TEST_ASSERT_TRUE(rep.nodes >= 2);
+            TEST_ASSERT_EQUAL_INT64(0, rep.cuts);
+        }
+        jaos_model_free(m);
+    }
+    double x1[5], x2[5];
+    int64_t nodes1 = 0, cuts1 = 0;
+    for (int pass = 0; pass < 2; pass++) {
+        jaos_model *m = knapsack5();
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_mir_rounds(m, 2));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+        TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+        double obj = 0.0;
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(m, &obj));
+        TEST_ASSERT_DOUBLE_WITHIN(1e-9, 23.0, obj);
+        TEST_ASSERT_EQUAL_INT(JAOS_OK,
+            jaos_solution(m, pass == 0 ? x1 : x2, nullptr, nullptr, nullptr));
+        jaos_mip_report rep;
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_mip_result(m, &rep));
+        if (pass == 0) {
+            nodes1 = rep.nodes;
+            cuts1 = rep.cuts;
+        } else {
+            TEST_ASSERT_EQUAL_INT64(nodes1, rep.nodes);
+            TEST_ASSERT_EQUAL_INT64(cuts1, rep.cuts);
+        }
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_mir_rounds(m, -1));
+        TEST_ASSERT_FALSE(m->cfg.mip_mir_rounds_set);
+        jaos_model_free(m);
+    }
+    TEST_ASSERT_TRUE(x1[0] == 1.0 && x1[1] == 1.0);
+    TEST_ASSERT_EQUAL_MEMORY(x1, x2, sizeof x1);
+}
+
+/* A backtracking dive reaches the same optimum (D308): on the five-item
+ * knapsack with the cuts off and the dive on, 0, 1 and 1000 backtracks
+ * per dive reach 23 with the same point, each bit-reproducible across
+ * two cold searches, and the bound published at a node limit of 1 is the
+ * root's whichever way. A negative count restores the default. */
+static void test_a_backtracking_dive_reaches_the_same_optimum(void)
+{
+    const int64_t times[3] = { 0, 1, 1000 };
+    for (int arm = 0; arm < 3; arm++) {
+        double x1[5], x2[5];
+        int64_t nodes1 = 0;
+        for (int pass = 0; pass < 2; pass++) {
+            jaos_model *m = knapsack5();
+            TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_cut_rounds(m, 0));
+            TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_cover_rounds(m, 0));
+            TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_mir_rounds(m, 0));
+            TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_cut_depth(m, 0));
+            TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_dive(m, true));
+            TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_dive_backtrack(m, times[arm]));
+            TEST_ASSERT_TRUE(m->cfg.mip_dive_backtrack_set);
+            TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+            TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+            double obj = 0.0;
+            TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(m, &obj));
+            TEST_ASSERT_DOUBLE_WITHIN(1e-9, 23.0, obj);
+            TEST_ASSERT_EQUAL_INT(JAOS_OK,
+                jaos_solution(m, pass == 0 ? x1 : x2, nullptr, nullptr, nullptr));
+            jaos_mip_report rep;
+            TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_mip_result(m, &rep));
+            if (pass == 0)
+                nodes1 = rep.nodes;
+            else
+                TEST_ASSERT_EQUAL_INT64(nodes1, rep.nodes);
+            jaos_model_free(m);
+        }
+        TEST_ASSERT_TRUE(x1[0] == 1.0 && x1[1] == 1.0);
+        TEST_ASSERT_EQUAL_MEMORY(x1, x2, sizeof x1);
+    }
+    for (int arm = 0; arm < 2; arm++) {
+        jaos_model *m = knapsack5();
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_cut_rounds(m, 0));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_cover_rounds(m, 0));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_mir_rounds(m, 0));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_cut_depth(m, 0));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_heuristics(m, false));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_dive(m, true));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_dive_backtrack(m, arm * 1000));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_node_limit(m, 2));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+        TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_NODE_LIMIT, jaos_status_of(m));
+        jaos_mip_report rep;
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_mip_result(m, &rep));
+        TEST_ASSERT_TRUE(rep.bound <= 24.8 + 1e-9 && rep.bound >= 23.0 - 1e-9);
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_dive_backtrack(m, -1));
+        TEST_ASSERT_FALSE(m->cfg.mip_dive_backtrack_set);
         jaos_model_free(m);
     }
 }
@@ -1309,5 +1471,7 @@ int main(void)
     RUN_TEST(test_a_stalled_round_ends_the_cuts_under_it);
     RUN_TEST(test_root_cuts_may_leave_below_a_node);
     RUN_TEST(test_a_lifted_cover_closes_what_the_extended_cover_leaves);
+    RUN_TEST(test_a_mir_cut_closes_the_halved_row_at_the_root);
+    RUN_TEST(test_a_backtracking_dive_reaches_the_same_optimum);
     return UNITY_END();
 }

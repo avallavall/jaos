@@ -397,6 +397,28 @@ JAOS_NODISCARD jaos_status jaos_set_mip_root_cut_drop(jaos_model *m, int on);
  * what each setting cost over the MIP set. */
 JAOS_NODISCARD jaos_status jaos_set_mip_cover_lift(jaos_model *m, int on);
 
+/* Mixed-integer rounding cuts at the root (D309), in rounds beside the
+ * other families: every model row, each finite side, with its columns
+ * shifted to the bound nearer the point and scaled by one of a few
+ * candidates, is rounded the way Marchand and Wolsey round a single row,
+ * and the most violated scaling is a row of the private copy for the
+ * whole tree. 0 turns them off; 6 is the default, and a negative value
+ * restores it. D309 carries what each count cost over the MIP set. */
+JAOS_NODISCARD jaos_status jaos_set_mip_mir_rounds(jaos_model *m,
+                                                   int64_t rounds);
+
+/* How many times a dive may resume (D308), when the dive is on: the
+ * sibling of each child the dive takes waits on a stack, and when a node
+ * of the dive is pruned or integral the dive continues from the deepest
+ * sibling waiting, up to `times` resumed nodes per dive (a sibling the
+ * incumbent prunes unsolved spends none); then, and when the stack is
+ * empty, what waits joins the open set and the search takes the best
+ * bound again. 0 is D289's dive, every sibling into the open set at once;
+ * a negative value restores the default. Nothing happens with the dive
+ * off. D308 carries what each count cost over the MIP set. */
+JAOS_NODISCARD jaos_status jaos_set_mip_dive_backtrack(jaos_model *m,
+                                                       int64_t times);
+
 /* The rounding heuristic (D290): at every node whose relaxation is
  * fractional, the integer columns are rounded to the nearest integer and
  * the point is kept as the incumbent when it is inside every bound and

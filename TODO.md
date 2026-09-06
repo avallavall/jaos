@@ -7,6 +7,27 @@ line leaves this file in the same commit.
 
 ## Where the last session stopped — 2026-09-06
 
+**2026-09-06, the day batch, second round: a third cut family lands and
+the backtracking dive is refused (D308, D309).** Mixed-integer rounding
+cuts on the model's rows at the root, Marchand and Wolsey's single-row
+form with a few scalings and the most violated kept: **0.719x** the work
+over the 24 at six rounds, 6 better, 1 worse, none past 2x, 0.847x over
+the 17 and 0.482x over the seven, `gen` closing in 7 nodes from 589; six
+is the default, the baseline is rewritten, and "no cuts at all" is now
+`--cut-rounds 0 --cover-rounds 0 --mir-rounds 0 --cut-depth 0` (D309,
+`bench/measurements/02-203/`). The backtracking dive D289 named as what
+could reopen it reads 0.992x at best, sixteen resumes with two past 2x,
+and 1.170x unbounded, so it is refused and D289's reopen condition is
+fully measured; what is left for the dive is a resume bounded by the gap
+rather than by a count (D308). The review found the MIR right-hand side's
+rounding could make an invalid cut on a row with a huge bound, and a
+magnitude guard, `MIP_MIR_ROUND`, refuses such a side; the same exposure
+in the Gomory cut's basic value is carried. **What is next**, in order:
+the aggregated c-MIR, one row added to another before the rounding; a
+resume bounded by the gap for the dive; MIR cuts at a node beside
+Gomory's; then the seven held constants, each swept once something
+moves them.
+
 **2026-09-06, the day batch, first round: four cut switches on the 24,
 and one default moves (D304 to D307).** The root's cuts leave the
 relaxation below a node where their slack is basic, like a node's own
@@ -4294,7 +4315,7 @@ then, do not — a refusal whose premise has not changed just fails again.
 | D305 | a node cut stall as a default beside the root-cut drop: no round under a node whose round moved its bound by less than F of (1 + \|bound\|) — alone **0.816x at 0.02** with none past 2x, and with the drop 0.782x over 23 with `bell5` unfinished and `enigma` past 2x at every F (`02-202/`) | the combination at or under the drop's 0.799x with every instance finished and none past 2x on the same set — a stall on the subtree's gap, or one that spares the root's children; `02-202/retest-node-cut-stall.sh` asks, and `make refusals` runs it |
 | D307 | Balas's lifted covers as a default — **1.005x** over the 24 with `l152lav` 2.06x, 0.965x over the 17 and 1.109x over the seven (`02-202/`) | a lifting other than the simultaneous one — sequential over the items outside the cover, or the cover chosen for the lifting rather than for the point — at or under 0.95x with no instance past 2x on the same set; `02-202/retest-cover-lift.sh` asks, and `make refusals` runs it |
 | D293 | strong branching until a column is reliable, as a default: each unreliable child solved in full, at most eight columns per node — **0.971x at reliability 1** with `mod010` 2.84x and `enigma` 2.07x, 1.064x at 2, 1.173x at 4, 1.437x at 8, while every setting shrinks the trees (`bench/measurements/02-192/`) | both cheaper probes are measured and neither reaches the bar: a work cap per child reads 1.228x at 0.5 times the node's own solve, 0.998x at 1 and 1.018x at 2, since a probe that stops early pays and teaches nothing (D294, `02-193/`); probing at the root only reads 0.987x with two instances past 2x, one tree at every reliability (D298, `02-197/`). What could reopen it is a probe that learns from an unfinished child solve, the dual bound at a work-limit stop, which the stop path does not publish today; `02-192/retest-reliability.sh` asks the original question, and `make refusals` runs it |
-| D289 | a dive from each selected node of the branch and bound: nearer-side child first, sibling to the open set, until a prune — **1.125x** the plain best-bound order in work over the MIP set, one instance better and six worse, and 1.09x on top of one round of cuts (`bench/measurements/02-189/`) | the child rules are measured and none reaches the bar: nearer 1.053x on the D292 tree, up first 0.999x, down first 1.316x, the pseudocost side 0.991x, each with an instance past 2x (D295, `02-194/`). What could reopen it is a backtracking dive at or under 0.95x with no instance past 2x on the same set; `02-189/retest-dive.sh` asks, and `make refusals` runs it |
+| D289 | a dive from each selected node of the branch and bound: nearer-side child first, sibling to the open set, until a prune — **1.125x** the plain best-bound order in work over the MIP set, one instance better and six worse, and 1.09x on top of one round of cuts (`bench/measurements/02-189/`) | the child rules are measured and none reaches the bar: nearer 1.053x on the D292 tree, up first 0.999x, down first 1.316x, the pseudocost side 0.991x, each with an instance past 2x (D295, `02-194/`). The backtracking dive is measured too and does not reopen it (D308, `02-203/`): 0.992x at sixteen resumes with two instances past 2x, 1.170x unbounded, 0.835x for the plain dive on the D306 tree with `bell5` unfinished. What could reopen it is a resume bounded by the gap rather than by a count, at or under 0.95x with no instance past 2x on the same set; `02-189/retest-dive.sh` asks, and `make refusals` runs it |
 | D211 | a stop rule on the phase-1 objective rising — `pilot-ja` rose 25.0449 above its running minimum and still finished `ok` | **EXPIRED at D212, caught 2026-08-28**: `pilot-ja` rises 3.3348e-12 now and the largest rise on any `ok` solve is 9.36752e-10, so a threshold has a window about nine orders wide. Attributed to the commit in D215, `02-130/`. Open work below, and the line has left `bench/refusals.txt` |
 | D184 | `can_move`'s product-against-rate units, measured dead on the dual (94/94 digests) | **CLOSED 2026-08-28**: the reopen condition was met on 2026-08-25 and the question is settled. `can_move` reads `breached` now (D214, `02-129/`), and the line has left `bench/refusals.txt` |
 | D76 | `restrict` in the LU kernels — refused because seconds could not resolve it | an instruction count can (`tools/icount.sh`); re-tested on the kernel signatures 2026-08-26, `bench/measurements/02-119/` (D206) |

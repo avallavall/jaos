@@ -13,8 +13,11 @@
  * of the fraction solved next, its sibling into the open set, until a
  * node is pruned or integral -- is behind jaos_set_mip_dive and off:
  * over the MIP set it measured 1.125x the work of the plain order, better
- * on one instance and worse on six (D289, refused). The search is the
- * same on every machine and every run (D8).
+ * on one instance and worse on six (D289, refused). With
+ * jaos_set_mip_dive_backtrack the dive keeps its siblings on a stack and
+ * resumes from the deepest one when a node ends, up to that many times
+ * per dive (D308). The search is the same on every machine and every run
+ * (D8).
  *
  * The root's relaxation gets rounds of Gomory mixed-integer cuts before
  * the tree starts: one cut per basic integer column whose value is
@@ -33,7 +36,9 @@
  * and are rows of the copy for exactly the nodes under it; a node whose
  * round moved its bound by less than jaos_set_mip_node_cut_stall's
  * fraction gets no round under it (D305). A cover cut may carry Balas's
- * lifting coefficients (D307) behind jaos_set_mip_cover_lift. A rounding
+ * lifting coefficients (D307) behind jaos_set_mip_cover_lift, and the
+ * root gets rounds of mixed-integer rounding cuts read off the model's
+ * own rows beside the other two families (D309). A rounding
  * heuristic at every fractional node
  * (D290) is the only heuristic; docs/claims.txt carries the claim that
  * there is no other. A strong-branching probe (D293) may carry a work cap
@@ -53,6 +58,7 @@
 #include "jaos_internal.h"
 
 #include <assert.h>
+#include <float.h>
 #include <math.h>
 #include <stdlib.h>
 #include <string.h>
@@ -106,6 +112,30 @@ constexpr bool MIP_ROOT_CUT_DROP = true;
  * 1, the extended cover. jaos_set_mip_cover_lift overrides it;
  * docs/tolerances.md carries the reading. */
 constexpr bool MIP_COVER_LIFT = false;
+/* Rounds of mixed-integer rounding cuts at the root (D309), one per model
+ * row and finite side at most, beside the other families; a round that
+ * adds nothing ends them all. jaos_set_mip_mir_rounds overrides it;
+ * docs/tolerances.md carries the sweep. */
+constexpr int64_t MIP_MIR_ROUNDS = 6;
+/* How many scalings a row's MIR cut tries beyond 1: the |a_j| of the
+ * integer columns whose shifted value is fractional, in column order.
+ * Decides a set of candidates, never a number in an answer; held. */
+constexpr int64_t MIP_MIR_DELTAS = 8;
+/* The rounding a MIR side's right-hand side may carry and still be cut:
+ * the shifted right-hand side is a sum, its fraction f0 is what the cut
+ * divides by, and a computed f0 below the true one gives a cut that is
+ * not valid, so a side whose sum cannot be computed to within this, in
+ * the row's own units (DBL_EPSILON times the sum of the terms' magnitudes
+ * times the term count), gets no cut. 1e-9 keeps the coefficient error at
+ * most 1e-7 after the cut's 1 / (1 - f0) factor, which MIP_CUT_AWAY bounds
+ * by 100: the primal tolerance's own scale. Held; docs/tolerances.md
+ * carries the argument. */
+constexpr double MIP_MIR_ROUND = 1e-9;
+/* How many times a dive may resume from the deepest sibling it left on
+ * its stack once a node ends (D308); 0 sends every sibling to the open
+ * set at once, D289's form. jaos_set_mip_dive_backtrack overrides it;
+ * docs/tolerances.md carries the sweep. */
+constexpr int64_t MIP_DIVE_BACKTRACK = 0;
 /* A basic integer column is cut only when its fraction sits inside
  * [MIP_CUT_AWAY, 1 - MIP_CUT_AWAY]: the cut's coefficients divide by the
  * fraction and by its complement, and a fraction near 0 or 1 gives a cut
@@ -332,6 +362,17 @@ static bnode *heap_pop(bheap *h)
         i = best;
     }
     return top;
+}
+
+/* The best key among the open nodes not being solved: the heap's top and
+ * the dive's stack (D308); INFINITY when there are none. */
+static double open_key(const bheap *h, bnode *const *stack, int64_t n)
+{
+    double k = h->n > 0 ? h->v[0]->key : INFINITY;
+    for (int64_t i = 0; i < n; i++)
+        if (stack[i]->key < k)
+            k = stack[i]->key;
+    return k;
 }
 
 /* A child of `parent` (or of the root when parent is null) with one more
@@ -757,6 +798,56 @@ static bool cutbuf_push(cutbuf *cb, const double *cut, int64_t nc, double lo,
     return true;
 }
 
+/* A cut in the form cut . x >= rhs over the copy's columns, finished the
+ * way every family's is: an entry below MIP_CUT_DROP of the largest is
+ * folded into the right-hand side through its column's finite bound and
+ * dropped; a cut past MIP_CUT_DYNAMISM, or one the point does not
+ * violate, is not added. Every sum runs in column order (D8). Returns 1
+ * when the cut was pushed, 0 when not, -1 when out of memory. */
+static int cut_finish(const jaos_model *lp, cutbuf *cb, double *cut,
+                      double rhs, const double *x)
+{
+    const int64_t nc = lp->num_col;
+    double amax = 0.0;
+    for (int64_t k = 0; k < nc; k++)
+        if (fabs(cut[k]) > amax)
+            amax = fabs(cut[k]);
+    if (amax == 0.0)
+        return 0;
+    double amin = INFINITY;
+    int64_t nnz = 0;
+    for (int64_t k = 0; k < nc; k++) {
+        const double c = cut[k];
+        if (c == 0.0)
+            continue;
+        if (fabs(c) < MIP_CUT_DROP * amax) {
+            /* c x_k >= rhs - rest; the term is largest at the bound its
+             * sign points to, and a finite one absorbs it. */
+            const double b = c > 0.0 ? lp->col_upper[k] : lp->col_lower[k];
+            if (isfinite(b)) {
+                rhs -= c * b;
+                cut[k] = 0.0;
+                continue;
+            }
+        }
+        if (fabs(c) < amin)
+            amin = fabs(c);
+        nnz++;
+    }
+    if (nnz == 0 || amax / amin > MIP_CUT_DYNAMISM)
+        return 0;
+    double act = 0.0, nrm = 0.0;
+    for (int64_t k = 0; k < nc; k++) {
+        act += cut[k] * x[k];
+        nrm += cut[k] * cut[k];
+    }
+    if (!(rhs - act > 0.0))
+        return 0;
+    if (!cutbuf_push(cb, cut, nc, rhs, (rhs - act) / sqrt(nrm)))
+        return -1;
+    return 1;
+}
+
 /* One round: for every basic integer column of the copy's optimal basis
  * whose value is fractional, in column order, the Gomory mixed-integer
  * cut of its tableau row
@@ -852,46 +943,12 @@ static int64_t gomory_round(jaos_model *lp, const jaos_model *m,
         }
         if (!ok)
             continue;
-        double amax = 0.0;
-        for (int64_t k = 0; k < nc; k++)
-            if (fabs(cut[k]) > amax)
-                amax = fabs(cut[k]);
-        if (amax == 0.0)
-            continue;
-        double amin = INFINITY;
-        int64_t nnz = 0;
-        for (int64_t k = 0; k < nc; k++) {
-            const double c = cut[k];
-            if (c == 0.0)
-                continue;
-            if (fabs(c) < MIP_CUT_DROP * amax) {
-                /* c x_k >= rhs - rest; the term is largest at the bound
-                 * its sign points to, and a finite one absorbs it. */
-                const double b = c > 0.0 ? lp->col_upper[k] : lp->col_lower[k];
-                if (isfinite(b)) {
-                    rhs -= c * b;
-                    cut[k] = 0.0;
-                    continue;
-                }
-            }
-            if (fabs(c) < amin)
-                amin = fabs(c);
-            nnz++;
-        }
-        if (nnz == 0 || amax / amin > MIP_CUT_DYNAMISM)
-            continue;
-        double act = 0.0, nrm = 0.0;
-        for (int64_t k = 0; k < nc; k++) {
-            act += cut[k] * x[k];
-            nrm += cut[k] * cut[k];
-        }
-        if (!(rhs - act > 0.0))
-            continue;
-        if (!cutbuf_push(cb, cut, nc, rhs, (rhs - act) / sqrt(nrm))) {
+        const int pushed = cut_finish(lp, cb, cut, rhs, x);
+        if (pushed < 0) {
             added = -1;
             break;
         }
-        added++;
+        added += pushed;
     }
     *work += jm_tableau_work(tb);
     jm_tableau_free(tb);
@@ -1074,6 +1131,162 @@ static int64_t cover_round(const jaos_model *m, jaos_model *lp,
     return added;
 }
 
+/* --- Mixed-integer rounding cuts on the model's rows (D309) ------------ */
+
+/* Which bound column j is shifted to: the nearer to its value, or the
+ * finite one; the caller has excluded a column with neither. */
+static bool shift_to_upper(double lo, double hi, double xj)
+{
+    if (!isfinite(lo))
+        return true;
+    if (!isfinite(hi))
+        return false;
+    return hi - xj < xj - lo;
+}
+
+/* One round of MIR cuts: one per model row and finite side at most
+ * (Marchand and Wolsey, Aggregation and mixed integer rounding to solve
+ * MIPs, Operations Research 49, 2001, without the aggregation; Wolsey,
+ * Integer Programming, 1998, ch. 8.6). A side is read as
+ *
+ *     sum a_j x_j <= b,
+ *
+ * every column shifted to the bound nearer its value, x'_j = x_j - l_j or
+ * u_j - x_j, so x' >= 0 (a side with a column that has no finite bound is
+ * skipped); scaled by a delta from {1} and the |a'_j| of the integer
+ * columns whose shifted value is fractional, at most MIP_MIR_DELTAS of
+ * those in column order; then rounded. With f0 the fraction of b'/delta,
+ * inside [MIP_CUT_AWAY, 1 - MIP_CUT_AWAY], and f_j that of a'_j/delta,
+ *
+ *     sum_int (floor(a'_j/delta) + max(f_j - f0, 0) / (1 - f0)) x'_j
+ *   + sum_{cont, a'_j < 0} a'_j / (delta (1 - f0)) x'_j  <=  floor(b'/delta),
+ *
+ * valid because a continuous term with a positive coefficient only
+ * loosens the base row when dropped and what is left is the MIR
+ * inequality of sum_int c_j x_j - t <= c_0 with t >= 0. The delta with
+ * the largest efficacy is kept, rewritten over the model's columns as a
+ * >= row and finished like every cut. The bounds read are the root's
+ * rounded ones, so the cut holds for the whole tree. `cut` and `best` are
+ * scratch of num_col, `delta` of MIP_MIR_DELTAS + 1; the pass is billed
+ * once per delta. Returns the count, or -1 on failure. */
+static int64_t mir_round(const jaos_model *m, jaos_model *lp, const double *x,
+                         const double *ilo, const double *ihi, cutbuf *cb,
+                         double *cut, double *best, double *delta,
+                         int64_t *work)
+{
+    const int64_t nc = m->num_col, nr = m->num_row;
+    int64_t added = 0;
+    if (jm_model_ensure_rowwise(lp) != JAOS_OK)
+        return -1;
+    *work += (m->num_nz + nc + nr) * (MIP_MIR_DELTAS + 1);
+    for (int64_t i = 0; i < nr; i++) {
+        for (int side = 0; side < 2; side++) {
+            const double bound = side == 0 ? lp->row_upper[i] : lp->row_lower[i];
+            if (!isfinite(bound))
+                continue;
+            const double sg = side == 0 ? 1.0 : -1.0;
+            /* The shifted side's right-hand side, the magnitude that went
+             * through it, and the deltas. */
+            double b = sg * bound, mag = fabs(bound);
+            int64_t terms = 1;
+            bool ok = true;
+            int64_t nd = 1;
+            delta[0] = 1.0;
+            for (int64_t k = lp->ar_start[i]; k < lp->ar_start[i + 1]; k++) {
+                const int64_t j = lp->ar_index[k];
+                const double a = sg * lp->ar_value[k];
+                if (a == 0.0)
+                    continue;
+                if (!isfinite(ilo[j]) && !isfinite(ihi[j])) {
+                    ok = false;
+                    break;
+                }
+                const bool at_up = shift_to_upper(ilo[j], ihi[j], x[j]);
+                const double shift = at_up ? a * ihi[j] : a * ilo[j];
+                b -= shift;
+                mag += fabs(shift);
+                terms++;
+                if (!m->col_integer[j] || nd > MIP_MIR_DELTAS)
+                    continue;
+                const double xs = at_up ? ihi[j] - x[j] : x[j] - ilo[j];
+                const double fr = xs - floor(xs);
+                if (fr <= MIP_INT_TOL || fr >= 1.0 - MIP_INT_TOL)
+                    continue;
+                const double d = fabs(a);
+                bool seen = false;
+                for (int64_t q = 0; q < nd && !seen; q++)
+                    seen = delta[q] == d;
+                if (!seen)
+                    delta[nd++] = d;
+            }
+            /* A right-hand side the sum could not place to MIP_MIR_ROUND
+             * has a fraction the cut cannot trust (the review's case: a
+             * column whose one finite bound is 1e15 makes f0 a multiple
+             * of 1/8 whatever the data). */
+            if (!ok || DBL_EPSILON * mag * (double)terms > MIP_MIR_ROUND)
+                continue;
+            double best_eff = 0.0, best_rhs = 0.0;
+            bool have = false;
+            for (int64_t q = 0; q < nd; q++) {
+                const double d = delta[q], b0 = b / d;
+                const double f0 = b0 - floor(b0);
+                if (f0 < MIP_CUT_AWAY || f0 > 1.0 - MIP_CUT_AWAY)
+                    continue;
+                /* The rounded row over x', then over x: cut . x <= rhs. */
+                memset(cut, 0, (size_t)nc * sizeof *cut);
+                double rhs = floor(b0);
+                for (int64_t k = lp->ar_start[i]; k < lp->ar_start[i + 1]; k++) {
+                    const int64_t j = lp->ar_index[k];
+                    const double a0 = sg * lp->ar_value[k];
+                    if (a0 == 0.0)
+                        continue;
+                    const bool at_up = shift_to_upper(ilo[j], ihi[j], x[j]);
+                    const double a = (at_up ? -a0 : a0) / d;
+                    double c;
+                    if (m->col_integer[j]) {
+                        const double fa = floor(a), fj = a - fa;
+                        c = fa + (fj > f0 ? (fj - f0) / (1.0 - f0) : 0.0);
+                    } else {
+                        c = a < 0.0 ? a / (1.0 - f0) : 0.0;
+                    }
+                    if (c == 0.0)
+                        continue;
+                    if (at_up) {
+                        cut[j] -= c;
+                        rhs -= c * ihi[j];
+                    } else {
+                        cut[j] += c;
+                        rhs += c * ilo[j];
+                    }
+                }
+                double act = 0.0, nrm = 0.0;
+                for (int64_t k = 0; k < nc; k++) {
+                    act += cut[k] * x[k];
+                    nrm += cut[k] * cut[k];
+                }
+                if (nrm == 0.0)
+                    continue;
+                const double eff = (act - rhs) / sqrt(nrm);
+                if (eff > best_eff) {
+                    best_eff = eff;
+                    best_rhs = rhs;
+                    have = true;
+                    memcpy(best, cut, (size_t)nc * sizeof *best);
+                }
+            }
+            if (!have)
+                continue;
+            for (int64_t k = 0; k < nc; k++)
+                cut[k] = -best[k];
+            const int pushed = cut_finish(lp, cb, cut, -best_rhs, x);
+            if (pushed < 0)
+                return -1;
+            added += pushed;
+        }
+    }
+    return added;
+}
+
 /* --- The rounding heuristic (D290) ------------------------------------- */
 
 /* The relaxation's point with every integer column rounded to the nearest
@@ -1230,7 +1443,13 @@ jaos_status jm_branch_and_bound(jaos_model *m)
                                                      : MIP_CUT_ROUNDS;
     const int64_t cover_rounds = m->cfg.mip_cover_rounds_set
         ? m->cfg.mip_cover_rounds : MIP_COVER_ROUNDS;
-    const int64_t root_rounds = rounds > cover_rounds ? rounds : cover_rounds;
+    const int64_t mir_rounds = m->cfg.mip_mir_rounds_set ? m->cfg.mip_mir_rounds
+                                                         : MIP_MIR_ROUNDS;
+    int64_t root_rounds = rounds > cover_rounds ? rounds : cover_rounds;
+    if (mir_rounds > root_rounds)
+        root_rounds = mir_rounds;
+    const int64_t backtrack = m->cfg.mip_dive_backtrack_set
+        ? m->cfg.mip_dive_backtrack : MIP_DIVE_BACKTRACK;
     const bool dive = m->cfg.mip_dive;
     const bool heur = !m->cfg.mip_no_heuristics;
     const jaos_branching rule = (jaos_branching)m->cfg.mip_branching;
@@ -1284,6 +1503,10 @@ jaos_status jm_branch_and_bound(jaos_model *m)
     int64_t covers = 0;                /* cover cuts at the root, D300    */
     kitem *items = nullptr;
     double *mu = nullptr;              /* the cover's partial sums (D307) */
+    double *mbest = nullptr, *mdelta = nullptr;   /* MIR scratch (D309) */
+    int64_t mirs = 0;                  /* MIR cuts at the root, D309      */
+    bnode **dstack = nullptr;          /* the dive's siblings (D308)      */
+    int64_t dstack_n = 0, dstack_cap = 0, backtracks = 0;
     int64_t first_inc = 0;             /* the node of the first incumbent */
     int64_t work = 0, iters = 0;
     double best_bound = -INFINITY;     /* minimize form */
@@ -1338,13 +1561,14 @@ jaos_status jm_branch_and_bound(jaos_model *m)
             nint += m->col_integer[j];
         jm_log(m, JAOS_LOG_SUMMARY,
                "branch and bound: %lld integer columns of %lld, %lld rounds "
-               "of cuts, cuts to depth %lld, dive %s, rounding %s, %s "
+               "of cuts, %lld of MIR, cuts to depth %lld, dive %s with %lld "
+               "backtracks, rounding %s, %s "
                "branching, reliability %lld, probe cap %gx, cut stall %g "
                "at the root and %g below it, root cuts %s, covers %s",
                (long long)nint, (long long)nc, (long long)rounds,
-               (long long)cut_depth,
+               (long long)mir_rounds, (long long)cut_depth,
                dive ? dive_child_str(dive_child) : "off",
-               heur ? "on" : "off",
+               (long long)backtrack, heur ? "on" : "off",
                rule == JAOS_BRANCH_MOST_FRACTIONAL ? "most-fractional"
                                                    : "pseudocost",
                (long long)reliability, probe_cap, cut_stall, node_cut_stall,
@@ -1355,16 +1579,28 @@ jaos_status jm_branch_and_bound(jaos_model *m)
     /* The root is the node with no changes. An outcome already known --
      * a column with no integer inside its bounds -- skips the tree. */
     for (; outcome == JAOS_SOLVE_NOT_RUN;) {
-        /* Which node: the root first; then the dive's child, or the best
-         * open one; a node whose key no longer beats the incumbent is
+        /* Which node: the root first; then the dive's child, or the deepest
+         * sibling the dive left on its stack while it may still backtrack
+         * (D308), or the best open one, the stack emptied into the open
+         * set first; a node whose key no longer beats the incumbent is
          * dropped unsolved, which ends a dive. */
         if (nodes > 0) {
             node_free(cur);
             for (;;) {
+                bool resumed = false;
                 if (next != nullptr) {
                     cur = next;
                     next = nullptr;
+                } else if (dstack_n > 0 && backtracks < backtrack) {
+                    cur = dstack[--dstack_n];
+                    resumed = true;
                 } else {
+                    while (dstack_n > 0) {
+                        if (!heap_push(&heap, dstack[dstack_n - 1]))
+                            goto done;
+                        dstack_n--;
+                    }
+                    backtracks = 0;
                     cur = heap_pop(&heap);
                     if (cur == nullptr)
                         break;
@@ -1376,6 +1612,10 @@ jaos_status jm_branch_and_bound(jaos_model *m)
                     cur = nullptr;
                     continue;
                 }
+                /* A resume counts once its node is solved: a sibling the
+                 * gap drops unsolved spends none of the budget (D308). */
+                if (resumed)
+                    backtracks++;
                 break;
             }
             if (cur == nullptr) {
@@ -1456,9 +1696,10 @@ jaos_status jm_branch_and_bound(jaos_model *m)
          * row spans the columns and every row the copy can come to hold. */
         if (nodes == 1 && branch >= 0 && root_rounds > 0) {
             /* A round adds at most a Gomory cut per column and two covers
-             * per row, and the row scratch must span them all. */
+             * and two MIR cuts per row, and the row scratch must span them
+             * all. */
             const int64_t need = nc + lp->num_row + 1 +
-                                 (nc + 2 * nr + 1) * root_rounds;
+                                 (nc + 4 * nr + 1) * root_rounds;
             double *grown = realloc(row, (size_t)need * sizeof *row);
             if (grown == nullptr)
                 goto done;
@@ -1473,6 +1714,12 @@ jaos_status jm_branch_and_bound(jaos_model *m)
             if (cover_rounds > 0 && mu == nullptr)
                 mu = malloc((size_t)(nc + 1) * sizeof *mu);
             if (cover_rounds > 0 && (items == nullptr || mu == nullptr))
+                goto done;
+            if (mir_rounds > 0 && mbest == nullptr)
+                mbest = malloc((size_t)(nc > 0 ? nc : 1) * sizeof *mbest);
+            if (mir_rounds > 0 && mdelta == nullptr)
+                mdelta = malloc((size_t)(MIP_MIR_DELTAS + 1) * sizeof *mdelta);
+            if (mir_rounds > 0 && (mbest == nullptr || mdelta == nullptr))
                 goto done;
             const double key_first = key;  /* before any cut (D305) */
             bool stop = false;
@@ -1492,6 +1739,14 @@ jaos_status jm_branch_and_bound(jaos_model *m)
                         goto done;
                     covers += cv;
                     got += cv;
+                }
+                if (r < mir_rounds) {
+                    const int64_t mv = mir_round(m, lp, x, ilo, ihi, &cb, cut,
+                                                 mbest, mdelta, &work);
+                    if (mv < 0)
+                        goto done;
+                    mirs += mv;
+                    got += mv;
                 }
                 if (got == 0)
                     break;
@@ -1559,8 +1814,9 @@ jaos_status jm_branch_and_bound(jaos_model *m)
              * in which case the copy's fixed rows are the model's. */
             nfixed = root_cut_drop ? nr : lp->num_row;
             jm_log(m, JAOS_LOG_SUMMARY,
-                   "root: relaxation %.17g after %lld cuts, %lld of them covers",
-                   obj, (long long)cuts, (long long)covers);
+                   "root: relaxation %.17g after %lld cuts, %lld of them "
+                   "covers and %lld MIR",
+                   obj, (long long)cuts, (long long)covers, (long long)mirs);
         }
         /* One round of local cuts at a node inside the depth (D296): read
          * over the node's bounds, so valid in its subtree; into the pool,
@@ -1656,22 +1912,23 @@ jaos_status jm_branch_and_bound(jaos_model *m)
                     jm_log(m, JAOS_LOG_PROGRESS,
                            "node %lld: incumbent %.17g by rounding",
                            (long long)nodes, hobj);
+                    const double ok = open_key(&heap, dstack, dstack_n);
                     if (!incumbent_announce(m, &inc, nodes,
-                            sigma * (heap.n > 0 && heap.v[0]->key < key
-                                     ? heap.v[0]->key : key), true)) {
+                            sigma * (ok < key ? ok : key), true)) {
                         outcome = JAOS_SOLVE_INTERRUPTED;
                         break;
                     }
                 }
             }
         }
-        if (nodes % MIP_LOG_EVERY == 0)
+        if (nodes % MIP_LOG_EVERY == 0) {
+            const double ok = open_key(&heap, dstack, dstack_n);
             jm_log(m, JAOS_LOG_PROGRESS,
                    "node %lld: %lld open, bound %.17g, incumbent %s",
-                   (long long)nodes, (long long)heap.n,
-                   sigma * (heap.n > 0 && heap.v[0]->key < best_bound
-                            ? heap.v[0]->key : best_bound),
+                   (long long)nodes, (long long)(heap.n + dstack_n),
+                   sigma * (ok < best_bound ? ok : best_bound),
                    inc.have ? "yes" : "none");
+        }
         if (inc.have && inc.key - key <= gap * (1.0 + fabs(inc.key)))
             continue;                  /* cannot improve enough */
 
@@ -1686,9 +1943,9 @@ jaos_status jm_branch_and_bound(jaos_model *m)
             spool_offer(&sp, inc.x, key, obj);
             jm_log(m, JAOS_LOG_PROGRESS, "node %lld: incumbent %.17g, integral",
                    (long long)nodes, obj);
+            const double ok = open_key(&heap, dstack, dstack_n);
             if (!incumbent_announce(m, &inc, nodes,
-                    sigma * (heap.n > 0 && heap.v[0]->key < key
-                             ? heap.v[0]->key : key), false)) {
+                    sigma * (ok < key ? ok : key), false)) {
                 outcome = JAOS_SOLVE_INTERRUPTED;
                 break;
             }
@@ -1796,7 +2053,16 @@ jaos_status jm_branch_and_bound(jaos_model *m)
         }
         bnode *other = first == down ? up : down;
         if (dive) {
-            if (!heap_push(&heap, other)) {
+            /* The sibling waits on the dive's stack when the dive may come
+             * back for it (D308), in the open set otherwise. */
+            if (backtrack > 0) {
+                if (!JM_GROW(dstack, dstack_cap, dstack_n + 1)) {
+                    node_free(down);
+                    node_free(up);
+                    goto done;
+                }
+                dstack[dstack_n++] = other;
+            } else if (!heap_push(&heap, other)) {
                 node_free(down);
                 node_free(up);
                 goto done;
@@ -1822,8 +2088,10 @@ jaos_status jm_branch_and_bound(jaos_model *m)
     m->mip_cuts = cuts;
     m->mip_heur = heur_points;
     m->mip_first_inc = first_inc;
-    m->mip_bound = sigma * (heap.n > 0 && heap.v[0]->key < best_bound
-                            ? heap.v[0]->key : best_bound);
+    {
+        const double ok = open_key(&heap, dstack, dstack_n);
+        m->mip_bound = sigma * (ok < best_bound ? ok : best_bound);
+    }
     if (outcome == JAOS_SOLVE_OPTIMAL)
         m->mip_bound = inc.obj;
     jm_log(m, JAOS_LOG_SUMMARY,
@@ -1883,6 +2151,8 @@ done:
     free(act);
     free(items);
     free(mu);
+    free(mbest);
+    free(mdelta);
     free(crs);
     free(in_copy.v);
     spool_free(&sp);
@@ -1891,6 +2161,9 @@ done:
     while (heap.n > 0)
         node_free(heap_pop(&heap));
     free(heap.v);
+    while (dstack_n > 0)
+        node_free(dstack[--dstack_n]);
+    free(dstack);
     node_free(cur);
     node_free(next);
     incumbent_free(&inc);
