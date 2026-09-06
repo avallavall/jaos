@@ -1,28 +1,27 @@
 # JAOS — Just Another Optimization Solver
 
-JAOS is a linear-programming solver written from scratch in C23. It reads a
-model from an MPS or LP file, presolves it, solves it with a revised dual
-simplex, and checks the answer with a verifier that shares no code with the
-solver. It has no external dependencies, builds to one static library with
-GCC on Linux, and is licensed under Apache 2.0.
+JAOS solves linear and mixed-integer programs. It is written from scratch in
+C23, links nothing but libc and libm, builds to one static library with GCC on
+Linux, and is licensed under Apache 2.0.
 
-Two properties hold on every commit, and every change is measured against
-them. The result is bit-identical on every machine and every run: no clock
-decides anything, no iteration order depends on an address, and floating-point
-contraction is off. And an answer counts only when the independent checker
+Two properties hold on every commit. The answer is bit-identical on every
+machine and every run: no clock decides anything, no iteration order depends
+on an address, and floating-point contraction is off. And an answer counts
+only when an independent checker, which shares no code with the solver,
 accepts it against the model as the caller loaded it.
 
 ## Status
 
 The last tagged release is 0.2.0, from 2026-09-02. `main` carries everything
-landed since, and `CHANGELOG.md` lists it under *Unreleased*. The current
-milestone is M2, which is about the cost of an iteration; `SPECS.md` states
-its success criterion.
+landed since, listed under *Unreleased* in `CHANGELOG.md`. The current
+milestone is M2, which is about speed; `SPECS.md` states its success
+criterion.
 
 This is a working solver and not a finished one. It answers all 139 Netlib
-reference instances correctly, and it is slower than the established
-open-source solvers by a factor that is measured and published rather than
-estimated. Both statements have numbers, in the section on results below.
+reference instances correctly and solves 24 MIPLIB 3 instances to their
+catalogue optima. It is slower than the established open-source LP solvers
+by a factor that is measured and published, not estimated. The numbers are
+in the results section below.
 
 ## What it does
 
@@ -44,99 +43,87 @@ if (jaos_status_of(m) == JAOS_SOLVE_OPTIMAL) {
 jaos_model_free(m);
 ```
 
-- Reads fixed and free MPS, and the CPLEX-style core of the LP format.
-  `docs/format-support.md` lists what is outside that subset.
-- Reads a gzip-compressed file wherever it reads a plain one. The inflate is
-  written here, because JAOS links nothing but libc and libm.
-- Writes MPS, LP and a solution file. What JAOS writes, JAOS reads back as
-  the same model; where a format cannot express what the model holds, the
-  call fails and names the row or column rather than writing something
-  weaker.
-- A command-line tool, `make cli`: `jaos solve model.mps` prints the status,
-  the objective, the iteration and work counts and the time, one per line,
-  and everything but the time line is byte-identical between runs; the exit
-  code is the verdict. `jaos convert in.mps out.lp` moves between the
-  formats. [`docs/cli.md`](docs/cli.md).
-- Usable from Python: `python/jaos.py` over `libjaos.so`, standard library
-  only, so it needs no compiler and no packages. Models are written directly
-  — variables, expressions, constraints from ordinary comparisons — or
-  loaded from a file; every C call is reachable. `make shared`, then
-  `make python-test`.
+**Files.** Reads fixed and free MPS, and the CPLEX-style core of the LP
+format; `docs/format-support.md` lists what is outside that subset. Reads a
+gzip-compressed file wherever it reads a plain one, with an inflate written
+here. Writes MPS, LP and its own solution file, and reads a solution file
+back. What JAOS writes, JAOS reads back as the same model; where a format
+cannot hold what the model holds, the call fails and names the row or
+column.
 
-  ```python
-  p = jaos.Problem()
-  x = p.add_var(ub=4)
-  y = p.add_var()
-  p.add(x + y <= 4)
-  p.maximize(x + 2*y)
-  p.solve()
-  ```
-- Presolve with six reduction families. Postsolve returns values, statuses
-  and duals in terms of the caller's original problem.
-- Curtis-Reid scaling.
-- Sparse LU factorization with Markowitz threshold pivoting and Forrest-Tomlin
-  updates.
-- Dual simplex: steepest-edge pricing, a Harris two-pass ratio test with bound
-  flipping, dual phase 1 by artificial bounds, and Bland's rule as a fallback
-  when a stall is detected.
-- An independent checker that verifies every answer against the original,
-  unscaled problem.
+**Linear programs.** Presolve with six reduction families, and a postsolve
+that returns values, statuses and duals in terms of the caller's original
+model. Curtis-Reid scaling. Sparse LU factorization with Markowitz threshold
+pivoting and Forrest-Tomlin updates. A dual simplex with steepest-edge
+pricing, a Harris two-pass ratio test with bound flipping, dual phase 1 by
+artificial bounds, and Bland's rule when a stall is detected.
 
-A loaded model can be modified: one bound, cost or coefficient at a time, the
-objective's sense or constant, or whole rows and columns added or deleted, and
+**Mixed-integer programs.** A column can be marked integer from the API,
+from an MPS `MARKER` pair, or from an LP `General` or `Binary` section. A
+model with one solves by branch and bound over the same dual simplex, best
+bound first, one private copy re-bounded per node and warm from its parent.
+At the root: Gomory, knapsack cover and mixed-integer rounding cuts, a
+rounding heuristic, a dive of up to fifty re-solves, and a feasibility pump.
+Below the root: Gomory cuts down to depth 3, a cut dropped once its slack is
+basic, the rounding heuristic at every node, pseudocost branching. The tree
+reports its nodes, cuts and bound, takes a node limit beside the work and
+time limits, tells a callback of every new incumbent, and keeps a pool of
+the best integer points it met. Every default was set on a MIPLIB 3 set with
+its own baseline (`make miplib`). Variants that measured worse stay behind
+switches and off; `SPECS.md` names each one with its reading.
+
+**After the answer.** The independent checker verifies every answer against
+the original, unscaled model. Sensitivity and ranging for every cost, row
+bound and column bound. A Farkas certificate behind an infeasible answer and
+a ray behind an unbounded one. An irreducible infeasible subsystem. An exact
+rational proof that the final basis is optimal, and the exact values of that
+basis.
+
+**A model is not read-only.** One bound, cost or coefficient at a time, the
+objective's sense or constant, or whole rows and columns added or deleted;
 every one of those reads back, the matrix by column, by row or by entry. A
-re-solve then starts from the basis of the previous solve instead of from
-scratch. A callback can watch a running
-solve and stop it. A stopped solve keeps its basis, so raising the limit and
-solving again continues from where it stopped.
+re-solve starts from the previous basis. A callback can watch a solve and
+stop it, and a stopped solve keeps its basis, so raising the limit continues
+from where it stopped.
 
-A column can be marked integer, from the API or from an MPS `MARKER` pair,
-an LP `General` or `Binary` section, and a model with one solves by branch
-and bound over the same dual simplex: one round of Gomory cuts, four
-rounds of knapsack cover cuts and six rounds of mixed-integer rounding
-cuts at the root, one round of Gomory cuts at every node down to depth 3
-with the four most efficacious kept, any cut dropped below a node where
-its slack is basic, a rounding heuristic at every node, a dive of up
-to fifty re-solves at the root for a first incumbent, a feasibility pump
-of twenty rounds where neither has found one, pseudocost branching, the incumbent published with the relaxation's duals.
-The tree reports its nodes, cuts and bound, takes a node limit beside the
-work and time limits, tells a callback of every new incumbent, and keeps a
-pool of the best integer points it met. Things that measured worse are
-behind switches and off: a dive from each selected node with any of four
-child rules, any backtrack budget and a resume bounded by the gap, strong
-branching until a column's pseudocost is reliable, capped or not, at any
-depth, a cut round that stops when the bound stops moving, at the root or
-under a node, lifted covers, MIR cuts at the nodes, MIR cuts on rows
-aggregated before they are rounded, the dive heuristic below the root,
-and RINS. Every default in the tree was set on a MIPLIB 3 set with
-its own baseline, `make miplib`, 17 instances until D302 and 24 since; the
-readings are in `bench/measurements/02-189/` to `02-208/`, D303 says the
-two cut defaults hold over the 24 and lose over the seven instances they
-were not tuned on, and D306 and D309 are the defaults that help both.
+**Command line.** `make cli` builds `jaos`. `jaos solve model.mps` prints
+the status, the objective, the counts and the time, one per line, and every
+line but the time is byte-identical between runs; the exit code is the
+verdict. `jaos convert` moves between formats, `jaos check` judges a solution
+file, `jaos iis` names an infeasible subsystem, `jaos verify` runs the exact
+proof, `jaos ranging` prints the ranges. Every branch-and-bound switch is a
+flag. [`docs/cli.md`](docs/cli.md).
 
-`SPECS.md` lists every feature with its status: what exists, what is missing,
-and what is only partly there.
+**Python.** `python/jaos.py` over `libjaos.so`, standard library only, so it
+needs no compiler and no packages. Models are written directly, or loaded
+from a file; every C call is reachable. `make shared`, then
+`make python-test`.
+
+```python
+p = jaos.Problem()
+x = p.add_var(ub=4)
+y = p.add_var(integer=True)
+p.add(x + y <= 4)
+p.maximize(x + 2*y)
+p.solve()
+```
+
+`SPECS.md` lists every feature with its status: what exists, what is
+missing, and what is only partly there.
 
 ## What it does not do
 
-There is no barrier method. Integer columns solve by branch and bound over the dual simplex, with Gomory, cover and mixed-integer rounding cuts at the root, Gomory cuts down to depth 3, a rounding heuristic at every node and a dive heuristic at the root; the dive from each selected node and strong branching measured worse and are off (D288 to D319). Every default together is worth 6.021x the plain tree's work on that set, with four of its 24 instances the plain tree cannot finish at all (D319).
+There is no barrier method and no crossover. A primal simplex exists behind
+a development switch and no caller can reach it; `make primal` measures it,
+and the one thing it still lacks is Devex pricing, whose published form is
+behind a paywall. The LP reader takes a subset of the format and refuses the
+rest with a line number; there are no SOS or indicator constraints.
 
-A primal simplex exists but no caller can reach it. It sits behind a
-development switch rather than an option, and `make primal` is what measures
-it. On the 94 standard instances it agrees with the dual on most (the
-per-instance record is `bench/results/primal.txt`; its budget column is
-priced in the dual's own work, so the counts move whenever the dual gets
-cheaper), every failure is classified and owned (D248 to D253), and the
-one piece `SPECS.md` still lists as missing is Devex pricing — which is
-blocked on a paywalled source, and an own rule derived in its place lost to
-Dantzig and was refused (D244, D245).
-
-The public API is `include/jaos.h`. Seven of its functions configure something:
-two tolerances, two budgets, where the log goes, how much of it there is, and
-a callback that decides whether a solve continues. No function selects a
-method. The solver decides which pricing rule runs, when it refactorizes, and
-whether a sparse or a dense path is cheaper. Each such constant is measured,
-fixed in the source, and not exposed as an option.
+The API selects no method. A caller sets tolerances, limits, where the log
+goes, callbacks, and the branch-and-bound switches. Which pricing rule runs,
+when the factorization is refreshed, whether a sparse or a dense path is
+cheaper: each of those is a constant, measured and fixed in the source, with
+its measurement in `docs/tolerances.md`.
 
 ## Results
 
@@ -146,25 +133,21 @@ The acceptance gate is the Netlib collection: 94 standard instances, 16 from
 the Kennington set, and 29 that have no feasible point. On the current tree
 every feasible instance solves to the published optimum within the gate's
 tolerance, the checker accepts all 110 answers, and the 29 infeasible models
-are refused. `bench/README.md` owns those counts and explains how the three
-sets are composed.
+are refused. `bench/README.md` owns those counts.
 
 A fourth set is for the tree and is not a gate: 24 MIPLIB 3 instances, each
 solved to the catalogue's integer optimum, the point integral and feasible
 to the checker, two cold searches building the same tree node for node
-(`make miplib`, D289, D302). Its baseline records the node count beside the
-work, and every default in the branch and bound was set against it.
+(`make miplib`).
 
 Two finer statements, each with the measurement behind it:
 
 - The published objective is the correctly rounded value of `c'x` over the
-  published point on 109 of the 110. The remaining one, `finnis`, sits at the
-  checker's own floor (D172).
-- The published point is the optimum. Four standard instances used to stop
-  measurably short of it. Since D184 the worst remaining gap is `pilot` at
-  5.27e-09, and `pilot87` and `scsd6` match the Koch reference exactly. That
-  cost 3.4% more work on the standard set and 9.8% on Kennington, and the
-  gate passes on all three sets.
+  published point on 109 of the 110. The remaining one, `finnis`, sits at
+  the checker's own floor (D172).
+- The published point is the optimum. The worst remaining gap is `pilot` at
+  5.27e-09, and `pilot87` and `scsd6` match the Koch reference exactly
+  (D184).
 
 ### Speed
 
@@ -181,21 +164,17 @@ taken.
 | JAOS faster on | 1 of 17 | 10 of 21 | 1 of 14 |
 | worst instance | `stocfor3`, 27.4x | `grow22`, 14.8x | `stocfor3`, 22.8x |
 
-JAOS still takes fewer iterations than SoPlex, and the cost of one iteration
-is what separates it from the field everywhere. That is what milestone M2
-works on. The gap is wider than the 2026-08-17 reading on all three
-competitors: D184 bought four exactly-right answers with 3.4% more work on
-the standard set, and nothing since has bought it back — `SPECS.md` section 8
-carries the direction. The worst instance is a presolve gap: HiGHS reduces
-`stocfor3` strongly and JAOS barely touches it, and `TODO.md` §5 carries
-that question.
+JAOS takes fewer iterations than SoPlex, and the cost of one iteration is
+what separates it from the field everywhere. That is what milestone M2 works
+on. The worst instance is a presolve gap: HiGHS reduces `stocfor3` strongly
+and JAOS barely touches it.
 
 ## How a change gets in
 
 Every number above is a measurement, and this is the machinery that produces
 them. A solver's failure mode is a wrong answer, and a wrong answer looks
-exactly like a right one until something independent checks it. So nothing
-here is accepted on a summary line.
+exactly like a right one until something independent checks it. Nothing here
+is accepted on a summary line.
 
 ```mermaid
 flowchart LR
@@ -208,55 +187,49 @@ flowchart LR
     F -->|"REJECT"| H["a refusal, written down<br/>with what would reopen it"]
 ```
 
-`numerics-reviewer` and `jaos-measurer` are review roles defined under
-`.claude/agents/`: one reads a diff for the defect classes tests do not
-catch, the other runs every instance set on a finished candidate and returns
-a verdict. A person can follow the same definitions.
-
-- Every one of the 139 reference instances is compared against a committed
-  baseline, per instance. A line reading `0 regressed` is not evidence on its
-  own: it means no check flipped and nothing crossed a 2.0x work bar.
-- The independent checker re-verifies every answer against the model as
-  loaded. The solver reporting `optimal` counts for nothing by itself.
+- Every reference instance is compared against a committed baseline, per
+  instance. A line reading `0 regressed` means only that no check flipped
+  and nothing crossed a 2.0x work bar.
+- The checker re-verifies every answer against the model as loaded. The
+  solver reporting `optimal` counts for nothing by itself.
 - A refusal is a result. `DECISIONS.md` records what was rejected and the
   measurement that rejected it, and `make refusals` re-tests those reasons,
   because a refusal is only true on the tree that measured it.
 - `make test` reads the documentation and fails when it disagrees with the
   code: a cited decision that does not exist, a constant whose documented
   value differs from the source, a feature the record still calls missing.
-  Its first run found 147 such failures.
 
-The whole cycle, with every step and the full diagrams, is in
+The whole cycle is in
 [`docs/development-cycle.md`](docs/development-cycle.md).
 
 ## Build and test
 
-GCC 14 or later, Linux only. On Windows, use WSL.
+GCC 14 or later, Linux only.
 
 ```
-make            # the static library, build/release/libjaos.a
-make test       # unit suite and the CLI's test, plus a check that the documents match the code
-make sanitize   # unit suite under ASan and UBSan
-make configs    # the suite in all five build configurations, from clean
-make netlib     # the 94-instance acceptance gate (fetches the instances first)
-make miplib     # the 24-instance MIP set, not a gate; run it when the tree changes
-make pgo        # rebuild the library from a profile of it solving real models
-make shared     # build/release/libjaos.so, which the Python binding loads
+make              # the static library, build/release/libjaos.a
+make test         # unit suite, the CLI's test, and the check that the documents match the code
+make sanitize     # unit suite under ASan and UBSan
+make configs      # the suite in all five build configurations, from clean
+make netlib       # the 94-instance acceptance gate (fetches the instances first)
+make miplib       # the 24-instance MIP set, not a gate; run it when the tree changes
+make compare      # time JAOS against HiGHS, SoPlex and Clp
+make pgo          # rebuild the library from a profile of it solving real models
+make shared       # build/release/libjaos.so, which the Python binding loads
 make python-test  # the binding's own suite; not part of `make test`
-make cli        # the command-line tool, build/cli/jaos
+make cli          # the command-line tool, build/cli/jaos
 ```
 
 `make netlib-kennington` and `make netlib-infeas` run the other two reference
-sets, and all three take `J=N` to run N instances at a time. `bench/fetch.sh`
+sets, and every set takes `J=N` to run N instances at a time. `bench/fetch.sh`
 downloads the instances and checks them against pinned sha256 hashes; they
 never enter this repository.
 
 `make` builds with `-O3 -flto -g -DNDEBUG`, and every flag that measured a
-gain is already in that default. LTO is the only flag with a measured effect,
-at 1.033x; profile-guided optimisation, `make pgo`, is worth 1.112x on top and
-is not the default because it needs the fetched instances to build.
-`-march=native` measured inside the noise and is off. The measurements, and
-the two switches `NATIVE=1` and `LTO=0`, are in [`docs/build.md`](docs/build.md).
+gain is already in that default. Profile-guided optimisation, `make pgo`, is
+worth 1.112x on top and is not the default because it needs the fetched
+instances to build. `-march=native` measured inside the noise and is off.
+The measurements and the switches are in [`docs/build.md`](docs/build.md).
 
 ## Layout
 
