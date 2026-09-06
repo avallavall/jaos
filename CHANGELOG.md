@@ -11,6 +11,26 @@ open, `bench/README.md` for the gate, and the commit each entry came from.
 
 ### Added
 
+- **The feasibility pump lands, the dive is closed, and the record finally
+  says what the solver gained overall.** `jaos_set_mip_feaspump` and
+  `--feaspump N` round the root relaxation's point, re-solve for the
+  nearest point of the relaxation in L1, and repeat; a rounding that
+  repeats is perturbed by distance rather than at random, so the pump is
+  bit-identical everywhere. 20 rounds by default: 1.026x the work over the
+  MIP set of 24, no node count moved, every instance finished, none past
+  2x, and the first incumbent at node 1 on six instances (`egout` from
+  5203, `l152lav` 295, `p0033` 99, `lseu` 47, `mod008` 29, `p0282` 28) and
+  later on none; the baseline is rewritten (D318). It runs only while
+  nothing has an answer yet, which the first sweep bought: without that
+  guard it cost 1.056x, almost all of it on instances the dive had already
+  served. **The dive is closed** (D317): its open set on `bell5` grows
+  without stop where best-bound order peaks and falls, and a length on the
+  dive does not fix it at any setting, so the seventh form was reverted
+  and D289 now rests on that one instance. **And the accepted defaults are
+  worth 6.021x together** (D319), measured against the D288 tree on the
+  same 24, with four instances the plain tree cannot finish at all
+  (`bench/measurements/02-207/`, `02-208/`).
+
 - **A dive at the nodes, RINS, and a dive bounded by how far a node fell
   from its parent: three settings measured, all three refused, and one
   billing repair that rewrote the baseline.**

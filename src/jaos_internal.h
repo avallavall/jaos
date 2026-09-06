@@ -100,6 +100,8 @@ typedef struct {
     int64_t mip_dive_heuristic_depth;
     bool mip_rins_set;
     int64_t mip_rins;
+    bool mip_feaspump_set;
+    int64_t mip_feaspump;
     bool mip_dive_degrade_set;
     double mip_dive_degrade;
     /* The rounding heuristic at every node (D290); on unless set. */

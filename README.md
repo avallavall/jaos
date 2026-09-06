@@ -97,8 +97,8 @@ rounds of knapsack cover cuts and six rounds of mixed-integer rounding
 cuts at the root, one round of Gomory cuts at every node down to depth 3
 with the four most efficacious kept, any cut dropped below a node where
 its slack is basic, a rounding heuristic at every node, a dive of up
-to fifty re-solves at the root for a first incumbent, pseudocost
-branching, the incumbent published with the relaxation's duals.
+to fifty re-solves at the root for a first incumbent, a feasibility pump
+of twenty rounds where neither has found one, pseudocost branching, the incumbent published with the relaxation's duals.
 The tree reports its nodes, cuts and bound, takes a node limit beside the
 work and time limits, tells a callback of every new incumbent, and keeps a
 pool of the best integer points it met. Things that measured worse are
@@ -110,7 +110,7 @@ under a node, lifted covers, MIR cuts at the nodes, MIR cuts on rows
 aggregated before they are rounded, the dive heuristic below the root,
 and RINS. Every default in the tree was set on a MIPLIB 3 set with
 its own baseline, `make miplib`, 17 instances until D302 and 24 since; the
-readings are in `bench/measurements/02-189/` to `02-206/`, D303 says the
+readings are in `bench/measurements/02-189/` to `02-208/`, D303 says the
 two cut defaults hold over the 24 and lose over the seven instances they
 were not tuned on, and D306 and D309 are the defaults that help both.
 
@@ -119,7 +119,7 @@ and what is only partly there.
 
 ## What it does not do
 
-There is no barrier method. Integer columns solve by branch and bound over the dual simplex, with Gomory, cover and mixed-integer rounding cuts at the root, Gomory cuts down to depth 3, a rounding heuristic at every node and a dive heuristic at the root; the dive from each selected node and strong branching measured worse and are off (D288 to D316).
+There is no barrier method. Integer columns solve by branch and bound over the dual simplex, with Gomory, cover and mixed-integer rounding cuts at the root, Gomory cuts down to depth 3, a rounding heuristic at every node and a dive heuristic at the root; the dive from each selected node and strong branching measured worse and are off (D288 to D319). Every default together is worth 6.021x the plain tree's work on that set, with four of its 24 instances the plain tree cannot finish at all (D319).
 
 A primal simplex exists but no caller can reach it. It sits behind a
 development switch rather than an option, and `make primal` is what measures

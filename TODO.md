@@ -7,6 +7,34 @@ line leaves this file in the same commit.
 
 ## Where the last session stopped — 2026-09-06
 
+**2026-09-06, the day batch, sixth round: the pump lands, the dive is
+closed, and the record finally has a total (D317, D318, D319).** The
+feasibility pump reads **1.026x** the work over the 24 at twenty rounds,
+no node count moved, every instance finished, none past 2x, and the first
+incumbent at node 1 on six instances and later on none (`egout` from node
+5203, `l152lav` from 295). On by default, the baseline rewritten, and the
+best rate of the three heuristics the tree has: D290 moved 8 of 17 for
+1.8%, D313 6 of 24 for 3.2%, this 6 of 24 for 2.6% (D318). **The dive is
+closed** (D317): its open set on `bell5` grows without stop, 190355 to
+580535 while best-bound order peaks at 22659 and falls to 2391, and a
+length on the dive fixes it at no setting, so the seventh form was built,
+measured and reverted. D289 rests on that one instance now and nothing
+else about the dive is worth a decision. **The accepted defaults are
+worth 6.021x together** (D319), measured against the D288 tree on the same
+24, with four instances the plain tree cannot finish at all. **The three
+things to carry forward.** First, the review ran before the campaign this
+time and found the pump's perturbation charging nothing for up to ten
+passes over the columns -- the same class as D314's phantom pass, and the
+arms differ in exactly how often the pump stalls, so it would have read
+the bill. Second, the pump's guard came out of the first sweep and not the
+design: it cost 1.056x running everywhere and 1.026x running only where
+nothing has an answer, and `gen` alone paid 1.855x on a seven-node tree.
+Third, `docs/claims.txt` named `jm_feaspump` for a function called
+`pump_for_point`, the second absence check in three batches that was green
+for the wrong reason. **What is next**, in order: the pump's
+general-integer form, which wants an auxiliary column per column; the
+objective feasibility pump; then the seven held constants.
+
 **2026-09-06, the day batch, fifth round: three refusals, a billing
 repair, and the dive's refusal down to one instance (D314, D315, D316).**
 The dive heuristic below the root reads **1.049x** at depth 1, 1.144x at
@@ -4386,7 +4414,7 @@ then, do not — a refusal whose premise has not changed just fails again.
 | D310 | MIR cuts at a node over its own bounds, beside its Gomory round, as a default — **0.991x** over the 24 at the default cap with `bell5` 3.44x and `gt2` 3.38x, 1.106x at a cap of eight, 1.135x uncapped, 1.010x at cut depth 6, and every arm 0.843x to 1.023x over the 17 against 1.33x to 1.56x over the seven (`bench/measurements/02-204/`) | a MIR round at a node that is not the single-row form — one that aggregates the node's rows, or reads the node's tableau rather than the model's rows — at or under 0.95x with no instance past 2x on the same set; `02-204/retest-node-mir.sh` asks, and `make refusals` runs it |
 | D307 | Balas's lifted covers as a default — **1.005x** over the 24 with `l152lav` 2.06x, 0.965x over the 17 and 1.109x over the seven (`02-202/`) | a lifting other than the simultaneous one — sequential over the items outside the cover, or the cover chosen for the lifting rather than for the point — at or under 0.95x with no instance past 2x on the same set; `02-202/retest-cover-lift.sh` asks, and `make refusals` runs it |
 | D293 | strong branching until a column is reliable, as a default: each unreliable child solved in full, at most eight columns per node — **0.971x at reliability 1** with `mod010` 2.84x and `enigma` 2.07x, 1.064x at 2, 1.173x at 4, 1.437x at 8, while every setting shrinks the trees (`bench/measurements/02-192/`) | both cheaper probes are measured and neither reaches the bar: a work cap per child reads 1.228x at 0.5 times the node's own solve, 0.998x at 1 and 1.018x at 2, since a probe that stops early pays and teaches nothing (D294, `02-193/`); probing at the root only reads 0.987x with two instances past 2x, one tree at every reliability (D298, `02-197/`). What could reopen it is a probe that learns from an unfinished child solve, the dual bound at a work-limit stop, which the stop path does not publish today; `02-192/retest-reliability.sh` asks the original question, and `make refusals` runs it |
-| D289 | a dive from each selected node of the branch and bound: nearer-side child first, sibling to the open set, until a prune — **1.125x** the plain best-bound order in work over the MIP set, one instance better and six worse, and 1.09x on top of one round of cuts (`bench/measurements/02-189/`) | the child rules are measured and none reaches the bar: nearer 1.053x on the D292 tree, up first 0.999x, down first 1.316x, the pseudocost side 0.991x, each with an instance past 2x (D295, `02-194/`). The backtracking dive is measured too and does not reopen it (D308, `02-203/`): 0.992x at sixteen resumes with two instances past 2x, 1.170x unbounded, 0.835x for the plain dive on the D306 tree with `bell5` unfinished. The resume bounded by the gap is measured too and does not reopen it (D311, `02-204/`): 1.067x at 1e-4, 1.085x at 1e-3, 1.334x at 1e-1, and 1.080x with a count of four beside it; its first form compared against the heap, which a dive empties, and could not fire. All three forms are measured now. What could reopen it is a resume decided by the child's own bound against its parent's, at or under 0.95x with no instance past 2x on the same set; `02-189/retest-dive.sh` asks, and `make refusals` runs it |
+| D289 | a dive from each selected node of the branch and bound (CLOSED at D317: seven forms measured, and what refuses it is one instance): nearer-side child first, sibling to the open set, until a prune — **1.125x** the plain best-bound order in work over the MIP set, one instance better and six worse, and 1.09x on top of one round of cuts (`bench/measurements/02-189/`) | the child rules are measured and none reaches the bar: nearer 1.053x on the D292 tree, up first 0.999x, down first 1.316x, the pseudocost side 0.991x, each with an instance past 2x (D295, `02-194/`). The backtracking dive is measured too and does not reopen it (D308, `02-203/`): 0.992x at sixteen resumes with two instances past 2x, 1.170x unbounded, 0.835x for the plain dive on the D306 tree with `bell5` unfinished. The resume bounded by the gap is measured too and does not reopen it (D311, `02-204/`): 1.067x at 1e-4, 1.085x at 1e-3, 1.334x at 1e-1, and 1.080x with a count of four beside it; its first form compared against the heap, which a dive empties, and could not fire. All three forms are measured now. What could reopen it is a resume decided by the child's own bound against its parent's, at or under 0.95x with no instance past 2x on the same set; `02-189/retest-dive.sh` asks, and `make refusals` runs it |
 | D211 | a stop rule on the phase-1 objective rising — `pilot-ja` rose 25.0449 above its running minimum and still finished `ok` | **EXPIRED at D212, caught 2026-08-28**: `pilot-ja` rises 3.3348e-12 now and the largest rise on any `ok` solve is 9.36752e-10, so a threshold has a window about nine orders wide. Attributed to the commit in D215, `02-130/`. Open work below, and the line has left `bench/refusals.txt` |
 | D184 | `can_move`'s product-against-rate units, measured dead on the dual (94/94 digests) | **CLOSED 2026-08-28**: the reopen condition was met on 2026-08-25 and the question is settled. `can_move` reads `breached` now (D214, `02-129/`), and the line has left `bench/refusals.txt` |
 | D76 | `restrict` in the LU kernels — refused because seconds could not resolve it | an instruction count can (`tools/icount.sh`); re-tested on the kernel signatures 2026-08-26, `bench/measurements/02-119/` (D206) |

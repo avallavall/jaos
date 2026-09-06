@@ -484,6 +484,27 @@ JAOS_NODISCARD jaos_status jaos_set_mip_dive_heuristic_depth(jaos_model *m,
  * `lp_solves`. D315 carries what each budget cost over the MIP set. */
 JAOS_NODISCARD jaos_status jaos_set_mip_rins(jaos_model *m, int64_t solves);
 
+/* The feasibility pump (D318, after Fischetti, Glover and Lodi, The
+ * feasibility pump, Mathematical Programming 104, 2005): at the root, on a
+ * copy of the relaxation as the cuts left it, the point is rounded and the
+ * copy is re-solved for the point of the relaxation nearest that rounding
+ * in L1, up to `rounds` times. It runs only while nothing has an answer
+ * yet: this is the plain pump, which looks for a feasible point and not a
+ * good one, so where the rounding heuristic or the dive already put an
+ * incumbent at the root it could only cost. A point that comes back integral is judged
+ * and taken like the rounding heuristic's, and counted under
+ * `heuristic_points`. The distance is the binary pump's, one term per
+ * column and no auxiliary variable, so a general integer column pulls on
+ * it only while its rounding sits on one of its bounds. A rounding that
+ * repeats is perturbed by moving its furthest columns to the other side,
+ * which the paper does at random and this does by distance, so the pump is
+ * the same on every machine. 0 is off and 20 is the default, the setting
+ * that reaches every instance of the MIP set a larger one reaches; a
+ * negative value restores it. Its solves are billed and counted as `lp_solves`. D318
+ * carries what each count cost over the MIP set. */
+JAOS_NODISCARD jaos_status jaos_set_mip_feaspump(jaos_model *m,
+                                                 int64_t rounds);
+
 /* How far a node's own bound may fall away from its parent's, as a
  * fraction of (1 + |parent's bound|), for the dive to go on into one of
  * its children (D316); 0, the default, puts no bound on it. A negative

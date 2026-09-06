@@ -431,6 +431,7 @@ _sig("jaos_set_mip_mir_aggregate", ctypes.c_int, _VP, _I64)
 _sig("jaos_set_mip_dive_heuristic", ctypes.c_int, _VP, _I64)
 _sig("jaos_set_mip_dive_heuristic_depth", ctypes.c_int, _VP, _I64)
 _sig("jaos_set_mip_rins", ctypes.c_int, _VP, _I64)
+_sig("jaos_set_mip_feaspump", ctypes.c_int, _VP, _I64)
 _sig("jaos_set_mip_dive_degrade", ctypes.c_int, _VP, ctypes.c_double)
 _sig("jaos_set_mip_heuristics", ctypes.c_int, _VP, ctypes.c_bool)
 _sig("jaos_mip_result", ctypes.c_int, _VP, _P(_MipReport))
@@ -932,6 +933,15 @@ class Model:
         restores it.
         """
         self._check(_lib.jaos_set_mip_rins(self._handle(), int(solves)))
+
+    def set_mip_feaspump(self, rounds):
+        """Rounds the feasibility pump may run at the root (D318).
+
+        Each round rounds the point it holds and re-solves for the nearest
+        point of the relaxation in L1. 0, the default, is off; a negative
+        value restores it.
+        """
+        self._check(_lib.jaos_set_mip_feaspump(self._handle(), int(rounds)))
 
     def set_mip_dive_degrade(self, frac):
         """How far a node's bound may fall from its parent's and still dive.
@@ -2344,6 +2354,12 @@ class Problem:
         """Relaxations a RINS dive may solve at a node with an incumbent
         (D315); 0 is off and the default, negative restores it."""
         self._m.set_mip_rins(solves)
+        return self
+
+    def set_mip_feaspump(self, rounds):
+        """Rounds the feasibility pump may run at the root (D318); 0 is off
+        and the default, negative restores it."""
+        self._m.set_mip_feaspump(rounds)
         return self
 
     def set_mip_dive_degrade(self, frac):

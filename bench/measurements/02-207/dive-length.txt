@@ -1,0 +1,14 @@
+tree: 30c14b5 6 modified
+bell5   len=0   status=time_limit  nodes=1886934   work=30312157482  first=1849
+bell5   len=2   status=time_limit  nodes=1367647   work=26135512939  first=0
+bell5   len=5   status=time_limit  nodes=1572400   work=25357996428  first=1372
+bell5   len=10  status=time_limit  nodes=1914818   work=30694804532  first=1607
+bell5   len=25  status=time_limit  nodes=1918416   work=30815127113  first=1849
+egout   len=0   status=optimal     nodes=6547      work=59881784     first=5715
+egout   len=2   status=optimal     nodes=4831      work=45338756     first=4278
+egout   len=5   status=optimal     nodes=8737      work=77421520     first=7554
+egout   len=10  status=optimal     nodes=6547      work=59881784     first=5715
+egout   len=25  status=optimal     nodes=6547      work=59881784     first=5715
+try-done
+
+[exited with code 0]

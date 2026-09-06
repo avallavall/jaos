@@ -1122,6 +1122,15 @@ jaos_status jaos_set_mip_dive_degrade(jaos_model *m, double frac)
     return JAOS_OK;
 }
 
+jaos_status jaos_set_mip_feaspump(jaos_model *m, int64_t rounds)
+{
+    if (m == nullptr)
+        return JAOS_ERR_INVALID_INPUT;
+    m->cfg.mip_feaspump_set = rounds >= 0;
+    m->cfg.mip_feaspump = rounds >= 0 ? rounds : 0;
+    return JAOS_OK;
+}
+
 jaos_status jaos_set_mip_node_mir(jaos_model *m, int on)
 {
     if (m == nullptr)

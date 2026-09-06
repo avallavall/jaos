@@ -324,6 +324,9 @@ and you have the argument. Jump to the entry for the numbers behind it.
 - **[D314](#d314--the-dive-heuristic-below-the-root-refused-as-a-default-it-moves-the-first-incumbent-earlier-on-four-more-instances-and-at-half-the-rate-the-two-heuristics-already-on-paid)** — The dive heuristic below the root, refused as a default: it moves the first incumbent earlier on four more instances, and at half the rate the two heuristics already on paid
 - **[D315](#d315--rins-refused-as-a-default-a-point-on-one-instance-of-24-and-no-first-incumbent-moved-because-the-root-dive-already-took-them)** — RINS, refused as a default: a point on one instance of 24, and no first incumbent moved, because the root dive already took them
 - **[D316](#d316--the-dives-degradation-bound-refused-as-a-default-worse-than-no-bound-at-every-fraction-and-the-plain-dive-now-reads-0934x-with-bell5-alone-between-it-and-d289s-reopen-condition)** — The dive's degradation bound, refused as a default: worse than no bound at every fraction, and the plain dive now reads 0.934x with `bell5` alone between it and D289's reopen condition
+- **[D317](#d317--the-dive-is-measured-out-bell5s-open-set-grows-without-stop-and-no-length-on-the-dive-fixes-it-so-d289-closes-instead-of-naming-an-eighth-form)** — The dive is measured out: `bell5`'s open set grows without stop, and no length on the dive fixes it, so D289 closes instead of naming an eighth form
+- **[D318](#d318--the-feasibility-pump-lands-at-twenty-rounds-six-of-the-24-get-their-first-answer-at-the-root-for-26-of-the-work-and-it-runs-only-while-nothing-has-one)** — The feasibility pump lands at twenty rounds: six of the 24 get their first answer at the root for 2.6% of the work, and it runs only while nothing has one
+- **[D319](#d319--what-every-accepted-default-since-d288-is-worth-together-6021x-measured-and-four-instances-the-plain-tree-does-not-finish-at-all)** — What every accepted default since D288 is worth together: 6.021x, measured, and four instances the plain tree does not finish at all
 
 ---
 
@@ -22445,3 +22448,215 @@ itself is now a single instance, so `bench/refusals.txt` says so:
 mean still at or under 0.95x. `02-206/retest-dive-degrade.sh` asks
 D316's own question and `02-189/retest-dive.sh` asks D289's; `make
 refusals` runs both.
+
+## D317 — The dive is measured out: `bell5`'s open set grows without stop, and no length on the dive fixes it, so D289 closes instead of naming an eighth form
+
+**Why this entry exists at all.** D316 left the dive one instance short of
+its own reopen condition: 0.934x over the 23 it finishes, none past 2x,
+`bell5` alone with no ratio. Six decisions had by then measured six forms
+of the dive and every one of them ended by naming the next form to try.
+That is how a refusal is supposed to work here, and it is also how six
+decisions came to be spent on one mechanism: the reopen condition is a
+ready-made next task, so the cheapest thing to do next was always to
+answer the last refusal's note. This entry breaks that by measuring the
+instance instead of inventing a seventh rule, and then closing.
+
+**The diagnosis** (`bench/measurements/02-207/open-set-and-bound.txt`).
+The published bound is the smallest key any open node has, so the open set
+is the reading. `bell5` and `egout`, each with the dive off and on, 150 s
+cap, one at a time; `egout` is the control, and not decoration -- it is an
+instance the dive helps, so two identical shapes would mean the probe was
+reading the log and not the dive.
+
+| | the open set, sampled across the run |
+|---|---|
+| `bell5`, no dive | 155, 16183, **22659**, 20789, 2391 |
+| `bell5`, dive | 57, 190355, 341819, 472109, **580535** |
+| `egout`, no dive | 47, 177, 363, 923, 403 |
+| `egout`, dive | 37, 311, 455, 471, 77 |
+
+Without the dive `bell5`'s open set peaks and comes back down, which is
+what a search that is closing looks like, and the bound reaches 8966396
+against an incumbent of 8966406 in 140595 nodes and 15 s. With the dive it
+grows without stopping and the bound moves from 8961385 to 8963431 in a
+million nodes. The dive rarely prunes on this instance, so its own
+children pile up while the oldest open nodes go on holding the bound down.
+`egout` never passes 500 either way.
+
+**The repair the diagnosis pointed at, built and measured**
+(`bench/measurements/02-207/dive-length.txt`). If the open set grows
+because the dive never comes back, bound how far it may go: a dive takes
+at most `N` children in a row, then the search returns to best-bound order
+and the child it did not take joins the open set, so no node is lost.
+
+| | length 0 | 2 | 5 | 10 | 25 |
+|---|---|---|---|---|---|
+| `bell5` work | 30.3 G | 26.1 G | **25.4 G** | 30.7 G | 30.8 G |
+| `bell5` status | time limit | time limit | time limit | time limit | time limit |
+| `bell5` first incumbent | node 1849 | **none at all** | 1372 | 1607 | 1849 |
+| `egout` work | 59.9 M | **45.3 M** | 77.4 M | 59.9 M | 59.9 M |
+
+`bell5` finishes at no length. The best of them saves 16% of the work on
+an instance that needs a factor of at least thirteen, and the shortest
+costs `bell5` its incumbent outright: at length 2 the search runs the full
+240 s and finds no answer where the plain dive finds one at node 1849. On
+`egout` the readings are not a curve -- 2 helps, 5 hurts, and 10 and 25
+are byte-identical to no length at all, because a dive there is already
+shorter than ten children.
+
+**The decision.** The dive is closed, and the length rule is **not in the
+tree**: it was built, measured, and reverted, and this entry is the whole
+of what it produced. Seven forms are now measured -- plain (D289), four
+child rules (D295), a backtrack budget (D308), a resume bounded by the gap
+(D311), a resume bounded by the child's fall from its parent (D316), and a
+length on the dive itself (here) -- and `bell5` finishes under none of
+them. `bench/refusals.txt` carries one condition for D289 now and it is
+about the instance, not the rule: `bell5` finishing under the dive inside
+the cap, at any setting, with the mean still at or under 0.95x. Nothing
+else on the dive is worth a decision until that changes, and a session
+that reaches for an eighth rule should read this entry first.
+
+**What generalises past the dive.** Five of the fifteen refusals in the
+branch and bound are the dive and three are strong branching: eight of
+fifteen on two mechanisms. The reopen condition is what concentrates them,
+because it is easier to answer than to question. The habit that would have
+saved four of those decisions is the one used here and nowhere earlier:
+**measure the instance that refuses before building the rule that is meant
+to persuade it.** The probe that produced the table above cost three
+minutes and settled a question six campaigns had left open.
+
+## D318 — The feasibility pump lands at twenty rounds: six of the 24 get their first answer at the root for 2.6% of the work, and it runs only while nothing has one
+
+**The gap.** `SPECS.md` listed the feasibility pump among the missing
+heuristics, and after D315 it was the last one left. The two the tree has
+both start from the relaxation's own point: D290 rounds it, D313 fixes
+columns one at a time and re-solves. Neither asks the relaxation to move
+towards an integer point, which is what Fischetti, Glover and Lodi (The
+feasibility pump, Mathematical Programming 104, 2005) do.
+
+**What it does now.** `jaos_set_mip_feaspump` and `--feaspump N`: at the
+root, on a copy of the relaxation as the cuts left it, the point is
+rounded, the copy's objective is replaced by the L1 distance to that
+rounding, and the copy is solved again; the point that comes back is the
+nearest point of the relaxation to an integer point, and it is rounded
+again, up to `N` times. A point that comes back integral goes through
+`rounded_point`, the acceptance every heuristic point gets.
+
+Three things are worth stating because they are choices and not the
+paper's:
+
+- **The distance is the binary pump's, one term per column and no
+  auxiliary variable.** A column rounded to its lower bound costs `+x_j`
+  and one at its upper bound costs `-x_j`, which is the L1 distance up to
+  a constant. A general integer column rounded to neither bound has no
+  such term and is out of the distance, because writing it wants a
+  variable per column and this pump adds no rows and no columns. The
+  paper states the pump for binaries and handles the general case with
+  those auxiliaries. What is here is the binary pump exactly, and a
+  general integer column pulls on it only while its rounding sits on a
+  bound. `SPECS.md` says so.
+- **The perturbation is deterministic.** A rounding that comes back
+  unchanged would repeat for ever, so `MIP_PUMP_FLIPS` columns move to the
+  other side, chosen by how far the relaxation's value sits from the
+  rounding, the lowest index breaking a tie. The paper draws that count at
+  random; a draw would break D8, so the count is fixed and the choice
+  inside it is a total order.
+- **It runs only while nothing has an answer yet**, and that came out of
+  the measurement rather than the design. See below.
+
+**What the review changed.** `numerics-reviewer` found three things before
+the campaign, which is the order the loop asks for and the reason none of
+them cost a campaign. The perturbation walks the columns up to
+`MIP_PUMP_FLIPS` times and charged nothing, so a stalled round cost about
+six times its bill -- the same class as D314's phantom pass, and this
+sweep's arms differ in exactly how often the pump stalls. A flip that
+changed nothing, which is what `+1` does to a value past 2^53, was
+reported as progress, leaving the pump re-solving an identical relaxation
+for every round it had left. And the cycle test compared against the
+rounding *after* a flip, which the relaxation never produced, so a pump
+alternating between two roundings never looked stalled: the history keeps
+the last two roundings as the relaxation made them now. The reviewer also
+found that no test reached the perturbation at all;
+`tests/test_mip.c` has one now, on `max x + y` subject to `2x + 2y <= 3`
+with both binary, whose relaxation sits at (0.75, 0.75), rounds to (1, 1),
+and whose distance objective sends it straight back to (0.75, 0.75).
+
+**The guard, and how the measurement bought it**
+(`bench/measurements/02-208/before-the-guard/`). The first sweep ran the
+pump at the root unconditionally and read 1.035x, 1.041x, 1.043x and
+1.056x at 1, 3, 5 and 20 rounds. The cost was not spread: `gen` paid
+1.855x on a seven-node search, and `gen` is an instance where D313's dive
+already put an incumbent at node 1. Eight of the 24 have one there before
+the pump runs, and on those eight this pump can only cost, because it
+looks for a feasible point and not a good one. The six instances it helps
+all have their first incumbent past node 1 without it. So it runs only
+while `inc.have` is false, and the arms fell to 1.006x, 1.011x, 1.014x and
+1.026x with every gain intact.
+
+**Evidence** (`bench/measurements/02-208/`). Work over the MIP set of 24,
+geometric mean of per-instance ratios against the control, with the number
+of instances whose first incumbent moves to node 1 beside it: **1.006x and
+none at 1 round, 1.011x and 2 at 3, 1.014x and 4 at 5, 1.026x and 6 at
+20, 1.037x and 6 at 50, 1.053x and 6 at 100**. No node count moves at any
+setting, every instance finishes, and none passes 2x. At 20 rounds:
+`egout` node 5203 to 1, `l152lav` 295 to 1, `p0033` 99 to 1, `lseu` 47 to
+1, `mod008` 29 to 1, `p0282` 28 to 1, and none later.
+
+**The decision.** On, at 20 rounds, by the rule D290 set and D313
+followed: a heuristic is bought with the first incumbent, not with the
+node count, because a best-bound tree cannot shrink and a stopped search
+hands back whatever incumbent it has. 20 is the setting with the best mean
+among those that reach every instance a larger one reaches, and 50 and 100
+are what say the curve is flat past it. The rate is the best of the three
+heuristics the tree now has: D290 moved 8 of 17 for 1.8%, D313 moved 6 of
+24 for 3.2%, this moves 6 of 24 for 2.6%. `bench/miplib.baseline` is
+rewritten and `SPECS.md` drops the pump from what is missing, along with
+`docs/claims.txt`'s `jm_feaspump` pattern -- which would have gone on
+passing, since the function is called `pump_for_point`. That is the second
+time in three batches that an absence check was green for the wrong
+reason (D313 was the first), and the lesson is the same both times: a
+pattern that names a function nobody wrote proves nothing.
+
+## D319 — What every accepted default since D288 is worth together: 6.021x, measured, and four instances the plain tree does not finish at all
+
+**Why this entry exists.** The user asked, on 2026-09-06, whether the
+project was doing something wrong, because almost every measured change is
+a refusal. The count for the branch and bound is 15 refusals in 29
+decisions, and eight of those fifteen are two mechanisms (five the dive,
+three strong branching), which is a real finding and is written up in
+D317. The other half of the answer was missing entirely: the record has
+never said what the accepted changes are worth **together**. Each one was
+measured against the tree of its own day, so the only figure anyone could
+quote was a product of ratios across six different baselines -- 0.660x,
+0.722x, 0.745x, 0.835x, 0.799x and 0.719x, which multiply to 0.17x. That
+is arithmetic, not a measurement, and this project does not accept
+arithmetic.
+
+**What was measured** (`bench/measurements/02-208/sweep-plain.txt`,
+`plain-against-control.txt`). One more arm on the same sweep, the same 24
+instances, the same 240 s cap: the branch and bound of D288 with
+everything the record has added since switched off -- `--cut-rounds 0
+--cover-rounds 0 --mir-rounds 0 --cut-depth 0 --no-heuristics
+--dive-heuristic 0 --branching most-fractional`.
+
+**6.021x**, geometric mean over the 20 instances both trees finish, 17
+worse and 11 of them past 2x. **Four instances the plain tree does not
+finish inside the cap at all** -- `bell5`, `gt2`, `l152lav`, `p0282` --
+where today's tree finishes all 24, so the mean understates it and cannot
+do otherwise: an unfinished instance has no ratio. Split by the two groups
+of D303: 4.288x over the 17 the defaults were tuned on, and **41.237x**
+over the three of the seven newer instances the plain tree can finish.
+
+The extremes are worth naming. `gen` reads 10461x, its tree 86589 nodes
+against 7. `mod010` reads 697x, 152 nodes against 1. `khb05250` 18.7x,
+`p0033` 12.0x, `lseu` 7.8x, `egout` 7.7x. Two instances are better without
+any of it: `rgn` at 0.874x and `stein27` at 0.944x, which is what a
+geometric mean over a set is for and why this project refuses a sum.
+
+**The decision.** Nothing changes in the tree; this is a reading, and it
+belongs in the record because a project that publishes 15 refusals and no
+total is telling half its own story. The estimate from multiplying was
+5.9x and the measurement is 6.021x, so the arithmetic was close, and it is
+no longer arithmetic. Re-run it whenever an accepted default lands: the
+arm is one line of `bench/measurements/02-208/sweep-b6.sh` and it costs
+one pass over the set.

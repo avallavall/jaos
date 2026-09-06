@@ -399,6 +399,7 @@ static void test_the_rounding_heuristic_takes_the_relaxations_neighbour(void)
         TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_mir_rounds(m, 0));
         TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_cut_depth(m, 0));
         TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_heuristics(m, on != 0));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_feaspump(m, 0));
         /* D313's dive would find the same point; this test is about the
          * rounding, so the dive is off. */
         TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_dive_heuristic(m, 0));
@@ -448,6 +449,7 @@ static void test_an_infeasible_rounding_is_not_taken(void)
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_cover_rounds(m, 0));
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_mir_rounds(m, 0));
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_cut_depth(m, 0));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_feaspump(m, 0));
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
     double obj = 0.0;
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(m, &obj));
@@ -665,6 +667,7 @@ static void test_strong_branching_probes_are_counted_and_change_no_answer(void)
         TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_mir_rounds(m, 0));
         TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_cut_depth(m, 0));
         TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_dive_heuristic(m, 0));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_feaspump(m, 0));
         TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_reliability(m, pass == 0 ? 0 : 8));
         TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
         TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
@@ -1685,6 +1688,7 @@ static void test_the_dive_heuristic_finds_the_first_incumbent(void)
             TEST_ASSERT_EQUAL_INT(JAOS_OK,
                 jaos_set_mip_dive_heuristic(m, solves[arm]));
             TEST_ASSERT_TRUE(m->cfg.mip_dive_heuristic_set);
+            TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_feaspump(m, 0));
             TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
             TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
             double obj = 0.0;
@@ -1908,6 +1912,134 @@ static void test_a_dive_bounded_by_the_degradation_keeps_the_optimum(void)
 }
 
 
+/* The feasibility pump (D318): with the other two heuristics off, a pump
+ * of a few rounds puts the first incumbent at the root, the answer does
+ * not move, and two cold searches agree. The canary is the first
+ * incumbent: a pump that decides nothing leaves it where the tree found
+ * it. */
+static void test_the_feasibility_pump_finds_a_point_at_the_root(void)
+{
+    const int64_t rounds[3] = { 0, 5, 20 };
+    int64_t first[3] = { 0, 0, 0 };
+    for (int arm = 0; arm < 3; arm++) {
+        double x1[5], x2[5];
+        int64_t nodes1 = 0;
+        for (int pass = 0; pass < 2; pass++) {
+            jaos_model *m = knapsack5();
+            TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_cut_rounds(m, 0));
+            TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_cover_rounds(m, 0));
+            TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_mir_rounds(m, 0));
+            TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_cut_depth(m, 0));
+            TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_heuristics(m, false));
+            TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_dive_heuristic(m, 0));
+            TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_feaspump(m, rounds[arm]));
+            TEST_ASSERT_TRUE(m->cfg.mip_feaspump_set);
+            TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+            TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+            double obj = 0.0;
+            TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(m, &obj));
+            TEST_ASSERT_DOUBLE_WITHIN(1e-9, 23.0, obj);
+            TEST_ASSERT_EQUAL_INT(JAOS_OK,
+                jaos_solution(m, pass == 0 ? x1 : x2, nullptr, nullptr,
+                              nullptr));
+            jaos_mip_report rep;
+            TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_mip_result(m, &rep));
+            if (pass == 0) {
+                nodes1 = rep.nodes;
+                first[arm] = rep.first_incumbent_node;
+            } else {
+                TEST_ASSERT_EQUAL_INT64(nodes1, rep.nodes);
+                TEST_ASSERT_EQUAL_INT64(first[arm], rep.first_incumbent_node);
+            }
+            jaos_model_free(m);
+        }
+        TEST_ASSERT_TRUE(x1[0] == 1.0 && x1[1] == 1.0);
+        TEST_ASSERT_EQUAL_MEMORY(x1, x2, sizeof x1);
+    }
+    /* The canary: the pump must move the first incumbent up, or it is
+     * deciding nothing and the arms above only prove the tree works. */
+    TEST_ASSERT_TRUE(first[0] > 1);
+    TEST_ASSERT_EQUAL_INT64(1, first[1]);
+    TEST_ASSERT_EQUAL_INT64(1, first[2]);
+
+    jaos_model *m = knapsack();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_feaspump(m, 7));
+    TEST_ASSERT_TRUE(m->cfg.mip_feaspump_set);
+    TEST_ASSERT_EQUAL_INT64(7, m->cfg.mip_feaspump);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_feaspump(m, -1));
+    TEST_ASSERT_FALSE(m->cfg.mip_feaspump_set);
+    jaos_model_free(m);
+}
+
+
+/* max x + y, 2x + 2y <= 3, both binary: the relaxation sits at (0.75,
+ * 0.75), rounds to (1, 1), and the distance objective for that rounding is
+ * -x - y, whose minimum is (0.75, 0.75) again. The pump gets the same
+ * rounding every round and must perturb (D318). */
+static jaos_model *cycling_pair(void)
+{
+    const double cost[2] = { 1.0, 1.0 };
+    const double cl[2] = { 0, 0 }, cu[2] = { 1, 1 };
+    const double rl[1] = { -INFINITY }, ru[1] = { 3.0 };
+    const int64_t as[3] = { 0, 1, 2 }, ai[2] = { 0, 0 };
+    const double av[2] = { 2.0, 2.0 };
+    jaos_model *m = fresh();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_load_lp(m, 2, 1, JAOS_MAXIMIZE, 0.0, cost, cl, cu, rl, ru,
+                     2, as, ai, av));
+    for (int64_t j = 0; j < 2; j++)
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_col_integer(m, j, true));
+    return m;
+}
+
+/* The pump's perturbation (D318): on a model whose rounding repeats, the
+ * pump must not spin and must not publish a point the rows refuse. The
+ * answer is 1, since 2x + 2y <= 3 admits only one of the two. */
+static void test_the_pump_perturbs_a_rounding_that_repeats(void)
+{
+    const int64_t rounds[3] = { 1, 4, 20 };
+    int64_t solves[3] = { 0, 0, 0 };
+    for (int arm = 0; arm < 3; arm++) {
+        for (int pass = 0; pass < 2; pass++) {
+            jaos_model *m = cycling_pair();
+            TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_cut_rounds(m, 0));
+            TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_cover_rounds(m, 0));
+            TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_mir_rounds(m, 0));
+            TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_cut_depth(m, 0));
+            TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_heuristics(m, false));
+            TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_dive_heuristic(m, 0));
+            TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_feaspump(m, rounds[arm]));
+            TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+            TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+            double obj = 0.0;
+            TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(m, &obj));
+            TEST_ASSERT_DOUBLE_WITHIN(1e-9, 1.0, obj);
+            double x[2];
+            TEST_ASSERT_EQUAL_INT(JAOS_OK,
+                jaos_solution(m, x, nullptr, nullptr, nullptr));
+            /* The row must hold: a pump that published (1, 1) would read
+             * 2 here and the search would call 2 the optimum. */
+            TEST_ASSERT_TRUE(2.0 * x[0] + 2.0 * x[1] <= 3.0 + 1e-9);
+            jaos_mip_report rep;
+            TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_mip_result(m, &rep));
+            if (pass == 0)
+                solves[arm] = rep.lp_solves;
+            else
+                TEST_ASSERT_EQUAL_INT64(solves[arm], rep.lp_solves);
+            jaos_model_free(m);
+        }
+    }
+    /* The canary, in two halves. One round costs fewer solves than four,
+     * so the first rounding did NOT give a point and a later round ran:
+     * that is the repeat, and the only way past it is the perturbation.
+     * Four and twenty cost the same, so the perturbation broke the cycle
+     * instead of spinning -- a pump that kept getting the same rounding
+     * would spend every round it was given. */
+    TEST_ASSERT_TRUE(solves[1] > solves[0]);
+    TEST_ASSERT_EQUAL_INT64(solves[1], solves[2]);
+}
+
+
 int main(void)
 {
     UNITY_BEGIN();
@@ -1951,6 +2083,8 @@ int main(void)
     RUN_TEST(test_an_aggregated_mir_cut_closes_what_one_row_leaves);
     RUN_TEST(test_the_dive_heuristic_finds_the_first_incumbent);
     RUN_TEST(test_the_dive_heuristic_runs_below_the_root);
+    RUN_TEST(test_the_feasibility_pump_finds_a_point_at_the_root);
+    RUN_TEST(test_the_pump_perturbs_a_rounding_that_repeats);
     RUN_TEST(test_rins_searches_the_incumbents_neighbourhood);
     RUN_TEST(test_a_dive_bounded_by_the_degradation_keeps_the_optimum);
     return UNITY_END();

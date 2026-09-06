@@ -188,6 +188,21 @@ constexpr double MIP_DIVE_GAP = 0.0;
  * dive off. jaos_set_mip_dive_degrade overrides it; docs/tolerances.md
  * carries the sweep. */
 constexpr double MIP_DIVE_DEGRADE = 0.0;
+/* How many rounds the feasibility pump may run at the root (D318): each
+ * round rounds the point it holds and solves for the point of the
+ * relaxation nearest that rounding in L1. 0 is off; 20 is the default,
+ * the setting that reaches every instance of the MIP set a larger one
+ * reaches (D318). jaos_set_mip_feaspump overrides it;
+ * docs/tolerances.md carries the sweep. */
+constexpr int64_t MIP_FEASPUMP = 20;
+/* How many integer columns a stalled pump flips (D318): a rounding that
+ * comes back unchanged would repeat for ever, so the columns whose
+ * relaxation value sits furthest from the rounding are moved to the other
+ * side, the lowest index breaking a tie. Fischetti, Glover and Lodi draw
+ * this count at random; drawing it would break D8, so it is fixed and the
+ * choice inside it is by distance, which is a total order. Held: it moves
+ * which points the pump visits and no number in an answer. */
+constexpr int64_t MIP_PUMP_FLIPS = 10;
 /* Whether a node inside the cut depth gets MIR cuts over its own bounds
  * beside its Gomory round (D310), local to its subtree like the rest.
  * jaos_set_mip_node_mir overrides it; docs/tolerances.md carries the
@@ -1627,6 +1642,182 @@ static int dive_for_point(const jaos_model *m, const jaos_model *lp,
     return rc;
 }
 
+/* --- The feasibility pump (D318) --------------------------------------- */
+
+/* Move `MIP_PUMP_FLIPS` of the rounding's integer columns to the other
+ * side of the value the relaxation gave, furthest first and the lowest
+ * index on a tie, which is what a stalled pump needs to leave the
+ * rounding it keeps coming back to. A column at its lower bound goes up
+ * one, one at its upper bound goes down one, and one at neither goes away
+ * from the value the relaxation gave it. A column whose bounds hold no
+ * second integer has no other side and is skipped, and so is a move that
+ * lands outside the bounds or that changes nothing -- the last happens
+ * where the value is large enough that adding one to it is a no-op, and
+ * reporting it as progress would leave the pump re-solving an identical
+ * relaxation for every round it has left. Returns false when nothing
+ * moved, which ends the pump. */
+static bool pump_flip(const jaos_model *m, const double *x, double *rnd)
+{
+    const int64_t nc = m->num_col;
+    int64_t chosen[MIP_PUMP_FLIPS];
+    int64_t n_chosen = 0;
+    bool moved = false;
+    for (int64_t k = 0; k < MIP_PUMP_FLIPS; k++) {
+        int64_t pick = -1;
+        double far = -1.0;
+        for (int64_t j = 0; j < nc; j++) {
+            if (!m->col_integer[j] || !isfinite(x[j]))
+                continue;
+            if (m->col_upper[j] - m->col_lower[j] < 1.0 - MIP_INT_TOL)
+                continue;              /* fixed: no other side */
+            bool taken = false;
+            for (int64_t q = 0; q < n_chosen; q++)
+                if (chosen[q] == j) {
+                    taken = true;
+                    break;
+                }
+            if (taken)
+                continue;
+            const double d = fabs(x[j] - rnd[j]);
+            if (d > far) {             /* strict: the lowest index on a tie */
+                far = d;
+                pick = j;
+            }
+        }
+        if (pick < 0)
+            break;
+        chosen[n_chosen++] = pick;
+        const double lo = m->col_lower[pick], hi = m->col_upper[pick];
+        double v = rnd[pick];
+        if (isfinite(hi) && v >= hi - MIP_INT_TOL)
+            v -= 1.0;
+        else if (isfinite(lo) && v <= lo + MIP_INT_TOL)
+            v += 1.0;
+        else
+            v = x[pick] >= v ? v + 1.0 : v - 1.0;
+        if (v < lo || v > hi || v == rnd[pick])
+            continue;                  /* this one cannot move */
+        rnd[pick] = v;
+        moved = true;
+    }
+    return moved;
+}
+
+/* The pump of Fischetti, Glover and Lodi (The feasibility pump,
+ * Mathematical Programming 104, 2005), at the root, on a copy of the
+ * relaxation as the cuts left it. One round rounds the point it holds to
+ * the nearest integer inside the model's bounds, then replaces the copy's
+ * objective with the L1 distance to that rounding and solves: the point
+ * that comes back is the nearest point of the relaxation to an integer
+ * point, and it is rounded again. A point that comes back integral is the
+ * caller's to judge, through `rounded_point` like every other heuristic
+ * point.
+ *
+ * The distance is written the way it is written for binary columns, one
+ * term per column and no auxiliary variable: a column rounded to its
+ * lower bound costs `+x_j` and one rounded to its upper bound costs
+ * `-x_j`, so the sum is the L1 distance up to a constant. A general
+ * integer column rounded to neither of its bounds has no such term and is
+ * left out of the distance, since writing it would want a variable per
+ * column and this pump does not add rows or columns. The paper's own
+ * pump is stated for binaries and handles the general case with those
+ * auxiliaries; what is here is the binary pump, exactly, and a general
+ * integer column pulls on it only while its rounding sits on a bound.
+ *
+ * A rounding that comes back unchanged would repeat for ever, so
+ * `MIP_PUMP_FLIPS` of its columns are moved to the other side, chosen by
+ * how far the relaxation's value sits from the rounding, the lowest index
+ * breaking a tie. The paper draws that count at random; a draw would
+ * break D8, so the count is fixed and the choice inside it is a total
+ * order.
+ *
+ * The rounding is compared against the last two the relaxation produced,
+ * not against the last one after a flip: a pump that alternates between
+ * two roundings would otherwise never look stalled, which is the case the
+ * paper's restart exists for. `out` carries the point, `rnd`, `prev` and
+ * `prev2` are scratch of num_col.
+ * Returns 1 with an integral point in `out`, 0 when there is none, -1
+ * only when the copy could not be made. Every solve is billed and
+ * counted. */
+static int pump_for_point(const jaos_model *m, const jaos_model *lp,
+                          const double *x, int64_t rounds, double *out,
+                          double *rnd, double *prev, double *prev2,
+                          int64_t *work, int64_t *solves_done)
+{
+    const int64_t nc = m->num_col;
+    jaos_model *pv = nullptr;
+    if (jaos_model_copy(lp, &pv) != JAOS_OK)
+        return -1;
+    int rc = 0;
+    if (jaos_set_objective_sense(pv, JAOS_MINIMIZE) != JAOS_OK ||
+        jaos_set_objective_offset(pv, 0.0) != JAOS_OK)
+        goto out_free;
+    memcpy(out, x, (size_t)(nc > 0 ? nc : 1) * sizeof *out);
+    for (int64_t r = 0; r < rounds; r++) {
+        /* One pass to round, one to write the objective (D16). */
+        *work += 2 * nc;
+        bool integral = true, same1 = r > 0, same2 = r > 1;
+        for (int64_t j = 0; j < nc; j++) {
+            if (!m->col_integer[j] || !isfinite(out[j])) {
+                rnd[j] = out[j];
+                if (m->col_integer[j])
+                    integral = false;
+                continue;
+            }
+            double v = round(out[j]);
+            if (v < m->col_lower[j])
+                v = ceil(m->col_lower[j]);
+            if (v > m->col_upper[j])
+                v = floor(m->col_upper[j]);
+            if (fabs(out[j] - v) > MIP_INT_TOL)
+                integral = false;
+            if (r > 0 && v != prev[j])
+                same1 = false;
+            if (r > 1 && v != prev2[j])
+                same2 = false;
+            rnd[j] = v;
+        }
+        if (integral) {
+            rc = 1;
+            break;
+        }
+        /* The history is the rounding as the relaxation made it, before
+         * any flip, so the next round's comparison means something. */
+        memcpy(prev2, prev, (size_t)(nc > 0 ? nc : 1) * sizeof *prev2);
+        memcpy(prev, rnd, (size_t)(nc > 0 ? nc : 1) * sizeof *prev);
+        if (same1 || same2) {
+            /* Up to MIP_PUMP_FLIPS passes over the columns, billed (D16). */
+            *work += MIP_PUMP_FLIPS * nc;
+            if (!pump_flip(m, out, rnd))
+                break;                 /* nothing left to flip */
+        }
+        for (int64_t j = 0; j < nc; j++) {
+            double c = 0.0;
+            if (m->col_integer[j]) {
+                if (isfinite(m->col_lower[j]) &&
+                    rnd[j] <= m->col_lower[j] + MIP_INT_TOL)
+                    c = 1.0;
+                else if (isfinite(m->col_upper[j]) &&
+                         rnd[j] >= m->col_upper[j] - MIP_INT_TOL)
+                    c = -1.0;
+            }
+            if (jaos_set_col_cost(pv, j, c) != JAOS_OK)
+                goto out_free;
+        }
+        if (jaos_solve(pv) != JAOS_OK)
+            break;
+        *work += jaos_work_units(pv);
+        (*solves_done)++;
+        if (jaos_status_of(pv) != JAOS_SOLVE_OPTIMAL)
+            break;
+        if (jaos_solution(pv, out, nullptr, nullptr, nullptr) != JAOS_OK)
+            break;
+    }
+out_free:
+    jaos_model_free(pv);
+    return rc;
+}
+
 /* --- The rounding heuristic (D290) ------------------------------------- */
 
 /* The relaxation's point with every integer column rounded to the nearest
@@ -1801,6 +1992,8 @@ jaos_status jm_branch_and_bound(jaos_model *m)
     const int64_t dive_heur_depth = m->cfg.mip_dive_heuristic_depth_set
         ? m->cfg.mip_dive_heuristic_depth : MIP_DIVE_HEURISTIC_DEPTH;
     const int64_t rins = m->cfg.mip_rins_set ? m->cfg.mip_rins : MIP_RINS;
+    const int64_t feaspump = m->cfg.mip_feaspump_set ? m->cfg.mip_feaspump
+                                                     : MIP_FEASPUMP;
     const double degrade = m->cfg.mip_dive_degrade_set
         ? m->cfg.mip_dive_degrade : MIP_DIVE_DEGRADE;
     const bool dive = m->cfg.mip_dive;
@@ -1858,12 +2051,16 @@ jaos_status jm_branch_and_bound(jaos_model *m)
     int64_t probes = 0, capped = 0;    /* strong branching's, D293/D294 */
     int64_t dive_points = 0;           /* the dive heuristic's, D313      */
     int64_t rins_points = 0;           /* RINS's, D315                    */
+    int64_t pump_points = 0;           /* the feasibility pump's, D318    */
     double rins_key = 0.0;             /* the incumbent RINS last saw     */
     bool rins_seen = false;
     int64_t covers = 0;                /* cover cuts at the root, D300    */
     kitem *items = nullptr;
     double *mu = nullptr;              /* the cover's partial sums (D307) */
     double *mbest = nullptr, *mdelta = nullptr;   /* MIR scratch (D309) */
+    double *prnd = nullptr;            /* the pump's rounding (D318)     */
+    double *pprev = nullptr;           /* the one before it              */
+    double *pprev2 = nullptr;          /* and the one before that        */
     double *magg = nullptr;            /* the MIR side, dense (D309)     */
     double *mcmag = nullptr;           /* what went into each of its
                                           coefficients (D312)            */
@@ -2254,6 +2451,56 @@ jaos_status jm_branch_and_bound(jaos_model *m)
             if (jaos_solution(lp, x, nullptr, nullptr, nullptr) != JAOS_OK)
                 goto done;
         }
+        /* The feasibility pump (D318), once, at the root, on the
+         * relaxation as the cuts left it, and only while nothing has an
+         * answer yet. This is the plain pump of the 2005 paper: it looks
+         * for a feasible point, not a good one, so where the rounding
+         * heuristic or the dive already put an incumbent at the root it
+         * can only cost. Eight of the MIP set's 24 have one there and the
+         * six the pump helps have none, so the guard keeps every gain
+         * (bench/measurements/02-208/). */
+        if (nodes == 1 && feaspump > 0 && branch >= 0 && !inc.have) {
+            /* Its own scratch, and not the root cut block's: that block
+             * runs only when a cut round does, and the pump is a heuristic
+             * that stands on its own. */
+            if (prnd == nullptr) {
+                prnd = malloc((size_t)(nc > 0 ? nc : 1) * sizeof *prnd);
+                pprev = malloc((size_t)(nc > 0 ? nc : 1) * sizeof *pprev);
+                pprev2 = malloc((size_t)(nc > 0 ? nc : 1) * sizeof *pprev2);
+                if (prnd == nullptr || pprev == nullptr || pprev2 == nullptr)
+                    goto done;
+            }
+            const int got = pump_for_point(m, lp, x, feaspump, xr, prnd,
+                                           pprev, pprev2, &work, &solves);
+            if (got < 0)
+                goto done;
+            double hobj = 0.0;
+            if (got == 1)
+                work += m->num_nz + nc + nr;
+            if (got == 1 && rounded_point(m, xr, x2, ra, &hobj)) {
+                const double hkey = sigma * hobj;
+                spool_offer(&sp, x2, hkey, hobj);
+                /* The guard above means there is no incumbent here, so the
+                 * test always passes; it is written out because it is the
+                 * acceptance every heuristic point goes through and a
+                 * later change to the guard must not quietly skip it. */
+                if (!inc.have || hkey < inc.key) {
+                    if (!incumbent_take_point(&inc, lp, m, x2, ra, hobj, hkey))
+                        goto done;
+                    heur_points++;
+                    pump_points++;
+                    if (first_inc == 0)
+                        first_inc = nodes;
+                    jm_log(m, JAOS_LOG_PROGRESS,
+                           "root: incumbent %.17g by the feasibility pump",
+                           hobj);
+                    if (!incumbent_announce(m, &inc, nodes, sigma * key, true)) {
+                        outcome = JAOS_SOLVE_INTERRUPTED;
+                        break;
+                    }
+                }
+            }
+        }
         /* RINS (D315): a dive over the columns the incumbent and this
          * node's relaxation do not already agree on, the rest fixed where
          * both put them. It runs once per incumbent -- the first
@@ -2599,12 +2846,14 @@ jaos_status jm_branch_and_bound(jaos_model *m)
     jm_log(m, JAOS_LOG_SUMMARY,
            "branch and bound: %s after %lld nodes, %lld solves, %lld cuts "
            "(%lld below the root), %lld points by rounding, %lld of them "
-           "by the dive heuristic and %lld by RINS, %lld probes, "
+           "by the dive heuristic, %lld by RINS and %lld by the pump, "
+           "%lld probes, "
            "%lld of them capped",
            jaos_solve_status_str(outcome), (long long)nodes,
            (long long)solves, (long long)cuts, (long long)local_cuts,
            (long long)heur_points, (long long)dive_points,
-           (long long)rins_points, (long long)probes, (long long)capped);
+           (long long)rins_points, (long long)pump_points,
+           (long long)probes, (long long)capped);
     /* The pool goes to the model whole, proved or not, like the incumbent. */
     m->mip_pool_n = sp.n;
     m->mip_pool_x = sp.x;
@@ -2658,6 +2907,9 @@ done:
     free(mu);
     free(mbest);
     free(mdelta);
+    free(prnd);
+    free(pprev);
+    free(pprev2);
     free(magg);
     free(mcmag);
     free(mused);

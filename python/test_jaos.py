@@ -1183,7 +1183,7 @@ class TestBranchAndBound(unittest.TestCase):
         self.assertEqual(rep.nodes, 1)
         self.assertTrue(p._m.col_integer(0))
         p.set_mip_cut_rounds(0).set_mip_cover_rounds(0).set_mip_mir_rounds(0).set_mip_cut_depth(0).set_mip_dive(True).set_mip_heuristics(False)
-        p.set_mip_dive_heuristic(0)
+        p.set_mip_dive_heuristic(0).set_mip_feaspump(0)
         self.assertIs(p.solve(), jaos.SolveStatus.OPTIMAL)
         self.assertAlmostEqual(p.objective_value, 9.0, places=9)
         rep = p.mip_report()
@@ -1228,7 +1228,7 @@ class TestBranchAndBound(unittest.TestCase):
             p.add(2 * a + 3 * b + c <= 5)
             p.maximize(5 * a + 4 * b + 3 * c)
             p.set_mip_cut_rounds(0).set_mip_cover_rounds(0).set_mip_mir_rounds(0).set_mip_cut_depth(0).set_mip_branching(rule)
-            p.set_mip_dive_heuristic(0)
+            p.set_mip_dive_heuristic(0).set_mip_feaspump(0)
             self.assertIs(p.solve(), jaos.SolveStatus.OPTIMAL)
             self.assertAlmostEqual(p.objective_value, 9.0, places=9)
             self.assertEqual((a.value, b.value, c.value), (1.0, 1.0, 0.0))
@@ -1537,7 +1537,7 @@ class TestBranchAndBound(unittest.TestCase):
             p.maximize(x + y)
             p.set_mip_cut_rounds(0).set_mip_cover_rounds(0).set_mip_mir_rounds(0)
             p.set_mip_cut_depth(0).set_mip_heuristics(False)
-            p.set_mip_dive_heuristic(solves)
+            p.set_mip_dive_heuristic(solves).set_mip_feaspump(0)
             self.assertIs(p.solve(), jaos.SolveStatus.OPTIMAL)
             self.assertAlmostEqual(p.objective_value, 3.0, places=9)
             self.assertEqual((x.value, y.value), (2.0, 1.0))
@@ -1545,6 +1545,27 @@ class TestBranchAndBound(unittest.TestCase):
         self.assertGreater(firsts[0], 1)
         self.assertEqual(firsts[1], 1)
         p.set_mip_dive_heuristic(-1)
+
+    def test_the_feasibility_pump_finds_a_point_at_the_root(self):
+        # With the other two heuristics off, a pump of five rounds puts the
+        # first incumbent at node 1 and the answer does not move (D318).
+        firsts = []
+        for rounds in (0, 5):
+            p = jaos.Problem()
+            x = p.add_var(integer=True, ub=1, name="x")
+            y = p.add_var(integer=True, ub=1, name="y")
+            z = p.add_var(integer=True, ub=1, name="z")
+            p.add(3 * x + 5 * y + 2 * z <= 8)
+            p.maximize(10 * x + 13 * y + 7 * z)
+            p.set_mip_cut_rounds(0).set_mip_cover_rounds(0).set_mip_mir_rounds(0)
+            p.set_mip_cut_depth(0).set_mip_heuristics(False)
+            p.set_mip_dive_heuristic(0).set_mip_feaspump(rounds)
+            self.assertIs(p.solve(), jaos.SolveStatus.OPTIMAL)
+            self.assertAlmostEqual(p.objective_value, 23.0, places=9)
+            firsts.append(p.mip_report().first_incumbent_node)
+        self.assertGreater(firsts[0], 1)
+        self.assertEqual(firsts[1], 1)
+        p.set_mip_feaspump(-1)
 
     def test_the_dive_heuristic_runs_below_the_root(self):
         # The same model as the root dive's, with the dive at every node:
@@ -1614,7 +1635,7 @@ class TestBranchAndBound(unittest.TestCase):
             p.add(y <= 1.4)
             p.maximize(x + y)
             p.set_mip_cut_rounds(0).set_mip_cover_rounds(0).set_mip_mir_rounds(0).set_mip_cut_depth(0).set_mip_heuristics(on)
-            p.set_mip_dive_heuristic(0)
+            p.set_mip_dive_heuristic(0).set_mip_feaspump(0)
             self.assertIs(p.solve(), jaos.SolveStatus.OPTIMAL)
             self.assertAlmostEqual(p.objective_value, 3.0, places=9)
             self.assertEqual((x.value, y.value), (2.0, 1.0))

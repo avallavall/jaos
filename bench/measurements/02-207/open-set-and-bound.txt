@@ -1,0 +1,31 @@
+# The open set and the published bound on bell5 and egout, with the dive off and on.
+# Sampled at five points from the progress log; tree 30c14b5, 150 s cap, one at a time.
+# Written by probe-bell5.sh; the full logs are not kept, the trajectory is the reading.
+== bell5-off
+status optimal objective 8966406.4915200006 work_units 2236984328 nodes 140595 first_incumbent 1961 
+  [1/933] node 200: 155 open, bound 8922954.4476040918, incumbent none
+  [234/933] node 40500: 16183 open, bound 8962770.2223407999, incumbent yes
+  [467/933] node 80700: 22659 open, bound 8965070.0394861326, incumbent yes
+  [700/933] node 111400: 20789 open, bound 8965920.0490041338, incumbent yes
+  [933/933] node 140500: 2391 open, bound 8966396.0382000003, incumbent yes
+== bell5-dive
+status time_limit work_units 21137704963 nodes 1309207 first_incumbent 1849 
+  [1/10621] node 100: 57 open, bound 8683891.4156064503, incumbent none
+  [2656/10621] node 313400: 190355 open, bound 8961385.3359827995, incumbent yes
+  [5311/10621] node 639500: 341819 open, bound 8962263.4397171717, incumbent yes
+  [7966/10621] node 974200: 472109 open, bound 8962914.4911893811, incumbent yes
+  [10621/10621] node 1309200: 580535 open, bound 8963431.6239780001, incumbent yes
+== egout-off
+status optimal objective 568.10069999999996 work_units 60785727 nodes 6841 first_incumbent 5203 
+  [1/11] node 100: 47 open, bound 441.1663098483603, incumbent none
+  [3/11] node 400: 177 open, bound 469.90898883168126, incumbent none
+  [6/11] node 1400: 363 open, bound 505.89796731215847, incumbent none
+  [8/11] node 4800: 923 open, bound 552.15808700769662, incumbent none
+  [11/11] node 6500: 403 open, bound 565.66917939062967, incumbent yes
+== egout-dive
+status optimal objective 568.10069999999996 work_units 59881784 nodes 6547 first_incumbent 5715 
+  [1/43] node 100: 37 open, bound 433.1769724744795, incumbent none
+  [11/43] node 1700: 311 open, bound 497.44021939563635, incumbent none
+  [22/43] node 3100: 455 open, bound 523.7742606436957, incumbent none
+  [32/43] node 5100: 471 open, bound 548.54440174299384, incumbent none
+  [43/43] node 6500: 77 open, bound 566.95902190020502, incumbent yes

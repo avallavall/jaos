@@ -18,6 +18,7 @@
  *                   [--dive-gap F] [--node-mir | --no-node-mir]
  *                   [--mir-aggregate N] [--dive-heuristic N]
  *                   [--dive-heuristic-depth D] [--rins N] [--dive-degrade F]
+ *                   [--feaspump N]
  *                   [--no-heuristics] [--node-limit N] [--branching RULE]
  *                   [--reliability N] [--probe-cap M] [--probe-depth D]
  *                   [--no-cut-drop] [--pool-size K] [--log LEVEL]
@@ -88,7 +89,7 @@ static const char USAGE[] =
     "                  [--dive-gap F] [--node-mir | --no-node-mir]\n"
     "                  [--mir-aggregate N] [--dive-heuristic N]\n"
     "                  [--dive-heuristic-depth D] [--rins N]\n"
-    "                  [--dive-degrade F]\n"
+    "                  [--dive-degrade F] [--feaspump N]\n"
     "                  [--no-heuristics] [--node-limit N] [--branching RULE]\n"
     "                  [--reliability N] [--probe-cap M] [--probe-depth D]\n"
     "                  [--no-cut-drop] [--pool-size K] [--log LEVEL]\n"
@@ -156,6 +157,8 @@ static const char USAGE1B[] =
     "  --dive-degrade F  dive on into a child only while the node's own\n"
     "                   bound is within F of (1 + |its parent's bound|)\n"
     "                   (F >= 0; 0 for no bound)\n"
+    "  --feaspump N     rounds the feasibility pump may run at the root\n"
+    "                   (N >= 0; default 0, off)\n"
     "  --no-heuristics  no rounding heuristic at the nodes of a MIP\n"
     "  --node-limit N   stop a MIP before its N-th node past the limit (N > 0)\n"
     "  --branching RULE which column a MIP branches on: pseudocost (default)\n"
@@ -460,6 +463,7 @@ struct solve_options {
     int64_t dive_heuristic;  /* -1: not given (the library's default)     */
     int64_t dive_heuristic_depth; /* -1: not given                        */
     int64_t rins;            /* -1: not given (the library's default)     */
+    int64_t feaspump;        /* -1: not given (the library's default)     */
     bool has_dive_degrade;
     double dive_degrade;
     int64_t node_limit;      /* 0: not given; the parser refuses <= 0     */
@@ -502,6 +506,7 @@ static int parse_solve_options(int argc, char **argv, int first,
     o->dive_heuristic = -1;
     o->dive_heuristic_depth = -1;
     o->rins = -1;
+    o->feaspump = -1;
     o->branching = -1;
     o->reliability = -1;
     o->dive_child = -1;
@@ -648,6 +653,10 @@ static int parse_solve_options(int argc, char **argv, int first,
                 o->dive_heuristic_depth < 0)
                 return usage_error("--dive-heuristic-depth needs a depth, 0 "
                                    "or more, not '%s'", v);
+        } else if (strcmp(a, "--feaspump") == 0) {
+            if (!parse_int64(v, &o->feaspump) || o->feaspump < 0)
+                return usage_error("--feaspump needs a count of rounds, "
+                                   "0 or more, not '%s'", v);
         } else if (strcmp(a, "--rins") == 0) {
             if (!parse_int64(v, &o->rins) || o->rins < 0)
                 return usage_error("--rins needs a count of solves, 0 or "
@@ -828,6 +837,10 @@ static int cmd_solve(int argc, char **argv)
     }
     if (o.rins >= 0 && jaos_set_mip_rins(m, o.rins) != JAOS_OK) {
         rc = library_error("set RINS for", o.file, m);
+        goto out;
+    }
+    if (o.feaspump >= 0 && jaos_set_mip_feaspump(m, o.feaspump) != JAOS_OK) {
+        rc = library_error("set the feasibility pump for", o.file, m);
         goto out;
     }
     if (o.has_dive_degrade &&
