@@ -591,23 +591,27 @@ control, one bit lower, where all three succeed. That pair is what makes the
 limit a measurement instead of a comment, and it caught the first version of
 `jm_nat_shl`, which charged a spare limb for any shift that was not a whole
 number of limbs and so refused a value that fits.
-## Branch and bound's twenty numbers, and two switches
+## Branch and bound's twenty-one numbers, and three switches
 
 All in `src/mip.c`: the first two are D288's, the four under them the root
 cuts' (D289), then the cut depth's (D296), the node cut cap's (D301), the
 cover rounds' (D300), the two stalls' (D304, D305), the MIR cuts' three
-(D309) and the dive's backtrack budget (D308), the branching rule's
+(D309), the dive's backtrack budget (D308) and its resume gap (D311),
+the branching rule's
 (D292), the two after it strong branching's (D293), then the probe cap's
 (D294) and the probe depth's (D298). The MIP set (`make miplib J=12`, 24
 instances since D302, `bench/miplib.manifest`) is where a sweep of any of
 them runs. The rounds, the cut depth, the node cut cap, the cover rounds,
-the two stalls, the MIR rounds, the backtrack budget, the reliability, the
-cap and the probe depth have theirs; the other nine are held to the source
-by `record-check` with what each one waits for stated beside it. Two switches sit beside the
-numbers as `constexpr bool`, outside `record-check`'s reach and read on
-the same set (`bench/measurements/02-202/`): `MIP_ROOT_CUT_DROP`, on since
-D306 (0.799x the work over the 24 with it, none past 2x), and
-`MIP_COVER_LIFT`, off (D307: 1.005x with `l152lav` past 2x).
+the two stalls, the MIR rounds, the backtrack budget, the resume gap, the
+reliability, the cap and the probe depth have theirs; the other nine are
+held to the source by `record-check` with what each one waits for stated
+beside it. Three switches sit beside the numbers as `constexpr bool`,
+outside `record-check`'s reach and read on the same set:
+`MIP_ROOT_CUT_DROP`, on since D306 (0.799x the work over the 24 with it,
+none past 2x, `bench/measurements/02-202/`); `MIP_COVER_LIFT`, off (D307:
+1.005x with `l152lav` past 2x, `02-202/`); and `MIP_NODE_MIR`, off (D310:
+0.991x at the node cut cap with two instances past 2x, and 0.843x over the
+17 against 1.446x over the seven, `02-204/`).
 
 | constant | value | what it decides |
 |---|---|---|
@@ -626,6 +630,7 @@ D306 (0.799x the work over the 24 with it, none past 2x), and
 | `MIP_MIR_DELTAS` | 8 | how many scalings a row's MIR cut tries beyond 1: the \|a_j\| of the integer columns whose shifted value is fractional, in column order, deduplicated by exact equality (D309). Decides which candidates are tried, never a number in an answer; the most violated wins. Not swept: held, since Marchand and Wolsey's own list is this set plus the divisors of the best, and a longer list only adds candidates the efficacy rule can reject |
 | `MIP_MIR_ROUND` | 1e-9 | the rounding a MIR side's shifted right-hand side may carry and still be cut (D309): `DBL_EPSILON` times the sum of the terms' magnitudes times the term count, in the row's own units, against this. The cut divides by the right-hand side's fraction and by its complement, so a computed fraction below the true one is a cut that is not valid, and a side whose sum cannot be placed to this gets no cut (the review's case: a column whose one finite bound is 1e15 puts the fraction on a multiple of 1/8 whatever the data). 1e-9 bounds the coefficient error at 1e-7 after the 1 / (1 - f0) factor that `MIP_CUT_AWAY` caps at 100, the primal tolerance's own scale. Not swept: held. The same exposure exists in the Gomory cut's basic value and is carried, since that value comes out of a solve and not a sum here |
 | `MIP_DIVE_BACKTRACK` | 0 | how many times a dive may resume from the deepest sibling it left on its stack once a node ends (D308); 0 sends every sibling to the open set at once, D289's dive. `jaos_set_mip_dive_backtrack` overrides it; nothing happens with the dive off. **Swept at 0, 1, 2, 4, 16 and unbounded** with the nearer child and at 4 and unbounded with the pseudocost side, dive on, over the MIP set (`02-203/`, D308): 0.835x over 23 with `bell5` at the cap and two past 2x at 0, then 1.026x, 1.134x, 1.007x, 0.992x over all 24 with two past 2x, 1.170x with five past 2x; the pseudocost side 1.011x and 1.142x. No setting is under the bar, so 0 stays and the dive stays off |
+| `MIP_DIVE_GAP` | 0.0 | how far a waiting sibling's bound may sit above the best open node's, as a fraction of (1 + \|best\|), for the dive to resume from it (D311); 0 puts no bound on the resume. `jaos_set_mip_dive_gap` overrides it; nothing happens with the dive off. **Swept at 1e-4, 1e-3, 1e-2, 1e-1 and 1**, with no resume count, and at 1e-2 with a count of four, over the MIP set (`bench/measurements/02-204/`, D311): 1.067x, 1.085x, 1.134x, 1.334x, 1.355x and 1.080x against the control, every one above 1.0x, so 0 stays and the dive stays off. The rule's first form compared the sibling against the heap alone, which a dive empties, and read one number at every fraction; the comparison spans the heap and the dive's stack now, and `tests/test_mip.c` fails if it stops deciding |
 | `MIP_PC_EPS` | 1e-6 | the floor of a direction's pseudocost score (D292): the score is the product of the two directions' expected gains, and a direction whose gain was 0 would otherwise zero the column out of the choice. Achterberg, Koch and Martin (Branching rules revisited, 2005) use the same floor. Decides an order between columns, never a number in an answer. Not swept: held |
 | `MIP_RELIABILITY` | 0 | branches per direction before a column's pseudocost is trusted; below it the column's children are solved on the spot and the gains initialise the pseudocosts (D293). `jaos_set_mip_reliability` overrides it. **Swept at 0, 1, 2, 4 and 8** over the MIP set, pseudocost branching, everything else at its default (`bench/measurements/02-192/`): work against 0 reads 0.971x at 1 (7 better, 9 worse, `mod010` 2.84x and `enigma` 2.07x past the gate's factor), 1.064x at 2, 1.173x at 4 and 1.437x at 8, while the node counts fall at every setting (`dcmulti` 585 to 135 at 4, `mod010` 7 to 3). The probes are worth their information and not their price: each is a full child solve. 0 is the default and the setting is refused as a default; `bench/refusals.txt` carries what reopens it |
 | `MIP_STRONG_CANDIDATES` | 8 | how many unreliable columns a node probes, the best by pseudocost score. Not swept: held, since no setting of the count above was worth its work, and a cap on the candidates only lowers the price of a thing that did not pay at any price measured |

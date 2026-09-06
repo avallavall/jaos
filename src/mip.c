@@ -16,8 +16,9 @@
  * on one instance and worse on six (D289, refused). With
  * jaos_set_mip_dive_backtrack the dive keeps its siblings on a stack and
  * resumes from the deepest one when a node ends, up to that many times
- * per dive (D308). The search is the same on every machine and every run
- * (D8).
+ * per dive (D308), or while the sibling's bound is within
+ * jaos_set_mip_dive_gap's fraction of the best open node's (D311). The
+ * search is the same on every machine and every run (D8).
  *
  * The root's relaxation gets rounds of Gomory mixed-integer cuts before
  * the tree starts: one cut per basic integer column whose value is
@@ -38,7 +39,9 @@
  * fraction gets no round under it (D305). A cover cut may carry Balas's
  * lifting coefficients (D307) behind jaos_set_mip_cover_lift, and the
  * root gets rounds of mixed-integer rounding cuts read off the model's
- * own rows beside the other two families (D309). A rounding
+ * own rows beside the other two families (D309), and a node inside the
+ * cut depth may get the same MIR cuts over its own bounds beside its
+ * Gomory round, behind jaos_set_mip_node_mir (D310). A rounding
  * heuristic at every fractional node
  * (D290) is the only heuristic; docs/claims.txt carries the claim that
  * there is no other. A strong-branching probe (D293) may carry a work cap
@@ -136,6 +139,17 @@ constexpr double MIP_MIR_ROUND = 1e-9;
  * set at once, D289's form. jaos_set_mip_dive_backtrack overrides it;
  * docs/tolerances.md carries the sweep. */
 constexpr int64_t MIP_DIVE_BACKTRACK = 0;
+/* How far a waiting sibling's bound may sit above the best open node's,
+ * as a fraction of (1 + |best|), for the dive to resume from it (D311);
+ * 0 puts no bound on it and leaves the count alone. With the dive on and
+ * a fraction, the count may be 0 for no count. jaos_set_mip_dive_gap
+ * overrides it; docs/tolerances.md carries the sweep. */
+constexpr double MIP_DIVE_GAP = 0.0;
+/* Whether a node inside the cut depth gets MIR cuts over its own bounds
+ * beside its Gomory round (D310), local to its subtree like the rest.
+ * jaos_set_mip_node_mir overrides it; docs/tolerances.md carries the
+ * reading. */
+constexpr bool MIP_NODE_MIR = false;
 /* A basic integer column is cut only when its fraction sits inside
  * [MIP_CUT_AWAY, 1 - MIP_CUT_AWAY]: the cut's coefficients divide by the
  * fraction and by its complement, and a fraction near 0 or 1 gives a cut
@@ -373,6 +387,25 @@ static double open_key(const bheap *h, bnode *const *stack, int64_t n)
         if (stack[i]->key < k)
             k = stack[i]->key;
     return k;
+}
+
+/* Whether the dive may resume from `n` (D311): always when no fraction is
+ * set; else only while n's key is within `frac` of (1 + |best|) of the
+ * best key any open node has, the dive's own waiting siblings included.
+ * The heap alone is not that best: during a dive every sibling goes on
+ * the stack and the heap can be empty for the whole dive, which is what
+ * made the first form of this rule fire at every fraction alike. `n` is
+ * itself on the stack, so a candidate that IS the best passes, which is
+ * the intent. */
+static bool resume_within(const bnode *n, const bheap *h, bnode *const *stack,
+                          int64_t stack_n, double frac)
+{
+    if (frac <= 0.0)
+        return true;
+    const double best = open_key(h, stack, stack_n);
+    if (!isfinite(best))
+        return true;
+    return n->key - best <= frac * (1.0 + fabs(best));
 }
 
 /* A child of `parent` (or of the root when parent is null) with one more
@@ -1165,8 +1198,12 @@ static bool shift_to_upper(double lo, double hi, double xj)
  * loosens the base row when dropped and what is left is the MIR
  * inequality of sum_int c_j x_j - t <= c_0 with t >= 0. The delta with
  * the largest efficacy is kept, rewritten over the model's columns as a
- * >= row and finished like every cut. The bounds read are the root's
- * rounded ones, so the cut holds for the whole tree. `cut` and `best` are
+ * >= row and finished like every cut. The cut holds wherever the `ilo`
+ * and `ihi` it read hold: the root's rounded bounds at the root, so for
+ * the whole tree, and a node's own bounds under jaos_set_mip_node_mir
+ * (D310), so for that node's subtree only, which is where the pool puts
+ * it. Both are integral for an integer column, which node_apply keeps and
+ * the assert below states. `cut` and `best` are
  * scratch of num_col, `delta` of MIP_MIR_DELTAS + 1; the pass is billed
  * once per delta. Returns the count, or -1 on failure. */
 static int64_t mir_round(const jaos_model *m, jaos_model *lp, const double *x,
@@ -1178,6 +1215,13 @@ static int64_t mir_round(const jaos_model *m, jaos_model *lp, const double *x,
     int64_t added = 0;
     if (jm_model_ensure_rowwise(lp) != JAOS_OK)
         return -1;
+    /* x' is integral only when the bound it is measured from is: the
+     * whole rounding rests on that, and a fractional bound would cut off
+     * feasible integer points with nothing to show for it. */
+    for (int64_t j = 0; j < nc; j++)
+        assert(!m->col_integer[j] ||
+               ((!isfinite(ilo[j]) || floor(ilo[j]) == ilo[j]) &&
+                (!isfinite(ihi[j]) || floor(ihi[j]) == ihi[j])));
     *work += (m->num_nz + nc + nr) * (MIP_MIR_DELTAS + 1);
     for (int64_t i = 0; i < nr; i++) {
         for (int side = 0; side < 2; side++) {
@@ -1450,7 +1494,14 @@ jaos_status jm_branch_and_bound(jaos_model *m)
         root_rounds = mir_rounds;
     const int64_t backtrack = m->cfg.mip_dive_backtrack_set
         ? m->cfg.mip_dive_backtrack : MIP_DIVE_BACKTRACK;
+    const double dive_gap = m->cfg.mip_dive_gap_set ? m->cfg.mip_dive_gap
+                                                    : MIP_DIVE_GAP;
+    const bool node_mir = m->cfg.mip_node_mir_set ? m->cfg.mip_node_mir
+                                                  : MIP_NODE_MIR;
     const bool dive = m->cfg.mip_dive;
+    /* The dive keeps its siblings on a stack when either rule may bring
+     * it back for one (D308, D311); D289's form otherwise. */
+    const bool stack_dive = dive && (backtrack > 0 || dive_gap > 0.0);
     const bool heur = !m->cfg.mip_no_heuristics;
     const jaos_branching rule = (jaos_branching)m->cfg.mip_branching;
     const int64_t reliability = rule == JAOS_BRANCH_PSEUDOCOST
@@ -1561,14 +1612,15 @@ jaos_status jm_branch_and_bound(jaos_model *m)
             nint += m->col_integer[j];
         jm_log(m, JAOS_LOG_SUMMARY,
                "branch and bound: %lld integer columns of %lld, %lld rounds "
-               "of cuts, %lld of MIR, cuts to depth %lld, dive %s with %lld "
-               "backtracks, rounding %s, %s "
+               "of cuts, %lld of MIR, cuts to depth %lld%s, dive %s with %lld "
+               "backtracks and a resume gap of %g, rounding %s, %s "
                "branching, reliability %lld, probe cap %gx, cut stall %g "
                "at the root and %g below it, root cuts %s, covers %s",
                (long long)nint, (long long)nc, (long long)rounds,
                (long long)mir_rounds, (long long)cut_depth,
+               node_mir ? " with MIR" : "",
                dive ? dive_child_str(dive_child) : "off",
-               (long long)backtrack, heur ? "on" : "off",
+               (long long)backtrack, dive_gap, heur ? "on" : "off",
                rule == JAOS_BRANCH_MOST_FRACTIONAL ? "most-fractional"
                                                    : "pseudocost",
                (long long)reliability, probe_cap, cut_stall, node_cut_stall,
@@ -1591,7 +1643,10 @@ jaos_status jm_branch_and_bound(jaos_model *m)
                 if (next != nullptr) {
                     cur = next;
                     next = nullptr;
-                } else if (dstack_n > 0 && backtracks < backtrack) {
+                } else if (dstack_n > 0 &&
+                           (backtrack == 0 || backtracks < backtrack) &&
+                           resume_within(dstack[dstack_n - 1], &heap, dstack,
+                                         dstack_n, dive_gap)) {
                     cur = dstack[--dstack_n];
                     resumed = true;
                 } else {
@@ -1842,6 +1897,22 @@ jaos_status jm_branch_and_bound(jaos_model *m)
             int64_t got = gomory_round(lp, m, x, &cb, row, cut, &work);
             if (got < 0)
                 goto done;
+            /* MIR cuts over the node's own bounds (D310), into the same
+             * round and under the same cap. */
+            if (node_mir) {
+                if (mbest == nullptr)
+                    mbest = malloc((size_t)(nc > 0 ? nc : 1) * sizeof *mbest);
+                if (mdelta == nullptr)
+                    mdelta = malloc((size_t)(MIP_MIR_DELTAS + 1) * sizeof *mdelta);
+                if (mbest == nullptr || mdelta == nullptr)
+                    goto done;
+                const int64_t mv = mir_round(m, lp, x, lp->col_lower,
+                                             lp->col_upper, &cb, cut, mbest,
+                                             mdelta, &work);
+                if (mv < 0)
+                    goto done;
+                got += mv;
+            }
             /* The cap (D301): the most efficacious cuts of the round stay. */
             if (got > 0 && node_cut_cap > 0)
                 got = cutbuf_keep_best(&cb, node_cut_cap);
@@ -2054,8 +2125,8 @@ jaos_status jm_branch_and_bound(jaos_model *m)
         bnode *other = first == down ? up : down;
         if (dive) {
             /* The sibling waits on the dive's stack when the dive may come
-             * back for it (D308), in the open set otherwise. */
-            if (backtrack > 0) {
+             * back for it (D308, D311), in the open set otherwise. */
+            if (stack_dive) {
                 if (!JM_GROW(dstack, dstack_cap, dstack_n + 1)) {
                     node_free(down);
                     node_free(up);

@@ -11,6 +11,22 @@ open, `bench/README.md` for the gate, and the commit each entry came from.
 
 ### Added
 
+- **MIR cuts at a node, and a dive resume bounded by the gap: both
+  measured and refused.** `jaos_set_mip_node_mir` and `--node-mir` give a
+  node inside the cut depth the same MIR round over its own bounds beside
+  its Gomory cuts, local to its subtree: 0.991x the work over the MIP set
+  of 24 at the default cap with two instances past 2x, and the same shape
+  at every cap and depth, 0.843x to 1.023x over the 17 against 1.33x to
+  1.56x over the seven; off (D310). `jaos_set_mip_dive_gap` and
+  `--dive-gap F` let the dive resume only while the waiting sibling is
+  within `F` of (1 + |best open bound|): 1.067x at its tightest fraction
+  and worse above it; off, and D289's reopen condition is measured in all
+  three forms now (D311). The rule's first form compared against the heap,
+  which a dive empties, so it fired at every fraction alike and read one
+  number for three; the comparison reads the heap and the stack now, and
+  a test fails if it stops deciding. Python carries both settings at both
+  layers (`bench/measurements/02-204/`).
+
 - **Mixed-integer rounding cuts on the model's rows, six rounds by
   default.** `jaos_set_mip_mir_rounds` and `--mir-rounds N`: every model
   row, each finite side, shifted to the bounds nearer the point, scaled by

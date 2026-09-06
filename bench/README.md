@@ -120,8 +120,9 @@ below the root (D301, `02-199`), the seven instances that joined (D302,
 `02-200`), the root cuts that leave where slack (D306, `02-202`) and the
 MIR cuts (D309, `02-203`); the dive (D289), strong branching (D293,
 `02-192`), the two cut stalls (D304, D305), the lifted cover (D307,
-`02-202`) and the backtracking dive (D308, `02-203`) were measured on it
-and refused as defaults.
+`02-202`), the backtracking dive (D308, `02-203`), the MIR cuts at a node
+and the dive's resume gap (D310, D311, `02-204`) were measured on it and
+refused as defaults.
 
 
 The infeasible set is the only thing in M1 that looks for a *wrong* answer

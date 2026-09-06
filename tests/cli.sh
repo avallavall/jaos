@@ -284,6 +284,21 @@ expect_exit 0 "a backtracking dive still solves it" \
     || flunk "dive backtrack: $(line_of objective)"
 expect_exit 5 "--dive-backtrack refuses a negative" \
     "$JAOS" solve "$DATA/nl_int.lp" --dive --dive-backtrack -1
+# MIR cuts at the nodes (D310) and the dive's resume gap (D311): each
+# accepted with the answer unmoved, both spellings of the switch; a
+# negative fraction is a usage error.
+expect_exit 0 "MIR cuts at the nodes still solve it" \
+    "$JAOS" solve "$DATA/nl_int.lp" --cut-rounds 0 --cover-rounds 0 --mir-rounds 0 --cut-depth 3 --node-mir
+[ "$(line_of objective)" = "objective 3" ] && pass "to 3" \
+    || flunk "node mir: $(line_of objective)"
+expect_exit 0 "and the Gomory round alone by name" \
+    "$JAOS" solve "$DATA/nl_int.lp" --no-node-mir
+expect_exit 0 "a dive bounded by the gap still solves it" \
+    "$JAOS" solve "$DATA/nl_int.lp" --cut-rounds 0 --cover-rounds 0 --mir-rounds 0 --cut-depth 0 --dive --dive-gap 0.1
+[ "$(line_of objective)" = "objective 3" ] && pass "to 3" \
+    || flunk "dive gap: $(line_of objective)"
+expect_exit 5 "--dive-gap refuses a negative" \
+    "$JAOS" solve "$DATA/nl_int.lp" --dive --dive-gap -1
 # The slack-cut drop (D297), the probe depth (D298) and the pool (D299):
 # each accepted with the answer unmoved; a pool line only when asked for;
 # a pool of zero and a negative probe depth are usage errors.

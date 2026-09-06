@@ -419,6 +419,25 @@ JAOS_NODISCARD jaos_status jaos_set_mip_mir_rounds(jaos_model *m,
 JAOS_NODISCARD jaos_status jaos_set_mip_dive_backtrack(jaos_model *m,
                                                        int64_t times);
 
+/* How far a waiting sibling may sit above the best open node for the
+ * dive to resume from it (D311), when the dive is on: a resume happens
+ * only while the sibling's bound is within `fraction` times (1 + |best|)
+ * of the best bound any open node has, the dive's own waiting siblings
+ * included, so a dive that has fallen behind the rest of the tree gives
+ * way. With a fraction set the resume count of
+ * jaos_set_mip_dive_backtrack may be 0 for no count. 0 puts no bound on
+ * the resume; a negative value restores the default; NaN and infinity
+ * are refused. D311 carries what each fraction cost over the MIP set. */
+JAOS_NODISCARD jaos_status jaos_set_mip_dive_gap(jaos_model *m,
+                                                 double fraction);
+
+/* Whether a node inside the cut depth gets MIR cuts over its own bounds
+ * beside its Gomory round (D310): 1 does, the cuts local to the node's
+ * subtree, in the same round and under the same cap as the Gomory cuts;
+ * 0 keeps the round Gomory's alone; a negative value restores the
+ * default. D310 carries what it cost over the MIP set. */
+JAOS_NODISCARD jaos_status jaos_set_mip_node_mir(jaos_model *m, int on);
+
 /* The rounding heuristic (D290): at every node whose relaxation is
  * fractional, the integer columns are rounded to the nearest integer and
  * the point is kept as the incumbent when it is inside every bound and

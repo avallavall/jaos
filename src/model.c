@@ -1057,6 +1057,29 @@ jaos_status jaos_set_mip_dive_backtrack(jaos_model *m, int64_t times)
     return JAOS_OK;
 }
 
+jaos_status jaos_set_mip_dive_gap(jaos_model *m, double fraction)
+{
+    if (m == nullptr)
+        return JAOS_ERR_INVALID_INPUT;
+    if (isnan(fraction) || isinf(fraction)) {
+        jm_set_err(m, "the dive gap must be a finite fraction of the bound, "
+                      "0 for none, or negative for the default");
+        return JAOS_ERR_INVALID_INPUT;
+    }
+    m->cfg.mip_dive_gap_set = fraction >= 0.0;
+    m->cfg.mip_dive_gap = fraction >= 0.0 ? fraction : 0.0;
+    return JAOS_OK;
+}
+
+jaos_status jaos_set_mip_node_mir(jaos_model *m, int on)
+{
+    if (m == nullptr)
+        return JAOS_ERR_INVALID_INPUT;
+    m->cfg.mip_node_mir_set = on >= 0;
+    m->cfg.mip_node_mir = on > 0;
+    return JAOS_OK;
+}
+
 jaos_status jaos_set_mip_probe_depth(jaos_model *m, int64_t depth)
 {
     if (m == nullptr)

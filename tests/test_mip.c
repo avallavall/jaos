@@ -1435,6 +1435,147 @@ static void test_a_backtracking_dive_reaches_the_same_optimum(void)
     }
 }
 
+/* MIR cuts at the nodes (D310): on the halved row with every root cut
+ * off and cuts to every depth, a node's MIR round over its own bounds
+ * closes the branch x <= 1 at x + y <= 1, so the tree with them adds at
+ * least as many cuts as without and reaches 1 either way; on the
+ * five-item knapsack the same, at 23 with the same point, two cold
+ * searches agreeing. A negative value restores the default. */
+static void test_mir_cuts_at_the_nodes_keep_the_optimum(void)
+{
+    int64_t cuts_off = 0, cuts_on = 0;
+    for (int on = 0; on < 2; on++) {
+        jaos_model *m = halved_row();
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_cut_rounds(m, 0));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_cover_rounds(m, 0));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_mir_rounds(m, 0));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_cut_depth(m, 100));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_node_cut_cap(m, 0));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_node_mir(m, on));
+        TEST_ASSERT_TRUE(m->cfg.mip_node_mir_set);
+        TEST_ASSERT_EQUAL_INT(on == 1, m->cfg.mip_node_mir);
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+        TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+        double obj = 0.0;
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(m, &obj));
+        TEST_ASSERT_DOUBLE_WITHIN(1e-9, 1.0, obj);
+        jaos_mip_report rep;
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_mip_result(m, &rep));
+        if (on == 0)
+            cuts_off = rep.cuts;
+        else
+            cuts_on = rep.cuts;
+        jaos_model_free(m);
+    }
+    TEST_ASSERT_TRUE(cuts_on >= cuts_off);
+    double x1[5], x2[5];
+    int64_t nodes1 = 0, cuts1 = 0;
+    for (int pass = 0; pass < 2; pass++) {
+        jaos_model *m = knapsack5();
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_cut_depth(m, 100));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_node_mir(m, 1));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+        TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+        double obj = 0.0;
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(m, &obj));
+        TEST_ASSERT_DOUBLE_WITHIN(1e-9, 23.0, obj);
+        TEST_ASSERT_EQUAL_INT(JAOS_OK,
+            jaos_solution(m, pass == 0 ? x1 : x2, nullptr, nullptr, nullptr));
+        jaos_mip_report rep;
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_mip_result(m, &rep));
+        if (pass == 0) {
+            nodes1 = rep.nodes;
+            cuts1 = rep.cuts;
+        } else {
+            TEST_ASSERT_EQUAL_INT64(nodes1, rep.nodes);
+            TEST_ASSERT_EQUAL_INT64(cuts1, rep.cuts);
+        }
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_node_mir(m, -1));
+        TEST_ASSERT_FALSE(m->cfg.mip_node_mir_set);
+        jaos_model_free(m);
+    }
+    TEST_ASSERT_TRUE(x1[0] == 1.0 && x1[1] == 1.0);
+    TEST_ASSERT_EQUAL_MEMORY(x1, x2, sizeof x1);
+}
+
+/* A dive resume bounded by the gap (D311): on the five-item knapsack with
+ * the cuts off and the dive on, no resume count and a gap of 0.01, of 1
+ * and of 0.01 with a count of 2 each reach 23 with the same point, two
+ * cold searches agreeing. NaN and the infinities are refused; a negative
+ * fraction restores the default. */
+static void test_a_dive_bounded_by_the_gap_reaches_the_same_optimum(void)
+{
+    const double frac[3] = { 0.01, 1.0, 0.01 };
+    const int64_t count[3] = { 0, 0, 2 };
+    for (int arm = 0; arm < 3; arm++) {
+        double x1[5], x2[5];
+        int64_t nodes1 = 0;
+        for (int pass = 0; pass < 2; pass++) {
+            jaos_model *m = knapsack5();
+            TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_cut_rounds(m, 0));
+            TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_cover_rounds(m, 0));
+            TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_mir_rounds(m, 0));
+            TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_cut_depth(m, 0));
+            TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_dive(m, true));
+            TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_dive_backtrack(m, count[arm]));
+            TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_dive_gap(m, frac[arm]));
+            TEST_ASSERT_TRUE(m->cfg.mip_dive_gap_set);
+            TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+            TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+            double obj = 0.0;
+            TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(m, &obj));
+            TEST_ASSERT_DOUBLE_WITHIN(1e-9, 23.0, obj);
+            TEST_ASSERT_EQUAL_INT(JAOS_OK,
+                jaos_solution(m, pass == 0 ? x1 : x2, nullptr, nullptr, nullptr));
+            jaos_mip_report rep;
+            TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_mip_result(m, &rep));
+            if (pass == 0)
+                nodes1 = rep.nodes;
+            else
+                TEST_ASSERT_EQUAL_INT64(nodes1, rep.nodes);
+            jaos_model_free(m);
+        }
+        TEST_ASSERT_TRUE(x1[0] == 1.0 && x1[1] == 1.0);
+        TEST_ASSERT_EQUAL_MEMORY(x1, x2, sizeof x1);
+    }
+    /* The canary: the gap must decide something. A fraction of 1e-12
+     * resumes almost never and one of 1e12 almost always, so the two
+     * trees must differ -- the first form of this rule compared against
+     * the heap, which a dive empties, and read the same at every
+     * fraction. */
+    int64_t canary[2] = { 0, 0 };
+    for (int arm = 0; arm < 2; arm++) {
+        jaos_model *c = knapsack5();
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_cut_rounds(c, 0));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_cover_rounds(c, 0));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_mir_rounds(c, 0));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_cut_depth(c, 0));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_heuristics(c, false));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_dive(c, true));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_dive_backtrack(c, 0));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK,
+            jaos_set_mip_dive_gap(c, arm == 0 ? 1e-12 : 1e12));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(c));
+        TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(c));
+        double obj = 0.0;
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(c, &obj));
+        TEST_ASSERT_DOUBLE_WITHIN(1e-9, 23.0, obj);
+        jaos_mip_report rep;
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_mip_result(c, &rep));
+        canary[arm] = rep.nodes;
+        jaos_model_free(c);
+    }
+    TEST_ASSERT_TRUE(canary[0] != canary[1]);
+
+    jaos_model *m = knapsack();
+    TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT, jaos_set_mip_dive_gap(m, NAN));
+    TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT, jaos_set_mip_dive_gap(m, INFINITY));
+    TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT, jaos_set_mip_dive_gap(m, -INFINITY));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_dive_gap(m, -1.0));
+    TEST_ASSERT_FALSE(m->cfg.mip_dive_gap_set);
+    jaos_model_free(m);
+}
+
 int main(void)
 {
     UNITY_BEGIN();
@@ -1473,5 +1614,7 @@ int main(void)
     RUN_TEST(test_a_lifted_cover_closes_what_the_extended_cover_leaves);
     RUN_TEST(test_a_mir_cut_closes_the_halved_row_at_the_root);
     RUN_TEST(test_a_backtracking_dive_reaches_the_same_optimum);
+    RUN_TEST(test_mir_cuts_at_the_nodes_keep_the_optimum);
+    RUN_TEST(test_a_dive_bounded_by_the_gap_reaches_the_same_optimum);
     return UNITY_END();
 }

@@ -1470,6 +1470,37 @@ class TestBranchAndBound(unittest.TestCase):
             self.assertEqual((a.value, b.value), (1.0, 1.0))
         p.set_mip_dive_backtrack(-1)
 
+    def test_mir_cuts_at_the_nodes_keep_the_optimum(self):
+        # The five-item knapsack with the root cuts off and cuts to every
+        # depth reaches 23 with MIR at the nodes on and off, and on adds
+        # at least as many cuts (D310); None is the default again.
+        counts = []
+        for on in (False, True):
+            p, (a, b) = self._knapsack5()
+            p.set_mip_cut_rounds(0).set_mip_cover_rounds(0).set_mip_mir_rounds(0)
+            p.set_mip_cut_depth(100).set_mip_node_cut_cap(0).set_mip_node_mir(on)
+            self.assertIs(p.solve(), jaos.SolveStatus.OPTIMAL)
+            self.assertAlmostEqual(p.objective_value, 23.0, places=9)
+            self.assertEqual((a.value, b.value), (1.0, 1.0))
+            counts.append(p.mip_report().cuts)
+        self.assertGreaterEqual(counts[1], counts[0])
+        p.set_mip_node_mir(None)
+
+    def test_a_dive_bounded_by_the_gap_reaches_the_same_optimum(self):
+        # The five-item knapsack with the cuts off, the dive on, no resume
+        # count and a resume gap of 0.01 and of 1 reaches 23 (D311); NaN is
+        # refused and a negative value restores the default.
+        for frac in (0.01, 1.0):
+            p, (a, b) = self._knapsack5()
+            p.set_mip_cut_rounds(0).set_mip_cover_rounds(0).set_mip_mir_rounds(0).set_mip_cut_depth(0)
+            p.set_mip_dive(True).set_mip_dive_backtrack(0).set_mip_dive_gap(frac)
+            self.assertIs(p.solve(), jaos.SolveStatus.OPTIMAL)
+            self.assertAlmostEqual(p.objective_value, 23.0, places=9)
+            self.assertEqual((a.value, b.value), (1.0, 1.0))
+        with self.assertRaises(jaos.JaosError):
+            p.set_mip_dive_gap(float("nan"))
+        p.set_mip_dive_gap(-1)
+
     def test_the_rounding_heuristic_finds_the_root_relaxations_neighbour(self):
         # max x + y, x + y <= 3.6, x <= 2.2, y <= 1.4, both integer: the
         # relaxation sits at (2.2, 1.4) and rounds to (2, 1), which is the

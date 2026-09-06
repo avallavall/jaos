@@ -425,6 +425,8 @@ _sig("jaos_set_mip_root_cut_drop", ctypes.c_int, _VP, ctypes.c_int)
 _sig("jaos_set_mip_cover_lift", ctypes.c_int, _VP, ctypes.c_int)
 _sig("jaos_set_mip_mir_rounds", ctypes.c_int, _VP, _I64)
 _sig("jaos_set_mip_dive_backtrack", ctypes.c_int, _VP, _I64)
+_sig("jaos_set_mip_dive_gap", ctypes.c_int, _VP, _D)
+_sig("jaos_set_mip_node_mir", ctypes.c_int, _VP, ctypes.c_int)
 _sig("jaos_set_mip_heuristics", ctypes.c_int, _VP, ctypes.c_bool)
 _sig("jaos_mip_result", ctypes.c_int, _VP, _P(_MipReport))
 _sig("jaos_mip_incumbent", ctypes.c_int, _VP, _P(_D), _P(_D))
@@ -882,6 +884,19 @@ class Model:
         left on its stack (D308); 0 is D289's dive, a negative value the
         default. Only matters with the dive on."""
         self._check(_lib.jaos_set_mip_dive_backtrack(self._handle(), int(times)))
+
+    def set_mip_dive_gap(self, fraction):
+        """The dive resumes from a waiting sibling only while its bound is
+        within `fraction` of (1 + |best open bound|) (D311); 0 puts no
+        bound on it, a negative value restores the default, NaN and
+        infinity are refused. Only matters with the dive on."""
+        self._check(_lib.jaos_set_mip_dive_gap(self._handle(), float(fraction)))
+
+    def set_mip_node_mir(self, on=True):
+        """Whether a node inside the cut depth gets MIR cuts over its own
+        bounds beside its Gomory round (D310); None restores the default."""
+        v = -1 if on is None else int(bool(on))
+        self._check(_lib.jaos_set_mip_node_mir(self._handle(), v))
 
     def set_mip_heuristics(self, on=True):
         """Whether every fractional node is rounded for an incumbent (D290);
@@ -2249,6 +2264,18 @@ class Problem:
         """How many times a dive may resume from its stack (D308); 0 is
         D289's dive, negative the default."""
         self._m.set_mip_dive_backtrack(times)
+        return self
+
+    def set_mip_dive_gap(self, fraction):
+        """The dive resumes only while the sibling is within `fraction` of
+        the best open bound (D311); 0 for no bound, negative the default."""
+        self._m.set_mip_dive_gap(fraction)
+        return self
+
+    def set_mip_node_mir(self, on=True):
+        """MIR cuts at the nodes beside the Gomory round (D310); None
+        restores the default."""
+        self._m.set_mip_node_mir(on)
         return self
 
     def set_mip_heuristics(self, on=True):

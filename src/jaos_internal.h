@@ -81,6 +81,13 @@ typedef struct {
      * MIP_DIVE_BACKTRACK. */
     bool mip_dive_backtrack_set;
     int64_t mip_dive_backtrack;
+    /* The dive resumes while the sibling is within this fraction of the
+     * best open bound (D311); unset means MIP_DIVE_GAP. */
+    bool mip_dive_gap_set;
+    double mip_dive_gap;
+    /* MIR cuts at the nodes (D310); unset means MIP_NODE_MIR. */
+    bool mip_node_mir_set;
+    bool mip_node_mir;
     /* The rounding heuristic at every node (D290); on unless set. */
     bool mip_no_heuristics;
     /* A budget on the tree, 0 for none (D291), and who is told of each

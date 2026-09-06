@@ -1,0 +1,26 @@
+air03     1.000x  nodes 1 -> 1  cuts 35
+bell3a    0.932x  nodes 64077 -> 63155  cuts 39  TREE-CHANGED
+bell5     13.569x  nodes 140595 -> 1854565  cuts 54  TREE-CHANGED
+blend2    1.454x  nodes 5879 -> 9552  cuts 25  TREE-CHANGED
+dcmulti   2.314x  nodes 415 -> 1805  cuts 71  TREE-CHANGED
+egout     1.468x  nodes 6841 -> 10108  cuts 73  TREE-CHANGED
+enigma    3.064x  nodes 2814 -> 11657  cuts 51  TREE-CHANGED
+flugpl    1.725x  nodes 2445 -> 3245  cuts 61  TREE-CHANGED
+gen       0.877x  nodes 7 -> 6  cuts 105  TREE-CHANGED
+gt2       4.747x  nodes 445 -> 4298  cuts 103  TREE-CHANGED
+khb05250  1.693x  nodes 81 -> 223  cuts 70  TREE-CHANGED
+l152lav   0.448x  nodes 2505 -> 1858  cuts 128  TREE-CHANGED
+lseu      1.532x  nodes 5949 -> 10097  cuts 105  TREE-CHANGED
+misc03    0.733x  nodes 1271 -> 1081  cuts 55  TREE-CHANGED
+misc06    4.708x  nodes 73 -> 382  cuts 36  TREE-CHANGED
+misc07    0.939x  nodes 35287 -> 34108  cuts 78  TREE-CHANGED
+mod008    1.386x  nodes 2631 -> 3354  cuts 110  TREE-CHANGED
+mod010    1.000x  nodes 1 -> 1  cuts 45
+p0033     0.727x  nodes 329 -> 249  cuts 84  TREE-CHANGED
+p0201     0.858x  nodes 797 -> 776  cuts 141  TREE-CHANGED
+p0282     0.213x  nodes 8375 -> 3173  cuts 253  TREE-CHANGED
+rgn       1.121x  nodes 4233 -> 4611  cuts 156  TREE-CHANGED
+stein27   1.049x  nodes 9181 -> 9672  cuts 77  TREE-CHANGED
+stein45   0.896x  nodes 120987 -> 100396  cuts 92  TREE-CHANGED
+geomean 1.334x over 24: 9 better, 12 worse, 5 past 2x
+the 17: geomean 1.371x over 17 (4 better, 10 worse, 3 past 2x) | the 7 new: geomean 1.248x over 7 (5 better, 2 worse, 2 past 2x), 0 not finished

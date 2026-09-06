@@ -317,6 +317,8 @@ and you have the argument. Jump to the entry for the numbers behind it.
 - **[D307](#d307--lifted-covers-balass-coefficients-on-every-cover-cut-refused-as-a-default-1005x-over-the-24-with-l152lav-past-2x)** — Lifted covers, Balas's coefficients on every cover cut, refused as a default: 1.005x over the 24 with l152lav past 2x
 - **[D308](#d308--a-backtracking-dive-refused-as-a-default-at-every-budget-0992x-at-sixteen-resumes-with-two-instances-past-2x-1170x-unbounded-and-d289s-last-reopen-clause-is-measured-and-closed)** — A backtracking dive, refused as a default at every budget: 0.992x at sixteen resumes with two instances past 2x, 1.170x unbounded, and D289's last reopen clause is measured and closed
 - **[D309](#d309--mixed-integer-rounding-cuts-on-the-models-rows-at-the-root-six-rounds-by-default-0719x-the-work-over-the-24-six-better-one-worse-none-past-2x-and-the-baseline-is-rewritten)** — Mixed-integer rounding cuts on the model's rows at the root, six rounds by default: 0.719x the work over the 24, six better, one worse, none past 2x, and the baseline is rewritten
+- **[D310](#d310--mir-cuts-at-a-node-beside-its-gomory-round-refused-as-a-default-0991x-at-the-node-cut-cap-with-two-instances-past-2x-and-the-same-shape-at-every-cap-and-depth)** — MIR cuts at a node beside its Gomory round, refused as a default: 0.991x at the node cut cap with two instances past 2x, and the same shape at every cap and depth
+- **[D311](#d311--a-dive-resume-bounded-by-the-gap-refused-as-a-default-1067x-at-its-tightest-fraction-and-the-rules-first-form-could-not-fire-at-all)** — A dive resume bounded by the gap, refused as a default: 1.067x at its tightest fraction, and the rule's first form could not fire at all
 
 ---
 
@@ -22081,3 +22083,80 @@ no delta is divided further, and no cut is read at a node. Each of those
 is a separate question on the same set. The exposure the review found in
 the MIR right-hand side also exists in the Gomory cut's basic value and
 is carried, since that value comes out of a solve and not a sum here.
+
+## D310 — MIR cuts at a node beside its Gomory round, refused as a default: 0.991x at the node cut cap with two instances past 2x, and the same shape at every cap and depth
+
+**The gap.** D309 put mixed-integer rounding cuts at the root and left
+the nodes with Gomory's family alone. A node has its own bounds, so the
+same rows read again there give different cuts, and D296's machinery
+already carries a node's cuts to its subtree and nowhere else.
+
+**What it does now.** `jaos_set_mip_node_mir` and `--node-mir` /
+`--no-node-mir`: a node inside the cut depth calls the same `mir_round`
+over its own bounds, into the same round as its Gomory cuts and under the
+same cap, so the cuts go to the pool and ride with exactly the nodes
+under it. Off by default. `mir_round` now says which bounds it read and
+what that means for where the cut holds, and asserts that an integer
+column's bounds are integral, which is what the rounding rests on. Python
+carries the setting at both layers.
+
+**Evidence** (`bench/measurements/02-204/`, the D309 defaults as the
+control, byte-identical to `bench/miplib.baseline`). Work against the
+control in geometric mean over the 24: **0.991x** at the default cap of
+four (4 better, 4 worse, `bell5` 3.44x and `gt2` 3.38x past 2x), 1.106x
+at a cap of eight, 1.135x with no cap, 1.010x at cut depth 6. The shape
+does not change with the setting: over the 17 the cuts were tuned on
+every arm reads 0.843x to 1.023x, and over the seven that joined at D302
+every arm reads 1.33x to 1.56x. Nine of the 24 are byte-identical to the
+control at the default cap, so the family reaches fifteen.
+
+**The decision.** Refused as a default; off. It pays where the root's MIR
+rounds already pay and costs where they do not, and no cap or depth moves
+that. What could reopen it is a MIR round at a node that is not the
+single-row form -- one that aggregates the node's rows, or reads the
+node's tableau rather than the model's rows -- at or under 0.95x with no
+instance past 2x on the same set; `02-204/retest-node-mir.sh` asks the
+original question and `make refusals` runs it.
+
+## D311 — A dive resume bounded by the gap, refused as a default: 1.067x at its tightest fraction, and the rule's first form could not fire at all
+
+**The gap.** D308 refused the backtracking dive at every resume count and
+named a resume bounded by the gap as what could still reopen D289. This
+is that rule.
+
+**What it does now.** `jaos_set_mip_dive_gap` and `--dive-gap F`, with
+the dive on: the dive resumes from a waiting sibling only while that
+sibling's bound is within `F` times (1 + |best|) of the best bound any
+open node has, so a dive that has fallen behind the rest of the tree
+gives way. With a fraction set the resume count may be 0, meaning the gap
+alone decides. 0, the default, puts no bound on the resume. Python
+carries the setting at both layers.
+
+**What the first form could not do, and how it was caught.** The rule
+compared the sibling against the heap's best. During a dive every sibling
+goes on the dive's stack and the heap can be empty for the whole dive, so
+the comparison found no open node and let every resume through: 0.001,
+0.01 and 0.1 gave byte-identical trees on the 23 instances that finish.
+The sweep's own numbers said so -- three fractions, one reading -- and
+`numerics-reviewer` said the same from the diff, each before a verdict
+was written. The comparison reads the best key over the heap **and** the
+stack now, which is what the header always promised, and
+`tests/test_mip.c` carries the canary: a fraction of 1e-12 and one of
+1e12 must give different node counts. **A refusal measured on the first
+form would have been a refusal of nothing**, and it is the third time in
+this project that a switch which could not fire read as a clean result.
+
+**Evidence** (`bench/measurements/02-204/`, on the corrected rule). Work
+against the control in geometric mean: **1.067x at 1e-4** over the 23
+that finish (9 better, 9 worse, `enigma` 5.54x), 1.085x at 1e-3 over all
+24, 1.134x at 1e-2, 1.334x at 1e-1, 1.355x at 1; with a resume count of
+four beside a gap of 1e-2, 1.080x. Over the 17 every fraction reads 1.18x
+or worse; over the seven, 0.79x to 1.25x.
+
+**The decision.** Refused as a default; 0 stays and the dive stays off.
+D289's reopen condition is measured in all three forms now -- the child
+rules (D295), the resume count (D308) and the gap (here) -- and what is
+left is a rule that is neither: a resume decided by the child's own
+bound against its parent's, which is a different quantity from both.
+`02-204/retest-dive-gap.sh` asks the question and `make refusals` runs
+it.
