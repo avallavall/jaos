@@ -531,6 +531,55 @@ JAOS_NODISCARD jaos_status jaos_set_mip_pump_general(jaos_model *m, int on);
  * all zero. D321 carries what each decay cost over the MIP set. */
 JAOS_NODISCARD jaos_status jaos_set_mip_pump_obj(jaos_model *m, double decay);
 
+/* Whether the feasibility pump runs at the root even when something has
+ * already put an incumbent there (D322). Off by default: the plain pump
+ * of D318 looks for a feasible point, so where the rounding heuristic or
+ * the dive already found one it can only cost. With the objective pump on
+ * (jaos_set_mip_pump_obj) the pump looks for a good point instead, which
+ * is what makes the question worth asking. `on` above 0 turns it on, 0
+ * off, negative restores the default. Nothing happens with the pump off.
+ * D322 carries what it cost over the MIP set. */
+JAOS_NODISCARD jaos_status jaos_set_mip_pump_always(jaos_model *m, int on);
+
+/* Reduced-cost fixing at the root (D323): once the root relaxation is
+ * solved and something holds an incumbent, an integer column resting at a
+ * bound with a reduced cost d cannot move more than (incumbent - bound)/|d|
+ * away from that bound without pushing the objective past the incumbent,
+ * so the other bound is pulled in to the integer that reaches. Every
+ * later node inherits the tightened bounds, and a column whose two bounds
+ * meet is fixed and never branched on. The deduction is the root's alone
+ * and is made once. On by default; `on` above 0 turns it on, 0 off,
+ * negative restores the default. jaos_mip_result reports how many bounds
+ * it moved. D323 carries what it cost over the MIP set. */
+JAOS_NODISCARD jaos_status jaos_set_mip_rcfix(jaos_model *m, int on);
+
+/* Bound propagation at each node (D324): before a node's relaxation is
+ * solved, each of the model's rows is read over the node's own column
+ * bounds, and a row whose smallest possible activity already exceeds its
+ * upper bound (or whose largest falls below its lower) proves the node
+ * infeasible with no solve at all. Where the row does not prove that, it
+ * still bounds each of its columns, and an integer column's bound is
+ * pulled in to the integer that reaches. `rounds` is how many passes over
+ * the rows a node may make, a pass stopping early when nothing moved; 0 is
+ * off and a negative value restores the default. Only integer columns are
+ * written back, so nothing leaks from one node to another. jaos_mip_result
+ * reports how many bounds it moved. D324 carries what it cost over the MIP
+ * set. */
+JAOS_NODISCARD jaos_status jaos_set_mip_propagate(jaos_model *m,
+                                                  int64_t rounds);
+
+/* The deepest node bound propagation runs at, the root being 0 (D324);
+ * negative, the default, is every node. The root's own deductions are
+ * made over the model's own bounds, so they hold for every integer point
+ * of the model and the whole tree inherits them; a deeper node's hold in
+ * its subtree alone and are rebuilt at each node. Setting this to 0 is
+ * therefore not "less propagation at the root" but "the free half of it":
+ * one pass at the root that every node under it keeps. A negative value
+ * restores the default. Nothing happens with jaos_set_mip_propagate at
+ * 0. D324 carries what each depth cost over the MIP set. */
+JAOS_NODISCARD jaos_status jaos_set_mip_propagate_depth(jaos_model *m,
+                                                        int64_t depth);
+
 /* How far a node's own bound may fall away from its parent's, as a
  * fraction of (1 + |parent's bound|), for the dive to go on into one of
  * its children (D316); 0, the default, puts no bound on it. A negative
@@ -636,6 +685,10 @@ typedef struct jaos_mip_report {
     int64_t first_incumbent_node; /* the node at which the first incumbent
                                      appeared, 0 when none: what the
                                      rounding buys under a budget (D290) */
+    int64_t fixed_cols;      /* column bounds reduced-cost fixing pulled in
+                                at the root (D323)                      */
+    int64_t tightened;       /* column bounds propagation pulled in over
+                                the whole tree (D324)                   */
 } jaos_mip_report;
 
 JAOS_NODISCARD jaos_status jaos_mip_result(const jaos_model *m,

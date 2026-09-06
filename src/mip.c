@@ -218,6 +218,55 @@ constexpr bool MIP_PUMP_GENERAL = false;
  * (D321). jaos_set_mip_pump_obj overrides it; docs/tolerances.md carries
  * the sweep. */
 constexpr double MIP_PUMP_OBJ = 0.5;
+/* Whether the feasibility pump runs at the root when something already
+ * holds an incumbent there (D322). D318's guard was bought for the plain
+ * pump, which looks for any feasible point; the objective pump (D321)
+ * looks for a good one, so whether the guard still pays is its own
+ * question. jaos_set_mip_pump_always overrides it; docs/tolerances.md
+ * carries the reading. */
+constexpr bool MIP_PUMP_ALWAYS = false;
+/* Whether the root fixes integer columns by their reduced costs once an
+ * incumbent exists (D323). jaos_set_mip_rcfix overrides it;
+ * docs/tolerances.md carries the reading. */
+constexpr bool MIP_RCFIX = false;
+/* The slack a reduced-cost fixing keeps before it rounds (D323): the
+ * bound it computes is (incumbent - relaxation) / |reduced cost|, a
+ * quotient of two quantities the simplex knows to its own tolerance, and
+ * rounding it down without slack could pull a bound past an optimal
+ * point. Adding this before the floor only ever loosens the new bound, so
+ * the deduction stays valid; docs/tolerances.md carries the sweep. */
+constexpr double MIP_RCFIX_SLACK = 1e-6;
+/* How many passes over the model's rows a node's bound propagation may
+ * make (D324); 0 is off. A pass that moves nothing ends the rounds, so
+ * the count is a cap and not a schedule. jaos_set_mip_propagate overrides
+ * it; docs/tolerances.md carries the sweep. */
+constexpr int64_t MIP_PROPAGATE = 0;
+/* The deepest node bound propagation runs at, the root being 0 (D324);
+ * negative is every node. The root's deductions are made over the model's
+ * own bounds and so hold everywhere, and the tree keeps them in ilo and
+ * ihi; a deeper node's hold in its subtree alone and are rebuilt at every
+ * node, which is what the depth pays for.
+ * jaos_set_mip_propagate_depth overrides it; docs/tolerances.md carries
+ * the sweep. */
+constexpr int64_t MIP_PROPAGATE_DEPTH = -1;
+/* The slack a propagated bound keeps before it rounds (D324), the same
+ * argument as MIP_RCFIX_SLACK: a row's activity is a sum, so the bound it
+ * implies is known to the tolerance of that sum, and loosening before the
+ * floor keeps every integer point the row admits. */
+constexpr double MIP_PROP_SLACK = 1e-9;
+/* How far a row's implied activity must sit outside its own bound before
+ * propagation calls the node infeasible (D324), relative to the sizes
+ * that went into the comparison. A row's activity is a sum, so it is
+ * known to the size of its terms, and this test decides a node with no
+ * relaxation solved: it is set well above the slack a bound is rounded
+ * with, because a wrong answer here is a pruned node that held the
+ * optimum. */
+constexpr double MIP_PROP_INFEAS = 1e-7;
+/* A propagated bound is written back only when it moves the column by
+ * more than this, in the column's own units: a bound that moves by less
+ * changes no integer point and would only churn the relaxation. */
+constexpr double MIP_PROP_MOVE = 0.5;
+
 /* Whether a node inside the cut depth gets MIR cuts over its own bounds
  * beside its Gomory round (D310), local to its subtree like the rest.
  * jaos_set_mip_node_mir overrides it; docs/tolerances.md carries the
@@ -2155,6 +2204,143 @@ static const char *dive_child_str(int rule)
 
 /* --- The tree ---------------------------------------------------------- */
 
+/* Bound propagation at a node (D324). It reads the model's own rows, not
+ * the copy's: a node carries cut rows, and reading the copy would rebuild
+ * the row-wise mirror at every node, which is the bill D320 found the
+ * general pump paying. The bounds it reads are the ones the copy holds
+ * right now, which node_apply has just put there.
+ *
+ * A row's smallest possible activity is the sum over its entries of the
+ * coefficient times the end of its column the coefficient's sign points
+ * at, and its largest is the same sum over the other ends. A row whose
+ * smallest activity is already above its upper bound admits no point at
+ * all, and the node is infeasible with no relaxation solved. Where it
+ * admits points, the same two sums bound each of the row's own columns:
+ * take the sum without column j, and what is left of the row's width is
+ * what a_ij x_j may be.
+ *
+ * Only integer columns are pulled in, and only when the move is a whole
+ * integer, so nothing here depends on a continuous bound being reached to
+ * the last bit. Only integer columns are written back, and node_apply
+ * rebuilds every one of them from ilo/ihi at the next node, so no
+ * deduction leaks out of the node that made it.
+ *
+ * Returns the number of bounds it moved, -1 when the node is infeasible
+ * and -2 on an error. */
+static int64_t propagate_node(jaos_model *m, jaos_model *lp, double *plo,
+                              double *phi, int64_t rounds, int64_t *work)
+{
+    const int64_t nc = m->num_col, nr = m->num_row;
+    if (jm_model_ensure_rowwise(m) != JAOS_OK)
+        return -2;
+    for (int64_t j = 0; j < nc; j++) {
+        plo[j] = lp->col_lower[j];
+        phi[j] = lp->col_upper[j];
+    }
+    int64_t moved = 0;
+    for (int64_t r = 0; r < rounds; r++) {
+        int64_t moved_here = 0;
+        /* One pass over the matrix and both vectors, billed like any
+         * kernel (D16). */
+        *work += m->num_nz + nc + nr;
+        for (int64_t i = 0; i < nr; i++) {
+            const double rlo = m->row_lower[i], rhi = m->row_upper[i];
+            if (rlo == -INFINITY && rhi == INFINITY)
+                continue;
+            /* The finite part of each sum, and how many ends are not. */
+            double smin = 0.0, smax = 0.0;
+            int64_t nmin = 0, nmax = 0;
+            for (int64_t k = m->ar_start[i]; k < m->ar_start[i + 1]; k++) {
+                const int64_t j = m->ar_index[k];
+                const double a = m->ar_value[k];
+                const double e = a > 0.0 ? plo[j] : phi[j];
+                const double f = a > 0.0 ? phi[j] : plo[j];
+                if (isinf(e))
+                    nmin++;
+                else
+                    smin += a * e;
+                if (isinf(f))
+                    nmax++;
+                else
+                    smax += a * f;
+            }
+            /* A row no point can satisfy: the node is infeasible, and the
+             * comparison is relative to what went into the sum, since a
+             * sum is known to the size of its own terms. */
+            if (nmin == 0 && rhi < INFINITY &&
+                smin - rhi > MIP_PROP_INFEAS * (1.0 + fabs(rhi) + fabs(smin)))
+                return -1;
+            if (nmax == 0 && rlo > -INFINITY &&
+                rlo - smax > MIP_PROP_INFEAS * (1.0 + fabs(rlo) + fabs(smax)))
+                return -1;
+            for (int64_t k = m->ar_start[i]; k < m->ar_start[i + 1]; k++) {
+                const int64_t j = m->ar_index[k];
+                if (!m->col_integer[j])
+                    continue;
+                const double a = m->ar_value[k];
+                const double e = a > 0.0 ? plo[j] : phi[j];
+                const double f = a > 0.0 ? phi[j] : plo[j];
+                /* The two sums without this column. An end that is itself
+                 * infinite is the one the count was for, so the residual
+                 * is finite exactly when no OTHER end is. */
+                const bool rmin_ok = isinf(e) ? nmin == 1 : nmin == 0;
+                const bool rmax_ok = isinf(f) ? nmax == 1 : nmax == 0;
+                const double rmin = isinf(e) ? smin : smin - a * e;
+                const double rmax = isinf(f) ? smax : smax - a * f;
+                double ub = INFINITY, lb = -INFINITY;
+                if (rmin_ok && rhi < INFINITY) {
+                    const double t = (rhi - rmin) / a;
+                    if (a > 0.0)
+                        ub = t;
+                    else
+                        lb = t;
+                }
+                if (rmax_ok && rlo > -INFINITY) {
+                    const double t = (rlo - rmax) / a;
+                    if (a > 0.0) {
+                        if (t > lb)
+                            lb = t;
+                    } else if (t < ub) {
+                        ub = t;
+                    }
+                }
+                /* Loosened before it is rounded, so the integer the row
+                 * really admits is never pulled away. */
+                if (ub < INFINITY) {
+                    const double nh =
+                        floor(ub + MIP_PROP_SLACK * (1.0 + fabs(ub)));
+                    if (nh < phi[j] - MIP_PROP_MOVE) {
+                        phi[j] = nh;
+                        moved_here++;
+                    }
+                }
+                if (lb > -INFINITY) {
+                    const double nl =
+                        ceil(lb - MIP_PROP_SLACK * (1.0 + fabs(lb)));
+                    if (nl > plo[j] + MIP_PROP_MOVE) {
+                        plo[j] = nl;
+                        moved_here++;
+                    }
+                }
+                if (plo[j] > phi[j] + MIP_PROP_MOVE)
+                    return -1;   /* no integer left in the column */
+            }
+        }
+        moved += moved_here;
+        if (moved_here == 0)
+            break;              /* a pass that moved nothing ends it */
+    }
+    for (int64_t j = 0; moved > 0 && j < nc; j++) {
+        if (!m->col_integer[j])
+            continue;
+        if (plo[j] == lp->col_lower[j] && phi[j] == lp->col_upper[j])
+            continue;
+        if (jaos_set_col_bounds(lp, j, plo[j], phi[j]) != JAOS_OK)
+            return -2;
+    }
+    return moved;
+}
+
 jaos_status jm_branch_and_bound(jaos_model *m)
 {
     const double t0 = now_seconds();
@@ -2189,6 +2375,13 @@ jaos_status jm_branch_and_bound(jaos_model *m)
         ? m->cfg.mip_pump_general : MIP_PUMP_GENERAL;
     const double pump_obj = m->cfg.mip_pump_obj_set ? m->cfg.mip_pump_obj
                                                     : MIP_PUMP_OBJ;
+    const bool pump_always = m->cfg.mip_pump_always_set
+        ? m->cfg.mip_pump_always : MIP_PUMP_ALWAYS;
+    const bool rcfix = m->cfg.mip_rcfix_set ? m->cfg.mip_rcfix : MIP_RCFIX;
+    const int64_t propagate = m->cfg.mip_propagate_set ? m->cfg.mip_propagate
+                                                       : MIP_PROPAGATE;
+    const int64_t propagate_depth = m->cfg.mip_propagate_depth_set
+        ? m->cfg.mip_propagate_depth : MIP_PROPAGATE_DEPTH;
     const double degrade = m->cfg.mip_dive_degrade_set
         ? m->cfg.mip_dive_degrade : MIP_DIVE_DEGRADE;
     const bool dive = m->cfg.mip_dive;
@@ -2240,6 +2433,8 @@ jaos_status jm_branch_and_bound(jaos_model *m)
     int64_t row_cap = 0;
     double *xr = nullptr, *ra = nullptr, *x2 = nullptr;
     double *ilo = nullptr, *ihi = nullptr, *pc_sum = nullptr;
+    double *plo = nullptr, *phi = nullptr;   /* propagation's bounds (D324) */
+    double *rcd = nullptr;                   /* the root's reduced costs    */
     int64_t *pc_n = nullptr, *cand = nullptr;
     jaos_basis_status *pcs = nullptr, *prs = nullptr;
     int64_t next_id = 0, nodes = 0, solves = 0, cuts = 0, heur_points = 0;
@@ -2265,6 +2460,8 @@ jaos_status jm_branch_and_bound(jaos_model *m)
     bnode **dstack = nullptr;          /* the dive's siblings (D308)      */
     int64_t dstack_n = 0, dstack_cap = 0, backtracks = 0;
     int64_t first_inc = 0;             /* the node of the first incumbent */
+    int64_t rcfixed = 0;               /* bounds the root's fixing moved  */
+    int64_t tightened = 0;             /* bounds propagation moved        */
     int64_t work = 0, iters = 0;
     double best_bound = -INFINITY;     /* minimize form */
     jaos_solve_status outcome = JAOS_SOLVE_NOT_RUN;
@@ -2299,6 +2496,12 @@ jaos_status jm_branch_and_bound(jaos_model *m)
     pc_n = calloc((size_t)(nc > 0 ? 2 * nc : 1), sizeof *pc_n);
     cand = malloc((size_t)MIP_STRONG_CANDIDATES * sizeof *cand);
     pcs = malloc((size_t)(nc > 0 ? nc : 1) * sizeof *pcs);
+    if (propagate > 0) {
+        plo = malloc((size_t)(nc > 0 ? nc : 1) * sizeof *plo);
+        phi = malloc((size_t)(nc > 0 ? nc : 1) * sizeof *phi);
+        if (plo == nullptr || phi == nullptr)
+            goto done;
+    }
     if (x == nullptr || xr == nullptr || x2 == nullptr || ra == nullptr ||
         ilo == nullptr ||
         ihi == nullptr || pc_sum == nullptr || pc_n == nullptr ||
@@ -2416,6 +2619,38 @@ jaos_status jm_branch_and_bound(jaos_model *m)
             act_n = cur->ncuts;
         }
         nodes++;
+        /* Bound propagation (D324): the node's own bounds read over the
+         * model's rows, before any relaxation is solved. A node it proves
+         * infeasible costs no solve at all; the bounds it moves make the
+         * relaxation this node does solve a tighter one. */
+        if (propagate > 0 &&
+            (propagate_depth < 0 || depth_here <= propagate_depth)) {
+            const int64_t got = propagate_node(m, lp, plo, phi, propagate,
+                                               &work);
+            if (got == -2)
+                goto done;
+            if (got == -1) {
+                jm_log(m, JAOS_LOG_PROGRESS,
+                       "node %lld: infeasible by propagation",
+                       (long long)nodes);
+                continue;
+            }
+            tightened += got;
+            /* The root's deductions were made over the model's own bounds,
+             * so they hold for every integer point of the model and not
+             * only under this node: ilo and ihi take them, and every node
+             * of the tree gets them from node_apply for nothing. A deeper
+             * node's are read over ITS bounds and stay where they were
+             * made. */
+            if (nodes == 1 && got > 0) {
+                for (int64_t j = 0; j < nc; j++) {
+                    if (!m->col_integer[j])
+                        continue;
+                    ilo[j] = lp->col_lower[j];
+                    ihi[j] = lp->col_upper[j];
+                }
+            }
+        }
         jaos_status st = jaos_solve(lp);
         solves++;
         const int64_t node_work = jaos_work_units(lp);
@@ -2654,7 +2889,8 @@ jaos_status jm_branch_and_bound(jaos_model *m)
          * can only cost. Eight of the MIP set's 24 have one there and the
          * six the pump helps have none, so the guard keeps every gain
          * (bench/measurements/02-208/). */
-        if (nodes == 1 && feaspump > 0 && branch >= 0 && !inc.have) {
+        if (nodes == 1 && feaspump > 0 && branch >= 0 &&
+            (!inc.have || pump_always)) {
             /* Its own scratch, and not the root cut block's: that block
              * runs only when a cut round does, and the pump is a heuristic
              * that stands on its own. */
@@ -2676,10 +2912,11 @@ jaos_status jm_branch_and_bound(jaos_model *m)
             if (got == 1 && rounded_point(m, xr, x2, ra, &hobj)) {
                 const double hkey = sigma * hobj;
                 spool_offer(&sp, x2, hkey, hobj);
-                /* The guard above means there is no incumbent here, so the
-                 * test always passes; it is written out because it is the
-                 * acceptance every heuristic point goes through and a
-                 * later change to the guard must not quietly skip it. */
+                /* With the guard as D318 left it there is no incumbent
+                 * here and this test always passes; with the pump let
+                 * through anyway (D322) it is what keeps a worse point
+                 * out. It is the acceptance every heuristic point goes
+                 * through. */
                 if (!inc.have || hkey < inc.key) {
                     if (!incumbent_take_point(&inc, lp, m, x2, ra, hobj, hkey))
                         goto done;
@@ -2857,6 +3094,57 @@ jaos_status jm_branch_and_bound(jaos_model *m)
                 }
             }
         }
+        /* Reduced-cost fixing at the root (D323), once every heuristic
+         * that runs there has had its turn, so it reads the best
+         * incumbent the root has. A nonbasic integer column resting at a
+         * bound cannot move t away from it without the objective rising
+         * by at least |d| t, so t is at most (incumbent - relaxation) /
+         * |d|, and the other bound is pulled in to the integer that
+         * reaches. The deduction holds for every integer point of the
+         * model, since every cut the root carries does, so ilo and ihi
+         * take it and every node under here inherits it through
+         * node_apply. The branch column is basic and is never touched,
+         * which is what keeps the children's recorded bounds true. */
+        if (nodes == 1 && rcfix && inc.have && branch >= 0 &&
+            inc.key >= key) {
+            if (rcd == nullptr) {
+                rcd = malloc((size_t)(nc > 0 ? nc : 1) * sizeof *rcd);
+                if (rcd == nullptr)
+                    goto done;
+            }
+            if (jaos_solution(lp, nullptr, nullptr, nullptr, rcd) != JAOS_OK)
+                goto done;
+            /* One pass over the columns, billed like any kernel (D16). */
+            work += nc;
+            const double room = inc.key - key;
+            for (int64_t j = 0; j < nc; j++) {
+                if (!m->col_integer[j])
+                    continue;
+                const double d = sigma * rcd[j];
+                const jaos_basis_status bs = lp->sol_col_status[j];
+                if (bs == JAOS_BASIS_AT_LOWER && d > 0.0 &&
+                    ilo[j] > -INFINITY) {
+                    const double t = floor(room / d + MIP_RCFIX_SLACK);
+                    const double nh = ilo[j] + t;
+                    if (nh < ihi[j]) {
+                        ihi[j] = nh;
+                        rcfixed++;
+                    }
+                } else if (bs == JAOS_BASIS_AT_UPPER && d < 0.0 &&
+                           ihi[j] < INFINITY) {
+                    const double t = floor(room / -d + MIP_RCFIX_SLACK);
+                    const double nl = ihi[j] - t;
+                    if (nl > ilo[j]) {
+                        ilo[j] = nl;
+                        rcfixed++;
+                    }
+                }
+            }
+            if (rcfixed > 0)
+                jm_log(m, JAOS_LOG_SUMMARY,
+                       "root: %lld column bounds fixed by their reduced costs",
+                       (long long)rcfixed);
+        }
         if (nodes % MIP_LOG_EVERY == 0) {
             const double ok = open_key(&heap, dstack, dstack_n);
             jm_log(m, JAOS_LOG_PROGRESS,
@@ -3033,6 +3321,8 @@ jaos_status jm_branch_and_bound(jaos_model *m)
     m->mip_cuts = cuts;
     m->mip_heur = heur_points;
     m->mip_first_inc = first_inc;
+    m->mip_rcfix_n = rcfixed;
+    m->mip_prop_n = tightened;
     {
         const double ok = open_key(&heap, dstack, dstack_n);
         m->mip_bound = sigma * (ok < best_bound ? ok : best_bound);
@@ -3091,6 +3381,9 @@ done:
     free(ra);
     free(ilo);
     free(ihi);
+    free(plo);
+    free(phi);
+    free(rcd);
     free(pc_sum);
     free(pc_n);
     free(cand);
@@ -3140,6 +3433,8 @@ jaos_status jaos_mip_result(const jaos_model *m, jaos_mip_report *out)
     out->cuts = m->mip_cuts;
     out->heuristic_points = m->mip_heur;
     out->first_incumbent_node = m->mip_first_inc;
+    out->fixed_cols = m->mip_rcfix_n;
+    out->tightened = m->mip_prop_n;
     return JAOS_OK;
 }
 

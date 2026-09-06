@@ -1589,6 +1589,31 @@ class TestBranchAndBound(unittest.TestCase):
         p.set_mip_pump_general(-1)
         p.set_mip_pump_obj(-1.0)
 
+    def test_propagation_and_reduced_cost_fixing_keep_the_answer(self):
+        # Propagation reports the bounds it moved and reduced-cost fixing
+        # the columns it fixed; neither moves the optimum (D323, D324).
+        moved = []
+        for rounds in (0, 4):
+            p = jaos.Problem()
+            x = p.add_var(integer=True, ub=10, name="x")
+            y = p.add_var(integer=True, ub=10, name="y")
+            z = p.add_var(integer=True, ub=10, name="z")
+            p.add(x + y + z <= 3)
+            p.add(2 * x + y <= 3)
+            p.maximize(3 * x + 2.4 * y + 2 * z)
+            p.set_mip_propagate(rounds).set_mip_rcfix(1)
+            p.set_mip_propagate_depth(-1)
+            p.set_mip_pump_always(1)
+            self.assertIs(p.solve(), jaos.SolveStatus.OPTIMAL)
+            self.assertAlmostEqual(p.objective_value, 7.4, places=9)
+            moved.append(p.mip_report().tightened)
+        self.assertEqual(moved[0], 0)
+        self.assertGreaterEqual(moved[1], 4)
+        p.set_mip_propagate(-1)
+        p.set_mip_propagate_depth(0)
+        p.set_mip_rcfix(-1)
+        p.set_mip_pump_always(-1)
+
     def test_the_dive_heuristic_runs_below_the_root(self):
         # The same model as the root dive's, with the dive at every node:
         # the answer does not move and the extra dives cost solves (D314).

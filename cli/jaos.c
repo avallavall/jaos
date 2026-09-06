@@ -19,6 +19,9 @@
  *                   [--mir-aggregate N] [--dive-heuristic N]
  *                   [--dive-heuristic-depth D] [--rins N] [--dive-degrade F]
  *                   [--feaspump N] [--pump-general 0|1] [--pump-obj F]
+ *                   [--pump-always | --no-pump-always]
+ *                   [--rcfix | --no-rcfix] [--propagate N]
+ *                   [--propagate-depth D]
  *                   [--no-heuristics] [--node-limit N] [--branching RULE]
  *                   [--reliability N] [--probe-cap M] [--probe-depth D]
  *                   [--no-cut-drop] [--pool-size K] [--log LEVEL]
@@ -91,6 +94,9 @@ static const char USAGE[] =
     "                  [--dive-heuristic-depth D] [--rins N]\n"
     "                  [--dive-degrade F] [--feaspump N]\n"
     "                  [--pump-general 0|1] [--pump-obj F]\n"
+    "                  [--pump-always | --no-pump-always]\n"
+    "                  [--rcfix | --no-rcfix] [--propagate N]\n"
+    "                  [--propagate-depth D]\n"
     "                  [--no-heuristics] [--node-limit N] [--branching RULE]\n"
     "                  [--reliability N] [--probe-cap M] [--probe-depth D]\n"
     "                  [--no-cut-drop] [--pool-size K] [--log LEVEL]\n"
@@ -143,14 +149,14 @@ static const char USAGE[] =
     "  --dive-gap F     resume only while the sibling's bound is within F of\n"
     "                   (1 + |best open bound|) (F >= 0; 0 for no bound)\n"
     "  --node-mir       MIR cuts over a node's own bounds beside its Gomory\n"
-    "                   round; --no-node-mir keeps the round Gomory's\n"
-    "  --mir-aggregate N  rows a MIR cut may absorb before it is rounded\n"
-    "                   (N >= 0; 0 is the single-row form)\n"
-    "  --dive-heuristic N  relaxations a dive for a first incumbent may\n"
-    "                   solve at the root (N >= 0; default 50, 0 is off)\n";
+    "                   round; --no-node-mir keeps the round Gomory's\n";
 
 /* The second piece, because ISO C only promises a 4095-byte literal. */
 static const char USAGE1B[] =
+    "  --mir-aggregate N  rows a MIR cut may absorb before it is rounded\n"
+    "                   (N >= 0; 0 is the single-row form)\n"
+    "  --dive-heuristic N  relaxations a dive for a first incumbent may\n"
+    "                   solve at the root (N >= 0; default 50, 0 is off)\n"
     "  --dive-heuristic-depth D  deepest node the dive heuristic runs at,\n"
     "                   the root being 0 (D >= 0; default 0, the root alone)\n"
     "  --rins N         relaxations a RINS dive may solve at a node with an\n"
@@ -166,6 +172,16 @@ static const char USAGE1B[] =
     "                   own objective into the distance at a weight that\n"
     "                   multiplies by F per round (0 <= F < 1; 0 is the\n"
     "                   plain pump; default 0.5)\n"
+    "  --pump-always    run the pump at the root even where something\n"
+    "                   already holds an incumbent; --no-pump-always\n"
+    "                   keeps the guard, which is the default\n"
+    "  --rcfix          fix integer column bounds at the root by their\n"
+    "                   reduced costs once an incumbent exists; on by\n"
+    "                   default, --no-rcfix turns it off\n"
+    "  --propagate N    passes of bound propagation at each node before\n"
+    "                   its relaxation is solved; 0 turns it off\n"
+    "  --propagate-depth D  deepest node propagation runs at, the root\n"
+    "                   being 0; negative, the default, is every node\n"
     "  --no-heuristics  no rounding heuristic at the nodes of a MIP\n"
     "  --node-limit N   stop a MIP before its N-th node past the limit (N > 0)\n"
     "  --branching RULE which column a MIP branches on: pseudocost (default)\n"
@@ -473,6 +489,10 @@ struct solve_options {
     int64_t feaspump;        /* -1: not given (the library's default)     */
     int pump_general;        /* -1: not given; else 0 or 1                */
     bool has_pump_obj;       /* the decay is a double, so a flag, not -1  */
+    int pump_always;         /* -1: not given; else 0 or 1                */
+    int rcfix;               /* -1: not given; else 0 or 1                */
+    int64_t propagate;       /* -1: not given                             */
+    int64_t propagate_depth; /* -2: not given (negative is a setting)     */
     double pump_obj;
     bool has_dive_degrade;
     double dive_degrade;
@@ -512,6 +532,10 @@ static int parse_solve_options(int argc, char **argv, int first,
     o->mir_rounds = -1;
     o->dive_backtrack = -1;
     o->node_mir = -1;
+    o->pump_always = -1;
+    o->rcfix = -1;
+    o->propagate = -1;
+    o->propagate_depth = -2;
     o->mir_aggregate = -1;
     o->dive_heuristic = -1;
     o->dive_heuristic_depth = -1;
@@ -558,6 +582,22 @@ static int parse_solve_options(int argc, char **argv, int first,
         }
         if (strcmp(a, "--node-mir") == 0) {
             o->node_mir = 1;
+            continue;
+        }
+        if (strcmp(a, "--pump-always") == 0) {
+            o->pump_always = 1;
+            continue;
+        }
+        if (strcmp(a, "--no-pump-always") == 0) {
+            o->pump_always = 0;
+            continue;
+        }
+        if (strcmp(a, "--rcfix") == 0) {
+            o->rcfix = 1;
+            continue;
+        }
+        if (strcmp(a, "--no-rcfix") == 0) {
+            o->rcfix = 0;
             continue;
         }
         if (strcmp(a, "--no-node-mir") == 0) {
@@ -680,6 +720,15 @@ static int parse_solve_options(int argc, char **argv, int first,
                 return usage_error("--pump-obj needs a decay from 0 up to "
                                    "but not including 1, not '%s'", v);
             o->has_pump_obj = true;
+        } else if (strcmp(a, "--propagate-depth") == 0) {
+            if (!parse_int64(v, &o->propagate_depth))
+                return usage_error("--propagate-depth needs a depth, or a "
+                                   "negative value for every node, not '%s'",
+                                   v);
+        } else if (strcmp(a, "--propagate") == 0) {
+            if (!parse_int64(v, &o->propagate) || o->propagate < 0)
+                return usage_error("--propagate needs a count of passes, "
+                                   "0 or more, not '%s'", v);
         } else if (strcmp(a, "--rins") == 0) {
             if (!parse_int64(v, &o->rins) || o->rins < 0)
                 return usage_error("--rins needs a count of solves, 0 or "
@@ -875,6 +924,25 @@ static int cmd_solve(int argc, char **argv)
         rc = library_error("set the objective pump for", o.file, m);
         goto out;
     }
+    if (o.pump_always >= 0 &&
+        jaos_set_mip_pump_always(m, o.pump_always) != JAOS_OK) {
+        rc = library_error("set the pump's guard for", o.file, m);
+        goto out;
+    }
+    if (o.rcfix >= 0 && jaos_set_mip_rcfix(m, o.rcfix) != JAOS_OK) {
+        rc = library_error("set reduced-cost fixing for", o.file, m);
+        goto out;
+    }
+    if (o.propagate >= 0 &&
+        jaos_set_mip_propagate(m, o.propagate) != JAOS_OK) {
+        rc = library_error("set bound propagation for", o.file, m);
+        goto out;
+    }
+    if (o.propagate_depth > -2 &&
+        jaos_set_mip_propagate_depth(m, o.propagate_depth) != JAOS_OK) {
+        rc = library_error("set the propagation depth for", o.file, m);
+        goto out;
+    }
     if (o.has_dive_degrade &&
         jaos_set_mip_dive_degrade(m, o.dive_degrade) != JAOS_OK) {
         rc = library_error("set the dive's degradation bound for", o.file, m);
@@ -971,6 +1039,8 @@ static int cmd_solve(int argc, char **argv)
             printf("cuts %" PRId64 "\n", mrep.cuts);
             printf("heuristic_points %" PRId64 "\n", mrep.heuristic_points);
             printf("first_incumbent %" PRId64 "\n", mrep.first_incumbent_node);
+            printf("fixed_cols %" PRId64 "\n", mrep.fixed_cols);
+            printf("tightened %" PRId64 "\n", mrep.tightened);
             printf("bound %.17g\n", mrep.bound);
             /* The pool's count, only when a pool was asked for (D299). */
             int64_t held = 0;

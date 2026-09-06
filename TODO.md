@@ -7,6 +7,34 @@ line leaves this file in the same commit.
 
 ## Where the last session stopped — 2026-09-06
 
+**2026-09-07, the day batch, eighth round: three features built,
+measured and all three refused, and one finding that outlives them
+(D322, D323, D324).** The pump run past D318's guard reads **1.051x**
+with `gen` alone at 3.083x, and **the first incumbent moves on none of
+the 24**, so the guard holds for the objective pump as well as the plain
+one and the question TODO named as next is answered (D322).
+Reduced-cost fixing at the root reads **1.010x**: `p0282` 0.519x with
+its tree 8375 to 5119 nodes and `gen` 0.825x with 7 to 3, against `gt2`
+2.492x with 445 to 1287 and `lseu` 1.234x with 5949 to 7643 (D323).
+Bound propagation at a node reads **1.093x, 1.104x and 1.074x** at one,
+two and four passes with `bell5` unfinished at the cap in all three, and
+**1.051x at the root alone**, where the deduction is made over the
+model's own bounds and the whole tree keeps it for nothing (D324). Every
+arm reports the control's objective on every instance, so all three are
+correct. `bench/measurements/02-210/`. **The one thing to carry
+forward, and it is worth more than the three refusals**: a bound
+tightening that is valid makes this set's trees bigger. The scan is not
+what costs -- root propagation moves a bound on 6 of the 24 and the other
+18 read **exactly 1.000x**, and `bell5` and `blend2` have bounds moved
+with their trees unchanged. What costs is the branching: a pulled-in
+bound moves the relaxation's vertex, which moves the branching choice and
+the pseudocosts, and a best-bound tree amplifies it -- `bell3a` 64077 to
+117317 nodes off 16 moved bounds, `gt2` 445 to 3425 off 12. That is the
+question to put to presolve's own bound tightening (D97), to dual fixing
+(D246) and to any node presolve: not "is the deduction free?" but "what
+does it do to the branching?". **What is next**, in order: the seven
+held constants, each swept once something moves them.
+
 **2026-09-06, the day batch, seventh round: the objective pump lands and
 the general-integer distance is refused (D320, D321).** The objective
 pump blends the model's own objective into each of the pump's rounds at

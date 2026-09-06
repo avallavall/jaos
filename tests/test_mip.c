@@ -2199,6 +2199,156 @@ static void test_the_pump_perturbs_a_rounding_that_repeats(void)
 }
 
 
+
+/* max 3x0 + 2.4x1 + 2x2 + x3 over four integer columns in [0, 10], with
+ * x0+x1+x2+x3 <= 3 and 2x0 + x1 <= 3. The first row alone pulls every
+ * column's upper bound from 10 to 3 and the second pulls x0's to 1, so
+ * propagation has something to find at the root, and the answer, (1, 1,
+ * 1, 0) for 7.4, is the same with it and without it. The costs make that
+ * point the only one that reaches 7.4: at 2.5 for x1 the point (0, 3, 0,
+ * 0) ties it, and the test would then assert a vertex the tree may or may
+ * not stop at. */
+static jaos_model *propagation_model(void)
+{
+    const double cost[4] = { 3.0, 2.4, 2.0, 1.0 };
+    const double cl[4] = { 0, 0, 0, 0 };
+    const double cu[4] = { 10.0, 10.0, 10.0, 10.0 };
+    const double rl[2] = { -INFINITY, -INFINITY }, ru[2] = { 3.0, 3.0 };
+    const int64_t as[5] = { 0, 2, 4, 5, 6 };
+    const int64_t ai[6] = { 0, 1, 0, 1, 0, 0 };
+    const double av[6] = { 1.0, 2.0, 1.0, 1.0, 1.0, 1.0 };
+    jaos_model *m = fresh();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_load_lp(m, 4, 2, JAOS_MAXIMIZE, 0.0, cost, cl, cu, rl, ru,
+                     6, as, ai, av));
+    for (int64_t j = 0; j < 4; j++)
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_col_integer(m, j, true));
+    return m;
+}
+
+static void test_propagation_tightens_bounds_and_keeps_the_optimum(void)
+{
+    double obj[3] = { 0.0, 0.0, 0.0 };
+    int64_t moved[3] = { -1, -1, -1 };
+    double x[3][4];
+    /* Off, every node, and the root alone: the root is where every one of
+     * this model's deductions is made, so the last two must move the same
+     * bounds, and the tree keeps the root's for nothing. */
+    for (int arm = 0; arm < 3; arm++) {
+        jaos_model *m = propagation_model();
+        TEST_ASSERT_EQUAL_INT(JAOS_OK,
+            jaos_set_mip_propagate(m, arm == 0 ? 0 : 4));
+        TEST_ASSERT_TRUE(m->cfg.mip_propagate_set);
+        if (arm == 2) {
+            TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_propagate_depth(m, 0));
+            TEST_ASSERT_TRUE(m->cfg.mip_propagate_depth_set);
+        }
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+        TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(m, &obj[arm]));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK,
+            jaos_solution(m, x[arm], nullptr, nullptr, nullptr));
+        jaos_mip_report rep;
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_mip_result(m, &rep));
+        moved[arm] = rep.tightened;
+        jaos_model_free(m);
+    }
+    /* The instrument first: off it must move nothing, on it must move
+     * something, or the equality below proves only that two identical
+     * runs agree. */
+    TEST_ASSERT_EQUAL_INT64(0, moved[0]);
+    TEST_ASSERT_TRUE(moved[1] >= 5);
+    TEST_ASSERT_EQUAL_INT64(moved[1], moved[2]);   /* the root is where it
+                                                      all happens here */
+    TEST_ASSERT_DOUBLE_WITHIN(1e-9, 7.4, obj[0]);
+    TEST_ASSERT_DOUBLE_WITHIN(1e-9, 7.4, obj[1]);
+    TEST_ASSERT_DOUBLE_WITHIN(1e-9, 7.4, obj[2]);
+    TEST_ASSERT_DOUBLE_WITHIN(1e-9, 1.0, x[1][0]);
+    TEST_ASSERT_DOUBLE_WITHIN(1e-9, 1.0, x[1][1]);
+    TEST_ASSERT_DOUBLE_WITHIN(1e-9, 1.0, x[1][2]);
+    TEST_ASSERT_DOUBLE_WITHIN(1e-9, 0.0, x[1][3]);
+}
+
+/* A row no point satisfies under the node's own bounds: x0 + x1 >= 5 with
+ * both columns in [0, 2]. The largest activity the row can reach is 4, so
+ * propagation proves the root infeasible with no relaxation solved at
+ * all, and the answer is the one the tree gives without it. */
+static void test_propagation_proves_a_row_infeasible(void)
+{
+    for (int arm = 0; arm < 2; arm++) {
+        const double cost[2] = { 1.0, 1.0 }, cl[2] = { 0, 0 };
+        const double cu[2] = { 2.0, 2.0 };
+        const double rl[1] = { 5.0 }, ru[1] = { INFINITY };
+        const int64_t as[3] = { 0, 1, 2 }, ai[2] = { 0, 0 };
+        const double av[2] = { 1.0, 1.0 };
+        jaos_model *m = fresh();
+        TEST_ASSERT_EQUAL_INT(JAOS_OK,
+            jaos_load_lp(m, 2, 1, JAOS_MINIMIZE, 0.0, cost, cl, cu, rl, ru,
+                         2, as, ai, av));
+        for (int64_t j = 0; j < 2; j++)
+            TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_col_integer(m, j, true));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK,
+            jaos_set_mip_propagate(m, arm == 0 ? 0 : 2));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+        TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_INFEASIBLE, jaos_status_of(m));
+        jaos_mip_report rep;
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_mip_result(m, &rep));
+        /* With propagation on the root is never handed to the simplex. */
+        TEST_ASSERT_EQUAL_INT64(arm == 0 ? 1 : 0, rep.lp_solves);
+        jaos_model_free(m);
+    }
+}
+
+static void test_reduced_cost_fixing_keeps_the_optimum(void)
+{
+    double obj[2] = { 0.0, 0.0 };
+    int64_t fixed[2] = { -1, -1 };
+    for (int arm = 0; arm < 2; arm++) {
+        jaos_model *m = knapsack5();
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_rcfix(m, arm));
+        TEST_ASSERT_TRUE(m->cfg.mip_rcfix_set);
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+        TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(m, &obj[arm]));
+        jaos_mip_report rep;
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_mip_result(m, &rep));
+        fixed[arm] = rep.fixed_cols;
+        jaos_model_free(m);
+    }
+    TEST_ASSERT_EQUAL_INT64(0, fixed[0]);
+    TEST_ASSERT_DOUBLE_WITHIN(1e-9, obj[0], obj[1]);
+
+    jaos_model *m = knapsack();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_rcfix(m, -1));
+    TEST_ASSERT_FALSE(m->cfg.mip_rcfix_set);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_propagate(m, -1));
+    TEST_ASSERT_FALSE(m->cfg.mip_propagate_set);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_propagate_depth(m, -1));
+    TEST_ASSERT_FALSE(m->cfg.mip_propagate_depth_set);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_pump_always(m, -1));
+    TEST_ASSERT_FALSE(m->cfg.mip_pump_always_set);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_pump_always(m, 1));
+    TEST_ASSERT_TRUE(m->cfg.mip_pump_always_set);
+    TEST_ASSERT_TRUE(m->cfg.mip_pump_always);
+    jaos_model_free(m);
+}
+
+static void test_the_pump_may_run_where_an_incumbent_exists(void)
+{
+    double obj[2] = { 0.0, 0.0 };
+    for (int arm = 0; arm < 2; arm++) {
+        jaos_model *m = knapsack5();
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_feaspump(m, 20));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_pump_always(m, arm));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+        TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(m, &obj[arm]));
+        jaos_model_free(m);
+    }
+    TEST_ASSERT_DOUBLE_WITHIN(1e-9, obj[0], obj[1]);
+}
+
+
 int main(void)
 {
     UNITY_BEGIN();
@@ -2248,5 +2398,9 @@ int main(void)
     RUN_TEST(test_the_pump_perturbs_a_rounding_that_repeats);
     RUN_TEST(test_rins_searches_the_incumbents_neighbourhood);
     RUN_TEST(test_a_dive_bounded_by_the_degradation_keeps_the_optimum);
+    RUN_TEST(test_propagation_tightens_bounds_and_keeps_the_optimum);
+    RUN_TEST(test_propagation_proves_a_row_infeasible);
+    RUN_TEST(test_reduced_cost_fixing_keeps_the_optimum);
+    RUN_TEST(test_the_pump_may_run_where_an_incumbent_exists);
     return UNITY_END();
 }

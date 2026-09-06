@@ -11,6 +11,29 @@ open, `bench/README.md` for the gate, and the commit each entry came from.
 
 ### Added
 
+- **Three MIP switches, all measured and all off: the pump's guard holds,
+  reduced-cost fixing and bound propagation are refused.**
+  `jaos_set_mip_pump_always` and `--pump-always` run the feasibility pump
+  at the root where something already holds an incumbent: 1.051x, and the
+  first incumbent moves on none of the 24, so D318's guard holds for the
+  objective pump too (D322). `jaos_set_mip_rcfix` and `--rcfix` pull an
+  integer column's far bound in to the furthest integer its reduced cost
+  allows once the root has an incumbent: 1.010x, `p0282` 0.519x against
+  `gt2` 2.492x (D323). `jaos_set_mip_propagate`, `--propagate N`,
+  `jaos_set_mip_propagate_depth` and `--propagate-depth D` read the
+  model's rows over a node's bounds, prove a node infeasible with no
+  solve, and pull in the integer bounds the rows imply: 1.074x to 1.104x
+  at every node with `bell5` unfinished, 1.051x at the root alone where
+  the tree keeps the deduction for nothing (D324). `jaos_mip_result`
+  reports `fixed_cols` and `tightened`; all four at both Python layers.
+  `bench/measurements/02-210/`.
+- **What the three share is worth more than any of them**: a bound
+  tightening that is valid makes this set's trees bigger. The scan is not
+  the cost -- root propagation moves a bound on 6 of the 24 and the other
+  18 read exactly 1.000x -- the branching is: `bell3a` 64077 to 117317
+  nodes off 16 moved bounds. That is the question to put to presolve's
+  bound tightening (D97), to dual fixing (D246) and to any node presolve.
+
 - **The objective pump lands, and the pump's general-integer distance is
   measured and refused.** `jaos_set_mip_pump_obj` and `--pump-obj F` blend
   the model's own objective into each of the pump's rounds at a weight

@@ -485,6 +485,7 @@ static void model_answer_is_stale(jaos_model *m)
     m->mip_pool_n = 0;
     m->mip_has_incumbent = false;
     m->mip_nodes = m->mip_solves = 0;
+    m->mip_rcfix_n = m->mip_prop_n = 0;
     m->mip_bound = 0.0;
     m->solve_status = JAOS_SOLVE_NOT_RUN;
     m->objective = 0.0;
@@ -1151,6 +1152,42 @@ jaos_status jaos_set_mip_pump_obj(jaos_model *m, double decay)
     }
     m->cfg.mip_pump_obj_set = decay >= 0.0;
     m->cfg.mip_pump_obj = decay >= 0.0 ? decay : 0.0;
+    return JAOS_OK;
+}
+
+jaos_status jaos_set_mip_pump_always(jaos_model *m, int on)
+{
+    if (m == nullptr)
+        return JAOS_ERR_INVALID_INPUT;
+    m->cfg.mip_pump_always_set = on >= 0;
+    m->cfg.mip_pump_always = on > 0;
+    return JAOS_OK;
+}
+
+jaos_status jaos_set_mip_rcfix(jaos_model *m, int on)
+{
+    if (m == nullptr)
+        return JAOS_ERR_INVALID_INPUT;
+    m->cfg.mip_rcfix_set = on >= 0;
+    m->cfg.mip_rcfix = on > 0;
+    return JAOS_OK;
+}
+
+jaos_status jaos_set_mip_propagate(jaos_model *m, int64_t rounds)
+{
+    if (m == nullptr)
+        return JAOS_ERR_INVALID_INPUT;
+    m->cfg.mip_propagate_set = rounds >= 0;
+    m->cfg.mip_propagate = rounds >= 0 ? rounds : 0;
+    return JAOS_OK;
+}
+
+jaos_status jaos_set_mip_propagate_depth(jaos_model *m, int64_t depth)
+{
+    if (m == nullptr)
+        return JAOS_ERR_INVALID_INPUT;
+    m->cfg.mip_propagate_depth_set = depth >= 0;
+    m->cfg.mip_propagate_depth = depth >= 0 ? depth : 0;
     return JAOS_OK;
 }
 

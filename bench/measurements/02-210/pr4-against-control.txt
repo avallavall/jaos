@@ -1,0 +1,26 @@
+air03     1.004x  nodes 1 -> 1  first 1 -> 1
+bell3a    2.081x  nodes 64077 -> 112435  first 230 -> 278  TREE-CHANGED
+bell5     (optimal -> time_limit)
+blend2    1.025x  nodes 5879 -> 5879  first 5879 -> 5879
+dcmulti   0.977x  nodes 415 -> 415  first 398 -> 398
+egout     1.058x  nodes 6841 -> 6841  first 1 -> 1
+enigma    1.759x  nodes 2814 -> 6084  first 2814 -> 6084  TREE-CHANGED
+flugpl    0.461x  nodes 2445 -> 877  first 1531 -> 497  TREE-CHANGED
+gen       0.669x  nodes 7 -> 5  first 1 -> 1  TREE-CHANGED
+gt2       5.186x  nodes 445 -> 3425  first 1 -> 3425  TREE-CHANGED
+khb05250  1.010x  nodes 81 -> 81  first 1 -> 1
+l152lav   0.549x  nodes 2505 -> 1489  first 1 -> 1  TREE-CHANGED
+lseu      1.074x  nodes 5949 -> 6235  first 1 -> 1  TREE-CHANGED
+misc03    1.105x  nodes 1271 -> 1325  first 115 -> 277  TREE-CHANGED
+misc06    1.002x  nodes 73 -> 73  first 1 -> 1
+misc07    1.230x  nodes 35287 -> 36551  first 1863 -> 737  TREE-CHANGED
+mod008    1.026x  nodes 2631 -> 2631  first 1 -> 1
+mod010    1.001x  nodes 1 -> 1  first 1 -> 1
+p0033     0.761x  nodes 329 -> 231  first 1 -> 1  TREE-CHANGED
+p0201     1.590x  nodes 797 -> 1281  first 377 -> 277  TREE-CHANGED
+p0282     0.755x  nodes 8375 -> 5881  first 1 -> 1  TREE-CHANGED
+rgn       0.918x  nodes 4233 -> 3813  first 1 -> 1  TREE-CHANGED
+stein27   1.069x  nodes 9181 -> 9181  first 1 -> 1
+stein45   1.103x  nodes 120987 -> 120987  first 1 -> 1
+geomean 1.074x over 23: 6 better, 10 worse, 2 past 2x
+the 17: geomean 1.020x over 17 (3 better, 7 worse, 0 past 2x) | the 7 new: geomean 1.243x over 6 (3 better, 3 worse, 2 past 2x), 1 not finished

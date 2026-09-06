@@ -259,6 +259,8 @@ class _MipReport(ctypes.Structure):
         ("cuts", _I64),
         ("heuristic_points", _I64),
         ("first_incumbent_node", _I64),
+        ("fixed_cols", _I64),
+        ("tightened", _I64),
     ]
 
 
@@ -434,6 +436,10 @@ _sig("jaos_set_mip_rins", ctypes.c_int, _VP, _I64)
 _sig("jaos_set_mip_feaspump", ctypes.c_int, _VP, _I64)
 _sig("jaos_set_mip_pump_general", ctypes.c_int, _VP, ctypes.c_int)
 _sig("jaos_set_mip_pump_obj", ctypes.c_int, _VP, ctypes.c_double)
+_sig("jaos_set_mip_pump_always", ctypes.c_int, _VP, ctypes.c_int)
+_sig("jaos_set_mip_rcfix", ctypes.c_int, _VP, ctypes.c_int)
+_sig("jaos_set_mip_propagate", ctypes.c_int, _VP, _I64)
+_sig("jaos_set_mip_propagate_depth", ctypes.c_int, _VP, _I64)
 _sig("jaos_set_mip_dive_degrade", ctypes.c_int, _VP, ctypes.c_double)
 _sig("jaos_set_mip_heuristics", ctypes.c_int, _VP, ctypes.c_bool)
 _sig("jaos_mip_result", ctypes.c_int, _VP, _P(_MipReport))
@@ -963,6 +969,45 @@ class Model:
         """
         self._check(_lib.jaos_set_mip_pump_obj(self._handle(),
                                                float(decay)))
+
+    def set_mip_pump_always(self, on):
+        """Whether the pump runs at the root where an incumbent exists.
+
+        Off by default: D318's pump looks for any feasible point, so it
+        can only cost where the root already has one. A negative value
+        restores the default.
+        """
+        self._check(_lib.jaos_set_mip_pump_always(self._handle(), int(on)))
+
+    def set_mip_rcfix(self, on):
+        """Reduced-cost fixing at the root.
+
+        Once the root holds an incumbent, an integer column resting at a
+        bound has its other bound pulled in to the furthest integer its
+        reduced cost still allows. On by default; a negative value
+        restores it.
+        """
+        self._check(_lib.jaos_set_mip_rcfix(self._handle(), int(on)))
+
+    def set_mip_propagate(self, rounds):
+        """Passes of bound propagation at each node.
+
+        Each pass reads the model's rows over the node's own bounds,
+        proves the node infeasible where a row admits no point, and pulls
+        in the integer bounds the rows imply. 0 is off; a negative value
+        restores the default.
+        """
+        self._check(_lib.jaos_set_mip_propagate(self._handle(), int(rounds)))
+
+    def set_mip_propagate_depth(self, depth):
+        """The deepest node bound propagation runs at, the root being 0.
+
+        Negative, the default, is every node. The root's deductions are
+        made over the model's own bounds and the whole tree keeps them; a
+        deeper node's hold in its subtree alone.
+        """
+        self._check(_lib.jaos_set_mip_propagate_depth(self._handle(),
+                                                      int(depth)))
 
     def set_mip_dive_degrade(self, frac):
         """How far a node's bound may fall from its parent's and still dive.
@@ -2395,6 +2440,30 @@ class Problem:
         self._m.set_mip_pump_obj(decay)
         return self
 
+    def set_mip_pump_always(self, on):
+        """Whether the pump runs at the root where an incumbent already
+        exists (D322); off by default, negative restores it."""
+        self._m.set_mip_pump_always(on)
+        return self
+
+    def set_mip_rcfix(self, on):
+        """Reduced-cost fixing of integer bounds at the root (D323); on by
+        default, negative restores it."""
+        self._m.set_mip_rcfix(on)
+        return self
+
+    def set_mip_propagate(self, rounds):
+        """Passes of bound propagation at each node (D324); 0 is off and a
+        negative value restores the default."""
+        self._m.set_mip_propagate(rounds)
+        return self
+
+    def set_mip_propagate_depth(self, depth):
+        """The deepest node propagation runs at, the root being 0 (D324);
+        negative, the default, is every node."""
+        self._m.set_mip_propagate_depth(depth)
+        return self
+
     def set_mip_dive_degrade(self, frac):
         """How far a node's bound may fall from its parent's and still dive
         (D316); 0, the default, puts no bound on it."""
@@ -2456,7 +2525,8 @@ class Problem:
     def mip_report(self):
         """What the last branch and bound did: nodes, lp_solves,
         has_incumbent, incumbent, bound, cuts, heuristic_points,
-        first_incumbent_node. Raises while the problem is
+        first_incumbent_node, fixed_cols, tightened. Raises while the
+        problem is
         ahead of its last solve."""
         if self._pending():
             raise ValueError("the problem changed since the last solve; "

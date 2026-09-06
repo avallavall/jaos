@@ -329,6 +329,9 @@ and you have the argument. Jump to the entry for the numbers behind it.
 - **[D319](#d319--what-every-accepted-default-since-d288-is-worth-together-6021x-measured-and-four-instances-the-plain-tree-does-not-finish-at-all)** — What every accepted default since D288 is worth together: 6.021x, measured, and four instances the plain tree does not finish at all
 - **[D320](#d320--the-pumps-general-integer-distance-refused-as-a-default-one-first-incumbent-moved-gt2s-at-a-cost-the-objective-pump-reaches-for-nothing)** — The pump's general-integer distance, refused as a default: one first incumbent moved, `gt2`'s, at a cost the objective pump reaches for nothing
 - **[D321](#d321--the-objective-pump-lands-at-a-decay-of-05-0984x-the-plain-pumps-work-gt2s-first-incumbent-at-the-root-and-nothing-lost)** — The objective pump lands at a decay of 0.5: 0.984x the plain pump's work, `gt2`'s first incumbent at the root, and nothing lost
+- **[D322](#d322--the-pumps-guard-holds-for-the-objective-pump-too-1051x-past-it-and-not-one-first-incumbent-moved)** — The pump's guard holds for the objective pump too: 1.051x past it, and not one first incumbent moved
+- **[D323](#d323--reduced-cost-fixing-at-the-root-refused-as-a-default-1010x-p0282-at-0519x-and-gt2-at-2492x-from-the-same-deduction)** — Reduced-cost fixing at the root, refused as a default: 1.010x, `p0282` at 0.519x and `gt2` at 2.492x from the same deduction
+- **[D324](#d324--bound-propagation-refused-at-every-depth-free-where-it-finds-nothing-and-a-bigger-tree-where-it-finds-something)** — Bound propagation, refused at every depth: free where it finds nothing, and a bigger tree where it finds something
 
 ---
 
@@ -22751,3 +22754,128 @@ beside it is measured and refused in D320. What is left open is the
 guard: this pump looks for a good point as well as a feasible one, so
 running it where the dive already put an incumbent at the root is a
 question D318's guard closed for the plain pump and not for this one.
+
+## D322 — The pump's guard holds for the objective pump too: 1.051x past it, and not one first incumbent moved
+
+**What it is.** D318 gave the feasibility pump a guard: it runs at the
+root only while nothing has an answer yet. That guard was bought for the
+plain pump, which looks for any feasible point, so it can only cost where
+the rounding heuristic or the root dive already put an incumbent. The
+objective pump (D321) looks for a good point instead, so whether the
+guard still pays is a different question. `jaos_set_mip_pump_always` and
+`--pump-always` let the pump through anyway; off by default. The
+acceptance every heuristic point goes through is what keeps a worse point
+out.
+
+**What was measured** (`bench/measurements/02-210/`, 24 instances, 240 s
+cap, geometric mean of per-instance work ratios against the D321 tree).
+**1.051x**, 0 better, 1 worse, 1 past 2x: `gen` alone pays 3.083x, on a
+seven-node tree that does not move.
+
+**What decides it is not the mean.** The first incumbent moves on **no
+instance of the 24** — every `first` column of
+`pa-against-control.txt` is unchanged. The objective pump looks for a
+good point rather than any point, which is what made the question worth
+asking, and on this set it never reaches one better than what the
+rounding heuristic and the root dive already hold. So the guard is not
+paying for a pump that would have helped; it is skipping a pump that
+would have found nothing. **Refused as a default**, and D318's guard
+holds for both pumps.
+
+## D323 — Reduced-cost fixing at the root, refused as a default: 1.010x, `p0282` at 0.519x and `gt2` at 2.492x from the same deduction
+
+**What it is.** Once the root relaxation is solved and something holds an
+incumbent, an integer column resting at a bound with reduced cost `d`
+cannot move `t` away from that bound without the objective rising by at
+least `|d| t`. So `t` is at most `(incumbent - relaxation) / |d|`, and the
+column's other bound is pulled in to the furthest integer that reaches.
+The deduction holds for every integer point of the model, because every
+cut the root carries does, so it is written into the tree's own `ilo` and
+`ihi` and every node under the root inherits it through `node_apply`. It
+is made once, after every heuristic that runs at the root has had its
+turn, so it reads the best incumbent the root has. The branch column is
+basic and is never touched, which is what keeps the children's recorded
+bounds true. `jaos_mip_result` reports `fixed_cols`.
+
+**The slack.** `MIP_RCFIX_SLACK` is added before the quotient is rounded
+down. Both terms of that quotient are known to the simplex's own
+tolerance, and adding slack before the floor only ever loosens the new
+bound, so the deduction stays valid.
+
+**What was measured** (`bench/measurements/02-210/`, same set and cap).
+**1.010x**, 3 better, 2 worse, 1 past 2x. Every instance reports the same
+objective as the control, so the deduction is sound.
+
+**Both sides are the same mechanism.** It works: `p0282` reads 0.519x
+with its tree 8375 → 5119 nodes, `gen` 0.825x with 7 → 3. It also fails:
+`gt2` reads **2.492x** with its tree 445 → **1287** nodes, and `lseu`
+1.234x with 5949 → 7643. A bound that is pulled in moves the
+relaxation's vertex, which moves the branching choice and the
+pseudocosts, and a best-bound tree amplifies that in whichever direction
+it lands. **Refused as a default**; the switch stays and is off.
+
+## D324 — Bound propagation, refused at every depth: free where it finds nothing, and a bigger tree where it finds something
+
+**What it is.** Before a node's relaxation is solved, each of the model's
+rows is read over the node's own column bounds. A row's smallest possible
+activity is the sum over its entries of the coefficient times the end of
+its column the coefficient's sign points at; its largest is the same sum
+over the other ends. A row whose smallest activity is already above its
+own upper bound admits no point, and the node is infeasible with no
+relaxation solved at all. Where the row does admit points, the same two
+sums bound each of its columns: take the sum without column `j`, and what
+is left of the row's width is what `a_ij x_j` may be.
+`jaos_set_mip_propagate` and `--propagate N` set how many passes a node
+may make; a pass that moves nothing ends the rounds. `jaos_mip_result`
+reports `tightened`.
+
+**Three things it deliberately does not do.** It reads the model's rows
+and not the copy's, so a node's cut rows never force the row-wise mirror
+to be rebuilt — the bill D320 found the general pump paying. It pulls in
+integer columns only, and only when the move is a whole integer, so
+nothing here rests on a continuous bound being reached to the last bit.
+And it writes back integer columns only, which `node_apply` rebuilds from
+`ilo` and `ihi` at every node, so no deduction leaks out of the node that
+made it.
+
+**The two slacks.** `MIP_PROP_SLACK` loosens a bound before it is
+rounded, the same argument as D323's. `MIP_PROP_INFEAS` is the separate
+and much looser margin a row's activity must clear before the node is
+called infeasible: that test prunes a node with no relaxation solved, so
+a wrong answer there is a pruned node that held the optimum.
+
+**The depth.** `jaos_set_mip_propagate_depth` and `--propagate-depth D`
+say the deepest node it runs at, the root being 0; negative, the default,
+is every node. Depth 0 is not less propagation but the free half of it:
+the root's deductions are made over the model's own bounds, so they hold
+for every integer point of the model, and `ilo` and `ihi` take them so
+every node of the tree gets them from `node_apply` for nothing. A deeper
+node's deductions are read over that node's bounds and are rebuilt at
+each node, which is what a positive depth pays for.
+
+**What was measured** (`bench/measurements/02-210/`, same set and cap).
+At every node: **1.093x at one pass, 1.104x at two, 1.074x at four**,
+with `bell5` unfinished at the cap in all three. At the root alone:
+**1.051x at four passes and the same 1.051x at two**, the two arms
+byte-identical because the root's first pass finds everything the later
+ones would. One level down, 1.080x and `bell5` lost again. Beside D323's
+reduced-cost fixing, 1.028x. Every arm reports the control's objective on
+every instance it finishes; `misc03` reads 3360 exactly where the control
+reads 3359.9999999999986, which is the same optimum placed by a bound the
+rows imply. **Refused as a default at every depth and pass count.**
+
+**The cost is not the scan.** Root-only propagation moves a bound on 6 of
+the 24, and the other 18 read **exactly 1.000x**, so a pass that finds
+nothing is free; `bell5` and `blend2` have bounds moved with their trees
+unchanged. The cost is what the moved bounds do to the branching:
+`bell3a` goes 64077 → **117317** nodes off 16 moved bounds and `gt2` 445
+→ 3425 off 12 at depth 1, against `l152lav` 2505 → 1489 and `p0282` 8375
+→ 5881 in the other direction.
+
+**What this batch found, and it outlives all three refusals.** A bound
+tightening that is valid makes this set's trees bigger. D323 and D324 are
+different mechanisms with the same shape: correct, nearly free to
+compute, and rejected by what they do to a best-bound search. That is the
+question to put to presolve's own bound tightening (D97), to dual fixing
+(D246) and to any node presolve: not "is the deduction free?" but "what
+does it do to the branching?".

@@ -367,6 +367,36 @@ expect_exit 5 "--pump-general refuses 2" \
     "$JAOS" solve "$DATA/nl_int.lp" --pump-general 2
 expect_exit 5 "--pump-obj refuses 1" \
     "$JAOS" solve "$DATA/nl_int.lp" --pump-obj 1
+# The pump's guard (D322), reduced-cost fixing (D323) and bound
+# propagation (D324): each parses and leaves the answer alone. What each
+# one FINDS on this model is not checked here, for the reason the pump's
+# own check above gives -- -DJAOS_NO_PRESOLVE hands the tree a different
+# shape, so a count of fixings or of tightened bounds is not the same
+# number in the five build configurations. Those counts are asserted in
+# tests/test_mip.c, on models that file builds itself. A negative pass
+# count is a usage error.
+expect_exit 0 "the pump past the guard still solves it" \
+    "$JAOS" solve "$DATA/nl_int.lp" --cut-rounds 0 --cover-rounds 0 --mir-rounds 0 --cut-depth 0 --feaspump 5 --pump-always
+[ "$(line_of objective)" = "objective 3" ] && pass "to 3" \
+    || flunk "pump always: $(line_of objective)"
+expect_exit 0 "reduced-cost fixing still solves it" \
+    "$JAOS" solve "$DATA/nl_int.lp" --cut-rounds 0 --cover-rounds 0 --mir-rounds 0 --cut-depth 0 --rcfix
+[ "$(line_of objective)" = "objective 3" ] && pass "to 3" \
+    || flunk "rcfix: $(line_of objective)"
+expect_exit 0 "propagation still solves it" \
+    "$JAOS" solve "$DATA/nl_int.lp" --cut-rounds 0 --cover-rounds 0 --mir-rounds 0 --cut-depth 0 --propagate 4
+[ "$(line_of objective)" = "objective 3" ] && pass "to 3" \
+    || flunk "propagate: $(line_of objective)"
+expect_exit 0 "every one of the three off still solves it" \
+    "$JAOS" solve "$DATA/nl_int.lp" --propagate 0 --no-rcfix --no-pump-always
+[ "$(line_of objective)" = "objective 3" ] && pass "to 3" \
+    || flunk "propagate off: $(line_of objective)"
+expect_exit 0 "propagation at the root alone still solves it" \
+    "$JAOS" solve "$DATA/nl_int.lp" --cut-rounds 0 --cover-rounds 0 --mir-rounds 0 --cut-depth 0 --propagate 4 --propagate-depth 0
+[ "$(line_of objective)" = "objective 3" ] && pass "to 3" \
+    || flunk "propagate depth: $(line_of objective)"
+expect_exit 5 "--propagate refuses a negative" \
+    "$JAOS" solve "$DATA/nl_int.lp" --propagate -1
 # The slack-cut drop (D297), the probe depth (D298) and the pool (D299):
 # each accepted with the answer unmoved; a pool line only when asked for;
 # a pool of zero and a negative probe depth are usage errors.

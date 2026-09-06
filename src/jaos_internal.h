@@ -106,6 +106,21 @@ typedef struct {
     bool mip_pump_general;   /* aux distance columns for general integers */
     bool mip_pump_obj_set;
     double mip_pump_obj;     /* the objective pump's decay; 0 is off */
+    /* Whether the pump runs where something already has an answer (D322);
+       unset means MIP_PUMP_ALWAYS (src/mip.c). */
+    bool mip_pump_always_set;
+    bool mip_pump_always;
+    /* Reduced-cost fixing at the root (D323); unset means MIP_RCFIX. */
+    bool mip_rcfix_set;
+    bool mip_rcfix;
+    /* Rounds of bound propagation at each node (D324); unset means
+       MIP_PROPAGATE (src/mip.c). 0 is off. */
+    bool mip_propagate_set;
+    int64_t mip_propagate;
+    /* The deepest node propagation runs at (D324); unset means
+       MIP_PROPAGATE_DEPTH (src/mip.c). Negative is every node. */
+    bool mip_propagate_depth_set;
+    int64_t mip_propagate_depth;
     bool mip_dive_degrade_set;
     double mip_dive_degrade;
     /* The rounding heuristic at every node (D290); on unless set. */
@@ -194,6 +209,7 @@ struct jaos_model {
      * the best bound in the model's sense, and the incumbent when a stop
      * left one short of a proof. */
     int64_t mip_nodes, mip_solves, mip_cuts, mip_heur, mip_first_inc;
+    int64_t mip_rcfix_n, mip_prop_n;
     double mip_bound;
     bool mip_has_incumbent;
     double mip_inc_obj;
