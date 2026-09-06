@@ -327,7 +327,8 @@ JAOS_NODISCARD jaos_status jaos_set_mip_cut_rounds(jaos_model *m,
  * branches. A cut derived at a node is valid in that node's subtree and
  * nowhere else, since it is read over the node's bounds, so it is held in
  * a pool and is in the relaxation for exactly the nodes under it. 0 cuts
- * at the root only, which is the default; a negative value restores it.
+ * at the root only; 3 is the default, with jaos_set_mip_node_cut_cap's
+ * four cuts per node (D301), and a negative value restores it.
  * D296 carries what each depth cost over the MIP set. */
 JAOS_NODISCARD jaos_status jaos_set_mip_cut_depth(jaos_model *m,
                                                   int64_t depth);
@@ -339,6 +340,14 @@ JAOS_NODISCARD jaos_status jaos_set_mip_cut_depth(jaos_model *m,
  * node under it, which is D296's refused form. The root's cuts stay for
  * the whole tree either way. */
 JAOS_NODISCARD jaos_status jaos_set_mip_cut_drop(jaos_model *m, bool on);
+
+/* How many cuts a node below the root may add in its round (D301): the
+ * `cap` with the largest efficacy, violation over the cut's Euclidean
+ * norm, the earlier on a tie, so the choice is the same on every machine.
+ * 0 is no cap; a negative value restores the default. The root's rounds
+ * are not capped. D301 carries what each cap cost over the MIP set. */
+JAOS_NODISCARD jaos_status jaos_set_mip_node_cut_cap(jaos_model *m,
+                                                     int64_t cap);
 
 /* Knapsack cover cuts at the root (D300), in rounds beside the Gomory
  * rounds: every model row whose columns are all binary is read, each

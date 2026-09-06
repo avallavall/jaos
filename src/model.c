@@ -975,6 +975,15 @@ jaos_status jaos_set_mip_cut_drop(jaos_model *m, bool on)
     return JAOS_OK;
 }
 
+jaos_status jaos_set_mip_node_cut_cap(jaos_model *m, int64_t cap)
+{
+    if (m == nullptr)
+        return JAOS_ERR_INVALID_INPUT;
+    m->cfg.mip_node_cut_cap_set = cap >= 0;
+    m->cfg.mip_node_cut_cap = cap >= 0 ? cap : 0;
+    return JAOS_OK;
+}
+
 jaos_status jaos_set_mip_cover_rounds(jaos_model *m, int64_t rounds)
 {
     if (m == nullptr)

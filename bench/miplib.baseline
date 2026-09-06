@@ -6,19 +6,19 @@
 #
 # name status solved shape objective checker det iters work dropped nodes
 air03        optimal      1 1 1 1 1 443 26298976 -1 1
-blend2       optimal      1 1 1 1 1 257867 1062046190 -1 6827
-dcmulti      optimal      1 1 1 1 1 27592 133349918 -1 401
-egout        optimal      1 1 1 1 1 28503 353084663 -1 39127
-enigma       optimal      1 1 1 1 1 42712 87804722 -1 4114
-flugpl       optimal      1 1 1 1 1 3655 28457806 -1 4495
-khb05250     optimal      1 1 1 1 1 6135 46749409 -1 243
-lseu         optimal      1 1 1 1 1 90933 385567022 -1 19051
-misc03       optimal      1 1 1 1 1 25627 99466134 -1 803
-misc06       optimal      1 1 1 1 1 70106 457472199 -1 117
-mod008       optimal      1 1 1 1 1 101949 801025938 -1 11675
+blend2       optimal      1 1 1 1 1 223587 935985636 -1 5879
+dcmulti      optimal      1 1 1 1 1 40156 193094280 -1 601
+egout        optimal      1 1 1 1 1 4540 43753234 -1 4271
+enigma       optimal      1 1 1 1 1 23665 46822446 -1 1518
+flugpl       optimal      1 1 1 1 1 3207 23665505 -1 3281
+khb05250     optimal      1 1 1 1 1 3732 31783365 -1 83
+lseu         optimal      1 1 1 1 1 55509 202731880 -1 8529
+misc03       optimal      1 1 1 1 1 37940 157131751 -1 1147
+misc06       optimal      1 1 1 1 1 44037 334876175 -1 73
+mod008       optimal      1 1 1 1 1 122541 959566197 -1 14133
 mod010       optimal      1 1 1 1 1 844 16216731 -1 1
-p0033        optimal      1 1 1 1 1 2213 12912100 -1 997
-p0201        optimal      1 1 1 1 1 38644 243045557 -1 963
-rgn          optimal      1 1 1 1 1 77301 186533986 -1 4539
-stein27      optimal      1 1 1 1 1 31540 120743819 -1 8949
-stein45      optimal      1 1 1 1 1 964984 3386352600 -1 114569
+p0033        optimal      1 1 1 1 1 2692 12829409 -1 925
+p0201        optimal      1 1 1 1 1 39150 277363650 -1 799
+rgn          optimal      1 1 1 1 1 89477 204087045 -1 4567
+stein27      optimal      1 1 1 1 1 34210 131835054 -1 9723
+stein45      optimal      1 1 1 1 1 966744 3342782944 -1 109705

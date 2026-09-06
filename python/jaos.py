@@ -418,6 +418,7 @@ _sig("jaos_set_mip_dive", ctypes.c_int, _VP, ctypes.c_bool)
 _sig("jaos_set_mip_cut_rounds", ctypes.c_int, _VP, _I64)
 _sig("jaos_set_mip_cut_depth", ctypes.c_int, _VP, _I64)
 _sig("jaos_set_mip_cover_rounds", ctypes.c_int, _VP, _I64)
+_sig("jaos_set_mip_node_cut_cap", ctypes.c_int, _VP, _I64)
 _sig("jaos_set_mip_heuristics", ctypes.c_int, _VP, ctypes.c_bool)
 _sig("jaos_mip_result", ctypes.c_int, _VP, _P(_MipReport))
 _sig("jaos_mip_incumbent", ctypes.c_int, _VP, _P(_D), _P(_D))
@@ -822,14 +823,19 @@ class Model:
 
     def set_mip_cut_depth(self, depth):
         """One round of Gomory cuts at every node down to `depth` (D296),
-        each valid in its node's subtree; 0, the default, is the root
-        only, and a negative value restores it."""
+        each valid in its node's subtree; 0 is the root only, 3 the
+        default (D301), and a negative value restores it."""
         self._check(_lib.jaos_set_mip_cut_depth(self._handle(), int(depth)))
 
     def set_mip_cover_rounds(self, rounds):
         """Rounds of knapsack cover cuts at the root, beside the Gomory
         rounds (D300): 0 for none, a negative value for the default."""
         self._check(_lib.jaos_set_mip_cover_rounds(self._handle(), int(rounds)))
+
+    def set_mip_node_cut_cap(self, cap):
+        """At most `cap` cuts per node below the root, the most efficacious
+        kept (D301); 0 for no cap, a negative value for the default."""
+        self._check(_lib.jaos_set_mip_node_cut_cap(self._handle(), int(cap)))
 
     def set_mip_heuristics(self, on=True):
         """Whether every fractional node is rounded for an incumbent (D290);
@@ -2146,7 +2152,7 @@ class Problem:
 
     def set_mip_cut_depth(self, depth):
         """One round of Gomory cuts at every node down to `depth` (D296);
-        0, the default, is the root only."""
+        0 is the root only, 3 the default (D301)."""
         self._m.set_mip_cut_depth(depth)
         return self
 
@@ -2154,6 +2160,12 @@ class Problem:
         """Rounds of knapsack cover cuts at the root (D300); 0 for none,
         negative for the default."""
         self._m.set_mip_cover_rounds(rounds)
+        return self
+
+    def set_mip_node_cut_cap(self, cap):
+        """At most `cap` cuts per node below the root (D301); 0 for no cap,
+        negative for the default."""
+        self._m.set_mip_node_cut_cap(cap)
         return self
 
     def set_mip_heuristics(self, on=True):

@@ -12,7 +12,7 @@ them.
 | `sweep-control.txt` | every default, cuts at the root only: reproduces `bench/miplib.baseline` (the D292 reading) node for node and unit for unit on all 17 (`control-against-baseline.txt`). The canary |
 | `sweep-d1.txt` .. `sweep-d1000.txt` | `--cut-depth D` for D = 1, 2, 4, 8, 1000: one round of Gomory cuts at every node whose depth is at most D, each cut valid in its node's subtree and a row of the relaxation for exactly the nodes under it |
 | `d*-against-control.txt` | per instance, the work ratio, the nodes control -> arm and the cuts added; the geometric mean at the end |
-| `retest-cut-depth.sh` | re-tests the refusal on the current tree, for `make refusals`: depth 1 against the default; writes `retest-cut-depth.txt` and never the files above |
+| `retest-cut-depth.sh` | re-tested the refusal for `make refusals`, depth 1 against the default. **Retired at D301**: the default is depth 3 with four cuts per node now, so the comparison means nothing; kept as the record of what the refusal tested |
 
 ## The reading
 

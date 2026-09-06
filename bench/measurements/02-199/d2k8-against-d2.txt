@@ -1,0 +1,18 @@
+air03     1.000x  nodes 1 -> 1  cuts 35
+blend2    1.000x  nodes 7267 -> 7267  cuts 11
+dcmulti   1.536x  nodes 525 -> 585  cuts 62  TREE-CHANGED
+egout     1.726x  nodes 2291 -> 4035  cuts 57  TREE-CHANGED
+enigma    3.600x  nodes 2771 -> 12293  cuts 48  TREE-CHANGED
+flugpl    1.000x  nodes 5981 -> 5981  cuts 53
+khb05250  0.877x  nodes 99 -> 93  cuts 57  TREE-CHANGED
+lseu      0.592x  nodes 11759 -> 6823  cuts 65  TREE-CHANGED
+misc03    0.918x  nodes 1561 -> 1293  cuts 62  TREE-CHANGED
+misc06    1.000x  nodes 91 -> 91  cuts 28
+mod008    1.000x  nodes 12299 -> 12299  cuts 63
+mod010    1.000x  nodes 1 -> 1  cuts 42
+p0033     0.799x  nodes 1603 -> 1253  cuts 69  TREE-CHANGED
+p0201     1.003x  nodes 907 -> 992  cuts 75  TREE-CHANGED
+rgn       1.115x  nodes 4027 -> 4355  cuts 69  TREE-CHANGED
+stein27   0.966x  nodes 10015 -> 9535  cuts 69  TREE-CHANGED
+stein45   0.863x  nodes 109825 -> 101977  cuts 84  TREE-CHANGED
+geomean 1.074x over 17: 5 better, 4 worse, 1 past 2x

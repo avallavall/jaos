@@ -308,6 +308,7 @@ and you have the argument. Jump to the entry for the numbers behind it.
 - **[D298](#d298--strong-branching-at-the-root-only-refused-0987x-with-two-instances-past-2x-the-same-tree-at-every-reliability-and-d293s-reopen-condition-is-measured-on-both-clauses)** — Strong branching at the root only, refused: 0.987x with two instances past 2x, the same tree at every reliability, and D293's reopen condition is measured on both clauses
 - **[D299](#d299--a-solution-pool-the-best-integer-points-found-best-first-with-the-search-unchanged)** — A solution pool: the best integer points found, best first, with the search unchanged
 - **[D300](#d300--knapsack-cover-cuts-at-the-root-four-rounds-beside-the-gomory-round-0745x-the-work-over-the-mip-set-seven-better-one-worse-none-past-2x-and-mod010-closes-at-the-root)** — Knapsack cover cuts at the root, four rounds beside the Gomory round: 0.745x the work over the MIP set, seven better, one worse, none past 2x, and mod010 closes at the root
+- **[D301](#d301--cuts-below-the-root-land-depth-3-with-four-cuts-per-node-reads-0835x-the-work-over-the-mip-set-none-past-2x-and-0934x-without-egout)** — Cuts below the root land: depth 3 with four cuts per node reads 0.835x the work over the MIP set, none past 2x, and 0.934x without egout
 
 ---
 
@@ -21717,3 +21718,44 @@ column, no covers below the root, no other family: the feature matrix's
 cutting planes stay ◐. `bench/miplib.baseline` is rewritten to the
 four-round trees; no LP path is touched and the three gate sets are
 byte-identical.
+
+## D301 — Cuts below the root land: depth 3 with four cuts per node reads 0.835x the work over the MIP set, none past 2x, and 0.934x without egout
+
+**The gap.** D297 took cuts below the root to 0.802x at depth 2 and left
+`misc03` at 2.053x, one instance past the bar, and named a cap on the cuts
+a node may add as what could take it under. D300 then changed the root's
+relaxation, so depth 2 had to be read again on the new baseline: 0.935x,
+`misc03` still past 2x.
+
+**What it does now.** `jaos_set_mip_node_cut_cap` and `--node-cut-cap K`
+keep, of a node's round, the K cuts with the largest efficacy, the
+violation over the cut's Euclidean norm, the earlier on a tie, so the
+choice is a total order and the same on every machine (D8); the root's
+rounds are never capped. The defaults move together: cuts to depth 3, four
+per node. "No cuts at all" is now `--cut-rounds 0 --cover-rounds 0
+--cut-depth 0`, and the tests say so. Python carries the setting at both
+layers.
+
+**Evidence** (`bench/measurements/02-199/`, on the D300 baseline). The
+control reproduces `bench/miplib.baseline` node for node and unit for unit
+on all 17. Work against it, geometric mean of per-instance ratios: depth 2
+uncapped 0.935x with `misc03` 2.05x; depth 2 with a cap of 2, 1.088x (two
+past 2x), of 4, 0.920x (none past), of 8, 1.004x (two past), of 16,
+0.948x (one past); depth 1 with a cap of 4, 0.955x (none past); **depth 3
+with a cap of 4, 0.835x, 7 better, 6 worse, none past 2x**, the worst
+`misc03` 1.58x and `dcmulti` 1.45x; depth 3 with a cap of 3, 0.836x with
+`dcmulti` 1.95x; with a cap of 6, 0.994x with two past 2x; depths 4, 6, 8
+and every node at a cap of 4, 0.854x, 0.852x, 0.827x and 0.877x, each with
+one to three instances past 2x. At the default `egout` reads 0.124x (39127
+to 4271 nodes), `lseu` 0.526x, `enigma` 0.533x, `khb05250` 0.680x. **The
+mean without `egout` is 0.934x**, still under the bar.
+
+**What it is not.** Not a smooth lever: cap 6 at depth 3 reads 0.994x
+against 0.835x at cap 4, and depth 2 swings from 0.920x to 1.088x between
+caps 4 and 2, because a cut round changes the shape of the tree under it
+and not only its size. The pair is the best reading under the bar on
+seventeen instances and is worth re-reading on a larger set. D296's
+refusal expires here, the second refusal tonight whose reopen condition
+was met (D293's was measured and stayed closed). No LP path is touched:
+the three gate sets are byte-identical; `bench/miplib.baseline` is
+rewritten to the new trees.

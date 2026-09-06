@@ -52,6 +52,10 @@ typedef struct {
     bool mip_cut_depth_set;
     int64_t mip_cut_depth;
     bool mip_no_cut_drop;    /* a local cut stays once slack (D297)     */
+    /* Cuts a node below the root may add per round (D301); unset means
+     * MIP_NODE_CUT_CAP (src/mip.c). */
+    bool mip_node_cut_cap_set;
+    int64_t mip_node_cut_cap;
     /* Cover cuts at the root (D300); unset means MIP_COVER_ROUNDS. */
     bool mip_cover_rounds_set;
     int64_t mip_cover_rounds;

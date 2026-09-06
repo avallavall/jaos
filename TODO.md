@@ -7,6 +7,25 @@ line leaves this file in the same commit.
 
 ## Where the last session stopped — 2026-09-06
 
+**2026-09-06, the overnight batch, fourth round: cuts below the root land
+(D301).** A node's round keeps its four most efficacious cuts, violation
+over the cut's norm, and with that cap cuts to depth 3 read **0.835x** the
+work on the D300 baseline, 7 better, 6 worse, none past 2x, `egout` 39127
+to 4271 nodes; without `egout` the mean is 0.934x, still under the bar
+(`bench/measurements/02-199/`). The defaults are depth 3 and cap 4, the
+baseline is rewritten, and D296's refusal expires, the second reopen
+condition met tonight. **Two things to know.** The surface is not smooth:
+cap 6 at the same depth reads 0.994x with two past 2x, and depth 2 swings
+from 0.920x to 1.088x between caps 4 and 2; the pair is the best reading
+under the bar on seventeen instances and wants re-reading on a larger set.
+And "no cuts at all" is `--cut-rounds 0 --cover-rounds 0 --cut-depth 0`.
+**What is next**, in order: a larger MIP set (MIPLIB 2017's easy subset is
+in `SPECS.md` as not started), which is what the two cut defaults need
+before anyone trusts them; lifted covers and a third family (MIR); root
+cuts that leave below a node where they go slack; a backtracking dive,
+what could reopen D289; and the seven held constants, each swept once
+something moves them.
+
 **2026-09-06, the overnight batch, third round: knapsack cover cuts at the
 root, and the first default that moved tonight (D300).** Every all-binary
 row, each finite side, is a knapsack over literals; the greedy extended

@@ -67,7 +67,11 @@ constexpr int64_t MIP_CUT_ROUNDS = 1;
  * round of cuts on its own relaxation, the root being depth 0 and getting
  * MIP_CUT_ROUNDS. 0 is the root only. jaos_set_mip_cut_depth overrides it;
  * docs/tolerances.md carries the sweep. */
-constexpr int64_t MIP_CUT_DEPTH = 0;
+constexpr int64_t MIP_CUT_DEPTH = 3;
+/* Cuts a node below the root may add in its round (D301), the most
+ * efficacious kept; 0 is no cap. jaos_set_mip_node_cut_cap overrides it;
+ * docs/tolerances.md carries the sweep. */
+constexpr int64_t MIP_NODE_CUT_CAP = 4;
 /* Rounds of knapsack cover cuts at the root (D300), beside the Gomory
  * rounds; a round that adds nothing ends both. jaos_set_mip_cover_rounds
  * overrides it; docs/tolerances.md carries the sweep. */
@@ -120,14 +124,54 @@ constexpr int64_t MIP_PROBE_DEPTH = -1;
 typedef struct {
     int64_t *start, *idx;
     double *val, *lo;
+    double *eff;               /* efficacy: violation over the norm (D301);
+                                  the pool does not carry it            */
     int64_t n, nnz;
-    int64_t cap_start, cap_lo, cap_idx, cap_val;   /* one each: JM_GROW
-                                                      reads its own cap */
+    int64_t cap_start, cap_lo, cap_idx, cap_val, cap_eff;   /* one each:
+                                            JM_GROW reads its own cap */
 } cutbuf;
 
 static void cutbuf_free(cutbuf *cb)
 {
-    free(cb->start); free(cb->idx); free(cb->val); free(cb->lo);
+    free(cb->start); free(cb->idx); free(cb->val); free(cb->lo); free(cb->eff);
+}
+
+/* Keeps the `cap` cuts of `cb` with the largest efficacy, the earlier on a
+ * tie, in their original order; returns how many are left. */
+static int64_t cutbuf_keep_best(cutbuf *cb, int64_t cap)
+{
+    if (cap <= 0 || cb->n <= cap)
+        return cb->n;
+    bool *keep = calloc((size_t)cb->n, sizeof *keep);
+    if (keep == nullptr)
+        return -1;
+    for (int64_t k = 0; k < cap; k++) {
+        int64_t best = -1;
+        for (int64_t r = 0; r < cb->n; r++)
+            if (!keep[r] && (best < 0 || cb->eff[r] > cb->eff[best]))
+                best = r;
+        keep[best] = true;
+    }
+    int64_t n = 0, nnz = 0;
+    for (int64_t r = 0; r < cb->n; r++) {
+        if (!keep[r])
+            continue;
+        const int64_t s = cb->start[r], e = cb->start[r + 1];
+        if (nnz != s) {
+            memmove(cb->idx + nnz, cb->idx + s, (size_t)(e - s) * sizeof *cb->idx);
+            memmove(cb->val + nnz, cb->val + s, (size_t)(e - s) * sizeof *cb->val);
+        }
+        cb->start[n] = nnz;
+        cb->lo[n] = cb->lo[r];
+        cb->eff[n] = cb->eff[r];
+        nnz += e - s;
+        n++;
+    }
+    cb->start[n] = nnz;
+    cb->n = n;
+    cb->nnz = nnz;
+    free(keep);
+    return n;
 }
 
 /* Cut `r` of `src` appended to `dst`. */
@@ -652,11 +696,14 @@ static jaos_status strong_probe(jaos_model *lp, const jaos_model *m,
 
 /* --- Gomory mixed-integer cuts at the root ----------------------------- */
 
-static bool cutbuf_push(cutbuf *cb, const double *cut, int64_t nc, double lo)
+static bool cutbuf_push(cutbuf *cb, const double *cut, int64_t nc, double lo,
+                        double eff)
 {
     if (!JM_GROW(cb->start, cb->cap_start, cb->n + 2) ||
-        !JM_GROW(cb->lo, cb->cap_lo, cb->n + 2))
+        !JM_GROW(cb->lo, cb->cap_lo, cb->n + 2) ||
+        !JM_GROW(cb->eff, cb->cap_eff, cb->n + 2))
         return false;
+    cb->eff[cb->n] = eff;
     int64_t nz = 0;
     for (int64_t k = 0; k < nc; k++)
         nz += cut[k] != 0.0;
@@ -800,12 +847,14 @@ static int64_t gomory_round(jaos_model *lp, const jaos_model *m,
         }
         if (nnz == 0 || amax / amin > MIP_CUT_DYNAMISM)
             continue;
-        double act = 0.0;
-        for (int64_t k = 0; k < nc; k++)
+        double act = 0.0, nrm = 0.0;
+        for (int64_t k = 0; k < nc; k++) {
             act += cut[k] * x[k];
+            nrm += cut[k] * cut[k];
+        }
         if (!(rhs - act > 0.0))
             continue;
-        if (!cutbuf_push(cb, cut, nc, rhs)) {
+        if (!cutbuf_push(cb, cut, nc, rhs, (rhs - act) / sqrt(nrm))) {
             added = -1;
             break;
         }
@@ -923,7 +972,7 @@ static int64_t cover_round(const jaos_model *m, jaos_model *lp,
                     amax = items[k].a;
             /* sum_E y <= c - 1, E = C plus every item at least as heavy. */
             double act = 0.0;
-            int64_t ncompl = 0;
+            int64_t ncompl = 0, ne = 0;
             memset(cut, 0, (size_t)nc * sizeof *cut);
             for (int64_t k = 0; k < n; k++) {
                 if (k >= c && items[k].a < amax)
@@ -931,11 +980,13 @@ static int64_t cover_round(const jaos_model *m, jaos_model *lp,
                 act += items[k].xv;
                 cut[items[k].col] = items[k].compl ? 1.0 : -1.0;
                 ncompl += items[k].compl;
+                ne++;
             }
             if (!(act > (double)(c - 1)))
                 continue;
             /* Over the columns: sum_{compl} x - sum_{plain} x >= |E_c| - (c - 1). */
-            if (!cutbuf_push(cb, cut, nc, (double)(ncompl - c + 1)))
+            if (!cutbuf_push(cb, cut, nc, (double)(ncompl - c + 1),
+                             (act - (double)(c - 1)) / sqrt((double)ne)))
                 return -1;
             added++;
         }
@@ -1112,6 +1163,8 @@ jaos_status jm_branch_and_bound(jaos_model *m)
     const int64_t cut_depth = m->cfg.mip_cut_depth_set ? m->cfg.mip_cut_depth
                                                        : MIP_CUT_DEPTH;
     const bool cut_drop = !m->cfg.mip_no_cut_drop;
+    const int64_t node_cut_cap = m->cfg.mip_node_cut_cap_set
+        ? m->cfg.mip_node_cut_cap : MIP_NODE_CUT_CAP;
     const int64_t probe_depth = m->cfg.mip_probe_depth_set
         ? m->cfg.mip_probe_depth : MIP_PROBE_DEPTH;
     const int64_t pool_size = m->cfg.mip_pool_size > 0 ? m->cfg.mip_pool_size : 1;
@@ -1406,7 +1459,12 @@ jaos_status jm_branch_and_bound(jaos_model *m)
             if (cut == nullptr)
                 goto done;
             cb.n = cb.nnz = 0;
-            const int64_t got = gomory_round(lp, m, x, &cb, row, cut, &work);
+            int64_t got = gomory_round(lp, m, x, &cb, row, cut, &work);
+            if (got < 0)
+                goto done;
+            /* The cap (D301): the most efficacious cuts of the round stay. */
+            if (got > 0 && node_cut_cap > 0)
+                got = cutbuf_keep_best(&cb, node_cut_cap);
             if (got < 0)
                 goto done;
             if (got > 0) {

@@ -11,6 +11,15 @@ open, `bench/README.md` for the gate, and the commit each entry came from.
 
 ### Added
 
+- **Cuts below the root are on: depth 3, four cuts per node.**
+  `jaos_set_mip_node_cut_cap` and `--node-cut-cap K` keep the K most
+  efficacious cuts of a node's round, violation over the cut's norm. With
+  the cap at 4, cuts to depth 3 read 0.835x the work over the MIP set on
+  the D300 baseline, better on 7, worse on 6, none past 2x, and
+  0.934x without `egout`; the baseline is rewritten and D296's refusal
+  expires. "No cuts at all" is `--cut-rounds 0 --cover-rounds 0 --cut-depth
+  0`. Python carries the setting at both layers (D301).
+
 - **Knapsack cover cuts at the root, four rounds by default.**
   `jaos_set_mip_cover_rounds` and `--cover-rounds N` read every all-binary
   row, each finite side, as a knapsack over literals and add the greedy
