@@ -1071,6 +1071,24 @@ jaos_status jaos_set_mip_dive_gap(jaos_model *m, double fraction)
     return JAOS_OK;
 }
 
+jaos_status jaos_set_mip_mir_aggregate(jaos_model *m, int64_t rows)
+{
+    if (m == nullptr)
+        return JAOS_ERR_INVALID_INPUT;
+    m->cfg.mip_mir_aggregate_set = rows >= 0;
+    m->cfg.mip_mir_aggregate = rows >= 0 ? rows : 0;
+    return JAOS_OK;
+}
+
+jaos_status jaos_set_mip_dive_heuristic(jaos_model *m, int64_t solves)
+{
+    if (m == nullptr)
+        return JAOS_ERR_INVALID_INPUT;
+    m->cfg.mip_dive_heuristic_set = solves >= 0;
+    m->cfg.mip_dive_heuristic = solves >= 0 ? solves : 0;
+    return JAOS_OK;
+}
+
 jaos_status jaos_set_mip_node_mir(jaos_model *m, int on)
 {
     if (m == nullptr)

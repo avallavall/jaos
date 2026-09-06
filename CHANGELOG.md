@@ -11,6 +11,26 @@ open, `bench/README.md` for the gate, and the commit each entry came from.
 
 ### Added
 
+- **A dive heuristic at the root, on by default, and the aggregated MIR
+  cut measured and refused.** `jaos_set_mip_dive_heuristic` and
+  `--dive-heuristic N` dive on a copy of the root's relaxation as the
+  cuts left it: fix the integer column nearest an integer, solve again,
+  up to N times, and judge an integral point the way every heuristic
+  point is judged. 50 by default: 1.032x the work over the MIP set of 24,
+  none past 2x, all 24 finish, no node count moves, and the first
+  incumbent moves earlier on 6 and later on none (`gen` 7 to 1,
+  `khb05250` 69 to 1, `misc06` 43 to 1, `rgn` 205 to 1, `stein27` 84 to
+  1, `stein45` 20 to 1); the baseline is rewritten (D313).
+  `jaos_set_mip_mir_aggregate` and `--mir-aggregate N` substitute a
+  continuous column out of a row with another row before the rounding, N
+  times, rounding after each: 1.140x at its best step count with `bell5`
+  unfinished in every arm and `gen` past 2x; off (D312, refused). The
+  review found the aggregate's coefficients carried no rounding bound,
+  which is an invalid cut and a wrong answer, so the magnitude behind
+  each coefficient is carried beside it and a side that cannot be placed
+  gets no cut. Python carries both settings at both layers
+  (`bench/measurements/02-205/`).
+
 - **MIR cuts at a node, and a dive resume bounded by the gap: both
   measured and refused.** `jaos_set_mip_node_mir` and `--node-mir` give a
   node inside the cut depth the same MIR round over its own bounds beside

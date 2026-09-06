@@ -399,6 +399,9 @@ static void test_the_rounding_heuristic_takes_the_relaxations_neighbour(void)
         TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_mir_rounds(m, 0));
         TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_cut_depth(m, 0));
         TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_heuristics(m, on != 0));
+        /* D313's dive would find the same point; this test is about the
+         * rounding, so the dive is off. */
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_dive_heuristic(m, 0));
         TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
         TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
         double obj = 0.0, x[2], ra[3];
@@ -661,6 +664,7 @@ static void test_strong_branching_probes_are_counted_and_change_no_answer(void)
         TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_cover_rounds(m, 0));
         TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_mir_rounds(m, 0));
         TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_cut_depth(m, 0));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_dive_heuristic(m, 0));
         TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_reliability(m, pass == 0 ? 0 : 8));
         TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
         TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
@@ -1576,6 +1580,151 @@ static void test_a_dive_bounded_by_the_gap_reaches_the_same_optimum(void)
     jaos_model_free(m);
 }
 
+/* max 3x + 2y  s.t.  2x - s <= 0,  2y + s <= 3,  x + y <= 4, x and y
+ * integer in [0, 3], s continuous in [0, 10]. Neither row alone gives a
+ * MIR cut the point violates: the first has no integer term once s is
+ * shifted, and the second's rounding is weaker than the point. Their
+ * aggregate does: substituting s out of the first with the second gives
+ * 2x + 2y <= 3, whose rounding at delta 2 is x + y <= 1, and the root
+ * closes at 3. */
+static jaos_model *aggregate_pair(void)
+{
+    const double cost[3] = { 3.0, 2.0, 0.0 };
+    const double cl[3] = { 0, 0, 0 }, cu[3] = { 3.0, 3.0, 10.0 };
+    const double rl[3] = { -INFINITY, -INFINITY, -INFINITY };
+    const double ru[3] = { 0.0, 3.0, 4.0 };
+    /* column-wise: x in rows 0 and 2, y in rows 1 and 2, s in rows 0, 1 */
+    const int64_t as[4] = { 0, 2, 4, 6 };
+    const int64_t ai[6] = { 0, 2, 1, 2, 0, 1 };
+    const double av[6] = { 2.0, 1.0, 2.0, 1.0, -1.0, 1.0 };
+    jaos_model *m = fresh();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_load_lp(m, 3, 3, JAOS_MAXIMIZE, 0.0, cost, cl, cu, rl, ru,
+                     6, as, ai, av));
+    for (int64_t j = 0; j < 2; j++)
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_col_integer(m, j, true));
+    return m;
+}
+
+/* An aggregated MIR cut closes what a single row leaves (D312): on the
+ * pair above with only the MIR family on, no aggregation gives no cut and
+ * a tree, and one step of aggregation closes the root; both reach 3, and
+ * two cold searches agree. A negative count restores the default, and
+ * aggregation with the MIR rounds off does nothing. */
+static void test_an_aggregated_mir_cut_closes_what_one_row_leaves(void)
+{
+    int64_t nodes[2] = { 0, 0 }, cuts[2] = { 0, 0 };
+    for (int arm = 0; arm < 2; arm++) {
+        double x1[3], x2[3];
+        for (int pass = 0; pass < 2; pass++) {
+            jaos_model *m = aggregate_pair();
+            TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_cut_rounds(m, 0));
+            TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_cover_rounds(m, 0));
+            TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_cut_depth(m, 0));
+            TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_mir_rounds(m, 4));
+            TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_mir_aggregate(m, arm));
+            TEST_ASSERT_TRUE(m->cfg.mip_mir_aggregate_set);
+            TEST_ASSERT_EQUAL_INT64(arm, m->cfg.mip_mir_aggregate);
+            TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+            TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+            double obj = 0.0;
+            TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(m, &obj));
+            TEST_ASSERT_DOUBLE_WITHIN(1e-9, 3.0, obj);
+            TEST_ASSERT_EQUAL_INT(JAOS_OK,
+                jaos_solution(m, pass == 0 ? x1 : x2, nullptr, nullptr, nullptr));
+            jaos_mip_report rep;
+            TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_mip_result(m, &rep));
+            if (pass == 0) {
+                nodes[arm] = rep.nodes;
+                cuts[arm] = rep.cuts;
+            } else {
+                TEST_ASSERT_EQUAL_INT64(nodes[arm], rep.nodes);
+                TEST_ASSERT_EQUAL_INT64(cuts[arm], rep.cuts);
+            }
+            jaos_model_free(m);
+        }
+        TEST_ASSERT_EQUAL_MEMORY(x1, x2, sizeof x1);
+    }
+    TEST_ASSERT_EQUAL_INT64(0, cuts[0]);
+    TEST_ASSERT_TRUE(nodes[0] > 1);
+    TEST_ASSERT_TRUE(cuts[1] >= 1);
+    TEST_ASSERT_EQUAL_INT64(1, nodes[1]);
+    /* The MIR rounds off: aggregation has nothing to aggregate. */
+    jaos_model *m = aggregate_pair();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_cut_rounds(m, 0));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_cover_rounds(m, 0));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_cut_depth(m, 0));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_mir_rounds(m, 0));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_mir_aggregate(m, 3));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    jaos_mip_report rep;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_mip_result(m, &rep));
+    TEST_ASSERT_EQUAL_INT64(0, rep.cuts);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_mir_aggregate(m, -1));
+    TEST_ASSERT_FALSE(m->cfg.mip_mir_aggregate_set);
+    jaos_model_free(m);
+}
+
+/* The dive heuristic finds the first incumbent at the root (D313): on the
+ * neighbour model with the rounding heuristic off, no dive leaves the
+ * first incumbent to the tree and a dive of five puts it at node 1 with a
+ * heuristic point, the answer unmoved and two cold searches agreeing. One
+ * solve is not enough, since the first is the root's own relaxation. On
+ * the five-item knapsack the dive goes infeasible at its first fixing and
+ * gives up, which changes no answer. A negative count restores the
+ * default. */
+static void test_the_dive_heuristic_finds_the_first_incumbent(void)
+{
+    const int64_t solves[3] = { 0, 1, 5 };
+    int64_t first[3] = { 0, 0, 0 }, points[3] = { 0, 0, 0 };
+    for (int arm = 0; arm < 3; arm++) {
+        double x1[2], x2[2];
+        for (int pass = 0; pass < 2; pass++) {
+            jaos_model *m = neighbour_model();
+            TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_heuristics(m, false));
+            TEST_ASSERT_EQUAL_INT(JAOS_OK,
+                jaos_set_mip_dive_heuristic(m, solves[arm]));
+            TEST_ASSERT_TRUE(m->cfg.mip_dive_heuristic_set);
+            TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+            TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+            double obj = 0.0;
+            TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(m, &obj));
+            TEST_ASSERT_DOUBLE_WITHIN(1e-9, 3.0, obj);
+            TEST_ASSERT_EQUAL_INT(JAOS_OK,
+                jaos_solution(m, pass == 0 ? x1 : x2, nullptr, nullptr, nullptr));
+            jaos_mip_report rep;
+            TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_mip_result(m, &rep));
+            if (pass == 0) {
+                first[arm] = rep.first_incumbent_node;
+                points[arm] = rep.heuristic_points;
+            } else {
+                TEST_ASSERT_EQUAL_INT64(first[arm], rep.first_incumbent_node);
+                TEST_ASSERT_EQUAL_INT64(points[arm], rep.heuristic_points);
+            }
+            jaos_model_free(m);
+        }
+        TEST_ASSERT_TRUE(x1[0] == 2.0 && x1[1] == 1.0);
+        TEST_ASSERT_EQUAL_MEMORY(x1, x2, sizeof x1);
+    }
+    TEST_ASSERT_EQUAL_INT64(0, points[0]);
+    TEST_ASSERT_TRUE(first[0] > 1);
+    TEST_ASSERT_EQUAL_INT64(points[1], points[0]);
+    TEST_ASSERT_EQUAL_INT64(1, points[2]);
+    TEST_ASSERT_EQUAL_INT64(1, first[2]);
+    /* A dive that goes infeasible gives up and changes no answer. */
+    jaos_model *m = knapsack5();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_heuristics(m, false));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_dive_heuristic(m, 20));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+    double obj = 0.0;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(m, &obj));
+    TEST_ASSERT_DOUBLE_WITHIN(1e-9, 23.0, obj);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_dive_heuristic(m, -1));
+    TEST_ASSERT_FALSE(m->cfg.mip_dive_heuristic_set);
+    jaos_model_free(m);
+}
+
 int main(void)
 {
     UNITY_BEGIN();
@@ -1616,5 +1765,7 @@ int main(void)
     RUN_TEST(test_a_backtracking_dive_reaches_the_same_optimum);
     RUN_TEST(test_mir_cuts_at_the_nodes_keep_the_optimum);
     RUN_TEST(test_a_dive_bounded_by_the_gap_reaches_the_same_optimum);
+    RUN_TEST(test_an_aggregated_mir_cut_closes_what_one_row_leaves);
+    RUN_TEST(test_the_dive_heuristic_finds_the_first_incumbent);
     return UNITY_END();
 }

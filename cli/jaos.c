@@ -16,6 +16,7 @@
  *                   [--cover-lift | --no-cover-lift] [--mir-rounds N]
  *                   [--dive] [--dive-child RULE] [--dive-backtrack N]
  *                   [--dive-gap F] [--node-mir | --no-node-mir]
+ *                   [--mir-aggregate N] [--dive-heuristic N]
  *                   [--no-heuristics] [--node-limit N] [--branching RULE]
  *                   [--reliability N] [--probe-cap M] [--probe-depth D]
  *                   [--no-cut-drop] [--pool-size K] [--log LEVEL]
@@ -84,6 +85,7 @@ static const char USAGE[] =
     "                  [--cover-lift | --no-cover-lift] [--mir-rounds N]\n"
     "                  [--dive] [--dive-child RULE] [--dive-backtrack N]\n"
     "                  [--dive-gap F] [--node-mir | --no-node-mir]\n"
+    "                  [--mir-aggregate N] [--dive-heuristic N]\n"
     "                  [--no-heuristics] [--node-limit N] [--branching RULE]\n"
     "                  [--reliability N] [--probe-cap M] [--probe-depth D]\n"
     "                  [--no-cut-drop] [--pool-size K] [--log LEVEL]\n"
@@ -136,7 +138,11 @@ static const char USAGE[] =
     "  --dive-gap F     resume only while the sibling's bound is within F of\n"
     "                   (1 + |best open bound|) (F >= 0; 0 for no bound)\n"
     "  --node-mir       MIR cuts over a node's own bounds beside its Gomory\n"
-    "                   round; --no-node-mir keeps the round Gomory's\n";
+    "                   round; --no-node-mir keeps the round Gomory's\n"
+    "  --mir-aggregate N  rows a MIR cut may absorb before it is rounded\n"
+    "                   (N >= 0; 0 is the single-row form)\n"
+    "  --dive-heuristic N  relaxations a dive for a first incumbent may\n"
+    "                   solve at the root (N >= 0; default 50, 0 is off)\n";
 
 /* The second piece, because ISO C only promises a 4095-byte literal. */
 static const char USAGE1B[] =
@@ -440,6 +446,8 @@ struct solve_options {
     bool has_dive_gap;
     double dive_gap;
     int node_mir;            /* -1: not given; else 0 or 1                */
+    int64_t mir_aggregate;   /* -1: not given (the library's default)     */
+    int64_t dive_heuristic;  /* -1: not given (the library's default)     */
     int64_t node_limit;      /* 0: not given; the parser refuses <= 0     */
     int branching;           /* -1: not given; else a jaos_branching      */
     int64_t reliability;     /* -1: not given (the library's default)     */
@@ -476,6 +484,8 @@ static int parse_solve_options(int argc, char **argv, int first,
     o->mir_rounds = -1;
     o->dive_backtrack = -1;
     o->node_mir = -1;
+    o->mir_aggregate = -1;
+    o->dive_heuristic = -1;
     o->branching = -1;
     o->reliability = -1;
     o->dive_child = -1;
@@ -613,6 +623,14 @@ static int parse_solve_options(int argc, char **argv, int first,
             if (!parse_int64(v, &o->dive_backtrack) || o->dive_backtrack < 0)
                 return usage_error("--dive-backtrack needs a count, 0 or "
                                    "more, not '%s'", v);
+        } else if (strcmp(a, "--dive-heuristic") == 0) {
+            if (!parse_int64(v, &o->dive_heuristic) || o->dive_heuristic < 0)
+                return usage_error("--dive-heuristic needs a count of solves, "
+                                   "0 or more, not '%s'", v);
+        } else if (strcmp(a, "--mir-aggregate") == 0) {
+            if (!parse_int64(v, &o->mir_aggregate) || o->mir_aggregate < 0)
+                return usage_error("--mir-aggregate needs a count of rows, 0 "
+                                   "or more, not '%s'", v);
         } else if (strcmp(a, "--dive-gap") == 0) {
             if (!parse_double(v, &o->dive_gap) || o->dive_gap < 0.0)
                 return usage_error("--dive-gap needs a fraction of the bound, "
@@ -760,6 +778,16 @@ static int cmd_solve(int argc, char **argv)
     }
     if (o.node_mir >= 0 && jaos_set_mip_node_mir(m, o.node_mir) != JAOS_OK) {
         rc = library_error("set the node MIR cuts for", o.file, m);
+        goto out;
+    }
+    if (o.mir_aggregate >= 0 &&
+        jaos_set_mip_mir_aggregate(m, o.mir_aggregate) != JAOS_OK) {
+        rc = library_error("set the MIR aggregation for", o.file, m);
+        goto out;
+    }
+    if (o.dive_heuristic >= 0 &&
+        jaos_set_mip_dive_heuristic(m, o.dive_heuristic) != JAOS_OK) {
+        rc = library_error("set the dive heuristic for", o.file, m);
         goto out;
     }
     if (o.dive && jaos_set_mip_dive(m, true) != JAOS_OK) {

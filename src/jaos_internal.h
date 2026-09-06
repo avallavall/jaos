@@ -88,6 +88,14 @@ typedef struct {
     /* MIR cuts at the nodes (D310); unset means MIP_NODE_MIR. */
     bool mip_node_mir_set;
     bool mip_node_mir;
+    /* Rows a MIR aggregate may absorb (D312); unset means
+     * MIP_MIR_AGGREGATE (src/mip.c). */
+    bool mip_mir_aggregate_set;
+    int64_t mip_mir_aggregate;
+    /* Relaxations the dive heuristic may solve at the root (D313); unset
+     * means MIP_DIVE_HEURISTIC (src/mip.c). */
+    bool mip_dive_heuristic_set;
+    int64_t mip_dive_heuristic;
     /* The rounding heuristic at every node (D290); on unless set. */
     bool mip_no_heuristics;
     /* A budget on the tree, 0 for none (D291), and who is told of each

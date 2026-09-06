@@ -427,6 +427,8 @@ _sig("jaos_set_mip_mir_rounds", ctypes.c_int, _VP, _I64)
 _sig("jaos_set_mip_dive_backtrack", ctypes.c_int, _VP, _I64)
 _sig("jaos_set_mip_dive_gap", ctypes.c_int, _VP, _D)
 _sig("jaos_set_mip_node_mir", ctypes.c_int, _VP, ctypes.c_int)
+_sig("jaos_set_mip_mir_aggregate", ctypes.c_int, _VP, _I64)
+_sig("jaos_set_mip_dive_heuristic", ctypes.c_int, _VP, _I64)
 _sig("jaos_set_mip_heuristics", ctypes.c_int, _VP, ctypes.c_bool)
 _sig("jaos_mip_result", ctypes.c_int, _VP, _P(_MipReport))
 _sig("jaos_mip_incumbent", ctypes.c_int, _VP, _P(_D), _P(_D))
@@ -897,6 +899,19 @@ class Model:
         bounds beside its Gomory round (D310); None restores the default."""
         v = -1 if on is None else int(bool(on))
         self._check(_lib.jaos_set_mip_node_mir(self._handle(), v))
+
+    def set_mip_mir_aggregate(self, rows):
+        """How many other rows a MIR cut's aggregate may absorb before it
+        is rounded (D312); 0 is the single-row form, a negative value
+        restores the default."""
+        self._check(_lib.jaos_set_mip_mir_aggregate(self._handle(), int(rows)))
+
+    def set_mip_dive_heuristic(self, solves):
+        """Relaxations a dive for a first incumbent may solve at the root
+        (D313); 0 is off, 50 is the default and a negative value restores
+        it."""
+        self._check(_lib.jaos_set_mip_dive_heuristic(self._handle(),
+                                                     int(solves)))
 
     def set_mip_heuristics(self, on=True):
         """Whether every fractional node is rounded for an incumbent (D290);
@@ -2276,6 +2291,18 @@ class Problem:
         """MIR cuts at the nodes beside the Gomory round (D310); None
         restores the default."""
         self._m.set_mip_node_mir(on)
+        return self
+
+    def set_mip_mir_aggregate(self, rows):
+        """Rows a MIR cut may absorb before it is rounded (D312); 0 is the
+        single-row form, negative the default."""
+        self._m.set_mip_mir_aggregate(rows)
+        return self
+
+    def set_mip_dive_heuristic(self, solves):
+        """Relaxations a dive for a first incumbent may solve at the root
+        (D313); 0 is off, negative the default."""
+        self._m.set_mip_dive_heuristic(solves)
         return self
 
     def set_mip_heuristics(self, on=True):

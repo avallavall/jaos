@@ -438,6 +438,30 @@ JAOS_NODISCARD jaos_status jaos_set_mip_dive_gap(jaos_model *m,
  * default. D310 carries what it cost over the MIP set. */
 JAOS_NODISCARD jaos_status jaos_set_mip_node_mir(jaos_model *m, int on);
 
+/* How many other rows a MIR cut's aggregate may absorb before it is
+ * rounded (D312), Marchand and Wolsey's aggregation: each step
+ * substitutes out one continuous column that sits away from both its
+ * bounds, using another row of the model, and the aggregate is rounded
+ * after every step, so a row can yield `rows` + 1 cuts per side. 0, the
+ * default, is the single-row form; a negative value restores it. Only
+ * matters with jaos_set_mip_mir_rounds above 0. D312 carries what each
+ * count cost over the MIP set. */
+JAOS_NODISCARD jaos_status jaos_set_mip_mir_aggregate(jaos_model *m,
+                                                      int64_t rows);
+
+/* A dive for a first incumbent at the root (D313): on a copy of the
+ * root's relaxation as the cuts left it, the integer column nearest an
+ * integer is fixed there and the relaxation is solved again, up to
+ * `solves` times; a point that comes out with every integer column
+ * integral is judged and taken like the rounding heuristic's, and counted
+ * under `heuristic_points`. The search itself is unchanged: the dive
+ * happens on a copy and only an incumbent can come out of it. 0 is off
+ * and 50 is the default; a negative value restores it. Its solves are billed
+ * and counted as `lp_solves`. D313 carries what each count cost over the
+ * MIP set. */
+JAOS_NODISCARD jaos_status jaos_set_mip_dive_heuristic(jaos_model *m,
+                                                       int64_t solves);
+
 /* The rounding heuristic (D290): at every node whose relaxation is
  * fractional, the integer columns are rounded to the nearest integer and
  * the point is kept as the incumbent when it is inside every bound and

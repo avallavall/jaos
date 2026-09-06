@@ -299,6 +299,23 @@ expect_exit 0 "a dive bounded by the gap still solves it" \
     || flunk "dive gap: $(line_of objective)"
 expect_exit 5 "--dive-gap refuses a negative" \
     "$JAOS" solve "$DATA/nl_int.lp" --dive --dive-gap -1
+# The MIR aggregation (D312) and the dive heuristic (D313): each accepted
+# with the answer unmoved, and the dive heuristic puts the first incumbent
+# at the root; a negative count is a usage error either way.
+expect_exit 0 "an aggregated MIR round still solves it" \
+    "$JAOS" solve "$DATA/nl_int.lp" --cut-rounds 0 --cover-rounds 0 --cut-depth 0 --mir-rounds 2 --mir-aggregate 2
+[ "$(line_of objective)" = "objective 3" ] && pass "to 3" \
+    || flunk "mir aggregate: $(line_of objective)"
+expect_exit 5 "--mir-aggregate refuses a negative" \
+    "$JAOS" solve "$DATA/nl_int.lp" --mir-aggregate -1
+expect_exit 0 "the dive heuristic still solves it" \
+    "$JAOS" solve "$DATA/nl_int.lp" --cut-rounds 0 --cover-rounds 0 --mir-rounds 0 --cut-depth 0 --no-heuristics --dive-heuristic 5
+[ "$(line_of objective)" = "objective 3" ] \
+    && [ "$(line_of first_incumbent)" = "first_incumbent 1" ] \
+    && pass "to 3 with the first incumbent at the root" \
+    || flunk "dive heuristic: $(line_of objective) / $(line_of first_incumbent)"
+expect_exit 5 "--dive-heuristic refuses a negative" \
+    "$JAOS" solve "$DATA/nl_int.lp" --dive-heuristic -1
 # The slack-cut drop (D297), the probe depth (D298) and the pool (D299):
 # each accepted with the answer unmoved; a pool line only when asked for;
 # a pool of zero and a negative probe depth are usage errors.

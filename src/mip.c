@@ -39,7 +39,8 @@
  * fraction gets no round under it (D305). A cover cut may carry Balas's
  * lifting coefficients (D307) behind jaos_set_mip_cover_lift, and the
  * root gets rounds of mixed-integer rounding cuts read off the model's
- * own rows beside the other two families (D309), and a node inside the
+ * own rows beside the other two families (D309), each of which may
+ * absorb other rows first (D312), and a node inside the
  * cut depth may get the same MIR cuts over its own bounds beside its
  * Gomory round, behind jaos_set_mip_node_mir (D310). A rounding
  * heuristic at every fractional node
@@ -134,6 +135,26 @@ constexpr int64_t MIP_MIR_DELTAS = 8;
  * by 100: the primal tolerance's own scale. Held; docs/tolerances.md
  * carries the argument. */
 constexpr double MIP_MIR_ROUND = 1e-9;
+/* How many rows a MIR cut's aggregate may absorb beyond its own (D312):
+ * each step substitutes out one continuous column that sits away from
+ * both its bounds, using another model row. 0 is the single-row form.
+ * jaos_set_mip_mir_aggregate overrides it; docs/tolerances.md carries the
+ * sweep. */
+constexpr int64_t MIP_MIR_AGGREGATE = 0;
+/* How many relaxations the dive heuristic may solve at the root (D313):
+ * each one fixes the integer column nearest an integer there and solves
+ * again, and a point that comes out integral is an incumbent. 0 is off;
+ * 50 is the default, which moves the first incumbent earlier on six of
+ * the MIP set's instances and later on none (D313).
+ * jaos_set_mip_dive_heuristic overrides it; docs/tolerances.md carries
+ * the sweep. */
+constexpr int64_t MIP_DIVE_HEURISTIC = 50;
+/* The largest multiplier an aggregation step may use, and the reciprocal
+ * is the smallest (D312): the step adds lambda times another row, so a
+ * lambda far from 1 makes the aggregate's coefficients the difference of
+ * numbers of very different size, and what comes out is rounding. Held;
+ * cut_finish's dynamism bound is the second line of defence. */
+constexpr double MIP_MIR_LAMBDA = 1e6;
 /* How many times a dive may resume from the deepest sibling it left on
  * its stack once a node ends (D308); 0 sends every sibling to the open
  * set at once, D289's form. jaos_set_mip_dive_backtrack overrides it;
@@ -1206,39 +1227,36 @@ static bool shift_to_upper(double lo, double hi, double xj)
  * the assert below states. `cut` and `best` are
  * scratch of num_col, `delta` of MIP_MIR_DELTAS + 1; the pass is billed
  * once per delta. Returns the count, or -1 on failure. */
-static int64_t mir_round(const jaos_model *m, jaos_model *lp, const double *x,
-                         const double *ilo, const double *ihi, cutbuf *cb,
-                         double *cut, double *best, double *delta,
-                         int64_t *work)
+/* One side, `sum a_j x_j <= b` with `a` dense over the columns, put
+ * through the rounding above. `mag_in` and `terms_in` carry the magnitude
+ * and the term count that already went into `b` before this call, and
+ * `cmag`, when it is not null, the magnitude that went into each
+ * coefficient the same way: an aggregate has both and a model row has
+ * neither, since its coefficients are the data. A coefficient the sum
+ * could not place to MIP_MIR_ROUND is refused for the same reason the
+ * right-hand side is -- the rounding rides through the cut's map, which
+ * multiplies it by up to 1 / MIP_CUT_AWAY. Returns 1 when a cut was
+ * pushed, 0 when none was, -1 out of memory. */
+static int mir_side(const jaos_model *m, jaos_model *lp, const double *x,
+                    const double *ilo, const double *ihi, const double *a_in,
+                    double b_in, double mag_in, int64_t terms_in,
+                    const double *cmag, cutbuf *cb, double *cut, double *best,
+                    double *delta)
 {
-    const int64_t nc = m->num_col, nr = m->num_row;
-    int64_t added = 0;
-    if (jm_model_ensure_rowwise(lp) != JAOS_OK)
-        return -1;
-    /* x' is integral only when the bound it is measured from is: the
-     * whole rounding rests on that, and a fractional bound would cut off
-     * feasible integer points with nothing to show for it. */
-    for (int64_t j = 0; j < nc; j++)
-        assert(!m->col_integer[j] ||
-               ((!isfinite(ilo[j]) || floor(ilo[j]) == ilo[j]) &&
-                (!isfinite(ihi[j]) || floor(ihi[j]) == ihi[j])));
-    *work += (m->num_nz + nc + nr) * (MIP_MIR_DELTAS + 1);
-    for (int64_t i = 0; i < nr; i++) {
-        for (int side = 0; side < 2; side++) {
-            const double bound = side == 0 ? lp->row_upper[i] : lp->row_lower[i];
-            if (!isfinite(bound))
-                continue;
-            const double sg = side == 0 ? 1.0 : -1.0;
-            /* The shifted side's right-hand side, the magnitude that went
-             * through it, and the deltas. */
-            double b = sg * bound, mag = fabs(bound);
-            int64_t terms = 1;
+    const int64_t nc = m->num_col;
+    if (cmag != nullptr)
+        for (int64_t j = 0; j < nc; j++)
+            if (DBL_EPSILON * cmag[j] * (double)terms_in > MIP_MIR_ROUND)
+                return 0;
+    {
+        {
+            double b = b_in, mag = fabs(b_in) + mag_in;
+            int64_t terms = 1 + terms_in;
             bool ok = true;
             int64_t nd = 1;
             delta[0] = 1.0;
-            for (int64_t k = lp->ar_start[i]; k < lp->ar_start[i + 1]; k++) {
-                const int64_t j = lp->ar_index[k];
-                const double a = sg * lp->ar_value[k];
+            for (int64_t j = 0; j < nc; j++) {
+                const double a = a_in[j];
                 if (a == 0.0)
                     continue;
                 if (!isfinite(ilo[j]) && !isfinite(ihi[j])) {
@@ -1268,7 +1286,7 @@ static int64_t mir_round(const jaos_model *m, jaos_model *lp, const double *x,
              * column whose one finite bound is 1e15 makes f0 a multiple
              * of 1/8 whatever the data). */
             if (!ok || DBL_EPSILON * mag * (double)terms > MIP_MIR_ROUND)
-                continue;
+                return 0;
             double best_eff = 0.0, best_rhs = 0.0;
             bool have = false;
             for (int64_t q = 0; q < nd; q++) {
@@ -1279,9 +1297,8 @@ static int64_t mir_round(const jaos_model *m, jaos_model *lp, const double *x,
                 /* The rounded row over x', then over x: cut . x <= rhs. */
                 memset(cut, 0, (size_t)nc * sizeof *cut);
                 double rhs = floor(b0);
-                for (int64_t k = lp->ar_start[i]; k < lp->ar_start[i + 1]; k++) {
-                    const int64_t j = lp->ar_index[k];
-                    const double a0 = sg * lp->ar_value[k];
+                for (int64_t j = 0; j < nc; j++) {
+                    const double a0 = a_in[j];
                     if (a0 == 0.0)
                         continue;
                     const bool at_up = shift_to_upper(ilo[j], ihi[j], x[j]);
@@ -1319,16 +1336,243 @@ static int64_t mir_round(const jaos_model *m, jaos_model *lp, const double *x,
                 }
             }
             if (!have)
-                continue;
+                return 0;
             for (int64_t k = 0; k < nc; k++)
                 cut[k] = -best[k];
-            const int pushed = cut_finish(lp, cb, cut, -best_rhs, x);
+            return cut_finish(lp, cb, cut, -best_rhs, x);
+        }
+    }
+}
+
+/* One round of MIR cuts, one per model row and finite side at most: each
+ * side read into a dense array and put through mir_side. `agg` is scratch
+ * of num_col. Returns the count, or -1 on failure. */
+static int64_t mir_round(const jaos_model *m, jaos_model *lp, const double *x,
+                         const double *ilo, const double *ihi, cutbuf *cb,
+                         double *cut, double *best, double *delta,
+                         double *agg, int64_t *work)
+{
+    const int64_t nc = m->num_col, nr = m->num_row;
+    int64_t added = 0;
+    if (jm_model_ensure_rowwise(lp) != JAOS_OK)
+        return -1;
+    /* x' is integral only when the bound it is measured from is: the
+     * whole rounding rests on that, and a fractional bound would cut off
+     * feasible integer points with nothing to show for it. */
+    for (int64_t j = 0; j < nc; j++)
+        assert(!m->col_integer[j] ||
+               ((!isfinite(ilo[j]) || floor(ilo[j]) == ilo[j]) &&
+                (!isfinite(ihi[j]) || floor(ihi[j]) == ihi[j])));
+    *work += (m->num_nz + nc + nr) * (MIP_MIR_DELTAS + 1);
+    for (int64_t i = 0; i < nr; i++) {
+        for (int side = 0; side < 2; side++) {
+            const double bound = side == 0 ? lp->row_upper[i] : lp->row_lower[i];
+            if (!isfinite(bound))
+                continue;
+            const double sg = side == 0 ? 1.0 : -1.0;
+            memset(agg, 0, (size_t)nc * sizeof *agg);
+            for (int64_t k = lp->ar_start[i]; k < lp->ar_start[i + 1]; k++)
+                agg[lp->ar_index[k]] += sg * lp->ar_value[k];
+            const int pushed = mir_side(m, lp, x, ilo, ihi, agg, sg * bound,
+                                        0.0, 0, nullptr, cb, cut, best, delta);
             if (pushed < 0)
                 return -1;
             added += pushed;
         }
     }
     return added;
+}
+
+/* One round of aggregated MIR cuts (D312), Marchand and Wolsey's
+ * aggregation without their heuristic search: each model row and finite
+ * side is the start of an aggregate, and each of `steps` steps
+ * substitutes out one continuous column that sits away from both its
+ * bounds and has not been substituted out already -- the one with the
+ * largest coefficient in the aggregate, the lowest index on a tie --
+ * using the lowest-indexed other row that holds it with a coefficient
+ * worth pivoting on and a finite bound on the side the multiplier
+ * needs. With lambda = a_j / c_rj the aggregate becomes
+ * `agg - lambda row_r <= b - lambda B_r`, where `B_r` is row r's lower
+ * bound when lambda is positive and its upper bound when negative, which
+ * is what keeps the inequality true. A multiplier outside
+ * [1/MIP_MIR_LAMBDA, MIP_MIR_LAMBDA] is refused: the step would be the
+ * difference of numbers of very different size. The magnitude that went
+ * into every coefficient is carried beside it and mir_side refuses a
+ * coefficient it cannot place, which is what keeps an aggregated cut
+ * valid: the pivot's own column is left in the aggregate with whatever
+ * residue the cancellation left, and a mask keeps it out of later picks,
+ * since dropping a term whose coefficient may be negative would
+ * strengthen the cut past what the rows say. Every aggregate is put
+ * through mir_side after each step, so a row contributes at most `steps`
+ * + 1 cuts per side. `agg`, `cut`, `best` and `cmag` are scratch of
+ * num_col, `used` and `picked` of num_row and num_col. Returns the count,
+ * or -1 on failure. */
+static int64_t mir_aggregate_round(const jaos_model *m, jaos_model *lp,
+                                   const double *x, const double *ilo,
+                                   const double *ihi, cutbuf *cb, double *cut,
+                                   double *best, double *delta, double *agg,
+                                   double *cmag, bool *used, bool *picked,
+                                   int64_t steps, int64_t *work)
+{
+    const int64_t nc = m->num_col, nr = m->num_row;
+    int64_t added = 0;
+    if (jm_model_ensure_rowwise(lp) != JAOS_OK)
+        return -1;
+    if (steps > nr)
+        steps = nr;                    /* used[] bounds the steps anyway */
+    for (int64_t i = 0; i < nr; i++) {
+        for (int side = 0; side < 2; side++) {
+            const double bound = side == 0 ? lp->row_upper[i] : lp->row_lower[i];
+            if (!isfinite(bound))
+                continue;
+            const double sg = side == 0 ? 1.0 : -1.0;
+            memset(agg, 0, (size_t)nc * sizeof *agg);
+            for (int64_t k = lp->ar_start[i]; k < lp->ar_start[i + 1]; k++)
+                agg[lp->ar_index[k]] += sg * lp->ar_value[k];
+            memset(used, 0, (size_t)(nr > 0 ? nr : 1) * sizeof *used);
+            memset(picked, 0, (size_t)(nc > 0 ? nc : 1) * sizeof *picked);
+            memset(cmag, 0, (size_t)(nc > 0 ? nc : 1) * sizeof *cmag);
+            used[i] = true;
+            double b = sg * bound, mag = 0.0;
+            int64_t terms = 0;
+            for (int64_t s = 0; s < steps; s++) {
+                /* One pass over the matrix and the columns per step. */
+                *work += m->num_nz + nc + nr;
+                /* The column to substitute out: continuous, in the
+                 * aggregate, and away from both its bounds. */
+                int64_t pick = -1;
+                double pick_a = 0.0;
+                for (int64_t j = 0; j < nc; j++) {
+                    if (agg[j] == 0.0 || m->col_integer[j] || picked[j])
+                        continue;
+                    const double lo = ilo[j], hi = ihi[j];
+                    if ((isfinite(lo) && x[j] - lo <= MIP_INT_TOL) ||
+                        (isfinite(hi) && hi - x[j] <= MIP_INT_TOL))
+                        continue;
+                    if (fabs(agg[j]) > pick_a) {
+                        pick_a = fabs(agg[j]);
+                        pick = j;
+                    }
+                }
+                if (pick < 0)
+                    break;
+                /* The row to substitute with: the lowest index that is
+                 * not in the aggregate yet, holds the column with a
+                 * coefficient worth pivoting on, and has the bound the
+                 * multiplier's sign needs. */
+                int64_t rrow = -1;
+                double lambda = 0.0, rbound = 0.0;
+                for (int64_t k = lp->a_start[pick];
+                     k < lp->a_start[pick + 1] && rrow < 0; k++) {
+                    const int64_t r = lp->a_index[k];
+                    if (r >= nr || used[r])
+                        continue;
+                    const double crj = lp->a_value[k];
+                    if (crj == 0.0)
+                        continue;
+                    double rmax = 0.0;
+                    for (int64_t q = lp->ar_start[r]; q < lp->ar_start[r + 1]; q++)
+                        if (fabs(lp->ar_value[q]) > rmax)
+                            rmax = fabs(lp->ar_value[q]);
+                    if (fabs(crj) < MIP_CUT_DROP * rmax)
+                        continue;
+                    const double lam = agg[pick] / crj;
+                    if (!isfinite(lam) || lam == 0.0 ||
+                        fabs(lam) > MIP_MIR_LAMBDA ||
+                        fabs(lam) < 1.0 / MIP_MIR_LAMBDA)
+                        continue;
+                    const double bnd = lam > 0.0 ? lp->row_lower[r]
+                                                 : lp->row_upper[r];
+                    if (!isfinite(bnd))
+                        continue;
+                    rrow = r;
+                    lambda = lam;
+                    rbound = bnd;
+                }
+                if (rrow < 0)
+                    break;
+                for (int64_t q = lp->ar_start[rrow]; q < lp->ar_start[rrow + 1]; q++) {
+                    const int64_t j = lp->ar_index[q];
+                    agg[j] -= lambda * lp->ar_value[q];
+                    cmag[j] += fabs(lambda * lp->ar_value[q]);
+                }
+                picked[pick] = true;   /* not exactly zero; not picked again */
+                b -= lambda * rbound;
+                mag += fabs(lambda * rbound);
+                terms++;
+                used[rrow] = true;
+                const int pushed = mir_side(m, lp, x, ilo, ihi, agg, b, mag,
+                                            terms, cmag, cb, cut, best, delta);
+                if (pushed < 0)
+                    return -1;
+                added += pushed;
+            }
+        }
+    }
+    return added;
+}
+
+/* --- The dive heuristic (D313) ----------------------------------------- */
+
+/* A dive for a first incumbent: on a copy of the root's relaxation, the
+ * integer column nearest an integer is fixed there and the relaxation is
+ * solved again, up to `solves` times. The point that comes out is the
+ * caller's to judge -- this only says whether every integer column of it
+ * is integral. The copy carries the root's cuts and bounds, so a point it
+ * reaches satisfies the model's rows, and the caller runs it through
+ * rounded_point anyway, which is the same acceptance every heuristic
+ * point goes through. A relaxation that comes back infeasible or stops on
+ * a budget ends the dive: a heuristic gives up, it does not fail. The
+ * choice is the smallest distance to an integer, the lowest column on a
+ * tie, so the dive is the same on every machine (D8). Returns 1 with the
+ * point in `out`, 0 when there is none, -1 when a copy could not be made.
+ * Every solve is billed and counted. */
+static int dive_for_point(const jaos_model *m, const jaos_model *lp,
+                          int64_t solves, double *out, int64_t *work,
+                          int64_t *solves_done)
+{
+    const int64_t nc = m->num_col;
+    jaos_model *hv = nullptr;
+    if (jaos_model_copy(lp, &hv) != JAOS_OK)
+        return -1;
+    int rc = 0;
+    for (int64_t s = 0; s < solves; s++) {
+        if (jaos_solve(hv) != JAOS_OK)
+            break;
+        *work += jaos_work_units(hv);
+        (*solves_done)++;
+        if (jaos_status_of(hv) != JAOS_SOLVE_OPTIMAL)
+            break;
+        if (jaos_solution(hv, out, nullptr, nullptr, nullptr) != JAOS_OK)
+            break;
+        int64_t pick = -1;
+        double near = 2.0;
+        for (int64_t j = 0; j < nc; j++) {
+            if (!m->col_integer[j])
+                continue;
+            const double f = out[j] - floor(out[j]);
+            const double d = f < 0.5 ? f : 1.0 - f;
+            if (d <= MIP_INT_TOL)
+                continue;
+            if (d < near) {
+                near = d;
+                pick = j;
+            }
+        }
+        if (pick < 0) {
+            rc = 1;                    /* every integer column is integral */
+            break;
+        }
+        double v = round(out[pick]);
+        if (v < hv->col_lower[pick])
+            v = hv->col_lower[pick];
+        if (v > hv->col_upper[pick])
+            v = hv->col_upper[pick];
+        if (jaos_set_col_bounds(hv, pick, v, v) != JAOS_OK)
+            break;
+    }
+    jaos_model_free(hv);
+    return rc;
 }
 
 /* --- The rounding heuristic (D290) ------------------------------------- */
@@ -1498,6 +1742,10 @@ jaos_status jm_branch_and_bound(jaos_model *m)
                                                     : MIP_DIVE_GAP;
     const bool node_mir = m->cfg.mip_node_mir_set ? m->cfg.mip_node_mir
                                                   : MIP_NODE_MIR;
+    const int64_t mir_aggregate = m->cfg.mip_mir_aggregate_set
+        ? m->cfg.mip_mir_aggregate : MIP_MIR_AGGREGATE;
+    const int64_t dive_heur = m->cfg.mip_dive_heuristic_set
+        ? m->cfg.mip_dive_heuristic : MIP_DIVE_HEURISTIC;
     const bool dive = m->cfg.mip_dive;
     /* The dive keeps its siblings on a stack when either rule may bring
      * it back for one (D308, D311); D289's form otherwise. */
@@ -1545,16 +1793,22 @@ jaos_status jm_branch_and_bound(jaos_model *m)
     bnode *cur = nullptr, *next = nullptr;
     double *x = nullptr, *row = nullptr, *cut = nullptr;
     int64_t row_cap = 0;
-    double *xr = nullptr, *ra = nullptr;
+    double *xr = nullptr, *ra = nullptr, *x2 = nullptr;
     double *ilo = nullptr, *ihi = nullptr, *pc_sum = nullptr;
     int64_t *pc_n = nullptr, *cand = nullptr;
     jaos_basis_status *pcs = nullptr, *prs = nullptr;
     int64_t next_id = 0, nodes = 0, solves = 0, cuts = 0, heur_points = 0;
     int64_t probes = 0, capped = 0;    /* strong branching's, D293/D294 */
+    int64_t dive_points = 0;           /* the dive heuristic's, D313      */
     int64_t covers = 0;                /* cover cuts at the root, D300    */
     kitem *items = nullptr;
     double *mu = nullptr;              /* the cover's partial sums (D307) */
     double *mbest = nullptr, *mdelta = nullptr;   /* MIR scratch (D309) */
+    double *magg = nullptr;            /* the MIR side, dense (D309)     */
+    double *mcmag = nullptr;           /* what went into each of its
+                                          coefficients (D312)            */
+    bool *mused = nullptr;             /* the rows an aggregate holds    */
+    bool *mpicked = nullptr;           /* the columns it substituted out */
     int64_t mirs = 0;                  /* MIR cuts at the root, D309      */
     bnode **dstack = nullptr;          /* the dive's siblings (D308)      */
     int64_t dstack_n = 0, dstack_cap = 0, backtracks = 0;
@@ -1585,6 +1839,7 @@ jaos_status jm_branch_and_bound(jaos_model *m)
 
     x = malloc((size_t)(nc > 0 ? nc : 1) * sizeof *x);
     xr = malloc((size_t)(nc > 0 ? nc : 1) * sizeof *xr);
+    x2 = malloc((size_t)(nc > 0 ? nc : 1) * sizeof *x2);
     ra = malloc((size_t)(nr > 0 ? nr : 1) * sizeof *ra);
     ilo = malloc((size_t)(nc > 0 ? nc : 1) * sizeof *ilo);
     ihi = malloc((size_t)(nc > 0 ? nc : 1) * sizeof *ihi);
@@ -1592,7 +1847,8 @@ jaos_status jm_branch_and_bound(jaos_model *m)
     pc_n = calloc((size_t)(nc > 0 ? 2 * nc : 1), sizeof *pc_n);
     cand = malloc((size_t)MIP_STRONG_CANDIDATES * sizeof *cand);
     pcs = malloc((size_t)(nc > 0 ? nc : 1) * sizeof *pcs);
-    if (x == nullptr || xr == nullptr || ra == nullptr || ilo == nullptr ||
+    if (x == nullptr || xr == nullptr || x2 == nullptr || ra == nullptr ||
+        ilo == nullptr ||
         ihi == nullptr || pc_sum == nullptr || pc_n == nullptr ||
         cand == nullptr || pcs == nullptr || !spool_init(&sp, pool_size, nc))
         goto done;
@@ -1612,12 +1868,14 @@ jaos_status jm_branch_and_bound(jaos_model *m)
             nint += m->col_integer[j];
         jm_log(m, JAOS_LOG_SUMMARY,
                "branch and bound: %lld integer columns of %lld, %lld rounds "
-               "of cuts, %lld of MIR, cuts to depth %lld%s, dive %s with %lld "
+               "of cuts, %lld of MIR over %lld aggregated rows, cuts to "
+               "depth %lld%s, dive %s with %lld "
                "backtracks and a resume gap of %g, rounding %s, %s "
                "branching, reliability %lld, probe cap %gx, cut stall %g "
                "at the root and %g below it, root cuts %s, covers %s",
                (long long)nint, (long long)nc, (long long)rounds,
-               (long long)mir_rounds, (long long)cut_depth,
+               (long long)mir_rounds, (long long)mir_aggregate,
+               (long long)cut_depth,
                node_mir ? " with MIR" : "",
                dive ? dive_child_str(dive_child) : "off",
                (long long)backtrack, dive_gap, heur ? "on" : "off",
@@ -1774,7 +2032,18 @@ jaos_status jm_branch_and_bound(jaos_model *m)
                 mbest = malloc((size_t)(nc > 0 ? nc : 1) * sizeof *mbest);
             if (mir_rounds > 0 && mdelta == nullptr)
                 mdelta = malloc((size_t)(MIP_MIR_DELTAS + 1) * sizeof *mdelta);
-            if (mir_rounds > 0 && (mbest == nullptr || mdelta == nullptr))
+            if (mir_rounds > 0 && magg == nullptr)
+                magg = malloc((size_t)(nc > 0 ? nc : 1) * sizeof *magg);
+            if (mir_rounds > 0 && mir_aggregate > 0 && mused == nullptr) {
+                mused = malloc((size_t)(nr > 0 ? nr : 1) * sizeof *mused);
+                mpicked = malloc((size_t)(nc > 0 ? nc : 1) * sizeof *mpicked);
+                mcmag = malloc((size_t)(nc > 0 ? nc : 1) * sizeof *mcmag);
+            }
+            if (mir_rounds > 0 && (mbest == nullptr || mdelta == nullptr ||
+                                   magg == nullptr ||
+                                   (mir_aggregate > 0 &&
+                                    (mused == nullptr || mpicked == nullptr ||
+                                     mcmag == nullptr))))
                 goto done;
             const double key_first = key;  /* before any cut (D305) */
             bool stop = false;
@@ -1797,11 +2066,20 @@ jaos_status jm_branch_and_bound(jaos_model *m)
                 }
                 if (r < mir_rounds) {
                     const int64_t mv = mir_round(m, lp, x, ilo, ihi, &cb, cut,
-                                                 mbest, mdelta, &work);
+                                                 mbest, mdelta, magg, &work);
                     if (mv < 0)
                         goto done;
                     mirs += mv;
                     got += mv;
+                    if (mir_aggregate > 0) {
+                        const int64_t av = mir_aggregate_round(
+                            m, lp, x, ilo, ihi, &cb, cut, mbest, mdelta, magg,
+                            mcmag, mused, mpicked, mir_aggregate, &work);
+                        if (av < 0)
+                            goto done;
+                        mirs += av;
+                        got += av;
+                    }
                 }
                 if (got == 0)
                     break;
@@ -1873,6 +2151,38 @@ jaos_status jm_branch_and_bound(jaos_model *m)
                    "covers and %lld MIR",
                    obj, (long long)cuts, (long long)covers, (long long)mirs);
         }
+        /* The dive heuristic (D313), once, on the root's relaxation as the
+         * cuts left it: a point it reaches is judged by rounded_point,
+         * the same acceptance the rounding heuristic's point gets. */
+        if (nodes == 1 && dive_heur > 0 && branch >= 0) {
+            const int got = dive_for_point(m, lp, dive_heur, xr, &work,
+                                           &solves);
+            if (got < 0)
+                goto done;
+            double hobj = 0.0;
+            work += m->num_nz + nc + nr;
+            if (got == 1 && rounded_point(m, xr, x2, ra, &hobj)) {
+                const double hkey = sigma * hobj;
+                spool_offer(&sp, x2, hkey, hobj);
+                if (!inc.have || hkey < inc.key) {
+                    if (!incumbent_take_point(&inc, lp, m, x2, ra, hobj, hkey))
+                        goto done;
+                    heur_points++;
+                    dive_points++;
+                    if (first_inc == 0)
+                        first_inc = nodes;
+                    jm_log(m, JAOS_LOG_PROGRESS,
+                           "root: incumbent %.17g by the dive heuristic", hobj);
+                    if (!incumbent_announce(m, &inc, nodes, sigma * key, true)) {
+                        outcome = JAOS_SOLVE_INTERRUPTED;
+                        break;
+                    }
+                }
+            }
+            /* The root's own point is what the tree branches on. */
+            if (jaos_solution(lp, x, nullptr, nullptr, nullptr) != JAOS_OK)
+                goto done;
+        }
         /* One round of local cuts at a node inside the depth (D296): read
          * over the node's bounds, so valid in its subtree; into the pool,
          * the active list and the copy, then the relaxation again. A
@@ -1904,11 +2214,13 @@ jaos_status jm_branch_and_bound(jaos_model *m)
                     mbest = malloc((size_t)(nc > 0 ? nc : 1) * sizeof *mbest);
                 if (mdelta == nullptr)
                     mdelta = malloc((size_t)(MIP_MIR_DELTAS + 1) * sizeof *mdelta);
-                if (mbest == nullptr || mdelta == nullptr)
+                if (magg == nullptr)
+                    magg = malloc((size_t)(nc > 0 ? nc : 1) * sizeof *magg);
+                if (mbest == nullptr || mdelta == nullptr || magg == nullptr)
                     goto done;
                 const int64_t mv = mir_round(m, lp, x, lp->col_lower,
                                              lp->col_upper, &cb, cut, mbest,
-                                             mdelta, &work);
+                                             mdelta, magg, &work);
                 if (mv < 0)
                     goto done;
                 got += mv;
@@ -2167,11 +2479,13 @@ jaos_status jm_branch_and_bound(jaos_model *m)
         m->mip_bound = inc.obj;
     jm_log(m, JAOS_LOG_SUMMARY,
            "branch and bound: %s after %lld nodes, %lld solves, %lld cuts "
-           "(%lld below the root), %lld points by rounding, %lld probes, "
+           "(%lld below the root), %lld points by rounding, %lld of them "
+           "by the dive heuristic, %lld probes, "
            "%lld of them capped",
            jaos_solve_status_str(outcome), (long long)nodes,
            (long long)solves, (long long)cuts, (long long)local_cuts,
-           (long long)heur_points, (long long)probes, (long long)capped);
+           (long long)heur_points, (long long)dive_points,
+           (long long)probes, (long long)capped);
     /* The pool goes to the model whole, proved or not, like the incumbent. */
     m->mip_pool_n = sp.n;
     m->mip_pool_x = sp.x;
@@ -2209,6 +2523,7 @@ done:
         jm_set_err(m, "%s", m->err[0] ? m->err : "out of memory in branch and bound");
     free(x);
     free(xr);
+    free(x2);
     free(ra);
     free(ilo);
     free(ihi);
@@ -2224,6 +2539,10 @@ done:
     free(mu);
     free(mbest);
     free(mdelta);
+    free(magg);
+    free(mcmag);
+    free(mused);
+    free(mpicked);
     free(crs);
     free(in_copy.v);
     spool_free(&sp);

@@ -319,6 +319,8 @@ and you have the argument. Jump to the entry for the numbers behind it.
 - **[D309](#d309--mixed-integer-rounding-cuts-on-the-models-rows-at-the-root-six-rounds-by-default-0719x-the-work-over-the-24-six-better-one-worse-none-past-2x-and-the-baseline-is-rewritten)** — Mixed-integer rounding cuts on the model's rows at the root, six rounds by default: 0.719x the work over the 24, six better, one worse, none past 2x, and the baseline is rewritten
 - **[D310](#d310--mir-cuts-at-a-node-beside-its-gomory-round-refused-as-a-default-0991x-at-the-node-cut-cap-with-two-instances-past-2x-and-the-same-shape-at-every-cap-and-depth)** — MIR cuts at a node beside its Gomory round, refused as a default: 0.991x at the node cut cap with two instances past 2x, and the same shape at every cap and depth
 - **[D311](#d311--a-dive-resume-bounded-by-the-gap-refused-as-a-default-1067x-at-its-tightest-fraction-and-the-rules-first-form-could-not-fire-at-all)** — A dive resume bounded by the gap, refused as a default: 1.067x at its tightest fraction, and the rule's first form could not fire at all
+- **[D312](#d312--aggregated-mir-cuts-a-row-may-absorb-others-before-it-is-rounded-refused-as-a-default-1140x-at-its-best-step-count-and-bell5-unfinished-in-every-arm)** — Aggregated MIR cuts, a row may absorb others before it is rounded, refused as a default: 1.140x at its best step count, and `bell5` unfinished in every arm
+- **[D313](#d313--a-dive-heuristic-for-a-first-incumbent-at-the-root-accepted-at-50-solves-the-first-incumbent-moves-earlier-on-6-of-24-and-later-on-none-for-32-of-the-work)** — A dive heuristic for a first incumbent at the root, accepted at 50 solves: the first incumbent moves earlier on 6 of 24 and later on none, for 3.2% of the work
 
 ---
 
@@ -22160,3 +22162,117 @@ left is a rule that is neither: a resume decided by the child's own
 bound against its parent's, which is a different quantity from both.
 `02-204/retest-dive-gap.sh` asks the question and `make refusals` runs
 it.
+
+## D312 — Aggregated MIR cuts, a row may absorb others before it is rounded, refused as a default: 1.140x at its best step count, and `bell5` unfinished in every arm
+
+**The gap.** D309 rounds one model row at a time, and Marchand and
+Wolsey's paper is about aggregating rows first: a row whose continuous
+columns sit away from their bounds gives nothing on its own and gives a
+cut once another row has substituted one of them out. `SPECS.md` listed
+the aggregated form as missing.
+
+**What it does now.** `jaos_set_mip_mir_aggregate` and `--mir-aggregate
+N`: each model row and finite side starts an aggregate, and each of `N`
+steps substitutes out one continuous column that sits away from both its
+bounds -- the largest coefficient in the aggregate, the lowest index on a
+tie, and not one substituted out already -- using the lowest-indexed
+other row that holds it with a coefficient worth pivoting on and a finite
+bound on the side the multiplier's sign needs. With lambda = a_j / c_rj
+the aggregate becomes `agg - lambda row_r <= b - lambda B_r`, valid
+because `lambda (row_r . x - B_r) >= 0` by that bound. The aggregate is
+rounded after every step, so a row can yield `N` + 1 cuts per side. 0,
+the default, is the single-row form. Python carries the setting at both
+layers.
+
+**What the rounding costs, and what refuses it.** A coefficient of an
+aggregate is a sum, not data, and the guard D309 put on the right-hand
+side does not see it: a column shifted from a zero bound contributes
+nothing to that magnitude, and a zero lower bound is the common case. So
+the magnitude that goes into each coefficient is carried beside it now,
+and a coefficient the sum cannot place to `MIP_MIR_ROUND` refuses the
+whole side, for the reason the right-hand side is refused -- the rounding
+rides through the cut's map, which multiplies it by up to 1 /
+`MIP_CUT_AWAY`. The multiplier is held to [1e-6, 1e6] for the same
+reason. **The pivot column is not zeroed**: the cancellation is exact
+only in principle, and dropping a term whose coefficient may be negative
+would strengthen the cut past what the rows say, so the residue stays in
+the aggregate and a mask keeps the column out of later steps.
+`numerics-reviewer` found both, and the first was a defect: an invalid
+cut removes feasible integer points and the search reports a worse answer
+as optimal.
+
+**Evidence** (`bench/measurements/02-205/`, the D311 defaults as the
+control, byte-identical to `bench/miplib.baseline`, which is also what
+says the refactor of D309's round into a dense side moved nothing). Work
+over the MIP set of 24, geometric mean of per-instance ratios against the
+control: **1.185x at one step, 1.165x at two, 1.140x at three, 1.192x at
+six**. Every arm leaves `bell5` at the 240 s cap, which the control
+finishes in 13.9 s, so every mean is over 23. Every arm has an instance
+past 2x, and it is the same one: `gen`, 8.60x at two steps and 9.84x at
+three, on a tree that shrank from 7 nodes to 5. Split by the two groups
+of D303, the seven instances that joined at D302 pay the cost: 1.030x
+over the 17 at three steps against 1.523x over the seven. The cuts are
+real, and some instances gain from them -- `egout` reads 0.564x at two
+steps with its tree 6841 nodes to 3091, `dcmulti` 415 to 329 at three --
+so the aggregation finds violated cuts that the single-row round does
+not. It costs more per round than the cuts save. Both features of the
+batch together (`--mir-aggregate 2 --dive-heuristic 50`) read 1.209x with
+12 instances worse and `bell5` still at the cap, so nothing in the
+combination argues for it either.
+
+**The decision.** Refused as a default, and `MIP_MIR_AGGREGATE` stays 0.
+The setting ships, since a caller with a model whose rows want
+aggregating has it for one call, and `egout` says such models exist. The
+mechanism the arms share is the row choice: the largest coefficient in
+the aggregate, which is the rule Marchand and Wolsey state for their own
+heuristic and the rule every arm here used. What could reopen it is an
+aggregation whose row choice is not that one -- a row chosen for the
+violation its aggregate would give, or the tableau's own row rather than
+a model row -- at or under 0.95x with no instance past 2x on the same
+set. `02-205/retest-mir-aggregate.sh` asks the original question and
+`make refusals` runs it.
+
+## D313 — A dive heuristic for a first incumbent at the root, accepted at 50 solves: the first incumbent moves earlier on 6 of 24 and later on none, for 3.2% of the work
+
+**The gap.** `SPECS.md` listed diving, feasibility-pump and RINS
+heuristics as missing, and the rounding heuristic (D290) is the only one
+the tree has. A rounding takes the relaxation's point as it is; a dive
+re-solves.
+
+**What it does now.** `jaos_set_mip_dive_heuristic` and
+`--dive-heuristic N`: on a copy of the root's relaxation as the cuts left
+it, the integer column nearest an integer is fixed there and the
+relaxation is solved again, up to `N` times; a point that comes out with
+every integer column integral is judged by `rounded_point`, the same
+acceptance every heuristic point gets, and taken when it beats the
+incumbent. The search itself is unchanged: the dive happens on a copy and
+only an incumbent can come out of it. A relaxation that comes back
+infeasible or stops on a budget ends the dive, since a heuristic gives up
+rather than fails. 0, the default, is off. Python carries the setting at
+both layers.
+
+**Evidence** (`bench/measurements/02-205/`). A heuristic cannot shrink a
+best-bound tree, which is D290's own finding, and this one does not:
+every node count over the 24 is the control's at every setting. So it is
+judged the way D290 was judged, on the first incumbent and on what the
+points cost. **At 50 solves: 1.032x the work over all 24, none past 2x,
+all 24 finish**, and the first incumbent moves earlier on 6 and later on
+none -- `gen` node 7 to 1, `khb05250` 69 to 1, `misc06` 43 to 1, `rgn`
+205 to 1, `stein27` 84 to 1, `stein45` 20 to 1. Swept at 10, 50 and 200:
+1.015x with one instance moving, 1.032x with six, 1.036x with seven
+(`mod008` 29 to 1 joins). 50 is the setting whose work stays near the
+10-solve arm while it reaches six of the seven instances the 200-solve
+arm reaches, and the curve is flat past it. The instances that pay are
+the small ones where 50 re-solves are a visible share of a short search
+(`misc06` 1.223x on a 73-node tree, `rgn` 1.099x); no instance that pays
+is one whose incumbent moved.
+
+**The decision.** On, at 50 solves, by the rule D290 set: a heuristic is
+bought with the first incumbent, not with the node count, because a
+best-bound tree cannot shrink and a stopped search hands back whatever
+incumbent it has. `bench/miplib.baseline` is rewritten, and the seconds
+say what the units say: the set still runs in about 4 minutes at `J=12`.
+`SPECS.md` drops diving from what is missing, and `docs/claims.txt` drops
+its absence pattern with it -- the pattern named `jm_diving_heuristic`
+and the function is `dive_for_point`, so the check was green for the
+wrong reason and would have stayed green.

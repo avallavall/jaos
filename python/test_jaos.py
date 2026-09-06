@@ -1183,6 +1183,7 @@ class TestBranchAndBound(unittest.TestCase):
         self.assertEqual(rep.nodes, 1)
         self.assertTrue(p._m.col_integer(0))
         p.set_mip_cut_rounds(0).set_mip_cover_rounds(0).set_mip_mir_rounds(0).set_mip_cut_depth(0).set_mip_dive(True).set_mip_heuristics(False)
+        p.set_mip_dive_heuristic(0)
         self.assertIs(p.solve(), jaos.SolveStatus.OPTIMAL)
         self.assertAlmostEqual(p.objective_value, 9.0, places=9)
         rep = p.mip_report()
@@ -1227,6 +1228,7 @@ class TestBranchAndBound(unittest.TestCase):
             p.add(2 * a + 3 * b + c <= 5)
             p.maximize(5 * a + 4 * b + 3 * c)
             p.set_mip_cut_rounds(0).set_mip_cover_rounds(0).set_mip_mir_rounds(0).set_mip_cut_depth(0).set_mip_branching(rule)
+            p.set_mip_dive_heuristic(0)
             self.assertIs(p.solve(), jaos.SolveStatus.OPTIMAL)
             self.assertAlmostEqual(p.objective_value, 9.0, places=9)
             self.assertEqual((a.value, b.value, c.value), (1.0, 1.0, 0.0))
@@ -1501,6 +1503,49 @@ class TestBranchAndBound(unittest.TestCase):
             p.set_mip_dive_gap(float("nan"))
         p.set_mip_dive_gap(-1)
 
+    def test_an_aggregated_mir_cut_closes_what_one_row_leaves(self):
+        # max 3x + 2y, 2x - s <= 0, 2y + s <= 3, x + y <= 4: neither row
+        # alone gives a MIR cut, their aggregate gives x + y <= 1 and the
+        # root closes at 3 (D312).
+        for rows, one_node in ((0, False), (1, True)):
+            p = jaos.Problem()
+            x = p.add_var(integer=True, ub=3, name="x")
+            y = p.add_var(integer=True, ub=3, name="y")
+            s = p.add_var(ub=10, name="s")
+            p.add(2 * x - s <= 0)
+            p.add(2 * y + s <= 3)
+            p.add(x + y <= 4)
+            p.maximize(3 * x + 2 * y)
+            p.set_mip_cut_rounds(0).set_mip_cover_rounds(0).set_mip_cut_depth(0)
+            p.set_mip_mir_rounds(4).set_mip_mir_aggregate(rows)
+            self.assertIs(p.solve(), jaos.SolveStatus.OPTIMAL)
+            self.assertAlmostEqual(p.objective_value, 3.0, places=9)
+            self.assertEqual(p.mip_report().nodes == 1, one_node)
+        p.set_mip_mir_aggregate(-1)
+
+    def test_the_dive_heuristic_finds_the_first_incumbent(self):
+        # The neighbour model with the rounding heuristic off: a dive of
+        # five solves puts the first incumbent at node 1 (D313).
+        firsts = []
+        for solves in (0, 5):
+            p = jaos.Problem()
+            x = p.add_var(integer=True, name="x")
+            y = p.add_var(integer=True, name="y")
+            p.add(x + y <= 3.6)
+            p.add(x <= 2.2)
+            p.add(y <= 1.4)
+            p.maximize(x + y)
+            p.set_mip_cut_rounds(0).set_mip_cover_rounds(0).set_mip_mir_rounds(0)
+            p.set_mip_cut_depth(0).set_mip_heuristics(False)
+            p.set_mip_dive_heuristic(solves)
+            self.assertIs(p.solve(), jaos.SolveStatus.OPTIMAL)
+            self.assertAlmostEqual(p.objective_value, 3.0, places=9)
+            self.assertEqual((x.value, y.value), (2.0, 1.0))
+            firsts.append(p.mip_report().first_incumbent_node)
+        self.assertGreater(firsts[0], 1)
+        self.assertEqual(firsts[1], 1)
+        p.set_mip_dive_heuristic(-1)
+
     def test_the_rounding_heuristic_finds_the_root_relaxations_neighbour(self):
         # max x + y, x + y <= 3.6, x <= 2.2, y <= 1.4, both integer: the
         # relaxation sits at (2.2, 1.4) and rounds to (2, 1), which is the
@@ -1514,6 +1559,7 @@ class TestBranchAndBound(unittest.TestCase):
             p.add(y <= 1.4)
             p.maximize(x + y)
             p.set_mip_cut_rounds(0).set_mip_cover_rounds(0).set_mip_mir_rounds(0).set_mip_cut_depth(0).set_mip_heuristics(on)
+            p.set_mip_dive_heuristic(0)
             self.assertIs(p.solve(), jaos.SolveStatus.OPTIMAL)
             self.assertAlmostEqual(p.objective_value, 3.0, places=9)
             self.assertEqual((x.value, y.value), (2.0, 1.0))
