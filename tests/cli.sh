@@ -219,6 +219,14 @@ expect_exit 0 "and the rounding heuristic switches off" \
     || flunk "no-heuristics MIP: $(line_of objective) / $(line_of heuristic_points)"
 expect_exit 5 "a negative round count is a usage error" \
     "$JAOS" solve "$DATA/t4_int.mps" --cut-rounds -1
+# Cuts below the root (D296): a depth accepted with the answer unmoved, a
+# negative depth a usage error.
+expect_exit 0 "cuts to depth 3 still solve it" \
+    "$JAOS" solve "$DATA/nl_int.lp" --cut-rounds 0 --cut-depth 3
+[ "$(line_of objective)" = "objective 3" ] && pass "to 3" \
+    || flunk "cut depth: $(line_of objective)"
+expect_exit 5 "--cut-depth refuses a negative" \
+    "$JAOS" solve "$DATA/nl_int.lp" --cut-depth -1
 # A node limit (D291): nl_int.lp's root is fractional with the cuts off,
 # and the rounding finds the optimum there, so a limit of one node stops
 # as node_limit with exit 3 and an incumbent on the first node; zero is
@@ -249,6 +257,21 @@ expect_exit 0 "reliability zero still solves it" \
     || flunk "reliability 0: $(line_of objective)"
 expect_exit 5 "--reliability refuses a negative" \
     "$JAOS" solve "$DATA/nl_int.lp" --reliability -1
+# A work cap on each probe (D294) and the dive's child rule (D295): both
+# accepted with the answer unmoved; a negative cap and an unknown rule are
+# usage errors.
+expect_exit 0 "a capped probe still solves it" \
+    "$JAOS" solve "$DATA/nl_int.lp" --cut-rounds 0 --reliability 1 --probe-cap 0.5
+[ "$(line_of objective)" = "objective 3" ] && pass "to 3" \
+    || flunk "probe cap: $(line_of objective)"
+expect_exit 5 "--probe-cap refuses a negative" \
+    "$JAOS" solve "$DATA/nl_int.lp" --probe-cap -1
+expect_exit 0 "a dive up first still solves it" \
+    "$JAOS" solve "$DATA/nl_int.lp" --cut-rounds 0 --dive --dive-child up
+[ "$(line_of objective)" = "objective 3" ] && pass "to 3" \
+    || flunk "dive child up: $(line_of objective)"
+expect_exit 5 "--dive-child refuses an unknown rule" \
+    "$JAOS" solve "$DATA/nl_int.lp" --dive --dive-child sideways
 expect_exit 0 "and converts to LP with its marks" \
     "$JAOS" convert "$DATA/t4_int.mps" "$tmp/t4.lp"
 grep -q '^General$' "$tmp/t4.lp" && pass "the LP carries a General section" \

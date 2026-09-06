@@ -1,0 +1,18 @@
+air03     1.000x  nodes 1 -> 1
+blend2    0.363x  nodes 6827 -> 2753
+dcmulti   1.234x  nodes 585 -> 147
+egout     1.879x  nodes 39127 -> 40409
+enigma    2.933x  nodes 2888 -> 6694
+flugpl    0.436x  nodes 4495 -> 1865
+khb05250  0.748x  nodes 243 -> 133
+lseu      1.274x  nodes 25947 -> 33617
+misc03    1.779x  nodes 803 -> 1061
+misc06    1.012x  nodes 117 -> 51
+mod008    0.936x  nodes 25743 -> 22219
+mod010    4.979x  nodes 7 -> 7
+p0033     0.318x  nodes 1609 -> 381
+p0201     0.501x  nodes 1357 -> 249
+rgn       0.803x  nodes 5113 -> 3723
+stein27   1.141x  nodes 8949 -> 9435
+stein45   1.075x  nodes 107329 -> 107243
+geomean 1.018x over 17: 7 better, 8 worse, 2 past 2x

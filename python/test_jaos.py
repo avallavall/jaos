@@ -1244,6 +1244,60 @@ class TestBranchAndBound(unittest.TestCase):
             else:
                 self.assertGreater(rep.lp_solves, rep.nodes)
 
+    def test_a_probe_cap_and_every_dive_child_rule_keep_the_knapsack_optimum(self):
+        # A work cap on each probe (D294) and the dive's child rule (D295):
+        # neither moves the answer; a NaN cap and a rule outside the enum
+        # are refused.
+        def knapsack():
+            p = jaos.Problem()
+            a = p.add_var(binary=True, name="a")
+            b = p.add_var(binary=True, name="b")
+            c = p.add_var(binary=True, name="c")
+            p.add(2 * a + 3 * b + c <= 5)
+            p.maximize(5 * a + 4 * b + 3 * c)
+            return p, (a, b, c)
+        for cap in (0.5, 0.0, 4.0):
+            p, (a, b, c) = knapsack()
+            p.set_mip_cut_rounds(0).set_mip_reliability(8).set_mip_probe_cap(cap)
+            self.assertIs(p.solve(), jaos.SolveStatus.OPTIMAL)
+            self.assertAlmostEqual(p.objective_value, 9.0, places=9)
+            self.assertEqual((a.value, b.value, c.value), (1.0, 1.0, 0.0))
+            self.assertGreater(p.mip_report().lp_solves, p.mip_report().nodes)
+        with self.assertRaises(jaos.JaosError):
+            p.set_mip_probe_cap(float("nan"))
+        for rule in jaos.DiveChild:
+            p, (a, b, c) = knapsack()
+            p.set_mip_cut_rounds(0).set_mip_dive(True).set_mip_dive_child(rule)
+            self.assertIs(p.solve(), jaos.SolveStatus.OPTIMAL)
+            self.assertAlmostEqual(p.objective_value, 9.0, places=9)
+            self.assertEqual((a.value, b.value, c.value), (1.0, 1.0, 0.0))
+            self.assertGreaterEqual(p.mip_report().nodes, 2)
+        with self.assertRaises(jaos.JaosError):
+            p.set_mip_dive_child(7)
+
+    def test_cuts_below_the_root_keep_the_optimum(self):
+        # max 10a + 13b + 7c + 9d + 5e over 3a + 5b + 2c + 4d + 2e <= 8,
+        # binaries: 23 at a = b = 1, and the relaxation is 24.6 (D296). Every
+        # depth reaches it with the root's cuts off; a negative depth is the
+        # default again.
+        for depth in (0, 1, 100):
+            p = jaos.Problem()
+            v = [p.add_var(binary=True, name=n) for n in "abcde"]
+            a, b, c, d, e = v
+            p.add(3 * a + 5 * b + 2 * c + 4 * d + 2 * e <= 8)
+            p.maximize(10 * a + 13 * b + 7 * c + 9 * d + 5 * e)
+            p.set_mip_cut_rounds(0).set_mip_cut_depth(depth)
+            self.assertIs(p.solve(), jaos.SolveStatus.OPTIMAL)
+            self.assertAlmostEqual(p.objective_value, 23.0, places=9)
+            self.assertEqual([x.value for x in v], [1.0, 1.0, 0.0, 0.0, 0.0])
+            rep = p.mip_report()
+            self.assertGreaterEqual(rep.nodes, 2)
+            if depth == 0:
+                self.assertEqual(rep.cuts, 0)
+        p.set_mip_cut_depth(-1)
+        self.assertIs(p.solve(), jaos.SolveStatus.OPTIMAL)
+        self.assertAlmostEqual(p.objective_value, 23.0, places=9)
+
     def test_the_rounding_heuristic_finds_the_root_relaxations_neighbour(self):
         # max x + y, x + y <= 3.6, x <= 2.2, y <= 1.4, both integer: the
         # relaxation sits at (2.2, 1.4) and rounds to (2, 1), which is the

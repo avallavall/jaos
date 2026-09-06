@@ -23,9 +23,15 @@
  * Letters 19, 1996), rewritten over the model's own columns and added as
  * a row of the private copy, where it stays for every node. Cuts are
  * valid for the whole tree because they are derived at the root over the
- * model's own bounds. A rounding heuristic at every fractional node
+ * model's own bounds. A node inside jaos_set_mip_cut_depth gets one round
+ * of the same cuts over its own relaxation (D296); those are read over the
+ * node's bounds, so they hold in its subtree only, and they live in a pool
+ * and are rows of the copy for exactly the nodes under it. A rounding
+ * heuristic at every fractional node
  * (D290) is the only heuristic; docs/claims.txt carries the claim that
- * there is no other.
+ * there is no other. A strong-branching probe (D293) may carry a work cap
+ * as a multiple of the node's own solve (D294), and the dive's first
+ * child is chosen by a rule (D295).
  *
  * The relaxations are solved on ONE private copy of the model, re-bounded
  * per node, with the log callback off and everything else the caller set
@@ -57,6 +63,11 @@ constexpr double MIP_GAP = 1e-6;
 /* Rounds of cuts at the root; a round with no cut ends them early.
  * jaos_set_mip_cut_rounds overrides it. */
 constexpr int64_t MIP_CUT_ROUNDS = 1;
+/* Cuts below the root (D296): a node at depth <= MIP_CUT_DEPTH gets one
+ * round of cuts on its own relaxation, the root being depth 0 and getting
+ * MIP_CUT_ROUNDS. 0 is the root only. jaos_set_mip_cut_depth overrides it;
+ * docs/tolerances.md carries the sweep. */
+constexpr int64_t MIP_CUT_DEPTH = 0;
 /* A basic integer column is cut only when its fraction sits inside
  * [MIP_CUT_AWAY, 1 - MIP_CUT_AWAY]: the cut's coefficients divide by the
  * fraction and by its complement, and a fraction near 0 or 1 gives a cut
@@ -87,8 +98,89 @@ constexpr double MIP_PC_EPS = 1e-6;
 constexpr int64_t MIP_RELIABILITY = 0;
 constexpr int64_t MIP_STRONG_CANDIDATES = 8;
 
+/* The work cap on each probe (D294) as a multiple of the work the node's
+ * own relaxation took; a probe that reaches it stops and teaches nothing.
+ * 0 is no cap. jaos_set_mip_probe_cap overrides it; docs/tolerances.md
+ * carries the sweep. */
+constexpr double MIP_PROBE_CAP = 0.0;
+
+/* Cuts, rows across: the cuts of one round, held until the tableau they
+ * were read from is freed (jaos_add_rows drops the scaling the tableau
+ * points into, so a round is generated whole and added whole), and the
+ * pool of every local cut the tree has made (D296), which only grows. */
+typedef struct {
+    int64_t *start, *idx;
+    double *val, *lo;
+    int64_t n, nnz;
+    int64_t cap_start, cap_lo, cap_idx, cap_val;   /* one each: JM_GROW
+                                                      reads its own cap */
+} cutbuf;
+
+static void cutbuf_free(cutbuf *cb)
+{
+    free(cb->start); free(cb->idx); free(cb->val); free(cb->lo);
+}
+
+/* Cut `r` of `src` appended to `dst`. */
+static bool cutbuf_append(cutbuf *dst, const cutbuf *src, int64_t r)
+{
+    const int64_t s = src->start[r], nz = src->start[r + 1] - s;
+    if (!JM_GROW(dst->start, dst->cap_start, dst->n + 2) ||
+        !JM_GROW(dst->lo, dst->cap_lo, dst->n + 2) ||
+        !JM_GROW(dst->idx, dst->cap_idx, dst->nnz + nz) ||
+        !JM_GROW(dst->val, dst->cap_val, dst->nnz + nz))
+        return false;
+    dst->start[dst->n] = dst->nnz;
+    if (nz > 0) {
+        memcpy(dst->idx + dst->nnz, src->idx + s, (size_t)nz * sizeof *dst->idx);
+        memcpy(dst->val + dst->nnz, src->val + s, (size_t)nz * sizeof *dst->val);
+    }
+    dst->nnz += nz;
+    dst->lo[dst->n] = src->lo[r];
+    dst->n++;
+    dst->start[dst->n] = dst->nnz;
+    return true;
+}
+
+/* Cuts `which[0..n)` of the pool added to the copy as rows, >= their
+ * right-hand sides. */
+static jaos_status pool_add(jaos_model *lp, const cutbuf *pool,
+                            const int64_t *which, int64_t n)
+{
+    int64_t nnz = 0;
+    for (int64_t k = 0; k < n; k++)
+        nnz += pool->start[which[k] + 1] - pool->start[which[k]];
+    int64_t *start = malloc((size_t)(n + 1) * sizeof *start);
+    int64_t *idx = malloc((size_t)(nnz > 0 ? nnz : 1) * sizeof *idx);
+    double *val = malloc((size_t)(nnz > 0 ? nnz : 1) * sizeof *val);
+    double *lo = malloc((size_t)n * sizeof *lo);
+    double *up = malloc((size_t)n * sizeof *up);
+    jaos_status st = JAOS_ERR_OUT_OF_MEMORY;
+    if (start == nullptr || idx == nullptr || val == nullptr ||
+        lo == nullptr || up == nullptr)
+        goto out;
+    int64_t p = 0;
+    for (int64_t k = 0; k < n; k++) {
+        const int64_t c = which[k], s = pool->start[c], e = pool->start[c + 1];
+        start[k] = p;
+        for (int64_t q = s; q < e; q++) {
+            idx[p] = pool->idx[q];
+            val[p] = pool->val[q];
+            p++;
+        }
+        lo[k] = pool->lo[c];
+        up[k] = INFINITY;
+    }
+    start[n] = p;
+    st = jaos_add_rows(lp, n, lo, up, p, start, idx, val);
+out:
+    free(start); free(idx); free(val); free(lo); free(up);
+    return st;
+}
+
 /* One open node: the bound changes along its path from the root, in the
- * order they were made, and the basis its parent's relaxation ended on. */
+ * order they were made, the local cuts in force there (D296), and the
+ * basis its parent's relaxation ended on. */
 typedef struct {
     double key;                /* the parent's objective, minimize form */
     int64_t id;                /* creation order, the tie-break         */
@@ -98,6 +190,8 @@ typedef struct {
     jaos_basis_status *cs, *rs;
     double frac;               /* the fraction the branch moved         */
     bool up;                   /* which way                              */
+    int64_t *cuts;             /* pool indices of the local cuts        */
+    int64_t ncuts;
 } bnode;
 
 static void node_free(bnode *n)
@@ -105,6 +199,7 @@ static void node_free(bnode *n)
     if (n == nullptr)
         return;
     free(n->col); free(n->lo); free(n->hi); free(n->cs); free(n->rs);
+    free(n->cuts);
     free(n);
 }
 
@@ -156,11 +251,12 @@ static bnode *heap_pop(bheap *h)
 }
 
 /* A child of `parent` (or of the root when parent is null) with one more
- * change, carrying the basis the relaxation just ended on. */
+ * change, carrying the local cuts in force, `act[0..act_n)`, and the basis
+ * the relaxation just ended on, whose `nr` rows are the copy's now. */
 static bnode *node_child(const bnode *parent, int64_t nc, int64_t nr,
                          const jaos_model *lp, int64_t col, double lo,
                          double hi, double key, int64_t id, double frac,
-                         bool up)
+                         bool up, const int64_t *act, int64_t act_n)
 {
     bnode *n = calloc(1, sizeof *n);
     if (n == nullptr)
@@ -171,10 +267,14 @@ static bnode *node_child(const bnode *parent, int64_t nc, int64_t nr,
     n->hi = malloc((size_t)d * sizeof *n->hi);
     n->cs = malloc((size_t)(nc > 0 ? nc : 1) * sizeof *n->cs);
     n->rs = malloc((size_t)(nr > 0 ? nr : 1) * sizeof *n->rs);
-    if (!n->col || !n->lo || !n->hi || !n->cs || !n->rs) {
+    n->cuts = malloc((size_t)(act_n > 0 ? act_n : 1) * sizeof *n->cuts);
+    if (!n->col || !n->lo || !n->hi || !n->cs || !n->rs || !n->cuts) {
         node_free(n);
         return nullptr;
     }
+    if (act_n > 0)
+        memcpy(n->cuts, act, (size_t)act_n * sizeof *n->cuts);
+    n->ncuts = act_n;
     if (parent != nullptr) {
         memcpy(n->col, parent->col, (size_t)parent->depth * sizeof *n->col);
         memcpy(n->lo, parent->lo, (size_t)parent->depth * sizeof *n->lo);
@@ -195,14 +295,33 @@ static bnode *node_child(const bnode *parent, int64_t nc, int64_t nr,
     return n;
 }
 
-/* Puts the relaxation at `n`: every integer column back at the root's
+/* Puts the relaxation at `n`: the local cuts of the node before it out of
+ * the copy and n's in (D296), every integer column back at the root's
  * bounds -- the model's, rounded inward to integers (D292) -- then the
- * path's changes in order, then the parent's basis. */
+ * path's changes in order, then the parent's basis. `nfixed` is the row
+ * count the copy has with no local cut in it, and `*in_copy` how many
+ * local rows it holds on entry and on exit. */
 static jaos_status node_apply(jaos_model *lp, const jaos_model *m,
                               const double *ilo, const double *ihi,
-                              const bnode *n)
+                              const bnode *n, const cutbuf *pool,
+                              int64_t nfixed, int64_t *in_copy)
 {
     jaos_status st = JAOS_OK;
+    if (*in_copy > 0) {
+        int64_t *del = malloc((size_t)*in_copy * sizeof *del);
+        if (del == nullptr)
+            return JAOS_ERR_OUT_OF_MEMORY;
+        for (int64_t k = 0; k < *in_copy; k++)
+            del[k] = nfixed + k;
+        st = jaos_delete_rows(lp, *in_copy, del);
+        free(del);
+        *in_copy = 0;
+    }
+    if (st == JAOS_OK && n != nullptr && n->ncuts > 0) {
+        st = pool_add(lp, pool, n->cuts, n->ncuts);
+        if (st == JAOS_OK)
+            *in_copy = n->ncuts;
+    }
     for (int64_t j = 0; st == JAOS_OK && j < m->num_col; j++)
         if (m->col_integer[j])
             st = jaos_set_col_bounds(lp, j, ilo[j], ihi[j]);
@@ -221,7 +340,9 @@ static double now_seconds(void)
 }
 
 /* The incumbent: the relaxation's whole published answer, copied when it
- * is found, because the copy of the model moves on to other nodes. */
+ * is found, because the copy of the model moves on to other nodes. The
+ * row arrays hold the MODEL's rows, `nr`: a cut's row is never published,
+ * and the copy's count moves with the local cuts (D296). */
 typedef struct {
     bool have;
     double obj, key;
@@ -229,9 +350,10 @@ typedef struct {
     jaos_basis_status *cs, *rs;
 } incumbent;
 
-static bool incumbent_take(incumbent *inc, const jaos_model *lp, double key)
+static bool incumbent_take(incumbent *inc, const jaos_model *lp, int64_t nr,
+                           double key)
 {
-    const int64_t nc = lp->num_col, nr = lp->num_row;
+    const int64_t nc = lp->num_col;
     if (inc->x == nullptr) {
         inc->x = malloc((size_t)(nc > 0 ? nc : 1) * sizeof *inc->x);
         inc->cd = malloc((size_t)(nc > 0 ? nc : 1) * sizeof *inc->cd);
@@ -385,13 +507,17 @@ static double pc_score(int64_t j, double f, int64_t nc, const double *pc_sum,
  * nothing. The node is then put back -- its bounds, its basis, one solve
  * that ends where it started -- so what follows sees the node as it was.
  * `cs`, `rs` and `cand` are scratch of the copy's size; every probe is
- * billed to `work` and counted in `solves`. */
+ * billed to `work` and counted in `solves` and `probes`. A probe whose
+ * solve reaches `cap` work units (D294; 0 for no cap) stops there and
+ * teaches nothing, and is counted in `capped`; the caller's own work
+ * limit still applies where it is the smaller. */
 static jaos_status strong_probe(jaos_model *lp, const jaos_model *m,
                                 const double *x, double key, double sigma,
-                                int64_t reliability, double *pc_sum,
-                                int64_t *pc_n, int64_t *work, int64_t *solves,
-                                jaos_basis_status *cs, jaos_basis_status *rs,
-                                int64_t *cand)
+                                int64_t reliability, int64_t cap,
+                                double *pc_sum, int64_t *pc_n, int64_t *work,
+                                int64_t *solves, int64_t *probes,
+                                int64_t *capped, jaos_basis_status *cs,
+                                jaos_basis_status *rs, int64_t *cand)
 {
     const int64_t nc = m->num_col, nr = lp->num_row;
     int64_t ncand = 0;
@@ -443,10 +569,20 @@ static jaos_status strong_probe(jaos_model *lp, const jaos_model *m,
                         : jaos_set_col_bounds(lp, j, ceil(x[j]), hi0);
             if (st == JAOS_OK)
                 st = jaos_set_basis(lp, cs, rs);
+            const int64_t caller_limit = lp->cfg.work_limit;
+            const bool capping = cap > 0 &&
+                                 (caller_limit <= 0 || cap < caller_limit);
+            if (capping)
+                lp->cfg.work_limit = cap;
             if (st == JAOS_OK)
                 st = jaos_solve(lp);
+            lp->cfg.work_limit = caller_limit;
             (*solves)++;
+            (*probes)++;
             *work += jaos_work_units(lp);
+            if (st == JAOS_OK && capping &&
+                jaos_status_of(lp) == JAOS_SOLVE_WORK_LIMIT)
+                (*capped)++;
             if (st == JAOS_OK && jaos_status_of(lp) == JAOS_SOLVE_OPTIMAL) {
                 double obj = 0.0;
                 if (jaos_objective(lp, &obj) == JAOS_OK) {
@@ -476,22 +612,6 @@ static jaos_status strong_probe(jaos_model *lp, const jaos_model *m,
 }
 
 /* --- Gomory mixed-integer cuts at the root ----------------------------- */
-
-/* The cuts of one round, rows across, held until the tableau they were
- * read from is freed: jaos_add_rows drops the scaling the tableau points
- * into, so a round is generated whole and added whole. */
-typedef struct {
-    int64_t *start, *idx;
-    double *val, *lo;
-    int64_t n, nnz;
-    int64_t cap_start, cap_lo, cap_idx, cap_val;   /* one each: JM_GROW
-                                                      reads its own cap */
-} cutbuf;
-
-static void cutbuf_free(cutbuf *cb)
-{
-    free(cb->start); free(cb->idx); free(cb->val); free(cb->lo);
-}
 
 static bool cutbuf_push(cutbuf *cb, const double *cut, int64_t nc, double lo)
 {
@@ -714,7 +834,7 @@ static bool incumbent_take_point(incumbent *inc, const jaos_model *lp,
                                  const jaos_model *m, const double *xr,
                                  const double *ra, double obj, double key)
 {
-    if (!incumbent_take(inc, lp, key))
+    if (!incumbent_take(inc, lp, m->num_row, key))
         return false;
     const int64_t nc = m->num_col, nr = m->num_row;
     if (nc > 0)
@@ -749,6 +869,16 @@ static bool incumbent_announce(const jaos_model *m, const incumbent *inc,
            JAOS_CALLBACK_STOP;
 }
 
+static const char *dive_child_str(int rule)
+{
+    switch (rule) {
+    case JAOS_DIVE_UP:         return "up first";
+    case JAOS_DIVE_DOWN:       return "down first";
+    case JAOS_DIVE_PSEUDOCOST: return "pseudocost side first";
+    default:                   return "nearer side first";
+    }
+}
+
 /* --- The tree ---------------------------------------------------------- */
 
 jaos_status jm_branch_and_bound(jaos_model *m)
@@ -765,19 +895,32 @@ jaos_status jm_branch_and_bound(jaos_model *m)
     const int64_t reliability = rule == JAOS_BRANCH_PSEUDOCOST
         ? (m->cfg.mip_reliability_set ? m->cfg.mip_reliability : MIP_RELIABILITY)
         : 0;
+    const double probe_cap = m->cfg.mip_probe_cap_set ? m->cfg.mip_probe_cap
+                                                      : MIP_PROBE_CAP;
+    const int dive_child = m->cfg.mip_dive_child;
+    const int64_t cut_depth = m->cfg.mip_cut_depth_set ? m->cfg.mip_cut_depth
+                                                       : MIP_CUT_DEPTH;
 
     jaos_status rc = JAOS_ERR_OUT_OF_MEMORY;
     jaos_model *lp = nullptr;
     bheap heap = {0};
     incumbent inc = {0};
-    cutbuf cb = {0};
+    cutbuf cb = {0}, pool = {0};       /* one round; every local cut   */
+    int64_t *act = nullptr;            /* the local cuts in force, pool
+                                          indices, and their count/cap  */
+    int64_t act_n = 0, act_cap = 0;
+    int64_t nfixed = nr, in_copy = 0;  /* rows with no local cut in the
+                                          copy; local rows in it now    */
+    int64_t local_cuts = 0;
     bnode *cur = nullptr, *next = nullptr;
     double *x = nullptr, *row = nullptr, *cut = nullptr;
+    int64_t row_cap = 0;
     double *xr = nullptr, *ra = nullptr;
     double *ilo = nullptr, *ihi = nullptr, *pc_sum = nullptr;
     int64_t *pc_n = nullptr, *cand = nullptr;
     jaos_basis_status *pcs = nullptr, *prs = nullptr;
     int64_t next_id = 0, nodes = 0, solves = 0, cuts = 0, heur_points = 0;
+    int64_t probes = 0, capped = 0;    /* strong branching's, D293/D294 */
     int64_t first_inc = 0;             /* the node of the first incumbent */
     int64_t work = 0, iters = 0;
     double best_bound = -INFINITY;     /* minimize form */
@@ -827,12 +970,15 @@ jaos_status jm_branch_and_bound(jaos_model *m)
             nint += m->col_integer[j];
         jm_log(m, JAOS_LOG_SUMMARY,
                "branch and bound: %lld integer columns of %lld, %lld rounds "
-               "of cuts, dive %s, rounding %s, %s branching, reliability %lld",
+               "of cuts, cuts to depth %lld, dive %s, rounding %s, %s "
+               "branching, reliability %lld, probe cap %gx",
                (long long)nint, (long long)nc, (long long)rounds,
-               dive ? "on" : "off", heur ? "on" : "off",
+               (long long)cut_depth,
+               dive ? dive_child_str(dive_child) : "off",
+               heur ? "on" : "off",
                rule == JAOS_BRANCH_MOST_FRACTIONAL ? "most-fractional"
                                                    : "pseudocost",
-               (long long)reliability);
+               (long long)reliability, probe_cap);
     }
 
     /* The root is the node with no changes. An outcome already known --
@@ -881,12 +1027,21 @@ jaos_status jm_branch_and_bound(jaos_model *m)
             break;
         }
 
-        if (node_apply(lp, m, ilo, ihi, nodes > 0 ? cur : nullptr) != JAOS_OK)
+        if (node_apply(lp, m, ilo, ihi, nodes > 0 ? cur : nullptr, &pool,
+                       nfixed, &in_copy) != JAOS_OK)
             goto done;
+        act_n = 0;
+        if (nodes > 0 && cur->ncuts > 0) {
+            if (!JM_GROW(act, act_cap, cur->ncuts))
+                goto done;
+            memcpy(act, cur->cuts, (size_t)cur->ncuts * sizeof *act);
+            act_n = cur->ncuts;
+        }
         nodes++;
         jaos_status st = jaos_solve(lp);
         solves++;
-        work += jaos_work_units(lp);
+        const int64_t node_work = jaos_work_units(lp);
+        work += node_work;
         iters += jaos_iterations(lp);
         if (st != JAOS_OK) {
             if (st == JAOS_ERR_NUMERICAL) {
@@ -927,10 +1082,16 @@ jaos_status jm_branch_and_bound(jaos_model *m)
          * integer program, since every cut is valid for it. The tableau
          * row spans the columns and every row the copy can come to hold. */
         if (nodes == 1 && branch >= 0 && rounds > 0) {
-            row = malloc((size_t)(nc + lp->num_row + 1 +
-                                  (nc > 0 ? nc : 1) * rounds) * sizeof *row);
-            cut = malloc((size_t)(nc > 0 ? nc : 1) * sizeof *cut);
-            if (row == nullptr || cut == nullptr)
+            const int64_t need = nc + lp->num_row + 1 +
+                                 (nc > 0 ? nc : 1) * rounds;
+            double *grown = realloc(row, (size_t)need * sizeof *row);
+            if (grown == nullptr)
+                goto done;
+            row = grown;
+            row_cap = need;
+            if (cut == nullptr)
+                cut = malloc((size_t)(nc > 0 ? nc : 1) * sizeof *cut);
+            if (cut == nullptr)
                 goto done;
             bool stop = false;
             for (int64_t r = 0; r < rounds && !stop; r++) {
@@ -977,8 +1138,71 @@ jaos_status jm_branch_and_bound(jaos_model *m)
         }
         if (nodes == 1) {
             best_bound = key;
+            nfixed = lp->num_row;      /* the root's cuts stay for good */
             jm_log(m, JAOS_LOG_SUMMARY, "root: relaxation %.17g after %lld cuts",
                    obj, (long long)cuts);
+        }
+        /* One round of local cuts at a node inside the depth (D296): read
+         * over the node's bounds, so valid in its subtree; into the pool,
+         * the active list and the copy, then the relaxation again. A
+         * relaxation the cuts make infeasible prunes the node, since every
+         * cut holds for every integer point under it. The tableau row
+         * spans the columns and every row the copy can come to hold. */
+        if (nodes > 1 && branch >= 0 && cur->depth <= cut_depth) {
+            const int64_t need = nc + lp->num_row + 1 + (nc > 0 ? nc : 1);
+            if (need > row_cap) {
+                double *grown = realloc(row, (size_t)need * sizeof *row);
+                if (grown == nullptr)
+                    goto done;
+                row = grown;
+                row_cap = need;
+            }
+            if (cut == nullptr)
+                cut = malloc((size_t)(nc > 0 ? nc : 1) * sizeof *cut);
+            if (cut == nullptr)
+                goto done;
+            cb.n = cb.nnz = 0;
+            const int64_t got = gomory_round(lp, m, x, &cb, row, cut, &work);
+            if (got < 0)
+                goto done;
+            if (got > 0) {
+                if (cuts_add(lp, &cb) != JAOS_OK)
+                    goto done;
+                for (int64_t r = 0; r < got; r++) {
+                    if (!cutbuf_append(&pool, &cb, r) ||
+                        !JM_GROW(act, act_cap, act_n + 1))
+                        goto done;
+                    act[act_n++] = pool.n - 1;
+                }
+                in_copy += got;
+                cuts += got;
+                local_cuts += got;
+                st = jaos_solve(lp);
+                solves++;
+                work += jaos_work_units(lp);
+                iters += jaos_iterations(lp);
+                if (st != JAOS_OK) {
+                    if (st == JAOS_ERR_NUMERICAL) {
+                        outcome = JAOS_SOLVE_NUMERICAL_ERROR;
+                        jm_set_err(m, "node %lld, cuts: %s", (long long)nodes,
+                                   jaos_model_error(lp));
+                        break;
+                    }
+                    goto done;
+                }
+                ns = jaos_status_of(lp);
+                if (ns == JAOS_SOLVE_INFEASIBLE)
+                    continue;
+                if (ns != JAOS_SOLVE_OPTIMAL) {
+                    outcome = ns;
+                    break;
+                }
+                if (jaos_objective(lp, &obj) != JAOS_OK ||
+                    jaos_solution(lp, x, nullptr, nullptr, nullptr) != JAOS_OK)
+                    goto done;
+                key = sigma * obj;
+                branch = select_branch(m, x, rule, pc_sum, pc_n);
+            }
         }
         /* The rounding heuristic, on a fractional node: a feasible rounding
          * that beats the incumbent is taken before the node is judged, so
@@ -1018,7 +1242,7 @@ jaos_status jm_branch_and_bound(jaos_model *m)
             continue;                  /* cannot improve enough */
 
         if (branch < 0) {
-            if (!incumbent_take(&inc, lp, key))
+            if (!incumbent_take(&inc, lp, nr, key))
                 goto done;
             if (first_inc == 0)
                 first_inc = nodes;
@@ -1045,9 +1269,17 @@ jaos_status jm_branch_and_bound(jaos_model *m)
             if (grown == nullptr)
                 goto done;
             prs = grown;
+            /* The cap in units: the node's own solve times the multiple,
+             * rounded up, and never below one unit. */
+            int64_t cap = 0;
+            if (probe_cap > 0.0) {
+                const double c = ceil(probe_cap * (double)node_work);
+                cap = c < 1.0 ? 1 : (int64_t)c;
+            }
             const jaos_status ps = strong_probe(lp, m, x, key, sigma,
-                                                reliability, pc_sum, pc_n,
-                                                &work, &solves, pcs, prs, cand);
+                                                reliability, cap, pc_sum, pc_n,
+                                                &work, &solves, &probes,
+                                                &capped, pcs, prs, cand);
             if (ps != JAOS_OK) {
                 if (ps == JAOS_ERR_NUMERICAL) {
                     outcome = JAOS_SOLVE_NUMERICAL_ERROR;
@@ -1062,18 +1294,33 @@ jaos_status jm_branch_and_bound(jaos_model *m)
         const double v = x[branch];
         bnode *down = node_child(nodes > 0 ? cur : nullptr, nc, nrl, lp,
                                  branch, lp->col_lower[branch], floor(v), key,
-                                 next_id++, v - floor(v), false);
+                                 next_id++, v - floor(v), false, act, act_n);
         bnode *up = node_child(nodes > 0 ? cur : nullptr, nc, nrl, lp, branch,
                                ceil(v), lp->col_upper[branch], key,
-                               next_id++, ceil(v) - v, true);
+                               next_id++, ceil(v) - v, true, act, act_n);
         if (down == nullptr || up == nullptr) {
             node_free(down);
             node_free(up);
             goto done;
         }
-        /* The dive takes the nearer side next; a fraction of one half goes
-         * down. Off, both children join the open set. */
-        bnode *first = v - floor(v) < 0.5 ? down : up;
+        /* The dive's first child, by the rule (D295): the nearer side of
+         * the fraction, a half going up; a fixed side; or the direction
+         * whose expected loss is smaller, the nearer side on a tie. Off,
+         * both children join the open set. */
+        const double f = v - floor(v);
+        bnode *first = f < 0.5 ? down : up;
+        if (dive_child == JAOS_DIVE_UP) {
+            first = up;
+        } else if (dive_child == JAOS_DIVE_DOWN) {
+            first = down;
+        } else if (dive_child == JAOS_DIVE_PSEUDOCOST) {
+            const double gd = f * pseudocost(branch, 0, nc, pc_sum, pc_n);
+            const double gu = (1.0 - f) * pseudocost(branch, 1, nc, pc_sum, pc_n);
+            if (gd < gu)
+                first = down;
+            else if (gu < gd)
+                first = up;
+        }
         bnode *other = first == down ? up : down;
         if (dive) {
             if (!heap_push(&heap, other)) {
@@ -1107,10 +1354,12 @@ jaos_status jm_branch_and_bound(jaos_model *m)
     if (outcome == JAOS_SOLVE_OPTIMAL)
         m->mip_bound = inc.obj;
     jm_log(m, JAOS_LOG_SUMMARY,
-           "branch and bound: %s after %lld nodes, %lld solves, %lld cuts, "
-           "%lld points by rounding", jaos_solve_status_str(outcome),
-           (long long)nodes, (long long)solves, (long long)cuts,
-           (long long)heur_points);
+           "branch and bound: %s after %lld nodes, %lld solves, %lld cuts "
+           "(%lld below the root), %lld points by rounding, %lld probes, "
+           "%lld of them capped",
+           jaos_solve_status_str(outcome), (long long)nodes,
+           (long long)solves, (long long)cuts, (long long)local_cuts,
+           (long long)heur_points, (long long)probes, (long long)capped);
     if (inc.have) {
         m->mip_has_incumbent = true;
         m->mip_inc_obj = inc.obj;
@@ -1153,7 +1402,9 @@ done:
     free(prs);
     free(row);
     free(cut);
+    free(act);
     cutbuf_free(&cb);
+    cutbuf_free(&pool);
     while (heap.n > 0)
         node_free(heap_pop(&heap));
     free(heap.v);

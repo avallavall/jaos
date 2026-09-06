@@ -669,6 +669,135 @@ static void test_strong_branching_probes_are_counted_and_change_no_answer(void)
     }
 }
 
+/* A work cap on each probe (D294): with reliability 8 on the knapsack the
+ * probes run, capped or not, and the answer is the same; a cap of 0 is no
+ * cap, a negative value restores the default, and NaN and infinity are
+ * refused. The tree under a cap every probe reaches is not asserted: on a
+ * model this small a child can finish before the first check of the
+ * limit, so whether it teaches is the solver's business. */
+static void test_a_capped_probe_reaches_the_same_optimum(void)
+{
+    const double caps[3] = { 0.5, 0.0, 4.0 };
+    for (int c = 0; c < 3; c++) {
+        jaos_model *m = knapsack();
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_cut_rounds(m, 0));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_reliability(m, 8));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_probe_cap(m, caps[c]));
+        TEST_ASSERT_TRUE(m->cfg.mip_probe_cap_set);
+        TEST_ASSERT_EQUAL_DOUBLE(caps[c], m->cfg.mip_probe_cap);
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+        TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+        double obj = 0.0, x[3];
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(m, &obj));
+        TEST_ASSERT_DOUBLE_WITHIN(1e-9, 9.0, obj);
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solution(m, x, nullptr, nullptr, nullptr));
+        TEST_ASSERT_TRUE(x[0] == 1.0 && x[1] == 1.0 && x[2] == 0.0);
+        jaos_mip_report rep;
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_mip_result(m, &rep));
+        TEST_ASSERT_TRUE(rep.lp_solves > rep.nodes);
+        jaos_model_free(m);
+    }
+    jaos_model *m = knapsack();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_probe_cap(m, -1.0));
+    TEST_ASSERT_FALSE(m->cfg.mip_probe_cap_set);
+    TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT, jaos_set_mip_probe_cap(m, NAN));
+    TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT,
+                          jaos_set_mip_probe_cap(m, INFINITY));
+    TEST_ASSERT_FALSE(m->cfg.mip_probe_cap_set);
+    jaos_model_free(m);
+}
+
+/* The dive's child rule (D295): every rule dives the knapsack, cuts off,
+ * to the same optimum, and a value outside the enum is refused. */
+static void test_every_dive_child_rule_reaches_the_same_optimum(void)
+{
+    const jaos_dive_child rules[4] = { JAOS_DIVE_NEARER, JAOS_DIVE_UP,
+                                       JAOS_DIVE_DOWN, JAOS_DIVE_PSEUDOCOST };
+    for (int r = 0; r < 4; r++) {
+        jaos_model *m = knapsack();
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_cut_rounds(m, 0));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_dive(m, true));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_dive_child(m, rules[r]));
+        TEST_ASSERT_EQUAL_INT((int)rules[r], m->cfg.mip_dive_child);
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+        TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+        double obj = 0.0, x[3];
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(m, &obj));
+        TEST_ASSERT_DOUBLE_WITHIN(1e-9, 9.0, obj);
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solution(m, x, nullptr, nullptr, nullptr));
+        TEST_ASSERT_TRUE(x[0] == 1.0 && x[1] == 1.0 && x[2] == 0.0);
+        jaos_mip_report rep;
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_mip_result(m, &rep));
+        TEST_ASSERT_TRUE(rep.nodes >= 2);
+        if (r == 3) {
+            TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT,
+                                  jaos_set_mip_dive_child(m, (jaos_dive_child)7));
+            TEST_ASSERT_EQUAL_INT((int)JAOS_DIVE_PSEUDOCOST, m->cfg.mip_dive_child);
+        }
+        jaos_model_free(m);
+    }
+}
+
+/* Cuts below the root (D296). max 10a + 13b + 7c + 9d + 5e over
+ * 3a + 5b + 2c + 4d + 2e <= 8, binaries: the relaxation takes c, a and e
+ * whole and a fifth of b, worth 24.6; the eleven feasible sets are worth
+ * at most 23 (a, b), so the tree has at least one branch and the answer
+ * is a = b = 1. Every depth reaches it, with the root's cuts off so the
+ * node cuts are what runs; two cold searches at a depth agree bit for
+ * bit; and a negative depth restores the default. */
+static void test_cuts_below_the_root_reach_the_same_optimum(void)
+{
+    const double cost[5] = { 10.0, 13.0, 7.0, 9.0, 5.0 };
+    const double cl[5] = { 0, 0, 0, 0, 0 }, cu[5] = { 1, 1, 1, 1, 1 };
+    const double rl[1] = { -INFINITY }, ru[1] = { 8.0 };
+    const int64_t as[6] = { 0, 1, 2, 3, 4, 5 }, ai[5] = { 0, 0, 0, 0, 0 };
+    const double av[5] = { 3.0, 5.0, 2.0, 4.0, 2.0 };
+    const int64_t depths[3] = { 0, 1, 100 };
+    for (int d = 0; d < 3; d++) {
+        double x1[5], x2[5];
+        int64_t nodes1 = 0, cuts1 = 0;
+        for (int pass = 0; pass < 2; pass++) {
+            jaos_model *m = fresh();
+            TEST_ASSERT_EQUAL_INT(JAOS_OK,
+                jaos_load_lp(m, 5, 1, JAOS_MAXIMIZE, 0.0, cost, cl, cu, rl, ru,
+                             5, as, ai, av));
+            for (int64_t j = 0; j < 5; j++)
+                TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_col_integer(m, j, true));
+            TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_cut_rounds(m, 0));
+            TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_cut_depth(m, depths[d]));
+            TEST_ASSERT_TRUE(m->cfg.mip_cut_depth_set);
+            TEST_ASSERT_EQUAL_INT64(depths[d], m->cfg.mip_cut_depth);
+            TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+            TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+            double obj = 0.0;
+            TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(m, &obj));
+            TEST_ASSERT_DOUBLE_WITHIN(1e-9, 23.0, obj);
+            TEST_ASSERT_EQUAL_INT(JAOS_OK,
+                jaos_solution(m, pass == 0 ? x1 : x2, nullptr, nullptr, nullptr));
+            jaos_mip_report rep;
+            TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_mip_result(m, &rep));
+            TEST_ASSERT_TRUE(rep.nodes >= 2);
+            if (depths[d] == 0)
+                TEST_ASSERT_EQUAL_INT64(0, rep.cuts);
+            if (pass == 0) {
+                nodes1 = rep.nodes;
+                cuts1 = rep.cuts;
+            } else {
+                TEST_ASSERT_EQUAL_INT64(nodes1, rep.nodes);
+                TEST_ASSERT_EQUAL_INT64(cuts1, rep.cuts);
+            }
+            jaos_model_free(m);
+        }
+        TEST_ASSERT_TRUE(x1[0] == 1.0 && x1[1] == 1.0 && x1[2] == 0.0 &&
+                         x1[3] == 0.0 && x1[4] == 0.0);
+        TEST_ASSERT_EQUAL_MEMORY(x1, x2, sizeof x1);
+    }
+    jaos_model *m = knapsack();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_cut_depth(m, -1));
+    TEST_ASSERT_FALSE(m->cfg.mip_cut_depth_set);
+    jaos_model_free(m);
+}
+
 int main(void)
 {
     UNITY_BEGIN();
@@ -693,5 +822,8 @@ int main(void)
     RUN_TEST(test_both_branching_rules_reach_the_same_optimum);
     RUN_TEST(test_a_fractional_bound_on_an_integer_column_is_rounded_inward);
     RUN_TEST(test_strong_branching_probes_are_counted_and_change_no_answer);
+    RUN_TEST(test_a_capped_probe_reaches_the_same_optimum);
+    RUN_TEST(test_every_dive_child_rule_reaches_the_same_optimum);
+    RUN_TEST(test_cuts_below_the_root_reach_the_same_optimum);
     return UNITY_END();
 }

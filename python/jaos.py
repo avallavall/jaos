@@ -128,6 +128,14 @@ class Branching(enum.IntEnum):
     MOST_FRACTIONAL = 1
 
 
+class DiveChild(enum.IntEnum):
+    """Which child a dive solves first (D295); jaos_dive_child."""
+    NEARER = 0
+    UP = 1
+    DOWN = 2
+    PSEUDOCOST = 3
+
+
 class JaosError(Exception):
     """A C call that did not return OK.
 
@@ -408,6 +416,7 @@ _sig("jaos_col_integer", ctypes.c_int, _VP, _I64, _P(ctypes.c_bool))
 _sig("jaos_set_mip_gap", ctypes.c_int, _VP, _D)
 _sig("jaos_set_mip_dive", ctypes.c_int, _VP, ctypes.c_bool)
 _sig("jaos_set_mip_cut_rounds", ctypes.c_int, _VP, _I64)
+_sig("jaos_set_mip_cut_depth", ctypes.c_int, _VP, _I64)
 _sig("jaos_set_mip_heuristics", ctypes.c_int, _VP, ctypes.c_bool)
 _sig("jaos_mip_result", ctypes.c_int, _VP, _P(_MipReport))
 _sig("jaos_mip_incumbent", ctypes.c_int, _VP, _P(_D), _P(_D))
@@ -451,6 +460,8 @@ _sig("jaos_set_progress_callback", ctypes.c_int, _VP, _PROGRESS_FN, _VP)
 _sig("jaos_set_mip_node_limit", ctypes.c_int, _VP, _I64)
 _sig("jaos_set_mip_branching", ctypes.c_int, _VP, ctypes.c_int)
 _sig("jaos_set_mip_reliability", ctypes.c_int, _VP, _I64)
+_sig("jaos_set_mip_probe_cap", ctypes.c_int, _VP, _D)
+_sig("jaos_set_mip_dive_child", ctypes.c_int, _VP, ctypes.c_int)
 _sig("jaos_set_incumbent_callback", ctypes.c_int, _VP, _INCUMBENT_FN, _VP)
 _sig("jaos_solve", ctypes.c_int, _VP)
 _sig("jaos_status_of", ctypes.c_int, _VP)
@@ -803,6 +814,12 @@ class Model:
         negative value for the default of 1."""
         self._check(_lib.jaos_set_mip_cut_rounds(self._handle(), int(rounds)))
 
+    def set_mip_cut_depth(self, depth):
+        """One round of Gomory cuts at every node down to `depth` (D296),
+        each valid in its node's subtree; 0, the default, is the root
+        only, and a negative value restores it."""
+        self._check(_lib.jaos_set_mip_cut_depth(self._handle(), int(depth)))
+
     def set_mip_heuristics(self, on=True):
         """Whether every fractional node is rounded for an incumbent (D290);
         on by default."""
@@ -824,6 +841,18 @@ class Model:
         never probes and is the default, since the probes measured worse
         as a default; a negative value restores 0."""
         self._check(_lib.jaos_set_mip_reliability(self._handle(), int(branches)))
+
+    def set_mip_probe_cap(self, multiple):
+        """A work cap on each strong-branching probe, as a multiple of the
+        work the node's own relaxation took (D294): a child solve that
+        reaches it stops and teaches nothing. 0 removes the cap; a negative
+        value restores the default; NaN and infinity are refused."""
+        self._check(_lib.jaos_set_mip_probe_cap(self._handle(), float(multiple)))
+
+    def set_mip_dive_child(self, rule):
+        """Which child a dive solves first, a `DiveChild` (D295); NEARER by
+        default. Only matters with the dive on."""
+        self._check(_lib.jaos_set_mip_dive_child(self._handle(), int(rule)))
 
     def set_incumbent_callback(self, fn):
         """Asks a branch and bound to call `fn(incumbent)` for each new
@@ -2071,6 +2100,12 @@ class Problem:
         self._m.set_mip_cut_rounds(rounds)
         return self
 
+    def set_mip_cut_depth(self, depth):
+        """One round of Gomory cuts at every node down to `depth` (D296);
+        0, the default, is the root only."""
+        self._m.set_mip_cut_depth(depth)
+        return self
+
     def set_mip_heuristics(self, on=True):
         """Whether every fractional node is rounded for an incumbent (D290);
         on by default."""
@@ -2087,6 +2122,14 @@ class Problem:
 
     def set_mip_reliability(self, branches):
         self._m.set_mip_reliability(branches)
+        return self
+
+    def set_mip_probe_cap(self, multiple):
+        self._m.set_mip_probe_cap(multiple)
+        return self
+
+    def set_mip_dive_child(self, rule):
+        self._m.set_mip_dive_child(rule)
         return self
 
     def set_incumbent_callback(self, fn):

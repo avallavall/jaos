@@ -11,6 +11,35 @@ open, `bench/README.md` for the gate, and the commit each entry came from.
 
 ### Added
 
+- **Gomory cuts below the root, refused as a default.**
+  `jaos_set_mip_cut_depth` and `--cut-depth D` give every node down to
+  depth `D` one round of Gomory cuts on its own relaxation; a node's cuts
+  are valid in its subtree, pooled, and rows of the relaxation for exactly
+  the nodes under it. Over the MIP set: 1.056x at depth 1, 1.260x at 2,
+  1.508x at 4, 2.440x at every node, the trees smaller on most instances
+  and the rows carried costing more than the nodes saved, `p0201` 46x at
+  every node. The default stays 0, the root only; what would reopen it is
+  in `bench/refusals.txt`. Python carries the setting at both layers
+  (D296).
+
+- **A work cap on each strong-branching probe, refused as a default.**
+  `jaos_set_mip_probe_cap` and `--probe-cap M` stop a probe's child solve
+  at `M` times the work the node's own relaxation took; a probe that
+  reaches the cap teaches nothing. Over the MIP set at reliability 1 and
+  2 with caps of 0.5, 1 and 2, every capped arm reads worse than the
+  uncapped one, 1.228x at 0.5 against 0.971x, `mod010` up to 4.5x on a
+  tree of the same size. The default is 0, no cap; the first clause of
+  D293's reopen condition is closed. Python carries the setting at both
+  layers (D294).
+
+- **A child rule for the dive.** `jaos_set_mip_dive_child` and
+  `--dive-child RULE` choose which child a dive solves first: nearer, the
+  default, up, down, or the pseudocost direction. Over the MIP set with
+  the dive on: nearer 1.053x, up 0.999x, down 1.316x, pseudocost 0.991x,
+  each with an instance past 2x, so the dive stays off and what could
+  reopen D289 is a backtracking dive. Python carries `DiveChild` at both
+  layers (D295).
+
 - **Strong branching until a column is reliable, off by default.**
   `jaos_set_mip_reliability` and `--reliability N` solve the children of
   a column with fewer than `N` branches per direction on the spot, at most

@@ -1,0 +1,18 @@
+air03     1.000x  nodes 1 -> 1  cuts 35
+blend2    7.696x  nodes 6827 -> 2850  cuts 14845
+dcmulti   3.166x  nodes 585 -> 259  cuts 958
+egout     0.086x  nodes 39127 -> 1803  cuts 268
+enigma    18.164x  nodes 2888 -> 1069  cuts 7616
+flugpl    0.254x  nodes 4495 -> 197  cuts 808
+khb05250  0.879x  nodes 243 -> 55  cuts 135
+lseu      1.768x  nodes 25947 -> 2181  cuts 17085
+misc03    120.219x  nodes 803 -> 1475  cuts 23847
+misc06    0.846x  nodes 117 -> 69  cuts 70
+mod008    2.461x  nodes 25743 -> 3137  cuts 17417
+mod010    0.434x  nodes 7 -> 3  cuts 78
+p0033     0.332x  nodes 1609 -> 103  cuts 546
+p0201     46.234x  nodes 1357 -> 399  cuts 14892
+rgn       9.588x  nodes 5113 -> 1745  cuts 5632
+stein27   6.594x  nodes 8949 -> 4419  cuts 42595
+stein45   (optimal -> time_limit)
+geomean 2.440x over 16: 6 better, 9 worse, 8 past 2x

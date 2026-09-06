@@ -10,8 +10,9 @@
  * Usage:
  *   jaos solve FILE [--solution OUT] [--start SOLUTION] [--work-limit N]
  *                   [--time-limit SECONDS] [--primal-tol T] [--dual-tol T]
- *                   [--cut-rounds N] [--dive] [--no-heuristics] [--node-limit N]
- *                   [--branching RULE] [--reliability N] [--log LEVEL]
+ *                   [--cut-rounds N] [--cut-depth D] [--dive] [--dive-child RULE]
+ *                   [--no-heuristics] [--node-limit N] [--branching RULE]
+ *                   [--reliability N] [--probe-cap M] [--log LEVEL]
  *                   [--quiet]
  *   jaos convert IN OUT
  *   jaos check FILE SOLUTION [--tol T]
@@ -71,8 +72,9 @@ static const char USAGE[] =
     "Usage:\n"
     "  jaos solve FILE [--solution OUT] [--start SOLUTION] [--work-limit N]\n"
     "                  [--time-limit SECONDS] [--primal-tol T] [--dual-tol T]\n"
-    "                  [--cut-rounds N] [--dive] [--no-heuristics] [--node-limit N]\n"
-    "                  [--branching RULE] [--reliability N] [--log LEVEL]\n"
+    "                  [--cut-rounds N] [--cut-depth D] [--dive] [--dive-child RULE]\n"
+    "                  [--no-heuristics] [--node-limit N] [--branching RULE]\n"
+    "                  [--reliability N] [--probe-cap M] [--log LEVEL]\n"
     "                  [--quiet]\n"
     "  jaos convert IN OUT\n"
     "  jaos check FILE SOLUTION [--tol T]\n"
@@ -94,7 +96,11 @@ static const char USAGE[] =
     "  --dual-tol T     dual feasibility tolerance (default 1e-7)\n"
     "  --cut-rounds N   rounds of Gomory cuts at the root of a MIP (default\n"
     "                   1; 0 for none)\n"
+    "  --cut-depth D    one round of Gomory cuts at every node of a MIP down\n"
+    "                   to depth D (default 0: the root only)\n"
     "  --dive           dive from each selected node of a MIP (off by default)\n"
+    "  --dive-child RULE which child the dive solves first: nearer (default),\n"
+    "                   up, down or pseudocost\n"
     "  --no-heuristics  no rounding heuristic at the nodes of a MIP\n"
     "  --node-limit N   stop a MIP before its N-th node past the limit (N > 0)\n"
     "  --branching RULE which column a MIP branches on: pseudocost (default)\n"
@@ -102,6 +108,8 @@ static const char USAGE[] =
     "  --reliability N  branches per direction before a column's pseudocost\n"
     "                   is trusted; below it its children are solved (default\n"
     "                   0, never: D293 refused it as a default)\n"
+    "  --probe-cap M    stop each such child solve at M times the node's own\n"
+    "                   work (M >= 0; 0 for no cap)\n"
     "  --log LEVEL      solver log on stderr: off, summary, progress, detail\n"
     "  --quiet          print the status line only\n"
     "  Exit: 0 optimal, 1 infeasible, 2 unbounded, 3 stopped by a limit or\n"
@@ -373,9 +381,13 @@ struct solve_options {
     int64_t work_limit;      /* 0: not given; the parser refuses <= 0 */
     double time_limit;       /* 0: not given; the parser refuses <= 0 */
     int64_t cut_rounds;      /* -1: not given (the library's default)     */
+    int64_t cut_depth;       /* -1: not given (the library's default)     */
     int64_t node_limit;      /* 0: not given; the parser refuses <= 0     */
     int branching;           /* -1: not given; else a jaos_branching      */
     int64_t reliability;     /* -1: not given (the library's default)     */
+    int dive_child;          /* -1: not given; else a jaos_dive_child     */
+    bool has_probe_cap;      /* the cap is a double, so a flag, not -1    */
+    double probe_cap;
     bool dive, no_heuristics;
     /* The tolerances carry a flag rather than a sentinel: any finite value
      * is passed to the library, which is what refuses a negative one, and a
@@ -395,8 +407,10 @@ static int parse_solve_options(int argc, char **argv, int first,
     memset(o, 0, sizeof *o);
     o->log_level = JAOS_LOG_OFF;
     o->cut_rounds = -1;
+    o->cut_depth = -1;
     o->branching = -1;
     o->reliability = -1;
+    o->dive_child = -1;
 
     for (int i = first; i < argc; i++) {
         const char *a = argv[i];
@@ -439,6 +453,23 @@ static int parse_solve_options(int argc, char **argv, int first,
             if (!parse_int64(v, &o->reliability) || o->reliability < 0)
                 return usage_error("--reliability needs a count of branches, 0 "
                                    "or more, not '%s'", v);
+        } else if (strcmp(a, "--probe-cap") == 0) {
+            if (!parse_double(v, &o->probe_cap) || o->probe_cap < 0.0)
+                return usage_error("--probe-cap needs a multiple of the node's "
+                                   "work, 0 or more, not '%s'", v);
+            o->has_probe_cap = true;
+        } else if (strcmp(a, "--dive-child") == 0) {
+            if (strcmp(v, "nearer") == 0)
+                o->dive_child = JAOS_DIVE_NEARER;
+            else if (strcmp(v, "up") == 0)
+                o->dive_child = JAOS_DIVE_UP;
+            else if (strcmp(v, "down") == 0)
+                o->dive_child = JAOS_DIVE_DOWN;
+            else if (strcmp(v, "pseudocost") == 0)
+                o->dive_child = JAOS_DIVE_PSEUDOCOST;
+            else
+                return usage_error("--dive-child needs nearer, up, down or "
+                                   "pseudocost, not '%s'", v);
         } else if (strcmp(a, "--branching") == 0) {
             if (strcmp(v, "pseudocost") == 0)
                 o->branching = JAOS_BRANCH_PSEUDOCOST;
@@ -455,6 +486,10 @@ static int parse_solve_options(int argc, char **argv, int first,
             if (!parse_int64(v, &o->cut_rounds) || o->cut_rounds < 0)
                 return usage_error("--cut-rounds needs a count of rounds, 0 or "
                                    "more, not '%s'", v);
+        } else if (strcmp(a, "--cut-depth") == 0) {
+            if (!parse_int64(v, &o->cut_depth) || o->cut_depth < 0)
+                return usage_error("--cut-depth needs a depth, 0 or more, "
+                                   "not '%s'", v);
         } else if (strcmp(a, "--primal-tol") == 0) {
             if (!parse_double(v, &o->primal_tol))
                 return usage_error("--primal-tol needs a number, not '%s'", v);
@@ -512,12 +547,25 @@ static int cmd_solve(int argc, char **argv)
         rc = library_error("set the branching rule for", o.file, m);
         goto out;
     }
+    if (o.has_probe_cap && jaos_set_mip_probe_cap(m, o.probe_cap) != JAOS_OK) {
+        rc = library_error("set the probe cap for", o.file, m);
+        goto out;
+    }
+    if (o.dive_child >= 0 &&
+        jaos_set_mip_dive_child(m, (jaos_dive_child)o.dive_child) != JAOS_OK) {
+        rc = library_error("set the dive's child rule for", o.file, m);
+        goto out;
+    }
     if (o.node_limit > 0 && jaos_set_mip_node_limit(m, o.node_limit) != JAOS_OK) {
         rc = library_error("set the node limit for", o.file, m);
         goto out;
     }
     if (o.cut_rounds >= 0 && jaos_set_mip_cut_rounds(m, o.cut_rounds) != JAOS_OK) {
         rc = library_error("set the cut rounds for", o.file, m);
+        goto out;
+    }
+    if (o.cut_depth >= 0 && jaos_set_mip_cut_depth(m, o.cut_depth) != JAOS_OK) {
+        rc = library_error("set the cut depth for", o.file, m);
         goto out;
     }
     if (o.dive && jaos_set_mip_dive(m, true) != JAOS_OK) {

@@ -48,6 +48,9 @@ typedef struct {
     bool mip_dive;
     bool mip_cut_rounds_set;
     int64_t mip_cut_rounds;
+    /* Cuts below the root (D296); unset means MIP_CUT_DEPTH (src/mip.c). */
+    bool mip_cut_depth_set;
+    int64_t mip_cut_depth;
     /* The rounding heuristic at every node (D290); on unless set. */
     bool mip_no_heuristics;
     /* A budget on the tree, 0 for none (D291), and who is told of each
@@ -58,6 +61,11 @@ typedef struct {
      * MIP_RELIABILITY (src/mip.c). */
     bool mip_reliability_set;
     int64_t mip_reliability;
+    /* A work cap on each probe as a multiple of the node's own solve
+     * (D294); unset means MIP_PROBE_CAP (src/mip.c). */
+    bool mip_probe_cap_set;
+    double mip_probe_cap;
+    int mip_dive_child;      /* a jaos_dive_child; 0 is nearer (D295) */
     jaos_incumbent_fn incumbent_cb;
     void *incumbent_user;
 } jm_config;

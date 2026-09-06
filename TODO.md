@@ -5,7 +5,28 @@ says why closed questions closed, `CHANGELOG.md` says what landed, `bench/`
 says what it costs. This file says what is next. When something lands, its
 line leaves this file in the same commit.
 
-## Where the last session stopped — 2026-09-05
+## Where the last session stopped — 2026-09-06
+
+**2026-09-06, the overnight batch: three switches measured and refused as
+defaults (D294, D295, D296).** A work cap on each strong-branching probe,
+`--probe-cap`: every cap reads worse than no cap, 1.228x at 0.5 against
+0.971x uncapped, because a probe that stops early pays and teaches
+nothing (`bench/measurements/02-193/`); the first clause of D293's reopen
+condition is closed. A child rule for the dive, `--dive-child`: nearer
+1.053x, up 0.999x, down 1.316x, the pseudocost side 0.991x, none under
+the 0.95x bar and each with an instance past 2x (`02-194/`); what could
+reopen D289 now is a backtracking dive. Gomory cuts below the root,
+`--cut-depth`: 1.056x at depth 1 and worse at every deeper setting,
+2.440x at every node; the trees shrink on most instances, `egout` 39127
+to 1803 nodes, and the rows carried cost more than the nodes saved,
+`p0201` 46x with its tree 1357 to 399 (`02-195/`). Nothing moved a
+default and `bench/miplib.baseline` is untouched. **What is next**, in
+order: a local cut that leaves the relaxation once its slack is basic at
+a node, and no row churn between two nodes that hold the same cuts,
+which is what would reopen D296 and is the cheapest thing here; probing
+at the root only, the last clause of D293; a solution pool, the feature
+matrix's ○ on the MIP rows that needs no measurement; and the seven held
+constants, each swept once something moves them.
 
 **2026-09-05, last: strong branching until reliable, refused as a
 default (D293).** The eighth batch of the day and the second refusal.

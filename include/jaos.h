@@ -322,6 +322,16 @@ JAOS_NODISCARD jaos_status jaos_set_mip_dive(jaos_model *m, bool on);
 JAOS_NODISCARD jaos_status jaos_set_mip_cut_rounds(jaos_model *m,
                                                    int64_t rounds);
 
+/* Cuts below the root (D296): a node whose depth is at most `depth` gets
+ * one round of Gomory mixed-integer cuts on its own relaxation before it
+ * branches. A cut derived at a node is valid in that node's subtree and
+ * nowhere else, since it is read over the node's bounds, so it is held in
+ * a pool and is in the relaxation for exactly the nodes under it. 0 cuts
+ * at the root only, which is the default; a negative value restores it.
+ * D296 carries what each depth cost over the MIP set. */
+JAOS_NODISCARD jaos_status jaos_set_mip_cut_depth(jaos_model *m,
+                                                  int64_t depth);
+
 /* The rounding heuristic (D290): at every node whose relaxation is
  * fractional, the integer columns are rounded to the nearest integer and
  * the point is kept as the incumbent when it is inside every bound and
@@ -369,6 +379,30 @@ JAOS_NODISCARD jaos_status jaos_set_mip_branching(jaos_model *m,
 JAOS_NODISCARD jaos_status jaos_set_mip_reliability(jaos_model *m,
                                                     int64_t branches);
 
+/* A work cap on each strong-branching probe (D294), as a multiple of the
+ * work the node's own relaxation took: a child solve that reaches it stops
+ * there and teaches the pseudocost nothing, so a probe can cost at most
+ * that much. 0 removes the cap; a negative value restores the default;
+ * NaN and infinity are refused. D294 carries what each setting cost over
+ * the MIP set. */
+JAOS_NODISCARD jaos_status jaos_set_mip_probe_cap(jaos_model *m,
+                                                  double multiple);
+
+/* Which child a dive solves first (D295), when the dive is on. NEARER is
+ * the side the fraction is closer to, D289's refused form; UP and DOWN are
+ * fixed; PSEUDOCOST is the direction whose expected objective loss is the
+ * smaller, the nearer side on a tie. A value outside the enum is refused;
+ * NEARER is the default. */
+typedef enum jaos_dive_child {
+    JAOS_DIVE_NEARER = 0,
+    JAOS_DIVE_UP,
+    JAOS_DIVE_DOWN,
+    JAOS_DIVE_PSEUDOCOST,
+} jaos_dive_child;
+
+JAOS_NODISCARD jaos_status jaos_set_mip_dive_child(jaos_model *m,
+                                                   jaos_dive_child rule);
+
 /* What the last branch and bound did. `bound` is the best objective any
  * open node could still reach when the search stopped, in the model's
  * own sense, and equals the incumbent when the answer is OPTIMAL;
@@ -382,7 +416,8 @@ typedef struct jaos_mip_report {
     bool    has_incumbent;
     double  incumbent;       /* its objective, when there is one       */
     double  bound;
-    int64_t cuts;            /* rows the root cuts added (D289)        */
+    int64_t cuts;            /* rows the cuts added, at the root (D289)
+                                and below it (D296)                    */
     int64_t heuristic_points; /* incumbents the rounding found (D290)  */
     int64_t first_incumbent_node; /* the node at which the first incumbent
                                      appeared, 0 when none: what the

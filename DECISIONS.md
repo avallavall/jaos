@@ -301,6 +301,9 @@ and you have the argument. Jump to the entry for the numbers behind it.
 - **[D291](#d291--a-node-limit-on-the-tree-and-an-incumbent-callback-because-a-budget-stop-is-what-the-heuristic-is-for)** — A node limit on the tree and an incumbent callback, because a budget stop is what the heuristic is for
 - **[D292](#d292--pseudocost-branching-at-0722x-with-the-fraction-breaking-a-tie-so-a-zero-objective-does-not-degrade-it-and-an-integer-columns-fractional-bounds-rounded-inward)** — Pseudocost branching at 0.722x, with the fraction breaking a tie so a zero objective does not degrade it, and an integer column's fractional bounds rounded inward
 - **[D293](#d293--strong-branching-until-a-column-is-reliable-refused-as-a-default-the-probes-cost-more-than-the-smaller-trees-saved-at-every-setting)** — Strong branching until a column is reliable, refused as a default: the probes cost more than the smaller trees saved at every setting
+- **[D294](#d294--a-work-cap-on-each-strong-branching-probe-refused-a-probe-that-stops-early-pays-and-teaches-nothing-and-every-cap-reads-worse-than-none)** — A work cap on each strong-branching probe, refused: a probe that stops early pays and teaches nothing, and every cap reads worse than none
+- **[D295](#d295--a-child-rule-for-the-dive-and-no-rule-reopens-d289-nearer-1053x-up-0999x-down-1316x-the-pseudocost-side-0991x)** — A child rule for the dive, and no rule reopens D289: nearer 1.053x, up 0.999x, down 1.316x, the pseudocost side 0.991x
+- **[D296](#d296--gomory-cuts-below-the-root-refused-as-a-default-the-trees-shrink-and-the-rows-carried-cost-more-than-the-nodes-saved-1056x-at-depth-1-and-2440x-at-every-node)** — Gomory cuts below the root, refused as a default: the trees shrink and the rows carried cost more than the nodes saved, 1.056x at depth 1 and 2.440x at every node
 
 ---
 
@@ -21464,3 +21467,103 @@ lowers the price of a thing that did not pay at any price measured.
 **What it is not.** No change to any default: the MIP set is
 byte-identical against its D292 baseline and the three gate sets against
 theirs.
+
+## D294 — A work cap on each strong-branching probe, refused: a probe that stops early pays and teaches nothing, and every cap reads worse than none
+
+**The gap.** D293 refused strong branching as a default because each
+probe is a full child solve, and named a probe capped at a small multiple
+of the node's own solve as the cheaper probe that could reopen it.
+
+**What it does now.** `jaos_set_mip_probe_cap` and `--probe-cap M` stop
+each probe's solve at M times the work units the node's own relaxation
+took; a probe that reaches the cap teaches the pseudocost nothing. 0 is
+no cap and the default; a negative value restores it. Python carries the
+setting at both layers, and the tree's end line says how many probes
+there were and how many were capped.
+
+**Evidence** (`bench/measurements/02-193/`). The control reproduces
+`bench/miplib.baseline` node for node and unit for unit on all 17. Work
+against it, geometric mean of per-instance ratios: at reliability 1,
+uncapped **0.971x** (D293's arm, node for node), cap 0.5 **1.228x**, cap
+1 0.998x, cap 2 1.018x; at reliability 2, uncapped 1.064x, cap 0.5
+1.307x, cap 1 1.081x, cap 2 1.091x. Every capped arm has an instance past
+2x: `mod010` 3.55x at 0.5 and 4.51x at 1 with its tree at 7 nodes either
+way, `misc06` 4.53x at 0.5 with 109 nodes against 117. The node counts
+give the mechanism: where the cap bites the tree does not shrink, so the
+probe's work is paid and nothing is bought; where it does not bite the
+arm is D293's.
+
+**What it is not.** No default moves; the MIP set is byte-identical
+against its D292 baseline and the three gate sets against theirs. The
+first clause of D293's reopen condition is measured and closed; what
+remains of it is probing at the root only, and `bench/refusals.txt`
+says so.
+
+## D295 — A child rule for the dive, and no rule reopens D289: nearer 1.053x, up 0.999x, down 1.316x, the pseudocost side 0.991x
+
+**The gap.** D289 refused the dive in its nearer-side-first form and
+named a different child rule, up first or the pseudocost direction, as
+what could reopen it.
+
+**What it does now.** `jaos_set_mip_dive_child` and `--dive-child RULE`
+choose which child a dive solves first: nearer, the default and D289's
+form; up or down, a fixed side; or pseudocost, the direction whose
+expected objective loss is the smaller, the nearer side on a tie. It
+matters only with the dive on. Python carries `DiveChild` at both layers.
+
+**Evidence** (`bench/measurements/02-194/`). The control reproduces
+`bench/miplib.baseline` node for node and unit for unit on all 17. The
+dive on against it, work in geometric mean over the 17: nearer **1.053x**
+(7 better, 7 worse, `enigma` 2.23x), up **0.999x** (7 and 7, `blend2`
+2.38x), down **1.316x** (5 and 9, `blend2` 11.0x, 6827 to 77842 nodes),
+pseudocost **0.991x** (5 and 7, `blend2` 2.53x). The bar is 0.95x with no
+instance past 2x, and no rule reaches either half of it. The nearer rule
+reads 1.053x here against D289's 1.125x because the tree under it is
+pseudocost-branched with root cuts now; the verdict's direction is the
+same. `blend2` is where the three new rules lose: the dive's early
+incumbent prunes nothing there and the order defers the nodes that would.
+
+**What it is not.** The dive stays off; no default moves; the MIP set is
+byte-identical against its D292 baseline and the three gate sets against
+theirs. What could reopen D289 now is a backtracking dive, and
+`bench/refusals.txt` says so.
+
+## D296 — Gomory cuts below the root, refused as a default: the trees shrink and the rows carried cost more than the nodes saved, 1.056x at depth 1 and 2.440x at every node
+
+**The gap.** D289 put one round of Gomory cuts at the root and named cuts
+below the root, which the same tableau gives at any node, as the next
+thing to measure against its baseline.
+
+**What it does now.** `jaos_set_mip_cut_depth` and `--cut-depth D` give
+every node whose depth is at most D one round of Gomory mixed-integer
+cuts on its own relaxation before it branches; the root keeps its
+`MIP_CUT_ROUNDS`. A node's cut is read over the node's bounds, so it is
+valid in that node's subtree and nowhere else: it goes into a pool, each
+child carries the list of cuts in force, and the private copy holds
+exactly that list's rows when a node is applied, the previous node's
+local rows deleted and this node's added before the bounds and the
+basis. A relaxation the cuts make infeasible prunes the node. The
+incumbent copies the model's rows only, since the copy's count now
+moves. 0 is the default and keeps the root only; a negative value
+restores it. Python carries the setting at both layers.
+
+**Evidence** (`bench/measurements/02-195/`). The control reproduces
+`bench/miplib.baseline` node for node and unit for unit on all 17. Work
+against it, geometric mean of per-instance ratios: **1.056x at depth 1**
+(6 better, 10 worse, 3 past 2x), 1.260x at 2, 1.508x at 4, 1.948x at 8
+over the 16 that finish, **2.440x at every node**. The trees shrink at
+every depth on most instances, `egout` 39127 to 2715 nodes at depth 1 for
+0.081x the work and to 1803 at every node, `flugpl` 4495 to 197, `p0033`
+1609 to 103. The price is the rows: a node's cuts ride with every node
+under it, `p0201` at depth 1 pays 4.22x with its tree unchanged at 1353
+nodes for 82 rows carried, and at every node 46x for a tree of 399 with
+14892 cuts; `misc03` 120x. Each arm also adds and removes the local rows
+between nodes whose lists differ, and the work counts that.
+
+**What it is not.** No default moves; the MIP set is byte-identical
+against its D292 baseline and the three gate sets against theirs. The
+root's cuts still stay for the whole tree. What would reopen this is a
+cut that leaves the relaxation once its slack is basic at a node, and no
+row churn between nodes that hold the same cuts, measured on this set
+against these arms; `bench/refusals.txt` carries the condition and
+`02-195/retest-cut-depth.sh` re-tests depth 1 against the default.

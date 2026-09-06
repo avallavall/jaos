@@ -884,6 +884,15 @@ jaos_status jaos_set_mip_cut_rounds(jaos_model *m, int64_t rounds)
     return JAOS_OK;
 }
 
+jaos_status jaos_set_mip_cut_depth(jaos_model *m, int64_t depth)
+{
+    if (m == nullptr)
+        return JAOS_ERR_INVALID_INPUT;
+    m->cfg.mip_cut_depth_set = depth >= 0;
+    m->cfg.mip_cut_depth = depth >= 0 ? depth : 0;
+    return JAOS_OK;
+}
+
 jaos_status jaos_set_mip_heuristics(jaos_model *m, bool on)
 {
     if (m == nullptr)
@@ -922,6 +931,34 @@ jaos_status jaos_set_mip_reliability(jaos_model *m, int64_t branches)
         return JAOS_ERR_INVALID_INPUT;
     m->cfg.mip_reliability_set = branches >= 0;
     m->cfg.mip_reliability = branches >= 0 ? branches : 0;
+    return JAOS_OK;
+}
+
+jaos_status jaos_set_mip_probe_cap(jaos_model *m, double multiple)
+{
+    if (m == nullptr)
+        return JAOS_ERR_INVALID_INPUT;
+    if (isnan(multiple) || multiple == INFINITY) {
+        jm_set_err(m, "the probe cap must be a finite multiple of the node's "
+                      "work, 0 for none, or negative for the default");
+        return JAOS_ERR_INVALID_INPUT;
+    }
+    m->cfg.mip_probe_cap_set = multiple >= 0.0;
+    m->cfg.mip_probe_cap = multiple >= 0.0 ? multiple : 0.0;
+    return JAOS_OK;
+}
+
+jaos_status jaos_set_mip_dive_child(jaos_model *m, jaos_dive_child rule)
+{
+    if (m == nullptr)
+        return JAOS_ERR_INVALID_INPUT;
+    if (rule != JAOS_DIVE_NEARER && rule != JAOS_DIVE_UP &&
+        rule != JAOS_DIVE_DOWN && rule != JAOS_DIVE_PSEUDOCOST) {
+        jm_set_err(m, "the dive's child rule must be nearer, up, down or "
+                      "pseudocost");
+        return JAOS_ERR_INVALID_INPUT;
+    }
+    m->cfg.mip_dive_child = (int)rule;
     return JAOS_OK;
 }
 
