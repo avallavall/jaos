@@ -84,15 +84,15 @@ open in `TODO.md`.
 
 ### The MIP set — integer columns, with a reference optimum, no gate
 
-D289. Seventeen members of MIPLIB 3, pinned in `miplib.manifest` and served
-as plain gzipped MPS by ZIB's mirror, so the pipeline is `mps-gz` and no
-expander is needed:
+D289, D302. Twenty-four members of MIPLIB 3, pinned in `miplib.manifest`
+and served as plain gzipped MPS by ZIB's mirror, so the pipeline is
+`mps-gz` and no expander is needed:
 
 | set | instances | what it asks | run with |
 |---|---|---|---|
-| `miplib` | 17 | the catalogue's integer optimum, an integral point the checker accepts, two cold searches agreeing node for node | `make miplib J=12` |
+| `miplib` | 24 | the catalogue's integer optimum, an integral point the checker accepts, two cold searches agreeing node for node | `make miplib J=12` |
 
-**17 pinned, 17 measured, 17 digests**, and separate from every figure
+**24 pinned, 24 measured, 24 digests**, and separate from every figure
 above. The three gate sets have no integer column, so nothing in them can
 ask what this set asks; it is not a gate set either, and is run whenever
 `src/mip.c` or anything under it changes. `-e mip` is the runner's rule for
@@ -104,10 +104,13 @@ and `cuts=` included. The baseline carries a `nodes` column the LP
 baselines do not, so a search that changed shape with the answer unmoved is
 said in the diff.
 
-The 17 are the members the plain tree of D288 solved inside 60 s on this
-host, of 38 tried; `bench/measurements/02-189/plain.txt` has all 38 with
-what each cost, and the same directory holds the sweep that set the cut
-rounds and refused the dive. About 75 s of solve time at `J=12`.
+The first 17 are the members the plain tree of D288 solved inside 60 s on
+this host, of 38 tried; `bench/measurements/02-189/plain.txt` has all 38
+with what each cost, and the same directory holds the sweep that set the
+Gomory round and refused the dive. The seven added at D302 are the ones of
+the other 21 that the D301 tree finishes inside 120 s, 12 at once;
+`02-200/current.txt` has all 21. About 4 minutes at `J=12`, most of it
+`l152lav`, whose two cold searches are 61 G work units each.
 `miplib-baseline` rewrites the baseline, kept apart from `miplib` for the
 reason `netlib-baseline` is kept apart from `netlib`.
 The baseline has been rewritten twice on purpose since: for the rounding

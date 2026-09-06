@@ -92,22 +92,28 @@ solving again continues from where it stopped.
 
 A column can be marked integer, from the API or from an MPS `MARKER` pair,
 an LP `General` or `Binary` section, and a model with one solves by branch
-and bound over the same dual simplex: one round of Gomory cuts at the root,
-a rounding heuristic at every node, pseudocost branching, the incumbent
-published with the relaxation's duals. The tree reports its nodes, cuts and
-bound, takes a node limit beside the work and time limits, and tells a
-callback of every new incumbent. Two things that measured worse are behind
-switches and off: a dive from each selected node, and strong branching
-until a column's pseudocost is reliable. Every default in the tree was set
-on a 17-instance MIPLIB 3 set with its own baseline, `make miplib`, and the
-readings are in `bench/measurements/02-189/` to `02-192/`.
+and bound over the same dual simplex: one round of Gomory cuts and four
+rounds of knapsack cover cuts at the root, one round of Gomory cuts at
+every node down to depth 3 with the four most efficacious kept and a cut
+dropped once its slack is basic, a rounding heuristic at every node,
+pseudocost branching, the incumbent published with the relaxation's duals.
+The tree reports its nodes, cuts and bound, takes a node limit beside the
+work and time limits, tells a callback of every new incumbent, and keeps a
+pool of the best integer points it met. Things that measured worse are
+behind switches and off: a dive from each selected node with any of four
+child rules, and strong branching until a column's pseudocost is reliable,
+capped or not, at any depth. Every default in the tree was set on a MIPLIB
+3 set with its own baseline, `make miplib`, 17 instances until D302 and 24
+since; the readings are in `bench/measurements/02-189/` to `02-201/`, and
+D303 says the two cut defaults hold over the 24 and lose over the seven
+instances they were not tuned on.
 
 `SPECS.md` lists every feature with its status: what exists, what is missing,
 and what is only partly there.
 
 ## What it does not do
 
-There is no barrier method. Integer columns solve by branch and bound over the dual simplex, with Gomory cuts at the root and a rounding heuristic at every node; the dive from each selected node measured worse and is off (D288, D289, D290).
+There is no barrier method. Integer columns solve by branch and bound over the dual simplex, with Gomory and cover cuts at the root, Gomory cuts down to depth 3 and a rounding heuristic at every node; the dive from each selected node and strong branching measured worse and are off (D288 to D301).
 
 A primal simplex exists but no caller can reach it. It sits behind a
 development switch rather than an option, and `make primal` is what measures
@@ -140,8 +146,8 @@ sets are composed.
 A fourth set is for the tree and is not a gate: 24 MIPLIB 3 instances, each
 solved to the catalogue's integer optimum, the point integral and feasible
 to the checker, two cold searches building the same tree node for node
-(`make miplib`, D289). Its baseline records the node count beside the work,
-and every default in the branch and bound was set against it.
+(`make miplib`, D289, D302). Its baseline records the node count beside the
+work, and every default in the branch and bound was set against it.
 
 Two finer statements, each with the measurement behind it:
 
@@ -227,7 +233,7 @@ make test       # unit suite and the CLI's test, plus a check that the documents
 make sanitize   # unit suite under ASan and UBSan
 make configs    # the suite in all five build configurations, from clean
 make netlib     # the 94-instance acceptance gate (fetches the instances first)
-make miplib     # the 17-instance MIP set, not a gate; run it when the tree changes
+make miplib     # the 24-instance MIP set, not a gate; run it when the tree changes
 make pgo        # rebuild the library from a profile of it solving real models
 make shared     # build/release/libjaos.so, which the Python binding loads
 make python-test  # the binding's own suite; not part of `make test`

@@ -121,7 +121,7 @@ and cost minutes instead of seconds** (D57). Times below are `J=12`:
 
 `make netlib` (~85 s) · `make netlib-infeas` (~10 s) ·
 `make netlib-kennington` (~8 min) · `make warm` (~2 min) ·
-`make warm-kennington` (~4 min) · `make miplib` (~75 s of solves) ·
+`make warm-kennington` (~4 min) · `make miplib` (~4 min, most of it `l152lav`) ·
 `make compare` · `make pgo`
 
 The three `netlib*` targets are the gate. `warm*` measures what warm
