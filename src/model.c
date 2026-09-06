@@ -1089,6 +1089,39 @@ jaos_status jaos_set_mip_dive_heuristic(jaos_model *m, int64_t solves)
     return JAOS_OK;
 }
 
+jaos_status jaos_set_mip_dive_heuristic_depth(jaos_model *m, int64_t depth)
+{
+    if (m == nullptr)
+        return JAOS_ERR_INVALID_INPUT;
+    m->cfg.mip_dive_heuristic_depth_set = depth >= 0;
+    m->cfg.mip_dive_heuristic_depth = depth >= 0 ? depth : 0;
+    return JAOS_OK;
+}
+
+jaos_status jaos_set_mip_rins(jaos_model *m, int64_t solves)
+{
+    if (m == nullptr)
+        return JAOS_ERR_INVALID_INPUT;
+    m->cfg.mip_rins_set = solves >= 0;
+    m->cfg.mip_rins = solves >= 0 ? solves : 0;
+    return JAOS_OK;
+}
+
+jaos_status jaos_set_mip_dive_degrade(jaos_model *m, double frac)
+{
+    if (m == nullptr)
+        return JAOS_ERR_INVALID_INPUT;
+    if (isnan(frac) || isinf(frac)) {
+        jm_set_err(m, "the dive's degradation bound must be a finite fraction "
+                      "of the parent's bound, 0 for none, or negative for the "
+                      "default");
+        return JAOS_ERR_INVALID_INPUT;
+    }
+    m->cfg.mip_dive_degrade_set = frac >= 0.0;
+    m->cfg.mip_dive_degrade = frac >= 0.0 ? frac : 0.0;
+    return JAOS_OK;
+}
+
 jaos_status jaos_set_mip_node_mir(jaos_model *m, int on)
 {
     if (m == nullptr)

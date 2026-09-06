@@ -7,6 +7,31 @@ line leaves this file in the same commit.
 
 ## Where the last session stopped — 2026-09-06
 
+**2026-09-06, the day batch, fifth round: three refusals, a billing
+repair, and the dive's refusal down to one instance (D314, D315, D316).**
+The dive heuristic below the root reads **1.049x** at depth 1, 1.144x at
+2 and 1.356x at 4 with four instances past 2x; it moves the first
+incumbent earlier on 4, 5 and 8 instances and later on none (`bell3a`
+node 230 to 3), which is a real gain at a worse rate than the two
+heuristics already on, so it is refused (D314). RINS reads 1.008x and
+finds a point on **one instance of the 24**, moving no first incumbent,
+because D313's root dive reaches them first; refused (D315). The dive's
+degradation bound reads 1.097x, 1.081x and 1.048x against the plain dive,
+worse than no bound at every fraction; refused, and D289's third and last
+named form is measured (D316). **The two things to carry forward.**
+First, the review found the dive heuristic charging one matrix pass
+whether or not it reached a point: harmless while it ran once, and
+exactly what D314's arms differ in, so the sweep would have read the
+bill. The charge is inside the branch that pays for it, 16 of the 24 cost
+less, no tree moved, and the baseline is rewritten. Second, **the plain
+dive now reads 0.934x** over the 23 it finishes, none past 2x, and
+`bell5` alone stands between it and D289's reopen condition: 140595 nodes
+and 15 s becomes 2017777 nodes and no proof at the 240 s cap. That
+refusal rests on one instance now, and `bench/refusals.txt` says so.
+**What is next**, in order: why `bell5` explodes under the dive, which is
+the whole of D289 now; then the feasibility pump; then the seven held
+constants.
+
 **2026-09-06, the day batch, fourth round: a heuristic lands and the
 aggregated c-MIR is refused (D312, D313).** A dive heuristic at the root
 re-solves the relaxation up to fifty times, fixing the integer column
@@ -4355,6 +4380,9 @@ then, do not — a refusal whose premise has not changed just fails again.
 | D304 | a root cut round that stops when the bound stops moving, as a default: the rounds end after one that moved the bound by less than F of (1 + \|bound\|) — **1.007x at 1e-4**, 1.172x at 1e-3, 1.121x at 1e-2 over the 24, the last two with an instance past 2x (`bench/measurements/02-202/`) | a stall read on something other than the last round's gain — the gap the root's cuts have closed, or the cuts' violation — at or under 0.95x with no instance past 2x on the same set; `02-202/retest-cut-stall.sh` asks the original question, and `make refusals` runs it |
 | D305 | a node cut stall as a default beside the root-cut drop: no round under a node whose round moved its bound by less than F of (1 + \|bound\|) — alone **0.816x at 0.02** with none past 2x, and with the drop 0.782x over 23 with `bell5` unfinished and `enigma` past 2x at every F (`02-202/`) | the combination at or under the drop's 0.799x with every instance finished and none past 2x on the same set — a stall on the subtree's gap, or one that spares the root's children; `02-202/retest-node-cut-stall.sh` asks, and `make refusals` runs it |
 | D312 | the aggregated form of MIR as a default: a row substitutes a continuous column out with another row before the rounding, N times — **1.140x** over the 24 at three steps, 1.185x at one, 1.165x at two, 1.192x at six, every arm leaving `bell5` at the 240 s cap and every arm with `gen` past 2x, and 1.030x over the 17 against 1.523x over the seven (`bench/measurements/02-205/`) | an aggregation whose row choice is not the largest coefficient in the aggregate — a row chosen for the violation its aggregate would give, or the tableau's own row rather than a model row — at or under 0.95x with no instance past 2x on the same set; `02-205/retest-mir-aggregate.sh` asks, and `make refusals` runs it |
+| D314 | the dive heuristic below the root as a default — **1.049x** over the 24 at depth 1, 1.144x at 2 with two past 2x, 1.356x at 4 with four past 2x and `khb05250` 2.846x on an unmoved tree, while the first incumbent moves earlier on 4, 5 and 8 instances and later on none (`bench/measurements/02-206/`) | a node dive that costs less than a chain of full re-solves — one that reuses the node's basis, or fires on a rule rather than at every node inside a depth — moving the first incumbent on at least as many instances for at most D313's 3.2%, on the same set; `02-206/retest-dive-heuristic-depth.sh` asks the work half, and `make refusals` runs it |
+| D315 | RINS as a default — **1.008x** over the 24 at 50 solves and the same at 10 and at 200, none past 2x, but a point on one instance (`rgn`) and no first incumbent moved, since D313's root dive reaches them first (`02-206/`) | RINS at a node whose incumbent D313's root dive did not find — after an incumbent the tree itself found, or at a depth where the root's point and the node's have diverged — at or under 0.95x, or moving a first incumbent D313 does not, on the same set; `02-206/retest-rins.sh` asks, and `make refusals` runs it |
+| D316 | the dive's degradation bound as a default: the dive goes on into a child only while the node's own bound is within F of (1 + \|its parent's\|) — **1.048x** at 1e-1 against the plain dive, 1.081x at 1e-2, 1.097x at 1e-3, every fraction worse than no bound and `bell5` unfinished in every one (`02-206/`) | nothing: D289's three named forms are all measured and the question that is live is D289's own, which now rests on `bell5` alone; `02-206/retest-dive-degrade.sh` re-asks this one, and `make refusals` runs it |
 | D310 | MIR cuts at a node over its own bounds, beside its Gomory round, as a default — **0.991x** over the 24 at the default cap with `bell5` 3.44x and `gt2` 3.38x, 1.106x at a cap of eight, 1.135x uncapped, 1.010x at cut depth 6, and every arm 0.843x to 1.023x over the 17 against 1.33x to 1.56x over the seven (`bench/measurements/02-204/`) | a MIR round at a node that is not the single-row form — one that aggregates the node's rows, or reads the node's tableau rather than the model's rows — at or under 0.95x with no instance past 2x on the same set; `02-204/retest-node-mir.sh` asks, and `make refusals` runs it |
 | D307 | Balas's lifted covers as a default — **1.005x** over the 24 with `l152lav` 2.06x, 0.965x over the 17 and 1.109x over the seven (`02-202/`) | a lifting other than the simultaneous one — sequential over the items outside the cover, or the cover chosen for the lifting rather than for the point — at or under 0.95x with no instance past 2x on the same set; `02-202/retest-cover-lift.sh` asks, and `make refusals` runs it |
 | D293 | strong branching until a column is reliable, as a default: each unreliable child solved in full, at most eight columns per node — **0.971x at reliability 1** with `mod010` 2.84x and `enigma` 2.07x, 1.064x at 2, 1.173x at 4, 1.437x at 8, while every setting shrinks the trees (`bench/measurements/02-192/`) | both cheaper probes are measured and neither reaches the bar: a work cap per child reads 1.228x at 0.5 times the node's own solve, 0.998x at 1 and 1.018x at 2, since a probe that stops early pays and teaches nothing (D294, `02-193/`); probing at the root only reads 0.987x with two instances past 2x, one tree at every reliability (D298, `02-197/`). What could reopen it is a probe that learns from an unfinished child solve, the dual bound at a work-limit stop, which the stop path does not publish today; `02-192/retest-reliability.sh` asks the original question, and `make refusals` runs it |

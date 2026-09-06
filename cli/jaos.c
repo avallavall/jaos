@@ -17,6 +17,7 @@
  *                   [--dive] [--dive-child RULE] [--dive-backtrack N]
  *                   [--dive-gap F] [--node-mir | --no-node-mir]
  *                   [--mir-aggregate N] [--dive-heuristic N]
+ *                   [--dive-heuristic-depth D] [--rins N] [--dive-degrade F]
  *                   [--no-heuristics] [--node-limit N] [--branching RULE]
  *                   [--reliability N] [--probe-cap M] [--probe-depth D]
  *                   [--no-cut-drop] [--pool-size K] [--log LEVEL]
@@ -86,6 +87,8 @@ static const char USAGE[] =
     "                  [--dive] [--dive-child RULE] [--dive-backtrack N]\n"
     "                  [--dive-gap F] [--node-mir | --no-node-mir]\n"
     "                  [--mir-aggregate N] [--dive-heuristic N]\n"
+    "                  [--dive-heuristic-depth D] [--rins N]\n"
+    "                  [--dive-degrade F]\n"
     "                  [--no-heuristics] [--node-limit N] [--branching RULE]\n"
     "                  [--reliability N] [--probe-cap M] [--probe-depth D]\n"
     "                  [--no-cut-drop] [--pool-size K] [--log LEVEL]\n"
@@ -146,6 +149,13 @@ static const char USAGE[] =
 
 /* The second piece, because ISO C only promises a 4095-byte literal. */
 static const char USAGE1B[] =
+    "  --dive-heuristic-depth D  deepest node the dive heuristic runs at,\n"
+    "                   the root being 0 (D >= 0; default 0, the root alone)\n"
+    "  --rins N         relaxations a RINS dive may solve at a node with an\n"
+    "                   incumbent (N >= 0; default 0, off)\n"
+    "  --dive-degrade F  dive on into a child only while the node's own\n"
+    "                   bound is within F of (1 + |its parent's bound|)\n"
+    "                   (F >= 0; 0 for no bound)\n"
     "  --no-heuristics  no rounding heuristic at the nodes of a MIP\n"
     "  --node-limit N   stop a MIP before its N-th node past the limit (N > 0)\n"
     "  --branching RULE which column a MIP branches on: pseudocost (default)\n"
@@ -448,6 +458,10 @@ struct solve_options {
     int node_mir;            /* -1: not given; else 0 or 1                */
     int64_t mir_aggregate;   /* -1: not given (the library's default)     */
     int64_t dive_heuristic;  /* -1: not given (the library's default)     */
+    int64_t dive_heuristic_depth; /* -1: not given                        */
+    int64_t rins;            /* -1: not given (the library's default)     */
+    bool has_dive_degrade;
+    double dive_degrade;
     int64_t node_limit;      /* 0: not given; the parser refuses <= 0     */
     int branching;           /* -1: not given; else a jaos_branching      */
     int64_t reliability;     /* -1: not given (the library's default)     */
@@ -486,6 +500,8 @@ static int parse_solve_options(int argc, char **argv, int first,
     o->node_mir = -1;
     o->mir_aggregate = -1;
     o->dive_heuristic = -1;
+    o->dive_heuristic_depth = -1;
+    o->rins = -1;
     o->branching = -1;
     o->reliability = -1;
     o->dive_child = -1;
@@ -627,6 +643,20 @@ static int parse_solve_options(int argc, char **argv, int first,
             if (!parse_int64(v, &o->dive_heuristic) || o->dive_heuristic < 0)
                 return usage_error("--dive-heuristic needs a count of solves, "
                                    "0 or more, not '%s'", v);
+        } else if (strcmp(a, "--dive-heuristic-depth") == 0) {
+            if (!parse_int64(v, &o->dive_heuristic_depth) ||
+                o->dive_heuristic_depth < 0)
+                return usage_error("--dive-heuristic-depth needs a depth, 0 "
+                                   "or more, not '%s'", v);
+        } else if (strcmp(a, "--rins") == 0) {
+            if (!parse_int64(v, &o->rins) || o->rins < 0)
+                return usage_error("--rins needs a count of solves, 0 or "
+                                   "more, not '%s'", v);
+        } else if (strcmp(a, "--dive-degrade") == 0) {
+            if (!parse_double(v, &o->dive_degrade) || o->dive_degrade < 0.0)
+                return usage_error("--dive-degrade needs a fraction of the "
+                                   "bound, 0 or more, not '%s'", v);
+            o->has_dive_degrade = true;
         } else if (strcmp(a, "--mir-aggregate") == 0) {
             if (!parse_int64(v, &o->mir_aggregate) || o->mir_aggregate < 0)
                 return usage_error("--mir-aggregate needs a count of rows, 0 "
@@ -788,6 +818,21 @@ static int cmd_solve(int argc, char **argv)
     if (o.dive_heuristic >= 0 &&
         jaos_set_mip_dive_heuristic(m, o.dive_heuristic) != JAOS_OK) {
         rc = library_error("set the dive heuristic for", o.file, m);
+        goto out;
+    }
+    if (o.dive_heuristic_depth >= 0 &&
+        jaos_set_mip_dive_heuristic_depth(m, o.dive_heuristic_depth)
+            != JAOS_OK) {
+        rc = library_error("set the dive heuristic's depth for", o.file, m);
+        goto out;
+    }
+    if (o.rins >= 0 && jaos_set_mip_rins(m, o.rins) != JAOS_OK) {
+        rc = library_error("set RINS for", o.file, m);
+        goto out;
+    }
+    if (o.has_dive_degrade &&
+        jaos_set_mip_dive_degrade(m, o.dive_degrade) != JAOS_OK) {
+        rc = library_error("set the dive's degradation bound for", o.file, m);
         goto out;
     }
     if (o.dive && jaos_set_mip_dive(m, true) != JAOS_OK) {

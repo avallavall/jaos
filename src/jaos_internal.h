@@ -96,6 +96,12 @@ typedef struct {
      * means MIP_DIVE_HEURISTIC (src/mip.c). */
     bool mip_dive_heuristic_set;
     int64_t mip_dive_heuristic;
+    bool mip_dive_heuristic_depth_set;
+    int64_t mip_dive_heuristic_depth;
+    bool mip_rins_set;
+    int64_t mip_rins;
+    bool mip_dive_degrade_set;
+    double mip_dive_degrade;
     /* The rounding heuristic at every node (D290); on unless set. */
     bool mip_no_heuristics;
     /* A budget on the tree, 0 for none (D291), and who is told of each

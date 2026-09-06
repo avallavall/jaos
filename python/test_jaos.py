@@ -1546,6 +1546,61 @@ class TestBranchAndBound(unittest.TestCase):
         self.assertEqual(firsts[1], 1)
         p.set_mip_dive_heuristic(-1)
 
+    def test_the_dive_heuristic_runs_below_the_root(self):
+        # The same model as the root dive's, with the dive at every node:
+        # the answer does not move and the extra dives cost solves (D314).
+        solves = []
+        for depth in (0, 20):
+            p = jaos.Problem()
+            x = p.add_var(integer=True, name="x")
+            y = p.add_var(integer=True, name="y")
+            p.add(x + y <= 3.6)
+            p.add(x <= 2.2)
+            p.add(y <= 1.4)
+            p.maximize(x + y)
+            p.set_mip_cut_rounds(0).set_mip_cover_rounds(0).set_mip_mir_rounds(0)
+            p.set_mip_cut_depth(0).set_mip_heuristics(False)
+            p.set_mip_dive_heuristic(5).set_mip_dive_heuristic_depth(depth)
+            self.assertIs(p.solve(), jaos.SolveStatus.OPTIMAL)
+            self.assertAlmostEqual(p.objective_value, 3.0, places=9)
+            solves.append(p.mip_report().lp_solves)
+        self.assertGreater(solves[1], solves[0])
+        p.set_mip_dive_heuristic_depth(-1)
+
+    def test_rins_keeps_the_optimum(self):
+        # RINS fixes the columns the incumbent and the node agree on and
+        # dives on the rest; the answer does not move (D315).
+        for budget in (0, 20):
+            p = jaos.Problem()
+            x = p.add_var(integer=True, ub=1, name="x")
+            y = p.add_var(integer=True, ub=1, name="y")
+            z = p.add_var(integer=True, ub=1, name="z")
+            p.add(3 * x + 5 * y + 2 * z <= 8)
+            p.maximize(10 * x + 13 * y + 7 * z)
+            p.set_mip_cut_rounds(0).set_mip_cover_rounds(0).set_mip_mir_rounds(0)
+            p.set_mip_cut_depth(0).set_mip_dive_heuristic(0)
+            p.set_mip_rins(budget)
+            self.assertIs(p.solve(), jaos.SolveStatus.OPTIMAL)
+            self.assertAlmostEqual(p.objective_value, 23.0, places=9)
+        p.set_mip_rins(-1)
+
+    def test_a_dive_bounded_by_the_degradation_keeps_the_optimum(self):
+        # The dive goes on only while the node's bound stays near its
+        # parent's; every fraction reaches the same answer (D316).
+        for frac in (0.0, 0.01, 1.0):
+            p = jaos.Problem()
+            x = p.add_var(integer=True, ub=1, name="x")
+            y = p.add_var(integer=True, ub=1, name="y")
+            z = p.add_var(integer=True, ub=1, name="z")
+            p.add(3 * x + 5 * y + 2 * z <= 8)
+            p.maximize(10 * x + 13 * y + 7 * z)
+            p.set_mip_cut_rounds(0).set_mip_cover_rounds(0).set_mip_mir_rounds(0)
+            p.set_mip_cut_depth(0).set_mip_dive(True)
+            p.set_mip_dive_degrade(frac)
+            self.assertIs(p.solve(), jaos.SolveStatus.OPTIMAL)
+            self.assertAlmostEqual(p.objective_value, 23.0, places=9)
+        p.set_mip_dive_degrade(-1.0)
+
     def test_the_rounding_heuristic_finds_the_root_relaxations_neighbour(self):
         # max x + y, x + y <= 3.6, x <= 2.2, y <= 1.4, both integer: the
         # relaxation sits at (2.2, 1.4) and rounds to (2, 1), which is the

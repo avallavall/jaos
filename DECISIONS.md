@@ -321,6 +321,9 @@ and you have the argument. Jump to the entry for the numbers behind it.
 - **[D311](#d311--a-dive-resume-bounded-by-the-gap-refused-as-a-default-1067x-at-its-tightest-fraction-and-the-rules-first-form-could-not-fire-at-all)** — A dive resume bounded by the gap, refused as a default: 1.067x at its tightest fraction, and the rule's first form could not fire at all
 - **[D312](#d312--aggregated-mir-cuts-a-row-may-absorb-others-before-it-is-rounded-refused-as-a-default-1140x-at-its-best-step-count-and-bell5-unfinished-in-every-arm)** — Aggregated MIR cuts, a row may absorb others before it is rounded, refused as a default: 1.140x at its best step count, and `bell5` unfinished in every arm
 - **[D313](#d313--a-dive-heuristic-for-a-first-incumbent-at-the-root-accepted-at-50-solves-the-first-incumbent-moves-earlier-on-6-of-24-and-later-on-none-for-32-of-the-work)** — A dive heuristic for a first incumbent at the root, accepted at 50 solves: the first incumbent moves earlier on 6 of 24 and later on none, for 3.2% of the work
+- **[D314](#d314--the-dive-heuristic-below-the-root-refused-as-a-default-it-moves-the-first-incumbent-earlier-on-four-more-instances-and-at-half-the-rate-the-two-heuristics-already-on-paid)** — The dive heuristic below the root, refused as a default: it moves the first incumbent earlier on four more instances, and at half the rate the two heuristics already on paid
+- **[D315](#d315--rins-refused-as-a-default-a-point-on-one-instance-of-24-and-no-first-incumbent-moved-because-the-root-dive-already-took-them)** — RINS, refused as a default: a point on one instance of 24, and no first incumbent moved, because the root dive already took them
+- **[D316](#d316--the-dives-degradation-bound-refused-as-a-default-worse-than-no-bound-at-every-fraction-and-the-plain-dive-now-reads-0934x-with-bell5-alone-between-it-and-d289s-reopen-condition)** — The dive's degradation bound, refused as a default: worse than no bound at every fraction, and the plain dive now reads 0.934x with `bell5` alone between it and D289's reopen condition
 
 ---
 
@@ -22276,3 +22279,169 @@ say what the units say: the set still runs in about 4 minutes at `J=12`.
 its absence pattern with it -- the pattern named `jm_diving_heuristic`
 and the function is `dive_for_point`, so the check was green for the
 wrong reason and would have stayed green.
+
+## D314 — The dive heuristic below the root, refused as a default: it moves the first incumbent earlier on four more instances, and at half the rate the two heuristics already on paid
+
+**The gap.** D313's dive runs once, at the root. A node's relaxation is a
+different point with different bounds, so a dive there searches a
+different neighbourhood, and nothing about the mechanism is particular to
+the root.
+
+**What it does now.** `jaos_set_mip_dive_heuristic_depth` and
+`--dive-heuristic-depth D`: every node at depth `D` or above gets its own
+dive on its own relaxation, the root being depth 0 and the default.
+Nothing happens with the dive heuristic itself off. Python carries the
+setting at both layers.
+
+**What the sweep cost before it could run.** The dive charged one pass
+over the matrix for `rounded_point` whether or not `rounded_point` ran,
+and it runs only when the dive reaches an integral point -- at the root,
+on 8 of the 24. On the other 16 the tree paid for a pass it never made.
+That was a rounding error in the bill while the dive ran once; this
+change fires it at every node inside a depth, and the arms differ in
+exactly how many nodes that is, so the sweep would have read the phantom
+charge and not the feature. `numerics-reviewer` found it in the diff.
+The charge is inside the `got == 1` branch now, the work figure falls on
+16 of the 24 with **no node count moving anywhere**, and
+`bench/miplib.baseline` is rewritten to the repaired figures
+(`bench/measurements/02-206/control-against-baseline.txt`: 16 lower, 8
+unchanged, 0 with a moved tree).
+
+**Evidence** (`bench/measurements/02-206/`). Work over the MIP set of 24,
+geometric mean of per-instance ratios against the control: **1.049x at
+depth 1, 1.144x at depth 2 with two instances past 2x, 1.356x at depth 4
+with four past 2x** and `khb05250` at 2.846x on a tree that did not move.
+No node count moves at any depth, which is what a heuristic on a
+best-bound tree can do and what D290 found first, so the reading that
+decides it is the first incumbent: **earlier on 4, 5 and 8 instances at
+the three depths and later on none** -- `bell3a` from node 230 to 3,
+`misc03` 115 to 2, `p0033` 99 to 2, `p0282` 28 to 3 at depth 1, with
+`lseu` 47 to 5 joining at depth 2 and `misc07` and `p0201` at depth 4.
+
+**The decision.** Refused as a default, and `MIP_DIVE_HEURISTIC_DEPTH`
+stays 0. It buys real incumbents; it buys them at a rate the two
+heuristics already on beat. D290 moved 8 of 17 for 1.8% of the work,
+D313 moved 6 of 24 for 3.2%, and depth 1 moves 4 more of 24 for 4.9% on
+top of both -- twice D313's price per instance moved, for a smaller
+share of the set, and the two deeper settings put instances past 2x. The
+setting ships, since a caller who wants an incumbent early on a model
+like `bell3a` has it for one call. What could reopen it is a node dive
+that costs less than a chain of full re-solves -- one that reuses the
+node's basis rather than solving each fix cold, or one that fires on a
+rule rather than at every node inside a depth -- moving the first
+incumbent on at least as many instances for at most D313's 3.2%, on the
+same set. `02-206/retest-dive-heuristic-depth.sh` asks the work half of
+that and `make refusals` runs it; the first-incumbent half is read by
+hand from a sweep's `first` column.
+
+## D315 — RINS, refused as a default: a point on one instance of 24, and no first incumbent moved, because the root dive already took them
+
+**The gap.** `SPECS.md` listed RINS among the missing heuristics. Danna,
+Rothberg and Le Pape (Exploring relaxation induced neighborhoods to
+improve MIP solutions, Mathematical Programming 102, 2005) fix the
+columns an incumbent and a node's relaxation already agree on and search
+what is left, which is a smaller problem than either the tree's node or a
+dive from nothing.
+
+**What it does now.** `jaos_set_mip_rins` and `--rins N`: at a fractional
+node with an incumbent, every integer column the incumbent and the node's
+relaxation place at the same integer is fixed there on a copy, and up to
+`N` relaxations are solved on what is left, the integer column nearest an
+integer fixed each time -- D313's dive over a smaller set of free
+columns. A point that comes out integral is judged by `rounded_point`,
+the same acceptance every heuristic point gets. It runs once per distinct
+incumbent, at the first fractional node after the incumbent moved, since
+the neighbourhood is a function of the incumbent and the node and a
+second run on an incumbent that has not moved searches the same set. 0,
+the default, is off. Python carries the setting at both layers.
+
+**What the review changed.** A NaN in either point passed every
+comparison in the agreement test, since every one of them is a `>` or a
+`<` and all are false for a NaN, and reached `jaos_set_col_bounds`, which
+refuses it; `dive_for_point` reported that as -1 and the tree returns -1
+as `JAOS_ERR_OUT_OF_MEMORY`. A relaxation may publish a NaN, so the test
+asks for finite values now and a refused fix stops the fixing rather than
+failing the solve. A second line made RINS skip the incumbent it had
+itself just found, against the sentence in `include/jaos.h`; it is gone.
+
+**Evidence** (`bench/measurements/02-206/`). **1.007x the work at 10
+solves, 1.008x at 50 and 1.008x at 200**, none past 2x, every instance
+finished. `sweep-rins50.txt` and `sweep-rins200.txt` are byte-identical:
+the budget saturates rather than failing to fire, which is what a
+neighbourhood with most of its columns fixed does -- it ends in few
+solves. What refuses it is the other column. **RINS found a point on one
+instance of the 24**, `rgn`, whose heuristic points go from one to two,
+and **moved no first incumbent anywhere**, because D313's root dive
+already puts one at node 1 on every instance where RINS would reach one.
+An observation worth keeping beside it: on `rgn` the published objective
+moves in its last bit, 82.199999239999983 to 82.199999239999997. The
+optimum is the same to fourteen digits and the two figures come from two
+different sums of a point -- `rounded_point`'s own, in index order, and
+the relaxation's. That is not new here and not chased; it is what a
+heuristic's incumbent has always carried beside the tree's.
+
+**The decision.** Refused as a default, and `MIP_RINS` stays 0. The
+mechanism is not at fault and the price is not the problem: 0.8% would be
+worth one instance if the instance were one no other heuristic reaches.
+It is not, and that is the finding -- **D313 took the neighbourhood
+first**. What could reopen it is RINS at a node whose incumbent D313's
+root dive did not find, which is a rule about when it runs rather than
+about what it does: after an incumbent the tree itself found, or at a
+depth where the root's point and the node's have diverged. Measured on
+the same set, at or under 0.95x, or moving a first incumbent D313 does
+not. `02-206/retest-rins.sh` asks the work half and `make refusals` runs
+it.
+
+## D316 — The dive's degradation bound, refused as a default: worse than no bound at every fraction, and the plain dive now reads 0.934x with `bell5` alone between it and D289's reopen condition
+
+**The gap.** D289's refusal of the dive named three quantities a resume
+rule could read. Two are measured and refused: a count of resumes (D308)
+and the sibling's bound against the best open node's (D311). The third is
+the child's own bound against its parent's, which neither of those reads:
+both judge a node against the open set, and this one judges the branch
+that was just made.
+
+**What it does now.** `jaos_set_mip_dive_degrade` and `--dive-degrade F`:
+the dive goes on into a child only while this node's own bound has not
+fallen away from its parent's by more than `F` of (1 + |parent's bound|);
+past that both children join the open set and the dive ends. 0, the
+default, puts no bound on it, which is D289's form. Nothing happens with
+the dive off. Python carries the setting at both layers.
+
+**What the review changed.** The bound was read after the node's own cut
+round, which raises the node's bound, so a node whose cuts worked read as
+a node whose branch went badly and had its dive stopped for it. The
+fraction would then have meant a different thing at every `--cut-depth`,
+and the sweep ran at depth 3. It reads a snapshot taken before the round
+now, so it judges the branch alone.
+
+**Evidence** (`bench/measurements/02-206/`), against the plain dive,
+which is the only control the setting has: **1.097x at 1e-3, 1.081x at
+1e-2, 1.048x at 1e-1**. Every fraction costs more than no bound at all,
+and `bell5` is unfinished in every arm, the plain dive included. Against
+the default tree the same arms read 1.132x, 1.009x and 0.979x, which is
+the dive's own gain leaking through and not the bound's.
+
+**What the dive arm says, and it is the batch's most useful number.** The
+plain dive on this tree reads **0.934x** over the 23 instances it and the
+control both finish, 11 better, 8 worse, **none past 2x**: `p0282`
+0.520x, `l152lav` 0.640x, `p0201` 0.693x, `gen` 0.794x against `blend2`
+1.619x and `lseu` 1.386x. D289 refused the dive at 1.125x and D295 read
+1.053x on the D292 tree. What now stands between that mean and D289's
+reopen condition is one instance: `bell5` goes from 140595 nodes and
+15.0 s to **2017777 nodes and no proof at the 240 s cap**. An unfinished
+instance is not an instance past 2x, it is an instance with no ratio at
+all, so the mean is over 23 and not over the set. The refusal holds and
+its ground has changed: it rests on `bell5` and no longer on the mean.
+
+**The decision.** Refused as a default, and `MIP_DIVE_DEGRADE` stays 0.
+D289's third named form is measured and none of the three reopens it. One
+thing the three do not say read apart: the bound stops the dive going
+into a child, and a sibling an ancestor left on the dive's stack is still
+resumable by `--dive-backtrack` and `--dive-gap`, so the three rules
+compose rather than replacing one another. What could reopen the dive
+itself is now a single instance, so `bench/refusals.txt` says so:
+`bell5` finishing under the dive inside the cap, at any setting, with the
+mean still at or under 0.95x. `02-206/retest-dive-degrade.sh` asks
+D316's own question and `02-189/retest-dive.sh` asks D289's; `make
+refusals` runs both.

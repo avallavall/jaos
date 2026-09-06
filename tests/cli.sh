@@ -316,6 +316,27 @@ expect_exit 0 "the dive heuristic still solves it" \
     || flunk "dive heuristic: $(line_of objective) / $(line_of first_incumbent)"
 expect_exit 5 "--dive-heuristic refuses a negative" \
     "$JAOS" solve "$DATA/nl_int.lp" --dive-heuristic -1
+# The dive heuristic below the root (D314), RINS (D315) and the dive's
+# degradation bound (D316): each accepted with the answer unmoved; a
+# negative value is a usage error for all three.
+expect_exit 0 "a dive at every node still solves it" \
+    "$JAOS" solve "$DATA/nl_int.lp" --cut-rounds 0 --cover-rounds 0 --mir-rounds 0 --cut-depth 0 --no-heuristics --dive-heuristic 5 --dive-heuristic-depth 20
+[ "$(line_of objective)" = "objective 3" ] && pass "to 3" \
+    || flunk "dive heuristic depth: $(line_of objective)"
+expect_exit 5 "--dive-heuristic-depth refuses a negative" \
+    "$JAOS" solve "$DATA/nl_int.lp" --dive-heuristic-depth -1
+expect_exit 0 "RINS still solves it" \
+    "$JAOS" solve "$DATA/nl_int.lp" --cut-rounds 0 --cover-rounds 0 --mir-rounds 0 --cut-depth 0 --dive-heuristic 0 --rins 10
+[ "$(line_of objective)" = "objective 3" ] && pass "to 3" \
+    || flunk "rins: $(line_of objective)"
+expect_exit 5 "--rins refuses a negative" \
+    "$JAOS" solve "$DATA/nl_int.lp" --rins -1
+expect_exit 0 "a dive bounded by the degradation still solves it" \
+    "$JAOS" solve "$DATA/nl_int.lp" --dive --dive-degrade 0.01
+[ "$(line_of objective)" = "objective 3" ] && pass "to 3" \
+    || flunk "dive degrade: $(line_of objective)"
+expect_exit 5 "--dive-degrade refuses a negative" \
+    "$JAOS" solve "$DATA/nl_int.lp" --dive --dive-degrade -1
 # The slack-cut drop (D297), the probe depth (D298) and the pool (D299):
 # each accepted with the answer unmoved; a pool line only when asked for;
 # a pool of zero and a negative probe depth are usage errors.

@@ -106,10 +106,11 @@ behind switches and off: a dive from each selected node with any of four
 child rules, any backtrack budget and a resume bounded by the gap, strong
 branching until a column's pseudocost is reliable, capped or not, at any
 depth, a cut round that stops when the bound stops moving, at the root or
-under a node, lifted covers, MIR cuts at the nodes, and MIR cuts on
-rows aggregated before they are rounded. Every default in the tree was set on a MIPLIB 3 set with
+under a node, lifted covers, MIR cuts at the nodes, MIR cuts on rows
+aggregated before they are rounded, the dive heuristic below the root,
+and RINS. Every default in the tree was set on a MIPLIB 3 set with
 its own baseline, `make miplib`, 17 instances until D302 and 24 since; the
-readings are in `bench/measurements/02-189/` to `02-205/`, D303 says the
+readings are in `bench/measurements/02-189/` to `02-206/`, D303 says the
 two cut defaults hold over the 24 and lose over the seven instances they
 were not tuned on, and D306 and D309 are the defaults that help both.
 
@@ -118,7 +119,7 @@ and what is only partly there.
 
 ## What it does not do
 
-There is no barrier method. Integer columns solve by branch and bound over the dual simplex, with Gomory, cover and mixed-integer rounding cuts at the root, Gomory cuts down to depth 3, a rounding heuristic at every node and a dive heuristic at the root; the dive from each selected node and strong branching measured worse and are off (D288 to D313).
+There is no barrier method. Integer columns solve by branch and bound over the dual simplex, with Gomory, cover and mixed-integer rounding cuts at the root, Gomory cuts down to depth 3, a rounding heuristic at every node and a dive heuristic at the root; the dive from each selected node and strong branching measured worse and are off (D288 to D316).
 
 A primal simplex exists but no caller can reach it. It sits behind a
 development switch rather than an option, and `make primal` is what measures

@@ -11,6 +11,30 @@ open, `bench/README.md` for the gate, and the commit each entry came from.
 
 ### Added
 
+- **A dive at the nodes, RINS, and a dive bounded by how far a node fell
+  from its parent: three settings measured, all three refused, and one
+  billing repair that rewrote the baseline.**
+  `jaos_set_mip_dive_heuristic_depth` and `--dive-heuristic-depth D` run
+  D313's dive at every node down to a depth: 1.049x the work over the MIP
+  set of 24 at depth 1, 1.144x at 2 and 1.356x at 4 with four instances
+  past 2x, the first incumbent earlier on 4, 5 and 8 instances and later
+  on none; off, because the rate is worse than what D290 and D313 already
+  paid (D314). `jaos_set_mip_rins` and `--rins N` fix the integer columns
+  the incumbent and the node's relaxation agree on and dive on the rest:
+  1.008x, but a point on one instance of 24 and no first incumbent moved,
+  since D313's root dive reaches them first; off (D315).
+  `jaos_set_mip_dive_degrade` and `--dive-degrade F` let the dive go on
+  only while a node's own bound stays within `F` of (1 + |its parent's|):
+  1.097x, 1.081x and 1.048x against the plain dive, so off, and D289's
+  third and last named form is measured (D316). The dive itself now reads
+  0.934x over the 23 it finishes with none past 2x, and `bell5` alone
+  stands between it and D289's reopen condition, which `bench/refusals.txt`
+  now says. The dive heuristic charged one matrix pass whether or not it
+  reached a point; the charge moved inside the branch that pays for it, 16
+  of the 24 instances cost less, no node count moved, and
+  `bench/miplib.baseline` is rewritten. Python carries all three settings
+  at both layers (`bench/measurements/02-206/`).
+
 - **A dive heuristic at the root, on by default, and the aggregated MIR
   cut measured and refused.** `jaos_set_mip_dive_heuristic` and
   `--dive-heuristic N` dive on a copy of the root's relaxation as the

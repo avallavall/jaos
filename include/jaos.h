@@ -462,6 +462,36 @@ JAOS_NODISCARD jaos_status jaos_set_mip_mir_aggregate(jaos_model *m,
 JAOS_NODISCARD jaos_status jaos_set_mip_dive_heuristic(jaos_model *m,
                                                        int64_t solves);
 
+/* The deepest node the dive heuristic runs at, the root being 0 (D314):
+ * every node at this depth or above gets its own dive on its own
+ * relaxation, so a node's dive searches inside that node's bounds. 0 is
+ * the root alone, which is the default; a negative value restores it.
+ * Nothing happens with the dive heuristic itself off. D314 carries what
+ * each depth cost over the MIP set. */
+JAOS_NODISCARD jaos_status jaos_set_mip_dive_heuristic_depth(jaos_model *m,
+                                                             int64_t depth);
+
+/* RINS, relaxation induced neighbourhood search (D315, after Danna,
+ * Rothberg and Le Pape, Mathematical Programming 102, 2005): at a
+ * fractional node with an incumbent, every integer column the incumbent
+ * and the node's relaxation already place at the same integer is fixed
+ * there, and up to `solves` relaxations are solved on what is left, the
+ * integer column nearest an integer fixed each time. A point that comes
+ * out integral is judged and taken like the rounding heuristic's, and
+ * counted under `heuristic_points`. It runs once per incumbent, at the
+ * first fractional node after the incumbent moved. 0, the default, is
+ * off; a negative value restores it. Its solves are billed and counted as
+ * `lp_solves`. D315 carries what each budget cost over the MIP set. */
+JAOS_NODISCARD jaos_status jaos_set_mip_rins(jaos_model *m, int64_t solves);
+
+/* How far a node's own bound may fall away from its parent's, as a
+ * fraction of (1 + |parent's bound|), for the dive to go on into one of
+ * its children (D316); 0, the default, puts no bound on it. A negative
+ * value restores the default. Nothing happens with the dive off. D316
+ * carries what each fraction cost over the MIP set. */
+JAOS_NODISCARD jaos_status jaos_set_mip_dive_degrade(jaos_model *m,
+                                                     double frac);
+
 /* The rounding heuristic (D290): at every node whose relaxation is
  * fractional, the integer columns are rounded to the nearest integer and
  * the point is kept as the incumbent when it is inside every bound and

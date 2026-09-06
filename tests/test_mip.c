@@ -1725,6 +1725,189 @@ static void test_the_dive_heuristic_finds_the_first_incumbent(void)
     jaos_model_free(m);
 }
 
+/* The dive heuristic below the root (D314): the same optimum at every
+ * depth, and the depth must decide something -- the root alone and every
+ * node cannot solve the same number of relaxations. */
+static void test_the_dive_heuristic_runs_below_the_root(void)
+{
+    const int64_t depth[3] = { 0, 1, 20 };
+    int64_t solves[3] = { 0, 0, 0 };
+    for (int arm = 0; arm < 3; arm++) {
+        double x1[5], x2[5];
+        int64_t nodes1 = 0;
+        for (int pass = 0; pass < 2; pass++) {
+            jaos_model *m = knapsack5();
+            TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_cut_rounds(m, 0));
+            TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_cover_rounds(m, 0));
+            TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_mir_rounds(m, 0));
+            TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_cut_depth(m, 0));
+            TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_heuristics(m, false));
+            TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_dive_heuristic(m, 20));
+            TEST_ASSERT_EQUAL_INT(JAOS_OK,
+                jaos_set_mip_dive_heuristic_depth(m, depth[arm]));
+            TEST_ASSERT_TRUE(m->cfg.mip_dive_heuristic_depth_set);
+            TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+            TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+            double obj = 0.0;
+            TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(m, &obj));
+            TEST_ASSERT_DOUBLE_WITHIN(1e-9, 23.0, obj);
+            TEST_ASSERT_EQUAL_INT(JAOS_OK,
+                jaos_solution(m, pass == 0 ? x1 : x2, nullptr, nullptr,
+                              nullptr));
+            jaos_mip_report rep;
+            TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_mip_result(m, &rep));
+            if (pass == 0) {
+                nodes1 = rep.nodes;
+                solves[arm] = rep.lp_solves;
+            } else {
+                TEST_ASSERT_EQUAL_INT64(nodes1, rep.nodes);
+                TEST_ASSERT_EQUAL_INT64(solves[arm], rep.lp_solves);
+            }
+            jaos_model_free(m);
+        }
+        TEST_ASSERT_EQUAL_MEMORY(x1, x2, sizeof x1);
+    }
+    /* The canary: a dive at every node solves more relaxations than one at
+     * the root alone, or the depth is deciding nothing. */
+    TEST_ASSERT_TRUE(solves[2] > solves[0]);
+
+    jaos_model *m = knapsack();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_dive_heuristic_depth(m, 3));
+    TEST_ASSERT_TRUE(m->cfg.mip_dive_heuristic_depth_set);
+    TEST_ASSERT_EQUAL_INT64(3, m->cfg.mip_dive_heuristic_depth);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_dive_heuristic_depth(m, -1));
+    TEST_ASSERT_FALSE(m->cfg.mip_dive_heuristic_depth_set);
+    jaos_model_free(m);
+}
+
+/* RINS (D315): the columns the incumbent and the node agree on are fixed
+ * and the rest is dived. The optimum does not move, the search is
+ * reproducible, and a budget must buy solves the tree did not need. */
+static void test_rins_searches_the_incumbents_neighbourhood(void)
+{
+    const int64_t budget[2] = { 0, 30 };
+    int64_t solves[2] = { 0, 0 };
+    for (int arm = 0; arm < 2; arm++) {
+        double x1[5], x2[5];
+        int64_t nodes1 = 0;
+        for (int pass = 0; pass < 2; pass++) {
+            jaos_model *m = knapsack5();
+            TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_cut_rounds(m, 0));
+            TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_cover_rounds(m, 0));
+            TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_mir_rounds(m, 0));
+            TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_cut_depth(m, 0));
+            TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_dive_heuristic(m, 0));
+            TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_rins(m, budget[arm]));
+            TEST_ASSERT_TRUE(m->cfg.mip_rins_set);
+            TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+            TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+            double obj = 0.0;
+            TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(m, &obj));
+            TEST_ASSERT_DOUBLE_WITHIN(1e-9, 23.0, obj);
+            TEST_ASSERT_EQUAL_INT(JAOS_OK,
+                jaos_solution(m, pass == 0 ? x1 : x2, nullptr, nullptr,
+                              nullptr));
+            jaos_mip_report rep;
+            TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_mip_result(m, &rep));
+            if (pass == 0) {
+                nodes1 = rep.nodes;
+                solves[arm] = rep.lp_solves;
+            } else {
+                TEST_ASSERT_EQUAL_INT64(nodes1, rep.nodes);
+                TEST_ASSERT_EQUAL_INT64(solves[arm], rep.lp_solves);
+            }
+            jaos_model_free(m);
+        }
+        TEST_ASSERT_TRUE(x1[0] == 1.0 && x1[1] == 1.0);
+        TEST_ASSERT_EQUAL_MEMORY(x1, x2, sizeof x1);
+    }
+    /* The canary: RINS must solve something. A budget that buys no solve
+     * is a heuristic that never ran. */
+    TEST_ASSERT_TRUE(solves[1] > solves[0]);
+
+    jaos_model *m = knapsack();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_rins(m, 5));
+    TEST_ASSERT_TRUE(m->cfg.mip_rins_set);
+    TEST_ASSERT_EQUAL_INT64(5, m->cfg.mip_rins);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_rins(m, -1));
+    TEST_ASSERT_FALSE(m->cfg.mip_rins_set);
+    jaos_model_free(m);
+}
+
+/* The dive's degradation bound (D316): the dive goes on only while the
+ * node's own bound stays near its parent's. The optimum does not move,
+ * and the bound must decide something -- 1e-12 stops nearly every dive
+ * and 1e12 stops none, so the two trees cannot be the same. */
+static void test_a_dive_bounded_by_the_degradation_keeps_the_optimum(void)
+{
+    const double frac[3] = { 0.0, 0.01, 1.0 };
+    for (int arm = 0; arm < 3; arm++) {
+        double x1[5], x2[5];
+        int64_t nodes1 = 0;
+        for (int pass = 0; pass < 2; pass++) {
+            jaos_model *m = knapsack5();
+            TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_cut_rounds(m, 0));
+            TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_cover_rounds(m, 0));
+            TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_mir_rounds(m, 0));
+            TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_cut_depth(m, 0));
+            TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_dive(m, true));
+            TEST_ASSERT_EQUAL_INT(JAOS_OK,
+                jaos_set_mip_dive_degrade(m, frac[arm]));
+            TEST_ASSERT_TRUE(m->cfg.mip_dive_degrade_set);
+            TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+            TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+            double obj = 0.0;
+            TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(m, &obj));
+            TEST_ASSERT_DOUBLE_WITHIN(1e-9, 23.0, obj);
+            TEST_ASSERT_EQUAL_INT(JAOS_OK,
+                jaos_solution(m, pass == 0 ? x1 : x2, nullptr, nullptr,
+                              nullptr));
+            jaos_mip_report rep;
+            TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_mip_result(m, &rep));
+            if (pass == 0)
+                nodes1 = rep.nodes;
+            else
+                TEST_ASSERT_EQUAL_INT64(nodes1, rep.nodes);
+            jaos_model_free(m);
+        }
+        TEST_ASSERT_TRUE(x1[0] == 1.0 && x1[1] == 1.0);
+        TEST_ASSERT_EQUAL_MEMORY(x1, x2, sizeof x1);
+    }
+    int64_t canary[2] = { 0, 0 };
+    for (int arm = 0; arm < 2; arm++) {
+        jaos_model *c = knapsack5();
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_cut_rounds(c, 0));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_cover_rounds(c, 0));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_mir_rounds(c, 0));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_cut_depth(c, 0));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_heuristics(c, false));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_dive_heuristic(c, 0));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_dive(c, true));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK,
+            jaos_set_mip_dive_degrade(c, arm == 0 ? 1e-12 : 1e12));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(c));
+        TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(c));
+        double obj = 0.0;
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(c, &obj));
+        TEST_ASSERT_DOUBLE_WITHIN(1e-9, 23.0, obj);
+        jaos_mip_report rep;
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_mip_result(c, &rep));
+        canary[arm] = rep.nodes;
+        jaos_model_free(c);
+    }
+    TEST_ASSERT_TRUE(canary[0] != canary[1]);
+
+    jaos_model *m = knapsack();
+    TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT,
+        jaos_set_mip_dive_degrade(m, NAN));
+    TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT,
+        jaos_set_mip_dive_degrade(m, INFINITY));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_dive_degrade(m, -1.0));
+    TEST_ASSERT_FALSE(m->cfg.mip_dive_degrade_set);
+    jaos_model_free(m);
+}
+
+
 int main(void)
 {
     UNITY_BEGIN();
@@ -1767,5 +1950,8 @@ int main(void)
     RUN_TEST(test_a_dive_bounded_by_the_gap_reaches_the_same_optimum);
     RUN_TEST(test_an_aggregated_mir_cut_closes_what_one_row_leaves);
     RUN_TEST(test_the_dive_heuristic_finds_the_first_incumbent);
+    RUN_TEST(test_the_dive_heuristic_runs_below_the_root);
+    RUN_TEST(test_rins_searches_the_incumbents_neighbourhood);
+    RUN_TEST(test_a_dive_bounded_by_the_degradation_keeps_the_optimum);
     return UNITY_END();
 }

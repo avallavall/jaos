@@ -149,6 +149,20 @@ constexpr int64_t MIP_MIR_AGGREGATE = 0;
  * jaos_set_mip_dive_heuristic overrides it; docs/tolerances.md carries
  * the sweep. */
 constexpr int64_t MIP_DIVE_HEURISTIC = 50;
+/* The deepest node the dive heuristic runs at, the root being 0: every
+ * node at this depth or above gets its own dive on its own relaxation.
+ * 0 is the root alone, D313's form. jaos_set_mip_dive_heuristic_depth
+ * overrides it; docs/tolerances.md carries the sweep. */
+constexpr int64_t MIP_DIVE_HEURISTIC_DEPTH = 0;
+/* How many relaxations a RINS dive may solve: the columns the incumbent
+ * and the node's relaxation already agree on are fixed at that value and
+ * the dive runs on what is left (Danna, Rothberg and Le Pape, Exploring
+ * relaxation induced neighborhoods to improve MIP solutions, Mathematical
+ * Programming 102, 2005). It runs once per incumbent, at the first
+ * fractional node after the incumbent moved, since that is when its input
+ * changed. 0 is off. jaos_set_mip_rins overrides it; docs/tolerances.md
+ * carries the sweep. */
+constexpr int64_t MIP_RINS = 0;
 /* The largest multiplier an aggregation step may use, and the reciprocal
  * is the smallest (D312): the step adds lambda times another row, so a
  * lambda far from 1 makes the aggregate's coefficients the difference of
@@ -166,6 +180,14 @@ constexpr int64_t MIP_DIVE_BACKTRACK = 0;
  * a fraction, the count may be 0 for no count. jaos_set_mip_dive_gap
  * overrides it; docs/tolerances.md carries the sweep. */
 constexpr double MIP_DIVE_GAP = 0.0;
+/* How far a node's own bound may sit above its parent's, as a fraction of
+ * (1 + |parent|), for the dive to go on into one of its children; 0 puts
+ * no bound on it, D289's form. This is the third quantity D289's reopen
+ * condition named, and the only one that reads the child against the node
+ * that made it rather than against the open set. Nothing happens with the
+ * dive off. jaos_set_mip_dive_degrade overrides it; docs/tolerances.md
+ * carries the sweep. */
+constexpr double MIP_DIVE_DEGRADE = 0.0;
 /* Whether a node inside the cut depth gets MIR cuts over its own bounds
  * beside its Gomory round (D310), local to its subtree like the rest.
  * jaos_set_mip_node_mir overrides it; docs/tolerances.md carries the
@@ -1524,11 +1546,21 @@ static int64_t mir_aggregate_round(const jaos_model *m, jaos_model *lp,
  * point goes through. A relaxation that comes back infeasible or stops on
  * a budget ends the dive: a heuristic gives up, it does not fail. The
  * choice is the smallest distance to an integer, the lowest column on a
- * tie, so the dive is the same on every machine (D8). Returns 1 with the
- * point in `out`, 0 when there is none, -1 when a copy could not be made.
- * Every solve is billed and counted. */
+ * tie, so the dive is the same on every machine (D8). With `agree_a` and
+ * `agree_b` both given, every integer column the two points already place
+ * at the same integer is fixed there before the first solve, which is
+ * RINS's neighbourhood: the dive then searches only the columns they
+ * disagree on. A value outside the relaxation's own bounds fixes nothing,
+ * since the copy's bounds are the node's and a fix outside them would
+ * make an infeasible relaxation out of a feasible one. Neither point is
+ * required to be finite: a relaxation may publish a NaN, and every
+ * comparison below is false for one, so the test has to ask for finite
+ * values rather than assume them. Returns 1 with the point in `out`, 0
+ * when there is none, -1 only when the copy could not be made. Every
+ * solve is billed and counted. */
 static int dive_for_point(const jaos_model *m, const jaos_model *lp,
-                          int64_t solves, double *out, int64_t *work,
+                          int64_t solves, const double *agree_a,
+                          const double *agree_b, double *out, int64_t *work,
                           int64_t *solves_done)
 {
     const int64_t nc = m->num_col;
@@ -1536,6 +1568,26 @@ static int dive_for_point(const jaos_model *m, const jaos_model *lp,
     if (jaos_model_copy(lp, &hv) != JAOS_OK)
         return -1;
     int rc = 0;
+    if (agree_a != nullptr && agree_b != nullptr) {
+        *work += nc;
+        for (int64_t j = 0; j < nc; j++) {
+            if (!m->col_integer[j])
+                continue;
+            if (!isfinite(agree_a[j]) || !isfinite(agree_b[j]))
+                continue;
+            const double a = round(agree_a[j]);
+            if (fabs(agree_a[j] - a) > MIP_INT_TOL ||
+                fabs(agree_b[j] - a) > MIP_INT_TOL)
+                continue;
+            if (a < hv->col_lower[j] || a > hv->col_upper[j])
+                continue;
+            /* A fix the model refuses stops the fixing and the dive runs
+             * on what is fixed so far, which is a wider neighbourhood and
+             * still a valid one: a heuristic gives up, it does not fail. */
+            if (jaos_set_col_bounds(hv, j, a, a) != JAOS_OK)
+                break;
+        }
+    }
     for (int64_t s = 0; s < solves; s++) {
         if (jaos_solve(hv) != JAOS_OK)
             break;
@@ -1746,6 +1798,11 @@ jaos_status jm_branch_and_bound(jaos_model *m)
         ? m->cfg.mip_mir_aggregate : MIP_MIR_AGGREGATE;
     const int64_t dive_heur = m->cfg.mip_dive_heuristic_set
         ? m->cfg.mip_dive_heuristic : MIP_DIVE_HEURISTIC;
+    const int64_t dive_heur_depth = m->cfg.mip_dive_heuristic_depth_set
+        ? m->cfg.mip_dive_heuristic_depth : MIP_DIVE_HEURISTIC_DEPTH;
+    const int64_t rins = m->cfg.mip_rins_set ? m->cfg.mip_rins : MIP_RINS;
+    const double degrade = m->cfg.mip_dive_degrade_set
+        ? m->cfg.mip_dive_degrade : MIP_DIVE_DEGRADE;
     const bool dive = m->cfg.mip_dive;
     /* The dive keeps its siblings on a stack when either rule may bring
      * it back for one (D308, D311); D289's form otherwise. */
@@ -1800,6 +1857,9 @@ jaos_status jm_branch_and_bound(jaos_model *m)
     int64_t next_id = 0, nodes = 0, solves = 0, cuts = 0, heur_points = 0;
     int64_t probes = 0, capped = 0;    /* strong branching's, D293/D294 */
     int64_t dive_points = 0;           /* the dive heuristic's, D313      */
+    int64_t rins_points = 0;           /* RINS's, D315                    */
+    double rins_key = 0.0;             /* the incumbent RINS last saw     */
+    bool rins_seen = false;
     int64_t covers = 0;                /* cover cuts at the root, D300    */
     kitem *items = nullptr;
     double *mu = nullptr;              /* the cover's partial sums (D307) */
@@ -1999,6 +2059,10 @@ jaos_status jm_branch_and_bound(jaos_model *m)
             jaos_solution(lp, x, nullptr, nullptr, nullptr) != JAOS_OK)
             goto done;
         double key = sigma * obj;
+        /* What the branch itself cost, before this node's own cut round
+         * raises the bound (D316): a node whose cuts worked would
+         * otherwise read as a node whose branch went badly. */
+        const double branch_key = key;
         if (nodes > 1)
             pseudocost_learn(cur, key, nc, pc_sum, pc_n);
         int64_t branch = select_branch(m, x, rule, pc_sum, pc_n);
@@ -2151,16 +2215,22 @@ jaos_status jm_branch_and_bound(jaos_model *m)
                    "covers and %lld MIR",
                    obj, (long long)cuts, (long long)covers, (long long)mirs);
         }
-        /* The dive heuristic (D313), once, on the root's relaxation as the
-         * cuts left it: a point it reaches is judged by rounded_point,
-         * the same acceptance the rounding heuristic's point gets. */
-        if (nodes == 1 && dive_heur > 0 && branch >= 0) {
-            const int got = dive_for_point(m, lp, dive_heur, xr, &work,
-                                           &solves);
+        /* The dive heuristic (D313), on the root's relaxation as the cuts
+         * left it and on every node down to its own depth (D314): a point
+         * it reaches is judged by rounded_point, the same acceptance the
+         * rounding heuristic's point gets. `cur` is null at the root. */
+        if (dive_heur > 0 && branch >= 0 &&
+            (cur == nullptr || cur->depth <= dive_heur_depth)) {
+            const int got = dive_for_point(m, lp, dive_heur, nullptr, nullptr,
+                                           xr, &work, &solves);
             if (got < 0)
                 goto done;
             double hobj = 0.0;
-            work += m->num_nz + nc + nr;
+            /* One pass over the matrix, billed like any kernel (D16), and
+             * only when the pass runs: the dive fires at every node inside
+             * its depth (D314) and most of them reach no point. */
+            if (got == 1)
+                work += m->num_nz + nc + nr;
             if (got == 1 && rounded_point(m, xr, x2, ra, &hobj)) {
                 const double hkey = sigma * hobj;
                 spool_offer(&sp, x2, hkey, hobj);
@@ -2172,7 +2242,8 @@ jaos_status jm_branch_and_bound(jaos_model *m)
                     if (first_inc == 0)
                         first_inc = nodes;
                     jm_log(m, JAOS_LOG_PROGRESS,
-                           "root: incumbent %.17g by the dive heuristic", hobj);
+                           "node %lld: incumbent %.17g by the dive heuristic",
+                           (long long)nodes, hobj);
                     if (!incumbent_announce(m, &inc, nodes, sigma * key, true)) {
                         outcome = JAOS_SOLVE_INTERRUPTED;
                         break;
@@ -2182,6 +2253,45 @@ jaos_status jm_branch_and_bound(jaos_model *m)
             /* The root's own point is what the tree branches on. */
             if (jaos_solution(lp, x, nullptr, nullptr, nullptr) != JAOS_OK)
                 goto done;
+        }
+        /* RINS (D315): a dive over the columns the incumbent and this
+         * node's relaxation do not already agree on, the rest fixed where
+         * both put them. It runs once per incumbent -- the first
+         * fractional node after the incumbent moved -- since the
+         * neighbourhood is a function of the incumbent and the node, and
+         * a second run on the same incumbent would search the same set
+         * from a point that has not moved much. The dive's own budget is
+         * separate, so RINS pays for itself and not for D313. */
+        if (rins > 0 && inc.have && branch >= 0 &&
+            (!rins_seen || inc.key != rins_key)) {
+            rins_seen = true;
+            rins_key = inc.key;
+            const int got = dive_for_point(m, lp, rins, inc.x, x, xr, &work,
+                                           &solves);
+            if (got < 0)
+                goto done;
+            double hobj = 0.0;
+            if (got == 1)
+                work += m->num_nz + nc + nr;
+            if (got == 1 && rounded_point(m, xr, x2, ra, &hobj)) {
+                const double hkey = sigma * hobj;
+                spool_offer(&sp, x2, hkey, hobj);
+                if (hkey < inc.key) {
+                    if (!incumbent_take_point(&inc, lp, m, x2, ra, hobj, hkey))
+                        goto done;
+                    heur_points++;
+                    rins_points++;
+                    if (first_inc == 0)
+                        first_inc = nodes;
+                    jm_log(m, JAOS_LOG_PROGRESS,
+                           "node %lld: incumbent %.17g by RINS",
+                           (long long)nodes, hobj);
+                    if (!incumbent_announce(m, &inc, nodes, sigma * key, true)) {
+                        outcome = JAOS_SOLVE_INTERRUPTED;
+                        break;
+                    }
+                }
+            }
         }
         /* One round of local cuts at a node inside the depth (D296): read
          * over the node's bounds, so valid in its subtree; into the pool,
@@ -2420,6 +2530,15 @@ jaos_status jm_branch_and_bound(jaos_model *m)
          * the fraction, a half going up; a fixed side; or the direction
          * whose expected loss is smaller, the nearer side on a tie. Off,
          * both children join the open set. */
+        /* The dive goes on from here only while this node's own bound has
+         * not fallen away from its parent's by more than a fraction of
+         * (1 + |parent|) (D316); the root has no parent and always dives.
+         * This is the one quantity D289's reopen condition named that
+         * neither the resume count nor the resume gap reads: it judges the
+         * branch that was just made, not the open set. */
+        const bool dive_here = dive &&
+            (degrade <= 0.0 || cur == nullptr ||
+             branch_key - cur->key <= degrade * (1.0 + fabs(cur->key)));
         const double f = v - floor(v);
         bnode *first = f < 0.5 ? down : up;
         if (dive_child == JAOS_DIVE_UP) {
@@ -2435,7 +2554,7 @@ jaos_status jm_branch_and_bound(jaos_model *m)
                 first = up;
         }
         bnode *other = first == down ? up : down;
-        if (dive) {
+        if (dive_here) {
             /* The sibling waits on the dive's stack when the dive may come
              * back for it (D308, D311), in the open set otherwise. */
             if (stack_dive) {
@@ -2480,12 +2599,12 @@ jaos_status jm_branch_and_bound(jaos_model *m)
     jm_log(m, JAOS_LOG_SUMMARY,
            "branch and bound: %s after %lld nodes, %lld solves, %lld cuts "
            "(%lld below the root), %lld points by rounding, %lld of them "
-           "by the dive heuristic, %lld probes, "
+           "by the dive heuristic and %lld by RINS, %lld probes, "
            "%lld of them capped",
            jaos_solve_status_str(outcome), (long long)nodes,
            (long long)solves, (long long)cuts, (long long)local_cuts,
            (long long)heur_points, (long long)dive_points,
-           (long long)probes, (long long)capped);
+           (long long)rins_points, (long long)probes, (long long)capped);
     /* The pool goes to the model whole, proved or not, like the incumbent. */
     m->mip_pool_n = sp.n;
     m->mip_pool_x = sp.x;

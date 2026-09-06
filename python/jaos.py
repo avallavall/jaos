@@ -429,6 +429,9 @@ _sig("jaos_set_mip_dive_gap", ctypes.c_int, _VP, _D)
 _sig("jaos_set_mip_node_mir", ctypes.c_int, _VP, ctypes.c_int)
 _sig("jaos_set_mip_mir_aggregate", ctypes.c_int, _VP, _I64)
 _sig("jaos_set_mip_dive_heuristic", ctypes.c_int, _VP, _I64)
+_sig("jaos_set_mip_dive_heuristic_depth", ctypes.c_int, _VP, _I64)
+_sig("jaos_set_mip_rins", ctypes.c_int, _VP, _I64)
+_sig("jaos_set_mip_dive_degrade", ctypes.c_int, _VP, ctypes.c_double)
 _sig("jaos_set_mip_heuristics", ctypes.c_int, _VP, ctypes.c_bool)
 _sig("jaos_mip_result", ctypes.c_int, _VP, _P(_MipReport))
 _sig("jaos_mip_incumbent", ctypes.c_int, _VP, _P(_D), _P(_D))
@@ -912,6 +915,32 @@ class Model:
         it."""
         self._check(_lib.jaos_set_mip_dive_heuristic(self._handle(),
                                                      int(solves)))
+
+    def set_mip_dive_heuristic_depth(self, depth):
+        """Deepest node the dive heuristic runs at, the root being 0 (D314).
+
+        0 is the root alone and the default; a negative value restores it.
+        """
+        self._check(_lib.jaos_set_mip_dive_heuristic_depth(self._handle(),
+                                                           int(depth)))
+
+    def set_mip_rins(self, solves):
+        """Relaxations a RINS dive may solve at a node (D315).
+
+        The columns the incumbent and the node's relaxation agree on are
+        fixed there first. 0, the default, is off; a negative value
+        restores it.
+        """
+        self._check(_lib.jaos_set_mip_rins(self._handle(), int(solves)))
+
+    def set_mip_dive_degrade(self, frac):
+        """How far a node's bound may fall from its parent's and still dive.
+
+        A fraction of (1 + |parent's bound|); 0, the default, puts no bound
+        on it. A negative value restores it (D316).
+        """
+        self._check(_lib.jaos_set_mip_dive_degrade(self._handle(),
+                                                   float(frac)))
 
     def set_mip_heuristics(self, on=True):
         """Whether every fractional node is rounded for an incumbent (D290);
@@ -2303,6 +2332,24 @@ class Problem:
         """Relaxations a dive for a first incumbent may solve at the root
         (D313); 0 is off, negative the default."""
         self._m.set_mip_dive_heuristic(solves)
+        return self
+
+    def set_mip_dive_heuristic_depth(self, depth):
+        """Deepest node the dive heuristic runs at (D314); 0 is the root
+        alone and the default, negative restores it."""
+        self._m.set_mip_dive_heuristic_depth(depth)
+        return self
+
+    def set_mip_rins(self, solves):
+        """Relaxations a RINS dive may solve at a node with an incumbent
+        (D315); 0 is off and the default, negative restores it."""
+        self._m.set_mip_rins(solves)
+        return self
+
+    def set_mip_dive_degrade(self, frac):
+        """How far a node's bound may fall from its parent's and still dive
+        (D316); 0, the default, puts no bound on it."""
+        self._m.set_mip_dive_degrade(frac)
         return self
 
     def set_mip_heuristics(self, on=True):
