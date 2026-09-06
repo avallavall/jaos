@@ -311,6 +311,10 @@ and you have the argument. Jump to the entry for the numbers behind it.
 - **[D301](#d301--cuts-below-the-root-land-depth-3-with-four-cuts-per-node-reads-0835x-the-work-over-the-mip-set-none-past-2x-and-0934x-without-egout)** — Cuts below the root land: depth 3 with four cuts per node reads 0.835x the work over the MIP set, none past 2x, and 0.934x without egout
 - **[D302](#d302--the-mip-set-grows-to-24-the-seven-miplib-3-members-the-d301-tree-finishes-inside-120-s-join-it-chosen-by-nothing-the-cuts-were-tuned-on)** — The MIP set grows to 24: the seven MIPLIB 3 members the D301 tree finishes inside 120 s join it, chosen by nothing the cuts were tuned on
 - **[D303](#d303--the-two-cut-defaults-re-read-on-the-24-they-hold-over-the-set-1125x-and-1059x-with-each-switched-off-and-lose-over-the-seven-instances-they-were-not-tuned-on-0642x-with-both-off)** — The two cut defaults re-read on the 24: they hold over the set, 1.125x and 1.059x with each switched off, and lose over the seven instances they were not tuned on, 0.642x with both off
+- **[D304](#d304--a-root-cut-round-that-stops-when-the-bound-stops-moving-refused-as-a-default-1007x-at-a-stall-of-1e-4-1172x-at-1e-3-and-1121x-at-1e-2-over-the-24)** — A root cut round that stops when the bound stops moving, refused as a default: 1.007x at a stall of 1e-4, 1.172x at 1e-3 and 1.121x at 1e-2 over the 24
+- **[D305](#d305--a-node-whose-cut-round-moved-nothing-ends-the-cuts-under-it-0816x-alone-at-a-stall-of-002-and-refused-as-a-default-beside-the-root-cut-drop-which-it-never-combines-with-under-the-bar)** — A node whose cut round moved nothing ends the cuts under it: 0.816x alone at a stall of 0.02, and refused as a default beside the root-cut drop, which it never combines with under the bar
+- **[D306](#d306--the-roots-cuts-leave-below-a-node-where-their-slack-is-basic-0799x-the-work-over-the-24-thirteen-better-two-worse-none-past-2x-and-the-baseline-is-rewritten)** — The root's cuts leave below a node where their slack is basic: 0.799x the work over the 24, thirteen better, two worse, none past 2x, and the baseline is rewritten
+- **[D307](#d307--lifted-covers-balass-coefficients-on-every-cover-cut-refused-as-a-default-1005x-over-the-24-with-l152lav-past-2x)** — Lifted covers, Balas's coefficients on every cover cut, refused as a default: 1.005x over the 24 with l152lav past 2x
 
 ---
 
@@ -21823,3 +21827,162 @@ and costs every node under it where a round closes nothing.
 bound -- at the root between rounds, and at a node before its round --
 would keep `egout`, `gt2` and `mod010` and drop `bell5` and `p0282`, and
 is the next thing to measure on this set, the seven read apart again.
+
+## D304 — A root cut round that stops when the bound stops moving, refused as a default: 1.007x at a stall of 1e-4, 1.172x at 1e-3 and 1.121x at 1e-2 over the 24
+
+**The gap.** D303 named a cut round that stops when it stops moving the
+bound as what would keep `egout`, `gt2` and `mod010` and drop `bell5` and
+`p0282`, and asked for it at the root between rounds and at a node before
+its round. This is the root half.
+
+**What it does now.** `jaos_set_mip_cut_stall` and `--cut-stall F`: a
+root round that moves the bound by less than `F` times (1 + |bound|) is
+the last, whatever rounds are left; 0, the default, ends the rounds only
+when one adds nothing, which is what every earlier reading measured.
+Python carries the setting at both layers.
+
+**Evidence** (`bench/measurements/02-202/`). The control reproduces
+`bench/miplib.baseline` node for node and unit for unit on all 24. Work
+against it, geometric mean of per-instance ratios: **1.007x at 1e-4** (2
+better, 3 worse, none past 2x; `dcmulti` 1.62x and `l152lav` 1.48x,
+`p0033` 0.52x and `rgn` 0.74x), 1.172x at 1e-3 and 1.121x at 1e-2, each
+with one instance past 2x. Over the 17 the cuts were tuned on 0.985x,
+1.219x and 1.139x; over the seven that joined at D302, 1.065x, 1.065x and
+1.079x, never better on one of them.
+
+**The decision.** Refused as a default; 0 stays. The root's rounds are at
+most four (D300) and a round that adds nothing already ends them, so the
+stall only removes rounds that were moving the bound a little, and on
+this set every one of those was worth its solve. What could reopen it is
+a stall read on something other than the last round's gain -- the gap the
+root's cuts have closed against the incumbent, or the cuts' violation --
+at or under 0.95x with no instance past 2x on the same set;
+`02-202/retest-cut-stall.sh` asks the original question and `make
+refusals` runs it.
+
+## D305 — A node whose cut round moved nothing ends the cuts under it: 0.816x alone at a stall of 0.02, and refused as a default beside the root-cut drop, which it never combines with under the bar
+
+**The gap.** The node half of what D303 asked for: a cut round that stops
+when it stops moving the bound, at a node before its round. D303 had
+named `bell5` and `p0282` as what the node cuts cost and `egout`, `gt2`
+and `mod010` as what they buy.
+
+**What it does now.** `jaos_set_mip_node_cut_stall` and `--node-cut-stall
+F`: a node whose own round moves its bound by less than `F` times (1 +
+|bound|) sets a flag its children inherit, and no node under it gets a
+round; the root's whole cut phase is judged the same way for the nodes
+under the root, only when it added a cut, since a node that added no cut
+is no evidence and passes its parent's verdict down. 0, the default,
+never switches a subtree off. Python carries the setting at both layers.
+
+**Evidence** (`bench/measurements/02-202/`, the same control as D304,
+byte-identical to `bench/miplib.baseline`). Alone, work against the
+control in geometric mean over the 24: 1e-3 reads 0.993x over 23 with
+`bell5` stopping at the 240 s cap after 1.1 million nodes and no
+incumbent; **1e-2 0.833x** (10 better, 5 worse, none past 2x; `bell5`
+0.081x, `p0282` 0.382x, `bell3a` 0.442x, `p0201` 0.592x; `enigma` 1.88x,
+`misc06` 1.37x, `l152lav` 1.37x); **2e-2 0.816x** (12 better, 4 worse,
+none past 2x); 5e-2 0.832x; 1e-1 0.897x with one past 2x. Over the 17 the
+cuts were tuned on the best is 0.960x at 2e-2 and over the seven that
+joined at D302 it is 0.550x at 1e-2, 2e-2 and 5e-2 alike: the stall does
+what D303 said a stall would, and on the 17 it costs about what it buys.
+With the root-cut drop (D306) beside it, every setting reads under 0.80x
+over the 23 that finish -- 0.832x, 0.782x, 0.773x, 0.768x at 1e-2, 2e-2,
+5e-2 and 1e-1 -- and every one leaves `bell5` at the cap with no
+incumbent after 1.2 million nodes and `enigma` past 2x.
+
+**The decision.** The stall meets the bar alone and the drop meets it
+better, 0.799x with all 24 finished and none past 2x, so the drop is the
+default and the stall stays 0: two defaults that do not combine cannot
+both move, and the one that finishes every instance is the one to ship.
+What could reopen it is the combination at or under 0.799x with every
+instance finished and none past 2x on the same set -- a stall that reads
+the subtree's gap rather than one round's gain, or one that spares the
+root's children -- and `02-202/retest-node-cut-stall.sh` asks the
+original question beside the drop, which `make refusals` runs.
+
+**What it is not.** Not evidence that the node cuts are worthless on
+`bell5`: with the stall alone it finishes at 0.081x its work, and with
+the stall and the drop together it does not finish at all. `bell5`'s tree
+is the least stable object in this set, and it decides three of tonight's
+readings.
+
+## D306 — The root's cuts leave below a node where their slack is basic: 0.799x the work over the 24, thirteen better, two worse, none past 2x, and the baseline is rewritten
+
+**The gap.** D297 let a node's own cut leave the relaxation once its
+slack was basic and left the root's cuts as rows of every node, and
+TODO.md carried "root cuts that leave below a node where they go slack"
+as what would move the default tree.
+
+**What it does now.** `jaos_set_mip_root_cut_drop` and `--root-cut-drop`
+/ `--no-root-cut-drop`: the root's cuts are pool cuts in force at the
+root, like a node's own, so the fixed rows of the private copy are the
+model's and D297's drop applies to a root cut at every node. A root cut
+that left is gone for the nodes under that one and still valid
+everywhere. On by default since this decision; `--no-root-cut-drop` is
+the tree every earlier reading measured. The row contract the drop reads
+-- pool cut k is row nfixed + k, kept by node_apply, the root's rounds
+and the node's round -- is an assert now. Python carries the setting at
+both layers.
+
+**Evidence** (`bench/measurements/02-202/`). Against the control, work in
+geometric mean over the 24: **0.799x, 13 better, 2 worse, none past 2x**;
+over the 17 the cuts were tuned on 0.881x (8 better, 1 worse), over the
+seven that joined at D302 0.630x (5 better, 1 worse). The tails: `p0282`
+0.276x, `bell3a` 0.357x, `lseu` 0.518x, `misc07` 0.593x, `flugpl` 0.627x,
+`gen` 0.646x, `bell5` 0.690x; `gt2` 1.58x and `egout` 1.39x the other
+way. The trees change shape rather than size: `l152lav` 1107 to 2505
+nodes at 0.961x the work, `p0282` 10403 to 13193 nodes at 0.276x. With
+the lifted cover beside it, 0.801x over the 24 against 0.799x for the drop alone, the same 13 better and 2 worse, so the lift adds nothing beside it; with the node stall beside it, every
+setting leaves `bell5` unfinished (D305). `bench/miplib.baseline` is
+rewritten to the new trees, and `make miplib` on the landed tree
+reproduces them node for node.
+
+**The decision.** On. It is the setting with the best mean that keeps
+every instance under 2x and finishes all of them, the rule every default
+here was set by, and the first one tonight that helps the seven and the
+17 both. What it rests on is the same mechanism D297 measured: a row
+that does not bind costs its share of every solve under it and buys
+nothing there.
+
+## D307 — Lifted covers, Balas's coefficients on every cover cut, refused as a default: 1.005x over the 24 with l152lav past 2x
+
+**The gap.** D300's cover is the extended one: an item at least as heavy
+as the cover's heaviest gets the coefficient 1 and every lighter item 0.
+`SPECS.md` listed lifted covers as missing.
+
+**What it does now.** `jaos_set_mip_cover_lift` and `--cover-lift`: an
+item outside the cover gets Balas's coefficient, h when it weighs at
+least as much as the cover's h heaviest together (Facets of the knapsack
+polytope, Mathematical Programming 8, 1975), which is the extended cover
+for h = 1 and never weaker. The comment in `src/mip.c` carries the
+validity argument for any cover, minimal or not, and the review read it
+through. `tests/test_mip.c` has a four-item knapsack the extended cover
+leaves at 22.5 and the lifted cover closes at the root; the test rejects a
+lifting that is too small and cannot reject one that is too large, since
+on a single row the lifted item is never in a good integer point, and
+the argument is what covers that side. The extended cover is the default;
+Python carries the setting at both layers.
+
+**Evidence** (`bench/measurements/02-202/`). Against the control, work in
+geometric mean over the 24: **1.005x**, 1 better, 2 worse, `l152lav` 2.06x
+past the bar; `p0033` 0.52x, `dcmulti` 0.97x. Over the 17, 0.965x; over
+the seven, 1.109x. With the root cuts leaving where slack (D306) beside
+it, 0.801x over the 24 against 0.799x for the drop alone, the same 13 better and 2 worse, so the lift adds nothing beside it.
+
+**The decision.** Refused as a default. The lifting only strengthens a
+cover when an item outside it outweighs the cover's two heaviest
+together, which the set's knapsack rows rarely offer, and where it does
+the stronger row changes the tree without paying for it. What could
+reopen it is a lifting that is not Balas's simultaneous one -- a
+sequential lifting over the items outside the cover, or the cover chosen
+for the lifting rather than for the point -- at or under 0.95x with no
+instance past 2x on the same set; `02-202/retest-cover-lift.sh` asks the
+original question and `make refusals` runs it.
+
+**What the review added.** The cover's excess over its capacity is now
+judged against the primal tolerance's margin, `tol * (1 + |b|)`, not
+against zero: a rounded sum of decimal weights could make a cover of a
+set that fits, and the cut would then be wrong. A cover short of the
+margin is a lost cut, never a wrong one. The drop code's row contract has
+three writers since D306 and is an assert now.

@@ -11,6 +11,40 @@ open, `bench/README.md` for the gate, and the commit each entry came from.
 
 ### Added
 
+- **Root cuts leave below a node where their slack is basic.**
+  `jaos_set_mip_root_cut_drop` and `--root-cut-drop` /
+  `--no-root-cut-drop`: the root's cuts are pool cuts like a node's own
+  and leave the relaxation under a node that does not bind them. On by
+  default: 0.799x the work over the MIP set of 24, 13 better, 2 worse,
+  none past 2x, 0.881x over the 17 and 0.630x over the seven that
+  joined at D302, and `bench/miplib.baseline` is rewritten
+  (`bench/measurements/02-202/`). Python carries the setting at both
+  layers (D306).
+
+- **A node whose cut round moved nothing ends the cuts under it.**
+  `jaos_set_mip_node_cut_stall` and `--node-cut-stall F`: a node whose
+  round moves its bound by less than `F` of (1 + |bound|) gets no round at
+  any node under it, the root's whole phase judged the same way. Off by
+  default: 0.816x alone at 0.02 and never under the bar beside the
+  root-cut drop, `bell5` unfinished in every combination (D305,
+  refused). Python carries the setting at both layers.
+
+- **The root's cut rounds may stop when the bound stops moving.**
+  `jaos_set_mip_cut_stall` and `--cut-stall F` end the rounds after one
+  that moved the bound by less than `F` of (1 + |bound|). Off by default:
+  1.007x at 1e-4, 1.172x at 1e-3 and 1.121x at 1e-2 over the 24, refused
+  (D304, `bench/measurements/02-202/`). Python carries the setting at both
+  layers.
+
+- **Lifted covers.** `jaos_set_mip_cover_lift` and `--cover-lift` /
+  `--no-cover-lift` give an item outside a cover Balas's coefficient, h
+  when it outweighs the cover's h heaviest together, instead of the
+  extended cover's 1. Off by default: 1.005x over the 24 with `l152lav`
+  past 2x, refused (D307). A cover's excess over its capacity is judged
+  against the primal tolerance's margin now, not against zero, so a
+  rounded sum cannot make a cover of a set that fits. Python carries the
+  setting at both layers.
+
 - **The MIP set grows to 24.** The seven MIPLIB 3 members the D301 tree
   finishes inside 120 s -- `bell3a`, `bell5`, `gen`, `gt2`, `l152lav`,
   `misc07`, `p0282` -- join `bench/miplib.manifest` with their checksums

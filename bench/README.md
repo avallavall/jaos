@@ -113,10 +113,14 @@ the other 21 that the D301 tree finishes inside 120 s, 12 at once;
 `l152lav`, whose two cold searches are 61 G work units each.
 `miplib-baseline` rewrites the baseline, kept apart from `miplib` for the
 reason `netlib-baseline` is kept apart from `netlib`.
-The baseline has been rewritten twice on purpose since: for the rounding
-heuristic (D290, `02-190`) and for pseudocost branching (D292, `02-191`);
-the dive (D289) and strong branching (D293, `02-192`) were measured on it
-and refused as defaults.
+The baseline has been rewritten on purpose since, each time after the
+change was read: for the rounding heuristic (D290, `02-190`), pseudocost
+branching (D292, `02-191`), the cover cuts (D300, `02-198`), the cuts
+below the root (D301, `02-199`), the seven instances that joined (D302,
+`02-200`) and the root cuts that leave where slack (D306, `02-202`); the
+dive (D289), strong branching (D293, `02-192`), the two cut stalls (D304,
+D305) and the lifted cover (D307, `02-202`) were measured on it and
+refused as defaults.
 
 
 The infeasible set is the only thing in M1 that looks for a *wrong* answer

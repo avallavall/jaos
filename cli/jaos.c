@@ -11,7 +11,9 @@
  *   jaos solve FILE [--solution OUT] [--start SOLUTION] [--work-limit N]
  *                   [--time-limit SECONDS] [--primal-tol T] [--dual-tol T]
  *                   [--cut-rounds N] [--cover-rounds N] [--cut-depth D]
- *                   [--node-cut-cap K] [--dive] [--dive-child RULE]
+ *                   [--node-cut-cap K] [--cut-stall F] [--node-cut-stall F]
+ *                   [--root-cut-drop | --no-root-cut-drop]
+ *                   [--cover-lift | --no-cover-lift] [--dive] [--dive-child RULE]
  *                   [--no-heuristics] [--node-limit N] [--branching RULE]
  *                   [--reliability N] [--probe-cap M] [--probe-depth D]
  *                   [--no-cut-drop] [--pool-size K] [--log LEVEL]
@@ -75,7 +77,9 @@ static const char USAGE[] =
     "  jaos solve FILE [--solution OUT] [--start SOLUTION] [--work-limit N]\n"
     "                  [--time-limit SECONDS] [--primal-tol T] [--dual-tol T]\n"
     "                  [--cut-rounds N] [--cover-rounds N] [--cut-depth D]\n"
-    "                  [--node-cut-cap K] [--dive] [--dive-child RULE]\n"
+    "                  [--node-cut-cap K] [--cut-stall F] [--node-cut-stall F]\n"
+    "                  [--root-cut-drop | --no-root-cut-drop]\n"
+    "                  [--cover-lift | --no-cover-lift] [--dive] [--dive-child RULE]\n"
     "                  [--no-heuristics] [--node-limit N] [--branching RULE]\n"
     "                  [--reliability N] [--probe-cap M] [--probe-depth D]\n"
     "                  [--no-cut-drop] [--pool-size K] [--log LEVEL]\n"
@@ -108,6 +112,15 @@ static const char USAGE[] =
     "                   efficacious kept (default 4; 0 for no cap)\n"
     "  --no-cut-drop    carry a node's cut to every node under it even once\n"
     "                   its slack is basic (by default it is dropped there)\n"
+    "  --cut-stall F    end the root's cut rounds once one moves the bound by\n"
+    "                   less than F of (1 + |bound|) (F >= 0; 0 never)\n"
+    "  --node-cut-stall F  no cut round under a node whose round moved its\n"
+    "                   bound by less than F of (1 + |bound|) (F >= 0; 0 never)\n"
+    "  --root-cut-drop  let a root cut leave below a node where its slack is\n"
+    "                   basic (the default); --no-root-cut-drop keeps every\n"
+    "                   root cut\n"
+    "  --cover-lift     lift each cover cut with Balas's coefficients;\n"
+    "                   --no-cover-lift keeps the extended cover\n"
     "  --dive           dive from each selected node of a MIP (off by default)\n"
     "  --dive-child RULE which child the dive solves first: nearer (default),\n"
     "                   up, down or pseudocost\n"
@@ -401,6 +414,10 @@ struct solve_options {
     int64_t cut_depth;       /* -1: not given (the library's default)     */
     int64_t cover_rounds;    /* -1: not given (the library's default)     */
     int64_t node_cut_cap;    /* -1: not given (the library's default)     */
+    bool has_cut_stall, has_node_cut_stall;  /* doubles, so flags        */
+    double cut_stall, node_cut_stall;
+    int root_cut_drop;       /* -1: not given; else 0 or 1                */
+    int cover_lift;          /* -1: not given; else 0 or 1                */
     int64_t node_limit;      /* 0: not given; the parser refuses <= 0     */
     int branching;           /* -1: not given; else a jaos_branching      */
     int64_t reliability;     /* -1: not given (the library's default)     */
@@ -432,6 +449,8 @@ static int parse_solve_options(int argc, char **argv, int first,
     o->cut_depth = -1;
     o->cover_rounds = -1;
     o->node_cut_cap = -1;
+    o->root_cut_drop = -1;
+    o->cover_lift = -1;
     o->branching = -1;
     o->reliability = -1;
     o->dive_child = -1;
@@ -456,6 +475,22 @@ static int parse_solve_options(int argc, char **argv, int first,
         }
         if (strcmp(a, "--no-cut-drop") == 0) {
             o->no_cut_drop = true;
+            continue;
+        }
+        if (strcmp(a, "--root-cut-drop") == 0) {
+            o->root_cut_drop = 1;
+            continue;
+        }
+        if (strcmp(a, "--no-root-cut-drop") == 0) {
+            o->root_cut_drop = 0;
+            continue;
+        }
+        if (strcmp(a, "--cover-lift") == 0) {
+            o->cover_lift = 1;
+            continue;
+        }
+        if (strcmp(a, "--no-cover-lift") == 0) {
+            o->cover_lift = 0;
             continue;
         }
         if (strcmp(a, "--no-heuristics") == 0) {
@@ -495,6 +530,16 @@ static int parse_solve_options(int argc, char **argv, int first,
                 return usage_error("--probe-cap needs a multiple of the node's "
                                    "work, 0 or more, not '%s'", v);
             o->has_probe_cap = true;
+        } else if (strcmp(a, "--cut-stall") == 0) {
+            if (!parse_double(v, &o->cut_stall) || o->cut_stall < 0.0)
+                return usage_error("--cut-stall needs a fraction of the bound, "
+                                   "0 or more, not '%s'", v);
+            o->has_cut_stall = true;
+        } else if (strcmp(a, "--node-cut-stall") == 0) {
+            if (!parse_double(v, &o->node_cut_stall) || o->node_cut_stall < 0.0)
+                return usage_error("--node-cut-stall needs a fraction of the "
+                                   "bound, 0 or more, not '%s'", v);
+            o->has_node_cut_stall = true;
         } else if (strcmp(a, "--dive-child") == 0) {
             if (strcmp(v, "nearer") == 0)
                 o->dive_child = JAOS_DIVE_NEARER;
@@ -634,6 +679,24 @@ static int cmd_solve(int argc, char **argv)
     if (o.node_cut_cap >= 0 &&
         jaos_set_mip_node_cut_cap(m, o.node_cut_cap) != JAOS_OK) {
         rc = library_error("set the node cut cap for", o.file, m);
+        goto out;
+    }
+    if (o.has_cut_stall && jaos_set_mip_cut_stall(m, o.cut_stall) != JAOS_OK) {
+        rc = library_error("set the cut stall for", o.file, m);
+        goto out;
+    }
+    if (o.has_node_cut_stall &&
+        jaos_set_mip_node_cut_stall(m, o.node_cut_stall) != JAOS_OK) {
+        rc = library_error("set the node cut stall for", o.file, m);
+        goto out;
+    }
+    if (o.root_cut_drop >= 0 &&
+        jaos_set_mip_root_cut_drop(m, o.root_cut_drop) != JAOS_OK) {
+        rc = library_error("set the root cut drop for", o.file, m);
+        goto out;
+    }
+    if (o.cover_lift >= 0 && jaos_set_mip_cover_lift(m, o.cover_lift) != JAOS_OK) {
+        rc = library_error("set the cover lift for", o.file, m);
         goto out;
     }
     if (o.dive && jaos_set_mip_dive(m, true) != JAOS_OK) {

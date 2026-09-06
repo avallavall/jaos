@@ -419,6 +419,10 @@ _sig("jaos_set_mip_cut_rounds", ctypes.c_int, _VP, _I64)
 _sig("jaos_set_mip_cut_depth", ctypes.c_int, _VP, _I64)
 _sig("jaos_set_mip_cover_rounds", ctypes.c_int, _VP, _I64)
 _sig("jaos_set_mip_node_cut_cap", ctypes.c_int, _VP, _I64)
+_sig("jaos_set_mip_cut_stall", ctypes.c_int, _VP, _D)
+_sig("jaos_set_mip_node_cut_stall", ctypes.c_int, _VP, _D)
+_sig("jaos_set_mip_root_cut_drop", ctypes.c_int, _VP, ctypes.c_int)
+_sig("jaos_set_mip_cover_lift", ctypes.c_int, _VP, ctypes.c_int)
 _sig("jaos_set_mip_heuristics", ctypes.c_int, _VP, ctypes.c_bool)
 _sig("jaos_mip_result", ctypes.c_int, _VP, _P(_MipReport))
 _sig("jaos_mip_incumbent", ctypes.c_int, _VP, _P(_D), _P(_D))
@@ -836,6 +840,35 @@ class Model:
         """At most `cap` cuts per node below the root, the most efficacious
         kept (D301); 0 for no cap, a negative value for the default."""
         self._check(_lib.jaos_set_mip_node_cut_cap(self._handle(), int(cap)))
+
+    def set_mip_cut_stall(self, fraction):
+        """The root's cut rounds end once one moves the bound by less than
+        `fraction` of (1 + |bound|) (D304); 0 ends them only when a round
+        adds nothing, a negative value restores the default, NaN and
+        infinity are refused."""
+        self._check(_lib.jaos_set_mip_cut_stall(self._handle(), float(fraction)))
+
+    def set_mip_node_cut_stall(self, fraction):
+        """No cut round under a node whose own round moved its bound by
+        less than `fraction` of (1 + |bound|), the root's whole cut phase
+        judged the same way (D305); 0 never switches a subtree off, a
+        negative value restores the default, NaN and infinity are
+        refused."""
+        self._check(_lib.jaos_set_mip_node_cut_stall(self._handle(),
+                                                     float(fraction)))
+
+    def set_mip_root_cut_drop(self, on=True):
+        """Whether the root's cuts leave the relaxation below a node where
+        their slack is basic, like a node's own (D306); on by default, and
+        None restores that."""
+        v = -1 if on is None else int(bool(on))
+        self._check(_lib.jaos_set_mip_root_cut_drop(self._handle(), v))
+
+    def set_mip_cover_lift(self, on=True):
+        """Whether a cover cut carries Balas's lifting coefficients (D307)
+        instead of the extended cover's; None restores the default."""
+        v = -1 if on is None else int(bool(on))
+        self._check(_lib.jaos_set_mip_cover_lift(self._handle(), v))
 
     def set_mip_heuristics(self, on=True):
         """Whether every fractional node is rounded for an incumbent (D290);
@@ -2166,6 +2199,31 @@ class Problem:
         """At most `cap` cuts per node below the root (D301); 0 for no cap,
         negative for the default."""
         self._m.set_mip_node_cut_cap(cap)
+        return self
+
+    def set_mip_cut_stall(self, fraction):
+        """The root's cut rounds end once one moves the bound by less than
+        `fraction` of (1 + |bound|) (D304); 0 never, negative the default."""
+        self._m.set_mip_cut_stall(fraction)
+        return self
+
+    def set_mip_node_cut_stall(self, fraction):
+        """No cut round under a node whose round moved its bound by less
+        than `fraction` of (1 + |bound|) (D305); 0 never, negative the
+        default."""
+        self._m.set_mip_node_cut_stall(fraction)
+        return self
+
+    def set_mip_root_cut_drop(self, on=True):
+        """Whether the root's cuts leave below a node where slack (D306);
+        None restores the default."""
+        self._m.set_mip_root_cut_drop(on)
+        return self
+
+    def set_mip_cover_lift(self, on=True):
+        """Whether a cover cut is lifted with Balas's coefficients (D307);
+        None restores the default."""
+        self._m.set_mip_cover_lift(on)
         return self
 
     def set_mip_heuristics(self, on=True):

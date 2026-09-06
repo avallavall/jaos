@@ -993,6 +993,52 @@ jaos_status jaos_set_mip_cover_rounds(jaos_model *m, int64_t rounds)
     return JAOS_OK;
 }
 
+jaos_status jaos_set_mip_cut_stall(jaos_model *m, double fraction)
+{
+    if (m == nullptr)
+        return JAOS_ERR_INVALID_INPUT;
+    if (isnan(fraction) || isinf(fraction)) {
+        jm_set_err(m, "the cut stall must be a finite fraction of the bound, "
+                      "0 for none, or negative for the default");
+        return JAOS_ERR_INVALID_INPUT;
+    }
+    m->cfg.mip_cut_stall_set = fraction >= 0.0;
+    m->cfg.mip_cut_stall = fraction >= 0.0 ? fraction : 0.0;
+    return JAOS_OK;
+}
+
+jaos_status jaos_set_mip_node_cut_stall(jaos_model *m, double fraction)
+{
+    if (m == nullptr)
+        return JAOS_ERR_INVALID_INPUT;
+    if (isnan(fraction) || isinf(fraction)) {
+        jm_set_err(m, "the node cut stall must be a finite fraction of the "
+                      "bound, 0 for none, or negative for the default");
+        return JAOS_ERR_INVALID_INPUT;
+    }
+    m->cfg.mip_node_cut_stall_set = fraction >= 0.0;
+    m->cfg.mip_node_cut_stall = fraction >= 0.0 ? fraction : 0.0;
+    return JAOS_OK;
+}
+
+jaos_status jaos_set_mip_root_cut_drop(jaos_model *m, int on)
+{
+    if (m == nullptr)
+        return JAOS_ERR_INVALID_INPUT;
+    m->cfg.mip_root_cut_drop_set = on >= 0;
+    m->cfg.mip_root_cut_drop = on > 0;
+    return JAOS_OK;
+}
+
+jaos_status jaos_set_mip_cover_lift(jaos_model *m, int on)
+{
+    if (m == nullptr)
+        return JAOS_ERR_INVALID_INPUT;
+    m->cfg.mip_cover_lift_set = on >= 0;
+    m->cfg.mip_cover_lift = on > 0;
+    return JAOS_OK;
+}
+
 jaos_status jaos_set_mip_probe_depth(jaos_model *m, int64_t depth)
 {
     if (m == nullptr)

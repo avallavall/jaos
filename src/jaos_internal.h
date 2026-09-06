@@ -59,6 +59,21 @@ typedef struct {
     /* Cover cuts at the root (D300); unset means MIP_COVER_ROUNDS. */
     bool mip_cover_rounds_set;
     int64_t mip_cover_rounds;
+    /* A root round that moves the bound by less than this fraction ends
+     * the rounds (D304); unset means MIP_CUT_STALL (src/mip.c). */
+    bool mip_cut_stall_set;
+    double mip_cut_stall;
+    /* A node whose round moves its bound by less than this fraction gets
+     * no round under it (D305); unset means MIP_NODE_CUT_STALL. */
+    bool mip_node_cut_stall_set;
+    double mip_node_cut_stall;
+    /* Whether the root's cuts leave below a node where slack (D306);
+     * unset means MIP_ROOT_CUT_DROP. */
+    bool mip_root_cut_drop_set;
+    bool mip_root_cut_drop;
+    /* Whether a cover cut is lifted (D307); unset means MIP_COVER_LIFT. */
+    bool mip_cover_lift_set;
+    bool mip_cover_lift;
     /* The rounding heuristic at every node (D290); on unless set. */
     bool mip_no_heuristics;
     /* A budget on the tree, 0 for none (D291), and who is told of each

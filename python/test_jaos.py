@@ -1366,6 +1366,79 @@ class TestBranchAndBound(unittest.TestCase):
         self.assertIs(p.solve(), jaos.SolveStatus.OPTIMAL)
         self.assertAlmostEqual(p.objective_value, 23.0, places=9)
 
+    def _knapsack5(self):
+        p = jaos.Problem()
+        a, b, c, d, e = [p.add_var(binary=True, name=n) for n in "abcde"]
+        p.add(3 * a + 5 * b + 2 * c + 4 * d + 2 * e <= 8)
+        p.maximize(10 * a + 13 * b + 7 * c + 9 * d + 5 * e)
+        return p, (a, b)
+
+    def test_a_stalled_root_round_is_the_last(self):
+        # The five-item knapsack with five Gomory rounds and the covers off
+        # closes at the root with three cuts; a stall of 1 ends the rounds
+        # after the first, so one cut and a tree (D304). NaN is refused.
+        for stall, cuts in ((0.0, 3), (1.0, 1)):
+            p, (a, b) = self._knapsack5()
+            p.set_mip_cut_rounds(5).set_mip_cover_rounds(0).set_mip_cut_depth(0)
+            p.set_mip_cut_stall(stall)
+            self.assertIs(p.solve(), jaos.SolveStatus.OPTIMAL)
+            self.assertAlmostEqual(p.objective_value, 23.0, places=9)
+            self.assertEqual((a.value, b.value), (1.0, 1.0))
+            self.assertEqual(p.mip_report().cuts, cuts)
+        with self.assertRaises(jaos.JaosError):
+            p.set_mip_cut_stall(float("nan"))
+        p.set_mip_cut_stall(-1)
+
+    def test_a_stalled_round_ends_the_cuts_under_it(self):
+        # The five-item knapsack with cuts to every depth and no cap: a node
+        # stall of 1 judges the root's phase stalled, so no node cuts and
+        # fewer cuts than without it, the same optimum (D305).
+        counts = []
+        for stall in (0.0, 1.0):
+            p, (a, b) = self._knapsack5()
+            p.set_mip_cut_depth(100).set_mip_node_cut_cap(0).set_mip_node_cut_stall(stall)
+            self.assertIs(p.solve(), jaos.SolveStatus.OPTIMAL)
+            self.assertAlmostEqual(p.objective_value, 23.0, places=9)
+            self.assertEqual((a.value, b.value), (1.0, 1.0))
+            counts.append(p.mip_report().cuts)
+        self.assertLess(counts[1], counts[0])
+        with self.assertRaises(jaos.JaosError):
+            p.set_mip_node_cut_stall(float("inf"))
+        p.set_mip_node_cut_stall(-1)
+
+    def test_root_cuts_may_leave_below_a_node(self):
+        # One Gomory and one cover round at the root with the drop on, with
+        # and without the node cuts, reach 23 (D306); None is the default.
+        for depth in (0, 100):
+            p, (a, b) = self._knapsack5()
+            p.set_mip_cut_rounds(1).set_mip_cover_rounds(1).set_mip_cut_depth(depth)
+            p.set_mip_root_cut_drop(True)
+            self.assertIs(p.solve(), jaos.SolveStatus.OPTIMAL)
+            self.assertAlmostEqual(p.objective_value, 23.0, places=9)
+            self.assertEqual((a.value, b.value), (1.0, 1.0))
+        p.set_mip_root_cut_drop(False).set_mip_root_cut_drop(None)
+        self.assertIs(p.solve(), jaos.SolveStatus.OPTIMAL)
+
+    def test_a_lifted_cover_closes_what_the_extended_cover_leaves(self):
+        # max 10a + 10b + 6f + 15d, 4a + 4b + 3f + 8d <= 10, binary: the
+        # cover {a, b, f} extended gives d the coefficient 1 and leaves the
+        # root at 22.5; lifted, d gets 2 and the root is integral at 20
+        # (D307).
+        for lift, one_node in ((False, False), (True, True)):
+            p = jaos.Problem()
+            a, b, f, d = [p.add_var(binary=True, name=n) for n in "abfd"]
+            p.add(4 * a + 4 * b + 3 * f + 8 * d <= 10)
+            p.maximize(10 * a + 10 * b + 6 * f + 15 * d)
+            p.set_mip_cut_rounds(0).set_mip_cover_rounds(1).set_mip_cut_depth(0)
+            p.set_mip_cover_lift(lift)
+            self.assertIs(p.solve(), jaos.SolveStatus.OPTIMAL)
+            self.assertAlmostEqual(p.objective_value, 20.0, places=9)
+            self.assertEqual((a.value, b.value, f.value, d.value), (1.0, 1.0, 0.0, 0.0))
+            rep = p.mip_report()
+            self.assertGreaterEqual(rep.cuts, 1)
+            self.assertEqual(rep.nodes == 1, one_node)
+        p.set_mip_cover_lift(None)
+
     def test_the_rounding_heuristic_finds_the_root_relaxations_neighbour(self):
         # max x + y, x + y <= 3.6, x <= 2.2, y <= 1.4, both integer: the
         # relaxation sits at (2.2, 1.4) and rounds to (2, 1), which is the

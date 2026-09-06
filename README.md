@@ -94,19 +94,21 @@ A column can be marked integer, from the API or from an MPS `MARKER` pair,
 an LP `General` or `Binary` section, and a model with one solves by branch
 and bound over the same dual simplex: one round of Gomory cuts and four
 rounds of knapsack cover cuts at the root, one round of Gomory cuts at
-every node down to depth 3 with the four most efficacious kept and a cut
-dropped once its slack is basic, a rounding heuristic at every node,
+every node down to depth 3 with the four most efficacious kept, any cut
+dropped below a node where its slack is basic, a rounding heuristic at every node,
 pseudocost branching, the incumbent published with the relaxation's duals.
 The tree reports its nodes, cuts and bound, takes a node limit beside the
 work and time limits, tells a callback of every new incumbent, and keeps a
 pool of the best integer points it met. Things that measured worse are
 behind switches and off: a dive from each selected node with any of four
-child rules, and strong branching until a column's pseudocost is reliable,
-capped or not, at any depth. Every default in the tree was set on a MIPLIB
-3 set with its own baseline, `make miplib`, 17 instances until D302 and 24
-since; the readings are in `bench/measurements/02-189/` to `02-201/`, and
-D303 says the two cut defaults hold over the 24 and lose over the seven
-instances they were not tuned on.
+child rules, strong branching until a column's pseudocost is reliable,
+capped or not, at any depth, a cut round that stops when the bound stops
+moving, at the root or under a node, and lifted covers. Every default in
+the tree was set on a MIPLIB 3 set with its own baseline, `make miplib`,
+17 instances until D302 and 24 since; the readings are in
+`bench/measurements/02-189/` to `02-202/`, D303 says the two cut defaults
+hold over the 24 and lose over the seven instances they were not tuned on,
+and D306 is the first default that helps both.
 
 `SPECS.md` lists every feature with its status: what exists, what is missing,
 and what is only partly there.

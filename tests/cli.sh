@@ -243,6 +243,33 @@ expect_exit 0 "a node cut cap still solves it" \
     || flunk "node cut cap: $(line_of objective)"
 expect_exit 5 "--node-cut-cap refuses a negative" \
     "$JAOS" solve "$DATA/nl_int.lp" --node-cut-cap -1
+# The two cut stalls (D304, D305), the root-cut drop (D306) and the lifted
+# cover (D307): each accepted with the answer unmoved, both spellings of
+# the two switches; a negative fraction and a word are usage errors.
+expect_exit 0 "a cut stall still solves it" \
+    "$JAOS" solve "$DATA/nl_int.lp" --cut-rounds 3 --cover-rounds 0 --cut-depth 0 --cut-stall 0.01
+[ "$(line_of objective)" = "objective 3" ] && pass "to 3" \
+    || flunk "cut stall: $(line_of objective)"
+expect_exit 5 "--cut-stall refuses a negative" \
+    "$JAOS" solve "$DATA/nl_int.lp" --cut-stall -1
+expect_exit 0 "a node cut stall still solves it" \
+    "$JAOS" solve "$DATA/nl_int.lp" --cut-rounds 0 --cover-rounds 0 --cut-depth 3 --node-cut-stall 0.01
+[ "$(line_of objective)" = "objective 3" ] && pass "to 3" \
+    || flunk "node cut stall: $(line_of objective)"
+expect_exit 5 "--node-cut-stall refuses a word" \
+    "$JAOS" solve "$DATA/nl_int.lp" --node-cut-stall some
+expect_exit 0 "root cuts that may leave still solve it" \
+    "$JAOS" solve "$DATA/nl_int.lp" --cut-rounds 1 --cover-rounds 0 --cut-depth 0 --root-cut-drop
+[ "$(line_of objective)" = "objective 3" ] && pass "to 3" \
+    || flunk "root cut drop: $(line_of objective)"
+expect_exit 0 "and kept by name" \
+    "$JAOS" solve "$DATA/nl_int.lp" --no-root-cut-drop
+expect_exit 0 "lifted covers still solve it" \
+    "$JAOS" solve "$DATA/nl_int.lp" --cut-rounds 0 --cover-rounds 1 --cover-lift
+[ "$(line_of objective)" = "objective 3" ] && pass "to 3" \
+    || flunk "cover lift: $(line_of objective)"
+expect_exit 0 "and the extended cover by name" \
+    "$JAOS" solve "$DATA/nl_int.lp" --no-cover-lift
 # The slack-cut drop (D297), the probe depth (D298) and the pool (D299):
 # each accepted with the answer unmoved; a pool line only when asked for;
 # a pool of zero and a negative probe depth are usage errors.

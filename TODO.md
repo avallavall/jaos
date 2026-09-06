@@ -7,6 +7,25 @@ line leaves this file in the same commit.
 
 ## Where the last session stopped — 2026-09-06
 
+**2026-09-06, the day batch, first round: four cut switches on the 24,
+and one default moves (D304 to D307).** The root's cuts leave the
+relaxation below a node where their slack is basic, like a node's own
+since D297: **0.799x** the work over the 24, 13 better, 2 worse, none
+past 2x, 0.881x over the 17 and 0.630x over the seven, on by default and
+the baseline rewritten (D306, `bench/measurements/02-202/`). The node
+stall D303 asked for meets the bar alone, 0.816x at 0.02, and never
+beside the drop: every combination leaves `bell5` at the cap with no
+incumbent after 1.2 million nodes and `enigma` past 2x, so it stays off
+(D305, in the refusals table). The root stall reads worse at every
+fraction, 1.007x at best (D304), and Balas's lifted covers 1.005x with
+`l152lav` past 2x (D307); both refused, with re-tests in the registry.
+The review's two risks are fixed on the way: a cover's excess over its
+capacity is judged against the primal tolerance's margin, and the drop's
+row contract is an assert. **What is next**, in order: a backtracking
+dive, what could reopen D289; a third cut family, single-row MIR at the
+root; then the seven held constants, each swept once something moves
+them.
+
 **2026-09-06, the overnight batch, last round: the two cut defaults
 re-read on the 24 (D303, no source change).** Over the set both hold:
 covers off reads 1.125x, node cuts off 1.059x, both off 1.231x. Over the
@@ -4271,6 +4290,9 @@ change satisfies a condition in the right column, re-ask that question. Until
 then, do not — a refusal whose premise has not changed just fails again.
 
 | decision | what was refused or deferred | reopens when |
+| D304 | a root cut round that stops when the bound stops moving, as a default: the rounds end after one that moved the bound by less than F of (1 + \|bound\|) — **1.007x at 1e-4**, 1.172x at 1e-3, 1.121x at 1e-2 over the 24, the last two with an instance past 2x (`bench/measurements/02-202/`) | a stall read on something other than the last round's gain — the gap the root's cuts have closed, or the cuts' violation — at or under 0.95x with no instance past 2x on the same set; `02-202/retest-cut-stall.sh` asks the original question, and `make refusals` runs it |
+| D305 | a node cut stall as a default beside the root-cut drop: no round under a node whose round moved its bound by less than F of (1 + \|bound\|) — alone **0.816x at 0.02** with none past 2x, and with the drop 0.782x over 23 with `bell5` unfinished and `enigma` past 2x at every F (`02-202/`) | the combination at or under the drop's 0.799x with every instance finished and none past 2x on the same set — a stall on the subtree's gap, or one that spares the root's children; `02-202/retest-node-cut-stall.sh` asks, and `make refusals` runs it |
+| D307 | Balas's lifted covers as a default — **1.005x** over the 24 with `l152lav` 2.06x, 0.965x over the 17 and 1.109x over the seven (`02-202/`) | a lifting other than the simultaneous one — sequential over the items outside the cover, or the cover chosen for the lifting rather than for the point — at or under 0.95x with no instance past 2x on the same set; `02-202/retest-cover-lift.sh` asks, and `make refusals` runs it |
 | D293 | strong branching until a column is reliable, as a default: each unreliable child solved in full, at most eight columns per node — **0.971x at reliability 1** with `mod010` 2.84x and `enigma` 2.07x, 1.064x at 2, 1.173x at 4, 1.437x at 8, while every setting shrinks the trees (`bench/measurements/02-192/`) | both cheaper probes are measured and neither reaches the bar: a work cap per child reads 1.228x at 0.5 times the node's own solve, 0.998x at 1 and 1.018x at 2, since a probe that stops early pays and teaches nothing (D294, `02-193/`); probing at the root only reads 0.987x with two instances past 2x, one tree at every reliability (D298, `02-197/`). What could reopen it is a probe that learns from an unfinished child solve, the dual bound at a work-limit stop, which the stop path does not publish today; `02-192/retest-reliability.sh` asks the original question, and `make refusals` runs it |
 | D289 | a dive from each selected node of the branch and bound: nearer-side child first, sibling to the open set, until a prune — **1.125x** the plain best-bound order in work over the MIP set, one instance better and six worse, and 1.09x on top of one round of cuts (`bench/measurements/02-189/`) | the child rules are measured and none reaches the bar: nearer 1.053x on the D292 tree, up first 0.999x, down first 1.316x, the pseudocost side 0.991x, each with an instance past 2x (D295, `02-194/`). What could reopen it is a backtracking dive at or under 0.95x with no instance past 2x on the same set; `02-189/retest-dive.sh` asks, and `make refusals` runs it |
 | D211 | a stop rule on the phase-1 objective rising — `pilot-ja` rose 25.0449 above its running minimum and still finished `ok` | **EXPIRED at D212, caught 2026-08-28**: `pilot-ja` rises 3.3348e-12 now and the largest rise on any `ok` solve is 9.36752e-10, so a threshold has a window about nine orders wide. Attributed to the commit in D215, `02-130/`. Open work below, and the line has left `bench/refusals.txt` |

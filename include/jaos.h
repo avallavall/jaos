@@ -309,7 +309,8 @@ JAOS_NODISCARD jaos_status jaos_set_mip_gap(jaos_model *m, double gap);
  * best-bound order, better on one instance and worse on six, which is
  * why it is off. The root gets rounds of Gomory mixed-integer cuts, each
  * round one cut per fractional integer column of the relaxation's basis,
- * added as rows of the private copy and kept for the whole tree; `rounds`
+ * added as rows of the private copy and kept for every node that binds
+ * them (D306); `rounds`
  * 0 turns them off and a negative value restores the default of 1, which
  * measured 0.660x the plain tree's work over the MIP set with no
  * instance past 2x; two rounds read 0.609x with three instances past 2x,
@@ -359,6 +360,42 @@ JAOS_NODISCARD jaos_status jaos_set_mip_node_cut_cap(jaos_model *m,
  * carries what each count cost over the MIP set. */
 JAOS_NODISCARD jaos_status jaos_set_mip_cover_rounds(jaos_model *m,
                                                      int64_t rounds);
+
+/* When the root's cut rounds end (D304): a round that moves the root's
+ * bound by less than `fraction` times (1 + |bound|) is the last, whatever
+ * rounds are left. 0 ends them only when a round adds nothing, the form
+ * every earlier reading used; a negative value restores the default; NaN
+ * and infinity are refused. D304 carries what each fraction cost over the
+ * MIP set. */
+JAOS_NODISCARD jaos_status jaos_set_mip_cut_stall(jaos_model *m,
+                                                  double fraction);
+
+/* Where cuts below the root stop paying (D305): a node whose own round
+ * moves its bound by less than `fraction` times (1 + |bound|) gets no
+ * round at any node under it, and the root's whole cut phase is judged
+ * the same way for the nodes under the root. A node that added no cut is
+ * no evidence and passes its parent's verdict down. 0 never switches a
+ * subtree off; a negative value restores the default; NaN and infinity
+ * are refused. D305 carries what each fraction cost over the MIP set. */
+JAOS_NODISCARD jaos_status jaos_set_mip_node_cut_stall(jaos_model *m,
+                                                       double fraction);
+
+/* Whether the root's cuts may leave the relaxation below a node where
+ * their slack is basic, the way a node's own cuts do under
+ * jaos_set_mip_cut_drop (D306): 1 lets them leave, which is the default,
+ * 0 keeps them as rows of every node, a negative value restores the
+ * default. A root cut that left is gone for the nodes under that one and
+ * still valid everywhere; D306 carries what each setting cost over the
+ * MIP set. */
+JAOS_NODISCARD jaos_status jaos_set_mip_root_cut_drop(jaos_model *m, int on);
+
+/* Whether a cover cut is lifted (D307): 1 gives an item outside the cover
+ * Balas's coefficient, h when it weighs at least as much as the cover's
+ * h heaviest items together (Facets of the knapsack polytope, 1975),
+ * which is at least the extended cover's 1 and never weaker; 0 keeps the
+ * extended cover; a negative value restores the default. D307 carries
+ * what each setting cost over the MIP set. */
+JAOS_NODISCARD jaos_status jaos_set_mip_cover_lift(jaos_model *m, int on);
 
 /* The rounding heuristic (D290): at every node whose relaxation is
  * fractional, the integer columns are rounded to the nearest integer and
