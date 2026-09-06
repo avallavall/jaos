@@ -1,0 +1,5 @@
+# Each arm against the control (every default), work in geometric mean of per-instance ratios:
+# over all 24, over the 17 the cuts were tuned on, and over the 7 that joined at D302.
+c0    all 24: 1.125x (3 better, 6 worse, 2 past 2x) | the 17: 1.273x (2/5/2) | the 7 new: 0.818x (1/1/0)
+d0    all 24: 1.059x (11 better, 10 worse, 2 past 2x) | the 17: 1.190x (6/8/1) | the 7 new: 0.784x (5/2/1)
+c0d0  all 24: 1.231x (5 better, 14 worse, 4 past 2x) | the 17: 1.585x (2/11/3) | the 7 new: 0.642x (3/3/1)

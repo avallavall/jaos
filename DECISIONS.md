@@ -310,6 +310,7 @@ and you have the argument. Jump to the entry for the numbers behind it.
 - **[D300](#d300--knapsack-cover-cuts-at-the-root-four-rounds-beside-the-gomory-round-0745x-the-work-over-the-mip-set-seven-better-one-worse-none-past-2x-and-mod010-closes-at-the-root)** — Knapsack cover cuts at the root, four rounds beside the Gomory round: 0.745x the work over the MIP set, seven better, one worse, none past 2x, and mod010 closes at the root
 - **[D301](#d301--cuts-below-the-root-land-depth-3-with-four-cuts-per-node-reads-0835x-the-work-over-the-mip-set-none-past-2x-and-0934x-without-egout)** — Cuts below the root land: depth 3 with four cuts per node reads 0.835x the work over the MIP set, none past 2x, and 0.934x without egout
 - **[D302](#d302--the-mip-set-grows-to-24-the-seven-miplib-3-members-the-d301-tree-finishes-inside-120-s-join-it-chosen-by-nothing-the-cuts-were-tuned-on)** — The MIP set grows to 24: the seven MIPLIB 3 members the D301 tree finishes inside 120 s join it, chosen by nothing the cuts were tuned on
+- **[D303](#d303--the-two-cut-defaults-re-read-on-the-24-they-hold-over-the-set-1125x-and-1059x-with-each-switched-off-and-lose-over-the-seven-instances-they-were-not-tuned-on-0642x-with-both-off)** — The two cut defaults re-read on the 24: they hold over the set, 1.125x and 1.059x with each switched off, and lose over the seven instances they were not tuned on, 0.642x with both off
 
 ---
 
@@ -21790,3 +21791,35 @@ move; the three gate sets are byte-identical.
 whose sweeps were on the 17. The seven were chosen by whether they finish
 and by nothing the cuts were tuned on, which is what makes them a control
 for the next sweep.
+
+## D303 — The two cut defaults re-read on the 24: they hold over the set, 1.125x and 1.059x with each switched off, and lose over the seven instances they were not tuned on, 0.642x with both off
+
+**The gap.** D300 and D301 moved two defaults on 17 instances, D301 said
+the surface was not smooth, and D302 added seven instances chosen by
+nothing the cuts were tuned on. The honest test was to read the defaults
+on those.
+
+**What was measured** (`bench/measurements/02-201/`, no source change).
+The 24 under every default, which reproduces `bench/miplib.baseline` node
+for node and unit for unit, then with the covers off, the node cuts off,
+and both off. Work in geometric mean, arm against control, so a value
+above 1 says the default is the cheaper: covers off **1.125x** over the 24
+(1.273x over the 17, **0.818x over the seven**); node cuts off **1.059x**
+(1.190x, **0.784x**); both off **1.231x** (1.585x, **0.642x**). The tails
+are the mechanism both ways: with the node cuts off `egout` pays 8.07x and
+`gt2` 5.28x while `bell5` pays 0.081x, so the node cuts cost `bell5`
+twelve times its work; with the covers off `mod010` pays 16.5x while
+`p0282` pays 0.117x.
+
+**The decision.** Both defaults stand, by the rule every default here was
+set by: the geometric mean over the set, no instance past 2x, and over
+the 24 switching either off reads worse. Seven instances are too few to
+move a default on. What the record now says, and did not before, is what
+the defaults rest on: the 17 they were tuned on, `egout` and `mod010`
+most of all, and a mechanism that saves a tree where a round closes a gap
+and costs every node under it where a round closes nothing.
+
+**What is next from it.** A cut round that stops when it stops moving the
+bound -- at the root between rounds, and at a node before its round --
+would keep `egout`, `gt2` and `mod010` and drop `bell5` and `p0282`, and
+is the next thing to measure on this set, the seven read apart again.

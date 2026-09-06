@@ -7,6 +7,21 @@ line leaves this file in the same commit.
 
 ## Where the last session stopped — 2026-09-06
 
+**2026-09-06, the overnight batch, last round: the two cut defaults
+re-read on the 24 (D303, no source change).** Over the set both hold:
+covers off reads 1.125x, node cuts off 1.059x, both off 1.231x. Over the
+seven instances that joined at D302 both lose: 0.818x, 0.784x and 0.642x
+with them off, `bell5` paying twelve times its work for the node cuts and
+`p0282` eight and a half for the covers, while `egout` pays 8x and `gt2`
+5x without the node cuts (`bench/measurements/02-201/`). The defaults
+stand by the set's rule and the record says what they rest on. **What is
+next**, in order: a cut round that stops when it stops moving the bound,
+at the root between rounds and at a node before its round, which is what
+would keep the wins and drop the losses, measured on the 24 with the
+seven read apart; then lifted covers and a third family (MIR); root cuts
+that leave below a node where they go slack; a backtracking dive; and the
+seven held constants.
+
 **2026-09-06, the overnight batch, fifth round: the MIP set grows to 24
 (D302).** The 21 MIPLIB 3 members the plain tree could not finish were
 asked again on the D301 tree: seven finish inside 120 s (`gt2` 0.25 s to
