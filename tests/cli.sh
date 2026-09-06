@@ -740,6 +740,32 @@ expect_exit 5 "check refuses a solution and a proof at once" \
     "$JAOS" check "$DATA/g1.lp" some.sol --proof some.proof
 expect_exit 5 "check refuses --proof with no path" \
     "$JAOS" check "$DATA/g1.lp" --proof
+# stats (D327): it solves nothing, so it runs under every build. The two
+# partitions are what is checked, because a count that is merely printed
+# is not evidence that the walk saw every row and every column.
+expect_exit 0 "stats reads a model" \
+    "$JAOS" stats "$DATA/g_int.lp"
+r=$(line_of rows | cut -d" " -f2)
+c=$(line_of columns | cut -d" " -f2)
+rk=$(( $(line_of equality_rows | cut -d" " -f2) + $(line_of ranged_rows | cut -d" " -f2) + $(line_of one_sided_rows | cut -d" " -f2) + $(line_of free_rows | cut -d" " -f2) ))
+ck=$(( $(line_of fixed_columns | cut -d" " -f2) + $(line_of ranged_columns | cut -d" " -f2) + $(line_of one_sided_columns | cut -d" " -f2) + $(line_of free_columns | cut -d" " -f2) ))
+[ "$rk" = "$r" ] && pass "the row kinds partition the rows" \
+    || flunk "row kinds $rk of $r"
+[ "$ck" = "$c" ] && pass "the column kinds partition the columns" \
+    || flunk "column kinds $ck of $c"
+[ "$(line_of integer_columns)" = "integer_columns 2" ] && pass "and count the integers" \
+    || flunk "integers: $(line_of integer_columns)"
+expect_exit 5 "stats takes one file" \
+    "$JAOS" stats "$DATA/g_int.lp" "$DATA/g1.lp"
+# The tree's two inputs (D326): the cutoff parses, and one nothing can
+# beat ends the search with no answer. g_int.lp MINIMIZES, so the cutoff
+# nothing reaches is the very negative one.
+expect_exit 0 "--cutoff parses" \
+    "$JAOS" solve "$DATA/g_int.lp" --cutoff 1e9
+expect_exit 1 "a cutoff nothing beats ends infeasible" \
+    "$JAOS" solve "$DATA/g_int.lp" --cutoff -1e9
+expect_exit 5 "--cutoff needs a number" \
+    "$JAOS" solve "$DATA/g_int.lp" --cutoff banana
 expect_exit 0 "ranging of an optimum exits 0" "$JAOS" ranging "$DATA/solve1.mps"
 [ "$(printf '%s\n' "$out" | head -n 1)" = "status optimal" ] \
     && pass "its first line is the status" \

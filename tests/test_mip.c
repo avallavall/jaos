@@ -2349,6 +2349,122 @@ static void test_the_pump_may_run_where_an_incumbent_exists(void)
 }
 
 
+
+/* The caller's own point, and the cutoff (D326). knapsack5's optimum is
+ * what the plain tree finds; a start point that is feasible must not move
+ * it, a start point that is not must be refused with the search going on
+ * without it, and a cutoff past the optimum must end the search with no
+ * answer at all rather than with one that does not satisfy it. */
+static void test_a_starting_point_and_a_cutoff(void)
+{
+    double best = 0.0;
+    int64_t plain_nodes = 0;
+    {
+        jaos_model *m = knapsack5();
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+        TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(m, &best));
+        jaos_mip_report rep;
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_mip_result(m, &rep));
+        plain_nodes = rep.nodes;
+        jaos_model_free(m);
+    }
+
+    /* The optimum itself, handed to the tree: the answer does not move,
+     * first_incumbent_node stays 0 because no node found it, and the tree
+     * is no bigger than the one that had to find it. Handing over a point
+     * that is merely feasible would not test the second of those, because
+     * a root heuristic would improve on it and claim node 1. */
+    {
+        jaos_model *m = knapsack5();
+        const double start[5] = { 1.0, 1.0, 0.0, 0.0, 0.0 };
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_start(m, start));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+        TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+        double obj = 0.0;
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(m, &obj));
+        TEST_ASSERT_DOUBLE_WITHIN(1e-9, best, obj);
+        TEST_ASSERT_DOUBLE_WITHIN(1e-9, 23.0, obj);
+        jaos_mip_report rep;
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_mip_result(m, &rep));
+        TEST_ASSERT_EQUAL_INT64(0, rep.first_incumbent_node);
+        TEST_ASSERT_TRUE(rep.nodes <= plain_nodes);
+        jaos_model_free(m);
+    }
+
+    /* A point outside the model's own bounds: refused, and the search
+     * reaches the same answer as if none had been given. A starting point
+     * the caller got wrong is never published. */
+    {
+        jaos_model *m = knapsack5();
+        const double bad[5] = { 9.0, 9.0, 9.0, 9.0, 9.0 };
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_start(m, bad));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+        TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+        double obj = 0.0;
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(m, &obj));
+        TEST_ASSERT_DOUBLE_WITHIN(1e-9, best, obj);
+        jaos_model_free(m);
+    }
+
+    /* A cutoff no solution reaches: the search ends with nothing, and it
+     * does so even with a feasible starting point in hand, because the
+     * cutoff gates what may become the incumbent and not only which
+     * nodes are solved. */
+    for (int arm = 0; arm < 2; arm++) {
+        jaos_model *m = knapsack5();
+        const double start[5] = { 1.0, 1.0, 0.0, 0.0, 0.0 };
+        if (arm == 1)
+            TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_start(m, start));
+        /* knapsack5 maximizes, so a cutoff far above the optimum is one
+         * nothing can beat. */
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_cutoff(m, best + 1000.0));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+        TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_INFEASIBLE, jaos_status_of(m));
+        jaos_model_free(m);
+    }
+
+    /* A cutoff the optimum does beat leaves the answer where it was. */
+    {
+        jaos_model *m = knapsack5();
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_cutoff(m, best - 1.0));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+        TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+        double obj = 0.0;
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(m, &obj));
+        TEST_ASSERT_DOUBLE_WITHIN(1e-9, best, obj);
+        jaos_model_free(m);
+    }
+
+    /* The two setters' own refusals and their clearing forms. */
+    jaos_model *m = knapsack5();
+    const double nan_pt[5] = { 0.0, 0.0, NAN, 0.0, 0.0 };
+    TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT,
+                          jaos_set_mip_start(m, nan_pt));
+    TEST_ASSERT_NULL(m->mip_start);
+    const double ok_pt[5] = { 1.0, 0.0, 0.0, 0.0, 0.0 };
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_start(m, ok_pt));
+    TEST_ASSERT_NOT_NULL(m->mip_start);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_start(m, nullptr));
+    TEST_ASSERT_NULL(m->mip_start);
+    TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT, jaos_set_mip_cutoff(m, NAN));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_cutoff(m, 3.0));
+    TEST_ASSERT_TRUE(m->cfg.mip_cutoff_set);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_cutoff(m, INFINITY));
+    TEST_ASSERT_FALSE(m->cfg.mip_cutoff_set);
+
+    /* The point travels with a copy, the way the starting basis does. */
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_start(m, ok_pt));
+    jaos_model *c = nullptr;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_model_copy(m, &c));
+    TEST_ASSERT_NOT_NULL(c->mip_start);
+    TEST_ASSERT_TRUE(c->mip_start != m->mip_start);
+    TEST_ASSERT_EQUAL_MEMORY(m->mip_start, c->mip_start, sizeof ok_pt);
+    jaos_model_free(c);
+    jaos_model_free(m);
+}
+
+
 int main(void)
 {
     UNITY_BEGIN();
@@ -2402,5 +2518,6 @@ int main(void)
     RUN_TEST(test_propagation_proves_a_row_infeasible);
     RUN_TEST(test_reduced_cost_fixing_keeps_the_optimum);
     RUN_TEST(test_the_pump_may_run_where_an_incumbent_exists);
+    RUN_TEST(test_a_starting_point_and_a_cutoff);
     return UNITY_END();
 }

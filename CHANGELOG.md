@@ -11,6 +11,21 @@ open, `bench/README.md` for the gate, and the commit each entry came from.
 
 ### Added
 
+- **The tree takes a starting point and a cutoff, and the model can be
+  counted.** `jaos_set_mip_start` hands the branch and bound an integer
+  point before it runs and `jaos_set_mip_cutoff` an objective it need not
+  beat; `jaos solve --mip-start SOLUTION --cutoff V`. The point is
+  checked at the root by the same acceptance every heuristic point gets,
+  so one the caller got wrong is refused rather than published. The
+  cutoff prunes nodes AND gates what may become the incumbent, so a
+  cutoff tighter than the optimum ends the search infeasible instead of
+  publishing a point that does not satisfy it (D326). Neither moves a
+  default. `jaos_model_statistics` and `jaos stats FILE` count what a
+  model is -- sizes, row and column kinds, integer and binary columns,
+  empty rows and columns, and the magnitude range of the matrix and the
+  objective -- in one pass, solving nothing (D327). All four at both
+  Python layers.
+
 - **The optimum's proof on disk, and a checker that reads no basis: the
   feature matrix's "machine-checkable certificate" cell reaches ●.**
   `jaos_write_proof` writes what a `jaos_verify` that returned

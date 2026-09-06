@@ -248,6 +248,32 @@ class _CheckReport(ctypes.Structure):
     ]
 
 
+class _ModelStats(ctypes.Structure):
+    """jaos_model_stats, in the header's order."""
+    _fields_ = [
+        ("num_row", _I64),
+        ("num_col", _I64),
+        ("num_nz", _I64),
+        ("integer_col", _I64),
+        ("binary_col", _I64),
+        ("equality_row", _I64),
+        ("ranged_row", _I64),
+        ("one_sided_row", _I64),
+        ("free_row", _I64),
+        ("fixed_col", _I64),
+        ("ranged_col", _I64),
+        ("one_sided_col", _I64),
+        ("free_col", _I64),
+        ("empty_row", _I64),
+        ("empty_col", _I64),
+        ("obj_nz", _I64),
+        ("min_abs", _D),
+        ("max_abs", _D),
+        ("obj_min_abs", _D),
+        ("obj_max_abs", _D),
+    ]
+
+
 class _ProofReport(ctypes.Structure):
     """jaos_proof_report, in the header's order."""
     _fields_ = [
@@ -280,6 +306,8 @@ MipReport = namedtuple("MipReport", [f for f, _ in _MipReport._fields_])
 
 ProofReport = namedtuple("ProofReport",
                          [f for f, _ in _ProofReport._fields_])
+
+ModelStats = namedtuple("ModelStats", [f for f, _ in _ModelStats._fields_])
 
 
 CheckReport = namedtuple("CheckReport",
@@ -458,6 +486,9 @@ _sig("jaos_set_mip_propagate_depth", ctypes.c_int, _VP, _I64)
 _sig("jaos_set_mip_dive_degrade", ctypes.c_int, _VP, ctypes.c_double)
 _sig("jaos_set_mip_heuristics", ctypes.c_int, _VP, ctypes.c_bool)
 _sig("jaos_mip_result", ctypes.c_int, _VP, _P(_MipReport))
+_sig("jaos_model_statistics", ctypes.c_int, _VP, _P(_ModelStats))
+_sig("jaos_set_mip_start", ctypes.c_int, _VP, _P(_D))
+_sig("jaos_set_mip_cutoff", ctypes.c_int, _VP, ctypes.c_double)
 _sig("jaos_write_proof", ctypes.c_int, _VP, ctypes.c_char_p)
 _sig("jaos_check_proof", ctypes.c_int, _VP, ctypes.c_char_p,
      _P(_ProofReport))
@@ -1130,6 +1161,39 @@ class Model:
         self._incumbent_cb = _INCUMBENT_FN(trampoline)
         self._check(_lib.jaos_set_incumbent_callback(self._handle(),
                                                      self._incumbent_cb, None))
+        return self
+
+    def statistics(self):
+        """What the model is, counted in one pass: sizes, row and column
+        kinds, integer and binary counts, empty rows and columns, and the
+        magnitude range of the matrix and of the objective. Solves
+        nothing."""
+        st = _ModelStats()
+        self._check(_lib.jaos_model_statistics(self._handle(),
+                                               ctypes.byref(st)))
+        return ModelStats(*[getattr(st, f) for f, _ in _ModelStats._fields_])
+
+    def set_mip_start(self, col_value):
+        """Hand the tree an integer point before it runs, or None to clear.
+
+        The library checks it at the root and runs without it when it is
+        not a feasible integer point, so a wrong point is never published
+        as an answer.
+        """
+        if col_value is None:
+            self._check(_lib.jaos_set_mip_start(self._handle(), None))
+            return self
+        nc = self.num_col
+        buf = (_D * max(nc, 1))(*[float(v) for v in col_value[:nc]])
+        self._check(_lib.jaos_set_mip_start(self._handle(), buf))
+        return self
+
+    def set_mip_cutoff(self, cutoff):
+        """An objective the caller does not care to beat, in the model's
+        own sense. An infinity removes it. A cutoff tighter than the true
+        optimum ends the search INFEASIBLE, which is the honest answer to
+        the question it asks."""
+        self._check(_lib.jaos_set_mip_cutoff(self._handle(), float(cutoff)))
         return self
 
     def write_proof(self, path):
@@ -2563,6 +2627,39 @@ class Problem:
             return fn(inc._replace(values={v: inc.values[i]
                                            for i, v in enumerate(vars_)}))
         self._m.set_incumbent_callback(wrap)
+        return self
+
+    def statistics(self):
+        """What the problem is, counted (D327): sizes, row and column
+        kinds, integer and binary counts, and magnitude ranges. Loads the
+        problem first if it changed, the way write_mps does."""
+        if self._pending():
+            self._build_and_load()
+        return self._m.statistics()
+
+    def set_mip_start(self, point):
+        """Hand the tree a point before it runs (D326).
+
+        `point` is a mapping from variable to value, or None to clear. A
+        variable left out is 0. The library checks the point at the root
+        and runs without it when it is not feasible.
+        """
+        if point is None:
+            self._m.set_mip_start(None)
+            return self
+        if self._pending():
+            self._build_and_load()
+        vals = [0.0] * len(self._vars)
+        for v, x in point.items():
+            vals[v._i] = float(x)
+        self._m.set_mip_start(vals)
+        return self
+
+    def set_mip_cutoff(self, cutoff):
+        """An objective the tree need not beat (D326); an infinity removes
+        it. A cutoff tighter than the optimum ends the search
+        INFEASIBLE."""
+        self._m.set_mip_cutoff(cutoff)
         return self
 
     def write_proof(self, path):

@@ -9,6 +9,7 @@
  *
  * Usage:
  *   jaos solve FILE [--solution OUT] [--start SOLUTION] [--work-limit N]
+ *                   [--mip-start SOLUTION] [--cutoff V]
  *                   [--time-limit SECONDS] [--primal-tol T] [--dual-tol T]
  *                   [--cut-rounds N] [--cover-rounds N] [--cut-depth D]
  *                   [--node-cut-cap K] [--cut-stall F] [--node-cut-stall F]
@@ -29,6 +30,7 @@
  *   jaos convert IN OUT
  *   jaos check FILE SOLUTION [--tol T]
  *   jaos check FILE --proof PROOF
+ *   jaos stats FILE
  *   jaos iis FILE
  *   jaos verify FILE [--values] [--proof PATH]
  *   jaos ranging FILE
@@ -84,6 +86,7 @@ enum {
 static const char USAGE[] =
     "Usage:\n"
     "  jaos solve FILE [--solution OUT] [--start SOLUTION] [--work-limit N]\n"
+    "                  [--mip-start SOLUTION] [--cutoff V]\n"
     "                  [--time-limit SECONDS] [--primal-tol T] [--dual-tol T]\n"
     "                  [--cut-rounds N] [--cover-rounds N] [--cut-depth D]\n"
     "                  [--node-cut-cap K] [--cut-stall F] [--node-cut-stall F]\n"
@@ -105,6 +108,7 @@ static const char USAGE[] =
     "  jaos convert IN OUT\n"
     "  jaos check FILE SOLUTION [--tol T]\n"
     "  jaos check FILE --proof PROOF\n"
+    "  jaos stats FILE\n"
     "  jaos iis FILE\n"
     "  jaos verify FILE [--values] [--proof PATH]\n"
     "  jaos ranging FILE\n"
@@ -117,6 +121,13 @@ static const char USAGE[] =
     "  --solution OUT   write the answer: the optimum, or the certificate\n"
     "                   of an infeasible or unbounded model\n"
     "  --start SOLUTION warm-start from the basis in a solution file\n"
+    "  --mip-start SOLUTION  hand the tree the integer point in a solution\n"
+    "                   file before it runs; refused, and the search goes\n"
+    "                   on without it, when the point is not feasible\n"
+    "  --cutoff V       drop every node that cannot beat objective V. A\n"
+    "                   cutoff tighter than the optimum ends the search\n"
+    "                   infeasible, which is the honest answer to the\n"
+    "                   question it asks\n"
     "  --work-limit N   stop after N deterministic work units (N > 0)\n"
     "  --time-limit S   stop after S seconds of wall clock (S > 0)\n"
     "  --primal-tol T   primal feasibility tolerance (default 1e-7)\n"
@@ -141,7 +152,10 @@ static const char USAGE[] =
     "  --cover-lift     lift each cover cut with Balas's coefficients;\n"
     "                   --no-cover-lift keeps the extended cover\n"
     "  --mir-rounds N   rounds of mixed-integer rounding cuts on the model's\n"
-    "                   rows at the root of a MIP (default 6; 0 for none)\n"
+    "                   rows at the root of a MIP (default 6; 0 for none)\n";
+
+/* The second piece, because ISO C only promises a 4095-byte literal. */
+static const char USAGE1B[] =
     "  --dive           dive from each selected node of a MIP (off by default)\n"
     "  --dive-child RULE which child the dive solves first: nearer (default),\n"
     "                   up, down or pseudocost\n"
@@ -151,10 +165,7 @@ static const char USAGE[] =
     "  --dive-gap F     resume only while the sibling's bound is within F of\n"
     "                   (1 + |best open bound|) (F >= 0; 0 for no bound)\n"
     "  --node-mir       MIR cuts over a node's own bounds beside its Gomory\n"
-    "                   round; --no-node-mir keeps the round Gomory's\n";
-
-/* The second piece, because ISO C only promises a 4095-byte literal. */
-static const char USAGE1B[] =
+    "                   round; --no-node-mir keeps the round Gomory's\n"
     "  --mir-aggregate N  rows a MIR cut may absorb before it is rounded\n"
     "                   (N >= 0; 0 is the single-row form)\n"
     "  --dive-heuristic N  relaxations a dive for a first incumbent may\n"
@@ -224,6 +235,11 @@ static const char USAGE2[] =
     "                   from the model alone, over the rationals and with\n"
     "                   no tolerance, and prints primal, dual and\n"
     "                   objective. Exit 0 proved, 1 broken, 4 out of limbs\n"
+    "stats reads FILE and prints what the model is, one `name value`\n"
+    "  line each: the three sizes, the row and column kinds, the\n"
+    "  integer and binary counts, the empty rows and columns, and the\n"
+    "  smallest and largest magnitude in the matrix and in the\n"
+    "  objective. It solves nothing. Exit 0.\n"
     "ranging solves FILE and prints, for the optimal basis, the interval\n"
     "  every cost, row bound and column bound may move in:\n"
     "  `cost J lo hi`, `rhs I lower_lo lower_hi upper_lo upper_hi`,\n"
@@ -475,6 +491,10 @@ struct solve_options {
     const char *file;
     const char *solution;
     const char *start;       /* a solution file to warm-start from */
+    const char *mip_start;   /* a solution file whose point seeds the
+                                tree (D326)                          */
+    bool has_cutoff;
+    double cutoff;
     int64_t work_limit;      /* 0: not given; the parser refuses <= 0 */
     double time_limit;       /* 0: not given; the parser refuses <= 0 */
     int64_t cut_rounds;      /* -1: not given (the library's default)     */
@@ -626,6 +646,12 @@ static int parse_solve_options(int argc, char **argv, int first,
         const char *v = argv[++i];
         if (strcmp(a, "--solution") == 0) {
             o->solution = v;
+        } else if (strcmp(a, "--mip-start") == 0) {
+            o->mip_start = v;
+        } else if (strcmp(a, "--cutoff") == 0) {
+            if (!parse_double(v, &o->cutoff))
+                return usage_error("--cutoff needs an objective, not '%s'", v);
+            o->has_cutoff = true;
         } else if (strcmp(a, "--start") == 0) {
             o->start = v;
         } else if (strcmp(a, "--work-limit") == 0) {
@@ -1011,6 +1037,30 @@ static int cmd_solve(int argc, char **argv)
             rc = library_error("warm-start from", o.start, m);
             goto out;
         }
+    }
+
+    /* The tree's own two inputs (D326): a point the caller already has,
+     * and an objective they do not care to beat. The point is read out of
+     * a solution file the same reader --start uses, and the library
+     * checks it before it prunes anything. */
+    if (o.mip_start != nullptr) {
+        const int64_t nc = jaos_num_col(m);
+        double *sx = zeroed(nc, sizeof *sx);
+        jaos_status rd = JAOS_ERR_OUT_OF_MEMORY;
+        if (sx != nullptr &&
+            (rd = jaos_read_solution(m, o.mip_start, nullptr, sx, nullptr,
+                                     nullptr, nullptr, nullptr,
+                                     nullptr)) == JAOS_OK)
+            rd = jaos_set_mip_start(m, sx);
+        free(sx);
+        if (rd != JAOS_OK) {
+            rc = library_error("read a starting point from", o.mip_start, m);
+            goto out;
+        }
+    }
+    if (o.has_cutoff && jaos_set_mip_cutoff(m, o.cutoff) != JAOS_OK) {
+        rc = library_error("set the cutoff for", o.file, m);
+        goto out;
     }
 
     jaos_status st = jaos_solve(m);
@@ -1575,6 +1625,51 @@ out:
     return rc;
 }
 
+/* stats FILE: read it and print what the model is. It solves nothing, so
+ * it is the one analysis subcommand with no verdict and no exit code but
+ * 0; a file it cannot read is the usual load failure. */
+static int cmd_stats(int argc, char **argv)
+{
+    if (argc != 3)
+        return usage_error("stats takes exactly one file");
+    const char *file = argv[2];
+
+    jaos_model *m = nullptr;
+    int rc = load(file, &m);
+    if (rc >= 0)
+        return rc;
+
+    jaos_model_stats st;
+    memset(&st, 0, sizeof st);
+    if (jaos_model_statistics(m, &st) != JAOS_OK) {
+        rc = library_error("read the statistics of", file, m);
+        jaos_model_free(m);
+        return rc;
+    }
+    print_int("rows", st.num_row);
+    print_int("columns", st.num_col);
+    print_int("nonzeros", st.num_nz);
+    print_int("equality_rows", st.equality_row);
+    print_int("ranged_rows", st.ranged_row);
+    print_int("one_sided_rows", st.one_sided_row);
+    print_int("free_rows", st.free_row);
+    print_int("empty_rows", st.empty_row);
+    print_int("fixed_columns", st.fixed_col);
+    print_int("ranged_columns", st.ranged_col);
+    print_int("one_sided_columns", st.one_sided_col);
+    print_int("free_columns", st.free_col);
+    print_int("empty_columns", st.empty_col);
+    print_int("integer_columns", st.integer_col);
+    print_int("binary_columns", st.binary_col);
+    print_int("objective_nonzeros", st.obj_nz);
+    print_num("min_abs", st.min_abs);
+    print_num("max_abs", st.max_abs);
+    print_num("objective_min_abs", st.obj_min_abs);
+    print_num("objective_max_abs", st.obj_max_abs);
+    jaos_model_free(m);
+    return EXIT_OPTIMAL;
+}
+
 /* ranging FILE: solve, and on OPTIMAL print how far every cost, row bound
  * and column bound may move before the basis stops being optimal. Three
  * blocks, each interval containing the number's current value. */
@@ -1684,6 +1779,8 @@ int main(int argc, char **argv)
         return cmd_convert(argc, argv);
     if (strcmp(cmd, "check") == 0)
         return cmd_check(argc, argv);
+    if (strcmp(cmd, "stats") == 0)
+        return cmd_stats(argc, argv);
     if (strcmp(cmd, "iis") == 0)
         return cmd_iis(argc, argv);
     if (strcmp(cmd, "verify") == 0)

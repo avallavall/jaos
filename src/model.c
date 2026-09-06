@@ -59,6 +59,7 @@ static void model_release_arrays(jaos_model *m)
     jm_model_take_names(m, nullptr, nullptr, nullptr);
     free(m->model_name);
     free(m->col_integer);
+    free(m->mip_start);
     free(m->mip_inc_x);
     free(m->mip_pool_x);
     free(m->mip_pool_obj);
@@ -1152,6 +1153,117 @@ jaos_status jaos_set_mip_pump_obj(jaos_model *m, double decay)
     }
     m->cfg.mip_pump_obj_set = decay >= 0.0;
     m->cfg.mip_pump_obj = decay >= 0.0 ? decay : 0.0;
+    return JAOS_OK;
+}
+
+/* One pass over the model, counting what it is (D327). Nothing here can
+ * fail beyond the argument check: every field is read off arrays the
+ * model already holds, and a model with no rows or columns comes out as
+ * zeros rather than as an error. */
+jaos_status jaos_model_statistics(const jaos_model *m, jaos_model_stats *out)
+{
+    if (m == nullptr || out == nullptr)
+        return JAOS_ERR_INVALID_INPUT;
+    jaos_model_stats st = {0};
+    st.num_row = m->num_row;
+    st.num_col = m->num_col;
+    st.num_nz = m->num_nz;
+
+    for (int64_t i = 0; i < m->num_row; i++) {
+        const double lo = m->row_lower[i], hi = m->row_upper[i];
+        const bool flo = lo > -INFINITY, fhi = hi < INFINITY;
+        if (flo && fhi)
+            st.equality_row += lo == hi, st.ranged_row += lo != hi;
+        else if (flo || fhi)
+            st.one_sided_row++;
+        else
+            st.free_row++;
+    }
+    for (int64_t j = 0; j < m->num_col; j++) {
+        const double lo = m->col_lower[j], hi = m->col_upper[j];
+        const bool flo = lo > -INFINITY, fhi = hi < INFINITY;
+        if (flo && fhi)
+            st.fixed_col += lo == hi, st.ranged_col += lo != hi;
+        else if (flo || fhi)
+            st.one_sided_col++;
+        else
+            st.free_col++;
+        if (m->col_integer != nullptr && m->col_integer[j]) {
+            st.integer_col++;
+            /* Binary is what the tree would see: the bounds rounded
+             * inward to integers, exactly 0 and 1 (D292's rule). */
+            if (flo && fhi && ceil(lo) == 0.0 && floor(hi) == 1.0)
+                st.binary_col++;
+        }
+        if (m->col_cost[j] != 0.0) {
+            const double a = fabs(m->col_cost[j]);
+            st.obj_nz++;
+            if (st.obj_min_abs == 0.0 || a < st.obj_min_abs)
+                st.obj_min_abs = a;
+            if (a > st.obj_max_abs)
+                st.obj_max_abs = a;
+        }
+        const int64_t s0 = m->a_start[j], s1 = m->a_start[j + 1];
+        if (s1 == s0)
+            st.empty_col++;
+        for (int64_t k = s0; k < s1; k++) {
+            const double a = fabs(m->a_value[k]);
+            if (st.min_abs == 0.0 || a < st.min_abs)
+                st.min_abs = a;
+            if (a > st.max_abs)
+                st.max_abs = a;
+        }
+    }
+    /* An empty row wants the row-wise count, and building the mirror to
+     * get it would make a read-only call allocate. The column pass gives
+     * it instead: mark what is touched. */
+    if (m->num_row > 0 && m->num_nz >= 0) {
+        bool *touched = calloc((size_t)m->num_row, sizeof *touched);
+        if (touched == nullptr)
+            return JAOS_ERR_OUT_OF_MEMORY;
+        for (int64_t k = 0; k < m->num_nz; k++)
+            touched[m->a_index[k]] = true;
+        for (int64_t i = 0; i < m->num_row; i++)
+            st.empty_row += !touched[i];
+        free(touched);
+    }
+    *out = st;
+    return JAOS_OK;
+}
+
+jaos_status jaos_set_mip_start(jaos_model *m, const double *col_value)
+{
+    if (m == nullptr)
+        return JAOS_ERR_INVALID_INPUT;
+    free(m->mip_start);
+    m->mip_start = nullptr;
+    if (col_value == nullptr)
+        return JAOS_OK;              /* clearing is not an error */
+    for (int64_t j = 0; j < m->num_col; j++)
+        if (isnan(col_value[j]) || isinf(col_value[j])) {
+            jm_set_err(m, "the starting point's value for column %lld is not "
+                          "finite", (long long)j);
+            return JAOS_ERR_INVALID_INPUT;
+        }
+    m->mip_start = malloc((size_t)(m->num_col > 0 ? m->num_col : 1)
+                          * sizeof *m->mip_start);
+    if (m->mip_start == nullptr)
+        return JAOS_ERR_OUT_OF_MEMORY;
+    memcpy(m->mip_start, col_value, (size_t)m->num_col * sizeof *m->mip_start);
+    return JAOS_OK;
+}
+
+jaos_status jaos_set_mip_cutoff(jaos_model *m, double cutoff)
+{
+    if (m == nullptr)
+        return JAOS_ERR_INVALID_INPUT;
+    if (isnan(cutoff)) {
+        jm_set_err(m, "a cutoff must be a finite objective, or an infinity "
+                      "to remove it");
+        return JAOS_ERR_INVALID_INPUT;
+    }
+    m->cfg.mip_cutoff_set = !isinf(cutoff);
+    m->cfg.mip_cutoff = isinf(cutoff) ? 0.0 : cutoff;
     return JAOS_OK;
 }
 
@@ -2400,6 +2512,14 @@ jaos_status jaos_model_copy(const jaos_model *src, jaos_model **out)
      * the copy is the caller's, and what they installed on the source is
      * what they would install on it. */
     m->cfg = src->cfg;
+
+    /* The starting integer point travels for the same reason the basis
+     * below does: it is an input the caller installed, not an answer. */
+    if (src->mip_start != nullptr) {
+        st = jaos_set_mip_start(m, src->mip_start);
+        if (st != JAOS_OK)
+            goto fail;
+    }
 
     /* The starting basis, which is a starting point and not an answer. */
     if (src->start_col_status != nullptr && src->start_row_status != nullptr) {

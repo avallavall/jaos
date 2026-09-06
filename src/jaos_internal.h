@@ -117,6 +117,10 @@ typedef struct {
        MIP_PROPAGATE (src/mip.c). 0 is off. */
     bool mip_propagate_set;
     int64_t mip_propagate;
+    /* An objective the caller does not care to beat (D326); unset is no
+       cutoff at all. Held in the model's own sense. */
+    bool mip_cutoff_set;
+    double mip_cutoff;
     /* The deepest node propagation runs at (D324); unset means
        MIP_PROPAGATE_DEPTH (src/mip.c). Negative is every node. */
     bool mip_propagate_depth_set;
@@ -213,6 +217,11 @@ struct jaos_model {
     double mip_bound;
     bool mip_has_incumbent;
     double mip_inc_obj;
+    /* A point the caller handed the tree before it ran (D326), in the
+       model's own columns. An input and not an answer, so
+       model_answer_is_stale leaves it alone; a load drops it with
+       everything else. */
+    double *mip_start;       /* [num_col] or nullptr */
     double *mip_inc_x;       /* [num_col] or nullptr */
     /* The solution pool (D299): mip_pool_n points, best first, each
        num_col values, with their objectives in the model's sense. */

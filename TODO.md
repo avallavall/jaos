@@ -7,6 +7,29 @@ line leaves this file in the same commit.
 
 ## Where the last session stopped — 2026-09-06
 
+**2026-09-07, the day batch, tenth round: the tree's two caller inputs
+and a model census (D326, D327).** `jaos_set_mip_start` hands the branch
+and bound a point the caller already has, and `jaos_set_mip_cutoff` an
+objective it need not beat; `jaos solve --mip-start SOLUTION --cutoff V`,
+and both at both Python layers. Neither moves a default, since neither
+exists until it is asked for. **The two things worth carrying forward.**
+First, the starting point goes through `rounded_point`, the same
+acceptance every heuristic point gets, so one the caller got wrong is
+refused and the search runs without it; a wrong starting point is never
+published as an answer. Second, the cutoff needs BOTH halves: it prunes
+nodes, and it gates what may become the incumbent. With only the prune, a
+point found before the pruning began -- a starting point, or a root
+heuristic's -- would be published as an answer that does not satisfy the
+question the cutoff asked. With both, a cutoff tighter than the optimum
+ends the search `JAOS_SOLVE_INFEASIBLE`, which is the honest reply. The
+starting point lives on the model and not in `jm_config`, because
+`jaos_model_copy` copies the configuration as one object and a pointer
+inside it would be freed twice. `jaos_model_statistics` and `jaos stats
+FILE` count what a model is in one pass and solve nothing; the test is
+the two partitions, because a count that is printed is not evidence the
+walk saw every row and a sum that closes is (D327). **What is next**, in
+order: the seven held constants, each swept once something moves them.
+
 **2026-09-07, the day batch, ninth round: the optimum's proof gets a
 file, and the certificate cell reaches ● (D325).** `jaos_write_proof`
 writes the exact rational proof and `jaos_check_proof` judges one **from

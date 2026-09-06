@@ -333,6 +333,8 @@ and you have the argument. Jump to the entry for the numbers behind it.
 - **[D323](#d323--reduced-cost-fixing-at-the-root-refused-as-a-default-1010x-p0282-at-0519x-and-gt2-at-2492x-from-the-same-deduction)** — Reduced-cost fixing at the root, refused as a default: 1.010x, `p0282` at 0.519x and `gt2` at 2.492x from the same deduction
 - **[D324](#d324--bound-propagation-refused-at-every-depth-free-where-it-finds-nothing-and-a-bigger-tree-where-it-finds-something)** — Bound propagation, refused at every depth: free where it finds nothing, and a bigger tree where it finds something
 - **[D325](#d325--the-exact-optimality-proof-on-disk-and-a-checker-that-reads-no-basis-the-certificate-row-reaches)** — The exact optimality proof on disk, and a checker that reads no basis: the certificate row reaches ●
+- **[D326](#d326--the-trees-two-inputs-a-point-the-caller-already-has-and-an-objective-they-do-not-care-to-beat)** — The tree's two inputs: a point the caller already has, and an objective they do not care to beat
+- **[D327](#d327--what-a-model-is-counted-jaosmodelstatistics-and-jaos-stats)** — What a model is, counted: `jaos_model_statistics` and `jaos stats`
 
 ---
 
@@ -22945,3 +22947,76 @@ refusal above was the edit and not the file falling apart.
 result" goes from ◐ to **●** for JAOS. D285 moved it to ◐ and said in as
 many words what ● wanted: "the exact rational proof `jaos_verify`
 computes is not written to a file". It is now.
+
+## D326 — The tree's two inputs: a point the caller already has, and an objective they do not care to beat
+
+**What they are.** `jaos_set_mip_start` hands the branch and bound an
+integer point before it runs, and `jaos_set_mip_cutoff` hands it an
+objective it need not beat. `jaos solve --mip-start SOLUTION` reads the
+point out of a solution file with the same reader `--start` uses, and
+`--cutoff V` sets the second; both Python layers carry the pair, the
+`Problem` one taking a mapping from variable to value.
+
+**Neither can move a default**, because neither exists until the caller
+asks for it: with no starting point and no cutoff the tree is what it was
+and the MIP set is untouched.
+
+**The starting point is checked before it is believed.** It goes through
+`rounded_point`, the same acceptance every heuristic point gets, so a
+point that is not integral inside the integrality tolerance, or that sits
+outside a bound or a row, is refused and the search runs as if none had
+been given. A starting point the caller got wrong is never published as
+an answer, and the log says which of the two happened.
+`first_incumbent_node` stays 0, because no node found it.
+
+**The cutoff does two things, and it needs both.** It prunes — a node
+whose relaxation cannot reach past it is dropped unsolved, from node 1
+and with no incumbent needed. And it gates what may **become** the
+incumbent: a heuristic point no better than the cutoff is not taken. The
+second half is what makes the answer mean what the header says. Without
+it, a point found before the pruning began — a starting point, or a root
+heuristic's — would be published as an answer that does not satisfy the
+question the cutoff asked. An integral node needs no gate of its own,
+since its key is its objective and the prune has already dropped it. So a
+cutoff tighter than the true optimum ends the search
+`JAOS_SOLVE_INFEASIBLE`, which is the honest answer to "is there a
+solution better than this?" and is documented as such.
+
+**Where the point lives.** On the model beside `mip_inc_x` and not in
+`jm_config`, because `jaos_model_copy` copies the configuration as one
+object and a pointer inside it would be freed twice. The copy takes the
+point deeply instead, the way the starting basis travels, since both are
+inputs the caller installed rather than answers.
+
+**The test builds the case each one must fail.** The starting point arm
+hands over the optimum itself rather than a merely feasible point, because
+a feasible one gets improved by a root heuristic which then claims node 1,
+and the assertion that no node found it would pass for the wrong reason.
+The cutoff arm runs with and without a starting point in hand, so the
+gate on the incumbent is tested and not only the prune.
+
+## D327 — What a model is, counted: `jaos_model_statistics` and `jaos stats`
+
+**What it is.** `jaos_model_statistics` fills a `jaos_model_stats` in one
+pass over the loaded model: the three sizes, the row kinds (equality,
+ranged, one-sided, free), the column kinds (fixed, ranged, one-sided,
+free), the integer and binary counts, the empty rows and columns, the
+objective's nonzero count, and the smallest and largest magnitude in the
+matrix and in the objective. `jaos stats FILE` prints them one
+`name value` per line. Both Python layers carry `statistics()`.
+
+**It solves nothing**, which is why it is the one analysis subcommand with
+no verdict and no exit code but 0.
+
+**Two things it is careful about.** "Binary" is what the tree would see —
+the bounds rounded inward to integers being exactly 0 and 1, D292's rule —
+and not a pair that happens to read 0 and 1 before rounding. And the empty
+row count comes from marking what the column pass touched rather than from
+building the row-wise mirror, because a read-only call should not leave an
+allocation behind on the model it was asked about.
+
+**The test is the two partitions.** The four row counts must sum to the
+row count and the four column counts to the column count. A count that is
+merely printed is not evidence that the walk saw every row and every
+column; a sum that closes is. The same two sums are checked again from
+`tests/cli.sh` and from Python.

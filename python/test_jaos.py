@@ -1589,6 +1589,59 @@ class TestBranchAndBound(unittest.TestCase):
         p.set_mip_pump_general(-1)
         p.set_mip_pump_obj(-1.0)
 
+    def test_a_starting_point_a_cutoff_and_the_statistics(self):
+        # The tree's two inputs and the model census, at the Problem layer
+        # (D326, D327).
+        def build():
+            p = jaos.Problem()
+            a = p.add_var(integer=True, ub=1, name="a")
+            b = p.add_var(integer=True, ub=1, name="b")
+            c = p.add_var(integer=True, ub=1, name="c")
+            p.add(3 * a + 5 * b + 2 * c <= 8)
+            p.maximize(10 * a + 13 * b + 7 * c)
+            return p, a, b, c
+
+        p, a, b, c = build()
+        st = p.statistics()
+        self.assertEqual(st.num_col, 3)
+        self.assertEqual(st.num_row, 1)
+        self.assertEqual(st.integer_col, 3)
+        self.assertEqual(st.binary_col, 3)
+        self.assertEqual(st.one_sided_row, 1)
+        # The two partitions, which is what says the walk saw everything.
+        self.assertEqual(st.num_row, st.equality_row + st.ranged_row
+                         + st.one_sided_row + st.free_row)
+        self.assertEqual(st.num_col, st.fixed_col + st.ranged_col
+                         + st.one_sided_col + st.free_col)
+        self.assertIs(p.solve(), jaos.SolveStatus.OPTIMAL)
+        best = p.objective_value
+
+        # The optimum handed over: the answer does not move.
+        p, a, b, c = build()
+        p.set_mip_start({a: 1, b: 1})
+        self.assertIs(p.solve(), jaos.SolveStatus.OPTIMAL)
+        self.assertAlmostEqual(p.objective_value, best, places=9)
+
+        # A point outside the bounds: refused, and the search runs on.
+        p, a, b, c = build()
+        p.set_mip_start({a: 9, b: 9, c: 9})
+        self.assertIs(p.solve(), jaos.SolveStatus.OPTIMAL)
+        self.assertAlmostEqual(p.objective_value, best, places=9)
+
+        # A cutoff nothing beats: no answer at all, which is the honest
+        # reply to the question a cutoff asks.
+        p, a, b, c = build()
+        p.set_mip_cutoff(best + 1000.0)
+        self.assertIs(p.solve(), jaos.SolveStatus.INFEASIBLE)
+
+        # And one the optimum does beat leaves it where it was.
+        p, a, b, c = build()
+        p.set_mip_cutoff(best - 1.0)
+        self.assertIs(p.solve(), jaos.SolveStatus.OPTIMAL)
+        self.assertAlmostEqual(p.objective_value, best, places=9)
+        p.set_mip_cutoff(float("inf"))
+        p.set_mip_start(None)
+
     def test_an_exact_proof_round_trips_through_a_file(self):
         # x = 1/3 with a dual of 1/3: values no double holds, which is why
         # the file carries rationals (D325). The check reads no basis and

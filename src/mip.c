@@ -2382,6 +2382,21 @@ jaos_status jm_branch_and_bound(jaos_model *m)
                                                        : MIP_PROPAGATE;
     const int64_t propagate_depth = m->cfg.mip_propagate_depth_set
         ? m->cfg.mip_propagate_depth : MIP_PROPAGATE_DEPTH;
+    /* The caller's cutoff (D326), in the tree's own minimize form; +inf
+     * when there is none, so nothing below needs a second flag. It does
+     * two things, and both are needed for the answer to mean what the
+     * header says. It prunes: a node that cannot reach past it is dropped
+     * unsolved, from node 1 and with no incumbent needed. And it gates
+     * what may BECOME the incumbent: a heuristic point no better than the
+     * cutoff is not taken, so a search that ends with nothing ends
+     * INFEASIBLE, which is the honest answer to "is there a solution
+     * better than this?". Without the second half a point found before
+     * the pruning started would be published as an answer that does not
+     * satisfy the question that was asked. An integral node needs no gate
+     * of its own: its key IS its objective, so the prune above has
+     * already dropped it. */
+    const double cut_key = m->cfg.mip_cutoff_set
+        ? sigma * m->cfg.mip_cutoff : INFINITY;
     const double degrade = m->cfg.mip_dive_degrade_set
         ? m->cfg.mip_dive_degrade : MIP_DIVE_DEGRADE;
     const bool dive = m->cfg.mip_dive;
@@ -2574,8 +2589,12 @@ jaos_status jm_branch_and_bound(jaos_model *m)
                         break;
                     best_bound = cur->key;
                 }
-                if (inc.have &&
-                    inc.key - cur->key <= gap * (1.0 + fabs(inc.key))) {
+                /* What this node must beat: the incumbent, the caller's
+                 * cutoff, or the better of the two (D326). */
+                const double bk = inc.have && inc.key < cut_key ? inc.key
+                                                                : cut_key;
+                if (bk < INFINITY &&
+                    bk - cur->key <= gap * (1.0 + fabs(bk))) {
                     node_free(cur);
                     cur = nullptr;
                     continue;
@@ -2842,6 +2861,39 @@ jaos_status jm_branch_and_bound(jaos_model *m)
                    "covers and %lld MIR",
                    obj, (long long)cuts, (long long)covers, (long long)mirs);
         }
+        /* The caller's own integer point (D326), once, at the root and
+         * before every heuristic, so a heuristic that would find a worse
+         * one never becomes the incumbent and the root's own bound is
+         * judged against it. It goes through `rounded_point` like every
+         * other point offered to the tree, so a point that is not integral
+         * inside the tolerance, or not inside every bound and every row,
+         * is refused rather than taken: a starting point the caller got
+         * wrong must not be published as an answer. `first_inc` stays 0,
+         * because no node found it. */
+        if (nodes == 1 && m->mip_start != nullptr) {
+            double hobj = 0.0;
+            work += m->num_nz + nc + nr;
+            if (rounded_point(m, m->mip_start, x2, ra, &hobj)) {
+                const double hkey = sigma * hobj;
+                spool_offer(&sp, x2, hkey, hobj);
+                if (hkey < cut_key && (!inc.have || hkey < inc.key)) {
+                    if (!incumbent_take_point(&inc, lp, m, x2, ra, hobj, hkey))
+                        goto done;
+                    jm_log(m, JAOS_LOG_SUMMARY,
+                           "root: incumbent %.17g from the caller's starting "
+                           "point", hobj);
+                    if (!incumbent_announce(m, &inc, nodes, sigma * key,
+                                            true)) {
+                        outcome = JAOS_SOLVE_INTERRUPTED;
+                        break;
+                    }
+                }
+            } else {
+                jm_log(m, JAOS_LOG_SUMMARY,
+                       "root: the caller's starting point is not a feasible "
+                       "integer point of this model, and is not taken");
+            }
+        }
         /* The dive heuristic (D313), on the root's relaxation as the cuts
          * left it and on every node down to its own depth (D314): a point
          * it reaches is judged by rounded_point, the same acceptance the
@@ -2861,7 +2913,7 @@ jaos_status jm_branch_and_bound(jaos_model *m)
             if (got == 1 && rounded_point(m, xr, x2, ra, &hobj)) {
                 const double hkey = sigma * hobj;
                 spool_offer(&sp, x2, hkey, hobj);
-                if (!inc.have || hkey < inc.key) {
+                if (hkey < cut_key && (!inc.have || hkey < inc.key)) {
                     if (!incumbent_take_point(&inc, lp, m, x2, ra, hobj, hkey))
                         goto done;
                     heur_points++;
@@ -2917,7 +2969,7 @@ jaos_status jm_branch_and_bound(jaos_model *m)
                  * through anyway (D322) it is what keeps a worse point
                  * out. It is the acceptance every heuristic point goes
                  * through. */
-                if (!inc.have || hkey < inc.key) {
+                if (hkey < cut_key && (!inc.have || hkey < inc.key)) {
                     if (!incumbent_take_point(&inc, lp, m, x2, ra, hobj, hkey))
                         goto done;
                     heur_points++;
@@ -2956,7 +3008,7 @@ jaos_status jm_branch_and_bound(jaos_model *m)
             if (got == 1 && rounded_point(m, xr, x2, ra, &hobj)) {
                 const double hkey = sigma * hobj;
                 spool_offer(&sp, x2, hkey, hobj);
-                if (hkey < inc.key) {
+                if (hkey < cut_key && hkey < inc.key) {
                     if (!incumbent_take_point(&inc, lp, m, x2, ra, hobj, hkey))
                         goto done;
                     heur_points++;
@@ -3076,7 +3128,7 @@ jaos_status jm_branch_and_bound(jaos_model *m)
             if (rounded_point(m, x, xr, ra, &hobj)) {
                 const double hkey = sigma * hobj;
                 spool_offer(&sp, xr, hkey, hobj);
-                if (!inc.have || hkey < inc.key) {
+                if (hkey < cut_key && (!inc.have || hkey < inc.key)) {
                     if (!incumbent_take_point(&inc, lp, m, xr, ra, hobj, hkey))
                         goto done;
                     heur_points++;
@@ -3153,8 +3205,12 @@ jaos_status jm_branch_and_bound(jaos_model *m)
                    sigma * (ok < best_bound ? ok : best_bound),
                    inc.have ? "yes" : "none");
         }
-        if (inc.have && inc.key - key <= gap * (1.0 + fabs(inc.key)))
-            continue;                  /* cannot improve enough */
+        {
+            const double bk = inc.have && inc.key < cut_key ? inc.key
+                                                            : cut_key;
+            if (bk < INFINITY && bk - key <= gap * (1.0 + fabs(bk)))
+                continue;              /* cannot improve enough */
+        }
 
         if (branch < 0) {
             if (!incumbent_take(&inc, lp, nr, key))

@@ -539,6 +539,67 @@ JAOS_NODISCARD jaos_status jaos_set_mip_pump_obj(jaos_model *m, double decay);
  * is what makes the question worth asking. `on` above 0 turns it on, 0
  * off, negative restores the default. Nothing happens with the pump off.
  * D322 carries what it cost over the MIP set. */
+/* A point the caller already has, handed to the tree before it runs
+ * (D326). `col_value` holds num_col entries in the model's own columns;
+ * a null pointer clears any point set before, which is not an error.
+ *
+ * It is taken at the root, before every heuristic, and it goes through
+ * the same acceptance every heuristic point does: a point that is not
+ * integral inside the integrality tolerance, or that sits outside a bound
+ * or a row, is refused and the search runs as if none had been given. A
+ * starting point the caller got wrong is never published as an answer.
+ * The log says which of the two happened.
+ *
+ * What it buys is the pruning: the tree has a bound from node 1, so every
+ * node whose relaxation cannot beat it is dropped unsolved.
+ * `jaos_mip_result`'s `first_incumbent_node` stays 0, because no node
+ * found this one. The copy a jaos_model_copy makes carries it, the way
+ * the starting basis travels. */
+/* What a model is, counted (D327). Every field is read off the loaded
+ * model in one pass and nothing here solves anything, so it costs one
+ * walk of the matrix and is safe to ask before a solve or after one.
+ *
+ * The four row counts partition the rows and the four column counts
+ * partition the columns, so each set sums to num_row and num_col. A
+ * "ranged" row or column has two finite bounds that differ; a "fixed" one
+ * has two that are equal; "free" has neither.
+ *
+ * `min_abs` and `max_abs` are over the matrix's nonzeros, and are 0 and 0
+ * on a model with none. `obj_min_abs` and `obj_max_abs` are over the
+ * nonzero costs, and are 0 and 0 when every cost is zero. The ratio of
+ * the two matrix figures is what scaling exists to shrink, which is why
+ * it is worth printing beside them. */
+typedef struct jaos_model_stats {
+    int64_t num_row, num_col, num_nz;
+    int64_t integer_col;      /* columns marked integer                 */
+    int64_t binary_col;       /* of those, the ones whose bounds are
+                                 0 and 1 after rounding inward          */
+    int64_t equality_row, ranged_row, one_sided_row, free_row;
+    int64_t fixed_col, ranged_col, one_sided_col, free_col;
+    int64_t empty_row, empty_col;   /* no nonzero at all               */
+    int64_t obj_nz;           /* columns with a nonzero cost            */
+    double  min_abs, max_abs;
+    double  obj_min_abs, obj_max_abs;
+} jaos_model_stats;
+
+JAOS_NODISCARD jaos_status jaos_model_statistics(const jaos_model *m,
+                                                 jaos_model_stats *out);
+
+JAOS_NODISCARD jaos_status jaos_set_mip_start(jaos_model *m,
+                                              const double *col_value);
+
+/* An objective the caller does not care to beat (D326), in the model's
+ * own sense. Every node whose relaxation cannot reach past it is dropped
+ * unsolved, from node 1 and with no incumbent needed. An infinity removes
+ * it, which is the default; a NaN is refused.
+ *
+ * This is a promise and not a hint: a cutoff tighter than the true
+ * optimum makes the search end JAOS_SOLVE_INFEASIBLE, which is the honest
+ * answer to "is there a solution better than this?" and not a defect. Use
+ * jaos_set_mip_start instead when the point is one you actually have,
+ * since that one is checked before it prunes anything. */
+JAOS_NODISCARD jaos_status jaos_set_mip_cutoff(jaos_model *m, double cutoff);
+
 JAOS_NODISCARD jaos_status jaos_set_mip_pump_always(jaos_model *m, int on);
 
 /* Reduced-cost fixing at the root (D323): once the root relaxation is

@@ -1811,10 +1811,80 @@ static void test_the_model_name_is_jaos_until_given(void)
 }
 
 
+
+/* Every field of jaos_model_statistics on a model built to make each one
+ * a different number (D327). The two partitions are the point: the four
+ * row counts must sum to the row count and the four column counts to the
+ * column count, whatever else is wrong. */
+static void test_the_statistics_count_what_the_model_is(void)
+{
+    /* 4 columns: one fixed [2,2], one ranged [0,1] and integer (so
+     * binary), one one-sided [0,inf) and integer, one free. 3 rows: an
+     * equality, a ranged one, and one with no coefficient at all. */
+    const double cost[4] = { 0.0, -3.0, 0.25, 0.0 };
+    const double cl[4] = { 2.0, 0.0, 0.0, -INFINITY };
+    const double cu[4] = { 2.0, 1.0, INFINITY, INFINITY };
+    const double rl[3] = { 5.0, 1.0, -INFINITY };
+    const double ru[3] = { 5.0, 4.0, INFINITY };
+    /* Column 3 touches nothing, and row 2 is touched by nothing. */
+    const int64_t as[5] = { 0, 1, 3, 4, 4 };
+    const int64_t ai[4] = { 0, 0, 1, 1 };
+    const double av[4] = { 1.0, -8.0, 0.5, 2.0 };
+    jaos_model *m = nullptr;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_model_new(&m));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_load_lp(m, 4, 3, JAOS_MINIMIZE, 0.0, cost, cl, cu, rl, ru,
+                     4, as, ai, av));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_col_integer(m, 1, true));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_col_integer(m, 2, true));
+
+    jaos_model_stats st;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_model_statistics(m, &st));
+    TEST_ASSERT_EQUAL_INT64(3, st.num_row);
+    TEST_ASSERT_EQUAL_INT64(4, st.num_col);
+    TEST_ASSERT_EQUAL_INT64(4, st.num_nz);
+    TEST_ASSERT_EQUAL_INT64(1, st.equality_row);
+    TEST_ASSERT_EQUAL_INT64(1, st.ranged_row);
+    TEST_ASSERT_EQUAL_INT64(0, st.one_sided_row);
+    TEST_ASSERT_EQUAL_INT64(1, st.free_row);
+    TEST_ASSERT_EQUAL_INT64(1, st.empty_row);
+    TEST_ASSERT_EQUAL_INT64(1, st.fixed_col);
+    TEST_ASSERT_EQUAL_INT64(1, st.ranged_col);
+    TEST_ASSERT_EQUAL_INT64(1, st.one_sided_col);
+    TEST_ASSERT_EQUAL_INT64(1, st.free_col);
+    TEST_ASSERT_EQUAL_INT64(1, st.empty_col);
+    TEST_ASSERT_EQUAL_INT64(2, st.integer_col);
+    TEST_ASSERT_EQUAL_INT64(1, st.binary_col);
+    TEST_ASSERT_EQUAL_INT64(2, st.obj_nz);
+    TEST_ASSERT_DOUBLE_WITHIN(1e-12, 0.5, st.min_abs);
+    TEST_ASSERT_DOUBLE_WITHIN(1e-12, 8.0, st.max_abs);
+    TEST_ASSERT_DOUBLE_WITHIN(1e-12, 0.25, st.obj_min_abs);
+    TEST_ASSERT_DOUBLE_WITHIN(1e-12, 3.0, st.obj_max_abs);
+    /* The two partitions. */
+    TEST_ASSERT_EQUAL_INT64(st.num_row, st.equality_row + st.ranged_row +
+                                        st.one_sided_row + st.free_row);
+    TEST_ASSERT_EQUAL_INT64(st.num_col, st.fixed_col + st.ranged_col +
+                                        st.one_sided_col + st.free_col);
+    TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT,
+                          jaos_model_statistics(m, nullptr));
+    jaos_model_free(m);
+
+    /* An empty model counts to zero rather than failing. */
+    jaos_model *e = nullptr;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_model_new(&e));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_model_statistics(e, &st));
+    TEST_ASSERT_EQUAL_INT64(0, st.num_row);
+    TEST_ASSERT_EQUAL_INT64(0, st.num_col);
+    TEST_ASSERT_DOUBLE_WITHIN(1e-12, 0.0, st.max_abs);
+    jaos_model_free(e);
+}
+
+
 int main(void)
 {
     UNITY_BEGIN();
     RUN_TEST(test_new_free_roundtrip);
+    RUN_TEST(test_the_statistics_count_what_the_model_is);
     RUN_TEST(test_null_model_queries_read_as_empty);
     RUN_TEST(test_infinity_is_ieee_infinity);
     RUN_TEST(test_load_drops_zeros_and_sorts_columns);
