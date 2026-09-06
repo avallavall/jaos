@@ -309,6 +309,7 @@ and you have the argument. Jump to the entry for the numbers behind it.
 - **[D299](#d299--a-solution-pool-the-best-integer-points-found-best-first-with-the-search-unchanged)** — A solution pool: the best integer points found, best first, with the search unchanged
 - **[D300](#d300--knapsack-cover-cuts-at-the-root-four-rounds-beside-the-gomory-round-0745x-the-work-over-the-mip-set-seven-better-one-worse-none-past-2x-and-mod010-closes-at-the-root)** — Knapsack cover cuts at the root, four rounds beside the Gomory round: 0.745x the work over the MIP set, seven better, one worse, none past 2x, and mod010 closes at the root
 - **[D301](#d301--cuts-below-the-root-land-depth-3-with-four-cuts-per-node-reads-0835x-the-work-over-the-mip-set-none-past-2x-and-0934x-without-egout)** — Cuts below the root land: depth 3 with four cuts per node reads 0.835x the work over the MIP set, none past 2x, and 0.934x without egout
+- **[D302](#d302--the-mip-set-grows-to-24-the-seven-miplib-3-members-the-d301-tree-finishes-inside-120-s-join-it-chosen-by-nothing-the-cuts-were-tuned-on)** — The MIP set grows to 24: the seven MIPLIB 3 members the D301 tree finishes inside 120 s join it, chosen by nothing the cuts were tuned on
 
 ---
 
@@ -21759,3 +21760,33 @@ refusal expires here, the second refusal tonight whose reopen condition
 was met (D293's was measured and stayed closed). No LP path is touched:
 the three gate sets are byte-identical; `bench/miplib.baseline` is
 rewritten to the new trees.
+
+## D302 — The MIP set grows to 24: the seven MIPLIB 3 members the D301 tree finishes inside 120 s join it, chosen by nothing the cuts were tuned on
+
+**The gap.** D300 and D301 moved two cut defaults on seventeen instances,
+and D301 said the surface is not smooth. D289 had tried 38 members of
+MIPLIB 3 and kept the 17 the plain tree finished in 60 s; the tree does
+about a third of that work now, so the other 21 were worth asking again.
+
+**What it does now.** `bench/miplib.manifest` pins 24: the 17 and the
+seven of the 21 that the D301 tree finishes inside 120 s on this host, 12
+at once -- `bell3a`, `bell5`, `gen`, `gt2`, `l152lav`, `misc07`, `p0282`
+-- with the sha256 of each served file, the catalogue's rows, columns and
+INT SOLN (`gen` at MIPLIB 2010's 112313.3627, since the catalogue's
+112313 is outside the runner's 1e-6, as `rgn` and `egout` were at D289).
+`make miplib J=12` runs all 24 and `bench/miplib.baseline` carries their
+trees, the 17 old lines byte-identical to D301's.
+
+**Evidence** (`bench/measurements/02-200/`). Every candidate fetched and
+solved once, 120 s cap: the seven finish at 0.25 s (`gt2`) to 108 s
+(`l152lav`, 61 G work units, eighteen times `stein45`), each at the
+catalogue's optimum; the other 14 stop at the cap with the nodes and work
+they had reached in `current.txt`. The baseline's seven new lines match
+that timing node for node and unit for unit, and its 17 old lines do not
+move; the three gate sets are byte-identical.
+
+**What it is not.** Not a gate set, still; not MIPLIB 2017, which
+`SPECS.md` keeps as not started; and not a re-reading of D300 or D301,
+whose sweeps were on the 17. The seven were chosen by whether they finish
+and by nothing the cuts were tuned on, which is what makes them a control
+for the next sweep.

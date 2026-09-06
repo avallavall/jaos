@@ -7,6 +7,19 @@ line leaves this file in the same commit.
 
 ## Where the last session stopped — 2026-09-06
 
+**2026-09-06, the overnight batch, fifth round: the MIP set grows to 24
+(D302).** The 21 MIPLIB 3 members the plain tree could not finish were
+asked again on the D301 tree: seven finish inside 120 s (`gt2` 0.25 s to
+`l152lav` 108 s) and join the manifest with their checksums and the
+catalogue's optima; fourteen still stop at the cap
+(`bench/measurements/02-200/`). The 17 old baseline lines do not move.
+The seven were chosen by nothing the cuts were tuned on, so the next cut
+sweep reads them as a control D300 and D301 did not have. **What is
+next**, in order: D300's and D301's defaults re-read on the 24, which is
+the honest test of tonight's two default moves; lifted covers and a third
+family (MIR); root cuts that leave below a node where they go slack; a
+backtracking dive; and the seven held constants.
+
 **2026-09-06, the overnight batch, fourth round: cuts below the root land
 (D301).** A node's round keeps its four most efficacious cuts, violation
 over the cut's norm, and with that cap cuts to depth 3 read **0.835x** the

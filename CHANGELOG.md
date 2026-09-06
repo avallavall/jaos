@@ -11,6 +11,13 @@ open, `bench/README.md` for the gate, and the commit each entry came from.
 
 ### Added
 
+- **The MIP set grows to 24.** The seven MIPLIB 3 members the D301 tree
+  finishes inside 120 s -- `bell3a`, `bell5`, `gen`, `gt2`, `l152lav`,
+  `misc07`, `p0282` -- join `bench/miplib.manifest` with their checksums
+  and the catalogue's optima, and `bench/miplib.baseline` carries their
+  trees; the 17 old lines do not move. Fourteen candidates still stop at
+  120 s and are recorded with what they reached (D302).
+
 - **Cuts below the root are on: depth 3, four cuts per node.**
   `jaos_set_mip_node_cut_cap` and `--node-cut-cap K` keep the K most
   efficacious cuts of a node's round, violation over the cut's norm. With

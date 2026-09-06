@@ -597,7 +597,7 @@ All in `src/mip.c`: the first two are D288's, the four under them the root
 cuts' (D289), then the cut depth's (D296), the node cut cap's (D301) and the
 cover rounds' (D300), the branching rule's (D292), the two after it strong
 branching's (D293), then the probe cap's (D294) and the probe depth's
-(D298). The MIP set (`make miplib J=12`, 17 instances,
+(D298). The MIP set (`make miplib J=12`, 24 instances since D302,
 `bench/miplib.manifest`) is where a sweep of any of them runs. The rounds,
 the cut depth, the node cut cap, the cover rounds, the reliability, the cap
 and the probe depth have theirs; the other seven are held to the source by

@@ -137,7 +137,7 @@ tolerance, the checker accepts all 110 answers, and the 29 infeasible models
 are refused. `bench/README.md` owns those counts and explains how the three
 sets are composed.
 
-A fourth set is for the tree and is not a gate: 17 MIPLIB 3 instances, each
+A fourth set is for the tree and is not a gate: 24 MIPLIB 3 instances, each
 solved to the catalogue's integer optimum, the point integral and feasible
 to the checker, two cold searches building the same tree node for node
 (`make miplib`, D289). Its baseline records the node count beside the work,

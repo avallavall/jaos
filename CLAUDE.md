@@ -126,7 +126,7 @@ and cost minutes instead of seconds** (D57). Times below are `J=12`:
 
 The three `netlib*` targets are the gate. `warm*` measures what warm
 re-solving buys and is not a gate: it reports a ratio, not a verdict. `miplib` is
-the MIP set (D289): 17 MIPLIB 3 instances against `bench/miplib.baseline`,
+the MIP set (D289, D302): 24 MIPLIB 3 instances against `bench/miplib.baseline`,
 which carries the node count; not a gate, run it whenever `src/mip.c` or
 anything under it changes, and rewrite its baseline with `miplib-baseline`
 only after the tree's change is read and accepted.
