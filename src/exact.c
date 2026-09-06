@@ -1184,6 +1184,66 @@ static int64_t nat_decimal(const jm_nat *a, char *buf, int64_t cap)
     return len;
 }
 
+/* The inverse of nat_decimal: a run of decimal digits into a magnitude,
+ * with `*end` left on the first character that is not one. False on no
+ * digit at all, or on a magnitude past JM_EXACT_LIMBS. Horner over the
+ * digits, so it is quadratic in their count and exact at every step. */
+static bool nat_from_decimal(jm_nat *a, const char *s, const char **end)
+{
+    if (*s < '0' || *s > '9')
+        return false;
+    jm_nat ten, digit, t;
+    jm_nat_set_u64(&ten, 10);
+    jm_nat_set_zero(a);
+    const char *p = s;
+    for (; *p >= '0' && *p <= '9'; p++) {
+        if (!jm_nat_mul(&t, a, &ten))
+            return false;
+        jm_nat_set_u64(&digit, (uint64_t)(*p - '0'));
+        if (!jm_nat_add(a, &t, &digit))
+            return false;
+    }
+    *end = p;
+    return true;
+}
+
+/* The inverse of jm_rational_decimal (D325): "1/3", "-7/2", "29". The
+ * whole string must be the number, so trailing text is a refusal and not
+ * a prefix parse -- a proof file whose value reads "1/3x" is a file this
+ * library did not write. A zero denominator is refused, and so is a
+ * magnitude the limb budget cannot hold, which is the same ceiling the
+ * proof that produced it ran under. */
+bool jm_rational_from_decimal(jm_rational *r, const char *s)
+{
+    if (s == nullptr)
+        return false;
+    int32_t sign = 1;
+    const char *p = s;
+    if (*p == '-') {
+        sign = -1;
+        p++;
+    } else if (*p == '+') {
+        p++;
+    }
+    const char *end = nullptr;
+    if (!nat_from_decimal(&r->num.mag, p, &end))
+        return false;
+    p = end;
+    jm_nat_set_u64(&r->den, 1);
+    if (*p == '/') {
+        p++;
+        if (!nat_from_decimal(&r->den, p, &end))
+            return false;
+        p = end;
+        if (jm_nat_is_zero(&r->den))
+            return false;
+    }
+    if (*p != '\0')
+        return false;
+    r->num.sign = jm_nat_is_zero(&r->num.mag) ? 0 : sign;
+    return rational_normalise(r);
+}
+
 char *jm_rational_decimal(const jm_rational *r)
 {
     /* Sign, numerator, '/', denominator, terminator. A 4096-bit magnitude

@@ -28,8 +28,9 @@
  *                   [--quiet]
  *   jaos convert IN OUT
  *   jaos check FILE SOLUTION [--tol T]
+ *   jaos check FILE --proof PROOF
  *   jaos iis FILE
- *   jaos verify FILE [--values]
+ *   jaos verify FILE [--values] [--proof PATH]
  *   jaos ranging FILE
  *   jaos --version
  *   jaos --help
@@ -103,8 +104,9 @@ static const char USAGE[] =
     "                  [--quiet]\n"
     "  jaos convert IN OUT\n"
     "  jaos check FILE SOLUTION [--tol T]\n"
+    "  jaos check FILE --proof PROOF\n"
     "  jaos iis FILE\n"
-    "  jaos verify FILE [--values]\n"
+    "  jaos verify FILE [--values] [--proof PATH]\n"
     "  jaos ranging FILE\n"
     "  jaos --version\n"
     "  jaos --help\n"
@@ -216,6 +218,12 @@ static const char USAGE2[] =
     "  answer, 3 refused because the numbers do not fit.\n"
     "  --values         after a proof, print every column's value, every\n"
     "                   row's dual and the objective as exact rationals\n"
+    "  --proof PATH     after a proof, write it to PATH: every value and\n"
+    "                   every dual as an exact rational, with no basis\n"
+    "                   in it. `jaos check FILE --proof PATH` judges one\n"
+    "                   from the model alone, over the rationals and with\n"
+    "                   no tolerance, and prints primal, dual and\n"
+    "                   objective. Exit 0 proved, 1 broken, 4 out of limbs\n"
     "ranging solves FILE and prints, for the optimal basis, the interval\n"
     "  every cost, row bound and column bound may move in:\n"
     "  `cost J lo hi`, `rhs I lower_lo lower_hi upper_lo upper_hi`,\n"
@@ -1164,13 +1172,17 @@ static int unfinished(const char *path, jaos_solve_status ss)
  * model and takes nothing else on trust. */
 static int cmd_check(int argc, char **argv)
 {
-    const char *file = nullptr, *solution = nullptr;
+    const char *file = nullptr, *solution = nullptr, *proof = nullptr;
     /* The binding's default, and the solver's own feasibility tolerance;
      * bench/run judges the gate at 1e-6 and says so beside its constant. */
     double tol = 1e-7;
     for (int i = 2; i < argc; i++) {
         const char *a = argv[i];
-        if (strcmp(a, "--tol") == 0) {
+        if (strcmp(a, "--proof") == 0) {
+            if (i + 1 >= argc)
+                return usage_error("--proof needs a proof file");
+            proof = argv[++i];
+        } else if (strcmp(a, "--tol") == 0) {
             if (i + 1 >= argc)
                 return usage_error("--tol needs a value");
             if (!parse_double(argv[++i], &tol) || tol < 0.0)
@@ -1187,17 +1199,54 @@ static int cmd_check(int argc, char **argv)
                                "third name '%s'", a);
         }
     }
-    if (file == nullptr || solution == nullptr)
+    if (file == nullptr)
         return usage_error("check needs FILE and SOLUTION");
+    if (solution == nullptr && proof == nullptr)
+        return usage_error("check needs FILE and SOLUTION, or FILE and "
+                           "--proof PROOF");
+    if (solution != nullptr && proof != nullptr)
+        return usage_error("check judges a solution file or a proof file, "
+                           "not both at once");
 
     jaos_model *m = nullptr;
+    /* Declared before the proof branch below, because its `goto out`
+     * would otherwise jump over their initialisation. */
+    double *x = nullptr, *y = nullptr;
     int rc = load(file, &m);
     if (rc >= 0)
         return rc;
 
+    /* An exact proof (D325): judged from the model alone, over the
+     * rationals, with no tolerance and no basis read. Three lines and a
+     * verdict; the exit code is 0 when all three hold. */
+    if (proof != nullptr) {
+        jaos_proof_report pr;
+        memset(&pr, 0, sizeof pr);
+        const jaos_status st = jaos_check_proof(m, proof, &pr);
+        if (st != JAOS_OK) {
+            rc = (st == JAOS_ERR_NUMERICAL) ? EXIT_NUMERICAL : EXIT_USAGE;
+            fprintf(stderr, "jaos: cannot judge %s: %s\n", proof,
+                    jaos_model_error(m));
+            goto out;
+        }
+        printf("primal %s\n", pr.primal ? "ok" : "violated");
+        printf("dual %s\n", pr.dual ? "ok" : "violated");
+        printf("objective %s\n", pr.objective ? "ok" : "violated");
+        if (pr.bad_row >= 0)
+            print_int("at_row", pr.bad_row);
+        if (pr.bad_col >= 0)
+            print_int("at_col", pr.bad_col);
+        print_int("terms", pr.terms);
+        printf("proof %s\n",
+               (pr.primal && pr.dual && pr.objective) ? "optimal" : "broken");
+        rc = (pr.primal && pr.dual && pr.objective) ? EXIT_OPTIMAL
+                                                    : EXIT_INFEASIBLE;
+        goto out;
+    }
+
     const int64_t nc = jaos_num_col(m), nr = jaos_num_row(m);
-    double *x = zeroed(nc, sizeof *x);
-    double *y = zeroed(nr, sizeof *y);
+    x = zeroed(nc, sizeof *x);
+    y = zeroed(nr, sizeof *y);
     if (x == nullptr || y == nullptr) {
         fputs("jaos: out of memory\n", stderr);
         rc = EXIT_USAGE;
@@ -1421,18 +1470,23 @@ static const char *stage_word(jaos_proof_stage s)
  * fit. A refusal is not a failure, which is why it is not 5. */
 static int cmd_verify(int argc, char **argv)
 {
-    const char *file = nullptr;
+    const char *file = nullptr, *proof = nullptr;
     bool values = false;
     for (int i = 2; i < argc; i++) {
-        if (strcmp(argv[i], "--values") == 0)
+        if (strcmp(argv[i], "--values") == 0) {
             values = true;
-        else if (argv[i][0] == '-')
+        } else if (strcmp(argv[i], "--proof") == 0) {
+            if (i + 1 >= argc)
+                return usage_error("--proof needs a path to write");
+            proof = argv[++i];
+        } else if (argv[i][0] == '-') {
             return usage_error("unknown option '%s'", argv[i]);
-        else if (file == nullptr)
+        } else if (file == nullptr) {
             file = argv[i];
-        else
+        } else {
             return usage_error("verify takes one file, and got '%s' and "
                                "'%s'", file, argv[i]);
+        }
     }
     if (file == nullptr)
         return usage_error("verify needs a file");
@@ -1496,6 +1550,18 @@ static int cmd_verify(int argc, char **argv)
                 printf("y %s %s\n", row_name(m, i, nm), v);
         if (jaos_exact_objective(m, &v) == JAOS_OK)
             printf("objective_exact %s\n", v);
+    }
+
+    /* The proof on disk (D325), only where there is one to write. */
+    if (proof != nullptr && rep.status == JAOS_PROOF_OPTIMAL) {
+        if (jaos_write_proof(m, proof) != JAOS_OK) {
+            rc = library_error("write the proof of", file, m);
+            goto out;
+        }
+        printf("proof_file %s\n", proof);
+    } else if (proof != nullptr) {
+        fprintf(stderr, "jaos: no proof to write: the proof of %s is %s\n",
+                file, proof_word(rep.status));
     }
 
     switch (rep.status) {

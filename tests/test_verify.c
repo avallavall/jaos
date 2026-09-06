@@ -695,6 +695,156 @@ static void test_a_nonbasic_column_reads_its_bound_and_the_two_by_two_its_solve(
 }
 
 
+
+/* Where the proof files these tests write go. Under build/, like every
+ * other test artefact, so a checkout stays clean. */
+static const char *TMP_PROOF = "build/tv_tmp.proof";
+
+/* Rewrites the proof file with `from` replaced by `to`, once. This is how
+ * the tests below build the case the checker must reject: a green checker
+ * that accepts everything is not evidence (jaos-testing). Returns false
+ * when `from` is not in the file, so a test cannot pass by corrupting
+ * nothing. */
+static bool proof_edit(const char *from, const char *to)
+{
+    FILE *f = fopen(TMP_PROOF, "r");
+    if (f == nullptr)
+        return false;
+    static char buf[65536];
+    const size_t n = fread(buf, 1, sizeof buf - 1, f);
+    fclose(f);
+    buf[n] = '\0';
+    char *at = strstr(buf, from);
+    if (at == nullptr)
+        return false;
+    static char out[65536];
+    const size_t head = (size_t)(at - buf);
+    memcpy(out, buf, head);
+    const size_t tolen = strlen(to);
+    memcpy(out + head, to, tolen);
+    strcpy(out + head + tolen, at + strlen(from));
+    f = fopen(TMP_PROOF, "w");
+    if (f == nullptr)
+        return false;
+    fputs(out, f);
+    return fclose(f) == 0;
+}
+
+static void test_a_proof_file_round_trips_and_is_checked_exactly(void)
+{
+    /* x = 1/3 with a dual of 1/3 and an objective of 5/6: a point no
+     * double holds, which is the whole reason the file carries rationals
+     * and not the solution file's decimals. */
+    for (int arm = 0; arm < 2; arm++) {
+        jaos_model *m = model_third(arm == 0 ? JAOS_MINIMIZE
+                                             : JAOS_MAXIMIZE);
+        /* Nothing to write before a proof exists. */
+        TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT,
+                              jaos_write_proof(m, TMP_PROOF));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+        jaos_verify_report rep;
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_verify(m, &rep));
+        TEST_ASSERT_EQUAL_INT(JAOS_PROOF_OPTIMAL, rep.status);
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_write_proof(m, TMP_PROOF));
+
+        /* Judged from the model alone, on a model that has never been
+         * solved: the checker reads no basis and needs no answer. */
+        jaos_model *fresh = model_third(arm == 0 ? JAOS_MINIMIZE
+                                                 : JAOS_MAXIMIZE);
+        jaos_proof_report pr;
+        TEST_ASSERT_EQUAL_INT(JAOS_OK,
+                              jaos_check_proof(fresh, TMP_PROOF, &pr));
+        TEST_ASSERT_TRUE(pr.primal);
+        TEST_ASSERT_TRUE(pr.dual);
+        TEST_ASSERT_TRUE(pr.objective);
+        TEST_ASSERT_EQUAL_INT64(-1, pr.bad_row);
+        TEST_ASSERT_EQUAL_INT64(-1, pr.bad_col);
+        TEST_ASSERT_TRUE(pr.terms > 0);
+        jaos_model_free(fresh);
+        jaos_model_free(m);
+    }
+    remove(TMP_PROOF);
+}
+
+static void test_the_proof_checker_rejects_what_is_not_optimal(void)
+{
+    jaos_model *m = model_third(JAOS_MINIMIZE);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    jaos_verify_report rep;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_verify(m, &rep));
+    TEST_ASSERT_EQUAL_INT(JAOS_PROOF_OPTIMAL, rep.status);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_write_proof(m, TMP_PROOF));
+    jaos_model_free(m);
+
+    jaos_proof_report pr;
+
+    /* A value that is not in the feasible region: 3 * 1/4 is 3/4, and the
+     * row wants 1 or more. The point is refused and the row is named. */
+    jaos_model *a = model_third(JAOS_MINIMIZE);
+    TEST_ASSERT_TRUE(proof_edit("col C1 1/3", "col C1 1/4"));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_check_proof(a, TMP_PROOF, &pr));
+    TEST_ASSERT_FALSE(pr.primal);
+    TEST_ASSERT_EQUAL_INT64(0, pr.bad_row);
+    jaos_model_free(a);
+    TEST_ASSERT_TRUE(proof_edit("col C1 1/4", "col C1 1/3"));
+
+    /* A dual of zero: the column sits strictly above its lower bound, so
+     * its reduced cost must be zero, and with no dual it is the cost
+     * itself. Primal still holds; the dual half does not. */
+    jaos_model *b = model_third(JAOS_MINIMIZE);
+    TEST_ASSERT_TRUE(proof_edit("row R1 1/3", "row R1 0"));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_check_proof(b, TMP_PROOF, &pr));
+    TEST_ASSERT_TRUE(pr.primal);
+    TEST_ASSERT_FALSE(pr.dual);
+    TEST_ASSERT_EQUAL_INT64(0, pr.bad_col);
+    jaos_model_free(b);
+    TEST_ASSERT_TRUE(proof_edit("row R1 0", "row R1 1/3"));
+
+    /* An objective that is not the point's. Everything else still holds,
+     * so this is the third verdict on its own. */
+    jaos_model *c = model_third(JAOS_MINIMIZE);
+    TEST_ASSERT_TRUE(proof_edit("objective 5/6", "objective 4/6"));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_check_proof(c, TMP_PROOF, &pr));
+    TEST_ASSERT_TRUE(pr.primal);
+    TEST_ASSERT_TRUE(pr.dual);
+    TEST_ASSERT_FALSE(pr.objective);
+    jaos_model_free(c);
+    TEST_ASSERT_TRUE(proof_edit("objective 4/6", "objective 5/6"));
+
+    /* And the file is refused outright when it is not this model's, when
+     * a record is not a rational, and when it is not a proof file. */
+    jaos_model *d = nullptr;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_model_new(&d));
+    TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT,
+                          jaos_check_proof(d, TMP_PROOF, &pr));
+    jaos_model_free(d);
+
+    jaos_model *e = model_third(JAOS_MINIMIZE);
+    TEST_ASSERT_TRUE(proof_edit("col C1 1/3", "col C1 1/0"));
+    TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT,
+                          jaos_check_proof(e, TMP_PROOF, &pr));
+    TEST_ASSERT_TRUE(proof_edit("col C1 1/0", "col C1 1/3x"));
+    TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT,
+                          jaos_check_proof(e, TMP_PROOF, &pr));
+    TEST_ASSERT_TRUE(proof_edit("col C1 1/3x", "col C1 1/3"));
+    TEST_ASSERT_TRUE(proof_edit("proof optimal", "proof unbounded"));
+    TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT,
+                          jaos_check_proof(e, TMP_PROOF, &pr));
+    TEST_ASSERT_TRUE(proof_edit("proof unbounded", "proof optimal"));
+    TEST_ASSERT_TRUE(proof_edit("sense min", "sense max"));
+    TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT,
+                          jaos_check_proof(e, TMP_PROOF, &pr));
+    TEST_ASSERT_TRUE(proof_edit("sense max", "sense min"));
+    /* A file the checker takes again, so every refusal above was the
+     * edit and not the file falling apart. */
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_check_proof(e, TMP_PROOF, &pr));
+    TEST_ASSERT_TRUE(pr.primal && pr.dual && pr.objective);
+    jaos_model_free(e);
+
+    remove(TMP_PROOF);
+}
+
+
 int main(void)
 {
     UNITY_BEGIN();
@@ -716,6 +866,8 @@ int main(void)
     RUN_TEST(test_is_reproducible);
     RUN_TEST(test_refuses_a_model_that_was_not_solved);
     RUN_TEST(test_a_proved_basis_gives_its_values_exactly);
+    RUN_TEST(test_a_proof_file_round_trips_and_is_checked_exactly);
+    RUN_TEST(test_the_proof_checker_rejects_what_is_not_optimal);
     RUN_TEST(test_exact_values_carry_the_model_s_own_sign);
     RUN_TEST(test_a_nonbasic_column_reads_its_bound_and_the_two_by_two_its_solve);
     return UNITY_END();

@@ -332,6 +332,7 @@ and you have the argument. Jump to the entry for the numbers behind it.
 - **[D322](#d322--the-pumps-guard-holds-for-the-objective-pump-too-1051x-past-it-and-not-one-first-incumbent-moved)** — The pump's guard holds for the objective pump too: 1.051x past it, and not one first incumbent moved
 - **[D323](#d323--reduced-cost-fixing-at-the-root-refused-as-a-default-1010x-p0282-at-0519x-and-gt2-at-2492x-from-the-same-deduction)** — Reduced-cost fixing at the root, refused as a default: 1.010x, `p0282` at 0.519x and `gt2` at 2.492x from the same deduction
 - **[D324](#d324--bound-propagation-refused-at-every-depth-free-where-it-finds-nothing-and-a-bigger-tree-where-it-finds-something)** — Bound propagation, refused at every depth: free where it finds nothing, and a bigger tree where it finds something
+- **[D325](#d325--the-exact-optimality-proof-on-disk-and-a-checker-that-reads-no-basis-the-certificate-row-reaches)** — The exact optimality proof on disk, and a checker that reads no basis: the certificate row reaches ●
 
 ---
 
@@ -22879,3 +22880,68 @@ compute, and rejected by what they do to a best-bound search. That is the
 question to put to presolve's own bound tightening (D97), to dual fixing
 (D246) and to any node presolve: not "is the deduction free?" but "what
 does it do to the branching?".
+
+## D325 — The exact optimality proof on disk, and a checker that reads no basis: the certificate row reaches ●
+
+**What it is.** `jaos_write_proof` writes what a `jaos_verify` that
+returned `JAOS_PROOF_OPTIMAL` left: every column's exact value and every
+row's exact dual as decimal rationals, with the exact objective.
+`jaos_check_proof` reads one back and judges it **from the model alone**.
+`jaos verify FILE --proof PATH` writes one and `jaos check FILE --proof
+PATH` judges one; both Python layers carry `write_proof` and
+`check_proof`, the second returning a `ProofReport`.
+
+**The file carries no basis, and that is the point.** D285's solution
+file carries a point, its duals and its basis, and `jaos_check_solution`
+judges them to a tolerance. This checker reads no basis at all. It
+re-derives the three conditions that make a point optimal for a linear
+program:
+
+1. the point is primal feasible — every column inside its bounds and
+   every row activity inside its own;
+2. the multipliers are dual feasible — a reduced cost points into the
+   model from the side its column rests on;
+3. the two are complementary — anything strictly inside its bounds
+   carries a zero multiplier.
+
+Those three together are sufficient, so a file that passes is **proved
+optimal**, not merely consistent with a basis somebody else picked. Both
+sign tests are made against where the quantity actually rests rather than
+against a declared status, which is what lets the file leave the status
+out and what makes the checker independent of the solver that wrote it.
+
+**Every comparison is over the rationals.** There is no tolerance in this
+path and no bar to argue about, which is the whole difference from
+`jaos_check_solution`. The model's own data are doubles, and a double is
+an exact rational, so the row activities and reduced costs the checker
+forms are exact and so are the comparisons. The file has no decimal point
+anywhere — every number is an integer or a ratio of two — so it is the
+one reader and writer here that needs no locale handling.
+
+**What can stop it, and it is not a verdict.** A product or a sum that
+outgrows `JM_EXACT_LIMBS` ends the check as `JAOS_ERR_NUMERICAL` with the
+term count reached, which is the honest "cannot judge". That is the same
+ceiling the proof that wrote the file ran under, and D273 and D274 say
+how far it reaches.
+
+**`jm_rational_from_decimal`** is the new piece under it: the inverse of
+`jm_rational_decimal`, Horner over the digits, exact at every step. The
+whole string must be the number, so a value reading `1/3x` is a refusal
+and not a prefix parse, and a zero denominator is refused.
+
+**How it is tested, and the half that matters.** `tests/test_verify.c`
+proves the round trip on a model whose answer is `1/3` with a dual of
+`1/3` and an objective of `5/6` — a point no double holds — and then
+**builds the case the checker must reject**, one edit at a time on the
+written file: a value moved to `1/4` (primal fails, the row is named), a
+dual moved to `0` (primal still holds, the dual half fails and the column
+is named), an objective moved to `4/6` (the third verdict alone), a zero
+denominator, a trailing character, a proof word that is not `optimal`, a
+sense that is not the model's, and a model of a different shape. The
+last step puts the file back and checks it passes again, so every
+refusal above was the edit and not the file falling apart.
+
+**The feature matrix moves.** "Machine-checkable certificate of the
+result" goes from ◐ to **●** for JAOS. D285 moved it to ◐ and said in as
+many words what ● wanted: "the exact rational proof `jaos_verify`
+computes is not written to a file". It is now.

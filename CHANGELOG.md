@@ -11,6 +11,21 @@ open, `bench/README.md` for the gate, and the commit each entry came from.
 
 ### Added
 
+- **The optimum's proof on disk, and a checker that reads no basis: the
+  feature matrix's "machine-checkable certificate" cell reaches ●.**
+  `jaos_write_proof` writes what a `jaos_verify` that returned
+  `JAOS_PROOF_OPTIMAL` left, every value and every dual as an exact
+  rational with the exact objective; `jaos_check_proof` judges one from
+  the model alone, over the rationals, with no tolerance anywhere. The
+  file carries no basis and the checker reads none: it re-derives primal
+  feasibility, dual feasibility and complementary slackness, which
+  together are sufficient, so a file that passes is proved optimal and not
+  merely consistent with somebody else's basis. `jaos verify FILE --proof
+  PATH` and `jaos check FILE --proof PATH`; `write_proof` and
+  `check_proof` at both Python layers; `jm_rational_from_decimal` under
+  it. A sum past `JM_EXACT_LIMBS` reports "cannot judge" and not a
+  verdict (D325).
+
 - **Three MIP switches, all measured and all off: the pump's guard holds,
   reduced-cost fixing and bound propagation are refused.**
   `jaos_set_mip_pump_always` and `--pump-always` run the feasibility pump

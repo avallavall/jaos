@@ -1589,6 +1589,48 @@ class TestBranchAndBound(unittest.TestCase):
         p.set_mip_pump_general(-1)
         p.set_mip_pump_obj(-1.0)
 
+    def test_an_exact_proof_round_trips_through_a_file(self):
+        # x = 1/3 with a dual of 1/3: values no double holds, which is why
+        # the file carries rationals (D325). The check reads no basis and
+        # runs on a problem that was never solved.
+        import os
+        import tempfile
+        p = jaos.Problem()
+        x = p.add_var(name="x")
+        p.add(3 * x >= 1)
+        p.minimize(x)
+        self.assertIs(p.solve(), jaos.SolveStatus.OPTIMAL)
+        self.assertIs(p.verify().status, jaos.Proof.OPTIMAL)
+        path = os.path.join(tempfile.gettempdir(), "jaos_py_test.proof")
+        try:
+            p.write_proof(path)
+            with open(path, encoding="ascii") as f:
+                body = f.read()
+            self.assertIn("proof optimal", body)
+            self.assertIn("1/3", body)
+
+            q = jaos.Problem()
+            y = q.add_var(name="x")
+            q.add(3 * y >= 1)
+            q.minimize(y)
+            rep = q.check_proof(path)
+            self.assertTrue(rep.primal)
+            self.assertTrue(rep.dual)
+            self.assertTrue(rep.objective)
+            self.assertEqual(rep.bad_row, -1)
+            self.assertGreater(rep.terms, 0)
+
+            # The case it must reject: a value outside the row.
+            with open(path, encoding="ascii") as f:
+                body = f.read()
+            with open(path, "w", encoding="ascii") as f:
+                f.write(body.replace("col x 1/3", "col x 1/4"))
+            bad = q.check_proof(path)
+            self.assertFalse(bad.primal)
+        finally:
+            if os.path.exists(path):
+                os.remove(path)
+
     def test_propagation_and_reduced_cost_fixing_keep_the_answer(self):
         # Propagation reports the bounds it moved and reduced-cost fixing
         # the columns it fixed; neither moves the optimum (D323, D324).

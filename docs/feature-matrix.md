@@ -180,7 +180,7 @@ including the row where the field is ahead.
 | Independent checker shipped with the solver | ● | ○ | ○ | ○ | ○ | ○ | ○ |
 | Exact rational LP solutions | ◐ | ○ | ● | ○ | ● | ○ | ○ |
 | Exact solving with no numerical tolerances | ○ | ○ | ● | ○ | ● | ○ | ○ |
-| Machine-checkable certificate of the result | ◐ | ○ | ◐ | ○ | ● | ○ | ○ |
+| Machine-checkable certificate of the result | ● | ○ | ◐ | ○ | ● | ○ | ○ |
 | Certified bound on suboptimality | ◐ | ○ | ● | ○ | ● | ○ | ○ |
 | Infeasibility / unboundedness certificate | ● | ◐ | ◐ | ◐ | ● | ● | ? |
 | Irreducible infeasible subsystem (IIS) | ● | ● | ○ | ○ | ● | ● | ? |
@@ -197,7 +197,18 @@ point, and where the proof is refused there are no values. SoPlex and SCIP
 solve over the rationals; JAOS proves and reports what a floating-point
 basis is, exactly.
 
-**The machine-checkable certificate moved from ○ to ◐ on 2026-09-05
+**The machine-checkable certificate reached ● on 2026-09-07 (D325).**
+`jaos_write_proof` writes the exact rational proof to a file and
+`jaos_check_proof` judges one from the model alone, over the rationals,
+with no tolerance and **no basis read**: the file carries none, and the
+checker re-derives primal feasibility, dual feasibility and complementary
+slackness, which together are sufficient. So a file that passes is proved
+optimal rather than consistent with somebody else's basis. `jaos verify
+FILE --proof PATH` writes one and `jaos check FILE --proof PATH` judges
+one. What stops it is the limb budget and nothing else, and that is
+reported as "cannot judge" rather than as a verdict.
+
+**It moved from ○ to ◐ on 2026-09-05
 (D285).** The solution file now carries the Farkas certificate of an
 infeasible answer and the ray of an unbounded one, and `jaos check` judges
 either from the model and the file alone, so a verdict can leave the

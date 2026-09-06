@@ -322,6 +322,57 @@ anything: to warm-start from a file, read the statuses and hand them to
 `jaos_check_certificate` or `jaos_check_ray`, which is what `jaos check`
 does.
 
+### The proof file
+
+**A third file, and it is not the solution file with another status**
+(D325). `jaos_write_proof` writes the exact optimality proof: every
+column's value and every row's dual as decimal rationals, with the exact
+objective. It carries **no basis and no status word per record**, because
+`jaos_check_proof` reads neither — it judges the file from the model
+alone, over the rationals.
+
+```
+# JAOS proof file, format 1
+# written by JAOS 0.2.0
+# every number is an integer or a ratio of two, exactly
+proof optimal
+sense min
+columns 3
+rows 3
+objective -5
+# col <name> <exact value>
+col x 0
+col y -1
+col z 8
+# row <name> <exact dual>
+row c1 0
+row c2 1
+row c3 0
+end
+```
+
+Every number in it is an integer or a ratio of two integers, in decimal,
+with no exponent and no decimal point. That is what
+`jm_rational_decimal` writes and `jm_rational_from_decimal` reads, and it
+makes this the one file in the project whose reader and writer need no
+locale handling at all: there is no radix character to get wrong.
+
+Records may come in any order and are found by name, unlike the solution
+file's, which are taken in index order. Every column and every row of the
+model must appear exactly once; a name the model does not have, a name
+twice, a missing one, a count that is not the model's, a sense that is not
+the model's, a `proof` word other than `optimal`, a zero denominator and a
+value with anything after it are each refused with the line number.
+
+What the checker does with it is in `SPECS.md` and D325: primal
+feasibility, dual feasibility and complementary slackness, all exact, and
+those three together are what make the point optimal. A product or a sum
+past `JM_EXACT_LIMBS` ends the check as `JAOS_ERR_NUMERICAL`, which says
+"cannot judge" and is not a verdict.
+
+The proof's reader and writer live together in `src/proof.c`, for the same
+reason the solution file's two halves live together.
+
 The reader lives beside the writer in `src/write.c` rather than in a file of
 its own, because it is the exact inverse of it — the same names, the same
 four status words, the same `format 1` line — and split across two files

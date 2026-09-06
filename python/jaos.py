@@ -248,6 +248,18 @@ class _CheckReport(ctypes.Structure):
     ]
 
 
+class _ProofReport(ctypes.Structure):
+    """jaos_proof_report, in the header's order."""
+    _fields_ = [
+        ("primal", ctypes.c_bool),
+        ("dual", ctypes.c_bool),
+        ("objective", ctypes.c_bool),
+        ("bad_row", _I64),
+        ("bad_col", _I64),
+        ("terms", _I64),
+    ]
+
+
 class _MipReport(ctypes.Structure):
     """jaos_mip_report, in the header's order."""
     _fields_ = [
@@ -265,6 +277,9 @@ class _MipReport(ctypes.Structure):
 
 
 MipReport = namedtuple("MipReport", [f for f, _ in _MipReport._fields_])
+
+ProofReport = namedtuple("ProofReport",
+                         [f for f, _ in _ProofReport._fields_])
 
 
 CheckReport = namedtuple("CheckReport",
@@ -443,6 +458,9 @@ _sig("jaos_set_mip_propagate_depth", ctypes.c_int, _VP, _I64)
 _sig("jaos_set_mip_dive_degrade", ctypes.c_int, _VP, ctypes.c_double)
 _sig("jaos_set_mip_heuristics", ctypes.c_int, _VP, ctypes.c_bool)
 _sig("jaos_mip_result", ctypes.c_int, _VP, _P(_MipReport))
+_sig("jaos_write_proof", ctypes.c_int, _VP, ctypes.c_char_p)
+_sig("jaos_check_proof", ctypes.c_int, _VP, ctypes.c_char_p,
+     _P(_ProofReport))
 _sig("jaos_mip_incumbent", ctypes.c_int, _VP, _P(_D), _P(_D))
 _sig("jaos_model_name", ctypes.c_int, _VP, ctypes.c_char_p, _I64)
 _sig("jaos_set_model_name", ctypes.c_int, _VP, _CS)
@@ -1113,6 +1131,31 @@ class Model:
         self._check(_lib.jaos_set_incumbent_callback(self._handle(),
                                                      self._incumbent_cb, None))
         return self
+
+    def write_proof(self, path):
+        """Write the exact optimality proof to a file.
+
+        Needs a verify() that returned Proof.OPTIMAL: the file holds
+        every column's value and every row's dual as exact rationals, with
+        the exact objective, and no basis. Raises when there is no proof
+        to write.
+        """
+        self._check(_lib.jaos_write_proof(self._handle(), _path(path)))
+        return self
+
+    def check_proof(self, path):
+        """Judge a proof file from this model alone, over the rationals.
+
+        Reads no basis and needs no solve. Returns a ProofReport with
+        primal, dual, objective, bad_row, bad_col and terms; all three
+        booleans true is a proved optimum. Raises when the file is not a
+        proof for this model, or when the exact arithmetic ran out.
+        """
+        rep = _ProofReport()
+        self._check(_lib.jaos_check_proof(self._handle(), _path(path),
+                                          ctypes.byref(rep)))
+        return ProofReport(*[getattr(rep, f)
+                             for f, _ in _ProofReport._fields_])
 
     def mip_report(self):
         rep = _MipReport()
@@ -2521,6 +2564,27 @@ class Problem:
                                            for i, v in enumerate(vars_)}))
         self._m.set_incumbent_callback(wrap)
         return self
+
+    def write_proof(self, path):
+        """Write the exact optimality proof to a file (D325).
+
+        Needs a verify() that returned Proof.OPTIMAL. Raises while the
+        problem is ahead of its last solve, because the proof on the model
+        is then about a different problem."""
+        self._settled()
+        self._m.write_proof(path)
+        return self
+
+    def check_proof(self, path):
+        """Judge a proof file from this problem alone, over the rationals
+        and with no tolerance (D325). Returns a ProofReport.
+
+        It reads no basis and needs no solve, but it does need the model
+        to exist, so a problem that changed since its last load is loaded
+        first, the way write_mps does it."""
+        if self._pending():
+            self._build_and_load()
+        return self._m.check_proof(path)
 
     def mip_report(self):
         """What the last branch and bound did: nodes, lp_solves,

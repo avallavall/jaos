@@ -986,6 +986,7 @@ double  jm_rational_to_double(const jm_rational *r);
 /* The rational spelled in decimal, "-7/3", "12", "0", as an owned string;
  * nullptr out of memory. A denominator of one is not written. */
 char   *jm_rational_decimal(const jm_rational *r);
+JAOS_NODISCARD bool jm_rational_from_decimal(jm_rational *r, const char *s);
 /* False for an infinity or a NaN; every finite double is exact here. */
 JAOS_NODISCARD bool jm_rational_from_double(jm_rational *r, double d);
 /* False when the result does not fit, and jm_rational_div also when the

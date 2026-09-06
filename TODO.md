@@ -7,6 +7,27 @@ line leaves this file in the same commit.
 
 ## Where the last session stopped — 2026-09-06
 
+**2026-09-07, the day batch, ninth round: the optimum's proof gets a
+file, and the certificate cell reaches ● (D325).** `jaos_write_proof`
+writes the exact rational proof and `jaos_check_proof` judges one **from
+the model alone**. The file carries no basis and the checker reads none:
+it re-derives primal feasibility, dual feasibility and complementary
+slackness, and those three together are sufficient, so a file that passes
+is proved optimal rather than consistent with a basis somebody else
+picked. Every comparison is over the rationals, so there is no tolerance
+in this path. `jaos verify FILE --proof PATH` writes one, `jaos check FILE
+--proof PATH` judges one, both Python layers carry the pair, and
+`jm_rational_from_decimal` is the new piece underneath.
+`docs/feature-matrix.md`'s "machine-checkable certificate of the result"
+goes from ◐ to **●**, which is what D285 said in as many words that ●
+wanted. **The half worth naming**: the test writes the proof of a model
+whose answer is 1/3, then edits the file one field at a time -- a moved
+value, a zeroed dual, a wrong objective, a zero denominator, a trailing
+character, a wrong proof word, a wrong sense -- and confirms each edit is
+refused, putting the file back at the end so every refusal was the edit
+and not the file falling apart. **What is next**, in order: the seven held
+constants, each swept once something moves them.
+
 **2026-09-07, the day batch, eighth round: three features built,
 measured and all three refused, and one finding that outlives them
 (D322, D323, D324).** The pump run past D318's guard reads **1.051x**

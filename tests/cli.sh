@@ -706,6 +706,40 @@ expect_exit 5 "verify without a file is a usage error" "$JAOS" verify
 
 # ---------------------------------------------------------------- ranging
 if [ "$faulty" -eq 0 ]; then
+# The exact proof on disk (D325). verify --proof writes it, check --proof
+# judges it from the model alone with no tolerance and no basis read, and
+# a value moved by hand is refused. Under either presolve fault build the
+# proof itself may be refused, so the positive half is skipped there the
+# way every other positive analysis check is.
+if [ "$faulty" -eq 0 ]; then
+  P="$tmp/g1.proof"
+  expect_exit 0 "verify --proof writes a proof file" \
+      "$JAOS" verify "$DATA/g1.lp" --proof "$P"
+  [ -s "$P" ] && pass "the file is not empty" || flunk "no proof file"
+  grep -q "^proof optimal$" "$P" && pass "it says what it proves" \
+      || flunk "no proof line"
+  grep -q "^objective " "$P" && pass "and carries an exact objective" \
+      || flunk "no objective line"
+  expect_exit 0 "check --proof takes it" \
+      "$JAOS" check "$DATA/g1.lp" --proof "$P"
+  [ "$(line_of primal)" = "primal ok" ] && pass "primal ok" \
+      || flunk "primal: $(line_of primal)"
+  [ "$(line_of dual)" = "dual ok" ] && pass "dual ok" \
+      || flunk "dual: $(line_of dual)"
+  [ "$(line_of objective)" = "objective ok" ] && pass "objective ok" \
+      || flunk "objective: $(line_of objective)"
+  # The case it must reject: one value moved by a whole unit.
+  sed -i "s/^col z 8$/col z 7/" "$P"
+  expect_exit 1 "check --proof refuses a moved value" \
+      "$JAOS" check "$DATA/g1.lp" --proof "$P"
+  [ "$(line_of proof)" = "proof broken" ] && pass "and says so" \
+      || flunk "verdict: $(line_of proof)"
+  rm -f "$P"
+fi
+expect_exit 5 "check refuses a solution and a proof at once" \
+    "$JAOS" check "$DATA/g1.lp" some.sol --proof some.proof
+expect_exit 5 "check refuses --proof with no path" \
+    "$JAOS" check "$DATA/g1.lp" --proof
 expect_exit 0 "ranging of an optimum exits 0" "$JAOS" ranging "$DATA/solve1.mps"
 [ "$(printf '%s\n' "$out" | head -n 1)" = "status optimal" ] \
     && pass "its first line is the status" \

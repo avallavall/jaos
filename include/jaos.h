@@ -1779,6 +1779,51 @@ JAOS_NODISCARD jaos_status jaos_exact_row_dual(const jaos_model *m,
 JAOS_NODISCARD jaos_status jaos_exact_objective(const jaos_model *m,
                                                 const char **out);
 
+/* The exact optimality proof, on disk (D325).
+ *
+ * jaos_write_proof writes what a jaos_verify that returned
+ * JAOS_PROOF_OPTIMAL left: every column's exact value and every row's
+ * exact dual as decimal rationals, with the exact objective. Without such
+ * a proof on the model it refuses, the same rule the exact getters apply,
+ * because a file of zeros does not read as missing. A proof whose values
+ * fitted but whose objective did not is refused too: a file with no
+ * objective in it cannot be checked.
+ *
+ * jaos_check_proof reads one back and judges it FROM THE MODEL ALONE. It
+ * reads no basis, because the file carries none. It re-derives the three
+ * conditions that make a point optimal for a linear program: the point is
+ * inside every bound and every row, every reduced cost points into the
+ * model from the side the point rests on, and anything strictly inside
+ * its bounds carries a zero multiplier. Those three together are
+ * sufficient, so a file that passes is proved optimal rather than merely
+ * consistent with somebody else's basis.
+ *
+ * Every comparison is over the rationals. There is no tolerance here and
+ * no bar to argue about, which is what separates this from
+ * jaos_check_solution.
+ *
+ * Returns JAOS_OK when the file was read and judged, and the verdict is
+ * in the report; JAOS_ERR_INVALID_INPUT for a file that is not a proof or
+ * is not this model's; JAOS_ERR_IO when it cannot be read; and
+ * JAOS_ERR_NUMERICAL when a product or a sum outgrew JM_EXACT_LIMBS,
+ * which is an honest "cannot judge" and not a verdict. */
+typedef struct jaos_proof_report {
+    bool    primal;      /* every column and every row activity inside its
+                            own bounds, exactly                          */
+    bool    dual;        /* every multiplier points into the model from
+                            the side its quantity rests on, and anything
+                            strictly inside carries zero                 */
+    bool    objective;   /* c'x + c0 is what the file claims             */
+    int64_t bad_row;     /* the first row that failed either test, or -1 */
+    int64_t bad_col;
+    int64_t terms;       /* exact products formed: what the cost scales
+                            with, and how far a refused check got        */
+} jaos_proof_report;
+
+JAOS_NODISCARD jaos_status jaos_write_proof(jaos_model *m, const char *path);
+JAOS_NODISCARD jaos_status jaos_check_proof(jaos_model *m, const char *path,
+                                            jaos_proof_report *out);
+
 #ifdef __cplusplus
 }
 #endif
