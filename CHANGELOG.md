@@ -11,6 +11,15 @@ open, `bench/README.md` for the gate, and the commit each entry came from.
 
 ### Added
 
+- **Knapsack cover cuts at the root, four rounds by default.**
+  `jaos_set_mip_cover_rounds` and `--cover-rounds N` read every all-binary
+  row, each finite side, as a knapsack over literals and add the greedy
+  extended cover the point violates, beside the Gomory round. Over the
+  MIP set: 0.745x the work, better on 7 of 17, worse on 1, none past 2x,
+  `mod010` closing at the root; the baseline is rewritten. "No cuts" is
+  now `--cut-rounds 0 --cover-rounds 0`. Python carries the setting at
+  both layers (D300).
+
 - **A solution pool.** `jaos_set_mip_pool_size`, `jaos_mip_pool_count`,
   `jaos_mip_pool_solution` and `--pool-size K` keep the `K` best distinct
   integer points a branch and bound meets, best first, with the search

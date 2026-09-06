@@ -1,0 +1,17 @@
+air03     rc=0 status=optimal      obj=340160               nodes=3        cuts=0     heur=0     first=2       work=52644677     secs=0.18
+blend2    rc=0 status=optimal      obj=7.5989849999999999   nodes=6827     cuts=0     heur=0     first=3279    work=1062038429   secs=3.97
+dcmulti   rc=0 status=optimal      obj=188182               nodes=2847     cuts=2     heur=0     first=2166    work=314912556    secs=2.69
+egout     rc=0 status=optimal      obj=568.10069999999996   nodes=87523    cuts=0     heur=0     first=78459   work=707043029    secs=4.14
+enigma    rc=0 status=optimal      obj=0                    nodes=7080     cuts=1     heur=0     first=7080    work=90063654     secs=0.50
+flugpl    rc=0 status=optimal      obj=1201500              nodes=4073     cuts=0     heur=0     first=2571    work=26119267     secs=0.10
+khb05250  rc=0 status=optimal      obj=106940226            nodes=3183     cuts=0     heur=1     first=2925    work=213705409    secs=1.38
+lseu      rc=0 status=optimal      obj=1120                 nodes=25871    cuts=5     heur=4     first=249     work=461052183    secs=2.15
+misc03    rc=0 status=optimal      obj=3360                 nodes=955      cuts=0     heur=0     first=183     work=102543503    secs=0.64
+misc06    rc=0 status=optimal      obj=12850.86073738254    nodes=107      cuts=0     heur=0     first=103     work=364315425    secs=1.74
+mod008    rc=0 status=optimal      obj=307                  nodes=15733    cuts=5     heur=1     first=1       work=679766159    secs=2.36
+mod010    rc=0 status=optimal      obj=6548                 nodes=307      cuts=0     heur=3     first=13      work=16501586759  secs=19.00
+p0033     rc=0 status=optimal      obj=3089                 nodes=1577     cuts=6     heur=3     first=23      work=17273387     secs=0.06
+p0201     rc=0 status=optimal      obj=7615                 nodes=2795     cuts=2     heur=3     first=1261    work=392842017    secs=2.21
+rgn       rc=0 status=optimal      obj=82.199999239999983   nodes=4385     cuts=0     heur=0     first=227     work=112899663    secs=0.58
+stein27   rc=0 status=optimal      obj=18                   nodes=9533     cuts=0     heur=4     first=40      work=119809292    secs=0.55
+stein45   rc=0 status=optimal      obj=30                   nodes=104851   cuts=1     heur=3     first=32      work=2538585721   secs=14.59

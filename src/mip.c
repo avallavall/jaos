@@ -68,6 +68,10 @@ constexpr int64_t MIP_CUT_ROUNDS = 1;
  * MIP_CUT_ROUNDS. 0 is the root only. jaos_set_mip_cut_depth overrides it;
  * docs/tolerances.md carries the sweep. */
 constexpr int64_t MIP_CUT_DEPTH = 0;
+/* Rounds of knapsack cover cuts at the root (D300), beside the Gomory
+ * rounds; a round that adds nothing ends both. jaos_set_mip_cover_rounds
+ * overrides it; docs/tolerances.md carries the sweep. */
+constexpr int64_t MIP_COVER_ROUNDS = 4;
 /* A basic integer column is cut only when its fraction sits inside
  * [MIP_CUT_AWAY, 1 - MIP_CUT_AWAY]: the cut's coefficients divide by the
  * fraction and by its complement, and a fraction near 0 or 1 gives a cut
@@ -825,6 +829,120 @@ static jaos_status cuts_add(jaos_model *lp, const cutbuf *cb)
     return st;
 }
 
+/* --- Knapsack cover cuts at the root (D300) ---------------------------- */
+
+/* One item of a knapsack row: the column, its weight (positive once a
+ * negative coefficient is complemented), the relaxation's value of the
+ * literal, x_j or 1 - x_j, and which literal it is. */
+typedef struct {
+    int64_t col;
+    double a, xv;
+    bool compl;
+} kitem;
+
+/* The greedy order: the literal nearest 1 per unit of weight first,
+ * (1 - xv) / a ascending, the lower column on a tie, so the order is a
+ * total one and the same on every machine (D8) whatever qsort does. */
+static int kitem_cmp(const void *pa, const void *pb)
+{
+    const kitem *p = pa, *q = pb;
+    const double kp = (1.0 - p->xv) / p->a, kq = (1.0 - q->xv) / q->a;
+    if (kp < kq) return -1;
+    if (kp > kq) return 1;
+    return p->col < q->col ? -1 : p->col > q->col;
+}
+
+/* One round of cover cuts (Wolsey, Integer Programming, 1998, ch. 9.3):
+ * every model row whose columns are all binary integer columns, each
+ * finite side read as
+ *
+ *     sum a_j y_j <= b   over literals y_j = x_j or 1 - x_j, a_j > 0,
+ *
+ * a negative coefficient complemented and its weight moved into b. The
+ * greedy cover C takes items in kitem_cmp's order until their weight
+ * passes b; extended by every item at least as heavy as C's heaviest, it
+ * gives sum_{E} y_j <= |C| - 1, rewritten over the model's columns and
+ * added when the point violates it. The bounds it reads are the root's
+ * rounded ones, so the cut is valid for the whole tree. `items` and `cut`
+ * are scratch of num_col; the pass is billed once. Returns the count, or
+ * -1 when the mirror could not be built. */
+static int64_t cover_round(const jaos_model *m, jaos_model *lp,
+                           const double *x, const double *ilo,
+                           const double *ihi, cutbuf *cb, kitem *items,
+                           double *cut, int64_t *work)
+{
+    const int64_t nc = m->num_col, nr = m->num_row;
+    int64_t added = 0;
+    /* The row-wise mirror is rebuilt on demand after any change to the
+     * matrix, which every round of cuts is. */
+    if (jm_model_ensure_rowwise(lp) != JAOS_OK)
+        return -1;
+    *work += m->num_nz + nc + nr;
+    for (int64_t i = 0; i < nr; i++) {
+        bool binary = true;
+        for (int64_t k = lp->ar_start[i]; k < lp->ar_start[i + 1] && binary; k++) {
+            const int64_t j = lp->ar_index[k];
+            binary = m->col_integer[j] && ilo[j] == 0.0 && ihi[j] == 1.0;
+        }
+        if (!binary)
+            continue;
+        for (int side = 0; side < 2; side++) {
+            const double bound = side == 0 ? lp->row_upper[i] : lp->row_lower[i];
+            if (!isfinite(bound))
+                continue;
+            const double sg = side == 0 ? 1.0 : -1.0;
+            double b = sg * bound, total = 0.0;
+            int64_t n = 0;
+            for (int64_t k = lp->ar_start[i]; k < lp->ar_start[i + 1]; k++) {
+                const int64_t j = lp->ar_index[k];
+                const double a = sg * lp->ar_value[k];
+                if (a == 0.0)
+                    continue;
+                if (a > 0.0) {
+                    items[n] = (kitem){ .col = j, .a = a, .xv = x[j], .compl = false };
+                } else {
+                    items[n] = (kitem){ .col = j, .a = -a, .xv = 1.0 - x[j],
+                                        .compl = true };
+                    b += -a;
+                }
+                total += items[n].a;
+                n++;
+            }
+            if (n == 0 || !(total > b) || !(b >= 0.0))
+                continue;
+            qsort(items, (size_t)n, sizeof *items, kitem_cmp);
+            double weight = 0.0;
+            int64_t c = 0;
+            while (c < n && !(weight > b))
+                weight += items[c++].a;
+            if (!(weight > b))
+                continue;
+            double amax = 0.0;
+            for (int64_t k = 0; k < c; k++)
+                if (items[k].a > amax)
+                    amax = items[k].a;
+            /* sum_E y <= c - 1, E = C plus every item at least as heavy. */
+            double act = 0.0;
+            int64_t ncompl = 0;
+            memset(cut, 0, (size_t)nc * sizeof *cut);
+            for (int64_t k = 0; k < n; k++) {
+                if (k >= c && items[k].a < amax)
+                    continue;
+                act += items[k].xv;
+                cut[items[k].col] = items[k].compl ? 1.0 : -1.0;
+                ncompl += items[k].compl;
+            }
+            if (!(act > (double)(c - 1)))
+                continue;
+            /* Over the columns: sum_{compl} x - sum_{plain} x >= |E_c| - (c - 1). */
+            if (!cutbuf_push(cb, cut, nc, (double)(ncompl - c + 1)))
+                return -1;
+            added++;
+        }
+    }
+    return added;
+}
+
 /* --- The rounding heuristic (D290) ------------------------------------- */
 
 /* The relaxation's point with every integer column rounded to the nearest
@@ -979,6 +1097,9 @@ jaos_status jm_branch_and_bound(jaos_model *m)
     const double gap = m->cfg.mip_gap > 0.0 ? m->cfg.mip_gap : MIP_GAP;
     const int64_t rounds = m->cfg.mip_cut_rounds_set ? m->cfg.mip_cut_rounds
                                                      : MIP_CUT_ROUNDS;
+    const int64_t cover_rounds = m->cfg.mip_cover_rounds_set
+        ? m->cfg.mip_cover_rounds : MIP_COVER_ROUNDS;
+    const int64_t root_rounds = rounds > cover_rounds ? rounds : cover_rounds;
     const bool dive = m->cfg.mip_dive;
     const bool heur = !m->cfg.mip_no_heuristics;
     const jaos_branching rule = (jaos_branching)m->cfg.mip_branching;
@@ -1019,6 +1140,8 @@ jaos_status jm_branch_and_bound(jaos_model *m)
     jaos_basis_status *pcs = nullptr, *prs = nullptr;
     int64_t next_id = 0, nodes = 0, solves = 0, cuts = 0, heur_points = 0;
     int64_t probes = 0, capped = 0;    /* strong branching's, D293/D294 */
+    int64_t covers = 0;                /* cover cuts at the root, D300    */
+    kitem *items = nullptr;
     int64_t first_inc = 0;             /* the node of the first incumbent */
     int64_t work = 0, iters = 0;
     double best_bound = -INFINITY;     /* minimize form */
@@ -1185,9 +1308,11 @@ jaos_status jm_branch_and_bound(jaos_model *m)
          * integral. A relaxation the cuts make infeasible is an infeasible
          * integer program, since every cut is valid for it. The tableau
          * row spans the columns and every row the copy can come to hold. */
-        if (nodes == 1 && branch >= 0 && rounds > 0) {
+        if (nodes == 1 && branch >= 0 && root_rounds > 0) {
+            /* A round adds at most a Gomory cut per column and two covers
+             * per row, and the row scratch must span them all. */
             const int64_t need = nc + lp->num_row + 1 +
-                                 (nc > 0 ? nc : 1) * rounds;
+                                 (nc + 2 * nr + 1) * root_rounds;
             double *grown = realloc(row, (size_t)need * sizeof *row);
             if (grown == nullptr)
                 goto done;
@@ -1197,13 +1322,27 @@ jaos_status jm_branch_and_bound(jaos_model *m)
                 cut = malloc((size_t)(nc > 0 ? nc : 1) * sizeof *cut);
             if (cut == nullptr)
                 goto done;
+            if (cover_rounds > 0 && items == nullptr)
+                items = malloc((size_t)(nc > 0 ? nc : 1) * sizeof *items);
+            if (cover_rounds > 0 && items == nullptr)
+                goto done;
             bool stop = false;
-            for (int64_t r = 0; r < rounds && !stop; r++) {
+            for (int64_t r = 0; r < root_rounds && !stop; r++) {
                 cb.n = cb.nnz = 0;
-                const int64_t got = gomory_round(lp, m, x, &cb, row, cut,
-                                                 &work);
-                if (got < 0)
-                    goto done;
+                int64_t got = 0;
+                if (r < rounds) {
+                    got = gomory_round(lp, m, x, &cb, row, cut, &work);
+                    if (got < 0)
+                        goto done;
+                }
+                if (r < cover_rounds) {
+                    const int64_t cv = cover_round(m, lp, x, ilo, ihi, &cb,
+                                                   items, cut, &work);
+                    if (cv < 0)
+                        goto done;
+                    covers += cv;
+                    got += cv;
+                }
                 if (got == 0)
                     break;
                 if (cuts_add(lp, &cb) != JAOS_OK)
@@ -1243,8 +1382,9 @@ jaos_status jm_branch_and_bound(jaos_model *m)
         if (nodes == 1) {
             best_bound = key;
             nfixed = lp->num_row;      /* the root's cuts stay for good */
-            jm_log(m, JAOS_LOG_SUMMARY, "root: relaxation %.17g after %lld cuts",
-                   obj, (long long)cuts);
+            jm_log(m, JAOS_LOG_SUMMARY,
+                   "root: relaxation %.17g after %lld cuts, %lld of them covers",
+                   obj, (long long)cuts, (long long)covers);
         }
         /* One round of local cuts at a node inside the depth (D296): read
          * over the node's bounds, so valid in its subtree; into the pool,
@@ -1547,6 +1687,7 @@ done:
     free(row);
     free(cut);
     free(act);
+    free(items);
     free(crs);
     free(in_copy.v);
     spool_free(&sp);

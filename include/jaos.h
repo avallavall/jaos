@@ -340,6 +340,17 @@ JAOS_NODISCARD jaos_status jaos_set_mip_cut_depth(jaos_model *m,
  * the whole tree either way. */
 JAOS_NODISCARD jaos_status jaos_set_mip_cut_drop(jaos_model *m, bool on);
 
+/* Knapsack cover cuts at the root (D300), in rounds beside the Gomory
+ * rounds: every model row whose columns are all binary is read, each
+ * finite side, as a knapsack over literals x_j or 1 - x_j with positive
+ * weights; the greedy cover the relaxation's point violates most per unit
+ * of weight, extended by every heavier item, gives sum of the literals at
+ * most the cover's size less one, a row of the private copy for the whole
+ * tree. 0 turns them off; a negative value restores the default. D300
+ * carries what each count cost over the MIP set. */
+JAOS_NODISCARD jaos_status jaos_set_mip_cover_rounds(jaos_model *m,
+                                                     int64_t rounds);
+
 /* The rounding heuristic (D290): at every node whose relaxation is
  * fractional, the integer columns are rounded to the nearest integer and
  * the point is kept as the incumbent when it is inside every bound and

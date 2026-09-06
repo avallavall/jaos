@@ -206,7 +206,7 @@ expect_exit 0 "a mixed-integer model solves" "$JAOS" solve "$DATA/t4_int.mps"
 [ -n "$(line_of cuts)" ] && pass "and a cuts line" \
     || flunk "no cuts line: $(line_of cuts)"
 expect_exit 0 "no cuts and a dive still solve it" \
-    "$JAOS" solve "$DATA/t4_int.mps" --cut-rounds 0 --dive
+    "$JAOS" solve "$DATA/t4_int.mps" --cut-rounds 0 --cover-rounds 0 --dive
 [ "$(line_of objective)" = "objective 3.5" ] && [ "$(line_of cuts)" = "cuts 0" ] \
     && pass "to 3.5 with cuts 0" \
     || flunk "switched-off MIP: $(line_of objective) / $(line_of cuts)"
@@ -222,27 +222,35 @@ expect_exit 5 "a negative round count is a usage error" \
 # Cuts below the root (D296): a depth accepted with the answer unmoved, a
 # negative depth a usage error.
 expect_exit 0 "cuts to depth 3 still solve it" \
-    "$JAOS" solve "$DATA/nl_int.lp" --cut-rounds 0 --cut-depth 3
+    "$JAOS" solve "$DATA/nl_int.lp" --cut-rounds 0 --cover-rounds 0 --cut-depth 3
 [ "$(line_of objective)" = "objective 3" ] && pass "to 3" \
     || flunk "cut depth: $(line_of objective)"
 expect_exit 5 "--cut-depth refuses a negative" \
     "$JAOS" solve "$DATA/nl_int.lp" --cut-depth -1
+# Cover cuts (D300): a round accepted with the answer unmoved, a negative
+# count a usage error.
+expect_exit 0 "a round of cover cuts still solves it" \
+    "$JAOS" solve "$DATA/nl_int.lp" --cut-rounds 0 --cover-rounds 1
+[ "$(line_of objective)" = "objective 3" ] && pass "to 3" \
+    || flunk "cover rounds: $(line_of objective)"
+expect_exit 5 "--cover-rounds refuses a negative" \
+    "$JAOS" solve "$DATA/nl_int.lp" --cover-rounds -1
 # The slack-cut drop (D297), the probe depth (D298) and the pool (D299):
 # each accepted with the answer unmoved; a pool line only when asked for;
 # a pool of zero and a negative probe depth are usage errors.
 expect_exit 0 "slack cuts kept still solve it" \
-    "$JAOS" solve "$DATA/nl_int.lp" --cut-rounds 0 --cut-depth 2 --no-cut-drop
+    "$JAOS" solve "$DATA/nl_int.lp" --cut-rounds 0 --cover-rounds 0 --cut-depth 2 --no-cut-drop
 [ "$(line_of objective)" = "objective 3" ] && pass "to 3" \
     || flunk "no-cut-drop: $(line_of objective)"
 expect_exit 0 "probing at the root only still solves it" \
-    "$JAOS" solve "$DATA/nl_int.lp" --cut-rounds 0 --reliability 1 --probe-depth 0
+    "$JAOS" solve "$DATA/nl_int.lp" --cut-rounds 0 --cover-rounds 0 --reliability 1 --probe-depth 0
 [ "$(line_of objective)" = "objective 3" ] && [ -z "$(line_of pool_points)" ] \
     && pass "to 3 with no pool line" \
     || flunk "probe depth: $(line_of objective) / $(line_of pool_points)"
 expect_exit 5 "--probe-depth refuses a negative" \
     "$JAOS" solve "$DATA/nl_int.lp" --probe-depth -1
 expect_exit 0 "a pool of two still solves it" \
-    "$JAOS" solve "$DATA/nl_int.lp" --cut-rounds 0 --pool-size 2
+    "$JAOS" solve "$DATA/nl_int.lp" --cut-rounds 0 --cover-rounds 0 --pool-size 2
 [ "$(line_of objective)" = "objective 3" ] && [ -n "$(line_of pool_points)" ] \
     && [ "$(line_of pool_points)" != "pool_points 0" ] \
     && pass "to 3 with a pool_points line" \
@@ -254,7 +262,7 @@ expect_exit 5 "--pool-size refuses zero" \
 # as node_limit with exit 3 and an incumbent on the first node; zero is
 # refused.
 expect_exit 3 "a node limit stops the tree" \
-    "$JAOS" solve "$DATA/nl_int.lp" --cut-rounds 0 --node-limit 1
+    "$JAOS" solve "$DATA/nl_int.lp" --cut-rounds 0 --cover-rounds 0 --node-limit 1
 [ "$(line_of status)" = "status node_limit" ] && [ "$(line_of nodes)" = "nodes 1" ] \
     && [ "$(line_of first_incumbent)" = "first_incumbent 1" ] \
     && pass "as node_limit after one node with an incumbent" \
@@ -264,17 +272,17 @@ expect_exit 5 "--node-limit refuses zero" \
 # The branching rule (D292): both names accepted and the answer unmoved,
 # an unknown name a usage error.
 expect_exit 0 "most-fractional branching still solves it" \
-    "$JAOS" solve "$DATA/nl_int.lp" --cut-rounds 0 --branching most-fractional
+    "$JAOS" solve "$DATA/nl_int.lp" --cut-rounds 0 --cover-rounds 0 --branching most-fractional
 [ "$(line_of objective)" = "objective 3" ] && pass "to 3" \
     || flunk "most-fractional: $(line_of objective)"
 expect_exit 0 "and pseudocost branching by name" \
-    "$JAOS" solve "$DATA/nl_int.lp" --cut-rounds 0 --branching pseudocost
+    "$JAOS" solve "$DATA/nl_int.lp" --cut-rounds 0 --cover-rounds 0 --branching pseudocost
 expect_exit 5 "--branching refuses an unknown rule" \
     "$JAOS" solve "$DATA/nl_int.lp" --branching random
 # Reliability (D293): zero never probes and still solves; a negative count
 # is a usage error.
 expect_exit 0 "reliability zero still solves it" \
-    "$JAOS" solve "$DATA/nl_int.lp" --cut-rounds 0 --reliability 0
+    "$JAOS" solve "$DATA/nl_int.lp" --cut-rounds 0 --cover-rounds 0 --reliability 0
 [ "$(line_of objective)" = "objective 3" ] && pass "to 3" \
     || flunk "reliability 0: $(line_of objective)"
 expect_exit 5 "--reliability refuses a negative" \
@@ -283,13 +291,13 @@ expect_exit 5 "--reliability refuses a negative" \
 # accepted with the answer unmoved; a negative cap and an unknown rule are
 # usage errors.
 expect_exit 0 "a capped probe still solves it" \
-    "$JAOS" solve "$DATA/nl_int.lp" --cut-rounds 0 --reliability 1 --probe-cap 0.5
+    "$JAOS" solve "$DATA/nl_int.lp" --cut-rounds 0 --cover-rounds 0 --reliability 1 --probe-cap 0.5
 [ "$(line_of objective)" = "objective 3" ] && pass "to 3" \
     || flunk "probe cap: $(line_of objective)"
 expect_exit 5 "--probe-cap refuses a negative" \
     "$JAOS" solve "$DATA/nl_int.lp" --probe-cap -1
 expect_exit 0 "a dive up first still solves it" \
-    "$JAOS" solve "$DATA/nl_int.lp" --cut-rounds 0 --dive --dive-child up
+    "$JAOS" solve "$DATA/nl_int.lp" --cut-rounds 0 --cover-rounds 0 --dive --dive-child up
 [ "$(line_of objective)" = "objective 3" ] && pass "to 3" \
     || flunk "dive child up: $(line_of objective)"
 expect_exit 5 "--dive-child refuses an unknown rule" \

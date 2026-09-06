@@ -7,6 +7,26 @@ line leaves this file in the same commit.
 
 ## Where the last session stopped — 2026-09-06
 
+**2026-09-06, the overnight batch, third round: knapsack cover cuts at the
+root, and the first default that moved tonight (D300).** Every all-binary
+row, each finite side, is a knapsack over literals; the greedy extended
+cover the root's point violates is a row for the whole tree, in rounds
+beside the Gomory round. Four rounds read **0.745x** the work over the MIP
+set, better on 7, worse on 1 (`enigma` 1.41x), none past 2x, `mod010` 7
+nodes to 1; three rounds 0.749x, five 0.767x, eight 0.804x; covers alone
+1.052x and 0.912x against the plain tree, so the two families want each
+other; two Gomory rounds bring back D289's tails (`misc03` 4.55x)
+(`bench/measurements/02-198/`). `bench/miplib.baseline` is rewritten to
+the four-round trees. **One thing to know**: `--cut-rounds 0` is the
+Gomory round off and nothing else; no cuts at all is `--cut-rounds 0
+--cover-rounds 0`, and the tests say so. **What is next**, in order: a cap
+on the cuts a node may add, written and waiting in the scratchpad as the
+next batch, which is what could get `misc03` under 2x at cut depth 2 and
+flip the depth at about 0.80x; the cut depth re-swept on the new baseline,
+since the root's relaxation changed; lifted covers and a third family
+(MIR); root cuts that leave below a node where they go slack; and the
+seven held constants, each swept once something moves them.
+
 **2026-09-06, the overnight batch, second round: the slack-cut drop, root-only
 probing, and a solution pool (D297, D298, D299).** A local cut leaves the
 relaxation once its slack is basic at a node, and two nodes with the same

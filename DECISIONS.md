@@ -307,6 +307,7 @@ and you have the argument. Jump to the entry for the numbers behind it.
 - **[D297](#d297--a-local-cut-leaves-the-relaxation-once-its-slack-is-basic-which-takes-cuts-below-the-root-from-1056x-to-0896x-at-depth-1-and-to-0802x-at-depth-2-one-instance-short-of-the-bar-the-row-churn-costs-no-work-unit)** — A local cut leaves the relaxation once its slack is basic, which takes cuts below the root from 1.056x to 0.896x at depth 1 and to 0.802x at depth 2, one instance short of the bar; the row churn costs no work unit
 - **[D298](#d298--strong-branching-at-the-root-only-refused-0987x-with-two-instances-past-2x-the-same-tree-at-every-reliability-and-d293s-reopen-condition-is-measured-on-both-clauses)** — Strong branching at the root only, refused: 0.987x with two instances past 2x, the same tree at every reliability, and D293's reopen condition is measured on both clauses
 - **[D299](#d299--a-solution-pool-the-best-integer-points-found-best-first-with-the-search-unchanged)** — A solution pool: the best integer points found, best first, with the search unchanged
+- **[D300](#d300--knapsack-cover-cuts-at-the-root-four-rounds-beside-the-gomory-round-0745x-the-work-over-the-mip-set-seven-better-one-worse-none-past-2x-and-mod010-closes-at-the-root)** — Knapsack cover cuts at the root, four rounds beside the Gomory round: 0.745x the work over the MIP set, seven better, one worse, none past 2x, and mod010 closes at the root
 
 ---
 
@@ -21669,3 +21670,50 @@ moves from ○ to ●.
 **What it is not.** Not a search for alternative optima: the pool holds
 what the tree met, and a best-bound tree meets few points. Not billed: a
 comparison of two vectors is not a kernel.
+
+## D300 — Knapsack cover cuts at the root, four rounds beside the Gomory round: 0.745x the work over the MIP set, seven better, one worse, none past 2x, and mod010 closes at the root
+
+**The gap.** D289's Gomory cuts were the only family, `SPECS.md` listed
+any other as missing, and D297 had just shown where the tree's price
+sits: in the rows a node carries. A second family at the root changes the
+root's relaxation and adds nothing below it.
+
+**What it does now.** `jaos_set_mip_cover_rounds` and `--cover-rounds N`.
+Every model row whose columns are all binary integer columns is read, each
+finite side, as a knapsack over literals x_j or 1 - x_j with positive
+weights, a negative coefficient complemented and its weight moved into the
+right-hand side. The greedy cover -- items in the order (1 - y*_j) / a_j,
+the lower column on a tie, until the weight passes the right-hand side --
+extended by every item at least as heavy as the cover's heaviest, gives
+sum over E of y_j <= |C| - 1 (Wolsey, Integer Programming, Wiley 1998,
+ch. 9.3), added when the relaxation's point violates it, as a row of the
+private copy for the whole tree, since the bounds it reads are the root's.
+The root's loop runs the larger of the two round counts, each family in
+its own rounds, and a round that adds nothing ends both. The default is 4.
+`--cut-rounds 0` turns the Gomory round off and nothing else, so "no cuts"
+is both switches at 0, which every test that wants a branching tree now
+says. Python carries the setting at both layers.
+
+**Evidence** (`bench/measurements/02-198/`). The control reproduces
+`bench/miplib.baseline` node for node and unit for unit on all 17. Beside
+the default Gomory round, work against the control, geometric mean of
+per-instance ratios: 1 round 1.001x (3 better, 3 worse), 2 rounds 0.961x
+(5 and 2), 3 rounds 0.749x (7 and 1), **4 rounds 0.745x (7 better, 1
+worse, none past 2x)**, 5 rounds 0.767x (5 and 3), 8 rounds 0.804x (4 and
+4). Two Gomory rounds with three cover rounds read 0.778x with `misc03`
+4.55x and `p0201` 2.00x past the bar, D289's tails again. Covers alone
+against the plain tree: 1.052x at one round and 0.912x at two, so the two
+families want each other. At four rounds `mod010` goes from 7 nodes to 1
+for 0.026x the work, the covers closing the root; `mod008` 0.659x (25743 to
+11675 nodes), `dcmulti` 0.674x, `p0033` 0.741x, `lseu` 0.744x, `p0201`
+0.840x, `rgn` 0.876x; `enigma` 1.412x is the one worse, 2888 to 4114
+nodes; eight instances have no all-binary row with a violated cover and
+are unchanged. Four is the setting with the best mean that keeps every
+instance under 2x, the rule D289 applied to the Gomory round; three is
+within half a percent of it.
+
+**What it is not.** No lifting, no cover over a row with a continuous
+column, no covers below the root, no other family: the feature matrix's
+cutting planes stay ◐. `bench/miplib.baseline` is rewritten to the
+four-round trees; no LP path is touched and the three gate sets are
+byte-identical.

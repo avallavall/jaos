@@ -975,6 +975,15 @@ jaos_status jaos_set_mip_cut_drop(jaos_model *m, bool on)
     return JAOS_OK;
 }
 
+jaos_status jaos_set_mip_cover_rounds(jaos_model *m, int64_t rounds)
+{
+    if (m == nullptr)
+        return JAOS_ERR_INVALID_INPUT;
+    m->cfg.mip_cover_rounds_set = rounds >= 0;
+    m->cfg.mip_cover_rounds = rounds >= 0 ? rounds : 0;
+    return JAOS_OK;
+}
+
 jaos_status jaos_set_mip_probe_depth(jaos_model *m, int64_t depth)
 {
     if (m == nullptr)

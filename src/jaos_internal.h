@@ -52,6 +52,9 @@ typedef struct {
     bool mip_cut_depth_set;
     int64_t mip_cut_depth;
     bool mip_no_cut_drop;    /* a local cut stays once slack (D297)     */
+    /* Cover cuts at the root (D300); unset means MIP_COVER_ROUNDS. */
+    bool mip_cover_rounds_set;
+    int64_t mip_cover_rounds;
     /* The rounding heuristic at every node (D290); on unless set. */
     bool mip_no_heuristics;
     /* A budget on the tree, 0 for none (D291), and who is told of each

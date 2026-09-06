@@ -10,7 +10,8 @@
  * Usage:
  *   jaos solve FILE [--solution OUT] [--start SOLUTION] [--work-limit N]
  *                   [--time-limit SECONDS] [--primal-tol T] [--dual-tol T]
- *                   [--cut-rounds N] [--cut-depth D] [--dive] [--dive-child RULE]
+ *                   [--cut-rounds N] [--cover-rounds N] [--cut-depth D]
+ *                   [--dive] [--dive-child RULE]
  *                   [--no-heuristics] [--node-limit N] [--branching RULE]
  *                   [--reliability N] [--probe-cap M] [--probe-depth D]
  *                   [--no-cut-drop] [--pool-size K] [--log LEVEL]
@@ -73,7 +74,8 @@ static const char USAGE[] =
     "Usage:\n"
     "  jaos solve FILE [--solution OUT] [--start SOLUTION] [--work-limit N]\n"
     "                  [--time-limit SECONDS] [--primal-tol T] [--dual-tol T]\n"
-    "                  [--cut-rounds N] [--cut-depth D] [--dive] [--dive-child RULE]\n"
+    "                  [--cut-rounds N] [--cover-rounds N] [--cut-depth D]\n"
+    "                  [--dive] [--dive-child RULE]\n"
     "                  [--no-heuristics] [--node-limit N] [--branching RULE]\n"
     "                  [--reliability N] [--probe-cap M] [--probe-depth D]\n"
     "                  [--no-cut-drop] [--pool-size K] [--log LEVEL]\n"
@@ -98,6 +100,8 @@ static const char USAGE[] =
     "  --dual-tol T     dual feasibility tolerance (default 1e-7)\n"
     "  --cut-rounds N   rounds of Gomory cuts at the root of a MIP (default\n"
     "                   1; 0 for none)\n"
+    "  --cover-rounds N rounds of knapsack cover cuts at the root of a MIP,\n"
+    "                   beside the Gomory rounds (default 4; 0 for none)\n"
     "  --cut-depth D    one round of Gomory cuts at every node of a MIP down\n"
     "                   to depth D (default 0: the root only)\n"
     "  --no-cut-drop    carry a node's cut to every node under it even once\n"
@@ -393,6 +397,7 @@ struct solve_options {
     double time_limit;       /* 0: not given; the parser refuses <= 0 */
     int64_t cut_rounds;      /* -1: not given (the library's default)     */
     int64_t cut_depth;       /* -1: not given (the library's default)     */
+    int64_t cover_rounds;    /* -1: not given (the library's default)     */
     int64_t node_limit;      /* 0: not given; the parser refuses <= 0     */
     int branching;           /* -1: not given; else a jaos_branching      */
     int64_t reliability;     /* -1: not given (the library's default)     */
@@ -422,6 +427,7 @@ static int parse_solve_options(int argc, char **argv, int first,
     o->log_level = JAOS_LOG_OFF;
     o->cut_rounds = -1;
     o->cut_depth = -1;
+    o->cover_rounds = -1;
     o->branching = -1;
     o->reliability = -1;
     o->dive_child = -1;
@@ -513,6 +519,10 @@ static int parse_solve_options(int argc, char **argv, int first,
             if (!parse_int64(v, &o->cut_rounds) || o->cut_rounds < 0)
                 return usage_error("--cut-rounds needs a count of rounds, 0 or "
                                    "more, not '%s'", v);
+        } else if (strcmp(a, "--cover-rounds") == 0) {
+            if (!parse_int64(v, &o->cover_rounds) || o->cover_rounds < 0)
+                return usage_error("--cover-rounds needs a count of rounds, 0 "
+                                   "or more, not '%s'", v);
         } else if (strcmp(a, "--cut-depth") == 0) {
             if (!parse_int64(v, &o->cut_depth) || o->cut_depth < 0)
                 return usage_error("--cut-depth needs a depth, 0 or more, "
@@ -606,6 +616,11 @@ static int cmd_solve(int argc, char **argv)
     }
     if (o.cut_depth >= 0 && jaos_set_mip_cut_depth(m, o.cut_depth) != JAOS_OK) {
         rc = library_error("set the cut depth for", o.file, m);
+        goto out;
+    }
+    if (o.cover_rounds >= 0 &&
+        jaos_set_mip_cover_rounds(m, o.cover_rounds) != JAOS_OK) {
+        rc = library_error("set the cover rounds for", o.file, m);
         goto out;
     }
     if (o.dive && jaos_set_mip_dive(m, true) != JAOS_OK) {

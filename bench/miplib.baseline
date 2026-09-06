@@ -5,20 +5,20 @@
 # will ever be told about.
 #
 # name status solved shape objective checker det iters work dropped nodes
-air03        optimal      1 1 1 1 1 443 26197067 -1 1
-blend2       optimal      1 1 1 1 1 257867 1062044154 -1 6827
-dcmulti      optimal      1 1 1 1 1 41511 197991410 -1 585
-egout        optimal      1 1 1 1 1 28503 353083621 -1 39127
-enigma       optimal      1 1 1 1 1 30533 62206672 -1 2888
-flugpl       optimal      1 1 1 1 1 3655 28457642 -1 4495
-khb05250     optimal      1 1 1 1 1 6135 46741107 -1 243
-lseu         optimal      1 1 1 1 1 118911 518224663 -1 25947
-misc03       optimal      1 1 1 1 1 25627 99461516 -1 803
-misc06       optimal      1 1 1 1 1 70106 457455225 -1 117
-mod008       optimal      1 1 1 1 1 155249 1215545686 -1 25743
-mod010       optimal      1 1 1 1 1 12580 620432740 -1 7
-p0033        optimal      1 1 1 1 1 2857 17415419 -1 1609
-p0201        optimal      1 1 1 1 1 49137 289497979 -1 1357
-rgn          optimal      1 1 1 1 1 92382 212866733 -1 5113
-stein27      optimal      1 1 1 1 1 31540 120742773 -1 8949
-stein45      optimal      1 1 1 1 1 968907 3397100193 -1 107329
+air03        optimal      1 1 1 1 1 443 26298976 -1 1
+blend2       optimal      1 1 1 1 1 257867 1062046190 -1 6827
+dcmulti      optimal      1 1 1 1 1 27592 133349918 -1 401
+egout        optimal      1 1 1 1 1 28503 353084663 -1 39127
+enigma       optimal      1 1 1 1 1 42712 87804722 -1 4114
+flugpl       optimal      1 1 1 1 1 3655 28457806 -1 4495
+khb05250     optimal      1 1 1 1 1 6135 46749409 -1 243
+lseu         optimal      1 1 1 1 1 90933 385567022 -1 19051
+misc03       optimal      1 1 1 1 1 25627 99466134 -1 803
+misc06       optimal      1 1 1 1 1 70106 457472199 -1 117
+mod008       optimal      1 1 1 1 1 101949 801025938 -1 11675
+mod010       optimal      1 1 1 1 1 844 16216731 -1 1
+p0033        optimal      1 1 1 1 1 2213 12912100 -1 997
+p0201        optimal      1 1 1 1 1 38644 243045557 -1 963
+rgn          optimal      1 1 1 1 1 77301 186533986 -1 4539
+stein27      optimal      1 1 1 1 1 31540 120743819 -1 8949
+stein45      optimal      1 1 1 1 1 964984 3386352600 -1 114569
