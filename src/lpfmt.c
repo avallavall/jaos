@@ -51,6 +51,11 @@ typedef struct {
     int64_t cint_cap, ncint;
     bool *csemi;
     int64_t csemi_cap, ncsemi;
+    int *st_type;
+    int64_t *st_start;
+    int64_t *st_col;
+    double *st_w;
+    int64_t nsos, sos_cap, sos_start_cap, nsosm, sosm_cap, sosw_cap;
     int64_t *ei;
     double *ev;
     int64_t nent, ei_cap, ev_cap;
@@ -651,9 +656,92 @@ static jaos_status parse(lp *p)
                 goto done;
         }
     }
-    if (tok_is(p, "sos"))
-        FAIL("line %" PRId64 ": SOS constraints are not supported",
-             p->tok.line);
+    if (tok_is(p, "sos")) {
+        if ((st = lx_next(p)) != JAOS_OK)
+            goto done;
+        while (p->tok.t == T_NAME && !at_reserved(p)) {
+            char first[NAME_MAX_LEN + 1];
+            snprintf(first, sizeof first, "%s", p->tok.text);
+            const int64_t fline = p->tok.line;
+            if ((st = lx_next(p)) != JAOS_OK)
+                goto done;
+            if (p->tok.t != T_COLON)
+                FAIL("line %" PRId64 ": expected ':' after '%s' in the SOS "
+                     "section", fline, first);
+            if ((st = lx_next(p)) != JAOS_OK)
+                goto done;
+            double sign = 1.0;
+            if (p->tok.t == T_PLUS || p->tok.t == T_MINUS) {
+                sign = p->tok.t == T_MINUS ? -1.0 : 1.0;
+                if ((st = lx_next(p)) != JAOS_OK)
+                    goto done;
+                if (p->tok.t != T_NUM)
+                    FAIL("line %" PRId64 ": an SOS member is 'variable:weight'",
+                         fline);
+            }
+            if (p->tok.t == T_NUM) {
+                if (p->nsos == 0)
+                    FAIL("line %" PRId64 ": an SOS member before any set",
+                         fline);
+                if (!jm_nmap_get(&p->cmap, first, &j))
+                    FAIL("line %" PRId64 ": '%s' in an SOS set is not a "
+                         "variable of the model", fline, first);
+                if (!JM_GROW(p->st_col, p->sosm_cap, p->nsosm + 1) ||
+                    !JM_GROW(p->st_w, p->sosw_cap, p->nsosm + 1))
+                    FAIL_OOM();
+                p->st_col[p->nsosm] = j;
+                p->st_w[p->nsosm] = sign * p->tok.num;
+                p->nsosm++;
+                p->st_start[p->nsos] = p->nsosm;
+                if ((st = lx_next(p)) != JAOS_OK)
+                    goto done;
+                continue;
+            }
+            char tybuf[NAME_MAX_LEN + 1];
+            snprintf(tybuf, sizeof tybuf, "%s", first);
+            if (p->tok.t == T_NAME) {
+                snprintf(tybuf, sizeof tybuf, "%s", p->tok.text);
+                if ((st = lx_next(p)) != JAOS_OK)
+                    goto done;
+                if (p->tok.t != T_COLON)
+                    FAIL("line %" PRId64 ": expected '::' after the SOS type",
+                         fline);
+                if ((st = lx_next(p)) != JAOS_OK)
+                    goto done;
+            }
+            if (p->tok.t != T_COLON)
+                FAIL("line %" PRId64 ": expected '::' after the SOS type",
+                     fline);
+            int type = 0;
+            if (strcasecmp(tybuf, "S1") == 0)
+                type = 1;
+            else if (strcasecmp(tybuf, "S2") == 0)
+                type = 2;
+            else
+                FAIL("line %" PRId64 ": an SOS set is S1 or S2, not '%s'",
+                     fline, tybuf);
+            if ((st = lx_next(p)) != JAOS_OK)
+                goto done;
+            if (!JM_GROW(p->st_type, p->sos_cap, p->nsos + 1) ||
+                !JM_GROW(p->st_start, p->sos_start_cap, p->nsos + 2))
+                FAIL_OOM();
+            p->st_type[p->nsos] = type;
+            p->st_start[p->nsos] = p->nsosm;
+            p->nsos++;
+            p->st_start[p->nsos] = p->nsosm;
+        }
+    }
+    for (int64_t k = 0; k < p->nsos; k++) {
+        const int64_t b = p->st_start[k], e = p->st_start[k + 1];
+        if (e == b)
+            FAIL("line %" PRId64 ": SOS set %lld has no members",
+                 p->tok.line, (long long)(k + 1));
+        for (int64_t t = b; t < e; t++)
+            for (int64_t u = b; u < t; u++)
+                if (p->st_col[t] == p->st_col[u] || p->st_w[t] == p->st_w[u])
+                    FAIL("line %" PRId64 ": SOS set %lld repeats a member or "
+                         "a weight", p->tok.line, (long long)(k + 1));
+    }
 
     if (!tok_is(p, "end"))
         FAIL("line %" PRId64 ": expected End", p->tok.line);
@@ -732,6 +820,14 @@ static jaos_status parse(lp *p)
             memcpy(cs, p->csemi, (size_t)p->ncsemi * sizeof *cs);
             p->m->col_semi = cs;
         }
+        for (int64_t k = 0; k < p->nsos; k++) {
+            const int64_t b = p->st_start[k], e = p->st_start[k + 1];
+            if (e == b)
+                continue;
+            if ((st = jaos_add_sos(p->m, p->st_type[k], e - b, p->st_col + b,
+                                   p->st_w + b)) != JAOS_OK)
+                goto done;
+        }
     }
 
 done:
@@ -784,5 +880,9 @@ done:
     free(p->oname);
     free(p->cint);
     free(p->csemi);
+    free(p->st_type);
+    free(p->st_start);
+    free(p->st_col);
+    free(p->st_w);
     return st;
 }

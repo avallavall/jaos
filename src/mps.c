@@ -59,7 +59,7 @@ static bool parse_num(const char *t, double *out)
 
 enum section { S_START, S_OBJSENSE, S_OBJNAME, S_ROWS, S_COLUMNS, S_RHS,
                S_RANGES,
-               S_BOUNDS };
+               S_BOUNDS, S_SOS };
 
 #define OBJ_ROW (-1)
 
@@ -93,6 +93,12 @@ typedef struct {
     bool *csemi;
     int64_t csemi_cap;
     bool any_semi;
+
+    int *st_type;
+    int64_t *st_start;
+    int64_t *st_col;
+    double *st_w;
+    int64_t nsos, sos_cap, sos_start_cap, nsosm, sosm_cap, sosw_cap;
 
     jm_nmap cmap;
     double *cost, *cl, *cu;
@@ -131,7 +137,12 @@ static void rd_free(rd *r)
     free(r->modelname);
     free(r->cint);
     free(r->csemi);
+    free(r->st_type);
+    free(r->st_start);
+    free(r->st_col);
+    free(r->st_w);
 }
+
 
 static bool set_objname(rd *r, const char *name)
 {
@@ -426,6 +437,61 @@ done:
     return st;
 }
 
+static jaos_status rd_sos_line(rd *r, char **tok, int nt)
+{
+    jaos_status st = JAOS_OK;
+    char head[3] = {0, 0, 0};
+    if (nt >= 1 && strlen(tok[0]) == 2) {
+        head[0] = (char)toupper((unsigned char)tok[0][0]);
+        head[1] = tok[0][1];
+    }
+    if (head[0] == 'S' && (head[1] == '1' || head[1] == '2') &&
+        (nt == 1 || nt == 2 || nt == 3)) {
+        if (!JM_GROW(r->st_type, r->sos_cap, r->nsos + 1) ||
+            !JM_GROW(r->st_start, r->sos_start_cap, r->nsos + 2))
+            FAIL_OOM();
+        r->st_type[r->nsos] = head[1] - '0';
+        r->st_start[r->nsos] = r->nsosm;
+        r->nsos++;
+        r->st_start[r->nsos] = r->nsosm;
+        return JAOS_OK;
+    }
+    if (r->nsos == 0)
+        FAIL("line %" PRId64 ": an SOS member before any S1 or S2 header",
+             r->lno);
+    const char *name = tok[0];
+    const char *wtxt = nullptr;
+    char buf[JAOS_NAME_MAX + 32];
+    if (nt == 2) {
+        wtxt = tok[1];
+    } else if (nt == 1) {
+        const char *colon = strrchr(tok[0], ':');
+        if (colon == nullptr || (size_t)(colon - tok[0]) >= sizeof buf)
+            FAIL("line %" PRId64 ": an SOS member is 'column weight'", r->lno);
+        memcpy(buf, tok[0], (size_t)(colon - tok[0]));
+        buf[colon - tok[0]] = '\0';
+        name = buf;
+        wtxt = colon + 1;
+    } else {
+        FAIL("line %" PRId64 ": an SOS member is 'column weight'", r->lno);
+    }
+    int64_t j;
+    if (!jm_nmap_get(&r->cmap, name, &j))
+        FAIL("line %" PRId64 ": unknown column '%s'", r->lno, name);
+    double w = 0.0;
+    if (!parse_num(wtxt, &w))
+        FAIL("line %" PRId64 ": bad number '%s'", r->lno, wtxt);
+    if (!JM_GROW(r->st_col, r->sosm_cap, r->nsosm + 1) ||
+        !JM_GROW(r->st_w, r->sosw_cap, r->nsosm + 1))
+        FAIL_OOM();
+    r->st_col[r->nsosm] = j;
+    r->st_w[r->nsosm] = w;
+    r->nsosm++;
+    r->st_start[r->nsos] = r->nsosm;
+done:
+    return st;
+}
+
 jaos_status jaos_read_mps(jaos_model *m, const char *path)
 {
     if (m == nullptr || path == nullptr)
@@ -547,6 +613,10 @@ jaos_status jaos_read_mps(jaos_model *m, const char *path)
                 if (sec < S_COLUMNS)
                     FAIL("line %" PRId64 ": BOUNDS before COLUMNS", r->lno);
                 sec = S_BOUNDS;
+            } else if (strcmp(kw, "SOS") == 0) {
+                if (sec < S_COLUMNS)
+                    FAIL("line %" PRId64 ": SOS before COLUMNS", r->lno);
+                sec = S_SOS;
             } else if (strcmp(kw, "ENDATA") == 0) {
                 ended = true;
             } else {
@@ -600,6 +670,10 @@ jaos_status jaos_read_mps(jaos_model *m, const char *path)
             if ((st = rd_bounds_line(r, tok, nt)) != JAOS_OK)
                 goto done;
             break;
+        case S_SOS:
+            if ((st = rd_sos_line(r, tok, nt)) != JAOS_OK)
+                goto done;
+            break;
         default:
             FAIL("line %" PRId64 ": data outside any section", r->lno);
         }
@@ -607,6 +681,16 @@ jaos_status jaos_read_mps(jaos_model *m, const char *path)
 
     if (!ended)
         FAIL("missing ENDATA");
+    for (int64_t k = 0; k < r->nsos; k++) {
+        const int64_t b = r->st_start[k], e = r->st_start[k + 1];
+        if (e == b)
+            FAIL("SOS set %lld has no members", (long long)(k + 1));
+        for (int64_t t = b; t < e; t++)
+            for (int64_t u = b; u < t; u++)
+                if (r->st_col[t] == r->st_col[u] || r->st_w[t] == r->st_w[u])
+                    FAIL("SOS set %lld repeats a member or a weight",
+                         (long long)(k + 1));
+    }
 
     {
         double *rl = jm_alloc_array(r->nrow, sizeof(double));
@@ -685,6 +769,14 @@ jaos_status jaos_read_mps(jaos_model *m, const char *path)
         if (r->any_semi && r->ncol > 0) {
             m->col_semi = r->csemi;
             r->csemi = nullptr;
+        }
+        for (int64_t k = 0; k < r->nsos; k++) {
+            const int64_t b = r->st_start[k], e = r->st_start[k + 1];
+            if (e == b)
+                continue;
+            if ((st = jaos_add_sos(m, r->st_type[k], e - b, r->st_col + b,
+                                   r->st_w + b)) != JAOS_OK)
+                goto done;
         }
     }
 

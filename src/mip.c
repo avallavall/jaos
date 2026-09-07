@@ -211,6 +211,7 @@ typedef struct {
     double key;
     int64_t id;
     int64_t depth;
+    int64_t nfix;
     int64_t *col;
     double *lo, *hi;
     jaos_basis_status *cs, *rs;
@@ -298,18 +299,21 @@ static bool resume_within(const bnode *n, const bheap *h, bnode *const *stack,
 
 static bnode *node_child(const bnode *parent, int64_t nc, int64_t nr,
                          const jaos_basis_status *cs,
-                         const jaos_basis_status *rs, int64_t col, double lo,
-                         double hi, double key, int64_t id, double frac,
-                         bool up, const int64_t *act, int64_t act_n,
-                         bool no_cuts)
+                         const jaos_basis_status *rs, int64_t nfix,
+                         const int64_t *fcol, const double *flo,
+                         const double *fhi, double key, int64_t id,
+                         double frac, bool up, const int64_t *act,
+                         int64_t act_n, bool no_cuts)
 {
     bnode *n = calloc(1, sizeof *n);
     if (n == nullptr)
         return nullptr;
     const int64_t d = (parent ? parent->depth : 0) + 1;
-    n->col = malloc((size_t)d * sizeof *n->col);
-    n->lo = malloc((size_t)d * sizeof *n->lo);
-    n->hi = malloc((size_t)d * sizeof *n->hi);
+    const int64_t pf = parent ? parent->nfix : 0;
+    const int64_t nf = pf + nfix;
+    n->col = malloc((size_t)(nf > 0 ? nf : 1) * sizeof *n->col);
+    n->lo = malloc((size_t)(nf > 0 ? nf : 1) * sizeof *n->lo);
+    n->hi = malloc((size_t)(nf > 0 ? nf : 1) * sizeof *n->hi);
     n->cs = malloc((size_t)(nc > 0 ? nc : 1) * sizeof *n->cs);
     n->rs = malloc((size_t)(nr > 0 ? nr : 1) * sizeof *n->rs);
     n->cuts = malloc((size_t)(act_n > 0 ? act_n : 1) * sizeof *n->cuts);
@@ -320,14 +324,17 @@ static bnode *node_child(const bnode *parent, int64_t nc, int64_t nr,
     if (act_n > 0)
         memcpy(n->cuts, act, (size_t)act_n * sizeof *n->cuts);
     n->ncuts = act_n;
-    if (parent != nullptr) {
-        memcpy(n->col, parent->col, (size_t)parent->depth * sizeof *n->col);
-        memcpy(n->lo, parent->lo, (size_t)parent->depth * sizeof *n->lo);
-        memcpy(n->hi, parent->hi, (size_t)parent->depth * sizeof *n->hi);
+    if (parent != nullptr && pf > 0) {
+        memcpy(n->col, parent->col, (size_t)pf * sizeof *n->col);
+        memcpy(n->lo, parent->lo, (size_t)pf * sizeof *n->lo);
+        memcpy(n->hi, parent->hi, (size_t)pf * sizeof *n->hi);
     }
-    n->col[d - 1] = col;
-    n->lo[d - 1] = lo;
-    n->hi[d - 1] = hi;
+    for (int64_t k = 0; k < nfix; k++) {
+        n->col[pf + k] = fcol[k];
+        n->lo[pf + k] = flo[k];
+        n->hi[pf + k] = fhi[k];
+    }
+    n->nfix = nf;
     n->depth = d;
     n->key = key;
     n->id = id;
@@ -386,10 +393,18 @@ static jaos_status node_apply(jaos_model *lp, const jaos_model *m,
         if (st == JAOS_OK && !cutlist_set(in_copy, want, want_n))
             return JAOS_ERR_OUT_OF_MEMORY;
     }
+    for (int64_t k = 0; st == JAOS_OK && k < m->num_sos; k++)
+        for (int64_t t = m->sos_start[k];
+             st == JAOS_OK && t < m->sos_start[k + 1]; t++) {
+            const int64_t j = m->sos_col[t];
+            if (!m->col_integer[j] && !semi_live(m, j))
+                st = jaos_set_col_bounds(lp, j, m->col_lower[j],
+                                         m->col_upper[j]);
+        }
     for (int64_t j = 0; st == JAOS_OK && j < m->num_col; j++)
         if (m->col_integer[j] || semi_live(m, j))
             st = jaos_set_col_bounds(lp, j, ilo[j], ihi[j]);
-    for (int64_t k = 0; st == JAOS_OK && n != nullptr && k < n->depth; k++)
+    for (int64_t k = 0; st == JAOS_OK && n != nullptr && k < n->nfix; k++)
         st = jaos_set_col_bounds(lp, n->col[k], n->lo[k], n->hi[k]);
     if (st == JAOS_OK && n != nullptr)
         st = jaos_set_basis(lp, n->cs, n->rs);
@@ -459,6 +474,14 @@ static bool republish_at_the_incumbent(jaos_model *m, const double *point,
     fin->col_integer = nullptr;
     free(fin->col_semi);
     fin->col_semi = nullptr;
+    for (int64_t k = 0; k < m->num_sos; k++)
+        for (int64_t t = m->sos_start[k]; t < m->sos_start[k + 1]; t++) {
+            const int64_t j = m->sos_col[t];
+            if (fabs(point[j]) <= MIP_INT_TOL &&
+                jaos_set_col_bounds(fin, j, 0.0, 0.0) != JAOS_OK)
+                goto out;
+        }
+    fin->num_sos = 0;
 
     fin->cfg.log_cb = nullptr;
 
@@ -504,10 +527,39 @@ out:
     return ok;
 }
 
+static int64_t sos_violated(const jaos_model *m, const double *x,
+                            int64_t from, int64_t *first, int64_t *last)
+{
+    for (int64_t k = from; k < m->num_sos; k++) {
+        const int64_t b = m->sos_start[k], e = m->sos_start[k + 1];
+        int64_t cnt = 0, lo = -1, hi = -1;
+        for (int64_t t = b; t < e; t++) {
+            if (fabs(x[m->sos_col[t]]) <= MIP_INT_TOL)
+                continue;
+            if (cnt == 0)
+                lo = t - b;
+            hi = t - b;
+            cnt++;
+        }
+        const bool bad = m->sos_type[k] == 1 ? cnt > 1
+                                             : cnt > 2 || (cnt == 2 && hi - lo > 1);
+        if (!bad)
+            continue;
+        if (first != nullptr)
+            *first = lo;
+        if (last != nullptr)
+            *last = hi;
+        return k;
+    }
+    return -1;
+}
+
 bool jm_model_has_integer(const jaos_model *m)
 {
     if (m->col_integer == nullptr)
         return false;
+    if (m->num_sos > 0)
+        return true;
     for (int64_t j = 0; j < m->num_col; j++)
         if (m->col_integer[j] || semi_live(m, j))
             return true;
@@ -583,9 +635,9 @@ static int64_t select_branch(const jaos_model *m, const double *x,
 static void pseudocost_learn(const bnode *n, double key, int64_t nc,
                              double *pc_sum, int64_t *pc_n)
 {
-    if (n == nullptr || n->depth == 0 || n->frac <= 0.0)
+    if (n == nullptr || n->nfix == 0 || n->frac <= 0.0)
         return;
-    const int64_t j = n->col[n->depth - 1];
+    const int64_t j = n->col[n->nfix - 1];
     const int d = n->up ? 1 : 0;
     double gain = key - n->key;
     if (gain < 0.0)
@@ -1611,6 +1663,8 @@ static bool rounded_point(const jaos_model *m, const double *x, double *xr,
     for (int64_t i = 0; i < nr; i++)
         if (ra[i] < m->row_lower[i] - tol || ra[i] > m->row_upper[i] + tol)
             return false;
+    if (sos_violated(m, xr, 0, nullptr, nullptr) >= 0)
+        return false;
     *obj = z;
     return true;
 }
@@ -1939,6 +1993,8 @@ jaos_status jm_branch_and_bound(jaos_model *m)
     int64_t work = 0, iters = 0;
     double best_bound = -INFINITY;
     jaos_solve_status outcome = JAOS_SOLVE_NOT_RUN;
+    int64_t *fcol = nullptr;
+    double *flo = nullptr, *fhi = nullptr;
 
     free(m->mip_inc_x);
     m->mip_inc_x = nullptr;
@@ -1958,6 +2014,9 @@ jaos_status jm_branch_and_bound(jaos_model *m)
         goto done;
     free(lp->col_integer);
     lp->col_integer = nullptr;
+    free(lp->col_semi);
+    lp->col_semi = nullptr;
+    lp->num_sos = 0;
     lp->cfg.log_cb = nullptr;
     jaos_clear_basis(lp);
 
@@ -1977,10 +2036,14 @@ jaos_status jm_branch_and_bound(jaos_model *m)
         if (plo == nullptr || phi == nullptr)
             goto done;
     }
+    fcol = malloc((size_t)(2 * nc + 2) * sizeof *fcol);
+    flo = malloc((size_t)(2 * nc + 2) * sizeof *flo);
+    fhi = malloc((size_t)(2 * nc + 2) * sizeof *fhi);
     if (x == nullptr || xr == nullptr || x2 == nullptr || ra == nullptr ||
         ilo == nullptr ||
         ihi == nullptr || pc_sum == nullptr || pc_n == nullptr ||
-        cand == nullptr || pcs == nullptr || !spool_init(&sp, pool_size, nc))
+        cand == nullptr || pcs == nullptr || fcol == nullptr ||
+        flo == nullptr || fhi == nullptr || !spool_init(&sp, pool_size, nc))
         goto done;
 
     for (int64_t j = 0; j < nc; j++) {
@@ -2586,7 +2649,10 @@ jaos_status jm_branch_and_bound(jaos_model *m)
                 continue;
         }
 
-        if (branch < 0) {
+        int64_t sos_first = -1, sos_last = -1;
+        const int64_t sos = branch < 0
+            ? sos_violated(m, x, 0, &sos_first, &sos_last) : -1;
+        if (branch < 0 && sos < 0) {
             if (!incumbent_take(&inc, lp, nr, key))
                 goto done;
             if (first_inc == 0)
@@ -2594,6 +2660,10 @@ jaos_status jm_branch_and_bound(jaos_model *m)
             for (int64_t j = 0; j < nc; j++)
                 if (m->col_integer[j])
                     inc.x[j] = round(inc.x[j]);
+            for (int64_t k = 0; k < m->num_sos; k++)
+                for (int64_t t = m->sos_start[k]; t < m->sos_start[k + 1]; t++)
+                    if (fabs(inc.x[m->sos_col[t]]) <= MIP_INT_TOL)
+                        inc.x[m->sos_col[t]] = 0.0;
             spool_offer(&sp, inc.x, key, obj);
             jm_log(m, JAOS_LOG_PROGRESS, "node %lld: incumbent %.17g, integral",
                    (long long)nodes, obj);
@@ -2607,7 +2677,8 @@ jaos_status jm_branch_and_bound(jaos_model *m)
         }
         const int64_t nrl = lp->num_row;
 
-        if (reliability > 0 && (probe_depth < 0 || depth_here <= probe_depth)) {
+        if (branch >= 0 && reliability > 0 &&
+            (probe_depth < 0 || depth_here <= probe_depth)) {
             jaos_basis_status *grown = realloc(prs, (size_t)(nrl > 0 ? nrl : 1)
                                                         * sizeof *prs);
             if (grown == nullptr)
@@ -2660,26 +2731,72 @@ jaos_status jm_branch_and_bound(jaos_model *m)
             nr_child = nfixed + kept;
             child_rs = crs;
         }
-        const double v = x[branch];
-        const bool sc = semi_broken(m, branch, v) &&
-                        !(m->col_integer[branch] &&
-                          v - floor(v) > MIP_INT_TOL &&
-                          v - floor(v) < 1.0 - MIP_INT_TOL);
-        const double sc_lo = !sc ? 0.0
-                           : m->col_integer[branch] ? ceil(m->col_lower[branch])
-                                                    : m->col_lower[branch];
-        const double f = sc ? v / m->col_lower[branch] : v - floor(v);
+        const double v = branch >= 0 ? x[branch] : 0.0;
+        int64_t nfd = 1, nfu = 1;
+        double f = 0.5, frac_d = 0.0, frac_u = 0.0;
+        int64_t *const ucol = fcol + nc + 1;
+        double *const ulo = flo + nc + 1, *const uhi = fhi + nc + 1;
+        if (branch >= 0) {
+            const bool sc = semi_broken(m, branch, v) &&
+                            !(m->col_integer[branch] &&
+                              v - floor(v) > MIP_INT_TOL &&
+                              v - floor(v) < 1.0 - MIP_INT_TOL);
+            const double sc_lo = !sc ? 0.0
+                               : m->col_integer[branch]
+                                     ? ceil(m->col_lower[branch])
+                                     : m->col_lower[branch];
+            f = sc ? v / m->col_lower[branch] : v - floor(v);
+            frac_d = f;
+            frac_u = 1.0 - f;
+            fcol[0] = branch;
+            flo[0] = lp->col_lower[branch];
+            fhi[0] = sc ? 0.0 : floor(v);
+            ucol[0] = branch;
+            ulo[0] = sc ? sc_lo : ceil(v);
+            uhi[0] = lp->col_upper[branch];
+        } else {
+            const int64_t b = m->sos_start[sos], e = m->sos_start[sos + 1];
+            const int64_t n = e - b;
+            double wsum = 0.0, wpos = 0.0;
+            for (int64_t t = 0; t < n; t++) {
+                const double a = fabs(x[m->sos_col[b + t]]);
+                wsum += a;
+                wpos += a * (double)t;
+            }
+            int64_t r = (int64_t)floor(wpos / wsum);
+            const int64_t rlo = m->sos_type[sos] == 1 ? sos_first : sos_first + 1;
+            const int64_t rhi = sos_last - 1;
+            if (r < rlo)
+                r = rlo;
+            if (r > rhi)
+                r = rhi;
+            nfd = nfu = 0;
+            for (int64_t t = 0; t < n; t++) {
+                const int64_t j = m->sos_col[b + t];
+                if (t > r) {
+                    fcol[nfd] = j;
+                    flo[nfd] = 0.0;
+                    fhi[nfd] = 0.0;
+                    nfd++;
+                }
+                const bool zero_up = m->sos_type[sos] == 1 ? t <= r : t < r;
+                if (zero_up) {
+                    ucol[nfu] = j;
+                    ulo[nfu] = 0.0;
+                    uhi[nfu] = 0.0;
+                    nfu++;
+                }
+            }
+        }
 
         const bool child_no_cuts = stalled || (nodes > 1 && cur->no_cuts);
         bnode *down = node_child(nodes > 0 ? cur : nullptr, nc, nr_child,
-                                 lp->sol_col_status, child_rs, branch,
-                                 lp->col_lower[branch], sc ? 0.0 : floor(v),
-                                 key, next_id++, f, false, act, act_n,
-                                 child_no_cuts);
+                                 lp->sol_col_status, child_rs, nfd, fcol, flo,
+                                 fhi, key, next_id++, frac_d, false, act,
+                                 act_n, child_no_cuts);
         bnode *up = node_child(nodes > 0 ? cur : nullptr, nc, nr_child,
-                               lp->sol_col_status, child_rs, branch,
-                               sc ? sc_lo : ceil(v), lp->col_upper[branch],
-                               key, next_id++, 1.0 - f, true, act, act_n,
+                               lp->sol_col_status, child_rs, nfu, ucol, ulo,
+                               uhi, key, next_id++, frac_u, true, act, act_n,
                                child_no_cuts);
         if (down == nullptr || up == nullptr) {
             node_free(down);
@@ -2695,7 +2812,7 @@ jaos_status jm_branch_and_bound(jaos_model *m)
             first = up;
         } else if (dive_child == JAOS_DIVE_DOWN) {
             first = down;
-        } else if (dive_child == JAOS_DIVE_PSEUDOCOST) {
+        } else if (dive_child == JAOS_DIVE_PSEUDOCOST && branch >= 0) {
             const double gd = f * pseudocost(branch, 0, nc, pc_sum, pc_n);
             const double gu = (1.0 - f) * pseudocost(branch, 1, nc, pc_sum, pc_n);
             if (gd < gu)
@@ -2816,6 +2933,9 @@ done:
     free(pc_sum);
     free(pc_n);
     free(cand);
+    free(fcol);
+    free(flo);
+    free(fhi);
     free(pcs);
     free(prs);
     free(row);

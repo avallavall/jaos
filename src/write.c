@@ -418,6 +418,19 @@ jaos_status jaos_write_mps(jaos_model *m, const char *path)
             }
         }
 
+        if (m->num_sos > 0) {
+            fprintf(w->f, "SOS\n");
+            for (int64_t k = 0; k < m->num_sos; k++) {
+                fprintf(w->f, " S%d SOS       SOS%lld\n", m->sos_type[k],
+                        (long long)(k + 1));
+                for (int64_t t = m->sos_start[k]; t < m->sos_start[k + 1]; t++) {
+                    col_name(m, nm, m->sos_col[t]);
+                    wr_num(num, m->sos_weight[t]);
+                    fprintf(w->f, "    %-9s %s\n", nm, num);
+                }
+            }
+        }
+
         fprintf(w->f, "ENDATA\n");
     }
 
@@ -615,6 +628,19 @@ jaos_status jaos_write_lp(jaos_model *m, const char *path)
                         col_name(m, nm, j);
                         fprintf(w->f, " %s\n", nm);
                     }
+            }
+        }
+        if (m->num_sos > 0) {
+            fprintf(w->f, "SOS\n");
+            for (int64_t k = 0; k < m->num_sos; k++) {
+                fprintf(w->f, " SOS%lld: S%d::", (long long)(k + 1),
+                        m->sos_type[k]);
+                for (int64_t t = m->sos_start[k]; t < m->sos_start[k + 1]; t++) {
+                    col_name(m, nm, m->sos_col[t]);
+                    wr_num(num, m->sos_weight[t]);
+                    fprintf(w->f, " %s:%s", nm, num);
+                }
+                fprintf(w->f, "\n");
             }
         }
 

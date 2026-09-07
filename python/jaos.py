@@ -491,6 +491,10 @@ _sig("jaos_set_col_integer", ctypes.c_int, _VP, _I64, ctypes.c_bool)
 _sig("jaos_col_integer", ctypes.c_int, _VP, _I64, _P(ctypes.c_bool))
 _sig("jaos_set_col_semicontinuous", ctypes.c_int, _VP, _I64, ctypes.c_bool)
 _sig("jaos_col_semicontinuous", ctypes.c_int, _VP, _I64, _P(ctypes.c_bool))
+_sig("jaos_add_sos", ctypes.c_int, _VP, ctypes.c_int, _I64, _P(_I64), _P(_D))
+_sig("jaos_num_sos", _I64, _VP)
+_sig("jaos_sos", ctypes.c_int, _VP, _I64, _P(ctypes.c_int), _P(_I64),
+     _P(_I64), _P(_D))
 _sig("jaos_set_mip_gap", ctypes.c_int, _VP, _D)
 _sig("jaos_set_mip_dive", ctypes.c_int, _VP, ctypes.c_bool)
 _sig("jaos_set_mip_cut_rounds", ctypes.c_int, _VP, _I64)
@@ -1009,6 +1013,33 @@ class Model:
         self._check(_lib.jaos_col_semicontinuous(self._handle(), int(col),
                                                  ctypes.byref(out)))
         return out.value
+
+    def add_sos(self, sos_type, cols, weights):
+        """A special ordered set of type 1 (at most one member nonzero) or
+        2 (at most two, adjacent in weight order) over `cols`."""
+        cols = [int(c) for c in cols]
+        weights = [float(w) for w in weights]
+        if len(cols) != len(weights):
+            raise ValueError("one weight per member")
+        n = len(cols)
+        ca = (_I64 * max(n, 1))(*cols)
+        wa = (_D * max(n, 1))(*weights)
+        self._check(_lib.jaos_add_sos(self._handle(), int(sos_type), n,
+                                      ca, wa))
+
+    def num_sos(self):
+        return int(_lib.jaos_num_sos(self._handle()))
+
+    def sos(self, k):
+        """(type, columns, weights) of set `k`, members in weight order."""
+        t = ctypes.c_int()
+        n = _I64()
+        self._check(_lib.jaos_sos(self._handle(), int(k), ctypes.byref(t),
+                                  ctypes.byref(n), None, None))
+        ca = (_I64 * max(n.value, 1))()
+        wa = (_D * max(n.value, 1))()
+        self._check(_lib.jaos_sos(self._handle(), int(k), None, None, ca, wa))
+        return int(t.value), list(ca)[:n.value], list(wa)[:n.value]
 
     def set_mip_gap(self, gap):
         """The relative gap that closes a branch and bound; 0 restores the
@@ -2330,6 +2361,7 @@ class Problem:
         self._m = Model()
         self._vars = []
         self._cons = []
+        self._sos = []
         self._obj = {}
         self._obj_c = 0.0
         self._sense = ObjSense.MINIMIZE
@@ -2442,6 +2474,23 @@ class Problem:
         self._sense = sense
         return self
 
+    def add_sos(self, sos_type, variables, weights=None):
+        """A special ordered set over `variables`: type 1 lets one be
+        nonzero, type 2 two adjacent ones. `weights` orders them; by default
+        1, 2, 3, ..."""
+        variables = list(variables)
+        if weights is None:
+            weights = [float(k + 1) for k in range(len(variables))]
+        weights = [float(w) for w in weights]
+        if len(weights) != len(variables):
+            raise ValueError("one weight per variable")
+        for v in variables:
+            if v._p is not self:
+                raise ValueError(f"{v.name} belongs to a different Problem")
+        self._sos.append((int(sos_type), variables, weights))
+        self._touch_structure()
+        return self
+
     def _touch_structure(self):
         self._sol = None
         if self._loaded:
@@ -2499,6 +2548,8 @@ class Problem:
                 self._m.set_col_integer(v._i, True)
             if getattr(v, "semicontinuous", False):
                 self._m.set_col_semicontinuous(v._i, True)
+        for t, vs, ws in self._sos:
+            self._m.add_sos(t, [v._i for v in vs], ws)
         for c in self._cons:
             self._m.set_row_name(c._i, c.name)
         self._dirty_var_bounds.clear()

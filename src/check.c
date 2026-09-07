@@ -404,6 +404,21 @@ jaos_status jaos_check_solution(const jaos_model *m,
                 if (f > int_viol)
                     int_viol = f;
             }
+    for (int64_t k = 0; k < m->num_sos; k++) {
+        const int64_t b = m->sos_start[k], e = m->sos_start[k + 1];
+        double total = 0.0, best = 0.0;
+        for (int64_t t = b; t < e; t++)
+            total += fabs(col_value[m->sos_col[t]]);
+        for (int64_t t = b; t < e; t++) {
+            double here = fabs(col_value[m->sos_col[t]]);
+            if (m->sos_type[k] == 2 && t + 1 < e)
+                here += fabs(col_value[m->sos_col[t + 1]]);
+            if (here > best)
+                best = here;
+        }
+        if (total - best > int_viol)
+            int_viol = total - best;
+    }
     out->max_integrality_violation = int_viol;
 
     out->max_col_violation = col_viol;

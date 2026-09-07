@@ -2143,6 +2143,56 @@ static void test_a_semicontinuous_column_round_trips_through_both_formats(void)
     jaos_model_free(a);
 }
 
+static void test_special_ordered_sets_round_trip_through_both_formats(void)
+{
+    const double cost[] = {-1.0, -1.0, -1.0};
+    const double cl[]   = {0.0, 0.0, 0.0};
+    const double cu[]   = {1.0, 1.0, 1.0};
+    const double rl[]   = {-INFINITY};
+    const double ru[]   = {10.0};
+    const int64_t as[]  = {0, 1, 2, 3};
+    const int64_t ai[]  = {0, 0, 0};
+    const double  av[]  = {1.0, 1.0, 1.0};
+    jaos_model *a = fresh();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_load_lp(a, 3, 1, JAOS_MINIMIZE, 0.0, cost, cl, cu, rl, ru,
+                     3, as, ai, av));
+    const int64_t s1[] = {0, 1};
+    const double w1[] = {1.5, 2.5};
+    const int64_t s2[] = {0, 1, 2};
+    const double w2[] = {1.0, 2.0, 3.0};
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_add_sos(a, 1, 2, s1, w1));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_add_sos(a, 2, 3, s2, w2));
+
+    const char *paths[2] = {TMP_MPS, TMP_LP};
+    for (int k = 0; k < 2; k++) {
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, k == 0 ? jaos_write_mps(a, paths[k])
+                                              : jaos_write_lp(a, paths[k]));
+        jaos_model *b = fresh();
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, k == 0 ? jaos_read_mps(b, paths[k])
+                                              : jaos_read_lp(b, paths[k]));
+        TEST_ASSERT_EQUAL_STRING("", jaos_model_error(b));
+        assert_same_model(a, b);
+        TEST_ASSERT_EQUAL_INT64(2, jaos_num_sos(b));
+        for (int64_t s = 0; s < 2; s++) {
+            int ta = 0, tb = 0;
+            int64_t na = 0, nb = 0, ca[3], cb[3];
+            double wa[3], wb[3];
+            TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_sos(a, s, &ta, &na, ca, wa));
+            TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_sos(b, s, &tb, &nb, cb, wb));
+            TEST_ASSERT_EQUAL_INT(ta, tb);
+            TEST_ASSERT_EQUAL_INT64(na, nb);
+            for (int64_t t = 0; t < na; t++) {
+                TEST_ASSERT_EQUAL_INT64(ca[t], cb[t]);
+                SAME_D(wa[t], wb[t]);
+            }
+        }
+        jaos_model_free(b);
+        remove(paths[k]);
+    }
+    jaos_model_free(a);
+}
+
 int main(void)
 {
     UNITY_BEGIN();
@@ -2212,5 +2262,6 @@ int main(void)
     RUN_TEST(test_a_duals_file_round_trips);
     RUN_TEST(test_a_point_file_uses_positional_names);
     RUN_TEST(test_a_semicontinuous_column_round_trips_through_both_formats);
+    RUN_TEST(test_special_ordered_sets_round_trip_through_both_formats);
     return UNITY_END();
 }

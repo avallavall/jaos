@@ -18,7 +18,7 @@ Gurobi and Hexaly. An empty JAOS cell there is a row here that is not done.
 | | status | |
 |---|---|---|
 | Linear programming | **done** | |
-| Mixed-integer linear | **partial** | missing: SOS and indicator constraints (§4) |
+| Mixed-integer linear | **partial** | missing: indicator constraints (§4) |
 | Convex quadratic (QP) | **missing** | |
 | Quadratically constrained, second-order cone | **missing** | |
 | Mixed-integer quadratic | **missing** | |
@@ -74,7 +74,7 @@ Gurobi and Hexaly. An empty JAOS cell there is a row here that is not done.
 | Bound propagation, reduced-cost fixing | **partial** | both exist behind switches and are off |
 | MIP presolve: probing, clique table, coefficient tightening | **missing** | |
 | Semi-continuous variables | **done** | `jaos_set_col_semicontinuous`; MPS `SC` and `SI`, LP `Semi-continuous`, both writers; the tree relaxes the floor to zero and branches on the zero side; the checker accepts zero |
-| SOS1 and SOS2 constraints | **missing** | |
+| SOS1 and SOS2 constraints | **done** | `jaos_add_sos`, `jaos_num_sos`, `jaos_sos`; MPS `SOS` section and LP `SOS` section, both writers; the tree branches on the weighted split and the checker counts the excess nonzeros as an integrality violation; Python `add_sos` at both layers |
 | Indicator constraints | **missing** | |
 | Symmetry detection | **missing** | |
 | Conflict analysis | **missing** | |
@@ -121,7 +121,7 @@ Gurobi and Hexaly. An empty JAOS cell there is a row here that is not done.
 | Read other solvers' solution files | **missing** | |
 | Reject unsupported constructs with a line number | **done** | |
 | `diff` and `show` commands | **done** | |
-| SOS and indicator constraints in MPS and LP | **missing** | |
+| Indicator constraints in LP | **missing** | |
 | Other formats (`.nl`, OSiL, QPLIB) | **missing** | |
 
 ## 8. Using it from another language

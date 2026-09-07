@@ -2281,6 +2281,95 @@ static void test_a_semicontinuous_column_rests_at_zero_or_above_its_floor(void)
 #endif
 }
 
+static jaos_model *three_unit_columns(void)
+{
+    const double cost[] = {-1.0, -1.0, -1.0};
+    const double cl[]   = {0.0, 0.0, 0.0};
+    const double cu[]   = {1.0, 1.0, 1.0};
+    const double rl[]   = {-INFINITY};
+    const double ru[]   = {10.0};
+    const int64_t as[]  = {0, 1, 2, 3};
+    const int64_t ai[]  = {0, 0, 0};
+    const double  av[]  = {1.0, 1.0, 1.0};
+    jaos_model *m = fresh();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_load_lp(m, 3, 1, JAOS_MINIMIZE, 0.0, cost, cl, cu, rl, ru,
+                     3, as, ai, av));
+    return m;
+}
+
+static void test_special_ordered_sets_branch_to_their_optimum(void)
+{
+#if defined(JAOS_PRESOLVE_FAULT_OFFBYONE) || defined(JAOS_PRESOLVE_FAULT_WRONGDUAL)
+    TEST_IGNORE_MESSAGE("positive test, skipped under either fault build");
+#else
+    const int64_t cols[] = {2, 0, 1};
+    const double w[] = {3.0, 1.0, 2.0};
+    for (int type = 1; type <= 2; type++) {
+        jaos_model *m = three_unit_columns();
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_add_sos(m, type, 3, cols, w));
+        TEST_ASSERT_EQUAL_INT64(1, jaos_num_sos(m));
+        int t = 0;
+        int64_t n = 0, got[3];
+        double gw[3];
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_sos(m, 0, &t, &n, got, gw));
+        TEST_ASSERT_EQUAL_INT(type, t);
+        TEST_ASSERT_EQUAL_INT64(3, n);
+        TEST_ASSERT_TRUE(got[0] == 0 && got[1] == 1 && got[2] == 2);
+        TEST_ASSERT_TRUE(gw[0] == 1.0 && gw[1] == 2.0 && gw[2] == 3.0);
+
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+        TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+        double obj = 0.0, x[3], y[1];
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(m, &obj));
+        TEST_ASSERT_DOUBLE_WITHIN(1e-9, type == 1 ? -1.0 : -2.0, obj);
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solution(m, x, nullptr, y, nullptr));
+        int nz = 0, first = -1, last = -1;
+        for (int k = 0; k < 3; k++)
+            if (x[k] != 0.0) {
+                if (nz == 0)
+                    first = k;
+                last = k;
+                nz++;
+            }
+        TEST_ASSERT_EQUAL_INT(type, nz);
+        if (type == 2)
+            TEST_ASSERT_EQUAL_INT(1, last - first);
+        jaos_check_report rep;
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_check_solution(m, x, y, 1e-9, &rep));
+        TEST_ASSERT_TRUE(rep.primal_feasible);
+        TEST_ASSERT_EQUAL_DOUBLE(0.0, rep.max_integrality_violation);
+
+        jaos_model *c = nullptr;
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_model_copy(m, &c));
+        TEST_ASSERT_EQUAL_INT64(1, jaos_num_sos(c));
+        const int64_t del[] = {1};
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_delete_cols(c, 1, del));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_sos(c, 0, &t, &n, got, gw));
+        TEST_ASSERT_EQUAL_INT64(2, n);
+        TEST_ASSERT_TRUE(got[0] == 0 && got[1] == 1);
+        TEST_ASSERT_TRUE(gw[0] == 1.0 && gw[1] == 3.0);
+        jaos_model_free(c);
+        jaos_model_free(m);
+    }
+    jaos_model *m = three_unit_columns();
+    const int64_t bad[] = {0, 7};
+    const int64_t dup[] = {0, 0};
+    const double dw[] = {1.0, 1.0};
+    TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT, jaos_add_sos(m, 1, 2, bad, w));
+    TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT, jaos_add_sos(m, 1, 2, dup, w));
+    TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT, jaos_add_sos(m, 1, 2, cols, dw));
+    TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT, jaos_add_sos(m, 3, 2, cols, w));
+    TEST_ASSERT_EQUAL_INT64(0, jaos_num_sos(m));
+    double x[3] = {1.0, 0.0, 1.0}, y[1] = {0.0};
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_add_sos(m, 1, 3, cols, w));
+    jaos_check_report rep;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_check_solution(m, x, y, 1e-9, &rep));
+    TEST_ASSERT_EQUAL_DOUBLE(1.0, rep.max_integrality_violation);
+    jaos_model_free(m);
+#endif
+}
+
 int main(void)
 {
     UNITY_BEGIN();
@@ -2335,5 +2424,6 @@ int main(void)
     RUN_TEST(test_the_pump_may_run_where_an_incumbent_exists);
     RUN_TEST(test_a_starting_point_and_a_cutoff);
     RUN_TEST(test_a_semicontinuous_column_rests_at_zero_or_above_its_floor);
+    RUN_TEST(test_special_ordered_sets_branch_to_their_optimum);
     return UNITY_END();
 }

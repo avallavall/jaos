@@ -57,6 +57,10 @@ static void model_release_arrays(jaos_model *m)
     free(m->model_name);
     free(m->col_integer);
     free(m->col_semi);
+    free(m->sos_type);
+    free(m->sos_start);
+    free(m->sos_col);
+    free(m->sos_weight);
     free(m->mip_start);
     free(m->mip_inc_x);
     free(m->mip_pool_x);
@@ -805,6 +809,92 @@ jaos_status jaos_col_semicontinuous(const jaos_model *m, int64_t j,
     if (m == nullptr || is_semi == nullptr || j < 0 || j >= m->num_col)
         return JAOS_ERR_INVALID_INPUT;
     *is_semi = m->col_semi != nullptr && m->col_semi[j];
+    return JAOS_OK;
+}
+
+jaos_status jaos_add_sos(jaos_model *m, int type, int64_t n,
+                         const int64_t *cols, const double *weights)
+{
+    if (m == nullptr || (type != 1 && type != 2) || n < 1 ||
+        cols == nullptr || weights == nullptr)
+        return JAOS_ERR_INVALID_INPUT;
+    for (int64_t k = 0; k < n; k++) {
+        if (cols[k] < 0 || cols[k] >= m->num_col) {
+            jm_set_err(m, "SOS member %lld is not a column of the model",
+                       (long long)cols[k]);
+            return JAOS_ERR_INVALID_INPUT;
+        }
+        if (!isfinite(weights[k])) {
+            jm_set_err(m, "SOS weights must be finite");
+            return JAOS_ERR_INVALID_INPUT;
+        }
+        for (int64_t t = 0; t < k; t++)
+            if (cols[t] == cols[k] || weights[t] == weights[k]) {
+                jm_set_err(m, "SOS members must be distinct columns with "
+                              "distinct weights");
+                return JAOS_ERR_INVALID_INPUT;
+            }
+    }
+    const int64_t base = m->num_sos > 0 ? m->sos_start[m->num_sos] : 0;
+    int *ty = realloc(m->sos_type, (size_t)(m->num_sos + 1) * sizeof *ty);
+    if (ty == nullptr)
+        return JAOS_ERR_OUT_OF_MEMORY;
+    m->sos_type = ty;
+    int64_t *ss = realloc(m->sos_start, (size_t)(m->num_sos + 2) * sizeof *ss);
+    if (ss == nullptr)
+        return JAOS_ERR_OUT_OF_MEMORY;
+    m->sos_start = ss;
+    int64_t *sc = realloc(m->sos_col, (size_t)(base + n) * sizeof *sc);
+    if (sc == nullptr)
+        return JAOS_ERR_OUT_OF_MEMORY;
+    m->sos_col = sc;
+    double *sw = realloc(m->sos_weight, (size_t)(base + n) * sizeof *sw);
+    if (sw == nullptr)
+        return JAOS_ERR_OUT_OF_MEMORY;
+    m->sos_weight = sw;
+    if (m->col_integer == nullptr) {
+        m->col_integer = jm_calloc_array(m->num_col, sizeof(bool));
+        if (m->col_integer == nullptr)
+            return JAOS_ERR_OUT_OF_MEMORY;
+    }
+    if (m->num_sos == 0)
+        m->sos_start[0] = 0;
+    for (int64_t k = 0; k < n; k++) {
+        int64_t p = base + k;
+        while (p > base && m->sos_weight[p - 1] > weights[k]) {
+            m->sos_col[p] = m->sos_col[p - 1];
+            m->sos_weight[p] = m->sos_weight[p - 1];
+            p--;
+        }
+        m->sos_col[p] = cols[k];
+        m->sos_weight[p] = weights[k];
+    }
+    m->sos_type[m->num_sos] = type;
+    m->sos_start[m->num_sos + 1] = base + n;
+    m->num_sos++;
+    model_answer_is_stale(m);
+    return JAOS_OK;
+}
+
+int64_t jaos_num_sos(const jaos_model *m)
+{
+    return m == nullptr ? 0 : m->num_sos;
+}
+
+jaos_status jaos_sos(const jaos_model *m, int64_t k, int *type, int64_t *n,
+                     int64_t *cols, double *weights)
+{
+    if (m == nullptr || k < 0 || k >= m->num_sos)
+        return JAOS_ERR_INVALID_INPUT;
+    const int64_t b = m->sos_start[k], e = m->sos_start[k + 1];
+    if (type != nullptr)
+        *type = m->sos_type[k];
+    if (n != nullptr)
+        *n = e - b;
+    if (cols != nullptr)
+        memcpy(cols, m->sos_col + b, (size_t)(e - b) * sizeof *cols);
+    if (weights != nullptr)
+        memcpy(weights, m->sos_weight + b, (size_t)(e - b) * sizeof *weights);
     return JAOS_OK;
 }
 
@@ -2123,6 +2213,14 @@ jaos_status jaos_delete_cols(jaos_model *m, int64_t num_del,
     bool *keep = deletion_mask(m, num_del, cols, m->num_col, "column");
     if (keep == nullptr)
         return m->err[0] ? JAOS_ERR_INVALID_INPUT : JAOS_ERR_OUT_OF_MEMORY;
+    int64_t *newidx = nullptr;
+    if (m->num_sos > 0) {
+        newidx = malloc((size_t)m->num_col * sizeof *newidx);
+        if (newidx == nullptr) {
+            free(keep);
+            return JAOS_ERR_OUT_OF_MEMORY;
+        }
+    }
 
     const int64_t ncol = m->num_col - num_del;
     int64_t nnz = 0;
@@ -2179,6 +2277,32 @@ jaos_status jaos_delete_cols(jaos_model *m, int64_t num_del,
             if (keep[j])
                 m->col_semi[at++] = m->col_semi[j];
     }
+    if (m->num_sos > 0 && newidx != nullptr) {
+        int64_t at = 0;
+        for (int64_t j = 0; j < m->num_col; j++)
+            newidx[j] = keep[j] ? at++ : -1;
+        int64_t nsets = 0, pos = 0;
+        for (int64_t k = 0; k < m->num_sos; k++) {
+            const int64_t b = m->sos_start[k], e = m->sos_start[k + 1];
+            const int64_t start = pos;
+            for (int64_t t = b; t < e; t++) {
+                const int64_t nj = newidx[m->sos_col[t]];
+                if (nj < 0)
+                    continue;
+                m->sos_col[pos] = nj;
+                m->sos_weight[pos] = m->sos_weight[t];
+                pos++;
+            }
+            if (pos > start) {
+                m->sos_type[nsets] = m->sos_type[k];
+                m->sos_start[nsets] = start;
+                nsets++;
+            }
+        }
+        m->sos_start[nsets] = pos;
+        m->num_sos = nsets;
+    }
+    free(newidx);
     free(keep);
 
     free(m->col_cost);  free(m->col_lower); free(m->col_upper);
@@ -2382,6 +2506,21 @@ jaos_status jaos_model_copy(const jaos_model *src, jaos_model **out)
             goto oom;
         memcpy(m->col_semi, src->col_semi,
                (size_t)src->num_col * sizeof *m->col_semi);
+    }
+    if (src->num_sos > 0) {
+        const int64_t nz = src->sos_start[src->num_sos];
+        m->sos_type = malloc((size_t)src->num_sos * sizeof *m->sos_type);
+        m->sos_start = malloc((size_t)(src->num_sos + 1) * sizeof *m->sos_start);
+        m->sos_col = malloc((size_t)(nz > 0 ? nz : 1) * sizeof *m->sos_col);
+        m->sos_weight = malloc((size_t)(nz > 0 ? nz : 1) * sizeof *m->sos_weight);
+        if (!m->sos_type || !m->sos_start || !m->sos_col || !m->sos_weight)
+            goto oom;
+        memcpy(m->sos_type, src->sos_type, (size_t)src->num_sos * sizeof *m->sos_type);
+        memcpy(m->sos_start, src->sos_start,
+               (size_t)(src->num_sos + 1) * sizeof *m->sos_start);
+        memcpy(m->sos_col, src->sos_col, (size_t)nz * sizeof *m->sos_col);
+        memcpy(m->sos_weight, src->sos_weight, (size_t)nz * sizeof *m->sos_weight);
+        m->num_sos = src->num_sos;
     }
 
     m->cfg = src->cfg;

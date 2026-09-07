@@ -174,6 +174,12 @@ struct jaos_model {
     bool *col_integer;
     bool *col_semi;
 
+    int64_t num_sos;
+    int *sos_type;
+    int64_t *sos_start;
+    int64_t *sos_col;
+    double *sos_weight;
+
     int64_t mip_nodes, mip_solves, mip_cuts, mip_heur, mip_first_inc;
     int64_t mip_rcfix_n, mip_prop_n;
     double mip_bound;

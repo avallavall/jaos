@@ -247,6 +247,28 @@ static void test_a_semicontinuous_section_marks_the_columns(void)
     jaos_model_free(m);
 }
 
+static void test_an_sos_section_builds_the_sets(void)
+{
+    jaos_model *m = fresh();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_read_lp(m, "tests/data/g_sos.lp"));
+    TEST_ASSERT_EQUAL_STRING("", jaos_model_error(m));
+    TEST_ASSERT_EQUAL_INT64(2, jaos_num_sos(m));
+    int t = 0;
+    int64_t n = 0, cols[3];
+    double w[3];
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_sos(m, 0, &t, &n, cols, w));
+    TEST_ASSERT_EQUAL_INT(2, t);
+    TEST_ASSERT_EQUAL_INT64(3, n);
+    TEST_ASSERT_TRUE(cols[0] == 0 && cols[1] == 1 && cols[2] == 2);
+    TEST_ASSERT_TRUE(w[0] == 1.0 && w[1] == 2.0 && w[2] == 3.0);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_sos(m, 1, &t, &n, cols, w));
+    TEST_ASSERT_EQUAL_INT(1, t);
+    TEST_ASSERT_EQUAL_INT64(2, n);
+    TEST_ASSERT_TRUE(cols[0] == 2 && cols[1] == 0);
+    TEST_ASSERT_TRUE(w[0] == 0.5 && w[1] == 4.0);
+    jaos_model_free(m);
+}
+
 int main(void)
 {
     UNITY_BEGIN();
@@ -260,5 +282,6 @@ int main(void)
     RUN_TEST(test_missing_file_is_io_error);
     RUN_TEST(test_failed_read_preserves_previous_model);
     RUN_TEST(test_a_semicontinuous_section_marks_the_columns);
+    RUN_TEST(test_an_sos_section_builds_the_sets);
     return UNITY_END();
 }

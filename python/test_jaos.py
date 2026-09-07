@@ -1259,6 +1259,26 @@ class TestBranchAndBound(unittest.TestCase):
         self.assertIs(p.solve(), jaos.SolveStatus.INTERRUPTED)
         self.assertTrue(p.mip_report().has_incumbent)
 
+    def test_special_ordered_sets_limit_the_nonzero_members(self):
+        for sos_type, want in ((1, 1.0), (2, 2.0)):
+            p = jaos.Problem()
+            xs = [p.add_var(ub=1, name=f"x{k}") for k in range(3)]
+            p.add(xs[0] + xs[1] + xs[2] <= 10)
+            p.maximize(xs[0] + xs[1] + xs[2])
+            p.add_sos(sos_type, xs)
+            self.assertIs(p.solve(), jaos.SolveStatus.OPTIMAL)
+            self.assertAlmostEqual(p.objective_value, want, places=9)
+            nz = [k for k, v in enumerate(xs) if abs(v.value) > 1e-9]
+            self.assertEqual(len(nz), int(want))
+            if sos_type == 2:
+                self.assertEqual(nz[1] - nz[0], 1)
+            self.assertEqual(p._m.num_sos(), 1)
+            t, cols, ws = p._m.sos(0)
+            self.assertEqual((t, cols, ws), (sos_type, [0, 1, 2],
+                                             [1.0, 2.0, 3.0]))
+        with self.assertRaises(jaos.JaosError):
+            p._m.add_sos(1, [0, 0], [1.0, 2.0])
+
     def test_a_semicontinuous_variable_rests_at_zero_or_above_its_floor(self):
         p = jaos.Problem()
         x = p.add_var(lb=2, ub=10, name="x", semicontinuous=True)
