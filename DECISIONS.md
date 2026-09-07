@@ -23109,6 +23109,21 @@ are the deferred families (D97, D101, D246), each with an executable
 reopen condition in `bench/refusals.txt`. A caller reading this report
 should not have to change when one of them lands.
 
+**A line D64 never drew.** `jaos_internal.h` said of the reduced
+dimensions "Not public API (D64)", and this decision makes three of them
+public. The comment was applying D64 past its own words. D64 says what a
+caller may CONFIGURE — the two tolerances yes, the pricing rule no — and
+says nothing about what the library may REPORT. Telling a caller what
+presolve removed hands them no choice about how the problem is solved, so
+D64 does not reach it, and the comment is corrected to say so.
+
+**Where the line does fall.** `solve_primal_iters` and
+`solve_phase1_iters` stay internal, and for D64's actual reason: they say
+WHICH METHOD ran. A caller who could read that split would come to depend
+on it, and the method is the solver's business — the door D64 closed.
+That distinction is now written beside both sets of fields, so the next
+reporting call knows which side it is on.
+
 **The test is two-sided, and that is the whole of it.** Under the default
 build the report says a fixed column and an empty row went; under
 `-DJAOS_NO_PRESOLVE` it says zero rounds and the model as loaded. A

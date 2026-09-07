@@ -319,17 +319,30 @@ struct jaos_model {
     /* How many of `solve_iters` the primal method ran, and how many of THOSE
      * belonged to its phase 1. Both zero on a pure dual solve. Written on
      * EVERY exit from `jm_dual_simplex`, which zeroes all three counts on
-     * entry. Reporting only: nothing inside the solver reads them back. Not
-     * public API (D64); bench/primal.c and tests/ read them directly. */
+     * entry. Reporting only: nothing inside the solver reads them back.
+     *
+     * These two stay internal, and the reason is D64's own and not the
+     * misreading D329 corrected above: they say WHICH METHOD ran, and the
+     * method is the solver's business. A caller who could read the split
+     * would start depending on it, which is the door D64 closed.
+     * bench/primal.c and tests/ read them directly, being white-box. */
     int64_t solve_primal_iters, solve_phase1_iters;
     /* Seconds the last solve took. The one number on this struct that is not
      * reproducible, which is why nothing inside the solver may read it back. */
     double solve_time;
 
     /* What the last solve's presolve pass gave the simplex: the reduced
-     * dimensions, or this model's own when nothing fired. Reporting only,
-     * like solve_work/solve_iters. Not public API (D64); bench/run.c and
-     * tests/ read these directly. */
+     * dimensions, or this model's own when nothing fired. Reporting only:
+     * nothing inside the solver reads them back.
+     *
+     * These three ARE public since D329, through jaos_presolve_result,
+     * and the line this comment used to draw at D64 was drawn in the
+     * wrong place. D64 says what a caller may CONFIGURE -- the tolerances
+     * yes, the pricing rule no -- and says nothing about what the library
+     * may REPORT. Telling a caller what presolve removed does not hand
+     * them a choice about how the problem is solved, so D64 does not
+     * reach it. bench/run.c and tests/ still read the fields directly,
+     * because they are white-box. */
     int64_t presolve_num_row, presolve_num_col, presolve_num_nz;
     /* What presolve removed on the last solve, by family (D329). A
        plain struct with no pointer in it, so nothing owns it and
