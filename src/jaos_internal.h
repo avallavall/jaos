@@ -176,6 +176,30 @@ char *jm_name_copy(const char *name);
  * the model. */
 char **jm_nmap_to_names(const jm_nmap *m, int64_t n);
 
+/* Declared here rather than beside the rest of presolve, because
+ * `struct jaos_model` holds one: the last solve's counts, reported
+ * by jaos_presolve_result (D329). */
+/* What each reduction removed. Logged at JAOS_LOG_SUMMARY and printed by
+ * bench/run.c; tests are white-box and read the fields directly. */
+typedef struct {
+    int64_t fixed_col;
+    int64_t empty_row;
+    int64_t empty_col;
+    int64_t singleton_row;
+    int64_t singleton_col;          /* bounded singleton column only */
+    int64_t free_col_singleton;     /* counted apart from singleton_col: it
+                                      * removes one row and one column */
+    int64_t forcing_row;
+    int64_t redundant_row;
+    int64_t implied_free_col;       /* the implied free column singleton,
+                                      * substituted out exactly (D105) */
+    int64_t tightened_bound;
+    int64_t duplicate_row;
+    int64_t duplicate_col;
+    int64_t dominated_col;
+    int64_t rounds;
+} jm_presolve_counts;
+
 struct jaos_model {
     int64_t num_col;
     int64_t num_row;
@@ -307,6 +331,12 @@ struct jaos_model {
      * like solve_work/solve_iters. Not public API (D64); bench/run.c and
      * tests/ read these directly. */
     int64_t presolve_num_row, presolve_num_col, presolve_num_nz;
+    /* What presolve removed on the last solve, by family (D329). A
+       plain struct with no pointer in it, so nothing owns it and
+       nothing frees it; model_release_arrays zeroes it with
+       everything else, and a build with presolve compiled out
+       leaves it zero, which is what it did. */
+    jm_presolve_counts presolve_counts;
 
     /* The basis the next solve starts from, or null for the slack basis.
      * Held apart from sol_*_status: those are an answer, discarded when the
@@ -595,27 +625,6 @@ static inline void jm_work_add(jm_work *w, int64_t n)
 }
 
 /* Presolve and postsolve ------------------------------------------------ */
-
-/* What each reduction removed. Logged at JAOS_LOG_SUMMARY and printed by
- * bench/run.c; tests are white-box and read the fields directly. */
-typedef struct {
-    int64_t fixed_col;
-    int64_t empty_row;
-    int64_t empty_col;
-    int64_t singleton_row;
-    int64_t singleton_col;          /* bounded singleton column only */
-    int64_t free_col_singleton;     /* counted apart from singleton_col: it
-                                      * removes one row and one column */
-    int64_t forcing_row;
-    int64_t redundant_row;
-    int64_t implied_free_col;       /* the implied free column singleton,
-                                      * substituted out exactly (D105) */
-    int64_t tightened_bound;
-    int64_t duplicate_row;
-    int64_t duplicate_col;
-    int64_t dominated_col;
-    int64_t rounds;
-} jm_presolve_counts;
 
 /* One postsolve record kind per reduction family. */
 typedef enum {

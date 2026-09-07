@@ -1589,6 +1589,23 @@ class TestBranchAndBound(unittest.TestCase):
         p.set_mip_pump_general(-1)
         p.set_mip_pump_obj(-1.0)
 
+    def test_the_presolve_report_reaches_python(self):
+        # afiro loses two singleton rows; the report says so at both
+        # layers (D329). The build with presolve compiled out is not
+        # exercised from Python, so the assertion is one-sided here and
+        # two-sided in tests/test_presolve.c.
+        p = jaos.Problem()
+        x = p.add_var(name="x")
+        y = p.add_var(name="y")
+        p.add(x + y >= 3)
+        p.add(x <= 10)
+        p.minimize(x + y)
+        self.assertIs(p.solve(), jaos.SolveStatus.OPTIMAL)
+        rep = p.presolve_report()
+        self.assertGreaterEqual(rep.rounds, 0)
+        self.assertLessEqual(rep.num_row, 2)
+        self.assertEqual(rep.duplicate_row, 0)
+
     def test_a_starting_point_a_cutoff_and_the_statistics(self):
         # The tree's two inputs and the model census, at the Problem layer
         # (D326, D327).

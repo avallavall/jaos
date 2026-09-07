@@ -4619,6 +4619,11 @@ jaos_status jm_dual_simplex(jaos_model *m)
         return pst;
     }
 
+    /* What it removed, kept on the model so a caller can read it and not
+     * only a log reader (D329). Stored before the outcome branches below,
+     * because three of them return without reaching the end. */
+    m->presolve_counts = p.counts;
+
     /* Presolve ran first, so it reports first. */
     if (p.outcome == JM_PRESOLVE_NONE) {
         jm_log(m, JAOS_LOG_SUMMARY, "presolve: nothing fired");
@@ -4655,7 +4660,11 @@ jaos_status jm_dual_simplex(jaos_model *m)
 #endif
 
     if (p.outcome == JM_PRESOLVE_SOLVED) {
-        /* Nothing is left for the simplex to run on. No sx is built. */
+        /* Nothing is left for the simplex to run on. No sx is built, and
+         * the reduced model is empty, which is what the sizes say (D329). */
+        m->presolve_num_row = p.reduced.num_row;
+        m->presolve_num_col = p.reduced.num_col;
+        m->presolve_num_nz  = p.reduced.num_nz;
         jaos_status st = jm_postsolve_solved(&p);
         jm_presolve_free(&p);
         return st;
@@ -4664,6 +4673,9 @@ jaos_status jm_dual_simplex(jaos_model *m)
     if (p.outcome == JM_PRESOLVE_INFEASIBLE ||
         p.outcome == JM_PRESOLVE_UNBOUNDED) {
         /* Proved by the reductions alone; no basis is ever built. */
+        m->presolve_num_row = p.reduced.num_row;
+        m->presolve_num_col = p.reduced.num_col;
+        m->presolve_num_nz  = p.reduced.num_nz;
         const jaos_solve_status status = (p.outcome == JM_PRESOLVE_INFEASIBLE)
             ? JAOS_SOLVE_INFEASIBLE : JAOS_SOLVE_UNBOUNDED;
         jaos_status st = jm_postsolve_infeasible_or_unbounded(&p, status);

@@ -248,6 +248,29 @@ class _CheckReport(ctypes.Structure):
     ]
 
 
+class _PresolveReport(ctypes.Structure):
+    """jaos_presolve_report, in the header's order."""
+    _fields_ = [
+        ("num_row", _I64),
+        ("num_col", _I64),
+        ("num_nz", _I64),
+        ("rounds", _I64),
+        ("fixed_col", _I64),
+        ("empty_row", _I64),
+        ("empty_col", _I64),
+        ("singleton_row", _I64),
+        ("singleton_col", _I64),
+        ("free_col_singleton", _I64),
+        ("forcing_row", _I64),
+        ("redundant_row", _I64),
+        ("implied_free_col", _I64),
+        ("tightened_bound", _I64),
+        ("duplicate_row", _I64),
+        ("duplicate_col", _I64),
+        ("dominated_col", _I64),
+    ]
+
+
 class _ModelStats(ctypes.Structure):
     """jaos_model_stats, in the header's order."""
     _fields_ = [
@@ -317,6 +340,9 @@ ProofReport = namedtuple("ProofReport",
                          [f for f, _ in _ProofReport._fields_])
 
 ModelStats = namedtuple("ModelStats", [f for f, _ in _ModelStats._fields_])
+
+PresolveReport = namedtuple("PresolveReport",
+                            [f for f, _ in _PresolveReport._fields_])
 
 
 CheckReport = namedtuple("CheckReport",
@@ -496,6 +522,7 @@ _sig("jaos_set_mip_dive_degrade", ctypes.c_int, _VP, ctypes.c_double)
 _sig("jaos_set_mip_heuristics", ctypes.c_int, _VP, ctypes.c_bool)
 _sig("jaos_mip_result", ctypes.c_int, _VP, _P(_MipReport))
 _sig("jaos_model_statistics", ctypes.c_int, _VP, _P(_ModelStats))
+_sig("jaos_presolve_result", ctypes.c_int, _VP, _P(_PresolveReport))
 _sig("jaos_set_mip_start", ctypes.c_int, _VP, _P(_D))
 _sig("jaos_set_mip_cutoff", ctypes.c_int, _VP, ctypes.c_double)
 _sig("jaos_write_proof", ctypes.c_int, _VP, ctypes.c_char_p)
@@ -1171,6 +1198,17 @@ class Model:
         self._check(_lib.jaos_set_incumbent_callback(self._handle(),
                                                      self._incumbent_cb, None))
         return self
+
+    def presolve_report(self):
+        """What presolve did on the last solve: the sizes the simplex ran
+        on, the round count, and how many of each family fired. All zero
+        before a solve, and all zero under a build with presolve compiled
+        out, which is what it did."""
+        rep = _PresolveReport()
+        self._check(_lib.jaos_presolve_result(self._handle(),
+                                              ctypes.byref(rep)))
+        return PresolveReport(*[getattr(rep, f)
+                                for f, _ in _PresolveReport._fields_])
 
     def statistics(self):
         """What the model is, counted in one pass: sizes, row and column
@@ -2645,6 +2683,11 @@ class Problem:
                                            for i, v in enumerate(vars_)}))
         self._m.set_incumbent_callback(wrap)
         return self
+
+    def presolve_report(self):
+        """What presolve did on the last solve (D329): the sizes the
+        simplex ran on, the rounds, and each family's count."""
+        return self._m.presolve_report()
 
     def statistics(self):
         """What the problem is, counted (D327): sizes, row and column

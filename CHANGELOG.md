@@ -11,6 +11,16 @@ open, `bench/README.md` for the gate, and the commit each entry came from.
 
 ### Added
 
+- **What presolve removed is reported to the caller, not only to the
+  log.** `jaos_presolve_result` gives the three sizes the simplex ran on,
+  the round count and each family's count; `jaos solve` prints four lines
+  where presolve fired; `presolve_report()` at both Python layers. The
+  counters have existed since D95 and died with the presolve object. They
+  are stored before the outcome branches, so SOLVED, INFEASIBLE and
+  UNBOUNDED -- the three cases where no simplex runs at all -- report too.
+  Tested on both arms, default and `-DJAOS_NO_PRESOLVE`, because a
+  one-sided test passes on a report that is always empty (D329).
+
 - **The proof file carries a certificate too, checked with no tolerance.**
   `proof infeasible` holds the Farkas multipliers and `proof unbounded`
   the ray, as exact rationals; `jaos solve FILE --proof PATH` writes

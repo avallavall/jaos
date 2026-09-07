@@ -336,6 +336,7 @@ and you have the argument. Jump to the entry for the numbers behind it.
 - **[D326](#d326--the-trees-two-inputs-a-point-the-caller-already-has-and-an-objective-they-do-not-care-to-beat)** — The tree's two inputs: a point the caller already has, and an objective they do not care to beat
 - **[D327](#d327--what-a-model-is-counted-jaosmodelstatistics-and-jaos-stats)** — What a model is, counted: `jaos_model_statistics` and `jaos stats`
 - **[D328](#d328--certificates-in-the-proof-file-too-checked-with-no-tolerance-18-of-29-infeasibilities-hold-exactly-and-all-28-optimum-proofs-do)** — Certificates in the proof file too, checked with no tolerance: 18 of 29 infeasibilities hold exactly, and all 28 optimum proofs do
+- **[D329](#d329--what-presolve-removed-reported-to-the-caller-and-not-only-to-the-log-jaospresolveresult)** — What presolve removed, reported to the caller and not only to the log: `jaos_presolve_result`
 
 ---
 
@@ -23080,3 +23081,38 @@ the published vector proves it with no tolerance, and on eleven it does
 not. Making it do so would want the Farkas multipliers derived exactly
 from the final basis, the way the optimum's coordinates are — the same
 machinery, pointed at a different right-hand side. That is not built.
+
+## D329 — What presolve removed, reported to the caller and not only to the log: `jaos_presolve_result`
+
+**What it is.** Presolve has kept per-family counters since D95 and logged
+them at `JAOS_LOG_SUMMARY`. They died with the presolve object, so the
+only way to read them was to turn logging on and parse a sentence.
+`jaos_presolve_result` fills a `jaos_presolve_report`: the three sizes the
+simplex actually ran on, the cascading loop's round count, and each
+family's count. `jaos solve` prints four of them, and both Python layers
+carry `presolve_report()`.
+
+**Where the counts live.** On the model, as a plain `jm_presolve_counts`
+with no pointer in it, so nothing owns it and nothing frees it;
+`model_release_arrays` zeroes it with everything else. The typedef moved
+above `struct jaos_model` for that, which is the only reason it moved.
+
+**Stored before the outcome branches, not after.** Three of presolve's
+outcomes return without reaching the end of the function — SOLVED,
+INFEASIBLE and UNBOUNDED — and those are exactly the cases where a caller
+most wants to know what fired, because no simplex ran at all. The three
+sizes are set on those paths too, from the reduced model.
+
+**Four fields are always zero, and they are in the struct on purpose.**
+`duplicate_row`, `duplicate_col`, `dominated_col` and `tightened_bound`
+are the deferred families (D97, D101, D246), each with an executable
+reopen condition in `bench/refusals.txt`. A caller reading this report
+should not have to change when one of them lands.
+
+**The test is two-sided, and that is the whole of it.** Under the default
+build the report says a fixed column and an empty row went; under
+`-DJAOS_NO_PRESOLVE` it says zero rounds and the model as loaded. A
+one-sided test would pass on a report that is always empty. `tests/cli.sh`
+checks both arms too, and its "five lines, one fact each" contract is
+stated as nine where presolve fires rather than relaxed to "at least
+five", which would stop catching a stray line.

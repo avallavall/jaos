@@ -1156,6 +1156,37 @@ jaos_status jaos_set_mip_pump_obj(jaos_model *m, double decay)
     return JAOS_OK;
 }
 
+/* What presolve did on the last solve (D329). A copy of counters the
+ * model already holds, so nothing here can fail beyond the argument
+ * check. Zero before any solve, and zero under -DJAOS_NO_PRESOLVE. */
+jaos_status jaos_presolve_result(const jaos_model *m,
+                                 jaos_presolve_report *out)
+{
+    if (m == nullptr || out == nullptr)
+        return JAOS_ERR_INVALID_INPUT;
+    const jm_presolve_counts *c = &m->presolve_counts;
+    *out = (jaos_presolve_report){
+        .num_row = m->presolve_num_row,
+        .num_col = m->presolve_num_col,
+        .num_nz = m->presolve_num_nz,
+        .rounds = c->rounds,
+        .fixed_col = c->fixed_col,
+        .empty_row = c->empty_row,
+        .empty_col = c->empty_col,
+        .singleton_row = c->singleton_row,
+        .singleton_col = c->singleton_col,
+        .free_col_singleton = c->free_col_singleton,
+        .forcing_row = c->forcing_row,
+        .redundant_row = c->redundant_row,
+        .implied_free_col = c->implied_free_col,
+        .tightened_bound = c->tightened_bound,
+        .duplicate_row = c->duplicate_row,
+        .duplicate_col = c->duplicate_col,
+        .dominated_col = c->dominated_col,
+    };
+    return JAOS_OK;
+}
+
 /* One pass over the model, counting what it is (D327). Nothing here can
  * fail beyond the argument check: every field is read off arrays the
  * model already holds, and a model with no rows or columns comes out as

@@ -45,6 +45,10 @@ line_of() { printf '%s\n' "$out" | grep "^$1 "; }
 # passes its EXTRA_CFLAGS in JAOS_CLI_TEST_FLAGS so this script can tell.
 faulty=0
 case "${JAOS_CLI_TEST_FLAGS:-}" in *JAOS_PRESOLVE_FAULT*) faulty=1 ;; esac
+# And the same trick for the build with presolve compiled out, which
+# reports no reduction because it made none (D329).
+nopresolve=0
+case "${JAOS_CLI_TEST_FLAGS:-}" in *JAOS_NO_PRESOLVE*) nopresolve=1 ;; esac
 [ "$faulty" -eq 1 ] && echo "note fault build: positive analysis checks skipped"
 
 # The binary must exist; without it every check below fails for one reason.
@@ -106,9 +110,15 @@ for k in iterations work_units time; do
     [ -n "$(line_of $k)" ] && pass "it prints a $k line" \
         || flunk "no $k line in: $out"
 done
-[ "$(printf '%s\n' "$out" | wc -l)" -eq 5 ] \
-    && pass "five lines, one fact each" \
-    || flunk "expected five lines, got: $out"
+# Five facts, plus the four presolve lines where presolve fired
+# (D329). The rule is still one fact per line and nothing else, and
+# the count is stated for both builds rather than relaxed to "at
+# least five", which would stop catching a stray line.
+want=5
+[ "$nopresolve" -eq 0 ] && [ -n "$(line_of presolve_rounds)" ] && want=9
+[ "$(printf '%s\n' "$out" | wc -l)" -eq "$want" ] \
+    && pass "$want lines, one fact each" \
+    || flunk "expected $want lines, got: $out"
 [ "$(printf '%s\n' "$out" | tail -n 1 | cut -d' ' -f1)" = "time" ] \
     && pass "time is the last line" || flunk "time is not the last line"
 mps_objective=$(line_of objective)
@@ -758,6 +768,21 @@ expect_exit 5 "check refuses --proof with no path" \
 # stats (D327): it solves nothing, so it runs under every build. The two
 # partitions are what is checked, because a count that is merely printed
 # is not evidence that the walk saw every row and every column.
+# What presolve removed (D329). afiro loses two singleton rows, so the
+# four lines are there under the default build and gone under
+# -DJAOS_NO_PRESOLVE, where nothing fires at all. Both arms are checked,
+# because a report that is always absent would pass a one-sided test.
+expect_exit 0 "solve prints what presolve removed" \
+    "$JAOS" solve bench/instances/afiro.mps
+if [ "$nopresolve" -eq 1 ]; then
+  [ -z "$(line_of presolve_rounds)" ] && pass "and prints none with presolve out" \
+      || flunk "presolve lines under -DJAOS_NO_PRESOLVE: $(line_of presolve_rounds)"
+else
+  [ "$(line_of presolve_rounds)" = "presolve_rounds 1" ] && pass "in one round" \
+      || flunk "rounds: $(line_of presolve_rounds)"
+  [ "$(line_of presolve_rows)" = "presolve_rows 25" ] && pass "27 rows down to 25" \
+      || flunk "rows: $(line_of presolve_rows)"
+fi
 expect_exit 0 "stats reads a model" \
     "$JAOS" stats "$DATA/g_int.lp"
 r=$(line_of rows | cut -d" " -f2)

@@ -7,6 +7,27 @@ line leaves this file in the same commit.
 
 ## Where the last session stopped — 2026-09-06
 
+**2026-09-07, the day batch, twelfth round: presolve reports what it
+removed (D329).** The per-family counters have existed since D95 and were
+logged only, so they died with the presolve object and the only way to
+read them was to turn logging on and parse a sentence.
+`jaos_presolve_result` publishes them: the three sizes the simplex
+actually ran on, the round count, and each family's count. `jaos solve`
+prints four lines where presolve fired and none where it did not;
+`presolve_report()` at both Python layers. **Two things worth carrying
+forward.** The counts are stored BEFORE the outcome branches, because
+SOLVED, INFEASIBLE and UNBOUNDED all return without reaching the end of
+the function, and those are exactly the cases where a caller most wants to
+know what fired since no simplex ran at all. And the test is two-sided:
+the default build reports a fixed column and an empty row, and
+`-DJAOS_NO_PRESOLVE` reports zero rounds and the model as loaded, because
+a one-sided test passes on a report that is always empty. `tests/cli.sh`'s
+"five lines, one fact each" contract is stated as nine where presolve
+fires rather than relaxed to "at least five", which would stop catching a
+stray line. **What is next**, in order: an exact Farkas ray derived from
+the final basis, which would close D328's eleven; then the seven held
+constants.
+
 **2026-09-07, the day batch, eleventh round: the proof file carries a
 certificate, and two independent checkers agree 28 times out of 28
 (D328).** `proof infeasible` holds the Farkas multipliers and `proof

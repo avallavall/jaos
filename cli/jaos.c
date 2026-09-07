@@ -1111,7 +1111,18 @@ static int cmd_solve(int argc, char **argv)
             printf("objective %.17g\n", obj);
         printf("iterations %" PRId64 "\n", jaos_iterations(m));
         printf("work_units %" PRId64 "\n", jaos_work_units(m));
-        /* A mixed-integer solve says how big its tree was and what bound
+            /* What presolve removed (D329), only when it removed something:
+         * a line of zeros on a model presolve does not touch is noise,
+         * and a build with presolve compiled out prints nothing at all. */
+        jaos_presolve_report prep;
+        if (jaos_presolve_result(m, &prep) == JAOS_OK && prep.rounds > 0) {
+            print_int("presolve_rows", prep.num_row);
+            print_int("presolve_columns", prep.num_col);
+            print_int("presolve_nonzeros", prep.num_nz);
+            print_int("presolve_rounds", prep.rounds);
+        }
+
+    /* A mixed-integer solve says how big its tree was and what bound
          * it reached (D288); a plain LP prints neither line. */
         jaos_mip_report mrep;
         if (jaos_mip_result(m, &mrep) == JAOS_OK && mrep.nodes > 0) {

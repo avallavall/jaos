@@ -582,6 +582,36 @@ typedef struct jaos_model_stats {
     double  obj_min_abs, obj_max_abs;
 } jaos_model_stats;
 
+/* What presolve did on the last solve (D329). The three sizes are the
+ * model the simplex actually ran on; the counts are how many of each
+ * family fired, over every round. Everything is zero before a solve, and
+ * zero after one built with presolve compiled out, which is what it did.
+ *
+ * `rounds` is the cascading loop's own count: a family that fires can
+ * expose work for another, so the counts are totals over the rounds and
+ * not per round.
+ *
+ * `duplicate_row`, `duplicate_col`, `dominated_col` and `tightened_bound`
+ * are always zero today: those four families are deferred, each with an
+ * executable reopen condition (`bench/refusals.txt`). They are in the
+ * struct so that a caller reading this report does not have to change
+ * when one of them lands. */
+typedef struct jaos_presolve_report {
+    int64_t num_row, num_col, num_nz;   /* what the simplex ran on */
+    int64_t rounds;
+    int64_t fixed_col;
+    int64_t empty_row, empty_col;
+    int64_t singleton_row, singleton_col;
+    int64_t free_col_singleton;
+    int64_t forcing_row, redundant_row;
+    int64_t implied_free_col;
+    int64_t tightened_bound;
+    int64_t duplicate_row, duplicate_col, dominated_col;
+} jaos_presolve_report;
+
+JAOS_NODISCARD jaos_status jaos_presolve_result(const jaos_model *m,
+                                                jaos_presolve_report *out);
+
 JAOS_NODISCARD jaos_status jaos_model_statistics(const jaos_model *m,
                                                  jaos_model_stats *out);
 

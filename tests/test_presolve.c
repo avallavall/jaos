@@ -4455,12 +4455,78 @@ static void test_the_recovered_column_respects_the_bound_it_was_promised(void)
 #endif
 }
 
+
+/* What jaos_presolve_result publishes (D329). The model is built so that
+ * two named families fire and nothing else does: an empty row, which no
+ * column touches, and a fixed column whose two bounds are equal. The
+ * assertion that matters is not the individual counts but that the
+ * reduced size and the counts tell the same story, and that a build with
+ * presolve compiled out reports zeros rather than stale numbers. */
+static void test_the_presolve_report_says_what_was_removed(void)
+{
+    jaos_model *m = nullptr;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_model_new(&m));
+
+    jaos_presolve_report rep;
+    /* Nothing before a solve, and the argument check. */
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_presolve_result(m, &rep));
+    TEST_ASSERT_EQUAL_INT64(0, rep.rounds);
+    TEST_ASSERT_EQUAL_INT64(0, rep.num_row);
+    TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT,
+                          jaos_presolve_result(m, nullptr));
+
+    /* min x + y, with x fixed at 2, one live row x + y >= 3, and one row
+     * no column touches at all. */
+    const double cost[2] = { 1.0, 1.0 };
+    const double cl[2] = { 2.0, 0.0 }, cu[2] = { 2.0, INFINITY };
+    const double rl[2] = { 3.0, -INFINITY }, ru[2] = { INFINITY, 10.0 };
+    const int64_t as[3] = { 0, 1, 2 }, ai[2] = { 0, 0 };
+    const double av[2] = { 1.0, 1.0 };
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_load_lp(m, 2, 2, JAOS_MINIMIZE, 0.0, cost, cl, cu, rl, ru,
+                     2, as, ai, av));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+    double obj = 0.0;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(m, &obj));
+    TEST_ASSERT_DOUBLE_WITHIN(1e-9, 3.0, obj);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_presolve_result(m, &rep));
+
+#if defined(JAOS_NO_PRESOLVE)
+    /* Compiled out: zeros, and the simplex ran on the model as loaded.
+     * This arm is the one that says the report is not reporting a
+     * constant. */
+    TEST_ASSERT_EQUAL_INT64(0, rep.rounds);
+    TEST_ASSERT_EQUAL_INT64(0, rep.fixed_col);
+    TEST_ASSERT_EQUAL_INT64(0, rep.empty_row);
+    TEST_ASSERT_EQUAL_INT64(2, rep.num_row);
+    TEST_ASSERT_EQUAL_INT64(2, rep.num_col);
+#else
+    TEST_ASSERT_TRUE(rep.rounds > 0);
+    TEST_ASSERT_EQUAL_INT64(1, rep.fixed_col);
+    TEST_ASSERT_TRUE(rep.empty_row >= 1);
+    /* Whatever fired, the model the simplex ran on is smaller than the
+     * one that was loaded, and never larger. */
+    TEST_ASSERT_TRUE(rep.num_row <= 2);
+    TEST_ASSERT_TRUE(rep.num_col <= 2);
+    /* The four deferred families report zero, and `docs/claims.txt` says
+     * they do not exist yet. */
+    TEST_ASSERT_EQUAL_INT64(0, rep.duplicate_row);
+    TEST_ASSERT_EQUAL_INT64(0, rep.duplicate_col);
+    TEST_ASSERT_EQUAL_INT64(0, rep.dominated_col);
+    TEST_ASSERT_EQUAL_INT64(0, rep.tightened_bound);
+#endif
+    jaos_model_free(m);
+}
+
+
 int main(void)
 {
     UNITY_BEGIN();
     RUN_TEST(test_fixed_column_round_trip);
     RUN_TEST(test_postsolved_basis_has_exactly_num_row_basic_entries);
     RUN_TEST(test_fixed_col_counter_is_exact);
+    RUN_TEST(test_the_presolve_report_says_what_was_removed);
     RUN_TEST(test_all_columns_fixed_solves_with_no_iterations);
     RUN_TEST(test_original_arrays_survive_a_reducing_solve);
     RUN_TEST(test_fixed_column_index_map_off_by_one);
