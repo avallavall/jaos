@@ -3196,6 +3196,44 @@ static void test_the_algorithm_is_a_caller_option(void)
     jaos_model_free(m);
 }
 
+static void test_devex_and_dantzig_pricing_reach_the_same_optimum(void)
+{
+#if defined(JAOS_PRESOLVE_FAULT_OFFBYONE) || defined(JAOS_PRESOLVE_FAULT_WRONGDUAL)
+    TEST_IGNORE_MESSAGE("positive test, skipped under either fault build");
+#else
+    const double cost[4] = {-1.0, -2.0, -3.0, 1.0};
+    const double cl[4] = {0.0, 0.0, 0.0, 0.0}, cu[4] = {4.0, 4.0, 4.0, 4.0};
+    const double rl[3] = {-INFINITY, -INFINITY, 1.0};
+    const double ru[3] = {6.0, 7.0, INFINITY};
+    const int64_t as[5] = {0, 3, 6, 8, 10};
+    const int64_t ai[10] = {0, 1, 2, 0, 1, 2, 0, 1, 1, 2};
+    const double av[10] = {1.0, 1.0, 1.0, 1.0, 2.0, 1.0, 2.0, 1.0, 1.0, 1.0};
+    double obj[2] = {0.0, 0.0};
+    int64_t iters[2] = {0, 0};
+    for (int pass = 0; pass < 2; pass++) {
+        jaos_model *m = nullptr;
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_model_new(&m));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_load_lp(m, 4, 3, JAOS_MINIMIZE, 0.0,
+                                                    cost, cl, cu, rl, ru,
+                                                    10, as, ai, av));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_algorithm(m, JAOS_ALGORITHM_PRIMAL));
+        m->cfg.primal_dantzig = pass == 1;
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+        TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(m, &obj[pass]));
+        iters[pass] = jaos_iterations(m);
+        double x[4], y[3];
+        jaos_check_report rep;
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solution(m, x, nullptr, y, nullptr));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_check_solution(m, x, y, 1e-9, &rep));
+        TEST_ASSERT_TRUE(rep.primal_feasible && rep.dual_feasible);
+        jaos_model_free(m);
+    }
+    TEST_ASSERT_DOUBLE_WITHIN(1e-12, obj[1], obj[0]);
+    TEST_ASSERT_TRUE(iters[0] > 0 && iters[1] > 0);
+#endif
+}
+
 int main(void)
 {
     UNITY_BEGIN();
@@ -3319,5 +3357,6 @@ int main(void)
     RUN_TEST(test_a_loan_nobody_holds_is_retired_before_publishing);
     RUN_TEST(test_a_retired_loan_leaves_a_basis_of_the_model);
     RUN_TEST(test_the_algorithm_is_a_caller_option);
+    RUN_TEST(test_devex_and_dantzig_pricing_reach_the_same_optimum);
     return UNITY_END();
 }

@@ -25,6 +25,8 @@ constexpr double DSE_MIN = 1e-12;
 
 constexpr double DSE_DRIFT = 10.0;
 
+constexpr double DEVEX_RESET = 3.0;
+
 constexpr int64_t SPARSE_ALPHA_DEN = 4;
 
 constexpr int64_t SPARSE_RHO_DEN = 4;
@@ -83,6 +85,11 @@ typedef struct {
     double *d;
 
     double *dse;
+
+    double *devex;
+    uint64_t *devref;
+    bool devex_on;
+    bool devex_stale;
 
     jm_lu lu;
     jm_work work;
@@ -210,6 +217,7 @@ static void sx_free(sx *s)
     free(s->lo); free(s->up); free(s->cost); free(s->cost0); free(s->shift);
     free(s->status); free(s->basis); free(s->where);
     free(s->xb); free(s->d); free(s->dse);
+    free(s->devex); free(s->devref);
     free(s->col); free(s->raw); free(s->rhsc); free(s->resc);
     free(s->y); free(s->rho);
     free(s->tau); free(s->alpha); free(s->apat); free(s->amark);
@@ -269,6 +277,10 @@ static jaos_status sx_init(sx *s, jaos_model *m)
     s->xb     = jm_calloc_array(s->nrow, sizeof(double));
     s->d      = jm_calloc_array(s->nvar, sizeof(double));
     s->dse    = jm_alloc_array(s->nrow, sizeof(double));
+    s->devex  = jm_alloc_array(s->nvar, sizeof(double));
+    s->devref = jm_calloc_array((s->nvar + 63) / 64, sizeof(uint64_t));
+    s->devex_on = false;
+    s->devex_stale = false;
     s->col    = jm_calloc_array(s->nrow, sizeof(double));
     s->raw    = jm_calloc_array(s->nrow, sizeof(double));
     s->rhsc   = jm_calloc_array(s->nrow, sizeof(double));
@@ -301,7 +313,7 @@ static jaos_status sx_init(sx *s, jaos_model *m)
     if (!s->av || !s->arv || !s->lo || !s->up || !s->cost || !s->cost0 ||
         !s->shift ||
         !s->status || !s->basis ||
-        !s->where || !s->xb || !s->d || !s->dse ||
+        !s->where || !s->xb || !s->d || !s->dse || !s->devex || !s->devref ||
         !s->col || !s->raw || !s->rhsc || !s->resc ||
         !s->y || !s->rho || !s->tau || !s->alpha || !s->apat || !s->amark ||
         !s->nbmark ||
@@ -1446,6 +1458,72 @@ static void update_dual(sx *s, int64_t v, int64_t q, double theta_dual)
         shift_to_feasible(s, v);
 }
 
+static inline bool devref_has(const sx *s, int64_t v)
+{
+    return (s->devref[v >> 6] >> (v & 63)) & 1u;
+}
+
+static void devex_reset(sx *s)
+{
+    memset(s->devref, 0, (size_t)((s->nvar + 63) / 64) * sizeof *s->devref);
+    for (int64_t v = 0; v < s->nvar; v++) {
+        s->devex[v] = 1.0;
+        if (s->status[v] != JM_BASIC)
+            s->devref[v >> 6] |= (uint64_t)1 << (v & 63);
+    }
+    s->devex_stale = false;
+    jm_work_add(&s->work, s->nvar * JM_WORK_NONZERO);
+}
+
+static void devex_update(sx *s, int64_t q, int64_t leaving, double alpha_q)
+{
+    const double wq = s->devex[q];
+    double truew = devref_has(s, q) ? 1.0 : 0.0;
+    if (s->ncpat >= 0) {
+        for (int64_t k = 0; k < s->ncpat; k++) {
+            const int64_t i = s->cpat[k];
+            if (devref_has(s, s->basis[i]))
+                truew += s->col[i] * s->col[i];
+        }
+        jm_work_add(&s->work, s->ncpat * JM_WORK_NONZERO);
+    } else {
+        for (int64_t i = 0; i < s->nrow; i++)
+            if (devref_has(s, s->basis[i]))
+                truew += s->col[i] * s->col[i];
+        jm_work_add(&s->work, s->nrow * JM_WORK_NONZERO);
+    }
+    if (truew > DEVEX_RESET * wq || wq > DEVEX_RESET * truew) {
+        s->devex_stale = true;
+        s->n_weight_restart++;
+        return;
+    }
+    const double inv = 1.0 / alpha_q;
+    if (s->anpat < 0) {
+        for (int64_t v = 0; v < s->nvar; v++) {
+            if (s->status[v] == JM_BASIC || v == q)
+                continue;
+            const double ratio = s->alpha[v] * inv;
+            const double w = ratio * ratio * wq;
+            if (w > s->devex[v])
+                s->devex[v] = w;
+        }
+        jm_work_add(&s->work, s->nvar * JM_WORK_NONZERO);
+    } else {
+        for (int64_t t = 0; t < s->anpat; t++) {
+            const int64_t v = s->apat[t];
+            if (s->status[v] == JM_BASIC || v == q)
+                continue;
+            const double ratio = s->alpha[v] * inv;
+            const double w = ratio * ratio * wq;
+            if (w > s->devex[v])
+                s->devex[v] = w;
+        }
+        jm_work_add(&s->work, s->anpat * JM_WORK_NONZERO);
+    }
+    const double wl = wq * inv * inv;
+    s->devex[leaving] = wl > 1.0 ? wl : 1.0;
+}
+
 static jaos_status pivot(sx *s, int64_t r, int64_t q, bool below,
                          double theta_dual, bool *took)
 {
@@ -1493,6 +1571,9 @@ static jaos_status pivot(sx *s, int64_t r, int64_t q, bool below,
     s->d[leaving] = -theta_dual;
     s->d[q] = 0.0;
 
+    if (s->devex_on)
+        devex_update(s, q, leaving, alpha_q);
+
     memcpy(s->tau, s->rho, (size_t)s->nrow * sizeof *s->tau);
     jm_lu_ftran(&s->lu, s->tau, &s->work);
 
@@ -1535,6 +1616,9 @@ static jaos_status pivot(sx *s, int64_t r, int64_t q, bool below,
     s->status[q] = JM_BASIC;
     jm_nonbasic_remove(s->nbmark, q);
     s->where[q] = r;
+
+    if (s->devex_on && s->devex_stale)
+        devex_reset(s);
 
     if (!s->in_phase1)
         shift_to_feasible(s, leaving);
@@ -2341,8 +2425,10 @@ static int64_t primal_price(sx *s, double *total)
                 best = v;
             continue;
         }
-        if (breach > best_breach) {
-            best_breach = breach;
+        const double score = s->devex_on ? breach * breach / s->devex[v]
+                                         : breach;
+        if (score > best_breach) {
+            best_breach = score;
             best = v;
         }
     }
@@ -2791,7 +2877,7 @@ static jaos_status run_primal_phase1(sx *s, jaos_solve_status *out,
         primal_phase1_duals(s);
 
         int64_t q = -1;
-        double best_d = s->dual_tol;
+        double best_score = 0.0;
         for (int64_t v = 0; v < s->nvar; v++) {
             if (s->status[v] == JM_BASIC || s->lo[v] == s->up[v])
                 continue;
@@ -2802,14 +2888,18 @@ static jaos_status run_primal_phase1(sx *s, jaos_solve_status *out,
             case JM_FREE:     gain = fabs(s->d[v]); break;
             default:          continue;
             }
+            if (gain <= s->dual_tol)
+                continue;
 
             if (s->bland) {
-                if (q < 0 && gain > s->dual_tol)
+                if (q < 0)
                     q = v;
                 continue;
             }
-            if (gain > best_d) {
-                best_d = gain;
+            const double score = s->devex_on ? gain * gain / s->devex[v]
+                                             : gain;
+            if (score > best_score) {
+                best_score = score;
                 q = v;
             }
         }
@@ -2923,6 +3013,10 @@ static jaos_status run_primal(sx *s, jaos_solve_status *out)
 
     s->shift_pending = false;
 
+    s->devex_on = !s->m->cfg.primal_dantzig;
+    if (s->devex_on)
+        devex_reset(s);
+
     bool ok = false;
     jaos_status st = refresh(s, &ok, false);
     if (st != JAOS_OK)
@@ -2966,6 +3060,8 @@ static jaos_status run_primal(sx *s, jaos_solve_status *out)
         s->last_gain = s->iters;
         s->bland = false;
         s->dinfeas_best = HUGE_VAL;
+        if (s->devex_on)
+            devex_reset(s);
     }
 
     s->infeas_best = 0.0;
@@ -3142,7 +3238,7 @@ static jaos_status run_primal(sx *s, jaos_solve_status *out)
 
 static jaos_status run(sx *s, jaos_solve_status *out)
 {
-
+    s->devex_on = false;
     s->infeas_best = HUGE_VAL;
     s->last_gain = s->iters;
     s->bland = false;

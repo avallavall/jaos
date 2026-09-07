@@ -22,6 +22,7 @@ typedef struct {
     void *progress_user;
 
     bool force_primal;
+    bool primal_dantzig;
 
     double mip_gap;
 
