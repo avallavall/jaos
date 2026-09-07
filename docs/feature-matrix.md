@@ -30,7 +30,7 @@ Gurobi and are left out only to keep the table readable.
 columns were last checked against their published documentation on
 2026-09-04, and that pass moved six cells — two of them corrections rather
 than news, because HiGHS's and SCIP's IIS both predate the previous check.
-Versions: JAOS 0.2.0 · HiGHS 1.15.1 · SoPlex 8.0.3 · Clp 1.17.11 ·
+Versions: JAOS 0.3.0 · HiGHS 1.15.1 · SoPlex 8.0.3 · Clp 1.17.11 ·
 SCIP 10.0.3 · Gurobi 13.0.3 · Hexaly 15.0. No rival's major version moved
 since 2026-08-13; only patch levels did.*
 
@@ -352,10 +352,18 @@ deliberate constraint, not an accident of youth.
 
 ## What the matrix says
 
-**JAOS is an LP solver and most of this page is empty for it.** That is expected
-at 0.2.0 and it is not a criticism. What matters is whether the empty cells are
-the right ones to be empty. JAOS is present in eight of the ten sections; the
-two it is absent from entirely are mixed-integer machinery and parallelism.
+**JAOS is an LP and mixed-integer solver, and most of this page is still
+empty for it.** That is expected at 0.3.0 and it is not a criticism. What
+matters is whether the empty cells are the right ones to be empty. JAOS is
+present in nine of the ten sections now; the one it is absent from entirely
+is parallelism.
+
+**That sentence read differently at 0.2.0**, when it said JAOS was absent
+from mixed-integer machinery too. The MILP column filled between the two
+releases: branch and bound over the dual simplex, three cut families,
+three heuristics, a solution pool and the tree's own caller inputs, every
+default swept and every refused switch left reachable so its refusal can
+be re-tested.
 
 **Three things JAOS has that the field mostly does not.** Bit-identical results
 across machines, which Gurobi explicitly does not promise. An independent

@@ -9,6 +9,60 @@ open, `bench/README.md` for the gate, and the commit each entry came from.
 
 ## [Unreleased]
 
+Nothing yet.
+
+## [0.3.0] — 2026-09-07
+
+The mixed-integer release, and the release that gave JAOS a command line.
+
+**JAOS solves mixed-integer programs.** `src/mip.c` is a branch and bound
+over the dual simplex: one private copy re-bounded per node, warm from its
+parent, best bound first with creation order breaking ties, so the tree is
+the same on every machine (D288). Three cut families at the root and below
+it — Gomory mixed-integer, knapsack cover, and mixed-integer rounding on
+the model's rows — with a cut that stops binding leaving the relaxation
+under the node where it does (D289, D296, D297, D300, D301, D306, D309).
+Three heuristics: rounding at every node, a dive at the root, and the
+feasibility pump with the objective blended in (D290, D313, D318, D321).
+Pseudocost branching (D292), a solution pool (D299), a node limit and an
+incumbent callback (D291), and the tree's own caller inputs — a starting
+point and an objective cutoff (D326). **Every accepted default is worth
+6.021x together** on the 24 MIPLIB 3 instances of `bench/miplib.manifest`,
+measured against the plain tree, with four instances the plain tree cannot
+finish at all (D319).
+
+**A switch that was refused stays reachable, so its refusal can be
+re-tested.** Fourteen of this release's refusals carry a reopen condition
+in `bench/refusals.txt`, and `make refusals` runs the ones with a script;
+several more are folded into a neighbour's entry because they are forms of
+the same question. The
+dive is measured out in seven forms and closed (D317). The last three
+refusals share one finding worth more than any of them: **a bound
+tightening that is valid makes this set's trees bigger** — the deduction
+is free, and what costs is what it does to the branching (D322, D323,
+D324).
+
+**A command-line tool.** `cli/jaos.c`, over the public header only:
+`solve`, `convert`, `check`, `stats`, `iis`, `verify` and `ranging`, one
+fact per line, the exit code the verdict, and 46 options each with a
+measurement behind it. `docs/cli.md` documents all of them.
+
+**An answer can now leave the process that found it, with its proof.**
+Every row and column has a name, from the file or the setter or its
+position, and both readers and both writers carry them (D284). The
+solution file carries the Farkas multipliers of an infeasible answer or
+the ray of an unbounded one (D285). And the exact proof is a file of its
+own: every value and dual as a decimal rational, judged back **from the
+model alone, reading no basis, with no tolerance anywhere** (D325, D328).
+Over the reference sets, 18 of the 29 infeasibilities certify exactly, and
+every one of the 28 optimum proofs that exists passes a checker sharing no
+code with the prover that made it. The feature matrix's "machine-checkable
+certificate" cell is full.
+
+**Also**: a proved basis gives its coordinates as exact rationals (D286),
+`jaos_model_copy` (D286), model statistics (D327), presolve reporting
+(D329), and the Python layer follows every one of them at both layers.
+
 ### Added
 
 - **What presolve removed is reported to the caller, not only to the

@@ -12,10 +12,11 @@ accepts it against the model as the caller loaded it.
 
 ## Status
 
-The last tagged release is 0.2.0, from 2026-09-02. `main` carries everything
-landed since, listed under *Unreleased* in `CHANGELOG.md`. The current
-milestone is M2, which is about speed; `SPECS.md` states its success
-criterion.
+The last tagged release is 0.3.0, from 2026-09-07 — the release that made
+JAOS a mixed-integer solver and gave it a command-line tool. `main` carries
+everything landed since, listed under *Unreleased* in `CHANGELOG.md`. The
+current milestone is M2, which is about speed; `SPECS.md` states its
+success criterion.
 
 This is a working solver and not a finished one. It answers all 139 Netlib
 reference instances correctly and solves 24 MIPLIB 3 instances to their
@@ -90,9 +91,13 @@ from where it stopped.
 the status, the objective, the counts and the time, one per line, and every
 line but the time is byte-identical between runs; the exit code is the
 verdict. `jaos convert` moves between formats, `jaos check` judges a solution
-file, `jaos iis` names an infeasible subsystem, `jaos verify` runs the exact
-proof, `jaos ranging` prints the ranges. Every branch-and-bound switch is a
-flag. [`docs/cli.md`](docs/cli.md).
+file, `jaos stats` counts what a model is, `jaos iis` names an infeasible
+subsystem, `jaos verify` runs the exact proof, `jaos ranging` prints the
+ranges. `solve --proof` and `verify --proof` write the answer's exact proof
+to a file, and `check --proof` judges one back from the model alone, over
+the rationals and with no tolerance. Every branch-and-bound switch is a
+flag, and every one of them has a measurement behind it.
+[`docs/cli.md`](docs/cli.md).
 
 **Python.** `python/jaos.py` over `libjaos.so`, standard library only, so it
 needs no compiler and no packages. Models are written directly, or loaded
